@@ -1,5 +1,5 @@
 # Unfallatlas
-Script zum Konvertieren von Daten.
+Script zum Konvertieren von Daten (Nur Hannover).
 
 Benötigt curl, unzip, head und awk
 
