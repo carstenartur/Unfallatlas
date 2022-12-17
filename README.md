@@ -1,5 +1,6 @@
 # Unfallatlas
 Script zum Konvertieren von Daten
+Benötigt curl, unzip, head und awk
 
 Unfallatlas auf
 
@@ -30,4 +31,8 @@ WKT,Name,OBJECTID
 ```
 
 Dadurch kann man die Daten dann in google maps importieren
+
+Wegen der Datenmengenbegrenzung beim Import in google maps werden nur die ersten 2000 Zeilen importiert.
+
+https://www.google.com/maps/d/viewer?hl=de&hl=de&mid=141aHGXdO_4ZUzENVbB2fFYjxQDgcpac&ll=52.37912703502791%2C9.73286511695368&z=15
 
