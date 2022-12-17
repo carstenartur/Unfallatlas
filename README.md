@@ -1,5 +1,6 @@
 # Unfallatlas
-Script zum Konvertieren von Daten
+Script zum Konvertieren von Daten.
+
 Benötigt curl, unzip, head und awk
 
 Unfallatlas auf
@@ -39,6 +40,7 @@ Wegen der Datenmengenbegrenzung beim Import in google maps werden nur die ersten
 ![image](https://user-images.githubusercontent.com/3164220/208238510-32f58332-969e-4fff-9f89-c22ee4198048.png)
 
 Diese Karte kann dann auch in Google Earth geöffnet werden
+
 ![image](https://user-images.githubusercontent.com/3164220/208238767-f230bfd7-e631-468d-97a6-0307a3457f18.png)
 
 
