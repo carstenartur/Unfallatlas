@@ -38,6 +38,8 @@ Wegen der Datenmengenbegrenzung beim Import in google maps werden nur die ersten
 
 ![image](https://user-images.githubusercontent.com/3164220/208238510-32f58332-969e-4fff-9f89-c22ee4198048.png)
 
+Diese Karte kann dann auch in Google Earth geöffnet werden
+![image](https://user-images.githubusercontent.com/3164220/208238767-f230bfd7-e631-468d-97a6-0307a3457f18.png)
 
 
 https://www.google.com/maps/d/viewer?hl=de&hl=de&mid=141aHGXdO_4ZUzENVbB2fFYjxQDgcpac&ll=52.37912703502791%2C9.73286511695368&z=15
