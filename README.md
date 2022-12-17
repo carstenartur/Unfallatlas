@@ -36,6 +36,9 @@ Wegen der Datenmengenbegrenzung beim Import in google maps werden nur die ersten
 
 ![image](https://user-images.githubusercontent.com/3164220/208238452-d67a3db4-b15e-40ce-994b-34ab86ae9813.png)
 
+![image](https://user-images.githubusercontent.com/3164220/208238510-32f58332-969e-4fff-9f89-c22ee4198048.png)
+
+
 
 https://www.google.com/maps/d/viewer?hl=de&hl=de&mid=141aHGXdO_4ZUzENVbB2fFYjxQDgcpac&ll=52.37912703502791%2C9.73286511695368&z=15
 
