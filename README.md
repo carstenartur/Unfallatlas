@@ -46,3 +46,4 @@ Diese Karte kann dann auch in Google Earth geöffnet werden
 
 https://www.google.com/maps/d/viewer?hl=de&hl=de&mid=141aHGXdO_4ZUzENVbB2fFYjxQDgcpac&ll=52.37912703502791%2C9.73286511695368&z=15
 
+
