@@ -13,7 +13,7 @@ Aufruf:
 
 Anschliessend liegen 4 Dateien im aktuellen Verzeichnis
 
-![image](https://user-images.githubusercontent.com/3164220/208239167-9a4febba-c82f-4132-88a4-82d5f3727345.png)
+![image](https://user-images.githubusercontent.com/3164220/208239194-ad727afd-75fc-475c-9b27-4e7cffe621f8.png)
 
 
 
