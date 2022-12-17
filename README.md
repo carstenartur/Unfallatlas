@@ -3,6 +3,20 @@ Script zum Konvertieren von Daten (Nur Hannover).
 
 Benötigt curl, unzip, head und awk
 
+Aufruf:
+
+```
+./convertAmt2gmaps.sh
+```
+
+![image](https://user-images.githubusercontent.com/3164220/208239129-527fc27d-a4bb-43a7-a6cb-98942747689d.png)
+
+Anschliessend liegen 4 Dateien im aktuellen Verzeichnis
+
+![image](https://user-images.githubusercontent.com/3164220/208239167-9a4febba-c82f-4132-88a4-82d5f3727345.png)
+
+
+
 Unfallatlas auf
 
 https://unfallatlas.statistikportal.de/
