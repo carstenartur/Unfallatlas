@@ -67,3 +67,6 @@ https://www.govdata.de/dl-de/by-2-0
 Weitere Informationen 
 
 https://urban-digital.de/mit-simra-sicherheit-im-radverkehr-herausfinden-wo-sich-beinaheunfaelle-im-radverkehr-haeufen/
+
+https://www.nature.com/articles/s43588-022-00318-w
+
