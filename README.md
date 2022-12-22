@@ -63,3 +63,7 @@ https://www.google.com/maps/d/viewer?hl=de&hl=de&mid=141aHGXdO_4ZUzENVbB2fFYjxQD
 Datenlizenz:
 
 https://www.govdata.de/dl-de/by-2-0
+
+Weitere Informationen 
+
+https://urban-digital.de/mit-simra-sicherheit-im-radverkehr-herausfinden-wo-sich-beinaheunfaelle-im-radverkehr-haeufen/
