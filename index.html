@@ -58,6 +58,7 @@
       border: 1px solid #ddd; border-radius: 8px;
       font: inherit;
     }
+
     .toggles { display: flex; gap: 8px; margin-top: 8px; }
     .btn {
       flex: 1;
@@ -71,6 +72,26 @@
       font-weight: 600;
     }
     .btn.active { background: #e9f2ff; border-color: #b7d4ff; }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      user-select: none;
+    }
+    .chip input { width: auto; }
+    .chip span { font-weight: 600; }
+
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
     .stat { margin-top: 8px; font-size: 12px; color: #333; }
     code { background: #f3f3f3; padding: 1px 4px; border-radius: 6px; }
@@ -97,6 +118,15 @@
         <option value="2">2 (Schwer)</option>
         <option value="3">3 (Leicht)</option>
       </select>
+    </div>
+
+    <!-- NEU: Beteiligung -->
+    <div style="margin-top:10px; font-weight:600;">Beteiligung</div>
+    <div class="chips" aria-label="Beteiligung Filter">
+      <label class="chip"><input type="checkbox" id="tRad" checked> <span>🚲 Rad</span></label>
+      <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
+      <label class="chip"><input type="checkbox" id="tPKW" checked> <span>🚗 PKW</span></label>
+      <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
     </div>
 
     <div class="row">
@@ -145,13 +175,19 @@
     const btnCluster = document.getElementById('toggleCluster');
     const btnHeat = document.getElementById('toggleHeat');
 
+    // NEU: Typ-Checkboxen
+    const tRadEl = document.getElementById('tRad');
+    const tFussEl = document.getElementById('tFuss');
+    const tPKWEl = document.getElementById('tPKW');
+    const tKradEl = document.getElementById('tKrad');
+
     let showCluster = true;
     let showHeat = true;
 
     // Data
     let all = null;               // full geojson
     let allPts = [];              // [{lat, lon, props}]
-    let filteredGlobal = [];      // after year/kat/max filter (still global)
+    let filteredGlobal = [];      // after year/kat/type/max filter (still global)
     let viewportPts = [];         // after viewport cropping
 
     // Layers
@@ -165,12 +201,22 @@
         .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
     }
 
+    function involvementText(p) {
+      const tags = [];
+      if (String(p?.istrad) === "1") tags.push("🚲 Rad");
+      if (String(p?.istfuss) === "1") tags.push("🚶 Fuß");
+      if (String(p?.istpkw) === "1") tags.push("🚗 PKW");
+      if (String(p?.istkrad) === "1") tags.push("🏍️ Krad");
+      return tags.length ? tags.join(", ") : "—";
+    }
+
     function popupHtml(p) {
       return `
         <div style="font: 14px/1.25 system-ui;">
           <div><strong>${escHtml(p.name)}</strong></div>
           <div>Jahr: ${escHtml(p.year)}</div>
           <div>Kategorie: ${escHtml(p.ukategorie)}</div>
+          <div>Beteiligung: ${escHtml(involvementText(p))}</div>
           <div>Uhrzeit: ${escHtml(p.ustunde)} / Wochentag: ${escHtml(p.uwochentag)} / Monat: ${escHtml(p.umonat)}</div>
           <div>Licht: ${escHtml(p.ulichtverh)}</div>
           <div>Straße: ${escHtml(p.strasse)}</div>
@@ -210,7 +256,6 @@
       const padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
       const b = map.getBounds();
 
-      // expand bounds by percentage of size
       const latSpan = b.getNorth() - b.getSouth();
       const lonSpan = b.getEast() - b.getWest();
 
@@ -221,6 +266,23 @@
         [b.getSouth() - dLat, b.getWest() - dLon],
         [b.getNorth() + dLat, b.getEast() + dLon]
       );
+    }
+
+    function passesTypeFilter(pr) {
+      const sRad  = tRadEl.checked;
+      const sFuss = tFussEl.checked;
+      const sPKW  = tPKWEl.checked;
+      const sKrad = tKradEl.checked;
+
+      // Wenn alle aus: nichts anzeigen
+      if (!sRad && !sFuss && !sPKW && !sKrad) return false;
+
+      const isRad  = String(pr?.istrad)  === "1";
+      const isFuss = String(pr?.istfuss) === "1";
+      const isPKW  = String(pr?.istpkw)  === "1";
+      const isKrad = String(pr?.istkrad) === "1";
+
+      return (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
     }
 
     function applyGlobalFilter() {
@@ -235,6 +297,10 @@
         const pr = p.props || {};
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
         if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
+
+        // NEU: Typ-Filter
+        if (!passesTypeFilter(pr)) continue;
+
         out.push(p);
         if (out.length >= maxN) break;
       }
@@ -290,11 +356,18 @@
         }).addTo(map);
       }
 
-      // Stats
+      const activeTypes = [
+        tRadEl.checked ? "Rad" : null,
+        tFussEl.checked ? "Fuß" : null,
+        tPKWEl.checked ? "PKW" : null,
+        tKradEl.checked ? "Krad" : null
+      ].filter(Boolean).join(", ");
+
       statEl.textContent =
         `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
         `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
-        `Im Viewport: ${viewportPts.length.toLocaleString()}`;
+        `Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
+        `Typen: ${activeTypes || "—"}`;
     }
 
     // Debounce für moveend/zoomend (iPhone)
@@ -337,6 +410,15 @@
         applyViewportFilter();
         renderLayers();
       });
+
+      // NEU: Typ-Filter
+      for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
+        el.addEventListener('change', () => {
+          applyGlobalFilter();
+          applyViewportFilter();
+          renderLayers();
+        });
+      }
 
       // viewport padding or heat radius => re-render viewport
       padEl.addEventListener('change', () => {
