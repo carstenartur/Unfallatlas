@@ -2,195 +2,220 @@
 set -eu
 
 ###############################################################################
-# Unfallatlas Converter
-# - Lädt Unfallatlas-Unfallorte je Jahr (CSV im ZIP)
-# - Filtert nach Region (ULAND/UREGBEZ/UKREIS) und Unfallart (IstRad/IstPKW/…)
-# - Erzeugt pro Jahr:
-#     out/outputYYYY.csv     (Google-Maps CSV mit WKT)
-#     out/outputYYYY.geojson (WGS84 GeoJSON)
-# - Erzeugt kombiniert:
+# Unfallatlas -> Google-Maps-CSV + GeoJSON
+#
+# Features:
+# - Lädt Unfallorte je Jahr (ZIP->CSV/TXT) von opengeodata.nrw.de
+# - Filtert nach Region: ULAND/UREGBEZ/UKREIS (+ optional UGEMEINDE)
+# - Optional: Stadtname -> AGS (>=100k Einwohner) über lokalen Cache (ohne Python)
+# - Filtert nach Beteiligung: IstRad / IstPKW / IstFuss / IstKrad (optional)
+# - Schreibt pro Jahr:
+#     out/outputYYYY.csv     (Google Maps Import geeignet: WKT + Name + …)
+#     out/outputYYYY.geojson (WGS84 FeatureCollection)
+# - Schreibt kombiniert:
 #     out/output_all_years.csv
 #     out/output_all_years.geojson
 #
-# Neue Benutzerfunktionen:
-#   --city "<Name>"      (z.B. "Hannover")
-#   --city-id <ID>       (z.B. 032305)
-#   --list-cities
-#   --search <text>
-#   --years 2019-2024  | --years 2018,2020,2022
-#   --limit 2000
-#   --outdir out
-#   --rad | --pkw | --fuss | --krad | --gkfz | --sonstig
+# Erweiterung: zusätzliche sinnvolle Felder in CSV+GeoJSON:
+#   - UKATEGORIE   (Unfallschwere)
+#   - UTYP1        (Unfalltyp)
+#   - UART         (Unfallart)
+#   - UMONAT, USTUNDE, UWOCHENTAG (Zeit)
+#   - STRZUSTAND   (Straßenzustand)
 #
-# WICHTIG ZUR "vollständigen" internen Liste:
-# - Unten ist die komplette, im ursprünglichen Script enthaltene Ortsliste als
-#   maschinenlesbare CITY_LIST enthalten (ID;NAME).
-# - Für die tatsächliche Filterung braucht Unfallatlas aber ULAND/UREGBEZ/UKREIS.
-#   Diese Werte sind NICHT in der ursprünglichen Liste enthalten.
-# - Daher gibt es zusätzlich CITY_REGION_MAP für Orte/Regionen, für die diese
-#   Codes explizit gepflegt sind. Default bleibt Hannover.
-# - Du kannst CITY_REGION_MAP beliebig erweitern (einfach weitere Zeilen).
+# Abhängigkeiten: curl, unzip, awk, head, tail, grep, sed
 ###############################################################################
 
+###############################################################################
+# Defaults / Konfiguration
+###############################################################################
+OUTDIR="out"
+LIMIT=1999
+YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
+
+# Default: Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
+ULAND="03"
+UREGBEZ="2"
+UKREIS="41"
+UGEMEINDE=""     # optional: 3-stellig (z.B. "001"), leer = alle Gemeinden im Kreis
+CITY_DISPLAY="Hannover (Default: Region Hannover)"
+
+# Filter: Beteiligung (Default Fahrrad wie früher)
+# Hinweis: leer bedeutet "nicht filtern" für diese Spalte (d.h. ignorieren).
+IST_RAD="1"      # IstRad (Default 1)
+IST_PKW=""       # IstPKW
+IST_FUSS=""      # IstFuss
+IST_KRAD=""      # IstKrad
+
+# City-Caching (ohne Python):
+# - Cache wird per --update-city-cache erzeugt (>=100k Einwohner).
+CITY_CACHE="${OUTDIR}/city_cache.tsv"  # name<TAB>ags8<TAB>pop
+CITY_MIN_POP=100000
+GVZ_API_BASE="https://gvz.tuerantuer.org/api/administrative_divisions/"
+
+###############################################################################
+# Hilfe / Args
+###############################################################################
 usage() {
   cat <<'EOF'
 Usage:
   ./convertAmt2gmaps.sh [options]
 
-Options:
-  --city <name>        Ortsname aus interner Liste (z.B. "Hannover")
-  --city-id <id>       Orts-ID aus interner Liste (z.B. 032305)
-  --list-cities        Alle Orte (Name + ID) anzeigen
-  --search <text>      Suche in Ortsnamen/IDs
-  --years <spec>       Jahre: "2019-2024" oder "2018,2020,2022"
-  --limit <n>          Max. Features pro Jahr (Default: 1999)
-  --outdir <dir>       Ausgabeordner (Default: out)
-  --rad | --pkw | --fuss | --krad | --gkfz | --sonstig
-                       Unfallart-Filter (Default: --rad)
-  -h|--help            Hilfe
+Optionen:
+  --years "2018 2019 ..."     Jahre (Default: 2016..2024)
+  --limit N                  Max. Treffer pro Jahr (Default: 1999)
+  --outdir DIR               Ausgabeverzeichnis (Default: out)
 
-Default:
-  Ohne --city/--city-id wird Region Hannover genutzt (ULAND=03, UREGBEZ=2, UKREIS=41).
+Region-Filter:
+  --uland 03 --uregb 2 --ukreis 41 [--ugemeinde 001]
+
+Stadt-Filter (benutzerfreundlich, erfordert Cache):
+  --update-city-cache        Erstellt/aktualisiert Cache (>=100k Einwohner)
+  --list-cities              Listet Städte aus Cache
+  --search "text"            Sucht im Cache
+  --city "Hannover"          Setzt Filter aus Stadt (AGS -> ULAND/UREGBEZ/UKREIS/UGEMEINDE)
+
+Beteiligung:
+  --rad 1|0                  Default 1
+  --pkw 1|0                  leer = ignorieren
+  --fuss 1|0                 leer = ignorieren
+  --krad 1|0                 leer = ignorieren
+
+Beispiele:
+  ./convertAmt2gmaps.sh
+  ./convertAmt2gmaps.sh --update-city-cache
+  ./convertAmt2gmaps.sh --city "Hannover" --years "2022 2023 2024"
+  ./convertAmt2gmaps.sh --uland 03 --uregb 2 --ukreis 41 --rad 1 --limit 2000
 EOF
 }
 
-###############################################################################
-# Vollständige interne Ortsliste (aus dem ursprünglichen Script)
-# Format: ID;NAME
-###############################################################################
-CITY_LIST=$(cat <<'EOF'
-011112;Flensburg
-011115;Husum
-011118;Niebüll
-011119;Schleswig
-011312;Elmshorn
-011315;Itzehoe
-011319;Meldorf
-011321;Pinneberg
-011512;Bad Segeberg
-011514;Eckernförde
-011517;Kiel
-011519;Neumünster
-011522;Plön
-011524;Rendsburg
-011526;Norderstedt
-011711;Ahrensburg
-011716;Eutin
-011721;Lübeck
-011724;Oldenburg
-011725;Ratzeburg
-011726;Reinbek
-011728;Schwarzenbek
-021100;Hamburg
-031101;Bad Gandersheim
-031103;Braunschweig
-031104;Goslar
-031105;Helmstedt
-031108;Salzgitter
-031111;Seesen
-031115;Wolfenbüttel
-031116;Clausthal-Zellerfeld
-031117;Wolfsburg
-031202;Duderstadt
-031203;Einbek
-031204;Göttingen
-031205;Hann. Münden
-031206;Herzberg am Harz
-031208;Northeim
-031209;Osterode am Harz
-032101;Bückeburg
-032104;Rinteln
-032106;Stadthagen
-032303;Burgwedel
-032304;Hameln
-032305;Hannover
-032306;Neustadt am Rübenb.
-032307;Springe
-032308;Wennigsen (Deister)
-032401;Alfeld (Leine)
-032403;Burgdorf
-032404;Elze
-032407;Gifhorn
-032408;Hildesheim
-032409;Holzminden
-032410;Lehrte
-032411;Peine
-032503;Celle
-032504;Dannenberg (Elbe)
-032507;Lüneburg
-032509;Soltau
-032510;Uelzen
-032511;Winsen (Luhe)
-032601;Bremervörde
-032602;Buxtehude
-032603;Cuxhaven
-032608;Langen
-032611;Ottendorf
-032612;Stade
-032613;Tostedt
-032614;Zeven
-032701;Achim
-032705;Diepholz
-032708;Nienburg (Weser)
-032709;Osterholz-Scharmbeck
-032710;Rotenburg (Wümme)
-032711;Stolzenau
-032712;Sulingen
-032713;Syke
-032715;Verden
-032716;Walsrode
-033101;Aurich
-033102;Emden
-033104;Leer
-033105;Norden
-033107;Wittmund
-033201;Brake
-033202;Cloppenburg
-033204;Delmenhorst
-033207;Jever
-033209;Nordenham
-033210;Oldenburg (Oldenb.)
-033211;Varel
-033212;Vechta
-033213;Westerstede
-033214;Wildeshausen
-033215;Wilhelmshaven
-033302;Bersenbrück
-033307;Bad Iburg
-033308;Lingen
-033310;Meppen
-033312;Nordhorn
-033313;Osnabrück
-033314;Papenburg
-EOF
-)
+CITY=""
+DO_UPDATE_CACHE="0"
+DO_LIST_CITIES="0"
+SEARCH_Q=""
+
+while [ "${1:-}" != "" ]; do
+  case "$1" in
+    --years) YEARS="$2"; shift 2 ;;
+    --limit) LIMIT="$2"; shift 2 ;;
+    --outdir)
+      OUTDIR="$2"
+      CITY_CACHE="${2%/}/city_cache.tsv"
+      shift 2
+      ;;
+
+    --uland) ULAND="$2"; shift 2 ;;
+    --uregb|--uregbbez|--uregbz) UREGBEZ="$2"; shift 2 ;;
+    --ukreis) UKREIS="$2"; shift 2 ;;
+    --ugemeinde) UGEMEINDE="$2"; shift 2 ;;
+
+    --city) CITY="$2"; shift 2 ;;
+    --update-city-cache) DO_UPDATE_CACHE="1"; shift 1 ;;
+    --list-cities) DO_LIST_CITIES="1"; shift 1 ;;
+    --search) SEARCH_Q="$2"; shift 2 ;;
+
+    --rad) IST_RAD="$2"; shift 2 ;;
+    --pkw) IST_PKW="$2"; shift 2 ;;
+    --fuss) IST_FUSS="$2"; shift 2 ;;
+    --krad) IST_KRAD="$2"; shift 2 ;;
+
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unbekannte Option: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+mkdir -p "$OUTDIR"
 
 ###############################################################################
-# Region-Mapping für Unfallatlas-Filter (ULAND/UREGBEZ/UKREIS)
-# Format: KEY;ULAND;UREGBEZ;UKREIS;DISPLAY
-#
-# KEY ist ein normalisierter Ortsname (siehe norm_key()) oder eine ID.
-# Du kannst beliebig weitere Zeilen hinzufügen.
-#
-# Hinweis:
-# - Diese Codes beziehen sich auf Unfallatlas-Felder ULAND/UREGBEZ/UKREIS.
-# - Für Hannover nutzen wir bewusst den Kreis "41" (Region Hannover).
+# City-Cache: via gvz.tuerantuer.org
+# - Paginierung: ?format=json&page=N
+# - Filter: division_category==60 (Gemeinde) AND citizens_total >= MIN
+# - schreibt TSV: short_name \t ags8 \t pop
 ###############################################################################
-CITY_REGION_MAP=$(cat <<'EOF'
-hannover;03;2;41;Hannover (Region Hannover)
-032305;03;2;41;Hannover (Region Hannover)
-hamburg;02;0;00;Hamburg (Land)
-021100;02;0;00;Hamburg (Land)
-berlin;11;0;00;Berlin (Land)
-EOF
-)
+update_city_cache() {
+  echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
 
-###############################################################################
-# Helpers
-###############################################################################
+  tmp="${CITY_CACHE}.tmp"
+  : > "$tmp"
+
+  page=1
+  while :; do
+    url="${GVZ_API_BASE}?format=json&page=${page}"
+    json="$(curl -fsSL "$url")" || break
+
+    # sehr einfache JSON-Auswertung (für diesen Endpoint ausreichend)
+    echo "$json" | awk -v min="${CITY_MIN_POP}" '
+      function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
+      BEGIN{ RS="\\{" ; FS="," }
+      /"division_category":60/ {
+        name=""; ags=""; pop=""
+        for(i=1;i<=NF;i++){
+          if($i ~ /"name":/){
+            name=$i
+            sub(/^.*"name":"?/,"",name); sub(/"?.*$/,"",name)
+            name=unesc(name)
+          }
+          if($i ~ /"ags":/){
+            ags=$i
+            sub(/^.*"ags":"?/,"",ags); sub(/"?.*$/,"",ags)
+          }
+          if($i ~ /"citizens_total":/){
+            pop=$i
+            sub(/^.*"citizens_total":/,"",pop); sub(/[^0-9].*$/,"",pop)
+          }
+        }
+        if(pop=="" || pop=="null") next
+        if(pop+0 < min) next
+        if(ags=="") next
+
+        # AGS normalisieren auf 8 Stellen (Gemeinden typ. 8-stellig)
+        gsub(/[^0-9]/,"",ags)
+        if(length(ags)==9) ags=substr(ags,2,8)
+        if(length(ags)<8){ while(length(ags)<8) ags="0" ags }
+        if(length(ags)!=8) next
+
+        short=name
+        sub(/,.*$/,"",short)
+        gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
+
+        printf "%s\t%s\t%s\n", short, ags, pop
+      }
+    ' >> "$tmp"
+
+    echo "$json" | grep -q '"next":null' && break
+    page=$((page+1))
+  done
+
+  # Duplikate (gleicher Name) -> nimm höchsten Pop
+  awk -F'\t' '
+    {
+      k=tolower($1)
+      if(!(k in best) || $3+0 > pop[k]+0){
+        best[k]=$0
+        pop[k]=$3
+      }
+    }
+    END{ for(k in best) print best[k] }
+  ' "$tmp" | sort > "$CITY_CACHE"
+  rm -f "$tmp"
+
+  echo " -> $CITY_CACHE"
+}
+
+require_city_cache() {
+  if [ ! -f "$CITY_CACHE" ]; then
+    echo "ERROR: City-Cache fehlt: $CITY_CACHE" >&2
+    echo "       Bitte einmal ausführen: ./convertAmt2gmaps.sh --update-city-cache" >&2
+    exit 2
+  fi
+}
+
+list_cities() {
+  require_city_cache
+  awk -F'\t' '{printf "%s\t%s\t%s\n",$1,$2,$3}' "$CITY_CACHE"
+}
+
 norm_key() {
-  # Normalisiert Namen robust (Umlaute, Punkte, Klammern, Leerzeichen)
-  # "Neustadt am Rübenb." -> "neustadt_am_ruebenb"
   printf "%s" "${1:-}" \
     | tr '[:upper:]' '[:lower:]' \
     | sed \
@@ -200,16 +225,10 @@ norm_key() {
         -e 's/^_//' -e 's/_$//'
 }
 
-list_cities() {
-  echo "$CITY_LIST" \
-    | awk -F';' '{printf "%s (%s)\n",$2,$1}' \
-    | sort
-}
-
 search_cities() {
+  require_city_cache
   q="$(norm_key "${1:-}")"
-  # match on normalized name OR raw ID substring
-  echo "$CITY_LIST" | awk -F';' -v q="$q" '
+  awk -F'\t' -v q="$q" '
     function norm(s,   t){
       t=tolower(s)
       gsub(/ä/,"ae",t); gsub(/ö/,"oe",t); gsub(/ü/,"ue",t); gsub(/ß/,"ss",t)
@@ -218,156 +237,43 @@ search_cities() {
       sub(/^_/,"",t); sub(/_$/,"",t)
       return t
     }
-    {
-      id=$1; name=$2
-      if (index(id, q)>0 || norm(name) ~ q) printf "%s (%s)\n", name, id
-    }
-  ' | sort
-}
-
-# Liefert "ULAND UREGBEZ UKREIS DISPLAY" aus CITY_REGION_MAP, basierend auf key
-resolve_region_by_key() {
-  key="$1"
-  line="$(echo "$CITY_REGION_MAP" | awk -F';' -v k="$key" '$1==k{print $2" "$3" "$4" "$5}')"
-  if [ -z "${line:-}" ]; then
-    return 1
-  fi
-  ULAND="$(echo "$line" | awk '{print $1}')"
-  UREGBEZ="$(echo "$line" | awk '{print $2}')"
-  UKREIS="$(echo "$line" | awk '{print $3}')"
-  CITY_DISPLAY="$(echo "$line" | cut -d' ' -f4-)"
-  return 0
-}
-
-# Stadtname -> erst in CITY_LIST nach ID suchen, dann Region anhand ID oder Name-Key
-resolve_city_name() {
-  name="$1"
-  k="$(norm_key "$name")"
-
-  # 1) Try direct region mapping by normalized name
-  if resolve_region_by_key "$k"; then
-    return 0
-  fi
-
-  # 2) Find ID in CITY_LIST via normalized name and try region mapping via ID
-  id="$(echo "$CITY_LIST" | awk -F';' -v k="$k" '
-    function norm(s,   t){
-      t=tolower(s)
-      gsub(/ä/,"ae",t); gsub(/ö/,"oe",t); gsub(/ü/,"ue",t); gsub(/ß/,"ss",t)
-      gsub(/[^a-z0-9]/,"_",t)
-      gsub(/__*/,"_",t)
-      sub(/^_/,"",t); sub(/_$/,"",t)
-      return t
-    }
-    norm($2)==k { print $1; exit }
-  ')"
-
-  if [ -n "${id:-}" ] && resolve_region_by_key "$id"; then
-    return 0
-  fi
-
-  # 3) Unknown region codes: still show helpful message
-  echo "ERROR: Ort \"$name\" ist in der internen Liste bekannt (key: $k),"
-  echo "       aber es existiert kein ULAND/UREGBEZ/UKREIS Mapping in CITY_REGION_MAP."
-  echo "       Bitte ergänze CITY_REGION_MAP um eine Zeile, z.B.:"
-  echo "         $k;03;2;41;$name"
-  echo "       (Codes entsprechen Unfallatlas-Spalten ULAND/UREGBEZ/UKREIS.)"
-  exit 2
-}
-
-# Stadt-ID -> Region anhand ID-Key
-resolve_city_id() {
-  id="$1"
-  if resolve_region_by_key "$id"; then
-    return 0
-  fi
-
-  # show name if present
-  nm="$(echo "$CITY_LIST" | awk -F';' -v id="$id" '$1==id{print $2; exit}')"
-  if [ -n "${nm:-}" ]; then
-    echo "ERROR: City-ID $id ($nm) ist bekannt, aber ohne Region-Mapping (ULAND/UREGBEZ/UKREIS)."
-  else
-    echo "ERROR: Unbekannte City-ID: $id"
-  fi
-  echo "       Ergänze CITY_REGION_MAP um eine Zeile wie:"
-  echo "         $id;03;2;41;${nm:-<Name>}"
-  exit 2
-}
-
-parse_years() {
-  spec="$1"
-  if echo "$spec" | grep -qE '^[0-9]{4}-[0-9]{4}$'; then
-    a="${spec%-*}"; b="${spec#*-}"
-    YEARS="$(awk -v a="$a" -v b="$b" 'BEGIN{for(i=a;i<=b;i++)printf i (i<b?" ":"")}')"
-  else
-    YEARS="$(echo "$spec" | tr ',' ' ' | tr -s ' ')"
-  fi
+    norm($1) ~ q || index($2,q)>0 { printf "%s\t%s\t%s\n",$1,$2,$3 }
+  ' "$CITY_CACHE"
 }
 
 ###############################################################################
-# Defaults (wie dein ursprüngliches Script)
+# City -> ULAND/UREGBEZ/UKREIS/UGEMEINDE (aus AGS: LL R KK GGG)
 ###############################################################################
-CITY_NAME=""
-CITY_ID=""
+set_region_from_city() {
+  city="$1"
+  require_city_cache
 
-# Default Region Hannover (032305) => ULAND=03, UREGBEZ=2, UKREIS=41
-ULAND="03"
-UREGBEZ="2"
-UKREIS="41"
-CITY_DISPLAY="Hannover (Default: Region Hannover)"
+  line="$(awk -F'\t' -v q="$city" 'BEGIN{ql=tolower(q)} tolower($1)==ql {print; exit}' "$CITY_CACHE")"
+  if [ -z "$line" ]; then
+    echo "ERROR: Stadt \"$city\" nicht im Cache gefunden." >&2
+    echo "       Tipp: ./convertAmt2gmaps.sh --search \"${city}\"" >&2
+    exit 2
+  fi
 
-# Default Unfallart: Fahrrad
-IST_RAD="1"
-IST_PKW="0"
-IST_FUSS="0"
-IST_KRAD="0"
-IST_GKFZ="0"
-IST_SONSTIG="0"
+  ags="$(printf "%s" "$line" | awk -F'\t' '{print $2}')"
 
-LIMIT=1999
-OUTDIR="out"
-YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
+  ULAND="$(printf "%s" "$ags" | cut -c1-2)"
+  UREGBEZ="$(printf "%s" "$ags" | cut -c3-3)"
+  UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
+  UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
 
-###############################################################################
-# CLI
-###############################################################################
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --city) CITY_NAME="${2:-}"; shift 2;;
-    --city-id) CITY_ID="${2:-}"; shift 2;;
-    --list-cities) list_cities; exit 0;;
-    --search) search_cities "${2:-}"; exit 0;;
-    --years) parse_years "${2:-}"; shift 2;;
-    --limit) LIMIT="${2:-}"; shift 2;;
-    --outdir) OUTDIR="${2:-}"; shift 2;;
+  CITY_DISPLAY="$(printf "%s" "$line" | awk -F'\t' '{print $1" (AGS "$2", Pop "$3")"}')"
 
-    --rad)     IST_RAD="1"; IST_PKW="0"; IST_FUSS="0"; IST_KRAD="0"; IST_GKFZ="0"; IST_SONSTIG="0"; shift;;
-    --pkw)     IST_RAD="0"; IST_PKW="1"; IST_FUSS="0"; IST_KRAD="0"; IST_GKFZ="0"; IST_SONSTIG="0"; shift;;
-    --fuss)    IST_RAD="0"; IST_PKW="0"; IST_FUSS="1"; IST_KRAD="0"; IST_GKFZ="0"; IST_SONSTIG="0"; shift;;
-    --krad)    IST_RAD="0"; IST_PKW="0"; IST_FUSS="0"; IST_KRAD="1"; IST_GKFZ="0"; IST_SONSTIG="0"; shift;;
-    --gkfz)    IST_RAD="0"; IST_PKW="0"; IST_FUSS="0"; IST_KRAD="0"; IST_GKFZ="1"; IST_SONSTIG="0"; shift;;
-    --sonstig) IST_RAD="0"; IST_PKW="0"; IST_FUSS="0"; IST_KRAD="0"; IST_GKFZ="0"; IST_SONSTIG="1"; shift;;
-
-    -h|--help) usage; exit 0;;
-    *) echo "ERROR: Unbekannte Option: $1" >&2; usage; exit 2;;
-  esac
-done
-
-# City wählen (Name oder ID; Name gewinnt, wenn beides gesetzt)
-if [ -n "$CITY_NAME" ]; then
-  resolve_city_name "$CITY_NAME"
-elif [ -n "$CITY_ID" ]; then
-  resolve_city_id "$CITY_ID"
-fi
-
-mkdir -p "$OUTDIR"
+  echo "== City: $CITY_DISPLAY =="
+  echo "   -> ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS UGEMEINDE=$UGEMEINDE"
+}
 
 ###############################################################################
-# Verarbeitung
+# Jahr verarbeiten
 ###############################################################################
 process_year() {
   year="$1"
-  zip="${year}.zip"
+  zip="${OUTDIR}/${year}.zip"
   url="https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte${year}_EPSG25832_CSV.zip"
 
   echo "== $year =="
@@ -387,11 +293,10 @@ process_year() {
   outgeo="${OUTDIR}/output${year}.geojson"
 
   unzip -p "$zip" "$datafile" \
-  | awk -F';' \
-      -v year="$year" -v limit="$LIMIT" \
-      -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" \
-      -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" -v isgkfz="$IST_GKFZ" -v issonst="$IST_SONSTIG" \
-      -v outcsv="$outcsv" -v outgeo="$outgeo" '
+  | awk -F';' -v year="$year" -v limit="$LIMIT" \
+        -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
+        -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
+        -v outcsv="$outcsv" -v outgeo="$outgeo" '
     function pick(a,b,c,d,e) {
       if (a!="" && (a in idx)) return idx[a]
       if (b!="" && (b in idx)) return idx[b]
@@ -408,8 +313,18 @@ process_year() {
       gsub(/\n/,"\\n",t)
       return t
     }
+    function ok_involvement() {
+      # Wenn keinerlei Filter gesetzt ist -> akzeptiere alles
+      if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
+      if (istrad!="" && i_istrad>0 && $i_istrad==istrad) return 1
+      if (ispkw!=""  && i_ispkw>0  && $i_ispkw==ispkw)   return 1
+      if (isfuss!="" && i_isfuss>0 && $i_isfuss==isfuss) return 1
+      if (iskrad!="" && i_iskrad>0 && $i_iskrad==iskrad) return 1
+      return 0
+    }
     BEGIN {
-      print "WKT,Name,OBJECTID\r" > outcsv
+      # CSV: erste Spalten kompatibel halten
+      print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND\r" > outcsv
       print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo
       first=1
       out=0
@@ -421,17 +336,25 @@ process_year() {
       i_uland  = pick("ULAND","","","","")
       i_ureg   = pick("UREGBEZ","","","","")
       i_ukreis = pick("UKREIS","","","","")
+      i_ugem   = pick("UGEMEINDE","","","","")
 
-      i_rad    = pick("IstRad","ISTRAD","","","")
-      i_pkw    = pick("IstPKW","ISTPKW","","","")
-      i_fuss   = pick("IstFuss","ISTFUSS","IstFuß","ISTFUß","")
-      i_krad   = pick("IstKrad","ISTKRAD","","","")
-      i_gkfz   = pick("IstGkfz","ISTGKFZ","","","")
-      i_sonst  = pick("IstSonstig","ISTSONSTIG","","","")
+      i_istrad = pick("IstRad","ISTRAD","","","")
+      i_ispkw  = pick("IstPKW","ISTPKW","","","")
+      i_isfuss = pick("IstFuss","ISTFUSS","IstFuß","ISTFUß","")
+      i_iskrad = pick("IstKrad","ISTKRAD","","","")
 
       i_licht  = pick("ULICHTVERH","U_LICHTVERH","","","")
 
-      # WGS84 für Google Maps/GeoJSON
+      # Erweiterungen
+      i_kat    = pick("UKATEGORIE","","","","")
+      i_typ1   = pick("UTYP1","","","","")
+      i_uart   = pick("UART","","","","")
+      i_monat  = pick("UMONAT","","","","")
+      i_stunde = pick("USTUNDE","","","","")
+      i_wtag   = pick("UWOCHENTAG","","","","")
+      i_strz   = pick("STRZUSTAND","","","","")
+
+      # WGS84 für GeoJSON/Google Maps
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
       i_lat = pick("YGCSWGS84","Y_GCSWGS84","","","")
 
@@ -453,14 +376,11 @@ process_year() {
       if ($i_ureg  != ureg)   next
       if ($i_ukreis!= ukreis) next
 
-      want=0
-      if (istrad=="1"  && i_rad  && $i_rad=="1")  want=1
-      if (ispkw=="1"   && i_pkw  && $i_pkw=="1")  want=1
-      if (isfuss=="1"  && i_fuss && $i_fuss=="1") want=1
-      if (iskrad=="1"  && i_krad && $i_krad=="1") want=1
-      if (isgkfz=="1"  && i_gkfz && $i_gkfz=="1") want=1
-      if (issonst=="1" && i_sonst && $i_sonst=="1") want=1
-      if (!want) next
+      # optional: Gemeinde (3-stellig)
+      if (ugem != "" && i_ugem>0 && $i_ugem != ugem) next
+
+      # Beteiligung
+      if (!ok_involvement()) next
 
       out++
       if (out > limit) exit
@@ -468,28 +388,35 @@ process_year() {
       id = (i_id ? $i_id : out)
       licht = (i_licht ? $i_licht : "")
 
-      lon = $i_lon
-      lat = $i_lat
+      lon = $i_lon; lat = $i_lat
       gsub(/\r/,"",lon); gsub(/\r/,"",lat)
       gsub(/,/,".",lon); gsub(/,/,".",lat)
 
       str = (i_str ? $i_str : "")
       gsub(/\r/,"",str)
 
-      label="Unfall"
-      if (istrad=="1") label="Fahrrad"
-      else if (ispkw=="1") label="PKW"
-      else if (isfuss=="1") label="Fuss"
-      else if (iskrad=="1") label="Krad"
-      else if (isgkfz=="1") label="Gkfz"
-      else if (issonst=="1") label="Sonstig"
+      # Erweiterte Felder (falls Spalten fehlen -> leer)
+      kat    = (i_kat ? $i_kat : "")
+      typ1   = (i_typ1 ? $i_typ1 : "")
+      uart   = (i_uart ? $i_uart : "")
+      monat  = (i_monat ? $i_monat : "")
+      stunde = (i_stunde ? $i_stunde : "")
+      wtag   = (i_wtag ? $i_wtag : "")
+      strz   = (i_strz ? $i_strz : "")
 
-      name = label " " id " (" year ")"
+      gsub(/\r/,"",kat); gsub(/\r/,"",typ1); gsub(/\r/,"",uart)
+      gsub(/\r/,"",monat); gsub(/\r/,"",stunde); gsub(/\r/,"",wtag); gsub(/\r/,"",strz)
+
+      # Optional: Name minimal informativer (Schwere vorne)
+      name = "Unfall " id " (" year ")"
+      if (kat != "") name = name " Kat:" kat
       if (licht != "") name = name ", Licht: " licht
       if (str   != "") name = name " Strasse: " str
 
-      print "\"POINT (" lon " " lat ")\"," name "," id "\r" >> outcsv
+      # CSV (Google Maps): extra Spalten sind ok, erste Spalten bleiben gleich
+      print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "\r" >> outcsv
 
+      # GeoJSON Feature
       if (!first) print "," >> outgeo
       first=0
 
@@ -500,9 +427,15 @@ process_year() {
             "        \"id\": \"" jesc(id) "\",\n" \
             "        \"name\": \"" jesc(name) "\",\n" \
             "        \"year\": " year ",\n" \
-            "        \"type\": \"" jesc(label) "\",\n" \
             "        \"licht\": \"" jesc(licht) "\",\n" \
-            "        \"strasse\": \"" jesc(str) "\"\n" \
+            "        \"strasse\": \"" jesc(str) "\",\n" \
+            "        \"ukategorie\": \"" jesc(kat) "\",\n" \
+            "        \"utyp1\": \"" jesc(typ1) "\",\n" \
+            "        \"uart\": \"" jesc(uart) "\",\n" \
+            "        \"umonat\": \"" jesc(monat) "\",\n" \
+            "        \"ustunde\": \"" jesc(stunde) "\",\n" \
+            "        \"uwochentag\": \"" jesc(wtag) "\",\n" \
+            "        \"strzustand\": \"" jesc(strz) "\"\n" \
             "      }\n" \
             "    }" >> outgeo
     }
@@ -511,9 +444,30 @@ process_year() {
     }
   '
 
-  if [ -f "$outcsv" ]; then echo " -> $outcsv"; fi
-  if [ -f "$outgeo" ]; then echo " -> $outgeo"; fi
+  [ -f "$outcsv" ] && echo " -> $outcsv"
+  [ -f "$outgeo" ] && echo " -> $outgeo"
 }
+
+###############################################################################
+# Main
+###############################################################################
+if [ "$DO_UPDATE_CACHE" = "1" ]; then
+  update_city_cache
+fi
+
+if [ "$DO_LIST_CITIES" = "1" ]; then
+  list_cities
+  exit 0
+fi
+
+if [ -n "$SEARCH_Q" ]; then
+  search_cities "$SEARCH_Q"
+  exit 0
+fi
+
+if [ -n "$CITY" ]; then
+  set_region_from_city "$CITY"
+fi
 
 for y in $YEARS; do
   process_year "$y" || true
@@ -522,7 +476,7 @@ done
 # Combined CSV
 COMBINED_CSV="${OUTDIR}/output_all_years.csv"
 (
-  echo "WKT,Name,OBJECTID\r"
+  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND\r"
   for y in $YEARS; do
     f="${OUTDIR}/output${y}.csv"
     [ -f "$f" ] && tail -n +2 "$f"
@@ -545,7 +499,7 @@ COMBINED_GEO="${OUTDIR}/output_all_years.geojson"
       in && /^[[:space:]]*\]/{in=0; next}
       in {
         if ($0 ~ /^[[:space:]]*$/) next
-        if (first=="0" && printed_any=="0") print ","
+        if (first=="0" && printed_any==0) print ","
         printed_any=1
         print
       }
@@ -565,9 +519,11 @@ COMBINED_GEO="${OUTDIR}/output_all_years.geojson"
 } > "$COMBINED_GEO"
 
 echo "== fertig =="
-echo "Region: ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS  ($CITY_DISPLAY)"
+echo "Filter: ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS${UGEMEINDE:+ UGEMEINDE=$UGEMEINDE}"
+echo "City:   $CITY_DISPLAY"
 echo "Years:  $YEARS"
 echo "Limit:  $LIMIT"
 echo "Outdir: $OUTDIR"
-echo "Combined CSV:  $COMBINED_CSV"
-echo "Combined GEO:  $COMBINED_GEO"
+echo "Combined CSV: $COMBINED_CSV"
+echo "Combined GEO: $COMBINED_GEO"
+echo "City cache:   $CITY_CACHE"
