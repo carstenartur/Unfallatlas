@@ -32,7 +32,7 @@ set -eu
 # Defaults / Konfiguration
 ###############################################################################
 OUTDIR="out"
-LIMIT=1999
+LIMIT=1999     # 0 = unbegrenzt
 YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
 # Default: Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
@@ -66,6 +66,7 @@ Usage:
 Optionen:
   --years "2018 2019 ..."     Jahre (Default: 2016..2024)
   --limit N                  Max. Treffer pro Jahr (Default: 1999)
+                             Tipp: --limit 0  => unbegrenzt (kein Abbruch)
   --outdir DIR               Ausgabeverzeichnis (Default: out)
 
 Region-Filter:
@@ -85,6 +86,7 @@ Beteiligung:
 
 Beispiele:
   ./convertAmt2gmaps.sh
+  ./convertAmt2gmaps.sh --limit 0
   ./convertAmt2gmaps.sh --update-city-cache
   ./convertAmt2gmaps.sh --city "Hannover" --years "2022 2023 2024"
   ./convertAmt2gmaps.sh --uland 03 --uregb 2 --ukreis 41 --rad 1 --limit 2000
@@ -377,7 +379,9 @@ process_year() {
       if (!ok_involvement()) next
 
       out++
-      if (out > limit) exit
+
+      # LIMIT=0 => unbegrenzt
+      if (limit > 0 && out > limit) exit
 
       id = (i_id ? $i_id : out)
 
@@ -528,7 +532,7 @@ echo "== fertig =="
 echo "Filter: ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS${UGEMEINDE:+ UGEMEINDE=$UGEMEINDE}"
 echo "City:   $CITY_DISPLAY"
 echo "Years:  $YEARS"
-echo "Limit:  $LIMIT"
+echo "Limit:  $LIMIT (0=unbegrenzt)"
 echo "Outdir: $OUTDIR"
 echo "Combined CSV: $COMBINED_CSV"
 echo "Combined GEO: $COMBINED_GEO"
