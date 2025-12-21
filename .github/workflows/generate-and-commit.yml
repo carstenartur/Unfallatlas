@@ -18,8 +18,8 @@ jobs:
 
       - name: Run das Shellscript
         run: |
-          chmod +x ./generate.sh
-          ./generate.sh
+          chmod +x ./convertAmt2gmaps.sh
+          ./convertAmt2gmaps.sh
 
       - name: Commit & Push changes
         env:
