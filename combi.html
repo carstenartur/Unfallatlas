@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Unfallatlas – Webkarte (Viewport + Cluster + Heatmap)</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <!-- MarkerCluster -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+    crossorigin=""
+  ></script>
+
+  <!-- Heatmap plugin -->
+  <script
+    src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+    crossorigin=""
+  ></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; }
+
+    .panel {
+      position: absolute; top: 10px; left: 10px; z-index: 1000;
+      background: white; padding: 10px 12px; border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.18);
+      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      max-width: 380px;
+    }
+    .row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
+    label { font-weight: 600; }
+    select, input {
+      width: 100%; padding: 6px 8px;
+      border: 1px solid #ddd; border-radius: 8px;
+      font: inherit;
+    }
+
+    .toggles { display: flex; gap: 8px; margin-top: 8px; }
+    .btn {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      background: #fafafa;
+      cursor: pointer;
+      user-select: none;
+      text-align: center;
+      font-weight: 600;
+    }
+    .btn.active { background: #e9f2ff; border-color: #b7d4ff; }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      user-select: none;
+    }
+    .chip input { width: auto; }
+    .chip span { font-weight: 600; }
+
+    .muted { color: #666; font-size: 12px; margin-top: 8px; }
+    .stat { margin-top: 8px; font-size: 12px; color: #333; }
+    code { background: #f3f3f3; padding: 1px 4px; border-radius: 6px; }
+
+    /* NEU: etwas kompakterer Toggle für UND-Modus */
+    #toggleAnd { flex: 1; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel">
+    <div><strong>Unfallatlas</strong> <span style="color:#666">(Viewport-Render)</span></div>
+
+    <div class="row">
+      <label for="year">Jahr</label>
+      <select id="year">
+        <option value="all">Alle</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label for="kat">Kategorie</label>
+      <select id="kat">
+        <option value="all">Alle</option>
+        <option value="1">1 (Getötete)</option>
+        <option value="2">2 (Schwer)</option>
+        <option value="3">3 (Leicht)</option>
+      </select>
+    </div>
+
+    <!-- Beteiligung -->
+    <div style="margin-top:10px; font-weight:600;">Beteiligung</div>
+    <div class="chips" aria-label="Beteiligung Filter">
+      <label class="chip"><input type="checkbox" id="tRad" checked> <span>🚲 Rad</span></label>
+      <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
+      <label class="chip"><input type="checkbox" id="tPKW" checked> <span>🚗 PKW</span></label>
+      <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
+    </div>
+
+    <!-- NEU: UND-Modus -->
+    <div class="toggles">
+      <div id="toggleAnd" class="btn">Nur Kombinationen (UND)</div>
+    </div>
+
+    <div class="row">
+      <label for="maxn">Max Punkte</label>
+      <input id="maxn" type="number" min="500" step="500" value="20000" />
+    </div>
+
+    <div class="row">
+      <label for="pad">Viewport-Padding</label>
+      <input id="pad" type="number" min="0" max="100" step="5" value="20" />
+    </div>
+
+    <div class="row">
+      <label for="heatR">Heat Radius</label>
+      <input id="heatR" type="number" min="5" max="60" step="1" value="25" />
+    </div>
+
+    <div class="toggles">
+      <div id="toggleCluster" class="btn active">Cluster</div>
+      <div id="toggleHeat" class="btn active">Heatmap</div>
+    </div>
+
+    <div class="stat" id="stat">Lade Daten…</div>
+
+    <div class="muted">
+      Quelle: <code>out/output_all_years.geojson</code><br/>
+      Rendert nur Punkte im Kartenausschnitt (plus Padding).
+    </div>
+  </div>
+
+  <script>
+    const map = L.map('map', { preferCanvas: true }).setView([52.3759, 9.7320], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap-Mitwirkende'
+    }).addTo(map);
+
+    // UI
+    const yearEl = document.getElementById('year');
+    const katEl = document.getElementById('kat');
+    const maxEl = document.getElementById('maxn');
+    const padEl = document.getElementById('pad');
+    const heatREl = document.getElementById('heatR');
+    const statEl = document.getElementById('stat');
+    const btnCluster = document.getElementById('toggleCluster');
+    const btnHeat = document.getElementById('toggleHeat');
+
+    // Typ-Checkboxen
+    const tRadEl = document.getElementById('tRad');
+    const tFussEl = document.getElementById('tFuss');
+    const tPKWEl = document.getElementById('tPKW');
+    const tKradEl = document.getElementById('tKrad');
+
+    // NEU: UND-Modus
+    const btnAnd = document.getElementById('toggleAnd');
+    let useAndMode = false;
+
+    let showCluster = true;
+    let showHeat = true;
+
+    // Data
+    let all = null;               // full geojson
+    let allPts = [];              // [{lat, lon, props}]
+    let filteredGlobal = [];      // after year/kat/type/max filter (still global)
+    let viewportPts = [];         // after viewport cropping
+
+    // Layers
+    let clusterLayer = null;
+    let heatLayer = null;
+
+    function setBtnState(btn, on) { btn.classList.toggle('active', on); }
+
+    function escHtml(s) {
+      return String(s ?? "")
+        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+    }
+
+    function involvementText(p) {
+      const tags = [];
+      if (String(p?.istrad) === "1") tags.push("🚲 Rad");
+      if (String(p?.istfuss) === "1") tags.push("🚶 Fuß");
+      if (String(p?.istpkw) === "1") tags.push("🚗 PKW");
+      if (String(p?.istkrad) === "1") tags.push("🏍️ Krad");
+      return tags.length ? tags.join(", ") : "—";
+    }
+
+    function popupHtml(p) {
+      return `
+        <div style="font: 14px/1.25 system-ui;">
+          <div><strong>${escHtml(p.name)}</strong></div>
+          <div>Jahr: ${escHtml(p.year)}</div>
+          <div>Kategorie: ${escHtml(p.ukategorie)}</div>
+          <div>Beteiligung: ${escHtml(involvementText(p))}</div>
+          <div>Uhrzeit: ${escHtml(p.ustunde)} / Wochentag: ${escHtml(p.uwochentag)} / Monat: ${escHtml(p.umonat)}</div>
+          <div>Licht: ${escHtml(p.ulichtverh)}</div>
+          <div>Straße: ${escHtml(p.strasse)}</div>
+          <div>Straßenzustand: ${escHtml(p.strzustand)}</div>
+        </div>
+      `;
+    }
+
+    function buildYearOptions(features) {
+      const years = new Set();
+      for (const f of features) {
+        const y = f?.properties?.year;
+        if (y !== undefined && y !== null && y !== "") years.add(String(y));
+      }
+      [...years].sort().forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        yearEl.appendChild(opt);
+      });
+    }
+
+    function extractPoints(geojson) {
+      const pts = [];
+      const feats = geojson?.features || [];
+      for (const f of feats) {
+        const g = f?.geometry;
+        if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
+        const [lon, lat] = g.coordinates;
+        if (typeof lat !== "number" || typeof lon !== "number") continue;
+        pts.push({ lat, lon, props: f.properties || {} });
+      }
+      return pts;
+    }
+
+    function getPaddedBounds() {
+      const padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
+      const b = map.getBounds();
+
+      const latSpan = b.getNorth() - b.getSouth();
+      const lonSpan = b.getEast() - b.getWest();
+
+      const dLat = latSpan * padPct;
+      const dLon = lonSpan * padPct;
+
+      return L.latLngBounds(
+        [b.getSouth() - dLat, b.getWest() - dLon],
+        [b.getNorth() + dLat, b.getEast() + dLon]
+      );
+    }
+
+    function applyGlobalFilter() {
+      if (!all) return;
+
+      const wantYear = yearEl.value;
+      const wantKat = katEl.value;
+      const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
+
+      // Beteiligung: Auswahl
+      const sRad  = tRadEl.checked;
+      const sFuss = tFussEl.checked;
+      const sPKW  = tPKWEl.checked;
+      const sKrad = tKradEl.checked;
+
+      const anySelected = sRad || sFuss || sPKW || sKrad;
+
+      const out = [];
+      for (const p of allPts) {
+        const pr = p.props || {};
+
+        if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
+        if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
+
+        const isRad  = String(pr?.istrad)  === "1";
+        const isFuss = String(pr?.istfuss) === "1";
+        const isPKW  = String(pr?.istpkw)  === "1";
+        const isKrad = String(pr?.istkrad) === "1";
+
+        if (anySelected) {
+          if (useAndMode) {
+            // UND: alle angehakten müssen zutreffen
+            if (sRad  && !isRad)  continue;
+            if (sFuss && !isFuss) continue;
+            if (sPKW  && !isPKW)  continue;
+            if (sKrad && !isKrad) continue;
+          } else {
+            // ODER: mindestens eine angehakte Kategorie muss zutreffen
+            const ok =
+              (sRad  && isRad)  ||
+              (sFuss && isFuss) ||
+              (sPKW  && isPKW)  ||
+              (sKrad && isKrad);
+            if (!ok) continue;
+          }
+        } else {
+          // nichts gewählt => nichts anzeigen (klarer als "alles")
+          continue;
+        }
+
+        out.push(p);
+        if (out.length >= maxN) break;
+      }
+
+      filteredGlobal = out;
+    }
+
+    function applyViewportFilter() {
+      const vb = getPaddedBounds();
+      const out = [];
+      for (const p of filteredGlobal) {
+        if (vb.contains([p.lat, p.lon])) out.push(p);
+      }
+      viewportPts = out;
+    }
+
+    function renderLayers() {
+      if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
+      if (heatLayer) { heatLayer.remove(); heatLayer = null; }
+
+      const pts = viewportPts;
+
+      // Cluster
+      if (showCluster) {
+        clusterLayer = L.markerClusterGroup({
+          chunkedLoading: true,
+          chunkInterval: 200,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false
+        });
+
+        for (const p of pts) {
+          const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
+          m.bindPopup(popupHtml(p.props));
+          clusterLayer.addLayer(m);
+        }
+        clusterLayer.addTo(map);
+      }
+
+      // Heatmap
+      if (showHeat) {
+        const r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
+        const heatPts = pts.map(p => {
+          const k = String(p.props?.ukategorie || "");
+          const w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
+          return [p.lat, p.lon, w];
+        });
+
+        heatLayer = L.heatLayer(heatPts, {
+          radius: r,
+          blur: 18,
+          maxZoom: 17
+        }).addTo(map);
+      }
+
+      const activeTypes = [
+        tRadEl.checked ? "Rad" : null,
+        tFussEl.checked ? "Fuß" : null,
+        tPKWEl.checked ? "PKW" : null,
+        tKradEl.checked ? "Krad" : null
+      ].filter(Boolean).join(", ");
+
+      statEl.textContent =
+        `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
+        `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
+        `Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
+        `Beteiligung: ${activeTypes || "—"} | ` +
+        `Modus: ${useAndMode ? "UND" : "ODER"}`;
+    }
+
+    // Debounce für moveend/zoomend (iPhone)
+    let moveTimer = null;
+    function scheduleViewportUpdate() {
+      if (!all) return;
+      if (moveTimer) clearTimeout(moveTimer);
+      moveTimer = setTimeout(() => {
+        applyViewportFilter();
+        renderLayers();
+      }, 150);
+    }
+
+    async function main() {
+      const resp = await fetch('out/output_all_years.geojson', { cache: "no-store" });
+      if (!resp.ok) throw new Error("GeoJSON konnte nicht geladen werden: " + resp.status);
+
+      all = await resp.json();
+      buildYearOptions(all.features || []);
+      allPts = extractPoints(all);
+
+      // Initial
+      applyGlobalFilter();
+      applyViewportFilter();
+      renderLayers();
+
+      // UI events (global filter)
+      yearEl.addEventListener('change', () => {
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+      });
+      katEl.addEventListener('change', () => {
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+      });
+      maxEl.addEventListener('change', () => {
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+      });
+
+      // Typ-Filter
+      for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
+        el.addEventListener('change', () => {
+          applyGlobalFilter();
+          applyViewportFilter();
+          renderLayers();
+        });
+      }
+
+      // UND-Modus Toggle
+      btnAnd.addEventListener('click', () => {
+        useAndMode = !useAndMode;
+        setBtnState(btnAnd, useAndMode);
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+      });
+      setBtnState(btnAnd, useAndMode);
+
+      // viewport padding or heat radius => re-render viewport
+      padEl.addEventListener('change', () => {
+        applyViewportFilter();
+        renderLayers();
+      });
+      heatREl.addEventListener('change', () => renderLayers());
+
+      // toggles
+      btnCluster.addEventListener('click', () => {
+        showCluster = !showCluster;
+        setBtnState(btnCluster, showCluster);
+        renderLayers();
+      });
+      btnHeat.addEventListener('click', () => {
+        showHeat = !showHeat;
+        setBtnState(btnHeat, showHeat);
+        renderLayers();
+      });
+
+      setBtnState(btnCluster, showCluster);
+      setBtnState(btnHeat, showHeat);
+
+      // Update on map movement
+      map.on('moveend zoomend', scheduleViewportUpdate);
+    }
+
+    main().catch(err => {
+      console.error(err);
+      statEl.textContent = String(err);
+      alert(String(err));
+    });
+  </script>
+</body>
+</html>
