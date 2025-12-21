@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unfallatlas – Webkarte (Cluster + Heatmap)</title>
+  <title>Unfallatlas – Webkarte (Viewport + Cluster + Heatmap)</title>
 
   <!-- Leaflet -->
   <link
@@ -49,9 +49,9 @@
       background: white; padding: 10px 12px; border-radius: 10px;
       box-shadow: 0 2px 12px rgba(0,0,0,.18);
       font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      max-width: 360px;
+      max-width: 380px;
     }
-    .row { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
+    .row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
     label { font-weight: 600; }
     select, input {
       width: 100%; padding: 6px 8px;
@@ -70,10 +70,7 @@
       text-align: center;
       font-weight: 600;
     }
-    .btn.active {
-      background: #e9f2ff;
-      border-color: #b7d4ff;
-    }
+    .btn.active { background: #e9f2ff; border-color: #b7d4ff; }
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
     .stat { margin-top: 8px; font-size: 12px; color: #333; }
     code { background: #f3f3f3; padding: 1px 4px; border-radius: 6px; }
@@ -83,7 +80,7 @@
   <div id="map"></div>
 
   <div class="panel">
-    <div><strong>Unfallatlas</strong> <span style="color:#666">(Cluster + Heatmap)</span></div>
+    <div><strong>Unfallatlas</strong> <span style="color:#666">(Viewport-Render)</span></div>
 
     <div class="row">
       <label for="year">Jahr</label>
@@ -108,6 +105,11 @@
     </div>
 
     <div class="row">
+      <label for="pad">Viewport-Padding</label>
+      <input id="pad" type="number" min="0" max="100" step="5" value="20" />
+    </div>
+
+    <div class="row">
       <label for="heatR">Heat Radius</label>
       <input id="heatR" type="number" min="5" max="60" step="1" value="25" />
     </div>
@@ -121,55 +123,58 @@
 
     <div class="muted">
       Quelle: <code>out/output_all_years.geojson</code><br/>
-      Tipp (iPhone): erst Heatmap an, dann reinzoomen.
+      Rendert nur Punkte im Kartenausschnitt (plus Padding).
     </div>
   </div>
 
   <script>
-    // Karte initialisieren (Start: Hannover ungefähr)
     const map = L.map('map', { preferCanvas: true }).setView([52.3759, 9.7320], 12);
 
-    // Basiskarte OSM
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    // Layer container
-    let clusterLayer = null;   // MarkerClusterGroup
-    let heatLayer = null;      // L.heatLayer
-    let all = null;            // GeoJSON
-    let filteredPoints = [];   // [{lat, lon, props}...]
-
     // UI
     const yearEl = document.getElementById('year');
     const katEl = document.getElementById('kat');
     const maxEl = document.getElementById('maxn');
+    const padEl = document.getElementById('pad');
     const heatREl = document.getElementById('heatR');
     const statEl = document.getElementById('stat');
-
     const btnCluster = document.getElementById('toggleCluster');
     const btnHeat = document.getElementById('toggleHeat');
 
     let showCluster = true;
     let showHeat = true;
 
-    function setBtnState(btn, on) {
-      btn.classList.toggle('active', on);
+    // Data
+    let all = null;               // full geojson
+    let allPts = [];              // [{lat, lon, props}]
+    let filteredGlobal = [];      // after year/kat/max filter (still global)
+    let viewportPts = [];         // after viewport cropping
+
+    // Layers
+    let clusterLayer = null;
+    let heatLayer = null;
+
+    function setBtnState(btn, on) { btn.classList.toggle('active', on); }
+
+    function escHtml(s) {
+      return String(s ?? "")
+        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
     }
 
     function popupHtml(p) {
-      const esc = (s) => String(s ?? "")
-        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
       return `
         <div style="font: 14px/1.25 system-ui;">
-          <div><strong>${esc(p.name)}</strong></div>
-          <div>Jahr: ${esc(p.year)}</div>
-          <div>Kategorie: ${esc(p.ukategorie)}</div>
-          <div>Uhrzeit: ${esc(p.ustunde)} / Wochentag: ${esc(p.uwochentag)} / Monat: ${esc(p.umonat)}</div>
-          <div>Licht: ${esc(p.ulichtverh)}</div>
-          <div>Straße: ${esc(p.strasse)}</div>
-          <div>Straßenzustand: ${esc(p.strzustand)}</div>
+          <div><strong>${escHtml(p.name)}</strong></div>
+          <div>Jahr: ${escHtml(p.year)}</div>
+          <div>Kategorie: ${escHtml(p.ukategorie)}</div>
+          <div>Uhrzeit: ${escHtml(p.ustunde)} / Wochentag: ${escHtml(p.uwochentag)} / Monat: ${escHtml(p.umonat)}</div>
+          <div>Licht: ${escHtml(p.ulichtverh)}</div>
+          <div>Straße: ${escHtml(p.strasse)}</div>
+          <div>Straßenzustand: ${escHtml(p.strzustand)}</div>
         </div>
       `;
     }
@@ -192,8 +197,7 @@
       const pts = [];
       const feats = geojson?.features || [];
       for (const f of feats) {
-        if (!f || f.type !== "Feature") continue;
-        const g = f.geometry;
+        const g = f?.geometry;
         if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
         const [lon, lat] = g.coordinates;
         if (typeof lat !== "number" || typeof lon !== "number") continue;
@@ -202,17 +206,32 @@
       return pts;
     }
 
-    function applyFilter() {
+    function getPaddedBounds() {
+      const padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
+      const b = map.getBounds();
+
+      // expand bounds by percentage of size
+      const latSpan = b.getNorth() - b.getSouth();
+      const lonSpan = b.getEast() - b.getWest();
+
+      const dLat = latSpan * padPct;
+      const dLon = lonSpan * padPct;
+
+      return L.latLngBounds(
+        [b.getSouth() - dLat, b.getWest() - dLon],
+        [b.getNorth() + dLat, b.getEast() + dLon]
+      );
+    }
+
+    function applyGlobalFilter() {
       if (!all) return;
 
       const wantYear = yearEl.value;
       const wantKat = katEl.value;
       const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
 
-      const pts = extractPoints(all);
-
       const out = [];
-      for (const p of pts) {
+      for (const p of allPts) {
         const pr = p.props || {};
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
         if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
@@ -220,42 +239,45 @@
         if (out.length >= maxN) break;
       }
 
-      filteredPoints = out;
-      statEl.textContent = `Gefiltert: ${filteredPoints.length.toLocaleString()} Punkte (von ${pts.length.toLocaleString()})`;
+      filteredGlobal = out;
+    }
 
-      renderLayers();
+    function applyViewportFilter() {
+      const vb = getPaddedBounds();
+      const out = [];
+      for (const p of filteredGlobal) {
+        if (vb.contains([p.lat, p.lon])) out.push(p);
+      }
+      viewportPts = out;
     }
 
     function renderLayers() {
-      // remove existing
       if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
       if (heatLayer) { heatLayer.remove(); heatLayer = null; }
 
-      // cluster
+      const pts = viewportPts;
+
+      // Cluster
       if (showCluster) {
         clusterLayer = L.markerClusterGroup({
-          chunkedLoading: true,      // wichtig für große Datenmengen (UI bleibt responsiv)
+          chunkedLoading: true,
           chunkInterval: 200,
           spiderfyOnMaxZoom: true,
           showCoverageOnHover: false
         });
 
-        for (const p of filteredPoints) {
-          const m = L.circleMarker([p.lat, p.lon], {
-            radius: 4
-          });
+        for (const p of pts) {
+          const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
           m.bindPopup(popupHtml(p.props));
           clusterLayer.addLayer(m);
         }
         clusterLayer.addTo(map);
       }
 
-      // heatmap
+      // Heatmap
       if (showHeat) {
         const r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
-        // Leaflet.heat: [lat, lon, intensity]
-        // intensity: wir nehmen optional Kategorie als Gewicht (1->3)
-        const heatPts = filteredPoints.map(p => {
+        const heatPts = pts.map(p => {
           const k = String(p.props?.ukategorie || "");
           const w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
           return [p.lat, p.lon, w];
@@ -268,11 +290,22 @@
         }).addTo(map);
       }
 
-      // fit bounds (nur wenn cluster aktiv ist oder wenigstens Punkte vorhanden)
-      if (filteredPoints.length > 0) {
-        const bounds = L.latLngBounds(filteredPoints.map(p => [p.lat, p.lon]));
-        try { map.fitBounds(bounds, { padding: [20, 20] }); } catch {}
-      }
+      // Stats
+      statEl.textContent =
+        `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
+        `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
+        `Im Viewport: ${viewportPts.length.toLocaleString()}`;
+    }
+
+    // Debounce für moveend/zoomend (iPhone)
+    let moveTimer = null;
+    function scheduleViewportUpdate() {
+      if (!all) return;
+      if (moveTimer) clearTimeout(moveTimer);
+      moveTimer = setTimeout(() => {
+        applyViewportFilter();
+        renderLayers();
+      }, 150);
     }
 
     async function main() {
@@ -280,25 +313,44 @@
       if (!resp.ok) throw new Error("GeoJSON konnte nicht geladen werden: " + resp.status);
 
       all = await resp.json();
-
-      // years
       buildYearOptions(all.features || []);
+      allPts = extractPoints(all);
 
-      // initial filter
-      applyFilter();
+      // Initial
+      applyGlobalFilter();
+      applyViewportFilter();
+      renderLayers();
 
-      // UI events
-      yearEl.addEventListener('change', applyFilter);
-      katEl.addEventListener('change', applyFilter);
-      maxEl.addEventListener('change', applyFilter);
-      heatREl.addEventListener('change', () => { if (all) renderLayers(); });
+      // UI events (global filter)
+      yearEl.addEventListener('change', () => {
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+      });
+      katEl.addEventListener('change', () => {
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+      });
+      maxEl.addEventListener('change', () => {
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+      });
 
+      // viewport padding or heat radius => re-render viewport
+      padEl.addEventListener('change', () => {
+        applyViewportFilter();
+        renderLayers();
+      });
+      heatREl.addEventListener('change', () => renderLayers());
+
+      // toggles
       btnCluster.addEventListener('click', () => {
         showCluster = !showCluster;
         setBtnState(btnCluster, showCluster);
         renderLayers();
       });
-
       btnHeat.addEventListener('click', () => {
         showHeat = !showHeat;
         setBtnState(btnHeat, showHeat);
@@ -307,6 +359,9 @@
 
       setBtnState(btnCluster, showCluster);
       setBtnState(btnHeat, showHeat);
+
+      // Update on map movement
+      map.on('moveend zoomend', scheduleViewportUpdate);
     }
 
     main().catch(err => {
