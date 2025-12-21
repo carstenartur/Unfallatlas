@@ -1,0 +1,32 @@
+name: Generate & Commit
+
+on:
+  workflow_dispatch:  # Manuell auslösbar
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # Wir verwenden ein eigenes Token!
+
+      - name: Set up Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Run das Shellscript
+        run: |
+          chmod +x ./convertAmt2gmaps.sh
+          ./convertAmt2gmaps.sh
+
+      - name: Commit & Push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUSH_TOKEN }}
+        run: |
+          git add -A
+          git diff --cached --quiet || (
+            git commit -m "Automatisch erzeugte Dateien durch generate.sh"
+            git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }}
+          )
