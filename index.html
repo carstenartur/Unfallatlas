@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Unfallatlas Marker-AR (AR.js)</title>
+
+    <!-- A-Frame -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+    <!-- AR.js for A-Frame -->
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.6/aframe/build/aframe-ar.js"></script>
+
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+      #hud {
+        position: fixed; left: 0; right: 0; top: 0;
+        padding: 10px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: #fff; background: rgba(0,0,0,.45); z-index: 10;
+      }
+      #hud small { opacity: .85; }
+    </style>
+  </head>
+
+  <body>
+    <div id="hud">
+      <div><b>Unfallatlas Marker-AR</b> (Hiro Marker)</div>
+      <small>Bewege die Kamera über den Marker. Punkte werden relativ zum Marker platziert.</small>
+    </div>
+
+    <a-scene
+      embedded
+      renderer="antialias: true; precision: medium;"
+      vr-mode-ui="enabled: false"
+      arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+    >
+      <!-- Lichter -->
+      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
+      <a-entity light="type: directional; intensity: 0.8" position="1 2 1"></a-entity>
+
+      <!-- Hiro Marker -->
+      <a-marker preset="hiro" id="markerRoot">
+        <!-- Eine Platte als Referenzfläche -->
+        <a-plane rotation="-90 0 0" width="1.2" height="1.2" color="#222" opacity="0.65"></a-plane>
+
+        <!-- Hier werden Punkte dynamisch eingefügt -->
+        <a-entity id="pointsRoot"></a-entity>
+
+        <!-- Beschriftung -->
+        <a-text
+          value="Unfallpunkte"
+          position="-0.55 0.01 0.55"
+          rotation="-90 0 0"
+          width="2.2"
+          color="#fff"
+        ></a-text>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+      // ---- Einstellungen ----
+      // So groß ist der Marker-Bereich in Metern (A-Frame-Einheiten ~ Meter)
+      const PLANE_SIZE = 1.2;     // passt zum a-plane oben
+      const DOT_RADIUS = 0.015;   // Punktgröße
+      const MAX_POINTS = 500;     // Begrenzung für Performance
+
+      // Für Demo: Wir "normalisieren" Geo-Koordinaten auf den Marker.
+      // Damit werden reale Längen NICHT maßstabsgetreu abgebildet,
+      // aber du bekommst schnell eine Marker-AR-Visualisierung.
+      function normalizeToPlane(features) {
+        const lons = features.map(f => f.geometry.coordinates[0]);
+        const lats = features.map(f => f.geometry.coordinates[1]);
+
+        const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+        const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+
+        const spanLon = (maxLon - minLon) || 1e-9;
+        const spanLat = (maxLat - minLat) || 1e-9;
+
+        // Map: Lon -> x, Lat -> z, z invertiert damit "oben" auf dem Marker plausibel wirkt
+        return features.map(f => {
+          const [lon, lat] = f.geometry.coordinates;
+
+          const nx = (lon - minLon) / spanLon;  // 0..1
+          const nz = (lat - minLat) / spanLat;  // 0..1
+
+          // auf [-PLANE_SIZE/2 .. +PLANE_SIZE/2]
+          const x = (nx - 0.5) * PLANE_SIZE;
+          const z = (0.5 - nz) * PLANE_SIZE;
+
+          return { x, z, props: f.properties || {} };
+        });
+      }
+
+      async function loadGeoJSON(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`GeoJSON laden fehlgeschlagen: ${res.status}`);
+        const gj = await res.json();
+        if (!gj || gj.type !== "FeatureCollection" || !Array.isArray(gj.features)) {
+          throw new Error("Ungültiges GeoJSON FeatureCollection");
+        }
+        return gj.features
+          .filter(f => f && f.geometry && f.geometry.type === "Point")
+          .slice(0, MAX_POINTS);
+      }
+
+      function addDots(points) {
+        const root = document.getElementById("pointsRoot");
+        root.innerHTML = ""; // reset
+
+        for (const p of points) {
+          const dot = document.createElement("a-sphere");
+          dot.setAttribute("radius", DOT_RADIUS);
+          dot.setAttribute("position", `${p.x} 0.02 ${p.z}`); // leicht über der Fläche
+          dot.setAttribute("color", "#ff3b30");
+
+          // Optional: Tooltip-Text als child (wird sichtbar, wenn nah dran)
+          const label = document.createElement("a-text");
+          const name = (p.props.name || "Punkt").toString();
+          label.setAttribute("value", name.length > 40 ? name.slice(0, 40) + "…" : name);
+          label.setAttribute("align", "center");
+          label.setAttribute("color", "#fff");
+          label.setAttribute("width", "1.4");
+          label.setAttribute("position", `0 0.06 0`);
+          label.setAttribute("rotation", `-90 0 0`);
+          dot.appendChild(label);
+
+          root.appendChild(dot);
+        }
+      }
+
+      (async () => {
+        try {
+          const features = await loadGeoJSON("points.geojson");
+          const points = normalizeToPlane(features);
+          addDots(points);
+          console.log(`Loaded ${points.length} points`);
+        } catch (e) {
+          console.error(e);
+          alert(e.message || String(e));
+        }
+      })();
+    </script>
+  </body>
+</html>
