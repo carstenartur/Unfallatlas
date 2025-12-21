@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unfallatlas – Webkarte</title>
+  <title>Unfallatlas – Webkarte (Cluster + Heatmap)</title>
 
-  <!-- Leaflet (CDN) -->
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -18,27 +18,72 @@
     crossorigin=""
   ></script>
 
+  <!-- MarkerCluster -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+    crossorigin=""
+  ></script>
+
+  <!-- Heatmap plugin -->
+  <script
+    src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+    crossorigin=""
+  ></script>
+
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; }
+
     .panel {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
-      background: white; padding: 10px 12px; border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15);
+      background: white; padding: 10px 12px; border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.18);
       font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      max-width: 320px;
+      max-width: 360px;
     }
-    .row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+    .row { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
     label { font-weight: 600; }
-    select, input { width: 100%; padding: 6px; }
-    .muted { color: #666; font-size: 12px; margin-top: 6px; }
+    select, input {
+      width: 100%; padding: 6px 8px;
+      border: 1px solid #ddd; border-radius: 8px;
+      font: inherit;
+    }
+    .toggles { display: flex; gap: 8px; margin-top: 8px; }
+    .btn {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      background: #fafafa;
+      cursor: pointer;
+      user-select: none;
+      text-align: center;
+      font-weight: 600;
+    }
+    .btn.active {
+      background: #e9f2ff;
+      border-color: #b7d4ff;
+    }
+    .muted { color: #666; font-size: 12px; margin-top: 8px; }
+    .stat { margin-top: 8px; font-size: 12px; color: #333; }
+    code { background: #f3f3f3; padding: 1px 4px; border-radius: 6px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
   <div class="panel">
-    <div><strong>Unfallatlas – Webkarte</strong></div>
+    <div><strong>Unfallatlas</strong> <span style="color:#666">(Cluster + Heatmap)</span></div>
 
     <div class="row">
       <label for="year">Jahr</label>
@@ -58,39 +103,64 @@
     </div>
 
     <div class="row">
-      <label for="limit">Max Punkte</label>
-      <input id="limit" type="number" min="100" step="100" value="5000" />
+      <label for="maxn">Max Punkte</label>
+      <input id="maxn" type="number" min="500" step="500" value="20000" />
     </div>
 
+    <div class="row">
+      <label for="heatR">Heat Radius</label>
+      <input id="heatR" type="number" min="5" max="60" step="1" value="25" />
+    </div>
+
+    <div class="toggles">
+      <div id="toggleCluster" class="btn active">Cluster</div>
+      <div id="toggleHeat" class="btn active">Heatmap</div>
+    </div>
+
+    <div class="stat" id="stat">Lade Daten…</div>
+
     <div class="muted">
-      Datenquelle: <code>out/output_all_years.geojson</code><br/>
-      Tipp: Große Datenmengen können mobil langsam sein.
+      Quelle: <code>out/output_all_years.geojson</code><br/>
+      Tipp (iPhone): erst Heatmap an, dann reinzoomen.
     </div>
   </div>
 
   <script>
     // Karte initialisieren (Start: Hannover ungefähr)
-    const map = L.map('map').setView([52.3759, 9.7320], 12);
+    const map = L.map('map', { preferCanvas: true }).setView([52.3759, 9.7320], 12);
 
-    // Basiskarte (OpenStreetMap)
+    // Basiskarte OSM
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    let allFeatures = null;
-    let layer = null;
+    // Layer container
+    let clusterLayer = null;   // MarkerClusterGroup
+    let heatLayer = null;      // L.heatLayer
+    let all = null;            // GeoJSON
+    let filteredPoints = [];   // [{lat, lon, props}...]
 
-    // einfache "Farblogik" nach UKATEGORIE
-    function colorForKat(kat) {
-      // Leaflet default colors vermeiden wir nicht explizit – wir geben nur unterschiedliche opacities/weights,
-      // aber okay: wir nehmen hier einfach unterschiedliche Radiuswerte statt Farben, damit es neutral bleibt.
-      // Wenn du Farben willst, sag Bescheid.
-      return { radius: kat === "1" ? 8 : kat === "2" ? 6 : 4 };
+    // UI
+    const yearEl = document.getElementById('year');
+    const katEl = document.getElementById('kat');
+    const maxEl = document.getElementById('maxn');
+    const heatREl = document.getElementById('heatR');
+    const statEl = document.getElementById('stat');
+
+    const btnCluster = document.getElementById('toggleCluster');
+    const btnHeat = document.getElementById('toggleHeat');
+
+    let showCluster = true;
+    let showHeat = true;
+
+    function setBtnState(btn, on) {
+      btn.classList.toggle('active', on);
     }
 
     function popupHtml(p) {
-      const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+      const esc = (s) => String(s ?? "")
+        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
       return `
         <div style="font: 14px/1.25 system-ui;">
           <div><strong>${esc(p.name)}</strong></div>
@@ -107,74 +177,141 @@
     function buildYearOptions(features) {
       const years = new Set();
       for (const f of features) {
-        if (f.properties && f.properties.year) years.add(String(f.properties.year));
+        const y = f?.properties?.year;
+        if (y !== undefined && y !== null && y !== "") years.add(String(y));
       }
-      const yearSel = document.getElementById('year');
       [...years].sort().forEach(y => {
         const opt = document.createElement('option');
         opt.value = y;
         opt.textContent = y;
-        yearSel.appendChild(opt);
+        yearEl.appendChild(opt);
       });
     }
 
+    function extractPoints(geojson) {
+      const pts = [];
+      const feats = geojson?.features || [];
+      for (const f of feats) {
+        if (!f || f.type !== "Feature") continue;
+        const g = f.geometry;
+        if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
+        const [lon, lat] = g.coordinates;
+        if (typeof lat !== "number" || typeof lon !== "number") continue;
+        pts.push({ lat, lon, props: f.properties || {} });
+      }
+      return pts;
+    }
+
     function applyFilter() {
-      if (!allFeatures) return;
+      if (!all) return;
 
-      const year = document.getElementById('year').value;
-      const kat = document.getElementById('kat').value;
-      const maxN = Math.max(100, parseInt(document.getElementById('limit').value || "5000", 10));
+      const wantYear = yearEl.value;
+      const wantKat = katEl.value;
+      const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
 
-      // filtern + begrenzen
-      const filtered = [];
-      for (const f of allFeatures.features) {
-        const p = f.properties || {};
-        if (year !== "all" && String(p.year) !== year) continue;
-        if (kat !== "all" && String(p.ukategorie) !== kat) continue;
-        filtered.push(f);
-        if (filtered.length >= maxN) break;
+      const pts = extractPoints(all);
+
+      const out = [];
+      for (const p of pts) {
+        const pr = p.props || {};
+        if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
+        if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
+        out.push(p);
+        if (out.length >= maxN) break;
       }
 
-      // Layer neu rendern
-      if (layer) layer.remove();
+      filteredPoints = out;
+      statEl.textContent = `Gefiltert: ${filteredPoints.length.toLocaleString()} Punkte (von ${pts.length.toLocaleString()})`;
 
-      layer = L.geoJSON({ type: "FeatureCollection", features: filtered }, {
-        pointToLayer: (feature, latlng) => {
-          const p = feature.properties || {};
-          const k = String(p.ukategorie || "");
-          const r = colorForKat(k).radius;
-          return L.circleMarker(latlng, { radius: r });
-        },
-        onEachFeature: (feature, l) => {
-          l.bindPopup(popupHtml(feature.properties || {}));
+      renderLayers();
+    }
+
+    function renderLayers() {
+      // remove existing
+      if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
+      if (heatLayer) { heatLayer.remove(); heatLayer = null; }
+
+      // cluster
+      if (showCluster) {
+        clusterLayer = L.markerClusterGroup({
+          chunkedLoading: true,      // wichtig für große Datenmengen (UI bleibt responsiv)
+          chunkInterval: 200,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false
+        });
+
+        for (const p of filteredPoints) {
+          const m = L.circleMarker([p.lat, p.lon], {
+            radius: 4
+          });
+          m.bindPopup(popupHtml(p.props));
+          clusterLayer.addLayer(m);
         }
-      }).addTo(map);
+        clusterLayer.addTo(map);
+      }
 
-      // Karte grob passend zoomen
-      if (filtered.length > 0) {
-        try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch {}
+      // heatmap
+      if (showHeat) {
+        const r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
+        // Leaflet.heat: [lat, lon, intensity]
+        // intensity: wir nehmen optional Kategorie als Gewicht (1->3)
+        const heatPts = filteredPoints.map(p => {
+          const k = String(p.props?.ukategorie || "");
+          const w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
+          return [p.lat, p.lon, w];
+        });
+
+        heatLayer = L.heatLayer(heatPts, {
+          radius: r,
+          blur: 18,
+          maxZoom: 17
+        }).addTo(map);
+      }
+
+      // fit bounds (nur wenn cluster aktiv ist oder wenigstens Punkte vorhanden)
+      if (filteredPoints.length > 0) {
+        const bounds = L.latLngBounds(filteredPoints.map(p => [p.lat, p.lon]));
+        try { map.fitBounds(bounds, { padding: [20, 20] }); } catch {}
       }
     }
 
     async function main() {
-      // GeoJSON laden (liegt im Repo)
       const resp = await fetch('out/output_all_years.geojson', { cache: "no-store" });
       if (!resp.ok) throw new Error("GeoJSON konnte nicht geladen werden: " + resp.status);
 
-      allFeatures = await resp.json();
-      buildYearOptions(allFeatures.features ? {features: allFeatures.features} : allFeatures);
+      all = await resp.json();
 
-      // initial
+      // years
+      buildYearOptions(all.features || []);
+
+      // initial filter
       applyFilter();
 
-      // UI-Events
-      document.getElementById('year').addEventListener('change', applyFilter);
-      document.getElementById('kat').addEventListener('change', applyFilter);
-      document.getElementById('limit').addEventListener('change', applyFilter);
+      // UI events
+      yearEl.addEventListener('change', applyFilter);
+      katEl.addEventListener('change', applyFilter);
+      maxEl.addEventListener('change', applyFilter);
+      heatREl.addEventListener('change', () => { if (all) renderLayers(); });
+
+      btnCluster.addEventListener('click', () => {
+        showCluster = !showCluster;
+        setBtnState(btnCluster, showCluster);
+        renderLayers();
+      });
+
+      btnHeat.addEventListener('click', () => {
+        showHeat = !showHeat;
+        setBtnState(btnHeat, showHeat);
+        renderLayers();
+      });
+
+      setBtnState(btnCluster, showCluster);
+      setBtnState(btnHeat, showHeat);
     }
 
     main().catch(err => {
       console.error(err);
+      statEl.textContent = String(err);
       alert(String(err));
     });
   </script>
