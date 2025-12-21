@@ -279,8 +279,10 @@ process_year() {
 
   curl -fsSL -o "$zip" "$url"
 
+  # FIX 1: robusteres Finden der Datendatei im Zip (Namen/Ordner variieren je Jahr)
   datafile="$(unzip -Z1 "$zip" \
-    | grep -Ei "Unfallorte${year}.*(LinRef|EPSG25832_CSV).*\.([ct]sv|txt)$" \
+    | grep -Ei "Unfallorte${year}.*\.(csv|txt)$" \
+    | grep -Evi "(readme|lizenz|license)" \
     | head -n 1 || true)"
 
   if [ -z "$datafile" ]; then
@@ -313,7 +315,6 @@ process_year() {
       return t
     }
     function ok_involvement() {
-      # Wenn keinerlei Filter gesetzt ist -> akzeptiere alles
       if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
       if (istrad!="" && i_istrad>0 && $i_istrad==istrad) return 1
       if (ispkw!=""  && i_ispkw>0  && $i_ispkw==ispkw)   return 1
@@ -322,7 +323,6 @@ process_year() {
       return 0
     }
     BEGIN {
-      # CSV: erste Spalten kompatibel halten (erweitert um Beteiligung + Licht)
       print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > outcsv
       print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo
       first=1
@@ -344,7 +344,6 @@ process_year() {
 
       i_licht  = pick("ULICHTVERH","U_LICHTVERH","","","")
 
-      # Erweiterungen
       i_kat    = pick("UKATEGORIE","","","","")
       i_typ1   = pick("UTYP1","","","","")
       i_uart   = pick("UART","","","","")
@@ -353,7 +352,6 @@ process_year() {
       i_wtag   = pick("UWOCHENTAG","","","","")
       i_strz   = pick("STRZUSTAND","","","","")
 
-      # WGS84 für GeoJSON/Google Maps
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
       i_lat = pick("YGCSWGS84","Y_GCSWGS84","","","")
 
@@ -375,10 +373,7 @@ process_year() {
       if ($i_ureg  != ureg)   next
       if ($i_ukreis!= ukreis) next
 
-      # optional: Gemeinde (3-stellig)
       if (ugem != "" && i_ugem>0 && $i_ugem != ugem) next
-
-      # Beteiligung (Filter)
       if (!ok_involvement()) next
 
       out++
@@ -386,19 +381,16 @@ process_year() {
 
       id = (i_id ? $i_id : out)
 
-      # WGS84
       lon = $i_lon; lat = $i_lat
       gsub(/\r/,"",lon); gsub(/\r/,"",lat)
       gsub(/,/,".",lon); gsub(/,/,".",lat)
 
-      # Straße/Licht
       str = (i_str ? $i_str : "")
       gsub(/\r/,"",str)
 
       licht = (i_licht ? $i_licht : "")
       gsub(/\r/,"",licht)
 
-      # Erweiterte Felder (falls Spalten fehlen -> leer)
       kat    = (i_kat ? $i_kat : "")
       typ1   = (i_typ1 ? $i_typ1 : "")
       uart   = (i_uart ? $i_uart : "")
@@ -410,7 +402,6 @@ process_year() {
       gsub(/\r/,"",kat); gsub(/\r/,"",typ1); gsub(/\r/,"",uart)
       gsub(/\r/,"",monat); gsub(/\r/,"",stunde); gsub(/\r/,"",wtag); gsub(/\r/,"",strz)
 
-      # Beteiligung (NEU: exportieren, z.B. für KML-Icons)
       v_istrad = (i_istrad ? $i_istrad : "")
       v_ispkw  = (i_ispkw  ? $i_ispkw  : "")
       v_isfuss = (i_isfuss ? $i_isfuss : "")
@@ -418,16 +409,13 @@ process_year() {
 
       gsub(/\r/,"",v_istrad); gsub(/\r/,"",v_ispkw); gsub(/\r/,"",v_isfuss); gsub(/\r/,"",v_iskrad)
 
-      # Name informativer
       name = "Unfall " id " (" year ")"
       if (kat != "") name = name " Kat:" kat
       if (licht != "") name = name ", Licht: " licht
       if (str   != "") name = name " Strasse: " str
 
-      # CSV (Google Maps): erste Spalten bleiben gleich, extra Spalten sind ok
       print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv
 
-      # GeoJSON Feature
       if (!first) print "," >> outgeo
       first=0
 
@@ -508,22 +496,25 @@ COMBINED_GEO="${OUTDIR}/output_all_years.geojson"
   for y in $YEARS; do
     f="${OUTDIR}/output${y}.geojson"
     [ -f "$f" ] || continue
+
+    # FIX 2: awk-variable "in" vermeiden (mawk/CI), stattdessen "inside"
     awk -v firstref="$first" '
-      BEGIN{in=0; first=firstref; printed_any=0}
-      /"features"[[:space:]]*:[[:space:]]*\[/{in=1; next}
-      in && /^[[:space:]]*\]/{in=0; next}
-      in {
+      BEGIN{inside=0; first=firstref; printed_any=0}
+      /"features"[[:space:]]*:[[:space:]]*\[/{inside=1; next}
+      inside && /^[[:space:]]*\]/{inside=0; next}
+      inside {
         if ($0 ~ /^[[:space:]]*$/) next
         if (first=="0" && printed_any==0) print ","
         printed_any=1
         print
       }
     ' "$f"
+
     if awk '
-      BEGIN{in=0; n=0}
-      /"features"[[:space:]]*:[[:space:]]*\[/{in=1; next}
-      in && /^[[:space:]]*\]/{in=0; next}
-      in { if ($0 !~ /^[[:space:]]*$/) n++ }
+      BEGIN{inside=0; n=0}
+      /"features"[[:space:]]*:[[:space:]]*\[/{inside=1; next}
+      inside && /^[[:space:]]*\]/{inside=0; next}
+      inside { if ($0 !~ /^[[:space:]]*$/) n++ }
       END{ exit (n>0 ? 0 : 1) }
     ' "$f"; then
       first=0
