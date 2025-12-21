@@ -1,5 +1,5 @@
 #!/bin/sh
-
+set -eu
 
 # 032305 Hannover
 
@@ -126,26 +126,118 @@
 #033313 Osnabrück
 #033314 Papenburg
 
-# weitere Amtsgerichtsbezirke bitte in 
+# weitere Amtsgerichtsbezirke bitte in
 # https://www.destatis.de/DE/Themen/Laender-Regionen/Regionales/Gemeindeverzeichnis/Administrativ/beschreibung-gebietseinheiten.pdf?__blob=publicationFile
 # nachschlagen
 
+###############################################################################
+# Konfiguration: Region Hannover (032305) => ULAND=03, UREGBEZ=2, UKREIS=41
+###############################################################################
+ULAND="03"
+UREGBEZ="2"
+UKREIS="41"
+IST_RAD="1"
 
-curl  -o 2018.zip https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte2018_EPSG25832_CSV.zip
-unzip -o 2018.zip
-awk 'BEGIN{FS=";";print "WKT,Name,OBJECTID\r"} {if (NR!=1 && $2 == 03 && $3 == 2 && $4 == 41 && $14 == 1 ) {gsub(/\r/,"",$24);gsub(/,/,".",$23);gsub(/,/,".",$24);print  "\"POINT (" $23 " " $24 ")\",Fahrrad " $1 ", Licht: " $13 " Strasse: " $20 "," $1 "\r"}}' <csv/Unfallorte2018_LinRef.txt  |head -1999 >output2018.csv
+LIMIT=1999
+OUTDIR="out"
+mkdir -p "$OUTDIR"
 
-curl  -o 2019.zip https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte2019_EPSG25832_CSV.zip
-unzip -o 2019.zip
-awk 'BEGIN{FS=";";print "WKT,Name,OBJECTID\r"} {if (NR!=1 && $2 == 3 && $3 == 2 && $4 == 41 && $14 == 1 ) {gsub(/\r/,"",$24);gsub(/,/,".",$22);gsub(/,/,".",$23);print  "\"POINT (" $22 " " $23 ")\",Fahrrad " $1 ", Licht: " $13 " Strasse: " $24 "," $1 "\r"}}' <csv/Unfallorte2019_LinRef.txt  |head -1999 >output2019.csv
+# verfügbare Jahre (Unfallatlas-Downloads auf opengeodata.nrw.de)
+YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
-curl  -o 2020.zip https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte2020_EPSG25832_CSV.zip
-unzip -o 2020.zip
-awk 'BEGIN{FS=";";print "WKT,Name,OBJECTID\r"} {if (NR!=1 && $3 == 3 && $4 == 2 && $5 == 41 && $16 == 1 ) {gsub(/\r/,"",$25);gsub(/,/,".",$23);gsub(/,/,".",$24);print  "\"POINT (" $23 " " $24 ")\",Fahrrad " $1 ", Licht: " $14 " Strasse: " $15 "," $1 "\r"}}' <csv/Unfallorte2020_LinRef.csv  |head -1999 >output2020.csv
+process_year() {
+  year="$1"
+  zip="${year}.zip"
+  url="https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte${year}_EPSG25832_CSV.zip"
 
-curl  -o 2021.zip https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte2021_EPSG25832_CSV.zip
-unzip -o 2021.zip
-awk 'BEGIN{FS=";";print "WKT,Name,OBJECTID\r"} {if (NR!=1 && $3 == 3 && $4 == 2 && $5 == 41 && $16 == 1 ) {gsub(/\r/,"",$25);gsub(/,/,".",$24);gsub(/,/,".",$25);print  "\"POINT (" $24 " " $25 ")\",Fahrrad " $1 ", Licht: " $14 " Strasse: " $15 "," $1 "\r"}}' <Unfallorte2021_EPSG25832_CSV.csv  |head -1999 >output2021.csv
+  echo "== $year =="
 
+  curl -fsSL -o "$zip" "$url"
 
+  # Datei im ZIP finden (Layout/Endung variiert je Jahr)
+  datafile="$(unzip -Z1 "$zip" \
+    | grep -Ei "Unfallorte${year}.*(LinRef|EPSG25832_CSV).*\.([ct]sv|txt)$" \
+    | head -n 1 || true)"
 
+  if [ -z "$datafile" ]; then
+    echo "WARN: Keine passende Datendatei im Zip gefunden ($zip)" >&2
+    return 0
+  fi
+
+  unzip -p "$zip" "$datafile" \
+  | awk -F';' -v year="$year" -v limit="$LIMIT" \
+        -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v istrad="$IST_RAD" '
+    function pick(a,b,c,d,e) {
+      if (a!="" && (a in idx)) return idx[a]
+      if (b!="" && (b in idx)) return idx[b]
+      if (c!="" && (c in idx)) return idx[c]
+      if (d!="" && (d in idx)) return idx[d]
+      if (e!="" && (e in idx)) return idx[e]
+      return 0
+    }
+    BEGIN { print "WKT,Name,OBJECTID\r"; out=0 }
+    NR==1 {
+      for (i=1; i<=NF; i++) { gsub(/\r/,"",$i); idx[$i]=i }
+
+      i_id     = pick("ID","","","","")
+      i_uland  = pick("ULAND","","","","")
+      i_ureg   = pick("UREGBEZ","","","","")
+      i_ukreis = pick("UKREIS","","","","")
+      i_istrad = pick("IstRad","ISTRAD","","","")
+      i_licht  = pick("ULICHTVERH","U_LICHTVERH","","","")
+
+      # Koordinaten (meist LINREFX/LINREFY, je nach Jahr ggf. leicht anders benannt)
+      i_x = pick("LINREFX","INREFX","XGCSWGS84","X_GCSWGS84","")
+      i_y = pick("LINREFY","YGCSWGS84","Y_GCSWGS84","","")
+
+      # Straßenname (kann je nach Jahr/Export anders heißen)
+      i_str = pick("Strasse","STRASSE","StrName","STRNAME","USTRNAME")
+      next
+    }
+    NR>1 {
+      if (i_uland==0 || i_ureg==0 || i_ukreis==0 || i_istrad==0 || i_x==0 || i_y==0) next
+
+      if ($i_uland != uland)  next
+      if ($i_ureg  != ureg)   next
+      if ($i_ukreis!= ukreis) next
+      if ($i_istrad!= istrad) next
+
+      out++
+      if (out > limit) exit
+
+      id = (i_id ? $i_id : out)
+      licht = (i_licht ? $i_licht : "")
+      x = $i_x; y = $i_y
+      gsub(/\r/,"",x); gsub(/\r/,"",y)
+      gsub(/,/,".",x); gsub(/,/,".",y)
+
+      str = (i_str ? $i_str : "")
+      gsub(/\r/,"",str)
+
+      name = "Fahrrad " id " (" year ")"
+      if (licht != "") name = name ", Licht: " licht
+      if (str   != "") name = name " Strasse: " str
+
+      print "\"POINT (" x " " y ")\"," name "," id "\r"
+    }
+  ' > "${OUTDIR}/output${year}.csv"
+
+  echo " -> ${OUTDIR}/output${year}.csv"
+}
+
+for y in $YEARS; do
+  process_year "$y" || true
+done
+
+# Optional: alles zusammenführen (Header nur einmal)
+COMBINED="${OUTDIR}/output_all_years.csv"
+(
+  echo "WKT,Name,OBJECTID\r"
+  for y in $YEARS; do
+    f="${OUTDIR}/output${y}.csv"
+    [ -f "$f" ] && tail -n +2 "$f"
+  done
+) > "$COMBINED"
+
+echo "== fertig =="
+echo "Combined: $COMBINED"
