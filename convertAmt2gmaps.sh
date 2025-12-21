@@ -22,6 +22,8 @@ set -eu
 #   - UART         (Unfallart)
 #   - UMONAT, USTUNDE, UWOCHENTAG (Zeit)
 #   - STRZUSTAND   (Straßenzustand)
+#   - ULICHTVERH   (Lichtverhältnisse)
+#   - ISTRAD/ISTPKW/ISTFUSS/ISTKRAD (Beteiligung)  <-- NEU für KML Icons etc.
 #
 # Abhängigkeiten: curl, unzip, awk, head, tail, grep, sed
 ###############################################################################
@@ -128,9 +130,6 @@ mkdir -p "$OUTDIR"
 
 ###############################################################################
 # City-Cache: via gvz.tuerantuer.org
-# - Paginierung: ?format=json&page=N
-# - Filter: division_category==60 (Gemeinde) AND citizens_total >= MIN
-# - schreibt TSV: short_name \t ags8 \t pop
 ###############################################################################
 update_city_cache() {
   echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
@@ -323,8 +322,8 @@ process_year() {
       return 0
     }
     BEGIN {
-      # CSV: erste Spalten kompatibel halten
-      print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND\r" > outcsv
+      # CSV: erste Spalten kompatibel halten (erweitert um Beteiligung + Licht)
+      print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > outcsv
       print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo
       first=1
       out=0
@@ -379,21 +378,25 @@ process_year() {
       # optional: Gemeinde (3-stellig)
       if (ugem != "" && i_ugem>0 && $i_ugem != ugem) next
 
-      # Beteiligung
+      # Beteiligung (Filter)
       if (!ok_involvement()) next
 
       out++
       if (out > limit) exit
 
       id = (i_id ? $i_id : out)
-      licht = (i_licht ? $i_licht : "")
 
+      # WGS84
       lon = $i_lon; lat = $i_lat
       gsub(/\r/,"",lon); gsub(/\r/,"",lat)
       gsub(/,/,".",lon); gsub(/,/,".",lat)
 
+      # Straße/Licht
       str = (i_str ? $i_str : "")
       gsub(/\r/,"",str)
+
+      licht = (i_licht ? $i_licht : "")
+      gsub(/\r/,"",licht)
 
       # Erweiterte Felder (falls Spalten fehlen -> leer)
       kat    = (i_kat ? $i_kat : "")
@@ -407,14 +410,22 @@ process_year() {
       gsub(/\r/,"",kat); gsub(/\r/,"",typ1); gsub(/\r/,"",uart)
       gsub(/\r/,"",monat); gsub(/\r/,"",stunde); gsub(/\r/,"",wtag); gsub(/\r/,"",strz)
 
-      # Optional: Name minimal informativer (Schwere vorne)
+      # Beteiligung (NEU: exportieren, z.B. für KML-Icons)
+      v_istrad = (i_istrad ? $i_istrad : "")
+      v_ispkw  = (i_ispkw  ? $i_ispkw  : "")
+      v_isfuss = (i_isfuss ? $i_isfuss : "")
+      v_iskrad = (i_iskrad ? $i_iskrad : "")
+
+      gsub(/\r/,"",v_istrad); gsub(/\r/,"",v_ispkw); gsub(/\r/,"",v_isfuss); gsub(/\r/,"",v_iskrad)
+
+      # Name informativer
       name = "Unfall " id " (" year ")"
       if (kat != "") name = name " Kat:" kat
       if (licht != "") name = name ", Licht: " licht
       if (str   != "") name = name " Strasse: " str
 
-      # CSV (Google Maps): extra Spalten sind ok, erste Spalten bleiben gleich
-      print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "\r" >> outcsv
+      # CSV (Google Maps): erste Spalten bleiben gleich, extra Spalten sind ok
+      print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv
 
       # GeoJSON Feature
       if (!first) print "," >> outgeo
@@ -427,7 +438,7 @@ process_year() {
             "        \"id\": \"" jesc(id) "\",\n" \
             "        \"name\": \"" jesc(name) "\",\n" \
             "        \"year\": " year ",\n" \
-            "        \"licht\": \"" jesc(licht) "\",\n" \
+            "        \"ulichtverh\": \"" jesc(licht) "\",\n" \
             "        \"strasse\": \"" jesc(str) "\",\n" \
             "        \"ukategorie\": \"" jesc(kat) "\",\n" \
             "        \"utyp1\": \"" jesc(typ1) "\",\n" \
@@ -435,7 +446,11 @@ process_year() {
             "        \"umonat\": \"" jesc(monat) "\",\n" \
             "        \"ustunde\": \"" jesc(stunde) "\",\n" \
             "        \"uwochentag\": \"" jesc(wtag) "\",\n" \
-            "        \"strzustand\": \"" jesc(strz) "\"\n" \
+            "        \"strzustand\": \"" jesc(strz) "\",\n" \
+            "        \"istrad\": \"" jesc(v_istrad) "\",\n" \
+            "        \"istpkw\": \"" jesc(v_ispkw) "\",\n" \
+            "        \"istfuss\": \"" jesc(v_isfuss) "\",\n" \
+            "        \"istkrad\": \"" jesc(v_iskrad) "\"\n" \
             "      }\n" \
             "    }" >> outgeo
     }
@@ -476,7 +491,7 @@ done
 # Combined CSV
 COMBINED_CSV="${OUTDIR}/output_all_years.csv"
 (
-  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND\r"
+  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r"
   for y in $YEARS; do
     f="${OUTDIR}/output${y}.csv"
     [ -f "$f" ] && tail -n +2 "$f"
