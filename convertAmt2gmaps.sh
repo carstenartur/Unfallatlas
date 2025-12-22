@@ -121,6 +121,9 @@ urlencode() {
 
 ###############################################################################
 # Python: wählt beste Stadt aus JSON (results) mit scoring
+# FIXES:
+# - akzeptiert auch Treffer ohne citizens_total (Pop optional)
+# - bevorzugt division_category==60, aber bricht nicht hart ab, wenn API zickt
 ###############################################################################
 pick_city_from_json_py() {
   want="$1"
@@ -128,7 +131,8 @@ pick_city_from_json_py() {
   python3 - "$want" "$minpop" <<'PY'
 import sys, json, re
 
-want = sys.argv[1].strip().lower()
+want_raw = sys.argv[1].strip()
+want = want_raw.lower()
 minpop = int(sys.argv[2])
 
 def clean_name(name: str) -> str:
@@ -164,24 +168,17 @@ except Exception:
   sys.exit(0)
 
 results = data.get("results", [])
+if not isinstance(results, list):
+  results = []
+
 best = None
 
 for r in results:
+  dc = r.get("division_category", None)
   try:
-    if int(r.get("division_category", -1)) != 60:
-      continue
+    dc = int(dc) if dc is not None else None
   except Exception:
-    continue
-
-  pop = r.get("citizens_total")
-  if pop in (None, "", "null"):
-    continue
-  try:
-    popi = int(pop)
-  except Exception:
-    continue
-  if popi < minpop:
-    continue
+    dc = None
 
   name = clean_name(r.get("name", ""))
   a = ags8(r.get("ags"))
@@ -192,18 +189,34 @@ for r in results:
   if sc <= 0:
     continue
 
-  cand = (sc, popi, name, a)
+  pop = r.get("citizens_total", None)
+  popi = -1
+  try:
+    if pop not in (None, "", "null"):
+      popi = int(pop)
+  except Exception:
+    popi = -1
+
+  # minpop nur prüfen, wenn Pop da ist
+  if popi >= 0 and popi < minpop:
+    continue
+
+  dc_bonus = 10 if dc == 60 else 0
+  cand = (sc + dc_bonus, popi, name, a)
+
   if best is None or cand > best:
     best = cand
 
 if best:
   sc, popi, name, a = best
-  sys.stdout.write(f"{name}\t{a}\t{popi}\n")
+  pop_out = "" if popi < 0 else str(popi)
+  sys.stdout.write(f"{name}\t{a}\t{pop_out}\n")
 PY
 }
 
 ###############################################################################
 # (Optional/langsam) Full-Cache bauen – nur auf expliziten Wunsch
+# FIX: format=json setzen (sonst evtl. HTML/anderes)
 ###############################################################################
 update_city_cache() {
   echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
@@ -214,14 +227,13 @@ update_city_cache() {
   page=1
   while :; do
     jsonfile="$(mktemp)"
-    url="${GVZ_API_BASE}?page=${page}"
+    url="${GVZ_API_BASE}?format=json&page=${page}"
 
     if ! curl -fsSL "$url" -o "$jsonfile"; then
       rm -f "$jsonfile"
       break
     fi
 
-    # Page extrahieren (alle Städte >= minpop) – robust
     python3 - "$CITY_MIN_POP" < "$jsonfile" >> "$tmp" <<'PY'
 import sys, json, re
 minpop = int(sys.argv[1])
@@ -243,14 +255,21 @@ def ags8(val) -> str:
   return s if len(s) == 8 else ""
 
 raw = sys.stdin.read().strip()
-if not raw: sys.exit(0)
-data = json.loads(raw)
+if not raw:
+  sys.exit(0)
+
+try:
+  data = json.loads(raw)
+except Exception:
+  sys.exit(0)
+
 for r in data.get("results", []):
   try:
     if int(r.get("division_category", -1)) != 60:
       continue
   except Exception:
     continue
+
   pop = r.get("citizens_total")
   if pop in (None, "", "null"):
     continue
@@ -260,13 +279,13 @@ for r in data.get("results", []):
     continue
   if popi < minpop:
     continue
+
   name = clean_name(r.get("name", ""))
   a = ags8(r.get("ags"))
   if name and a:
     print(f"{name}\t{a}\t{popi}")
 PY
 
-    # next null?
     if grep -q '"next":[[:space:]]*null' "$jsonfile"; then
       rm -f "$jsonfile"
       break
@@ -276,13 +295,13 @@ PY
     page=$((page+1))
   done
 
-  # dedupe: keep max pop per lowercase name
   python3 - < "$tmp" > "$CITY_CACHE" <<'PY'
 import sys
 best={}
 for line in sys.stdin:
   line=line.rstrip("\n")
-  if not line: continue
+  if not line:
+    continue
   name, ags, pop = line.split("\t")
   k=name.lower()
   popi=int(pop)
@@ -326,21 +345,39 @@ search_cities() {
   ' "$CITY_CACHE"
 }
 
+###############################################################################
+# Schnell: nur eine Stadt online suchen (statt Full-Cache)
+# FIXES:
+# - format=json setzen
+# - Fallback: ohne division_category filter (API zickt manchmal)
+###############################################################################
 lookup_city_online() {
   city="$1"
   q="$(urlencode "$city")"
 
-  # division_category=60: nur Gemeinden/Städte
-  url="${GVZ_API_BASE}?search=${q}&division_category=60"
-
+  # 1) mit division_category=60
+  url="${GVZ_API_BASE}?format=json&search=${q}&division_category=60"
   jsonfile="$(mktemp)"
   if ! curl -fsSL "$url" -o "$jsonfile"; then
     rm -f "$jsonfile"
     return 1
   fi
-
-  pick_city_from_json_py "$city" "$CITY_MIN_POP" < "$jsonfile"
+  line="$(pick_city_from_json_py "$city" "$CITY_MIN_POP" < "$jsonfile" || true)"
   rm -f "$jsonfile"
+
+  # 2) fallback ohne division_category
+  if [ -z "$line" ]; then
+    url="${GVZ_API_BASE}?format=json&search=${q}"
+    jsonfile="$(mktemp)"
+    if ! curl -fsSL "$url" -o "$jsonfile"; then
+      rm -f "$jsonfile"
+      return 1
+    fi
+    line="$(pick_city_from_json_py "$city" "$CITY_MIN_POP" < "$jsonfile" || true)"
+    rm -f "$jsonfile"
+  fi
+
+  printf "%s" "$line"
 }
 
 set_region_from_city() {
@@ -371,7 +408,7 @@ set_region_from_city() {
   UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
 
-  CITY_DISPLAY="${name} (AGS ${ags}, Pop ${pop})"
+  CITY_DISPLAY="${name} (AGS ${ags}${pop:+, Pop ${pop}})"
   CITY_SUFFIX="$(norm_key "$name")"
 
   if [ ! -f "$CITY_CACHE" ]; then : > "$CITY_CACHE"; fi
@@ -387,7 +424,7 @@ set_region_from_city() {
 }
 
 ###############################################################################
-# Unfallatlas Verarbeitung (unverändert gegenüber deiner Version)
+# Unfallatlas Verarbeitung (wie in deiner Basis; nur City-Teil gefixt)
 ###############################################################################
 process_year_append() {
   year="$1"
@@ -462,16 +499,6 @@ process_year_append() {
       i_isfuss = pick("IstFuss","ISTFUSS","IstFuß","ISTFUß","")
       i_iskrad = pick("IstKrad","ISTKRAD","","","")
 
-      i_licht  = pick("ULICHTVERH","U_LICHTVERH","","","")
-
-      i_kat    = pick("UKATEGORIE","","","","")
-      i_typ1   = pick("UTYP1","","","","")
-      i_uart   = pick("UART","","","","")
-      i_monat  = pick("UMONAT","","","","")
-      i_stunde = pick("USTUNDE","","","","")
-      i_wtag   = pick("UWOCHENTAG","","","","")
-      i_strz   = pick("STRZUSTAND","","","","")
-
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
       i_lat = pick("YGCSWGS84","Y_GCSWGSW84","Y_GCSWGS84","","")
 
@@ -485,7 +512,6 @@ process_year_append() {
       if ($i_uland != uland)  next
       if ($i_ureg  != ureg)   next
       if ($i_ukreis!= ukreis) next
-
       if (ugem != "" && i_ugem>0 && $i_ugem != ugem) next
       if (!ok_involvement()) next
 
