@@ -11,9 +11,10 @@ set -eu
 # Optional:
 #   --per-year  => zusätzlich out/outputYYYY.csv + out/outputYYYY.geojson
 #
-# City-Handling (CI-tauglich, schnell):
+# City-Handling (CI-tauglich, schnell, robust):
 # - Full-Cache wird NICHT automatisch gebaut.
-# - Bei --city: erst lokaler Cache, sonst Online-Lookup (GVZ API ?search=...)
+# - Bei --city: erst lokaler Cache, sonst Online-Lookup (GVZ API ?search=...).
+# - JSON-Parsing NICHT via awk, sondern via python (robust).
 # - Treffer werden in out/city_cache.tsv gespeichert (nur verwendete Städte).
 ###############################################################################
 
@@ -35,6 +36,9 @@ IST_KRAD=""
 
 CITY_CACHE="${OUTDIR}/city_cache.tsv"
 CITY_MIN_POP=100000
+
+# API: Doku sagt: .../api/administrative_divisions/?search=Augsburg
+# (format=json ist optional)
 GVZ_API_BASE="https://gvz.tuerantuer.org/api/administrative_divisions/"
 
 usage() {
@@ -128,6 +132,7 @@ norm_key() {
 
 # Minimales URL-Encoding (reicht für Städtenamen)
 urlencode() {
+  # shellcheck disable=SC2001
   printf "%s" "$1" \
     | sed -e 's/%/%25/g' \
           -e 's/ /%20/g' \
@@ -137,75 +142,186 @@ urlencode() {
 }
 
 ###############################################################################
+# GVZ JSON -> TSV (robust via Python)
+# - nimmt stdin JSON
+# - wählt division_category==60
+# - min citizens_total
+# - scored match vs. wanted city
+# - output: "Name<TAB>AGS8<TAB>Pop" (1 Zeile) oder nichts
+###############################################################################
+pick_city_from_json_py() {
+  want="$1"
+  minpop="$2"
+  python3 - "$want" "$minpop" <<'PY'
+import sys, json, re
+
+want = sys.argv[1].strip().lower()
+minpop = int(sys.argv[2])
+
+def clean_name(name: str) -> str:
+  s = name or ""
+  s = re.sub(r'^Landeshauptstadt\s+', '', s, flags=re.I)
+  s = re.sub(r'^Hansestadt\s+', '', s, flags=re.I)
+  s = re.sub(r'^Freie\s+und\s+Hansestadt\s+', '', s, flags=re.I)
+  s = re.sub(r'^Stadt\s+', '', s, flags=re.I)
+  s = re.split(r',|\s+-|\s+\(', s, 1)[0]
+  return s.strip()
+
+def ags8(val) -> str:
+  s = re.sub(r'[^0-9]', '', str(val or ""))
+  if len(s) == 9:
+    s = s[1:]  # oft führende 0/Prefix
+  s = s.zfill(8)
+  return s if len(s) == 8 else ""
+
+def score(name: str) -> int:
+  n = name.lower()
+  if n == want:
+    return 300
+  if n.startswith(want):
+    return 200
+  if want in n:
+    return 100
+  return 0
+
+raw = sys.stdin.read().strip()
+if not raw:
+  sys.exit(0)
+
+try:
+  data = json.loads(raw)
+except Exception:
+  sys.exit(0)
+
+results = data.get("results", data if isinstance(data, list) else [])
+best = None
+
+for r in results:
+  try:
+    if int(r.get("division_category", -1)) != 60:
+      continue
+  except Exception:
+    continue
+
+  pop = r.get("citizens_total")
+  if pop in (None, "", "null"):
+    continue
+  try:
+    popi = int(pop)
+  except Exception:
+    continue
+  if popi < minpop:
+    continue
+
+  name = clean_name(r.get("name", ""))
+  a = ags8(r.get("ags"))
+  if not name or not a:
+    continue
+
+  sc = score(name)
+  if sc <= 0:
+    continue
+
+  cand = (sc, popi, name, a)
+  if best is None or cand > best:
+    best = cand
+
+if best:
+  sc, popi, name, a = best
+  sys.stdout.write(f"{name}\t{a}\t{popi}\n")
+PY
+}
+
+###############################################################################
 # (Optional/langsam) Full-Cache bauen – nur auf expliziten Wunsch
 ###############################################################################
 update_city_cache() {
   echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
-
   tmp="${CITY_CACHE}.tmp"
   : > "$tmp"
 
   page=1
   while :; do
-    url="${GVZ_API_BASE}?format=json&page=${page}"
+    url="${GVZ_API_BASE}?page=${page}"
     json="$(curl -fsSL "$url" || true)"
     [ -z "$json" ] && break
 
-    echo "$json" | awk -v min="${CITY_MIN_POP}" '
-      function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
-      BEGIN{ RS="\\{" ; FS="," }
-      /"division_category"[[:space:]]*:[[:space:]]*60/ {
-        name=""; ags=""; pop=""
-        for(i=1;i<=NF;i++){
-          if($i ~ /"name"[[:space:]]*:/){
-            name=$i
-            sub(/^.*"name"[[:space:]]*:[[:space:]]*"?/,"",name); sub(/"?.*$/,"",name)
-            name=unesc(name)
-          }
-          if($i ~ /"ags"[[:space:]]*:/){
-            ags=$i
-            sub(/^.*"ags"[[:space:]]*:[[:space:]]*"?/,"",ags); sub(/"?.*$/,"",ags)
-          }
-          if($i ~ /"citizens_total"[[:space:]]*:/){
-            pop=$i
-            sub(/^.*"citizens_total"[[:space:]]*:[[:space:]]*/,"",pop); sub(/[^0-9].*$/,"",pop)
-          }
-        }
-        if(pop=="" || pop=="null") next
-        if(pop+0 < min) next
-        if(ags=="") next
+    # alle passenden Städte aus dieser Page extrahieren (python)
+    # (hier ohne scoring, dafür alle division_category=60 mit minpop)
+    python3 - "$CITY_MIN_POP" <<'PY' >> "$tmp"
+import sys, json, re
+minpop = int(sys.argv[1])
 
-        gsub(/[^0-9]/,"",ags)
-        if(length(ags)==9) ags=substr(ags,2,8)
-        while(length(ags)<8) ags="0" ags
-        if(length(ags)!=8) next
+def clean_name(name: str) -> str:
+  s = name or ""
+  s = re.sub(r'^Landeshauptstadt\s+', '', s, flags=re.I)
+  s = re.sub(r'^Hansestadt\s+', '', s, flags=re.I)
+  s = re.sub(r'^Freie\s+und\s+Hansestadt\s+', '', s, flags=re.I)
+  s = re.sub(r'^Stadt\s+', '', s, flags=re.I)
+  s = re.split(r',|\s+-|\s+\(', s, 1)[0]
+  return s.strip()
 
-        short=name
-        sub(/^Landeshauptstadt[[:space:]]+/,"",short)
-        sub(/^Hansestadt[[:space:]]+/,"",short)
-        sub(/^Freie[[:space:]]+und[[:space:]]+Hansestadt[[:space:]]+/,"",short)
-        sub(/^Stadt[[:space:]]+/,"",short)
-        sub(/,.*$/,"",short)
-        sub(/[[:space:]]+-.*$/,"",short)
-        sub(/[[:space:]]+\(.*/,"",short)   # <-- FIX: nur 1 Backslash
-        gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
+def ags8(val) -> str:
+  s = re.sub(r'[^0-9]', '', str(val or ""))
+  if len(s) == 9:
+    s = s[1:]
+  s = s.zfill(8)
+  return s if len(s) == 8 else ""
 
-        printf "%s\t%s\t%s\n", short, ags, pop
-      }
-    ' >> "$tmp"
+raw = sys.stdin.read().strip()
+if not raw:
+  sys.exit(0)
+try:
+  data = json.loads(raw)
+except Exception:
+  sys.exit(0)
+
+results = data.get("results", [])
+for r in results:
+  try:
+    if int(r.get("division_category", -1)) != 60:
+      continue
+  except Exception:
+    continue
+  pop = r.get("citizens_total")
+  if pop in (None, "", "null"):
+    continue
+  try:
+    popi = int(pop)
+  except Exception:
+    continue
+  if popi < minpop:
+    continue
+  name = clean_name(r.get("name", ""))
+  a = ags8(r.get("ags"))
+  if name and a:
+    print(f"{name}\t{a}\t{popi}")
+PY <<EOFJSON
+$json
+EOFJSON
 
     echo "$json" | grep -q '"next":[[:space:]]*null' && break
     page=$((page+1))
   done
 
-  awk -F'\t' '
-    { k=tolower($1)
-      if(!(k in best) || $3+0 > pop[k]+0){ best[k]=$0; pop[k]=$3 }
-    }
-    END{ for(k in best) print best[k] }
-  ' "$tmp" | sort > "$CITY_CACHE"
+  # dedupe by lowercase name: keep max pop
+  python3 - <<'PY' < "$tmp" > "$CITY_CACHE"
+import sys
+best = {}
+for line in sys.stdin:
+  line=line.rstrip("\n")
+  if not line: continue
+  name, ags, pop = line.split("\t")
+  key = name.lower()
+  popi = int(pop)
+  cur = best.get(key)
+  if cur is None or popi > cur[2]:
+    best[key] = (name, ags, popi)
+for key in sorted(best.keys()):
+  name, ags, popi = best[key]
+  print(f"{name}\t{ags}\t{popi}")
+PY
   rm -f "$tmp"
-
   echo " -> $CITY_CACHE"
 }
 
@@ -245,66 +361,13 @@ search_cities() {
 lookup_city_online() {
   city="$1"
   q="$(urlencode "$city")"
-  url="${GVZ_API_BASE}?format=json&search=${q}"
+  # division_category=60 (Gemeinde) reduziert massiv Treffer & ist schneller/zuverlässiger
+  url="${GVZ_API_BASE}?search=${q}&division_category=60"
 
   json="$(curl -fsSL "$url" || true)"
   [ -z "$json" ] && return 1
 
-  echo "$json" | awk -v min="${CITY_MIN_POP}" -v want="$city" '
-    function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
-    BEGIN{ RS="\\{" ; FS=","; bestScore=-1; bestLine=""; bestPop=0 }
-    /"division_category"[[:space:]]*:[[:space:]]*60/ {
-      name=""; ags=""; pop=""
-      for(i=1;i<=NF;i++){
-        if($i ~ /"name"[[:space:]]*:/){
-          name=$i
-          sub(/^.*"name"[[:space:]]*:[[:space:]]*"?/,"",name); sub(/"?.*$/,"",name)
-          name=unesc(name)
-        }
-        if($i ~ /"ags"[[:space:]]*:/){
-          ags=$i
-          sub(/^.*"ags"[[:space:]]*:[[:space:]]*"?/,"",ags); sub(/"?.*$/,"",ags)
-        }
-        if($i ~ /"citizens_total"[[:space:]]*:/){
-          pop=$i
-          sub(/^.*"citizens_total"[[:space:]]*:[[:space:]]*/,"",pop); sub(/[^0-9].*$/,"",pop)
-        }
-      }
-
-      if(pop=="" || pop=="null") next
-      if(pop+0 < min) next
-      if(ags=="") next
-
-      gsub(/[^0-9]/,"",ags)
-      if(length(ags)==9) ags=substr(ags,2,8)
-      while(length(ags)<8) ags="0" ags
-      if(length(ags)!=8) next
-
-      short=name
-      sub(/^Landeshauptstadt[[:space:]]+/,"",short)
-      sub(/^Hansestadt[[:space:]]+/,"",short)
-      sub(/^Freie[[:space:]]+und[[:space:]]+Hansestadt[[:space:]]+/,"",short)
-      sub(/^Stadt[[:space:]]+/,"",short)
-      sub(/,.*$/,"",short)
-      sub(/[[:space:]]+-.*$/,"",short)
-      sub(/[[:space:]]+\(.*/,"",short)  # <-- FIX: nur 1 Backslash
-      gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
-
-      w=tolower(want); s=tolower(short)
-
-      score=0
-      if(s==w) score=300
-      else if(index(s,w)==1) score=200
-      else if(index(s,w)>0) score=100
-
-      if(score>bestScore || (score==bestScore && pop+0>bestPop+0)){
-        bestScore=score
-        bestPop=pop
-        bestLine=short "\t" ags "\t" pop
-      }
-    }
-    END{ if(bestLine!="") print bestLine }
-  ' | head -n 1
+  printf "%s" "$json" | pick_city_from_json_py "$city" "$CITY_MIN_POP"
 }
 
 ###############################################################################
