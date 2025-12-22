@@ -46,8 +46,8 @@
 
     .panel {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
-      background: rgba(255,255,255,.82);              /* halbtransparent */
-      backdrop-filter: blur(6px);                      /* hübsch (falls unterstützt) */
+      background: rgba(255,255,255,.72);
+      backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       padding: 10px 12px; border-radius: 10px;
       box-shadow: 0 2px 12px rgba(0,0,0,.18);
@@ -66,7 +66,7 @@
 
     .collapseBtn{
       border: 1px solid rgba(0,0,0,.15);
-      background: rgba(250,250,250,.8);
+      background: rgba(250,250,250,.72);
       padding: 6px 10px;
       border-radius: 10px;
       cursor: pointer;
@@ -74,7 +74,7 @@
       font-weight:700;
       line-height: 1;
     }
-    .collapseBtn:hover { background: rgba(240,240,240,.9); }
+    .collapseBtn:hover { background: rgba(240,240,240,.82); }
 
     .panelBody { margin-top: 8px; }
     .panel.collapsed .panelBody { display:none; }
@@ -86,22 +86,22 @@
       width: 100%; padding: 6px 8px;
       border: 1px solid #ddd; border-radius: 8px;
       font: inherit;
-      background: rgba(255,255,255,.85);
+      background: rgba(255,255,255,.76);
     }
 
-    .toggles { display: flex; gap: 8px; margin-top: 8px; }
+    .toggles { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .btn {
       flex: 1;
       padding: 8px 10px;
       border: 1px solid #ddd;
       border-radius: 10px;
-      background: rgba(250,250,250,.85);
+      background: rgba(250,250,250,.76);
       cursor: pointer;
       user-select: none;
       text-align: center;
-      font-weight: 600;
+      font-weight: 700;
     }
-    .btn.active { background: rgba(233,242,255,.9); border-color: rgba(183,212,255,.95); }
+    .btn.active { background: rgba(233,242,255,.82); border-color: rgba(183,212,255,.95); }
 
     .chips {
       display: flex;
@@ -114,20 +114,90 @@
       gap: 8px;
       align-items: center;
       border: 1px solid #ddd;
-      background: rgba(255,255,255,.85);
+      background: rgba(255,255,255,.76);
       border-radius: 999px;
       padding: 6px 10px;
       user-select: none;
     }
     .chip input { width: auto; }
-    .chip span { font-weight: 600; }
+    .chip span { font-weight: 700; }
 
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
     .stat { margin-top: 8px; font-size: 12px; color: #333; }
-    code { background: rgba(243,243,243,.9); padding: 1px 4px; border-radius: 6px; }
+    code { background: rgba(243,243,243,.82); padding: 1px 4px; border-radius: 6px; }
 
-    #toggleAnd { flex: 1; }
-    .inline2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .debugBox {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px dashed rgba(0,0,0,.25);
+      border-radius: 10px;
+      background: rgba(255,255,255,.62);
+      font-size: 12px;
+      color:#333;
+    }
+    .debugBox strong { font-weight: 800; }
+
+    /* === Dual Range (wie ein Slider mit 2 Knöpfen) === */
+    .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
+    .dualRange {
+      position: relative;
+      height: 26px;
+    }
+    .dualRange input[type="range"]{
+      position: absolute;
+      left: 0; right: 0;
+      top: 0;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      pointer-events: none; /* nur Thumb soll klickbar sein */
+      -webkit-appearance: none;
+      appearance: none;
+      height: 26px;
+    }
+    .dualRange input[type="range"]::-webkit-slider-thumb{
+      pointer-events: auto;
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.25);
+      background: rgba(255,255,255,.95);
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+    .dualRange input[type="range"]::-moz-range-thumb{
+      pointer-events: auto;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.25);
+      background: rgba(255,255,255,.95);
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+
+    /* Track */
+    .dualRangeTrack{
+      position:absolute;
+      left:0; right:0;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.12);
+    }
+    .dualRangeFill{
+      position:absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(120,170,255,.75);
+      left: 0%;
+      right: 0%;
+    }
   </style>
 </head>
 <body>
@@ -160,7 +230,7 @@
         </select>
       </div>
 
-      <div style="margin-top:10px; font-weight:600;">Beteiligung</div>
+      <div style="margin-top:10px; font-weight:800;">Beteiligung</div>
       <div class="chips" aria-label="Beteiligung Filter">
         <label class="chip"><input type="checkbox" id="tRad" checked> <span>🚲 Rad</span></label>
         <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
@@ -168,21 +238,36 @@
         <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
       </div>
 
-      <div class="toggles">
-        <div id="toggleAnd" class="btn">Nur Kombinationen (UND)</div>
+      <div class="toggles" aria-label="Beteiligungsmodus">
+        <div id="modeOr" class="btn active" title="Mindestens eine der ausgewählten Beteiligungen muss zutreffen">ODER</div>
+        <div id="modeAnd" class="btn" title="Alle ausgewählten Beteiligungen müssen zutreffen">UND</div>
+        <div id="modeSolo" class="btn" title="Genau eine Beteiligungsart insgesamt (Rad/Fuß/PKW/Krad) – passend zu den Häkchen">Alleinunfall</div>
       </div>
 
-      <div style="margin-top:10px; font-weight:600;">Zeit & Bedingungen</div>
+      <div style="margin-top:10px; font-weight:800;">Zeit & Bedingungen</div>
 
+      <!-- Stunde als Dual-Range (ein Slider mit 2 Knöpfen) -->
       <div class="row">
         <label>Stunde</label>
-        <div class="inline2">
-          <input id="hFrom" type="number" min="0" max="23" step="1" value="0" title="von (0..23)" />
-          <input id="hTo" type="number" min="0" max="23" step="1" value="23" title="bis (0..23)" />
+        <div class="rangeWrap">
+          <div class="rangeLabel">
+            <span>von: <strong id="hFromLbl">0</strong></span>
+            <span>bis: <strong id="hToLbl">23</strong></span>
+          </div>
+
+          <div class="dualRange" aria-label="Stundenbereich">
+            <div class="dualRangeTrack"></div>
+            <div class="dualRangeFill" id="hourFill"></div>
+            <input id="hFrom" type="range" min="0" max="23" step="1" value="0" />
+            <input id="hTo" type="range" min="0" max="23" step="1" value="23" />
+          </div>
+
+          <div class="muted" style="margin-top:0;">
+            (Kein Wrap-around mehr: Start ist immer ≤ Ende.)
+          </div>
         </div>
       </div>
 
-      <!-- NEU: Wochenende Tri-State -->
       <div class="row">
         <label for="weekend">Wochenende</label>
         <select id="weekend" title="UWOCHENTAG: Sa/So vs. Mo–Fr">
@@ -192,7 +277,6 @@
         </select>
       </div>
 
-      <!-- NEU: Straßenzustand mit Labels -->
       <div class="row">
         <label for="strz">Straßenzustand</label>
         <select id="strz" title="STRZUSTAND: 0 trocken, 1 nass/feucht, 2 winterglatt">
@@ -202,7 +286,7 @@
 
       <div class="row">
         <label for="maxn">Max Punkte</label>
-        <input id="maxn" type="number" min="500" step="500" value="20000" />
+        <input id="maxn" type="number" min="500" step="500" value="40000" />
       </div>
 
       <div class="row">
@@ -222,6 +306,11 @@
 
       <div class="stat" id="stat">Lade Daten…</div>
 
+      <div class="debugBox" id="debugBox" style="display:none;">
+        <strong>Debug (Daten enthalten):</strong><br/>
+        <span id="dbgCounts">—</span>
+      </div>
+
       <div class="muted">
         Quelle: <code>out/output_all_years.geojson</code><br/>
         Rendert nur Punkte im Kartenausschnitt (plus Padding).
@@ -237,11 +326,8 @@
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    // === Konfiguration: UWOCHENTAG Codes ===
-    // Typisch: 1=So,2=Mo,3=Di,4=Mi,5=Do,6=Fr,7=Sa
     const WEEKEND_SET = new Set(["1","7"]); // Sonntag + Samstag
 
-    // === Konfiguration: STRZUSTAND Labels (üblich) ===
     const STRZ_LABEL = {
       "0": "0 – trocken",
       "1": "1 – nass/feucht",
@@ -260,10 +346,7 @@
     }
     const savedCollapsed = (() => { try { return localStorage.getItem("ua_panel_collapsed"); } catch { return null; } })();
     if (savedCollapsed === "1") setCollapsed(true);
-
-    collapseBtn.addEventListener('click', () => {
-      setCollapsed(!panelEl.classList.contains('collapsed'));
-    });
+    collapseBtn.addEventListener('click', () => setCollapsed(!panelEl.classList.contains('collapsed')));
 
     // UI
     const yearEl = document.getElementById('year');
@@ -275,36 +358,50 @@
     const btnCluster = document.getElementById('toggleCluster');
     const btnHeat = document.getElementById('toggleHeat');
 
-    // Typ-Checkboxen
     const tRadEl = document.getElementById('tRad');
     const tFussEl = document.getElementById('tFuss');
     const tPKWEl = document.getElementById('tPKW');
     const tKradEl = document.getElementById('tKrad');
 
-    // UND-Modus
-    const btnAnd = document.getElementById('toggleAnd');
-    let useAndMode = false;
+    const btnModeOr = document.getElementById('modeOr');
+    const btnModeAnd = document.getElementById('modeAnd');
+    const btnModeSolo = document.getElementById('modeSolo');
+    let involvementMode = "or";
 
-    // Zeit/Weekend/Straßenzustand
     const hFromEl = document.getElementById('hFrom');
     const hToEl = document.getElementById('hTo');
+    const hFromLbl = document.getElementById('hFromLbl');
+    const hToLbl = document.getElementById('hToLbl');
+    const hourFill = document.getElementById('hourFill');
+
     const weekendEl = document.getElementById('weekend');
     const strzEl = document.getElementById('strz');
+
+    const debugBox = document.getElementById('debugBox');
+    const dbgCounts = document.getElementById('dbgCounts');
 
     let showCluster = true;
     let showHeat = true;
 
-    // Data
     let all = null;
     let allPts = [];
     let filteredGlobal = [];
     let viewportPts = [];
 
-    // Layers
     let clusterLayer = null;
     let heatLayer = null;
 
     function setBtnState(btn, on) { btn.classList.toggle('active', on); }
+
+    function setMode(next){
+      involvementMode = next;
+      setBtnState(btnModeOr, next === "or");
+      setBtnState(btnModeAnd, next === "and");
+      setBtnState(btnModeSolo, next === "solo");
+      applyGlobalFilter();
+      applyViewportFilter();
+      renderLayers();
+    }
 
     function escHtml(s) {
       return String(s ?? "")
@@ -358,11 +455,7 @@
       const codes = new Set();
       for (const p of points) {
         const v = p?.props?.strzustand;
-        // Sammle auch "unknown"
-        if (v === undefined || v === null || v === "") {
-          codes.add("");
-          continue;
-        }
+        if (v === undefined || v === null || v === "") { codes.add(""); continue; }
         codes.add(String(v));
       }
       const sorted = [...codes].sort((a,b) => {
@@ -370,7 +463,6 @@
         const bi = (b === "" ? 999 : parseInt(b,10));
         return ai - bi;
       });
-
       for (const c of sorted) {
         const opt = document.createElement('option');
         opt.value = (c === "" ? "__unknown__" : c);
@@ -405,14 +497,57 @@
       );
     }
 
-    // Range ist inklusiv; bei from>to: wrap-around (z.B. 22..3)
-    function inHourRange(hour, from, to) {
-      if (Number.isNaN(hour)) return false;
-      from = Math.max(0, Math.min(23, from));
-      to   = Math.max(0, Math.min(23, to));
-      if (from === to) return true; // 0..23 "egal" wäre unpraktisch; hier bedeutet es "alle Stunden"
-      if (from < to) return hour >= from && hour <= to;
-      return (hour >= from) || (hour <= to);
+    /* === Dual Range Logic: erzwingt start <= end + aktualisiert Fill/Labels === */
+    function syncHourUI(changed){
+      let a = parseInt(hFromEl.value, 10);
+      let b = parseInt(hToEl.value, 10);
+
+      if (changed === "from" && a > b) { b = a; hToEl.value = String(b); }
+      if (changed === "to"   && b < a) { a = b; hFromEl.value = String(a); }
+
+      hFromLbl.textContent = String(a);
+      hToLbl.textContent = String(b);
+
+      const min = parseInt(hFromEl.min,10);
+      const max = parseInt(hFromEl.max,10);
+      const span = (max - min) || 1;
+
+      const leftPct = ((a - min) / span) * 100;
+      const rightPct = 100 - ((b - min) / span) * 100;
+
+      hourFill.style.left = `${leftPct}%`;
+      hourFill.style.right = `${rightPct}%`;
+    }
+
+    function countInvolvement(points){
+      let rad=0, fuss=0, pkw=0, krad=0, solo=0, radpkw=0;
+      for (const p of points) {
+        const pr = p.props || {};
+        const isRad  = String(pr?.istrad)  === "1";
+        const isFuss = String(pr?.istfuss) === "1";
+        const isPKW  = String(pr?.istpkw)  === "1";
+        const isKrad = String(pr?.istkrad) === "1";
+
+        if (isRad) rad++;
+        if (isFuss) fuss++;
+        if (isPKW) pkw++;
+        if (isKrad) krad++;
+
+        const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+        if (c === 1) solo++;
+        if (isRad && isPKW) radpkw++;
+      }
+      return {rad,fuss,pkw,krad,solo,radpkw};
+    }
+
+    function updateDebugBox(){
+      const c = countInvolvement(allPts);
+      debugBox.style.display = "block";
+      dbgCounts.textContent =
+        `Rad: ${c.rad.toLocaleString()} | Fuß: ${c.fuss.toLocaleString()} | ` +
+        `PKW: ${c.pkw.toLocaleString()} | Krad: ${c.krad.toLocaleString()} | ` +
+        `Alleinunfälle (gesamt): ${c.solo.toLocaleString()} | ` +
+        `Kombi Rad+PKW: ${c.radpkw.toLocaleString()}`;
     }
 
     function applyGlobalFilter() {
@@ -420,16 +555,14 @@
 
       const wantYear = yearEl.value;
       const wantKat = katEl.value;
-
-      // Straßenzustand: "all" oder Code oder "__unknown__"
       const wantStrz = strzEl.value;
 
-      const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
+      const maxN = Math.max(500, parseInt(maxEl.value || "40000", 10));
 
       const hFrom = parseInt(hFromEl.value || "0", 10);
-      const hTo = parseInt(hToEl.value || "23", 10);
+      const hTo   = parseInt(hToEl.value || "23", 10);
 
-      const weekendMode = weekendEl.value; // all|weekend|weekday
+      const weekendMode = weekendEl.value;
 
       const sRad  = tRadEl.checked;
       const sFuss = tFussEl.checked;
@@ -444,7 +577,6 @@
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
         if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
 
-        // Straßenzustand Filter
         if (wantStrz !== "all") {
           const z = String(pr.strzustand ?? "");
           if (wantStrz === "__unknown__") {
@@ -454,7 +586,6 @@
           }
         }
 
-        // Wochenende Tri-State
         if (weekendMode !== "all") {
           const wd = String(pr.uwochentag ?? "");
           const isWeekend = WEEKEND_SET.has(wd);
@@ -462,11 +593,10 @@
           if (weekendMode === "weekday" && isWeekend) continue;
         }
 
-        // Stunden-Range
         const h = parseInt(pr.ustunde, 10);
-        if (!inHourRange(h, hFrom, hTo)) continue;
+        if (Number.isNaN(h)) continue;
+        if (h < hFrom || h > hTo) continue; // KEIN wrap-around mehr
 
-        // Beteiligung
         const isRad  = String(pr?.istrad)  === "1";
         const isFuss = String(pr?.istfuss) === "1";
         const isPKW  = String(pr?.istpkw)  === "1";
@@ -474,12 +604,26 @@
 
         if (!anySelected) continue;
 
-        if (useAndMode) {
+        if (involvementMode === "or") {
+          const ok =
+            (sRad  && isRad)  ||
+            (sFuss && isFuss) ||
+            (sPKW  && isPKW)  ||
+            (sKrad && isKrad);
+          if (!ok) continue;
+        } else if (involvementMode === "and") {
           if (sRad  && !isRad)  continue;
           if (sFuss && !isFuss) continue;
           if (sPKW  && !isPKW)  continue;
           if (sKrad && !isKrad) continue;
-        } else {
+        } else if (involvementMode === "solo") {
+          const involvedCount =
+            (isRad  ? 1 : 0) +
+            (isFuss ? 1 : 0) +
+            (isPKW  ? 1 : 0) +
+            (isKrad ? 1 : 0);
+          if (involvedCount !== 1) continue;
+
           const ok =
             (sRad  && isRad)  ||
             (sFuss && isFuss) ||
@@ -548,23 +692,17 @@
         tKradEl.checked ? "Krad" : null
       ].filter(Boolean).join(", ");
 
-      const wk =
-        weekendEl.value === "all" ? "Alle" :
-        weekendEl.value === "weekend" ? "Wochenende" : "Werktag";
-
-      const strz =
-        strzEl.value === "all" ? "Alle" :
-        (strzEl.value === "__unknown__" ? "unbekannt" : strzText(strzEl.value));
+      const modeLabel =
+        involvementMode === "or" ? "ODER" :
+        involvementMode === "and" ? "UND" : "Alleinunfall";
 
       statEl.textContent =
         `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
         `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
         `Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
         `Beteiligung: ${activeTypes || "—"} | ` +
-        `Modus: ${useAndMode ? "UND" : "ODER"} | ` +
-        `Wochenende: ${wk} | ` +
-        `Stunden: ${hFromEl.value}–${hToEl.value} | ` +
-        `Straßenzustand: ${strz}`;
+        `Modus: ${modeLabel} | ` +
+        `Stunden: ${hFromEl.value}–${hToEl.value}`;
     }
 
     let moveTimer = null;
@@ -586,17 +724,32 @@
       allPts = extractPoints(all);
       buildStrzOptions(allPts);
 
+      updateDebugBox();
+
+      // init hour UI
+      syncHourUI();
+
       applyGlobalFilter();
       applyViewportFilter();
       renderLayers();
 
-      for (const el of [yearEl, katEl, maxEl, strzEl, hFromEl, hToEl, weekendEl]) {
+      for (const el of [yearEl, katEl, maxEl, strzEl, weekendEl]) {
         el.addEventListener('change', () => {
           applyGlobalFilter();
           applyViewportFilter();
           renderLayers();
         });
       }
+
+      // Dual-range events
+      hFromEl.addEventListener('input', () => {
+        syncHourUI("from");
+        applyGlobalFilter(); applyViewportFilter(); renderLayers();
+      });
+      hToEl.addEventListener('input', () => {
+        syncHourUI("to");
+        applyGlobalFilter(); applyViewportFilter(); renderLayers();
+      });
 
       for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
         el.addEventListener('change', () => {
@@ -606,14 +759,10 @@
         });
       }
 
-      btnAnd.addEventListener('click', () => {
-        useAndMode = !useAndMode;
-        setBtnState(btnAnd, useAndMode);
-        applyGlobalFilter();
-        applyViewportFilter();
-        renderLayers();
-      });
-      setBtnState(btnAnd, useAndMode);
+      btnModeOr.addEventListener('click', () => setMode("or"));
+      btnModeAnd.addEventListener('click', () => setMode("and"));
+      btnModeSolo.addEventListener('click', () => setMode("solo"));
+      setMode("or");
 
       padEl.addEventListener('change', () => { applyViewportFilter(); renderLayers(); });
       heatREl.addEventListener('change', () => renderLayers());
