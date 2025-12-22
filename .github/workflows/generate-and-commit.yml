@@ -22,7 +22,7 @@ jobs:
       - name: Run das Shellscript
         run: |
           chmod +x ./convertAmt2gmaps.sh
-          ./convertAmt2gmaps.sh --limit 0 --rad "" --pkw "" --fuss "" --krad ""
+          ./convertAmt2gmaps.sh --limit 0 --city Hannover --city Bonn --rad "" --pkw "" --fuss "" --krad ""
 
       - name: Commit & Push changes
         run: |
