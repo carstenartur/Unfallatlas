@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 ###############################################################################
 # Unfallatlas -> Google-Maps-CSV + GeoJSON (kombiniert über mehrere Jahre)
@@ -15,12 +15,12 @@ set -eu
 #   --city <name>      -> nutzt statisches Mapping CITY_MAP
 #   --ags  <AGS8>      -> direkte AGS-Angabe (8-stellig), überschreibt City Map
 #
-# Wichtig: GeoJSON enthält ALLE Properties, die index.html erwartet.
+# Wichtig: GeoJSON enthält ALLE Properties, die combi.html erwartet.
 #
-# WICHTIGER FIX:
-#   Combined-Dateien werden atomisch geschrieben:
-#     *.tmp  -> am Ende validieren -> mv nach final
-#   Dadurch kann eine Action niemals eine "halbgeschriebene" GeoJSON committen.
+# Robustheit:
+#   - löscht ZIP nach Verarbeitung (spart Disk in GitHub Actions)
+#   - KEIN "|| true" beim Jahres-Loop (damit keine kaputten Dateien committed werden)
+#   - schreibt Combined-Dateien atomar (tmp -> mv)
 ###############################################################################
 
 OUTDIR="out"
@@ -28,7 +28,6 @@ LIMIT=1999
 YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
 # Default Region (falls ohne City/AGS gestartet):
-# Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
 ULAND="03"
 UREGBEZ="2"
 UKREIS="41"
@@ -87,7 +86,7 @@ Region / Stadt:
   --city "Hannover"          nutzt CITY_MAP und erzeugt output_all_years_hannover.*
   Mehrere:
     --city "Hannover,Bonn"
-    --city Hannover --city Bonn
+    --city hannover --city bonn
 
   --ags 03241001             direkt AGS8 (überschreibt City Map)
 
@@ -152,28 +151,17 @@ norm_key() {
 }
 
 ###############################################################################
-# CI-stabileres curl (ohne Formatänderungen)
-###############################################################################
-fetch_zip() {
-  url="$1"
-  out="$2"
-  # retries + timeouts, damit CI nicht "hängt"
-  curl -fsSL \
-    --retry 5 --retry-delay 2 --retry-connrefused \
-    --connect-timeout 20 --max-time 300 \
-    -o "$out" "$url"
-}
-
-###############################################################################
 # CITY_MAP lookup -> AGS8
 ###############################################################################
 ags_from_citymap() {
+  local ckey
   ckey="$(norm_key "$1")"
   printf "%s\n" "$CITY_MAP" \
     | awk -F'|' -v k="$ckey" 'tolower($1)==tolower(k){print $2; exit}'
 }
 
 set_region_from_ags8() {
+  local ags
   ags="$1"
   ags="$(printf "%s" "$ags" | tr -cd '0-9')"
   if [ "${#ags}" -ne 8 ]; then
@@ -188,6 +176,7 @@ set_region_from_ags8() {
 }
 
 set_region_from_city() {
+  local city ags
   city="$1"
 
   if [ -n "$AGS_OVERRIDE" ]; then
@@ -221,24 +210,21 @@ set_region_from_city() {
 # Jahr verarbeiten -> Append in Combined-Dateien
 ###############################################################################
 process_year_append() {
+  local year zip url datafile
   year="$1"
   zip="${OUTDIR}/${year}.zip"
   url="https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte${year}_EPSG25832_CSV.zip"
 
   echo "== $year =="
 
-  fetch_zip "$url" "$zip"
+  curl -fsSL -o "$zip" "$url"
 
   datafile="$(unzip -Z1 "$zip" \
     | grep -Ei "Unfallorte${year}.*\.(csv|txt)$" \
     | grep -Evi "(readme|lizenz|license)" \
-    | head -n 1 || true)"
+    | head -n 1)"
 
-  if [ -z "$datafile" ]; then
-    echo "WARN: Keine passende Datendatei im Zip gefunden ($zip)" >&2
-    return 0
-  fi
-
+  local outcsv_year outgeo_year
   outcsv_year="${OUTDIR}/output${year}${CITY_SUFFIX:+_${CITY_SUFFIX}}.csv"
   outgeo_year="${OUTDIR}/output${year}${CITY_SUFFIX:+_${CITY_SUFFIX}}.geojson"
 
@@ -246,7 +232,7 @@ process_year_append() {
   | awk -F';' -v year="$year" -v limit="$LIMIT" \
         -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
         -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
-        -v outcsv="$COMBINED_CSV" -v outgeo="$COMBINED_GEO" -v firstref="$COMBINED_GEO_FIRST" \
+        -v outcsv="$COMBINED_CSV_TMP" -v outgeo="$COMBINED_GEO_TMP" -v firstref="$COMBINED_GEO_FIRST" \
         -v peryear="$DO_PER_YEAR" -v outcsv_y="$outcsv_year" -v outgeo_y="$outgeo_year" '
     function pick(a,b,c,d,e) {
       if (a!="" && (a in idx)) return idx[a]
@@ -359,10 +345,10 @@ process_year_append() {
       if (licht != "") name = name ", Licht: " licht
       if (str   != "") name = name " Strasse: " str
 
-      # CSV (voll)
+      # CSV
       print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv
 
-      # GeoJSON (voll)
+      # GeoJSON
       if (first==0) print "," >> outgeo
       first=0
 
@@ -426,69 +412,47 @@ process_year_append() {
   ' 2> "${OUTDIR}/.firstflag.tmp"
 
   if [ -f "${OUTDIR}/.firstflag.tmp" ]; then
-    COMBINED_GEO_FIRST="$(awk -F= '/^FIRSTFLAG=/{print $2; exit}' "${OUTDIR}/.firstflag.tmp" || echo "$COMBINED_GEO_FIRST")"
+    COMBINED_GEO_FIRST="$(awk -F= '/^FIRSTFLAG=/{print $2; exit}' "${OUTDIR}/.firstflag.tmp")"
     rm -f "${OUTDIR}/.firstflag.tmp"
   fi
+
+  # <<< WICHTIG: ZIP wegwerfen, sonst läuft Actions-Runner voll >>>
+  rm -f "$zip"
 }
 
-###############################################################################
-# Atomisches Schreiben für Combined-Dateien:
-#   schreibe in *.tmp und mv am Ende nach final.
-###############################################################################
 run_combined_for_current_region() {
+  local suffix COMBINED_CSV COMBINED_GEO
   suffix=""
   if [ -n "${CITY_SUFFIX:-}" ]; then suffix="_${CITY_SUFFIX}"; fi
 
-  COMBINED_CSV_FINAL="${OUTDIR}/output_all_years${suffix}.csv"
-  COMBINED_GEO_FINAL="${OUTDIR}/output_all_years${suffix}.geojson"
+  COMBINED_CSV="${OUTDIR}/output_all_years${suffix}.csv"
+  COMBINED_GEO="${OUTDIR}/output_all_years${suffix}.geojson"
 
-  COMBINED_CSV_TMP="${COMBINED_CSV_FINAL}.tmp"
-  COMBINED_GEO_TMP="${COMBINED_GEO_FINAL}.tmp"
+  # atomar schreiben
+  COMBINED_CSV_TMP="${COMBINED_CSV}.tmp"
+  COMBINED_GEO_TMP="${COMBINED_GEO}.tmp"
 
-  # Cleanup tmp wenn wir vor mv rausfliegen
-  cleanup_tmp() {
-    rm -f "$COMBINED_CSV_TMP" "$COMBINED_GEO_TMP" 2>/dev/null || true
-  }
-  trap cleanup_tmp INT TERM HUP
-  # EXIT-trap nur solange wir noch nicht erfolgreich gemoved haben:
-  trap cleanup_tmp EXIT
+  : > "$COMBINED_CSV_TMP"
+  : > "$COMBINED_GEO_TMP"
 
-  COMBINED_CSV="$COMBINED_CSV_TMP"
-  COMBINED_GEO="$COMBINED_GEO_TMP"
-
-  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > "$COMBINED_CSV"
-  { echo '{'; echo '  "type": "FeatureCollection",'; echo '  "features": ['; } > "$COMBINED_GEO"
+  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > "$COMBINED_CSV_TMP"
+  { echo '{'; echo '  "type": "FeatureCollection",'; echo '  "features": ['; } > "$COMBINED_GEO_TMP"
 
   COMBINED_GEO_FIRST=1
+
   for y in $YEARS; do
-    process_year_append "$y" || true
+    process_year_append "$y"
   done
 
-  { echo; echo '  ]'; echo '}'; } >> "$COMBINED_GEO"
+  { echo; echo '  ]'; echo '}'; } >> "$COMBINED_GEO_TMP"
 
-  # Validierung: GeoJSON muss parsebar sein (sonst NICHT mv!)
-  if command -v python3 >/dev/null 2>&1; then
-    python3 -m json.tool "$COMBINED_GEO" >/dev/null
-  else
-    # fallback: grobe Plausibilitätsprüfung (nicht perfekt, aber besser als nichts)
-    tail -n 2 "$COMBINED_GEO" | grep -q '}' || {
-      echo "ERROR: GeoJSON scheint unvollständig (keine abschließende '}' gefunden)." >&2
-      exit 2
-    }
-  fi
-
-  # Atomisch publishen
-  mv -f "$COMBINED_CSV" "$COMBINED_CSV_FINAL"
-  mv -f "$COMBINED_GEO" "$COMBINED_GEO_FINAL"
-
-  # ab hier: tmp nicht mehr löschen
-  trap - EXIT
-  trap - INT TERM HUP
+  mv -f "$COMBINED_CSV_TMP" "$COMBINED_CSV"
+  mv -f "$COMBINED_GEO_TMP" "$COMBINED_GEO"
 
   echo "== fertig =="
   echo "City:   ${CITY_DISPLAY}"
-  echo "CSV:    $COMBINED_CSV_FINAL"
-  echo "GeoJSON: $COMBINED_GEO_FINAL"
+  echo "CSV:    $COMBINED_CSV"
+  echo "GeoJSON: $COMBINED_GEO"
   echo
 }
 
@@ -506,7 +470,6 @@ if [ -n "$CITY_LIST" ]; then
   exit 0
 fi
 
-# ohne --city: manuelle/default Region
 CITY_SUFFIX=""
 CITY_DISPLAY="(manuell/default)"
 run_combined_for_current_region
