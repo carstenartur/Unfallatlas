@@ -78,7 +78,7 @@
 
     .panelBody { margin-top: 8px; }
     .panel.collapsed .panelBody { display:none; }
-    .panel.collapsed { padding-bottom: 8px; } /* kompakter im collapsed state */
+    .panel.collapsed { padding-bottom: 8px; }
 
     .row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
     label { font-weight: 600; }
@@ -182,13 +182,20 @@
         </div>
       </div>
 
-      <div class="chips" style="margin-top:6px;">
-        <label class="chip"><input type="checkbox" id="weekendOnly"> <span>Nur Wochenende</span></label>
+      <!-- NEU: Wochenende Tri-State -->
+      <div class="row">
+        <label for="weekend">Wochenende</label>
+        <select id="weekend" title="UWOCHENTAG: Sa/So vs. Mo–Fr">
+          <option value="all">Alle</option>
+          <option value="weekend">Nur Wochenende (Sa/So)</option>
+          <option value="weekday">Nur Werktag (Mo–Fr)</option>
+        </select>
       </div>
 
+      <!-- NEU: Straßenzustand mit Labels -->
       <div class="row">
-        <label for="strz">Straße</label>
-        <select id="strz">
+        <label for="strz">Straßenzustand</label>
+        <select id="strz" title="STRZUSTAND: 0 trocken, 1 nass/feucht, 2 winterglatt">
           <option value="all">Alle</option>
         </select>
       </div>
@@ -230,8 +237,17 @@
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    // === Konfiguration: Wochenende ===
-    const WEEKEND_SET = new Set(["6","7"]); // ggf. anpassen (z.B. ["1","7"])
+    // === Konfiguration: UWOCHENTAG Codes ===
+    // Typisch: 1=So,2=Mo,3=Di,4=Mi,5=Do,6=Fr,7=Sa
+    const WEEKEND_SET = new Set(["1","7"]); // Sonntag + Samstag
+
+    // === Konfiguration: STRZUSTAND Labels (üblich) ===
+    const STRZ_LABEL = {
+      "0": "0 – trocken",
+      "1": "1 – nass/feucht",
+      "2": "2 – winterglatt",
+      "":  "— unbekannt"
+    };
 
     // Panel collapse
     const panelEl = document.getElementById('panel');
@@ -269,10 +285,10 @@
     const btnAnd = document.getElementById('toggleAnd');
     let useAndMode = false;
 
-    // Zeit/Weekend/Straße
+    // Zeit/Weekend/Straßenzustand
     const hFromEl = document.getElementById('hFrom');
     const hToEl = document.getElementById('hTo');
-    const weekendOnlyEl = document.getElementById('weekendOnly');
+    const weekendEl = document.getElementById('weekend');
     const strzEl = document.getElementById('strz');
 
     let showCluster = true;
@@ -304,6 +320,11 @@
       return tags.length ? tags.join(", ") : "—";
     }
 
+    function strzText(code) {
+      const k = String(code ?? "");
+      return STRZ_LABEL[k] ?? (`Code ${k}`);
+    }
+
     function popupHtml(p) {
       return `
         <div style="font: 14px/1.25 system-ui;">
@@ -312,9 +333,9 @@
           <div>Kategorie: ${escHtml(p.ukategorie)}</div>
           <div>Beteiligung: ${escHtml(involvementText(p))}</div>
           <div>Uhrzeit: ${escHtml(p.ustunde)} / Wochentag: ${escHtml(p.uwochentag)} / Monat: ${escHtml(p.umonat)}</div>
-          <div>Straße: ${escHtml(p.strasse)}</div>
-          <div>Straßenzustand (Code): ${escHtml(p.strzustand)}</div>
+          <div>Straßenzustand: ${escHtml(strzText(p.strzustand))}</div>
           <div>Licht: ${escHtml(p.ulichtverh)}</div>
+          <div>Straße: ${escHtml(p.strasse)}</div>
         </div>
       `;
     }
@@ -337,14 +358,23 @@
       const codes = new Set();
       for (const p of points) {
         const v = p?.props?.strzustand;
-        if (v === undefined || v === null || v === "") continue;
+        // Sammle auch "unknown"
+        if (v === undefined || v === null || v === "") {
+          codes.add("");
+          continue;
+        }
         codes.add(String(v));
       }
-      const sorted = [...codes].sort((a,b) => (parseInt(a,10) - parseInt(b,10)));
+      const sorted = [...codes].sort((a,b) => {
+        const ai = (a === "" ? 999 : parseInt(a,10));
+        const bi = (b === "" ? 999 : parseInt(b,10));
+        return ai - bi;
+      });
+
       for (const c of sorted) {
         const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = `Code ${c}`;
+        opt.value = (c === "" ? "__unknown__" : c);
+        opt.textContent = strzText(c);
         strzEl.appendChild(opt);
       }
     }
@@ -375,9 +405,12 @@
       );
     }
 
+    // Range ist inklusiv; bei from>to: wrap-around (z.B. 22..3)
     function inHourRange(hour, from, to) {
       if (Number.isNaN(hour)) return false;
-      if (from === to) return true;
+      from = Math.max(0, Math.min(23, from));
+      to   = Math.max(0, Math.min(23, to));
+      if (from === to) return true; // 0..23 "egal" wäre unpraktisch; hier bedeutet es "alle Stunden"
       if (from < to) return hour >= from && hour <= to;
       return (hour >= from) || (hour <= to);
     }
@@ -387,13 +420,16 @@
 
       const wantYear = yearEl.value;
       const wantKat = katEl.value;
+
+      // Straßenzustand: "all" oder Code oder "__unknown__"
       const wantStrz = strzEl.value;
 
       const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
 
-      const hFrom = Math.max(0, Math.min(23, parseInt(hFromEl.value || "0", 10)));
-      const hTo = Math.max(0, Math.min(23, parseInt(hToEl.value || "23", 10)));
-      const weekendOnly = weekendOnlyEl.checked;
+      const hFrom = parseInt(hFromEl.value || "0", 10);
+      const hTo = parseInt(hToEl.value || "23", 10);
+
+      const weekendMode = weekendEl.value; // all|weekend|weekday
 
       const sRad  = tRadEl.checked;
       const sFuss = tFussEl.checked;
@@ -407,16 +443,30 @@
 
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
         if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
-        if (wantStrz !== "all" && String(pr.strzustand) !== wantStrz) continue;
 
-        if (weekendOnly) {
-          const wd = String(pr.uwochentag ?? "");
-          if (!WEEKEND_SET.has(wd)) continue;
+        // Straßenzustand Filter
+        if (wantStrz !== "all") {
+          const z = String(pr.strzustand ?? "");
+          if (wantStrz === "__unknown__") {
+            if (z !== "" && z !== "null" && z !== "undefined") continue;
+          } else {
+            if (z !== String(wantStrz)) continue;
+          }
         }
 
+        // Wochenende Tri-State
+        if (weekendMode !== "all") {
+          const wd = String(pr.uwochentag ?? "");
+          const isWeekend = WEEKEND_SET.has(wd);
+          if (weekendMode === "weekend" && !isWeekend) continue;
+          if (weekendMode === "weekday" && isWeekend) continue;
+        }
+
+        // Stunden-Range
         const h = parseInt(pr.ustunde, 10);
         if (!inHourRange(h, hFrom, hTo)) continue;
 
+        // Beteiligung
         const isRad  = String(pr?.istrad)  === "1";
         const isFuss = String(pr?.istfuss) === "1";
         const isPKW  = String(pr?.istpkw)  === "1";
@@ -498,12 +548,23 @@
         tKradEl.checked ? "Krad" : null
       ].filter(Boolean).join(", ");
 
+      const wk =
+        weekendEl.value === "all" ? "Alle" :
+        weekendEl.value === "weekend" ? "Wochenende" : "Werktag";
+
+      const strz =
+        strzEl.value === "all" ? "Alle" :
+        (strzEl.value === "__unknown__" ? "unbekannt" : strzText(strzEl.value));
+
       statEl.textContent =
         `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
         `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
         `Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
         `Beteiligung: ${activeTypes || "—"} | ` +
-        `Modus: ${useAndMode ? "UND" : "ODER"}`;
+        `Modus: ${useAndMode ? "UND" : "ODER"} | ` +
+        `Wochenende: ${wk} | ` +
+        `Stunden: ${hFromEl.value}–${hToEl.value} | ` +
+        `Straßenzustand: ${strz}`;
     }
 
     let moveTimer = null;
@@ -529,7 +590,7 @@
       applyViewportFilter();
       renderLayers();
 
-      for (const el of [yearEl, katEl, maxEl, strzEl, hFromEl, hToEl, weekendOnlyEl]) {
+      for (const el of [yearEl, katEl, maxEl, strzEl, hFromEl, hToEl, weekendEl]) {
         el.addEventListener('change', () => {
           applyGlobalFilter();
           applyViewportFilter();
