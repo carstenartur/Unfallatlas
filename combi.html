@@ -46,7 +46,7 @@
 
     .panel {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
-      background: rgba(255,255,255,.72);              /* noch transparenter */
+      background: rgba(255,255,255,.72);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       padding: 10px 12px; border-radius: 10px;
@@ -126,13 +126,6 @@
     .stat { margin-top: 8px; font-size: 12px; color: #333; }
     code { background: rgba(243,243,243,.82); padding: 1px 4px; border-radius: 6px; }
 
-    .inline2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
-    /* Range UI */
-    .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
-    .rangeRow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; }
-    input[type="range"] { width: 100%; padding: 0; }
-    .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
     .debugBox {
       margin-top: 8px;
       padding: 8px 10px;
@@ -143,6 +136,68 @@
       color:#333;
     }
     .debugBox strong { font-weight: 800; }
+
+    /* === Dual Range (wie ein Slider mit 2 Knöpfen) === */
+    .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
+    .dualRange {
+      position: relative;
+      height: 26px;
+    }
+    .dualRange input[type="range"]{
+      position: absolute;
+      left: 0; right: 0;
+      top: 0;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      pointer-events: none; /* nur Thumb soll klickbar sein */
+      -webkit-appearance: none;
+      appearance: none;
+      height: 26px;
+    }
+    .dualRange input[type="range"]::-webkit-slider-thumb{
+      pointer-events: auto;
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.25);
+      background: rgba(255,255,255,.95);
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+    .dualRange input[type="range"]::-moz-range-thumb{
+      pointer-events: auto;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.25);
+      background: rgba(255,255,255,.95);
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+
+    /* Track */
+    .dualRangeTrack{
+      position:absolute;
+      left:0; right:0;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.12);
+    }
+    .dualRangeFill{
+      position:absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(120,170,255,.75);
+      left: 0%;
+      right: 0%;
+    }
   </style>
 </head>
 <body>
@@ -191,7 +246,7 @@
 
       <div style="margin-top:10px; font-weight:800;">Zeit & Bedingungen</div>
 
-      <!-- Stunde als Range (2 Slider) -->
+      <!-- Stunde als Dual-Range (ein Slider mit 2 Knöpfen) -->
       <div class="row">
         <label>Stunde</label>
         <div class="rangeWrap">
@@ -199,12 +254,16 @@
             <span>von: <strong id="hFromLbl">0</strong></span>
             <span>bis: <strong id="hToLbl">23</strong></span>
           </div>
-          <div class="rangeRow">
-            <input id="hFrom" type="range" min="0" max="23" step="1" value="0" title="von (0..23)" />
-            <input id="hTo" type="range" min="0" max="23" step="1" value="23" title="bis (0..23)" />
+
+          <div class="dualRange" aria-label="Stundenbereich">
+            <div class="dualRangeTrack"></div>
+            <div class="dualRangeFill" id="hourFill"></div>
+            <input id="hFrom" type="range" min="0" max="23" step="1" value="0" />
+            <input id="hTo" type="range" min="0" max="23" step="1" value="23" />
           </div>
+
           <div class="muted" style="margin-top:0;">
-            Hinweis: Wenn <code>von &gt; bis</code>, wird über Mitternacht gefiltert (z.B. 22–3).
+            (Kein Wrap-around mehr: Start ist immer ≤ Ende.)
           </div>
         </div>
       </div>
@@ -227,7 +286,7 @@
 
       <div class="row">
         <label for="maxn">Max Punkte</label>
-        <input id="maxn" type="number" min="500" step="500" value="20000" />
+        <input id="maxn" type="number" min="500" step="500" value="40000" />
       </div>
 
       <div class="row">
@@ -247,7 +306,6 @@
 
       <div class="stat" id="stat">Lade Daten…</div>
 
-      <!-- Debug counts -->
       <div class="debugBox" id="debugBox" style="display:none;">
         <strong>Debug (Daten enthalten):</strong><br/>
         <span id="dbgCounts">—</span>
@@ -268,7 +326,6 @@
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    // Typisch: 1=So,2=Mo,3=Di,4=Mi,5=Do,6=Fr,7=Sa
     const WEEKEND_SET = new Set(["1","7"]); // Sonntag + Samstag
 
     const STRZ_LABEL = {
@@ -309,12 +366,13 @@
     const btnModeOr = document.getElementById('modeOr');
     const btnModeAnd = document.getElementById('modeAnd');
     const btnModeSolo = document.getElementById('modeSolo');
-    let involvementMode = "or"; // "or" | "and" | "solo"
+    let involvementMode = "or";
 
     const hFromEl = document.getElementById('hFrom');
     const hToEl = document.getElementById('hTo');
     const hFromLbl = document.getElementById('hFromLbl');
     const hToLbl = document.getElementById('hToLbl');
+    const hourFill = document.getElementById('hourFill');
 
     const weekendEl = document.getElementById('weekend');
     const strzEl = document.getElementById('strz');
@@ -439,14 +497,26 @@
       );
     }
 
-    // Range ist inklusiv; bei from>to: wrap-around (z.B. 22..3)
-    function inHourRange(hour, from, to) {
-      if (Number.isNaN(hour)) return false;
-      from = Math.max(0, Math.min(23, from));
-      to   = Math.max(0, Math.min(23, to));
-      if (from === to) return true;
-      if (from < to) return hour >= from && hour <= to;
-      return (hour >= from) || (hour <= to);
+    /* === Dual Range Logic: erzwingt start <= end + aktualisiert Fill/Labels === */
+    function syncHourUI(changed){
+      let a = parseInt(hFromEl.value, 10);
+      let b = parseInt(hToEl.value, 10);
+
+      if (changed === "from" && a > b) { b = a; hToEl.value = String(b); }
+      if (changed === "to"   && b < a) { a = b; hFromEl.value = String(a); }
+
+      hFromLbl.textContent = String(a);
+      hToLbl.textContent = String(b);
+
+      const min = parseInt(hFromEl.min,10);
+      const max = parseInt(hFromEl.max,10);
+      const span = (max - min) || 1;
+
+      const leftPct = ((a - min) / span) * 100;
+      const rightPct = 100 - ((b - min) / span) * 100;
+
+      hourFill.style.left = `${leftPct}%`;
+      hourFill.style.right = `${rightPct}%`;
     }
 
     function countInvolvement(points){
@@ -480,11 +550,6 @@
         `Kombi Rad+PKW: ${c.radpkw.toLocaleString()}`;
     }
 
-    function syncHourLabels(){
-      hFromLbl.textContent = String(hFromEl.value);
-      hToLbl.textContent = String(hToEl.value);
-    }
-
     function applyGlobalFilter() {
       if (!all) return;
 
@@ -492,12 +557,12 @@
       const wantKat = katEl.value;
       const wantStrz = strzEl.value;
 
-      const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
+      const maxN = Math.max(500, parseInt(maxEl.value || "40000", 10));
 
       const hFrom = parseInt(hFromEl.value || "0", 10);
       const hTo   = parseInt(hToEl.value || "23", 10);
 
-      const weekendMode = weekendEl.value; // all|weekend|weekday
+      const weekendMode = weekendEl.value;
 
       const sRad  = tRadEl.checked;
       const sFuss = tFussEl.checked;
@@ -529,7 +594,8 @@
         }
 
         const h = parseInt(pr.ustunde, 10);
-        if (!inHourRange(h, hFrom, hTo)) continue;
+        if (Number.isNaN(h)) continue;
+        if (h < hFrom || h > hTo) continue; // KEIN wrap-around mehr
 
         const isRad  = String(pr?.istrad)  === "1";
         const isFuss = String(pr?.istfuss) === "1";
@@ -658,17 +724,15 @@
       allPts = extractPoints(all);
       buildStrzOptions(allPts);
 
-      // Debug: was ist überhaupt im Datensatz drin?
       updateDebugBox();
 
-      // init hour labels
-      syncHourLabels();
+      // init hour UI
+      syncHourUI();
 
       applyGlobalFilter();
       applyViewportFilter();
       renderLayers();
 
-      // filters
       for (const el of [yearEl, katEl, maxEl, strzEl, weekendEl]) {
         el.addEventListener('change', () => {
           applyGlobalFilter();
@@ -677,17 +741,16 @@
         });
       }
 
-      // hour ranges (input => live)
-      for (const el of [hFromEl, hToEl]) {
-        el.addEventListener('input', () => {
-          syncHourLabels();
-          applyGlobalFilter();
-          applyViewportFilter();
-          renderLayers();
-        });
-      }
+      // Dual-range events
+      hFromEl.addEventListener('input', () => {
+        syncHourUI("from");
+        applyGlobalFilter(); applyViewportFilter(); renderLayers();
+      });
+      hToEl.addEventListener('input', () => {
+        syncHourUI("to");
+        applyGlobalFilter(); applyViewportFilter(); renderLayers();
+      });
 
-      // involvement toggles
       for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
         el.addEventListener('change', () => {
           applyGlobalFilter();
@@ -696,17 +759,14 @@
         });
       }
 
-      // modes
       btnModeOr.addEventListener('click', () => setMode("or"));
       btnModeAnd.addEventListener('click', () => setMode("and"));
       btnModeSolo.addEventListener('click', () => setMode("solo"));
       setMode("or");
 
-      // viewport/heat
       padEl.addEventListener('change', () => { applyViewportFilter(); renderLayers(); });
       heatREl.addEventListener('change', () => renderLayers());
 
-      // toggles
       btnCluster.addEventListener('click', () => {
         showCluster = !showCluster;
         setBtnState(btnCluster, showCluster);
