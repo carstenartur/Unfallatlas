@@ -11,16 +11,17 @@ set -eu
 # Optional:
 #   --per-year  => zusätzlich out/outputYYYY.csv + out/outputYYYY.geojson
 #
-# City-Handling (schnell, CI-tauglich):
-# - Kein automatischer Full-Cache-Build mehr.
+# City-Handling (CI-tauglich, schnell):
+# - Full-Cache wird NICHT automatisch gebaut.
 # - Bei --city: erst lokaler Cache, sonst Online-Lookup (GVZ API ?search=...)
-# - Treffer werden optional in out/city_cache.tsv gespeichert (nur verwendete Städte).
+# - Treffer werden in out/city_cache.tsv gespeichert (nur verwendete Städte).
 ###############################################################################
 
 OUTDIR="out"
 LIMIT=1999
 YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
+# Default: Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
 ULAND="03"
 UREGBEZ="2"
 UKREIS="41"
@@ -125,7 +126,7 @@ norm_key() {
         -e 's/^_//' -e 's/_$//'
 }
 
-# sehr simples URL-Encoding für query-params (reicht für Städte)
+# Minimales URL-Encoding (reicht für Städtenamen)
 urlencode() {
   printf "%s" "$1" \
     | sed -e 's/%/%25/g' \
@@ -135,7 +136,9 @@ urlencode() {
           -e "s/'/%27/g"
 }
 
-# (langsam!) Full-Cache bauen – nur auf expliziten Wunsch
+###############################################################################
+# (Optional/langsam) Full-Cache bauen – nur auf expliziten Wunsch
+###############################################################################
 update_city_cache() {
   echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
 
@@ -145,26 +148,27 @@ update_city_cache() {
   page=1
   while :; do
     url="${GVZ_API_BASE}?format=json&page=${page}"
-    json="$(curl -fsSL "$url")" || break
+    json="$(curl -fsSL "$url" || true)"
+    [ -z "$json" ] && break
 
     echo "$json" | awk -v min="${CITY_MIN_POP}" '
       function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
       BEGIN{ RS="\\{" ; FS="," }
-      /"division_category":60/ {
+      /"division_category"[[:space:]]*:[[:space:]]*60/ {
         name=""; ags=""; pop=""
         for(i=1;i<=NF;i++){
-          if($i ~ /"name":/){
+          if($i ~ /"name"[[:space:]]*:/){
             name=$i
-            sub(/^.*"name":"?/,"",name); sub(/"?.*$/,"",name)
+            sub(/^.*"name"[[:space:]]*:[[:space:]]*"?/,"",name); sub(/"?.*$/,"",name)
             name=unesc(name)
           }
-          if($i ~ /"ags":/){
+          if($i ~ /"ags"[[:space:]]*:/){
             ags=$i
-            sub(/^.*"ags":"?/,"",ags); sub(/"?.*$/,"",ags)
+            sub(/^.*"ags"[[:space:]]*:[[:space:]]*"?/,"",ags); sub(/"?.*$/,"",ags)
           }
-          if($i ~ /"citizens_total":/){
+          if($i ~ /"citizens_total"[[:space:]]*:/){
             pop=$i
-            sub(/^.*"citizens_total":/,"",pop); sub(/[^0-9].*$/,"",pop)
+            sub(/^.*"citizens_total"[[:space:]]*:[[:space:]]*/,"",pop); sub(/[^0-9].*$/,"",pop)
           }
         }
         if(pop=="" || pop=="null") next
@@ -173,10 +177,9 @@ update_city_cache() {
 
         gsub(/[^0-9]/,"",ags)
         if(length(ags)==9) ags=substr(ags,2,8)
-        if(length(ags)<8){ while(length(ags)<8) ags="0" ags }
+        while(length(ags)<8) ags="0" ags
         if(length(ags)!=8) next
 
-        # Name vereinfachen:
         short=name
         sub(/^Landeshauptstadt[[:space:]]+/,"",short)
         sub(/^Hansestadt[[:space:]]+/,"",short)
@@ -184,15 +187,14 @@ update_city_cache() {
         sub(/^Stadt[[:space:]]+/,"",short)
         sub(/,.*$/,"",short)
         sub(/[[:space:]]+-.*$/,"",short)
-        # FIX: "(" als Literal, portabel
-        sub(/[[:space:]]+[(].*$/,"",short)
+        sub(/[[:space:]]+\(.*/,"",short)   # <-- FIX: nur 1 Backslash
         gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
 
         printf "%s\t%s\t%s\n", short, ags, pop
       }
     ' >> "$tmp"
 
-    echo "$json" | grep -q '"next":null' && break
+    echo "$json" | grep -q '"next":[[:space:]]*null' && break
     page=$((page+1))
   done
 
@@ -236,8 +238,10 @@ search_cities() {
   ' "$CITY_CACHE"
 }
 
+###############################################################################
 # Schnell: nur eine Stadt online suchen (statt Full-Cache)
-# Gibt genau 1 Zeile aus: "Name<TAB>AGS8<TAB>Pop"
+# Ausgabe: "Name<TAB>AGS8<TAB>Pop"
+###############################################################################
 lookup_city_online() {
   city="$1"
   q="$(urlencode "$city")"
@@ -249,26 +253,31 @@ lookup_city_online() {
   echo "$json" | awk -v min="${CITY_MIN_POP}" -v want="$city" '
     function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
     BEGIN{ RS="\\{" ; FS=","; bestScore=-1; bestLine=""; bestPop=0 }
-    /"division_category":60/ {
+    /"division_category"[[:space:]]*:[[:space:]]*60/ {
       name=""; ags=""; pop=""
       for(i=1;i<=NF;i++){
-        if($i ~ /"name":/){
-          name=$i; sub(/^.*"name":"?/,"",name); sub(/"?.*$/,"",name); name=unesc(name)
+        if($i ~ /"name"[[:space:]]*:/){
+          name=$i
+          sub(/^.*"name"[[:space:]]*:[[:space:]]*"?/,"",name); sub(/"?.*$/,"",name)
+          name=unesc(name)
         }
-        if($i ~ /"ags":/){
-          ags=$i; sub(/^.*"ags":"?/,"",ags); sub(/"?.*$/,"",ags)
+        if($i ~ /"ags"[[:space:]]*:/){
+          ags=$i
+          sub(/^.*"ags"[[:space:]]*:[[:space:]]*"?/,"",ags); sub(/"?.*$/,"",ags)
         }
-        if($i ~ /"citizens_total":/){
-          pop=$i; sub(/^.*"citizens_total":/,"",pop); sub(/[^0-9].*$/,"",pop)
+        if($i ~ /"citizens_total"[[:space:]]*:/){
+          pop=$i
+          sub(/^.*"citizens_total"[[:space:]]*:[[:space:]]*/,"",pop); sub(/[^0-9].*$/,"",pop)
         }
       }
+
       if(pop=="" || pop=="null") next
       if(pop+0 < min) next
       if(ags=="") next
 
       gsub(/[^0-9]/,"",ags)
       if(length(ags)==9) ags=substr(ags,2,8)
-      if(length(ags)<8){ while(length(ags)<8) ags="0" ags }
+      while(length(ags)<8) ags="0" ags
       if(length(ags)!=8) next
 
       short=name
@@ -278,8 +287,7 @@ lookup_city_online() {
       sub(/^Stadt[[:space:]]+/,"",short)
       sub(/,.*$/,"",short)
       sub(/[[:space:]]+-.*$/,"",short)
-      # FIX: "(" als Literal, portabel
-      sub(/[[:space:]]+[(].*$/,"",short)
+      sub(/[[:space:]]+\(.*/,"",short)  # <-- FIX: nur 1 Backslash
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
 
       w=tolower(want); s=tolower(short)
@@ -288,21 +296,20 @@ lookup_city_online() {
       if(s==w) score=300
       else if(index(s,w)==1) score=200
       else if(index(s,w)>0) score=100
-      else score=0
 
       if(score>bestScore || (score==bestScore && pop+0>bestPop+0)){
         bestScore=score
-        bestPop=pop+0
+        bestPop=pop
         bestLine=short "\t" ags "\t" pop
       }
     }
-    END{
-      if(bestLine!="") print bestLine
-    }
+    END{ if(bestLine!="") print bestLine }
   ' | head -n 1
 }
 
+###############################################################################
 # City -> Region: Cache zuerst, sonst Online-Lookup; Treffer in Cache schreiben.
+###############################################################################
 set_region_from_city() {
   city="$1"
   line=""
@@ -334,10 +341,10 @@ set_region_from_city() {
   CITY_DISPLAY="${name} (AGS ${ags}, Pop ${pop})"
   CITY_SUFFIX="$(norm_key "$name")"
 
-  if [ ! -f "$CITY_CACHE" ]; then
-    : > "$CITY_CACHE"
-  fi
-  if ! awk -F'\t' -v q="$name" 'BEGIN{ql=tolower(q)} tolower($1)==ql {found=1} END{exit(found?0:1)}' "$CITY_CACHE" >/dev/null 2>&1; then
+  # Mini-Cache pflegen (nur verwendete Städte)
+  if [ ! -f "$CITY_CACHE" ]; then : > "$CITY_CACHE"; fi
+  if ! awk -F'\t' -v q="$name" 'BEGIN{ql=tolower(q)} tolower($1)==ql {found=1} END{exit(found?0:1)}' \
+      "$CITY_CACHE" >/dev/null 2>&1; then
     printf "%s\t%s\t%s\n" "$name" "$ags" "$pop" >> "$CITY_CACHE"
     sort -u -o "$CITY_CACHE" "$CITY_CACHE" 2>/dev/null || true
   fi
@@ -388,10 +395,8 @@ process_year_append() {
     }
     function jesc(s,   t) {
       t=s
-      gsub(/\\/,"\\\\",t)
-      gsub(/"/,"\\\"",t)
-      gsub(/\r/,"",t)
-      gsub(/\n/,"\\n",t)
+      gsub(/\\/,"\\\\",t); gsub(/"/,"\\\"",t)
+      gsub(/\r/,"",t); gsub(/\n/,"\\n",t)
       return t
     }
     function ok_involvement() {
@@ -436,10 +441,7 @@ process_year_append() {
       i_strz   = pick("STRZUSTAND","","","","")
 
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
-      i_lat = pick("YGCSWGS84","Y_GCSWGSW84","","","")
-
-      # Fallback falls YGCSWGSW84 typo nicht existiert:
-      if(i_lat==0) i_lat = pick("YGCSWGS84","Y_GCSWGS84","","","")
+      i_lat = pick("YGCSWGS84","Y_GCSWGS84","","","")
 
       i_str = pick("Strasse","STRASSE","StrName","STRNAME","USTRNAME")
 
