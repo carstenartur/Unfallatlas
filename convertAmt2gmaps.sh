@@ -4,35 +4,19 @@ set -eu
 ###############################################################################
 # Unfallatlas -> Google-Maps-CSV + GeoJSON
 #
-# Features:
-# - Lädt Unfallorte je Jahr (ZIP->CSV/TXT) von opengeodata.nrw.de
-# - Filtert nach Region: ULAND/UREGBEZ/UKREIS (+ optional UGEMEINDE)
-# - Optional: Stadtname -> AGS (>=100k Einwohner) über lokalen Cache (ohne Python)
-# - Filtert nach Beteiligung: IstRad / IstPKW / IstFuss / IstKrad (optional)
-# - Schreibt pro Jahr:
-#     out/outputYYYY.csv     (Google Maps Import geeignet: WKT + Name + …)
-#     out/outputYYYY.geojson (WGS84 FeatureCollection)
-# - Schreibt kombiniert:
-#     out/output_all_years.csv
-#     out/output_all_years.geojson
+# Standard-Ausgabe:
+#   out/output_all_years[_{city}].csv
+#   out/output_all_years[_{city}].geojson
 #
-# Erweiterung: zusätzliche sinnvolle Felder in CSV+GeoJSON:
-#   - UKATEGORIE   (Unfallschwere)
-#   - UTYP1        (Unfalltyp)
-#   - UART         (Unfallart)
-#   - UMONAT, USTUNDE, UWOCHENTAG (Zeit)
-#   - STRZUSTAND   (Straßenzustand)
-#   - ULICHTVERH   (Lichtverhältnisse)
-#   - ISTRAD/ISTPKW/ISTFUSS/ISTKRAD (Beteiligung)  <-- NEU für KML Icons etc.
-#
-# Abhängigkeiten: curl, unzip, awk, head, tail, grep, sed
+# Optional:
+#   --per-year  => zusätzlich out/outputYYYY.csv + out/outputYYYY.geojson
 ###############################################################################
 
 ###############################################################################
 # Defaults / Konfiguration
 ###############################################################################
 OUTDIR="out"
-LIMIT=1999     # 0 = unbegrenzt
+LIMIT=1999     # 0 = unbegrenzt (kein Abbruch)
 YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
 # Default: Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
@@ -40,17 +24,15 @@ ULAND="03"
 UREGBEZ="2"
 UKREIS="41"
 UGEMEINDE=""     # optional: 3-stellig (z.B. "001"), leer = alle Gemeinden im Kreis
-CITY_DISPLAY="Hannover (Default: Region Hannover)"
+CITY_DISPLAY="(manuell/default)"
 
 # Filter: Beteiligung (Default Fahrrad wie früher)
-# Hinweis: leer bedeutet "nicht filtern" für diese Spalte (d.h. ignorieren).
-IST_RAD="1"      # IstRad (Default 1)
-IST_PKW=""       # IstPKW
-IST_FUSS=""      # IstFuss
-IST_KRAD=""      # IstKrad
+IST_RAD="1"
+IST_PKW=""
+IST_FUSS=""
+IST_KRAD=""
 
-# City-Caching (ohne Python):
-# - Cache wird per --update-city-cache erzeugt (>=100k Einwohner).
+# City-Caching
 CITY_CACHE="${OUTDIR}/city_cache.tsv"  # name<TAB>ags8<TAB>pop
 CITY_MIN_POP=100000
 GVZ_API_BASE="https://gvz.tuerantuer.org/api/administrative_divisions/"
@@ -66,8 +48,9 @@ Usage:
 Optionen:
   --years "2018 2019 ..."     Jahre (Default: 2016..2024)
   --limit N                  Max. Treffer pro Jahr (Default: 1999)
-                             Tipp: --limit 0  => unbegrenzt (kein Abbruch)
+                             Tipp: --limit 0  => unbegrenzt
   --outdir DIR               Ausgabeverzeichnis (Default: out)
+  --per-year                 Zusätzlich pro Jahr outputYYYY.csv/.geojson erzeugen
 
 Region-Filter:
   --uland 03 --uregb 2 --ukreis 41 [--ugemeinde 001]
@@ -77,26 +60,26 @@ Stadt-Filter (benutzerfreundlich, erfordert Cache):
   --list-cities              Listet Städte aus Cache
   --search "text"            Sucht im Cache
   --city "Hannover"          Setzt Filter aus Stadt (AGS -> ULAND/UREGBEZ/UKREIS/UGEMEINDE)
+                             UND: output_all_years_<stadt>.{csv,geojson}
+
+  Mehrere Städte:
+    --city "Hannover,Braunschweig"
+    --city Hannover --city Braunschweig
 
 Beteiligung:
   --rad 1|0                  Default 1
   --pkw 1|0                  leer = ignorieren
   --fuss 1|0                 leer = ignorieren
   --krad 1|0                 leer = ignorieren
-
-Beispiele:
-  ./convertAmt2gmaps.sh
-  ./convertAmt2gmaps.sh --limit 0
-  ./convertAmt2gmaps.sh --update-city-cache
-  ./convertAmt2gmaps.sh --city "Hannover" --years "2022 2023 2024"
-  ./convertAmt2gmaps.sh --uland 03 --uregb 2 --ukreis 41 --rad 1 --limit 2000
 EOF
 }
 
-CITY=""
+CITY_LIST=""        # NEU: sammelt alle --city Werte (auch mehrfach)
+CITY_SUFFIX=""      # für Dateinamen pro Stadt
 DO_UPDATE_CACHE="0"
 DO_LIST_CITIES="0"
 SEARCH_Q=""
+DO_PER_YEAR="0"
 
 while [ "${1:-}" != "" ]; do
   case "$1" in
@@ -107,13 +90,24 @@ while [ "${1:-}" != "" ]; do
       CITY_CACHE="${2%/}/city_cache.tsv"
       shift 2
       ;;
+    --per-year) DO_PER_YEAR="1"; shift 1 ;;
 
     --uland) ULAND="$2"; shift 2 ;;
     --uregb|--uregbbez|--uregbz) UREGBEZ="$2"; shift 2 ;;
     --ukreis) UKREIS="$2"; shift 2 ;;
     --ugemeinde) UGEMEINDE="$2"; shift 2 ;;
 
-    --city) CITY="$2"; shift 2 ;;
+    # NEU: --city mehrfach + komma-separiert sammeln
+    --city)
+      if [ -n "${2:-}" ]; then
+        CITY_LIST="${CITY_LIST}${CITY_LIST:+,}$2"
+        shift 2
+      else
+        echo "ERROR: --city braucht einen Wert" >&2
+        exit 2
+      fi
+      ;;
+
     --update-city-cache) DO_UPDATE_CACHE="1"; shift 1 ;;
     --list-cities) DO_LIST_CITIES="1"; shift 1 ;;
     --search) SEARCH_Q="$2"; shift 2 ;;
@@ -144,7 +138,6 @@ update_city_cache() {
     url="${GVZ_API_BASE}?format=json&page=${page}"
     json="$(curl -fsSL "$url")" || break
 
-    # sehr einfache JSON-Auswertung (für diesen Endpoint ausreichend)
     echo "$json" | awk -v min="${CITY_MIN_POP}" '
       function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
       BEGIN{ RS="\\{" ; FS="," }
@@ -169,7 +162,6 @@ update_city_cache() {
         if(pop+0 < min) next
         if(ags=="") next
 
-        # AGS normalisieren auf 8 Stellen (Gemeinden typ. 8-stellig)
         gsub(/[^0-9]/,"",ags)
         if(length(ags)==9) ags=substr(ags,2,8)
         if(length(ags)<8){ while(length(ags)<8) ags="0" ags }
@@ -187,7 +179,6 @@ update_city_cache() {
     page=$((page+1))
   done
 
-  # Duplikate (gleicher Name) -> nimm höchsten Pop
   awk -F'\t' '
     {
       k=tolower($1)
@@ -264,15 +255,18 @@ set_region_from_city() {
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
 
   CITY_DISPLAY="$(printf "%s" "$line" | awk -F'\t' '{print $1" (AGS "$2", Pop "$3")"}')"
+  CITY_SUFFIX="$(printf "%s" "$line" | awk -F'\t' '{print $1}' | sed 's/[[:space:]]\+$//')"
+  CITY_SUFFIX="$(norm_key "$CITY_SUFFIX")"
 
   echo "== City: $CITY_DISPLAY =="
   echo "   -> ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS UGEMEINDE=$UGEMEINDE"
+  echo "   -> Dateisuffix: $CITY_SUFFIX"
 }
 
 ###############################################################################
-# Jahr verarbeiten
+# Jahr verarbeiten -> direkt in Combined-Dateien schreiben
 ###############################################################################
-process_year() {
+process_year_append() {
   year="$1"
   zip="${OUTDIR}/${year}.zip"
   url="https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte${year}_EPSG25832_CSV.zip"
@@ -281,7 +275,6 @@ process_year() {
 
   curl -fsSL -o "$zip" "$url"
 
-  # FIX 1: robusteres Finden der Datendatei im Zip (Namen/Ordner variieren je Jahr)
   datafile="$(unzip -Z1 "$zip" \
     | grep -Ei "Unfallorte${year}.*\.(csv|txt)$" \
     | grep -Evi "(readme|lizenz|license)" \
@@ -292,14 +285,15 @@ process_year() {
     return 0
   fi
 
-  outcsv="${OUTDIR}/output${year}.csv"
-  outgeo="${OUTDIR}/output${year}.geojson"
+  outcsv_year="${OUTDIR}/output${year}.csv"
+  outgeo_year="${OUTDIR}/output${year}.geojson"
 
   unzip -p "$zip" "$datafile" \
   | awk -F';' -v year="$year" -v limit="$LIMIT" \
         -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
         -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
-        -v outcsv="$outcsv" -v outgeo="$outgeo" '
+        -v outcsv="$COMBINED_CSV" -v outgeo="$COMBINED_GEO" -v firstref="$COMBINED_GEO_FIRST" \
+        -v peryear="$DO_PER_YEAR" -v outcsv_y="$outcsv_year" -v outgeo_y="$outgeo_year" '
     function pick(a,b,c,d,e) {
       if (a!="" && (a in idx)) return idx[a]
       if (b!="" && (b in idx)) return idx[b]
@@ -325,10 +319,14 @@ process_year() {
       return 0
     }
     BEGIN {
-      print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > outcsv
-      print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo
-      first=1
-      out=0
+      first = firstref + 0
+      out = 0
+
+      if (peryear=="1") {
+        print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > outcsv_y
+        print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo_y
+        first_y=1
+      }
     }
     NR==1 {
       for (i=1; i<=NF; i++) { gsub(/\r/,"",$i); idx[$i]=i }
@@ -379,8 +377,6 @@ process_year() {
       if (!ok_involvement()) next
 
       out++
-
-      # LIMIT=0 => unbegrenzt
       if (limit > 0 && out > limit) exit
 
       id = (i_id ? $i_id : out)
@@ -420,7 +416,7 @@ process_year() {
 
       print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv
 
-      if (!first) print "," >> outgeo
+      if (first==0) print "," >> outgeo
       first=0
 
       print "    {\n" \
@@ -445,14 +441,97 @@ process_year() {
             "        \"istkrad\": \"" jesc(v_iskrad) "\"\n" \
             "      }\n" \
             "    }" >> outgeo
+
+      if (peryear=="1") {
+        print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv_y
+
+        if (!first_y) print "," >> outgeo_y
+        first_y=0
+
+        print "    {\n" \
+              "      \"type\": \"Feature\",\n" \
+              "      \"geometry\": { \"type\": \"Point\", \"coordinates\": [" lon ", " lat "] },\n" \
+              "      \"properties\": {\n" \
+              "        \"id\": \"" jesc(id) "\",\n" \
+              "        \"name\": \"" jesc(name) "\",\n" \
+              "        \"year\": " year ",\n" \
+              "        \"ulichtverh\": \"" jesc(licht) "\",\n" \
+              "        \"strasse\": \"" jesc(str) "\",\n" \
+              "        \"ukategorie\": \"" jesc(kat) "\",\n" \
+              "        \"utyp1\": \"" jesc(typ1) "\",\n" \
+              "        \"uart\": \"" jesc(uart) "\",\n" \
+              "        \"umonat\": \"" jesc(monat) "\",\n" \
+              "        \"ustunde\": \"" jesc(stunde) "\",\n" \
+              "        \"uwochentag\": \"" jesc(wtag) "\",\n" \
+              "        \"strzustand\": \"" jesc(strz) "\",\n" \
+              "        \"istrad\": \"" jesc(v_istrad) "\",\n" \
+              "        \"istpkw\": \"" jesc(v_ispkw) "\",\n" \
+              "        \"istfuss\": \"" jesc(v_isfuss) "\",\n" \
+              "        \"istkrad\": \"" jesc(v_iskrad) "\"\n" \
+              "      }\n" \
+              "    }" >> outgeo_y
+      }
     }
     END {
-      if (!skip) print "\n  ]\n}" >> outgeo
+      if (peryear=="1" && !skip) {
+        print "\n  ]\n}" >> outgeo_y
+      }
+      printf "FIRSTFLAG=%d\n", first > "/dev/stderr"
     }
-  '
+  ' 2> "${OUTDIR}/.firstflag.tmp"
 
-  [ -f "$outcsv" ] && echo " -> $outcsv"
-  [ -f "$outgeo" ] && echo " -> $outgeo"
+  if [ -f "${OUTDIR}/.firstflag.tmp" ]; then
+    COMBINED_GEO_FIRST="$(awk -F= '/^FIRSTFLAG=/{print $2; exit}' "${OUTDIR}/.firstflag.tmp" || echo "$COMBINED_GEO_FIRST")"
+    rm -f "${OUTDIR}/.firstflag.tmp"
+  fi
+
+  if [ "$DO_PER_YEAR" = "1" ]; then
+    [ -f "$outcsv_year" ] && echo " -> $outcsv_year"
+    [ -f "$outgeo_year" ] && echo " -> $outgeo_year"
+  fi
+}
+
+###############################################################################
+# Run: erzeugt combined files für aktuell gesetzte Region/City
+###############################################################################
+run_combined_for_current_region() {
+  suffix=""
+  if [ -n "${CITY_SUFFIX:-}" ]; then
+    suffix="_${CITY_SUFFIX}"
+  fi
+
+  COMBINED_CSV="${OUTDIR}/output_all_years${suffix}.csv"
+  COMBINED_GEO="${OUTDIR}/output_all_years${suffix}.geojson"
+
+  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > "$COMBINED_CSV"
+  {
+    echo '{'
+    echo '  "type": "FeatureCollection",'
+    echo '  "features": ['
+  } > "$COMBINED_GEO"
+
+  COMBINED_GEO_FIRST=1
+
+  for y in $YEARS; do
+    process_year_append "$y" || true
+  done
+
+  {
+    echo
+    echo '  ]'
+    echo '}'
+  } >> "$COMBINED_GEO"
+
+  echo "== fertig =="
+  echo "Filter: ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS${UGEMEINDE:+ UGEMEINDE=$UGEMEINDE}"
+  echo "City:   ${CITY_DISPLAY}"
+  echo "Years:  $YEARS"
+  echo "Limit:  $LIMIT (0=unbegrenzt)"
+  echo "Outdir: $OUTDIR"
+  echo "Per-year: $DO_PER_YEAR"
+  echo "Combined CSV: $COMBINED_CSV"
+  echo "Combined GEO: $COMBINED_GEO"
+  echo
 }
 
 ###############################################################################
@@ -472,68 +551,26 @@ if [ -n "$SEARCH_Q" ]; then
   exit 0
 fi
 
-if [ -n "$CITY" ]; then
-  set_region_from_city "$CITY"
+# --- Mehrere Städte: kommasepariert + mehrfaches --city ---
+if [ -n "$CITY_LIST" ]; then
+  # in "positional parameters" splitten (POSIX)
+  OLDIFS=$IFS
+  IFS=,
+  set -- $CITY_LIST
+  IFS=$OLDIFS
+
+  for c in "$@"; do
+    c="$(printf "%s" "$c" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    [ -z "$c" ] && continue
+
+    set_region_from_city "$c"
+    run_combined_for_current_region
+  done
+
+  exit 0
 fi
 
-for y in $YEARS; do
-  process_year "$y" || true
-done
-
-# Combined CSV
-COMBINED_CSV="${OUTDIR}/output_all_years.csv"
-(
-  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r"
-  for y in $YEARS; do
-    f="${OUTDIR}/output${y}.csv"
-    [ -f "$f" ] && tail -n +2 "$f"
-  done
-) > "$COMBINED_CSV"
-
-# Combined GeoJSON
-COMBINED_GEO="${OUTDIR}/output_all_years.geojson"
-{
-  echo '{'
-  echo '  "type": "FeatureCollection",'
-  echo '  "features": ['
-  first=1
-  for y in $YEARS; do
-    f="${OUTDIR}/output${y}.geojson"
-    [ -f "$f" ] || continue
-
-    # FIX 2: awk-variable "in" vermeiden (mawk/CI), stattdessen "inside"
-    awk -v firstref="$first" '
-      BEGIN{inside=0; first=firstref; printed_any=0}
-      /"features"[[:space:]]*:[[:space:]]*\[/{inside=1; next}
-      inside && /^[[:space:]]*\]/{inside=0; next}
-      inside {
-        if ($0 ~ /^[[:space:]]*$/) next
-        if (first=="0" && printed_any==0) print ","
-        printed_any=1
-        print
-      }
-    ' "$f"
-
-    if awk '
-      BEGIN{inside=0; n=0}
-      /"features"[[:space:]]*:[[:space:]]*\[/{inside=1; next}
-      inside && /^[[:space:]]*\]/{inside=0; next}
-      inside { if ($0 !~ /^[[:space:]]*$/) n++ }
-      END{ exit (n>0 ? 0 : 1) }
-    ' "$f"; then
-      first=0
-    fi
-  done
-  echo '  ]'
-  echo '}'
-} > "$COMBINED_GEO"
-
-echo "== fertig =="
-echo "Filter: ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS${UGEMEINDE:+ UGEMEINDE=$UGEMEINDE}"
-echo "City:   $CITY_DISPLAY"
-echo "Years:  $YEARS"
-echo "Limit:  $LIMIT (0=unbegrenzt)"
-echo "Outdir: $OUTDIR"
-echo "Combined CSV: $COMBINED_CSV"
-echo "Combined GEO: $COMBINED_GEO"
-echo "City cache:   $CITY_CACHE"
+# Kein --city => einmal mit Default/manuell gesetzter Region
+CITY_SUFFIX=""
+CITY_DISPLAY="(manuell/default)"
+run_combined_for_current_region
