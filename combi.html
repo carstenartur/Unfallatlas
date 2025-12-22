@@ -46,17 +46,47 @@
 
     .panel {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
-      background: white; padding: 10px 12px; border-radius: 10px;
+      background: rgba(255,255,255,.82);              /* halbtransparent */
+      backdrop-filter: blur(6px);                      /* hübsch (falls unterstützt) */
+      -webkit-backdrop-filter: blur(6px);
+      padding: 10px 12px; border-radius: 10px;
       box-shadow: 0 2px 12px rgba(0,0,0,.18);
       font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       max-width: 380px;
     }
+
+    .panelHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .panelTitle { font-weight: 800; }
+    .panelSub { color:#666; font-weight:600; }
+
+    .collapseBtn{
+      border: 1px solid rgba(0,0,0,.15);
+      background: rgba(250,250,250,.8);
+      padding: 6px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select:none;
+      font-weight:700;
+      line-height: 1;
+    }
+    .collapseBtn:hover { background: rgba(240,240,240,.9); }
+
+    .panelBody { margin-top: 8px; }
+    .panel.collapsed .panelBody { display:none; }
+    .panel.collapsed { padding-bottom: 8px; } /* kompakter im collapsed state */
+
     .row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
     label { font-weight: 600; }
     select, input {
       width: 100%; padding: 6px 8px;
       border: 1px solid #ddd; border-radius: 8px;
       font: inherit;
+      background: rgba(255,255,255,.85);
     }
 
     .toggles { display: flex; gap: 8px; margin-top: 8px; }
@@ -65,13 +95,13 @@
       padding: 8px 10px;
       border: 1px solid #ddd;
       border-radius: 10px;
-      background: #fafafa;
+      background: rgba(250,250,250,.85);
       cursor: pointer;
       user-select: none;
       text-align: center;
       font-weight: 600;
     }
-    .btn.active { background: #e9f2ff; border-color: #b7d4ff; }
+    .btn.active { background: rgba(233,242,255,.9); border-color: rgba(183,212,255,.95); }
 
     .chips {
       display: flex;
@@ -84,7 +114,7 @@
       gap: 8px;
       align-items: center;
       border: 1px solid #ddd;
-      background: #fff;
+      background: rgba(255,255,255,.85);
       border-radius: 999px;
       padding: 6px 10px;
       user-select: none;
@@ -94,100 +124,101 @@
 
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
     .stat { margin-top: 8px; font-size: 12px; color: #333; }
-    code { background: #f3f3f3; padding: 1px 4px; border-radius: 6px; }
+    code { background: rgba(243,243,243,.9); padding: 1px 4px; border-radius: 6px; }
 
-    /* etwas kompakterer Toggle für UND-Modus */
     #toggleAnd { flex: 1; }
-
-    /* kleine Inline-Inputs */
     .inline2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <div class="panel">
-    <div><strong>Unfallatlas</strong> <span style="color:#666">(Viewport-Render)</span></div>
-
-    <div class="row">
-      <label for="year">Jahr</label>
-      <select id="year">
-        <option value="all">Alle</option>
-      </select>
-    </div>
-
-    <div class="row">
-      <label for="kat">Kategorie</label>
-      <select id="kat">
-        <option value="all">Alle</option>
-        <option value="1">1 (Getötete)</option>
-        <option value="2">2 (Schwer)</option>
-        <option value="3">3 (Leicht)</option>
-      </select>
-    </div>
-
-    <!-- Beteiligung -->
-    <div style="margin-top:10px; font-weight:600;">Beteiligung</div>
-    <div class="chips" aria-label="Beteiligung Filter">
-      <label class="chip"><input type="checkbox" id="tRad" checked> <span>🚲 Rad</span></label>
-      <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
-      <label class="chip"><input type="checkbox" id="tPKW" checked> <span>🚗 PKW</span></label>
-      <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
-    </div>
-
-    <!-- UND-Modus -->
-    <div class="toggles">
-      <div id="toggleAnd" class="btn">Nur Kombinationen (UND)</div>
-    </div>
-
-    <!-- NEU: Zeit / Wochenende / Straße -->
-    <div style="margin-top:10px; font-weight:600;">Zeit & Bedingungen</div>
-
-    <div class="row">
-      <label>Stunde</label>
-      <div class="inline2">
-        <input id="hFrom" type="number" min="0" max="23" step="1" value="0" title="von (0..23)" />
-        <input id="hTo" type="number" min="0" max="23" step="1" value="23" title="bis (0..23)" />
+  <div class="panel" id="panel">
+    <div class="panelHeader">
+      <div>
+        <div class="panelTitle">Unfallatlas</div>
+        <div class="panelSub">(Viewport-Render)</div>
       </div>
+      <div class="collapseBtn" id="collapseBtn" title="Ein-/Ausklappen">▾</div>
     </div>
 
-    <div class="chips" style="margin-top:6px;">
-      <label class="chip"><input type="checkbox" id="weekendOnly"> <span>Nur Wochenende</span></label>
-    </div>
+    <div class="panelBody" id="panelBody">
+      <div class="row">
+        <label for="year">Jahr</label>
+        <select id="year">
+          <option value="all">Alle</option>
+        </select>
+      </div>
 
-    <div class="row">
-      <label for="strz">Straße</label>
-      <select id="strz">
-        <option value="all">Alle</option>
-        <!-- Codes werden nach dem Laden dynamisch ergänzt -->
-      </select>
-    </div>
+      <div class="row">
+        <label for="kat">Kategorie</label>
+        <select id="kat">
+          <option value="all">Alle</option>
+          <option value="1">1 (Getötete)</option>
+          <option value="2">2 (Schwer)</option>
+          <option value="3">3 (Leicht)</option>
+        </select>
+      </div>
 
-    <div class="row">
-      <label for="maxn">Max Punkte</label>
-      <input id="maxn" type="number" min="500" step="500" value="20000" />
-    </div>
+      <div style="margin-top:10px; font-weight:600;">Beteiligung</div>
+      <div class="chips" aria-label="Beteiligung Filter">
+        <label class="chip"><input type="checkbox" id="tRad" checked> <span>🚲 Rad</span></label>
+        <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
+        <label class="chip"><input type="checkbox" id="tPKW" checked> <span>🚗 PKW</span></label>
+        <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
+      </div>
 
-    <div class="row">
-      <label for="pad">Viewport-Padding</label>
-      <input id="pad" type="number" min="0" max="100" step="5" value="20" />
-    </div>
+      <div class="toggles">
+        <div id="toggleAnd" class="btn">Nur Kombinationen (UND)</div>
+      </div>
 
-    <div class="row">
-      <label for="heatR">Heat Radius</label>
-      <input id="heatR" type="number" min="5" max="60" step="1" value="25" />
-    </div>
+      <div style="margin-top:10px; font-weight:600;">Zeit & Bedingungen</div>
 
-    <div class="toggles">
-      <div id="toggleCluster" class="btn active">Cluster</div>
-      <div id="toggleHeat" class="btn active">Heatmap</div>
-    </div>
+      <div class="row">
+        <label>Stunde</label>
+        <div class="inline2">
+          <input id="hFrom" type="number" min="0" max="23" step="1" value="0" title="von (0..23)" />
+          <input id="hTo" type="number" min="0" max="23" step="1" value="23" title="bis (0..23)" />
+        </div>
+      </div>
 
-    <div class="stat" id="stat">Lade Daten…</div>
+      <div class="chips" style="margin-top:6px;">
+        <label class="chip"><input type="checkbox" id="weekendOnly"> <span>Nur Wochenende</span></label>
+      </div>
 
-    <div class="muted">
-      Quelle: <code>out/output_all_years.geojson</code><br/>
-      Rendert nur Punkte im Kartenausschnitt (plus Padding).
+      <div class="row">
+        <label for="strz">Straße</label>
+        <select id="strz">
+          <option value="all">Alle</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="maxn">Max Punkte</label>
+        <input id="maxn" type="number" min="500" step="500" value="20000" />
+      </div>
+
+      <div class="row">
+        <label for="pad">Viewport-Padding</label>
+        <input id="pad" type="number" min="0" max="100" step="5" value="20" />
+      </div>
+
+      <div class="row">
+        <label for="heatR">Heat Radius</label>
+        <input id="heatR" type="number" min="5" max="60" step="1" value="25" />
+      </div>
+
+      <div class="toggles">
+        <div id="toggleCluster" class="btn active">Cluster</div>
+        <div id="toggleHeat" class="btn active">Heatmap</div>
+      </div>
+
+      <div class="stat" id="stat">Lade Daten…</div>
+
+      <div class="muted">
+        Quelle: <code>out/output_all_years.geojson</code><br/>
+        Rendert nur Punkte im Kartenausschnitt (plus Padding).
+      </div>
     </div>
   </div>
 
@@ -200,9 +231,23 @@
     }).addTo(map);
 
     // === Konfiguration: Wochenende ===
-    // Passe diese Werte an, sobald du sicher weißt, welche Codes Sa/So sind.
-    // Häufig: 6=Sa,7=So ODER 1=So,...,7=Sa. Beides kommt vor.
-    const WEEKEND_SET = new Set(["6","7"]); // <- ggf. auf ["1","7"] ändern
+    const WEEKEND_SET = new Set(["6","7"]); // ggf. anpassen (z.B. ["1","7"])
+
+    // Panel collapse
+    const panelEl = document.getElementById('panel');
+    const collapseBtn = document.getElementById('collapseBtn');
+
+    function setCollapsed(on){
+      panelEl.classList.toggle('collapsed', on);
+      collapseBtn.textContent = on ? "▸" : "▾";
+      try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch {}
+    }
+    const savedCollapsed = (() => { try { return localStorage.getItem("ua_panel_collapsed"); } catch { return null; } })();
+    if (savedCollapsed === "1") setCollapsed(true);
+
+    collapseBtn.addEventListener('click', () => {
+      setCollapsed(!panelEl.classList.contains('collapsed'));
+    });
 
     // UI
     const yearEl = document.getElementById('year');
@@ -224,7 +269,7 @@
     const btnAnd = document.getElementById('toggleAnd');
     let useAndMode = false;
 
-    // NEU: Zeit/Weekend/Straße
+    // Zeit/Weekend/Straße
     const hFromEl = document.getElementById('hFrom');
     const hToEl = document.getElementById('hTo');
     const weekendOnlyEl = document.getElementById('weekendOnly');
@@ -235,7 +280,7 @@
 
     // Data
     let all = null;
-    let allPts = [];              // [{lat, lon, props}]
+    let allPts = [];
     let filteredGlobal = [];
     let viewportPts = [];
 
@@ -320,13 +365,10 @@
     function getPaddedBounds() {
       const padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
       const b = map.getBounds();
-
       const latSpan = b.getNorth() - b.getSouth();
       const lonSpan = b.getEast() - b.getWest();
-
       const dLat = latSpan * padPct;
       const dLon = lonSpan * padPct;
-
       return L.latLngBounds(
         [b.getSouth() - dLat, b.getWest() - dLon],
         [b.getNorth() + dLat, b.getEast() + dLon]
@@ -334,11 +376,10 @@
     }
 
     function inHourRange(hour, from, to) {
-      // Range kann über Mitternacht gehen (z.B. 22 -> 5)
       if (Number.isNaN(hour)) return false;
-      if (from === to) return true; // "ganzer Tag" (oder bewusst gleich)
+      if (from === to) return true;
       if (from < to) return hour >= from && hour <= to;
-      return (hour >= from) || (hour <= to); // wrap
+      return (hour >= from) || (hour <= to);
     }
 
     function applyGlobalFilter() {
@@ -354,7 +395,6 @@
       const hTo = Math.max(0, Math.min(23, parseInt(hToEl.value || "23", 10)));
       const weekendOnly = weekendOnlyEl.checked;
 
-      // Beteiligung: Auswahl
       const sRad  = tRadEl.checked;
       const sFuss = tFussEl.checked;
       const sPKW  = tPKWEl.checked;
@@ -367,21 +407,16 @@
 
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
         if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
-
-        // Straßenzustand
         if (wantStrz !== "all" && String(pr.strzustand) !== wantStrz) continue;
 
-        // Wochenende
         if (weekendOnly) {
           const wd = String(pr.uwochentag ?? "");
           if (!WEEKEND_SET.has(wd)) continue;
         }
 
-        // Stunde
         const h = parseInt(pr.ustunde, 10);
         if (!inHourRange(h, hFrom, hTo)) continue;
 
-        // Beteiligung (ODER/UND)
         const isRad  = String(pr?.istrad)  === "1";
         const isFuss = String(pr?.istfuss) === "1";
         const isPKW  = String(pr?.istpkw)  === "1";
@@ -425,7 +460,6 @@
 
       const pts = viewportPts;
 
-      // Cluster
       if (showCluster) {
         clusterLayer = L.markerClusterGroup({
           chunkedLoading: true,
@@ -442,7 +476,6 @@
         clusterLayer.addTo(map);
       }
 
-      // Heatmap
       if (showHeat) {
         const r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
         const heatPts = pts.map(p => {
@@ -473,7 +506,6 @@
         `Modus: ${useAndMode ? "UND" : "ODER"}`;
     }
 
-    // Debounce für moveend/zoomend (iPhone)
     let moveTimer = null;
     function scheduleViewportUpdate() {
       if (!all) return;
@@ -491,16 +523,12 @@
       all = await resp.json();
       buildYearOptions(all.features || []);
       allPts = extractPoints(all);
-
-      // NEU: Straßenzustand-Optionen aus Daten ableiten
       buildStrzOptions(allPts);
 
-      // Initial
       applyGlobalFilter();
       applyViewportFilter();
       renderLayers();
 
-      // UI events (global filter)
       for (const el of [yearEl, katEl, maxEl, strzEl, hFromEl, hToEl, weekendOnlyEl]) {
         el.addEventListener('change', () => {
           applyGlobalFilter();
@@ -509,7 +537,6 @@
         });
       }
 
-      // Typ-Filter
       for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
         el.addEventListener('change', () => {
           applyGlobalFilter();
@@ -518,7 +545,6 @@
         });
       }
 
-      // UND-Modus Toggle
       btnAnd.addEventListener('click', () => {
         useAndMode = !useAndMode;
         setBtnState(btnAnd, useAndMode);
@@ -528,14 +554,9 @@
       });
       setBtnState(btnAnd, useAndMode);
 
-      // viewport padding or heat radius => re-render viewport
-      padEl.addEventListener('change', () => {
-        applyViewportFilter();
-        renderLayers();
-      });
+      padEl.addEventListener('change', () => { applyViewportFilter(); renderLayers(); });
       heatREl.addEventListener('change', () => renderLayers());
 
-      // toggles
       btnCluster.addEventListener('click', () => {
         showCluster = !showCluster;
         setBtnState(btnCluster, showCluster);
@@ -550,7 +571,6 @@
       setBtnState(btnCluster, showCluster);
       setBtnState(btnHeat, showHeat);
 
-      // Update on map movement
       map.on('moveend zoomend', scheduleViewportUpdate);
     }
 
