@@ -127,7 +127,6 @@ norm_key() {
 
 # sehr simples URL-Encoding für query-params (reicht für Städte)
 urlencode() {
-  # ersetzt Leerzeichen->%20, Komma->%2C, Anführungszeichen etc. minimal
   printf "%s" "$1" \
     | sed -e 's/%/%25/g' \
           -e 's/ /%20/g' \
@@ -179,15 +178,14 @@ update_city_cache() {
 
         # Name vereinfachen:
         short=name
-        # häufige Präfixe entfernen:
         sub(/^Landeshauptstadt[[:space:]]+/,"",short)
         sub(/^Hansestadt[[:space:]]+/,"",short)
         sub(/^Freie[[:space:]]+und[[:space:]]+Hansestadt[[:space:]]+/,"",short)
         sub(/^Stadt[[:space:]]+/,"",short)
-        # nach Komma/Strich/klammer abschneiden
         sub(/,.*$/,"",short)
         sub(/[[:space:]]+-.*$/,"",short)
-        sub(/[[:space:]]+\\(.*$/,"",short)
+        # FIX: "(" als Literal, portabel
+        sub(/[[:space:]]+[(].*$/,"",short)
         gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
 
         printf "%s\t%s\t%s\n", short, ags, pop
@@ -248,11 +246,9 @@ lookup_city_online() {
   json="$(curl -fsSL "$url" || true)"
   [ -z "$json" ] && return 1
 
-  # Suche nach division_category 60 (Stadt/Gemeinde), min pop, und nimm best match:
   echo "$json" | awk -v min="${CITY_MIN_POP}" -v want="$city" '
     function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
-    function lower(s,  t){ t=s; for(i=1;i<=length(t);i++){} return tolower(t) }
-    BEGIN{ RS="\\{" ; FS=","; bestScore=-1; bestLine="" }
+    BEGIN{ RS="\\{" ; FS=","; bestScore=-1; bestLine=""; bestPop=0 }
     /"division_category":60/ {
       name=""; ags=""; pop=""
       for(i=1;i<=NF;i++){
@@ -282,22 +278,21 @@ lookup_city_online() {
       sub(/^Stadt[[:space:]]+/,"",short)
       sub(/,.*$/,"",short)
       sub(/[[:space:]]+-.*$/,"",short)
-      sub(/[[:space:]]+\\(.*$/,"",short)
+      # FIX: "(" als Literal, portabel
+      sub(/[[:space:]]+[(].*$/,"",short)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
 
       w=tolower(want); s=tolower(short)
 
-      # scoring: exakt > prefix > contains
       score=0
       if(s==w) score=300
       else if(index(s,w)==1) score=200
       else if(index(s,w)>0) score=100
       else score=0
 
-      # bei gleichem score: höhere pop gewinnt
       if(score>bestScore || (score==bestScore && pop+0>bestPop+0)){
         bestScore=score
-        bestPop=pop
+        bestPop=pop+0
         bestLine=short "\t" ags "\t" pop
       }
     }
@@ -310,12 +305,9 @@ lookup_city_online() {
 # City -> Region: Cache zuerst, sonst Online-Lookup; Treffer in Cache schreiben.
 set_region_from_city() {
   city="$1"
-  key="$(norm_key "$city")"
-
   line=""
 
   if [ -f "$CITY_CACHE" ]; then
-    # exakte Übereinstimmung (case-insensitive) auf Spalte 1
     line="$(awk -F'\t' -v q="$city" 'BEGIN{ql=tolower(q)} tolower($1)==ql {print; exit}' "$CITY_CACHE" || true)"
   fi
 
@@ -342,11 +334,9 @@ set_region_from_city() {
   CITY_DISPLAY="${name} (AGS ${ags}, Pop ${pop})"
   CITY_SUFFIX="$(norm_key "$name")"
 
-  # optional: kleinen Cache pflegen (nur benutzte Städte)
   if [ ! -f "$CITY_CACHE" ]; then
     : > "$CITY_CACHE"
   fi
-  # nur append, wenn nicht schon vorhanden (case-insensitive)
   if ! awk -F'\t' -v q="$name" 'BEGIN{ql=tolower(q)} tolower($1)==ql {found=1} END{exit(found?0:1)}' "$CITY_CACHE" >/dev/null 2>&1; then
     printf "%s\t%s\t%s\n" "$name" "$ags" "$pop" >> "$CITY_CACHE"
     sort -u -o "$CITY_CACHE" "$CITY_CACHE" 2>/dev/null || true
@@ -446,7 +436,10 @@ process_year_append() {
       i_strz   = pick("STRZUSTAND","","","","")
 
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
-      i_lat = pick("YGCSWGS84","Y_GCSWGS84","","","")
+      i_lat = pick("YGCSWGS84","Y_GCSWGSW84","","","")
+
+      # Fallback falls YGCSWGSW84 typo nicht existiert:
+      if(i_lat==0) i_lat = pick("YGCSWGS84","Y_GCSWGS84","","","")
 
       i_str = pick("Strasse","STRASSE","StrName","STRNAME","USTRNAME")
 
