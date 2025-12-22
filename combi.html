@@ -96,8 +96,11 @@
     .stat { margin-top: 8px; font-size: 12px; color: #333; }
     code { background: #f3f3f3; padding: 1px 4px; border-radius: 6px; }
 
-    /* NEU: etwas kompakterer Toggle für UND-Modus */
+    /* etwas kompakterer Toggle für UND-Modus */
     #toggleAnd { flex: 1; }
+
+    /* kleine Inline-Inputs */
+    .inline2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   </style>
 </head>
 <body>
@@ -132,9 +135,32 @@
       <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
     </div>
 
-    <!-- NEU: UND-Modus -->
+    <!-- UND-Modus -->
     <div class="toggles">
       <div id="toggleAnd" class="btn">Nur Kombinationen (UND)</div>
+    </div>
+
+    <!-- NEU: Zeit / Wochenende / Straße -->
+    <div style="margin-top:10px; font-weight:600;">Zeit & Bedingungen</div>
+
+    <div class="row">
+      <label>Stunde</label>
+      <div class="inline2">
+        <input id="hFrom" type="number" min="0" max="23" step="1" value="0" title="von (0..23)" />
+        <input id="hTo" type="number" min="0" max="23" step="1" value="23" title="bis (0..23)" />
+      </div>
+    </div>
+
+    <div class="chips" style="margin-top:6px;">
+      <label class="chip"><input type="checkbox" id="weekendOnly"> <span>Nur Wochenende</span></label>
+    </div>
+
+    <div class="row">
+      <label for="strz">Straße</label>
+      <select id="strz">
+        <option value="all">Alle</option>
+        <!-- Codes werden nach dem Laden dynamisch ergänzt -->
+      </select>
     </div>
 
     <div class="row">
@@ -173,6 +199,11 @@
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
+    // === Konfiguration: Wochenende ===
+    // Passe diese Werte an, sobald du sicher weißt, welche Codes Sa/So sind.
+    // Häufig: 6=Sa,7=So ODER 1=So,...,7=Sa. Beides kommt vor.
+    const WEEKEND_SET = new Set(["6","7"]); // <- ggf. auf ["1","7"] ändern
+
     // UI
     const yearEl = document.getElementById('year');
     const katEl = document.getElementById('kat');
@@ -189,18 +220,24 @@
     const tPKWEl = document.getElementById('tPKW');
     const tKradEl = document.getElementById('tKrad');
 
-    // NEU: UND-Modus
+    // UND-Modus
     const btnAnd = document.getElementById('toggleAnd');
     let useAndMode = false;
+
+    // NEU: Zeit/Weekend/Straße
+    const hFromEl = document.getElementById('hFrom');
+    const hToEl = document.getElementById('hTo');
+    const weekendOnlyEl = document.getElementById('weekendOnly');
+    const strzEl = document.getElementById('strz');
 
     let showCluster = true;
     let showHeat = true;
 
     // Data
-    let all = null;               // full geojson
+    let all = null;
     let allPts = [];              // [{lat, lon, props}]
-    let filteredGlobal = [];      // after year/kat/type/max filter (still global)
-    let viewportPts = [];         // after viewport cropping
+    let filteredGlobal = [];
+    let viewportPts = [];
 
     // Layers
     let clusterLayer = null;
@@ -230,9 +267,9 @@
           <div>Kategorie: ${escHtml(p.ukategorie)}</div>
           <div>Beteiligung: ${escHtml(involvementText(p))}</div>
           <div>Uhrzeit: ${escHtml(p.ustunde)} / Wochentag: ${escHtml(p.uwochentag)} / Monat: ${escHtml(p.umonat)}</div>
-          <div>Licht: ${escHtml(p.ulichtverh)}</div>
           <div>Straße: ${escHtml(p.strasse)}</div>
-          <div>Straßenzustand: ${escHtml(p.strzustand)}</div>
+          <div>Straßenzustand (Code): ${escHtml(p.strzustand)}</div>
+          <div>Licht: ${escHtml(p.ulichtverh)}</div>
         </div>
       `;
     }
@@ -249,6 +286,22 @@
         opt.textContent = y;
         yearEl.appendChild(opt);
       });
+    }
+
+    function buildStrzOptions(points) {
+      const codes = new Set();
+      for (const p of points) {
+        const v = p?.props?.strzustand;
+        if (v === undefined || v === null || v === "") continue;
+        codes.add(String(v));
+      }
+      const sorted = [...codes].sort((a,b) => (parseInt(a,10) - parseInt(b,10)));
+      for (const c of sorted) {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = `Code ${c}`;
+        strzEl.appendChild(opt);
+      }
     }
 
     function extractPoints(geojson) {
@@ -280,19 +333,32 @@
       );
     }
 
+    function inHourRange(hour, from, to) {
+      // Range kann über Mitternacht gehen (z.B. 22 -> 5)
+      if (Number.isNaN(hour)) return false;
+      if (from === to) return true; // "ganzer Tag" (oder bewusst gleich)
+      if (from < to) return hour >= from && hour <= to;
+      return (hour >= from) || (hour <= to); // wrap
+    }
+
     function applyGlobalFilter() {
       if (!all) return;
 
       const wantYear = yearEl.value;
       const wantKat = katEl.value;
+      const wantStrz = strzEl.value;
+
       const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
+
+      const hFrom = Math.max(0, Math.min(23, parseInt(hFromEl.value || "0", 10)));
+      const hTo = Math.max(0, Math.min(23, parseInt(hToEl.value || "23", 10)));
+      const weekendOnly = weekendOnlyEl.checked;
 
       // Beteiligung: Auswahl
       const sRad  = tRadEl.checked;
       const sFuss = tFussEl.checked;
       const sPKW  = tPKWEl.checked;
       const sKrad = tKradEl.checked;
-
       const anySelected = sRad || sFuss || sPKW || sKrad;
 
       const out = [];
@@ -302,30 +368,39 @@
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
         if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
 
+        // Straßenzustand
+        if (wantStrz !== "all" && String(pr.strzustand) !== wantStrz) continue;
+
+        // Wochenende
+        if (weekendOnly) {
+          const wd = String(pr.uwochentag ?? "");
+          if (!WEEKEND_SET.has(wd)) continue;
+        }
+
+        // Stunde
+        const h = parseInt(pr.ustunde, 10);
+        if (!inHourRange(h, hFrom, hTo)) continue;
+
+        // Beteiligung (ODER/UND)
         const isRad  = String(pr?.istrad)  === "1";
         const isFuss = String(pr?.istfuss) === "1";
         const isPKW  = String(pr?.istpkw)  === "1";
         const isKrad = String(pr?.istkrad) === "1";
 
-        if (anySelected) {
-          if (useAndMode) {
-            // UND: alle angehakten müssen zutreffen
-            if (sRad  && !isRad)  continue;
-            if (sFuss && !isFuss) continue;
-            if (sPKW  && !isPKW)  continue;
-            if (sKrad && !isKrad) continue;
-          } else {
-            // ODER: mindestens eine angehakte Kategorie muss zutreffen
-            const ok =
-              (sRad  && isRad)  ||
-              (sFuss && isFuss) ||
-              (sPKW  && isPKW)  ||
-              (sKrad && isKrad);
-            if (!ok) continue;
-          }
+        if (!anySelected) continue;
+
+        if (useAndMode) {
+          if (sRad  && !isRad)  continue;
+          if (sFuss && !isFuss) continue;
+          if (sPKW  && !isPKW)  continue;
+          if (sKrad && !isKrad) continue;
         } else {
-          // nichts gewählt => nichts anzeigen (klarer als "alles")
-          continue;
+          const ok =
+            (sRad  && isRad)  ||
+            (sFuss && isFuss) ||
+            (sPKW  && isPKW)  ||
+            (sKrad && isKrad);
+          if (!ok) continue;
         }
 
         out.push(p);
@@ -417,27 +492,22 @@
       buildYearOptions(all.features || []);
       allPts = extractPoints(all);
 
+      // NEU: Straßenzustand-Optionen aus Daten ableiten
+      buildStrzOptions(allPts);
+
       // Initial
       applyGlobalFilter();
       applyViewportFilter();
       renderLayers();
 
       // UI events (global filter)
-      yearEl.addEventListener('change', () => {
-        applyGlobalFilter();
-        applyViewportFilter();
-        renderLayers();
-      });
-      katEl.addEventListener('change', () => {
-        applyGlobalFilter();
-        applyViewportFilter();
-        renderLayers();
-      });
-      maxEl.addEventListener('change', () => {
-        applyGlobalFilter();
-        applyViewportFilter();
-        renderLayers();
-      });
+      for (const el of [yearEl, katEl, maxEl, strzEl, hFromEl, hToEl, weekendOnlyEl]) {
+        el.addEventListener('change', () => {
+          applyGlobalFilter();
+          applyViewportFilter();
+          renderLayers();
+        });
+      }
 
       // Typ-Filter
       for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
