@@ -1,1 +1,3 @@
 out/*.zip
+out/*.tmp
+out/**/*.tmp
