@@ -10,36 +10,32 @@ set -eu
 #
 # Optional:
 #   --per-year  => zusätzlich out/outputYYYY.csv + out/outputYYYY.geojson
+#
+# City-Handling (schnell, CI-tauglich):
+# - Kein automatischer Full-Cache-Build mehr.
+# - Bei --city: erst lokaler Cache, sonst Online-Lookup (GVZ API ?search=...)
+# - Treffer werden optional in out/city_cache.tsv gespeichert (nur verwendete Städte).
 ###############################################################################
 
-###############################################################################
-# Defaults / Konfiguration
-###############################################################################
 OUTDIR="out"
-LIMIT=1999     # 0 = unbegrenzt (kein Abbruch)
+LIMIT=1999
 YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
-# Default: Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
 ULAND="03"
 UREGBEZ="2"
 UKREIS="41"
-UGEMEINDE=""     # optional: 3-stellig (z.B. "001"), leer = alle Gemeinden im Kreis
+UGEMEINDE=""
 CITY_DISPLAY="(manuell/default)"
 
-# Filter: Beteiligung (Default Fahrrad wie früher)
 IST_RAD="1"
 IST_PKW=""
 IST_FUSS=""
 IST_KRAD=""
 
-# City-Caching
-CITY_CACHE="${OUTDIR}/city_cache.tsv"  # name<TAB>ags8<TAB>pop
+CITY_CACHE="${OUTDIR}/city_cache.tsv"
 CITY_MIN_POP=100000
 GVZ_API_BASE="https://gvz.tuerantuer.org/api/administrative_divisions/"
 
-###############################################################################
-# Hilfe / Args
-###############################################################################
 usage() {
   cat <<'EOF'
 Usage:
@@ -47,35 +43,31 @@ Usage:
 
 Optionen:
   --years "2018 2019 ..."     Jahre (Default: 2016..2024)
-  --limit N                  Max. Treffer pro Jahr (Default: 1999)
-                             Tipp: --limit 0  => unbegrenzt
+  --limit N                  Max. Treffer pro Jahr (Default: 1999), 0=unbegrenzt
   --outdir DIR               Ausgabeverzeichnis (Default: out)
   --per-year                 Zusätzlich pro Jahr outputYYYY.csv/.geojson erzeugen
 
-Region-Filter:
-  --uland 03 --uregb 2 --ukreis 41 [--ugemeinde 001]
+Stadt:
+  --city "Hannover"          erzeugt output_all_years_hannover.{csv,geojson}
+  Mehrere:
+    --city "Hannover,Bonn"
+    --city Hannover --city Bonn
 
-Stadt-Filter (benutzerfreundlich, erfordert Cache):
-  --update-city-cache        Erstellt/aktualisiert Cache (>=100k Einwohner)
-  --list-cities              Listet Städte aus Cache
-  --search "text"            Sucht im Cache
-  --city "Hannover"          Setzt Filter aus Stadt (AGS -> ULAND/UREGBEZ/UKREIS/UGEMEINDE)
-                             UND: output_all_years_<stadt>.{csv,geojson}
-
-  Mehrere Städte:
-    --city "Hannover,Braunschweig"
-    --city Hannover --city Braunschweig
+Cache:
+  --update-city-cache        (langsam!) Full-Cache bauen (>=100k)
+  --list-cities              Cache anzeigen
+  --search "text"            Cache durchsuchen
 
 Beteiligung:
-  --rad 1|0                  Default 1
-  --pkw 1|0                  leer = ignorieren
-  --fuss 1|0                 leer = ignorieren
-  --krad 1|0                 leer = ignorieren
+  --rad 1|0
+  --pkw 1|0
+  --fuss 1|0
+  --krad 1|0
 EOF
 }
 
-CITY_LIST=""        # sammelt alle --city Werte (auch mehrfach)
-CITY_SUFFIX=""      # für Dateinamen pro Stadt
+CITY_LIST=""
+CITY_SUFFIX=""
 DO_UPDATE_CACHE="0"
 DO_LIST_CITIES="0"
 SEARCH_Q=""
@@ -97,7 +89,6 @@ while [ "${1:-}" != "" ]; do
     --ukreis) UKREIS="$2"; shift 2 ;;
     --ugemeinde) UGEMEINDE="$2"; shift 2 ;;
 
-    # --city mehrfach + komma-separiert sammeln
     --city)
       if [ -n "${2:-}" ]; then
         CITY_LIST="${CITY_LIST}${CITY_LIST:+,}$2"
@@ -124,9 +115,28 @@ done
 
 mkdir -p "$OUTDIR"
 
-###############################################################################
-# City-Cache: via gvz.tuerantuer.org
-###############################################################################
+norm_key() {
+  printf "%s" "${1:-}" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed \
+        -e 's/ä/ae/g' -e 's/ö/oe/g' -e 's/ü/ue/g' -e 's/ß/ss/g' \
+        -e 's/[^a-z0-9]/_/g' \
+        -e 's/__*/_/g' \
+        -e 's/^_//' -e 's/_$//'
+}
+
+# sehr simples URL-Encoding für query-params (reicht für Städte)
+urlencode() {
+  # ersetzt Leerzeichen->%20, Komma->%2C, Anführungszeichen etc. minimal
+  printf "%s" "$1" \
+    | sed -e 's/%/%25/g' \
+          -e 's/ /%20/g' \
+          -e 's/,/%2C/g' \
+          -e 's/"/%22/g' \
+          -e "s/'/%27/g"
+}
+
+# (langsam!) Full-Cache bauen – nur auf expliziten Wunsch
 update_city_cache() {
   echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
 
@@ -167,8 +177,17 @@ update_city_cache() {
         if(length(ags)<8){ while(length(ags)<8) ags="0" ags }
         if(length(ags)!=8) next
 
+        # Name vereinfachen:
         short=name
+        # häufige Präfixe entfernen:
+        sub(/^Landeshauptstadt[[:space:]]+/,"",short)
+        sub(/^Hansestadt[[:space:]]+/,"",short)
+        sub(/^Freie[[:space:]]+und[[:space:]]+Hansestadt[[:space:]]+/,"",short)
+        sub(/^Stadt[[:space:]]+/,"",short)
+        # nach Komma/Strich/klammer abschneiden
         sub(/,.*$/,"",short)
+        sub(/[[:space:]]+-.*$/,"",short)
+        sub(/[[:space:]]+\\(.*$/,"",short)
         gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
 
         printf "%s\t%s\t%s\n", short, ags, pop
@@ -180,12 +199,8 @@ update_city_cache() {
   done
 
   awk -F'\t' '
-    {
-      k=tolower($1)
-      if(!(k in best) || $3+0 > pop[k]+0){
-        best[k]=$0
-        pop[k]=$3
-      }
+    { k=tolower($1)
+      if(!(k in best) || $3+0 > pop[k]+0){ best[k]=$0; pop[k]=$3 }
     }
     END{ for(k in best) print best[k] }
   ' "$tmp" | sort > "$CITY_CACHE"
@@ -194,19 +209,10 @@ update_city_cache() {
   echo " -> $CITY_CACHE"
 }
 
-# NEU (Option B): falls Cache fehlt -> automatisch erstellen
-ensure_city_cache() {
-  if [ ! -f "$CITY_CACHE" ]; then
-    echo "INFO: City-Cache fehlt ($CITY_CACHE) -> erstelle ihn automatisch..."
-    update_city_cache
-  fi
-}
-
-# Für list/search weiterhin strikt
 require_city_cache() {
   if [ ! -f "$CITY_CACHE" ]; then
     echo "ERROR: City-Cache fehlt: $CITY_CACHE" >&2
-    echo "       Bitte einmal ausführen: ./convertAmt2gmaps.sh --update-city-cache" >&2
+    echo "       Bitte ausführen: ./convertAmt2gmaps.sh --update-city-cache" >&2
     exit 2
   fi
 }
@@ -214,16 +220,6 @@ require_city_cache() {
 list_cities() {
   require_city_cache
   awk -F'\t' '{printf "%s\t%s\t%s\n",$1,$2,$3}' "$CITY_CACHE"
-}
-
-norm_key() {
-  printf "%s" "${1:-}" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed \
-        -e 's/ä/ae/g' -e 's/ö/oe/g' -e 's/ü/ue/g' -e 's/ß/ss/g' \
-        -e 's/[^a-z0-9]/_/g' \
-        -e 's/__*/_/g' \
-        -e 's/^_//' -e 's/_$//'
 }
 
 search_cities() {
@@ -242,59 +238,119 @@ search_cities() {
   ' "$CITY_CACHE"
 }
 
-###############################################################################
-# City -> ULAND/UREGBEZ/UKREIS/UGEMEINDE (aus AGS: LL R KK GGG)
-###############################################################################
+# Schnell: nur eine Stadt online suchen (statt Full-Cache)
+# Gibt genau 1 Zeile aus: "Name<TAB>AGS8<TAB>Pop"
+lookup_city_online() {
+  city="$1"
+  q="$(urlencode "$city")"
+  url="${GVZ_API_BASE}?format=json&search=${q}"
+
+  json="$(curl -fsSL "$url" || true)"
+  [ -z "$json" ] && return 1
+
+  # Suche nach division_category 60 (Stadt/Gemeinde), min pop, und nimm best match:
+  echo "$json" | awk -v min="${CITY_MIN_POP}" -v want="$city" '
+    function unesc(s){ gsub(/\\"/,"\"",s); gsub(/\\\\/,"\\",s); return s }
+    function lower(s,  t){ t=s; for(i=1;i<=length(t);i++){} return tolower(t) }
+    BEGIN{ RS="\\{" ; FS=","; bestScore=-1; bestLine="" }
+    /"division_category":60/ {
+      name=""; ags=""; pop=""
+      for(i=1;i<=NF;i++){
+        if($i ~ /"name":/){
+          name=$i; sub(/^.*"name":"?/,"",name); sub(/"?.*$/,"",name); name=unesc(name)
+        }
+        if($i ~ /"ags":/){
+          ags=$i; sub(/^.*"ags":"?/,"",ags); sub(/"?.*$/,"",ags)
+        }
+        if($i ~ /"citizens_total":/){
+          pop=$i; sub(/^.*"citizens_total":/,"",pop); sub(/[^0-9].*$/,"",pop)
+        }
+      }
+      if(pop=="" || pop=="null") next
+      if(pop+0 < min) next
+      if(ags=="") next
+
+      gsub(/[^0-9]/,"",ags)
+      if(length(ags)==9) ags=substr(ags,2,8)
+      if(length(ags)<8){ while(length(ags)<8) ags="0" ags }
+      if(length(ags)!=8) next
+
+      short=name
+      sub(/^Landeshauptstadt[[:space:]]+/,"",short)
+      sub(/^Hansestadt[[:space:]]+/,"",short)
+      sub(/^Freie[[:space:]]+und[[:space:]]+Hansestadt[[:space:]]+/,"",short)
+      sub(/^Stadt[[:space:]]+/,"",short)
+      sub(/,.*$/,"",short)
+      sub(/[[:space:]]+-.*$/,"",short)
+      sub(/[[:space:]]+\\(.*$/,"",short)
+      gsub(/^[[:space:]]+|[[:space:]]+$/,"",short)
+
+      w=tolower(want); s=tolower(short)
+
+      # scoring: exakt > prefix > contains
+      score=0
+      if(s==w) score=300
+      else if(index(s,w)==1) score=200
+      else if(index(s,w)>0) score=100
+      else score=0
+
+      # bei gleichem score: höhere pop gewinnt
+      if(score>bestScore || (score==bestScore && pop+0>bestPop+0)){
+        bestScore=score
+        bestPop=pop
+        bestLine=short "\t" ags "\t" pop
+      }
+    }
+    END{
+      if(bestLine!="") print bestLine
+    }
+  ' | head -n 1
+}
+
+# City -> Region: Cache zuerst, sonst Online-Lookup; Treffer in Cache schreiben.
 set_region_from_city() {
   city="$1"
-  ensure_city_cache
+  key="$(norm_key "$city")"
 
-  qn="$(norm_key "$city")"
+  line=""
 
-  # 1) exakter Match (normalisiert)
-  line="$(awk -F'\t' -v qn="$qn" '
-    function norm(s,   t){
-      t=tolower(s)
-      gsub(/ä/,"ae",t); gsub(/ö/,"oe",t); gsub(/ü/,"ue",t); gsub(/ß/,"ss",t)
-      gsub(/[^a-z0-9]/,"_",t)
-      gsub(/__*/,"_",t)
-      sub(/^_/,"",t); sub(/_$/,"",t)
-      return t
-    }
-    norm($1)==qn { print; exit }
-  ' "$CITY_CACHE")"
-
-  # 2) fallback: Teiltreffer (z.B. "Landeshauptstadt Hannover")
-  if [ -z "$line" ]; then
-    line="$(awk -F'\t' -v qn="$qn" '
-      function norm(s,   t){
-        t=tolower(s)
-        gsub(/ä/,"ae",t); gsub(/ö/,"oe",t); gsub(/ü/,"ue",t); gsub(/ß/,"ss",t)
-        gsub(/[^a-z0-9]/,"_",t)
-        gsub(/__*/,"_",t)
-        sub(/^_/,"",t); sub(/_$/,"",t)
-        return t
-      }
-      index(norm($1), qn) > 0 { print; exit }
-    ' "$CITY_CACHE")"
+  if [ -f "$CITY_CACHE" ]; then
+    # exakte Übereinstimmung (case-insensitive) auf Spalte 1
+    line="$(awk -F'\t' -v q="$city" 'BEGIN{ql=tolower(q)} tolower($1)==ql {print; exit}' "$CITY_CACHE" || true)"
   fi
 
   if [ -z "$line" ]; then
-    echo "ERROR: Stadt \"$city\" nicht im Cache gefunden." >&2
-    echo "       Tipp: ./convertAmt2gmaps.sh --search \"$city\"" >&2
+    echo "INFO: \"$city\" nicht im Cache -> Online-Lookup..."
+    line="$(lookup_city_online "$city" || true)"
+  fi
+
+  if [ -z "$line" ]; then
+    echo "ERROR: Stadt \"$city\" konnte weder im Cache noch online gefunden werden (>=${CITY_MIN_POP} Einwohner)." >&2
+    echo "       Tipp: ./convertAmt2gmaps.sh --update-city-cache && ./convertAmt2gmaps.sh --search \"$city\"" >&2
     exit 2
   fi
 
+  name="$(printf "%s" "$line" | awk -F'\t' '{print $1}')"
   ags="$(printf "%s" "$line" | awk -F'\t' '{print $2}')"
+  pop="$(printf "%s" "$line" | awk -F'\t' '{print $3}')"
 
   ULAND="$(printf "%s" "$ags" | cut -c1-2)"
   UREGBEZ="$(printf "%s" "$ags" | cut -c3-3)"
   UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
 
-  CITY_DISPLAY="$(printf "%s" "$line" | awk -F'\t' '{print $1" (AGS "$2", Pop "$3")"}')"
-  CITY_SUFFIX="$(printf "%s" "$line" | awk -F'\t' '{print $1}' | sed 's/[[:space:]]\+$//')"
-  CITY_SUFFIX="$(norm_key "$CITY_SUFFIX")"
+  CITY_DISPLAY="${name} (AGS ${ags}, Pop ${pop})"
+  CITY_SUFFIX="$(norm_key "$name")"
+
+  # optional: kleinen Cache pflegen (nur benutzte Städte)
+  if [ ! -f "$CITY_CACHE" ]; then
+    : > "$CITY_CACHE"
+  fi
+  # nur append, wenn nicht schon vorhanden (case-insensitive)
+  if ! awk -F'\t' -v q="$name" 'BEGIN{ql=tolower(q)} tolower($1)==ql {found=1} END{exit(found?0:1)}' "$CITY_CACHE" >/dev/null 2>&1; then
+    printf "%s\t%s\t%s\n" "$name" "$ags" "$pop" >> "$CITY_CACHE"
+    sort -u -o "$CITY_CACHE" "$CITY_CACHE" 2>/dev/null || true
+  fi
 
   echo "== City: $CITY_DISPLAY =="
   echo "   -> ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS UGEMEINDE=$UGEMEINDE"
@@ -359,7 +415,6 @@ process_year_append() {
     BEGIN {
       first = firstref + 0
       out = 0
-
       if (peryear=="1") {
         print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > outcsv_y
         print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo_y
@@ -395,12 +450,7 @@ process_year_append() {
 
       i_str = pick("Strasse","STRASSE","StrName","STRNAME","USTRNAME")
 
-      if (i_lon==0 || i_lat==0) {
-        print "WARN: Jahr " year ": keine WGS84-Spalten (XGCSWGS84/YGCSWGS84). Überspringe Ausgabe." > "/dev/stderr"
-        skip=1
-      } else {
-        skip=0
-      }
+      if (i_lon==0 || i_lat==0) { skip=1 } else { skip=0 }
       next
     }
     NR>1 {
@@ -423,11 +473,8 @@ process_year_append() {
       gsub(/\r/,"",lon); gsub(/\r/,"",lat)
       gsub(/,/,".",lon); gsub(/,/,".",lat)
 
-      str = (i_str ? $i_str : "")
-      gsub(/\r/,"",str)
-
-      licht = (i_licht ? $i_licht : "")
-      gsub(/\r/,"",licht)
+      str = (i_str ? $i_str : ""); gsub(/\r/,"",str)
+      licht = (i_licht ? $i_licht : ""); gsub(/\r/,"",licht)
 
       kat    = (i_kat ? $i_kat : "")
       typ1   = (i_typ1 ? $i_typ1 : "")
@@ -482,10 +529,8 @@ process_year_append() {
 
       if (peryear=="1") {
         print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv_y
-
         if (!first_y) print "," >> outgeo_y
         first_y=0
-
         print "    {\n" \
               "      \"type\": \"Feature\",\n" \
               "      \"geometry\": { \"type\": \"Point\", \"coordinates\": [" lon ", " lat "] },\n" \
@@ -511,9 +556,7 @@ process_year_append() {
       }
     }
     END {
-      if (peryear=="1" && !skip) {
-        print "\n  ]\n}" >> outgeo_y
-      }
+      if (peryear=="1" && !skip) print "\n  ]\n}" >> outgeo_y
       printf "FIRSTFLAG=%d\n", first > "/dev/stderr"
     }
   ' 2> "${OUTDIR}/.firstflag.tmp"
@@ -522,51 +565,25 @@ process_year_append() {
     COMBINED_GEO_FIRST="$(awk -F= '/^FIRSTFLAG=/{print $2; exit}' "${OUTDIR}/.firstflag.tmp" || echo "$COMBINED_GEO_FIRST")"
     rm -f "${OUTDIR}/.firstflag.tmp"
   fi
-
-  if [ "$DO_PER_YEAR" = "1" ]; then
-    [ -f "$outcsv_year" ] && echo " -> $outcsv_year"
-    [ -f "$outgeo_year" ] && echo " -> $outgeo_year"
-  fi
 }
 
-###############################################################################
-# Run: erzeugt combined files für aktuell gesetzte Region/City
-###############################################################################
 run_combined_for_current_region() {
   suffix=""
-  if [ -n "${CITY_SUFFIX:-}" ]; then
-    suffix="_${CITY_SUFFIX}"
-  fi
+  if [ -n "${CITY_SUFFIX:-}" ]; then suffix="_${CITY_SUFFIX}"; fi
 
   COMBINED_CSV="${OUTDIR}/output_all_years${suffix}.csv"
   COMBINED_GEO="${OUTDIR}/output_all_years${suffix}.geojson"
 
   echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > "$COMBINED_CSV"
-  {
-    echo '{'
-    echo '  "type": "FeatureCollection",'
-    echo '  "features": ['
-  } > "$COMBINED_GEO"
+  { echo '{'; echo '  "type": "FeatureCollection",'; echo '  "features": ['; } > "$COMBINED_GEO"
 
   COMBINED_GEO_FIRST=1
+  for y in $YEARS; do process_year_append "$y" || true; done
 
-  for y in $YEARS; do
-    process_year_append "$y" || true
-  done
-
-  {
-    echo
-    echo '  ]'
-    echo '}'
-  } >> "$COMBINED_GEO"
+  { echo; echo '  ]'; echo '}'; } >> "$COMBINED_GEO"
 
   echo "== fertig =="
-  echo "Filter: ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS${UGEMEINDE:+ UGEMEINDE=$UGEMEINDE}"
   echo "City:   ${CITY_DISPLAY}"
-  echo "Years:  $YEARS"
-  echo "Limit:  $LIMIT (0=unbegrenzt)"
-  echo "Outdir: $OUTDIR"
-  echo "Per-year: $DO_PER_YEAR"
   echo "Combined CSV: $COMBINED_CSV"
   echo "Combined GEO: $COMBINED_GEO"
   echo
@@ -589,25 +606,17 @@ if [ -n "$SEARCH_Q" ]; then
   exit 0
 fi
 
-# Mehrere Städte: kommasepariert + mehrfaches --city
 if [ -n "$CITY_LIST" ]; then
-  OLDIFS=$IFS
-  IFS=,
-  set -- $CITY_LIST
-  IFS=$OLDIFS
-
+  OLDIFS=$IFS; IFS=,; set -- $CITY_LIST; IFS=$OLDIFS
   for c in "$@"; do
     c="$(printf "%s" "$c" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     [ -z "$c" ] && continue
-
     set_region_from_city "$c"
     run_combined_for_current_region
   done
-
   exit 0
 fi
 
-# Kein --city => einmal mit Default/manuell gesetzter Region
 CITY_SUFFIX=""
 CITY_DISPLAY="(manuell/default)"
 run_combined_for_current_region
