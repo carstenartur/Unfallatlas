@@ -74,7 +74,7 @@ Beteiligung:
 EOF
 }
 
-CITY_LIST=""        # NEU: sammelt alle --city Werte (auch mehrfach)
+CITY_LIST=""        # sammelt alle --city Werte (auch mehrfach)
 CITY_SUFFIX=""      # für Dateinamen pro Stadt
 DO_UPDATE_CACHE="0"
 DO_LIST_CITIES="0"
@@ -97,7 +97,7 @@ while [ "${1:-}" != "" ]; do
     --ukreis) UKREIS="$2"; shift 2 ;;
     --ugemeinde) UGEMEINDE="$2"; shift 2 ;;
 
-    # NEU: --city mehrfach + komma-separiert sammeln
+    # --city mehrfach + komma-separiert sammeln
     --city)
       if [ -n "${2:-}" ]; then
         CITY_LIST="${CITY_LIST}${CITY_LIST:+,}$2"
@@ -194,6 +194,15 @@ update_city_cache() {
   echo " -> $CITY_CACHE"
 }
 
+# NEU (Option B): falls Cache fehlt -> automatisch erstellen
+ensure_city_cache() {
+  if [ ! -f "$CITY_CACHE" ]; then
+    echo "INFO: City-Cache fehlt ($CITY_CACHE) -> erstelle ihn automatisch..."
+    update_city_cache
+  fi
+}
+
+# Für list/search weiterhin strikt
 require_city_cache() {
   if [ ! -f "$CITY_CACHE" ]; then
     echo "ERROR: City-Cache fehlt: $CITY_CACHE" >&2
@@ -238,7 +247,7 @@ search_cities() {
 ###############################################################################
 set_region_from_city() {
   city="$1"
-  require_city_cache
+  ensure_city_cache
 
   line="$(awk -F'\t' -v q="$city" 'BEGIN{ql=tolower(q)} tolower($1)==ql {print; exit}' "$CITY_CACHE")"
   if [ -z "$line" ]; then
@@ -551,9 +560,8 @@ if [ -n "$SEARCH_Q" ]; then
   exit 0
 fi
 
-# --- Mehrere Städte: kommasepariert + mehrfaches --city ---
+# Mehrere Städte: kommasepariert + mehrfaches --city
 if [ -n "$CITY_LIST" ]; then
-  # in "positional parameters" splitten (POSIX)
   OLDIFS=$IFS
   IFS=,
   set -- $CITY_LIST
