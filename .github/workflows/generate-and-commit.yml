@@ -24,6 +24,29 @@ jobs:
           chmod +x ./convertAmt2gmaps.sh
           ./convertAmt2gmaps.sh --limit 0 --city hannover --city bonn --rad "" --pkw "" --fuss "" --krad ""
 
+      - name: Validate GeoJSON outputs
+        run: |
+          python3 - <<'PY'
+          import glob, json, sys
+          files = glob.glob("out/output_all_years_*.geojson")
+          if not files:
+            print("No geojson files found")
+            sys.exit(2)
+          bad = []
+          for f in files:
+            try:
+              with open(f,"r",encoding="utf-8") as fp:
+                json.load(fp)
+            except Exception as e:
+              bad.append((f,str(e)))
+          if bad:
+            print("Invalid GeoJSON:")
+            for f,e in bad:
+              print(" -", f, "->", e)
+            sys.exit(2)
+          print("GeoJSON OK:", len(files))
+          PY
+
       - name: Commit & Push changes
         run: |
           # niemals tmp-Dateien committen
