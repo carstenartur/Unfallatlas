@@ -1,18 +1,36 @@
 #!/bin/sh
 set -eu
 
+###############################################################################
+# Unfallatlas -> Google-Maps-CSV + GeoJSON (kombiniert über mehrere Jahre)
+#
+# Ausgaben:
+#   out/output_all_years[_<citysuffix>].csv
+#   out/output_all_years[_<citysuffix>].geojson
+#
+# Optional:
+#   --per-year  => zusätzlich out/outputYYYY[_<citysuffix>].csv/.geojson
+#
+# City-Handling (robust/CI-tauglich):
+#   --city <name>      -> nutzt statisches Mapping CITY_MAP
+#   --ags  <AGS8>      -> direkte AGS-Angabe (8-stellig), überschreibt City Map
+#
+# Wichtig: GeoJSON enthält ALLE Properties, die index.html erwartet.
+###############################################################################
+
 OUTDIR="out"
-LIMIT=1999     # 0 = unbegrenzt
+LIMIT=1999
 YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
-# Default: Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
+# Default Region (falls ohne City/AGS gestartet):
+# Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
 ULAND="03"
 UREGBEZ="2"
 UKREIS="41"
 UGEMEINDE=""
 CITY_DISPLAY="(manuell/default)"
+CITY_SUFFIX=""
 
-# Default-Filter (wie früher: Rad=1)
 IST_RAD="1"
 IST_PKW=""
 IST_FUSS=""
@@ -21,7 +39,7 @@ IST_KRAD=""
 DO_PER_YEAR="0"
 
 ###############################################################################
-# City Map (CITY_SUFFIX -> AGS8)
+# City Map (Name -> AGS8)
 ###############################################################################
 CITY_MAP="$(cat <<'EOF'
 berlin|11000000
@@ -58,23 +76,26 @@ Optionen:
   --years "2018 2019 ..."     Jahre (Default: 2016..2024)
   --limit N                  Max. Treffer pro Jahr (Default: 1999), 0=unbegrenzt
   --outdir DIR               Ausgabeverzeichnis (Default: out)
-  --per-year                 Zusätzlich pro Jahr outputYYYY.csv/.geojson erzeugen
+  --per-year                 Zusätzlich pro Jahr outputYYYY*.csv/.geojson erzeugen
 
-Stadt:
-  --city "Hannover"          erzeugt out/output_all_years_hannover.{csv,geojson}
+Region / Stadt:
+  --city "Hannover"          nutzt CITY_MAP und erzeugt output_all_years_hannover.*
   Mehrere:
     --city "Hannover,Bonn"
     --city Hannover --city Bonn
 
+  --ags 03241001             direkt AGS8 (überschreibt City Map)
+
 Beteiligung:
-  --rad 1|0                  Default 1
-  --pkw 1|0                  leer = ignorieren
-  --fuss 1|0                 leer = ignorieren
-  --krad 1|0                 leer = ignorieren
+  --rad 1|0
+  --pkw 1|0
+  --fuss 1|0
+  --krad 1|0
 EOF
 }
 
 CITY_LIST=""
+AGS_OVERRIDE=""
 
 while [ "${1:-}" != "" ]; do
   case "$1" in
@@ -96,6 +117,11 @@ while [ "${1:-}" != "" ]; do
         echo "ERROR: --city braucht einen Wert" >&2
         exit 2
       fi
+      ;;
+
+    --ags)
+      AGS_OVERRIDE="$2"
+      shift 2
       ;;
 
     --rad) IST_RAD="$2"; shift 2 ;;
@@ -121,35 +147,54 @@ norm_key() {
 }
 
 ###############################################################################
-# City -> Region aus CITY_MAP (statisch, CI-sicher)
+# CITY_MAP lookup -> AGS8
 ###############################################################################
-ags_for_city() {
-  want_suffix="$1"
-  printf "%s\n" "$CITY_MAP" | awk -F'|' -v w="$want_suffix" '
-    tolower($1)==tolower(w) { print $2; found=1; exit }
-    END { if(!found) exit 1 }
-  '
+ags_from_citymap() {
+  ckey="$(norm_key "$1")"
+  printf "%s\n" "$CITY_MAP" \
+    | awk -F'|' -v k="$ckey" 'tolower($1)==tolower(k){print $2; exit}'
 }
 
-set_region_from_city() {
-  city_raw="$1"
-  CITY_SUFFIX="$(norm_key "$city_raw")"
-
-  ags="$(ags_for_city "$CITY_SUFFIX" || true)"
-  if [ -z "$ags" ]; then
-    echo "ERROR: Stadt \"$city_raw\" (Suffix: \"$CITY_SUFFIX\") nicht in CITY_MAP." >&2
-    echo "       Bitte CITY_MAP erweitern oder korrekten city-Parameter verwenden." >&2
-    echo "       Beispiele: Hannover->hannover, Bonn->bonn, Frankfurt am Main->frankfurt_am_main" >&2
+set_region_from_ags8() {
+  ags="$1"
+  # nur Ziffern, genau 8
+  ags="$(printf "%s" "$ags" | tr -cd '0-9')"
+  if [ "${#ags}" -ne 8 ]; then
+    echo "ERROR: AGS muss 8-stellig sein (z.B. Hannover=03241001)." >&2
     exit 2
   fi
 
-  # AGS8: LL R KK GGG
   ULAND="$(printf "%s" "$ags" | cut -c1-2)"
   UREGBEZ="$(printf "%s" "$ags" | cut -c3-3)"
   UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
+}
 
-  CITY_DISPLAY="${city_raw} (AGS ${ags})"
+set_region_from_city() {
+  city="$1"
+
+  # AGS Override hat Vorrang
+  if [ -n "$AGS_OVERRIDE" ]; then
+    set_region_from_ags8 "$AGS_OVERRIDE"
+    CITY_DISPLAY="${city} (AGS ${AGS_OVERRIDE})"
+    CITY_SUFFIX="$(norm_key "$city")"
+    echo "== City: $CITY_DISPLAY =="
+    echo "   -> ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS UGEMEINDE=$UGEMEINDE"
+    echo "   -> Dateisuffix: $CITY_SUFFIX"
+    return 0
+  fi
+
+  ags="$(ags_from_citymap "$city")"
+  if [ -z "$ags" ]; then
+    echo "ERROR: Stadt \"$city\" nicht in CITY_MAP." >&2
+    echo "       Nutze --ags (z.B. Hannover=03241001, Bonn=05314000) oder ergänze CITY_MAP." >&2
+    exit 2
+  fi
+
+  set_region_from_ags8 "$ags"
+
+  CITY_DISPLAY="${city} (AGS ${ags})"
+  CITY_SUFFIX="$(norm_key "$city")"
 
   echo "== City: $CITY_DISPLAY =="
   echo "   -> ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS UGEMEINDE=$UGEMEINDE"
@@ -157,7 +202,7 @@ set_region_from_city() {
 }
 
 ###############################################################################
-# Jahr verarbeiten -> in Combined-Dateien schreiben (VOLLES Schema für index.html)
+# Jahr verarbeiten -> Append in Combined-Dateien
 ###############################################################################
 process_year_append() {
   year="$1"
@@ -178,8 +223,8 @@ process_year_append() {
     return 0
   fi
 
-  outcsv_year="${OUTDIR}/output${year}.csv"
-  outgeo_year="${OUTDIR}/output${year}.geojson"
+  outcsv_year="${OUTDIR}/output${year}${CITY_SUFFIX:+_${CITY_SUFFIX}}.csv"
+  outgeo_year="${OUTDIR}/output${year}${CITY_SUFFIX:+_${CITY_SUFFIX}}.geojson"
 
   unzip -p "$zip" "$datafile" \
   | awk -F';' -v year="$year" -v limit="$LIMIT" \
@@ -196,7 +241,7 @@ process_year_append() {
       return 0
     }
     function jesc(s,   t) {
-      t=s
+      t = (s=="" ? "" : s)
       gsub(/\\/,"\\\\",t)
       gsub(/"/,"\\\"",t)
       gsub(/\r/,"",t)
@@ -214,7 +259,6 @@ process_year_append() {
     BEGIN {
       first = firstref + 0
       out = 0
-
       if (peryear=="1") {
         print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > outcsv_y
         print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo_y
@@ -246,16 +290,11 @@ process_year_append() {
       i_strz   = pick("STRZUSTAND","","","","")
 
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
-      i_lat = pick("YGCSWGS84","Y_GCSWGS84","Y_GCSWGSW84","","")
+      i_lat = pick("YGCSWGS84","Y_GCSWGSW84","Y_GCSWGS84","","")
 
       i_str = pick("Strasse","STRASSE","StrName","STRNAME","USTRNAME")
 
-      if (i_lon==0 || i_lat==0) {
-        print "WARN: Jahr " year ": keine WGS84-Spalten (XGCSWGS84/YGCSWGS84)." > "/dev/stderr"
-        skip=1
-      } else {
-        skip=0
-      }
+      if (i_lon==0 || i_lat==0) { skip=1 } else { skip=0 }
       next
     }
     NR>1 {
@@ -265,8 +304,8 @@ process_year_append() {
       if ($i_uland != uland)  next
       if ($i_ureg  != ureg)   next
       if ($i_ukreis!= ukreis) next
-
       if (ugem != "" && i_ugem>0 && $i_ugem != ugem) next
+
       if (!ok_involvement()) next
 
       out++
@@ -278,11 +317,8 @@ process_year_append() {
       gsub(/\r/,"",lon); gsub(/\r/,"",lat)
       gsub(/,/,".",lon); gsub(/,/,".",lat)
 
-      str = (i_str ? $i_str : "")
-      gsub(/\r/,"",str)
-
-      licht = (i_licht ? $i_licht : "")
-      gsub(/\r/,"",licht)
+      str = (i_str ? $i_str : ""); gsub(/\r/,"",str)
+      licht = (i_licht ? $i_licht : ""); gsub(/\r/,"",licht)
 
       kat    = (i_kat ? $i_kat : "")
       typ1   = (i_typ1 ? $i_typ1 : "")
@@ -307,12 +343,13 @@ process_year_append() {
       if (licht != "") name = name ", Licht: " licht
       if (str   != "") name = name " Strasse: " str
 
-      # CSV (voll, kompatibel)
+      # CSV (voll)
       print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv
 
-      # GeoJSON (voll, kompatibel zu index.html)
+      # GeoJSON (voll)
       if (first==0) print "," >> outgeo
       first=0
+
       print "    {\n" \
             "      \"type\": \"Feature\",\n" \
             "      \"geometry\": { \"type\": \"Point\", \"coordinates\": [" lon ", " lat "] },\n" \
@@ -336,7 +373,6 @@ process_year_append() {
             "      }\n" \
             "    }" >> outgeo
 
-      # optional per-year
       if (peryear=="1") {
         print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv_y
 
@@ -368,9 +404,7 @@ process_year_append() {
       }
     }
     END {
-      if (peryear=="1" && !skip) {
-        print "\n  ]\n}" >> outgeo_y
-      }
+      if (peryear=="1" && !skip) print "\n  ]\n}" >> outgeo_y
       printf "FIRSTFLAG=%d\n", first > "/dev/stderr"
     }
   ' 2> "${OUTDIR}/.firstflag.tmp"
@@ -378,11 +412,6 @@ process_year_append() {
   if [ -f "${OUTDIR}/.firstflag.tmp" ]; then
     COMBINED_GEO_FIRST="$(awk -F= '/^FIRSTFLAG=/{print $2; exit}' "${OUTDIR}/.firstflag.tmp" || echo "$COMBINED_GEO_FIRST")"
     rm -f "${OUTDIR}/.firstflag.tmp"
-  fi
-
-  if [ "$DO_PER_YEAR" = "1" ]; then
-    [ -f "$outcsv_year" ] && echo " -> $outcsv_year"
-    [ -f "$outgeo_year" ] && echo " -> $outgeo_year"
   fi
 }
 
@@ -394,29 +423,19 @@ run_combined_for_current_region() {
   COMBINED_GEO="${OUTDIR}/output_all_years${suffix}.geojson"
 
   echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > "$COMBINED_CSV"
-  {
-    echo '{'
-    echo '  "type": "FeatureCollection",'
-    echo '  "features": ['
-  } > "$COMBINED_GEO"
+  { echo '{'; echo '  "type": "FeatureCollection",'; echo '  "features": ['; } > "$COMBINED_GEO"
 
   COMBINED_GEO_FIRST=1
   for y in $YEARS; do
     process_year_append "$y" || true
   done
 
-  {
-    echo
-    echo '  ]'
-    echo '}'
-  } >> "$COMBINED_GEO"
+  { echo; echo '  ]'; echo '}'; } >> "$COMBINED_GEO"
 
   echo "== fertig =="
   echo "City:   ${CITY_DISPLAY}"
-  echo "Years:  $YEARS"
-  echo "Limit:  $LIMIT (0=unbegrenzt)"
-  echo "Combined CSV: $COMBINED_CSV"
-  echo "Combined GEO: $COMBINED_GEO"
+  echo "CSV:    $COMBINED_CSV"
+  echo "GeoJSON: $COMBINED_GEO"
   echo
 }
 
@@ -424,11 +443,7 @@ run_combined_for_current_region() {
 # Main
 ###############################################################################
 if [ -n "$CITY_LIST" ]; then
-  OLDIFS=$IFS
-  IFS=,
-  set -- $CITY_LIST
-  IFS=$OLDIFS
-
+  OLDIFS=$IFS; IFS=,; set -- $CITY_LIST; IFS=$OLDIFS
   for c in "$@"; do
     c="$(printf "%s" "$c" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     [ -z "$c" ] && continue
@@ -438,6 +453,7 @@ if [ -n "$CITY_LIST" ]; then
   exit 0
 fi
 
+# ohne --city: manuelle/default Region
 CITY_SUFFIX=""
 CITY_DISPLAY="(manuell/default)"
 run_combined_for_current_region
