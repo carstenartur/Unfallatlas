@@ -32,11 +32,19 @@ Optionen:
   --outdir DIR               Ausgabeverzeichnis (Default: out)
   --per-year                 Zusätzlich pro Jahr outputYYYY.csv/.geojson erzeugen
 
+Region:
+  --uland 03 --uregb 2 --ukreis 41 [--ugemeinde 001]
+
 Stadt:
-  --city "Hannover"          erzeugt output_all_years_hannover.{csv,geojson}
+  --city "Hannover"          (Cache -> Online) erzeugt output_all_years_hannover.{csv,geojson}
   Mehrere:
     --city "Hannover,Bonn"
     --city Hannover --city Bonn
+
+CI-sicher (Bypass City-Lookup):
+  --ags 03241001             setzt Region direkt aus AGS (LLRKKGGG)
+  Mehrere:
+    --ags 03241001 --ags 05314000
 
 Cache:
   --update-city-cache        (langsam!) Full-Cache bauen (>=100k)
@@ -52,6 +60,7 @@ EOF
 }
 
 CITY_LIST=""
+AGS_LIST=""
 CITY_SUFFIX=""
 DO_UPDATE_CACHE="0"
 DO_LIST_CITIES="0"
@@ -84,6 +93,16 @@ while [ "${1:-}" != "" ]; do
       fi
       ;;
 
+    --ags)
+      if [ -n "${2:-}" ]; then
+        AGS_LIST="${AGS_LIST}${AGS_LIST:+,}$2"
+        shift 2
+      else
+        echo "ERROR: --ags braucht einen Wert (z.B. 03241001)" >&2
+        exit 2
+      fi
+      ;;
+
     --update-city-cache) DO_UPDATE_CACHE="1"; shift 1 ;;
     --list-cities) DO_LIST_CITIES="1"; shift 1 ;;
     --search) SEARCH_Q="$2"; shift 2 ;;
@@ -111,6 +130,7 @@ norm_key() {
 }
 
 urlencode() {
+  # minimal, reicht für query params (Leerzeichen, %, ", ', ,)
   printf "%s" "$1" \
     | sed -e 's/%/%25/g' \
           -e 's/ /%20/g' \
@@ -120,10 +140,16 @@ urlencode() {
 }
 
 ###############################################################################
-# Python: wählt beste Stadt aus JSON (results) mit scoring
-# FIXES:
-# - akzeptiert auch Treffer ohne citizens_total (Pop optional)
-# - bevorzugt division_category==60, aber bricht nicht hart ab, wenn API zickt
+# Curl helper: retry + timeout (CI-freundlich)
+###############################################################################
+curl_json() {
+  url="$1"
+  # 3 Retries, connect timeout 10s, total 25s
+  curl -fsSL --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 25 "$url"
+}
+
+###############################################################################
+# Python: pick best city from GVZ JSON
 ###############################################################################
 pick_city_from_json_py() {
   want="$1"
@@ -155,7 +181,7 @@ def score(name: str) -> int:
   n = name.lower()
   if n == want: return 300
   if n.startswith(want): return 200
-  if want in n: return 100
+  if want and want in n: return 100
   return 0
 
 raw = sys.stdin.read().strip()
@@ -167,18 +193,33 @@ try:
 except Exception:
   sys.exit(0)
 
-results = data.get("results", [])
-if not isinstance(results, list):
+results = data.get("results")
+# Fallback: manche APIs liefern direkt ein Array
+if results is None and isinstance(data, list):
+  results = data
+if results is None:
   results = []
 
 best = None
+fallback = None  # ohne Namensscore: nimm max pop, falls search schon einschränkt
 
 for r in results:
-  dc = r.get("division_category", None)
+  # division_category kann int oder string sein
   try:
-    dc = int(dc) if dc is not None else None
+    if int(r.get("division_category", -1)) != 60:
+      continue
   except Exception:
-    dc = None
+    continue
+
+  pop = r.get("citizens_total")
+  if pop in (None, "", "null"):
+    continue
+  try:
+    popi = int(pop)
+  except Exception:
+    continue
+  if popi < minpop:
+    continue
 
   name = clean_name(r.get("name", ""))
   a = ags8(r.get("ags"))
@@ -186,37 +227,28 @@ for r in results:
     continue
 
   sc = score(name)
-  if sc <= 0:
-    continue
+  cand = (sc, popi, name, a)
 
-  pop = r.get("citizens_total", None)
-  popi = -1
-  try:
-    if pop not in (None, "", "null"):
-      popi = int(pop)
-  except Exception:
-    popi = -1
-
-  # minpop nur prüfen, wenn Pop da ist
-  if popi >= 0 and popi < minpop:
-    continue
-
-  dc_bonus = 10 if dc == 60 else 0
-  cand = (sc + dc_bonus, popi, name, a)
-
-  if best is None or cand > best:
-    best = cand
+  if sc > 0:
+    if best is None or cand > best:
+      best = cand
+  else:
+    # fallback nur nach pop
+    cand2 = (popi, name, a)
+    if fallback is None or cand2 > fallback:
+      fallback = cand2
 
 if best:
   sc, popi, name, a = best
-  pop_out = "" if popi < 0 else str(popi)
-  sys.stdout.write(f"{name}\t{a}\t{pop_out}\n")
+  sys.stdout.write(f"{name}\t{a}\t{popi}\n")
+elif fallback:
+  popi, name, a = fallback
+  sys.stdout.write(f"{name}\t{a}\t{popi}\n")
 PY
 }
 
 ###############################################################################
-# (Optional/langsam) Full-Cache bauen – nur auf expliziten Wunsch
-# FIX: format=json setzen (sonst evtl. HTML/anderes)
+# Full-Cache (nur auf Wunsch) – robust mit format=json
 ###############################################################################
 update_city_cache() {
   echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
@@ -229,7 +261,7 @@ update_city_cache() {
     jsonfile="$(mktemp)"
     url="${GVZ_API_BASE}?format=json&page=${page}"
 
-    if ! curl -fsSL "$url" -o "$jsonfile"; then
+    if ! curl_json "$url" > "$jsonfile"; then
       rm -f "$jsonfile"
       break
     fi
@@ -257,19 +289,13 @@ def ags8(val) -> str:
 raw = sys.stdin.read().strip()
 if not raw:
   sys.exit(0)
-
-try:
-  data = json.loads(raw)
-except Exception:
-  sys.exit(0)
-
+data = json.loads(raw)
 for r in data.get("results", []):
   try:
     if int(r.get("division_category", -1)) != 60:
       continue
   except Exception:
     continue
-
   pop = r.get("citizens_total")
   if pop in (None, "", "null"):
     continue
@@ -279,7 +305,6 @@ for r in data.get("results", []):
     continue
   if popi < minpop:
     continue
-
   name = clean_name(r.get("name", ""))
   a = ags8(r.get("ags"))
   if name and a:
@@ -300,8 +325,7 @@ import sys
 best={}
 for line in sys.stdin:
   line=line.rstrip("\n")
-  if not line:
-    continue
+  if not line: continue
   name, ags, pop = line.split("\t")
   k=name.lower()
   popi=int(pop)
@@ -346,46 +370,46 @@ search_cities() {
 }
 
 ###############################################################################
-# Schnell: nur eine Stadt online suchen (statt Full-Cache)
-# FIXES:
-# - format=json setzen
-# - Fallback: ohne division_category filter (API zickt manchmal)
+# Online lookup: IMMER format=json; filter in Python (nicht per query-param)
 ###############################################################################
 lookup_city_online() {
   city="$1"
   q="$(urlencode "$city")"
 
-  # 1) mit division_category=60
-  url="${GVZ_API_BASE}?format=json&search=${q}&division_category=60"
+  # absichtlich ohne division_category param (kann je nach Backend anders heißen)
+  url="${GVZ_API_BASE}?format=json&search=${q}&page_size=100"
+
   jsonfile="$(mktemp)"
-  if ! curl -fsSL "$url" -o "$jsonfile"; then
+  if ! curl_json "$url" > "$jsonfile"; then
     rm -f "$jsonfile"
     return 1
   fi
-  line="$(pick_city_from_json_py "$city" "$CITY_MIN_POP" < "$jsonfile" || true)"
+
+  pick_city_from_json_py "$city" "$CITY_MIN_POP" < "$jsonfile"
   rm -f "$jsonfile"
-
-  # 2) fallback ohne division_category
-  if [ -z "$line" ]; then
-    url="${GVZ_API_BASE}?format=json&search=${q}"
-    jsonfile="$(mktemp)"
-    if ! curl -fsSL "$url" -o "$jsonfile"; then
-      rm -f "$jsonfile"
-      return 1
-    fi
-    line="$(pick_city_from_json_py "$city" "$CITY_MIN_POP" < "$jsonfile" || true)"
-    rm -f "$jsonfile"
-  fi
-
-  printf "%s" "$line"
 }
 
+###############################################################################
+# City -> Region (Cache -> Online), mit robusterem Cache-Match (norm_key)
+###############################################################################
 set_region_from_city() {
   city="$1"
   line=""
 
   if [ -f "$CITY_CACHE" ]; then
-    line="$(awk -F'\t' -v q="$city" 'BEGIN{ql=tolower(q)} tolower($1)==ql {print; exit}' "$CITY_CACHE" || true)"
+    # match über norm_key statt nur tolower-exakt
+    key="$(norm_key "$city")"
+    line="$(awk -F'\t' -v q="$key" '
+      function norm(s,   t){
+        t=tolower(s)
+        gsub(/ä/,"ae",t); gsub(/ö/,"oe",t); gsub(/ü/,"ue",t); gsub(/ß/,"ss",t)
+        gsub(/[^a-z0-9]/,"_",t)
+        gsub(/__*/,"_",t)
+        sub(/^_/,"",t); sub(/_$/,"",t)
+        return t
+      }
+      norm($1)==q {print; exit}
+    ' "$CITY_CACHE" || true)"
   fi
 
   if [ -z "$line" ]; then
@@ -395,7 +419,7 @@ set_region_from_city() {
 
   if [ -z "$line" ]; then
     echo "ERROR: Stadt \"$city\" konnte weder im Cache noch online gefunden werden (>=${CITY_MIN_POP} Einwohner)." >&2
-    echo "       Tipp: ./convertAmt2gmaps.sh --update-city-cache && ./convertAmt2gmaps.sh --search \"$city\"" >&2
+    echo "       CI-Fallback: nutze --ags (z.B. Hannover=03241001, Bonn=05314000)." >&2
     exit 2
   fi
 
@@ -403,28 +427,51 @@ set_region_from_city() {
   ags="$(printf "%s" "$line" | awk -F'\t' '{print $2}')"
   pop="$(printf "%s" "$line" | awk -F'\t' '{print $3}')"
 
-  ULAND="$(printf "%s" "$ags" | cut -c1-2)"
-  UREGBEZ="$(printf "%s" "$ags" | cut -c3-3)"
-  UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
-  UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
+  set_region_from_ags "$ags" "$name" "$pop"
 
-  CITY_DISPLAY="${name} (AGS ${ags}${pop:+, Pop ${pop}})"
-  CITY_SUFFIX="$(norm_key "$name")"
-
+  # Mini-Cache pflegen
   if [ ! -f "$CITY_CACHE" ]; then : > "$CITY_CACHE"; fi
   if ! awk -F'\t' -v q="$name" 'BEGIN{ql=tolower(q)} tolower($1)==ql {found=1} END{exit(found?0:1)}' \
       "$CITY_CACHE" >/dev/null 2>&1; then
     printf "%s\t%s\t%s\n" "$name" "$ags" "$pop" >> "$CITY_CACHE"
     sort -u -o "$CITY_CACHE" "$CITY_CACHE" 2>/dev/null || true
   fi
+}
 
-  echo "== City: $CITY_DISPLAY =="
+###############################################################################
+# AGS -> Region (LL R KK GGG)
+###############################################################################
+set_region_from_ags() {
+  ags="$1"
+  name="${2:-AGS}"
+  pop="${3:-}"
+
+  # nur Ziffern
+  ags="$(printf "%s" "$ags" | sed 's/[^0-9]//g')"
+  if [ "${#ags}" -ne 8 ]; then
+    echo "ERROR: AGS muss 8-stellig sein, bekommen: '$ags'" >&2
+    exit 2
+  fi
+
+  ULAND="$(printf "%s" "$ags" | cut -c1-2)"
+  UREGBEZ="$(printf "%s" "$ags" | cut -c3-3)"
+  UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
+  UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
+
+  if [ -n "$pop" ]; then
+    CITY_DISPLAY="${name} (AGS ${ags}, Pop ${pop})"
+  else
+    CITY_DISPLAY="${name} (AGS ${ags})"
+  fi
+  CITY_SUFFIX="$(norm_key "$name")"
+
+  echo "== City/AGS: $CITY_DISPLAY =="
   echo "   -> ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS UGEMEINDE=$UGEMEINDE"
   echo "   -> Dateisuffix: $CITY_SUFFIX"
 }
 
 ###############################################################################
-# Unfallatlas Verarbeitung (wie in deiner Basis; nur City-Teil gefixt)
+# Unfallatlas Verarbeitung (wie dein aktueller Minimal-Output)
 ###############################################################################
 process_year_append() {
   year="$1"
@@ -445,15 +492,11 @@ process_year_append() {
     return 0
   fi
 
-  outcsv_year="${OUTDIR}/output${year}.csv"
-  outgeo_year="${OUTDIR}/output${year}.geojson"
-
   unzip -p "$zip" "$datafile" \
   | awk -F';' -v year="$year" -v limit="$LIMIT" \
         -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
         -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
-        -v outcsv="$COMBINED_CSV" -v outgeo="$COMBINED_GEO" -v firstref="$COMBINED_GEO_FIRST" \
-        -v peryear="$DO_PER_YEAR" -v outcsv_y="$outcsv_year" -v outgeo_y="$outgeo_year" '
+        -v outcsv="$COMBINED_CSV" -v outgeo="$COMBINED_GEO" -v firstref="$COMBINED_GEO_FIRST" '
     function pick(a,b,c,d,e) {
       if (a!="" && (a in idx)) return idx[a]
       if (b!="" && (b in idx)) return idx[b]
@@ -476,15 +519,7 @@ process_year_append() {
       if (iskrad!="" && i_iskrad>0 && $i_iskrad==iskrad) return 1
       return 0
     }
-    BEGIN {
-      first = firstref + 0
-      out = 0
-      if (peryear=="1") {
-        print "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > outcsv_y
-        print "{\n  \"type\": \"FeatureCollection\",\n  \"features\": [" > outgeo_y
-        first_y=1
-      }
-    }
+    BEGIN { first = firstref + 0; out = 0 }
     NR==1 {
       for (i=1; i<=NF; i++) { gsub(/\r/,"",$i); idx[$i]=i }
 
@@ -500,7 +535,7 @@ process_year_append() {
       i_iskrad = pick("IstKrad","ISTKRAD","","","")
 
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
-      i_lat = pick("YGCSWGS84","Y_GCSWGSW84","Y_GCSWGS84","","")
+      i_lat = pick("YGCSWGS84","Y_GCSWGS84","Y_GCSWGSW84","","")
 
       if (i_lon==0 || i_lat==0) { skip=1 } else { skip=0 }
       next
@@ -554,6 +589,7 @@ run_combined_for_current_region() {
 
   echo "== fertig =="
   echo "City:   ${CITY_DISPLAY}"
+  echo "Filter: ULAND=$ULAND UREGBEZ=$UREGBEZ UKREIS=$UKREIS${UGEMEINDE:+ UGEMEINDE=$UGEMEINDE}"
   echo "Combined CSV: $COMBINED_CSV"
   echo "Combined GEO: $COMBINED_GEO"
   echo
@@ -576,6 +612,19 @@ if [ -n "$SEARCH_Q" ]; then
   exit 0
 fi
 
+# --- AGS hat Vorrang, weil CI-sicher ---
+if [ -n "$AGS_LIST" ]; then
+  OLDIFS=$IFS; IFS=,; set -- $AGS_LIST; IFS=$OLDIFS
+  for a in "$@"; do
+    a="$(printf "%s" "$a" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    [ -z "$a" ] && continue
+    set_region_from_ags "$a" "$a" ""
+    run_combined_for_current_region
+  done
+  exit 0
+fi
+
+# --- City ---
 if [ -n "$CITY_LIST" ]; then
   OLDIFS=$IFS; IFS=,; set -- $CITY_LIST; IFS=$OLDIFS
   for c in "$@"; do
