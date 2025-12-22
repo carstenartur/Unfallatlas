@@ -46,8 +46,8 @@
 
     .panel {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
-      background: rgba(255,255,255,.82);              /* halbtransparent */
-      backdrop-filter: blur(6px);                      /* hübsch (falls unterstützt) */
+      background: rgba(255,255,255,.76);              /* noch transparenter */
+      backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       padding: 10px 12px; border-radius: 10px;
       box-shadow: 0 2px 12px rgba(0,0,0,.18);
@@ -66,7 +66,7 @@
 
     .collapseBtn{
       border: 1px solid rgba(0,0,0,.15);
-      background: rgba(250,250,250,.8);
+      background: rgba(250,250,250,.75);
       padding: 6px 10px;
       border-radius: 10px;
       cursor: pointer;
@@ -74,7 +74,7 @@
       font-weight:700;
       line-height: 1;
     }
-    .collapseBtn:hover { background: rgba(240,240,240,.9); }
+    .collapseBtn:hover { background: rgba(240,240,240,.85); }
 
     .panelBody { margin-top: 8px; }
     .panel.collapsed .panelBody { display:none; }
@@ -86,22 +86,22 @@
       width: 100%; padding: 6px 8px;
       border: 1px solid #ddd; border-radius: 8px;
       font: inherit;
-      background: rgba(255,255,255,.85);
+      background: rgba(255,255,255,.78);
     }
 
-    .toggles { display: flex; gap: 8px; margin-top: 8px; }
+    .toggles { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .btn {
       flex: 1;
       padding: 8px 10px;
       border: 1px solid #ddd;
       border-radius: 10px;
-      background: rgba(250,250,250,.85);
+      background: rgba(250,250,250,.78);
       cursor: pointer;
       user-select: none;
       text-align: center;
-      font-weight: 600;
+      font-weight: 700;
     }
-    .btn.active { background: rgba(233,242,255,.9); border-color: rgba(183,212,255,.95); }
+    .btn.active { background: rgba(233,242,255,.85); border-color: rgba(183,212,255,.95); }
 
     .chips {
       display: flex;
@@ -114,19 +114,18 @@
       gap: 8px;
       align-items: center;
       border: 1px solid #ddd;
-      background: rgba(255,255,255,.85);
+      background: rgba(255,255,255,.78);
       border-radius: 999px;
       padding: 6px 10px;
       user-select: none;
     }
     .chip input { width: auto; }
-    .chip span { font-weight: 600; }
+    .chip span { font-weight: 700; }
 
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
     .stat { margin-top: 8px; font-size: 12px; color: #333; }
-    code { background: rgba(243,243,243,.9); padding: 1px 4px; border-radius: 6px; }
+    code { background: rgba(243,243,243,.85); padding: 1px 4px; border-radius: 6px; }
 
-    #toggleAnd { flex: 1; }
     .inline2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   </style>
 </head>
@@ -160,7 +159,7 @@
         </select>
       </div>
 
-      <div style="margin-top:10px; font-weight:600;">Beteiligung</div>
+      <div style="margin-top:10px; font-weight:800;">Beteiligung</div>
       <div class="chips" aria-label="Beteiligung Filter">
         <label class="chip"><input type="checkbox" id="tRad" checked> <span>🚲 Rad</span></label>
         <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
@@ -168,11 +167,14 @@
         <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
       </div>
 
-      <div class="toggles">
-        <div id="toggleAnd" class="btn">Nur Kombinationen (UND)</div>
+      <!-- NEU: 3 Modi statt nur UND -->
+      <div class="toggles" aria-label="Beteiligungsmodus">
+        <div id="modeOr" class="btn active" title="Mindestens eine der ausgewählten Beteiligungen muss zutreffen">ODER</div>
+        <div id="modeAnd" class="btn" title="Alle ausgewählten Beteiligungen müssen zutreffen">UND</div>
+        <div id="modeSolo" class="btn" title="Genau eine Beteiligungsart insgesamt (Rad/Fuß/PKW/Krad) – passend zu den Häkchen">Alleinunfall</div>
       </div>
 
-      <div style="margin-top:10px; font-weight:600;">Zeit & Bedingungen</div>
+      <div style="margin-top:10px; font-weight:800;">Zeit & Bedingungen</div>
 
       <div class="row">
         <label>Stunde</label>
@@ -182,7 +184,6 @@
         </div>
       </div>
 
-      <!-- NEU: Wochenende Tri-State -->
       <div class="row">
         <label for="weekend">Wochenende</label>
         <select id="weekend" title="UWOCHENTAG: Sa/So vs. Mo–Fr">
@@ -192,7 +193,6 @@
         </select>
       </div>
 
-      <!-- NEU: Straßenzustand mit Labels -->
       <div class="row">
         <label for="strz">Straßenzustand</label>
         <select id="strz" title="STRZUSTAND: 0 trocken, 1 nass/feucht, 2 winterglatt">
@@ -281,9 +281,11 @@
     const tPKWEl = document.getElementById('tPKW');
     const tKradEl = document.getElementById('tKrad');
 
-    // UND-Modus
-    const btnAnd = document.getElementById('toggleAnd');
-    let useAndMode = false;
+    // NEU: Modus Buttons (ODER/UND/Alleinunfall)
+    const btnModeOr = document.getElementById('modeOr');
+    const btnModeAnd = document.getElementById('modeAnd');
+    const btnModeSolo = document.getElementById('modeSolo');
+    let involvementMode = "or"; // "or" | "and" | "solo"
 
     // Zeit/Weekend/Straßenzustand
     const hFromEl = document.getElementById('hFrom');
@@ -305,6 +307,16 @@
     let heatLayer = null;
 
     function setBtnState(btn, on) { btn.classList.toggle('active', on); }
+
+    function setMode(next){
+      involvementMode = next;
+      setBtnState(btnModeOr, next === "or");
+      setBtnState(btnModeAnd, next === "and");
+      setBtnState(btnModeSolo, next === "solo");
+      applyGlobalFilter();
+      applyViewportFilter();
+      renderLayers();
+    }
 
     function escHtml(s) {
       return String(s ?? "")
@@ -358,7 +370,6 @@
       const codes = new Set();
       for (const p of points) {
         const v = p?.props?.strzustand;
-        // Sammle auch "unknown"
         if (v === undefined || v === null || v === "") {
           codes.add("");
           continue;
@@ -405,12 +416,11 @@
       );
     }
 
-    // Range ist inklusiv; bei from>to: wrap-around (z.B. 22..3)
     function inHourRange(hour, from, to) {
       if (Number.isNaN(hour)) return false;
       from = Math.max(0, Math.min(23, from));
       to   = Math.max(0, Math.min(23, to));
-      if (from === to) return true; // 0..23 "egal" wäre unpraktisch; hier bedeutet es "alle Stunden"
+      if (from === to) return true;
       if (from < to) return hour >= from && hour <= to;
       return (hour >= from) || (hour <= to);
     }
@@ -420,8 +430,6 @@
 
       const wantYear = yearEl.value;
       const wantKat = katEl.value;
-
-      // Straßenzustand: "all" oder Code oder "__unknown__"
       const wantStrz = strzEl.value;
 
       const maxN = Math.max(500, parseInt(maxEl.value || "20000", 10));
@@ -444,7 +452,6 @@
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
         if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
 
-        // Straßenzustand Filter
         if (wantStrz !== "all") {
           const z = String(pr.strzustand ?? "");
           if (wantStrz === "__unknown__") {
@@ -454,7 +461,6 @@
           }
         }
 
-        // Wochenende Tri-State
         if (weekendMode !== "all") {
           const wd = String(pr.uwochentag ?? "");
           const isWeekend = WEEKEND_SET.has(wd);
@@ -462,11 +468,10 @@
           if (weekendMode === "weekday" && isWeekend) continue;
         }
 
-        // Stunden-Range
         const h = parseInt(pr.ustunde, 10);
         if (!inHourRange(h, hFrom, hTo)) continue;
 
-        // Beteiligung
+        // Beteiligung Flags
         const isRad  = String(pr?.istrad)  === "1";
         const isFuss = String(pr?.istfuss) === "1";
         const isPKW  = String(pr?.istpkw)  === "1";
@@ -474,12 +479,29 @@
 
         if (!anySelected) continue;
 
-        if (useAndMode) {
+        if (involvementMode === "or") {
+          const ok =
+            (sRad  && isRad)  ||
+            (sFuss && isFuss) ||
+            (sPKW  && isPKW)  ||
+            (sKrad && isKrad);
+          if (!ok) continue;
+        } else if (involvementMode === "and") {
           if (sRad  && !isRad)  continue;
           if (sFuss && !isFuss) continue;
           if (sPKW  && !isPKW)  continue;
           if (sKrad && !isKrad) continue;
-        } else {
+        } else if (involvementMode === "solo") {
+          // Alleinunfall = genau 1 Beteiligungsart insgesamt (Rad/Fuß/PKW/Krad)
+          const involvedCount =
+            (isRad  ? 1 : 0) +
+            (isFuss ? 1 : 0) +
+            (isPKW  ? 1 : 0) +
+            (isKrad ? 1 : 0);
+
+          if (involvedCount !== 1) continue;
+
+          // ...und diese eine muss zu den ausgewählten Checkboxen passen:
           const ok =
             (sRad  && isRad)  ||
             (sFuss && isFuss) ||
@@ -548,23 +570,16 @@
         tKradEl.checked ? "Krad" : null
       ].filter(Boolean).join(", ");
 
-      const wk =
-        weekendEl.value === "all" ? "Alle" :
-        weekendEl.value === "weekend" ? "Wochenende" : "Werktag";
-
-      const strz =
-        strzEl.value === "all" ? "Alle" :
-        (strzEl.value === "__unknown__" ? "unbekannt" : strzText(strzEl.value));
+      const modeLabel =
+        involvementMode === "or" ? "ODER" :
+        involvementMode === "and" ? "UND" : "Alleinunfall";
 
       statEl.textContent =
         `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
         `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
         `Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
         `Beteiligung: ${activeTypes || "—"} | ` +
-        `Modus: ${useAndMode ? "UND" : "ODER"} | ` +
-        `Wochenende: ${wk} | ` +
-        `Stunden: ${hFromEl.value}–${hToEl.value} | ` +
-        `Straßenzustand: ${strz}`;
+        `Modus: ${modeLabel}`;
     }
 
     let moveTimer = null;
@@ -606,14 +621,11 @@
         });
       }
 
-      btnAnd.addEventListener('click', () => {
-        useAndMode = !useAndMode;
-        setBtnState(btnAnd, useAndMode);
-        applyGlobalFilter();
-        applyViewportFilter();
-        renderLayers();
-      });
-      setBtnState(btnAnd, useAndMode);
+      // Modus-Buttons
+      btnModeOr.addEventListener('click', () => setMode("or"));
+      btnModeAnd.addEventListener('click', () => setMode("and"));
+      btnModeSolo.addEventListener('click', () => setMode("solo"));
+      setMode("or"); // initial
 
       padEl.addEventListener('change', () => { applyViewportFilter(); renderLayers(); });
       heatREl.addEventListener('change', () => renderLayers());
