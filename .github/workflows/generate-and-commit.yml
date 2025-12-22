@@ -26,6 +26,9 @@ jobs:
 
       - name: Commit & Push changes
         run: |
+          # niemals tmp-Dateien committen
+          find out -type f -name '*.tmp' -print -delete || true
+
           git add -A
           git diff --cached --quiet && exit 0
           git commit -m "Automatisch erzeugte Dateien durch generate.sh"
