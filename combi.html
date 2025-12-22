@@ -14,7 +14,7 @@
   />
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    integrity="sha256-20nQCchB9IIN+0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
 
@@ -55,12 +55,7 @@
       max-width: 380px;
     }
 
-    .panelHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
+    .panelHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .panelTitle { font-weight: 800; }
     .panelSub { color:#666; font-weight:600; }
 
@@ -103,12 +98,7 @@
     }
     .btn.active { background: rgba(233,242,255,.82); border-color: rgba(183,212,255,.95); }
 
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 8px;
-    }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .chip {
       display: inline-flex;
       gap: 8px;
@@ -140,10 +130,7 @@
     /* === Dual Range (wie ein Slider mit 2 Knöpfen) === */
     .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
-    .dualRange {
-      position: relative;
-      height: 26px;
-    }
+    .dualRange { position: relative; height: 26px; }
     .dualRange input[type="range"]{
       position: absolute;
       left: 0; right: 0;
@@ -152,7 +139,7 @@
       margin: 0;
       padding: 0;
       background: transparent;
-      pointer-events: none; /* nur Thumb soll klickbar sein */
+      pointer-events: none;
       -webkit-appearance: none;
       appearance: none;
       height: 26px;
@@ -178,25 +165,18 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
 
-    /* Track */
     .dualRangeTrack{
-      position:absolute;
-      left:0; right:0;
-      top: 50%;
-      transform: translateY(-50%);
-      height: 6px;
-      border-radius: 999px;
+      position:absolute; left:0; right:0;
+      top: 50%; transform: translateY(-50%);
+      height: 6px; border-radius: 999px;
       background: rgba(0,0,0,.12);
     }
     .dualRangeFill{
       position:absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      height: 6px;
-      border-radius: 999px;
+      top: 50%; transform: translateY(-50%);
+      height: 6px; border-radius: 999px;
       background: rgba(120,170,255,.75);
-      left: 0%;
-      right: 0%;
+      left: 0%; right: 0%;
     }
   </style>
 </head>
@@ -207,7 +187,7 @@
     <div class="panelHeader">
       <div>
         <div class="panelTitle">Unfallatlas</div>
-        <div class="panelSub">(Viewport-Render)</div>
+        <div class="panelSub" id="panelSub">(Viewport-Render)</div>
       </div>
       <div class="collapseBtn" id="collapseBtn" title="Ein-/Ausklappen">▾</div>
     </div>
@@ -246,7 +226,6 @@
 
       <div style="margin-top:10px; font-weight:800;">Zeit & Bedingungen</div>
 
-      <!-- Stunde als Dual-Range (ein Slider mit 2 Knöpfen) -->
       <div class="row">
         <label>Stunde</label>
         <div class="rangeWrap">
@@ -312,13 +291,43 @@
       </div>
 
       <div class="muted">
-        Quelle: <code>out/output_all_years.geojson</code><br/>
+        Quelle: <code id="dataSourceCode">—</code><br/>
         Rendert nur Punkte im Kartenausschnitt (plus Padding).
       </div>
     </div>
   </div>
 
   <script>
+    // ========= NEU: City aus URL + Dateiname ableiten =========
+    const DEFAULT_CITY = "Hannover";
+
+    function normKey(s){
+      return String(s ?? "")
+        .toLowerCase()
+        .replaceAll("ä","ae").replaceAll("ö","oe").replaceAll("ü","ue").replaceAll("ß","ss")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_/, "")
+        .replace(/_$/, "");
+    }
+
+    function getCityFromUrl(){
+      const u = new URL(window.location.href);
+      const c = u.searchParams.get("city");
+      return (c && c.trim()) ? c.trim() : DEFAULT_CITY;
+    }
+
+    const CITY_RAW = getCityFromUrl();
+    const CITY_SUFFIX = normKey(CITY_RAW);
+    const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
+
+    // Panel subtitle + Quelle aktualisieren
+    const panelSubEl = document.getElementById("panelSub");
+    const dataSourceCodeEl = document.getElementById("dataSourceCode");
+    panelSubEl.textContent = `(Viewport-Render) – Stadt: ${CITY_RAW}`;
+    dataSourceCodeEl.textContent = DATA_URL;
+
+    // ========= Map =========
     const map = L.map('map', { preferCanvas: true }).setView([52.3759, 9.7320], 12);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -497,7 +506,6 @@
       );
     }
 
-    /* === Dual Range Logic: erzwingt start <= end + aktualisiert Fill/Labels === */
     function syncHourUI(changed){
       let a = parseInt(hFromEl.value, 10);
       let b = parseInt(hToEl.value, 10);
@@ -595,7 +603,7 @@
 
         const h = parseInt(pr.ustunde, 10);
         if (Number.isNaN(h)) continue;
-        if (h < hFrom || h > hTo) continue; // KEIN wrap-around mehr
+        if (h < hFrom || h > hTo) continue;
 
         const isRad  = String(pr?.istrad)  === "1";
         const isFuss = String(pr?.istfuss) === "1";
@@ -697,6 +705,7 @@
         involvementMode === "and" ? "UND" : "Alleinunfall";
 
       statEl.textContent =
+        `Stadt: ${CITY_RAW} | ` +
         `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
         `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
         `Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
@@ -716,8 +725,11 @@
     }
 
     async function main() {
-      const resp = await fetch('out/output_all_years.geojson', { cache: "no-store" });
-      if (!resp.ok) throw new Error("GeoJSON konnte nicht geladen werden: " + resp.status);
+      const resp = await fetch(DATA_URL, { cache: "no-store" });
+      if (!resp.ok) {
+        throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}). Erwartet: ${DATA_URL}\n` +
+                        `Tipp: Datei existiert? (Suffix: "${CITY_SUFFIX}")`);
+      }
 
       all = await resp.json();
       buildYearOptions(all.features || []);
@@ -725,8 +737,6 @@
       buildStrzOptions(allPts);
 
       updateDebugBox();
-
-      // init hour UI
       syncHourUI();
 
       applyGlobalFilter();
@@ -741,7 +751,6 @@
         });
       }
 
-      // Dual-range events
       hFromEl.addEventListener('input', () => {
         syncHourUI("from");
         applyGlobalFilter(); applyViewportFilter(); renderLayers();
