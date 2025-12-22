@@ -11,11 +11,16 @@ set -eu
 # Optional:
 #   --per-year  => zusätzlich out/outputYYYY[_<citysuffix>].csv/.geojson
 #
-# City-Handling (robust/CI-tauglich):
+# City-Handling (CI-tauglich):
 #   --city <name>      -> nutzt statisches Mapping CITY_MAP
 #   --ags  <AGS8>      -> direkte AGS-Angabe (8-stellig), überschreibt City Map
 #
 # Wichtig: GeoJSON enthält ALLE Properties, die index.html erwartet.
+#
+# WICHTIGER FIX:
+#   Combined-Dateien werden atomisch geschrieben:
+#     *.tmp  -> am Ende validieren -> mv nach final
+#   Dadurch kann eine Action niemals eine "halbgeschriebene" GeoJSON committen.
 ###############################################################################
 
 OUTDIR="out"
@@ -147,6 +152,19 @@ norm_key() {
 }
 
 ###############################################################################
+# CI-stabileres curl (ohne Formatänderungen)
+###############################################################################
+fetch_zip() {
+  url="$1"
+  out="$2"
+  # retries + timeouts, damit CI nicht "hängt"
+  curl -fsSL \
+    --retry 5 --retry-delay 2 --retry-connrefused \
+    --connect-timeout 20 --max-time 300 \
+    -o "$out" "$url"
+}
+
+###############################################################################
 # CITY_MAP lookup -> AGS8
 ###############################################################################
 ags_from_citymap() {
@@ -157,7 +175,6 @@ ags_from_citymap() {
 
 set_region_from_ags8() {
   ags="$1"
-  # nur Ziffern, genau 8
   ags="$(printf "%s" "$ags" | tr -cd '0-9')"
   if [ "${#ags}" -ne 8 ]; then
     echo "ERROR: AGS muss 8-stellig sein (z.B. Hannover=03241001)." >&2
@@ -173,7 +190,6 @@ set_region_from_ags8() {
 set_region_from_city() {
   city="$1"
 
-  # AGS Override hat Vorrang
   if [ -n "$AGS_OVERRIDE" ]; then
     set_region_from_ags8 "$AGS_OVERRIDE"
     CITY_DISPLAY="${city} (AGS ${AGS_OVERRIDE})"
@@ -211,7 +227,7 @@ process_year_append() {
 
   echo "== $year =="
 
-  curl -fsSL -o "$zip" "$url"
+  fetch_zip "$url" "$zip"
 
   datafile="$(unzip -Z1 "$zip" \
     | grep -Ei "Unfallorte${year}.*\.(csv|txt)$" \
@@ -415,12 +431,30 @@ process_year_append() {
   fi
 }
 
+###############################################################################
+# Atomisches Schreiben für Combined-Dateien:
+#   schreibe in *.tmp und mv am Ende nach final.
+###############################################################################
 run_combined_for_current_region() {
   suffix=""
   if [ -n "${CITY_SUFFIX:-}" ]; then suffix="_${CITY_SUFFIX}"; fi
 
-  COMBINED_CSV="${OUTDIR}/output_all_years${suffix}.csv"
-  COMBINED_GEO="${OUTDIR}/output_all_years${suffix}.geojson"
+  COMBINED_CSV_FINAL="${OUTDIR}/output_all_years${suffix}.csv"
+  COMBINED_GEO_FINAL="${OUTDIR}/output_all_years${suffix}.geojson"
+
+  COMBINED_CSV_TMP="${COMBINED_CSV_FINAL}.tmp"
+  COMBINED_GEO_TMP="${COMBINED_GEO_FINAL}.tmp"
+
+  # Cleanup tmp wenn wir vor mv rausfliegen
+  cleanup_tmp() {
+    rm -f "$COMBINED_CSV_TMP" "$COMBINED_GEO_TMP" 2>/dev/null || true
+  }
+  trap cleanup_tmp INT TERM HUP
+  # EXIT-trap nur solange wir noch nicht erfolgreich gemoved haben:
+  trap cleanup_tmp EXIT
+
+  COMBINED_CSV="$COMBINED_CSV_TMP"
+  COMBINED_GEO="$COMBINED_GEO_TMP"
 
   echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > "$COMBINED_CSV"
   { echo '{'; echo '  "type": "FeatureCollection",'; echo '  "features": ['; } > "$COMBINED_GEO"
@@ -432,10 +466,29 @@ run_combined_for_current_region() {
 
   { echo; echo '  ]'; echo '}'; } >> "$COMBINED_GEO"
 
+  # Validierung: GeoJSON muss parsebar sein (sonst NICHT mv!)
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -m json.tool "$COMBINED_GEO" >/dev/null
+  else
+    # fallback: grobe Plausibilitätsprüfung (nicht perfekt, aber besser als nichts)
+    tail -n 2 "$COMBINED_GEO" | grep -q '}' || {
+      echo "ERROR: GeoJSON scheint unvollständig (keine abschließende '}' gefunden)." >&2
+      exit 2
+    }
+  fi
+
+  # Atomisch publishen
+  mv -f "$COMBINED_CSV" "$COMBINED_CSV_FINAL"
+  mv -f "$COMBINED_GEO" "$COMBINED_GEO_FINAL"
+
+  # ab hier: tmp nicht mehr löschen
+  trap - EXIT
+  trap - INT TERM HUP
+
   echo "== fertig =="
   echo "City:   ${CITY_DISPLAY}"
-  echo "CSV:    $COMBINED_CSV"
-  echo "GeoJSON: $COMBINED_GEO"
+  echo "CSV:    $COMBINED_CSV_FINAL"
+  echo "GeoJSON: $COMBINED_GEO_FINAL"
   echo
 }
 
