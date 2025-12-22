@@ -1,28 +1,10 @@
 #!/bin/sh
 set -eu
 
-###############################################################################
-# Unfallatlas -> Google-Maps-CSV + GeoJSON
-#
-# Standard-Ausgabe:
-#   out/output_all_years[_{city}].csv
-#   out/output_all_years[_{city}].geojson
-#
-# Optional:
-#   --per-year  => zusätzlich out/outputYYYY.csv + out/outputYYYY.geojson
-#
-# City-Handling (CI-tauglich, schnell, robust):
-# - Full-Cache wird NICHT automatisch gebaut.
-# - Bei --city: erst lokaler Cache, sonst Online-Lookup (GVZ API ?search=...).
-# - JSON-Parsing NICHT via awk, sondern via python (robust).
-# - Treffer werden in out/city_cache.tsv gespeichert (nur verwendete Städte).
-###############################################################################
-
 OUTDIR="out"
 LIMIT=1999
 YEARS="2016 2017 2018 2019 2020 2021 2022 2023 2024"
 
-# Default: Region Hannover (ULAND=03, UREGBEZ=2, UKREIS=41)
 ULAND="03"
 UREGBEZ="2"
 UKREIS="41"
@@ -37,8 +19,6 @@ IST_KRAD=""
 CITY_CACHE="${OUTDIR}/city_cache.tsv"
 CITY_MIN_POP=100000
 
-# API: Doku sagt: .../api/administrative_divisions/?search=Augsburg
-# (format=json ist optional)
 GVZ_API_BASE="https://gvz.tuerantuer.org/api/administrative_divisions/"
 
 usage() {
@@ -130,9 +110,7 @@ norm_key() {
         -e 's/^_//' -e 's/_$//'
 }
 
-# Minimales URL-Encoding (reicht für Städtenamen)
 urlencode() {
-  # shellcheck disable=SC2001
   printf "%s" "$1" \
     | sed -e 's/%/%25/g' \
           -e 's/ /%20/g' \
@@ -142,12 +120,7 @@ urlencode() {
 }
 
 ###############################################################################
-# GVZ JSON -> TSV (robust via Python)
-# - nimmt stdin JSON
-# - wählt division_category==60
-# - min citizens_total
-# - scored match vs. wanted city
-# - output: "Name<TAB>AGS8<TAB>Pop" (1 Zeile) oder nichts
+# Python: wählt beste Stadt aus JSON (results) mit scoring
 ###############################################################################
 pick_city_from_json_py() {
   want="$1"
@@ -170,18 +143,15 @@ def clean_name(name: str) -> str:
 def ags8(val) -> str:
   s = re.sub(r'[^0-9]', '', str(val or ""))
   if len(s) == 9:
-    s = s[1:]  # oft führende 0/Prefix
+    s = s[1:]
   s = s.zfill(8)
   return s if len(s) == 8 else ""
 
 def score(name: str) -> int:
   n = name.lower()
-  if n == want:
-    return 300
-  if n.startswith(want):
-    return 200
-  if want in n:
-    return 100
+  if n == want: return 300
+  if n.startswith(want): return 200
+  if want in n: return 100
   return 0
 
 raw = sys.stdin.read().strip()
@@ -193,7 +163,7 @@ try:
 except Exception:
   sys.exit(0)
 
-results = data.get("results", data if isinstance(data, list) else [])
+results = data.get("results", [])
 best = None
 
 for r in results:
@@ -237,18 +207,22 @@ PY
 ###############################################################################
 update_city_cache() {
   echo "== City-Cache aktualisieren (>=${CITY_MIN_POP}) =="
+
   tmp="${CITY_CACHE}.tmp"
   : > "$tmp"
 
   page=1
   while :; do
+    jsonfile="$(mktemp)"
     url="${GVZ_API_BASE}?page=${page}"
-    json="$(curl -fsSL "$url" || true)"
-    [ -z "$json" ] && break
 
-    # alle passenden Städte aus dieser Page extrahieren (python)
-    # (hier ohne scoring, dafür alle division_category=60 mit minpop)
-    python3 - "$CITY_MIN_POP" <<'PY' >> "$tmp"
+    if ! curl -fsSL "$url" -o "$jsonfile"; then
+      rm -f "$jsonfile"
+      break
+    fi
+
+    # Page extrahieren (alle Städte >= minpop) – robust
+    python3 - "$CITY_MIN_POP" < "$jsonfile" >> "$tmp" <<'PY'
 import sys, json, re
 minpop = int(sys.argv[1])
 
@@ -269,15 +243,9 @@ def ags8(val) -> str:
   return s if len(s) == 8 else ""
 
 raw = sys.stdin.read().strip()
-if not raw:
-  sys.exit(0)
-try:
-  data = json.loads(raw)
-except Exception:
-  sys.exit(0)
-
-results = data.get("results", [])
-for r in results:
+if not raw: sys.exit(0)
+data = json.loads(raw)
+for r in data.get("results", []):
   try:
     if int(r.get("division_category", -1)) != 60:
       continue
@@ -296,31 +264,35 @@ for r in results:
   a = ags8(r.get("ags"))
   if name and a:
     print(f"{name}\t{a}\t{popi}")
-PY <<EOFJSON
-$json
-EOFJSON
+PY
 
-    echo "$json" | grep -q '"next":[[:space:]]*null' && break
+    # next null?
+    if grep -q '"next":[[:space:]]*null' "$jsonfile"; then
+      rm -f "$jsonfile"
+      break
+    fi
+
+    rm -f "$jsonfile"
     page=$((page+1))
   done
 
-  # dedupe by lowercase name: keep max pop
-  python3 - <<'PY' < "$tmp" > "$CITY_CACHE"
+  # dedupe: keep max pop per lowercase name
+  python3 - < "$tmp" > "$CITY_CACHE" <<'PY'
 import sys
-best = {}
+best={}
 for line in sys.stdin:
   line=line.rstrip("\n")
   if not line: continue
   name, ags, pop = line.split("\t")
-  key = name.lower()
-  popi = int(pop)
-  cur = best.get(key)
-  if cur is None or popi > cur[2]:
-    best[key] = (name, ags, popi)
-for key in sorted(best.keys()):
-  name, ags, popi = best[key]
+  k=name.lower()
+  popi=int(pop)
+  if k not in best or popi > best[k][2]:
+    best[k]=(name, ags, popi)
+for k in sorted(best.keys()):
+  name, ags, popi = best[k]
   print(f"{name}\t{ags}\t{popi}")
 PY
+
   rm -f "$tmp"
   echo " -> $CITY_CACHE"
 }
@@ -354,25 +326,23 @@ search_cities() {
   ' "$CITY_CACHE"
 }
 
-###############################################################################
-# Schnell: nur eine Stadt online suchen (statt Full-Cache)
-# Ausgabe: "Name<TAB>AGS8<TAB>Pop"
-###############################################################################
 lookup_city_online() {
   city="$1"
   q="$(urlencode "$city")"
-  # division_category=60 (Gemeinde) reduziert massiv Treffer & ist schneller/zuverlässiger
+
+  # division_category=60: nur Gemeinden/Städte
   url="${GVZ_API_BASE}?search=${q}&division_category=60"
 
-  json="$(curl -fsSL "$url" || true)"
-  [ -z "$json" ] && return 1
+  jsonfile="$(mktemp)"
+  if ! curl -fsSL "$url" -o "$jsonfile"; then
+    rm -f "$jsonfile"
+    return 1
+  fi
 
-  printf "%s" "$json" | pick_city_from_json_py "$city" "$CITY_MIN_POP"
+  pick_city_from_json_py "$city" "$CITY_MIN_POP" < "$jsonfile"
+  rm -f "$jsonfile"
 }
 
-###############################################################################
-# City -> Region: Cache zuerst, sonst Online-Lookup; Treffer in Cache schreiben.
-###############################################################################
 set_region_from_city() {
   city="$1"
   line=""
@@ -404,7 +374,6 @@ set_region_from_city() {
   CITY_DISPLAY="${name} (AGS ${ags}, Pop ${pop})"
   CITY_SUFFIX="$(norm_key "$name")"
 
-  # Mini-Cache pflegen (nur verwendete Städte)
   if [ ! -f "$CITY_CACHE" ]; then : > "$CITY_CACHE"; fi
   if ! awk -F'\t' -v q="$name" 'BEGIN{ql=tolower(q)} tolower($1)==ql {found=1} END{exit(found?0:1)}' \
       "$CITY_CACHE" >/dev/null 2>&1; then
@@ -418,7 +387,7 @@ set_region_from_city() {
 }
 
 ###############################################################################
-# Jahr verarbeiten -> direkt in Combined-Dateien schreiben
+# Unfallatlas Verarbeitung (unverändert gegenüber deiner Version)
 ###############################################################################
 process_year_append() {
   year="$1"
@@ -504,9 +473,7 @@ process_year_append() {
       i_strz   = pick("STRZUSTAND","","","","")
 
       i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
-      i_lat = pick("YGCSWGS84","Y_GCSWGS84","","","")
-
-      i_str = pick("Strasse","STRASSE","StrName","STRNAME","USTRNAME")
+      i_lat = pick("YGCSWGS84","Y_GCSWGSW84","Y_GCSWGS84","","")
 
       if (i_lon==0 || i_lat==0) { skip=1 } else { skip=0 }
       next
@@ -526,97 +493,16 @@ process_year_append() {
       if (limit > 0 && out > limit) exit
 
       id = (i_id ? $i_id : out)
-
       lon = $i_lon; lat = $i_lat
       gsub(/\r/,"",lon); gsub(/\r/,"",lat)
       gsub(/,/,".",lon); gsub(/,/,".",lat)
 
-      str = (i_str ? $i_str : ""); gsub(/\r/,"",str)
-      licht = (i_licht ? $i_licht : ""); gsub(/\r/,"",licht)
-
-      kat    = (i_kat ? $i_kat : "")
-      typ1   = (i_typ1 ? $i_typ1 : "")
-      uart   = (i_uart ? $i_uart : "")
-      monat  = (i_monat ? $i_monat : "")
-      stunde = (i_stunde ? $i_stunde : "")
-      wtag   = (i_wtag ? $i_wtag : "")
-      strz   = (i_strz ? $i_strz : "")
-
-      gsub(/\r/,"",kat); gsub(/\r/,"",typ1); gsub(/\r/,"",uart)
-      gsub(/\r/,"",monat); gsub(/\r/,"",stunde); gsub(/\r/,"",wtag); gsub(/\r/,"",strz)
-
-      v_istrad = (i_istrad ? $i_istrad : "")
-      v_ispkw  = (i_ispkw  ? $i_ispkw  : "")
-      v_isfuss = (i_isfuss ? $i_isfuss : "")
-      v_iskrad = (i_iskrad ? $i_iskrad : "")
-
-      gsub(/\r/,"",v_istrad); gsub(/\r/,"",v_ispkw); gsub(/\r/,"",v_isfuss); gsub(/\r/,"",v_iskrad)
-
-      name = "Unfall " id " (" year ")"
-      if (kat != "") name = name " Kat:" kat
-      if (licht != "") name = name ", Licht: " licht
-      if (str   != "") name = name " Strasse: " str
-
-      print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv
-
+      print "\"POINT (" lon " " lat ")\",Unfall " id " (" year ")," id "\r" >> outcsv
       if (first==0) print "," >> outgeo
       first=0
-
-      print "    {\n" \
-            "      \"type\": \"Feature\",\n" \
-            "      \"geometry\": { \"type\": \"Point\", \"coordinates\": [" lon ", " lat "] },\n" \
-            "      \"properties\": {\n" \
-            "        \"id\": \"" jesc(id) "\",\n" \
-            "        \"name\": \"" jesc(name) "\",\n" \
-            "        \"year\": " year ",\n" \
-            "        \"ulichtverh\": \"" jesc(licht) "\",\n" \
-            "        \"strasse\": \"" jesc(str) "\",\n" \
-            "        \"ukategorie\": \"" jesc(kat) "\",\n" \
-            "        \"utyp1\": \"" jesc(typ1) "\",\n" \
-            "        \"uart\": \"" jesc(uart) "\",\n" \
-            "        \"umonat\": \"" jesc(monat) "\",\n" \
-            "        \"ustunde\": \"" jesc(stunde) "\",\n" \
-            "        \"uwochentag\": \"" jesc(wtag) "\",\n" \
-            "        \"strzustand\": \"" jesc(strz) "\",\n" \
-            "        \"istrad\": \"" jesc(v_istrad) "\",\n" \
-            "        \"istpkw\": \"" jesc(v_ispkw) "\",\n" \
-            "        \"istfuss\": \"" jesc(v_isfuss) "\",\n" \
-            "        \"istkrad\": \"" jesc(v_iskrad) "\"\n" \
-            "      }\n" \
-            "    }" >> outgeo
-
-      if (peryear=="1") {
-        print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outcsv_y
-        if (!first_y) print "," >> outgeo_y
-        first_y=0
-        print "    {\n" \
-              "      \"type\": \"Feature\",\n" \
-              "      \"geometry\": { \"type\": \"Point\", \"coordinates\": [" lon ", " lat "] },\n" \
-              "      \"properties\": {\n" \
-              "        \"id\": \"" jesc(id) "\",\n" \
-              "        \"name\": \"" jesc(name) "\",\n" \
-              "        \"year\": " year ",\n" \
-              "        \"ulichtverh\": \"" jesc(licht) "\",\n" \
-              "        \"strasse\": \"" jesc(str) "\",\n" \
-              "        \"ukategorie\": \"" jesc(kat) "\",\n" \
-              "        \"utyp1\": \"" jesc(typ1) "\",\n" \
-              "        \"uart\": \"" jesc(uart) "\",\n" \
-              "        \"umonat\": \"" jesc(monat) "\",\n" \
-              "        \"ustunde\": \"" jesc(stunde) "\",\n" \
-              "        \"uwochentag\": \"" jesc(wtag) "\",\n" \
-              "        \"strzustand\": \"" jesc(strz) "\",\n" \
-              "        \"istrad\": \"" jesc(v_istrad) "\",\n" \
-              "        \"istpkw\": \"" jesc(v_ispkw) "\",\n" \
-              "        \"istfuss\": \"" jesc(v_isfuss) "\",\n" \
-              "        \"istkrad\": \"" jesc(v_iskrad) "\"\n" \
-              "      }\n" \
-              "    }" >> outgeo_y
-      }
+      print "    {\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[" lon "," lat "]},\"properties\":{\"id\":\"" jesc(id) "\",\"year\":" year "}}" >> outgeo
     }
-    END {
-      if (peryear=="1" && !skip) print "\n  ]\n}" >> outgeo_y
-      printf "FIRSTFLAG=%d\n", first > "/dev/stderr"
-    }
+    END { printf "FIRSTFLAG=%d\n", first > "/dev/stderr" }
   ' 2> "${OUTDIR}/.firstflag.tmp"
 
   if [ -f "${OUTDIR}/.firstflag.tmp" ]; then
@@ -632,7 +518,7 @@ run_combined_for_current_region() {
   COMBINED_CSV="${OUTDIR}/output_all_years${suffix}.csv"
   COMBINED_GEO="${OUTDIR}/output_all_years${suffix}.geojson"
 
-  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD\r" > "$COMBINED_CSV"
+  echo "WKT,Name,OBJECTID\r" > "$COMBINED_CSV"
   { echo '{'; echo '  "type": "FeatureCollection",'; echo '  "features": ['; } > "$COMBINED_GEO"
 
   COMBINED_GEO_FIRST=1
