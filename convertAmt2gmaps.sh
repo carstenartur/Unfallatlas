@@ -249,10 +249,39 @@ set_region_from_city() {
   city="$1"
   ensure_city_cache
 
-  line="$(awk -F'\t' -v q="$city" 'BEGIN{ql=tolower(q)} tolower($1)==ql {print; exit}' "$CITY_CACHE")"
+  qn="$(norm_key "$city")"
+
+  # 1) exakter Match (normalisiert)
+  line="$(awk -F'\t' -v qn="$qn" '
+    function norm(s,   t){
+      t=tolower(s)
+      gsub(/ä/,"ae",t); gsub(/ö/,"oe",t); gsub(/ü/,"ue",t); gsub(/ß/,"ss",t)
+      gsub(/[^a-z0-9]/,"_",t)
+      gsub(/__*/,"_",t)
+      sub(/^_/,"",t); sub(/_$/,"",t)
+      return t
+    }
+    norm($1)==qn { print; exit }
+  ' "$CITY_CACHE")"
+
+  # 2) fallback: Teiltreffer (z.B. "Landeshauptstadt Hannover")
+  if [ -z "$line" ]; then
+    line="$(awk -F'\t' -v qn="$qn" '
+      function norm(s,   t){
+        t=tolower(s)
+        gsub(/ä/,"ae",t); gsub(/ö/,"oe",t); gsub(/ü/,"ue",t); gsub(/ß/,"ss",t)
+        gsub(/[^a-z0-9]/,"_",t)
+        gsub(/__*/,"_",t)
+        sub(/^_/,"",t); sub(/_$/,"",t)
+        return t
+      }
+      index(norm($1), qn) > 0 { print; exit }
+    ' "$CITY_CACHE")"
+  fi
+
   if [ -z "$line" ]; then
     echo "ERROR: Stadt \"$city\" nicht im Cache gefunden." >&2
-    echo "       Tipp: ./convertAmt2gmaps.sh --search \"${city}\"" >&2
+    echo "       Tipp: ./convertAmt2gmaps.sh --search \"$city\"" >&2
     exit 2
   fi
 
