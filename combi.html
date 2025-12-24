@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unfallatlas – Webkarte (City + FitBounds + Cluster + Heatmap)</title>
+  <title>Unfallatlas – Webkarte (Viewport + Cluster + Heatmap)</title>
 
   <!-- Leaflet -->
   <link
@@ -14,7 +14,7 @@
   />
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9IIN+0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
 
@@ -43,7 +43,6 @@
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; }
-
     .panel {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
       background: rgba(255,255,255,.72);
@@ -54,11 +53,9 @@
       font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       max-width: 380px;
     }
-
     .panelHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .panelTitle { font-weight: 800; }
     .panelSub { color:#666; font-weight:600; }
-
     .collapseBtn{
       border: 1px solid rgba(0,0,0,.15);
       background: rgba(250,250,250,.72);
@@ -69,11 +66,10 @@
       font-weight:700;
       line-height: 1;
     }
-
+    .collapseBtn:hover { background: rgba(240,240,240,.82); }
     .panelBody { margin-top: 8px; }
     .panel.collapsed .panelBody { display:none; }
     .panel.collapsed { padding-bottom: 8px; }
-
     .row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
     label { font-weight: 600; }
     select, input {
@@ -82,7 +78,6 @@
       font: inherit;
       background: rgba(255,255,255,.76);
     }
-
     .toggles { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .btn {
       flex: 1;
@@ -96,7 +91,6 @@
       font-weight: 700;
     }
     .btn.active { background: rgba(233,242,255,.82); border-color: rgba(183,212,255,.95); }
-
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .chip {
       display: inline-flex;
@@ -110,11 +104,9 @@
     }
     .chip input { width: auto; }
     .chip span { font-weight: 700; }
-
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
-    .stat { margin-top: 8px; font-size: 12px; color: #333; white-space: pre-wrap; }
+    .stat { margin-top: 8px; font-size: 12px; color: #333; }
     code { background: rgba(243,243,243,.82); padding: 1px 4px; border-radius: 6px; }
-
     .debugBox {
       margin-top: 8px;
       padding: 8px 10px;
@@ -123,20 +115,14 @@
       background: rgba(255,255,255,.62);
       font-size: 12px;
       color:#333;
-      white-space: pre-wrap;
     }
-
-    /* === Dual Range === */
+    .debugBox strong { font-weight: 800; }
     .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
     .dualRange { position: relative; height: 26px; }
     .dualRange input[type="range"]{
-      position: absolute;
-      left: 0; right: 0;
-      top: 0;
-      width: 100%;
-      margin: 0;
-      padding: 0;
+      position: absolute; left: 0; right: 0; top: 0;
+      width: 100%; margin: 0; padding: 0;
       background: transparent;
       pointer-events: none;
       -webkit-appearance: none;
@@ -147,8 +133,7 @@
       pointer-events: auto;
       -webkit-appearance: none;
       appearance: none;
-      width: 18px;
-      height: 18px;
+      width: 18px; height: 18px;
       border-radius: 50%;
       border: 1px solid rgba(0,0,0,.25);
       background: rgba(255,255,255,.95);
@@ -156,14 +141,12 @@
     }
     .dualRange input[type="range"]::-moz-range-thumb{
       pointer-events: auto;
-      width: 18px;
-      height: 18px;
+      width: 18px; height: 18px;
       border-radius: 50%;
       border: 1px solid rgba(0,0,0,.25);
       background: rgba(255,255,255,.95);
       box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
-
     .dualRangeTrack{
       position:absolute; left:0; right:0;
       top: 50%; transform: translateY(-50%);
@@ -194,9 +177,7 @@
     <div class="panelBody" id="panelBody">
       <div class="row">
         <label for="year">Jahr</label>
-        <select id="year">
-          <option value="all">Alle</option>
-        </select>
+        <select id="year"><option value="all">Alle</option></select>
       </div>
 
       <div class="row">
@@ -210,17 +191,17 @@
       </div>
 
       <div style="margin-top:10px; font-weight:800;">Beteiligung</div>
-      <div class="chips" aria-label="Beteiligung Filter">
+      <div class="chips">
         <label class="chip"><input type="checkbox" id="tRad" checked> <span>🚲 Rad</span></label>
         <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
         <label class="chip"><input type="checkbox" id="tPKW" checked> <span>🚗 PKW</span></label>
         <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
       </div>
 
-      <div class="toggles" aria-label="Beteiligungsmodus">
-        <div id="modeOr" class="btn active" title="Mindestens eine der ausgewählten Beteiligungen muss zutreffen">ODER</div>
-        <div id="modeAnd" class="btn" title="Alle ausgewählten Beteiligungen müssen zutreffen">UND</div>
-        <div id="modeSolo" class="btn" title="Genau eine Beteiligungsart insgesamt (Rad/Fuß/PKW/Krad) – passend zu den Häkchen">Alleinunfall</div>
+      <div class="toggles">
+        <div id="modeOr" class="btn active">ODER</div>
+        <div id="modeAnd" class="btn">UND</div>
+        <div id="modeSolo" class="btn">Alleinunfall</div>
       </div>
 
       <div style="margin-top:10px; font-weight:800;">Zeit & Bedingungen</div>
@@ -232,23 +213,19 @@
             <span>von: <strong id="hFromLbl">0</strong></span>
             <span>bis: <strong id="hToLbl">23</strong></span>
           </div>
-
-          <div class="dualRange" aria-label="Stundenbereich">
+          <div class="dualRange">
             <div class="dualRangeTrack"></div>
             <div class="dualRangeFill" id="hourFill"></div>
             <input id="hFrom" type="range" min="0" max="23" step="1" value="0" />
             <input id="hTo" type="range" min="0" max="23" step="1" value="23" />
           </div>
-
-          <div class="muted" style="margin-top:0;">
-            (Kein Wrap-around mehr: Start ist immer ≤ Ende.)
-          </div>
+          <div class="muted" style="margin-top:0;">(Kein Wrap-around mehr: Start ist immer ≤ Ende.)</div>
         </div>
       </div>
 
       <div class="row">
         <label for="weekend">Wochenende</label>
-        <select id="weekend" title="UWOCHENTAG: Sa/So vs. Mo–Fr">
+        <select id="weekend">
           <option value="all">Alle</option>
           <option value="weekend">Nur Wochenende (Sa/So)</option>
           <option value="weekday">Nur Werktag (Mo–Fr)</option>
@@ -257,7 +234,7 @@
 
       <div class="row">
         <label for="strz">Straßenzustand</label>
-        <select id="strz" title="STRZUSTAND: 0 trocken, 1 nass/feucht, 2 winterglatt">
+        <select id="strz">
           <option value="all">Alle</option>
         </select>
       </div>
@@ -284,7 +261,10 @@
 
       <div class="stat" id="stat">Lade Daten…</div>
 
-      <div class="debugBox" id="debugBox" style="display:none;"></div>
+      <div class="debugBox" id="debugBox" style="display:none;">
+        <strong>Debug:</strong><br/>
+        <span id="dbgCounts">—</span>
+      </div>
 
       <div class="muted">
         Quelle: <code id="dataSourceCode">—</code><br/>
@@ -294,184 +274,177 @@
   </div>
 
   <script>
-  (function () {
-    'use strict';
-
-    // ---------- Helpers (keine optional chaining / kein replaceAll) ----------
-    function safeStr(x){ return (x === null || x === undefined) ? '' : String(x); }
-
-    function normKey(s){
-      var t = safeStr(s).toLowerCase();
-      t = t.split('ä').join('ae').split('ö').join('oe').split('ü').join('ue').split('ß').join('ss');
-      t = t.replace(/[^a-z0-9]+/g, "_").replace(/_+/g, "_").replace(/^_/, "").replace(/_$/, "");
-      return t;
-    }
-
-    function setText(el, txt){ if (el) el.textContent = safeStr(txt); }
-
-    function escHtml(s) {
-      return safeStr(s)
-        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-    }
-
-    // ---------- DOM ----------
-    var statEl = document.getElementById('stat');
-    var debugBox = document.getElementById('debugBox');
-
-    function dbg(msg){
-      debugBox.style.display = "block";
-      debugBox.textContent += safeStr(msg) + "\n";
-    }
-
-    // ---------- Map: sofort initialisieren (damit du IMMER eine Basiskarte siehst) ----------
+    // ======== HARTE ABSICHERUNG: Leaflet muss geladen sein ========
     if (!window.L) {
-      setText(statEl, "FEHLER: Leaflet (L) ist nicht verfügbar. Prüfe Script-Load / SRI / Netzwerk.");
-      return;
+      const msg = "FEHLER: Leaflet (L) ist nicht verfügbar. Prüfe Script-Load / SRI / Netzwerk.";
+      console.error(msg);
+      alert(msg);
+      document.getElementById("stat").textContent = msg;
+      throw new Error(msg);
     }
 
-    var map = L.map('map', { preferCanvas: true }).setView([52.3759, 9.7320], 12);
+    // ========= City aus URL + Dateiname ableiten =========
+    const DEFAULT_CITY = "Hannover";
+    function normKey(s){
+      return String(s ?? "")
+        .toLowerCase()
+        .replaceAll("ä","ae").replaceAll("ö","oe").replaceAll("ü","ue").replaceAll("ß","ss")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_/, "")
+        .replace(/_$/, "");
+    }
+    function getCityFromUrl(){
+      const u = new URL(window.location.href);
+      const c = u.searchParams.get("city");
+      return (c && c.trim()) ? c.trim() : DEFAULT_CITY;
+    }
+    const CITY_RAW = getCityFromUrl();
+    const CITY_SUFFIX = normKey(CITY_RAW);
+    const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
+
+    document.getElementById("panelSub").textContent = `(Viewport-Render) – Stadt: ${CITY_RAW}`;
+    document.getElementById("dataSourceCode").textContent = DATA_URL;
+
+    // ========= Map =========
+    const map = L.map('map', { preferCanvas: true });
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    // ---------- City / Data URL ----------
-    var DEFAULT_CITY = "Hannover";
-    var u = new URL(window.location.href);
-    var cityRaw = (u.searchParams.get("city") || DEFAULT_CITY).trim() || DEFAULT_CITY;
-    var citySuffix = normKey(cityRaw);
+    // default fallback, wird später durch fitBounds ersetzt
+    map.setView([52.3759, 9.7320], 12);
 
-    var DATA_URL = "out/output_all_years_" + citySuffix + ".geojson";
+    const WEEKEND_SET = new Set(["1","7"]);
+    const STRZ_LABEL = { "0":"0 – trocken","1":"1 – nass/feucht","2":"2 – winterglatt","":"— unbekannt" };
 
-    setText(document.getElementById("panelSub"), "(Viewport-Render) – Stadt: " + cityRaw);
-    setText(document.getElementById("dataSourceCode"), DATA_URL);
-
-    // ---------- UI Elements ----------
-    var yearEl = document.getElementById('year');
-    var katEl = document.getElementById('kat');
-    var maxEl = document.getElementById('maxn');
-    var padEl = document.getElementById('pad');
-    var heatREl = document.getElementById('heatR');
-    var btnCluster = document.getElementById('toggleCluster');
-    var btnHeat = document.getElementById('toggleHeat');
-
-    var tRadEl = document.getElementById('tRad');
-    var tFussEl = document.getElementById('tFuss');
-    var tPKWEl = document.getElementById('tPKW');
-    var tKradEl = document.getElementById('tKrad');
-
-    var btnModeOr = document.getElementById('modeOr');
-    var btnModeAnd = document.getElementById('modeAnd');
-    var btnModeSolo = document.getElementById('modeSolo');
-    var involvementMode = "or";
-
-    var hFromEl = document.getElementById('hFrom');
-    var hToEl = document.getElementById('hTo');
-    var hFromLbl = document.getElementById('hFromLbl');
-    var hToLbl = document.getElementById('hToLbl');
-    var hourFill = document.getElementById('hourFill');
-
-    var weekendEl = document.getElementById('weekend');
-    var strzEl = document.getElementById('strz');
-
-    var panelEl = document.getElementById('panel');
-    var collapseBtn = document.getElementById('collapseBtn');
-
+    // Panel collapse
+    const panelEl = document.getElementById('panel');
+    const collapseBtn = document.getElementById('collapseBtn');
     function setCollapsed(on){
       panelEl.classList.toggle('collapsed', on);
       collapseBtn.textContent = on ? "▸" : "▾";
-      try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch (e) {}
+      try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch {}
     }
-    try {
-      var saved = localStorage.getItem("ua_panel_collapsed");
-      if (saved === "1") setCollapsed(true);
-    } catch (e) {}
-    collapseBtn.addEventListener('click', function(){ setCollapsed(!panelEl.classList.contains('collapsed')); });
+    const savedCollapsed = (() => { try { return localStorage.getItem("ua_panel_collapsed"); } catch { return null; } })();
+    if (savedCollapsed === "1") setCollapsed(true);
+    collapseBtn.addEventListener('click', () => setCollapsed(!panelEl.classList.contains('collapsed')));
 
-    var WEEKEND_SET = { "1": true, "7": true }; // Sonntag + Samstag
-    var STRZ_LABEL = { "0":"0 – trocken","1":"1 – nass/feucht","2":"2 – winterglatt","":"— unbekannt" };
+    // UI refs
+    const yearEl = document.getElementById('year');
+    const katEl = document.getElementById('kat');
+    const maxEl = document.getElementById('maxn');
+    const padEl = document.getElementById('pad');
+    const heatREl = document.getElementById('heatR');
+    const statEl = document.getElementById('stat');
+    const btnCluster = document.getElementById('toggleCluster');
+    const btnHeat = document.getElementById('toggleHeat');
 
-    function strzText(code) {
-      var k = safeStr(code);
-      return (k in STRZ_LABEL) ? STRZ_LABEL[k] : ("Code " + k);
+    const tRadEl = document.getElementById('tRad');
+    const tFussEl = document.getElementById('tFuss');
+    const tPKWEl = document.getElementById('tPKW');
+    const tKradEl = document.getElementById('tKrad');
+
+    const btnModeOr = document.getElementById('modeOr');
+    const btnModeAnd = document.getElementById('modeAnd');
+    const btnModeSolo = document.getElementById('modeSolo');
+    let involvementMode = "or";
+
+    const hFromEl = document.getElementById('hFrom');
+    const hToEl = document.getElementById('hTo');
+    const hFromLbl = document.getElementById('hFromLbl');
+    const hToLbl = document.getElementById('hToLbl');
+    const hourFill = document.getElementById('hourFill');
+
+    const weekendEl = document.getElementById('weekend');
+    const strzEl = document.getElementById('strz');
+
+    const debugBox = document.getElementById('debugBox');
+    const dbgCounts = document.getElementById('dbgCounts');
+
+    let showCluster = true;
+    let showHeat = true;
+
+    let all = null;
+    let allPts = [];
+    let filteredGlobal = [];
+    let viewportPts = [];
+
+    let clusterLayer = null;
+    let heatLayer = null;
+
+    function setBtnState(btn, on) { btn.classList.toggle('active', on); }
+    function setMode(next){
+      involvementMode = next;
+      setBtnState(btnModeOr, next === "or");
+      setBtnState(btnModeAnd, next === "and");
+      setBtnState(btnModeSolo, next === "solo");
+      applyGlobalFilter(); applyViewportFilter(); renderLayers();
+    }
+
+    function escHtml(s) {
+      return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
     }
 
     function involvementText(p) {
-      var tags = [];
-      if (safeStr(p.istrad) === "1") tags.push("🚲 Rad");
-      if (safeStr(p.istfuss) === "1") tags.push("🚶 Fuß");
-      if (safeStr(p.istpkw) === "1") tags.push("🚗 PKW");
-      if (safeStr(p.istkrad) === "1") tags.push("🏍️ Krad");
+      const tags = [];
+      if (String(p?.istrad) === "1") tags.push("🚲 Rad");
+      if (String(p?.istfuss) === "1") tags.push("🚶 Fuß");
+      if (String(p?.istpkw) === "1") tags.push("🚗 PKW");
+      if (String(p?.istkrad) === "1") tags.push("🏍️ Krad");
       return tags.length ? tags.join(", ") : "—";
     }
 
-    function popupHtml(p) {
-      return ''
-        + '<div style="font: 14px/1.25 system-ui;">'
-        + '<div><strong>' + escHtml(p.name) + '</strong></div>'
-        + '<div>Jahr: ' + escHtml(p.year) + '</div>'
-        + '<div>Kategorie: ' + escHtml(p.ukategorie) + '</div>'
-        + '<div>Beteiligung: ' + escHtml(involvementText(p)) + '</div>'
-        + '<div>Uhrzeit: ' + escHtml(p.ustunde) + ' / Wochentag: ' + escHtml(p.uwochentag) + ' / Monat: ' + escHtml(p.umonat) + '</div>'
-        + '<div>Straßenzustand: ' + escHtml(strzText(p.strzustand)) + '</div>'
-        + '<div>Licht: ' + escHtml(p.ulichtverh) + '</div>'
-        + '<div>Straße: ' + escHtml(p.strasse) + '</div>'
-        + '</div>';
+    function strzText(code) {
+      const k = String(code ?? "");
+      return STRZ_LABEL[k] ?? (`Code ${k}`);
     }
 
-    function setBtnState(btn, on) { btn.classList.toggle('active', !!on); }
-
-    function syncHourUI(changed){
-      var a = parseInt(hFromEl.value, 10);
-      var b = parseInt(hToEl.value, 10);
-
-      if (changed === "from" && a > b) { b = a; hToEl.value = String(b); }
-      if (changed === "to"   && b < a) { a = b; hFromEl.value = String(a); }
-
-      hFromLbl.textContent = String(a);
-      hToLbl.textContent = String(b);
-
-      var min = parseInt(hFromEl.min,10);
-      var max = parseInt(hFromEl.max,10);
-      var span = (max - min) || 1;
-
-      var leftPct = ((a - min) / span) * 100;
-      var rightPct = 100 - ((b - min) / span) * 100;
-
-      hourFill.style.left = leftPct + "%";
-      hourFill.style.right = rightPct + "%";
+    function popupHtml(p) {
+      return `
+        <div style="font: 14px/1.25 system-ui;">
+          <div><strong>${escHtml(p.name)}</strong></div>
+          <div>Jahr: ${escHtml(p.year)}</div>
+          <div>Kategorie: ${escHtml(p.ukategorie)}</div>
+          <div>Beteiligung: ${escHtml(involvementText(p))}</div>
+          <div>Uhrzeit: ${escHtml(p.ustunde)} / Wochentag: ${escHtml(p.uwochentag)} / Monat: ${escHtml(p.umonat)}</div>
+          <div>Straßenzustand: ${escHtml(strzText(p.strzustand))}</div>
+          <div>Licht: ${escHtml(p.ulichtverh)}</div>
+          <div>Straße: ${escHtml(p.strasse)}</div>
+        </div>
+      `;
     }
 
     function buildYearOptions(features) {
-      var years = {};
-      for (var i=0; i<features.length; i++) {
-        var y = features[i] && features[i].properties ? features[i].properties.year : null;
-        if (y !== null && y !== undefined && y !== "") years[String(y)] = true;
+      const years = new Set();
+      for (const f of features) {
+        const y = f?.properties?.year;
+        if (y !== undefined && y !== null && y !== "") years.add(String(y));
       }
-      var keys = Object.keys(years).sort();
-      for (var k=0; k<keys.length; k++){
-        var opt = document.createElement('option');
-        opt.value = keys[k];
-        opt.textContent = keys[k];
+      [...years].sort().forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
         yearEl.appendChild(opt);
-      }
+      });
     }
 
     function buildStrzOptions(points) {
-      var codes = { "": true };
-      for (var i=0; i<points.length; i++){
-        var v = points[i] && points[i].props ? points[i].props.strzustand : "";
-        v = safeStr(v);
-        codes[v] = true;
+      const codes = new Set();
+      for (const p of points) {
+        const v = p?.props?.strzustand;
+        if (v === undefined || v === null || v === "") { codes.add(""); continue; }
+        codes.add(String(v));
       }
-      var sorted = Object.keys(codes).sort(function(a,b){
-        var ai = (a === "" ? 999 : parseInt(a,10));
-        var bi = (b === "" ? 999 : parseInt(b,10));
+      const sorted = [...codes].sort((a,b) => {
+        const ai = (a === "" ? 999 : parseInt(a,10));
+        const bi = (b === "" ? 999 : parseInt(b,10));
         return ai - bi;
       });
-      for (var j=0; j<sorted.length; j++){
-        var c = sorted[j];
-        var opt = document.createElement('option');
+      for (const c of sorted) {
+        const opt = document.createElement('option');
         opt.value = (c === "" ? "__unknown__" : c);
         opt.textContent = strzText(c);
         strzEl.appendChild(opt);
@@ -479,130 +452,143 @@
     }
 
     function extractPoints(geojson) {
-      var pts = [];
-      var feats = geojson && geojson.features ? geojson.features : [];
-      for (var i=0; i<feats.length; i++){
-        var f = feats[i];
-        if (!f || !f.geometry || f.geometry.type !== "Point") continue;
-        var coord = f.geometry.coordinates;
-        if (!coord || coord.length < 2) continue;
-        var lon = coord[0], lat = coord[1];
+      const pts = [];
+      const feats = geojson?.features || [];
+      for (const f of feats) {
+        const g = f?.geometry;
+        if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
+        const [lon, lat] = g.coordinates;
         if (typeof lat !== "number" || typeof lon !== "number") continue;
-        pts.push({ lat: lat, lon: lon, props: f.properties || {} });
+        pts.push({ lat, lon, props: f.properties || {} });
       }
       return pts;
     }
 
-    function computeBounds(pts){
-      if (!pts.length) return null;
-      var minLat=  999, maxLat= -999, minLon=  999, maxLon= -999;
-      for (var i=0; i<pts.length; i++){
-        var p = pts[i];
+    function fitToAllPoints(points){
+      if (!points.length) return;
+      let minLat=  90, maxLat=-90, minLon= 180, maxLon=-180;
+      for (const p of points) {
         if (p.lat < minLat) minLat = p.lat;
         if (p.lat > maxLat) maxLat = p.lat;
         if (p.lon < minLon) minLon = p.lon;
         if (p.lon > maxLon) maxLon = p.lon;
       }
-      if (minLat > maxLat || minLon > maxLon) return null;
-      return L.latLngBounds([minLat, minLon], [maxLat, maxLon]);
+      const b = L.latLngBounds([minLat, minLon], [maxLat, maxLon]);
+      map.fitBounds(b, { padding: [20,20] });
     }
 
     function getPaddedBounds() {
-      var padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
-      var b = map.getBounds();
-      var latSpan = b.getNorth() - b.getSouth();
-      var lonSpan = b.getEast() - b.getWest();
-      var dLat = latSpan * padPct;
-      var dLon = lonSpan * padPct;
+      const padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
+      const b = map.getBounds();
+      const latSpan = b.getNorth() - b.getSouth();
+      const lonSpan = b.getEast() - b.getWest();
+      const dLat = latSpan * padPct;
+      const dLon = lonSpan * padPct;
       return L.latLngBounds(
         [b.getSouth() - dLat, b.getWest() - dLon],
         [b.getNorth() + dLat, b.getEast() + dLon]
       );
     }
 
-    // ---------- State ----------
-    var showCluster = true;
-    var showHeat = true;
+    function syncHourUI(changed){
+      let a = parseInt(hFromEl.value, 10);
+      let b = parseInt(hToEl.value, 10);
+      if (changed === "from" && a > b) { b = a; hToEl.value = String(b); }
+      if (changed === "to"   && b < a) { a = b; hFromEl.value = String(a); }
+      hFromLbl.textContent = String(a);
+      hToLbl.textContent = String(b);
+      const min = parseInt(hFromEl.min,10);
+      const max = parseInt(hFromEl.max,10);
+      const span = (max - min) || 1;
+      const leftPct = ((a - min) / span) * 100;
+      const rightPct = 100 - ((b - min) / span) * 100;
+      hourFill.style.left = `${leftPct}%`;
+      hourFill.style.right = `${rightPct}%`;
+    }
 
-    var all = null;
-    var allPts = [];
-    var filteredGlobal = [];
-    var viewportPts = [];
+    function countInvolvement(points){
+      let rad=0, fuss=0, pkw=0, krad=0, solo=0, radpkw=0;
+      for (const p of points) {
+        const pr = p.props || {};
+        const isRad  = String(pr?.istrad)  === "1";
+        const isFuss = String(pr?.istfuss) === "1";
+        const isPKW  = String(pr?.istpkw)  === "1";
+        const isKrad = String(pr?.istkrad) === "1";
+        if (isRad) rad++;
+        if (isFuss) fuss++;
+        if (isPKW) pkw++;
+        if (isKrad) krad++;
+        const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+        if (c === 1) solo++;
+        if (isRad && isPKW) radpkw++;
+      }
+      return {rad,fuss,pkw,krad,solo,radpkw};
+    }
 
-    var clusterLayer = null;
-    var heatLayer = null;
-
-    function setMode(next){
-      involvementMode = next;
-      setBtnState(btnModeOr, next === "or");
-      setBtnState(btnModeAnd, next === "and");
-      setBtnState(btnModeSolo, next === "solo");
-      applyGlobalFilter();
-      applyViewportFilter();
-      renderLayers();
+    function updateDebugBox(){
+      const c = countInvolvement(allPts);
+      debugBox.style.display = "block";
+      dbgCounts.textContent =
+        `Rad: ${c.rad.toLocaleString()} | Fuß: ${c.fuss.toLocaleString()} | ` +
+        `PKW: ${c.pkw.toLocaleString()} | Krad: ${c.krad.toLocaleString()} | ` +
+        `Alleinunfälle: ${c.solo.toLocaleString()} | Kombi Rad+PKW: ${c.radpkw.toLocaleString()}`;
     }
 
     function applyGlobalFilter() {
       if (!all) return;
 
-      var wantYear = yearEl.value;
-      var wantKat = katEl.value;
-      var wantStrz = strzEl.value;
+      const wantYear = yearEl.value;
+      const wantKat = katEl.value;
+      const wantStrz = strzEl.value;
 
-      var maxN = Math.max(500, parseInt(maxEl.value || "40000", 10));
+      const maxN = Math.max(500, parseInt(maxEl.value || "40000", 10));
 
-      var hFrom = parseInt(hFromEl.value || "0", 10);
-      var hTo   = parseInt(hToEl.value || "23", 10);
+      const hFrom = parseInt(hFromEl.value || "0", 10);
+      const hTo   = parseInt(hToEl.value || "23", 10);
 
-      var weekendMode = weekendEl.value;
+      const weekendMode = weekendEl.value;
 
-      var sRad  = tRadEl.checked;
-      var sFuss = tFussEl.checked;
-      var sPKW  = tPKWEl.checked;
-      var sKrad = tKradEl.checked;
-      var anySelected = sRad || sFuss || sPKW || sKrad;
+      const sRad  = tRadEl.checked;
+      const sFuss = tFussEl.checked;
+      const sPKW  = tPKWEl.checked;
+      const sKrad = tKradEl.checked;
+      const anySelected = sRad || sFuss || sPKW || sKrad;
 
-      var out = [];
-      for (var i=0; i<allPts.length; i++) {
-        var p = allPts[i];
-        var pr = p.props || {};
-
-        if (wantYear !== "all" && safeStr(pr.year) !== wantYear) continue;
-        if (wantKat !== "all" && safeStr(pr.ukategorie) !== wantKat) continue;
+      const out = [];
+      for (const p of allPts) {
+        const pr = p.props || {};
+        if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
+        if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
 
         if (wantStrz !== "all") {
-          var z = safeStr(pr.strzustand);
+          const z = String(pr.strzustand ?? "");
           if (wantStrz === "__unknown__") {
             if (z !== "" && z !== "null" && z !== "undefined") continue;
           } else {
-            if (z !== safeStr(wantStrz)) continue;
+            if (z !== String(wantStrz)) continue;
           }
         }
 
         if (weekendMode !== "all") {
-          var wd = safeStr(pr.uwochentag);
-          var isWeekend = !!WEEKEND_SET[wd];
+          const wd = String(pr.uwochentag ?? "");
+          const isWeekend = WEEKEND_SET.has(wd);
           if (weekendMode === "weekend" && !isWeekend) continue;
           if (weekendMode === "weekday" && isWeekend) continue;
         }
 
-        var h = parseInt(pr.ustunde, 10);
-        if (isNaN(h)) continue;
+        const h = parseInt(pr.ustunde, 10);
+        if (Number.isNaN(h)) continue;
         if (h < hFrom || h > hTo) continue;
 
-        var isRad  = safeStr(pr.istrad)  === "1";
-        var isFuss = safeStr(pr.istfuss) === "1";
-        var isPKW  = safeStr(pr.istpkw)  === "1";
-        var isKrad = safeStr(pr.istkrad) === "1";
+        const isRad  = String(pr?.istrad)  === "1";
+        const isFuss = String(pr?.istfuss) === "1";
+        const isPKW  = String(pr?.istpkw)  === "1";
+        const isKrad = String(pr?.istkrad) === "1";
 
         if (!anySelected) continue;
 
         if (involvementMode === "or") {
-          var ok =
-            (sRad  && isRad)  ||
-            (sFuss && isFuss) ||
-            (sPKW  && isPKW)  ||
-            (sKrad && isKrad);
+          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
           if (!ok) continue;
         } else if (involvementMode === "and") {
           if (sRad  && !isRad)  continue;
@@ -610,28 +596,22 @@
           if (sPKW  && !isPKW)  continue;
           if (sKrad && !isKrad) continue;
         } else if (involvementMode === "solo") {
-          var involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+          const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
           if (involvedCount !== 1) continue;
-          var ok2 =
-            (sRad  && isRad)  ||
-            (sFuss && isFuss) ||
-            (sPKW  && isPKW)  ||
-            (sKrad && isKrad);
-          if (!ok2) continue;
+          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+          if (!ok) continue;
         }
 
         out.push(p);
         if (out.length >= maxN) break;
       }
-
       filteredGlobal = out;
     }
 
     function applyViewportFilter() {
-      var vb = getPaddedBounds();
-      var out = [];
-      for (var i=0; i<filteredGlobal.length; i++) {
-        var p = filteredGlobal[i];
+      const vb = getPaddedBounds();
+      const out = [];
+      for (const p of filteredGlobal) {
         if (vb.contains([p.lat, p.lon])) out.push(p);
       }
       viewportPts = out;
@@ -641,7 +621,7 @@
       if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
       if (heatLayer) { heatLayer.remove(); heatLayer = null; }
 
-      var pts = viewportPts;
+      const pts = viewportPts;
 
       if (showCluster) {
         clusterLayer = L.markerClusterGroup({
@@ -651,9 +631,8 @@
           showCoverageOnHover: false
         });
 
-        for (var i=0; i<pts.length; i++) {
-          var p = pts[i];
-          var m = L.circleMarker([p.lat, p.lon], { radius: 4 });
+        for (const p of pts) {
+          const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
           m.bindPopup(popupHtml(p.props));
           clusterLayer.addLayer(m);
         }
@@ -661,153 +640,91 @@
       }
 
       if (showHeat) {
-        var r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
-        var heatPts = [];
-        for (var j=0; j<pts.length; j++){
-          var pp = pts[j];
-          var k = safeStr((pp.props||{}).ukategorie);
-          var w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
-          heatPts.push([pp.lat, pp.lon, w]);
-        }
+        const r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
+        const heatPts = pts.map(p => {
+          const k = String(p.props?.ukategorie || "");
+          const w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
+          return [p.lat, p.lon, w];
+        });
 
         heatLayer = L.heatLayer(heatPts, { radius: r, blur: 18, maxZoom: 17 }).addTo(map);
       }
 
-      var activeTypes = [];
-      if (tRadEl.checked) activeTypes.push("Rad");
-      if (tFussEl.checked) activeTypes.push("Fuß");
-      if (tPKWEl.checked) activeTypes.push("PKW");
-      if (tKradEl.checked) activeTypes.push("Krad");
+      const activeTypes = [
+        tRadEl.checked ? "Rad" : null,
+        tFussEl.checked ? "Fuß" : null,
+        tPKWEl.checked ? "PKW" : null,
+        tKradEl.checked ? "Krad" : null
+      ].filter(Boolean).join(", ");
 
-      var modeLabel = (involvementMode === "or") ? "ODER" : (involvementMode === "and") ? "UND" : "Alleinunfall";
+      const modeLabel = involvementMode === "or" ? "ODER" : involvementMode === "and" ? "UND" : "Alleinunfall";
 
-      setText(statEl,
-        "Stadt: " + cityRaw + " | " +
-        "Gesamt geladen: " + allPts.length.toLocaleString() + " | " +
-        "Nach Filter: " + filteredGlobal.length.toLocaleString() + " | " +
-        "Im Viewport: " + viewportPts.length.toLocaleString() + " | " +
-        "Beteiligung: " + (activeTypes.length ? activeTypes.join(", ") : "—") + " | " +
-        "Modus: " + modeLabel + " | " +
-        "Stunden: " + hFromEl.value + "–" + hToEl.value
-      );
+      statEl.textContent =
+        `Stadt: ${CITY_RAW} | Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
+        `Nach Filter: ${filteredGlobal.length.toLocaleString()} | Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
+        `Beteiligung: ${activeTypes || "—"} | Modus: ${modeLabel} | Stunden: ${hFromEl.value}–${hToEl.value}`;
     }
 
-    var moveTimer = null;
+    let moveTimer = null;
     function scheduleViewportUpdate() {
       if (!all) return;
       if (moveTimer) clearTimeout(moveTimer);
-      moveTimer = setTimeout(function(){
+      moveTimer = setTimeout(() => {
         applyViewportFilter();
         renderLayers();
       }, 150);
     }
 
-    // ---------- Main ----------
-    function main() {
-      setText(statEl, "Lade Daten…\n" + DATA_URL);
-      dbg("Starting load: " + DATA_URL);
+    async function main() {
+      const resp = await fetch(DATA_URL, { cache: "no-store" });
+      if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}). Erwartet: ${DATA_URL}`);
 
-      // Optional: Cache-Busting (falls Pages aggressiv cached)
-      var url = DATA_URL + "?v=" + Date.now();
+      all = await resp.json();
+      buildYearOptions(all.features || []);
+      allPts = extractPoints(all);
+      buildStrzOptions(allPts);
 
-      return fetch(url, { cache: "no-store" }).then(function(resp){
-        dbg("HTTP status: " + resp.status);
-        if (!resp.ok) throw new Error("GeoJSON konnte nicht geladen werden (" + resp.status + "). Erwartet: " + DATA_URL);
-        return resp.text().then(function(txt){
-          // JSON parse mit besserer Fehlermeldung
-          try {
-            return JSON.parse(txt);
-          } catch (e) {
-            var head = txt.slice(0, 300);
-            var tail = txt.slice(Math.max(0, txt.length - 300));
-            throw new Error("JSON.parse failed: " + e + "\n---HEAD---\n" + head + "\n---TAIL---\n" + tail);
-          }
-        });
-      }).then(function(geo){
-        all = geo;
+      // <<< FIT BOUNDS direkt nach dem Laden >>>
+      fitToAllPoints(allPts);
 
-        var feats = (all && all.features) ? all.features : [];
-        buildYearOptions(feats);
+      updateDebugBox();
+      syncHourUI();
 
-        allPts = extractPoints(all);
-        buildStrzOptions(allPts);
+      applyGlobalFilter();
+      applyViewportFilter();
+      renderLayers();
 
-        // FitBounds auf komplette Daten (einmalig beim Laden)
-        var b = computeBounds(allPts);
-        if (b) {
-          map.fitBounds(b, { padding: [20,20] });
-          dbg("fitBounds applied.");
-        } else {
-          dbg("fitBounds skipped (no bounds).");
-        }
+      for (const el of [yearEl, katEl, maxEl, strzEl, weekendEl]) {
+        el.addEventListener('change', () => { applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
+      }
+      hFromEl.addEventListener('input', () => { syncHourUI("from"); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
+      hToEl.addEventListener('input', () => { syncHourUI("to"); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
+      for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
+        el.addEventListener('change', () => { applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
+      }
 
-        syncHourUI();
+      btnModeOr.addEventListener('click', () => setMode("or"));
+      btnModeAnd.addEventListener('click', () => setMode("and"));
+      btnModeSolo.addEventListener('click', () => setMode("solo"));
+      setMode("or");
 
-        applyGlobalFilter();
-        applyViewportFilter();
-        renderLayers();
+      padEl.addEventListener('change', () => { applyViewportFilter(); renderLayers(); });
+      heatREl.addEventListener('change', () => renderLayers());
 
-        // Listeners
-        var simpleEls = [yearEl, katEl, maxEl, strzEl, weekendEl];
-        for (var i=0; i<simpleEls.length; i++){
-          simpleEls[i].addEventListener('change', function(){
-            applyGlobalFilter(); applyViewportFilter(); renderLayers();
-          });
-        }
+      btnCluster.addEventListener('click', () => { showCluster = !showCluster; setBtnState(btnCluster, showCluster); renderLayers(); });
+      btnHeat.addEventListener('click', () => { showHeat = !showHeat; setBtnState(btnHeat, showHeat); renderLayers(); });
 
-        hFromEl.addEventListener('input', function(){
-          syncHourUI("from");
-          applyGlobalFilter(); applyViewportFilter(); renderLayers();
-        });
-        hToEl.addEventListener('input', function(){
-          syncHourUI("to");
-          applyGlobalFilter(); applyViewportFilter(); renderLayers();
-        });
+      setBtnState(btnCluster, showCluster);
+      setBtnState(btnHeat, showHeat);
 
-        var chkEls = [tRadEl, tFussEl, tPKWEl, tKradEl];
-        for (var j=0; j<chkEls.length; j++){
-          chkEls[j].addEventListener('change', function(){
-            applyGlobalFilter(); applyViewportFilter(); renderLayers();
-          });
-        }
-
-        btnModeOr.addEventListener('click', function(){ setMode("or"); });
-        btnModeAnd.addEventListener('click', function(){ setMode("and"); });
-        btnModeSolo.addEventListener('click', function(){ setMode("solo"); });
-        setMode("or");
-
-        padEl.addEventListener('change', function(){ applyViewportFilter(); renderLayers(); });
-        heatREl.addEventListener('change', function(){ renderLayers(); });
-
-        btnCluster.addEventListener('click', function(){
-          showCluster = !showCluster;
-          setBtnState(btnCluster, showCluster);
-          renderLayers();
-        });
-        btnHeat.addEventListener('click', function(){
-          showHeat = !showHeat;
-          setBtnState(btnHeat, showHeat);
-          renderLayers();
-        });
-
-        setBtnState(btnCluster, showCluster);
-        setBtnState(btnHeat, showHeat);
-
-        map.on('moveend zoomend', scheduleViewportUpdate);
-
-      }).catch(function(err){
-        // Fehler sichtbar machen (UI + console)
-        console.error(err);
-        setText(statEl, "FEHLER:\n" + err);
-        dbg("ERROR: " + err);
-      });
+      map.on('moveend zoomend', scheduleViewportUpdate);
     }
 
-    // Start
-    syncHourUI();
-    main();
-
-  })();
+    main().catch(err => {
+      console.error(err);
+      statEl.textContent = String(err);
+      alert(String(err));
+    });
   </script>
 </body>
 </html>
