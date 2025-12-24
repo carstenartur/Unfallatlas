@@ -183,19 +183,23 @@ process_year_to_buffers() {
   zip="${OUTDIR}/${year}.zip"
   url="https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/Unfallorte${year}_EPSG25832_CSV.zip"
 
-  echo "== $year =="
-
-  if ! curl -fsSL -o "$zip" "$url"; then
-    echo "WARN: Download fehlgeschlagen: $url" >&2
-    return 0
+  if [ -s "$zip" ]; then
+    echo "== $year == (cached)"
+  else
+    echo "== $year == (downloading)"
+    if ! curl -fsSL -o "$zip" "$url"; then
+      echo "WARN: Download fehlgeschlagen: $url" >&2
+      return 0
+    fi
   fi
 
-  if ! unzip -Z1 "$zip" >/dev/null 2>&1; then
+  # Einmal listen statt mehrfach unzip -Z1
+  if ! ziplist="$(unzip -Z1 "$zip" 2>/dev/null)"; then
     echo "WARN: Zip kaputt/unlesbar: $zip" >&2
     return 0
   fi
 
-  datafile="$(unzip -Z1 "$zip" \
+  datafile="$(printf "%s\n" "$ziplist" \
     | grep -Ei "Unfallorte${year}.*\.(csv|txt)$" \
     | grep -Evi "(readme|lizenz|license)" \
     | head -n 1 || true)"
