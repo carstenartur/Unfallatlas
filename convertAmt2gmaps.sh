@@ -283,10 +283,13 @@ process_year_to_buffers() {
         if (skip) next
         if (i_uland==0 || i_ureg==0 || i_ukreis==0) next
 
-        if ($i_uland != uland)  next
-        if ($i_ureg  != ureg)   next
-        if ($i_ukreis!= ukreis) next
-        if (ugem != "" && i_ugem>0 && $i_ugem != ugem) next
+        # numerisch vergleichen -> "00" und "0" sind gleich
+        if (($i_uland + 0)  != (uland + 0))  next
+        if (($i_ureg  + 0)  != (ureg  + 0))  next
+        if (($i_ukreis + 0) != (ukreis + 0)) next
+
+        # UGEMEINDE nur prüfen, wenn gesetzt; auch numerisch
+        if (ugem != "" && i_ugem > 0 && (($i_ugem + 0) != (ugem + 0))) next
 
         if (!ok_involvement()) next
 
