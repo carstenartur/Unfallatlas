@@ -9,32 +9,34 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Validate all GeoJSON files
+        shell: bash
         run: |
-    set -euo pipefail
-    echo "Validating GeoJSON files..."
+          set -euo pipefail
+          echo "Validating GeoJSON files..."
 
-    mapfile -t files < <(find out -type f -name '*.geojson' -print | sort)
+          mapfile -t files < <(find out -type f -name '*.geojson' -print | sort)
 
-    if [ "${#files[@]}" -eq 0 ]; then
-      echo "ERROR: No .geojson files found under ./out"
-      echo "Repo root content:"
-      ls -la
-      echo "./out content:"
-      ls -la out || true
-      exit 2
-    fi
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "ERROR: No .geojson files found under ./out"
+            echo "Repo root content:"
+            ls -la
+            echo "./out content:"
+            ls -la out || true
+            exit 2
+          fi
 
-    for f in "${files[@]}"; do
-      echo "→ $f"
-      jq -e . "$f" > /dev/null
-    done
+          for f in "${files[@]}"; do
+            echo "→ $f"
+            jq -e . "$f" > /dev/null
+          done
 
-    echo "✅ All GeoJSON files are valid JSON."
+          echo "✅ All GeoJSON files are valid JSON."
