@@ -164,6 +164,14 @@ set_region_from_ags8() {
   UREGBEZ="$(printf "%s" "$ags" | cut -c3-3)"
   UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
+  
+  # Stadtstaaten (z.B. Berlin 11, Hamburg 02) werden in den Daten oft unterhalb
+  # von UKREIS/UGEMEINDE codiert. Wenn UKREIS==00, filtere nur nach ULAND.
+  if [ "$UKREIS" = "00" ]; then
+    UREGBEZ=""
+    UKREIS=""
+    UGEMEINDE=""
+  fi
 }
 
 set_region_from_city() {
@@ -300,12 +308,15 @@ process_year_to_buffers() {
 
       NR>1 {
         if (skip) next
-        if (i_uland==0 || i_ureg==0 || i_ukreis==0) next
+        # Nur die Spalten voraussetzen, die wir wirklich filtern
+        if (uland != "" && i_uland==0) next
+        if (ureg  != "" && i_ureg==0)  next
+        if (ukreis!= "" && i_ukreis==0) next
 
         # numerisch vergleichen -> "00" und "0" sind gleich
-        if (($i_uland + 0)  != (uland + 0))  next
-        if (($i_ureg  + 0)  != (ureg  + 0))  next
-        if (($i_ukreis + 0) != (ukreis + 0)) next
+        if (uland  != "" && (($i_uland + 0)  != (uland + 0)))  next
+        if (ureg   != "" && (($i_ureg  + 0)  != (ureg  + 0)))  next
+        if (ukreis != "" && (($i_ukreis + 0) != (ukreis + 0))) next
 
         # UGEMEINDE nur prüfen, wenn gesetzt; auch numerisch
         if (ugem != "" && i_ugem > 0 && (($i_ugem + 0) != (ugem + 0))) next
