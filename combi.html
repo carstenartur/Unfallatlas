@@ -3,30 +3,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unfallatlas – Webkarte (Viewport + Cluster + Heatmap)</title>
+  <title>Unfallatlas – Webkarte (City + FitBounds + Cluster + Heatmap)</title>
 
   <!-- Leaflet -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9IIN+0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-          crossorigin=""></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9IIN+0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
 
   <!-- MarkerCluster -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
-        crossorigin="" />
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
-        crossorigin="" />
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
-          crossorigin=""></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+    crossorigin=""
+  ></script>
 
   <!-- Heatmap plugin -->
-  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
-          crossorigin=""></script>
+  <script
+    src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+    crossorigin=""
+  ></script>
 
   <style>
     html, body { height: 100%; margin: 0; }
@@ -42,6 +54,7 @@
       font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       max-width: 380px;
     }
+
     .panelHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .panelTitle { font-weight: 800; }
     .panelSub { color:#666; font-weight:600; }
@@ -112,35 +125,45 @@
       color:#333;
       white-space: pre-wrap;
     }
-    .debugBox strong { font-weight: 800; }
 
-    /* Dual range */
+    /* === Dual Range === */
     .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
     .dualRange { position: relative; height: 26px; }
     .dualRange input[type="range"]{
-      position: absolute; left: 0; right: 0; top: 0;
-      width: 100%; margin: 0; padding: 0;
+      position: absolute;
+      left: 0; right: 0;
+      top: 0;
+      width: 100%;
+      margin: 0;
+      padding: 0;
       background: transparent;
       pointer-events: none;
-      -webkit-appearance: none; appearance: none;
+      -webkit-appearance: none;
+      appearance: none;
       height: 26px;
     }
     .dualRange input[type="range"]::-webkit-slider-thumb{
       pointer-events: auto;
-      -webkit-appearance: none; appearance: none;
-      width: 18px; height: 18px; border-radius: 50%;
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
       border: 1px solid rgba(0,0,0,.25);
       background: rgba(255,255,255,.95);
       box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
     .dualRange input[type="range"]::-moz-range-thumb{
       pointer-events: auto;
-      width: 18px; height: 18px; border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
       border: 1px solid rgba(0,0,0,.25);
       background: rgba(255,255,255,.95);
       box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
+
     .dualRangeTrack{
       position:absolute; left:0; right:0;
       top: 50%; transform: translateY(-50%);
@@ -156,7 +179,6 @@
     }
   </style>
 </head>
-
 <body>
   <div id="map"></div>
 
@@ -210,13 +232,17 @@
             <span>von: <strong id="hFromLbl">0</strong></span>
             <span>bis: <strong id="hToLbl">23</strong></span>
           </div>
+
           <div class="dualRange" aria-label="Stundenbereich">
             <div class="dualRangeTrack"></div>
             <div class="dualRangeFill" id="hourFill"></div>
             <input id="hFrom" type="range" min="0" max="23" step="1" value="0" />
             <input id="hTo" type="range" min="0" max="23" step="1" value="23" />
           </div>
-          <div class="muted" style="margin-top:0;">(Kein Wrap-around mehr: Start ist immer ≤ Ende.)</div>
+
+          <div class="muted" style="margin-top:0;">
+            (Kein Wrap-around mehr: Start ist immer ≤ Ende.)
+          </div>
         </div>
       </div>
 
@@ -258,10 +284,7 @@
 
       <div class="stat" id="stat">Lade Daten…</div>
 
-      <div class="debugBox" id="debugBox" style="display:none;">
-        <strong>Debug:</strong><br/>
-        <span id="dbgCounts">—</span>
-      </div>
+      <div class="debugBox" id="debugBox" style="display:none;"></div>
 
       <div class="muted">
         Quelle: <code id="dataSourceCode">—</code><br/>
@@ -271,219 +294,136 @@
   </div>
 
   <script>
-    const DEFAULT_CITY = "Hannover";
+  (function () {
+    'use strict';
+
+    // ---------- Helpers (keine optional chaining / kein replaceAll) ----------
+    function safeStr(x){ return (x === null || x === undefined) ? '' : String(x); }
 
     function normKey(s){
-      return String(s ?? "")
-        .toLowerCase()
-        .replaceAll("ä","ae").replaceAll("ö","oe").replaceAll("ü","ue").replaceAll("ß","ss")
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_/, "")
-        .replace(/_$/, "");
+      var t = safeStr(s).toLowerCase();
+      t = t.split('ä').join('ae').split('ö').join('oe').split('ü').join('ue').split('ß').join('ss');
+      t = t.replace(/[^a-z0-9]+/g, "_").replace(/_+/g, "_").replace(/^_/, "").replace(/_$/, "");
+      return t;
     }
 
-    function getCityFromUrl(){
-      const u = new URL(window.location.href);
-      const c = u.searchParams.get("city");
-      return (c && c.trim()) ? c.trim() : DEFAULT_CITY;
+    function setText(el, txt){ if (el) el.textContent = safeStr(txt); }
+
+    function escHtml(s) {
+      return safeStr(s)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
 
-    // --- UI elements
-    const panelSubEl = document.getElementById("panelSub");
-    const dataSourceCodeEl = document.getElementById("dataSourceCode");
-    const statEl = document.getElementById('stat');
+    // ---------- DOM ----------
+    var statEl = document.getElementById('stat');
+    var debugBox = document.getElementById('debugBox');
 
-    const CITY_RAW = getCityFromUrl();
-    const CITY_SUFFIX = normKey(CITY_RAW);
+    function dbg(msg){
+      debugBox.style.display = "block";
+      debugBox.textContent += safeStr(msg) + "\n";
+    }
 
-    // Cache-Buster: damit du wirklich das Pages-Artefakt der aktuellen Deploy-Version holst
-    const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson?v=${Date.now()}`;
+    // ---------- Map: sofort initialisieren (damit du IMMER eine Basiskarte siehst) ----------
+    if (!window.L) {
+      setText(statEl, "FEHLER: Leaflet (L) ist nicht verfügbar. Prüfe Script-Load / SRI / Netzwerk.");
+      return;
+    }
 
-    panelSubEl.textContent = `(Viewport-Render) – Stadt: ${CITY_RAW}`;
-    dataSourceCodeEl.textContent = DATA_URL;
-
-    // --- Map: sofort anzeigen (nicht auf Daten warten)
-    const map = L.map('map', { preferCanvas: true });
-
-    // fallback Start-View (wird später per fitBounds überschrieben)
-    map.setView([51.1657, 10.4515], 6);
-
+    var map = L.map('map', { preferCanvas: true }).setView([52.3759, 9.7320], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    // Collapse
-    const panelEl = document.getElementById('panel');
-    const collapseBtn = document.getElementById('collapseBtn');
+    // ---------- City / Data URL ----------
+    var DEFAULT_CITY = "Hannover";
+    var u = new URL(window.location.href);
+    var cityRaw = (u.searchParams.get("city") || DEFAULT_CITY).trim() || DEFAULT_CITY;
+    var citySuffix = normKey(cityRaw);
+
+    var DATA_URL = "out/output_all_years_" + citySuffix + ".geojson";
+
+    setText(document.getElementById("panelSub"), "(Viewport-Render) – Stadt: " + cityRaw);
+    setText(document.getElementById("dataSourceCode"), DATA_URL);
+
+    // ---------- UI Elements ----------
+    var yearEl = document.getElementById('year');
+    var katEl = document.getElementById('kat');
+    var maxEl = document.getElementById('maxn');
+    var padEl = document.getElementById('pad');
+    var heatREl = document.getElementById('heatR');
+    var btnCluster = document.getElementById('toggleCluster');
+    var btnHeat = document.getElementById('toggleHeat');
+
+    var tRadEl = document.getElementById('tRad');
+    var tFussEl = document.getElementById('tFuss');
+    var tPKWEl = document.getElementById('tPKW');
+    var tKradEl = document.getElementById('tKrad');
+
+    var btnModeOr = document.getElementById('modeOr');
+    var btnModeAnd = document.getElementById('modeAnd');
+    var btnModeSolo = document.getElementById('modeSolo');
+    var involvementMode = "or";
+
+    var hFromEl = document.getElementById('hFrom');
+    var hToEl = document.getElementById('hTo');
+    var hFromLbl = document.getElementById('hFromLbl');
+    var hToLbl = document.getElementById('hToLbl');
+    var hourFill = document.getElementById('hourFill');
+
+    var weekendEl = document.getElementById('weekend');
+    var strzEl = document.getElementById('strz');
+
+    var panelEl = document.getElementById('panel');
+    var collapseBtn = document.getElementById('collapseBtn');
+
     function setCollapsed(on){
       panelEl.classList.toggle('collapsed', on);
       collapseBtn.textContent = on ? "▸" : "▾";
-      try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch {}
+      try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch (e) {}
     }
-    const savedCollapsed = (() => { try { return localStorage.getItem("ua_panel_collapsed"); } catch { return null; } })();
-    if (savedCollapsed === "1") setCollapsed(true);
-    collapseBtn.addEventListener('click', () => setCollapsed(!panelEl.classList.contains('collapsed')));
+    try {
+      var saved = localStorage.getItem("ua_panel_collapsed");
+      if (saved === "1") setCollapsed(true);
+    } catch (e) {}
+    collapseBtn.addEventListener('click', function(){ setCollapsed(!panelEl.classList.contains('collapsed')); });
 
-    // Remaining UI refs
-    const yearEl = document.getElementById('year');
-    const katEl = document.getElementById('kat');
-    const maxEl = document.getElementById('maxn');
-    const padEl = document.getElementById('pad');
-    const heatREl = document.getElementById('heatR');
-    const btnCluster = document.getElementById('toggleCluster');
-    const btnHeat = document.getElementById('toggleHeat');
+    var WEEKEND_SET = { "1": true, "7": true }; // Sonntag + Samstag
+    var STRZ_LABEL = { "0":"0 – trocken","1":"1 – nass/feucht","2":"2 – winterglatt","":"— unbekannt" };
 
-    const tRadEl = document.getElementById('tRad');
-    const tFussEl = document.getElementById('tFuss');
-    const tPKWEl = document.getElementById('tPKW');
-    const tKradEl = document.getElementById('tKrad');
-
-    const btnModeOr = document.getElementById('modeOr');
-    const btnModeAnd = document.getElementById('modeAnd');
-    const btnModeSolo = document.getElementById('modeSolo');
-    let involvementMode = "or";
-
-    const hFromEl = document.getElementById('hFrom');
-    const hToEl = document.getElementById('hTo');
-    const hFromLbl = document.getElementById('hFromLbl');
-    const hToLbl = document.getElementById('hToLbl');
-    const hourFill = document.getElementById('hourFill');
-
-    const weekendEl = document.getElementById('weekend');
-    const strzEl = document.getElementById('strz');
-
-    const debugBox = document.getElementById('debugBox');
-    const dbgCounts = document.getElementById('dbgCounts');
-
-    const WEEKEND_SET = new Set(["1","7"]);
-    const STRZ_LABEL = { "0":"0 – trocken", "1":"1 – nass/feucht", "2":"2 – winterglatt", "":"— unbekannt" };
-
-    let showCluster = true;
-    let showHeat = true;
-
-    let all = null;
-    let allPts = [];
-    let filteredGlobal = [];
-    let viewportPts = [];
-
-    let clusterLayer = null;
-    let heatLayer = null;
-
-    function setBtnState(btn, on) { btn.classList.toggle('active', on); }
-
-    function escHtml(s) {
-      return String(s ?? "")
-        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+    function strzText(code) {
+      var k = safeStr(code);
+      return (k in STRZ_LABEL) ? STRZ_LABEL[k] : ("Code " + k);
     }
 
     function involvementText(p) {
-      const tags = [];
-      if (String(p?.istrad) === "1") tags.push("🚲 Rad");
-      if (String(p?.istfuss) === "1") tags.push("🚶 Fuß");
-      if (String(p?.istpkw) === "1") tags.push("🚗 PKW");
-      if (String(p?.istkrad) === "1") tags.push("🏍️ Krad");
+      var tags = [];
+      if (safeStr(p.istrad) === "1") tags.push("🚲 Rad");
+      if (safeStr(p.istfuss) === "1") tags.push("🚶 Fuß");
+      if (safeStr(p.istpkw) === "1") tags.push("🚗 PKW");
+      if (safeStr(p.istkrad) === "1") tags.push("🏍️ Krad");
       return tags.length ? tags.join(", ") : "—";
     }
 
-    function strzText(code) {
-      const k = String(code ?? "");
-      return STRZ_LABEL[k] ?? (`Code ${k}`);
-    }
-
     function popupHtml(p) {
-      return `
-        <div style="font: 14px/1.25 system-ui;">
-          <div><strong>${escHtml(p.name)}</strong></div>
-          <div>Jahr: ${escHtml(p.year)}</div>
-          <div>Kategorie: ${escHtml(p.ukategorie)}</div>
-          <div>Beteiligung: ${escHtml(involvementText(p))}</div>
-          <div>Uhrzeit: ${escHtml(p.ustunde)} / Wochentag: ${escHtml(p.uwochentag)} / Monat: ${escHtml(p.umonat)}</div>
-          <div>Straßenzustand: ${escHtml(strzText(p.strzustand))}</div>
-          <div>Licht: ${escHtml(p.ulichtverh)}</div>
-          <div>Straße: ${escHtml(p.strasse)}</div>
-        </div>
-      `;
+      return ''
+        + '<div style="font: 14px/1.25 system-ui;">'
+        + '<div><strong>' + escHtml(p.name) + '</strong></div>'
+        + '<div>Jahr: ' + escHtml(p.year) + '</div>'
+        + '<div>Kategorie: ' + escHtml(p.ukategorie) + '</div>'
+        + '<div>Beteiligung: ' + escHtml(involvementText(p)) + '</div>'
+        + '<div>Uhrzeit: ' + escHtml(p.ustunde) + ' / Wochentag: ' + escHtml(p.uwochentag) + ' / Monat: ' + escHtml(p.umonat) + '</div>'
+        + '<div>Straßenzustand: ' + escHtml(strzText(p.strzustand)) + '</div>'
+        + '<div>Licht: ' + escHtml(p.ulichtverh) + '</div>'
+        + '<div>Straße: ' + escHtml(p.strasse) + '</div>'
+        + '</div>';
     }
 
-    function buildYearOptions(features) {
-      const years = new Set();
-      for (const f of features) {
-        const y = f?.properties?.year;
-        if (y !== undefined && y !== null && y !== "") years.add(String(y));
-      }
-      [...years].sort().forEach(y => {
-        const opt = document.createElement('option');
-        opt.value = y;
-        opt.textContent = y;
-        yearEl.appendChild(opt);
-      });
-    }
-
-    function buildStrzOptions(points) {
-      const codes = new Set();
-      for (const p of points) {
-        const v = p?.props?.strzustand;
-        if (v === undefined || v === null || v === "") { codes.add(""); continue; }
-        codes.add(String(v));
-      }
-      const sorted = [...codes].sort((a,b) => {
-        const ai = (a === "" ? 999 : parseInt(a,10));
-        const bi = (b === "" ? 999 : parseInt(b,10));
-        return ai - bi;
-      });
-      for (const c of sorted) {
-        const opt = document.createElement('option');
-        opt.value = (c === "" ? "__unknown__" : c);
-        opt.textContent = strzText(c);
-        strzEl.appendChild(opt);
-      }
-    }
-
-    function extractPoints(geojson) {
-      const pts = [];
-      const feats = geojson?.features || [];
-      for (const f of feats) {
-        const g = f?.geometry;
-        if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
-        const [lon, lat] = g.coordinates;
-        if (typeof lat !== "number" || typeof lon !== "number") continue;
-        pts.push({ lat, lon, props: f.properties || {} });
-      }
-      return pts;
-    }
-
-    function fitToPoints(points){
-      if (!points.length) return;
-      // optional: für FitBounds nicht ALLE Punkte nehmen (aber hier meist ok)
-      let minLat=  90, maxLat= -90, minLon= 180, maxLon=-180;
-      for (const p of points) {
-        if (p.lat < minLat) minLat = p.lat;
-        if (p.lat > maxLat) maxLat = p.lat;
-        if (p.lon < minLon) minLon = p.lon;
-        if (p.lon > maxLon) maxLon = p.lon;
-      }
-      const b = L.latLngBounds([minLat, minLon], [maxLat, maxLon]);
-      if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
-    }
-
-    function getPaddedBounds() {
-      const padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
-      const b = map.getBounds();
-      const latSpan = b.getNorth() - b.getSouth();
-      const lonSpan = b.getEast() - b.getWest();
-      const dLat = latSpan * padPct;
-      const dLon = lonSpan * padPct;
-      return L.latLngBounds(
-        [b.getSouth() - dLat, b.getWest() - dLon],
-        [b.getNorth() + dLat, b.getEast() + dLon]
-      );
-    }
+    function setBtnState(btn, on) { btn.classList.toggle('active', !!on); }
 
     function syncHourUI(changed){
-      let a = parseInt(hFromEl.value, 10);
-      let b = parseInt(hToEl.value, 10);
+      var a = parseInt(hFromEl.value, 10);
+      var b = parseInt(hToEl.value, 10);
 
       if (changed === "from" && a > b) { b = a; hToEl.value = String(b); }
       if (changed === "to"   && b < a) { a = b; hFromEl.value = String(a); }
@@ -491,144 +431,106 @@
       hFromLbl.textContent = String(a);
       hToLbl.textContent = String(b);
 
-      const min = parseInt(hFromEl.min,10);
-      const max = parseInt(hFromEl.max,10);
-      const span = (max - min) || 1;
+      var min = parseInt(hFromEl.min,10);
+      var max = parseInt(hFromEl.max,10);
+      var span = (max - min) || 1;
 
-      const leftPct = ((a - min) / span) * 100;
-      const rightPct = 100 - ((b - min) / span) * 100;
+      var leftPct = ((a - min) / span) * 100;
+      var rightPct = 100 - ((b - min) / span) * 100;
 
-      hourFill.style.left = `${leftPct}%`;
-      hourFill.style.right = `${rightPct}%`;
+      hourFill.style.left = leftPct + "%";
+      hourFill.style.right = rightPct + "%";
     }
 
-    function updateDebug(msg){
-      debugBox.style.display = "block";
-      dbgCounts.textContent = msg;
-    }
-
-    function applyGlobalFilter() {
-      if (!all) return;
-
-      const wantYear = yearEl.value;
-      const wantKat = katEl.value;
-      const wantStrz = strzEl.value;
-
-      const maxN = Math.max(500, parseInt(maxEl.value || "40000", 10));
-      const hFrom = parseInt(hFromEl.value || "0", 10);
-      const hTo   = parseInt(hToEl.value || "23", 10);
-      const weekendMode = weekendEl.value;
-
-      const sRad  = tRadEl.checked;
-      const sFuss = tFussEl.checked;
-      const sPKW  = tPKWEl.checked;
-      const sKrad = tKradEl.checked;
-      const anySelected = sRad || sFuss || sPKW || sKrad;
-
-      const out = [];
-      for (const p of allPts) {
-        const pr = p.props || {};
-
-        if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
-        if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
-
-        if (wantStrz !== "all") {
-          const z = String(pr.strzustand ?? "");
-          if (wantStrz === "__unknown__") {
-            if (z !== "" && z !== "null" && z !== "undefined") continue;
-          } else {
-            if (z !== String(wantStrz)) continue;
-          }
-        }
-
-        if (weekendMode !== "all") {
-          const wd = String(pr.uwochentag ?? "");
-          const isWeekend = WEEKEND_SET.has(wd);
-          if (weekendMode === "weekend" && !isWeekend) continue;
-          if (weekendMode === "weekday" && isWeekend) continue;
-        }
-
-        const h = parseInt(pr.ustunde, 10);
-        if (Number.isNaN(h)) continue;
-        if (h < hFrom || h > hTo) continue;
-
-        const isRad  = String(pr?.istrad)  === "1";
-        const isFuss = String(pr?.istfuss) === "1";
-        const isPKW  = String(pr?.istpkw)  === "1";
-        const isKrad = String(pr?.istkrad) === "1";
-
-        if (!anySelected) continue;
-
-        if (involvementMode === "or") {
-          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-          if (!ok) continue;
-        } else if (involvementMode === "and") {
-          if (sRad  && !isRad)  continue;
-          if (sFuss && !isFuss) continue;
-          if (sPKW  && !isPKW)  continue;
-          if (sKrad && !isKrad) continue;
-        } else if (involvementMode === "solo") {
-          const involvedCount = (isRad?1:0) + (isFuss?1:0) + (isPKW?1:0) + (isKrad?1:0);
-          if (involvedCount !== 1) continue;
-          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-          if (!ok) continue;
-        }
-
-        out.push(p);
-        if (out.length >= maxN) break;
+    function buildYearOptions(features) {
+      var years = {};
+      for (var i=0; i<features.length; i++) {
+        var y = features[i] && features[i].properties ? features[i].properties.year : null;
+        if (y !== null && y !== undefined && y !== "") years[String(y)] = true;
       }
-
-      filteredGlobal = out;
+      var keys = Object.keys(years).sort();
+      for (var k=0; k<keys.length; k++){
+        var opt = document.createElement('option');
+        opt.value = keys[k];
+        opt.textContent = keys[k];
+        yearEl.appendChild(opt);
+      }
     }
 
-    function applyViewportFilter() {
-      const vb = getPaddedBounds();
-      const out = [];
-      for (const p of filteredGlobal) {
-        if (vb.contains([p.lat, p.lon])) out.push(p);
+    function buildStrzOptions(points) {
+      var codes = { "": true };
+      for (var i=0; i<points.length; i++){
+        var v = points[i] && points[i].props ? points[i].props.strzustand : "";
+        v = safeStr(v);
+        codes[v] = true;
       }
-      viewportPts = out;
+      var sorted = Object.keys(codes).sort(function(a,b){
+        var ai = (a === "" ? 999 : parseInt(a,10));
+        var bi = (b === "" ? 999 : parseInt(b,10));
+        return ai - bi;
+      });
+      for (var j=0; j<sorted.length; j++){
+        var c = sorted[j];
+        var opt = document.createElement('option');
+        opt.value = (c === "" ? "__unknown__" : c);
+        opt.textContent = strzText(c);
+        strzEl.appendChild(opt);
+      }
     }
 
-    function renderLayers() {
-      if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
-      if (heatLayer) { heatLayer.remove(); heatLayer = null; }
-
-      const pts = viewportPts;
-
-      if (showCluster) {
-        clusterLayer = L.markerClusterGroup({
-          chunkedLoading: true,
-          chunkInterval: 200,
-          spiderfyOnMaxZoom: true,
-          showCoverageOnHover: false
-        });
-
-        for (const p of pts) {
-          const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
-          m.bindPopup(popupHtml(p.props));
-          clusterLayer.addLayer(m);
-        }
-        clusterLayer.addTo(map);
+    function extractPoints(geojson) {
+      var pts = [];
+      var feats = geojson && geojson.features ? geojson.features : [];
+      for (var i=0; i<feats.length; i++){
+        var f = feats[i];
+        if (!f || !f.geometry || f.geometry.type !== "Point") continue;
+        var coord = f.geometry.coordinates;
+        if (!coord || coord.length < 2) continue;
+        var lon = coord[0], lat = coord[1];
+        if (typeof lat !== "number" || typeof lon !== "number") continue;
+        pts.push({ lat: lat, lon: lon, props: f.properties || {} });
       }
-
-      if (showHeat) {
-        const r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
-        const heatPts = pts.map(p => {
-          const k = String(p.props?.ukategorie || "");
-          const w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
-          return [p.lat, p.lon, w];
-        });
-
-        heatLayer = L.heatLayer(heatPts, { radius: r, blur: 18, maxZoom: 17 }).addTo(map);
-      }
-
-      statEl.textContent =
-        `Stadt: ${CITY_RAW}\n` +
-        `Gesamt geladen: ${allPts.length.toLocaleString()}\n` +
-        `Nach Filter: ${filteredGlobal.length.toLocaleString()}\n` +
-        `Im Viewport: ${viewportPts.length.toLocaleString()}`;
+      return pts;
     }
+
+    function computeBounds(pts){
+      if (!pts.length) return null;
+      var minLat=  999, maxLat= -999, minLon=  999, maxLon= -999;
+      for (var i=0; i<pts.length; i++){
+        var p = pts[i];
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lon < minLon) minLon = p.lon;
+        if (p.lon > maxLon) maxLon = p.lon;
+      }
+      if (minLat > maxLat || minLon > maxLon) return null;
+      return L.latLngBounds([minLat, minLon], [maxLat, maxLon]);
+    }
+
+    function getPaddedBounds() {
+      var padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
+      var b = map.getBounds();
+      var latSpan = b.getNorth() - b.getSouth();
+      var lonSpan = b.getEast() - b.getWest();
+      var dLat = latSpan * padPct;
+      var dLon = lonSpan * padPct;
+      return L.latLngBounds(
+        [b.getSouth() - dLat, b.getWest() - dLon],
+        [b.getNorth() + dLat, b.getEast() + dLon]
+      );
+    }
+
+    // ---------- State ----------
+    var showCluster = true;
+    var showHeat = true;
+
+    var all = null;
+    var allPts = [];
+    var filteredGlobal = [];
+    var viewportPts = [];
+
+    var clusterLayer = null;
+    var heatLayer = null;
 
     function setMode(next){
       involvementMode = next;
@@ -640,113 +542,272 @@
       renderLayers();
     }
 
-    let moveTimer = null;
+    function applyGlobalFilter() {
+      if (!all) return;
+
+      var wantYear = yearEl.value;
+      var wantKat = katEl.value;
+      var wantStrz = strzEl.value;
+
+      var maxN = Math.max(500, parseInt(maxEl.value || "40000", 10));
+
+      var hFrom = parseInt(hFromEl.value || "0", 10);
+      var hTo   = parseInt(hToEl.value || "23", 10);
+
+      var weekendMode = weekendEl.value;
+
+      var sRad  = tRadEl.checked;
+      var sFuss = tFussEl.checked;
+      var sPKW  = tPKWEl.checked;
+      var sKrad = tKradEl.checked;
+      var anySelected = sRad || sFuss || sPKW || sKrad;
+
+      var out = [];
+      for (var i=0; i<allPts.length; i++) {
+        var p = allPts[i];
+        var pr = p.props || {};
+
+        if (wantYear !== "all" && safeStr(pr.year) !== wantYear) continue;
+        if (wantKat !== "all" && safeStr(pr.ukategorie) !== wantKat) continue;
+
+        if (wantStrz !== "all") {
+          var z = safeStr(pr.strzustand);
+          if (wantStrz === "__unknown__") {
+            if (z !== "" && z !== "null" && z !== "undefined") continue;
+          } else {
+            if (z !== safeStr(wantStrz)) continue;
+          }
+        }
+
+        if (weekendMode !== "all") {
+          var wd = safeStr(pr.uwochentag);
+          var isWeekend = !!WEEKEND_SET[wd];
+          if (weekendMode === "weekend" && !isWeekend) continue;
+          if (weekendMode === "weekday" && isWeekend) continue;
+        }
+
+        var h = parseInt(pr.ustunde, 10);
+        if (isNaN(h)) continue;
+        if (h < hFrom || h > hTo) continue;
+
+        var isRad  = safeStr(pr.istrad)  === "1";
+        var isFuss = safeStr(pr.istfuss) === "1";
+        var isPKW  = safeStr(pr.istpkw)  === "1";
+        var isKrad = safeStr(pr.istkrad) === "1";
+
+        if (!anySelected) continue;
+
+        if (involvementMode === "or") {
+          var ok =
+            (sRad  && isRad)  ||
+            (sFuss && isFuss) ||
+            (sPKW  && isPKW)  ||
+            (sKrad && isKrad);
+          if (!ok) continue;
+        } else if (involvementMode === "and") {
+          if (sRad  && !isRad)  continue;
+          if (sFuss && !isFuss) continue;
+          if (sPKW  && !isPKW)  continue;
+          if (sKrad && !isKrad) continue;
+        } else if (involvementMode === "solo") {
+          var involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+          if (involvedCount !== 1) continue;
+          var ok2 =
+            (sRad  && isRad)  ||
+            (sFuss && isFuss) ||
+            (sPKW  && isPKW)  ||
+            (sKrad && isKrad);
+          if (!ok2) continue;
+        }
+
+        out.push(p);
+        if (out.length >= maxN) break;
+      }
+
+      filteredGlobal = out;
+    }
+
+    function applyViewportFilter() {
+      var vb = getPaddedBounds();
+      var out = [];
+      for (var i=0; i<filteredGlobal.length; i++) {
+        var p = filteredGlobal[i];
+        if (vb.contains([p.lat, p.lon])) out.push(p);
+      }
+      viewportPts = out;
+    }
+
+    function renderLayers() {
+      if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
+      if (heatLayer) { heatLayer.remove(); heatLayer = null; }
+
+      var pts = viewportPts;
+
+      if (showCluster) {
+        clusterLayer = L.markerClusterGroup({
+          chunkedLoading: true,
+          chunkInterval: 200,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false
+        });
+
+        for (var i=0; i<pts.length; i++) {
+          var p = pts[i];
+          var m = L.circleMarker([p.lat, p.lon], { radius: 4 });
+          m.bindPopup(popupHtml(p.props));
+          clusterLayer.addLayer(m);
+        }
+        clusterLayer.addTo(map);
+      }
+
+      if (showHeat) {
+        var r = Math.max(5, Math.min(60, parseInt(heatREl.value || "25", 10)));
+        var heatPts = [];
+        for (var j=0; j<pts.length; j++){
+          var pp = pts[j];
+          var k = safeStr((pp.props||{}).ukategorie);
+          var w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
+          heatPts.push([pp.lat, pp.lon, w]);
+        }
+
+        heatLayer = L.heatLayer(heatPts, { radius: r, blur: 18, maxZoom: 17 }).addTo(map);
+      }
+
+      var activeTypes = [];
+      if (tRadEl.checked) activeTypes.push("Rad");
+      if (tFussEl.checked) activeTypes.push("Fuß");
+      if (tPKWEl.checked) activeTypes.push("PKW");
+      if (tKradEl.checked) activeTypes.push("Krad");
+
+      var modeLabel = (involvementMode === "or") ? "ODER" : (involvementMode === "and") ? "UND" : "Alleinunfall";
+
+      setText(statEl,
+        "Stadt: " + cityRaw + " | " +
+        "Gesamt geladen: " + allPts.length.toLocaleString() + " | " +
+        "Nach Filter: " + filteredGlobal.length.toLocaleString() + " | " +
+        "Im Viewport: " + viewportPts.length.toLocaleString() + " | " +
+        "Beteiligung: " + (activeTypes.length ? activeTypes.join(", ") : "—") + " | " +
+        "Modus: " + modeLabel + " | " +
+        "Stunden: " + hFromEl.value + "–" + hToEl.value
+      );
+    }
+
+    var moveTimer = null;
     function scheduleViewportUpdate() {
       if (!all) return;
       if (moveTimer) clearTimeout(moveTimer);
-      moveTimer = setTimeout(() => {
+      moveTimer = setTimeout(function(){
         applyViewportFilter();
         renderLayers();
       }, 150);
     }
 
-    async function fetchWithTimeout(url, ms){
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(new Error(`Timeout nach ${ms}ms`)), ms);
-      try {
-        const r = await fetch(url, { cache: "no-store", signal: ctrl.signal });
-        return r;
-      } finally {
-        clearTimeout(t);
-      }
+    // ---------- Main ----------
+    function main() {
+      setText(statEl, "Lade Daten…\n" + DATA_URL);
+      dbg("Starting load: " + DATA_URL);
+
+      // Optional: Cache-Busting (falls Pages aggressiv cached)
+      var url = DATA_URL + "?v=" + Date.now();
+
+      return fetch(url, { cache: "no-store" }).then(function(resp){
+        dbg("HTTP status: " + resp.status);
+        if (!resp.ok) throw new Error("GeoJSON konnte nicht geladen werden (" + resp.status + "). Erwartet: " + DATA_URL);
+        return resp.text().then(function(txt){
+          // JSON parse mit besserer Fehlermeldung
+          try {
+            return JSON.parse(txt);
+          } catch (e) {
+            var head = txt.slice(0, 300);
+            var tail = txt.slice(Math.max(0, txt.length - 300));
+            throw new Error("JSON.parse failed: " + e + "\n---HEAD---\n" + head + "\n---TAIL---\n" + tail);
+          }
+        });
+      }).then(function(geo){
+        all = geo;
+
+        var feats = (all && all.features) ? all.features : [];
+        buildYearOptions(feats);
+
+        allPts = extractPoints(all);
+        buildStrzOptions(allPts);
+
+        // FitBounds auf komplette Daten (einmalig beim Laden)
+        var b = computeBounds(allPts);
+        if (b) {
+          map.fitBounds(b, { padding: [20,20] });
+          dbg("fitBounds applied.");
+        } else {
+          dbg("fitBounds skipped (no bounds).");
+        }
+
+        syncHourUI();
+
+        applyGlobalFilter();
+        applyViewportFilter();
+        renderLayers();
+
+        // Listeners
+        var simpleEls = [yearEl, katEl, maxEl, strzEl, weekendEl];
+        for (var i=0; i<simpleEls.length; i++){
+          simpleEls[i].addEventListener('change', function(){
+            applyGlobalFilter(); applyViewportFilter(); renderLayers();
+          });
+        }
+
+        hFromEl.addEventListener('input', function(){
+          syncHourUI("from");
+          applyGlobalFilter(); applyViewportFilter(); renderLayers();
+        });
+        hToEl.addEventListener('input', function(){
+          syncHourUI("to");
+          applyGlobalFilter(); applyViewportFilter(); renderLayers();
+        });
+
+        var chkEls = [tRadEl, tFussEl, tPKWEl, tKradEl];
+        for (var j=0; j<chkEls.length; j++){
+          chkEls[j].addEventListener('change', function(){
+            applyGlobalFilter(); applyViewportFilter(); renderLayers();
+          });
+        }
+
+        btnModeOr.addEventListener('click', function(){ setMode("or"); });
+        btnModeAnd.addEventListener('click', function(){ setMode("and"); });
+        btnModeSolo.addEventListener('click', function(){ setMode("solo"); });
+        setMode("or");
+
+        padEl.addEventListener('change', function(){ applyViewportFilter(); renderLayers(); });
+        heatREl.addEventListener('change', function(){ renderLayers(); });
+
+        btnCluster.addEventListener('click', function(){
+          showCluster = !showCluster;
+          setBtnState(btnCluster, showCluster);
+          renderLayers();
+        });
+        btnHeat.addEventListener('click', function(){
+          showHeat = !showHeat;
+          setBtnState(btnHeat, showHeat);
+          renderLayers();
+        });
+
+        setBtnState(btnCluster, showCluster);
+        setBtnState(btnHeat, showHeat);
+
+        map.on('moveend zoomend', scheduleViewportUpdate);
+
+      }).catch(function(err){
+        // Fehler sichtbar machen (UI + console)
+        console.error(err);
+        setText(statEl, "FEHLER:\n" + err);
+        dbg("ERROR: " + err);
+      });
     }
 
-    async function main() {
-      const t0 = performance.now();
-      statEl.textContent = `Lade Daten…\n${DATA_URL}`;
+    // Start
+    syncHourUI();
+    main();
 
-      const resp = await fetchWithTimeout(DATA_URL, 60000);
-      const cl = resp.headers.get("content-length");
-      const ct = resp.headers.get("content-type");
-
-      if (!resp.ok) {
-        throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status} ${resp.statusText}).\nURL: ${DATA_URL}`);
-      }
-
-      // Text lesen -> parse -> bessere Fehlersicht als resp.json() “black box”
-      const text = await resp.text();
-
-      let json;
-      try {
-        json = JSON.parse(text);
-      } catch (e) {
-        updateDebug(
-          `JSON.parse failed\n` +
-          `content-type: ${ct}\ncontent-length: ${cl}\n` +
-          `bytes: ${text.length}\n\n` +
-          `Fehler: ${String(e)}\n\n` +
-          `Erste 300 Zeichen:\n${text.slice(0,300)}\n\n` +
-          `Letzte 300 Zeichen:\n${text.slice(-300)}`
-        );
-        throw e;
-      }
-
-      all = json;
-      buildYearOptions(all.features || []);
-      allPts = extractPoints(all);
-      buildStrzOptions(allPts);
-
-      // FitBounds: auf ALLE Punkte (oder du nimmst filteredGlobal nach applyGlobalFilter)
-      fitToPoints(allPts);
-
-      syncHourUI();
-      applyGlobalFilter();
-      applyViewportFilter();
-      renderLayers();
-
-      const t1 = performance.now();
-      updateDebug(
-        `loaded OK\n` +
-        `content-type: ${ct}\ncontent-length: ${cl}\n` +
-        `text-bytes: ${text.length}\n` +
-        `points: ${allPts.length}\n` +
-        `time: ${(t1 - t0).toFixed(0)}ms`
-      );
-
-      for (const el of [yearEl, katEl, maxEl, strzEl, weekendEl]) {
-        el.addEventListener('change', () => { applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
-      }
-      hFromEl.addEventListener('input', () => { syncHourUI("from"); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
-      hToEl.addEventListener('input', () => { syncHourUI("to"); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
-
-      for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
-        el.addEventListener('change', () => { applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
-      }
-
-      btnModeOr.addEventListener('click', () => setMode("or"));
-      btnModeAnd.addEventListener('click', () => setMode("and"));
-      btnModeSolo.addEventListener('click', () => setMode("solo"));
-      setMode("or");
-
-      padEl.addEventListener('change', () => { applyViewportFilter(); renderLayers(); });
-      heatREl.addEventListener('change', () => renderLayers());
-
-      btnCluster.addEventListener('click', () => { showCluster = !showCluster; setBtnState(btnCluster, showCluster); renderLayers(); });
-      btnHeat.addEventListener('click', () => { showHeat = !showHeat; setBtnState(btnHeat, showHeat); renderLayers(); });
-
-      setBtnState(btnCluster, showCluster);
-      setBtnState(btnHeat, showHeat);
-
-      map.on('moveend zoomend', scheduleViewportUpdate);
-    }
-
-    main().catch(err => {
-      console.error(err);
-      statEl.textContent = `ERROR:\n${String(err)}\n\nURL:\n${DATA_URL}`;
-      debugBox.style.display = "block";
-      dbgCounts.textContent = `Console öffnen: Network/Console prüfen.\n${String(err)}`;
-      alert(String(err));
-    });
+  })();
   </script>
 </body>
 </html>
