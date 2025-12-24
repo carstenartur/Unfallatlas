@@ -1,0 +1,27 @@
+name: Validate GeoJSON
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "out/**/*.geojson"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Validate all GeoJSON files
+        run: |
+          set -e
+          echo "Validating GeoJSON files..."
+          for f in out/**/*.geojson; do
+            echo "→ $f"
+            jq -e . "$f" > /dev/null
+          done
+          echo "✅ All GeoJSON files are valid JSON."
