@@ -6,39 +6,27 @@
   <title>Unfallatlas – Webkarte (Viewport + Cluster + Heatmap)</title>
 
   <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9IIN+0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9IIN+0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
 
   <!-- MarkerCluster -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
-    crossorigin=""
-  />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
-    crossorigin=""
-  />
-  <script
-    src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
-    crossorigin=""
-  ></script>
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+        crossorigin="" />
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+          crossorigin=""></script>
 
   <!-- Heatmap plugin -->
-  <script
-    src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
-    crossorigin=""
-  ></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+          crossorigin=""></script>
 
   <style>
     html, body { height: 100%; margin: 0; }
@@ -54,7 +42,6 @@
       font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       max-width: 380px;
     }
-
     .panelHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .panelTitle { font-weight: 800; }
     .panelSub { color:#666; font-weight:600; }
@@ -69,7 +56,6 @@
       font-weight:700;
       line-height: 1;
     }
-    .collapseBtn:hover { background: rgba(240,240,240,.82); }
 
     .panelBody { margin-top: 8px; }
     .panel.collapsed .panelBody { display:none; }
@@ -113,7 +99,7 @@
     .chip span { font-weight: 700; }
 
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
-    .stat { margin-top: 8px; font-size: 12px; color: #333; }
+    .stat { margin-top: 8px; font-size: 12px; color: #333; white-space: pre-wrap; }
     code { background: rgba(243,243,243,.82); padding: 1px 4px; border-radius: 6px; }
 
     .debugBox {
@@ -124,47 +110,37 @@
       background: rgba(255,255,255,.62);
       font-size: 12px;
       color:#333;
+      white-space: pre-wrap;
     }
     .debugBox strong { font-weight: 800; }
 
-    /* === Dual Range === */
+    /* Dual range */
     .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
     .dualRange { position: relative; height: 26px; }
     .dualRange input[type="range"]{
-      position: absolute;
-      left: 0; right: 0;
-      top: 0;
-      width: 100%;
-      margin: 0;
-      padding: 0;
+      position: absolute; left: 0; right: 0; top: 0;
+      width: 100%; margin: 0; padding: 0;
       background: transparent;
       pointer-events: none;
-      -webkit-appearance: none;
-      appearance: none;
+      -webkit-appearance: none; appearance: none;
       height: 26px;
     }
     .dualRange input[type="range"]::-webkit-slider-thumb{
       pointer-events: auto;
-      -webkit-appearance: none;
-      appearance: none;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
       border: 1px solid rgba(0,0,0,.25);
       background: rgba(255,255,255,.95);
       box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
     .dualRange input[type="range"]::-moz-range-thumb{
       pointer-events: auto;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
+      width: 18px; height: 18px; border-radius: 50%;
       border: 1px solid rgba(0,0,0,.25);
       background: rgba(255,255,255,.95);
       box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
-
     .dualRangeTrack{
       position:absolute; left:0; right:0;
       top: 50%; transform: translateY(-50%);
@@ -180,6 +156,7 @@
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
 
@@ -233,17 +210,13 @@
             <span>von: <strong id="hFromLbl">0</strong></span>
             <span>bis: <strong id="hToLbl">23</strong></span>
           </div>
-
           <div class="dualRange" aria-label="Stundenbereich">
             <div class="dualRangeTrack"></div>
             <div class="dualRangeFill" id="hourFill"></div>
             <input id="hFrom" type="range" min="0" max="23" step="1" value="0" />
             <input id="hTo" type="range" min="0" max="23" step="1" value="23" />
           </div>
-
-          <div class="muted" style="margin-top:0;">
-            (Kein Wrap-around mehr: Start ist immer ≤ Ende.)
-          </div>
+          <div class="muted" style="margin-top:0;">(Kein Wrap-around mehr: Start ist immer ≤ Ende.)</div>
         </div>
       </div>
 
@@ -286,7 +259,7 @@
       <div class="stat" id="stat">Lade Daten…</div>
 
       <div class="debugBox" id="debugBox" style="display:none;">
-        <strong>Debug (Daten enthalten):</strong><br/>
+        <strong>Debug:</strong><br/>
         <span id="dbgCounts">—</span>
       </div>
 
@@ -316,41 +289,34 @@
       return (c && c.trim()) ? c.trim() : DEFAULT_CITY;
     }
 
-    function nextFrame(){
-      return new Promise(r => requestAnimationFrame(() => r()));
-    }
+    // --- UI elements
+    const panelSubEl = document.getElementById("panelSub");
+    const dataSourceCodeEl = document.getElementById("dataSourceCode");
+    const statEl = document.getElementById('stat');
 
     const CITY_RAW = getCityFromUrl();
     const CITY_SUFFIX = normKey(CITY_RAW);
-    const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
 
-    const panelSubEl = document.getElementById("panelSub");
-    const dataSourceCodeEl = document.getElementById("dataSourceCode");
+    // Cache-Buster: damit du wirklich das Pages-Artefakt der aktuellen Deploy-Version holst
+    const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson?v=${Date.now()}`;
+
     panelSubEl.textContent = `(Viewport-Render) – Stadt: ${CITY_RAW}`;
     dataSourceCodeEl.textContent = DATA_URL;
 
-    // ========= Map =========
-    // Start absichtlich „neutral“ (Deutschland), damit man bei Städten nicht „ins Nichts“ startet.
-    const map = L.map('map', { preferCanvas: true }).setView([51.1657, 10.4515], 6);
+    // --- Map: sofort anzeigen (nicht auf Daten warten)
+    const map = L.map('map', { preferCanvas: true });
+
+    // fallback Start-View (wird später per fitBounds überschrieben)
+    map.setView([51.1657, 10.4515], 6);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap-Mitwirkende'
     }).addTo(map);
 
-    const WEEKEND_SET = new Set(["1","7"]); // Sonntag + Samstag
-
-    const STRZ_LABEL = {
-      "0": "0 – trocken",
-      "1": "1 – nass/feucht",
-      "2": "2 – winterglatt",
-      "":  "— unbekannt"
-    };
-
-    // Panel collapse
+    // Collapse
     const panelEl = document.getElementById('panel');
     const collapseBtn = document.getElementById('collapseBtn');
-
     function setCollapsed(on){
       panelEl.classList.toggle('collapsed', on);
       collapseBtn.textContent = on ? "▸" : "▾";
@@ -360,13 +326,12 @@
     if (savedCollapsed === "1") setCollapsed(true);
     collapseBtn.addEventListener('click', () => setCollapsed(!panelEl.classList.contains('collapsed')));
 
-    // UI
+    // Remaining UI refs
     const yearEl = document.getElementById('year');
     const katEl = document.getElementById('kat');
     const maxEl = document.getElementById('maxn');
     const padEl = document.getElementById('pad');
     const heatREl = document.getElementById('heatR');
-    const statEl = document.getElementById('stat');
     const btnCluster = document.getElementById('toggleCluster');
     const btnHeat = document.getElementById('toggleHeat');
 
@@ -392,6 +357,9 @@
     const debugBox = document.getElementById('debugBox');
     const dbgCounts = document.getElementById('dbgCounts');
 
+    const WEEKEND_SET = new Set(["1","7"]);
+    const STRZ_LABEL = { "0":"0 – trocken", "1":"1 – nass/feucht", "2":"2 – winterglatt", "":"— unbekannt" };
+
     let showCluster = true;
     let showHeat = true;
 
@@ -404,16 +372,6 @@
     let heatLayer = null;
 
     function setBtnState(btn, on) { btn.classList.toggle('active', on); }
-
-    function setMode(next){
-      involvementMode = next;
-      setBtnState(btnModeOr, next === "or");
-      setBtnState(btnModeAnd, next === "and");
-      setBtnState(btnModeSolo, next === "solo");
-      applyGlobalFilter();
-      applyViewportFilter();
-      renderLayers();
-    }
 
     function escHtml(s) {
       return String(s ?? "")
@@ -496,6 +454,20 @@
       return pts;
     }
 
+    function fitToPoints(points){
+      if (!points.length) return;
+      // optional: für FitBounds nicht ALLE Punkte nehmen (aber hier meist ok)
+      let minLat=  90, maxLat= -90, minLon= 180, maxLon=-180;
+      for (const p of points) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lon < minLon) minLon = p.lon;
+        if (p.lon > maxLon) maxLon = p.lon;
+      }
+      const b = L.latLngBounds([minLat, minLon], [maxLat, maxLon]);
+      if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+    }
+
     function getPaddedBounds() {
       const padPct = Math.max(0, Math.min(100, parseInt(padEl.value || "20", 10))) / 100.0;
       const b = map.getBounds();
@@ -530,35 +502,9 @@
       hourFill.style.right = `${rightPct}%`;
     }
 
-    function countInvolvement(points){
-      let rad=0, fuss=0, pkw=0, krad=0, solo=0, radpkw=0;
-      for (const p of points) {
-        const pr = p.props || {};
-        const isRad  = String(pr?.istrad)  === "1";
-        const isFuss = String(pr?.istfuss) === "1";
-        const isPKW  = String(pr?.istpkw)  === "1";
-        const isKrad = String(pr?.istkrad) === "1";
-
-        if (isRad) rad++;
-        if (isFuss) fuss++;
-        if (isPKW) pkw++;
-        if (isKrad) krad++;
-
-        const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
-        if (c === 1) solo++;
-        if (isRad && isPKW) radpkw++;
-      }
-      return {rad,fuss,pkw,krad,solo,radpkw};
-    }
-
-    function updateDebugBox(){
-      const c = countInvolvement(allPts);
+    function updateDebug(msg){
       debugBox.style.display = "block";
-      dbgCounts.textContent =
-        `Rad: ${c.rad.toLocaleString()} | Fuß: ${c.fuss.toLocaleString()} | ` +
-        `PKW: ${c.pkw.toLocaleString()} | Krad: ${c.krad.toLocaleString()} | ` +
-        `Alleinunfälle (gesamt): ${c.solo.toLocaleString()} | ` +
-        `Kombi Rad+PKW: ${c.radpkw.toLocaleString()}`;
+      dbgCounts.textContent = msg;
     }
 
     function applyGlobalFilter() {
@@ -569,10 +515,8 @@
       const wantStrz = strzEl.value;
 
       const maxN = Math.max(500, parseInt(maxEl.value || "40000", 10));
-
       const hFrom = parseInt(hFromEl.value || "0", 10);
       const hTo   = parseInt(hToEl.value || "23", 10);
-
       const weekendMode = weekendEl.value;
 
       const sRad  = tRadEl.checked;
@@ -616,11 +560,7 @@
         if (!anySelected) continue;
 
         if (involvementMode === "or") {
-          const ok =
-            (sRad  && isRad)  ||
-            (sFuss && isFuss) ||
-            (sPKW  && isPKW)  ||
-            (sKrad && isKrad);
+          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
           if (!ok) continue;
         } else if (involvementMode === "and") {
           if (sRad  && !isRad)  continue;
@@ -628,18 +568,9 @@
           if (sPKW  && !isPKW)  continue;
           if (sKrad && !isKrad) continue;
         } else if (involvementMode === "solo") {
-          const involvedCount =
-            (isRad  ? 1 : 0) +
-            (isFuss ? 1 : 0) +
-            (isPKW  ? 1 : 0) +
-            (isKrad ? 1 : 0);
+          const involvedCount = (isRad?1:0) + (isFuss?1:0) + (isPKW?1:0) + (isKrad?1:0);
           if (involvedCount !== 1) continue;
-
-          const ok =
-            (sRad  && isRad)  ||
-            (sFuss && isFuss) ||
-            (sPKW  && isPKW)  ||
-            (sKrad && isKrad);
+          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
           if (!ok) continue;
         }
 
@@ -689,32 +620,24 @@
           return [p.lat, p.lon, w];
         });
 
-        heatLayer = L.heatLayer(heatPts, {
-          radius: r,
-          blur: 18,
-          maxZoom: 17
-        }).addTo(map);
+        heatLayer = L.heatLayer(heatPts, { radius: r, blur: 18, maxZoom: 17 }).addTo(map);
       }
 
-      const activeTypes = [
-        tRadEl.checked ? "Rad" : null,
-        tFussEl.checked ? "Fuß" : null,
-        tPKWEl.checked ? "PKW" : null,
-        tKradEl.checked ? "Krad" : null
-      ].filter(Boolean).join(", ");
-
-      const modeLabel =
-        involvementMode === "or" ? "ODER" :
-        involvementMode === "and" ? "UND" : "Alleinunfall";
-
       statEl.textContent =
-        `Stadt: ${CITY_RAW} | ` +
-        `Gesamt geladen: ${allPts.length.toLocaleString()} | ` +
-        `Nach Filter: ${filteredGlobal.length.toLocaleString()} | ` +
-        `Im Viewport: ${viewportPts.length.toLocaleString()} | ` +
-        `Beteiligung: ${activeTypes || "—"} | ` +
-        `Modus: ${modeLabel} | ` +
-        `Stunden: ${hFromEl.value}–${hToEl.value}`;
+        `Stadt: ${CITY_RAW}\n` +
+        `Gesamt geladen: ${allPts.length.toLocaleString()}\n` +
+        `Nach Filter: ${filteredGlobal.length.toLocaleString()}\n` +
+        `Im Viewport: ${viewportPts.length.toLocaleString()}`;
+    }
+
+    function setMode(next){
+      involvementMode = next;
+      setBtnState(btnModeOr, next === "or");
+      setBtnState(btnModeAnd, next === "and");
+      setBtnState(btnModeSolo, next === "solo");
+      applyGlobalFilter();
+      applyViewportFilter();
+      renderLayers();
     }
 
     let moveTimer = null;
@@ -727,72 +650,77 @@
       }, 150);
     }
 
+    async function fetchWithTimeout(url, ms){
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(new Error(`Timeout nach ${ms}ms`)), ms);
+      try {
+        const r = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+        return r;
+      } finally {
+        clearTimeout(t);
+      }
+    }
+
     async function main() {
-      // 1) Karte/Tiles sicher rendern lassen, bevor schwere Arbeit beginnt
-      statEl.textContent = `Karte initialisiert… lade ${DATA_URL} …`;
-      await nextFrame();
+      const t0 = performance.now();
+      statEl.textContent = `Lade Daten…\n${DATA_URL}`;
 
-      // 2) Daten laden
-      const resp = await fetch(DATA_URL, { cache: "no-store" });
+      const resp = await fetchWithTimeout(DATA_URL, 60000);
+      const cl = resp.headers.get("content-length");
+      const ct = resp.headers.get("content-type");
+
       if (!resp.ok) {
-        // optional: ein bisschen Body lesen (hilft bei 404 HTML)
-        let body = "";
-        try { body = (await resp.text()).slice(0, 200); } catch {}
-        throw new Error(
-          `GeoJSON konnte nicht geladen werden (${resp.status}). URL: ${DATA_URL}\n` +
-          (body ? `Antwort (Snippet): ${body}` : "")
+        throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status} ${resp.statusText}).\nURL: ${DATA_URL}`);
+      }
+
+      // Text lesen -> parse -> bessere Fehlersicht als resp.json() “black box”
+      const text = await resp.text();
+
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (e) {
+        updateDebug(
+          `JSON.parse failed\n` +
+          `content-type: ${ct}\ncontent-length: ${cl}\n` +
+          `bytes: ${text.length}\n\n` +
+          `Fehler: ${String(e)}\n\n` +
+          `Erste 300 Zeichen:\n${text.slice(0,300)}\n\n` +
+          `Letzte 300 Zeichen:\n${text.slice(-300)}`
         );
+        throw e;
       }
 
-      // 3) JSON parsen (kann CPU ziehen)
-      statEl.textContent = `Daten geladen… parse JSON… (${DATA_URL})`;
-      await nextFrame();
-      all = await resp.json();
-
-      // 4) Punkte extrahieren
-      statEl.textContent = `Extrahiere Punkte…`;
-      await nextFrame();
-      allPts = extractPoints(all);
-
-      // 5) FitBounds auf Daten (DAS ist dein gewünschter Teil)
-      if (allPts.length) {
-        const b = L.latLngBounds(allPts.map(p => [p.lat, p.lon]));
-        map.fitBounds(b.pad(0.05)); // 5% Luft
-      }
-
-      // 6) UI aufbauen + rendern
+      all = json;
       buildYearOptions(all.features || []);
+      allPts = extractPoints(all);
       buildStrzOptions(allPts);
-      updateDebugBox();
-      syncHourUI();
 
+      // FitBounds: auf ALLE Punkte (oder du nimmst filteredGlobal nach applyGlobalFilter)
+      fitToPoints(allPts);
+
+      syncHourUI();
       applyGlobalFilter();
       applyViewportFilter();
       renderLayers();
 
-      for (const el of [yearEl, katEl, maxEl, strzEl, weekendEl]) {
-        el.addEventListener('change', () => {
-          applyGlobalFilter();
-          applyViewportFilter();
-          renderLayers();
-        });
-      }
+      const t1 = performance.now();
+      updateDebug(
+        `loaded OK\n` +
+        `content-type: ${ct}\ncontent-length: ${cl}\n` +
+        `text-bytes: ${text.length}\n` +
+        `points: ${allPts.length}\n` +
+        `time: ${(t1 - t0).toFixed(0)}ms`
+      );
 
-      hFromEl.addEventListener('input', () => {
-        syncHourUI("from");
-        applyGlobalFilter(); applyViewportFilter(); renderLayers();
-      });
-      hToEl.addEventListener('input', () => {
-        syncHourUI("to");
-        applyGlobalFilter(); applyViewportFilter(); renderLayers();
-      });
+      for (const el of [yearEl, katEl, maxEl, strzEl, weekendEl]) {
+        el.addEventListener('change', () => { applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
+      }
+      hFromEl.addEventListener('input', () => { syncHourUI("from"); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
+      hToEl.addEventListener('input', () => { syncHourUI("to"); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
 
       for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
-        el.addEventListener('change', () => {
-          applyGlobalFilter();
-          applyViewportFilter();
-          renderLayers();
-        });
+        el.addEventListener('change', () => { applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
       }
 
       btnModeOr.addEventListener('click', () => setMode("or"));
@@ -803,16 +731,8 @@
       padEl.addEventListener('change', () => { applyViewportFilter(); renderLayers(); });
       heatREl.addEventListener('change', () => renderLayers());
 
-      btnCluster.addEventListener('click', () => {
-        showCluster = !showCluster;
-        setBtnState(btnCluster, showCluster);
-        renderLayers();
-      });
-      btnHeat.addEventListener('click', () => {
-        showHeat = !showHeat;
-        setBtnState(btnHeat, showHeat);
-        renderLayers();
-      });
+      btnCluster.addEventListener('click', () => { showCluster = !showCluster; setBtnState(btnCluster, showCluster); renderLayers(); });
+      btnHeat.addEventListener('click', () => { showHeat = !showHeat; setBtnState(btnHeat, showHeat); renderLayers(); });
 
       setBtnState(btnCluster, showCluster);
       setBtnState(btnHeat, showHeat);
@@ -822,7 +742,9 @@
 
     main().catch(err => {
       console.error(err);
-      statEl.textContent = `FEHLER: ${String(err)}`;
+      statEl.textContent = `ERROR:\n${String(err)}\n\nURL:\n${DATA_URL}`;
+      debugBox.style.display = "block";
+      dbgCounts.textContent = `Console öffnen: Network/Console prüfen.\n${String(err)}`;
       alert(String(err));
     });
   </script>
