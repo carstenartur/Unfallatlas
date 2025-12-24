@@ -127,7 +127,7 @@
     }
     .debugBox strong { font-weight: 800; }
 
-    /* === Dual Range (wie ein Slider mit 2 Knöpfen) === */
+    /* === Dual Range === */
     .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
     .dualRange { position: relative; height: 26px; }
@@ -298,7 +298,6 @@
   </div>
 
   <script>
-    // ========= NEU: City aus URL + Dateiname ableiten =========
     const DEFAULT_CITY = "Hannover";
 
     function normKey(s){
@@ -317,18 +316,22 @@
       return (c && c.trim()) ? c.trim() : DEFAULT_CITY;
     }
 
+    function nextFrame(){
+      return new Promise(r => requestAnimationFrame(() => r()));
+    }
+
     const CITY_RAW = getCityFromUrl();
     const CITY_SUFFIX = normKey(CITY_RAW);
     const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
 
-    // Panel subtitle + Quelle aktualisieren
     const panelSubEl = document.getElementById("panelSub");
     const dataSourceCodeEl = document.getElementById("dataSourceCode");
     panelSubEl.textContent = `(Viewport-Render) – Stadt: ${CITY_RAW}`;
     dataSourceCodeEl.textContent = DATA_URL;
 
     // ========= Map =========
-    const map = L.map('map', { preferCanvas: true }).setView([52.3759, 9.7320], 12);
+    // Start absichtlich „neutral“ (Deutschland), damit man bei Städten nicht „ins Nichts“ startet.
+    const map = L.map('map', { preferCanvas: true }).setView([51.1657, 10.4515], 6);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -725,17 +728,41 @@
     }
 
     async function main() {
+      // 1) Karte/Tiles sicher rendern lassen, bevor schwere Arbeit beginnt
+      statEl.textContent = `Karte initialisiert… lade ${DATA_URL} …`;
+      await nextFrame();
+
+      // 2) Daten laden
       const resp = await fetch(DATA_URL, { cache: "no-store" });
       if (!resp.ok) {
-        throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}). Erwartet: ${DATA_URL}\n` +
-                        `Tipp: Datei existiert? (Suffix: "${CITY_SUFFIX}")`);
+        // optional: ein bisschen Body lesen (hilft bei 404 HTML)
+        let body = "";
+        try { body = (await resp.text()).slice(0, 200); } catch {}
+        throw new Error(
+          `GeoJSON konnte nicht geladen werden (${resp.status}). URL: ${DATA_URL}\n` +
+          (body ? `Antwort (Snippet): ${body}` : "")
+        );
       }
 
+      // 3) JSON parsen (kann CPU ziehen)
+      statEl.textContent = `Daten geladen… parse JSON… (${DATA_URL})`;
+      await nextFrame();
       all = await resp.json();
-      buildYearOptions(all.features || []);
-      allPts = extractPoints(all);
-      buildStrzOptions(allPts);
 
+      // 4) Punkte extrahieren
+      statEl.textContent = `Extrahiere Punkte…`;
+      await nextFrame();
+      allPts = extractPoints(all);
+
+      // 5) FitBounds auf Daten (DAS ist dein gewünschter Teil)
+      if (allPts.length) {
+        const b = L.latLngBounds(allPts.map(p => [p.lat, p.lon]));
+        map.fitBounds(b.pad(0.05)); // 5% Luft
+      }
+
+      // 6) UI aufbauen + rendern
+      buildYearOptions(all.features || []);
+      buildStrzOptions(allPts);
       updateDebugBox();
       syncHourUI();
 
@@ -795,7 +822,7 @@
 
     main().catch(err => {
       console.error(err);
-      statEl.textContent = String(err);
+      statEl.textContent = `FEHLER: ${String(err)}`;
       alert(String(err));
     });
   </script>
