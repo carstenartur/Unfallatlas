@@ -18,10 +18,23 @@ jobs:
 
       - name: Validate all GeoJSON files
         run: |
-          set -e
-          echo "Validating GeoJSON files..."
-          for f in out/**/*.geojson; do
-            echo "→ $f"
-            jq -e . "$f" > /dev/null
-          done
-          echo "✅ All GeoJSON files are valid JSON."
+    set -euo pipefail
+    echo "Validating GeoJSON files..."
+
+    mapfile -t files < <(find out -type f -name '*.geojson' -print | sort)
+
+    if [ "${#files[@]}" -eq 0 ]; then
+      echo "ERROR: No .geojson files found under ./out"
+      echo "Repo root content:"
+      ls -la
+      echo "./out content:"
+      ls -la out || true
+      exit 2
+    fi
+
+    for f in "${files[@]}"; do
+      echo "→ $f"
+      jq -e . "$f" > /dev/null
+    done
+
+    echo "✅ All GeoJSON files are valid JSON."
