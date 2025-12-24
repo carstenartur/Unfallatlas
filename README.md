@@ -169,6 +169,14 @@ out/
 ```
 https://carstenartur.github.io/Unfallatlas/
 
+Wählt man dann zb Alleinunfälle Radfahrer entdeckt man auf der Karte
+einen Strassenabschnitt vor dem Theathermuseum mit
+einer starken Häufung. man kann dann leicht einsehen warum das so ist.
+Es kommen 3 Dinge zusammen:
+1. schlechter Strassenzustand
+2. Kopfsteinpflaster
+3. Strassenbahnschienen
+
 
 ---
 
