@@ -22,7 +22,7 @@ jobs:
       - name: Run das Shellscript
         run: |
           chmod +x ./convertAmt2gmaps.sh
-          ./convertAmt2gmaps.sh --limit 0 --city hannover --city bonn --city düsseldorf --city berlin --rad "" --pkw "" --fuss "" --krad ""
+          ./convertAmt2gmaps.sh --limit 0 --city hannover --city bonn --city düsseldorf --city berlin --city hamburg --city wolfsburg --city braunschweig --city heilbronn --rad "" --pkw "" --fuss "" --krad ""
 
       - name: Validate GeoJSON outputs
         run: |
