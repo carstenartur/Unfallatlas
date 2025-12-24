@@ -236,6 +236,21 @@ https://www.govdata.de/dl-de/by-2-0
 
 ---
 
+## Verwendete Bibliotheken und Dienste
+
+Für die interaktive Kartenvisualisierung werden folgende Open-Source-
+Bibliotheken und Dienste verwendet:
+
+- Leaflet (https://leafletjs.com/) – BSD-2-Clause License
+- Leaflet.markercluster – MIT License
+- leaflet.heat – MIT License
+- OpenStreetMap Kartenkacheln  
+  © OpenStreetMap-Mitwirkende, Lizenz: https://www.openstreetmap.org/copyright
+
+Die Kartenkacheln werden ausschließlich zur Darstellung verwendet.
+
+---
+
 ## Weitere Informationen
 
 https://urban-digital.de/mit-simra-sicherheit-im-radverkehr-herausfinden-wo-sich-beinaheunfaelle-im-radverkehr-haeufen/  
