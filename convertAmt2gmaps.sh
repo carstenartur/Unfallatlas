@@ -55,6 +55,21 @@ bonn|05314000
 muenster|05515000
 karlsruhe|08212000
 mannheim|08222000
+augsburg|09761000
+braunschweig|03101000
+freiburg_im_breisgau|08311000
+heidelberg|08221000
+heilbronn|08121000
+kiel|01002000
+krefeld|05114000
+luebeck|01003000
+mainz|07315000
+potsdam|12054000
+regensburg|09362000
+rostock|13003000
+saarbruecken|10041000
+wiesbaden|06414000
+wolfsburg|03103000
 EOF
 )"
 
