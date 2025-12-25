@@ -723,21 +723,21 @@
     }
 
     function classifyPoint(pr){
-      const isRad  = String(pr?.istrad)  === "1";
-      const isFuss = String(pr?.istfuss) === "1";
-      const isPKW  = String(pr?.istpkw)  === "1";
-      const isKrad = String(pr?.istkrad) === "1";
-      const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
-      return {
-        radSolo:  (isRad && c===1),
-        fussSolo: (isFuss && c===1),
-        pkwSolo:  (isPKW && c===1),
-        kradSolo: (isKrad && c===1),
-        radPkw:   (isRad && isPKW),
-        radFuss:  (isRad && isFuss),
-        pkwFuss:  (isPKW && isFuss)
-      };
-    }
+  const isRad  = String(pr?.istrad)  === "1";
+  const isFuss = String(pr?.istfuss) === "1";
+  const isPKW  = String(pr?.istpkw)  === "1";
+  const isKrad = String(pr?.istkrad) === "1";
+  const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+  return {
+    radSolo:  (isRad && c===1),
+    fussSolo: (isFuss && c===1),
+    pkwSolo:  (isPKW && c===1),
+    kradSolo: (isKrad && c===1),
+    radPkw:   (isRad && isPKW),
+    radFuss:  (isRad && isFuss),
+    pkwFuss:  (isPKW && isFuss)
+  };
+}
     function countPatterns(points){
       const res = { total: 0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
       for (const p of points) {
