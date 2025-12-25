@@ -456,6 +456,9 @@
     let filteredGlobal = [];
     let viewportPts = [];
 
+    // Cache: city-wide ratios for current filter set (used for "above-average" highlighting)
+    let baselineCounts = null;
+
     let clusterLayer = null;
     let heatLayer = null;
 
@@ -608,6 +611,17 @@
       const anySelected = sRad || sFuss || sPKW || sKrad;
 
       const out = [];
+      // Compute baseline (city-wide) pattern counts for the current filters in the same pass
+      const baseline = {
+        total: 0,
+        soloRad: 0,
+        soloFuss: 0,
+        soloPKW: 0,
+        soloKrad: 0,
+        radPkw: 0,
+        radFuss: 0,
+        pkwFuss: 0
+      };
       for (const p of allPts) {
         const pr = p.props || {};
         if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
@@ -656,9 +670,22 @@
         }
 
         out.push(p);
+
+        // baseline update
+        baseline.total++;
+        const cls = classifyPoint(pr);
+        if (cls === "soloRad") baseline.soloRad++;
+        else if (cls === "soloFuss") baseline.soloFuss++;
+        else if (cls === "soloPKW") baseline.soloPKW++;
+        else if (cls === "soloKrad") baseline.soloKrad++;
+        else if (cls === "radPkw") baseline.radPkw++;
+        else if (cls === "radFuss") baseline.radFuss++;
+        else if (cls === "pkwFuss") baseline.pkwFuss++;
+
         if (out.length >= maxN) break;
       }
       filteredGlobal = out;
+      baselineCounts = baseline;
     }
 
     function applyViewportFilter() {
