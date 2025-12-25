@@ -1,0 +1,17 @@
+Bewertung – Auffällige Häufung von Rad-Alleinunfällen
+
+Im untersuchten Bereich ist der Anteil von Rad-Alleinunfällen im Vergleich zum Stadtgebiet deutlich erhöht (Faktor {{RAD_SOLO_FACTOR}}; lokal {{RAD_SOLO_LOCAL}} Fälle gegenüber stadtweit {{RAD_SOLO_CITY}} Fällen unter vergleichbarer Grundgesamtheit).
+
+Ein erhöhtes Vorkommen von Rad-Alleinunfällen deutet häufig auf infrastrukturelle Risiken hin, bei denen Radfahrende ohne direkte Fremdbeteiligung stürzen. Typische Ursachen sind unter anderem:
+- Schienenquerungen im Fahrbahnbereich bzw. in Radverkehrsführungen (Rillen-/Spurrinnenproblematik, ungünstige Querungswinkel),
+- Kanten, Schadstellen, Belagswechsel, abgesenkte oder hochstehende Schachtabdeckungen,
+- Engstellen oder unklare Führung (Ausweichmanöver), insbesondere bei Mischnutzung.
+
+Handlungsvorschläge (prüffähig):
+1) Örtliche Begehung mit Fokus auf Querungsstellen, Belagszustand, Kanten und Fugen.
+2) Prüfung der Radverkehrsführung im Bereich: möglichst rechtwinklige Querung potenzieller Rillen/Schienen, Reduktion kritischer Kanten, Oberflächenangleichungen.
+3) Kurzfristige Maßnahmen: Warnmarkierung, Piktogramme, Hinweisbeschilderung (z. B. „Schienen“, „Rutschgefahr“), punktuelle Instandsetzung.
+4) Mittelfristig: Umbau-/Führungsvarianten zur sicheren Radführung (Führung abseits kritischer Querungen, bauliche Anpassungen).
+
+Hinweis zur Interpretation:
+Allein aus der Unfallart lässt sich die Ursache (z. B. Schienen) nicht beweisen; die Häufung ist ein starker Hinweis auf prüfbedürftige Örtlichkeit.
