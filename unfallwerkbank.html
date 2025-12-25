@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Unfallatlas – Analyse & Export (Prototyp)</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+
+  <!-- MarkerCluster -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+        crossorigin="" />
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+          crossorigin=""></script>
+
+  <!-- Heat -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+          crossorigin=""></script>
+
+  <!-- Leaflet Draw (Auswahl Rechteck/Polygon) -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"
+          crossorigin=""></script>
+
+  <!-- leaflet-image (Map -> PNG) -->
+  <script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js"
+          crossorigin=""></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; }
+
+    .panel{
+      position:absolute; top:10px; left:10px; z-index:1000;
+      background: rgba(255,255,255,.78);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding: 10px 12px;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.18);
+      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      max-width: 420px;
+      overflow: auto;
+      max-height: calc(100% - 20px);
+    }
+    .panelHeader{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+    .panelTitle{font-weight:900;}
+    .panelSub{color:#666; font-weight:700;}
+    .btnRow{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+    .btn{
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      background: rgba(250,250,250,.76);
+      cursor:pointer;
+      user-select:none;
+      font-weight:800;
+      text-align:center;
+      flex: 1;
+      min-width: 120px;
+    }
+    .btn.active{ background: rgba(233,242,255,.82); border-color: rgba(183,212,255,.95); }
+    .row { display:grid; grid-template-columns: 120px 1fr; gap:8px; align-items:center; margin-top:8px; }
+    label{font-weight:700;}
+    select,input{
+      width:100%; padding:6px 8px;
+      border:1px solid #ddd; border-radius:8px;
+      font: inherit;
+      background: rgba(255,255,255,.85);
+    }
+    .chipline{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+    .chip{
+      display:inline-flex; gap:8px; align-items:center;
+      border:1px solid #ddd; background:rgba(255,255,255,.8);
+      border-radius:999px; padding:6px 10px;
+      user-select:none;
+    }
+    .chip input{width:auto;}
+    .h2{ margin-top:10px; font-weight:900; }
+    .muted{ color:#666; font-size:12px; margin-top:8px; }
+    .box{
+      margin-top:8px;
+      padding:8px 10px;
+      border:1px dashed rgba(0,0,0,.25);
+      border-radius:10px;
+      background: rgba(255,255,255,.66);
+      font-size:12px;
+    }
+    .findings{ margin-top:8px; font-size:12px; }
+    .finding{
+      border-left: 4px solid rgba(120,170,255,.8);
+      padding: 6px 8px;
+      margin: 6px 0;
+      background: rgba(255,255,255,.7);
+      border-radius: 8px;
+    }
+    .finding strong{ font-weight: 900; }
+    code { background: rgba(243,243,243,.9); padding: 1px 4px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="panel" id="panel">
+  <div class="panelHeader">
+    <div>
+      <div class="panelTitle">Unfallatlas – Analyse & Export</div>
+      <div class="panelSub" id="panelSub">–</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <label for="year">Jahr</label>
+    <select id="year"><option value="all">Alle</option></select>
+  </div>
+
+  <div class="row">
+    <label for="kat">Kategorie</label>
+    <select id="kat">
+      <option value="all">Alle</option>
+      <option value="1">1 (Getötete)</option>
+      <option value="2">2 (Schwer)</option>
+      <option value="3">3 (Leicht)</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label for="strz">Straßenzustand</label>
+    <select id="strz">
+      <option value="all">Alle</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label for="maxn">Max Punkte</label>
+    <input id="maxn" type="number" min="1000" step="1000" value="100000" />
+  </div>
+
+  <div class="h2">Beteiligung</div>
+  <div class="chipline">
+    <label class="chip"><input type="checkbox" id="tRad" checked> <strong>🚲 Rad</strong></label>
+    <label class="chip"><input type="checkbox" id="tFuss" checked> <strong>🚶 Fuß</strong></label>
+    <label class="chip"><input type="checkbox" id="tPKW" checked> <strong>🚗 PKW</strong></label>
+    <label class="chip"><input type="checkbox" id="tKrad"> <strong>🏍️ Krad</strong></label>
+  </div>
+
+  <div class="btnRow">
+    <div id="modeOr" class="btn active">ODER</div>
+    <div id="modeAnd" class="btn">UND</div>
+    <div id="modeSolo" class="btn">Alleinunfall</div>
+  </div>
+
+  <div class="h2">Darstellung</div>
+  <div class="btnRow">
+    <div id="toggleCluster" class="btn active">Cluster</div>
+    <div id="toggleHeat" class="btn active">Heatmap</div>
+  </div>
+
+  <div class="h2">Analyse-Auswahl</div>
+  <div class="chipline">
+    <label class="chip"><input type="checkbox" id="hideUnderAvg"> <strong>Unterdurchschnittliches ausblenden</strong></label>
+  </div>
+
+  <div class="btnRow">
+    <div id="btnAnalyze" class="btn">Auswahl analysieren</div>
+    <div id="btnLink" class="btn">Share-Link</div>
+    <div id="btnExport" class="btn">Export → Clipboard</div>
+  </div>
+
+  <div class="box" id="stat">Lade Daten…</div>
+
+  <div class="h2">Findings</div>
+  <div class="findings" id="findings">—</div>
+
+  <div class="muted">
+    Quelle: <code id="dataSourceCode">—</code><br/>
+    Markieren: Leaflet-Draw (Rechteck/Polygon). Export kopiert Word-HTML inkl. Kartenbilder.
+  </div>
+</div>
+
+<script>
+  // ============ Hard check ============
+  if (!window.L) {
+    const msg = "FEHLER: Leaflet (L) ist nicht verfügbar.";
+    alert(msg); throw new Error(msg);
+  }
+
+  // ============ City / URL ============
+  const DEFAULT_CITY = "Hannover";
+  function normKey(s){
+    return String(s ?? "")
+      .toLowerCase()
+      .replaceAll("ä","ae").replaceAll("ö","oe").replaceAll("ü","ue").replaceAll("ß","ss")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_/, "")
+      .replace(/_$/, "");
+  }
+  const url = new URL(window.location.href);
+  const CITY_RAW = (url.searchParams.get("city")?.trim()) || DEFAULT_CITY;
+  const CITY_SUFFIX = normKey(CITY_RAW);
+  const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
+  document.getElementById("panelSub").textContent = `Stadt: ${CITY_RAW}`;
+  document.getElementById("dataSourceCode").textContent = DATA_URL;
+
+  // ============ Labels ============
+  // sprechender als "STRZUSTAND"
+  const ROAD_COND = {
+    "0": "Trocken",
+    "1": "Nass / Feucht",
+    "2": "Winterglatt (Schnee/Eis)",
+    "":  "Unbekannt"
+  };
+  function roadCondText(v){
+    const k = String(v ?? "");
+    return ROAD_COND[k] ?? `Code ${k}`;
+  }
+  const WEEKEND_SET = new Set(["1","7"]); // (nach deiner bisherigen Logik)
+
+  // ============ Map ============
+  const map = L.map('map', { preferCanvas: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap-Mitwirkende'
+  }).addTo(map);
+  map.setView([52.3759, 9.7320], 12);
+
+  // ============ Layers ============
+  let showCluster = true;
+  let showHeat = true;
+  let involvementMode = "or";
+
+  let clusterLayer = null;
+  let heatLayer = null;
+
+  // Auswahl (Draw)
+  const drawnItems = new L.FeatureGroup().addTo(map);
+  let currentSelection = null; // GeoJSON geometry (Polygon)
+  let selectionLayer = null;
+
+  // Draw controls
+  const drawControl = new L.Control.Draw({
+    position: 'topleft',
+    draw: {
+      polyline: false,
+      circle: false,
+      circlemarker: false,
+      marker: false,
+      rectangle: { shapeOptions: { color: '#3388ff' } },
+      polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#3388ff' } }
+    },
+    edit: { featureGroup: drawnItems, remove: true }
+  });
+  map.addControl(drawControl);
+
+  map.on(L.Draw.Event.CREATED, (e) => {
+    drawnItems.clearLayers();
+    drawnItems.addLayer(e.layer);
+    selectionLayer = e.layer;
+    currentSelection = e.layer.toGeoJSON().geometry;
+    // optional auto-analyze:
+    analyzeSelection();
+  });
+
+  map.on(L.Draw.Event.DELETED, () => {
+    currentSelection = null;
+    selectionLayer = null;
+    renderFindings([]);
+    updateStat();
+  });
+
+  // ============ UI ============
+  const yearEl = document.getElementById('year');
+  const katEl = document.getElementById('kat');
+  const strzEl = document.getElementById('strz');
+  const maxEl = document.getElementById('maxn');
+  const statEl = document.getElementById('stat');
+  const findingsEl = document.getElementById('findings');
+
+  const tRadEl = document.getElementById('tRad');
+  const tFussEl = document.getElementById('tFuss');
+  const tPKWEl = document.getElementById('tPKW');
+  const tKradEl = document.getElementById('tKrad');
+
+  const btnModeOr = document.getElementById('modeOr');
+  const btnModeAnd = document.getElementById('modeAnd');
+  const btnModeSolo = document.getElementById('modeSolo');
+
+  const btnCluster = document.getElementById('toggleCluster');
+  const btnHeat = document.getElementById('toggleHeat');
+
+  const hideUnderAvgEl = document.getElementById('hideUnderAvg');
+
+  const btnAnalyze = document.getElementById('btnAnalyze');
+  const btnExport = document.getElementById('btnExport');
+  const btnLink = document.getElementById('btnLink');
+
+  function setBtnState(btn,on){ btn.classList.toggle('active', !!on); }
+  function setMode(next){
+    involvementMode = next;
+    setBtnState(btnModeOr, next==="or");
+    setBtnState(btnModeAnd, next==="and");
+    setBtnState(btnModeSolo, next==="solo");
+    applyGlobalFilter(); applyViewportFilter(); renderLayers();
+    // Findings neu berechnen, wenn Auswahl da:
+    if (currentSelection) analyzeSelection();
+  }
+  btnModeOr.onclick = () => setMode("or");
+  btnModeAnd.onclick = () => setMode("and");
+  btnModeSolo.onclick = () => setMode("solo");
+
+  btnCluster.onclick = () => { showCluster=!showCluster; setBtnState(btnCluster, showCluster); renderLayers(); };
+  btnHeat.onclick = () => { showHeat=!showHeat; setBtnState(btnHeat, showHeat); renderLayers(); };
+
+  btnAnalyze.onclick = () => analyzeSelection();
+  hideUnderAvgEl.onchange = () => { if (currentSelection) analyzeSelection(); };
+
+  // ============ Data ============
+  let allGeo = null;
+  let allPts = [];            // alle Punkte
+  let filteredGlobal = [];    // nach UI-Filter
+  let viewportPts = [];       // im Viewport
+
+  function extractPoints(geojson){
+    const pts = [];
+    for (const f of (geojson?.features || [])) {
+      const g = f?.geometry;
+      if (!g || g.type!=="Point" || !Array.isArray(g.coordinates)) continue;
+      const [lon,lat] = g.coordinates;
+      if (typeof lat !== "number" || typeof lon !== "number") continue;
+      pts.push({ lat, lon, props: f.properties || {} });
+    }
+    return pts;
+  }
+
+  function buildYearOptions(features){
+    const years = new Set();
+    for (const f of features) {
+      const y = f?.properties?.year;
+      if (y!==undefined && y!==null && y!=="") years.add(String(y));
+    }
+    [...years].sort().forEach(y=>{
+      const opt=document.createElement('option');
+      opt.value=y; opt.textContent=y;
+      yearEl.appendChild(opt);
+    });
+  }
+
+  function buildRoadCondOptions(points){
+    const set = new Set();
+    for (const p of points) {
+      const v = String(p?.props?.strzustand ?? "");
+      set.add(v);
+    }
+    const sorted = [...set].sort((a,b)=>{
+      const ai = (a===""? 999 : parseInt(a,10));
+      const bi = (b===""? 999 : parseInt(b,10));
+      return ai-bi;
+    });
+    for (const c of sorted) {
+      const opt=document.createElement('option');
+      opt.value = (c==="" ? "__unknown__" : c);
+      opt.textContent = roadCondText(c);
+      strzEl.appendChild(opt);
+    }
+  }
+
+  function fitToAllPoints(points){
+    if (!points.length) return;
+    let minLat=  90, maxLat=-90, minLon= 180, maxLon=-180;
+    for (const p of points) {
+      if (p.lat < minLat) minLat = p.lat;
+      if (p.lat > maxLat) maxLat = p.lat;
+      if (p.lon < minLon) minLon = p.lon;
+      if (p.lon > maxLon) maxLon = p.lon;
+    }
+    map.fitBounds(L.latLngBounds([minLat,minLon],[maxLat,maxLon]), { padding:[20,20] });
+  }
+
+  // ======== Filtering ========
+  function okInvolvementByMode(pr){
+    const isRad  = String(pr?.istrad)  === "1";
+    const isFuss = String(pr?.istfuss) === "1";
+    const isPKW  = String(pr?.istpkw)  === "1";
+    const isKrad = String(pr?.istkrad) === "1";
+
+    const sRad  = tRadEl.checked;
+    const sFuss = tFussEl.checked;
+    const sPKW  = tPKWEl.checked;
+    const sKrad = tKradEl.checked;
+    const anySelected = sRad || sFuss || sPKW || sKrad;
+    if (!anySelected) return false;
+
+    if (involvementMode==="or") {
+      return (sRad&&isRad) || (sFuss&&isFuss) || (sPKW&&isPKW) || (sKrad&&isKrad);
+    }
+    if (involvementMode==="and") {
+      if (sRad && !isRad) return false;
+      if (sFuss && !isFuss) return false;
+      if (sPKW && !isPKW) return false;
+      if (sKrad && !isKrad) return false;
+      return true;
+    }
+    if (involvementMode==="solo") {
+      const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+      if (c!==1) return false;
+      return (sRad&&isRad) || (sFuss&&isFuss) || (sPKW&&isPKW) || (sKrad&&isKrad);
+    }
+    return true;
+  }
+
+  function applyGlobalFilter(){
+    const wantYear = yearEl.value;
+    const wantKat  = katEl.value;
+    const wantStrz = strzEl.value;
+    const maxN = Math.max(1000, parseInt(maxEl.value||"100000",10));
+
+    const out=[];
+    for (const p of allPts) {
+      const pr = p.props || {};
+      if (wantYear!=="all" && String(pr.year)!==wantYear) continue;
+      if (wantKat!=="all"  && String(pr.ukategorie)!==wantKat) continue;
+
+      if (wantStrz!=="all") {
+        const z = String(pr.strzustand ?? "");
+        if (wantStrz==="__unknown__") {
+          if (z!=="" && z!=="null" && z!=="undefined") continue;
+        } else {
+          if (z!==String(wantStrz)) continue;
+        }
+      }
+
+      if (!okInvolvementByMode(pr)) continue;
+
+      out.push(p);
+      if (out.length>=maxN) break;
+    }
+    filteredGlobal = out;
+  }
+
+  function getPaddedBounds(padPct=0.2){
+    const b = map.getBounds();
+    const latSpan = b.getNorth()-b.getSouth();
+    const lonSpan = b.getEast()-b.getWest();
+    const dLat = latSpan*padPct;
+    const dLon = lonSpan*padPct;
+    return L.latLngBounds(
+      [b.getSouth()-dLat, b.getWest()-dLon],
+      [b.getNorth()+dLat, b.getEast()+dLon]
+    );
+  }
+
+  function applyViewportFilter(){
+    const vb = getPaddedBounds(0.2);
+    viewportPts = filteredGlobal.filter(p => vb.contains([p.lat,p.lon]));
+  }
+
+  function popupHtml(pr){
+    const inv = [];
+    if (String(pr?.istrad)==="1") inv.push("🚲 Rad");
+    if (String(pr?.istfuss)==="1") inv.push("🚶 Fuß");
+    if (String(pr?.istpkw)==="1") inv.push("🚗 PKW");
+    if (String(pr?.istkrad)==="1") inv.push("🏍️ Krad");
+    const invText = inv.length ? inv.join(", ") : "—";
+
+    return `
+      <div style="font: 14px/1.25 system-ui;">
+        <div><strong>${escapeHtml(pr.name)}</strong></div>
+        <div>Jahr: ${escapeHtml(pr.year)}</div>
+        <div>Kategorie: ${escapeHtml(pr.ukategorie)}</div>
+        <div>Beteiligung: ${escapeHtml(invText)}</div>
+        <div>Straßenzustand: ${escapeHtml(roadCondText(pr.strzustand))}</div>
+        <div>Licht: ${escapeHtml(pr.ulichtverh)}</div>
+        <div>Straße: ${escapeHtml(pr.strasse)}</div>
+      </div>
+    `;
+  }
+  function escapeHtml(s){
+    return String(s??"")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
+
+  function renderLayers(){
+    if (clusterLayer) { clusterLayer.remove(); clusterLayer=null; }
+    if (heatLayer) { heatLayer.remove(); heatLayer=null; }
+
+    const pts = viewportPts;
+
+    if (showCluster) {
+      clusterLayer = L.markerClusterGroup({ chunkedLoading:true, chunkInterval:200, showCoverageOnHover:false });
+      for (const p of pts) {
+        const m = L.circleMarker([p.lat,p.lon], { radius: 4 });
+        m.bindPopup(popupHtml(p.props));
+        clusterLayer.addLayer(m);
+      }
+      clusterLayer.addTo(map);
+    }
+
+    if (showHeat) {
+      const heatPts = pts.map(p=>{
+        const k = String(p.props?.ukategorie || "");
+        const w = (k==="1") ? 1.0 : (k==="2") ? 0.7 : (k==="3") ? 0.4 : 0.5;
+        return [p.lat,p.lon,w];
+      });
+      heatLayer = L.heatLayer(heatPts, { radius: 25, blur: 18, maxZoom: 17 }).addTo(map);
+    }
+
+    updateStat();
+  }
+
+  function updateStat(){
+    const sel = currentSelection ? "ja" : "nein";
+    statEl.innerHTML =
+      `<strong>Geladen:</strong> ${allPts.length.toLocaleString()} | ` +
+      `<strong>Nach Filter:</strong> ${filteredGlobal.length.toLocaleString()} | ` +
+      `<strong>Viewport:</strong> ${viewportPts.length.toLocaleString()} | ` +
+      `<strong>Auswahl:</strong> ${sel}<br/>` +
+      `Quelle: <code>${escapeHtml(DATA_URL)}</code>`;
+  }
+
+  // ======== Selection / point-in-polygon ========
+  function pointInPolygon(lat, lon, poly){
+    // poly: GeoJSON Polygon (coordinates: [ [ [lon,lat], ... ] ] )
+    // ray casting, outer ring only
+    if (!poly || poly.type!=="Polygon") return false;
+    const ring = poly.coordinates?.[0];
+    if (!Array.isArray(ring) || ring.length<3) return false;
+
+    let inside=false;
+    for (let i=0, j=ring.length-1; i<ring.length; j=i++){
+      const xi=ring[i][0], yi=ring[i][1];
+      const xj=ring[j][0], yj=ring[j][1];
+      const intersect = ((yi>lat)!==(yj>lat)) && (lon < (xj-xi)*(lat-yi)/((yj-yi)||1e-12) + xi);
+      if (intersect) inside=!inside;
+    }
+    return inside;
+  }
+
+  function pointsInSelection(points){
+    if (!currentSelection) return [];
+    return points.filter(p => pointInPolygon(p.lat, p.lon, currentSelection));
+  }
+
+  // ======== Metrics (Baselines & local ratios) ========
+  function classify(pr){
+    const isRad  = String(pr?.istrad)==="1";
+    const isFuss = String(pr?.istfuss)==="1";
+    const isPKW  = String(pr?.istpkw)==="1";
+    const isKrad = String(pr?.istkrad)==="1";
+    const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+    return { isRad,isFuss,isPKW,isKrad, count:c };
+  }
+
+  function countPatterns(points){
+    // total = Anzahl Unfälle (nach UI Filter!)
+    let total = points.length;
+
+    let radSolo=0, fussSolo=0, pkwSolo=0, kradSolo=0;
+    let radPkw=0, fussPkw=0, radFuss=0;
+    let anySolo=0;
+
+    const byStreet = new Map();
+
+    for (const p of points) {
+      const pr = p.props || {};
+      const c = classify(pr);
+
+      if (c.count===1) anySolo++;
+
+      if (c.isRad && c.count===1) radSolo++;
+      if (c.isFuss && c.count===1) fussSolo++;
+      if (c.isPKW && c.count===1) pkwSolo++;
+      if (c.isKrad && c.count===1) kradSolo++;
+
+      if (c.isRad && c.isPKW) radPkw++;
+      if (c.isFuss && c.isPKW) fussPkw++;
+      if (c.isRad && c.isFuss) radFuss++;
+
+      const street = String(pr.strasse ?? "").trim() || "(unbekannt)";
+      byStreet.set(street, (byStreet.get(street)||0)+1);
+    }
+
+    const topStreets = [...byStreet.entries()]
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,10)
+      .map(([name,n])=>({name, n}));
+
+    return {
+      total,
+      anySolo,
+      radSolo, fussSolo, pkwSolo, kradSolo,
+      radPkw, fussPkw, radFuss,
+      topStreets
+    };
+  }
+
+  function ratio(x, n){
+    if (!n) return 0;
+    return x/n;
+  }
+
+  function rr(localX, localN, baseX, baseN){
+    const lr = ratio(localX, localN);
+    const br = ratio(baseX, baseN);
+    if (br<=0) return (lr>0 ? Infinity : 1);
+    return lr/br;
+  }
+
+  function formatPct(v){
+    return (v*100).toFixed(1).replace(".",",") + "%";
+  }
+
+  function formatRR(v){
+    if (!Number.isFinite(v)) return "∞";
+    return v.toFixed(2).replace(".",",");
+  }
+
+  function isMeaningful(baseRate, localN){
+    // pragmatisch: bei winzigen Ausschnitten keine harten Schlüsse
+    return localN >= 80 || baseRate >= 0.02; // heuristisch
+  }
+
+  // ======== Findings generation ========
+  function buildFindings(base, loc){
+    const items = [];
+
+    function add(title, localX, baseX, hint, recos){
+      const baseRate = ratio(baseX, base.total);
+      const localRate = ratio(localX, loc.total);
+      const R = rr(localX, loc.total, baseX, base.total);
+
+      // "Auffällig" heuristisch:
+      const meaningful = isMeaningful(baseRate, loc.total);
+      const up = R >= 1.5 && localX >= 8;      // deutlich höher + Mindestfallzahl
+      const down = R <= 0.75 && localX >= 8;   // deutlich niedriger (für "ausblenden" relevant)
+      const flag = meaningful && (up || down);
+
+      items.push({
+        title,
+        localX, baseX,
+        localRate, baseRate,
+        rr: R,
+        meaningful,
+        up, down, flag,
+        hint,
+        recos
+      });
+    }
+
+    // Kernmuster (erweiterbar)
+    add("Rad – Alleinunfälle", loc.radSolo, base.radSolo,
+      "Wenn lokal stark erhöht, deutet das oft auf infrastrukturelle Probleme (Oberfläche, Engstellen, Führung, Gleise, Kanten) hin.",
+      [
+        "Oberflächenprüfung (Schäden, Kopfsteinpflaster, Fugen/Kanten), ggf. Sanierung",
+        "Querungswinkel und Spurführung prüfen (z. B. Schienenquerung möglichst nahe 90°)",
+        "Markierung/Führung: Radspurführung vor Kreuzungen / Einfädelungen prüfen"
+      ]);
+
+    add("Fuß – Alleinunfälle", loc.fussSolo, base.fussSolo,
+      "Erhöhte Fuß-Alleinunfälle können auf Stolperstellen, schlechte Querungsanlagen oder Winterdienstprobleme hinweisen.",
+      [
+        "Gehwegoberfläche/Schäden, Bordabsenkungen prüfen",
+        "Querungsanlagen / Sichtbeziehungen / Beleuchtung prüfen",
+        "Winterdienst / Entwässerung / Rutschgefahr prüfen"
+      ]);
+
+    add("Rad + PKW (Konfliktmuster)", loc.radPkw, base.radPkw,
+      "Erhöhte Rad+PKW-Kombinationen sprechen oft für Konflikte an Kreuzungen/Einmündungen, Abbiegebeziehungen, Sichtbeziehungen.",
+      [
+        "Kreuzung/Einmündung: Abbiegekonflikte analysieren (Rechtsabbieger/Linksabbieger)",
+        "Sichtbeziehungen, Aufstellflächen, Vorfahrt/Signalplanung prüfen",
+        "Temporäre Maßnahmen: Markierung, Piktogramme, Poller/Schutz, Tempo"
+      ]);
+
+    add("Fuß + PKW (Konfliktmuster)", loc.fussPkw, base.fussPkw,
+      "Erhöhtes Fuß+PKW deutet häufig auf Querungskonflikte, hohe Geschwindigkeiten oder unklare Vorrangregelung hin.",
+      [
+        "Querungsstellen: Mittelinseln, Zebrastreifen, Ampelschaltung, Sicht",
+        "Tempo/Verkehrsberuhigung, Aufpflasterungen, bauliche Querungshilfen"
+      ]);
+
+    add("Rad + Fuß (Konfliktmuster)", loc.radFuss, base.radFuss,
+      "Erhöhtes Rad+Fuß kann auf gemeinsame Führung, Engstellen oder ungeeignete Trennung/Markierung hinweisen.",
+      [
+        "Trennungsprinzip / Breiten / Engstellen prüfen",
+        "Beschilderung/Markierung, Konfliktpunkte (Haltestellen, Querungen) entschärfen"
+      ]);
+
+    // Optional: Gesamte Alleinunfälle
+    add("Alleinunfälle (alle Beteiligungen)", loc.anySolo, base.anySolo,
+      "Gesamt erhöhte Alleinunfälle sind oft ein Indikator für Oberflächen-/Führungs-/Sichtprobleme.",
+      [
+        "Oberfläche / Linienführung / Hindernisse / Entwässerung prüfen"
+      ]);
+
+    // Filter "unterdurchschnittlich ausblenden"
+    const hideUnder = hideUnderAvgEl.checked;
+    const filtered = items.filter(it => {
+      if (!it.flag) return false;              // nur wenn auffällig genug
+      if (hideUnder && it.down && !it.up) return false; // unterdurchschnittlich weg
+      return true;
+    });
+
+    // Sort: stärkste Abweichung zuerst
+    filtered.sort((a,b)=> (Math.abs(b.rr-1) - Math.abs(a.rr-1)));
+
+    return filtered;
+  }
+
+  function renderFindings(items){
+    if (!items.length) {
+      findingsEl.innerHTML = "<div class='muted'>Keine auffälligen Muster (oder Auswahl fehlt / zu klein).</div>";
+      return;
+    }
+    findingsEl.innerHTML = items.map(it => `
+      <div class="finding">
+        <div><strong>${escapeHtml(it.title)}</strong></div>
+        <div>Auswahl: ${it.localX.toLocaleString()} / ${locStats.total.toLocaleString()}
+          (${formatPct(it.localRate)})</div>
+        <div>Stadt: ${it.baseX.toLocaleString()} / ${baseStats.total.toLocaleString()}
+          (${formatPct(it.baseRate)})</div>
+        <div><strong>RR:</strong> ${formatRR(it.rr)} ${it.up ? "↑" : it.down ? "↓" : ""}</div>
+        <div class="muted">${escapeHtml(it.hint)}</div>
+      </div>
+    `).join("");
+  }
+
+  // ======== Analyze selection ========
+  let baseStats = null;
+  let locStats = null;
+  let lastFindings = [];
+
+  function analyzeSelection(){
+    if (!currentSelection) {
+      renderFindings([]);
+      updateStat();
+      return;
+    }
+    const basePts = filteredGlobal; // Baseline = aktuell eingestellte Filter, ganze Stadt
+    const locPts = pointsInSelection(filteredGlobal);
+
+    baseStats = countPatterns(basePts);
+    locStats = countPatterns(locPts);
+
+    lastFindings = buildFindings(baseStats, locStats);
+    renderFindings(lastFindings);
+    updateStat();
+  }
+
+  // ======== Share link with selection ========
+  function encodeSelection(geom){
+    // compact base64 of JSON
+    const json = JSON.stringify(geom);
+    return btoa(unescape(encodeURIComponent(json)));
+  }
+  function decodeSelection(s){
+    try{
+      const json = decodeURIComponent(escape(atob(s)));
+      return JSON.parse(json);
+    }catch{ return null; }
+  }
+
+  function selectionFromGeom(geom){
+    if (!geom) return;
+    drawnItems.clearLayers();
+    const layer = L.geoJSON({ type:"Feature", geometry: geom }).getLayers()[0];
+    if (layer) {
+      drawnItems.addLayer(layer);
+      selectionLayer = layer;
+      currentSelection = geom;
+      map.fitBounds(layer.getBounds(), { padding:[20,20] });
+    }
+  }
+
+  btnLink.onclick = async () => {
+    if (!currentSelection) {
+      alert("Bitte erst einen Bereich markieren (Rechteck/Polygon).");
+      return;
+    }
+    const u = new URL(window.location.href);
+    u.searchParams.set("city", CITY_RAW);
+    u.searchParams.set("sel", encodeSelection(currentSelection));
+    u.searchParams.set("export", "1"); // direkt exportierbar
+    await navigator.clipboard.writeText(u.toString());
+    alert("Share-Link ins Clipboard kopiert.");
+  };
+
+  // ======== Export (Word-friendly HTML + map snapshots) ========
+  function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+  async function captureMapPng(){
+    return new Promise((resolve, reject) => {
+      if (!window.leafletImage) return reject(new Error("leaflet-image nicht geladen"));
+      window.leafletImage(map, (err, canvas) => {
+        if (err) return reject(err);
+        try { resolve(canvas.toDataURL("image/png")); }
+        catch(e){ reject(e); }
+      });
+    });
+  }
+
+  async function captureMultiZoom(){
+    // 3 Stufen: Übersicht, Mittel, Detail
+    const out = [];
+    const center = currentSelection ? L.geoJSON({type:"Feature", geometry: currentSelection}).getBounds().getCenter() : map.getCenter();
+    const baseZoom = map.getZoom();
+
+    // Übersicht (weniger Zoom), Mittel (aktuell), Detail (mehr Zoom)
+    const zooms = [
+      Math.max(10, baseZoom-2),
+      baseZoom,
+      Math.min(18, baseZoom+2)
+    ];
+
+    const prev = { center: map.getCenter(), zoom: map.getZoom() };
+    for (const z of zooms) {
+      map.setView(center, z, { animate:false });
+      await wait(350); // Tiles render
+      out.push(await captureMapPng());
+    }
+    map.setView(prev.center, prev.zoom, { animate:false });
+    await wait(200);
+    return out;
+  }
+
+function buildWordHtmlReport(meta){
+  const now = new Date();
+  const dateStr =
+    now.toLocaleDateString("de-DE") + " " +
+    now.toLocaleTimeString("de-DE", {hour:"2-digit", minute:"2-digit"});
+
+  const selectionInfo = currentSelection ? "Ja (Polygon/Rechteck)" : "Nein";
+
+  // Platzhalter – später per Bezirksgrenzen/Geocoder automatisierbar
+  const zust = "Zuständigkeit: (Prototyp) Zuständiger Stadtbezirksrat / Ausschuss bitte ergänzen.";
+
+  const modeLabel = (involvementMode === "or") ? "ODER" : (involvementMode === "and") ? "UND" : "Alleinunfall";
+
+  const filterSummary = [
+    `Stadt: ${CITY_RAW}`,
+    `Jahr: ${yearEl.value}`,
+    `Kategorie: ${katEl.value}`,
+    `Straßenzustand: ${strzEl.value === "all" ? "Alle" : (strzEl.value === "__unknown__" ? "Unbekannt" : roadCondText(strzEl.value))}`,
+    `Beteiligungen: ${(tRadEl.checked?"Rad ":"") + (tFussEl.checked?"Fuß ":"") + (tPKWEl.checked?"PKW ":"") + (tKradEl.checked?"Krad ":"") || "—"}`,
+    `Modus: ${modeLabel}`,
+    `Max Punkte: ${maxEl.value}`
+  ].join(" | ");
+
+  const mapImgs = (meta?.mapImgs||[]).map((src,i)=>`
+    <div style="margin:10px 0;">
+      <div style="font-weight:700; margin-bottom:6px;">Anlage ${i+1}: Kartenausschnitt (Zoomstufe ${i+1})</div>
+      <img src="${src}" style="max-width:100%; border:1px solid #ccc; border-radius:8px;" />
+    </div>
+  `).join("");
+
+  const findRows = (lastFindings||[]).map(it => `
+    <tr>
+      <td>${escapeHtml(it.title)}</td>
+      <td style="text-align:right">${it.localX}</td>
+      <td style="text-align:right">${formatPct(it.localRate)}</td>
+      <td style="text-align:right">${formatPct(it.baseRate)}</td>
+      <td style="text-align:right"><b>${formatRR(it.rr)}</b></td>
+      <td>${escapeHtml((it.recos||[]).slice(0,3).join("; "))}</td>
+    </tr>
+  `).join("");
+
+  const streetRows = (locStats?.topStreets||[]).map(s=>`
+    <tr><td>${escapeHtml(s.name)}</td><td style="text-align:right">${s.n}</td></tr>
+  `).join("");
+
+  // Bezirksrat-typischer Antragstext: formal, prüf- und umsetzungsorientiert
+  const summaryBullets = (lastFindings||[]).slice(0,3).map(it=>{
+    const dir = it.up ? "überdurchschnittlich" : it.down ? "unterdurchschnittlich" : "abweichend";
+    return `<li><b>${escapeHtml(it.title)}:</b> im markierten Bereich ${dir} (RR ${formatRR(it.rr)}; Anteil ${formatPct(it.localRate)} vs. Stadt ${formatPct(it.baseRate)}).</li>`;
+  }).join("");
+
+  // Maßnahmenpaket aus Findings ableiten (unique, geordnet)
+  const recos = [];
+  for (const it of (lastFindings||[])) {
+    for (const r of (it.recos||[])) recos.push(r);
+  }
+  const uniqRecos = [...new Set(recos)].slice(0,10).map(r=>`<li>${escapeHtml(r)}</li>`).join("");
+
+  // Wenn keine Findings: defensiver Text
+  const findingsIntro = (lastFindings && lastFindings.length)
+    ? "Die automatisierte Auswertung weist im markierten Bereich mehrere Unfallkonstellationen mit deutlicher Abweichung gegenüber dem stadtweiten Erwartungswert aus."
+    : "Die automatisierte Auswertung liefert derzeit keine eindeutigen Auffälligkeiten. Gleichwohl kann eine vertiefte Betrachtung (insbesondere im Kontext lokaler Infrastruktur) sinnvoll sein.";
+
+  // Zahlenblock
+  const nCity = baseStats?.total ?? 0;
+  const nLoc  = locStats?.total ?? 0;
+
+  return `
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  body{ font-family: Calibri, Arial, sans-serif; font-size: 11pt; color:#111; }
+  h1{ font-size: 18pt; margin: 0 0 4px 0; }
+  h2{ font-size: 13.5pt; margin: 18px 0 8px 0; }
+  h3{ font-size: 12pt; margin: 14px 0 6px 0; }
+  .muted{ color:#555; font-size:10pt; }
+  .small{ font-size:10pt; }
+  .box{ border:1px solid #ddd; padding:10px; border-radius:8px; background:#fafafa; }
+  table{ border-collapse: collapse; width:100%; }
+  th,td{ border:1px solid #ccc; padding:6px 8px; vertical-align: top; }
+  th{ background:#f3f3f3; }
+  ul{ margin-top: 6px; }
+  .sign{ margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<h1>Antrag</h1>
+<div class="muted"><b>Betreff:</b> Verkehrssicherheitsmaßnahmen auf Basis der Unfallatlas-Auswertung (markierter Bereich)</div>
+<div class="muted"><b>Erstellt am:</b> ${escapeHtml(dateStr)}</div>
+<div class="muted">${escapeHtml(zust)}</div>
+
+<h2>Beschlussvorschlag</h2>
+<div class="box">
+  Der Stadtbezirksrat möge beschließen:
+  <ol>
+    <li>Die Verwaltung wird gebeten, die im markierten Bereich festgestellten Unfallauffälligkeiten auf Basis der Unfallatlas-Daten sowie weiterer fachlicher Quellen (z. B. polizeiliche Unfalltypenkarten, Verkehrsbelastungen, Sichtbeziehungen, Signalprogramme) zeitnah zu überprüfen.</li>
+    <li>Die Verwaltung wird gebeten, dem Stadtbezirksrat binnen angemessener Frist einen Kurzbericht mit Ursachenbewertung sowie einem Maßnahmenplan (Sofortmaßnahmen / mittelfristige Maßnahmen) vorzulegen.</li>
+    <li>Bis zur abschließenden Bewertung sollen – soweit fachlich vertretbar – kurzfristige Verbesserungen (z. B. Markierung, Sichtverbesserung, temporäre Schutzmaßnahmen, Anpassung der Verkehrsführung) geprüft und umgesetzt werden.</li>
+  </ol>
+</div>
+
+<h2>Begründung</h2>
+<div class="box">
+  ${escapeHtml(findingsIntro)}
+  Ziel ist es, durch eine fachliche Prüfung der örtlichen Gegebenheiten und geeignete Maßnahmen die Verkehrssicherheit im betroffenen Bereich zu erhöhen und Unfallzahlen nachhaltig zu reduzieren.
+</div>
+
+<h2>Sachverhalt</h2>
+<div class="box">
+  <div><b>Datengrundlage:</b> Unfallatlas-Daten (GeoJSON), aus der städtischen Gesamtheit und aus dem markierten Kartenausschnitt.</div>
+  <div><b>Filter (Stand Export):</b> ${escapeHtml(filterSummary)}</div>
+  <div><b>Methodik:</b> Vergleich von Verhältniszahlen „Konstellation / alle Unfälle“ im markierten Bereich gegen die stadtweite Verteilung (Risk Ratio, RR = lokal / Stadt).</div>
+  <div><b>Hinweis:</b> Die Auswertung ist ein automatisierter Prototyp. Sie ersetzt keine amtliche Unfallanalyse, eignet sich aber zur priorisierten Identifikation möglicher Unfallhäufungsstellen.</div>
+</div>
+
+<h2>Ergebnisse der Auswertung</h2>
+<div class="box">
+  <div><b>Stadtweite Fallzahl (nach Filter):</b> ${nCity.toLocaleString()}</div>
+  <div><b>Fallzahl im markierten Bereich:</b> ${nLoc.toLocaleString()}</div>
+  ${summaryBullets ? `<ul>${summaryBullets}</ul>` : `<div class="small muted">Keine auffälligen Muster nach den aktuellen Kriterien / oder Auswahl zu klein.</div>`}
+</div>
+
+<h3>Detailtabelle: Auffällige Muster</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Muster</th>
+      <th>Auswahl (n)</th>
+      <th>Auswahl (%)</th>
+      <th>Stadt (%)</th>
+      <th>RR</th>
+      <th>Erste Maßnahmenideen (automatisch)</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${findRows || `<tr><td colspan="6">—</td></tr>`}
+  </tbody>
+</table>
+
+<h2>Prüfaufträge (konkret)</h2>
+<div class="box">
+  Die Verwaltung wird gebeten, insbesondere folgende Punkte zu prüfen und zu berichten:
+  <ol>
+    <li><b>Konfliktpunkte an Knotenpunkten/Einmündungen:</b> Abbiegekonflikte, Sichtdreiecke, Aufstellflächen, Signalprogramme, Markierungen.</li>
+    <li><b>Infrastruktur & Oberfläche:</b> Schäden, Kopfsteinpflaster, Fugen/Kanten, Entwässerung, Engstellen, Führung im Seitenraum.</li>
+    <li><b>Querungsbeziehungen:</b> Querungshilfen, Wartebereiche, Sichtbarkeit, Beleuchtung, Barrierefreiheit.</li>
+    <li><b>Geschwindigkeit/Verkehrsfluss:</b> Tempo, Verkehrsberuhigung, Anpassungen zur Konfliktminderung.</li>
+    <li><b>Besondere Schutzbedarfe:</b> Schul-/Kitawege, Haltestellen, Publikumsverkehr (sofern im Umfeld vorhanden).</li>
+  </ol>
+</div>
+
+<h2>Vorschlag Maßnahmenpaket (Vorprüfung)</h2>
+<div class="box">
+  <div><b>Hinweis:</b> Die folgenden Maßnahmenvorschläge werden aus den auffälligen Mustern abgeleitet und sind als Arbeitsgrundlage zu verstehen.</div>
+  ${uniqRecos ? `<ul>${uniqRecos}</ul>` : `<div class="small muted">—</div>`}
+</div>
+
+<h2>Finanzielle Auswirkungen</h2>
+<div class="box">
+  Zum jetzigen Zeitpunkt können finanzielle Auswirkungen nicht belastbar beziffert werden.
+  Kurzfristige Markierungs- und Beschilderungsmaßnahmen sind in der Regel im Rahmen laufender Budgets darstellbar.
+  Für bauliche Maßnahmen sind – nach fachlicher Prüfung – Kostenschätzungen vorzulegen.
+</div>
+
+<h2>Anlagen</h2>
+<div class="box">
+  <ol>
+    <li>Kartenausschnitte (3 Zoomstufen) inkl. markierter Auswahl und Unfalldarstellung</li>
+    <li>Übersicht häufigster Straßen im markierten Bereich</li>
+    <li>Technische Angaben / Datenquelle</li>
+  </ol>
+</div>
+
+<h3>Anlage 1: Kartenabbildungen</h3>
+${mapImgs}
+
+<h3>Anlage 2: Häufigste Straßen im Ausschnitt</h3>
+<table>
+  <thead><tr><th>Straße</th><th>Unfälle (n)</th></tr></thead>
+  <tbody>
+    ${streetRows || `<tr><td colspan="2">—</td></tr>`}
+  </tbody>
+</table>
+
+<h3>Anlage 3: Technische Angaben</h3>
+<div class="muted">
+  Datenquelle: ${escapeHtml(DATA_URL)}<br/>
+  Auswahl vorhanden: ${escapeHtml(selectionInfo)}<br/>
+  Hinweis: Dieser Antrag wurde automatisiert erzeugt (Prototyp). Für verbindliche Feststellungen sind amtliche Unfallanalysen heranzuziehen.
+</div>
+
+<div class="sign">
+  <div>______________________________</div>
+  <div class="muted">Unterschrift / Antragsteller:in</div>
+</div>
+
+</body></html>
+`;
+}
+
+  async function doExportToClipboard(){
+    if (!currentSelection) {
+      alert("Bitte erst einen Bereich markieren (Rechteck/Polygon).");
+      return;
+    }
+    // Sicherstellen, dass Analyse aktuell ist
+    analyzeSelection();
+
+    // Map snapshots (3 Zoomstufen)
+    statEl.textContent = "Erzeuge Kartenbilder…";
+    const imgs = await captureMultiZoom();
+
+    // Word-HTML bauen
+    const html = buildWordHtmlReport({ mapImgs: imgs });
+
+    // Clipboard: HTML + fallback text
+    const blobHtml = new Blob([html], { type: "text/html" });
+    const blobText = new Blob([stripHtmlToText(html)], { type: "text/plain" });
+
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/html": blobHtml,
+        "text/plain": blobText
+      })
+    ]);
+
+    statEl.innerHTML = "<b>Export:</b> Bericht (HTML) inkl. Kartenbilder ins Clipboard kopiert. In Word einfügen.";
+    alert("Bericht ins Clipboard kopiert. In Word: Einfügen (Strg+V).");
+  }
+
+  function stripHtmlToText(html){
+    // sehr grob: für fallback ok
+    return html
+      .replace(/<style[\s\S]*?<\/style>/gi,"")
+      .replace(/<script[\s\S]*?<\/script>/gi,"")
+      .replace(/<\/(p|div|h1|h2|h3|tr|li)>/gi,"\n")
+      .replace(/<br\s*\/?>/gi,"\n")
+      .replace(/<[^>]+>/g,"")
+      .replace(/\n{3,}/g,"\n\n")
+      .trim();
+  }
+
+  btnExport.onclick = () => doExportToClipboard().catch(e=>{
+    console.error(e);
+    alert("Export fehlgeschlagen: " + e);
+    statEl.textContent = "Export fehlgeschlagen: " + e;
+  });
+
+  // ======== Auto export via URL ========
+  async function maybeAutoExport(){
+    const selEnc = url.searchParams.get("sel");
+    if (selEnc && !currentSelection) {
+      const geom = decodeSelection(selEnc);
+      if (geom) selectionFromGeom(geom);
+    }
+    if (url.searchParams.get("export")==="1") {
+      // Falls jemand nur den Link öffnet: direkt exportfähig machen
+      // (User muss in Browser Clipboard erlauben)
+      await wait(250);
+      if (currentSelection) {
+        try { await doExportToClipboard(); }
+        catch(e){
+          console.warn("Auto-Export: Clipboard evtl. blockiert.", e);
+          statEl.innerHTML = "<b>Hinweis:</b> Auto-Export konnte nicht automatisch ins Clipboard schreiben (Browser-Schutz). Bitte „Export → Clipboard“ klicken.";
+        }
+      }
+    }
+  }
+
+  // ======== Hook change events ========
+  for (const el of [yearEl, katEl, strzEl, maxEl, tRadEl, tFussEl, tPKWEl, tKradEl]) {
+    el.addEventListener('change', ()=>{
+      applyGlobalFilter(); applyViewportFilter(); renderLayers();
+      if (currentSelection) analyzeSelection();
+    });
+  }
+  map.on('moveend zoomend', ()=>{
+    applyViewportFilter(); renderLayers();
+  });
+
+  // ======== Load ========
+  async function main(){
+    const resp = await fetch(DATA_URL, { cache: "no-store" });
+    if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}). Erwartet: ${DATA_URL}`);
+
+    allGeo = await resp.json();
+    buildYearOptions(allGeo.features||[]);
+    allPts = extractPoints(allGeo);
+    buildRoadCondOptions(allPts);
+    fitToAllPoints(allPts);
+
+    applyGlobalFilter();
+    applyViewportFilter();
+    renderLayers();
+
+    // initial state
+    setBtnState(btnCluster, showCluster);
+    setBtnState(btnHeat, showHeat);
+
+    await maybeAutoExport();
+  }
+
+  main().catch(err=>{
+    console.error(err);
+    statEl.textContent = String(err);
+    alert(String(err));
+  });
+</script>
+</body>
+</html>
