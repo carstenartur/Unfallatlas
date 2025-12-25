@@ -1,0 +1,9 @@
+Methodik (Kurzbeschreibung):
+- Für den markierten Bereich bzw. den aktuellen Kartenausschnitt werden Häufigkeiten von Unfallmustern ermittelt.
+- Parallel wird für dieselben Grunddaten ein Stadtvergleich gebildet (Baseline), um zu prüfen, ob bestimmte Muster im Ausschnitt überrepräsentiert sind.
+- Als „auffällig“ werden Muster betrachtet, die
+  (a) eine Mindestfallzahl erreichen (zur Stabilität der Aussage) und
+  (b) deren Anteil im Ausschnitt im Vergleich zur Stadt deutlich erhöht ist (Faktor {{THRESH_FACTOR}} oder höher).
+
+Wichtiger Hinweis:
+Diese Auswertung ist eine heuristische Voranalyse und ersetzt nicht die formale Bewertung durch Unfallkommission oder Fachverwaltung. Sie dient der Priorisierung und der Ableitung prüffähiger Maßnahmen.
