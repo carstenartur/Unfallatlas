@@ -825,101 +825,102 @@
       applyGlobalFilter(); applyViewportFilter(); renderLayers();
     }
 
+function passesFrameFilters(pr){
+  const wantYear = yearEl.value;
+  const wantKat = katEl.value;
+  const wantStrz = strzEl.value;
+  const weekendMode = weekendEl.value;
+
+  const hFrom = parseInt(hFromEl.value || "0", 10);
+  const hTo   = parseInt(hToEl.value || "23", 10);
+
+  if (wantYear !== "all" && String(pr.year) !== wantYear) return false;
+  if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) return false;
+
+  if (wantStrz !== "all") {
+    const z = String(pr.strzustand ?? "");
+    if (wantStrz === "__unknown__") {
+      if (z !== "" && z !== "null" && z !== "undefined") return false;
+    } else {
+      if (z !== String(wantStrz)) return false;
+    }
+  }
+
+  if (weekendMode !== "all") {
+    const wd = String(pr.uwochentag ?? "");
+    const isWeekend = WEEKEND_SET.has(wd);
+    if (weekendMode === "weekend" && !isWeekend) return false;
+    if (weekendMode === "weekday" && isWeekend) return false;
+  }
+
+  const h = parseInt(pr.ustunde, 10);
+  if (Number.isNaN(h)) return false;
+  if (h < hFrom || h > hTo) return false;
+
+  return true;
+}
     // ---------------------------
     // Filtering (UNCAPPED baseline + CAPPED render)
     // ---------------------------
-    function applyGlobalFilter() {
-      if (!all) return;
+    let frameAll = [];   // UNCAPPED: Rahmenmenge (ohne Beteiligungsfilter) für Baseline/Methodik
+let viewAll  = [];   // UNCAPPED: aktuelle Ansicht (mit Beteiligungsfilter) für Export-Tabellen etc.
 
-      const wantYear = yearEl.value;
-      const wantKat = katEl.value;
-      const wantStrz = strzEl.value;
-      const weekendMode = weekendEl.value;
+function applyGlobalFilter() {
+  if (!all) return;
 
-      const maxN = Math.max(500, parseInt(maxEl.value || "100000", 10));
-      const hFrom = parseInt(hFromEl.value || "0", 10);
-      const hTo   = parseInt(hToEl.value || "23", 10);
+  const maxN = Math.max(500, parseInt(maxEl.value || "100000", 10));
 
-      const sRad  = tRadEl.checked;
-      const sFuss = tFussEl.checked;
-      const sPKW  = tPKWEl.checked;
-      const sKrad = tKradEl.checked;
-      const anySelected = sRad || sFuss || sPKW || sKrad;
+  const sRad  = tRadEl.checked;
+  const sFuss = tFussEl.checked;
+  const sPKW  = tPKWEl.checked;
+  const sKrad = tKradEl.checked;
+  const anySelected = sRad || sFuss || sPKW || sKrad;
 
-      const outCapped = [];
-      const outAll = [];
+  const outCapped = [];
+  const outAll = [];
+  const outFrame = [];
 
-      const baseline = { total:0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
+  for (const p of allPts) {
+    const pr = p.props || {};
+    if (!passesFrameFilters(pr)) continue;
 
-      for (const p of allPts) {
-        const pr = p.props || {};
+    // Rahmenmenge (ohne Beteiligungsfilter)
+    outFrame.push(p);
 
-        if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
-        if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
+    // Beteiligungsfilter (wie bisher) -> viewAll / render
+    const isRad  = String(pr?.istrad)  === "1";
+    const isFuss = String(pr?.istfuss) === "1";
+    const isPKW  = String(pr?.istpkw)  === "1";
+    const isKrad = String(pr?.istkrad) === "1";
 
-        if (wantStrz !== "all") {
-          const z = String(pr.strzustand ?? "");
-          if (wantStrz === "__unknown__") {
-            if (z !== "" && z !== "null" && z !== "undefined") continue;
-          } else {
-            if (z !== String(wantStrz)) continue;
-          }
-        }
+    if (!anySelected) continue;
 
-        if (weekendMode !== "all") {
-          const wd = String(pr.uwochentag ?? "");
-          const isWeekend = WEEKEND_SET.has(wd);
-          if (weekendMode === "weekend" && !isWeekend) continue;
-          if (weekendMode === "weekday" && isWeekend) continue;
-        }
-
-        const h = parseInt(pr.ustunde, 10);
-        if (Number.isNaN(h)) continue;
-        if (h < hFrom || h > hTo) continue;
-
-        const isRad  = String(pr?.istrad)  === "1";
-        const isFuss = String(pr?.istfuss) === "1";
-        const isPKW  = String(pr?.istpkw)  === "1";
-        const isKrad = String(pr?.istkrad) === "1";
-
-        if (!anySelected) continue;
-
-        if (involvementMode === "or") {
-          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-          if (!ok) continue;
-        } else if (involvementMode === "and") {
-          if (sRad  && !isRad)  continue;
-          if (sFuss && !isFuss) continue;
-          if (sPKW  && !isPKW)  continue;
-          if (sKrad && !isKrad) continue;
-        } else if (involvementMode === "solo") {
-          const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
-          if (involvedCount !== 1) continue;
-          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-          if (!ok) continue;
-        }
-
-        // UNCAPPED
-        outAll.push(p);
-
-        const c = classifyPoint(pr);
-        baseline.total++;
-        if (c.radSolo)  baseline.radSolo++;
-        if (c.fussSolo) baseline.fussSolo++;
-        if (c.pkwSolo)  baseline.pkwSolo++;
-        if (c.kradSolo) baseline.kradSolo++;
-        if (c.radPkw)   baseline.radPkw++;
-        if (c.radFuss)  baseline.radFuss++;
-        if (c.pkwFuss)  baseline.pkwFuss++;
-
-        // CAPPED (render)
-        if (outCapped.length < maxN) outCapped.push(p);
-      }
-
-      filteredAll = outAll;
-      filteredGlobal = outCapped;
-      baselineCounts = baseline;
+    if (involvementMode === "or") {
+      const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+      if (!ok) continue;
+    } else if (involvementMode === "and") {
+      if (sRad  && !isRad)  continue;
+      if (sFuss && !isFuss) continue;
+      if (sPKW  && !isPKW)  continue;
+      if (sKrad && !isKrad) continue;
+    } else if (involvementMode === "solo") {
+      const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+      if (involvedCount !== 1) continue;
+      const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+      if (!ok) continue;
     }
+
+    outAll.push(p);
+    if (outCapped.length < maxN) outCapped.push(p);
+  }
+
+  frameAll = outFrame;
+  viewAll = outAll;
+
+  filteredAll = outAll;       // behältst du, falls du es anderswo erwartest
+  filteredGlobal = outCapped; // render
+  baselineCounts = countPatterns(frameAll); // << baselineCounts jetzt sinnvoll!
+}
 
     function applyViewportFilter() {
       const vb = getPaddedBounds();
@@ -1027,16 +1028,19 @@
     function fmtPctDec(n){ return (Number.isFinite(n) ? (n*100).toFixed(2) : "0.00") + "%"; }
 
     async function computeExportReport(){
-      const baseline = await countPatternsChunked(filteredAll);
+      const baseline = await countPatternsChunked(frameAll);
+const vb = selectionBounds ? selectionBounds : map.getBounds();
 
-      const vb = selectionBounds ? selectionBounds : map.getBounds();
-      const local = [];
-      for (let i=0;i<filteredAll.length;i++){
-        const p = filteredAll[i];
-        if (vb.contains([p.lat, p.lon])) local.push(p);
-        if (i % 12000 === 0) await new Promise(r => setTimeout(r,0));
-      }
-      const localC = await countPatternsChunked(local);
+const localFrame = [];
+for (let i=0;i<frameAll.length;i++){
+  const p = frameAll[i];
+  if (vb.contains([p.lat, p.lon])) localFrame.push(p);
+  if (i % 12000 === 0) await new Promise(r => setTimeout(r,0));
+}
+const localC = await countPatternsChunked(localFrame);
+      
+      
+      
 
       const r = (a,b) => (b>0 ? a/b : 0);
       const upFactor = (locR, baseR) => (baseR>0 ? (locR/baseR) : 0);
