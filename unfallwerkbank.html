@@ -1041,17 +1041,24 @@ async function computeExportReport(){
 }
 
     btnOpenExport.addEventListener('click', async ()=>{
-      openModal();
-      exportProgress.textContent = "Starte...";
-      exportBoxTa.value = "Starte...";
-      await new Promise(r=>setTimeout(r, 0));
-      try{
-        exportBoxTa.value = await computeExportReport();
-      } catch(e){
-        exportProgress.textContent = "Fehler.";
-        exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
-      }
-    });
+  openModal();
+  exportProgress.textContent = "Report wird erzeugt…";
+  exportHtml.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
+  exportBoxTa.value = "…";
+
+  await new Promise(r=>setTimeout(r, 0));
+
+  try{
+    const r = await computeExportReport();
+    exportProgress.textContent = "Fertig.";
+    exportHtml.innerHTML = r.html;
+    exportBoxTa.value = r.text;
+  } catch(e){
+    exportProgress.textContent = "Fehler.";
+    exportHtml.innerHTML = `<div style="color:#b00; font-weight:800;">Export fehlgeschlagen</div><div>${escHtml(String(e))}</div>`;
+    exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
+  }
+});
 
     btnCopyText.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
     btnCopyWord.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
