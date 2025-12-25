@@ -791,11 +791,10 @@
       if (heatLayer) { heatLayer.remove(); heatLayer = null; }
 
       let pts = viewportPts;
-      if (showAbove) {
-        const baseline = countPatterns(filteredGlobal);
-        const mask = aboveAverageMask(pts, baseline);
-        if (mask && mask.keep) pts = pts.filter((_,i)=>mask.keep.has(i));
-      }
+      if (showAbove && baselineCounts) {
+  const mask = aboveAverageMask(pts, baselineCounts);
+  if (mask && mask.keep) pts = pts.filter((_,i)=>mask.keep.has(i));
+}
 
       if (showCluster) {
         clusterLayer = L.markerClusterGroup({
