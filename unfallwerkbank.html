@@ -372,6 +372,141 @@
     const v = qs().get(k);
     return (v === null || v === "") ? def : v;
   };
+  
+  function normalizeBool(v, def=false){
+  if (v === null || v === undefined || v === "") return def;
+  const s = String(v).toLowerCase().trim();
+  return (s === "1" || s === "true" || s === "yes" || s === "y" || s === "on");
+}
+function normalizeStr(v, def=""){
+  if (v === null || v === undefined) return def;
+  const s = String(v).trim();
+  return s === "" ? def : s;
+}
+function normalizeInt(v, def, min=null, max=null){
+  let n = parseInt(String(v ?? ""), 10);
+  if (!Number.isFinite(n)) n = def;
+  if (min !== null) n = Math.max(min, n);
+  if (max !== null) n = Math.min(max, n);
+  return n;
+}
+
+function canonicalizeUrl({ forward=true } = {}){
+  const url = new URL(window.location.href);
+  const p = url.searchParams;
+
+  // --- Aliasgruppen: canonicalKey -> aliases (canonical first) ---
+  const groups = [
+    { key: "city", aliases: ["city"] },
+
+    { key: "severity", aliases: ["severity","kat"] },               // kat legacy
+    { key: "year", aliases: ["year"] },                             // year bleibt so
+    { key: "roadCondition", aliases: ["roadCondition","strz"] },    // strz legacy
+    { key: "dayType", aliases: ["dayType","weekend"] },             // weekend legacy
+    { key: "hourFrom", aliases: ["hourFrom","hFrom"] },
+    { key: "hourTo", aliases: ["hourTo","hTo"] },
+
+    { key: "maxPoints", aliases: ["maxPoints","maxn"] },
+    { key: "viewportPaddingPct", aliases: ["viewportPaddingPct","viewportPadding","pad"] },
+    { key: "heatRadius", aliases: ["heatRadius","heatR"] },
+
+    { key: "includeCyclist", aliases: ["includeCyclist","involveBike","rad"] },
+    { key: "includePedestrian", aliases: ["includePedestrian","involvePed","fuss"] },
+    { key: "includeCar", aliases: ["includeCar","involveCar","pkw"] },
+    { key: "includeMotorcycle", aliases: ["includeMotorcycle","involveMoto","krad"] },
+
+    { key: "involvementMode", aliases: ["involvementMode","involveMode","mode"] },
+
+    { key: "showCluster", aliases: ["showCluster","cluster"] },
+    { key: "showHeatmap", aliases: ["showHeatmap","showHeat","heat"] },
+    { key: "showOnlyAboveAverage", aliases: ["showOnlyAboveAverage","onlyHot","above"] },
+
+    { key: "centerLat", aliases: ["centerLat"] },
+    { key: "centerLon", aliases: ["centerLon","centerLng"] },
+    { key: "zoom", aliases: ["zoom"] },
+
+    { key: "selSouth", aliases: ["selSouth"] },
+    { key: "selWest", aliases: ["selWest"] },
+    { key: "selNorth", aliases: ["selNorth"] },
+    { key: "selEast", aliases: ["selEast"] },
+
+    { key: "export", aliases: ["export"] }
+  ];
+
+  // --- 1) Wert pro Gruppe ermitteln: "neuer Name" gewinnt ---
+  // Regel: wenn canonicalKey gesetzt -> benutze den, sonst ersten vorhandenen alias
+  const out = new Map();
+  for (const g of groups){
+    let chosen = null;
+    // canonical wins
+    if (p.has(g.key)) chosen = p.get(g.key);
+    else {
+      for (const a of g.aliases){
+        if (p.has(a)) { chosen = p.get(a); break; }
+      }
+    }
+    if (chosen !== null) out.set(g.key, chosen);
+  }
+
+  // --- 2) Normalisieren + Defaults (hier nur das nötigste) ---
+  // Strings
+  if (out.has("city")) out.set("city", normalizeStr(out.get("city"), "Hannover"));
+
+  // Enums
+  const inv = normalizeStr(out.get("involvementMode"), "or").toLowerCase();
+  out.set("involvementMode", (inv === "and" || inv === "solo") ? inv : "or");
+
+  const dayType = normalizeStr(out.get("dayType"), "all").toLowerCase();
+  // legacy weekend: "weekend/weekday/all" ist ok, aber wenn "weekend" vom alten param kommt:
+  // (optional: mappe "weekday" etc. wenn du willst)
+  out.set("dayType", ["all","weekend","weekday"].includes(dayType) ? dayType : "all");
+
+  const sev = normalizeStr(out.get("severity"), "all");
+  out.set("severity", ["all","1","2","3"].includes(sev) ? sev : "all");
+
+  // Zahlen
+  out.set("hourFrom", normalizeInt(out.get("hourFrom"), 0, 0, 23));
+  out.set("hourTo", normalizeInt(out.get("hourTo"), 23, 0, 23));
+  // sicherstellen: from <= to
+  if (out.get("hourFrom") > out.get("hourTo")) out.set("hourFrom", out.get("hourTo"));
+
+  out.set("zoom", out.has("zoom") ? normalizeInt(out.get("zoom"), 12, 1, 19) : undefined);
+
+  // Booleans -> 0/1 in URL
+  const boolKeys = ["includeCyclist","includePedestrian","includeCar","includeMotorcycle","showCluster","showHeatmap","showOnlyAboveAverage","export"];
+  for (const k of boolKeys){
+    if (!out.has(k)) continue;
+    out.set(k, normalizeBool(out.get(k), false) ? "1" : "0");
+  }
+
+  // --- 3) Clean URL bauen: nur canonical keys behalten ---
+  const clean = new URL(window.location.href);
+  clean.search = ""; // wipe
+
+  // Schreibreihenfolge (lesbar)
+  const order = groups.map(g => g.key);
+  for (const k of order){
+    if (!out.has(k)) continue;
+    const v = out.get(k);
+    if (v === undefined || v === null || v === "") continue;
+    clean.searchParams.set(k, String(v));
+  }
+
+  // --- 4) Wenn geändert: forward oder replaceState ---
+  const changed = (clean.toString() !== url.toString());
+  if (changed){
+    if (forward) {
+      // einmalig, ohne Back-Button-Müll
+      window.location.replace(clean.toString());
+      return { changed:true, url: clean.toString() };
+    } else {
+      history.replaceState(null, "", clean.toString());
+      return { changed:true, url: clean.toString() };
+    }
+  }
+  return { changed:false, url: url.toString() };
+}
+  
   const qNum = (k, def, min=null, max=null) => {
     const raw = qGet(k, null);
     const n = raw === null ? def : (Number(raw));
@@ -1267,6 +1402,10 @@
   map.on('moveend zoomend', scheduleViewportUpdate);
 
   async function main() {
+    
+    // 1) URL aufräumen (einmalig)
+canonicalizeUrl({ forward: true }); // oder forward:false für nur replaceState
+    
     const resp = await fetch(DATA_URL, { cache: "no-store" });
     if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}). Erwartet: ${DATA_URL}`);
 
