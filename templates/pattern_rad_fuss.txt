@@ -1,0 +1,17 @@
+Bewertung – Auffällige Häufung von Rad+Fuß-Unfällen
+
+Im untersuchten Bereich zeigt sich ein erhöhter Anteil von Unfällen zwischen Radverkehr und Fußverkehr (Faktor {{RAD_FUSS_FACTOR}}; lokal {{RAD_FUSS_LOCAL}} Fälle).
+
+Konflikte Rad/Fuß treten häufig dort auf, wo:
+- gemeinsame oder eng geführte Flächen bestehen (Mischwege, geteilte Geh-/Radwege),
+- Querungen unklar sind oder Fußgängerströme hoch sind,
+- Haltestellen-/Schulwegeverkehre zu Spitzenzeiten auftreten.
+
+Handlungsvorschläge (prüffähig):
+1) Klare Flächenzuordnung (Markierung, bauliche Trennung) und Entflechtung, wo möglich.
+2) Querungsstellen sicher gestalten: Sicht, Beleuchtung, Querungshilfen, eindeutige Führungen.
+3) Maßnahmen an Knotenpunkten: Reduktion von Konfliktpunkten, Anpassung der Radführung (z. B. Umfahrung stark frequentierter Fußpunkte).
+4) Information/Lenkung in Spitzenzeiten (insb. Schule/Kita/ÖPNV): Piktogramme, Leitelemente.
+
+Hinweis:
+Eine genaue Ursachenbestimmung erfordert die örtliche Betrachtung der Führung und der Fußgängerquellen (ÖPNV, Schulen, Einkauf).
