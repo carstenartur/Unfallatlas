@@ -19,8 +19,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      - name: Build city args from cities.txt
-        id: cities
+      - name: Run converter once for all cities from cities.txt
         shell: bash
         run: |
           set -euo pipefail
@@ -31,7 +30,10 @@ jobs:
           fi
 
           # Read cities (1 per line), ignore blanks and comments
-          mapfile -t CITIES < <(sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt | awk 'NF')
+          mapfile -t CITIES < <(
+            sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt \
+            | awk 'NF'
+          )
 
           if (( ${#CITIES[@]} == 0 )); then
             echo "No cities found in cities.txt"
@@ -41,33 +43,15 @@ jobs:
           echo "Cities (${#CITIES[@]}):"
           printf ' - %s\n' "${CITIES[@]}"
 
-          # Build a single line with repeated --city "..."
+          # Build args
           CITY_ARGS=()
           for c in "${CITIES[@]}"; do
             CITY_ARGS+=(--city "$c")
           done
 
-          # Export as a single string for later steps (safe because we’ll eval via bash array below)
-          # We store it line-by-line to avoid quoting hell:
-          {
-            echo "CITY_COUNT=${#CITIES[@]}"
-            echo "CITY_ARGS<<'EOF'"
-            printf '%q ' "${CITY_ARGS[@]}"
-            echo
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Run converter once for all cities
-        shell: bash
-        run: |
-          set -euo pipefail
           chmod +x ./convertAmt2gmaps.sh
 
-          # Restore args
-          # CITY_ARGS is a string of %q-escaped tokens, so we can safely parse into array
-          read -r -a CITY_ARGS <<< "${{ steps.cities.outputs.CITY_ARGS }}"
-
-          echo "Calling convertAmt2gmaps.sh once with ${#CITY_ARGS[@]} city-args tokens..."
+          # One single call for all cities
           ./convertAmt2gmaps.sh \
             --limit 0 \
             "${CITY_ARGS[@]}" \
