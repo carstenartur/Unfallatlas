@@ -343,7 +343,20 @@
         </div>
       </div>
       <div class="progressLine" id="exportProgress">-</div>
-      <div class="exportText" id="exportBox">-</div>
+
+      <div class="exportHtml" id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85); max-height:260px; overflow:auto;">
+        <div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label for="exportBoxTa" style="grid-column:1/-1; font-weight:800;">Text zum Kopieren (Word/Clipboard)</label>
+        <textarea id="exportBoxTa" style="grid-column:1/-1; width:100%; min-height:180px; resize:vertical; padding:10px; border-radius:12px; border:1px solid rgba(0,0,0,.15); font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></textarea>
+      </div>
+
+      <div class="toggles" style="margin-top:10px;">
+        <div id="btnCopyExport" class="btn">📋 In Clipboard</div>
+        <div id="btnDownloadExport" class="btn">⬇️ Als .txt</div>
+      </div>
     </div>
   </div>
 
@@ -439,10 +452,13 @@
     const statEl = document.getElementById('stat');
 
     const modalOverlay = document.getElementById('modalOverlay');
-    const exportBox = document.getElementById('exportBox');
+    const exportHtml = document.getElementById('exportHtml');
+    const exportBoxTa = document.getElementById('exportBoxTa');
     const exportProgress = document.getElementById('exportProgress');
     const btnCloseModal = document.getElementById('btnCloseModal');
     const btnCopyWord = document.getElementById('btnCopyWord');
+    const btnCopyExport = document.getElementById('btnCopyExport');
+    const btnDownloadExport = document.getElementById('btnDownloadExport');
     const btnCopyText = document.getElementById('btnCopyText');
     const btnMakeLink = document.getElementById('btnMakeLink');
 
@@ -454,6 +470,7 @@
     let all = null;
     let allPts = [];
     let filteredGlobal = [];
+    let filteredAll = [];
     let viewportPts = [];
 
     // Cache: city-wide ratios for current filter set (used for "above-average" highlighting)
@@ -611,6 +628,7 @@
       const anySelected = sRad || sFuss || sPKW || sKrad;
 
       const out = [];
+      const allOut = [];
       // Compute baseline (city-wide) pattern counts for the current filters in the same pass
       const baseline = {
         total: 0,
@@ -684,6 +702,7 @@
 
         if (out.length >= maxN) break;
       }
+      filteredAll = allOut;
       filteredGlobal = out;
       baselineCounts = baseline;
     }
@@ -691,6 +710,7 @@
     function applyViewportFilter() {
       const vb = getPaddedBounds();
       const out = [];
+      const allOut = [];
       for (const p of filteredGlobal) {
         if (vb.contains([p.lat, p.lon])) out.push(p);
       }
@@ -857,6 +877,7 @@
     function pointsInBounds(points, bounds){
       if (!bounds) return points;
       const out = [];
+      const allOut = [];
       for (const p of points) if (bounds.contains([p.lat, p.lon])) out.push(p);
       return out;
     }
@@ -880,102 +901,171 @@
 
     function fmtPct(x){ return (x*100).toFixed(1).replace(".", ",") + " %"; }
 
-    async function computeExportText(){
-      const baseline = countPatterns(filteredGlobal);
-      const localArea = selectionBounds ? pointsInBounds(filteredGlobal, selectionBounds) : viewportPts;
-
-      openModal();
-      exportBox.textContent = "Analysiere...";
-      exportProgress.textContent = "Initialisiere...";
-      await new Promise(r=>setTimeout(r, 0));
-
-      const local = { total:0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
-      const CHUNK = 2000;
-
-      for (let i=0;i<localArea.length;i++){
-        const pr = localArea[i].props || {};
-        const c = classifyPoint(pr);
-        local.total++;
-        if (c.radSolo) local.radSolo++;
-        if (c.fussSolo) local.fussSolo++;
-        if (c.pkwSolo) local.pkwSolo++;
-        if (c.kradSolo) local.kradSolo++;
-        if (c.radPkw) local.radPkw++;
-        if (c.radFuss) local.radFuss++;
-        if (c.pkwFuss) local.pkwFuss++;
-
-        if (i>0 && (i % CHUNK) === 0){
-          exportProgress.textContent = `Analysiere... ${i.toLocaleString()} / ${localArea.length.toLocaleString()}`;
-          await new Promise(r=>setTimeout(r, 0));
-        }
-      }
-
-      function score(key, title){
-        const lr = ratio(local[key], local.total);
-        const br = ratio(baseline[key], baseline.total);
-        const factor = (br>0) ? (lr/br) : (lr>0 ? 99 : 1);
-        return { key, title, localN: local[key], lr, br, factor };
-      }
-
-      const checks = [
-        score("radSolo", "Rad - Alleinunfaelle"),
-        score("fussSolo", "Fuss - Alleinunfaelle"),
-        score("radPkw", "Rad + PKW"),
-        score("radFuss", "Rad + Fuss"),
-        score("pkwFuss", "PKW + Fuss"),
-      ].sort((a,b)=> (b.factor - a.factor) || (b.localN - a.localN));
-
-      const strongest = checks.find(x=>x.localN>=8 && x.factor>=1.35) || checks[0];
-      exportProgress.textContent = "Fertig.";
-
-      const bboxText = selectionBounds ? selectionBounds.toBBoxString() : map.getBounds().toBBoxString();
-      return [
-        "BEZIRKSRAT / STADTRAT - ANTRAG (Entwurf, automatisch erzeugt)",
-        "",
-        "Betreff: Verkehrssicherheitsmassnahme an Unfallhaeufungsstelle (Unfallatlas-Auswertung)",
-        "",
-        "Sehr geehrte Damen und Herren,",
-        "",
-        "die Verwaltung wird gebeten, die nachfolgend beschriebene Unfallhaeufungsstelle fachlich zu pruefen und geeignete Massnahmen zur Erhoehung der Verkehrssicherheit vorzuschlagen und umzusetzen.",
-        "",
-        "1. Sachverhalt / Anlass",
-        `- Kartenausschnitt (BBox): ${bboxText}`,
-        `- Umfang: Lokal ${local.total.toLocaleString()} Unfaelle; Stadt-Basis ${baseline.total.toLocaleString()} Unfaelle (unter gleichen Filtern)`,
-        "",
-        "2. Auffaelligkeiten (indikativ)",
-        ...checks.slice(0,4).map(c => `- ${c.title}: ${c.localN} lokal; Anteil ${fmtPct(c.lr)} vs. ${fmtPct(c.br)} (Faktor ~ ${c.factor.toFixed(2)})`),
-        "",
-        "3. Bewertung / Handlungsbedarf",
-        `Besonders auffaellig: ${strongest.title}.`,
-        "",
-        "Technischer Hinweis (bitte vor Einreichung entfernen):",
-        "Dieser Entwurf wurde automatisch erzeugt. Ueber den Link kann die Auswertung nachvollzogen und ueberarbeitet werden.",
-        "",
-        "Daten-/Lizenzhinweis (kann stehen bleiben):",
-        "Datenquelle: Unfallatlas / Open-Data-Downloads (je Jahr). Lizenz: Datenlizenz Deutschland - Namensnennung - Version 2.0 (dl-de/by-2-0). Kartenhintergrund: OpenStreetMap-Mitwirkende.",
-        ""
-      ].join("\n");
+    
+async function countPatternsChunked(points, chunkSize=6000){
+  const res = { total: 0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
+  for (let i=0; i<points.length; i+=chunkSize){
+    const end = Math.min(points.length, i+chunkSize);
+    for (let j=i; j<end; j++){
+      const pr = points[j].props || {};
+      const c = classifyPoint(pr);
+      res.total++;
+      if (c.radSolo) res.radSolo++;
+      if (c.fussSolo) res.fussSolo++;
+      if (c.pkwSolo) res.pkwSolo++;
+      if (c.kradSolo) res.kradSolo++;
+      if (c.radPkw) res.radPkw++;
+      if (c.radFuss) res.radFuss++;
+      if (c.pkwFuss) res.pkwFuss++;
     }
+    // Yield to UI thread so the page doesn't freeze
+    await new Promise(r => setTimeout(r, 0));
+  }
+  return res;
+}
+
+function fmtPct(n){ return (Number.isFinite(n) ? (n*100).toFixed(2) : "0.00") + "%"; }
+
+async function computeExportReport(){
+  // IMPORTANT: Use filteredAll (NO maxn cap) for statistics, otherwise ratios are biased.
+  const baseline = await countPatternsChunked(filteredAll);
+  const vb = selectionBounds ? selectionBounds : map.getBounds();
+  const local = [];
+  for (const p of filteredAll) {
+    if (vb.contains([p.lat, p.lon])) local.push(p);
+    if (local.length % 8000 === 0) await new Promise(r => setTimeout(r,0));
+  }
+  const localC = await countPatternsChunked(local);
+
+  const ratio = (a,b) => (b>0 ? a/b : 0);
+  const sig = (loc, base) => (base>0 ? (loc/base) : 0);
+
+  const metrics = [
+    { key:"radSolo", label:"🚲 Alleinunfall (Rad)", loc: localC.radSolo, base: baseline.radSolo },
+    { key:"fussSolo", label:"🚶 Alleinunfall (Fuß)", loc: localC.fussSolo, base: baseline.fussSolo },
+    { key:"pkwSolo", label:"🚗 Alleinunfall (PKW)", loc: localC.pkwSolo, base: baseline.pkwSolo },
+    { key:"kradSolo", label:"🏍️ Alleinunfall (Krad)", loc: localC.kradSolo, base: baseline.kradSolo },
+    { key:"radPkw",  label:"🚲+🚗 Rad + PKW",        loc: localC.radPkw,  base: baseline.radPkw  },
+    { key:"radFuss", label:"🚲+🚶 Rad + Fuß",        loc: localC.radFuss, base: baseline.radFuss },
+    { key:"pkwFuss", label:"🚗+🚶 PKW + Fuß",        loc: localC.pkwFuss, base: baseline.pkwFuss }
+  ];
+
+  const rows = metrics.map(m => {
+    const locR = ratio(m.loc, localC.total);
+    const baseR = ratio(m.base, baseline.total);
+    const up = sig(locR, baseR);
+    return { ...m, locR, baseR, up };
+  }).sort((a,b)=> b.up - a.up);
+
+  const focus = rows.filter(r => r.baseR>0).filter(r => r.up >= 1.35).slice(0,4);
+
+  const boundsStr = `${vb.getSouthWest().lat.toFixed(5)},${vb.getSouthWest().lng.toFixed(5)} – ${vb.getNorthEast().lat.toFixed(5)},${vb.getNorthEast().lng.toFixed(5)}`;
+
+  // -------- Text (Word/Clipboard) --------
+  const lines = [];
+  lines.push(`Bezirksratsantrag (Entwurf) – Unfallwerkbank`);
+  lines.push(`Stadt: ${CITY_RAW}`);
+  lines.push(`Ausschnitt (Bounds): ${boundsStr}`);
+  lines.push(`Datum: ${new Date().toLocaleDateString('de-DE')}`);
+  lines.push(``);
+  lines.push(`Betreff: Verbesserung der Verkehrssicherheit – auffälliger Unfallschwerpunkt im markierten Bereich`);
+  lines.push(``);
+  lines.push(`Sachverhalt:`);
+  lines.push(`Im markierten Kartenausschnitt wurden ${localC.total.toLocaleString()} Unfälle (nach den aktuell eingestellten Filtern) ausgewertet.`);
+  lines.push(`Im Stadtvergleich (Baseline: ${baseline.total.toLocaleString()} Unfälle unter denselben Filtern) zeigen sich deutliche Abweichungen in der Zusammensetzung der Unfallarten.`);
+  lines.push(``);
+  lines.push(`Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):`);
+  for (const r of focus.length ? focus : rows.slice(0,3)) {
+    lines.push(`- ${r.label}: ${fmtPct(r.locR)} vs ${fmtPct(r.baseR)} (Faktor ${r.up.toFixed(2)}); lokal ${r.loc.toLocaleString()} / stadtweit ${r.base.toLocaleString()}`);
+  }
+  lines.push(``);
+  lines.push(`Bewertung / Interpretation (automatisch, heuristisch):`);
+  lines.push(`- Eine Überrepräsentation von 🚲-Alleinunfällen kann auf infrastrukturelle Risiken wie Schienenquerungen, Kanten/Spurrinnen, Belagswechsel oder Engstellen hinweisen.`);
+  lines.push(`- Eine Überrepräsentation von 🚲+🚗-Unfällen kann auf Konflikte an Knotenpunkten, Sichtbeziehungen, Abbiegebeziehungen und Führung von Radverkehr im Mischverkehr hindeuten.`);
+  lines.push(`- Eine Überrepräsentation von 🚲+🚶 oder 🚗+🚶 kann auf Querungsdefizite, fehlende Aufstellflächen, unklare Vorfahrt oder hohe Fußgängerströme hindeuten.`);
+  lines.push(``);
+  lines.push(`Beschlussvorschlag:`);
+  lines.push(`Der Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Dazu zählen insbesondere:`);
+  lines.push(`1) Sofortmaßnahmen (Quick Wins): Markierungen, Piktogramme, temporäre Warnhinweise, Sichtfreimachung, Anpassung der Signalisierung/Grünphasen, ggf. Reduktion der zulässigen Geschwindigkeit im Konfliktbereich.`);
+  lines.push(`2) Infrastrukturmaßnahmen: Optimierung der Radführung an Knotenpunkten, sichere Querungen, Anpassung von Bordkanten/Belag, und – falls Schienenquerungen betroffen sind – Prüfung von Maßnahmen zur sicheren Querung (z. B. Führung im möglichst rechten Winkel, Oberflächenangleichung, ggf. alternative Führung).`);
+  lines.push(`3) Monitoring: Nach Umsetzung Evaluation anhand Unfallatlas-Daten der Folgejahre.`);
+  lines.push(``);
+  lines.push(`Hinweis (intern, vor Versand entfernen): Dieser Text wurde automatisiert erzeugt. Link zur Überarbeitung: ${window.location.href}`);
+  lines.push(``);
+  lines.push(`Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads (siehe README). Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).`);
+
+  const textOut = lines.join("\n");
+
+  // -------- HTML (im Modal) --------
+  const mkRow = (r) => `
+    <tr>
+      <td>${escHtml(r.label)}</td>
+      <td style="text-align:right;">${r.loc.toLocaleString()}</td>
+      <td style="text-align:right;">${fmtPct(r.locR)}</td>
+      <td style="text-align:right;">${fmtPct(r.baseR)}</td>
+      <td style="text-align:right; font-weight:800;">${r.up.toFixed(2)}×</td>
+    </tr>`;
+  const htmlOut = `
+    <div style="font:14px/1.35 system-ui;">
+      <div style="font-weight:900; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
+      <div style="color:#444; margin-top:4px;">
+        <div><strong>Stadt:</strong> ${escHtml(CITY_RAW)} | <strong>Bounds:</strong> <code>${escHtml(boundsStr)}</code></div>
+        <div><strong>Auswertung:</strong> lokal ${localC.total.toLocaleString()} Unfälle | Baseline (Stadt, gleiche Filter) ${baseline.total.toLocaleString()} Unfälle</div>
+      </div>
+
+      <div style="margin-top:10px; font-weight:900;">Top-Abweichungen</div>
+      <table style="width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;">
+        <thead>
+          <tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,.15);">
+            <th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(focus.length ? focus : rows.slice(0,5)).map(mkRow).join("")}
+        </tbody>
+      </table>
+
+      <div style="margin-top:10px; color:#555; font-size:12px;">
+        <div><strong>Methodik:</strong> Anteil je Muster im Ausschnitt vs. Anteil stadtweit – jeweils unter denselben Filtern (Jahr/Kategorie/Beteiligung/Zeiten/Straßenzustand).</div>
+        <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission.</div>
+      </div>
+    </div>
+  `;
+
+  return { text: textOut, html: htmlOut };
+}
 
     btnOpenExport.addEventListener('click', async ()=>{
       openModal();
       exportProgress.textContent = "Starte...";
-      exportBox.textContent = "Starte...";
+      exportBoxTa.value = "Starte...";
       await new Promise(r=>setTimeout(r, 0));
       try{
-        exportBox.textContent = await computeExportText();
+        exportBoxTa.value = await computeExportReport();
       } catch(e){
         exportProgress.textContent = "Fehler.";
-        exportBox.textContent = "Export fehlgeschlagen: " + String(e);
+        exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
       }
     });
 
-    btnCopyText.addEventListener('click', async ()=>{ await writeClipboard(exportBox.textContent||""); alert("Kopiert."); });
-    btnCopyWord.addEventListener('click', async ()=>{ await writeClipboard(exportBox.textContent||""); alert("Kopiert."); });
+    btnCopyText.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
+    btnCopyWord.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
     btnMakeLink.addEventListener('click', async ()=>{
       const url = setQS({ export: 1 });
       await writeClipboard(url);
       alert("Link kopiert.");
+    });
+
+    if (btnCopyExport) btnCopyExport.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
+    if (btnDownloadExport) btnDownloadExport.addEventListener('click', ()=>{
+      const blob = new Blob([exportBoxTa.value||""], {type: 'text/plain;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `bezirksratsantrag_${CITY_SUFFIX}_${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 500);
     });
 
     function bindUi(){
