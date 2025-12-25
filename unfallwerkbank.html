@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unfallwerkbank - Analyse + Export (Prototype)</title>
+  <title>Unfallwerkbank – Analyse + Export (Prototype)</title>
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -27,183 +27,179 @@
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; }
 
-    .panel {
-      position: absolute; top: 10px; left: 10px; z-index: 1000;
-      background: rgba(255,255,255,.78);
+    .panel{
+      position:absolute; top:10px; left:10px; z-index:1000;
+      background:rgba(255,255,255,.78);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
-      padding: 10px 12px; border-radius: 10px;
-      box-shadow: 0 2px 12px rgba(0,0,0,.18);
-      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      width: min(420px, calc(100vw - 20px));
-      max-height: calc(100vh - 20px);
-      overflow: auto;
+      padding:10px 12px; border-radius:10px;
+      box-shadow:0 2px 12px rgba(0,0,0,.18);
+      font:14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      width:min(420px, calc(100vw - 20px));
+      max-height:calc(100vh - 20px);
+      overflow:auto;
     }
-    .panelHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; position: sticky; top: 0; background: rgba(255,255,255,.78); padding-bottom: 8px; }
-    .panelTitle { font-weight: 900; }
-    .panelSub { color:#666; font-weight:650; }
-    .headerBtns { display:flex; gap:8px; align-items:center; }
-    .collapseBtn, .legendBtn{
-      border: 1px solid rgba(0,0,0,.15);
-      background: rgba(250,250,250,.85);
-      padding: 6px 10px;
-      border-radius: 10px;
-      cursor: pointer;
+    .panelHeader{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      position: sticky; top: 0;
+      background: rgba(255,255,255,.78);
+      padding-bottom: 8px;
+    }
+    .panelTitle{ font-weight:900; }
+    .panelSub{ color:#666; font-weight:650; }
+    .headerBtns{ display:flex; gap:8px; align-items:center; }
+    .collapseBtn,.legendBtn{
+      border:1px solid rgba(0,0,0,.15);
+      background:rgba(250,250,250,.85);
+      padding:6px 10px;
+      border-radius:10px;
+      cursor:pointer;
       user-select:none;
       font-weight:800;
-      line-height: 1;
+      line-height:1;
     }
-    .collapseBtn:hover,.legendBtn:hover { background: rgba(240,240,240,.92); }
-    .panelBody { margin-top: 8px; }
-    .panel.collapsed { width: auto; max-width: 220px; overflow: hidden; }
-    .panel.collapsed .panelBody { display:none; }
-    .panel.collapsed .panelSub { display:none; }
+    .collapseBtn:hover,.legendBtn:hover{ background:rgba(240,240,240,.92); }
+    .panelBody{ margin-top:8px; }
+    .panel.collapsed{ width:auto; max-width:220px; overflow:hidden; }
+    .panel.collapsed .panelBody{ display:none; }
+    .panel.collapsed .panelSub{ display:none; }
 
-    .row { display: grid; grid-template-columns: 120px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
-    label { font-weight: 650; }
-    select, input {
-      width: 100%; padding: 6px 8px;
-      border: 1px solid #ddd; border-radius: 8px;
-      font: inherit;
-      background: rgba(255,255,255,.9);
+    .row{ display:grid; grid-template-columns:120px 1fr; gap:8px; align-items:center; margin-top:8px; }
+    label{ font-weight:650; }
+    select, input{
+      width:100%; padding:6px 8px;
+      border:1px solid #ddd; border-radius:8px;
+      font:inherit;
+      background:rgba(255,255,255,.9);
     }
-    .toggles { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .btn {
-      flex: 1;
-      padding: 8px 10px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      background: rgba(250,250,250,.9);
-      cursor: pointer;
-      user-select: none;
-      text-align: center;
-      font-weight: 800;
-    }
-    .btn.active { background: rgba(233,242,255,.92); border-color: rgba(183,212,255,.95); }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .chip {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      border: 1px solid #ddd;
-      background: rgba(255,255,255,.9);
-      border-radius: 999px;
-      padding: 6px 10px;
-      user-select: none;
-    }
-    .chip input { width: auto; }
-    .chip span { font-weight: 800; }
 
-    .muted { color: #666; font-size: 12px; margin-top: 8px; }
-    .stat { margin-top: 8px; font-size: 12px; color: #333; }
-    code { background: rgba(243,243,243,.92); padding: 1px 4px; border-radius: 6px; }
+    .toggles{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+    .btn{
+      flex:1;
+      padding:8px 10px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      background:rgba(250,250,250,.9);
+      cursor:pointer;
+      user-select:none;
+      text-align:center;
+      font-weight:800;
+    }
+    .btn.active{ background:rgba(233,242,255,.92); border-color:rgba(183,212,255,.95); }
 
-    .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
-    .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
-    .dualRange { position: relative; height: 26px; }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .chip{
+      display:inline-flex; gap:8px; align-items:center;
+      border:1px solid #ddd;
+      background:rgba(255,255,255,.9);
+      border-radius:999px;
+      padding:6px 10px;
+      user-select:none;
+    }
+    .chip input{ width:auto; }
+    .chip span{ font-weight:800; }
+
+    .muted{ color:#666; font-size:12px; margin-top:8px; }
+    .stat{ margin-top:8px; font-size:12px; color:#333; }
+    code{ background:rgba(243,243,243,.92); padding:1px 4px; border-radius:6px; }
+
+    .rangeWrap{ display:grid; grid-template-columns:1fr; gap:6px; }
+    .rangeLabel{ font-size:12px; color:#333; display:flex; justify-content:space-between; }
+    .dualRange{ position:relative; height:26px; }
     .dualRange input[type="range"]{
-      position: absolute; left: 0; right: 0; top: 0;
-      width: 100%; margin: 0; padding: 0;
-      background: transparent;
-      pointer-events: none;
-      -webkit-appearance: none;
-      appearance: none;
-      height: 26px;
+      position:absolute; left:0; right:0; top:0;
+      width:100%; margin:0; padding:0;
+      background:transparent;
+      pointer-events:none;
+      -webkit-appearance:none;
+      appearance:none;
+      height:26px;
     }
     .dualRange input[type="range"]::-webkit-slider-thumb{
-      pointer-events: auto;
-      -webkit-appearance: none;
-      appearance: none;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      border: 1px solid rgba(0,0,0,.25);
-      background: rgba(255,255,255,.98);
-      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+      pointer-events:auto;
+      -webkit-appearance:none;
+      appearance:none;
+      width:18px; height:18px;
+      border-radius:50%;
+      border:1px solid rgba(0,0,0,.25);
+      background:rgba(255,255,255,.98);
+      box-shadow:0 1px 4px rgba(0,0,0,.25);
     }
     .dualRange input[type="range"]::-moz-range-thumb{
-      pointer-events: auto;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      border: 1px solid rgba(0,0,0,.25);
-      background: rgba(255,255,255,.98);
-      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+      pointer-events:auto;
+      width:18px; height:18px;
+      border-radius:50%;
+      border:1px solid rgba(0,0,0,.25);
+      background:rgba(255,255,255,.98);
+      box-shadow:0 1px 4px rgba(0,0,0,.25);
     }
     .dualRangeTrack{
       position:absolute; left:0; right:0;
-      top: 50%; transform: translateY(-50%);
-      height: 6px; border-radius: 999px;
-      background: rgba(0,0,0,.12);
+      top:50%; transform:translateY(-50%);
+      height:6px; border-radius:999px;
+      background:rgba(0,0,0,.12);
     }
     .dualRangeFill{
       position:absolute;
-      top: 50%; transform: translateY(-50%);
-      height: 6px; border-radius: 999px;
-      background: rgba(120,170,255,.75);
-      left: 0%; right: 0%;
+      top:50%; transform:translateY(-50%);
+      height:6px; border-radius:999px;
+      background:rgba(120,170,255,.75);
+      left:0%; right:0%;
     }
 
     .legendBox{
-      margin-top: 8px;
-      padding: 8px 10px;
-      border: 1px dashed rgba(0,0,0,.25);
-      border-radius: 10px;
-      background: rgba(255,255,255,.7);
-      font-size: 12px;
+      margin-top:8px;
+      padding:8px 10px;
+      border:1px dashed rgba(0,0,0,.25);
+      border-radius:10px;
+      background:rgba(255,255,255,.7);
+      font-size:12px;
       color:#333;
       display:none;
     }
-    .legendBox strong{ font-weight: 900; }
-    .legendBox ul{ margin: 8px 0 0 18px; padding: 0; }
-    .legendBox li{ margin: 2px 0; }
+    .legendBox strong{ font-weight:900; }
+    .legendBox ul{ margin:8px 0 0 18px; padding:0; }
+    .legendBox li{ margin:2px 0; }
 
     .modalOverlay{
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.25);
-      z-index: 2000;
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.25);
+      z-index:2000;
       display:none;
-      align-items: center;
-      justify-content: center;
-      padding: 10px;
+      align-items:center;
+      justify-content:center;
+      padding:10px;
     }
     .modal{
-      width: min(920px, calc(100vw - 20px));
-      max-height: calc(100vh - 20px);
-      overflow: auto;
-      background: rgba(255,255,255,.98);
-      border-radius: 14px;
-      border: 1px solid rgba(0,0,0,.08);
-      box-shadow: 0 18px 48px rgba(0,0,0,.18);
-      padding: 14px 14px 10px;
-      font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      width:min(920px, calc(100vw - 20px));
+      max-height:calc(100vh - 20px);
+      overflow:auto;
+      background:rgba(255,255,255,.98);
+      border-radius:14px;
+      border:1px solid rgba(0,0,0,.08);
+      box-shadow:0 18px 48px rgba(0,0,0,.18);
+      padding:14px 14px 10px;
+      font:14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
-    .modalHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; position: sticky; top: 0; background: rgba(255,255,255,.98); padding-bottom: 10px; }
-    .modalTitle{ font-weight: 950; font-size: 16px; }
-    .modalBtns{ display:flex; gap:8px; flex-wrap: wrap; }
+    .modalHeader{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      position: sticky; top:0;
+      background: rgba(255,255,255,.98);
+      padding-bottom:10px;
+    }
+    .modalTitle{ font-weight:950; font-size:16px; }
+    .modalBtns{ display:flex; gap:8px; flex-wrap:wrap; }
     .smallBtn{
-      padding: 8px 10px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      background: rgba(250,250,250,.96);
+      padding:8px 10px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      background:rgba(250,250,250,.96);
       cursor:pointer;
-      font-weight: 850;
+      font-weight:850;
       user-select:none;
     }
-    .smallBtn:hover{ background: rgba(240,240,240,.98); }
-    .exportText{
-      white-space: pre-wrap;
-      background: #fff;
-      border: 1px solid rgba(0,0,0,.12);
-      border-radius: 12px;
-      padding: 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      font-size: 12.5px;
-      line-height: 1.35;
-    }
-    .progressLine{
-      margin: 10px 0;
-      font-size: 12px;
-      color:#333;
-    }
+    .smallBtn:hover{ background:rgba(240,240,240,.98); }
+    .progressLine{ margin:10px 0; font-size:12px; color:#333; }
   </style>
 </head>
 <body>
@@ -231,7 +227,7 @@
         <label for="kat">Unfallschwere</label>
         <select id="kat">
           <option value="all">Alle</option>
-          <option value="1">1 - Getoetete</option>
+          <option value="1">1 - Getötete</option>
           <option value="2">2 - Schwerverletzte</option>
           <option value="3">3 - Leichtverletzte</option>
         </select>
@@ -240,7 +236,7 @@
       <div style="margin-top:10px; font-weight:900;">Beteiligung</div>
       <div class="chips">
         <label class="chip"><input type="checkbox" id="tRad" checked> <span>Rad</span></label>
-        <label class="chip"><input type="checkbox" id="tFuss" checked> <span>Fuss</span></label>
+        <label class="chip"><input type="checkbox" id="tFuss" checked> <span>Fuß</span></label>
         <label class="chip"><input type="checkbox" id="tPKW" checked> <span>PKW</span></label>
         <label class="chip"><input type="checkbox" id="tKrad"> <span>Krad</span></label>
       </div>
@@ -266,7 +262,7 @@
             <input id="hFrom" type="range" min="0" max="23" step="1" value="0" />
             <input id="hTo" type="range" min="0" max="23" step="1" value="23" />
           </div>
-          <div class="muted" style="margin-top:0;">(Kein Wrap-around: Start <= Ende.)</div>
+          <div class="muted" style="margin-top:0;">(Kein Wrap-around: Start ≤ Ende.)</div>
         </div>
       </div>
 
@@ -275,7 +271,7 @@
         <select id="weekend">
           <option value="all">Alle</option>
           <option value="weekend">Nur Wochenende (Sa/So)</option>
-          <option value="weekday">Nur Werktag (Mo-Fr)</option>
+          <option value="weekday">Nur Werktag (Mo–Fr)</option>
         </select>
       </div>
 
@@ -287,7 +283,7 @@
       </div>
 
       <div class="row">
-        <label for="maxn">Max Punkte</label>
+        <label for="maxn">Max Punkte (Render)</label>
         <input id="maxn" type="number" min="500" step="500" value="100000" />
       </div>
 
@@ -304,29 +300,30 @@
       <div class="toggles">
         <div id="toggleCluster" class="btn active">Cluster</div>
         <div id="toggleHeat" class="btn active">Heatmap</div>
-        <div id="toggleAbove" class="btn">Nur "auffaellig"</div>
+        <div id="toggleAbove" class="btn">Nur „auffällig“</div>
       </div>
 
       <div style="margin-top:10px; font-weight:900;">Ausschnitt & Export</div>
       <div class="toggles">
         <div id="btnDraw" class="btn">Bereich markieren</div>
-        <div id="btnClearDraw" class="btn">Markierung loeschen</div>
-        <div id="btnOpenExport" class="btn">Analyse/Export oeffnen</div>
+        <div id="btnClearDraw" class="btn">Markierung löschen</div>
+        <div id="btnOpenExport" class="btn">Analyse/Export öffnen</div>
       </div>
 
       <div class="legendBox" id="legendBox">
         <strong>Legende / Hinweise</strong>
         <ul>
-          <li><strong>Nur "auffaellig"</strong> blendet Konstellationen aus, die im aktuellen Ausschnitt nicht staerker auftreten als im Stadtdurchschnitt (Prototyp).</li>
-          <li><strong>Bereich markieren</strong>: Rechteck aufziehen -> Export bezieht sich auf den markierten Bereich (sonst: aktueller Viewport).</li>
-          <li><strong>Tipp:</strong> Export direkt oeffnen per URL: <code>?export=1</code></li>
+          <li><strong>Nur „auffällig“</strong> blendet Unfälle aus Mustern aus, die im aktuellen Ausschnitt nicht überrepräsentiert sind (Heuristik: min. 8 Fälle & Faktor ≥ 1,35).</li>
+          <li><strong>Bereich markieren</strong>: Rechteck aufziehen → Export bezieht sich auf den markierten Bereich (sonst: aktueller Viewport).</li>
+          <li><strong>Tipp:</strong> Export direkt öffnen per URL: <code>?export=1</code></li>
+          <li><strong>Viewport fixieren:</strong> über <code>centerLat/centerLon/zoom</code> oder <code>viewBbox</code></li>
         </ul>
       </div>
 
-      <div class="stat" id="stat">Lade Daten...</div>
+      <div class="stat" id="stat">Lade Daten…</div>
       <div class="muted">
         Quelle: <code id="dataSourceCode">-</code><br/>
-        Rendert nur Punkte im Kartenausschnitt (plus Puffer). Export ist auf Ausschnitt begrenzt (wichtig fuer Performance).
+        Rendert nur Punkte im Kartenausschnitt (plus Puffer). Export/Statistik nutzt UNCAPPED Filtermenge (kein maxn-Bias).
       </div>
     </div>
   </div>
@@ -339,12 +336,13 @@
           <div class="smallBtn" id="btnCopyWord">In Word kopieren</div>
           <div class="smallBtn" id="btnCopyText">Als Text kopieren</div>
           <div class="smallBtn" id="btnMakeLink">Link erzeugen</div>
-          <div class="smallBtn" id="btnCloseModal">Schliessen</div>
+          <div class="smallBtn" id="btnCloseModal">Schließen</div>
         </div>
       </div>
+
       <div class="progressLine" id="exportProgress">-</div>
 
-      <div class="exportHtml" id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85); max-height:260px; overflow:auto;">
+      <div id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85); max-height:260px; overflow:auto;">
         <div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>
       </div>
 
@@ -363,9 +361,32 @@
   <script>
     if (!window.L) { alert("Leaflet fehlt."); throw new Error("Leaflet fehlt"); }
 
+    // ---------------------------
+    // URL helpers (mit Aliases)
+    // ---------------------------
     function qs(){ return new URL(window.location.href).searchParams; }
-    function qGet(k, def){ const v = qs().get(k); return (v===null || v==="") ? def : v; }
-    function qBool(k, def){ const v = qs().get(k); if (v===null) return def; return v==="1" || v==="true" || v==="yes"; }
+
+    function qGetAny(keys, def){
+      const p = qs();
+      for (const k of keys){
+        const v = p.get(k);
+        if (v !== null && v !== "") return v;
+      }
+      return def;
+    }
+    function qBoolAny(keys, def){
+      const v = qGetAny(keys, null);
+      if (v === null) return def;
+      return v==="1" || v==="true" || v==="yes" || v==="on";
+    }
+    function qNumAny(keys, def){
+      const v = qGetAny(keys, null);
+      if (v === null) return def;
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : def;
+    }
+
+    // Nur sprechende Parameternamen werden aktiv geschrieben (wir lesen aber alte weiter)
     function setQS(updates){
       const u = new URL(window.location.href);
       for (const [k,v] of Object.entries(updates)) {
@@ -376,29 +397,76 @@
       return u.toString();
     }
 
+    // ---------------------------
+    // City + Data
+    // ---------------------------
     const DEFAULT_CITY = "Hannover";
     function normKey(s){
       return String(s ?? "")
         .toLowerCase()
-        .replaceAll("ae","ae") // no-op, kept for clarity
+        .replaceAll("ä","ae").replaceAll("ö","oe").replaceAll("ü","ue").replaceAll("ß","ss")
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/_+/g, "_")
         .replace(/^_/, "")
         .replace(/_$/, "");
     }
-    const CITY_RAW = String(qGet("city", DEFAULT_CITY)).trim() || DEFAULT_CITY;
+    const CITY_RAW = String(qGetAny(["city","stadt"], DEFAULT_CITY)).trim() || DEFAULT_CITY;
     const CITY_SUFFIX = normKey(CITY_RAW);
     const DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
 
+    // ---------------------------
+    // Map init (WICHTIG: NICHT fitten, wenn URL View setzt)
+    // ---------------------------
     const map = L.map('map', { preferCanvas: true });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap-Mitwirkende' }).addTo(map);
+
+    // Fallback view – wird ggf. gleich überschrieben durch URL view oder später by fitBounds
     map.setView([52.3759, 9.7320], 12);
 
-    const drawnItems = new L.FeatureGroup().addTo(map);
-    let selectionBounds = null;
+    let didInitialViewFromUrl = false;
 
+    function applyViewFromUrlIfPresent(){
+      // bevorzugt: viewBbox=minLat,minLon,maxLat,maxLon
+      const bbox = qGetAny(["viewBbox","bbox","view_bbox"], "");
+      if (bbox) {
+        const parts = bbox.split(",").map(s => parseFloat(s.trim()));
+        if (parts.length === 4 && parts.every(Number.isFinite)) {
+          map.fitBounds(L.latLngBounds([parts[0],parts[1]],[parts[2],parts[3]]), { padding:[20,20] });
+          didInitialViewFromUrl = true;
+          return true;
+        }
+      }
+
+      // alternativ: centerLat/centerLon/zoom
+      const lat = qNumAny(["centerLat","lat","center_lat"], NaN);
+      const lon = qNumAny(["centerLon","lon","lng","center_lon"], NaN);
+      const z   = Math.round(qNumAny(["zoom","z"], NaN));
+      if (Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(z)) {
+        map.setView([lat, lon], z);
+        didInitialViewFromUrl = true;
+        return true;
+      }
+      return false;
+    }
+
+    // schon vor Data-Load anwenden:
+    applyViewFromUrlIfPresent();
+
+    function writeViewToUrl(){
+      const c = map.getCenter();
+      const z = map.getZoom();
+      setQS({
+        centerLat: c.lat.toFixed(6),
+        centerLon: c.lng.toFixed(6),
+        zoom: z
+      });
+    }
+
+    // ---------------------------
+    // UI + State refs
+    // ---------------------------
     const WEEKEND_SET = new Set(["1","7"]);
-    const STRZ_LABEL = { "":"- unbekannt", "0":"Trocken", "1":"Nass/feucht", "2":"Winterglatt" };
+    const STRZ_LABEL = { "":"– unbekannt", "0":"Trocken", "1":"Nass/feucht", "2":"Winterglatt" };
 
     const panelEl = document.getElementById('panel');
     const collapseBtn = document.getElementById('collapseBtn');
@@ -415,7 +483,7 @@
     collapseBtn.addEventListener('click', () => setCollapsed(!panelEl.classList.contains('collapsed')));
     legendBtn.addEventListener('click', () => { legendBox.style.display = (legendBox.style.display==="block") ? "none" : "block"; });
 
-    document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) - Stadt: ${CITY_RAW}`;
+    document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}`;
     document.getElementById("dataSourceCode").textContent = DATA_URL;
 
     const yearEl = document.getElementById('year');
@@ -462,6 +530,40 @@
     const btnCopyText = document.getElementById('btnCopyText');
     const btnMakeLink = document.getElementById('btnMakeLink');
 
+    // ---------------------------
+    // Data layers + selection
+    // ---------------------------
+    const drawnItems = new L.FeatureGroup().addTo(map);
+    let selectionBounds = null;
+
+    const drawControl = new L.Control.Draw({
+      position: 'topright',
+      draw: { polygon:false, polyline:false, circle:false, marker:false, circlemarker:false, rectangle: { shapeOptions: { color: "#2b7cff", weight: 2 } } },
+      edit: { featureGroup: drawnItems, edit:false, remove:false }
+    });
+    map.addControl(drawControl);
+
+    map.on(L.Draw.Event.CREATED, (e) => {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      selectionBounds = e.layer.getBounds();
+      renderLayers();
+    });
+
+    btnDraw.addEventListener('click', () => {
+      const toolbar = drawControl._toolbars?.draw;
+      const rectTool = toolbar?._modes?.rectangle?.handler;
+      if (rectTool) rectTool.enable();
+    });
+    btnClearDraw.addEventListener('click', () => {
+      drawnItems.clearLayers();
+      selectionBounds = null;
+      renderLayers();
+    });
+
+    // ---------------------------
+    // State
+    // ---------------------------
     let involvementMode = "or";
     let showCluster = true;
     let showHeat = true;
@@ -469,24 +571,25 @@
 
     let all = null;
     let allPts = [];
-    let filteredGlobal = [];
-    let filteredAll = [];
+    let filteredGlobal = []; // capped for render
+    let filteredAll = [];    // uncapped for baseline/export
     let viewportPts = [];
 
-    // Cache: city-wide ratios for current filter set (used for "above-average" highlighting)
     let baselineCounts = null;
 
     let clusterLayer = null;
     let heatLayer = null;
-    
-    function escHtml(s) {
-     return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-    }
 
+    // ---------------------------
+    // Helpers
+    // ---------------------------
+    function escHtml(s) {
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
     function setBtnState(btn, on) { btn.classList.toggle('active', !!on); }
 
     function syncHourUI(changed){
@@ -505,38 +608,9 @@
       hourFill.style.right = `${rightPct}%`;
     }
 
-    function initFromUrl(){
-      // Note: year/kat options are built after load; set values later too.
-      hFromEl.value = String(Math.max(0, Math.min(23, parseInt(qGet("hFrom","0"),10)||0)));
-      hToEl.value   = String(Math.max(0, Math.min(23, parseInt(qGet("hTo","23"),10)||23)));
-      maxEl.value   = String(Math.max(500, Math.min(200000, parseInt(qGet("maxn","100000"),10)||100000)));
-      padEl.value   = String(Math.max(0, Math.min(100, parseInt(qGet("pad","20"),10)||20)));
-      heatREl.value = String(Math.max(5, Math.min(60, parseInt(qGet("heatR","25"),10)||25)));
-
-      tRadEl.checked  = qBool("rad", true);
-      tFussEl.checked = qBool("fuss", true);
-      tPKWEl.checked  = qBool("pkw", true);
-      tKradEl.checked = qBool("krad", false);
-
-      involvementMode = qGet("mode","or");
-      showCluster = qBool("cluster", true);
-      showHeat = qBool("heat", true);
-      showAbove = qBool("above", false);
-
-      setBtnState(btnCluster, showCluster);
-      setBtnState(btnHeat, showHeat);
-      setBtnState(btnAbove, showAbove);
-
-      syncHourUI();
-    }
-
-    function setMode(next, skipUrl=false){
-      involvementMode = (next==="and"||next==="solo") ? next : "or";
-      setBtnState(btnModeOr, involvementMode==="or");
-      setBtnState(btnModeAnd, involvementMode==="and");
-      setBtnState(btnModeSolo, involvementMode==="solo");
-      if (!skipUrl) setQS({ mode: involvementMode });
-      applyGlobalFilter(); applyViewportFilter(); renderLayers();
+    function strzText(code) {
+      const k = String(code ?? "");
+      return STRZ_LABEL[k] ?? (`Code ${k}`);
     }
 
     function buildYearOptions(features) {
@@ -551,11 +625,6 @@
         opt.textContent = y;
         yearEl.appendChild(opt);
       });
-    }
-
-    function strzText(code) {
-      const k = String(code ?? "");
-      return STRZ_LABEL[k] ?? (`Code ${k}`);
     }
 
     function buildStrzOptions(points) {
@@ -617,127 +686,23 @@
       );
     }
 
-    function applyGlobalFilter() {
-  if (!all) return;
-
-  const wantYear = yearEl.value;
-  const wantKat = katEl.value;
-  const wantStrz = strzEl.value;
-  const weekendMode = weekendEl.value;
-
-  const maxN = Math.max(500, parseInt(maxEl.value || "100000", 10));
-  const hFrom = parseInt(hFromEl.value || "0", 10);
-  const hTo   = parseInt(hToEl.value || "23", 10);
-
-  const sRad  = tRadEl.checked;
-  const sFuss = tFussEl.checked;
-  const sPKW  = tPKWEl.checked;
-  const sKrad = tKradEl.checked;
-  const anySelected = sRad || sFuss || sPKW || sKrad;
-
-  const outCapped = [];   // für Rendering (maxn)
-  const outAll = [];      // für Statistik/Export (uncapped)
-
-  // Baseline immer auf UNCAPPED!
-  const baseline = { total:0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
-
-  for (const p of allPts) {
-    const pr = p.props || {};
-
-    if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
-    if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
-
-    if (wantStrz !== "all") {
-      const z = String(pr.strzustand ?? "");
-      if (wantStrz === "__unknown__") {
-        if (z !== "" && z !== "null" && z !== "undefined") continue;
-      } else {
-        if (z !== String(wantStrz)) continue;
-      }
-    }
-
-    if (weekendMode !== "all") {
-      const wd = String(pr.uwochentag ?? "");
-      const isWeekend = WEEKEND_SET.has(wd);
-      if (weekendMode === "weekend" && !isWeekend) continue;
-      if (weekendMode === "weekday" && isWeekend) continue;
-    }
-
-    const h = parseInt(pr.ustunde, 10);
-    if (Number.isNaN(h)) continue;
-    if (h < hFrom || h > hTo) continue;
-
-    const isRad  = String(pr?.istrad)  === "1";
-    const isFuss = String(pr?.istfuss) === "1";
-    const isPKW  = String(pr?.istpkw)  === "1";
-    const isKrad = String(pr?.istkrad) === "1";
-
-    if (!anySelected) continue;
-
-    if (involvementMode === "or") {
-      const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-      if (!ok) continue;
-    } else if (involvementMode === "and") {
-      if (sRad  && !isRad)  continue;
-      if (sFuss && !isFuss) continue;
-      if (sPKW  && !isPKW)  continue;
-      if (sKrad && !isKrad) continue;
-    } else if (involvementMode === "solo") {
-      const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
-      if (involvedCount !== 1) continue;
-      const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-      if (!ok) continue;
-    }
-
-    // UNCAPPED für Statistik
-    outAll.push(p);
-
-    // Baseline zählen (UNCAPPED!)
-    const c = classifyPoint(pr);
-    baseline.total++;
-    if (c.radSolo)  baseline.radSolo++;
-    if (c.fussSolo) baseline.fussSolo++;
-    if (c.pkwSolo)  baseline.pkwSolo++;
-    if (c.kradSolo) baseline.kradSolo++;
-    if (c.radPkw)   baseline.radPkw++;
-    if (c.radFuss)  baseline.radFuss++;
-    if (c.pkwFuss)  baseline.pkwFuss++;
-
-    // CAPPED fürs Rendering
-    if (outCapped.length < maxN) outCapped.push(p);
-  }
-
-  filteredAll = outAll;
-  filteredGlobal = outCapped;
-  baselineCounts = baseline;
-}
-
-    function applyViewportFilter() {
-      const vb = getPaddedBounds();
-      const out = [];
-      const allOut = [];
-      for (const p of filteredGlobal) {
-        if (vb.contains([p.lat, p.lon])) out.push(p);
-      }
-      viewportPts = out;
-    }
-
     function classifyPoint(pr){
-  const isRad  = String(pr?.istrad)  === "1";
-  const isFuss = String(pr?.istfuss) === "1";
-  const isPKW  = String(pr?.istpkw)  === "1";
-  const isKrad = String(pr?.istkrad) === "1";
-  const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
-  return {
-    radSolo:  (isRad && c===1),
-    fussSolo: (isFuss && c===1),
-    pkwSolo:  (isPKW && c===1),
-    kradSolo: (isKrad && c===1),
-    radPkw:   (isRad && isPKW),
-    radFuss:  (isRad && isFuss),
-    pkwFuss:  (isPKW && isFuss)
-  };
-}
+      const isRad  = String(pr?.istrad)  === "1";
+      const isFuss = String(pr?.istfuss) === "1";
+      const isPKW  = String(pr?.istpkw)  === "1";
+      const isKrad = String(pr?.istkrad) === "1";
+      const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+      return {
+        radSolo:  (isRad && c===1),
+        fussSolo: (isFuss && c===1),
+        pkwSolo:  (isPKW && c===1),
+        kradSolo: (isKrad && c===1),
+        radPkw:   (isRad && isPKW),
+        radFuss:  (isRad && isFuss),
+        pkwFuss:  (isPKW && isFuss)
+      };
+    }
+
     function countPatterns(points){
       const res = { total: 0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
       for (const p of points) {
@@ -786,15 +751,198 @@
       return { keep };
     }
 
+    // ---------------------------
+    // URL <-> UI mapping (sprechende Namen + alte Aliases lesen)
+    // ---------------------------
+    function initFromUrl(){
+      // neue Namen:
+      // hourFrom/hourTo, maxPoints, viewportPadding, heatRadius
+      // includeCyclist/includePedestrian/includeCar/includeMotorcycle
+      // involvementMode, showCluster, showHeatmap, showOnlyAboveAverage
+
+      hFromEl.value = String(Math.max(0, Math.min(23, Math.round(qNumAny(["hourFrom","hFrom"], 0)))));
+      hToEl.value   = String(Math.max(0, Math.min(23, Math.round(qNumAny(["hourTo","hTo"], 23)))));
+
+      maxEl.value   = String(Math.max(500, Math.min(200000, Math.round(qNumAny(["maxPoints","maxn"], 100000)))));
+      padEl.value   = String(Math.max(0, Math.min(100, Math.round(qNumAny(["viewportPadding","pad"], 20)))));
+      heatREl.value = String(Math.max(5, Math.min(60, Math.round(qNumAny(["heatRadius","heatR"], 25)))));
+
+      tRadEl.checked  = qBoolAny(["includeCyclist","rad"], true);
+      tFussEl.checked = qBoolAny(["includePedestrian","fuss"], true);
+      tPKWEl.checked  = qBoolAny(["includeCar","pkw"], true);
+      tKradEl.checked = qBoolAny(["includeMotorcycle","krad"], false);
+
+      involvementMode = String(qGetAny(["involvementMode","mode"], "or"));
+      if (!["or","and","solo"].includes(involvementMode)) involvementMode = "or";
+
+      showCluster = qBoolAny(["showCluster","cluster"], true);
+      showHeat = qBoolAny(["showHeatmap","heat"], true);
+      showAbove = qBoolAny(["showOnlyAboveAverage","above"], false);
+
+      setBtnState(btnCluster, showCluster);
+      setBtnState(btnHeat, showHeat);
+      setBtnState(btnAbove, showAbove);
+
+      syncHourUI();
+    }
+
+    function updateUrlFromUi(){
+      // Filter / UI als sprechende Parameter schreiben
+      setQS({
+        city: CITY_RAW,
+
+        year: yearEl.value,
+        severity: katEl.value,                 // neu
+        roadCondition: strzEl.value,           // neu
+        dayType: weekendEl.value,              // neu
+
+        hourFrom: hFromEl.value,
+        hourTo: hToEl.value,
+
+        maxPoints: maxEl.value,
+        viewportPadding: padEl.value,
+        heatRadius: heatREl.value,
+
+        includeCyclist: tRadEl.checked ? 1 : 0,
+        includePedestrian: tFussEl.checked ? 1 : 0,
+        includeCar: tPKWEl.checked ? 1 : 0,
+        includeMotorcycle: tKradEl.checked ? 1 : 0,
+
+        involvementMode: involvementMode,
+
+        showCluster: showCluster ? 1 : 0,
+        showHeatmap: showHeat ? 1 : 0,
+        showOnlyAboveAverage: showAbove ? 1 : 0
+      });
+    }
+
+    function setMode(next, skipUrl=false){
+      involvementMode = (next==="and"||next==="solo") ? next : "or";
+      setBtnState(btnModeOr, involvementMode==="or");
+      setBtnState(btnModeAnd, involvementMode==="and");
+      setBtnState(btnModeSolo, involvementMode==="solo");
+      if (!skipUrl) updateUrlFromUi();
+      applyGlobalFilter(); applyViewportFilter(); renderLayers();
+    }
+
+    // ---------------------------
+    // Filtering (UNCAPPED baseline + CAPPED render)
+    // ---------------------------
+    function applyGlobalFilter() {
+      if (!all) return;
+
+      const wantYear = yearEl.value;
+      const wantKat = katEl.value;
+      const wantStrz = strzEl.value;
+      const weekendMode = weekendEl.value;
+
+      const maxN = Math.max(500, parseInt(maxEl.value || "100000", 10));
+      const hFrom = parseInt(hFromEl.value || "0", 10);
+      const hTo   = parseInt(hToEl.value || "23", 10);
+
+      const sRad  = tRadEl.checked;
+      const sFuss = tFussEl.checked;
+      const sPKW  = tPKWEl.checked;
+      const sKrad = tKradEl.checked;
+      const anySelected = sRad || sFuss || sPKW || sKrad;
+
+      const outCapped = [];
+      const outAll = [];
+
+      const baseline = { total:0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
+
+      for (const p of allPts) {
+        const pr = p.props || {};
+
+        if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
+        if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
+
+        if (wantStrz !== "all") {
+          const z = String(pr.strzustand ?? "");
+          if (wantStrz === "__unknown__") {
+            if (z !== "" && z !== "null" && z !== "undefined") continue;
+          } else {
+            if (z !== String(wantStrz)) continue;
+          }
+        }
+
+        if (weekendMode !== "all") {
+          const wd = String(pr.uwochentag ?? "");
+          const isWeekend = WEEKEND_SET.has(wd);
+          if (weekendMode === "weekend" && !isWeekend) continue;
+          if (weekendMode === "weekday" && isWeekend) continue;
+        }
+
+        const h = parseInt(pr.ustunde, 10);
+        if (Number.isNaN(h)) continue;
+        if (h < hFrom || h > hTo) continue;
+
+        const isRad  = String(pr?.istrad)  === "1";
+        const isFuss = String(pr?.istfuss) === "1";
+        const isPKW  = String(pr?.istpkw)  === "1";
+        const isKrad = String(pr?.istkrad) === "1";
+
+        if (!anySelected) continue;
+
+        if (involvementMode === "or") {
+          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+          if (!ok) continue;
+        } else if (involvementMode === "and") {
+          if (sRad  && !isRad)  continue;
+          if (sFuss && !isFuss) continue;
+          if (sPKW  && !isPKW)  continue;
+          if (sKrad && !isKrad) continue;
+        } else if (involvementMode === "solo") {
+          const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+          if (involvedCount !== 1) continue;
+          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+          if (!ok) continue;
+        }
+
+        // UNCAPPED
+        outAll.push(p);
+
+        const c = classifyPoint(pr);
+        baseline.total++;
+        if (c.radSolo)  baseline.radSolo++;
+        if (c.fussSolo) baseline.fussSolo++;
+        if (c.pkwSolo)  baseline.pkwSolo++;
+        if (c.kradSolo) baseline.kradSolo++;
+        if (c.radPkw)   baseline.radPkw++;
+        if (c.radFuss)  baseline.radFuss++;
+        if (c.pkwFuss)  baseline.pkwFuss++;
+
+        // CAPPED (render)
+        if (outCapped.length < maxN) outCapped.push(p);
+      }
+
+      filteredAll = outAll;
+      filteredGlobal = outCapped;
+      baselineCounts = baseline;
+    }
+
+    function applyViewportFilter() {
+      const vb = getPaddedBounds();
+      const out = [];
+      for (const p of filteredGlobal) {
+        if (vb.contains([p.lat, p.lon])) out.push(p);
+      }
+      viewportPts = out;
+    }
+
+    // ---------------------------
+    // Render
+    // ---------------------------
     function renderLayers() {
       if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
       if (heatLayer) { heatLayer.remove(); heatLayer = null; }
 
       let pts = viewportPts;
+
       if (showAbove && baselineCounts) {
-  const mask = aboveAverageMask(pts, baselineCounts);
-  if (mask && mask.keep) pts = pts.filter((_,i)=>mask.keep.has(i));
-}
+        const mask = aboveAverageMask(pts, baselineCounts);
+        if (mask && mask.keep) pts = pts.filter((_,i)=>mask.keep.has(i));
+      }
 
       if (showCluster) {
         clusterLayer = L.markerClusterGroup({
@@ -821,8 +969,8 @@
       }
 
       statEl.textContent =
-        `Stadt: ${CITY_RAW} | Gesamt: ${allPts.length.toLocaleString()} | Nach Filter: ${filteredGlobal.length.toLocaleString()} | Im Viewport: ${viewportPts.length.toLocaleString()}` +
-        (selectionBounds ? " | Auswahl: OK" : "");
+        `Stadt: ${CITY_RAW} | Gesamt: ${allPts.length.toLocaleString()} | Nach Filter (Render): ${filteredGlobal.length.toLocaleString()} | Im Viewport: ${viewportPts.length.toLocaleString()}`
+        + (selectionBounds ? " | Auswahl: aktiv" : "");
     }
 
     let moveTimer = null;
@@ -835,57 +983,9 @@
       }, 150);
     }
 
-    function updateUrlFromUi(){
-      setQS({
-        city: CITY_RAW,
-        year: yearEl.value,
-        kat: katEl.value,
-        strz: strzEl.value,
-        weekend: weekendEl.value,
-        hFrom: hFromEl.value,
-        hTo: hToEl.value,
-        maxn: maxEl.value,
-        pad: padEl.value,
-        heatR: heatREl.value,
-        rad: tRadEl.checked ? 1 : 0,
-        fuss: tFussEl.checked ? 1 : 0,
-        pkw: tPKWEl.checked ? 1 : 0,
-        krad: tKradEl.checked ? 1 : 0,
-        mode: involvementMode,
-        cluster: showCluster ? 1 : 0,
-        heat: showHeat ? 1 : 0,
-        above: showAbove ? 1 : 0
-      });
-    }
-
-    const drawControl = new L.Control.Draw({
-      position: 'topright',
-      draw: { polygon:false, polyline:false, circle:false, marker:false, circlemarker:false, rectangle: { shapeOptions: { color: "#2b7cff", weight: 2 } } },
-      edit: { featureGroup: drawnItems, edit:false, remove:false }
-    });
-    map.addControl(drawControl);
-    map.on(L.Draw.Event.CREATED, (e) => {
-      drawnItems.clearLayers();
-      drawnItems.addLayer(e.layer);
-      selectionBounds = e.layer.getBounds();
-      renderLayers();
-    });
-
-    btnDraw.addEventListener('click', () => {
-      const toolbar = drawControl._toolbars?.draw;
-      const rectTool = toolbar?._modes?.rectangle?.handler;
-      if (rectTool) rectTool.enable();
-    });
-    btnClearDraw.addEventListener('click', () => { drawnItems.clearLayers(); selectionBounds=null; renderLayers(); });
-
-    function pointsInBounds(points, bounds){
-      if (!bounds) return points;
-      const out = [];
-      const allOut = [];
-      for (const p of points) if (bounds.contains([p.lat, p.lon])) out.push(p);
-      return out;
-    }
-
+    // ---------------------------
+    // Export
+    // ---------------------------
     function openModal(){ modalOverlay.style.display = "flex"; }
     function closeModal(){ modalOverlay.style.display = "none"; }
     btnCloseModal.addEventListener('click', closeModal);
@@ -903,171 +1003,160 @@
       }
     }
 
-    function fmtPct(x){ return (x*100).toFixed(1).replace(".", ",") + " %"; }
-
-    
-async function countPatternsChunked(points, chunkSize=6000){
-  const res = { total: 0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
-  for (let i=0; i<points.length; i+=chunkSize){
-    const end = Math.min(points.length, i+chunkSize);
-    for (let j=i; j<end; j++){
-      const pr = points[j].props || {};
-      const c = classifyPoint(pr);
-      res.total++;
-      if (c.radSolo) res.radSolo++;
-      if (c.fussSolo) res.fussSolo++;
-      if (c.pkwSolo) res.pkwSolo++;
-      if (c.kradSolo) res.kradSolo++;
-      if (c.radPkw) res.radPkw++;
-      if (c.radFuss) res.radFuss++;
-      if (c.pkwFuss) res.pkwFuss++;
+    async function countPatternsChunked(points, chunkSize=6000){
+      const res = { total: 0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
+      for (let i=0; i<points.length; i+=chunkSize){
+        const end = Math.min(points.length, i+chunkSize);
+        for (let j=i; j<end; j++){
+          const pr = points[j].props || {};
+          const c = classifyPoint(pr);
+          res.total++;
+          if (c.radSolo) res.radSolo++;
+          if (c.fussSolo) res.fussSolo++;
+          if (c.pkwSolo) res.pkwSolo++;
+          if (c.kradSolo) res.kradSolo++;
+          if (c.radPkw) res.radPkw++;
+          if (c.radFuss) res.radFuss++;
+          if (c.pkwFuss) res.pkwFuss++;
+        }
+        await new Promise(r => setTimeout(r, 0));
+      }
+      return res;
     }
-    // Yield to UI thread so the page doesn't freeze
-    await new Promise(r => setTimeout(r, 0));
-  }
-  return res;
-}
 
-function fmtPct(n){ return (Number.isFinite(n) ? (n*100).toFixed(2) : "0.00") + "%"; }
+    function fmtPctDec(n){ return (Number.isFinite(n) ? (n*100).toFixed(2) : "0.00") + "%"; }
 
-async function computeExportReport(){
-  // IMPORTANT: Use filteredAll (NO maxn cap) for statistics, otherwise ratios are biased.
-  const baseline = await countPatternsChunked(filteredAll);
-  const vb = selectionBounds ? selectionBounds : map.getBounds();
-  const local = [];
-  for (const p of filteredAll) {
-    if (vb.contains([p.lat, p.lon])) local.push(p);
-    if (local.length % 8000 === 0) await new Promise(r => setTimeout(r,0));
-  }
-  const localC = await countPatternsChunked(local);
+    async function computeExportReport(){
+      const baseline = await countPatternsChunked(filteredAll);
 
-  const ratio = (a,b) => (b>0 ? a/b : 0);
-  const sig = (loc, base) => (base>0 ? (loc/base) : 0);
+      const vb = selectionBounds ? selectionBounds : map.getBounds();
+      const local = [];
+      for (let i=0;i<filteredAll.length;i++){
+        const p = filteredAll[i];
+        if (vb.contains([p.lat, p.lon])) local.push(p);
+        if (i % 12000 === 0) await new Promise(r => setTimeout(r,0));
+      }
+      const localC = await countPatternsChunked(local);
 
-  const metrics = [
-    { key:"radSolo", label:"🚲 Alleinunfall (Rad)", loc: localC.radSolo, base: baseline.radSolo },
-    { key:"fussSolo", label:"🚶 Alleinunfall (Fuß)", loc: localC.fussSolo, base: baseline.fussSolo },
-    { key:"pkwSolo", label:"🚗 Alleinunfall (PKW)", loc: localC.pkwSolo, base: baseline.pkwSolo },
-    { key:"kradSolo", label:"🏍️ Alleinunfall (Krad)", loc: localC.kradSolo, base: baseline.kradSolo },
-    { key:"radPkw",  label:"🚲+🚗 Rad + PKW",        loc: localC.radPkw,  base: baseline.radPkw  },
-    { key:"radFuss", label:"🚲+🚶 Rad + Fuß",        loc: localC.radFuss, base: baseline.radFuss },
-    { key:"pkwFuss", label:"🚗+🚶 PKW + Fuß",        loc: localC.pkwFuss, base: baseline.pkwFuss }
-  ];
+      const r = (a,b) => (b>0 ? a/b : 0);
+      const upFactor = (locR, baseR) => (baseR>0 ? (locR/baseR) : 0);
 
-  const rows = metrics.map(m => {
-    const locR = ratio(m.loc, localC.total);
-    const baseR = ratio(m.base, baseline.total);
-    const up = sig(locR, baseR);
-    return { ...m, locR, baseR, up };
-  }).sort((a,b)=> b.up - a.up);
+      const metrics = [
+        { key:"radSolo", label:"🚲 Alleinunfall (Rad)", loc: localC.radSolo, base: baseline.radSolo },
+        { key:"fussSolo", label:"🚶 Alleinunfall (Fuß)", loc: localC.fussSolo, base: baseline.fussSolo },
+        { key:"pkwSolo", label:"🚗 Alleinunfall (PKW)", loc: localC.pkwSolo, base: baseline.pkwSolo },
+        { key:"kradSolo", label:"🏍️ Alleinunfall (Krad)", loc: localC.kradSolo, base: baseline.kradSolo },
+        { key:"radPkw",  label:"🚲+🚗 Rad + PKW",        loc: localC.radPkw,  base: baseline.radPkw  },
+        { key:"radFuss", label:"🚲+🚶 Rad + Fuß",        loc: localC.radFuss, base: baseline.radFuss },
+        { key:"pkwFuss", label:"🚗+🚶 PKW + Fuß",        loc: localC.pkwFuss, base: baseline.pkwFuss }
+      ];
 
-  const focus = rows.filter(r => r.baseR>0).filter(r => r.up >= 1.35).slice(0,4);
+      const rows = metrics.map(m => {
+        const locR = r(m.loc, localC.total);
+        const baseR = r(m.base, baseline.total);
+        const up = upFactor(locR, baseR);
+        return { ...m, locR, baseR, up };
+      }).sort((a,b)=> b.up - a.up);
 
-  const boundsStr = `${vb.getSouthWest().lat.toFixed(5)},${vb.getSouthWest().lng.toFixed(5)} – ${vb.getNorthEast().lat.toFixed(5)},${vb.getNorthEast().lng.toFixed(5)}`;
+      const focus = rows.filter(x => x.baseR>0).filter(x => x.up >= 1.35).slice(0,4);
 
-  // -------- Text (Word/Clipboard) --------
-  const lines = [];
-  lines.push(`Bezirksratsantrag (Entwurf) – Unfallwerkbank`);
-  lines.push(`Stadt: ${CITY_RAW}`);
-  lines.push(`Ausschnitt (Bounds): ${boundsStr}`);
-  lines.push(`Datum: ${new Date().toLocaleDateString('de-DE')}`);
-  lines.push(``);
-  lines.push(`Betreff: Verbesserung der Verkehrssicherheit – auffälliger Unfallschwerpunkt im markierten Bereich`);
-  lines.push(``);
-  lines.push(`Sachverhalt:`);
-  lines.push(`Im markierten Kartenausschnitt wurden ${localC.total.toLocaleString()} Unfälle (nach den aktuell eingestellten Filtern) ausgewertet.`);
-  lines.push(`Im Stadtvergleich (Baseline: ${baseline.total.toLocaleString()} Unfälle unter denselben Filtern) zeigen sich deutliche Abweichungen in der Zusammensetzung der Unfallarten.`);
-  lines.push(``);
-  lines.push(`Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):`);
-  for (const r of focus.length ? focus : rows.slice(0,3)) {
-    lines.push(`- ${r.label}: ${fmtPct(r.locR)} vs ${fmtPct(r.baseR)} (Faktor ${r.up.toFixed(2)}); lokal ${r.loc.toLocaleString()} / stadtweit ${r.base.toLocaleString()}`);
-  }
-  lines.push(``);
-  lines.push(`Bewertung / Interpretation (automatisch, heuristisch):`);
-  lines.push(`- Eine Überrepräsentation von 🚲-Alleinunfällen kann auf infrastrukturelle Risiken wie Schienenquerungen, Kanten/Spurrinnen, Belagswechsel oder Engstellen hinweisen.`);
-  lines.push(`- Eine Überrepräsentation von 🚲+🚗-Unfällen kann auf Konflikte an Knotenpunkten, Sichtbeziehungen, Abbiegebeziehungen und Führung von Radverkehr im Mischverkehr hindeuten.`);
-  lines.push(`- Eine Überrepräsentation von 🚲+🚶 oder 🚗+🚶 kann auf Querungsdefizite, fehlende Aufstellflächen, unklare Vorfahrt oder hohe Fußgängerströme hindeuten.`);
-  lines.push(``);
-  lines.push(`Beschlussvorschlag:`);
-  lines.push(`Der Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Dazu zählen insbesondere:`);
-  lines.push(`1) Sofortmaßnahmen (Quick Wins): Markierungen, Piktogramme, temporäre Warnhinweise, Sichtfreimachung, Anpassung der Signalisierung/Grünphasen, ggf. Reduktion der zulässigen Geschwindigkeit im Konfliktbereich.`);
-  lines.push(`2) Infrastrukturmaßnahmen: Optimierung der Radführung an Knotenpunkten, sichere Querungen, Anpassung von Bordkanten/Belag, und – falls Schienenquerungen betroffen sind – Prüfung von Maßnahmen zur sicheren Querung (z. B. Führung im möglichst rechten Winkel, Oberflächenangleichung, ggf. alternative Führung).`);
-  lines.push(`3) Monitoring: Nach Umsetzung Evaluation anhand Unfallatlas-Daten der Folgejahre.`);
-  lines.push(``);
-  lines.push(`Hinweis (intern, vor Versand entfernen): Dieser Text wurde automatisiert erzeugt. Link zur Überarbeitung: ${window.location.href}`);
-  lines.push(``);
-  lines.push(`Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads (siehe README). Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).`);
+      const boundsStr = `${vb.getSouthWest().lat.toFixed(5)},${vb.getSouthWest().lng.toFixed(5)} – ${vb.getNorthEast().lat.toFixed(5)},${vb.getNorthEast().lng.toFixed(5)}`;
 
-  const textOut = lines.join("\n");
+      const lines = [];
+      lines.push(`Bezirksratsantrag (Entwurf) – Unfallwerkbank`);
+      lines.push(`Stadt: ${CITY_RAW}`);
+      lines.push(`Ausschnitt (Bounds): ${boundsStr}`);
+      lines.push(`Datum: ${new Date().toLocaleDateString('de-DE')}`);
+      lines.push(``);
+      lines.push(`Betreff: Verbesserung der Verkehrssicherheit – auffälliger Unfallschwerpunkt im markierten Bereich`);
+      lines.push(``);
+      lines.push(`Sachverhalt:`);
+      lines.push(`Im markierten Kartenausschnitt wurden ${localC.total.toLocaleString()} Unfälle (unter den aktuell eingestellten Filtern) ausgewertet.`);
+      lines.push(`Im Stadtvergleich (Baseline: ${baseline.total.toLocaleString()} Unfälle unter denselben Filtern) zeigen sich Abweichungen in der Zusammensetzung der Unfallarten.`);
+      lines.push(``);
+      lines.push(`Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):`);
+      for (const x of (focus.length ? focus : rows.slice(0,3))) {
+        lines.push(`- ${x.label}: ${fmtPctDec(x.locR)} vs ${fmtPctDec(x.baseR)} (Faktor ${x.up.toFixed(2)}); lokal ${x.loc.toLocaleString()} / stadtweit ${x.base.toLocaleString()}`);
+      }
+      lines.push(``);
+      lines.push(`Bewertung / Interpretation (automatisch, heuristisch):`);
+      lines.push(`- Überrepräsentation von 🚲-Alleinunfällen kann auf infrastrukturelle Risiken (z. B. Schienenquerungen, Kanten/Spurrinnen, Belagswechsel, Engstellen) hindeuten.`);
+      lines.push(`- Überrepräsentation von 🚲+🚗 kann auf Konflikte an Knotenpunkten (Sicht, Abbiegen, Führung des Radverkehrs) hinweisen.`);
+      lines.push(`- Überrepräsentation von 🚲+🚶 oder 🚗+🚶 kann auf Querungsdefizite, unklare Vorfahrt oder hohe Fußgängerströme hindeuten.`);
+      lines.push(``);
+      lines.push(`Beschlussvorschlag:`);
+      lines.push(`Der Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Insbesondere:`);
+      lines.push(`1) Sofortmaßnahmen (Quick Wins): Markierungen/Piktogramme, Warnhinweise, Sichtfreimachung, Anpassung Signalprogramme/Grünzeiten, ggf. Geschwindigkeitsreduzierung im Konfliktbereich.`);
+      lines.push(`2) Infrastrukturmaßnahmen: Optimierung der Radführung an Knotenpunkten, sichere Querungen, Anpassung Bord/Belag; bei Schienenquerungen: Prüfung sicherer Querung (möglichst rechter Winkel, Oberflächenangleichung, ggf. alternative Führung).`);
+      lines.push(`3) Monitoring: Evaluation anhand Unfallatlas-Daten der Folgejahre.`);
+      lines.push(``);
+      lines.push(`Hinweis (intern, vor Versand entfernen): Automatisch erzeugter Entwurf. Link zur Überarbeitung: ${window.location.href}`);
+      lines.push(``);
+      lines.push(`Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).`);
+      const textOut = lines.join("\n");
 
-  // -------- HTML (im Modal) --------
-  const mkRow = (r) => `
-    <tr>
-      <td>${escHtml(r.label)}</td>
-      <td style="text-align:right;">${r.loc.toLocaleString()}</td>
-      <td style="text-align:right;">${fmtPct(r.locR)}</td>
-      <td style="text-align:right;">${fmtPct(r.baseR)}</td>
-      <td style="text-align:right; font-weight:800;">${r.up.toFixed(2)}×</td>
-    </tr>`;
-  const htmlOut = `
-    <div style="font:14px/1.35 system-ui;">
-      <div style="font-weight:900; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
-      <div style="color:#444; margin-top:4px;">
-        <div><strong>Stadt:</strong> ${escHtml(CITY_RAW)} | <strong>Bounds:</strong> <code>${escHtml(boundsStr)}</code></div>
-        <div><strong>Auswertung:</strong> lokal ${localC.total.toLocaleString()} Unfälle | Baseline (Stadt, gleiche Filter) ${baseline.total.toLocaleString()} Unfälle</div>
-      </div>
+      const mkRow = (x) => `
+        <tr>
+          <td>${escHtml(x.label)}</td>
+          <td style="text-align:right;">${x.loc.toLocaleString()}</td>
+          <td style="text-align:right;">${fmtPctDec(x.locR)}</td>
+          <td style="text-align:right;">${fmtPctDec(x.baseR)}</td>
+          <td style="text-align:right; font-weight:800;">${x.up.toFixed(2)}×</td>
+        </tr>`;
 
-      <div style="margin-top:10px; font-weight:900;">Top-Abweichungen</div>
-      <table style="width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;">
-        <thead>
-          <tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,.15);">
-            <th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${(focus.length ? focus : rows.slice(0,5)).map(mkRow).join("")}
-        </tbody>
-      </table>
+      const htmlOut = `
+        <div style="font:14px/1.35 system-ui;">
+          <div style="font-weight:900; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
+          <div style="color:#444; margin-top:4px;">
+            <div><strong>Stadt:</strong> ${escHtml(CITY_RAW)} | <strong>Bounds:</strong> <code>${escHtml(boundsStr)}</code></div>
+            <div><strong>Auswertung:</strong> lokal ${localC.total.toLocaleString()} Unfälle | Baseline (Stadt, gleiche Filter) ${baseline.total.toLocaleString()} Unfälle</div>
+          </div>
 
-      <div style="margin-top:10px; color:#555; font-size:12px;">
-        <div><strong>Methodik:</strong> Anteil je Muster im Ausschnitt vs. Anteil stadtweit – jeweils unter denselben Filtern (Jahr/Kategorie/Beteiligung/Zeiten/Straßenzustand).</div>
-        <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission.</div>
-      </div>
-    </div>
-  `;
+          <div style="margin-top:10px; font-weight:900;">Top-Abweichungen</div>
+          <table style="width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;">
+            <thead>
+              <tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,.15);">
+                <th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(focus.length ? focus : rows.slice(0,5)).map(mkRow).join("")}
+            </tbody>
+          </table>
 
-  return { text: textOut, html: htmlOut };
-}
+          <div style="margin-top:10px; color:#555; font-size:12px;">
+            <div><strong>Methodik:</strong> Anteil je Muster im Ausschnitt vs. Anteil stadtweit – jeweils unter denselben Filtern.</div>
+            <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission.</div>
+          </div>
+        </div>
+      `;
+
+      return { text: textOut, html: htmlOut };
+    }
 
     btnOpenExport.addEventListener('click', async ()=>{
-  openModal();
-  exportProgress.textContent = "Report wird erzeugt…";
-  exportHtml.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
-  exportBoxTa.value = "…";
+      openModal();
+      exportProgress.textContent = "Report wird erzeugt…";
+      exportHtml.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
+      exportBoxTa.value = "…";
+      await new Promise(r=>setTimeout(r, 0));
 
-  await new Promise(r=>setTimeout(r, 0));
-
-  try{
-    const r = await computeExportReport();
-    exportProgress.textContent = "Fertig.";
-    exportHtml.innerHTML = r.html;
-    exportBoxTa.value = r.text;
-  } catch(e){
-    exportProgress.textContent = "Fehler.";
-    exportHtml.innerHTML = `<div style="color:#b00; font-weight:800;">Export fehlgeschlagen</div><div>${escHtml(String(e))}</div>`;
-    exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
-  }
-});
+      try{
+        const r = await computeExportReport();
+        exportProgress.textContent = "Fertig.";
+        exportHtml.innerHTML = r.html;
+        exportBoxTa.value = r.text;
+      } catch(e){
+        exportProgress.textContent = "Fehler.";
+        exportHtml.innerHTML = `<div style="color:#b00; font-weight:800;">Export fehlgeschlagen</div><div>${escHtml(String(e))}</div>`;
+        exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
+      }
+    });
 
     btnCopyText.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
     btnCopyWord.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
-    btnMakeLink.addEventListener('click', async ()=>{
-      const url = setQS({ export: 1 });
-      await writeClipboard(url);
-      alert("Link kopiert.");
-    });
-
     if (btnCopyExport) btnCopyExport.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
+
     if (btnDownloadExport) btnDownloadExport.addEventListener('click', ()=>{
       const blob = new Blob([exportBoxTa.value||""], {type: 'text/plain;charset=utf-8'});
       const a = document.createElement('a');
@@ -1079,6 +1168,15 @@ async function computeExportReport(){
       setTimeout(()=>URL.revokeObjectURL(a.href), 500);
     });
 
+    btnMakeLink.addEventListener('click', async ()=>{
+      const url = setQS({ export: 1 });
+      await writeClipboard(url);
+      alert("Link kopiert.");
+    });
+
+    // ---------------------------
+    // UI bindings
+    // ---------------------------
     function bindUi(){
       for (const el of [yearEl, katEl, maxEl, strzEl, weekendEl]) {
         el.addEventListener('change', () => { updateUrlFromUi(); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
@@ -1090,9 +1188,9 @@ async function computeExportReport(){
         el.addEventListener('change', () => { updateUrlFromUi(); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
       }
 
-      btnModeOr.addEventListener('click', () => { setMode("or"); updateUrlFromUi(); });
-      btnModeAnd.addEventListener('click', () => { setMode("and"); updateUrlFromUi(); });
-      btnModeSolo.addEventListener('click', () => { setMode("solo"); updateUrlFromUi(); });
+      btnModeOr.addEventListener('click', () => { setMode("or"); });
+      btnModeAnd.addEventListener('click', () => { setMode("and"); });
+      btnModeSolo.addEventListener('click', () => { setMode("solo"); });
 
       padEl.addEventListener('change', () => { updateUrlFromUi(); applyViewportFilter(); renderLayers(); });
       heatREl.addEventListener('change', () => { updateUrlFromUi(); renderLayers(); });
@@ -1101,39 +1199,58 @@ async function computeExportReport(){
       btnHeat.addEventListener('click', () => { showHeat = !showHeat; setBtnState(btnHeat, showHeat); updateUrlFromUi(); renderLayers(); });
       btnAbove.addEventListener('click', () => { showAbove = !showAbove; setBtnState(btnAbove, showAbove); updateUrlFromUi(); renderLayers(); });
 
-      map.on('moveend zoomend', scheduleViewportUpdate);
+      // move/zoom: viewport update + view in URL speichern
+      map.on('moveend zoomend', () => {
+        scheduleViewportUpdate();
+        writeViewToUrl();
+      });
 
       setMode(involvementMode, true);
     }
 
+    // ---------------------------
+    // Main
+    // ---------------------------
     async function main() {
       const resp = await fetch(DATA_URL, { cache: "no-store" });
       if (!resp.ok) throw new Error(`GeoJSON load failed (${resp.status}): ${DATA_URL}`);
+
       all = await resp.json();
       buildYearOptions(all.features || []);
       allPts = extractPoints(all);
       buildStrzOptions(allPts);
 
-      // set initial values after options exist
-      yearEl.value = qGet("year","all");
-      katEl.value = qGet("kat","all");
-      weekendEl.value = qGet("weekend","all");
-      strzEl.value = qGet("strz","all");
+      // Optionen aus URL setzen (neue Namen + alte Aliases lesen)
+      yearEl.value = qGetAny(["year"], "all");
+      katEl.value = qGetAny(["severity","kat"], "all");
+      weekendEl.value = qGetAny(["dayType","weekend"], "all");
+      strzEl.value = qGetAny(["roadCondition","strz"], "all");
 
       initFromUrl();
       setMode(involvementMode, true);
 
-      fitToAllPoints(allPts);
+      // WICHTIG: Nur fitBounds, wenn keine View aus URL gesetzt wurde
+      if (!didInitialViewFromUrl) {
+        fitToAllPoints(allPts);
+        // und gleich View in URL schreiben (damit Link reproduzierbar ist)
+        writeViewToUrl();
+      }
 
       applyGlobalFilter();
       applyViewportFilter();
       renderLayers();
       bindUi();
 
-      if (qBool("export", false)) setTimeout(()=>btnOpenExport.click(), 200);
+      // Wenn export=1 oder export=true:
+      const autoExport = qBoolAny(["export"], false);
+      if (autoExport) setTimeout(()=>btnOpenExport.click(), 200);
     }
 
-    main().catch(err => { console.error(err); statEl.textContent = String(err); alert(String(err)); });
+    main().catch(err => {
+      console.error(err);
+      statEl.textContent = String(err);
+      alert(String(err));
+    });
   </script>
 </body>
 </html>
