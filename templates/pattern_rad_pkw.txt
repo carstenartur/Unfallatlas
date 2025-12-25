@@ -1,0 +1,18 @@
+Bewertung – Auffällige Häufung von Rad+PKW-Unfällen
+
+Im untersuchten Bereich ist der Anteil von Unfällen mit Beteiligung von Radverkehr und PKW gegenüber dem Stadtvergleich erhöht (Faktor {{RAD_PKW_FACTOR}}; lokal {{RAD_PKW_LOCAL}} Fälle).
+
+Solche Muster treten gehäuft an Knotenpunkten und in Bereichen mit konfliktträchtiger Verkehrsführung auf. Häufige Risikotreiber sind:
+- Abbiegekonflikte (rechtsabbiegender Kfz-Verkehr vs. geradeausfahrender Radverkehr),
+- schlechte Sichtbeziehungen (parkende Fahrzeuge, Bebauung, Bepflanzung),
+- unklare oder unterbrochene Radverkehrsführung, Mischverkehr mit hohen Geschwindigkeiten,
+- fehlende oder ungünstige Aufstellflächen/Schutzräume.
+
+Handlungsvorschläge (prüffähig):
+1) Analyse der Abbiegebeziehungen und Sichtdreiecke; Sichtfreimachung (Parkraummanagement, Rückschnitt).
+2) Prüfung der Markierung/Führung: durchgehende Radfurten, klare Trennung, konfliktarme Linienführung.
+3) Signalisierung prüfen: getrennte Freigaben, Vorlauf-/Schutzzeit für Radverkehr, Anpassung der Räumzeiten.
+4) Geschwindigkeitsmanagement und Querungsdesign: ggf. Temporeduktion, bauliche Einengung, Aufpflasterungen im Konfliktbereich.
+
+Erwarteter Effekt:
+Reduktion typischer Abbiege- und Einbiegekonflikte sowie bessere Erwartungskonformität für alle Verkehrsteilnehmenden.
