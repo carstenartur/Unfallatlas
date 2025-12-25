@@ -426,6 +426,20 @@
       const v = Number.isFinite(x) ? x : 0;
       return (v*100).toFixed(1).replace(".", ",") + " %";
     }
+    function fmtYearClassesInline(row){
+      const parts = [];
+      const add = (n, icon)=>{ if ((n||0) > 0) parts.push(`${icon} ${Number(n).toLocaleString()}`); };
+      add(row.radSolo, "🚲");
+      add(row.fussSolo, "🚶");
+      add(row.pkwSolo, "🚗");
+      add(row.kradSolo, "🏍️");
+      add(row.radPkw, "🚲+🚗");
+      add(row.radFuss, "🚲+🚶");
+      add(row.pkwFuss, "🚗+🚶");
+      add(row.radPkwFuss, "🚲+🚗+🚶");
+      return parts.join(", ");
+    }
+
     function todayDE(){ return new Date().toLocaleDateString("de-DE"); }
 
     // ----------------------------
