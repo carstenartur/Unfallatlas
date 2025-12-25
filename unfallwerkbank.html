@@ -29,7 +29,7 @@
 
     .panel {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
-      background: rgba(255,255,255,.78);
+      background: rgba(255,255,255,.82);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       padding: 10px 12px; border-radius: 10px;
@@ -41,14 +41,16 @@
     }
     .panelHeader{
       display:flex; align-items:center; justify-content:space-between; gap:10px;
-      position: sticky; top: 0; background: rgba(255,255,255,.78); padding-bottom: 8px;
+      position: sticky; top: 0;
+      background: rgba(255,255,255,.82);
+      padding-bottom: 8px;
     }
     .panelTitle { font-weight: 950; }
     .panelSub { color:#666; font-weight:650; }
     .headerBtns { display:flex; gap:8px; align-items:center; }
     .collapseBtn, .legendBtn{
       border: 1px solid rgba(0,0,0,.15);
-      background: rgba(250,250,250,.85);
+      background: rgba(250,250,250,.9);
       padding: 6px 10px;
       border-radius: 10px;
       cursor: pointer;
@@ -56,19 +58,19 @@
       font-weight:900;
       line-height: 1;
     }
-    .collapseBtn:hover,.legendBtn:hover { background: rgba(240,240,240,.92); }
+    .collapseBtn:hover,.legendBtn:hover { background: rgba(240,240,240,.96); }
     .panelBody { margin-top: 8px; }
-    .panel.collapsed { width: auto; max-width: 240px; overflow: hidden; }
+    .panel.collapsed { width: auto; max-width: 220px; overflow: hidden; }
     .panel.collapsed .panelBody { display:none; }
     .panel.collapsed .panelSub { display:none; }
 
     .row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
-    label { font-weight: 650; }
+    label { font-weight: 700; }
     select, input {
       width: 100%; padding: 6px 8px;
       border: 1px solid #ddd; border-radius: 8px;
       font: inherit;
-      background: rgba(255,255,255,.9);
+      background: rgba(255,255,255,.95);
     }
     .toggles { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .btn {
@@ -76,20 +78,20 @@
       padding: 8px 10px;
       border: 1px solid #ddd;
       border-radius: 10px;
-      background: rgba(250,250,250,.9);
+      background: rgba(250,250,250,.95);
       cursor: pointer;
       user-select: none;
       text-align: center;
       font-weight: 900;
     }
-    .btn.active { background: rgba(233,242,255,.92); border-color: rgba(183,212,255,.95); }
+    .btn.active { background: rgba(233,242,255,.95); border-color: rgba(183,212,255,.98); }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .chip {
       display: inline-flex;
       gap: 8px;
       align-items: center;
       border: 1px solid #ddd;
-      background: rgba(255,255,255,.9);
+      background: rgba(255,255,255,.95);
       border-radius: 999px;
       padding: 6px 10px;
       user-select: none;
@@ -98,8 +100,8 @@
     .chip span { font-weight: 900; }
 
     .muted { color: #666; font-size: 12px; margin-top: 8px; }
-    .stat { margin-top: 8px; font-size: 12px; color: #333; }
-    code { background: rgba(243,243,243,.92); padding: 1px 4px; border-radius: 6px; }
+    .stat { margin-top: 8px; font-size: 12px; color: #333; line-height: 1.35; }
+    code { background: rgba(243,243,243,.95); padding: 1px 4px; border-radius: 6px; }
 
     .rangeWrap { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .rangeLabel { font-size: 12px; color: #333; display:flex; justify-content:space-between; }
@@ -150,10 +152,11 @@
       padding: 8px 10px;
       border: 1px dashed rgba(0,0,0,.25);
       border-radius: 10px;
-      background: rgba(255,255,255,.7);
+      background: rgba(255,255,255,.78);
       font-size: 12px;
       color:#333;
       display:none;
+      line-height: 1.35;
     }
     .legendBox strong{ font-weight: 950; }
     .legendBox ul{ margin: 8px 0 0 18px; padding: 0; }
@@ -172,16 +175,18 @@
       width: min(980px, calc(100vw - 20px));
       max-height: calc(100vh - 20px);
       overflow: auto;
-      background: rgba(255,255,255,.98);
+      background: rgba(255,255,255,.99);
       border-radius: 14px;
       border: 1px solid rgba(0,0,0,.08);
       box-shadow: 0 18px 48px rgba(0,0,0,.18);
-      padding: 14px 14px 10px;
+      padding: 14px 14px 12px;
       font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
     .modalHeader{
       display:flex; align-items:center; justify-content:space-between; gap:10px;
-      position: sticky; top: 0; background: rgba(255,255,255,.98); padding-bottom: 10px;
+      position: sticky; top: 0;
+      background: rgba(255,255,255,.99);
+      padding-bottom: 10px;
     }
     .modalTitle{ font-weight: 980; font-size: 16px; }
     .modalBtns{ display:flex; gap:8px; flex-wrap: wrap; }
@@ -189,16 +194,37 @@
       padding: 8px 10px;
       border: 1px solid #ddd;
       border-radius: 10px;
-      background: rgba(250,250,250,.96);
+      background: rgba(250,250,250,.98);
       cursor:pointer;
       font-weight: 900;
       user-select:none;
     }
-    .smallBtn:hover{ background: rgba(240,240,240,.98); }
+    .smallBtn:hover{ background: rgba(240,240,240,.99); }
+
     .progressLine{
       margin: 10px 0;
       font-size: 12px;
       color:#333;
+    }
+
+    .exportBox{
+      margin-top:10px;
+      padding:10px 12px;
+      border:1px solid rgba(0,0,0,.12);
+      border-radius:12px;
+      background:rgba(255,255,255,.92);
+      max-height:310px;
+      overflow:auto;
+    }
+
+    .monoArea{
+      width:100%;
+      min-height:190px;
+      resize:vertical;
+      padding:10px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.15);
+      font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
   </style>
 </head>
@@ -219,8 +245,10 @@
 
     <div class="panelBody">
       <div class="row">
-        <label for="citySel">Stadt</label>
-        <select id="citySel"><option value="">Lade…</option></select>
+        <label for="city">Stadt</label>
+        <select id="city">
+          <option value="">(lade Städte…)</option>
+        </select>
       </div>
 
       <div class="row">
@@ -238,12 +266,12 @@
         </select>
       </div>
 
-      <div style="margin-top:10px; font-weight:950;">Beteiligung</div>
+      <div style="margin-top:10px; font-weight:980;">Beteiligung</div>
       <div class="chips">
-        <label class="chip"><input type="checkbox" id="involveBike" checked> <span>🚲 Rad</span></label>
-        <label class="chip"><input type="checkbox" id="involvePed" checked> <span>🚶 Fuß</span></label>
-        <label class="chip"><input type="checkbox" id="involveCar" checked> <span>🚗 PKW</span></label>
-        <label class="chip"><input type="checkbox" id="involveMoto"> <span>🏍️ Krad</span></label>
+        <label class="chip"><input type="checkbox" id="includeCyclist" checked> <span>🚲 Rad</span></label>
+        <label class="chip"><input type="checkbox" id="includePedestrian" checked> <span>🚶 Fuß</span></label>
+        <label class="chip"><input type="checkbox" id="includeCar" checked> <span>🚗 PKW</span></label>
+        <label class="chip"><input type="checkbox" id="includeMotorcycle"> <span>🏍️ Krad</span></label>
       </div>
 
       <div class="toggles">
@@ -252,14 +280,14 @@
         <div id="modeSolo" class="btn">Alleinunfall</div>
       </div>
 
-      <div style="margin-top:10px; font-weight:950;">Zeit & Bedingungen</div>
+      <div style="margin-top:10px; font-weight:980;">Zeit & Bedingungen</div>
 
       <div class="row">
         <label>Uhrzeit</label>
         <div class="rangeWrap">
           <div class="rangeLabel">
-            <span>von: <strong id="hFromLbl">0</strong></span>
-            <span>bis: <strong id="hToLbl">23</strong></span>
+            <span>von: <strong id="hourFromLbl">0</strong></span>
+            <span>bis: <strong id="hourToLbl">23</strong></span>
           </div>
           <div class="dualRange">
             <div class="dualRangeTrack"></div>
@@ -288,13 +316,13 @@
       </div>
 
       <div class="row">
-        <label for="maxPoints">Max Punkte (Render)</label>
+        <label for="maxPoints">Max. Punkte</label>
         <input id="maxPoints" type="number" min="500" step="500" value="100000" />
       </div>
 
       <div class="row">
-        <label for="viewportPaddingPct">Viewport-Puffer (%)</label>
-        <input id="viewportPaddingPct" type="number" min="0" max="100" step="5" value="20" />
+        <label for="viewportPadding">Viewport-Puffer</label>
+        <input id="viewportPadding" type="number" min="0" max="100" step="5" value="20" />
       </div>
 
       <div class="row">
@@ -303,12 +331,12 @@
       </div>
 
       <div class="toggles">
-        <div id="toggleCluster" class="btn active">Cluster</div>
-        <div id="toggleHeat" class="btn active">Heatmap</div>
-        <div id="toggleAbove" class="btn">Nur auffällig</div>
+        <div id="showCluster" class="btn active">Cluster</div>
+        <div id="showHeatmap" class="btn active">Heatmap</div>
+        <div id="showOnlyAboveAverage" class="btn">Nur „auffällig“</div>
       </div>
 
-      <div style="margin-top:10px; font-weight:950;">Ausschnitt & Export</div>
+      <div style="margin-top:10px; font-weight:980;">Ausschnitt & Export</div>
       <div class="toggles">
         <div id="btnDraw" class="btn">Bereich markieren</div>
         <div id="btnClearDraw" class="btn">Markierung löschen</div>
@@ -318,16 +346,16 @@
       <div class="legendBox" id="legendBox">
         <strong>Legende / Hinweise</strong>
         <ul>
-          <li><strong>Nur auffällig</strong>: zeigt nur Unfälle, die zu Mustern gehören, deren Anteil im aktuellen Ausschnitt deutlich über dem Stadt-Durchschnitt liegt (heuristisch).</li>
-          <li><strong>Bereich markieren</strong>: Rechteck aufziehen → Export bezieht sich auf den markierten Bereich (sonst: aktueller Viewport).</li>
-          <li><strong>Link</strong>: Export direkt öffnen per URL-Parameter <code>export=1</code>. Ausschnitt kann als <code>centerLat/centerLon/zoom</code> + ggf. <code>selSouth/selWest/selNorth/selEast</code> geteilt werden.</li>
+          <li><strong>Nur „auffällig“</strong> filtert im aktuellen Ausschnitt nur Muster, deren Anteil im Ausschnitt deutlich über dem Stadtvergleich liegt (heuristisch).</li>
+          <li><strong>Wichtig:</strong> Anzeige nutzt „Viewport + Puffer“. Der Report nutzt den markierten Bereich, sonst den <em>sichtbaren</em> Viewport (ohne Puffer).</li>
+          <li><strong>Link-Export:</strong> <code>?export=1</code> öffnet den Report direkt.</li>
         </ul>
       </div>
 
       <div class="stat" id="stat">Lade Daten…</div>
       <div class="muted">
-        Quelle: <code id="dataSourceCode">—</code><br/>
-        Hinweis: Für Statistik/Export wird <em>uncapped</em> gerechnet. <code>Max Punkte</code> begrenzt nur die Darstellung.
+        Datenquelle: <code id="dataSourceCode">—</code><br/>
+        Hinweis: Performance optimiert (Viewport-Render). Statistiken/Report nutzen uncapped Daten unter denselben Filtern.
       </div>
     </div>
   </div>
@@ -335,7 +363,7 @@
   <div class="modalOverlay" id="modalOverlay" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modalHeader">
-        <div class="modalTitle">Bezirksratsantrag – Entwurf (automatisch)</div>
+        <div class="modalTitle">Bezirksrat-Entwurf (Prototyp)</div>
         <div class="modalBtns">
           <div class="smallBtn" id="btnCopyWord">In Word kopieren</div>
           <div class="smallBtn" id="btnCopyText">Als Text kopieren</div>
@@ -343,15 +371,16 @@
           <div class="smallBtn" id="btnCloseModal">Schließen</div>
         </div>
       </div>
+
       <div class="progressLine" id="exportProgress">—</div>
 
-      <div id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85); max-height:280px; overflow:auto;">
+      <div class="exportBox" id="exportHtml">
         <div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>
       </div>
 
       <div class="row" style="margin-top:10px;">
-        <label for="exportBoxTa" style="grid-column:1/-1; font-weight:900;">Text zum Kopieren (Word/Clipboard)</label>
-        <textarea id="exportBoxTa" style="grid-column:1/-1; width:100%; min-height:220px; resize:vertical; padding:10px; border-radius:12px; border:1px solid rgba(0,0,0,.15); font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></textarea>
+        <label style="grid-column:1/-1; font-weight:950;">Text zum Kopieren (Word/Clipboard)</label>
+        <textarea id="exportText" class="monoArea" style="grid-column:1/-1;"></textarea>
       </div>
 
       <div class="toggles" style="margin-top:10px;">
@@ -364,18 +393,18 @@
   <script>
     if (!window.L) { alert("Leaflet fehlt."); throw new Error("Leaflet fehlt"); }
 
-    function escHtml(s) {
-      return String(s ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
-    }
+    // ----------------------------
+    // URL helpers (single param set)
+    // ----------------------------
     function qs(){ return new URL(window.location.href).searchParams; }
     function qGet(k, def){ const v = qs().get(k); return (v===null || v==="") ? def : v; }
-    function qNum(k, def){ const v = qGet(k, ""); const n = parseFloat(v); return Number.isFinite(n) ? n : def; }
-    function qInt(k, def){ const v = qGet(k, ""); const n = parseInt(v, 10); return Number.isFinite(n) ? n : def; }
-    function qBool(k, def){ const v = qs().get(k); if (v===null) return def; return v==="1" || v==="true" || v==="yes" || v==="on"; }
+    function qNum(k, def){ const v = qGet(k, def); const n = parseFloat(String(v).replace(",", ".")); return Number.isFinite(n) ? n : def; }
+    function qInt(k, def){ const v = qGet(k, def); const n = parseInt(v, 10); return Number.isFinite(n) ? n : def; }
+    function qBool(k, def){
+      const v = qs().get(k);
+      if (v===null) return def;
+      return v==="1" || v==="true" || v==="yes" || v==="on";
+    }
     function setQS(updates){
       const u = new URL(window.location.href);
       for (const [k,v] of Object.entries(updates)) {
@@ -385,6 +414,25 @@
       history.replaceState(null, "", u.toString());
       return u.toString();
     }
+
+    function escHtml(s){
+      return String(s ?? "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;");
+    }
+    function fmtPct(x){
+      const v = Number.isFinite(x) ? x : 0;
+      return (v*100).toFixed(1).replace(".", ",") + " %";
+    }
+    function todayDE(){ return new Date().toLocaleDateString("de-DE"); }
+
+    // ----------------------------
+    // City + data
+    // ----------------------------
+    const DEFAULT_CITY = "Hannover";
+
     function normKey(s){
       return String(s ?? "")
         .toLowerCase()
@@ -394,174 +442,182 @@
         .replace(/^_/, "")
         .replace(/_$/, "");
     }
-    function fmtPct2(x){ return (x*100).toFixed(2).replace(".", ",") + " %"; }
 
-    const DEFAULT_CITY = "Hannover";
-    let CITY_RAW = String(qGet("city", DEFAULT_CITY)).trim() || DEFAULT_CITY;
-    let CITY_SUFFIX = normKey(CITY_RAW);
-    let DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
+    // UI refs
+    const panelEl = document.getElementById("panel");
+    const collapseBtn = document.getElementById("collapseBtn");
+    const legendBtn = document.getElementById("legendBtn");
+    const legendBox = document.getElementById("legendBox");
 
-    const WEEKEND_SET = new Set(["1","7"]);
-    const ROAD_COND_LABEL = { "":"Unbekannt", "0":"Trocken", "1":"Nass/feucht", "2":"Winterglatt" };
+    const cityEl = document.getElementById("city");
+    const yearEl = document.getElementById("year");
+    const severityEl = document.getElementById("severity");
+    const roadConditionEl = document.getElementById("roadCondition");
+    const dayTypeEl = document.getElementById("dayType");
+    const maxPointsEl = document.getElementById("maxPoints");
+    const viewportPaddingEl = document.getElementById("viewportPadding");
+    const heatRadiusEl = document.getElementById("heatRadius");
 
-    const panelEl = document.getElementById('panel');
-    const collapseBtn = document.getElementById('collapseBtn');
-    const legendBtn = document.getElementById('legendBtn');
-    const legendBox = document.getElementById('legendBox');
+    const includeCyclistEl = document.getElementById("includeCyclist");
+    const includePedestrianEl = document.getElementById("includePedestrian");
+    const includeCarEl = document.getElementById("includeCar");
+    const includeMotorcycleEl = document.getElementById("includeMotorcycle");
 
-    const citySel = document.getElementById('citySel');
-    const yearEl = document.getElementById('year');
-    const severityEl = document.getElementById('severity');
-    const roadCondEl = document.getElementById('roadCondition');
-    const dayTypeEl = document.getElementById('dayType');
-    const maxPointsEl = document.getElementById('maxPoints');
-    const padPctEl = document.getElementById('viewportPaddingPct');
-    const heatRadiusEl = document.getElementById('heatRadius');
+    const btnModeOr = document.getElementById("modeOr");
+    const btnModeAnd = document.getElementById("modeAnd");
+    const btnModeSolo = document.getElementById("modeSolo");
 
-    const involveBikeEl = document.getElementById('involveBike');
-    const involvePedEl = document.getElementById('involvePed');
-    const involveCarEl = document.getElementById('involveCar');
-    const involveMotoEl = document.getElementById('involveMoto');
+    const hourFromEl = document.getElementById("hourFrom");
+    const hourToEl   = document.getElementById("hourTo");
+    const hourFromLbl = document.getElementById("hourFromLbl");
+    const hourToLbl   = document.getElementById("hourToLbl");
+    const hourFill = document.getElementById("hourFill");
 
-    const btnModeOr = document.getElementById('modeOr');
-    const btnModeAnd = document.getElementById('modeAnd');
-    const btnModeSolo = document.getElementById('modeSolo');
+    const showClusterBtn = document.getElementById("showCluster");
+    const showHeatmapBtn = document.getElementById("showHeatmap");
+    const showOnlyAboveAverageBtn = document.getElementById("showOnlyAboveAverage");
 
-    const hourFromEl = document.getElementById('hourFrom');
-    const hourToEl = document.getElementById('hourTo');
-    const hFromLbl = document.getElementById('hFromLbl');
-    const hToLbl = document.getElementById('hToLbl');
-    const hourFill = document.getElementById('hourFill');
+    const btnDraw = document.getElementById("btnDraw");
+    const btnClearDraw = document.getElementById("btnClearDraw");
+    const btnOpenExport = document.getElementById("btnOpenExport");
 
-    const btnCluster = document.getElementById('toggleCluster');
-    const btnHeat = document.getElementById('toggleHeat');
-    const btnAbove = document.getElementById('toggleAbove');
+    const statEl = document.getElementById("stat");
+    const dataSourceCodeEl = document.getElementById("dataSourceCode");
+    const panelSubEl = document.getElementById("panelSub");
 
-    const btnDraw = document.getElementById('btnDraw');
-    const btnClearDraw = document.getElementById('btnClearDraw');
-    const btnOpenExport = document.getElementById('btnOpenExport');
+    // Modal refs
+    const modalOverlay = document.getElementById("modalOverlay");
+    const exportProgress = document.getElementById("exportProgress");
+    const exportHtml = document.getElementById("exportHtml");
+    const exportTextEl = document.getElementById("exportText");
+    const btnCloseModal = document.getElementById("btnCloseModal");
+    const btnCopyWord = document.getElementById("btnCopyWord");
+    const btnCopyText = document.getElementById("btnCopyText");
+    const btnMakeLink = document.getElementById("btnMakeLink");
+    const btnCopyExport = document.getElementById("btnCopyExport");
+    const btnDownloadExport = document.getElementById("btnDownloadExport");
 
-    const statEl = document.getElementById('stat');
-    const panelSubEl = document.getElementById('panelSub');
-    const dataSourceCodeEl = document.getElementById('dataSourceCode');
+    // ----------------------------
+    // Map + selection
+    // ----------------------------
+    const map = L.map("map", { preferCanvas: true });
 
-    const modalOverlay = document.getElementById('modalOverlay');
-    const exportHtmlEl = document.getElementById('exportHtml');
-    const exportBoxTa = document.getElementById('exportBoxTa');
-    const exportProgress = document.getElementById('exportProgress');
-    const btnCloseModal = document.getElementById('btnCloseModal');
-    const btnCopyWord = document.getElementById('btnCopyWord');
-    const btnCopyText = document.getElementById('btnCopyText');
-    const btnCopyExport = document.getElementById('btnCopyExport');
-    const btnDownloadExport = document.getElementById('btnDownloadExport');
-    const btnMakeLink = document.getElementById('btnMakeLink');
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap-Mitwirkende"
+    }).addTo(map);
 
-    const map = L.map('map', { preferCanvas: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap-Mitwirkende' }).addTo(map);
-    map.setView([52.3759, 9.7320], 12);
-
+    // selection
     const drawnItems = new L.FeatureGroup().addTo(map);
     let selectionBounds = null;
 
     const drawControl = new L.Control.Draw({
-      position: 'topright',
-      draw: { polygon:false, polyline:false, circle:false, marker:false, circlemarker:false, rectangle: { shapeOptions: { color: "#2b7cff", weight: 2 } } },
+      position: "topright",
+      draw: {
+        polygon:false, polyline:false, circle:false, marker:false, circlemarker:false,
+        rectangle: { shapeOptions: { color: "#2b7cff", weight: 2 } }
+      },
       edit: { featureGroup: drawnItems, edit:false, remove:false }
     });
     map.addControl(drawControl);
 
-    let involvementMode = "or";
+    map.on(L.Draw.Event.CREATED, (e) => {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      selectionBounds = e.layer.getBounds();
+      persistSelectionToUrl();
+      applyViewportFilter();
+      renderLayers();
+    });
+
+    function openModal(){ modalOverlay.style.display = "flex"; }
+    function closeModal(){ modalOverlay.style.display = "none"; }
+    btnCloseModal.addEventListener("click", closeModal);
+    modalOverlay.addEventListener("click", (e)=>{ if (e.target === modalOverlay) closeModal(); });
+
+    // ----------------------------
+    // State
+    // ----------------------------
+    const WEEKEND_SET = new Set(["1","7"]);
+    const ROAD_COND_LABEL = {
+      "":"— unbekannt",
+      "0":"Trocken",
+      "1":"Nass/feucht",
+      "2":"Winterglatt"
+    };
+
+    let involvementMode = "or"; // or | and | solo
     let showCluster = true;
-    let showHeat = true;
-    let showAbove = false;
+    let showHeatmap = true;
+    let showOnlyAboveAverage = false;
+
+    let CITY_RAW = String(qGet("city", DEFAULT_CITY)).trim() || DEFAULT_CITY;
+    let CITY_SUFFIX = normKey(CITY_RAW);
+    let DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
 
     let allGeo = null;
-    let allPts = [];
-    let filteredAll = [];
-    let filteredGlobal = [];
-    let viewportPts = [];
-    let baselineCounts = null;
+    let allPts = [];          // all points in file
+    let filteredAll = [];     // uncapped: for analysis/export
+    let filteredCapped = [];  // capped: for rendering
+    let viewportPts = [];     // points in padded viewport (rendering window)
+    let viewportPtsNoPad = []; // points in visible viewport (no padding)
+    let selectionPts = [];    // points in selection (uncapped)
 
     let clusterLayer = null;
     let heatLayer = null;
 
-    const PATTERN_LABEL = {
-      solo_r: "🚲 Alleinunfall (Rad)",
-      solo_f: "🚶 Alleinunfall (Fuß)",
-      solo_p: "🚗 Alleinunfall (PKW)",
-      solo_k: "🏍️ Alleinunfall (Krad)",
-      pair_rp: "🚲+🚗 Rad + PKW",
-      pair_rf: "🚲+🚶 Rad + Fuß",
-      pair_pf: "🚗+🚶 PKW + Fuß",
-      triple_rpf: "🚲+🚗+🚶 Rad + PKW + Fuß",
-      triple_rpk: "🚲+🚗+🏍️ Rad + PKW + Krad",
-      triple_rfk: "🚲+🚶+🏍️ Rad + Fuß + Krad",
-      triple_pfk: "🚗+🚶+🏍️ PKW + Fuß + Krad",
-      quad_all:   "🚲+🚶+🚗+🏍️ alle 4"
-    };
-    const PATTERN_KEYS = Object.keys(PATTERN_LABEL);
-
-    function involvementBits(pr){
-      const rad  = String(pr?.istrad)  === "1";
-      const fuss = String(pr?.istfuss) === "1";
-      const pkw  = String(pr?.istpkw)  === "1";
-      const krad = String(pr?.istkrad) === "1";
-      const n = (rad?1:0)+(fuss?1:0)+(pkw?1:0)+(krad?1:0);
-      return {rad,fuss,pkw,krad,n};
-    }
-    function classifyExclusive(pr){
-      const b = involvementBits(pr);
-      if (b.n === 4) return "quad_all";
-      if (b.n === 3) {
-        if (b.rad && b.pkw && b.fuss) return "triple_rpf";
-        if (b.rad && b.pkw && b.krad) return "triple_rpk";
-        if (b.rad && b.fuss && b.krad) return "triple_rfk";
-        if (b.pkw && b.fuss && b.krad) return "triple_pfk";
-        return null;
-      }
-      if (b.n === 2) {
-        if (b.rad && b.pkw)  return "pair_rp";
-        if (b.rad && b.fuss) return "pair_rf";
-        if (b.pkw && b.fuss) return "pair_pf";
-        return null;
-      }
-      if (b.n === 1) {
-        if (b.rad)  return "solo_r";
-        if (b.fuss) return "solo_f";
-        if (b.pkw)  return "solo_p";
-        if (b.krad) return "solo_k";
-      }
-      return null;
-    }
-
+    // ----------------------------
+    // Panel behaviour
+    // ----------------------------
     function setCollapsed(on){
-      panelEl.classList.toggle('collapsed', on);
+      panelEl.classList.toggle("collapsed", on);
       collapseBtn.textContent = on ? ">" : "v";
       try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch {}
     }
     const savedCollapsed = (() => { try { return localStorage.getItem("ua_panel_collapsed"); } catch { return null; } })();
     if (savedCollapsed === "1") setCollapsed(true);
-    collapseBtn.addEventListener('click', () => setCollapsed(!panelEl.classList.contains('collapsed')));
-    legendBtn.addEventListener('click', () => { legendBox.style.display = (legendBox.style.display==="block") ? "none" : "block"; });
 
-    function setBtnState(btn, on) { btn.classList.toggle('active', !!on); }
+    collapseBtn.addEventListener("click", () => setCollapsed(!panelEl.classList.contains("collapsed")));
+    legendBtn.addEventListener("click", () => { legendBox.style.display = (legendBox.style.display==="block") ? "none" : "block"; });
 
-    function setMode(next, skipUrl=false){
-      involvementMode = (next==="and"||next==="solo") ? next : "or";
-      setBtnState(btnModeOr, involvementMode==="or");
-      setBtnState(btnModeAnd, involvementMode==="and");
-      setBtnState(btnModeSolo, involvementMode==="solo");
-      if (!skipUrl) setQS({ involveMode: involvementMode });
-      applyGlobalFilter(); applyViewportFilter(); renderLayers();
+    function setBtnState(btn, on){ btn.classList.toggle("active", !!on); }
+
+    // ----------------------------
+    // Cities list (plain text file, one city per line)
+    // ----------------------------
+    async function loadCitiesList(){
+      // cities.txt must be in same dir as this html on GitHub Pages
+      const resp = await fetch("cities.txt", { cache: "no-store" });
+      if (!resp.ok) throw new Error("cities.txt konnte nicht geladen werden.");
+      const text = await resp.text();
+      const cities = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      const uniq = Array.from(new Set(cities)).sort((a,b)=>a.localeCompare(b, "de"));
+      cityEl.innerHTML = "";
+      for (const c of uniq){
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        cityEl.appendChild(opt);
+      }
+      if (!uniq.includes(CITY_RAW)){
+        const opt = document.createElement("option");
+        opt.value = CITY_RAW;
+        opt.textContent = CITY_RAW + " (nicht in Liste)";
+        cityEl.insertBefore(opt, cityEl.firstChild);
+      }
+      cityEl.value = CITY_RAW;
     }
 
+    // ----------------------------
+    // URL <-> UI (single, readable keys)
+    // ----------------------------
     function syncHourUI(changed){
       let a = parseInt(hourFromEl.value, 10);
       let b = parseInt(hourToEl.value, 10);
       if (changed === "from" && a > b) { b = a; hourToEl.value = String(b); }
       if (changed === "to"   && b < a) { a = b; hourFromEl.value = String(a); }
-      hFromLbl.textContent = String(a);
-      hToLbl.textContent = String(b);
+      hourFromLbl.textContent = String(a);
+      hourToLbl.textContent = String(b);
       const min = parseInt(hourFromEl.min,10);
       const max = parseInt(hourFromEl.max,10);
       const span = (max - min) || 1;
@@ -571,115 +627,181 @@
       hourFill.style.right = `${rightPct}%`;
     }
 
-    async function loadCityList(){
-      try{
-        const resp = await fetch("cities.txt", { cache: "no-store" });
-        if (!resp.ok) throw new Error("cities.txt nicht gefunden");
-        const txt = await resp.text();
-        const list = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-        const seen = new Set();
-        const uniq = [];
-        for (const s of list){
-          const k = normKey(s);
-          if (seen.has(k)) continue;
-          seen.add(k);
-          uniq.push(s);
-        }
-        uniq.sort((a,b)=>a.localeCompare(b, 'de'));
+    function initUiFromUrl(){
+      // filters
+      yearEl.value = qGet("year", "all");
+      severityEl.value = qGet("severity", "all");
+      dayTypeEl.value = qGet("dayType", "all");
+      roadConditionEl.value = qGet("roadCondition", "all");
 
-        citySel.innerHTML = "";
-        for (const c of uniq){
-          const opt = document.createElement("option");
-          opt.value = c;
-          opt.textContent = c;
-          citySel.appendChild(opt);
-        }
-        if (uniq.length === 0){
-          const opt = document.createElement("option");
-          opt.value = CITY_RAW;
-          opt.textContent = CITY_RAW;
-          citySel.appendChild(opt);
-        }
+      hourFromEl.value = String(Math.max(0, Math.min(23, qInt("hourFrom", 0))));
+      hourToEl.value   = String(Math.max(0, Math.min(23, qInt("hourTo", 23))));
+      maxPointsEl.value = String(Math.max(500, Math.min(200000, qInt("maxPoints", 100000))));
+      viewportPaddingEl.value = String(Math.max(0, Math.min(100, qInt("viewportPadding", 20))));
+      heatRadiusEl.value = String(Math.max(5, Math.min(60, qInt("heatRadius", 25))));
 
-        const currentK = normKey(CITY_RAW);
-        const match = uniq.find(c => normKey(c) === currentK);
-        citySel.value = match || uniq[0];
+      includeCyclistEl.checked = qBool("includeCyclist", true);
+      includePedestrianEl.checked = qBool("includePedestrian", true);
+      includeCarEl.checked = qBool("includeCar", true);
+      includeMotorcycleEl.checked = qBool("includeMotorcycle", false);
 
-        citySel.addEventListener("change", () => {
-          const nextCity = citySel.value || DEFAULT_CITY;
-          setQS({ city: nextCity });
-          window.location.reload();
-        });
-      } catch(e){
-        citySel.innerHTML = "";
-        const opt = document.createElement("option");
-        opt.value = CITY_RAW;
-        opt.textContent = CITY_RAW;
-        citySel.appendChild(opt);
-        citySel.value = CITY_RAW;
+      involvementMode = String(qGet("involvementMode", "or"));
+      if (!["or","and","solo"].includes(involvementMode)) involvementMode = "or";
+
+      showCluster = qBool("showCluster", true);
+      showHeatmap = qBool("showHeatmap", true);
+      showOnlyAboveAverage = qBool("showOnlyAboveAverage", false);
+
+      setBtnState(showClusterBtn, showCluster);
+      setBtnState(showHeatmapBtn, showHeatmap);
+      setBtnState(showOnlyAboveAverageBtn, showOnlyAboveAverage);
+
+      setMode(involvementMode, true);
+
+      syncHourUI();
+
+      // selection bounds from URL if present
+      const selS = qs().get("selSouth");
+      const selW = qs().get("selWest");
+      const selN = qs().get("selNorth");
+      const selE = qs().get("selEast");
+      if (selS && selW && selN && selE){
+        const b = L.latLngBounds([parseFloat(selS), parseFloat(selW)], [parseFloat(selN), parseFloat(selE)]);
+        if (b.isValid()){
+          drawnItems.clearLayers();
+          const rect = L.rectangle(b, { color:"#2b7cff", weight:2 });
+          rect.addTo(drawnItems);
+          selectionBounds = b;
+        }
       }
     }
 
-    function refreshCityDerived(){
-      CITY_RAW = String(qGet("city", DEFAULT_CITY)).trim() || DEFAULT_CITY;
-      CITY_SUFFIX = normKey(CITY_RAW);
-      DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
-      panelSubEl.textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}`;
-      dataSourceCodeEl.textContent = DATA_URL;
+    function updateUrlFromUi(){
+      const center = map.getCenter();
+      const z = map.getZoom();
+      setQS({
+        city: CITY_RAW,
+        year: yearEl.value,
+        severity: severityEl.value,
+        roadCondition: roadConditionEl.value,
+        dayType: dayTypeEl.value,
+        hourFrom: hourFromEl.value,
+        hourTo: hourToEl.value,
+        maxPoints: maxPointsEl.value,
+        viewportPadding: viewportPaddingEl.value,
+        heatRadius: heatRadiusEl.value,
+        includeCyclist: includeCyclistEl.checked ? 1 : 0,
+        includePedestrian: includePedestrianEl.checked ? 1 : 0,
+        includeCar: includeCarEl.checked ? 1 : 0,
+        includeMotorcycle: includeMotorcycleEl.checked ? 1 : 0,
+        involvementMode: involvementMode,
+        showCluster: showCluster ? 1 : 0,
+        showHeatmap: showHeatmap ? 1 : 0,
+        showOnlyAboveAverage: showOnlyAboveAverage ? 1 : 0,
+        centerLat: center.lat.toFixed(6),
+        centerLon: center.lng.toFixed(6),
+        zoom: z
+      });
+      persistSelectionToUrl(); // keep selection in url too
     }
 
-    function buildYearOptions(features) {
-      const years = new Set();
-      for (const f of features) {
-        const y = f?.properties?.year;
-        if (y !== undefined && y !== null && y !== "") years.add(String(y));
+    function persistSelectionToUrl(){
+      if (!selectionBounds){
+        setQS({ selSouth:null, selWest:null, selNorth:null, selEast:null });
+        return;
       }
-      [...years].sort().forEach(y => {
-        const opt = document.createElement('option');
-        opt.value = y;
-        opt.textContent = y;
-        yearEl.appendChild(opt);
+      const sw = selectionBounds.getSouthWest();
+      const ne = selectionBounds.getNorthEast();
+      setQS({
+        selSouth: sw.lat.toFixed(6),
+        selWest: sw.lng.toFixed(6),
+        selNorth: ne.lat.toFixed(6),
+        selEast: ne.lng.toFixed(6)
       });
     }
 
-    function roadCondText(code) {
-      const k = String(code ?? "");
-      return ROAD_COND_LABEL[k] ?? (`Code ${k}`);
-    }
-
-    function buildRoadCondOptions(points) {
-      const codes = new Set();
-      for (const p of points) {
-        const v = p?.props?.strzustand;
-        if (v === undefined || v === null || v === "") { codes.add(""); continue; }
-        codes.add(String(v));
-      }
-      const sorted = [...codes].sort((a,b) => {
-        const ai = (a === "" ? 999 : parseInt(a,10));
-        const bi = (b === "" ? 999 : parseInt(b,10));
-        return ai - bi;
-      });
-      roadCondEl.innerHTML = '<option value="all">Alle</option>';
-      for (const c of sorted) {
-        const opt = document.createElement('option');
-        opt.value = (c === "" ? "__unknown__" : c);
-        opt.textContent = roadCondText(c);
-        roadCondEl.appendChild(opt);
-      }
-    }
-
-    function extractPoints(geojson) {
+    // ----------------------------
+    // Data extraction + option builders
+    // ----------------------------
+    function extractPoints(geojson){
       const pts = [];
       const feats = geojson?.features || [];
-      for (const f of feats) {
+      for (const f of feats){
         const g = f?.geometry;
         if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
-        const c = g.coordinates;
-        const lon = c[0], lat = c[1];
+        const [lon, lat] = g.coordinates;
         if (typeof lat !== "number" || typeof lon !== "number") continue;
         pts.push({ lat, lon, props: f.properties || {} });
       }
       return pts;
+    }
+
+    function buildYearOptions(features){
+      const years = new Set();
+      for (const f of features){
+        const y = f?.properties?.year;
+        if (y !== undefined && y !== null && y !== "") years.add(String(y));
+      }
+      // rebuild
+      const current = yearEl.value || "all";
+      yearEl.innerHTML = `<option value="all">Alle</option>`;
+      [...years].sort().forEach(y=>{
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        yearEl.appendChild(opt);
+      });
+      yearEl.value = current;
+      if (!yearEl.value) yearEl.value = "all";
+    }
+
+    function roadCondText(code){
+      const k = String(code ?? "");
+      return ROAD_COND_LABEL[k] ?? (`Code ${k}`);
+    }
+
+    function buildRoadConditionOptions(points){
+      const codes = new Set();
+      for (const p of points){
+        const v = p?.props?.strzustand;
+        if (v === undefined || v === null || v === "") { codes.add(""); continue; }
+        codes.add(String(v));
+      }
+      const sorted = [...codes].sort((a,b)=>{
+        const ai = (a==="" ? 999 : parseInt(a,10));
+        const bi = (b==="" ? 999 : parseInt(b,10));
+        return ai - bi;
+      });
+      const current = roadConditionEl.value || "all";
+      roadConditionEl.innerHTML = `<option value="all">Alle</option>`;
+      for (const c of sorted){
+        const opt = document.createElement("option");
+        opt.value = (c === "" ? "__unknown__" : c);
+        opt.textContent = roadCondText(c);
+        roadConditionEl.appendChild(opt);
+      }
+      roadConditionEl.value = current;
+      if (!roadConditionEl.value) roadConditionEl.value = "all";
+    }
+
+    // ----------------------------
+    // View bounds helpers
+    // ----------------------------
+    function getVisibleBounds(){
+      return map.getBounds();
+    }
+
+    function getPaddedBounds(){
+      const padPct = Math.max(0, Math.min(100, parseInt(viewportPaddingEl.value || "20", 10))) / 100.0;
+      const b = map.getBounds();
+      const latSpan = b.getNorth() - b.getSouth();
+      const lonSpan = b.getEast() - b.getWest();
+      const dLat = latSpan * padPct;
+      const dLon = lonSpan * padPct;
+      return L.latLngBounds(
+        [b.getSouth() - dLat, b.getWest() - dLon],
+        [b.getNorth() + dLat, b.getEast() + dLon]
+      );
     }
 
     function fitToAllPoints(points){
@@ -695,136 +817,109 @@
       map.fitBounds(b, { padding: [20,20] });
     }
 
-    function getPaddedBounds() {
-      const padPct = Math.max(0, Math.min(100, parseInt(padPctEl.value || "20", 10))) / 100.0;
-      const b = map.getBounds();
-      const latSpan = b.getNorth() - b.getSouth();
-      const lonSpan = b.getEast() - b.getWest();
-      const dLat = latSpan * padPct;
-      const dLon = lonSpan * padPct;
-      return L.latLngBounds(
-        [b.getSouth() - dLat, b.getWest() - dLon],
-        [b.getNorth() + dLat, b.getEast() + dLon]
-      );
-    }
-
-    function initFromUrl(){
-      yearEl.value = String(qGet("year", "all"));
-      severityEl.value = String(qGet("severity", "all"));
-      dayTypeEl.value = String(qGet("dayType", "all"));
-      roadCondEl.value = String(qGet("roadCondition", "all"));
-
-      hourFromEl.value = String(Math.max(0, Math.min(23, qInt("hourFrom", 0))));
-      hourToEl.value   = String(Math.max(0, Math.min(23, qInt("hourTo", 23))));
-      maxPointsEl.value = String(Math.max(500, Math.min(200000, qInt("maxPoints", 100000))));
-      padPctEl.value = String(Math.max(0, Math.min(100, qInt("viewportPaddingPct", 20))));
-      heatRadiusEl.value = String(Math.max(5, Math.min(60, qInt("heatRadius", 25))));
-
-      involveBikeEl.checked = qBool("involveBike", true);
-      involvePedEl.checked  = qBool("involvePed", true);
-      involveCarEl.checked  = qBool("involveCar", true);
-      involveMotoEl.checked = qBool("involveMoto", false);
-
-      involvementMode = String(qGet("involveMode", "or"));
-      showCluster = qBool("showCluster", true);
-      showHeat = qBool("showHeat", true);
-      showAbove = qBool("onlyHot", false);
-
-      const centerLat = qNum("centerLat", null);
-      const centerLon = qNum("centerLon", null);
-      const zoom = qInt("zoom", null);
-      if (centerLat !== null && centerLon !== null && zoom !== null) {
-        map.setView([centerLat, centerLon], zoom);
+    function applyInitialMapView(){
+      const lat = qs().get("centerLat");
+      const lon = qs().get("centerLon");
+      const z = qs().get("zoom");
+      if (lat && lon && z){
+        const clat = parseFloat(lat), clon = parseFloat(lon), cz = parseInt(z,10);
+        if (Number.isFinite(clat) && Number.isFinite(clon) && Number.isFinite(cz)){
+          map.setView([clat, clon], cz, { animate:false });
+          return;
+        }
       }
+      // else: fit to data later after load
+      map.setView([52.3759, 9.7320], 12);
+    }
 
-      const sS = qNum("selSouth", null);
-      const sW = qNum("selWest", null);
-      const sN = qNum("selNorth", null);
-      const sE = qNum("selEast", null);
-      if ([sS,sW,sN,sE].every(v => v !== null && Number.isFinite(v))) {
-        const b = L.latLngBounds([sS, sW], [sN, sE]);
-        selectionBounds = b;
-        drawnItems.clearLayers();
-        drawnItems.addLayer(L.rectangle(b, { color: "#2b7cff", weight: 2 }));
+    // ----------------------------
+    // Involvement classification
+    // ----------------------------
+    function classifyPoint(pr){
+      const isRad  = String(pr?.istrad)  === "1";
+      const isFuss = String(pr?.istfuss) === "1";
+      const isPKW  = String(pr?.istpkw)  === "1";
+      const isKrad = String(pr?.istkrad) === "1";
+      const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+      return {
+        radSolo:  (isRad && c===1),
+        fussSolo: (isFuss && c===1),
+        pkwSolo:  (isPKW && c===1),
+        kradSolo: (isKrad && c===1),
+
+        radPkw:   (isRad && isPKW && !isFuss && !isKrad),
+        radFuss:  (isRad && isFuss && !isPKW && !isKrad),
+        pkwFuss:  (isPKW && isFuss && !isRad && !isKrad),
+
+        radPkwFuss: (isRad && isPKW && isFuss && !isKrad)
+      };
+    }
+
+    function countPatterns(points){
+      const res = {
+        total: 0,
+        radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0,
+        radPkw:0, radFuss:0, pkwFuss:0,
+        radPkwFuss:0
+      };
+      for (const p of points){
+        const pr = p.props || {};
+        const c = classifyPoint(pr);
+        res.total++;
+        if (c.radSolo) res.radSolo++;
+        if (c.fussSolo) res.fussSolo++;
+        if (c.pkwSolo) res.pkwSolo++;
+        if (c.kradSolo) res.kradSolo++;
+        if (c.radPkw) res.radPkw++;
+        if (c.radFuss) res.radFuss++;
+        if (c.pkwFuss) res.pkwFuss++;
+        if (c.radPkwFuss) res.radPkwFuss++;
       }
-
-      setBtnState(btnCluster, showCluster);
-      setBtnState(btnHeat, showHeat);
-      setBtnState(btnAbove, showAbove);
-      setMode(involvementMode, true);
-      syncHourUI();
+      return res;
     }
 
-    function updateUrlFromUi(){
-      const c = map.getCenter();
-      const z = map.getZoom();
-      const sel = selectionBounds;
+    function ratio(a,b){ return b>0 ? (a/b) : 0; }
 
-      setQS({
-        city: CITY_RAW,
-        year: yearEl.value,
-        severity: severityEl.value,
-        roadCondition: roadCondEl.value,
-        dayType: dayTypeEl.value,
-        hourFrom: hourFromEl.value,
-        hourTo: hourToEl.value,
-        maxPoints: maxPointsEl.value,
-        viewportPaddingPct: padPctEl.value,
-        heatRadius: heatRadiusEl.value,
-        involveBike: involveBikeEl.checked ? 1 : 0,
-        involvePed:  involvePedEl.checked ? 1 : 0,
-        involveCar:  involveCarEl.checked ? 1 : 0,
-        involveMoto: involveMotoEl.checked ? 1 : 0,
-        involveMode: involvementMode,
-        showCluster: showCluster ? 1 : 0,
-        showHeat: showHeat ? 1 : 0,
-        onlyHot: showAbove ? 1 : 0,
-        centerLat: c.lat.toFixed(6),
-        centerLon: c.lng.toFixed(6),
-        zoom: z,
-        selSouth: sel ? sel.getSouthWest().lat.toFixed(6) : null,
-        selWest:  sel ? sel.getSouthWest().lng.toFixed(6) : null,
-        selNorth: sel ? sel.getNorthEast().lat.toFixed(6) : null,
-        selEast:  sel ? sel.getNorthEast().lng.toFixed(6) : null
-      });
-    }
-
-    function passFilters(pr){
+    // ----------------------------
+    // Filtering (uncapped + capped)
+    // ----------------------------
+    function passesFilters(pr){
       const wantYear = yearEl.value;
       const wantSev = severityEl.value;
-      const wantRoad = roadCondEl.value;
-      const dayType = dayTypeEl.value;
+      const wantRoad = roadConditionEl.value;
+      const wantDayType = dayTypeEl.value;
 
       if (wantYear !== "all" && String(pr.year) !== wantYear) return false;
       if (wantSev !== "all" && String(pr.ukategorie) !== wantSev) return false;
 
-      if (wantRoad !== "all") {
+      if (wantRoad !== "all"){
         const z = String(pr.strzustand ?? "");
-        if (wantRoad === "__unknown__") {
+        if (wantRoad === "__unknown__"){
           if (z !== "" && z !== "null" && z !== "undefined") return false;
         } else {
           if (z !== String(wantRoad)) return false;
         }
       }
 
-      if (dayType !== "all") {
+      if (wantDayType !== "all"){
         const wd = String(pr.uwochentag ?? "");
         const isWeekend = WEEKEND_SET.has(wd);
-        if (dayType === "weekend" && !isWeekend) return false;
-        if (dayType === "weekday" && isWeekend) return false;
+        if (wantDayType === "weekend" && !isWeekend) return false;
+        if (wantDayType === "weekday" && isWeekend) return false;
       }
 
       const h = parseInt(pr.ustunde, 10);
-      if (Number.isNaN(h)) return false;
+      if (!Number.isFinite(h)) return false;
       const hFrom = parseInt(hourFromEl.value || "0", 10);
       const hTo   = parseInt(hourToEl.value || "23", 10);
       if (h < hFrom || h > hTo) return false;
 
-      const sRad  = involveBikeEl.checked;
-      const sFuss = involvePedEl.checked;
-      const sPKW  = involveCarEl.checked;
-      const sKrad = involveMotoEl.checked;
-      const anySelected = sRad || sFuss || sPKW || sKrad;
+      // involvement filter
+      const selRad  = includeCyclistEl.checked;
+      const selFuss = includePedestrianEl.checked;
+      const selPKW  = includeCarEl.checked;
+      const selKrad = includeMotorcycleEl.checked;
+      const anySelected = selRad || selFuss || selPKW || selKrad;
       if (!anySelected) return false;
 
       const isRad  = String(pr?.istrad)  === "1";
@@ -832,111 +927,130 @@
       const isPKW  = String(pr?.istpkw)  === "1";
       const isKrad = String(pr?.istkrad) === "1";
 
-      if (involvementMode === "or") {
-        const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+      if (involvementMode === "or"){
+        const ok = (selRad && isRad) || (selFuss && isFuss) || (selPKW && isPKW) || (selKrad && isKrad);
         if (!ok) return false;
-      } else if (involvementMode === "and") {
-        if (sRad  && !isRad)  return false;
-        if (sFuss && !isFuss) return false;
-        if (sPKW  && !isPKW)  return false;
-        if (sKrad && !isKrad) return false;
-      } else if (involvementMode === "solo") {
-        const c = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
-        if (c !== 1) return false;
-        const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+      } else if (involvementMode === "and"){
+        if (selRad  && !isRad)  return false;
+        if (selFuss && !isFuss) return false;
+        if (selPKW  && !isPKW)  return false;
+        if (selKrad && !isKrad) return false;
+      } else if (involvementMode === "solo"){
+        const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+        if (involvedCount !== 1) return false;
+        const ok = (selRad && isRad) || (selFuss && isFuss) || (selPKW && isPKW) || (selKrad && isKrad);
         if (!ok) return false;
       }
       return true;
     }
 
     function applyGlobalFilter(){
-      if (!allGeo) return;
       const maxN = Math.max(500, parseInt(maxPointsEl.value || "100000", 10));
-      const outAll = [];
-      const outCapped = [];
 
-      const baseline = { total: 0 };
-      for (const k of PATTERN_KEYS) baseline[k] = 0;
+      filteredAll = [];
+      filteredCapped = [];
 
       for (const p of allPts){
         const pr = p.props || {};
-        if (!passFilters(pr)) continue;
+        if (!passesFilters(pr)) continue;
 
-        outAll.push(p);
-
-        baseline.total++;
-        const cls = classifyExclusive(pr);
-        if (cls && baseline[cls] !== undefined) baseline[cls]++;
-
-        if (outCapped.length < maxN) outCapped.push(p);
+        filteredAll.push(p);
+        if (filteredCapped.length < maxN) filteredCapped.push(p);
       }
-      filteredAll = outAll;
-      filteredGlobal = outCapped;
-      baselineCounts = baseline;
     }
 
     function applyViewportFilter(){
-      const vb = getPaddedBounds();
-      viewportPts = filteredGlobal.filter(p => vb.contains([p.lat, p.lon]));
-    }
-
-    function ratio(a,b){ return b>0 ? (a/b) : 0; }
-
-    function countPatterns(points){
-      const res = { total: 0 };
-      for (const k of PATTERN_KEYS) res[k] = 0;
-      for (const p of points){
-        const pr = p.props || {};
-        const cls = classifyExclusive(pr);
-        res.total++;
-        if (cls && res[cls] !== undefined) res[cls]++;
+      const vbPad = getPaddedBounds();
+      const vb = getVisibleBounds();
+      viewportPts = [];
+      viewportPtsNoPad = [];
+      for (const p of filteredCapped){
+        if (vbPad.contains([p.lat, p.lon])) viewportPts.push(p);
+        if (vb.contains([p.lat, p.lon])) viewportPtsNoPad.push(p);
       }
-      return res;
+
+      // selection uses uncapped (filteredAll) for analysis correctness
+      selectionPts = [];
+      if (selectionBounds){
+        for (const p of filteredAll){
+          if (selectionBounds.contains([p.lat, p.lon])) selectionPts.push(p);
+        }
+      }
     }
 
-    function aboveAverageMask(points, baseline){
+    // ----------------------------
+    // Above-average mask (heuristic)
+    // ----------------------------
+    function aboveAverageMask(points, baselineCounts){
       const local = countPatterns(points);
-      if (!baseline || baseline.total<=0 || local.total<=0) return null;
+      const keep = new Set();
       const minN = 8;
       const factor = 1.35;
+
+      const keys = ["radSolo","fussSolo","pkwSolo","kradSolo","radPkw","radFuss","pkwFuss","radPkwFuss"];
       const hot = new Set();
-      for (const k of PATTERN_KEYS){
+      for (const k of keys){
         const lr = ratio(local[k], local.total);
-        const br = ratio(baseline[k], baseline.total);
+        const br = ratio(baselineCounts[k], baselineCounts.total);
         if (local[k] >= minN && br > 0 && lr > br * factor) hot.add(k);
       }
-      if (hot.size===0) return null;
-      const keep = new Set();
+      if (hot.size === 0) return null;
+
       for (let i=0;i<points.length;i++){
-        const cls = classifyExclusive(points[i].props || {});
-        if (cls && hot.has(cls)) keep.add(i);
+        const pr = points[i].props || {};
+        const c = classifyPoint(pr);
+        if (
+          (hot.has("radSolo") && c.radSolo) ||
+          (hot.has("fussSolo") && c.fussSolo) ||
+          (hot.has("pkwSolo") && c.pkwSolo) ||
+          (hot.has("kradSolo") && c.kradSolo) ||
+          (hot.has("radPkw") && c.radPkw) ||
+          (hot.has("radFuss") && c.radFuss) ||
+          (hot.has("pkwFuss") && c.pkwFuss) ||
+          (hot.has("radPkwFuss") && c.radPkwFuss)
+        ) keep.add(i);
       }
-      return { keep, hot };
+      return { keep, hot, local };
     }
 
+    // ----------------------------
+    // Render
+    // ----------------------------
     function renderLayers(){
       if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
       if (heatLayer) { heatLayer.remove(); heatLayer = null; }
 
       let pts = viewportPts;
-      let hotInfo = null;
-      if (showAbove && baselineCounts) {
-        hotInfo = aboveAverageMask(pts, baselineCounts);
-        if (hotInfo?.keep) pts = pts.filter((_,i)=>hotInfo.keep.has(i));
+
+      // baseline for "above-average": compare current (visible, no padding) to city baseline (filteredAll)
+      const baseline = countPatterns(filteredAll);
+      if (showOnlyAboveAverage){
+        const mask = aboveAverageMask(viewportPtsNoPad, baseline);
+        if (mask && mask.keep){
+          // filter only padded viewport list, using indices from no-pad list doesn't map,
+          // so recompute mask on padded list directly:
+          const mask2 = aboveAverageMask(pts, baseline);
+          if (mask2 && mask2.keep) pts = pts.filter((_,i)=>mask2.keep.has(i));
+        } else {
+          pts = []; // nothing is above-average
+        }
       }
 
-      if (showCluster) {
+      if (showCluster){
         clusterLayer = L.markerClusterGroup({
           chunkedLoading: true,
           chunkInterval: 250,
           spiderfyOnMaxZoom: true,
           showCoverageOnHover: false
         });
-        for (const p of pts) clusterLayer.addLayer(L.circleMarker([p.lat, p.lon], { radius: 4 }));
+        for (const p of pts){
+          const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
+          clusterLayer.addLayer(m);
+        }
         clusterLayer.addTo(map);
       }
 
-      if (showHeat) {
+      if (showHeatmap){
         const r = Math.max(5, Math.min(60, parseInt(heatRadiusEl.value || "25", 10)));
         const heatPts = pts.map(p => {
           const k = String(p.props?.ukategorie || "");
@@ -946,47 +1060,49 @@
         heatLayer = L.heatLayer(heatPts, { radius: r, blur: 18, maxZoom: 17 }).addTo(map);
       }
 
-      const suffix = selectionBounds ? " | Auswahl: aktiv" : "";
-      const hotSuffix = (showAbove && hotInfo?.hot?.size) ? ` | Auffällig-Muster: ${hotInfo.hot.size}` : "";
-      statEl.textContent =
-        `Stadt: ${CITY_RAW} | Gesamt geladen: ${allPts.length.toLocaleString()} | Nach Filter (uncapped): ${filteredAll.length.toLocaleString()} | Render (capped): ${filteredGlobal.length.toLocaleString()} | Im Viewport: ${viewportPts.length.toLocaleString()}${suffix}${hotSuffix}`;
+      // status text with both counts
+      const vb = getVisibleBounds();
+      const vbPad = getPaddedBounds();
+      const boundsInfo =
+        `Viewport: ${vb.getSouthWest().lat.toFixed(4)},${vb.getSouthWest().lng.toFixed(4)} – ${vb.getNorthEast().lat.toFixed(4)},${vb.getNorthEast().lng.toFixed(4)}<br/>` +
+        `Viewport+Puffer: ${vbPad.getSouthWest().lat.toFixed(4)},${vbPad.getSouthWest().lng.toFixed(4)} – ${vbPad.getNorthEast().lat.toFixed(4)},${vbPad.getNorthEast().lng.toFixed(4)}`;
+
+      statEl.innerHTML =
+        `<strong>Stadt:</strong> ${escHtml(CITY_RAW)}<br/>` +
+        `<strong>Gesamt geladen:</strong> ${allPts.length.toLocaleString()}<br/>` +
+        `<strong>Nach Filtern (uncapped):</strong> ${filteredAll.length.toLocaleString()}<br/>` +
+        `<strong>Im Viewport (ohne Puffer):</strong> ${viewportPtsNoPad.length.toLocaleString()}<br/>` +
+        `<strong>Im Render-Fenster (Viewport+Puffer):</strong> ${viewportPts.length.toLocaleString()}<br/>` +
+        (selectionBounds ? `<strong>Im markierten Bereich:</strong> ${selectionPts.length.toLocaleString()}<br/>` : ``) +
+        `<span class="muted">${boundsInfo}</span>`;
     }
 
     let moveTimer = null;
-    function scheduleViewportUpdate() {
+    function scheduleViewportUpdate(){
       if (!allGeo) return;
       if (moveTimer) clearTimeout(moveTimer);
       moveTimer = setTimeout(() => {
         applyViewportFilter();
         renderLayers();
-      }, 150);
+        updateUrlFromUi(); // keep center/zoom stable in link
+      }, 160);
     }
 
-    map.on(L.Draw.Event.CREATED, (e) => {
-      drawnItems.clearLayers();
-      drawnItems.addLayer(e.layer);
-      selectionBounds = e.layer.getBounds();
-      updateUrlFromUi();
-      renderLayers();
-    });
+    // ----------------------------
+    // Mode + toggles
+    // ----------------------------
+    function setMode(next, skipUrl=false){
+      involvementMode = (next==="and" || next==="solo") ? next : "or";
+      setBtnState(btnModeOr, involvementMode==="or");
+      setBtnState(btnModeAnd, involvementMode==="and");
+      setBtnState(btnModeSolo, involvementMode==="solo");
+      if (!skipUrl) updateUrlFromUi();
+      applyGlobalFilter(); applyViewportFilter(); renderLayers();
+    }
 
-    btnDraw.addEventListener('click', () => {
-      const toolbar = drawControl._toolbars?.draw;
-      const rectTool = toolbar?._modes?.rectangle?.handler;
-      if (rectTool) rectTool.enable();
-    });
-    btnClearDraw.addEventListener('click', () => {
-      drawnItems.clearLayers();
-      selectionBounds = null;
-      updateUrlFromUi();
-      renderLayers();
-    });
-
-    function openModal(){ modalOverlay.style.display = "flex"; }
-    function closeModal(){ modalOverlay.style.display = "none"; }
-    btnCloseModal.addEventListener('click', closeModal);
-    modalOverlay.addEventListener('click', (e)=>{ if (e.target === modalOverlay) closeModal(); });
-
+    // ----------------------------
+    // Clipboard helpers
+    // ----------------------------
     async function writeClipboard(text){
       try { await navigator.clipboard.writeText(text); return true; }
       catch {
@@ -999,134 +1115,223 @@
       }
     }
 
-    async function countPatternsChunked(points, chunkSize=8000, progressCb=null){
-      const res = { total: 0 };
-      for (const k of PATTERN_KEYS) res[k] = 0;
-      for (let i=0; i<points.length; i+=chunkSize){
+    // ----------------------------
+    // Export: chunked counting + per-year table
+    // ----------------------------
+    async function countPatternsChunked(points, chunkSize=7000, progressCb=null){
+      const res = {
+        total: 0,
+        radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0,
+        radPkw:0, radFuss:0, pkwFuss:0,
+        radPkwFuss:0
+      };
+      for (let i=0;i<points.length;i+=chunkSize){
         const end = Math.min(points.length, i+chunkSize);
-        for (let j=i; j<end; j++){
-          const cls = classifyExclusive(points[j].props || {});
+        for (let j=i;j<end;j++){
+          const pr = points[j].props || {};
+          const c = classifyPoint(pr);
           res.total++;
-          if (cls && res[cls] !== undefined) res[cls]++;
+          if (c.radSolo) res.radSolo++;
+          if (c.fussSolo) res.fussSolo++;
+          if (c.pkwSolo) res.pkwSolo++;
+          if (c.kradSolo) res.kradSolo++;
+          if (c.radPkw) res.radPkw++;
+          if (c.radFuss) res.radFuss++;
+          if (c.pkwFuss) res.pkwFuss++;
+          if (c.radPkwFuss) res.radPkwFuss++;
         }
-        if (progressCb) progressCb(Math.min(1, end / Math.max(1, points.length)));
-        await new Promise(r => setTimeout(r, 0));
+        if (progressCb) progressCb(end, points.length);
+        await new Promise(r=>setTimeout(r,0));
       }
       return res;
     }
 
-    function boundsToText(b){
-      return `${b.getSouthWest().lat.toFixed(5)},${b.getSouthWest().lng.toFixed(5)} – ${b.getNorthEast().lat.toFixed(5)},${b.getNorthEast().lng.toFixed(5)}`;
+    async function countByYearChunked(points, chunkSize=9000, progressCb=null){
+      const m = new Map(); // year -> count
+      for (let i=0;i<points.length;i+=chunkSize){
+        const end = Math.min(points.length, i+chunkSize);
+        for (let j=i;j<end;j++){
+          const y = String(points[j].props?.year ?? "");
+          if (!y) continue;
+          m.set(y, (m.get(y) || 0) + 1);
+        }
+        if (progressCb) progressCb(end, points.length);
+        await new Promise(r=>setTimeout(r,0));
+      }
+      const years = [...m.keys()].sort();
+      return years.map(y=>({ year:y, n:m.get(y) }));
+    }
+
+    function boundsToString(b){
+      const sw = b.getSouthWest(), ne = b.getNorthEast();
+      return `${sw.lat.toFixed(5)},${sw.lng.toFixed(5)} – ${ne.lat.toFixed(5)},${ne.lng.toFixed(5)}`;
+    }
+
+    function currentAnalysisBounds(){
+      // Export uses selection if present, else VISIBLE viewport (no padding)
+      return selectionBounds ? selectionBounds : getVisibleBounds();
     }
 
     async function computeExportReport(){
-      exportProgress.textContent = "Baseline (Stadt) wird berechnet…";
-      const baseline = await countPatternsChunked(filteredAll, 9000, (p)=>{ exportProgress.textContent = `Baseline (Stadt) wird berechnet… ${Math.round(p*100)}%`; });
+      const b = currentAnalysisBounds();
+      const boundsStr = boundsToString(b);
 
-      const vb = selectionBounds ? selectionBounds : map.getBounds();
-      exportProgress.textContent = "Lokaler Ausschnitt wird gesammelt…";
+      exportProgress.textContent = "Baseline (Stadt) wird gezählt…";
+      const baselineCounts = await countPatternsChunked(filteredAll, 8000, (done,total)=>{
+        exportProgress.textContent = `Baseline (Stadt) wird gezählt… ${Math.round((done/total)*100)} %`;
+      });
+
+      // local points (uncapped)
+      exportProgress.textContent = "Ausschnitt wird gesammelt…";
       const local = [];
       for (let i=0;i<filteredAll.length;i++){
         const p = filteredAll[i];
-        if (vb.contains([p.lat, p.lon])) local.push(p);
-        if (i % 12000 === 0) await new Promise(r => setTimeout(r,0));
+        if (b.contains([p.lat, p.lon])) local.push(p);
+        if (i % 12000 === 0) await new Promise(r=>setTimeout(r,0));
       }
-      exportProgress.textContent = "Lokale Muster werden berechnet…";
-      const localC = await countPatternsChunked(local, 7000, (p)=>{ exportProgress.textContent = `Lokale Muster werden berechnet… ${Math.round(p*100)}%`; });
 
-      const rows = PATTERN_KEYS.map(k => ({
-        key: k,
-        label: PATTERN_LABEL[k],
-        loc: localC[k] || 0,
-        base: baseline[k] || 0
-      })).map(m => {
-        const locR = ratio(m.loc, localC.total);
-        const baseR = ratio(m.base, baseline.total);
-        const up = (baseR>0) ? (locR/baseR) : 0;
-        return { ...m, locR, baseR, up };
-      }).filter(r => r.baseR>0).sort((a,b)=> b.up - a.up);
+      exportProgress.textContent = "Ausschnitt-Muster werden gezählt…";
+      const localCounts = await countPatternsChunked(local, 8000, (done,total)=>{
+        exportProgress.textContent = `Ausschnitt-Muster werden gezählt… ${Math.round((done/total)*100)} %`;
+      });
 
-      const focus = rows.filter(r => r.loc >= 6 && r.up >= 1.35).slice(0,5);
-      const showRows = focus.length ? focus : rows.slice(0,5);
+      exportProgress.textContent = "Unfälle pro Jahr werden gezählt…";
+      const localYears = await countByYearChunked(local, 12000, (done,total)=>{
+        exportProgress.textContent = `Unfälle pro Jahr werden gezählt… ${Math.round((done/total)*100)} %`;
+      });
 
-      const boundsStr = boundsToText(vb);
+      const ratioLocal = (k) => ratio(localCounts[k], localCounts.total);
+      const ratioBase  = (k) => ratio(baselineCounts[k], baselineCounts.total);
+      const factor     = (k) => {
+        const br = ratioBase(k);
+        return br>0 ? (ratioLocal(k)/br) : 0;
+      };
 
-      const interpretation = [];
-      const keysInFocus = new Set(showRows.map(r=>r.key));
-      if (keysInFocus.has("solo_r")) interpretation.push("Überrepräsentation von Rad-Alleinunfällen kann auf infrastrukturelle Risiken hinweisen (z. B. Schienenquerungen, Kanten/Spurrinnen, Belagswechsel, Engstellen, unklare Führung).");
-      if (keysInFocus.has("pair_rp") || keysInFocus.has("triple_rpf")) interpretation.push("Überrepräsentation von Rad+PKW (ggf. zusätzlich Fuß) deutet häufig auf Konflikte an Knotenpunkten/Abbiegebeziehungen, unklare Führung, Sichtbeziehungen oder Signalsteuerung hin.");
-      if (keysInFocus.has("pair_pf") || keysInFocus.has("pair_rf") || keysInFocus.has("triple_rpf")) interpretation.push("Auffällige Anteile mit Fußverkehr können auf Querungsdefizite, fehlende Aufstellflächen, unklare Prioritäten oder hohe Fußgängerströme hindeuten.");
-      if (interpretation.length === 0) interpretation.push("Die Abweichungen sprechen für einen lokalen Einfluss der Verkehrs- bzw. Infrastruktur-Situation. Eine fachliche Prüfung vor Ort wird empfohlen.");
+      const metrics = [
+        { key:"radSolo", label:"🚲 Alleinunfall (Rad)" },
+        { key:"fussSolo", label:"🚶 Alleinunfall (Fuß)" },
+        { key:"pkwSolo", label:"🚗 Alleinunfall (PKW)" },
+        { key:"kradSolo", label:"🏍️ Alleinunfall (Krad)" },
+        { key:"radPkw", label:"🚲+🚗 Rad + PKW (ohne Fuß)" },
+        { key:"radFuss", label:"🚲+🚶 Rad + Fuß (ohne PKW)" },
+        { key:"pkwFuss", label:"🚗+🚶 PKW + Fuß (ohne Rad)" },
+        { key:"radPkwFuss", label:"🚲+🚗+🚶 Rad + PKW + Fuß" }
+      ];
 
+      const rows = metrics.map(m=>{
+        const loc = localCounts[m.key];
+        const base = baselineCounts[m.key];
+        const locR = ratioLocal(m.key);
+        const baseR = ratioBase(m.key);
+        const up = baseR>0 ? (locR/baseR) : 0;
+        return { ...m, loc, base, locR, baseR, up };
+      }).sort((a,b)=> (b.up - a.up));
+
+      const focus = rows
+        .filter(r=>r.baseR>0)
+        .filter(r=>r.loc >= 8)
+        .filter(r=>r.up >= 1.35)
+        .slice(0,5);
+
+      // Year table (text)
+      const yearLines = [];
+      const totalY = localYears.reduce((s,x)=>s+x.n,0) || 1;
+      for (const y of localYears){
+        yearLines.push(`- ${y.year}: ${y.n.toLocaleString()} (${fmtPct(y.n/totalY)})`);
+      }
+      if (!yearLines.length) yearLines.push("- (keine Jahresangaben im Ausschnitt)");
+
+      // Text output (district-council-ish)
       const lines = [];
-      lines.push("Antrag an die Bezirksvertretung / den Bezirksrat");
-      lines.push("(automatisch erzeugter Entwurf – Unfallwerkbank)");
-      lines.push("");
-      lines.push("Betreff: Verkehrssicherheitsprüfung und Maßnahmenableitung – auffällige Unfallmuster im markierten Bereich");
-      lines.push("");
-      lines.push("Sachverhalt");
-      lines.push(`Im markierten Kartenausschnitt (${boundsStr}) wurden ${localC.total.toLocaleString()} Unfälle ausgewertet (unter den aktuell eingestellten Filtern).`);
-      lines.push(`Als Vergleichsmaßstab wurden stadtweit ${baseline.total.toLocaleString()} Unfälle unter identischen Filtern herangezogen.`);
-      lines.push("Dabei zeigen sich im Ausschnitt deutliche Abweichungen in der Zusammensetzung der Unfallmuster.");
-      lines.push("");
-      lines.push("Auffälligkeiten (Anteil im Ausschnitt vs. Anteil stadtweit; Faktor = Verhältnis der Anteile)");
-      for (const r of showRows) {
-        lines.push(`- ${r.label}: ${fmtPct2(r.locR)} vs. ${fmtPct2(r.baseR)} (Faktor ${r.up.toFixed(2)}); lokal ${r.loc.toLocaleString()} / stadtweit ${r.base.toLocaleString()}`);
+      lines.push(`Bezirksratsantrag (Entwurf) – Unfallwerkbank`);
+      lines.push(`Stadt: ${CITY_RAW}`);
+      lines.push(`Ausschnitt: ${boundsStr}`);
+      lines.push(`Datum: ${todayDE()}`);
+      lines.push(``);
+      lines.push(`Betreff: Verkehrssicherheitsmaßnahmen im Bereich eines auffälligen Unfallschwerpunkts`);
+      lines.push(``);
+      lines.push(`I. Sachverhalt`);
+      lines.push(`Im ausgewählten Kartenausschnitt wurden ${localCounts.total.toLocaleString()} Unfälle unter den aktuell gesetzten Filtern ausgewertet.`);
+      lines.push(`Als Vergleichsbasis wurden stadtweit ${baselineCounts.total.toLocaleString()} Unfälle unter denselben Filtern herangezogen.`);
+      lines.push(``);
+      lines.push(`Unfälle pro Jahr im Ausschnitt (Indikation für Trend / Stabilität):`);
+      lines.push(...yearLines);
+      lines.push(``);
+      lines.push(`II. Auffälligkeiten (Anteil im Ausschnitt vs. Anteil stadtweit)`);
+      const useRows = focus.length ? focus : rows.slice(0,4);
+      for (const r of useRows){
+        lines.push(`- ${r.label}: ${fmtPct(r.locR)} vs ${fmtPct(r.baseR)} (Faktor ${r.up.toFixed(2)}); lokal ${r.loc.toLocaleString()} / stadtweit ${r.base.toLocaleString()}`);
       }
-      lines.push("");
-      lines.push("Bewertung (heuristisch, automatisiert)");
-      for (const t of interpretation) lines.push(`- ${t}`);
-      lines.push("");
-      lines.push("Beschlussvorschlag");
-      lines.push("Die Bezirksvertretung / der Bezirksrat bittet die Verwaltung, den o. g. Bereich verkehrssicherheitsfachlich zu prüfen und geeignete Maßnahmen vorzuschlagen bzw. umzusetzen, insbesondere:");
-      lines.push("1) Sofortmaßnahmen: Sichtbeziehungen verbessern (Freischnitt/Entfernung von Sichthindernissen), Markierungen/Piktogramme, temporäre Warnhinweise, Anpassung von Signalzeiten/Grünphasen, ggf. Geschwindigkeitsreduzierung im Konfliktbereich.");
-      lines.push("2) Infrastrukturmaßnahmen: Optimierung der Rad- und Fußverkehrsführung an Knotenpunkten, sichere Querungen, Anpassung von Bordkanten/Belag. Falls Schienenquerungen betroffen sind: Prüfung einer Führung möglichst im rechten Winkel, Oberflächenangleichung bzw. alternative Führung.");
-      lines.push("3) Monitoring: Evaluation anhand der Unfallzahlen der Folgejahre.");
-      lines.push("");
-      lines.push("---");
-      lines.push(`Hinweis (intern, vor Einreichung entfernen): Dieser Entwurf wurde automatisiert aus Kartenausschnitt + Filterparametern erzeugt. Link zur Nachvollziehbarkeit/Überarbeitung: ${window.location.href}`);
-      lines.push("---");
-      lines.push("Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).");
+      lines.push(``);
+      lines.push(`III. Bewertung (automatisiert, heuristisch – ersetzt keine Unfallkommission)`);
+      lines.push(`- Überrepräsentation von 🚲-Alleinunfällen kann auf infrastrukturelle Risiken hinweisen (z. B. Schienenquerungen, Kanten/Spurrinnen, Belagswechsel, Engstellen, unklare Führung).`);
+      lines.push(`- Überrepräsentation von 🚲+🚗 oder 🚲+🚗+🚶 deutet häufig auf Konflikte an Knotenpunkten hin (Abbiegebeziehungen, Sichtbeziehungen, Führung des Radverkehrs, Querungen).`);
+      lines.push(`- Überrepräsentation von 🚶- oder 🚗+🚶-Konstellationen kann auf Querungsdefizite, fehlende Aufstellflächen oder unzureichende Signalisierung hinweisen.`);
+      lines.push(``);
+      lines.push(`IV. Beschlussvorschlag`);
+      lines.push(`Der Bezirksrat bittet die Verwaltung, den genannten Bereich verkehrssicherheitsfachlich zu prüfen und zeitnah geeignete Maßnahmen vorzuschlagen bzw. umzusetzen. Dabei sind insbesondere zu prüfen:`);
+      lines.push(`1) Sofortmaßnahmen („Quick Wins“): Verbesserung der Markierung/Leitlinien, Piktogramme, temporäre Warnhinweise, Sichtfreimachung, Anpassung von Signalisierung/Grünzeiten, ggf. Geschwindigkeitsreduzierung im Konfliktbereich.`);
+      lines.push(`2) Infrastrukturmaßnahmen: Optimierung der Radführung an Knotenpunkten, sichere Querungen, Bord-/Belagsanpassung; bei Schienenquerungen: sichere Querung (möglichst rechtwinklig), Oberflächenangleichung bzw. alternative Führung.`);
+      lines.push(`3) Nachverfolgung/Evaluation: Wirkungskontrolle anhand der Unfallzahlen der Folgejahre.`);
+      lines.push(``);
+      lines.push(`V. Hinweise`);
+      lines.push(`(intern, vor Versand entfernen) Automatisch erzeugt. Link zur Überarbeitung/Verifikation: ${window.location.href}`);
+      lines.push(``);
+      lines.push(`Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).`);
 
       const textOut = lines.join("\n");
 
+      // HTML output (report box)
       const mkRow = (r) => `
         <tr>
           <td>${escHtml(r.label)}</td>
           <td style="text-align:right;">${r.loc.toLocaleString()}</td>
-          <td style="text-align:right;">${fmtPct2(r.locR)}</td>
-          <td style="text-align:right;">${fmtPct2(r.baseR)}</td>
-          <td style="text-align:right; font-weight:900;">${r.up.toFixed(2)}×</td>
+          <td style="text-align:right;">${fmtPct(r.locR)}</td>
+          <td style="text-align:right;">${fmtPct(r.baseR)}</td>
+          <td style="text-align:right; font-weight:900;">${(Number.isFinite(r.up)?r.up:0).toFixed(2)}×</td>
+        </tr>`;
+
+      const mkYearRow = (y) => `
+        <tr>
+          <td>${escHtml(y.year)}</td>
+          <td style="text-align:right;">${y.n.toLocaleString()}</td>
         </tr>`;
 
       const htmlOut = `
         <div style="font:14px/1.35 system-ui;">
-          <div style="font-weight:950; font-size:16px;">Report – Auffällige Muster im Bereich</div>
+          <div style="font-weight:980; font-size:16px;">Report – Auffälligkeiten im ausgewählten Bereich</div>
           <div style="color:#444; margin-top:6px;">
-            <div><strong>Stadt:</strong> ${escHtml(CITY_RAW)} &nbsp;|&nbsp; <strong>Bounds:</strong> <code>${escHtml(boundsStr)}</code></div>
-            <div><strong>Unfälle:</strong> lokal ${localC.total.toLocaleString()} &nbsp;|&nbsp; Baseline (Stadt) ${baseline.total.toLocaleString()}</div>
+            <div><strong>Stadt:</strong> ${escHtml(CITY_RAW)} &nbsp;|&nbsp; <strong>Ausschnitt:</strong> <code>${escHtml(boundsStr)}</code></div>
+            <div><strong>Unfälle:</strong> lokal ${localCounts.total.toLocaleString()} &nbsp;|&nbsp; stadtweit (Baseline) ${baselineCounts.total.toLocaleString()} <span style="color:#666;">(unter denselben Filtern)</span></div>
           </div>
 
-          <div style="margin-top:12px; font-weight:950;">Top-Abweichungen</div>
-          <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:13px;">
+          <div style="margin-top:12px; font-weight:980;">Unfälle pro Jahr im Ausschnitt</div>
+          <table style="width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;">
+            <thead>
+              <tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,.15);">
+                <th>Jahr</th><th style="text-align:right;">Anzahl</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(localYears.length ? localYears : [{year:"—", n:0}]).map(mkYearRow).join("")}
+            </tbody>
+          </table>
+
+          <div style="margin-top:12px; font-weight:980;">Top-Abweichungen (Anteile)</div>
+          <table style="width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;">
             <thead>
               <tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,.15);">
                 <th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor</th>
               </tr>
             </thead>
             <tbody>
-              ${showRows.map(mkRow).join("")}
+              ${(focus.length ? focus : rows.slice(0,6)).map(mkRow).join("")}
             </tbody>
           </table>
 
-          <div style="margin-top:12px; font-weight:950;">Automatische Hinweise</div>
-          <ul style="margin-top:6px;">
-            ${interpretation.map(t=>`<li>${escHtml(t)}</li>`).join("")}
-          </ul>
-
           <div style="margin-top:10px; color:#555; font-size:12px;">
-            <div><strong>Methodik:</strong> Anteil je Muster im Ausschnitt vs. Anteil stadtweit – jeweils unter denselben Filtern.</div>
-            <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission.</div>
+            <div><strong>Methodik:</strong> Anteil je Muster im Bereich vs. Anteil stadtweit (Baseline) – jeweils unter denselben Filtern.</div>
+            <div><strong>Hinweis:</strong> Heuristik – ersetzt keine Prüfung durch Unfallkommission/Verwaltung.</div>
           </div>
         </div>
       `;
@@ -1134,100 +1339,217 @@
       return { text: textOut, html: htmlOut };
     }
 
-    btnOpenExport.addEventListener('click', async ()=>{
+    // ----------------------------
+    // Export UI actions
+    // ----------------------------
+    async function openExport(){
       openModal();
       exportProgress.textContent = "Report wird erzeugt…";
-      exportHtmlEl.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
-      exportBoxTa.value = "…";
-      await new Promise(r=>setTimeout(r, 0));
+      exportHtml.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
+      exportTextEl.value = "…";
+      await new Promise(r=>setTimeout(r,0));
+
       try{
         const r = await computeExportReport();
         exportProgress.textContent = "Fertig.";
-        exportHtmlEl.innerHTML = r.html;
-        exportBoxTa.value = r.text;
+        exportHtml.innerHTML = r.html;
+        exportTextEl.value = r.text;
       } catch(e){
         exportProgress.textContent = "Fehler.";
-        exportHtmlEl.innerHTML = `<div style="color:#b00; font-weight:900;">Export fehlgeschlagen</div><div>${escHtml(String(e))}</div>`;
-        exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
+        exportHtml.innerHTML = `<div style="color:#b00; font-weight:980;">Export fehlgeschlagen</div><div>${escHtml(String(e))}</div>`;
+        exportTextEl.value = "Export fehlgeschlagen: " + String(e);
       }
-    });
+    }
 
-    btnCopyText.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
-    btnCopyWord.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
+    btnOpenExport.addEventListener("click", openExport);
 
-    btnMakeLink.addEventListener('click', async ()=>{
+    btnCopyWord.addEventListener("click", async ()=>{ await writeClipboard(exportTextEl.value||""); alert("Kopiert."); });
+    btnCopyText.addEventListener("click", async ()=>{ await writeClipboard(exportTextEl.value||""); alert("Kopiert."); });
+    btnCopyExport.addEventListener("click", async ()=>{ await writeClipboard(exportTextEl.value||""); alert("Kopiert."); });
+
+    btnMakeLink.addEventListener("click", async ()=>{
       updateUrlFromUi();
       const url = setQS({ export: 1 });
       await writeClipboard(url);
       alert("Link kopiert.");
     });
 
-    btnCopyExport.addEventListener('click', async ()=>{ await writeClipboard(exportBoxTa.value||""); alert("Kopiert."); });
-
-    btnDownloadExport.addEventListener('click', ()=>{
-      const blob = new Blob([exportBoxTa.value||""], {type: 'text/plain;charset=utf-8'});
-      const a = document.createElement('a');
+    btnDownloadExport.addEventListener("click", ()=>{
+      const blob = new Blob([exportTextEl.value||""], { type:"text/plain;charset=utf-8" });
+      const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = `bezirksratsantrag_${normKey(CITY_RAW)}_${Date.now()}.txt`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+      setTimeout(()=>URL.revokeObjectURL(a.href), 800);
     });
 
+    // ----------------------------
+    // Bind UI events
+    // ----------------------------
     function bindUi(){
-      for (const el of [yearEl, severityEl, maxPointsEl, roadCondEl, dayTypeEl]) {
-        el.addEventListener('change', () => { updateUrlFromUi(); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
-      }
-      hourFromEl.addEventListener('input', () => { syncHourUI("from"); updateUrlFromUi(); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
-      hourToEl.addEventListener('input', () => { syncHourUI("to"); updateUrlFromUi(); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
-
-      for (const el of [involveBikeEl, involvePedEl, involveCarEl, involveMotoEl]) {
-        el.addEventListener('change', () => { updateUrlFromUi(); applyGlobalFilter(); applyViewportFilter(); renderLayers(); });
+      // filters
+      for (const el of [yearEl, severityEl, roadConditionEl, dayTypeEl, maxPointsEl]){
+        el.addEventListener("change", ()=>{
+          updateUrlFromUi();
+          applyGlobalFilter(); applyViewportFilter(); renderLayers();
+        });
       }
 
-      btnModeOr.addEventListener('click', () => { setMode("or"); updateUrlFromUi(); });
-      btnModeAnd.addEventListener('click', () => { setMode("and"); updateUrlFromUi(); });
-      btnModeSolo.addEventListener('click', () => { setMode("solo"); updateUrlFromUi(); });
+      hourFromEl.addEventListener("input", ()=>{
+        syncHourUI("from");
+        updateUrlFromUi();
+        applyGlobalFilter(); applyViewportFilter(); renderLayers();
+      });
+      hourToEl.addEventListener("input", ()=>{
+        syncHourUI("to");
+        updateUrlFromUi();
+        applyGlobalFilter(); applyViewportFilter(); renderLayers();
+      });
 
-      padPctEl.addEventListener('change', () => { updateUrlFromUi(); applyViewportFilter(); renderLayers(); });
-      heatRadiusEl.addEventListener('change', () => { updateUrlFromUi(); renderLayers(); });
+      for (const el of [includeCyclistEl, includePedestrianEl, includeCarEl, includeMotorcycleEl]){
+        el.addEventListener("change", ()=>{
+          updateUrlFromUi();
+          applyGlobalFilter(); applyViewportFilter(); renderLayers();
+        });
+      }
 
-      btnCluster.addEventListener('click', () => { showCluster = !showCluster; setBtnState(btnCluster, showCluster); updateUrlFromUi(); renderLayers(); });
-      btnHeat.addEventListener('click', () => { showHeat = !showHeat; setBtnState(btnHeat, showHeat); updateUrlFromUi(); renderLayers(); });
-      btnAbove.addEventListener('click', () => { showAbove = !showAbove; setBtnState(btnAbove, showAbove); updateUrlFromUi(); renderLayers(); });
+      btnModeOr.addEventListener("click", ()=>{ setMode("or"); });
+      btnModeAnd.addEventListener("click", ()=>{ setMode("and"); });
+      btnModeSolo.addEventListener("click", ()=>{ setMode("solo"); });
 
-      map.on('moveend zoomend', () => { scheduleViewportUpdate(); updateUrlFromUi(); });
+      viewportPaddingEl.addEventListener("change", ()=>{
+        updateUrlFromUi();
+        applyViewportFilter(); renderLayers();
+      });
+
+      heatRadiusEl.addEventListener("change", ()=>{
+        updateUrlFromUi();
+        renderLayers();
+      });
+
+      showClusterBtn.addEventListener("click", ()=>{
+        showCluster = !showCluster;
+        setBtnState(showClusterBtn, showCluster);
+        updateUrlFromUi();
+        renderLayers();
+      });
+
+      showHeatmapBtn.addEventListener("click", ()=>{
+        showHeatmap = !showHeatmap;
+        setBtnState(showHeatmapBtn, showHeatmap);
+        updateUrlFromUi();
+        renderLayers();
+      });
+
+      showOnlyAboveAverageBtn.addEventListener("click", ()=>{
+        showOnlyAboveAverage = !showOnlyAboveAverage;
+        setBtnState(showOnlyAboveAverageBtn, showOnlyAboveAverage);
+        updateUrlFromUi();
+        renderLayers();
+      });
+
+      btnDraw.addEventListener("click", ()=>{
+        const toolbar = drawControl._toolbars?.draw;
+        const rectTool = toolbar?._modes?.rectangle?.handler;
+        if (rectTool) rectTool.enable();
+      });
+
+      btnClearDraw.addEventListener("click", ()=>{
+        drawnItems.clearLayers();
+        selectionBounds = null;
+        persistSelectionToUrl();
+        applyViewportFilter();
+        renderLayers();
+      });
+
+      cityEl.addEventListener("change", async ()=>{
+        // switch city: reload data
+        const next = String(cityEl.value || "").trim();
+        if (!next) return;
+        await switchCity(next);
+      });
+
+      map.on("moveend zoomend", scheduleViewportUpdate);
     }
 
-    async function main(){
-      refreshCityDerived();
-      await loadCityList();
-      refreshCityDerived();
+    // ----------------------------
+    // City switching + load data
+    // ----------------------------
+    async function loadCityData(){
+      panelSubEl.textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}`;
+      dataSourceCodeEl.textContent = DATA_URL;
 
       const resp = await fetch(DATA_URL, { cache: "no-store" });
-      if (!resp.ok) throw new Error(`GeoJSON load failed (${resp.status}): ${DATA_URL}`);
+      if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${DATA_URL}`);
 
       allGeo = await resp.json();
-      buildYearOptions(allGeo.features || []);
       allPts = extractPoints(allGeo);
-      buildRoadCondOptions(allPts);
 
-      initFromUrl();
+      buildYearOptions(allGeo.features || []);
+      buildRoadConditionOptions(allPts);
 
-      const hasView = (qs().has("centerLat") && qs().has("centerLon") && qs().has("zoom"));
+      // apply initial map view:
+      // if URL has center/zoom, keep it; else fit to data
+      const hasView = (qs().get("centerLat") && qs().get("centerLon") && qs().get("zoom"));
       if (!hasView) fitToAllPoints(allPts);
 
       applyGlobalFilter();
       applyViewportFilter();
       renderLayers();
+    }
+
+    async function switchCity(nextCity){
+      CITY_RAW = nextCity;
+      CITY_SUFFIX = normKey(CITY_RAW);
+      DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
+      setQS({ city: CITY_RAW, centerLat:null, centerLon:null, zoom:null, export:null }); // reset map view unless user sets
+      // keep selection? drop, because bounds refer to old city
+      drawnItems.clearLayers();
+      selectionBounds = null;
+      persistSelectionToUrl();
+      await loadCityData();
+      updateUrlFromUi();
+    }
+
+    // ----------------------------
+    // Main
+    // ----------------------------
+    async function main(){
+      applyInitialMapView();
+
+      // determine city from url
+      CITY_RAW = String(qGet("city", DEFAULT_CITY)).trim() || DEFAULT_CITY;
+      CITY_SUFFIX = normKey(CITY_RAW);
+      DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
+
+      await loadCitiesList();
+
+      // build years/road condition after data load; first load data then init UI values
+      await loadCityData();
+
+      // now init UI values from URL (after options exist)
+      initUiFromUrl();
+
+      // update sub text
+      panelSubEl.textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}`;
+      dataSourceCodeEl.textContent = DATA_URL;
+
+      // apply filters once more after reading URL values
+      applyGlobalFilter();
+      applyViewportFilter();
+      renderLayers();
+
       bindUi();
       updateUrlFromUi();
 
-      if (qBool("export", false)) setTimeout(()=>btnOpenExport.click(), 150);
+      if (qBool("export", false)){
+        setTimeout(()=>openExport(), 200);
+      }
     }
 
-    main().catch(err => {
+    main().catch(err=>{
       console.error(err);
       statEl.textContent = String(err);
       alert(String(err));
