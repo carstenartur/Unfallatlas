@@ -1,0 +1,2 @@
+Hinweis zur Datenquelle / Lizenz:
+Die Auswertung basiert auf öffentlich verfügbaren Unfalldaten (Unfallatlas / Open-Data-Downloads). Bei Veröffentlichung oder Weitergabe sind die jeweils angegebenen Lizenz- und Quellenhinweise zu beachten (Datenlizenz Deutschland – Namensnennung – Version 2.0, dl-de/by-2-0).
