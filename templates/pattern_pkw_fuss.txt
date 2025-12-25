@@ -1,0 +1,18 @@
+Bewertung – Auffällige Häufung von PKW+Fußgänger-Unfällen
+
+Im untersuchten Bereich ist der Anteil von Unfällen mit Fußgängerbeteiligung und PKW erhöht (Faktor {{PKW_FUSS_FACTOR}}; lokal {{PKW_FUSS_LOCAL}} Fälle).
+
+Dies deutet regelmäßig auf Defizite bei Querungsmöglichkeiten, Sichtbeziehungen und Geschwindigkeiten hin – insbesondere in Bereichen mit:
+- unzureichenden oder zu langen Querungswegen,
+- fehlenden Mittelinseln/Querungshilfen,
+- unklaren Vorfahrtsituationen oder hohem Kfz-Durchfluss,
+- Schul-/Kita- oder ÖPNV-Nähe mit erhöhtem Querungsbedarf.
+
+Handlungsvorschläge (prüffähig):
+1) Querungsanalyse: Lage, Sicht, Warteflächen, Abstände zur nächsten sicheren Querung.
+2) Maßnahmen zur Geschwindigkeitsdämpfung: bauliche/markierte Elemente, ggf. Tempoanpassung.
+3) Verbesserungen der Beleuchtung und Sichtbarkeit (Markierung, Beleuchtung, Rückschnitt).
+4) Prüfung zusätzlicher Querungshilfen (Mittelinsel, Zebrastreifen, LSA-Anpassung) an den relevanten Punkten.
+
+Ziel:
+Erhöhte Sicherheit und kürzere, nachvollziehbare Querungswege – insbesondere für Kinder, ältere Menschen und mobilitätseingeschränkte Personen.
