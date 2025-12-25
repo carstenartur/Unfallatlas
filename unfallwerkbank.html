@@ -478,6 +478,14 @@
 
     let clusterLayer = null;
     let heatLayer = null;
+    
+    function escHtml(s) {
+     return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+    }
 
     function setBtnState(btn, on) { btn.classList.toggle('active', !!on); }
 
