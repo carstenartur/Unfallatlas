@@ -671,8 +671,27 @@
     return rows;
   }
 
-  async function captureMapImages(){
+  async function captureMapImages(samplePts){
     const out=[];
+    // Temporarily disable heavy layers during capture (prevents freezes with many points)
+    const _prevShowCluster = showCluster;
+    const _prevShowHeat = showHeat;
+
+    // Remove rendered layers (we restore via renderLayers() afterwards)
+    try { if (clusterLayer) { clusterLayer.remove(); } } catch {}
+    try { if (heatLayer) { heatLayer.remove(); } } catch {}
+    clusterLayer = null;
+    heatLayer = null;
+
+    // Lightweight overlay for selection/viewport points (cap to keep it fast)
+    const overlay = L.layerGroup();
+    const pts = Array.isArray(samplePts) ? samplePts.slice(0, 2000) : [];
+    for (const p of pts) {
+      overlay.addLayer(L.circleMarker([p.lat, p.lon], { radius: 3 }));
+    }
+    overlay.addTo(map);
+
+    try {
     const mapEl=document.getElementById("map");
     const wait=ms=>new Promise(r=>setTimeout(r,ms));
     const original={center:map.getCenter(),zoom:map.getZoom()};
@@ -680,7 +699,7 @@
     for(const z of zs){
       try{
         map.setZoom(z); await wait(450);
-        const canvas=await html2canvas(mapEl,{useCORS:true,logging:false});
+        const canvas=await html2canvas(mapEl,{useCORS:true,logging:false,scale:1});
         out.push({ok:true,zoom:z,dataUrl:canvas.toDataURL("image/png")});
       }catch(e){
         out.push({ok:false,zoom:z,error:String(e)});
@@ -689,7 +708,14 @@
     map.setView(original.center,original.zoom,{animate:false});
     await wait(150);
     return out;
-  }
+    } finally {
+      try { overlay.remove(); } catch {}
+      showCluster = _prevShowCluster;
+      showHeat = _prevShowHeat;
+      // Re-render original layers
+      renderLayers();
+    }
+}
 
   function buildExportHtml(baseM, localM, anoms, rows, imgs){
     const now=new Date().toLocaleString("de-DE");
@@ -774,7 +800,9 @@
 
     const anoms=anomalyReport(localM, baseM);
     const rows=sortRows(pts);
-    const imgs=await captureMapImages();
+    const wantImgs = (getParam('imgs','0') === '1');
+    const imgs = wantImgs ? await captureMapImages(pts) : [];
+
 
     exportDoc.innerHTML = buildExportHtml(baseM, localM, anoms, rows, imgs);
     exportBack.style.display="flex";
