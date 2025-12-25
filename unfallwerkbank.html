@@ -1147,20 +1147,39 @@
     }
 
     async function countByYearChunked(points, chunkSize=9000, progressCb=null){
-      const m = new Map(); // year -> count
+      // Returns [{year, total, counts:{...}}] for the common accident "classes"
+      // counts keys: radSolo,fussSolo,pkwSolo,kradSolo,radPkw,radFuss,pkwFuss,radPkwFuss
+      const m = new Map(); // year -> counts
+      const ensure = (y)=>{
+        if (!m.has(y)){
+          m.set(y, { total:0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0, radPkwFuss:0 });
+        }
+        return m.get(y);
+      };
       for (let i=0;i<points.length;i+=chunkSize){
         const end = Math.min(points.length, i+chunkSize);
         for (let j=i;j<end;j++){
-          const y = String(points[j].props?.year ?? "");
-          if (!y) continue;
-          m.set(y, (m.get(y) || 0) + 1);
+          const pr = points[j].props || {};
+          const y = String(pr.year ?? "—");
+          const c = classifyPoint(pr);
+          const row = ensure(y);
+          row.total++;
+          if (c.radSolo) row.radSolo++;
+          if (c.fussSolo) row.fussSolo++;
+          if (c.pkwSolo) row.pkwSolo++;
+          if (c.kradSolo) row.kradSolo++;
+          if (c.radPkw) row.radPkw++;
+          if (c.radFuss) row.radFuss++;
+          if (c.pkwFuss) row.pkwFuss++;
+          if (c.radPkwFuss) row.radPkwFuss++;
         }
-        if (progressCb) progressCb(end, points.length);
+        if (progressCb) progressCb(end / points.length);
         await new Promise(r=>setTimeout(r,0));
       }
       const years = [...m.keys()].sort();
-      return years.map(y=>({ year:y, n:m.get(y) }));
+      return years.map(y=>({ year:y, ...m.get(y) }));
     }
+
 
     function boundsToString(b){
       const sw = b.getSouthWest(), ne = b.getNorthEast();
@@ -1235,9 +1254,9 @@
 
       // Year table (text)
       const yearLines = [];
-      const totalY = localYears.reduce((s,x)=>s+x.n,0) || 1;
+      const totalY = localYears.reduce((s,x)=>s+x.total,0) || 1;
       for (const y of localYears){
-        yearLines.push(`- ${y.year}: ${y.n.toLocaleString()} (${fmtPct(y.n/totalY)})`);
+        yearLines.push(`- ${y.year}: ${y.total.toLocaleString()} (${fmtPct(y.total/totalY)})`);
       }
       if (!yearLines.length) yearLines.push("- (keine Jahresangaben im Ausschnitt)");
 
@@ -1258,7 +1277,7 @@
       lines.push(...yearLines);
       lines.push(``);
       lines.push(`II. Auffälligkeiten (Anteil im Ausschnitt vs. Anteil stadtweit)`);
-      const useRows = focus.length ? focus : rows.slice(0,4);
+      const useRows = (focus.length ? focus : rows.slice(0,4)).filter(r=>r.loc>0);
       for (const r of useRows){
         lines.push(`- ${r.label}: ${fmtPct(r.locR)} vs ${fmtPct(r.baseR)} (Faktor ${r.up.toFixed(2)}); lokal ${r.loc.toLocaleString()} / stadtweit ${r.base.toLocaleString()}`);
       }
@@ -1291,10 +1310,23 @@
           <td style="text-align:right; font-weight:900;">${(Number.isFinite(r.up)?r.up:0).toFixed(2)}×</td>
         </tr>`;
 
+      const fmtYearClasses = (y) => {
+        const parts = [];
+        if (y.radSolo) parts.push(`🚲 ${y.radSolo}`);
+        if (y.fussSolo) parts.push(`🚶 ${y.fussSolo}`);
+        if (y.pkwSolo) parts.push(`🚗 ${y.pkwSolo}`);
+        if (y.kradSolo) parts.push(`🏍️ ${y.kradSolo}`);
+        if (y.radPkwFuss) parts.push(`🚲+🚗+🚶 ${y.radPkwFuss}`);
+        if (y.radPkw) parts.push(`🚲+🚗 ${y.radPkw}`);
+        if (y.radFuss) parts.push(`🚲+🚶 ${y.radFuss}`);
+        if (y.pkwFuss) parts.push(`🚗+🚶 ${y.pkwFuss}`);
+        return parts.join(", ") || "—";
+      };
       const mkYearRow = (y) => `
         <tr>
           <td>${escHtml(y.year)}</td>
-          <td style="text-align:right;">${y.n.toLocaleString()}</td>
+          <td style="text-align:right;">${y.total.toLocaleString()}</td>
+          <td>${escHtml(fmtYearClasses(y))}</td>
         </tr>`;
 
       const htmlOut = `
@@ -1325,7 +1357,7 @@
               </tr>
             </thead>
             <tbody>
-              ${(focus.length ? focus : rows.slice(0,6)).map(mkRow).join("")}
+              ${(focus.length ? focus : rows.slice(0,6)).filter(r=>r.loc>0).map(mkRow).join("")}
             </tbody>
           </table>
 
