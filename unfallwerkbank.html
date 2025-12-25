@@ -618,102 +618,99 @@
     }
 
     function applyGlobalFilter() {
-      if (!all) return;
+  if (!all) return;
 
-      const wantYear = yearEl.value;
-      const wantKat = katEl.value;
-      const wantStrz = strzEl.value;
-      const weekendMode = weekendEl.value;
+  const wantYear = yearEl.value;
+  const wantKat = katEl.value;
+  const wantStrz = strzEl.value;
+  const weekendMode = weekendEl.value;
 
-      const maxN = Math.max(500, parseInt(maxEl.value || "100000", 10));
-      const hFrom = parseInt(hFromEl.value || "0", 10);
-      const hTo   = parseInt(hToEl.value || "23", 10);
+  const maxN = Math.max(500, parseInt(maxEl.value || "100000", 10));
+  const hFrom = parseInt(hFromEl.value || "0", 10);
+  const hTo   = parseInt(hToEl.value || "23", 10);
 
-      const sRad  = tRadEl.checked;
-      const sFuss = tFussEl.checked;
-      const sPKW  = tPKWEl.checked;
-      const sKrad = tKradEl.checked;
-      const anySelected = sRad || sFuss || sPKW || sKrad;
+  const sRad  = tRadEl.checked;
+  const sFuss = tFussEl.checked;
+  const sPKW  = tPKWEl.checked;
+  const sKrad = tKradEl.checked;
+  const anySelected = sRad || sFuss || sPKW || sKrad;
 
-      const out = [];
-      const allOut = [];
-      // Compute baseline (city-wide) pattern counts for the current filters in the same pass
-      const baseline = {
-        total: 0,
-        soloRad: 0,
-        soloFuss: 0,
-        soloPKW: 0,
-        soloKrad: 0,
-        radPkw: 0,
-        radFuss: 0,
-        pkwFuss: 0
-      };
-      for (const p of allPts) {
-        const pr = p.props || {};
-        if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
-        if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
+  const outCapped = [];   // für Rendering (maxn)
+  const outAll = [];      // für Statistik/Export (uncapped)
 
-        if (wantStrz !== "all") {
-          const z = String(pr.strzustand ?? "");
-          if (wantStrz === "__unknown__") {
-            if (z !== "" && z !== "null" && z !== "undefined") continue;
-          } else {
-            if (z !== String(wantStrz)) continue;
-          }
-        }
+  // Baseline immer auf UNCAPPED!
+  const baseline = { total:0, radSolo:0, fussSolo:0, pkwSolo:0, kradSolo:0, radPkw:0, radFuss:0, pkwFuss:0 };
 
-        if (weekendMode !== "all") {
-          const wd = String(pr.uwochentag ?? "");
-          const isWeekend = WEEKEND_SET.has(wd);
-          if (weekendMode === "weekend" && !isWeekend) continue;
-          if (weekendMode === "weekday" && isWeekend) continue;
-        }
+  for (const p of allPts) {
+    const pr = p.props || {};
 
-        const h = parseInt(pr.ustunde, 10);
-        if (Number.isNaN(h)) continue;
-        if (h < hFrom || h > hTo) continue;
+    if (wantYear !== "all" && String(pr.year) !== wantYear) continue;
+    if (wantKat !== "all" && String(pr.ukategorie) !== wantKat) continue;
 
-        const isRad  = String(pr?.istrad)  === "1";
-        const isFuss = String(pr?.istfuss) === "1";
-        const isPKW  = String(pr?.istpkw)  === "1";
-        const isKrad = String(pr?.istkrad) === "1";
-
-        if (!anySelected) continue;
-
-        if (involvementMode === "or") {
-          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-          if (!ok) continue;
-        } else if (involvementMode === "and") {
-          if (sRad  && !isRad)  continue;
-          if (sFuss && !isFuss) continue;
-          if (sPKW  && !isPKW)  continue;
-          if (sKrad && !isKrad) continue;
-        } else if (involvementMode === "solo") {
-          const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
-          if (involvedCount !== 1) continue;
-          const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
-          if (!ok) continue;
-        }
-
-        out.push(p);
-
-        // baseline update
-        baseline.total++;
-        const cls = classifyPoint(pr);
-        if (cls === "soloRad") baseline.soloRad++;
-        else if (cls === "soloFuss") baseline.soloFuss++;
-        else if (cls === "soloPKW") baseline.soloPKW++;
-        else if (cls === "soloKrad") baseline.soloKrad++;
-        else if (cls === "radPkw") baseline.radPkw++;
-        else if (cls === "radFuss") baseline.radFuss++;
-        else if (cls === "pkwFuss") baseline.pkwFuss++;
-
-        if (out.length >= maxN) break;
+    if (wantStrz !== "all") {
+      const z = String(pr.strzustand ?? "");
+      if (wantStrz === "__unknown__") {
+        if (z !== "" && z !== "null" && z !== "undefined") continue;
+      } else {
+        if (z !== String(wantStrz)) continue;
       }
-      filteredAll = allOut;
-      filteredGlobal = out;
-      baselineCounts = baseline;
     }
+
+    if (weekendMode !== "all") {
+      const wd = String(pr.uwochentag ?? "");
+      const isWeekend = WEEKEND_SET.has(wd);
+      if (weekendMode === "weekend" && !isWeekend) continue;
+      if (weekendMode === "weekday" && isWeekend) continue;
+    }
+
+    const h = parseInt(pr.ustunde, 10);
+    if (Number.isNaN(h)) continue;
+    if (h < hFrom || h > hTo) continue;
+
+    const isRad  = String(pr?.istrad)  === "1";
+    const isFuss = String(pr?.istfuss) === "1";
+    const isPKW  = String(pr?.istpkw)  === "1";
+    const isKrad = String(pr?.istkrad) === "1";
+
+    if (!anySelected) continue;
+
+    if (involvementMode === "or") {
+      const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+      if (!ok) continue;
+    } else if (involvementMode === "and") {
+      if (sRad  && !isRad)  continue;
+      if (sFuss && !isFuss) continue;
+      if (sPKW  && !isPKW)  continue;
+      if (sKrad && !isKrad) continue;
+    } else if (involvementMode === "solo") {
+      const involvedCount = (isRad?1:0)+(isFuss?1:0)+(isPKW?1:0)+(isKrad?1:0);
+      if (involvedCount !== 1) continue;
+      const ok = (sRad && isRad) || (sFuss && isFuss) || (sPKW && isPKW) || (sKrad && isKrad);
+      if (!ok) continue;
+    }
+
+    // UNCAPPED für Statistik
+    outAll.push(p);
+
+    // Baseline zählen (UNCAPPED!)
+    const c = classifyPoint(pr);
+    baseline.total++;
+    if (c.radSolo)  baseline.radSolo++;
+    if (c.fussSolo) baseline.fussSolo++;
+    if (c.pkwSolo)  baseline.pkwSolo++;
+    if (c.kradSolo) baseline.kradSolo++;
+    if (c.radPkw)   baseline.radPkw++;
+    if (c.radFuss)  baseline.radFuss++;
+    if (c.pkwFuss)  baseline.pkwFuss++;
+
+    // CAPPED fürs Rendering
+    if (outCapped.length < maxN) outCapped.push(p);
+  }
+
+  filteredAll = outAll;
+  filteredGlobal = outCapped;
+  baselineCounts = baseline;
+}
 
     function applyViewportFilter() {
       const vb = getPaddedBounds();
