@@ -19,16 +19,65 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      - name: Run das Shellscript
+      - name: Build city args from cities.txt
+        id: cities
+        shell: bash
         run: |
+          set -euo pipefail
+
+          if [[ ! -f "cities.txt" ]]; then
+            echo "cities.txt missing"
+            exit 2
+          fi
+
+          # Read cities (1 per line), ignore blanks and comments
+          mapfile -t CITIES < <(sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt | awk 'NF')
+
+          if (( ${#CITIES[@]} == 0 )); then
+            echo "No cities found in cities.txt"
+            exit 2
+          fi
+
+          echo "Cities (${#CITIES[@]}):"
+          printf ' - %s\n' "${CITIES[@]}"
+
+          # Build a single line with repeated --city "..."
+          CITY_ARGS=()
+          for c in "${CITIES[@]}"; do
+            CITY_ARGS+=(--city "$c")
+          done
+
+          # Export as a single string for later steps (safe because we’ll eval via bash array below)
+          # We store it line-by-line to avoid quoting hell:
+          {
+            echo "CITY_COUNT=${#CITIES[@]}"
+            echo "CITY_ARGS<<'EOF'"
+            printf '%q ' "${CITY_ARGS[@]}"
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run converter once for all cities
+        shell: bash
+        run: |
+          set -euo pipefail
           chmod +x ./convertAmt2gmaps.sh
-          ./convertAmt2gmaps.sh --limit 0 --city hannover --city bonn --city düsseldorf --city berlin --city hamburg --city wolfsburg --city braunschweig --city heilbronn --rad "" --pkw "" --fuss "" --krad ""
+
+          # Restore args
+          # CITY_ARGS is a string of %q-escaped tokens, so we can safely parse into array
+          read -r -a CITY_ARGS <<< "${{ steps.cities.outputs.CITY_ARGS }}"
+
+          echo "Calling convertAmt2gmaps.sh once with ${#CITY_ARGS[@]} city-args tokens..."
+          ./convertAmt2gmaps.sh \
+            --limit 0 \
+            "${CITY_ARGS[@]}" \
+            --rad "" --pkw "" --fuss "" --krad ""
 
       - name: Validate GeoJSON outputs
         run: |
           python3 - <<'PY'
           import glob, json, sys
-          files = glob.glob("out/output_all_years_*.geojson")
+          files = sorted(glob.glob("out/output_all_years_*.geojson"))
           if not files:
             print("No geojson files found")
             sys.exit(2)
@@ -49,10 +98,12 @@ jobs:
 
       - name: Commit & Push changes
         run: |
+          set -euo pipefail
+
           # niemals tmp-Dateien committen
           find out -type f -name '*.tmp' -print -delete || true
 
           git add -A
           git diff --cached --quiet && exit 0
-          git commit -m "Automatisch erzeugte Dateien durch generate.sh"
+          git commit -m "Automatisch erzeugte Dateien durch convertAmt2gmaps.sh (cities.txt)"
           git push origin HEAD:${{ github.ref_name }}
