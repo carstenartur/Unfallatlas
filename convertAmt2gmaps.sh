@@ -14,9 +14,8 @@ set -eu
 #  - Header-Matching: robust (BOM/CR/Case/Sonderzeichen/Whitespace egal)
 #  - Debug: pro Jahr selected file + Headerzeile
 #
-# Fix (CSV):
-#  - CSV ist jetzt CSV-konform: Textfelder werden gequotet, damit Kommas im "Name"
-#    nicht die Spalten verschieben (wichtig für unfallwerkbank.html).
+# Kompatibilität (Unfallwerkbank):
+#  - CSV ohne Quotes und ohne Kommas im Name-Feld (damit auch naive CSV-Parser funktionieren)
 ###############################################################################
 
 OUTDIR="out"
@@ -174,6 +173,8 @@ set_region_from_ags8() {
   UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
 
+  # Stadtstaaten (Berlin/Hamburg): oft unterhalb UKREIS/UGEMEINDE codiert.
+  # Wenn UKREIS==00, filtere nur nach ULAND.
   if [ "$UKREIS" = "00" ]; then
     UREGBEZ=""
     UKREIS=""
@@ -284,6 +285,7 @@ process_year_to_buffers() {
   fi
 
   echo "DEBUG: Selected datafile: $datafile" >&2
+
   hdr="$(unzip -p "$zip" "$datafile" 2>/dev/null | head -n 1 | sed 's/\r$//' )" || hdr=""
   hdr="$(printf "%s" "$hdr" | sed '1s/^\xEF\xBB\xBF//')"
   echo "DEBUG: Header: $hdr" >&2
@@ -295,10 +297,10 @@ process_year_to_buffers() {
 
   if ! unzip -p "$zip" "$datafile" \
     | awk -F';' \
-        -v year="$year" -v limit="$LIMIT" \
-        -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
-        -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
-        -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
+      -v year="$year" -v limit="$LIMIT" \
+      -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
+      -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
+      -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
       function normh(s, t) {
         t = s
         gsub(/\r/,"",t)
@@ -330,14 +332,6 @@ process_year_to_buffers() {
         return t
       }
 
-      function cesc(s,   t) {
-        t = (s=="" ? "" : s)
-        gsub(/\r/,"",t)
-        gsub(/"/,"\"\"",t)
-        return t
-      }
-      function cfield(s) { return "\"" cesc(s) "\"" }
-
       function ok_involvement() {
         if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
         if (istrad!="" && i_istrad>0 && $i_istrad==istrad) return 1
@@ -357,7 +351,7 @@ process_year_to_buffers() {
           idxn[normh(h)] = i
         }
 
-        i_id     = pickn("ID","OBJECTID","OBJECTID_1","FID","OID_","","","")
+        i_id     = pickn("ID","OBJECTID","OBJECTID_1","","","","","")
         i_uland  = pickn("ULAND","","","","","","","")
         i_ureg   = pickn("UREGBEZ","","","","","","","")
         i_ukreis = pickn("UKREIS","","","","","","","")
@@ -369,13 +363,14 @@ process_year_to_buffers() {
         i_iskrad = pickn("IstKrad","ISTKRAD","IST_KRAD","IstKraftrad","ISTKRAFTRAD","","","")
 
         i_licht  = pickn("ULICHTVERH","U_LICHTVERH","LICHT","","","","","")
+
         i_kat    = pickn("UKATEGORIE","U_KATEGORIE","","","","","","")
         i_typ1   = pickn("UTYP1","U_TYP1","","","","","","")
         i_uart   = pickn("UART","U_ART","","","","","","")
         i_monat  = pickn("UMONAT","U_MONAT","","","","","","")
         i_stunde = pickn("USTUNDE","U_STUNDE","","","","","","")
         i_wtag   = pickn("UWOCHENTAG","U_WOCHENTAG","","","","","","")
-        i_strz   = pickn("STRZUSTAND","STR_ZUSTAND","","","","","","")
+        i_strz   = pickn("STRZUSTAND","STR_ZUSTAND","IstStrassenzustand","IstStrassenzustand","","","","")
 
         i_lon = pickn("XGCSWGS84","X_GCSWGS84","XGCS_WGS84","X_GCS_WGS84","","","","")
         i_lat = pickn("YGCSWGS84","Y_GCSWGS84","YGCS_WGS84","Y_GCS_WGS84","Y_GCSWGSW84","","","")
@@ -411,6 +406,9 @@ process_year_to_buffers() {
         gsub(/,/,".",lon); gsub(/,/,".",lat)
 
         str = (i_str ? $i_str : ""); gsub(/\r/,"",str)
+        # CSV-Kompatibilität: Kommas im Straßenname entfernen (falls vorhanden)
+        gsub(/,/," ",str)
+
         licht = (i_licht ? $i_licht : ""); gsub(/\r/,"",licht)
 
         kat    = (i_kat ? $i_kat : "")
@@ -426,27 +424,15 @@ process_year_to_buffers() {
         v_isfuss = (i_isfuss ? $i_isfuss : "")
         v_iskrad = (i_iskrad ? $i_iskrad : "")
 
+        # Unfallwerkbank-Kompatibilität: KEINE Kommas im Name-Feld!
         name = "Unfall " id " (" year ")"
-        if (kat != "") name = name " Kat:" kat
-        if (licht != "") name = name ", Licht: " licht
-        if (str   != "") name = name " Strasse: " str
+        if (kat != "")   name = name " Kat:" kat
+        if (licht != "") name = name " Licht:" licht
+        if (str   != "") name = name " Strasse:" str
 
-        wkt = "POINT (" lon " " lat ")"
-        print cfield(wkt) "," \
-              cfield(name) "," \
-              cfield(id) "," \
-              cfield(kat) "," \
-              cfield(typ1) "," \
-              cfield(uart) "," \
-              cfield(monat) "," \
-              cfield(stunde) "," \
-              cfield(wtag) "," \
-              cfield(strz) "," \
-              cfield(licht) "," \
-              cfield(v_istrad) "," \
-              cfield(v_ispkw) "," \
-              cfield(v_isfuss) "," \
-              cfield(v_iskrad) "\r" >> outrows
+        # CSV-Zeile (ohne Quotes)
+        # Header macht Shell. \r für Windows/Excel-Kompatibilität bleibt.
+        print "POINT (" lon " " lat ")," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outrows
 
         if (!first) print "," >> outfeat
         first=0
@@ -458,19 +444,19 @@ process_year_to_buffers() {
               "        \"id\": \"" jesc(id) "\",\n" \
               "        \"name\": \"" jesc(name) "\",\n" \
               "        \"year\": " year ",\n" \
-              "        \"ulichtverh\": \"" jesc(licht) "\",\n" \
-              "        \"strasse\": \"" jesc(str) "\",\n" \
-              "        \"ukategorie\": \"" jesc(kat) "\",\n" \
-              "        \"utyp1\": \"" jesc(typ1) "\",\n" \
-              "        \"uart\": \"" jesc(uart) "\",\n" \
-              "        \"umonat\": \"" jesc(monat) "\",\n" \
-              "        \"ustunde\": \"" jesc(stunde) "\",\n" \
-              "        \"uwochentag\": \"" jesc(wtag) "\",\n" \
-              "        \"strzustand\": \"" jesc(strz) "\",\n" \
-              "        \"istrad\": \"" jesc(v_istrad) "\",\n" \
-              "        \"istpkw\": \"" jesc(v_ispkw) "\",\n" \
-              "        \"istfuss\": \"" jesc(v_isfuss) "\",\n" \
-              "        \"istkrad\": \"" jesc(v_iskrad) "\"\n" \
+              "        \"ULICHTVERH\": \"" jesc(licht) "\",\n" \
+              "        \"STRZUSTAND\": \"" jesc(strz) "\",\n" \
+              "        \"UKATEGORIE\": \"" jesc(kat) "\",\n" \
+              "        \"UTYP1\": \"" jesc(typ1) "\",\n" \
+              "        \"UART\": \"" jesc(uart) "\",\n" \
+              "        \"UMONAT\": \"" jesc(monat) "\",\n" \
+              "        \"USTUNDE\": \"" jesc(stunde) "\",\n" \
+              "        \"UWOCHENTAG\": \"" jesc(wtag) "\",\n" \
+              "        \"STRASSE\": \"" jesc(str) "\",\n" \
+              "        \"ISTRAD\": \"" jesc(v_istrad) "\",\n" \
+              "        \"ISTPKW\": \"" jesc(v_ispkw) "\",\n" \
+              "        \"ISTFUSS\": \"" jesc(v_isfuss) "\",\n" \
+              "        \"ISTKRAD\": \"" jesc(v_iskrad) "\"\n" \
               "      }\n" \
               "    }" >> outfeat
       }
