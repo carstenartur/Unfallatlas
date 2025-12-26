@@ -14,7 +14,7 @@ set -eu
 #  - Header-Matching: robust (BOM/CR/Case/Sonderzeichen/Whitespace egal)
 #  - Debug: pro Jahr selected file + Headerzeile
 #
-# Fix (2025-12-26):
+# Fix (CSV):
 #  - CSV ist jetzt CSV-konform: Textfelder werden gequotet, damit Kommas im "Name"
 #    nicht die Spalten verschieben (wichtig für unfallwerkbank.html).
 ###############################################################################
@@ -174,8 +174,6 @@ set_region_from_ags8() {
   UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
 
-  # Stadtstaaten (Berlin/Hamburg): oft unterhalb UKREIS/UGEMEINDE codiert.
-  # Wenn UKREIS==00, filtere nur nach ULAND.
   if [ "$UKREIS" = "00" ]; then
     UREGBEZ=""
     UKREIS=""
@@ -262,7 +260,6 @@ process_year_to_buffers() {
     echo "== $year == (cached)"
   else
     echo "== $year == (downloading)"
-
     if ! curl -fL \
       --retry 6 --retry-delay 2 --retry-connrefused \
       --connect-timeout 20 --max-time 300 \
@@ -279,7 +276,6 @@ process_year_to_buffers() {
   fi
 
   datafile="$(choose_datafile_from_zip "$zip" "$year")"
-
   if [ -z "$datafile" ]; then
     echo "WARN: Keine passende Datendatei im Zip gefunden ($zip)" >&2
     echo "DEBUG: Zip-Inhalt (erste 80 Zeilen):" >&2
@@ -288,23 +284,21 @@ process_year_to_buffers() {
   fi
 
   echo "DEBUG: Selected datafile: $datafile" >&2
-
   hdr="$(unzip -p "$zip" "$datafile" 2>/dev/null | head -n 1 | sed 's/\r$//' )" || hdr=""
   hdr="$(printf "%s" "$hdr" | sed '1s/^\xEF\xBB\xBF//')"
   echo "DEBUG: Header: $hdr" >&2
 
   y_csv_tmp="${TMPDIR}/rows_${year}.csv.tmp"
   y_feat_tmp="${TMPDIR}/feats_${year}.json.tmp"
-
   : > "$y_csv_tmp"
   : > "$y_feat_tmp"
 
   if ! unzip -p "$zip" "$datafile" \
-    | awk -F';' -v year="$year" -v limit="$LIMIT" \
-          -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
-          -v istrad="$IST_RAD" # unused; keep for compatibility \
-          -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
-          -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
+    | awk -F';' \
+        -v year="$year" -v limit="$LIMIT" \
+        -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
+        -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
+        -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
       function normh(s, t) {
         t = s
         gsub(/\r/,"",t)
@@ -336,16 +330,13 @@ process_year_to_buffers() {
         return t
       }
 
-      # CSV-escape: Feld in "..." + " verdoppeln
       function cesc(s,   t) {
         t = (s=="" ? "" : s)
         gsub(/\r/,"",t)
         gsub(/"/,"\"\"",t)
         return t
       }
-      function cfield(s) {
-        return "\"" cesc(s) "\""
-      }
+      function cfield(s) { return "\"" cesc(s) "\"" }
 
       function ok_involvement() {
         if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
@@ -366,7 +357,7 @@ process_year_to_buffers() {
           idxn[normh(h)] = i
         }
 
-        i_id     = pickn("ID","OBJECTID","OBJECTID_1","OID_","","","","")
+        i_id     = pickn("ID","OBJECTID","OBJECTID_1","FID","OID_","","","")
         i_uland  = pickn("ULAND","","","","","","","")
         i_ureg   = pickn("UREGBEZ","","","","","","","")
         i_ukreis = pickn("UKREIS","","","","","","","")
@@ -384,7 +375,7 @@ process_year_to_buffers() {
         i_monat  = pickn("UMONAT","U_MONAT","","","","","","")
         i_stunde = pickn("USTUNDE","U_STUNDE","","","","","","")
         i_wtag   = pickn("UWOCHENTAG","U_WOCHENTAG","","","","","","")
-        i_strz   = pickn("STRZUSTAND","STR_ZUSTAND","IstStrassenzustand","IstStrassezustand","ISTSTRASSENZUSTAND","","","")
+        i_strz   = pickn("STRZUSTAND","STR_ZUSTAND","","","","","","")
 
         i_lon = pickn("XGCSWGS84","X_GCSWGS84","XGCS_WGS84","X_GCS_WGS84","","","","")
         i_lat = pickn("YGCSWGS84","Y_GCSWGS84","YGCS_WGS84","Y_GCS_WGS84","Y_GCSWGSW84","","","")
@@ -440,9 +431,6 @@ process_year_to_buffers() {
         if (licht != "") name = name ", Licht: " licht
         if (str   != "") name = name " Strasse: " str
 
-        # CSV (kompatibel + CSV-konform!)
-        # Header wird in Shell geschrieben; hier nur Zeilen:
-        # WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD
         wkt = "POINT (" lon " " lat ")"
         print cfield(wkt) "," \
               cfield(name) "," \
@@ -460,7 +448,6 @@ process_year_to_buffers() {
               cfield(v_isfuss) "," \
               cfield(v_iskrad) "\r" >> outrows
 
-        # GeoJSON Feature (ohne FeatureCollection-Wrapper)
         if (!first) print "," >> outfeat
         first=0
 
