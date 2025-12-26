@@ -926,7 +926,8 @@
         else if (k==="3") res.slight++;
         else res.unknown++;
       }
-
+      return res;
+    }
 
     function severityStats(bounds){
       // Counts injury severity in a bounds (selection or viewport)
@@ -938,10 +939,8 @@
       }
       return { total: pts.length, bySev };
     }
-      return res;
-    }
-      return res;
-    }
+
+
 
   function matchesInvolvementFilter(mask){
     const wantBike = incBikeEl.checked;
