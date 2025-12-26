@@ -896,6 +896,17 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
     );
   }
 
+    function pointsInBounds(points, bounds){
+      // bounds: L.LatLngBounds (selection or viewport). Returns subset of points in bounds.
+      if (!bounds) return points.slice();
+      const out = [];
+      for (const p of points){
+        if (bounds.contains([p.lat, p.lon])) out.push(p);
+      }
+      return out;
+    }
+
+
   const COMBO_LABEL = {
     1:  "🚲",
     2:  "🚶",
