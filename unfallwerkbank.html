@@ -12,7 +12,10 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="">
+// Build timestamp (UTC)
+const BUILD_TS = "2025-12-26T11:20:11Z";
+</script>
 
   <!-- MarkerCluster -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
@@ -1671,7 +1674,7 @@
   async function loadCityData(){
     CITY_SUFFIX = normKey(CITY_RAW);
     DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
-    document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}`;
+    document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW} | Build: ${BUILD_TS}`;
     document.getElementById("dataSourceCode").textContent = DATA_URL;
 
     const resp = await fetch(DATA_URL, { cache:"no-store" });
