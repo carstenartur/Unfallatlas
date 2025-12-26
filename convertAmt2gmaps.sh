@@ -271,7 +271,12 @@ process_year_to_buffers() {
     echo "== $year == (cached)"
   else
     echo "== $year == (downloading)"
-    if ! curl -fsSL -o "$zip" "$url"; then
+    
+    if ! curl -fL \
+    --retry 6 --retry-delay 2 --retry-connrefused \
+    --connect-timeout 20 --max-time 300 \
+    -C - \
+    -o "$zip" "$url"; then
       echo "WARN: Download fehlgeschlagen: $url" >&2
       return 0
     fi
