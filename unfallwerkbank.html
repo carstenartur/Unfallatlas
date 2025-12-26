@@ -1186,18 +1186,29 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
     if (heatLayer) { heatLayer.remove(); heatLayer = null; }
 
     let pts = viewportPts;
-      lastHotGrid = null;
-      if (showOnlyAboveAverage) {
-        const r = hotFilter(pts);
-        pts = r.pts || [];
-        lastHotGrid = r.grid;
+    const ptsBeforeHot = pts;
+    let hotInfo = "";
+    lastHotGrid = null;
+    if (showOnlyAboveAverage) {
+      const r = hotFilter(pts);
+      const hotPts = r.pts || [];
+      lastHotGrid = r.grid;
+      if (hotPts.length > 0) {
+        pts = hotPts;
+      } else {
+        // IMPORTANT: Don't make everything disappear just because the current grid/thresholds
+        // don't detect hotspots at this zoom level.
+        pts = ptsBeforeHot;
+        hotInfo = " (keine Hotspots bei aktueller Rastergroesse/Schwelle)";
       }
+    }
 
     if (showCluster) {
       clusterLayer = L.markerClusterGroup({
         chunkedLoading: true,
         chunkInterval: 250,
         spiderfyOnMaxZoom: true,
+        zoomToBoundsOnClick: false,
         showCoverageOnHover: false
       });
       for (const p of pts) {
@@ -1208,8 +1219,10 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
       }
       clusterLayer.addTo(map);
         // "Warum auffaellig?" pro Cluster
-        clusterLayer.on('clusterclick', (ev) => {
-          try{
+	      	clusterLayer.on('clusterclick', (ev) => {
+	      	  // Prevent MarkerCluster's default zoom-to-bounds so the info popup doesn't vanish.
+	      	  try { if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent); } catch {}
+	      	  try{
             const markers = ev.layer.getAllChildMarkers ? ev.layer.getAllChildMarkers() : [];
             const lc = { total:0, byMask:{} };
             for (const mk of markers){
@@ -1259,7 +1272,8 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
 
     statEl.textContent =
       `Stadt: ${CITY_RAW} | geladen: ${allPts.length.toLocaleString()} | nach Filtern: ${filteredCapped.length.toLocaleString()} (uncapped: ${filteredAll.length.toLocaleString()}) | im Viewport: ${viewportPts.length.toLocaleString()}` +
-      (selectionBounds ? " | Markierung: aktiv" : "");
+      (selectionBounds ? " | Markierung: aktiv" : "") +
+      (hotInfo ? ` | ${hotInfo}` : "");
   }
 
   function recomputeAll(){
