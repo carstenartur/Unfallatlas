@@ -624,6 +624,8 @@
 
   let clusterLayer = null;
   let heatLayer = null;
+    let lastHotGrid = null; // {hot:Set, hotReason:Map} for current render
+
 
   // --------------------
   // State + URL syncing
@@ -1010,45 +1012,123 @@
     viewportPts = filteredCapped.filter(p => vb.contains([p.lat, p.lon]));
   }
 
-  function hotMaskForViewport(points){
-    if (!baselineCounts || baselineCounts.total <= 0) return null;
+  
+    // --- "Nur auffaellig" (Hotspots) ---
+    // Idee: Wir zerlegen den aktuellen Render-Bereich (Viewport+Puffer) in ein Pixel-Gitter.
+    // Pro Zelle messen wir, ob bestimmte Unfallmuster (Anteile) deutlich ueber dem Stadtdurchschnitt liegen.
+    // Nur Unfaelle in "hot" Zellen bleiben sichtbar.
+    const HOTSPOT = {
+      cellPx: 110,        // grobere Zellen -> robustere Signale (und weniger Flackern)
+      minTotal: 10,       // mind. Unfaelle in der Zelle
+      minMask: 4,         // mind. Unfaelle eines Musters in der Zelle
+      factor: 1.35        // lokaler Anteil > Stadt-Anteil * factor
+    };
 
-    const local = { total:0, byMask: {} };
-    for (const p of points) {
-      const pr = p.props || {};
-      const m = maskFromProps(pr);
-      if (m === 0) continue;
-      local.total++;
-      local.byMask[m] = (local.byMask[m]||0) + 1;
+    const MASK_LABEL = {
+      radSolo: "🚲 Alleinunfall (Rad)",
+      fussSolo:"🚶 Alleinunfall (Fuß)",
+      pkwSolo: "🚗 Alleinunfall (PKW)",
+      kradSolo:"🏍️ Alleinunfall (Krad)",
+      radPkw:  "🚲+🚗 Rad + PKW",
+      radFuss: "🚲+🚶 Rad + Fuß",
+      pkwFuss: "🚗+🚶 PKW + Fuß",
+      radPkwFuss: "🚲+🚗+🚶 Rad + PKW + Fuß",
+      other:   "Sonstige"
+    };
+
+    function updateHotspotUiLabels(){
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
+      set("hotCellPxLbl", HOTSPOT.cellPx);
+      set("hotMinTotalLbl", HOTSPOT.minTotal);
+      set("hotMinMaskLbl", HOTSPOT.minMask);
+      set("hotFactorLbl", HOTSPOT.factor);
     }
-    if (local.total === 0) return null;
 
-    const minN = 6;
-    const factor = 1.35;
-    const hotMasks = new Set();
-
-    for (const [mStr, cnt] of Object.entries(local.byMask)) {
-      const m = Number(mStr);
-      const baseCnt = baselineCounts.byMask[m] || 0;
-      if (cnt < minN) continue;
-      const lr = cnt / local.total;
-      const br = baseCnt / baselineCounts.total;
-      if (br > 0 && lr > br * factor) hotMasks.add(m);
+    function cellKeyForPoint(p){
+      // map.project nutzt aktuelle Zoomstufe
+      const pt = map.project(L.latLng(p.lat, p.lon), map.getZoom());
+      const cx = Math.floor(pt.x / HOTSPOT.cellPx);
+      const cy = Math.floor(pt.y / HOTSPOT.cellPx);
+      return cx + ":" + cy;
     }
-    if (!hotMasks.size) return null;
 
-    return points.filter(p => hotMasks.has(maskFromProps(p.props||{})));
-  }
+    function computeHotCells(points, baseline){
+      // baseline: {total, byMask:{...}} oder null
+      if (!baseline || !baseline.total) return null;
 
-  function renderLayers(){
+      const baseRatios = {};
+      for (const [k,v] of Object.entries(baseline.byMask || {})) baseRatios[k] = (baseline.total>0 ? (v/baseline.total) : 0);
+
+      const cells = new Map(); // key -> {total, byMask}
+      for (const p of points){
+        const k = cellKeyForPoint(p);
+        let c = cells.get(k);
+        if (!c){ c = { total:0, byMask:{} }; cells.set(k,c); }
+        c.total++;
+        const mask = maskFromProps(p.props || {});
+        c.byMask[mask] = (c.byMask[mask] || 0) + 1;
+      }
+
+      const hot = new Set();
+      const hotReason = new Map(); // key -> array of {mask, locR, baseR, factor, locN}
+      for (const [k,c] of cells.entries()){
+        if (c.total < HOTSPOT.minTotal) continue;
+        const reasons = [];
+        for (const [mask, cnt] of Object.entries(c.byMask)){
+          if (cnt < HOTSPOT.minMask) continue;
+          const locR = cnt / c.total;
+          const baseR = baseRatios[mask] || 0;
+          if (baseR <= 0) continue;
+          const f = locR / baseR;
+          if (f >= HOTSPOT.factor){
+            reasons.push({ mask, locR, baseR, f, cnt, total:c.total });
+          }
+        }
+        if (reasons.length){
+          reasons.sort((a,b)=> b.f - a.f);
+          hot.add(k);
+          hotReason.set(k, reasons.slice(0,3));
+        }
+      }
+      return { hot, hotReason };
+    }
+
+    function hotFilter(points){
+      const baseline = baselineCounts; // stadtweit, ohne Beteiligungsfilter
+      const grid = computeHotCells(points, baseline);
+      if (!grid) return { pts: points, grid: null };
+      const pts = points.filter(p => grid.hot.has(cellKeyForPoint(p)));
+      return { pts, grid };
+    }
+
+    function explainAgainstBaseline(label, localCounts, baseline){
+      // localCounts: {total, byMask:{...}}
+      const res = [];
+      const baseRatios = {};
+      for (const [k,v] of Object.entries(baseline.byMask||{})) baseRatios[k] = (baseline.total>0 ? v/baseline.total : 0);
+      for (const [mask,cnt] of Object.entries(localCounts.byMask||{})){
+        const locR = (localCounts.total>0 ? cnt/localCounts.total : 0);
+        const baseR = baseRatios[mask] || 0;
+        if (cnt <= 0 || baseR <= 0) continue;
+        const f = locR / baseR;
+        res.push({ mask, label: MASK_LABEL[mask] || mask, cnt, locR, baseR, f });
+      }
+      res.sort((a,b)=> b.f - a.f);
+      return res;
+    }
+
+
+    function renderLayers(){
     if (clusterLayer) { clusterLayer.remove(); clusterLayer = null; }
     if (heatLayer) { heatLayer.remove(); heatLayer = null; }
 
     let pts = viewportPts;
-    if (showOnlyAboveAverage) {
-      const hotPts = hotMaskForViewport(pts);
-      pts = hotPts ? hotPts : [];
-    }
+      lastHotGrid = null;
+      if (showOnlyAboveAverage) {
+        const r = hotFilter(pts);
+        pts = r.pts || [];
+        lastHotGrid = r.grid;
+      }
 
     if (showCluster) {
       clusterLayer = L.markerClusterGroup({
@@ -1059,9 +1139,49 @@
       });
       for (const p of pts) {
         const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
+        m._uaProps = p.props || {};
+        m._uaPoint = p;
         clusterLayer.addLayer(m);
       }
       clusterLayer.addTo(map);
+        // "Warum auffaellig?" pro Cluster
+        clusterLayer.on('clusterclick', (ev) => {
+          try{
+            const markers = ev.layer.getAllChildMarkers ? ev.layer.getAllChildMarkers() : [];
+            const lc = { total:0, byMask:{} };
+            for (const mk of markers){
+              const pr = mk._uaProps || {};
+              const mask = maskFromProps(pr);
+              lc.total++;
+              lc.byMask[mask] = (lc.byMask[mask]||0)+1;
+            }
+            const expl = (baselineCounts && baselineCounts.total) ? explainAgainstBaseline("cluster", lc, baselineCounts) : [];
+            const top = expl.filter(x=>x.cnt>0).slice(0,5);
+            const fmt = (x)=> (x*100).toFixed(1).replace('.',',') + ' %';
+            let html = `<div style="font:13px/1.35 system-ui; min-width:240px;">`
+              + `<div style="font-weight:900; margin-bottom:6px;">Warum (Unfallmuster)?</div>`
+              + `<div style="color:#444; margin-bottom:6px;">Cluster: <strong>${lc.total}</strong> Unfaelle</div>`;
+            if (!top.length){
+              html += `<div style="color:#666;">Keine auswertbaren Abweichungen (zu wenig Daten oder Basisanteil=0).</div>`;
+            } else {
+              html += `<table style="width:100%; border-collapse:collapse; font-size:12px;">`
+                   + `<tr style="border-bottom:1px solid rgba(0,0,0,.15);"><th style="text-align:left;">Muster</th><th style="text-align:right;">Anteil</th><th style="text-align:right;">Stadt</th><th style="text-align:right;">Faktor</th></tr>`;
+              for (const r of top){
+                html += `<tr style="border-bottom:1px solid rgba(0,0,0,.06);">`
+                     + `<td>${escHtml(r.label)}</td>`
+                     + `<td style="text-align:right;">${fmt(r.locR)}</td>`
+                     + `<td style="text-align:right;">${fmt(r.baseR)}</td>`
+                     + `<td style="text-align:right; font-weight:800;">${r.f.toFixed(2)}×</td>`
+                     + `</tr>`;
+              }
+              html += `</table>`;
+              html += `<div style="margin-top:6px; color:#666; font-size:11px;">Schwellen: mind. ${HOTSPOT.minTotal} Unfaelle/Zelle, mind. ${HOTSPOT.minMask} je Muster, Faktor ${HOTSPOT.factor}×.</div>`;
+            }
+            html += `</div>`;
+            ev.layer.bindPopup(html, { maxWidth: 360 }).openPopup();
+          } catch(e){ console.warn(e); }
+        });
+
     }
 
     if (showHeatmap) {
@@ -1103,7 +1223,7 @@
   const TEMPLATE_DIR = "templates";
   const DEFAULT_TEMPLATES = {
     intro: `Bezirksratsantrag (Entwurf) – Unfallwerkbank\n\nBetreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im markierten Bereich\n`,
-    sachverhalt: `Sachverhalt:\nIm markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.\n`,
+    sachverhalt: `Sachverhalt:\nIm markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.\n\n\nVerletzungsschwere (Ausschnitt):\n{{severity_summary}}`,
     beschluss: `Beschlussvorschlag:\nDer Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung.\n3) Monitoring: Nach Umsetzung Evaluation anhand Unfallatlas-Daten der Folgejahre.\n`,
     hinweis: `Hinweis (intern, vor Versand entfernen): Dieser Text wurde automatisiert erzeugt. Link zur Überarbeitung: {{link}}\n`,
     lizenz: `Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).\n`
@@ -1149,6 +1269,24 @@
     for (const p of allPts) {
       const y = parseInt(p.props?.year,10);
       if (Number.isFinite(y)) yearsSet.add(y);
+    }
+
+    function severityStats(bounds){
+      // Zählt Verletzungsschwere (ukategorie) als UNFALL-Anzahl (nicht nach Beteiligten),
+      // und zwar analog zur Jahrestabelle: nur Nicht-Beteiligungs-Filter (Jahr/Schwere bleiben bewusst *drin* pro Unfall).
+      const b = bounds || map.getBounds();
+      const res = { total: 0, bySev: { "1":0, "2":0, "3":0, "other":0 } };
+      for (const p of allPts){
+        if (!p || !p.props) continue;
+        if (!matchesNonInvolvementFilters(p.props)) continue;
+        if (!b.contains([p.lat, p.lon])) continue;
+
+        res.total++;
+        const k = String(p.props.ukategorie ?? "");
+        if (k === "1" || k === "2" || k === "3") res.bySev[k] = (res.bySev[k]||0) + 1;
+        else res.bySev.other++;
+      }
+      return res;
     }
     const years = [...yearsSet].sort((a,b)=>a-b);
 
@@ -1233,6 +1371,7 @@
 
     const dev = topDeviations(bounds);
     const yr = yearTable(bounds);
+      const sev = severityStats(bounds);
     const range = yearsRange(allPts);
 
     const vars = {
@@ -1240,6 +1379,13 @@
       bounds: bStr,
       local_total: dev.local.total.toLocaleString(),
       baseline_total: dev.baseline.total.toLocaleString(),
+      deaths: (sev.bySev["1"]||0),
+      severe_inj: (sev.bySev["2"]||0),
+      light_inj: (sev.bySev["3"]||0),
+      other_inj: (sev.bySev.other||0),
+      severity_summary: ((sev.bySev["1"]||0)>0
+        ? `Im Ausschnitt wurden ${sev.bySev["1"]} Getötete, ${sev.bySev["2"]||0} Schwerverletzte und ${sev.bySev["3"]||0} Leichtverletzte registriert.`
+        : `Im Ausschnitt wurden ${sev.bySev["2"]||0} Schwerverletzte und ${sev.bySev["3"]||0} Leichtverletzte registriert.`),
       date: new Date().toLocaleDateString("de-DE"),
       link: window.location.href
     };
@@ -1331,6 +1477,18 @@
           </thead>
           <tbody>
             ${yr.map(mkYearRow).join("")}
+          </tbody>
+        </table>
+
+        <div style="margin-top:12px; font-weight:900;">Verletzungsschwere im Ausschnitt</div>
+        <table class="report" style="margin-top:6px;">
+          <thead>
+            <tr><th>Kategorie</th><th style="text-align:right;">Anzahl</th><th style="text-align:right;">Anteil</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1 – Getötete</td><td style="text-align:right;">${sev.bySev["1"]||0}</td><td style="text-align:right;">${sev.total?fmtPct((sev.bySev["1"]||0)/sev.total):"0.00%"}</td></tr>
+            <tr><td>2 – Schwerverletzte</td><td style="text-align:right;">${sev.bySev["2"]||0}</td><td style="text-align:right;">${sev.total?fmtPct((sev.bySev["2"]||0)/sev.total):"0.00%"}</td></tr>
+            <tr><td>3 – Leichtverletzte</td><td style="text-align:right;">${sev.bySev["3"]||0}</td><td style="text-align:right;">${sev.total?fmtPct((sev.bySev["3"]||0)/sev.total):"0.00%"}</td></tr>
           </tbody>
         </table>
 
