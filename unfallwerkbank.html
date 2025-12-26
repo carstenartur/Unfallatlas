@@ -914,6 +914,35 @@
     return (isBike?1:0) | (isPed?2:0) | (isCar?4:0) | (isMoto?8:0);
   }
 
+
+    function severityStatsPoints(points){
+      // ukategorie: 1=Getötete, 2=Schwerverletzte, 3=Leichtverletzte
+      const res = { total: 0, killed: 0, severe: 0, slight: 0, unknown: 0 };
+      for (const p of points){
+        res.total++;
+        const k = String((p.props||{}).ukategorie ?? "");
+        if (k==="1") res.killed++;
+        else if (k==="2") res.severe++;
+        else if (k==="3") res.slight++;
+        else res.unknown++;
+      }
+
+
+    function severityStats(bounds){
+      // Counts injury severity in a bounds (selection or viewport)
+      const pts = pointsInBounds(filteredAll, bounds);
+      const bySev = { "1":0, "2":0, "3":0, other:0 };
+      for (const p of pts){
+        const k = String((p.props||{}).ukategorie ?? "");
+        if (k==="1"||k==="2"||k==="3") bySev[k]++; else bySev.other++;
+      }
+      return { total: pts.length, bySev };
+    }
+      return res;
+    }
+      return res;
+    }
+
   function matchesInvolvementFilter(mask){
     const wantBike = incBikeEl.checked;
     const wantPed  = incPedEl.checked;
@@ -1018,11 +1047,27 @@
     // Pro Zelle messen wir, ob bestimmte Unfallmuster (Anteile) deutlich ueber dem Stadtdurchschnitt liegen.
     // Nur Unfaelle in "hot" Zellen bleiben sichtbar.
     const HOTSPOT = {
+      minCellM: 20,
       cellPx: 110,        // grobere Zellen -> robustere Signale (und weniger Flackern)
       minTotal: 10,       // mind. Unfaelle in der Zelle
       minMask: 4,         // mind. Unfaelle eines Musters in der Zelle
       factor: 1.35        // lokaler Anteil > Stadt-Anteil * factor
     };
+
+    function metersPerPixel(lat, zoom){
+      const rad = lat * Math.PI / 180;
+      return 156543.03392 * Math.cos(rad) / Math.pow(2, zoom);
+    }
+    function updateHotspotCellPx(){
+      // Zellen so gross, dass sie mindestens HOTSPOT.minCellM Meter abdecken (am aktuellen Zoom)
+      const z = map.getZoom();
+      const lat = map.getCenter().lat;
+      const mpp = metersPerPixel(lat, z) || 1;
+      const px = Math.round(HOTSPOT.minCellM / mpp);
+      HOTSPOT.cellPx = Math.max(40, Math.min(400, px)); // Schutz vor Extremwerten
+      updateHotspotUiLabels();
+    }
+
 
     const MASK_LABEL = {
       radSolo: "🚲 Alleinunfall (Rad)",
@@ -1271,7 +1316,7 @@
       if (Number.isFinite(y)) yearsSet.add(y);
     }
 
-    function severityStats(bounds){
+    function severityStatsInBounds(bounds){
       // Zählt Verletzungsschwere (ukategorie) als UNFALL-Anzahl (nicht nach Beteiligten),
       // und zwar analog zur Jahrestabelle: nur Nicht-Beteiligungs-Filter (Jahr/Schwere bleiben bewusst *drin* pro Unfall).
       const b = bounds || map.getBounds();
