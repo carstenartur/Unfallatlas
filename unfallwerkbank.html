@@ -613,7 +613,7 @@
   let CITY_RAW = (qGet("city","Hannover") || "Hannover").trim();
   let CITY_SUFFIX = normKey(CITY_RAW);
   let DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
-  document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}`;
+  document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}` + ` | Build: ${BUILD_STAMP}`;
   document.getElementById("dataSourceCode").textContent = DATA_URL;
 
   let allPts = [];
