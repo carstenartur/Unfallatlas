@@ -578,6 +578,12 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
   }).addTo(map);
   map.setView([52.3759, 9.7320], 12);
 
+    // helper: zoom to bounds from popup buttons
+    window.uaZoomToBounds = function(s,w,n,e){
+      try { map.fitBounds([[s,w],[n,e]], { padding: [20,20] }); } catch(err) { console.warn(err); }
+    };
+
+
   const drawnItems = new L.FeatureGroup().addTo(map);
   let selectionBounds = null;
 
@@ -859,13 +865,18 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
   // Filtering / stats
   // --------------------
   function extractPoints(geojson){
+    // Defensive: ignore obviously wrong/outlier coordinates (e.g. 0,0) which would destroy fitBounds.
+    // Germany bbox (very rough): lat ~46..56, lon ~4..17
     const pts = [];
     const feats = geojson?.features || [];
-    for (const f of feats) {
+    for (const f of feats){
       const g = f?.geometry;
       if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
       const [lon, lat] = g.coordinates;
       if (typeof lat !== "number" || typeof lon !== "number") continue;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      if (Math.abs(lat) < 1 && Math.abs(lon) < 1) continue; // 0,0-ish
+      if (lat < 46 || lat > 56 || lon < 4 || lon > 17) continue; // outlier
       pts.push({ lat, lon, props: f.properties || {} });
     }
     return pts;
@@ -923,6 +934,18 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
     13: "🚲+🚗+🏍️",
     14: "🚶+🚗+🏍️",
     15: "🚲+🚶+🚗+🏍️"
+  function fmtMaskList(byMask){
+    const entries = [];
+    for (const [k,v] of Object.entries(byMask||{})){
+      const n = Number(v||0);
+      if (!n) continue;
+      const label = COMBO_LABEL[k] || k;
+      entries.push({ k, label, n });
+    }
+    entries.sort((a,b)=> b.n - a.n);
+    return entries.map(e => `${e.label} ${e.n}`).join(", ");
+  }
+
   };
 
   function maskFromProps(pr){
@@ -1220,6 +1243,9 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
       clusterLayer.addTo(map);
         // "Warum auffaellig?" pro Cluster
 	      	clusterLayer.on('clusterclick', (ev) => {
+      const __b = ev.layer.getBounds();
+      const __sw = __b.getSouthWest();
+      const __ne = __b.getNorthEast();
 	      	  // Prevent MarkerCluster's default zoom-to-bounds so the info popup doesn't vanish.
 	      	  try { if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent); } catch {}
 	      	  try{
@@ -1251,10 +1277,16 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
                      + `</tr>`;
               }
               html += `</table>`;
+      const maskList = fmtMaskList(cellCounts.byMask);
+      if (maskList) html += `<div style="margin-top:6px; font-size:12px;"><strong>Unfallklassen:</strong> ${maskList}</div>`;
+
               html += `<div style="margin-top:6px; color:#666; font-size:11px;">Schwellen: mind. ${HOTSPOT.minTotal} Unfaelle/Zelle, mind. ${HOTSPOT.minMask} je Muster, Faktor ${HOTSPOT.factor}×.</div>`;
             }
             html += `</div>`;
-            ev.layer.bindPopup(html, { maxWidth: 360 }).openPopup();
+            html += `<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">`
+           + `<button type="button" style="padding:6px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-weight:800; cursor:pointer;" onclick="uaZoomToBounds(${__sw.lat},${__sw.lng},${__ne.lat},${__ne.lng})">🔍 Zoom auf Cluster</button>`
+           + `</div>`;
+      ev.layer.bindPopup(html, { maxWidth: 360 }).openPopup();
           } catch(e){ console.warn(e); }
         });
 
