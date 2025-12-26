@@ -222,15 +222,29 @@ process_year_to_buffers() {
     return 0
   fi
 
+    # 1) Prefer files that clearly look like the accident locations dataset for the year.
+  #    Allow optional separators like "_" or "-" between "Unfallorte" and the year.
   datafile="$(printf "%s\n" "$ziplist" \
-    | grep -Ei "Unfallorte${year}.*\.(csv|txt)$" \
+    | grep -Ei "unfallorte([_-]?)+${year}.*\.(csv|txt)$" \
     | grep -Evi "(readme|lizenz|license)" \
     | head -n 1 || true)"
 
+  # 2) Fallback: take *any* CSV/TXT in the zip (excluding readme/license).
+  if [ -z "$datafile" ]; then
+    datafile="$(printf "%s\n" "$ziplist" \
+      | grep -Ei "\.(csv|txt)$" \
+      | grep -Evi "(readme|lizenz|license)" \
+      | head -n 1 || true)"
+  fi
+
   if [ -z "$datafile" ]; then
     echo "WARN: Keine passende Datendatei im Zip gefunden ($zip)" >&2
+    echo "DEBUG: Zip-Inhalt (erste 80 Zeilen):" >&2
+    unzip -l "$zip" 2>/dev/null | sed -n '1,80p' >&2
     return 0
   fi
+
+  
 
   # Year temp buffers
   y_csv_tmp="${TMPDIR}/rows_${year}.csv.tmp"
