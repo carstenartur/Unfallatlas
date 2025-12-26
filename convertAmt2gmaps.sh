@@ -271,7 +271,7 @@ process_year_to_buffers() {
     echo "== $year == (cached)"
   else
     echo "== $year == (downloading)"
-    
+
     if ! curl -fL \
     --retry 6 --retry-delay 2 --retry-connrefused \
     --connect-timeout 20 --max-time 300 \
@@ -381,7 +381,12 @@ process_year_to_buffers() {
           idxn[normh(h)] = i
         }
 
-        i_id     = pickn("ID","OBJECTID","OBJECTID_1","","","","","")
+        # ID-Spalte: je nach Jahr unterschiedlich
+        # 2016: FID;OBJECTID;...
+        # 2018: OBJECTID_1;...
+        # 2021-2024: OID_;...
+        i_id     = pickn("OBJECTID","OID_","OBJECTID_1","FID","ID","","","")
+
         i_uland  = pickn("ULAND","","","","","","","")
         i_ureg   = pickn("UREGBEZ","","","","","","","")
         i_ukreis = pickn("UKREIS","","","","","","","")
@@ -393,7 +398,10 @@ process_year_to_buffers() {
         i_isfuss = pickn("IstFuss","ISTFUSS","IstFuß","ISTFUß","IST_FUSS","IstFussgaenger","IstFussgänger","")
         i_iskrad = pickn("IstKrad","ISTKRAD","IST_KRAD","IstKraftrad","ISTKRAFTRAD","","","")
 
-        i_licht  = pickn("ULICHTVERH","U_LICHTVERH","Ulichttverh","","","","","")
+        # Licht:
+        # 2016/2018+: ULICHTVERH
+        # 2017: LICHT
+        i_licht  = pickn("ULICHTVERH","LICHT","U_LICHTVERH","Ulichttverh","","","","")
 
         i_kat    = pickn("UKATEGORIE","U_KATEGORIE","","","","","","")
         i_typ1   = pickn("UTYP1","U_TYP1","","","","","","")
@@ -401,7 +409,11 @@ process_year_to_buffers() {
         i_monat  = pickn("UMONAT","U_MONAT","","","","","","")
         i_stunde = pickn("USTUNDE","U_STUNDE","","","","","","")
         i_wtag   = pickn("UWOCHENTAG","U_WOCHENTAG","","","","","","")
-        i_strz   = pickn("STRZUSTAND","STR_ZUSTAND","","","","","","")
+
+        # Straßenzustand:
+        # 2017-2020: STRZUSTAND
+        # 2021+: IstStrassenzustand / ISTSTRASSENZUSTAND
+        i_strz   = pickn("IstStrassenzustand","ISTSTRASSENZUSTAND","STRZUSTAND","STR_ZUSTAND","IstStrassezustand","","","")
 
         i_lon = pickn("XGCSWGS84","X_GCSWGS84","XGCS_WGS84","X_GCS_WGS84","","","","")
         i_lat = pickn("YGCSWGS84","Y_GCSWGS84","YGCS_WGS84","Y_GCS_WGS84","Y_GCSWGSW84","","","")
