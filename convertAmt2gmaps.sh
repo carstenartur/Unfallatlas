@@ -8,6 +8,11 @@ set -eu
 #  - pro Jahr erst in temp puffern, nur bei Erfolg "committen"
 #  - Combined-GeoJSON wird am Ende aus gültigen Feature-Blöcken gebaut
 #  - GeoJSON wird IMMER korrekt geschlossen
+#
+# Verbesserungen (2025-12):
+#  - ZIP: wähle "größte passende" CSV/TXT statt "erste passende"
+#  - Header-Matching: robust (BOM/CR/Case/Sonderzeichen/Whitespace egal)
+#  - Debug: pro Jahr selected file + Headerzeile
 ###############################################################################
 
 OUTDIR="out"
@@ -164,9 +169,9 @@ set_region_from_ags8() {
   UREGBEZ="$(printf "%s" "$ags" | cut -c3-3)"
   UKREIS="$(printf "%s" "$ags" | cut -c4-5)"
   UGEMEINDE="$(printf "%s" "$ags" | cut -c6-8)"
-  
-  # Stadtstaaten (z.B. Berlin 11, Hamburg 02) werden in den Daten oft unterhalb
-  # von UKREIS/UGEMEINDE codiert. Wenn UKREIS==00, filtere nur nach ULAND.
+
+  # Stadtstaaten (Berlin/Hamburg): oft unterhalb UKREIS/UGEMEINDE codiert.
+  # Wenn UKREIS==00, filtere nur nach ULAND.
   if [ "$UKREIS" = "00" ]; then
     UREGBEZ=""
     UKREIS=""
@@ -199,6 +204,62 @@ set_region_from_city() {
 }
 
 ###############################################################################
+# Choose datafile inside zip: pick the *largest* CSV/TXT that looks like Unfallorte{year}
+###############################################################################
+choose_datafile_from_zip() {
+  zip="$1"
+  year="$2"
+
+  # We rely on unzip -l output:
+  # Length  Date    Time    Name
+  # 12345   ...             path/file.csv
+  #
+  # We pick the maximum length among:
+  #  - .csv/.txt
+  #  - not readme/license/lizenz
+  #  - prefer name containing unfallorte + year, else fallback to any csv/txt
+  #
+  # Note: keep it POSIX-sh.
+
+  # 1) Prefer explicit Unfallorte-year file
+  df="$(unzip -l "$zip" 2>/dev/null \
+    | awk -v y="$year" '
+        BEGIN{best=""; bestsz=-1}
+        /^[ ]*[0-9]+[ ]+/{
+          sz=$1
+          name=$NF
+          low=tolower(name)
+          if (low ~ /\.(csv|txt)$/ &&
+              low !~ /(readme|lizenz|license)/ &&
+              low ~ /unfallorte/ &&
+              low ~ y) {
+            if (sz > bestsz) { bestsz=sz; best=name }
+          }
+        }
+        END{ if (best!="") print best }
+      ' || true)"
+
+  # 2) Fallback: any largest csv/txt excluding readme/license
+  if [ -z "${df:-}" ]; then
+    df="$(unzip -l "$zip" 2>/dev/null \
+      | awk '
+          BEGIN{best=""; bestsz=-1}
+          /^[ ]*[0-9]+[ ]+/{
+            sz=$1
+            name=$NF
+            low=tolower(name)
+            if (low ~ /\.(csv|txt)$/ && low !~ /(readme|lizenz|license)/) {
+              if (sz > bestsz) { bestsz=sz; best=name }
+            }
+          }
+          END{ if (best!="") print best }
+        ' || true)"
+  fi
+
+  printf "%s" "${df:-}"
+}
+
+###############################################################################
 # Pro Jahr: Features + CSV-Zeilen erzeugen (in temp), nur bei Erfolg übernehmen
 ###############################################################################
 process_year_to_buffers() {
@@ -216,26 +277,13 @@ process_year_to_buffers() {
     fi
   fi
 
-  # Einmal listen statt mehrfach unzip -Z1
-  if ! ziplist="$(unzip -Z1 "$zip" 2>/dev/null)"; then
+  # sanity: can we list zip?
+  if ! unzip -t "$zip" >/dev/null 2>&1; then
     echo "WARN: Zip kaputt/unlesbar: $zip" >&2
     return 0
   fi
 
-    # 1) Prefer files that clearly look like the accident locations dataset for the year.
-  #    Allow optional separators like "_" or "-" between "Unfallorte" and the year.
-  datafile="$(printf "%s\n" "$ziplist" \
-    | grep -Ei "unfallorte([_-]?)+${year}.*\.(csv|txt)$" \
-    | grep -Evi "(readme|lizenz|license)" \
-    | head -n 1 || true)"
-
-  # 2) Fallback: take *any* CSV/TXT in the zip (excluding readme/license).
-  if [ -z "$datafile" ]; then
-    datafile="$(printf "%s\n" "$ziplist" \
-      | grep -Ei "\.(csv|txt)$" \
-      | grep -Evi "(readme|lizenz|license)" \
-      | head -n 1 || true)"
-  fi
+  datafile="$(choose_datafile_from_zip "$zip" "$year")"
 
   if [ -z "$datafile" ]; then
     echo "WARN: Keine passende Datendatei im Zip gefunden ($zip)" >&2
@@ -244,7 +292,14 @@ process_year_to_buffers() {
     return 0
   fi
 
-  
+  echo "DEBUG: Selected datafile: $datafile" >&2
+
+  # show header line (trim CR, strip BOM)
+  hdr="$(unzip -p "$zip" "$datafile" 2>/dev/null | head -n 1 | sed 's/\r$//' )" || hdr=""
+  # Strip UTF-8 BOM if present
+  # (works in most shells; if not, it still only affects debug output)
+  hdr="$(printf "%s" "$hdr" | sed '1s/^\xEF\xBB\xBF//')"
+  echo "DEBUG: Header: $hdr" >&2
 
   # Year temp buffers
   y_csv_tmp="${TMPDIR}/rows_${year}.csv.tmp"
@@ -259,14 +314,33 @@ process_year_to_buffers() {
           -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
           -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
           -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
-      function pick(a,b,c,d,e) {
-        if (a!="" && (a in idx)) return idx[a]
-        if (b!="" && (b in idx)) return idx[b]
-        if (c!="" && (c in idx)) return idx[c]
-        if (d!="" && (d in idx)) return idx[d]
-        if (e!="" && (e in idx)) return idx[e]
+      # normalize header tokens:
+      # - strip CR
+      # - strip UTF-8 BOM (on first header)
+      # - lowercase
+      # - remove spaces, underscores, hyphens, dots
+      function normh(s, t) {
+        t = s
+        gsub(/\r/,"",t)
+        # BOM (octal): \357\273\277
+        sub(/^\357\273\277/,"",t)
+        t = tolower(t)
+        gsub(/[[:space:]_.\-]/,"",t)
+        return t
+      }
+
+      function pickn(a,b,c,d,e,f,g,h,   k) {
+        if (a!="" ) { k=normh(a); if (k in idxn) return idxn[k] }
+        if (b!="" ) { k=normh(b); if (k in idxn) return idxn[k] }
+        if (c!="" ) { k=normh(c); if (k in idxn) return idxn[k] }
+        if (d!="" ) { k=normh(d); if (k in idxn) return idxn[k] }
+        if (e!="" ) { k=normh(e); if (k in idxn) return idxn[k] }
+        if (f!="" ) { k=normh(f); if (k in idxn) return idxn[k] }
+        if (g!="" ) { k=normh(g); if (k in idxn) return idxn[k] }
+        if (h!="" ) { k=normh(h); if (k in idxn) return idxn[k] }
         return 0
       }
+
       function jesc(s,   t) {
         t = (s=="" ? "" : s)
         gsub(/\r/,"",t)
@@ -276,8 +350,14 @@ process_year_to_buffers() {
         gsub(/\n/,"\\n",t)
         return t
       }
+
       function ok_involvement() {
+        # If no involvement filter requested => ok
         if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
+
+        # If a specific filter is requested but the column is missing,
+        # we cannot evaluate it reliably; in that case return 0 (strict),
+        # but we also try hard to *find* the columns via robust header matching.
         if (istrad!="" && i_istrad>0 && $i_istrad==istrad) return 1
         if (ispkw!=""  && i_ispkw>0  && $i_ispkw==ispkw)   return 1
         if (isfuss!="" && i_isfuss>0 && $i_isfuss==isfuss) return 1
@@ -288,33 +368,40 @@ process_year_to_buffers() {
       BEGIN { out=0; first=1; skip=0 }
 
       NR==1 {
-        for (i=1; i<=NF; i++) { gsub(/\r/,"",$i); idx[$i]=i }
+        # Build normalized header index
+        for (i=1; i<=NF; i++) {
+          h=$i
+          gsub(/\r/,"",h)
+          if (i==1) sub(/^\357\273\277/,"",h)
+          idxn[normh(h)] = i
+        }
 
-        i_id     = pick("ID","OBJECTID","OBJECTID_1","","")
-        i_uland  = pick("ULAND","","","","")
-        i_ureg   = pick("UREGBEZ","","","","")
-        i_ukreis = pick("UKREIS","","","","")
-        i_ugem   = pick("UGEMEINDE","","","","")
+        i_id     = pickn("ID","OBJECTID","OBJECTID_1","","","","","")
+        i_uland  = pickn("ULAND","","","","","","","")
+        i_ureg   = pickn("UREGBEZ","","","","","","","")
+        i_ukreis = pickn("UKREIS","","","","","","","")
+        i_ugem   = pickn("UGEMEINDE","","","","","","","")
 
-        i_istrad = pick("IstRad","ISTRAD","","","")
-        i_ispkw  = pick("IstPKW","ISTPKW","","","")
-        i_isfuss = pick("IstFuss","ISTFUSS","IstFuß","ISTFUß","")
-        i_iskrad = pick("IstKrad","ISTKRAD","","","")
+        # Involvement flags (robust variants)
+        i_istrad = pickn("IstRad","ISTRAD","IST_RAD","Istradfahrer","IstRadfahrer","ISTRADFAHR","","")
+        i_ispkw  = pickn("IstPKW","ISTPKW","IST_PKW","IstPkw","","","","")
+        i_isfuss = pickn("IstFuss","ISTFUSS","IstFuß","ISTFUß","IST_FUSS","IstFussgaenger","IstFussgänger","")
+        i_iskrad = pickn("IstKrad","ISTKRAD","IST_KRAD","IstKraftrad","ISTKRAFTRAD","","","")
 
-        i_licht  = pick("ULICHTVERH","U_LICHTVERH","","","")
+        i_licht  = pickn("ULICHTVERH","U_LICHTVERH","Ulichttverh","","","","","")
 
-        i_kat    = pick("UKATEGORIE","","","","")
-        i_typ1   = pick("UTYP1","","","","")
-        i_uart   = pick("UART","","","","")
-        i_monat  = pick("UMONAT","","","","")
-        i_stunde = pick("USTUNDE","","","","")
-        i_wtag   = pick("UWOCHENTAG","","","","")
-        i_strz   = pick("STRZUSTAND","","","","")
+        i_kat    = pickn("UKATEGORIE","U_KATEGORIE","","","","","","")
+        i_typ1   = pickn("UTYP1","U_TYP1","","","","","","")
+        i_uart   = pickn("UART","U_ART","","","","","","")
+        i_monat  = pickn("UMONAT","U_MONAT","","","","","","")
+        i_stunde = pickn("USTUNDE","U_STUNDE","","","","","","")
+        i_wtag   = pickn("UWOCHENTAG","U_WOCHENTAG","","","","","","")
+        i_strz   = pickn("STRZUSTAND","STR_ZUSTAND","","","","","","")
 
-        i_lon = pick("XGCSWGS84","X_GCSWGS84","","","")
-        i_lat = pick("YGCSWGS84","Y_GCSWGSW84","Y_GCSWGS84","","")
+        i_lon = pickn("XGCSWGS84","X_GCSWGS84","XGCS_WGS84","X_GCS_WGS84","","","","")
+        i_lat = pickn("YGCSWGS84","Y_GCSWGS84","YGCS_WGS84","Y_GCS_WGS84","Y_GCSWGSW84","","","")
 
-        i_str = pick("Strasse","STRASSE","StrName","STRNAME","USTRNAME")
+        i_str = pickn("Strasse","STRASSE","StrName","STRNAME","USTRNAME","","","")
 
         if (i_lon==0 || i_lat==0) { skip=1 }
         next
@@ -322,6 +409,7 @@ process_year_to_buffers() {
 
       NR>1 {
         if (skip) next
+
         # Nur die Spalten voraussetzen, die wir wirklich filtern
         if (uland != "" && i_uland==0) next
         if (ureg  != "" && i_ureg==0)  next
