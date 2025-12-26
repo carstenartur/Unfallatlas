@@ -803,20 +803,26 @@
   // Cities list
   // --------------------
   async function loadCitiesList(){
-    const resp = await fetch("cities.txt", { cache:"no-store" });
-    if (!resp.ok) throw new Error("cities.txt konnte nicht geladen werden");
-    const txt = await resp.text();
-    const cities = txt.split(/\r?\n/).map(s => s.replace(/#.*/,"").trim()).filter(Boolean);
-    const seen = new Set();
-    const uniq = [];
-    for (const c of cities) {
-      const k = c.toLowerCase();
-      if (seen.has(k)) continue;
-      seen.add(k);
-      uniq.push(c);
+    // Tries to load cities.txt (one city per line). If it fails, we fall back to the current URL city.
+    try{
+      const resp = await fetch("cities.txt", { cache: "no-store" });
+      if (!resp.ok) throw new Error(`cities.txt load failed (${resp.status})`);
+      const txt = await resp.text();
+      const lines = txt.split(/\n/).map(l => l.replace(/\r/g,"").replace(/#.*/,"").trim()).filter(Boolean);
+      const seen = new Set();
+      const uniq = [];
+      for (const c of lines){
+        const k = normKey(c);
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        uniq.push(c);
+      }
+      uniq.sort((a,b)=>a.localeCompare(b,'de',{sensitivity:'base'}));
+      return uniq;
+    }catch(e){
+      console.warn("cities.txt not available, fallback to URL city only:", e);
+      return [CITY_RAW];
     }
-    uniq.sort((a,b)=>a.localeCompare(b,"de"));
-    return uniq;
   }
 
   function setCityDropdown(cities){
