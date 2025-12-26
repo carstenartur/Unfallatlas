@@ -616,7 +616,6 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
   let CITY_RAW = (qGet("city","Hannover") || "Hannover").trim();
   let CITY_SUFFIX = normKey(CITY_RAW);
   let DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
-  document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW}` + ` | Build: ${BUILD_STAMP}`;
   document.getElementById("dataSourceCode").textContent = DATA_URL;
 
   let allPts = [];
@@ -1674,7 +1673,6 @@ const BUILD_TS = "2025-12-26T11:20:11Z";
   async function loadCityData(){
     CITY_SUFFIX = normKey(CITY_RAW);
     DATA_URL = `out/output_all_years_${CITY_SUFFIX}.geojson`;
-    document.getElementById("panelSub").textContent = `(Viewport + Analyse/Export) – Stadt: ${CITY_RAW} | Build: ${BUILD_TS}`;
     document.getElementById("dataSourceCode").textContent = DATA_URL;
 
     const resp = await fetch(DATA_URL, { cache:"no-store" });
