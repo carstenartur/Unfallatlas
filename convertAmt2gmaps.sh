@@ -13,6 +13,10 @@ set -eu
 #  - ZIP: wähle "größte passende" CSV/TXT statt "erste passende"
 #  - Header-Matching: robust (BOM/CR/Case/Sonderzeichen/Whitespace egal)
 #  - Debug: pro Jahr selected file + Headerzeile
+#
+# Fix (2025-12-26):
+#  - CSV ist jetzt CSV-konform: Textfelder werden gequotet, damit Kommas im "Name"
+#    nicht die Spalten verschieben (wichtig für unfallwerkbank.html).
 ###############################################################################
 
 OUTDIR="out"
@@ -210,18 +214,6 @@ choose_datafile_from_zip() {
   zip="$1"
   year="$2"
 
-  # We rely on unzip -l output:
-  # Length  Date    Time    Name
-  # 12345   ...             path/file.csv
-  #
-  # We pick the maximum length among:
-  #  - .csv/.txt
-  #  - not readme/license/lizenz
-  #  - prefer name containing unfallorte + year, else fallback to any csv/txt
-  #
-  # Note: keep it POSIX-sh.
-
-  # 1) Prefer explicit Unfallorte-year file
   df="$(unzip -l "$zip" 2>/dev/null \
     | awk -v y="$year" '
         BEGIN{best=""; bestsz=-1}
@@ -239,7 +231,6 @@ choose_datafile_from_zip() {
         END{ if (best!="") print best }
       ' || true)"
 
-  # 2) Fallback: any largest csv/txt excluding readme/license
   if [ -z "${df:-}" ]; then
     df="$(unzip -l "$zip" 2>/dev/null \
       | awk '
@@ -273,16 +264,15 @@ process_year_to_buffers() {
     echo "== $year == (downloading)"
 
     if ! curl -fL \
-    --retry 6 --retry-delay 2 --retry-connrefused \
-    --connect-timeout 20 --max-time 300 \
-    -C - \
-    -o "$zip" "$url"; then
+      --retry 6 --retry-delay 2 --retry-connrefused \
+      --connect-timeout 20 --max-time 300 \
+      -C - \
+      -o "$zip" "$url"; then
       echo "WARN: Download fehlgeschlagen: $url" >&2
       return 0
     fi
   fi
 
-  # sanity: can we list zip?
   if ! unzip -t "$zip" >/dev/null 2>&1; then
     echo "WARN: Zip kaputt/unlesbar: $zip" >&2
     return 0
@@ -299,35 +289,25 @@ process_year_to_buffers() {
 
   echo "DEBUG: Selected datafile: $datafile" >&2
 
-  # show header line (trim CR, strip BOM)
   hdr="$(unzip -p "$zip" "$datafile" 2>/dev/null | head -n 1 | sed 's/\r$//' )" || hdr=""
-  # Strip UTF-8 BOM if present
-  # (works in most shells; if not, it still only affects debug output)
   hdr="$(printf "%s" "$hdr" | sed '1s/^\xEF\xBB\xBF//')"
   echo "DEBUG: Header: $hdr" >&2
 
-  # Year temp buffers
   y_csv_tmp="${TMPDIR}/rows_${year}.csv.tmp"
   y_feat_tmp="${TMPDIR}/feats_${year}.json.tmp"
 
   : > "$y_csv_tmp"
   : > "$y_feat_tmp"
 
-  # awk schreibt NUR in year-temp (nicht direkt in combined!)
   if ! unzip -p "$zip" "$datafile" \
     | awk -F';' -v year="$year" -v limit="$LIMIT" \
           -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
-          -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
+          -v istrad="$IST_RAD" # unused; keep for compatibility \
+          -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
           -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
-      # normalize header tokens:
-      # - strip CR
-      # - strip UTF-8 BOM (on first header)
-      # - lowercase
-      # - remove spaces, underscores, hyphens, dots
       function normh(s, t) {
         t = s
         gsub(/\r/,"",t)
-        # BOM (octal): \357\273\277
         sub(/^\357\273\277/,"",t)
         t = tolower(t)
         gsub(/[[:space:]_.\-]/,"",t)
@@ -349,20 +329,26 @@ process_year_to_buffers() {
       function jesc(s,   t) {
         t = (s=="" ? "" : s)
         gsub(/\r/,"",t)
-        gsub(/[\001-\037]/,"",t)   # Steuerzeichen raus (JSON-Killer)
+        gsub(/[\001-\037]/,"",t)
         gsub(/\\/,"\\\\",t)
         gsub(/"/,"\\\"",t)
         gsub(/\n/,"\\n",t)
         return t
       }
 
-      function ok_involvement() {
-        # If no involvement filter requested => ok
-        if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
+      # CSV-escape: Feld in "..." + " verdoppeln
+      function cesc(s,   t) {
+        t = (s=="" ? "" : s)
+        gsub(/\r/,"",t)
+        gsub(/"/,"\"\"",t)
+        return t
+      }
+      function cfield(s) {
+        return "\"" cesc(s) "\""
+      }
 
-        # If a specific filter is requested but the column is missing,
-        # we cannot evaluate it reliably; in that case return 0 (strict),
-        # but we also try hard to *find* the columns via robust header matching.
+      function ok_involvement() {
+        if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
         if (istrad!="" && i_istrad>0 && $i_istrad==istrad) return 1
         if (ispkw!=""  && i_ispkw>0  && $i_ispkw==ispkw)   return 1
         if (isfuss!="" && i_isfuss>0 && $i_isfuss==isfuss) return 1
@@ -373,7 +359,6 @@ process_year_to_buffers() {
       BEGIN { out=0; first=1; skip=0 }
 
       NR==1 {
-        # Build normalized header index
         for (i=1; i<=NF; i++) {
           h=$i
           gsub(/\r/,"",h)
@@ -381,39 +366,25 @@ process_year_to_buffers() {
           idxn[normh(h)] = i
         }
 
-        # ID-Spalte: je nach Jahr unterschiedlich
-        # 2016: FID;OBJECTID;...
-        # 2018: OBJECTID_1;...
-        # 2021-2024: OID_;...
-        i_id     = pickn("OBJECTID","OID_","OBJECTID_1","FID","ID","","","")
-
+        i_id     = pickn("ID","OBJECTID","OBJECTID_1","OID_","","","","")
         i_uland  = pickn("ULAND","","","","","","","")
         i_ureg   = pickn("UREGBEZ","","","","","","","")
         i_ukreis = pickn("UKREIS","","","","","","","")
         i_ugem   = pickn("UGEMEINDE","","","","","","","")
 
-        # Involvement flags (robust variants)
         i_istrad = pickn("IstRad","ISTRAD","IST_RAD","Istradfahrer","IstRadfahrer","ISTRADFAHR","","")
         i_ispkw  = pickn("IstPKW","ISTPKW","IST_PKW","IstPkw","","","","")
         i_isfuss = pickn("IstFuss","ISTFUSS","IstFuß","ISTFUß","IST_FUSS","IstFussgaenger","IstFussgänger","")
         i_iskrad = pickn("IstKrad","ISTKRAD","IST_KRAD","IstKraftrad","ISTKRAFTRAD","","","")
 
-        # Licht:
-        # 2016/2018+: ULICHTVERH
-        # 2017: LICHT
-        i_licht  = pickn("ULICHTVERH","LICHT","U_LICHTVERH","Ulichttverh","","","","")
-
+        i_licht  = pickn("ULICHTVERH","U_LICHTVERH","LICHT","","","","","")
         i_kat    = pickn("UKATEGORIE","U_KATEGORIE","","","","","","")
         i_typ1   = pickn("UTYP1","U_TYP1","","","","","","")
         i_uart   = pickn("UART","U_ART","","","","","","")
         i_monat  = pickn("UMONAT","U_MONAT","","","","","","")
         i_stunde = pickn("USTUNDE","U_STUNDE","","","","","","")
         i_wtag   = pickn("UWOCHENTAG","U_WOCHENTAG","","","","","","")
-
-        # Straßenzustand:
-        # 2017-2020: STRZUSTAND
-        # 2021+: IstStrassenzustand / ISTSTRASSENZUSTAND
-        i_strz   = pickn("IstStrassenzustand","ISTSTRASSENZUSTAND","STRZUSTAND","STR_ZUSTAND","IstStrassezustand","","","")
+        i_strz   = pickn("STRZUSTAND","STR_ZUSTAND","IstStrassenzustand","IstStrassezustand","ISTSTRASSENZUSTAND","","","")
 
         i_lon = pickn("XGCSWGS84","X_GCSWGS84","XGCS_WGS84","X_GCS_WGS84","","","","")
         i_lat = pickn("YGCSWGS84","Y_GCSWGS84","YGCS_WGS84","Y_GCS_WGS84","Y_GCSWGSW84","","","")
@@ -427,17 +398,14 @@ process_year_to_buffers() {
       NR>1 {
         if (skip) next
 
-        # Nur die Spalten voraussetzen, die wir wirklich filtern
         if (uland != "" && i_uland==0) next
         if (ureg  != "" && i_ureg==0)  next
         if (ukreis!= "" && i_ukreis==0) next
 
-        # numerisch vergleichen -> "00" und "0" sind gleich
         if (uland  != "" && (($i_uland + 0)  != (uland + 0)))  next
         if (ureg   != "" && (($i_ureg  + 0)  != (ureg  + 0)))  next
         if (ukreis != "" && (($i_ukreis + 0) != (ukreis + 0))) next
 
-        # UGEMEINDE nur prüfen, wenn gesetzt; auch numerisch
         if (ugem != "" && i_ugem > 0 && (($i_ugem + 0) != (ugem + 0))) next
 
         if (!ok_involvement()) next
@@ -472,10 +440,27 @@ process_year_to_buffers() {
         if (licht != "") name = name ", Licht: " licht
         if (str   != "") name = name " Strasse: " str
 
-        # CSV-Zeile (nur rows, Header macht Shell)
-        print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "\r" >> outrows
+        # CSV (kompatibel + CSV-konform!)
+        # Header wird in Shell geschrieben; hier nur Zeilen:
+        # WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD
+        wkt = "POINT (" lon " " lat ")"
+        print cfield(wkt) "," \
+              cfield(name) "," \
+              cfield(id) "," \
+              cfield(kat) "," \
+              cfield(typ1) "," \
+              cfield(uart) "," \
+              cfield(monat) "," \
+              cfield(stunde) "," \
+              cfield(wtag) "," \
+              cfield(strz) "," \
+              cfield(licht) "," \
+              cfield(v_istrad) "," \
+              cfield(v_ispkw) "," \
+              cfield(v_isfuss) "," \
+              cfield(v_iskrad) "\r" >> outrows
 
-        # Feature (ohne FeatureCollection-Wrapper)
+        # GeoJSON Feature (ohne FeatureCollection-Wrapper)
         if (!first) print "," >> outfeat
         first=0
 
@@ -508,7 +493,6 @@ process_year_to_buffers() {
     return 0
   fi
 
-  # Wenn das Jahr erfolgreich ist: in Combined übernehmen
   if [ -s "$y_csv_tmp" ]; then
     cat "$y_csv_tmp" >> "$COMBINED_CSV_TMP"
   fi
@@ -520,7 +504,6 @@ process_year_to_buffers() {
     COMBINED_HAS_FEATURES="1"
   fi
 
-  # Optional per-year Outputs (gültig geschlossen!)
   if [ "$DO_PER_YEAR" = "1" ]; then
     outcsv_year="${OUTDIR}/output${year}${CITY_SUFFIX:+_${CITY_SUFFIX}}.csv"
     outgeo_year="${OUTDIR}/output${year}${CITY_SUFFIX:+_${CITY_SUFFIX}}.geojson"
