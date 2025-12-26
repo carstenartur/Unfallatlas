@@ -922,30 +922,29 @@
 
 
     function severityStatsPoints(points){
-  // ukategorie: 1=Getötete, 2=Schwerverletzte, 3=Leichtverletzte
-  const res = { total: 0, killed: 0, severe: 0, slight: 0, unknown: 0 };
-  for (const p of points){
-    res.total++;
-    const k = String((p.props || {}).ukategorie ?? "");
-    if (k === "1") res.killed++;
-    else if (k === "2") res.severe++;
-    else if (k === "3") res.slight++;
-    else res.unknown++;
-  }
-  return res;
-}
+      // ukategorie: 1=Getötete, 2=Schwerverletzte, 3=Leichtverletzte
+      const res = { total: 0, killed: 0, severe: 0, slight: 0, unknown: 0 };
+      for (const p of points){
+        res.total++;
+        const k = String((p.props||{}).ukategorie ?? "");
+        if (k==="1") res.killed++;
+        else if (k==="2") res.severe++;
+        else if (k==="3") res.slight++;
+        else res.unknown++;
+      }
+      return res;
+    }
 
-// Optional: falls du “Severity in Bounds” getrennt brauchst (Selection/Viewport)
-function severityStats(bounds){
-  const pts = pointsInBounds(filteredAll, bounds);
-  const bySev = { "1": 0, "2": 0, "3": 0, other: 0 };
-  for (const p of pts){
-    const k = String((p.props || {}).ukategorie ?? "");
-    if (k === "1" || k === "2" || k === "3") bySev[k]++;
-    else bySev.other++;
-  }
-  return { total: pts.length, bySev };
-}
+    function severityStats(bounds){
+      // Counts injury severity in a bounds (selection or viewport)
+      const pts = pointsInBounds(filteredAll, bounds);
+      const bySev = { "1":0, "2":0, "3":0, other:0 };
+      for (const p of pts){
+        const k = String((p.props||{}).ukategorie ?? "");
+        if (k==="1"||k==="2"||k==="3") bySev[k]++; else bySev.other++;
+      }
+      return { total: pts.length, bySev };
+    }
 
 
 
