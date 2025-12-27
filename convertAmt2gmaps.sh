@@ -14,10 +14,11 @@ set -eu
 #  - Header-Matching: robust (BOM/CR/Case/Sonderzeichen/Whitespace egal)
 #  - Debug: pro Jahr selected file + Headerzeile
 #
-# Fixes:
-#  - CSV: Name wird gequotet (wegen Kommas), keine CRs mitten in Zeilen
-#  - GeoJSON: Properties wieder kompatibel zur unfallwerkbank.html (UPPERCASE Keys)
-#  - awk-Aufruf ohne Zeilenfortsetzungs-Backslashes (robuster bei CRLF)
+# Anpassungen (2025-12-27):
+#  - NUR Header-Varianten aus deinem Log (aber die sind über Jahre verschieden)
+#  - Ergänzt: IstGkfz und IstSonstig(e) als Output (CSV + GeoJSON)
+#  - Optional filterbar: --gkfz / --sonstig
+#  - Entfernt: CR (\r) aus CSV-Ausgabe, damit keine "Spaltenanzahl wechselt"-Zeilen entstehen
 ###############################################################################
 
 OUTDIR="out"
@@ -36,6 +37,8 @@ IST_RAD="1"
 IST_PKW=""
 IST_FUSS=""
 IST_KRAD=""
+IST_GKFZ=""
+IST_SONSTIG=""
 
 DO_PER_YEAR="0"
 
@@ -102,11 +105,13 @@ Region / Stadt:
 
   --ags 03241001             direkt AGS8 (überschreibt City Map)
 
-Beteiligung:
+Beteiligung (Filter):
   --rad 1|0
   --pkw 1|0
   --fuss 1|0
   --krad 1|0
+  --gkfz 1|0
+  --sonstig 1|0
 EOF
 }
 
@@ -140,6 +145,8 @@ while [ "${1:-}" != "" ]; do
     --pkw) IST_PKW="$2"; shift 2 ;;
     --fuss) IST_FUSS="$2"; shift 2 ;;
     --krad) IST_KRAD="$2"; shift 2 ;;
+    --gkfz) IST_GKFZ="$2"; shift 2 ;;
+    --sonstig) IST_SONSTIG="$2"; shift 2 ;;
 
     -h|--help) usage; exit 0 ;;
     *) echo "Unbekannte Option: $1" >&2; usage; exit 2 ;;
@@ -215,6 +222,7 @@ choose_datafile_from_zip() {
   zip="$1"
   year="$2"
 
+  # 1) Prefer explicit Unfallorte-year file
   df="$(unzip -l "$zip" 2>/dev/null \
     | awk -v y="$year" '
         BEGIN{best=""; bestsz=-1}
@@ -232,6 +240,7 @@ choose_datafile_from_zip() {
         END{ if (best!="") print best }
       ' || true)"
 
+  # 2) Fallback: any largest csv/txt excluding readme/license
   if [ -z "${df:-}" ]; then
     df="$(unzip -l "$zip" 2>/dev/null \
       | awk '
@@ -263,7 +272,12 @@ process_year_to_buffers() {
     echo "== $year == (cached)"
   else
     echo "== $year == (downloading)"
-    if ! curl -fL --retry 6 --retry-delay 2 --retry-connrefused --connect-timeout 20 --max-time 300 -C - -o "$zip" "$url"; then
+
+    if ! curl -fL \
+      --retry 6 --retry-delay 2 --retry-connrefused \
+      --connect-timeout 20 --max-time 300 \
+      -C - \
+      -o "$zip" "$url"; then
       echo "WARN: Download fehlgeschlagen: $url" >&2
       return 0
     fi
@@ -275,6 +289,7 @@ process_year_to_buffers() {
   fi
 
   datafile="$(choose_datafile_from_zip "$zip" "$year")"
+
   if [ -z "$datafile" ]; then
     echo "WARN: Keine passende Datendatei im Zip gefunden ($zip)" >&2
     echo "DEBUG: Zip-Inhalt (erste 80 Zeilen):" >&2
@@ -290,174 +305,204 @@ process_year_to_buffers() {
 
   y_csv_tmp="${TMPDIR}/rows_${year}.csv.tmp"
   y_feat_tmp="${TMPDIR}/feats_${year}.json.tmp"
+
   : > "$y_csv_tmp"
   : > "$y_feat_tmp"
 
-  # awk-Aufruf ohne Backslash-Zeilenfortsetzungen (robuster bei CRLF)
-  if ! unzip -p "$zip" "$datafile" | awk -F';' -v year="$year" -v limit="$LIMIT" -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
-    function normh(s, t) {
-      t = s
-      gsub(/\r/,"",t)
-      sub(/^\357\273\277/,"",t)         # BOM
-      t = tolower(t)
-      gsub(/[[:space:]_.\-]/,"",t)
-      return t
-    }
-
-    function pickn(a,b,c,d,e,f,g,h,   k) {
-      if (a!="" ) { k=normh(a); if (k in idxn) return idxn[k] }
-      if (b!="" ) { k=normh(b); if (k in idxn) return idxn[k] }
-      if (c!="" ) { k=normh(c); if (k in idxn) return idxn[k] }
-      if (d!="" ) { k=normh(d); if (k in idxn) return idxn[k] }
-      if (e!="" ) { k=normh(e); if (k in idxn) return idxn[k] }
-      if (f!="" ) { k=normh(f); if (k in idxn) return idxn[k] }
-      if (g!="" ) { k=normh(g); if (k in idxn) return idxn[k] }
-      if (h!="" ) { k=normh(h); if (k in idxn) return idxn[k] }
-      return 0
-    }
-
-    function jesc(s,   t) {
-      t = (s=="" ? "" : s)
-      gsub(/\r/,"",t)
-      gsub(/[\001-\037]/,"",t)
-      gsub(/\\/,"\\\\",t)
-      gsub(/"/,"\\\"",t)
-      gsub(/\n/,"\\n",t)
-      return t
-    }
-
-    function csvesc(s,   t) {
-      t = (s=="" ? "" : s)
-      gsub(/\r/,"",t)
-      gsub(/"/,"\"\"",t)               # CSV-Quote escape
-      return t
-    }
-
-    function ok_involvement() {
-      if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="") return 1
-      if (istrad!="" && i_istrad>0 && $i_istrad==istrad) return 1
-      if (ispkw!=""  && i_ispkw>0  && $i_ispkw==ispkw)   return 1
-      if (isfuss!="" && i_isfuss>0 && $i_isfuss==isfuss) return 1
-      if (iskrad!="" && i_iskrad>0 && $i_iskrad==iskrad) return 1
-      return 0
-    }
-
-    BEGIN { out=0; first=1; skip=0 }
-
-    NR==1 {
-      for (i=1; i<=NF; i++) {
-        h=$i
-        gsub(/\r/,"",h)
-        if (i==1) sub(/^\357\273\277/,"",h)
-        idxn[normh(h)] = i
+  # Wichtig: nur Header-Varianten aus deinem Log (aber je nach Jahr unterschiedlich)
+  if ! unzip -p "$zip" "$datafile" \
+    | awk -F';' \
+        -v year="$year" -v limit="$LIMIT" \
+        -v uland="$ULAND" -v ureg="$UREGBEZ" -v ukreis="$UKREIS" -v ugem="$UGEMEINDE" \
+        -v istrad="$IST_RAD" -v ispkw="$IST_PKW" -v isfuss="$IST_FUSS" -v iskrad="$IST_KRAD" \
+        -v isgkfz="$IST_GKFZ" -v isson="$IST_SONSTIG" \
+        -v outrows="$y_csv_tmp" -v outfeat="$y_feat_tmp" '
+      function normh(s, t) {
+        t = s
+        gsub(/\r/,"",t)
+        sub(/^\357\273\277/,"",t)
+        t = tolower(t)
+        gsub(/[[:space:]_.\-]/,"",t)
+        return t
       }
 
-      i_id     = pickn("ID","OBJECTID","OBJECTID_1","OID_","","","","")
-      i_uland  = pickn("ULAND","","","","","","","")
-      i_ureg   = pickn("UREGBEZ","","","","","","","")
-      i_ukreis = pickn("UKREIS","","","","","","","")
-      i_ugem   = pickn("UGEMEINDE","","","","","","","")
+      function pickn(a,b,c,d,e,f,g,h,   k) {
+        if (a!="" ) { k=normh(a); if (k in idxn) return idxn[k] }
+        if (b!="" ) { k=normh(b); if (k in idxn) return idxn[k] }
+        if (c!="" ) { k=normh(c); if (k in idxn) return idxn[k] }
+        if (d!="" ) { k=normh(d); if (k in idxn) return idxn[k] }
+        if (e!="" ) { k=normh(e); if (k in idxn) return idxn[k] }
+        if (f!="" ) { k=normh(f); if (k in idxn) return idxn[k] }
+        if (g!="" ) { k=normh(g); if (k in idxn) return idxn[k] }
+        if (h!="" ) { k=normh(h); if (k in idxn) return idxn[k] }
+        return 0
+      }
 
-      i_istrad = pickn("IstRad","ISTRAD","IST_RAD","Istradfahrer","IstRadfahrer","ISTRADFAHR","","")
-      i_ispkw  = pickn("IstPKW","ISTPKW","IST_PKW","IstPkw","","","","")
-      i_isfuss = pickn("IstFuss","ISTFUSS","IstFuß","ISTFUß","IST_FUSS","IstFussgaenger","IstFussgänger","")
-      i_iskrad = pickn("IstKrad","ISTKRAD","IST_KRAD","IstKraftrad","ISTKRAFTRAD","","","")
+      function jesc(s,   t) {
+        t = (s=="" ? "" : s)
+        gsub(/\r/,"",t)
+        gsub(/[\001-\037]/,"",t)
+        gsub(/\\/,"\\\\",t)
+        gsub(/"/,"\\\"",t)
+        gsub(/\n/,"\\n",t)
+        return t
+      }
 
-      i_licht  = pickn("ULICHTVERH","LICHT","","","","","","")
-      i_kat    = pickn("UKATEGORIE","","","","","","","")
-      i_typ1   = pickn("UTYP1","","","","","","","")
-      i_uart   = pickn("UART","","","","","","","")
-      i_monat  = pickn("UMONAT","","","","","","","")
-      i_stunde = pickn("USTUNDE","","","","","","","")
-      i_wtag   = pickn("UWOCHENTAG","","","","","","","")
-      i_strz   = pickn("STRZUSTAND","IstStrassenzustand","IstStrassenzustand","","","","","")
+      function stripcr(   i) {
+        # entfernt \r aus allen relevanten Variablen (die häufig als "Spaltenwechsel" auffallen)
+        gsub(/\r/,"",kat); gsub(/\r/,"",typ1); gsub(/\r/,"",uart)
+        gsub(/\r/,"",monat); gsub(/\r/,"",stunde); gsub(/\r/,"",wtag)
+        gsub(/\r/,"",strz); gsub(/\r/,"",licht); gsub(/\r/,"",str)
+        gsub(/\r/,"",v_istrad); gsub(/\r/,"",v_ispkw); gsub(/\r/,"",v_isfuss); gsub(/\r/,"",v_iskrad)
+        gsub(/\r/,"",v_isgkfz); gsub(/\r/,"",v_isson)
+      }
 
-      i_lon = pickn("XGCSWGS84","X_GCSWGS84","XGCS_WGS84","X_GCS_WGS84","","","","")
-      i_lat = pickn("YGCSWGS84","Y_GCSWGS84","YGCS_WGS84","Y_GCS_WGS84","","","","")
+      function ok_involvement() {
+        # Wenn keine Filter aktiv sind => ok
+        if (istrad=="" && ispkw=="" && isfuss=="" && iskrad=="" && isgkfz=="" && isson=="") return 1
 
-      i_str = pickn("Strasse","STRASSE","StrName","STRNAME","USTRNAME","","","")
+        # OR-Logik wie bisher (wenn irgendeine gewünschte Beteiligung passt)
+        if (istrad!="" && i_istrad>0 && $i_istrad==istrad) return 1
+        if (ispkw!=""  && i_ispkw>0  && $i_ispkw==ispkw)   return 1
+        if (isfuss!="" && i_isfuss>0 && $i_isfuss==isfuss) return 1
+        if (iskrad!="" && i_iskrad>0 && $i_iskrad==iskrad) return 1
+        if (isgkfz!="" && i_isgkfz>0 && $i_isgkfz==isgkfz) return 1
+        if (isson!=""  && i_isson>0  && $i_isson==isson)   return 1
+        return 0
+      }
 
-      if (i_lon==0 || i_lat==0) { skip=1 }
-      next
-    }
+      BEGIN { out=0; first=1; skip=0 }
 
-    NR>1 {
-      if (skip) next
+      NR==1 {
+        for (i=1; i<=NF; i++) {
+          h=$i
+          gsub(/\r/,"",h)
+          if (i==1) sub(/^\357\273\277/,"",h)
+          idxn[normh(h)] = i
+        }
 
-      if (uland != "" && i_uland==0) next
-      if (ureg  != "" && i_ureg==0)  next
-      if (ukreis!= "" && i_ukreis==0) next
+        # IDs in deinem Log:
+        i_id     = pickn("OBJECTID","OBJECTID_1","OID_","FID","","","","")
 
-      if (uland  != "" && (($i_uland + 0)  != (uland + 0)))  next
-      if (ureg   != "" && (($i_ureg  + 0)  != (ureg  + 0)))  next
-      if (ukreis != "" && (($i_ukreis + 0) != (ukreis + 0))) next
+        i_uland  = pickn("ULAND","","","","","","","")
+        i_ureg   = pickn("UREGBEZ","","","","","","","")
+        i_ukreis = pickn("UKREIS","","","","","","","")
+        i_ugem   = pickn("UGEMEINDE","","","","","","","")
 
-      if (ugem != "" && i_ugem > 0 && (($i_ugem + 0) != (ugem + 0))) next
-      if (!ok_involvement()) next
+        # Beteiligungen (nur Log-Varianten)
+        i_istrad = pickn("IstRad","","","","","","","")
+        i_ispkw  = pickn("IstPKW","","","","","","","")
+        i_isfuss = pickn("IstFuss","","","","","","","")
+        i_iskrad = pickn("IstKrad","","","","","","","")
+        i_isgkfz = pickn("IstGkfz","","","","","","","")
+        i_isson  = pickn("IstSonstig","IstSonstige","","","","","","")
 
-      out++
-      if (limit > 0 && out > limit) exit
+        # Licht: 2016/2018/2019/2020/2022.. = ULICHTVERH, 2017 = LICHT
+        i_licht  = pickn("ULICHTVERH","LICHT","","","","","","")
 
-      id = (i_id ? $i_id : out)
+        i_kat    = pickn("UKATEGORIE","","","","","","","")
+        i_typ1   = pickn("UTYP1","","","","","","","")
+        i_uart   = pickn("UART","","","","","","","")
+        i_monat  = pickn("UMONAT","","","","","","","")
+        i_stunde = pickn("USTUNDE","","","","","","","")
+        i_wtag   = pickn("UWOCHENTAG","","","","","","","")
 
-      lon = $i_lon; lat = $i_lat
-      gsub(/\r/,"",lon); gsub(/\r/,"",lat)
-      gsub(/,/,".",lon); gsub(/,/,".",lat)
+        # Straßenzustand: 2016/2017/2018/2019/2020 = STRZUSTAND
+        # 2021 = IstStrassenzustand
+        i_strz   = pickn("STRZUSTAND","IstStrassenzustand","","","","","","")
 
-      str = (i_str ? $i_str : ""); gsub(/\r/,"",str)
-      licht = (i_licht ? $i_licht : ""); gsub(/\r/,"",licht)
+        i_lon = pickn("XGCSWGS84","","","","","","","")
+        i_lat = pickn("YGCSWGS84","","","","","","","")
 
-      kat    = (i_kat ? $i_kat : "")
-      typ1   = (i_typ1 ? $i_typ1 : "")
-      uart   = (i_uart ? $i_uart : "")
-      monat  = (i_monat ? $i_monat : "")
-      stunde = (i_stunde ? $i_stunde : "")
-      wtag   = (i_wtag ? $i_wtag : "")
-      strz   = (i_strz ? $i_strz : "")
+        # Straße ist nicht konsistent in deinem Log -> optional; kann leer bleiben
+        i_str = pickn("Strasse","","","","","","","")
 
-      v_istrad = (i_istrad ? $i_istrad : "")
-      v_ispkw  = (i_ispkw  ? $i_ispkw  : "")
-      v_isfuss = (i_isfuss ? $i_isfuss : "")
-      v_iskrad = (i_iskrad ? $i_iskrad : "")
+        if (i_lon==0 || i_lat==0) { skip=1 }
+        next
+      }
 
-      # Name: kein Komma-Separator-Problem mehr, weil wir CSV sauber quoten
-      name = "Unfall " id " (" year ")"
-      if (kat != "")   name = name " Kat:" kat
-      if (licht != "") name = name " Licht:" licht
-      if (str != "")   name = name " Strasse:" str
+      NR>1 {
+        if (skip) next
 
-      # CSV: WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD
-      print "\"POINT (" lon " " lat ")\",\"" csvesc(name) "\"," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad >> outrows
+        if (uland != "" && i_uland==0) next
+        if (ureg  != "" && i_ureg==0)  next
+        if (ukreis!= "" && i_ukreis==0) next
 
-      # GeoJSON Feature (ohne FeatureCollection-Wrapper)
-      if (!first) print "," >> outfeat
-      first=0
+        if (uland  != "" && (($i_uland + 0)  != (uland + 0)))  next
+        if (ureg   != "" && (($i_ureg  + 0)  != (ureg  + 0)))  next
+        if (ukreis != "" && (($i_ukreis + 0) != (ukreis + 0))) next
 
-      # Wichtig: Properties kompatibel zur unfallwerkbank.html (UPPERCASE + bekannte Spaltennamen)
-      print "    {\n" \
-            "      \"type\": \"Feature\",\n" \
-            "      \"geometry\": { \"type\": \"Point\", \"coordinates\": [" lon ", " lat "] },\n" \
-            "      \"properties\": {\n" \
-            "        \"Name\": \"" jesc(name) "\",\n" \
-            "        \"OBJECTID\": \"" jesc(id) "\",\n" \
-            "        \"UJAHR\": " year ",\n" \
-            "        \"UKATEGORIE\": \"" jesc(kat) "\",\n" \
-            "        \"UTYP1\": \"" jesc(typ1) "\",\n" \
-            "        \"UART\": \"" jesc(uart) "\",\n" \
-            "        \"UMONAT\": \"" jesc(monat) "\",\n" \
-            "        \"USTUNDE\": \"" jesc(stunde) "\",\n" \
-            "        \"UWOCHENTAG\": \"" jesc(wtag) "\",\n" \
-            "        \"STRZUSTAND\": \"" jesc(strz) "\",\n" \
-            "        \"ULICHTVERH\": \"" jesc(licht) "\",\n" \
-            "        \"ISTRAD\": \"" jesc(v_istrad) "\",\n" \
-            "        \"ISTPKW\": \"" jesc(v_ispkw) "\",\n" \
-            "        \"ISTFUSS\": \"" jesc(v_isfuss) "\",\n" \
-            "        \"ISTKRAD\": \"" jesc(v_iskrad) "\",\n" \
-            "        \"Strasse\": \"" jesc(str) "\"\n" \
-            "      }\n" \
-            "    }" >> outfeat
-    }
-  '; then
+        if (ugem != "" && i_ugem > 0 && (($i_ugem + 0) != (ugem + 0))) next
+
+        if (!ok_involvement()) next
+
+        out++
+        if (limit > 0 && out > limit) exit
+
+        id = (i_id ? $i_id : out)
+
+        lon = $i_lon; lat = $i_lat
+        gsub(/\r/,"",lon); gsub(/\r/,"",lat)
+        gsub(/,/,".",lon); gsub(/,/,".",lat)
+
+        str   = (i_str   ? $i_str   : "")
+        licht = (i_licht ? $i_licht : "")
+
+        kat    = (i_kat ? $i_kat : "")
+        typ1   = (i_typ1 ? $i_typ1 : "")
+        uart   = (i_uart ? $i_uart : "")
+        monat  = (i_monat ? $i_monat : "")
+        stunde = (i_stunde ? $i_stunde : "")
+        wtag   = (i_wtag ? $i_wtag : "")
+        strz   = (i_strz ? $i_strz : "")
+
+        v_istrad = (i_istrad ? $i_istrad : "")
+        v_ispkw  = (i_ispkw  ? $i_ispkw  : "")
+        v_isfuss = (i_isfuss ? $i_isfuss : "")
+        v_iskrad = (i_iskrad ? $i_iskrad : "")
+        v_isgkfz = (i_isgkfz ? $i_isgkfz : "")
+        v_isson  = (i_isson  ? $i_isson  : "")
+
+        stripcr()
+
+        name = "Unfall " id " (" year ")"
+        if (kat != "") name = name " Kat:" kat
+        if (licht != "") name = name ", Licht: " licht
+        if (str   != "") name = name " Strasse: " str
+
+        # CSV (keine \r mehr, damit keine kaputten Zeilen entstehen)
+        print "\"POINT (" lon " " lat ")\"," name "," id "," kat "," typ1 "," uart "," monat "," stunde "," wtag "," strz "," licht "," v_istrad "," v_ispkw "," v_isfuss "," v_iskrad "," v_isgkfz "," v_isson >> outrows
+
+        # Feature (ohne FeatureCollection-Wrapper)
+        if (!first) print "," >> outfeat
+        first=0
+
+        print "    {\n" \
+              "      \"type\": \"Feature\",\n" \
+              "      \"geometry\": { \"type\": \"Point\", \"coordinates\": [" lon ", " lat "] },\n" \
+              "      \"properties\": {\n" \
+              "        \"id\": \"" jesc(id) "\",\n" \
+              "        \"name\": \"" jesc(name) "\",\n" \
+              "        \"year\": " year ",\n" \
+              "        \"ulichtverh\": \"" jesc(licht) "\",\n" \
+              "        \"strasse\": \"" jesc(str) "\",\n" \
+              "        \"ukategorie\": \"" jesc(kat) "\",\n" \
+              "        \"utyp1\": \"" jesc(typ1) "\",\n" \
+              "        \"uart\": \"" jesc(uart) "\",\n" \
+              "        \"umonat\": \"" jesc(monat) "\",\n" \
+              "        \"ustunde\": \"" jesc(stunde) "\",\n" \
+              "        \"uwochentag\": \"" jesc(wtag) "\",\n" \
+              "        \"strzustand\": \"" jesc(strz) "\",\n" \
+              "        \"istrad\": \"" jesc(v_istrad) "\",\n" \
+              "        \"istpkw\": \"" jesc(v_ispkw) "\",\n" \
+              "        \"istfuss\": \"" jesc(v_isfuss) "\",\n" \
+              "        \"istkrad\": \"" jesc(v_iskrad) "\",\n" \
+              "        \"istgkfz\": \"" jesc(v_isgkfz) "\",\n" \
+              "        \"istsonstig\": \"" jesc(v_isson) "\"\n" \
+              "      }\n" \
+              "    }" >> outfeat
+      }
+    '; then
     echo "WARN: Verarbeitung fehlgeschlagen für Jahr $year (ignoriert, Combined bleibt sauber)." >&2
     rm -f "$y_csv_tmp" "$y_feat_tmp" 2>/dev/null || true
     return 0
@@ -466,7 +511,6 @@ process_year_to_buffers() {
   if [ -s "$y_csv_tmp" ]; then
     cat "$y_csv_tmp" >> "$COMBINED_CSV_TMP"
   fi
-
   if [ -s "$y_feat_tmp" ]; then
     if [ "$COMBINED_HAS_FEATURES" = "1" ]; then
       printf ",\n" >> "$COMBINED_FEATS_TMP"
@@ -482,7 +526,7 @@ process_year_to_buffers() {
     outcsv_year_tmp="${outcsv_year}.tmp"
     outgeo_year_tmp="${outgeo_year}.tmp"
 
-    echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD" > "$outcsv_year_tmp"
+    echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD,ISTGKFZ,ISTSONSTIG" > "$outcsv_year_tmp"
     cat "$y_csv_tmp" >> "$outcsv_year_tmp"
 
     {
@@ -519,7 +563,7 @@ run_combined_for_current_region() {
   : > "$COMBINED_FEATS_TMP"
   COMBINED_HAS_FEATURES="0"
 
-  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD" > "$COMBINED_CSV_TMP"
+  echo "WKT,Name,OBJECTID,UKATEGORIE,UTYP1,UART,UMONAT,USTUNDE,UWOCHENTAG,STRZUSTAND,ULICHTVERH,ISTRAD,ISTPKW,ISTFUSS,ISTKRAD,ISTGKFZ,ISTSONSTIG" > "$COMBINED_CSV_TMP"
 
   for y in $YEARS; do
     process_year_to_buffers "$y" || true
