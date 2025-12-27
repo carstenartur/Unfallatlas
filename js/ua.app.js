@@ -111,6 +111,8 @@
       }
     }
 
+
+
     UA.bindUi(ctx);
     bindExport(ctx);
 
@@ -119,8 +121,16 @@
 
     UA.recomputeAndRender(ctx);
 
+// nachdem ui gebaut ist, map existiert, ctx gesetzt ist:
+UA.Export.init({ ctx, ui, map });
+
+// optional: wenn export=1 in URL -> direkt öffnen
+if (UA.qBool("export", false)) {
+  setTimeout(() => ui.btnOpenExport.click(), 200);
+}
+
     // auto open export
-    if (UA.qBool("export", false)) setTimeout(()=> ctx.ui.btnOpenExport.click(), 200);
+    //if (UA.qBool("export", false)) setTimeout(()=> ctx.ui.btnOpenExport.click(), 200);
   }
 
   main().catch(err => {
