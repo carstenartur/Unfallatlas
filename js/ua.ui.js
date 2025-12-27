@@ -1,5 +1,6 @@
 (() => {
-  const UA = window.UA;
+  const UA = (window.UA = window.UA || {});
+  
 
   UA.bindDom = function bindDom(ctx){
     const ui = {};
