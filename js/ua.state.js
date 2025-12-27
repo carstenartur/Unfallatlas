@@ -1,5 +1,5 @@
 (() => {
-  const UA = window.UA;
+  const UA = (window.UA = window.UA || {});
 
   const CANON = {
     city: "city",
