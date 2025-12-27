@@ -1,5 +1,5 @@
 (() => {
-  const UA = window.UA;
+  const UA = (window.UA = window.UA || {});
 
   UA.COMBO_LABEL = {
     1:  "🚲",
