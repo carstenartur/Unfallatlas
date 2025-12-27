@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Unfallwerkbank – Analyse + Export</title>
+
+  <!-- Build info -->
+  <meta name="unfallwerkbank-build" content="2025-12-27 00:00 UTC"/>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+
+  <!-- Heatmap -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
+
+  <!-- Leaflet.draw -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js" crossorigin=""></script>
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/ua.css?v=2025-12-27" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel" id="panel">
+    <div class="panelHeader">
+      <div>
+        <div class="panelTitle">Unfallwerkbank</div>
+        <div class="panelSub" id="panelSub">(Viewport + Analyse/Export)</div>
+      </div>
+      <div class="headerBtns">
+        <div class="legendBtn" id="legendBtn" title="Legende ein-/ausblenden">i</div>
+        <div class="collapseBtn" id="collapseBtn" title="Ein-/Ausklappen">v</div>
+      </div>
+    </div>
+
+    <div class="panelBody">
+      <div class="row">
+        <label for="citySel">Stadt</label>
+        <select id="citySel"><option value="">Lade…</option></select>
+      </div>
+
+      <div class="row">
+        <label for="severity">Unfallschwere</label>
+        <select id="severity">
+          <option value="all">Alle</option>
+          <option value="1">1 – Getötete</option>
+          <option value="2">2 – Schwerverletzte</option>
+          <option value="3">3 – Leichtverletzte</option>
+        </select>
+      </div>
+
+      <div style="margin-top:10px; font-weight:900;">Beteiligung (Filter)</div>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" id="incBike" checked> <span>🚲 Rad</span></label>
+        <label class="chip"><input type="checkbox" id="incPed" checked> <span>🚶 Fuß</span></label>
+        <label class="chip"><input type="checkbox" id="incCar" checked> <span>🚗 PKW</span></label>
+        <label class="chip"><input type="checkbox" id="incMoto"> <span>🏍️ Krad</span></label>
+      </div>
+
+      <div class="toggles">
+        <div id="modeOr" class="btn active">ODER</div>
+        <div id="modeAnd" class="btn">UND</div>
+        <div id="modeSolo" class="btn">Alleinunfall</div>
+      </div>
+
+      <div style="margin-top:10px; font-weight:900;">Zeit & Bedingungen</div>
+
+      <div class="row">
+        <label>Uhrzeit</label>
+        <div class="rangeWrap">
+          <div class="rangeLabel">
+            <span>von: <strong id="hFromLbl">0</strong></span>
+            <span>bis: <strong id="hToLbl">23</strong></span>
+          </div>
+          <div class="dualRange">
+            <div class="dualRangeTrack"></div>
+            <div class="dualRangeFill" id="hourFill"></div>
+            <input id="hFrom" type="range" min="0" max="23" step="1" value="0" />
+            <input id="hTo" type="range" min="0" max="23" step="1" value="23" />
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="dayType">Wochentag</label>
+        <select id="dayType">
+          <option value="all">Alle</option>
+          <option value="weekend">Nur Wochenende (Sa/So)</option>
+          <option value="weekday">Nur Werktag (Mo–Fr)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="roadCondition">Fahrbahnzustand</label>
+        <select id="roadCondition">
+          <option value="all">Alle</option>
+          <option value="0">Trocken</option>
+          <option value="1">Nass/feucht</option>
+          <option value="2">Winterglatt</option>
+          <option value="__unknown__">Unbekannt</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="maxPoints">Max Punkte</label>
+        <input id="maxPoints" type="number" min="500" step="500" value="100000" />
+      </div>
+
+      <div class="row">
+        <label for="viewportPaddingPct">Viewport-Puffer</label>
+        <input id="viewportPaddingPct" type="number" min="0" max="100" step="5" value="20" />
+      </div>
+
+      <div class="row">
+        <label for="heatRadius">Heat-Radius</label>
+        <input id="heatRadius" type="number" min="5" max="60" step="1" value="25" />
+      </div>
+
+      <div class="toggles">
+        <div id="toggleCluster" class="btn active">Cluster</div>
+        <div id="toggleHeat" class="btn active">Heatmap</div>
+        <div id="toggleOnlyHot" class="btn">Nur „auffällig“</div>
+      </div>
+
+      <div style="margin-top:10px; font-weight:900;">Ausschnitt & Export</div>
+      <div class="toggles">
+        <div id="btnDraw" class="btn">Bereich markieren</div>
+        <div id="btnClearDraw" class="btn">Markierung löschen</div>
+        <div id="btnOpenExport" class="btn">Analyse/Export öffnen</div>
+      </div>
+
+      <div class="legendBox" id="legendBox">
+        <strong>Legende / Hinweise</strong>
+        <ul>
+          <li><strong>Nur „auffällig“</strong> blendet nur solche Unfälle ein, die zu überrepräsentierten <em>exakten</em> Beteiligungskombinationen gehören.</li>
+          <li><strong>Bereich markieren</strong>: Rechteck aufziehen → Export bezieht sich auf die Markierung (sonst: aktueller Viewport).</li>
+          <li><strong>URL sauber halten</strong>: die Seite entfernt doppelte/alte Parameter beim Laden automatisch.</li>
+        </ul>
+      </div>
+
+      <div class="stat" id="stat">Lade Daten…</div>
+      <div class="muted">
+        Quelle: <code id="dataSourceCode">-</code><br/>
+        Build: <code id="buildInfo">-</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalOverlay" id="modalOverlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modalHeader">
+        <div class="modalTitle">Bezirksrat-Entwurf (Prototyp)</div>
+        <div class="modalBtns">
+          <div class="smallBtn" id="btnCopyText">Text kopieren</div>
+          <div class="smallBtn" id="btnCopyLink">Link kopieren</div>
+          <div class="smallBtn" id="btnCloseModal">Schließen</div>
+        </div>
+      </div>
+      <div class="progressLine" id="exportProgress">-</div>
+
+      <div id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85);">
+        <div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label for="exportBoxTa" style="grid-column:1/-1; font-weight:800;">Text zum Kopieren (Word/Clipboard)</label>
+        <textarea id="exportBoxTa" style="grid-column:1/-1; width:100%; min-height:220px; resize:vertical; padding:10px; border-radius:12px; border:1px solid rgba(0,0,0,.15); font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- App JS (ohne Build, stabil in GitHub Pages) -->
+  <script>window.UA = { BUILD: "2025-12-27 00:00 UTC" };</script>
+  <script src="js/ua.util.js?v=2025-12-27"></script>
+  <script src="js/ua.state.js?v=2025-12-27"></script>
+  <script src="js/ua.data.js?v=2025-12-27"></script>
+  <script src="js/ua.filters.js?v=2025-12-27"></script>
+  <script src="js/ua.map.js?v=2025-12-27"></script>
+  <script src="js/ua.export.js?v=2025-12-27"></script>
+  <script src="js/ua.ui.js?v=2025-12-27"></script>
+  <script src="js/ua.app.js?v=2025-12-27"></script>
+</body>
+</html>
