@@ -1,5 +1,5 @@
 (() => {
-  const UA = window.UA;
+  const UA = (window.UA = window.UA || {});
 
   UA.initLeaflet = function initLeaflet(ctx){
     if (!window.L) throw new Error("Leaflet fehlt.");
