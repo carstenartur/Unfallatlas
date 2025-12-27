@@ -1,25 +1,12 @@
-/* ua.core.js
- * Core-Helfer + globaler UA-Namespace
- * Muss VOR allen anderen ua.* Modulen geladen werden.
+/* js/ua.core.js
+ * Basis-Helfer + globaler Namespace "UA"
+ * Muss als ERSTES geladen werden!
  */
-(function () {
-  'use strict';
-
-  // Global Namespace
+(() => {
+  // IMPORTANT: niemals UA überschreiben, immer "merge"
   const UA = (window.UA = window.UA || {});
 
-  // --- Basic helpers ---------------------------------------------------------
-
-  UA.normKey = function normKey(s) {
-    return String(s ?? "")
-      .toLowerCase()
-      .replaceAll("ä", "ae").replaceAll("ö", "oe").replaceAll("ü", "ue").replaceAll("ß", "ss")
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/_+/g, "_")
-      .replace(/^_/, "")
-      .replace(/_$/, "");
-  };
-
+  // --- kleine Utilities
   UA.escHtml = function escHtml(s) {
     return String(s ?? "")
       .replaceAll("&", "&amp;")
@@ -28,27 +15,37 @@
       .replaceAll('"', "&quot;");
   };
 
-  UA.qs = function qs() {
-    return new URL(window.location.href).searchParams;
+  UA.normKey = function normKey(s) {
+    return String(s ?? "")
+      .toLowerCase()
+      .replaceAll("ä", "ae")
+      .replaceAll("ö", "oe")
+      .replaceAll("ü", "ue")
+      .replaceAll("ß", "ss")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_/, "")
+      .replace(/_$/, "");
   };
 
+  // --- Querystring helpers
+  function _qs() {
+    return new URL(window.location.href).searchParams;
+  }
+
   UA.qGet = function qGet(k, def) {
-    try {
-      const v = UA.qs().get(k);
-      return (v === null || v === "") ? def : v;
-    } catch (e) {
-      return def;
-    }
+    const v = _qs().get(k);
+    return v === null || v === "" ? def : v;
   };
 
   UA.qBool = function qBool(k, def) {
-    const v = UA.qGet(k, null);
+    const v = _qs().get(k);
     if (v === null) return def;
     return v === "1" || v === "true" || v === "yes";
   };
 
   UA.qNum = function qNum(k, def) {
-    const v = UA.qGet(k, null);
+    const v = _qs().get(k);
     const n = v === null ? NaN : Number(v);
     return Number.isFinite(n) ? n : def;
   };
@@ -64,17 +61,12 @@
     return u.toString();
   };
 
-  // Optional: defensive assert helper (useful in modules)
-  UA.assert = function assert(cond, msg) {
-    if (!cond) throw new Error(msg || "UA.assert failed");
+  // --- UI helper
+  UA.setBtnState = function setBtnState(btn, on) {
+    if (!btn) return;
+    btn.classList.toggle("active", !!on);
   };
 
-  // Optional: tiny logger
-  UA.log = function log(...args) {
-    // keep quiet by default; enable by setting UA_DEBUG=1 in console
-    try {
-      if (window.UA_DEBUG) console.log("[UA]", ...args);
-    } catch {}
-  };
-
+  // --- Debug marker (hilft beim Prüfen, ob core wirklich geladen ist)
+  UA.__coreLoaded = true;
 })();
