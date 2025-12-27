@@ -1,5 +1,5 @@
 (() => {
-  const UA = window.UA;
+  const UA = (window.UA = window.UA || {});
 
   UA.qs = () => new URL(window.location.href).searchParams;
   UA.qGet = (k, def) => {
