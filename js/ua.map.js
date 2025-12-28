@@ -317,6 +317,26 @@
     return Math.max(12, Math.round(base * 1.25));
   };
 
+UA.heatOpacityForZoom = function heatOpacityForZoom(z) {
+  if (z <= 11) return 0.75;  // starke Übersicht
+  if (z === 12) return 0.65;
+  if (z === 13) return 0.55;
+  if (z === 14) return 0.40;
+  if (z === 15) return 0.25;
+  if (z === 16) return 0.15;
+  if (z === 17) return 0.08;
+  return 0.04;              // sehr nah: fast weg
+};
+
+UA.heatBlurForZoom = function heatBlurForZoom(z) {
+  if (z <= 12) return 20;
+  if (z <= 14) return 18;
+  if (z <= 16) return 14;
+  return 10;
+};
+
+
+
   UA.renderLayers = function renderLayers(ctx) {
     if (ctx.clusterLayer) {
       ctx.clusterLayer.remove();
@@ -374,19 +394,30 @@
     }
 
     // ---- Heatmap (zoom-adaptiv)
-    if (ctx.showHeatmap) {
-      const z = ctx.map.getZoom();
-      const uiBase = ctx.ui?.heatRadiusEl?.value ?? "25";
-      const radius = UA.heatRadiusForZoom(z, uiBase);
 
-      const heatPts = pts.map((p) => {
-        const k = String(p.props?.ukategorie || "");
-        const w = k === "1" ? 1.0 : k === "2" ? 0.7 : k === "3" ? 0.4 : 0.5;
-        return [p.lat, p.lon, w];
-      });
 
-      ctx.heatLayer = L.heatLayer(heatPts, { radius, blur: 18, maxZoom: 17 }).addTo(ctx.map);
-    }
+if (ctx.showHeatmap) {
+  const z = ctx.map.getZoom();
+  const uiBase = ctx.ui?.heatRadiusEl?.value ?? "25";
+
+  const radius = UA.heatRadiusForZoom(z, uiBase);
+  const opacity = UA.heatOpacityForZoom(z);
+  const blur = UA.heatBlurForZoom ? UA.heatBlurForZoom(z) : 18;
+
+  const heatPts = pts.map(p => {
+    const k = String(p.props?.ukategorie || "");
+    const w = (k === "1") ? 1.0 : (k === "2") ? 0.7 : (k === "3") ? 0.4 : 0.5;
+    return [p.lat, p.lon, w];
+  });
+
+  ctx.heatLayer = L.heatLayer(heatPts, {
+    radius,
+    blur,
+    maxZoom: 17,
+    opacity
+  }).addTo(ctx.map);
+}
+
 
     const statEl = ctx.ui.statEl;
     statEl.textContent =
