@@ -255,7 +255,10 @@ if (center) {
         ? `Im Ausschnitt wurden ${sev.bySev["1"]} Getötete, ${sev.bySev["2"] || 0} Schwerverletzte und ${sev.bySev["3"] || 0} Leichtverletzte registriert.`
         : `Im Ausschnitt wurden ${sev.bySev["2"] || 0} Schwerverletzte und ${sev.bySev["3"] || 0} Leichtverletzte registriert.`),
       date: new Date().toLocaleDateString("de-DE"),
-      link: window.location.href
+      link: window.location.href,
+      location_label: loc ? loc.label : "",
+location_details: loc ? loc.details : "",
+location_osm: loc ? loc.osmUrl : ""
     };
 
     const [tIntro, tSach, tBesch, tHinw, tLiz] = await Promise.all([
