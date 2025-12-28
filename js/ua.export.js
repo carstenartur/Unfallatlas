@@ -362,4 +362,61 @@
 
     return { text: textOut, html: htmlOut };
   };
+  
+  
+  // sehr kleine Cache-Strategie, damit beim Klicken nicht dauernd neue Requests kommen
+  const _rgCache = new Map();
+
+  UA.reverseGeocode = async function reverseGeocode(lat, lon){
+    const key = `${lat.toFixed(5)},${lon.toFixed(5)}`;
+    if (_rgCache.has(key)) return _rgCache.get(key);
+
+    // Fallback-Text (wenn alles schief geht)
+    const fallback = {
+      label: `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+      details: "",
+      osmUrl: `https://www.openstreetmap.org/?mlat=${encodeURIComponent(lat)}&mlon=${encodeURIComponent(lon)}#map=18/${encodeURIComponent(lat)}/${encodeURIComponent(lon)}`
+    };
+
+    try {
+      // Nominatim (OSM) Reverse; kann je nach Browser/CORS/Policy manchmal blocken.
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
+      const r = await fetch(url, {
+        method: "GET",
+        cache: "no-store",
+        headers: { "Accept": "application/json" }
+      });
+      if (!r.ok) throw new Error(`reverse status ${r.status}`);
+      const j = await r.json();
+
+      // display_name ist meist am brauchbarsten
+      const label = j.display_name || fallback.label;
+
+      // optional: hübschere Kurzform aus address-Objekt
+      const a = j.address || {};
+      const parts = [
+        a.road,
+        a.house_number ? String(a.house_number) : "",
+        a.postcode,
+        a.city || a.town || a.village || a.municipality,
+        a.suburb || a.neighbourhood
+      ].filter(Boolean);
+
+      const details = parts.length ? parts.join(", ") : "";
+
+      const out = {
+        label,
+        details,
+        osmUrl: fallback.osmUrl
+      };
+
+      _rgCache.set(key, out);
+      return out;
+    } catch (e) {
+      _rgCache.set(key, fallback);
+      return fallback;
+    }
+  };
+  
+  
 })();
