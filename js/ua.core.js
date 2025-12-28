@@ -1,28 +1,29 @@
-/* js/ua.core.js */
 (() => {
-  // Never overwrite UA, only extend it
   const UA = (window.UA = window.UA || {});
 
-  // --- URL helpers ---
+  // ---- Core build info (optional) ----
+  UA.BUILD = UA.BUILD || "";
+
+  // ---- URL helpers ----
   UA.qs = function qs() {
     return new URL(window.location.href).searchParams;
   };
 
-  UA.qGet = function qGet(k, def) {
+  UA.qGet = function qGet(k, defVal) {
     const v = UA.qs().get(k);
-    return (v === null || v === "") ? def : v;
+    return (v === null || v === "") ? defVal : v;
   };
 
-  UA.qBool = function qBool(k, def) {
+  UA.qBool = function qBool(k, defVal) {
     const v = UA.qs().get(k);
-    if (v === null) return def;
+    if (v === null) return defVal;
     return v === "1" || v === "true" || v === "yes";
   };
 
-  UA.qNum = function qNum(k, def) {
+  UA.qNum = function qNum(k, defVal) {
     const v = UA.qs().get(k);
     const n = v === null ? NaN : Number(v);
-    return Number.isFinite(n) ? n : def;
+    return Number.isFinite(n) ? n : defVal;
   };
 
   UA.setQS = function setQS(updates, replace = false) {
@@ -36,13 +37,12 @@
     return u.toString();
   };
 
-  // --- tiny UI helper ---
+  // ---- small DOM helpers ----
   UA.setBtnState = function setBtnState(btn, on) {
     if (!btn) return;
     btn.classList.toggle("active", !!on);
   };
 
-  // --- string helpers ---
   UA.escHtml = function escHtml(s) {
     return String(s ?? "")
       .replaceAll("&", "&amp;")
@@ -59,21 +59,5 @@
       .replace(/_+/g, "_")
       .replace(/^_/, "")
       .replace(/_$/, "");
-  };
-
-  // --- basic assertions / diagnostics (optional but helpful) ---
-  UA.assert = function assert(cond, msg) {
-    if (!cond) throw new Error(msg || "Assertion failed");
-  };
-
-  UA.diag = function diag() {
-    // Helpful when debugging on mobile Safari:
-    // shows whether core functions exist at runtime
-    return {
-      hasQS: typeof UA.qs === "function",
-      hasQGet: typeof UA.qGet === "function",
-      hasSetBtnState: typeof UA.setBtnState === "function",
-      build: UA.BUILD || ""
-    };
   };
 })();
