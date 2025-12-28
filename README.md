@@ -167,6 +167,96 @@ out/
  ├─ output_all_years.csv
  └─ output_all_years.geojson
 ```
+
+---
+
+## Interaktive Unfallwerkbank (werkbank.html)
+
+Neben der reinen Datenkonvertierung enthält dieses Projekt eine **interaktive Analyse- und Visualisierungsoberfläche**:
+
+👉 **https://carstenartur.github.io/Unfallatlas/werkbank.html**
+
+Die *Unfallwerkbank* nutzt ausschließlich die erzeugten **GeoJSON-Dateien** und erlaubt eine explorative Analyse direkt im Browser, ohne zusätzliche Server-Komponenten.
+
+### Zweck
+
+Die Werkbank dient dazu,
+
+- Unfallhäufungen räumlich zu erkennen
+- typische Beteiligungskombinationen (z. B. Alleinunfall Radfahrer) zu analysieren
+- zeitliche, strukturelle und infrastrukturelle Ursachen sichtbar zu machen
+- argumentationsfähige Berichte (z. B. für Bezirksräte) zu erzeugen
+
+### Zentrale Funktionen
+
+- **Städteauswahl** (auf Basis der erzeugten GeoJSON-Dateien)
+- **Filter**:
+  - Unfallschwere (UKATEGORIE)
+  - Beteiligung: Rad, Fuß, PKW, Krad
+  - Verknüpfung: ODER / UND / Alleinunfall
+  - Uhrzeit (Stundenbereich)
+  - Wochentag (Werktag / Wochenende)
+  - Fahrbahnzustand
+- **Darstellungsmodi**:
+  - Marker-Cluster
+  - Heatmap
+  - „Nur auffällige“ Bereiche (Hotspot-Erkennung)
+- **Freie Bereichsauswahl** per Rechteck (Leaflet.draw)
+
+### Cluster-Popup
+
+Beim Klick auf einen Cluster wird eine **Cluster-Analyse** angezeigt:
+
+- Anzahl der Unfälle im Cluster
+- Häufigste Beteiligungskombinationen (Piktogramme 🚲 🚶 🚗 🏍️)
+- Prozentuale Anteile
+- Optionaler Vergleich mit der stadtweiten Verteilung (Baseline)
+
+Dies erlaubt das Erkennen **lokal überrepräsentierter Unfallmuster**.
+
+### Analyse- & Export-Report
+
+Über „Analyse/Export öffnen“ wird ein automatisch erzeugter Report erstellt:
+
+- Auswertung des aktuellen Viewports oder der Markierung
+- Zusammenfassung der Filtereinstellungen
+- Statistische Kernaussagen (Anzahl, Schwere, Beteiligung)
+- Textausgabe optimiert für:
+  - Copy & Paste nach Word
+  - Weitergabe als URL mit identischem Zustand
+
+Der Report ist **deterministisch**:  
+gleiche URL ⇒ gleiche Auswertung.
+
+### Typischer Anwendungsfall
+
+Beispiel Hannover:
+
+- Filter: **Alleinunfälle Radfahrer**
+- Ergebnis: deutliche Häufung an einem Straßenabschnitt nahe Theatermuseum
+- Analyse zeigt das Zusammenwirken von:
+  1. schlechtem Straßenzustand
+  2. Kopfsteinpflaster
+  3. Straßenbahnschienen
+
+Solche Muster sind im Rohdatensatz kaum sichtbar, werden aber in der Werkbank unmittelbar nachvollziehbar.
+
+### Technische Hinweise
+
+- Die Werkbank ist **rein clientseitig** (HTML + JavaScript)
+- Keine Nutzung der CSV-Ausgabe
+- Datenquelle: `output_all_years_<stadt>.geojson`
+- Modularer Aufbau (`js/ua.*.js`) zur getrennten Weiterentwicklung von:
+  - Daten
+  - Filtern
+  - Karte
+  - UI
+  - Export
+
+Die Werkbank befindet sich in aktiver Weiterentwicklung und ist primär als **Analyse- und Erkenntniswerkzeug** gedacht, nicht als fertiges Endprodukt.
+
+---
+
 https://carstenartur.github.io/Unfallatlas/
 
 Wählt man dann zb Alleinunfälle Radfahrer entdeckt man auf der Karte
