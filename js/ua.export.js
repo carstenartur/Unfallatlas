@@ -87,6 +87,8 @@
   function boundsForExport(ctx) {
     return ctx.selectionBounds ? ctx.selectionBounds : ctx.map.getBounds();
   }
+  
+  
 
   function inBounds(p, b) {
     return b.contains([p.lat, p.lon]);
@@ -226,6 +228,13 @@
   // --------------------
   UA.computeExportReport = async function computeExportReport(ctx) {
     const bounds = boundsForExport(ctx);
+    
+    const center = bounds.getCenter ? bounds.getCenter() : null;
+let loc = null;
+if (center) {
+  loc = await UA.reverseGeocode(center.lat, center.lng);
+}
+    
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const bStr = `${sw.lat.toFixed(5)},${sw.lng.toFixed(5)} – ${ne.lat.toFixed(5)},${ne.lng.toFixed(5)}`;
