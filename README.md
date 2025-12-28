@@ -255,17 +255,7 @@ Solche Muster sind im Rohdatensatz kaum sichtbar, werden aber in der Werkbank un
 
 Die Werkbank befindet sich in aktiver Weiterentwicklung und ist primär als **Analyse- und Erkenntniswerkzeug** gedacht, nicht als fertiges Endprodukt.
 
----
 
-https://carstenartur.github.io/Unfallatlas/
-
-Wählt man dann zb Alleinunfälle Radfahrer entdeckt man auf der Karte
-einen Strassenabschnitt vor dem Theathermuseum mit
-einer starken Häufung. Man kann dann leicht einsehen warum das so ist.
-Es kommen 3 Dinge zusammen:
-1. schlechter Strassenzustand
-2. Kopfsteinpflaster
-3. Strassenbahnschienen
 
 
 ---
