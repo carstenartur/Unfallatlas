@@ -276,6 +276,12 @@ location_osm: loc ? loc.osmUrl : ""
     lines.push(`Stadt: ${CITY_RAW}`);
     if (range) lines.push(`Datenzeitraum: ${range.minY}–${range.maxY}`);
     lines.push(`Ausschnitt (Bounds): ${bStr}`);
+    
+    if (loc) {
+  lines.push(`Lage/Adresse (Mittelpunkt): ${loc.details || loc.label}`);
+  lines.push(`OSM: ${loc.osmUrl}`);
+}
+    
     lines.push(`Datum: ${vars.date}`);
     lines.push("");
     lines.push(tpl(tSach, vars).trim());
@@ -331,6 +337,13 @@ location_osm: loc ? loc.osmUrl : ""
           <div><strong>Stadt:</strong> ${UA.escHtml(CITY_RAW)} | <strong>Bounds:</strong> <code>${UA.escHtml(bStr)}</code></div>
           <div><strong>Auswertung:</strong> lokal ${dev.local.total.toLocaleString()} Unfälle | Baseline ${dev.baseline.total.toLocaleString()} Unfälle</div>
           <div><strong>Datenzeitraum:</strong> ${range ? (range.minY + "–" + range.maxY) : "—"}</div>
+          
+          ${loc ? `
+  <div><strong>Lage (Mittelpunkt):</strong> ${UA.escHtml(loc.details || loc.label)}
+    &nbsp; <a href="${UA.escHtml(loc.osmUrl)}" target="_blank" rel="noopener">OSM</a>
+  </div>
+` : ``}
+          
         </div>
 
         <div style="margin-top:12px; font-weight:900;">Top-Abweichungen</div>
