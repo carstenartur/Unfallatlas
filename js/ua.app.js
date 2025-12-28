@@ -121,12 +121,16 @@
 
     UA.recomputeAndRender(ctx);
 
+
+
 // nachdem ui gebaut ist, map existiert, ctx gesetzt ist:
-UA.Export.init({ ctx, ui, map });
+if (UA.Export && typeof UA.Export.init === "function") {
+  UA.Export.init({ ctx, ui: ctx.ui, map: ctx.map });
+}
 
 // optional: wenn export=1 in URL -> direkt öffnen
 if (UA.qBool("export", false)) {
-  setTimeout(() => ui.btnOpenExport.click(), 200);
+  setTimeout(() => ctx.ui.btnOpenExport.click(), 200);
 }
 
     // auto open export
