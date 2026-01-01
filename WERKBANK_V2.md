@@ -293,6 +293,169 @@ Mögliche Erweiterungen der V2-Funktionalität:
 4. **Bezugsdokumente-Metadaten**: Tags, Kategorien, Relevanz-Scores
 5. **Automatische Bezugsdokument-Zuordnung**: Basierend auf Unfallmuster
 
+## Word/PDF Export (NEU)
+
+### Überblick
+
+Ab Version V2 können Berichte direkt als **Word-Dokument (.docx)** oder **PDF** exportiert werden. Diese Dokumente sind speziell für politische/administrative Dokumente (z.B. Bezirksratsanträge) formatiert.
+
+### Funktionen
+
+#### Export-Formate
+
+- **Word (.docx)**: Vollständig editierbares Dokument für weitere Bearbeitung
+- **PDF**: Druckfertiges Dokument zur direkten Verwendung
+
+#### Dokumentstruktur
+
+Die exportierten Dokumente enthalten folgende Abschnitte:
+
+1. **Deckblatt**
+   - Stadt / Gebiet
+   - Datum
+   - Betreff (Verbesserung der Verkehrssicherheit)
+
+2. **SACHVERHALT**
+   - Anzahl der Unfälle im betrachteten Gebiet
+   - Verteilung nach Unfallschwere
+   - Zeitliche und räumliche Einordnung
+
+3. **KARTENAUSSCHNITT** (optional)
+   - Hochauflösende Karte des Unfallbereichs
+   - Programmatisch erzeugt (kein Screenshot)
+   - Unfallpunkte farblich nach Schweregrad markiert
+   - Legende integriert
+
+4. **SENSIBLE EINRICHTUNGEN** (optional, wenn POI-Daten verfügbar)
+   - Auflistung betroffener Schulen/Kitas im Umkreis
+   - Distanzangaben
+   - Sicherheitshinweise
+
+5. **BESCHLUSSVORSCHLAG**
+   - Standardtext mit Empfehlungen
+   - Sofortmaßnahmen
+   - Infrastrukturmaßnahmen
+   - Monitoring-Vorschläge
+
+6. **FACHLICHE BEZÜGE** (optional, wenn Referenzdokumente verfügbar)
+   - Links zu relevanten Leitfäden
+   - Fachpapiere und Konzepte
+   - Planerische Bezüge
+
+7. **DATENQUELLE**
+   - Lizenzhinweise
+   - Quellenangaben
+
+#### Export-Optionen
+
+Im Export-Dialog können folgende Optionen ausgewählt werden:
+
+- ☑ **Kartenausschnitt**: Fügt eine Karte des Unfallbereichs ein
+- ☑ **POIs (Schulen/Kitas)**: Integriert POI-Analyse
+- ☑ **Referenzdokumente**: Fügt fachliche Bezüge hinzu
+
+### Technische Details
+
+#### Verwendete Bibliotheken
+
+- **docx.js** (v8.2.2): Word-Dokument-Erstellung
+- **pdfMake** (v0.2.10): PDF-Dokument-Erstellung
+- **leaflet-image** (v0.4.0): Programmatische Kartenerstellung
+- **FileSaver.js** (v2.0.5): Download-Funktionalität
+
+Alle Bibliotheken werden von CDN geladen (unpkg.com).
+
+#### Kartenexport
+
+Die Karten werden **programmatisch** erzeugt (nicht als Screenshot):
+
+- Verwendet `leaflet-image` zur Konvertierung der Leaflet-Karte
+- Erzeugt hochauflösende PNG-Bilder
+- Reproduzierbare Ergebnisse
+- Maßstab und Zoomstufe entsprechen der aktuellen Kartenansicht
+
+#### Clientseitige Verarbeitung
+
+Die gesamte Export-Funktionalität läuft **rein clientseitig**:
+
+- Keine Server-Anfragen notwendig
+- Datenschutzfreundlich
+- Funktioniert auch offline (nach initialem Laden)
+- Schnelle Verarbeitung
+
+### Verwendung
+
+1. **Bereich markieren** (optional)
+   - Klicke auf "Bereich markieren"
+   - Ziehe ein Rechteck über den zu analysierenden Bereich
+   - Oder nutze den aktuellen Viewport
+
+2. **Analyse/Export öffnen**
+   - Klicke auf "Analyse/Export öffnen"
+   - Der Text-Report wird automatisch erzeugt
+   - Review die Analyse im Modal
+
+3. **Export-Optionen wählen**
+   - Wähle gewünschte Optionen (Karte, POIs, Referenzen)
+   - Standardmäßig sind alle Optionen aktiviert
+
+4. **Export starten**
+   - Klicke auf "📄 Word (.docx)" für Word-Export
+   - Oder klicke auf "📑 PDF" für PDF-Export
+   - Das Dokument wird automatisch heruntergeladen
+
+### Dateinamenskonvention
+
+Exportierte Dateien folgen diesem Schema:
+
+```
+Bezirksratsantrag_[Stadt]_[Datum].docx
+Bezirksratsantrag_[Stadt]_[Datum].pdf
+```
+
+Beispiel: `Bezirksratsantrag_Hannover_01-01-2026.docx`
+
+### Browser-Kompatibilität
+
+Die Export-Funktionalität ist kompatibel mit:
+
+- Chrome/Edge (empfohlen)
+- Firefox
+- Safari (eingeschränkt bei Kartenexport)
+
+**Hinweis**: Moderne Browser erforderlich (ES6+ Support)
+
+### Fehlerbehandlung
+
+Bei Problemen:
+
+1. **Kartenexport fehlgeschlagen**: Der Bericht wird ohne Karte erstellt
+2. **Bibliothek nicht geladen**: Überprüfe Internetverbindung
+3. **Download blockiert**: Erlaube Downloads für diese Seite
+
+Fehler werden in der Browser-Konsole protokolliert.
+
+### Best Practices
+
+1. **Kartenausschnitt vorbereiten**
+   - Zoome auf den relevanten Bereich
+   - Stelle sicher, dass alle wichtigen Unfälle sichtbar sind
+   - Nutze "Bereich markieren" für präzise Auswahl
+
+2. **POI-Daten**
+   - POI-Daten müssen für die Stadt verfügbar sein
+   - Siehe Abschnitt "POI-Integration" für Details
+
+3. **Nachbearbeitung**
+   - Word-Dokumente können nach Export weiter bearbeitet werden
+   - Passe Formulierungen an lokale Gegebenheiten an
+   - Ergänze spezifische Details und Kontextinformationen
+
+4. **Qualitätssicherung**
+   - Prüfe generierte Texte auf Plausibilität
+   - Vergleiche mit Ortskenntnis
+   - Ziehe bei Bedarf Unfallkommission hinzu
+
 ## Lizenz und Datenquellen
 
 - **POI-Daten**: © OpenStreetMap contributors, ODbL
