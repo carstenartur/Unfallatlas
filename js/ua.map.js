@@ -344,16 +344,11 @@
   }
 
   UA.renderLayers = function renderLayers(ctx) {
-    // Layer caching: only remove and rebuild if data has changed
-    const currentZoom = ctx.map.getZoom();
-    const shouldRebuildCluster = !ctx.clusterLayer || ctx._lastClusterZoom !== currentZoom || ctx._dataChanged;
-    const shouldRebuildHeat = !ctx.heatLayer || ctx._lastHeatZoom !== currentZoom || ctx._dataChanged;
-    
-    if (shouldRebuildCluster && ctx.clusterLayer) {
+    if (ctx.clusterLayer) {
       ctx.clusterLayer.remove();
       ctx.clusterLayer = null;
     }
-    if (shouldRebuildHeat && ctx.heatLayer) {
+    if (ctx.heatLayer) {
       ctx.heatLayer.remove();
       ctx.heatLayer = null;
     }
@@ -376,8 +371,8 @@
       }
     }
 
-    // ---- Cluster (zoom-adaptiv, but only rebuild when needed)
-    if (ctx.showCluster && shouldRebuildCluster) {
+    // ---- Cluster (zoom-adaptiv, aber NICHT bei Zoom 19 deaktivieren!)
+    if (ctx.showCluster) {
       const clusterLayer = L.markerClusterGroup({
         chunkedLoading: true,
         chunkInterval: 250,
@@ -390,27 +385,20 @@
         // Sonst gibt es bei Zoom 19 keine Cluster für Punkte gleicher Koordinate.
       });
 
-      // Batch operation: create all markers first, then add them all at once
-      const markers = pts.map(p => {
+      for (const p of pts) {
         const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
         m._uaProps = p.props || {};
         m._uaPoint = p;
-        return m;
-      });
-      
-      // Use batch add for better performance
-      if (markers.length > 0) {
-        clusterLayer.addLayers(markers);
+        clusterLayer.addLayer(m);
       }
 
       clusterLayer.addTo(ctx.map);
       UA.bindClusterPopup(ctx, clusterLayer);
       ctx.clusterLayer = clusterLayer;
-      ctx._lastClusterZoom = currentZoom;
     }
 
-    // ---- Heatmap (zoom-adaptiv + opacity per Canvas, only rebuild when needed)
-    if (ctx.showHeatmap && shouldRebuildHeat) {
+    // ---- Heatmap (zoom-adaptiv + opacity per Canvas)
+    if (ctx.showHeatmap) {
       const z = ctx.map.getZoom();
       const uiBase = ctx.ui?.heatRadiusEl?.value ?? "25";
 
@@ -431,23 +419,8 @@
       }).addTo(ctx.map);
 
       applyHeatOpacity(ctx.heatLayer, opacity);
-      ctx._lastHeatZoom = currentZoom;
     }
 
-    // Update stats and store hotInfo in context
-    ctx._lastHotInfo = hotInfo;
-    UA.updateStats(ctx, hotInfo);
-    
-    // Reset data changed flag
-    ctx._dataChanged = false;
-  };
-  
-  // Separate stats update function for pan-only updates
-  UA.updateStats = function updateStats(ctx, hotInfo) {
-    // Use stored hotInfo if not provided (e.g., during pan-only updates)
-    if (hotInfo === undefined) {
-      hotInfo = ctx._lastHotInfo || "";
-    }
     const statEl = ctx.ui.statEl;
     statEl.textContent =
       `Stadt: ${ctx.CITY_RAW} | geladen: ${(ctx.allPts?.length || 0).toLocaleString()} | ` +
