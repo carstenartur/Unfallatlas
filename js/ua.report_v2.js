@@ -58,6 +58,7 @@
     const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = window.docx;
 
     const children = [];
+    const textLines = reportData.text.split("\n");
 
     // ---- Title / Cover ----
     const CITY_RAW = ctx.CITY_RAW || "—";
@@ -108,7 +109,7 @@
 
     // Parse the text report to extract the SACHVERHALT section using helper
     const sachverhaltSection = extractSection(
-      reportData.text,
+      textLines,
       "Sachverhalt:",
       ["Auffälligkeiten:", "POI-Analyse", "Bezugsdokumente:", "Beschlussvorschlag:"]
     );
@@ -358,7 +359,7 @@
         }
       },
       defaultStyle: {
-        font: "Helvetica"
+        font: "Roboto"
       }
     };
 
@@ -516,11 +517,25 @@
    * Extract a section from text lines
    * @param {Array<string>} lines - Text lines
    * @param {string} sectionHeader - Section header to look for
+   * @param {Array<string>} [stopSections] - Optional array of section headers to stop at
    * @returns {Array<string>} Section lines
    */
-  function extractSection(lines, sectionHeader) {
+  function extractSection(lines, sectionHeader, stopSections) {
     const result = [];
     let inSection = false;
+    
+    // Default stop sections if none provided
+    const defaultStopSections = [
+      "Sachverhalt:",
+      "Auffälligkeiten:",
+      "POI-Analyse",
+      "Bezugsdokumente:",
+      "Beschlussvorschlag:",
+      "Hinweis (intern)",
+      "Datenquelle"
+    ];
+    
+    const stopPatterns = stopSections || defaultStopSections;
     
     for (const line of lines) {
       if (line.includes(sectionHeader)) {
@@ -529,8 +544,10 @@
       }
       
       if (inSection) {
-        // Stop at next major section
-        if (line.match(/^(Sachverhalt:|Auffälligkeiten:|POI-Analyse|Bezugsdokumente:|Beschlussvorschlag:|Hinweis \(intern\)|Datenquelle)/)) {
+        // Stop at next major section (check if line starts with any stop pattern)
+        const trimmedLine = line.trim();
+        const shouldStop = stopPatterns.some(pattern => trimmedLine.startsWith(pattern));
+        if (shouldStop) {
           break;
         }
         
