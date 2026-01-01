@@ -362,10 +362,10 @@
       if (ctx.ui.maxPointsEl) params.set("maxPoints", ctx.ui.maxPointsEl.value);
       if (ctx.ui.viewportPaddingEl) params.set("viewportPaddingPct", ctx.ui.viewportPaddingEl.value);
       if (ctx.ui.heatRadiusEl) params.set("heatRadius", ctx.ui.heatRadiusEl.value);
-      if (ctx.ui.incBikeEl) params.set("includeCyclist", ctx.ui.incBikeEl.checked ? "1" : "0");
-      if (ctx.ui.incPedEl) params.set("includePedestrian", ctx.ui.incPedEl.checked ? "1" : "0");
-      if (ctx.ui.incCarEl) params.set("includeCar", ctx.ui.incCarEl.checked ? "1" : "0");
-      if (ctx.ui.incMotoEl) params.set("includeMotorcycle", ctx.ui.incMotoEl.checked ? "1" : "0");
+      if (ctx.ui.incBikeEl) params.set("includeCyclist", ctx.ui.incBikeEl.checked ? 1 : 0);
+      if (ctx.ui.incPedEl) params.set("includePedestrian", ctx.ui.incPedEl.checked ? 1 : 0);
+      if (ctx.ui.incCarEl) params.set("includeCar", ctx.ui.incCarEl.checked ? 1 : 0);
+      if (ctx.ui.incMotoEl) params.set("includeMotorcycle", ctx.ui.incMotoEl.checked ? 1 : 0);
     }
     
     // Involvement mode
@@ -374,9 +374,9 @@
     }
     
     // Display modes
-    if (ctx.showCluster !== undefined) params.set("showCluster", ctx.showCluster ? "1" : "0");
-    if (ctx.showHeatmap !== undefined) params.set("showHeatmap", ctx.showHeatmap ? "1" : "0");
-    if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", ctx.showOnlyAboveAverage ? "1" : "0");
+    if (ctx.showCluster !== undefined) params.set("showCluster", ctx.showCluster ? 1 : 0);
+    if (ctx.showHeatmap !== undefined) params.set("showHeatmap", ctx.showHeatmap ? 1 : 0);
+    if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", ctx.showOnlyAboveAverage ? 1 : 0);
     
     // Map position
     if (ctx.map) {
@@ -395,9 +395,23 @@
       params.set("selEast", ctx.selectionBounds.getEast().toFixed(6));
     }
     
-    // Build full URL - use relative path assuming same domain
-    const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, "werkbank_v2.html");
-    return `${baseUrl}?${params.toString()}`;
+    // Build full URL
+    // Determine werkbank path:
+    // 1) per-call override via ctx.werkbankPath
+    // 2) global configuration via window.UA_WERKBANK_PATH
+    // 3) fallback: same directory as current page (preserve existing behavior)
+    const fallbackWerkbankPath = window.location.pathname.replace(/[^/]*$/, "werkbank_v2.html");
+    const werkbankPath =
+      (ctx && ctx.werkbankPath) ||
+      (typeof window !== "undefined" && window.UA_WERKBANK_PATH) ||
+      fallbackWerkbankPath;
+
+    // Build full URL using URL API for robust resolution
+    const baseUrl = new URL(werkbankPath, window.location.origin).toString();
+    
+    // Only append query string if there are parameters
+    const query = params.toString();
+    return query ? `${baseUrl}?${query}` : baseUrl;
   }
 
   /**
@@ -409,8 +423,9 @@
     if (text == null) {
       return "";
     }
-    // URL regex pattern - excludes trailing punctuation
-    const urlPattern = /(https?:\/\/[^\s]+?)(?=[.,!?;:]?(?:\s|$))/g;
+    // URL regex pattern - matches URLs and excludes common trailing punctuation
+    // that is likely to be sentence punctuation rather than part of the URL
+    const urlPattern = /(https?:\/\/[^\s)]+?)([.,!?;:)]*)(?=\s|$)/g;
     const matches = [...text.matchAll(urlPattern)];
     
     if (matches.length === 0) {
@@ -422,7 +437,8 @@
     let lastIndex = 0;
     
     for (const match of matches) {
-      const url = match[0];
+      const url = match[1]; // URL without trailing punctuation
+      const trailingPunct = match[2]; // Captured trailing punctuation
       const offset = match.index;
       
       // Add text before URL
@@ -438,7 +454,12 @@
         decoration: "underline"
       });
       
-      lastIndex = offset + url.length;
+      // Add trailing punctuation as regular text (if any)
+      if (trailingPunct) {
+        content.push({ text: trailingPunct });
+      }
+      
+      lastIndex = offset + match[0].length;
     }
     
     // Add remaining text
