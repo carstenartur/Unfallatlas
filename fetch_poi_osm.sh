@@ -44,7 +44,7 @@ fi
 
 echo "==> bbox: S=$SOUTH N=$NORTH W=$WEST E=$EAST"
 
-# Funktion für Overpass-API-Aufruf mit Retry-Logik
+# Function for Overpass API call with retry logic
 fetch_overpass() {
   local query="$1"
   local max_retries=5
@@ -59,22 +59,22 @@ fetch_overpass() {
       --data-urlencode "data=$query" \
       "https://overpass-api.de/api/interpreter")"
     
-    # Prüfe ob Antwort gültiges JSON mit "elements" ist (robuste Validierung)
+    # Check if response is valid JSON with "elements" array (robust validation)
     if echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); sys.exit(0 if 'elements' in data else 1)" 2>/dev/null; then
       echo "$response"
       return 0
     fi
     
-    # Rate limiting oder Fehler - warte und versuche erneut
+    # Rate limiting or error - wait and retry
     if [[ $i -lt $max_retries ]]; then
       echo "==> Rate limited or error (invalid JSON or missing 'elements'), waiting ${retry_delay}s before retry..."
-      # Zeige ersten Teil der Antwort für Debugging
+      # Show first part of response for debugging
       echo "==> Response preview: $(echo "$response" | head -c 200)..."
       sleep "$retry_delay"
-      # Exponential backoff: verdopple die Wartezeit
+      # Exponential backoff: double the wait time
       retry_delay=$((retry_delay * 2))
     else
-      # Letzter Versuch fehlgeschlagen - zeige Antwort für Debugging
+      # Last attempt failed - show response for debugging
       echo "ERROR: Last response received:"
       echo "$response" | head -n 10
     fi
@@ -108,12 +108,6 @@ OV_JSON="$(fetch_overpass "$QL")" || {
   echo "ERROR: Failed to fetch data from Overpass API"
   exit 2
 }
-
-# Basic check if OV_JSON is not empty (detailed validation done in fetch_overpass)
-if [[ -z "$OV_JSON" ]]; then
-  echo "ERROR: Empty response from Overpass API"
-  exit 2
-fi
 
 # Convert Overpass JSON -> GeoJSON (minimal, jq-less):
 # We'll write a simple FeatureCollection with Point features using lat/lon or center.
@@ -170,6 +164,6 @@ print(json.dumps(out, ensure_ascii=False))
 
 echo "==> Done. POIs: $(python3 -c "import json; print(len(json.load(open('$OUTFILE'))['features']))")"
 
-# Warte zwischen Städten um Rate-Limiting zu vermeiden
+# Wait between cities to avoid rate limiting
 echo "==> Waiting 3s before next request..."
 sleep 3
