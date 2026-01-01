@@ -1,0 +1,31 @@
+{
+  "documents": [
+    {
+      "title": "Mobilitätsgesetz Berlin",
+      "author": "Land Berlin",
+      "date": "2018-07-05",
+      "url": "https://www.berlin.de/sen/uvk/mobilitaet-und-verkehr/verkehrspolitik/mobilitaetsgesetz/",
+      "description": "Gesetzliche Grundlage zur Neuausrichtung der Verkehrspolitik mit Fokus auf Verkehrssicherheit und vulnerable Verkehrsteilnehmer."
+    },
+    {
+      "title": "Vision Zero Berlin – Strategie zur Vermeidung von Verkehrstoten",
+      "author": "Senatsverwaltung für Umwelt, Mobilität, Verbraucher- und Klimaschutz",
+      "date": "2024",
+      "url": "https://www.berlin.de/sen/uvk/mobilitaet-und-verkehr/verkehrssicherheit/vision-zero/",
+      "description": "Strategieprogramm zur Reduktion schwerer und tödlicher Verkehrsunfälle auf null. Definiert Handlungsfelder und Maßnahmen."
+    },
+    {
+      "title": "Die Ideale Kreuzung – Leitfaden für sichere Knotenpunkte",
+      "author": "Region Hannover",
+      "date": "2023",
+      "url": "https://www.hannover.de/Leben-in-der-Region-Hannover/Mobilit%C3%A4t/Radfahren-Fu%C3%9Fverkehr/Radverkehr/Die-Ideale-Kreuzung",
+      "description": "Überregional anwendbarer Leitfaden zur Gestaltung sicherer Kreuzungen."
+    },
+    {
+      "title": "Empfehlungen für Radverkehrsanlagen (ERA)",
+      "author": "FGSV",
+      "date": "2010",
+      "description": "Bundesweites Regelwerk zur Planung von Radverkehrsanlagen."
+    }
+  ]
+}

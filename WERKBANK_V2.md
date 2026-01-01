@@ -1,0 +1,300 @@
+# Unfallwerkbank V2 - POI und Bezugsdokumente
+
+## Überblick
+
+Die Unfallwerkbank V2 (`werkbank_v2.html`) erweitert die ursprüngliche Unfallwerkbank um zwei neue Funktionen:
+
+1. **POI-Integration (Points of Interest)**: Schulen, Kindergärten und Kitas
+2. **Bezugsdokumente**: Verweise auf relevante Dokumente und Konzepte
+
+Die ursprüngliche `werkbank.html` bleibt unverändert und voll funktionsfähig.
+
+## Architektur
+
+### Parallele Versionierung
+
+- **werkbank.html**: Original-Version, nutzt `ua.export.js`
+- **werkbank_v2.html**: Neue Version, nutzt `ua.export_v2.js`
+
+Beide Versionen teilen sich die gleichen Basis-Module:
+- `ua.core.js`
+- `ua.util.js`
+- `ua.state.js`
+- `ua.ui.js`
+- `ua.data.js`
+- `ua.filters.js`
+- `ua.map.js`
+- `ua.app.js`
+
+## POI-Integration
+
+### Datenformat
+
+POI-Daten werden als GeoJSON im Verzeichnis `out/` erwartet:
+
+```
+out/poi_<stadtslug>.geojson
+```
+
+Beispiel: `out/poi_hannover.geojson`
+
+### GeoJSON-Struktur
+
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7320, 52.3759]
+      },
+      "properties": {
+        "id": "osm:node:123456",
+        "type": "school",
+        "name": "Beispiel-Grundschule",
+        "source": "OpenStreetMap/Overpass"
+      }
+    }
+  ]
+}
+```
+
+### Unterstützte POI-Typen
+
+- `school` (Schulen)
+- `kindergarten` (Kindergärten)
+- `childcare` (Kitas)
+
+### POI-Daten erzeugen
+
+Das mitgelieferte Script `fetch_poi_osm.sh` lädt POI-Daten von OpenStreetMap:
+
+```bash
+./fetch_poi_osm.sh "Hannover"
+```
+
+Dies erzeugt automatisch die Datei `out/poi_hannover.geojson`.
+
+**GitHub Workflow**: Ein automatisierter GitHub Actions Workflow (`generate-and-commit.yml`) erzeugt POI-Daten für alle Städte in `cities.txt`. Der Workflow kann manuell ausgelöst werden und committet die erzeugten Dateien automatisch.
+
+### POI-Analyse im Export
+
+Die V2-Exportfunktion analysiert automatisch:
+
+1. **POIs im Ausschnitt**: Direkt innerhalb des markierten/angezeigten Bereichs
+2. **POIs in der Nähe**: Innerhalb von 200m vom Ausschnitt
+
+Die Analyse wird sowohl im Text-Export als auch im HTML-Report dargestellt.
+
+### Fail-Safe-Verhalten
+
+- Fehlende POI-Daten führen **nicht** zu Fehlern
+- Der Export funktioniert normal weiter
+- Es wird lediglich keine POI-Sektion angezeigt
+- Warnungen werden in der Browser-Konsole ausgegeben
+
+## Bezugsdokumente
+
+### Datenformat
+
+Bezugsdokumente werden als JSON im Verzeichnis `templates/` erwartet:
+
+```
+templates/references_<stadtslug>.json
+```
+
+Beispiel: `templates/references_hannover.json`
+
+Diese Struktur ermöglicht die zentrale Verwaltung von Bezugsdokumenten zusammen mit anderen Templates.
+
+### JSON-Struktur
+
+```json
+{
+  "documents": [
+    {
+      "title": "Die Ideale Kreuzung – Leitfaden für sichere Knotenpunkte",
+      "author": "Region Hannover",
+      "date": "2023",
+      "url": "https://www.hannover.de/...",
+      "description": "Planerischer Leitfaden zur Gestaltung sicherer Kreuzungen mit Fokus auf vulnerable Verkehrsteilnehmer. Beschreibt konkrete Gestaltungskriterien zur Vermeidung typischer Unfallmuster."
+    }
+  ]
+}
+```
+
+**Wichtig**: Bezugsdokumente sollten fachlich relevante, planerisch anschlussfähige Quellen sein:
+- Planerische Leitfäden und Standards (z.B. ERA, RASt, "Die Ideale Kreuzung")
+- Empirische Verkehrsforschung zu spezifischen Unfallmustern
+- Regionale Verkehrssicherheitskonzepte und Mobilitätspläne
+- Regelwerke und Best Practices zur Knotenpunktgestaltung
+
+Keine beliebigen Link-Sammlungen, sondern kontextualisierte Referenzen mit klarer Begründung ihrer Relevanz für die konkrete Unfallhäufung.
+
+### Felder
+
+- `title` (erforderlich): Titel des Dokuments
+- `author` (optional): Autor/Organisation
+- `date` (optional): Datum (Format beliebig, z.B. "YYYY-MM-DD")
+- `url` (optional): Link zum Dokument
+- `description` (optional): Kurzbeschreibung
+
+### Darstellung im Export
+
+Bezugsdokumente werden in beiden Export-Formaten dargestellt:
+
+- **Text-Export**: Als Liste mit allen Details
+- **HTML-Report**: Als formatierte Liste mit anklickbaren Links
+
+### Fail-Safe-Verhalten
+
+- Fehlende Bezugsdokumente führen **nicht** zu Fehlern
+- Der Export funktioniert normal weiter
+- Es wird lediglich keine Bezugsdokumente-Sektion angezeigt
+- Warnungen werden in der Browser-Konsole ausgegeben
+
+## Verwendung
+
+### Werkbank V2 öffnen
+
+Öffnen Sie `werkbank_v2.html` im Browser oder verwenden Sie die GitHub Pages URL:
+
+```
+https://carstenartur.github.io/Unfallatlas/werkbank_v2.html
+```
+
+### POI-Daten für eine Stadt hinzufügen
+
+1. POI-Daten abrufen:
+   ```bash
+   ./fetch_poi_osm.sh "Berlin"
+   ```
+
+2. Datei wird erstellt: `out/poi_berlin.geojson`
+
+3. Bei Verwendung mit GitHub Pages: Datei committen und pushen
+
+Alternativ: GitHub Actions Workflow auslösen, der automatisch POIs für alle Städte in `cities.txt` generiert.
+
+### Bezugsdokumente für eine Stadt hinzufügen
+
+1. JSON-Datei erstellen: `templates/references_<stadtslug>.json`
+
+2. Dokumente nach dem obigen Format eintragen (fachlich relevante Quellen)
+
+3. Bei Verwendung mit GitHub Pages: Datei committen und pushen
+
+## Stadt-Slug-Konvention
+
+Der Stadt-Slug wird aus dem Stadtnamen abgeleitet:
+
+- Kleinbuchstaben
+- Umlaute normalisiert (ä→ae, ö→oe, ü→ue, ß→ss)
+- Leerzeichen und Sonderzeichen → Unterstrich
+- Mehrfache Unterstriche → ein Unterstrich
+
+Beispiele:
+- "Hannover" → `hannover`
+- "Frankfurt am Main" → `frankfurt_am_main`
+- "Köln" → `koeln`
+- "München" → `muenchen`
+
+Die Funktion `UA.normKey()` aus `ua.utils.js` wird dafür verwendet.
+
+## Templates
+
+Die V2-Version nutzt die gleichen Text-Templates wie die Original-Version:
+
+```
+templates/intro.txt
+templates/sachverhalt.txt
+templates/beschluss.txt
+templates/hinweis.txt
+templates/lizenz.txt
+```
+
+Zusätzlich können stadtspezifische Bezugsdokumente definiert werden:
+
+```
+templates/references_<stadtslug>.json
+```
+
+Die Templates können angepasst werden. Falls eine Datei fehlt, werden Standardtexte verwendet.
+
+## Koexistenz beider Versionen
+
+Beide Versionen können parallel betrieben werden:
+
+- `werkbank.html`: Bewährte Version ohne POI/Bezugsdokumente
+- `werkbank_v2.html`: Neue Version mit erweiterten Features
+
+Die Wahl der Version erfolgt durch die URL. Alle weiteren Funktionen (Filter, Darstellung, Analyse) sind identisch.
+
+## Technische Details
+
+### Verzeichnisstruktur
+
+```
+.
+├── werkbank.html              # Original-Version
+├── werkbank_v2.html           # V2 mit POI-Support
+├── js/
+│   ├── ua.export.js          # Original Export-Modul
+│   ├── ua.export_v2.js       # V2 Export-Modul mit POI/Ref-Docs
+│   └── ...                   # Gemeinsame Module
+├── out/
+│   ├── poi_hannover.geojson  # POI-Daten (GeoJSON)
+│   ├── poi_berlin.geojson
+│   ├── output_all_years_*.geojson  # Unfalldaten
+│   └── ...
+└── templates/                # Text-Templates + Referenzdokumente
+    ├── intro.txt
+    ├── sachverhalt.txt
+    ├── ...
+    ├── references_hannover.json
+    ├── references_berlin.json
+    └── ...
+```
+
+### Spatial Analysis
+
+Die POI-Analyse nutzt:
+
+1. **Leaflet Bounds**: `bounds.contains([lat, lon])` für "innerhalb"
+2. **Distanzberechnung**: Leaflet's `distanceTo()` für "in der Nähe"
+3. **Buffer**: 200 Meter Standardpuffer um den Ausschnitt
+
+### Fehlerbehandlung
+
+Alle neuen Features sind mit Try-Catch-Blöcken geschützt:
+
+```javascript
+try {
+  const poiData = await loadPOIData(citySlug);
+  if (poiData) {
+    poiAnalysis = analyzePOIs(poiData, bounds);
+  }
+} catch (e) {
+  console.warn("POI analysis failed:", e);
+}
+```
+
+Dadurch wird sichergestellt, dass Fehler beim Laden oder Verarbeiten von POI/Bezugsdokumenten den Export nicht blockieren.
+
+## Zukünftige Erweiterungen
+
+Mögliche Erweiterungen der V2-Funktionalität:
+
+1. **Erweiterte POI-Typen**: Bushaltestellen, Seniorenheime, etc.
+2. **POI-Overlay auf Karte**: POIs direkt auf der Karte darstellen
+3. **Interaktive POI-Filter**: POI-Typen ein-/ausblenden
+4. **Bezugsdokumente-Metadaten**: Tags, Kategorien, Relevanz-Scores
+5. **Automatische Bezugsdokument-Zuordnung**: Basierend auf Unfallmuster
+
+## Lizenz und Datenquellen
+
+- **POI-Daten**: © OpenStreetMap contributors, ODbL
+- **Unfalldaten**: Unfallatlas, Datenlizenz Deutschland – Namensnennung – Version 2.0
+- **Code**: Siehe LICENSE-Datei des Projekts

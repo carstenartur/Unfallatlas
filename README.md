@@ -178,6 +178,20 @@ Neben der reinen Datenkonvertierung enthält dieses Projekt eine **interaktive A
 
 Die *Unfallwerkbank* nutzt ausschließlich die erzeugten **GeoJSON-Dateien** und erlaubt eine explorative Analyse direkt im Browser, ohne zusätzliche Server-Komponenten.
 
+### Unfallwerkbank V2 (mit POI und Bezugsdokumenten)
+
+Eine erweiterte Version mit POI-Integration (Schulen, Kindergärten, Kitas) und Bezugsdokumenten ist verfügbar:
+
+👉 **https://carstenartur.github.io/Unfallatlas/werkbank_v2.html**
+
+Die V2 ergänzt die Export-Reports um:
+- **POI-Analyse**: Automatische Erkennung von Schulen/Kindergärten/Kitas im oder nahe dem Unfallbereich
+- **Bezugsdokumente**: Integration relevanter Verkehrssicherheitskonzepte und Planungen
+
+**Wichtig:** Die ursprüngliche `werkbank.html` bleibt unverändert erhalten und funktioniert weiterhin vollständig.
+
+Weitere Details zur V2-Funktionalität: siehe [WERKBANK_V2.md](WERKBANK_V2.md)
+
 ### Zweck
 
 Die Werkbank dient dazu,
