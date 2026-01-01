@@ -318,6 +318,20 @@
   // =====================================================================
 
   /**
+   * Replace emoji icons with text labels for PDF compatibility
+   * pdfMake's default Roboto font doesn't support emoji glyphs
+   * @param {string} text - Text containing emoji icons
+   * @returns {string} Text with emojis replaced by readable labels
+   */
+  function replaceEmojisForPDF(text) {
+    return text
+      .replace(/🚲/g, "[Rad]")
+      .replace(/🚶/g, "[Fuss]")
+      .replace(/🚗/g, "[PKW]")
+      .replace(/🏍️/g, "[Krad]");
+  }
+
+  /**
    * Generate and download PDF document
    * @param {Object} ctx - Application context
    * @param {Object} reportData - Report data from UA.computeExportReport
@@ -330,7 +344,9 @@
 
     const CITY_RAW = ctx.CITY_RAW || "—";
     const today = new Date().toLocaleDateString("de-DE");
-    const textLines = reportData.text.split("\n");
+    // Replace emojis with text labels for PDF compatibility
+    const pdfText = replaceEmojisForPDF(reportData.text);
+    const textLines = pdfText.split("\n");
 
     const docDefinition = {
       pageSize: "A4",
@@ -424,7 +440,7 @@
         });
 
         docDefinition.content.push({
-          text: "Legende: Unfälle nach Schweregrad farblich markiert. POIs (Schulen/Kitas) hervorgehoben.",
+          text: "Legende: Unfälle nach Schweregrad farblich markiert. Beteiligungskategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad. POIs (Schulen/Kitas) hervorgehoben.",
           style: "small"
         });
       } catch (e) {
