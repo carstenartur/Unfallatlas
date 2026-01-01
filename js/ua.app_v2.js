@@ -99,6 +99,9 @@
 
     // data
     await UA.loadCityData(ctx);
+    
+    // POI data (optional, fail-safe)
+    await UA.loadPOIData(ctx);
 
     // if no URL view and no state: fit
     if (!UA.viewParamsPresent()) {
