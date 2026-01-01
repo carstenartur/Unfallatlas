@@ -1,10 +1,7 @@
-name: Fetch POIs (schools/kindergartens) for cities.txt
+name: Fetch POIs for cities.txt
 
 on:
   workflow_dispatch:
-  # optional: regelmäßig
-  # schedule:
-  #   - cron: "23 2 * * 0"  # So 02:23 UTC
 
 permissions:
   contents: write
@@ -22,8 +19,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      - name: Read cities.txt
-        id: cities
+      - name: Fetch POIs for all cities (skip if already present)
         shell: bash
         run: |
           set -euo pipefail
@@ -33,34 +29,10 @@ jobs:
             exit 2
           fi
 
-          mapfile -t CITIES < <(
-            sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt \
-            | awk 'NF'
-          )
-
-          if (( ${#CITIES[@]} == 0 )); then
-            echo "No cities found in cities.txt"
-            exit 2
-          fi
-
-          echo "Cities (${#CITIES[@]}):"
-          printf ' - %s\n' "${CITIES[@]}"
-
-          {
-            echo "cities<<'EOF'"
-            printf '%s\n' "${CITIES[@]}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Fetch POIs (skip if already exists)
-        shell: bash
-        run: |
-          set -euo pipefail
-
           # === HIER anpassen: Pfad zu deinem Script ===
-          POI_SCRIPT="./scripts/fetch_poi_osm.sh"
-          # z.B. wenn es im Repo-Root liegt:
-          # POI_SCRIPT="./fetch_poi_osm.sh"
+          POI_SCRIPT="./fetch_pois.sh"
+          # z.B. wenn es woanders liegt:
+          # POI_SCRIPT="./scripts/fetch_pois.sh"
 
           if [[ ! -f "$POI_SCRIPT" ]]; then
             echo "POI script not found: $POI_SCRIPT"
@@ -77,11 +49,21 @@ jobs:
               | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g'
           }
 
-          changed=0
+          # Read cities (1 per line), ignore blanks and comments
+          mapfile -t CITIES < <(
+            sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt \
+            | awk 'NF'
+          )
 
-          while IFS= read -r CITY; do
-            [[ -z "$CITY" ]] && continue
+          if (( ${#CITIES[@]} == 0 )); then
+            echo "No cities found in cities.txt"
+            exit 2
+          fi
 
+          echo "Cities (${#CITIES[@]}):"
+          printf ' - %s\n' "${CITIES[@]}"
+
+          for CITY in "${CITIES[@]}"; do
             CITY_SLUG="$(slug "$CITY")"
             OUTFILE="out/poi_${CITY_SLUG}.geojson"
 
@@ -92,21 +74,45 @@ jobs:
 
             echo "RUN: $CITY -> $OUTFILE"
             "$POI_SCRIPT" "$CITY"
-            changed=1
-          done <<< "${{ steps.cities.outputs.cities }}"
 
-          echo "Changed? $changed"
+            # optional: etwas schonender ggü. Nominatim/Overpass
+            sleep 1
+          done
 
-      - name: Commit & Push POI outputs
+      - name: Validate POI GeoJSON outputs (basic)
         shell: bash
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          import glob, json, sys
+          files = sorted(glob.glob("out/poi_*.geojson"))
+          if not files:
+            print("No POI geojson files found (out/poi_*.geojson)")
+            sys.exit(2)
+          bad = []
+          for f in files:
+            try:
+              with open(f, "r", encoding="utf-8") as fp:
+                j = json.load(fp)
+              if j.get("type") != "FeatureCollection":
+                raise ValueError("Not a FeatureCollection")
+              if "features" not in j:
+                raise ValueError("Missing features")
+            except Exception as e:
+              bad.append((f, str(e)))
+          if bad:
+            print("Invalid GeoJSON:")
+            for f,e in bad:
+              print(" -", f, "->", e)
+            sys.exit(2)
+          print("POI GeoJSON OK:", len(files))
+          PY
 
-          # Sicherheitsnetz: keine tmp-Dateien committen
-          find out -type f -name '*.tmp' -print -delete || true
-
+      - name: Commit & Push changes
+        shell: bash
+        run: |
+          set -euo pipefail
           git add out/poi_*.geojson 2>/dev/null || true
           git diff --cached --quiet && exit 0
-
-          git commit -m "Update POI GeoJSONs for cities.txt"
+          git commit -m "Update POI GeoJSONs (schools/kindergartens) for cities.txt"
           git push origin HEAD:${{ github.ref_name }}
