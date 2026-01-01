@@ -1,0 +1,25 @@
+{
+  "documents": [
+    {
+      "title": "Verkehrssicherheitskonzept Hannover 2023",
+      "author": "Stadt Hannover, Verkehrsdezernat",
+      "date": "2023-06-15",
+      "url": "https://example.com/verkehrssicherheit-2023.pdf",
+      "description": "Umfassendes Konzept zur Verbesserung der Verkehrssicherheit in der Stadt Hannover mit Fokus auf vulnerable Verkehrsteilnehmer."
+    },
+    {
+      "title": "Radverkehrsplan Hannover 2025",
+      "author": "Stadt Hannover",
+      "date": "2024-03-20",
+      "url": "https://example.com/radverkehrsplan-2025.pdf",
+      "description": "Strategischer Plan zur Förderung des Radverkehrs und Erhöhung der Sicherheit für Radfahrende."
+    },
+    {
+      "title": "Schulwegsicherung - Leitfaden",
+      "author": "Landesverkehrswacht Niedersachsen",
+      "date": "2022-09-10",
+      "url": "https://example.com/schulwegsicherung.pdf",
+      "description": "Leitfaden zur systematischen Analyse und Verbesserung der Schulwegsicherheit."
+    }
+  ]
+}
