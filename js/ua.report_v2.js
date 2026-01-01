@@ -553,69 +553,75 @@
       return;
     }
 
+    /**
+     * Attach a generic export handler to a button.
+     *
+     * @param {HTMLButtonElement} button - The button to bind the handler to.
+     * @param {string} inProgressText - Message shown while export is running.
+     * @param {string} successText - Message shown when export succeeds.
+     * @param {string} consoleErrorPrefix - Prefix for console error logging.
+     * @param {string} alertErrorPrefix - Prefix for alert error message.
+     * @param {Function} exportFn - Export function (e.g., UA.exportToWord/PDF).
+     */
+    function attachExportHandler(
+      button,
+      inProgressText,
+      successText,
+      consoleErrorPrefix,
+      alertErrorPrefix,
+      exportFn
+    ) {
+      button.addEventListener("click", async () => {
+        try {
+          exportProgress.textContent = inProgressText;
+          button.style.opacity = "0.6";
+          button.style.cursor = "not-allowed";
+          button.disabled = true;
+
+          // Get current report data
+          const reportData = await UA.computeExportReport(ctx);
+
+          // Get export options
+          const options = {
+            includeMap: cbIncludeMap ? cbIncludeMap.checked : true,
+            includePOIs: cbIncludePOIs ? cbIncludePOIs.checked : true,
+            includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true
+          };
+
+          await exportFn(ctx, reportData, options);
+
+          exportProgress.textContent = successText;
+        } catch (e) {
+          console.error(consoleErrorPrefix, e);
+          exportProgress.textContent = `Fehler: ${e.message}`;
+          alert(alertErrorPrefix + e.message);
+        } finally {
+          button.style.opacity = "1";
+          button.style.cursor = "pointer";
+          button.disabled = false;
+        }
+      });
+    }
+
     // Word export handler
-    btnExportWord.addEventListener("click", async () => {
-      try {
-        exportProgress.textContent = "Word-Dokument wird erstellt...";
-        btnExportWord.style.opacity = "0.6";
-        btnExportWord.style.cursor = "not-allowed";
-        btnExportWord.disabled = true;
-
-        // Get current report data
-        const reportData = await UA.computeExportReport(ctx);
-
-        // Get export options
-        const options = {
-          includeMap: cbIncludeMap ? cbIncludeMap.checked : true,
-          includePOIs: cbIncludePOIs ? cbIncludePOIs.checked : true,
-          includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true
-        };
-
-        await UA.exportToWord(ctx, reportData, options);
-        
-        exportProgress.textContent = "Word-Dokument erfolgreich erstellt.";
-      } catch (e) {
-        console.error("Word export failed:", e);
-        exportProgress.textContent = `Fehler: ${e.message}`;
-        alert("Word-Export fehlgeschlagen: " + e.message);
-      } finally {
-        btnExportWord.style.opacity = "1";
-        btnExportWord.style.cursor = "pointer";
-        btnExportWord.disabled = false;
-      }
-    });
+    attachExportHandler(
+      btnExportWord,
+      "Word-Dokument wird erstellt...",
+      "Word-Dokument erfolgreich erstellt.",
+      "Word export failed:",
+      "Word-Export fehlgeschlagen: ",
+      UA.exportToWord
+    );
 
     // PDF export handler
-    btnExportPDF.addEventListener("click", async () => {
-      try {
-        exportProgress.textContent = "PDF wird erstellt...";
-        btnExportPDF.style.opacity = "0.6";
-        btnExportPDF.style.cursor = "not-allowed";
-        btnExportPDF.disabled = true;
-
-        // Get current report data
-        const reportData = await UA.computeExportReport(ctx);
-
-        // Get export options
-        const options = {
-          includeMap: cbIncludeMap ? cbIncludeMap.checked : true,
-          includePOIs: cbIncludePOIs ? cbIncludePOIs.checked : true,
-          includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true
-        };
-
-        await UA.exportToPDF(ctx, reportData, options);
-        
-        exportProgress.textContent = "PDF erfolgreich erstellt.";
-      } catch (e) {
-        console.error("PDF export failed:", e);
-        exportProgress.textContent = `Fehler: ${e.message}`;
-        alert("PDF-Export fehlgeschlagen: " + e.message);
-      } finally {
-        btnExportPDF.style.opacity = "1";
-        btnExportPDF.style.cursor = "pointer";
-        btnExportPDF.disabled = false;
-      }
-    });
+    attachExportHandler(
+      btnExportPDF,
+      "PDF wird erstellt...",
+      "PDF erfolgreich erstellt.",
+      "PDF export failed:",
+      "PDF-Export fehlgeschlagen: ",
+      UA.exportToPDF
+    );
   };
 
 })();
