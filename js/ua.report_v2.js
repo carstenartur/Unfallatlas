@@ -165,9 +165,14 @@
           })
         );
 
+        const legendText =
+          ctx && typeof ctx.t === "function"
+            ? ctx.t("report.map.legend")
+            : "Legende: Darstellung entsprechend der aktuellen Kartendarstellung.";
+
         children.push(
           new Paragraph({
-            text: "Legende: Unfälle nach Schweregrad farblich markiert. POIs (Schulen/Kitas) hervorgehoben.",
+            text: legendText,
             italics: true,
             spacing: { after: 200 }
           })
