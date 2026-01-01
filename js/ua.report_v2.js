@@ -544,8 +544,9 @@
       }
       
       if (inSection) {
-        // Stop at next major section
-        const shouldStop = stopPatterns.some(pattern => line.includes(pattern));
+        // Stop at next major section (check if line starts with any stop pattern)
+        const trimmedLine = line.trim();
+        const shouldStop = stopPatterns.some(pattern => trimmedLine.startsWith(pattern));
         if (shouldStop) {
           break;
         }
