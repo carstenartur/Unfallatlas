@@ -489,8 +489,12 @@
 
     for (const feature of ctx.poiData.features) {
       if (!feature.geometry || feature.geometry.type !== "Point") continue;
-      
-      const [lon, lat] = feature.geometry.coordinates;
+
+      const coords = feature.geometry.coordinates;
+      if (!Array.isArray(coords) || coords.length !== 2) continue;
+
+      const [lon, lat] = coords;
+      if (typeof lon !== "number" || typeof lat !== "number" || !isFinite(lon) || !isFinite(lat)) continue;
       const props = feature.properties || {};
       const type = props.type || "unknown";
       const name = props.name || "Unbenannt";
