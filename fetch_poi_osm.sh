@@ -21,6 +21,7 @@ echo "==> Resolve bbox for: $CITY"
 # Nominatim -> bbox: [south, north, west, east]
 # We request JSON with boundingbox
 NOMI_JSON="$(curl -sG \
+  -A "Unfallatlas/1.0 (https://github.com/carstenartur/Unfallatlas)" \
   --data-urlencode "q=${CITY}, Germany" \
   --data-urlencode "format=json" \
   --data-urlencode "limit=1" \
@@ -64,6 +65,7 @@ out center tags;
 EOF
 
 OV_JSON="$(curl -s \
+  -A "Unfallatlas/1.0 (https://github.com/carstenartur/Unfallatlas)" \
   --data-urlencode "data=$QL" \
   "https://overpass-api.de/api/interpreter")"
 
