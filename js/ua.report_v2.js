@@ -406,6 +406,9 @@
    * @returns {Array|string} pdfMake content array with links or plain text
    */
   function textWithLinks(text) {
+    if (text == null) {
+      return "";
+    }
     // URL regex pattern - excludes trailing punctuation
     const urlPattern = /(https?:\/\/[^\s]+?)(?=[.,!?;:]?(?:\s|$))/g;
     const matches = [...text.matchAll(urlPattern)];
