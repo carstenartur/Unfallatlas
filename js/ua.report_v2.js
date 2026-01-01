@@ -151,25 +151,28 @@
         // Remove data URL prefix to get raw base64 (leaflet-image produces PNG)
         const base64Data = mapImageData.replace(/^data:image\/png;base64,/, "");
 
+        let binaryString;
         try {
-          children.push(
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)),
-                  transformation: {
-                    width: 600,
-                    height: 400
-                  }
-                })
-              ],
-              spacing: { after: 200 }
-            })
-          );
+          binaryString = atob(base64Data);
         } catch (decodeError) {
-          console.error("Failed to decode map image:", decodeError);
-          throw new Error("Kartenbild konnte nicht dekodiert werden");
+          console.error("Failed to decode base64 map image data:", decodeError);
+          throw new Error("Kartenbild konnte nicht dekodiert werden: ungültige Base64-Bilddaten");
         }
+
+        children.push(
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: Uint8Array.from(binaryString, c => c.charCodeAt(0)),
+                transformation: {
+                  width: 600,
+                  height: 400
+                }
+              })
+            ],
+            spacing: { after: 200 }
+          })
+        );
 
         children.push(
           new Paragraph({
