@@ -58,6 +58,7 @@
     const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = window.docx;
 
     const children = [];
+    const textLines = reportData.text.split("\n");
 
     // ---- Title / Cover ----
     const CITY_RAW = ctx.CITY_RAW || "—";
@@ -108,7 +109,7 @@
 
     // Parse the text report to extract the SACHVERHALT section using helper
     const sachverhaltSection = extractSection(
-      reportData.text,
+      textLines,
       "Sachverhalt:",
       ["Auffälligkeiten:", "POI-Analyse", "Bezugsdokumente:", "Beschlussvorschlag:"]
     );
@@ -358,7 +359,7 @@
         }
       },
       defaultStyle: {
-        font: "Helvetica"
+        font: "Roboto"
       }
     };
 
