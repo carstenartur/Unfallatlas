@@ -148,23 +148,28 @@
 
         const mapImageData = await UA.captureMapImage(ctx, options);
         
-        // Remove data URL prefix to get raw base64
-        const base64Data = mapImageData.replace(/^data:image\/(png|jpg|jpeg);base64,/, "");
+        // Remove data URL prefix to get raw base64 (leaflet-image produces PNG)
+        const base64Data = mapImageData.replace(/^data:image\/png;base64,/, "");
 
-        children.push(
-          new Paragraph({
-            children: [
-              new ImageRun({
-                data: Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)),
-                transformation: {
-                  width: 600,
-                  height: 400
-                }
-              })
-            ],
-            spacing: { after: 200 }
-          })
-        );
+        try {
+          children.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)),
+                  transformation: {
+                    width: 600,
+                    height: 400
+                  }
+                })
+              ],
+              spacing: { after: 200 }
+            })
+          );
+        } catch (decodeError) {
+          console.error("Failed to decode map image:", decodeError);
+          throw new Error("Kartenbild konnte nicht dekodiert werden");
+        }
 
         children.push(
           new Paragraph({
@@ -519,7 +524,7 @@
       
       if (inSection) {
         // Stop at next major section
-        if (line.match(/^(Sachverhalt:|Auffälligkeiten:|POI-Analyse|Bezugsdokumente:|Beschlussvorschlag:|Hinweis \(intern|Datenquelle)/)) {
+        if (line.match(/^(Sachverhalt:|Auffälligkeiten:|POI-Analyse|Bezugsdokumente:|Beschlussvorschlag:|Hinweis \(intern\)|Datenquelle)/)) {
           break;
         }
         
@@ -544,8 +549,8 @@
     const cbIncludeRefs = document.getElementById("cbIncludeRefs");
     const exportProgress = document.getElementById("exportProgress");
 
-    if (!btnExportWord || !btnExportPDF) {
-      console.warn("Export buttons not found in DOM");
+    if (!btnExportWord || !btnExportPDF || !exportProgress) {
+      console.warn("Export buttons or progress element not found in DOM");
       return;
     }
 

@@ -215,9 +215,9 @@ Due to the interactive nature of the feature, the following manual tests should 
 - `js/ua.report_v2.js` (617 lines) - New export module
 
 ### Modified
-- `werkbank_v2.html` (235 lines) - Added libraries and UI
-- `js/ua.app.js` (148 lines) - Added conditional initialization
-- `WERKBANK_V2.md` (463 lines) - Added comprehensive documentation
+- `werkbank_v2.html` - Added libraries and UI elements
+- `js/ua.app.js` - Added conditional initialization (3 lines added)
+- `WERKBANK_V2.md` - Added comprehensive documentation (163 lines added)
 
 ### Unchanged (As Required)
 - `werkbank.html` ✓
