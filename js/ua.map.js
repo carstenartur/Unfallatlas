@@ -2,6 +2,16 @@
   const UA = (window.UA = window.UA || {});
 
   // ----------------------------
+  // Severity colors for accident markers
+  // ----------------------------
+  const SEVERITY_COLORS = {
+    "1": "#e31a1c",  // Red for fatalities (Getötete)
+    "2": "#ff7f00",  // Orange for serious injuries (Schwerverletzte)
+    "3": "#ffff33",  // Yellow for minor injuries (Leichtverletzte)
+    "default": "#999999"  // Gray for unknown
+  };
+
+  // ----------------------------
   // Cluster Popup (mit "zu grob, bitte reinzoomen" bei kleinen Zoomstufen)
   // ----------------------------
   UA.bindClusterPopup = function bindClusterPopup(ctx, clusterLayer) {
@@ -352,6 +362,10 @@
       ctx.heatLayer.remove();
       ctx.heatLayer = null;
     }
+    if (ctx.poiLayer) {
+      ctx.poiLayer.remove();
+      ctx.poiLayer = null;
+    }
 
     let pts = ctx.viewportPts || [];
     const ptsBeforeHot = pts;
@@ -386,7 +400,16 @@
       });
 
       for (const p of pts) {
-        const m = L.circleMarker([p.lat, p.lon], { radius: 4 });
+        const ukategorie = String(p.props?.ukategorie || "");
+        const color = SEVERITY_COLORS[ukategorie] || SEVERITY_COLORS["default"];
+        const m = L.circleMarker([p.lat, p.lon], { 
+          radius: 4,
+          fillColor: color,
+          color: color,
+          weight: 1,
+          opacity: 0.8,
+          fillOpacity: 0.6
+        });
         m._uaProps = p.props || {};
         m._uaPoint = p;
         clusterLayer.addLayer(m);
@@ -421,6 +444,9 @@
       applyHeatOpacity(ctx.heatLayer, opacity);
     }
 
+    // ---- POI Layer (schools, kindergartens)
+    UA.renderPOILayer(ctx);
+
     const statEl = ctx.ui.statEl;
     statEl.textContent =
       `Stadt: ${ctx.CITY_RAW} | geladen: ${(ctx.allPts?.length || 0).toLocaleString()} | ` +
@@ -428,5 +454,66 @@
       `im Viewport: ${(ctx.viewportPts?.length || 0).toLocaleString()}` +
       (ctx.selectionBounds ? " | Markierung: aktiv" : "") +
       (hotInfo ? ` | ${hotInfo}` : "");
+  };
+
+  // ----------------------------
+  // POI Layer Rendering
+  // ----------------------------
+  UA.renderPOILayer = function renderPOILayer(ctx) {
+    if (!ctx.poiData || !ctx.poiData.features) return;
+
+    const z = ctx.map.getZoom();
+    // Only show POIs at zoom level 14 and higher
+    if (z < 14) return;
+
+    const poiLayer = L.featureGroup();
+
+    // Create custom icons for different POI types
+    const schoolIcon = L.divIcon({
+      html: '<div style="background-color:#2E86C1; color:white; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">🏫</div>',
+      className: 'poi-icon',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -12]
+    });
+
+    const kindergartenIcon = L.divIcon({
+      html: '<div style="background-color:#27AE60; color:white; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">🧒</div>',
+      className: 'poi-icon',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -12]
+    });
+
+    for (const feature of ctx.poiData.features) {
+      if (!feature.geometry || feature.geometry.type !== "Point") continue;
+      
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties || {};
+      const type = props.type || "unknown";
+      const name = props.name || "Unbenannt";
+
+      // Select icon based on type
+      let icon = kindergartenIcon;
+      if (type === "school") {
+        icon = schoolIcon;
+      }
+
+      const marker = L.marker([lat, lon], { icon });
+      
+      // Create popup with POI information
+      const popupContent = `
+        <div style="font:13px/1.35 system-ui; min-width:200px;">
+          <div style="font-weight:900; margin-bottom:4px;">${type === "school" ? "Schule" : "Kindergarten"}</div>
+          <div style="color:#444;">${UA.escHtml ? UA.escHtml(name) : name}</div>
+        </div>
+      `;
+      marker.bindPopup(popupContent);
+
+      poiLayer.addLayer(marker);
+    }
+
+    poiLayer.addTo(ctx.map);
+    ctx.poiLayer = poiLayer;
   };
 })();
