@@ -44,6 +44,49 @@ fi
 
 echo "==> bbox: S=$SOUTH N=$NORTH W=$WEST E=$EAST"
 
+# Function for Overpass API call with retry logic
+fetch_overpass() {
+  local query="$1"
+  local max_retries=5
+  local retry_delay=5
+  
+  for ((i=1; i<=max_retries; i++)); do
+    echo "==> Overpass API request (attempt $i/$max_retries)"
+    
+    local response
+    response="$(curl -s \
+      -A "Unfallatlas/1.0 (https://github.com/carstenartur/Unfallatlas)" \
+      --data-urlencode "data=$query" \
+      "https://overpass-api.de/api/interpreter")"
+    
+    # Check if response is valid JSON with "elements" array (robust validation)
+    if echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); sys.exit(0 if 'elements' in data else 1)" 2>/dev/null; then
+      echo "$response"
+      return 0
+    fi
+    
+    # Rate limiting or error - wait and retry
+    if [[ $i -lt $max_retries ]]; then
+      echo "==> Rate limited or error (invalid JSON or missing 'elements'), waiting ${retry_delay}s before retry..."
+      # Show first part of response for debugging
+      echo "==> Response preview: $(echo "$response" | head -c 200)..."
+      sleep "$retry_delay"
+      # Exponential backoff: double the wait time (cap at 120s to prevent overflow)
+      retry_delay=$((retry_delay * 2))
+      if [[ $retry_delay -gt 120 ]]; then
+        retry_delay=120
+      fi
+    else
+      # Last attempt failed - show response for debugging
+      echo "ERROR: Last response received:"
+      echo "$response" | head -n 10
+    fi
+  done
+  
+  echo "ERROR: Overpass API failed after $max_retries attempts"
+  return 1
+}
+
 echo "==> Query Overpass (schools/kindergartens/childcare)"
 # Overpass QL: bbox is (south,west,north,east)
 read -r -d '' QL <<EOF || true
@@ -64,23 +107,10 @@ read -r -d '' QL <<EOF || true
 out center tags;
 EOF
 
-OV_JSON="$(curl -s \
-  -A "Unfallatlas/1.0 (https://github.com/carstenartur/Unfallatlas)" \
-  --data-urlencode "data=$QL" \
-  "https://overpass-api.de/api/interpreter")"
-
-# Check if OV_JSON is empty
-if [[ -z "$OV_JSON" ]]; then
-  echo "ERROR: Empty response from Overpass API"
+OV_JSON="$(fetch_overpass "$QL")" || {
+  echo "ERROR: Failed to fetch data from Overpass API (see details above)"
   exit 2
-fi
-
-# Check if OV_JSON contains valid JSON with "elements" array at root level
-if ! echo "$OV_JSON" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); sys.exit(0 if 'elements' in data else 1)" 2>/dev/null; then
-  echo "ERROR: Invalid Overpass API response (no 'elements' array found):"
-  echo "$OV_JSON" | head -n 5
-  exit 2
-fi
+}
 
 # Convert Overpass JSON -> GeoJSON (minimal, jq-less):
 # We'll write a simple FeatureCollection with Point features using lat/lon or center.
@@ -136,3 +166,7 @@ print(json.dumps(out, ensure_ascii=False))
 " > "$OUTFILE"
 
 echo "==> Done. POIs: $(python3 -c "import json; print(len(json.load(open('$OUTFILE'))['features']))")"
+
+# Wait between cities to avoid rate limiting
+echo "==> Waiting 3s before next request..."
+sleep 3
