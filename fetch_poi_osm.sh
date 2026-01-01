@@ -71,8 +71,11 @@ fetch_overpass() {
       # Show first part of response for debugging
       echo "==> Response preview: $(echo "$response" | head -c 200)..."
       sleep "$retry_delay"
-      # Exponential backoff: double the wait time
+      # Exponential backoff: double the wait time (cap at 120s to prevent overflow)
       retry_delay=$((retry_delay * 2))
+      if [[ $retry_delay -gt 120 ]]; then
+        retry_delay=120
+      fi
     else
       # Last attempt failed - show response for debugging
       echo "ERROR: Last response received:"
@@ -105,7 +108,7 @@ out center tags;
 EOF
 
 OV_JSON="$(fetch_overpass "$QL")" || {
-  echo "ERROR: Failed to fetch data from Overpass API"
+  echo "ERROR: Failed to fetch data from Overpass API after 5 retry attempts"
   exit 2
 }
 
