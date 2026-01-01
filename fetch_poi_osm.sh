@@ -108,7 +108,7 @@ out center tags;
 EOF
 
 OV_JSON="$(fetch_overpass "$QL")" || {
-  echo "ERROR: Failed to fetch data from Overpass API after 5 retry attempts"
+  echo "ERROR: Failed to fetch data from Overpass API (see details above)"
   exit 2
 }
 
