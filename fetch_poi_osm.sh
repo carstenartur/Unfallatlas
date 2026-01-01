@@ -75,10 +75,10 @@ if [[ -z "$OV_JSON" ]]; then
   exit 2
 fi
 
-# Check if OV_JSON contains valid JSON with "elements" field
-if ! echo "$OV_JSON" | grep -q '"elements"'; then
-  echo "ERROR: Invalid Overpass API response (no 'elements' found):"
-  echo "$OV_JSON" | head -c 500
+# Check if OV_JSON contains valid JSON with "elements" array at root level
+if ! echo "$OV_JSON" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); sys.exit(0 if 'elements' in data else 1)" 2>/dev/null; then
+  echo "ERROR: Invalid Overpass API response (no 'elements' array found):"
+  echo "$OV_JSON" | head -n 5
   exit 2
 fi
 
