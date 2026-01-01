@@ -296,5 +296,5 @@ Mögliche Erweiterungen der V2-Funktionalität:
 ## Lizenz und Datenquellen
 
 - **POI-Daten**: © OpenStreetMap contributors, ODbL
-- **Unfallaten**: Unfallatlas, Datenlizenz Deutschland – Namensnennung – Version 2.0
+- **Unfalldaten**: Unfallatlas, Datenlizenz Deutschland – Namensnennung – Version 2.0
 - **Code**: Siehe LICENSE-Datei des Projekts
