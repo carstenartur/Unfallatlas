@@ -434,7 +434,8 @@
       ctx._lastHeatZoom = currentZoom;
     }
 
-    // Update stats
+    // Update stats and store hotInfo in context
+    ctx._lastHotInfo = hotInfo;
     UA.updateStats(ctx, hotInfo);
     
     // Reset data changed flag
@@ -443,7 +444,10 @@
   
   // Separate stats update function for pan-only updates
   UA.updateStats = function updateStats(ctx, hotInfo) {
-    hotInfo = hotInfo || "";
+    // Use stored hotInfo if not provided (e.g., during pan-only updates)
+    if (hotInfo === undefined) {
+      hotInfo = ctx._lastHotInfo || "";
+    }
     const statEl = ctx.ui.statEl;
     statEl.textContent =
       `Stadt: ${ctx.CITY_RAW} | geladen: ${(ctx.allPts?.length || 0).toLocaleString()} | ` +
