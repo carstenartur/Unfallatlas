@@ -290,7 +290,14 @@
 
     // Generate and download
     const blob = await Packer.toBlob(doc);
-    const filename = `Bezirksratsantrag_${CITY_RAW.replace(/[^a-zA-Z0-9]/g, "_")}_${today.replace(/\./g, "-")}.docx`;
+    const citySlug = CITY_RAW
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    const filename = `Bezirksratsantrag_${citySlug}_${today.replace(/\./g, "-")}.docx`;
     
     if (window.saveAs) {
       window.saveAs(blob, filename);
