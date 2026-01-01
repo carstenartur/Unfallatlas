@@ -106,30 +106,21 @@
       })
     );
 
-    // Parse the text report to extract key information
-    const textLines = reportData.text.split("\n");
-    let inSachverhalt = false;
-    let sachverhaltText = [];
-    
-    for (const line of textLines) {
-      if (line.includes("Sachverhalt:")) {
-        inSachverhalt = true;
-        continue;
-      }
-      if (inSachverhalt) {
-        if (line.includes("Auffälligkeiten:") || line.includes("POI-Analyse") || line.includes("Bezugsdokumente:") || line.includes("Beschlussvorschlag:")) {
-          break;
-        }
-        if (line.trim()) {
-          sachverhaltText.push(line);
-        }
-      }
-    }
+    // Parse the text report to extract the SACHVERHALT section using helper
+    const sachverhaltSection = extractSection(
+      reportData.text,
+      "Sachverhalt:",
+      ["Auffälligkeiten:", "POI-Analyse", "Bezugsdokumente:", "Beschlussvorschlag:"]
+    );
 
-    if (sachverhaltText.length > 0) {
+    const sachverhaltContent = Array.isArray(sachverhaltSection)
+      ? sachverhaltSection.join(" ").trim()
+      : (sachverhaltSection || "").trim();
+
+    if (sachverhaltContent.length > 0) {
       children.push(
         new Paragraph({
-          text: sachverhaltText.join(" "),
+          text: sachverhaltContent,
           spacing: { after: 200 }
         })
       );
