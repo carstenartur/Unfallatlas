@@ -406,11 +406,11 @@
    * @returns {Array|string} pdfMake content array with links or plain text
    */
   function textWithLinks(text) {
-    // URL regex pattern
-    const urlPattern = /(https?:\/\/[^\s]+)/g;
-    const matches = text.match(urlPattern);
+    // URL regex pattern - excludes trailing punctuation
+    const urlPattern = /(https?:\/\/[^\s]+?)(?=[.,!?;:]?(?:\s|$))/g;
+    const matches = [...text.matchAll(urlPattern)];
     
-    if (!matches) {
+    if (matches.length === 0) {
       return text;
     }
     
@@ -418,7 +418,10 @@
     const content = [];
     let lastIndex = 0;
     
-    text.replace(urlPattern, (match, url, offset) => {
+    for (const match of matches) {
+      const url = match[0];
+      const offset = match.index;
+      
       // Add text before URL
       if (offset > lastIndex) {
         content.push({ text: text.substring(lastIndex, offset) });
@@ -432,8 +435,8 @@
         decoration: "underline"
       });
       
-      lastIndex = offset + match.length;
-    });
+      lastIndex = offset + url.length;
+    }
     
     // Add remaining text
     if (lastIndex < text.length) {
