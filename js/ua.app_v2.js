@@ -142,7 +142,6 @@ if (UA.qBool("export", false)) {
 }
 
     // auto open export
-    //if (UA.qBool("export", false)) setTimeout(()=> ctx.ui.btnOpenExport.click(), 200);
   }
 
   main().catch(err => {
