@@ -1,0 +1,112 @@
+name: Fetch POIs (schools/kindergartens) for cities.txt
+
+on:
+  workflow_dispatch:
+  # optional: regelmäßig
+  # schedule:
+  #   - cron: "23 2 * * 0"  # So 02:23 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-pois:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Read cities.txt
+        id: cities
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "cities.txt" ]]; then
+            echo "cities.txt missing"
+            exit 2
+          fi
+
+          mapfile -t CITIES < <(
+            sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt \
+            | awk 'NF'
+          )
+
+          if (( ${#CITIES[@]} == 0 )); then
+            echo "No cities found in cities.txt"
+            exit 2
+          fi
+
+          echo "Cities (${#CITIES[@]}):"
+          printf ' - %s\n' "${CITIES[@]}"
+
+          {
+            echo "cities<<'EOF'"
+            printf '%s\n' "${CITIES[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Fetch POIs (skip if already exists)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # === HIER anpassen: Pfad zu deinem Script ===
+          POI_SCRIPT="./scripts/fetch_pois.sh"
+          # z.B. wenn es im Repo-Root liegt:
+          # POI_SCRIPT="./fetch_pois.sh"
+
+          if [[ ! -f "$POI_SCRIPT" ]]; then
+            echo "POI script not found: $POI_SCRIPT"
+            exit 2
+          fi
+          chmod +x "$POI_SCRIPT"
+
+          mkdir -p out
+
+          slug() {
+            # exakt wie in deinem Script
+            echo "$1" | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g' \
+              | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g'
+          }
+
+          changed=0
+
+          while IFS= read -r CITY; do
+            [[ -z "$CITY" ]] && continue
+
+            CITY_SLUG="$(slug "$CITY")"
+            OUTFILE="out/poi_${CITY_SLUG}.geojson"
+
+            if [[ -f "$OUTFILE" ]]; then
+              echo "SKIP (exists): $CITY -> $OUTFILE"
+              continue
+            fi
+
+            echo "RUN: $CITY -> $OUTFILE"
+            "$POI_SCRIPT" "$CITY"
+            changed=1
+          done <<< "${{ steps.cities.outputs.cities }}"
+
+          echo "Changed? $changed"
+
+      - name: Commit & Push POI outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Sicherheitsnetz: keine tmp-Dateien committen
+          find out -type f -name '*.tmp' -print -delete || true
+
+          git add out/poi_*.geojson 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+
+          git commit -m "Update POI GeoJSONs for cities.txt"
+          git push origin HEAD:${{ github.ref_name }}
