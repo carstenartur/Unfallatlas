@@ -30,7 +30,7 @@ NOMI_JSON="$(curl -sG \
 
 # Extract bbox without jq (simple sed/grep approach)
 # boundingbox:["50.6","50.8","7.0","7.2"]
-BBOX_LINE="$(echo "$NOMI_JSON" | tr -d '\n' | sed -E 's/.*"boundingbox":\[(.*?)\].*/\1/')"
+BBOX_LINE="$(echo "$NOMI_JSON" | tr -d '\n' | sed -E 's/.*"boundingbox":\[([^]]+)\].*/\1/')"
 SOUTH="$(echo "$BBOX_LINE" | cut -d, -f1 | tr -d '"')"
 NORTH="$(echo "$BBOX_LINE" | cut -d, -f2 | tr -d '"')"
 WEST="$(echo  "$BBOX_LINE" | cut -d, -f3 | tr -d '"')"
@@ -69,6 +69,19 @@ OV_JSON="$(curl -s \
   --data-urlencode "data=$QL" \
   "https://overpass-api.de/api/interpreter")"
 
+# Check if OV_JSON is empty
+if [[ -z "$OV_JSON" ]]; then
+  echo "ERROR: Empty response from Overpass API"
+  exit 2
+fi
+
+# Check if OV_JSON contains valid JSON with "elements" field
+if ! echo "$OV_JSON" | grep -q '"elements"'; then
+  echo "ERROR: Invalid Overpass API response (no 'elements' found):"
+  echo "$OV_JSON" | head -c 500
+  exit 2
+fi
+
 # Convert Overpass JSON -> GeoJSON (minimal, jq-less):
 # We'll write a simple FeatureCollection with Point features using lat/lon or center.
 # This is intentionally minimal so you can consume it easily.
@@ -79,7 +92,12 @@ echo "==> Write $OUTFILE"
 echo "$OV_JSON" | python3 -c "
 import json, sys
 
-data = json.loads(sys.stdin.read())
+try:
+    data = json.loads(sys.stdin.read())
+except json.JSONDecodeError as e:
+    print(f'ERROR: Failed to parse Overpass JSON: {e}', file=sys.stderr)
+    sys.exit(2)
+
 features = []
 for el in data.get('elements', []):
     tags = el.get('tags') or {}
