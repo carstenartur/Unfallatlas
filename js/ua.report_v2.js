@@ -5,6 +5,9 @@
   // Map Image Export (programmatic, using leaflet-image)
   // =====================================================================
 
+  // Delay (in milliseconds) to wait for map tiles to load before capture
+  const MAP_CAPTURE_DELAY_MS = 100;
+
   /**
    * Capture current map view as base64 image
    * @param {Object} ctx - Application context with map instance
@@ -51,7 +54,7 @@
             console.error("leafletImage call error:", e);
             reject(e);
           }
-        }, 100); // Small delay to ensure tiles are loaded
+        }, MAP_CAPTURE_DELAY_MS); // Small delay to ensure tiles are loaded
       } catch (e) {
         console.error("captureMapImage error:", e);
         reject(e);
@@ -347,8 +350,7 @@
       .replace(/\u{1F6B2}/gu, "[Rad]")      // 🚲 Bicycle
       .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
       .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
-      .replace(/\u{1F3CD}\u{FE0F}/gu, "[Krad]")  // 🏍️ Motorcycle with variation selector
-      .replace(/\u{1F3CD}/gu, "[Krad]");    // 🏍 Motorcycle without variation selector
+      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]");  // 🏍 Motorcycle (optional variation selector)
   }
 
   /**
