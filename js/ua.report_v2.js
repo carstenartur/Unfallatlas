@@ -55,7 +55,7 @@
       throw new Error("docx.js library not loaded");
     }
 
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, AlignmentType, ImageRun } = window.docx;
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = window.docx;
 
     const children = [];
 
