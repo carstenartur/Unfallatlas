@@ -44,6 +44,40 @@ fi
 
 echo "==> bbox: S=$SOUTH N=$NORTH W=$WEST E=$EAST"
 
+# Funktion für Overpass-API-Aufruf mit Retry-Logik
+fetch_overpass() {
+  local query="$1"
+  local max_retries=5
+  local retry_delay=5
+  
+  for ((i=1; i<=max_retries; i++)); do
+    echo "==> Overpass API request (attempt $i/$max_retries)"
+    
+    local response
+    response="$(curl -s \
+      -A "Unfallatlas/1.0 (https://github.com/carstenartur/Unfallatlas)" \
+      --data-urlencode "data=$query" \
+      "https://overpass-api.de/api/interpreter")"
+    
+    # Prüfe ob Antwort gültiges JSON mit "elements" ist
+    if echo "$response" | grep -q '"elements"'; then
+      echo "$response"
+      return 0
+    fi
+    
+    # Rate limiting oder Fehler - warte und versuche erneut
+    if [[ $i -lt $max_retries ]]; then
+      echo "==> Rate limited or error, waiting ${retry_delay}s before retry..."
+      sleep "$retry_delay"
+      # Exponential backoff: verdopple die Wartezeit
+      retry_delay=$((retry_delay * 2))
+    fi
+  done
+  
+  echo "ERROR: Overpass API failed after $max_retries attempts"
+  return 1
+}
+
 echo "==> Query Overpass (schools/kindergartens/childcare)"
 # Overpass QL: bbox is (south,west,north,east)
 read -r -d '' QL <<EOF || true
@@ -64,21 +98,14 @@ read -r -d '' QL <<EOF || true
 out center tags;
 EOF
 
-OV_JSON="$(curl -s \
-  -A "Unfallatlas/1.0 (https://github.com/carstenartur/Unfallatlas)" \
-  --data-urlencode "data=$QL" \
-  "https://overpass-api.de/api/interpreter")"
+OV_JSON="$(fetch_overpass "$QL")" || {
+  echo "ERROR: Failed to fetch data from Overpass API"
+  exit 2
+}
 
-# Check if OV_JSON is empty
+# Basic check if OV_JSON is not empty (detailed validation done in fetch_overpass)
 if [[ -z "$OV_JSON" ]]; then
   echo "ERROR: Empty response from Overpass API"
-  exit 2
-fi
-
-# Check if OV_JSON contains valid JSON with "elements" array at root level
-if ! echo "$OV_JSON" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); sys.exit(0 if 'elements' in data else 1)" 2>/dev/null; then
-  echo "ERROR: Invalid Overpass API response (no 'elements' array found):"
-  echo "$OV_JSON" | head -n 5
   exit 2
 fi
 
@@ -136,3 +163,7 @@ print(json.dumps(out, ensure_ascii=False))
 " > "$OUTFILE"
 
 echo "==> Done. POIs: $(python3 -c "import json; print(len(json.load(open('$OUTFILE'))['features']))")"
+
+# Warte zwischen Städten um Rate-Limiting zu vermeiden
+echo "==> Waiting 3s before next request..."
+sleep 3
