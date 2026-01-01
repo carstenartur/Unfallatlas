@@ -1,0 +1,29 @@
+{
+  "documents": [
+    {
+      "title": "Die Ideale Kreuzung – Leitfaden für sichere Knotenpunkte",
+      "author": "Region Hannover",
+      "date": "2023",
+      "url": "https://www.hannover.de/Leben-in-der-Region-Hannover/Mobilit%C3%A4t/Radfahren-Fu%C3%9Fverkehr/Radverkehr/Die-Ideale-Kreuzung",
+      "description": "Planerischer Leitfaden zur Gestaltung sicherer Kreuzungen mit Fokus auf vulnerable Verkehrsteilnehmer. Beschreibt konkrete Gestaltungskriterien zur Vermeidung typischer Unfallmuster."
+    },
+    {
+      "title": "InnoRAD Kreuzungen – Sichere Knotenpunktgestaltung",
+      "author": "ADFC",
+      "url": "https://www.adfc.de/artikel/innovationen-fuer-den-radverkehr-kreuzungen",
+      "description": "Forschungsprojekt zu innovativen Kreuzungsformen. Dokumentiert best practices und Sicherheitsaspekte bei Knotenpunkten mit Radverkehr."
+    },
+    {
+      "title": "Empfehlungen für Radverkehrsanlagen (ERA)",
+      "author": "FGSV - Forschungsgesellschaft für Straßen- und Verkehrswesen",
+      "date": "2010",
+      "description": "Regelwerk zur Planung, Entwurf und Betrieb von Radverkehrsanlagen. Definiert Standards für sichere Radverkehrsführung insbesondere an Knotenpunkten."
+    },
+    {
+      "title": "Schulwegsicherung – Systematische Analyse und Maßnahmen",
+      "author": "Deutsche Verkehrswacht",
+      "url": "https://www.verkehrswacht-medien-service.de/schulweg/",
+      "description": "Leitfaden zur Identifikation und Entschärfung von Gefahrenstellen auf Schulwegen. Relevanz bei Häufungen im Umfeld von Bildungseinrichtungen."
+    }
+  ]
+}

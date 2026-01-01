@@ -30,13 +30,13 @@ Beide Versionen teilen sich die gleichen Basis-Module:
 
 ### Datenformat
 
-POI-Daten werden als GeoJSON im Verzeichnis `out/poi/` erwartet:
+POI-Daten werden als GeoJSON im Verzeichnis `out/` erwartet:
 
 ```
-out/poi/poi_<stadtslug>.geojson
+out/poi_<stadtslug>.geojson
 ```
 
-Beispiel: `out/poi/poi_hannover.geojson`
+Beispiel: `out/poi_hannover.geojson`
 
 ### GeoJSON-Struktur
 
@@ -75,7 +75,9 @@ Das mitgelieferte Script `fetch_poi_osm.sh` lädt POI-Daten von OpenStreetMap:
 ./fetch_poi_osm.sh "Hannover"
 ```
 
-Dies erzeugt automatisch die Datei `out/poi/poi_hannover.geojson`.
+Dies erzeugt automatisch die Datei `out/poi_hannover.geojson`.
+
+**GitHub Workflow**: Ein automatisierter GitHub Actions Workflow (`generate-and-commit.yml`) erzeugt POI-Daten für alle Städte in `cities.txt`. Der Workflow kann manuell ausgelöst werden und committet die erzeugten Dateien automatisch.
 
 ### POI-Analyse im Export
 
@@ -97,13 +99,15 @@ Die Analyse wird sowohl im Text-Export als auch im HTML-Report dargestellt.
 
 ### Datenformat
 
-Bezugsdokumente werden als JSON im Verzeichnis `out/references/` erwartet:
+Bezugsdokumente werden als JSON im Verzeichnis `templates/` erwartet:
 
 ```
-out/references/references_<stadtslug>.json
+templates/references_<stadtslug>.json
 ```
 
-Beispiel: `out/references/references_hannover.json`
+Beispiel: `templates/references_hannover.json`
+
+Diese Struktur ermöglicht die zentrale Verwaltung von Bezugsdokumenten zusammen mit anderen Templates.
 
 ### JSON-Struktur
 
@@ -111,15 +115,23 @@ Beispiel: `out/references/references_hannover.json`
 {
   "documents": [
     {
-      "title": "Verkehrssicherheitskonzept 2023",
-      "author": "Stadt Hannover",
-      "date": "2023-06-15",
-      "url": "https://example.com/dokument.pdf",
-      "description": "Beschreibung des Dokuments"
+      "title": "Die Ideale Kreuzung – Leitfaden für sichere Knotenpunkte",
+      "author": "Region Hannover",
+      "date": "2023",
+      "url": "https://www.hannover.de/...",
+      "description": "Planerischer Leitfaden zur Gestaltung sicherer Kreuzungen mit Fokus auf vulnerable Verkehrsteilnehmer. Beschreibt konkrete Gestaltungskriterien zur Vermeidung typischer Unfallmuster."
     }
   ]
 }
 ```
+
+**Wichtig**: Bezugsdokumente sollten fachlich relevante, planerisch anschlussfähige Quellen sein:
+- Planerische Leitfäden und Standards (z.B. ERA, RASt, "Die Ideale Kreuzung")
+- Empirische Verkehrsforschung zu spezifischen Unfallmustern
+- Regionale Verkehrssicherheitskonzepte und Mobilitätspläne
+- Regelwerke und Best Practices zur Knotenpunktgestaltung
+
+Keine beliebigen Link-Sammlungen, sondern kontextualisierte Referenzen mit klarer Begründung ihrer Relevanz für die konkrete Unfallhäufung.
 
 ### Felder
 
@@ -160,15 +172,17 @@ https://carstenartur.github.io/Unfallatlas/werkbank_v2.html
    ./fetch_poi_osm.sh "Berlin"
    ```
 
-2. Datei wird erstellt: `out/poi/poi_berlin.geojson`
+2. Datei wird erstellt: `out/poi_berlin.geojson`
 
 3. Bei Verwendung mit GitHub Pages: Datei committen und pushen
 
+Alternativ: GitHub Actions Workflow auslösen, der automatisch POIs für alle Städte in `cities.txt` generiert.
+
 ### Bezugsdokumente für eine Stadt hinzufügen
 
-1. JSON-Datei erstellen: `out/references/references_<stadtslug>.json`
+1. JSON-Datei erstellen: `templates/references_<stadtslug>.json`
 
-2. Dokumente nach dem obigen Format eintragen
+2. Dokumente nach dem obigen Format eintragen (fachlich relevante Quellen)
 
 3. Bei Verwendung mit GitHub Pages: Datei committen und pushen
 
@@ -191,7 +205,7 @@ Die Funktion `UA.normKey()` aus `ua.utils.js` wird dafür verwendet.
 
 ## Templates
 
-Die V2-Version nutzt die gleichen Templates wie die Original-Version:
+Die V2-Version nutzt die gleichen Text-Templates wie die Original-Version:
 
 ```
 templates/intro.txt
@@ -199,6 +213,12 @@ templates/sachverhalt.txt
 templates/beschluss.txt
 templates/hinweis.txt
 templates/lizenz.txt
+```
+
+Zusätzlich können stadtspezifische Bezugsdokumente definiert werden:
+
+```
+templates/references_<stadtslug>.json
 ```
 
 Die Templates können angepasst werden. Falls eine Datei fehlt, werden Standardtexte verwendet.
@@ -225,15 +245,17 @@ Die Wahl der Version erfolgt durch die URL. Alle weiteren Funktionen (Filter, Da
 │   ├── ua.export_v2.js       # V2 Export-Modul mit POI/Ref-Docs
 │   └── ...                   # Gemeinsame Module
 ├── out/
-│   ├── poi/                  # POI-Daten (GeoJSON)
-│   │   ├── poi_hannover.geojson
-│   │   ├── poi_berlin.geojson
-│   │   └── ...
-│   └── references/           # Bezugsdokumente (JSON)
-│       ├── references_hannover.json
-│       ├── references_berlin.json
-│       └── ...
-└── templates/                # Text-Templates für Export
+│   ├── poi_hannover.geojson  # POI-Daten (GeoJSON)
+│   ├── poi_berlin.geojson
+│   ├── output_all_years_*.geojson  # Unfalldaten
+│   └── ...
+└── templates/                # Text-Templates + Referenzdokumente
+    ├── intro.txt
+    ├── sachverhalt.txt
+    ├── ...
+    ├── references_hannover.json
+    ├── references_berlin.json
+    └── ...
 ```
 
 ### Spatial Analysis

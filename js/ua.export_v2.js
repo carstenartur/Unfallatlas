@@ -85,7 +85,7 @@
   // POI loading and analysis
   // --------------------
   async function loadPOIData(citySlug) {
-    const poiPath = `out/poi/poi_${citySlug}.geojson`;
+    const poiPath = `out/poi_${citySlug}.geojson`;
     try {
       const r = await fetch(poiPath, { cache: "no-store" });
       if (!r.ok) return null;
@@ -164,7 +164,7 @@
   // Reference documents loading
   // --------------------
   async function loadReferenceDocuments(citySlug) {
-    const refPath = `out/references/references_${citySlug}.json`;
+    const refPath = `templates/references_${citySlug}.json`;
     try {
       const r = await fetch(refPath, { cache: "no-store" });
       if (!r.ok) return null;
