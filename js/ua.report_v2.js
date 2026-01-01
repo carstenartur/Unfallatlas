@@ -340,6 +340,110 @@
   // =====================================================================
 
   /**
+   * Build Werkbank URL from current application context
+   * @param {Object} ctx - Application context
+   * @returns {string} URL to Werkbank page with current parameters
+   */
+  function buildWerkbankUrl(ctx) {
+    const params = new URLSearchParams();
+    
+    // City
+    if (ctx.CITY_RAW) {
+      params.set("city", ctx.CITY_RAW);
+    }
+    
+    // UI filters (if available)
+    if (ctx.ui) {
+      if (ctx.ui.severityEl) params.set("severity", ctx.ui.severityEl.value);
+      if (ctx.ui.roadConditionEl) params.set("roadCondition", ctx.ui.roadConditionEl.value);
+      if (ctx.ui.dayTypeEl) params.set("dayType", ctx.ui.dayTypeEl.value);
+      if (ctx.ui.hFromEl) params.set("hourFrom", ctx.ui.hFromEl.value);
+      if (ctx.ui.hToEl) params.set("hourTo", ctx.ui.hToEl.value);
+      if (ctx.ui.maxPointsEl) params.set("maxPoints", ctx.ui.maxPointsEl.value);
+      if (ctx.ui.viewportPaddingEl) params.set("viewportPaddingPct", ctx.ui.viewportPaddingEl.value);
+      if (ctx.ui.heatRadiusEl) params.set("heatRadius", ctx.ui.heatRadiusEl.value);
+      if (ctx.ui.incBikeEl) params.set("includeCyclist", ctx.ui.incBikeEl.checked ? "1" : "0");
+      if (ctx.ui.incPedEl) params.set("includePedestrian", ctx.ui.incPedEl.checked ? "1" : "0");
+      if (ctx.ui.incCarEl) params.set("includeCar", ctx.ui.incCarEl.checked ? "1" : "0");
+      if (ctx.ui.incMotoEl) params.set("includeMotorcycle", ctx.ui.incMotoEl.checked ? "1" : "0");
+    }
+    
+    // Involvement mode
+    if (ctx.involvementMode) {
+      params.set("involvementMode", ctx.involvementMode);
+    }
+    
+    // Display modes
+    if (ctx.showCluster !== undefined) params.set("showCluster", ctx.showCluster ? "1" : "0");
+    if (ctx.showHeatmap !== undefined) params.set("showHeatmap", ctx.showHeatmap ? "1" : "0");
+    if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", ctx.showOnlyAboveAverage ? "1" : "0");
+    
+    // Map position
+    if (ctx.map) {
+      const center = ctx.map.getCenter();
+      const zoom = ctx.map.getZoom();
+      params.set("centerLat", center.lat.toFixed(6));
+      params.set("centerLon", center.lng.toFixed(6));
+      params.set("zoom", zoom);
+    }
+    
+    // Selection bounds
+    if (ctx.selectionBounds) {
+      params.set("selSouth", ctx.selectionBounds.getSouth().toFixed(6));
+      params.set("selWest", ctx.selectionBounds.getWest().toFixed(6));
+      params.set("selNorth", ctx.selectionBounds.getNorth().toFixed(6));
+      params.set("selEast", ctx.selectionBounds.getEast().toFixed(6));
+    }
+    
+    // Build full URL - use relative path assuming same domain
+    const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, "werkbank_v2.html");
+    return `${baseUrl}?${params.toString()}`;
+  }
+
+  /**
+   * Convert text to pdfMake content with auto-detected clickable links
+   * @param {string} text - Text that may contain URLs
+   * @returns {Array|string} pdfMake content array with links or plain text
+   */
+  function textWithLinks(text) {
+    // URL regex pattern
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+    const matches = text.match(urlPattern);
+    
+    if (!matches) {
+      return text;
+    }
+    
+    // Split text and create content array with links
+    const content = [];
+    let lastIndex = 0;
+    
+    text.replace(urlPattern, (match, url, offset) => {
+      // Add text before URL
+      if (offset > lastIndex) {
+        content.push({ text: text.substring(lastIndex, offset) });
+      }
+      
+      // Add URL as link
+      content.push({
+        text: url,
+        link: url,
+        color: "blue",
+        decoration: "underline"
+      });
+      
+      lastIndex = offset + match.length;
+    });
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      content.push({ text: text.substring(lastIndex) });
+    }
+    
+    return content;
+  }
+
+  /**
    * Replace emoji icons with text labels for PDF compatibility
    * pdfMake's default Roboto font doesn't support emoji glyphs
    * @param {string} text - Text containing emoji icons
@@ -438,8 +542,9 @@
         if (line.includes("Auffälligkeiten:") || line.includes("POI-Analyse") || line.includes("Bezugsdokumente:")) {
           break;
         }
+        const content = textWithLinks(line);
         docDefinition.content.push({
-          text: line,
+          text: content,
           style: "normal"
         });
       }
@@ -454,11 +559,24 @@
         });
 
         const mapImageData = await UA.captureMapImage(ctx, options);
+        const werkbankUrl = buildWerkbankUrl(ctx);
 
+        // Make map image clickable
         docDefinition.content.push({
           image: mapImageData,
           width: 500,
-          margin: [0, 10, 0, 10]
+          margin: [0, 10, 0, 10],
+          link: werkbankUrl
+        });
+
+        // Add "In Werkbank öffnen" link
+        docDefinition.content.push({
+          text: "→ In Werkbank öffnen",
+          link: werkbankUrl,
+          color: "blue",
+          decoration: "underline",
+          style: "normal",
+          margin: [0, 5, 0, 10]
         });
 
         docDefinition.content.push({
@@ -489,8 +607,9 @@
         });
 
         for (const line of poiSection) {
+          const content = textWithLinks(line);
           docDefinition.content.push({
-            text: line,
+            text: content,
             style: "normal"
           });
         }
@@ -506,8 +625,9 @@
     const beschlussSection = extractSection(textLines, "Beschlussvorschlag:");
     if (beschlussSection.length > 0) {
       for (const line of beschlussSection) {
+        const content = textWithLinks(line);
         docDefinition.content.push({
-          text: line,
+          text: content,
           style: "normal"
         });
       }
@@ -528,8 +648,9 @@
         });
 
         for (const line of refsSection) {
+          const content = textWithLinks(line);
           docDefinition.content.push({
-            text: line,
+            text: content,
             style: "normal"
           });
         }
