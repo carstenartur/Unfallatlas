@@ -19,22 +19,41 @@
       }
 
       try {
-        // Use leaflet-image to capture the map
-        window.leafletImage(ctx.map, (err, canvas) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
+        // Wait a moment for any pending tile loads or animations to complete
+        setTimeout(() => {
           try {
-            // Convert canvas to base64 data URL
-            const dataUrl = canvas.toDataURL("image/png");
-            resolve(dataUrl);
+            // Use leaflet-image to capture the map with all layers and styling
+            // This captures the current visual state including markers, heatmaps, and their transparency
+            window.leafletImage(ctx.map, (err, canvas) => {
+              if (err) {
+                console.error("leaflet-image capture error:", err);
+                reject(err);
+                return;
+              }
+
+              try {
+                // Convert canvas to base64 data URL (PNG format preserves transparency)
+                const dataUrl = canvas.toDataURL("image/png");
+                
+                // Verify the data URL is valid
+                if (!dataUrl || !dataUrl.startsWith("data:image/png")) {
+                  reject(new Error("Invalid map image data URL generated"));
+                  return;
+                }
+                
+                resolve(dataUrl);
+              } catch (e) {
+                console.error("Canvas to data URL conversion error:", e);
+                reject(e);
+              }
+            });
           } catch (e) {
+            console.error("leafletImage call error:", e);
             reject(e);
           }
-        });
+        }, 100); // Small delay to ensure tiles are loaded
       } catch (e) {
+        console.error("captureMapImage error:", e);
         reject(e);
       }
     });
@@ -440,7 +459,7 @@
         });
 
         docDefinition.content.push({
-          text: "Legende: Unfälle nach Schweregrad farblich markiert. Beteiligungskategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad. POIs (Schulen/Kitas) hervorgehoben.",
+          text: "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern. Unfälle sind nach Schweregrad farblich markiert (rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte). Beteiligungskategorien werden als [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad dargestellt. POIs wie Schulen und Kitas sind hervorgehoben.",
           style: "small"
         });
       } catch (e) {
