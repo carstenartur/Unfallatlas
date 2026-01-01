@@ -147,13 +147,9 @@
     const east = vb.getEast();
     
     // Optimized bounds check - direct comparison without creating LatLng objects
-    const filtered = [];
-    for (const p of ctx.filteredCapped) {
-      if (p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east) {
-        filtered.push(p);
-      }
-    }
-    ctx.viewportPts = filtered;
+    ctx.viewportPts = ctx.filteredCapped.filter(p => 
+      p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east
+    );
   };
 
   // Hotspots (Nur „auffällig“)
