@@ -517,11 +517,25 @@
    * Extract a section from text lines
    * @param {Array<string>} lines - Text lines
    * @param {string} sectionHeader - Section header to look for
+   * @param {Array<string>} [stopSections] - Optional array of section headers to stop at
    * @returns {Array<string>} Section lines
    */
-  function extractSection(lines, sectionHeader) {
+  function extractSection(lines, sectionHeader, stopSections) {
     const result = [];
     let inSection = false;
+    
+    // Default stop sections if none provided
+    const defaultStopSections = [
+      "Sachverhalt:",
+      "Auffälligkeiten:",
+      "POI-Analyse",
+      "Bezugsdokumente:",
+      "Beschlussvorschlag:",
+      "Hinweis (intern)",
+      "Datenquelle"
+    ];
+    
+    const stopPatterns = stopSections || defaultStopSections;
     
     for (const line of lines) {
       if (line.includes(sectionHeader)) {
@@ -531,7 +545,8 @@
       
       if (inSection) {
         // Stop at next major section
-        if (line.match(/^(Sachverhalt:|Auffälligkeiten:|POI-Analyse|Bezugsdokumente:|Beschlussvorschlag:|Hinweis \(intern\)|Datenquelle)/)) {
+        const shouldStop = stopPatterns.some(pattern => line.includes(pattern));
+        if (shouldStop) {
           break;
         }
         
