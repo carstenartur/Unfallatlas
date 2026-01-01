@@ -309,7 +309,9 @@
     if (z === 14) return 28;
     if (z === 15) return 36;
     if (z === 16) return 46;
-    return 60; // nah dran: Performance/Lesbarkeit
+    if (z === 17) return 50;
+    if (z === 18) return 30; // Smaller radius at high zoom for better visibility
+    return 20; // z >= 19: individual accidents should be clearly visible
   };
 
   // Heatmap-Radius zoom-abhängig (UI-Wert ist "Basis")
