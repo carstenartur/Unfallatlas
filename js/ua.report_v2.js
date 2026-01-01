@@ -5,6 +5,9 @@
   // Map Image Export (programmatic, using leaflet-image)
   // =====================================================================
 
+  // Delay (in milliseconds) to wait for map tiles to load before capture
+  const MAP_CAPTURE_DELAY_MS = 100;
+
   /**
    * Capture current map view as base64 image
    * @param {Object} ctx - Application context with map instance
@@ -19,22 +22,41 @@
       }
 
       try {
-        // Use leaflet-image to capture the map
-        window.leafletImage(ctx.map, (err, canvas) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
+        // Wait a moment for any pending tile loads or animations to complete
+        setTimeout(() => {
           try {
-            // Convert canvas to base64 data URL
-            const dataUrl = canvas.toDataURL("image/png");
-            resolve(dataUrl);
+            // Use leaflet-image to capture the map with all layers and styling
+            // This captures the current visual state including markers, heatmaps, and their transparency
+            window.leafletImage(ctx.map, (err, canvas) => {
+              if (err) {
+                console.error("leaflet-image capture error:", err);
+                reject(err);
+                return;
+              }
+
+              try {
+                // Convert canvas to base64 data URL (PNG format preserves transparency)
+                const dataUrl = canvas.toDataURL("image/png");
+                
+                // Verify the data URL is valid
+                if (!dataUrl || !dataUrl.startsWith("data:image/png;base64,")) {
+                  reject(new Error("Invalid map image data URL generated"));
+                  return;
+                }
+                
+                resolve(dataUrl);
+              } catch (e) {
+                console.error("Canvas to data URL conversion error:", e);
+                reject(e);
+              }
+            });
           } catch (e) {
+            console.error("leafletImage call error:", e);
             reject(e);
           }
-        });
+        }, MAP_CAPTURE_DELAY_MS); // Small delay to ensure tiles are loaded
       } catch (e) {
+        console.error("captureMapImage error:", e);
         reject(e);
       }
     });
@@ -318,6 +340,20 @@
   // =====================================================================
 
   /**
+   * Replace emoji icons with text labels for PDF compatibility
+   * pdfMake's default Roboto font doesn't support emoji glyphs
+   * @param {string} text - Text containing emoji icons
+   * @returns {string} Text with emojis replaced by readable labels
+   */
+  function replaceEmojisForPDF(text) {
+    return text
+      .replace(/\u{1F6B2}/gu, "[Rad]")      // 🚲 Bicycle
+      .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
+      .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
+      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]");  // 🏍 Motorcycle (optional variation selector)
+  }
+
+  /**
    * Generate and download PDF document
    * @param {Object} ctx - Application context
    * @param {Object} reportData - Report data from UA.computeExportReport
@@ -330,7 +366,9 @@
 
     const CITY_RAW = ctx.CITY_RAW || "—";
     const today = new Date().toLocaleDateString("de-DE");
-    const textLines = reportData.text.split("\n");
+    // Replace emojis with text labels for PDF compatibility
+    const pdfText = replaceEmojisForPDF(reportData.text);
+    const textLines = pdfText.split("\n");
 
     const docDefinition = {
       pageSize: "A4",
@@ -424,7 +462,12 @@
         });
 
         docDefinition.content.push({
-          text: "Legende: Unfälle nach Schweregrad farblich markiert. POIs (Schulen/Kitas) hervorgehoben.",
+          text: [
+            "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern.\n",
+            "Farben: rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte.\n",
+            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad.\n",
+            "POIs wie Schulen und Kitas sind hervorgehoben."
+          ].join(""),
           style: "small"
         });
       } catch (e) {
