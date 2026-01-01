@@ -30,9 +30,9 @@ jobs:
           fi
 
           # === HIER anpassen: Pfad zu deinem Script ===
-          POI_SCRIPT="./fetch_pois.sh"
+          POI_SCRIPT="./fetch_poi_osm.sh"
           # z.B. wenn es woanders liegt:
-          # POI_SCRIPT="./scripts/fetch_pois.sh"
+          # POI_SCRIPT="./scripts/fetch_poi_osm.sh"
 
           if [[ ! -f "$POI_SCRIPT" ]]; then
             echo "POI script not found: $POI_SCRIPT"
