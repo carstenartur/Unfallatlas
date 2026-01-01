@@ -141,7 +141,19 @@
 
   UA.applyViewportFilter = function applyViewportFilter(ctx){
     const vb = UA.getPaddedBounds(ctx);
-    ctx.viewportPts = ctx.filteredCapped.filter(p => vb.contains([p.lat, p.lon]));
+    const south = vb.getSouth();
+    const north = vb.getNorth();
+    const west = vb.getWest();
+    const east = vb.getEast();
+    
+    // Optimized bounds check - direct comparison without creating LatLng objects
+    const filtered = [];
+    for (const p of ctx.filteredCapped) {
+      if (p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east) {
+        filtered.push(p);
+      }
+    }
+    ctx.viewportPts = filtered;
   };
 
   // Hotspots (Nur „auffällig“)

@@ -4,18 +4,30 @@
   UA.recomputeAndRender = function recomputeAndRender(ctx){
     UA.applyFilters(ctx);
     UA.applyViewportFilter(ctx);
+    ctx._dataChanged = true; // Mark data as changed when filters are applied
     UA.renderLayers(ctx);
     UA.saveCityState(ctx);
   };
 
-  UA.scheduleViewportUpdate = function scheduleViewportUpdate(ctx){
+  UA.scheduleViewportUpdate = function scheduleViewportUpdate(ctx, isZoom){
     if (!ctx.allPts?.length) return;
     if (ctx._moveTimer) clearTimeout(ctx._moveTimer);
+    
+    // Use longer debounce for smoother performance
     ctx._moveTimer = setTimeout(() => {
-      UA.applyViewportFilter(ctx);
-      UA.renderLayers(ctx);
-      UA.syncViewToUrl(ctx);
-    }, 150);
+      if (ctx._rafId) cancelAnimationFrame(ctx._rafId);
+      ctx._rafId = requestAnimationFrame(() => {
+        UA.applyViewportFilter(ctx);
+        // Only rebuild layers on zoom or if layers don't exist
+        if (isZoom || !ctx.clusterLayer || !ctx.heatLayer) {
+          UA.renderLayers(ctx);
+        } else {
+          // On pan, just update stats without rebuilding layers
+          UA.updateStats(ctx);
+        }
+        UA.syncViewToUrl(ctx);
+      });
+    }, 350);
   };
 
   async function writeClipboard(text){
@@ -121,8 +133,9 @@
       UA.initReportExportUI(ctx);
     }
 
-    // map events
-    ctx.map.on("moveend zoomend", () => UA.scheduleViewportUpdate(ctx));
+    // map events - separate pan vs zoom handling
+    ctx.map.on("moveend", () => UA.scheduleViewportUpdate(ctx, false));
+    ctx.map.on("zoomend", () => UA.scheduleViewportUpdate(ctx, true));
 
     UA.recomputeAndRender(ctx);
 
