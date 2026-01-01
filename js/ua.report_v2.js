@@ -36,7 +36,7 @@
                 const dataUrl = canvas.toDataURL("image/png");
                 
                 // Verify the data URL is valid
-                if (!dataUrl || !dataUrl.startsWith("data:image/png")) {
+                if (!dataUrl || !dataUrl.startsWith("data:image/png;base64,")) {
                   reject(new Error("Invalid map image data URL generated"));
                   return;
                 }
@@ -344,11 +344,11 @@
    */
   function replaceEmojisForPDF(text) {
     return text
-      .replace(/🚲/g, "[Rad]")
-      .replace(/🚶/g, "[Fuss]")
-      .replace(/🚗/g, "[PKW]")
-      .replace(/🏍️/g, "[Krad]")  // Motorcycle with variation selector
-      .replace(/🏍/g, "[Krad]");   // Motorcycle without variation selector (fallback)
+      .replace(/\u{1F6B2}/gu, "[Rad]")      // 🚲 Bicycle
+      .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
+      .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
+      .replace(/\u{1F3CD}\u{FE0F}/gu, "[Krad]")  // 🏍️ Motorcycle with variation selector
+      .replace(/\u{1F3CD}/gu, "[Krad]");    // 🏍 Motorcycle without variation selector
   }
 
   /**
