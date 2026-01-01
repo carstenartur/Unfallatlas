@@ -507,7 +507,7 @@
       const popupContent = `
         <div style="font:13px/1.35 system-ui; min-width:200px;">
           <div style="font-weight:900; margin-bottom:4px;">${type === "school" ? "Schule" : "Kindergarten"}</div>
-          <div style="color:#444;">${UA.escHtml ? UA.escHtml(name) : name}</div>
+          <div style="color:#444;">${UA.escHtml(name)}</div>
         </div>
       `;
       marker.bindPopup(popupContent);
