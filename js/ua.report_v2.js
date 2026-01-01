@@ -347,7 +347,8 @@
       .replace(/🚲/g, "[Rad]")
       .replace(/🚶/g, "[Fuss]")
       .replace(/🚗/g, "[PKW]")
-      .replace(/🏍️/g, "[Krad]");
+      .replace(/🏍️/g, "[Krad]")  // Motorcycle with variation selector
+      .replace(/🏍/g, "[Krad]");   // Motorcycle without variation selector (fallback)
   }
 
   /**
@@ -459,7 +460,12 @@
         });
 
         docDefinition.content.push({
-          text: "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern. Unfälle sind nach Schweregrad farblich markiert (rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte). Beteiligungskategorien werden als [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad dargestellt. POIs wie Schulen und Kitas sind hervorgehoben.",
+          text: [
+            "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern.\n",
+            "Farben: rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte.\n",
+            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad.\n",
+            "POIs wie Schulen und Kitas sind hervorgehoben."
+          ].join(""),
           style: "small"
         });
       } catch (e) {
