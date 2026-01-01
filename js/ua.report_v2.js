@@ -553,7 +553,9 @@
     btnExportWord.addEventListener("click", async () => {
       try {
         exportProgress.textContent = "Word-Dokument wird erstellt...";
-        btnExportWord.classList.add("disabled");
+        btnExportWord.style.opacity = "0.6";
+        btnExportWord.style.cursor = "not-allowed";
+        btnExportWord.disabled = true;
 
         // Get current report data
         const reportData = await UA.computeExportReport(ctx);
@@ -573,7 +575,9 @@
         exportProgress.textContent = `Fehler: ${e.message}`;
         alert("Word-Export fehlgeschlagen: " + e.message);
       } finally {
-        btnExportWord.classList.remove("disabled");
+        btnExportWord.style.opacity = "1";
+        btnExportWord.style.cursor = "pointer";
+        btnExportWord.disabled = false;
       }
     });
 
@@ -581,7 +585,9 @@
     btnExportPDF.addEventListener("click", async () => {
       try {
         exportProgress.textContent = "PDF wird erstellt...";
-        btnExportPDF.classList.add("disabled");
+        btnExportPDF.style.opacity = "0.6";
+        btnExportPDF.style.cursor = "not-allowed";
+        btnExportPDF.disabled = true;
 
         // Get current report data
         const reportData = await UA.computeExportReport(ctx);
@@ -601,7 +607,9 @@
         exportProgress.textContent = `Fehler: ${e.message}`;
         alert("PDF-Export fehlgeschlagen: " + e.message);
       } finally {
-        btnExportPDF.classList.remove("disabled");
+        btnExportPDF.style.opacity = "1";
+        btnExportPDF.style.cursor = "pointer";
+        btnExportPDF.disabled = false;
       }
     });
   };
