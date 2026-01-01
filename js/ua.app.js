@@ -116,6 +116,11 @@
     UA.bindUi(ctx);
     bindExport(ctx);
 
+    // Initialize report export UI for V2 (Word/PDF) if available
+    if (typeof UA.initReportExportUI === "function") {
+      UA.initReportExportUI(ctx);
+    }
+
     // map events
     ctx.map.on("moveend zoomend", () => UA.scheduleViewportUpdate(ctx));
 
