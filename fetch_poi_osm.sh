@@ -76,46 +76,45 @@ OV_JSON="$(curl -s \
 OUTFILE="${OUTDIR}/poi_${CITY_SLUG}.geojson"
 echo "==> Write $OUTFILE"
 
-python3 - <<PY
+echo "$OV_JSON" | python3 -c "
 import json, sys
 
 data = json.loads(sys.stdin.read())
 features = []
-for el in data.get("elements", []):
-    tags = el.get("tags") or {}
-    amenity = tags.get("amenity")
-    if amenity not in ("school", "kindergarten", "childcare"):
+for el in data.get('elements', []):
+    tags = el.get('tags') or {}
+    amenity = tags.get('amenity')
+    if amenity not in ('school', 'kindergarten', 'childcare'):
         continue
 
     # node has lat/lon, way/relation uses center
-    lat = el.get("lat")
-    lon = el.get("lon")
+    lat = el.get('lat')
+    lon = el.get('lon')
     if lat is None or lon is None:
-        c = el.get("center") or {}
-        lat = c.get("lat")
-        lon = c.get("lon")
+        c = el.get('center') or {}
+        lat = c.get('lat')
+        lon = c.get('lon')
     if lat is None or lon is None:
         continue
 
-    osm_type = el.get("type")
-    osm_id = el.get("id")
-    fid = f"osm:{osm_type}:{osm_id}"
-    name = tags.get("name") or ""
+    osm_type = el.get('type')
+    osm_id = el.get('id')
+    fid = f'osm:{osm_type}:{osm_id}'
+    name = tags.get('name') or ''
 
     features.append({
-        "type": "Feature",
-        "geometry": {"type": "Point", "coordinates": [float(lon), float(lat)]},
-        "properties": {
-            "id": fid,
-            "type": amenity,
-            "name": name,
-            "source": "OpenStreetMap/Overpass",
+        'type': 'Feature',
+        'geometry': {'type': 'Point', 'coordinates': [float(lon), float(lat)]},
+        'properties': {
+            'id': fid,
+            'type': amenity,
+            'name': name,
+            'source': 'OpenStreetMap/Overpass',
         }
     })
 
-out = {"type": "FeatureCollection", "features": features}
+out = {'type': 'FeatureCollection', 'features': features}
 print(json.dumps(out, ensure_ascii=False))
-PY
-PY <<<"$OV_JSON" > "$OUTFILE"
+" > "$OUTFILE"
 
 echo "==> Done. POIs: $(python3 -c "import json; print(len(json.load(open('$OUTFILE'))['features']))")"
