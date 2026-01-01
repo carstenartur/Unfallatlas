@@ -59,18 +59,24 @@ fetch_overpass() {
       --data-urlencode "data=$query" \
       "https://overpass-api.de/api/interpreter")"
     
-    # Prüfe ob Antwort gültiges JSON mit "elements" ist
-    if echo "$response" | grep -q '"elements"'; then
+    # Prüfe ob Antwort gültiges JSON mit "elements" ist (robuste Validierung)
+    if echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); sys.exit(0 if 'elements' in data else 1)" 2>/dev/null; then
       echo "$response"
       return 0
     fi
     
     # Rate limiting oder Fehler - warte und versuche erneut
     if [[ $i -lt $max_retries ]]; then
-      echo "==> Rate limited or error, waiting ${retry_delay}s before retry..."
+      echo "==> Rate limited or error (invalid JSON or missing 'elements'), waiting ${retry_delay}s before retry..."
+      # Zeige ersten Teil der Antwort für Debugging
+      echo "==> Response preview: $(echo "$response" | head -c 200)..."
       sleep "$retry_delay"
       # Exponential backoff: verdopple die Wartezeit
       retry_delay=$((retry_delay * 2))
+    else
+      # Letzter Versuch fehlgeschlagen - zeige Antwort für Debugging
+      echo "ERROR: Last response received:"
+      echo "$response" | head -n 10
     fi
   done
   
