@@ -51,7 +51,7 @@ fetch_overpass() {
   local retry_delay=5
   
   for ((i=1; i<=max_retries; i++)); do
-    echo "==> Overpass API request (attempt $i/$max_retries)"
+    echo "==> Overpass API request (attempt $i/$max_retries)" >&2
     
     local response
     response="$(curl -s \
@@ -67,9 +67,9 @@ fetch_overpass() {
     
     # Rate limiting or error - wait and retry
     if [[ $i -lt $max_retries ]]; then
-      echo "==> Rate limited or error (invalid JSON or missing 'elements'), waiting ${retry_delay}s before retry..."
+      echo "==> Rate limited or error (invalid JSON or missing 'elements'), waiting ${retry_delay}s before retry..." >&2
       # Show first part of response for debugging
-      echo "==> Response preview: $(echo "$response" | head -c 200)..."
+      echo "==> Response preview: $(echo "$response" | head -c 200)..." >&2
       sleep "$retry_delay"
       # Exponential backoff: double the wait time (cap at 120s to prevent overflow)
       retry_delay=$((retry_delay * 2))
@@ -78,12 +78,12 @@ fetch_overpass() {
       fi
     else
       # Last attempt failed - show response for debugging
-      echo "ERROR: Last response received:"
-      echo "$response" | head -n 10
+      echo "ERROR: Last response received:" >&2
+      echo "$response" | head -n 10 >&2
     fi
   done
   
-  echo "ERROR: Overpass API failed after $max_retries attempts"
+  echo "ERROR: Overpass API failed after $max_retries attempts" >&2
   return 1
 }
 
