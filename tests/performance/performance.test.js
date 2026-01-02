@@ -126,10 +126,10 @@ describe('Performance Tests', () => {
   });
 
   describe('Memory Usage', () => {
-    test('should not leak memory with repeated filtering', () => {
+    test('should handle repeated filtering without issues', () => {
       const dataset = generateMockGeoJSONData(5000);
       
-      // Perform filtering multiple times
+      // Perform filtering multiple times to ensure stability
       for (let i = 0; i < 100; i++) {
         const filtered = filterDataset(dataset, {
           severity: String((i % 3) + 1),
@@ -140,7 +140,7 @@ describe('Performance Tests', () => {
         expect(filtered.length).toBeLessThanOrEqual(dataset.length);
       }
       
-      // Test completes without memory issues
+      // Test completes successfully, demonstrating stable repeated operations
       expect(true).toBe(true);
     });
   });

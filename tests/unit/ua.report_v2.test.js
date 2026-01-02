@@ -48,8 +48,12 @@ describe('UA.report_v2 - Export Functions', () => {
       saveAs: jest.fn()
     };
 
-    // Load the module
-    eval(require('fs').readFileSync('./js/ua.report_v2.js', 'utf8'));
+    // Load the module - using eval because files use IIFE pattern
+    // Files are loaded from project root: js/ua.report_v2.js
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.resolve(__dirname, '../../js/ua.report_v2.js');
+    eval(fs.readFileSync(filePath, 'utf8'));
     UA = global.window.UA;
   });
 
@@ -105,71 +109,6 @@ describe('UA.report_v2 - Export Functions', () => {
       const ctx = { map: {} };
 
       await expect(UA.captureMapImage(ctx)).rejects.toThrow('Invalid map image data URL generated');
-    });
-  });
-
-  describe('extractSection helper', () => {
-    test('should extract section from text lines', () => {
-      // This function is internal but we can test its behavior through exports
-      const textLines = [
-        'Header',
-        'Sachverhalt:',
-        'Line 1 of sachverhalt',
-        'Line 2 of sachverhalt',
-        'POI-Analyse',
-        'POI line'
-      ];
-
-      // We need to expose this or test through the export functions
-      // For now, we'll test integration with exportToPDF/exportToWord
-      expect(true).toBe(true);
-    });
-  });
-
-  describe('replaceEmojisForPDF helper', () => {
-    test('should replace bicycle emoji with [Rad]', () => {
-      // Testing through the PDF export which uses this internally
-      expect(true).toBe(true);
-    });
-  });
-
-  describe('textWithLinks helper', () => {
-    test('should detect and convert URLs to clickable links', () => {
-      // Testing through the PDF export which uses this internally
-      expect(true).toBe(true);
-    });
-  });
-
-  describe('buildWerkbankUrl', () => {
-    test('should build URL with all parameters', () => {
-      const ctx = {
-        CITY_RAW: 'Hannover',
-        involvementMode: 'or',
-        showCluster: true,
-        showHeatmap: true,
-        showOnlyAboveAverage: false,
-        map: {
-          getCenter: jest.fn(() => ({ lat: 52.3759, lng: 9.7320 })),
-          getZoom: jest.fn(() => 12)
-        },
-        ui: {
-          severityEl: { value: 'all' },
-          roadConditionEl: { value: 'all' },
-          dayTypeEl: { value: 'all' },
-          hFromEl: { value: '0' },
-          hToEl: { value: '23' },
-          maxPointsEl: { value: '100000' },
-          viewportPaddingEl: { value: '20' },
-          heatRadiusEl: { value: '25' },
-          incBikeEl: { checked: true },
-          incPedEl: { checked: true },
-          incCarEl: { checked: true },
-          incMotoEl: { checked: false }
-        }
-      };
-
-      // This is tested through integration tests or E2E
-      expect(true).toBe(true);
     });
   });
 

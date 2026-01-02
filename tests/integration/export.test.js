@@ -89,8 +89,12 @@ describe('Document Export - Integration Tests', () => {
       removeEventListener: jest.fn()
     });
 
-    // Load the module
-    eval(require('fs').readFileSync('./js/ua.report_v2.js', 'utf8'));
+    // Load the module - using eval because files use IIFE pattern
+    // Files are loaded from project root: js/ua.report_v2.js
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.resolve(__dirname, '../../js/ua.report_v2.js');
+    eval(fs.readFileSync(filePath, 'utf8'));
     UA = window.UA;
   });
 

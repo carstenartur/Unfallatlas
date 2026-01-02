@@ -17,8 +17,12 @@ describe('UA.utils - Utility Functions', () => {
       }
     };
 
-    // Load the module
-    eval(require('fs').readFileSync('./js/ua.utils.js', 'utf8'));
+    // Load the module - using eval because files use IIFE pattern
+    // Files are loaded from project root: js/ua.utils.js
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.resolve(__dirname, '../../js/ua.utils.js');
+    eval(fs.readFileSync(filePath, 'utf8'));
     UA = global.window.UA;
   });
 

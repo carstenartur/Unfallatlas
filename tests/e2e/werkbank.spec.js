@@ -27,12 +27,14 @@ test.describe('Werkbank V2 - User Workflows', () => {
   });
 
   test('should select a city from dropdown', async ({ page }) => {
-    // Wait for cities to load
-    await page.waitForTimeout(2000);
-    
-    // Check that city selector is available
+    // Wait for cities to load: ensure the city select has more than one option
     const citySelect = page.locator('#citySel');
     await expect(citySelect).toBeVisible();
+    
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#citySel');
+      return select && select.querySelectorAll('option').length > 1;
+    });
     
     // Get the first option (should be a city after loading)
     const options = await citySelect.locator('option').count();
@@ -132,7 +134,12 @@ test.describe('Werkbank V2 - User Workflows', () => {
     
     // Toggle legend
     await legendBtn.click();
-    await page.waitForTimeout(300); // Wait for animation
+    
+    // Wait for display property to change
+    await page.waitForFunction((box) => {
+      const el = document.querySelector(box);
+      return el && window.getComputedStyle(el).display !== 'none';
+    }, '#legendBox');
     
     // Check if display changed
     const newDisplay = await legendBox.evaluate(el => window.getComputedStyle(el).display);
@@ -163,7 +170,12 @@ test.describe('Werkbank V2 - Drawing and Export', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/werkbank_v2.html');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000); // Wait for map initialization
+    
+    // Wait for map initialization by checking if draw button is enabled
+    await page.waitForFunction(() => {
+      const map = document.querySelector('#map');
+      return map && map.offsetHeight > 0;
+    });
   });
 
   test('should enable drawing mode', async ({ page }) => {
@@ -200,8 +212,8 @@ test.describe('Werkbank V2 - Drawing and Export', () => {
     // Click to open export
     await exportBtn.click();
     
-    // Wait for modal to appear
-    await page.waitForTimeout(1000);
+    // Wait for modal to become visible
+    await modal.waitFor({ state: 'visible' });
     
     // Modal should be visible now
     const newDisplay = await modal.evaluate(el => window.getComputedStyle(el).display);
@@ -213,12 +225,20 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/werkbank_v2.html');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
+    
+    // Wait for page initialization
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#citySel');
+      return select && select.querySelectorAll('option').length > 1;
+    });
     
     // Open the export modal
     const exportBtn = page.locator('#btnOpenExport');
     await exportBtn.click();
-    await page.waitForTimeout(1500);
+    
+    // Wait for modal to be visible
+    const modal = page.locator('.modal');
+    await modal.waitFor({ state: 'visible' });
   });
 
   test('should display export modal with options', async ({ page }) => {
@@ -289,8 +309,8 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
     await expect(closeBtn).toBeVisible();
     await closeBtn.click();
     
-    // Wait for close animation
-    await page.waitForTimeout(500);
+    // Wait for modal to become hidden
+    await modal.waitFor({ state: 'hidden' });
     
     // Modal should be hidden
     const display = await modal.evaluate(el => window.getComputedStyle(el).display);
@@ -313,11 +333,19 @@ test.describe('Werkbank V2 - Accessibility', () => {
   test('should have proper labels on export buttons', async ({ page }) => {
     await page.goto('/werkbank_v2.html');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
+    
+    // Wait for page initialization
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#citySel');
+      return select && select.querySelectorAll('option').length > 1;
+    });
     
     // Open modal
     await page.locator('#btnOpenExport').click();
-    await page.waitForTimeout(1000);
+    
+    // Wait for modal to be visible
+    const modal = page.locator('.modal');
+    await modal.waitFor({ state: 'visible' });
     
     // Check aria-labels
     const wordBtn = page.locator('#btnExportWord');
