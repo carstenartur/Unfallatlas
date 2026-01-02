@@ -6,6 +6,11 @@ describe('Document Export - Integration Tests', () => {
   let UA;
   let mockCanvas;
   let mockBlob;
+  let originalLocation;
+  let originalURL;
+  let originalCreateElement;
+  let originalAddEventListener;
+  let originalRemoveEventListener;
 
   beforeEach(() => {
     // Setup mock canvas
@@ -15,6 +20,13 @@ describe('Document Export - Integration Tests', () => {
 
     // Setup mock blob
     mockBlob = new Blob(['test content'], { type: 'application/octet-stream' });
+
+    // Save original values for cleanup
+    originalLocation = window.location;
+    originalURL = window.URL;
+    originalCreateElement = document.createElement;
+    originalAddEventListener = document.addEventListener;
+    originalRemoveEventListener = document.removeEventListener;
 
     // Extend the existing window object with mocks instead of replacing it
     Object.assign(window, {
@@ -56,7 +68,6 @@ describe('Document Export - Integration Tests', () => {
     });
 
     // Mock URL.createObjectURL and revokeObjectURL but keep URL constructor
-    const originalURL = window.URL;
     window.URL = class URL extends originalURL {
       static createObjectURL = jest.fn(() => 'blob:mock-url');
       static revokeObjectURL = jest.fn();
@@ -79,6 +90,13 @@ describe('Document Export - Integration Tests', () => {
   });
 
   afterEach(() => {
+    // Restore original values
+    window.location = originalLocation;
+    window.URL = originalURL;
+    document.createElement = originalCreateElement;
+    document.addEventListener = originalAddEventListener;
+    document.removeEventListener = originalRemoveEventListener;
+    
     // Clean up mocks
     delete window.UA;
     delete window.leafletImage;
