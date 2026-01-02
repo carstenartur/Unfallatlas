@@ -21,6 +21,15 @@ describe('Document Export - Integration Tests', () => {
       UA: {},
       setTimeout: global.setTimeout,
       atob: global.atob,
+      location: {
+        pathname: '/werkbank_v2.html',
+        search: '',
+        hash: '',
+        href: 'http://localhost/werkbank_v2.html',
+        origin: 'http://localhost',
+        protocol: 'http:',
+        host: 'localhost'
+      },
       URL: {
         createObjectURL: jest.fn(() => 'blob:mock-url'),
         revokeObjectURL: jest.fn()
@@ -57,7 +66,9 @@ describe('Document Export - Integration Tests', () => {
         click: jest.fn(),
         href: '',
         download: ''
-      }))
+      })),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn()
     };
 
     // Load the module
