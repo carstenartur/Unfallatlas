@@ -6,6 +6,11 @@ describe('Document Export - Integration Tests', () => {
   let UA;
   let mockCanvas;
   let mockBlob;
+  let originalLocation;
+  let originalURL;
+  let originalCreateElement;
+  let originalAddEventListener;
+  let originalRemoveEventListener;
 
   beforeEach(() => {
     // Setup mock canvas
@@ -16,14 +21,24 @@ describe('Document Export - Integration Tests', () => {
     // Setup mock blob
     mockBlob = new Blob(['test content'], { type: 'application/octet-stream' });
 
-    // Mock global libraries
-    global.window = {
+    // Save original values for cleanup
+    originalLocation = window.location;
+    originalURL = window.URL;
+    originalCreateElement = document.createElement;
+    originalAddEventListener = document.addEventListener;
+    originalRemoveEventListener = document.removeEventListener;
+
+    // Extend the existing window object with mocks instead of replacing it
+    Object.assign(window, {
       UA: {},
-      setTimeout: global.setTimeout,
-      atob: global.atob,
-      URL: {
-        createObjectURL: jest.fn(() => 'blob:mock-url'),
-        revokeObjectURL: jest.fn()
+      location: {
+        pathname: '/werkbank_v2.html',
+        search: '',
+        hash: '',
+        href: 'http://localhost/werkbank_v2.html',
+        origin: 'http://localhost',
+        protocol: 'http:',
+        host: 'localhost'
       },
       leafletImage: jest.fn((map, callback) => {
         setTimeout(() => callback(null, mockCanvas), 50);
@@ -50,24 +65,49 @@ describe('Document Export - Integration Tests', () => {
         })
       },
       saveAs: jest.fn()
-    };
+    });
 
-    global.document = {
+    // Mock URL.createObjectURL and revokeObjectURL but keep URL constructor
+    window.URL = class URL extends originalURL {
+      static createObjectURL() {
+        return 'blob:mock-url';
+      }
+      static revokeObjectURL() {}
+    };
+    // Spy on the static methods for assertions
+    jest.spyOn(window.URL, 'createObjectURL');
+    jest.spyOn(window.URL, 'revokeObjectURL');
+
+    // Extend document object
+    Object.assign(document, {
       createElement: jest.fn(() => ({
         click: jest.fn(),
         href: '',
         download: ''
-      }))
-    };
+      })),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn()
+    });
 
     // Load the module
     eval(require('fs').readFileSync('./js/ua.report_v2.js', 'utf8'));
-    UA = global.window.UA;
+    UA = window.UA;
   });
 
   afterEach(() => {
-    delete global.window;
-    delete global.document;
+    // Restore original values
+    window.location = originalLocation;
+    window.URL = originalURL;
+    document.createElement = originalCreateElement;
+    document.addEventListener = originalAddEventListener;
+    document.removeEventListener = originalRemoveEventListener;
+
+    // Clean up mocks
+    delete window.UA;
+    delete window.leafletImage;
+    delete window.docx;
+    delete window.pdfMake;
+    delete window.saveAs;
     jest.clearAllMocks();
   });
 
