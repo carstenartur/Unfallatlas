@@ -8,6 +8,8 @@ Der aktuelle Stand verarbeitet **mehrere Jahrgänge (2016–2024)** automatisch,
 filtert standardmäßig auf **Fahrradunfälle** und kann wahlweise auf
 **Regionen oder Städte (≥ 100.000 Einwohner)** eingeschränkt werden.
 
+> **Hinweis für Entwickler:** Technische Informationen zur Architektur, Tests und Entwicklung finden Sie in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ---
 
 ## Voraussetzungen

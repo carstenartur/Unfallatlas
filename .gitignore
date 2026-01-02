@@ -1,3 +1,11 @@
 out/*.zip
 out/*.tmp
 out/**/*.tmp
+
+# Testing
+node_modules/
+coverage/
+test-results/
+playwright-report/
+.playwright/
+*.log

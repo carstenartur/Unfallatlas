@@ -1,0 +1,49 @@
+{
+  "name": "unfallatlas",
+  "version": "2.0.0",
+  "description": "Unfallatlas data converter and analysis tool with interactive visualization",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:performance": "jest --testPathPattern=tests/performance",
+    "test:all": "npm run test && npm run test:e2e",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [
+    "unfallatlas",
+    "accident-data",
+    "geojson",
+    "visualization",
+    "leaflet",
+    "traffic-safety"
+  ],
+  "author": "Carsten Artur",
+  "license": "SEE LICENSE IN LICENSE",
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "js/**/*.js",
+      "!js/**/*.test.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ]
+  }
+}

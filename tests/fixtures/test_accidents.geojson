@@ -1,0 +1,80 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7320, 52.3759]
+      },
+      "properties": {
+        "OBJECTID": 1001,
+        "UKATEGORIE": "2",
+        "UTYP1": "3",
+        "UART": "0",
+        "IstRad": 1,
+        "IstFuss": 0,
+        "IstPKW": 1,
+        "IstKrad": 0,
+        "IstGkfz": 0,
+        "IstSonstig": 0,
+        "USTUNDE": 8,
+        "UWOCHENTAG": "2",
+        "UMONAT": 5,
+        "UJAHR": 2023,
+        "STRZUSTAND": "0",
+        "ULICHTVERH": "0"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7325, 52.3762]
+      },
+      "properties": {
+        "OBJECTID": 1002,
+        "UKATEGORIE": "3",
+        "UTYP1": "2",
+        "UART": "0",
+        "IstRad": 1,
+        "IstFuss": 0,
+        "IstPKW": 0,
+        "IstKrad": 0,
+        "IstGkfz": 0,
+        "IstSonstig": 0,
+        "USTUNDE": 17,
+        "UWOCHENTAG": "5",
+        "UMONAT": 9,
+        "UJAHR": 2023,
+        "STRZUSTAND": "1",
+        "ULICHTVERH": "0"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7318, 52.3755]
+      },
+      "properties": {
+        "OBJECTID": 1003,
+        "UKATEGORIE": "1",
+        "UTYP1": "1",
+        "UART": "0",
+        "IstRad": 0,
+        "IstFuss": 1,
+        "IstPKW": 1,
+        "IstKrad": 0,
+        "IstGkfz": 0,
+        "IstSonstig": 0,
+        "USTUNDE": 22,
+        "UWOCHENTAG": "7",
+        "UMONAT": 12,
+        "UJAHR": 2023,
+        "STRZUSTAND": "2",
+        "ULICHTVERH": "1"
+      }
+    }
+  ]
+}
