@@ -16,11 +16,9 @@ describe('Document Export - Integration Tests', () => {
     // Setup mock blob
     mockBlob = new Blob(['test content'], { type: 'application/octet-stream' });
 
-    // Mock global libraries
-    global.window = {
+    // Extend the existing window object with mocks instead of replacing it
+    Object.assign(window, {
       UA: {},
-      setTimeout: global.setTimeout,
-      atob: global.atob,
       location: {
         pathname: '/werkbank_v2.html',
         search: '',
@@ -29,10 +27,6 @@ describe('Document Export - Integration Tests', () => {
         origin: 'http://localhost',
         protocol: 'http:',
         host: 'localhost'
-      },
-      URL: {
-        createObjectURL: jest.fn(() => 'blob:mock-url'),
-        revokeObjectURL: jest.fn()
       },
       leafletImage: jest.fn((map, callback) => {
         setTimeout(() => callback(null, mockCanvas), 50);
@@ -59,9 +53,17 @@ describe('Document Export - Integration Tests', () => {
         })
       },
       saveAs: jest.fn()
+    });
+
+    // Mock URL.createObjectURL and revokeObjectURL but keep URL constructor
+    const originalURL = window.URL;
+    window.URL = class URL extends originalURL {
+      static createObjectURL = jest.fn(() => 'blob:mock-url');
+      static revokeObjectURL = jest.fn();
     };
 
-    global.document = {
+    // Extend document object
+    Object.assign(document, {
       createElement: jest.fn(() => ({
         click: jest.fn(),
         href: '',
@@ -69,16 +71,20 @@ describe('Document Export - Integration Tests', () => {
       })),
       addEventListener: jest.fn(),
       removeEventListener: jest.fn()
-    };
+    });
 
     // Load the module
     eval(require('fs').readFileSync('./js/ua.report_v2.js', 'utf8'));
-    UA = global.window.UA;
+    UA = window.UA;
   });
 
   afterEach(() => {
-    delete global.window;
-    delete global.document;
+    // Clean up mocks
+    delete window.UA;
+    delete window.leafletImage;
+    delete window.docx;
+    delete window.pdfMake;
+    delete window.saveAs;
     jest.clearAllMocks();
   });
 
