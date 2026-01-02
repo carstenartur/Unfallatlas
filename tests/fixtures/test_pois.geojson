@@ -1,0 +1,44 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7322, 52.3760]
+      },
+      "properties": {
+        "id": "osm:node:123456",
+        "type": "school",
+        "name": "Grundschule Am Sandbach",
+        "source": "OpenStreetMap/Overpass"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7315, 52.3757]
+      },
+      "properties": {
+        "id": "osm:node:123457",
+        "type": "kindergarten",
+        "name": "Kindergarten Sonnenschein",
+        "source": "OpenStreetMap/Overpass"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7328, 52.3765]
+      },
+      "properties": {
+        "id": "osm:node:123458",
+        "type": "childcare",
+        "name": "Kita Regenbogen",
+        "source": "OpenStreetMap/Overpass"
+      }
+    }
+  ]
+}

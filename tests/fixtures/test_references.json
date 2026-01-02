@@ -1,0 +1,25 @@
+{
+  "documents": [
+    {
+      "title": "Die Ideale Kreuzung – Leitfaden für sichere Knotenpunkte",
+      "author": "Region Hannover",
+      "date": "2023",
+      "url": "https://www.hannover.de/Leben-in-der-Region-Hannover/Mobilit%C3%A4t/Radverkehr/Die-ideale-Kreuzung",
+      "description": "Planerischer Leitfaden zur Gestaltung sicherer Kreuzungen mit Fokus auf vulnerable Verkehrsteilnehmer. Beschreibt konkrete Gestaltungskriterien zur Vermeidung typischer Unfallmuster."
+    },
+    {
+      "title": "Empfehlungen für Radverkehrsanlagen (ERA)",
+      "author": "FGSV",
+      "date": "2010",
+      "url": "https://www.fgsv-verlag.de/catalog/product/view/id/2785",
+      "description": "Regelwerk für die Planung, den Entwurf und den Betrieb von Radverkehrsanlagen. Definiert Standards für sichere Radinfrastruktur."
+    },
+    {
+      "title": "Verkehrssicherheitskonzept Hannover 2025",
+      "author": "Landeshauptstadt Hannover",
+      "date": "2020",
+      "url": "https://www.hannover.de/",
+      "description": "Strategisches Konzept zur Verbesserung der Verkehrssicherheit in Hannover mit Fokus auf Unfallprävention und Vision Zero."
+    }
+  ]
+}
