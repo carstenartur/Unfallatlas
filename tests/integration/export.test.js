@@ -69,9 +69,14 @@ describe('Document Export - Integration Tests', () => {
 
     // Mock URL.createObjectURL and revokeObjectURL but keep URL constructor
     window.URL = class URL extends originalURL {
-      static createObjectURL = jest.fn(() => 'blob:mock-url');
-      static revokeObjectURL = jest.fn();
+      static createObjectURL() {
+        return 'blob:mock-url';
+      }
+      static revokeObjectURL() {}
     };
+    // Spy on the static methods for assertions
+    jest.spyOn(window.URL, 'createObjectURL');
+    jest.spyOn(window.URL, 'revokeObjectURL');
 
     // Extend document object
     Object.assign(document, {
@@ -96,7 +101,7 @@ describe('Document Export - Integration Tests', () => {
     document.createElement = originalCreateElement;
     document.addEventListener = originalAddEventListener;
     document.removeEventListener = originalRemoveEventListener;
-    
+
     // Clean up mocks
     delete window.UA;
     delete window.leafletImage;
