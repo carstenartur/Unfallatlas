@@ -8,51 +8,7 @@ Der aktuelle Stand verarbeitet **mehrere Jahrgänge (2016–2024)** automatisch,
 filtert standardmäßig auf **Fahrradunfälle** und kann wahlweise auf
 **Regionen oder Städte (≥ 100.000 Einwohner)** eingeschränkt werden.
 
----
-
-## Qualitätssicherung
-
-Dieses Projekt verfügt über eine umfassende Testsuite zur Sicherstellung von Qualität, Stabilität und Performance:
-
-- **Unit-Tests**: Jest-basierte Tests für einzelne Funktionen
-- **Integrationstests**: Tests für Export-Workflows (PDF/Word mit POI-Daten)
-- **End-to-End-Tests**: Playwright-Tests für Benutzerinteraktionen
-- **Performance-Tests**: Benchmarks für große Datenmengen (5000+ Unfallpunkte)
-
-### Tests ausführen
-
-```bash
-# Abhängigkeiten installieren
-npm install
-
-# Alle Unit-Tests ausführen
-npm run test:unit
-
-# Integrationstests ausführen
-npm run test:integration
-
-# End-to-End-Tests ausführen
-npm run test:e2e
-
-# Performance-Tests ausführen
-npm run test:performance
-
-# Alle Tests ausführen
-npm run test:all
-
-# Coverage-Report generieren
-npm run test:coverage
-```
-
-Detaillierte Informationen zur Test-Suite finden Sie in [tests/README.md](tests/README.md).
-
-### Continuous Integration
-
-Tests werden automatisch ausgeführt bei:
-- Pull Requests auf `main` oder `develop` Branches
-- Push auf `main` oder `develop` Branches
-
-Siehe [.github/workflows/test.yml](.github/workflows/test.yml) für die CI-Konfiguration.
+> **Hinweis für Entwickler:** Technische Informationen zur Architektur, Tests und Entwicklung finden Sie in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
