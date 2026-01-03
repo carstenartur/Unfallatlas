@@ -1,4 +1,6 @@
 name: Validate GeoJSON
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:
