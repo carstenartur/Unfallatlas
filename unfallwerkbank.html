@@ -1595,7 +1595,12 @@
       const cities = await loadCitiesList();
       setCityDropdown(cities);
     } catch(e) {
-      citySel.innerHTML = `<option value="${escHtml(CITY_RAW)}">${escHtml(CITY_RAW)}</option>`;
+      // Fallback: safely create option without using innerHTML
+      while (citySel.firstChild) citySel.removeChild(citySel.firstChild);
+      const opt = document.createElement("option");
+      opt.value = CITY_RAW;
+      opt.textContent = CITY_RAW;
+      citySel.appendChild(opt);
       citySel.value = CITY_RAW;
     }
 
