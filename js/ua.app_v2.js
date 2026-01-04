@@ -18,13 +18,10 @@
       if (ctx._rafId) cancelAnimationFrame(ctx._rafId);
       ctx._rafId = requestAnimationFrame(() => {
         UA.applyViewportFilter(ctx);
-        // Only rebuild layers on zoom or if layers don't exist
-        if (isZoom || !ctx.clusterLayer || !ctx.heatLayer) {
-          UA.renderLayers(ctx);
-        } else {
-          // On pan, just update stats without rebuilding layers
-          UA.updateStats(ctx);
-        }
+        // Always rebuild layers when viewport changes to ensure new areas are loaded
+        // Mark that viewport changed (not a filter change) to rebuild with new data
+        ctx._dataChanged = true;
+        UA.renderLayers(ctx);
         UA.syncViewToUrl(ctx);
       });
     }, 350);
@@ -94,7 +91,9 @@
       involvementMode: "or",
       showCluster: true,
       showHeatmap: true,
-      showOnlyAboveAverage: false
+      showOnlyAboveAverage: false,
+      showSchools: true,
+      showKindergartens: true
     };
 
     if (UA.cleanUrlIfNeeded()) return;

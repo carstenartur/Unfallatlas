@@ -277,6 +277,73 @@
         console.warn(err);
       }
     };
+
+    // Add layer legend control
+    UA.addLayerLegend(ctx, map);
+  };
+
+  // ----------------------------
+  // Layer Legend Control (bottom right)
+  // ----------------------------
+  UA.addLayerLegend = function addLayerLegend(ctx, map) {
+    const LayerLegend = L.Control.extend({
+      options: {
+        position: 'bottomright'
+      },
+
+      onAdd: function(map) {
+        const container = L.DomUtil.create('div', 'layer-legend-control');
+        
+        // Prevent map interactions when clicking on legend
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+
+        // Initialize layer states (default: all enabled)
+        ctx.showSchools = true;
+        ctx.showKindergartens = true;
+        ctx.showCluster = true;
+        ctx.showHeatmap = true;
+
+        // Create legend items
+        const items = [
+          { id: 'schools', icon: '🏫', label: 'Schulen', stateKey: 'showSchools' },
+          { id: 'kindergartens', icon: '👶', label: 'Kindergärten', stateKey: 'showKindergartens' },
+          { id: 'cluster', icon: '📍', label: 'Cluster', stateKey: 'showCluster' },
+          { id: 'heatmap', icon: '🔥', label: 'Heatmap', stateKey: 'showHeatmap' }
+        ];
+
+        items.forEach(item => {
+          const btn = L.DomUtil.create('button', 'legend-item active', container);
+          btn.innerHTML = `<span class="legend-icon">${item.icon}</span>`;
+          btn.title = item.label;
+          btn.setAttribute('aria-label', item.label);
+          btn.setAttribute('data-layer', item.id);
+
+          btn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Toggle state
+            ctx[item.stateKey] = !ctx[item.stateKey];
+
+            // Update button appearance
+            if (ctx[item.stateKey]) {
+              btn.classList.add('active');
+            } else {
+              btn.classList.remove('active');
+            }
+
+            // Rebuild layers to reflect changes
+            ctx._dataChanged = true;
+            UA.renderLayers(ctx);
+          };
+        });
+
+        return container;
+      }
+    });
+
+    map.addControl(new LayerLegend());
   };
 
   UA.fitToAllPoints = function fitToAllPoints(ctx) {
@@ -356,7 +423,7 @@
   }
 
   UA.renderLayers = function renderLayers(ctx) {
-    // Layer caching: only remove and rebuild if data has changed
+    // Layer caching: rebuild on zoom change or data change
     const currentZoom = ctx.map.getZoom();
     const shouldRebuildCluster = !ctx.clusterLayer || ctx._lastClusterZoom !== currentZoom || ctx._dataChanged;
     const shouldRebuildHeat = !ctx.heatLayer || ctx._lastHeatZoom !== currentZoom || ctx._dataChanged;
@@ -490,10 +557,18 @@
   // ----------------------------
   UA.renderPOILayer = function renderPOILayer(ctx) {
     if (!ctx.poiData || !ctx.poiData.features) return;
+    if (!ctx.showSchools && !ctx.showKindergartens) return;
 
     const z = ctx.map.getZoom();
     // Only show POIs at zoom level 14 and higher
     if (z < 14) return;
+
+    // Get viewport bounds for filtering
+    const bounds = ctx.map.getBounds();
+    const south = bounds.getSouth();
+    const north = bounds.getNorth();
+    const west = bounds.getWest();
+    const east = bounds.getEast();
 
     const poiLayer = L.featureGroup();
 
@@ -522,9 +597,17 @@
 
       const [lon, lat] = coords;
       if (typeof lon !== "number" || typeof lat !== "number" || !isFinite(lon) || !isFinite(lat)) continue;
+      
+      // Viewport filtering for better performance
+      if (lat < south || lat > north || lon < west || lon > east) continue;
+      
       const props = feature.properties || {};
       const type = props.type || "unknown";
       const name = props.name || "Unbenannt";
+
+      // Check if this POI type should be shown
+      if (type === "school" && !ctx.showSchools) continue;
+      if (type === "kindergarten" && !ctx.showKindergartens) continue;
 
       // Select icon based on type
       let icon = kindergartenIcon;
