@@ -59,6 +59,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
   afterEach(() => {
     delete global.window;
+    delete global.document;
     jest.clearAllMocks();
   });
 
@@ -115,6 +116,11 @@ describe('UA.report_v2 - Export Functions', () => {
   describe('exportToWord', () => {
     test('should throw error if docx library not loaded', async () => {
       delete global.window.docx;
+      delete global.window.pdfMake;
+      delete global.window.saveAs;
+      delete global.document; // Remove document to prevent script loading
+      UA._exportLibrariesLoaded = false; // Reset the flag
+      
       const ctx = { CITY_RAW: 'Hannover' };
       const reportData = { text: 'Test report' };
 
@@ -122,6 +128,7 @@ describe('UA.report_v2 - Export Functions', () => {
     });
 
     test('should create Word document with basic structure', async () => {
+      UA._exportLibrariesLoaded = false; // Reset the flag
       const mockBlob = new Blob(['test'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
       global.window.docx.Packer.toBlob = jest.fn().mockResolvedValue(mockBlob);
 
@@ -147,7 +154,12 @@ describe('UA.report_v2 - Export Functions', () => {
 
   describe('exportToPDF', () => {
     test('should throw error if pdfMake library not loaded', async () => {
+      delete global.window.docx;
       delete global.window.pdfMake;
+      delete global.window.saveAs;
+      delete global.document; // Remove document to prevent script loading
+      UA._exportLibrariesLoaded = false; // Reset the flag
+      
       const ctx = { CITY_RAW: 'Hannover' };
       const reportData = { text: 'Test report' };
 
@@ -155,6 +167,7 @@ describe('UA.report_v2 - Export Functions', () => {
     });
 
     test('should create PDF with basic structure', async () => {
+      UA._exportLibrariesLoaded = false; // Reset the flag
       const mockDownload = jest.fn();
       global.window.pdfMake.createPdf = jest.fn().mockReturnValue({
         download: mockDownload

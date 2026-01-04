@@ -1,6 +1,74 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
+  // Initialize export libraries loaded flag
+  UA._exportLibrariesLoaded = false;
+
+  // =====================================================================
+  // Lazy Loading Utilities for Export Libraries
+  // =====================================================================
+
+  /**
+   * Load a script dynamically
+   * @param {string} src - Script URL
+   * @param {string} globalCheck - Global variable to check if already loaded
+   * @returns {Promise<void>}
+   */
+  function loadScript(src, globalCheck) {
+    return new Promise((resolve, reject) => {
+      // Check if already loaded
+      if (globalCheck && window[globalCheck]) {
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = src;
+      script.crossOrigin = 'anonymous';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
+   * Ensure export libraries are loaded
+   * @returns {Promise<void>}
+   */
+  UA.ensureExportLibraries = async function ensureExportLibraries() {
+    if (UA._exportLibrariesLoaded) return;
+    
+    // In test environment, libraries might already be loaded or mocked
+    if (window.docx && window.pdfMake && window.saveAs) {
+      UA._exportLibrariesLoaded = true;
+      return;
+    }
+    
+    // If no document object (not in browser), skip loading
+    if (typeof document === 'undefined') {
+      UA._exportLibrariesLoaded = true;
+      return;
+    }
+    
+    try {
+      await Promise.all([
+        loadScript('https://unpkg.com/docx@8.2.2/build/index.umd.js', 'docx'),
+        loadScript('https://unpkg.com/pdfmake@0.2.10/build/pdfmake.min.js', 'pdfMake'),
+        loadScript('https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js', 'saveAs')
+      ]);
+      
+      // Load vfs_fonts after pdfMake
+      if (window.pdfMake && !window.pdfMake.vfs) {
+        await loadScript('https://unpkg.com/pdfmake@0.2.10/build/vfs_fonts.js', null);
+      }
+      
+      UA._exportLibrariesLoaded = true;
+    } catch (e) {
+      console.error('Failed to load export libraries:', e);
+      throw new Error('Export-Bibliotheken konnten nicht geladen werden. Bitte Seite neu laden.');
+    }
+  };
+
   // =====================================================================
   // Map Image Export (programmatic, using leaflet-image)
   // =====================================================================
@@ -73,6 +141,9 @@
    * @param {Object} options - Export options
    */
   UA.exportToWord = async function exportToWord(ctx, reportData, options = {}) {
+    // Ensure export libraries are loaded
+    await UA.ensureExportLibraries();
+    
     if (!window.docx) {
       throw new Error("docx.js library not loaded");
     }
@@ -491,6 +562,9 @@
    * @param {Object} options - Export options
    */
   UA.exportToPDF = async function exportToPDF(ctx, reportData, options = {}) {
+    // Ensure export libraries are loaded
+    await UA.ensureExportLibraries();
+    
     if (!window.pdfMake) {
       throw new Error("pdfMake library not loaded");
     }
@@ -788,10 +862,15 @@
     ) {
       button.addEventListener("click", async () => {
         try {
-          exportProgress.textContent = inProgressText;
+          exportProgress.textContent = "Lade Export-Bibliotheken...";
           button.style.opacity = "0.6";
           button.style.cursor = "not-allowed";
           button.disabled = true;
+
+          // Ensure libraries are loaded (with progress indication)
+          await UA.ensureExportLibraries();
+          
+          exportProgress.textContent = inProgressText;
 
           // Get current report data
           const reportData = await UA.computeExportReport(ctx);
