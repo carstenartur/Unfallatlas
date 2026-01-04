@@ -1,6 +1,9 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
+  // Initialize export libraries loaded flag
+  UA._exportLibrariesLoaded = false;
+
   // =====================================================================
   // Lazy Loading Utilities for Export Libraries
   // =====================================================================

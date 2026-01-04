@@ -298,11 +298,12 @@
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
 
-        // Initialize layer states (default: all enabled)
-        ctx.showSchools = true;
-        ctx.showKindergartens = true;
-        ctx.showCluster = true;
-        ctx.showHeatmap = true;
+        // Use existing layer states from ctx (initialized in ua.app_v2.js)
+        // Default to true if not set
+        if (ctx.showSchools === undefined) ctx.showSchools = true;
+        if (ctx.showKindergartens === undefined) ctx.showKindergartens = true;
+        if (ctx.showCluster === undefined) ctx.showCluster = true;
+        if (ctx.showHeatmap === undefined) ctx.showHeatmap = true;
 
         // Create legend items
         const items = [
