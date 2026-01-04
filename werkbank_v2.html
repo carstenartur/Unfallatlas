@@ -29,11 +29,8 @@
   <!-- Leaflet Image Export -->
   <script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js" crossorigin=""></script>
 
-  <!-- Document Export Libraries -->
-  <script src="https://unpkg.com/docx@8.2.2/build/index.umd.js" crossorigin=""></script>
-  <script src="https://unpkg.com/pdfmake@0.2.10/build/pdfmake.min.js" crossorigin=""></script>
-  <script src="https://unpkg.com/pdfmake@0.2.10/build/vfs_fonts.js" crossorigin=""></script>
-  <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js" crossorigin=""></script>
+  <!-- Document Export Libraries (loaded on demand for better performance) -->
+  <!-- These are loaded via script injection when export dialog opens -->
 
   <!-- App CSS -->
   <link rel="stylesheet" href="css/ua.css?v=2026-01-01" />
