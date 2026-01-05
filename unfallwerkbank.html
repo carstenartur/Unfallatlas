@@ -1504,7 +1504,9 @@
       setQS({ export: 1 });
     } catch(e) {
       exportProgress.textContent = "Fehler.";
-      exportHtml.innerHTML = `<div style="color:#b00; font-weight:900;">Export fehlgeschlagen</div><div>${escHtml(String(e))}</div>`;
+      exportHtml.innerHTML = `<div style="color:#b00; font-weight:900;">Export fehlgeschlagen</div><div></div>`;
+      const errDiv = exportHtml.querySelector("div:nth-of-type(2)");
+      if (errDiv) errDiv.textContent = String(e ?? "");
       exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
     }
   });
