@@ -28,20 +28,33 @@ describe('Document Export - Integration Tests', () => {
     originalAddEventListener = document.addEventListener;
     originalRemoveEventListener = document.removeEventListener;
 
-    // Mock location without triggering navigation using defineProperty
-    Object.defineProperty(window, 'location', {
-      value: {
-        pathname: '/werkbank_v2.html',
-        search: '',
-        hash: '',
-        href: 'http://localhost/werkbank_v2.html',
-        origin: 'http://localhost',
-        protocol: 'http:',
-        host: 'localhost'
-      },
-      writable: true,
-      configurable: true
-    });
+    // Prevent jsdom location interference by using Object.defineProperty
+    // This creates a non-triggering mock that won't cause navigation errors
+    try {
+      delete window.location;
+      Object.defineProperty(window, 'location', {
+        value: {
+          pathname: '/werkbank_v2.html',
+          search: '',
+          hash: '',
+          href: 'http://localhost/werkbank_v2.html',
+          origin: 'http://localhost',
+          protocol: 'http:',
+          host: 'localhost'
+        },
+        writable: true,
+        configurable: true
+      });
+    } catch (e) {
+      // If already defined, just update the value
+      window.location.pathname = '/werkbank_v2.html';
+      window.location.search = '';
+      window.location.hash = '';
+      window.location.href = 'http://localhost/werkbank_v2.html';
+      window.location.origin = 'http://localhost';
+      window.location.protocol = 'http:';
+      window.location.host = 'localhost';
+    }
 
     // Extend the existing window object with mocks instead of replacing it
     Object.assign(window, {
