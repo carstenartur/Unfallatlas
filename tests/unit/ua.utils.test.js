@@ -7,7 +7,8 @@ describe('UA.utils - Utility Functions', () => {
 
   beforeEach(() => {
     // Setup global UA object like in the browser
-    global.window = {
+    // Create a completely isolated mock window to avoid jsdom interference
+    const mockWindow = {
       UA: {},
       location: {
         href: 'http://localhost:8000/werkbank_v2.html?city=Hannover&severity=all'
@@ -16,18 +17,23 @@ describe('UA.utils - Utility Functions', () => {
         replaceState: jest.fn()
       }
     };
+    // Use a different name to avoid jsdom interference
+    global.mockWin = mockWindow;
 
     // Load the module - using eval because files use IIFE pattern
     // Files are loaded from project root: js/ua.utils.js
     const fs = require('fs');
     const path = require('path');
     const filePath = path.resolve(__dirname, '../../js/ua.utils.js');
-    eval(fs.readFileSync(filePath, 'utf8'));
-    UA = global.window.UA;
+    // Use IIFE to properly bind window in eval context
+    (function(window) {
+      eval(fs.readFileSync(filePath, 'utf8'));
+    })(mockWindow);
+    UA = mockWindow.UA;
   });
 
   afterEach(() => {
-    delete global.window;
+    delete global.mockWin;
   });
 
   describe('escHtml', () => {
@@ -89,14 +95,18 @@ describe('UA.utils - Utility Functions', () => {
     });
 
     test('should return default for empty parameter', () => {
-      global.window.location.href = 'http://localhost:8000/?empty=';
+      // Update location properties for this test
+      global.mockWin.location.href = 'http://localhost:8000/?empty=';
+      global.mockWin.location.search = '?empty=';
       expect(UA.qGet('empty', 'default')).toBe('default');
     });
   });
 
   describe('qBool', () => {
     beforeEach(() => {
-      global.window.location.href = 'http://localhost:8000/?flag1=1&flag2=true&flag3=yes&flag4=0&flag5=false';
+      // Update location properties for these tests
+      global.mockWin.location.href = 'http://localhost:8000/?flag1=1&flag2=true&flag3=yes&flag4=0&flag5=false';
+      global.mockWin.location.search = '?flag1=1&flag2=true&flag3=yes&flag4=0&flag5=false';
     });
 
     test('should parse "1" as true', () => {
@@ -127,7 +137,9 @@ describe('UA.utils - Utility Functions', () => {
 
   describe('qNum', () => {
     beforeEach(() => {
-      global.window.location.href = 'http://localhost:8000/?num=42&float=3.14&invalid=abc';
+      // Update location properties for these tests
+      global.mockWin.location.href = 'http://localhost:8000/?num=42&float=3.14&invalid=abc';
+      global.mockWin.location.search = '?num=42&float=3.14&invalid=abc';
     });
 
     test('should parse integer values', () => {
