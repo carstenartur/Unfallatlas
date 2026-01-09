@@ -28,10 +28,9 @@ describe('Document Export - Integration Tests', () => {
     originalAddEventListener = document.addEventListener;
     originalRemoveEventListener = document.removeEventListener;
 
-    // Extend the existing window object with mocks instead of replacing it
-    Object.assign(window, {
-      UA: {},
-      location: {
+    // Mock location without triggering navigation using defineProperty
+    Object.defineProperty(window, 'location', {
+      value: {
         pathname: '/werkbank_v2.html',
         search: '',
         hash: '',
@@ -40,6 +39,13 @@ describe('Document Export - Integration Tests', () => {
         protocol: 'http:',
         host: 'localhost'
       },
+      writable: true,
+      configurable: true
+    });
+
+    // Extend the existing window object with mocks instead of replacing it
+    Object.assign(window, {
+      UA: {},
       leafletImage: jest.fn((map, callback) => {
         setTimeout(() => callback(null, mockCanvas), 50);
       }),

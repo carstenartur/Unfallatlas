@@ -32,6 +32,9 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
+    "testEnvironmentOptions": {
+      "url": "http://localhost:8000/"
+    },
     "testMatch": [
       "**/tests/**/*.test.js"
     ],
