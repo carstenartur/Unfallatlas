@@ -141,7 +141,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
     test('should create Word document with basic structure', async () => {
       // Ensure libraries are properly set up (in case previous test deleted them)
-      if (!global.window.docx || !global.window.docx.Packer) {
+      if (!global.window.docx) {
         // Recreate docx if needed
         global.window.docx = {
           Document: jest.fn(),
@@ -158,6 +158,11 @@ describe('UA.report_v2 - Export Functions', () => {
             CENTER: 'center'
           },
           ImageRun: jest.fn()
+        };
+      } else if (!global.window.docx.Packer) {
+        // If docx exists but Packer doesn't, add it
+        global.window.docx.Packer = {
+          toBlob: jest.fn()
         };
       }
       if (!global.window.saveAs) {

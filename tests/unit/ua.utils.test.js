@@ -25,9 +25,10 @@ describe('UA.utils - Utility Functions', () => {
     const fs = require('fs');
     const path = require('path');
     const filePath = path.resolve(__dirname, '../../js/ua.utils.js');
-    // Alias window to mockWin in eval context
-    const window = mockWindow;
-    eval(fs.readFileSync(filePath, 'utf8'));
+    // Use IIFE to properly bind window in eval context
+    (function(window) {
+      eval(fs.readFileSync(filePath, 'utf8'));
+    })(mockWindow);
     UA = mockWindow.UA;
   });
 
