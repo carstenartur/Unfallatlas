@@ -18,7 +18,7 @@ describe('UA.report_v2 - Export Functions', () => {
       setTimeout(() => callback(null, mockCanvas), 50);
     });
 
-    // Setup global window object
+    // Setup global window object - reassign completely to avoid stale references
     global.window = {
       UA: {},
       leafletImage: mockLeafletImage,
@@ -53,7 +53,11 @@ describe('UA.report_v2 - Export Functions', () => {
     const fs = require('fs');
     const path = require('path');
     const filePath = path.resolve(__dirname, '../../js/ua.report_v2.js');
-    eval(fs.readFileSync(filePath, 'utf8'));
+    // Note: eval'd code will use jsdom's window, not global.window, unless we bind it
+    // We create a window variable in eval's scope that points to global.window
+    (function(window) {
+      eval(fs.readFileSync(filePath, 'utf8'));
+    })(global.window);
     UA = global.window.UA;
   });
 
@@ -99,6 +103,10 @@ describe('UA.report_v2 - Export Functions', () => {
     });
 
     test('should reject if canvas toDataURL fails', async () => {
+      // Reset leafletImage to normal behavior for this test
+      global.window.leafletImage = jest.fn((map, callback) => {
+        setTimeout(() => callback(null, mockCanvas), 50);
+      });
       mockCanvas.toDataURL = jest.fn(() => { throw new Error('Canvas error'); });
       const ctx = { map: {} };
 
@@ -106,6 +114,10 @@ describe('UA.report_v2 - Export Functions', () => {
     });
 
     test('should reject if data URL is invalid', async () => {
+      // Reset leafletImage to normal behavior for this test
+      global.window.leafletImage = jest.fn((map, callback) => {
+        setTimeout(() => callback(null, mockCanvas), 50);
+      });
       mockCanvas.toDataURL = jest.fn(() => 'invalid-data-url');
       const ctx = { map: {} };
 
@@ -118,8 +130,8 @@ describe('UA.report_v2 - Export Functions', () => {
       delete global.window.docx;
       delete global.window.pdfMake;
       delete global.window.saveAs;
-      delete global.document; // Remove document to prevent script loading
-      UA._exportLibrariesLoaded = false; // Reset the flag
+      // Set the flag to skip library loading  
+      UA._exportLibrariesLoaded = true;
       
       const ctx = { CITY_RAW: 'Hannover' };
       const reportData = { text: 'Test report' };
@@ -128,9 +140,43 @@ describe('UA.report_v2 - Export Functions', () => {
     });
 
     test('should create Word document with basic structure', async () => {
-      UA._exportLibrariesLoaded = false; // Reset the flag
+      // Ensure libraries are properly set up (in case previous test deleted them)
+      if (!global.window.docx) {
+        // Recreate docx if needed
+        global.window.docx = {
+          Document: jest.fn(),
+          Packer: {
+            toBlob: jest.fn()
+          },
+          Paragraph: jest.fn(),
+          TextRun: jest.fn(),
+          HeadingLevel: {
+            HEADING_1: 'heading1',
+            HEADING_2: 'heading2'
+          },
+          AlignmentType: {
+            CENTER: 'center'
+          },
+          ImageRun: jest.fn()
+        };
+      } else if (!global.window.docx.Packer) {
+        // If docx exists but Packer doesn't, add it
+        global.window.docx.Packer = {
+          toBlob: jest.fn()
+        };
+      }
+      if (!global.window.saveAs) {
+        global.window.saveAs = jest.fn();
+      }
+      
+      // Mock URL.createObjectURL for this test
+      global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      global.URL.revokeObjectURL = jest.fn();
+      
+      // Make sure libraries are properly mocked
       const mockBlob = new Blob(['test'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
       global.window.docx.Packer.toBlob = jest.fn().mockResolvedValue(mockBlob);
+      UA._exportLibrariesLoaded = true; // Skip library loading
 
       const ctx = {
         CITY_RAW: 'Hannover',
@@ -157,8 +203,8 @@ describe('UA.report_v2 - Export Functions', () => {
       delete global.window.docx;
       delete global.window.pdfMake;
       delete global.window.saveAs;
-      delete global.document; // Remove document to prevent script loading
-      UA._exportLibrariesLoaded = false; // Reset the flag
+      // Set the flag to skip library loading
+      UA._exportLibrariesLoaded = true;
       
       const ctx = { CITY_RAW: 'Hannover' };
       const reportData = { text: 'Test report' };
@@ -167,7 +213,17 @@ describe('UA.report_v2 - Export Functions', () => {
     });
 
     test('should create PDF with basic structure', async () => {
-      UA._exportLibrariesLoaded = false; // Reset the flag
+      // Ensure libraries are properly set up (in case previous test deleted them)
+      if (!global.window.pdfMake) {
+        global.window.pdfMake = {
+          createPdf: jest.fn(() => ({
+            download: jest.fn()
+          }))
+        };
+      }
+      
+      // Make sure libraries are properly mocked
+      UA._exportLibrariesLoaded = true; // Skip library loading
       const mockDownload = jest.fn();
       global.window.pdfMake.createPdf = jest.fn().mockReturnValue({
         download: mockDownload
