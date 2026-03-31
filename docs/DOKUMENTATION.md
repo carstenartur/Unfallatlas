@@ -48,8 +48,8 @@ Nach dem Öffnen der Seite erscheint die Kartenansicht links und das Steuerungsp
 
 | Bereich | Beschreibung |
 |---|---|
-| **Karte (links)** | Interaktive Leaflet-Karte mit Unfallpunkten |
-| **Steuerungspanel (rechts)** | Filter, Anzeigemodi, Zeichnen und Export |
+| **Karte (rechts)** | Interaktive Leaflet-Karte mit Unfallpunkten |
+| **Steuerungspanel (links)** | Filter, Anzeigemodi, Zeichnen und Export |
 
 ---
 
