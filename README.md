@@ -1,5 +1,12 @@
 # Unfallatlas
 
+## 📖 Dokumentation
+
+Die vollständige Dokumentation der Unfallwerkbank V2 mit Screenshots findest du unter:
+**[docs/DOKUMENTATION.md](docs/DOKUMENTATION.md)**
+
+---
+
 Shell-Skript zum Konvertieren von Unfallatlas-Daten in ein CSV- und GeoJSON-Format,
 das sich direkt in **Google Maps**, **Google Earth** sowie in andere GIS- und AR-Anwendungen
 importieren lässt.
