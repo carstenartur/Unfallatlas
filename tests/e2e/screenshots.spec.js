@@ -52,12 +52,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   });
 
   test('05 Heatmap-Ansicht', async ({ page }) => {
-    await loadPage(page);
-    await page.locator('#toggleHeat').click();
-    await page.waitForFunction(() => {
-      const btn = document.querySelector('#toggleHeat');
-      return btn && btn.classList.contains('active');
-    });
+    await loadPage(page, '?showHeatmap=1&showCluster=0');
+    await waitForCities(page);
     await page.locator('#map').screenshot({ path: 'docs/screenshots/05-heatmap-ansicht.png' });
   });
 

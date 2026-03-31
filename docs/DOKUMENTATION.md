@@ -251,8 +251,7 @@ weitergegeben werden.
 Die folgenden Beispiele zeigen typische Analysen in Bonn. Die Links öffnen die Werkbank
 mit den voreingestellten Filtern und dem passenden Kartenausschnitt.
 
-> **Hinweis:** Die Links verwenden relative Pfade und funktionieren, wenn die Dokumentation
-> aus dem Repository-Stammverzeichnis heraus geöffnet wird (z. B. über einen lokalen Server).
+> **Hinweis:** Die Links öffnen die Werkbank direkt auf GitHub Pages.
 
 ### Beispiel 1: Auto-Fahrrad-Kollisionen am Hauptbahnhof Bonn
 
