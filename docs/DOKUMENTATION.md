@@ -119,8 +119,36 @@ eingeschränkt werden (z. B. 6–18 Uhr für den Berufsverkehr).
 
 ![Stundenfilter](screenshots/08-stundenfilter.png)
 
-Zusätzlich kann über **Wochentag** (alle / Wochenende / Werktag) und **Fahrbahnzustand**
-(trocken / nass / winterglatt) weiter eingegrenzt werden.
+#### Wochentag
+
+| Wert | Beschreibung |
+|---|---|
+| Alle | Keine Einschränkung (Standard) |
+| Nur Wochenende (Sa/So) | Nur Unfälle an Samstagen und Sonntagen |
+| Nur Werktag (Mo–Fr) | Nur Unfälle an Werktagen |
+
+#### Fahrbahnzustand
+
+| Wert | Beschreibung |
+|---|---|
+| Alle | Keine Einschränkung (Standard) |
+| Trocken | Nur Unfälle bei trockener Fahrbahn |
+| Nass/feucht | Nur Unfälle bei nasser oder feuchter Fahrbahn |
+| Winterglatt | Nur Unfälle bei Winterglätte (Eis, Schnee) |
+| Unbekannt | Fahrbahnzustand nicht erfasst |
+
+---
+
+### Erweiterte Darstellungsoptionen
+
+Das Steuerungspanel enthält zusätzliche Parameter, die das Verhalten und die
+Darstellung der Karte beeinflussen:
+
+| Parameter | Beschreibung | Wertebereich | Standard |
+|---|---|---|---|
+| **Max Punkte** | Maximale Anzahl der angezeigten Unfallpunkte. Begrenzt die Datenmenge für bessere Performance. | 500–200 000 | 100 000 |
+| **Viewport-Puffer** | Zusätzlicher Puffer (in %) um den sichtbaren Kartenausschnitt. Punkte im Pufferbereich werden mitgeladen, damit beim Scrollen weniger Nachladen nötig ist. | 0–100 % | 20 % |
+| **Heat-Radius** | Radius (in Pixel) für die Heatmap-Darstellung. Größere Werte erzeugen weichere, ausgedehntere Wärmebereiche. | 5–60 | 25 |
 
 ---
 
@@ -139,6 +167,21 @@ Ein Klick auf einen Cluster vergrößert die Ansicht und zeigt Einzelpunkte.
 Rot eingefärbte Bereiche entsprechen Unfallschwerpunkten.
 
 ![Heatmap-Ansicht](screenshots/05-heatmap-ansicht.png)
+
+---
+
+### Nur „auffällig" (Hotspot-Filter)
+
+Der Button **Nur „auffällig"** blendet nur solche Unfälle ein, die zu *überrepräsentierten*
+Beteiligungskombinationen gehören. Die Werkbank unterteilt den Kartenausschnitt in ein
+Raster und vergleicht die Unfallverteilung in jeder Zelle mit dem Stadtdurchschnitt.
+Nur Zellen, deren Unfallanteil den Durchschnitt übersteigt, werden angezeigt.
+
+Dieser Modus eignet sich besonders, um Hotspots zu identifizieren, an denen bestimmte
+Unfallmuster gehäuft auftreten.
+
+> **Tipp:** Der Hotspot-Filter arbeitet am besten in Kombination mit spezifischen
+> Beteiligungsfiltern (z. B. Rad+PKW im UND-Modus) und einem konkreten Zeitfenster.
 
 ---
 
@@ -369,3 +412,181 @@ Die Daten stehen unter der
 | Word-Export | [docx.js](https://docx.js.org/) |
 | Tests | [Playwright](https://playwright.dev/) + [Jest](https://jestjs.io/) |
 | CI/CD | GitHub Actions |
+
+---
+
+## Stadtauswahl und `cities.txt`
+
+Die Liste der im Dropdown verfügbaren Städte wird aus der Datei **`cities.txt`** im
+Repository-Stammverzeichnis geladen. Jede Zeile enthält einen Stadtnamen (Kommentare mit
+`#` und Leerzeilen werden ignoriert).
+
+Aktuelle Städte:
+
+```
+Hannover
+Bonn
+Berlin
+Hamburg
+Muenchen
+Koeln
+Frankfurt am Main
+Bielefeld
+Heilbronn
+```
+
+### Eine neue Stadt hinzufügen
+
+1. **Stadtnamen in `cities.txt` eintragen** – eine Zeile pro Stadt.
+2. **Unfalldaten generieren** – das Konverterskript laden und konvertieren:
+   ```bash
+   ./convertAmt2gmaps.sh --city "Dortmund" --limit 0 --rad "" --pkw "" --fuss "" --krad ""
+   ```
+   Dies erzeugt `out/output_all_years_dortmund.geojson` (und `.csv`).
+3. **POI-Daten erzeugen** (optional, für Schulen/Kitas auf der Karte):
+   ```bash
+   ./fetch_poi_osm.sh "Dortmund"
+   ```
+   Dies erzeugt `out/poi_dortmund.geojson`.
+4. **Dateien committen und pushen** – damit die Daten auf GitHub Pages verfügbar sind.
+
+> **Hinweis:** Die Stadtnamen müssen exakt mit den Bezeichnungen im Unfallatlas
+> übereinstimmen. Das Konverterskript sucht automatisch nach Gemeindeschlüsseln (AGS)
+> über einen internen City-Cache. Umlaute werden in Dateinamen normalisiert
+> (z. B. „München" → `muenchen`).
+
+### Stadtspezifische Daten
+
+Für jede Stadt `<name>` werden folgende Dateien unter `out/` erwartet:
+
+| Datei | Inhalt |
+|---|---|
+| `output_all_years_<name>.geojson` | Alle Unfallorte aller verfügbaren Jahre |
+| `output_all_years_<name>.csv` | Gleiche Daten als CSV |
+| `poi_<name>.geojson` | Schulen und Kindergärten (OpenStreetMap) |
+
+---
+
+## Daten aktualisieren – neue Unfallatlas-Jahrgänge
+
+Der [Unfallatlas](https://unfallatlas.statistikportal.de/) wird in der Regel **einmal
+jährlich** aktualisiert, typischerweise im Sommer/Herbst für das Vorjahr (z. B. erscheinen
+die Daten für 2024 voraussichtlich Mitte 2025).
+
+### Ablauf zur Aktualisierung
+
+1. **Prüfen**, ob neue Daten verfügbar sind: Die ZIP-Dateien werden von
+   `https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/` bereitgestellt.
+   Das Konverterskript versucht automatisch, alle Jahre von 2016 bis zum aktuellen Jahr
+   herunterzuladen.
+2. **Konverterskript ausführen** – für alle Städte in `cities.txt`:
+   ```bash
+   # Alle Städte aus cities.txt auf einmal:
+   ./convertAmt2gmaps.sh --limit 0 --rad "" --pkw "" --fuss "" --krad "" \
+     --city "Hannover" --city "Bonn" --city "Berlin" ...
+   ```
+   Oder den GitHub Actions Workflow verwenden (siehe unten).
+3. **Ergebnisse committen und pushen**.
+
+> **Tipp:** Das Skript überspringt bereits heruntergeladene ZIP-Dateien automatisch
+> (Caching). Nur neue Jahrgänge werden heruntergeladen.
+
+---
+
+## GitHub Actions Workflows
+
+Das Repository enthält vier automatisierte Workflows:
+
+### `generate-and-commit.yml` – Unfalldaten generieren
+
+- **Auslösung:** Manuell (`workflow_dispatch`)
+- **Funktion:** Führt `convertAmt2gmaps.sh` für alle Städte aus `cities.txt` aus,
+  validiert die erzeugten GeoJSON-Dateien und committet die Ergebnisse automatisch.
+- **Verwendung:** Auf GitHub → Actions → „Generate & Commit" → „Run workflow"
+- **Wann nötig:** Nach Hinzufügen einer neuen Stadt in `cities.txt` oder wenn neue
+  Unfallatlas-Jahrgänge veröffentlicht werden.
+
+### `fetchpoi.yml` – POI-Daten (Schulen/Kitas) erzeugen
+
+- **Auslösung:** Manuell (`workflow_dispatch`)
+- **Funktion:** Führt `fetch_poi_osm.sh` für jede Stadt in `cities.txt` aus (überspringt
+  bereits vorhandene). Lädt Schul- und Kita-Standorte von OpenStreetMap via Overpass API.
+  Validiert und committet die Ergebnisse.
+- **Verwendung:** Auf GitHub → Actions → „Fetch POIs for cities.txt" → „Run workflow"
+- **Wann nötig:** Nach Hinzufügen einer neuen Stadt oder bei gewünschter Aktualisierung
+  der POI-Daten.
+
+### `test.yml` – Automatische Tests
+
+- **Auslösung:** Bei jedem Push und Pull Request auf `main` oder `develop`
+- **Funktion:** Führt Unit-, Integrations-, Performance- und E2E-Tests (Playwright) aus.
+  Erstellt dabei auch die Dokumentations-Screenshots.
+
+### `checkjson.yml` – GeoJSON-Validierung
+
+- **Auslösung:** Bei Änderungen an `out/**/*.geojson` oder manuell
+- **Funktion:** Prüft alle GeoJSON-Dateien auf syntaktische Korrektheit und gibt
+  Statistiken aus (Feature-Anzahl, Jahre, Kategorien, Bounding Box).
+
+---
+
+## URL-Parameter (Referenz)
+
+Alle Filtereinstellungen und die Kartenposition werden in der URL gespeichert. Dadurch
+lassen sich Analysen als Link teilen und reproduzieren. Die folgende Tabelle listet alle
+unterstützten Parameter auf:
+
+### Filter
+
+| Parameter | Beschreibung | Werte | Standard |
+|---|---|---|---|
+| `city` | Stadt | Stadtname (z. B. `Bonn`) | `Hannover` |
+| `severity` | Unfallschwere | `all`, `1` (Getötete), `2` (Schwerverletzte), `3` (Leichtverletzte) | `all` |
+| `includeCyclist` | Fahrrad-Filter | `0` / `1` | `1` |
+| `includePedestrian` | Fußgänger-Filter | `0` / `1` | `1` |
+| `includeCar` | PKW-Filter | `0` / `1` | `1` |
+| `includeMotorcycle` | Krad-Filter | `0` / `1` | `0` |
+| `involvementMode` | Verknüpfungsmodus | `or`, `and`, `solo` | `or` |
+| `hourFrom` | Stundenfilter von | `0`–`23` | `0` |
+| `hourTo` | Stundenfilter bis | `0`–`23` | `23` |
+| `dayType` | Wochentag | `all`, `weekend`, `weekday` | `all` |
+| `roadCondition` | Fahrbahnzustand | `all`, `dry`, `wet`, `icy`, `__unknown__` | `all` |
+
+### Darstellung
+
+| Parameter | Beschreibung | Werte | Standard |
+|---|---|---|---|
+| `showCluster` | Cluster-Ansicht | `0` / `1` | `1` |
+| `showHeatmap` | Heatmap-Ansicht | `0` / `1` | `1` |
+| `showOnlyAboveAverage` | Nur „auffällig" | `0` / `1` | `0` |
+| `maxPoints` | Max. angezeigte Punkte | `500`–`200000` | `100000` |
+| `viewportPaddingPct` | Viewport-Puffer (%) | `0`–`100` | `20` |
+| `heatRadius` | Heatmap-Radius (px) | `5`–`60` | `25` |
+
+### Kartenposition
+
+| Parameter | Beschreibung | Werte | Standard |
+|---|---|---|---|
+| `centerLat` | Breitengrad Kartenmitte | Dezimalzahl | (automatisch) |
+| `centerLon` | Längengrad Kartenmitte | Dezimalzahl | (automatisch) |
+| `zoom` | Zoomstufe | `1`–`19` | (automatisch) |
+
+### Auswahlbereich
+
+| Parameter | Beschreibung | Werte | Standard |
+|---|---|---|---|
+| `selSouth` | Südgrenze des markierten Bereichs | Dezimalzahl | (kein Bereich) |
+| `selWest` | Westgrenze | Dezimalzahl | (kein Bereich) |
+| `selNorth` | Nordgrenze | Dezimalzahl | (kein Bereich) |
+| `selEast` | Ostgrenze | Dezimalzahl | (kein Bereich) |
+
+### Sonstiges
+
+| Parameter | Beschreibung | Werte | Standard |
+|---|---|---|---|
+| `export` | Export-Modal beim Laden öffnen | `0` / `1` | `0` |
+
+**Beispiel-URL:**
+```
+werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
+```
