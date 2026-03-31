@@ -1,0 +1,5 @@
+Sachverhalt:
+Im markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.
+
+Verletzungsschwere (Ausschnitt):
+{{severity_summary}}
