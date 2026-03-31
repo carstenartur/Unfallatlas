@@ -451,9 +451,11 @@ Heilbronn
 4. **Dateien committen und pushen** – damit die Daten auf GitHub Pages verfügbar sind.
 
 > **Hinweis:** Die Stadtnamen müssen exakt mit den Bezeichnungen im Unfallatlas
-> übereinstimmen. Das Konverterskript sucht automatisch nach Gemeindeschlüsseln (AGS)
-> über einen internen City-Cache. Umlaute werden in Dateinamen normalisiert
-> (z. B. „München" → `muenchen`).
+> übereinstimmen. Das Konverterskript verwendet eine fest codierte `CITY_MAP`, um
+> Stadtnamen auf Gemeindeschlüssel (AGS) abzubilden, und bricht mit einer Fehlermeldung
+> ab, wenn die Stadt dort nicht hinterlegt ist. Für nicht gelistete Städte muss entweder
+> die `CITY_MAP` im Skript ergänzt oder der AGS explizit mit `--ags <Gemeindeschlüssel>`
+> angegeben werden. Umlaute werden in Dateinamen normalisiert (z. B. „München" → `muenchen`).
 
 ### Stadtspezifische Daten
 
@@ -477,8 +479,9 @@ die Daten für 2024 voraussichtlich Mitte 2025).
 
 1. **Prüfen**, ob neue Daten verfügbar sind: Die ZIP-Dateien werden von
    `https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/` bereitgestellt.
-   Das Konverterskript versucht automatisch, alle Jahre von 2016 bis zum aktuellen Jahr
-   herunterzuladen.
+   Das Konverterskript verwendet standardmäßig eine feste Jahresliste (aktuell 2016–2024).
+   Für neue Jahrgänge muss die Liste im Skript angepasst oder der Parameter `--years`
+   verwendet werden (z. B. `--years "2016 2017 ... 2025"`).
 2. **Konverterskript ausführen** – für alle Städte in `cities.txt`:
    ```bash
    # Alle Städte aus cities.txt auf einmal:
