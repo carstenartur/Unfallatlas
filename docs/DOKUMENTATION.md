@@ -102,8 +102,8 @@ Durch geschickte Kombination der Filter lassen sich gezielte Fragestellungen bea
 
 | Fragestellung | Einstellung | Screenshot |
 |---|---|---|
-| Wo kollidieren Autos mit Fahrrädern? | 🚲 + 🚗 im **UND**-Modus | [![Auto+Fahrrad UND](screenshots/10-auto-fahrrad-und.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&centerLat=50.7350&centerLon=7.1000&zoom=14) |
-| Wo stürzen Radfahrer ohne Fremdbeteiligung? | Nur 🚲 im **Alleinunfall**-Modus | [![Fahrrad-Alleinunfälle](screenshots/11-fahrrad-alleinunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=0&includeMotorcycle=0&involvementMode=solo&showCluster=1&showHeatmap=0&centerLat=50.7350&centerLon=7.1000&zoom=13) |
+| Wo kollidieren Autos mit Fahrrädern? | 🚲 + 🚗 im **UND**-Modus | [![Auto+Fahrrad UND](screenshots/10-auto-fahrrad-und.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7350&centerLon=7.1000&zoom=14) |
+| Wo stürzen Radfahrer ohne Fremdbeteiligung? | Nur 🚲 im **Alleinunfall**-Modus | [![Fahrrad-Alleinunfälle](screenshots/11-fahrrad-alleinunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&includeCyclist=1&includePedestrian=0&includeCar=0&includeMotorcycle=0&involvementMode=solo&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7350&centerLon=7.1000&zoom=13) |
 | Wo sind Fußgänger und Radfahrer gefährdet? | 🚲 + 🚶 im **ODER**-Modus | Standard-Ansicht mit beiden Checkboxen |
 
 **Auto+Fahrrad-Unfälle (UND-Modus)** zeigen Stellen, an denen es regelmäßig zu Kollisionen zwischen Pkw und Rad kommt – ein typischer Hinweis auf fehlende oder unzureichende Radinfrastruktur.
@@ -166,7 +166,7 @@ Ein Klick auf einen Cluster vergrößert die Ansicht und zeigt Einzelpunkte.
 Über den Button **Heatmap** wird die Darstellung auf eine Dichteverteilung umgeschaltet.
 Rot eingefärbte Bereiche entsprechen Unfallschwerpunkten.
 
-[![Heatmap-Ansicht](screenshots/05-heatmap-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?showHeatmap=1&showCluster=0)
+[![Heatmap-Ansicht](screenshots/05-heatmap-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?showCluster=0&showHeatmap=1)
 
 ---
 
@@ -202,7 +202,7 @@ und der Export beziehen sich dann nur auf die Unfälle innerhalb dieses Bereichs
 Der markierte Bereich wird auch in der URL gespeichert (Parameter `selSouth`, `selWest`,
 `selNorth`, `selEast`), sodass die exakte Auswahl per Link geteilt werden kann.
 
-[![Bereich markieren](screenshots/09-bereich-markieren.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
+[![Bereich markieren](screenshots/09-bereich-markieren.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
 
 > **Tipp:** Ohne markierten Bereich bezieht sich der Export auf den aktuell sichtbaren
 > Kartenausschnitt (Viewport). Für gezielte Analysen empfiehlt es sich, immer einen Bereich
@@ -216,7 +216,7 @@ Ab **Zoomstufe 15** werden automatisch **Schulen** 🏫 und **Kindergärten/Kita
 Symbole auf der Karte eingeblendet. Diese Informationen stammen aus OpenStreetMap und werden
 pro Stadt als GeoJSON bereitgestellt.
 
-[![POI-Ansicht mit Schulen und Kitas](screenshots/12-poi-schulen-kitas.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.0950&zoom=16)
+[![POI-Ansicht mit Schulen und Kitas](screenshots/12-poi-schulen-kitas.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7350&centerLon=7.0950&zoom=16)
 
 **Warum werden Schulen und Kitas angezeigt?**
 
@@ -269,7 +269,7 @@ Der Export-Text spiegelt die aktuellen Einstellungen wider:
 | **POIs (Schulen/Kitas)** | Abschnitt „Sensible Einrichtungen" – Anzahl der Schulen/Kitas im Bereich und im 200-m-Umkreis |
 | **Referenzdokumente** | Abschnitt mit Bezugsdokumenten (wenn Checkbox aktiv) |
 
-[![Export mit Filterkontext](screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000&export=1)
+[![Export mit Filterkontext](screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000&export=1)
 
 #### Export-Optionen
 
@@ -305,7 +305,7 @@ Hier kreuzen sich Rad- und Autoverkehr an mehreren Stellen.
 
 [→ Werkbank öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
 
-[![Bonn Hbf – Rad+Auto-Unfälle](screenshots/13-bonn-hbf-radunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
+[![Bonn Hbf – Rad+Auto-Unfälle](screenshots/13-bonn-hbf-radunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
 
 **Einordnung:** Die Heatmap zeigt Häufungen von Rad-PKW-Kollisionen in unmittelbarer
 Nähe des Bahnhofs. Solche Stellen sind typische Kandidaten für bauliche Maßnahmen wie
@@ -324,7 +324,7 @@ infrastrukturelle Mängel hin (schlechter Belag, Bordsteinkanten, Gleise).
 
 [→ Werkbank öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=0&includeMotorcycle=0&involvementMode=solo&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.1000&zoom=13)
 
-[![Fahrrad-Alleinunfälle in Bonn](screenshots/11-fahrrad-alleinunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=0&includeMotorcycle=0&involvementMode=solo&showCluster=1&showHeatmap=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.1000&zoom=13)
+[![Fahrrad-Alleinunfälle in Bonn](screenshots/11-fahrrad-alleinunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&includeCyclist=1&includePedestrian=0&includeCar=0&includeMotorcycle=0&involvementMode=solo&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7350&centerLon=7.1000&zoom=13)
 
 **Einordnung:** Die Cluster zeigen, wo Radfahrer ohne Fremdbeteiligung verunfallen.
 Häufungen können auf problematische Streckenabschnitte hinweisen. Durch Kombination
@@ -342,7 +342,7 @@ macht sichtbar, welche Einrichtungen betroffen sind.
 
 [→ Werkbank öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7350&centerLon=7.0950&zoom=16)
 
-[![POI-Ansicht mit Schulen und Kitas](screenshots/12-poi-schulen-kitas.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7350&centerLon=7.0950&zoom=16)
+[![POI-Ansicht mit Schulen und Kitas](screenshots/12-poi-schulen-kitas.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7350&centerLon=7.0950&zoom=16)
 
 **Einordnung:** Ab Zoomstufe 15 werden Schulen 🏫 und Kitas 🧒 eingeblendet. So wird
 sofort sichtbar, ob Unfallhäufungen im direkten Umfeld von Bildungseinrichtungen liegen.
@@ -363,7 +363,7 @@ Dieses Beispiel zeigt den typischen Ablauf von der Analyse bis zum fertigen Antr
 
 [→ Workflow nachspielen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
 
-[![Export mit Filterkontext – Bonn Hbf](screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000&export=1)
+[![Export mit Filterkontext – Bonn Hbf](screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000&export=1)
 
 **Was passiert im Export:**
 
