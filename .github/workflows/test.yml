@@ -81,3 +81,10 @@ jobs:
         with:
           name: test-videos
           path: test-results/
+
+      - name: Upload documentation screenshots
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: documentation-screenshots
+          path: docs/screenshots/
