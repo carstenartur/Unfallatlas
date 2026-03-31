@@ -42,7 +42,7 @@ python3 -m http.server 8000
 
 ## Benutzeroberfläche
 
-Nach dem Öffnen der Seite erscheint die Kartenansicht links und das Steuerungspanel rechts.
+Nach dem Öffnen der Seite erscheint die Kartenansicht rechts und das Steuerungspanel links.
 
 [![Startansicht](screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
