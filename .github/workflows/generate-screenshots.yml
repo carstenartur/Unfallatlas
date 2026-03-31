@@ -1,0 +1,51 @@
+name: Generate Documentation Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'werkbank_v2.html'
+      - 'js/ua.*.js'
+      - 'css/**'
+      - 'tests/e2e/screenshots.spec.js'
+
+permissions:
+  contents: write
+
+jobs:
+  generate-screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+
+      - name: Set up Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate screenshots
+        run: npx playwright test tests/e2e/screenshots.spec.js
+
+      - name: Commit & Push screenshots
+        run: |
+          set -euo pipefail
+          git add docs/screenshots/
+          git diff --cached --quiet && echo "No screenshot changes" && exit 0
+          git commit -m "docs: Dokumentations-Screenshots automatisch aktualisiert"
+          git push origin HEAD:${{ github.ref_name }}
