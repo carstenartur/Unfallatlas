@@ -318,6 +318,185 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
   });
 });
 
+test.describe('Werkbank V2 - Filter Data Effects', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/werkbank_v2.html');
+    await page.waitForLoadState('networkidle');
+    // Wait until data is loaded (stat element shows non-zero count)
+    await page.waitForFunction(() => {
+      const stat = document.querySelector('#stat');
+      return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
+    }, { timeout: 15000 });
+  });
+
+  // Helper: wait for #stat text to change from a previously captured value
+  async function waitForStatChange(page, previousText) {
+    await page.waitForFunction(
+      (prev) => {
+        const stat = document.querySelector('#stat');
+        return stat && stat.textContent !== prev && stat.textContent.includes('geladen:');
+      },
+      previousText,
+      { timeout: 10000 }
+    );
+  }
+
+  async function getStatCounts(page) {
+    const statText = await page.locator('#stat').textContent();
+    // toLocaleString() may insert locale-specific thousands separators
+    // (e.g. ",", ".", space, NBSP, narrow NBSP), so extract the value
+    // after each label and strip all non-digit characters.
+    const extractCount = (label) => {
+      const match = statText.match(new RegExp(`${label}:\\s*([^|\\n\\r]+)`));
+      const digitsOnly = ((match && match[1]) || '0').replace(/\D/g, '');
+      return parseInt(digitsOnly || '0', 10);
+    };
+    const loaded = extractCount('geladen');
+    const filtered = extractCount('nach Filtern');
+    return { loaded, filtered };
+  }
+
+  test('severity=1 → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
+    await page.locator('#severity').selectOption('1');
+    await waitForStatChange(page, prevText);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('dayType=weekend → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
+    await page.locator('#dayType').selectOption('weekend');
+    await waitForStatChange(page, prevText);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('Stunden-Range 6-18 → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
+    await page.locator('#hFrom').fill('6');
+    await page.locator('#hFrom').dispatchEvent('input');
+    await page.locator('#hTo').fill('18');
+    await page.locator('#hTo').dispatchEvent('input');
+    await waitForStatChange(page, prevText);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('incBike unchecked → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
+    await page.locator('#incBike').uncheck();
+    await waitForStatChange(page, prevText);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('involvementMode=and mit allen 4 Typen → Filterzähler sinkt vs. or', async ({ page }) => {
+    // First enable all 4 types
+    const prevText1 = await page.locator('#stat').textContent();
+    await page.locator('#incMoto').check();
+    await waitForStatChange(page, prevText1);
+    const orCounts = await getStatCounts(page);
+
+    const prevText2 = await page.locator('#stat').textContent();
+    await page.locator('#modeAnd').click();
+    await waitForStatChange(page, prevText2);
+    const andCounts = await getStatCounts(page);
+    expect(andCounts.filtered).toBeLessThan(orCounts.filtered);
+  });
+
+  test('involvementMode=solo → Filterzähler sinkt vs. or', async ({ page }) => {
+    const orCounts = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
+    await page.locator('#modeSolo').click();
+    await waitForStatChange(page, prevText);
+    const soloCounts = await getStatCounts(page);
+    expect(soloCounts.filtered).toBeLessThanOrEqual(orCounts.filtered);
+  });
+
+  test('toggleCluster off → Panel-Button und Legend-Button synchron', async ({ page }) => {
+    const clusterPanelBtn = page.locator('#toggleCluster');
+    // Check that panel button is initially active
+    await expect(clusterPanelBtn).toHaveClass(/active/);
+
+    // Click panel button to toggle off
+    await clusterPanelBtn.click();
+
+    // Panel button should no longer be active (auto-retries)
+    await expect(clusterPanelBtn).not.toHaveClass(/active/);
+
+    // Legend button for cluster should also not be active
+    const legendClusterBtn = page.locator('.layer-legend-control button[data-layer="cluster"]');
+    await expect(legendClusterBtn).not.toHaveClass(/active/);
+  });
+
+  test('toggleHeat off → Panel-Button und Legend-Button synchron', async ({ page }) => {
+    const heatPanelBtn = page.locator('#toggleHeat');
+    await expect(heatPanelBtn).toHaveClass(/active/);
+
+    // Click legend button to toggle heat off
+    const legendHeatBtn = page.locator('.layer-legend-control button[data-layer="heatmap"]');
+    await legendHeatBtn.click();
+
+    // Both buttons should not be active (auto-retries)
+    await expect(legendHeatBtn).not.toHaveClass(/active/);
+    await expect(heatPanelBtn).not.toHaveClass(/active/);
+  });
+
+  test('URL-Roundtrip: Filter setzen → URL lesen → gleiche Filter-Werte', async ({ page }) => {
+    // Set some filters
+    await page.locator('#severity').selectOption('2');
+    await page.locator('#dayType').selectOption('weekday');
+    // Wait for URL to reflect filter changes
+    await page.waitForFunction(() => {
+      const url = window.location.href;
+      return url.includes('severity=2') && url.includes('dayType=weekday');
+    }, { timeout: 10000 });
+
+    // Read the current URL
+    const url = page.url();
+    expect(url).toContain('severity=2');
+    expect(url).toContain('dayType=weekday');
+
+    // Navigate to the same URL
+    await page.goto(url);
+    await page.waitForLoadState('networkidle');
+
+    // Verify filters are restored
+    await expect(page.locator('#severity')).toHaveValue('2');
+    await expect(page.locator('#dayType')).toHaveValue('weekday');
+  });
+
+  test('showSchools in URL → nach Reload korrekt aus URL gelesen', async ({ page }) => {
+    // Click the schools legend button to toggle off
+    const schoolsBtn = page.locator('.layer-legend-control button[data-layer="schools"]');
+    await schoolsBtn.click();
+
+    // Schools button should not be active (auto-retries)
+    await expect(schoolsBtn).not.toHaveClass(/active/);
+
+    // URL should contain showSchools=0
+    const url = page.url();
+    expect(url).toContain('showSchools=0');
+
+    // Navigate to the same URL
+    await page.goto(url);
+    await page.waitForLoadState('networkidle');
+    await page.waitForFunction(() => {
+      const stat = document.querySelector('#stat');
+      return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
+    }, { timeout: 15000 });
+
+    // Schools button should still not be active after reload
+    const schoolsBtnAfter = page.locator('.layer-legend-control button[data-layer="schools"]');
+    await expect(schoolsBtnAfter).not.toHaveClass(/active/);
+  });
+});
+
 test.describe('Werkbank V2 - Accessibility', () => {
   test('should have proper ARIA attributes on modal', async ({ page }) => {
     await page.goto('/werkbank_v2.html');

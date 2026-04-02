@@ -314,7 +314,8 @@
         ];
 
         items.forEach(item => {
-          const btn = L.DomUtil.create('button', 'legend-item active', container);
+          const cls = ctx[item.stateKey] ? 'legend-item active' : 'legend-item';
+          const btn = L.DomUtil.create('button', cls, container);
           btn.innerHTML = `<span class="legend-icon">${item.icon}</span>`;
           btn.title = item.label;
           btn.setAttribute('aria-label', item.label);
@@ -334,8 +335,17 @@
               btn.classList.remove('active');
             }
 
+            // Sync panel buttons if they exist
+            if (item.stateKey === 'showCluster' && ctx.ui?.btnCluster) {
+              UA.setBtnState(ctx.ui.btnCluster, ctx[item.stateKey]);
+            }
+            if (item.stateKey === 'showHeatmap' && ctx.ui?.btnHeat) {
+              UA.setBtnState(ctx.ui.btnHeat, ctx[item.stateKey]);
+            }
+
             // Rebuild layers to reflect changes
             ctx._dataChanged = true;
+            UA.syncAllToUrl(ctx);
             UA.renderLayers(ctx);
           };
         });
@@ -345,6 +355,23 @@
     });
 
     map.addControl(new LayerLegend());
+  };
+
+  // Sync legend button CSS classes from ctx state
+  // Call after bindUi (URL restore) or after panel button toggles
+  UA.syncLegendButtons = function syncLegendButtons(ctx) {
+    const mapping = {
+      showSchools: 'schools',
+      showKindergartens: 'kindergartens',
+      showCluster: 'cluster',
+      showHeatmap: 'heatmap'
+    };
+    for (const [stateKey, layerId] of Object.entries(mapping)) {
+      const btn = document.querySelector(`.layer-legend-control button[data-layer="${layerId}"]`);
+      if (btn) {
+        btn.classList.toggle('active', !!ctx[stateKey]);
+      }
+    }
   };
 
   UA.fitToAllPoints = function fitToAllPoints(ctx) {
