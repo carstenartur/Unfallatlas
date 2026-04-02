@@ -98,6 +98,15 @@
 
     if (UA.cleanUrlIfNeeded()) return;
 
+    // Read layer visibility from URL before initLeaflet, because
+    // addLayerLegend (called inside initLeaflet) uses these values
+    // to set the initial CSS class on legend buttons.
+    ctx.showCluster = UA.qBool("showCluster", true);
+    ctx.showHeatmap = UA.qBool("showHeatmap", true);
+    ctx.showOnlyAboveAverage = UA.qBool("showOnlyAboveAverage", false);
+    ctx.showSchools = UA.qBool("showSchools", true);
+    ctx.showKindergartens = UA.qBool("showKindergartens", true);
+
     UA.bindDom(ctx);
     UA.initLeaflet(ctx);
 
