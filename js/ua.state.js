@@ -19,6 +19,8 @@
     showCluster: "showCluster",
     showHeatmap: "showHeatmap",
     showOnlyAboveAverage: "showOnlyAboveAverage",
+    showSchools: "showSchools",
+    showKindergartens: "showKindergartens",
     centerLat: "centerLat",
     centerLon: "centerLon",
     zoom: "zoom",
