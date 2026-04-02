@@ -318,6 +318,157 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
   });
 });
 
+test.describe('Werkbank V2 - Filter Data Effects', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/werkbank_v2.html');
+    await page.waitForLoadState('networkidle');
+    // Wait until data is loaded (stat element shows non-zero count)
+    await page.waitForFunction(() => {
+      const stat = document.querySelector('#stat');
+      return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
+    }, { timeout: 15000 });
+  });
+
+  async function getStatCounts(page) {
+    const statText = await page.locator('#stat').textContent();
+    const loaded = parseInt((statText.match(/geladen:\s*(\d+)/) || [])[1] || '0', 10);
+    const filtered = parseInt((statText.match(/nach Filtern:\s*(\d+)/) || [])[1] || '0', 10);
+    return { loaded, filtered };
+  }
+
+  test('severity=1 → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    await page.locator('#severity').selectOption('1');
+    await page.waitForTimeout(500);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('dayType=weekend → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    await page.locator('#dayType').selectOption('weekend');
+    await page.waitForTimeout(500);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('Stunden-Range 6-18 → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    await page.locator('#hFrom').fill('6');
+    await page.locator('#hFrom').dispatchEvent('input');
+    await page.locator('#hTo').fill('18');
+    await page.locator('#hTo').dispatchEvent('input');
+    await page.waitForTimeout(500);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('incBike unchecked → Filterzähler sinkt', async ({ page }) => {
+    const before = await getStatCounts(page);
+    await page.locator('#incBike').uncheck();
+    await page.waitForTimeout(500);
+    const after = await getStatCounts(page);
+    expect(after.filtered).toBeLessThan(before.filtered);
+  });
+
+  test('involvementMode=and mit allen 4 Typen → Filterzähler sinkt vs. or', async ({ page }) => {
+    // First enable all 4 types
+    await page.locator('#incMoto').check();
+    await page.waitForTimeout(300);
+    const orCounts = await getStatCounts(page);
+
+    await page.locator('#modeAnd').click();
+    await page.waitForTimeout(500);
+    const andCounts = await getStatCounts(page);
+    expect(andCounts.filtered).toBeLessThan(orCounts.filtered);
+  });
+
+  test('involvementMode=solo → Filterzähler sinkt vs. or', async ({ page }) => {
+    const orCounts = await getStatCounts(page);
+    await page.locator('#modeSolo').click();
+    await page.waitForTimeout(500);
+    const soloCounts = await getStatCounts(page);
+    expect(soloCounts.filtered).toBeLessThanOrEqual(orCounts.filtered);
+  });
+
+  test('toggleCluster off → Panel-Button und Legend-Button synchron', async ({ page }) => {
+    const clusterPanelBtn = page.locator('#toggleCluster');
+    // Check that panel button is initially active
+    await expect(clusterPanelBtn).toHaveClass(/active/);
+
+    // Click panel button to toggle off
+    await clusterPanelBtn.click();
+    await page.waitForTimeout(300);
+
+    // Panel button should no longer be active
+    await expect(clusterPanelBtn).not.toHaveClass(/active/);
+
+    // Legend button for cluster should also not be active
+    const legendClusterBtn = page.locator('.layer-legend-control button[data-layer="cluster"]');
+    await expect(legendClusterBtn).not.toHaveClass(/active/);
+  });
+
+  test('toggleHeat off → Panel-Button und Legend-Button synchron', async ({ page }) => {
+    const heatPanelBtn = page.locator('#toggleHeat');
+    await expect(heatPanelBtn).toHaveClass(/active/);
+
+    // Click legend button to toggle heat off
+    const legendHeatBtn = page.locator('.layer-legend-control button[data-layer="heatmap"]');
+    await legendHeatBtn.click();
+    await page.waitForTimeout(300);
+
+    // Both buttons should not be active
+    await expect(legendHeatBtn).not.toHaveClass(/active/);
+    await expect(heatPanelBtn).not.toHaveClass(/active/);
+  });
+
+  test('URL-Roundtrip: Filter setzen → URL lesen → gleiche Filter-Werte', async ({ page }) => {
+    // Set some filters
+    await page.locator('#severity').selectOption('2');
+    await page.locator('#dayType').selectOption('weekday');
+    await page.waitForTimeout(500);
+
+    // Read the current URL
+    const url = page.url();
+    expect(url).toContain('severity=2');
+    expect(url).toContain('dayType=weekday');
+
+    // Navigate to the same URL
+    await page.goto(url);
+    await page.waitForLoadState('networkidle');
+
+    // Verify filters are restored
+    await expect(page.locator('#severity')).toHaveValue('2');
+    await expect(page.locator('#dayType')).toHaveValue('weekday');
+  });
+
+  test('showSchools in URL → nach Reload korrekt aus URL gelesen', async ({ page }) => {
+    // Click the schools legend button to toggle off
+    const schoolsBtn = page.locator('.layer-legend-control button[data-layer="schools"]');
+    await schoolsBtn.click();
+    await page.waitForTimeout(300);
+
+    // Schools button should not be active
+    await expect(schoolsBtn).not.toHaveClass(/active/);
+
+    // URL should contain showSchools=0
+    const url = page.url();
+    expect(url).toContain('showSchools=0');
+
+    // Navigate to the same URL
+    await page.goto(url);
+    await page.waitForLoadState('networkidle');
+    await page.waitForFunction(() => {
+      const stat = document.querySelector('#stat');
+      return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
+    }, { timeout: 15000 });
+
+    // Schools button should still not be active after reload
+    const schoolsBtnAfter = page.locator('.layer-legend-control button[data-layer="schools"]');
+    await expect(schoolsBtnAfter).not.toHaveClass(/active/);
+  });
+});
+
 test.describe('Werkbank V2 - Accessibility', () => {
   test('should have proper ARIA attributes on modal', async ({ page }) => {
     await page.goto('/werkbank_v2.html');

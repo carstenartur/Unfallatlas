@@ -119,7 +119,9 @@
       involvementMode: ctx.involvementMode,
       showCluster: ctx.showCluster ? 1 : 0,
       showHeatmap: ctx.showHeatmap ? 1 : 0,
-      showOnlyAboveAverage: ctx.showOnlyAboveAverage ? 1 : 0
+      showOnlyAboveAverage: ctx.showOnlyAboveAverage ? 1 : 0,
+      showSchools: ctx.showSchools ? 1 : 0,
+      showKindergartens: ctx.showKindergartens ? 1 : 0
     });
     UA.syncViewToUrl(ctx);
   };
@@ -194,6 +196,8 @@
     ctx.showCluster = UA.qBool("showCluster", true);
     ctx.showHeatmap = UA.qBool("showHeatmap", true);
     ctx.showOnlyAboveAverage = UA.qBool("showOnlyAboveAverage", false);
+    ctx.showSchools = UA.qBool("showSchools", true);
+    ctx.showKindergartens = UA.qBool("showKindergartens", true);
 
     UA.setBtnState(ui.btnModeOr, ctx.involvementMode==="or");
     UA.setBtnState(ui.btnModeAnd, ctx.involvementMode==="and");
@@ -236,9 +240,9 @@
     ui.btnModeAnd.addEventListener("click", ()=> { ctx.involvementMode="and"; UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); UA.setBtnState(ui.btnModeOr,false); UA.setBtnState(ui.btnModeAnd,true); UA.setBtnState(ui.btnModeSolo,false);} );
     ui.btnModeSolo.addEventListener("click", ()=> { ctx.involvementMode="solo"; UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); UA.setBtnState(ui.btnModeOr,false); UA.setBtnState(ui.btnModeAnd,false); UA.setBtnState(ui.btnModeSolo,true);} );
 
-    ui.btnCluster.addEventListener("click", ()=>{ ctx.showCluster=!ctx.showCluster; UA.setBtnState(ui.btnCluster, ctx.showCluster); UA.syncAllToUrl(ctx); UA.renderLayers(ctx); });
-    ui.btnHeat.addEventListener("click", ()=>{ ctx.showHeatmap=!ctx.showHeatmap; UA.setBtnState(ui.btnHeat, ctx.showHeatmap); UA.syncAllToUrl(ctx); UA.renderLayers(ctx); });
-    ui.btnOnlyHot.addEventListener("click", ()=>{ ctx.showOnlyAboveAverage=!ctx.showOnlyAboveAverage; UA.setBtnState(ui.btnOnlyHot, ctx.showOnlyAboveAverage); UA.syncAllToUrl(ctx); UA.renderLayers(ctx); });
+    ui.btnCluster.addEventListener("click", ()=>{ ctx.showCluster=!ctx.showCluster; UA.setBtnState(ui.btnCluster, ctx.showCluster); UA.syncAllToUrl(ctx); ctx._dataChanged = true; UA.renderLayers(ctx); });
+    ui.btnHeat.addEventListener("click", ()=>{ ctx.showHeatmap=!ctx.showHeatmap; UA.setBtnState(ui.btnHeat, ctx.showHeatmap); UA.syncAllToUrl(ctx); ctx._dataChanged = true; UA.renderLayers(ctx); });
+    ui.btnOnlyHot.addEventListener("click", ()=>{ ctx.showOnlyAboveAverage=!ctx.showOnlyAboveAverage; UA.setBtnState(ui.btnOnlyHot, ctx.showOnlyAboveAverage); UA.syncAllToUrl(ctx); ctx._dataChanged = true; UA.renderLayers(ctx); });
 
     // draw controls
     ui.btnDraw.addEventListener('click', () => {
