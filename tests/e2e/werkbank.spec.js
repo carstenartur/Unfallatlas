@@ -329,68 +329,91 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     }, { timeout: 15000 });
   });
 
+  // Helper: wait for #stat text to change from a previously captured value
+  async function waitForStatChange(page, previousText) {
+    await page.waitForFunction(
+      (prev) => {
+        const stat = document.querySelector('#stat');
+        return stat && stat.textContent !== prev && stat.textContent.includes('geladen:');
+      },
+      previousText,
+      { timeout: 10000 }
+    );
+  }
+
   async function getStatCounts(page) {
     const statText = await page.locator('#stat').textContent();
-    // toLocaleString() may insert thousands separators (e.g. "16,393" or "16.393")
-    // so we capture digits plus separators and strip non-digit chars
-    const loadedStr = (statText.match(/geladen:\s*([\d.,]+)/) || [])[1] || '0';
-    const filteredStr = (statText.match(/nach Filtern:\s*([\d.,]+)/) || [])[1] || '0';
-    const loaded = parseInt(loadedStr.replace(/[.,]/g, ''), 10);
-    const filtered = parseInt(filteredStr.replace(/[.,]/g, ''), 10);
+    // toLocaleString() may insert locale-specific thousands separators
+    // (e.g. ",", ".", space, NBSP, narrow NBSP), so extract the value
+    // after each label and strip all non-digit characters.
+    const extractCount = (label) => {
+      const match = statText.match(new RegExp(`${label}:\\s*([^|\\n\\r]+)`));
+      const digitsOnly = ((match && match[1]) || '0').replace(/\D/g, '');
+      return parseInt(digitsOnly || '0', 10);
+    };
+    const loaded = extractCount('geladen');
+    const filtered = extractCount('nach Filtern');
     return { loaded, filtered };
   }
 
   test('severity=1 → Filterzähler sinkt', async ({ page }) => {
     const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
     await page.locator('#severity').selectOption('1');
-    await page.waitForTimeout(500);
+    await waitForStatChange(page, prevText);
     const after = await getStatCounts(page);
     expect(after.filtered).toBeLessThan(before.filtered);
   });
 
   test('dayType=weekend → Filterzähler sinkt', async ({ page }) => {
     const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
     await page.locator('#dayType').selectOption('weekend');
-    await page.waitForTimeout(500);
+    await waitForStatChange(page, prevText);
     const after = await getStatCounts(page);
     expect(after.filtered).toBeLessThan(before.filtered);
   });
 
   test('Stunden-Range 6-18 → Filterzähler sinkt', async ({ page }) => {
     const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
     await page.locator('#hFrom').fill('6');
     await page.locator('#hFrom').dispatchEvent('input');
     await page.locator('#hTo').fill('18');
     await page.locator('#hTo').dispatchEvent('input');
-    await page.waitForTimeout(500);
+    await waitForStatChange(page, prevText);
     const after = await getStatCounts(page);
     expect(after.filtered).toBeLessThan(before.filtered);
   });
 
   test('incBike unchecked → Filterzähler sinkt', async ({ page }) => {
     const before = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
     await page.locator('#incBike').uncheck();
-    await page.waitForTimeout(500);
+    await waitForStatChange(page, prevText);
     const after = await getStatCounts(page);
     expect(after.filtered).toBeLessThan(before.filtered);
   });
 
   test('involvementMode=and mit allen 4 Typen → Filterzähler sinkt vs. or', async ({ page }) => {
     // First enable all 4 types
+    const prevText1 = await page.locator('#stat').textContent();
     await page.locator('#incMoto').check();
-    await page.waitForTimeout(300);
+    await waitForStatChange(page, prevText1);
     const orCounts = await getStatCounts(page);
 
+    const prevText2 = await page.locator('#stat').textContent();
     await page.locator('#modeAnd').click();
-    await page.waitForTimeout(500);
+    await waitForStatChange(page, prevText2);
     const andCounts = await getStatCounts(page);
     expect(andCounts.filtered).toBeLessThan(orCounts.filtered);
   });
 
   test('involvementMode=solo → Filterzähler sinkt vs. or', async ({ page }) => {
     const orCounts = await getStatCounts(page);
+    const prevText = await page.locator('#stat').textContent();
     await page.locator('#modeSolo').click();
-    await page.waitForTimeout(500);
+    await waitForStatChange(page, prevText);
     const soloCounts = await getStatCounts(page);
     expect(soloCounts.filtered).toBeLessThanOrEqual(orCounts.filtered);
   });
@@ -402,9 +425,8 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
 
     // Click panel button to toggle off
     await clusterPanelBtn.click();
-    await page.waitForTimeout(300);
 
-    // Panel button should no longer be active
+    // Panel button should no longer be active (auto-retries)
     await expect(clusterPanelBtn).not.toHaveClass(/active/);
 
     // Legend button for cluster should also not be active
@@ -419,9 +441,8 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     // Click legend button to toggle heat off
     const legendHeatBtn = page.locator('.layer-legend-control button[data-layer="heatmap"]');
     await legendHeatBtn.click();
-    await page.waitForTimeout(300);
 
-    // Both buttons should not be active
+    // Both buttons should not be active (auto-retries)
     await expect(legendHeatBtn).not.toHaveClass(/active/);
     await expect(heatPanelBtn).not.toHaveClass(/active/);
   });
@@ -430,7 +451,11 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     // Set some filters
     await page.locator('#severity').selectOption('2');
     await page.locator('#dayType').selectOption('weekday');
-    await page.waitForTimeout(500);
+    // Wait for URL to reflect filter changes
+    await page.waitForFunction(() => {
+      const url = window.location.href;
+      return url.includes('severity=2') && url.includes('dayType=weekday');
+    }, { timeout: 10000 });
 
     // Read the current URL
     const url = page.url();
@@ -450,9 +475,8 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     // Click the schools legend button to toggle off
     const schoolsBtn = page.locator('.layer-legend-control button[data-layer="schools"]');
     await schoolsBtn.click();
-    await page.waitForTimeout(300);
 
-    // Schools button should not be active
+    // Schools button should not be active (auto-retries)
     await expect(schoolsBtn).not.toHaveClass(/active/);
 
     // URL should contain showSchools=0
