@@ -331,8 +331,12 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
 
   async function getStatCounts(page) {
     const statText = await page.locator('#stat').textContent();
-    const loaded = parseInt((statText.match(/geladen:\s*(\d+)/) || [])[1] || '0', 10);
-    const filtered = parseInt((statText.match(/nach Filtern:\s*(\d+)/) || [])[1] || '0', 10);
+    // toLocaleString() may insert thousands separators (e.g. "16,393" or "16.393")
+    // so we capture digits plus separators and strip non-digit chars
+    const loadedStr = (statText.match(/geladen:\s*([\d.,]+)/) || [])[1] || '0';
+    const filteredStr = (statText.match(/nach Filtern:\s*([\d.,]+)/) || [])[1] || '0';
+    const loaded = parseInt(loadedStr.replace(/[.,]/g, ''), 10);
+    const filtered = parseInt(filteredStr.replace(/[.,]/g, ''), 10);
     return { loaded, filtered };
   }
 

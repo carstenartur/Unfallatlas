@@ -357,6 +357,23 @@
     map.addControl(new LayerLegend());
   };
 
+  // Sync legend button CSS classes from ctx state
+  // Call after bindUi (URL restore) or after panel button toggles
+  UA.syncLegendButtons = function syncLegendButtons(ctx) {
+    const mapping = {
+      showSchools: 'schools',
+      showKindergartens: 'kindergartens',
+      showCluster: 'cluster',
+      showHeatmap: 'heatmap'
+    };
+    for (const [stateKey, layerId] of Object.entries(mapping)) {
+      const btn = document.querySelector(`.layer-legend-control button[data-layer="${layerId}"]`);
+      if (btn) {
+        btn.classList.toggle('active', !!ctx[stateKey]);
+      }
+    }
+  };
+
   UA.fitToAllPoints = function fitToAllPoints(ctx) {
     const points = ctx.allPts || [];
     if (!points.length) return;
