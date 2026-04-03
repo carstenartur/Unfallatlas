@@ -456,11 +456,11 @@
     const shouldRebuildCluster = !ctx.clusterLayer || ctx._lastClusterZoom !== currentZoom || ctx._dataChanged;
     const shouldRebuildHeat = !ctx.heatLayer || ctx._lastHeatZoom !== currentZoom || ctx._dataChanged;
     
-    if (shouldRebuildCluster && ctx.clusterLayer) {
+    if ((shouldRebuildCluster || !ctx.showCluster) && ctx.clusterLayer) {
       ctx.clusterLayer.remove();
       ctx.clusterLayer = null;
     }
-    if (shouldRebuildHeat && ctx.heatLayer) {
+    if ((shouldRebuildHeat || !ctx.showHeatmap) && ctx.heatLayer) {
       ctx.heatLayer.remove();
       ctx.heatLayer = null;
     }
