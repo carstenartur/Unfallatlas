@@ -10,7 +10,7 @@
 
 ## 🚀 Live-Demo & Dokumentation
 
-| | Link |
+| Ressource | Link |
 |---|---|
 | **Live-Demo (Werkbank V2)** | 👉 **[carstenartur.github.io/Unfallatlas/werkbank_v2.html](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)** |
 | **Vollständige Dokumentation** | 📖 [docs/DOKUMENTATION.md](docs/DOKUMENTATION.md) |
@@ -92,9 +92,14 @@ Weitere Screenshots und ausführliche Erklärungen: → [docs/DOKUMENTATION.md](
 
 ---
 
-## 🎬 Demo-Video erzeugen
+## 🎬 Demo-Video
 
 Das Projekt enthält einen automatisierten Demo-Ablauf auf Basis von [Playwright](https://playwright.dev/). Er durchläuft die wichtigsten Funktionen der Werkbank (Stadt wählen → Filter setzen → Heatmap → Legende → Export) und zeichnet das Ergebnis als Video auf.
+
+![Demo-Ablauf der Unfallwerkbank V2](docs/demo.gif)
+
+<details>
+<summary><strong>Demo-Video selbst erzeugen (klicken zum Aufklappen)</strong></summary>
 
 ```bash
 npm install
@@ -105,9 +110,14 @@ npm run demo
 Das Video wird unter `test-results/` als `.webm`-Datei gespeichert und kann z. B. mit `ffmpeg` in GIF oder MP4 konvertiert werden:
 
 ```bash
+# Beispiel: WebM → GIF (wie oben)
+ffmpeg -i test-results/<video>.webm -vf "fps=5,scale=800:-1:flags=lanczos" docs/demo.gif
+
 # Beispiel: WebM → MP4
 ffmpeg -i test-results/<video>.webm -c:v libx264 -crf 23 demo.mp4
 ```
+
+</details>
 
 ---
 
@@ -181,7 +191,7 @@ Ausführliche Nutzungsinformationen (Shell + PowerShell): → [usage.md](usage.m
 
 ## Datenquelle & Lizenz
 
-| | |
+| Thema | Details |
 |---|---|
 | **Unfallatlas** | [unfallatlas.statistikportal.de](https://unfallatlas.statistikportal.de/) |
 | **Open-Data-Downloads** | [opengeodata.nrw.de/…/unfallatlas](https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/) |

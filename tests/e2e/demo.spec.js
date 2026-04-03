@@ -56,8 +56,12 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     // ── 4. Beteiligung: nur Fahrrad + PKW aktivieren ───────────────────
     const incPed = page.locator('#incPed');
     if (await incPed.isChecked()) await incPed.click();
+    const incBike = page.locator('#incBike');
+    if (!(await incBike.isChecked())) await incBike.click();
     const incCar = page.locator('#incCar');
     if (!(await incCar.isChecked())) await incCar.click();
+    const incMoto = page.locator('#incMoto');
+    if (await incMoto.isChecked()) await incMoto.click();
     await page.waitForTimeout(1000);
 
     // ── 5. UND-Modus aktivieren ────────────────────────────────────────

@@ -14,7 +14,7 @@
   - [Erweiterte Darstellungsoptionen](#erweiterte-darstellungsoptionen)
   - [Cluster-Ansicht](#cluster-ansicht)
   - [Heatmap-Ansicht](#heatmap-ansicht)
-  - [Nur „auffällig" (Hotspot-Filter)](#nur-auffällig-hotspot-filter)
+  - [Nur „auffällig“ (Hotspot-Filter)](#nur-auffällig-hotspot-filter)
   - [Legende](#legende)
   - [Bereich markieren (Zeichnen)](#bereich-markieren-zeichnen)
   - [POI-Ansicht: Schulen und Kindergärten](#poi-ansicht-schulen-und-kindergärten)
@@ -45,6 +45,12 @@ Sie ermöglicht:
 - **Export** als PDF oder Word-Dokument – z. B. als Vorlage für Bezirksratsanträge
 
 [![Startansicht der Unfallwerkbank V2](screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
+
+### Demo-Ablauf
+
+Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter setzen → Heatmap → Legende → Export.
+
+![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
 ---
 
@@ -202,9 +208,9 @@ Rot eingefärbte Bereiche entsprechen Unfallschwerpunkten.
 
 ---
 
-### Nur „auffällig" (Hotspot-Filter)
+### Nur „auffällig“ (Hotspot-Filter)
 
-Der Button **Nur „auffällig"** blendet nur solche Unfälle ein, die zu *überrepräsentierten*
+Der Button **Nur „auffällig“** blendet nur solche Unfälle ein, die zu *überrepräsentierten*
 Beteiligungskombinationen gehören. Die Werkbank unterteilt den Kartenausschnitt in ein
 Raster und vergleicht die Unfallverteilung in jeder Zelle mit dem Stadtdurchschnitt.
 Nur Zellen, deren Unfallanteil den Durchschnitt übersteigt, werden angezeigt.
@@ -261,7 +267,7 @@ Unfälle in der Nähe von Bildungseinrichtungen haben eine besondere Relevanz:
 
 Die Export-Funktion analysiert automatisch, wie viele Schulen und Kitas im markierten Bereich
 und in einem Umkreis von 200 m liegen. Diese Information fließt als Abschnitt
-**„Sensible Einrichtungen"** in den Export ein.
+**„Sensible Einrichtungen“** in den Export ein.
 
 ---
 
@@ -298,7 +304,7 @@ Der Export-Text spiegelt die aktuellen Einstellungen wider:
 | **Zeitfilter** | Nur Unfälle im gewählten Stundenbereich fließen in die Statistik ein |
 | **Fahrbahnzustand** | Nur Unfälle bei gewähltem Zustand werden ausgewertet |
 | **Markierter Bereich** | Vergleich: Unfälle im Bereich vs. gleiche Filter stadtweit |
-| **POIs (Schulen/Kitas)** | Abschnitt „Sensible Einrichtungen" – Anzahl der Schulen/Kitas im Bereich und im 200-m-Umkreis |
+| **POIs (Schulen/Kitas)** | Abschnitt „Sensible Einrichtungen“ – Anzahl der Schulen/Kitas im Bereich und im 200-m-Umkreis |
 | **Referenzdokumente** | Abschnitt mit Bezugsdokumenten (wenn Checkbox aktiv) |
 
 [![Export mit Filterkontext](screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000&export=1)
@@ -360,7 +366,7 @@ infrastrukturelle Mängel hin (schlechter Belag, Bordsteinkanten, Gleise).
 
 **Einordnung:** Die Cluster zeigen, wo Radfahrer ohne Fremdbeteiligung verunfallen.
 Häufungen können auf problematische Streckenabschnitte hinweisen. Durch Kombination
-mit dem Fahrbahnzustand-Filter (z. B. „Nass/feucht") lassen sich wetterbedingte
+mit dem Fahrbahnzustand-Filter (z. B. „Nass/feucht“) lassen sich wetterbedingte
 Sturzstellen identifizieren.
 
 ---
@@ -391,7 +397,7 @@ Dieses Beispiel zeigt den typischen Ablauf von der Analyse bis zum fertigen Antr
 2. **Filter setzen:** 🚲 Rad + 🚗 PKW, UND-Modus, Uhrzeit 6–18 Uhr (Berufsverkehr)
 3. **Bereich markieren:** Rechteck um den Bereich rund um den Hauptbahnhof zeichnen
 4. **Analysieren:** Die Cluster/Heatmap zeigt Häufungen. POIs (Schulen/Kitas) werden sichtbar.
-5. **Export öffnen:** Klick auf „Analyse/Export öffnen"
+5. **Export öffnen:** Klick auf „Analyse/Export öffnen“
 
 [→ Workflow nachspielen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
 
@@ -400,7 +406,7 @@ Dieses Beispiel zeigt den typischen Ablauf von der Analyse bis zum fertigen Antr
 **Was passiert im Export:**
 
 - Die Werkbank vergleicht die Unfälle **im markierten Bereich** mit dem **Bonner Stadtdurchschnitt** (bei gleichen Filtern für Schwere, Tageszeit und Fahrbahnzustand)
-- Sie berechnet, welche **Beteiligungskombinationen überrepräsentiert** sind (z. B. „Rad+PKW-Unfälle sind hier 2,3× häufiger als im Stadtdurchschnitt")
+- Sie berechnet, welche **Beteiligungskombinationen überrepräsentiert** sind (z. B. „Rad+PKW-Unfälle sind hier 2,3× häufiger als im Stadtdurchschnitt“)
 - Sie listet **Schulen und Kitas** im Bereich und im 200-m-Umkreis auf
 - Sie generiert einen **Bezirksratsantrag-Entwurf** mit Sachverhalt, Beschlussvorschlag und Datenquelle
 - Der Export enthält einen **Link**, der die exakt gleiche Ansicht reproduziert
@@ -487,7 +493,7 @@ Heilbronn
 > Stadtnamen auf Gemeindeschlüssel (AGS) abzubilden, und bricht mit einer Fehlermeldung
 > ab, wenn die Stadt dort nicht hinterlegt ist. Für nicht gelistete Städte muss entweder
 > die `CITY_MAP` im Skript ergänzt oder der AGS explizit mit `--ags <Gemeindeschlüssel>`
-> angegeben werden. Umlaute werden in Dateinamen normalisiert (z. B. „München" → `muenchen`).
+> angegeben werden. Umlaute werden in Dateinamen normalisiert (z. B. „München“ → `muenchen`).
 
 ### Stadtspezifische Daten
 
@@ -537,7 +543,7 @@ Das Repository enthält vier automatisierte Workflows:
 - **Auslösung:** Manuell (`workflow_dispatch`)
 - **Funktion:** Führt `convertAmt2gmaps.sh` für alle Städte aus `cities.txt` aus,
   validiert die erzeugten GeoJSON-Dateien und committet die Ergebnisse automatisch.
-- **Verwendung:** Auf GitHub → Actions → „Generate & Commit" → „Run workflow"
+- **Verwendung:** Auf GitHub → Actions → „Generate & Commit“ → „Run workflow“
 - **Wann nötig:** Nach Hinzufügen einer neuen Stadt in `cities.txt` oder wenn neue
   Unfallatlas-Jahrgänge veröffentlicht werden.
 
@@ -547,7 +553,7 @@ Das Repository enthält vier automatisierte Workflows:
 - **Funktion:** Führt `fetch_poi_osm.sh` für jede Stadt in `cities.txt` aus (überspringt
   bereits vorhandene). Lädt Schul- und Kita-Standorte von OpenStreetMap via Overpass API.
   Validiert und committet die Ergebnisse.
-- **Verwendung:** Auf GitHub → Actions → „Fetch POIs for cities.txt" → „Run workflow"
+- **Verwendung:** Auf GitHub → Actions → „Fetch POIs for cities.txt“ → „Run workflow“
 - **Wann nötig:** Nach Hinzufügen einer neuen Stadt oder bei gewünschter Aktualisierung
   der POI-Daten.
 
@@ -593,7 +599,7 @@ unterstützten Parameter auf:
 |---|---|---|---|
 | `showCluster` | Cluster-Ansicht | `0` / `1` | `1` |
 | `showHeatmap` | Heatmap-Ansicht | `0` / `1` | `1` |
-| `showOnlyAboveAverage` | Nur „auffällig" | `0` / `1` | `0` |
+| `showOnlyAboveAverage` | Nur „auffällig“ | `0` / `1` | `0` |
 | `maxPoints` | Max. angezeigte Punkte | `500`–`200000` | `100000` |
 | `viewportPaddingPct` | Viewport-Puffer (%) | `0`–`100` | `20` |
 | `heatRadius` | Heatmap-Radius (px) | `5`–`60` | `25` |
@@ -632,7 +638,7 @@ werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&involvementMode=and&sho
 
 ### Wie kann ich eine bestimmte Analyse mit anderen teilen?
 
-Alle Filtereinstellungen, die Kartenposition und ein markierter Bereich werden automatisch in der URL gespeichert. Einfach die aktuelle Browser-URL kopieren (oder „Link kopieren" im Export-Modal) und weitergeben. Jeder, der den Link öffnet, sieht exakt die gleiche Ansicht.
+Alle Filtereinstellungen, die Kartenposition und ein markierter Bereich werden automatisch in der URL gespeichert. Einfach die aktuelle Browser-URL kopieren (oder „Link kopieren“ im Export-Modal) und weitergeben. Jeder, der den Link öffnet, sieht exakt die gleiche Ansicht.
 
 ### Woher stammen die Daten?
 
@@ -671,7 +677,7 @@ Die Werkbank verwendet ausschließlich Daten aus dem [Unfallatlas](https://unfal
 
 ### Hotspot-Erkennung
 
-- Die Funktion „Nur auffällig" vergleicht die lokale Unfallverteilung mit dem Stadtdurchschnitt. Sie zeigt Bereiche, in denen bestimmte Unfallmuster **überrepräsentiert** sind.
+- Die Funktion „Nur auffällig“ vergleicht die lokale Unfallverteilung mit dem Stadtdurchschnitt. Sie zeigt Bereiche, in denen bestimmte Unfallmuster **überrepräsentiert** sind.
 - Dies ist ein **statistischer Hinweis**, kein Beweis für eine kausale Ursache. Lokale Ortskenntnis ist für die Interpretation unverzichtbar.
 
 ### Einschränkungen des Exports
