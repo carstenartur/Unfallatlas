@@ -593,3 +593,60 @@ unterstützten Parameter auf:
 ```
 werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
 ```
+
+---
+
+## Häufige Fragen (FAQ)
+
+### Wie kann ich eine bestimmte Analyse mit anderen teilen?
+
+Alle Filtereinstellungen, die Kartenposition und ein markierter Bereich werden automatisch in der URL gespeichert. Einfach die aktuelle Browser-URL kopieren (oder „Link kopieren" im Export-Modal) und weitergeben. Jeder, der den Link öffnet, sieht exakt die gleiche Ansicht.
+
+### Woher stammen die Daten?
+
+Die Unfalldaten stammen aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) der Statistischen Ämter des Bundes und der Länder. Sie werden jährlich aktualisiert und stehen unter der [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) als Open Data zur Verfügung.
+
+### Warum fehlt meine Stadt?
+
+Die Werkbank unterstützt aktuell die Städte aus `cities.txt` (derzeit u. a. Hannover, Bonn, Berlin, Hamburg, München, Köln, Frankfurt am Main). Neue Städte können hinzugefügt werden – siehe Abschnitt [Stadtauswahl und cities.txt](#stadtauswahl-und-citiestxt).
+
+### Kann ich den Export-Text direkt verwenden?
+
+Der Export ist als **Entwurf** gedacht. Er enthält automatisch generierte Sachverhaltsdarstellungen und Beschlussvorschläge und sollte vor dem Einreichen von der antragstellenden Person überprüft, ergänzt und an die lokalen Gegebenheiten angepasst werden.
+
+### Funktioniert die Werkbank auch offline?
+
+Nach dem erstmaligen Laden der Seite und der Daten (GeoJSON) funktionieren Filter, Darstellung und Export auch offline. Lediglich die Kartenkacheln (OpenStreetMap) benötigen eine Internetverbindung.
+
+---
+
+## Methodik und Grenzen
+
+### Datengrundlage
+
+Die Werkbank verwendet ausschließlich Daten aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) – dem offiziellen Open-Data-Portal für polizeilich erfasste Straßenverkehrsunfälle mit Personenschaden in Deutschland. Die Daten umfassen die Jahre 2016–2024 und werden jährlich aktualisiert.
+
+### Was erfasst wird – und was nicht
+
+- **Erfasst** werden alle polizeilich aufgenommenen Verkehrsunfälle mit Personenschaden (Getötete, Schwer- und Leichtverletzte).
+- **Nicht erfasst** werden: reine Sachschäden, Beinaheunfälle, nicht gemeldete Unfälle (Dunkelziffer), subjektives Unsicherheitsempfinden.
+- Die **Dunkelziffer** ist gerade bei Fahrradunfällen ohne Fremdverschulden (Alleinunfälle) und bei leichten Verletzungen erheblich. Schätzungen gehen von einer Erfassungsquote von ca. 50 % bei Radunfällen aus.
+
+### Genauigkeit der Ortsangaben
+
+- Die Koordinaten werden aus der Unfallaufnahme der Polizei abgeleitet und weisen eine typische Genauigkeit von ±10–50 m auf.
+- Vereinzelt können Unfälle leicht verschoben auf der Karte erscheinen (z. B. auf die nächstgelegene Straßenachse).
+
+### Hotspot-Erkennung
+
+- Die Funktion „Nur auffällig" vergleicht die lokale Unfallverteilung mit dem Stadtdurchschnitt. Sie zeigt Bereiche, in denen bestimmte Unfallmuster **überrepräsentiert** sind.
+- Dies ist ein **statistischer Hinweis**, kein Beweis für eine kausale Ursache. Lokale Ortskenntnis ist für die Interpretation unverzichtbar.
+
+### Einschränkungen des Exports
+
+- Der Bezirksratsantrag wird automatisch generiert und basiert auf den eingestellten Filtern. Er ist ein **Entwurf** und ersetzt keine fachliche Bewertung durch eine Unfallkommission oder Verkehrsplanung.
+- Die POI-Analyse (Schulen/Kitas) basiert auf OpenStreetMap-Daten und kann unvollständig sein.
+
+### Empfehlung
+
+Für fundierte Maßnahmenvorschläge sollte die Werkbank als **Erkenntniswerkzeug** genutzt werden – ergänzt durch Ortsbegehungen, Unfallkommissionsberichte und verkehrsplanerische Expertise.
