@@ -604,7 +604,7 @@ Alle Filtereinstellungen, die Kartenposition und ein markierter Bereich werden a
 
 ### Woher stammen die Daten?
 
-Die Unfalldaten stammen aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) der Statistischen Ämter des Bundes und der Länder. Sie werden jährlich aktualisiert und stehen unter der [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) als Open Data zur Verfügung.
+Die Unfalldaten stammen aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) der Statistischen Ämter des Bundes und der Länder. Sie werden in der Regel jährlich aktualisiert und stehen unter der [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) als Open Data zur Verfügung.
 
 ### Warum fehlt meine Stadt?
 
@@ -624,13 +624,13 @@ Nach dem erstmaligen Laden der Seite und der Daten (GeoJSON) funktionieren Filte
 
 ### Datengrundlage
 
-Die Werkbank verwendet ausschließlich Daten aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) – dem offiziellen Open-Data-Portal für polizeilich erfasste Straßenverkehrsunfälle mit Personenschaden in Deutschland. Die Daten umfassen die Jahre 2016–2024 und werden jährlich aktualisiert.
+Die Werkbank verwendet ausschließlich Daten aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) – dem offiziellen Open-Data-Portal für polizeilich erfasste Straßenverkehrsunfälle mit Personenschaden in Deutschland. Die Daten umfassen die Jahre 2016–2024 und werden in der Regel jährlich aktualisiert.
 
 ### Was erfasst wird – und was nicht
 
 - **Erfasst** werden alle polizeilich aufgenommenen Verkehrsunfälle mit Personenschaden (Getötete, Schwer- und Leichtverletzte).
 - **Nicht erfasst** werden: reine Sachschäden, Beinaheunfälle, nicht gemeldete Unfälle (Dunkelziffer), subjektives Unsicherheitsempfinden.
-- Die **Dunkelziffer** ist gerade bei Fahrradunfällen ohne Fremdverschulden (Alleinunfälle) und bei leichten Verletzungen erheblich. Schätzungen gehen von einer Erfassungsquote von ca. 50 % bei Radunfällen aus.
+- Die **Dunkelziffer** ist gerade bei Fahrradunfällen ohne Fremdverschulden (Alleinunfälle) und bei leichten Verletzungen erheblich. Studien (z. B. [BASt](https://www.bast.de/) / Unfallforschung der Versicherer) schätzen die Erfassungsquote bei Radunfällen auf ca. 50 %.
 
 ### Genauigkeit der Ortsangaben
 

@@ -2,7 +2,7 @@
 
 > **Wo passieren Fahrradunfälle? Wo sind Schulwege gefährdet? Wo braucht es bessere Radinfrastruktur?**
 >
-> Der Unfallatlas macht amtliche Verkehrsunfalldaten (2016–2024) für alle deutschen Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
+> Der Unfallatlas macht amtliche Verkehrsunfalldaten (2016–2024) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
 
 [![Startansicht der Unfallwerkbank V2](docs/screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
@@ -115,8 +115,7 @@ Neben der Web-Werkbank enthält das Projekt Shell-/PowerShell-Skripte zum Konver
 ### Region explizit setzen
 
 ```sh
-./convertAmt2gmaps.sh --uland 03 --uregb 2 --ukreis 41
-./convertAmt2gmaps.sh --uland 03 --uregb 2 --ukreis 41 --ugemeinde 001
+./convertAmt2gmaps.sh --uland 03 --uregb 2 --ukreis 41 [--ugemeinde 001]
 ```
 
 ### Stadtbasiert filtern (≥ 100.000 Einwohner)
