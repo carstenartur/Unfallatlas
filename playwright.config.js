@@ -16,12 +16,23 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    ignoreHTTPSErrors: true,
   },
 
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: /demo\.spec/,
+    },
+    {
+      name: 'demo',
+      use: {
+        ...devices['Desktop Chrome'],
+        video: 'on',
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: /demo\.spec/,
     },
   ],
 

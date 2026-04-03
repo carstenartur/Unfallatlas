@@ -1,5 +1,37 @@
 # Unfallwerkbank V2 – Dokumentation
 
+## Inhaltsverzeichnis
+
+- [Überblick](#überblick)
+- [Voraussetzungen](#voraussetzungen)
+- [Schnellstart](#schnellstart)
+- [Benutzeroberfläche](#benutzeroberfläche)
+- [Funktionen im Detail](#funktionen-im-detail)
+  - [Stadtauswahl](#stadtauswahl)
+  - [Unfallschwere filtern](#unfallschwere-filtern)
+  - [Beteiligung filtern](#beteiligung-filtern)
+  - [Zeitfilter](#zeitfilter)
+  - [Erweiterte Darstellungsoptionen](#erweiterte-darstellungsoptionen)
+  - [Cluster-Ansicht](#cluster-ansicht)
+  - [Heatmap-Ansicht](#heatmap-ansicht)
+  - [Nur „auffällig" (Hotspot-Filter)](#nur-auffällig-hotspot-filter)
+  - [Legende](#legende)
+  - [Bereich markieren (Zeichnen)](#bereich-markieren-zeichnen)
+  - [POI-Ansicht: Schulen und Kindergärten](#poi-ansicht-schulen-und-kindergärten)
+  - [Export und Bezirksratsantrag](#export-und-bezirksratsantrag)
+- [Praxisbeispiele: Unfallanalyse in Bonn](#praxisbeispiele-unfallanalyse-in-bonn)
+- [CLI-Skripte (Kurzreferenz)](#cli-skripte-kurzreferenz)
+- [Datenquelle & Lizenz](#datenquelle--lizenz)
+- [Technische Details](#technische-details)
+- [Stadtauswahl und cities.txt](#stadtauswahl-und-citiestxt)
+- [Daten aktualisieren – neue Unfallatlas-Jahrgänge](#daten-aktualisieren--neue-unfallatlas-jahrgänge)
+- [GitHub Actions Workflows](#github-actions-workflows)
+- [URL-Parameter (Referenz)](#url-parameter-referenz)
+- [Häufige Fragen (FAQ)](#häufige-fragen-faq)
+- [Methodik und Grenzen](#methodik-und-grenzen)
+
+---
+
 ## Überblick
 
 Die **Unfallwerkbank V2** ist eine interaktive Webanwendung zur Visualisierung und Analyse

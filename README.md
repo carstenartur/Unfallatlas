@@ -92,6 +92,25 @@ Weitere Screenshots und ausführliche Erklärungen: → [docs/DOKUMENTATION.md](
 
 ---
 
+## 🎬 Demo-Video erzeugen
+
+Das Projekt enthält einen automatisierten Demo-Ablauf auf Basis von [Playwright](https://playwright.dev/). Er durchläuft die wichtigsten Funktionen der Werkbank (Stadt wählen → Filter setzen → Heatmap → Legende → Export) und zeichnet das Ergebnis als Video auf.
+
+```bash
+npm install
+npx playwright install --with-deps chromium
+npm run demo
+```
+
+Das Video wird unter `test-results/` als `.webm`-Datei gespeichert und kann z. B. mit `ffmpeg` in GIF oder MP4 konvertiert werden:
+
+```bash
+# Beispiel: WebM → MP4
+ffmpeg -i test-results/<video>.webm -c:v libx264 -crf 23 demo.mp4
+```
+
+---
+
 ## 🛠️ CLI-Datenkonvertierung
 
 Neben der Web-Werkbank enthält das Projekt Shell-/PowerShell-Skripte zum Konvertieren der Unfallatlas-Rohdaten in CSV und GeoJSON für Google Maps, Google Earth und GIS-Anwendungen.
