@@ -94,10 +94,10 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
       return el && window.getComputedStyle(el).display !== 'none';
     });
     await page.waitForTimeout(1500);
-    await page.locator('#legendBtn').click();           // wieder schliessen
+    await page.locator('#legendBtn').click();           // wieder schließen
     await page.waitForTimeout(500);
 
-    // ── 11. Alle Filter zuruecksetzen: OR-Modus, alle Beteiligungen ───
+    // ── 11. Alle Filter zurücksetzen: OR-Modus, alle Beteiligungen ────
     await page.locator('#modeOr').click();
     await page.locator('#severity').selectOption('all');
     if (!(await incPed.isChecked())) await incPed.click();
@@ -112,7 +112,7 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.locator('#modalOverlay').waitFor({ state: 'visible' });
     await page.waitForTimeout(2500);
 
-    // ── 13. Export-Modal schliessen ────────────────────────────────────
+    // ── 13. Export-Modal schließen ────────────────────────────────────
     await page.locator('#btnCloseModal').click();
     await page.locator('#modalOverlay').waitFor({ state: 'hidden' });
     await page.waitForTimeout(1000);
