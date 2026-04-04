@@ -610,8 +610,184 @@
 
     return { text: textOut, html: htmlOut };
   };
-  
-  
+
+
+  // --------------------
+  // Private: get points in export bounds (applies non-involvement filters to match the current UI view)
+  // --------------------
+  function getPointsInBounds(ctx) {
+    const bounds = boundsForExport(ctx);
+    const points = [];
+    for (const p of ctx.allPts || []) {
+      if (!p?.props) continue;
+      if (typeof UA.matchesNonInvolvementFilters === "function") {
+        if (!UA.matchesNonInvolvementFilters(ctx, p.props)) continue;
+      }
+      if (!inBounds(p, bounds)) continue;
+      points.push(p);
+    }
+    return points;
+  }
+
+  // --------------------
+  // Private: normalize city name for use in filenames
+  // --------------------
+  function safeCity(cityRaw) {
+    if (typeof UA.normKey === "function") return UA.normKey(cityRaw) || "export";
+    // Fallback: strip everything that is not alphanumeric or underscore
+    return String(cityRaw || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "export";
+  }
+
+  // --------------------
+  // Private: trigger file download
+  // --------------------
+  function triggerDownload(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    if (typeof window.saveAs === "function") {
+      window.saveAs(blob, filename);
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    }
+  }
+
+  // --------------------
+  // Public API: UA.exportToCSV(ctx)
+  // --------------------
+  UA.exportToCSV = function exportToCSV(ctx) {
+    const points = getPointsInBounds(ctx);
+    const CITY = ctx.CITY_RAW || "";
+    const date = new Date().toISOString().slice(0, 10);
+
+    const headers = ["lat", "lon", "year", "ukategorie", "IstRad", "IstFuss", "IstPKW", "IstKrad", "IstGkfz", "ustunde", "uwochentag", "strzustand"];
+    const rows = [headers.join(",")];
+
+    for (const p of points) {
+      const pr = p.props || {};
+      const row = [
+        p.lat,
+        p.lon,
+        pr.year ?? "",
+        pr.ukategorie ?? "",
+        pr.IstRad ?? pr.istrad ?? "",
+        pr.IstFuss ?? pr.istfuss ?? "",
+        pr.IstPKW ?? pr.istpkw ?? "",
+        pr.IstKrad ?? pr.istkrad ?? "",
+        pr.IstGkfz ?? pr.istgkfz ?? "",
+        pr.ustunde ?? "",
+        pr.uwochentag ?? "",
+        pr.strzustand ?? ""
+      ].map(v => {
+        const s = String(v ?? "");
+        return s.includes(",") || s.includes('"') || s.includes("\n")
+          ? `"${s.replace(/"/g, '""')}"` : s;
+      });
+      rows.push(row.join(","));
+    }
+
+    const filename = `Unfallatlas_${safeCity(CITY)}_${date}.csv`;
+    triggerDownload(rows.join("\n"), filename, "text/csv;charset=utf-8");
+  };
+
+  // --------------------
+  // Public API: UA.exportToGeoJSON(ctx)
+  // --------------------
+  UA.exportToGeoJSON = function exportToGeoJSON(ctx) {
+    const points = getPointsInBounds(ctx);
+    const CITY = ctx.CITY_RAW || "";
+    const date = new Date().toISOString().slice(0, 10);
+
+    const features = points.map(p => {
+      const pr = p.props || {};
+      return {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+        properties: {
+          year: pr.year ?? null,
+          ukategorie: pr.ukategorie ?? null,
+          IstRad: pr.IstRad ?? pr.istrad ?? null,
+          IstFuss: pr.IstFuss ?? pr.istfuss ?? null,
+          IstPKW: pr.IstPKW ?? pr.istpkw ?? null,
+          IstKrad: pr.IstKrad ?? pr.istkrad ?? null,
+          IstGkfz: pr.IstGkfz ?? pr.istgkfz ?? null,
+          ustunde: pr.ustunde ?? null,
+          uwochentag: pr.uwochentag ?? null,
+          strzustand: pr.strzustand ?? null
+        }
+      };
+    });
+
+    const geojson = { type: "FeatureCollection", features };
+    const filename = `Unfallatlas_${safeCity(CITY)}_${date}.geojson`;
+    triggerDownload(JSON.stringify(geojson, null, 2), filename, "application/geo+json;charset=utf-8");
+  };
+
+  // --------------------
+  // Public API: UA.exportToKML(ctx)
+  // --------------------
+  UA.exportToKML = function exportToKML(ctx) {
+    const points = getPointsInBounds(ctx);
+    const CITY = ctx.CITY_RAW || "";
+    const date = new Date().toISOString().slice(0, 10);
+
+    function escXml(v) {
+      return String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    }
+
+    const SEV_LABEL = { "1": "Getötet", "2": "Schwerverletzt", "3": "Leichtverletzt" };
+
+    const placemarks = points.map(p => {
+      const pr = p.props || {};
+      const year = pr.year ?? "";
+      const ukategorie = pr.ukategorie ?? "";
+      const sevLabel = SEV_LABEL[String(ukategorie)] || String(ukategorie);
+
+      const involved = [];
+      if (String(pr.IstRad ?? pr.istrad) === "1") involved.push("Rad");
+      if (String(pr.IstFuss ?? pr.istfuss) === "1") involved.push("Fuß");
+      if (String(pr.IstPKW ?? pr.istpkw) === "1") involved.push("PKW");
+      if (String(pr.IstKrad ?? pr.istkrad) === "1") involved.push("Krad");
+
+      const name = `${year} ${sevLabel}${involved.length ? " (" + involved.join("+") + ")" : ""}`;
+
+      return `    <Placemark>
+      <name>${escXml(name)}</name>
+      <ExtendedData>
+        <Data name="year"><value>${escXml(year)}</value></Data>
+        <Data name="ukategorie"><value>${escXml(ukategorie)}</value></Data>
+        <Data name="ustunde"><value>${escXml(pr.ustunde ?? "")}</value></Data>
+        <Data name="uwochentag"><value>${escXml(pr.uwochentag ?? "")}</value></Data>
+        <Data name="strzustand"><value>${escXml(pr.strzustand ?? "")}</value></Data>
+      </ExtendedData>
+      <Point><coordinates>${p.lon},${p.lat},0</coordinates></Point>
+    </Placemark>`;
+    }).join("\n");
+
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${escXml("Unfallatlas " + CITY + " " + date)}</name>
+    <description>Exportierte Unfalldaten</description>
+${placemarks}
+  </Document>
+</kml>`;
+
+    const filename = `Unfallatlas_${safeCity(CITY)}_${date}.kml`;
+    triggerDownload(kml, filename, "application/vnd.google-earth.kml+xml;charset=utf-8");
+  };
+
+
   // sehr kleine Cache-Strategie, damit beim Klicken nicht dauernd neue Requests kommen
   const _rgCache = new Map();
 

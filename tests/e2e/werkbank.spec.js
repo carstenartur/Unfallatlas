@@ -651,3 +651,129 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
     expect(statSync(filePath).size).toBeGreaterThan(0);
   });
 });
+
+test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/werkbank_v2.html');
+    await page.waitForLoadState('networkidle');
+
+    // Wait for page initialization and data load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#citySel');
+      return select && select.querySelectorAll('option').length > 1;
+    });
+
+    // Open the export modal
+    await page.locator('#btnOpenExport').click();
+    const modal = page.locator('#modalOverlay .modal');
+    await modal.waitFor({ state: 'visible' });
+  });
+
+  test('should have CSV, GeoJSON and KML export buttons', async ({ page }) => {
+    const csvBtn = page.locator('#btnExportCSV');
+    const geoJsonBtn = page.locator('#btnExportGeoJSON');
+    const kmlBtn = page.locator('#btnExportKML');
+
+    await expect(csvBtn).toBeVisible();
+    await expect(geoJsonBtn).toBeVisible();
+    await expect(kmlBtn).toBeVisible();
+
+    await expect(csvBtn).toContainText('CSV');
+    await expect(geoJsonBtn).toContainText('GeoJSON');
+    await expect(kmlBtn).toContainText('KML');
+  });
+
+  test('should have aria-labels on data export buttons', async ({ page }) => {
+    await expect(page.locator('#btnExportCSV')).toHaveAttribute('aria-label', 'Export als CSV-Datei');
+    await expect(page.locator('#btnExportGeoJSON')).toHaveAttribute('aria-label', 'Export als GeoJSON-Datei');
+    await expect(page.locator('#btnExportKML')).toHaveAttribute('aria-label', 'Export als KML-Datei');
+  });
+
+  test('should download CSV file when clicking CSV button', async ({ page }) => {
+    const csvBtn = page.locator('#btnExportCSV');
+    await expect(csvBtn).toBeVisible();
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      csvBtn.click()
+    ]);
+
+    expect(download).toBeTruthy();
+    const filename = download.suggestedFilename();
+    expect(filename).toMatch(/^Unfallatlas_.*\.csv$/);
+
+    const filePath = await download.path();
+    expect(filePath).toBeTruthy();
+    const { statSync } = await import('fs');
+    expect(statSync(filePath).size).toBeGreaterThan(0);
+  });
+
+  test('should download GeoJSON file when clicking GeoJSON button', async ({ page }) => {
+    const geoJsonBtn = page.locator('#btnExportGeoJSON');
+    await expect(geoJsonBtn).toBeVisible();
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      geoJsonBtn.click()
+    ]);
+
+    expect(download).toBeTruthy();
+    const filename = download.suggestedFilename();
+    expect(filename).toMatch(/^Unfallatlas_.*\.geojson$/);
+
+    const filePath = await download.path();
+    expect(filePath).toBeTruthy();
+    const { statSync, readFileSync } = await import('fs');
+    expect(statSync(filePath).size).toBeGreaterThan(0);
+
+    // Verify it is valid JSON with FeatureCollection structure
+    const content = readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(content);
+    expect(parsed.type).toBe('FeatureCollection');
+    expect(Array.isArray(parsed.features)).toBe(true);
+  });
+
+  test('should download KML file when clicking KML button', async ({ page }) => {
+    const kmlBtn = page.locator('#btnExportKML');
+    await expect(kmlBtn).toBeVisible();
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      kmlBtn.click()
+    ]);
+
+    expect(download).toBeTruthy();
+    const filename = download.suggestedFilename();
+    expect(filename).toMatch(/^Unfallatlas_.*\.kml$/);
+
+    const filePath = await download.path();
+    expect(filePath).toBeTruthy();
+    const { statSync, readFileSync } = await import('fs');
+    expect(statSync(filePath).size).toBeGreaterThan(0);
+
+    // Verify it is valid KML
+    const content = readFileSync(filePath, 'utf8');
+    expect(content).toContain('<?xml');
+    expect(content).toContain('<kml');
+    expect(content).toContain('<Document>');
+  });
+
+  test('CSV download should contain header row', async ({ page }) => {
+    const csvBtn = page.locator('#btnExportCSV');
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      csvBtn.click()
+    ]);
+
+    const filePath = await download.path();
+    const { readFileSync } = await import('fs');
+    const content = readFileSync(filePath, 'utf8');
+    const firstLine = content.split('\n')[0];
+
+    expect(firstLine).toContain('lat');
+    expect(firstLine).toContain('lon');
+    expect(firstLine).toContain('year');
+    expect(firstLine).toContain('ukategorie');
+  });
+});

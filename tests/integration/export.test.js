@@ -409,3 +409,345 @@ Der Bezirksrat bittet um umfassende Prüfung und Maßnahmen.`
     });
   });
 });
+
+/**
+ * Integration tests for data export functions (CSV, GeoJSON, KML)
+ */
+describe('Data Export - CSV / GeoJSON / KML', () => {
+  let UA;
+  let capturedBlob;
+  let capturedFilename;
+
+  // Helper: read a Blob as text (jsdom's Blob may not implement .text())
+  function readBlobAsText(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsText(blob);
+    });
+  }
+
+  // Sample accident points covering two locations inside the mock bounds
+  const testPoints = [
+    { lat: 52.376, lon: 9.732, props: { year: '2021', ukategorie: '2', IstRad: '1', IstFuss: '0', IstPKW: '1', IstKrad: '0', ustunde: '8', uwochentag: '2', strzustand: '0' } },
+    { lat: 52.380, lon: 9.740, props: { year: '2022', ukategorie: '3', IstRad: '0', IstFuss: '1', IstPKW: '1', IstKrad: '0', ustunde: '17', uwochentag: '3', strzustand: '0' } },
+    { lat: 52.370, lon: 9.720, props: { year: '2020', ukategorie: '1', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', ustunde: '12', uwochentag: '5', strzustand: '1' } },
+    // Point outside bounds (far away) – should NOT appear in export
+    { lat: 48.100, lon: 11.500, props: { year: '2021', ukategorie: '3', IstRad: '0', IstFuss: '0', IstPKW: '1', IstKrad: '0', ustunde: '9', uwochentag: '1', strzustand: '0' } }
+  ];
+
+  // Bounds that contain the first three points but not the fourth
+  const mockBounds = {
+    contains: (latLng) => {
+      const [lat, lng] = Array.isArray(latLng) ? latLng : [latLng.lat, latLng.lng];
+      return lat >= 52.0 && lat <= 53.0 && lng >= 9.5 && lng <= 10.5;
+    },
+    getCenter: () => ({ lat: 52.375, lng: 9.730 }),
+    getSouthWest: () => ({ lat: 52.0, lng: 9.5 }),
+    getNorthEast: () => ({ lat: 53.0, lng: 10.5 })
+  };
+
+  const makeCtx = () => ({
+    CITY_RAW: 'Hannover',
+    allPts: testPoints,
+    selectionBounds: mockBounds,
+    map: { getBounds: jest.fn(() => mockBounds) }
+  });
+
+  beforeEach(() => {
+    capturedBlob = null;
+    capturedFilename = null;
+
+    Object.assign(window, {
+      UA: {},
+      saveAs: jest.fn((blob, filename) => {
+        capturedBlob = blob;
+        capturedFilename = filename;
+      })
+    });
+
+    // Mock fetch so template loading falls back gracefully
+    global.fetch = jest.fn(() => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') }));
+
+    const fs = require('fs');
+    const path = require('path');
+    // Load core utils (provides UA.escHtml needed by computeExportReport)
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8'));
+    // Load utils (provides UA.normKey needed for filename sanitization)
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.utils.js'), 'utf8'));
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.export_v2.js'), 'utf8'));
+    UA = window.UA;
+  });
+
+  afterEach(() => {
+    delete window.UA;
+    delete window.saveAs;
+    delete global.fetch;
+    jest.restoreAllMocks();
+  });
+
+  // ---------- CSV ----------
+
+  describe('UA.exportToCSV', () => {
+    test('should call saveAs with a CSV blob', () => {
+      UA.exportToCSV(makeCtx());
+
+      expect(window.saveAs).toHaveBeenCalledTimes(1);
+      expect(capturedFilename).toMatch(/^Unfallatlas_hannover_\d{4}-\d{2}-\d{2}\.csv$/);
+      expect(capturedBlob).toBeInstanceOf(Blob);
+      expect(capturedBlob.size).toBeGreaterThan(0);
+    });
+
+    test('should include a header row and one row per in-bounds point', async () => {
+      UA.exportToCSV(makeCtx());
+
+      const text = await readBlobAsText(capturedBlob);
+      const lines = text.trim().split('\n');
+
+      // Header + 3 in-bounds points (the 4th is outside bounds)
+      expect(lines).toHaveLength(4);
+      expect(lines[0]).toBe('lat,lon,year,ukategorie,IstRad,IstFuss,IstPKW,IstKrad,IstGkfz,ustunde,uwochentag,strzustand');
+    });
+
+    test('should contain correct lat/lon values for each point', async () => {
+      UA.exportToCSV(makeCtx());
+      const text = await readBlobAsText(capturedBlob);
+
+      expect(text).toContain('52.376');
+      expect(text).toContain('9.732');
+      expect(text).toContain('52.38');
+      // Out-of-bounds point should NOT appear
+      expect(text).not.toContain('48.1');
+    });
+
+    test('should contain accident property values', async () => {
+      UA.exportToCSV(makeCtx());
+      const text = await readBlobAsText(capturedBlob);
+
+      expect(text).toContain('2021');
+      expect(text).toContain('2022');
+      expect(text).toContain('2020');
+    });
+
+    test('should work without selectionBounds (uses map.getBounds)', () => {
+      const ctx = makeCtx();
+      delete ctx.selectionBounds;
+      UA.exportToCSV(ctx);
+
+      expect(ctx.map.getBounds).toHaveBeenCalled();
+      expect(window.saveAs).toHaveBeenCalledTimes(1);
+    });
+
+    test('should produce valid CSV even with empty points', async () => {
+      const ctx = makeCtx();
+      ctx.allPts = [];
+      UA.exportToCSV(ctx);
+
+      const text = await readBlobAsText(capturedBlob);
+      const lines = text.trim().split('\n');
+      expect(lines).toHaveLength(1); // header only
+      expect(lines[0]).toContain('lat');
+    });
+  });
+
+  // ---------- GeoJSON ----------
+
+  describe('UA.exportToGeoJSON', () => {
+    test('should call saveAs with a GeoJSON blob', () => {
+      UA.exportToGeoJSON(makeCtx());
+
+      expect(window.saveAs).toHaveBeenCalledTimes(1);
+      expect(capturedFilename).toMatch(/^Unfallatlas_hannover_\d{4}-\d{2}-\d{2}\.geojson$/);
+      expect(capturedBlob).toBeInstanceOf(Blob);
+      expect(capturedBlob.size).toBeGreaterThan(0);
+    });
+
+    test('should produce valid GeoJSON FeatureCollection', async () => {
+      UA.exportToGeoJSON(makeCtx());
+
+      const text = await readBlobAsText(capturedBlob);
+      const parsed = JSON.parse(text);
+
+      expect(parsed.type).toBe('FeatureCollection');
+      expect(Array.isArray(parsed.features)).toBe(true);
+      // 3 in-bounds points
+      expect(parsed.features).toHaveLength(3);
+    });
+
+    test('each feature should have Point geometry with correct coordinates', async () => {
+      UA.exportToGeoJSON(makeCtx());
+      const { features } = JSON.parse(await readBlobAsText(capturedBlob));
+
+      for (const f of features) {
+        expect(f.type).toBe('Feature');
+        expect(f.geometry.type).toBe('Point');
+        expect(f.geometry.coordinates).toHaveLength(2);
+        // GeoJSON coordinates are [lon, lat]
+        expect(typeof f.geometry.coordinates[0]).toBe('number');
+        expect(typeof f.geometry.coordinates[1]).toBe('number');
+      }
+    });
+
+    test('features should include expected properties', async () => {
+      UA.exportToGeoJSON(makeCtx());
+      const { features } = JSON.parse(await readBlobAsText(capturedBlob));
+
+      const first = features[0];
+      expect(first.properties).toHaveProperty('year');
+      expect(first.properties).toHaveProperty('ukategorie');
+      expect(first.properties).toHaveProperty('IstRad');
+      expect(first.properties).toHaveProperty('IstFuss');
+      expect(first.properties).toHaveProperty('IstPKW');
+      expect(first.properties).toHaveProperty('IstKrad');
+      expect(first.properties).toHaveProperty('ustunde');
+      expect(first.properties).toHaveProperty('uwochentag');
+    });
+
+    test('should exclude out-of-bounds points', async () => {
+      UA.exportToGeoJSON(makeCtx());
+      const { features } = JSON.parse(await readBlobAsText(capturedBlob));
+
+      // The point at lat 48.1, lon 11.5 should not be present
+      const lats = features.map(f => f.geometry.coordinates[1]);
+      expect(lats.every(lat => lat >= 52.0)).toBe(true);
+    });
+  });
+
+  // ---------- KML ----------
+
+  describe('UA.exportToKML', () => {
+    test('should call saveAs with a KML blob', () => {
+      UA.exportToKML(makeCtx());
+
+      expect(window.saveAs).toHaveBeenCalledTimes(1);
+      expect(capturedFilename).toMatch(/^Unfallatlas_hannover_\d{4}-\d{2}-\d{2}\.kml$/);
+      expect(capturedBlob).toBeInstanceOf(Blob);
+      expect(capturedBlob.size).toBeGreaterThan(0);
+    });
+
+    test('should produce well-formed KML XML', async () => {
+      UA.exportToKML(makeCtx());
+      const text = await readBlobAsText(capturedBlob);
+
+      expect(text).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+      expect(text).toContain('<kml xmlns="http://www.opengis.net/kml/2.2">');
+      expect(text).toContain('<Document>');
+      expect(text).toContain('</Document>');
+      expect(text).toContain('</kml>');
+    });
+
+    test('should contain one Placemark per in-bounds point', async () => {
+      UA.exportToKML(makeCtx());
+      const text = await readBlobAsText(capturedBlob);
+
+      const placemarkCount = (text.match(/<Placemark>/g) || []).length;
+      expect(placemarkCount).toBe(3);
+    });
+
+    test('should include coordinates for each point', async () => {
+      UA.exportToKML(makeCtx());
+      const text = await readBlobAsText(capturedBlob);
+
+      expect(text).toContain('<Point>');
+      expect(text).toContain('<coordinates>');
+      // Check a known coordinate appears (lon,lat format)
+      expect(text).toContain('9.732,52.376');
+    });
+
+    test('should include accident year and severity in placemark names', async () => {
+      UA.exportToKML(makeCtx());
+      const text = await readBlobAsText(capturedBlob);
+
+      // Point with ukategorie 1 → "Getötet"
+      expect(text).toContain('Getötet');
+      // Point with ukategorie 2 → "Schwerverletzt"
+      expect(text).toContain('Schwerverletzt');
+      // Point with ukategorie 3 → "Leichtverletzt"
+      expect(text).toContain('Leichtverletzt');
+    });
+
+    test('should XML-escape special characters in city name', async () => {
+      const ctx = makeCtx();
+      ctx.CITY_RAW = 'Köln & <Test>';
+      UA.exportToKML(ctx);
+
+      expect(window.saveAs).toHaveBeenCalledTimes(1);
+
+      const text = await readBlobAsText(capturedBlob);
+      // Document name must contain properly escaped HTML entities
+      expect(text).toContain('Köln &amp; &lt;Test&gt;');
+      // The produced XML must be parseable without errors
+      const xml = new DOMParser().parseFromString(text, 'application/xml');
+      expect(xml.querySelector('parsererror')).toBeNull();
+      // The text content of the Document name should be the unescaped original
+      const docName = xml.querySelector('Document > name');
+      expect(docName).not.toBeNull();
+      expect(docName.textContent).toContain('Köln & <Test>');
+    });
+  });
+
+  // ---------- computeExportReport with real data ----------
+
+  describe('UA.computeExportReport with realistic ctx', () => {
+    test('should return text and html fields', async () => {
+      // UA.reverseGeocode will fail (no network) and fall back gracefully
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+
+      expect(result).toHaveProperty('text');
+      expect(result).toHaveProperty('html');
+      expect(typeof result.text).toBe('string');
+      expect(typeof result.html).toBe('string');
+      expect(result.text.length).toBeGreaterThan(0);
+      expect(result.html.length).toBeGreaterThan(0);
+    });
+
+    test('text output should contain city name and bounds info', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+
+      expect(result.text).toContain('Hannover');
+      // Bounds string from getSouthWest / getNorthEast
+      expect(result.text).toContain('52.00000');
+    });
+
+    test('html output should contain table structure', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+
+      expect(result.html).toContain('<table');
+      expect(result.html).toContain('</table>');
+    });
+  });
+});
