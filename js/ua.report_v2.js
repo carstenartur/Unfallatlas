@@ -102,9 +102,12 @@
           const restore = ctx2d.createImageData(canvas.width, canvas.height);
           restore.data.set(original);
           ctx2d.putImageData(restore, 0, 0);
-        } catch (_) {}
+        } catch (err) {
+          console.warn("Failed to restore heatmap canvas:", err);
+        }
       };
-    } catch (_) {
+    } catch (err) {
+      console.warn("Failed to bake heatmap opacity:", err);
       return function () {};
     }
   }
