@@ -23,7 +23,7 @@ describe('UA.report_v2 - Export Functions', () => {
     // saveAs is kept as a spy – we validate the blob passed to it, not the browser download itself.
     const pdfMakeLib = require('pdfmake/build/pdfmake');
     const pdfFonts = require('pdfmake/build/vfs_fonts');
-    pdfMakeLib.vfs = pdfFonts.pdfMake.vfs;
+    pdfMakeLib.vfs = pdfFonts;
 
     window.UA = {};
     window.leafletImage = mockLeafletImage;
@@ -245,13 +245,9 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(downloadSpy.mock.calls[0][0]).toMatch(/Bezirksratsantrag_Hannover_.*\.pdf/);
 
       // Verify a real, non-empty PDF is generated (%PDF magic bytes)
-      await new Promise((resolve) => {
-        capturedDoc.getBuffer((buffer) => {
-          expect(buffer.length).toBeGreaterThan(0);
-          expect(String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3])).toBe('%PDF');
-          resolve();
-        });
-      });
+      const buffer = await capturedDoc.getBuffer();
+      expect(buffer.length).toBeGreaterThan(0);
+      expect(String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3])).toBe('%PDF');
     });
 
     test('should include BEZIRKSRATSANTRAG in PDF document definition', async () => {

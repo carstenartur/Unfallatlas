@@ -53,13 +53,13 @@
     try {
       await Promise.all([
         loadScript('https://unpkg.com/docx@8.2.2/build/index.umd.js', 'docx'),
-        loadScript('https://unpkg.com/pdfmake@0.2.10/build/pdfmake.min.js', 'pdfMake'),
+        loadScript('https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js', 'pdfMake'),
         loadScript('https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js', 'saveAs')
       ]);
       
       // Load vfs_fonts after pdfMake
       if (window.pdfMake && !window.pdfMake.vfs) {
-        await loadScript('https://unpkg.com/pdfmake@0.2.10/build/vfs_fonts.js', null);
+        await loadScript('https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js', null);
       }
       
       UA._exportLibrariesLoaded = true;

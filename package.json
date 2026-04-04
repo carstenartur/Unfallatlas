@@ -39,6 +39,9 @@
     "testEnvironmentOptions": {
       "url": "http://localhost:8000/"
     },
+    "setupFiles": [
+      "./tests/setup.js"
+    ],
     "testMatch": [
       "**/tests/**/*.test.js"
     ],
