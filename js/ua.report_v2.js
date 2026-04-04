@@ -136,6 +136,12 @@
   // Word Document Export (using docx.js)
   // =====================================================================
 
+  // Shared helper: map OSM POI type key to German label
+  const POI_TYPE_LABELS = { school: "Schulen", kindergarten: "Kindergärten", childcare: "Kitas" };
+  function poiTypeLabel(type) {
+    return POI_TYPE_LABELS[type] || type;
+  }
+
   /**
    * Generate and download Word document
    * @param {Object} ctx - Application context
@@ -150,10 +156,40 @@
       throw new Error("docx.js library not loaded");
     }
 
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = window.docx;
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun,
+            Table, TableRow, TableCell, WidthType, BorderStyle } = window.docx;
+
+    // Helper to build a simple bordered table from headers + rows
+    function makeDocxTable(headers, dataRows) {
+      const cellBorder = {
+        top:    { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
+        left:   { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
+        right:  { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" }
+      };
+      const makeRow = (cells, bold) =>
+        new TableRow({
+          children: cells.map(text =>
+            new TableCell({
+              borders: cellBorder,
+              children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })]
+            })
+          )
+        });
+      return new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          makeRow(headers, true),
+          ...dataRows.map(row => makeRow(row, false))
+        ]
+      });
+    }
 
     const children = [];
-    const textLines = reportData.text.split("\n");
+    const textLines = reportData.text ? reportData.text.split("\n") : [];
+
+    // Use structured data if available (preferred path), else fall back to text parsing
+    const sd = reportData.structured || null;
 
     // ---- Title / Cover ----
     const CITY_RAW = ctx.CITY_RAW || "—";
@@ -222,6 +258,62 @@
       );
     }
 
+    // ---- STATISTIK section with real tables (from structured data) ----
+    if (sd) {
+      children.push(
+        new Paragraph({
+          text: "STATISTIK",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        })
+      );
+
+      // Severity table
+      children.push(new Paragraph({ text: "Verletzungsschwere im Ausschnitt:", spacing: { after: 100 } }));
+      const sev = sd.severity;
+      const sevTotal = sev ? sev.total : 0;
+      const fmtPct = (n, total) => total ? ((n / total) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
+      children.push(makeDocxTable(
+        ["Kategorie", "Anzahl", "Anteil"],
+        [
+          ["1 – Getötete",       String((sev && sev.bySev["1"]) || 0), fmtPct((sev && sev.bySev["1"]) || 0, sevTotal)],
+          ["2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPct((sev && sev.bySev["2"]) || 0, sevTotal)],
+          ["3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPct((sev && sev.bySev["3"]) || 0, sevTotal)]
+        ]
+      ));
+      children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+
+      // Deviations table
+      if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
+        children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", spacing: { after: 100 } }));
+        const devRows = sd.deviations.focus.map(r => {
+          const locPct = sd.deviations.local.total ? ((r.locR) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
+          const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          return [r.label, String(r.locCnt), locPct, basePct, r.factor.toFixed(2) + "×"];
+        });
+        children.push(makeDocxTable(
+          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor"],
+          devRows
+        ));
+        children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      }
+
+      // Year table
+      if (sd.yearTable && sd.yearTable.length > 0) {
+        children.push(new Paragraph({ text: "Unfälle pro Jahr im Ausschnitt:", spacing: { after: 100 } }));
+        const yrRows = sd.yearTable.map(row => [
+          String(row.year),
+          String(row.total),
+          row.classes.length ? row.classes.join(", ") : "—"
+        ]);
+        children.push(makeDocxTable(
+          ["Jahr", "Summe", "Kombinationen"],
+          yrRows
+        ));
+        children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      }
+    }
+
     // ---- Map section (if enabled) ----
     if (options.includeMap) {
       try {
@@ -287,8 +379,11 @@
 
     // ---- POI section (if enabled and data available) ----
     if (options.includePOIs) {
-      const poiSection = extractSection(textLines, "POI-Analyse");
-      if (poiSection.length > 0) {
+      // Prefer structured POI data for a real table
+      const poi = sd && sd.poi;
+      const hasPoi = poi && (poi.totalWithin > 0 || poi.totalNear > 0);
+      const poiTextSection = extractSection(textLines, "POI-Analyse");
+      if (hasPoi || poiTextSection.length > 0) {
         children.push(
           new Paragraph({
             text: "SENSIBLE EINRICHTUNGEN",
@@ -297,13 +392,33 @@
           })
         );
 
-        for (const line of poiSection) {
-          children.push(
-            new Paragraph({
-              text: line,
-              spacing: { after: 100 }
-            })
-          );
+        if (hasPoi) {
+          const poiRows = [];
+          const allTypes = [...new Set([
+            ...Object.keys(poi.withinByType || {}),
+            ...Object.keys(poi.nearByType || {})
+          ])].sort((a, b) => poiTypeLabel(a).localeCompare(poiTypeLabel(b), "de"));
+          for (const type of allTypes) {
+            const label = poiTypeLabel(type);
+            poiRows.push([
+              label,
+              String(poi.withinByType[type] || 0),
+              String(poi.nearByType[type] || 0)
+            ]);
+          }
+          children.push(makeDocxTable(
+            ["Typ", "Im Bereich", "In der Nähe (< 200m)"],
+            poiRows
+          ));
+          children.push(new Paragraph({ text: "", spacing: { after: 100 } }));
+          children.push(new Paragraph({
+            text: "Hinweis: Das Vorhandensein von Schulen, Kindergärten oder Kitas im oder nahe dem Unfallbereich erfordert besondere Aufmerksamkeit hinsichtlich der Verkehrssicherheit für Kinder und Jugendliche.",
+            spacing: { after: 200 }
+          }));
+        } else {
+          for (const line of poiTextSection) {
+            children.push(new Paragraph({ text: line, spacing: { after: 100 } }));
+          }
         }
       }
     }
@@ -339,8 +454,9 @@
 
     // ---- FACHLICHE BEZÜGE section (if enabled) ----
     if (options.includeReferences) {
-      const refsSection = extractSection(textLines, "Bezugsdokumente:");
-      if (refsSection.length > 0) {
+      const refs = sd && sd.references;
+      const refsTextSection = extractSection(textLines, "Bezugsdokumente:");
+      if ((refs && refs.documents && refs.documents.length > 0) || refsTextSection.length > 0) {
         children.push(
           new Paragraph({
             text: "FACHLICHE BEZÜGE",
@@ -349,13 +465,25 @@
           })
         );
 
-        for (const line of refsSection) {
-          children.push(
-            new Paragraph({
-              text: line,
-              spacing: { after: 100 }
-            })
-          );
+        if (refs && refs.documents && refs.documents.length > 0) {
+          for (const doc of refs.documents) {
+            const title = doc.title || "Ohne Titel";
+            const meta = [doc.author, doc.date].filter(Boolean).join(", ");
+            children.push(new Paragraph({
+              children: [
+                new TextRun({ text: `- ${title}`, bold: false }),
+                ...(meta ? [new TextRun({ text: ` (${meta})`, italics: true })] : [])
+              ],
+              spacing: { after: 80 }
+            }));
+            if (doc.url) {
+              children.push(new Paragraph({ text: `  ${doc.url}`, spacing: { after: 40 } }));
+            }
+          }
+        } else {
+          for (const line of refsTextSection) {
+            children.push(new Paragraph({ text: line, spacing: { after: 100 } }));
+          }
         }
       }
     }
@@ -574,8 +702,32 @@
     const CITY_RAW = ctx.CITY_RAW || "—";
     const today = new Date().toLocaleDateString("de-DE");
     // Replace emojis with text labels for PDF compatibility
-    const pdfText = replaceEmojisForPDF(reportData.text);
+    const pdfText = replaceEmojisForPDF(reportData.text || "");
     const textLines = pdfText.split("\n");
+
+    // Use structured data if available
+    const sd = reportData.structured || null;
+
+    // Helper: format percentage for PDF
+    function fmtPctPdf(n, total) {
+      return total ? ((n / total) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
+    }
+
+    // Helper: build pdfmake table with header row
+    function makePdfTable(headers, dataRows) {
+      return {
+        table: {
+          headerRows: 1,
+          widths: headers.map(() => "*"),
+          body: [
+            headers.map(h => ({ text: h, bold: true, fillColor: "#EEEEEE" })),
+            ...dataRows.map(row => row.map(cell => ({ text: String(cell ?? ""), fontSize: 10 })))
+          ]
+        },
+        layout: "lightHorizontalLines",
+        margin: [0, 4, 0, 10]
+      };
+    }
 
     const docDefinition = {
       pageSize: "A4",
@@ -653,6 +805,52 @@
       }
     }
 
+    // ---- STATISTIK section with real tables (from structured data) ----
+    if (sd) {
+      docDefinition.content.push({ text: "STATISTIK", style: "subheader" });
+
+      // Severity table
+      docDefinition.content.push({ text: "Verletzungsschwere im Ausschnitt:", style: "normal" });
+      const sev = sd.severity;
+      const sevTotal = sev ? sev.total : 0;
+      docDefinition.content.push(makePdfTable(
+        ["Kategorie", "Anzahl", "Anteil"],
+        [
+          ["1 – Getötete",       String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
+          ["2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
+          ["3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
+        ]
+      ));
+
+      // Deviations table
+      if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
+        docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal" });
+        const devRows = sd.deviations.focus.map(r => {
+          const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
+          const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          return [replaceEmojisForPDF(r.label), String(r.locCnt), locPct, basePct, r.factor.toFixed(2) + "x"];
+        });
+        docDefinition.content.push(makePdfTable(
+          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor"],
+          devRows
+        ));
+      }
+
+      // Year table
+      if (sd.yearTable && sd.yearTable.length > 0) {
+        docDefinition.content.push({ text: "Unfälle pro Jahr im Ausschnitt:", style: "normal" });
+        const yrRows = sd.yearTable.map(row => [
+          String(row.year),
+          String(row.total),
+          row.classes.length ? replaceEmojisForPDF(row.classes.join(", ")) : "—"
+        ]);
+        docDefinition.content.push(makePdfTable(
+          ["Jahr", "Summe", "Kombinationen"],
+          yrRows
+        ));
+      }
+    }
+
     // ---- Map section (if enabled) ----
     if (options.includeMap) {
       try {
@@ -702,19 +900,45 @@
 
     // ---- POI section (if enabled) ----
     if (options.includePOIs) {
+      const poi = sd && sd.poi;
+      const hasPoi = poi && (poi.totalWithin > 0 || poi.totalNear > 0);
       const poiSection = extractSection(textLines, "POI-Analyse");
-      if (poiSection.length > 0) {
+      if (hasPoi || poiSection.length > 0) {
         docDefinition.content.push({
           text: "SENSIBLE EINRICHTUNGEN",
           style: "subheader"
         });
 
-        for (const line of poiSection) {
-          const content = textWithLinks(line);
+        if (hasPoi) {
+          const poiRows = [];
+          const allTypes = [...new Set([
+            ...Object.keys(poi.withinByType || {}),
+            ...Object.keys(poi.nearByType || {})
+          ])].sort((a, b) => poiTypeLabel(a).localeCompare(poiTypeLabel(b), "de"));
+          for (const type of allTypes) {
+            const label = poiTypeLabel(type);
+            poiRows.push([
+              label,
+              String(poi.withinByType[type] || 0),
+              String(poi.nearByType[type] || 0)
+            ]);
+          }
+          docDefinition.content.push(makePdfTable(
+            ["Typ", "Im Bereich", "In der Nähe (< 200m)"],
+            poiRows
+          ));
           docDefinition.content.push({
-            text: content,
-            style: "normal"
+            text: "Hinweis: Das Vorhandensein von Schulen, Kindergärten oder Kitas im oder nahe dem Unfallbereich erfordert besondere Aufmerksamkeit hinsichtlich der Verkehrssicherheit für Kinder und Jugendliche.",
+            style: "small"
           });
+        } else {
+          for (const line of poiSection) {
+            const content = textWithLinks(line);
+            docDefinition.content.push({
+              text: content,
+              style: "normal"
+            });
+          }
         }
       }
     }
@@ -743,19 +967,36 @@
 
     // ---- FACHLICHE BEZÜGE section (if enabled) ----
     if (options.includeReferences) {
+      const refs = sd && sd.references;
       const refsSection = extractSection(textLines, "Bezugsdokumente:");
-      if (refsSection.length > 0) {
+      if ((refs && refs.documents && refs.documents.length > 0) || refsSection.length > 0) {
         docDefinition.content.push({
           text: "FACHLICHE BEZÜGE",
           style: "subheader"
         });
 
-        for (const line of refsSection) {
-          const content = textWithLinks(line);
-          docDefinition.content.push({
-            text: content,
-            style: "normal"
-          });
+        if (refs && refs.documents && refs.documents.length > 0) {
+          for (const doc of refs.documents) {
+            const title = doc.title || "Ohne Titel";
+            const meta = [doc.author, doc.date].filter(Boolean).join(", ");
+            docDefinition.content.push({
+              text: meta ? `- ${title} (${meta})` : `- ${title}`,
+              style: "normal"
+            });
+            if (doc.url) {
+              docDefinition.content.push(textWithLinks(doc.url) !== doc.url
+                ? { text: textWithLinks(`  ${doc.url}`), style: "normal" }
+                : { text: `  ${doc.url}`, style: "normal" });
+            }
+          }
+        } else {
+          for (const line of refsSection) {
+            const content = textWithLinks(line);
+            docDefinition.content.push({
+              text: content,
+              style: "normal"
+            });
+          }
         }
       }
     }

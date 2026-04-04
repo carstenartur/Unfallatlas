@@ -1,0 +1,115 @@
+{
+  "gremiumTyp": "Bezirksverordnetenversammlung (BVV)",
+  "hinweis": "Zuständigkeit bitte vor Einreichung mit der aktuellen Bezirksgliederung abgleichen.",
+  "fallback": "Zuständige Bezirksverordnetenversammlung (BVV) konnte nicht eindeutig ermittelt werden. Bitte prüfen Sie die Zuordnung anhand der aktuellen Berliner Bezirksgrenzen.",
+  "zuordnung": [
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Mitte"
+        ]
+      },
+      "gremium": "BVV Mitte",
+      "kontakt": "bvv@ba-mitte.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Friedrichshain-Kreuzberg"
+        ]
+      },
+      "gremium": "BVV Friedrichshain-Kreuzberg",
+      "kontakt": "bvv@ba-fk.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Pankow"
+        ]
+      },
+      "gremium": "BVV Pankow",
+      "kontakt": "bvv@ba-pankow.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Charlottenburg-Wilmersdorf"
+        ]
+      },
+      "gremium": "BVV Charlottenburg-Wilmersdorf",
+      "kontakt": "bvv@ba-cw.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Spandau"
+        ]
+      },
+      "gremium": "BVV Spandau",
+      "kontakt": "bvv@ba-spandau.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Steglitz-Zehlendorf"
+        ]
+      },
+      "gremium": "BVV Steglitz-Zehlendorf",
+      "kontakt": "bvv@ba-sz.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Tempelhof-Schöneberg"
+        ]
+      },
+      "gremium": "BVV Tempelhof-Schöneberg",
+      "kontakt": "bvv@ba-ts.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Neukölln"
+        ]
+      },
+      "gremium": "BVV Neukölln",
+      "kontakt": "bvv@ba-neukoelln.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Treptow-Köpenick"
+        ]
+      },
+      "gremium": "BVV Treptow-Köpenick",
+      "kontakt": "bvv@ba-tk.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Marzahn-Hellersdorf"
+        ]
+      },
+      "gremium": "BVV Marzahn-Hellersdorf",
+      "kontakt": "bvv@ba-mh.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Lichtenberg"
+        ]
+      },
+      "gremium": "BVV Lichtenberg",
+      "kontakt": "bvv@ba-lichtenberg.berlin.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bezirk Reinickendorf"
+        ]
+      },
+      "gremium": "BVV Reinickendorf",
+      "kontakt": "bvv@ba-reinickendorf.berlin.de"
+    }
+  ]
+}

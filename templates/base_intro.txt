@@ -3,6 +3,10 @@ Bezirksratsantrag (Entwurf) – Verkehrssicherheit / Unfallschwerpunkt
 Stadt: {{CITY}}
 Erstellt am: {{DATE}}
 
+Vermutlich zuständiges Gremium: {{GREMIUM_NAME}}
+Gremientyp: {{GREMIUM_TYP}}
+Hinweis: {{GREMIUM_HINWEIS}}
+
 Betreff:
 Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im Bereich {{AREA_NAME}}
 
@@ -10,10 +14,3 @@ Anlagen:
 1) Kartenausschnitt(e) aus der Unfallwerkbank (Unfallatlas-Auswertung)
 2) Tabelle: Unfälle pro Jahr und Muster (Ausschnitt)
 3) Tabelle: Auffällige Muster (Ausschnitt vs. Stadtvergleich)
-
-Sachverhalt:
-Im in Anlage 1 dargestellten Bereich (Kartenausschnitt / Markierung) wurden Unfälle anhand der öffentlich verfügbaren Unfallatlas-Daten ausgewertet.
-Die Auswertung erfolgte für den Zeitraum und die Filtereinstellungen gemäß Anlage (siehe Link/Parameter). Ziel ist es, lokale Auffälligkeiten zu identifizieren, die auf besondere infrastrukturelle oder verkehrsorganisatorische Risiken hindeuten.
-
-Räumlicher Zuschnitt:
-{{BOUNDS}}

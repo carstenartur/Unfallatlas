@@ -13,7 +13,19 @@
     lizenz: `Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).\n`
   };
 
-  async function loadTemplate(name) {
+  async function loadTemplate(name, stadtSlug) {
+    // Fallback chain:
+    // 1. templates/{stadtSlug}/{name}.txt  (city-specific)
+    // 2. templates/{name}.txt              (generic)
+    // 3. DEFAULT_TEMPLATES[name]           (hardcoded fallback)
+    if (stadtSlug) {
+      const cityUrl = `${TEMPLATE_DIR}/${stadtSlug}/${name}.txt`;
+      try {
+        const r = await fetch(cityUrl, { cache: "no-store" });
+        if (r.ok) return await r.text();
+        // city-specific not found – fall through to generic
+      } catch { /* city-specific unavailable – fall through to generic */ }
+    }
     const url = `${TEMPLATE_DIR}/${name}.txt`;
     try {
       const r = await fetch(url, { cache: "no-store" });
@@ -79,6 +91,41 @@
     if (mask === 3) return "Überrepräsentation von 🚲+🚶 kann auf enge Führungen, gemeinsame Flächen oder fehlende Trennung hinweisen.";
     if (mask === 7) return "Überrepräsentation von 🚲+🚗+🚶 spricht für komplexe Konfliktlagen an Knotenpunkten bzw. stark frequentierten Querungen.";
     return "Auffälligkeit kann auf lokale Führungs-/Sicht-/Querungsprobleme hinweisen; eine Ortsbegehung und Unfallkommissionsprüfung ist angezeigt.";
+  }
+
+  // --------------------
+  // Pattern template matching
+  // --------------------
+  const PATTERN_MAP = {
+    1: {
+      template: "pattern_rad_solo",
+      vars: (r) => ({ RAD_SOLO_FACTOR: r.factor.toFixed(2), RAD_SOLO_LOCAL: String(r.locCnt) })
+    },
+    3: {
+      template: "pattern_rad_fuss",
+      vars: (r) => ({ RAD_FUSS_FACTOR: r.factor.toFixed(2), RAD_FUSS_LOCAL: String(r.locCnt) })
+    },
+    5: {
+      template: "pattern_rad_pkw",
+      vars: (r) => ({ RAD_PKW_FACTOR: r.factor.toFixed(2), RAD_PKW_LOCAL: String(r.locCnt) })
+    },
+    6: {
+      template: "pattern_pkw_fuss",
+      vars: (r) => ({ PKW_FUSS_FACTOR: r.factor.toFixed(2), PKW_FUSS_LOCAL: String(r.locCnt) })
+    }
+  };
+
+  async function matchPatterns(dev, stadtSlug) {
+    const matched = [];
+    for (const r of dev.focus) {
+      const mapping = PATTERN_MAP[r.mask];
+      if (!mapping) continue;
+      const content = await loadTemplate(mapping.template, stadtSlug);
+      if (!content) continue;
+      const filled = tpl(content, mapping.vars(r));
+      matched.push({ mask: r.mask, template: mapping.template, content: filled, row: r });
+    }
+    return matched;
   }
 
   // --------------------
@@ -174,6 +221,63 @@
       console.warn(`Reference documents not available for ${citySlug}:`, e);
       return null;
     }
+  }
+
+  // --------------------
+  // Gremien (committee) loading and matching
+  // --------------------
+  async function loadGremienData(citySlug) {
+    const gremienPath = `${TEMPLATE_DIR}/gremien_${citySlug}.json`;
+    try {
+      const r = await fetch(gremienPath, { cache: "no-store" });
+      if (!r.ok) return null;
+      const data = await r.json();
+      return data;
+    } catch (e) {
+      console.warn(`Gremien data not available for ${citySlug}:`, e);
+      return null;
+    }
+  }
+
+  /**
+   * Match admin fields from Nominatim against a city's Gremien config.
+   * Returns the best matching committee, or a fallback hint.
+   *
+   * @param {Object} adminData - Fields from Nominatim (suburb, city_district, borough, quarter, postcode)
+   * @param {Object} gremienConfig - Config from gremien_{city}.json
+   * @returns {{ gremium: string|null, typ: string|null, kontakt: string|null, confidence: string, hinweis: string }}
+   */
+  function matchGremium(adminData, gremienConfig) {
+    if (!gremienConfig || !adminData) {
+      return { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
+    }
+
+    const zuordnung = gremienConfig.zuordnung || [];
+    for (const z of zuordnung) {
+      const match = z.match || {};
+      for (const [field, values] of Object.entries(match)) {
+        const adminVal = adminData[field];
+        // Support both string and array for match values
+        const valArray = Array.isArray(values) ? values : [values];
+        if (adminVal && valArray.includes(adminVal)) {
+          return {
+            gremium: z.gremium || null,
+            typ: gremienConfig.gremiumTyp || null,
+            kontakt: z.kontakt || null,
+            confidence: "hoch",
+            hinweis: gremienConfig.hinweis || ""
+          };
+        }
+      }
+    }
+
+    return {
+      gremium: null,
+      typ: gremienConfig.gremiumTyp || null,
+      kontakt: null,
+      confidence: "unbekannt",
+      hinweis: gremienConfig.fallback || "Zuständiges Gremium bitte lokal ermitteln."
+    };
   }
 
   // --------------------
@@ -359,43 +463,100 @@
       console.warn("Reference documents loading failed:", e);
     }
 
+    // Match pattern templates based on detected deviations
+    let matchedPatterns = [];
+    try {
+      matchedPatterns = await matchPatterns(dev, citySlug);
+    } catch (e) {
+      console.warn("Pattern matching failed:", e);
+    }
+
+    // Load Gremien data and match committee
+    let gremiumMatch = { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
+    try {
+      const gremienConfig = await loadGremienData(citySlug);
+      if (gremienConfig && loc && loc.admin) {
+        gremiumMatch = matchGremium(loc.admin, gremienConfig);
+      } else if (gremienConfig) {
+        gremiumMatch = matchGremium({}, gremienConfig);
+      }
+    } catch (e) {
+      console.warn("Gremien matching failed:", e);
+    }
+
+    const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
+
     const vars = {
       city: CITY_RAW,
+      CITY: CITY_RAW,
       bounds: bStr,
+      BOUNDS: bStr,
       local_total: dev.local.total.toLocaleString(),
       baseline_total: dev.baseline.total.toLocaleString(),
       severity_summary: ((sev.bySev["1"] || 0) > 0
         ? `Im Ausschnitt wurden ${sev.bySev["1"]} Getötete, ${sev.bySev["2"] || 0} Schwerverletzte und ${sev.bySev["3"] || 0} Leichtverletzte registriert.`
         : `Im Ausschnitt wurden ${sev.bySev["2"] || 0} Schwerverletzte und ${sev.bySev["3"] || 0} Leichtverletzte registriert.`),
       date: new Date().toLocaleDateString("de-DE"),
+      DATE: new Date().toLocaleDateString("de-DE"),
       link: window.location.href,
+      LINK: window.location.href,
+      area_name: areaName,
+      AREA_NAME: areaName,
+      THRESH_FACTOR: "1,35",
       location_label: loc ? loc.label : "",
       location_details: loc ? loc.details : "",
-      location_osm: loc ? loc.osmUrl : ""
+      location_osm: loc ? loc.osmUrl : "",
+      GREMIUM_NAME: gremiumMatch.gremium || "—",
+      GREMIUM_TYP: gremiumMatch.typ || "—",
+      GREMIUM_HINWEIS: gremiumMatch.hinweis || "Zuständigkeit vor Einreichung bitte prüfen.",
+      GREMIUM_KONTAKT: gremiumMatch.kontakt || ""
     };
 
-    const [tIntro, tSach, tBesch, tHinw, tLiz] = await Promise.all([
-      loadTemplate("intro"),
-      loadTemplate("sachverhalt"),
-      loadTemplate("beschluss"),
-      loadTemplate("hinweis"),
-      loadTemplate("lizenz")
+    // Load Gen-2 templates with Gen-1 fallback:
+    // If Gen-2 file loads successfully (non-empty), use it; otherwise fall back to Gen-1.
+    // Always returns { content: string, isGen2: boolean } regardless of which generation was used.
+    async function loadGen2WithFallback(gen2Name, gen1Name) {
+      const gen2 = await loadTemplate(gen2Name, citySlug);
+      if (gen2) return { content: gen2, isGen2: true };
+      return { content: await loadTemplate(gen1Name, citySlug), isGen2: false };
+    }
+
+    const [introResult, tSach, beschResult, hinwResult, lizResult, tMethod] = await Promise.all([
+      loadGen2WithFallback("base_intro", "intro"),
+      loadTemplate("sachverhalt", citySlug),
+      loadGen2WithFallback("base_resolution", "beschluss"),
+      loadGen2WithFallback("outro_internal_note", "hinweis"),
+      loadGen2WithFallback("outro_source_note", "lizenz"),
+      loadTemplate("base_method", citySlug)
     ]);
+    const tIntro = introResult.content;
+    const isGen2Intro = introResult.isGen2;
+    const tBesch = beschResult.content;
+    const tHinw = hinwResult.content;
+    const tLiz = lizResult.content;
 
     // ---- Text (Clipboard/Word) ----
     const lines = [];
     lines.push(tpl(tIntro, vars).trim());
     lines.push("");
-    lines.push(`Stadt: ${CITY_RAW}`);
+
+    // When Gen-2 intro is used (base_intro.txt), it already contains "Stadt:" and
+    // "Erstellt am:" in the cover block – skip those duplicate lines to avoid
+    // doubled metadata in the output.  Datenzeitraum and location are new info, keep them.
+    if (!isGen2Intro) {
+      lines.push(`Stadt: ${CITY_RAW}`);
+    }
     if (range) lines.push(`Datenzeitraum: ${range.minY}–${range.maxY}`);
     lines.push(`Ausschnitt (Bounds): ${bStr}`);
-    
+
     if (loc) {
       lines.push(`Lage/Adresse (Mittelpunkt): ${loc.details || loc.label}`);
       lines.push(`OSM: ${loc.osmUrl}`);
     }
-    
-    lines.push(`Datum: ${vars.date}`);
+
+    if (!isGen2Intro) {
+      lines.push(`Datum: ${vars.date}`);
+    }
     lines.push("");
     lines.push(tpl(tSach, vars).trim());
     lines.push("");
@@ -406,13 +567,27 @@
         lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${r.factor.toFixed(2)}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
       }
       lines.push("");
-      lines.push("Bewertung / Interpretation (heuristisch):");
-      for (const r of dev.focus.slice(0, 3)) {
-        lines.push(`- ${r.label}: ${interpretMask(r.mask)}`);
+      // Include pattern-specific assessments (Gen-2) if available, else fall back to heuristic
+      if (matchedPatterns.length > 0) {
+        for (const p of matchedPatterns) {
+          lines.push(p.content.trim());
+          lines.push("");
+        }
+      } else {
+        lines.push("Bewertung / Interpretation (heuristisch):");
+        for (const r of dev.focus.slice(0, 3)) {
+          lines.push(`- ${r.label}: ${interpretMask(r.mask)}`);
+        }
+        lines.push("");
       }
-      lines.push("");
     } else {
       lines.push("Auffälligkeiten: In diesem Ausschnitt zeigen sich unter den gewählten Filtern keine klar überrepräsentierten Beteiligungskombinationen (Schwelle: min. 3 Fälle, Faktor ≥ 1,35).");
+      lines.push("");
+    }
+
+    // Add methodology section (Gen-2)
+    if (tMethod) {
+      lines.push(tpl(tMethod, vars).trim());
       lines.push("");
     }
 
@@ -608,7 +783,33 @@
       </div>
     `;
 
-    return { text: textOut, html: htmlOut };
+    // Build active filters description for structured meta
+    const filters = {};
+    if (ctx.ui) {
+      if (ctx.ui.severityEl) filters.severity = ctx.ui.severityEl.value;
+      if (ctx.ui.roadConditionEl) filters.roadCondition = ctx.ui.roadConditionEl.value;
+    }
+    if (ctx.involvementMode) filters.involvementMode = ctx.involvementMode;
+
+    const structured = {
+      meta: {
+        city: CITY_RAW,
+        date: vars.date,
+        bounds: bStr,
+        areaName,
+        link: vars.link,
+        filters,
+        gremium: gremiumMatch
+      },
+      severity: sev,
+      deviations: dev,
+      yearTable: yr,
+      poi: poiAnalysis,
+      references: refDocs,
+      patterns: matchedPatterns
+    };
+
+    return { text: textOut, html: htmlOut, structured };
   };
 
 
@@ -831,7 +1032,17 @@ ${placemarks}
       const out = {
         label,
         details,
-        osmUrl: fallback.osmUrl
+        osmUrl: fallback.osmUrl,
+        // Pass through administrative fields useful for Gremien matching
+        admin: {
+          suburb: a.suburb || a.neighbourhood || null,
+          city_district: a.city_district || null,
+          borough: a.borough || null,
+          quarter: a.quarter || null,
+          city: a.city || a.town || a.village || a.municipality || null,
+          state: a.state || null,
+          postcode: a.postcode || null
+        }
       };
 
       _rgCache.set(key, out);
