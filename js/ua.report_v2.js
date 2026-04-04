@@ -52,7 +52,7 @@
     
     try {
       await Promise.all([
-        loadScript('https://unpkg.com/docx@8.2.2/build/index.umd.js', 'docx'),
+        loadScript('https://unpkg.com/docx@9.6.1/dist/index.iife.js', 'docx'),
         loadScript('https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js', 'pdfMake'),
         loadScript('https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js', 'saveAs')
       ]);
