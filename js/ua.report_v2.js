@@ -87,22 +87,28 @@
    * @returns {Function} Restore function (call after capture to undo)
    */
   function bakeHeatOpacityIntoCanvas(heatLayer, opacity) {
-    const canvas = heatLayer && heatLayer._canvas;
+    // Match same canvas resolution as applyHeatOpacity in ua.map_v2.js
+    const canvas = heatLayer && (heatLayer._canvas || (heatLayer._renderer && heatLayer._renderer._container));
     if (!canvas) return function () {};
     try {
       const ctx2d = canvas.getContext("2d");
       const imageData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
       const original = new Uint8ClampedArray(imageData.data);
+      // Also save/restore CSS opacity to avoid double-applying on screen during export
+      const originalCssOpacity = canvas.style.opacity;
       for (let i = 3; i < imageData.data.length; i += 4) {
         imageData.data[i] = Math.round(imageData.data[i] * opacity);
       }
+      canvas.style.opacity = "1";
       ctx2d.putImageData(imageData, 0, 0);
       return function restoreHeatCanvas() {
         try {
           const restore = ctx2d.createImageData(canvas.width, canvas.height);
           restore.data.set(original);
           ctx2d.putImageData(restore, 0, 0);
+          canvas.style.opacity = originalCssOpacity;
         } catch (err) {
+          canvas.style.opacity = originalCssOpacity;
           console.warn("Failed to restore heatmap canvas:", err);
         }
       };
@@ -134,10 +140,13 @@
           let restoreHeat = function () {};
           if (ctx.heatLayer) {
             const zoom = ctx.map && ctx.map.getZoom ? ctx.map.getZoom() : 12;
-            const exportOpacity =
+            const rawOpacity =
               options.heatmapExportOpacity != null
                 ? options.heatmapExportOpacity
                 : (UA.heatOpacityForZoom ? UA.heatOpacityForZoom(zoom) : 0.6);
+            const exportOpacity = Number.isFinite(Number(rawOpacity))
+              ? Math.max(0, Math.min(1, Number(rawOpacity)))
+              : 0.6;
             restoreHeat = bakeHeatOpacityIntoCanvas(ctx.heatLayer, exportOpacity);
           }
 
@@ -912,23 +921,13 @@
         const mapImageData = await UA.captureMapImage(ctx, options);
         const werkbankUrl = buildWerkbankUrl(ctx);
 
-        // Calculate image dimensions: use full A4 content width (475pt), preserve aspect ratio
+        // Calculate image dimensions: constrain to A4 content area (475pt wide, ~650pt tall)
         const PDF_MAX_IMG_WIDTH = 475;
-        let imgWidth = PDF_MAX_IMG_WIDTH;
-        let imgHeight = PDF_MAX_IMG_WIDTH * 0.5625; // default 16:9 fallback
-        try {
-          const mapContainer = ctx.map && ctx.map.getContainer ? ctx.map.getContainer() : null;
-          if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
-            const ratio = mapContainer.offsetHeight / mapContainer.offsetWidth;
-            imgHeight = Math.round(imgWidth * ratio);
-          }
-        } catch (_) {}
-
+        const PDF_MAX_IMG_HEIGHT = 650;
         // Make map image clickable
         docDefinition.content.push({
           image: mapImageData,
-          width: imgWidth,
-          height: imgHeight,
+          fit: [PDF_MAX_IMG_WIDTH, PDF_MAX_IMG_HEIGHT],
           margin: [0, 10, 0, 10],
           link: werkbankUrl
         });
@@ -1143,10 +1142,18 @@
     const cbIncludeRefs = document.getElementById("cbIncludeRefs");
     const heatExportOpacityEl = document.getElementById("heatExportOpacity");
     const exportProgress = document.getElementById("exportProgress");
+    const heatExportOpacityValEl = document.getElementById("heatExportOpacityVal");
 
     if (!btnExportWord || !btnExportPDF || !exportProgress) {
       console.warn("Export buttons or progress element not found in DOM");
       return;
+    }
+
+    // Wire up slider label update (avoids inline oninput in HTML)
+    if (heatExportOpacityEl && heatExportOpacityValEl) {
+      heatExportOpacityEl.addEventListener("input", function () {
+        heatExportOpacityValEl.textContent = heatExportOpacityEl.value + " %";
+      });
     }
 
     /**
@@ -1183,7 +1190,8 @@
           const reportData = await UA.computeExportReport(ctx);
 
           // Get export options
-          const heatOpacityPct = heatExportOpacityEl ? parseInt(heatExportOpacityEl.value, 10) : 40;
+          const rawPct = heatExportOpacityEl ? parseInt(heatExportOpacityEl.value, 10) : 40;
+          const heatOpacityPct = Number.isFinite(rawPct) ? Math.max(0, Math.min(100, rawPct)) : 40;
           const options = {
             includeMap: cbIncludeMap ? cbIncludeMap.checked : true,
             includePOIs: cbIncludePOIs ? cbIncludePOIs.checked : true,
