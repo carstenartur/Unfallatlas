@@ -359,7 +359,7 @@ Im Export-Dialog können folgende Optionen ausgewählt werden:
 #### Verwendete Bibliotheken
 
 - **docx.js** (v9.6.1): Word-Dokument-Erstellung
-- **pdfMake** (v0.2.10): PDF-Dokument-Erstellung
+- **pdfMake** (v0.3.7): PDF-Dokument-Erstellung
 - **leaflet-image** (v0.4.0): Programmatische Kartenerstellung
 - **FileSaver.js** (v2.0.5): Download-Funktionalität
 

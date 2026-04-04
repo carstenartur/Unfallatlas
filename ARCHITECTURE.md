@@ -295,7 +295,7 @@ Längere Erklärung falls nötig.
 ### Dokument-Export
 
 - **docx.js** (v9.6.1) - Word-Dokument-Erstellung
-- **pdfMake** (v0.2.10) - PDF-Generierung
+- **pdfMake** (v0.3.7) - PDF-Generierung
 - **FileSaver.js** (v2.0.5) - Download-Funktionalität
 
 ### Kartenkacheln
