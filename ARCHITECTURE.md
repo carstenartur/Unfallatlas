@@ -294,7 +294,7 @@ Längere Erklärung falls nötig.
 
 ### Dokument-Export
 
-- **docx.js** (v8.2.2) - Word-Dokument-Erstellung
+- **docx.js** (v9.6.1) - Word-Dokument-Erstellung
 - **pdfMake** (v0.2.10) - PDF-Generierung
 - **FileSaver.js** (v2.0.5) - Download-Funktionalität
 

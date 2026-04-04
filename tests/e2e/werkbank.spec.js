@@ -544,6 +544,9 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
     const root = path.resolve(process.cwd());
 
     const routes = [
+      // NOTE: Keep CDN versions and file paths in sync with package.json and
+      // the loadScript() calls in js/ua.report_v2.js ensureExportLibraries().
+      // docx@9.x uses dist/index.iife.js; docx@8.x used build/index.umd.js.
       {
         url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
         file: path.join(root, 'node_modules/docx/dist/index.iife.js')
