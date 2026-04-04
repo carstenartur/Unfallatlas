@@ -89,6 +89,10 @@ Nur 🚲 im **Alleinunfall-Modus** → deckt schlechten Belag, Bordsteinkanten u
 |---|---|---|
 | [![Cluster](docs/screenshots/04-cluster-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html) | [![Heatmap](docs/screenshots/05-heatmap-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?showHeatmap=1&showCluster=0) | [![Export](docs/screenshots/07-export-modal.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?export=1) |
 
+| Generierter PDF-Bezirksratsantrag |
+|---|
+| [![PDF-Export](docs/screenshots/15-export-pdf-rendered.png)](docs/screenshots/15-export-pdf-rendered.png) |
+
 Weitere Screenshots und ausführliche Erklärungen: → [docs/DOKUMENTATION.md](docs/DOKUMENTATION.md)
 
 ---
