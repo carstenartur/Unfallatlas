@@ -237,13 +237,13 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
     await exportBtn.click();
     
     // Wait for modal to be visible
-    const modal = page.locator('.modal');
+    const modal = page.locator('#modalOverlay .modal');
     await modal.waitFor({ state: 'visible' });
   });
 
   test('should display export modal with options', async ({ page }) => {
     // Check that modal is visible
-    const modal = page.locator('.modal');
+    const modal = page.locator('#modalOverlay .modal');
     await expect(modal).toBeVisible();
     
     // Check export option checkboxes
@@ -523,7 +523,7 @@ test.describe('Werkbank V2 - Accessibility', () => {
     await page.locator('#btnOpenExport').click();
     
     // Wait for modal to be visible
-    const modal = page.locator('.modal');
+    const modal = page.locator('#modalOverlay .modal');
     await modal.waitFor({ state: 'visible' });
     
     // Check aria-labels

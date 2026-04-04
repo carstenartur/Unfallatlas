@@ -139,6 +139,11 @@
     UA.bindUi(ctx);
     bindExport(ctx);
 
+    // Initialize tour module (gracefully degraded – only if ua.tour.js is loaded)
+    if (typeof UA.initTour === "function") {
+      UA.initTour(ctx);
+    }
+
     // Initialize report export UI for V2 (Word/PDF) if available
     if (typeof UA.initReportExportUI === "function") {
       UA.initReportExportUI(ctx);

@@ -1,0 +1,107 @@
+{
+  "name": "Bonn Radverkehr Demo",
+  "description": "Diese Tour zeigt die wichtigsten Funktionen der Unfallwerkbank am Beispiel Bonn: von der Stadtübersicht über Unfallhäufungen bis zum Export.",
+  "steps": [
+    {
+      "action": "setCity",
+      "value": "Bonn",
+      "description": "Unfalldaten für Bonn laden",
+      "pause": 3000
+    },
+    {
+      "action": "flyTo",
+      "lat": 50.7360,
+      "lng": 7.1000,
+      "zoom": 12,
+      "description": "Stadtübersicht Bonn",
+      "pause": 3000
+    },
+    {
+      "action": "setFilter",
+      "filters": {
+        "includeCyclist": true,
+        "includePedestrian": false,
+        "includeCar": false,
+        "includeMotorcycle": false,
+        "involvementMode": "solo"
+      },
+      "description": "Filter: Nur Fahrrad – Alleinunfall-Modus (Infrastrukturmängel)",
+      "pause": 3000
+    },
+    {
+      "action": "toggleDisplay",
+      "showHeatmap": true,
+      "showCluster": true,
+      "description": "Heatmap aktivieren – Häufungsbereiche werden sichtbar",
+      "pause": 2500
+    },
+    {
+      "action": "flyTo",
+      "lat": 50.7390,
+      "lng": 7.1160,
+      "zoom": 15,
+      "description": "Zoom auf Unfallhäufung – Bonn Innenstadt",
+      "pause": 3000
+    },
+    {
+      "action": "flyTo",
+      "lat": 50.7390,
+      "lng": 7.1160,
+      "zoom": 17,
+      "description": "Detailansicht – einzelne Unfälle erkennbar",
+      "pause": 3000
+    },
+    {
+      "action": "setFilter",
+      "filters": {
+        "includeCyclist": true,
+        "includePedestrian": false,
+        "includeCar": true,
+        "includeMotorcycle": false,
+        "involvementMode": "and"
+      },
+      "description": "Filter: Rad + Auto im UND-Modus (Rad-Auto-Kollisionen)",
+      "pause": 3000
+    },
+    {
+      "action": "flyTo",
+      "lat": 50.7326,
+      "lng": 7.0963,
+      "zoom": 16,
+      "description": "Bonner Hauptbahnhof – Rad-Auto-Kollisionen am Hbf",
+      "pause": 3000
+    },
+    {
+      "action": "setFilter",
+      "filters": {
+        "includeCyclist": true,
+        "includePedestrian": true,
+        "includeCar": false,
+        "includeMotorcycle": false,
+        "involvementMode": "or",
+        "hourFrom": 6,
+        "hourTo": 18
+      },
+      "description": "Schulwegsicherheit: Rad + Fuß, Berufsverkehr 6–18 Uhr",
+      "pause": 3000
+    },
+    {
+      "action": "flyTo",
+      "lat": 50.7350,
+      "lng": 7.0950,
+      "zoom": 16,
+      "description": "Schulumfeld – POIs (Schulen/Kitas) bei Zoom ≥ 15 sichtbar",
+      "pause": 3000
+    },
+    {
+      "action": "openExport",
+      "description": "Analyse-Export öffnen – Bezirksratsantrag erstellen",
+      "pause": 5000
+    },
+    {
+      "action": "closeExport",
+      "description": "Export schließen – jetzt selbst erkunden!",
+      "pause": 1000
+    }
+  ]
+}
