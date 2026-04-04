@@ -41,7 +41,7 @@ describe('Document Export - Integration Tests', () => {
     // Object.assign(window, ...) correctly sets properties on jsdom's window.
     const pdfMakeLib = require('pdfmake/build/pdfmake');
     const pdfFonts = require('pdfmake/build/vfs_fonts');
-    pdfMakeLib.vfs = pdfFonts.pdfMake.vfs;
+    pdfMakeLib.vfs = pdfFonts;
 
     Object.assign(window, {
       UA: {},

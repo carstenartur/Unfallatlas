@@ -549,11 +549,11 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
         file: path.join(root, 'node_modules/docx/build/index.umd.js')
       },
       {
-        url: 'https://unpkg.com/pdfmake@0.2.10/build/pdfmake.min.js',
+        url: 'https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js',
         file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
       },
       {
-        url: 'https://unpkg.com/pdfmake@0.2.10/build/vfs_fonts.js',
+        url: 'https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js',
         file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
       },
       {
