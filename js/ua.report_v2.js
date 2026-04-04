@@ -79,9 +79,41 @@
   const MAP_CAPTURE_DELAY_MS = 100;
 
   /**
+   * Bake opacity into the heatmap canvas pixel data so that leaflet-image
+   * (which ignores CSS style.opacity) exports the correct transparency.
+   * Returns a restore function that reverts the canvas to its original state.
+   * @param {Object} heatLayer - Leaflet.heat layer instance
+   * @param {number} opacity - Opacity to apply (0–1)
+   * @returns {Function} Restore function (call after capture to undo)
+   */
+  function bakeHeatOpacityIntoCanvas(heatLayer, opacity) {
+    const canvas = heatLayer && heatLayer._canvas;
+    if (!canvas) return function () {};
+    try {
+      const ctx2d = canvas.getContext("2d");
+      const imageData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
+      const original = new Uint8ClampedArray(imageData.data);
+      for (let i = 3; i < imageData.data.length; i += 4) {
+        imageData.data[i] = Math.round(imageData.data[i] * opacity);
+      }
+      ctx2d.putImageData(imageData, 0, 0);
+      return function restoreHeatCanvas() {
+        try {
+          const restore = ctx2d.createImageData(canvas.width, canvas.height);
+          restore.data.set(original);
+          ctx2d.putImageData(restore, 0, 0);
+        } catch (_) {}
+      };
+    } catch (_) {
+      return function () {};
+    }
+  }
+
+  /**
    * Capture current map view as base64 image
    * @param {Object} ctx - Application context with map instance
    * @param {Object} options - Export options
+   * @param {number} [options.heatmapExportOpacity] - Override heatmap opacity for export (0–1)
    * @returns {Promise<string>} Base64 image data URL
    */
   UA.captureMapImage = async function captureMapImage(ctx, options = {}) {
@@ -94,10 +126,24 @@
       try {
         // Wait a moment for any pending tile loads or animations to complete
         setTimeout(() => {
+          // Bake heatmap opacity into canvas pixels so leaflet-image picks it up
+          // (leaflet-image ignores CSS style.opacity on the canvas element)
+          let restoreHeat = function () {};
+          if (ctx.heatLayer) {
+            const zoom = ctx.map && ctx.map.getZoom ? ctx.map.getZoom() : 12;
+            const exportOpacity =
+              options.heatmapExportOpacity != null
+                ? options.heatmapExportOpacity
+                : (UA.heatOpacityForZoom ? UA.heatOpacityForZoom(zoom) : 0.6);
+            restoreHeat = bakeHeatOpacityIntoCanvas(ctx.heatLayer, exportOpacity);
+          }
+
           try {
             // Use leaflet-image to capture the map with all layers and styling
-            // This captures the current visual state including markers, heatmaps, and their transparency
             window.leafletImage(ctx.map, (err, canvas) => {
+              // Restore original heat canvas pixels as soon as capture is done
+              restoreHeat();
+
               if (err) {
                 console.error("leaflet-image capture error:", err);
                 reject(err);
@@ -121,6 +167,7 @@
               }
             });
           } catch (e) {
+            restoreHeat();
             console.error("leafletImage call error:", e);
             reject(e);
           }
@@ -862,10 +909,23 @@
         const mapImageData = await UA.captureMapImage(ctx, options);
         const werkbankUrl = buildWerkbankUrl(ctx);
 
+        // Calculate image dimensions: use full A4 content width (475pt), preserve aspect ratio
+        const PDF_MAX_IMG_WIDTH = 475;
+        let imgWidth = PDF_MAX_IMG_WIDTH;
+        let imgHeight = PDF_MAX_IMG_WIDTH * 0.5625; // default 16:9 fallback
+        try {
+          const mapContainer = ctx.map && ctx.map.getContainer ? ctx.map.getContainer() : null;
+          if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
+            const ratio = mapContainer.offsetHeight / mapContainer.offsetWidth;
+            imgHeight = Math.round(imgWidth * ratio);
+          }
+        } catch (_) {}
+
         // Make map image clickable
         docDefinition.content.push({
           image: mapImageData,
-          width: 500,
+          width: imgWidth,
+          height: imgHeight,
           margin: [0, 10, 0, 10],
           link: werkbankUrl
         });
@@ -1078,6 +1138,7 @@
     const cbIncludeMap = document.getElementById("cbIncludeMap");
     const cbIncludePOIs = document.getElementById("cbIncludePOIs");
     const cbIncludeRefs = document.getElementById("cbIncludeRefs");
+    const heatExportOpacityEl = document.getElementById("heatExportOpacity");
     const exportProgress = document.getElementById("exportProgress");
 
     if (!btnExportWord || !btnExportPDF || !exportProgress) {
@@ -1119,10 +1180,12 @@
           const reportData = await UA.computeExportReport(ctx);
 
           // Get export options
+          const heatOpacityPct = heatExportOpacityEl ? parseInt(heatExportOpacityEl.value, 10) : 40;
           const options = {
             includeMap: cbIncludeMap ? cbIncludeMap.checked : true,
             includePOIs: cbIncludePOIs ? cbIncludePOIs.checked : true,
-            includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true
+            includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true,
+            heatmapExportOpacity: heatOpacityPct / 100
           };
 
           await exportFn(ctx, reportData, options);
