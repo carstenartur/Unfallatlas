@@ -325,6 +325,12 @@ Der generierte **Link** enthält alle Filtereinstellungen und den markierten Ber
 URL-Parameter. So kann die exakte Analyse jederzeit reproduziert und an andere Personen
 weitergegeben werden.
 
+#### Vorschau: Generierter PDF-Export
+
+Der folgende Screenshot zeigt den Inhalt eines automatisch generierten PDF-Bezirksratsantrags:
+
+[![Gerendeter PDF-Export](screenshots/15-export-pdf-rendered.png)](#)
+
 ---
 
 ## Praxisbeispiele: Unfallanalyse in Bonn
