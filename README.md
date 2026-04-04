@@ -1,8 +1,8 @@
-# Unfallatlas – Interaktive Unfallanalyse für deutsche Städte
+# Unfallwerkbank – Interaktive Unfallanalyse für deutsche Städte
 
 > **Wo passieren Fahrradunfälle? Wo sind Schulwege gefährdet? Wo braucht es bessere Radinfrastruktur?**
 >
-> Der Unfallatlas macht amtliche Verkehrsunfalldaten (2016–2024) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
+> Die Unfallwerkbank macht amtliche Verkehrsunfalldaten (2016–2024) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
 
 [![Startansicht der Unfallwerkbank V2](docs/screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
