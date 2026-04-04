@@ -77,6 +77,29 @@
         ui.exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
       }
     });
+
+    const btnExportCSV = document.getElementById("btnExportCSV");
+    const btnExportGeoJSON = document.getElementById("btnExportGeoJSON");
+    const btnExportKML = document.getElementById("btnExportKML");
+
+    if (btnExportCSV) {
+      btnExportCSV.addEventListener("click", () => {
+        try { UA.exportToCSV(ctx); }
+        catch (e) { alert("CSV-Export fehlgeschlagen: " + String(e)); }
+      });
+    }
+    if (btnExportGeoJSON) {
+      btnExportGeoJSON.addEventListener("click", () => {
+        try { UA.exportToGeoJSON(ctx); }
+        catch (e) { alert("GeoJSON-Export fehlgeschlagen: " + String(e)); }
+      });
+    }
+    if (btnExportKML) {
+      btnExportKML.addEventListener("click", () => {
+        try { UA.exportToKML(ctx); }
+        catch (e) { alert("KML-Export fehlgeschlagen: " + String(e)); }
+      });
+    }
   }
 
   async function main(){
