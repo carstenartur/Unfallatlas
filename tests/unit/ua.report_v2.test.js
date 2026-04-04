@@ -124,55 +124,76 @@ describe('UA.report_v2 - Export Functions', () => {
     });
 
     test('should create Word document with valid blob', async () => {
+      // URL.createObjectURL is not implemented in jsdom; define it and restore after
+      const origCreateObjectURL = URL.createObjectURL;
+      const origRevokeObjectURL = URL.revokeObjectURL;
       URL.createObjectURL = jest.fn(() => 'blob:mock-url');
       URL.revokeObjectURL = jest.fn();
 
-      const ctx = {
-        CITY_RAW: 'Hannover',
-        map: {
-          getCenter: jest.fn(() => ({ lat: 52.3759, lng: 9.7320 })),
-          getZoom: jest.fn(() => 12)
+      try {
+        const ctx = {
+          CITY_RAW: 'Hannover',
+          map: {
+            getCenter: jest.fn(() => ({ lat: 52.3759, lng: 9.7320 })),
+            getZoom: jest.fn(() => 12)
+          }
+        };
+        const reportData = {
+          text: 'Sachverhalt:\nTest content\n\nBeschlussvorschlag:\nTest proposal'
+        };
+        const options = { includeMap: false };
+
+        await UA.exportToWord(ctx, reportData, options);
+
+        // saveAs should be called with a real, non-empty Word document blob
+        expect(window.saveAs).toHaveBeenCalled();
+        const [blob, filename] = window.saveAs.mock.calls[0];
+
+        // Verify a valid, non-empty blob was produced
+        expect(blob.size).toBeGreaterThan(0);
+        expect(blob.type).toContain('application/vnd');
+
+        // Verify filename format
+        expect(filename).toMatch(/Bezirksratsantrag_Hannover_.*\.docx/);
+
+        // Verify PK magic bytes (zip/docx format)
+        const arrayBuffer = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsArrayBuffer(blob);
+        });
+        const bytes = new Uint8Array(arrayBuffer);
+        expect(bytes[0]).toBe(0x50); // P
+        expect(bytes[1]).toBe(0x4B); // K
+      } finally {
+        // Restore URL methods (jsdom doesn't implement them; avoid leaking mocks)
+        if (origCreateObjectURL === undefined) {
+          delete URL.createObjectURL;
+        } else {
+          URL.createObjectURL = origCreateObjectURL;
         }
-      };
-      const reportData = {
-        text: 'Sachverhalt:\nTest content\n\nBeschlussvorschlag:\nTest proposal'
-      };
-      const options = { includeMap: false };
-
-      await UA.exportToWord(ctx, reportData, options);
-
-      // saveAs should be called with a real, non-empty Word document blob
-      expect(window.saveAs).toHaveBeenCalled();
-      const [blob, filename] = window.saveAs.mock.calls[0];
-
-      // Verify a valid, non-empty blob was produced
-      expect(blob.size).toBeGreaterThan(0);
-      expect(blob.type).toContain('application/vnd');
-
-      // Verify filename format
-      expect(filename).toMatch(/Bezirksratsantrag_Hannover_.*\.docx/);
-
-      // Verify PK magic bytes (zip/docx format)
-      const arrayBuffer = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsArrayBuffer(blob);
-      });
-      const bytes = new Uint8Array(arrayBuffer);
-      expect(bytes[0]).toBe(0x50); // P
-      expect(bytes[1]).toBe(0x4B); // K
+        if (origRevokeObjectURL === undefined) {
+          delete URL.revokeObjectURL;
+        } else {
+          URL.revokeObjectURL = origRevokeObjectURL;
+        }
+      }
     });
   });
 
   describe('ensureExportLibraries', () => {
     test('should detect pre-loaded real libraries and skip CDN loading', async () => {
       // Real libraries are already set on window in beforeEach.
-      // The function should detect them and return without loading CDN scripts.
+      // The function should detect them and return without injecting any CDN script tags.
       UA._exportLibrariesLoaded = false;
+
+      const appendChildSpy = jest.spyOn(document.head, 'appendChild');
 
       await UA.ensureExportLibraries();
 
       expect(UA._exportLibrariesLoaded).toBe(true);
+      // No <script> elements should have been injected (CDN loading was skipped)
+      expect(appendChildSpy).not.toHaveBeenCalled();
     });
   });
 

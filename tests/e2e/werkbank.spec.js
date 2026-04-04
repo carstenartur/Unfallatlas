@@ -562,16 +562,24 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
       }
     ];
 
+    const missingRoutes = routes.filter((route) => !fs.existsSync(route.file));
+    if (missingRoutes.length > 0) {
+      throw new Error(
+        'Missing local CDN test assets required for offline testing:\n' +
+        missingRoutes
+          .map((route) => `- ${route.url} -> ${route.file}`)
+          .join('\n')
+      );
+    }
+
     for (const route of routes) {
-      if (fs.existsSync(route.file)) {
-        await page.route(route.url, async (r) => {
-          await r.fulfill({
-            status: 200,
-            contentType: 'application/javascript',
-            body: fs.readFileSync(route.file)
-          });
+      await page.route(route.url, async (r) => {
+        await r.fulfill({
+          status: 200,
+          contentType: 'application/javascript',
+          body: fs.readFileSync(route.file)
         });
-      }
+      });
     }
   }
 
