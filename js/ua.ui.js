@@ -105,8 +105,8 @@
     UA.setQS({
       city: ctx.CITY_RAW,
       severity: ui.severityEl.value,
-      roadCondition: ui.roadConditionEl.value,
       dayType: ui.dayTypeEl.value,
+      roadCondition: ui.roadConditionEl.value,
       hourFrom: ui.hFromEl.value,
       hourTo: ui.hToEl.value,
       maxPoints: ui.maxPointsEl.value,

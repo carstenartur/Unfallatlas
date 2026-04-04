@@ -58,6 +58,8 @@
     const pairs = raw ? raw.split("&") : [];
     const map = new Map();
     let hadDup = false;
+    let hadLegacy = false;
+    let hadUnknown = false;
 
     for (const part of pairs) {
       if (!part) continue;
@@ -65,10 +67,12 @@
       const k0 = decodeURIComponent(i>=0 ? part.slice(0,i) : part);
       const v0 = decodeURIComponent(i>=0 ? part.slice(i+1) : "");
       const k = LEGACY[k0] || k0;
+      if (k0 !== k) hadLegacy = true;
+      if (!CANON[k]) hadUnknown = true;
       if (map.has(k)) hadDup = true;
       map.set(k, v0);
     }
-    return { map, hadDup };
+    return { map, hadDup, hadLegacy, hadUnknown };
   }
 
   function buildSearch(map) {
@@ -87,9 +91,11 @@
 
   UA.cleanUrlIfNeeded = function cleanUrlIfNeeded() {
     const parsed = parseSearchKeepLast(window.location.search);
-    const cleanedSearch = buildSearch(parsed.map);
-    const currentSearch = window.location.search.replace(/^\?/, "");
-    if (parsed.hadDup || currentSearch !== cleanedSearch) {
+    // Only reload for actual content changes (duplicates, legacy param names, unknown params).
+    // Do NOT reload for pure parameter-ordering differences to avoid unexpected reloads
+    // that can cause the map to jump to a saved state from a different city.
+    if (parsed.hadDup || parsed.hadLegacy || parsed.hadUnknown) {
+      const cleanedSearch = buildSearch(parsed.map);
       const u = new URL(window.location.href);
       u.search = cleanedSearch ? ("?" + cleanedSearch) : "";
       window.location.replace(u.toString());
