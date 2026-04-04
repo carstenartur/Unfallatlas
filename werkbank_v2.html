@@ -146,6 +146,14 @@
         <div id="btnOpenExport" class="btn">Analyse/Export öffnen</div>
       </div>
 
+      <div style="margin-top:10px; font-weight:900;">Geführte Tour</div>
+      <div class="toggles">
+        <div id="tourBtnStart" class="btn" title="Demo-Tour starten">▶ Tour starten</div>
+        <div id="tourBtnRecord" class="btn" title="Aufnahme starten">⏺ Aufzeichnen
+          <span id="recBadge" class="recBadge" style="display:none">REC <span id="recStepCount">0</span></span>
+        </div>
+      </div>
+
       <div class="legendBox" id="legendBox">
         <strong>Legende / Hinweise</strong>
         <ul>
@@ -216,6 +224,46 @@
     </div>
   </div>
 
+  <!-- Tour Overlay (banner at top) -->
+  <div id="tourOverlay" class="tourOverlay" style="display:none" role="region" aria-label="Geführte Tour">
+    <div class="tourBanner">
+      <div class="tourMeta">
+        <span class="tourNameEl" id="tourName"></span>
+        <span class="tourProgressEl" id="tourProgress">0 / 0</span>
+      </div>
+      <div class="tourDescRow">
+        <span class="tourStepDescEl" id="tourStepDesc">…</span>
+      </div>
+      <div class="tourProgressBar"><div class="tourProgressFill" id="tourProgressFill"></div></div>
+      <div class="tourControls">
+        <button class="tourBtn" id="tourBtnPrev" title="Vorheriger Schritt">◀</button>
+        <button class="tourBtn" id="tourBtnPlayPause" title="Play / Pause">⏸</button>
+        <button class="tourBtn" id="tourBtnNext" title="Nächster Schritt">▶</button>
+        <button class="tourBtn tourBtnStop" id="tourBtnStop" title="Tour beenden">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recorder Editor Modal -->
+  <div class="modalOverlay" id="recorderModal" role="dialog" aria-modal="true" style="display:none">
+    <div class="modal recorderModal">
+      <div class="modalHeader">
+        <div class="modalTitle">Aufgezeichnete Tour bearbeiten</div>
+        <div class="modalBtns">
+          <div class="smallBtn" id="recorderBtnPlay">▶ Vorschau abspielen</div>
+          <div class="smallBtn" id="recorderBtnDownload">⬇ Als JSON herunterladen</div>
+          <div class="smallBtn" id="recorderBtnClose">Schließen</div>
+        </div>
+      </div>
+      <p style="font-size:12px; color:#666; margin:4px 0 10px;">
+        Beschreibungen und Pausen (ms) bearbeiten, Schritte sortieren oder löschen, dann herunterladen und in <code>tours/</code> ablegen.
+      </p>
+      <div id="recorderStepList" class="recorderStepList"></div>
+      <div style="margin-top:12px; font-weight:800; font-size:12px;">JSON (direkt editierbar):</div>
+      <textarea id="recorderJson" class="recorderJsonArea"></textarea>
+    </div>
+  </div>
+
   <!-- App JS (V2 with POI support) -->
   <script>window.UA = { BUILD: "2026-01-01 00:00 UTC" };</script>
   <script src="js/ua.core.js?v=2026-01-01"></script>
@@ -227,6 +275,7 @@
   <script src="js/ua.map_v2.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
+  <script src="js/ua.tour.js?v=2026-01-01"></script>
   <script src="js/ua.app_v2.js?v=2026-01-01"></script>
 </body>
 </html>

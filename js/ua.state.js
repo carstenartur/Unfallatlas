@@ -28,7 +28,8 @@
     selWest: "selWest",
     selNorth: "selNorth",
     selEast: "selEast",
-    export: "export"
+    export: "export",
+    tour: "tour"
   };
 
   const LEGACY = {
