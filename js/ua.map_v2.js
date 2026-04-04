@@ -235,6 +235,7 @@
 
     map.setView([52.3759, 9.732], 12);
     ctx.map = map;
+    window._uaMap = map;  // expose for E2E tests / debugging
 
     // draw layer
     ctx.drawnItems = new L.FeatureGroup().addTo(map);

@@ -5,6 +5,9 @@
  * Funktionen der Werkbank zeigt.  Abspielen: `npm run demo`, Video landet
  * unter `test-results/`.
  *
+ * Story: Bonn → Radfahrer-Alleinunfälle filtern → Heatmap zeigt Hotspot →
+ *        Heranzoomen → Bereich markieren → Export/Analyse → Ergebnis.
+ *
  * Der Test ist bewusst als EIN langer Ablauf angelegt, damit Playwright
  * ein durchgehendes Video aufzeichnet.
  */
@@ -12,7 +15,7 @@
 import { test, expect } from '@playwright/test';
 
 // Dem Demo-Test mehr Zeit geben (Video-Aufnahme + Pausen)
-test.setTimeout(120_000);
+test.setTimeout(180_000);
 
 /** Hilfsfunktion: Warten bis Städte geladen sind */
 async function waitForCities(page) {
@@ -20,7 +23,6 @@ async function waitForCities(page) {
     const select = document.querySelector('#citySel');
     if (!select) return false;
     const opts = select.querySelectorAll('option');
-    // Mindestens 2 Optionen UND keine "Lade…"-Option mehr
     return opts.length > 1 && ![...opts].some(o => o.textContent.includes('Lade'));
   }, { timeout: 60000 });
 }
@@ -37,11 +39,24 @@ async function waitForData(page) {
 async function waitForTiles(page) {
   await page.waitForFunction(() => {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
-    // Mindestens ein paar Kacheln müssen existieren UND jede einzelne muss
-    // vollständig geladen sein (complete=true, naturalWidth>0 = kein 404).
     return imgs.length >= 4
       && [...imgs].every(i => i.complete && i.naturalWidth > 0);
   }, { timeout: 30000 });
+}
+
+/**
+ * Karte per flyTo bewegen und warten bis Tiles + Animation fertig sind.
+ * Nutzt window._uaMap (in ua.map_v2.js gesetzt).
+ */
+async function flyToAndWait(page, lat, lng, zoom) {
+  await page.evaluate(({ lat, lng, zoom }) => {
+    return new Promise(resolve => {
+      const map = window._uaMap;
+      map.once('moveend', () => setTimeout(resolve, 200));
+      map.flyTo([lat, lng], zoom, { duration: 1.2 });
+    });
+  }, { lat, lng, zoom });
+  await waitForTiles(page);
 }
 
 test.describe('Werkbank V2 – Demo-Ablauf', () => {
@@ -54,94 +69,97 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await waitForCities(page);
     await expect(page).toHaveTitle(/Unfallwerkbank V2/);
     await waitForTiles(page);
-    await page.waitForTimeout(2000);              // Pause: Karte + Kacheln rendern
+    await page.waitForTimeout(2000);
 
     // ── 2. Stadt wählen: Bonn ──────────────────────────────────────────
     await page.locator('#citySel').selectOption('Bonn');
     await waitForData(page);
     await waitForTiles(page);
-    await page.waitForTimeout(2500);              // Pause: neue Kacheln + Marker
+    await page.waitForTimeout(2500);
 
-    // ── 3. Filter: Schwere auf "Schwerverletzt" ────────────────────────
-    await page.locator('#severity').selectOption('2');
-    await waitForTiles(page);
-    await page.waitForTimeout(1000);
-
-    // ── 4. Beteiligung: nur Fahrrad + PKW aktivieren ───────────────────
-    const incPed = page.locator('#incPed');
-    if (await incPed.isChecked()) await incPed.click();
+    // ── 3. Filter: nur Radfahrer-Beteiligung ───────────────────────────
+    //    Nur Fahrrad ankreuzen, alles andere abwählen.
+    const incPed  = page.locator('#incPed');
     const incBike = page.locator('#incBike');
-    if (!(await incBike.isChecked())) await incBike.click();
-    const incCar = page.locator('#incCar');
-    if (!(await incCar.isChecked())) await incCar.click();
+    const incCar  = page.locator('#incCar');
     const incMoto = page.locator('#incMoto');
-    if (await incMoto.isChecked()) await incMoto.click();
+    if (await incPed.isChecked())       await incPed.click();
+    if (!(await incBike.isChecked()))   await incBike.click();
+    if (await incCar.isChecked())       await incCar.click();
+    if (await incMoto.isChecked())      await incMoto.click();
     await waitForTiles(page);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500);
 
-    // ── 5. UND-Modus aktivieren ────────────────────────────────────────
-    await page.locator('#modeAnd').click();
+    // ── 4. Alleinunfall-Modus aktivieren ───────────────────────────────
+    //    „Alleinunfall" zeigt nur Unfälle mit genau einem Beteiligungstyp –
+    //    hier: reine Radfahrer-Stürze, typisch an Schienen/Kanten.
+    await page.locator('#modeSolo').click();
     await waitForTiles(page);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
 
-    // ── 6. Stundenbereich auf Berufsverkehr setzen ─────────────────────
-    await page.locator('#hFrom').fill('6');
-    await page.locator('#hFrom').dispatchEvent('input');
-    await page.locator('#hTo').fill('18');
-    await page.locator('#hTo').dispatchEvent('input');
-    await waitForTiles(page);
-    await page.waitForTimeout(1000);
-
-    // ── 7. Heatmap aktivieren ──────────────────────────────────────────
+    // ── 5. Heatmap aktivieren – Hotspots sichtbar machen ───────────────
     await page.locator('#toggleHeat').click();
     await waitForTiles(page);
     await page.waitForTimeout(2000);
 
-    // ── 8. Cluster deaktivieren (nur Heatmap zeigen) ───────────────────
-    const clusterBtn = page.locator('#toggleCluster');
-    if ((await clusterBtn.getAttribute('class'))?.includes('active')) {
-      await clusterBtn.click();
-    }
-    await waitForTiles(page);
-    await page.waitForTimeout(1500);
+    // ── 6. Heranzoomen an den Bonner Radfahrer-Hotspot ─────────────────
+    //    Gebiet um die Bonner Innenstadt – dort häufen sich
+    //    Alleinunfälle Rad (Schienen der Straßenbahn).
+    await flyToAndWait(page, 50.739, 7.116, 15);
+    await page.waitForTimeout(2000);
 
-    // ── 9. Cluster wieder aktivieren, Heatmap aus ──────────────────────
-    await clusterBtn.click();
-    await page.locator('#toggleHeat').click();
-    await waitForTiles(page);
-    await page.waitForTimeout(1000);
+    // ── 7. Noch näher ran – Einzelmarker sichtbar ──────────────────────
+    await flyToAndWait(page, 50.739, 7.116, 17);
+    await page.waitForTimeout(2000);
 
-    // ── 10. Legende öffnen ─────────────────────────────────────────────
-    await page.locator('#legendBtn').click();
-    await page.waitForFunction(() => {
-      const el = document.querySelector('#legendBox');
-      return el && window.getComputedStyle(el).display !== 'none';
-    });
-    await waitForTiles(page);
-    await page.waitForTimeout(1500);
-    await page.locator('#legendBtn').click();           // wieder schließen
+    // ── 8. Bereich markieren (Rechteck zeichnen) ───────────────────────
+    //    Klick auf „Bereich markieren", dann Rechteck aufziehen.
+    await page.locator('#btnDraw').click();
     await page.waitForTimeout(500);
 
-    // ── 11. Alle Filter zurücksetzen: OR-Modus, alle Beteiligungen ────
-    await page.locator('#modeOr').click();
-    await page.locator('#severity').selectOption('all');
-    if (!(await incPed.isChecked())) await incPed.click();
-    await page.locator('#hFrom').fill('0');
-    await page.locator('#hFrom').dispatchEvent('input');
-    await page.locator('#hTo').fill('23');
-    await page.locator('#hTo').dispatchEvent('input');
+    // Rechteck auf der Karte ziehen: Mittelpunkt ± Offset
+    const mapBox = await page.locator('#map').boundingBox();
+    const cx = mapBox.x + mapBox.width / 2;
+    const cy = mapBox.y + mapBox.height / 2;
+    await page.mouse.move(cx - 80, cy - 60);
+    await page.mouse.down();
+    await page.mouse.move(cx + 80, cy + 60, { steps: 10 });
+    await page.mouse.up();
+    await waitForTiles(page);
+    await page.waitForTimeout(2000);
+
+    // ── 9. Export / Analyse öffnen ─────────────────────────────────────
+    //    Zeigt den Report für den markierten Bereich: Überrepräsentationen,
+    //    Schwereverteilung, POI-Analyse (Schulen, Kitas).
+    await page.locator('#btnOpenExport').click();
+    await page.locator('#modalOverlay').waitFor({ state: 'visible' });
+    // Warten bis Report generiert ist
+    await page.waitForFunction(() => {
+      const prog = document.querySelector('#exportProgress');
+      return prog && prog.textContent.includes('Fertig');
+    }, { timeout: 30000 });
+    await page.waitForTimeout(4000);
+
+    // ── 10. Export-Modal schließen ──────────────────────────────────────
+    await page.locator('#btnCloseModal').click();
+    await page.locator('#modalOverlay').waitFor({ state: 'hidden' });
     await waitForTiles(page);
     await page.waitForTimeout(1000);
 
-    // ── 12. Export-Modal öffnen ────────────────────────────────────────
-    await page.locator('#btnOpenExport').click();
-    await page.locator('#modalOverlay').waitFor({ state: 'visible' });
-    await page.waitForTimeout(2500);
-
-    // ── 13. Export-Modal schließen ────────────────────────────────────
-    await page.locator('#btnCloseModal').click();
-    await page.locator('#modalOverlay').waitFor({ state: 'hidden' });
+    // ── 11. Markierung löschen ─────────────────────────────────────────
+    await page.locator('#btnClearDraw').click();
+    await waitForTiles(page);
     await page.waitForTimeout(1000);
+
+    // ── 12. Zurück zur Übersicht: Zoom raus + alle Filter zurück ───────
+    await flyToAndWait(page, 50.733, 7.10, 12);
+    await page.waitForTimeout(500);
+    await page.locator('#modeOr').click();
+    if (!(await incPed.isChecked()))  await incPed.click();
+    if (!(await incCar.isChecked()))  await incCar.click();
+    await page.locator('#toggleHeat').click();
+    await waitForTiles(page);
+    await page.waitForTimeout(2000);
 
     // ── Fertig ─────────────────────────────────────────────────────────
   });
