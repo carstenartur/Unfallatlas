@@ -613,17 +613,29 @@
 
 
   // --------------------
-  // Private: get points in export bounds (no involvement filter – export all raw data)
+  // Private: get points in export bounds (applies non-involvement filters to match the current UI view)
   // --------------------
   function getPointsInBounds(ctx) {
     const bounds = boundsForExport(ctx);
     const points = [];
     for (const p of ctx.allPts || []) {
       if (!p?.props) continue;
+      if (typeof UA.matchesNonInvolvementFilters === "function") {
+        if (!UA.matchesNonInvolvementFilters(ctx, p.props)) continue;
+      }
       if (!inBounds(p, bounds)) continue;
       points.push(p);
     }
     return points;
+  }
+
+  // --------------------
+  // Private: normalize city name for use in filenames
+  // --------------------
+  function safeCity(cityRaw) {
+    if (typeof UA.normKey === "function") return UA.normKey(cityRaw) || "export";
+    // Fallback: strip everything that is not alphanumeric or underscore
+    return String(cityRaw || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "export";
   }
 
   // --------------------
@@ -679,7 +691,7 @@
       rows.push(row.join(","));
     }
 
-    const filename = `Unfallatlas_${CITY}_${date}.csv`;
+    const filename = `Unfallatlas_${safeCity(CITY)}_${date}.csv`;
     triggerDownload(rows.join("\n"), filename, "text/csv;charset=utf-8");
   };
 
@@ -712,7 +724,7 @@
     });
 
     const geojson = { type: "FeatureCollection", features };
-    const filename = `Unfallatlas_${CITY}_${date}.geojson`;
+    const filename = `Unfallatlas_${safeCity(CITY)}_${date}.geojson`;
     triggerDownload(JSON.stringify(geojson, null, 2), filename, "application/geo+json;charset=utf-8");
   };
 
@@ -771,7 +783,7 @@ ${placemarks}
   </Document>
 </kml>`;
 
-    const filename = `Unfallatlas_${CITY}_${date}.kml`;
+    const filename = `Unfallatlas_${safeCity(CITY)}_${date}.kml`;
     triggerDownload(kml, filename, "application/vnd.google-earth.kml+xml;charset=utf-8");
   };
 

@@ -474,6 +474,8 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
     const path = require('path');
     // Load core utils (provides UA.escHtml needed by computeExportReport)
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8'));
+    // Load utils (provides UA.normKey needed for filename sanitization)
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.utils.js'), 'utf8'));
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.export_v2.js'), 'utf8'));
     UA = window.UA;
   });
@@ -492,7 +494,7 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       UA.exportToCSV(makeCtx());
 
       expect(window.saveAs).toHaveBeenCalledTimes(1);
-      expect(capturedFilename).toMatch(/^Unfallatlas_Hannover_\d{4}-\d{2}-\d{2}\.csv$/);
+      expect(capturedFilename).toMatch(/^Unfallatlas_hannover_\d{4}-\d{2}-\d{2}\.csv$/);
       expect(capturedBlob).toBeInstanceOf(Blob);
       expect(capturedBlob.size).toBeGreaterThan(0);
     });
@@ -556,7 +558,7 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       UA.exportToGeoJSON(makeCtx());
 
       expect(window.saveAs).toHaveBeenCalledTimes(1);
-      expect(capturedFilename).toMatch(/^Unfallatlas_Hannover_\d{4}-\d{2}-\d{2}\.geojson$/);
+      expect(capturedFilename).toMatch(/^Unfallatlas_hannover_\d{4}-\d{2}-\d{2}\.geojson$/);
       expect(capturedBlob).toBeInstanceOf(Blob);
       expect(capturedBlob.size).toBeGreaterThan(0);
     });
@@ -619,7 +621,7 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       UA.exportToKML(makeCtx());
 
       expect(window.saveAs).toHaveBeenCalledTimes(1);
-      expect(capturedFilename).toMatch(/^Unfallatlas_Hannover_\d{4}-\d{2}-\d{2}\.kml$/);
+      expect(capturedFilename).toMatch(/^Unfallatlas_hannover_\d{4}-\d{2}-\d{2}\.kml$/);
       expect(capturedBlob).toBeInstanceOf(Blob);
       expect(capturedBlob.size).toBeGreaterThan(0);
     });
@@ -665,12 +667,23 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       expect(text).toContain('Leichtverletzt');
     });
 
-    test('should XML-escape special characters in city name', () => {
+    test('should XML-escape special characters in city name', async () => {
       const ctx = makeCtx();
       ctx.CITY_RAW = 'Köln & <Test>';
       UA.exportToKML(ctx);
-      // If it throws due to unescaped chars, the test fails; otherwise passes
+
       expect(window.saveAs).toHaveBeenCalledTimes(1);
+
+      const text = await readBlobAsText(capturedBlob);
+      // Document name must contain properly escaped HTML entities
+      expect(text).toContain('Köln &amp; &lt;Test&gt;');
+      // The produced XML must be parseable without errors
+      const xml = new DOMParser().parseFromString(text, 'application/xml');
+      expect(xml.querySelector('parsererror')).toBeNull();
+      // The text content of the Document name should be the unescaped original
+      const docName = xml.querySelector('Document > name');
+      expect(docName).not.toBeNull();
+      expect(docName.textContent).toContain('Köln & <Test>');
     });
   });
 
