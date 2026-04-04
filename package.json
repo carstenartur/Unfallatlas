@@ -28,8 +28,11 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/jest": "^30.0.0",
+    "docx": "8.2.2",
+    "file-saver": "2.0.5",
     "jest": "^30.3.0",
-    "jest-environment-jsdom": "^30.3.0"
+    "jest-environment-jsdom": "^30.3.0",
+    "pdfmake": "0.2.10"
   },
   "jest": {
     "testEnvironment": "jsdom",
