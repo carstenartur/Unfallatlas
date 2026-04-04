@@ -7,12 +7,13 @@
     "test": "jest",
     "test:unit": "jest --testPathPatterns=tests/unit",
     "test:integration": "jest --testPathPatterns=tests/integration",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:headed": "playwright test --project=chromium --headed",
     "test:performance": "jest --testPathPatterns=tests/performance",
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "demo": "playwright test --project=demo"
   },
   "keywords": [
     "unfallatlas",

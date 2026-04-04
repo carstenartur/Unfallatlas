@@ -1,5 +1,37 @@
 # Unfallwerkbank V2 – Dokumentation
 
+## Inhaltsverzeichnis
+
+- [Überblick](#überblick)
+- [Voraussetzungen](#voraussetzungen)
+- [Schnellstart](#schnellstart)
+- [Benutzeroberfläche](#benutzeroberfläche)
+- [Funktionen im Detail](#funktionen-im-detail)
+  - [Stadtauswahl](#stadtauswahl)
+  - [Unfallschwere filtern](#unfallschwere-filtern)
+  - [Beteiligung filtern](#beteiligung-filtern)
+  - [Zeitfilter](#zeitfilter)
+  - [Erweiterte Darstellungsoptionen](#erweiterte-darstellungsoptionen)
+  - [Cluster-Ansicht](#cluster-ansicht)
+  - [Heatmap-Ansicht](#heatmap-ansicht)
+  - [Nur „auffällig“ (Hotspot-Filter)](#nur-auffällig-hotspot-filter)
+  - [Legende](#legende)
+  - [Bereich markieren (Zeichnen)](#bereich-markieren-zeichnen)
+  - [POI-Ansicht: Schulen und Kindergärten](#poi-ansicht-schulen-und-kindergärten)
+  - [Export und Bezirksratsantrag](#export-und-bezirksratsantrag)
+- [Praxisbeispiele: Unfallanalyse in Bonn](#praxisbeispiele-unfallanalyse-in-bonn)
+- [CLI-Skripte (Kurzreferenz)](#cli-skripte-kurzreferenz)
+- [Datenquelle & Lizenz](#datenquelle--lizenz)
+- [Technische Details](#technische-details)
+- [Stadtauswahl und cities.txt](#stadtauswahl-und-citiestxt)
+- [Daten aktualisieren – neue Unfallatlas-Jahrgänge](#daten-aktualisieren--neue-unfallatlas-jahrgänge)
+- [GitHub Actions Workflows](#github-actions-workflows)
+- [URL-Parameter (Referenz)](#url-parameter-referenz)
+- [Häufige Fragen (FAQ)](#häufige-fragen-faq)
+- [Methodik und Grenzen](#methodik-und-grenzen)
+
+---
+
 ## Überblick
 
 Die **Unfallwerkbank V2** ist eine interaktive Webanwendung zur Visualisierung und Analyse
@@ -13,6 +45,12 @@ Sie ermöglicht:
 - **Export** als PDF oder Word-Dokument – z. B. als Vorlage für Bezirksratsanträge
 
 [![Startansicht der Unfallwerkbank V2](screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
+
+### Demo-Ablauf
+
+Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter setzen → Heatmap → Legende → Export.
+
+![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
 ---
 
@@ -170,9 +208,9 @@ Rot eingefärbte Bereiche entsprechen Unfallschwerpunkten.
 
 ---
 
-### Nur „auffällig" (Hotspot-Filter)
+### Nur „auffällig“ (Hotspot-Filter)
 
-Der Button **Nur „auffällig"** blendet nur solche Unfälle ein, die zu *überrepräsentierten*
+Der Button **Nur „auffällig“** blendet nur solche Unfälle ein, die zu *überrepräsentierten*
 Beteiligungskombinationen gehören. Die Werkbank unterteilt den Kartenausschnitt in ein
 Raster und vergleicht die Unfallverteilung in jeder Zelle mit dem Stadtdurchschnitt.
 Nur Zellen, deren Unfallanteil den Durchschnitt übersteigt, werden angezeigt.
@@ -229,7 +267,7 @@ Unfälle in der Nähe von Bildungseinrichtungen haben eine besondere Relevanz:
 
 Die Export-Funktion analysiert automatisch, wie viele Schulen und Kitas im markierten Bereich
 und in einem Umkreis von 200 m liegen. Diese Information fließt als Abschnitt
-**„Sensible Einrichtungen"** in den Export ein.
+**„Sensible Einrichtungen“** in den Export ein.
 
 ---
 
@@ -266,7 +304,7 @@ Der Export-Text spiegelt die aktuellen Einstellungen wider:
 | **Zeitfilter** | Nur Unfälle im gewählten Stundenbereich fließen in die Statistik ein |
 | **Fahrbahnzustand** | Nur Unfälle bei gewähltem Zustand werden ausgewertet |
 | **Markierter Bereich** | Vergleich: Unfälle im Bereich vs. gleiche Filter stadtweit |
-| **POIs (Schulen/Kitas)** | Abschnitt „Sensible Einrichtungen" – Anzahl der Schulen/Kitas im Bereich und im 200-m-Umkreis |
+| **POIs (Schulen/Kitas)** | Abschnitt „Sensible Einrichtungen“ – Anzahl der Schulen/Kitas im Bereich und im 200-m-Umkreis |
 | **Referenzdokumente** | Abschnitt mit Bezugsdokumenten (wenn Checkbox aktiv) |
 
 [![Export mit Filterkontext](screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000&export=1)
@@ -328,7 +366,7 @@ infrastrukturelle Mängel hin (schlechter Belag, Bordsteinkanten, Gleise).
 
 **Einordnung:** Die Cluster zeigen, wo Radfahrer ohne Fremdbeteiligung verunfallen.
 Häufungen können auf problematische Streckenabschnitte hinweisen. Durch Kombination
-mit dem Fahrbahnzustand-Filter (z. B. „Nass/feucht") lassen sich wetterbedingte
+mit dem Fahrbahnzustand-Filter (z. B. „Nass/feucht“) lassen sich wetterbedingte
 Sturzstellen identifizieren.
 
 ---
@@ -359,7 +397,7 @@ Dieses Beispiel zeigt den typischen Ablauf von der Analyse bis zum fertigen Antr
 2. **Filter setzen:** 🚲 Rad + 🚗 PKW, UND-Modus, Uhrzeit 6–18 Uhr (Berufsverkehr)
 3. **Bereich markieren:** Rechteck um den Bereich rund um den Hauptbahnhof zeichnen
 4. **Analysieren:** Die Cluster/Heatmap zeigt Häufungen. POIs (Schulen/Kitas) werden sichtbar.
-5. **Export öffnen:** Klick auf „Analyse/Export öffnen"
+5. **Export öffnen:** Klick auf „Analyse/Export öffnen“
 
 [→ Workflow nachspielen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
 
@@ -368,7 +406,7 @@ Dieses Beispiel zeigt den typischen Ablauf von der Analyse bis zum fertigen Antr
 **Was passiert im Export:**
 
 - Die Werkbank vergleicht die Unfälle **im markierten Bereich** mit dem **Bonner Stadtdurchschnitt** (bei gleichen Filtern für Schwere, Tageszeit und Fahrbahnzustand)
-- Sie berechnet, welche **Beteiligungskombinationen überrepräsentiert** sind (z. B. „Rad+PKW-Unfälle sind hier 2,3× häufiger als im Stadtdurchschnitt")
+- Sie berechnet, welche **Beteiligungskombinationen überrepräsentiert** sind (z. B. „Rad+PKW-Unfälle sind hier 2,3× häufiger als im Stadtdurchschnitt“)
 - Sie listet **Schulen und Kitas** im Bereich und im 200-m-Umkreis auf
 - Sie generiert einen **Bezirksratsantrag-Entwurf** mit Sachverhalt, Beschlussvorschlag und Datenquelle
 - Der Export enthält einen **Link**, der die exakt gleiche Ansicht reproduziert
@@ -455,7 +493,7 @@ Heilbronn
 > Stadtnamen auf Gemeindeschlüssel (AGS) abzubilden, und bricht mit einer Fehlermeldung
 > ab, wenn die Stadt dort nicht hinterlegt ist. Für nicht gelistete Städte muss entweder
 > die `CITY_MAP` im Skript ergänzt oder der AGS explizit mit `--ags <Gemeindeschlüssel>`
-> angegeben werden. Umlaute werden in Dateinamen normalisiert (z. B. „München" → `muenchen`).
+> angegeben werden. Umlaute werden in Dateinamen normalisiert (z. B. „München“ → `muenchen`).
 
 ### Stadtspezifische Daten
 
@@ -505,7 +543,7 @@ Das Repository enthält vier automatisierte Workflows:
 - **Auslösung:** Manuell (`workflow_dispatch`)
 - **Funktion:** Führt `convertAmt2gmaps.sh` für alle Städte aus `cities.txt` aus,
   validiert die erzeugten GeoJSON-Dateien und committet die Ergebnisse automatisch.
-- **Verwendung:** Auf GitHub → Actions → „Generate & Commit" → „Run workflow"
+- **Verwendung:** Auf GitHub → Actions → „Generate & Commit“ → „Run workflow“
 - **Wann nötig:** Nach Hinzufügen einer neuen Stadt in `cities.txt` oder wenn neue
   Unfallatlas-Jahrgänge veröffentlicht werden.
 
@@ -515,7 +553,7 @@ Das Repository enthält vier automatisierte Workflows:
 - **Funktion:** Führt `fetch_poi_osm.sh` für jede Stadt in `cities.txt` aus (überspringt
   bereits vorhandene). Lädt Schul- und Kita-Standorte von OpenStreetMap via Overpass API.
   Validiert und committet die Ergebnisse.
-- **Verwendung:** Auf GitHub → Actions → „Fetch POIs for cities.txt" → „Run workflow"
+- **Verwendung:** Auf GitHub → Actions → „Fetch POIs for cities.txt“ → „Run workflow“
 - **Wann nötig:** Nach Hinzufügen einer neuen Stadt oder bei gewünschter Aktualisierung
   der POI-Daten.
 
@@ -561,7 +599,7 @@ unterstützten Parameter auf:
 |---|---|---|---|
 | `showCluster` | Cluster-Ansicht | `0` / `1` | `1` |
 | `showHeatmap` | Heatmap-Ansicht | `0` / `1` | `1` |
-| `showOnlyAboveAverage` | Nur „auffällig" | `0` / `1` | `0` |
+| `showOnlyAboveAverage` | Nur „auffällig“ | `0` / `1` | `0` |
 | `maxPoints` | Max. angezeigte Punkte | `500`–`200000` | `100000` |
 | `viewportPaddingPct` | Viewport-Puffer (%) | `0`–`100` | `20` |
 | `heatRadius` | Heatmap-Radius (px) | `5`–`60` | `25` |
@@ -593,3 +631,60 @@ unterstützten Parameter auf:
 ```
 werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
 ```
+
+---
+
+## Häufige Fragen (FAQ)
+
+### Wie kann ich eine bestimmte Analyse mit anderen teilen?
+
+Alle Filtereinstellungen, die Kartenposition und ein markierter Bereich werden automatisch in der URL gespeichert. Einfach die aktuelle Browser-URL kopieren (oder „Link kopieren“ im Export-Modal) und weitergeben. Jeder, der den Link öffnet, sieht exakt die gleiche Ansicht.
+
+### Woher stammen die Daten?
+
+Die Unfalldaten stammen aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) der Statistischen Ämter des Bundes und der Länder. Sie werden in der Regel jährlich aktualisiert und stehen unter der [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) als Open Data zur Verfügung.
+
+### Warum fehlt meine Stadt?
+
+Die Werkbank unterstützt aktuell die Städte aus `cities.txt` (derzeit u. a. Hannover, Bonn, Berlin, Hamburg, München, Köln, Frankfurt am Main). Neue Städte können hinzugefügt werden – siehe Abschnitt [Stadtauswahl und cities.txt](#stadtauswahl-und-citiestxt).
+
+### Kann ich den Export-Text direkt verwenden?
+
+Der Export ist als **Entwurf** gedacht. Er enthält automatisch generierte Sachverhaltsdarstellungen und Beschlussvorschläge und sollte vor dem Einreichen von der antragstellenden Person überprüft, ergänzt und an die lokalen Gegebenheiten angepasst werden.
+
+### Funktioniert die Werkbank auch offline?
+
+Nach dem erstmaligen Laden der Seite und der Daten (GeoJSON) funktionieren Filter, Darstellung und Export auch offline. Lediglich die Kartenkacheln (OpenStreetMap) benötigen eine Internetverbindung.
+
+---
+
+## Methodik und Grenzen
+
+### Datengrundlage
+
+Die Werkbank verwendet ausschließlich Daten aus dem [Unfallatlas](https://unfallatlas.statistikportal.de/) – dem offiziellen Open-Data-Portal für polizeilich erfasste Straßenverkehrsunfälle mit Personenschaden in Deutschland. Die Daten umfassen die Jahre 2016–2024 und werden in der Regel jährlich aktualisiert.
+
+### Was erfasst wird – und was nicht
+
+- **Erfasst** werden alle polizeilich aufgenommenen Verkehrsunfälle mit Personenschaden (Getötete, Schwer- und Leichtverletzte).
+- **Nicht erfasst** werden: reine Sachschäden, Beinaheunfälle, nicht gemeldete Unfälle (Dunkelziffer), subjektives Unsicherheitsempfinden.
+- Die **Dunkelziffer** ist gerade bei Fahrradunfällen ohne Fremdverschulden (Alleinunfälle) und bei leichten Verletzungen erheblich. Studien (z. B. [BASt](https://www.bast.de/) / Unfallforschung der Versicherer) schätzen die Erfassungsquote bei Radunfällen auf ca. 50 %.
+
+### Genauigkeit der Ortsangaben
+
+- Die Koordinaten werden aus der Unfallaufnahme der Polizei abgeleitet und weisen eine typische Genauigkeit von ±10–50 m auf.
+- Vereinzelt können Unfälle leicht verschoben auf der Karte erscheinen (z. B. auf die nächstgelegene Straßenachse).
+
+### Hotspot-Erkennung
+
+- Die Funktion „Nur auffällig“ vergleicht die lokale Unfallverteilung mit dem Stadtdurchschnitt. Sie zeigt Bereiche, in denen bestimmte Unfallmuster **überrepräsentiert** sind.
+- Dies ist ein **statistischer Hinweis**, kein Beweis für eine kausale Ursache. Lokale Ortskenntnis ist für die Interpretation unverzichtbar.
+
+### Einschränkungen des Exports
+
+- Der Bezirksratsantrag wird automatisch generiert und basiert auf den eingestellten Filtern. Er ist ein **Entwurf** und ersetzt keine fachliche Bewertung durch eine Unfallkommission oder Verkehrsplanung.
+- Die POI-Analyse (Schulen/Kitas) basiert auf OpenStreetMap-Daten und kann unvollständig sein.
+
+### Empfehlung
+
+Für fundierte Maßnahmenvorschläge sollte die Werkbank als **Erkenntniswerkzeug** genutzt werden – ergänzt durch Ortsbegehungen, Unfallkommissionsberichte und verkehrsplanerische Expertise.
