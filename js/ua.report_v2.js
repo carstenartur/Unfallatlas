@@ -394,10 +394,10 @@
 
         if (hasPoi) {
           const poiRows = [];
-          const allTypes = new Set([
+          const allTypes = [...new Set([
             ...Object.keys(poi.withinByType || {}),
             ...Object.keys(poi.nearByType || {})
-          ]);
+          ])].sort((a, b) => poiTypeLabel(a).localeCompare(poiTypeLabel(b), "de"));
           for (const type of allTypes) {
             const label = poiTypeLabel(type);
             poiRows.push([
@@ -911,10 +911,10 @@
 
         if (hasPoi) {
           const poiRows = [];
-          const allTypes = new Set([
+          const allTypes = [...new Set([
             ...Object.keys(poi.withinByType || {}),
             ...Object.keys(poi.nearByType || {})
-          ]);
+          ])].sort((a, b) => poiTypeLabel(a).localeCompare(poiTypeLabel(b), "de"));
           for (const type of allTypes) {
             const label = poiTypeLabel(type);
             poiRows.push([

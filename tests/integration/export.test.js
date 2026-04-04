@@ -1210,17 +1210,19 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       const result = await UA.computeExportReport(ctx);
       const patterns = result.structured.patterns;
 
-      // Check if mask 5 was matched and pattern vars substituted
-      const radPkwPattern = patterns.find(p => p.mask === 5);
-      if (radPkwPattern) {
-        // Variables should be substituted (no {{...}} remaining)
-        expect(radPkwPattern.content).not.toContain('{{RAD_PKW_FACTOR}}');
-        expect(radPkwPattern.content).not.toContain('{{RAD_PKW_LOCAL}}');
-        expect(radPkwPattern.content).toContain('RAD_PKW Faktor');
-        expect(radPkwPattern.template).toBe('pattern_rad_pkw');
-      }
-      // patterns is an array
+      // patterns must be a non-empty array (mask 5 was triggered by crafted data)
       expect(Array.isArray(patterns)).toBe(true);
+      expect(patterns.length).toBeGreaterThan(0);
+
+      // Check that mask 5 was matched and pattern vars substituted
+      const radPkwPattern = patterns.find(p => p.mask === 5);
+      expect(radPkwPattern).toBeDefined();
+
+      // Variables should be substituted (no {{...}} remaining)
+      expect(radPkwPattern.content).not.toContain('{{RAD_PKW_FACTOR}}');
+      expect(radPkwPattern.content).not.toContain('{{RAD_PKW_LOCAL}}');
+      expect(radPkwPattern.content).toContain('RAD_PKW Faktor');
+      expect(radPkwPattern.template).toBe('pattern_rad_pkw');
     });
   });
 
@@ -1300,16 +1302,17 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
         }
       };
 
-      const result = await UA.computeExportReport(ctx);
-      const gremium = result.structured.meta.gremium;
+      try {
+        const result = await UA.computeExportReport(ctx);
+        const gremium = result.structured.meta.gremium;
 
-      expect(gremium.confidence).toBe('hoch');
-      expect(gremium.gremium).toBe('Bezirksrat Linden-Limmer');
-      expect(gremium.typ).toBe('Bezirksrat');
-      expect(gremium.kontakt).toBe('test@example.com');
-
-      // Restore
-      UA.reverseGeocode = origReverseGeocode;
+        expect(gremium.confidence).toBe('hoch');
+        expect(gremium.gremium).toBe('Bezirksrat Linden-Limmer');
+        expect(gremium.typ).toBe('Bezirksrat');
+        expect(gremium.kontakt).toBe('test@example.com');
+      } finally {
+        UA.reverseGeocode = origReverseGeocode;
+      }
     });
 
     test('should return fallback hint when no match in gremien data', async () => {
@@ -1364,11 +1367,13 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       const result = await UA.computeExportReport(ctx);
       const gremium = result.structured.meta.gremium;
 
-      expect(gremium.confidence).toBe('unbekannt');
-      expect(gremium.gremium).toBeNull();
-      expect(gremium.hinweis).toContain('Gremium nicht ermittelbar');
-
-      UA.reverseGeocode = origReverseGeocode;
+      try {
+        expect(gremium.confidence).toBe('unbekannt');
+        expect(gremium.gremium).toBeNull();
+        expect(gremium.hinweis).toContain('Gremium nicht ermittelbar');
+      } finally {
+        UA.reverseGeocode = origReverseGeocode;
+      }
     });
 
     test('GREMIUM_NAME and GREMIUM_TYP vars should appear in text output when gremium matched', async () => {
@@ -1414,14 +1419,16 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
         }
       };
 
-      const result = await UA.computeExportReport(ctx);
-      expect(result.text).toContain('Bezirksrat Linden-Limmer');
-      expect(result.text).toContain('Bezirksrat');
-      // No unresolved template placeholders
-      expect(result.text).not.toContain('{{GREMIUM_NAME}}');
-      expect(result.text).not.toContain('{{GREMIUM_TYP}}');
-
-      UA.reverseGeocode = origReverseGeocode;
+      try {
+        const result = await UA.computeExportReport(ctx);
+        expect(result.text).toContain('Bezirksrat Linden-Limmer');
+        expect(result.text).toContain('Bezirksrat');
+        // No unresolved template placeholders
+        expect(result.text).not.toContain('{{GREMIUM_NAME}}');
+        expect(result.text).not.toContain('{{GREMIUM_TYP}}');
+      } finally {
+        UA.reverseGeocode = origReverseGeocode;
+      }
     });
 
     test('should match Berlin gremium by city_district', async () => {
@@ -1473,23 +1480,16 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
         }
       };
 
-      const result = await UA.computeExportReport(ctx);
-      const gremium = result.structured.meta.gremium;
+      try {
+        const result = await UA.computeExportReport(ctx);
+        const gremium = result.structured.meta.gremium;
 
-      expect(gremium.confidence).toBe('hoch');
-      expect(gremium.gremium).toBe('BVV Friedrichshain-Kreuzberg');
-      expect(gremium.typ).toBe('Bezirksverordnetenversammlung (BVV)');
-
-      UA.reverseGeocode = origReverseGeocode;
-    });
-  });
-
-  // ---------- Word export tables ----------
-
-  describe('Word export with real tables from structured data', () => {
-    test('should generate Word document using structured data tables', async () => {
-      // Note: this test suite loads ua.export_v2.js, not ua.report_v2.js
-      // Word table tests are covered in the Document Export suite above
+        expect(gremium.confidence).toBe('hoch');
+        expect(gremium.gremium).toBe('BVV Friedrichshain-Kreuzberg');
+        expect(gremium.typ).toBe('Bezirksverordnetenversammlung (BVV)');
+      } finally {
+        UA.reverseGeocode = origReverseGeocode;
+      }
     });
   });
 

@@ -227,7 +227,7 @@
   // Gremien (committee) loading and matching
   // --------------------
   async function loadGremienData(citySlug) {
-    const gremienPath = `templates/gremien_${citySlug}.json`;
+    const gremienPath = `${TEMPLATE_DIR}/gremien_${citySlug}.json`;
     try {
       const r = await fetch(gremienPath, { cache: "no-store" });
       if (!r.ok) return null;
@@ -514,13 +514,14 @@
 
     // Load Gen-2 templates with Gen-1 fallback:
     // If Gen-2 file loads successfully (non-empty), use it; otherwise fall back to Gen-1.
+    // Returns { content, isGen2 } to allow callers to detect which generation was loaded.
     async function loadGen2WithFallback(gen2Name, gen1Name) {
       const gen2 = await loadTemplate(gen2Name, citySlug);
-      if (gen2) return gen2;
-      return loadTemplate(gen1Name, citySlug);
+      if (gen2) return { content: gen2, isGen2: true };
+      return { content: await loadTemplate(gen1Name, citySlug), isGen2: false };
     }
 
-    const [tIntro, tSach, tBesch, tHinw, tLiz, tMethod] = await Promise.all([
+    const [introResult, tSach, beschResult, hinwResult, lizResult, tMethod] = await Promise.all([
       loadGen2WithFallback("base_intro", "intro"),
       loadTemplate("sachverhalt", citySlug),
       loadGen2WithFallback("base_resolution", "beschluss"),
@@ -528,21 +529,34 @@
       loadGen2WithFallback("outro_source_note", "lizenz"),
       loadTemplate("base_method", citySlug)
     ]);
+    const tIntro = introResult.content;
+    const isGen2Intro = introResult.isGen2;
+    const tBesch = beschResult.content;
+    const tHinw = hinwResult.content;
+    const tLiz = lizResult.content;
 
     // ---- Text (Clipboard/Word) ----
     const lines = [];
     lines.push(tpl(tIntro, vars).trim());
     lines.push("");
-    lines.push(`Stadt: ${CITY_RAW}`);
+
+    // When Gen-2 intro is used (base_intro.txt), it already contains "Stadt:" and
+    // "Erstellt am:" in the cover block – skip those duplicate lines to avoid
+    // doubled metadata in the output.  Datenzeitraum and location are new info, keep them.
+    if (!isGen2Intro) {
+      lines.push(`Stadt: ${CITY_RAW}`);
+    }
     if (range) lines.push(`Datenzeitraum: ${range.minY}–${range.maxY}`);
     lines.push(`Ausschnitt (Bounds): ${bStr}`);
-    
+
     if (loc) {
       lines.push(`Lage/Adresse (Mittelpunkt): ${loc.details || loc.label}`);
       lines.push(`OSM: ${loc.osmUrl}`);
     }
-    
-    lines.push(`Datum: ${vars.date}`);
+
+    if (!isGen2Intro) {
+      lines.push(`Datum: ${vars.date}`);
+    }
     lines.push("");
     lines.push(tpl(tSach, vars).trim());
     lines.push("");
