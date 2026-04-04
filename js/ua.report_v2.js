@@ -51,6 +51,8 @@
     }
     
     try {
+      // NOTE: Keep CDN versions in sync with package.json and tests/e2e/werkbank.spec.js setupCDNRoutes().
+      // docx@9.x uses dist/index.iife.js (IIFE format); docx@8.x used build/index.umd.js.
       await Promise.all([
         loadScript('https://unpkg.com/docx@9.6.1/dist/index.iife.js', 'docx'),
         loadScript('https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js', 'pdfMake'),

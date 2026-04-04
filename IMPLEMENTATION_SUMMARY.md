@@ -29,9 +29,9 @@ Key functions:
 <script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js"></script>
 
 <!-- Document Export Libraries -->
-<script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
-<script src="https://unpkg.com/pdfmake@0.2.10/build/pdfmake.min.js"></script>
-<script src="https://unpkg.com/pdfmake@0.2.10/build/vfs_fonts.js"></script>
+<script src="https://unpkg.com/docx@9.6.1/dist/index.iife.js"></script>
+<script src="https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js"></script>
+<script src="https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js"></script>
 <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 ```
 
@@ -126,7 +126,7 @@ Both Word and PDF exports follow this structure:
 - Reproduces current map view (zoom, center, layers)
 
 ### Word Document Generation
-- Uses `docx.js` v8.2.2
+- Uses `docx.js` v9.6.1
 - Structured sections with headings
 - Image embedding support
 - Paragraph formatting
