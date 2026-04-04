@@ -91,7 +91,7 @@ Nur 🚲 im **Alleinunfall-Modus** → deckt schlechten Belag, Bordsteinkanten u
 
 | Generierter PDF-Bezirksratsantrag |
 |---|
-| [![PDF-Export](docs/screenshots/15-export-pdf-rendered.png)](#) |
+| [![PDF-Export](docs/screenshots/15-export-pdf-rendered.png)](docs/screenshots/15-export-pdf-rendered.png) |
 
 Weitere Screenshots und ausführliche Erklärungen: → [docs/DOKUMENTATION.md](docs/DOKUMENTATION.md)
 

@@ -329,7 +329,7 @@ weitergegeben werden.
 
 Der folgende Screenshot zeigt den Inhalt eines automatisch generierten PDF-Bezirksratsantrags:
 
-[![Gerendeter PDF-Export](screenshots/15-export-pdf-rendered.png)](#)
+[![Gerendeter PDF-Export](screenshots/15-export-pdf-rendered.png)](screenshots/15-export-pdf-rendered.png)
 
 ---
 

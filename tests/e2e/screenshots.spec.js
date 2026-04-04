@@ -4,6 +4,7 @@
  */
 
 import { test } from '@playwright/test';
+import { setupCDNRoutes } from './helpers.js';
 
 /** Hilfsfunktion: Seite mit URL-Parametern laden und auf Datenladen warten */
 async function loadPage(page, params = '') {
@@ -27,55 +28,6 @@ async function waitForData(page) {
     const stat = document.querySelector('#stat');
     return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
   }, { timeout: 30000 });
-}
-
-/**
- * Richtet CDN-Routen auf lokale node_modules um, damit Export-Bibliotheken
- * offline verfügbar sind. Muss vor dem Laden der Seite aufgerufen werden.
- */
-async function setupCDNRoutes(page) {
-  const path = await import('path');
-  const fs = await import('fs');
-  const root = path.resolve(process.cwd());
-
-  const routes = [
-    {
-      url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
-      file: path.join(root, 'node_modules/docx/dist/index.iife.js')
-    },
-    {
-      url: 'https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js',
-      file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
-    },
-    {
-      url: 'https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js',
-      file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
-    },
-    {
-      url: 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js',
-      file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js')
-    }
-  ];
-
-  const missingRoutes = routes.filter((route) => !fs.existsSync(route.file));
-  if (missingRoutes.length > 0) {
-    throw new Error(
-      'Missing local CDN test assets required for offline testing:\n' +
-      missingRoutes
-        .map((route) => `- ${route.url} -> ${route.file}`)
-        .join('\n')
-    );
-  }
-
-  for (const route of routes) {
-    await page.route(route.url, async (r) => {
-      await r.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body: fs.readFileSync(route.file)
-      });
-    });
-  }
 }
 
 test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
@@ -245,6 +197,8 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
     await page.waitForLoadState('networkidle');
     await waitForCities(page);
+    // Warten bis Unfalldaten geladen sind, damit der PDF-Export inhaltlich befüllt ist
+    await waitForData(page);
 
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay .modal').waitFor({ state: 'visible' });
@@ -259,7 +213,9 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     ]);
 
     const filePath = await download.path();
-
+    if (!filePath) {
+      throw new Error('Download path is null – cannot read PDF file. Try running with a local browser context.');
+    }
     // pdfjs-dist über lokale node_modules bereitstellen (kein Netzwerkzugriff nötig)
     await page.route('https://pdfjs-test-cdn/pdf.min.mjs', async (r) => {
       await r.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(pdfjsFile) });
@@ -283,10 +239,18 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
 <body>
   <canvas id="pdf-canvas"></canvas>
   <script type="module">
-    import { getDocument, GlobalWorkerOptions } from 'https://pdfjs-test-cdn/pdf.min.mjs';
-    GlobalWorkerOptions.workerSrc = 'https://pdfjs-test-cdn/pdf.worker.min.mjs';
-
+    // Globale Fehlerhandler fangen auch Fehler beim Modul-Laden (vor try/catch)
+    window.addEventListener('error', (e) => {
+      if (!window.__pdfRendered) window.__pdfError = window.__pdfError || String(e.message || e);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      if (!window.__pdfRendered) window.__pdfError = window.__pdfError || String(e.reason || e);
+    });
     try {
+      // Dynamischer Import, damit Fehler beim Laden innerhalb des try/catch landen
+      const { getDocument, GlobalWorkerOptions } = await import('https://pdfjs-test-cdn/pdf.min.mjs');
+      GlobalWorkerOptions.workerSrc = 'https://pdfjs-test-cdn/pdf.worker.min.mjs';
+
       const loadingTask = getDocument('https://pdfjs-test-cdn/document.pdf');
       const pdfDoc = await loadingTask.promise;
       const pdfPage = await pdfDoc.getPage(1);

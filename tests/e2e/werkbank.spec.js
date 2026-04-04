@@ -3,6 +3,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { setupCDNRoutes } from './helpers.js';
 
 test.describe('Werkbank V2 - User Workflows', () => {
   test.beforeEach(async ({ page }) => {
@@ -536,56 +537,6 @@ test.describe('Werkbank V2 - Accessibility', () => {
 });
 
 test.describe('Werkbank V2 - Document Export Downloads', () => {
-  // Route CDN requests to local node_modules for reliable offline testing.
-  // This avoids flaky tests due to network latency or CDN unavailability.
-  async function setupCDNRoutes(page) {
-    const path = await import('path');
-    const fs = await import('fs');
-    const root = path.resolve(process.cwd());
-
-    const routes = [
-      // NOTE: Keep CDN versions and file paths in sync with package.json and
-      // the loadScript() calls in js/ua.report_v2.js ensureExportLibraries().
-      // docx@9.x uses dist/index.iife.js; docx@8.x used build/index.umd.js.
-      {
-        url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
-        file: path.join(root, 'node_modules/docx/dist/index.iife.js')
-      },
-      {
-        url: 'https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js',
-        file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
-      },
-      {
-        url: 'https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js',
-        file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
-      },
-      {
-        url: 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js',
-        file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js')
-      }
-    ];
-
-    const missingRoutes = routes.filter((route) => !fs.existsSync(route.file));
-    if (missingRoutes.length > 0) {
-      throw new Error(
-        'Missing local CDN test assets required for offline testing:\n' +
-        missingRoutes
-          .map((route) => `- ${route.url} -> ${route.file}`)
-          .join('\n')
-      );
-    }
-
-    for (const route of routes) {
-      await page.route(route.url, async (r) => {
-        await r.fulfill({
-          status: 200,
-          contentType: 'application/javascript',
-          body: fs.readFileSync(route.file)
-        });
-      });
-    }
-  }
-
   test.beforeEach(async ({ page }) => {
     await setupCDNRoutes(page);
     await page.goto('/werkbank_v2.html');
