@@ -32,7 +32,7 @@
     "file-saver": "2.0.5",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
-    "pdfmake": "0.2.10"
+    "pdfmake": "0.3.7"
   },
   "jest": {
     "testEnvironment": "jsdom",
