@@ -612,13 +612,11 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
     const filename = download.suggestedFilename();
     expect(filename).toMatch(/Bezirksratsantrag.*\.docx$/);
 
-    // Verify the file is not empty
+    // Verify the file path is defined and the file is not empty
     const filePath = await download.path();
-    if (filePath) {
-      const fs = await import('fs');
-      const stat = fs.statSync(filePath);
-      expect(stat.size).toBeGreaterThan(0);
-    }
+    expect(filePath).toBeTruthy();
+    const { statSync } = await import('fs');
+    expect(statSync(filePath).size).toBeGreaterThan(0);
   });
 
   test('should download PDF document when clicking PDF button', async ({ page }) => {
@@ -638,12 +636,10 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
     const filename = download.suggestedFilename();
     expect(filename).toMatch(/Bezirksratsantrag.*\.pdf$/);
 
-    // Verify the file is not empty
+    // Verify the file path is defined and the file is not empty
     const filePath = await download.path();
-    if (filePath) {
-      const fs = await import('fs');
-      const stat = fs.statSync(filePath);
-      expect(stat.size).toBeGreaterThan(0);
-    }
+    expect(filePath).toBeTruthy();
+    const { statSync } = await import('fs');
+    expect(statSync(filePath).size).toBeGreaterThan(0);
   });
 });
