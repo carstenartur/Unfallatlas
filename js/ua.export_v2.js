@@ -514,7 +514,7 @@
 
     // Load Gen-2 templates with Gen-1 fallback:
     // If Gen-2 file loads successfully (non-empty), use it; otherwise fall back to Gen-1.
-    // Returns { content, isGen2 } to allow callers to detect which generation was loaded.
+    // Always returns { content: string, isGen2: boolean } regardless of which generation was used.
     async function loadGen2WithFallback(gen2Name, gen1Name) {
       const gen2 = await loadTemplate(gen2Name, citySlug);
       if (gen2) return { content: gen2, isGen2: true };

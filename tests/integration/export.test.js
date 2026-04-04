@@ -1364,10 +1364,10 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
         }
       };
 
-      const result = await UA.computeExportReport(ctx);
-      const gremium = result.structured.meta.gremium;
-
       try {
+        const result = await UA.computeExportReport(ctx);
+        const gremium = result.structured.meta.gremium;
+
         expect(gremium.confidence).toBe('unbekannt');
         expect(gremium.gremium).toBeNull();
         expect(gremium.hinweis).toContain('Gremium nicht ermittelbar');
