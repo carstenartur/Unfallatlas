@@ -79,9 +79,50 @@
   const MAP_CAPTURE_DELAY_MS = 100;
 
   /**
+   * Bake opacity into the heatmap canvas pixel data so that leaflet-image
+   * (which ignores CSS style.opacity) exports the correct transparency.
+   * Returns a restore function that reverts the canvas to its original state.
+   * @param {Object} heatLayer - Leaflet.heat layer instance
+   * @param {number} opacity - Opacity to apply (0–1)
+   * @returns {Function} Restore function (call after capture to undo)
+   */
+  function bakeHeatOpacityIntoCanvas(heatLayer, opacity) {
+    // Match same canvas resolution as applyHeatOpacity in ua.map_v2.js
+    const canvas = heatLayer && (heatLayer._canvas || (heatLayer._renderer && heatLayer._renderer._container));
+    if (!canvas) return function () {};
+    try {
+      const ctx2d = canvas.getContext("2d");
+      const imageData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
+      const original = new Uint8ClampedArray(imageData.data);
+      // Also save/restore CSS opacity to avoid double-applying on screen during export
+      const originalCssOpacity = canvas.style.opacity;
+      for (let i = 3; i < imageData.data.length; i += 4) {
+        imageData.data[i] = Math.round(imageData.data[i] * opacity);
+      }
+      canvas.style.opacity = "1";
+      ctx2d.putImageData(imageData, 0, 0);
+      return function restoreHeatCanvas() {
+        try {
+          const restore = ctx2d.createImageData(canvas.width, canvas.height);
+          restore.data.set(original);
+          ctx2d.putImageData(restore, 0, 0);
+          canvas.style.opacity = originalCssOpacity;
+        } catch (err) {
+          canvas.style.opacity = originalCssOpacity;
+          console.warn("Failed to restore heatmap canvas:", err);
+        }
+      };
+    } catch (err) {
+      console.warn("Failed to bake heatmap opacity:", err);
+      return function () {};
+    }
+  }
+
+  /**
    * Capture current map view as base64 image
    * @param {Object} ctx - Application context with map instance
    * @param {Object} options - Export options
+   * @param {number} [options.heatmapExportOpacity] - Override heatmap opacity for export (0–1)
    * @returns {Promise<string>} Base64 image data URL
    */
   UA.captureMapImage = async function captureMapImage(ctx, options = {}) {
@@ -94,10 +135,27 @@
       try {
         // Wait a moment for any pending tile loads or animations to complete
         setTimeout(() => {
+          // Bake heatmap opacity into canvas pixels so leaflet-image picks it up
+          // (leaflet-image ignores CSS style.opacity on the canvas element)
+          let restoreHeat = function () {};
+          if (ctx.heatLayer) {
+            const zoom = ctx.map && ctx.map.getZoom ? ctx.map.getZoom() : 12;
+            const rawOpacity =
+              options.heatmapExportOpacity != null
+                ? options.heatmapExportOpacity
+                : (UA.heatOpacityForZoom ? UA.heatOpacityForZoom(zoom) : 0.6);
+            const exportOpacity = Number.isFinite(Number(rawOpacity))
+              ? Math.max(0, Math.min(1, Number(rawOpacity)))
+              : 0.6;
+            restoreHeat = bakeHeatOpacityIntoCanvas(ctx.heatLayer, exportOpacity);
+          }
+
           try {
             // Use leaflet-image to capture the map with all layers and styling
-            // This captures the current visual state including markers, heatmaps, and their transparency
             window.leafletImage(ctx.map, (err, canvas) => {
+              // Restore original heat canvas pixels as soon as capture is done
+              restoreHeat();
+
               if (err) {
                 console.error("leaflet-image capture error:", err);
                 reject(err);
@@ -121,6 +179,7 @@
               }
             });
           } catch (e) {
+            restoreHeat();
             console.error("leafletImage call error:", e);
             reject(e);
           }
@@ -862,10 +921,13 @@
         const mapImageData = await UA.captureMapImage(ctx, options);
         const werkbankUrl = buildWerkbankUrl(ctx);
 
+        // Calculate image dimensions: constrain to A4 content area (475pt wide, ~650pt tall)
+        const PDF_MAX_IMG_WIDTH = 475;
+        const PDF_MAX_IMG_HEIGHT = 650;
         // Make map image clickable
         docDefinition.content.push({
           image: mapImageData,
-          width: 500,
+          fit: [PDF_MAX_IMG_WIDTH, PDF_MAX_IMG_HEIGHT],
           margin: [0, 10, 0, 10],
           link: werkbankUrl
         });
@@ -1078,11 +1140,20 @@
     const cbIncludeMap = document.getElementById("cbIncludeMap");
     const cbIncludePOIs = document.getElementById("cbIncludePOIs");
     const cbIncludeRefs = document.getElementById("cbIncludeRefs");
+    const heatExportOpacityEl = document.getElementById("heatExportOpacity");
     const exportProgress = document.getElementById("exportProgress");
+    const heatExportOpacityValEl = document.getElementById("heatExportOpacityVal");
 
     if (!btnExportWord || !btnExportPDF || !exportProgress) {
       console.warn("Export buttons or progress element not found in DOM");
       return;
+    }
+
+    // Wire up slider label update (avoids inline oninput in HTML)
+    if (heatExportOpacityEl && heatExportOpacityValEl) {
+      heatExportOpacityEl.addEventListener("input", function () {
+        heatExportOpacityValEl.textContent = heatExportOpacityEl.value + " %";
+      });
     }
 
     /**
@@ -1119,10 +1190,13 @@
           const reportData = await UA.computeExportReport(ctx);
 
           // Get export options
+          const rawPct = heatExportOpacityEl ? parseInt(heatExportOpacityEl.value, 10) : 40;
+          const heatOpacityPct = Number.isFinite(rawPct) ? Math.max(0, Math.min(100, rawPct)) : 40;
           const options = {
             includeMap: cbIncludeMap ? cbIncludeMap.checked : true,
             includePOIs: cbIncludePOIs ? cbIncludePOIs.checked : true,
-            includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true
+            includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true,
+            heatmapExportOpacity: heatOpacityPct / 100
           };
 
           await exportFn(ctx, reportData, options);

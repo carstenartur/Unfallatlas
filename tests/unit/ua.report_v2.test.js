@@ -107,6 +107,70 @@ describe('UA.report_v2 - Export Functions', () => {
 
       await expect(UA.captureMapImage(ctx)).rejects.toThrow('Invalid map image data URL generated');
     });
+
+    test('should bake heatmap opacity into canvas before capture and restore afterward', async () => {
+      const pixelData = new Uint8ClampedArray([255, 0, 0, 200, 0, 255, 0, 100]);
+      const heatCanvas = {
+        width: 2,
+        height: 1,
+        style: { opacity: "0.5" },
+        getContext: jest.fn(() => ({
+          getImageData: jest.fn(() => ({ data: pixelData, width: 2, height: 1 })),
+          putImageData: jest.fn(),
+          createImageData: jest.fn((w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }))
+        }))
+      };
+      const mockMap = { getZoom: jest.fn(() => 12) };
+      const ctx = {
+        map: mockMap,
+        heatLayer: { _canvas: heatCanvas }
+      };
+
+      window.leafletImage = jest.fn((map, callback) => {
+        // Capture the alpha values during capture to check baking happened
+        setTimeout(() => callback(null, mockCanvas), 50);
+      });
+
+      // Set UA.heatOpacityForZoom so the fallback is deterministic
+      UA.heatOpacityForZoom = jest.fn(() => 0.5);
+
+      const result = await UA.captureMapImage(ctx, {});
+
+      expect(result).toContain('data:image/png;base64,');
+      // ctx2d.putImageData should have been called at least twice: once to bake, once to restore
+      const ctx2d = heatCanvas.getContext.mock.results[0].value;
+      expect(ctx2d.putImageData).toHaveBeenCalledTimes(2);
+      // CSS opacity should be restored to its original value
+      expect(heatCanvas.style.opacity).toBe("0.5");
+    });
+
+    test('should use heatmapExportOpacity from options when provided', async () => {
+      const heatCanvas = {
+        width: 1,
+        height: 1,
+        style: { opacity: "0.6" },
+        getContext: jest.fn(() => ({
+          getImageData: jest.fn(() => ({ data: new Uint8ClampedArray([255, 0, 0, 200]), width: 1, height: 1 })),
+          putImageData: jest.fn(),
+          createImageData: jest.fn((w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }))
+        }))
+      };
+      const mockMap = { getZoom: jest.fn(() => 12) };
+      const ctx = { map: mockMap, heatLayer: { _canvas: heatCanvas } };
+
+      window.leafletImage = jest.fn((map, callback) => {
+        setTimeout(() => callback(null, mockCanvas), 50);
+      });
+
+      await UA.captureMapImage(ctx, { heatmapExportOpacity: 0.25 });
+
+      const ctx2d = heatCanvas.getContext.mock.results[0].value;
+      // First putImageData call bakes opacity: alpha 200 * 0.25 = 50
+      const bakedData = ctx2d.putImageData.mock.calls[0][0];
+      expect(bakedData.data[3]).toBe(50);
+      // CSS opacity should be restored to original after capture
+      expect(heatCanvas.style.opacity).toBe("0.6");
+    });
   });
 
   describe('exportToWord', () => {
