@@ -1224,14 +1224,272 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
     });
   });
 
+  // ---------- Gremien (committee) matching ----------
+
+  describe('Gremien matching in computeExportReport', () => {
+    test('structured.meta.gremium should be present and have expected shape', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const gremium = result.structured.meta.gremium;
+
+      expect(gremium).toBeDefined();
+      expect(gremium).toHaveProperty('confidence');
+      expect(gremium).toHaveProperty('hinweis');
+      // Since all fetches return 404 in test env, gremium and typ will be null
+      expect(['hoch', 'unbekannt']).toContain(gremium.confidence);
+    });
+
+    test('should match gremium when gremien data is provided and suburb matches', async () => {
+      // Mock fetch: return gremien config for hannover, fail on others
+      global.fetch = jest.fn((url) => {
+        if (url.includes('gremien_hannover')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              gremiumTyp: 'Bezirksrat',
+              hinweis: 'Bitte prüfen',
+              fallback: 'Nicht ermittelt',
+              zuordnung: [
+                {
+                  match: { suburb: ['Linden-Nord', 'Linden-Mitte'] },
+                  gremium: 'Bezirksrat Linden-Limmer',
+                  kontakt: 'test@example.com'
+                }
+              ]
+            })
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      });
+
+      // Mock UA.reverseGeocode to return an admin with matching suburb
+      const origReverseGeocode = UA.reverseGeocode;
+      UA.reverseGeocode = async () => ({
+        label: 'Linden-Nord, Hannover',
+        details: 'Linden-Nord, Hannover',
+        osmUrl: 'https://www.openstreetmap.org/',
+        admin: {
+          suburb: 'Linden-Nord',
+          city_district: null,
+          borough: null,
+          quarter: null,
+          city: 'Hannover',
+          state: 'Niedersachsen',
+          postcode: '30449'
+        }
+      });
+
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const gremium = result.structured.meta.gremium;
+
+      expect(gremium.confidence).toBe('hoch');
+      expect(gremium.gremium).toBe('Bezirksrat Linden-Limmer');
+      expect(gremium.typ).toBe('Bezirksrat');
+      expect(gremium.kontakt).toBe('test@example.com');
+
+      // Restore
+      UA.reverseGeocode = origReverseGeocode;
+    });
+
+    test('should return fallback hint when no match in gremien data', async () => {
+      global.fetch = jest.fn((url) => {
+        if (url.includes('gremien_hannover')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              gremiumTyp: 'Bezirksrat',
+              hinweis: 'Bitte prüfen',
+              fallback: 'Gremium nicht ermittelbar – bitte lokal nachfragen.',
+              zuordnung: [
+                {
+                  match: { suburb: ['Linden-Nord'] },
+                  gremium: 'Bezirksrat Linden-Limmer',
+                  kontakt: 'test@example.com'
+                }
+              ]
+            })
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      });
+
+      const origReverseGeocode = UA.reverseGeocode;
+      UA.reverseGeocode = async () => ({
+        label: 'Irgendwo, Hannover',
+        details: 'Irgendwo',
+        osmUrl: 'https://www.openstreetmap.org/',
+        admin: {
+          suburb: 'UnbekanntesViertel',
+          city_district: null,
+          borough: null,
+          quarter: null,
+          city: 'Hannover',
+          state: 'Niedersachsen',
+          postcode: '30100'
+        }
+      });
+
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const gremium = result.structured.meta.gremium;
+
+      expect(gremium.confidence).toBe('unbekannt');
+      expect(gremium.gremium).toBeNull();
+      expect(gremium.hinweis).toContain('Gremium nicht ermittelbar');
+
+      UA.reverseGeocode = origReverseGeocode;
+    });
+
+    test('GREMIUM_NAME and GREMIUM_TYP vars should appear in text output when gremium matched', async () => {
+      global.fetch = jest.fn((url) => {
+        if (url.includes('gremien_hannover')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              gremiumTyp: 'Bezirksrat',
+              hinweis: 'Prüfen',
+              fallback: 'Unbekannt',
+              zuordnung: [
+                { match: { suburb: ['Linden-Nord'] }, gremium: 'Bezirksrat Linden-Limmer', kontakt: '' }
+              ]
+            })
+          });
+        }
+        if (url.includes('base_intro')) {
+          return Promise.resolve({
+            ok: true,
+            text: () => Promise.resolve('Gremium: {{GREMIUM_NAME}} ({{GREMIUM_TYP}})\nHinweis: {{GREMIUM_HINWEIS}}')
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      });
+
+      const origReverseGeocode = UA.reverseGeocode;
+      UA.reverseGeocode = async () => ({
+        label: 'Linden-Nord, Hannover',
+        details: 'Linden-Nord',
+        osmUrl: 'https://www.openstreetmap.org/',
+        admin: { suburb: 'Linden-Nord', city_district: null, borough: null, quarter: null, city: 'Hannover', state: 'Niedersachsen', postcode: '30449' }
+      });
+
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      expect(result.text).toContain('Bezirksrat Linden-Limmer');
+      expect(result.text).toContain('Bezirksrat');
+      // No unresolved template placeholders
+      expect(result.text).not.toContain('{{GREMIUM_NAME}}');
+      expect(result.text).not.toContain('{{GREMIUM_TYP}}');
+
+      UA.reverseGeocode = origReverseGeocode;
+    });
+
+    test('should match Berlin gremium by city_district', async () => {
+      global.fetch = jest.fn((url) => {
+        if (url.includes('gremien_berlin')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              gremiumTyp: 'Bezirksverordnetenversammlung (BVV)',
+              hinweis: 'Bitte prüfen',
+              fallback: 'BVV nicht ermittelt',
+              zuordnung: [
+                {
+                  match: { city_district: 'Bezirk Friedrichshain-Kreuzberg' },
+                  gremium: 'BVV Friedrichshain-Kreuzberg',
+                  kontakt: 'bvv@ba-fk.berlin.de'
+                }
+              ]
+            })
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      });
+
+      const origReverseGeocode = UA.reverseGeocode;
+      UA.reverseGeocode = async () => ({
+        label: 'Kreuzberg, Berlin',
+        details: 'Kreuzberg',
+        osmUrl: 'https://www.openstreetmap.org/',
+        admin: {
+          suburb: 'Kreuzberg',
+          city_district: 'Bezirk Friedrichshain-Kreuzberg',
+          borough: null,
+          quarter: null,
+          city: 'Berlin',
+          state: 'Berlin',
+          postcode: '10997'
+        }
+      });
+
+      const ctx = {
+        CITY_RAW: 'Berlin',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.5, lng: 13.4 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const gremium = result.structured.meta.gremium;
+
+      expect(gremium.confidence).toBe('hoch');
+      expect(gremium.gremium).toBe('BVV Friedrichshain-Kreuzberg');
+      expect(gremium.typ).toBe('Bezirksverordnetenversammlung (BVV)');
+
+      UA.reverseGeocode = origReverseGeocode;
+    });
+  });
+
   // ---------- Word export tables ----------
 
   describe('Word export with real tables from structured data', () => {
     test('should generate Word document using structured data tables', async () => {
-      // Use the report_v2.js module which is already loaded in this describe block's beforeEach
       // Note: this test suite loads ua.export_v2.js, not ua.report_v2.js
-      // For Word table tests, check that the exported blob is non-empty
-      // (ua.report_v2.js is tested in its own integration suite)
+      // Word table tests are covered in the Document Export suite above
     });
   });
 
@@ -1239,8 +1497,6 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
 
   describe('PDF export with structured tables', () => {
     test('should include STATISTIK section with tables in PDF when structured data provided', async () => {
-      // The report module (ua.report_v2.js) is loaded in its own top-level describe block
-      // This test verifies ua.export_v2 computeExportReport returns structured data usable for PDF tables
       const ctx = {
         CITY_RAW: 'Berlin',
         allPts: testPoints,
@@ -1261,6 +1517,67 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       expect(yr).toHaveProperty('year');
       expect(yr).toHaveProperty('total');
       expect(yr).toHaveProperty('classes');
+    });
+  });
+
+  // ---------- reverseGeocode admin field ----------
+
+  describe('UA.reverseGeocode admin field', () => {
+    test('should include admin object in result when Nominatim returns address data', async () => {
+      // Mock Nominatim response with full address data
+      global.fetch = jest.fn(() => Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          display_name: 'Linden-Nord, Hannover, Niedersachsen, Deutschland',
+          address: {
+            road: 'Schwarze-Bären-Straße',
+            postcode: '30449',
+            city: 'Hannover',
+            suburb: 'Linden-Nord',
+            city_district: 'Stadtbezirk Linden-Limmer',
+            borough: null,
+            quarter: 'Linden',
+            state: 'Niedersachsen'
+          }
+        })
+      }));
+
+      // UA.reverseGeocode is on UA from ua.export_v2.js loaded in beforeEach
+      const result = await UA.reverseGeocode(52.37, 9.73);
+
+      expect(result).toHaveProperty('admin');
+      expect(result.admin.suburb).toBe('Linden-Nord');
+      expect(result.admin.city_district).toBe('Stadtbezirk Linden-Limmer');
+      expect(result.admin.city).toBe('Hannover');
+      expect(result.admin.state).toBe('Niedersachsen');
+      expect(result.admin.postcode).toBe('30449');
+    });
+
+    test('should include admin with nulls when Nominatim returns no admin fields', async () => {
+      global.fetch = jest.fn(() => Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          display_name: 'irgendwo',
+          address: { road: 'Teststraße', postcode: '12345' }
+        })
+      }));
+
+      const result = await UA.reverseGeocode(51.0, 10.0);
+
+      expect(result).toHaveProperty('admin');
+      expect(result.admin.suburb).toBeNull();
+      expect(result.admin.city_district).toBeNull();
+      expect(result.admin.borough).toBeNull();
+    });
+
+    test('should gracefully return fallback without admin when fetch fails', async () => {
+      global.fetch = jest.fn(() => Promise.reject(new Error('network error')));
+
+      const result = await UA.reverseGeocode(51.0, 10.0);
+
+      // Fallback doesn't have admin field – should not throw
+      expect(result).toBeDefined();
+      expect(result.label).toBeDefined();
     });
   });
 });

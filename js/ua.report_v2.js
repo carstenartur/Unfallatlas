@@ -136,6 +136,12 @@
   // Word Document Export (using docx.js)
   // =====================================================================
 
+  // Shared helper: map OSM POI type key to German label
+  const POI_TYPE_LABELS = { school: "Schulen", kindergarten: "Kindergärten", childcare: "Kitas" };
+  function poiTypeLabel(type) {
+    return POI_TYPE_LABELS[type] || type;
+  }
+
   /**
    * Generate and download Word document
    * @param {Object} ctx - Application context
@@ -166,7 +172,7 @@
           children: cells.map(text =>
             new TableCell({
               borders: cellBorder,
-              children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold: !!bold })] })]
+              children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })]
             })
           )
         });
@@ -393,7 +399,7 @@
             ...Object.keys(poi.nearByType || {})
           ]);
           for (const type of allTypes) {
-            const label = type === "school" ? "Schulen" : type === "kindergarten" ? "Kindergärten" : type === "childcare" ? "Kitas" : type;
+            const label = poiTypeLabel(type);
             poiRows.push([
               label,
               String(poi.withinByType[type] || 0),
@@ -910,7 +916,7 @@
             ...Object.keys(poi.nearByType || {})
           ]);
           for (const type of allTypes) {
-            const label = type === "school" ? "Schulen" : type === "kindergarten" ? "Kindergärten" : type === "childcare" ? "Kitas" : type;
+            const label = poiTypeLabel(type);
             poiRows.push([
               label,
               String(poi.withinByType[type] || 0),

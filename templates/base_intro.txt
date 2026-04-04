@@ -3,6 +3,10 @@ Bezirksratsantrag (Entwurf) – Verkehrssicherheit / Unfallschwerpunkt
 Stadt: {{CITY}}
 Erstellt am: {{DATE}}
 
+Vermutlich zuständiges Gremium: {{GREMIUM_NAME}}
+Gremientyp: {{GREMIUM_TYP}}
+Hinweis: {{GREMIUM_HINWEIS}}
+
 Betreff:
 Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im Bereich {{AREA_NAME}}
 

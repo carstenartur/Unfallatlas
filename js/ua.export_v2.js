@@ -23,7 +23,8 @@
       try {
         const r = await fetch(cityUrl, { cache: "no-store" });
         if (r.ok) return await r.text();
-      } catch { /* fall through */ }
+        // city-specific not found – fall through to generic
+      } catch { /* city-specific unavailable – fall through to generic */ }
     }
     const url = `${TEMPLATE_DIR}/${name}.txt`;
     try {
@@ -223,6 +224,63 @@
   }
 
   // --------------------
+  // Gremien (committee) loading and matching
+  // --------------------
+  async function loadGremienData(citySlug) {
+    const gremienPath = `templates/gremien_${citySlug}.json`;
+    try {
+      const r = await fetch(gremienPath, { cache: "no-store" });
+      if (!r.ok) return null;
+      const data = await r.json();
+      return data;
+    } catch (e) {
+      console.warn(`Gremien data not available for ${citySlug}:`, e);
+      return null;
+    }
+  }
+
+  /**
+   * Match admin fields from Nominatim against a city's Gremien config.
+   * Returns the best matching committee, or a fallback hint.
+   *
+   * @param {Object} adminData - Fields from Nominatim (suburb, city_district, borough, quarter, postcode)
+   * @param {Object} gremienConfig - Config from gremien_{city}.json
+   * @returns {{ gremium: string|null, typ: string|null, kontakt: string|null, confidence: string, hinweis: string }}
+   */
+  function matchGremium(adminData, gremienConfig) {
+    if (!gremienConfig || !adminData) {
+      return { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
+    }
+
+    const zuordnung = gremienConfig.zuordnung || [];
+    for (const z of zuordnung) {
+      const match = z.match || {};
+      for (const [field, values] of Object.entries(match)) {
+        const adminVal = adminData[field];
+        // Support both string and array for match values
+        const valArray = Array.isArray(values) ? values : [values];
+        if (adminVal && valArray.includes(adminVal)) {
+          return {
+            gremium: z.gremium || null,
+            typ: gremienConfig.gremiumTyp || null,
+            kontakt: z.kontakt || null,
+            confidence: "hoch",
+            hinweis: gremienConfig.hinweis || ""
+          };
+        }
+      }
+    }
+
+    return {
+      gremium: null,
+      typ: gremienConfig.gremiumTyp || null,
+      kontakt: null,
+      confidence: "unbekannt",
+      hinweis: gremienConfig.fallback || "Zuständiges Gremium bitte lokal ermitteln."
+    };
+  }
+
+  // --------------------
   // Bounds helpers
   // --------------------
   function boundsForExport(ctx) {
@@ -413,6 +471,19 @@
       console.warn("Pattern matching failed:", e);
     }
 
+    // Load Gremien data and match committee
+    let gremiumMatch = { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
+    try {
+      const gremienConfig = await loadGremienData(citySlug);
+      if (gremienConfig && loc && loc.admin) {
+        gremiumMatch = matchGremium(loc.admin, gremienConfig);
+      } else if (gremienConfig) {
+        gremiumMatch = matchGremium({}, gremienConfig);
+      }
+    } catch (e) {
+      console.warn("Gremien matching failed:", e);
+    }
+
     const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
 
     const vars = {
@@ -434,7 +505,11 @@
       THRESH_FACTOR: "1,35",
       location_label: loc ? loc.label : "",
       location_details: loc ? loc.details : "",
-      location_osm: loc ? loc.osmUrl : ""
+      location_osm: loc ? loc.osmUrl : "",
+      GREMIUM_NAME: gremiumMatch.gremium || "—",
+      GREMIUM_TYP: gremiumMatch.typ || "—",
+      GREMIUM_HINWEIS: gremiumMatch.hinweis || "Zuständigkeit vor Einreichung bitte prüfen.",
+      GREMIUM_KONTAKT: gremiumMatch.kontakt || ""
     };
 
     // Load Gen-2 templates with Gen-1 fallback:
@@ -709,7 +784,8 @@
         bounds: bStr,
         areaName,
         link: vars.link,
-        filters
+        filters,
+        gremium: gremiumMatch
       },
       severity: sev,
       deviations: dev,
@@ -942,7 +1018,17 @@ ${placemarks}
       const out = {
         label,
         details,
-        osmUrl: fallback.osmUrl
+        osmUrl: fallback.osmUrl,
+        // Pass through administrative fields useful for Gremien matching
+        admin: {
+          suburb: a.suburb || a.neighbourhood || null,
+          city_district: a.city_district || null,
+          borough: a.borough || null,
+          quarter: a.quarter || null,
+          city: a.city || a.town || a.village || a.municipality || null,
+          state: a.state || null,
+          postcode: a.postcode || null
+        }
       };
 
       _rgCache.set(key, out);
