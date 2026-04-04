@@ -545,8 +545,8 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
 
     const routes = [
       {
-        url: 'https://unpkg.com/docx@8.2.2/build/index.umd.js',
-        file: path.join(root, 'node_modules/docx/build/index.umd.js')
+        url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
+        file: path.join(root, 'node_modules/docx/dist/index.iife.js')
       },
       {
         url: 'https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js',
