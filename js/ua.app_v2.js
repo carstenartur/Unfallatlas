@@ -137,9 +137,6 @@
     const cities = await UA.loadCitiesList(ctx);
     UA.setCityDropdown(ctx, cities);
 
-    // restore state (only if no URL view)
-    UA.restoreCityStateIfNoUrlView(ctx);
-
     // data
     await UA.loadCityData(ctx);
     
