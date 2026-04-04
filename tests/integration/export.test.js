@@ -1,35 +1,23 @@
 /**
  * Integration tests for document export functionality
+ * Uses real export libraries (docx, pdfmake) instead of mocks.
  */
 
 describe('Document Export - Integration Tests', () => {
   let UA;
   let mockCanvas;
-  let mockBlob;
   let originalLocation;
-  let originalURL;
-  let originalCreateElement;
-  let originalAddEventListener;
-  let originalRemoveEventListener;
 
   beforeEach(() => {
-    // Setup mock canvas
+    // Setup mock canvas (leafletImage needs a real Leaflet map / Canvas API)
     mockCanvas = {
       toDataURL: jest.fn(() => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
     };
 
-    // Setup mock blob
-    mockBlob = new Blob(['test content'], { type: 'application/octet-stream' });
-
-    // Save original values for cleanup
+    // Save original location for cleanup
     originalLocation = window.location;
-    originalURL = window.URL;
-    originalCreateElement = document.createElement;
-    originalAddEventListener = document.addEventListener;
-    originalRemoveEventListener = document.removeEventListener;
 
     // Prevent jsdom location interference by using Object.defineProperty
-    // This creates a non-triggering mock that won't cause navigation errors
     try {
       delete window.location;
       Object.defineProperty(window, 'location', {
@@ -46,70 +34,36 @@ describe('Document Export - Integration Tests', () => {
         configurable: true
       });
     } catch (e) {
-      // If already defined, just update the value
       window.location.pathname = '/werkbank_v2.html';
-      window.location.search = '';
-      window.location.hash = '';
-      window.location.href = 'http://localhost/werkbank_v2.html';
-      window.location.origin = 'http://localhost';
-      window.location.protocol = 'http:';
-      window.location.host = 'localhost';
     }
 
-    // Extend the existing window object with mocks instead of replacing it
+    // Load real export libraries and set them on window.
+    // Object.assign(window, ...) correctly sets properties on jsdom's window.
+    const pdfMakeLib = require('pdfmake/build/pdfmake');
+    const pdfFonts = require('pdfmake/build/vfs_fonts');
+    pdfMakeLib.vfs = pdfFonts.pdfMake.vfs;
+
     Object.assign(window, {
       UA: {},
       leafletImage: jest.fn((map, callback) => {
         setTimeout(() => callback(null, mockCanvas), 50);
       }),
-      docx: {
-        Document: jest.fn().mockImplementation(() => ({})),
-        Packer: {
-          toBlob: jest.fn().mockResolvedValue(mockBlob)
-        },
-        Paragraph: jest.fn().mockImplementation((config) => ({ type: 'paragraph', config })),
-        TextRun: jest.fn().mockImplementation((config) => ({ type: 'textrun', config })),
-        HeadingLevel: {
-          HEADING_1: 'heading1',
-          HEADING_2: 'heading2'
-        },
-        AlignmentType: {
-          CENTER: 'center'
-        },
-        ImageRun: jest.fn().mockImplementation((config) => ({ type: 'imagerun', config }))
-      },
-      pdfMake: {
-        createPdf: jest.fn().mockReturnValue({
-          download: jest.fn()
-        })
-      },
-      saveAs: jest.fn()
+      docx: require('docx'),
+      pdfMake: pdfMakeLib,
+      saveAs: jest.fn()   // spy only – validates the blob, not the browser download
     });
 
-    // Mock URL.createObjectURL and revokeObjectURL but keep URL constructor
-    window.URL = class URL extends originalURL {
-      static createObjectURL() {
-        return 'blob:mock-url';
-      }
-      static revokeObjectURL() {}
-    };
-    // Spy on the static methods for assertions
-    jest.spyOn(window.URL, 'createObjectURL');
-    jest.spyOn(window.URL, 'revokeObjectURL');
-
-    // Extend document object
-    Object.assign(document, {
-      createElement: jest.fn(() => ({
-        click: jest.fn(),
-        href: '',
-        download: ''
-      })),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn()
+    // Spy on pdfMake.createPdf to capture the document definition for assertions
+    // and intercept the browser-only .download() call. The real pdfmake still
+    // processes the definition so we can validate it is correct.
+    const realCreatePdf = pdfMakeLib.createPdf.bind(pdfMakeLib);
+    jest.spyOn(window.pdfMake, 'createPdf').mockImplementation((def) => {
+      const doc = realCreatePdf(def);
+      doc.download = jest.fn(); // intercept browser download trigger
+      return doc;
     });
 
     // Load the module - using eval because files use IIFE pattern
-    // Files are loaded from project root: js/ua.report_v2.js
     const fs = require('fs');
     const path = require('path');
     const filePath = path.resolve(__dirname, '../../js/ua.report_v2.js');
@@ -118,20 +72,22 @@ describe('Document Export - Integration Tests', () => {
   });
 
   afterEach(() => {
-    // Restore original values
-    window.location = originalLocation;
-    window.URL = originalURL;
-    document.createElement = originalCreateElement;
-    document.addEventListener = originalAddEventListener;
-    document.removeEventListener = originalRemoveEventListener;
+    // Restore location
+    try {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+        configurable: true
+      });
+    } catch (e) { /* ignore */ }
 
-    // Clean up mocks
+    // Clean up window properties
     delete window.UA;
     delete window.leafletImage;
     delete window.docx;
     delete window.pdfMake;
     delete window.saveAs;
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('PDF Export with Test Data', () => {
@@ -167,9 +123,9 @@ Der Bezirksrat bittet die Verwaltung, den markierten Bereich zu prüfen.`
 
       await UA.exportToPDF(ctx, reportData, options);
 
-      expect(global.window.pdfMake.createPdf).toHaveBeenCalled();
+      expect(window.pdfMake.createPdf).toHaveBeenCalled();
       
-      const pdfDefinition = global.window.pdfMake.createPdf.mock.calls[0][0];
+      const pdfDefinition = window.pdfMake.createPdf.mock.calls[0][0];
       expect(pdfDefinition.content).toBeDefined();
       expect(pdfDefinition.content.length).toBeGreaterThan(0);
       
@@ -205,10 +161,10 @@ Der Bezirksrat bittet die Verwaltung, den markierten Bereich zu prüfen.`
 
       await UA.exportToPDF(ctx, reportData, options);
 
-      expect(global.window.leafletImage).toHaveBeenCalled();
-      expect(global.window.pdfMake.createPdf).toHaveBeenCalled();
+      expect(window.leafletImage).toHaveBeenCalled();
+      expect(window.pdfMake.createPdf).toHaveBeenCalled();
       
-      const pdfDefinition = global.window.pdfMake.createPdf.mock.calls[0][0];
+      const pdfDefinition = window.pdfMake.createPdf.mock.calls[0][0];
       
       // Verify map section is included
       const hasMapImage = pdfDefinition.content.some(item => 
@@ -247,12 +203,12 @@ Der Bezirksrat bittet die Verwaltung um Prüfung.`
 
       await UA.exportToWord(ctx, reportData, options);
 
-      expect(global.window.docx.Document).toHaveBeenCalled();
-      expect(global.window.docx.Packer.toBlob).toHaveBeenCalled();
-      expect(global.window.saveAs).toHaveBeenCalledWith(
-        mockBlob,
-        expect.stringMatching(/Bezirksratsantrag_Hannover_.*\.docx/)
-      );
+      // saveAs should be called with a real, non-empty Word document blob
+      expect(window.saveAs).toHaveBeenCalled();
+      const [blob, filename] = window.saveAs.mock.calls[0];
+      expect(blob.size).toBeGreaterThan(0);
+      expect(blob.type).toContain('application/vnd');
+      expect(filename).toMatch(/Bezirksratsantrag_Hannover_.*\.docx/);
     });
 
     test('should generate Word document with map image', async () => {
@@ -276,14 +232,15 @@ Der Bezirksrat bittet die Verwaltung um Prüfung.`
 
       await UA.exportToWord(ctx, reportData, options);
 
-      expect(global.window.leafletImage).toHaveBeenCalled();
-      expect(global.window.docx.ImageRun).toHaveBeenCalled();
-      expect(global.window.saveAs).toHaveBeenCalled();
+      expect(window.leafletImage).toHaveBeenCalled();
+      expect(window.saveAs).toHaveBeenCalled();
+      const [blob] = window.saveAs.mock.calls[0];
+      expect(blob.size).toBeGreaterThan(0);
     });
 
     test('should handle map capture failure gracefully', async () => {
       // Mock leaflet-image to fail
-      global.window.leafletImage = jest.fn((map, callback) => {
+      window.leafletImage = jest.fn((map, callback) => {
         setTimeout(() => callback(new Error('Map capture failed'), null), 50);
       });
 
@@ -308,7 +265,7 @@ Der Bezirksrat bittet die Verwaltung um Prüfung.`
       // Should not throw - graceful degradation
       await expect(UA.exportToWord(ctx, reportData, options)).resolves.not.toThrow();
       
-      expect(global.window.saveAs).toHaveBeenCalled();
+      expect(window.saveAs).toHaveBeenCalled();
     });
   });
 
@@ -346,7 +303,7 @@ Prüfung erforderlich`
 
       await UA.exportToPDF(ctx, reportData, options);
 
-      const pdfDefinition = global.window.pdfMake.createPdf.mock.calls[0][0];
+      const pdfDefinition = window.pdfMake.createPdf.mock.calls[0][0];
       const contentTexts = pdfDefinition.content.map(item => 
         typeof item.text === 'string' ? item.text : 
         Array.isArray(item.text) ? item.text.join('') : ''
@@ -388,7 +345,7 @@ Maßnahmen erforderlich`
 
       await UA.exportToPDF(ctx, reportData, options);
 
-      const pdfDefinition = global.window.pdfMake.createPdf.mock.calls[0][0];
+      const pdfDefinition = window.pdfMake.createPdf.mock.calls[0][0];
       const contentTexts = pdfDefinition.content.map(item => 
         typeof item.text === 'string' ? item.text : 
         Array.isArray(item.text) ? item.text.join('') : ''
@@ -433,10 +390,10 @@ Der Bezirksrat bittet um umfassende Prüfung und Maßnahmen.`
 
       await UA.exportToPDF(ctx, reportData, options);
 
-      expect(global.window.leafletImage).toHaveBeenCalled();
-      expect(global.window.pdfMake.createPdf).toHaveBeenCalled();
+      expect(window.leafletImage).toHaveBeenCalled();
+      expect(window.pdfMake.createPdf).toHaveBeenCalled();
       
-      const pdfDefinition = global.window.pdfMake.createPdf.mock.calls[0][0];
+      const pdfDefinition = window.pdfMake.createPdf.mock.calls[0][0];
       const contentTexts = pdfDefinition.content.map(item => 
         typeof item.text === 'string' ? item.text : 
         Array.isArray(item.text) ? item.text.join('') : ''

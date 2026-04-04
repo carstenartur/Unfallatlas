@@ -534,3 +534,116 @@ test.describe('Werkbank V2 - Accessibility', () => {
     await expect(pdfBtn).toHaveAttribute('aria-label', 'Export als PDF-Dokument');
   });
 });
+
+test.describe('Werkbank V2 - Document Export Downloads', () => {
+  // Route CDN requests to local node_modules for reliable offline testing.
+  // This avoids flaky tests due to network latency or CDN unavailability.
+  async function setupCDNRoutes(page) {
+    const path = await import('path');
+    const fs = await import('fs');
+    const root = path.resolve(process.cwd());
+
+    const routes = [
+      {
+        url: 'https://unpkg.com/docx@8.2.2/build/index.umd.js',
+        file: path.join(root, 'node_modules/docx/build/index.umd.js')
+      },
+      {
+        url: 'https://unpkg.com/pdfmake@0.2.10/build/pdfmake.min.js',
+        file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
+      },
+      {
+        url: 'https://unpkg.com/pdfmake@0.2.10/build/vfs_fonts.js',
+        file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
+      },
+      {
+        url: 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js',
+        file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js')
+      }
+    ];
+
+    for (const route of routes) {
+      if (fs.existsSync(route.file)) {
+        await page.route(route.url, async (r) => {
+          await r.fulfill({
+            status: 200,
+            contentType: 'application/javascript',
+            body: fs.readFileSync(route.file)
+          });
+        });
+      }
+    }
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await setupCDNRoutes(page);
+    await page.goto('/werkbank_v2.html');
+    await page.waitForLoadState('networkidle');
+
+    // Wait for page initialization
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#citySel');
+      return select && select.querySelectorAll('option').length > 1;
+    });
+
+    // Open the export modal
+    await page.locator('#btnOpenExport').click();
+    const modal = page.locator('#modalOverlay .modal');
+    await modal.waitFor({ state: 'visible' });
+
+    // Disable map capture to avoid leaflet-image dependency
+    await page.locator('#cbIncludeMap').uncheck();
+  });
+
+  test('should download Word document when clicking Word button', async ({ page }) => {
+    const wordBtn = page.locator('#btnExportWord');
+    await expect(wordBtn).toBeVisible();
+
+    // Start waiting for download BEFORE clicking the button
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
+      wordBtn.click()
+    ]);
+
+    // Verify the download was triggered
+    expect(download).toBeTruthy();
+
+    // Verify filename contains 'Bezirksratsantrag' and ends with .docx
+    const filename = download.suggestedFilename();
+    expect(filename).toMatch(/Bezirksratsantrag.*\.docx$/);
+
+    // Verify the file is not empty
+    const filePath = await download.path();
+    if (filePath) {
+      const fs = await import('fs');
+      const stat = fs.statSync(filePath);
+      expect(stat.size).toBeGreaterThan(0);
+    }
+  });
+
+  test('should download PDF document when clicking PDF button', async ({ page }) => {
+    const pdfBtn = page.locator('#btnExportPDF');
+    await expect(pdfBtn).toBeVisible();
+
+    // Start waiting for download BEFORE clicking the button
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
+      pdfBtn.click()
+    ]);
+
+    // Verify the download was triggered
+    expect(download).toBeTruthy();
+
+    // Verify filename contains 'Bezirksratsantrag' and ends with .pdf
+    const filename = download.suggestedFilename();
+    expect(filename).toMatch(/Bezirksratsantrag.*\.pdf$/);
+
+    // Verify the file is not empty
+    const filePath = await download.path();
+    if (filePath) {
+      const fs = await import('fs');
+      const stat = fs.statSync(filePath);
+      expect(stat.size).toBeGreaterThan(0);
+    }
+  });
+});
