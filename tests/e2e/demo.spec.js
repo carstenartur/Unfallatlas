@@ -14,17 +14,6 @@ import { test, expect } from '@playwright/test';
 // Dem Demo-Test mehr Zeit geben (Video-Aufnahme + Pausen)
 test.setTimeout(120_000);
 
-// Mock-Kartenkachel (256×256 PNG, OSM-Farben) – wird verwendet, wenn der
-// Tile-Server nicht erreichbar ist (z. B. in Sandbox-/CI-Umgebungen).
-// Landfarbe #f2efe9, weiße „Straßen", Grünfläche #cdebb0, Wasser #aad3df.
-// Regenerieren:
-//   python3 -c "import struct,zlib,base64; ... " (siehe PR-Beschreibung)
-// prettier-ignore
-const MOCK_TILE = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAAD2ElEQVR42u3ZMQ5AMBiG4d7/KCYXMTmAWQwSU7daDV2IoP7ny3sB0megaVvnUJXaor2EW8qHtfsUCQAAAADAgQYAAAEAgAAAQAAAIAAAEAAACAAABAAAAgAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAQCAAABAAAAgAADQrwHkYKsCyBZ1AAAAAAAGAAAWEYCPYB/B/gIB4EADAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAgAAAQJEAFLNLOwJo9ykAMADMADADwAwAMwDMQgBwD1DcA7gIA0AAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAONew9G8FAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfApAN05vBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAQAAAIAAAEAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaBlAiwEAAAAAAAAAAAAAAAAAAAAAAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADzRDoye3Gfg3+1TAAAAAElFTkSuQmCC',
-  'base64'
-);
-
 /** Hilfsfunktion: Warten bis Städte geladen sind */
 async function waitForCities(page) {
   await page.waitForFunction(() => {
@@ -44,27 +33,33 @@ async function waitForData(page) {
   }, { timeout: 30000 });
 }
 
+/** Hilfsfunktion: Warten bis genügend OSM-Kacheln sichtbar geladen sind */
+async function waitForTiles(page, minTiles = 6) {
+  // Leaflet setzt die Klasse .leaflet-tile-loaded auf fertig geladene Kacheln.
+  // Bei Zoom 12 sind mindestens 6 Kacheln im Viewport sichtbar.
+  await page.waitForFunction(
+    min => document.querySelectorAll('.leaflet-tile-loaded').length >= min,
+    minTiles,
+    { timeout: 30000 }
+  );
+}
+
 test.describe('Werkbank V2 – Demo-Ablauf', () => {
 
   test('Kompletter Demo-Flow', async ({ page }) => {
-
-    // Kartenkacheln abfangen: In CI/Sandbox ist tile.openstreetmap.org oft
-    // nicht erreichbar.  Wir liefern eine lokale Mock-Kachel (OSM-Farben),
-    // damit die Karte im Video einen Hintergrund hat.
-    await page.route('**/tile.openstreetmap.org/**', route =>
-      route.fulfill({ status: 200, contentType: 'image/png', body: MOCK_TILE })
-    );
 
     // ── 1. Startansicht laden ──────────────────────────────────────────
     await page.goto('/werkbank_v2.html');
     await page.waitForLoadState('domcontentloaded');
     await waitForCities(page);
     await expect(page).toHaveTitle(/Unfallwerkbank V2/);
+    await waitForTiles(page);
     await page.waitForTimeout(2000);              // Pause: Karte + Kacheln rendern
 
     // ── 2. Stadt wählen: Bonn ──────────────────────────────────────────
     await page.locator('#citySel').selectOption('Bonn');
     await waitForData(page);
+    await waitForTiles(page);
     await page.waitForTimeout(2500);              // Pause: neue Kacheln + Marker
 
     // ── 3. Filter: Schwere auf "Schwerverletzt" ────────────────────────
