@@ -325,7 +325,7 @@
     }
 
     try {
-      const resp = await fetch(url, { cache: "no-store" });
+      const resp = await fetch(url, { cache: "no-cache" });
       if (!resp.ok) throw new Error(`Tour nicht gefunden: ${url} (${resp.status})`);
       const tour = await resp.json();
       startTourFromObject(tour);
@@ -488,7 +488,6 @@
       _recMoveTimer = setTimeout(captureMoveStep, 1500);
     };
     map && map.on("moveend", _recMapHandler);
-    map && map.on("zoomend", _recMapHandler);
 
     // Listen for filter changes
     const ui = ctx.ui;
@@ -584,7 +583,6 @@
 
     if (map && _recMapHandler) {
       map.off("moveend", _recMapHandler);
-      map.off("zoomend", _recMapHandler);
     }
     if (_recMoveTimer) clearTimeout(_recMoveTimer);
     if (_recFilterTimer) clearTimeout(_recFilterTimer);
@@ -717,8 +715,13 @@
   function syncRecorderJson(steps) {
     const ta = el("recorderJson");
     if (!ta) return;
-    const nameMatch = ta.value.match(/"name"\s*:\s*"([^"]*)"/);
-    const name = nameMatch ? nameMatch[1] : "Aufgenommene Tour";
+    let name = "Aufgenommene Tour";
+    try {
+      const parsed = JSON.parse(ta.value);
+      if (parsed && typeof parsed.name === "string") name = parsed.name;
+    } catch {
+      // keep default name if JSON is currently invalid (user is editing)
+    }
     ta.value = JSON.stringify({ name, steps }, null, 2);
   }
 
@@ -739,8 +742,8 @@
       .replace(/[^a-zA-Z0-9äöüÄÖÜß\-_ ]/g, "")
       .trim()
       .replace(/\s+/g, "_")
-      .toLowerCase();
-    a.download = `${safeName || "tour"}.json`;
+      .toLowerCase() || "tour";
+    a.download = `${safeName}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -766,7 +769,6 @@
   function setupPanelButtons(ctx) {
     const startBtn = el("tourBtnStart");
     const recBtn = el("tourBtnRecord");
-    const recStopBtn = el("tourBtnRecStop");
 
     if (startBtn) {
       startBtn.addEventListener("click", () => {
@@ -781,12 +783,6 @@
         } else {
           UA.recorderStart();
         }
-      });
-    }
-
-    if (recStopBtn) {
-      recStopBtn.addEventListener("click", () => {
-        UA.recorderStop();
       });
     }
   }

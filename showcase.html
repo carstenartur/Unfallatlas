@@ -217,6 +217,8 @@
   </div>
 
   <div class="frameWrap">
+    <!-- allow-same-origin is required so the embedded werkbank can load local GeoJSON data
+         and use localStorage. Both attributes are intentional for this same-origin showcase. -->
     <iframe id="showcaseFrame" title="Unfallwerkbank Beispiel" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
     <div class="frameLoading" id="frameLoading">Lade…</div>
     <a class="openLink" id="openLink" href="#" target="_blank" rel="noopener" title="Beispiel in neuem Tab öffnen">↗ In neuem Tab öffnen</a>
