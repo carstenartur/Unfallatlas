@@ -33,15 +33,15 @@ async function waitForData(page) {
   }, { timeout: 30000 });
 }
 
-/** Hilfsfunktion: Warten bis genügend OSM-Kacheln sichtbar geladen sind */
-async function waitForTiles(page, minTiles = 6) {
-  // Leaflet setzt die Klasse .leaflet-tile-loaded auf fertig geladene Kacheln.
-  // Bei Zoom 12 sind mindestens 6 Kacheln im Viewport sichtbar.
-  await page.waitForFunction(
-    min => document.querySelectorAll('.leaflet-tile-loaded').length >= min,
-    minTiles,
-    { timeout: 30000 }
-  );
+/** Hilfsfunktion: Warten bis ALLE Kachel-Bilder im Tile-Pane vollständig geladen sind */
+async function waitForTiles(page) {
+  await page.waitForFunction(() => {
+    const imgs = document.querySelectorAll('.leaflet-tile-pane img');
+    // Mindestens ein paar Kacheln müssen existieren UND jede einzelne muss
+    // vollständig geladen sein (complete=true, naturalWidth>0 = kein 404).
+    return imgs.length >= 4
+      && [...imgs].every(i => i.complete && i.naturalWidth > 0);
+  }, { timeout: 30000 });
 }
 
 test.describe('Werkbank V2 – Demo-Ablauf', () => {
@@ -64,6 +64,7 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
 
     // ── 3. Filter: Schwere auf "Schwerverletzt" ────────────────────────
     await page.locator('#severity').selectOption('2');
+    await waitForTiles(page);
     await page.waitForTimeout(1000);
 
     // ── 4. Beteiligung: nur Fahrrad + PKW aktivieren ───────────────────
@@ -75,10 +76,12 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     if (!(await incCar.isChecked())) await incCar.click();
     const incMoto = page.locator('#incMoto');
     if (await incMoto.isChecked()) await incMoto.click();
+    await waitForTiles(page);
     await page.waitForTimeout(1000);
 
     // ── 5. UND-Modus aktivieren ────────────────────────────────────────
     await page.locator('#modeAnd').click();
+    await waitForTiles(page);
     await page.waitForTimeout(1000);
 
     // ── 6. Stundenbereich auf Berufsverkehr setzen ─────────────────────
@@ -86,10 +89,12 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.locator('#hFrom').dispatchEvent('input');
     await page.locator('#hTo').fill('18');
     await page.locator('#hTo').dispatchEvent('input');
+    await waitForTiles(page);
     await page.waitForTimeout(1000);
 
     // ── 7. Heatmap aktivieren ──────────────────────────────────────────
     await page.locator('#toggleHeat').click();
+    await waitForTiles(page);
     await page.waitForTimeout(2000);
 
     // ── 8. Cluster deaktivieren (nur Heatmap zeigen) ───────────────────
@@ -97,11 +102,13 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     if ((await clusterBtn.getAttribute('class'))?.includes('active')) {
       await clusterBtn.click();
     }
+    await waitForTiles(page);
     await page.waitForTimeout(1500);
 
     // ── 9. Cluster wieder aktivieren, Heatmap aus ──────────────────────
     await clusterBtn.click();
     await page.locator('#toggleHeat').click();
+    await waitForTiles(page);
     await page.waitForTimeout(1000);
 
     // ── 10. Legende öffnen ─────────────────────────────────────────────
@@ -110,6 +117,7 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
       const el = document.querySelector('#legendBox');
       return el && window.getComputedStyle(el).display !== 'none';
     });
+    await waitForTiles(page);
     await page.waitForTimeout(1500);
     await page.locator('#legendBtn').click();           // wieder schließen
     await page.waitForTimeout(500);
@@ -122,6 +130,7 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.locator('#hFrom').dispatchEvent('input');
     await page.locator('#hTo').fill('23');
     await page.locator('#hTo').dispatchEvent('input');
+    await waitForTiles(page);
     await page.waitForTimeout(1000);
 
     // ── 12. Export-Modal öffnen ────────────────────────────────────────
