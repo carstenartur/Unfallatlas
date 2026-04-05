@@ -242,6 +242,8 @@
         <label class="chip"><input type="checkbox" id="incPed" checked> <span>🚶 Fuß</span></label>
         <label class="chip"><input type="checkbox" id="incCar" checked> <span>🚗 PKW</span></label>
         <label class="chip"><input type="checkbox" id="incMoto"> <span>🏍️ Krad</span></label>
+        <label class="chip"><input type="checkbox" id="incGkfz"> <span>🚛 Gkfz</span></label>
+        <label class="chip"><input type="checkbox" id="incSon"> <span>🚌 Sonst.</span></label>
       </div>
 
       <div class="toggles">
@@ -384,6 +386,8 @@
     includePedestrian: "includePedestrian",
     includeCar: "includeCar",
     includeMotorcycle: "includeMotorcycle",
+    includeGkfz: "includeGkfz",
+    includeSonstig: "includeSonstig",
     involvementMode: "involvementMode",
     showCluster: "showCluster",
     showHeatmap: "showHeatmap",
@@ -412,6 +416,8 @@
     fuss: "includePedestrian",
     pkw: "includeCar",
     krad: "includeMotorcycle",
+    gkfz: "includeGkfz",
+    sonstig: "includeSonstig",
     mode: "involvementMode",
     cluster: "showCluster",
     heat: "showHeatmap",
@@ -531,6 +537,8 @@
   const incPedEl  = document.getElementById("incPed");
   const incCarEl  = document.getElementById("incCar");
   const incMotoEl = document.getElementById("incMoto");
+  const incGkfzEl = document.getElementById("incGkfz");
+  const incSonEl  = document.getElementById("incSon");
 
   const btnModeOr = document.getElementById("modeOr");
   const btnModeAnd = document.getElementById("modeAnd");
@@ -711,6 +719,8 @@
       includePedestrian: incPedEl.checked ? 1 : 0,
       includeCar: incCarEl.checked ? 1 : 0,
       includeMotorcycle: incMotoEl.checked ? 1 : 0,
+      includeGkfz: incGkfzEl.checked ? 1 : 0,
+      includeSonstig: incSonEl.checked ? 1 : 0,
       involvementMode,
       showCluster: showCluster ? 1 : 0,
       showHeatmap: showHeatmap ? 1 : 0,
@@ -737,6 +747,8 @@
         includePedestrian: incPedEl.checked ? 1 : 0,
         includeCar: incCarEl.checked ? 1 : 0,
         includeMotorcycle: incMotoEl.checked ? 1 : 0,
+        includeGkfz: incGkfzEl.checked ? 1 : 0,
+        includeSonstig: incSonEl.checked ? 1 : 0,
         involvementMode,
         showCluster: showCluster ? 1 : 0,
         showHeatmap: showHeatmap ? 1 : 0,
@@ -777,6 +789,8 @@
       incPedEl.checked  = !!st.includePedestrian;
       incCarEl.checked  = !!st.includeCar;
       incMotoEl.checked = !!st.includeMotorcycle;
+      incGkfzEl.checked = !!st.includeGkfz;
+      incSonEl.checked  = !!st.includeSonstig;
 
       involvementMode = st.involvementMode ?? involvementMode;
       showCluster = !!st.showCluster;
@@ -913,23 +927,12 @@
   }
 
   // ---- FIX: COMBO_LABEL korrekt schließen + fmtMaskList korrekt außerhalb ----
-  const COMBO_LABEL = {
-    1:  "🚲",
-    2:  "🚶",
-    4:  "🚗",
-    8:  "🏍️",
-    5:  "🚲+🚗",
-    3:  "🚲+🚶",
-    6:  "🚗+🚶",
-    7:  "🚲+🚗+🚶",
-    9:  "🚲+🏍️",
-    12: "🚗+🏍️",
-    10: "🚶+🏍️",
-    11: "🚲+🚶+🏍️",
-    13: "🚲+🚗+🏍️",
-    14: "🚶+🚗+🏍️",
-    15: "🚲+🚶+🚗+🏍️"
-  };
+  // 6-Bit-Maske: Rad=1, Fuß=2, PKW=4, Krad=8, Gkfz=16, Sonstig=32
+  const COMBO_BITS = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🚌"]];
+  const COMBO_LABEL = {};
+  for (let m = 1; m <= 63; m++) {
+    COMBO_LABEL[m] = COMBO_BITS.filter(([b]) => m & b).map(([,e]) => e).join("+");
+  }
 
   function fmtMaskList(byMask){
     const entries = [];
@@ -948,7 +951,9 @@
     const isPed  = String(pr?.istfuss)==="1";
     const isCar  = String(pr?.istpkw)==="1";
     const isMoto = String(pr?.istkrad)==="1";
-    return (isBike?1:0) | (isPed?2:0) | (isCar?4:0) | (isMoto?8:0);
+    const isGkfz = String(pr?.istgkfz)==="1";
+    const isSon  = String(pr?.istsonstig)==="1";
+    return (isBike?1:0) | (isPed?2:0) | (isCar?4:0) | (isMoto?8:0) | (isGkfz?16:0) | (isSon?32:0);
   }
 
   function severityStats(bounds){
@@ -966,26 +971,32 @@
     const wantPed  = incPedEl.checked;
     const wantCar  = incCarEl.checked;
     const wantMoto = incMotoEl.checked;
-    const anySelected = wantBike || wantPed || wantCar || wantMoto;
+    const wantGkfz = incGkfzEl.checked;
+    const wantSon  = incSonEl.checked;
+    const anySelected = wantBike || wantPed || wantCar || wantMoto || wantGkfz || wantSon;
     if (!anySelected) return false;
 
     const hasBike = (mask & 1) !== 0;
     const hasPed  = (mask & 2) !== 0;
     const hasCar  = (mask & 4) !== 0;
     const hasMoto = (mask & 8) !== 0;
+    const hasGkfz = (mask & 16) !== 0;
+    const hasSon  = (mask & 32) !== 0;
 
     if (involvementMode === "or") {
-      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto);
+      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto) || (wantGkfz && hasGkfz) || (wantSon && hasSon);
     } else if (involvementMode === "and") {
       if (wantBike && !hasBike) return false;
       if (wantPed  && !hasPed)  return false;
       if (wantCar  && !hasCar)  return false;
       if (wantMoto && !hasMoto) return false;
+      if (wantGkfz && !hasGkfz) return false;
+      if (wantSon  && !hasSon)  return false;
       return true;
     } else if (involvementMode === "solo") {
-      const count = (hasBike?1:0)+(hasPed?1:0)+(hasCar?1:0)+(hasMoto?1:0);
+      const count = (hasBike?1:0)+(hasPed?1:0)+(hasCar?1:0)+(hasMoto?1:0)+(hasGkfz?1:0)+(hasSon?1:0);
       if (count !== 1) return false;
-      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto);
+      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto) || (wantGkfz && hasGkfz) || (wantSon && hasSon);
     }
     return true;
   }
@@ -1529,6 +1540,8 @@
     incPedEl.checked  = qBool("includePedestrian", true);
     incCarEl.checked  = qBool("includeCar", true);
     incMotoEl.checked = qBool("includeMotorcycle", false);
+    incGkfzEl.checked = qBool("includeGkfz", false);
+    incSonEl.checked  = qBool("includeSonstig", false);
 
     involvementMode = qGet("involvementMode", involvementMode);
     setBtnState(btnModeOr, involvementMode==="or");
@@ -1563,7 +1576,7 @@
     for (const el of [severityEl, dayTypeEl, roadConditionEl, maxPointsEl, viewportPaddingEl, heatRadiusEl]) {
       el.addEventListener("change", ()=>{ syncAllToUrl(); recomputeAll(); });
     }
-    for (const el of [incBikeEl, incPedEl, incCarEl, incMotoEl]) {
+    for (const el of [incBikeEl, incPedEl, incCarEl, incMotoEl, incGkfzEl, incSonEl]) {
       el.addEventListener("change", ()=>{ syncAllToUrl(); recomputeAll(); });
     }
 

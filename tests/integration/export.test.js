@@ -702,7 +702,7 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
 
       // Header + 3 in-bounds points (the 4th is outside bounds)
       expect(lines).toHaveLength(4);
-      expect(lines[0]).toBe('lat,lon,year,ukategorie,IstRad,IstFuss,IstPKW,IstKrad,IstGkfz,ustunde,uwochentag,strzustand');
+      expect(lines[0]).toBe('lat,lon,year,ukategorie,IstRad,IstFuss,IstPKW,IstKrad,IstGkfz,IstSonstig,ustunde,uwochentag,strzustand');
     });
 
     test('should contain correct lat/lon values for each point', async () => {
@@ -1223,6 +1223,74 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       expect(radPkwPattern.content).not.toContain('{{RAD_PKW_LOCAL}}');
       expect(radPkwPattern.content).toContain('RAD_PKW Faktor');
       expect(radPkwPattern.template).toBe('pattern_rad_pkw');
+    });
+
+    test('Gkfz pattern (mask 17, Rad+Gkfz) is matched and vars substituted', async () => {
+      // Provide data so mask 17 (Rad+Gkfz) is overrepresented locally
+      const localPoints = [];
+      // 5 Rad+Gkfz in-bounds
+      for (let i = 0; i < 5; i++) {
+        localPoints.push({
+          lat: 52.5, lon: 9.7,
+          props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0' }
+        });
+      }
+      // 1 Gkfz-only in-bounds
+      localPoints.push({
+        lat: 52.5, lon: 9.7,
+        props: { year: '2022', ukategorie: '3', IstRad: '0', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0' }
+      });
+
+      // Baseline: many Gkfz-only (mask 16), few Rad+Gkfz (mask 17)
+      const baselinePoints = [...localPoints];
+      for (let i = 0; i < 50; i++) {
+        baselinePoints.push({
+          lat: 48.0, lon: 11.0,
+          props: { year: '2022', ukategorie: '3', IstRad: '0', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0' }
+        });
+      }
+
+      const localBounds = {
+        contains: ([lat]) => lat >= 52.0 && lat <= 53.0,
+        getCenter: () => ({ lat: 52.5, lng: 9.7 }),
+        getSouthWest: () => ({ lat: 52.0, lng: 9.5, toFixed: (n) => Number(52.0).toFixed(n) }),
+        getNorthEast: () => ({ lat: 53.0, lng: 10.0, toFixed: (n) => Number(53.0).toFixed(n) })
+      };
+
+      global.fetch = jest.fn((url) => {
+        if (url.includes('pattern_rad_gkfz')) {
+          return Promise.resolve({
+            ok: true,
+            text: () => Promise.resolve('RAD_GKFZ Faktor {{RAD_GKFZ_FACTOR}} lokal {{RAD_GKFZ_LOCAL}}')
+          });
+        }
+        return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      });
+
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: baselinePoints,
+        selectionBounds: localBounds,
+        map: {
+          getBounds: jest.fn(() => localBounds),
+          getCenter: jest.fn(() => ({ lat: 52.5, lng: 9.7 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const patterns = result.structured.patterns;
+
+      expect(Array.isArray(patterns)).toBe(true);
+      expect(patterns.length).toBeGreaterThan(0);
+
+      const radGkfzPattern = patterns.find(p => p.mask === 17);
+      expect(radGkfzPattern).toBeDefined();
+
+      expect(radGkfzPattern.content).not.toContain('{{RAD_GKFZ_FACTOR}}');
+      expect(radGkfzPattern.content).not.toContain('{{RAD_GKFZ_LOCAL}}');
+      expect(radGkfzPattern.content).toContain('RAD_GKFZ Faktor');
+      expect(radGkfzPattern.template).toBe('pattern_rad_gkfz');
     });
   });
 

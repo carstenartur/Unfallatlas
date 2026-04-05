@@ -24,6 +24,8 @@
     ui.incPedEl  = document.getElementById("incPed");
     ui.incCarEl  = document.getElementById("incCar");
     ui.incMotoEl = document.getElementById("incMoto");
+    ui.incGkfzEl = document.getElementById("incGkfz");
+    ui.incSonEl  = document.getElementById("incSon");
 
     ui.btnModeOr = document.getElementById("modeOr");
     ui.btnModeAnd = document.getElementById("modeAnd");
@@ -116,6 +118,8 @@
       includePedestrian: ui.incPedEl.checked ? 1 : 0,
       includeCar: ui.incCarEl.checked ? 1 : 0,
       includeMotorcycle: ui.incMotoEl.checked ? 1 : 0,
+      includeGkfz: ui.incGkfzEl ? (ui.incGkfzEl.checked ? 1 : 0) : undefined,
+      includeSonstig: ui.incSonEl ? (ui.incSonEl.checked ? 1 : 0) : undefined,
       involvementMode: ctx.involvementMode,
       showCluster: ctx.showCluster ? 1 : 0,
       showHeatmap: ctx.showHeatmap ? 1 : 0,
@@ -191,6 +195,8 @@
     ui.incPedEl.checked  = UA.qBool("includePedestrian", true);
     ui.incCarEl.checked  = UA.qBool("includeCar", true);
     ui.incMotoEl.checked = UA.qBool("includeMotorcycle", false);
+    if (ui.incGkfzEl) ui.incGkfzEl.checked = UA.qBool("includeGkfz", false);
+    if (ui.incSonEl)  ui.incSonEl.checked  = UA.qBool("includeSonstig", false);
 
     ctx.involvementMode = UA.qGet("involvementMode", ctx.involvementMode || "or");
     ctx.showCluster = UA.qBool("showCluster", true);
@@ -229,7 +235,7 @@
     for (const el of [ui.severityEl, ui.dayTypeEl, ui.roadConditionEl, ui.maxPointsEl, ui.viewportPaddingEl, ui.heatRadiusEl]) {
       el.addEventListener("change", ()=>{ UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); });
     }
-    for (const el of [ui.incBikeEl, ui.incPedEl, ui.incCarEl, ui.incMotoEl]) {
+    for (const el of [ui.incBikeEl, ui.incPedEl, ui.incCarEl, ui.incMotoEl, ui.incGkfzEl, ui.incSonEl].filter(Boolean)) {
       el.addEventListener("change", ()=>{ UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); });
     }
 

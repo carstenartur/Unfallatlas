@@ -1,0 +1,20 @@
+Bewertung – Auffällige Häufung von Fuß+Gkfz-Unfällen (LKW/Güterverkehr)
+
+Im untersuchten Bereich ist der Anteil von Unfällen mit Beteiligung von Fußgängern und Güterkraftfahrzeugen (LKW, Sattelzüge, Transporter) gegenüber dem Stadtvergleich erhöht (Faktor {{FUSS_GKFZ_FACTOR}}; lokal {{FUSS_GKFZ_LOCAL}} Fälle).
+
+Diese Unfallkonstellation ist besonders gefährlich – Fuß+Gkfz-Unfälle führen überproportional häufig zu schweren oder tödlichen Verletzungen. Häufige Risikotreiber sind:
+- Abbiege- und Rangierunfälle in Bereichen mit Fußgängerquerungen,
+- toter Winkel bei großen Fahrzeugen, insbesondere beim Rechtsabbiegen,
+- unzureichende Sichtbeziehungen bei Zufahrten, Laderampen und Logistikbereichen,
+- fehlende Fußgängerschutzeinrichtungen (Inseln, Aufpflasterungen, Lichtsignalanlagen) an Querungsstellen mit hohem Schwerverkehrsanteil,
+- Schleppkurvenprobleme an engen Knotenpunkten, bei denen Wartebereiche für Fußgänger im Schwenkbereich liegen.
+
+Handlungsvorschläge (prüffähig):
+1) Analyse der Querungssituationen und Schleppkurven; Prüfung der Warteflächenlage von Fußgängern.
+2) Getrennte Signalphasen für Fußgänger und Schwerverkehr; Schutzzeiten und Vorlaufzeiten prüfen.
+3) Bauliche Maßnahmen: Mittelinseln, vorgezogene Seitenräume, Aufpflasterungen zum Schutz der Querungsstellen.
+4) Sichtfreimachung und Vermeidung von Sichtverdeckungen im Knotenpunktbereich.
+5) Prüfung alternativer LKW-Routen oder zeitlicher Beschränkungen für Schwerverkehr in sensiblen Bereichen.
+
+Erwarteter Effekt:
+Signifikante Reduktion der besonders schwerwiegenden Abbiege-, Rangier- und Querungsunfälle zwischen Fußgängern und Güterverkehr.

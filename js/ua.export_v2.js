@@ -47,23 +47,12 @@
   // --------------------
   // Unfallklassen / Masken (robust, unabhängig von anderen Modulen)
   // --------------------
-  const COMBO_LABEL = {
-    1:  "🚲",
-    2:  "🚶",
-    4:  "🚗",
-    8:  "🏍️",
-    3:  "🚲+🚶",
-    5:  "🚲+🚗",
-    6:  "🚗+🚶",
-    7:  "🚲+🚗+🚶",
-    9:  "🚲+🏍️",
-    10: "🚶+🏍️",
-    12: "🚗+🏍️",
-    11: "🚲+🚶+🏍️",
-    13: "🚲+🚗+🏍️",
-    14: "🚶+🚗+🏍️",
-    15: "🚲+🚶+🚗+🏍️"
-  };
+  // 6-Bit-Maske: Rad=1, Fuß=2, PKW=4, Krad=8, Gkfz=16, Sonstig=32
+  const COMBO_BITS = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🚌"]];
+  const COMBO_LABEL = {};
+  for (let m = 1; m <= 63; m++) {
+    COMBO_LABEL[m] = COMBO_BITS.filter(([b]) => m & b).map(([,e]) => e).join("+");
+  }
 
   function maskFromProps(pr) {
     // sowohl lower-case als auch Originalfelder tolerieren
@@ -79,8 +68,10 @@
     const isPed  = String(get("IstFuss")) === "1" || String(get("istfuss")) === "1";
     const isCar  = String(get("IstPKW")) === "1" || String(get("istpkw")) === "1";
     const isMoto = String(get("IstKrad")) === "1" || String(get("istkrad")) === "1";
+    const isGkfz = String(get("IstGkfz")) === "1" || String(get("istgkfz")) === "1";
+    const isSon  = String(get("IstSonstig")) === "1" || String(get("istsonstig")) === "1";
 
-    return (isBike ? 1 : 0) | (isPed ? 2 : 0) | (isCar ? 4 : 0) | (isMoto ? 8 : 0);
+    return (isBike ? 1 : 0) | (isPed ? 2 : 0) | (isCar ? 4 : 0) | (isMoto ? 8 : 0) | (isGkfz ? 16 : 0) | (isSon ? 32 : 0);
   }
 
   function interpretMask(mask) {
@@ -90,6 +81,12 @@
     if (mask === 6) return "Überrepräsentation von 🚗+🚶 weist oft auf Querungsdefizite, Sichtbeziehungen oder hohes Geschwindigkeitsniveau hin.";
     if (mask === 3) return "Überrepräsentation von 🚲+🚶 kann auf enge Führungen, gemeinsame Flächen oder fehlende Trennung hinweisen.";
     if (mask === 7) return "Überrepräsentation von 🚲+🚗+🚶 spricht für komplexe Konfliktlagen an Knotenpunkten bzw. stark frequentierten Querungen.";
+    if (mask === 16) return "Überrepräsentation von 🚛-Alleinunfällen (Gkfz) kann auf ungeeignete Straßengeometrie, Schleppkurven-Probleme oder Ladungssicherungsdefizite hinweisen.";
+    if (mask === 17) return "Überrepräsentation von 🚲+🚛 (Rad+Gkfz) ist besonders gefährlich – häufig Abbiegeunfälle mit totem Winkel. Maßnahmen: Abbiegeassistent, Spiegel, getrennte Signalphasen, Radwegeführung an Knotenpunkten prüfen.";
+    if (mask === 18) return "Überrepräsentation von 🚶+🚛 (Fuß+Gkfz) ist besonders gefährlich – häufig Abbiege-/Rangierunfälle. Maßnahmen: Sichtfelder, Schleppkurven, Fußgängerführung und separate Signalphasen prüfen.";
+    if (mask === 20) return "Überrepräsentation von 🚗+🚛 kann auf Engstellen, ungeeignete Fahrbahnbreiten oder Überholprobleme hinweisen.";
+    if (mask === 21) return "Überrepräsentation von 🚲+🚗+🚛 spricht für komplexe Konflikte an Knotenpunkten mit Schwerverkehr – Radverkehrsführung und Abbiegesicherung prüfen.";
+    if (mask === 22) return "Überrepräsentation von 🚶+🚗+🚛 weist auf komplexe Querungssituationen mit Schwerverkehr hin – Sichtbeziehungen und Signalisierung prüfen.";
     return "Auffälligkeit kann auf lokale Führungs-/Sicht-/Querungsprobleme hinweisen; eine Ortsbegehung und Unfallkommissionsprüfung ist angezeigt.";
   }
 
@@ -112,6 +109,18 @@
     6: {
       template: "pattern_pkw_fuss",
       vars: (r) => ({ PKW_FUSS_FACTOR: r.factor.toFixed(2), PKW_FUSS_LOCAL: String(r.locCnt) })
+    },
+    17: {
+      template: "pattern_rad_gkfz",
+      vars: (r) => ({ RAD_GKFZ_FACTOR: r.factor.toFixed(2), RAD_GKFZ_LOCAL: String(r.locCnt) })
+    },
+    18: {
+      template: "pattern_fuss_gkfz",
+      vars: (r) => ({ FUSS_GKFZ_FACTOR: r.factor.toFixed(2), FUSS_GKFZ_LOCAL: String(r.locCnt) })
+    },
+    20: {
+      template: "pattern_pkw_gkfz",
+      vars: (r) => ({ PKW_GKFZ_FACTOR: r.factor.toFixed(2), PKW_GKFZ_LOCAL: String(r.locCnt) })
     }
   };
 
@@ -866,7 +875,7 @@
     const CITY = ctx.CITY_RAW || "";
     const date = new Date().toISOString().slice(0, 10);
 
-    const headers = ["lat", "lon", "year", "ukategorie", "IstRad", "IstFuss", "IstPKW", "IstKrad", "IstGkfz", "ustunde", "uwochentag", "strzustand"];
+    const headers = ["lat", "lon", "year", "ukategorie", "IstRad", "IstFuss", "IstPKW", "IstKrad", "IstGkfz", "IstSonstig", "ustunde", "uwochentag", "strzustand"];
     const rows = [headers.join(",")];
 
     for (const p of points) {
@@ -881,6 +890,7 @@
         pr.IstPKW ?? pr.istpkw ?? "",
         pr.IstKrad ?? pr.istkrad ?? "",
         pr.IstGkfz ?? pr.istgkfz ?? "",
+        pr.IstSonstig ?? pr.istsonstig ?? "",
         pr.ustunde ?? "",
         pr.uwochentag ?? "",
         pr.strzustand ?? ""
@@ -917,6 +927,7 @@
           IstPKW: pr.IstPKW ?? pr.istpkw ?? null,
           IstKrad: pr.IstKrad ?? pr.istkrad ?? null,
           IstGkfz: pr.IstGkfz ?? pr.istgkfz ?? null,
+          IstSonstig: pr.IstSonstig ?? pr.istsonstig ?? null,
           ustunde: pr.ustunde ?? null,
           uwochentag: pr.uwochentag ?? null,
           strzustand: pr.strzustand ?? null
@@ -959,6 +970,8 @@
       if (String(pr.IstFuss ?? pr.istfuss) === "1") involved.push("Fuß");
       if (String(pr.IstPKW ?? pr.istpkw) === "1") involved.push("PKW");
       if (String(pr.IstKrad ?? pr.istkrad) === "1") involved.push("Krad");
+      if (String(pr.IstGkfz ?? pr.istgkfz) === "1") involved.push("Gkfz");
+      if (String(pr.IstSonstig ?? pr.istsonstig) === "1") involved.push("Sonst.");
 
       const name = `${year} ${sevLabel}${involved.length ? " (" + involved.join("+") + ")" : ""}`;
 
