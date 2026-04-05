@@ -156,6 +156,7 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.waitForTimeout(2000);
 
     // Langsam nach unten scrollen (in mehreren Schritten)
+    // 6 Schritte (statt 5) damit der gesamte Antrag lesbar gescrollt wird
     const scrollHeight = await modal.evaluate(el => el.scrollHeight);
     const steps = 6;
     for (let i = 1; i <= steps; i++) {

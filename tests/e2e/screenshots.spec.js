@@ -199,6 +199,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       return prog && prog.textContent.includes('Fertig');
     }, { timeout: 30000 });
     // Modal zum Antragsteil scrollen damit der Inhalt sichtbar ist
+    // 30% des Scrollbereichs zeigt den Beginn des Antragsinhalts (Sachverhalt/Statistik)
     const modal = page.locator('#modalOverlay .modal');
     const scrollHeight = await modal.evaluate(el => el.scrollHeight);
     await modal.evaluate((el, pos) => el.scrollTo({ top: pos, behavior: 'instant' }),
