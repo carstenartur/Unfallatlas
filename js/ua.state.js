@@ -15,6 +15,8 @@
     includePedestrian: "includePedestrian",
     includeCar: "includeCar",
     includeMotorcycle: "includeMotorcycle",
+    includeGkfz: "includeGkfz",
+    includeSonstig: "includeSonstig",
     involvementMode: "involvementMode",
     showCluster: "showCluster",
     showHeatmap: "showHeatmap",
@@ -46,6 +48,8 @@
     fuss: "includePedestrian",
     pkw: "includeCar",
     krad: "includeMotorcycle",
+    gkfz: "includeGkfz",
+    sonstig: "includeSonstig",
     mode: "involvementMode",
     cluster: "showCluster",
     heat: "showHeatmap",
@@ -128,6 +132,8 @@
         includePedestrian: ui.incPedEl.checked ? 1 : 0,
         includeCar: ui.incCarEl.checked ? 1 : 0,
         includeMotorcycle: ui.incMotoEl.checked ? 1 : 0,
+        includeGkfz: ui.incGkfzEl ? (ui.incGkfzEl.checked ? 1 : 0) : undefined,
+        includeSonstig: ui.incSonEl ? (ui.incSonEl.checked ? 1 : 0) : undefined,
         involvementMode: ctx.involvementMode,
         showCluster: ctx.showCluster ? 1 : 0,
         showHeatmap: ctx.showHeatmap ? 1 : 0,
@@ -170,6 +176,8 @@
       ui.incPedEl.checked  = !!st.includePedestrian;
       ui.incCarEl.checked  = !!st.includeCar;
       ui.incMotoEl.checked = !!st.includeMotorcycle;
+      if (ui.incGkfzEl) ui.incGkfzEl.checked = !!st.includeGkfz;
+      if (ui.incSonEl)  ui.incSonEl.checked  = !!st.includeSonstig;
 
       ctx.involvementMode = st.involvementMode ?? ctx.involvementMode;
       ctx.showCluster = !!st.showCluster;
