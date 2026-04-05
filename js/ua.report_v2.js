@@ -202,6 +202,22 @@
   }
 
   /**
+   * Derive a document title from the Gremium type string.
+   * @param {string|undefined} gremiumTyp - Value of sd.meta.gremium.typ
+   * @returns {string} German document title
+   */
+  function deriveDocTitle(gremiumTyp) {
+    if (!gremiumTyp) return "Antrag zur Verkehrssicherheit";
+    const t = gremiumTyp.trim();
+    const normalized = t.replace(/\s*\([^)]*\)\s*$/, "");
+    if (t === "Bezirksverordnetenversammlung" || t === "BVV" ||
+        normalized === "Bezirksverordnetenversammlung" || normalized === "BVV") return "BVV-Antrag";
+    if (t === "Bezirksrat" || normalized === "Bezirksrat") return "Bezirksratsantrag";
+    if (t === "Bezirksvertretung" || normalized === "Bezirksvertretung") return "Antrag an die Bezirksvertretung";
+    return "Antrag zur Verkehrssicherheit";
+  }
+
+  /**
    * Generate and download Word document
    * @param {Object} ctx - Application context
    * @param {Object} reportData - Report data from UA.computeExportReport
@@ -216,24 +232,43 @@
     }
 
     const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun,
-            Table, TableRow, TableCell, WidthType, BorderStyle } = window.docx;
+            Table, TableRow, TableCell, WidthType, BorderStyle, ExternalHyperlink } = window.docx;
 
-    // Helper to build a simple bordered table from headers + rows
+    // Helper: shared cell border style
+    const cellBorder = {
+      top:    { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
+      left:   { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
+      right:  { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" }
+    };
+
+    // Helper: build a table cell containing plain text
+    function textCell(text, bold) {
+      return new TableCell({
+        borders: cellBorder,
+        children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })]
+      });
+    }
+
+    // Helper: build a table cell containing a clickable hyperlink
+    function linkCell(url) {
+      const link = ExternalHyperlink
+        ? new ExternalHyperlink({
+            link: url,
+            children: [new TextRun({ text: url, style: "Hyperlink" })]
+          })
+        : new TextRun({ text: url });
+      return new TableCell({
+        borders: cellBorder,
+        children: [new Paragraph({ children: [link] })]
+      });
+    }
+
+    // Helper to build a simple bordered table from headers + rows (plain text cells)
     function makeDocxTable(headers, dataRows) {
-      const cellBorder = {
-        top:    { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-        bottom: { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-        left:   { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
-        right:  { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" }
-      };
       const makeRow = (cells, bold) =>
         new TableRow({
-          children: cells.map(text =>
-            new TableCell({
-              borders: cellBorder,
-              children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })]
-            })
-          )
+          children: cells.map(text => textCell(text, bold))
         });
       return new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -244,51 +279,131 @@
       });
     }
 
+    // Helper to build a 2-column key/value table where the value cell may be a hyperlink
+    function makeKVTable(rows) {
+      return new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: rows.map(([key, value, isLink]) =>
+          new TableRow({
+            children: [
+              textCell(key, true),
+              isLink ? linkCell(value) : textCell(value, false)
+            ]
+          })
+        )
+      });
+    }
+
     const children = [];
     const textLines = reportData.text ? reportData.text.split("\n") : [];
 
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
 
-    // ---- Title / Cover ----
     const CITY_RAW = ctx.CITY_RAW || "—";
     const today = new Date().toLocaleDateString("de-DE");
 
+    // ---- 1. Derive document title from meta ----
+    const gremiumMeta = sd && sd.meta && sd.meta.gremium ? sd.meta.gremium : {};
+    const docTitle = deriveDocTitle(gremiumMeta.typ);
+
+    // ---- 2. Dokumentkopf ----
     children.push(
       new Paragraph({
-        text: "BEZIRKSRATSANTRAG",
+        text: docTitle.toUpperCase(),
         heading: HeadingLevel.HEADING_1,
         alignment: AlignmentType.CENTER
       })
     );
 
-    children.push(
-      new Paragraph({
+    // Sublines: An, Stadt, Bereich, Datum, Betreff
+    const metaCity    = (sd && sd.meta && sd.meta.city)     || CITY_RAW;
+    const metaArea    = (sd && sd.meta && sd.meta.areaName) || "(Kartenausschnitt)";
+    const metaDate    = (sd && sd.meta && sd.meta.date)     || today;
+    const metaToWhom  = gremiumMeta.gremium || "zuständiges Gremium prüfen";
+
+    const headerLines = [
+      ["An:", metaToWhom],
+      ["Stadt:", metaCity],
+      ["Bereich:", metaArea],
+      ["Datum:", metaDate],
+      ["Betreff:", "Verbesserung der Verkehrssicherheit – auffälliger Unfallschwerpunkt im markierten Bereich"]
+    ];
+    for (const [label, value] of headerLines) {
+      children.push(new Paragraph({
         children: [
-          new TextRun({ text: `Stadt: ${CITY_RAW}`, bold: true }),
-          new TextRun({ text: ` | Datum: ${today}` })
+          new TextRun({ text: `${label} `, bold: true }),
+          new TextRun({ text: value })
         ],
-        spacing: { before: 200, after: 200 }
-      })
-    );
+        spacing: { before: 80, after: 80 }
+      }));
+    }
 
-    children.push(
-      new Paragraph({
-        text: "─────────────────────────────────",
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 200 }
-      })
-    );
+    children.push(new Paragraph({
+      text: "─────────────────────────────────",
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 100, after: 200 }
+    }));
 
-    children.push(
-      new Paragraph({
-        text: "Betreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt",
+    // ---- 3. Rahmendaten (metadata box) ----
+    const metaLink    = (sd && sd.meta && sd.meta.link) || "";
+    const IS_LINK = true;
+    const kvRahmen = [
+      ["Dokumenttyp", docTitle, false],
+      gremiumMeta.gremium   ? ["Gremium",              gremiumMeta.gremium,   false]   : null,
+      gremiumMeta.typ       ? ["Gremiumstyp",          gremiumMeta.typ,       false]   : null,
+      gremiumMeta.kontakt   ? ["Kontakt",               gremiumMeta.kontakt,   false]   : null,
+      metaArea              ? ["Bereich",               metaArea,              false]   : null,
+      metaCity              ? ["Stadt",                 metaCity,              false]   : null,
+      metaDate              ? ["Exportdatum",           metaDate,              false]   : null,
+      metaLink              ? ["Werkbank-Link",         metaLink,              IS_LINK] : null,
+      gremiumMeta.hinweis   ? ["Zuständigkeitshinweis", gremiumMeta.hinweis,   false]   : null
+    ].filter(Boolean);
+
+    if (kvRahmen.length > 0) {
+      children.push(new Paragraph({
+        text: "Rahmendaten",
         heading: HeadingLevel.HEADING_2,
-        spacing: { after: 200 }
-      })
-    );
+        spacing: { before: 200, after: 100 }
+      }));
+      children.push(makeKVTable(kvRahmen));
+      children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+    }
 
-    // ---- SACHVERHALT section ----
+    // ---- 4. Aktive Filter ----
+    const filters = (sd && sd.meta && sd.meta.filters) || {};
+    const filterRows = [];
+
+    if (filters.severity   != null) filterRows.push(["Schweregrad",       String(filters.severity),        false]);
+    if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand", String(filters.roadCondition),  false]);
+    if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", String(filters.involvementMode), false]);
+
+    // Build participation flags label
+    const partLabels = [];
+    if (filters.includeCyclist)    partLabels.push("🚲 Rad");
+    if (filters.includePedestrian) partLabels.push("🚶 Fuß");
+    if (filters.includeCar)        partLabels.push("🚗 PKW");
+    if (filters.includeMotorcycle) partLabels.push("🏍️ Krad");
+    if (filters.includeGkfz)       partLabels.push("🚛 Gkfz");
+    if (filters.includeSonstig)    partLabels.push("🚌 Sonst.");
+    if (partLabels.length > 0) filterRows.push(["Beteiligte", partLabels.join(", "), false]);
+
+    if (filters.hourFrom != null && filters.hourTo != null) {
+      filterRows.push(["Zeitraum", `${filters.hourFrom}:00–${filters.hourTo}:00 Uhr`, false]);
+    }
+    if (filters.dayType != null) filterRows.push(["Wochentag", String(filters.dayType), false]);
+
+    if (filterRows.length > 0) {
+      children.push(new Paragraph({
+        text: "Aktive Filter",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 200, after: 100 }
+      }));
+      children.push(makeKVTable(filterRows));
+      children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+    }
+
+    // ---- 5. SACHVERHALT section ----
     children.push(
       new Paragraph({
         text: "SACHVERHALT",
@@ -317,7 +432,7 @@
       );
     }
 
-    // ---- STATISTIK section with real tables (from structured data) ----
+    // ---- 6. STATISTIK section with real tables (from structured data) ----
     if (sd) {
       children.push(
         new Paragraph({
@@ -371,9 +486,30 @@
         ));
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
+
+      // Patterns section
+      if (sd.patterns && sd.patterns.length > 0) {
+        children.push(new Paragraph({
+          text: "FACHLICHE EINORDNUNG / MUSTER",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        for (const pat of sd.patterns) {
+          if (pat.title) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: pat.title, bold: true })],
+              spacing: { after: 60 }
+            }));
+          }
+          if (pat.content) {
+            children.push(new Paragraph({ text: pat.content, spacing: { after: 100 } }));
+          }
+        }
+        children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      }
     }
 
-    // ---- Map section (if enabled) ----
+    // ---- 7. Map section (if enabled) ----
     if (options.includeMap) {
       try {
         children.push(
@@ -436,7 +572,7 @@
       }
     }
 
-    // ---- POI section (if enabled and data available) ----
+    // ---- 8. POI section (if enabled and data available) ----
     if (options.includePOIs) {
       // Prefer structured POI data for a real table
       const poi = sd && sd.poi;
@@ -482,7 +618,7 @@
       }
     }
 
-    // ---- BESCHLUSSVORSCHLAG section ----
+    // ---- 9. BESCHLUSSVORSCHLAG section ----
     children.push(
       new Paragraph({
         text: "BESCHLUSSVORSCHLAG",
@@ -511,7 +647,7 @@
       );
     }
 
-    // ---- FACHLICHE BEZÜGE section (if enabled) ----
+    // ---- 10. FACHLICHE BEZÜGE section (if enabled) ----
     if (options.includeReferences) {
       const refs = sd && sd.references;
       const refsTextSection = extractSection(textLines, "Bezugsdokumente:");
@@ -536,7 +672,14 @@
               spacing: { after: 80 }
             }));
             if (doc.url) {
-              children.push(new Paragraph({ text: `  ${doc.url}`, spacing: { after: 40 } }));
+              // Render reference URLs as clickable hyperlinks
+              const urlLink = ExternalHyperlink
+                ? new ExternalHyperlink({
+                    link: doc.url,
+                    children: [new TextRun({ text: `  ${doc.url}`, style: "Hyperlink" })]
+                  })
+                : new TextRun({ text: `  ${doc.url}` });
+              children.push(new Paragraph({ children: [urlLink], spacing: { after: 40 } }));
             }
           }
         } else {
@@ -547,7 +690,7 @@
       }
     }
 
-    // ---- DATENQUELLE section ----
+    // ---- 11. DATENQUELLE section ----
     children.push(
       new Paragraph({
         text: "DATENQUELLE",
@@ -562,6 +705,34 @@
         spacing: { after: 200 }
       })
     );
+
+    // ---- 12. Werkbank-Link ("→ In Werkbank öffnen") ----
+    if (metaLink && ExternalHyperlink) {
+      children.push(new Paragraph({
+        children: [
+          new ExternalHyperlink({
+            link: metaLink,
+            children: [new TextRun({ text: "→ In Werkbank öffnen", style: "Hyperlink" })]
+          })
+        ],
+        spacing: { before: 200, after: 100 }
+      }));
+    } else if (metaLink) {
+      children.push(new Paragraph({
+        text: `→ In Werkbank öffnen: ${metaLink}`,
+        spacing: { before: 200, after: 100 }
+      }));
+    }
+
+    // ---- 13. Anlagen block ----
+    children.push(new Paragraph({
+      text: "ANLAGEN",
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 400, after: 200 }
+    }));
+    children.push(new Paragraph({ text: "Anlage 1: Kartenansicht", spacing: { after: 80 } }));
+    children.push(new Paragraph({ text: "Anlage 2: Statistische Übersicht", spacing: { after: 80 } }));
+    children.push(new Paragraph({ text: "Anlage 3: Fachliche Bezüge", spacing: { after: 80 } }));
 
     // Create document
     const doc = new Document({
@@ -580,7 +751,15 @@
       .replace(/[^a-zA-Z0-9-]/g, "")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "");
-    const filename = `Bezirksratsantrag_${citySlug}_${today.replace(/\./g, "-")}.docx`;
+    // Use dynamic title prefix for filename (normalize same way as citySlug)
+    const titleSlug = docTitle
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    const filename = `${titleSlug}_${citySlug}_${today.replace(/\./g, "-")}.docx`;
     
     if (window.saveAs) {
       window.saveAs(blob, filename);

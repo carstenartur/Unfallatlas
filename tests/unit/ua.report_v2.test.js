@@ -217,8 +217,8 @@ describe('UA.report_v2 - Export Functions', () => {
         expect(blob.size).toBeGreaterThan(0);
         expect(blob.type).toContain('application/vnd');
 
-        // Verify filename format
-        expect(filename).toMatch(/Bezirksratsantrag_Hannover_.*\.docx/);
+        // Verify filename format (fallback title "Antrag zur Verkehrssicherheit" when no meta)
+        expect(filename).toMatch(/Antrag.*Hannover.*\.docx/);
 
         // Verify PK magic bytes (zip/docx format)
         const arrayBuffer = await new Promise((resolve) => {
@@ -241,6 +241,147 @@ describe('UA.report_v2 - Export Functions', () => {
         } else {
           URL.revokeObjectURL = origRevokeObjectURL;
         }
+      }
+    });
+
+    test('should use dynamic title from sd.meta.gremium.typ (Bezirksrat → Bezirksratsantrag)', async () => {
+      const origCreateObjectURL = URL.createObjectURL;
+      const origRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      URL.revokeObjectURL = jest.fn();
+
+      try {
+        const ctx = { CITY_RAW: 'Hannover' };
+        const reportData = {
+          text: '',
+          structured: {
+            meta: {
+              city: 'Hannover',
+              date: '01.01.2024',
+              areaName: 'Testbereich',
+              link: 'https://example.com',
+              filters: {},
+              gremium: { typ: 'Bezirksrat', gremium: 'Bezirksrat Mitte', kontakt: '', hinweis: '' }
+            },
+            severity: { total: 0, bySev: {} }
+          }
+        };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: false });
+
+        expect(window.saveAs).toHaveBeenCalled();
+        const [, filename] = window.saveAs.mock.calls[0];
+        expect(filename).toMatch(/Bezirksratsantrag/);
+      } finally {
+        if (origCreateObjectURL === undefined) delete URL.createObjectURL;
+        else URL.createObjectURL = origCreateObjectURL;
+        if (origRevokeObjectURL === undefined) delete URL.revokeObjectURL;
+        else URL.revokeObjectURL = origRevokeObjectURL;
+      }
+    });
+
+    test('should use dynamic title from sd.meta.gremium.typ (BVV → BVV-Antrag), using real template value', async () => {
+      const origCreateObjectURL = URL.createObjectURL;
+      const origRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      URL.revokeObjectURL = jest.fn();
+
+      try {
+        const ctx = { CITY_RAW: 'Berlin' };
+        const reportData = {
+          text: '',
+          structured: {
+            meta: {
+              city: 'Berlin',
+              date: '01.01.2024',
+              areaName: 'Testbereich',
+              link: '',
+              filters: {},
+              // Use the real template value from gremien_berlin.json (includes "(BVV)" suffix)
+              gremium: { typ: 'Bezirksverordnetenversammlung (BVV)', gremium: 'BVV Mitte', kontakt: '', hinweis: '' }
+            },
+            severity: { total: 0, bySev: {} }
+          }
+        };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: false });
+
+        expect(window.saveAs).toHaveBeenCalled();
+        const [, filename] = window.saveAs.mock.calls[0];
+        expect(filename).toMatch(/BVV-Antrag/);
+      } finally {
+        if (origCreateObjectURL === undefined) delete URL.createObjectURL;
+        else URL.createObjectURL = origCreateObjectURL;
+        if (origRevokeObjectURL === undefined) delete URL.revokeObjectURL;
+        else URL.revokeObjectURL = origRevokeObjectURL;
+      }
+    });
+
+    test('should render Rahmendaten and Aktive Filter sections when structured meta is provided', async () => {
+      const origCreateObjectURL = URL.createObjectURL;
+      const origRevokeObjectURL = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      URL.revokeObjectURL = jest.fn();
+
+      try {
+        const ctx = { CITY_RAW: 'Hannover' };
+        const reportData = {
+          text: '',
+          structured: {
+            meta: {
+              city: 'Hannover',
+              date: '01.01.2024',
+              areaName: 'Innenstadt',
+              link: 'https://example.com/werkbank',
+              filters: {
+                severity: 'alle',
+                roadCondition: 'trocken',
+                involvementMode: 'ODER',
+                includeCyclist: true,
+                includePedestrian: false
+              },
+              gremium: {
+                typ: 'Bezirksrat',
+                gremium: 'Bezirksrat Mitte',
+                kontakt: 'kontakt@example.com',
+                hinweis: 'Bitte prüfen'
+              }
+            },
+            severity: { total: 5, bySev: { '1': 1, '2': 2, '3': 2 } }
+          }
+        };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: false });
+
+        expect(window.saveAs).toHaveBeenCalled();
+        const [blob, filename] = window.saveAs.mock.calls[0];
+        expect(blob.size).toBeGreaterThan(0);
+        // Filename should use the derived title
+        expect(filename).toMatch(/Bezirksratsantrag/);
+
+        // Inspect the docx XML to verify the new sections are present
+        const JSZip = require('jszip');
+        const arrayBuffer = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsArrayBuffer(blob);
+        });
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const documentXml = await zip.file('word/document.xml').async('text');
+
+        // "Rahmendaten" table header should appear in the document XML
+        expect(documentXml).toContain('Rahmendaten');
+        // "Aktive Filter" table header should appear
+        expect(documentXml).toContain('Aktive Filter');
+        // Gremium name should appear
+        expect(documentXml).toContain('Bezirksrat Mitte');
+        // Area name should appear
+        expect(documentXml).toContain('Innenstadt');
+      } finally {
+        if (origCreateObjectURL === undefined) delete URL.createObjectURL;
+        else URL.createObjectURL = origCreateObjectURL;
+        if (origRevokeObjectURL === undefined) delete URL.revokeObjectURL;
+        else URL.revokeObjectURL = origRevokeObjectURL;
       }
     });
   });
