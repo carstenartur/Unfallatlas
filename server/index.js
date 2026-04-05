@@ -12,6 +12,7 @@
 'use strict';
 
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const { exportVideo } = require('./video-export.js');
@@ -23,35 +24,26 @@ const ROOT = path.resolve(__dirname, '..');
 // Parse JSON request bodies
 app.use(express.json());
 
-// In-memory rate limiting + concurrency guard for the video export endpoint.
-// Video generation is expensive: limit to MAX_CONCURRENT parallel exports
-// and MAX_PER_MINUTE requests per IP per minute.
+// Rate limiter for the video export endpoint (3 requests/minute per IP).
+// Video generation is expensive; this guards against unintentional hammering.
+const videoExportRateLimit = rateLimit({
+  windowMs: 60_000,      // 1 minute window
+  max: 3,                // max 3 requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
+});
+
+// Concurrency guard: at most MAX_CONCURRENT Playwright/ffmpeg jobs at once.
 const MAX_CONCURRENT = 2;
-const MAX_PER_MINUTE = 3;
 let activeExports = 0;
-const exportRequests = new Map();
 
-function videoExportRateLimit(req, res, next) {
-  const ip = req.ip || req.connection.remoteAddress || 'unknown';
-  const now = Date.now();
-  const windowMs = 60_000; // 1 minute
-
-  // Concurrency guard
+function concurrencyGuard(req, res, next) {
   if (activeExports >= MAX_CONCURRENT) {
     return res.status(429).json({
       error: 'Server ist ausgelastet – bitte versuche es in Kürze erneut.'
     });
   }
-
-  // Per-IP rate limit
-  const history = (exportRequests.get(ip) || []).filter(t => now - t < windowMs);
-  if (history.length >= MAX_PER_MINUTE) {
-    return res.status(429).json({
-      error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.'
-    });
-  }
-  history.push(now);
-  exportRequests.set(ip, history);
   activeExports++;
   next();
 }
@@ -85,10 +77,10 @@ app.get('/api/video-export-available', (_req, res) => {
  *
  * Antwort: GIF-Datei als Download
  */
-app.post('/api/export-video', videoExportRateLimit, async (req, res) => {
+app.post('/api/export-video', videoExportRateLimit, concurrencyGuard, async (req, res) => {
   const params = req.body || {};
 
-  // Note: activeExports is incremented in videoExportRateLimit (before next())
+  // Note: activeExports is incremented in concurrencyGuard (before next())
   let gifPath = null;
   try {
     gifPath = await exportVideo(params);
