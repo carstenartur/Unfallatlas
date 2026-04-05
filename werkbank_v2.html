@@ -222,6 +222,14 @@
         </button>
       </div>
 
+      <!-- Video Export Button (nur in der Docker-Distribution sichtbar) -->
+      <div id="videoExportContainer" style="display:none; margin-top:10px;">
+        <button id="btnExportVideo" aria-label="Analyse als GIF-Video exportieren" style="width:100%; padding:12px 20px; background:#1a7a5a; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <span aria-hidden="true">🎬</span> Als Video exportieren
+        </button>
+        <div id="videoExportProgress" style="display:none; margin-top:6px; font-size:12px; color:#555; text-align:center;"></div>
+      </div>
+
       <!-- Data Export Buttons (CSV / GeoJSON / KML) -->
       <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
         <button id="btnExportCSV" aria-label="Export als CSV-Datei" style="flex:1; min-width:110px; padding:10px 16px; background:#2a7a4b; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px;">
@@ -295,5 +303,6 @@
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>
   <script src="js/ua.app_v2.js?v=2026-01-01"></script>
+  <script src="js/ua.video-export.js?v=2026-01-01"></script>
 </body>
 </html>

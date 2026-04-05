@@ -13,7 +13,8 @@
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "demo": "playwright test --project=demo"
+    "demo": "playwright test --project=demo",
+    "start:server": "node server/index.js"
   },
   "keywords": [
     "unfallatlas",
@@ -56,5 +57,8 @@
       "lcov",
       "html"
     ]
+  },
+  "dependencies": {
+    "express": "^5.2.1"
   }
 }
