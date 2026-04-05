@@ -31,6 +31,9 @@ async function waitForData(page) {
 }
 
 test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
+  // Einheitliche Viewport-Größe für alle Screenshots: 1280×800
+  test.use({ viewport: { width: 1280, height: 800 } });
+
   test('01 Startansicht', async ({ page }) => {
     await loadPage(page);
     await page.screenshot({ path: 'docs/screenshots/01-startansicht.png', fullPage: true });
@@ -48,11 +51,12 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await waitForCities(page);
     // Schwere auf "Getötete" setzen
     await page.locator('#severity').selectOption('1');
-    // Fahrrad-Checkbox abwählen, Fuß-Checkbox anwählen
-    const bike = page.locator('#incBike');
-    if (await bike.isChecked()) await bike.click();
-    const foot = page.locator('#incPed');
-    if (!(await foot.isChecked())) await foot.click();
+    // Alle 6 Beteiligungsfilter sichtbar: Rad, Fuß, PKW, Krad, Lkw, Sonstig
+    // Lkw und Sonstig anwählen, damit alle 6 Checkboxen im angehakten Zustand gezeigt werden
+    const gkfz = page.locator('#incGkfz');
+    if (!(await gkfz.isChecked())) await gkfz.click();
+    const son = page.locator('#incSon');
+    if (!(await son.isChecked())) await son.click();
     const panel = page.locator('#panel');
     await panel.screenshot({ path: 'docs/screenshots/03-filter.png' });
   });
@@ -210,6 +214,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
 });
 
 test.describe('Werkbank V2 – PDF-Export Rendering', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
   test('15 PDF-Export gerendert', async ({ page }) => {
     // 90 s: Stadtdaten laden (≤10 s) + pdfmake-Export (≤30 s) + pdfjs-Rendering (≤30 s)
     test.setTimeout(90000);

@@ -38,7 +38,7 @@ Die **Unfallwerkbank V2** ist eine interaktive Webanwendung zur Visualisierung u
 von [Unfallatlas](https://unfallatlas.statistikportal.de/)-Daten (Open Data) für deutsche Städte.
 Sie ermöglicht:
 
-- **Filterung** nach Stadt, Unfallschwere, Beteiligungsart (Rad, Fuß, PKW, Krad), Uhrzeit und Straßenzustand
+- **Filterung** nach Stadt, Unfallschwere, Beteiligungsart (Rad, Fuß, PKW, Krad, Lkw, Sonstig), Uhrzeit und Straßenzustand
 - **Darstellung** der Unfälle als Cluster-Karte oder Heatmap
 - **Bereich markieren** – gezieltes Auswählen eines Kartenausschnitts für die Auswertung
 - **POI-Anzeige** – Schulen, Kindergärten und Kitas in der Nähe von Unfallschwerpunkten sichtbar machen
@@ -123,6 +123,8 @@ Die Checkboxen unter **Beteiligung** schränken die Anzeige auf bestimmte Unfall
 - 🚶 **Fuß** – Fußgängerunfälle
 - 🚗 **PKW** – Pkw-Unfälle
 - 🏍️ **Krad** – Motorradunfälle
+- 🚛 **Lkw** – Güterkraftfahrzeuge (Lkw, Sattelzug, Transporter)
+- 🚌 **Sonst.** – Sonstige Beteiligte (Straßenbahn, Bus, sonstige Fahrzeuge)
 
 Die Verknüpfung mehrerer Filter wird über die **Modus-Buttons** gesteuert:
 
@@ -324,6 +326,9 @@ Der folgende Screenshot zeigt den Inhalt des generierten Bezirksratsantrags mit 
 | **Referenzdokumente** | Verweise auf Quellen und Bezugsdokumente |
 | **Als Word exportieren** | `.docx`-Datei herunterladen |
 | **Als PDF exportieren** | PDF-Datei herunterladen |
+| **📊 CSV** | Unfallpunkte als CSV-Datei herunterladen |
+| **🗺️ GeoJSON** | Unfallpunkte als GeoJSON-Datei herunterladen |
+| **📍 KML** | Unfallpunkte als KML-Datei herunterladen (Google Earth / Maps) |
 | **Text kopieren** | Berichtstext in die Zwischenablage kopieren |
 | **Link kopieren** | Direkt-Link zur aktuellen Ansicht kopieren |
 
@@ -599,6 +604,8 @@ unterstützten Parameter auf:
 | `includePedestrian` | Fußgänger-Filter | `0` / `1` | `1` |
 | `includeCar` | PKW-Filter | `0` / `1` | `1` |
 | `includeMotorcycle` | Krad-Filter | `0` / `1` | `0` |
+| `includeGkfz` | Lkw-Filter (Güterkraftfahrzeuge) | `0` / `1` | `0` |
+| `includeSonstig` | Sonstige-Filter | `0` / `1` | `0` |
 | `involvementMode` | Verknüpfungsmodus | `or`, `and`, `solo` | `or` |
 | `hourFrom` | Stundenfilter von | `0`–`23` | `0` |
 | `hourTo` | Stundenfilter bis | `0`–`23` | `23` |

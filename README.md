@@ -23,7 +23,7 @@
 
 1. **[Live-Demo öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)** – läuft direkt im Browser
 2. **Stadt wählen** – z. B. Bonn, Hannover, Berlin, Hamburg, …
-3. **Filtern** – Unfallschwere, Beteiligung (🚲 🚶 🚗 🏍️), Uhrzeit, Fahrbahnzustand
+3. **Filtern** – Unfallschwere, Beteiligung (🚲 🚶 🚗 🏍️ 🚛 🚌), Uhrzeit, Fahrbahnzustand
 4. **Analysieren** – Cluster, Heatmap oder Hotspot-Erkennung aktivieren
 5. **Exportieren** – Bezirksratsantrag als PDF/Word herunterladen oder Link teilen
 
@@ -35,12 +35,13 @@
 
 | Funktion | Beschreibung |
 |---|---|
-| **Filterkombinationen** | Schwere, Beteiligung (ODER / UND / Alleinunfall), Uhrzeit, Wochentag, Fahrbahnzustand |
+| **Filterkombinationen** | Schwere, Beteiligung (🚲 🚶 🚗 🏍️ 🚛 🚌 – ODER / UND / Alleinunfall), Uhrzeit, Wochentag, Fahrbahnzustand |
 | **Cluster-Analyse** | Klick auf Cluster zeigt Beteiligungskombinationen mit Vergleich zum Stadtdurchschnitt |
 | **Heatmap & Hotspots** | Dichteverteilung und automatische Erkennung überrepräsentierter Muster |
 | **POI-Overlay** | Ab Zoomstufe 15: Schulen 🏫 und Kitas 🧒 auf der Karte – Schulwegsicherheit prüfen |
 | **Bereichsauswahl** | Rechteck zeichnen → nur Unfälle in diesem Bereich auswerten |
 | **Export als Bezirksratsantrag** | PDF / Word mit Sachverhalt, Statistik, Karte, POI-Analyse und Beschlussvorschlag |
+| **Datenexport** | Unfallpunkte direkt als 📊 CSV, 🗺️ GeoJSON oder 📍 KML herunterladen |
 | **Deterministische URLs** | Jede Analyse ist als Link teilbar und reproduzierbar |
 
 ---
