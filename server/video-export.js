@@ -22,10 +22,14 @@
 'use strict';
 
 const { chromium } = require('@playwright/test');
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+const execFileAsync = promisify(execFile);
+const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 const CDN_ROUTES = [
@@ -61,7 +65,7 @@ async function waitForCities(page) {
 async function waitForData(page) {
   await page.waitForFunction(() => {
     const stat = document.querySelector('#stat');
-    return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
+    return stat && stat.textContent.includes('geladen:');
   }, { timeout: 30000 });
 }
 
@@ -322,43 +326,46 @@ async function exportVideo(params) {
     await waitForTiles(page);
     await page.waitForTimeout(1000);
 
-    // Video-Aufnahme abschließen
-    const videoPath = await page.video()?.path();
+    // Video-Aufnahme abschließen: Video-Objekt VOR dem Schließen des Kontexts sichern,
+    // da der Pfad erst nach context.close() finalisiert wird.
+    const video = page.video();
     await context.close();
     await browser.close();
     browser = null;
 
+    const videoPath = video ? await video.path() : null;
     if (!videoPath || !fs.existsSync(videoPath)) {
       throw new Error('Keine Video-Datei erzeugt');
     }
     webmPath = videoPath;
 
     // ── 16. WebM → GIF konvertieren ────────────────────────────────────────
-    const gifPath = path.join(tmpDir, 'export.gif');
+    // GIF wird AUSSERHALB von tmpDir gespeichert, damit tmpDir vollständig
+    // aufgeräumt werden kann bevor der GIF-Pfad zurückgegeben wird.
+    const gifPath = path.join(os.tmpdir(), `unfallatlas-export-${Date.now()}.gif`);
     const palettePath = path.join(tmpDir, 'palette.png');
 
-    // Schritt 1: Palette erzeugen
-    execFileSync('ffmpeg', [
+    // Schritt 1: Palette erzeugen (async, damit der Event-Loop nicht blockiert)
+    await execFileAsync('ffmpeg', [
       '-y',
       '-ss', '1',
       '-i', webmPath,
       '-vf', 'fps=4,scale=800:-1:flags=lanczos,palettegen=max_colors=96:stats_mode=diff',
       palettePath
-    ], { stdio: 'pipe' });
+    ], { timeout: FFMPEG_TIMEOUT_MS });
 
-    // Schritt 2: GIF mit Palette erzeugen
-    execFileSync('ffmpeg', [
+    // Schritt 2: GIF mit Palette erzeugen (async)
+    await execFileAsync('ffmpeg', [
       '-y',
       '-ss', '1',
       '-i', webmPath,
       '-i', palettePath,
       '-lavfi', 'fps=4,scale=800:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4',
       gifPath
-    ], { stdio: 'pipe' });
+    ], { timeout: FFMPEG_TIMEOUT_MS });
 
-    // Temporäre WebM + Palette löschen
-    try { fs.unlinkSync(webmPath); } catch (_) { /* ignore */ }
-    try { fs.unlinkSync(palettePath); } catch (_) { /* ignore */ }
+    // Gesamtes tmpDir (enthält video/ + palette.png + .webm) aufräumen
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* ignore */ }
 
     return gifPath;
 

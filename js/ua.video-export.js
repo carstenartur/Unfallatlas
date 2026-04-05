@@ -15,11 +15,11 @@
 
   /**
    * Aktuellen Zustand der Werkbank als Parameter-Objekt auslesen.
-   * Versucht zuerst window.UA.getParams(), dann window.UA.ctx, dann
-   * fällt es auf window.location.search zurück.
+   * Verwendet bevorzugt window.UA.ctx (vom App-Code befüllt) und
+   * fällt andernfalls auf window.location.search zurück.
    */
   function collectParams() {
-    // Bevorzugt: UA.ctx falls vom App-Code befüllt
+    // Bevorzugt: UA.ctx, falls vom App-Code befüllt
     if (window.UA && window.UA.ctx) {
       const ctx = window.UA.ctx;
       return {
