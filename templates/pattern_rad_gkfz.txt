@@ -1,0 +1,20 @@
+Bewertung – Auffällige Häufung von Rad+Gkfz-Unfällen (LKW/Güterverkehr)
+
+Im untersuchten Bereich ist der Anteil von Unfällen mit Beteiligung von Radverkehr und Güterkraftfahrzeugen (LKW, Sattelzüge, Transporter) gegenüber dem Stadtvergleich erhöht (Faktor {{RAD_GKFZ_FACTOR}}; lokal {{RAD_GKFZ_LOCAL}} Fälle).
+
+Diese Unfallkonstellation ist besonders gefährlich – Rad+Gkfz-Unfälle führen überproportional häufig zu schweren oder tödlichen Verletzungen. Häufige Risikotreiber sind:
+- Abbiegeunfälle mit totem Winkel (rechtsabbiegender LKW vs. geradeausfahrender Radverkehr),
+- unzureichende Sichtbeziehungen an Knotenpunkten, insbesondere bei großen Fahrzeugen,
+- fehlende oder unzureichende Spiegeleinrichtungen und Abbiegeassistenzsysteme,
+- Schleppkurvenprobleme an engen Knotenpunkten (Radverkehrsflächen im Schleppbereich),
+- ungeschützte Radverkehrsführung an Knotenpunkten mit hohem Schwerverkehrsanteil.
+
+Handlungsvorschläge (prüffähig):
+1) Analyse der Abbiegebeziehungen und Schleppkurven; Prüfung, ob Radverkehrsflächen im Schleppbereich liegen.
+2) Getrennte Signalphasen (Grünvorlauf oder separate Freigabe) für Rad- und Schwerverkehr an Knotenpunkten.
+3) Prüfung geschützter Radverkehrsführung: vorgezogene Haltelinien, Protected Intersections, baulich getrennte Radwege mit Sichtfenstern.
+4) Anordnung von Lkw-Abbiegeassistenten bzw. Unterstützung kommunaler Förderprogramme.
+5) Geschwindigkeitsmanagement: Temporeduktion für den Schwerverkehr im Knotenpunktbereich.
+
+Erwarteter Effekt:
+Signifikante Reduktion der besonders schwerwiegenden Abbiege- und Überrollunfälle zwischen Radverkehr und Güterverkehr.

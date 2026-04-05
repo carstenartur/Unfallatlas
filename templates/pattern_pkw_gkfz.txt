@@ -1,0 +1,18 @@
+Bewertung – Auffällige Häufung von PKW+Gkfz-Unfällen (LKW/Güterverkehr)
+
+Im untersuchten Bereich ist der Anteil von Unfällen mit Beteiligung von PKW und Güterkraftfahrzeugen (LKW, Sattelzüge, Transporter) gegenüber dem Stadtvergleich erhöht (Faktor {{PKW_GKFZ_FACTOR}}; lokal {{PKW_GKFZ_LOCAL}} Fälle).
+
+Unfälle zwischen PKW und Gkfz treten häufig in Bereichen mit beengten Fahrbahnen, unübersichtlichen Knotenpunkten oder Streckenabschnitten mit hohem Mischverkehrsanteil auf. Häufige Risikotreiber sind:
+- Engstellen und ungeeignete Fahrbahnbreiten für den Begegnungsverkehr mit Schwerfahrzeugen,
+- Überholprobleme auf zweistreifigen Straßen mit Schwerverkehr,
+- Abbiegesituationen an Knotenpunkten mit unzureichenden Schleppkurven,
+- Auffahrunfälle bei unterschiedlichen Geschwindigkeiten von PKW und LKW.
+
+Handlungsvorschläge (prüffähig):
+1) Prüfung der Fahrbahnbreiten und Schleppkurven; ggf. Anpassung der Fahrstreifenbreiten oder Überholverbote.
+2) Analyse der Knotenpunktgeometrie: ausreichende Aufstellflächen, getrennte Abbiegestreifen für Schwerverkehr.
+3) Geschwindigkeitsmanagement: Harmonisierung der Geschwindigkeiten, insbesondere an Engstellen und Steigungsstrecken.
+4) Prüfung von Routenalternativen für den Schwerverkehr oder zeitlichen Beschränkungen in Spitzenzeiten.
+
+Erwarteter Effekt:
+Reduktion von Engstellen- und Abbiegekonflikten sowie Verbesserung des Verkehrsflusses zwischen PKW und Güterverkehr.

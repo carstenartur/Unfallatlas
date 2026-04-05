@@ -970,6 +970,8 @@
       if (String(pr.IstFuss ?? pr.istfuss) === "1") involved.push("Fuß");
       if (String(pr.IstPKW ?? pr.istpkw) === "1") involved.push("PKW");
       if (String(pr.IstKrad ?? pr.istkrad) === "1") involved.push("Krad");
+      if (String(pr.IstGkfz ?? pr.istgkfz) === "1") involved.push("Gkfz");
+      if (String(pr.IstSonstig ?? pr.istsonstig) === "1") involved.push("Sonst.");
 
       const name = `${year} ${sevLabel}${involved.length ? " (" + involved.join("+") + ")" : ""}`;
 
