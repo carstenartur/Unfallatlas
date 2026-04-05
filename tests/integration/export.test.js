@@ -1050,6 +1050,89 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       const result = await UA.computeExportReport(ctx);
       expect(result.structured.meta.link).toBe(window.location.href);
     });
+
+    test('structured.deviations.local.byMask reflects Gkfz accidents (6-bit mask)', async () => {
+      // Points with IstGkfz=1 should yield masks 16 (Gkfz only) and 17 (Rad+Gkfz)
+      const gkfzPoints = [
+        // Rad+Gkfz (mask 17) in-bounds
+        { lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0', ustunde: '10', uwochentag: '3', strzustand: '0' } },
+        { lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0', ustunde: '10', uwochentag: '3', strzustand: '0' } },
+        // Gkfz-only (mask 16) in-bounds
+        { lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '0', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0', ustunde: '10', uwochentag: '3', strzustand: '0' } },
+        // Sonstig-only (mask 32) in-bounds
+        { lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '0', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '0', IstSonstig: '1', ustunde: '10', uwochentag: '3', strzustand: '0' } }
+      ];
+
+      const localBounds = {
+        contains: ([lat]) => lat >= 52.0 && lat <= 53.0,
+        getCenter: () => ({ lat: 52.5, lng: 9.7 }),
+        getSouthWest: () => ({ lat: 52.0, lng: 9.5, toFixed: (n) => Number(52.0).toFixed(n) }),
+        getNorthEast: () => ({ lat: 53.0, lng: 10.0, toFixed: (n) => Number(53.0).toFixed(n) })
+      };
+
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: gkfzPoints,
+        selectionBounds: localBounds,
+        map: {
+          getBounds: jest.fn(() => localBounds),
+          getCenter: jest.fn(() => ({ lat: 52.5, lng: 9.7 })),
+          getZoom: jest.fn(() => 14)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const byMask = result.structured.deviations.local.byMask;
+
+      // Mask 17 (Rad+Gkfz): 2 accidents
+      expect(byMask['17']).toBe(2);
+      // Mask 16 (Gkfz-only): 1 accident
+      expect(byMask['16']).toBe(1);
+      // Mask 32 (Sonstig-only): 1 accident
+      expect(byMask['32']).toBe(1);
+      // Mask 1 (Rad-only) should NOT appear
+      expect(byMask['1']).toBeUndefined();
+    });
+
+    test('computeExportReport text includes Gkfz-specific interpretation when Rad+Gkfz overrepresented', async () => {
+      // Create data: 5 Rad+Gkfz in-bounds, many Gkfz-only out-of-bounds as baseline
+      const localPts = [];
+      for (let i = 0; i < 5; i++) {
+        localPts.push({ lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0', ustunde: '10', uwochentag: '3', strzustand: '0' } });
+      }
+      // 1 Gkfz-only in-bounds (to avoid dividing by zero)
+      localPts.push({ lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '0', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0', ustunde: '10', uwochentag: '3', strzustand: '0' } });
+
+      // Baseline: mostly Gkfz-only (mask 16), few Rad+Gkfz (mask 17)
+      const allPts = [...localPts];
+      for (let i = 0; i < 50; i++) {
+        allPts.push({ lat: 48.0, lon: 11.0, props: { year: '2022', ukategorie: '3', IstRad: '0', IstFuss: '0', IstPKW: '0', IstKrad: '0', IstGkfz: '1', IstSonstig: '0', ustunde: '10', uwochentag: '3', strzustand: '0' } });
+      }
+
+      const localBounds = {
+        contains: ([lat]) => lat >= 52.0 && lat <= 53.0,
+        getCenter: () => ({ lat: 52.5, lng: 9.7 }),
+        getSouthWest: () => ({ lat: 52.0, lng: 9.5, toFixed: (n) => Number(52.0).toFixed(n) }),
+        getNorthEast: () => ({ lat: 53.0, lng: 10.0, toFixed: (n) => Number(53.0).toFixed(n) })
+      };
+
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts,
+        selectionBounds: localBounds,
+        map: {
+          getBounds: jest.fn(() => localBounds),
+          getCenter: jest.fn(() => ({ lat: 52.5, lng: 9.7 })),
+          getZoom: jest.fn(() => 14)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+
+      // The report text should contain Gkfz-specific interpretation for mask 17
+      expect(result.text).toContain('🚲+🚛');
+      expect(result.text).toContain('totem Winkel');
+    });
   });
 
   // ---------- Template fallback chain ----------
