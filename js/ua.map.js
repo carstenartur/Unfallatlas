@@ -21,7 +21,7 @@
 
     const DEFAULT_COMBO_LABEL = {};
     (function() {
-      const bits = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🔷"]];
+      const bits = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🚌"]];
       for (let m = 1; m <= 63; m++) {
         DEFAULT_COMBO_LABEL[m] = bits.filter(([b]) => m & b).map(([,e]) => e).join("+");
       }

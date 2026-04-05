@@ -237,7 +237,7 @@
         <label class="chip"><input type="checkbox" id="tPKW" checked> <span>🚗 PKW</span></label>
         <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
         <label class="chip"><input type="checkbox" id="tGkfz"> <span>🚛 Gkfz</span></label>
-        <label class="chip"><input type="checkbox" id="tSon"> <span>🔷 Sonst.</span></label>
+        <label class="chip"><input type="checkbox" id="tSon"> <span>🚌 Sonst.</span></label>
       </div>
 
       <div class="toggles" aria-label="Beteiligungsmodus">
@@ -419,7 +419,7 @@
       if (String(p?.istpkw) === "1") tags.push("🚗 PKW");
       if (String(p?.istkrad) === "1") tags.push("🏍️ Krad");
       if (String(p?.istgkfz) === "1") tags.push("🚛 Gkfz");
-      if (String(p?.istsonstig) === "1") tags.push("🔷 Sonst.");
+      if (String(p?.istsonstig) === "1") tags.push("🚌 Sonst.");
       return tags.length ? tags.join(", ") : "—";
     }
 
