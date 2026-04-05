@@ -83,15 +83,19 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.waitForTimeout(2500);
 
     // ── 3. Filter: nur Radfahrer-Beteiligung ───────────────────────────
-    //    Nur Fahrrad ankreuzen, alles andere abwählen.
+    //    Nur Fahrrad ankreuzen, alles andere abwählen (inkl. Lkw und Sonstig).
     const incPed  = page.locator('#incPed');
     const incBike = page.locator('#incBike');
     const incCar  = page.locator('#incCar');
     const incMoto = page.locator('#incMoto');
+    const incGkfz = page.locator('#incGkfz');
+    const incSon  = page.locator('#incSon');
     if (await incPed.isChecked())       await incPed.click();
     if (!(await incBike.isChecked()))   await incBike.click();
     if (await incCar.isChecked())       await incCar.click();
     if (await incMoto.isChecked())      await incMoto.click();
+    if (await incGkfz.isChecked())      await incGkfz.click();
+    if (await incSon.isChecked())       await incSon.click();
     await waitForTiles(page);
     await page.waitForTimeout(1500);
 
@@ -167,7 +171,12 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     }
     await page.waitForTimeout(2000);
 
-    // ── 9c. PDF-Export demonstrieren ──────────────────────────────────
+    // ── 9c. Daten-Export-Buttons zeigen (CSV / GeoJSON / KML) ─────────
+    //    Zurück nach oben scrollen damit die Export-Buttons sichtbar sind.
+    await modal.evaluate(el => { el.scrollTop = 0; });
+    await page.waitForTimeout(1500);
+
+    // ── 9d. PDF-Export demonstrieren ──────────────────────────────────
     //    CDN-Routen sind bereits eingerichtet (setupCDNRoutes am Anfang).
     await page.locator('#btnExportPDF').click();
     await page.waitForTimeout(3000);
@@ -189,6 +198,8 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.locator('#modeOr').click();
     if (!(await incPed.isChecked()))  await incPed.click();
     if (!(await incCar.isChecked()))  await incCar.click();
+    if (await incGkfz.isChecked())    await incGkfz.click();
+    if (await incSon.isChecked())     await incSon.click();
     await page.locator('#toggleHeat').click();
     await waitForTiles(page);
     await page.waitForTimeout(2000);
