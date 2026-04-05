@@ -209,9 +209,11 @@
   function deriveDocTitle(gremiumTyp) {
     if (!gremiumTyp) return "Antrag zur Verkehrssicherheit";
     const t = gremiumTyp.trim();
-    if (t === "Bezirksverordnetenversammlung" || t === "BVV") return "BVV-Antrag";
-    if (t === "Bezirksrat") return "Bezirksratsantrag";
-    if (t === "Bezirksvertretung") return "Antrag an die Bezirksvertretung";
+    const normalized = t.replace(/\s*\([^)]*\)\s*$/, "");
+    if (t === "Bezirksverordnetenversammlung" || t === "BVV" ||
+        normalized === "Bezirksverordnetenversammlung" || normalized === "BVV") return "BVV-Antrag";
+    if (t === "Bezirksrat" || normalized === "Bezirksrat") return "Bezirksratsantrag";
+    if (t === "Bezirksvertretung" || normalized === "Bezirksvertretung") return "Antrag an die Bezirksvertretung";
     return "Antrag zur Verkehrssicherheit";
   }
 
@@ -713,6 +715,11 @@
             children: [new TextRun({ text: "→ In Werkbank öffnen", style: "Hyperlink" })]
           })
         ],
+        spacing: { before: 200, after: 100 }
+      }));
+    } else if (metaLink) {
+      children.push(new Paragraph({
+        text: `→ In Werkbank öffnen: ${metaLink}`,
         spacing: { before: 200, after: 100 }
       }));
     }
