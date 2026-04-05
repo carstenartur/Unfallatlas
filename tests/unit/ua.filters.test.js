@@ -34,6 +34,8 @@ describe('UA.filters - Filter Logic', () => {
       incPedEl: { checked: true },
       incCarEl: { checked: true },
       incMotoEl: { checked: false },
+      incGkfzEl: { checked: false },
+      incSonEl: { checked: false },
       ...overrides,
     };
   }
@@ -55,7 +57,7 @@ describe('UA.filters - Filter Logic', () => {
       expect(UA.maskFromProps(pr)).toBe(1);
     });
 
-    test('alle vier Beteiligungen ergibt Maske 15', () => {
+    test('alle vier klassischen Beteiligungen ergibt Maske 15', () => {
       const pr = { istrad: '1', istfuss: '1', istpkw: '1', istkrad: '1' };
       expect(UA.maskFromProps(pr)).toBe(15);
     });
@@ -77,6 +79,31 @@ describe('UA.filters - Filter Logic', () => {
     test('Motorrad-only ergibt Maske 8', () => {
       const pr = { istrad: '0', istfuss: '0', istpkw: '0', istkrad: '1' };
       expect(UA.maskFromProps(pr)).toBe(8);
+    });
+
+    test('Gkfz-only ergibt Maske 16', () => {
+      const pr = { istrad: '0', istfuss: '0', istpkw: '0', istkrad: '0', istgkfz: '1', istsonstig: '0' };
+      expect(UA.maskFromProps(pr)).toBe(16);
+    });
+
+    test('Sonstig-only ergibt Maske 32', () => {
+      const pr = { istrad: '0', istfuss: '0', istpkw: '0', istkrad: '0', istgkfz: '0', istsonstig: '1' };
+      expect(UA.maskFromProps(pr)).toBe(32);
+    });
+
+    test('Rad+Gkfz ergibt Maske 17', () => {
+      const pr = { istrad: '1', istfuss: '0', istpkw: '0', istkrad: '0', istgkfz: '1' };
+      expect(UA.maskFromProps(pr)).toBe(17);
+    });
+
+    test('Fuss+Gkfz ergibt Maske 18', () => {
+      const pr = { istrad: '0', istfuss: '1', istpkw: '0', istkrad: '0', istgkfz: '1' };
+      expect(UA.maskFromProps(pr)).toBe(18);
+    });
+
+    test('alle sechs Beteiligungen ergibt Maske 63', () => {
+      const pr = { istrad: '1', istfuss: '1', istpkw: '1', istkrad: '1', istgkfz: '1', istsonstig: '1' };
+      expect(UA.maskFromProps(pr)).toBe(63);
     });
   });
 
@@ -149,6 +176,56 @@ describe('UA.filters - Filter Logic', () => {
         involvementMode: 'or',
       });
       expect(UA.matchesInvolvementFilter(ctx, 1)).toBe(false);
+    });
+
+    describe('Gkfz/Sonstig-Filter', () => {
+      test('Gkfz aktiviert im OR-Modus, Unfall mit Gkfz → true', () => {
+        const ctx = makeCtx({
+          ui: makeUi({ incBikeEl: { checked: false }, incPedEl: { checked: false }, incCarEl: { checked: false }, incMotoEl: { checked: false }, incGkfzEl: { checked: true } }),
+          involvementMode: 'or',
+        });
+        expect(UA.matchesInvolvementFilter(ctx, 16 /* gkfz */)).toBe(true);
+      });
+
+      test('Gkfz aktiviert, Unfall nur PKW → false', () => {
+        const ctx = makeCtx({
+          ui: makeUi({ incBikeEl: { checked: false }, incPedEl: { checked: false }, incCarEl: { checked: false }, incMotoEl: { checked: false }, incGkfzEl: { checked: true } }),
+          involvementMode: 'or',
+        });
+        expect(UA.matchesInvolvementFilter(ctx, 4 /* car */)).toBe(false);
+      });
+
+      test('Gkfz im SOLO-Modus, Unfall nur Gkfz → true', () => {
+        const ctx = makeCtx({
+          ui: makeUi({ incBikeEl: { checked: false }, incPedEl: { checked: false }, incCarEl: { checked: false }, incMotoEl: { checked: false }, incGkfzEl: { checked: true } }),
+          involvementMode: 'solo',
+        });
+        expect(UA.matchesInvolvementFilter(ctx, 16 /* gkfz only */)).toBe(true);
+      });
+
+      test('Gkfz im SOLO-Modus, Unfall Rad+Gkfz → false (zwei Beteiligte)', () => {
+        const ctx = makeCtx({
+          ui: makeUi({ incBikeEl: { checked: false }, incPedEl: { checked: false }, incCarEl: { checked: false }, incMotoEl: { checked: false }, incGkfzEl: { checked: true } }),
+          involvementMode: 'solo',
+        });
+        expect(UA.matchesInvolvementFilter(ctx, 17 /* rad+gkfz */)).toBe(false);
+      });
+
+      test('Bike+Gkfz im AND-Modus, Unfall Rad+Gkfz → true', () => {
+        const ctx = makeCtx({
+          ui: makeUi({ incBikeEl: { checked: true }, incPedEl: { checked: false }, incCarEl: { checked: false }, incMotoEl: { checked: false }, incGkfzEl: { checked: true } }),
+          involvementMode: 'and',
+        });
+        expect(UA.matchesInvolvementFilter(ctx, 17 /* rad+gkfz */)).toBe(true);
+      });
+
+      test('Sonstig aktiviert im OR-Modus, Unfall mit Sonstig → true', () => {
+        const ctx = makeCtx({
+          ui: makeUi({ incBikeEl: { checked: false }, incPedEl: { checked: false }, incCarEl: { checked: false }, incMotoEl: { checked: false }, incSonEl: { checked: true } }),
+          involvementMode: 'or',
+        });
+        expect(UA.matchesInvolvementFilter(ctx, 32 /* sonstig */)).toBe(true);
+      });
     });
   });
 

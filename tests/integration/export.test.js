@@ -702,7 +702,7 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
 
       // Header + 3 in-bounds points (the 4th is outside bounds)
       expect(lines).toHaveLength(4);
-      expect(lines[0]).toBe('lat,lon,year,ukategorie,IstRad,IstFuss,IstPKW,IstKrad,IstGkfz,ustunde,uwochentag,strzustand');
+      expect(lines[0]).toBe('lat,lon,year,ukategorie,IstRad,IstFuss,IstPKW,IstKrad,IstGkfz,IstSonstig,ustunde,uwochentag,strzustand');
     });
 
     test('should contain correct lat/lon values for each point', async () => {
