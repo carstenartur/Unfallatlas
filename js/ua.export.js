@@ -73,6 +73,8 @@
     if (mask === 17) return "Überrepräsentation von 🚲+🚛 (Rad+Gkfz) ist besonders gefährlich – häufig Abbiegeunfälle mit totem Winkel. Maßnahmen: Abbiegeassistent, Spiegel, getrennte Signalphasen, Radwegeführung an Knotenpunkten prüfen.";
     if (mask === 18) return "Überrepräsentation von 🚶+🚛 (Fuß+Gkfz) ist besonders gefährlich – häufig Abbiege-/Rangierunfälle. Maßnahmen: Sichtfelder, Schleppkurven, Fußgängerführung und separate Signalphasen prüfen.";
     if (mask === 20) return "Überrepräsentation von 🚗+🚛 kann auf Engstellen, ungeeignete Fahrbahnbreiten oder Überholprobleme hinweisen.";
+    if (mask === 21) return "Überrepräsentation von 🚲+🚗+🚛 spricht für komplexe Konflikte an Knotenpunkten mit Schwerverkehr – Radverkehrsführung und Abbiegesicherung prüfen.";
+    if (mask === 22) return "Überrepräsentation von 🚶+🚗+🚛 weist auf komplexe Querungssituationen mit Schwerverkehr hin – Sichtbeziehungen und Signalisierung prüfen.";
     return "Auffälligkeit kann auf lokale Führungs-/Sicht-/Querungsprobleme hinweisen; eine Ortsbegehung und Unfallkommissionsprüfung ist angezeigt.";
   }
 
