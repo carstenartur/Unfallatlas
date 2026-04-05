@@ -52,6 +52,7 @@ function videoExportRateLimit(req, res, next) {
   }
   history.push(now);
   exportRequests.set(ip, history);
+  activeExports++;
   next();
 }
 
@@ -87,7 +88,7 @@ app.get('/api/video-export-available', (_req, res) => {
 app.post('/api/export-video', videoExportRateLimit, async (req, res) => {
   const params = req.body || {};
 
-  activeExports++;
+  // Note: activeExports is incremented in videoExportRateLimit (before next())
   let gifPath = null;
   try {
     gifPath = await exportVideo(params);
