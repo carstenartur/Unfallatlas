@@ -6,16 +6,18 @@
  * unter `test-results/`.
  *
  * Story: Bonn → Radfahrer-Alleinunfälle filtern → Heatmap zeigt Hotspot →
- *        Heranzoomen → Bereich markieren → Export/Analyse → Ergebnis.
+ *        Heranzoomen → Bereich markieren → Export/Analyse → Antrag scrollen →
+ *        PDF-Export → Ergebnis.
  *
  * Der Test ist bewusst als EIN langer Ablauf angelegt, damit Playwright
  * ein durchgehendes Video aufzeichnet.
  */
 
 import { test, expect } from '@playwright/test';
+import { setupCDNRoutes } from './helpers.js';
 
-// Dem Demo-Test mehr Zeit geben (Video-Aufnahme + Pausen)
-test.setTimeout(180_000);
+// Dem Demo-Test mehr Zeit geben (Video-Aufnahme + Pausen + PDF-Export)
+test.setTimeout(300_000);
 
 /** Hilfsfunktion: Warten bis Städte geladen sind */
 async function waitForCities(page) {
@@ -64,6 +66,9 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
   test('Kompletter Demo-Flow', async ({ page }) => {
 
     // ── 1. Startansicht laden ──────────────────────────────────────────
+    // CDN-Routen für Export-Bibliotheken einrichten (pdfmake, docx, file-saver)
+    // Muss VOR page.goto geschehen, damit keine CDN-Anfragen verpasst werden.
+    await setupCDNRoutes(page);
     await page.goto('/werkbank_v2.html');
     await page.waitForLoadState('domcontentloaded');
     await waitForCities(page);
@@ -139,6 +144,30 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
       return prog && prog.textContent.includes('Fertig');
     }, { timeout: 30000 });
     await page.waitForTimeout(4000);
+
+    // ── 9b. Durch den generierten Antrag scrollen ──────────────────────
+    //    Der Report ist jetzt im #exportHtml sichtbar. Langsam durchscrollen,
+    //    damit der Antrag im Video lesbar ist.
+    const exportHtml = page.locator('#exportHtml');
+    // Scroll to top first
+    await exportHtml.evaluate(el => { el.scrollTop = 0; });
+    await page.waitForTimeout(2000);
+
+    // Langsam nach unten scrollen (in mehreren Schritten)
+    const scrollHeight = await exportHtml.evaluate(el => el.scrollHeight);
+    const steps = 5;
+    for (let i = 1; i <= steps; i++) {
+      await exportHtml.evaluate((el, pos) => {
+        el.scrollTo({ top: pos, behavior: 'smooth' });
+      }, Math.round((scrollHeight / steps) * i));
+      await page.waitForTimeout(1500);
+    }
+    await page.waitForTimeout(3000);
+
+    // ── 9c. PDF-Export demonstrieren ──────────────────────────────────
+    //    CDN-Routen sind bereits eingerichtet (setupCDNRoutes am Anfang).
+    await page.locator('#btnExportPDF').click();
+    await page.waitForTimeout(3000);
 
     // ── 10. Export-Modal schließen ──────────────────────────────────────
     await page.locator('#btnCloseModal').click();
