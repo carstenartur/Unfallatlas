@@ -27,7 +27,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const SERVER_URL = `http://localhost:${process.env.PORT || 8000}`;
+const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 const CDN_ROUTES = [
   {
     url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
@@ -95,7 +95,7 @@ async function flyToAndWait(page, lat, lng, zoom) {
  * @returns {Promise<string>}  Pfad zur erzeugten GIF-Datei (muss vom Aufrufer gelöscht werden)
  */
 async function exportVideo(params) {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'unfallatlas-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'unfallatlas-video-export-'));
   const videoDir = path.join(tmpDir, 'video');
   fs.mkdirSync(videoDir, { recursive: true });
 

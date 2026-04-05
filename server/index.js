@@ -12,6 +12,7 @@
 'use strict';
 
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 const { exportVideo } = require('./video-export.js');
 
@@ -21,6 +22,26 @@ const ROOT = path.resolve(__dirname, '..');
 
 // Parse JSON request bodies
 app.use(express.json());
+
+// Simple in-memory rate limiter for the video export endpoint
+// (video generation is expensive – allow at most 1 concurrent + 3/minute per IP)
+const exportRequests = new Map();
+function videoExportRateLimit(req, res, next) {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowMs = 60_000; // 1 minute
+  const maxPerWindow = 3;
+
+  const history = (exportRequests.get(ip) || []).filter(t => now - t < windowMs);
+  if (history.length >= maxPerWindow) {
+    return res.status(429).json({
+      error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.'
+    });
+  }
+  history.push(now);
+  exportRequests.set(ip, history);
+  next();
+}
 
 // Statische Werkbank-Dateien aus dem Repository-Root ausliefern
 app.use(express.static(ROOT, {
@@ -51,7 +72,7 @@ app.get('/api/video-export-available', (_req, res) => {
  *
  * Antwort: GIF-Datei als Download
  */
-app.post('/api/export-video', async (req, res) => {
+app.post('/api/export-video', videoExportRateLimit, async (req, res) => {
   const params = req.body || {};
 
   let gifPath = null;
@@ -65,14 +86,12 @@ app.post('/api/export-video', async (req, res) => {
         res.status(500).json({ error: 'Fehler beim Senden der Datei' });
       }
       // Temporäre Datei aufräumen
-      const fs = require('fs');
       try { fs.unlinkSync(gifPath); } catch (_) { /* ignore */ }
     });
   } catch (err) {
     console.error('[export-video] Fehler:', err);
     // Temporäre Datei aufräumen falls vorhanden
     if (gifPath) {
-      const fs = require('fs');
       try { fs.unlinkSync(gifPath); } catch (_) { /* ignore */ }
     }
     if (!res.headersSent) {
