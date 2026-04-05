@@ -236,6 +236,8 @@
         <label class="chip"><input type="checkbox" id="tFuss" checked> <span>🚶 Fuß</span></label>
         <label class="chip"><input type="checkbox" id="tPKW" checked> <span>🚗 PKW</span></label>
         <label class="chip"><input type="checkbox" id="tKrad"> <span>🏍️ Krad</span></label>
+        <label class="chip"><input type="checkbox" id="tGkfz"> <span>🚛 Gkfz</span></label>
+        <label class="chip"><input type="checkbox" id="tSon"> <span>🔷 Sonst.</span></label>
       </div>
 
       <div class="toggles" aria-label="Beteiligungsmodus">
@@ -362,6 +364,8 @@
     const tFussEl = document.getElementById('tFuss');
     const tPKWEl = document.getElementById('tPKW');
     const tKradEl = document.getElementById('tKrad');
+    const tGkfzEl = document.getElementById('tGkfz');
+    const tSonEl = document.getElementById('tSon');
 
     const btnModeOr = document.getElementById('modeOr');
     const btnModeAnd = document.getElementById('modeAnd');
@@ -414,6 +418,8 @@
       if (String(p?.istfuss) === "1") tags.push("🚶 Fuß");
       if (String(p?.istpkw) === "1") tags.push("🚗 PKW");
       if (String(p?.istkrad) === "1") tags.push("🏍️ Krad");
+      if (String(p?.istgkfz) === "1") tags.push("🚛 Gkfz");
+      if (String(p?.istsonstig) === "1") tags.push("🔷 Sonst.");
       return tags.length ? tags.join(", ") : "—";
     }
 
@@ -568,7 +574,9 @@
       const sFuss = tFussEl.checked;
       const sPKW  = tPKWEl.checked;
       const sKrad = tKradEl.checked;
-      const anySelected = sRad || sFuss || sPKW || sKrad;
+      const sGkfz = tGkfzEl ? tGkfzEl.checked : false;
+      const sSon  = tSonEl ? tSonEl.checked : false;
+      const anySelected = sRad || sFuss || sPKW || sKrad || sGkfz || sSon;
 
       const out = [];
       for (const p of allPts) {
@@ -601,6 +609,8 @@
         const isFuss = String(pr?.istfuss) === "1";
         const isPKW  = String(pr?.istpkw)  === "1";
         const isKrad = String(pr?.istkrad) === "1";
+        const isGkfz = String(pr?.istgkfz) === "1";
+        const isSon  = String(pr?.istsonstig) === "1";
 
         if (!anySelected) continue;
 
@@ -609,26 +619,34 @@
             (sRad  && isRad)  ||
             (sFuss && isFuss) ||
             (sPKW  && isPKW)  ||
-            (sKrad && isKrad);
+            (sKrad && isKrad) ||
+            (sGkfz && isGkfz) ||
+            (sSon  && isSon);
           if (!ok) continue;
         } else if (involvementMode === "and") {
           if (sRad  && !isRad)  continue;
           if (sFuss && !isFuss) continue;
           if (sPKW  && !isPKW)  continue;
           if (sKrad && !isKrad) continue;
+          if (sGkfz && !isGkfz) continue;
+          if (sSon  && !isSon)  continue;
         } else if (involvementMode === "solo") {
           const involvedCount =
             (isRad  ? 1 : 0) +
             (isFuss ? 1 : 0) +
             (isPKW  ? 1 : 0) +
-            (isKrad ? 1 : 0);
+            (isKrad ? 1 : 0) +
+            (isGkfz ? 1 : 0) +
+            (isSon  ? 1 : 0);
           if (involvedCount !== 1) continue;
 
           const ok =
             (sRad  && isRad)  ||
             (sFuss && isFuss) ||
             (sPKW  && isPKW)  ||
-            (sKrad && isKrad);
+            (sKrad && isKrad) ||
+            (sGkfz && isGkfz) ||
+            (sSon  && isSon);
           if (!ok) continue;
         }
 
@@ -689,7 +707,9 @@
         tRadEl.checked ? "Rad" : null,
         tFussEl.checked ? "Fuß" : null,
         tPKWEl.checked ? "PKW" : null,
-        tKradEl.checked ? "Krad" : null
+        tKradEl.checked ? "Krad" : null,
+        tGkfzEl && tGkfzEl.checked ? "Gkfz" : null,
+        tSonEl && tSonEl.checked ? "Sonst." : null
       ].filter(Boolean).join(", ");
 
       const modeLabel =
@@ -751,7 +771,7 @@
         applyGlobalFilter(); applyViewportFilter(); renderLayers();
       });
 
-      for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl]) {
+      for (const el of [tRadEl, tFussEl, tPKWEl, tKradEl, tGkfzEl, tSonEl].filter(Boolean)) {
         el.addEventListener('change', () => {
           applyGlobalFilter();
           applyViewportFilter();

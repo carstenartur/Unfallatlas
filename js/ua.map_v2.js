@@ -29,23 +29,13 @@
 
     const fmtPct = (x) => ((x * 100).toFixed(1)).replace(".", ",") + " %";
 
-    const DEFAULT_COMBO_LABEL = {
-      1: "🚲",
-      2: "🚶",
-      4: "🚗",
-      8: "🏍️",
-      3: "🚲+🚶",
-      5: "🚲+🚗",
-      6: "🚗+🚶",
-      7: "🚲+🚗+🚶",
-      9: "🚲+🏍️",
-      10: "🚶+🏍️",
-      12: "🚗+🏍️",
-      11: "🚲+🚶+🏍️",
-      13: "🚲+🚗+🏍️",
-      14: "🚶+🚗+🏍️",
-      15: "🚲+🚶+🚗+🏍️",
-    };
+    const DEFAULT_COMBO_LABEL = {};
+    (function() {
+      const bits = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🔷"]];
+      for (let m = 1; m <= 63; m++) {
+        DEFAULT_COMBO_LABEL[m] = bits.filter(([b]) => m & b).map(([,e]) => e).join("+");
+      }
+    })();
 
     const labelForMask = (m) => {
       const map = UA.COMBO_LABEL || UA.COMBO_LABELS || DEFAULT_COMBO_LABEL;
@@ -58,7 +48,9 @@
       const isPed = String(pr?.istfuss) === "1";
       const isCar = String(pr?.istpkw) === "1";
       const isMoto = String(pr?.istkrad) === "1";
-      return (isBike ? 1 : 0) | (isPed ? 2 : 0) | (isCar ? 4 : 0) | (isMoto ? 8 : 0);
+      const isGkfz = String(pr?.istgkfz) === "1";
+      const isSon = String(pr?.istsonstig) === "1";
+      return (isBike ? 1 : 0) | (isPed ? 2 : 0) | (isCar ? 4 : 0) | (isMoto ? 8 : 0) | (isGkfz ? 16 : 0) | (isSon ? 32 : 0);
     };
 
     function computeClusterCounts(markers) {

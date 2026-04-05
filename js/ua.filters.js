@@ -1,30 +1,21 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
-  UA.COMBO_LABEL = {
-    1:  "🚲",
-    2:  "🚶",
-    4:  "🚗",
-    8:  "🏍️",
-    5:  "🚲+🚗",
-    3:  "🚲+🚶",
-    6:  "🚗+🚶",
-    7:  "🚲+🚗+🚶",
-    9:  "🚲+🏍️",
-    12: "🚗+🏍️",
-    10: "🚶+🏍️",
-    11: "🚲+🚶+🏍️",
-    13: "🚲+🚗+🏍️",
-    14: "🚶+🚗+🏍️",
-    15: "🚲+🚶+🚗+🏍️"
-  };
+  // 6-Bit-Maske: Rad=1, Fuß=2, PKW=4, Krad=8, Gkfz=16, Sonstig=32
+  const COMBO_BITS = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🔷"]];
+  UA.COMBO_LABEL = {};
+  for (let m = 1; m <= 63; m++) {
+    UA.COMBO_LABEL[m] = COMBO_BITS.filter(([b]) => m & b).map(([,e]) => e).join("+");
+  }
 
   UA.maskFromProps = function maskFromProps(pr){
     const isBike = String(pr?.istrad)==="1";
     const isPed  = String(pr?.istfuss)==="1";
     const isCar  = String(pr?.istpkw)==="1";
     const isMoto = String(pr?.istkrad)==="1";
-    return (isBike?1:0) | (isPed?2:0) | (isCar?4:0) | (isMoto?8:0);
+    const isGkfz = String(pr?.istgkfz)==="1";
+    const isSon  = String(pr?.istsonstig)==="1";
+    return (isBike?1:0) | (isPed?2:0) | (isCar?4:0) | (isMoto?8:0) | (isGkfz?16:0) | (isSon?32:0);
   };
 
   UA.matchesNonInvolvementFilters = function matchesNonInvolvementFilters(ctx, pr){
@@ -66,26 +57,32 @@
     const wantPed  = ui.incPedEl.checked;
     const wantCar  = ui.incCarEl.checked;
     const wantMoto = ui.incMotoEl.checked;
-    const anySelected = wantBike || wantPed || wantCar || wantMoto;
+    const wantGkfz = ui.incGkfzEl ? ui.incGkfzEl.checked : false;
+    const wantSon  = ui.incSonEl ? ui.incSonEl.checked : false;
+    const anySelected = wantBike || wantPed || wantCar || wantMoto || wantGkfz || wantSon;
     if (!anySelected) return false;
 
     const hasBike = (mask & 1) !== 0;
     const hasPed  = (mask & 2) !== 0;
     const hasCar  = (mask & 4) !== 0;
     const hasMoto = (mask & 8) !== 0;
+    const hasGkfz = (mask & 16) !== 0;
+    const hasSon  = (mask & 32) !== 0;
 
     if (ctx.involvementMode === "or") {
-      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto);
+      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto) || (wantGkfz && hasGkfz) || (wantSon && hasSon);
     } else if (ctx.involvementMode === "and") {
       if (wantBike && !hasBike) return false;
       if (wantPed  && !hasPed)  return false;
       if (wantCar  && !hasCar)  return false;
       if (wantMoto && !hasMoto) return false;
+      if (wantGkfz && !hasGkfz) return false;
+      if (wantSon  && !hasSon)  return false;
       return true;
     } else if (ctx.involvementMode === "solo") {
-      const count = (hasBike?1:0)+(hasPed?1:0)+(hasCar?1:0)+(hasMoto?1:0);
+      const count = (hasBike?1:0)+(hasPed?1:0)+(hasCar?1:0)+(hasMoto?1:0)+(hasGkfz?1:0)+(hasSon?1:0);
       if (count !== 1) return false;
-      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto);
+      return (wantBike && hasBike) || (wantPed && hasPed) || (wantCar && hasCar) || (wantMoto && hasMoto) || (wantGkfz && hasGkfz) || (wantSon && hasSon);
     }
     return true;
   };
