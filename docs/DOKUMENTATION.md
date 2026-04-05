@@ -664,6 +664,43 @@ Nach dem erstmaligen Laden der Seite und der Daten (GeoJSON) funktionieren Filte
 
 ---
 
+## Video-Export (Docker)
+
+Die Docker-Distribution der Unfallwerkbank (`ghcr.io/carstenartur/unfallatlas`) bietet einen zusätzlichen **„🎬 Als Video exportieren"-Button** im Export-Bereich, der auf GitHub Pages nicht vorhanden ist.
+
+### Funktion
+
+Der Video-Export erzeugt ein animiertes GIF, das den **kompletten Analyse-Ablauf** zeigt:
+
+1. Standardansicht (Default-Einstellungen, Hannover)
+2. Stadt aus der aktuellen Auswahl wird im Dropdown gesetzt
+3. Alle Filter werden nacheinander sichtbar gesetzt (Schwere, Beteiligung, Modus, Uhrzeit, Wochentag, Fahrbahnzustand)
+4. Darstellungsoptionen werden aktiviert (Heatmap, Cluster, Hotspots)
+5. Karte fliegt zur gewünschten Position
+6. Bereich wird markiert (falls vorhanden)
+7. Export-Modal öffnet – durch den Bezirksratsantrag wird gescrollt
+8. PDF-Export wird demonstriert
+
+### Nutzung
+
+```bash
+# Docker-Image starten
+docker run -p 8000:8000 ghcr.io/carstenartur/unfallatlas
+# → http://localhost:8000 öffnen
+
+# Werkbank konfigurieren: Stadt wählen, Filter setzen, Bereich markieren
+# → „🎬 Als Video exportieren" klicken
+# → GIF wird generiert und automatisch heruntergeladen (1–2 Minuten)
+```
+
+### Technische Details
+
+- Playwright (Headless-Chromium) nimmt den Ablauf als `.webm` auf
+- `ffmpeg` konvertiert das Video zu einem optimierten GIF (800px breit, 4fps, Palette-Optimierung)
+- Temporäre Dateien werden nach dem Download automatisch bereinigt
+
+---
+
 ## Methodik und Grenzen
 
 ### Datengrundlage
