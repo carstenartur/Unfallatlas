@@ -136,6 +136,8 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     // ── 9. Export / Analyse öffnen ─────────────────────────────────────
     //    Zeigt den Report für den markierten Bereich: Überrepräsentationen,
     //    Schwereverteilung, POI-Analyse (Schulen, Kitas).
+    await page.locator('#btnOpenExport').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay').waitFor({ state: 'visible' });
     // Warten bis Report generiert ist
@@ -146,23 +148,24 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.waitForTimeout(4000);
 
     // ── 9b. Durch den generierten Antrag scrollen ──────────────────────
-    //    Der Report ist jetzt im #exportHtml sichtbar. Langsam durchscrollen,
-    //    damit der Antrag im Video lesbar ist.
-    const exportHtml = page.locator('#exportHtml');
+    //    Das .modal-Element ist der scrollbare Container (overflow: auto).
+    //    Langsam durchscrollen, damit der Antrag im Video lesbar ist.
+    const modal = page.locator('#modalOverlay .modal');
     // Scroll to top first
-    await exportHtml.evaluate(el => { el.scrollTop = 0; });
+    await modal.evaluate(el => { el.scrollTop = 0; });
     await page.waitForTimeout(2000);
 
     // Langsam nach unten scrollen (in mehreren Schritten)
-    const scrollHeight = await exportHtml.evaluate(el => el.scrollHeight);
-    const steps = 5;
+    // 6 Schritte (statt 5) damit der gesamte Antrag lesbar gescrollt wird
+    const scrollHeight = await modal.evaluate(el => el.scrollHeight);
+    const steps = 6;
     for (let i = 1; i <= steps; i++) {
-      await exportHtml.evaluate((el, pos) => {
+      await modal.evaluate((el, pos) => {
         el.scrollTo({ top: pos, behavior: 'smooth' });
       }, Math.round((scrollHeight / steps) * i));
       await page.waitForTimeout(1500);
     }
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(2000);
 
     // ── 9c. PDF-Export demonstrieren ──────────────────────────────────
     //    CDN-Routen sind bereits eingerichtet (setupCDNRoutes am Anfang).

@@ -309,6 +309,12 @@ Der Export-Text spiegelt die aktuellen Einstellungen wider:
 
 [![Export mit Filterkontext](screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000&export=1)
 
+#### Antrag-Inhalt (Sachverhalt und Statistik)
+
+Der folgende Screenshot zeigt den Inhalt des generierten Bezirksratsantrags mit Sachverhalt, Statistik und POI-Analyse:
+
+[![Antrag-Inhalt](screenshots/16-antrag-inhalt.png)](screenshots/16-antrag-inhalt.png)
+
 #### Export-Optionen
 
 | Option | Beschreibung |
