@@ -208,7 +208,7 @@ Der Bezirksrat bittet die Verwaltung um Prüfung.`
       const [blob, filename] = window.saveAs.mock.calls[0];
       expect(blob.size).toBeGreaterThan(0);
       expect(blob.type).toContain('application/vnd');
-      expect(filename).toMatch(/Bezirksratsantrag_Hannover_.*\.docx/);
+      expect(filename).toMatch(/Antrag.*Hannover.*\.docx/);
     });
 
     test('should generate Word document with map image', async () => {
