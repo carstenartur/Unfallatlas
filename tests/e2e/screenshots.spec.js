@@ -84,8 +84,14 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   test('07 Export-Modal', async ({ page }) => {
     await loadPage(page);
     await waitForCities(page);
+    await waitForData(page);
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const prog = document.querySelector('#exportProgress');
+      return prog && prog.textContent.includes('Fertig');
+    }, { timeout: 30000 });
+    await page.waitForTimeout(1000);
     await page.screenshot({ path: 'docs/screenshots/07-export-modal.png', fullPage: true });
   });
 
@@ -165,9 +171,40 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       '&centerLat=50.7330&centerLon=7.0950&zoom=15' +
       '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
     await waitForCities(page);
+    await waitForData(page);
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const prog = document.querySelector('#exportProgress');
+      return prog && prog.textContent.includes('Fertig');
+    }, { timeout: 30000 });
+    await page.waitForTimeout(1000);
     await page.screenshot({ path: 'docs/screenshots/14-export-filterkontext.png', fullPage: true });
+  });
+
+  test('16 Antrag-Inhalt (durchgescrollt)', async ({ page }) => {
+    test.setTimeout(60000);
+    await loadPage(page,
+      '?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0' +
+      '&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0' +
+      '&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18' +
+      '&centerLat=50.7330&centerLon=7.0950&zoom=15' +
+      '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
+    await waitForCities(page);
+    await waitForData(page);
+    await page.locator('#btnOpenExport').click();
+    await page.locator('#modalOverlay').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const prog = document.querySelector('#exportProgress');
+      return prog && prog.textContent.includes('Fertig');
+    }, { timeout: 30000 });
+    // Modal zum Antragsteil scrollen damit der Inhalt sichtbar ist
+    const modal = page.locator('#modalOverlay .modal');
+    const scrollHeight = await modal.evaluate(el => el.scrollHeight);
+    await modal.evaluate((el, pos) => el.scrollTo({ top: pos, behavior: 'instant' }),
+      Math.round(scrollHeight * 0.3));
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'docs/screenshots/16-antrag-inhalt.png', fullPage: false });
   });
 });
 
