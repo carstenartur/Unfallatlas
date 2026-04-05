@@ -30,7 +30,7 @@
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
-    "pdfjs-dist": "^5.6.205"
+    "pdfjs-dist": "^4.10.38"
   },
   "jest": {
     "testEnvironment": "jsdom",
