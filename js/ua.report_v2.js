@@ -345,16 +345,17 @@
 
     // ---- 3. Rahmendaten (metadata box) ----
     const metaLink    = (sd && sd.meta && sd.meta.link) || "";
+    const IS_LINK = true;
     const kvRahmen = [
       ["Dokumenttyp", docTitle, false],
-      gremiumMeta.gremium   ? ["Gremium",              gremiumMeta.gremium,   false] : null,
-      gremiumMeta.typ       ? ["Gremiumstyp",          gremiumMeta.typ,       false] : null,
-      gremiumMeta.kontakt   ? ["Kontakt",               gremiumMeta.kontakt,   false] : null,
-      metaArea              ? ["Bereich",               metaArea,              false] : null,
-      metaCity              ? ["Stadt",                 metaCity,              false] : null,
-      metaDate              ? ["Exportdatum",           metaDate,              false] : null,
-      metaLink              ? ["Werkbank-Link",         metaLink,              true]  : null,
-      gremiumMeta.hinweis   ? ["Zuständigkeitshinweis", gremiumMeta.hinweis,   false] : null
+      gremiumMeta.gremium   ? ["Gremium",              gremiumMeta.gremium,   false]   : null,
+      gremiumMeta.typ       ? ["Gremiumstyp",          gremiumMeta.typ,       false]   : null,
+      gremiumMeta.kontakt   ? ["Kontakt",               gremiumMeta.kontakt,   false]   : null,
+      metaArea              ? ["Bereich",               metaArea,              false]   : null,
+      metaCity              ? ["Stadt",                 metaCity,              false]   : null,
+      metaDate              ? ["Exportdatum",           metaDate,              false]   : null,
+      metaLink              ? ["Werkbank-Link",         metaLink,              IS_LINK] : null,
+      gremiumMeta.hinweis   ? ["Zuständigkeitshinweis", gremiumMeta.hinweis,   false]   : null
     ].filter(Boolean);
 
     if (kvRahmen.length > 0) {
@@ -743,11 +744,14 @@
       .replace(/[^a-zA-Z0-9-]/g, "")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "");
-    // Use dynamic title prefix for filename
+    // Use dynamic title prefix for filename (normalize same way as citySlug)
     const titleSlug = docTitle
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/\s+/g, "-")
-      .replace(/[^a-zA-Z0-9-äöüÄÖÜß]/g, "")
-      .replace(/-+/g, "-");
+      .replace(/[^a-zA-Z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
     const filename = `${titleSlug}_${citySlug}_${today.replace(/\./g, "-")}.docx`;
     
     if (window.saveAs) {
