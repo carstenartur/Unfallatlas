@@ -753,27 +753,24 @@ test.describe('Werkbank V2 - Cross Table and Accident Details in Export Modal', 
     const modal = page.locator('#modalOverlay .modal');
     await modal.waitFor({ state: 'visible' });
 
-    // Wait for report to generate (should contain cross-table)
-    await page.waitForTimeout(2000);
+    // Wait for report to generate – the HTML report is rendered into #exportHtml
+    // Wait until it contains 'Beteiligungskombination' (cross-table heading)
+    const reportHtml = page.locator('#exportHtml');
+    await expect(reportHtml).toContainText('Beteiligungskombination', { timeout: 15000 });
 
-    // Check for cross-table heading in the export HTML
-    const reportHtml = page.locator('#exportBoxHtml');
     const htmlContent = await reportHtml.innerHTML();
 
-    // Cross-table should be present if accidents are in the selected area
-    // The table heading "Beteiligungskombination × Schweregrad" should appear
-    if (htmlContent.includes('Beteiligungskombination')) {
-      expect(htmlContent).toContain('Getötete');
-      expect(htmlContent).toContain('Schwerverletzt');
-      expect(htmlContent).toContain('Leichtverletzt');
-      expect(htmlContent).toContain('Gesamt');
-    }
+    // Cross-table should be present for the selected area with accidents
+    expect(htmlContent).toContain('Beteiligungskombination');
+    expect(htmlContent).toContain('Getötete');
+    expect(htmlContent).toContain('Schwerverletzt');
+    expect(htmlContent).toContain('Leichtverletzt');
+    expect(htmlContent).toContain('Gesamt');
 
-    // Check for accident details table
-    if (htmlContent.includes('Einzelunfälle im Bereich')) {
-      expect(htmlContent).toContain('Jahr');
-      expect(htmlContent).toContain('Schwere');
-      expect(htmlContent).toContain('Beteiligte');
-    }
+    // Accident details table should also be present
+    expect(htmlContent).toContain('Einzelunfälle im Bereich');
+    expect(htmlContent).toContain('Jahr');
+    expect(htmlContent).toContain('Schwere');
+    expect(htmlContent).toContain('Beteiligte');
   });
 });

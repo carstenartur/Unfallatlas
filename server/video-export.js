@@ -160,13 +160,14 @@ async function exportVideo(params) {
     }
 
     // ── 4. Beteiligungsfilter setzen ────────────────────────────────────────
-    //    Standard: alle an, also nur abwählen wenn explizit auf 0 gesetzt.
+    //    Defaults match werkbank_v2.html UI:
+    //    Rad/Fuß/PKW are checked by default, Krad/Gkfz/Sonstig are unchecked.
     const bikeWanted   = params.includeCyclist    !== '0';
     const pedWanted    = params.includePedestrian !== '0';
     const carWanted    = params.includeCar        !== '0';
-    const motoWanted   = params.includeMotorcycle !== '0';
-    const gkfzWanted   = params.includeGkfz       !== '0';
-    const sonWanted    = params.includeSonstig    !== '0';
+    const motoWanted   = params.includeMotorcycle === '1';
+    const gkfzWanted   = params.includeGkfz       === '1';
+    const sonWanted    = params.includeSonstig    === '1';
 
     const incBike = page.locator('#incBike');
     const incPed  = page.locator('#incPed');

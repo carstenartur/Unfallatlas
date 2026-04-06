@@ -713,7 +713,8 @@ unterstützten Parameter auf:
 |---|---|---|---|
 | `export` | Export-Modal beim Laden öffnen | `0` / `1` | `0` |
 | `tour` | Tour-Datei laden | `demo`, URL | (keine) |
-| `showSchools` | Schulen/Kitas auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 15) |
+| `showSchools` | Schulen auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
+| `showKindergartens` | Kindergärten/Kitas auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
 
 **Beispiel-URL:**
 ```
