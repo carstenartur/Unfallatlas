@@ -112,7 +112,8 @@ Bezugsdokumente:
 Die Ideale Kreuzung - Leitfaden für sichere Knotenpunkte
 
 Beschlussvorschlag:
-Der Bezirksrat bittet die Verwaltung, den markierten Bereich zu prüfen.`
+Der Bezirksrat bittet die Verwaltung, den markierten Bereich zu prüfen.`,
+        structured: { meta: { gremium: { typ: 'Bezirksrat' } } }
       };
 
       const options = {
@@ -379,7 +380,8 @@ Bezugsdokumente:
 Verkehrssicherheitskonzept Düsseldorf 2025
 
 Beschlussvorschlag:
-Der Bezirksrat bittet um umfassende Prüfung und Maßnahmen.`
+Der Bezirksrat bittet um umfassende Prüfung und Maßnahmen.`,
+        structured: { meta: { gremium: { typ: 'Bezirksrat' } } }
       };
 
       const options = {

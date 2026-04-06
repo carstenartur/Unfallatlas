@@ -19,6 +19,8 @@
   - [Bereich markieren (Zeichnen)](#bereich-markieren-zeichnen)
   - [POI-Ansicht: Schulen und Kindergärten](#poi-ansicht-schulen-und-kindergärten)
   - [Export und Bezirksratsantrag](#export-und-bezirksratsantrag)
+  - [Tour-System (Player + Recorder)](#tour-system-player--recorder)
+  - [Showcase-Seite](#showcase-seite)
 - [Praxisbeispiele: Unfallanalyse in Bonn](#praxisbeispiele-unfallanalyse-in-bonn)
 - [CLI-Skripte (Kurzreferenz)](#cli-skripte-kurzreferenz)
 - [Datenquelle & Lizenz](#datenquelle--lizenz)
@@ -42,7 +44,7 @@ Sie ermöglicht:
 - **Darstellung** der Unfälle als Cluster-Karte oder Heatmap
 - **Bereich markieren** – gezieltes Auswählen eines Kartenausschnitts für die Auswertung
 - **POI-Anzeige** – Schulen, Kindergärten und Kitas in der Nähe von Unfallschwerpunkten sichtbar machen
-- **Export** als PDF oder Word-Dokument – z. B. als Vorlage für Bezirksratsanträge
+- **Export** als PDF, Word-Dokument, CSV, GeoJSON oder KML – z. B. als Vorlage für Bezirksratsanträge oder zur Weiterverarbeitung in GIS-Systemen
 
 [![Startansicht der Unfallwerkbank V2](screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
@@ -294,6 +296,8 @@ Die Werkbank erstellt diesen Text automatisch auf Basis der aktuell eingestellte
 und des markierten Bereichs. Der Antrag ist als **Entwurf** gedacht und soll vor dem
 Einreichen von der antragstellenden Person überarbeitet und ergänzt werden.
 
+Der Dokumenttitel wird automatisch aus dem Gremientyp der jeweiligen Stadt abgeleitet (z. B. „Bezirksratsantrag" für Hannover, „BVV-Antrag" für Berlin). Für Städte ohne spezifische Gremiendaten wird der generische Titel „Antrag zur Verkehrssicherheit" verwendet.
+
 #### Zusammenhang zwischen Filtern und Export
 
 Der Export-Text spiegelt die aktuellen Einstellungen wider:
@@ -314,6 +318,15 @@ Der Export-Text spiegelt die aktuellen Einstellungen wider:
 #### Antrag-Inhalt (Sachverhalt und Statistik)
 
 Der folgende Screenshot zeigt den Inhalt des generierten Bezirksratsantrags mit Sachverhalt, Statistik und POI-Analyse:
+
+Der Export enthält darüber hinaus folgende zusätzliche Bestandteile:
+
+- **Rahmendaten (Metadatenbox)** – An/Stadt/Bereich/Datum/Gremium
+- **Aktive Filter-Tabelle** – Übersicht aller aktuell gesetzten Filtereinstellungen
+- **Kreuztabelle** – Beteiligungskombinationen × Schweregrad
+- **Einzelunfall-Tabelle** – Auflistung der einzelnen Unfälle im Bereich
+- **Detailkarte** – Vergrößerter Kartenausschnitt des markierten Bereichs
+- **Anlagen-Block** – Anlagen mit Kartenansicht, statistischer Übersicht und fachlichen Bezügen
 
 [![Antrag-Inhalt](screenshots/16-antrag-inhalt.png)](screenshots/16-antrag-inhalt.png)
 
@@ -336,11 +349,65 @@ Der generierte **Link** enthält alle Filtereinstellungen und den markierten Ber
 URL-Parameter. So kann die exakte Analyse jederzeit reproduziert und an andere Personen
 weitergegeben werden.
 
+#### Kreuztabelle (Beteiligungskombination × Schweregrad)
+
+Der Export enthält eine **Kreuztabelle**, die alle Beteiligungskombinationen (z. B. Rad+PKW, Fuß+Lkw) gegen die Schweregrade (Getötete, Schwer-, Leichtverletzte) aufschlüsselt. Die aktuell aktive Filterkombination wird in der Tabelle **gelb hervorgehoben**, sodass auf einen Blick erkennbar ist, welche Kombination der Auswertung zugrunde liegt.
+
+#### Einzelunfall-Tabelle
+
+Die **Einzelunfall-Tabelle** listet die einzelnen Unfälle im markierten Bereich auf (maximal 50 Einträge). Jede Zeile enthält:
+
+- **Jahr** des Unfalls
+- **Schweregrad** (Getötete / Schwer- / Leichtverletzte)
+- **Beteiligungsart** (z. B. Rad, PKW, Fuß)
+- **Uhrzeit** des Unfalls
+- **Koordinaten** (Breitengrad / Längengrad)
+
+#### Detailkarte
+
+Wenn ein **Auswahlrechteck** auf der Karte vorhanden ist, wird im Export zusätzlich zur Übersichtskarte eine **vergrößerte Detailkarte** des markierten Bereichs gerendert. So ist der relevante Kartenausschnitt im Dokument direkt sichtbar.
+
+#### Rahmendaten und Filter-Tabelle
+
+Der Export (Word und PDF) enthält eine **Metadatenbox** mit folgenden Rahmendaten:
+
+- **An** – Adressat des Antrags
+- **Stadt** – Ausgewählte Stadt
+- **Bereich** – Beschreibung des markierten Bereichs
+- **Datum** – Erstellungsdatum des Exports
+- **Gremium** – Zuständiges Gremium (z. B. Bezirksrat, BVV)
+
+Zusätzlich wird eine **Aktive-Filter-Tabelle** eingefügt, die alle zum Zeitpunkt des Exports gesetzten Filtereinstellungen (Schwere, Beteiligung, Modus, Zeitraum, Fahrbahnzustand etc.) übersichtlich auflistet.
+
+#### Anlagen-Block
+
+Word- und PDF-Exporte enthalten am Ende einen **Anlagen-Block** mit folgenden Anlagen:
+
+- **Anlage 1: Kartenansicht** – Kartenbild des analysierten Bereichs
+- **Anlage 2: Statistische Übersicht** – Zusammenfassung der Unfalldaten und Vergleichswerte
+- **Anlage 3: Fachliche Bezüge** – Referenzen auf Regelwerke, Studien und weitere Quellen
+
 #### Vorschau: Generierter PDF-Export
 
 Der folgende Screenshot zeigt den Inhalt eines automatisch generierten PDF-Bezirksratsantrags:
 
 [![Gerendeter PDF-Export](screenshots/15-export-pdf-rendered.png)](screenshots/15-export-pdf-rendered.png)
+
+---
+
+### Tour-System (Player + Recorder)
+
+Die Werkbank V2 unterstützt das **Aufzeichnen und Abspielen interaktiver Touren**. Touren ermöglichen es, Analyse-Workflows Schritt für Schritt zu demonstrieren – z. B. für Schulungen, Präsentationen oder zur Dokumentation typischer Abläufe.
+
+- **Tour-Player** – Wird über den URL-Parameter `?tour=demo` aktiviert. Der Player spielt eine gespeicherte Tour ab und führt den Nutzer durch die einzelnen Schritte der Analyse.
+- **Tour-Recorder** – Ermöglicht das interaktive Erstellen neuer Touren. Aktionen werden aufgezeichnet und können anschließend als Tour-Datei gespeichert werden.
+- **Speicherformat** – Touren werden als JSON-Dateien im Verzeichnis `tours/` abgelegt.
+
+---
+
+### Showcase-Seite
+
+Die Datei `showcase.html` stellt eine **einbettbare Showcase-Seite** bereit, die für Präsentationen und externe Einbindungen gedacht ist. Die Werkbank wird in einem **iframe** geladen, sodass Analysen direkt in anderen Webseiten oder Präsentationsumgebungen angezeigt werden können.
 
 ---
 
@@ -645,10 +712,13 @@ unterstützten Parameter auf:
 | Parameter | Beschreibung | Werte | Standard |
 |---|---|---|---|
 | `export` | Export-Modal beim Laden öffnen | `0` / `1` | `0` |
+| `tour` | Tour-Datei laden | `demo`, URL | (keine) |
+| `showSchools` | Schulen auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
+| `showKindergartens` | Kindergärten/Kitas auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
 
 **Beispiel-URL:**
 ```
-werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
+werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&includeGkfz=1&includeSonstig=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
 ```
 
 ---
@@ -693,6 +763,8 @@ Der Video-Export erzeugt ein animiertes GIF, das den **kompletten Analyse-Ablauf
 6. Bereich wird markiert (falls vorhanden)
 7. Export-Modal öffnet – durch den Bezirksratsantrag wird gescrollt
 8. PDF-Export wird demonstriert
+
+> **Hinweis:** Der Video-Export berücksichtigt alle 6 Beteiligungsfilter – einschließlich Gkfz (Güter-Kfz) und Sonstig.
 
 ### Nutzung
 

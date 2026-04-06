@@ -773,6 +773,42 @@
 
     const textOut = lines.join("\n").replace(/\n{3,}/g, "\n\n");
 
+    // ---- Compute active filter mask for cross-table highlighting ----
+    // Build a bitmask from the currently checked involvement checkboxes
+    const activeFilterMask = (function () {
+      if (!ctx.ui) return 0;
+      let m = 0;
+      if (ctx.ui.incBikeEl && ctx.ui.incBikeEl.checked) m |= 1;
+      if (ctx.ui.incPedEl  && ctx.ui.incPedEl.checked)  m |= 2;
+      if (ctx.ui.incCarEl  && ctx.ui.incCarEl.checked)  m |= 4;
+      if (ctx.ui.incMotoEl && ctx.ui.incMotoEl.checked) m |= 8;
+      if (ctx.ui.incGkfzEl && ctx.ui.incGkfzEl.checked) m |= 16;
+      if (ctx.ui.incSonEl  && ctx.ui.incSonEl.checked)  m |= 32;
+      return m;
+    })();
+
+    /**
+     * Check if a cross-table row mask matches the active filter.
+     * - "solo" mode: highlight rows whose mask is a single bit that is part of activeFilterMask
+     * - "and" mode: highlight rows whose mask contains all bits from activeFilterMask
+     * - "or" mode: highlight rows whose mask overlaps with activeFilterMask
+     */
+    function isActiveFilterRow(rowMask) {
+      if (activeFilterMask === 0) return false;
+      const mode = ctx.involvementMode || "or";
+      if (mode === "solo") {
+        // Solo: exactly one bit set, and that bit is in the active mask
+        const isSingleBit = rowMask > 0 && (rowMask & (rowMask - 1)) === 0;
+        return isSingleBit && (rowMask & activeFilterMask) !== 0;
+      }
+      if (mode === "and") {
+        // AND: the row must contain ALL active filter bits
+        return (rowMask & activeFilterMask) === activeFilterMask;
+      }
+      // OR: any overlap
+      return (rowMask & activeFilterMask) !== 0;
+    }
+
     // ---- HTML (Modal) ----
     const focusRows = dev.focus.length ? dev.focus : dev.rows.slice(0, 5);
 
@@ -913,7 +949,7 @@
             <tr><th>Kombination</th><th style="text-align:right;">Getötete</th><th style="text-align:right;">Schwerverletzt</th><th style="text-align:right;">Leichtverletzt</th><th style="text-align:right;">Summe</th></tr>
           </thead>
           <tbody>
-            ${crossTable.rows.map(r => `<tr><td>${UA.escHtml(r.label)}</td><td style="text-align:right;">${r.sev1}</td><td style="text-align:right;">${r.sev2}</td><td style="text-align:right;">${r.sev3}</td><td style="text-align:right; font-weight:700;">${r.total}</td></tr>`).join("")}
+            ${crossTable.rows.map(r => `<tr${isActiveFilterRow(r.mask) ? ' style="background-color:#FFFFCC; font-weight:600;"' : ''}><td>${UA.escHtml(r.label)}</td><td style="text-align:right;">${r.sev1}</td><td style="text-align:right;">${r.sev2}</td><td style="text-align:right;">${r.sev3}</td><td style="text-align:right; font-weight:700;">${r.total}</td></tr>`).join("")}
             <tr style="font-weight:700; border-top:2px solid #aaa;"><td>Gesamt</td><td style="text-align:right;">${crossTable.totals.sev1}</td><td style="text-align:right;">${crossTable.totals.sev2}</td><td style="text-align:right;">${crossTable.totals.sev3}</td><td style="text-align:right;">${crossTable.totals.total}</td></tr>
           </tbody>
         </table>
@@ -952,6 +988,15 @@
     if (ctx.ui) {
       if (ctx.ui.severityEl) filters.severity = ctx.ui.severityEl.value;
       if (ctx.ui.roadConditionEl) filters.roadCondition = ctx.ui.roadConditionEl.value;
+      if (ctx.ui.incBikeEl) filters.includeCyclist    = ctx.ui.incBikeEl.checked;
+      if (ctx.ui.incPedEl)  filters.includePedestrian = ctx.ui.incPedEl.checked;
+      if (ctx.ui.incCarEl)  filters.includeCar        = ctx.ui.incCarEl.checked;
+      if (ctx.ui.incMotoEl) filters.includeMotorcycle  = ctx.ui.incMotoEl.checked;
+      if (ctx.ui.incGkfzEl) filters.includeGkfz       = ctx.ui.incGkfzEl.checked;
+      if (ctx.ui.incSonEl)  filters.includeSonstig    = ctx.ui.incSonEl.checked;
+      if (ctx.ui.hFromEl)   filters.hourFrom          = Number(ctx.ui.hFromEl.value);
+      if (ctx.ui.hToEl)     filters.hourTo            = Number(ctx.ui.hToEl.value);
+      if (ctx.ui.dayTypeEl) filters.dayType           = ctx.ui.dayTypeEl.value;
     }
     if (ctx.involvementMode) filters.involvementMode = ctx.involvementMode;
 
@@ -963,7 +1008,9 @@
         areaName,
         link: vars.link,
         filters,
-        gremium: gremiumMatch
+        gremium: gremiumMatch,
+        activeFilterMask,
+        involvementMode: ctx.involvementMode || "or"
       },
       severity: sev,
       deviations: dev,

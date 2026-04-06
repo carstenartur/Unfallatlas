@@ -437,7 +437,8 @@ describe('UA.report_v2 - Export Functions', () => {
         }
       };
       const reportData = {
-        text: 'Sachverhalt:\nTest content\n\nBeschlussvorschlag:\nTest proposal'
+        text: 'Sachverhalt:\nTest content\n\nBeschlussvorschlag:\nTest proposal',
+        structured: { meta: { gremium: { typ: 'Bezirksrat' } } }
       };
       const options = { includeMap: false };
 
@@ -446,7 +447,7 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(window.pdfMake.createPdf).toHaveBeenCalled();
       expect(downloadSpy).toHaveBeenCalled();
 
-      // Verify the filename passed to download
+      // Verify the filename passed to download uses the dynamic title
       expect(downloadSpy.mock.calls[0][0]).toMatch(/Bezirksratsantrag_Hannover_.*\.pdf/);
 
       // Verify a real, non-empty PDF is generated (%PDF magic bytes)
@@ -455,7 +456,7 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3])).toBe('%PDF');
     });
 
-    test('should include BEZIRKSRATSANTRAG in PDF document definition', async () => {
+    test('should include dynamic document title in PDF document definition', async () => {
       let capturedDefinition;
       const realCreatePdf = window.pdfMake.createPdf.bind(window.pdfMake);
 
@@ -478,9 +479,131 @@ describe('UA.report_v2 - Export Functions', () => {
       const allText = capturedDefinition.content
         .map(item => (typeof item.text === 'string' ? item.text : ''))
         .join(' ');
-      expect(allText).toContain('BEZIRKSRATSANTRAG');
+      // Default title when no gremium data is provided
+      expect(allText).toContain('ANTRAG ZUR VERKEHRSSICHERHEIT');
       expect(allText).toContain('SACHVERHALT');
       expect(allText).toContain('BESCHLUSSVORSCHLAG');
+    });
+
+    test('should use Bezirksratsantrag title when gremium.typ is Bezirksrat', async () => {
+      let capturedDefinition;
+      const realCreatePdf = window.pdfMake.createPdf.bind(window.pdfMake);
+
+      jest.spyOn(window.pdfMake, 'createPdf').mockImplementation((def) => {
+        capturedDefinition = def;
+        const doc = realCreatePdf(def);
+        doc.download = jest.fn();
+        return doc;
+      });
+
+      const ctx = { CITY_RAW: 'Hannover' };
+      const reportData = {
+        text: 'Sachverhalt:\nTest\n\nBeschlussvorschlag:\nTest',
+        structured: { meta: { gremium: { typ: 'Bezirksrat' } } }
+      };
+
+      await UA.exportToPDF(ctx, reportData, { includeMap: false });
+
+      expect(capturedDefinition).toBeDefined();
+      const allText = capturedDefinition.content
+        .map(item => (typeof item.text === 'string' ? item.text : ''))
+        .join(' ');
+      expect(allText).toContain('BEZIRKSRATSANTRAG');
+    });
+
+    test('should include Rahmendaten and Aktive Filter in PDF when structured meta is provided', async () => {
+      const getDefinition = (() => {
+        let captured;
+        const realCreatePdf = window.pdfMake.createPdf.bind(window.pdfMake);
+        jest.spyOn(window.pdfMake, 'createPdf').mockImplementation((def) => {
+          captured = def;
+          const doc = realCreatePdf(def);
+          doc.download = jest.fn();
+          return doc;
+        });
+        return () => captured;
+      })();
+
+      const ctx = { CITY_RAW: 'Hannover' };
+      const reportData = {
+        text: 'Sachverhalt:\nTest\n\nBeschlussvorschlag:\nTest',
+        structured: {
+          meta: {
+            city: 'Hannover',
+            date: '01.01.2024',
+            areaName: 'Innenstadt',
+            link: 'https://example.com/werkbank',
+            filters: {
+              severity: 'alle',
+              roadCondition: 'trocken',
+              involvementMode: 'ODER',
+              includeCyclist: true,
+              includePedestrian: false
+            },
+            gremium: {
+              typ: 'Bezirksrat',
+              gremium: 'Bezirksrat Mitte',
+              kontakt: 'kontakt@example.com',
+              hinweis: 'Bitte prüfen'
+            }
+          },
+          severity: { total: 5, bySev: { '1': 1, '2': 2, '3': 2 } }
+        }
+      };
+
+      await UA.exportToPDF(ctx, reportData, { includeMap: false });
+
+      const def = getDefinition();
+      expect(def).toBeDefined();
+
+      // Extract all text from the PDF definition
+      const allText = def.content.flatMap(item => {
+        if (typeof item.text === 'string') return [item.text];
+        if (Array.isArray(item.text)) return item.text.map(t => (typeof t === 'string' ? t : t.text || ''));
+        if (item.table) return item.table.body.flat().map(c => c.text || '');
+        return [];
+      }).join(' ');
+
+      // Rahmendaten section should appear
+      expect(allText).toContain('Rahmendaten');
+      expect(allText).toContain('Bezirksrat Mitte');
+      expect(allText).toContain('Innenstadt');
+
+      // Aktive Filter section should appear
+      expect(allText).toContain('Aktive Filter');
+      expect(allText).toContain('trocken');
+    });
+
+    test('should include ANLAGEN block in PDF', async () => {
+      const getDefinition = (() => {
+        let captured;
+        const realCreatePdf = window.pdfMake.createPdf.bind(window.pdfMake);
+        jest.spyOn(window.pdfMake, 'createPdf').mockImplementation((def) => {
+          captured = def;
+          const doc = realCreatePdf(def);
+          doc.download = jest.fn();
+          return doc;
+        });
+        return () => captured;
+      })();
+
+      const ctx = { CITY_RAW: 'Hannover' };
+      const reportData = {
+        text: 'Sachverhalt:\nTest\n\nBeschlussvorschlag:\nTest',
+        structured: { meta: { gremium: {} }, severity: { total: 0, bySev: {} } }
+      };
+
+      await UA.exportToPDF(ctx, reportData, { includeMap: false });
+
+      const def = getDefinition();
+      const allText = def.content
+        .map(item => (typeof item.text === 'string' ? item.text : ''))
+        .join(' ');
+
+      expect(allText).toContain('ANLAGEN');
+      expect(allText).toContain('Anlage 1: Kartenansicht');
+      expect(allText).toContain('Anlage 2: Statistische');
+      expect(allText).toContain('Anlage 3: Fachliche');
     });
   });
 
@@ -787,5 +910,68 @@ describe('UA.report_v2 - Export Functions', () => {
           expect.objectContaining({ animate: false })
         );
       }));
+  });
+
+  describe('buildWerkbankUrl', () => {
+    test('should include includeGkfz and includeSonstig in URL when ui elements are present', () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        ui: {
+          incBikeEl:  { checked: true },
+          incPedEl:   { checked: false },
+          incCarEl:   { checked: true },
+          incMotoEl:  { checked: false },
+          incGkfzEl:  { checked: true },
+          incSonEl:   { checked: false }
+        }
+      };
+
+      const url = UA.buildWerkbankUrl(ctx);
+      const params = new URL(url).searchParams;
+
+      expect(params.get('includeCyclist')).toBe('1');
+      expect(params.get('includePedestrian')).toBe('0');
+      expect(params.get('includeCar')).toBe('1');
+      expect(params.get('includeMotorcycle')).toBe('0');
+      expect(params.get('includeGkfz')).toBe('1');
+      expect(params.get('includeSonstig')).toBe('0');
+    });
+
+    test('should not include includeGkfz/includeSonstig when ui elements are absent', () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        ui: {
+          incBikeEl: { checked: true }
+          // incGkfzEl and incSonEl intentionally absent
+        }
+      };
+
+      const url = UA.buildWerkbankUrl(ctx);
+      const params = new URL(url).searchParams;
+
+      expect(params.has('includeGkfz')).toBe(false);
+      expect(params.has('includeSonstig')).toBe(false);
+    });
+  });
+
+  describe('deriveDocTitle', () => {
+    test('should be exposed on UA object', () => {
+      expect(typeof UA.deriveDocTitle).toBe('function');
+    });
+
+    test('should return BVV-Antrag for Bezirksverordnetenversammlung', () => {
+      expect(UA.deriveDocTitle('Bezirksverordnetenversammlung')).toBe('BVV-Antrag');
+      expect(UA.deriveDocTitle('Bezirksverordnetenversammlung (BVV)')).toBe('BVV-Antrag');
+    });
+
+    test('should return Bezirksratsantrag for Bezirksrat', () => {
+      expect(UA.deriveDocTitle('Bezirksrat')).toBe('Bezirksratsantrag');
+    });
+
+    test('should return Antrag zur Verkehrssicherheit as default', () => {
+      expect(UA.deriveDocTitle(undefined)).toBe('Antrag zur Verkehrssicherheit');
+      expect(UA.deriveDocTitle(null)).toBe('Antrag zur Verkehrssicherheit');
+      expect(UA.deriveDocTitle('')).toBe('Antrag zur Verkehrssicherheit');
+    });
   });
 });

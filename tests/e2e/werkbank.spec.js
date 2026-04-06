@@ -731,3 +731,46 @@ test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () =>
     expect(firstLine).toContain('ukategorie');
   });
 });
+
+test.describe('Werkbank V2 - Cross Table and Accident Details in Export Modal', () => {
+  test('should display cross-table when area is selected with accidents', async ({ page }) => {
+    // Navigate with pre-set selection bounds (Bonn Hbf area) to ensure accidents are present
+    await page.goto('/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0' +
+      '&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0' +
+      '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
+      '&centerLat=50.7330&centerLon=7.0950&zoom=15' +
+      '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
+    await page.waitForLoadState('networkidle');
+
+    // Wait for data to load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#citySel');
+      return select && select.querySelectorAll('option').length > 1;
+    });
+
+    // Open the export modal
+    await page.locator('#btnOpenExport').click();
+    const modal = page.locator('#modalOverlay .modal');
+    await modal.waitFor({ state: 'visible' });
+
+    // Wait for report to generate – the HTML report is rendered into #exportHtml
+    // Wait until it contains 'Beteiligungskombination' (cross-table heading)
+    const reportHtml = page.locator('#exportHtml');
+    await expect(reportHtml).toContainText('Beteiligungskombination', { timeout: 15000 });
+
+    const htmlContent = await reportHtml.innerHTML();
+
+    // Cross-table should be present for the selected area with accidents
+    expect(htmlContent).toContain('Beteiligungskombination');
+    expect(htmlContent).toContain('Getötete');
+    expect(htmlContent).toContain('Schwerverletzt');
+    expect(htmlContent).toContain('Leichtverletzt');
+    expect(htmlContent).toContain('Gesamt');
+
+    // Accident details table should also be present
+    expect(htmlContent).toContain('Einzelunfälle im Bereich');
+    expect(htmlContent).toContain('Jahr');
+    expect(htmlContent).toContain('Schwere');
+    expect(htmlContent).toContain('Beteiligte');
+  });
+});

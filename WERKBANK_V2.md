@@ -26,6 +26,14 @@ Beide Versionen teilen sich die gleichen Basis-Module:
 - `ua.map.js`
 - `ua.app.js`
 
+Die V2-Version verwendet zusätzlich folgende Module:
+- `ua.export_v2.js` – Erweiterte Exportlogik mit Kreuztabelle, Einzelunfall-Tabelle, POI-Analyse, Gremien-Matching
+- `ua.report_v2.js` – Word- und PDF-Export mit dynamischem Titel, Rahmendaten, Filterblock, Anlagenblock
+- `ua.tour.js` – Tour-System (Player + Recorder) für interaktive Analyse-Demonstrationen
+- `ua.video-export.js` – Client-seitiger Video-Export (Parameter-Sammlung für Docker-basierte GIF-Erzeugung)
+- `ua.app_v2.js` – V2-spezifische App-Logik (dynamischer Modal-Titel, Tour-Integration)
+- `ua.map_v2.js` – V2-Kartenlogik (Detailkarte, erweiterte Heatmap-Steuerung)
+
 ## POI-Integration
 
 ### Datenformat
@@ -238,21 +246,31 @@ Die Wahl der Version erfolgt durch die URL. Alle weiteren Funktionen (Filter, Da
 
 ```
 .
-├── werkbank.html              # Original-Version
+├── werkbank.html              # Original-Version (deprecated – Link zu V2)
 ├── werkbank_v2.html           # V2 mit POI-Support
+├── showcase.html              # Showcase-Seite (iframe-basiert)
 ├── js/
 │   ├── ua.export.js          # Original Export-Modul
-│   ├── ua.export_v2.js       # V2 Export-Modul mit POI/Ref-Docs
+│   ├── ua.export_v2.js       # V2 Export-Modul mit POI/Ref-Docs/Kreuztabelle
+│   ├── ua.report_v2.js       # Word/PDF-Export (dynamischer Titel, Metadaten, Anlagen)
+│   ├── ua.tour.js            # Tour-System (Player + Recorder)
+│   ├── ua.video-export.js    # Video-Export Client-Modul
+│   ├── ua.app_v2.js          # V2 App-Logik
+│   ├── ua.map_v2.js          # V2 Kartenlogik
 │   └── ...                   # Gemeinsame Module
 ├── out/
 │   ├── poi_hannover.geojson  # POI-Daten (GeoJSON)
 │   ├── poi_berlin.geojson
 │   ├── output_all_years_*.geojson  # Unfalldaten
 │   └── ...
-└── templates/                # Text-Templates + Referenzdokumente
+├── tours/                    # Tour-Dateien (JSON)
+│   └── demo.json
+└── templates/                # Text-Templates + Referenzdokumente + Gremien
     ├── intro.txt
     ├── sachverhalt.txt
     ├── ...
+    ├── gremien_hannover.json
+    ├── gremien_berlin.json
     ├── references_hannover.json
     ├── references_berlin.json
     └── ...
@@ -409,11 +427,14 @@ Die gesamte Export-Funktionalität läuft **rein clientseitig**:
 Exportierte Dateien folgen diesem Schema:
 
 ```
-Bezirksratsantrag_[Stadt]_[Datum].docx
-Bezirksratsantrag_[Stadt]_[Datum].pdf
+[Dokumenttitel]_[Stadt]_[Datum].docx
+[Dokumenttitel]_[Stadt]_[Datum].pdf
 ```
 
-Beispiel: `Bezirksratsantrag_Hannover_01-01-2026.docx`
+Der Dokumenttitel wird dynamisch aus dem Gremientyp abgeleitet:
+- **Hannover**: `Bezirksratsantrag_Hannover_01-01-2026.docx`
+- **Berlin**: `BVV-Antrag_Berlin_01-01-2026.docx`
+- **Andere Städte**: `Antrag-zur-Verkehrssicherheit_Stadt_01-01-2026.docx`
 
 ### Browser-Kompatibilität
 
