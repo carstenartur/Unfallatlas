@@ -430,6 +430,104 @@
   }
 
   // --------------------
+  // crossTableSeverityByMask: Kreuztabelle Beteiligungskombination × Schweregrad
+  // --------------------
+  function crossTableSeverityByMask(ctx, bounds) {
+    const byMask = {};
+
+    for (const p of ctx.allPts || []) {
+      const pr = p.props || {};
+
+      if (typeof UA.matchesNonInvolvementFilters === "function") {
+        if (!UA.matchesNonInvolvementFilters(ctx, pr)) continue;
+      }
+
+      if (!inBounds(p, bounds)) continue;
+
+      const m = maskFromProps(pr);
+      if (m === 0) continue;
+
+      if (!byMask[m]) byMask[m] = { sev1: 0, sev2: 0, sev3: 0 };
+      const k = String(pr.ukategorie ?? "");
+      if (k === "1") byMask[m].sev1++;
+      else if (k === "2") byMask[m].sev2++;
+      else if (k === "3") byMask[m].sev3++;
+    }
+
+    const rows = Object.entries(byMask).map(([mStr, v]) => {
+      const mask = Number(mStr);
+      const total = v.sev1 + v.sev2 + v.sev3;
+      return { mask, label: COMBO_LABEL[mask] || ("Mask " + mask), sev1: v.sev1, sev2: v.sev2, sev3: v.sev3, total };
+    });
+
+    rows.sort((a, b) => b.total - a.total);
+
+    const totals = rows.reduce((acc, r) => ({
+      sev1: acc.sev1 + r.sev1,
+      sev2: acc.sev2 + r.sev2,
+      sev3: acc.sev3 + r.sev3,
+      total: acc.total + r.total
+    }), { sev1: 0, sev2: 0, sev3: 0, total: 0 });
+
+    return { rows: rows.filter(r => r.total > 0), totals };
+  }
+
+  // --------------------
+  // accidentDetailTable: Einzelunfall-Liste für markierte Bereiche
+  // --------------------
+  const SEV_LABEL_MAP = { "1": "Getötet", "2": "Schwerverletzt", "3": "Leichtverletzt" };
+  const WEEKDAY_LABEL_MAP = {
+    "1": "So", "2": "Mo–Fr", "3": "Mo–Fr", "4": "Mo–Fr", "5": "Mo–Fr", "6": "Mo–Fr", "7": "Sa"
+  };
+  const ROAD_COND_LABEL_MAP = { "0": "trocken", "1": "nass/feucht", "2": "winterglatt" };
+
+  function accidentDetailTable(ctx, bounds, maxRows) {
+    if (maxRows === undefined) maxRows = 50;
+    const items = [];
+
+    for (const p of ctx.allPts || []) {
+      const pr = p.props || {};
+
+      if (typeof UA.matchesNonInvolvementFilters === "function") {
+        if (!UA.matchesNonInvolvementFilters(ctx, pr)) continue;
+      }
+
+      if (!inBounds(p, bounds)) continue;
+
+      const mask = maskFromProps(pr);
+      const severity = String(pr.ukategorie ?? "");
+      const year = parseInt(pr.year, 10);
+      const hour = parseInt(pr.ustunde, 10);
+      const weekdayRaw = String(pr.uwochentag ?? "");
+      const roadCondRaw = String(pr.strzustand ?? "");
+
+      items.push({
+        lat: p.lat,
+        lon: p.lon,
+        year: Number.isFinite(year) ? year : null,
+        severity,
+        sevLabel: SEV_LABEL_MAP[severity] || severity,
+        involved: COMBO_LABEL[mask] || ("Mask " + mask),
+        hour: Number.isFinite(hour) ? hour : null,
+        weekday: WEEKDAY_LABEL_MAP[weekdayRaw] || weekdayRaw,
+        roadCondition: ROAD_COND_LABEL_MAP[roadCondRaw] || roadCondRaw,
+        mask
+      });
+    }
+
+    // Sort: severity ascending (1=worst first), then year descending
+    items.sort((a, b) => {
+      const sa = Number(a.severity) || 99;
+      const sb = Number(b.severity) || 99;
+      if (sa !== sb) return sa - sb;
+      return (b.year || 0) - (a.year || 0);
+    });
+
+    const truncated = items.length > maxRows;
+    return { rows: items.slice(0, maxRows), total: items.length, truncated };
+  }
+
+  // --------------------
   // Public API: UA.computeExportReport(ctx)
   // --------------------
   UA.computeExportReport = async function computeExportReport(ctx) {
@@ -449,6 +547,8 @@
     const yr = yearTable(ctx, bounds);
     const sev = severityStats(ctx, bounds);
     const range = yearsRange(ctx.allPts || []);
+    const crossTable = crossTableSeverityByMask(ctx, bounds);
+    const accidentDetails = accidentDetailTable(ctx, bounds);
 
     const CITY_RAW = ctx.CITY_RAW || "—";
     const citySlug = UA.normKey ? UA.normKey(CITY_RAW) : CITY_RAW.toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -640,6 +740,31 @@
       lines.push("");
     }
 
+    // Add cross-table (Beteiligungskombination × Schweregrad)
+    if (crossTable.rows.length > 0) {
+      lines.push("Beteiligungskombination × Schweregrad:");
+      lines.push("  Kombination | Getötete | Schwerverletzt | Leichtverletzt | Summe");
+      for (const r of crossTable.rows) {
+        lines.push(`  ${r.label} | ${r.sev1} | ${r.sev2} | ${r.sev3} | ${r.total}`);
+      }
+      lines.push(`  Gesamt | ${crossTable.totals.sev1} | ${crossTable.totals.sev2} | ${crossTable.totals.sev3} | ${crossTable.totals.total}`);
+      lines.push("");
+    }
+
+    // Add accident details (up to 50 rows)
+    if (accidentDetails.rows.length > 0) {
+      lines.push("Einzelunfälle im Bereich:");
+      lines.push("  # | Jahr | Schwere | Beteiligte | Uhrzeit | Koordinaten");
+      accidentDetails.rows.forEach((r, i) => {
+        const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+        lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.sevLabel} | ${r.involved} | ${hour} | ${r.lat?.toFixed(4) ?? ""}, ${r.lon?.toFixed(4) ?? ""}`);
+      });
+      if (accidentDetails.truncated) {
+        lines.push(`  ... und ${accidentDetails.total - accidentDetails.rows.length} weitere Unfälle`);
+      }
+      lines.push("");
+    }
+
     lines.push(tpl(tBesch, vars).trim());
     lines.push("");
     lines.push(tpl(tHinw, vars).trim());
@@ -781,6 +906,19 @@
           </tbody>
         </table>
 
+        ${crossTable.rows.length > 0 ? `
+        <div style="margin-top:12px; font-weight:900;">Beteiligungskombination × Schweregrad</div>
+        <table class="report" style="margin-top:6px;">
+          <thead>
+            <tr><th>Kombination</th><th style="text-align:right;">Getötete</th><th style="text-align:right;">Schwerverletzt</th><th style="text-align:right;">Leichtverletzt</th><th style="text-align:right;">Summe</th></tr>
+          </thead>
+          <tbody>
+            ${crossTable.rows.map(r => `<tr><td>${UA.escHtml(r.label)}</td><td style="text-align:right;">${r.sev1}</td><td style="text-align:right;">${r.sev2}</td><td style="text-align:right;">${r.sev3}</td><td style="text-align:right; font-weight:700;">${r.total}</td></tr>`).join("")}
+            <tr style="font-weight:700; border-top:2px solid #aaa;"><td>Gesamt</td><td style="text-align:right;">${crossTable.totals.sev1}</td><td style="text-align:right;">${crossTable.totals.sev2}</td><td style="text-align:right;">${crossTable.totals.sev3}</td><td style="text-align:right;">${crossTable.totals.total}</td></tr>
+          </tbody>
+        </table>
+        ` : ""}
+
         ${poiHtmlSection}
         
         ${refDocsHtmlSection}
@@ -815,7 +953,9 @@
       yearTable: yr,
       poi: poiAnalysis,
       references: refDocs,
-      patterns: matchedPatterns
+      patterns: matchedPatterns,
+      crossTable,
+      accidentDetails
     };
 
     return { text: textOut, html: htmlOut, structured };

@@ -1141,6 +1141,189 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
     });
   });
 
+  // ---------- crossTable and accidentDetails ----------
+
+  describe('crossTableSeverityByMask and accidentDetailTable via computeExportReport', () => {
+    test('structured.crossTable should have rows and totals', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const ct = result.structured.crossTable;
+
+      expect(ct).toBeDefined();
+      expect(Array.isArray(ct.rows)).toBe(true);
+      expect(ct.totals).toBeDefined();
+      expect(typeof ct.totals.total).toBe('number');
+      // 3 in-bounds points → total should be 3
+      expect(ct.totals.total).toBe(3);
+      // Rows should have expected shape
+      for (const row of ct.rows) {
+        expect(typeof row.mask).toBe('number');
+        expect(typeof row.label).toBe('string');
+        expect(typeof row.sev1).toBe('number');
+        expect(typeof row.sev2).toBe('number');
+        expect(typeof row.sev3).toBe('number');
+        expect(typeof row.total).toBe('number');
+        expect(row.total).toBeGreaterThan(0);
+      }
+    });
+
+    test('structured.crossTable rows are sorted by total descending', async () => {
+      const pts = [
+        { lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '1', IstKrad: '0', strzustand: '0', uwochentag: '2' } },
+        { lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '1', IstKrad: '0', strzustand: '0', uwochentag: '2' } },
+        { lat: 52.5, lon: 9.7, props: { year: '2022', ukategorie: '2', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', strzustand: '0', uwochentag: '2' } }
+      ];
+      const bounds = {
+        contains: ([lat]) => lat >= 52.0 && lat <= 53.0,
+        getCenter: () => ({ lat: 52.5, lng: 9.7 }),
+        getSouthWest: () => ({ lat: 52.0, lng: 9.5 }),
+        getNorthEast: () => ({ lat: 53.0, lng: 10.0 })
+      };
+      const ctx = {
+        CITY_RAW: 'Test',
+        allPts: pts,
+        selectionBounds: bounds,
+        map: { getBounds: jest.fn(() => bounds), getCenter: jest.fn(() => ({ lat: 52.5, lng: 9.7 })), getZoom: jest.fn(() => 12) }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const rows = result.structured.crossTable.rows;
+      expect(rows.length).toBeGreaterThan(0);
+      // mask 5 (Rad+PKW) has 2 accidents, mask 1 (Rad) has 1 – sorted descending
+      if (rows.length >= 2) {
+        expect(rows[0].total).toBeGreaterThanOrEqual(rows[1].total);
+      }
+    });
+
+    test('structured.accidentDetails should have rows with expected shape', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const ad = result.structured.accidentDetails;
+
+      expect(ad).toBeDefined();
+      expect(Array.isArray(ad.rows)).toBe(true);
+      expect(typeof ad.total).toBe('number');
+      expect(typeof ad.truncated).toBe('boolean');
+      // 3 in-bounds points
+      expect(ad.rows.length).toBe(3);
+      expect(ad.total).toBe(3);
+      expect(ad.truncated).toBe(false);
+
+      for (const row of ad.rows) {
+        expect(typeof row.lat).toBe('number');
+        expect(typeof row.lon).toBe('number');
+        expect(typeof row.sevLabel).toBe('string');
+        expect(typeof row.involved).toBe('string');
+        expect(typeof row.mask).toBe('number');
+      }
+    });
+
+    test('structured.accidentDetails rows are sorted by severity then year descending', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const rows = result.structured.accidentDetails.rows;
+
+      // testPoints in-bounds: ukategorie 1 (Getötet, 2020), 2 (Schwerverletzt, 2021), 3 (Leichtverletzt, 2022)
+      // Expected order: sev1 first (2020), then sev2 (2021), then sev3 (2022)
+      expect(rows[0].severity).toBe('1');
+      expect(rows[1].severity).toBe('2');
+      expect(rows[2].severity).toBe('3');
+    });
+
+    test('accidentDetails truncates at maxRows and sets truncated flag', async () => {
+      // Create 60 in-bounds points to trigger truncation at default maxRows=50
+      const manyPts = Array.from({ length: 60 }, (_, i) => ({
+        lat: 52.5, lon: 9.7,
+        props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', strzustand: '0', uwochentag: '2' }
+      }));
+      const bounds = {
+        contains: ([lat]) => lat >= 52.0 && lat <= 53.0,
+        getCenter: () => ({ lat: 52.5, lng: 9.7 }),
+        getSouthWest: () => ({ lat: 52.0, lng: 9.5 }),
+        getNorthEast: () => ({ lat: 53.0, lng: 10.0 })
+      };
+      const ctx = {
+        CITY_RAW: 'Test',
+        allPts: manyPts,
+        selectionBounds: bounds,
+        map: { getBounds: jest.fn(() => bounds), getCenter: jest.fn(() => ({ lat: 52.5, lng: 9.7 })), getZoom: jest.fn(() => 12) }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      const ad = result.structured.accidentDetails;
+
+      expect(ad.rows.length).toBe(50);
+      expect(ad.total).toBe(60);
+      expect(ad.truncated).toBe(true);
+    });
+
+    test('crossTable and accidentDetails appear in text output', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      expect(result.text).toContain('Beteiligungskombination × Schweregrad');
+      expect(result.text).toContain('Einzelunfälle im Bereich');
+    });
+
+    test('crossTable appears in HTML output', async () => {
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        allPts: testPoints,
+        selectionBounds: mockBounds,
+        map: {
+          getBounds: jest.fn(() => mockBounds),
+          getCenter: jest.fn(() => ({ lat: 52.375, lng: 9.730 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+
+      const result = await UA.computeExportReport(ctx);
+      expect(result.html).toContain('Beteiligungskombination');
+      expect(result.html).toContain('Getötete');
+      expect(result.html).toContain('Schwerverletzt');
+      expect(result.html).toContain('Leichtverletzt');
+    });
+  });
+
   // ---------- Template fallback chain ----------
 
   describe('loadTemplate fallback chain (via computeExportReport)', () => {
