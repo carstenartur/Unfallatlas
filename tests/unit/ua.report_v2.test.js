@@ -512,18 +512,35 @@ describe('UA.report_v2 - Export Functions', () => {
   // New section tests: crossTable, accidentDetails, emoji fixes, detail map
   // =====================================================================
 
-  describe('exportToWord – crossTable and accidentDetails sections', () => {
-    function withObjectURL(fn) {
-      const origCreate = URL.createObjectURL;
-      const origRevoke = URL.revokeObjectURL;
-      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
-      URL.revokeObjectURL = jest.fn();
-      return fn().finally(() => {
-        if (origCreate === undefined) delete URL.createObjectURL; else URL.createObjectURL = origCreate;
-        if (origRevoke === undefined) delete URL.revokeObjectURL; else URL.revokeObjectURL = origRevoke;
-      });
-    }
+  // Shared test helpers for the new section tests
+  function withObjectURL(fn) {
+    const origCreate = URL.createObjectURL;
+    const origRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+    URL.revokeObjectURL = jest.fn();
+    return fn().finally(() => {
+      if (origCreate === undefined) delete URL.createObjectURL; else URL.createObjectURL = origCreate;
+      if (origRevoke === undefined) delete URL.revokeObjectURL; else URL.revokeObjectURL = origRevoke;
+    });
+  }
 
+  function blobToArrayBuffer(blob) {
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsArrayBuffer(blob);
+    });
+  }
+
+  function extractPdfText(definition) {
+    return definition.content.flatMap(item => {
+      if (typeof item.text === 'string') return [item.text];
+      if (item.table) return item.table.body.flat().map(c => c.text || '');
+      return [];
+    }).join(' ');
+  }
+
+  describe('exportToWord – crossTable and accidentDetails sections', () => {
     test('should include cross-table section in Word document when structured.crossTable is present', () =>
       withObjectURL(async () => {
         const ctx = { CITY_RAW: 'Hannover' };
@@ -546,12 +563,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
         const [blob] = window.saveAs.mock.calls[0];
         const JSZip = require('jszip');
-        const arrayBuffer = await new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.readAsArrayBuffer(blob);
-        });
-        const zip = await JSZip.loadAsync(arrayBuffer);
+        const zip = await JSZip.loadAsync(await blobToArrayBuffer(blob));
         const xml = await zip.file('word/document.xml').async('text');
 
         expect(xml).toContain('Beteiligungskombination');
@@ -587,12 +599,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
         const [blob] = window.saveAs.mock.calls[0];
         const JSZip = require('jszip');
-        const arrayBuffer = await new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.readAsArrayBuffer(blob);
-        });
-        const zip = await JSZip.loadAsync(arrayBuffer);
+        const zip = await JSZip.loadAsync(await blobToArrayBuffer(blob));
         const xml = await zip.file('word/document.xml').async('text');
 
         expect(xml).toContain('EINZELUNF');  // "EINZELUNFÄLLE" – Ä is encoded in XML
@@ -603,32 +610,29 @@ describe('UA.report_v2 - Export Functions', () => {
     test('should include truncation note when accidentDetails.truncated is true', () =>
       withObjectURL(async () => {
         const ctx = { CITY_RAW: 'Hannover' };
+        const accDetails = {
+          rows: [{ lat: 52.38, lon: 9.73, year: 2022, severity: '3', sevLabel: 'Leichtverletzt', involved: '🚲', hour: 8, weekday: 'Mo–Fr', roadCondition: 'trocken', mask: 1 }],
+          total: 60,
+          truncated: true
+        };
         const reportData = {
           text: '',
           structured: {
             meta: { city: 'Hannover', date: '01.01.2024', areaName: 'Test', link: '', filters: {}, gremium: {} },
             severity: { total: 1, bySev: { '3': 1 } },
-            accidentDetails: {
-              rows: [{ lat: 52.38, lon: 9.73, year: 2022, severity: '3', sevLabel: 'Leichtverletzt', involved: '🚲', hour: 8, weekday: 'Mo–Fr', roadCondition: 'trocken', mask: 1 }],
-              total: 60,
-              truncated: true
-            }
+            accidentDetails: accDetails
           }
         };
+        const expectedRemaining = accDetails.total - accDetails.rows.length; // 59
 
         await UA.exportToWord(ctx, reportData, { includeMap: false });
 
         const [blob] = window.saveAs.mock.calls[0];
         const JSZip = require('jszip');
-        const arrayBuffer = await new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.readAsArrayBuffer(blob);
-        });
-        const zip = await JSZip.loadAsync(arrayBuffer);
+        const zip = await JSZip.loadAsync(await blobToArrayBuffer(blob));
         const xml = await zip.file('word/document.xml').async('text');
 
-        expect(xml).toContain('59');  // 60 - 1 further accidents
+        expect(xml).toContain(String(expectedRemaining));  // "59 weitere Unfälle"
         expect(xml).toContain('weitere Unf');  // "weitere Unfälle" – Ä encoded
       }));
   });
@@ -664,13 +668,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
       await UA.exportToPDF(ctx, reportData, { includeMap: false });
 
-      const def = getDefinition();
-      const allText = def.content.flatMap(item => {
-        if (typeof item.text === 'string') return [item.text];
-        if (item.table) return item.table.body.flat().map(c => c.text || '');
-        return [];
-      }).join(' ');
-
+      const allText = extractPdfText(getDefinition());
       expect(allText).toContain('Beteiligungskombination');
       expect(allText).toContain('Getötete');
       expect(allText).toContain('Gesamt');
@@ -697,13 +695,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
       await UA.exportToPDF(ctx, reportData, { includeMap: false });
 
-      const def = getDefinition();
-      const allText = def.content.flatMap(item => {
-        if (typeof item.text === 'string') return [item.text];
-        if (item.table) return item.table.body.flat().map(c => c.text || '');
-        return [];
-      }).join(' ');
-
+      const allText = extractPdfText(getDefinition());
       expect(allText).toContain('EINZELUNF');  // EINZELUNFÄLLE
       expect(allText).toContain('Schwerverletzt');
       // involved emoji should be replaced
@@ -729,13 +721,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
       await UA.exportToPDF(ctx, reportData, { includeMap: false });
 
-      const def = getDefinition();
-      const allText = def.content.flatMap(item => {
-        if (typeof item.text === 'string') return [item.text];
-        if (item.table) return item.table.body.flat().map(c => c.text || '');
-        return [];
-      }).join(' ');
-
+      const allText = extractPdfText(getDefinition());
       // 🚛 → [Gkfz], 🚌 → [Sonst]
       expect(allText).toContain('[Gkfz]');
       expect(allText).toContain('[Sonst]');
@@ -746,13 +732,8 @@ describe('UA.report_v2 - Export Functions', () => {
   });
 
   describe('captureDetailMap', () => {
-    test('should NOT call fitBounds when selectionBounds is absent', async () => {
-      const origCreate = URL.createObjectURL;
-      const origRevoke = URL.revokeObjectURL;
-      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
-      URL.revokeObjectURL = jest.fn();
-
-      try {
+    test('should NOT call fitBounds when selectionBounds is absent', () =>
+      withObjectURL(async () => {
         const fitBoundsSpy = jest.fn();
         const ctx = {
           CITY_RAW: 'Hannover',
@@ -769,19 +750,10 @@ describe('UA.report_v2 - Export Functions', () => {
 
         // fitBounds should NOT have been called when there is no selectionBounds
         expect(fitBoundsSpy).not.toHaveBeenCalled();
-      } finally {
-        if (origCreate === undefined) delete URL.createObjectURL; else URL.createObjectURL = origCreate;
-        if (origRevoke === undefined) delete URL.revokeObjectURL; else URL.revokeObjectURL = origRevoke;
-      }
-    });
+      }));
 
-    test('should call fitBounds with {animate: false} during detail map capture (via Word export)', async () => {
-      const origCreate = URL.createObjectURL;
-      const origRevoke = URL.revokeObjectURL;
-      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
-      URL.revokeObjectURL = jest.fn();
-
-      try {
+    test('should call fitBounds with {animate: false} during detail map capture (via Word export)', () =>
+      withObjectURL(async () => {
         const fitBoundsSpy = jest.fn();
         const setViewSpy = jest.fn();
         const ctx = {
@@ -814,10 +786,6 @@ describe('UA.report_v2 - Export Functions', () => {
           expect.any(Number),
           expect.objectContaining({ animate: false })
         );
-      } finally {
-        if (origCreate === undefined) delete URL.createObjectURL; else URL.createObjectURL = origCreate;
-        if (origRevoke === undefined) delete URL.revokeObjectURL; else URL.revokeObjectURL = origRevoke;
-      }
-    });
+      }));
   });
 });

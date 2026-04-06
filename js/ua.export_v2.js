@@ -476,6 +476,12 @@
   };
   const ROAD_COND_LABEL_MAP = { "0": "trocken", "1": "nass/feucht", "2": "winterglatt" };
 
+  // Shared helper: format lat/lon pair for display; uses "—" when coordinates are missing
+  function formatCoords(lat, lon) {
+    if (lat != null && lon != null) return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    return "—";
+  }
+
   function accidentDetailTable(filteredPts, maxRows) {
     if (maxRows === undefined) maxRows = 50;
     const items = [];
@@ -538,8 +544,9 @@
     const sev = severityStats(ctx, bounds);
     const range = yearsRange(ctx.allPts || []);
 
-    // Pre-filter points once for the new summary tables (avoids repeated full scans)
-    const filteredPts = getPointsInBounds(ctx);
+    // Pre-filter points once: applies non-involvement filters + in-bounds check.
+    // Both new summary tables share this filtered list to avoid repeated full scans over ctx.allPts.
+    const filteredPts = getPointsInBounds(ctx);  // see getPointsInBounds() below
     const crossTable = crossTableSeverityByMask(filteredPts);
     const accidentDetails = accidentDetailTable(filteredPts);
 
@@ -750,7 +757,7 @@
       lines.push("  # | Jahr | Schwere | Beteiligte | Uhrzeit | Koordinaten");
       accidentDetails.rows.forEach((r, i) => {
         const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-        lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.sevLabel} | ${r.involved} | ${hour} | ${r.lat?.toFixed(4) ?? "—"}, ${r.lon?.toFixed(4) ?? "—"}`);
+        lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.sevLabel} | ${r.involved} | ${hour} | ${formatCoords(r.lat, r.lon)}`);
       });
       if (accidentDetails.truncated) {
         lines.push(`  ... und ${accidentDetails.total - accidentDetails.rows.length} weitere Unfälle`);
@@ -921,7 +928,7 @@
           <tbody>
             ${accidentDetails.rows.map((r, i) => {
               const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-              const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
+              const coords = formatCoords(r.lat, r.lon);
               return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.sevLabel)}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td style="font-size:11px; color:#555;">${UA.escHtml(coords)}</td></tr>`;
             }).join("")}
           </tbody>
