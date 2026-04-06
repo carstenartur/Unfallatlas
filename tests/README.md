@@ -6,16 +6,21 @@ This directory contains comprehensive tests for the Unfallatlas application, cov
 
 ```
 tests/
-├── unit/               # Unit tests for individual functions
-│   ├── ua.utils.test.js       # Utility function tests
-│   └── ua.report_v2.test.js   # Report/export function tests
-├── integration/        # Integration tests for complete workflows
+├── unit/                      # Unit tests for individual functions
+│   ├── ua.utils.test.js       # Utility function tests (escHtml, normKey, qBool, qFloat)
+│   ├── ua.filters.test.js     # Filter logic tests (matchesInvolvementFilter, matchesNonInvolvementFilters)
+│   ├── ua.ui.test.js          # UI initialization and state tests
+│   └── ua.report_v2.test.js   # Report/export function tests (Word, PDF, crossTable, accidentDetails, deriveDocTitle, buildWerkbankUrl)
+├── integration/               # Integration tests for complete workflows
 │   └── export.test.js         # Document export integration tests
-├── e2e/                # End-to-end tests using Playwright
-│   └── werkbank.spec.js       # User workflow tests
-├── performance/        # Performance and load tests
+├── e2e/                       # End-to-end tests using Playwright
+│   ├── werkbank.spec.js       # User workflow tests
+│   ├── screenshots.spec.js    # Automated screenshot generation (16 screenshots + PDF render)
+│   ├── demo.spec.js           # Demo GIF video generation
+│   └── helpers.js             # CDN route interception for offline tests (pdfmake, docx)
+├── performance/               # Performance and load tests
 │   └── performance.test.js    # Data processing performance tests
-└── fixtures/           # Test data and fixtures
+└── fixtures/                  # Test data and fixtures
     ├── test_accidents.geojson
     ├── test_pois.geojson
     └── test_references.json
@@ -29,6 +34,7 @@ Install dependencies:
 
 ```bash
 npm install
+npx playwright install --with-deps
 ```
 
 ### Unit Tests
@@ -69,6 +75,26 @@ Run E2E tests in headed mode (visible browser):
 npm run test:e2e:headed
 ```
 
+### Screenshot Generation
+
+The E2E screenshots test (`screenshots.spec.js`) generates all 16 documentation screenshots automatically:
+
+```bash
+npx playwright test tests/e2e/screenshots.spec.js --project=chromium
+```
+
+Screenshots are saved to `docs/screenshots/`. The GitHub Actions workflow `generate-screenshots.yml` runs this automatically.
+
+### Demo GIF Generation
+
+Generate the demo video for documentation:
+
+```bash
+npm run demo
+```
+
+This runs the Playwright demo spec which captures a video of the typical analysis workflow.
+
 ### All Tests
 
 Run all tests (unit, integration, performance, and E2E):
@@ -105,11 +131,24 @@ Coverage reports will be available in the `coverage/` directory. Open `coverage/
   - Query parameter parsing
   - URL manipulation
 
+- **Filter Functions** (`ua.filters.test.js`)
+  - 6-bit involvement mask (Rad, Fuß, PKW, Krad, Gkfz, Sonstig)
+  - Involvement modes (or, and, solo)
+  - Non-involvement filters (severity, time, road condition)
+
+- **UI Functions** (`ua.ui.test.js`)
+  - UI element initialization
+  - State persistence
+
 - **Report Functions** (`ua.report_v2.test.js`)
   - Map image capture (`captureMapImage`)
-  - PDF generation
-  - Word document generation
-  - Export UI initialization
+  - PDF generation with dynamic title (`deriveDocTitle`)
+  - Word document generation with Rahmendaten/Aktive Filter
+  - Cross-table (Beteiligungskombination × Schweregrad) in Word + PDF
+  - Accident details table in Word + PDF
+  - Emoji-to-text replacement for PDF (Gkfz, Sonstig)
+  - `buildWerkbankUrl` with all 6 involvement filters
+  - Detail map capture with `fitBounds`
 
 ### Integration Tests
 
@@ -131,7 +170,16 @@ Coverage reports will be available in the `coverage/` directory. Open `coverage/
   - Drawing and area selection
   - Export modal opening and interaction
   - Export option selection
+  - Word/PDF document download
   - Accessibility features
+
+- **Screenshots** (`screenshots.spec.js`)
+  - All 16 documentation screenshots (Startansicht, Stadtauswahl, Filter, Cluster, Heatmap, Legende, Export-Modal, Stundenfilter, Bereich markieren, Auto-Fahrrad-UND, Fahrrad-Alleinunfälle, POI-Schulen, Bonn Hbf, Export-Filterkontext, PDF-Rendered, Antrag-Inhalt)
+  - PDF rendering and validation (pdfjs-dist 4.10.38)
+
+- **Demo** (`demo.spec.js`)
+  - Automated demo workflow video capture
+  - Tile rendering with mock or real OSM tiles
 
 ### Performance Tests
 
@@ -157,6 +205,10 @@ Tests are automatically run via GitHub Actions on:
 
 - Push to `main` or `develop` branches
 - Pull requests to `main` or `develop` branches
+
+Workflows:
+- `test.yml` – Runs unit, integration, performance, and E2E tests. Also generates documentation screenshots.
+- `generate-screenshots.yml` – Dedicated screenshot generation workflow.
 
 See `.github/workflows/test.yml` for the CI configuration.
 
@@ -192,6 +244,7 @@ test('should interact with element', async ({ page }) => {
 4. **Test error cases**: Include tests for error handling and edge cases
 5. **Maintain test data**: Keep fixture data up-to-date and representative
 6. **Run tests before commits**: Ensure all tests pass before committing changes
+7. **Use `jest.restoreAllMocks()`**: In `afterEach` when using `jest.spyOn().mockImplementation()`
 
 ## Debugging Tests
 
@@ -240,6 +293,8 @@ npx playwright test --debug
 3. **Port already in use**: The test server runs on port 8000. Make sure no other process is using this port
 
 4. **Tests timing out**: Increase timeout in test configuration or check for network issues
+
+5. **Screenshot changes after E2E**: Running E2E tests may regenerate `docs/screenshots/` with different sizes from headless rendering. Revert if not intentionally updated.
 
 ## Contributing
 
