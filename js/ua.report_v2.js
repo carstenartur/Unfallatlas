@@ -305,16 +305,24 @@
     }
 
     // Helper to build a simple bordered table from headers + rows (plain text cells)
-    function makeDocxTable(headers, dataRows) {
-      const makeRow = (cells, bold) =>
+    // Optional: rowHighlights is an array of booleans – true = highlight that data row
+    function makeDocxTable(headers, dataRows, rowHighlights) {
+      const makeRow = (cells, bold, highlight) =>
         new TableRow({
-          children: cells.map(text => textCell(text, bold))
+          children: cells.map(text => {
+            const cell = new TableCell({
+              borders: cellBorder,
+              children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })],
+              ...(highlight ? { shading: { fill: "FFFFCC" } } : {})
+            });
+            return cell;
+          })
         });
       return new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
-          makeRow(headers, true),
-          ...dataRows.map(row => makeRow(row, false))
+          makeRow(headers, true, false),
+          ...dataRows.map((row, i) => makeRow(row, false, rowHighlights ? rowHighlights[i] : false))
         ]
       });
     }
@@ -339,6 +347,21 @@
 
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
+
+    // Helper: determine if a cross-table row mask matches the active filter
+    const afm = (sd && sd.meta && sd.meta.activeFilterMask) || 0;
+    const afMode = (sd && sd.meta && sd.meta.involvementMode) || "or";
+    function isActiveFilterRow(rowMask) {
+      if (afm === 0) return false;
+      if (afMode === "solo") {
+        const isSingleBit = rowMask > 0 && (rowMask & (rowMask - 1)) === 0;
+        return isSingleBit && (rowMask & afm) !== 0;
+      }
+      if (afMode === "and") {
+        return (rowMask & afm) === afm;
+      }
+      return (rowMask & afm) !== 0;
+    }
 
     const CITY_RAW = ctx.CITY_RAW || "—";
     const today = new Date().toLocaleDateString("de-DE");
@@ -533,6 +556,8 @@
         const ctRows = sd.crossTable.rows.map(r => [
           r.label, String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
         ]);
+        // Highlight rows whose mask matches the active filter
+        const ctHighlights = sd.crossTable.rows.map(r => isActiveFilterRow(r.mask));
         ctRows.push([
           "Gesamt",
           String(sd.crossTable.totals.sev1),
@@ -540,9 +565,11 @@
           String(sd.crossTable.totals.sev3),
           String(sd.crossTable.totals.total)
         ]);
+        ctHighlights.push(false); // Gesamt row is not highlighted
         children.push(makeDocxTable(
           ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
-          ctRows
+          ctRows,
+          ctHighlights
         ));
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
@@ -1072,19 +1099,38 @@
     }
 
     // Helper: build pdfmake table with header row
-    function makePdfTable(headers, dataRows) {
+    // Optional: rowHighlights is an array of booleans – true = highlight that data row
+    function makePdfTable(headers, dataRows, rowHighlights) {
       return {
         table: {
           headerRows: 1,
           widths: headers.map(() => "*"),
           body: [
             headers.map(h => ({ text: h, bold: true, fillColor: "#EEEEEE" })),
-            ...dataRows.map(row => row.map(cell => ({ text: String(cell ?? ""), fontSize: 10 })))
+            ...dataRows.map((row, i) => row.map(cell => ({
+              text: String(cell ?? ""), fontSize: 10,
+              ...(rowHighlights && rowHighlights[i] ? { fillColor: "#FFFFCC", bold: true } : {})
+            })))
           ]
         },
         layout: "lightHorizontalLines",
         margin: [0, 4, 0, 10]
       };
+    }
+
+    // Helper: determine if a cross-table row mask matches the active filter (for PDF)
+    const pdfAfm = (sd && sd.meta && sd.meta.activeFilterMask) || 0;
+    const pdfAfMode = (sd && sd.meta && sd.meta.involvementMode) || "or";
+    function isPdfActiveFilterRow(rowMask) {
+      if (pdfAfm === 0) return false;
+      if (pdfAfMode === "solo") {
+        const isSingleBit = rowMask > 0 && (rowMask & (rowMask - 1)) === 0;
+        return isSingleBit && (rowMask & pdfAfm) !== 0;
+      }
+      if (pdfAfMode === "and") {
+        return (rowMask & pdfAfm) === pdfAfm;
+      }
+      return (rowMask & pdfAfm) !== 0;
     }
 
     const docDefinition = {
@@ -1272,6 +1318,8 @@
         const ctRows = sd.crossTable.rows.map(r => [
           replaceEmojisForPDF(r.label), String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
         ]);
+        // Highlight rows whose mask matches the active filter
+        const ctHighlights = sd.crossTable.rows.map(r => isPdfActiveFilterRow(r.mask));
         ctRows.push([
           "Gesamt",
           String(sd.crossTable.totals.sev1),
@@ -1279,9 +1327,11 @@
           String(sd.crossTable.totals.sev3),
           String(sd.crossTable.totals.total)
         ]);
+        ctHighlights.push(false); // Gesamt row is not highlighted
         docDefinition.content.push(makePdfTable(
           ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
-          ctRows
+          ctRows,
+          ctHighlights
         ));
       }
 
@@ -1483,6 +1533,15 @@
         }
       }
     }
+
+    // ---- ANLAGEN block (feature parity with Word export) ----
+    docDefinition.content.push({
+      text: "ANLAGEN",
+      style: "subheader"
+    });
+    docDefinition.content.push({ text: "Anlage 1: Kartenansicht", style: "normal" });
+    docDefinition.content.push({ text: "Anlage 2: Statistische Übersicht", style: "normal" });
+    docDefinition.content.push({ text: "Anlage 3: Fachliche Bezüge", style: "normal" });
 
     // ---- DATENQUELLE section ----
     docDefinition.content.push({
