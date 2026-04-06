@@ -403,7 +403,7 @@
     }
 
     children.push(new Paragraph({
-      text: "─────────────────────────────────",
+      text: "---------------------------------",
       alignment: AlignmentType.CENTER,
       spacing: { before: 100, after: 200 }
     }));
@@ -1196,8 +1196,7 @@
     }
 
     docDefinition.content.push({
-      text: "─────────────────────────────────",
-      alignment: "center",
+      canvas: [{ type: 'line', x1: 0, y1: 0, x2: 450, y2: 0, lineWidth: 0.5, lineColor: '#888888' }],
       margin: [0, 5, 0, 15]
     });
 

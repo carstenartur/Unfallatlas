@@ -247,6 +247,10 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay .modal').waitFor({ state: 'visible' });
 
+    // Warten bis computeExportReport() (inkl. Nominatim-Call) abgeschlossen ist
+    await page.locator('#exportProgress').waitFor({ state: 'visible' });
+    await expect(page.locator('#exportProgress')).toContainText('Fertig', { timeout: 30000 });
+
     // Kartenausschnitt deaktivieren (vermeidet leaflet-image-Abhängigkeit)
     await page.locator('#cbIncludeMap').uncheck();
 
