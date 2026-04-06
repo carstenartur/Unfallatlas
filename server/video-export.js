@@ -165,21 +165,29 @@ async function exportVideo(params) {
     const pedWanted    = params.includePedestrian !== '0';
     const carWanted    = params.includeCar        !== '0';
     const motoWanted   = params.includeMotorcycle !== '0';
+    const gkfzWanted   = params.includeGkfz       !== '0';
+    const sonWanted    = params.includeSonstig    !== '0';
 
     const incBike = page.locator('#incBike');
     const incPed  = page.locator('#incPed');
     const incCar  = page.locator('#incCar');
     const incMoto = page.locator('#incMoto');
+    const incGkfz = page.locator('#incGkfz');
+    const incSon  = page.locator('#incSon');
 
     const bikeChecked = await incBike.isChecked().catch(() => true);
     const pedChecked  = await incPed.isChecked().catch(() => true);
     const carChecked  = await incCar.isChecked().catch(() => true);
     const motoChecked = await incMoto.isChecked().catch(() => true);
+    const gkfzChecked = await incGkfz.isChecked().catch(() => true);
+    const sonChecked  = await incSon.isChecked().catch(() => true);
 
     if (bikeChecked !== bikeWanted) { await incBike.click(); await page.waitForTimeout(400); }
     if (pedChecked  !== pedWanted)  { await incPed.click();  await page.waitForTimeout(400); }
     if (carChecked  !== carWanted)  { await incCar.click();  await page.waitForTimeout(400); }
     if (motoChecked !== motoWanted) { await incMoto.click(); await page.waitForTimeout(400); }
+    if (gkfzChecked !== gkfzWanted) { await incGkfz.click(); await page.waitForTimeout(400); }
+    if (sonChecked  !== sonWanted)  { await incSon.click();  await page.waitForTimeout(400); }
 
     await waitForTiles(page);
     await page.waitForTimeout(1000);

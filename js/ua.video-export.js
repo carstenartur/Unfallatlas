@@ -29,6 +29,8 @@
         includePedestrian:    ctx.includePedestrian != null ? String(+ctx.includePedestrian) : '1',
         includeCar:           ctx.includeCar        != null ? String(+ctx.includeCar)        : '1',
         includeMotorcycle:    ctx.includeMotorcycle != null ? String(+ctx.includeMotorcycle) : '1',
+        includeGkfz:          ctx.includeGkfz       != null ? String(+ctx.includeGkfz)       : '1',
+        includeSonstig:       ctx.includeSonstig    != null ? String(+ctx.includeSonstig)    : '1',
         involvementMode:      ctx.involvementMode  || 'or',
         hourFrom:             ctx.hourFrom          != null ? String(ctx.hourFrom) : '0',
         hourTo:               ctx.hourTo            != null ? String(ctx.hourTo)   : '23',

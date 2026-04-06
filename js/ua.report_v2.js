@@ -254,6 +254,8 @@
     if (t === "Bezirksvertretung" || normalized === "Bezirksvertretung") return "Antrag an die Bezirksvertretung";
     return "Antrag zur Verkehrssicherheit";
   }
+  // Expose for use in other modules (e.g. ua.app_v2.js for dynamic modal title)
+  UA.deriveDocTitle = deriveDocTitle;
 
   /**
    * Generate and download Word document
@@ -917,6 +919,8 @@
       if (ctx.ui.incPedEl) params.set("includePedestrian", ctx.ui.incPedEl.checked ? 1 : 0);
       if (ctx.ui.incCarEl) params.set("includeCar", ctx.ui.incCarEl.checked ? 1 : 0);
       if (ctx.ui.incMotoEl) params.set("includeMotorcycle", ctx.ui.incMotoEl.checked ? 1 : 0);
+      if (ctx.ui.incGkfzEl) params.set("includeGkfz", ctx.ui.incGkfzEl.checked ? 1 : 0);
+      if (ctx.ui.incSonEl) params.set("includeSonstig", ctx.ui.incSonEl.checked ? 1 : 0);
     }
     
     // Involvement mode
@@ -964,6 +968,8 @@
     const query = params.toString();
     return query ? `${baseUrl}?${query}` : baseUrl;
   }
+  // Expose for testing purposes
+  UA.buildWerkbankUrl = buildWerkbankUrl;
 
   /**
    * Convert text to pdfMake content with auto-detected clickable links
@@ -1113,28 +1119,86 @@
     };
 
     // ---- Title / Cover ----
+    // Derive document title from structured data (same logic as Word export)
+    const gremiumMeta = sd && sd.meta && sd.meta.gremium ? sd.meta.gremium : {};
+    const docTitle = deriveDocTitle(gremiumMeta.typ);
+
     docDefinition.content.push({
-      text: "BEZIRKSRATSANTRAG",
+      text: docTitle.toUpperCase(),
       style: "header"
     });
 
-    docDefinition.content.push({
-      text: `Stadt: ${CITY_RAW} | Datum: ${today}`,
-      style: "normal",
-      alignment: "center",
-      margin: [0, 5, 0, 10]
-    });
+    // Sublines: An, Stadt, Bereich, Datum, Betreff
+    const metaCity   = (sd && sd.meta && sd.meta.city)     || CITY_RAW;
+    const metaArea   = (sd && sd.meta && sd.meta.areaName) || "(Kartenausschnitt)";
+    const metaDate   = (sd && sd.meta && sd.meta.date)     || today;
+    const metaToWhom = gremiumMeta.gremium || "zuständiges Gremium prüfen";
+
+    const headerLines = [
+      ["An:", metaToWhom],
+      ["Stadt:", metaCity],
+      ["Bereich:", metaArea],
+      ["Datum:", metaDate],
+      ["Betreff:", "Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt"]
+    ];
+    for (const [label, value] of headerLines) {
+      docDefinition.content.push({
+        text: [{ text: `${label} `, bold: true }, { text: value }],
+        style: "normal",
+        margin: [0, 2, 0, 2]
+      });
+    }
 
     docDefinition.content.push({
       text: "─────────────────────────────────",
       alignment: "center",
-      margin: [0, 0, 0, 15]
+      margin: [0, 5, 0, 15]
     });
 
-    docDefinition.content.push({
-      text: "Betreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt",
-      style: "subheader"
-    });
+    // ---- Rahmendaten table ----
+    const metaLink = (sd && sd.meta && sd.meta.link) || "";
+    const kvRahmen = [
+      ["Dokumenttyp", docTitle],
+      gremiumMeta.gremium  ? ["Gremium",              gremiumMeta.gremium]  : null,
+      gremiumMeta.typ      ? ["Gremiumstyp",          gremiumMeta.typ]      : null,
+      gremiumMeta.kontakt  ? ["Kontakt",               gremiumMeta.kontakt]  : null,
+      metaArea             ? ["Bereich",               metaArea]             : null,
+      metaCity             ? ["Stadt",                 metaCity]             : null,
+      metaDate             ? ["Exportdatum",           metaDate]             : null,
+      metaLink             ? ["Werkbank-Link",         metaLink]             : null,
+      gremiumMeta.hinweis  ? ["Zuständigkeitshinweis", gremiumMeta.hinweis]  : null
+    ].filter(Boolean);
+
+    if (kvRahmen.length > 0) {
+      docDefinition.content.push({ text: "Rahmendaten", style: "subheader" });
+      docDefinition.content.push(makePdfTable(["Feld", "Wert"], kvRahmen));
+    }
+
+    // ---- Aktive Filter table ----
+    const filters = (sd && sd.meta && sd.meta.filters) || {};
+    const filterRows = [];
+    if (filters.severity      != null) filterRows.push(["Schweregrad",       String(filters.severity)]);
+    if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand",   String(filters.roadCondition)]);
+    if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", String(filters.involvementMode)]);
+
+    const partLabels = [];
+    if (filters.includeCyclist)    partLabels.push("[Rad]");
+    if (filters.includePedestrian) partLabels.push("[Fuss]");
+    if (filters.includeCar)        partLabels.push("[PKW]");
+    if (filters.includeMotorcycle) partLabels.push("[Krad]");
+    if (filters.includeGkfz)       partLabels.push("[Gkfz]");
+    if (filters.includeSonstig)    partLabels.push("[Sonst]");
+    if (partLabels.length > 0) filterRows.push(["Beteiligte", partLabels.join(", ")]);
+
+    if (filters.hourFrom != null && filters.hourTo != null) {
+      filterRows.push(["Zeitraum", `${filters.hourFrom}:00-${filters.hourTo}:00 Uhr`]);
+    }
+    if (filters.dayType != null) filterRows.push(["Wochentag", String(filters.dayType)]);
+
+    if (filterRows.length > 0) {
+      docDefinition.content.push({ text: "Aktive Filter", style: "subheader" });
+      docDefinition.content.push(makePdfTable(["Filter", "Wert"], filterRows));
+    }
 
     // ---- SACHVERHALT section ----
     docDefinition.content.push({
@@ -1278,7 +1342,7 @@
           text: [
             "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern.\n",
             "Farben: rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte.\n",
-            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad.\n",
+            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Gkfz]=Lkw, [Sonst]=Sonstige.\n",
             "POIs wie Schulen und Kitas sind hervorgehoben."
           ].join(""),
           style: "small"
@@ -1432,7 +1496,21 @@
     });
 
     // Generate and download PDF
-    const filename = `Bezirksratsantrag_${CITY_RAW.replace(/[^a-zA-Z0-9]/g, "_")}_${today.replace(/\./g, "-")}.pdf`;
+    const citySlug = CITY_RAW
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    const titleSlug = docTitle
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    const filename = `${titleSlug}_${citySlug}_${today.replace(/\./g, "-")}.pdf`;
     window.pdfMake.createPdf(docDefinition).download(filename);
   };
 

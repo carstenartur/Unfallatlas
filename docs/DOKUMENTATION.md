@@ -648,7 +648,7 @@ unterstützten Parameter auf:
 
 **Beispiel-URL:**
 ```
-werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
+werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&includeGkfz=1&includeSonstig=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
 ```
 
 ---

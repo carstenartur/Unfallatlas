@@ -70,6 +70,14 @@
         ui.exportProgress.textContent = "Fertig.";
         ui.exportHtml.innerHTML = r.html;
         ui.exportBoxTa.value = r.text;
+        // Update modal title based on committee type from structured data
+        const modalTitleEl = document.querySelector('#modalOverlay .modalTitle');
+        if (modalTitleEl && r.structured && r.structured.meta && r.structured.meta.gremium) {
+          const gremiumTyp = r.structured.meta.gremium.typ;
+          if (gremiumTyp) {
+            modalTitleEl.textContent = UA.deriveDocTitle ? UA.deriveDocTitle(gremiumTyp) : gremiumTyp;
+          }
+        }
         UA.setQS({ export: 1 });
       } catch(e) {
         ui.exportProgress.textContent = "Fehler.";
