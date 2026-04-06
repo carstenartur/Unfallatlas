@@ -202,6 +202,44 @@
   }
 
   /**
+   * Capture a detail map image zoomed to selectionBounds.
+   * Temporarily calls fitBounds (with animation disabled), waits for re-render,
+   * captures, then restores the original view.
+   * Throws if ctx.map or ctx.selectionBounds are missing; capture errors propagate
+   * to the caller, which is responsible for graceful fallback.
+   * @param {Object} ctx - Application context
+   * @param {Object} options - Export options
+   * @returns {Promise<string>} Base64 image data URL
+   */
+  async function captureDetailMap(ctx, options) {
+    if (!ctx.map || !ctx.selectionBounds) {
+      throw new Error("No map or selectionBounds available for detail capture");
+    }
+
+    // Save current map state
+    const origCenter = ctx.map.getCenter();
+    const origZoom = ctx.map.getZoom();
+
+    try {
+      // Zoom to selection bounds without animation to avoid capturing mid-animation
+      ctx.map.fitBounds(ctx.selectionBounds, { animate: false });
+
+      // Wait for tiles to load and the map to re-render
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const imageData = await UA.captureMapImage(ctx, options);
+      return imageData;
+    } finally {
+      // Always restore original map state
+      try {
+        ctx.map.setView(origCenter, origZoom, { animate: false });
+      } catch (restoreErr) {
+        console.warn("Failed to restore map view after detail capture:", restoreErr);
+      }
+    }
+  }
+
+  /**
    * Derive a document title from the Gremium type string.
    * @param {string|undefined} gremiumTyp - Value of sd.meta.gremium.typ
    * @returns {string} German document title
@@ -487,6 +525,26 @@
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
 
+      // Cross-table: Beteiligungskombination × Schweregrad
+      if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
+        children.push(new Paragraph({ text: "Beteiligungskombination × Schweregrad:", spacing: { after: 100 } }));
+        const ctRows = sd.crossTable.rows.map(r => [
+          r.label, String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
+        ]);
+        ctRows.push([
+          "Gesamt",
+          String(sd.crossTable.totals.sev1),
+          String(sd.crossTable.totals.sev2),
+          String(sd.crossTable.totals.sev3),
+          String(sd.crossTable.totals.total)
+        ]);
+        children.push(makeDocxTable(
+          ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
+          ctRows
+        ));
+        children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      }
+
       // Patterns section
       if (sd.patterns && sd.patterns.length > 0) {
         children.push(new Paragraph({
@@ -504,6 +562,32 @@
           if (pat.content) {
             children.push(new Paragraph({ text: pat.content, spacing: { after: 100 } }));
           }
+        }
+        children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      }
+
+      // Accident details table
+      if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+        children.push(new Paragraph({
+          text: "EINZELUNFÄLLE IM BEREICH",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        const detailRows = sd.accidentDetails.rows.map((r, i) => {
+          const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+          const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, r.involved, hour, coords];
+        });
+        children.push(makeDocxTable(
+          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Koordinaten"],
+          detailRows
+        ));
+        if (sd.accidentDetails.truncated) {
+          children.push(new Paragraph({
+            text: `... und ${sd.accidentDetails.total - sd.accidentDetails.rows.length} weitere Unfälle`,
+            italics: true,
+            spacing: { after: 100 }
+          }));
         }
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
@@ -560,6 +644,34 @@
             spacing: { after: 200 }
           })
         );
+
+        // Detail map: zoom to selection bounds if available
+        if (ctx.selectionBounds) {
+          try {
+            const detailImageData = await captureDetailMap(ctx, options);
+            const detailBase64 = detailImageData.replace(/^data:image\/png;base64,/, "");
+            let detailBinary;
+            try {
+              detailBinary = atob(detailBase64);
+            } catch (e2) {
+              throw new Error("Detailkartenbild konnte nicht dekodiert werden");
+            }
+            children.push(new Paragraph({
+              text: "Detailansicht – markierter Bereich",
+              heading: HeadingLevel.HEADING_3,
+              spacing: { before: 200, after: 100 }
+            }));
+            children.push(new Paragraph({
+              children: [new ImageRun({
+                data: Uint8Array.from(detailBinary, c => c.charCodeAt(0)),
+                transformation: { width: 600, height: 400 }
+              })],
+              spacing: { after: 200 }
+            }));
+          } catch (detailErr) {
+            console.warn("Detail map capture failed (graceful fallback):", detailErr);
+          }
+        }
       } catch (e) {
         console.error("Map capture failed:", e);
         children.push(
@@ -920,7 +1032,9 @@
       .replace(/\u{1F6B2}/gu, "[Rad]")      // 🚲 Bicycle
       .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
       .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
-      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]");  // 🏍 Motorcycle (optional variation selector)
+      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]")  // 🏍 Motorcycle (optional variation selector)
+      .replace(/\u{1F69B}/gu, "[Gkfz]")    // 🚛 Heavy vehicle
+      .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
   }
 
   /**
@@ -1087,6 +1201,45 @@
           yrRows
         ));
       }
+
+      // Cross-table: Beteiligungskombination × Schweregrad
+      if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
+        docDefinition.content.push({ text: "Beteiligungskombination × Schweregrad:", style: "normal" });
+        const ctRows = sd.crossTable.rows.map(r => [
+          replaceEmojisForPDF(r.label), String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
+        ]);
+        ctRows.push([
+          "Gesamt",
+          String(sd.crossTable.totals.sev1),
+          String(sd.crossTable.totals.sev2),
+          String(sd.crossTable.totals.sev3),
+          String(sd.crossTable.totals.total)
+        ]);
+        docDefinition.content.push(makePdfTable(
+          ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
+          ctRows
+        ));
+      }
+
+      // Accident details table
+      if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+        docDefinition.content.push({ text: "EINZELUNFÄLLE IM BEREICH", style: "subheader" });
+        const detailRows = sd.accidentDetails.rows.map((r, i) => {
+          const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+          const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, replaceEmojisForPDF(r.involved), hour, coords];
+        });
+        docDefinition.content.push(makePdfTable(
+          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Koordinaten"],
+          detailRows
+        ));
+        if (sd.accidentDetails.truncated) {
+          docDefinition.content.push({
+            text: `... und ${sd.accidentDetails.total - sd.accidentDetails.rows.length} weitere Unfälle`,
+            style: "small"
+          });
+        }
+      }
     }
 
     // ---- Map section (if enabled) ----
@@ -1130,6 +1283,31 @@
           ].join(""),
           style: "small"
         });
+
+        // Detail map: zoom to selection bounds if available
+        if (ctx.selectionBounds) {
+          try {
+            const detailImageData = await captureDetailMap(ctx, options);
+            const detailWerkbankUrl = buildWerkbankUrl(ctx);
+            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader" });
+            docDefinition.content.push({
+              image: detailImageData,
+              fit: [475, 350],
+              margin: [0, 10, 0, 10],
+              link: detailWerkbankUrl
+            });
+            docDefinition.content.push({
+              text: "→ In Werkbank öffnen",
+              link: detailWerkbankUrl,
+              color: "blue",
+              decoration: "underline",
+              style: "normal",
+              margin: [0, 5, 0, 10]
+            });
+          } catch (detailErr) {
+            console.warn("Detail map capture failed for PDF (graceful fallback):", detailErr);
+          }
+        }
       } catch (e) {
         console.error("Map capture failed for PDF:", e);
         docDefinition.content.push({
