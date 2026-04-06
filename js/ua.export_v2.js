@@ -431,19 +431,13 @@
 
   // --------------------
   // crossTableSeverityByMask: Kreuztabelle Beteiligungskombination × Schweregrad
+  // Accepts a pre-filtered list of points (already in-bounds, already passing non-involvement filters).
   // --------------------
-  function crossTableSeverityByMask(ctx, bounds) {
+  function crossTableSeverityByMask(filteredPts) {
     const byMask = {};
 
-    for (const p of ctx.allPts || []) {
+    for (const p of filteredPts) {
       const pr = p.props || {};
-
-      if (typeof UA.matchesNonInvolvementFilters === "function") {
-        if (!UA.matchesNonInvolvementFilters(ctx, pr)) continue;
-      }
-
-      if (!inBounds(p, bounds)) continue;
-
       const m = maskFromProps(pr);
       if (m === 0) continue;
 
@@ -474,6 +468,7 @@
 
   // --------------------
   // accidentDetailTable: Einzelunfall-Liste für markierte Bereiche
+  // Accepts a pre-filtered list of points (already in-bounds, already passing non-involvement filters).
   // --------------------
   const SEV_LABEL_MAP = { "1": "Getötet", "2": "Schwerverletzt", "3": "Leichtverletzt" };
   const WEEKDAY_LABEL_MAP = {
@@ -481,20 +476,15 @@
   };
   const ROAD_COND_LABEL_MAP = { "0": "trocken", "1": "nass/feucht", "2": "winterglatt" };
 
-  function accidentDetailTable(ctx, bounds, maxRows) {
+  function accidentDetailTable(filteredPts, maxRows) {
     if (maxRows === undefined) maxRows = 50;
     const items = [];
 
-    for (const p of ctx.allPts || []) {
+    for (const p of filteredPts) {
       const pr = p.props || {};
-
-      if (typeof UA.matchesNonInvolvementFilters === "function") {
-        if (!UA.matchesNonInvolvementFilters(ctx, pr)) continue;
-      }
-
-      if (!inBounds(p, bounds)) continue;
-
       const mask = maskFromProps(pr);
+      if (mask === 0) continue;
+
       const severity = String(pr.ukategorie ?? "");
       const year = parseInt(pr.year, 10);
       const hour = parseInt(pr.ustunde, 10);
@@ -547,8 +537,11 @@
     const yr = yearTable(ctx, bounds);
     const sev = severityStats(ctx, bounds);
     const range = yearsRange(ctx.allPts || []);
-    const crossTable = crossTableSeverityByMask(ctx, bounds);
-    const accidentDetails = accidentDetailTable(ctx, bounds);
+
+    // Pre-filter points once for the new summary tables (avoids repeated full scans)
+    const filteredPts = getPointsInBounds(ctx);
+    const crossTable = crossTableSeverityByMask(filteredPts);
+    const accidentDetails = accidentDetailTable(filteredPts);
 
     const CITY_RAW = ctx.CITY_RAW || "—";
     const citySlug = UA.normKey ? UA.normKey(CITY_RAW) : CITY_RAW.toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -757,7 +750,7 @@
       lines.push("  # | Jahr | Schwere | Beteiligte | Uhrzeit | Koordinaten");
       accidentDetails.rows.forEach((r, i) => {
         const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-        lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.sevLabel} | ${r.involved} | ${hour} | ${r.lat?.toFixed(4) ?? ""}, ${r.lon?.toFixed(4) ?? ""}`);
+        lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.sevLabel} | ${r.involved} | ${hour} | ${r.lat?.toFixed(4) ?? "—"}, ${r.lon?.toFixed(4) ?? "—"}`);
       });
       if (accidentDetails.truncated) {
         lines.push(`  ... und ${accidentDetails.total - accidentDetails.rows.length} weitere Unfälle`);
@@ -917,6 +910,23 @@
             <tr style="font-weight:700; border-top:2px solid #aaa;"><td>Gesamt</td><td style="text-align:right;">${crossTable.totals.sev1}</td><td style="text-align:right;">${crossTable.totals.sev2}</td><td style="text-align:right;">${crossTable.totals.sev3}</td><td style="text-align:right;">${crossTable.totals.total}</td></tr>
           </tbody>
         </table>
+        ` : ""}
+
+        ${accidentDetails.rows.length > 0 ? `
+        <div style="margin-top:12px; font-weight:900;">Einzelunfälle im Bereich (max. 50)</div>
+        <table class="report" style="margin-top:6px;">
+          <thead>
+            <tr><th>#</th><th style="text-align:right;">Jahr</th><th>Schwere</th><th>Beteiligte</th><th style="text-align:right;">Uhrzeit</th><th>Koordinaten</th></tr>
+          </thead>
+          <tbody>
+            ${accidentDetails.rows.map((r, i) => {
+              const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+              const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
+              return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.sevLabel)}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td style="font-size:11px; color:#555;">${UA.escHtml(coords)}</td></tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+        ${accidentDetails.truncated ? `<div style="color:#777; font-size:12px; margin-top:4px;">... und ${accidentDetails.total - accidentDetails.rows.length} weitere Unfälle</div>` : ""}
         ` : ""}
 
         ${poiHtmlSection}

@@ -203,8 +203,10 @@
 
   /**
    * Capture a detail map image zoomed to selectionBounds.
-   * Temporarily calls fitBounds, waits for tile load, captures, then restores.
-   * Falls back gracefully if the capture fails.
+   * Temporarily calls fitBounds (with animation disabled), waits for re-render,
+   * captures, then restores the original view.
+   * Throws if ctx.map or ctx.selectionBounds are missing; capture errors propagate
+   * to the caller, which is responsible for graceful fallback.
    * @param {Object} ctx - Application context
    * @param {Object} options - Export options
    * @returns {Promise<string>} Base64 image data URL
@@ -219,10 +221,10 @@
     const origZoom = ctx.map.getZoom();
 
     try {
-      // Zoom to selection bounds
-      ctx.map.fitBounds(ctx.selectionBounds);
+      // Zoom to selection bounds without animation to avoid capturing mid-animation
+      ctx.map.fitBounds(ctx.selectionBounds, { animate: false });
 
-      // Wait for tile load and re-render
+      // Wait for tiles to load and the map to re-render
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const imageData = await UA.captureMapImage(ctx, options);

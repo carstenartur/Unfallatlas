@@ -507,4 +507,317 @@ describe('UA.report_v2 - Export Functions', () => {
       delete global.document;
     });
   });
+
+  // =====================================================================
+  // New section tests: crossTable, accidentDetails, emoji fixes, detail map
+  // =====================================================================
+
+  describe('exportToWord – crossTable and accidentDetails sections', () => {
+    function withObjectURL(fn) {
+      const origCreate = URL.createObjectURL;
+      const origRevoke = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      URL.revokeObjectURL = jest.fn();
+      return fn().finally(() => {
+        if (origCreate === undefined) delete URL.createObjectURL; else URL.createObjectURL = origCreate;
+        if (origRevoke === undefined) delete URL.revokeObjectURL; else URL.revokeObjectURL = origRevoke;
+      });
+    }
+
+    test('should include cross-table section in Word document when structured.crossTable is present', () =>
+      withObjectURL(async () => {
+        const ctx = { CITY_RAW: 'Hannover' };
+        const reportData = {
+          text: '',
+          structured: {
+            meta: { city: 'Hannover', date: '01.01.2024', areaName: 'Test', link: '', filters: {}, gremium: {} },
+            severity: { total: 5, bySev: { '1': 1, '2': 2, '3': 2 } },
+            crossTable: {
+              rows: [
+                { mask: 5, label: '🚲+🚗', sev1: 0, sev2: 3, sev3: 12, total: 15 },
+                { mask: 1, label: '🚲', sev1: 0, sev2: 1, sev3: 5, total: 6 }
+              ],
+              totals: { sev1: 0, sev2: 4, sev3: 17, total: 21 }
+            }
+          }
+        };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: false });
+
+        const [blob] = window.saveAs.mock.calls[0];
+        const JSZip = require('jszip');
+        const arrayBuffer = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsArrayBuffer(blob);
+        });
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const xml = await zip.file('word/document.xml').async('text');
+
+        expect(xml).toContain('Beteiligungskombination');
+        expect(xml).toContain('Getötete');
+        expect(xml).toContain('Schwerverletzt');
+        expect(xml).toContain('Leichtverletzt');
+        expect(xml).toContain('Gesamt');
+        // Row values should appear
+        expect(xml).toContain('15');
+        expect(xml).toContain('21');
+      }));
+
+    test('should include accident details section in Word document when structured.accidentDetails is present', () =>
+      withObjectURL(async () => {
+        const ctx = { CITY_RAW: 'Hannover' };
+        const reportData = {
+          text: '',
+          structured: {
+            meta: { city: 'Hannover', date: '01.01.2024', areaName: 'Test', link: '', filters: {}, gremium: {} },
+            severity: { total: 2, bySev: { '2': 1, '3': 1 } },
+            accidentDetails: {
+              rows: [
+                { lat: 52.3812, lon: 9.7271, year: 2023, severity: '2', sevLabel: 'Schwerverletzt', involved: '🚲+🚗', hour: 8, weekday: 'Mo–Fr', roadCondition: 'trocken', mask: 5 },
+                { lat: 52.3810, lon: 9.7268, year: 2022, severity: '3', sevLabel: 'Leichtverletzt', involved: '🚲', hour: 17, weekday: 'Mo–Fr', roadCondition: 'trocken', mask: 1 }
+              ],
+              total: 2,
+              truncated: false
+            }
+          }
+        };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: false });
+
+        const [blob] = window.saveAs.mock.calls[0];
+        const JSZip = require('jszip');
+        const arrayBuffer = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsArrayBuffer(blob);
+        });
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const xml = await zip.file('word/document.xml').async('text');
+
+        expect(xml).toContain('EINZELUNF');  // "EINZELUNFÄLLE" – Ä is encoded in XML
+        expect(xml).toContain('Schwerverletzt');
+        expect(xml).toContain('Leichtverletzt');
+      }));
+
+    test('should include truncation note when accidentDetails.truncated is true', () =>
+      withObjectURL(async () => {
+        const ctx = { CITY_RAW: 'Hannover' };
+        const reportData = {
+          text: '',
+          structured: {
+            meta: { city: 'Hannover', date: '01.01.2024', areaName: 'Test', link: '', filters: {}, gremium: {} },
+            severity: { total: 1, bySev: { '3': 1 } },
+            accidentDetails: {
+              rows: [{ lat: 52.38, lon: 9.73, year: 2022, severity: '3', sevLabel: 'Leichtverletzt', involved: '🚲', hour: 8, weekday: 'Mo–Fr', roadCondition: 'trocken', mask: 1 }],
+              total: 60,
+              truncated: true
+            }
+          }
+        };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: false });
+
+        const [blob] = window.saveAs.mock.calls[0];
+        const JSZip = require('jszip');
+        const arrayBuffer = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsArrayBuffer(blob);
+        });
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const xml = await zip.file('word/document.xml').async('text');
+
+        expect(xml).toContain('59');  // 60 - 1 further accidents
+        expect(xml).toContain('weitere Unf');  // "weitere Unfälle" – Ä encoded
+      }));
+  });
+
+  describe('exportToPDF – crossTable and accidentDetails sections', () => {
+    function capturePdfDefinition() {
+      let captured;
+      const realCreatePdf = window.pdfMake.createPdf.bind(window.pdfMake);
+      jest.spyOn(window.pdfMake, 'createPdf').mockImplementation((def) => {
+        captured = def;
+        const doc = realCreatePdf(def);
+        doc.download = jest.fn();
+        return doc;
+      });
+      return () => captured;
+    }
+
+    test('should include cross-table in PDF when structured.crossTable is present', async () => {
+      const getDefinition = capturePdfDefinition();
+      const ctx = { CITY_RAW: 'Hannover' };
+      const reportData = {
+        text: '',
+        structured: {
+          severity: { total: 5, bySev: { '1': 1, '2': 2, '3': 2 } },
+          crossTable: {
+            rows: [
+              { mask: 5, label: '🚲+🚗', sev1: 0, sev2: 3, sev3: 12, total: 15 }
+            ],
+            totals: { sev1: 0, sev2: 3, sev3: 12, total: 15 }
+          }
+        }
+      };
+
+      await UA.exportToPDF(ctx, reportData, { includeMap: false });
+
+      const def = getDefinition();
+      const allText = def.content.flatMap(item => {
+        if (typeof item.text === 'string') return [item.text];
+        if (item.table) return item.table.body.flat().map(c => c.text || '');
+        return [];
+      }).join(' ');
+
+      expect(allText).toContain('Beteiligungskombination');
+      expect(allText).toContain('Getötete');
+      expect(allText).toContain('Gesamt');
+      // Label should have emojis replaced
+      expect(allText).toContain('[Rad]+[PKW]');
+    });
+
+    test('should include accident details table in PDF when structured.accidentDetails is present', async () => {
+      const getDefinition = capturePdfDefinition();
+      const ctx = { CITY_RAW: 'Hannover' };
+      const reportData = {
+        text: '',
+        structured: {
+          severity: { total: 1, bySev: { '2': 1 } },
+          accidentDetails: {
+            rows: [
+              { lat: 52.38, lon: 9.73, year: 2023, severity: '2', sevLabel: 'Schwerverletzt', involved: '🚲+🚗', hour: 8, weekday: 'Mo–Fr', roadCondition: 'trocken', mask: 5 }
+            ],
+            total: 1,
+            truncated: false
+          }
+        }
+      };
+
+      await UA.exportToPDF(ctx, reportData, { includeMap: false });
+
+      const def = getDefinition();
+      const allText = def.content.flatMap(item => {
+        if (typeof item.text === 'string') return [item.text];
+        if (item.table) return item.table.body.flat().map(c => c.text || '');
+        return [];
+      }).join(' ');
+
+      expect(allText).toContain('EINZELUNF');  // EINZELUNFÄLLE
+      expect(allText).toContain('Schwerverletzt');
+      // involved emoji should be replaced
+      expect(allText).toContain('[Rad]+[PKW]');
+    });
+
+    test('replaceEmojisForPDF should replace Gkfz and Sonstig emojis', async () => {
+      const getDefinition = capturePdfDefinition();
+      const ctx = { CITY_RAW: 'Test' };
+      const reportData = {
+        text: '',
+        structured: {
+          severity: { total: 2, bySev: { '3': 2 } },
+          crossTable: {
+            rows: [
+              { mask: 17, label: '🚲+🚛', sev1: 0, sev2: 0, sev3: 1, total: 1 },
+              { mask: 32, label: '🚌', sev1: 0, sev2: 0, sev3: 1, total: 1 }
+            ],
+            totals: { sev1: 0, sev2: 0, sev3: 2, total: 2 }
+          }
+        }
+      };
+
+      await UA.exportToPDF(ctx, reportData, { includeMap: false });
+
+      const def = getDefinition();
+      const allText = def.content.flatMap(item => {
+        if (typeof item.text === 'string') return [item.text];
+        if (item.table) return item.table.body.flat().map(c => c.text || '');
+        return [];
+      }).join(' ');
+
+      // 🚛 → [Gkfz], 🚌 → [Sonst]
+      expect(allText).toContain('[Gkfz]');
+      expect(allText).toContain('[Sonst]');
+      // Raw emojis must NOT appear in PDF
+      expect(allText).not.toContain('🚛');
+      expect(allText).not.toContain('🚌');
+    });
+  });
+
+  describe('captureDetailMap', () => {
+    test('should NOT call fitBounds when selectionBounds is absent', async () => {
+      const origCreate = URL.createObjectURL;
+      const origRevoke = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      URL.revokeObjectURL = jest.fn();
+
+      try {
+        const fitBoundsSpy = jest.fn();
+        const ctx = {
+          CITY_RAW: 'Hannover',
+          map: {
+            getCenter: jest.fn(() => ({ lat: 52.3759, lng: 9.7320 })),
+            getZoom: jest.fn(() => 12),
+            fitBounds: fitBoundsSpy
+          }
+          // selectionBounds intentionally absent
+        };
+        const reportData = { text: '', structured: null };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: true });
+
+        // fitBounds should NOT have been called when there is no selectionBounds
+        expect(fitBoundsSpy).not.toHaveBeenCalled();
+      } finally {
+        if (origCreate === undefined) delete URL.createObjectURL; else URL.createObjectURL = origCreate;
+        if (origRevoke === undefined) delete URL.revokeObjectURL; else URL.revokeObjectURL = origRevoke;
+      }
+    });
+
+    test('should call fitBounds with {animate: false} during detail map capture (via Word export)', async () => {
+      const origCreate = URL.createObjectURL;
+      const origRevoke = URL.revokeObjectURL;
+      URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      URL.revokeObjectURL = jest.fn();
+
+      try {
+        const fitBoundsSpy = jest.fn();
+        const setViewSpy = jest.fn();
+        const ctx = {
+          CITY_RAW: 'Hannover',
+          map: {
+            getCenter: jest.fn(() => ({ lat: 52.3759, lng: 9.7320 })),
+            getZoom: jest.fn(() => 12),
+            fitBounds: fitBoundsSpy,
+            setView: setViewSpy
+          },
+          selectionBounds: {
+            getSouth: () => 52.37,
+            getNorth: () => 52.38,
+            getWest: () => 9.72,
+            getEast: () => 9.74
+          }
+        };
+        const reportData = { text: '', structured: null };
+
+        await UA.exportToWord(ctx, reportData, { includeMap: true });
+
+        // fitBounds should have been called with animate: false for the detail map
+        expect(fitBoundsSpy).toHaveBeenCalledWith(
+          ctx.selectionBounds,
+          expect.objectContaining({ animate: false })
+        );
+        // setView should restore the original position
+        expect(setViewSpy).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.any(Number),
+          expect.objectContaining({ animate: false })
+        );
+      } finally {
+        if (origCreate === undefined) delete URL.createObjectURL; else URL.createObjectURL = origCreate;
+        if (origRevoke === undefined) delete URL.revokeObjectURL; else URL.revokeObjectURL = origRevoke;
+      }
+    });
+  });
 });
