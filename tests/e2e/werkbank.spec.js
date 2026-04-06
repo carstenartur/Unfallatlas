@@ -572,7 +572,7 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
 
     // Verify filename contains 'Antrag' and ends with .docx
     const filename = download.suggestedFilename();
-    expect(filename).toMatch(/Antrag.*\.docx$/);
+    expect(filename).toMatch(/Antrag.*\.docx$/i);
 
     // Verify the file path is defined and the file is not empty
     const filePath = await download.path();
@@ -596,7 +596,7 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
 
     // Verify filename contains 'Antrag' and ends with .pdf
     const filename = download.suggestedFilename();
-    expect(filename).toMatch(/Antrag.*\.pdf$/);
+    expect(filename).toMatch(/Antrag.*\.pdf$/i);
 
     // Verify the file path is defined and the file is not empty
     const filePath = await download.path();

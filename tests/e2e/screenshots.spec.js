@@ -3,7 +3,7 @@
  * Erstellt automatisch Screenshots und speichert sie unter docs/screenshots/
  */
 
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { setupCDNRoutes } from './helpers.js';
 
 /** Hilfsfunktion: Seite mit URL-Parametern laden und auf Datenladen warten */
