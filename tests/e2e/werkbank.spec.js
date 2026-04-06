@@ -731,3 +731,49 @@ test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () =>
     expect(firstLine).toContain('ukategorie');
   });
 });
+
+test.describe('Werkbank V2 - Cross Table and Accident Details in Export Modal', () => {
+  test('should display cross-table when area is selected with accidents', async ({ page }) => {
+    // Navigate with pre-set selection bounds (Bonn Hbf area) to ensure accidents are present
+    await page.goto('/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0' +
+      '&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0' +
+      '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
+      '&centerLat=50.7330&centerLon=7.0950&zoom=15' +
+      '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
+    await page.waitForLoadState('networkidle');
+
+    // Wait for data to load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('#citySel');
+      return select && select.querySelectorAll('option').length > 1;
+    });
+
+    // Open the export modal
+    await page.locator('#btnOpenExport').click();
+    const modal = page.locator('#modalOverlay .modal');
+    await modal.waitFor({ state: 'visible' });
+
+    // Wait for report to generate (should contain cross-table)
+    await page.waitForTimeout(2000);
+
+    // Check for cross-table heading in the export HTML
+    const reportHtml = page.locator('#exportBoxHtml');
+    const htmlContent = await reportHtml.innerHTML();
+
+    // Cross-table should be present if accidents are in the selected area
+    // The table heading "Beteiligungskombination × Schweregrad" should appear
+    if (htmlContent.includes('Beteiligungskombination')) {
+      expect(htmlContent).toContain('Getötete');
+      expect(htmlContent).toContain('Schwerverletzt');
+      expect(htmlContent).toContain('Leichtverletzt');
+      expect(htmlContent).toContain('Gesamt');
+    }
+
+    // Check for accident details table
+    if (htmlContent.includes('Einzelunfälle im Bereich')) {
+      expect(htmlContent).toContain('Jahr');
+      expect(htmlContent).toContain('Schwere');
+      expect(htmlContent).toContain('Beteiligte');
+    }
+  });
+});
