@@ -99,7 +99,7 @@ function inferType(title, rawType) {
   const s = ((title || '') + ' ' + (rawType || '')).toLowerCase();
   if (s.includes('änderungsantrag')) return 'Änderungsantrag';
   if (s.includes('antrag')) return 'Antrag';
-  if (s.includes('anfrage') || s.includes('kleine anfrage') || s.includes('große anfrage')) return 'Anfrage';
+  if (s.includes('anfrage')) return 'Anfrage';
   if (s.includes('beschluss') || s.includes('beschlüsse')) return 'Beschluss';
   if (s.includes('antwort') || s.includes('stellungnahme') || s.includes('bericht') || s.includes('mitteilung')) return 'Verwaltungsantwort';
   if (s.includes('protokoll') || s.includes('niederschrift')) return 'Protokoll';
