@@ -1,9 +1,10 @@
 /**
  * Express-Server für die Docker-Distribution der Unfallwerkbank.
  *
- * Stellt die statischen Werkbank-Dateien bereit und bietet einen
- * `/api/export-video`-Endpunkt, der per Playwright ein GIF-Video
- * des kompletten Analyse-Ablaufs erzeugt.
+ * Stellt die statischen Werkbank-Dateien bereit und bietet folgende Endpunkte:
+ *   POST /api/export-video          – GIF-Video-Export (Playwright/ffmpeg)
+ *   POST /api/ai/export-assessment  – optionale KI-gestützte Bewertung (Gemini)
+ *   GET  /api/ai-assessment-available – Feature-Flag (GEMINI_API_KEY vorhanden?)
  *
  * Start: node server/index.js
  * Port:  8000 (konfigurierbar über Umgebungsvariable PORT)
@@ -15,7 +16,10 @@ const express = require('express');
 const { rateLimit } = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
-const { exportVideo } = require('./video-export.js');
+const { exportVideo }   = require('./video-export.js');
+const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
+const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAssessmentServiceV2.js');
+const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -29,6 +33,15 @@ app.use(express.json());
 const videoExportRateLimit = rateLimit({
   windowMs: 60_000,      // 1 minute window
   max: 3,                // max 3 requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
+});
+
+// Rate limiter for the AI assessment endpoint (10 requests/minute per IP).
+const aiAssessmentRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
@@ -108,8 +121,201 @@ app.post('/api/export-video', videoExportRateLimit, concurrencyGuard, async (req
   }
 });
 
+// ── Feature-Flag: KI-Bewertung verfügbar? ─────────────────────────────────────
+/**
+ * GET /api/ai-assessment-available
+ *
+ * Gibt { available: true } zurück, wenn GEMINI_API_KEY gesetzt ist, sonst
+ * { available: false }.  Ermöglicht dem Frontend, die KI-Option aus- oder
+ * einzublenden ohne einen vollen Request zu schicken.
+ */
+app.get('/api/ai-assessment-available', (_req, res) => {
+  res.json({ available: isAvailable() });
+});
+
+// ── KI-Bewertung ──────────────────────────────────────────────────────────────
+/**
+ * POST /api/ai/export-assessment
+ *
+ * Body (JSON):
+ *   structured    – strukturiertes Export-Objekt aus computeExportReport()
+ *   contextHints  – (optional) manuelle Kontext-Hinweise
+ *     { knownHazards: string[], locationHints: string[], surfaceHints: string[], notes: string[] }
+ *
+ * Antwort (JSON):
+ *   { assessment: ExportAssessmentOutput }
+ *
+ * Fehler:
+ *   503 – KI nicht konfiguriert (GEMINI_API_KEY fehlt)
+ *   400 – Pflichtfelder im Body fehlen
+ *   500 – Interner Fehler
+ */
+app.post('/api/ai/export-assessment', aiAssessmentRateLimit, async (req, res) => {
+  if (!isAvailable()) {
+    return res.status(503).json({ error: 'KI-Bewertung ist nicht konfiguriert (GEMINI_API_KEY fehlt).' });
+  }
+
+  const { structured, contextHints } = req.body || {};
+  if (!structured || typeof structured !== 'object') {
+    return res.status(400).json({ error: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.' });
+  }
+
+  try {
+    const assessment = await runAssessment(structured, contextHints);
+    return res.json({ assessment });
+  } catch (err) {
+    // Log without sensitive data (no API key, no raw prompt)
+    console.error('[ai/export-assessment] Fehler:', err.message);
+    return res.status(500).json({ error: err.message || 'Interner Fehler bei der KI-Bewertung.' });
+  }
+});
+
+// ── KI-Bewertung v2 (Modi: assessment | proposal-brief) ──────────────────────
+/**
+ * POST /api/ai/export-assessment/v2?mode=assessment|proposal-brief
+ *
+ * Body (JSON):
+ *   structured    – strukturiertes Export-Objekt aus computeExportReport()
+ *   contextHints  – (optional) manuelle Kontext-Hinweise
+ *   mode          – (optional) 'assessment' (default) oder 'proposal-brief';
+ *                    kann auch via ?mode=… als Query-Parameter gesetzt werden.
+ *   withFallback  – (optional, default true) bei Fehlern deterministisch antworten?
+ *
+ * Antwort (JSON):
+ *   {
+ *     mode:     string,
+ *     source:   'cache'|'ai'|'ai-repaired'|'fallback',
+ *     cacheKey: string,
+ *     result:   <Schema-konformer Output>
+ *   }
+ *
+ * Hinweis zu Free-Tier:
+ *   - Identische Anfragen (gleicher Input + Modus + Modell) werden aus dem
+ *     Cache bedient (sha256, TTL 1h). Reduziert Kontingentverbrauch.
+ *   - Provider nutzt Retry/Backoff bei 429/5xx.
+ *   - Fehlt der GEMINI_API_KEY, antwortet der Endpunkt mit Status 200 +
+ *     `source: 'fallback'` (deterministischer Output ohne KI-Texte), sofern
+ *     `withFallback !== false`.  Bei `withFallback: false` antwortet er 503.
+ */
+app.post('/api/ai/export-assessment/v2', aiAssessmentRateLimit, async (req, res) => {
+  const body = req.body || {};
+  const mode = String(body.mode || req.query.mode || 'assessment');
+  if (!VALID_MODES.includes(mode)) {
+    return res.status(400).json({ error: `Ungültiger mode "${mode}". Erlaubt: ${VALID_MODES.join(', ')}` });
+  }
+  const { structured, contextHints } = body;
+  if (!structured || typeof structured !== 'object') {
+    return res.status(400).json({ error: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.' });
+  }
+  const withFallback = body.withFallback !== false;
+
+  try {
+    const out = await runAssessmentV2({ structured, contextHints, mode, withFallback });
+    return res.json({
+      mode,
+      source: out.source,
+      cacheKey: out.cacheKey,
+      result: out.result,
+      ...(out.error ? { fallbackReason: out.error } : {})
+    });
+  } catch (err) {
+    if (err && err.code === 'AI_NOT_CONFIGURED') {
+      return res.status(503).json({ error: err.message });
+    }
+    console.error('[ai/export-assessment/v2] Fehler:', err.message);
+    return res.status(500).json({ error: err.message || 'Interner Fehler bei der KI-Bewertung.' });
+  }
+});
+
+// ── Async Jobs für KI-Bewertung ──────────────────────────────────────────────
+/**
+ * Registriert den Runner für asynchrone v2-Jobs.  Der Job-Payload entspricht
+ * dem Body von POST /api/ai/export-assessment/v2 (structured, contextHints,
+ * mode, withFallback).  Das Ergebnis ist exakt das, was der synchrone
+ * Endpunkt zurückgibt (mode/source/cacheKey/result).
+ */
+aiJobQueue.registerRunner('export-assessment-v2', async (payload) => {
+  const mode = String(payload?.mode || 'assessment');
+  const withFallback = payload?.withFallback !== false;
+  const out = await runAssessmentV2({
+    structured: payload?.structured,
+    contextHints: payload?.contextHints,
+    mode,
+    withFallback
+  });
+  return {
+    mode,
+    source: out.source,
+    cacheKey: out.cacheKey,
+    result: out.result,
+    ...(out.error ? { fallbackReason: out.error } : {})
+  };
+});
+
+/**
+ * POST /api/ai/jobs
+ *
+ * Body: { kind, payload }
+ *   - kind:    z. B. "export-assessment-v2"
+ *   - payload: Body wie für den synchronen Endpunkt
+ *
+ * Antwort: { id, status, kind, submittedAt }
+ *
+ * Hinweis: Der Job wird asynchron abgearbeitet.  Status/Result via
+ *   GET /api/ai/jobs/:id
+ */
+app.post('/api/ai/jobs', aiAssessmentRateLimit, (req, res) => {
+  const { kind, payload } = req.body || {};
+  if (typeof kind !== 'string' || !kind) {
+    return res.status(400).json({ error: 'Pflichtfeld "kind" fehlt.' });
+  }
+  if (kind !== 'export-assessment-v2') {
+    return res.status(400).json({ error: `Unbekannter kind "${kind}".` });
+  }
+  if (!payload || typeof payload !== 'object' || !payload.structured) {
+    return res.status(400).json({ error: 'payload.structured fehlt oder ist ungültig.' });
+  }
+  const mode = String(payload.mode || 'assessment');
+  if (!VALID_MODES.includes(mode)) {
+    return res.status(400).json({ error: `Ungültiger mode "${mode}". Erlaubt: ${VALID_MODES.join(', ')}` });
+  }
+  try {
+    const job = aiJobQueue.submit({ kind, payload });
+    return res.status(202).json({
+      id: job.id, status: job.status, kind: job.kind, submittedAt: job.submittedAt
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Job konnte nicht angelegt werden.' });
+  }
+});
+
+/**
+ * GET /api/ai/jobs/:id
+ *
+ * Antwort:
+ *   { id, kind, status: 'queued'|'running'|'done'|'error',
+ *     submittedAt, startedAt?, finishedAt?, result?, error? }
+ *
+ * Statuscodes: 200 (gefunden), 404 (unbekannte ID).
+ */
+app.get('/api/ai/jobs/:id', (req, res) => {
+  const id = String(req.params.id || '');
+  if (!/^[a-f0-9]{8,64}$/i.test(id)) {
+    return res.status(400).json({ error: 'Ungültige Job-ID.' });
+  }
+  const job = aiJobQueue.getJob(id);
+  if (!job) return res.status(404).json({ error: 'Job nicht gefunden.' });
+  // Don't echo back the full original payload (can be large)
+  const { payload, ...publicJob } = job;
+  return res.json(publicJob);
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
   console.log(`Video-Export: POST http://localhost:${PORT}/api/export-video`);
+  console.log(`KI-Bewertung v1: POST http://localhost:${PORT}/api/ai/export-assessment (verfügbar: ${isAvailable()})`);
+  console.log(`KI-Bewertung v2: POST http://localhost:${PORT}/api/ai/export-assessment/v2?mode=assessment|proposal-brief`);
+  console.log(`KI-Bewertung Jobs: POST http://localhost:${PORT}/api/ai/jobs  und  GET /api/ai/jobs/:id`);
+  console.log(`KI-Provider: ${activeProviderName()}`);
 });

@@ -1,0 +1,161 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "proposalBrief.v1",
+  "title": "ProposalBriefV1Output",
+  "description": "Antragsfähiger Maßnahmensteckbrief mit Kurz-/Langfassung, Prüfauftrag und Formulierungsbausteinen für deutsche kommunale Gremien.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "title",
+    "shortVersion",
+    "longVersion",
+    "sachverhalt",
+    "begruendung",
+    "beschlussvorschlag",
+    "pruefauftrag",
+    "measureSummary",
+    "confidence",
+    "caveats"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "proposalBrief.v1"
+    },
+    "title": {
+      "type": "string",
+      "description": "Vorgeschlagener Antragstitel"
+    },
+    "shortVersion": {
+      "type": "string",
+      "description": "Kompakte Antragsfassung (max. ~120 Wörter), bürger- und gremiumstauglich"
+    },
+    "longVersion": {
+      "type": "string",
+      "description": "Ausführliche Antragsfassung mit Datenbezug (max. ~400 Wörter)"
+    },
+    "sachverhalt": {
+      "type": "string",
+      "description": "Sachverhaltsabschnitt für die Vorlage"
+    },
+    "begruendung": {
+      "type": "string",
+      "description": "Begründung mit Evidenzbezug"
+    },
+    "beschlussvorschlag": {
+      "type": "string",
+      "description": "Konkreter Beschlussvorschlag (formal)"
+    },
+    "pruefauftrag": {
+      "type": "string",
+      "description": "Konkreter Prüfauftrag an die Verwaltung"
+    },
+    "measureSummary": {
+      "type": "array",
+      "description": "Kurzliste der vorgeschlagenen Maßnahmen aus der Bibliothek (kein freies Halluzinieren).",
+      "items": {
+        "type": "object",
+        "required": ["title", "category", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "id":        { "type": "string" },
+          "title":     { "type": "string" },
+          "category":  { "type": "string", "enum": ["quickWin", "infrastructure", "organizational", "monitoring"] },
+          "rationale": { "type": "string" },
+          "matchedRiskFactors":      { "type": "array", "items": { "type": "string" } },
+          "matchedConflictPatterns": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["overall"],
+      "additionalProperties": false,
+      "properties": {
+        "overall":   { "type": "string", "enum": ["high", "medium", "low"] },
+        "rationale": { "type": "string" }
+      }
+    },
+    "caveats": {
+      "type": "array",
+      "description": "Vorbehalte / Datenlücken / 'Achtung'-Hinweise, die im Antrag mit erwähnt werden sollten.",
+      "items": { "type": "string" }
+    },
+    "shortAdministrativeSummary": {
+      "type": "string",
+      "description": "1–2 Sätze für Verwaltungsnotiz."
+    },
+    "recommendedImmediateAction": {
+      "type": "string",
+      "description": "Was sollte als erstes (≤ 4 Wochen) passieren?"
+    },
+    "recommendedDetailedExamination": {
+      "type": "string",
+      "description": "Welche tiefere Prüfung ist angezeigt?"
+    },
+    "expectedSafetyBenefit": {
+      "type": "string",
+      "description": "Realistische Wirkungseinschätzung."
+    },
+    "whyActionIsPlausibleHere": { "type": "string" },
+    "whyEvidenceIsLimitedIfApplicable": { "type": "string" },
+    "suggestedCouncilRequest": {
+      "type": "string",
+      "description": "Vorschlag für Antrags-/Anfragetext im Gremium."
+    },
+    "suggestedReviewOrder": {
+      "type": "string",
+      "description": "Vorschlag für formellen Prüfauftrag an die Verwaltung."
+    },
+    "fieldInspectionChecklist": {
+      "type": "array",
+      "description": "Konkrete Punkte für die Ortsbegehung.",
+      "items": { "type": "string" }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "missingData":             { "type": "array", "items": { "type": "string" } },
+        "weakDataBasis":           { "type": "boolean" },
+        "plausibleNotEvidenced":   { "type": "array", "items": { "type": "string" } },
+        "requiresOnSiteCheck":     { "type": "boolean" },
+        "alternativeExplanations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "derivedFromDeterministicFeatures": { "type": "array", "items": { "type": "string" } },
+        "inferredByModel":                  { "type": "array", "items": { "type": "string" } },
+        "uncertainOrNeedsVerification":     { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "policyContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyReadiness":                { "type": "string", "enum": ["low", "medium", "high"] },
+        "existingPoliticalSignals":       { "type": "array", "items": { "type": "string" } },
+        "synergyWithKnownRequests":       { "type": "array", "items": { "type": "string" } },
+        "implementationOpportunityLevel": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "detectedConflictPatterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id":         { "type": "string" },
+          "label":      { "type": "string" },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "rationale":  { "type": "string" }
+        }
+      }
+    }
+  }
+}

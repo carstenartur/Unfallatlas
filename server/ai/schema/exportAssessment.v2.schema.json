@@ -1,0 +1,242 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "exportAssessment.v2",
+  "title": "ExportAssessmentV2Output",
+  "description": "Strukturierte fachliche KI-Bewertung eines Unfallatlas-Exports (v2). Trennt explizit Evidenz, plausible Risikofaktoren und unsichere Hypothesen. Maßnahmen werden aus einer vordefinierten Bibliothek priorisiert und begründet.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "problemProfile",
+    "evidence",
+    "primaryRiskFactors",
+    "secondaryRiskFactors",
+    "recommendedMeasures",
+    "quickWins",
+    "infrastructureMeasures",
+    "openChecks",
+    "confidence",
+    "dataGaps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "exportAssessment.v2"
+    },
+    "problemProfile": {
+      "type": "object",
+      "required": ["headline", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "headline": { "type": "string", "description": "Kurzer Titel des Problems (max. 1 Satz)" },
+        "summary":  { "type": "string", "description": "Fachliche Zusammenfassung (max. 4 Sätze)" },
+        "dominantPattern": { "type": "string", "description": "Dominantes Beteiligungs- oder Unfallmuster" }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Direkt aus den Daten ableitbare Beobachtungen (kein Spielraum für Interpretation).",
+      "items": {
+        "type": "object",
+        "required": ["statement", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "statement": { "type": "string" },
+          "source":    { "type": "string", "description": "Welches Datenfeld stützt die Beobachtung (z.B. severity.bySev, deviations, yearTable)" }
+        }
+      }
+    },
+    "primaryRiskFactors": {
+      "type": "array",
+      "description": "Plausible Hauptursachen, gestützt von Evidenz – mit klarer Begründung.",
+      "items": {
+        "type": "object",
+        "required": ["factor", "rationale", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "factor":     { "type": "string" },
+          "rationale":  { "type": "string" },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "secondaryRiskFactors": {
+      "type": "array",
+      "description": "Mögliche, aber nicht gesicherte Faktoren ('zu prüfen'). Müssen ausdrücklich als Hypothese gekennzeichnet sein.",
+      "items": {
+        "type": "object",
+        "required": ["factor", "rationale", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "factor":     { "type": "string" },
+          "rationale":  { "type": "string" },
+          "confidence": { "type": "string", "enum": ["medium", "low"] }
+        }
+      }
+    },
+    "recommendedMeasures": {
+      "type": "array",
+      "description": "Priorisierte Maßnahmen, ausgewählt aus dem Maßnahmenkatalog. Reihenfolge entspricht der Empfehlung.",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "category",
+          "whyThisFitsHere",
+          "expectedEffect",
+          "targetAccidentTypes",
+          "implementationEffort",
+          "costBand",
+          "confidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id":                   { "type": "string", "description": "ID aus measureCatalog (sofern aus Bibliothek)" },
+          "title":                { "type": "string" },
+          "category":             { "type": "string", "enum": ["quickWin", "infrastructure", "organizational", "monitoring"] },
+          "whyThisFitsHere":      { "type": "string", "description": "Konkrete Begründung für diesen Ort, mit Bezug zu Daten/Evidenz." },
+          "expectedEffect":       { "type": "string" },
+          "targetAccidentTypes":  { "type": "array", "items": { "type": "string" } },
+          "implementationEffort": { "type": "string", "enum": ["low", "medium", "high"] },
+          "costBand":             { "type": "string", "enum": ["low", "medium", "high"] },
+          "confidence":           { "type": "string", "enum": ["high", "medium", "low"] },
+          "matchedRiskFactors":         { "type": "array", "items": { "type": "string" } },
+          "matchedConflictPatterns":    { "type": "array", "items": { "type": "string" } },
+          "expectedTargetAccidentTypes":{ "type": "array", "items": { "type": "string" } },
+          "reasonForPreselection":      { "type": "string" },
+          "implementationDuration":     { "type": "string", "enum": ["weeks", "months", "year_plus"] },
+          "measureClass":               { "type": "string", "enum": ["quickWin", "operational", "marking", "signal", "structural", "major_rebuild"] }
+        }
+      }
+    },
+    "quickWins": {
+      "type": "array",
+      "description": "IDs oder Titel von kurzfristig umsetzbaren Maßnahmen aus recommendedMeasures.",
+      "items": { "type": "string" }
+    },
+    "infrastructureMeasures": {
+      "type": "array",
+      "description": "IDs oder Titel von baulichen/infrastrukturellen Maßnahmen aus recommendedMeasures.",
+      "items": { "type": "string" }
+    },
+    "openChecks": {
+      "type": "array",
+      "description": "Konkrete Prüfaufträge für die Ortsbegehung oder Verwaltung.",
+      "items": { "type": "string" }
+    },
+    "proposalFragments": {
+      "type": "object",
+      "description": "Optionale kurze Formulierungsbausteine für Verwaltungsdokumente.",
+      "additionalProperties": false,
+      "properties": {
+        "sachverhalt":        { "type": "string" },
+        "bewertung":          { "type": "string" },
+        "beschlussvorschlag": { "type": "string" },
+        "pruefauftrag":       { "type": "string" }
+      }
+    },
+    "shortAdministrativeSummary": {
+      "type": "string",
+      "description": "1–2 Sätze, sofort in Verwaltungsnotiz einsetzbar."
+    },
+    "technicalRationale": {
+      "type": "string",
+      "description": "Fachliche Begründung mit Datenbezug, frei von Polemik."
+    },
+    "recommendedImmediateAction": {
+      "type": "string",
+      "description": "Was sollte als erstes (≤ 4 Wochen) passieren?"
+    },
+    "recommendedDetailedExamination": {
+      "type": "string",
+      "description": "Welche tiefere Prüfung ist angezeigt (z. B. Unfallkommission, Verkehrsschau)?"
+    },
+    "expectedSafetyBenefit": {
+      "type": "string",
+      "description": "Realistische Wirkungseinschätzung (Häufigkeit/Schwere)."
+    },
+    "whyActionIsPlausibleHere": {
+      "type": "string",
+      "description": "Warum sind Maßnahmen an diesem Ort plausibel? Bezug auf Evidenz."
+    },
+    "whyEvidenceIsLimitedIfApplicable": {
+      "type": "string",
+      "description": "Falls Datenlage schwach ist: warum trotzdem Handeln plausibel sein kann."
+    },
+    "suggestedCouncilRequest": {
+      "type": "string",
+      "description": "Vorschlag für Antrags- oder Anfragetext im Gremium."
+    },
+    "suggestedReviewOrder": {
+      "type": "string",
+      "description": "Vorschlag für formellen Prüfauftrag an die Verwaltung."
+    },
+    "fieldInspectionChecklist": {
+      "type": "array",
+      "description": "Konkrete Punkte für die Ortsbegehung.",
+      "items": { "type": "string" }
+    },
+    "uncertainty": {
+      "type": "object",
+      "description": "Strukturierte Unsicherheitslogik – ehrliche Trennung zwischen Datenlücken, Hypothesen und Vor-Ort-Bedarf.",
+      "additionalProperties": false,
+      "properties": {
+        "missingData":             { "type": "array", "items": { "type": "string" } },
+        "weakDataBasis":           { "type": "boolean" },
+        "plausibleNotEvidenced":   { "type": "array", "items": { "type": "string" } },
+        "requiresOnSiteCheck":     { "type": "boolean" },
+        "alternativeExplanations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Herkunftskennzeichnung: was stammt aus deterministischen Daten, was wurde vom Modell verdichtet, was ist unsicher.",
+      "additionalProperties": false,
+      "properties": {
+        "derivedFromDeterministicFeatures": { "type": "array", "items": { "type": "string" } },
+        "inferredByModel":                  { "type": "array", "items": { "type": "string" } },
+        "uncertainOrNeedsVerification":     { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "policyContext": {
+      "type": "object",
+      "description": "Vorbereitung für spätere politische Integration. Optional, ohne erzwungene Datenintegration.",
+      "additionalProperties": false,
+      "properties": {
+        "policyReadiness":              { "type": "string", "enum": ["low", "medium", "high"] },
+        "existingPoliticalSignals":     { "type": "array", "items": { "type": "string" } },
+        "synergyWithKnownRequests":     { "type": "array", "items": { "type": "string" } },
+        "implementationOpportunityLevel": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "detectedConflictPatterns": {
+      "type": "array",
+      "description": "Vom Modell bestätigte / priorisierte Konfliktmuster. IDs entsprechen `features/conflictPatterns`.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id":         { "type": "string" },
+          "label":      { "type": "string" },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "rationale":  { "type": "string" }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["overall", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "overall":   { "type": "string", "enum": ["high", "medium", "low"] },
+        "rationale": { "type": "string" }
+      }
+    },
+    "dataGaps": {
+      "type": "array",
+      "description": "Welche Informationen würden die Bewertung verbessern? (z.B. fehlende Tageszeit, geringe Fallzahl, fehlende Kontextangaben)",
+      "items": { "type": "string" }
+    }
+  }
+}
