@@ -1,0 +1,24 @@
+{
+  "_comment": "Stadt-spezifische Maßnahmenerweiterungen für Hannover. Wird vom v2-AI-Modul (server/ai/catalog/cityMeasureCatalog.js) automatisch geladen, wenn structured.meta.city='Hannover' ist. Einträge mit gleicher id wie im Basiskatalog überschreiben diese; neue ids werden ergänzt.",
+  "city": "Hannover",
+  "measures": [
+    {
+      "id": "qw_hannover_ssr",
+      "title": "Aufnahme in das Sofortmaßnahmenprogramm der Stadt Hannover",
+      "category": "organizational",
+      "targetAccidentTypes": ["junction", "crossing", "bike_car", "ped_car"],
+      "implementationEffort": "low",
+      "costBand": "low",
+      "description": "Antrag auf Aufnahme der Stelle in das städtische Sofortmaßnahmenprogramm zur Verbesserung der Verkehrssicherheit."
+    },
+    {
+      "id": "inf_hannover_velo",
+      "title": "Anbindung an das Velorouten-Netz Hannover prüfen",
+      "category": "infrastructure",
+      "targetAccidentTypes": ["bike_car", "bike_alone", "junction"],
+      "implementationEffort": "medium",
+      "costBand": "medium",
+      "description": "Prüfung, ob der Bereich Teil einer geplanten Veloroute werden kann, und Vorzieheffekte für die Sicherheit nutzen."
+    }
+  ]
+}

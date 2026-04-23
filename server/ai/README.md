@@ -161,10 +161,18 @@ Ergebnis zu liefern.
 Metadaten (`category`, `targetAccidentTypes`, `implementationEffort`,
 `costBand`, `description`).
 
+`catalog/cityMeasureCatalog.js` lädt zusätzlich stadt-spezifische
+Erweiterungen aus `templates/measures_<citySlug>.json` (analog zu
+`templates/gremien_<slug>.json`).  Einträge mit gleicher `id` wie im
+Basiskatalog überschreiben diesen, neue `id`s werden ergänzt.  Der Slug
+wird aus `structured.meta.city` abgeleitet.  Beispieldatei:
+`templates/measures_hannover.json`.
+
 `scoring/preselectMeasures.js` wählt anhand der Tags aus
 `deriveFeatures().tags` (`bike_car`, `school_zone`, `surface`, …) die
-plausibelsten Maßnahmen aus.  Ein Monitoring-Eintrag wird **immer** mit
-aufgenommen (Wirkungskontrolle).
+plausibelsten Maßnahmen aus – aus dem **stadt-erweiterten** Katalog,
+falls verfügbar.  Ein Monitoring-Eintrag wird **immer** mit aufgenommen
+(Wirkungskontrolle).
 
 Die KI darf priorisieren, sortieren und konkret begründen
 (`whyThisFitsHere`), aber im Regelfall keine völlig fremden Maßnahmen
@@ -172,16 +180,85 @@ erfinden.
 
 ---
 
+## Provider-Abstraktion
+
+`providers/index.js` wählt den aktiven Provider per Umgebungsvariable
+`AI_PROVIDER`:
+
+| Wert         | Verhalten                                                         |
+|--------------|-------------------------------------------------------------------|
+| `gemini`     | Standard – `geminiStructuredProvider` (Gemini REST + responseSchema) |
+| `null`       | Wirft sofort `RetryableError` → Service zieht den Fallback        |
+| (sonstige)   | Fällt auf `gemini` zurück                                         |
+
+Ein neuer Anbieter (z. B. lokales Modell, Anthropic, OpenAI) wird durch
+Hinzufügen einer Funktion mit Signatur
+`({ system, user, responseSchema, temperature, maxRetries }) => Promise<string>`
+in `providers/index.js` registriert.  Die Service-Schicht muss dazu nicht
+geändert werden.
+
+---
+
+## Asynchrone Jobs (Queue + Status-Endpunkt)
+
+Für Workflows, in denen der Aufrufer nicht synchron warten möchte,
+gibt es die Endpunkte:
+
+* `POST /api/ai/jobs` – Body `{ kind: "export-assessment-v2", payload: {...} }`,
+  Antwort `{ id, status, kind, submittedAt }` (HTTP 202).
+  `payload` entspricht dem Body von `POST /api/ai/export-assessment/v2`.
+* `GET  /api/ai/jobs/:id` – Antwort
+  `{ id, kind, status: queued|running|done|error, submittedAt, startedAt?, finishedAt?, result?, error? }`.
+
+Verhalten:
+
+* Concurrency-Limit (default 1) – schont Free-Tier wie der synchrone
+  Pfad.
+* Persistenz nach Disk, falls `AI_JOBS_PATH` gesetzt ist (atomar via
+  temp + rename).  Nach Server-Neustart werden `queued`/`running`-Jobs
+  defensiv auf `error` gesetzt – sie können nicht resumiert werden und
+  ein Statusabruf liefert sofort einen klaren Fehler.
+* Abgeschlossene Jobs werden nach `jobTtlMs` (default 1 h) automatisch
+  verworfen; harte Obergrenze `maxJobs` (default 200).
+
+---
+
+## Cache-Persistenz
+
+`cache/aiAssessmentCache.js` schreibt seinen Inhalt auf Disk, wenn
+`AI_CACHE_PATH` gesetzt ist:
+
+* Schreiben ist **debounced** (default 500 ms) und atomar (temp +
+  rename).
+* Beim Start wird die Datei geladen und abgelaufene Einträge werden
+  verworfen.
+* `flushSync()` erzwingt sofortiges Schreiben (für Tests bzw. graceful
+  shutdown).
+
+---
+
+## Konfiguration (Umgebungsvariablen, Übersicht)
+
+| Variable                       | Wirkung                                                       |
+|--------------------------------|---------------------------------------------------------------|
+| `GEMINI_API_KEY`               | Pflicht für echten Gemini-Aufruf; sonst Fallback              |
+| `AI_PROVIDER`                  | `gemini` (Standard) \| `null`                                 |
+| `AI_ASSESSMENT_MODEL`          | Modellname (Standard `gemini-2.0-flash`)                      |
+| `AI_ASSESSMENT_TIMEOUT_MS`     | Pro-Request-Timeout                                           |
+| `AI_ASSESSMENT_MAX_RETRIES`    | Max. Retries bei 429/5xx/Timeout (Standard 2)                 |
+| `AI_CACHE_PATH`                | Optional: Datei für persistierten Antwort-Cache               |
+| `AI_JOBS_PATH`                 | Optional: Datei für persistierte Jobs                         |
+
+---
+
 ## TODOs für einen späteren Folge-PR
 
-* **Persistenz** der Job-Queue (`jobs/aiJobQueue.js`) – z. B. SQLite/Disk –
-  damit lange laufende Jobs einen Server-Neustart überleben.
-* **Job-Status-Endpunkt** `GET /api/ai/jobs/:id` für asynchrone Workflows.
-* **Persistenz** des Caches – z. B. einfache Disk-Persistenz oder Redis,
-  damit Cache-Hits Server-Neustarts überleben.
-* **Erweiterung des Maßnahmenkatalogs** um stadt- bzw. landesspezifische
-  Maßnahmen (z. B. eigene Templates wie bei `templates/gremien_*.json`).
-* **Mehrere Anbieter** (lokales Modell, Anthropic, OpenAI) hinter einer
-  einheitlichen Provider-Schnittstelle.
+* **SQLite/Redis-Backend** für Cache und Job-Queue (statt JSON-Datei) –
+  belastbarer bei vielen parallelen Server-Prozessen.
+* **Job-Cancellation** und **Prioritäten** (`proposal-brief` vor
+  `assessment`?).
+* **Echte alternative Provider** (lokales Modell, Anthropic, OpenAI)
+  hinter `providers/index.js`.
 * **Frontend-Integration** mit klarer Kennzeichnung „KI-Vorschlag"
-  vs. „deterministisch berechnet".
+  vs. „deterministisch berechnet" und einer optionalen UI für die
+  asynchronen Jobs.

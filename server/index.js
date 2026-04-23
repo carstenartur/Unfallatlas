@@ -18,7 +18,8 @@ const fs = require('fs');
 const path = require('path');
 const { exportVideo }   = require('./video-export.js');
 const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
-const { runAssessmentV2, VALID_MODES } = require('./ai/aiAssessmentServiceV2.js');
+const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAssessmentServiceV2.js');
+const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -226,10 +227,95 @@ app.post('/api/ai/export-assessment/v2', aiAssessmentRateLimit, async (req, res)
   }
 });
 
+// ── Async Jobs für KI-Bewertung ──────────────────────────────────────────────
+/**
+ * Registriert den Runner für asynchrone v2-Jobs.  Der Job-Payload entspricht
+ * dem Body von POST /api/ai/export-assessment/v2 (structured, contextHints,
+ * mode, withFallback).  Das Ergebnis ist exakt das, was der synchrone
+ * Endpunkt zurückgibt (mode/source/cacheKey/result).
+ */
+aiJobQueue.registerRunner('export-assessment-v2', async (payload) => {
+  const mode = String(payload?.mode || 'assessment');
+  const withFallback = payload?.withFallback !== false;
+  const out = await runAssessmentV2({
+    structured: payload?.structured,
+    contextHints: payload?.contextHints,
+    mode,
+    withFallback
+  });
+  return {
+    mode,
+    source: out.source,
+    cacheKey: out.cacheKey,
+    result: out.result,
+    ...(out.error ? { fallbackReason: out.error } : {})
+  };
+});
+
+/**
+ * POST /api/ai/jobs
+ *
+ * Body: { kind, payload }
+ *   - kind:    z. B. "export-assessment-v2"
+ *   - payload: Body wie für den synchronen Endpunkt
+ *
+ * Antwort: { id, status, kind, submittedAt }
+ *
+ * Hinweis: Der Job wird asynchron abgearbeitet.  Status/Result via
+ *   GET /api/ai/jobs/:id
+ */
+app.post('/api/ai/jobs', aiAssessmentRateLimit, (req, res) => {
+  const { kind, payload } = req.body || {};
+  if (typeof kind !== 'string' || !kind) {
+    return res.status(400).json({ error: 'Pflichtfeld "kind" fehlt.' });
+  }
+  if (kind !== 'export-assessment-v2') {
+    return res.status(400).json({ error: `Unbekannter kind "${kind}".` });
+  }
+  if (!payload || typeof payload !== 'object' || !payload.structured) {
+    return res.status(400).json({ error: 'payload.structured fehlt oder ist ungültig.' });
+  }
+  const mode = String(payload.mode || 'assessment');
+  if (!VALID_MODES.includes(mode)) {
+    return res.status(400).json({ error: `Ungültiger mode "${mode}". Erlaubt: ${VALID_MODES.join(', ')}` });
+  }
+  try {
+    const job = aiJobQueue.submit({ kind, payload });
+    return res.status(202).json({
+      id: job.id, status: job.status, kind: job.kind, submittedAt: job.submittedAt
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Job konnte nicht angelegt werden.' });
+  }
+});
+
+/**
+ * GET /api/ai/jobs/:id
+ *
+ * Antwort:
+ *   { id, kind, status: 'queued'|'running'|'done'|'error',
+ *     submittedAt, startedAt?, finishedAt?, result?, error? }
+ *
+ * Statuscodes: 200 (gefunden), 404 (unbekannte ID).
+ */
+app.get('/api/ai/jobs/:id', (req, res) => {
+  const id = String(req.params.id || '');
+  if (!/^[a-f0-9]{8,64}$/i.test(id)) {
+    return res.status(400).json({ error: 'Ungültige Job-ID.' });
+  }
+  const job = aiJobQueue.getJob(id);
+  if (!job) return res.status(404).json({ error: 'Job nicht gefunden.' });
+  // Don't echo back the full original payload (can be large)
+  const { payload, ...publicJob } = job;
+  return res.json(publicJob);
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
   console.log(`Video-Export: POST http://localhost:${PORT}/api/export-video`);
   console.log(`KI-Bewertung v1: POST http://localhost:${PORT}/api/ai/export-assessment (verfügbar: ${isAvailable()})`);
   console.log(`KI-Bewertung v2: POST http://localhost:${PORT}/api/ai/export-assessment/v2?mode=assessment|proposal-brief`);
+  console.log(`KI-Bewertung Jobs: POST http://localhost:${PORT}/api/ai/jobs  und  GET /api/ai/jobs/:id`);
+  console.log(`KI-Provider: ${activeProviderName()}`);
 });

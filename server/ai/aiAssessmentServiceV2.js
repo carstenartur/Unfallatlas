@@ -26,8 +26,9 @@
 const { deriveFeatures }       = require('./features/deriveFeatures.js');
 const { preselectMeasures }    = require('./scoring/preselectMeasures.js');
 const { MEASURE_BY_ID }        = require('./catalog/measureCatalog.js');
+const { getCatalogForCity }    = require('./catalog/cityMeasureCatalog.js');
 const { buildPrompt, PROMPT_VERSION } = require('./prompts/exportAssessmentPrompt.v2.js');
-const { callStructuredGemini } = require('./providers/geminiStructuredProvider.js');
+const { getProvider, activeProviderName } = require('./providers/index.js');
 const { sharedCache, AiAssessmentCache } = require('./cache/aiAssessmentCache.js');
 const { sharedQueue }          = require('./jobs/aiJobQueue.js');
 
@@ -61,7 +62,7 @@ async function runAssessmentV2(args) {
     mode = 'assessment',
     withFallback = true,
     cache = sharedCache,
-    providerCall = callStructuredGemini
+    providerCall = getProvider()
   } = args || {};
 
   if (!structured || typeof structured !== 'object') {
@@ -73,7 +74,10 @@ async function runAssessmentV2(args) {
 
   // Build deterministic input
   const features    = deriveFeatures(structured, contextHints);
-  const preselected = preselectMeasures(features.tags);
+  // Resolve city slug from structured (e.g. "Hannover" → "hannover")
+  const citySlug    = String(structured?.meta?.city || '').trim().toLowerCase()
+                       .replace(/[^a-z0-9_-]/g, '');
+  const preselected = preselectMeasures(features.tags, { citySlug });
   const aiInput     = buildAiInputV2(structured, features, preselected, contextHints);
 
   // Cache key
@@ -134,10 +138,13 @@ async function runAssessmentV2(args) {
   }
 
   // Post-process: enforce that recommendedMeasures with id resolve to catalog
+  // (use the same city-extended catalog as for preselection, so city-defined
+  //  ids round-trip cleanly).
+  const catalogById = buildCatalogIndex(citySlug);
   if (mode === 'assessment') {
-    parsed = harmonizeAssessment(parsed, preselected);
+    parsed = harmonizeAssessment(parsed, catalogById);
   } else {
-    parsed = harmonizeProposal(parsed, preselected);
+    parsed = harmonizeProposal(parsed, catalogById);
   }
 
   cache.set(cacheKey, parsed);
@@ -343,11 +350,11 @@ function toGeminiSchema(schema) {
 
 // ── Harmonization (clean catalog references) ───────────────────────────────────
 
-function harmonizeAssessment(parsed, preselected) {
+function harmonizeAssessment(parsed, byId) {
   if (!Array.isArray(parsed.recommendedMeasures)) return parsed;
   parsed.recommendedMeasures = parsed.recommendedMeasures.map(m => {
-    if (m && typeof m === 'object' && m.id && MEASURE_BY_ID[m.id]) {
-      const cat = MEASURE_BY_ID[m.id];
+    if (m && typeof m === 'object' && m.id && byId[m.id]) {
+      const cat = byId[m.id];
       return {
         ...m,
         title: m.title || cat.title,
@@ -363,11 +370,11 @@ function harmonizeAssessment(parsed, preselected) {
   return parsed;
 }
 
-function harmonizeProposal(parsed, preselected) {
+function harmonizeProposal(parsed, byId) {
   if (!Array.isArray(parsed.measureSummary)) return parsed;
   parsed.measureSummary = parsed.measureSummary.map(m => {
-    if (m && typeof m === 'object' && m.id && MEASURE_BY_ID[m.id]) {
-      const cat = MEASURE_BY_ID[m.id];
+    if (m && typeof m === 'object' && m.id && byId[m.id]) {
+      const cat = byId[m.id];
       return {
         ...m,
         title: m.title || cat.title,
@@ -377,6 +384,22 @@ function harmonizeProposal(parsed, preselected) {
     return m;
   });
   return parsed;
+}
+
+/**
+ * Map id → measure for fast lookup, including city-specific overrides.
+ * @param {string} [citySlug]
+ * @returns {Object<string, object>}
+ */
+function buildCatalogIndex(citySlug) {
+  // Start with base catalog (always present)
+  const idx = { ...MEASURE_BY_ID };
+  if (citySlug) {
+    for (const m of getCatalogForCity(citySlug)) {
+      idx[m.id] = m;
+    }
+  }
+  return idx;
 }
 
 // ── Deterministic fallback ─────────────────────────────────────────────────────
@@ -517,6 +540,8 @@ module.exports = {
   validateBySchema,
   parseJsonLoose,
   toGeminiSchema,
+  buildCatalogIndex,
+  activeProviderName,
   NotConfiguredError,
   VALID_MODES
 };

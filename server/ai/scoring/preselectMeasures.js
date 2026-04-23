@@ -18,6 +18,7 @@
  */
 
 const { MEASURE_CATALOG } = require('../catalog/measureCatalog.js');
+const { getCatalogForCity } = require('../catalog/cityMeasureCatalog.js');
 
 const DEFAULT_MAX = 8;
 
@@ -25,14 +26,23 @@ const DEFAULT_MAX = 8;
  * @param {string[]} tags                   – aus deriveFeatures().tags
  * @param {object}   [opts]
  * @param {number}   [opts.max]             – maximale Anzahl Maßnahmen
- * @param {string[]} [opts.preferCategories] – Reihenfolge der bevorzugten Kategorien
+ * @param {string}   [opts.citySlug]        – z. B. "hannover"; lädt
+ *                                            stadt-spezifische Erweiterungen
+ *                                            (`templates/measures_<slug>.json`)
+ * @param {Array<object>} [opts.catalog]    – Override für Tests
  * @returns {Array<CatalogMeasure & { score: number }>}
  */
 function preselectMeasures(tags, opts) {
   const max = (opts && Number.isFinite(opts.max) && opts.max > 0) ? opts.max : DEFAULT_MAX;
   const tagSet = new Set(Array.isArray(tags) ? tags : []);
 
-  const scored = MEASURE_CATALOG.map(m => {
+  const catalog = (opts && Array.isArray(opts.catalog))
+    ? opts.catalog
+    : (opts && opts.citySlug)
+      ? getCatalogForCity(opts.citySlug)
+      : MEASURE_CATALOG;
+
+  const scored = catalog.map(m => {
     let score = 0;
     for (const t of m.targetAccidentTypes) {
       if (tagSet.has(t)) score += 2;
@@ -56,7 +66,7 @@ function preselectMeasures(tags, opts) {
   // Fallback: if no tags matched, return a small generic set so the LLM still has
   // something to work with rather than hallucinating from scratch.
   if (result.length === 0) {
-    result = MEASURE_CATALOG
+    result = catalog
       .filter(m => m.category === 'organizational' || m.id === 'qw_sight_clearance')
       .map(m => ({ ...m, score: 0 }));
   }
