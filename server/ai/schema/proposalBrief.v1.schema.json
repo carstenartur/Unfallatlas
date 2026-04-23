@@ -62,7 +62,9 @@
           "id":        { "type": "string" },
           "title":     { "type": "string" },
           "category":  { "type": "string", "enum": ["quickWin", "infrastructure", "organizational", "monitoring"] },
-          "rationale": { "type": "string" }
+          "rationale": { "type": "string" },
+          "matchedRiskFactors":      { "type": "array", "items": { "type": "string" } },
+          "matchedConflictPatterns": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
@@ -79,6 +81,81 @@
       "type": "array",
       "description": "Vorbehalte / Datenlücken / 'Achtung'-Hinweise, die im Antrag mit erwähnt werden sollten.",
       "items": { "type": "string" }
+    },
+    "shortAdministrativeSummary": {
+      "type": "string",
+      "description": "1–2 Sätze für Verwaltungsnotiz."
+    },
+    "recommendedImmediateAction": {
+      "type": "string",
+      "description": "Was sollte als erstes (≤ 4 Wochen) passieren?"
+    },
+    "recommendedDetailedExamination": {
+      "type": "string",
+      "description": "Welche tiefere Prüfung ist angezeigt?"
+    },
+    "expectedSafetyBenefit": {
+      "type": "string",
+      "description": "Realistische Wirkungseinschätzung."
+    },
+    "whyActionIsPlausibleHere": { "type": "string" },
+    "whyEvidenceIsLimitedIfApplicable": { "type": "string" },
+    "suggestedCouncilRequest": {
+      "type": "string",
+      "description": "Vorschlag für Antrags-/Anfragetext im Gremium."
+    },
+    "suggestedReviewOrder": {
+      "type": "string",
+      "description": "Vorschlag für formellen Prüfauftrag an die Verwaltung."
+    },
+    "fieldInspectionChecklist": {
+      "type": "array",
+      "description": "Konkrete Punkte für die Ortsbegehung.",
+      "items": { "type": "string" }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "missingData":             { "type": "array", "items": { "type": "string" } },
+        "weakDataBasis":           { "type": "boolean" },
+        "plausibleNotEvidenced":   { "type": "array", "items": { "type": "string" } },
+        "requiresOnSiteCheck":     { "type": "boolean" },
+        "alternativeExplanations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "derivedFromDeterministicFeatures": { "type": "array", "items": { "type": "string" } },
+        "inferredByModel":                  { "type": "array", "items": { "type": "string" } },
+        "uncertainOrNeedsVerification":     { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "policyContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyReadiness":                { "type": "string", "enum": ["low", "medium", "high"] },
+        "existingPoliticalSignals":       { "type": "array", "items": { "type": "string" } },
+        "synergyWithKnownRequests":       { "type": "array", "items": { "type": "string" } },
+        "implementationOpportunityLevel": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "detectedConflictPatterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id":         { "type": "string" },
+          "label":      { "type": "string" },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "rationale":  { "type": "string" }
+        }
+      }
     }
   }
 }

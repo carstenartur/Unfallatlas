@@ -25,6 +25,8 @@ const BIT_MOTO  = 8;
 const BIT_TRUCK = 16;
 // const BIT_OTHER = 32; // not used directly
 
+const { detectConflictPatterns } = require('./conflictPatterns.js');
+
 /**
  * Berechnet aggregierte Anteile / Trends / Tags aus structured.
  *
@@ -112,7 +114,7 @@ function deriveFeatures(structured, contextHints) {
     tags.add('surface');
   }
 
-  return {
+  const features = {
     counts: { total, fatal, serious, slight, knownSev },
     ksiShare,
     involvement,
@@ -124,6 +126,17 @@ function deriveFeatures(structured, contextHints) {
     poiSummary: summarizePoi(poi),
     references: summarizeReferences(structured?.references || [])
   };
+  // Konfliktmuster werden auf Basis aller obigen Features berechnet
+  // und als zusätzliches Feld angehängt. Sie sind ein Spezialfall von
+  // Tags – weiterführend für KI-Bewertung und Maßnahmenvorselektion.
+  features.conflictPatterns = detectConflictPatterns(features, normalizedHints);
+  // Tags um Pattern-Tags ergänzen (Set-Semantik), damit Vorselektion
+  // automatisch davon profitiert, ohne dass jeder Aufrufer das tun muss.
+  for (const p of features.conflictPatterns) {
+    for (const t of (p.tags || [])) tags.add(t);
+  }
+  features.tags = Array.from(tags);
+  return features;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

@@ -77,7 +77,7 @@ async function runAssessmentV2(args) {
   // Resolve city slug from structured (e.g. "Hannover" → "hannover")
   const citySlug    = String(structured?.meta?.city || '').trim().toLowerCase()
                        .replace(/[^a-z0-9_-]/g, '');
-  const preselected = preselectMeasures(features.tags, { citySlug });
+  const preselected = preselectMeasures(features, { citySlug });
   const aiInput     = buildAiInputV2(structured, features, preselected, contextHints);
 
   // Cache key
@@ -192,7 +192,16 @@ function buildAiInputV2(structured, features, preselected, contextHints) {
       targetAccidentTypes: m.targetAccidentTypes,
       implementationEffort: m.implementationEffort,
       costBand: m.costBand,
-      description: m.description
+      description: m.description,
+      // ── Anreicherung gemäß TODO 3 (sharper preselection) ─────────────────
+      matchedRiskFactors:           m.matchedRiskFactors          || [],
+      matchedConflictPatterns:      m.matchedConflictPatterns     || [],
+      expectedTargetAccidentTypes:  m.expectedTargetAccidentTypes || m.targetAccidentTypes || [],
+      reasonForPreselection:        m.reasonForPreselection       || '',
+      implementationDuration:       m.implementationDuration      || undefined,
+      measureClass:                 m.measureClass                || undefined,
+      useCases:                     m.useCases                    || [],
+      cautions:                     m.cautions                    || []
     }))
   };
 }
@@ -419,7 +428,9 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
   const counts = f.counts || {};
   const inv = f.involvement || {};
   const tags = f.tags || [];
+  const patterns = Array.isArray(f.conflictPatterns) ? f.conflictPatterns : [];
   const pre = aiInput?.preselectedMeasures || [];
+  const lowDataBasis = (counts.total || 0) < 10;
 
   const evidenceLines = [];
   if (counts.total != null) evidenceLines.push({
@@ -444,6 +455,43 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
     });
   }
 
+  // Structured uncertainty + provenance reused in both modes
+  const uncertainty = {
+    missingData: [
+      'Genaue Unfallhergänge und Erstunfallarten sind nicht im Datensatz enthalten.',
+      ...(counts.total === 0 ? ['Im gewählten Filter/Bereich wurden keine Unfälle erfasst.'] : []),
+      ...(lowDataBasis ? ['Fallzahl im Bereich liegt unter 10 – statistische Aussagen sind unsicher.'] : [])
+    ],
+    weakDataBasis: lowDataBasis,
+    plausibleNotEvidenced: patterns.filter(p => p.classification === 'secondary').map(p => p.label),
+    requiresOnSiteCheck: patterns.some(p => Array.isArray(p.requiresOnSiteCheck) && p.requiresOnSiteCheck.length) || lowDataBasis,
+    alternativeExplanations: [
+      'Punktuelle bauliche Mängel (Belag, Markierung, Beschilderung) sind oft nicht aus den Daten ersichtlich.',
+      'Verkehrsstärken und Geschwindigkeiten sind im Unfallatlas nicht enthalten.'
+    ]
+  };
+  const provenance = {
+    derivedFromDeterministicFeatures: [
+      'counts', 'severity.bySev', 'crossTable', 'deviations.focus',
+      'yearTable', 'spatialDensity', 'poiSummary', 'features.tags',
+      'features.conflictPatterns'
+    ],
+    inferredByModel: [],
+    uncertainOrNeedsVerification: patterns.flatMap(p => p.requiresOnSiteCheck || []).slice(0, 8)
+  };
+  const policyContext = {
+    policyReadiness: lowDataBasis ? 'low' : (patterns.some(p => p.classification === 'primary') ? 'medium' : 'low'),
+    existingPoliticalSignals: [],
+    synergyWithKnownRequests: [],
+    implementationOpportunityLevel: pre.some(p => p.category === 'quickWin') ? 'medium' : 'low'
+  };
+  const detectedConflictPatterns = patterns.map(p => ({
+    id: p.id, label: p.label, confidence: p.confidence, rationale: p.rationale
+  }));
+  const fieldInspectionChecklist = uniq(patterns.flatMap(p => p.requiresOnSiteCheck || []))
+    .concat(['Sichtbeziehungen prüfen', 'Belag/Markierung prüfen', 'Querungsangebote prüfen'])
+    .slice(0, 8);
+
   if (mode === 'proposal-brief') {
     return {
       schemaVersion: 'proposalBrief.v1',
@@ -453,19 +501,46 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
       longVersion: 'Die statistischen Daten zum markierten Bereich zeigen eine Häufung mit ' + (counts.total || 0) + ' Unfällen, davon ' + (counts.fatal || 0) + ' getötet und ' + (counts.serious || 0) + ' schwerverletzt. '
         + 'Eine fachliche Bewertung mit konkreten Maßnahmenvorschlägen sollte durch die zuständige Stelle (z. B. Unfallkommission) erfolgen.',
       sachverhalt: 'Im markierten Bereich wurden im Auswertungszeitraum ' + (counts.total || 0) + ' Unfälle erfasst.',
-      begruendung: 'Die Häufung und die Schwere der Unfälle rechtfertigen eine vertiefte fachliche Prüfung.',
+      begruendung: 'Die Häufung und die Schwere der Unfälle rechtfertigen eine vertiefte fachliche Prüfung.'
+        + (patterns.length ? ' Erkannte Konfliktmuster: ' + patterns.slice(0, 3).map(p => p.label).join('; ') + '.' : ''),
       beschlussvorschlag: 'Die Verwaltung wird gebeten, den Bereich verkehrssicherheitsfachlich zu prüfen und Maßnahmen vorzuschlagen bzw. umzusetzen.',
       pruefauftrag: 'Bitte um Befassung der Unfallkommission und Prüfung kurzfristig umsetzbarer Maßnahmen.',
       measureSummary: pre.slice(0, 5).map(p => ({
         id: p.id,
         title: p.title,
         category: p.category,
-        rationale: 'Ausgewählt anhand der erkannten Merkmale: ' + (tags.slice(0, 4).join(', ') || 'allgemein')
+        rationale: p.reasonForPreselection
+          || ('Ausgewählt anhand der erkannten Merkmale: ' + (tags.slice(0, 4).join(', ') || 'allgemein')),
+        matchedRiskFactors:      p.matchedRiskFactors || [],
+        matchedConflictPatterns: p.matchedConflictPatterns || []
       })),
-      confidence: { overall: counts.total >= 10 ? 'medium' : 'low', rationale: 'Deterministischer Fallback ohne KI-Bewertung.' },
+      confidence: { overall: lowDataBasis ? 'low' : 'medium', rationale: 'Deterministischer Fallback ohne KI-Bewertung.' },
       caveats: [
-        'Dieser Steckbrief wurde ohne KI-Analyse rein aus den Kennzahlen erzeugt.' + (reason ? ' Grund: ' + reason : '')
-      ]
+        'Dieser Steckbrief wurde ohne KI-Analyse rein aus den Kennzahlen erzeugt.' + (reason ? ' Grund: ' + reason : ''),
+        ...(lowDataBasis ? ['Geringe Fallzahl – Aussagen sind mit Vorsicht zu lesen.'] : [])
+      ],
+      shortAdministrativeSummary: `${counts.total || 0} Unfälle im Bereich, davon ${(counts.fatal || 0) + (counts.serious || 0)} schwer/tödlich. Konfliktmuster: ${patterns.slice(0, 2).map(p => p.label).join('; ') || '—'}.`,
+      recommendedImmediateAction: pre.find(p => p.category === 'quickWin')?.title
+        || 'Verkehrsschau / Ortstermin mit Polizei und Verwaltung zeitnah anberaumen.',
+      recommendedDetailedExamination: 'Befassung der Unfallkommission mit Unfalltypensteckkarte; ggf. Verkehrsschau.',
+      expectedSafetyBenefit: patterns.some(p => p.id === 'lkw_lieferverkehr_kontext' || p.id === 'kfz_rad_abbiegekonflikt')
+        ? 'Schwere Konflikte (insbesondere Abbiegeunfälle) lassen sich erfahrungsgemäß deutlich reduzieren.'
+        : 'Reduktion vor allem leichterer Konflikte realistisch; Wirkung im Monitoring nachvollziehen.',
+      whyActionIsPlausibleHere: patterns.length
+        ? `Die deterministisch erkannten Muster (${patterns.slice(0, 3).map(p => p.id).join(', ')}) stützen den Handlungsbedarf.`
+        : 'Häufung und Schwere der Unfälle rechtfertigen Handeln auch ohne aufwendige Sonderauswertung.',
+      whyEvidenceIsLimitedIfApplicable: lowDataBasis
+        ? 'Geringe Fallzahl im Auswertungszeitraum macht statistische Aussagen unsicher; Vor-Ort-Bestätigung empfohlen.'
+        : '',
+      suggestedCouncilRequest: 'Die Verwaltung wird gebeten, im Bereich '
+        + (aiInput?.meta?.areaName || aiInput?.meta?.city || '')
+        + ' kurzfristig wirksame Maßnahmen zur Verbesserung der Verkehrssicherheit zu prüfen und dem Gremium zu berichten.',
+      suggestedReviewOrder: 'Prüfung der Unfallhäufung durch Verwaltung/Unfallkommission; Bericht im nächsten zuständigen Gremium.',
+      fieldInspectionChecklist,
+      uncertainty,
+      provenance,
+      policyContext,
+      detectedConflictPatterns
     };
   }
 
@@ -478,35 +553,90 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
       dominantPattern: f.dominantPatterns?.[0]?.label || ''
     },
     evidence: evidenceLines,
-    primaryRiskFactors: tags.slice(0, 3).map(t => ({
-      factor: tagToText(t),
-      rationale: `Ableitung aus Beteiligungsanteilen / POIs (Tag: ${t}).`,
-      confidence: 'medium'
+    primaryRiskFactors: (patterns.filter(p => p.classification === 'primary').slice(0, 4).map(p => ({
+      factor: p.label,
+      rationale: p.rationale,
+      confidence: p.confidence
+    }))).concat(
+      // Falls keine primary patterns → aus Tags ableiten
+      patterns.some(p => p.classification === 'primary') ? [] :
+      tags.slice(0, 3).map(t => ({
+        factor: tagToText(t),
+        rationale: `Ableitung aus Beteiligungsanteilen / POIs (Tag: ${t}).`,
+        confidence: 'medium'
+      }))
+    ),
+    secondaryRiskFactors: patterns.filter(p => p.classification === 'secondary').slice(0, 4).map(p => ({
+      factor: p.label,
+      rationale: p.rationale,
+      confidence: p.confidence === 'high' ? 'medium' : p.confidence
     })),
-    secondaryRiskFactors: [],
     recommendedMeasures: pre.slice(0, 6).map(p => ({
       id: p.id,
       title: p.title,
       category: p.category,
-      whyThisFitsHere: `Ausgewählt anhand erkannter Merkmale: ${(p.targetAccidentTypes || []).join(', ') || '—'}`,
+      whyThisFitsHere: p.reasonForPreselection
+        || `Ausgewählt anhand erkannter Merkmale: ${(p.targetAccidentTypes || []).join(', ') || '—'}`,
       expectedEffect: p.description,
       targetAccidentTypes: p.targetAccidentTypes,
       implementationEffort: p.implementationEffort,
       costBand: p.costBand,
-      confidence: 'medium'
+      confidence: lowDataBasis ? 'low' : 'medium',
+      matchedRiskFactors:           p.matchedRiskFactors          || [],
+      matchedConflictPatterns:      p.matchedConflictPatterns     || [],
+      expectedTargetAccidentTypes:  p.expectedTargetAccidentTypes || p.targetAccidentTypes || [],
+      reasonForPreselection:        p.reasonForPreselection       || '',
+      ...(p.implementationDuration ? { implementationDuration: p.implementationDuration } : {}),
+      ...(p.measureClass           ? { measureClass:           p.measureClass           } : {})
     })),
     quickWins: pre.filter(p => p.category === 'quickWin').map(p => p.id),
     infrastructureMeasures: pre.filter(p => p.category === 'infrastructure').map(p => p.id),
-    openChecks: [
+    openChecks: uniq([
       'Ortsbegehung mit Polizei und Verwaltung',
-      'Befassung der Unfallkommission'
-    ],
-    confidence: { overall: counts.total >= 10 ? 'medium' : 'low', rationale: 'Deterministischer Fallback ohne KI-Bewertung.' + (reason ? ' Grund: ' + reason : '') },
+      'Befassung der Unfallkommission',
+      ...patterns.flatMap(p => p.requiresOnSiteCheck || [])
+    ]).slice(0, 8),
+    confidence: { overall: lowDataBasis ? 'low' : 'medium', rationale: 'Deterministischer Fallback ohne KI-Bewertung.' + (reason ? ' Grund: ' + reason : '') },
     dataGaps: [
       'Keine textuelle KI-Bewertung verfügbar',
-      'Genaue Unfallhergänge sind nicht in den Daten enthalten'
-    ]
+      'Genaue Unfallhergänge sind nicht in den Daten enthalten',
+      ...(lowDataBasis ? ['Geringe Fallzahl im Auswertungszeitraum – statistische Aussagen unsicher.'] : [])
+    ],
+    shortAdministrativeSummary: `${counts.total || 0} Unfälle im Bereich, davon ${(counts.fatal || 0) + (counts.serious || 0)} schwer/tödlich. Konfliktmuster: ${patterns.slice(0, 2).map(p => p.label).join('; ') || '—'}.`,
+    technicalRationale: patterns.length
+      ? `Erkannte Konfliktmuster: ${patterns.map(p => p.id).join(', ')}. Maßnahmen sind aus dem Katalog vorselektiert und auf diese Muster bezogen.`
+      : 'Keine spezifischen Konfliktmuster eindeutig erkannt; Bewertung beschränkt sich auf statistische Häufung und Schwere.',
+    recommendedImmediateAction: pre.find(p => p.category === 'quickWin')?.title
+      || 'Verkehrsschau / Ortstermin mit Polizei und Verwaltung zeitnah anberaumen.',
+    recommendedDetailedExamination: 'Befassung der Unfallkommission mit Unfalltypensteckkarte; ggf. Verkehrsschau.',
+    expectedSafetyBenefit: patterns.some(p => p.id === 'lkw_lieferverkehr_kontext' || p.id === 'kfz_rad_abbiegekonflikt')
+      ? 'Schwere Abbiegekonflikte lassen sich erfahrungsgemäß deutlich reduzieren.'
+      : 'Reduktion leichterer Konflikte realistisch; Wirkung im Monitoring nachvollziehen.',
+    whyActionIsPlausibleHere: patterns.length
+      ? `Die deterministisch erkannten Muster (${patterns.slice(0, 3).map(p => p.id).join(', ')}) stützen den Handlungsbedarf.`
+      : 'Häufung und Schwere der Unfälle rechtfertigen Handeln.',
+    whyEvidenceIsLimitedIfApplicable: lowDataBasis
+      ? 'Geringe Fallzahl im Auswertungszeitraum macht statistische Aussagen unsicher; Vor-Ort-Bestätigung empfohlen.'
+      : '',
+    suggestedCouncilRequest: 'Die Verwaltung wird gebeten, im Bereich '
+      + (aiInput?.meta?.areaName || aiInput?.meta?.city || '')
+      + ' kurzfristig wirksame Maßnahmen zur Verbesserung der Verkehrssicherheit zu prüfen.',
+    suggestedReviewOrder: 'Prüfung der Unfallhäufung durch Verwaltung/Unfallkommission; Bericht im zuständigen Gremium.',
+    fieldInspectionChecklist,
+    uncertainty,
+    provenance,
+    policyContext,
+    detectedConflictPatterns
   };
+}
+
+function uniq(arr) {
+  const seen = new Set();
+  const out = [];
+  for (const x of arr) {
+    if (x && !seen.has(x)) { seen.add(x); out.push(x); }
+  }
+  return out;
 }
 
 function tagToText(t) {

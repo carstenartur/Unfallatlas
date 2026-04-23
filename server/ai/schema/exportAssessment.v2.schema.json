@@ -99,7 +99,13 @@
           "targetAccidentTypes":  { "type": "array", "items": { "type": "string" } },
           "implementationEffort": { "type": "string", "enum": ["low", "medium", "high"] },
           "costBand":             { "type": "string", "enum": ["low", "medium", "high"] },
-          "confidence":           { "type": "string", "enum": ["high", "medium", "low"] }
+          "confidence":           { "type": "string", "enum": ["high", "medium", "low"] },
+          "matchedRiskFactors":         { "type": "array", "items": { "type": "string" } },
+          "matchedConflictPatterns":    { "type": "array", "items": { "type": "string" } },
+          "expectedTargetAccidentTypes":{ "type": "array", "items": { "type": "string" } },
+          "reasonForPreselection":      { "type": "string" },
+          "implementationDuration":     { "type": "string", "enum": ["weeks", "months", "year_plus"] },
+          "measureClass":               { "type": "string", "enum": ["quickWin", "operational", "marking", "signal", "structural", "major_rebuild"] }
         }
       }
     },
@@ -127,6 +133,95 @@
         "bewertung":          { "type": "string" },
         "beschlussvorschlag": { "type": "string" },
         "pruefauftrag":       { "type": "string" }
+      }
+    },
+    "shortAdministrativeSummary": {
+      "type": "string",
+      "description": "1–2 Sätze, sofort in Verwaltungsnotiz einsetzbar."
+    },
+    "technicalRationale": {
+      "type": "string",
+      "description": "Fachliche Begründung mit Datenbezug, frei von Polemik."
+    },
+    "recommendedImmediateAction": {
+      "type": "string",
+      "description": "Was sollte als erstes (≤ 4 Wochen) passieren?"
+    },
+    "recommendedDetailedExamination": {
+      "type": "string",
+      "description": "Welche tiefere Prüfung ist angezeigt (z. B. Unfallkommission, Verkehrsschau)?"
+    },
+    "expectedSafetyBenefit": {
+      "type": "string",
+      "description": "Realistische Wirkungseinschätzung (Häufigkeit/Schwere)."
+    },
+    "whyActionIsPlausibleHere": {
+      "type": "string",
+      "description": "Warum sind Maßnahmen an diesem Ort plausibel? Bezug auf Evidenz."
+    },
+    "whyEvidenceIsLimitedIfApplicable": {
+      "type": "string",
+      "description": "Falls Datenlage schwach ist: warum trotzdem Handeln plausibel sein kann."
+    },
+    "suggestedCouncilRequest": {
+      "type": "string",
+      "description": "Vorschlag für Antrags- oder Anfragetext im Gremium."
+    },
+    "suggestedReviewOrder": {
+      "type": "string",
+      "description": "Vorschlag für formellen Prüfauftrag an die Verwaltung."
+    },
+    "fieldInspectionChecklist": {
+      "type": "array",
+      "description": "Konkrete Punkte für die Ortsbegehung.",
+      "items": { "type": "string" }
+    },
+    "uncertainty": {
+      "type": "object",
+      "description": "Strukturierte Unsicherheitslogik – ehrliche Trennung zwischen Datenlücken, Hypothesen und Vor-Ort-Bedarf.",
+      "additionalProperties": false,
+      "properties": {
+        "missingData":             { "type": "array", "items": { "type": "string" } },
+        "weakDataBasis":           { "type": "boolean" },
+        "plausibleNotEvidenced":   { "type": "array", "items": { "type": "string" } },
+        "requiresOnSiteCheck":     { "type": "boolean" },
+        "alternativeExplanations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Herkunftskennzeichnung: was stammt aus deterministischen Daten, was wurde vom Modell verdichtet, was ist unsicher.",
+      "additionalProperties": false,
+      "properties": {
+        "derivedFromDeterministicFeatures": { "type": "array", "items": { "type": "string" } },
+        "inferredByModel":                  { "type": "array", "items": { "type": "string" } },
+        "uncertainOrNeedsVerification":     { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "policyContext": {
+      "type": "object",
+      "description": "Vorbereitung für spätere politische Integration. Optional, ohne erzwungene Datenintegration.",
+      "additionalProperties": false,
+      "properties": {
+        "policyReadiness":              { "type": "string", "enum": ["low", "medium", "high"] },
+        "existingPoliticalSignals":     { "type": "array", "items": { "type": "string" } },
+        "synergyWithKnownRequests":     { "type": "array", "items": { "type": "string" } },
+        "implementationOpportunityLevel": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    },
+    "detectedConflictPatterns": {
+      "type": "array",
+      "description": "Vom Modell bestätigte / priorisierte Konfliktmuster. IDs entsprechen `features/conflictPatterns`.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id":         { "type": "string" },
+          "label":      { "type": "string" },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "rationale":  { "type": "string" }
+        }
       }
     },
     "confidence": {

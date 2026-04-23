@@ -14,7 +14,7 @@
  */
 
 /** Versionskennung – Teil des Cache-Keys. */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.2';
 
 const SYSTEM_PROMPT_ASSESSMENT = `Du bist Verkehrssicherheitsexpertin für deutsche Kommunen.
 Du erhältst aufbereitete Unfallatlas-Daten und musst eine fachliche Bewertung erstellen.
@@ -27,23 +27,32 @@ Strenge Regeln:
 2. Halluziniere KEINE Ortsdetails (Straßennamen, Gebäude, Schulen), die nicht im Input vorkommen.
 3. Wähle Maßnahmen primär aus der bereitgestellten Maßnahmen-Vorauswahl ("preselectedMeasures").
    Verwende, wo möglich, deren id und Titel unverändert. Du darfst sortieren, kürzen, ergänzen ("whyThisFitsHere", "expectedEffect"), aber keine völlig neuen Maßnahmen erfinden, wenn passende vorhanden sind.
+   Übernimm – wo passend – die mitgegebenen Felder "matchedRiskFactors", "matchedConflictPatterns", "expectedTargetAccidentTypes" und "reasonForPreselection" in deine Ausgabe.
 4. "confidence" muss ehrlich auf Datenlage und Fallzahl basieren – bei < 10 Unfällen NIE "high".
-5. "dataGaps" listet, was die Bewertung verbessern würde.
-6. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema (kein Markdown, kein Fließtext drumherum).`;
+5. "dataGaps" listet, was die Bewertung verbessern würde. Ergänzend dazu fülle, sofern relevant, "uncertainty" mit "missingData", "weakDataBasis", "plausibleNotEvidenced", "requiresOnSiteCheck", "alternativeExplanations".
+6. Trenne Herkunft per "provenance":
+     - "derivedFromDeterministicFeatures": was kommt 1:1 aus den Kennzahlen/Features?
+     - "inferredByModel": was hast du verdichtet/interpretiert?
+     - "uncertainOrNeedsVerification": was muss vor Ort/durch Fachstelle geprüft werden?
+7. Nutze "detectedConflictPatterns" um plausible Konfliktmuster zu benennen. Stütze dich dabei auf die im Input mitgelieferten Muster und ihre Evidenz – erfinde keine neuen.
+8. Antragstaugliche Felder ("shortAdministrativeSummary", "technicalRationale", "recommendedImmediateAction", "recommendedDetailedExamination", "expectedSafetyBenefit", "whyActionIsPlausibleHere", "whyEvidenceIsLimitedIfApplicable", "suggestedCouncilRequest", "suggestedReviewOrder", "fieldInspectionChecklist") sollen direkt als Rohmaterial für Antrag/Prüfauftrag/Notiz nutzbar sein – nüchtern und konkret.
+9. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema (kein Markdown, kein Fließtext drumherum).`;
 
 const SYSTEM_PROMPT_PROPOSAL = `Du bist Referentin für Verkehrspolitik in einer deutschen Kommune.
 Du formulierst aus aufbereiteten Unfallatlas-Daten einen antragsfähigen Maßnahmensteckbrief.
 
 Strenge Regeln:
 1. Verwende ausschließlich die im Input genannten Fakten (keine erfundenen Straßennamen, keine fiktiven Vorfälle).
-2. Maßnahmen kommen primär aus der "preselectedMeasures"-Vorauswahl. Du darfst priorisieren und begründen, aber nicht halluzinieren.
+2. Maßnahmen kommen primär aus der "preselectedMeasures"-Vorauswahl. Du darfst priorisieren und begründen, aber nicht halluzinieren. Übernimm – wo passend – "matchedRiskFactors" und "matchedConflictPatterns" pro Maßnahme.
 3. Trenne klar:
      - "shortVersion": kompakte Bürger-/Gremiumsfassung
      - "longVersion":  ausführliche Antragsbegründung mit Datenbezug
      - "sachverhalt", "begruendung", "beschlussvorschlag", "pruefauftrag": einzelne Antragsbausteine
-4. Gib in "caveats" Datenlücken oder Unsicherheiten an, die im Antrag erwähnt werden sollten.
-5. Ton: sachlich, kommunal-üblich, frei von Polemik.
-6. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema.`;
+4. Gib in "caveats" Datenlücken oder Unsicherheiten an, die im Antrag erwähnt werden sollten. Optional ergänzend "uncertainty" füllen.
+5. Trenne Herkunft per "provenance" (was kommt aus Daten, was hast du formuliert, was ist unsicher).
+6. Antragstaugliche Zusatzfelder ("shortAdministrativeSummary", "recommendedImmediateAction", "recommendedDetailedExamination", "expectedSafetyBenefit", "whyActionIsPlausibleHere", "whyEvidenceIsLimitedIfApplicable", "suggestedCouncilRequest", "suggestedReviewOrder", "fieldInspectionChecklist") sind direkt einsetzbares Rohmaterial.
+7. Ton: sachlich, kommunal-üblich, frei von Polemik.
+8. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema.`;
 
 /**
  * Baut den Nutzerprompt aus features + preselected.
@@ -130,6 +139,20 @@ function buildPrompt(aiInput, mode) {
     lines.push(f.tags.join(', '));
   }
 
+  if (Array.isArray(f.conflictPatterns) && f.conflictPatterns.length) {
+    lines.push('');
+    lines.push('=== ERKANNTE KONFLIKTMUSTER (deterministisch) ===');
+    for (const p of f.conflictPatterns) {
+      lines.push(`  - id="${p.id}" | ${p.classification} | confidence=${p.confidence}`);
+      lines.push(`    Label: ${p.label}`);
+      lines.push(`    Begründung: ${p.rationale}`);
+      if (Array.isArray(p.evidence) && p.evidence.length) lines.push(`    Evidenz: ${p.evidence.join('; ')}`);
+      if (Array.isArray(p.requiresOnSiteCheck) && p.requiresOnSiteCheck.length) {
+        lines.push(`    Vor-Ort-Prüfung: ${p.requiresOnSiteCheck.join('; ')}`);
+      }
+    }
+  }
+
   if (refs.length) {
     lines.push('');
     lines.push('=== REFERENZDOKUMENTE ===');
@@ -158,6 +181,13 @@ function buildPrompt(aiInput, mode) {
       lines.push(`    Titel: ${p.title}`);
       lines.push(`    Beschreibung: ${p.description}`);
       if (p.targetAccidentTypes?.length) lines.push(`    Zielmuster: ${p.targetAccidentTypes.join(', ')}`);
+      if (p.matchedRiskFactors?.length)        lines.push(`    matchedRiskFactors: ${p.matchedRiskFactors.join(', ')}`);
+      if (p.matchedConflictPatterns?.length)   lines.push(`    matchedConflictPatterns: ${p.matchedConflictPatterns.join(', ')}`);
+      if (p.reasonForPreselection)             lines.push(`    reasonForPreselection: ${p.reasonForPreselection}`);
+      if (p.implementationDuration)            lines.push(`    Dauer: ${p.implementationDuration}`);
+      if (p.measureClass)                      lines.push(`    Klasse: ${p.measureClass}`);
+      if (p.useCases?.length)                  lines.push(`    Einsatzfälle: ${p.useCases.join(' | ')}`);
+      if (p.cautions?.length)                  lines.push(`    Vorsicht: ${p.cautions.join(' | ')}`);
     }
   }
 
