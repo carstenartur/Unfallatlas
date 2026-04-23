@@ -84,8 +84,13 @@ function preselectMeasures(tagsOrFeatures, opts) {
     };
   });
 
-  // Always include monitoring at the end
-  const monitoring = scored.filter(m => m.category === 'monitoring');
+  // Always include monitoring at the end – aber höchstens *einen* Slot dafür
+  // reservieren (sonst könnte `max - monitoring.length` negativ werden und
+  // `slice(0, negative)` würde unerwartet viele Einträge liefern, während
+  // das abschließende `slice(0, max)` Monitoring komplett abschneidet).
+  const monitoringAll = scored.filter(m => m.category === 'monitoring');
+  const monitoringSlots = Math.min(1, monitoringAll.length, max);
+  const monitoring = monitoringAll.slice(0, monitoringSlots);
   const nonMonitoring = scored
     .filter(m => m.category !== 'monitoring' && m.score > 0)
     .sort((a, b) => {
@@ -95,7 +100,8 @@ function preselectMeasures(tagsOrFeatures, opts) {
       return order.indexOf(a.category) - order.indexOf(b.category);
     });
 
-  let result = nonMonitoring.slice(0, max - monitoring.length);
+  const nonMonitoringSlots = Math.max(0, max - monitoringSlots);
+  let result = nonMonitoring.slice(0, nonMonitoringSlots);
 
   // Fallback: if no tags matched, return a small generic set so the LLM still has
   // something to work with rather than hallucinating from scratch.

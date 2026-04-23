@@ -87,9 +87,30 @@ function getCatalogForCity(citySlug) {
 /** Test-Hilfsfunktion: Cache leeren (nur intern verwendet). */
 function _clearCache() { cache.clear(); }
 
+/**
+ * Normalisiert einen Stadt-/Schlüsselnamen identisch zum Frontend-Helper
+ * `UA.normKey` (siehe js/ua.core.js:54-62).
+ *
+ *   - Umlaute → ae/oe/ue/ss
+ *   - lowercase
+ *   - Nicht-Alnum-Runs → "_"
+ *   - mehrfache "_" zu einem "_" kollabieren
+ *   - führende/abschließende "_" entfernen
+ *
+ * Dadurch werden serverseitig dieselben Schlüssel gebildet wie im Browser
+ * (z. B. „Hannover" → „hannover", „Sankt Augustin" → „sankt_augustin",
+ * „Mülheim a. d. Ruhr" → „muelheim_a_d_ruhr"), und dieselben
+ * `templates/measures_<slug>.json`-Dateien werden gefunden.
+ */
 function normalizeSlug(s) {
   if (!s || typeof s !== 'string') return '';
-  return s.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return s
+    .toLowerCase()
+    .replaceAll('ä', 'ae').replaceAll('ö', 'oe').replaceAll('ü', 'ue').replaceAll('ß', 'ss')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_/, '')
+    .replace(/_$/, '');
 }
 
 function isValidMeasure(m) {
@@ -104,4 +125,4 @@ function isValidMeasure(m) {
   return true;
 }
 
-module.exports = { getCatalogForCity, _clearCache };
+module.exports = { getCatalogForCity, normalizeSlug, _clearCache };

@@ -14,7 +14,7 @@ const path = require('path');
 
 const { AiAssessmentCache }      = require('../../server/ai/cache/aiAssessmentCache.js');
 const { AiJobQueue }             = require('../../server/ai/jobs/aiJobQueue.js');
-const { getCatalogForCity, _clearCache } =
+const { getCatalogForCity, normalizeSlug, _clearCache } =
   require('../../server/ai/catalog/cityMeasureCatalog.js');
 const { preselectMeasures }      = require('../../server/ai/scoring/preselectMeasures.js');
 const { getProvider, activeProviderName, RetryableError } =
@@ -162,6 +162,28 @@ describe('AiJobQueue async lifecycle', () => {
     s = q.stats();
     expect(s.jobs.done).toBe(2);
   });
+
+  test('fair FIFO scheduling between sync enqueue() and async submit()', async () => {
+    // With concurrency=1 and an interleaved order of submit/enqueue/submit,
+    // the completion order must follow submission order (no starvation).
+    const q = new AiJobQueue({ concurrency: 1 });
+    const order = [];
+    let release;
+    const blocker = new Promise(r => { release = r; });
+
+    // First job blocks the queue so subsequent jobs accumulate in their lists.
+    const j0 = q.submit({ kind: 'k', runner: async () => { await blocker; order.push('j0'); return 'j0'; } });
+    const p1 = q.enqueue(async () => { order.push('p1'); return 'p1'; });
+    const j2 = q.submit({ kind: 'k', runner: async () => { order.push('j2'); return 'j2'; } });
+    const p3 = q.enqueue(async () => { order.push('p3'); return 'p3'; });
+
+    release();
+    await Promise.all([waitJobFinished(q, j0.id), p1, waitJobFinished(q, j2.id), p3]);
+
+    // Expected: completion follows submission order (j0, p1, j2, p3).
+    // The async submit() jobs (j0, j2) are NOT starved by sync enqueue().
+    expect(order).toEqual(['j0', 'p1', 'j2', 'p3']);
+  });
 });
 
 describe('AiJobQueue disk persistence', () => {
@@ -235,6 +257,23 @@ describe('cityMeasureCatalog', () => {
     expect(ids).toContain('qw_hannover_ssr');
   });
 
+  test('normalizeSlug matches frontend UA.normKey behaviour', () => {
+    // Mirrors js/ua.core.js:54-62 so server- and client-side keys agree.
+    expect(normalizeSlug('Hannover')).toBe('hannover');
+    expect(normalizeSlug('  Hannover  ')).toBe('hannover');
+    expect(normalizeSlug('München')).toBe('muenchen');
+    expect(normalizeSlug('Düsseldorf')).toBe('duesseldorf');
+    expect(normalizeSlug('Sankt Augustin')).toBe('sankt_augustin');
+    expect(normalizeSlug('Mülheim a. d. Ruhr')).toBe('muelheim_a_d_ruhr');
+    expect(normalizeSlug('Weißenburg')).toBe('weissenburg');
+    // No leading/trailing underscores even from punctuation
+    expect(normalizeSlug('!Berlin!')).toBe('berlin');
+    // Falsy / non-string inputs
+    expect(normalizeSlug('')).toBe('');
+    expect(normalizeSlug(null)).toBe('');
+    expect(normalizeSlug(undefined)).toBe('');
+  });
+
   test('catalog cache prevents repeated disk reads', () => {
     _clearCache();
     const a = getCatalogForCity('hannover');
@@ -295,9 +334,13 @@ describe('provider abstraction', () => {
     expect(activeProviderName()).toBe('gemini');
   });
 
-  test('explicit name override beats env', () => {
+  test('explicit name override beats env', async () => {
     process.env.AI_PROVIDER = 'gemini';
-    expect(getProvider('null')).toBe(getProvider('null'));
+    const envProvider = getProvider();
+    const nullProvider = getProvider('null');
+
+    expect(envProvider).toBe(getProvider('gemini'));
+    await expect(nullProvider({})).rejects.toBeInstanceOf(RetryableError);
   });
 });
 

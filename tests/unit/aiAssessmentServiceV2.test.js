@@ -79,7 +79,7 @@ const CONTEXT_HINTS_FIXTURE = {
   knownHazards:  ['Schienenquerung im spitzen Winkel'],
   surfaceHints:  ['Kopfsteinpflaster bei Nässe rutschig'],
   locationHints: ['nahe Grundschule'],
-  notes:         ['Abendlicher Berufsverkehr]aufgefallen']
+  notes:         ['Abendlicher Berufsverkehr aufgefallen']
 };
 
 // ── deriveFeatures ─────────────────────────────────────────────────────────────
@@ -226,6 +226,21 @@ describe('preselectMeasures', () => {
     expect(idxMonitoring).toBe(out.length - 1);
     expect(idxProtected).toBeGreaterThanOrEqual(0);
     expect(idxProtected).toBeLessThan(idxMonitoring);
+  });
+
+  test('reserves only one monitoring slot and never produces negative slice', () => {
+    // With a tiny max (1) the result must still respect the cap and not crash.
+    const tiny = preselectMeasures(['bike_car', 'junction'], { max: 1 });
+    expect(tiny.length).toBeLessThanOrEqual(1);
+
+    // With a normal max, monitoring appears at most once and at the end.
+    const out = preselectMeasures(['bike_car', 'junction'], { max: 6 });
+    const monitoringCount = out.filter(m => m.category === 'monitoring').length;
+    expect(monitoringCount).toBeLessThanOrEqual(1);
+    if (monitoringCount === 1) {
+      expect(out[out.length - 1].category).toBe('monitoring');
+    }
+    expect(out.length).toBeLessThanOrEqual(6);
   });
 });
 

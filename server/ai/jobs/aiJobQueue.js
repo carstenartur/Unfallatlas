@@ -67,12 +67,14 @@ class AiJobQueue {
     this.maxJobs  = Number.isFinite(opts.maxJobs)  && opts.maxJobs  > 0
       ? opts.maxJobs  : DEFAULT_MAX_JOBS;
     this.active  = 0;
-    /** @type {Array<{work: Function, resolve: Function, reject: Function}>} */
+    /** Monotone Sequenznummer für faires FIFO-Scheduling über sync und async. */
+    this._seq    = 0;
+    /** @type {Array<{seq: number, work: Function, resolve: Function, reject: Function}>} */
     this.queue   = [];
 
     /** @type {Map<string, Job>} */
     this.jobs = new Map();
-    /** @type {Array<{ id: string, runner: Function }>} */
+    /** @type {Array<{ seq: number, id: string, runner: Function }>} */
     this._jobQueue = [];
     /** @type {Map<string, Function>} dynamic runner registrations by kind */
     this._kindRunners = new Map();
@@ -94,16 +96,20 @@ class AiJobQueue {
    */
   enqueue(workFn) {
     return new Promise((resolve, reject) => {
-      this.queue.push({ work: workFn, resolve, reject });
+      this.queue.push({ seq: ++this._seq, work: workFn, resolve, reject });
       this._drain();
     });
   }
 
   _drain() {
     while (this.active < this.concurrency && (this.queue.length > 0 || this._jobQueue.length > 0)) {
-      // Prefer FIFO between the two lists by submission order:
-      // Sync enqueue() does not register jobs, so we just alternate – sync first if present.
-      if (this.queue.length > 0) {
+      // Faires FIFO: jeweils der älteste Eintrag (kleinste seq) gewinnt –
+      // egal ob von enqueue() (sync-style) oder submit() (async Job).
+      // Dadurch verhungern submit()-Jobs nicht, wenn enqueue() unter Last steht.
+      const syncSeq = this.queue.length     > 0 ? this.queue[0].seq     : Infinity;
+      const jobSeq  = this._jobQueue.length > 0 ? this._jobQueue[0].seq : Infinity;
+
+      if (syncSeq <= jobSeq) {
         const job = this.queue.shift();
         this.active++;
         Promise.resolve()
@@ -154,7 +160,7 @@ class AiJobQueue {
       payload
     };
     this.jobs.set(id, job);
-    this._jobQueue.push({ id, runner: effectiveRunner });
+    this._jobQueue.push({ seq: ++this._seq, id, runner: effectiveRunner });
     this._reapOldJobs();
     this._persist();
     this._drain();

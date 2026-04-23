@@ -26,7 +26,7 @@
 const { deriveFeatures }       = require('./features/deriveFeatures.js');
 const { preselectMeasures }    = require('./scoring/preselectMeasures.js');
 const { MEASURE_BY_ID }        = require('./catalog/measureCatalog.js');
-const { getCatalogForCity }    = require('./catalog/cityMeasureCatalog.js');
+const { getCatalogForCity, normalizeSlug: normalizeCitySlug } = require('./catalog/cityMeasureCatalog.js');
 const { buildPrompt, PROMPT_VERSION } = require('./prompts/exportAssessmentPrompt.v2.js');
 const { getProvider, activeProviderName } = require('./providers/index.js');
 const { sharedCache, AiAssessmentCache } = require('./cache/aiAssessmentCache.js');
@@ -75,8 +75,9 @@ async function runAssessmentV2(args) {
   // Build deterministic input
   const features    = deriveFeatures(structured, contextHints);
   // Resolve city slug from structured (e.g. "Hannover" → "hannover")
-  const citySlug    = String(structured?.meta?.city || '').trim().toLowerCase()
-                       .replace(/[^a-z0-9_-]/g, '');
+  // Identisch zur Frontend-Normalisierung (UA.normKey, js/ua.core.js:54-62),
+  // damit serverseitig dieselben Stadt-Schlüssel/Template-Dateien greifen.
+  const citySlug    = normalizeCitySlug(structured?.meta?.city);
   const preselected = preselectMeasures(features, { citySlug });
   const aiInput     = buildAiInputV2(structured, features, preselected, contextHints);
 
