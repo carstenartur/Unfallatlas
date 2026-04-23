@@ -45,7 +45,13 @@ und einen Registry-Eintrag ergänzt werden, ohne die Export- oder KI-Logik zu ä
       "snippet":        "Beantragung einer Tempo-30-Zone …",
       "url":            "https://e-government.hannover-stadt.de/…",
       "source":         "hannover-sim",
-      "relevanceScore": 87
+      "relevanceScore": 87,
+      "referenceType":  "Antrag",
+      "reason":         "Suchbegriff „Limmerstraße\" im Titel.",
+      "locationMatch":  "street",
+      "topicMatch":     ["Limmerstraße"],
+      "streetHints":    ["limmerstraße"],
+      "areaHints":      []
     }
   ],
   "meta": {
@@ -122,6 +128,21 @@ Keine weitere Anpassung an Services, Endpunkten oder Export-Logik nötig.
 | `url`           | `string`         | Link zur Dokumentenseite                        |
 | `source`        | `string`         | Provider-Kürzel (z. B. `hannover-sim`)          |
 | `relevanceScore`| `number\|null`   | Relevanzscore 0–100                             |
+
+### Reicheres Referenzmodell (Folge-PR A)
+
+Zusätzliche, **abwärtskompatible** Felder. Werden vom Provider befüllt; der
+`portalNormalizationService` reicht sie unverändert durch (defensive Defaults
++ Schema-Validierung, kein erneutes Mapping).
+
+| Feld            | Typ                 | Beschreibung                                                                                                  |
+|:----------------|:--------------------|:--------------------------------------------------------------------------------------------------------------|
+| `referenceType` | `string\|null` enum | Feinere fachliche Klassifikation für Antragsschreiber: `Antrag`, `Anfrage`, `Beschluss`, `Verwaltungsantwort`, `Protokollnotiz`, `verwandtes Thema`. Folge-PR C verfeinert die Heuristik. |
+| `reason`        | `string\|null`      | Kurze, lokalisierte Begründung, warum dieser Treffer relevant ist (max. 240 Zeichen, ohne PII).               |
+| `locationMatch` | `string\|null` enum | Welcher Ortsbezug wurde getroffen: `street`, `district`, `bbox`, `topic-only`.                                |
+| `topicMatch`    | `string[]\|null`    | Suchbegriffe, die im Titel oder Snippet tatsächlich getroffen haben.                                          |
+| `streetHints`   | `string[]`          | Im Titel/Snippet erkannte Straßennamen (Heuristik).                                                           |
+| `areaHints`     | `string[]`          | Im Titel/Snippet erkannte Stadtbezirks-/Gebietsnamen (Heuristik).                                             |
 
 ---
 

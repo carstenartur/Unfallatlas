@@ -37,6 +37,12 @@ const MAX_RESULTS = 20;
  * @property {string|null} number
  * @property {string|null} snippet
  * @property {string}      rawType
+ * @property {string}      [referenceType]   – Folge-PR A: feinere fachliche Klassifikation
+ * @property {string|null} [reason]          – Folge-PR A: kurze Begründung
+ * @property {string|null} [locationMatch]   – Folge-PR A: 'street'|'district'|'bbox'|'topic-only'
+ * @property {string[]}    [topicMatch]      – Folge-PR A: getroffene Suchbegriffe
+ * @property {string[]}    [streetHints]     – Folge-PR A: erkannte Straßennamen
+ * @property {string[]}    [areaHints]       – Folge-PR A: erkannte Stadtbezirke
  */
 
 /**
@@ -149,6 +155,108 @@ function inferType(title, rawType) {
 }
 
 /**
+ * Mapping vom internen `type` (Schema-Enum) auf die feinere `referenceType`-
+ * Klassifikation für Antragsschreiber.  Folge-PR C verfeinert dies anhand
+ * von Doc-Typ + Titel-Heuristik + Gremium; hier liefern wir nur die
+ * grundlegende Zuordnung, damit das Feld stets präsent und sinnvoll ist.
+ *
+ * @param {string} type
+ * @returns {string}
+ */
+function mapReferenceType(type) {
+  switch (type) {
+    case 'Antrag':
+    case 'Änderungsantrag':    return 'Antrag';
+    case 'Anfrage':            return 'Anfrage';
+    case 'Beschluss':          return 'Beschluss';
+    case 'Verwaltungsantwort': return 'Verwaltungsantwort';
+    case 'Protokoll':          return 'Protokollnotiz';
+    default:                   return 'verwandtes Thema';
+  }
+}
+
+/** Heuristik: enthält der Suchbegriff einen Straßen-/Wegnamen?
+ *  Hinweis: kein führendes \b, weil deutsche Komposita (z. B. „Limmerstraße")
+ *  ohne Wortgrenze vor „straße" stehen. */
+const STREET_RE = /(?:straße|strasse|str\.?\b|\bplatz\b|\ballee\b|\bweg\b|\bgasse\b|\bring\b|\bufer\b|\bdamm\b|\bchaussee\b|\bbrücke\b|\bbruecke\b)/i;
+/** Heuristik: enthält der Suchbegriff einen Stadtbezirks-/Gebietshinweis? */
+const DISTRICT_RE = /\b(stadtbezirk|bezirk|stadtteil|ortsteil|quartier|viertel)\b/i;
+
+/**
+ * Klassifiziert die Art eines Suchbegriffs (Straße / Bezirk / nur Thema).
+ *
+ * @param {string} term
+ * @returns {'street'|'district'|'topic-only'}
+ */
+function classifyTermLocation(term) {
+  const t = String(term || '');
+  if (STREET_RE.test(t))   return 'street';
+  if (DISTRICT_RE.test(t)) return 'district';
+  return 'topic-only';
+}
+
+/**
+ * Reicheres Referenzmodell (Folge-PR A): ergänzt einen rohen Treffer um
+ * `referenceType`, `reason`, `locationMatch`, `topicMatch`, `streetHints`
+ * und `areaHints`.  Die Heuristik bleibt bewusst einfach; spätere PRs
+ * (B = Variantensuche, C = Klassifikator) verfeinern sie.
+ *
+ * @param {RawResult} raw
+ * @param {string}    matchedTerm – Suchbegriff, mit dem der Treffer geliefert wurde
+ * @returns {RawResult}
+ */
+function enrichWithReferenceModel(raw, matchedTerm) {
+  const title   = raw.title   || '';
+  const snippet = raw.snippet || '';
+  const haystack = `${title} ${snippet}`.toLowerCase();
+  const term = String(matchedTerm || '').trim();
+  const termLower = term.toLowerCase();
+
+  const inTitle   = !!term && title.toLowerCase().includes(termLower);
+  const inSnippet = !!term && snippet.toLowerCase().includes(termLower);
+
+  const topicMatch = (inTitle || inSnippet) ? [term] : [];
+  const locationMatch = term ? classifyTermLocation(term) : null;
+
+  // Reason – kurz, deutsch, ohne PII (nur der Suchbegriff selbst).
+  let reason = null;
+  if (term) {
+    if (inTitle)        reason = `Suchbegriff „${term}" im Titel.`;
+    else if (inSnippet) reason = `Suchbegriff „${term}" im Auszug.`;
+    else                reason = `Treffer der Portalsuche zu „${term}".`;
+  }
+  if (reason && reason.length > 240) reason = reason.substring(0, 237) + '…';
+
+  // Straßen-/Bezirkshinweise aus Titel + Snippet (Heuristik).
+  const streetHints = [];
+  const areaHints   = [];
+  const streetMatch  = haystack.match(/\b[a-zäöüß-]+(?:straße|strasse|str\.?|platz|allee|weg|gasse|ring|ufer|damm|chaussee|brücke|bruecke)\b/gi) || [];
+  for (const s of streetMatch) {
+    const v = s.trim();
+    if (v && !streetHints.includes(v)) streetHints.push(v);
+  }
+  const areaMatch = haystack.match(/\b(?:stadtbezirk|stadtteil|ortsteil)\s+[a-zäöüß-][a-zäöüß0-9 -]{2,40}/gi) || [];
+  for (const s of areaMatch) {
+    const v = s.trim();
+    if (v && !areaHints.includes(v)) areaHints.push(v);
+  }
+
+  // referenceType: über inferType auf Schema-Enum gemappt
+  const inferredType = inferType(title, raw.rawType || '');
+  const referenceType = mapReferenceType(inferredType);
+
+  return {
+    ...raw,
+    referenceType,
+    reason,
+    locationMatch,
+    topicMatch,
+    streetHints,
+    areaHints
+  };
+}
+
+/**
  * Parst die HTML-Trefferliste des Hannover-SIM-Portals.
  *
  * Das Portal gibt Treffer in einer Tabelle (oder als div-Liste) aus.
@@ -255,9 +363,11 @@ async function search(params) {
   for (const term of searchTerms) {
     if (!term || typeof term !== 'string' || !term.trim()) continue;
     try {
-      const url = buildSearchUrl(term.trim());
+      const trimmed = term.trim();
+      const url = buildSearchUrl(trimmed);
       const html = await fetchHtml(url);
-      const results = parseResults(html, term.trim());
+      const results = parseResults(html, trimmed)
+        .map((r) => enrichWithReferenceModel(r, trimmed));
       allResults.push(...results);
     } catch (err) {
       // Einzelne Suchanfragen sollen andere nicht blockieren
@@ -268,4 +378,4 @@ async function search(params) {
   return allResults;
 }
 
-module.exports = { supportsCity, search };
+module.exports = { supportsCity, search, enrichWithReferenceModel, mapReferenceType, classifyTermLocation };

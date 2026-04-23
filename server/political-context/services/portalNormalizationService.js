@@ -43,6 +43,24 @@ function makeId(url) {
   return crypto.createHash('sha256').update(url || '').digest('hex').substring(0, 16);
 }
 
+/** Erlaubte Werte für `referenceType` (siehe schemas/politicalReference.schema.json) */
+const VALID_REFERENCE_TYPES = ['Antrag', 'Anfrage', 'Beschluss', 'Verwaltungsantwort', 'Protokollnotiz', 'verwandtes Thema'];
+
+/** Erlaubte Werte für `locationMatch` */
+const VALID_LOCATION_MATCH = ['street', 'district', 'bbox', 'topic-only'];
+
+/**
+ * Reicht ein vom Provider geliefertes Feld als String-Array unverändert
+ * durch (defensive Defaults: nicht-Arrays werden zu []).
+ *
+ * @param {*} value
+ * @returns {string[]}
+ */
+function coerceStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter(v => typeof v === 'string' && v.trim()).map(v => v.trim());
+}
+
 /**
  * Normalisiert ein rohes Provider-Ergebnis zu einem PoliticalReference-Objekt.
  *
@@ -59,6 +77,22 @@ function normalizeOne(raw, sourceKey) {
     ? raw.type
     : inferType(title, rawType);
 
+  // ── Reicheres Referenzmodell (Folge-PR A) ────────────────────────────────
+  // Werte vom Provider werden NICHT erneut gemappt – nur defensive Defaults
+  // und Typvalidierung gegen das Schema.
+  const referenceType = VALID_REFERENCE_TYPES.includes(raw.referenceType)
+    ? raw.referenceType
+    : null;
+  const locationMatch = VALID_LOCATION_MATCH.includes(raw.locationMatch)
+    ? raw.locationMatch
+    : null;
+  const reason = (typeof raw.reason === 'string' && raw.reason.trim())
+    ? raw.reason.trim().substring(0, 240)
+    : null;
+  const topicMatch  = Array.isArray(raw.topicMatch)  ? coerceStringArray(raw.topicMatch)  : null;
+  const streetHints = coerceStringArray(raw.streetHints);
+  const areaHints   = coerceStringArray(raw.areaHints);
+
   return {
     id:             makeId(url),
     title:          title || '(kein Titel)',
@@ -69,7 +103,13 @@ function normalizeOne(raw, sourceKey) {
     snippet:        raw.snippet ? String(raw.snippet).substring(0, 400) : null,
     url,
     source:         sourceKey || 'unknown',
-    relevanceScore: null   // wird vom portalRelevanceService befüllt
+    relevanceScore: null,   // wird vom portalRelevanceService befüllt
+    referenceType,
+    reason,
+    locationMatch,
+    topicMatch,
+    streetHints,
+    areaHints
   };
 }
 

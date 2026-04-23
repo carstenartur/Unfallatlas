@@ -344,3 +344,179 @@ describe('hannoverSimProvider – supportsCity', () => {
     expect(hannoverProvider.supportsCity(null)).toBe(false);
   });
 });
+
+// ── Reicheres Referenzmodell – Folge-PR A ──────────────────────────────────────
+
+describe('hannoverSimProvider – mapReferenceType', () => {
+  const { mapReferenceType } = hannoverProvider;
+  test('mapped Antrag/Änderungsantrag auf Antrag', () => {
+    expect(mapReferenceType('Antrag')).toBe('Antrag');
+    expect(mapReferenceType('Änderungsantrag')).toBe('Antrag');
+  });
+  test('mapped Protokoll auf Protokollnotiz', () => {
+    expect(mapReferenceType('Protokoll')).toBe('Protokollnotiz');
+  });
+  test('Sonstige wird "verwandtes Thema"', () => {
+    expect(mapReferenceType('Sonstige')).toBe('verwandtes Thema');
+    expect(mapReferenceType('UnbekannterTyp')).toBe('verwandtes Thema');
+  });
+  test('Beschluss/Anfrage/Verwaltungsantwort bleiben gleich', () => {
+    expect(mapReferenceType('Beschluss')).toBe('Beschluss');
+    expect(mapReferenceType('Anfrage')).toBe('Anfrage');
+    expect(mapReferenceType('Verwaltungsantwort')).toBe('Verwaltungsantwort');
+  });
+});
+
+describe('hannoverSimProvider – classifyTermLocation', () => {
+  const { classifyTermLocation } = hannoverProvider;
+  test('erkennt Straßen', () => {
+    expect(classifyTermLocation('Limmerstraße')).toBe('street');
+    expect(classifyTermLocation('Marienstraße Querung')).toBe('street');
+    expect(classifyTermLocation('Lister Platz')).toBe('street');
+    expect(classifyTermLocation('Lange Allee')).toBe('street');
+  });
+  test('erkennt Stadtbezirke', () => {
+    expect(classifyTermLocation('Stadtbezirk Linden-Limmer')).toBe('district');
+    expect(classifyTermLocation('Stadtteil Mitte')).toBe('district');
+  });
+  test('fällt auf topic-only zurück', () => {
+    expect(classifyTermLocation('Radverkehr')).toBe('topic-only');
+    expect(classifyTermLocation('')).toBe('topic-only');
+  });
+});
+
+describe('hannoverSimProvider – enrichWithReferenceModel', () => {
+  const { enrichWithReferenceModel } = hannoverProvider;
+  const baseRaw = {
+    title:   'Antrag zur Verkehrsberuhigung Limmerstraße',
+    url:     'https://example.com/doc/1',
+    date:    '15.03.2024',
+    gremium: 'Stadtbezirksrat Linden-Limmer',
+    number:  'DS 2024-0042',
+    snippet: 'Beantragung einer Tempo-30-Zone in der Limmerstraße.',
+    rawType: 'antrag'
+  };
+
+  test('befüllt alle neuen Felder', () => {
+    const enriched = enrichWithReferenceModel(baseRaw, 'Limmerstraße');
+    expect(enriched).toHaveProperty('referenceType');
+    expect(enriched).toHaveProperty('reason');
+    expect(enriched).toHaveProperty('locationMatch');
+    expect(enriched).toHaveProperty('topicMatch');
+    expect(enriched).toHaveProperty('streetHints');
+    expect(enriched).toHaveProperty('areaHints');
+  });
+
+  test('referenceType wird über inferType + Mapping gesetzt', () => {
+    expect(enrichWithReferenceModel(baseRaw, 'x').referenceType).toBe('Antrag');
+    const beschluss = { ...baseRaw, title: 'Beschluss über Radweg', rawType: '' };
+    expect(enrichWithReferenceModel(beschluss, 'x').referenceType).toBe('Beschluss');
+  });
+
+  test('topicMatch enthält den Suchbegriff, wenn er im Titel vorkommt', () => {
+    const enriched = enrichWithReferenceModel(baseRaw, 'Limmerstraße');
+    expect(enriched.topicMatch).toContain('Limmerstraße');
+  });
+
+  test('topicMatch ist leer, wenn der Suchbegriff nicht vorkommt', () => {
+    const enriched = enrichWithReferenceModel(baseRaw, 'Fössebad');
+    expect(enriched.topicMatch).toEqual([]);
+  });
+
+  test('locationMatch klassifiziert Straße', () => {
+    expect(enrichWithReferenceModel(baseRaw, 'Limmerstraße').locationMatch).toBe('street');
+  });
+
+  test('locationMatch klassifiziert Stadtbezirk', () => {
+    expect(enrichWithReferenceModel(baseRaw, 'Stadtbezirk Linden-Limmer').locationMatch).toBe('district');
+  });
+
+  test('reason verweist auf Titeltreffer', () => {
+    const enriched = enrichWithReferenceModel(baseRaw, 'Limmerstraße');
+    expect(enriched.reason).toContain('Titel');
+    expect(enriched.reason).toContain('Limmerstraße');
+  });
+
+  test('reason ist auf 240 Zeichen begrenzt', () => {
+    const longTerm = 'A'.repeat(500);
+    const enriched = enrichWithReferenceModel(baseRaw, longTerm);
+    expect(enriched.reason.length).toBeLessThanOrEqual(240);
+  });
+
+  test('streetHints extrahiert Straßennamen aus Titel/Snippet', () => {
+    const enriched = enrichWithReferenceModel(baseRaw, 'Tempo 30');
+    expect(enriched.streetHints.some(s => s.includes('limmerstraße'))).toBe(true);
+  });
+
+  test('originalfelder bleiben unverändert', () => {
+    const enriched = enrichWithReferenceModel(baseRaw, 'Limmerstraße');
+    expect(enriched.title).toBe(baseRaw.title);
+    expect(enriched.url).toBe(baseRaw.url);
+    expect(enriched.gremium).toBe(baseRaw.gremium);
+  });
+});
+
+describe('portalNormalizationService – Reicheres Referenzmodell', () => {
+  test('reicht alle neuen Felder unverändert durch', () => {
+    const raw = {
+      title:         'Antrag X',
+      url:           'https://example.com/doc/42',
+      rawType:       'antrag',
+      referenceType: 'Antrag',
+      reason:        'Suchbegriff „Limmerstraße" im Titel.',
+      locationMatch: 'street',
+      topicMatch:    ['Limmerstraße'],
+      streetHints:   ['limmerstraße'],
+      areaHints:     []
+    };
+    const ref = normalizeOne(raw, 'hannover-sim');
+    expect(ref.referenceType).toBe('Antrag');
+    expect(ref.reason).toBe('Suchbegriff „Limmerstraße" im Titel.');
+    expect(ref.locationMatch).toBe('street');
+    expect(ref.topicMatch).toEqual(['Limmerstraße']);
+    expect(ref.streetHints).toEqual(['limmerstraße']);
+    expect(ref.areaHints).toEqual([]);
+  });
+
+  test('defensive Defaults für fehlende neue Felder', () => {
+    const raw = { title: 'A', url: 'https://example.com/x', rawType: '' };
+    const ref = normalizeOne(raw, 'src');
+    expect(ref.referenceType).toBeNull();
+    expect(ref.reason).toBeNull();
+    expect(ref.locationMatch).toBeNull();
+    expect(ref.topicMatch).toBeNull();
+    expect(ref.streetHints).toEqual([]);
+    expect(ref.areaHints).toEqual([]);
+  });
+
+  test('verwirft ungültige enum-Werte', () => {
+    const raw = {
+      title: 'A', url: 'https://example.com/x', rawType: '',
+      referenceType: 'KEIN_GUELTIGER_TYP',
+      locationMatch: 'irgendwas'
+    };
+    const ref = normalizeOne(raw, 'src');
+    expect(ref.referenceType).toBeNull();
+    expect(ref.locationMatch).toBeNull();
+  });
+
+  test('kürzt überlangen reason auf 240 Zeichen', () => {
+    const raw = {
+      title: 'A', url: 'https://example.com/x', rawType: '',
+      reason: 'X'.repeat(500)
+    };
+    const ref = normalizeOne(raw, 'src');
+    expect(ref.reason.length).toBeLessThanOrEqual(240);
+  });
+
+  test('coerciert nicht-String-Einträge in *Hints heraus', () => {
+    const raw = {
+      title: 'A', url: 'https://example.com/x', rawType: '',
+      streetHints: ['Limmerstraße', 42, '', null, '  Engelbosteler Damm  '],
+      areaHints:   'kein-array'
+    };
+    const ref = normalizeOne(raw, 'src');
+    expect(ref.streetHints).toEqual(['Limmerstraße', 'Engelbosteler Damm']);
+    expect(ref.areaHints).toEqual([]);
+  });
+});
