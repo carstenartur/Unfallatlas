@@ -740,6 +740,20 @@
       lines.push("");
     }
 
+    // Add political references to text report
+    if (ctx.politicalReferences && ctx.politicalReferences.length > 0) {
+      lines.push("Bisherige politische Befassung:");
+      for (const ref of ctx.politicalReferences) {
+        lines.push(`- ${ref.title || "Ohne Titel"}`);
+        if (ref.type) lines.push(`  Typ: ${ref.type}`);
+        if (ref.date) lines.push(`  Datum: ${ref.date}`);
+        if (ref.gremium) lines.push(`  Gremium: ${ref.gremium}`);
+        if (ref.number) lines.push(`  Nummer: ${ref.number}`);
+        if (ref.url) lines.push(`  URL: ${ref.url}`);
+      }
+      lines.push("");
+    }
+
     // Add cross-table (Beteiligungskombination × Schweregrad)
     if (crossTable.rows.length > 0) {
       lines.push("Beteiligungskombination × Schweregrad:");
@@ -976,6 +990,29 @@
         
         ${refDocsHtmlSection}
 
+        ${(() => {
+          const polRefs = ctx.politicalReferences;
+          if (!polRefs || !polRefs.length) return '';
+          let html = `<div style="margin-top:12px; font-weight:900;">Bisherige politische Befassung</div><ul style="margin-top:6px;">`;
+          for (const ref of polRefs) {
+            const meta = [];
+            if (ref.type) meta.push(UA.escHtml(ref.type));
+            if (ref.date) meta.push(UA.escHtml(ref.date));
+            if (ref.gremium) meta.push(UA.escHtml(ref.gremium));
+            if (ref.number) meta.push(UA.escHtml(ref.number));
+            html += `<li>`;
+            if (ref.url) {
+              html += `<a href="${UA.escHtml(ref.url)}" target="_blank" rel="noopener">${UA.escHtml(ref.title || 'Ohne Titel')}</a>`;
+            } else {
+              html += `<strong>${UA.escHtml(ref.title || 'Ohne Titel')}</strong>`;
+            }
+            if (meta.length) html += ` <span style="color:#666;font-size:12px;">(${meta.join(' · ')})</span>`;
+            html += `</li>`;
+          }
+          html += `</ul>`;
+          return html;
+        })()}
+
         <div style="margin-top:10px; color:#555; font-size:12px;">
           <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
@@ -1017,6 +1054,7 @@
       yearTable: yr,
       poi: poiAnalysis,
       references: refDocs,
+      politicalReferences: ctx.politicalReferences || [],
       patterns: matchedPatterns,
       crossTable,
       accidentDetails

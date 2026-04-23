@@ -148,6 +148,10 @@
         <div id="btnOpenExport" class="btn">Analyse/Export öffnen</div>
       </div>
 
+      <div style="margin-top:8px;">
+        <div id="btnPolCtxOpen" class="btn" style="background:rgba(233,248,240,.92);border-color:rgba(100,200,140,.6);" title="Frühere politische Vorgänge für diesen Bereich recherchieren">🔍 Politische Vorgänge recherchieren</div>
+      </div>
+
       <div style="margin-top:10px; font-weight:900;">Geführte Tour</div>
       <div class="toggles">
         <div id="tourBtnStart" class="btn" title="Demo-Tour starten">▶ Tour starten</div>
@@ -292,6 +296,45 @@
     </div>
   </div>
 
+  <!-- Politische Kontextrecherche Panel -->
+  <div id="polCtxPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-label="Politische Vorgänge recherchieren" style="display:none;">
+    <div class="modal" style="max-width:680px;">
+      <div class="modalHeader">
+        <div class="modalTitle">🔍 Frühere politische Vorgänge recherchieren</div>
+        <div class="modalBtns">
+          <div class="smallBtn" id="polCtxBtnClose">Schließen</div>
+        </div>
+      </div>
+      <p style="font-size:13px; color:#555; margin:4px 0 12px; line-height:1.5;">
+        Sucht im Ratsinformationssystem der ausgewählten Stadt nach früheren Anträgen,
+        Anfragen, Beschlüssen und Verwaltungsantworten, die für den markierten Bereich
+        relevant sein könnten. Ergebnisse können in den Export übernommen werden.
+      </p>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+        <input id="polCtxSearchInput" type="text" placeholder="Suchbegriffe (z. B. Straßenname, Kreuzung, Bezirk) …"
+          style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font:14px system-ui,sans-serif;" />
+        <button id="polCtxBtnSearch"
+          style="padding:8px 18px;background:#2c5aa0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">
+          Suche starten
+        </button>
+      </div>
+
+      <div id="polCtxStatus" style="font-size:12px;color:#888;min-height:18px;margin-bottom:6px;"></div>
+      <div id="polCtxResults" style="max-height:380px;overflow-y:auto;"></div>
+
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button id="polCtxBtnAdopt"
+          style="padding:10px 20px;background:#2a7a4b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">
+          ✓ Ausgewählte Vorgänge in Export übernehmen
+        </button>
+        <span style="font-size:12px;color:#888;">
+          Haken setzen = Vorgang auswählen · Dann oben „Analyse/Export öffnen" klicken.
+        </span>
+      </div>
+    </div>
+  </div>
+
   <!-- App JS (V2 with POI support) -->
   <script>window.UA = { BUILD: "2026-01-01 00:00 UTC" };</script>
   <script src="js/ua.core.js?v=2026-01-01"></script>
@@ -306,5 +349,6 @@
   <script src="js/ua.tour.js?v=2026-01-01"></script>
   <script src="js/ua.app_v2.js?v=2026-01-01"></script>
   <script src="js/ua.video-export.js?v=2026-01-01"></script>
+  <script src="js/ua.political-context.js?v=2026-01-01"></script>
 </body>
 </html>
