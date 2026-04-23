@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { exportVideo }   = require('./video-export.js');
 const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
+const { runAssessmentV2, VALID_MODES } = require('./ai/aiAssessmentServiceV2.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -168,9 +169,67 @@ app.post('/api/ai/export-assessment', aiAssessmentRateLimit, async (req, res) =>
   }
 });
 
+// ── KI-Bewertung v2 (Modi: assessment | proposal-brief) ──────────────────────
+/**
+ * POST /api/ai/export-assessment/v2?mode=assessment|proposal-brief
+ *
+ * Body (JSON):
+ *   structured    – strukturiertes Export-Objekt aus computeExportReport()
+ *   contextHints  – (optional) manuelle Kontext-Hinweise
+ *   mode          – (optional) 'assessment' (default) oder 'proposal-brief';
+ *                    kann auch via ?mode=… als Query-Parameter gesetzt werden.
+ *   withFallback  – (optional, default true) bei Fehlern deterministisch antworten?
+ *
+ * Antwort (JSON):
+ *   {
+ *     mode:     string,
+ *     source:   'cache'|'ai'|'ai-repaired'|'fallback',
+ *     cacheKey: string,
+ *     result:   <Schema-konformer Output>
+ *   }
+ *
+ * Hinweis zu Free-Tier:
+ *   - Identische Anfragen (gleicher Input + Modus + Modell) werden aus dem
+ *     Cache bedient (sha256, TTL 1h). Reduziert Kontingentverbrauch.
+ *   - Provider nutzt Retry/Backoff bei 429/5xx.
+ *   - Fehlt der GEMINI_API_KEY, antwortet der Endpunkt mit Status 200 +
+ *     `source: 'fallback'` (deterministischer Output ohne KI-Texte), sofern
+ *     `withFallback !== false`.  Bei `withFallback: false` antwortet er 503.
+ */
+app.post('/api/ai/export-assessment/v2', aiAssessmentRateLimit, async (req, res) => {
+  const body = req.body || {};
+  const mode = String(body.mode || req.query.mode || 'assessment');
+  if (!VALID_MODES.includes(mode)) {
+    return res.status(400).json({ error: `Ungültiger mode "${mode}". Erlaubt: ${VALID_MODES.join(', ')}` });
+  }
+  const { structured, contextHints } = body;
+  if (!structured || typeof structured !== 'object') {
+    return res.status(400).json({ error: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.' });
+  }
+  const withFallback = body.withFallback !== false;
+
+  try {
+    const out = await runAssessmentV2({ structured, contextHints, mode, withFallback });
+    return res.json({
+      mode,
+      source: out.source,
+      cacheKey: out.cacheKey,
+      result: out.result,
+      ...(out.error ? { fallbackReason: out.error } : {})
+    });
+  } catch (err) {
+    if (err && err.code === 'AI_NOT_CONFIGURED') {
+      return res.status(503).json({ error: err.message });
+    }
+    console.error('[ai/export-assessment/v2] Fehler:', err.message);
+    return res.status(500).json({ error: err.message || 'Interner Fehler bei der KI-Bewertung.' });
+  }
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
   console.log(`Video-Export: POST http://localhost:${PORT}/api/export-video`);
-  console.log(`KI-Bewertung: POST http://localhost:${PORT}/api/ai/export-assessment (verfügbar: ${isAvailable()})`);
+  console.log(`KI-Bewertung v1: POST http://localhost:${PORT}/api/ai/export-assessment (verfügbar: ${isAvailable()})`);
+  console.log(`KI-Bewertung v2: POST http://localhost:${PORT}/api/ai/export-assessment/v2?mode=assessment|proposal-brief`);
 });
