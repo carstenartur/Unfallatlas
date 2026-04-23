@@ -520,3 +520,178 @@ describe('portalNormalizationService – Reicheres Referenzmodell', () => {
     expect(ref.areaHints).toEqual([]);
   });
 });
+
+// ── Neue Stadt-Provider: Berlin / Bonn / Hamburg ───────────────────────────────
+
+const berlinProvider  = require('../../server/political-context/providers/berlinAllrisProvider.js');
+const bonnProvider    = require('../../server/political-context/providers/bonnAllrisProvider.js');
+const hamburgProvider = require('../../server/political-context/providers/hamburgParldokProvider.js');
+
+describe('berlinAllrisProvider – supportsCity', () => {
+  test('akzeptiert Berlin', () => {
+    expect(berlinProvider.supportsCity('Berlin')).toBe(true);
+    expect(berlinProvider.supportsCity('berlin')).toBe(true);
+  });
+  test('lehnt andere Städte ab', () => {
+    expect(berlinProvider.supportsCity('Hannover')).toBe(false);
+    expect(berlinProvider.supportsCity('Bonn')).toBe(false);
+    expect(berlinProvider.supportsCity('')).toBe(false);
+    expect(berlinProvider.supportsCity(null)).toBe(false);
+  });
+  test('exponiert _key für Logging/Meta', () => {
+    expect(berlinProvider._key).toBe('berlin-allris');
+  });
+});
+
+describe('berlinAllrisProvider – parseResults', () => {
+  test('extrahiert Titel, URL, Datum und Drucksachennummer aus Tabellenzeile', () => {
+    const html = `
+      <table>
+        <tr>
+          <td><a href="/starweb/adis/citat/VT/19/Document?id=42">Antrag zur Verkehrsberuhigung Friedrichstraße</a></td>
+          <td>15.03.2024</td>
+          <td>Abgeordnetenhaus von Berlin</td>
+          <td>Drs 19/12345</td>
+        </tr>
+      </table>`;
+    const out = berlinProvider.parseResults(html, 'https://pardok.parlament-berlin.de');
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toContain('Friedrichstraße');
+    expect(out[0].url).toMatch(/^https:\/\/pardok\.parlament-berlin\.de\//);
+    expect(out[0].date).toBe('15.03.2024');
+    expect(out[0].number).toBe('Drs 19/12345');
+    expect(out[0].gremium).toMatch(/Abgeordnetenhaus/);
+  });
+  test('liefert leeres Array für leeres HTML', () => {
+    expect(berlinProvider.parseResults('', 'https://x')).toEqual([]);
+    expect(berlinProvider.parseResults('<html></html>', 'https://x')).toEqual([]);
+  });
+});
+
+describe('bonnAllrisProvider – supportsCity', () => {
+  test('akzeptiert Bonn', () => {
+    expect(bonnProvider.supportsCity('Bonn')).toBe(true);
+    expect(bonnProvider.supportsCity('bonn')).toBe(true);
+  });
+  test('lehnt andere Städte ab', () => {
+    expect(bonnProvider.supportsCity('Köln')).toBe(false);
+    expect(bonnProvider.supportsCity('Berlin')).toBe(false);
+    expect(bonnProvider.supportsCity('')).toBe(false);
+    expect(bonnProvider.supportsCity(null)).toBe(false);
+  });
+  test('exponiert _key', () => {
+    expect(bonnProvider._key).toBe('bonn-allris');
+  });
+});
+
+describe('bonnAllrisProvider – buildSearchUrl', () => {
+  test('enthält PORTAL_BASE und Suchparameter', () => {
+    const url = bonnProvider.buildSearchUrl('Limmerstraße');
+    expect(url).toMatch(/^https:\/\/www2\.bonn\.de\//);
+    expect(url).toMatch(/SUCH=Limmerstra/);
+    expect(url).toMatch(/SUCH_OBJ=V/);
+  });
+});
+
+describe('bonnAllrisProvider – parseResults', () => {
+  test('extrahiert Allris-Vorlagen-Link', () => {
+    const html = `
+      <table>
+        <tr>
+          <td><a href="vo020.asp?VOLFDNR=12345">Vorlage zur Verkehrsplanung Beethovenplatz</a></td>
+          <td>10.06.2024</td>
+          <td>Hauptausschuss</td>
+          <td>0815/2024</td>
+        </tr>
+      </table>`;
+    const out = bonnProvider.parseResults(html);
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toContain('Beethovenplatz');
+    expect(out[0].url).toMatch(/^https:\/\/www2\.bonn\.de\/bo_ris\/ws_buergerinfo\/vo020\.asp/);
+    expect(out[0].date).toBe('10.06.2024');
+    expect(out[0].number).toBe('0815/2024');
+    expect(out[0].gremium).toBe('Hauptausschuss');
+  });
+  test('verwirft Treffer ohne passenden Link', () => {
+    const html = '<table><tr><td><a href="https://example.com/other">x</a></td></tr></table>';
+    expect(bonnProvider.parseResults(html)).toEqual([]);
+  });
+});
+
+describe('hamburgParldokProvider – supportsCity', () => {
+  test('akzeptiert Hamburg', () => {
+    expect(hamburgProvider.supportsCity('Hamburg')).toBe(true);
+    expect(hamburgProvider.supportsCity('hamburg')).toBe(true);
+  });
+  test('lehnt andere Städte ab', () => {
+    expect(hamburgProvider.supportsCity('Bremen')).toBe(false);
+    expect(hamburgProvider.supportsCity('Berlin')).toBe(false);
+    expect(hamburgProvider.supportsCity('')).toBe(false);
+  });
+  test('exponiert _key', () => {
+    expect(hamburgProvider._key).toBe('hamburg-parldok');
+  });
+});
+
+describe('hamburgParldokProvider – parseResults', () => {
+  test('extrahiert Drucksachen aus Tabellenzeile', () => {
+    const html = `
+      <table>
+        <tr>
+          <td><a href="/parldok/Drucksache/12345">Antrag der Fraktion zur Reeperbahn</a></td>
+          <td>22.04.2024</td>
+          <td>Hamburgische Bürgerschaft</td>
+          <td>21/9876</td>
+        </tr>
+      </table>`;
+    const out = hamburgProvider.parseResults(html, 'https://www.buergerschaft-hh.de');
+    expect(out.length).toBeGreaterThanOrEqual(1);
+    expect(out[0].title).toContain('Reeperbahn');
+    expect(out[0].url).toMatch(/^https:\/\/www\.buergerschaft-hh\.de\//);
+    expect(out[0].number).toBe('21/9876');
+  });
+  test('extrahiert Treffer aus Listenelementen', () => {
+    const html = `
+      <ul>
+        <li>
+          <a href="/parldok/Drucksache/77">Kleine Anfrage zum Jungfernstieg</a>
+          <span>15.01.2024</span>
+          <span>Bürgerschaft</span>
+        </li>
+      </ul>`;
+    const out = hamburgProvider.parseResults(html, 'https://www.buergerschaft-hh.de');
+    expect(out.length).toBeGreaterThanOrEqual(1);
+    expect(out[0].title).toContain('Jungfernstieg');
+  });
+  test('dedupliziert identische URLs aus tr- und li-Blöcken', () => {
+    const html = `
+      <table><tr><td><a href="/parldok/Drucksache/1">Antrag A</a></td></tr></table>
+      <ul><li><a href="/parldok/Drucksache/1">Antrag A</a></li></ul>`;
+    const out = hamburgProvider.parseResults(html, 'https://x');
+    expect(out).toHaveLength(1);
+  });
+});
+
+// ── Registry-Integration für die neuen Städte ─────────────────────────────────
+
+describe('cityPortalRegistry – neue Städte', () => {
+  test('liefert berlinAllrisProvider für Berlin', () => {
+    const p = getProviderForCityActual('Berlin');
+    expect(p).toBe(berlinProvider);
+    expect(p._key).toBe('berlin-allris');
+  });
+  test('liefert bonnAllrisProvider für Bonn', () => {
+    const p = getProviderForCityActual('Bonn');
+    expect(p).toBe(bonnProvider);
+    expect(p._key).toBe('bonn-allris');
+  });
+  test('liefert hamburgParldokProvider für Hamburg', () => {
+    const p = getProviderForCityActual('Hamburg');
+    expect(p).toBe(hamburgProvider);
+    expect(p._key).toBe('hamburg-parldok');
+  });
+  test('listSupportedCities enthält die neuen Slugs', () => {
+    const list = listSupportedCitiesActual();
+    expect(list).toEqual(expect.arrayContaining(['hannover', 'berlin', 'bonn', 'hamburg']));
+  });
+});

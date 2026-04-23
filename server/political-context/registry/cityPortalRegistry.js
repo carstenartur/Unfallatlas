@@ -14,7 +14,10 @@
  * @module server/political-context/registry/cityPortalRegistry
  */
 
-const hannoverSimProvider = require('../providers/hannoverSimProvider.js');
+const hannoverSimProvider     = require('../providers/hannoverSimProvider.js');
+const berlinAllrisProvider    = require('../providers/berlinAllrisProvider.js');
+const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
+const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');
 
 /**
  * @typedef {object} PoliticalContextProvider
@@ -24,7 +27,10 @@ const hannoverSimProvider = require('../providers/hannoverSimProvider.js');
 
 /** @type {Map<string, PoliticalContextProvider>} */
 const REGISTRY = new Map([
-  ['hannover', hannoverSimProvider]
+  ['hannover', hannoverSimProvider],
+  ['berlin',   berlinAllrisProvider],
+  ['bonn',     bonnAllrisProvider],
+  ['hamburg',  hamburgParldokProvider]
 ]);
 
 /**

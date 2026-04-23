@@ -1,0 +1,47 @@
+{
+  "gremiumTyp": "Bezirksvertretung",
+  "hinweis": "Zuständigkeit bitte vor Einreichung mit der aktuellen Bezirksgliederung der Stadt Bonn abgleichen.",
+  "fallback": "Zuständige Bezirksvertretung konnte nicht eindeutig ermittelt werden. Bitte prüfen Sie die Zuordnung anhand der vier Bonner Stadtbezirke (Bonn, Bad Godesberg, Beuel, Hardtberg).",
+  "zuordnung": [
+    {
+      "match": {
+        "city_district": [
+          "Bonn",
+          "Stadtbezirk Bonn"
+        ]
+      },
+      "gremium": "Bezirksvertretung Bonn",
+      "kontakt": "bezirksvertretung-bonn@bonn.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bad Godesberg",
+          "Stadtbezirk Bad Godesberg"
+        ]
+      },
+      "gremium": "Bezirksvertretung Bad Godesberg",
+      "kontakt": "bezirksvertretung-bad-godesberg@bonn.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Beuel",
+          "Stadtbezirk Beuel"
+        ]
+      },
+      "gremium": "Bezirksvertretung Beuel",
+      "kontakt": "bezirksvertretung-beuel@bonn.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Hardtberg",
+          "Stadtbezirk Hardtberg"
+        ]
+      },
+      "gremium": "Bezirksvertretung Hardtberg",
+      "kontakt": "bezirksvertretung-hardtberg@bonn.de"
+    }
+  ]
+}

@@ -74,7 +74,11 @@ server/political-context/
 ├── registry/
 │   └── cityPortalRegistry.js        # Stadt → Provider-Mapping
 ├── providers/
-│   └── hannoverSimProvider.js       # Hannover SIM-Portal-Provider
+│   ├── _portalUtils.js              # Geteilte HTTP-/HTML-/Heuristik-Helfer
+│   ├── hannoverSimProvider.js       # Hannover SIM-Portal
+│   ├── berlinAllrisProvider.js      # Berlin Pardok + Bezirks-Allris
+│   ├── bonnAllrisProvider.js        # Bonn Bürgerinfo (Allris/SessionNet)
+│   └── hamburgParldokProvider.js    # Hamburg Parldok + Bezirks-Allris
 ├── services/
 │   ├── portalSearchService.js       # Orchestrierung
 │   ├── portalNormalizationService.js# Einheitliches internes Datenmodell
@@ -106,6 +110,9 @@ async function search(params: SearchParams): Promise<RawResult[]>
    const muenchenProvider = require('../providers/muenchenRisProvider.js');
    const REGISTRY = new Map([
      ['hannover', hannoverSimProvider],
+     ['berlin',   berlinAllrisProvider],
+     ['bonn',     bonnAllrisProvider],
+     ['hamburg',  hamburgParldokProvider],
      ['muenchen', muenchenProvider],   // neu
    ]);
    ```
@@ -150,7 +157,23 @@ Zusätzliche, **abwärtskompatible** Felder. Werden vom Provider befüllt; der
 
 | Variable                  | Standard | Beschreibung                                           |
 |:--------------------------|:---------|:-------------------------------------------------------|
-| `PORTAL_SEARCH_TIMEOUT_MS`| `10000`  | HTTP-Timeout für Portal-Anfragen (ms) – Hannover-Provider |
+| `PORTAL_SEARCH_TIMEOUT_MS`| `10000`  | HTTP-Timeout für Portal-Anfragen (ms) – alle Provider  |
+
+---
+
+## Unterstützte Städte
+
+| Stadtschlüssel | Provider-Modul                       | `_key`            | Portal                                                                                                  |
+|:---------------|:-------------------------------------|:------------------|:--------------------------------------------------------------------------------------------------------|
+| `hannover`     | `providers/hannoverSimProvider.js`   | `hannover-sim`    | [Hannover SIM-Ratsinformation](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular)  |
+| `berlin`       | `providers/berlinAllrisProvider.js`  | `berlin-allris`   | [Pardok Abgeordnetenhaus Berlin](https://pardok.parlament-berlin.de/) (+ Bezirks-Allris)                |
+| `bonn`         | `providers/bonnAllrisProvider.js`    | `bonn-allris`     | [Bonner Bürgerinfo (Allris)](https://www2.bonn.de/bo_ris/ws_buergerinfo/buergerinfo.asp)                |
+| `hamburg`      | `providers/hamburgParldokProvider.js`| `hamburg-parldok` | [Parldok Hamburgische Bürgerschaft](https://www.buergerschaft-hh.de/parldok/formalkriterien) (+ Bezirke) |
+
+Provider-URLs sind ausschließlich im jeweiligen Modul hartkodiert; es findet
+keine URL-Konstruktion aus Nutzereingaben statt (keine SSRF-Angriffsfläche).
+Berlin und Hamburg bündeln Land/Bürgerschaft sowie die Bezirks-Allris-Endpunkte
+in einer konfigurierbaren Liste innerhalb des jeweiligen Provider-Moduls.
 
 ---
 
