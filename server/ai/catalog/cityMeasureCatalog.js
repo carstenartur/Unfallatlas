@@ -62,11 +62,30 @@ function getCatalogForCity(citySlug) {
     return arr;
   }
 
+  // Defensive: nach der Normalisierung darf der Slug ausschließlich aus
+  // [a-z0-9_] bestehen – ohne Punkte, Slashes, Backslashes o. ä. Damit ist
+  // Path-Traversal aus benutzerlieferbaren `meta.city`-Werten ausgeschlossen.
+  // (Explizite Allowlist, damit auch statische Analyse / CodeQL die
+  // Pfad-Quelle als bereinigt erkennt.)
+  if (!/^[a-z0-9_]+$/.test(slug)) {
+    cache.set(slug, [...MEASURE_CATALOG]);
+    return cache.get(slug);
+  }
+
   const file = path.join(TEMPLATES_DIR, `measures_${slug}.json`);
+  // Zusätzlicher Containment-Check: die aufgelöste Datei muss zwingend
+  // unterhalb von TEMPLATES_DIR liegen.
+  const resolved = path.resolve(file);
+  const baseDir  = path.resolve(TEMPLATES_DIR) + path.sep;
+  if (!resolved.startsWith(baseDir)) {
+    cache.set(slug, [...MEASURE_CATALOG]);
+    return cache.get(slug);
+  }
+
   let cityMeasures = [];
   try {
-    if (fs.existsSync(file)) {
-      const raw = fs.readFileSync(file, 'utf8');
+    if (fs.existsSync(resolved)) {
+      const raw = fs.readFileSync(resolved, 'utf8');
       const obj = JSON.parse(raw);
       if (obj && Array.isArray(obj.measures)) {
         cityMeasures = obj.measures.filter(isValidMeasure);
