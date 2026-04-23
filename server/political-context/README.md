@@ -125,6 +125,14 @@ Keine weitere Anpassung an Services, Endpunkten oder Export-Logik nötig.
 
 ---
 
+## Umgebungsvariablen
+
+| Variable                  | Standard | Beschreibung                                           |
+|:--------------------------|:---------|:-------------------------------------------------------|
+| `PORTAL_SEARCH_TIMEOUT_MS`| `10000`  | HTTP-Timeout für Portal-Anfragen (ms) – Hannover-Provider |
+
+---
+
 ## Relevanzbewertung
 
 | Faktor                      | Max. Punkte |

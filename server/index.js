@@ -374,7 +374,7 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
     return res.status(400).json({ error: 'searchTerms enthält keine gültigen Suchbegriffe.' });
   }
 
-  const resolvedMax = Math.min(30, Math.max(1, parseInt(maxResults, 10) || 10));
+  const resolvedMax = Math.min(30, Math.max(0, parseInt(maxResults, 10) || 10));
 
   try {
     const result = await politicalContextSearch({

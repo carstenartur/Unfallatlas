@@ -107,19 +107,27 @@ function stripTags(html) {
 }
 
 /**
- * Dekodiert HTML-Entities (&amp; &lt; &gt; &quot; &#xNN;).
+ * Dekodiert HTML-Entities (&amp; &lt; &gt; &quot; &#xNN; &#NN;) in einem
+ * einzigen Durchlauf, um doppeltes Dekodieren zu vermeiden
+ * (z. B. &amp;lt; → &lt; → < bei sequentiellem Ersetzen).
  *
  * @param {string} str
  * @returns {string}
  */
 function decodeEntities(str) {
-  return str
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+  return str.replace(/&(?:amp|lt|gt|quot|#x([0-9a-fA-F]+)|#(\d+));/g,
+    (match, hex, dec) => {
+      if (hex !== undefined) return String.fromCharCode(parseInt(hex, 16));
+      if (dec !== undefined) return String.fromCharCode(parseInt(dec, 10));
+      switch (match) {
+        case '&amp;':  return '&';
+        case '&lt;':   return '<';
+        case '&gt;':   return '>';
+        case '&quot;': return '"';
+        default:       return match;
+      }
+    }
+  );
 }
 
 /**

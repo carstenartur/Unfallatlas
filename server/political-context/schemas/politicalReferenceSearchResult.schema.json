@@ -32,7 +32,7 @@
         },
         "totalFound": {
           "type": "integer",
-          "description": "Gesamtanzahl gefundener Treffer (vor Deduplizierung)"
+          "description": "Gesamtanzahl gefundener Treffer (nach Deduplizierung, vor Relevanz-Begrenzung)"
         },
         "providerKey": {
           "type": ["string", "null"],
