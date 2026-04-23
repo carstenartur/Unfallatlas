@@ -75,7 +75,7 @@ async function search(params) {
   const scored = scoreAndSort(normalized, searchTerms, context);
 
   // Auf maxResults begrenzen
-  const trimmed = scored.slice(0, Math.max(1, maxResults));
+  const trimmed = scored.slice(0, Math.max(0, maxResults));
 
   return {
     references: trimmed,
