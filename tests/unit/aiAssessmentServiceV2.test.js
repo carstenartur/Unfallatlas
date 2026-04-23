@@ -159,6 +159,17 @@ describe('deriveFeatures', () => {
     expect(f.normalizedHints.knownHazards.length).toBe(0);
   });
 
+  test('contextHints normalization keeps valid-length entries and trims whitespace', () => {
+    const f = deriveFeatures(STRUCTURED_FIXTURE, {
+      knownHazards: ['  Glatter Belag bei Nässe  ', '', '   ', 'Sichtbehinderung'],
+      surfaceHints: Array.from({ length: 15 }, (_, i) => `hint ${i}`)
+    });
+    expect(f.normalizedHints.knownHazards).toEqual(['Glatter Belag bei Nässe', 'Sichtbehinderung']);
+    // capped at 10 entries
+    expect(f.normalizedHints.surfaceHints.length).toBe(10);
+    expect(f.normalizedHints.surfaceHints[0]).toBe('hint 0');
+  });
+
   test('handles missing optional fields without throwing', () => {
     expect(() => deriveFeatures({ meta: {}, severity: {} })).not.toThrow();
   });

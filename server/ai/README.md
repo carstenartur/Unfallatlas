@@ -183,5 +183,5 @@ erfinden.
   Maßnahmen (z. B. eigene Templates wie bei `templates/gremien_*.json`).
 * **Mehrere Anbieter** (lokales Modell, Anthropic, OpenAI) hinter einer
   einheitlichen Provider-Schnittstelle.
-* **Fronted-Integration** mit klarer Kennzeichnung „KI-Vorschlag"
+* **Frontend-Integration** mit klarer Kennzeichnung „KI-Vorschlag"
   vs. „deterministisch berechnet".
