@@ -1,9 +1,10 @@
 /**
  * Express-Server für die Docker-Distribution der Unfallwerkbank.
  *
- * Stellt die statischen Werkbank-Dateien bereit und bietet einen
- * `/api/export-video`-Endpunkt, der per Playwright ein GIF-Video
- * des kompletten Analyse-Ablaufs erzeugt.
+ * Stellt die statischen Werkbank-Dateien bereit und bietet folgende Endpunkte:
+ *   POST /api/export-video          – GIF-Video-Export (Playwright/ffmpeg)
+ *   POST /api/ai/export-assessment  – optionale KI-gestützte Bewertung (Gemini)
+ *   GET  /api/ai-assessment-available – Feature-Flag (GEMINI_API_KEY vorhanden?)
  *
  * Start: node server/index.js
  * Port:  8000 (konfigurierbar über Umgebungsvariable PORT)
@@ -15,7 +16,8 @@ const express = require('express');
 const { rateLimit } = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
-const { exportVideo } = require('./video-export.js');
+const { exportVideo }   = require('./video-export.js');
+const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -29,6 +31,15 @@ app.use(express.json());
 const videoExportRateLimit = rateLimit({
   windowMs: 60_000,      // 1 minute window
   max: 3,                // max 3 requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
+});
+
+// Rate limiter for the AI assessment endpoint (10 requests/minute per IP).
+const aiAssessmentRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
@@ -108,8 +119,58 @@ app.post('/api/export-video', videoExportRateLimit, concurrencyGuard, async (req
   }
 });
 
+// ── Feature-Flag: KI-Bewertung verfügbar? ─────────────────────────────────────
+/**
+ * GET /api/ai-assessment-available
+ *
+ * Gibt { available: true } zurück, wenn GEMINI_API_KEY gesetzt ist, sonst
+ * { available: false }.  Ermöglicht dem Frontend, die KI-Option aus- oder
+ * einzublenden ohne einen vollen Request zu schicken.
+ */
+app.get('/api/ai-assessment-available', (_req, res) => {
+  res.json({ available: isAvailable() });
+});
+
+// ── KI-Bewertung ──────────────────────────────────────────────────────────────
+/**
+ * POST /api/ai/export-assessment
+ *
+ * Body (JSON):
+ *   structured    – strukturiertes Export-Objekt aus computeExportReport()
+ *   contextHints  – (optional) manuelle Kontext-Hinweise
+ *     { knownHazards: string[], locationHints: string[], surfaceHints: string[], notes: string[] }
+ *
+ * Antwort (JSON):
+ *   { assessment: ExportAssessmentOutput }
+ *
+ * Fehler:
+ *   503 – KI nicht konfiguriert (GEMINI_API_KEY fehlt)
+ *   400 – Pflichtfelder im Body fehlen
+ *   500 – Interner Fehler
+ */
+app.post('/api/ai/export-assessment', aiAssessmentRateLimit, async (req, res) => {
+  if (!isAvailable()) {
+    return res.status(503).json({ error: 'KI-Bewertung ist nicht konfiguriert (GEMINI_API_KEY fehlt).' });
+  }
+
+  const { structured, contextHints } = req.body || {};
+  if (!structured || typeof structured !== 'object') {
+    return res.status(400).json({ error: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.' });
+  }
+
+  try {
+    const assessment = await runAssessment(structured, contextHints);
+    return res.json({ assessment });
+  } catch (err) {
+    // Log without sensitive data (no API key, no raw prompt)
+    console.error('[ai/export-assessment] Fehler:', err.message);
+    return res.status(500).json({ error: err.message || 'Interner Fehler bei der KI-Bewertung.' });
+  }
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
   console.log(`Video-Export: POST http://localhost:${PORT}/api/export-video`);
+  console.log(`KI-Bewertung: POST http://localhost:${PORT}/api/ai/export-assessment (verfügbar: ${isAvailable()})`);
 });

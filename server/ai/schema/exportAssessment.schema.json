@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExportAssessmentOutput",
+  "description": "Strukturierte KI-Bewertung eines Unfallatlas-Exports",
+  "type": "object",
+  "required": ["summary", "assessment", "hypotheses", "measures", "openPoints"],
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Kurze fachliche Zusammenfassung (max. 3 Sätze)"
+    },
+    "assessment": {
+      "type": "string",
+      "description": "Fachliche Bewertung des Unfallgeschehens"
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Plausible Ursachenhypothesen (mit Unsicherheitskennzeichnung)"
+    },
+    "measures": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Konkrete, ortsbezogene Maßnahmenvorschläge"
+    },
+    "openPoints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Offene Prüfpunkte und Empfehlungen für die Ortsbegehung"
+    },
+    "formulations": {
+      "type": "object",
+      "description": "Optionale Formulierungsbausteine für Verwaltungsdokumente",
+      "additionalProperties": false,
+      "properties": {
+        "sachverhalt": { "type": "string" },
+        "bewertung":   { "type": "string" },
+        "beschlussvorschlag": { "type": "string" },
+        "pruefauftrag": { "type": "string" }
+      }
+    }
+  }
+}
