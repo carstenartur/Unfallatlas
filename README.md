@@ -18,6 +18,7 @@
 | **Architektur (Browser + Server + KI)** | 🏗️ [docs/architecture.md](docs/architecture.md) |
 | **Server-API & Konfiguration** | 🔌 [docs/server-features.md](docs/server-features.md) |
 | **Maßnahmen-Steckbriefe (Priorisierung)** | 🎯 [docs/LOCATION_BRIEF.md](docs/LOCATION_BRIEF.md) |
+| **Persistenz-/Analyse-Service (Spring Boot)** | 🗄️ [analysis-service/README.md](analysis-service/README.md) |
 | **Release-Checklist** | ✅ [docs/release-checklist.md](docs/release-checklist.md) |
 | **Entwickler-Doku (Tests, CI)** | 🧰 [ARCHITECTURE.md](ARCHITECTURE.md) |
 
