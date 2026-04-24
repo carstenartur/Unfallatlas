@@ -81,7 +81,8 @@ function computeLocationScores({ features, preselected, policyContext }) {
   const bicycleSafetyScore = s01(Math.min(1, Number(inv.bike || 0)) + bikeBoost);
 
   // ── quickWinScore (location level) ───────────────────────────────────────
-  // Average quickWinScore across preselected, weighted by preselection score.
+  // Simple arithmetic mean of the per-measure quickWinScore over all
+  // preselected measures (each measure contributes equally).
   const qwSum = pre.reduce((acc, m) => acc + (Number(m.libraryQuickWinScore || m.quickWinScore || 0)), 0);
   const quickWinScore = pre.length > 0 ? s01(qwSum / pre.length) : 0;
 

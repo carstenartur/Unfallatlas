@@ -1,5 +1,6 @@
 package de.unfallatlas.analysis.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -12,12 +13,12 @@ import java.util.Map;
  * {@code LocationActionBrief} aus der bestehenden Node-Anwendung
  * (Schema {@code locationBriefIngest.v1}).
  *
- * <p>Die Felder sind 1:1 an der Node-Ausgabe orientiert (siehe
- * {@code server/location-brief/briefService.js}).  Felder, die der
- * Persistenzdienst nicht kennt, werden via
- * {@code @JsonIgnoreProperties(ignoreUnknown = true)} (Jackson-Default
- * im Service) ignoriert.</p>
+ * <p>Die Felder sind eng an der Node-Ausgabe orientiert (siehe
+ * {@code server/location-brief/briefService.js}).  Unbekannte Felder
+ * werden ignoriert ({@link JsonIgnoreProperties}), damit neuere
+ * Node-Versionen den Service nicht brechen.</p>
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class LocationBriefIngestDto {
 
@@ -64,6 +65,7 @@ public class LocationBriefIngestDto {
     public ConfidenceDto confidence;
 
     @Valid
+    @NotNull(message = "meta is required (must contain at least city and profile)")
     public IngestMetaDto meta;
 
     @Valid

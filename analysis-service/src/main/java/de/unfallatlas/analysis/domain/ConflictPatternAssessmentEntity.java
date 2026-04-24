@@ -14,8 +14,8 @@ import java.util.Objects;
 @Table(
     name = "conflict_pattern_assessment",
     indexes = {
-        @Index(name = "idx_cpa_pattern_id",  columnList = "patternId"),
-        @Index(name = "idx_cpa_alias_id",    columnList = "aliasId")
+        @Index(name = "idx_cpa_pattern_id",  columnList = "pattern_id"),
+        @Index(name = "idx_cpa_alias_id",    columnList = "alias_id")
     }
 )
 // Hibernate-Search-Hook (vorbereitet, noch nicht aktiv)

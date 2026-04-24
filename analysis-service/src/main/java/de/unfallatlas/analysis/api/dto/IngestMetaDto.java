@@ -13,7 +13,7 @@ public class IngestMetaDto {
     public List<String> availableProfiles;
     public List<String> requiredConflictPatternIds;
     public boolean generatedWithAi;
-    @Size(max = 100) public String city;
+    @NotBlank @Size(max = 100) public String city;
     @Size(max = 200) public String areaName;
 
     /** Optionale Versionierungs-Hinweise des aufrufenden Systems. */

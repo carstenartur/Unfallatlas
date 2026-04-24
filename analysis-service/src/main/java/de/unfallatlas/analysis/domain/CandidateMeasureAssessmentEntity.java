@@ -13,8 +13,8 @@ import java.util.Objects;
 @Table(
     name = "candidate_measure_assessment",
     indexes = {
-        @Index(name = "idx_cma_measure_id", columnList = "measureId"),
-        @Index(name = "idx_cma_fit_score",  columnList = "fitScore")
+        @Index(name = "idx_cma_measure_id", columnList = "measure_id"),
+        @Index(name = "idx_cma_fit_score",  columnList = "fit_score")
     }
 )
 public class CandidateMeasureAssessmentEntity {

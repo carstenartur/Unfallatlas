@@ -34,10 +34,10 @@ import java.util.UUID;
 @Table(
     name = "location_action_brief",
     indexes = {
-        @Index(name = "idx_lab_location_key", columnList = "locationKey"),
+        @Index(name = "idx_lab_location_key", columnList = "location_key"),
         @Index(name = "idx_lab_city",         columnList = "city"),
-        @Index(name = "idx_lab_profile_key",  columnList = "profileKey"),
-        @Index(name = "idx_lab_created_at",   columnList = "createdAt")
+        @Index(name = "idx_lab_profile_key",  columnList = "profile_key"),
+        @Index(name = "idx_lab_created_at",   columnList = "created_at")
     }
 )
 // Hibernate-Search-Hook (vorbereitet, noch nicht aktiv):

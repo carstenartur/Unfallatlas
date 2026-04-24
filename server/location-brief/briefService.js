@@ -119,9 +119,10 @@ function buildLocationBrief(args) {
   // Step 6: assemble brief
   const meta = structured.meta || {};
   const counts = features.counts || {};
-  const locId = locationId
-    || `${normalizeForId(meta.city)}::${normalizeForId(meta.areaName)}`
-    || 'unknown';
+  const cityKey = normalizeForId(meta.city);
+  const areaKey = normalizeForId(meta.areaName);
+  const derivedId = (cityKey && areaKey) ? `${cityKey}::${areaKey}` : '';
+  const locId = locationId || derivedId || 'unknown';
 
   const accidentProfile = {
     total: counts.total || 0,
@@ -162,7 +163,7 @@ function buildLocationBrief(args) {
   };
 
   const candidateMeasures = scoredMeasures;
-  const recommendedMeasures = recommend(scoredMeasures, profile, aiPolish);
+  const recommendedMeasures = recommend(scoredMeasures, aiPolish);
   const quickWins = scoredMeasures
     .filter(m => m.quickWinPotential >= 0.6 || m.category === 'quickWin' || m.sourceCategory === 'quickWin')
     .slice(0, 5)
@@ -282,7 +283,7 @@ function normalizeForId(s) {
   return out.slice(start, end);
 }
 
-function recommend(scoredMeasures, _profile, aiPolish) {
+function recommend(scoredMeasures, aiPolish) {
   // The default order is already by fitScore desc.  AI polish (if any) may
   // re-rank within the preselected set – never adds new measures.
   let list = scoredMeasures.slice();
@@ -377,7 +378,7 @@ function buildSuggestedNextSteps({ politicalSummary, recommendedMeasures, dataQu
   }
   const firstQw = recommendedMeasures.find(m => m.quickWinPotential >= 0.6 || m.sourceCategory === 'quickWin');
   if (firstQw) {
-    steps.push(`Quick-Win prüfen: „${firstQw.title}".`);
+    steps.push(`Quick-Win prüfen: „${firstQw.title}“.`);
   }
   return steps.slice(0, 6);
 }

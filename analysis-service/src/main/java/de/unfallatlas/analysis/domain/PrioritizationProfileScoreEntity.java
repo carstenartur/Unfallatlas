@@ -18,11 +18,11 @@ import java.util.Objects;
 @Table(
     name = "prioritization_profile_score",
     indexes = {
-        @Index(name = "idx_pps_profile_key", columnList = "profileKey"),
+        @Index(name = "idx_pps_profile_key", columnList = "profile_key"),
         @Index(name = "idx_pps_total",       columnList = "total")
     },
     uniqueConstraints = {
-        @UniqueConstraint(name = "uq_pps_brief_profile", columnNames = {"brief_id", "profileKey"})
+        @UniqueConstraint(name = "uq_pps_brief_profile", columnNames = {"brief_id", "profile_key"})
     }
 )
 public class PrioritizationProfileScoreEntity {

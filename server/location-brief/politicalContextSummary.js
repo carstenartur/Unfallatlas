@@ -70,14 +70,14 @@ function summarizePoliticalContext(searchResult) {
 
 function isTrafficRelevant(r) {
   if (!r || typeof r !== 'object') return false;
+  // Strikt: Treffer wird nur akzeptiert, wenn die Portalsuche ihn explizit
+  // als verkehrsrelevant klassifiziert hat (entweder über
+  // `trafficRelevance.classification` oder über `isRelevant === true`).
+  // Ein bloß hoher allgemeiner `relevanceScore` (z. B. wegen Straßennamen-
+  // Treffern in Kulturmeldungen) genügt nicht – siehe docs/LOCATION_BRIEF.md.
   const cls = r.trafficRelevance?.classification;
   if (cls && TRAFFIC_RELEVANT.has(cls)) return true;
-  // Allow explicit boolean override
   if (r.trafficRelevance?.isRelevant === true) return true;
-  // Conservative additional path: if the upstream service has already
-  // assigned a meaningful, non-zero relevanceScore, treat that as evidence
-  // that traffic relevance has been positively asserted.
-  if (Number.isFinite(r.relevanceScore) && r.relevanceScore >= 0.5) return true;
   return false;
 }
 
