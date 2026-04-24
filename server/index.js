@@ -8,6 +8,13 @@
  *   POST /api/political-context/search    – serverseitige Recherche politischer Vorgänge
  *   GET  /api/political-context/supported – Liste unterstützter Städte
  *   POST /api/location-brief              – deterministischer Maßnahmen-Steckbrief je Stelle
+ *   GET  /api/location-briefs/by-location/:key – gespeicherte Briefs einer Stelle
+ *   GET  /api/location-briefs/top         – Top-N gespeicherte Briefs (Stadt+Profil)
+ *   GET  /api/location-briefs?city=…      – gespeicherte Briefs einer Stadt
+ *
+ * Die Lese-Endpunkte unter `/api/location-briefs` sind dünne Forwarder zum
+ * separaten Analysis Service (Spring Boot, siehe `analysis-service/`) und
+ * antworten 503, wenn dieser nicht konfiguriert ist.
  *
  * Start: node server/index.js
  * Port:  8000 (konfigurierbar über Umgebungsvariable PORT)
@@ -28,6 +35,7 @@ const { listSupportedCities }            = require('./political-context/registry
 const { buildLocationBrief, PROFILE_IDS, DEFAULT_PROFILE } = require('./location-brief');
 const { getCapabilities }                = require('./lib/capabilities.js');
 const { sendError, attachFallbackInfo, CATEGORIES } = require('./lib/errors.js');
+const analysisServiceClient              = require('./analysis-service/analysisServiceClient.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -526,8 +534,8 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
  *   400 – Pflichtfeld fehlt / unbekanntes Profil
  *   500 – Interner Fehler
  */
-app.post('/api/location-brief', locationBriefRateLimit, (req, res) => {
-  const { structured, contextHints, politicalContext, locationId, profile, aiPolish } = req.body || {};
+app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
+  const { structured, contextHints, politicalContext, locationId, profile, aiPolish, persist, useStored } = req.body || {};
 
   if (!structured || typeof structured !== 'object') {
     return sendError(res, {
@@ -545,8 +553,30 @@ app.post('/api/location-brief', locationBriefRateLimit, (req, res) => {
     });
   }
 
+  // Optional: vor der Berechnung in den Analysis Service schauen, ob für die
+  // gleiche Stelle + Profil bereits ein gespeicherter Brief existiert.  Diese
+  // Optimierung ist rein additiv – wenn sie fehlschlägt, wird ganz normal neu
+  // berechnet.  Aktiviert über `useStored: true` im Request-Body und nur
+  // sinnvoll, wenn die Node-Seite eine stabile `locationId` mitschickt.
+  if (useStored === true && typeof locationId === 'string' && locationId.length > 0) {
+    try {
+      const cached = await analysisServiceClient.fetchByLocationKey(locationId);
+      if (cached.ok && Array.isArray(cached.data) && cached.data.length > 0) {
+        const match = cached.data.find((b) => b && b.profileKey === resolvedProfile) || cached.data[0];
+        if (match) {
+          return res.json({
+            source: 'analysis-service',
+            stored: { id: match.id, createdAt: match.createdAt, profileKey: match.profileKey },
+            brief: match
+          });
+        }
+      }
+    } catch (_) { /* ignore – fall through to fresh compute */ }
+  }
+
+  let brief;
   try {
-    const brief = buildLocationBrief({
+    brief = buildLocationBrief({
       structured,
       contextHints: (contextHints && typeof contextHints === 'object') ? contextHints : undefined,
       politicalContext: (politicalContext && typeof politicalContext === 'object') ? politicalContext : undefined,
@@ -554,7 +584,6 @@ app.post('/api/location-brief', locationBriefRateLimit, (req, res) => {
       profile: resolvedProfile,
       aiPolish: (aiPolish && typeof aiPolish === 'object') ? aiPolish : undefined
     });
-    return res.json(brief);
   } catch (err) {
     console.error('[location-brief] Fehler:', err.message);
     return sendError(res, {
@@ -563,6 +592,148 @@ app.post('/api/location-brief', locationBriefRateLimit, (req, res) => {
       message: err.message || 'Interner Fehler beim Erzeugen des Maßnahmen-Steckbriefs.'
     });
   }
+
+  // Optionaler Forward an den Analysis Service.  Standardverhalten: nicht
+  // forwarden, damit bestehende Clients und Tests sich nicht ändern.  Wer
+  // forwarden möchte, schickt `persist: true` mit (oder setzt Env-Variable
+  // `ANALYSIS_SERVICE_AUTO_PERSIST=true`, dann gilt sie als Default).
+  const autoPersist = String(process.env.ANALYSIS_SERVICE_AUTO_PERSIST || '').toLowerCase() === 'true';
+  const wantPersist = persist === true || (persist !== false && autoPersist);
+  if (!wantPersist) {
+    return res.json(brief);
+  }
+
+  try {
+    const result = await analysisServiceClient.persistLocationBrief(brief, { locationId });
+    if (result.ok) {
+      // Antwort um Persistenz-Info ergänzen, ohne die bestehende
+      // Brief-Struktur zu verändern.
+      return res.json(Object.assign({}, brief, {
+        persistence: {
+          status:    'stored',
+          storedId:  (result.data && (result.data.id || (result.data.locationKey && result.data.id))) || null,
+          attempts:  result.attempts || 1
+        }
+      }));
+    }
+    // Skipped/Fehler: Brief trotzdem ausliefern, mit klarer Fallback-Info.
+    const reason = result.skipped
+      ? `analysis_service_${result.skipped}`
+      : (result.error || 'analysis_service_unreachable');
+    return res.json(Object.assign({}, brief, {
+      persistence: {
+        status:   'skipped',
+        reason,
+        attempts: result.attempts || 0
+      }
+    }));
+  } catch (err) {
+    console.error('[location-brief] Persist-Fehler:', err.message);
+    return res.json(Object.assign({}, brief, {
+      persistence: { status: 'skipped', reason: 'persist_exception', attempts: 0 }
+    }));
+  }
+});
+
+// ── Gespeicherte Briefs (Lese-Pfad gegen den Analysis Service) ───────────────
+//
+// Diese Endpunkte sind dünne Forwarder.  Wenn der Analysis Service nicht
+// konfiguriert ist, antworten sie mit 503 (Feature nicht verfügbar).  Bei
+// Upstream-Fehlern sehen Aufrufer eine klare `category: 'upstream_error'`
+// Antwort, ohne dass die Node-App selbst Persistenz übernimmt.
+
+function ensureAnalysisServiceConfigured(res) {
+  const status = analysisServiceClient.describeStatus();
+  if (!status.configured) {
+    sendError(res, {
+      status: 503,
+      category: CATEGORIES.FEATURE_UNAVAILABLE,
+      code: 'ANALYSIS_SERVICE_NOT_CONFIGURED',
+      message: 'Analysis Service ist nicht konfiguriert (ANALYSIS_SERVICE_BASE_URL fehlt).'
+    });
+    return false;
+  }
+  if (!status.enabled) {
+    sendError(res, {
+      status: 503,
+      category: CATEGORIES.FEATURE_UNAVAILABLE,
+      code: 'ANALYSIS_SERVICE_DISABLED',
+      message: 'Analysis Service ist per Konfiguration deaktiviert (ANALYSIS_SERVICE_ENABLED=false).'
+    });
+    return false;
+  }
+  return true;
+}
+
+function forwardUpstream(res, result, notFoundIsEmpty) {
+  if (result.ok) {
+    return res.json(result.data);
+  }
+  if (notFoundIsEmpty && result.status === 404) {
+    return res.json([]);
+  }
+  return sendError(res, {
+    status: 502,
+    category: CATEGORIES.UPSTREAM_ERROR,
+    code: 'ANALYSIS_SERVICE_UPSTREAM_ERROR',
+    message: `Analysis Service nicht erreichbar (${result.error || 'unknown_error'}).`,
+    details: { status: result.status || 0, attempts: result.attempts || 0 }
+  });
+}
+
+/**
+ * GET /api/location-briefs/by-location/:locationKey
+ *
+ * Forwarder: alle gespeicherten Auswertungen einer Stelle, neueste zuerst.
+ */
+app.get('/api/location-briefs/by-location/:locationKey', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.fetchByLocationKey(req.params.locationKey);
+  return forwardUpstream(res, result, true);
+});
+
+/**
+ * GET /api/location-briefs/top?city=&profile=&limit=
+ *
+ * Forwarder: Top-N Briefs für eine Stadt + Profil.
+ */
+app.get('/api/location-briefs/top', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const city = String(req.query.city || '').trim();
+  const profile = String(req.query.profile || '').trim();
+  const limit = Number(req.query.limit) || 10;
+  if (!city || !profile) {
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'CITY_AND_PROFILE_REQUIRED',
+      message: 'Pflicht-Query-Parameter "city" und "profile" fehlen.'
+    });
+  }
+  const result = await analysisServiceClient.fetchTopByCityProfile(city, profile, limit);
+  return forwardUpstream(res, result, true);
+});
+
+/**
+ * GET /api/location-briefs?city=&profile=&page=&size=
+ *
+ * Forwarder: Liste gespeicherter Briefs einer Stadt (paginiert).
+ */
+app.get('/api/location-briefs', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const city = String(req.query.city || '').trim();
+  if (!city) {
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'CITY_REQUIRED',
+      message: 'Pflicht-Query-Parameter "city" fehlt.'
+    });
+  }
+  const result = await analysisServiceClient.fetchByCity(city, {
+    profile: req.query.profile ? String(req.query.profile) : undefined,
+    page:    req.query.page    !== undefined ? Number(req.query.page) : undefined,
+    size:    req.query.size    !== undefined ? Number(req.query.size) : undefined
+  });
+  return forwardUpstream(res, result, true);
 });
 
 // ── Server starten ────────────────────────────────────────────────────────────
@@ -576,4 +747,10 @@ app.listen(PORT, () => {
   console.log(`KI-Provider: ${activeProviderName()}`);
   console.log(`Politische Recherche: POST http://localhost:${PORT}/api/political-context/search`);
   console.log(`Maßnahmen-Steckbrief: POST http://localhost:${PORT}/api/location-brief`);
+  const analysisStatus = analysisServiceClient.describeStatus();
+  if (analysisStatus.configured) {
+    console.log(`Analysis Service:    ${analysisStatus.enabled ? 'aktiv' : 'deaktiviert'} (${analysisStatus.baseUrl}, timeout ${analysisStatus.timeoutMs}ms, retries ${analysisStatus.retries})`);
+  } else {
+    console.log('Analysis Service:    nicht konfiguriert (ANALYSIS_SERVICE_BASE_URL fehlt) – Persistenz-Forwarder inaktiv.');
+  }
 });

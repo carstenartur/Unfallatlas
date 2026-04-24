@@ -162,6 +162,57 @@ function videoExport() {
 }
 
 /**
+ * Optionale Persistenz-Anbindung an den separaten Analysis Service
+ * (`analysis-service/`, Spring Boot).  Konfiguration siehe
+ * `server/analysis-service/analysisServiceClient.js`.  Die Capability gilt
+ * als "available", sobald `ANALYSIS_SERVICE_BASE_URL` gesetzt **und** das
+ * Feature nicht explizit per `ANALYSIS_SERVICE_ENABLED=false` deaktiviert
+ * wurde.  Erreichbarkeit selbst wird hier bewusst NICHT geprüft (kein
+ * Netz-Call im Status-Endpoint), das macht der dedizierte Probe-Endpunkt.
+ *
+ * @returns {Capability}
+ */
+function analysisService() {
+  let status = { configured: false, enabled: false, baseUrl: null, timeoutMs: 0, retries: 0 };
+  try {
+    // eslint-disable-next-line global-require
+    const client = require('../analysis-service/analysisServiceClient.js');
+    if (typeof client.describeStatus === 'function') {
+      status = client.describeStatus();
+    }
+  } catch (_) { /* module not loadable – treat as not configured */ }
+
+  if (!status.configured) {
+    return {
+      available: false,
+      reasonCode: REASON_CODES.NOT_CONFIGURED,
+      reason:    'ANALYSIS_SERVICE_BASE_URL ist nicht gesetzt – Persistenz im Analysis Service ist nicht verfügbar.',
+      details:   { configured: false, enabled: false }
+    };
+  }
+  if (!status.enabled) {
+    return {
+      available: false,
+      reasonCode: REASON_CODES.PROVIDER_DISABLED,
+      reason:    'Analysis Service ist konfiguriert, aber per ANALYSIS_SERVICE_ENABLED=false deaktiviert.',
+      details:   { configured: true, enabled: false, baseUrl: status.baseUrl }
+    };
+  }
+  return {
+    available: true,
+    reasonCode: REASON_CODES.OK,
+    reason:    `Analysis Service erreichbar konfiguriert unter ${status.baseUrl}.`,
+    details:   {
+      configured: true,
+      enabled:    true,
+      baseUrl:    status.baseUrl,
+      timeoutMs:  status.timeoutMs,
+      retries:    status.retries
+    }
+  };
+}
+
+/**
  * Liefert eine kompakte Capability-Übersicht für den Status-Endpunkt.
  *
  * @returns {{
@@ -169,7 +220,8 @@ function videoExport() {
  *     aiAssessmentV1: Capability,
  *     aiAssessmentV2: Capability,
  *     politicalContext: Capability,
- *     videoExport: Capability
+ *     videoExport: Capability,
+ *     analysisService: Capability
  *   }
  * }}
  */
@@ -179,7 +231,8 @@ function getCapabilities() {
       aiAssessmentV1:   aiAssessmentV1(),
       aiAssessmentV2:   aiAssessmentV2(),
       politicalContext: politicalContext(),
-      videoExport:      videoExport()
+      videoExport:      videoExport(),
+      analysisService:  analysisService()
     }
   };
 }
@@ -190,5 +243,6 @@ module.exports = {
   aiAssessmentV1,
   aiAssessmentV2,
   politicalContext,
-  videoExport
+  videoExport,
+  analysisService
 };

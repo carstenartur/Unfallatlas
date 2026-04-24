@@ -18,16 +18,22 @@ describe('capabilities', () => {
   // Save & restore relevant env vars per test
   const ORIG = {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    AI_PROVIDER:    process.env.AI_PROVIDER
+    AI_PROVIDER:    process.env.AI_PROVIDER,
+    ANALYSIS_SERVICE_BASE_URL: process.env.ANALYSIS_SERVICE_BASE_URL,
+    ANALYSIS_SERVICE_ENABLED:  process.env.ANALYSIS_SERVICE_ENABLED
   };
   beforeEach(() => {
     delete process.env.GEMINI_API_KEY;
     delete process.env.AI_PROVIDER;
+    delete process.env.ANALYSIS_SERVICE_BASE_URL;
+    delete process.env.ANALYSIS_SERVICE_ENABLED;
     jest.resetModules();
   });
   afterAll(() => {
     if (ORIG.GEMINI_API_KEY !== undefined) process.env.GEMINI_API_KEY = ORIG.GEMINI_API_KEY;
     if (ORIG.AI_PROVIDER    !== undefined) process.env.AI_PROVIDER    = ORIG.AI_PROVIDER;
+    if (ORIG.ANALYSIS_SERVICE_BASE_URL !== undefined) process.env.ANALYSIS_SERVICE_BASE_URL = ORIG.ANALYSIS_SERVICE_BASE_URL;
+    if (ORIG.ANALYSIS_SERVICE_ENABLED  !== undefined) process.env.ANALYSIS_SERVICE_ENABLED  = ORIG.ANALYSIS_SERVICE_ENABLED;
   });
 
   test('REASON_CODES sind eingefroren und enthalten erwartete Schlüssel', () => {
@@ -102,15 +108,48 @@ describe('capabilities', () => {
     expect(cap.details.dockerRecommended).toBe(true);
   });
 
-  test('getCapabilities: aggregiert alle vier Features', () => {
+  test('getCapabilities: aggregiert alle Features inkl. analysisService', () => {
     const { getCapabilities } = require('../../server/lib/capabilities.js');
     const out = getCapabilities();
     expect(out.capabilities).toEqual(expect.objectContaining({
       aiAssessmentV1:   expect.objectContaining({ available: expect.any(Boolean), reasonCode: expect.any(String) }),
       aiAssessmentV2:   expect.objectContaining({ available: expect.any(Boolean), reasonCode: expect.any(String) }),
       politicalContext: expect.objectContaining({ available: expect.any(Boolean), reasonCode: expect.any(String) }),
-      videoExport:      expect.objectContaining({ available: expect.any(Boolean), reasonCode: expect.any(String) })
+      videoExport:      expect.objectContaining({ available: expect.any(Boolean), reasonCode: expect.any(String) }),
+      analysisService:  expect.objectContaining({ available: expect.any(Boolean), reasonCode: expect.any(String) })
     }));
+  });
+
+  test('analysisService: ohne BASE_URL → unavailable + not_configured', () => {
+    delete process.env.ANALYSIS_SERVICE_BASE_URL;
+    delete process.env.ANALYSIS_SERVICE_ENABLED;
+    const { analysisService } = require('../../server/lib/capabilities.js');
+    const cap = analysisService();
+    expect(cap.available).toBe(false);
+    expect(cap.reasonCode).toBe('not_configured');
+    expect(cap.details).toEqual(expect.objectContaining({ configured: false, enabled: false }));
+  });
+
+  test('analysisService: BASE_URL gesetzt → available + ok', () => {
+    process.env.ANALYSIS_SERVICE_BASE_URL = 'http://localhost:8081';
+    const { analysisService } = require('../../server/lib/capabilities.js');
+    const cap = analysisService();
+    expect(cap.available).toBe(true);
+    expect(cap.reasonCode).toBe('ok');
+    expect(cap.details.baseUrl).toBe('http://localhost:8081');
+    expect(typeof cap.details.timeoutMs).toBe('number');
+    expect(typeof cap.details.retries).toBe('number');
+  });
+
+  test('analysisService: explizit deaktiviert → unavailable + provider_disabled', () => {
+    process.env.ANALYSIS_SERVICE_BASE_URL = 'http://localhost:8081';
+    process.env.ANALYSIS_SERVICE_ENABLED = 'false';
+    const { analysisService } = require('../../server/lib/capabilities.js');
+    const cap = analysisService();
+    expect(cap.available).toBe(false);
+    expect(cap.reasonCode).toBe('provider_disabled');
+    expect(cap.details.configured).toBe(true);
+    expect(cap.details.enabled).toBe(false);
   });
 });
 
