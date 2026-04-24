@@ -20,9 +20,31 @@ const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
 const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');
 
 /**
+ * Lokale JSDoc-Typen für die Provider-Schnittstelle.
+ *
+ * Frühere Versionen referenzierten `import('../services/portalSearchService').SearchParams`
+ * und `RawProviderResult`; letzteres ist dort nicht definiert und ersteres
+ * nicht exportiert, was zu kaputten Type-Hints führte.  Wir definieren die
+ * benötigten Typen hier lokal.
+ *
+ * @typedef {object} ProviderSearchParams
+ * @property {string}   [city]         – Stadtname
+ * @property {string[]} [searchTerms]  – Suchbegriffe (je ein HTTP-Request)
+ * @property {object}   [context]      – optionaler Kontext (Gremium, Ort …)
+ *
+ * @typedef {object} ProviderRawResult
+ * @property {string}      title
+ * @property {string}      url
+ * @property {string|null} [date]
+ * @property {string|null} [gremium]
+ * @property {string|null} [number]
+ * @property {string|null} [snippet]
+ * @property {string}      [rawType]
+ *
  * @typedef {object} PoliticalContextProvider
- * @property {function(string): boolean}             supportsCity
- * @property {function(import('../services/portalSearchService').SearchParams): Promise<import('../services/portalSearchService').RawProviderResult[]>} search
+ * @property {string}                                                [_key]         Provider-Kürzel (z. B. `hannover-sim`)
+ * @property {function(string): boolean}                             supportsCity
+ * @property {function(ProviderSearchParams): Promise<ProviderRawResult[]>} search
  */
 
 /** @type {Map<string, PoliticalContextProvider>} */

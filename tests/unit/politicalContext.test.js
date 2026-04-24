@@ -320,11 +320,15 @@ describe('portalSearchService – search', () => {
     expect(result.meta.totalFound).toBe(1);
   });
 
-  test('fängt Provider-Fehler ab und gibt leere Ergebnisse zurück', async () => {
+  test('propagiert Provider-Fehler an den Aufrufer', async () => {
     registry.getProviderForCity.mockReturnValue({
       search: async () => { throw new Error('Netzwerk-Fehler'); }
     });
-    // portalSearchService propagiert den Fehler, wenn der Provider wirft
+    // portalSearchService schluckt Provider-Fehler bewusst nicht – einzelne
+    // fehlgeschlagene HTTP-Requests werden bereits *innerhalb* der Provider
+    // (per try/catch um jeden Suchbegriff) abgefangen.  Wirft ein Provider
+    // dennoch, soll der Aufrufer (z. B. der HTTP-Layer in server/index.js)
+    // entscheiden können, wie er reagiert.
     await expect(search({ city: 'Hannover', searchTerms: ['x'] })).rejects.toThrow();
   });
 });

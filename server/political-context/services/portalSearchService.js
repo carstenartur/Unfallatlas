@@ -60,10 +60,13 @@ async function search(params) {
     };
   }
 
-  // Provider-Kürzel aus dem Modulpfad ableiten (nur für Logging)
-  const providerKey = typeof provider._key === 'string'
+  // Provider-Kürzel: jeder Provider sollte sein _key exportieren.  Falls ein
+  // Provider das (versehentlich) nicht tut, fallen wir auf einen neutralen
+  // 'unknown'-Wert zurück – niemals auf einen konkreten Stadtnamen, der bei
+  // anderen Städten zu falsch gelabelten `source`-Feldern führen würde.
+  const providerKey = typeof provider._key === 'string' && provider._key
     ? provider._key
-    : 'hannover-sim';
+    : 'unknown';
 
   // Rohsuche
   const rawResults = await provider.search({ city, searchTerms, context });

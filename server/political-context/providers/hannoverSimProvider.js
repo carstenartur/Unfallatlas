@@ -378,4 +378,4 @@ async function search(params) {
   return allResults;
 }
 
-module.exports = { supportsCity, search, enrichWithReferenceModel, mapReferenceType, classifyTermLocation };
+module.exports = { _key: 'hannover-sim', supportsCity, search, enrichWithReferenceModel, mapReferenceType, classifyTermLocation };

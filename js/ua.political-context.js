@@ -195,8 +195,12 @@
     const inputEl = document.getElementById('polCtxSearchInput');
     const terms = UA.PoliticalContext.buildSearchTerms(ctx);
     if (inputEl && !inputEl.value.trim()) {
-      // Nur die nicht-Stadt-Begriffe vorbelegen (Stadt steht schon im Kontext)
-      const filtered = terms.filter(t => t !== ctx.CITY_RAW);
+      // Nur die nicht-Stadt-Begriffe vorbelegen (Stadt steht schon im Kontext).
+      // Beide Seiten gleich normalisieren (Trim), damit führende/folgende
+      // Leerzeichen in CITY_RAW nicht dazu führen, dass die Stadt
+      // versehentlich doch ins Suchfeld geschrieben wird.
+      const city = ((ctx && ctx.CITY_RAW) || '').trim();
+      const filtered = terms.filter(t => ((t || '').trim()) !== city);
       inputEl.value = filtered.join(', ');
     }
   };
