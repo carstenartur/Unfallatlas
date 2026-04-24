@@ -611,7 +611,7 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
       return res.json(Object.assign({}, brief, {
         persistence: {
           status:    'stored',
-          storedId:  (result.data && (result.data.id || (result.data.locationKey && result.data.id))) || null,
+          storedId:  (result.data && result.data.id) || null,
           attempts:  result.attempts || 1
         }
       }));
