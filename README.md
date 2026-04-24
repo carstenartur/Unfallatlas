@@ -15,7 +15,10 @@
 | **Live-Demo (Werkbank V2)** | 👉 **[carstenartur.github.io/Unfallatlas/werkbank_v2.html](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)** |
 | **Showcase (automatische Beispiel-Rotation)** | 🎠 [carstenartur.github.io/Unfallatlas/showcase.html](https://carstenartur.github.io/Unfallatlas/showcase.html) |
 | **Vollständige Dokumentation** | 📖 [docs/DOKUMENTATION.md](docs/DOKUMENTATION.md) |
-| **Architektur & Entwickler** | 🏗️ [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **Architektur (Browser + Server + KI)** | 🏗️ [docs/architecture.md](docs/architecture.md) |
+| **Server-API & Konfiguration** | 🔌 [docs/server-features.md](docs/server-features.md) |
+| **Release-Checklist** | ✅ [docs/release-checklist.md](docs/release-checklist.md) |
+| **Entwickler-Doku (Tests, CI)** | 🧰 [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 ---
 
@@ -281,6 +284,75 @@ Nach dem Start der Docker-Version erscheint im Export-Bereich ein **„🎬 Als 
 
 ---
 
+## ⚙️ Betriebsarten / Betriebs-Matrix
+
+Die Werkbank unterstützt vier Betriebsarten mit unterschiedlichem
+Funktions­umfang.  Alle Kernfunktionen (Karte, Filter, Cluster, Heatmap,
+PDF-/Word-Export, CSV/GeoJSON/KML) sind **immer** verfügbar – Server und
+KI sind optionale Erweiterungen.
+
+| Funktion | Browser-only<br>(GitHub Pages) | Lokaler Server<br>**ohne** `GEMINI_API_KEY` | Lokaler Server<br>**mit** `GEMINI_API_KEY` | Docker |
+|---|:---:|:---:|:---:|:---:|
+| Karte, Filter, Cluster, Heatmap, Hotspots | ✅ | ✅ | ✅ | ✅ |
+| POI-Overlay (Schulen, Kitas)              | ✅ | ✅ | ✅ | ✅ |
+| Bereichsauswahl, geteilte URLs            | ✅ | ✅ | ✅ | ✅ |
+| CSV / GeoJSON / KML-Export                | ✅ | ✅ | ✅ | ✅ |
+| **Deterministischer PDF-/Word-Export**    | ✅ | ✅ | ✅ | ✅ |
+| Geführte Tour & Recorder                  | ✅ | ✅ | ✅ | ✅ |
+| **Politische Recherche** (Hannover, Berlin, Bonn, Hamburg) | ❌ | ✅ | ✅ | ✅ |
+| **KI-Bewertung v2** (mit Fallback)        | ❌ | ✅ Fallback¹ | ✅ KI | ✅ (KI nur mit Key) |
+| **KI-Bewertung v1** (`/api/ai/export-assessment`) | ❌ | ❌ (`503`) | ✅ | ✅ (nur mit Key) |
+| **Video-Export** (`.gif`)                 | ❌ | ✅ | ✅ | ✅ |
+| Konfiguration nötig                       | – | Node 18+ installieren, `npm run start:server` | zusätzlich `GEMINI_API_KEY` setzen | nur `docker run …` (optional `-e GEMINI_API_KEY=…`) |
+
+¹ Ohne `GEMINI_API_KEY` antwortet `POST /api/ai/export-assessment/v2`
+mit `200 OK` und `source: "fallback"` (deterministischer, datengestützter
+Output ohne KI-Texte). Wer das nicht will, setzt `withFallback: false` im
+Body und erhält dann `503`.
+
+### Schnellauswahl
+
+- **Nur ausprobieren / präsentieren** → Browser-only (Live-Demo).
+- **PDF-Antrag schreiben + politische Recherche** → lokaler Server ohne KI.
+- **Zusätzlich KI-Vorschläge & Maßnahmensteckbriefe** → lokaler Server mit
+  `GEMINI_API_KEY` (Google Gemini).
+- **Bezirksrats-Präsentationen mit Animations-GIF** → Docker.
+
+### Architekturüberblick (Kurzfassung)
+
+- **Browser** ist autark und enthält den deterministischen Export-/Analyse­
+  pfad ([`js/ua.export_v2.js`](js/ua.export_v2.js),
+  [`js/ua.report_v2.js`](js/ua.report_v2.js)).
+- **`server/ai/`** stellt die optionale KI-Bewertung bereit (Gemini,
+  strikte Schema-Validierung, Cache, Reparatur­versuch, Fallback).
+  → [`server/ai/README.md`](server/ai/README.md)
+- **`server/political-context/`** recherchiert politische Vorgänge in
+  Stadt-/Bezirks-Portalen. Funktioniert serverseitig, weil der Browser die
+  externen Portale wegen CORS nicht direkt aufrufen kann.
+  → [`server/political-context/README.md`](server/political-context/README.md)
+- **Server ist optional**, **KI ist optional**, bestehende Kernfunktionen
+  bleiben ohne KI nutzbar. Details:
+  [`docs/architecture.md`](docs/architecture.md).
+
+### Konfiguration (Auszug)
+
+| Variable | Standard | Wirkung |
+|---|---|---|
+| `PORT` | `8000` | Port des Express-Servers |
+| `GEMINI_API_KEY` | – | aktiviert die KI-Bewertung; ohne Key bleibt der Fallback aktiv |
+| `AI_ASSESSMENT_MODEL` | `gemini-2.0-flash` | Gemini-Modell für die Bewertung |
+| `AI_ASSESSMENT_TIMEOUT_MS` | `30000` | Timeout pro KI-Request (ms) |
+| `AI_ASSESSMENT_MAX_RETRIES` | `2` | Retries bei `429`/`5xx` |
+| `PORTAL_SEARCH_TIMEOUT_MS` | `10000` | Timeout pro Portal-Anfrage (ms) der politischen Recherche |
+| `AI_CACHE_PATH`, `AI_JOBS_PATH` | – | optionale Persistenz von KI-Cache und Job-Queue |
+
+Vollständige Liste aller Endpunkte, Request-/Response-Beispiele,
+Fehlerfälle und Env-Variablen: → [`docs/server-features.md`](docs/server-features.md).
+Vor jedem Release laufen die Smoke-Tests aus
+[`docs/release-checklist.md`](docs/release-checklist.md).
+
+---
+
 ## Datenquelle & Lizenz
 
 | Thema | Details |
@@ -302,6 +374,9 @@ Nach dem Start der Docker-Version erscheint im Export-Bereich ein **„🎬 Als 
 
 - [Werkbank V2 – Features & POI-Integration](WERKBANK_V2.md)
 - [Vollständige Dokumentation mit Screenshots](docs/DOKUMENTATION.md)
+- [Architektur-Überblick (Browser + Server + KI)](docs/architecture.md)
+- [Server-API & Konfiguration](docs/server-features.md)
+- [Release-Checklist](docs/release-checklist.md)
 - [Architektur, Tests & Entwicklung](ARCHITECTURE.md)
 - [SimRa – Beinaheunfälle im Radverkehr](https://urban-digital.de/mit-simra-sicherheit-im-radverkehr-herausfinden-wo-sich-beinaheunfaelle-im-radverkehr-haeufen/)
 - [Nature: Bicycle crash data](https://www.nature.com/articles/s43588-022-00318-w)
