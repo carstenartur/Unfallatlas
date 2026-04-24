@@ -203,12 +203,24 @@ public class LocationBriefMapper {
             return in.locationId.trim();
         }
         String area = orEmpty(meta.areaName).trim().toLowerCase(Locale.ROOT);
-        String slug = area.isBlank() ? "unknown" : area.replaceAll("[^a-z0-9]+", "_").replaceAll("(^_+|_+$)", "");
+        String slug = trimUnderscores(area.replaceAll("[^a-z0-9]+", "_"));
         if (slug.isBlank()) slug = "unknown";
-        String cityKey = orEmpty(city).trim().toLowerCase(Locale.ROOT)
-            .replaceAll("[^a-z0-9]+", "_").replaceAll("(^_+|_+$)", "");
+        String cityKey = trimUnderscores(
+            orEmpty(city).trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_"));
         if (cityKey.isBlank()) cityKey = "unknown";
         return cityKey + "::" + slug;
+    }
+
+    /** Entfernt führende und nachgelagerte Unterstriche – ohne Regex
+     *  (vermeidet polynomiale Backtracking-Risiken bei langen
+     *  Underscore-Folgen aus benutzergesteuerten Eingaben). */
+    private static String trimUnderscores(String s) {
+        if (s == null || s.isEmpty()) return s;
+        int start = 0;
+        int end = s.length();
+        while (start < end && s.charAt(start) == '_') start++;
+        while (end > start && s.charAt(end - 1) == '_') end--;
+        return s.substring(start, end);
     }
 
     private QualityBand deriveDataQuality(LocationBriefIngestDto in) {
