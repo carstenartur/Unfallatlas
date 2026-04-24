@@ -28,6 +28,8 @@ const { scoreAndSort }         = require('./portalRelevanceService.js');
 const { buildSearchVariants }  = require('./searchVariantBuilder.js');
 const { enrichAllWithTrafficRelevance } = require('./trafficRelevanceService.js');
 const { enrichAllWithAiGating }         = require('./aiGatingService.js');
+const { sharedCache: searchCache, buildKey: buildCacheKey } =
+  require('./portalSearchCache.js');
 
 /**
  * @typedef {object} SearchParams
@@ -54,7 +56,10 @@ async function search(params) {
     searchTerms     = [],
     context         = {},
     maxResults      = 10,
-    expandVariants  = true
+    expandVariants  = true,
+    // Cache-Optionen (additiv; bestehende Aufrufer bleiben unverändert)
+    useCache        = true,
+    cache           = searchCache
   } = params || {};
 
   const searchedAt = new Date().toISOString();
@@ -70,7 +75,8 @@ async function search(params) {
         searchedAt,
         totalFound: 0,
         providerKey: null,
-        supported: false
+        supported: false,
+        cache: { hit: false, enabled: useCache }
       }
     };
   }
@@ -82,6 +88,25 @@ async function search(params) {
   const providerKey = typeof provider._key === 'string' && provider._key
     ? provider._key
     : 'unknown';
+
+  // ── 1b. Cache-Lookup (vor jeglichem Provider-Call) ─────────────────────
+  const cacheKey = (useCache && cache && typeof cache.get === 'function')
+    ? buildCacheKey({ city, searchTerms, context, maxResults, expandVariants })
+    : null;
+  if (cacheKey) {
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      // Frische Zeitstempel + Cache-Indikator, sonst originaler Inhalt
+      return {
+        references: cached.references,
+        meta: {
+          ...cached.meta,
+          searchedAt,
+          cache: { hit: true, enabled: true, key: cacheKey }
+        }
+      };
+    }
+  }
 
   // ── 2. Variantensuche ───────────────────────────────────────────────────
   // Erzeugt zusätzliche Suchbegriffe aus Karten-/Exportkontext.  Der Suche
@@ -109,7 +134,7 @@ async function search(params) {
   // Auf maxResults begrenzen
   const trimmed = withGating.slice(0, Math.max(0, maxResults));
 
-  return {
+  const result = {
     references: trimmed,
     meta: {
       city,
@@ -117,9 +142,18 @@ async function search(params) {
       searchedAt,
       totalFound: normalized.length,
       providerKey,
-      supported: true
+      supported: true,
+      cache: { hit: false, enabled: Boolean(cacheKey), ...(cacheKey ? { key: cacheKey } : {}) }
     }
   };
+
+  // Cache schreiben (nach erfolgreicher Antwort)
+  if (cacheKey) {
+    try { cache.set(cacheKey, { references: result.references, meta: { ...result.meta, cache: undefined } }); }
+    catch (_) { /* Cache-Fehler dürfen die Antwort nicht stören */ }
+  }
+
+  return result;
 }
 
 module.exports = { search };

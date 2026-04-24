@@ -93,6 +93,8 @@ docker run -p 8000:8000 -e GEMINI_API_KEY=... \
 
 - [ ] `npm test` (Unit + Integration) ist grün
 - [ ] `npm run test:e2e` (Playwright) ist grün
+- [ ] `npm run smoke` gegen den laufenden Server ist grün (deckt Variante 2/3/4 schnell ab; siehe [`scripts/smoke.sh`](../scripts/smoke.sh))
+- [ ] `GET /api/status` zeigt für die jeweilige Betriebsart die korrekten `reasonCode`-Werte (`missing_api_key` ohne Key, `ok` mit Key, `server_only_feature` für Video-Export)
 - [ ] CHANGELOG / Release-Notes erwähnen alle neuen oder geänderten
       Endpunkte und Env-Variablen
 - [ ] Doku ist aktuell:

@@ -267,10 +267,15 @@ jest.mock('../../server/political-context/registry/cityPortalRegistry.js', () =>
 
 const registry = require('../../server/political-context/registry/cityPortalRegistry.js');
 const { search } = require('../../server/political-context/services/portalSearchService.js');
+const { sharedCache: politicalSearchCache } =
+  require('../../server/political-context/services/portalSearchCache.js');
 
 describe('portalSearchService – search', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    // Shared in-memory Cache zwischen Tests leeren, damit Treffer aus dem
+    // vorherigen Testcase nicht in den nächsten Test bleeden.
+    politicalSearchCache.clear();
   });
 
   test('gibt supported:false zurück, wenn kein Provider verfügbar', async () => {
@@ -1107,6 +1112,7 @@ describe('aiGatingService – shouldAllowForAiEvaluation', () => {
 describe('portalSearchService – Variantensuche + Verkehrsklassifikation + Gating', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    politicalSearchCache.clear();
   });
 
   test('Variantensuche wird an den Provider übergeben, Original bleibt im meta', async () => {

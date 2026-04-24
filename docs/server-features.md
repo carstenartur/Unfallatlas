@@ -23,6 +23,7 @@ npm run start:server         # node server/index.js
 | Methode | Pfad                                        | Zweck                                                |
 |--------:|---------------------------------------------|------------------------------------------------------|
 | GET     | `/api/health`                               | Liveness-Check                                       |
+| GET     | `/api/status`                               | **Aggregierte Capability-Übersicht** aller optionalen Features |
 | GET     | `/api/video-export-available`               | Feature-Flag Video-Export                            |
 | POST    | `/api/export-video`                         | GIF-Video-Export (Playwright/ffmpeg)                 |
 | GET     | `/api/ai-assessment-available`              | Feature-Flag KI (v1) – `GEMINI_API_KEY` gesetzt?     |
@@ -264,20 +265,164 @@ Erzeugt animiertes GIF des aktuellen Werkbank-Zustands.
 
 ---
 
-## 7. Konfiguration – Umgebungs­variablen
+## 7. `GET /api/status` – aggregierte Capability-Übersicht
+
+Single-Call-Endpunkt für Frontend, Doku und Smoke-Tests.  Liefert pro
+optionalem Feature einen strukturierten Capability-Eintrag mit
+maschinenlesbarem `reasonCode`.  Die bestehenden Single-Feature-Flag-
+Endpunkte (`/api/ai-assessment-available`, `/api/video-export-available`,
+`/api/political-context/supported`) bleiben aus Kompatibilitätsgründen
+unverändert verfügbar.
+
+### Response (Beispiel ohne API-Key)
+
+```jsonc
+{
+  "status":    "ok",
+  "timestamp": "2026-04-24T17:48:33.658Z",
+  "version":   "2.0.0",
+  "uptimeSec": 2,
+  "capabilities": {
+    "aiAssessmentV1": {
+      "available":  false,
+      "reasonCode": "missing_api_key",
+      "reason":     "GEMINI_API_KEY fehlt – KI-Bewertung v1 ist nicht verfügbar."
+    },
+    "aiAssessmentV2": {
+      "available":  true,
+      "reasonCode": "missing_api_key",
+      "reason":     "GEMINI_API_KEY fehlt – v2 liefert deterministischen Fallback ohne KI-Texte.",
+      "details":    { "aiCallEnabled": false, "provider": "gemini", "fallback": true }
+    },
+    "politicalContext": {
+      "available":  true,
+      "reasonCode": "ok",
+      "reason":     "4 unterstützte Stadt-Portale registriert.",
+      "details":    { "cities": ["hannover", "berlin", "bonn", "hamburg"] }
+    },
+    "videoExport": {
+      "available":  true,
+      "reasonCode": "server_only_feature",
+      "reason":     "Video-Export erfordert den Server und (in der Praxis) das Docker-Image.",
+      "details":    { "dockerRecommended": true }
+    }
+  }
+}
+```
+
+### `reasonCode`-Werte
+
+| Code                    | Bedeutung                                                              |
+|-------------------------|------------------------------------------------------------------------|
+| `ok`                    | Feature ist regulär verfügbar                                          |
+| `missing_api_key`       | Erforderlicher API-Key (`GEMINI_API_KEY`) fehlt                        |
+| `provider_disabled`     | Provider per Konfiguration deaktiviert (`AI_PROVIDER=null`)            |
+| `server_only_feature`   | Feature setzt den Server (oder Docker-Image) voraus                    |
+| `not_configured`        | Feature ist im Code vorhanden, aber nicht konfiguriert                 |
+| `upstream_timeout`      | Reserviert für künftige Health-Probes                                  |
+
+> Implementierung: [`server/lib/capabilities.js`](../server/lib/capabilities.js)
+
+---
+
+## 8. Einheitliches Fehler-Envelope
+
+Alle optionalen Server-Features liefern Fehler­antworten in einem
+einheitlichen Schema.  Bestehende Aufrufer können wie bisher `body.error`
+auswerten; zusätzlich stehen jetzt zwei Felder zur Verfügung, mit denen
+das Frontend gezielter reagieren kann:
+
+```jsonc
+{
+  "error":    "Pflichtfeld \"city\" fehlt oder ist leer.",  // Klartext für UI
+  "code":     "CITY_REQUIRED",                                // maschinenlesbar
+  "category": "invalid_request"                                // s. Tabelle unten
+}
+```
+
+| `category`             | Empfohlener HTTP-Status | Bedeutung                                        |
+|------------------------|------------------------:|--------------------------------------------------|
+| `feature_unavailable`  |                     503 | Feature ist nicht konfiguriert (z. B. KI v1 ohne Key) |
+| `upstream_error`       |                     502 | Upstream/Provider hat geantwortet, aber fehlerhaft |
+| `invalid_request`      |                     400 | Pflichtfelder fehlen oder sind ungültig          |
+| `rate_limited`         |                     429 | Rate-Limit pro IP überschritten                  |
+| `internal_error`       |                     500 | unerwarteter interner Fehler                     |
+| `fallback_returned`    |                     200 | Erfolgs­antwort, aber semantisch ein Fallback (siehe `body.fallback`) |
+
+Erfolgs­antworten mit Fallback (KI v2 ohne Key) enthalten zusätzlich einen
+`fallback`-Block, der die Originalantwort *nicht* verändert:
+
+```jsonc
+{
+  "mode":   "assessment",
+  "source": "fallback",
+  "result": { /* … */ },
+  "fallback": {
+    "code":     "AI_FALLBACK_USED",
+    "message":  "KI nicht verfügbar – deterministischer Fallback wurde geliefert.",
+    "category": "fallback_returned",
+    "details":  { "aiCallEnabled": false }
+  }
+}
+```
+
+> Implementierung: [`server/lib/errors.js`](../server/lib/errors.js)
+
+---
+
+## 9. Persistenz-Schnittstellen (Vorbereitung)
+
+Damit AI-Cache, political-context-Cache und Job-Persistenz später
+einheitlich auf eine echte Persistenz (Redis, SQLite, …) umgestellt
+werden können, gibt es eine schmale, synchrone Key-Value-Schnittstelle:
+
+| Modul                                                      | Heute (in-memory + optional JSON-Disk)                          |
+|------------------------------------------------------------|------------------------------------------------------------------|
+| [`server/lib/keyValueStore.js`](../server/lib/keyValueStore.js)             | Generische Schnittstelle (TTL, LRU, atomare Disk-Persistenz)     |
+| [`server/ai/cache/aiAssessmentCache.js`](../server/ai/cache/aiAssessmentCache.js) | KI-Antwort-Cache (sha256-Key); Pfad via `AI_CACHE_PATH`          |
+| [`server/ai/jobs/aiJobQueue.js`](../server/ai/jobs/aiJobQueue.js)           | Async-Job-Queue mit Statuspersistenz; Pfad via `AI_JOBS_PATH`    |
+| [`server/political-context/services/portalSearchCache.js`](../server/political-context/services/portalSearchCache.js) | Cache für politische Recherche; Pfad via `POLITICAL_CONTEXT_CACHE_PATH` |
+
+In dieser Iteration wird **keine** externe Datenbank eingeführt – alle
+Caches bleiben in-memory mit optionaler JSON-Datei.  Die Schnittstelle ist
+aber stabil genug, um später Adapter (z. B. Redis) ohne Änderung der
+Aufrufer einzuhängen.
+
+---
+
+## 10. Smoke-Tests
+
+Für die manuelle Release-Prüfung gibt es einen kleinen Helfer:
+
+```bash
+npm run smoke                  # gegen http://localhost:8000
+BASE=http://host:port npm run smoke
+```
+
+Geprüft werden: `/api/health`, `/api/status`, die bestehenden
+Single-Feature-Flag-Endpunkte, das Fehler-Envelope der
+politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
+[`scripts/smoke.sh`](../scripts/smoke.sh).
+
+---
+
+## 12. Konfiguration – Umgebungs­variablen
 
 | Variable | Standard | Beschreibung |
 |---|---|---|
 | `PORT` | `8000` | TCP-Port des Express-Servers |
 | `BASE_URL` | `http://localhost:${PORT}` | Basis-URL für den Video-Export (interner Playwright-Aufruf) |
 | `GEMINI_API_KEY` | – | API-Key für Google Gemini. Ohne Key: KI-Endpunkte fallen auf Fallback (`v2`) bzw. `503` (`v1`) zurück. |
-| `AI_PROVIDER` | `gemini` | Auswahl des KI-Providers (zur Zeit nur `gemini`) |
+| `AI_PROVIDER` | `gemini` | Auswahl des KI-Providers (`gemini` oder `null` zum Deaktivieren) |
 | `AI_ASSESSMENT_MODEL` | `gemini-2.0-flash` | Modellname; geht in den Cache-Key ein |
 | `AI_ASSESSMENT_TIMEOUT_MS` | `30000` | Hard-Timeout pro KI-Request (ms) |
 | `AI_ASSESSMENT_MAX_RETRIES` | `2` | Retry-Versuche im strukturierten Provider bei `429`/`5xx` |
 | `AI_CACHE_PATH` | – (in-memory) | Optionaler Pfad für Persistenz des KI-Antwort-Caches |
 | `AI_JOBS_PATH` | – (in-memory) | Optionaler Pfad für Persistenz der Job-Queue |
 | `PORTAL_SEARCH_TIMEOUT_MS` | `10000` | HTTP-Timeout für jede Portal-Anfrage der politischen Recherche (ms) |
+| `POLITICAL_CONTEXT_CACHE_PATH` | – (in-memory) | Optionaler Pfad für Persistenz des political-context-Caches |
+| `POLITICAL_CONTEXT_CACHE_TTL_MS` | `600000` | TTL für den political-context-Cache (ms) |
+| `POLITICAL_CONTEXT_CACHE_MAX` | `100`    | Maximale Einträge im political-context-Cache (LRU) |
 
 ### Default-Verhalten ohne weitere Konfiguration
 

@@ -318,6 +318,25 @@ Body und erhält dann `503`.
   `GEMINI_API_KEY` (Google Gemini).
 - **Bezirksrats-Präsentationen mit Animations-GIF** → Docker.
 
+### NPM-Skripte (Kurzreferenz)
+
+| Skript                      | Zweck                                                                     |
+|-----------------------------|---------------------------------------------------------------------------|
+| `npm start` / `npm run start:server` | Lokalen Express-Server auf `:8000` starten (`node server/index.js`) |
+| `npm run start:docker`      | Docker-Image bauen und starten (`docker compose up --build`)              |
+| `npm test`                  | Unit- und Integrationstests (Jest)                                        |
+| `npm run test:e2e`          | End-to-End-Tests im Chromium-Browser (Playwright)                          |
+| `npm run test:coverage`     | Jest mit Coverage-Report unter `coverage/`                                |
+| `npm run smoke`             | Smoke-Tests gegen einen laufenden Server (`scripts/smoke.sh`)             |
+| `npm run demo`              | Erzeugt ein Demo-Video (Playwright `demo`-Projekt)                        |
+
+Browser-Entwicklung benötigt keinen Build-Schritt: einfach
+`werkbank_v2.html` lokal öffnen oder einen statischen HTTP-Server (z. B.
+`python -m http.server`) im Repo-Root starten.
+
+Status-Endpunkt für Frontend / Smoke: `GET http://localhost:8000/api/status`
+(siehe [`docs/server-features.md`](docs/server-features.md)).
+
 ### Architekturüberblick (Kurzfassung)
 
 - **Browser** ist autark und enthält den deterministischen Export-/Analyse­
