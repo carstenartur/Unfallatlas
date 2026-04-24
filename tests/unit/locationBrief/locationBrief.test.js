@@ -326,9 +326,6 @@ describe('Location Action Brief – Szenarien', () => {
     commonBriefAssertions(brief);
     expectsPattern(brief, 'fussverkehr_konflikt');
     expect(brief.politicalContext.previousPoliticalAttention).toBe('frequent');
-    expect(brief.politicalContext.policyReadiness).toBeOneOf
-      ? brief.politicalContext.policyReadiness
-      : null;
     expect(['medium','high']).toContain(brief.politicalContext.policyReadiness);
     expect(brief.politicalContext.recurringRequests.length).toBeGreaterThan(0);
     expect(brief.politicalContext.administrativeMomentumHints.length).toBeGreaterThan(0);

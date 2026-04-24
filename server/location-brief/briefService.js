@@ -268,7 +268,18 @@ function indexById(list) {
 }
 
 function normalizeForId(s) {
-  return String(s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  // Bound the input length first to defuse any quadratic regex pathological
+  // inputs (CodeQL js/polynomial-redos): a locationId derived from city/area
+  // names never legitimately exceeds a few hundred characters.
+  const bounded = String(s || '').slice(0, 200).trim().toLowerCase();
+  // Replace non-alnum with single underscore, then strip leading/trailing
+  // underscores via slice (avoids the polynomial ^_+|_+$ pattern entirely).
+  let out = bounded.replace(/[^a-z0-9]+/g, '_');
+  let start = 0;
+  let end = out.length;
+  while (start < end && out.charCodeAt(start) === 95) start++;     // '_'
+  while (end > start && out.charCodeAt(end - 1) === 95) end--;
+  return out.slice(start, end);
 }
 
 function recommend(scoredMeasures, _profile, aiPolish) {

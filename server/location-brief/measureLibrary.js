@@ -61,7 +61,11 @@ const CATEGORY_RULES = [
 
 function deriveCategory(m) {
   for (const rule of CATEGORY_RULES) {
-    try { if (rule.test(m)) return rule.category; } catch { /* ignore */ }
+    // Defensive: a buggy rule predicate must not break catalog enrichment –
+    // skip it and fall back to the next rule. We don't expect this path in
+    // practice (all rules are pure predicates over `m`), but the catalog is
+    // user-extensible per city, and we'd rather degrade than crash.
+    try { if (rule.test(m)) return rule.category; } catch (_) { /* skip rule */ }
   }
   return m.measureClass || m.category || 'other';
 }

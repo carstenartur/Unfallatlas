@@ -151,7 +151,7 @@ function computeAdministrativeMomentumHints(relevant) {
   if (relevant.length === 0) return hints;
   const recent = relevant.filter(r => isWithinLastYears(r, 1));
   if (recent.length >= 2) {
-    hints.push(`Es liegen ${recent.length} Vorgänge aus den letzten 12 Monaten vor – das Thema ist politisch aktiv.`);
+    hints.push(`Es liegen ${recent.length} Vorgänge aus dem letzten Jahr vor – das Thema ist politisch aktiv.`);
   }
   if (relevant.some(r => /antrag/i.test(r.type || ''))) {
     hints.push('Es existieren bereits Anträge mit Bezug zur Verkehrssicherheit – Anschluss an laufende Initiativen möglich.');

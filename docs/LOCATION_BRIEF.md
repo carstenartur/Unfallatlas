@@ -282,7 +282,7 @@ serverseitig still verworfen.
       { "title": "Antrag: Sichere Querung …", "url": "https://…", "type": "Antrag", "relevance": 0.82 }
     ],
     "recurringRequests": [{ "topic": "radverkehr", "count": 3 }],
-    "administrativeMomentumHints": ["Es liegen 4 Vorgänge aus den letzten 12 Monaten vor – das Thema ist politisch aktiv."]
+    "administrativeMomentumHints": ["Es liegen 4 Vorgänge aus dem letzten Jahr vor – das Thema ist politisch aktiv."]
   },
   "recommendedMeasures": [
     {
