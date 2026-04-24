@@ -25,7 +25,7 @@ const REASON_MAX_LEN = 240;
 
 /**
  * Subthemen mit zugehörigen Stichworten.  Reihenfolge bestimmt die
- * Anzeige­reihenfolge der Subthemen, nicht die Klassifikation.
+ * Anzeigereihenfolge der Subthemen, nicht die Klassifikation.
  *
  * Die Stichworte sind klein geschrieben; der Match erfolgt case-insensitive
  * gegen die Lowercase-Variante von Titel + Snippet + Gremium.

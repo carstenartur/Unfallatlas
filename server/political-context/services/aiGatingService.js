@@ -123,7 +123,7 @@ function shouldAllowForAiEvaluation(reference, context) {
       const reasons = [];
       if (hasLocStreetOrDistrict) reasons.push(`Ortsbezug (${locationMatch})`);
       else if (locationMatch === 'bbox') reasons.push('Ortsbezug (Kartenausschnitt)');
-      if (topicHit) reasons.push(`Themen­treffer (${topicMatch.length})`);
+      if (topicHit) reasons.push(`Thementreffer (${topicMatch.length})`);
       if (!hasUsableLocation && (streetHinted || areaHinted)) {
         reasons.push('Ortshinweise im Text');
       }
@@ -143,7 +143,7 @@ function shouldAllowForAiEvaluation(reference, context) {
     if (hasLocStreetOrDistrict || topicHit) {
       const reasons = [];
       if (hasLocStreetOrDistrict) reasons.push(`Ortsbezug (${locationMatch})`);
-      if (topicHit) reasons.push(`Themen­treffer (${topicMatch.length})`);
+      if (topicHit) reasons.push(`Thementreffer (${topicMatch.length})`);
       return {
         allowed: true,
         reason:  clampReason(`Indirekter Verkehrsbezug mit ${reasons.join(', ')}.`)
