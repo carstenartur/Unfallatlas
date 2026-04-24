@@ -406,7 +406,7 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 
 ---
 
-## 12. Konfiguration – Umgebungs­variablen
+## 11. Konfiguration – Umgebungs­variablen
 
 | Variable | Standard | Beschreibung |
 |---|---|---|

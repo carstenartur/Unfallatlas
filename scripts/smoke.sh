@@ -39,6 +39,26 @@ curl_json() {
   fi
 }
 
+# Single combined call: writes the body to the file in $1 and prints the
+# HTTP status code on stdout.  This avoids issuing the same request twice
+# (which would otherwise risk inconsistent results due to caching/rate
+# limits) and halves the load on the server/upstream providers per check.
+#
+# Usage:   status="$(curl_capture <body_file> <url> [method] [json_body])"
+curl_capture() {
+  local body_file="$1"
+  local url="$2"
+  local method="${3:-GET}"
+  local body="${4:-}"
+  if [ -n "$body" ]; then
+    curl -sS -o "$body_file" -w '%{http_code}' \
+      -X "$method" -H 'Content-Type: application/json' -d "$body" "$url"
+  else
+    curl -sS -o "$body_file" -w '%{http_code}' -X "$method" "$url"
+  fi
+}
+
+# Reachability-only helper for the very first probe.  Single curl call.
 http_status() {
   local url="$1"
   local method="${2:-GET}"
@@ -49,6 +69,10 @@ http_status() {
     curl -sS -o /dev/null -w '%{http_code}' -X "$method" "$url"
   fi
 }
+
+TMPDIR_SMOKE="$(mktemp -d -t smoke.XXXXXX)"
+cleanup() { rm -rf "$TMPDIR_SMOKE"; }
+trap cleanup EXIT
 
 echo "Smoke-Tests gegen ${BASE}"
 echo "─────────────────────────────────────────────"
@@ -65,7 +89,14 @@ fi
 
 # 1. /api/status – aggregierte Capabilities
 echo "[1] /api/status"
-status_body="$(curl_json "${BASE}/api/status")"
+status_file="${TMPDIR_SMOKE}/status.json"
+status_code="$(curl_capture "$status_file" "${BASE}/api/status")"
+status_body="$(cat "$status_file")"
+if [ "$status_code" = "200" ]; then
+  pass "GET /api/status → 200"
+else
+  fail "GET /api/status → ${status_code} (erwartet 200)"
+fi
 if echo "$status_body" | grep -q '"capabilities"'; then
   pass "Antwort enthält capabilities"
 else
@@ -91,7 +122,14 @@ done
 
 # 3. political-context: invalid request → 400 mit code/category
 echo "[3] political-context Fehler-Envelope"
-err_body="$(curl_json "${BASE}/api/political-context/search" POST '{}')"
+err_file="${TMPDIR_SMOKE}/err.json"
+err_code="$(curl_capture "$err_file" "${BASE}/api/political-context/search" POST '{}')"
+err_body="$(cat "$err_file")"
+if [ "$err_code" = "400" ]; then
+  pass "POST /api/political-context/search {} → 400"
+else
+  fail "POST /api/political-context/search {} → ${err_code} (erwartet 400)"
+fi
 if echo "$err_body" | grep -q '"category":"invalid_request"'; then
   pass "Fehler-Envelope enthält category=invalid_request"
 else
@@ -105,8 +143,9 @@ fi
 
 # 4. AI v2 – Fallback-Pfad (auch ohne API-Key sollte 200 + source=fallback antworten)
 echo "[4] AI v2 (Fallback erlaubt)"
-ai_body="$(curl_json "${BASE}/api/ai/export-assessment/v2" POST '{"structured":{"meta":{"city":"Hannover"}}}')"
-ai_status="$(http_status "${BASE}/api/ai/export-assessment/v2" POST '{"structured":{"meta":{"city":"Hannover"}}}')"
+ai_file="${TMPDIR_SMOKE}/ai.json"
+ai_status="$(curl_capture "$ai_file" "${BASE}/api/ai/export-assessment/v2" POST '{"structured":{"meta":{"city":"Hannover"}}}')"
+ai_body="$(cat "$ai_file")"
 if [ "$ai_status" = "200" ]; then
   pass "POST /api/ai/export-assessment/v2 → 200"
 else
@@ -121,8 +160,9 @@ fi
 
 # 5. Optional: political-context search funktional (nur Soft-Check)
 echo "[5] political-context search (best effort)"
-ps_body="$(curl_json "${BASE}/api/political-context/search" POST '{"city":"Hannover","searchTerms":["Limmerstraße"],"maxResults":3}')"
-ps_status="$(http_status "${BASE}/api/political-context/search" POST '{"city":"Hannover","searchTerms":["Limmerstraße"],"maxResults":3}')"
+ps_file="${TMPDIR_SMOKE}/ps.json"
+ps_status="$(curl_capture "$ps_file" "${BASE}/api/political-context/search" POST '{"city":"Hannover","searchTerms":["Limmerstraße"],"maxResults":3}')"
+ps_body="$(cat "$ps_file")"
 if [ "$ps_status" = "200" ]; then
   pass "POST /api/political-context/search → 200"
   if echo "$ps_body" | grep -q '"references"'; then

@@ -482,7 +482,7 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
   } catch (err) {
     console.error('[political-context/search] Fehler:', err.message);
     return sendError(res, {
-      category: CATEGORIES.UPSTREAM_ERROR,
+      category: CATEGORIES.INTERNAL_ERROR,
       code: 'POLITICAL_SEARCH_FAILED',
       message: err.message || 'Interner Fehler bei der politischen Recherche.'
     });

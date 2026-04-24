@@ -104,7 +104,7 @@ const INDIRECT_KEYWORDS = [
   'stadtentwicklung', 'sanierung', 'umbau', 'neuordnung', 'umgestaltung',
   'bauausschuss', 'planungsausschuss', 'infrastruktur', 'lärm', 'laerm',
   'lärmschutz', 'laermschutz', 'klima', 'klimaschutz', 'baumaßnahme',
-  'baumassnahme', 'platzgestaltung', 'umgestaltung'
+  'baumassnahme', 'platzgestaltung'
 ];
 
 /**

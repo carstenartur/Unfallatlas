@@ -65,13 +65,14 @@ describe('capabilities', () => {
     expect(cap.details.fallback).toBe(true);
   });
 
-  test('aiAssessmentV2: mit Key → available + ok + aiCallEnabled=true', () => {
+  test('aiAssessmentV2: mit Key → available + ok + aiCallEnabled=true + fallback=false', () => {
     process.env.GEMINI_API_KEY = 'test-key';
     const { aiAssessmentV2 } = require('../../server/lib/capabilities.js');
     const cap = aiAssessmentV2();
     expect(cap.available).toBe(true);
     expect(cap.reasonCode).toBe('ok');
     expect(cap.details.aiCallEnabled).toBe(true);
+    expect(cap.details.fallback).toBe(false);
   });
 
   test('aiAssessmentV2: AI_PROVIDER=null deaktiviert KI-Calls (provider_disabled)', () => {
@@ -403,10 +404,24 @@ describe('portalSearchService – cache integration', () => {
     expect(providerCalls).toBe(2);
   });
 
-  test('unsupported city: meta.cache liefert hit=false und enabled gemäß useCache', async () => {
+  test('unsupported city: meta.cache liefert hit=false und enabled=true (Default-Cache)', async () => {
     registry.getProviderForCity.mockReturnValue(null);
     const out = await search({ city: 'Musterstadt', searchTerms: ['x'] });
     expect(out.meta.supported).toBe(false);
     expect(out.meta.cache).toEqual({ hit: false, enabled: true });
+  });
+
+  test('unsupported city + cache:null: meta.cache.enabled=false (konsistent zu fehlendem Store)', async () => {
+    registry.getProviderForCity.mockReturnValue(null);
+    const out = await search({ city: 'Musterstadt', searchTerms: ['x'], cache: null });
+    expect(out.meta.supported).toBe(false);
+    expect(out.meta.cache).toEqual({ hit: false, enabled: false });
+  });
+
+  test('unsupported city + useCache:false: meta.cache.enabled=false', async () => {
+    registry.getProviderForCity.mockReturnValue(null);
+    const out = await search({ city: 'Musterstadt', searchTerms: ['x'], useCache: false });
+    expect(out.meta.supported).toBe(false);
+    expect(out.meta.cache).toEqual({ hit: false, enabled: false });
   });
 });

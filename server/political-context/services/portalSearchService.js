@@ -64,6 +64,13 @@ async function search(params) {
 
   const searchedAt = new Date().toISOString();
 
+  // Effektive Cache-Verfügbarkeit: nur wenn Caching gewünscht ist *und* der
+  // übergebene Store tatsächlich eine `get`-Methode hat.  Für einen Aufrufer,
+  // der `cache: null` oder einen unvollständigen Stub übergibt, ist `enabled`
+  // dann konsistent `false` – sowohl im supported- als auch im
+  // unsupported-City-Pfad.
+  const cacheUsable = Boolean(useCache && cache && typeof cache.get === 'function');
+
   const provider = getProviderForCity(city);
 
   if (!provider) {
@@ -76,7 +83,7 @@ async function search(params) {
         totalFound: 0,
         providerKey: null,
         supported: false,
-        cache: { hit: false, enabled: useCache }
+        cache: { hit: false, enabled: cacheUsable }
       }
     };
   }
@@ -90,7 +97,7 @@ async function search(params) {
     : 'unknown';
 
   // ── 1b. Cache-Lookup (vor jeglichem Provider-Call) ─────────────────────
-  const cacheKey = (useCache && cache && typeof cache.get === 'function')
+  const cacheKey = cacheUsable
     ? buildCacheKey({ city, searchTerms, context, maxResults, expandVariants })
     : null;
   if (cacheKey) {

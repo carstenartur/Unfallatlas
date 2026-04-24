@@ -108,7 +108,7 @@ function aiAssessmentV2() {
     available: true,
     reasonCode: REASON_CODES.OK,
     reason:    'KI-Bewertung v2 inkl. echter KI-Aufrufe ist aktiv.',
-    details:   { aiCallEnabled: true, provider: activeProvider, fallback: true }
+    details:   { aiCallEnabled: true, provider: activeProvider, fallback: false }
   };
 }
 
