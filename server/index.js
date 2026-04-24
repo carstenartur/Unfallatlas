@@ -7,6 +7,7 @@
  *   GET  /api/ai-assessment-available     – Feature-Flag (GEMINI_API_KEY vorhanden?)
  *   POST /api/political-context/search    – serverseitige Recherche politischer Vorgänge
  *   GET  /api/political-context/supported – Liste unterstützter Städte
+ *   POST /api/location-brief              – deterministischer Maßnahmen-Steckbrief je Stelle
  *
  * Start: node server/index.js
  * Port:  8000 (konfigurierbar über Umgebungsvariable PORT)
@@ -24,6 +25,7 @@ const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAss
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 const { search: politicalContextSearch } = require('./political-context/services/portalSearchService.js');
 const { listSupportedCities }            = require('./political-context/registry/cityPortalRegistry.js');
+const { buildLocationBrief, PROFILE_IDS, DEFAULT_PROFILE } = require('./location-brief');
 const { getCapabilities }                = require('./lib/capabilities.js');
 const { sendError, attachFallbackInfo, CATEGORIES } = require('./lib/errors.js');
 
@@ -57,6 +59,17 @@ const aiAssessmentRateLimit = rateLimit({
 const politicalContextRateLimit = rateLimit({
   windowMs: 60_000,
   max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
+});
+
+// Rate limiter for the location-brief endpoint (30 requests/minute per IP).
+// The endpoint is purely deterministic and CPU-cheap, but we still rate-limit
+// to protect against accidental loops in the UI.
+const locationBriefRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
@@ -489,6 +502,69 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
   }
 });
 
+// ── Location Action Brief (deterministische Maßnahmen-Steckbriefe) ───────────
+
+/**
+ * POST /api/location-brief
+ *
+ * Erzeugt für eine einzelne Stelle einen strukturierten Maßnahmen-Steckbrief
+ * (`LocationActionBrief`).  Die Berechnung ist vollständig deterministisch
+ * und benötigt KEINEN KI-Provider.  Optional kann eine bereits durchgeführte
+ * KI-Veredelung (`aiPolish`) übergeben werden – sie wirkt rein additiv und
+ * darf weder Maßnahmen noch Konfliktmuster erfinden.
+ *
+ * Body (JSON):
+ *   structured        {object}   – aus `computeExportReport()` (Pflicht)
+ *   contextHints      {object}   – knownHazards, surfaceHints, locationHints, notes
+ *   politicalContext  {object}   – Suchergebnis aus /api/political-context/search
+ *   locationId        {string}   – frei wählbare ID der Stelle
+ *   profile           {string}   – Bewertungsprofil (Default: low_hanging_fruit)
+ *   aiPolish          {object}   – optionale, zuvor erzeugte KI-Veredelung
+ *
+ * Antwort: LocationActionBrief
+ * Fehler:
+ *   400 – Pflichtfeld fehlt / unbekanntes Profil
+ *   500 – Interner Fehler
+ */
+app.post('/api/location-brief', locationBriefRateLimit, (req, res) => {
+  const { structured, contextHints, politicalContext, locationId, profile, aiPolish } = req.body || {};
+
+  if (!structured || typeof structured !== 'object') {
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'STRUCTURED_REQUIRED',
+      message: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.'
+    });
+  }
+  const resolvedProfile = profile || DEFAULT_PROFILE;
+  if (!PROFILE_IDS.includes(resolvedProfile)) {
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'UNKNOWN_PROFILE',
+      message: `Unbekanntes Profil "${resolvedProfile}". Erlaubt: ${PROFILE_IDS.join(', ')}`
+    });
+  }
+
+  try {
+    const brief = buildLocationBrief({
+      structured,
+      contextHints: (contextHints && typeof contextHints === 'object') ? contextHints : undefined,
+      politicalContext: (politicalContext && typeof politicalContext === 'object') ? politicalContext : undefined,
+      locationId: typeof locationId === 'string' ? locationId : undefined,
+      profile: resolvedProfile,
+      aiPolish: (aiPolish && typeof aiPolish === 'object') ? aiPolish : undefined
+    });
+    return res.json(brief);
+  } catch (err) {
+    console.error('[location-brief] Fehler:', err.message);
+    return sendError(res, {
+      category: CATEGORIES.INTERNAL_ERROR,
+      code: 'LOCATION_BRIEF_FAILED',
+      message: err.message || 'Interner Fehler beim Erzeugen des Maßnahmen-Steckbriefs.'
+    });
+  }
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
@@ -499,4 +575,5 @@ app.listen(PORT, () => {
   console.log(`KI-Bewertung Jobs: POST http://localhost:${PORT}/api/ai/jobs  und  GET /api/ai/jobs/:id`);
   console.log(`KI-Provider: ${activeProviderName()}`);
   console.log(`Politische Recherche: POST http://localhost:${PORT}/api/political-context/search`);
+  console.log(`Maßnahmen-Steckbrief: POST http://localhost:${PORT}/api/location-brief`);
 });
