@@ -1,0 +1,7 @@
+# Analysis-Service ignore (build artefacts)
+target/
+*.iml
+.idea/
+.classpath
+.project
+.settings/
