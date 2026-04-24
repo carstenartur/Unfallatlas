@@ -151,6 +151,43 @@ Zusätzliche, **abwärtskompatible** Felder. Werden vom Provider befüllt; der
 | `streetHints`   | `string[]`          | Im Titel/Snippet erkannte Straßennamen (Heuristik).                                                           |
 | `areaHints`     | `string[]`          | Im Titel/Snippet erkannte Stadtbezirks-/Gebietsnamen (Heuristik).                                             |
 
+### Verkehrsrelevanz-Gating (Folge-PR D)
+
+Zusätzliche, **abwärtskompatible** Felder.  Werden serverseitig vom
+`trafficRelevanceService` und `aiGatingService` gesetzt; rein deterministisch,
+keine KI.
+
+| Feld                    | Typ                              | Beschreibung                                                                                                  |
+|:------------------------|:---------------------------------|:--------------------------------------------------------------------------------------------------------------|
+| `trafficCategory`       | `'direct_traffic'\|'indirect_traffic'\|'non_traffic'\|null` | Verkehrsfachliche Einordnung (direkt / indirekt / kein Bezug).                                                |
+| `trafficRelevanceScore` | `number\|null`                   | Verkehrsrelevanz-Score 0–100.                                                                                 |
+| `trafficSubtopics`      | `string[]`                       | Erkannte Subthemen (z. B. `Radverkehr`, `Verkehrssicherheit`, `Knotenpunkt/Ampel`).                           |
+| `isTrafficRelevant`     | `boolean`                        | Convenience-Flag: `true`, wenn `trafficCategory ∈ {direct,indirect}` **und** `trafficRelevanceScore ≥ 20`.    |
+| `trafficReason`         | `string\|null`                   | Lesbare Kurzbegründung der Verkehrsklassifikation (max. 240 Zeichen).                                         |
+| `aiGating`              | `{ allowed: boolean, reason: string }\|null` | Ergebnis von `shouldAllowForAiEvaluation` – maschinenlesbare KI-Zulassungsentscheidung mit Begründung.        |
+
+**Variantensuche** (Recall-Verbesserung): der `portalSearchService` erweitert
+die Originalbegriffe per `searchVariantBuilder` um Kombinationen wie
+`Straße + Radverkehr`, `Straße + Verkehrssicherheit`, `Straße + Gremium`,
+`Stadtbezirk + Straße`, `Thema + Stadtteil` (max. 8 Varianten,
+case-insensitiv dedupliziert).  Die ursprünglichen Begriffe bleiben in
+`meta.searchTerms` erhalten.  Deaktivierbar pro Aufruf via
+`expandVariants: false`.
+
+**KI-Zulassungslogik** (`server/political-context/services/aiGatingService.js`,
+Funktion `shouldAllowForAiEvaluation(reference, context)`):
+
+- `non_traffic` → **nie** an die KI weitergeben.
+- `direct_traffic` → nur mit brauchbarem Orts- *oder* Themenbezug
+  (`locationMatch` ∈ {street, district, bbox} **oder** `topicMatch`/`streetHints`/`areaHints`
+  nicht leer).
+- `indirect_traffic` → nur mit *gutem* Ortsbezug (`locationMatch` ∈ {street, district})
+  **oder** mindestens einem `topicMatch`.
+
+Die Suche bleibt damit bewusst breit; die fachliche Auswahl für die
+KI-Bewertung erfolgt zentral und deterministisch – keine KI-basierte
+Erst­klassifikation.
+
 ---
 
 ## Umgebungsvariablen

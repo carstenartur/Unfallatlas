@@ -137,9 +137,12 @@ Verantwortlichkeiten:
 | `registry/cityPortalRegistry.js` | Stadt → Provider-Mapping (Hannover, Berlin, Bonn, Hamburg) |
 | `providers/*Provider.js`         | Adapter für die jeweiligen Stadt-/Bezirks-Portale (SIM, Allris, Pardok) |
 | `providers/_portalUtils.js`      | Geteilte HTTP-/HTML-/Heuristik-Helfer (Timeout, Sanitisierung) |
-| `services/portalSearchService.js`| Orchestrierung der Suche |
+| `services/portalSearchService.js`| Orchestrierung der Suche (inkl. Variantenexpansion, Verkehrsklassifikation und KI-Gating-Anreicherung) |
+| `services/searchVariantBuilder.js` | Erzeugt Suchvarianten aus Karten-/Exportkontext (Straße + Radverkehr, Straße + Gremium, Stadtbezirk + Straße, Thema + Stadtteil …) |
 | `services/portalNormalizationService.js` | Einheitliches Datenmodell `PoliticalReference` |
 | `services/portalRelevanceService.js`     | Relevanzbewertung & Sortierung |
+| `services/trafficRelevanceService.js`    | Verkehrsfachliche Klassifikation (`trafficCategory`, `trafficRelevanceScore`, `trafficSubtopics`, `isTrafficRelevant`, `trafficReason`) – deterministisch, keine KI |
+| `services/aiGatingService.js`            | Zentrale KI-Zulassungslogik (`shouldAllowForAiEvaluation`) – die Suche darf breit liefern, die KI-Auswahl ist eng |
 | `schemas/*.json`                 | JSON-Schema für Anfrage-/Antwort-Validierung |
 
 Wichtige Garantien:

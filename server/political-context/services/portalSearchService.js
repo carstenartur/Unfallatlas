@@ -5,18 +5,29 @@
  *
  * Ablauf:
  *  1. Ermittelt den passenden Provider aus der Registry.
- *  2. Führt die Suche pro Suchbegriff durch.
- *  3. Normalisiert alle Treffer ins einheitliche Referenzmodell.
- *  4. Dedupliziert (nach URL).
- *  5. Bewertet Relevanz und sortiert absteigend.
- *  6. Gibt ein PoliticalReferenceSearchResult-Objekt zurück.
+ *  2. Erzeugt aus den Suchbegriffen + Kontext zusätzliche Suchvarianten
+ *     (Variantensuche – verbessert den Recall).
+ *  3. Führt die Suche pro (erweitertem) Suchbegriff durch.
+ *  4. Normalisiert alle Treffer ins einheitliche Referenzmodell.
+ *  5. Dedupliziert (nach URL).
+ *  6. Bewertet Relevanz und sortiert absteigend.
+ *  7. Reichert jeden Treffer um die *Verkehrsrelevanz-Klassifikation* und
+ *     die *KI-Gating-Entscheidung* an (rein additiv, keine Filterung).
+ *  8. Gibt ein PoliticalReferenceSearchResult-Objekt zurück.
+ *
+ * Hinweis: die Suche bleibt bewusst breit; die fachliche Auswahl, welche
+ * Treffer an die KI weitergereicht werden dürfen, übernimmt der
+ * `aiGatingService` (siehe `shouldAllowForAiEvaluation`).
  *
  * @module server/political-context/services/portalSearchService
  */
 
-const { getProviderForCity } = require('../registry/cityPortalRegistry.js');
-const { normalizeAll }       = require('./portalNormalizationService.js');
-const { scoreAndSort }       = require('./portalRelevanceService.js');
+const { getProviderForCity }   = require('../registry/cityPortalRegistry.js');
+const { normalizeAll }         = require('./portalNormalizationService.js');
+const { scoreAndSort }         = require('./portalRelevanceService.js');
+const { buildSearchVariants }  = require('./searchVariantBuilder.js');
+const { enrichAllWithTrafficRelevance } = require('./trafficRelevanceService.js');
+const { enrichAllWithAiGating }         = require('./aiGatingService.js');
 
 /**
  * @typedef {object} SearchParams
@@ -25,7 +36,10 @@ const { scoreAndSort }       = require('./portalRelevanceService.js');
  * @property {object}    [context]     – optionaler Kontext für Relevanzscoring
  * @property {string}    [context.gremium]   – bevorzugtes Gremium
  * @property {string}    [context.location]  – Ortshinweis
+ * @property {string}    [context.street]    – expliziter Straßenname (optional)
+ * @property {string}    [context.district]  – expliziter Stadtteil (optional)
  * @property {number}    [maxResults=10]     – maximale Trefferzahl
+ * @property {boolean}   [expandVariants=true] – Variantensuche aktivieren?
  */
 
 /**
@@ -36,10 +50,11 @@ const { scoreAndSort }       = require('./portalRelevanceService.js');
  */
 async function search(params) {
   const {
-    city          = '',
-    searchTerms   = [],
-    context       = {},
-    maxResults    = 10
+    city            = '',
+    searchTerms     = [],
+    context         = {},
+    maxResults      = 10,
+    expandVariants  = true
   } = params || {};
 
   const searchedAt = new Date().toISOString();
@@ -68,17 +83,31 @@ async function search(params) {
     ? provider._key
     : 'unknown';
 
-  // Rohsuche
-  const rawResults = await provider.search({ city, searchTerms, context });
+  // ── 2. Variantensuche ───────────────────────────────────────────────────
+  // Erzeugt zusätzliche Suchbegriffe aus Karten-/Exportkontext.  Der Suche
+  // wird die erweiterte Liste übergeben, damit der Recall steigt; in den
+  // Meta-Daten geben wir aber weiterhin die Originalbegriffe zurück, damit
+  // bestehende Frontend-Erwartungen unverändert bleiben.
+  const effectiveTerms = expandVariants
+    ? buildSearchVariants(searchTerms, context)
+    : searchTerms;
 
-  // Normalisierung + Deduplizierung
+  // ── 3. Rohsuche ─────────────────────────────────────────────────────────
+  const rawResults = await provider.search({ city, searchTerms: effectiveTerms, context });
+
+  // ── 4./5. Normalisierung + Deduplizierung (nach URL) ────────────────────
   const normalized = normalizeAll(rawResults, providerKey);
 
-  // Relevanzbewertung + Sortierung
+  // ── 6. Relevanzbewertung + Sortierung (gegen die ORIGINAL-Begriffe, damit
+  //       die Variantenexpansion den Score nicht verwässert) ──────────────
   const scored = scoreAndSort(normalized, searchTerms, context);
 
+  // ── 7. Verkehrsrelevanz + KI-Gating (additiv) ───────────────────────────
+  const withTraffic = enrichAllWithTrafficRelevance(scored);
+  const withGating  = enrichAllWithAiGating(withTraffic, context);
+
   // Auf maxResults begrenzen
-  const trimmed = scored.slice(0, Math.max(0, maxResults));
+  const trimmed = withGating.slice(0, Math.max(0, maxResults));
 
   return {
     references: trimmed,
@@ -94,3 +123,4 @@ async function search(params) {
 }
 
 module.exports = { search };
+
