@@ -1,3 +1,20 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Compose-Setup für den Unfallatlas mit optionaler Persistenz.
+#
+# Die Node-App ist weiterhin die Hauptanwendung und läuft eigenständig
+# (Service `unfallatlas`).  Persistenz-/Read-API leben optional im
+# `analysis-service`-Container, der wiederum PostgreSQL benötigt
+# (`analysis-db`).
+#
+# Profile:
+#   - default:  nur die Node-App (entspricht bisherigem Verhalten).
+#   - persist:  Node-App + Analysis-Service + PostgreSQL.
+#
+# Beispiele:
+#   docker compose up unfallatlas                                  # nur Node
+#   docker compose --profile persist up                            # Vollstack
+#   docker compose --profile persist up analysis-service analysis-db
+# ─────────────────────────────────────────────────────────────────────────────
 version: '3.8'
 
 services:
@@ -8,3 +25,46 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8000
+      # Optional: Anbindung an den Analysis Service.  Ohne diese Variablen
+      # läuft die Node-App genauso wie bisher (Browser-only / Standalone).
+      - ANALYSIS_SERVICE_BASE_URL=${ANALYSIS_SERVICE_BASE_URL:-}
+      - ANALYSIS_SERVICE_ENABLED=${ANALYSIS_SERVICE_ENABLED:-}
+      - ANALYSIS_SERVICE_TIMEOUT_MS=${ANALYSIS_SERVICE_TIMEOUT_MS:-4000}
+      - ANALYSIS_SERVICE_RETRIES=${ANALYSIS_SERVICE_RETRIES:-1}
+
+  analysis-service:
+    profiles: ["persist"]
+    build: ./analysis-service
+    image: unfallatlas/analysis-service:local
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      ANALYSIS_DB_URL: jdbc:postgresql://analysis-db:5432/${ANALYSIS_DB_NAME:-unfallatlas}
+      ANALYSIS_DB_USER: ${ANALYSIS_DB_USER:-unfallatlas}
+      ANALYSIS_DB_PASSWORD: ${ANALYSIS_DB_PASSWORD:-unfallatlas}
+    depends_on:
+      analysis-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  analysis-db:
+    profiles: ["persist"]
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${ANALYSIS_DB_NAME:-unfallatlas}
+      POSTGRES_USER: ${ANALYSIS_DB_USER:-unfallatlas}
+      POSTGRES_PASSWORD: ${ANALYSIS_DB_PASSWORD:-unfallatlas}
+    ports:
+      - "5432:5432"
+    volumes:
+      - analysis-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  analysis-db-data:

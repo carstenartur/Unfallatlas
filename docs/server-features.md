@@ -33,6 +33,10 @@ npm run start:server         # node server/index.js
 | GET     | `/api/ai/jobs/:id`                          | Status / Ergebnis eines Jobs                         |
 | GET     | `/api/political-context/supported`          | Liste unterstützter Städte                           |
 | POST    | `/api/political-context/search`             | Recherche politischer Vorgänge in Stadt-Portalen     |
+| POST    | `/api/location-brief`                       | Maßnahmen-Steckbrief je Stelle (deterministisch, optional KI-Polish, optionales Persistieren) |
+| GET     | `/api/location-briefs/by-location/:key`     | Forwarder: gespeicherte Briefs einer Stelle (Analysis Service) |
+| GET     | `/api/location-briefs/top?city=&profile=&limit=` | Forwarder: Top-N je Profil (Analysis Service)  |
+| GET     | `/api/location-briefs?city=&profile=&page=&size=` | Forwarder: Liste gespeicherter Briefs (Analysis Service) |
 
 Rate-Limits (per IP, 1-Minuten-Fenster):
 
@@ -448,3 +452,118 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 - Provider-URLs der politischen Recherche sind hartkodiert; Stadt-/
   Suchwert kommen ausschließlich als Query-Parameter in die jeweilige
   Portal-URL → keine SSRF-Angriffsfläche.
+
+---
+
+## 8. Optionale Persistenz: Anbindung an den Analysis Service
+
+Die Node-App kann den deterministischen Maßnahmen-Steckbrief
+(`POST /api/location-brief`) zusätzlich an den separaten
+**Analysis Service** (`analysis-service/`, Spring Boot) weitergeben, dort
+versioniert speichern und über drei Lese-Endpunkte wieder abrufen.  Die
+Anbindung ist **optional**:
+
+| Modus                     | Voraussetzung                                                  | Verhalten                                                                                                  |
+|---------------------------|----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| **Browser-only**          | keine                                                          | Werkbank läuft komplett im Browser, keine Server-Aufrufe.                                                  |
+| **Node-Standalone**       | `npm run start:server`                                         | Bestehendes Verhalten – Steckbrief wird nur berechnet, **nicht** persistiert.                              |
+| **Node + Analysis Service** | zusätzlich `ANALYSIS_SERVICE_BASE_URL` gesetzt              | Optional: Steckbrief wird zusätzlich versioniert gespeichert; gespeicherte Briefs sind über Lese-Endpunkte abrufbar. |
+
+### Konfiguration
+
+| Variable                         | Default | Beschreibung                                                                  |
+|----------------------------------|---------|-------------------------------------------------------------------------------|
+| `ANALYSIS_SERVICE_BASE_URL`      | –       | Basis-URL des Analysis Service, z. B. `http://analysis-service:8081`. Aktiviert das Feature implizit. |
+| `ANALYSIS_SERVICE_ENABLED`       | `true`  | Override – `false` deaktiviert das Forwarding trotz vorhandener `BASE_URL`.   |
+| `ANALYSIS_SERVICE_TIMEOUT_MS`    | `4000`  | HTTP-Timeout pro Aufruf (ms).                                                 |
+| `ANALYSIS_SERVICE_RETRIES`       | `1`     | Anzahl Wiederholungen bei 5xx oder Netzwerkfehlern (4xx wird **nicht** wiederholt). |
+| `ANALYSIS_SERVICE_RETRY_DELAY_MS`| `200`   | Wartezeit zwischen Retries (ms).                                              |
+| `ANALYSIS_SERVICE_AUTO_PERSIST`  | `false` | Wenn `true`, wird bei `POST /api/location-brief` ohne explizites `persist`-Flag automatisch persistiert. |
+
+Der aktuelle Status (konfiguriert / aktiviert / Basis-URL) ist über
+`GET /api/status` unter `capabilities.analysisService` sichtbar.
+
+### Persistenz-Pfad: `POST /api/location-brief`
+
+Body-Erweiterungen (alle optional):
+
+```jsonc
+{
+  "structured":   { /* Output aus computeExportReport() */ },
+  "locationId":   "hannover::altenbekener_damm",   // stabile Stellen-ID
+  "profile":      "low_hanging_fruit",
+  "persist":      true,        // optional an Analysis Service forwarden
+  "useStored":    true         // optional: zuerst gespeicherten Brief verwenden
+}
+```
+
+- Bei `persist: true` enthält die Antwort zusätzlich
+  `persistence.status: "stored" | "skipped"`,
+  `persistence.storedId` und `persistence.attempts`.
+- **Fallback:** Ist der Service nicht erreichbar oder antwortet er mit 5xx,
+  liefert die Node-App trotzdem den berechneten Brief zurück
+  (`persistence.status: "skipped"`, `reason` setzt den Fehler).  Der
+  bestehende Export-/Analysepfad funktioniert damit auch ohne den
+  Analysis Service weiter.
+- `useStored: true` versucht vor der Berechnung, einen passenden
+  bereits gespeicherten Brief zu lesen
+  (`GET /api/location-briefs/by-location/:locationId`); existiert einer
+  mit demselben Profil, wird er statt einer Neuberechnung
+  zurückgegeben (`source: "analysis-service"`).
+
+### Lese-Endpunkte (Forwarder)
+
+Diese Endpunkte sind dünne Forwarder zum Analysis Service.  Ist der
+Dienst nicht konfiguriert, antworten sie mit
+`503 feature_unavailable`; bei Upstream-Fehlern mit
+`502 upstream_error`.  Erfolgreiche Antworten sind 1:1 die Antworten
+des Analysis Service.
+
+| Methode | Pfad                                              | Zweck                                                                |
+|---------|---------------------------------------------------|----------------------------------------------------------------------|
+| GET     | `/api/location-briefs/by-location/:locationKey`   | Alle gespeicherten Briefs einer Stelle, neueste zuerst.              |
+| GET     | `/api/location-briefs/top?city=&profile=&limit=`  | Top-N Briefs für eine Stadt + Profil (sortiert nach Profil-Score).   |
+| GET     | `/api/location-briefs?city=&profile=&page=&size=` | Liste gespeicherter Briefs einer Stadt (paginiert, Profil optional). |
+
+### Beispiel: Persistieren
+
+```bash
+curl -X POST http://localhost:8000/api/location-brief \
+  -H "Content-Type: application/json" \
+  -d '{
+        "structured": { /* … */ },
+        "locationId": "hannover::altenbekener_damm",
+        "profile":    "low_hanging_fruit",
+        "persist":    true
+      }'
+```
+
+### Beispiel: Top-5 für Hannover, Profil `safety_first`
+
+```bash
+curl "http://localhost:8000/api/location-briefs/top?city=Hannover&profile=safety_first&limit=5"
+```
+
+### Wann reicht Browser-only, wann Node, wann Persistenz?
+
+- **Browser-only** (GitHub Pages Live-Demo): einzelne Analysen,
+  Bezirksrats-Export – die häufigste Nutzung.
+- **Node-Standalone**: lokales Hosten, Video-Export, KI-Bewertung,
+  politische Recherche – ohne Persistenzbedarf.
+- **Node + Analysis Service**: stadtweite Vergleiche, Top-N-Listen
+  pro Profil, reproduzierbare Briefs (versioniert mit Source-
+  Fingerprint, Regelversionen, optional KI-Metadaten).
+
+### Migrationen & Health
+
+- Schema-Migrationen liegen in
+  `analysis-service/src/main/resources/db/migration/V*__*.sql` und
+  laufen beim Boot über **Flyway** (PostgreSQL in Prod, H2 im
+  PostgreSQL-Mode in Dev/Test).
+- Health-Probe: `GET http://<analysis-service>/actuator/health`
+  (Container-Health-Check und Reverse-Proxy-tauglich).
+- Lokales Compose mit PostgreSQL:
+
+  ```bash
+  docker compose --profile persist up
+  ```
