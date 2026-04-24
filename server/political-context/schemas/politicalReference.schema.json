@@ -75,6 +75,38 @@
       "type": "array",
       "description": "Im Titel/Snippet erkannte Stadtbezirks-/Gebietsnamen (Heuristik). Optional, kann leer sein.",
       "items": { "type": "string" }
+    },
+    "trafficCategory": {
+      "type": ["string", "null"],
+      "description": "Verkehrsklassifikation: 'direct_traffic' (Verkehr/Verkehrssicherheit/Rad/Fuß/ÖPNV/Knotenpunkt), 'indirect_traffic' (z. B. Stadtentwicklung/Sanierung/Lärm – verkehrsnah, aber nicht primär Verkehr), 'non_traffic' (kein Verkehrsbezug). Wird vom trafficRelevanceService gesetzt.",
+      "enum": ["direct_traffic", "indirect_traffic", "non_traffic", null]
+    },
+    "trafficRelevanceScore": {
+      "type": ["number", "null"],
+      "description": "Verkehrsrelevanz-Score 0–100. Direkter Verkehrsbezug erhöht den Score stärker als indirekter; deterministisch."
+    },
+    "trafficSubtopics": {
+      "type": "array",
+      "description": "Erkannte verkehrsfachliche Subthemen (kanonische Labels), z. B. 'Radverkehr', 'Verkehrssicherheit', 'Knotenpunkt/Ampel'.",
+      "items": { "type": "string" }
+    },
+    "isTrafficRelevant": {
+      "type": "boolean",
+      "description": "Convenience-Flag: true wenn trafficCategory ∈ {direct_traffic, indirect_traffic} und trafficRelevanceScore über Schwellwert."
+    },
+    "trafficReason": {
+      "type": ["string", "null"],
+      "description": "Lesbare Kurzbegründung der Verkehrsklassifikation (max. 240 Zeichen, ohne PII)."
+    },
+    "aiGating": {
+      "type": ["object", "null"],
+      "description": "Ergebnis von shouldAllowForAiEvaluation – maschinenlesbare Entscheidung, ob dieser Treffer an die KI-Bewertung weitergegeben werden darf, inklusive lesbarer Begründung.",
+      "required": ["allowed", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "allowed": { "type": "boolean" },
+        "reason":  { "type": "string", "description": "Kurzbegründung (max. 240 Zeichen)." }
+      }
     }
   }
 }

@@ -267,10 +267,15 @@ jest.mock('../../server/political-context/registry/cityPortalRegistry.js', () =>
 
 const registry = require('../../server/political-context/registry/cityPortalRegistry.js');
 const { search } = require('../../server/political-context/services/portalSearchService.js');
+const { sharedCache: politicalSearchCache } =
+  require('../../server/political-context/services/portalSearchCache.js');
 
 describe('portalSearchService – search', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    // Shared in-memory Cache zwischen Tests leeren, damit Treffer aus dem
+    // vorherigen Testcase nicht in den nächsten Test bleeden.
+    politicalSearchCache.clear();
   });
 
   test('gibt supported:false zurück, wenn kein Provider verfügbar', async () => {
@@ -697,5 +702,501 @@ describe('cityPortalRegistry – neue Städte', () => {
   test('listSupportedCities enthält die neuen Slugs', () => {
     const list = listSupportedCitiesActual();
     expect(list).toEqual(expect.arrayContaining(['hannover', 'berlin', 'bonn', 'hamburg']));
+  });
+});
+
+// ── searchVariantBuilder ───────────────────────────────────────────────────────
+
+const {
+  buildSearchVariants,
+  looksLikeStreet,
+  looksLikeDistrict,
+  looksLikeIntersection,
+  MAX_VARIANTS
+} = require('../../server/political-context/services/searchVariantBuilder.js');
+
+describe('searchVariantBuilder – Hilfsheuristiken', () => {
+  test('looksLikeStreet erkennt typische Endungen', () => {
+    expect(looksLikeStreet('Limmerstraße')).toBe(true);
+    expect(looksLikeStreet('Lange Allee')).toBe(true);
+    expect(looksLikeStreet('Lister Platz')).toBe(true);
+    expect(looksLikeStreet('Engelbosteler Damm')).toBe(true);
+    expect(looksLikeStreet('Radverkehr')).toBe(false);
+  });
+  test('looksLikeDistrict erkennt Stadtbezirks-Marker', () => {
+    expect(looksLikeDistrict('Stadtbezirk Linden-Limmer')).toBe(true);
+    expect(looksLikeDistrict('Stadtteil Mitte')).toBe(true);
+    expect(looksLikeDistrict('Limmerstraße')).toBe(false);
+  });
+  test('looksLikeIntersection erkennt Knotenpunkt-Hinweise', () => {
+    expect(looksLikeIntersection('Kreuzung Limmer/Leinau')).toBe(true);
+    expect(looksLikeIntersection('Kreisverkehr')).toBe(true);
+    expect(looksLikeIntersection('Limmerstraße')).toBe(false);
+  });
+});
+
+describe('searchVariantBuilder – buildSearchVariants', () => {
+  test('Originalbegriffe stehen vorne und werden nicht entfernt', () => {
+    const out = buildSearchVariants(['Limmerstraße'], {});
+    expect(out[0]).toBe('Limmerstraße');
+  });
+
+  test('erzeugt Straße + Radverkehr und Straße + Verkehrssicherheit', () => {
+    const out = buildSearchVariants(['Limmerstraße'], {});
+    expect(out).toEqual(expect.arrayContaining([
+      'Limmerstraße Radverkehr',
+      'Limmerstraße Verkehrssicherheit'
+    ]));
+  });
+
+  test('kombiniert Straße + Gremium', () => {
+    const out = buildSearchVariants(['Limmerstraße'], {
+      gremium: 'Stadtbezirksrat Linden-Limmer'
+    });
+    expect(out).toEqual(expect.arrayContaining([
+      'Limmerstraße Stadtbezirksrat Linden-Limmer'
+    ]));
+  });
+
+  test('erzeugt Stadtbezirk + Straße sowie Thema + Stadtteil', () => {
+    const out = buildSearchVariants(['Limmerstraße'], {
+      district: 'Linden'
+    });
+    expect(out).toEqual(expect.arrayContaining([
+      'Linden Limmerstraße',
+      'Radverkehr Linden',
+      'Verkehrssicherheit Linden'
+    ]));
+  });
+
+  test('strippt explizite Stadtteil-Marker', () => {
+    const out = buildSearchVariants(['Limmerstraße'], {
+      district: 'Stadtteil Linden'
+    });
+    expect(out).toEqual(expect.arrayContaining(['Linden Limmerstraße']));
+    // "Stadtteil Linden Limmerstraße" sollte NICHT dabei sein
+    expect(out).not.toEqual(expect.arrayContaining(['Stadtteil Linden Limmerstraße']));
+  });
+
+  test('ergänzt „Kreuzung", wenn Original eine Straße ohne Knotenmarker ist', () => {
+    const out = buildSearchVariants(['Limmerstraße'], {});
+    expect(out).toEqual(expect.arrayContaining(['Limmerstraße Kreuzung']));
+  });
+
+  test('lässt Kreuzungs-Originale unverändert (kein doppeltes „Kreuzung")', () => {
+    const out = buildSearchVariants(['Kreuzung Limmer/Leinau'], {});
+    expect(out).toContain('Kreuzung Limmer/Leinau');
+    expect(out.some(v => v === 'Kreuzung Limmer/Leinau Kreuzung')).toBe(false);
+  });
+
+  test('classifiziert context.location als Straße ODER Bezirk', () => {
+    const fromStreet = buildSearchVariants(['Radverkehr'], { location: 'Limmerstraße' });
+    expect(fromStreet).toEqual(expect.arrayContaining(['Limmerstraße Radverkehr']));
+
+    const fromDistrict = buildSearchVariants(['Radverkehr'], { location: 'Stadtteil Linden' });
+    expect(fromDistrict).toEqual(expect.arrayContaining(['Radverkehr Linden']));
+  });
+
+  test('dedupliziert case-insensitiv', () => {
+    const out = buildSearchVariants(['limmerstraße', 'Limmerstraße'], {});
+    const norm = out.map(v => v.toLowerCase());
+    const seen = new Set();
+    norm.forEach(v => seen.add(v));
+    expect(seen.size).toBe(out.length);
+  });
+
+  test('respektiert MAX_VARIANTS', () => {
+    const out = buildSearchVariants(
+      ['Limmerstraße', 'Leinaustraße', 'Engelbosteler Damm'],
+      { gremium: 'Stadtbezirksrat Linden-Limmer', district: 'Linden' }
+    );
+    expect(out.length).toBeLessThanOrEqual(MAX_VARIANTS);
+  });
+
+  test('akzeptiert leeren Input (kein Crash)', () => {
+    expect(buildSearchVariants(null, null)).toEqual([]);
+    expect(buildSearchVariants([], {})).toEqual([]);
+  });
+
+  test('expandVariants ist deterministisch', () => {
+    const a = buildSearchVariants(['Limmerstraße'], { district: 'Linden', gremium: 'Stadtbezirksrat Linden-Limmer' });
+    const b = buildSearchVariants(['Limmerstraße'], { district: 'Linden', gremium: 'Stadtbezirksrat Linden-Limmer' });
+    expect(a).toEqual(b);
+  });
+});
+
+// ── trafficRelevanceService ────────────────────────────────────────────────────
+
+const {
+  classifyTrafficRelevance,
+  enrichWithTrafficRelevance,
+  enrichAllWithTrafficRelevance,
+  RELEVANCE_THRESHOLD
+} = require('../../server/political-context/services/trafficRelevanceService.js');
+
+describe('trafficRelevanceService – classifyTrafficRelevance', () => {
+  test('direkte Verkehrssicherheitsvorlage → direct_traffic, hoher Score', () => {
+    const ref = {
+      title:   'Antrag zur Verkehrssicherheit an der Limmerstraße',
+      snippet: 'Schutzstreifen für den Radverkehr und Tempo 30',
+      gremium: 'Stadtbezirksrat Linden-Limmer'
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficCategory).toBe('direct_traffic');
+    expect(cls.trafficRelevanceScore).toBeGreaterThanOrEqual(RELEVANCE_THRESHOLD);
+    expect(cls.trafficSubtopics).toEqual(expect.arrayContaining(['Verkehrssicherheit', 'Radverkehr']));
+    expect(cls.isTrafficRelevant).toBe(true);
+    expect(cls.trafficReason).toMatch(/Verkehrsbezug/i);
+  });
+
+  test('gleiche Straße, aber kein Verkehrsbezug → non_traffic', () => {
+    const ref = {
+      title:   'Kunstausstellung in der Limmerstraße',
+      snippet: 'Galerieeröffnung mit Werken regionaler Künstler',
+      gremium: 'Kulturausschuss'
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficCategory).toBe('non_traffic');
+    expect(cls.trafficRelevanceScore).toBe(0);
+    expect(cls.isTrafficRelevant).toBe(false);
+    expect(cls.trafficSubtopics).toEqual([]);
+  });
+
+  test('Verkehrsbezug ohne exakten Straßennamen → direct_traffic', () => {
+    const ref = {
+      title:   'Maßnahmen zur Schulwegsicherung im Stadtteil',
+      snippet: 'Querungshilfe und Fußgängerüberweg vorgesehen',
+      gremium: 'Verkehrsausschuss'
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficCategory).toBe('direct_traffic');
+    expect(cls.trafficSubtopics).toEqual(expect.arrayContaining(['Schulweg', 'Fußverkehr']));
+  });
+
+  test('Bezirksratsprotokoll OHNE relevanten Verkehrsinhalt → non_traffic', () => {
+    const ref = {
+      title:   'Niederschrift der 12. Sitzung',
+      snippet: 'Begrüßung, Tagesordnung, Verschiedenes',
+      gremium: 'Stadtbezirksrat Linden-Limmer',
+      type:    'Protokoll'
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficCategory).toBe('non_traffic');
+  });
+
+  test('Bezirksratsprotokoll MIT Verkehrsthema → direct_traffic', () => {
+    const ref = {
+      title:   'Niederschrift der 12. Sitzung',
+      snippet: 'TOP 4: Antrag zum Radweg Limmerstraße. Diskussion zu Tempo 30.',
+      gremium: 'Stadtbezirksrat Linden-Limmer',
+      type:    'Protokoll'
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficCategory).toBe('direct_traffic');
+    expect(cls.trafficSubtopics).toEqual(expect.arrayContaining(['Radverkehr']));
+  });
+
+  test('indirektes Thema ohne direkten Verkehrsbezug → indirect_traffic', () => {
+    const ref = {
+      title:   'Sanierung des Lichtenbergplatzes',
+      snippet: 'Neugestaltung der Platzfläche, Lärmschutz',
+      gremium: 'Bauausschuss'
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficCategory).toBe('indirect_traffic');
+    expect(cls.trafficRelevanceScore).toBeGreaterThan(0);
+    expect(cls.trafficReason).toMatch(/[Ii]ndirekt/);
+  });
+
+  test('Score bleibt im Bereich [0, 100]', () => {
+    const ref = {
+      title:   'Radverkehr Schulweg Verkehrssicherheit Tempo 30 Knotenpunkt ÖPNV',
+      snippet: 'Radweg Schutzstreifen Fußgänger Querungshilfe Ampel Bus',
+      gremium: 'Verkehrsausschuss'
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficRelevanceScore).toBeGreaterThanOrEqual(0);
+    expect(cls.trafficRelevanceScore).toBeLessThanOrEqual(100);
+  });
+
+  test('Title-Treffer geben mehr Punkte als Snippet-Treffer', () => {
+    const inTitle   = classifyTrafficRelevance({ title: 'Radverkehr Antrag', snippet: '' });
+    const inSnippet = classifyTrafficRelevance({ title: 'Antrag', snippet: 'Radverkehr' });
+    expect(inTitle.trafficRelevanceScore).toBeGreaterThan(inSnippet.trafficRelevanceScore);
+  });
+
+  test('reason ist auf 240 Zeichen begrenzt', () => {
+    const ref = {
+      title:   'Radverkehr Schulweg Verkehrssicherheit Tempo 30 Knotenpunkt ÖPNV Ruhender Verkehr Fahrbahn Mobilität Fußverkehr',
+      snippet: 'X'.repeat(500)
+    };
+    const cls = classifyTrafficRelevance(ref);
+    expect(cls.trafficReason.length).toBeLessThanOrEqual(240);
+  });
+
+  test('isTrafficRelevant respektiert Schwellwert', () => {
+    // direct_traffic mit nur einem schwachen Snippet-Treffer kann unter Schwelle liegen
+    const weak = classifyTrafficRelevance({ title: '', snippet: 'parken' });
+    if (weak.trafficCategory === 'direct_traffic') {
+      expect(weak.isTrafficRelevant).toBe(weak.trafficRelevanceScore >= RELEVANCE_THRESHOLD);
+    }
+  });
+});
+
+describe('trafficRelevanceService – enrichWithTrafficRelevance', () => {
+  test('lässt Originalfelder unverändert und ergänzt nur die neuen Felder', () => {
+    const original = {
+      id: 'x', title: 'Antrag Radverkehr', url: 'https://example.com/1',
+      type: 'Antrag', source: 'src'
+    };
+    const enriched = enrichWithTrafficRelevance(original);
+    expect(enriched.id).toBe(original.id);
+    expect(enriched.title).toBe(original.title);
+    expect(enriched).toHaveProperty('trafficCategory');
+    expect(enriched).toHaveProperty('trafficRelevanceScore');
+    expect(enriched).toHaveProperty('trafficSubtopics');
+    expect(enriched).toHaveProperty('isTrafficRelevant');
+    expect(enriched).toHaveProperty('trafficReason');
+  });
+
+  test('enrichAllWithTrafficRelevance gibt leeres Array für null zurück', () => {
+    expect(enrichAllWithTrafficRelevance(null)).toEqual([]);
+  });
+});
+
+// ── aiGatingService ────────────────────────────────────────────────────────────
+
+const {
+  shouldAllowForAiEvaluation,
+  filterReferencesForAi,
+  enrichWithAiGating
+} = require('../../server/political-context/services/aiGatingService.js');
+
+describe('aiGatingService – shouldAllowForAiEvaluation', () => {
+  test('non_traffic wird NIE zugelassen', () => {
+    const ref = {
+      trafficCategory: 'non_traffic',
+      isTrafficRelevant: false,
+      locationMatch: 'street',
+      topicMatch: ['Limmerstraße'],
+      streetHints: ['limmerstraße'],
+      areaHints: []
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(false);
+    expect(dec.reason).toMatch(/Kein Verkehrsbezug/);
+  });
+
+  test('direct_traffic mit Straßen-Ortsbezug wird zugelassen', () => {
+    const ref = {
+      trafficCategory: 'direct_traffic',
+      isTrafficRelevant: true,
+      locationMatch: 'street',
+      topicMatch: ['Limmerstraße'],
+      streetHints: ['limmerstraße'],
+      areaHints: []
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(true);
+    expect(dec.reason).toMatch(/Direkter Verkehrsbezug/);
+  });
+
+  test('direct_traffic ohne jeden Orts-/Themenbezug wird abgelehnt', () => {
+    const ref = {
+      trafficCategory: 'direct_traffic',
+      isTrafficRelevant: true,
+      locationMatch: 'topic-only',
+      topicMatch: [],
+      streetHints: [],
+      areaHints: []
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(false);
+    expect(dec.reason).toMatch(/weder Orts- noch Themenbezug/);
+  });
+
+  test('direct_traffic mit Straßenhinweis im Text reicht (auch ohne locationMatch)', () => {
+    const ref = {
+      trafficCategory: 'direct_traffic',
+      isTrafficRelevant: true,
+      locationMatch: 'topic-only',
+      topicMatch: [],
+      streetHints: ['limmerstraße'],
+      areaHints: []
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(true);
+  });
+
+  test('indirect_traffic mit gutem Ortsbezug (street) wird zugelassen', () => {
+    const ref = {
+      trafficCategory: 'indirect_traffic',
+      isTrafficRelevant: true,
+      locationMatch: 'street',
+      topicMatch: [],
+      streetHints: [],
+      areaHints: []
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(true);
+    expect(dec.reason).toMatch(/Indirekter Verkehrsbezug/);
+  });
+
+  test('indirect_traffic NUR mit bbox wird abgelehnt (zu schwacher Ortsbezug)', () => {
+    const ref = {
+      trafficCategory: 'indirect_traffic',
+      isTrafficRelevant: true,
+      locationMatch: 'bbox',
+      topicMatch: [],
+      streetHints: [],
+      areaHints: []
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(false);
+  });
+
+  test('indirect_traffic mit topicMatch wird zugelassen', () => {
+    const ref = {
+      trafficCategory: 'indirect_traffic',
+      isTrafficRelevant: true,
+      locationMatch: 'topic-only',
+      topicMatch: ['Limmerstraße'],
+      streetHints: [],
+      areaHints: []
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(true);
+  });
+
+  test('isTrafficRelevant=false (knapp unter Schwelle) wird abgelehnt', () => {
+    const ref = {
+      trafficCategory: 'direct_traffic',
+      isTrafficRelevant: false,
+      locationMatch: 'street',
+      topicMatch: ['Limmerstraße']
+    };
+    const dec = shouldAllowForAiEvaluation(ref, {});
+    expect(dec.allowed).toBe(false);
+    expect(dec.reason).toMatch(/Schwellwert/);
+  });
+
+  test('fehlende Klassifikation wird konservativ abgelehnt', () => {
+    expect(shouldAllowForAiEvaluation({}, {}).allowed).toBe(false);
+    expect(shouldAllowForAiEvaluation(null, {}).allowed).toBe(false);
+  });
+
+  test('filterReferencesForAi gibt nur zugelassene Treffer zurück', () => {
+    const refs = [
+      { trafficCategory: 'non_traffic',     isTrafficRelevant: false, locationMatch: 'street', topicMatch: ['x'] },
+      { trafficCategory: 'direct_traffic',  isTrafficRelevant: true,  locationMatch: 'street', topicMatch: ['x'] },
+      { trafficCategory: 'indirect_traffic',isTrafficRelevant: true,  locationMatch: 'bbox',   topicMatch: [] }
+    ];
+    const filtered = filterReferencesForAi(refs, {});
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].trafficCategory).toBe('direct_traffic');
+  });
+
+  test('enrichWithAiGating ergänzt aiGating-Feld mit allowed/reason', () => {
+    const ref = {
+      trafficCategory: 'direct_traffic', isTrafficRelevant: true,
+      locationMatch: 'street', topicMatch: ['x'], streetHints: [], areaHints: []
+    };
+    const enriched = enrichWithAiGating(ref, {});
+    expect(enriched.aiGating).toMatchObject({ allowed: true });
+    expect(typeof enriched.aiGating.reason).toBe('string');
+  });
+});
+
+// ── Integrationstest: portalSearchService inkl. Verkehrs-/Gating-Felder ────────
+
+describe('portalSearchService – Variantensuche + Verkehrsklassifikation + Gating', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    politicalSearchCache.clear();
+  });
+
+  test('Variantensuche wird an den Provider übergeben, Original bleibt im meta', async () => {
+    const captured = [];
+    registry.getProviderForCity.mockReturnValue({
+      _key: 'mock',
+      search: async ({ searchTerms }) => {
+        captured.push(...searchTerms);
+        return [];
+      }
+    });
+    const result = await search({
+      city: 'Hannover',
+      searchTerms: ['Limmerstraße'],
+      context: { gremium: 'Stadtbezirksrat Linden-Limmer', district: 'Linden' }
+    });
+    // Variantensuche hat die Liste vergrößert
+    expect(captured.length).toBeGreaterThan(1);
+    expect(captured).toContain('Limmerstraße');
+    expect(captured).toEqual(expect.arrayContaining(['Limmerstraße Radverkehr']));
+    // Meta zeigt nach wie vor die Originalbegriffe
+    expect(result.meta.searchTerms).toEqual(['Limmerstraße']);
+  });
+
+  test('expandVariants:false deaktiviert die Variantensuche', async () => {
+    const captured = [];
+    registry.getProviderForCity.mockReturnValue({
+      _key: 'mock',
+      search: async ({ searchTerms }) => { captured.push(...searchTerms); return []; }
+    });
+    await search({
+      city: 'Hannover',
+      searchTerms: ['Limmerstraße'],
+      expandVariants: false
+    });
+    expect(captured).toEqual(['Limmerstraße']);
+  });
+
+  test('Treffer enthalten trafficCategory, trafficRelevanceScore und aiGating', async () => {
+    registry.getProviderForCity.mockReturnValue({
+      _key: 'mock',
+      search: async () => ([
+        {
+          title:   'Antrag zur Verkehrssicherheit an der Limmerstraße',
+          url:     'https://example.com/1',
+          rawType: 'antrag',
+          gremium: 'Stadtbezirksrat Linden-Limmer',
+          snippet: 'Schutzstreifen für den Radverkehr',
+          topicMatch: ['Limmerstraße'],
+          locationMatch: 'street',
+          streetHints: ['limmerstraße']
+        },
+        {
+          title:   'Kunstausstellung in der Limmerstraße',
+          url:     'https://example.com/2',
+          rawType: '',
+          snippet: 'Galerieeröffnung'
+        }
+      ])
+    });
+
+    const out = await search({
+      city: 'Hannover',
+      searchTerms: ['Limmerstraße'],
+      context: {}
+    });
+
+    expect(out.references.length).toBe(2);
+    for (const r of out.references) {
+      expect(r).toHaveProperty('trafficCategory');
+      expect(r).toHaveProperty('trafficRelevanceScore');
+      expect(r).toHaveProperty('trafficSubtopics');
+      expect(r).toHaveProperty('isTrafficRelevant');
+      expect(r).toHaveProperty('trafficReason');
+      expect(r).toHaveProperty('aiGating');
+      expect(typeof r.aiGating.allowed).toBe('boolean');
+    }
+
+    // Verkehrsantrag wird zugelassen, Kunstausstellung nicht
+    const verkehr = out.references.find(r => r.url === 'https://example.com/1');
+    const kunst   = out.references.find(r => r.url === 'https://example.com/2');
+    expect(verkehr.trafficCategory).toBe('direct_traffic');
+    expect(verkehr.aiGating.allowed).toBe(true);
+    expect(kunst.trafficCategory).toBe('non_traffic');
+    expect(kunst.aiGating.allowed).toBe(false);
   });
 });

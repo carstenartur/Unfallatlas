@@ -41,6 +41,16 @@
         "supported": {
           "type": "boolean",
           "description": "Gibt an, ob die Stadt unterstützt wird"
+        },
+        "cache": {
+          "type": "object",
+          "description": "Cache-Status der Anfrage (additiv).  `hit`=true heißt, das Ergebnis kam aus dem in-memory/Disk-Cache; `enabled`=false bedeutet, dass der Aufrufer das Caching pro Anfrage deaktiviert hat.",
+          "additionalProperties": false,
+          "properties": {
+            "hit":     { "type": "boolean" },
+            "enabled": { "type": "boolean" },
+            "key":     { "type": "string", "description": "Deterministischer sha256-Cache-Key (Hex)." }
+          }
         }
       }
     }

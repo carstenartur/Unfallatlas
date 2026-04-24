@@ -5,18 +5,31 @@
  *
  * Ablauf:
  *  1. Ermittelt den passenden Provider aus der Registry.
- *  2. Führt die Suche pro Suchbegriff durch.
- *  3. Normalisiert alle Treffer ins einheitliche Referenzmodell.
- *  4. Dedupliziert (nach URL).
- *  5. Bewertet Relevanz und sortiert absteigend.
- *  6. Gibt ein PoliticalReferenceSearchResult-Objekt zurück.
+ *  2. Erzeugt aus den Suchbegriffen + Kontext zusätzliche Suchvarianten
+ *     (Variantensuche – verbessert den Recall).
+ *  3. Führt die Suche pro (erweitertem) Suchbegriff durch.
+ *  4. Normalisiert alle Treffer ins einheitliche Referenzmodell.
+ *  5. Dedupliziert (nach URL).
+ *  6. Bewertet Relevanz und sortiert absteigend.
+ *  7. Reichert jeden Treffer um die *Verkehrsrelevanz-Klassifikation* und
+ *     die *KI-Gating-Entscheidung* an (rein additiv, keine Filterung).
+ *  8. Gibt ein PoliticalReferenceSearchResult-Objekt zurück.
+ *
+ * Hinweis: die Suche bleibt bewusst breit; die fachliche Auswahl, welche
+ * Treffer an die KI weitergereicht werden dürfen, übernimmt der
+ * `aiGatingService` (siehe `shouldAllowForAiEvaluation`).
  *
  * @module server/political-context/services/portalSearchService
  */
 
-const { getProviderForCity } = require('../registry/cityPortalRegistry.js');
-const { normalizeAll }       = require('./portalNormalizationService.js');
-const { scoreAndSort }       = require('./portalRelevanceService.js');
+const { getProviderForCity }   = require('../registry/cityPortalRegistry.js');
+const { normalizeAll }         = require('./portalNormalizationService.js');
+const { scoreAndSort }         = require('./portalRelevanceService.js');
+const { buildSearchVariants }  = require('./searchVariantBuilder.js');
+const { enrichAllWithTrafficRelevance } = require('./trafficRelevanceService.js');
+const { enrichAllWithAiGating }         = require('./aiGatingService.js');
+const { sharedCache: searchCache, buildKey: buildCacheKey } =
+  require('./portalSearchCache.js');
 
 /**
  * @typedef {object} SearchParams
@@ -25,7 +38,10 @@ const { scoreAndSort }       = require('./portalRelevanceService.js');
  * @property {object}    [context]     – optionaler Kontext für Relevanzscoring
  * @property {string}    [context.gremium]   – bevorzugtes Gremium
  * @property {string}    [context.location]  – Ortshinweis
+ * @property {string}    [context.street]    – expliziter Straßenname (optional)
+ * @property {string}    [context.district]  – expliziter Stadtteil (optional)
  * @property {number}    [maxResults=10]     – maximale Trefferzahl
+ * @property {boolean}   [expandVariants=true] – Variantensuche aktivieren?
  */
 
 /**
@@ -36,13 +52,24 @@ const { scoreAndSort }       = require('./portalRelevanceService.js');
  */
 async function search(params) {
   const {
-    city          = '',
-    searchTerms   = [],
-    context       = {},
-    maxResults    = 10
+    city            = '',
+    searchTerms     = [],
+    context         = {},
+    maxResults      = 10,
+    expandVariants  = true,
+    // Cache-Optionen (additiv; bestehende Aufrufer bleiben unverändert)
+    useCache        = true,
+    cache           = searchCache
   } = params || {};
 
   const searchedAt = new Date().toISOString();
+
+  // Effektive Cache-Verfügbarkeit: nur wenn Caching gewünscht ist *und* der
+  // übergebene Store tatsächlich eine `get`-Methode hat.  Für einen Aufrufer,
+  // der `cache: null` oder einen unvollständigen Stub übergibt, ist `enabled`
+  // dann konsistent `false` – sowohl im supported- als auch im
+  // unsupported-City-Pfad.
+  const cacheUsable = Boolean(useCache && cache && typeof cache.get === 'function');
 
   const provider = getProviderForCity(city);
 
@@ -55,7 +82,8 @@ async function search(params) {
         searchedAt,
         totalFound: 0,
         providerKey: null,
-        supported: false
+        supported: false,
+        cache: { hit: false, enabled: cacheUsable }
       }
     };
   }
@@ -68,19 +96,52 @@ async function search(params) {
     ? provider._key
     : 'unknown';
 
-  // Rohsuche
-  const rawResults = await provider.search({ city, searchTerms, context });
+  // ── 1b. Cache-Lookup (vor jeglichem Provider-Call) ─────────────────────
+  const cacheKey = cacheUsable
+    ? buildCacheKey({ city, searchTerms, context, maxResults, expandVariants })
+    : null;
+  if (cacheKey) {
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      // Frische Zeitstempel + Cache-Indikator, sonst originaler Inhalt
+      return {
+        references: cached.references,
+        meta: {
+          ...cached.meta,
+          searchedAt,
+          cache: { hit: true, enabled: true, key: cacheKey }
+        }
+      };
+    }
+  }
 
-  // Normalisierung + Deduplizierung
+  // ── 2. Variantensuche ───────────────────────────────────────────────────
+  // Erzeugt zusätzliche Suchbegriffe aus Karten-/Exportkontext.  Der Suche
+  // wird die erweiterte Liste übergeben, damit der Recall steigt; in den
+  // Meta-Daten geben wir aber weiterhin die Originalbegriffe zurück, damit
+  // bestehende Frontend-Erwartungen unverändert bleiben.
+  const effectiveTerms = expandVariants
+    ? buildSearchVariants(searchTerms, context)
+    : searchTerms;
+
+  // ── 3. Rohsuche ─────────────────────────────────────────────────────────
+  const rawResults = await provider.search({ city, searchTerms: effectiveTerms, context });
+
+  // ── 4./5. Normalisierung + Deduplizierung (nach URL) ────────────────────
   const normalized = normalizeAll(rawResults, providerKey);
 
-  // Relevanzbewertung + Sortierung
+  // ── 6. Relevanzbewertung + Sortierung (gegen die ORIGINAL-Begriffe, damit
+  //       die Variantenexpansion den Score nicht verwässert) ──────────────
   const scored = scoreAndSort(normalized, searchTerms, context);
 
-  // Auf maxResults begrenzen
-  const trimmed = scored.slice(0, Math.max(0, maxResults));
+  // ── 7. Verkehrsrelevanz + KI-Gating (additiv) ───────────────────────────
+  const withTraffic = enrichAllWithTrafficRelevance(scored);
+  const withGating  = enrichAllWithAiGating(withTraffic, context);
 
-  return {
+  // Auf maxResults begrenzen
+  const trimmed = withGating.slice(0, Math.max(0, maxResults));
+
+  const result = {
     references: trimmed,
     meta: {
       city,
@@ -88,9 +149,19 @@ async function search(params) {
       searchedAt,
       totalFound: normalized.length,
       providerKey,
-      supported: true
+      supported: true,
+      cache: { hit: false, enabled: Boolean(cacheKey), ...(cacheKey ? { key: cacheKey } : {}) }
     }
   };
+
+  // Cache schreiben (nach erfolgreicher Antwort)
+  if (cacheKey) {
+    try { cache.set(cacheKey, { references: result.references, meta: { ...result.meta, cache: undefined } }); }
+    catch (_) { /* Cache-Fehler dürfen die Antwort nicht stören */ }
+  }
+
+  return result;
 }
 
 module.exports = { search };
+

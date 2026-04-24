@@ -24,6 +24,8 @@ const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAss
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 const { search: politicalContextSearch } = require('./political-context/services/portalSearchService.js');
 const { listSupportedCities }            = require('./political-context/registry/cityPortalRegistry.js');
+const { getCapabilities }                = require('./lib/capabilities.js');
+const { sendError, attachFallbackInfo, CATEGORIES } = require('./lib/errors.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -83,6 +85,46 @@ app.use(express.static(ROOT, {
 // ── Health-Check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ── Status / Capability-Übersicht ─────────────────────────────────────────────
+/**
+ * GET /api/status
+ *
+ * Aggregierter Status-Endpunkt.  Liefert pro optionalem Feature einen
+ * strukturierten Capability-Eintrag (`available`, `reasonCode`, `reason`,
+ * optional `details`).  Gedacht für:
+ *   - Frontend (Single-Call statt n Feature-Flag-Endpunkte)
+ *   - Dokumentation / Smoke-Test-Skripte
+ *   - Debugging im Betrieb
+ *
+ * Bestehende Single-Feature-Endpunkte (`/api/ai-assessment-available`,
+ * `/api/video-export-available`, `/api/political-context/supported`) bleiben
+ * unverändert verfügbar.
+ *
+ * Antwort:
+ *   {
+ *     status:    'ok',
+ *     timestamp: '<ISO-8601>',
+ *     version:   '<package.json#version>',
+ *     uptimeSec: <number>,
+ *     capabilities: { aiAssessmentV1, aiAssessmentV2, politicalContext, videoExport }
+ *   }
+ */
+app.get('/api/status', (_req, res) => {
+  let version = 'unknown';
+  try {
+    // eslint-disable-next-line global-require
+    version = require('../package.json').version || 'unknown';
+  } catch (_) { /* keep 'unknown' */ }
+
+  res.json({
+    status:    'ok',
+    timestamp: new Date().toISOString(),
+    version,
+    uptimeSec: Math.round(process.uptime()),
+    ...getCapabilities()
+  });
 });
 
 // ── Feature-Flag: Video-Export verfügbar? ─────────────────────────────────────
@@ -165,12 +207,21 @@ app.get('/api/ai-assessment-available', (_req, res) => {
  */
 app.post('/api/ai/export-assessment', aiAssessmentRateLimit, async (req, res) => {
   if (!isAvailable()) {
-    return res.status(503).json({ error: 'KI-Bewertung ist nicht konfiguriert (GEMINI_API_KEY fehlt).' });
+    return sendError(res, {
+      status: 503,
+      category: CATEGORIES.FEATURE_UNAVAILABLE,
+      code: 'AI_NOT_CONFIGURED',
+      message: 'KI-Bewertung ist nicht konfiguriert (GEMINI_API_KEY fehlt).'
+    });
   }
 
   const { structured, contextHints } = req.body || {};
   if (!structured || typeof structured !== 'object') {
-    return res.status(400).json({ error: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.' });
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'STRUCTURED_REQUIRED',
+      message: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.'
+    });
   }
 
   try {
@@ -179,7 +230,11 @@ app.post('/api/ai/export-assessment', aiAssessmentRateLimit, async (req, res) =>
   } catch (err) {
     // Log without sensitive data (no API key, no raw prompt)
     console.error('[ai/export-assessment] Fehler:', err.message);
-    return res.status(500).json({ error: err.message || 'Interner Fehler bei der KI-Bewertung.' });
+    return sendError(res, {
+      category: CATEGORIES.UPSTREAM_ERROR,
+      code: 'AI_REQUEST_FAILED',
+      message: err.message || 'Interner Fehler bei der KI-Bewertung.'
+    });
   }
 });
 
@@ -214,29 +269,56 @@ app.post('/api/ai/export-assessment/v2', aiAssessmentRateLimit, async (req, res)
   const body = req.body || {};
   const mode = String(body.mode || req.query.mode || 'assessment');
   if (!VALID_MODES.includes(mode)) {
-    return res.status(400).json({ error: `Ungültiger mode "${mode}". Erlaubt: ${VALID_MODES.join(', ')}` });
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'INVALID_MODE',
+      message: `Ungültiger mode "${mode}". Erlaubt: ${VALID_MODES.join(', ')}`
+    });
   }
   const { structured, contextHints } = body;
   if (!structured || typeof structured !== 'object') {
-    return res.status(400).json({ error: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.' });
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'STRUCTURED_REQUIRED',
+      message: 'Pflichtfeld "structured" fehlt oder ist kein Objekt.'
+    });
   }
   const withFallback = body.withFallback !== false;
 
   try {
     const out = await runAssessmentV2({ structured, contextHints, mode, withFallback });
-    return res.json({
+    const payload = {
       mode,
       source: out.source,
       cacheKey: out.cacheKey,
       result: out.result,
       ...(out.error ? { fallbackReason: out.error } : {})
-    });
+    };
+    // Bei Fallback zusätzlich strukturierte Fehler-Info anhängen, ohne die
+    // bestehende Antwort­form zu verändern.
+    if (out.source === 'fallback') {
+      return res.json(attachFallbackInfo(payload, {
+        code:    'AI_FALLBACK_USED',
+        message: out.error || 'KI nicht verfügbar – deterministischer Fallback wurde geliefert.',
+        details: { aiCallEnabled: false }
+      }));
+    }
+    return res.json(payload);
   } catch (err) {
     if (err && err.code === 'AI_NOT_CONFIGURED') {
-      return res.status(503).json({ error: err.message });
+      return sendError(res, {
+        status: 503,
+        category: CATEGORIES.FEATURE_UNAVAILABLE,
+        code: 'AI_NOT_CONFIGURED',
+        message: err.message
+      });
     }
     console.error('[ai/export-assessment/v2] Fehler:', err.message);
-    return res.status(500).json({ error: err.message || 'Interner Fehler bei der KI-Bewertung.' });
+    return sendError(res, {
+      category: CATEGORIES.UPSTREAM_ERROR,
+      code: 'AI_REQUEST_FAILED',
+      message: err.message || 'Interner Fehler bei der KI-Bewertung.'
+    });
   }
 });
 
@@ -361,17 +443,29 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
   const { city, searchTerms, context, maxResults } = req.body || {};
 
   if (!city || typeof city !== 'string' || !city.trim()) {
-    return res.status(400).json({ error: 'Pflichtfeld "city" fehlt oder ist leer.' });
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'CITY_REQUIRED',
+      message: 'Pflichtfeld "city" fehlt oder ist leer.'
+    });
   }
   if (!Array.isArray(searchTerms) || searchTerms.length === 0) {
-    return res.status(400).json({ error: 'Pflichtfeld "searchTerms" fehlt oder ist kein nichtleeres Array.' });
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'SEARCH_TERMS_REQUIRED',
+      message: 'Pflichtfeld "searchTerms" fehlt oder ist kein nichtleeres Array.'
+    });
   }
   // Sanitize: alle Einträge müssen Strings sein, max. 200 Zeichen
   const sanitizedTerms = searchTerms
     .filter(t => typeof t === 'string' && t.trim())
     .map(t => t.trim().substring(0, 200));
   if (sanitizedTerms.length === 0) {
-    return res.status(400).json({ error: 'searchTerms enthält keine gültigen Suchbegriffe.' });
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'SEARCH_TERMS_EMPTY',
+      message: 'searchTerms enthält keine gültigen Suchbegriffe.'
+    });
   }
 
   const parsed = parseInt(maxResults, 10);
@@ -387,13 +481,18 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
     return res.json(result);
   } catch (err) {
     console.error('[political-context/search] Fehler:', err.message);
-    return res.status(500).json({ error: err.message || 'Interner Fehler bei der politischen Recherche.' });
+    return sendError(res, {
+      category: CATEGORIES.INTERNAL_ERROR,
+      code: 'POLITICAL_SEARCH_FAILED',
+      message: err.message || 'Interner Fehler bei der politischen Recherche.'
+    });
   }
 });
 
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
+  console.log(`Status:        GET  http://localhost:${PORT}/api/status`);
   console.log(`Video-Export: POST http://localhost:${PORT}/api/export-video`);
   console.log(`KI-Bewertung v1: POST http://localhost:${PORT}/api/ai/export-assessment (verfügbar: ${isAvailable()})`);
   console.log(`KI-Bewertung v2: POST http://localhost:${PORT}/api/ai/export-assessment/v2?mode=assessment|proposal-brief`);
