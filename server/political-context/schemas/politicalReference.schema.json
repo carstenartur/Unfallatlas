@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PoliticalReference",
+  "description": "Einheitliches internes Datenmodell für einen politischen Vorgang (portal-unabhängig)",
+  "type": "object",
+  "required": ["id", "title", "type", "url", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Eindeutige interne ID (z. B. sha256-Hash aus URL)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Titel des Vorgangs"
+    },
+    "type": {
+      "type": "string",
+      "description": "Vorgangstyp (Antrag, Anfrage, Beschluss, Verwaltungsantwort, Protokoll, Sonstige)",
+      "enum": ["Antrag", "Anfrage", "Änderungsantrag", "Beschluss", "Verwaltungsantwort", "Protokoll", "Sonstige"]
+    },
+    "date": {
+      "type": ["string", "null"],
+      "description": "Datum des Vorgangs (ISO 8601 oder deutsches Format)"
+    },
+    "gremium": {
+      "type": ["string", "null"],
+      "description": "Gremium / Ausschuss (z. B. 'Stadtbezirksrat Mitte', 'Ausschuss für Stadtentwicklung')"
+    },
+    "number": {
+      "type": ["string", "null"],
+      "description": "Drucksachen- oder Vorgangsnummer"
+    },
+    "snippet": {
+      "type": ["string", "null"],
+      "description": "Kurzer Textausschnitt / Auszug aus dem Dokument"
+    },
+    "url": {
+      "type": "string",
+      "description": "Direktlink zur Dokumentenseite im Portal"
+    },
+    "source": {
+      "type": "string",
+      "description": "Kürzel des Quellportals / Anbieters (z. B. 'hannover-sim')"
+    },
+    "relevanceScore": {
+      "type": ["number", "null"],
+      "description": "Relevanzscore (0–100), berechnet durch portalRelevanceService"
+    },
+    "referenceType": {
+      "type": ["string", "null"],
+      "description": "Feinere fachliche Klassifikation für Antragsschreiber (Folge-PR C verfeinert dies). 'verwandtes Thema' bedeutet: Treffer ohne klaren Vorgangsbezug.",
+      "enum": ["Antrag", "Anfrage", "Beschluss", "Verwaltungsantwort", "Protokollnotiz", "verwandtes Thema", null]
+    },
+    "reason": {
+      "type": ["string", "null"],
+      "description": "Kurze, lokalisierte Begründung, warum dieser Treffer relevant ist (z. B. 'Suchbegriff „Limmerstraße\" im Titel.'). Max. 240 Zeichen."
+    },
+    "locationMatch": {
+      "type": ["string", "null"],
+      "description": "Welche Art von Ortsbezug wurde getroffen: 'street' (Straßenname), 'district' (Stadtbezirk), 'bbox' (über Kartenbereich), 'topic-only' (kein Ortsbezug, nur Thema).",
+      "enum": ["street", "district", "bbox", "topic-only", null]
+    },
+    "topicMatch": {
+      "type": ["array", "null"],
+      "description": "Suchbegriffe, die in Titel oder Snippet tatsächlich getroffen haben.",
+      "items": { "type": "string" }
+    },
+    "streetHints": {
+      "type": "array",
+      "description": "Im Titel/Snippet erkannte Straßennamen (Heuristik). Optional, kann leer sein.",
+      "items": { "type": "string" }
+    },
+    "areaHints": {
+      "type": "array",
+      "description": "Im Titel/Snippet erkannte Stadtbezirks-/Gebietsnamen (Heuristik). Optional, kann leer sein.",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -2,9 +2,11 @@
  * Express-Server für die Docker-Distribution der Unfallwerkbank.
  *
  * Stellt die statischen Werkbank-Dateien bereit und bietet folgende Endpunkte:
- *   POST /api/export-video          – GIF-Video-Export (Playwright/ffmpeg)
- *   POST /api/ai/export-assessment  – optionale KI-gestützte Bewertung (Gemini)
- *   GET  /api/ai-assessment-available – Feature-Flag (GEMINI_API_KEY vorhanden?)
+ *   POST /api/export-video                – GIF-Video-Export (Playwright/ffmpeg)
+ *   POST /api/ai/export-assessment        – optionale KI-gestützte Bewertung (Gemini)
+ *   GET  /api/ai-assessment-available     – Feature-Flag (GEMINI_API_KEY vorhanden?)
+ *   POST /api/political-context/search    – serverseitige Recherche politischer Vorgänge
+ *   GET  /api/political-context/supported – Liste unterstützter Städte
  *
  * Start: node server/index.js
  * Port:  8000 (konfigurierbar über Umgebungsvariable PORT)
@@ -20,6 +22,8 @@ const { exportVideo }   = require('./video-export.js');
 const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
 const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAssessmentServiceV2.js');
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
+const { search: politicalContextSearch } = require('./political-context/services/portalSearchService.js');
+const { listSupportedCities }            = require('./political-context/registry/cityPortalRegistry.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -42,6 +46,15 @@ const videoExportRateLimit = rateLimit({
 const aiAssessmentRateLimit = rateLimit({
   windowMs: 60_000,
   max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
+});
+
+// Rate limiter for the political context search endpoint (20 requests/minute per IP).
+const politicalContextRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
@@ -310,6 +323,74 @@ app.get('/api/ai/jobs/:id', (req, res) => {
   return res.json(publicJob);
 });
 
+// ── Politische Kontextrecherche ───────────────────────────────────────────────
+
+/**
+ * GET /api/political-context/supported
+ *
+ * Gibt eine Liste aller unterstützten Städte zurück.
+ *
+ * Antwort: { cities: string[] }
+ */
+app.get('/api/political-context/supported', (_req, res) => {
+  res.json({ cities: listSupportedCities() });
+});
+
+/**
+ * POST /api/political-context/search
+ *
+ * Recherchiert politische Vorgänge für einen Kartenbereich / eine Stadt.
+ *
+ * Body (JSON):
+ *   city        {string}    – Stadtname (z. B. "Hannover")
+ *   searchTerms {string[]}  – Suchbegriffe (Straße, Kreuzung, Stadtbezirk …)
+ *   context     {object}    – optionaler Kontext
+ *     gremium   {string}    – bevorzugtes Gremium
+ *     location  {string}    – Ortshinweis
+ *   maxResults  {number}    – max. Trefferzahl (Standard: 10, max: 30)
+ *
+ * Antwort: PoliticalReferenceSearchResult
+ *   { references: PoliticalReference[], meta: { city, searchTerms, searchedAt,
+ *     totalFound, providerKey, supported } }
+ *
+ * Fehler:
+ *   400 – Pflichtfelder fehlen / ungültige Eingabe
+ *   500 – Interner Fehler
+ */
+app.post('/api/political-context/search', politicalContextRateLimit, async (req, res) => {
+  const { city, searchTerms, context, maxResults } = req.body || {};
+
+  if (!city || typeof city !== 'string' || !city.trim()) {
+    return res.status(400).json({ error: 'Pflichtfeld "city" fehlt oder ist leer.' });
+  }
+  if (!Array.isArray(searchTerms) || searchTerms.length === 0) {
+    return res.status(400).json({ error: 'Pflichtfeld "searchTerms" fehlt oder ist kein nichtleeres Array.' });
+  }
+  // Sanitize: alle Einträge müssen Strings sein, max. 200 Zeichen
+  const sanitizedTerms = searchTerms
+    .filter(t => typeof t === 'string' && t.trim())
+    .map(t => t.trim().substring(0, 200));
+  if (sanitizedTerms.length === 0) {
+    return res.status(400).json({ error: 'searchTerms enthält keine gültigen Suchbegriffe.' });
+  }
+
+  const parsed = parseInt(maxResults, 10);
+  const resolvedMax = Math.min(30, Math.max(0, isNaN(parsed) ? 10 : parsed));
+
+  try {
+    const result = await politicalContextSearch({
+      city: city.trim().substring(0, 100),
+      searchTerms: sanitizedTerms,
+      context: (context && typeof context === 'object') ? context : {},
+      maxResults: resolvedMax
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error('[political-context/search] Fehler:', err.message);
+    return res.status(500).json({ error: err.message || 'Interner Fehler bei der politischen Recherche.' });
+  }
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
@@ -318,4 +399,5 @@ app.listen(PORT, () => {
   console.log(`KI-Bewertung v2: POST http://localhost:${PORT}/api/ai/export-assessment/v2?mode=assessment|proposal-brief`);
   console.log(`KI-Bewertung Jobs: POST http://localhost:${PORT}/api/ai/jobs  und  GET /api/ai/jobs/:id`);
   console.log(`KI-Provider: ${activeProviderName()}`);
+  console.log(`Politische Recherche: POST http://localhost:${PORT}/api/political-context/search`);
 });

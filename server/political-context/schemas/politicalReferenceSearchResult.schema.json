@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PoliticalReferenceSearchResult",
+  "description": "Ergebnis einer serverseitigen Recherche nach politischen Vorgängen",
+  "type": "object",
+  "required": ["references", "meta"],
+  "additionalProperties": false,
+  "properties": {
+    "references": {
+      "type": "array",
+      "description": "Liste normalisierter Treffer, absteigend nach Relevanzscore sortiert",
+      "items": { "$ref": "politicalReference.schema.json" }
+    },
+    "meta": {
+      "type": "object",
+      "description": "Metadaten zur Suche",
+      "required": ["city", "searchTerms", "searchedAt", "totalFound"],
+      "additionalProperties": false,
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "Stadtname der Suche"
+        },
+        "searchTerms": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Verwendete Suchbegriffe"
+        },
+        "searchedAt": {
+          "type": "string",
+          "description": "Zeitstempel der Suche (ISO 8601)"
+        },
+        "totalFound": {
+          "type": "integer",
+          "description": "Gesamtanzahl gefundener Treffer (nach Deduplizierung, vor Relevanz-Begrenzung)"
+        },
+        "providerKey": {
+          "type": ["string", "null"],
+          "description": "Kürzel des verwendeten Providers"
+        },
+        "supported": {
+          "type": "boolean",
+          "description": "Gibt an, ob die Stadt unterstützt wird"
+        }
+      }
+    }
+  }
+}

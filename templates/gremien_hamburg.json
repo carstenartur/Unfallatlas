@@ -1,0 +1,77 @@
+{
+  "gremiumTyp": "Bezirksversammlung",
+  "hinweis": "Zuständigkeit bitte vor Einreichung mit der aktuellen Bezirksgliederung der Freien und Hansestadt Hamburg abgleichen.",
+  "fallback": "Zuständige Bezirksversammlung konnte nicht eindeutig ermittelt werden. Bitte prüfen Sie die Zuordnung anhand der sieben Hamburger Bezirke (Hamburg-Mitte, Altona, Eimsbüttel, Hamburg-Nord, Wandsbek, Bergedorf, Harburg).",
+  "zuordnung": [
+    {
+      "match": {
+        "city_district": [
+          "Hamburg-Mitte",
+          "Bezirk Hamburg-Mitte"
+        ]
+      },
+      "gremium": "Bezirksversammlung Hamburg-Mitte",
+      "kontakt": "bezirksversammlung@hamburg-mitte.hamburg.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Altona",
+          "Bezirk Altona"
+        ]
+      },
+      "gremium": "Bezirksversammlung Altona",
+      "kontakt": "bezirksversammlung@altona.hamburg.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Eimsbüttel",
+          "Bezirk Eimsbüttel"
+        ]
+      },
+      "gremium": "Bezirksversammlung Eimsbüttel",
+      "kontakt": "bezirksversammlung@eimsbuettel.hamburg.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Hamburg-Nord",
+          "Bezirk Hamburg-Nord"
+        ]
+      },
+      "gremium": "Bezirksversammlung Hamburg-Nord",
+      "kontakt": "bezirksversammlung@hamburg-nord.hamburg.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Wandsbek",
+          "Bezirk Wandsbek"
+        ]
+      },
+      "gremium": "Bezirksversammlung Wandsbek",
+      "kontakt": "bezirksversammlung@wandsbek.hamburg.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Bergedorf",
+          "Bezirk Bergedorf"
+        ]
+      },
+      "gremium": "Bezirksversammlung Bergedorf",
+      "kontakt": "bezirksversammlung@bergedorf.hamburg.de"
+    },
+    {
+      "match": {
+        "city_district": [
+          "Harburg",
+          "Bezirk Harburg"
+        ]
+      },
+      "gremium": "Bezirksversammlung Harburg",
+      "kontakt": "bezirksversammlung@harburg.hamburg.de"
+    }
+  ]
+}

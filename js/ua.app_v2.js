@@ -177,6 +177,11 @@
       UA.initReportExportUI(ctx);
     }
 
+    // Initialize political context research module (fail-safe)
+    if (UA.PoliticalContext && typeof UA.PoliticalContext.init === "function") {
+      UA.PoliticalContext.init(ctx);
+    }
+
     // map events - separate pan vs zoom handling
     ctx.map.on("moveend", () => UA.scheduleViewportUpdate(ctx, false));
     ctx.map.on("zoomend", () => UA.scheduleViewportUpdate(ctx, true));
