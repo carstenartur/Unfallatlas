@@ -255,7 +255,7 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     }
   });
 
-  test('jede Zeile in cities.txt hat einen Katalog-Eintrag mit derselben id', () => {
+  test('alle Städte in cities.txt haben einen Katalog-Eintrag mit derselben id', () => {
     // Der GitHub-Workflow generate-and-commit.yml triggert
     // convertAmt2gmaps.sh genau für diese Liste.  Damit der Katalog
     // nicht von der Realität entkoppelt, muss jeder Eintrag in
@@ -269,35 +269,65 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     }
   });
 
-  test('alle Städte in cities.txt sind als Stufe A "supported" markiert', () => {
-    // Stufe A ("Unfallanalyse") ist nur dann ehrlich `supported`, wenn
-    // die Workflows für diese Stadt tatsächlich GeoJSONs erzeugt haben.
-    // cities.txt ist die Master-Liste; sie definiert genau diese Menge.
-    const txt = cityRegistry.readCitiesTxt();
-    for (const entry of txt) {
-      const city = cityRegistry.getCityById(entry.slug);
-      expect(city.accidentDataSupport).toBe('supported');
+  test('Rollout-Invariante: cities.txt ist Obermenge der "supported"-Slugs', () => {
+    // cities.txt ist die Rollout-Queue für `Generate & Commit`.
+    // Bedingung in beide Richtungen wäre zu streng (eine neu in die
+    // Queue aufgenommene Stadt darf in einem PR landen, bevor der
+    // Workflow gelaufen ist).  Eine Stadt darf jedoch nicht als
+    // `accidentDataSupport: 'supported'` markiert sein, ohne in der
+    // Rollout-Liste zu stehen – sonst würde sie nie regenerierbar
+    // sein.
+    const txtSlugs = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
+    const supportedSlugs = cityRegistry.listCities()
+      .filter(c => c.accidentDataSupport === 'supported')
+      .map(c => c.id);
+    for (const slug of supportedSlugs) {
+      expect(txtSlugs.has(slug)).toBe(true);
     }
   });
 
-  test('Katalog-Städte mit Stufe A "supported" sind genau die in cities.txt', () => {
-    // Strenge Gleichheit in beide Richtungen – verhindert, dass eine
-    // Stadt im Katalog auf "supported" hochrutscht, ohne dass die
-    // Workflows sie kennen, und umgekehrt.
-    const txtSlugs       = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
-    const supportedSlugs = new Set(
-      cityRegistry.listCities()
-        .filter(c => c.accidentDataSupport === 'supported')
-        .map(c => c.id)
-    );
-    expect(supportedSlugs).toEqual(txtSlugs);
+  test('Materialisierungs-Honesty: "supported" gilt nur, wenn out/output_all_years_<id>.geojson existiert', () => {
+    // Kernforderung des Rollout-Modells: `accidentDataSupport:
+    // 'supported'` ist eine Aussage über die *tatsächlich nutzbare*
+    // Datenlage, nicht über die *geplante*.  Sobald jemand den Status
+    // hochzieht, ohne dass die Workflow-Datei vorliegt, fällt dieser
+    // Test – das schützt die UI vor toten Stadt-Tabs.
+    const cities = cityRegistry.listCities();
+    for (const c of cities) {
+      if (c.accidentDataSupport === 'supported') {
+        const assets = cityRegistry.getDataAssets(c.id);
+        expect(assets.accidents).toBe(true);
+      }
+    }
   });
 
   test('Katalog-Städte ohne Workflow-Daten sind als Stufe A "partially_supported" geführt', () => {
+    // Komplement zur Materialisierungs-Honesty: liegt keine GeoJSON
+    // vor, darf der Status höchstens `partially_supported` sein.
+    const cities = cityRegistry.listCities();
+    let withoutData = 0;
+    for (const c of cities) {
+      const assets = cityRegistry.getDataAssets(c.id);
+      if (!assets.accidents) {
+        expect(c.accidentDataSupport).toBe('partially_supported');
+        withoutData++;
+      }
+    }
+    // Mindestens die Rollout-Kandidaten >500k/>300k aus cities.txt
+    // (Stuttgart, Leipzig, … Münster) sind hier vertreten.
+    expect(withoutData).toBeGreaterThan(0);
+  });
+
+  test('Rollout-Queue: alle Städte mit qualityFlag "rollout-queued" stehen in cities.txt und sind partially_supported', () => {
+    // Garantiert, dass das `rollout-queued`-Flag (Anzeige in UI/API)
+    // eine sinnvolle Aussage trifft und nicht versehentlich an einer
+    // bereits supported-Stadt hängenbleibt.
     const txtSlugs = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
-    const others = cityRegistry.listCities().filter(c => !txtSlugs.has(c.id));
-    expect(others.length).toBeGreaterThan(0);
-    for (const c of others) {
+    const queued = cityRegistry.listCities()
+      .filter(c => (c.qualityFlags || []).includes('rollout-queued'));
+    expect(queued.length).toBeGreaterThan(0);
+    for (const c of queued) {
+      expect(txtSlugs.has(c.id)).toBe(true);
       expect(c.accidentDataSupport).toBe('partially_supported');
     }
   });

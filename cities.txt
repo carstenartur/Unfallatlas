@@ -10,3 +10,16 @@ Heilbronn
 Braunschweig
 Duesseldorf
 Wolfsburg
+# --- Rollout >500k Einwohner (Priorität 1) ---
+Stuttgart
+Leipzig
+Dortmund
+Essen
+Bremen
+Dresden
+Nuernberg
+Duisburg
+# --- Rollout >300k Einwohner (Priorität 2) ---
+Bochum
+Wuppertal
+Muenster

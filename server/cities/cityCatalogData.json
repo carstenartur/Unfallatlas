@@ -136,7 +136,8 @@
       "knownPortalType": null,
       "portalBaseUrl": null,
       "qualityFlags": [
-        "state-capital"
+        "state-capital",
+        "rollout-queued"
       ]
     },
     {
@@ -178,7 +179,9 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "dortmund",
@@ -197,7 +200,9 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "essen",
@@ -216,7 +221,9 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "bremen",
@@ -237,7 +244,8 @@
       "portalBaseUrl": null,
       "qualityFlags": [
         "state-capital",
-        "city-state"
+        "city-state",
+        "rollout-queued"
       ]
     },
     {
@@ -258,7 +266,8 @@
       "knownPortalType": null,
       "portalBaseUrl": null,
       "qualityFlags": [
-        "state-capital"
+        "state-capital",
+        "rollout-queued"
       ]
     },
     {
@@ -301,7 +310,9 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "duisburg",
@@ -320,7 +331,9 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "bochum",
@@ -332,14 +345,16 @@
         "kreis": "05911",
         "gemeinde": "05911000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "wuppertal",
@@ -351,14 +366,16 @@
         "kreis": "05124",
         "gemeinde": "05124000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "bielefeld",
@@ -370,7 +387,7 @@
         "kreis": "05711",
         "gemeinde": "05711000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
@@ -392,7 +409,7 @@
         "kreis": "05314",
         "gemeinde": "05314000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "supported",
       "analysisServiceSupport": "supported",
@@ -414,14 +431,16 @@
         "kreis": "05515",
         "gemeinde": "05515000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "rollout-queued"
+      ]
     },
     {
       "id": "karlsruhe",
@@ -433,7 +452,7 @@
         "kreis": "08212",
         "gemeinde": "08212000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
@@ -452,7 +471,7 @@
         "kreis": "08222",
         "gemeinde": "08222000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
@@ -471,7 +490,7 @@
         "kreis": "09761",
         "gemeinde": "09761000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
@@ -490,7 +509,7 @@
         "kreis": "06414",
         "gemeinde": "06414000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
@@ -680,7 +699,7 @@
         "kreis": "03101",
         "gemeinde": "03101000"
       },
-      "populationClass": "metropolis",
+      "populationClass": "large",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
