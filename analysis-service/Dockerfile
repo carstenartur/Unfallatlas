@@ -27,7 +27,7 @@ COPY src ./src
 RUN mvn -B -q -DskipTests package && \
     cp target/unfallatlas-analysis-service-*.jar /workspace/app.jar
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21.0.10_7-jre
 WORKDIR /app
 COPY --from=build /workspace/app.jar /app/app.jar
 
