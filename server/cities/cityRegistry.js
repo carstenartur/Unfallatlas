@@ -356,8 +356,13 @@ function searchCities(query, options = {}) {
  */
 function describeCity(city) {
   if (!city) return null;
-  const analysisAvailable = getStatus(city, SUPPORT_LEVELS.C) !== SUPPORT_STATUS.UNSUPPORTED;
-  const rankingAvailable  = analysisAvailable && city.rankingSupport !== SUPPORT_STATUS.UNSUPPORTED;
+  // ranking ist nur dann nutzbar, wenn sowohl Stufe C als auch das
+  // explizite rankingSupport-Flag mindestens „partially_supported" sind.
+  // Wir benutzen denselben hasSupport-Helper wie für die übrigen
+  // Capability-Booleans, damit das Verhalten konsistent bleibt.
+  const rankingAvailable =
+    hasSupport(city, SUPPORT_LEVELS.C)
+    && city.rankingSupport !== SUPPORT_STATUS.UNSUPPORTED;
   return Object.assign({}, city, {
     supportLevels: describeSupport(city),
     capabilities: {

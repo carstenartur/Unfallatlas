@@ -443,6 +443,13 @@ app.get('/api/ai/jobs/:id', (req, res) => {
 
 // ── Bundesweiter Städte-/Regionen-Katalog ─────────────────────────────────────
 
+// Default- und Obergrenzen für die Listenausgabe.  Der Katalog ist
+// klein (Größenordnung 100 Einträge), wir wollen aber das Antwort-
+// volumen vorhersagbar deckeln, ohne die Suche unnötig einzuschränken.
+const DEFAULT_CITY_LIST_LIMIT = 200;
+const MAX_CITY_LIST_LIMIT     = 500;
+const MAX_CITY_SEARCH_POOL    = 500;
+
 // Lese-Rate-Limiter für die Katalog-Endpunkte – die Antworten sind klein
 // und cache-fähig, aber wir schützen vor unbeabsichtigten Loops in der UI.
 const cityCatalogRateLimit = rateLimit({
@@ -478,11 +485,14 @@ const cityCatalogRateLimit = rateLimit({
  */
 app.get('/api/cities', cityCatalogRateLimit, (req, res) => {
   const { q, state, support } = req.query || {};
-  const limit = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 200));
+  const limit = Math.max(
+    1,
+    Math.min(MAX_CITY_LIST_LIMIT, parseInt(req.query.limit, 10) || DEFAULT_CITY_LIST_LIMIT)
+  );
 
   let pool;
   if (typeof q === 'string' && q.trim()) {
-    pool = cityRegistry.searchCities(q, { limit: 500 });
+    pool = cityRegistry.searchCities(q, { limit: MAX_CITY_SEARCH_POOL });
   } else if (typeof state === 'string' && state.trim()) {
     pool = cityRegistry.listCitiesByState(state.trim().toUpperCase());
   } else {
