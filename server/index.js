@@ -11,6 +11,9 @@
  *   GET  /api/location-briefs/by-location/:key – gespeicherte Briefs einer Stelle
  *   GET  /api/location-briefs/top         – Top-N gespeicherte Briefs (Stadt+Profil)
  *   GET  /api/location-briefs?city=…      – gespeicherte Briefs einer Stadt
+ *   GET  /api/priorities/top              – Top-N als kompakte Decision-Cards
+ *   GET  /api/priorities/by-location/:key – gespeicherte Briefs einer Stelle als Cards
+ *   GET  /api/priorities/profiles         – verfügbare Profile + dataStatus-Vokabular
  *
  * Die Lese-Endpunkte unter `/api/location-briefs` sind dünne Forwarder zum
  * separaten Analysis Service (Spring Boot, siehe `analysis-service/`) und
@@ -36,6 +39,8 @@ const { buildLocationBrief, PROFILE_IDS, DEFAULT_PROFILE } = require('./location
 const { getCapabilities }                = require('./lib/capabilities.js');
 const { sendError, attachFallbackInfo, CATEGORIES } = require('./lib/errors.js');
 const analysisServiceClient              = require('./analysis-service/analysisServiceClient.js');
+const priorities                         = require('./priorities');
+const { createPrioritiesHandlers }       = require('./priorities/handlers.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -553,12 +558,19 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
     });
   }
 
+  // `useStored: true` wurde explizit angefragt?  Falls ja und der Cache-Lookup
+  // weiter unten kein Treffer liefert (oder der Service nicht erreichbar ist),
+  // markieren wir das Endergebnis als `fallback_result` – die UI weiß dann,
+  // dass die persistierte Sicht gewollt, aber nicht möglich war.
+  const storedRequested = useStored === true && typeof locationId === 'string' && locationId.length > 0;
+  let storedFallback = false;
+
   // Optional: vor der Berechnung in den Analysis Service schauen, ob für die
   // gleiche Stelle + Profil bereits ein gespeicherter Brief existiert.  Diese
   // Optimierung ist rein additiv – wenn sie fehlschlägt, wird ganz normal neu
   // berechnet.  Aktiviert über `useStored: true` im Request-Body und nur
   // sinnvoll, wenn die Node-Seite eine stabile `locationId` mitschickt.
-  if (useStored === true && typeof locationId === 'string' && locationId.length > 0) {
+  if (storedRequested) {
     try {
       const cached = await analysisServiceClient.fetchByLocationKey(locationId);
       if (cached.ok && Array.isArray(cached.data) && cached.data.length > 0) {
@@ -574,11 +586,20 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
               storedId: match.id || null,
               attempts: cached.attempts || 1
             },
+            dataStatus: priorities.DATA_STATUS.LOADED_FROM_STORE,
             brief: match
           });
         }
+        // Service erreichbar, aber kein gespeicherter Brief vorhanden:
+        // Live-Compute, aber als Fallback markieren.
+        storedFallback = true;
+      } else {
+        // Service nicht erreichbar oder leere Antwort – ebenfalls Fallback.
+        storedFallback = true;
       }
-    } catch (_) { /* ignore – fall through to fresh compute */ }
+    } catch (_) {
+      storedFallback = true; /* fall through to fresh compute */
+    }
   }
 
   let brief;
@@ -610,13 +631,26 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
     // Klar markieren, dass der Brief frisch berechnet und NICHT gespeichert
     // wurde.  Das gibt UI-Komponenten eine eindeutige Grundlage, ohne dass
     // der Aufrufer den Persistenz-Pfad kennen muss.
+    const persistenceStatus = storedFallback ? 'persist_skipped' : 'freshly_computed';
+    const persistenceBlock = storedFallback
+      ? {
+          status:   persistenceStatus,
+          persisted: false,
+          persistRequested: false,
+          reason: 'stored_lookup_unavailable',
+          attempts: 0
+        }
+      : {
+          status:  persistenceStatus,
+          persisted: false,
+          persistRequested: false,
+          attempts: 0
+        };
     return res.json(Object.assign({}, brief, {
-      persistence: {
-        status:  'freshly_computed',
-        persisted: false,
-        persistRequested: false,
-        attempts: 0
-      }
+      persistence: persistenceBlock,
+      dataStatus: storedFallback
+        ? priorities.DATA_STATUS.FALLBACK_RESULT
+        : priorities.DATA_STATUS.FRESHLY_COMPUTED
     }));
   }
 
@@ -634,7 +668,8 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
           persistRequested: true,
           storedId:  (result.data && result.data.id) || null,
           attempts:  result.attempts || 1
-        }
+        },
+        dataStatus: priorities.DATA_STATUS.PERSISTED
       }));
     }
     // Skipped/Fehler: Brief trotzdem ausliefern, mit klarer Fallback-Info.
@@ -650,7 +685,8 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
         persistRequested: true,
         reason,
         attempts: result.attempts || 0
-      }
+      },
+      dataStatus: priorities.DATA_STATUS.FALLBACK_RESULT
     }));
   } catch (err) {
     console.error('[location-brief][persist] exception (locationKey=%s): %s',
@@ -662,7 +698,8 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
         persistRequested: true,
         reason:   'persist_exception',
         attempts: 0
-      }
+      },
+      dataStatus: priorities.DATA_STATUS.FALLBACK_RESULT
     }));
   }
 });
@@ -768,6 +805,54 @@ app.get('/api/location-briefs', locationBriefRateLimit, async (req, res) => {
   return forwardUpstream(res, result, true);
 });
 
+// ── Prioritäten-/Ranking-Sicht ───────────────────────────────────────────────
+//
+// Diese Endpunkte verdichten die rohen Analysis-Service-Antworten zu
+// kompakten Decision-Cards für die Prioritätenansicht in der Werkbank
+// („Welche Stelle ist wichtig, warum, mit welcher Maßnahme?").  Sie sind
+// reine *Lese*-Endpunkte, nutzen den vorhandenen Forwarder und liefern
+// einen einheitlichen Antwort-Envelope mit stabilem `dataStatus`.
+//
+// Verhalten ohne Analysis Service: statt 503 antworten wir mit
+// `dataStatus: "fallback_result"` und `empty: true` – die UI kann dann
+// klar zwischen „kein Ranking gespeichert" (loaded_from_store + empty) und
+// „Persistenz steht nicht bereit" (fallback_result) unterscheiden.
+
+/**
+ * GET /api/priorities/profiles
+ *
+ * Liefert die unterstützten Bewertungsprofile und das stabile
+ * `dataStatus`-Vokabular.  Wird von der Prioritäten-UI für Dropdowns und
+ * Status-Anzeigen genutzt; unabhängig vom Analysis Service.
+ */
+const _prioritiesHandlers = createPrioritiesHandlers({
+  analysisServiceClient,
+  profileIds:     PROFILE_IDS,
+  defaultProfile: DEFAULT_PROFILE,
+  sendError,
+  categories:     CATEGORIES
+});
+
+app.get('/api/priorities/profiles', _prioritiesHandlers.profilesHandler);
+
+/**
+ * GET /api/priorities/top?city=&profile=&limit=
+ *
+ * Liefert die Top-N gespeicherten Briefs einer Stadt für ein Profil als
+ * normalisierte Decision-Cards.  Leeres Ranking: `{ items: [], empty: true,
+ * dataStatus: "loaded_from_store" }`.  Service nicht erreichbar:
+ * `{ items: [], empty: true, dataStatus: "fallback_result", fallbackReason }`.
+ */
+app.get('/api/priorities/top', locationBriefRateLimit, _prioritiesHandlers.topHandler);
+
+/**
+ * GET /api/priorities/by-location/:locationKey?profile=
+ *
+ * Liefert alle gespeicherten Briefs einer Stelle als Decision-Cards,
+ * neuester / passendes Profil zuerst.  Antwort-Envelope wie bei `/top`.
+ */
+app.get('/api/priorities/by-location/:locationKey', locationBriefRateLimit, _prioritiesHandlers.byLocationHandler);
+
 // ── Batch-Jobs (Forwarder zum analysis-service) ──────────────────────────────
 //
 // Diese Endpunkte sind dünne Forwarder zu den Spring-Batch-Endpunkten im
@@ -855,6 +940,7 @@ app.listen(PORT, () => {
   console.log(`KI-Provider: ${activeProviderName()}`);
   console.log(`Politische Recherche: POST http://localhost:${PORT}/api/political-context/search`);
   console.log(`Maßnahmen-Steckbrief: POST http://localhost:${PORT}/api/location-brief`);
+  console.log(`Prioritätenansicht:  GET  http://localhost:${PORT}/api/priorities/top?city=&profile=&limit=`);
   const analysisStatus = analysisServiceClient.describeStatus();
   if (analysisStatus.configured) {
     console.log(`Analysis Service:    ${analysisStatus.enabled ? 'aktiv' : 'deaktiviert'} (${analysisStatus.baseUrl}, timeout ${analysisStatus.timeoutMs}ms, retries ${analysisStatus.retries})`);
