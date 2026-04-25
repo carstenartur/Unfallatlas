@@ -7,8 +7,8 @@ import de.unfallatlas.analysis.support.LocationBriefFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -29,8 +29,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LocationBriefControllerTest {
 
     @Autowired private MockMvc mvc;
-    @Autowired private ObjectMapper json;
     @Autowired private LocationActionBriefRepository repo;
+
+    // Spring Boot 4 verwendet Jackson 3 (tools.jackson) als Default; der
+    // Spring-Web-Stack hat damit keinen com.fasterxml.jackson ObjectMapper-
+    // Bean mehr.  Für die hiesigen Tests reicht eine eigene Instanz, weil
+    // wir nur DTOs in JSON serialisieren – kein Spring-Bean nötig.
+    private final ObjectMapper json = new ObjectMapper();
 
     @BeforeEach
     void cleanDb() {

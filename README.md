@@ -51,6 +51,37 @@
 
 ---
 
+## 🗄️ Optionale Persistenz – Analysis Service
+
+Für stadtweite Vergleiche und reproduzierbare Maßnahmen-Steckbriefe gibt
+es einen **separaten** Spring-Boot-Dienst (`analysis-service/`).  Die
+Anbindung ist optional; die bestehende Browser-/Node-App funktioniert
+unverändert weiter.
+
+| Modus                       | Wann?                                                                                  |
+|-----------------------------|----------------------------------------------------------------------------------------|
+| **Browser-only**            | Schneller Einstieg, einzelne Analysen, Bezirksrats-Export.                             |
+| **Node-Standalone**         | Lokales Hosten, KI-Bewertung, Video-Export, politische Recherche.                      |
+| **Node + Analysis Service** | Versionierte Briefs, Top-N-Rankings je Profil, stadtweite Übersichten je Stadt/Profil. |
+
+Aktivieren in der Node-App: nur `ANALYSIS_SERVICE_BASE_URL` setzen
+(z. B. `http://analysis-service:8081`).  Bei Nichterreichbarkeit greift
+der Fallback (Brief wird trotzdem berechnet und zurückgegeben), die
+bestehenden Endpunkte und der Export funktionieren weiter.
+
+Lokales Compose-Setup (Node + Analysis Service + PostgreSQL):
+
+```bash
+docker compose --profile persist up
+```
+
+Details, alle Env-Variablen (Timeout/Retry/Auto-Persist), Lese-Endpunkte
+und Migrations-/Health-Hinweise: siehe
+[`docs/server-features.md#8-optionale-persistenz-anbindung-an-den-analysis-service`](docs/server-features.md)
+und [`analysis-service/README.md`](analysis-service/README.md).
+
+---
+
 ## 📌 Konkrete Anwendungsbeispiele
 
 ### Beispiel 1: Auto-Fahrrad-Kollisionen am Bonner Hauptbahnhof
