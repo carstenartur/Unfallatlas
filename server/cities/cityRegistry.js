@@ -72,17 +72,30 @@ const VALID_PORTAL_TYPES = Object.freeze([
  * (identisch zur UA.normKey-Logik im Frontend, js/ua.core.js:54-62 und
  * zum bestehenden cityPortalRegistry.normalizeCity).
  *
+ * Eingaben werden auf 200 Zeichen geclampt, bevor regex-Operationen
+ * angewendet werden – damit ist die Laufzeit unabhängig von der
+ * Aufrufer-Eingabe streng linear gebounded und kann auch bei
+ * pathologischen Strings (sehr viele Sonderzeichen oder `_`) keinen
+ * polynomialen ReDoS auslösen.
+ *
  * @param {string} name
  * @returns {string}
  */
 function normalizeCityName(name) {
   if (!name || typeof name !== 'string') return '';
-  return name
+  // Schutz gegen polynomiale ReDoS: Eingabe hart deckeln, bevor wir
+  // überhaupt regex-Replacements anstoßen.
+  const safe = name.length > 200 ? name.slice(0, 200) : name;
+  let s = safe
     .toLowerCase()
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
     .replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+    .replace(/[^a-z0-9]+/g, '_');
+  // Anstelle einer einzelnen Alternation `/^_+|_+$/` zwei einfache,
+  // anker-spezifische Replaces – beide sind deterministisch linear.
+  if (s.startsWith('_')) s = s.replace(/^_+/, '');
+  if (s.endsWith('_'))   s = s.replace(/_+$/, '');
+  return s;
 }
 
 /**
@@ -343,14 +356,15 @@ function searchCities(query, options = {}) {
  */
 function describeCity(city) {
   if (!city) return null;
+  const analysisAvailable = getStatus(city, SUPPORT_LEVELS.C) !== SUPPORT_STATUS.UNSUPPORTED;
+  const rankingAvailable  = analysisAvailable && city.rankingSupport !== SUPPORT_STATUS.UNSUPPORTED;
   return Object.assign({}, city, {
     supportLevels: describeSupport(city),
     capabilities: {
-      accidentAnalysis:   hasSupport(city, SUPPORT_LEVELS.A),
-      politicalContext:   hasSupport(city, SUPPORT_LEVELS.B),
-      analysisService:    hasSupport(city, SUPPORT_LEVELS.C),
-      ranking:            getStatus(city, SUPPORT_LEVELS.C) !== SUPPORT_STATUS.UNSUPPORTED
-                          && city.rankingSupport !== SUPPORT_STATUS.UNSUPPORTED
+      accidentAnalysis: hasSupport(city, SUPPORT_LEVELS.A),
+      politicalContext: hasSupport(city, SUPPORT_LEVELS.B),
+      analysisService:  hasSupport(city, SUPPORT_LEVELS.C),
+      ranking:          rankingAvailable
     }
   });
 }

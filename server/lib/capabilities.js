@@ -315,7 +315,7 @@ function cities() {
     return {
       available: false,
       reasonCode: REASON_CODES.NOT_CONFIGURED,
-      reason:    'Städte-Katalog konnte nicht geladen werden: ' + (err && err.message || 'unbekannt'),
+      reason:    'Städte-Katalog konnte nicht geladen werden: ' + ((err && err.message) || 'unbekannt'),
       details:   { total: 0 }
     };
   }
