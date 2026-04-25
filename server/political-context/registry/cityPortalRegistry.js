@@ -18,6 +18,7 @@ const hannoverSimProvider     = require('../providers/hannoverSimProvider.js');
 const berlinAllrisProvider    = require('../providers/berlinAllrisProvider.js');
 const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
 const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');
+const { createSessionNetProvider } = require('../providers/sessionNetProvider.js');
 
 // Zentraler Städte-/Regionen-Katalog: Quelle der Wahrheit für die
 // Frage „welche Orte hat das Produkt überhaupt im Visier und was ist
@@ -56,12 +57,38 @@ const { SUPPORT_LEVELS, SUPPORT_STATUS, getStatus } =
  * @property {function(ProviderSearchParams): Promise<ProviderRawResult[]>} search
  */
 
+/**
+ * Konfiguration der per generischem SessionNet-Provider angebundenen Städte.
+ *
+ * Auswahl-Kriterium: das Portal aus der kuratierten Seed-Liste folgt
+ * eindeutig der klassischen SessionNet-/Allris-Struktur
+ * (`<base>/bi/info.asp`-Variante mit `vo0\d+|to0\d+|si0\d+`-Detail-Links).
+ * Sonderlösungen (Allris 4 mit JSON-API, Eigenbauten) bleiben bewusst aus.
+ *
+ * Spätere Erweiterungen erfolgen durch Hinzufügen einer Zeile hier
+ * **plus** Hochstufung der Stadt im Katalog (`politicalContextSupport:
+ * 'supported'`).  Es ist *keine* neue Provider-Datei nötig.
+ */
+const SESSIONNET_CITIES = Object.freeze([
+  { cityKey: 'bielefeld', providerKey: 'bielefeld-sessionnet',
+    baseUrl: 'https://anwendungen.bielefeld.de',     searchPath: '/bi/yw010.asp' },
+  { cityKey: 'chemnitz',  providerKey: 'chemnitz-sessionnet',
+    baseUrl: 'https://sessionnet.owl-it.de',         searchPath: '/chemnitz/bi/yw010.asp' },
+  { cityKey: 'halle_saale', providerKey: 'halle-sessionnet',
+    baseUrl: 'https://buergerinfo.halle.de',         searchPath: '/bi/yw010.asp' },
+  { cityKey: 'magdeburg', providerKey: 'magdeburg-sessionnet',
+    baseUrl: 'https://ratsinfo.magdeburg.de',        searchPath: '/bi/yw010.asp' },
+  { cityKey: 'nuernberg', providerKey: 'nuernberg-sessionnet',
+    baseUrl: 'https://online-service2.nuernberg.de', searchPath: '/buergerinfo/yw010.asp' }
+]);
+
 /** @type {Map<string, PoliticalContextProvider>} */
 const REGISTRY = new Map([
   ['hannover', hannoverSimProvider],
   ['berlin',   berlinAllrisProvider],
   ['bonn',     bonnAllrisProvider],
-  ['hamburg',  hamburgParldokProvider]
+  ['hamburg',  hamburgParldokProvider],
+  ...SESSIONNET_CITIES.map((cfg) => [cfg.cityKey, createSessionNetProvider(cfg)])
 ]);
 
 /**

@@ -318,14 +318,15 @@
       },
       "populationClass": "metropolis",
       "accidentDataSupport": "partially_supported",
-      "politicalContextSupport": "partially_supported",
+      "politicalContextSupport": "supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
-      "knownPortalType": "ris",
+      "knownPortalType": "sessionnet",
       "portalBaseUrl": "https://online-service2.nuernberg.de/buergerinfo/info.asp",
       "qualityFlags": [
         "rollout-queued",
-        "portal-from-seed"
+        "portal-from-seed",
+        "sessionnet-generic-provider"
       ]
     },
     {
@@ -406,7 +407,7 @@
       },
       "populationClass": "large",
       "accidentDataSupport": "supported",
-      "politicalContextSupport": "partially_supported",
+      "politicalContextSupport": "supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "sessionnet",
@@ -414,7 +415,8 @@
       "qualityFlags": [
         "accident-data-generated",
         "poi-generated",
-        "portal-from-seed"
+        "portal-from-seed",
+        "sessionnet-generic-provider"
       ]
     },
     {
@@ -581,14 +583,15 @@
       },
       "populationClass": "large",
       "accidentDataSupport": "partially_supported",
-      "politicalContextSupport": "partially_supported",
+      "politicalContextSupport": "supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
-      "knownPortalType": "other",
+      "knownPortalType": "sessionnet",
       "portalBaseUrl": "https://ratsinfo.magdeburg.de/",
       "qualityFlags": [
         "state-capital",
-        "portal-from-seed"
+        "portal-from-seed",
+        "sessionnet-generic-provider"
       ]
     },
     {
@@ -795,13 +798,14 @@
       },
       "populationClass": "large",
       "accidentDataSupport": "unsupported",
-      "politicalContextSupport": "partially_supported",
+      "politicalContextSupport": "supported",
       "analysisServiceSupport": "unsupported",
       "rankingSupport": "unsupported",
       "knownPortalType": "sessionnet",
       "portalBaseUrl": "https://sessionnet.owl-it.de/chemnitz/bi/info.asp",
       "qualityFlags": [
-        "portal-from-seed"
+        "portal-from-seed",
+        "sessionnet-generic-provider"
       ]
     },
     {
@@ -837,13 +841,14 @@
       },
       "populationClass": "large",
       "accidentDataSupport": "unsupported",
-      "politicalContextSupport": "partially_supported",
+      "politicalContextSupport": "supported",
       "analysisServiceSupport": "unsupported",
       "rankingSupport": "unsupported",
       "knownPortalType": "sessionnet",
       "portalBaseUrl": "https://buergerinfo.halle.de/",
       "qualityFlags": [
-        "portal-from-seed"
+        "portal-from-seed",
+        "sessionnet-generic-provider"
       ]
     },
     {
