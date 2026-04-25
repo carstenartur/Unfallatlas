@@ -6,7 +6,12 @@
       "id": "berlin",
       "displayName": "Berlin",
       "state": "BE",
-      "officialCodes": { "land": "11", "regierungsbezirk": null, "kreis": "11000", "gemeinde": "11000000" },
+      "officialCodes": {
+        "land": "11",
+        "regierungsbezirk": null,
+        "kreis": "11000",
+        "gemeinde": "11000000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "supported",
@@ -14,13 +19,24 @@
       "rankingSupport": "supported",
       "knownPortalType": "allris",
       "portalBaseUrl": "https://pardok.parlament-berlin.de/",
-      "qualityFlags": ["state-capital", "city-state", "districts-as-bezirke"]
+      "qualityFlags": [
+        "state-capital",
+        "city-state",
+        "districts-as-bezirke",
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "hamburg",
       "displayName": "Hamburg",
       "state": "HH",
-      "officialCodes": { "land": "02", "regierungsbezirk": null, "kreis": "02000", "gemeinde": "02000000" },
+      "officialCodes": {
+        "land": "02",
+        "regierungsbezirk": null,
+        "kreis": "02000",
+        "gemeinde": "02000000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "supported",
@@ -28,13 +44,23 @@
       "rankingSupport": "supported",
       "knownPortalType": "parldok",
       "portalBaseUrl": "https://www.buergerschaft-hh.de/parldok/formalkriterien",
-      "qualityFlags": ["state-capital", "city-state"]
+      "qualityFlags": [
+        "state-capital",
+        "city-state",
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "muenchen",
       "displayName": "München",
       "state": "BY",
-      "officialCodes": { "land": "09", "regierungsbezirk": "091", "kreis": "09162", "gemeinde": "09162000" },
+      "officialCodes": {
+        "land": "09",
+        "regierungsbezirk": "091",
+        "kreis": "09162",
+        "gemeinde": "09162000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -42,13 +68,22 @@
       "rankingSupport": "supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital",
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "koeln",
       "displayName": "Köln",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "053", "kreis": "05315", "gemeinde": "05315000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "053",
+        "kreis": "05315",
+        "gemeinde": "05315000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -56,13 +91,21 @@
       "rankingSupport": "supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "frankfurt_am_main",
       "displayName": "Frankfurt am Main",
       "state": "HE",
-      "officialCodes": { "land": "06", "regierungsbezirk": "064", "kreis": "06412", "gemeinde": "06412000" },
+      "officialCodes": {
+        "land": "06",
+        "regierungsbezirk": "064",
+        "kreis": "06412",
+        "gemeinde": "06412000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -70,27 +113,42 @@
       "rankingSupport": "supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "stuttgart",
       "displayName": "Stuttgart",
       "state": "BW",
-      "officialCodes": { "land": "08", "regierungsbezirk": "081", "kreis": "08111", "gemeinde": "08111000" },
+      "officialCodes": {
+        "land": "08",
+        "regierungsbezirk": "081",
+        "kreis": "08111",
+        "gemeinde": "08111000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "supported",
       "rankingSupport": "supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "duesseldorf",
       "displayName": "Düsseldorf",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "051", "kreis": "05111", "gemeinde": "05111000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "051",
+        "kreis": "05111",
+        "gemeinde": "05111000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -98,15 +156,23 @@
       "rankingSupport": "supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital",
+        "accident-data-generated"
+      ]
     },
     {
       "id": "leipzig",
       "displayName": "Leipzig",
       "state": "SN",
-      "officialCodes": { "land": "14", "regierungsbezirk": null, "kreis": "14713", "gemeinde": "14713000" },
+      "officialCodes": {
+        "land": "14",
+        "regierungsbezirk": null,
+        "kreis": "14713",
+        "gemeinde": "14713000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -118,9 +184,14 @@
       "id": "dortmund",
       "displayName": "Dortmund",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "059", "kreis": "05913", "gemeinde": "05913000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "059",
+        "kreis": "05913",
+        "gemeinde": "05913000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -132,9 +203,14 @@
       "id": "essen",
       "displayName": "Essen",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "051", "kreis": "05113", "gemeinde": "05113000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "051",
+        "kreis": "05113",
+        "gemeinde": "05113000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -146,35 +222,55 @@
       "id": "bremen",
       "displayName": "Bremen",
       "state": "HB",
-      "officialCodes": { "land": "04", "regierungsbezirk": null, "kreis": "04011", "gemeinde": "04011000" },
+      "officialCodes": {
+        "land": "04",
+        "regierungsbezirk": null,
+        "kreis": "04011",
+        "gemeinde": "04011000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital", "city-state"]
+      "qualityFlags": [
+        "state-capital",
+        "city-state"
+      ]
     },
     {
       "id": "dresden",
       "displayName": "Dresden",
       "state": "SN",
-      "officialCodes": { "land": "14", "regierungsbezirk": null, "kreis": "14612", "gemeinde": "14612000" },
+      "officialCodes": {
+        "land": "14",
+        "regierungsbezirk": null,
+        "kreis": "14612",
+        "gemeinde": "14612000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "hannover",
       "displayName": "Hannover",
       "state": "NI",
-      "officialCodes": { "land": "03", "regierungsbezirk": null, "kreis": "03241", "gemeinde": "03241001" },
+      "officialCodes": {
+        "land": "03",
+        "regierungsbezirk": null,
+        "kreis": "03241",
+        "gemeinde": "03241001"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "supported",
@@ -182,15 +278,24 @@
       "rankingSupport": "supported",
       "knownPortalType": "sim",
       "portalBaseUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular",
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital",
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "nuernberg",
       "displayName": "Nürnberg",
       "state": "BY",
-      "officialCodes": { "land": "09", "regierungsbezirk": "095", "kreis": "09564", "gemeinde": "09564000" },
+      "officialCodes": {
+        "land": "09",
+        "regierungsbezirk": "095",
+        "kreis": "09564",
+        "gemeinde": "09564000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -202,9 +307,14 @@
       "id": "duisburg",
       "displayName": "Duisburg",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "051", "kreis": "05112", "gemeinde": "05112000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "051",
+        "kreis": "05112",
+        "gemeinde": "05112000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -216,9 +326,14 @@
       "id": "bochum",
       "displayName": "Bochum",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "059", "kreis": "05911", "gemeinde": "05911000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "059",
+        "kreis": "05911",
+        "gemeinde": "05911000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -230,9 +345,14 @@
       "id": "wuppertal",
       "displayName": "Wuppertal",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "051", "kreis": "05124", "gemeinde": "05124000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "051",
+        "kreis": "05124",
+        "gemeinde": "05124000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -244,7 +364,12 @@
       "id": "bielefeld",
       "displayName": "Bielefeld",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "057", "kreis": "05711", "gemeinde": "05711000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "057",
+        "kreis": "05711",
+        "gemeinde": "05711000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -252,13 +377,21 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "bonn",
       "displayName": "Bonn",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "053", "kreis": "05314", "gemeinde": "05314000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "053",
+        "kreis": "05314",
+        "gemeinde": "05314000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "supported",
@@ -266,15 +399,23 @@
       "rankingSupport": "supported",
       "knownPortalType": "allris",
       "portalBaseUrl": "https://www2.bonn.de/bo_ris/ws_buergerinfo/buergerinfo.asp",
-      "qualityFlags": []
+      "qualityFlags": [
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "muenster",
       "displayName": "Münster",
       "state": "NW",
-      "officialCodes": { "land": "05", "regierungsbezirk": "055", "kreis": "05515", "gemeinde": "05515000" },
+      "officialCodes": {
+        "land": "05",
+        "regierungsbezirk": "055",
+        "kreis": "05515",
+        "gemeinde": "05515000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -286,9 +427,14 @@
       "id": "karlsruhe",
       "displayName": "Karlsruhe",
       "state": "BW",
-      "officialCodes": { "land": "08", "regierungsbezirk": "082", "kreis": "08212", "gemeinde": "08212000" },
+      "officialCodes": {
+        "land": "08",
+        "regierungsbezirk": "082",
+        "kreis": "08212",
+        "gemeinde": "08212000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -300,9 +446,14 @@
       "id": "mannheim",
       "displayName": "Mannheim",
       "state": "BW",
-      "officialCodes": { "land": "08", "regierungsbezirk": "082", "kreis": "08222", "gemeinde": "08222000" },
+      "officialCodes": {
+        "land": "08",
+        "regierungsbezirk": "082",
+        "kreis": "08222",
+        "gemeinde": "08222000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -314,9 +465,14 @@
       "id": "augsburg",
       "displayName": "Augsburg",
       "state": "BY",
-      "officialCodes": { "land": "09", "regierungsbezirk": "097", "kreis": "09761", "gemeinde": "09761000" },
+      "officialCodes": {
+        "land": "09",
+        "regierungsbezirk": "097",
+        "kreis": "09761",
+        "gemeinde": "09761000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -328,119 +484,180 @@
       "id": "wiesbaden",
       "displayName": "Wiesbaden",
       "state": "HE",
-      "officialCodes": { "land": "06", "regierungsbezirk": "064", "kreis": "06414", "gemeinde": "06414000" },
+      "officialCodes": {
+        "land": "06",
+        "regierungsbezirk": "064",
+        "kreis": "06414",
+        "gemeinde": "06414000"
+      },
       "populationClass": "metropolis",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "kiel",
       "displayName": "Kiel",
       "state": "SH",
-      "officialCodes": { "land": "01", "regierungsbezirk": null, "kreis": "01002", "gemeinde": "01002000" },
+      "officialCodes": {
+        "land": "01",
+        "regierungsbezirk": null,
+        "kreis": "01002",
+        "gemeinde": "01002000"
+      },
       "populationClass": "large",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "magdeburg",
       "displayName": "Magdeburg",
       "state": "ST",
-      "officialCodes": { "land": "15", "regierungsbezirk": null, "kreis": "15003", "gemeinde": "15003000" },
+      "officialCodes": {
+        "land": "15",
+        "regierungsbezirk": null,
+        "kreis": "15003",
+        "gemeinde": "15003000"
+      },
       "populationClass": "large",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "erfurt",
       "displayName": "Erfurt",
       "state": "TH",
-      "officialCodes": { "land": "16", "regierungsbezirk": null, "kreis": "16051", "gemeinde": "16051000" },
+      "officialCodes": {
+        "land": "16",
+        "regierungsbezirk": null,
+        "kreis": "16051",
+        "gemeinde": "16051000"
+      },
       "populationClass": "large",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "mainz",
       "displayName": "Mainz",
       "state": "RP",
-      "officialCodes": { "land": "07", "regierungsbezirk": null, "kreis": "07315", "gemeinde": "07315000" },
+      "officialCodes": {
+        "land": "07",
+        "regierungsbezirk": null,
+        "kreis": "07315",
+        "gemeinde": "07315000"
+      },
       "populationClass": "large",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "saarbruecken",
       "displayName": "Saarbrücken",
       "state": "SL",
-      "officialCodes": { "land": "10", "regierungsbezirk": null, "kreis": "10041", "gemeinde": "10041100" },
+      "officialCodes": {
+        "land": "10",
+        "regierungsbezirk": null,
+        "kreis": "10041",
+        "gemeinde": "10041100"
+      },
       "populationClass": "large",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "potsdam",
       "displayName": "Potsdam",
       "state": "BB",
-      "officialCodes": { "land": "12", "regierungsbezirk": null, "kreis": "12054", "gemeinde": "12054000" },
+      "officialCodes": {
+        "land": "12",
+        "regierungsbezirk": null,
+        "kreis": "12054",
+        "gemeinde": "12054000"
+      },
       "populationClass": "large",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "schwerin",
       "displayName": "Schwerin",
       "state": "MV",
-      "officialCodes": { "land": "13", "regierungsbezirk": null, "kreis": "13004", "gemeinde": "13004000" },
+      "officialCodes": {
+        "land": "13",
+        "regierungsbezirk": null,
+        "kreis": "13004",
+        "gemeinde": "13004000"
+      },
       "populationClass": "medium",
-      "accidentDataSupport": "supported",
+      "accidentDataSupport": "partially_supported",
       "politicalContextSupport": "unsupported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": ["state-capital"]
+      "qualityFlags": [
+        "state-capital"
+      ]
     },
     {
       "id": "heilbronn",
       "displayName": "Heilbronn",
       "state": "BW",
-      "officialCodes": { "land": "08", "regierungsbezirk": "081", "kreis": "08121", "gemeinde": "08121000" },
+      "officialCodes": {
+        "land": "08",
+        "regierungsbezirk": "081",
+        "kreis": "08121",
+        "gemeinde": "08121000"
+      },
       "populationClass": "large",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -448,13 +665,21 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "accident-data-generated",
+        "poi-generated"
+      ]
     },
     {
       "id": "braunschweig",
       "displayName": "Braunschweig",
       "state": "NI",
-      "officialCodes": { "land": "03", "regierungsbezirk": null, "kreis": "03101", "gemeinde": "03101000" },
+      "officialCodes": {
+        "land": "03",
+        "regierungsbezirk": null,
+        "kreis": "03101",
+        "gemeinde": "03101000"
+      },
       "populationClass": "metropolis",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -462,13 +687,20 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "accident-data-generated"
+      ]
     },
     {
       "id": "wolfsburg",
       "displayName": "Wolfsburg",
       "state": "NI",
-      "officialCodes": { "land": "03", "regierungsbezirk": null, "kreis": "03103", "gemeinde": "03103000" },
+      "officialCodes": {
+        "land": "03",
+        "regierungsbezirk": null,
+        "kreis": "03103",
+        "gemeinde": "03103000"
+      },
       "populationClass": "large",
       "accidentDataSupport": "supported",
       "politicalContextSupport": "unsupported",
@@ -476,7 +708,9 @@
       "rankingSupport": "partially_supported",
       "knownPortalType": null,
       "portalBaseUrl": null,
-      "qualityFlags": []
+      "qualityFlags": [
+        "accident-data-generated"
+      ]
     }
   ]
 }

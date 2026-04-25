@@ -104,13 +104,61 @@ Objekt sowie ein `capabilities`-Boolean-Bündel.  Beispiel:
 
 | Stufe | supported | partially_supported | unsupported |
 |:------|----------:|--------------------:|------------:|
-| A – Unfallanalyse        | 34 |  0 | 0 |
+| A – Unfallanalyse        | 12 | 22 | 0 |
 | B – Politische Recherche |  4 |  0 | 30 |
 | C – Persistenz / Batch   |  9 | 25 | 0 |
 
 Die vier mit Level B `supported` sind die Städte mit angebundenem
 Provider: **Hannover** (SIM), **Berlin** (Pardok + Bezirks-Allris),
 **Bonn** (Allris/SessionNet), **Hamburg** (Parldok + Bezirks-Allris).
+
+## Kopplung an die GitHub-Workflows
+
+Stufe A (Unfallanalyse) ist nur dann ehrlich `supported`, wenn die
+Workflows die GeoJSONs für die Stadt tatsächlich erzeugt haben.  Die
+Master-Liste dafür ist die Datei [`cities.txt`](../cities.txt) im
+Repository-Root, die von zwei Workflows abgearbeitet wird:
+
+| Workflow                                              | Was wird erzeugt?                                | Output                                    |
+|-------------------------------------------------------|--------------------------------------------------|-------------------------------------------|
+| `.github/workflows/generate-and-commit.yml`           | Unfall-GeoJSONs (`convertAmt2gmaps.sh`)          | `out/output_all_years_<id>.geojson`       |
+| `.github/workflows/fetchpoi.yml`                      | POI-GeoJSONs (Schulen/Kitas via OSM-Overpass)    | `out/poi_<id>.geojson`                    |
+
+Der Slug-Algorithmus in `fetchpoi.yml` (`tr` + `sed`) ist identisch zu
+`cityRegistry.normalizeCityName`; die Katalog-`id` einer Stadt **muss
+exakt diesem Slug entsprechen**, sonst findet das Frontend die Datei
+nicht.
+
+Die Konsistenz wird per Test (`tests/unit/cityRegistry.test.js`,
+Block „Kopplung an cities.txt und out/") fest abgesichert:
+
+- jede Zeile in `cities.txt` muss einen Katalog-Eintrag mit derselben
+  `id` haben
+- alle Städte aus `cities.txt` haben `accidentDataSupport: 'supported'`
+- alle Katalog-Städte mit `accidentDataSupport: 'supported'` sind in
+  `cities.txt` enthalten
+- alle übrigen Katalog-Städte stehen auf `'partially_supported'`
+  (im Katalog erfasst, Daten-Generierung steht noch aus)
+
+Zusätzlich liefert `cityRegistry.getDataAssets(id)` zur Laufzeit, ob
+die jeweiligen Dateien in `out/` tatsächlich vorliegen.  `describeCity`
+hängt diese Info als `dataAssets: { accidents, poi }` an die
+API-Antworten an.
+
+## Eine Stadt von `partially_supported` auf `supported` heben
+
+1. **Stadtnamen in [`cities.txt`](../cities.txt)** ergänzen, exakt so
+   geschrieben, dass `normalizeCityName(name)` die Katalog-`id` ergibt
+   (z. B. `Frankfurt am Main` → `frankfurt_am_main`).
+2. **Workflow `Generate & Commit`** triggern (Tab „Actions" auf
+   GitHub, „Run workflow") – legt `out/output_all_years_<id>.geojson`
+   und `out/output_all_years_<id>.csv` an.
+3. **Workflow `Fetch POIs for cities.txt`** triggern – legt
+   `out/poi_<id>.geojson` an.
+4. **Im Katalog** `cityCatalogData.json`: `accidentDataSupport` auf
+   `"supported"` setzen, `qualityFlags` um `"accident-data-generated"`
+   und (sofern POIs erzeugt wurden) `"poi-generated"` ergänzen.
+5. **Tests laufen lassen**: `npx jest --testPathPatterns=cityRegistry`.
 
 ## Graceful Degradation
 
@@ -127,6 +175,12 @@ Provider: **Hannover** (SIM), **Berlin** (Pardok + Bezirks-Allris),
 
 ## Maintainer-Hinweise: Neue Stadt hinzufügen
 
+> **Reihenfolge:** zuerst den Katalog-Eintrag (mit
+> `accidentDataSupport: "partially_supported"`) anlegen.  Sobald die
+> Workflows Daten erzeugt haben, auf `"supported"` heben (siehe
+> Abschnitt „Eine Stadt von `partially_supported` auf `supported`
+> heben").
+
 1. **Eintrag in `server/cities/cityCatalogData.json`** anlegen.  Die
    `id` muss bereits in normalisierter Form vorliegen (`[a-z0-9_]+`,
    Umlaute → `ae/oe/ue/ss`).  Beispiel:
@@ -137,7 +191,7 @@ Provider: **Hannover** (SIM), **Berlin** (Pardok + Bezirks-Allris),
      "state": "SN",
      "officialCodes": { "land":"14","kreis":"14713","gemeinde":"14713000" },
      "populationClass": "metropolis",
-     "accidentDataSupport":     "supported",
+     "accidentDataSupport":     "partially_supported",
      "politicalContextSupport": "unsupported",
      "analysisServiceSupport":  "partially_supported",
      "rankingSupport":          "partially_supported",
@@ -148,13 +202,17 @@ Provider: **Hannover** (SIM), **Berlin** (Pardok + Bezirks-Allris),
    ```
 2. **Tests laufen lassen**: `npx jest --testPathPatterns=cityRegistry`.
    Validierungsfehler werden direkt beim Laden gemeldet.
-3. **Politische Recherche** für eine Stadt mit Provider freischalten:
+3. **Daten erzeugen** (für Stufe A `supported`): Stadt zu
+   `cities.txt` hinzufügen und die Workflows
+   `Generate & Commit` + `Fetch POIs for cities.txt` triggern, dann
+   im Katalog `accidentDataSupport` auf `supported` setzen.
+4. **Politische Recherche** für eine Stadt mit Provider freischalten:
    - Provider-Modul in `server/political-context/providers/` anlegen
    - Eintrag in `server/political-context/registry/cityPortalRegistry.js`
    - im Katalog `politicalContextSupport` auf `supported` (oder
      `partially_supported` bei Einschränkungen) setzen, `knownPortalType`
      und `portalBaseUrl` ergänzen.
-4. **Persistenz/Batch** (Stufe C) wird nicht pro Stadt im Code
+5. **Persistenz/Batch** (Stufe C) wird nicht pro Stadt im Code
    abgebildet, sondern hängt am Analysis-Service.  Die Status-Angabe
    im Katalog dient der UI/Doku; die tatsächliche Verfügbarkeit
    meldet `/api/status`.

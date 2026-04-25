@@ -242,7 +242,90 @@ describe('cityRegistry – describeCity / summarize', () => {
   });
 });
 
-// ── Kopplung an cityPortalRegistry ────────────────────────────────────────────
+// ── Konsistenz mit den GitHub-Workflows / cities.txt ──────────────────────────
+
+describe('cityRegistry – Kopplung an cities.txt und out/', () => {
+  test('readCitiesTxt liefert pro Zeile name + normalisierten slug', () => {
+    const list = cityRegistry.readCitiesTxt();
+    expect(list.length).toBeGreaterThan(0);
+    for (const entry of list) {
+      expect(typeof entry.name).toBe('string');
+      expect(entry.slug).toBe(cityRegistry.normalizeCityName(entry.name));
+      expect(entry.slug).toMatch(/^[a-z0-9_]+$/);
+    }
+  });
+
+  test('jede Zeile in cities.txt hat einen Katalog-Eintrag mit derselben id', () => {
+    // Der GitHub-Workflow generate-and-commit.yml triggert
+    // convertAmt2gmaps.sh genau für diese Liste.  Damit der Katalog
+    // nicht von der Realität entkoppelt, muss jeder Eintrag in
+    // cities.txt im Katalog auftauchen – sonst würde die UI Daten
+    // ausliefern, für die sie keine Capability-Stufe hat.
+    const txt = cityRegistry.readCitiesTxt();
+    for (const entry of txt) {
+      const city = cityRegistry.getCityById(entry.slug);
+      expect(city).toBeTruthy();
+      expect(city.id).toBe(entry.slug);
+    }
+  });
+
+  test('alle Städte in cities.txt sind als Stufe A "supported" markiert', () => {
+    // Stufe A ("Unfallanalyse") ist nur dann ehrlich `supported`, wenn
+    // die Workflows für diese Stadt tatsächlich GeoJSONs erzeugt haben.
+    // cities.txt ist die Master-Liste; sie definiert genau diese Menge.
+    const txt = cityRegistry.readCitiesTxt();
+    for (const entry of txt) {
+      const city = cityRegistry.getCityById(entry.slug);
+      expect(city.accidentDataSupport).toBe('supported');
+    }
+  });
+
+  test('Katalog-Städte mit Stufe A "supported" sind genau die in cities.txt', () => {
+    // Strenge Gleichheit in beide Richtungen – verhindert, dass eine
+    // Stadt im Katalog auf "supported" hochrutscht, ohne dass die
+    // Workflows sie kennen, und umgekehrt.
+    const txtSlugs       = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
+    const supportedSlugs = new Set(
+      cityRegistry.listCities()
+        .filter(c => c.accidentDataSupport === 'supported')
+        .map(c => c.id)
+    );
+    expect(supportedSlugs).toEqual(txtSlugs);
+  });
+
+  test('Katalog-Städte ohne Workflow-Daten sind als Stufe A "partially_supported" geführt', () => {
+    const txtSlugs = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
+    const others = cityRegistry.listCities().filter(c => !txtSlugs.has(c.id));
+    expect(others.length).toBeGreaterThan(0);
+    for (const c of others) {
+      expect(c.accidentDataSupport).toBe('partially_supported');
+    }
+  });
+
+  test('getDataAssets meldet vorhandene Outputs für die Workflow-Städte', () => {
+    // Wir prüfen das nur für Hannover – die Datei ist im Repo
+    // (out/output_all_years_hannover.geojson) und entstammt dem
+    // generate-and-commit-Workflow.  Damit ist der Test stabil,
+    // ohne die Existenz aller weiteren Outputs vorauszusetzen.
+    const a = cityRegistry.getDataAssets('hannover');
+    expect(a.accidents).toBe(true);
+    // POI-Daten sind in cities.txt-Untermenge weniger vollständig –
+    // wir testen die Erkennung mindestens für eine bekannte Stadt.
+    const b = cityRegistry.getDataAssets('berlin');
+    expect(b.poi).toBe(true);
+  });
+
+  test('getDataAssets meldet false für unbekannte ids', () => {
+    const a = cityRegistry.getDataAssets('atlantis');
+    expect(a).toEqual({ accidents: false, poi: false });
+  });
+
+  test('describeCity ergänzt dataAssets', () => {
+    const d = cityRegistry.describeCity(cityRegistry.getCityById('hannover'));
+    expect(d.dataAssets).toBeDefined();
+    expect(d.dataAssets.accidents).toBe(true);
+  });
+});
 
 describe('cityPortalRegistry – Katalog-Gating', () => {
   // Auflösung muss frisch erfolgen, weil andere Tests den Katalog

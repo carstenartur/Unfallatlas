@@ -44,6 +44,12 @@ const {
 /** Pfad zur ausgelagerten Katalog-Datei. */
 const CATALOG_PATH = path.join(__dirname, 'cityCatalogData.json');
 
+/** Pfad zur Master-Liste, die die GitHub-Workflows abarbeiten. */
+const CITIES_TXT_PATH = path.join(__dirname, '..', '..', 'cities.txt');
+
+/** Verzeichnis, in das die Workflows die generierten Assets schreiben. */
+const OUT_DIR = path.join(__dirname, '..', '..', 'out');
+
 /**
  * Erlaubte Bundesland-Kürzel (ISO 3166-2:DE ohne Präfix `DE-`).
  * Wird zur Validierung der `state`-Eigenschaft genutzt.
@@ -96,6 +102,55 @@ function normalizeCityName(name) {
   if (s.startsWith('_')) s = s.replace(/^_+/, '');
   if (s.endsWith('_'))   s = s.replace(/_+$/, '');
   return s;
+}
+
+/**
+ * Liest `cities.txt` (Master-Liste der GitHub-Workflows
+ * `generate-and-commit.yml` und `fetchpoi.yml`) und liefert pro Zeile
+ * den dort verwendeten Stadtnamen sowie den daraus abgeleiteten Slug.
+ * Der Slug-Algorithmus ist identisch zu {@link normalizeCityName}
+ * und zu der `slug()`-Funktion in `.github/workflows/fetchpoi.yml`.
+ *
+ * Liefert ein leeres Array, wenn die Datei nicht existiert oder nicht
+ * gelesen werden kann – damit bricht der Katalog auch ohne `cities.txt`
+ * nicht.
+ *
+ * @returns {{name: string, slug: string}[]}
+ */
+function readCitiesTxt() {
+  let text;
+  try {
+    text = fs.readFileSync(CITIES_TXT_PATH, 'utf8');
+  } catch (_) {
+    return [];
+  }
+  return text
+    .split(/\r?\n/)
+    .map(line => line.replace(/#.*$/, '').trim())
+    .filter(line => line.length > 0)
+    .map(name => ({ name, slug: normalizeCityName(name) }));
+}
+
+/**
+ * Prüft pro Stadt, welche Workflow-Outputs in `out/` tatsächlich
+ * vorhanden sind.  Reine Status-Abfrage; keine Seiteneffekte.
+ *
+ *  - `accidents`: `out/output_all_years_<id>.geojson` existiert
+ *  - `poi`:       `out/poi_<id>.geojson` existiert
+ *
+ * @param {string} cityId – id-Slug aus dem Katalog
+ * @returns {{accidents: boolean, poi: boolean}}
+ */
+function getDataAssets(cityId) {
+  if (typeof cityId !== 'string' || !cityId) {
+    return { accidents: false, poi: false };
+  }
+  const accidentsPath = path.join(OUT_DIR, `output_all_years_${cityId}.geojson`);
+  const poiPath       = path.join(OUT_DIR, `poi_${cityId}.geojson`);
+  return {
+    accidents: fs.existsSync(accidentsPath),
+    poi:       fs.existsSync(poiPath)
+  };
 }
 
 /**
@@ -370,7 +425,11 @@ function describeCity(city) {
       politicalContext: hasSupport(city, SUPPORT_LEVELS.B),
       analysisService:  hasSupport(city, SUPPORT_LEVELS.C),
       ranking:          rankingAvailable
-    }
+    },
+    // Tatsächlicher Stand der Workflow-Outputs in `out/`.  Wird bei
+    // jedem Aufruf frisch geprüft; spiegelt also wider, was die
+    // GitHub-Workflows zuletzt erzeugt haben (im Container/Repo).
+    dataAssets: getDataAssets(city.id)
   });
 }
 
@@ -406,6 +465,9 @@ module.exports = {
   searchCities,
   describeCity,
   summarize,
+  // Workflow-Kopplung
+  readCitiesTxt,
+  getDataAssets,
   // Helpers / Konstanten
   normalizeCityName,
   VALID_STATES,
@@ -413,5 +475,7 @@ module.exports = {
   VALID_PORTAL_TYPES,
   // Test-Hooks
   reload,
-  CATALOG_PATH
+  CATALOG_PATH,
+  CITIES_TXT_PATH,
+  OUT_DIR
 };
