@@ -212,6 +212,15 @@ keine URL-Konstruktion aus Nutzereingaben statt (keine SSRF-Angriffsfläche).
 Berlin und Hamburg bündeln Land/Bürgerschaft sowie die Bezirks-Allris-Endpunkte
 in einer konfigurierbaren Liste innerhalb des jeweiligen Provider-Moduls.
 
+> **Katalog-Gating:** `getProviderForCity` prüft den zentralen
+> [Städte-Katalog](../../docs/CITY_CATALOG.md).  Steht `politicalContextSupport`
+> einer Stadt dort auf `unsupported`, wird kein Provider zurückgegeben –
+> auch wenn ein Provider physisch registriert ist.  Damit lässt sich
+> politische Recherche pro Ort gezielt deaktivieren (z. B. bei
+> Portal-Wartung oder bekannten Datenproblemen), ohne den Provider
+> entfernen zu müssen.  `getProviderForCityRaw` umgeht das Gating für
+> interne Tests/Migrationen.
+
 ---
 
 ## Relevanzbewertung

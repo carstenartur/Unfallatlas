@@ -17,6 +17,7 @@
 | **Vollständige Dokumentation** | 📖 [docs/DOKUMENTATION.md](docs/DOKUMENTATION.md) |
 | **Architektur (Browser + Server + KI)** | 🏗️ [docs/architecture.md](docs/architecture.md) |
 | **Server-API & Konfiguration** | 🔌 [docs/server-features.md](docs/server-features.md) |
+| **Bundesweiter Städte-/Regionen-Katalog** | 🗺️ [docs/CITY_CATALOG.md](docs/CITY_CATALOG.md) |
 | **Maßnahmen-Steckbriefe (Priorisierung)** | 🎯 [docs/LOCATION_BRIEF.md](docs/LOCATION_BRIEF.md) |
 | **Persistenz-/Analyse-Service (Spring Boot)** | 🗄️ [analysis-service/README.md](analysis-service/README.md) |
 | **Release-Checklist** | ✅ [docs/release-checklist.md](docs/release-checklist.md) |
@@ -48,6 +49,35 @@
 | **Export als Bezirksratsantrag** | PDF / Word mit Sachverhalt, Statistik, Karte, POI-Analyse und Beschlussvorschlag |
 | **Datenexport** | Unfallpunkte direkt als 📊 CSV, 🗺️ GeoJSON oder 📍 KML herunterladen |
 | **Deterministische URLs** | Jede Analyse ist als Link teilbar und reproduzierbar |
+
+---
+
+## 🗺️ Bundesweite Skalierung – Städte-/Regionen-Katalog
+
+Unfallatlas führt einen **bundesweiten Katalog** aller unterstützten
+deutschen Städte und Regionen.  Pro Ort ist transparent ausgewiesen,
+welche Funktionen verfügbar sind – nicht jede Stadt muss sofort alle
+Features mitbringen:
+
+| Stufe | Bezeichnung           | Bedeutung                                                          |
+|:-----:|:----------------------|:-------------------------------------------------------------------|
+| **A** | Unfallanalyse         | Filter, Cluster, Heatmap, Hotspots, Export                         |
+| **B** | Politische Recherche  | Anbindung an ein Ratsinformationssystem (Anträge/Beschlüsse …)     |
+| **C** | Persistenz / Batch    | Maßnahmen-Steckbriefe, Top-N, Priorisierungen via Analysis-Service |
+
+Jede Stufe ist pro Stadt als `supported`, `partially_supported` oder
+`unsupported` markiert.  Die Liste, die Capability-Matrix und Hinweise
+zur Pflege („wie nehme ich eine neue Stadt auf?") stehen in
+[`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md).
+
+API-Endpunkte (Node-Modus):
+
+- `GET /api/cities` – Liste mit Capability-Matrix (filterbar via
+  `?q=`, `?state=NW`, `?support=supportLevelB`, `?limit=…`)
+- `GET /api/cities/:idOrKey` – Einzelner Ort (Lookup via id, Name oder
+  amtlichem Gemeindeschlüssel)
+- `GET /api/status` – aggregierte Capability-Übersicht inkl. Verteilung
+  über die Stufen A/B/C
 
 ---
 
