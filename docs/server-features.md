@@ -544,7 +544,55 @@ curl -X POST http://localhost:8000/api/location-brief \
 curl "http://localhost:8000/api/location-briefs/top?city=Hannover&profile=safety_first&limit=5"
 ```
 
+### Persistenz-Status in der Antwort
+
+`POST /api/location-brief` liefert immer ein `persistence`-Objekt mit
+einem klaren Lebenszyklus-Status (stabiler API-Vertrag für die UI):
+
+| Status              | Bedeutung                                                      |
+|---------------------|----------------------------------------------------------------|
+| `freshly_computed`  | Brief frisch berechnet, kein Persist gewünscht/aktiv.          |
+| `loaded_from_store` | `useStored=true` → bestehender Brief aus dem Service geliefert.|
+| `persisted`         | Brief berechnet **und** erfolgreich persistiert.               |
+| `persist_skipped`   | Persist gewünscht, aber Service nicht erreichbar/aktiviert.    |
+
+Zusätzliche Felder: `persisted` (boolean), `persistRequested`, `attempts`,
+ggf. `storedId` und `reason`.  Die Vokabular bleibt stabil; UI-Code kann
+sich ausschließlich auf `persistence.status` stützen.
+
+### Batch-Jobs (Forwarder zum Analysis Service)
+
+Die Node-App reicht ab dieser Iteration einen kleinen Satz Endpunkte
+weiter, mit denen sich Spring-Batch-Läufe im Analysis Service
+manuell anstoßen und beobachten lassen.  Wie die anderen Forwarder
+sind diese Endpunkte **vollständig optional** und antworten mit `503
+ANALYSIS_SERVICE_NOT_CONFIGURED`, wenn `ANALYSIS_SERVICE_BASE_URL`
+nicht gesetzt ist.  Die Capability `batchJobs` in `GET /api/status`
+gibt zusätzlich die unterstützten Job-Namen zurück.
+
+| Methode | Pfad                                                | Zweck                                                                  |
+|---------|-----------------------------------------------------|------------------------------------------------------------------------|
+| POST    | `/api/batch/jobs/city-prioritization`               | Startet den `city-prioritization-job`. Body: `{city, profile, recomputeExisting?, limit?, runLabel?}` – `city` und `profile` sind Pflicht. Antwort: `{jobName, executionId, status}`. |
+| GET     | `/api/batch/jobs`                                   | Jüngste Lauf-Übersicht (fachlich, aus `analysis_job`).                 |
+| GET     | `/api/batch/jobs/:executionId`                      | Technischer Status (Steps, Exit-Codes, Zeitstempel).                   |
+| GET     | `/api/batch/jobs/:executionId/summary`              | Fachliche Zusammenfassung (Top-N, Counts, Fehler).                     |
+
+Beispiel:
+
+```bash
+curl -X POST http://localhost:8000/api/batch/jobs/city-prioritization \
+  -H 'Content-Type: application/json' \
+  -d '{"city":"Hannover","profile":"low_hanging_fruit","limit":50,"runLabel":"monatlich"}'
+```
+
+Validation-Fehler kommen über den vorhandenen `error`-Envelope mit
+`category: "validation"` zurück; Konflikte (Job läuft, Instance bereits
+abgeschlossen) als `409` mit maschinenlesbarem `code` (siehe
+[`analysis-service/README.md`](../analysis-service/README.md#bekannte-fehlermodi)).
+
 ### Wann reicht Browser-only, wann Node, wann Persistenz?
+
+
 
 - **Browser-only** (GitHub Pages Live-Demo): einzelne Analysen,
   Bezirksrats-Export – die häufigste Nutzung.

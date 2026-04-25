@@ -357,6 +357,77 @@ async function fetchByCity(city, opts) {
   return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
 }
 
+// ── Batch-Endpunkte (Forwarder) ──────────────────────────────────────────────
+//
+// Dünne Forwarder zu den Spring-Batch-REST-Endpunkten im Analysis Service.
+// Sie sind voll optional: ist der Service nicht konfiguriert/aktiviert, geben
+// sie sofort ein klares `skipped`-Ergebnis zurück, ohne Netz-Call.
+
+/**
+ * Startet den `city-prioritization-job`.
+ * @param {{city:string, profile:string, recomputeExisting?:boolean, limit?:number, runLabel?:string}} req
+ */
+async function startCityPrioritizationJob(req) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  if (!req || !req.city || !req.profile) {
+    return { ok: false, error: 'invalid_request:city_and_profile_required' };
+  }
+  const url = `${cfg.baseUrl}/api/batch/jobs/city-prioritization`;
+  // Batch-Aufrufe sind in Summe kürzer/teuerer und idempotent über
+  // `runTimestamp` – ein milder zusätzlicher Timeout ist ausreichend.
+  return withRetry(
+    url,
+    { method: 'POST', body: req, timeoutMs: Math.max(cfg.timeoutMs, 8000) },
+    cfg.retries,
+    cfg.retryDelayMs
+  );
+}
+
+/**
+ * Liest den Status einer Batch-Execution.
+ * @param {number|string} executionId
+ */
+async function fetchBatchJobStatus(executionId) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  if (executionId === undefined || executionId === null || executionId === '') {
+    return { ok: false, error: 'invalid_request:executionId_required' };
+  }
+  const url = `${cfg.baseUrl}/api/batch/jobs/${encodeURIComponent(String(executionId))}`;
+  return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
+}
+
+/**
+ * Liest die fachliche Zusammenfassung einer Batch-Execution.
+ * @param {number|string} executionId
+ */
+async function fetchBatchJobSummary(executionId) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  if (executionId === undefined || executionId === null || executionId === '') {
+    return { ok: false, error: 'invalid_request:executionId_required' };
+  }
+  const url = `${cfg.baseUrl}/api/batch/jobs/${encodeURIComponent(String(executionId))}/summary`;
+  return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
+}
+
+/**
+ * Liefert die Liste der jüngsten Batch-Läufe.
+ * @param {number} [limit=20]
+ */
+async function listBatchJobs(limit) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  const safe = Math.min(Math.max(1, Number(limit) || 20), 100);
+  const url = `${cfg.baseUrl}/api/batch/jobs?limit=${safe}`;
+  return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
+}
+
 /**
  * Probt die Erreichbarkeit des Service über `/actuator/health` (oder
  * `/api/location-briefs?city=__probe__&size=1` als Fallback, falls Actuator
@@ -384,5 +455,9 @@ module.exports = {
   fetchByLocationKey,
   fetchTopByCityProfile,
   fetchByCity,
+  startCityPrioritizationJob,
+  fetchBatchJobStatus,
+  fetchBatchJobSummary,
+  listBatchJobs,
   probe
 };

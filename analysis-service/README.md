@@ -178,10 +178,145 @@ Die Node-App enthält jetzt einen **optionalen** Forwarder
   `GET /api/location-briefs?city=…` sind dünne Forwarder zu den
   Lese-Endpunkten dieses Dienstes.
 - Bei Nichterreichbarkeit oder Timeout läuft die Node-App weiter
-  (Brief wird trotzdem zurückgegeben, mit `persistence.status = "skipped"`).
+  (Brief wird trotzdem zurückgegeben, mit `persistence.status = "persist_skipped"`).
 
 Siehe [`docs/server-features.md`](../docs/server-features.md) für
 Konfiguration und Beispielanfragen.
+
+## Persistenz-Status (`persistence.status` in der Node-API)
+
+Die Node-Antwort auf `POST /api/location-brief` enthält jetzt immer ein
+`persistence`-Objekt mit einem klaren Lebenszyklus-Status:
+
+| Status              | Bedeutung                                                      |
+|---------------------|----------------------------------------------------------------|
+| `freshly_computed`  | Brief wurde frisch berechnet, kein Persist gewünscht.          |
+| `loaded_from_store` | `useStored=true` → bestehender Brief aus dem Service geliefert.|
+| `persisted`         | Brief wurde berechnet **und** erfolgreich persistiert.         |
+| `persist_skipped`   | Persist gewünscht, aber Service nicht erreichbar/aktiviert.    |
+
+Zusätzliche Felder: `persisted` (boolean), `persistRequested`, `attempts`,
+ggf. `storedId` und `reason`.  Die Vokabular bleibt stabil; UI und Tests
+können sich darauf verlassen.
+
+## Dublettenstrategie / Wiederholungsverhalten
+
+* `LocationActionBrief` wird **idempotent** persistiert:
+  Eindeutigkeit über `(location_key, profile_key, source_fingerprint)`,
+  in `V2__harden_indexes_and_idempotency.sql` zusätzlich als
+  `UNIQUE`-Index gehärtet.
+* Mehrfaches Posten desselben Briefs liefert denselben Datensatz zurück
+  (kein doppelter Eintrag).
+* Neuberechnungen mit anderem Inhalt erzeugen einen neuen Eintrag mit
+  neuem `source_fingerprint`; abfragbar bleibt der jeweils neueste Brief
+  pro `(locationKey, profileKey)` über `findLatestBy*`.
+* Die V2-Migration ergänzt zusammengesetzte Indizes für die häufigen
+  Lese-Pfade: `(city, profile_key, created_at desc)`,
+  `(location_key, profile_key, created_at desc)`,
+  `(profile_key, total desc)` für Top-N-Abfragen.
+
+## Spring Batch (stadtweite Verarbeitung)
+
+Der Service enthält ab dieser Iteration eine **erste** Spring-Batch-
+Anbindung als Grundlage für stadtweite Priorisierungsläufe.  Die
+interaktive REST-API (`/api/location-briefs/...`) bleibt davon
+unberührt – Batch ist *zusätzlich*, nicht *Ersatz*.
+
+### Tabellen / Metadaten
+
+* Spring-Batch-Metadatentabellen (`BATCH_JOB_INSTANCE`,
+  `BATCH_JOB_EXECUTION`, `BATCH_JOB_EXECUTION_PARAMS`,
+  `BATCH_STEP_EXECUTION`, `BATCH_STEP_EXECUTION_CONTEXT`,
+  `BATCH_JOB_EXECUTION_CONTEXT` + Sequenzen) werden über
+  `V3__analysis_job_batch_link.sql` von Flyway angelegt.  Spring Boot 4
+  bringt keinen Auto-Initializer mehr mit, deshalb explizit per
+  Migration.
+* Das fachliche `analysis_job` wurde um `job_execution_id`, `run_label`
+  und `summary` erweitert; der `AnalysisJobLinkListener` koppelt die
+  technische Spring-Batch-Execution mit dem fachlichen Datensatz und
+  schreibt am Lauf-Ende eine kompakte Top-N-Zusammenfassung als JSON
+  in `analysis_job.summary`.
+* `BatchJdbcConfig extends JdbcDefaultBatchConfiguration` zwingt Spring
+  Batch dazu, das JDBC-gestützte JobRepository zu verwenden (Default
+  in Boot 4 ist sonst `ResourcelessJobRepository`).
+
+### `city-prioritization-job` – Steps
+
+| Step                 | Aufgabe                                                         |
+|----------------------|-----------------------------------------------------------------|
+| `loadCandidatesStep` | Lädt `locationKeys` der Stadt aus den vorhandenen Briefs.       |
+| `computeBriefsStep`  | Liest die Briefs (bei `recomputeExisting=true` markiert sie für Neuberechnung). |
+| `scoreProfilesStep`  | Validiert / aktualisiert den `prioritization_profile_score` je Brief. |
+| `persistResultsStep` | Schreibt die aktualisierten Score-Felder zurück.                |
+| `buildRankingStep`   | Erzeugt das Top-N-Ranking und legt es als JSON-Summary ab.      |
+
+Steps sind sauber getrennt (keine Mega-Tasklet) und können je für sich
+restartet werden.
+
+### Job-Parameter
+
+| Parameter           | Pflicht | Identifying | Bedeutung                                  |
+|---------------------|:-------:|:-----------:|--------------------------------------------|
+| `city`              | ja      | ja          | Stadt-Key (z. B. `Hannover`)               |
+| `profile`           | ja      | ja          | Profil-ID (z. B. `low_hanging_fruit`)      |
+| `recomputeExisting` | nein    | ja          | `true` lässt vorhandene Briefs neu bewerten|
+| `limit`             | nein    | nein        | Max. Anzahl betrachteter Stellen (Default 100) |
+| `runLabel`          | nein    | nein        | Frei wählbarer Lauf-Tag (z. B. `monatlich`)|
+| `runTimestamp`      | (auto)  | ja          | Wird vom Controller gesetzt – macht Wieder-Auslösungen eindeutig|
+
+### REST-API
+
+| Methode | Pfad                                                | Zweck                               |
+|---------|-----------------------------------------------------|-------------------------------------|
+| POST    | `/api/batch/jobs/city-prioritization`               | Lauf starten (gibt `executionId` zurück, 202)|
+| GET     | `/api/batch/jobs`                                   | Jüngste Lauf-Übersicht              |
+| GET     | `/api/batch/jobs/{executionId}`                     | Technischer Status (Steps, Exit-Codes)|
+| GET     | `/api/batch/jobs/{executionId}/summary`             | Fachliche Zusammenfassung (Top-N + Counts) |
+
+Die Endpunkte sind dünn und nutzen `JobLauncher` + `JobExplorer` direkt.
+Validation-Fehler kommen über den vorhandenen `error`-Envelope
+(category `validation`).  Konflikte (z. B. bereits laufender Lauf,
+abgeschlossene JobInstance) werden mit `409 Conflict` und einem
+maschinenlesbaren `code` zurückgegeben.
+
+### Restart / Fehlerverhalten
+
+* Auto-Run beim Start ist abgeschaltet (`BatchJobLauncherAutoConfiguration`
+  ist in `AnalysisServiceApplication` ausgeschlossen).  Die alte Property
+  `spring.batch.job.enabled` ist in Spring Boot 4 entfallen.
+* Identifying Parameter (`city`, `profile`, `recomputeExisting`,
+  `runTimestamp`) sorgen dafür, dass jeder neue Aufruf eine neue
+  `JobInstance` bekommt.  Ein vom Aufrufer übergebener identischer
+  Parametersatz kann *nicht* doppelt komplett ausgeführt werden – Spring
+  Batch wirft `JobInstanceAlreadyCompleteException`, die im Controller
+  als `409` mit Code `JOB_INSTANCE_ALREADY_COMPLETE` durchgereicht wird.
+* `scoreProfilesStep` lässt fehlende Profilscores nicht still verschwinden,
+  sondern erhöht den `processSkipCount` und schreibt einen Warn-Log.
+* Der `AnalysisJobLinkListener` markiert den fachlichen Datensatz bei
+  Failure mit `status=FAILED` und füllt `lastError` – kein stiller
+  Datenverlust.
+
+### Bekannte Fehlermodi
+
+| Symptom                                              | Ursache / Behandlung                                                |
+|------------------------------------------------------|---------------------------------------------------------------------|
+| 409 `JOB_ALREADY_RUNNING`                            | Vorheriger Lauf läuft noch.  Auf Abschluss warten.                  |
+| 409 `JOB_INSTANCE_ALREADY_COMPLETE`                  | Identische Parameter wurden bereits erfolgreich verarbeitet.       |
+| 409 `JOB_RESTART_FAILED`                             | Restart einer fehlgeschlagenen Instance schlug fehl.               |
+| 400 `validation`                                     | `city`/`profile` fehlen oder sind leer.                            |
+| 404                                                  | `executionId` existiert nicht.                                     |
+| `persist_skipped` beim Node-Forwarder                | Analysis Service nicht konfiguriert/aktiviert/erreichbar.          |
+
+## Bewusst nicht enthalten
+
+- Keine Ablösung der Node-App.
+- Keine erzwungene Frontend-Migration.
+- Keine vollständige Multi-City-Orchestrierung oder Cluster-/Worker-Verteilung.
+- Keine vollständige Scheduler-Landschaft.
+- Keine PostGIS-Geometrien – derzeit kein Persistenzbedarf.
+- Kein Hibernate-Search-Backend in diesem Schritt.
+- Kein gemeinsamer Build mit der Node-App – die beiden Welten bleiben
+  getrennt.
 
 ## Hibernate-Search-Vorbereitung
 
@@ -191,13 +326,3 @@ Die Klassen `LocationActionBriefEntity`,
 spätere Ergänzung von `@Indexed` / `@FullTextField`.  Das eigentliche
 Search-Backend (Lucene/Elasticsearch) ist **nicht** eingebunden, um den
 PR überschaubar zu halten.
-
-## Bewusst nicht enthalten
-
-- Keine Ablösung der Node-App.
-- Keine erzwungene Frontend-Migration.
-- Keine vollständige Batch-/Queue-**Verarbeitung** (nur Persistenz-Modell).
-- Keine vollständige stadtweite Pipeline.
-- Keine PostGIS-Geometrien – derzeit kein Persistenzbedarf.
-- Kein gemeinsamer Build mit der Node-App – die beiden Welten bleiben
-  getrennt.

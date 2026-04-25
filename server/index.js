@@ -567,6 +567,13 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
           return res.json({
             source: 'analysis-service',
             stored: { id: match.id, createdAt: match.createdAt, profileKey: match.profileKey },
+            persistence: {
+              status: 'loaded_from_store',
+              persisted: true,
+              persistRequested: false,
+              storedId: match.id || null,
+              attempts: cached.attempts || 1
+            },
             brief: match
           });
         }
@@ -600,7 +607,17 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
   const autoPersist = String(process.env.ANALYSIS_SERVICE_AUTO_PERSIST || '').toLowerCase() === 'true';
   const wantPersist = persist === true || (persist !== false && autoPersist);
   if (!wantPersist) {
-    return res.json(brief);
+    // Klar markieren, dass der Brief frisch berechnet und NICHT gespeichert
+    // wurde.  Das gibt UI-Komponenten eine eindeutige Grundlage, ohne dass
+    // der Aufrufer den Persistenz-Pfad kennen muss.
+    return res.json(Object.assign({}, brief, {
+      persistence: {
+        status:  'freshly_computed',
+        persisted: false,
+        persistRequested: false,
+        attempts: 0
+      }
+    }));
   }
 
   try {
@@ -608,9 +625,13 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
     if (result.ok) {
       // Antwort um Persistenz-Info ergänzen, ohne die bestehende
       // Brief-Struktur zu verändern.
+      console.info('[location-brief][persist] persisted (status=%s, attempts=%d, locationKey=%s)',
+        'persisted', result.attempts || 1, locationId || '<none>');
       return res.json(Object.assign({}, brief, {
         persistence: {
-          status:    'stored',
+          status:    'persisted',
+          persisted: true,
+          persistRequested: true,
           storedId:  (result.data && result.data.id) || null,
           attempts:  result.attempts || 1
         }
@@ -620,17 +641,28 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
     const reason = result.skipped
       ? `analysis_service_${result.skipped}`
       : (result.error || 'analysis_service_unreachable');
+    console.warn('[location-brief][persist] skipped (status=%s, reason=%s, attempts=%d, locationKey=%s)',
+      'persist_skipped', reason, result.attempts || 0, locationId || '<none>');
     return res.json(Object.assign({}, brief, {
       persistence: {
-        status:   'skipped',
+        status:   'persist_skipped',
+        persisted: false,
+        persistRequested: true,
         reason,
         attempts: result.attempts || 0
       }
     }));
   } catch (err) {
-    console.error('[location-brief] Persist-Fehler:', err.message);
+    console.error('[location-brief][persist] exception (locationKey=%s): %s',
+      locationId || '<none>', err.message);
     return res.json(Object.assign({}, brief, {
-      persistence: { status: 'skipped', reason: 'persist_exception', attempts: 0 }
+      persistence: {
+        status:   'persist_skipped',
+        persisted: false,
+        persistRequested: true,
+        reason:   'persist_exception',
+        attempts: 0
+      }
     }));
   }
 });
@@ -734,6 +766,82 @@ app.get('/api/location-briefs', locationBriefRateLimit, async (req, res) => {
     size:    req.query.size    !== undefined ? Number(req.query.size) : undefined
   });
   return forwardUpstream(res, result, true);
+});
+
+// ── Batch-Jobs (Forwarder zum analysis-service) ──────────────────────────────
+//
+// Diese Endpunkte sind dünne Forwarder zu den Spring-Batch-Endpunkten im
+// Analysis Service.  Sie sind voll optional und antworten mit 503, wenn der
+// Service nicht konfiguriert/aktiviert ist.  Damit kann die bestehende
+// Node-App Batch-Läufe später anstoßen und beobachten, ohne dass eine
+// UI-Neugestaltung nötig wird – stabile API-Verträge reichen.
+
+/**
+ * POST /api/batch/jobs/city-prioritization
+ *
+ * Forwarder: startet den city-prioritization-job im Analysis Service.
+ * Body: { city, profile, recomputeExisting?, limit?, runLabel? }
+ */
+app.post('/api/batch/jobs/city-prioritization', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  const city = String(body.city || '').trim();
+  const profile = String(body.profile || '').trim();
+  if (!city || !profile) {
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'CITY_AND_PROFILE_REQUIRED',
+      message: 'Pflichtfelder "city" und "profile" fehlen.'
+    });
+  }
+  const payload = {
+    city,
+    profile,
+    recomputeExisting: body.recomputeExisting === true,
+    limit:    Number.isFinite(Number(body.limit))    ? Number(body.limit)    : undefined,
+    runLabel: typeof body.runLabel === 'string'      ? body.runLabel         : undefined
+  };
+  Object.keys(payload).forEach((k) => { if (payload[k] === undefined) delete payload[k]; });
+  const result = await analysisServiceClient.startCityPrioritizationJob(payload);
+  if (result.ok) {
+    console.info('[batch][forwarder] city-prioritization gestartet (executionId=%s, city=%s, profile=%s, attempts=%d)',
+      (result.data && result.data.executionId) || '?', city, profile, result.attempts || 1);
+    // Status-Code des Upstreams (202) beibehalten, falls vorhanden.
+    return res.status(result.status || 202).json(result.data);
+  }
+  console.warn('[batch][forwarder] city-prioritization start failed (city=%s, profile=%s, status=%s, error=%s)',
+    city, profile, result.status || 0, result.error || 'unknown');
+  return forwardUpstream(res, result, false);
+});
+
+/**
+ * GET /api/batch/jobs
+ * Forwarder: jüngste Batch-Läufe (jobType + Status).
+ */
+app.get('/api/batch/jobs', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.listBatchJobs(Number(req.query.limit));
+  return forwardUpstream(res, result, true);
+});
+
+/**
+ * GET /api/batch/jobs/:executionId
+ * Forwarder: technischer Status (Steps, Exit-Codes, Zeitstempel).
+ */
+app.get('/api/batch/jobs/:executionId', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.fetchBatchJobStatus(req.params.executionId);
+  return forwardUpstream(res, result, false);
+});
+
+/**
+ * GET /api/batch/jobs/:executionId/summary
+ * Forwarder: fachliche Zusammenfassung (Top-N, Counts, Fehler).
+ */
+app.get('/api/batch/jobs/:executionId/summary', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.fetchBatchJobSummary(req.params.executionId);
+  return forwardUpstream(res, result, false);
 });
 
 // ── Server starten ────────────────────────────────────────────────────────────

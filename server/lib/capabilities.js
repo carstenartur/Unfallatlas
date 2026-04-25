@@ -213,6 +213,40 @@ function analysisService() {
 }
 
 /**
+ * Batch-Jobs im separaten Analysis Service.  Eigene Capability, weil sie
+ * unabhängig von der reinen Persistenz-Anbindung von Bedeutung sind: ein
+ * konfigurierter aber deaktivierter Service stellt zwar Persistenz nicht
+ * bereit, aber Batch-Forwarder sind dann auch automatisch aus.  Wir
+ * spiegeln deshalb genau den Verfügbarkeitsstatus der Persistenz-Capability,
+ * geben aber zusätzlich die unterstützten Job-Namen mit – das ist der
+ * stabile API-Vertrag, an dem sich die Node-/UI-Seite orientieren kann.
+ *
+ * @returns {Capability}
+ */
+function batchJobs() {
+  const persist = analysisService();
+  if (!persist.available) {
+    return {
+      available:  false,
+      reasonCode: persist.reasonCode,
+      reason:     'Batch-Jobs benötigen einen erreichbaren Analysis Service: ' + persist.reason,
+      details:    Object.assign({ supportedJobs: [] }, persist.details || {})
+    };
+  }
+  return {
+    available:  true,
+    reasonCode: REASON_CODES.OK,
+    reason:     'Batch-Jobs verfügbar (Forwarder zum Analysis Service).',
+    details: {
+      configured:    true,
+      enabled:       true,
+      baseUrl:       persist.details && persist.details.baseUrl,
+      supportedJobs: ['city-prioritization-job']
+    }
+  };
+}
+
+/**
  * Liefert eine kompakte Capability-Übersicht für den Status-Endpunkt.
  *
  * @returns {{
@@ -221,7 +255,8 @@ function analysisService() {
  *     aiAssessmentV2: Capability,
  *     politicalContext: Capability,
  *     videoExport: Capability,
- *     analysisService: Capability
+ *     analysisService: Capability,
+ *     batchJobs: Capability
  *   }
  * }}
  */
@@ -232,7 +267,8 @@ function getCapabilities() {
       aiAssessmentV2:   aiAssessmentV2(),
       politicalContext: politicalContext(),
       videoExport:      videoExport(),
-      analysisService:  analysisService()
+      analysisService:  analysisService(),
+      batchJobs:        batchJobs()
     }
   };
 }
@@ -244,5 +280,6 @@ module.exports = {
   aiAssessmentV2,
   politicalContext,
   videoExport,
-  analysisService
+  analysisService,
+  batchJobs
 };

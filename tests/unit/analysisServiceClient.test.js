@@ -345,3 +345,88 @@ describe('analysisServiceClient – Read-Forwarder', () => {
     expect((await c.fetchByCity('')).error).toMatch(/city_required/);
   });
 });
+
+// ── Batch-Forwarder ──────────────────────────────────────────────────────────
+
+describe('analysisServiceClient – Batch-Forwarder', () => {
+  let serverInfo;
+  afterEach(() => new Promise((r) => serverInfo && serverInfo.server.close(r)));
+
+  test('startCityPrioritizationJob postet city/profile + optionale Felder', async () => {
+    serverInfo = await startTestServer((ctx, res) => {
+      jsonReply(res, 202, { jobName: 'city-prioritization-job', executionId: 7, status: 'STARTED' });
+    });
+    process.env.ANALYSIS_SERVICE_BASE_URL = serverInfo.url;
+    const r = await loadClient().startCityPrioritizationJob({
+      city: 'Hannover',
+      profile: 'low_hanging_fruit',
+      recomputeExisting: true,
+      limit: 10,
+      runLabel: 'lauf-1'
+    });
+    expect(r.ok).toBe(true);
+    expect(r.status).toBe(202);
+    expect(r.data.executionId).toBe(7);
+    expect(serverInfo.calls[0].method).toBe('POST');
+    expect(serverInfo.calls[0].url).toBe('/api/batch/jobs/city-prioritization');
+    expect(serverInfo.calls[0].body).toEqual({
+      city: 'Hannover', profile: 'low_hanging_fruit',
+      recomputeExisting: true, limit: 10, runLabel: 'lauf-1'
+    });
+  });
+
+  test('startCityPrioritizationJob ohne city/profile ergibt invalid_request', async () => {
+    process.env.ANALYSIS_SERVICE_BASE_URL = 'http://127.0.0.1:1';
+    const r = await loadClient().startCityPrioritizationJob({ profile: 'p' });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/city_and_profile_required/);
+  });
+
+  test('fetchBatchJobStatus URL-encoded executionId', async () => {
+    serverInfo = await startTestServer((ctx, res) => {
+      jsonReply(res, 200, { executionId: 42, status: 'COMPLETED', steps: [] });
+    });
+    process.env.ANALYSIS_SERVICE_BASE_URL = serverInfo.url;
+    const r = await loadClient().fetchBatchJobStatus(42);
+    expect(r.ok).toBe(true);
+    expect(serverInfo.calls[0].url).toBe('/api/batch/jobs/42');
+  });
+
+  test('fetchBatchJobSummary an /summary delegiert', async () => {
+    serverInfo = await startTestServer((ctx, res) => {
+      jsonReply(res, 200, { executionId: 5, summary: '{"top":[]}' });
+    });
+    process.env.ANALYSIS_SERVICE_BASE_URL = serverInfo.url;
+    const r = await loadClient().fetchBatchJobSummary(5);
+    expect(r.ok).toBe(true);
+    expect(serverInfo.calls[0].url).toBe('/api/batch/jobs/5/summary');
+  });
+
+  test('listBatchJobs clamp Limit', async () => {
+    serverInfo = await startTestServer((ctx, res) => {
+      jsonReply(res, 200, []);
+    });
+    process.env.ANALYSIS_SERVICE_BASE_URL = serverInfo.url;
+    const r = await loadClient().listBatchJobs(9999);
+    expect(r.ok).toBe(true);
+    expect(serverInfo.calls[0].url).toBe('/api/batch/jobs?limit=100');
+  });
+
+  test('Batch-Forwarder respektieren ANALYSIS_SERVICE_ENABLED=false', async () => {
+    process.env.ANALYSIS_SERVICE_BASE_URL = 'http://127.0.0.1:1';
+    process.env.ANALYSIS_SERVICE_ENABLED = 'false';
+    const c = loadClient();
+    expect((await c.startCityPrioritizationJob({ city: 'a', profile: 'b' })).skipped).toBe('disabled');
+    expect((await c.fetchBatchJobStatus(1)).skipped).toBe('disabled');
+    expect((await c.fetchBatchJobSummary(1)).skipped).toBe('disabled');
+    expect((await c.listBatchJobs()).skipped).toBe('disabled');
+  });
+
+  test('ohne BASE_URL skipped=unconfigured', async () => {
+    const c = loadClient();
+    expect((await c.startCityPrioritizationJob({ city: 'a', profile: 'b' })).skipped).toBe('unconfigured');
+    expect((await c.fetchBatchJobStatus(1)).skipped).toBe('unconfigured');
+    expect((await c.fetchBatchJobSummary(1)).skipped).toBe('unconfigured');
+    expect((await c.listBatchJobs()).skipped).toBe('unconfigured');
+  });
+});
