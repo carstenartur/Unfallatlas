@@ -126,7 +126,7 @@ public class BatchJobController {
 
     @GetMapping("/{executionId}")
     public ResponseEntity<Map<String, Object>> getStatus(@PathVariable Long executionId) {
-        JobExecution execution = jobExplorer.getJobExecution(executionId);
+        JobExecution execution = findExecutionOrNull(executionId);
         if (execution == null) {
             return ResponseEntity.notFound().build();
         }
@@ -136,7 +136,7 @@ public class BatchJobController {
     @GetMapping("/{executionId}/summary")
     public ResponseEntity<Map<String, Object>> getSummary(@PathVariable Long executionId) {
         Optional<AnalysisJobEntity> link = analysisJobs.findFirstByJobExecutionIdOrderByCreatedAtDesc(executionId);
-        JobExecution exec = jobExplorer.getJobExecution(executionId);
+        JobExecution exec = findExecutionOrNull(executionId);
         if (link.isEmpty() && exec == null) {
             return ResponseEntity.notFound().build();
         }
@@ -162,6 +162,21 @@ public class BatchJobController {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    /**
+     * Liest eine {@link JobExecution} defensiv und liefert {@code null},
+     * wenn die ID nicht existiert.  Spring Batch 6 wirft in diesem Fall
+     * {@link org.springframework.dao.EmptyResultDataAccessException}; wir
+     * fangen sie hier ab, damit der Controller saubere 404-Responses
+     * zurückgeben kann anstatt 500er.
+     */
+    private JobExecution findExecutionOrNull(Long executionId) {
+        try {
+            return jobExplorer.getJobExecution(executionId);
+        } catch (org.springframework.dao.EmptyResultDataAccessException e) {
+            return null;
+        }
+    }
 
     private Map<String, Object> toAnalysisJobView(AnalysisJobEntity j) {
         Map<String, Object> m = new LinkedHashMap<>();
