@@ -468,11 +468,16 @@ describe('cityRegistry – Portal-Seed-Konsistenz (Stufe B)', () => {
   });
 
   test('alle aus der Seed-Liste neu aufgenommenen Städte sind höchstens Stufe-B-„partially_supported"', () => {
-    // Reine Portal-only-Einträge dürfen nicht versehentlich auf
-    // Stufe A oder C hochgestuft werden, solange weder Workflow-Daten
-    // noch Persistenz-Backing existieren.
+    // Reine Portal-only-Einträge (Portal in Seed-Liste, aber KEIN
+    // implementierter Provider in cityPortalRegistry) dürfen nicht
+    // versehentlich auf Stufe A oder C hochgestuft werden, solange
+    // weder Workflow-Daten noch Persistenz-Backing existieren.
+    // Hinweis: Städte aus der Seed-Liste, für die inzwischen ein
+    // Provider angebunden wurde (z. B. via sessionNetProvider), sind
+    // hier bewusst NICHT mehr aufgeführt – ihr Stufe-B-Status ist
+    // dann legitim `supported`.
     const portalOnlyIds = [
-      'gelsenkirchen', 'chemnitz', 'aachen', 'halle_saale',
+      'gelsenkirchen', 'aachen',
       'freiburg_im_breisgau', 'luebeck', 'krefeld', 'oberhausen',
       'rostock', 'kassel'
     ];

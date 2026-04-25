@@ -703,6 +703,115 @@ describe('cityPortalRegistry – neue Städte', () => {
     const list = listSupportedCitiesActual();
     expect(list).toEqual(expect.arrayContaining(['hannover', 'berlin', 'bonn', 'hamburg']));
   });
+  test('liefert generischen SessionNet-Provider für die neuen Städte', () => {
+    // Cluster 2: per generischem SessionNet-Provider angebunden.
+    for (const [city, key] of [
+      ['Bielefeld',  'bielefeld-sessionnet'],
+      ['Chemnitz',   'chemnitz-sessionnet'],
+      ['Halle (Saale)', 'halle-sessionnet'],
+      ['Magdeburg',  'magdeburg-sessionnet'],
+      ['Nürnberg',   'nuernberg-sessionnet']
+    ]) {
+      const p = getProviderForCityActual(city);
+      expect(p).not.toBeNull();
+      expect(p._key).toBe(key);
+      expect(typeof p.search).toBe('function');
+      expect(typeof p.supportsCity).toBe('function');
+    }
+  });
+});
+
+// ── sessionNetProvider (generischer Factory-Provider) ──────────────────────────
+
+const {
+  createSessionNetProvider,
+  parseResults: sessionNetParseResults,
+  buildSearchUrl: sessionNetBuildSearchUrl,
+  detailDirOf
+} = require('../../server/political-context/providers/sessionNetProvider.js');
+
+describe('sessionNetProvider – createSessionNetProvider Validierung', () => {
+  const validCfg = {
+    cityKey: 'testcity', providerKey: 'testcity-sessionnet',
+    baseUrl: 'https://example.org', searchPath: '/bi/yw010.asp'
+  };
+  test('akzeptiert vollständige Konfiguration', () => {
+    const p = createSessionNetProvider(validCfg);
+    expect(p._key).toBe('testcity-sessionnet');
+    expect(p.supportsCity('Testcity')).toBe(true);
+    expect(p.supportsCity('Other')).toBe(false);
+  });
+  test('verwirft fehlende Pflichtfelder', () => {
+    expect(() => createSessionNetProvider(null)).toThrow(TypeError);
+    expect(() => createSessionNetProvider({ ...validCfg, cityKey: '' })).toThrow(/cityKey/);
+    expect(() => createSessionNetProvider({ ...validCfg, providerKey: undefined })).toThrow(/providerKey/);
+    expect(() => createSessionNetProvider({ ...validCfg, baseUrl: 'not-a-url' })).toThrow(/baseUrl/);
+    expect(() => createSessionNetProvider({ ...validCfg, searchPath: 'no-leading-slash' })).toThrow(/searchPath/);
+  });
+  test('Provider-Objekt ist eingefroren', () => {
+    const p = createSessionNetProvider(validCfg);
+    expect(Object.isFrozen(p)).toBe(true);
+    expect(Object.isFrozen(p._config)).toBe(true);
+  });
+});
+
+describe('sessionNetProvider – buildSearchUrl', () => {
+  const cfg = {
+    cityKey: 'bielefeld', providerKey: 'bielefeld-sessionnet',
+    baseUrl: 'https://anwendungen.bielefeld.de', searchPath: '/bi/yw010.asp'
+  };
+  test('baut URL mit Standard-SessionNet-Parametern', () => {
+    const url = sessionNetBuildSearchUrl(cfg, 'Hauptstraße');
+    expect(url).toMatch(/^https:\/\/anwendungen\.bielefeld\.de\/bi\/yw010\.asp\?/);
+    expect(url).toContain('SUCH=Hauptstra');
+    expect(url).toContain('SUCH_OBJ=V');
+    expect(url).toMatch(/SUCHMAX=\d+/);
+    expect(url).toContain('MM=Suche');
+  });
+});
+
+describe('sessionNetProvider – parseResults', () => {
+  const cfg = {
+    cityKey: 'bielefeld', providerKey: 'bielefeld-sessionnet',
+    baseUrl: 'https://anwendungen.bielefeld.de', searchPath: '/bi/yw010.asp'
+  };
+  test('extrahiert Vorlage mit relativem Link', () => {
+    const html = `
+      <table>
+        <tr>
+          <td><a href="vo020.asp?VOLFDNR=42">Antrag zur Verkehrsberuhigung Detmolder Str.</a></td>
+          <td>15.03.2024</td>
+          <td>Bezirksvertretung Mitte</td>
+          <td>0123/2024</td>
+        </tr>
+      </table>`;
+    const out = sessionNetParseResults(html, cfg);
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toContain('Detmolder');
+    expect(out[0].url).toBe('https://anwendungen.bielefeld.de/bi/vo020.asp?VOLFDNR=42');
+    expect(out[0].date).toBe('15.03.2024');
+    expect(out[0].number).toBe('0123/2024');
+    expect(out[0].gremium).toContain('Bezirk');
+  });
+  test('akzeptiert absolute Detail-URLs unverändert', () => {
+    const html = `
+      <table><tr><td>
+        <a href="https://other.example.de/bi/vo020.asp?ID=1">Vorlage X zur Beethovenstraße</a>
+      </td></tr></table>`;
+    const out = sessionNetParseResults(html, cfg);
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe('https://other.example.de/bi/vo020.asp?ID=1');
+  });
+  test('verwirft Zeilen ohne SessionNet-Detail-Link', () => {
+    const html = '<table><tr><td><a href="https://example.com/foo">x</a></td></tr></table>';
+    expect(sessionNetParseResults(html, cfg)).toEqual([]);
+  });
+  test('detailDirOf leitet Verzeichnis aus searchPath ab', () => {
+    expect(detailDirOf({ searchPath: '/bi/yw010.asp' })).toBe('/bi/');
+    expect(detailDirOf({ searchPath: '/buergerinfo/yw010.asp' })).toBe('/buergerinfo/');
+    expect(detailDirOf({ searchPath: '/chemnitz/bi/yw010.asp' })).toBe('/chemnitz/bi/');
+    expect(detailDirOf({ searchPath: '/x', detailDir: '/custom/' })).toBe('/custom/');
+  });
 });
 
 // ── searchVariantBuilder ───────────────────────────────────────────────────────

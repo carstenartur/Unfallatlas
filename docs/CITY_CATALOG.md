@@ -106,13 +106,17 @@ Objekt sowie ein `capabilities`-Boolean-Bündel.  Beispiel:
 | Stufe | supported | partially_supported | unsupported |
 |:------|----------:|--------------------:|------------:|
 | A – Unfallanalyse        | 12 | 22 | 10 |
-| B – Politische Recherche |  4 | 24 | 16 |
+| B – Politische Recherche |  9 | 19 | 16 |
 | C – Persistenz / Batch   |  9 | 25 | 10 |
 
-Die vier mit Level B `supported` sind die Städte mit angebundenem
+Die neun mit Level B `supported` sind die Städte mit angebundenem
 Provider: **Hannover** (SIM), **Berlin** (Pardok + Bezirks-Allris),
-**Bonn** (Allris/SessionNet), **Hamburg** (Parldok + Bezirks-Allris).
-Die 24 mit Level B `partially_supported` haben einen Portallink aus
+**Bonn** (Allris/SessionNet), **Hamburg** (Parldok + Bezirks-Allris)
+sowie **Bielefeld**, **Chemnitz**, **Halle (Saale)**, **Magdeburg**
+und **Nürnberg** (alle über den generischen
+[`sessionNetProvider`](../server/political-context/providers/sessionNetProvider.js)
+für klassische SessionNet-Portale `<base>/bi/info.asp`).
+Die 19 mit Level B `partially_supported` haben einen Portallink aus
 der kuratierten Seed-Liste (siehe [Stufe B – Portal-Seed-Liste](#stufe-b--portal-seed-liste-fuer-grosse-staedte)),
 aber noch keinen Provider.
 
@@ -275,13 +279,15 @@ Mit Stand des Portal-Seed-PR sind 38 Städte mit konkreten Portal-
 referenzen ausgestattet (Flag `portal-from-seed`):
 
 - **Bereits mit Provider (Stufe B `supported`)**: Berlin, Hamburg,
-  Hannover, Bonn.
+  Hannover, Bonn (jeweils dedizierter Provider) sowie Bielefeld,
+  Chemnitz, Halle (Saale), Magdeburg, Nürnberg (über den generischen
+  [`sessionNetProvider`](../server/political-context/providers/sessionNetProvider.js)).
 - **Portal hinterlegt, Provider folgt (Stufe B `partially_supported`)**:
   München, Köln, Frankfurt am Main, Stuttgart, Düsseldorf, Leipzig,
-  Dortmund, Essen, Bremen, Dresden, Nürnberg, Duisburg, Bochum,
-  Wuppertal, Bielefeld, Münster, Karlsruhe, Mannheim, Augsburg,
-  Wiesbaden, Braunschweig, Kiel, Magdeburg, Mainz, Gelsenkirchen,
-  Chemnitz, Aachen, Halle (Saale), Freiburg im Breisgau, Lübeck,
+  Dortmund, Essen, Bremen, Dresden, Duisburg, Bochum,
+  Wuppertal, Münster, Karlsruhe, Mannheim, Augsburg,
+  Wiesbaden, Braunschweig, Kiel, Mainz, Gelsenkirchen,
+  Aachen, Freiburg im Breisgau, Lübeck,
   Krefeld, Oberhausen, Rostock, Kassel.
 
 Nicht in der aktuellen Seed-Liste enthaltene Katalog-Städte (z. B.
