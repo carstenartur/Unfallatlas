@@ -2,6 +2,10 @@ package de.unfallatlas.analysis.domain;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.FullTextField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.GenericField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.Indexed;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.KeywordField;
 
 import java.util.Objects;
 
@@ -19,11 +23,12 @@ import java.util.Objects;
         @Index(name = "idx_prs_topic", columnList = "topic")
     }
 )
-// Hibernate-Search-Hook (vorbereitet, noch nicht aktiv)
+@Indexed(index = "political_reference_summary")
 public class PoliticalReferenceSummaryEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GenericField(name = "id_kw")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -33,6 +38,7 @@ public class PoliticalReferenceSummaryEntity {
     @NotBlank
     @Size(max = 250)
     @Column(nullable = false, length = 250)
+    @FullTextField(analyzer = "standard")
     private String title;
 
     @Size(max = 500)
@@ -41,15 +47,18 @@ public class PoliticalReferenceSummaryEntity {
 
     @Size(max = 60)
     @Column(length = 60)
+    @KeywordField
     private String type;
 
     /** Optionaler Themenslug, wie ihn die Node-Komponente vergibt. */
     @Size(max = 60)
     @Column(length = 60)
+    @KeywordField
     private String topic;
 
     @Min(0) @Max(1)
     @Column(nullable = false)
+    @GenericField(sortable = org.hibernate.search.engine.backend.types.Sortable.YES)
     private double relevance;
 
     public Long getId() { return id; }

@@ -1,12 +1,13 @@
 # Release-Checklist – Unfallwerkbank
 
-Vor jedem Release sollten die folgenden Smoke-Tests in **allen vier
+Vor jedem Release sollten die folgenden Smoke-Tests in **allen fünf
 Betriebsarten** erfolgreich durchlaufen werden.  Die Prüfungen sind bewusst
 manuell und kurz – sie ergänzen die automatisierte Test-Suite (`npm test`,
 `npm run test:e2e`) und stellen sicher, dass jede unterstützte Variante real
 funktioniert.
 
-> Übersicht der Betriebsarten: siehe README → *Betriebsarten / Betriebs-Matrix*.
+> Übersicht der Betriebsmodi: siehe README → *Betriebsmodi – Browser-only ·
+> Node-Standalone · Node + Analysis Service*.
 
 ---
 
@@ -87,9 +88,93 @@ docker run -p 8000:8000 -e GEMINI_API_KEY=... \
 - [ ] Container-Logs enthalten keine API-Keys oder PII
 - [ ] Rate-Limit greift bei `>3` Video-Requests/min mit `429`
 
----
+## 5. Node + Analysis Service (Persistenz aktiv)
 
-## 5. Querschnitts-Checks
+Voraussetzung: Compose-Profil `persist` startet PostgreSQL, den
+Analysis Service (Spring Boot, Port `8081`) und die Node-App.
+
+```bash
+docker compose --profile persist up
+# Node:               http://localhost:8000
+# Analysis Service:   http://localhost:8081
+```
+
+Stand-alone (ohne Docker) lokal:
+
+```bash
+export ANALYSIS_SERVICE_BASE_URL=http://localhost:8081
+npm run start:server
+# parallel:
+cd analysis-service && SPRING_PROFILES_ACTIVE=prod \
+  ANALYSIS_DB_URL=jdbc:postgresql://localhost:5432/unfallatlas \
+  ANALYSIS_DB_USER=unfallatlas ANALYSIS_DB_PASSWORD=… mvn spring-boot:run
+```
+
+### PostgreSQL & Flyway-Start
+
+- [ ] Analysis Service startet ohne Fehler; Logs zeigen Flyway-Migration
+      `V1__init_schema.sql` (und ggf. `V2__…`, `V3__…`) als `Successfully applied`
+- [ ] `spring.jpa.hibernate.ddl-auto=validate` ist aktiv (kein
+      automatisches Schema-Update); Schema wird validiert
+- [ ] PostgreSQL-Container ist erreichbar (Compose-Profil `persist`)
+      bzw. lokale DB enthält die Tabellen `location_action_brief`,
+      `conflict_pattern_assessment`, `candidate_measure_assessment`,
+      `prioritization_profile_score`, `political_reference_summary`,
+      `analysis_job` und die `BATCH_*`-Metadatentabellen
+
+### Health & Actuator
+
+- [ ] `GET http://localhost:8081/actuator/health` antwortet
+      `{ "status": "UP" }` (DB + Anwendung)
+- [ ] `GET http://localhost:8081/actuator/info` liefert Build-/App-Info
+- [ ] `GET http://localhost:8000/api/status` zeigt
+      `capabilities.analysisService.available: true`,
+      `reasonCode: "ok"`,
+      `capabilities.batchJobs.supportedJobs` enthält
+      `"city-prioritization-job"`
+
+### Persistieren eines Location Briefs
+
+- [ ] `POST http://localhost:8000/api/location-brief` mit `persist: true`,
+      `locationId` und `profile` antwortet `200 OK` mit
+      `persistence.status: "persisted"`, `persistence.storedId` gesetzt,
+      `persistence.attempts >= 1`
+- [ ] Wiederholtes Posten desselben Briefs (gleiche Eingaben) liefert
+      denselben Datensatz zurück (Idempotenz über
+      `locationKey + profileKey + sourceFingerprint`) – kein Duplikat
+- [ ] Ohne `persist` (Default): Antwort enthält
+      `persistence.status: "freshly_computed"`, `persisted: false`
+- [ ] Mit `useStored: true` und vorhandenem Brief: Antwort enthält
+      `source: "analysis-service"` und
+      `persistence.status: "loaded_from_store"`
+- [ ] Bei abgeschaltetem Analysis Service (`docker compose stop
+      analysis-service`) liefert die Node-App den Brief weiter aus mit
+      `persistence.status: "persist_skipped"` und einem `reason` – **kein** `5xx`
+
+### Abruf by-location
+
+- [ ] `GET http://localhost:8000/api/location-briefs/by-location/<key>`
+      liefert ein Array gespeicherter Briefs (neueste zuerst), 1:1
+      vom Analysis Service durchgereicht
+- [ ] Ohne konfigurierten Analysis Service: Endpunkt antwortet
+      `503 ANALYSIS_SERVICE_NOT_CONFIGURED`
+- [ ] Bei Upstream-Fehler (Service down): `502 upstream_error` mit
+      `details.attempts > 0`
+
+### Top-N / Profil-Ranking
+
+- [ ] `GET /api/location-briefs/top?city=Hannover&profile=safety_first&limit=10`
+      liefert Array sortiert nach Profil-Score (höchster zuerst)
+- [ ] `GET /api/location-briefs?city=Hannover&profile=low_hanging_fruit&page=0&size=20`
+      liefert paginierte Ergebnisse einer Stadt
+- [ ] `POST /api/batch/jobs/city-prioritization` mit
+      `{city, profile, limit, runLabel}` antwortet `202` mit
+      `executionId`; anschließend zeigt
+      `GET /api/batch/jobs/{executionId}` schließlich `status: "COMPLETED"`
+- [ ] `GET /api/batch/jobs/{executionId}/summary` liefert die
+      fachliche Top-N-Zusammenfassung
+
+## 6. Querschnitts-Checks
 
 - [ ] `npm test` (Unit + Integration) ist grün
 - [ ] `npm run test:e2e` (Playwright) ist grün
@@ -102,4 +187,5 @@ docker run -p 8000:8000 -e GEMINI_API_KEY=... \
       [`docs/architecture.md`](architecture.md),
       [`docs/server-features.md`](server-features.md),
       [`server/ai/README.md`](../server/ai/README.md),
-      [`server/political-context/README.md`](../server/political-context/README.md)
+      [`server/political-context/README.md`](../server/political-context/README.md),
+      [`analysis-service/README.md`](../analysis-service/README.md)

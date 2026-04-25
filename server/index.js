@@ -11,6 +11,9 @@
  *   GET  /api/location-briefs/by-location/:key – gespeicherte Briefs einer Stelle
  *   GET  /api/location-briefs/top         – Top-N gespeicherte Briefs (Stadt+Profil)
  *   GET  /api/location-briefs?city=…      – gespeicherte Briefs einer Stadt
+ *   GET  /api/priorities/top              – Top-N als kompakte Decision-Cards
+ *   GET  /api/priorities/by-location/:key – gespeicherte Briefs einer Stelle als Cards
+ *   GET  /api/priorities/profiles         – verfügbare Profile + dataStatus-Vokabular
  *
  * Die Lese-Endpunkte unter `/api/location-briefs` sind dünne Forwarder zum
  * separaten Analysis Service (Spring Boot, siehe `analysis-service/`) und
@@ -36,6 +39,9 @@ const { buildLocationBrief, PROFILE_IDS, DEFAULT_PROFILE } = require('./location
 const { getCapabilities }                = require('./lib/capabilities.js');
 const { sendError, attachFallbackInfo, CATEGORIES } = require('./lib/errors.js');
 const analysisServiceClient              = require('./analysis-service/analysisServiceClient.js');
+const priorities                         = require('./priorities');
+const { createPrioritiesHandlers }       = require('./priorities/handlers.js');
+const { correlationIdMiddleware, HEADER_NAME: CORRELATION_HEADER } = require('./lib/correlationId.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -43,6 +49,12 @@ const ROOT = path.resolve(__dirname, '..');
 
 // Parse JSON request bodies
 app.use(express.json());
+
+// Korrelations-ID-Middleware: jede Anfrage erhält ein stabiles Tracing-
+// Token, das in Logs auftaucht und im Antwort-Header gespiegelt wird.
+// Muss vor allen Handlern stehen, damit `req.correlationId` überall
+// verfügbar ist.
+app.use(correlationIdMiddleware());
 
 // Rate limiter for the video export endpoint (3 requests/minute per IP).
 // Video generation is expensive; this guards against unintentional hammering.
@@ -553,14 +565,37 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
     });
   }
 
+  // `useStored: true` wurde explizit angefragt?  Falls ja und der Cache-Lookup
+  // weiter unten kein Treffer liefert (oder der Service nicht erreichbar ist),
+  // berichten wir das über einen separaten `storedLookup`-Block – die UI
+  // weiß dann, dass die persistierte Sicht gewollt, aber nicht möglich war,
+  // ohne dass sich der Persistenz-Lifecycle damit vermischt.
+  //
+  // `storedLookup.reason`-Vokabular:
+  //   * `not_requested`        – useStored war false / kein locationId
+  //   * `cache_hit`             – Treffer (in diesem Pfad nie sichtbar,
+  //                               weil wir oben direkt zurückkehren)
+  //   * `cache_miss`            – Service erreichbar, aber kein Brief
+  //                               für (locationKey, profile) vorhanden
+  //   * `service_unreachable`   – Aufruf scheiterte (Netzwerk/HTTP/Parse)
+  const storedRequested = useStored === true && typeof locationId === 'string' && locationId.length > 0;
+  /** @type {{requested:boolean, found:boolean, reason:string, attempts:number}} */
+  const storedLookup = {
+    requested: storedRequested,
+    found:     false,
+    reason:    storedRequested ? 'cache_miss' : 'not_requested',
+    attempts:  0
+  };
+
   // Optional: vor der Berechnung in den Analysis Service schauen, ob für die
   // gleiche Stelle + Profil bereits ein gespeicherter Brief existiert.  Diese
   // Optimierung ist rein additiv – wenn sie fehlschlägt, wird ganz normal neu
   // berechnet.  Aktiviert über `useStored: true` im Request-Body und nur
   // sinnvoll, wenn die Node-Seite eine stabile `locationId` mitschickt.
-  if (useStored === true && typeof locationId === 'string' && locationId.length > 0) {
+  if (storedRequested) {
     try {
       const cached = await analysisServiceClient.fetchByLocationKey(locationId);
+      storedLookup.attempts = cached.attempts || 1;
       if (cached.ok && Array.isArray(cached.data) && cached.data.length > 0) {
         const match = cached.data.find((b) => b && b.profileKey === resolvedProfile) || cached.data[0];
         if (match) {
@@ -574,11 +609,29 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
               storedId: match.id || null,
               attempts: cached.attempts || 1
             },
+            storedLookup: {
+              requested: true,
+              found:     true,
+              reason:    'cache_hit',
+              attempts:  cached.attempts || 1
+            },
+            dataStatus: priorities.DATA_STATUS.LOADED_FROM_STORE,
             brief: match
           });
         }
+        // Service erreichbar, Daten vorhanden, aber kein passendes Profil:
+        // Live-Compute, nur als Lookup-Miss markieren.
+        storedLookup.reason = 'cache_miss';
+      } else if (cached.ok) {
+        // Service hat geantwortet, aber leere Trefferliste.
+        storedLookup.reason = 'cache_miss';
+      } else {
+        // Aufruf nicht erfolgreich – Service nicht erreichbar.
+        storedLookup.reason = 'service_unreachable';
       }
-    } catch (_) { /* ignore – fall through to fresh compute */ }
+    } catch (_) {
+      storedLookup.reason = 'service_unreachable'; /* fall through to fresh compute */
+    }
   }
 
   let brief;
@@ -608,15 +661,26 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
   const wantPersist = persist === true || (persist !== false && autoPersist);
   if (!wantPersist) {
     // Klar markieren, dass der Brief frisch berechnet und NICHT gespeichert
-    // wurde.  Das gibt UI-Komponenten eine eindeutige Grundlage, ohne dass
-    // der Aufrufer den Persistenz-Pfad kennen muss.
+    // wurde.  `persistence.status` bleibt unabhängig vom (optionalen)
+    // `useStored`-Lookup auf `freshly_computed` – der Cache-Miss/-Fehler
+    // ist über den separaten `storedLookup`-Block sichtbar.  `dataStatus`
+    // schaltet nur dann auf `fallback_result`, wenn der Aufrufer eine
+    // gespeicherte Sicht angefordert hat und der Service tatsächlich nicht
+    // erreichbar war (echter Fallback) – ein reiner Cache-Miss bleibt
+    // `freshly_computed`, weil die fehlende Persistenz dann erwartbar ist.
+    const isUnreachable = storedLookup.requested
+      && storedLookup.reason === 'service_unreachable';
     return res.json(Object.assign({}, brief, {
       persistence: {
-        status:  'freshly_computed',
-        persisted: false,
+        status:           'freshly_computed',
+        persisted:        false,
         persistRequested: false,
-        attempts: 0
-      }
+        attempts:         0
+      },
+      storedLookup,
+      dataStatus: isUnreachable
+        ? priorities.DATA_STATUS.FALLBACK_RESULT
+        : priorities.DATA_STATUS.FRESHLY_COMPUTED
     }));
   }
 
@@ -634,7 +698,9 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
           persistRequested: true,
           storedId:  (result.data && result.data.id) || null,
           attempts:  result.attempts || 1
-        }
+        },
+        storedLookup,
+        dataStatus: priorities.DATA_STATUS.PERSISTED
       }));
     }
     // Skipped/Fehler: Brief trotzdem ausliefern, mit klarer Fallback-Info.
@@ -650,7 +716,9 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
         persistRequested: true,
         reason,
         attempts: result.attempts || 0
-      }
+      },
+      storedLookup,
+      dataStatus: priorities.DATA_STATUS.FALLBACK_RESULT
     }));
   } catch (err) {
     console.error('[location-brief][persist] exception (locationKey=%s): %s',
@@ -662,7 +730,9 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
         persistRequested: true,
         reason:   'persist_exception',
         attempts: 0
-      }
+      },
+      storedLookup,
+      dataStatus: priorities.DATA_STATUS.FALLBACK_RESULT
     }));
   }
 });
@@ -768,6 +838,54 @@ app.get('/api/location-briefs', locationBriefRateLimit, async (req, res) => {
   return forwardUpstream(res, result, true);
 });
 
+// ── Prioritäten-/Ranking-Sicht ───────────────────────────────────────────────
+//
+// Diese Endpunkte verdichten die rohen Analysis-Service-Antworten zu
+// kompakten Decision-Cards für die Prioritätenansicht in der Werkbank
+// („Welche Stelle ist wichtig, warum, mit welcher Maßnahme?").  Sie sind
+// reine *Lese*-Endpunkte, nutzen den vorhandenen Forwarder und liefern
+// einen einheitlichen Antwort-Envelope mit stabilem `dataStatus`.
+//
+// Verhalten ohne Analysis Service: statt 503 antworten wir mit
+// `dataStatus: "fallback_result"` und `empty: true` – die UI kann dann
+// klar zwischen „kein Ranking gespeichert" (loaded_from_store + empty) und
+// „Persistenz steht nicht bereit" (fallback_result) unterscheiden.
+
+/**
+ * GET /api/priorities/profiles
+ *
+ * Liefert die unterstützten Bewertungsprofile und das stabile
+ * `dataStatus`-Vokabular.  Wird von der Prioritäten-UI für Dropdowns und
+ * Status-Anzeigen genutzt; unabhängig vom Analysis Service.
+ */
+const _prioritiesHandlers = createPrioritiesHandlers({
+  analysisServiceClient,
+  profileIds:     PROFILE_IDS,
+  defaultProfile: DEFAULT_PROFILE,
+  sendError,
+  categories:     CATEGORIES
+});
+
+app.get('/api/priorities/profiles', _prioritiesHandlers.profilesHandler);
+
+/**
+ * GET /api/priorities/top?city=&profile=&limit=
+ *
+ * Liefert die Top-N gespeicherten Briefs einer Stadt für ein Profil als
+ * normalisierte Decision-Cards.  Leeres Ranking: `{ items: [], empty: true,
+ * dataStatus: "loaded_from_store" }`.  Service nicht erreichbar:
+ * `{ items: [], empty: true, dataStatus: "fallback_result", fallbackReason }`.
+ */
+app.get('/api/priorities/top', locationBriefRateLimit, _prioritiesHandlers.topHandler);
+
+/**
+ * GET /api/priorities/by-location/:locationKey?profile=
+ *
+ * Liefert alle gespeicherten Briefs einer Stelle als Decision-Cards,
+ * neuester / passendes Profil zuerst.  Antwort-Envelope wie bei `/top`.
+ */
+app.get('/api/priorities/by-location/:locationKey', locationBriefRateLimit, _prioritiesHandlers.byLocationHandler);
+
 // ── Batch-Jobs (Forwarder zum analysis-service) ──────────────────────────────
 //
 // Diese Endpunkte sind dünne Forwarder zu den Spring-Batch-Endpunkten im
@@ -844,6 +962,80 @@ app.get('/api/batch/jobs/:executionId/summary', locationBriefRateLimit, async (r
   return forwardUpstream(res, result, false);
 });
 
+/**
+ * GET /api/batch/jobs/:executionId/ranking
+ * Forwarder: persistierte Ranking-Artefakte einer Execution.  Lese-Pfad
+ * für die UI-Funktion „Aus Batch-Lauf laden" / Vergleichsmodus.
+ */
+app.get('/api/batch/jobs/:executionId/ranking', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.fetchBatchJobRanking(req.params.executionId);
+  return forwardUpstream(res, result, false);
+});
+
+/**
+ * POST /api/batch/jobs/:executionId/restart
+ * Forwarder: restartet eine Execution über den Spring-Batch-JobOperator.
+ */
+app.post('/api/batch/jobs/:executionId/restart', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.restartBatchJob(req.params.executionId);
+  return forwardUpstream(res, result, false);
+});
+
+// ── Search-Forwarder ────────────────────────────────────────────────────────
+//
+// Drei dünne Forwarder zu den Hibernate-Search-basierten Endpunkten im
+// Analysis Service.  Sie sind voll optional: ist der Service nicht
+// konfiguriert/aktiviert, wird via `ensureAnalysisServiceConfigured`
+// ein konsistenter 503 mit klarem Fehlertext geliefert – damit das UI
+// einen "Suche degradiert"-Hinweis rendern kann, statt zu raten.
+
+/**
+ * GET /api/search/briefs
+ * Such-Parameter (alle optional, mindestens einer sollte gesetzt sein):
+ *   q, city, profile, conflictPattern, limit
+ */
+app.get('/api/search/briefs', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.searchBriefs({
+    q:               req.query.q,
+    city:            req.query.city,
+    profile:         req.query.profile,
+    conflictPattern: req.query.conflictPattern,
+    limit:           req.query.limit
+  });
+  return forwardUpstream(res, result, true);
+});
+
+/**
+ * GET /api/search/political-refs
+ * Such-Parameter (alle optional): q, type, topic, limit
+ */
+app.get('/api/search/political-refs', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.searchPoliticalRefs({
+    q:     req.query.q,
+    type:  req.query.type,
+    topic: req.query.topic,
+    limit: req.query.limit
+  });
+  return forwardUpstream(res, result, true);
+});
+
+/**
+ * GET /api/search/similar/:briefId
+ * Liefert ähnliche Briefs (More-Like-This) zur referenzierten ID.
+ */
+app.get('/api/search/similar/:briefId', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.findSimilarBriefs(
+    req.params.briefId,
+    { limit: req.query.limit }
+  );
+  return forwardUpstream(res, result, true);
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);
@@ -855,6 +1047,7 @@ app.listen(PORT, () => {
   console.log(`KI-Provider: ${activeProviderName()}`);
   console.log(`Politische Recherche: POST http://localhost:${PORT}/api/political-context/search`);
   console.log(`Maßnahmen-Steckbrief: POST http://localhost:${PORT}/api/location-brief`);
+  console.log(`Prioritätenansicht:  GET  http://localhost:${PORT}/api/priorities/top?city=&profile=&limit=`);
   const analysisStatus = analysisServiceClient.describeStatus();
   if (analysisStatus.configured) {
     console.log(`Analysis Service:    ${analysisStatus.enabled ? 'aktiv' : 'deaktiviert'} (${analysisStatus.baseUrl}, timeout ${analysisStatus.timeoutMs}ms, retries ${analysisStatus.retries})`);

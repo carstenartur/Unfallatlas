@@ -34,6 +34,7 @@
 const http  = require('http');
 const https = require('https');
 const { URL } = require('url');
+const { getCurrentCorrelationId } = require('../lib/correlationId.js');
 
 const INGEST_SCHEMA_VERSION = 'locationBriefIngest.v1';
 
@@ -128,6 +129,19 @@ function rawRequest(url, opts) {
     if (bodyStr !== null) {
       headers['Content-Type'] = 'application/json';
       headers['Content-Length'] = Buffer.byteLength(bodyStr);
+    }
+    // Korrelations-ID an den Analysis Service weiterreichen.  Reihenfolge:
+    //  1. expliziter Wert aus `opts.correlationId` (Tests, manuelle Aufrufe),
+    //  2. aktueller AsyncLocalStorage-Frame der Express-Middleware
+    //     (`getCurrentCorrelationId`).
+    // Akzeptiert wird nur, was dem Whitelisting-Muster entspricht; damit
+    // kann ein Aufrufer keine beliebigen Strings in den Header und damit
+    // in unsere Logs schmuggeln.
+    const cid = (opts.correlationId && typeof opts.correlationId === 'string')
+      ? opts.correlationId
+      : getCurrentCorrelationId();
+    if (cid && /^[A-Za-z0-9._:-]{4,128}$/.test(cid)) {
+      headers['X-Correlation-Id'] = cid;
     }
 
     const req = lib.request(
@@ -448,6 +462,105 @@ async function probe() {
     : { ok: false, status: r.status || 0, error: r.error || 'probe_failed' };
 }
 
+/**
+ * Liefert die persistierten Ranking-Artefakte einer Batch-Execution.
+ * Lese-Pfad für die UI-Funktion „Aus Batch-Lauf laden".
+ * @param {number|string} executionId
+ */
+async function fetchBatchJobRanking(executionId) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  if (executionId === undefined || executionId === null || executionId === '') {
+    return { ok: false, error: 'invalid_request:executionId_required' };
+  }
+  const url = `${cfg.baseUrl}/api/batch/jobs/${encodeURIComponent(String(executionId))}/ranking`;
+  return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
+}
+
+/**
+ * Restartet eine zuvor abgebrochene/gescheiterte Spring-Batch-Execution.
+ * @param {number|string} executionId
+ */
+async function restartBatchJob(executionId) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  if (executionId === undefined || executionId === null || executionId === '') {
+    return { ok: false, error: 'invalid_request:executionId_required' };
+  }
+  const url = `${cfg.baseUrl}/api/batch/jobs/${encodeURIComponent(String(executionId))}/restart`;
+  return withRetry(
+    url,
+    { method: 'POST', body: {}, timeoutMs: Math.max(cfg.timeoutMs, 8000) },
+    cfg.retries,
+    cfg.retryDelayMs
+  );
+}
+
+// ── Search-Endpunkte (Forwarder) ────────────────────────────────────────────
+//
+// Dünne Forwarder zu den Hibernate-Search-basierten Endpunkten im
+// Analysis Service.  Antworten enthalten ein `searchAvailable`-Flag,
+// damit das UI sauber zwischen "Suche degradiert" und "kein Treffer"
+// unterscheiden kann (Antwort wird 1:1 weitergereicht).
+
+/** @param {{q?:string, city?:string, profile?:string, conflictPattern?:string, limit?:number}} [opts] */
+async function searchBriefs(opts) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  const o = opts || {};
+  const params = new URLSearchParams();
+  if (o.q) params.set('q', String(o.q));
+  if (o.city) params.set('city', String(o.city));
+  if (o.profile) params.set('profile', String(o.profile));
+  if (o.conflictPattern) params.set('conflictPattern', String(o.conflictPattern));
+  if (Number.isFinite(Number(o.limit))) {
+    params.set('limit', String(Math.min(Math.max(1, Number(o.limit)), 100)));
+  }
+  const qs = params.toString();
+  const url = `${cfg.baseUrl}/api/search/briefs${qs ? '?' + qs : ''}`;
+  return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
+}
+
+/** @param {{q?:string, type?:string, topic?:string, limit?:number}} [opts] */
+async function searchPoliticalRefs(opts) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  const o = opts || {};
+  const params = new URLSearchParams();
+  if (o.q) params.set('q', String(o.q));
+  if (o.type) params.set('type', String(o.type));
+  if (o.topic) params.set('topic', String(o.topic));
+  if (Number.isFinite(Number(o.limit))) {
+    params.set('limit', String(Math.min(Math.max(1, Number(o.limit)), 100)));
+  }
+  const qs = params.toString();
+  const url = `${cfg.baseUrl}/api/search/political-refs${qs ? '?' + qs : ''}`;
+  return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
+}
+
+/**
+ * @param {string} briefId
+ * @param {{limit?:number}} [opts]
+ */
+async function findSimilarBriefs(briefId, opts) {
+  const cfg = getConfig();
+  if (!cfg.baseUrl) return { ok: false, skipped: 'unconfigured' };
+  if (!cfg.enabled) return { ok: false, skipped: 'disabled' };
+  if (!briefId) return { ok: false, error: 'invalid_request:briefId_required' };
+  const o = opts || {};
+  const params = new URLSearchParams();
+  if (Number.isFinite(Number(o.limit))) {
+    params.set('limit', String(Math.min(Math.max(1, Number(o.limit)), 100)));
+  }
+  const qs = params.toString();
+  const url = `${cfg.baseUrl}/api/search/similar/${encodeURIComponent(briefId)}${qs ? '?' + qs : ''}`;
+  return withRetry(url, { method: 'GET', timeoutMs: cfg.timeoutMs }, cfg.retries, cfg.retryDelayMs);
+}
+
 module.exports = {
   INGEST_SCHEMA_VERSION,
   getConfig,
@@ -460,6 +573,11 @@ module.exports = {
   startCityPrioritizationJob,
   fetchBatchJobStatus,
   fetchBatchJobSummary,
+  fetchBatchJobRanking,
+  restartBatchJob,
   listBatchJobs,
+  searchBriefs,
+  searchPoliticalRefs,
+  findSimilarBriefs,
   probe
 };

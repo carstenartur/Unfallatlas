@@ -92,6 +92,36 @@
             <artifactId>spring-boot-starter-batch</artifactId>
         </dependency>
 
+        <!-- Hibernate Search: praktisch nutzbare Suchschicht über
+             LocationActionBriefEntity + PoliticalReferenceSummaryEntity +
+             CandidateMeasureAssessmentEntity (siehe @Indexed-Annotationen).
+             Backend: Lokales Lucene-Filesystem (kein zusätzlicher
+             Infra-Bedarf).  Bootstrap und automatisches Indexing werden
+             über `application.properties` gesteuert.
+
+             Hibernate Search 8.0.0 deklariert hibernate-core 7.0; durch
+             Spring-Boot 4.0.6's Dependency-Management läuft alles unter
+             der dort gemanagten ORM-Version (7.2.x), die innerhalb der
+             7.x-Linie kompatibel bleibt. -->
+        <dependency>
+            <groupId>org.hibernate.search</groupId>
+            <artifactId>hibernate-search-mapper-orm</artifactId>
+            <version>8.2.1.Final</version>
+            <exclusions>
+                <!-- Wir ziehen hibernate-core über Spring Boot, damit wir
+                     bei der gemanagten Version (7.2.x) bleiben. -->
+                <exclusion>
+                    <groupId>org.hibernate.orm</groupId>
+                    <artifactId>hibernate-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.search</groupId>
+            <artifactId>hibernate-search-backend-lucene</artifactId>
+            <version>8.2.1.Final</version>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -3,7 +3,9 @@ package de.unfallatlas.analysis.api;
 import de.unfallatlas.analysis.batch.CityPrioritizationJobConfig;
 import de.unfallatlas.analysis.batch.CityPrioritizationJobRequest;
 import de.unfallatlas.analysis.domain.AnalysisJobEntity;
+import de.unfallatlas.analysis.domain.BatchRankingArtifactEntity;
 import de.unfallatlas.analysis.persistence.AnalysisJobRepository;
+import de.unfallatlas.analysis.persistence.BatchRankingArtifactRepository;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,17 +62,23 @@ public class BatchJobController {
 
     private final JobLauncher jobLauncher;
     private final JobExplorer jobExplorer;
+    private final org.springframework.batch.core.launch.JobOperator jobOperator;
     private final Job cityPrioritizationJob;
     private final AnalysisJobRepository analysisJobs;
+    private final BatchRankingArtifactRepository rankingArtifacts;
 
     public BatchJobController(JobLauncher jobLauncher,
                               JobExplorer jobExplorer,
+                              org.springframework.batch.core.launch.JobOperator jobOperator,
                               Job cityPrioritizationJob,
-                              AnalysisJobRepository analysisJobs) {
+                              AnalysisJobRepository analysisJobs,
+                              BatchRankingArtifactRepository rankingArtifacts) {
         this.jobLauncher = jobLauncher;
         this.jobExplorer = jobExplorer;
+        this.jobOperator = jobOperator;
         this.cityPrioritizationJob = cityPrioritizationJob;
         this.analysisJobs = analysisJobs;
+        this.rankingArtifacts = rankingArtifacts;
     }
 
     @PostMapping("/city-prioritization")
@@ -88,6 +96,8 @@ public class BatchJobController {
             .addString("profile", req.profile, true)
             .addString("recomputeExisting",
                 Boolean.toString(req.recomputeExistingOrDefault()), true)
+            .addString("useAiPolish",
+                Boolean.toString(req.useAiPolishOrDefault()), true)
             .addLong("limit",      (long) req.limitOrDefault(), false)
             .addString("runLabel", req.runLabel == null ? "" : req.runLabel, false)
             .addLong("runTimestamp", System.currentTimeMillis(), true)
@@ -158,6 +168,74 @@ public class BatchJobController {
             body.put("lastError", j.getLastError());
             body.put("summary",   j.getSummary());
         });
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * Restartet eine zuvor abgebrochene oder gescheiterte Execution.
+     *
+     * <p>Spring Batch stellt dafür den {@code JobOperator} bereit; er
+     * baut die Job-Parameter aus der vorigen Execution wieder auf und
+     * startet eine neue Execution derselben JobInstance.  Erfolgreich
+     * abgeschlossene Executions können nicht restartet werden – wir
+     * geben in dem Fall HTTP 409 mit einem strukturierten Fehler
+     * zurück, statt 5xx zu werfen.</p>
+     */
+    @PostMapping("/{executionId}/restart")
+    public ResponseEntity<Map<String, Object>> restart(@PathVariable Long executionId) {
+        try {
+            Long newId = jobOperator.restart(executionId);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("originalExecutionId", executionId);
+            body.put("executionId", newId);
+            body.put("status", "RESTARTED");
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(body);
+        } catch (org.springframework.batch.core.launch.NoSuchJobExecutionException e) {
+            return error(HttpStatus.NOT_FOUND, "NO_SUCH_JOB_EXECUTION", e.getMessage());
+        } catch (org.springframework.batch.core.launch.NoSuchJobException e) {
+            return error(HttpStatus.NOT_FOUND, "NO_SUCH_JOB", e.getMessage());
+        } catch (JobInstanceAlreadyCompleteException e) {
+            return error(HttpStatus.CONFLICT, "JOB_INSTANCE_ALREADY_COMPLETE", e.getMessage());
+        } catch (InvalidJobParametersException e) {
+            return error(HttpStatus.BAD_REQUEST, "INVALID_JOB_PARAMETERS", e.getMessage());
+        } catch (JobRestartException e) {
+            return error(HttpStatus.CONFLICT, "JOB_RESTART_FAILED", e.getMessage());
+        }
+    }
+
+    /**
+     * Liefert die persistierten Ranking-Artefakte einer Execution.
+     *
+     * <p>Lese-Pfad für die UI-Funktion „Aus Batch-Lauf laden": jeder
+     * Eintrag enthält Position, locationKey, briefId, Profilscore und
+     * eine kompakte Maßnahmen-Klassifikation (kurzfristig vs.
+     * strukturell), so dass der Vergleichsmodus die Lauf-Ergebnisse
+     * direkt nutzen kann, ohne den vollständigen Brief erneut zu
+     * laden.</p>
+     */
+    @GetMapping("/{executionId}/ranking")
+    public ResponseEntity<Map<String, Object>> getRanking(@PathVariable Long executionId) {
+        List<BatchRankingArtifactEntity> artifacts =
+            rankingArtifacts.findByJobExecutionIdOrderByRankPositionAsc(executionId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("executionId", executionId);
+        body.put("count", artifacts.size());
+        List<Map<String, Object>> items = new ArrayList<>(artifacts.size());
+        for (BatchRankingArtifactEntity a : artifacts) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("rankPosition",            a.getRankPosition());
+            m.put("locationKey",             a.getLocationKey());
+            m.put("briefId",                 a.getBriefId());
+            m.put("profileScore",            a.getProfileScore());
+            m.put("politicalReferenceCount", a.getPoliticalReferenceCount());
+            m.put("shortTermMeasures",       a.getShortTermMeasures());
+            m.put("structuralMeasures",      a.getStructuralMeasures());
+            m.put("targetCity",              a.getTargetCity());
+            m.put("targetProfileKey",        a.getTargetProfileKey());
+            m.put("createdAt",               a.getCreatedAt() == null ? null : a.getCreatedAt().toString());
+            items.add(m);
+        }
+        body.put("items", items);
         return ResponseEntity.ok(body);
     }
 

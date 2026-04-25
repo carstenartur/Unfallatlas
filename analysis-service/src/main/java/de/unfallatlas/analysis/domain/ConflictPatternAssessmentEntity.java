@@ -2,6 +2,9 @@ package de.unfallatlas.analysis.domain;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.FullTextField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.GenericField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.KeywordField;
 
 import java.util.Objects;
 
@@ -33,21 +36,26 @@ public class ConflictPatternAssessmentEntity {
     @NotBlank
     @Size(max = 80)
     @Column(name = "pattern_id", nullable = false, length = 80)
+    @KeywordField
+    @KeywordField(name = "patternId_lc", normalizer = "lowercase")
     private String patternId;
 
     /** Englische Alias-ID (z. B. {@code "bicycle_turning_conflict"}). */
     @Size(max = 80)
     @Column(name = "alias_id", length = 80)
+    @KeywordField
     private String aliasId;
 
     @NotBlank
     @Size(max = 200)
     @Column(nullable = false, length = 200)
+    @FullTextField(analyzer = "standard")
     private String label;
 
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 12)
+    @GenericField
     private Classification classification;
 
     @NotNull

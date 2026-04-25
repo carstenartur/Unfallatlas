@@ -152,6 +152,10 @@
         <div id="btnPolCtxOpen" class="btn" style="background:rgba(233,248,240,.92);border-color:rgba(100,200,140,.6);" title="Frühere politische Vorgänge für diesen Bereich recherchieren">🔍 Politische Vorgänge recherchieren</div>
       </div>
 
+      <div style="margin-top:8px;">
+        <div id="btnPrioritiesOpen" class="btn" style="background:rgba(240,233,250,.92);border-color:rgba(140,100,200,.6);" title="Top-N und gespeicherte Steckbriefe ansehen (Entscheidungsunterstützung)">📊 Prioritäten & gespeicherte Briefs</div>
+      </div>
+
       <div style="margin-top:10px; font-weight:900;">Geführte Tour</div>
       <div class="toggles">
         <div id="tourBtnStart" class="btn" title="Demo-Tour starten">▶ Tour starten</div>
@@ -335,6 +339,55 @@
     </div>
   </div>
 
+  <!-- Prioritätenansicht: Top-N und gespeicherte Briefs -->
+  <div id="prioPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-label="Prioritäten und gespeicherte Steckbriefe" style="display:none;">
+    <div class="modal" style="max-width:780px;">
+      <div class="modalHeader">
+        <div class="modalTitle">📊 Prioritäten &amp; gespeicherte Briefs</div>
+        <div class="modalBtns">
+          <div class="smallBtn" id="prioBtnClose">Schließen</div>
+        </div>
+      </div>
+      <p style="font-size:13px; color:#555; margin:4px 0 12px; line-height:1.5;">
+        Zeigt persistierte Maßnahmen-Steckbriefe als kompakte Entscheidungs­karten:
+        <strong>Welche Stelle ist wichtig? Warum? Welche Maßnahme ist plausibel?</strong>
+        Die Sicht ergänzt die Karte – bestehende Karten- und Export-Wege bleiben unverändert.
+      </p>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+        <label for="prioMode" style="font-size:13px;font-weight:700;">Modus:</label>
+        <select id="prioMode" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;font:13px system-ui,sans-serif;">
+          <option value="top">Top-N je Stadt &amp; Profil</option>
+          <option value="byLocation">Gespeicherte Briefs je Ort</option>
+        </select>
+        <label for="prioCity" style="font-size:13px;font-weight:700;">Stadt:</label>
+        <input id="prioCity" type="text" placeholder="z. B. Hannover"
+          style="flex:1;min-width:120px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;font:13px system-ui,sans-serif;" />
+        <label for="prioProfile" style="font-size:13px;font-weight:700;">Profil:</label>
+        <select id="prioProfile" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;font:13px system-ui,sans-serif;">
+          <option value="">Lade…</option>
+        </select>
+      </div>
+
+      <div id="prioByLocationRow" style="display:none;margin-bottom:10px;">
+        <label for="prioLocationKey" style="font-size:13px;font-weight:700;display:block;margin-bottom:4px;">Location-Key:</label>
+        <input id="prioLocationKey" type="text" placeholder="z. B. hannover::altenbekener_damm"
+          style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:8px;font:13px system-ui,sans-serif;" />
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <button id="prioBtnLoad"
+          style="padding:8px 18px;background:#6a3f9e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">
+          Laden
+        </button>
+        <span id="prioStatusBadge" style="display:none;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;"></span>
+        <span id="prioStatus" style="font-size:12px;color:#888;"></span>
+      </div>
+
+      <div id="prioResults" style="max-height:480px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
   <!-- App JS (V2 with POI support) -->
   <script>window.UA = { BUILD: "2026-01-01 00:00 UTC" };</script>
   <script src="js/ua.core.js?v=2026-01-01"></script>
@@ -350,5 +403,6 @@
   <script src="js/ua.app_v2.js?v=2026-01-01"></script>
   <script src="js/ua.video-export.js?v=2026-01-01"></script>
   <script src="js/ua.political-context.js?v=2026-01-01"></script>
+  <script src="js/ua.priorities.js?v=2026-01-01"></script>
 </body>
 </html>
