@@ -35,6 +35,9 @@ const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAss
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 const { search: politicalContextSearch } = require('./political-context/services/portalSearchService.js');
 const { listSupportedCities }            = require('./political-context/registry/cityPortalRegistry.js');
+const cityRegistry                       = require('./cities/cityRegistry.js');
+const { SUPPORT_LEVELS, hasSupport, describeSupport } =
+  require('./cities/supportLevels.js');
 const { buildLocationBrief, PROFILE_IDS, DEFAULT_PROFILE } = require('./location-brief');
 const { getCapabilities }                = require('./lib/capabilities.js');
 const { sendError, attachFallbackInfo, CATEGORIES } = require('./lib/errors.js');
@@ -438,6 +441,117 @@ app.get('/api/ai/jobs/:id', (req, res) => {
   return res.json(publicJob);
 });
 
+// ── Bundesweiter Städte-/Regionen-Katalog ─────────────────────────────────────
+
+// Default- und Obergrenzen für die Listenausgabe.  Der Katalog ist
+// klein (Größenordnung 100 Einträge), wir wollen aber das Antwort-
+// volumen vorhersagbar deckeln, ohne die Suche unnötig einzuschränken.
+const DEFAULT_CITY_LIST_LIMIT = 200;
+const MAX_CITY_LIST_LIMIT     = 500;
+const MAX_CITY_SEARCH_POOL    = 500;
+
+// Lese-Rate-Limiter für die Katalog-Endpunkte – die Antworten sind klein
+// und cache-fähig, aber wir schützen vor unbeabsichtigten Loops in der UI.
+const cityCatalogRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen – bitte warte kurz und versuche es erneut.' }
+});
+
+/**
+ * GET /api/cities
+ *
+ * Liefert den bundesweiten Städte-/Regionen-Katalog mit Capability-
+ * Stufen pro Ort (Level A: Unfallanalyse, Level B: politische Recherche,
+ * Level C: Persistenz/Batch).
+ *
+ * Query-Parameter (alle optional):
+ *   q            – Volltext-Filter (Name/id/Bundesland/Gemeindecode)
+ *   state        – Bundesland-Kürzel (z. B. „NW")
+ *   support      – Filter auf eine Stufe ('supportLevelA'|'supportLevelB'|'supportLevelC'),
+ *                  zeigt nur Städte mit Status `supported` oder
+ *                  `partially_supported`
+ *   limit        – Maximale Trefferzahl (default 200, max 500)
+ *
+ * Antwort:
+ *   {
+ *     total:      <number>,         // Gesamt-Katalogumfang
+ *     count:      <number>,         // Anzahl der zurückgegebenen Treffer
+ *     summary:    { byLevel: {…} }, // Verteilung über alle Stufen
+ *     cities:     [<CityWithCapabilities>, …]
+ *   }
+ */
+app.get('/api/cities', cityCatalogRateLimit, (req, res) => {
+  try {
+    const { q, state, support } = req.query || {};
+    const limit = Math.max(
+      1,
+      Math.min(MAX_CITY_LIST_LIMIT, parseInt(req.query.limit, 10) || DEFAULT_CITY_LIST_LIMIT)
+    );
+
+    let pool;
+    if (typeof q === 'string' && q.trim()) {
+      pool = cityRegistry.searchCities(q, { limit: MAX_CITY_SEARCH_POOL });
+    } else if (typeof state === 'string' && state.trim()) {
+      pool = cityRegistry.listCitiesByState(state.trim().toUpperCase());
+    } else {
+      pool = cityRegistry.listCities();
+    }
+
+    if (typeof support === 'string' && support.trim()) {
+      pool = pool.filter(c => hasSupport(c, support.trim()));
+    }
+
+    const limited = pool.slice(0, limit);
+    res.json({
+      total:   cityRegistry.listCities().length,
+      count:   limited.length,
+      summary: cityRegistry.summarize(),
+      cities:  limited.map(cityRegistry.describeCity)
+    });
+  } catch (error) {
+    return sendError(res, {
+      status:   500,
+      category: CATEGORIES.INTERNAL_ERROR,
+      code:     'CITY_CATALOG_UNAVAILABLE',
+      message:  'Der Städte-/Regionen-Katalog konnte nicht gelesen werden.',
+      details:  error && error.message ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * GET /api/cities/:idOrKey
+ *
+ * Detail-Lookup (id, normalisierter Name oder amtlicher Gemeindecode).
+ * Antwort: { city: <CityWithCapabilities> }, 404 wenn unbekannt.
+ */
+app.get('/api/cities/:idOrKey', cityCatalogRateLimit, (req, res) => {
+  let city;
+  try {
+    city = cityRegistry.findCity(req.params.idOrKey);
+  } catch (error) {
+    return sendError(res, {
+      status:   500,
+      category: CATEGORIES.INTERNAL_ERROR,
+      code:     'CITY_CATALOG_UNAVAILABLE',
+      message:  'Der Städte-/Regionen-Katalog konnte nicht gelesen werden.',
+      details:  error && error.message ? error.message : String(error)
+    });
+  }
+  if (!city) {
+    return sendError(res, {
+      status:   404,
+      category: CATEGORIES.INVALID_REQUEST,
+      code:     'CITY_NOT_FOUND',
+      message:  `Stadt/Region "${req.params.idOrKey}" ist im Katalog nicht eingetragen.`
+    });
+  }
+  res.json({ city: cityRegistry.describeCity(city) });
+});
+
 // ── Politische Kontextrecherche ───────────────────────────────────────────────
 
 /**
@@ -503,6 +617,33 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
 
   const parsed = parseInt(maxResults, 10);
   const resolvedMax = Math.min(30, Math.max(0, isNaN(parsed) ? 10 : parsed));
+
+  // Katalog-Gate: für Städte, die laut zentralem Katalog politische
+  // Recherche explizit *nicht* unterstützen, antworten wir direkt mit
+  // einer leeren, aber strukturierten Antwort (graceful degradation),
+  // damit das Frontend den Status transparent anzeigen kann, ohne
+  // einen unnötigen Provider-Call auszulösen.  Städte ohne Katalog-
+  // Eintrag dürfen weiterhin durchlaufen – die Provider-Auswahl im
+  // portalSearchService entscheidet dann.
+  try {
+    const catalogCity = cityRegistry.findCity(city.trim());
+    if (catalogCity && !hasSupport(catalogCity, SUPPORT_LEVELS.B)) {
+      return res.json({
+        references: [],
+        meta: {
+          city:        city.trim(),
+          searchTerms: sanitizedTerms,
+          searchedAt:  new Date().toISOString(),
+          totalFound:  0,
+          providerKey: null,
+          supported:   false,
+          supportStatus: catalogCity.politicalContextSupport,
+          supportLevels: describeSupport(catalogCity),
+          reason:      'Politische Recherche ist für diese Stadt im Katalog als unsupported markiert.'
+        }
+      });
+    }
+  } catch (_) { /* Katalog nicht verfügbar – wie zuvor weitermachen */ }
 
   try {
     const result = await politicalContextSearch({

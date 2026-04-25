@@ -17,6 +17,7 @@
 | **Vollständige Dokumentation** | 📖 [docs/DOKUMENTATION.md](docs/DOKUMENTATION.md) |
 | **Architektur (Browser + Server + KI)** | 🏗️ [docs/architecture.md](docs/architecture.md) |
 | **Server-API & Konfiguration** | 🔌 [docs/server-features.md](docs/server-features.md) |
+| **Bundesweiter Städte-/Regionen-Katalog** | 🗺️ [docs/CITY_CATALOG.md](docs/CITY_CATALOG.md) |
 | **Maßnahmen-Steckbriefe (Priorisierung)** | 🎯 [docs/LOCATION_BRIEF.md](docs/LOCATION_BRIEF.md) |
 | **Persistenz-/Analyse-Service (Spring Boot)** | 🗄️ [analysis-service/README.md](analysis-service/README.md) |
 | **Release-Checklist** | ✅ [docs/release-checklist.md](docs/release-checklist.md) |
@@ -48,6 +49,84 @@
 | **Export als Bezirksratsantrag** | PDF / Word mit Sachverhalt, Statistik, Karte, POI-Analyse und Beschlussvorschlag |
 | **Datenexport** | Unfallpunkte direkt als 📊 CSV, 🗺️ GeoJSON oder 📍 KML herunterladen |
 | **Deterministische URLs** | Jede Analyse ist als Link teilbar und reproduzierbar |
+
+---
+
+## 🗺️ Bundesweite Skalierung – Städte-/Regionen-Katalog
+
+Unfallatlas führt einen **bundesweiten Katalog** aller unterstützten
+deutschen Städte und Regionen.  Pro Ort ist transparent ausgewiesen,
+welche Funktionen verfügbar sind – nicht jede Stadt muss sofort alle
+Features mitbringen:
+
+| Stufe | Bezeichnung           | Bedeutung                                                          |
+|:-----:|:----------------------|:-------------------------------------------------------------------|
+| **A** | Unfallanalyse         | Filter, Cluster, Heatmap, Hotspots, Export                         |
+| **B** | Politische Recherche  | Anbindung an ein Ratsinformationssystem (Anträge/Beschlüsse …)     |
+| **C** | Persistenz / Batch    | Maßnahmen-Steckbriefe, Top-N, Priorisierungen via Analysis-Service |
+
+Jede Stufe ist pro Stadt als `supported`, `partially_supported` oder
+`unsupported` markiert.  Die Liste, die Capability-Matrix und Hinweise
+zur Pflege („wie nehme ich eine neue Stadt auf?") stehen in
+[`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md).
+
+### Rollout-Strategie für Stufe A: zuerst >500k, dann >300k
+
+Die Katalogstruktur ist bundesweit angelegt, die *reale*
+Materialisierung der Unfalldaten (Stufe A `supported`) wird aber
+bewusst stufenweise auf größere Städte ausgerollt:
+
+1. **Priorität 1 – Großstädte > 500.000 Einwohner**: Berlin, Hamburg,
+   München, Köln, Frankfurt am Main, Stuttgart, Düsseldorf, Leipzig,
+   Dortmund, Essen, Bremen, Dresden, Hannover, Nürnberg, Duisburg.
+2. **Priorität 2 – Großstädte > 300.000 Einwohner**: Bochum,
+   Wuppertal, Bielefeld, Bonn, Münster (weitere folgen).
+3. Kleinere Städte und ländliche Räume bleiben im Katalog erhalten,
+   laufen aber zunächst als `partially_supported`.
+
+Hintergrund: Die Werkbank zielt auf urbane Räume mit ausreichender
+Unfallhäufung und hohem Nutzen für kommunale Maßnahmenplanung.  Statt
+nominell „bundesweit alles", lieber **ehrliche, belastbare
+Level-A-Abdeckung** für die Städte, die es in der Praxis brauchen.
+Eine Stadt steht nur dann auf `accidentDataSupport: 'supported'`,
+wenn die zugehörige `out/output_all_years_<id>.geojson` *tatsächlich*
+im Repo liegt; Städte aus der Rollout-Queue tragen das `qualityFlag:
+"rollout-queued"` und bleiben bis zum nächsten Workflow-Lauf ehrlich
+`partially_supported`.  Details siehe
+[`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md#rollout-strategie-erst-500k-dann-300k).
+
+### Stufe B – Portal-Seed-Liste für politische Recherche
+
+Aufbauend auf der Capability-Struktur (Stufe B
+`politicalContextSupport`) wird die politische Recherche gezielt für
+große Städte mit konkreten Portalreferenzen angereichert.  Grundlage
+ist eine **kuratierte Seed-Liste** mit Rats-/Bürgerinformations-
+portalen (38 Städte mit Flag `portal-from-seed`).  Es findet *keine
+freie Webrecherche im Agenten* statt – neue Portale werden
+ausschließlich über die Seed-Liste eingespielt.
+
+Einstufung:
+
+- **`supported`** (4 Städte): Berlin, Hamburg, Hannover, Bonn –
+  konkretes Portal **und** registrierter Provider in
+  `cityPortalRegistry`.
+- **`partially_supported`** (24 Städte aus dem Seed-PR): konkretes
+  Portal aus der Seed-Liste hinterlegt, Provider folgt;
+  UI/API zeigen das ehrlich an.
+- **`unsupported`**: kein belastbarer Portalbezug – kein verwaister
+  Portallink im Katalog (Test wacht über die Invariante).
+
+Details und Verfahren zum Hochstufen siehe
+[`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md#stufe-b--portal-seed-liste-fuer-grosse-staedte).
+
+API-Endpunkte (Node-Modus):
+
+- `GET /api/cities` – Liste mit Capability-Matrix (filterbar via
+  `?q=`, `?state=NW`, `?support=supportLevelB`, `?limit=…`)
+- `GET /api/cities/:idOrKey` – Einzelner Ort (Lookup via id, Name oder
+  amtlichem Gemeindeschlüssel)
+- `GET /api/status` – aggregierte Capability-Übersicht inkl. Verteilung
+  über die Stufen A/B/C
 
 ---
 

@@ -18,6 +18,16 @@ const hannoverSimProvider     = require('../providers/hannoverSimProvider.js');
 const berlinAllrisProvider    = require('../providers/berlinAllrisProvider.js');
 const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
 const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');
+const { createSessionNetProvider } = require('../providers/sessionNetProvider.js');
+
+// Zentraler Städte-/Regionen-Katalog: Quelle der Wahrheit für die
+// Frage „welche Orte hat das Produkt überhaupt im Visier und was ist
+// für sie als ‚politische Recherche' versprochen?".  Die Portal-Provider
+// liefern weiterhin das *Wie* (HTTP-Aufrufe, Parsing); der Katalog
+// liefert das *Ob* und das *Was* pro Stadt.
+const cityRegistry      = require('../../cities/cityRegistry.js');
+const { SUPPORT_LEVELS, SUPPORT_STATUS, getStatus } =
+  require('../../cities/supportLevels.js');
 
 /**
  * Lokale JSDoc-Typen für die Provider-Schnittstelle.
@@ -47,12 +57,38 @@ const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js'
  * @property {function(ProviderSearchParams): Promise<ProviderRawResult[]>} search
  */
 
+/**
+ * Konfiguration der per generischem SessionNet-Provider angebundenen Städte.
+ *
+ * Auswahl-Kriterium: das Portal aus der kuratierten Seed-Liste folgt
+ * eindeutig der klassischen SessionNet-/Allris-Struktur
+ * (`<base>/bi/info.asp`-Variante mit `vo0\d+|to0\d+|si0\d+`-Detail-Links).
+ * Sonderlösungen (Allris 4 mit JSON-API, Eigenbauten) bleiben bewusst aus.
+ *
+ * Spätere Erweiterungen erfolgen durch Hinzufügen einer Zeile hier
+ * **plus** Hochstufung der Stadt im Katalog (`politicalContextSupport:
+ * 'supported'`).  Es ist *keine* neue Provider-Datei nötig.
+ */
+const SESSIONNET_CITIES = Object.freeze([
+  { cityKey: 'bielefeld', providerKey: 'bielefeld-sessionnet',
+    baseUrl: 'https://anwendungen.bielefeld.de',     searchPath: '/bi/yw010.asp' },
+  { cityKey: 'chemnitz',  providerKey: 'chemnitz-sessionnet',
+    baseUrl: 'https://sessionnet.owl-it.de',         searchPath: '/chemnitz/bi/yw010.asp' },
+  { cityKey: 'halle_saale', providerKey: 'halle-sessionnet',
+    baseUrl: 'https://buergerinfo.halle.de',         searchPath: '/bi/yw010.asp' },
+  { cityKey: 'magdeburg', providerKey: 'magdeburg-sessionnet',
+    baseUrl: 'https://ratsinfo.magdeburg.de',        searchPath: '/bi/yw010.asp' },
+  { cityKey: 'nuernberg', providerKey: 'nuernberg-sessionnet',
+    baseUrl: 'https://online-service2.nuernberg.de', searchPath: '/buergerinfo/yw010.asp' }
+]);
+
 /** @type {Map<string, PoliticalContextProvider>} */
 const REGISTRY = new Map([
   ['hannover', hannoverSimProvider],
   ['berlin',   berlinAllrisProvider],
   ['bonn',     bonnAllrisProvider],
-  ['hamburg',  hamburgParldokProvider]
+  ['hamburg',  hamburgParldokProvider],
+  ...SESSIONNET_CITIES.map((cfg) => [cfg.cityKey, createSessionNetProvider(cfg)])
 ]);
 
 /**
@@ -76,10 +112,53 @@ function normalizeCity(city) {
  * Gibt den Provider für eine Stadt zurück oder null, wenn keine
  * Unterstützung vorliegt.
  *
+ * Die Auswahl ist an den zentralen Städte-Katalog gekoppelt: existiert
+ * für die Stadt ein Katalog-Eintrag, wird der Provider nur dann
+ * ausgeliefert, wenn ihr `politicalContextSupport` nicht explizit
+ * `'unsupported'` ist.  Damit lässt sich politische Recherche pro Ort
+ * deaktivieren, ohne den Provider physisch zu entfernen (z. B. bei
+ * Portal-Wartungsarbeiten oder bekannten Datenproblemen).
+ *
+ * Fehlt dagegen ein Katalog-Eintrag oder ist der Katalog nicht
+ * verfügbar, bleibt die Funktion aus Kompatibilitätsgründen beim
+ * bisherigen Fallback-Verhalten und gibt den per Registry aufgelösten
+ * Provider zurück.
+ *
+ * Aufrufer, die einen Provider ohne Katalog-Gating brauchen (Tests,
+ * Migrationen), können direkt {@link getProviderForCityRaw} verwenden.
+ *
  * @param {string} city
  * @returns {PoliticalContextProvider|null}
  */
 function getProviderForCity(city) {
+  const provider = getProviderForCityRaw(city);
+  if (!provider) return null;
+
+  // Katalog-Gate: politische Recherche ist nur erlaubt, wenn der
+  // zentrale Katalog die Stadt mindestens als „partially_supported"
+  // ausweist.  Fehlt der Eintrag (z. B. weil der Katalog gerade nicht
+  // geladen werden kann), bleiben wir aus Kompatibilitätsgründen
+  // großzügig und geben den Provider zurück – das alte Verhalten.
+  let catalogCity = null;
+  try {
+    catalogCity = cityRegistry.findCity(city);
+  } catch (_) { /* Katalog nicht verfügbar – Provider durchreichen */ }
+  if (catalogCity) {
+    const status = getStatus(catalogCity, SUPPORT_LEVELS.B);
+    if (status === SUPPORT_STATUS.UNSUPPORTED) return null;
+  }
+  return provider;
+}
+
+/**
+ * Direkter Provider-Lookup ohne Katalog-Gating – Provider-Auflösung
+ * rein nach Stadtname.  Vor allem für interne Tests und Migrationen
+ * gedacht.
+ *
+ * @param {string} city
+ * @returns {PoliticalContextProvider|null}
+ */
+function getProviderForCityRaw(city) {
   const key = normalizeCity(city);
   return REGISTRY.get(key) || null;
 }
@@ -93,4 +172,4 @@ function listSupportedCities() {
   return [...REGISTRY.keys()];
 }
 
-module.exports = { getProviderForCity, listSupportedCities, normalizeCity };
+module.exports = { getProviderForCity, getProviderForCityRaw, listSupportedCities, normalizeCity };
