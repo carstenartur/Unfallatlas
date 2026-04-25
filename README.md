@@ -70,6 +70,31 @@ Jede Stufe ist pro Stadt als `supported`, `partially_supported` oder
 zur Pflege („wie nehme ich eine neue Stadt auf?") stehen in
 [`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md).
 
+### Rollout-Strategie für Stufe A: zuerst >500k, dann >300k
+
+Die Katalogstruktur ist bundesweit angelegt, die *reale*
+Materialisierung der Unfalldaten (Stufe A `supported`) wird aber
+bewusst stufenweise auf größere Städte ausgerollt:
+
+1. **Priorität 1 – Großstädte > 500.000 Einwohner**: Berlin, Hamburg,
+   München, Köln, Frankfurt am Main, Stuttgart, Düsseldorf, Leipzig,
+   Dortmund, Essen, Bremen, Dresden, Hannover, Nürnberg, Duisburg.
+2. **Priorität 2 – Großstädte > 300.000 Einwohner**: Bochum,
+   Wuppertal, Bielefeld, Bonn, Münster (weitere folgen).
+3. Kleinere Städte und ländliche Räume bleiben im Katalog erhalten,
+   laufen aber zunächst als `partially_supported`.
+
+Hintergrund: Die Werkbank zielt auf urbane Räume mit ausreichender
+Unfallhäufung und hohem Nutzen für kommunale Maßnahmenplanung.  Statt
+nominell „bundesweit alles", lieber **ehrliche, belastbare
+Level-A-Abdeckung** für die Städte, die es in der Praxis brauchen.
+Eine Stadt steht nur dann auf `accidentDataSupport: 'supported'`,
+wenn die zugehörige `out/output_all_years_<id>.geojson` *tatsächlich*
+im Repo liegt; Städte aus der Rollout-Queue tragen das `qualityFlag:
+"rollout-queued"` und bleiben bis zum nächsten Workflow-Lauf ehrlich
+`partially_supported`.  Details siehe
+[`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md#rollout-strategie-erst-500k-dann-300k).
+
 API-Endpunkte (Node-Modus):
 
 - `GET /api/cities` – Liste mit Capability-Matrix (filterbar via

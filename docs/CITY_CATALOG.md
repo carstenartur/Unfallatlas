@@ -134,16 +134,68 @@ Block „Kopplung an cities.txt und out/") fest abgesichert:
 
 - jede Zeile in `cities.txt` muss einen Katalog-Eintrag mit derselben
   `id` haben
-- alle Städte aus `cities.txt` haben `accidentDataSupport: 'supported'`
-- alle Katalog-Städte mit `accidentDataSupport: 'supported'` sind in
-  `cities.txt` enthalten
-- alle übrigen Katalog-Städte stehen auf `'partially_supported'`
-  (im Katalog erfasst, Daten-Generierung steht noch aus)
+- **Materialisierungs-Honesty**: eine Stadt darf nur dann
+  `accidentDataSupport: 'supported'` führen, wenn
+  `out/output_all_years_<id>.geojson` tatsächlich existiert
+- **Rollout-Invariante**: alle Katalog-Städte mit
+  `accidentDataSupport: 'supported'` sind in `cities.txt` enthalten
+  (cities.txt ⊇ supported, damit `Generate & Commit` die Stadt
+  reproduzieren kann)
+- alle Katalog-Städte ohne GeoJSON-Datei stehen auf
+  `'partially_supported'` (im Katalog erfasst, Daten-Generierung steht
+  noch aus)
+- Städte mit `qualityFlag: "rollout-queued"` stehen in `cities.txt`,
+  sind aber bis zum nächsten erfolgreichen Workflow-Lauf
+  `partially_supported`
 
-Zusätzlich liefert `cityRegistry.getDataAssets(id)` zur Laufzeit, ob
-die jeweiligen Dateien in `out/` tatsächlich vorliegen.  `describeCity`
-hängt diese Info als `dataAssets: { accidents, poi }` an die
-API-Antworten an.
+## Rollout-Strategie: erst >500k, dann >300k
+
+Der Katalog ist bundesweit strukturiert, die *reale* Stufe-A-
+Materialisierung wird aber bewusst stufenweise ausgerollt: zuerst
+**Großstädte mit >500.000 Einwohnern** (Priorität 1), dann
+**Großstädte mit >300.000 Einwohnern** (Priorität 2).  Begründung:
+
+- Das Werkzeug richtet sich primär an urbane Räume mit ausreichender
+  Unfallhäufung und hohem Nutzen für kommunale Maßnahmenplanung.
+- Lieber ehrliche, belastbare Level-A-Abdeckung für große Städte als
+  nominelle Vollabdeckung bei dünner Datenlage.
+- Kleinere Städte und ländliche Räume bleiben im Katalog erhalten,
+  laufen aber als `partially_supported`, bis ein konkreter Bedarf
+  besteht.
+
+Population-Klassen (Schema, gerundete Einwohnerwerte; Quelle:
+Statistische Ämter des Bundes und der Länder, Stand 2023/2024):
+
+| `populationClass` | Definition          | Beispiele                          |
+|-------------------|---------------------|------------------------------------|
+| `metropolis`      | > 500.000           | Berlin, Hamburg, München, Köln, …  |
+| `large`           | 100.000 – 500.000   | Bonn, Bielefeld, Münster, …        |
+| `medium`          | 20.000 – 100.000    | Schwerin                           |
+| `small`           | < 20.000            | (derzeit nicht im Katalog)         |
+
+Aktuelle Materialisierung (`accidentDataSupport: 'supported'`,
+GeoJSON in `out/` vorhanden): Berlin, Hamburg, München, Köln,
+Frankfurt am Main, Düsseldorf, Hannover, Bielefeld, Bonn,
+Braunschweig, Heilbronn, Wolfsburg.
+
+Aktuell in Rollout-Queue (`qualityFlag: "rollout-queued"`, in
+`cities.txt`, noch nicht materialisiert):
+
+- **Priorität 1 (>500k)**: Stuttgart, Leipzig, Dortmund, Essen,
+  Bremen, Dresden, Nürnberg, Duisburg
+- **Priorität 2 (>300k)**: Bochum, Wuppertal, Münster
+
+Sobald der Workflow `Generate & Commit` für eine dieser Städte gelaufen
+ist und die GeoJSON eingecheckt wurde, wird die Stadt nach dem unten
+beschriebenen Verfahren auf `supported` hochgestuft.
+
+## Kriterien `supported` vs. `partially_supported` (Stufe A)
+
+| Status                  | Bedingung                                                                                                         |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `supported`             | Stadt steht in `cities.txt` **und** `out/output_all_years_<id>.geojson` existiert (Test: Materialisierungs-Honesty) |
+| `partially_supported`   | Stadt im Katalog, aber GeoJSON liegt nicht (mehr) im Repo (Rollout-Queue oder noch nicht angefordert)             |
+| `unsupported`           | Stadt ist im Katalog formal nicht erfasst (Stufe A explizit nicht zugesichert)                                    |
 
 ## Eine Stadt von `partially_supported` auf `supported` heben
 
@@ -157,7 +209,8 @@ API-Antworten an.
    `out/poi_<id>.geojson` an.
 4. **Im Katalog** `cityCatalogData.json`: `accidentDataSupport` auf
    `"supported"` setzen, `qualityFlags` um `"accident-data-generated"`
-   und (sofern POIs erzeugt wurden) `"poi-generated"` ergänzen.
+   und (sofern POIs erzeugt wurden) `"poi-generated"` ergänzen.  Falls
+   die Stadt vorher `"rollout-queued"` trug, dieses Flag entfernen.
 5. **Tests laufen lassen**: `npx jest --testPathPatterns=cityRegistry`.
 
 ## Graceful Degradation
