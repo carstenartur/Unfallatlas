@@ -83,6 +83,15 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Spring Batch: Grundlage für stadtweite Verarbeitungsläufe.
+             Metadatentabellen werden über Flyway angelegt
+             (V3__spring_batch_schema.sql), nicht über Spring Boots
+             initialize-schema. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-batch</artifactId>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -51,6 +51,16 @@ class FlywayMigrationsTest {
             "analysis_job"
         );
 
+        // Spring-Batch-Metadatentabellen aus V3
+        assertThat(tables).contains(
+            "batch_job_instance",
+            "batch_job_execution",
+            "batch_job_execution_params",
+            "batch_step_execution",
+            "batch_step_execution_context",
+            "batch_job_execution_context"
+        );
+
         // Flyway-Bookkeeping-Tabelle muss existieren (Beleg, dass die
         // Migration tatsächlich gelaufen ist und nicht etwa Hibernate
         // ddl-auto=validate ohne Migration "gewonnen" hat).

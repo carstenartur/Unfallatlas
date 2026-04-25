@@ -75,6 +75,29 @@ public class AnalysisJobEntity {
     @Column(nullable = false)
     private int attempts = 0;
 
+    /**
+     * Optionale Verknüpfung zu einer Spring-Batch-{@code JobExecution}.
+     * Wird durch den city-prioritization-Job gesetzt, bleibt für rein
+     * "interaktive" Jobs (z. B. Hibernate-Search-Reindex auf Knopfdruck)
+     * leer.
+     */
+    @Column(name = "job_execution_id")
+    private Long jobExecutionId;
+
+    /** Frei wählbarer Lauf-Label (z. B. "monatlich-2026-04"). */
+    @Size(max = 120)
+    @Column(name = "run_label", length = 120)
+    private String runLabel;
+
+    /**
+     * Fachliche Lauf-Zusammenfassung als kompaktes JSON.  Wird vom
+     * Batch nach erfolgreichem Lauf befüllt (Anzahl bewerteter Stellen,
+     * Top-N etc.) und ist primär für REST-Konsumenten gedacht.
+     */
+    @Size(max = 4000)
+    @Column(name = "summary", length = 4000)
+    private String summary;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -105,6 +128,12 @@ public class AnalysisJobEntity {
     public void setLastError(String lastError) { this.lastError = lastError; }
     public int getAttempts() { return attempts; }
     public void setAttempts(int attempts) { this.attempts = attempts; }
+    public Long getJobExecutionId() { return jobExecutionId; }
+    public void setJobExecutionId(Long jobExecutionId) { this.jobExecutionId = jobExecutionId; }
+    public String getRunLabel() { return runLabel; }
+    public void setRunLabel(String runLabel) { this.runLabel = runLabel; }
+    public String getSummary() { return summary; }
+    public void setSummary(String summary) { this.summary = summary; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

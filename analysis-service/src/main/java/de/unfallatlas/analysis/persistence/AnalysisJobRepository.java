@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Spring-Data-Repository für persistierte Analyse-Jobs.
@@ -25,4 +26,11 @@ public interface AnalysisJobRepository extends JpaRepository<AnalysisJobEntity, 
 
     /** Jüngste Jobs eines Typs (für Doku/Debug). */
     List<AnalysisJobEntity> findByJobTypeOrderByCreatedAtDesc(String jobType, Pageable pageable);
+
+    /**
+     * Verknüpfung zwischen Spring-Batch-{@code JobExecution} und fachlichem
+     * Analyse-Job.  Wird vom {@code AnalysisJobLinkListener} verwendet, um
+     * den passenden Datensatz beim Lauf-Ende zu aktualisieren.
+     */
+    Optional<AnalysisJobEntity> findFirstByJobExecutionIdOrderByCreatedAtDesc(Long jobExecutionId);
 }
