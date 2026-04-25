@@ -177,3 +177,85 @@ Wichtige Garantien:
 
 Die Betriebs-Matrix mit Konfigurations­hinweisen findet sich im
 [README](../README.md#%EF%B8%8F-betriebsarten--betriebs-matrix).
+
+---
+
+## 6. Drei Ebenen der Auswertung
+
+Über die einzelnen Module hinweg kennt das Repository heute **drei
+fachlich unterscheidbare Ebenen**.  Sie unterscheiden sich darin, wie
+weit ein Ergebnis getragen werden soll: vom einmaligen Blick auf eine
+Stelle bis zur stadtweiten Priorisierung.  Die Ebenen bauen aufeinander
+auf, jede höhere Ebene ist *additiv* – die niedrigeren bleiben ohne
+sie funktionsfähig.
+
+| Ebene | Ziel                                                | Wo realisiert (heute)                                                                                       | Persistenz?         | Betriebsmodus            |
+|------:|------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|---------------------|--------------------------|
+| 1     | **Interaktive Einzelauswertung**                    | Browser (`werkbank_v2.html`, `js/ua.export_v2.js`, `js/ua.report_v2.js`); optional `POST /api/location-brief` für eine Stelle | nein                | Browser-only / Node      |
+| 2     | **Persistierte Wiederverwendung** einer Stelle      | Node-App + Analysis Service: `POST /api/location-brief` mit `persist:true`, `GET /api/location-briefs/by-location/:key`, `useStored:true` | ja (versioniert)    | Node + Analysis Service  |
+| 3     | **Stadtweite Priorisierung / Ranking**              | Analysis Service: `prioritization_profile_score`, `GET /api/location-briefs/top?city=&profile=`, `POST /api/batch/jobs/city-prioritization` | ja                  | Node + Analysis Service  |
+
+### Ebene 1 – Interaktive Einzelauswertung
+
+- **Was passiert?** Nutzer öffnen die Werkbank, wählen Stadt und
+  Filter, zeichnen optional einen Bereich.  `computeExportReport()`
+  erzeugt deterministisch das `structured`-Objekt, daraus entsteht der
+  PDF-/Word-Bezirksrats­antrag.  Optional liefert
+  `POST /api/location-brief` zusätzlich einen Maßnahmen-Steckbrief
+  (Konfliktmuster, Kandidaten­maßnahmen, Profil-Score) – ohne
+  Persistenz, ohne Datenbank.
+- **Eigenschaften:** vollständig in der Session, gleiche Eingaben →
+  gleiches Ergebnis, teilbar über deterministische URL.
+- **Aktueller Stand:** produktiv und stabil; Default-Pfad für die
+  meisten Nutzer.
+
+### Ebene 2 – Persistierte Wiederverwendung
+
+- **Was passiert?** Mit gesetztem `ANALYSIS_SERVICE_BASE_URL` und
+  `persist: true` wird der berechnete Brief versioniert in den
+  Analysis Service geschrieben (`location_action_brief` +
+  Detail-Tabellen).  Idempotent über
+  `(locationKey, profileKey, sourceFingerprint)`: derselbe Brief
+  erzeugt keinen doppelten Eintrag.  Über
+  `useStored: true` kann ein bereits gespeicherter Brief vor der
+  Berechnung gelesen werden (Antwort
+  `persistence.status: "loaded_from_store"`).
+- **Eigenschaften:** Briefs sind reproduzierbar (Source-Fingerprint +
+  Regelversionen), Historie pro Stelle ist abrufbar
+  (`/by-location/:key`, neueste zuerst).  Fällt der Service aus,
+  liefert die Node-App den Brief weiter aus
+  (`persistence.status: "persist_skipped"`).
+- **Aktueller Stand:** produktiv (Spring Boot 4, Hibernate ORM 7,
+  Flyway-Migrationen V1–V2, PostgreSQL in Prod / H2 im
+  PostgreSQL-Mode in Dev).
+- **Direkt nächster Ausbaupfad:** Hibernate-Search-Backend für
+  Volltextsuche über `political_reference_summary` und
+  `conflict_pattern_assessment` (Marker an den Entitäten sind
+  vorhanden, das Backend ist noch nicht eingebunden).
+
+### Ebene 3 – Stadtweite Priorisierung / Ranking
+
+- **Was passiert?** Pro persistiertem Brief liegen profilspezifische
+  Sub-Scores und ein Gesamt-Score (`prioritization_profile_score.total`)
+  vor.  `GET /api/location-briefs/top?city=&profile=&limit=` liefert
+  daraus die **Top-N Stellen einer Stadt je Profil** – die Antwort auf
+  „Welche Stellen sollten wir zuerst angehen?".  Der Spring-Batch-Lauf
+  `city-prioritization-job` lädt Kandidaten, validiert/aktualisiert
+  die Scores und schreibt eine kompakte Top-N-Summary in
+  `analysis_job.summary`.  Anstoß und Beobachtung erfolgen über die
+  Forwarder `POST /api/batch/jobs/city-prioritization` und
+  `GET /api/batch/jobs/{executionId}[/summary]`.
+- **Eigenschaften:** stadt- und profilbezogen; sauber getrennte
+  Steps (`loadCandidatesStep` → `computeBriefsStep` →
+  `scoreProfilesStep` → `persistResultsStep` → `buildRankingStep`),
+  jeweils restartbar.  Identifying-Parameter (`city`, `profile`,
+  `recomputeExisting`, `runTimestamp`) verhindern Doppel­ausführungen
+  derselben Instance.
+- **Aktueller Stand:** Erste produktive Spring-Batch-Anbindung für
+  einen Job (`city-prioritization-job`) inkl. Anstoß-/Status-API.
+- **Direkt nächster Ausbaupfad:** Multi-City-Orchestrierung
+  (mehrere Städte parallel, Locking, verteilter Betrieb) und eine
+  Scheduler-Landschaft für zeitgesteuertes Re-Ranking.  Beides ist
+  bewusst Folge-PR und in
+  [`analysis-service/README.md`](../analysis-service/README.md#was-ist-explizit-folge-pr)
+  unter *Was ist explizit Folge-PR?* aufgeführt.

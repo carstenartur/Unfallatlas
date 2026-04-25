@@ -51,23 +51,24 @@
 
 ---
 
-## 🗄️ Optionale Persistenz – Analysis Service
+## 🗄️ Betriebsmodi – Browser-only · Node-Standalone · Node + Analysis Service
 
-Für stadtweite Vergleiche und reproduzierbare Maßnahmen-Steckbriefe gibt
-es einen **separaten** Spring-Boot-Dienst (`analysis-service/`).  Die
-Anbindung ist optional; die bestehende Browser-/Node-App funktioniert
-unverändert weiter.
+Die Werkbank lässt sich in drei klar abgegrenzten Modi betreiben.  Alle
+Kernfunktionen (Karte, Filter, Cluster, Heatmap, deterministischer
+PDF-/Word-Export, CSV/GeoJSON/KML) sind **immer** verfügbar – Server,
+KI und Persistenz sind additive Erweiterungen.
 
-| Modus                       | Wann?                                                                                  |
-|-----------------------------|----------------------------------------------------------------------------------------|
-| **Browser-only**            | Schneller Einstieg, einzelne Analysen, Bezirksrats-Export.                             |
-| **Node-Standalone**         | Lokales Hosten, KI-Bewertung, Video-Export, politische Recherche.                      |
-| **Node + Analysis Service** | Versionierte Briefs, Top-N-Rankings je Profil, stadtweite Übersichten je Stadt/Profil. |
+| Modus                       | Wann sinnvoll?                                                                          | Was kommt dazu?                                                                                                       |
+|-----------------------------|------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| **Browser-only**            | Schneller Einstieg, Live-Demo, einzelne Bezirksrats-Anträge.                             | Karte, Filter, Cluster/Heatmap/Hotspots, POI, Bereichsauswahl, deterministischer PDF-/Word-Export, CSV/GeoJSON/KML.    |
+| **Node-Standalone**         | Lokales Hosten, KI-Bewertung, politische Recherche, Video-Export.                        | Zusätzlich: KI-Bewertung (mit Fallback), `POST /api/location-brief` (Berechnung), politische Recherche, Video-Export.  |
+| **Node + Analysis Service** | Reproduzierbare Briefs, stadtweite Vergleiche, Top-N-Rankings je Profil.                 | Zusätzlich: versionierte Persistenz der Briefs (PostgreSQL via Spring Boot/Flyway), Lese-Endpunkte, Batch-Job-Anstoß.  |
 
-Aktivieren in der Node-App: nur `ANALYSIS_SERVICE_BASE_URL` setzen
-(z. B. `http://analysis-service:8081`).  Bei Nichterreichbarkeit greift
-der Fallback (Brief wird trotzdem berechnet und zurückgegeben), die
-bestehenden Endpunkte und der Export funktionieren weiter.
+Aktivieren des Persistenzmodus in der Node-App: einzige Pflicht-Variable
+ist `ANALYSIS_SERVICE_BASE_URL` (z. B. `http://analysis-service:8081`).
+Bei Nichterreichbarkeit greift ein Fallback – der Brief wird trotzdem
+berechnet und zurückgegeben (`persistence.status: "persist_skipped"`),
+alle anderen Endpunkte funktionieren unverändert.
 
 Lokales Compose-Setup (Node + Analysis Service + PostgreSQL):
 
@@ -75,10 +76,31 @@ Lokales Compose-Setup (Node + Analysis Service + PostgreSQL):
 docker compose --profile persist up
 ```
 
-Details, alle Env-Variablen (Timeout/Retry/Auto-Persist), Lese-Endpunkte
-und Migrations-/Health-Hinweise: siehe
-[`docs/server-features.md#8-optionale-persistenz-anbindung-an-den-analysis-service`](docs/server-features.md)
-und [`analysis-service/README.md`](analysis-service/README.md).
+### Typischer Ablauf (mit Persistenz)
+
+1. **Stelle analysieren** – Karte, Filter und Bereichsauswahl wie gewohnt;
+   `computeExportReport()` liefert das `structured`-Objekt.
+2. **Location Brief erzeugen** – `POST /api/location-brief` mit
+   `structured`, `locationId` (stabile Stellen-ID, z. B.
+   `hannover::altenbekener_damm`) und `profile` (z. B.
+   `low_hanging_fruit`).
+3. **Optional persistieren** – `persist: true` mitsenden, dann wird der
+   Brief versioniert in den Analysis Service geschrieben
+   (`persistence.status: "persisted"`).
+4. **Gespeicherte Briefs wieder abrufen** –
+   `GET /api/location-briefs/by-location/:locationKey` liefert alle
+   Versionen einer Stelle (neueste zuerst).
+5. **Top-N / Profil-Rankings nutzen** –
+   `GET /api/location-briefs/top?city=Hannover&profile=safety_first&limit=10`
+   liefert die stadtweite Priorisierung je Profil; eine paginierte
+   Übersicht gibt es über `GET /api/location-briefs?city=&profile=&page=&size=`.
+
+Detaillierte Endpunkte, alle Env-Variablen (Timeout/Retry/Auto-Persist),
+Persistenz-Lebenszyklus (`freshly_computed` / `loaded_from_store` /
+`persisted` / `persist_skipped`) und Migrations-/Health-Hinweise:
+
+- API-Referenz nach Gruppen → [`docs/server-features.md`](docs/server-features.md)
+- Analysis Service (Domäne, Schema, Versionierung, Batch) → [`analysis-service/README.md`](analysis-service/README.md)
 
 ---
 

@@ -8,11 +8,150 @@ Dienst läuft **daneben** und persistiert die strukturierten Ergebnisse
 versioniert für späteres Vergleichen, Wiederverwenden und stadtweite
 Rankings.
 
-> **Hinweis:** Dieser PR liefert die produktive **Anbindung** und
-> **Betriebsreife** (Flyway-Migrationen, Actuator-Health, Job-Modell,
-> optionaler Forwarder aus der Node-App).  Eine vollständige
-> Multi-City-Batch-/Queue-Verarbeitung und eine Hibernate-Search-
-> Suchfunktion sind weiterhin Folge-PRs.
+## Was ist heute produktiv?
+
+Der Analysis Service ist in dieser Iteration **betriebsbereit** und
+deckt den Persistenz- und Lese-Pfad sowie einen ersten stadtweiten
+Batch-Lauf ab:
+
+- **Persistenz des Location Action Brief**
+  - Ingest-Endpunkt `POST /api/location-briefs`, idempotent über
+    `(locationKey, profileKey, sourceFingerprint)`.
+  - Versionierungsfelder (`schemaVersion`, `sourceFingerprint`,
+    `versioning.*`, optional `aiMetadata.*`) werden bei jedem Eintrag
+    mitgespeichert.
+- **Lese-Pfad** für die UI und für stadtweite Auswertungen
+  - `GET /api/location-briefs/{id}`, `…/by-location/{key}`,
+    `…?city=&profile=&page=&size=`, `…/top?city=&profile=&limit=`,
+    `…/political?city=`.
+- **Stadtweiter Spring-Batch-Lauf**
+  - `city-prioritization-job` (Steps:
+    `loadCandidatesStep` → `computeBriefsStep` → `scoreProfilesStep`
+    → `persistResultsStep` → `buildRankingStep`).
+  - Manueller Anstoß über `POST /api/batch/jobs/city-prioritization`,
+    Status-Endpunkte für Übersicht / Details / Summary.
+- **Betrieb**
+  - **Flyway**-Migrationen (`V1__init_schema.sql` …) für PostgreSQL
+    *und* H2 im PostgreSQL-Mode.
+  - **Spring Boot Actuator** (`/actuator/health`, `/actuator/info`)
+    für Container-Health und Reverse-Proxy.
+  - Multi-Stage-`Dockerfile` (Maven → JRE 21) und Compose-Profil
+    `persist` (Node + Analysis Service + PostgreSQL).
+- **Anbindung an die Node-App**
+  - Optionaler Forwarder
+    `server/analysis-service/analysisServiceClient.js` mit Timeout,
+    Retry und klarem Fallback (`persistence.status: "persist_skipped"`),
+    siehe Abschnitt *Anbindung der bestehenden Node-Anwendung*.
+
+## Was ist explizit Folge-PR?
+
+Folgende Bausteine sind **bewusst noch nicht enthalten** und bleiben
+für spätere PRs:
+
+- Vollständige **Multi-City-Orchestrierung** (mehrere Städte parallel,
+  Cluster-/Worker-Verteilung, Locking, verteilter Betrieb).
+- **Scheduler-Landschaft** (zeitgesteuertes Re-Ranking, Cron-Anbindung).
+- **Hibernate-Search-Backend** (Lucene/Elasticsearch); Marker an den
+  Entitäten sind vorhanden, das Backend selbst ist nicht eingebunden.
+- **PostGIS-Geometrien** – derzeit kein Persistenzbedarf.
+- Erweiterte Domänen­objekte (z. B. zusätzliche Profile, Maßnahmen­
+  versionierung) und reiche Such-/Filter-APIs jenseits der Lese-
+  Endpunkte oben.
+- Eine Frontend-Migration auf den persistierten Pfad – die Werkbank
+  bleibt vollständig nutzbar ohne Analysis Service.
+
+## Wie spielen Node-App und Analysis Service zusammen?
+
+```
+┌────────────────────────────┐  POST /api/location-brief  ┌──────────────────────────────┐
+│ Browser / Werkbank V2      │ ─────────────────────────▶ │ Node-App (Express)           │
+│  computeExportReport()     │                            │  server/location-brief/      │
+└────────────────────────────┘                            │  buildLocationBrief(...)     │
+                                                          └──────────────┬───────────────┘
+                                                                         │ optional, nur wenn
+                                                                         │ ANALYSIS_SERVICE_BASE_URL
+                                                                         ▼ gesetzt + persist:true
+                                                          ┌──────────────────────────────┐
+                                                          │ Analysis Service (Spring 4)  │
+                                                          │  POST /api/location-briefs   │
+                                                          │  GET  …/by-location/{key}    │
+                                                          │  GET  …/top?city=&profile=   │
+                                                          │  POST /api/batch/jobs/…      │
+                                                          │  PostgreSQL via Flyway       │
+                                                          └──────────────────────────────┘
+```
+
+- **Source of truth bleibt die Node-App.**  `buildLocationBrief(...)`
+  erzeugt deterministisch den Brief; der Analysis Service speichert
+  nur den fertigen, validierten Output (Ingest-DTO `locationBriefIngest.v1`).
+- **Forward ist optional und additiv.**  Ohne
+  `ANALYSIS_SERVICE_BASE_URL` läuft die Node-App exakt wie vorher;
+  mit gesetzter Variable schaltet sich Persistieren / Forward-Lesen
+  frei (siehe `capabilities.analysisService` und `capabilities.batchJobs`
+  unter `GET /api/status`).
+- **Lesen geht über die Node-App** als dünner Forwarder
+  (`/api/location-briefs/...`, `/api/batch/jobs/...`).  Die UI muss
+  den Analysis Service nicht direkt kennen.
+- **Fallback ohne Datenverlust.**  Ist der Service kurzzeitig nicht
+  erreichbar oder antwortet 5xx, liefert die Node-App den berechneten
+  Brief weiter aus (`persistence.status: "persist_skipped"`).  Der
+  Bezirksrats-Export funktioniert auch ohne Persistenz.
+
+## Welche Daten werden gespeichert?
+
+Pro persistiertem Brief landen u. a. folgende Domänen­objekte in der
+Datenbank (vollständiges Schema siehe `domain/` und `V1__init_schema.sql`):
+
+| Tabelle / Entität                          | Inhalt (gekürzt)                                                              |
+|--------------------------------------------|--------------------------------------------------------------------------------|
+| `location_action_brief`                    | Stelle (`location_key`, `city`), Profil, `schema_version`, `source_fingerprint`, `created_at`, Verweis auf `versioning_*` und optional `ai_*`-Felder |
+| `conflict_pattern_assessment`              | Pro Brief: erkannte Konfliktmuster (DE-ID + EN-Alias, `classification`, `confidence`, Evidence) |
+| `candidate_measure_assessment`             | Pro Brief: vorausgewählte Maßnahmen aus dem Katalog inkl. Begründung           |
+| `prioritization_profile_score`             | Profilspezifische Sub-Scores und Gesamtscore (`total`) – Grundlage für Top-N   |
+| `political_reference_summary`              | Verdichtete Treffer aus der politischen Recherche (high/medium/low)            |
+| `analysis_job` + Spring-Batch-Metadatentabellen (`BATCH_*`) | Lauf-Metadaten und technischer Status der Batch-Verarbeitung |
+
+Bewusst **nicht** gespeichert:
+
+- Roh-Unfallpunkte (bleiben Daten der Browser-/CSV-/GeoJSON-Ebene).
+- Rohtexte aus politischen Portalen (es wandern nur die normalisierten
+  `PoliticalReference`-Felder bzw. die Summary in den Brief).
+- KI-Prompts oder vollständige KI-Antworten.  Es werden nur Metadaten
+  (`aiModel`, `aiPromptVersion`, `aiInputFingerprint`, `aiSource`)
+  vermerkt, damit Reproduzierbarkeit und Provenienz nachvollziehbar
+  bleiben.
+
+## Fingerprint & Versionierung – wie ist das zu verstehen?
+
+Jeder gespeicherte Brief enthält drei klar getrennte Versions-Dimensionen:
+
+1. **`schemaVersion`** (z. B. `locationActionBrief.v1`) – beschreibt
+   das *Format* des Briefs.  Steigt nur bei breaking changes am Schema.
+2. **`sourceFingerprint`** – SHA-256 über die deterministisch
+   reproduzierbaren *Eingaben* des Briefs (Filter, Bereich, Daten­
+   ausschnitt, Profil, Regelversionen) **ohne** Zeitstempel und KI-
+   Metadaten.  Damit ist das Ingest **idempotent** über
+   `(locationKey, profileKey, sourceFingerprint)`: derselbe Brief
+   erzeugt bei wiederholtem Posten denselben Datensatz, kein
+   Duplikat (gehärtet als `UNIQUE`-Index in
+   `V2__harden_indexes_and_idempotency.sql`).
+3. **`versioning.*`** – semantische Versionen der zugrunde liegenden
+   *Logik*: `rulesVersion` (z. B. `conflictPatterns.v1`),
+   `scoringVersion`, `profileVersion` sowie `generatedAt`.  Ändert
+   sich eine Logik-Version, ändert sich auch der Fingerprint und es
+   entsteht ein neuer Eintrag – die Historie bleibt erhalten,
+   abfragbar bleibt der jeweils neueste Brief pro `(locationKey,
+   profileKey)` über `findLatestBy*`.
+
+Bei `aiUsed = true` kommen `aiMetadata.aiModel`, `aiPromptVersion`,
+`aiInputFingerprint` und `aiSource` als zusätzliche, nicht in den
+`sourceFingerprint` einfließende Provenienz-Metadaten hinzu.  Damit
+lässt sich später nachvollziehen, ob ein Brief deterministisch oder
+mit KI-Veredelung entstanden ist, ohne die Idempotenz aufzuweichen.
+
+> **Hinweis (historisch):** Eine vollständige Multi-City-Batch-/Queue-
+> Verarbeitung und eine Hibernate-Search-Suchfunktion sind weiterhin
+> Folge-PRs (siehe Abschnitt *Was ist explizit Folge-PR?*).
 
 ## Inhalt
 

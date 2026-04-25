@@ -20,23 +20,55 @@ npm run start:server         # node server/index.js
 
 ## 1. Übersicht aller Endpunkte
 
-| Methode | Pfad                                        | Zweck                                                |
-|--------:|---------------------------------------------|------------------------------------------------------|
-| GET     | `/api/health`                               | Liveness-Check                                       |
-| GET     | `/api/status`                               | **Aggregierte Capability-Übersicht** aller optionalen Features |
-| GET     | `/api/video-export-available`               | Feature-Flag Video-Export                            |
-| POST    | `/api/export-video`                         | GIF-Video-Export (Playwright/ffmpeg)                 |
-| GET     | `/api/ai-assessment-available`              | Feature-Flag KI (v1) – `GEMINI_API_KEY` gesetzt?     |
-| POST    | `/api/ai/export-assessment`                 | KI-Bewertung v1 (Bestand)                            |
-| POST    | `/api/ai/export-assessment/v2`              | KI-Bewertung v2 (Modi `assessment` / `proposal-brief`, mit Fallback) |
-| POST    | `/api/ai/jobs`                              | Asynchroner Job für v2-Bewertung                     |
-| GET     | `/api/ai/jobs/:id`                          | Status / Ergebnis eines Jobs                         |
-| GET     | `/api/political-context/supported`          | Liste unterstützter Städte                           |
-| POST    | `/api/political-context/search`             | Recherche politischer Vorgänge in Stadt-Portalen     |
-| POST    | `/api/location-brief`                       | Maßnahmen-Steckbrief je Stelle (deterministisch, optional KI-Polish, optionales Persistieren) |
-| GET     | `/api/location-briefs/by-location/:key`     | Forwarder: gespeicherte Briefs einer Stelle (Analysis Service) |
-| GET     | `/api/location-briefs/top?city=&profile=&limit=` | Forwarder: Top-N je Profil (Analysis Service)  |
-| GET     | `/api/location-briefs?city=&profile=&page=&size=` | Forwarder: Liste gespeicherter Briefs (Analysis Service) |
+Die Endpunkte sind nach fachlichen Gruppen sortiert; die ausführliche
+Beschreibung folgt in den jeweiligen Abschnitten.
+
+**Plattform / Status**
+
+| Methode | Pfad                              | Zweck                                                |
+|--------:|-----------------------------------|------------------------------------------------------|
+| GET     | `/api/health`                     | Liveness-Check                                       |
+| GET     | `/api/status`                     | **Aggregierte Capability-Übersicht** aller optionalen Features |
+| GET     | `/api/video-export-available`     | Feature-Flag Video-Export                            |
+| POST    | `/api/export-video`               | GIF-Video-Export (Playwright/ffmpeg, Docker-Distribution) |
+| GET     | `/api/ai-assessment-available`    | Feature-Flag KI (v1) – `GEMINI_API_KEY` gesetzt?     |
+
+**Gruppe „AI" – Optionale KI-Bewertung** (siehe §2 – §4)
+
+| Methode | Pfad                              | Zweck                                                |
+|--------:|-----------------------------------|------------------------------------------------------|
+| POST    | `/api/ai/export-assessment`       | KI-Bewertung v1 (Bestand, kein Fallback)             |
+| POST    | `/api/ai/export-assessment/v2`    | KI-Bewertung v2 (Modi `assessment` / `proposal-brief`, mit Fallback) |
+| POST    | `/api/ai/jobs`                    | Asynchroner Job für v2-Bewertung                     |
+| GET     | `/api/ai/jobs/:id`                | Status / Ergebnis eines Jobs                         |
+
+**Gruppe „political-context" – Politische Recherche** (siehe §5)
+
+| Methode | Pfad                                       | Zweck                                                |
+|--------:|--------------------------------------------|------------------------------------------------------|
+| GET     | `/api/political-context/supported`         | Liste unterstützter Städte                           |
+| POST    | `/api/political-context/search`            | Recherche politischer Vorgänge in Stadt-Portalen     |
+
+**Gruppe „location-brief" – Maßnahmen-Steckbrief je Stelle** (siehe §12)
+
+| Methode | Pfad                              | Zweck                                                |
+|--------:|-----------------------------------|------------------------------------------------------|
+| POST    | `/api/location-brief`             | Maßnahmen-Steckbrief je Stelle (deterministisch, optional KI-Polish, optionales Persistieren) |
+
+**Gruppe „analysis-service forwarder" – persistierte Reads & Top-N** (siehe §13)
+
+Dünne Forwarder zum separaten Spring-Boot-Dienst.  Ohne
+`ANALYSIS_SERVICE_BASE_URL`: `503 ANALYSIS_SERVICE_NOT_CONFIGURED`.
+
+| Methode | Pfad                                                | Zweck                                                |
+|--------:|-----------------------------------------------------|------------------------------------------------------|
+| GET     | `/api/location-briefs/by-location/:locationKey`     | Persisted reads – alle Briefs einer Stelle, neueste zuerst |
+| GET     | `/api/location-briefs/top?city=&profile=&limit=`    | Top-N je Stadt + Profil (sortiert nach Profil-Score) |
+| GET     | `/api/location-briefs?city=&profile=&page=&size=`   | Paginierte Liste gespeicherter Briefs einer Stadt    |
+| POST    | `/api/batch/jobs/city-prioritization`               | Stadtweiten Spring-Batch-Lauf anstoßen               |
+| GET     | `/api/batch/jobs`                                   | Jüngste Lauf-Übersicht                               |
+| GET     | `/api/batch/jobs/:executionId`                      | Technischer Status eines Laufs                       |
+| GET     | `/api/batch/jobs/:executionId/summary`              | Fachliche Zusammenfassung (Top-N, Counts)            |
 
 Rate-Limits (per IP, 1-Minuten-Fenster):
 
@@ -455,19 +487,104 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 
 ---
 
-## 8. Optionale Persistenz: Anbindung an den Analysis Service
+## 12. Gruppe „location-brief" – `POST /api/location-brief`
 
-Die Node-App kann den deterministischen Maßnahmen-Steckbrief
-(`POST /api/location-brief`) zusätzlich an den separaten
-**Analysis Service** (`analysis-service/`, Spring Boot) weitergeben, dort
-versioniert speichern und über drei Lese-Endpunkte wieder abrufen.  Die
-Anbindung ist **optional**:
+### Zweck
+
+Erzeugt für eine einzelne Stelle einen **deterministischen
+Maßnahmen-Steckbrief** (Konfliktmuster, vorausgewählte Maßnahmen,
+Profil-Score).  KI ist nur eine optionale Veredelung (`aiPolish`); der
+Brief funktioniert ohne `GEMINI_API_KEY` und ohne Analysis Service.
+
+Quelle: [`server/location-brief/`](../server/location-brief/),
+[`docs/LOCATION_BRIEF.md`](LOCATION_BRIEF.md).
+
+### Request
+
+```http
+POST /api/location-brief
+Content-Type: application/json
+```
+
+```jsonc
+{
+  "structured":   { /* Output aus computeExportReport() */ },
+  "locationId":   "hannover::altenbekener_damm",   // stabile Stellen-ID (empfohlen)
+  "profile":      "low_hanging_fruit",             // optional, Default greift
+  "contextHints": { /* optional, wie bei /api/ai/export-assessment/v2 */ },
+  "politicalContext": { /* optional, Ergebnis aus political-context */ },
+  "aiPolish":     { /* optional: KI-Veredelung an/aus, Modus */ },
+  "persist":      true,        // optional: an Analysis Service forwarden
+  "useStored":    true         // optional: zuerst gespeicherten Brief verwenden
+}
+```
+
+### Typische Response
+
+```jsonc
+{
+  "schemaVersion":    "locationActionBrief.v1",
+  "locationKey":      "hannover::altenbekener_damm",
+  "profileKey":       "low_hanging_fruit",
+  "conflictPatterns": [ /* … */ ],
+  "candidateMeasures": [ /* … */ ],
+  "profileScores":    { /* … */ },
+  "versioning":       { "rulesVersion": "conflictPatterns.v1", /* … */ },
+  "persistence": {
+    "status":           "freshly_computed",   // s. Tabelle unten
+    "persisted":        false,
+    "persistRequested": false,
+    "attempts":         0
+  }
+}
+```
+
+### Persistenz-Lebenszyklus (`persistence.status`)
+
+| Status              | Bedeutung                                                            |
+|---------------------|----------------------------------------------------------------------|
+| `freshly_computed`  | Brief frisch berechnet, kein Persist gewünscht/aktiv.                |
+| `loaded_from_store` | `useStored=true` → bestehender Brief aus dem Service geliefert.      |
+| `persisted`         | Brief berechnet **und** erfolgreich persistiert.                     |
+| `persist_skipped`   | Persist gewünscht, aber Service nicht erreichbar/aktiviert.          |
+
+### Fallback-Verhalten
+
+- **Ohne Analysis Service** (Standard): Brief wird berechnet und
+  zurückgegeben, `persistence.status: "freshly_computed"`.
+- **Mit `persist: true`, Service nicht erreichbar / 5xx**:
+  Brief wird trotzdem zurückgegeben,
+  `persistence.status: "persist_skipped"`, `reason` enthält den
+  Fehlergrund.  Es gibt **kein** `5xx` aus diesem Endpunkt allein wegen
+  Persistenzproblemen.
+- **`useStored: true`** mit Treffer im Service: kein Recompute, Antwort
+  enthält `source: "analysis-service"` und den gespeicherten Brief
+  (`persistence.status: "loaded_from_store"`).
+
+### Fehlerfälle
+
+| Status | Bedingung                                                     |
+|------:|----------------------------------------------------------------|
+| `400` | `structured` fehlt / kein Objekt; unbekanntes `profile`        |
+| `429` | Rate-Limit überschritten                                       |
+| `500` | unerwarteter interner Fehler beim Erzeugen des Briefs          |
+
+---
+
+## 13. Gruppe „analysis-service forwarder" – Persisted Reads, Top-N, Batch
+
+Die folgenden Endpunkte sind **dünne Forwarder** auf den separaten
+Spring-Boot-Dienst (`analysis-service/`).  Sie erlauben es der Node-App,
+gespeicherte Briefs wieder abzurufen und stadtweit zu vergleichen, ohne
+selbst Persistenz zu betreiben.  Ohne konfigurierten Analysis Service
+antworten sie mit `503 ANALYSIS_SERVICE_NOT_CONFIGURED`; bei
+Upstream-Fehlern mit `502 upstream_error`.
 
 | Modus                     | Voraussetzung                                                  | Verhalten                                                                                                  |
 |---------------------------|----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | **Browser-only**          | keine                                                          | Werkbank läuft komplett im Browser, keine Server-Aufrufe.                                                  |
-| **Node-Standalone**       | `npm run start:server`                                         | Bestehendes Verhalten – Steckbrief wird nur berechnet, **nicht** persistiert.                              |
-| **Node + Analysis Service** | zusätzlich `ANALYSIS_SERVICE_BASE_URL` gesetzt              | Optional: Steckbrief wird zusätzlich versioniert gespeichert; gespeicherte Briefs sind über Lese-Endpunkte abrufbar. |
+| **Node-Standalone**       | `npm run start:server`                                         | `POST /api/location-brief` berechnet, **persistiert nicht**.  Forwarder antworten `503`.                   |
+| **Node + Analysis Service** | zusätzlich `ANALYSIS_SERVICE_BASE_URL` gesetzt              | Persistieren, Lesen, Top-N, Batch-Anstoß sind verfügbar.                                                   |
 
 ### Konfiguration
 
@@ -478,107 +595,71 @@ Anbindung ist **optional**:
 | `ANALYSIS_SERVICE_TIMEOUT_MS`    | `4000`  | HTTP-Timeout pro Aufruf (ms).                                                 |
 | `ANALYSIS_SERVICE_RETRIES`       | `1`     | Anzahl Wiederholungen bei 5xx oder Netzwerkfehlern (4xx wird **nicht** wiederholt). |
 | `ANALYSIS_SERVICE_RETRY_DELAY_MS`| `200`   | Wartezeit zwischen Retries (ms).                                              |
-| `ANALYSIS_SERVICE_AUTO_PERSIST`  | `false` | Wenn `true`, wird bei `POST /api/location-brief` ohne explizites `persist`-Flag automatisch persistiert. |
+| `ANALYSIS_SERVICE_AUTO_PERSIST`  | `false` | Wenn `true`, wird `POST /api/location-brief` ohne explizites `persist`-Flag automatisch persistiert. |
 
 Der aktuelle Status (konfiguriert / aktiviert / Basis-URL) ist über
-`GET /api/status` unter `capabilities.analysisService` sichtbar.
+`GET /api/status` unter `capabilities.analysisService` sichtbar; die
+unterstützten Batch-Jobs unter `capabilities.batchJobs.supportedJobs`.
 
-### Persistenz-Pfad: `POST /api/location-brief`
+### 13.1 Persisted reads – Briefs einer Stelle wieder abrufen
 
-Body-Erweiterungen (alle optional):
-
-```jsonc
-{
-  "structured":   { /* Output aus computeExportReport() */ },
-  "locationId":   "hannover::altenbekener_damm",   // stabile Stellen-ID
-  "profile":      "low_hanging_fruit",
-  "persist":      true,        // optional an Analysis Service forwarden
-  "useStored":    true         // optional: zuerst gespeicherten Brief verwenden
-}
+```http
+GET /api/location-briefs/by-location/:locationKey
 ```
 
-- Bei `persist: true` enthält die Antwort zusätzlich
-  `persistence.status: "persisted" | "persist_skipped"`,
-  `persistence.storedId` und `persistence.attempts`.
-- **Fallback:** Ist der Service nicht erreichbar oder antwortet er mit 5xx,
-  liefert die Node-App trotzdem den berechneten Brief zurück
-  (`persistence.status: "persist_skipped"`, `reason` setzt den Fehler).
-  Der bestehende Export-/Analysepfad funktioniert damit auch ohne den
-  Analysis Service weiter.
-- `useStored: true` versucht vor der Berechnung, einen passenden
-  bereits gespeicherten Brief zu lesen
-  (`GET /api/location-briefs/by-location/:locationId`); existiert einer
-  mit demselben Profil, wird er mit `status: "loaded_from_store"`
-  statt einer Neuberechnung zurückgegeben, andernfalls stammt die
-  Antwort aus einer Neuberechnung mit `status: "freshly_computed"`.
+**Zweck:** alle gespeicherten Versionen einer Stelle, neueste zuerst.
 
-### Lese-Endpunkte (Forwarder)
-
-Diese Endpunkte sind dünne Forwarder zum Analysis Service.  Ist der
-Dienst nicht konfiguriert, antworten sie mit
-`503 feature_unavailable`; bei Upstream-Fehlern mit
-`502 upstream_error`.  Erfolgreiche Antworten sind 1:1 die Antworten
-des Analysis Service.
-
-| Methode | Pfad                                              | Zweck                                                                |
-|---------|---------------------------------------------------|----------------------------------------------------------------------|
-| GET     | `/api/location-briefs/by-location/:locationKey`   | Alle gespeicherten Briefs einer Stelle, neueste zuerst.              |
-| GET     | `/api/location-briefs/top?city=&profile=&limit=`  | Top-N Briefs für eine Stadt + Profil (sortiert nach Profil-Score).   |
-| GET     | `/api/location-briefs?city=&profile=&page=&size=` | Liste gespeicherter Briefs einer Stadt (paginiert, Profil optional). |
-
-### Beispiel: Persistieren
+**Beispiel:**
 
 ```bash
-curl -X POST http://localhost:8000/api/location-brief \
-  -H "Content-Type: application/json" \
-  -d '{
-        "structured": { /* … */ },
-        "locationId": "hannover::altenbekener_damm",
-        "profile":    "low_hanging_fruit",
-        "persist":    true
-      }'
+curl http://localhost:8000/api/location-briefs/by-location/hannover::altenbekener_damm
 ```
 
-### Beispiel: Top-5 für Hannover, Profil `safety_first`
+**Typische Response:** 1:1 Antwort des Analysis Service – Array von
+gespeicherten Briefs mit `id`, `createdAt`, `profileKey`,
+`schemaVersion`, `versioning`, `sourceFingerprint` u. a.  Bei `404`
+liefert die Node-App ein leeres Array `[]`.
+
+### 13.2 Persisted reads – paginierte Stadtansicht
+
+```http
+GET /api/location-briefs?city=Hannover&profile=safety_first&page=0&size=20
+```
+
+**Zweck:** alle Briefs einer Stadt, optional nach Profil gefiltert,
+paginiert.
+
+**Fallback:** ohne konfigurierten Service `503`; bei Upstream-Fehler
+`502`; sonst Array (paginiert) wie vom Analysis Service geliefert.
+
+### 13.3 Top-N je Stadt + Profil
+
+```http
+GET /api/location-briefs/top?city=Hannover&profile=low_hanging_fruit&limit=10
+```
+
+**Zweck:** Ranking der **Top-N Stellen** einer Stadt nach Profil-Score.
+Grundlage für stadtweite Priorisierung („Welche Stellen zuerst?").
+
+**Beispiel:**
 
 ```bash
 curl "http://localhost:8000/api/location-briefs/top?city=Hannover&profile=safety_first&limit=5"
 ```
 
-### Persistenz-Status in der Antwort
+**Typische Response:** Array der Top-N Briefs, sortiert nach dem
+profilspezifischen Gesamt-Score (höchster zuerst).
 
-`POST /api/location-brief` liefert immer ein `persistence`-Objekt mit
-einem klaren Lebenszyklus-Status (stabiler API-Vertrag für die UI):
-
-| Status              | Bedeutung                                                      |
-|---------------------|----------------------------------------------------------------|
-| `freshly_computed`  | Brief frisch berechnet, kein Persist gewünscht/aktiv.          |
-| `loaded_from_store` | `useStored=true` → bestehender Brief aus dem Service geliefert.|
-| `persisted`         | Brief berechnet **und** erfolgreich persistiert.               |
-| `persist_skipped`   | Persist gewünscht, aber Service nicht erreichbar/aktiviert.    |
-
-Zusätzliche Felder: `persisted` (boolean), `persistRequested`, `attempts`,
-ggf. `storedId` und `reason`.  Die Vokabular bleibt stabil; UI-Code kann
-sich ausschließlich auf `persistence.status` stützen.
-
-### Batch-Jobs (Forwarder zum Analysis Service)
-
-Die Node-App reicht ab dieser Iteration einen kleinen Satz Endpunkte
-weiter, mit denen sich Spring-Batch-Läufe im Analysis Service
-manuell anstoßen und beobachten lassen.  Wie die anderen Forwarder
-sind diese Endpunkte **vollständig optional** und antworten mit `503
-ANALYSIS_SERVICE_NOT_CONFIGURED`, wenn `ANALYSIS_SERVICE_BASE_URL`
-nicht gesetzt ist.  Die Capability `batchJobs` in `GET /api/status`
-gibt zusätzlich die unterstützten Job-Namen zurück.
+### 13.4 Batch-Jobs (stadtweite Verarbeitung)
 
 | Methode | Pfad                                                | Zweck                                                                  |
 |---------|-----------------------------------------------------|------------------------------------------------------------------------|
-| POST    | `/api/batch/jobs/city-prioritization`               | Startet den `city-prioritization-job`. Body: `{city, profile, recomputeExisting?, limit?, runLabel?}` – `city` und `profile` sind Pflicht. Antwort: `{jobName, executionId, status}`. |
+| POST    | `/api/batch/jobs/city-prioritization`               | Startet den `city-prioritization-job`.  Body: `{city, profile, recomputeExisting?, limit?, runLabel?}` – `city` und `profile` sind Pflicht.  Antwort: `{jobName, executionId, status}`. |
 | GET     | `/api/batch/jobs`                                   | Jüngste Lauf-Übersicht (fachlich, aus `analysis_job`).                 |
 | GET     | `/api/batch/jobs/:executionId`                      | Technischer Status (Steps, Exit-Codes, Zeitstempel).                   |
 | GET     | `/api/batch/jobs/:executionId/summary`              | Fachliche Zusammenfassung (Top-N, Counts, Fehler).                     |
 
-Beispiel:
+**Beispiel:**
 
 ```bash
 curl -X POST http://localhost:8000/api/batch/jobs/city-prioritization \
@@ -591,14 +672,12 @@ Validation-Fehler kommen über den vorhandenen `error`-Envelope mit
 abgeschlossen) als `409` mit maschinenlesbarem `code` (siehe
 [`analysis-service/README.md`](../analysis-service/README.md#bekannte-fehlermodi)).
 
-### Wann reicht Browser-only, wann Node, wann Persistenz?
-
-
+### 13.5 Wann reicht Browser-only, wann Node, wann Persistenz?
 
 - **Browser-only** (GitHub Pages Live-Demo): einzelne Analysen,
   Bezirksrats-Export – die häufigste Nutzung.
 - **Node-Standalone**: lokales Hosten, Video-Export, KI-Bewertung,
-  politische Recherche – ohne Persistenzbedarf.
+  politische Recherche, Brief-Berechnung – ohne Persistenzbedarf.
 - **Node + Analysis Service**: stadtweite Vergleiche, Top-N-Listen
   pro Profil, reproduzierbare Briefs (versioniert mit Source-
   Fingerprint, Regelversionen, optional KI-Metadaten).
