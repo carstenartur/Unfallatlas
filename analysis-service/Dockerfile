@@ -31,12 +31,19 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /workspace/app.jar /app/app.jar
 
+# `curl` für den HEALTHCHECK installieren – das `eclipse-temurin:21-jre`
+# Basis-Image bringt weder `curl` noch `wget` mit, ohne diesen Schritt
+# wäre der Container sofort als "unhealthy" markiert.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Standard: Prod-Profil; kann via SPRING_PROFILES_ACTIVE überschrieben werden.
 ENV SPRING_PROFILES_ACTIVE=prod
 EXPOSE 8081
 
 # Spring-Boot-Actuator-Endpunkt für Health-Check.
 HEALTHCHECK --interval=20s --timeout=3s --start-period=30s --retries=5 \
-  CMD wget --quiet --spider http://localhost:8081/actuator/health || exit 1
+  CMD curl --fail --silent --show-error http://localhost:8081/actuator/health || exit 1
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

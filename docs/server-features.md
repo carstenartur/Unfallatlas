@@ -498,18 +498,19 @@ Body-Erweiterungen (alle optional):
 ```
 
 - Bei `persist: true` enthält die Antwort zusätzlich
-  `persistence.status: "stored" | "skipped"`,
+  `persistence.status: "persisted" | "persist_skipped"`,
   `persistence.storedId` und `persistence.attempts`.
 - **Fallback:** Ist der Service nicht erreichbar oder antwortet er mit 5xx,
   liefert die Node-App trotzdem den berechneten Brief zurück
-  (`persistence.status: "skipped"`, `reason` setzt den Fehler).  Der
-  bestehende Export-/Analysepfad funktioniert damit auch ohne den
+  (`persistence.status: "persist_skipped"`, `reason` setzt den Fehler).
+  Der bestehende Export-/Analysepfad funktioniert damit auch ohne den
   Analysis Service weiter.
 - `useStored: true` versucht vor der Berechnung, einen passenden
   bereits gespeicherten Brief zu lesen
   (`GET /api/location-briefs/by-location/:locationId`); existiert einer
-  mit demselben Profil, wird er statt einer Neuberechnung
-  zurückgegeben (`source: "analysis-service"`).
+  mit demselben Profil, wird er mit `status: "loaded_from_store"`
+  statt einer Neuberechnung zurückgegeben, andernfalls stammt die
+  Antwort aus einer Neuberechnung mit `status: "freshly_computed"`.
 
 ### Lese-Endpunkte (Forwarder)
 

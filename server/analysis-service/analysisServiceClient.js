@@ -429,9 +429,11 @@ async function listBatchJobs(limit) {
 }
 
 /**
- * Probt die Erreichbarkeit des Service über `/actuator/health` (oder
- * `/api/location-briefs?city=__probe__&size=1` als Fallback, falls Actuator
- * nicht aktiv ist).  Schnell und kurz, für Capability-Checks.
+ * Probt die Erreichbarkeit des Service über `/actuator/health`.  Schnell
+ * und kurz, mit reduziertem Timeout und ohne Retry, gedacht für
+ * Capability-/Liveness-Checks.  Liefert kein Fallback auf einen
+ * fachlichen Endpunkt – ist Actuator deaktiviert, schlägt der Probe
+ * fehl.
  *
  * @returns {Promise<{ok: boolean, status?: number, error?: string}>}
  */

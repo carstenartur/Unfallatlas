@@ -168,7 +168,9 @@ function videoExport() {
  * als "available", sobald `ANALYSIS_SERVICE_BASE_URL` gesetzt **und** das
  * Feature nicht explizit per `ANALYSIS_SERVICE_ENABLED=false` deaktiviert
  * wurde.  Erreichbarkeit selbst wird hier bewusst NICHT geprüft (kein
- * Netz-Call im Status-Endpoint), das macht der dedizierte Probe-Endpunkt.
+ * Netz-Call im Status-Endpoint); ein aktiver Liveness-Check kann bei
+ * Bedarf separat über {@code analysisServiceClient.probe()} ausgelöst
+ * werden.
  *
  * @returns {Capability}
  */
@@ -201,7 +203,7 @@ function analysisService() {
   return {
     available: true,
     reasonCode: REASON_CODES.OK,
-    reason:    `Analysis Service erreichbar konfiguriert unter ${status.baseUrl}.`,
+    reason:    `Analysis Service konfiguriert (Erreichbarkeit nicht geprüft) unter ${status.baseUrl}.`,
     details:   {
       configured: true,
       enabled:    true,

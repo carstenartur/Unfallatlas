@@ -17,7 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Smoke-Test: Spring Batch hat seine Metadatentabellen tatsächlich
  * angelegt und kann sie auch beschreiben.  Der Test betrachtet bewusst
- * nur Strukturen + ein Insert+Select, weil die fachliche Job-Logik in
+ * nur Strukturen + ein lesendes {@code SELECT COUNT(*)}, weil die
+ * fachliche Job-Logik (inkl. Inserts) in
  * {@link CityPrioritizationJobIntegrationTest} geprüft wird.
  */
 @SpringBootTest
@@ -44,9 +45,9 @@ class BatchMetadataSchemaTest {
             "batch_step_execution"
         );
 
-        // Belegt zusätzlich, dass die Tabellen mit Auto-Increment / Sequenz
-        // funktionieren – das ist die Grundlage für getrennte JobInstance-IDs
-        // pro Lauf und damit auch für getrennte JobExecution-IDs.
+        // Belegt zusätzlich, dass die Tabellen abfragbar sind – das ist
+        // die Grundlage dafür, dass der Job-Repository-JDBC-Pfad auf
+        // diesem Schema überhaupt arbeiten kann.
         try (Connection c = dataSource.getConnection()) {
             try (ResultSet rs = c.createStatement().executeQuery(
                     "SELECT COUNT(*) FROM BATCH_JOB_INSTANCE")) {

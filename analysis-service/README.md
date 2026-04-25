@@ -66,13 +66,11 @@ Die Tests laufen ebenfalls gegen die Flyway-Migrationen.  Damit ist
 sichergestellt, dass die Migrationsskripte sowohl in H2 (PostgreSQL-
 Mode) als auch in echtem PostgreSQL durchlaufen.
 
-> **Hinweis:** Mit dem Renovate-Bump auf Spring Boot 4 ist
-> `LocationBriefControllerTest` (verwendet `@AutoConfigureMockMvc`)
-> derzeit nicht kompatibel und wird per
-> `<testExcludes>`/`<excludes>` in der `pom.xml` ausgeschlossen.  Die
-> Migration auf MockMvc-API von Spring Boot 4 erfolgt in einem
-> Folge-PR; alle übrigen Tests inkl. Repository-Integrationstests
-> laufen normal mit.
+> **Hinweis:** Die Test-Suite läuft regulär mit `mvn test`,
+> einschließlich der Controller- und Repository-Integrationstests
+> (`LocationBriefControllerTest` nutzt die Spring-Boot-4-Variante von
+> `@AutoConfigureMockMvc` aus
+> `org.springframework.boot.webmvc.test.autoconfigure`).
 
 ### Mit PostgreSQL (Prod)
 

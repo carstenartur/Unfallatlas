@@ -236,10 +236,11 @@ public class BatchJobController {
 
     private static ResponseEntity<Map<String, Object>> error(HttpStatus status, String code, String msg) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error",    true);
-        body.put("category", "batch");
-        body.put("code",     code);
-        body.put("message",  msg);
+        body.put("error",     true);
+        body.put("category",  "batch");
+        body.put("code",      code);
+        body.put("message",   msg);
+        body.put("timestamp", Instant.now().toString());
         return ResponseEntity.status(status).body(body);
     }
 }
