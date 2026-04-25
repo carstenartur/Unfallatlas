@@ -94,6 +94,21 @@ docker compose --profile persist up
    `GET /api/location-briefs/top?city=Hannover&profile=safety_first&limit=10`
    liefert die stadtweite Priorisierung je Profil; eine paginierte
    Übersicht gibt es über `GET /api/location-briefs?city=&profile=&page=&size=`.
+6. **Prioritäten-Panel im Browser nutzen** – im Werkbank-V2-UI öffnet
+   der Button **„📊 Prioritäten & gespeicherte Briefs"** ein Panel mit
+   zwei Modi: *Top-N je Stadt + Profil* und *gespeicherte Briefs je Ort*.
+   Jede Karte zeigt Ort/Titel, Profil, zentrale Scores, Konfliktmuster,
+   empfohlene Maßnahmen, einen politischen Kontext-Hinweis sowie ein
+   Status-Badge (`frisch berechnet` / `aus Persistenz` / `persistiert` /
+   `Fallback`).  Ohne Analysis Service degradiert das Panel sichtbar:
+   `dataStatus: "fallback_result"` mit klarer Begründung – die Karte
+   und alle Export-Wege funktionieren unverändert.
+
+Das stabile `dataStatus`-Vokabular auf API-Seite (zusätzlich zum
+bestehenden `persistence.status`) ist:
+`freshly_computed` · `loaded_from_store` · `persisted` ·
+`fallback_result`.  Details und Beispiel-Responses:
+[`docs/server-features.md` §14](docs/server-features.md#14-gruppe-priorities--decision-cards-für-die-prioritätenansicht).
 
 Detaillierte Endpunkte, alle Env-Variablen (Timeout/Retry/Auto-Persist),
 Persistenz-Lebenszyklus (`freshly_computed` / `loaded_from_store` /

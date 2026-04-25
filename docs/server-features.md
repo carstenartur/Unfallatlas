@@ -70,6 +70,19 @@ Dünne Forwarder zum separaten Spring-Boot-Dienst.  Ohne
 | GET     | `/api/batch/jobs/:executionId`                      | Technischer Status eines Laufs                       |
 | GET     | `/api/batch/jobs/:executionId/summary`              | Fachliche Zusammenfassung (Top-N, Counts)            |
 
+**Gruppe „priorities" – Decision-Cards für Top-N und gespeicherte Briefs** (siehe §14)
+
+Verdichten gespeicherte Briefs zu kompakten Entscheidungs­karten.  Liefern
+einen einheitlichen Envelope mit stabilem `dataStatus` (`freshly_computed` /
+`loaded_from_store` / `persisted` / `fallback_result`); leere Resultate
+sind **kein 404**, sondern `{ items: [], empty: true, dataStatus: "loaded_from_store" }`.
+
+| Methode | Pfad                                                | Zweck                                                |
+|--------:|-----------------------------------------------------|------------------------------------------------------|
+| GET     | `/api/priorities/profiles`                          | Verfügbare Profile + `dataStatus`-Vokabular (kein Service nötig) |
+| GET     | `/api/priorities/top?city=&profile=&limit=`         | Top-N als Decision-Cards (Ort, Score, Konfliktmuster, Maßnahme, politischer Hinweis) |
+| GET     | `/api/priorities/by-location/:locationKey?profile=` | Gespeicherte Briefs einer Stelle, neuester / passendes Profil zuerst |
+
 Rate-Limits (per IP, 1-Minuten-Fenster):
 
 | Endpunkt                          | Limit |
@@ -695,3 +708,125 @@ abgeschlossen) als `409` mit maschinenlesbarem `code` (siehe
   ```bash
   docker compose --profile persist up
   ```
+
+## 14. Gruppe „priorities" – Decision-Cards für die Prioritätenansicht
+
+Die Endpunkte unter `/api/priorities/*` verdichten die Roh-Antworten des
+Analysis Service zu **kompakten Entscheidungs­karten** für die Werkbank.
+Sie sind reine *Lese*-Endpunkte und beantworten die zentralen
+Produkt-Fragen:
+
+> **Welche Stelle ist wichtig? Warum? Welche Maßnahme ist plausibel?
+> Ist das frisch berechnet oder aus Persistenz?**
+
+Im Gegensatz zu den 1:1-Forwardern unter `/api/location-briefs/*`
+liefern sie:
+
+- ein **einheitliches Antwort-Envelope** mit `mode`, `count`, `empty`,
+  `items[]`, `dataStatus` (siehe Vokabular unten) und optional
+  `fallbackReason`,
+- pro Eintrag eine **stabile Decision-Card-Struktur** (Ort, Profil,
+  zentrale Scores, Konfliktmuster, empfohlene Maßnahmen, politischer
+  Kontext-Hinweis),
+- **kein 404 für leere Resultate** – stattdessen `{ items: [], empty: true,
+  dataStatus: "loaded_from_store" }`, damit die UI klar zwischen „keine
+  gespeicherten Briefs" und „Persistenz nicht erreichbar" unterscheiden
+  kann.
+
+Ohne konfigurierten Analysis Service gilt **graceful degradation**:
+statt 503 antworten die Endpunkte mit `dataStatus: "fallback_result"`
+und einem `fallbackReason` – die Werkbank bleibt nutzbar.
+
+### 14.1 Stabiler `dataStatus`-Vertrag
+
+Vier Werte beschreiben die Herkunft eines Ergebnisses; der String selbst
+ist Teil des API-Vertrags und ändert sich nicht (vgl.
+[`server/priorities/index.js`](../server/priorities/index.js)):
+
+| `dataStatus`         | Bedeutung                                                              |
+|----------------------|------------------------------------------------------------------------|
+| `freshly_computed`   | Frisch berechnet, **nicht** persistiert.                               |
+| `loaded_from_store`  | Aus dem Analysis Service gelesen (Top-N oder by-location).             |
+| `persisted`          | Frisch berechnet **und** erfolgreich persistiert.                      |
+| `fallback_result`    | Persistenz war gewünscht, aber nicht möglich; Ergebnis aus Fallback.   |
+
+`POST /api/location-brief` ergänzt jede Antwort additiv um dieses Feld
+(neben dem bestehenden `persistence.status`-Block; das alte Feld bleibt
+unverändert).
+
+### 14.2 `GET /api/priorities/profiles`
+
+Liefert die unterstützten Profile und das `dataStatus`-Vokabular für
+UI-Dropdowns und Status-Anzeigen.  **Hängt nicht** vom Analysis Service
+ab, funktioniert auch im Browser-only-/Node-Standalone-Modus.
+
+```bash
+curl http://localhost:8000/api/priorities/profiles
+```
+
+```json
+{
+  "profiles": ["low_hanging_fruit", "bicycle_safety_priority", "..."],
+  "defaultProfile": "low_hanging_fruit",
+  "dataStatusValues": ["freshly_computed", "loaded_from_store", "persisted", "fallback_result"]
+}
+```
+
+### 14.3 `GET /api/priorities/top?city=&profile=&limit=`
+
+Top-N gespeicherte Briefs einer Stadt für ein Profil als Decision-Cards.
+
+```bash
+curl "http://localhost:8000/api/priorities/top?city=Hannover&profile=low_hanging_fruit&limit=5"
+```
+
+```json
+{
+  "mode": "top",
+  "dataStatus": "loaded_from_store",
+  "count": 1,
+  "empty": false,
+  "items": [
+    {
+      "id": "b-1",
+      "locationKey": "hannover::altenbekener_damm",
+      "city": "Hannover",
+      "title": "Maßnahmensteckbrief: Altenbekener Damm",
+      "profileKey": "low_hanging_fruit",
+      "confidence": 0.72,
+      "score": { "total": 78, "subScores": { "quickWinScore": 0.9 } },
+      "conflictPatterns": [
+        { "id": "right_turn_conflict", "label": "Rechtsabbiegekonflikt",
+          "classification": "primary", "confidence": "high" }
+      ],
+      "recommendedMeasures": [
+        { "id": "protected_bike_lane", "title": "Geschützte Radspur",
+          "fitScore": 0.9, "costBand": "high", "effort": "medium" }
+      ],
+      "political": { "count": 2, "hasHighRelevance": true }
+    }
+  ],
+  "query": { "city": "Hannover", "profile": "low_hanging_fruit", "limit": 5 }
+}
+```
+
+### 14.4 `GET /api/priorities/by-location/:locationKey?profile=`
+
+Alle gespeicherten Briefs einer Stelle, **neuester / passendes Profil
+zuerst**.  Selbes Envelope wie 14.3.  Kein Treffer → `empty: true`.
+
+```bash
+curl "http://localhost:8000/api/priorities/by-location/hannover::altenbekener_damm?profile=safety_first"
+```
+
+### 14.5 Fehler- und Fallback-Verhalten
+
+| Situation                                     | HTTP | `dataStatus`        | `fallbackReason`                  |
+|-----------------------------------------------|------|---------------------|-----------------------------------|
+| Erfolg, Treffer vorhanden                     | 200  | `loaded_from_store` | –                                 |
+| Erfolg, leer / Upstream 404                   | 200  | `loaded_from_store` | – (`empty: true`)                 |
+| Analysis Service nicht konfiguriert           | 200  | `fallback_result`   | `analysis_service_unconfigured`   |
+| Analysis Service deaktiviert                  | 200  | `fallback_result`   | `analysis_service_disabled`       |
+| Analysis Service erreichbar, aber 5xx/Timeout | 200  | `fallback_result`   | aus dem Client (`http_503`, …)    |
+| Pflicht-Parameter fehlt                       | 400  | – (`error`-Envelope) | – (Validierungsfehler, kein Fallback) |
+

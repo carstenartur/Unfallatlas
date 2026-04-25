@@ -182,6 +182,12 @@
       UA.PoliticalContext.init(ctx);
     }
 
+    // Initialize priorities panel (Top-N, gespeicherte Briefs) – fail-safe.
+    // Hängt nicht an Karten-/Export-Logik; wenn das Modul fehlt, passiert nichts.
+    if (UA.Priorities && typeof UA.Priorities.init === "function") {
+      UA.Priorities.init(ctx);
+    }
+
     // map events - separate pan vs zoom handling
     ctx.map.on("moveend", () => UA.scheduleViewportUpdate(ctx, false));
     ctx.map.on("zoomend", () => UA.scheduleViewportUpdate(ctx, true));
