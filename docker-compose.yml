@@ -50,7 +50,7 @@ services:
 
   analysis-db:
     profiles: ["persist"]
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: ${ANALYSIS_DB_NAME:-unfallatlas}
       POSTGRES_USER: ${ANALYSIS_DB_USER:-unfallatlas}
