@@ -5,6 +5,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.FullTextField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.GenericField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.IndexedEmbedded;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.KeywordField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.Indexed;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -40,18 +45,19 @@ import java.util.UUID;
         @Index(name = "idx_lab_created_at",   columnList = "created_at")
     }
 )
-// Hibernate-Search-Hook (vorbereitet, noch nicht aktiv):
-//   @org.hibernate.search.mapper.pojo.mapping.definition.annotation.Indexed
+@Indexed(index = "location_action_brief")
 public class LocationActionBriefEntity {
 
     @Id
     @Column(length = 36, nullable = false, updatable = false)
+    @KeywordField(name = "id_kw")
     private String id;
 
     /** Stabiler Schlüssel der Stelle (z. B. {@code "hannover::altenbekener_damm"}). */
     @NotBlank
     @Size(max = 200)
     @Column(nullable = false, length = 200)
+    @KeywordField(sortable = org.hibernate.search.engine.backend.types.Sortable.YES)
     private String locationKey;
 
     /** Externe ID, falls aus einem anderen System übergeben (frei). */
@@ -62,15 +68,19 @@ public class LocationActionBriefEntity {
     @NotBlank
     @Size(max = 100)
     @Column(nullable = false, length = 100)
+    @KeywordField(sortable = org.hibernate.search.engine.backend.types.Sortable.YES)
+    @KeywordField(name = "city_lc", normalizer = "lowercase")
     private String city;
 
     @NotBlank
     @Size(max = 250)
     @Column(nullable = false, length = 250)
+    @FullTextField(analyzer = "standard")
     private String title;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
+    @GenericField(sortable = org.hibernate.search.engine.backend.types.Sortable.YES)
     private Instant createdAt;
 
     @UpdateTimestamp
@@ -92,6 +102,7 @@ public class LocationActionBriefEntity {
     @NotBlank
     @Size(max = 60)
     @Column(nullable = false, length = 60)
+    @KeywordField(sortable = org.hibernate.search.engine.backend.types.Sortable.YES)
     private String profileKey;
 
     /**
@@ -100,6 +111,7 @@ public class LocationActionBriefEntity {
      */
     @Size(max = 4000)
     @Column(length = 4000)
+    @FullTextField(analyzer = "standard")
     private String deterministicSummary;
 
     @Min(0)
@@ -133,15 +145,18 @@ public class LocationActionBriefEntity {
     // ── Aggregations-Beziehungen ────────────────────────────────────────────
 
     @OneToMany(mappedBy = "brief", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @IndexedEmbedded(includePaths = { "patternId", "patternId_lc", "label", "classification" })
     private List<@Valid ConflictPatternAssessmentEntity> conflictPatterns = new ArrayList<>();
 
     @OneToMany(mappedBy = "brief", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @IndexedEmbedded(includePaths = { "measureId", "measureId_lc", "title", "category" })
     private List<@Valid CandidateMeasureAssessmentEntity> candidateMeasures = new ArrayList<>();
 
     @OneToMany(mappedBy = "brief", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<@Valid PrioritizationProfileScoreEntity> profileScores = new ArrayList<>();
 
     @OneToMany(mappedBy = "brief", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @IndexedEmbedded(includePaths = { "type", "topic", "title" })
     private List<@Valid PoliticalReferenceSummaryEntity> politicalReferences = new ArrayList<>();
 
     // ── Lifecycle ───────────────────────────────────────────────────────────

@@ -2,6 +2,10 @@ package de.unfallatlas.analysis.domain;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.FullTextField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.GenericField;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.Indexed;
+import org.hibernate.search.mapper.pojo.mapping.definition.annotation.KeywordField;
 
 import java.util.Objects;
 
@@ -17,10 +21,12 @@ import java.util.Objects;
         @Index(name = "idx_cma_fit_score",  columnList = "fit_score")
     }
 )
+@Indexed(index = "candidate_measure_assessment")
 public class CandidateMeasureAssessmentEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GenericField(name = "id_kw")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -30,15 +36,19 @@ public class CandidateMeasureAssessmentEntity {
     @NotBlank
     @Size(max = 80)
     @Column(name = "measure_id", nullable = false, length = 80)
+    @KeywordField
+    @KeywordField(name = "measureId_lc", normalizer = "lowercase")
     private String measureId;
 
     @NotBlank
     @Size(max = 200)
     @Column(nullable = false, length = 200)
+    @FullTextField(analyzer = "standard")
     private String title;
 
     @Size(max = 60)
     @Column(length = 60)
+    @KeywordField
     private String category;
 
     @Size(max = 60)
