@@ -929,6 +929,80 @@ app.get('/api/batch/jobs/:executionId/summary', locationBriefRateLimit, async (r
   return forwardUpstream(res, result, false);
 });
 
+/**
+ * GET /api/batch/jobs/:executionId/ranking
+ * Forwarder: persistierte Ranking-Artefakte einer Execution.  Lese-Pfad
+ * für die UI-Funktion „Aus Batch-Lauf laden" / Vergleichsmodus.
+ */
+app.get('/api/batch/jobs/:executionId/ranking', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.fetchBatchJobRanking(req.params.executionId);
+  return forwardUpstream(res, result, false);
+});
+
+/**
+ * POST /api/batch/jobs/:executionId/restart
+ * Forwarder: restartet eine Execution über den Spring-Batch-JobOperator.
+ */
+app.post('/api/batch/jobs/:executionId/restart', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.restartBatchJob(req.params.executionId);
+  return forwardUpstream(res, result, false);
+});
+
+// ── Search-Forwarder ────────────────────────────────────────────────────────
+//
+// Drei dünne Forwarder zu den Hibernate-Search-basierten Endpunkten im
+// Analysis Service.  Sie sind voll optional: ist der Service nicht
+// konfiguriert/aktiviert, wird via `ensureAnalysisServiceConfigured`
+// ein konsistenter 503 mit klarem Fehlertext geliefert – damit das UI
+// einen "Suche degradiert"-Hinweis rendern kann, statt zu raten.
+
+/**
+ * GET /api/search/briefs
+ * Such-Parameter (alle optional, mindestens einer sollte gesetzt sein):
+ *   q, city, profile, conflictPattern, limit
+ */
+app.get('/api/search/briefs', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.searchBriefs({
+    q:               req.query.q,
+    city:            req.query.city,
+    profile:         req.query.profile,
+    conflictPattern: req.query.conflictPattern,
+    limit:           req.query.limit
+  });
+  return forwardUpstream(res, result, true);
+});
+
+/**
+ * GET /api/search/political-refs
+ * Such-Parameter (alle optional): q, type, topic, limit
+ */
+app.get('/api/search/political-refs', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.searchPoliticalRefs({
+    q:     req.query.q,
+    type:  req.query.type,
+    topic: req.query.topic,
+    limit: req.query.limit
+  });
+  return forwardUpstream(res, result, true);
+});
+
+/**
+ * GET /api/search/similar/:briefId
+ * Liefert ähnliche Briefs (More-Like-This) zur referenzierten ID.
+ */
+app.get('/api/search/similar/:briefId', locationBriefRateLimit, async (req, res) => {
+  if (!ensureAnalysisServiceConfigured(res)) return;
+  const result = await analysisServiceClient.findSimilarBriefs(
+    req.params.briefId,
+    { limit: req.query.limit }
+  );
+  return forwardUpstream(res, result, true);
+});
+
 // ── Server starten ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Unfallwerkbank läuft auf http://localhost:${PORT}`);

@@ -243,7 +243,55 @@ function batchJobs() {
       configured:    true,
       enabled:       true,
       baseUrl:       persist.details && persist.details.baseUrl,
-      supportedJobs: ['city-prioritization-job']
+      supportedJobs: ['city-prioritization-job'],
+      // Liste der zusätzlichen Lese-/Steuer-Endpunkte, die der
+      // Forwarder zum Analysis Service exponiert.  Stabiler API-Vertrag
+      // für die UI: anhand dieser Liste kann ohne Probe entschieden
+      // werden, ob "Aus Batch laden" und "Lauf neu starten" angeboten
+      // werden.
+      supportedEndpoints: [
+        'POST /api/batch/jobs/city-prioritization',
+        'GET  /api/batch/jobs',
+        'GET  /api/batch/jobs/:id',
+        'GET  /api/batch/jobs/:id/summary',
+        'GET  /api/batch/jobs/:id/ranking',
+        'POST /api/batch/jobs/:id/restart'
+      ]
+    }
+  };
+}
+
+/**
+ * Such-Forwarder zum Analysis Service (Hibernate Search).  Verfügbar,
+ * sobald der Service erreichbar ist – ob die Volltext-Indizes selbst
+ * bereit sind, kann erst der Service zur Anfragezeit beantworten und
+ * wird dort über das Antwort-Feld `searchAvailable` weitergereicht.
+ *
+ * @returns {Capability}
+ */
+function search() {
+  const persist = analysisService();
+  if (!persist.available) {
+    return {
+      available:  false,
+      reasonCode: persist.reasonCode,
+      reason:     'Suche benötigt einen erreichbaren Analysis Service: ' + persist.reason,
+      details:    Object.assign({ supportedEndpoints: [] }, persist.details || {})
+    };
+  }
+  return {
+    available:  true,
+    reasonCode: REASON_CODES.OK,
+    reason:     'Suche verfügbar (Forwarder zum Analysis Service / Hibernate Search).',
+    details: {
+      configured: true,
+      enabled:    true,
+      baseUrl:    persist.details && persist.details.baseUrl,
+      supportedEndpoints: [
+        'GET /api/search/briefs',
+        'GET /api/search/political-refs',
+        'GET /api/search/similar/:briefId'
+      ]
     }
   };
 }
@@ -270,7 +318,8 @@ function getCapabilities() {
       politicalContext: politicalContext(),
       videoExport:      videoExport(),
       analysisService:  analysisService(),
-      batchJobs:        batchJobs()
+      batchJobs:        batchJobs(),
+      search:           search()
     }
   };
 }
@@ -283,5 +332,6 @@ module.exports = {
   politicalContext,
   videoExport,
   analysisService,
-  batchJobs
+  batchJobs,
+  search
 };

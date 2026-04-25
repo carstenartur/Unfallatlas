@@ -361,3 +361,135 @@ describe('priorities – buildPrioritiesResponse', () => {
     expect(r.empty).toBe(true);
   });
 });
+
+// ── Maßnahmen-Klassifikation, Provenance, dataConfidence ─────────────────────
+//
+// Diese Erweiterungen sind additiv: bestehende Felder bleiben unverändert,
+// neue Felder ergänzen die Karte um Umsetzungs-Horizont und Datenherkunft.
+
+const {
+  splitMeasuresByHorizon,
+  isStructuralCategory,
+  classifyDataConfidence,
+  extractProvenance
+} = require('../../server/priorities');
+
+describe('priorities – isStructuralCategory', () => {
+  test('erkennt structural_-Präfix und Umbau-Tokens', () => {
+    expect(isStructuralCategory('structural_redesign')).toBe(true);
+    expect(isStructuralCategory('Knotenpunkt-Umbau')).toBe(true);
+    expect(isStructuralCategory('vollständiger Rebau')).toBe(true);
+    expect(isStructuralCategory('kreuzungsumbau')).toBe(true);
+  });
+  test('liefert false für kurzfristige Maßnahmen und ungültige Eingaben', () => {
+    expect(isStructuralCategory('signage')).toBe(false);
+    expect(isStructuralCategory('marking')).toBe(false);
+    expect(isStructuralCategory('')).toBe(false);
+    expect(isStructuralCategory(null)).toBe(false);
+    expect(isStructuralCategory(undefined)).toBe(false);
+  });
+});
+
+describe('priorities – splitMeasuresByHorizon', () => {
+  test('teilt Maßnahmen in kurzfristig vs. strukturell, behält Reihenfolge', () => {
+    const r = splitMeasuresByHorizon([
+      { id: 'a', category: 'signage' },
+      { id: 'b', category: 'structural_redesign' },
+      { id: 'c', category: 'marking' },
+      { id: 'd', category: 'knotenumbau' }
+    ]);
+    expect(r.shortTerm.map(m => m.id)).toEqual(['a', 'c']);
+    expect(r.structural.map(m => m.id)).toEqual(['b', 'd']);
+  });
+  test('behandelt nicht-Array und leere Eingaben sicher', () => {
+    expect(splitMeasuresByHorizon(null)).toEqual({ shortTerm: [], structural: [] });
+    expect(splitMeasuresByHorizon([])).toEqual({ shortTerm: [], structural: [] });
+  });
+});
+
+describe('priorities – extractProvenance', () => {
+  test('liest batchRunId, scoringVersion, ai-Felder und sourceFingerprint', () => {
+    const p = extractProvenance({
+      batchRunId: 42,
+      scoringVersion: 'v1',
+      ai: { promptVersion: '2026-04-25-a', model: 'gemini-1.5' },
+      sourceFingerprint: 'sha256:abc'
+    });
+    expect(p).toEqual({
+      batchRunId: 42,
+      scoringVersion: 'v1',
+      aiPromptVersion: '2026-04-25-a',
+      aiModel: 'gemini-1.5',
+      sourceFingerprint: 'sha256:abc'
+    });
+  });
+  test('liefert nur explizit vorhandene Werte, sonst null', () => {
+    const p = extractProvenance({});
+    expect(p.batchRunId).toBeNull();
+    expect(p.scoringVersion).toBeNull();
+    expect(p.aiPromptVersion).toBeNull();
+    expect(p.aiModel).toBeNull();
+    expect(p.sourceFingerprint).toBeNull();
+  });
+  test('akzeptiert executionId und meta.* als alternative Quellen', () => {
+    const p = extractProvenance({ meta: { executionId: '7', scoringVersion: 'v2' } });
+    expect(p.batchRunId).toBe(7);
+    expect(p.scoringVersion).toBe('v2');
+  });
+});
+
+describe('priorities – classifyDataConfidence', () => {
+  test('ai_derived, sobald aiPromptVersion oder aiModel gesetzt ist', () => {
+    const card = { score: { total: 0.8 }, recommendedMeasures: [{ id: 'a' }] };
+    expect(classifyDataConfidence(card, { aiPromptVersion: 'p1' })).toBe('ai_derived');
+    expect(classifyDataConfidence(card, { aiModel: 'gemini' })).toBe('ai_derived');
+  });
+  test('data_based, wenn Score und Maßnahmen vorhanden sind und kein AI-Hinweis vorliegt', () => {
+    const card = { score: { total: 0.5 }, recommendedMeasures: [{ id: 'a' }] };
+    expect(classifyDataConfidence(card, {})).toBe('data_based');
+  });
+  test('uncertain, wenn Score oder Maßnahmen fehlen', () => {
+    expect(classifyDataConfidence({ score: { total: null }, recommendedMeasures: [{}] }, {}))
+      .toBe('uncertain');
+    expect(classifyDataConfidence({ score: { total: 0.5 }, recommendedMeasures: [] }, {}))
+      .toBe('uncertain');
+  });
+});
+
+describe('priorities – normalizeBriefCard (Erweiterungen)', () => {
+  test('befüllt shortTermMeasures, structuralMeasures, provenance, dataConfidence', () => {
+    const brief = {
+      id: 'b1',
+      profileKey: 'low_hanging_fruit',
+      profileScores: [{ profileKey: 'low_hanging_fruit', total: 0.7 }],
+      candidateMeasures: [
+        { id: 'm1', title: 'Markierung', category: 'marking', fitScore: 0.9 },
+        { id: 'm2', title: 'Knotenpunkt-Umbau', category: 'structural_redesign', fitScore: 0.8 }
+      ],
+      sourceFingerprint: 'sha256:xyz',
+      batchRunId: 99,
+      scoringVersion: 'v1'
+    };
+    const card = normalizeBriefCard(brief);
+    expect(card.shortTermMeasures.map(m => m.id)).toEqual(['m1']);
+    expect(card.structuralMeasures.map(m => m.id)).toEqual(['m2']);
+    expect(card.provenance.batchRunId).toBe(99);
+    expect(card.provenance.scoringVersion).toBe('v1');
+    expect(card.provenance.sourceFingerprint).toBe('sha256:xyz');
+    expect(card.dataConfidence).toBe('data_based');
+    // Bestehende Felder bleiben unverändert
+    expect(card.recommendedMeasures.map(m => m.id)).toEqual(['m1', 'm2']);
+  });
+  test('dataConfidence=ai_derived, wenn Brief AI-Provenance trägt', () => {
+    const card = normalizeBriefCard({
+      id: 'b2',
+      profileKey: 'p',
+      profileScores: [{ profileKey: 'p', total: 0.5 }],
+      candidateMeasures: [{ id: 'm1', category: 'marking' }],
+      ai: { promptVersion: 'v3', model: 'gemini-1.5' }
+    });
+    expect(card.dataConfidence).toBe('ai_derived');
+    expect(card.provenance.aiPromptVersion).toBe('v3');
+    expect(card.provenance.aiModel).toBe('gemini-1.5');
+  });
+});

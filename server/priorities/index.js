@@ -181,6 +181,111 @@ function pickProfileScore(brief, preferredProfile) {
 }
 
 /**
+ * Klassifiziert eine Maßnahmen-Kategorie als „strukturell" (z. B.
+ * Knotenpunkt-Umbau) oder „kurzfristig" (z. B. Markierung,
+ * Beschilderung).  Die Heuristik ist bewusst defensiv: alles, was
+ * mit `structural_` beginnt oder die Tokens `umbau`/`rebau`/
+ * `kreuzungs` enthält, gilt als strukturell.  Wir vermeiden
+ * hartcodierte Allow-Listen, damit neue Kategorien aus dem
+ * Quellsystem (templates/measures.json) nicht verloren gehen.
+ *
+ * Die Heuristik spiegelt absichtlich die im Analysis-Service
+ * (`CityPrioritizationJobConfig#isStructural`) verwendete Logik,
+ * damit Lauf-Artefakt und Decision-Card konsistente Klassifikationen
+ * tragen.
+ *
+ * @param {string|null|undefined} category
+ * @returns {boolean}
+ */
+function isStructuralCategory(category) {
+  if (!category || typeof category !== 'string') return false;
+  const c = category.toLowerCase();
+  return c.startsWith('structural_')
+    || c.includes('umbau')
+    || c.includes('rebau')
+    || c.includes('kreuzungs');
+}
+
+/**
+ * Trennt eine Liste empfohlener Maßnahmen in „kurzfristig" (sofort
+ * umsetzbar, meist Markierung/Beschilderung) und „strukturell"
+ * (Umbauten, Knotenpunkt-Änderungen).  Bewahrt die Reihenfolge der
+ * Eingabe und hängt nichts hinzu, was nicht im Eingabearray vorkam.
+ *
+ * @param {Array<{id?:string,title?:string,category?:string|null}>} measures
+ * @returns {{shortTerm: Array, structural: Array}}
+ */
+function splitMeasuresByHorizon(measures) {
+  const out = { shortTerm: [], structural: [] };
+  if (!Array.isArray(measures)) return out;
+  for (const m of measures) {
+    if (!m || typeof m !== 'object') continue;
+    if (isStructuralCategory(m.category)) {
+      out.structural.push(m);
+    } else {
+      out.shortTerm.push(m);
+    }
+  }
+  return out;
+}
+
+/**
+ * Klassifiziert die Datenherkunft einer Decision-Card:
+ *   - `data_based`  – primäre Felder stammen aus deterministischer
+ *     Pipeline (Score, Konfliktmuster, Maßnahmen).
+ *   - `ai_derived`  – die Karte wurde durch ein KI-Modell ergänzt
+ *     oder umformuliert (provenance.aiPromptVersion gesetzt).
+ *   - `uncertain`   – wesentliche Felder fehlen (kein Score, keine
+ *     Maßnahmen) → die UI sollte einen klaren Hinweis rendern.
+ *
+ * Der Wert ist für die UI als sichtbare Vertrauenseinstufung gedacht
+ * und verändert nicht den Inhalt der Karte selbst.
+ *
+ * @param {object} card           – die bereits gebaute Card
+ * @param {object} provenance     – Provenance-Block (siehe extractProvenance)
+ * @returns {'data_based'|'ai_derived'|'uncertain'}
+ */
+function classifyDataConfidence(card, provenance) {
+  const hasAi = !!(provenance && (provenance.aiPromptVersion || provenance.aiModel));
+  if (hasAi) return 'ai_derived';
+  const hasScore = card && card.score && card.score.total != null
+    && Number.isFinite(Number(card.score.total));
+  const hasMeasures = Array.isArray(card && card.recommendedMeasures)
+    && card.recommendedMeasures.length > 0;
+  if (hasScore && hasMeasures) return 'data_based';
+  return 'uncertain';
+}
+
+/**
+ * Extrahiert den Provenance-Block aus einem Brief.  Sammelt nur Werte,
+ * die tatsächlich vorhanden sind – fehlende Felder werden auf `null`
+ * gesetzt, statt mit Heuristiken erfunden zu werden.
+ *
+ * @param {object} brief
+ * @returns {{batchRunId:number|null, scoringVersion:string|null, aiPromptVersion:string|null, aiModel:string|null, sourceFingerprint:string|null}}
+ */
+function extractProvenance(brief) {
+  const meta = (brief && brief.meta) || {};
+  const ai   = (brief && brief.ai) || meta.ai || {};
+  // batchRunId akzeptiert mehrere Schreibweisen, die in den
+  // verschiedenen Persistenzpfaden vorkommen können.
+  const batchRunIdRaw = brief && (
+    brief.batchRunId
+    || brief.executionId
+    || meta.batchRunId
+    || meta.executionId
+  );
+  const batchRunId = Number.isFinite(Number(batchRunIdRaw)) ? Number(batchRunIdRaw) : null;
+  return {
+    batchRunId,
+    scoringVersion:    String((brief && brief.scoringVersion) || meta.scoringVersion || '').trim() || null,
+    aiPromptVersion:   String(ai.promptVersion || ai.aiPromptVersion || '').trim() || null,
+    aiModel:           String(ai.model || ai.aiModel || '').trim() || null,
+    sourceFingerprint: String((brief && brief.sourceFingerprint) || '').trim() || null
+  };
+}
+
+/**
  * Verdichtet einen (gespeicherten oder frisch berechneten) Brief zu einer
  * kompakten **Decision-Card** für die Prioritätenansicht.  Felder sind
  * absichtlich kurz und stabil benannt, damit sie 1:1 in der UI gezeigt
@@ -200,6 +305,7 @@ function normalizeBriefCard(brief, opts) {
   const score = pickProfileScore(brief, preferredProfile);
   const patterns = pickTopPatterns(brief && brief.conflictPatterns);
   const measures = pickTopMeasures(brief && brief.recommendedMeasures, brief && brief.candidateMeasures);
+  const measuresByHorizon = splitMeasuresByHorizon(measures);
 
   // Politischer Kontext: einheitlicher Hinweis (Anzahl + Topflag), keine
   // vollständige Liste – die Karte soll überfliegbar bleiben.
@@ -220,7 +326,9 @@ function normalizeBriefCard(brief, opts) {
     || (brief && brief.locationKey)
     || 'Unbekannte Stelle').trim();
 
-  return {
+  const provenance = extractProvenance(brief);
+
+  const card = {
     id:           String((brief && brief.id) || '') || null,
     locationKey:  String((brief && (brief.locationKey || brief.locationId)) || '') || null,
     city:         city || null,
@@ -234,14 +342,22 @@ function normalizeBriefCard(brief, opts) {
     },
     conflictPatterns: patterns,
     recommendedMeasures: measures,
+    // Maßnahmen zusätzlich nach Umsetzungs-Horizont aufgesplittet, damit
+    // die UI „Sofort umsetzbar" vs. „Strukturell" getrennt rendern kann,
+    // ohne `recommendedMeasures` zu duplizieren oder zu verlieren.
+    shortTermMeasures:  measuresByHorizon.shortTerm,
+    structuralMeasures: measuresByHorizon.structural,
     political: {
       count:            politicalCount,
       hasHighRelevance: Boolean(politicalHasHighRelevance)
     },
     schemaVersion: String((brief && brief.schemaVersion) || '') || null,
     createdAt:     (brief && brief.createdAt) || null,
-    sourceFingerprint: String((brief && brief.sourceFingerprint) || '') || null
+    sourceFingerprint: provenance.sourceFingerprint,
+    provenance
   };
+  card.dataConfidence = classifyDataConfidence(card, provenance);
+  return card;
 }
 
 // ── Sortier-/Auswahl-Helfer ──────────────────────────────────────────────────
@@ -319,5 +435,9 @@ module.exports = {
   pickTopPatterns,
   pickTopMeasures,
   pickProfileScore,
+  splitMeasuresByHorizon,
+  isStructuralCategory,
+  classifyDataConfidence,
+  extractProvenance,
   buildPrioritiesResponse
 };
