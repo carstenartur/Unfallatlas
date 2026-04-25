@@ -6,6 +6,7 @@ import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilterFactory;
 import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
 import org.hibernate.search.backend.lucene.analysis.LuceneAnalysisConfigurer;
 import org.hibernate.search.backend.lucene.analysis.LuceneAnalysisConfigurationContext;
+import org.springframework.stereotype.Component;
 
 /**
  * Definiert die in den Entity-Annotationen referenzierten Analyzer und
@@ -26,8 +27,12 @@ import org.hibernate.search.backend.lucene.analysis.LuceneAnalysisConfigurationC
  *
  * <p>Die Konfiguration wird über die Property
  * {@code spring.jpa.properties.hibernate.search.backend.analysis.configurer}
- * verdrahtet (siehe {@code application.properties}).</p>
+ * verdrahtet (siehe {@code application.properties}) und nutzt das
+ * {@code bean:}-Lookup, damit die Klasse als Spring-Bean instanziiert
+ * wird (Hibernate Search verwendet dafür die {@code SpringBeanContainer}-
+ * Integration aus Spring Boot).</p>
  */
+@Component("unfallatlasLuceneAnalysisConfigurer")
 public class UnfallatlasLuceneAnalysisConfigurer implements LuceneAnalysisConfigurer {
 
     @Override
