@@ -19,6 +19,15 @@ const berlinAllrisProvider    = require('../providers/berlinAllrisProvider.js');
 const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
 const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');
 
+// Zentraler Städte-/Regionen-Katalog: Quelle der Wahrheit für die
+// Frage „welche Orte hat das Produkt überhaupt im Visier und was ist
+// für sie als ‚politische Recherche' versprochen?".  Die Portal-Provider
+// liefern weiterhin das *Wie* (HTTP-Aufrufe, Parsing); der Katalog
+// liefert das *Ob* und das *Was* pro Stadt.
+const cityRegistry      = require('../../cities/cityRegistry.js');
+const { SUPPORT_LEVELS, SUPPORT_STATUS, getStatus } =
+  require('../../cities/supportLevels.js');
+
 /**
  * Lokale JSDoc-Typen für die Provider-Schnittstelle.
  *
@@ -76,10 +85,48 @@ function normalizeCity(city) {
  * Gibt den Provider für eine Stadt zurück oder null, wenn keine
  * Unterstützung vorliegt.
  *
+ * Die Auswahl ist an den zentralen Städte-Katalog gekoppelt: ein
+ * Provider wird nur dann ausgeliefert, wenn die Stadt im Katalog
+ * geführt wird **und** ihr `politicalContextSupport` nicht explizit
+ * `'unsupported'` ist.  Damit lässt sich politische Recherche pro Ort
+ * deaktivieren, ohne den Provider physisch zu entfernen (z. B. bei
+ * Portal-Wartungsarbeiten oder bekannten Datenproblemen).
+ *
+ * Aufrufer, die einen Provider ohne Katalog-Gating brauchen (Tests,
+ * Migrationen), können direkt {@link getProviderForCityRaw} verwenden.
+ *
  * @param {string} city
  * @returns {PoliticalContextProvider|null}
  */
 function getProviderForCity(city) {
+  const provider = getProviderForCityRaw(city);
+  if (!provider) return null;
+
+  // Katalog-Gate: politische Recherche ist nur erlaubt, wenn der
+  // zentrale Katalog die Stadt mindestens als „partially_supported"
+  // ausweist.  Fehlt der Eintrag (z. B. weil der Katalog gerade nicht
+  // geladen werden kann), bleiben wir aus Kompatibilitätsgründen
+  // großzügig und geben den Provider zurück – das alte Verhalten.
+  let catalogCity = null;
+  try {
+    catalogCity = cityRegistry.findCity(city);
+  } catch (_) { /* Katalog nicht verfügbar – Provider durchreichen */ }
+  if (catalogCity) {
+    const status = getStatus(catalogCity, SUPPORT_LEVELS.B);
+    if (status === SUPPORT_STATUS.UNSUPPORTED) return null;
+  }
+  return provider;
+}
+
+/**
+ * Direkter Provider-Lookup ohne Katalog-Gating – Provider-Auflösung
+ * rein nach Stadtname.  Vor allem für interne Tests und Migrationen
+ * gedacht.
+ *
+ * @param {string} city
+ * @returns {PoliticalContextProvider|null}
+ */
+function getProviderForCityRaw(city) {
   const key = normalizeCity(city);
   return REGISTRY.get(key) || null;
 }
@@ -93,4 +140,4 @@ function listSupportedCities() {
   return [...REGISTRY.keys()];
 }
 
-module.exports = { getProviderForCity, listSupportedCities, normalizeCity };
+module.exports = { getProviderForCity, getProviderForCityRaw, listSupportedCities, normalizeCity };

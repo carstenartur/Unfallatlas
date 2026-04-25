@@ -297,6 +297,45 @@ function search() {
 }
 
 /**
+ * Bundesweiter Städte-/Regionen-Katalog.  Server-only feature, da der
+ * Katalog im Modul `server/cities/cityRegistry.js` lebt.  Liefert
+ * eine kompakte Zusammenfassung (Gesamtzahl, Verteilung über die
+ * Support-Stufen A/B/C), damit Frontend und Smoke-Tests sehen, was
+ * pro Stufe abgedeckt ist, ohne den vollen Katalog laden zu müssen.
+ *
+ * @returns {Capability}
+ */
+function cities() {
+  let summary = null;
+  try {
+    // eslint-disable-next-line global-require
+    const { summarize } = require('../cities/cityRegistry.js');
+    summary = summarize();
+  } catch (err) {
+    return {
+      available: false,
+      reasonCode: REASON_CODES.NOT_CONFIGURED,
+      reason:    'Städte-Katalog konnte nicht geladen werden: ' + (err && err.message || 'unbekannt'),
+      details:   { total: 0 }
+    };
+  }
+  if (!summary || !summary.total) {
+    return {
+      available: false,
+      reasonCode: REASON_CODES.NOT_CONFIGURED,
+      reason:    'Städte-Katalog ist leer.',
+      details:   { total: 0 }
+    };
+  }
+  return {
+    available: true,
+    reasonCode: REASON_CODES.OK,
+    reason:    `${summary.total} Städte/Regionen im Katalog (A/B/C-Capability-Matrix verfügbar).`,
+    details:   summary
+  };
+}
+
+/**
  * Liefert eine kompakte Capability-Übersicht für den Status-Endpunkt.
  *
  * @returns {{
@@ -306,7 +345,9 @@ function search() {
  *     politicalContext: Capability,
  *     videoExport: Capability,
  *     analysisService: Capability,
- *     batchJobs: Capability
+ *     batchJobs: Capability,
+ *     search: Capability,
+ *     cities: Capability
  *   }
  * }}
  */
@@ -319,7 +360,8 @@ function getCapabilities() {
       videoExport:      videoExport(),
       analysisService:  analysisService(),
       batchJobs:        batchJobs(),
-      search:           search()
+      search:           search(),
+      cities:           cities()
     }
   };
 }
@@ -333,5 +375,6 @@ module.exports = {
   videoExport,
   analysisService,
   batchJobs,
-  search
+  search,
+  cities
 };
