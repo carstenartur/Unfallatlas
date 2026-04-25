@@ -41,6 +41,7 @@ const { sendError, attachFallbackInfo, CATEGORIES } = require('./lib/errors.js')
 const analysisServiceClient              = require('./analysis-service/analysisServiceClient.js');
 const priorities                         = require('./priorities');
 const { createPrioritiesHandlers }       = require('./priorities/handlers.js');
+const { correlationIdMiddleware, HEADER_NAME: CORRELATION_HEADER } = require('./lib/correlationId.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -48,6 +49,12 @@ const ROOT = path.resolve(__dirname, '..');
 
 // Parse JSON request bodies
 app.use(express.json());
+
+// Korrelations-ID-Middleware: jede Anfrage erhält ein stabiles Tracing-
+// Token, das in Logs auftaucht und im Antwort-Header gespiegelt wird.
+// Muss vor allen Handlern stehen, damit `req.correlationId` überall
+// verfügbar ist.
+app.use(correlationIdMiddleware());
 
 // Rate limiter for the video export endpoint (3 requests/minute per IP).
 // Video generation is expensive; this guards against unintentional hammering.

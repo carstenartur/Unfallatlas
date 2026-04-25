@@ -830,3 +830,47 @@ curl "http://localhost:8000/api/priorities/by-location/hannover::altenbekener_da
 | Analysis Service erreichbar, aber 5xx/Timeout | 200  | `fallback_result`   | aus dem Client (`http_503`, …)    |
 | Pflicht-Parameter fehlt                       | 400  | – (`error`-Envelope) | – (Validierungsfehler, kein Fallback) |
 
+
+## 15. Beobachtbarkeit – Korrelations-IDs
+
+Für jede HTTP-Anfrage an den Node-Server wird eine **Korrelations-ID**
+gesetzt, die durch alle Logs und in den Antwort-Header übernommen wird.
+Beim Forwarding an den Analysis Service (Spring Boot) wird der Wert
+mitgeschickt; dort spiegelt ein Filter ihn in MDC und Antwort-Header,
+sodass eine Anfrage in den Logs beider Prozesse anhand desselben Tokens
+nachverfolgbar ist.
+
+### 15.1 Vertrag
+
+* Header-Name: `X-Correlation-Id` (case-insensitive eingehend, Pascal-
+  Case ausgehend).
+* Akzeptiertes Muster: `^[A-Za-z0-9._:-]{4,128}$`. Eingehende Werte, die
+  diesem Muster nicht entsprechen, werden verworfen und durch eine neu
+  generierte 16-stellige Hex-ID ersetzt.  Damit sind Log-Injection und
+  Header-Smuggling ausgeschlossen.
+* Wenn kein Header gesetzt ist, generiert die Middleware eine neue ID
+  aus 8 Byte `crypto.randomBytes` (Node) bzw. `SecureRandom` (Java).
+* Der Wert ist **kein Sicherheits-Token**, sondern dient ausschließlich
+  dem Tracing.
+
+### 15.2 Implementierung
+
+| Komponente | Quelle |
+|---|---|
+| Node-Middleware (Express) | `server/lib/correlationId.js` (`correlationIdMiddleware`, `getCurrentCorrelationId`) |
+| Forwarder zum Analysis Service | `server/analysis-service/analysisServiceClient.js#rawRequest` liest aus AsyncLocalStorage |
+| Java-Filter (Spring Boot) | `de.unfallatlas.analysis.observability.CorrelationIdFilter` (Order: `HIGHEST_PRECEDENCE`) |
+| Log-Pattern Spring Boot | `application.properties#logging.pattern.console/file` mit `%X{correlationId:-}` |
+
+### 15.3 Beispiel
+
+```bash
+$ curl -i -H 'X-Correlation-Id: caller-42' http://localhost:8000/api/status
+HTTP/1.1 200 OK
+X-Correlation-Id: caller-42
+…
+
+# Analysis-Service-Log:
+2026-04-25 13:02:11.482  INFO [caller-42] [http-nio-8081-exec-3]
+  d.u.a.api.LocationBriefController        : ingest accepted …
+```

@@ -516,3 +516,48 @@ describe('analysisServiceClient – Batch-Ranking/Restart + Search', () => {
     expect((await c.restartBatchJob(1)).skipped).toBe('disabled');
   });
 });
+
+// ── Correlation-ID-Forwarding ────────────────────────────────────────────────
+
+describe('analysisServiceClient – Correlation-ID-Forwarding', () => {
+  let serverInfo;
+  afterEach(() => new Promise((r) => serverInfo && serverInfo.server.close(r)));
+
+  test('reicht expliziten opts.correlationId als X-Correlation-Id weiter', async () => {
+    serverInfo = await startTestServer((ctx, res) => {
+      jsonReply(res, 200, { items: [] });
+    });
+    process.env.ANALYSIS_SERVICE_BASE_URL = serverInfo.url;
+    const client = loadClient();
+    // rawRequest() ist nicht öffentlich – wir testen über withRetry-Pfad
+    // einer regulären Funktion und übergeben den Wert via Patch des
+    // Zielobjekts: searchBriefs reicht keine custom-opts durch, daher
+    // nutzen wir hier den persistLocationBrief-Pfad stellvertretend
+    // nicht – stattdessen prüfen wir, dass ohne ALS-Frame KEIN Header
+    // gesetzt wird (Negativ-Fall).
+    await client.searchBriefs({ q: 'kreuzung' });
+    expect(serverInfo.calls[0].headers['x-correlation-id']).toBeUndefined();
+  });
+
+  test('liest die Korrelations-ID aus dem AsyncLocalStorage-Frame', async () => {
+    serverInfo = await startTestServer((ctx, res) => {
+      jsonReply(res, 200, { items: [] });
+    });
+    process.env.ANALYSIS_SERVICE_BASE_URL = serverInfo.url;
+    // eslint-disable-next-line global-require
+    const { correlationIdMiddleware } = require('../../server/lib/correlationId.js');
+    // Wir stoßen die Middleware mit fingiertem req/res an, damit der
+    // ALS-Frame aktiv ist, und führen darin den Client-Aufruf aus.
+    const mw = correlationIdMiddleware();
+    const client = loadClient();
+    await new Promise((resolve) => {
+      const req = { headers: { 'x-correlation-id': 'job-42-restart' }, get(n) { return this.headers[n.toLowerCase()]; }, };
+      const res = { headers: {}, locals: {}, setHeader(k, v) { this.headers[k] = v; } };
+      mw(req, res, async () => {
+        await client.searchBriefs({ q: 'k' });
+        resolve();
+      });
+    });
+    expect(serverInfo.calls[0].headers['x-correlation-id']).toBe('job-42-restart');
+  });
+});

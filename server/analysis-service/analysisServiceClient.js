@@ -34,6 +34,7 @@
 const http  = require('http');
 const https = require('https');
 const { URL } = require('url');
+const { getCurrentCorrelationId } = require('../lib/correlationId.js');
 
 const INGEST_SCHEMA_VERSION = 'locationBriefIngest.v1';
 
@@ -128,6 +129,19 @@ function rawRequest(url, opts) {
     if (bodyStr !== null) {
       headers['Content-Type'] = 'application/json';
       headers['Content-Length'] = Buffer.byteLength(bodyStr);
+    }
+    // Korrelations-ID an den Analysis Service weiterreichen.  Reihenfolge:
+    //  1. expliziter Wert aus `opts.correlationId` (Tests, manuelle Aufrufe),
+    //  2. aktueller AsyncLocalStorage-Frame der Express-Middleware
+    //     (`getCurrentCorrelationId`).
+    // Akzeptiert wird nur, was dem Whitelisting-Muster entspricht; damit
+    // kann ein Aufrufer keine beliebigen Strings in den Header und damit
+    // in unsere Logs schmuggeln.
+    const cid = (opts.correlationId && typeof opts.correlationId === 'string')
+      ? opts.correlationId
+      : getCurrentCorrelationId();
+    if (cid && /^[A-Za-z0-9._:-]{4,128}$/.test(cid)) {
+      headers['X-Correlation-Id'] = cid;
     }
 
     const req = lib.request(
