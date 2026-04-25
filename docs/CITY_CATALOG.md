@@ -105,8 +105,8 @@ Objekt sowie ein `capabilities`-Boolean-Bündel.  Beispiel:
 
 | Stufe | supported | partially_supported | unsupported |
 |:------|----------:|--------------------:|------------:|
-| A – Unfallanalyse        | 12 | 22 | 10 |
-| B – Politische Recherche |  9 | 19 | 16 |
+| A – Unfallanalyse        | 23 | 11 | 10 |
+| B – Politische Recherche |  9 | 29 |  6 |
 | C – Persistenz / Batch   |  9 | 25 | 10 |
 
 Die neun mit Level B `supported` sind die Städte mit angebundenem
@@ -116,7 +116,7 @@ sowie **Bielefeld**, **Chemnitz**, **Halle (Saale)**, **Magdeburg**
 und **Nürnberg** (alle über den generischen
 [`sessionNetProvider`](../server/political-context/providers/sessionNetProvider.js)
 für klassische SessionNet-Portale `<base>/bi/info.asp`).
-Die 19 mit Level B `partially_supported` haben einen Portallink aus
+Die 29 mit Level B `partially_supported` haben einen Portallink aus
 der kuratierten Seed-Liste (siehe [Stufe B – Portal-Seed-Liste](#stufe-b--portal-seed-liste-fuer-grosse-staedte)),
 aber noch keinen Provider.
 
@@ -182,20 +182,26 @@ Statistische Ämter des Bundes und der Länder, Stand 2023/2024):
 | `small`           | < 20.000            | (derzeit nicht im Katalog)         |
 
 Aktuelle Materialisierung (`accidentDataSupport: 'supported'`,
-GeoJSON in `out/` vorhanden): Berlin, Hamburg, München, Köln,
-Frankfurt am Main, Düsseldorf, Hannover, Bielefeld, Bonn,
-Braunschweig, Heilbronn, Wolfsburg.
+GeoJSON in `out/` vorhanden) – **23 große Städte**:
+
+- **Priorität 1 (>500.000 Einwohner)**: Berlin, Hamburg, München,
+  Köln, Frankfurt am Main, Stuttgart, Düsseldorf, Leipzig, Dortmund,
+  Essen, Bremen, Dresden, Hannover, Nürnberg, Duisburg.
+- **Priorität 2 (>300.000 Einwohner)**: Bochum, Wuppertal, Bielefeld,
+  Bonn, Münster.
+- **Weitere materialisierte Städte (NI/BW)**: Braunschweig, Wolfsburg,
+  Heilbronn.
 
 Aktuell in Rollout-Queue (`qualityFlag: "rollout-queued"`, in
 `cities.txt`, noch nicht materialisiert):
 
-- **Priorität 1 (>500k)**: Stuttgart, Leipzig, Dortmund, Essen,
-  Bremen, Dresden, Nürnberg, Duisburg
-- **Priorität 2 (>300k)**: Bochum, Wuppertal, Münster
+- **Priorität 2 (>300k, BW/BY)**: Karlsruhe, Mannheim, Augsburg.
 
 Sobald der Workflow `Generate & Commit` für eine dieser Städte gelaufen
 ist und die GeoJSON eingecheckt wurde, wird die Stadt nach dem unten
-beschriebenen Verfahren auf `supported` hochgestuft.
+beschriebenen Verfahren auf `supported` hochgestuft.  Das Diagnose-
+Skript [`scripts/check-city-rollout.js`](../scripts/check-city-rollout.js)
+listet jederzeit alle hochstufungsreifen Kandidaten.
 
 ## Kriterien `supported` vs. `partially_supported` (Stufe A)
 
@@ -206,6 +212,12 @@ beschriebenen Verfahren auf `supported` hochgestuft.
 | `unsupported`           | Stadt ist im Katalog formal nicht erfasst (Stufe A explizit nicht zugesichert)                                    |
 
 ## Eine Stadt von `partially_supported` auf `supported` heben
+
+> **Tipp:** Mit
+> `node scripts/check-city-rollout.js` (alias `--json` für maschinen-
+> lesbar) bekommst du jederzeit eine Liste der Städte, die *bereits*
+> Workflow-Daten in `out/` haben, im Katalog aber noch nicht auf
+> `supported` stehen – das sind die offenen Upgrade-Kandidaten.
 
 1. **Stadtnamen in [`cities.txt`](../cities.txt)** ergänzen, exakt so
    geschrieben, dass `normalizeCityName(name)` die Katalog-`id` ergibt
@@ -219,7 +231,22 @@ beschriebenen Verfahren auf `supported` hochgestuft.
    `"supported"` setzen, `qualityFlags` um `"accident-data-generated"`
    und (sofern POIs erzeugt wurden) `"poi-generated"` ergänzen.  Falls
    die Stadt vorher `"rollout-queued"` trug, dieses Flag entfernen.
-5. **Tests laufen lassen**: `npx jest --testPathPatterns=cityRegistry`.
+5. **Diagnose laufen lassen**: `node scripts/check-city-rollout.js`.
+   Sektion 1 sollte deine Stadt nicht mehr listen, Sektion 2/3 müssen
+   leer sein.
+6. **Tests laufen lassen**: `npx jest --testPathPatterns="cityRegistry|checkCityRollout"`.
+
+### Bedingungen pro Stufe (Kurzfassung)
+
+| Stufe | `supported` setzt voraus                                             |
+|:-----:|:---------------------------------------------------------------------|
+| **A** | Stadt in `cities.txt` **und** `out/output_all_years_<id>.geojson` vorhanden |
+| **B** | konkretes Portal (`portalBaseUrl` + `knownPortalType`) **und** registrierter Provider in `cityPortalRegistry.js` |
+| **C** | Persistenz/Batch im Analysis-Service real verfügbar (Schema, Migrationen, Job-Konfiguration) |
+
+`partially_supported` ist die ehrliche Zwischenstufe (z. B. „Portal ist
+bekannt, aber der Provider folgt"), `unsupported` heißt: bewusst nicht
+zugesichert.
 
 ## Graceful Degradation
 
