@@ -89,6 +89,28 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+          Spring Boot 4 hat die Test-Slice-Infrastruktur modularisiert.
+          Test-Annotationen wie @AutoConfigureMockMvc / @DataJpaTest /
+          @AutoConfigureTestDatabase liegen jetzt unter den modul-spezifischen
+          Test-Startern (siehe Spring Boot 4.0 Release Notes:
+          "Modularization of Test Infrastructure").
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jdbc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -96,34 +118,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <!--
-              ACHTUNG: Mit dem Renovate-Bump auf Spring Boot 4.x sind einige
-              Test-Slice-Annotationen aus `spring-boot-test-autoconfigure`
-              entfallen (z. B. @AutoConfigureMockMvc, @DataJpaTest in der
-              alten Form).  Die nachfolgenden Tests wurden noch nicht auf
-              Spring Boot 4 migriert; sie werden bis zur Anpassung in einem
-              separaten PR von der Test-Compilation ausgeschlossen, damit
-              die übrigen Tests (Migrationen, Job-Repository, Mapper,
-              Validierung, Fingerprint, Repository) weiterhin laufen.
-            -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <testExcludes>
-                        <testExclude>**/api/LocationBriefControllerTest.java</testExclude>
-                    </testExcludes>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>**/api/LocationBriefControllerTest.java</exclude>
-                    </excludes>
-                </configuration>
             </plugin>
         </plugins>
     </build>
