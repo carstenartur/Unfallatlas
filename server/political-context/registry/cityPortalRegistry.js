@@ -85,12 +85,17 @@ function normalizeCity(city) {
  * Gibt den Provider für eine Stadt zurück oder null, wenn keine
  * Unterstützung vorliegt.
  *
- * Die Auswahl ist an den zentralen Städte-Katalog gekoppelt: ein
- * Provider wird nur dann ausgeliefert, wenn die Stadt im Katalog
- * geführt wird **und** ihr `politicalContextSupport` nicht explizit
+ * Die Auswahl ist an den zentralen Städte-Katalog gekoppelt: existiert
+ * für die Stadt ein Katalog-Eintrag, wird der Provider nur dann
+ * ausgeliefert, wenn ihr `politicalContextSupport` nicht explizit
  * `'unsupported'` ist.  Damit lässt sich politische Recherche pro Ort
  * deaktivieren, ohne den Provider physisch zu entfernen (z. B. bei
  * Portal-Wartungsarbeiten oder bekannten Datenproblemen).
+ *
+ * Fehlt dagegen ein Katalog-Eintrag oder ist der Katalog nicht
+ * verfügbar, bleibt die Funktion aus Kompatibilitätsgründen beim
+ * bisherigen Fallback-Verhalten und gibt den per Registry aufgelösten
+ * Provider zurück.
  *
  * Aufrufer, die einen Provider ohne Katalog-Gating brauchen (Tests,
  * Migrationen), können direkt {@link getProviderForCityRaw} verwenden.

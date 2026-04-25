@@ -384,7 +384,11 @@ function searchCities(query, options = {}) {
   if (typeof query !== 'string') return [];
   const q = normalizeCityName(query);
   if (!q) return [];
-  const limit = Math.max(1, Math.min(200, parseInt(options.limit, 10) || 50));
+  // Hard-Cap an dieser Stelle (1000) ist deutlich oberhalb des
+  // API-Pools (`MAX_CITY_SEARCH_POOL` in server/index.js, derzeit 500),
+  // so dass die API-Konstante die effektive Obergrenze bleibt und der
+  // Cap hier nur als Schutz gegen pathologische Aufrufer dient.
+  const limit = Math.max(1, Math.min(1000, parseInt(options.limit, 10) || 50));
   const out = [];
   for (const city of _ensureLoaded().cities) {
     const haystack = [

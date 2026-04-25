@@ -10,8 +10,7 @@
  *   - capabilities.cities()
  */
 
-const path = require('path');
-const fs   = require('fs');
+const fs = require('fs');
 
 const cityRegistry = require('../../server/cities/cityRegistry.js');
 const {
@@ -120,39 +119,55 @@ describe('cityRegistry – Katalog-Daten', () => {
 });
 
 describe('cityRegistry – Validierung schlägt bei kaputten Einträgen fehl', () => {
-  // Wir laden den Validator über reload(), nachdem wir die JSON-Datei
-  // temporär durch eine kaputte Variante ersetzen.
+  // Wir laden den Validator über reload(), stubben dafür aber nur das
+  // Lesen des Katalogs, statt die echte JSON-Datei auf dem Dateisystem
+  // zu ersetzen – sonst kommt es bei parallelen Jest-Workern zu
+  // Race-Conditions mit Tests, die den Katalog ebenfalls laden.
   const originalContent = fs.readFileSync(cityRegistry.CATALOG_PATH, 'utf8');
+  let readFileSyncSpy;
+
+  function stubCatalogContent(content) {
+    if (readFileSyncSpy) readFileSyncSpy.mockRestore();
+    const originalReadFileSync = fs.readFileSync;
+    readFileSyncSpy = jest.spyOn(fs, 'readFileSync').mockImplementation((filePath, ...args) => {
+      if (filePath === cityRegistry.CATALOG_PATH) return content;
+      return originalReadFileSync.call(fs, filePath, ...args);
+    });
+  }
+
   afterEach(() => {
-    fs.writeFileSync(cityRegistry.CATALOG_PATH, originalContent, 'utf8');
+    if (readFileSyncSpy) {
+      readFileSyncSpy.mockRestore();
+      readFileSyncSpy = undefined;
+    }
     cityRegistry.reload();
   });
 
   test('wirft bei doppelter id', () => {
     const dup = JSON.parse(originalContent);
     dup.cities = [dup.cities[0], dup.cities[0]];
-    fs.writeFileSync(cityRegistry.CATALOG_PATH, JSON.stringify(dup), 'utf8');
+    stubCatalogContent(JSON.stringify(dup));
     expect(() => cityRegistry.reload()).toThrow(/doppelte id/);
   });
 
   test('wirft bei ungültigem Bundesland', () => {
     const bad = JSON.parse(originalContent);
     bad.cities[0].state = 'XX';
-    fs.writeFileSync(cityRegistry.CATALOG_PATH, JSON.stringify(bad), 'utf8');
+    stubCatalogContent(JSON.stringify(bad));
     expect(() => cityRegistry.reload()).toThrow(/Bundesland/);
   });
 
   test('wirft bei ungültigem Support-Status', () => {
     const bad = JSON.parse(originalContent);
     bad.cities[0].politicalContextSupport = 'maybe';
-    fs.writeFileSync(cityRegistry.CATALOG_PATH, JSON.stringify(bad), 'utf8');
+    stubCatalogContent(JSON.stringify(bad));
     expect(() => cityRegistry.reload()).toThrow(/Support-Status/);
   });
 
   test('wirft bei ungültiger Portal-URL', () => {
     const bad = JSON.parse(originalContent);
     bad.cities[0].portalBaseUrl = 'javascript:alert(1)';
-    fs.writeFileSync(cityRegistry.CATALOG_PATH, JSON.stringify(bad), 'utf8');
+    stubCatalogContent(JSON.stringify(bad));
     expect(() => cityRegistry.reload()).toThrow(/portalBaseUrl/);
   });
 });

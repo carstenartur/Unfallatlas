@@ -36,7 +36,7 @@ const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 const { search: politicalContextSearch } = require('./political-context/services/portalSearchService.js');
 const { listSupportedCities }            = require('./political-context/registry/cityPortalRegistry.js');
 const cityRegistry                       = require('./cities/cityRegistry.js');
-const { SUPPORT_LEVELS, SUPPORT_STATUS, hasSupport, describeSupport } =
+const { SUPPORT_LEVELS, hasSupport, describeSupport } =
   require('./cities/supportLevels.js');
 const { buildLocationBrief, PROFILE_IDS, DEFAULT_PROFILE } = require('./location-brief');
 const { getCapabilities }                = require('./lib/capabilities.js');
@@ -470,7 +470,7 @@ const cityCatalogRateLimit = rateLimit({
  * Query-Parameter (alle optional):
  *   q            – Volltext-Filter (Name/id/Bundesland/Gemeindecode)
  *   state        – Bundesland-Kürzel (z. B. „NW")
- *   support      – Filter auf eine Stufe ('supportLevelA'|'B'|'C'),
+ *   support      – Filter auf eine Stufe ('supportLevelA'|'supportLevelB'|'supportLevelC'),
  *                  zeigt nur Städte mit Status `supported` oder
  *                  `partially_supported`
  *   limit        – Maximale Trefferzahl (default 200, max 500)
@@ -484,32 +484,42 @@ const cityCatalogRateLimit = rateLimit({
  *   }
  */
 app.get('/api/cities', cityCatalogRateLimit, (req, res) => {
-  const { q, state, support } = req.query || {};
-  const limit = Math.max(
-    1,
-    Math.min(MAX_CITY_LIST_LIMIT, parseInt(req.query.limit, 10) || DEFAULT_CITY_LIST_LIMIT)
-  );
+  try {
+    const { q, state, support } = req.query || {};
+    const limit = Math.max(
+      1,
+      Math.min(MAX_CITY_LIST_LIMIT, parseInt(req.query.limit, 10) || DEFAULT_CITY_LIST_LIMIT)
+    );
 
-  let pool;
-  if (typeof q === 'string' && q.trim()) {
-    pool = cityRegistry.searchCities(q, { limit: MAX_CITY_SEARCH_POOL });
-  } else if (typeof state === 'string' && state.trim()) {
-    pool = cityRegistry.listCitiesByState(state.trim().toUpperCase());
-  } else {
-    pool = cityRegistry.listCities();
+    let pool;
+    if (typeof q === 'string' && q.trim()) {
+      pool = cityRegistry.searchCities(q, { limit: MAX_CITY_SEARCH_POOL });
+    } else if (typeof state === 'string' && state.trim()) {
+      pool = cityRegistry.listCitiesByState(state.trim().toUpperCase());
+    } else {
+      pool = cityRegistry.listCities();
+    }
+
+    if (typeof support === 'string' && support.trim()) {
+      pool = pool.filter(c => hasSupport(c, support.trim()));
+    }
+
+    const limited = pool.slice(0, limit);
+    res.json({
+      total:   cityRegistry.listCities().length,
+      count:   limited.length,
+      summary: cityRegistry.summarize(),
+      cities:  limited.map(cityRegistry.describeCity)
+    });
+  } catch (error) {
+    return sendError(res, {
+      status:   500,
+      category: CATEGORIES.INTERNAL_ERROR,
+      code:     'CITY_CATALOG_UNAVAILABLE',
+      message:  'Der Städte-/Regionen-Katalog konnte nicht gelesen werden.',
+      details:  error && error.message ? error.message : String(error)
+    });
   }
-
-  if (typeof support === 'string' && support.trim()) {
-    pool = pool.filter(c => hasSupport(c, support.trim()));
-  }
-
-  const limited = pool.slice(0, limit);
-  res.json({
-    total:   cityRegistry.listCities().length,
-    count:   limited.length,
-    summary: cityRegistry.summarize(),
-    cities:  limited.map(cityRegistry.describeCity)
-  });
 });
 
 /**
@@ -519,7 +529,18 @@ app.get('/api/cities', cityCatalogRateLimit, (req, res) => {
  * Antwort: { city: <CityWithCapabilities> }, 404 wenn unbekannt.
  */
 app.get('/api/cities/:idOrKey', cityCatalogRateLimit, (req, res) => {
-  const city = cityRegistry.findCity(req.params.idOrKey);
+  let city;
+  try {
+    city = cityRegistry.findCity(req.params.idOrKey);
+  } catch (error) {
+    return sendError(res, {
+      status:   500,
+      category: CATEGORIES.INTERNAL_ERROR,
+      code:     'CITY_CATALOG_UNAVAILABLE',
+      message:  'Der Städte-/Regionen-Katalog konnte nicht gelesen werden.',
+      details:  error && error.message ? error.message : String(error)
+    });
+  }
   if (!city) {
     return sendError(res, {
       status:   404,

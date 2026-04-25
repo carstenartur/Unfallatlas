@@ -34,8 +34,9 @@ server/cities/
 
 Das Modul wird beim ersten Zugriff lazy geladen und gecached.  Die
 Daten werden beim Laden streng validiert (ids, Bundeslandkürzel,
-Support-Status, http(s)-Portal-URLs); kaputte Einträge führen zum
-Bootfehler.
+Support-Status, http(s)-Portal-URLs); kaputte Einträge führen daher
+beim ersten Zugriff auf die Registry bzw. darauf basierende Endpunkte
+oder Helper zu einem Fehler – nicht bereits beim Boot.
 
 ## Schema eines Eintrags
 
