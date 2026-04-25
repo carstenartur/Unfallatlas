@@ -36,25 +36,47 @@ public class CityPrioritizationContext {
         public final String locationKey;
         public final String briefId;
         public final double profileScore;
-        public RankedLocation(String locationKey, String briefId, double profileScore) {
+        public final int politicalReferenceCount;
+        public final int shortTermMeasures;
+        public final int structuralMeasures;
+        public RankedLocation(String locationKey, String briefId, double profileScore,
+                              int politicalReferenceCount, int shortTermMeasures, int structuralMeasures) {
             this.locationKey = locationKey;
             this.briefId = briefId;
             this.profileScore = profileScore;
+            this.politicalReferenceCount = politicalReferenceCount;
+            this.shortTermMeasures = shortTermMeasures;
+            this.structuralMeasures = structuralMeasures;
         }
     }
 
     private final List<String> candidateLocationKeys = Collections.synchronizedList(new ArrayList<>());
     private final List<String> processedBriefIds     = Collections.synchronizedList(new ArrayList<>());
     private final List<RankedLocation> ranking       = Collections.synchronizedList(new ArrayList<>());
+    /** Aggregierte Kennzahl: Summe aller politischen Referenzen über alle Kandidaten. */
+    private volatile int politicalReferenceTotal;
+    /** Effektiv aktiver „AI-Polish"-Schalter (in Job-Summary protokolliert). */
+    private volatile boolean useAiPolish;
+    /** Versions-Pin der Scoring-Logik – bislang konstant, wird über die Konfig steuerbar. */
+    private volatile String scoringVersion = "v1";
 
     public List<String> getCandidateLocationKeys() { return candidateLocationKeys; }
     public List<String> getProcessedBriefIds()     { return processedBriefIds; }
     public List<RankedLocation> getRanking()       { return ranking; }
+    public int getPoliticalReferenceTotal()        { return politicalReferenceTotal; }
+    public void setPoliticalReferenceTotal(int v)  { this.politicalReferenceTotal = v; }
+    public boolean isUseAiPolish()                 { return useAiPolish; }
+    public void setUseAiPolish(boolean v)          { this.useAiPolish = v; }
+    public String getScoringVersion()              { return scoringVersion; }
+    public void setScoringVersion(String v)        { if (v != null && !v.isBlank()) this.scoringVersion = v; }
 
     public void reset() {
         candidateLocationKeys.clear();
         processedBriefIds.clear();
         ranking.clear();
+        politicalReferenceTotal = 0;
+        useAiPolish = false;
+        scoringVersion = "v1";
     }
 
     /** Liefert den aktiven Step-Namen (rein für Logs/Diagnose). */

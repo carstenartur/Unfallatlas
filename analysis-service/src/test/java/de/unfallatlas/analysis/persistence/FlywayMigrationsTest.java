@@ -61,6 +61,9 @@ class FlywayMigrationsTest {
             "batch_job_execution_context"
         );
 
+        // Lauf-Artefakte aus V4 (persistiertes Top-N pro Spring-Batch-Lauf)
+        assertThat(tables).contains("batch_ranking_artifact");
+
         // Flyway-Bookkeeping-Tabelle muss existieren (Beleg, dass die
         // Migration tatsächlich gelaufen ist und nicht etwa Hibernate
         // ddl-auto=validate ohne Migration "gewonnen" hat).

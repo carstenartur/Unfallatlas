@@ -77,7 +77,7 @@ class BatchJobControllerTest {
             .andExpect(jsonPath("$.jobName").value("city-prioritization-job"))
             .andExpect(jsonPath("$.status").value("COMPLETED"))
             .andExpect(jsonPath("$.steps[0].stepName").value("loadCandidatesStep"))
-            .andExpect(jsonPath("$.steps[4].stepName").value("buildRankingStep"));
+            .andExpect(jsonPath("$.steps[5].stepName").value("buildRankingArtifactsStep"));
 
         // GET /api/batch/jobs (Liste der jüngsten fachlichen Job-Einträge)
         mvc.perform(get("/api/batch/jobs"))

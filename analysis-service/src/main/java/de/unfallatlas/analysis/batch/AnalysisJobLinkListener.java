@@ -97,13 +97,16 @@ public class AnalysisJobLinkListener implements JobExecutionListener {
         // Kompaktes JSON ohne externe Bibliothek-Abhängigkeit – die
         // Felder sind klein und kontrolliert, ein full-Jackson-Roundtrip
         // wäre Overkill.
-        StringBuilder sb = new StringBuilder(256);
+        StringBuilder sb = new StringBuilder(384);
         sb.append('{');
         sb.append("\"executionId\":").append(jobExecution.getId());
         sb.append(",\"status\":\"").append(jobExecution.getStatus()).append('"');
         sb.append(",\"exitCode\":\"").append(escape(jobExecution.getExitStatus().getExitCode())).append('"');
         sb.append(",\"processed\":").append(context.getProcessedBriefIds().size());
         sb.append(",\"candidates\":").append(context.getCandidateLocationKeys().size());
+        sb.append(",\"politicalReferenceTotal\":").append(context.getPoliticalReferenceTotal());
+        sb.append(",\"useAiPolish\":").append(context.isUseAiPolish());
+        sb.append(",\"scoringVersion\":\"").append(escape(context.getScoringVersion())).append('"');
         sb.append(",\"top\":[");
         List<RankedLocation> ranking = context.getRanking();
         for (int i = 0; i < ranking.size(); i++) {
@@ -112,6 +115,9 @@ public class AnalysisJobLinkListener implements JobExecutionListener {
             sb.append("{\"locationKey\":\"").append(escape(r.locationKey)).append('"');
             sb.append(",\"briefId\":\"").append(escape(r.briefId)).append('"');
             sb.append(",\"score\":").append(formatScore(r.profileScore));
+            sb.append(",\"politicalReferenceCount\":").append(r.politicalReferenceCount);
+            sb.append(",\"shortTermMeasures\":").append(r.shortTermMeasures);
+            sb.append(",\"structuralMeasures\":").append(r.structuralMeasures);
             sb.append('}');
         }
         sb.append(']');

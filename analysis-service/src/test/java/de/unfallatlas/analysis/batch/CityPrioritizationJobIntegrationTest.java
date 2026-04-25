@@ -65,12 +65,13 @@ class CityPrioritizationJobIntegrationTest {
     void jobBeanIsConfigured() {
         assertThat(cityPrioritizationJob).isNotNull();
         assertThat(cityPrioritizationJob.getName()).isEqualTo(CityPrioritizationJobConfig.JOB_NAME);
-        // Alle fünf Steps existieren als Beans
+        // Alle sechs Steps existieren als Beans
         assertThat(ctx.containsBean("loadCandidatesStep")).isTrue();
+        assertThat(ctx.containsBean("enrichPoliticalContextStep")).isTrue();
         assertThat(ctx.containsBean("computeBriefsStep")).isTrue();
         assertThat(ctx.containsBean("scoreProfilesStep")).isTrue();
         assertThat(ctx.containsBean("persistResultsStep")).isTrue();
-        assertThat(ctx.containsBean("buildRankingStep")).isTrue();
+        assertThat(ctx.containsBean("buildRankingArtifactsStep")).isTrue();
     }
 
     @Test
@@ -98,10 +99,11 @@ class CityPrioritizationJobIntegrationTest {
         List<StepExecution> steps = List.copyOf(exec.getStepExecutions());
         assertThat(steps).extracting(StepExecution::getStepName).containsExactly(
             "loadCandidatesStep",
+            "enrichPoliticalContextStep",
             "computeBriefsStep",
             "scoreProfilesStep",
             "persistResultsStep",
-            "buildRankingStep"
+            "buildRankingArtifactsStep"
         );
 
         // Persistenz der Batch-Metadaten: über JobExplorer wieder lesbar
@@ -169,6 +171,7 @@ class CityPrioritizationJobIntegrationTest {
             .addString("city", city, true)
             .addString("profile", profile, true)
             .addString("recomputeExisting", Boolean.toString(recompute), true)
+            .addString("useAiPolish", "false", true)
             .addLong("limit", (long) limit, false)
             .addString("runLabel", runLabel == null ? "" : runLabel, false)
             .addLong("runTimestamp", RUN_SEQ.incrementAndGet(), true)
