@@ -567,10 +567,25 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
 
   // `useStored: true` wurde explizit angefragt?  Falls ja und der Cache-Lookup
   // weiter unten kein Treffer liefert (oder der Service nicht erreichbar ist),
-  // markieren wir das Endergebnis als `fallback_result` – die UI weiß dann,
-  // dass die persistierte Sicht gewollt, aber nicht möglich war.
+  // berichten wir das über einen separaten `storedLookup`-Block – die UI
+  // weiß dann, dass die persistierte Sicht gewollt, aber nicht möglich war,
+  // ohne dass sich der Persistenz-Lifecycle damit vermischt.
+  //
+  // `storedLookup.reason`-Vokabular:
+  //   * `not_requested`        – useStored war false / kein locationId
+  //   * `cache_hit`             – Treffer (in diesem Pfad nie sichtbar,
+  //                               weil wir oben direkt zurückkehren)
+  //   * `cache_miss`            – Service erreichbar, aber kein Brief
+  //                               für (locationKey, profile) vorhanden
+  //   * `service_unreachable`   – Aufruf scheiterte (Netzwerk/HTTP/Parse)
   const storedRequested = useStored === true && typeof locationId === 'string' && locationId.length > 0;
-  let storedFallback = false;
+  /** @type {{requested:boolean, found:boolean, reason:string, attempts:number}} */
+  const storedLookup = {
+    requested: storedRequested,
+    found:     false,
+    reason:    storedRequested ? 'cache_miss' : 'not_requested',
+    attempts:  0
+  };
 
   // Optional: vor der Berechnung in den Analysis Service schauen, ob für die
   // gleiche Stelle + Profil bereits ein gespeicherter Brief existiert.  Diese
@@ -580,6 +595,7 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
   if (storedRequested) {
     try {
       const cached = await analysisServiceClient.fetchByLocationKey(locationId);
+      storedLookup.attempts = cached.attempts || 1;
       if (cached.ok && Array.isArray(cached.data) && cached.data.length > 0) {
         const match = cached.data.find((b) => b && b.profileKey === resolvedProfile) || cached.data[0];
         if (match) {
@@ -593,19 +609,28 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
               storedId: match.id || null,
               attempts: cached.attempts || 1
             },
+            storedLookup: {
+              requested: true,
+              found:     true,
+              reason:    'cache_hit',
+              attempts:  cached.attempts || 1
+            },
             dataStatus: priorities.DATA_STATUS.LOADED_FROM_STORE,
             brief: match
           });
         }
-        // Service erreichbar, aber kein gespeicherter Brief vorhanden:
-        // Live-Compute, aber als Fallback markieren.
-        storedFallback = true;
+        // Service erreichbar, Daten vorhanden, aber kein passendes Profil:
+        // Live-Compute, nur als Lookup-Miss markieren.
+        storedLookup.reason = 'cache_miss';
+      } else if (cached.ok) {
+        // Service hat geantwortet, aber leere Trefferliste.
+        storedLookup.reason = 'cache_miss';
       } else {
-        // Service nicht erreichbar oder leere Antwort – ebenfalls Fallback.
-        storedFallback = true;
+        // Aufruf nicht erfolgreich – Service nicht erreichbar.
+        storedLookup.reason = 'service_unreachable';
       }
     } catch (_) {
-      storedFallback = true; /* fall through to fresh compute */
+      storedLookup.reason = 'service_unreachable'; /* fall through to fresh compute */
     }
   }
 
@@ -636,26 +661,24 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
   const wantPersist = persist === true || (persist !== false && autoPersist);
   if (!wantPersist) {
     // Klar markieren, dass der Brief frisch berechnet und NICHT gespeichert
-    // wurde.  Das gibt UI-Komponenten eine eindeutige Grundlage, ohne dass
-    // der Aufrufer den Persistenz-Pfad kennen muss.
-    const persistenceStatus = storedFallback ? 'persist_skipped' : 'freshly_computed';
-    const persistenceBlock = storedFallback
-      ? {
-          status:   persistenceStatus,
-          persisted: false,
-          persistRequested: false,
-          reason: 'stored_lookup_unavailable',
-          attempts: 0
-        }
-      : {
-          status:  persistenceStatus,
-          persisted: false,
-          persistRequested: false,
-          attempts: 0
-        };
+    // wurde.  `persistence.status` bleibt unabhängig vom (optionalen)
+    // `useStored`-Lookup auf `freshly_computed` – der Cache-Miss/-Fehler
+    // ist über den separaten `storedLookup`-Block sichtbar.  `dataStatus`
+    // schaltet nur dann auf `fallback_result`, wenn der Aufrufer eine
+    // gespeicherte Sicht angefordert hat und der Service tatsächlich nicht
+    // erreichbar war (echter Fallback) – ein reiner Cache-Miss bleibt
+    // `freshly_computed`, weil die fehlende Persistenz dann erwartbar ist.
+    const isUnreachable = storedLookup.requested
+      && storedLookup.reason === 'service_unreachable';
     return res.json(Object.assign({}, brief, {
-      persistence: persistenceBlock,
-      dataStatus: storedFallback
+      persistence: {
+        status:           'freshly_computed',
+        persisted:        false,
+        persistRequested: false,
+        attempts:         0
+      },
+      storedLookup,
+      dataStatus: isUnreachable
         ? priorities.DATA_STATUS.FALLBACK_RESULT
         : priorities.DATA_STATUS.FRESHLY_COMPUTED
     }));
@@ -676,6 +699,7 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
           storedId:  (result.data && result.data.id) || null,
           attempts:  result.attempts || 1
         },
+        storedLookup,
         dataStatus: priorities.DATA_STATUS.PERSISTED
       }));
     }
@@ -693,6 +717,7 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
         reason,
         attempts: result.attempts || 0
       },
+      storedLookup,
       dataStatus: priorities.DATA_STATUS.FALLBACK_RESULT
     }));
   } catch (err) {
@@ -706,6 +731,7 @@ app.post('/api/location-brief', locationBriefRateLimit, async (req, res) => {
         reason:   'persist_exception',
         attempts: 0
       },
+      storedLookup,
       dataStatus: priorities.DATA_STATUS.FALLBACK_RESULT
     }));
   }

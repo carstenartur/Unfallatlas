@@ -74,8 +74,8 @@ public class BatchRankingArtifactEntity {
     private int rankPosition;
 
     @NotBlank
-    @Size(max = 120)
-    @Column(name = "location_key", nullable = false, length = 120)
+    @Size(max = 200)
+    @Column(name = "location_key", nullable = false, length = 200)
     private String locationKey;
 
     @NotBlank

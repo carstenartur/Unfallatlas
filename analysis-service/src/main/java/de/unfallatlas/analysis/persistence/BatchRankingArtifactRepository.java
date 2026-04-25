@@ -1,6 +1,7 @@
 package de.unfallatlas.analysis.persistence;
 
 import de.unfallatlas.analysis.domain.BatchRankingArtifactEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,10 +16,12 @@ import java.util.List;
  * <ul>
  *   <li>{@link #findByJobExecutionIdOrderByRankPositionAsc(Long)} –
  *       Top-N für eine konkrete {@code executionId} (Lauf-Detail).</li>
- *   <li>{@link #findRecentByCityAndProfile(String, String, int)} –
+ *   <li>{@link #findRecentByCityAndProfile(String, String, Pageable)} –
  *       jüngste Lauf-Artefakte je {@code city} + {@code profile}, damit
  *       das UI „Aus Batch-Lauf laden" anbieten kann, ohne auf die
- *       BATCH_*-Metadaten direkt zugreifen zu müssen.</li>
+ *       BATCH_*-Metadaten direkt zugreifen zu müssen.  Das Limit wird
+ *       über {@link Pageable} gesetzt (z. B. {@code PageRequest.of(0, 10)}),
+ *       weil JPQL keinen {@code LIMIT}-Operator kennt.</li>
  * </ul>
  *
  * <p>{@link #deleteByJobExecutionId(Long)} ist explizit, damit ein
@@ -39,7 +42,8 @@ public interface BatchRankingArtifactRepository extends JpaRepository<BatchRanki
      * Liefert die jüngsten Lauf-Artefakte für eine Stadt + Profil.
      * Sortiert nach {@code createdAt DESC, rankPosition ASC}, damit
      * frische Läufe oben stehen und innerhalb eines Laufs der Top-1
-     * vor dem Top-2 erscheint.
+     * vor dem Top-2 erscheint.  Das Maximum übergibt der Aufrufer als
+     * {@link Pageable} (z. B. {@code PageRequest.of(0, limit)}).
      */
     @Query("""
         select a from BatchRankingArtifactEntity a
@@ -49,5 +53,5 @@ public interface BatchRankingArtifactRepository extends JpaRepository<BatchRanki
     List<BatchRankingArtifactEntity> findRecentByCityAndProfile(
         @Param("city") String city,
         @Param("profile") String profile,
-        @Param("limit") int limit);
+        Pageable pageable);
 }

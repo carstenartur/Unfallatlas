@@ -262,14 +262,18 @@
       });
     }
 
-    // Modus-Umschaltung sichtbar machen.
+    // Modus-Umschaltung sichtbar machen.  Der Handler wird genau einmal
+    // pro Element gebunden (markiert über `_uaPrioritiesSyncHandler`),
+    // damit wiederholtes Öffnen des Panels nicht jedes Mal einen weiteren
+    // Listener anhängt.
     if (modeSel && byLocRow) {
-      const sync = () => {
-        byLocRow.style.display = modeSel.value === 'byLocation' ? '' : 'none';
-      };
-      modeSel.removeEventListener('change', sync);
-      modeSel.addEventListener('change', sync);
-      sync();
+      if (!modeSel._uaPrioritiesSyncHandler) {
+        modeSel._uaPrioritiesSyncHandler = () => {
+          byLocRow.style.display = modeSel.value === 'byLocation' ? '' : 'none';
+        };
+        modeSel.addEventListener('change', modeSel._uaPrioritiesSyncHandler);
+      }
+      modeSel._uaPrioritiesSyncHandler();
     }
   };
 

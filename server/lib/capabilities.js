@@ -251,11 +251,11 @@ function batchJobs() {
       // werden.
       supportedEndpoints: [
         'POST /api/batch/jobs/city-prioritization',
-        'GET  /api/batch/jobs',
-        'GET  /api/batch/jobs/:id',
-        'GET  /api/batch/jobs/:id/summary',
-        'GET  /api/batch/jobs/:id/ranking',
-        'POST /api/batch/jobs/:id/restart'
+        'GET /api/batch/jobs',
+        'GET /api/batch/jobs/:executionId',
+        'GET /api/batch/jobs/:executionId/summary',
+        'GET /api/batch/jobs/:executionId/ranking',
+        'POST /api/batch/jobs/:executionId/restart'
       ]
     }
   };

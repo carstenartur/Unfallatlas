@@ -25,7 +25,7 @@ CREATE TABLE batch_ranking_artifact (
     target_city         VARCHAR(100) NOT NULL,
     target_profile_key  VARCHAR(60)  NOT NULL,
     rank_position       INTEGER      NOT NULL,
-    location_key        VARCHAR(120) NOT NULL,
+    location_key        VARCHAR(200) NOT NULL,
     brief_id            VARCHAR(36)  NOT NULL,
     profile_score       DOUBLE PRECISION NOT NULL,
     political_reference_count INTEGER NOT NULL DEFAULT 0,

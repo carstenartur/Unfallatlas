@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST-Schicht für die Hibernet-Search-basierte Suche.
+ * REST-Schicht für die Hibernate-Search-basierte Suche.
  *
  * <p>Drei Suchfälle, alle bewusst einfach ohne eigene Suchsyntax:</p>
  * <ul>
