@@ -238,11 +238,10 @@ describe('cityRegistry – describeCity / summarize', () => {
   });
 
   test('describeCity einer rein A-supportierten Stadt zeigt korrekt false-Capabilities', () => {
-    const d = cityRegistry.describeCity(cityRegistry.getCityById('muenchen'));
+    // Erfurt steht im Katalog, aber ohne Portal-Eintrag → Stufe B unsupported.
+    const d = cityRegistry.describeCity(cityRegistry.getCityById('erfurt'));
     expect(d.supportLevels.supportLevelB).toBe('unsupported');
     expect(d.capabilities.politicalContext).toBe(false);
-    // München ist analysisService-„supported" laut Katalog → ranking auch
-    expect(d.capabilities.analysisService).toBe(true);
   });
 
   test('summarize liefert Counts pro Stufe, summe ist gleich Gesamtzahl', () => {
@@ -316,15 +315,17 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     }
   });
 
-  test('Katalog-Städte ohne Workflow-Daten sind als Stufe A "partially_supported" geführt', () => {
+  test('Katalog-Städte ohne Workflow-Daten sind nicht als Stufe A "supported" geführt', () => {
     // Komplement zur Materialisierungs-Honesty: liegt keine GeoJSON
-    // vor, darf der Status höchstens `partially_supported` sein.
+    // vor, darf der Status höchstens `partially_supported` sein – also
+    // nicht `supported`.  `unsupported` ist ebenfalls zulässig (z. B.
+    // Portal-only-Einträge ohne Plan zur Datenmaterialisierung).
     const cities = cityRegistry.listCities();
     let withoutData = 0;
     for (const c of cities) {
       const assets = cityRegistry.getDataAssets(c.id);
       if (!assets.accidents) {
-        expect(c.accidentDataSupport).toBe('partially_supported');
+        expect(c.accidentDataSupport).not.toBe('supported');
         withoutData++;
       }
     }
@@ -394,6 +395,94 @@ describe('cityPortalRegistry – Katalog-Gating', () => {
 
   test('liefert null für Städte ohne Katalog-Eintrag und ohne Provider', () => {
     expect(portalRegistry.getProviderForCity('Atlantis')).toBeNull();
+  });
+
+  test('liefert null für katalog-Städte mit politicalContextSupport=partially_supported (Portal bekannt, kein Provider)', () => {
+    // Beispiel aus dem Portal-Seed: München hat ein bekanntes Portal,
+    // aber noch keinen Provider → Gating verhindert Halb-Funktionalität.
+    expect(portalRegistry.getProviderForCity('München')).toBeNull();
+    expect(portalRegistry.getProviderForCity('Stuttgart')).toBeNull();
+  });
+});
+
+// ── Portal-Seed-Liste: Konsistenz Stadt ↔ Portal ↔ Support-Stufe ──────────────
+
+describe('cityRegistry – Portal-Seed-Konsistenz (Stufe B)', () => {
+  const allCities = cityRegistry.listCities();
+
+  test('jede Stadt mit knownPortalType hat auch eine portalBaseUrl (und umgekehrt)', () => {
+    for (const c of allCities) {
+      const hasType = !!c.knownPortalType;
+      const hasUrl  = !!c.portalBaseUrl;
+      expect(hasType).toBe(hasUrl);
+    }
+  });
+
+  test('politicalContextSupport=supported|partially_supported impliziert konkretes Portal', () => {
+    // „supported" ohne Portalreferenz wäre Scheinunterstützung, und
+    // „partially_supported" ohne Portal wäre eine leere Aussage.
+    for (const c of allCities) {
+      if (c.politicalContextSupport === 'supported' ||
+          c.politicalContextSupport === 'partially_supported') {
+        expect(c.knownPortalType).toBeTruthy();
+        expect(c.portalBaseUrl).toMatch(/^https?:\/\//);
+      }
+    }
+  });
+
+  test('politicalContextSupport=unsupported impliziert kein Portal hinterlegt', () => {
+    // Ehrlichkeitsregel: kein Halb-Wissen.  Wenn unsupported, dann
+    // auch kein hängengebliebener Portallink im Katalog.
+    for (const c of allCities) {
+      if (c.politicalContextSupport === 'unsupported') {
+        expect(c.knownPortalType).toBeNull();
+        expect(c.portalBaseUrl).toBeNull();
+      }
+    }
+  });
+
+  test('politicalContextSupport=supported nur dann, wenn auch ein Provider registriert ist', () => {
+    // Spiegel zur Implementierung in cityPortalRegistry.getProviderForCity:
+    // ohne Provider wäre "supported" nicht einlösbar.
+    const portalRegistry = jest.requireActual(
+      '../../server/political-context/registry/cityPortalRegistry.js'
+    );
+    for (const c of allCities) {
+      if (c.politicalContextSupport === 'supported') {
+        expect(portalRegistry.getProviderForCityRaw(c.displayName)).not.toBeNull();
+      }
+    }
+  });
+
+  test('Portal-Seed-Quelle: mindestens 25 Städte tragen das Flag "portal-from-seed"', () => {
+    // Dokumentiert die Herkunft der Portalreferenzen aus der kuratierten
+    // Seed-Liste – damit später nachvollziehbar ist, welche Einträge
+    // automatisch und welche manuell entstanden sind.
+    const seeded = allCities.filter(c => c.qualityFlags.includes('portal-from-seed'));
+    expect(seeded.length).toBeGreaterThanOrEqual(25);
+    // Alle Seed-Einträge müssen ein Portal hinterlegt haben.
+    for (const c of seeded) {
+      expect(c.portalBaseUrl).toMatch(/^https?:\/\//);
+      expect(c.knownPortalType).toBeTruthy();
+    }
+  });
+
+  test('alle aus der Seed-Liste neu aufgenommenen Städte sind höchstens Stufe-B-„partially_supported"', () => {
+    // Reine Portal-only-Einträge dürfen nicht versehentlich auf
+    // Stufe A oder C hochgestuft werden, solange weder Workflow-Daten
+    // noch Persistenz-Backing existieren.
+    const portalOnlyIds = [
+      'gelsenkirchen', 'chemnitz', 'aachen', 'halle_saale',
+      'freiburg_im_breisgau', 'luebeck', 'krefeld', 'oberhausen',
+      'rostock', 'kassel'
+    ];
+    for (const id of portalOnlyIds) {
+      const c = cityRegistry.getCityById(id);
+      expect(c).toBeTruthy();
+      expect(c.accidentDataSupport).toBe('unsupported');
+      expect(c.analysisServiceSupport).toBe('unsupported');
+      expect(c.politicalContextSupport).toBe('partially_supported');
+    }
   });
 });
 

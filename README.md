@@ -95,6 +95,30 @@ im Repo liegt; Städte aus der Rollout-Queue tragen das `qualityFlag:
 `partially_supported`.  Details siehe
 [`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md#rollout-strategie-erst-500k-dann-300k).
 
+### Stufe B – Portal-Seed-Liste für politische Recherche
+
+Aufbauend auf der Capability-Struktur (Stufe B
+`politicalContextSupport`) wird die politische Recherche gezielt für
+große Städte mit konkreten Portalreferenzen angereichert.  Grundlage
+ist eine **kuratierte Seed-Liste** mit Rats-/Bürgerinformations-
+portalen (38 Städte mit Flag `portal-from-seed`).  Es findet *keine
+freie Webrecherche im Agenten* statt – neue Portale werden
+ausschließlich über die Seed-Liste eingespielt.
+
+Einstufung:
+
+- **`supported`** (4 Städte): Berlin, Hamburg, Hannover, Bonn –
+  konkretes Portal **und** registrierter Provider in
+  `cityPortalRegistry`.
+- **`partially_supported`** (24 Städte aus dem Seed-PR): konkretes
+  Portal aus der Seed-Liste hinterlegt, Provider folgt;
+  UI/API zeigen das ehrlich an.
+- **`unsupported`**: kein belastbarer Portalbezug – kein verwaister
+  Portallink im Katalog (Test wacht über die Invariante).
+
+Details und Verfahren zum Hochstufen siehe
+[`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md#stufe-b--portal-seed-liste-fuer-grosse-staedte).
+
 API-Endpunkte (Node-Modus):
 
 - `GET /api/cities` – Liste mit Capability-Matrix (filterbar via

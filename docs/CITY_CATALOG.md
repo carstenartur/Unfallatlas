@@ -100,18 +100,21 @@ Objekt sowie ein `capabilities`-Boolean-Bündel.  Beispiel:
 ## Capability-Matrix (Stand der Initialdaten)
 
 > Maschinell aus `summarize()` ablesbar – die untenstehende Tabelle
-> hilft beim schnellen Überblick.  Vollständig: 34 Städte aus allen
+> hilft beim schnellen Überblick.  Vollständig: 44 Städte aus allen
 > 16 Bundesländern.
 
 | Stufe | supported | partially_supported | unsupported |
 |:------|----------:|--------------------:|------------:|
-| A – Unfallanalyse        | 12 | 22 | 0 |
-| B – Politische Recherche |  4 |  0 | 30 |
-| C – Persistenz / Batch   |  9 | 25 | 0 |
+| A – Unfallanalyse        | 12 | 22 | 10 |
+| B – Politische Recherche |  4 | 24 | 16 |
+| C – Persistenz / Batch   |  9 | 25 | 10 |
 
 Die vier mit Level B `supported` sind die Städte mit angebundenem
 Provider: **Hannover** (SIM), **Berlin** (Pardok + Bezirks-Allris),
 **Bonn** (Allris/SessionNet), **Hamburg** (Parldok + Bezirks-Allris).
+Die 24 mit Level B `partially_supported` haben einen Portallink aus
+der kuratierten Seed-Liste (siehe [Stufe B – Portal-Seed-Liste](#stufe-b--portal-seed-liste-fuer-grosse-staedte)),
+aber noch keinen Provider.
 
 ## Kopplung an die GitHub-Workflows
 
@@ -226,6 +229,84 @@ beschriebenen Verfahren auf `supported` hochgestuft.
 - Provider-Auflösung `getProviderForCity()` prüft den Katalog; ist
   dieser nicht ladbar, fällt das System auf das alte Verhalten zurück
   (Provider-Auswahl rein über die Map).
+
+## Stufe B – Portal-Seed-Liste für große Städte
+
+Die Capability-Stufe B (politische Kontextrecherche) wird gezielt für
+große deutsche Städte angereichert.  Grundlage ist eine **kuratierte
+Seed-Liste** mit Rats-/Bürgerinformationsportalen (Stand: 37 Städte,
+PR „Portal-Seed").  Die Seed-Liste fließt direkt in
+`cityCatalogData.json` ein – pro Stadt werden `knownPortalType`,
+`portalBaseUrl` und `politicalContextSupport` gepflegt.
+
+**Wichtiger Leitsatz**: Es findet keine freie Webrecherche im Agenten
+statt.  Neue Portale müssen über die Seed-Liste eingespielt werden.
+
+### Einstufung politischer Recherche (Stufe B)
+
+| Status                  | Bedingung                                                                                                  |
+|-------------------------|------------------------------------------------------------------------------------------------------------|
+| `supported`             | Konkretes Portal **und** registrierter Provider in `server/political-context/registry/cityPortalRegistry.js` |
+| `partially_supported`   | Konkretes Portal aus Seed-Liste hinterlegt, aber noch kein Provider (UI/API zeigt das ehrlich an)          |
+| `unsupported`           | Kein belastbarer Portalbezug bekannt – Stufe B explizit nicht zugesichert                                  |
+
+Der Test `cityRegistry – Portal-Seed-Konsistenz` wacht über diese
+Invariante (jede Stadt mit `partially_supported`/`supported` hat ein
+Portal; keine `unsupported`-Stadt trägt einen verwaisten Portallink).
+
+### Portal-Familien (`knownPortalType`)
+
+| Wert         | Beispiele                                                |
+|--------------|----------------------------------------------------------|
+| `allris`     | Stuttgart, Augsburg, Kiel, Oberhausen, Aachen, Rostock   |
+| `sim`        | Hannover                                                 |
+| `parldok`    | Hamburg                                                  |
+| `sessionnet` | Bremen, Bielefeld, Mainz, Halle (Saale), Chemnitz, Kassel|
+| `ris`        | München, Essen, Wuppertal, Nürnberg, Krefeld, Freiburg   |
+| `other`      | Köln, Frankfurt, Düsseldorf, Leipzig, Dortmund, …        |
+
+Die Portal-Familie ist eine Heuristik nach URL-/Anbieterstruktur und
+hilft, künftig generische Provider-Adapter (z. B. ein
+`SessionNetProvider`) für mehrere Städte gleichzeitig zu schreiben.
+
+### Aktuell aus der Seed-Liste gepflegte Städte
+
+Mit Stand des Portal-Seed-PR sind 38 Städte mit konkreten Portal-
+referenzen ausgestattet (Flag `portal-from-seed`):
+
+- **Bereits mit Provider (Stufe B `supported`)**: Berlin, Hamburg,
+  Hannover, Bonn.
+- **Portal hinterlegt, Provider folgt (Stufe B `partially_supported`)**:
+  München, Köln, Frankfurt am Main, Stuttgart, Düsseldorf, Leipzig,
+  Dortmund, Essen, Bremen, Dresden, Nürnberg, Duisburg, Bochum,
+  Wuppertal, Bielefeld, Münster, Karlsruhe, Mannheim, Augsburg,
+  Wiesbaden, Braunschweig, Kiel, Magdeburg, Mainz, Gelsenkirchen,
+  Chemnitz, Aachen, Halle (Saale), Freiburg im Breisgau, Lübeck,
+  Krefeld, Oberhausen, Rostock, Kassel.
+
+Nicht in der aktuellen Seed-Liste enthaltene Katalog-Städte (z. B.
+Erfurt, Saarbrücken, Potsdam, Schwerin, Heilbronn, Wolfsburg) bleiben
+auf `politicalContextSupport: 'unsupported'` und tragen kein Portal.
+
+### Eine neue Stadt aus der Seed-Liste in den Katalog überführen
+
+1. Eintrag in `server/cities/cityCatalogData.json` ergänzen oder
+   bestehende Stadt befüllen mit `knownPortalType`, `portalBaseUrl`
+   (`https://…`) und `qualityFlags: ["portal-from-seed", …]`.
+2. `politicalContextSupport` auf `partially_supported` setzen
+   (oder `supported`, falls auch ein Provider in
+   `cityPortalRegistry.js` registriert wird).
+3. Tests laufen lassen:
+   `npx jest --testPathPatterns=cityRegistry`.
+
+### Eine Stadt von Stufe B `partially_supported` auf `supported` heben
+
+1. Provider-Modul unter `server/political-context/providers/` anlegen
+   (z. B. `dortmundOtherProvider.js`).
+2. In `server/political-context/registry/cityPortalRegistry.js` die
+   Stadt-Map `REGISTRY` um den Provider ergänzen.
+3. `politicalContextSupport` im Katalog auf `supported` setzen.
+4. Tests + `npx jest --testPathPatterns="cityRegistry|political"`.
 
 ## Maintainer-Hinweise: Neue Stadt hinzufügen
 
