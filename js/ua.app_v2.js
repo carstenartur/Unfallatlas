@@ -48,6 +48,10 @@
     ui.btnCloseModal.addEventListener('click', closeModal);
     ui.modalOverlay.addEventListener('click', (e)=>{ if (e.target === ui.modalOverlay) closeModal(); });
 
+    // Returns true on a successful render, false if report generation failed.
+    // Callers use the return value to decide whether to persist export-related
+    // URL state (the failure path renders an error placeholder, not a real
+    // report, so the URL shouldn't claim "export=1" in that case).
     async function rerenderExportReport(){
       ui.exportProgress.textContent = "Report wird erzeugt…";
       ui.exportHtml.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
@@ -65,10 +69,12 @@
             modalTitleEl.textContent = UA.deriveDocTitle ? UA.deriveDocTitle(gremiumTyp) : gremiumTyp;
           }
         }
+        return true;
       } catch (e) {
         ui.exportProgress.textContent = "Fehler.";
         ui.exportHtml.innerHTML = `<div style="color:#b00; font-weight:900;">Export fehlgeschlagen</div><div>${UA.escHtml(String(e))}</div>`;
         ui.exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
+        return false;
       }
     }
 
@@ -100,10 +106,13 @@
 
     ui.btnOpenExport.addEventListener("click", async ()=> {
       openModal();
-      await rerenderExportReport();
-      // Persist the export marker in the URL only after a successful render.
-      // (rerenderExportReport sets the title; setQS here is intentional.)
-      try { UA.setQS({ export: 1 }); } catch {}
+      const renderSucceeded = await rerenderExportReport();
+      // Persist the export marker in the URL only after a successful render —
+      // otherwise the URL would claim "export=1" while the modal actually
+      // shows an error placeholder.
+      if (renderSucceeded) {
+        try { UA.setQS({ export: 1 }); } catch {}
+      }
     });
 
     const btnExportCSV = document.getElementById("btnExportCSV");

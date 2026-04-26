@@ -525,23 +525,20 @@
     // Delegate grouping/cap/header rendering to the strategy registry.
     // `maxRows` overrides the strategy's default rowCap (back-compat with the
     // old per-group cap argument; tests and callers may still pass a number).
+    // The override is passed explicitly to applyAccidentView so the shared
+    // strategy object is never mutated (re-entrant / concurrent safe).
     const resolvedViewId = viewId || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
     const view = (UA.resolveAccidentView ? UA.resolveAccidentView(resolvedViewId) : null);
-    const cap = (maxRows !== undefined && Number.isFinite(Number(maxRows)))
+    const explicitCap = (maxRows !== undefined && Number.isFinite(Number(maxRows)))
       ? Number(maxRows)
+      : null;
+    const cap = explicitCap !== null
+      ? explicitCap
       : (view && Number.isFinite(view.rowCap) ? view.rowCap : 20);
 
     let viewResult;
     if (UA.applyAccidentView) {
-      // Temporarily honor the explicit cap by running through applyAccidentView
-      // with a per-call override of view.rowCap.
-      const originalCap = view.rowCap;
-      try {
-        view.rowCap = cap;
-        viewResult = UA.applyAccidentView(items, resolvedViewId);
-      } finally {
-        view.rowCap = originalCap;
-      }
+      viewResult = UA.applyAccidentView(items, resolvedViewId, { rowCap: cap });
     } else {
       // Should not happen in production (ua.accident_views.js loads before ua.export_v2.js).
       viewResult = { viewId: resolvedViewId, columns: [], groups: [], total: items.length, truncated: false };
@@ -998,8 +995,7 @@
       const cols = (accidentDetails.columns && accidentDetails.columns.length)
         ? accidentDetails.columns
         : ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"];
-      const colsHtml = cols.map((c, i) => {
-        const align = (i === 0 || c === "Jahr" || c === "Uhrzeit") ? "" : "";
+      const colsHtml = cols.map((c) => {
         const ta = (c === "Jahr" || c === "Uhrzeit") ? ' style="text-align:right;"' : "";
         return `<th${ta}>${UA.escHtml(c)}</th>`;
       }).join("");

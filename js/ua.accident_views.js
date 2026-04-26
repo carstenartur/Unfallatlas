@@ -354,14 +354,21 @@
    * Apply a view to a flat item list and return:
    *   { viewId, columns, groups: [{ key, meta, rows, count, overflow, headers }], total, truncated }
    *
-   * `rows` is the post-cap list (length ≤ view.rowCap) with the original items.
+   * `rows` is the post-cap list (length ≤ effective cap) with the original items.
    * `headers` is a pre-rendered map { text, html, docx } for each group, using
    * the view's renderHeader callbacks. Consumers stay format-agnostic.
+   *
+   * `opts.rowCap` (optional) overrides the strategy's default `rowCap` for this
+   * call only — without mutating the shared strategy object. Pass a finite
+   * number to take effect; anything else falls back to `view.rowCap`.
    */
-  UA.applyAccidentView = function applyAccidentView(items, viewId) {
+  UA.applyAccidentView = function applyAccidentView(items, viewId, opts) {
     const view = UA.resolveAccidentView(viewId);
     const rawGroups = view.group(items || []);
-    const cap = Number.isFinite(view.rowCap) ? view.rowCap : 20;
+    const overrideCap = opts && Number.isFinite(Number(opts.rowCap)) ? Number(opts.rowCap) : null;
+    const cap = overrideCap !== null
+      ? overrideCap
+      : (Number.isFinite(view.rowCap) ? view.rowCap : 20);
     const groups = rawGroups.map(g => {
       const count = g.items.length;
       const rows = g.items.slice(0, cap);
