@@ -1537,6 +1537,17 @@
       }
 
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
+        // Resolve accident-view strategy + columns from the structured payload,
+        // mirroring the DOCX branch above. Without these the per-row producer
+        // and `makePdfTable(cols, …)` call below reference undefined names and
+        // pdfMake.createPdf() then throws ReferenceError ("view is not defined")
+        // before the download can ever fire.
+        const view = (typeof UA !== "undefined" && UA.resolveAccidentView)
+          ? UA.resolveAccidentView(sd.accidentDetails.viewId)
+          : null;
+        const cols = (sd.accidentDetails.columns && sd.accidentDetails.columns.length)
+          ? sd.accidentDetails.columns
+          : ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"];
         for (const g of sd.accidentDetails.groups) {
           const docxHeader = (g.headers && Array.isArray(g.headers.docx)) ? g.headers.docx : null;
           if (docxHeader && docxHeader.length > 0) {
