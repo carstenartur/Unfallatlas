@@ -782,6 +782,32 @@
       }
     }
 
+    // ---- OSM context (#C4) ----
+    // Network call to the Overpass API; gated by exportOptions.includeOsmContext
+    // (default ON). The helper is fully defensive — it returns either the
+    // aggregated summary, a `{ quality.error }` stub, or `null` (invalid bbox).
+    // We tolerate all three so a slow/blocked Overpass mirror never breaks the
+    // report. Caller can pass `ctx.exportOptions.osmContextOverride` (already
+    // computed payload) to skip the fetch — used by tests and the AI flow,
+    // which may want to feed pre-fetched context into the prompt.
+    const includeOsmContext = !ctx.exportOptions || ctx.exportOptions.includeOsmContext !== false;
+    let osmContext = null;
+    if (includeOsmContext && UA.osmContext && typeof UA.osmContext.fetchOsmContext === "function") {
+      const override = ctx.exportOptions && ctx.exportOptions.osmContextOverride;
+      if (override !== undefined) {
+        osmContext = override;
+      } else {
+        try {
+          osmContext = await UA.osmContext.fetchOsmContext({
+            south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng
+          }, ctx.exportOptions && ctx.exportOptions.osmContextOpts);
+        } catch (e) {
+          console.warn("OSM context fetch failed:", e);
+          osmContext = null;
+        }
+      }
+    }
+
     const vars = {
       city: CITY_RAW,
       CITY: CITY_RAW,
@@ -925,6 +951,24 @@
       };
       lines.push(`  Spitzenstunden Mo–Fr: ${topPerCol(0)}.`);
       lines.push(`  Spitzenstunden Sa/So: ${topPerCol(1)}.`);
+      lines.push("");
+    }
+
+    // OSM-Kontext (#C4): kurze Zusammenfassung der Verkehrsanlagen im Bereich.
+    // `osmContext` ist eines von: null (Toggle aus / ungültige Bbox),
+    // { quality:{error} } (Netzfehler) oder die volle Aggregation. Nur bei
+    // einer echten Aggregation rendern wir Daten — Fehlerfälle erwähnen wir
+    // dezent, damit Leser des Antrags wissen, warum hier nichts steht.
+    if (osmContext && osmContext.summary) {
+      lines.push("Verkehrsräumlicher Kontext (OSM):");
+      const sumLine = (UA.osmContext && UA.osmContext.summarizeForText)
+        ? UA.osmContext.summarizeForText(osmContext)
+        : null;
+      if (sumLine) lines.push("  " + sumLine);
+      lines.push(`  Quelle: ${osmContext.source.publisher} (${osmContext.source.license}), via ${osmContext.source.retrievedVia}.`);
+      lines.push("");
+    } else if (osmContext && osmContext.quality && osmContext.quality.error) {
+      lines.push(`Verkehrsräumlicher Kontext (OSM): nicht verfügbar (${osmContext.quality.error}).`);
       lines.push("");
     }
 
@@ -1453,6 +1497,25 @@
         </div>
         ` : ``}
 
+        ${(osmContext && osmContext.summary) ? `
+        <div style="margin-top:12px; font-weight:900;">Verkehrsräumlicher Kontext (OSM)</div>
+        <table class="report" style="font-size:12px; margin-top:4px;">
+          <tbody>
+            ${osmContext.summary.dominantMaxspeed != null ? `<tr><td>Vorherrschendes Tempolimit</td><td><strong>${osmContext.summary.dominantMaxspeed} km/h</strong> (n=${osmContext.summary.speedSampleSize} Wegabschnitte)</td></tr>` : ``}
+            <tr><td>Radverkehrsanlagen</td><td>${osmContext.summary.cycleInfraWays > 0
+              ? `${osmContext.summary.cycleInfraWays} Wegabschnitte mit Radinfrastruktur` + (osmContext.summary.cycleInfraShare != null ? ` (${Math.round(osmContext.summary.cycleInfraShare * 100)} % der klassifizierten Hauptachsen)` : ``)
+              : `keine separaten Radverkehrsanlagen erkannt`}</td></tr>
+            <tr><td>Knoten/Querungen</td><td>${osmContext.summary.trafficSignals} signalisierte Knoten · ${osmContext.summary.crossings} markierte Querungen</td></tr>
+            ${osmContext.summary.avgLanes != null ? `<tr><td>Durchschnittliche Fahrstreifen</td><td>Ø ${osmContext.summary.avgLanes.toFixed(1)} (n=${osmContext.summary.lanesSampleSize})</td></tr>` : ``}
+            ${osmContext.summary.avgWidthMeters != null ? `<tr><td>Durchschnittliche Fahrbahnbreite</td><td>Ø ${osmContext.summary.avgWidthMeters.toFixed(1)} m (n=${osmContext.summary.widthSampleSize})</td></tr>` : ``}
+          </tbody>
+        </table>
+        <div style="font-size:11px; color:#666; margin-top:4px;">Quelle: <a href="${UA.escHtml(osmContext.source.url)}" target="_blank" rel="noopener">${UA.escHtml(osmContext.source.publisher)}</a> (${UA.escHtml(osmContext.source.license)}), via ${UA.escHtml(osmContext.source.retrievedVia)}.</div>
+        ` : (osmContext && osmContext.quality && osmContext.quality.error) ? `
+        <div style="margin-top:12px; font-weight:900;">Verkehrsräumlicher Kontext (OSM)</div>
+        <div style="font-size:12px; color:#777;">Nicht verfügbar (${UA.escHtml(osmContext.quality.error)}).</div>
+        ` : ``}
+
         <div style="margin-top:10px; color:#555; font-size:12px;">
           <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
@@ -1503,6 +1566,7 @@
       timeClusters: timeClusters,
       yearlyTrend,
       heatmap,
+      osmContext,
       darkFigureNote: DARK_FIGURE_NOTE
     };
 

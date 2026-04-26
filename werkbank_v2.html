@@ -226,6 +226,10 @@
             <input type="checkbox" id="cbIncludeHeatmap" checked style="cursor:pointer;">
             <span>Stunden-Heatmap</span>
           </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="OSM-Kontext (Tempolimit, Radwege, Knoten, Querungen) für den markierten Bereich abfragen und im Antrag ausweisen. Erfordert Netzzugriff auf die Overpass-API.">
+            <input type="checkbox" id="cbIncludeOsmContext" checked style="cursor:pointer;">
+            <span>OSM-Kontext</span>
+          </label>
           <label style="display:flex; align-items:center; gap:5px;">
             <span>Einzelunfälle anzeigen:</span>
             <select id="accidentViewSel" aria-label="Gruppierung der Einzelunfall-Tabelle" style="padding:4px 6px; border-radius:6px; border:1px solid rgba(0,0,0,.2);">
@@ -425,6 +429,7 @@
   <script src="js/ua.measures.js?v=2026-01-01"></script>
   <script src="js/ua.trend.js?v=2026-01-01"></script>
   <script src="js/ua.heatmap.js?v=2026-01-01"></script>
+  <script src="js/ua.osm_context.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>

@@ -997,6 +997,49 @@
       }));
     }
 
+    // ---- 8e. OSM-KONTEXT (#C4) ----
+    // Only render the table when we actually have aggregated data.
+    // For pure error stubs we add a one-line note so readers know why the
+    // section is missing in this run.
+    if (sd && sd.osmContext && sd.osmContext.summary) {
+      const oc = sd.osmContext;
+      const s = oc.summary;
+      children.push(new Paragraph({
+        text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }));
+      const ocRows = [];
+      if (s.dominantMaxspeed != null) {
+        ocRows.push(["Vorherrschendes Tempolimit", `${s.dominantMaxspeed} km/h (n=${s.speedSampleSize} Wegabschnitte)`]);
+      }
+      ocRows.push(["Radverkehrsanlagen",
+        s.cycleInfraWays > 0
+          ? `${s.cycleInfraWays} Wegabschnitte mit Radinfrastruktur` + (s.cycleInfraShare != null ? ` (${Math.round(s.cycleInfraShare * 100)} % der Hauptachsen)` : "")
+          : "keine separaten Radverkehrsanlagen erkannt"
+      ]);
+      ocRows.push(["Knoten / Querungen", `${s.trafficSignals} signalisierte Knoten · ${s.crossings} markierte Querungen`]);
+      if (s.avgLanes != null) ocRows.push(["Ø Fahrstreifen", `${s.avgLanes.toFixed(1)} (n=${s.lanesSampleSize})`]);
+      if (s.avgWidthMeters != null) ocRows.push(["Ø Fahrbahnbreite", `${s.avgWidthMeters.toFixed(1)} m (n=${s.widthSampleSize})`]);
+      children.push(makeKVTable(ocRows));
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `Quelle: ${oc.source.publisher} (${oc.source.license}), via ${oc.source.retrievedVia}.`, italics: true })
+        ],
+        spacing: { before: 100, after: 200 }
+      }));
+    } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
+      children.push(new Paragraph({
+        text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }));
+      children.push(new Paragraph({
+        children: [new TextRun({ text: `Nicht verfügbar (${sd.osmContext.quality.error}).`, italics: true })],
+        spacing: { after: 200 }
+      }));
+    }
+
     // ---- 9. BESCHLUSSVORSCHLAG section ----
     children.push(
       new Paragraph({
@@ -2041,6 +2084,61 @@
       });
       docDefinition.content.push({
         text: `Gesamt: ${hm.total} Unfälle (Mo–Fr: ${hm.colTotals[0]}, Sa/So: ${hm.colTotals[1]}). Max. ${hm.max} Unfälle pro Stunde × Tagestyp.`,
+        italics: true,
+        fontSize: 9,
+        margin: [0, 0, 0, 8]
+      });
+    }
+
+    // ---- VERKEHRSRÄUMLICHER KONTEXT (#C4) ----
+    if (sd && sd.osmContext && sd.osmContext.summary) {
+      const oc = sd.osmContext;
+      const s = oc.summary;
+      docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
+      const ocBody = [];
+      if (s.dominantMaxspeed != null) {
+        ocBody.push([
+          { text: "Vorherrschendes Tempolimit", bold: true, fontSize: 10 },
+          { text: `${s.dominantMaxspeed} km/h (n=${s.speedSampleSize} Wegabschnitte)`, fontSize: 10 }
+        ]);
+      }
+      ocBody.push([
+        { text: "Radverkehrsanlagen", bold: true, fontSize: 10 },
+        { text: s.cycleInfraWays > 0
+            ? `${s.cycleInfraWays} Wegabschnitte mit Radinfrastruktur` + (s.cycleInfraShare != null ? ` (${Math.round(s.cycleInfraShare * 100)} % der Hauptachsen)` : "")
+            : "keine separaten Radverkehrsanlagen erkannt", fontSize: 10 }
+      ]);
+      ocBody.push([
+        { text: "Knoten / Querungen", bold: true, fontSize: 10 },
+        { text: `${s.trafficSignals} signalisierte Knoten · ${s.crossings} markierte Querungen`, fontSize: 10 }
+      ]);
+      if (s.avgLanes != null) {
+        ocBody.push([
+          { text: "Ø Fahrstreifen", bold: true, fontSize: 10 },
+          { text: `${s.avgLanes.toFixed(1)} (n=${s.lanesSampleSize})`, fontSize: 10 }
+        ]);
+      }
+      if (s.avgWidthMeters != null) {
+        ocBody.push([
+          { text: "Ø Fahrbahnbreite", bold: true, fontSize: 10 },
+          { text: `${s.avgWidthMeters.toFixed(1)} m (n=${s.widthSampleSize})`, fontSize: 10 }
+        ]);
+      }
+      docDefinition.content.push({
+        table: { widths: ["auto", "*"], body: ocBody },
+        layout: "lightHorizontalLines",
+        margin: [0, 4, 0, 4]
+      });
+      docDefinition.content.push({
+        text: `Quelle: ${oc.source.publisher} (${oc.source.license}), via ${oc.source.retrievedVia}.`,
+        italics: true,
+        fontSize: 9,
+        margin: [0, 0, 0, 8]
+      });
+    } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
+      docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
+      docDefinition.content.push({
+        text: `Nicht verfügbar (${sd.osmContext.quality.error}).`,
         italics: true,
         fontSize: 9,
         margin: [0, 0, 0, 8]

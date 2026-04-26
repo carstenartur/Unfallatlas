@@ -63,10 +63,12 @@
         const cbCosts    = document.getElementById("cbIncludeCosts");
         const cbMeasures = document.getElementById("cbIncludeMeasures");
         const cbHeatmap  = document.getElementById("cbIncludeHeatmap");
+        const cbOsm      = document.getElementById("cbIncludeOsmContext");
         ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
-          includeCosts:    cbCosts    ? cbCosts.checked    : true,
-          includeMeasures: cbMeasures ? cbMeasures.checked : true,
-          includeHeatmap:  cbHeatmap  ? cbHeatmap.checked  : true
+          includeCosts:      cbCosts    ? cbCosts.checked    : true,
+          includeMeasures:   cbMeasures ? cbMeasures.checked : true,
+          includeHeatmap:    cbHeatmap  ? cbHeatmap.checked  : true,
+          includeOsmContext: cbOsm      ? cbOsm.checked      : true
         });
         const r = await UA.computeExportReport(ctx);
         ui.exportProgress.textContent = "Fertig.";
