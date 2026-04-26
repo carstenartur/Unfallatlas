@@ -895,6 +895,23 @@
       }
     }
 
+    // ---- 8b. DUNKELZIFFER-PFLICHTHINWEIS (#C3) ----
+    {
+      const note = (sd && sd.darkFigureNote) || (typeof UA !== "undefined" && UA.DARK_FIGURE_NOTE) || null;
+      if (note) {
+        children.push(new Paragraph({
+          text: note.title,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        children.push(new Paragraph({ text: note.body, spacing: { after: 100 } }));
+        children.push(new Paragraph({
+          children: [new TextRun({ text: note.sourceLabel, italics: true })],
+          spacing: { after: 200 }
+        }));
+      }
+    }
+
     // ---- 9. BESCHLUSSVORSCHLAG section ----
     children.push(
       new Paragraph({
@@ -1720,6 +1737,16 @@
             });
           }
         }
+      }
+    }
+
+    // ---- DUNKELZIFFER-PFLICHTHINWEIS (#C3) ----
+    {
+      const note = (sd && sd.darkFigureNote) || (typeof UA !== "undefined" && UA.DARK_FIGURE_NOTE) || null;
+      if (note) {
+        docDefinition.content.push({ text: note.title, style: "subheader" });
+        docDefinition.content.push({ text: note.body, style: "normal" });
+        docDefinition.content.push({ text: note.sourceLabel, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
       }
     }
 

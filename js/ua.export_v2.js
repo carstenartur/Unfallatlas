@@ -1357,6 +1357,12 @@
           return html;
         })()}
 
+        <div style="margin-top:12px; padding:8px 10px; border:1px solid #f0c36d; background:#fff8e1; border-radius:6px; font-size:12px; color:#5a4400;">
+          <div style="font-weight:700; margin-bottom:2px;">${UA.escHtml(DARK_FIGURE_NOTE.title)}</div>
+          <div>${UA.escHtml(DARK_FIGURE_NOTE.body)}</div>
+          <div style="margin-top:4px; font-style:italic;">${UA.escHtml(DARK_FIGURE_NOTE.sourceLabel)}${DARK_FIGURE_NOTE.sourceUrl ? ` <a href="${UA.escHtml(DARK_FIGURE_NOTE.sourceUrl)}" target="_blank" rel="noopener">Link</a>` : ""}</div>
+        </div>
+
         <div style="margin-top:10px; color:#555; font-size:12px;">
           <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
@@ -1404,7 +1410,8 @@
       accidentDetails,
       economicImpact,
       recommendedMeasures,
-      timeClusters: timeClusters
+      timeClusters: timeClusters,
+      darkFigureNote: DARK_FIGURE_NOTE
     };
 
     return { text: textOut, html: htmlOut, structured };
