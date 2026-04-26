@@ -20,18 +20,20 @@
  *
  *     node scripts/check-city-rollout.js          # Klartext-Report
  *     node scripts/check-city-rollout.js --json   # maschinenlesbar
+ *     node scripts/check-city-rollout.js --fix    # Drift automatisch beheben (idempotent)
  *
  * Exit-Code:
  *   0 – keine Inkonsistenz gefunden (Upgrade-Kandidaten sind kein
  *       Fehler, sondern eine Empfehlung)
  *   1 – Inkonsistenzen vorhanden (Status 2 oder 3 oben)
  *
- * Bewusst keine Schreiboperation: das Hochstufen erfolgt manuell im
- * PR, damit jede Statusänderung im Review sichtbar bleibt
- * (siehe docs/CITY_CATALOG.md, Abschnitt „Eine Stadt von
- * `partially_supported` auf `supported` heben").
+ * Der --fix-Modus hebt alle Upgrade-Kandidaten automatisch auf
+ * `accidentDataSupport: 'supported'` hoch und ergänzt die passenden
+ * qualityFlags.  Der Modus ist idempotent: mehrfaches Ausführen hat
+ * keinen weiteren Effekt.  Schreibt direkt in cityCatalogData.json.
  */
 
+const fs   = require('fs');
 const path = require('path');
 
 const cityRegistry = require(path.join(__dirname, '..', 'server', 'cities', 'cityRegistry.js'));
@@ -110,6 +112,12 @@ function printReport({ upgradeCandidates, inconsistentSupported, txtWithoutCatal
 
 function main(argv) {
   const wantJson = argv.includes('--json');
+  const wantFix  = argv.includes('--fix');
+
+  if (wantFix) {
+    return applyFix();
+  }
+
   const result   = classify();
   if (wantJson) {
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
@@ -123,8 +131,52 @@ function main(argv) {
   return hasErrors ? 1 : 0;
 }
 
+/**
+ * Hebt alle Upgrade-Kandidaten automatisch auf `supported` hoch
+ * und ergänzt die passenden qualityFlags in cityCatalogData.json.
+ * Idempotent: mehrfaches Ausführen hat keinen weiteren Effekt.
+ *
+ * @returns {number} Exit-Code (0 = OK, 1 = verbleibende Inkonsistenz)
+ */
+function applyFix() {
+  const result = classify();
+
+  if (result.upgradeCandidates.length === 0) {
+    console.log('check-city-rollout --fix: keine Upgrade-Kandidaten, nichts zu tun.');
+  } else {
+    const catalogPath = cityRegistry.CATALOG_PATH;
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+
+    for (const candidate of result.upgradeCandidates) {
+      const entry = catalog.cities.find(c => c.id === candidate.id);
+      if (!entry) continue;
+
+      entry.accidentDataSupport = 'supported';
+
+      const flags = new Set(entry.qualityFlags || []);
+      flags.delete('rollout-queued');
+      flags.add('accident-data-generated');
+      if (candidate.hasPoi) flags.add('poi-generated');
+      entry.qualityFlags = Array.from(flags);
+
+      console.log(`check-city-rollout --fix: ${candidate.id} auf supported hochgestuft.`);
+    }
+
+    fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2) + '\n', 'utf8');
+    // Registry-Cache leeren damit nachfolgende classify()-Aufrufe den neuen Stand sehen
+    cityRegistry.reload();
+  }
+
+  // Nach dem Fix erneut klassifizieren und Fehlercode zurückgeben
+  const after = classify();
+  const hasErrors =
+    after.inconsistentSupported.length > 0 ||
+    after.txtWithoutCatalog.length > 0;
+  return hasErrors ? 1 : 0;
+}
+
 if (require.main === module) {
   process.exit(main(process.argv.slice(2)));
 }
 
-module.exports = { classify };
+module.exports = { classify, applyFix };

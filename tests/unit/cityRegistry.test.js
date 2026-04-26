@@ -341,7 +341,7 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     const txtSlugs = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
     const queued = cityRegistry.listCities()
       .filter(c => (c.qualityFlags || []).includes('rollout-queued'));
-    expect(queued.length).toBeGreaterThan(0);
+    // Die Queue darf leer sein (alle Kandidaten erfolgreich hochgestuft).
     for (const c of queued) {
       expect(txtSlugs.has(c.id)).toBe(true);
       expect(c.accidentDataSupport).toBe('partially_supported');
