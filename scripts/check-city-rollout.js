@@ -132,6 +132,30 @@ function main(argv) {
 }
 
 /**
+ * Kanonische Reihenfolge der qualityFlags, die durch --fix gesetzt oder
+ * beibehalten werden.  Flags, die nicht in dieser Liste stehen, werden
+ * ans Ende angehängt (Reihenfolge bleibt dann erhalten).
+ */
+const FLAG_ORDER = [
+  'state-capital',
+  'city-state',
+  'districts-as-bezirke',
+  'accident-data-generated',
+  'poi-generated',
+  'portal-from-seed',
+  'sessionnet-generic-provider'
+];
+
+function sortFlags(flags) {
+  const set = new Set(flags);
+  const ordered = FLAG_ORDER.filter(f => set.has(f));
+  for (const f of flags) {
+    if (!FLAG_ORDER.includes(f)) ordered.push(f);
+  }
+  return ordered;
+}
+
+/**
  * Hebt alle Upgrade-Kandidaten automatisch auf `supported` hoch
  * und ergänzt die passenden qualityFlags in cityCatalogData.json.
  * Idempotent: mehrfaches Ausführen hat keinen weiteren Effekt.
@@ -157,7 +181,7 @@ function applyFix() {
       flags.delete('rollout-queued');
       flags.add('accident-data-generated');
       if (candidate.hasPoi) flags.add('poi-generated');
-      entry.qualityFlags = Array.from(flags);
+      entry.qualityFlags = sortFlags(Array.from(flags));
 
       console.log(`check-city-rollout --fix: ${candidate.id} auf supported hochgestuft.`);
     }

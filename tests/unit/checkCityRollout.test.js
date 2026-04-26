@@ -8,8 +8,7 @@
  * abgedeckt (siehe tests/unit/cityRegistry.test.js).
  */
 
-const fs   = require('fs');
-const path = require('path');
+const fs = require('fs');
 
 const { classify, applyFix } = require('../../scripts/check-city-rollout.js');
 const cityRegistry = require('../../server/cities/cityRegistry.js');
@@ -33,47 +32,62 @@ describe('scripts/check-city-rollout', () => {
 
   describe('--fix-Modus (applyFix)', () => {
     const catalogPath = cityRegistry.CATALOG_PATH;
-    let originalContent;
+    const originalContent = fs.readFileSync(catalogPath, 'utf8');
+
+    // Kein direktes Schreiben auf das Dateisystem (Race-Condition-Gefahr bei
+    // parallelen Jest-Workern). Stattdessen: fs.readFileSync / writeFileSync
+    // per Spy in-memory stubben, analog zu cityRegistry.test.js.
+    let readSpy;
+    let writeSpy;
+    let inMemoryCatalog;
 
     beforeEach(() => {
-      originalContent = fs.readFileSync(catalogPath, 'utf8');
+      inMemoryCatalog = originalContent;
+
+      const origRead  = fs.readFileSync.bind(fs);
+      const origWrite = fs.writeFileSync.bind(fs);
+
+      readSpy = jest.spyOn(fs, 'readFileSync').mockImplementation((filePath, ...args) => {
+        if (filePath === catalogPath) return inMemoryCatalog;
+        return origRead(filePath, ...args);
+      });
+
+      writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation((filePath, data, ...args) => {
+        if (filePath === catalogPath) { inMemoryCatalog = data; return; }
+        return origWrite(filePath, data, ...args);
+      });
     });
 
     afterEach(() => {
-      fs.writeFileSync(catalogPath, originalContent, 'utf8');
+      readSpy.mockRestore();
+      writeSpy.mockRestore();
       cityRegistry.reload();
     });
 
     test('applyFix ist idempotent wenn keine Drift vorliegt', () => {
       const exitCode = applyFix();
       expect(exitCode).toBe(0);
-      // Katalog unverändert
-      expect(fs.readFileSync(catalogPath, 'utf8')).toBe(originalContent);
+      // Kein Schreibvorgang auf den Katalog, da keine Kandidaten
+      expect(writeSpy).not.toHaveBeenCalled();
     });
 
     test('applyFix hebt Upgrade-Kandidaten auf supported hoch', () => {
-      // Drift einbauen: einen supported Eintrag auf partially_supported zurücksetzen
+      // Drift einbauen: Berlin gezielt auf partially_supported zurücksetzen
       const catalog = JSON.parse(originalContent);
-      const entry = catalog.cities.find(c => c.accidentDataSupport === 'supported' &&
-        (c.qualityFlags || []).includes('accident-data-generated'));
-      if (!entry) {
-        // Kein geeigneter Eintrag – Test überspringen
-        return;
-      }
-      const originalStatus = entry.accidentDataSupport;
-      const originalFlags  = [...(entry.qualityFlags || [])];
+      const entry = catalog.cities.find(c => c.id === 'berlin');
+      expect(entry).toBeTruthy();
 
       entry.accidentDataSupport = 'partially_supported';
       entry.qualityFlags = (entry.qualityFlags || [])
         .filter(f => f !== 'accident-data-generated' && f !== 'poi-generated');
       entry.qualityFlags.push('rollout-queued');
 
-      fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2) + '\n', 'utf8');
+      inMemoryCatalog = JSON.stringify(catalog, null, 2) + '\n';
       cityRegistry.reload();
 
-      // Vor dem Fix muss der Eintrag als Upgrade-Kandidat auftauchen
+      // Vor dem Fix muss Berlin als Upgrade-Kandidat auftauchen
       const before = classify();
-      expect(before.upgradeCandidates.some(u => u.id === entry.id)).toBe(true);
+      expect(before.upgradeCandidates.some(u => u.id === 'berlin')).toBe(true);
 
       // Fix anwenden
       const exitCode = applyFix();
@@ -81,13 +95,21 @@ describe('scripts/check-city-rollout', () => {
 
       // Nach dem Fix kein Upgrade-Kandidat mehr
       const after = classify();
-      expect(after.upgradeCandidates.some(u => u.id === entry.id)).toBe(false);
+      expect(after.upgradeCandidates.some(u => u.id === 'berlin')).toBe(false);
 
-      // Status korrekt gesetzt
-      const fixed = cityRegistry.getCityById(entry.id);
+      // Status und Flags korrekt gesetzt
+      const fixed = cityRegistry.getCityById('berlin');
       expect(fixed.accidentDataSupport).toBe('supported');
       expect((fixed.qualityFlags || []).includes('accident-data-generated')).toBe(true);
       expect((fixed.qualityFlags || []).includes('rollout-queued')).toBe(false);
+
+      // Kanonische Flag-Reihenfolge eingehalten
+      const flags = fixed.qualityFlags || [];
+      const adIdx = flags.indexOf('accident-data-generated');
+      const psIdx = flags.indexOf('portal-from-seed');
+      expect(adIdx).toBeGreaterThanOrEqual(0);
+      expect(psIdx).toBeGreaterThanOrEqual(0);
+      expect(adIdx).toBeLessThan(psIdx);
     });
   });
 });

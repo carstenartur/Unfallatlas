@@ -81,12 +81,9 @@ jobs:
           PY
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
-
-      - name: Install Node dependencies
-        run: npm ci --ignore-scripts
+          node-version: '24'
 
       - name: Sync City-Registry (auto-fix Drift)
         run: node scripts/check-city-rollout.js --fix
