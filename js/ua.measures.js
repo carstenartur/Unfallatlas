@@ -244,9 +244,24 @@
       : (v) => `${v} €`;
     const a = fmt(range[0]);
     const b = fmt(range[1]);
-    // "5.000 €" + "30.000 €" → "5.000 – 30.000 €" (Einheit nur einmal)
-    const stripCurrency = (s) => s.replace(/\s*€\s*$/, "").replace(/\s*Mio\.\s*€\s*$/, "").replace(/\s*Tsd\.\s*€\s*$/, "");
-    if (a.endsWith(" €") && b.endsWith(" €")) return `${stripCurrency(a)} – ${b}`;
+    // Determine each end's currency suffix ("Mio. €", "Tsd. €" or " €").
+    // Only collapse the unit when both ends carry the same suffix — otherwise
+    // we'd silently turn "80 Tsd." + "1,5 Mio. €" into "80 – 1,5 Mio. €" and
+    // drop the "Tsd." on the lower bound.
+    const suffixOf = (s) => {
+      const m = s.match(/\s(Mio\.|Tsd\.)\s*€\s*$/);
+      if (m) return " " + m[1] + " €";
+      if (/\s€\s*$/.test(s)) return " €";
+      return "";
+    };
+    const sa = suffixOf(a);
+    const sb = suffixOf(b);
+    if (sa && sa === sb) {
+      // Strip suffix from `a` only; keep `b` fully so the unit appears once at the end.
+      const aStripped = a.slice(0, a.length - sa.length).trimEnd();
+      return `${aStripped} – ${b}`;
+    }
+    // Mixed (or no) units: keep both ends fully so the unit on each side stays visible.
     return `${a} – ${b}`;
   }
 

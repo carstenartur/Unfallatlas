@@ -9,26 +9,26 @@ describe('UA.measures', () => {
     const mockWindow = { UA: {} };
     const fs = require('fs');
     const path = require('path');
-    // Load costs first (measures references UA.costs.computeAmortisationYears + formatEUR)
-    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.costs.js'), 'utf8'));
-    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.measures.js'), 'utf8'));
-    UA = mockWindow.UA;
 
-    // Reset caches
-    if (UA.measures && UA.measures._resetCache) UA.measures._resetCache();
-    if (UA.costs && UA.costs._resetCache) UA.costs._resetCache();
-
-    // Helper: bind eval scope to mockWindow's UA. We have to actually evaluate
-    // the file content with `window` referring to mockWindow.
+    // Load each script with `window` bound to mockWindow. We MUST NOT use a
+    // bare `eval(...)` here — that runs against the global scope and would
+    // leak the script's IIFE side-effects across tests (e.g. UA.costs being
+    // attached to the *global* window from one test would survive into the
+    // next). The Function-constructor approach gives the script a fresh
+    // closure with our mockWindow as `window`.
     function loadInWindow(file) {
       const code = fs.readFileSync(path.resolve(__dirname, file), 'utf8');
       const fn = new Function('window', code);
       fn(mockWindow);
     }
-    // Re-eval with proper window binding
+    // Load costs first (measures references UA.costs.computeAmortisationYears + formatEUR)
     loadInWindow('../../js/ua.costs.js');
     loadInWindow('../../js/ua.measures.js');
     UA = mockWindow.UA;
+
+    // Reset caches
+    if (UA.measures && UA.measures._resetCache) UA.measures._resetCache();
+    if (UA.costs && UA.costs._resetCache) UA.costs._resetCache();
   });
 
   describe('FALLBACK structure', () => {
@@ -217,6 +217,25 @@ describe('UA.measures', () => {
     test('returns dash for invalid input', () => {
       expect(UA.measures.formatCostRange(null)).toBe('—');
       expect(UA.measures.formatCostRange([1])).toBe('—');
+    });
+
+    test('short format with same Mio. unit on both ends → suffix appears once', () => {
+      // Both ends format as "1,5 Mio. €" / "3,0 Mio. €"; collapsed to "1,5 – 3,0 Mio. €".
+      const out = UA.measures.formatCostRange([1_500_000, 3_000_000], { short: true });
+      expect(out).toBe('1,5 – 3,0 Mio. €');
+    });
+
+    test('short format with same Tsd. unit on both ends → suffix appears once', () => {
+      const out = UA.measures.formatCostRange([25_000, 80_000], { short: true });
+      expect(out).toBe('25 – 80 Tsd. €');
+    });
+
+    test('short format with mixed Tsd./Mio. units → both ends keep their unit', () => {
+      // Regression guard for review point #5 on PR #221:
+      // Previously "80 Tsd." + "1,5 Mio. €" was collapsed to "80 – 1,5 Mio. €",
+      // dropping the "Tsd." on the lower bound.
+      const out = UA.measures.formatCostRange([80_000, 1_500_000], { short: true });
+      expect(out).toBe('80 Tsd. € – 1,5 Mio. €');
     });
   });
 

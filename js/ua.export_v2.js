@@ -420,8 +420,11 @@
       const ci = (typeof UA.wilsonScoreInterval === "function")
         ? UA.wilsonScoreInterval(locCnt, local.total)
         : { low: 0, high: 1 };
-      // Signifikant überrepräsentiert: untere CI-Grenze liegt über baseR
-      const isSignificant = local.total > 0 && baseR > 0 && ci.low > baseR;
+      // Signifikant überrepräsentiert: untere CI-Grenze liegt über baseR.
+      // Auch korrekt wenn baseR === 0: jeder lokale Treffer (locCnt > 0) führt
+      // dann zu ci.low > 0 = baseR und damit zu Signifikanz, was fachlich
+      // gewollt ist (Stadt-Baseline kennt das Muster nicht, lokal tritt es auf).
+      const isSignificant = local.total > 0 && ci.low > baseR;
 
       rows.push({ mask: m, label: COMBO_LABEL[m] || ("Mask " + m), locCnt, baseCnt, locR, baseR, factor, ciLow: ci.low, ciHigh: ci.high, isSignificant });
     }
@@ -630,11 +633,17 @@
     const CITY_RAW = ctx.CITY_RAW || "—";
     const citySlug = UA.normKey ? UA.normKey(CITY_RAW) : CITY_RAW.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 
-    // Load time clusters (city-overridable) for byTimePattern view; fall through
-    // to default cluster set when not configured. Loaded eagerly so the view
-    // strategy receives them deterministically.
+    // Resolve optional-section toggles up front so we can gate expensive
+    // fetch/parse work (cost factors, measures catalog, time clusters) on the
+    // common path where the user disabled the corresponding modal options.
+    const includeCosts = !ctx.exportOptions || ctx.exportOptions.includeCosts !== false;
+    const includeMeasures = !ctx.exportOptions || ctx.exportOptions.includeMeasures !== false;
+
+    // Load time clusters only when the byTimePattern view is actually active —
+    // the other strategies (bySeverity / byInvolvement / flat) ignore the
+    // cluster set, so on the default path no fetch/parse happens.
     let timeClusters = null;
-    if (UA.timeClusters && UA.timeClusters.loadTimeClusters) {
+    if (accidentViewId === "byTimePattern" && UA.timeClusters && UA.timeClusters.loadTimeClusters) {
       try {
         const cfg = await UA.timeClusters.loadTimeClusters(citySlug);
         timeClusters = (cfg && Array.isArray(cfg.clusters)) ? cfg.clusters : null;
@@ -687,10 +696,10 @@
     const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
 
     // ---- Economic impact (PR-C / B2): annual external cost via BASt-like factors ----
-    // Compute over the data range (preferred) or fall back to 1-year. Items are
-    // counted via severityStats (already filtered by non-involvement filters + bounds).
+    // Only computed when the modal toggle "Volkswirtschaftliche Kosten" is on
+    // (default ON). Skipping avoids a fetch + parse on the common opted-out path.
     let economicImpact = null;
-    if (UA.costs && UA.costs.loadCostFactors) {
+    if (includeCosts && UA.costs && UA.costs.loadCostFactors) {
       try {
         const factors = await UA.costs.loadCostFactors();
         const yearsCount = (range && range.minY != null && range.maxY != null)
@@ -712,11 +721,10 @@
     }
 
     // ---- Recommended measures (PR-D / B1+B3) ----
-    // Derive detected patterns from `dev.focus` (significant/overrepresented masks).
-    // When not significant we still surface the masks but recommendation is still
-    // helpful as an evidence-based starting point. Limit handled inside the module.
+    // Only computed when the modal toggle "Maßnahmenvorschläge" is on
+    // (default ON). Avoids loading the catalog on the common opted-out path.
     let recommendedMeasures = null;
-    if (UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
+    if (includeMeasures && UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
       try {
         const detectedPatterns = (dev.focus || []).map(r => Number(r.mask)).filter(Number.isFinite);
         if (detectedPatterns.length > 0) {
@@ -842,8 +850,8 @@
       lines.push("");
     }
 
-    // Add economic impact (PR-C / B2): respect ctx.exportOptions.includeCosts (default ON)
-    const includeCosts = !ctx.exportOptions || ctx.exportOptions.includeCosts !== false;
+    // Add economic impact (PR-C / B2): respect ctx.exportOptions.includeCosts (default ON).
+    // Note: `economicImpact` is null when the toggle was off (load gated above).
     if (includeCosts && economicImpact && economicImpact.total > 0) {
       const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
       lines.push("Volkswirtschaftliche Bedeutung (Schätzung):");
@@ -860,8 +868,8 @@
       lines.push("");
     }
 
-    // Add recommended measures (PR-D / B1+B3): respect ctx.exportOptions.includeMeasures (default ON)
-    const includeMeasures = !ctx.exportOptions || ctx.exportOptions.includeMeasures !== false;
+    // Add recommended measures (PR-D / B1+B3): respect ctx.exportOptions.includeMeasures (default ON).
+    // Note: `recommendedMeasures` is null when the toggle was off (load gated above).
     if (includeMeasures && recommendedMeasures && recommendedMeasures.measures.length > 0) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
       const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");

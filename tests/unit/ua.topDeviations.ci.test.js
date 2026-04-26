@@ -190,4 +190,31 @@ describe('topDeviations – CI integration', () => {
       expect(r).toHaveProperty('isSignificant');
     }
   });
+
+  test('isSignificant=true even when baseR=0 (city baseline lacks the mask)', () => {
+    // Local: 5 Rad / 0 PKW. Baseline: zero Rad ever recorded city-wide
+    // → baseR=0; Wilson CI for k=5,n=5 is roughly [0.57, 1.0] which strictly
+    //   excludes baseR=0 → the pattern MUST be marked significant.
+    // Regression guard: previously the guard `baseR > 0` forced isSignificant
+    // to false in this case (review point #2 on PR #221).
+    const localPts = [];
+    for (let i = 0; i < 5; i++) localPts.push(radPt(52.05, 9.75));
+
+    const baselineCounts = { total: 200, byMask: { [MASK_PKW]: 200 } }; // no Rad in baseline
+
+    const ctx = {
+      allPts: localPts,
+      drawBounds: fakeBounds,
+      ui: acceptAllUi,
+      baselineCounts,
+      CITY_RAW: 'TestCity'
+    };
+
+    const result = UA.topDeviations(ctx, fakeBounds);
+    const radRow = result.rows.find(r => r.mask === MASK_RAD);
+    expect(radRow).toBeDefined();
+    expect(radRow.baseR).toBe(0);
+    expect(radRow.ciLow).toBeGreaterThan(0);
+    expect(radRow.isSignificant).toBe(true);
+  });
 });

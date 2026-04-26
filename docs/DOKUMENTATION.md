@@ -967,7 +967,7 @@ Die Einzelunfall-Tabelle im Export kann nach **Verkehrszeit-Mustern** gruppiert 
 | Werktag (Abend) | Werktag | 19:00–22:00 |
 | Werktag (Nacht) | Werktag | 22:00–05:00 |
 | Wochenende (Tag) | Wochenende | 08:00–22:00 |
-| Wochenende (Nacht) | Wochenende | 22:00–08:00 |
+| Wochenende (Nacht) | Wochenende | 22:00–05:00 |
 
 **Wichtig: Reihenfolge ist signifikant.** Das **erste matchende Cluster gewinnt**. So gehört 07:30 immer zu „Schulverkehr (morgens)" und nicht zu „Berufsverkehr (morgens)", obwohl beide Zeitfenster sich überlappen.
 

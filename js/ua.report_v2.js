@@ -1419,18 +1419,30 @@
         ]
       ));
 
-      // Deviations table
+      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
         docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal" });
         const devRows = sd.deviations.focus.map(r => {
           const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
-          return [replaceEmojisForPDF(r.label), String(r.locCnt), locPct, basePct, r.factor.toFixed(2) + "x"];
+          const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
+          const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
+          const factorStr = r.factor.toFixed(2) + "x" + (r.isSignificant === false ? " (n.s.)" : "");
+          return [replaceEmojisForPDF(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         docDefinition.content.push(makePdfTable(
-          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor"],
+          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
           devRows
         ));
+        const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
+        if (allNonSig) {
+          docDefinition.content.push({
+            text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+            style: "normal",
+            italics: true,
+            margin: [0, 4, 0, 8]
+          });
+        }
       }
 
       // Year table
