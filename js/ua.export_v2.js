@@ -521,7 +521,9 @@
         .sort((a, b) => {
           const yd = (b.year || 0) - (a.year || 0);
           if (yd !== 0) return yd;
-          return (a.hour != null ? a.hour : 99) - (b.hour != null ? b.hour : 99);
+          // Sort null/undefined hours last (treat as 99 = after all real hours 0–23)
+          const HOUR_SORT_LAST = 99;
+          return (a.hour != null ? a.hour : HOUR_SORT_LAST) - (b.hour != null ? b.hour : HOUR_SORT_LAST);
         });
       if (group.length === 0) continue;
 

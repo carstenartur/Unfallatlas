@@ -171,7 +171,7 @@ describe('accidentDetailTable', () => {
     expect(weekdays).toContain('Mo');
     expect(weekdays).toContain('Fr');
     expect(weekdays).toContain('Sa');
-    // Must NOT contain the old bundled label
+    // Must NOT contain the old grouped weekday label 'Mo–Fr'
     expect(weekdays).not.toContain('Mo–Fr');
   });
 
