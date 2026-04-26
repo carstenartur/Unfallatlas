@@ -144,16 +144,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Full checkout of main
+      # 1. Full checkout of the triggering ref (main or a maintenance branch)
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ github.ref_name }}
 
-      - name: Ensure on main branch
+      - name: Record base branch
+        id: base
         run: |
-          git checkout main
-          echo "Checked out main branch"
+          echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "Releasing from branch: ${{ github.ref_name }}"
 
       # 2. Tool setup
       - name: Set up JDK 21
@@ -272,8 +274,9 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           set -e
+          BASE_BRANCH="${{ steps.base.outputs.branch }}"
           COMMIT_SHA=$(git rev-parse HEAD)
-          echo "Pushing release commit $COMMIT_SHA to main branch..."
+          echo "Pushing release commit $COMMIT_SHA to branch ${BASE_BRANCH}..."
 
           TEMP_BRANCH="release-temp-${{ inputs.release_version }}"
           TEMP_PUSHED=false
@@ -286,15 +289,15 @@ jobs:
           TEMP_PUSHED=true
           echo "Pushed commit to temporary branch ${TEMP_BRANCH}"
 
-          gh api "repos/${{ github.repository }}/git/refs/heads/main" \
+          gh api "repos/${{ github.repository }}/git/refs/heads/${BASE_BRANCH}" \
             --method PATCH \
             -f sha="$COMMIT_SHA"
-          echo "Fast-forwarded main to $COMMIT_SHA"
+          echo "Fast-forwarded ${BASE_BRANCH} to $COMMIT_SHA"
 
       - name: Dry run – skip pushing release commit
         if: ${{ inputs.dry_run }}
         run: |
-          echo "::notice::Dry run – would push release commit $(git rev-parse HEAD) to main via temp-branch + API fast-forward"
+          echo "::notice::Dry run – would push release commit $(git rev-parse HEAD) to ${{ steps.base.outputs.branch }} via temp-branch + API fast-forward"
 
       # 8. Create annotated tag
       - name: Create and push Git tag
@@ -386,8 +389,7 @@ jobs:
         run: |
           gh release create "v${{ inputs.release_version }}" \
             --title "Release ${{ inputs.release_version }}" \
-            --notes-file release_notes.md \
-            --generate-notes
+            --notes-file release_notes.md
           echo "Created GitHub release v${{ inputs.release_version }}"
 
       - name: Dry run – skip GitHub Release creation
@@ -405,13 +407,13 @@ jobs:
             -name "unfallatlas-analysis-service-*.jar" \
             -not -name "*sources*" \
             | head -1)
-          if [ -f "$JAR_FILE" ]; then
-            echo "Uploading $(basename $JAR_FILE) to release..."
-            gh release upload "v${{ inputs.release_version }}" "$JAR_FILE" --clobber
-            echo "✓ JAR uploaded: $(basename $JAR_FILE)"
-          else
-            echo "::warning::No unfallatlas-analysis-service-*.jar found in analysis-service/target"
+          if [ -z "$JAR_FILE" ] || [ ! -f "$JAR_FILE" ]; then
+            echo "::error::No unfallatlas-analysis-service-*.jar found in analysis-service/target – the release cannot continue without the Spring Boot artefact"
+            exit 1
           fi
+          echo "Uploading $(basename $JAR_FILE) to release..."
+          gh release upload "v${{ inputs.release_version }}" "$JAR_FILE" --clobber
+          echo "✓ JAR uploaded: $(basename $JAR_FILE)"
 
       - name: Upload website bundle to release
         if: ${{ !inputs.dry_run }}
@@ -456,11 +458,13 @@ jobs:
             -DnewVersion="${NEXT_VERSION}" \
             -DgenerateBackupPoms=false
 
-          # Also sync package.json if it has a version field
+          # Also sync package.json if it has a version field.
+          # npm uses plain semver (no -SNAPSHOT suffix); Maven uses X.Y.Z-SNAPSHOT.
+          # Both point to the same next patch iteration; the difference is intentional.
           if node -e "const p=require('./package.json'); process.exit(p.version ? 0 : 1)" 2>/dev/null; then
             NEXT_RELEASE_VERSION="${NEXT_VERSION%-SNAPSHOT}"
             if npm version "${NEXT_RELEASE_VERSION}" --no-git-tag-version --allow-same-version; then
-              echo "package.json version synced to ${NEXT_RELEASE_VERSION}"
+              echo "package.json version synced to ${NEXT_RELEASE_VERSION} (npm plain semver, Maven uses ${NEXT_VERSION})"
             else
               echo "::warning::Failed to sync package.json version to ${NEXT_RELEASE_VERSION} – continuing anyway"
             fi
@@ -486,12 +490,13 @@ jobs:
           else
             git push origin "${NEXT_VERSION_BRANCH}"
 
+            NEXT_RELEASE_VERSION="${NEXT_VERSION%-SNAPSHOT}"
             cat > /tmp/pr_body.md << EOF
           Automated PR to bump version to ${NEXT_VERSION} after release ${RELEASED_VERSION}.
 
           ## Changes
           - Bump \`analysis-service/pom.xml\` version to \`${NEXT_VERSION}\`
-          - Sync \`package.json\` version accordingly (if applicable)
+          - Sync \`package.json\` version to \`${NEXT_RELEASE_VERSION}\` (npm uses plain semver; Maven uses the \`-SNAPSHOT\` suffix — both refer to the same next development iteration)
 
           ## Release Notes
 
@@ -501,7 +506,7 @@ jobs:
             gh pr create \
               --title "Prepare for next development iteration ${NEXT_VERSION}" \
               --body-file /tmp/pr_body.md \
-              --base main \
+              --base "${{ steps.base.outputs.branch }}" \
               --head "${NEXT_VERSION_BRANCH}"
 
             echo "✓ PR created for next development iteration ${NEXT_VERSION}"

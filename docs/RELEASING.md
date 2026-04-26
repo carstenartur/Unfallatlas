@@ -109,10 +109,19 @@ docker run -p 8081:8081 \
 
 ## Maintenance Branches
 
-Each release creates a `maintenance/<major>.<minor>.x` branch.  Bug fixes for
-a published minor version should be cherry-picked onto that branch and released
-from it using the same workflow (pointing the workflow at the branch rather than
-`main`).
+Each release creates a `maintenance/<major>.<minor>.x` branch at the release
+commit.  Bug fixes for a published minor version should be applied (or
+cherry-picked) onto that branch.
+
+To release a patch from a maintenance branch:
+
+1. Open **GitHub → Actions → Release Workflow**.
+2. In the **"Use workflow from"** dropdown, select
+   `maintenance/<major>.<minor>.x`.
+3. Enter the patch version (e.g. `0.1.1`) in `release_version`.
+
+The workflow detects the triggering branch automatically and pushes the release
+commit, tag, and next-SNAPSHOT PR back to that same branch — not to `main`.
 
 ---
 
