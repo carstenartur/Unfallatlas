@@ -348,7 +348,7 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     }
   });
 
-  test('Upgrade-Pfad-Konsistenz: keine Stadt in cities.txt mit Daten in out/ darf "rollout-queued" tragen', () => {
+  test('Upgrade-Pfad-Drift: Städte in cities.txt mit GeoJSON in out/ stehen auch auf accidentDataSupport=supported', () => {
     // Spiegel zur Materialisierungs-Honesty: sobald die Workflows
     // GeoJSON+POI für eine Stadt geliefert haben (und sie in
     // cities.txt steht), muss sie auch wirklich auf `supported`
@@ -356,6 +356,9 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     // „partially_supported", obwohl die Datenlage längst da ist.
     // Genau dieses Drift-Szenario erkennt scripts/check-city-rollout.js
     // als „Upgrade-Kandidat".  Der Test schiebt das automatisch in CI.
+    // Hinweis: hier wird bewusst auf den Status, nicht auf das Flag
+    // `rollout-queued` geprüft – `rollout-queued` ist UI-/Doku-
+    // Hinweis und wird im separaten „Rollout-Queue"-Test abgesichert.
     const txtSlugs = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
     const stale = [];
     for (const c of cityRegistry.listCities()) {
@@ -368,15 +371,35 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     expect(stale).toEqual([]);
   });
 
-  test('"accident-data-generated" Flag korrespondiert mit tatsächlicher GeoJSON in out/', () => {
+  test('"accident-data-generated" Flag korrespondiert beidseitig mit GeoJSON in out/ und Status=supported', () => {
     // Das Flag ist eine Behauptung, dass die Materialisierung gelaufen
     // ist – wenn die Datei fehlt, ist das Flag eine Lüge.  Umgekehrt
-    // erwarten wir das Flag nur dort, wo `supported` gesetzt ist; ein
+    // gehört das Flag nur an Einträge, die auch wirklich auf
+    // `accidentDataSupport: 'supported'` stehen; ein
     // partially_supported-Eintrag mit dem Flag wäre selbst inkonsistent.
     for (const c of cityRegistry.listCities()) {
       const hasFlag = (c.qualityFlags || []).includes('accident-data-generated');
       const hasFile = cityRegistry.getDataAssets(c.id).accidents;
-      if (hasFlag) expect(hasFile).toBe(true);
+      if (hasFlag) {
+        expect(hasFile).toBe(true);
+        expect(c.accidentDataSupport).toBe('supported');
+      }
+    }
+  });
+
+  test('"poi-generated" Flag korrespondiert beidseitig mit POI-GeoJSON in out/ und Status=supported', () => {
+    // Analog zur Stufe-A-Datenlage: das Flag ist nur dann ehrlich,
+    // wenn auch die POI-GeoJSON existiert und die Stadt wirklich auf
+    // Stufe A `supported` steht (`partially_supported` mit POI-Flag
+    // wäre genauso irreführend wie `partially_supported` mit
+    // `accident-data-generated`).
+    for (const c of cityRegistry.listCities()) {
+      const hasFlag = (c.qualityFlags || []).includes('poi-generated');
+      const hasFile = cityRegistry.getDataAssets(c.id).poi;
+      if (hasFlag) {
+        expect(hasFile).toBe(true);
+        expect(c.accidentDataSupport).toBe('supported');
+      }
     }
   });
 

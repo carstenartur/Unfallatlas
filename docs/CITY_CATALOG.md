@@ -213,11 +213,10 @@ listet jederzeit alle hochstufungsreifen Kandidaten.
 
 ## Eine Stadt von `partially_supported` auf `supported` heben
 
-> **Tipp:** Mit
-> `node scripts/check-city-rollout.js` (alias `--json` für maschinen-
-> lesbar) bekommst du jederzeit eine Liste der Städte, die *bereits*
-> Workflow-Daten in `out/` haben, im Katalog aber noch nicht auf
-> `supported` stehen – das sind die offenen Upgrade-Kandidaten.
+> **Tipp:** Mit `node scripts/check-city-rollout.js` (alias `--json` für
+> maschinenlesbar) bekommst du jederzeit eine Liste der Städte, die
+> *bereits* Workflow-Daten in `out/` haben, im Katalog aber noch nicht
+> auf `supported` stehen – das sind die offenen Upgrade-Kandidaten.
 
 1. **Stadtnamen in [`cities.txt`](../cities.txt)** ergänzen, exakt so
    geschrieben, dass `normalizeCityName(name)` die Katalog-`id` ergibt

@@ -33,7 +33,6 @@
  */
 
 const path = require('path');
-const fs   = require('fs');
 
 const cityRegistry = require(path.join(__dirname, '..', 'server', 'cities', 'cityRegistry.js'));
 
