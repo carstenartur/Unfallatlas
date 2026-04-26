@@ -1,0 +1,66 @@
+{
+  "_comment": "Stadt-spezifische Zeitcluster für Hannover. Quelle: typische Schul-/Bürozeiten (verifizieren!). Reihenfolge ist signifikant: das ERSTE matchende Cluster gewinnt; daher Schule vor Berufsverkehr.",
+  "version": 1,
+  "source": "Beispielkonfiguration Hannover (typische Schul-/Bürozeiten – vor produktiver Nutzung verifizieren)",
+  "city": "Hannover",
+  "clusters": [
+    {
+      "id": "werktag_schule_morgens",
+      "label": "Schulverkehr (morgens)",
+      "weekdayGroup": "Werktag",
+      "hours": [[7, 0], [8, 30]],
+      "typicalParticipants": ["Kinder", "Rad", "Fuß"]
+    },
+    {
+      "id": "werktag_schule_nachmittags",
+      "label": "Schulverkehr (nachmittags)",
+      "weekdayGroup": "Werktag",
+      "hours": [[12, 0], [14, 0]],
+      "typicalParticipants": ["Kinder", "Rad", "Fuß"]
+    },
+    {
+      "id": "werktag_berufsverkehr_morgens",
+      "label": "Berufsverkehr (morgens)",
+      "weekdayGroup": "Werktag",
+      "hours": [[6, 30], [9, 30]],
+      "typicalParticipants": ["PKW", "Rad"]
+    },
+    {
+      "id": "werktag_berufsverkehr_abends",
+      "label": "Berufsverkehr (abends)",
+      "weekdayGroup": "Werktag",
+      "hours": [[16, 0], [19, 0]],
+      "typicalParticipants": ["PKW", "Rad"]
+    },
+    {
+      "id": "werktag_tag",
+      "label": "Werktag (sonst tagsüber)",
+      "weekdayGroup": "Werktag",
+      "hours": [[9, 30], [16, 0]]
+    },
+    {
+      "id": "werktag_abend",
+      "label": "Werktag (Abend)",
+      "weekdayGroup": "Werktag",
+      "hours": [[19, 0], [22, 0]]
+    },
+    {
+      "id": "werktag_nacht",
+      "label": "Werktag (Nacht)",
+      "weekdayGroup": "Werktag",
+      "hours": [[22, 0], [29, 0]]
+    },
+    {
+      "id": "wochenende_tag",
+      "label": "Wochenende (Tag)",
+      "weekdayGroup": "Wochenende",
+      "hours": [[8, 0], [22, 0]]
+    },
+    {
+      "id": "wochenende_nacht",
+      "label": "Wochenende (Nacht)",
+      "weekdayGroup": "Wochenende",
+      "hours": [[22, 0], [29, 0]]
+    }
+  ]
+}

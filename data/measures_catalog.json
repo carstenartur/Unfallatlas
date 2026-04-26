@@ -1,0 +1,247 @@
+{
+  "_comment": "Maßnahmenkatalog mit Kostenabschätzung und Wirkungsindikatoren. Quellen: FGSV-Empfehlungen für Radverkehrsanlagen (ERA), BASt-Berichte zur Maßnahmenwirkung. Wirkungswerte sind Erfahrungsspannen und kein Ersatz für Fachgutachten. Vor produktiver Nutzung bitte Spannen anhand des aktuellen kommunalen Kostenstandes prüfen.",
+  "version": 1,
+  "sources": [
+    {
+      "title": "FGSV: Empfehlungen für Radverkehrsanlagen (ERA)",
+      "year": 2010,
+      "url": "https://www.fgsv-verlag.de/era"
+    },
+    {
+      "title": "BASt: Maßnahmenwirkung im Knotenpunktbereich (Berichte V- und M-Reihe)",
+      "year": 2022,
+      "url": "https://www.bast.de/DE/Publikationen/publikationen.html"
+    },
+    {
+      "title": "BASt: Sicherheit von Tempo-30-Strecken",
+      "year": 2020,
+      "url": "https://www.bast.de/DE/Publikationen/publikationen.html"
+    },
+    {
+      "title": "FGSV: Richtlinien für die Anlage von Stadtstraßen (RASt 06)",
+      "year": 2006,
+      "url": "https://www.fgsv-verlag.de/rast-06"
+    }
+  ],
+  "disclaimer": "Wirkungswerte sind Erfahrungsspannen aus Fachliteratur und kein Ersatz für ein Fachgutachten. Kostenangaben sind bundesweite Größenordnungen; lokale Preise weichen ab.",
+  "measures": [
+    {
+      "id": "tempo_30",
+      "label": "Tempo-30-Anordnung",
+      "category": "regelung",
+      "costRange": [2000, 8000],
+      "perUnit": "Abschnitt",
+      "leadTime": "1–3 Monate",
+      "effect": {
+        "targetPatterns": [1, 2, 3, 5, 6],
+        "expectedReductionPct": [10, 25],
+        "evidenceLevel": "A"
+      },
+      "description": "Anordnung von Tempo 30 auf Hauptverkehrsstraßen oder ganzen Quartieren. Reduziert Anhalteweg und Aufprallenergie und damit Schwere und Häufigkeit vieler Unfalltypen.",
+      "considerations": [
+        "Bei Hauptverkehrsstraßen Begründung nach StVO § 45 erforderlich",
+        "Wirkung am höchsten in Kombination mit baulichen Maßnahmen (Engstellen, Versatz)"
+      ]
+    },
+    {
+      "id": "mittelinsel",
+      "label": "Mittelinsel an Querung",
+      "category": "infrastruktur",
+      "costRange": [25000, 80000],
+      "perUnit": "Querung",
+      "leadTime": "6–18 Monate",
+      "effect": {
+        "targetPatterns": [2, 6, 22],
+        "expectedReductionPct": [25, 45],
+        "evidenceLevel": "B"
+      },
+      "description": "Trennt den Querungsvorgang in zwei Schritte. Fußgänger und Radfahrende müssen nur eine Fahrtrichtung gleichzeitig beobachten.",
+      "considerations": [
+        "Mindestbreite Fahrbahn ca. 7,50 m vor Umbau",
+        "Beleuchtung prüfen, taktiles Leitsystem für barrierefreie Nutzung",
+        "Bei Buslinien Schleppkurven prüfen"
+      ]
+    },
+    {
+      "id": "lsa_anpassung",
+      "label": "Anpassung Lichtsignalanlage (eigene Phase Rad/Fuß)",
+      "category": "infrastruktur",
+      "costRange": [15000, 60000],
+      "perUnit": "Knoten",
+      "leadTime": "3–9 Monate",
+      "effect": {
+        "targetPatterns": [5, 6, 17, 18, 21, 22],
+        "expectedReductionPct": [20, 40],
+        "evidenceLevel": "B"
+      },
+      "description": "Eigene Räumzeiten oder vorgezogene Grünphasen für Rad- und Fußverkehr an signalisierten Knoten. Reduziert Konflikte mit abbiegendem Kfz-/Schwerverkehr.",
+      "considerations": [
+        "Konflikt mit Leistungsfähigkeit Kfz prüfen",
+        "Besonders relevant bei Linienbus- und Lkw-Verkehr"
+      ]
+    },
+    {
+      "id": "protected_bike_lane",
+      "label": "Geschützter Radfahrstreifen (PBL / Protected Bike Lane)",
+      "category": "infrastruktur",
+      "costRange": [80000, 250000],
+      "perUnit": "100 m",
+      "leadTime": "12–24 Monate",
+      "effect": {
+        "targetPatterns": [1, 5, 17, 21],
+        "expectedReductionPct": [30, 50],
+        "evidenceLevel": "B"
+      },
+      "description": "Baulich getrennter Radstreifen mit physischen Trennelementen (Poller, Bordstein, Pflanzkübel). Senkt Konflikte mit ruhendem und fließendem Kfz-Verkehr deutlich.",
+      "considerations": [
+        "Knotenpunktführung mit besonderer Sorgfalt planen (Sichtbeziehungen)",
+        "Bei beengten Verhältnissen ggf. Wegfall von Parkplätzen erforderlich"
+      ]
+    },
+    {
+      "id": "radweg_querung",
+      "label": "Markierte Radquerung (Furt) mit Sichtbarkeit",
+      "category": "infrastruktur",
+      "costRange": [5000, 25000],
+      "perUnit": "Querung",
+      "leadTime": "3–6 Monate",
+      "effect": {
+        "targetPatterns": [1, 5, 17],
+        "expectedReductionPct": [10, 25],
+        "evidenceLevel": "C"
+      },
+      "description": "Rotmarkierte Radquerung an Knotenpunkten oder Grundstückszufahrten erhöht die Sichtbarkeit und Vorrangwahrnehmung.",
+      "considerations": [
+        "Wirkung erfahrungsbasiert; Kombination mit baulichen Maßnahmen empfehlenswert",
+        "Markierung muss instand gehalten werden"
+      ]
+    },
+    {
+      "id": "abbiegeassistent_kampagne",
+      "label": "Abbiegeassistent-Kampagne / Schwerverkehrs-Trainings",
+      "category": "organisation",
+      "costRange": [5000, 30000],
+      "perUnit": "Stadt/Jahr",
+      "leadTime": "3–12 Monate",
+      "effect": {
+        "targetPatterns": [17, 18, 21, 22],
+        "expectedReductionPct": [10, 30],
+        "evidenceLevel": "C"
+      },
+      "description": "Förderung der Nachrüstung von Abbiegeassistenten in Lkw, Schulungen für Berufskraftfahrer, Aufklärung über tote Winkel.",
+      "considerations": [
+        "Wirkung mittel- bis langfristig",
+        "Sinnvoll in Kombination mit baulichen LSA-/Knotenpunkt-Maßnahmen"
+      ]
+    },
+    {
+      "id": "querungshilfe_fuss",
+      "label": "Querungshilfe für Fußverkehr (Zebrastreifen, Fußgänger-LSA)",
+      "category": "infrastruktur",
+      "costRange": [3000, 35000],
+      "perUnit": "Querung",
+      "leadTime": "3–9 Monate",
+      "effect": {
+        "targetPatterns": [2, 6, 22],
+        "expectedReductionPct": [20, 40],
+        "evidenceLevel": "B"
+      },
+      "description": "Zebrastreifen oder Fußgänger-LSA an Stellen mit nachgewiesener Querungsnachfrage. Schafft rechtlich gesicherten Vorrang.",
+      "considerations": [
+        "Voraussetzungen R-FGÜ (Querungsfrequenz, Sicht) prüfen",
+        "Bei hoher Geschwindigkeit zusätzlich bauliche Geschwindigkeitsdämpfung"
+      ]
+    },
+    {
+      "id": "fahrbahn_verengung",
+      "label": "Fahrbahnverengung / Engstellenmarkierung",
+      "category": "infrastruktur",
+      "costRange": [5000, 30000],
+      "perUnit": "Abschnitt",
+      "leadTime": "3–6 Monate",
+      "effect": {
+        "targetPatterns": [1, 2, 5, 6],
+        "expectedReductionPct": [10, 25],
+        "evidenceLevel": "B"
+      },
+      "description": "Reduzierung der Fahrgassenbreite per Markierung oder baulich, zur Geschwindigkeitsdämpfung und für mehr Aufmerksamkeit.",
+      "considerations": [
+        "Bei Mischverkehr mit Lkw Mindestbreite einhalten",
+        "Wirkung am stärksten in Kombination mit Tempo 30"
+      ]
+    },
+    {
+      "id": "sicht_freischnitt",
+      "label": "Sichtbeziehungen herstellen (Bewuchs/Parken)",
+      "category": "organisation",
+      "costRange": [1000, 10000],
+      "perUnit": "Knoten",
+      "leadTime": "1–3 Monate",
+      "effect": {
+        "targetPatterns": [1, 2, 5, 6],
+        "expectedReductionPct": [5, 20],
+        "evidenceLevel": "B"
+      },
+      "description": "Bewuchs zurückschneiden, Parkverbote unmittelbar vor Querungen, Spiegel an Sichtschattenstellen. Niedrigschwellige Sofortmaßnahme.",
+      "considerations": [
+        "Dauerhafte Pflege erforderlich",
+        "Allein meist nicht ausreichend bei strukturellem Problem"
+      ]
+    },
+    {
+      "id": "knotenpunkt_umbau",
+      "label": "Knotenpunkt-Umbau (Mini-Kreisverkehr / Versatz)",
+      "category": "infrastruktur",
+      "costRange": [150000, 600000],
+      "perUnit": "Knoten",
+      "leadTime": "18–36 Monate",
+      "effect": {
+        "targetPatterns": [5, 6, 7, 17, 18, 20, 21, 22],
+        "expectedReductionPct": [30, 60],
+        "evidenceLevel": "B"
+      },
+      "description": "Baulicher Umbau eines Knotenpunkts (z. B. zum Mini-Kreisverkehr oder mit Versatz). Reduziert Geschwindigkeit und vereinfacht Konflikt-Topologie.",
+      "considerations": [
+        "Hoher Planungsaufwand und Kostenrisiko",
+        "Mittel- bis langfristige Maßnahme",
+        "Wirkung gut belegt für Mini-Kreisverkehre"
+      ]
+    },
+    {
+      "id": "schulwegsicherung",
+      "label": "Schulwegsicherung (Querungshelfer, Tempo-30-Zone Schule)",
+      "category": "regelung",
+      "costRange": [2000, 15000],
+      "perUnit": "Schulumfeld",
+      "leadTime": "1–6 Monate",
+      "effect": {
+        "targetPatterns": [2, 6, 22],
+        "expectedReductionPct": [15, 35],
+        "evidenceLevel": "B"
+      },
+      "description": "Schulumfeld-Tempo-30-Anordnung, Schulweg-Querungshelfer, Hol-Bring-Zonen abseits der Querung. Besonders relevant bei nachgewiesenem Schulverkehr im Bereich.",
+      "considerations": [
+        "Sinnvoll bei Time-Cluster-Hits 'werktag_schule_morgens/nachmittags'",
+        "Kombination mit baulicher Querungshilfe verstärkt Wirkung"
+      ]
+    },
+    {
+      "id": "fahrbahnbelag_sanierung",
+      "label": "Fahrbahnbelag/Markierung sanieren (Spurrillen, Belagswechsel)",
+      "category": "infrastruktur",
+      "costRange": [10000, 80000],
+      "perUnit": "Abschnitt",
+      "leadTime": "6–12 Monate",
+      "effect": {
+        "targetPatterns": [1],
+        "expectedReductionPct": [15, 35],
+        "evidenceLevel": "C"
+      },
+      "description": "Sanierung von Spurrillen, Schienenquerungen, Belagswechseln, die typische Ursachen für Rad-Alleinunfälle sind.",
+      "considerations": [
+        "Vor allem relevant bei Rad-Alleinunfällen (Maske 1)",
+        "Bei Schienenquerungen Lösung mit Verkehrsbetrieb abstimmen"
+      ]
+    }
+  ]
+}

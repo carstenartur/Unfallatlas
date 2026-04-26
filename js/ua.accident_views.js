@@ -335,7 +335,158 @@
     }
   };
 
-  UA.accidentViews = { bySeverity, byInvolvement, flat };
+  // -------------------------------------------------------------------------
+  // byTimePattern — group by traffic-time cluster (Schul-/Berufs-/Tag-/Nachtverkehr × Werktag/Wochenende)
+  //
+  // Uses UA.timeClusters (default cluster set, optionally city-overridden via
+  // UA.timeClusters.loadTimeClusters(citySlug)). The classifier is *injected*
+  // by the export pipeline so this strategy stays pure & testable: callers
+  // can pass their own cluster set via `UA.applyAccidentView(items, "byTimePattern", { clusters })`.
+  //
+  // Each cluster becomes one group. Items not matching any cluster fall into
+  // the "andere" bucket. Group sort: totalCount desc (most frequent first);
+  // within a group: severity asc, year desc.
+  // -------------------------------------------------------------------------
+  function _resolveClusters(opts) {
+    if (opts && Array.isArray(opts.clusters) && opts.clusters.length > 0) {
+      return opts.clusters;
+    }
+    if (UA.timeClusters && Array.isArray(UA.timeClusters.DEFAULT_CLUSTERS)) {
+      return UA.timeClusters.DEFAULT_CLUSTERS;
+    }
+    return [];
+  }
+
+  // Format a cluster's hour range for the header: [[7,0],[8,30]] → "07:00–08:30"
+  function _fmtHoursRange(hours) {
+    if (!Array.isArray(hours) || hours.length < 2) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmt = (hm) => {
+      if (!Array.isArray(hm)) return "";
+      const h = Number(hm[0]);
+      const m = Number(hm[1] || 0);
+      // Hours > 23 mean "next day" — wrap for display.
+      const hh = ((h % 24) + 24) % 24;
+      return `${pad(hh)}:${pad(m)}`;
+    };
+    return `${fmt(hours[0])}–${fmt(hours[1])}`;
+  }
+
+  function _fmtWeekdayShort(wg) {
+    if (wg === "Werktag")    return "Mo–Fr";
+    if (wg === "Wochenende") return "Sa/So";
+    return "";
+  }
+
+  const byTimePattern = {
+    id: "byTimePattern",
+    label: "nach Verkehrszeit-Muster",
+    rowCap: 20,
+    columns: COLS_WITH_SEVERITY,
+    group(items, opts) {
+      const clusters = _resolveClusters(opts);
+      if (clusters.length === 0) return [];
+
+      // Bucket items by classifier; preserve cluster order (Schule wins).
+      const buckets = new Map(); // clusterId → items
+      for (const c of clusters) buckets.set(c.id, []);
+      buckets.set("andere", []);
+
+      const classify = (UA.timeClusters && UA.timeClusters.classify)
+        ? (item) => UA.timeClusters.classify(item, clusters)
+        : () => null;
+
+      for (const it of items || []) {
+        const id = classify(it);
+        if (id && buckets.has(id)) {
+          buckets.get(id).push(it);
+        } else {
+          buckets.get("andere").push(it);
+        }
+      }
+
+      const clusterById = new Map();
+      for (const c of clusters) clusterById.set(c.id, c);
+
+      const groups = [];
+      for (const [id, sub] of buckets) {
+        if (sub.length === 0) continue;
+        sub.sort((a, b) => {
+          const sa = Number(a.severity) || 99;
+          const sb = Number(b.severity) || 99;
+          if (sa !== sb) return sa - sb;
+          return (b.year || 0) - (a.year || 0);
+        });
+        const cluster = clusterById.get(id);
+        const sevCounts = buildSeverityCounts(sub);
+        const label = cluster ? cluster.label : "Andere / unbekannte Uhrzeit";
+        const weekdayShort = cluster ? _fmtWeekdayShort(cluster.weekdayGroup) : "";
+        const hoursStr = cluster ? _fmtHoursRange(cluster.hours) : "";
+        const condition = [weekdayShort, hoursStr].filter(Boolean).join(" ");
+        groups.push({
+          key: id,
+          items: sub,
+          meta: {
+            clusterId: id,
+            label,
+            condition,
+            totalCount: sub.length,
+            severityCounts: sevCounts,
+            severityBadges: fmtSeverityBadges(sevCounts),
+            histogram: buildInvolvementHistogram(sub)
+          }
+        });
+      }
+      // Most-frequent cluster first; tiebreaker: original cluster order.
+      const orderIdx = new Map();
+      let i = 0;
+      for (const c of clusters) orderIdx.set(c.id, i++);
+      orderIdx.set("andere", i);
+      groups.sort((a, b) => {
+        const cd = b.meta.totalCount - a.meta.totalCount;
+        if (cd !== 0) return cd;
+        return (orderIdx.get(a.key) ?? 0) - (orderIdx.get(b.key) ?? 0);
+      });
+      return groups;
+    },
+    renderHeader: {
+      text(g) {
+        const badges = g.meta.severityBadges ? ` [${g.meta.severityBadges}]` : "";
+        const condition = g.meta.condition ? ` (${g.meta.condition})` : "";
+        const hist = g.meta.histogram ? ` · ${g.meta.histogram}` : "";
+        return `--- ${g.meta.label}${condition} — n=${g.meta.totalCount}${badges}${hist} ---`;
+      },
+      html(g) {
+        const badges = g.meta.severityBadges
+          ? ` <span style="font-weight:400; font-size:12px;"> [${escHtml(g.meta.severityBadges)}]</span>`
+          : "";
+        const condition = g.meta.condition
+          ? ` <span style="font-weight:400; font-size:12px; color:#666;">(${escHtml(g.meta.condition)})</span>`
+          : "";
+        const hist = g.meta.histogram
+          ? ` <span style="font-weight:400; font-size:12px;"> — ${escHtml(g.meta.histogram)}</span>`
+          : "";
+        return `<div style="font-weight:700; margin-top:10px;">${escHtml(g.meta.label)}${condition} (n=${g.meta.totalCount})${badges}${hist}</div>`;
+      },
+      docx(g) {
+        const badges = g.meta.severityBadges ? `  [${g.meta.severityBadges}]` : "";
+        const condition = g.meta.condition ? `  ${g.meta.condition}` : "";
+        const hist = g.meta.histogram ? `  —  ${g.meta.histogram}` : "";
+        const headerText = `${g.meta.label}${condition} (n=${g.meta.totalCount})${badges}${hist}`;
+        return [{ text: headerText, bold: true }];
+      }
+    },
+    renderRow: {
+      text: renderRowTextWithSeverity,
+      html: renderRowHtmlWithSeverity,
+      docx: renderRowCellsWithSeverity
+    },
+    overflowLabel(g) {
+      return `weitere Unfälle (${g.meta.label})`;
+    }
+  };
+
+  UA.accidentViews = { bySeverity, byInvolvement, flat, byTimePattern };
   UA.ACCIDENT_VIEW_DEFAULT = "bySeverity";
   // Re-export weekday formatting + group-count helpers so legacy/non-strategy
   // code paths render the same "Mi (Werktag)" string and use the same Werktag/
@@ -364,7 +515,7 @@
    */
   UA.applyAccidentView = function applyAccidentView(items, viewId, opts) {
     const view = UA.resolveAccidentView(viewId);
-    const rawGroups = view.group(items || []);
+    const rawGroups = view.group(items || [], opts || {});
     const overrideCap = opts && Number.isFinite(Number(opts.rowCap)) ? Number(opts.rowCap) : null;
     const cap = overrideCap !== null
       ? overrideCap
