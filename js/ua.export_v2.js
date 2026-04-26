@@ -923,13 +923,15 @@
     const mkDevRow = (r) => {
       const sigStyle = r.isSignificant ? "" : " color:#999;";
       const sigTooltip = r.isSignificant ? "" : ` title="Nicht signifikant – kleine Datenmenge (95%-KI schließt Stadtwert ein)"`;
+      const nsBadge = r.isSignificant ? "" : ` <span style="font-size:10px; color:#bbb;">n.s.</span>`;
+      const factorCell = `${r.factor.toFixed(2)}× <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${nsBadge}`;
       return `
       <tr>
         <td><span class="pill">${UA.escHtml(r.label)}</span></td>
         <td style="text-align:right;">${r.locCnt.toLocaleString()}</td>
         <td style="text-align:right;">${fmtPct(r.locR)}</td>
         <td style="text-align:right;">${fmtPct(r.baseR)}</td>
-        <td style="text-align:right; font-weight:900;${sigStyle}"${sigTooltip}>${r.factor.toFixed(2)}× <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${r.isSignificant ? "" : " <span style=\"font-size:10px; color:#bbb;\">n.s.</span>"}</td>
+        <td style="text-align:right; font-weight:900;${sigStyle}"${sigTooltip}>${factorCell}</td>
       </tr>`;
     };
 
@@ -1067,15 +1069,17 @@
             <tr><th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor [95%-KI]</th></tr>
           </thead>
           <tbody>
-            ${focusRows.filter(r => r.locCnt > 0).map(mkDevRow).join("") || "<tr><td colspan=\"5\" style=\"color:#777;\">—</td></tr>"}
+            ${(() => {
+              const visibleRows = focusRows.filter(r => r.locCnt > 0);
+              const rowsHtml = visibleRows.map(mkDevRow).join("");
+              const allNonSig = visibleRows.length > 0 && visibleRows.every(r => !r.isSignificant);
+              const nonSigBanner = allNonSig
+                ? `<tr><td colspan="5" style="color:#888; font-size:12px; font-style:italic;">Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.</td></tr>`
+                : "";
+              return rowsHtml ? (rowsHtml + nonSigBanner) : "<tr><td colspan=\"5\" style=\"color:#777;\">—</td></tr>";
+            })()}
           </tbody>
         </table>
-        ${(() => {
-          const allNonSig = focusRows.filter(r => r.locCnt > 0).length > 0 && focusRows.filter(r => r.locCnt > 0).every(r => !r.isSignificant);
-          return allNonSig
-            ? `<div style="margin-top:6px; color:#888; font-size:12px; font-style:italic;">Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-Konfidenzintervall schließt den Stadtwert ein). Bei kleinen Fallzahlen sind Faktor-Werte mit Vorsicht zu interpretieren.</div>`
-            : "";
-        })()}
 
         <div style="margin-top:12px; font-weight:900;">Unfälle pro Jahr (im Ausschnitt)</div>
         <table class="report">

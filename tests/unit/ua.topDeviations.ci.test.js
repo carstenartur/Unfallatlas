@@ -38,6 +38,10 @@ describe('topDeviations – CI integration', () => {
     };
   }
 
+  // Mask constants (6-bit: Rad=1, Fuß=2, PKW=4, Krad=8, Gkfz=16, Sonstig=32)
+  const MASK_RAD = 1;
+  const MASK_PKW = 4;
+
   // Fake bounds that cover lat 52.0-52.1, lon 9.7-9.8
   const fakeBounds = {
     getNorthEast: () => ({ lat: 52.1, lng: 9.8 }),
@@ -122,7 +126,7 @@ describe('topDeviations – CI integration', () => {
     for (let i = 0; i < 7; i++) localPts.push(pkwPt(52.05, 9.75));  // within bounds
 
     // Baseline via baselineCounts
-    const baselineCounts = { total: 200, byMask: { 1: 40, 4: 160 } };
+    const baselineCounts = { total: 200, byMask: { [MASK_RAD]: 40, [MASK_PKW]: 160 } };
 
     const ctx = {
       allPts: localPts,
@@ -133,7 +137,7 @@ describe('topDeviations – CI integration', () => {
     };
 
     const result = UA.topDeviations(ctx, fakeBounds);
-    const radRow = result.rows.find(r => r.mask === 1);
+    const radRow = result.rows.find(r => r.mask === MASK_RAD);
     expect(radRow).toBeDefined();
     expect(radRow.isSignificant).toBe(false);
     expect(radRow.ciLow).toBeLessThanOrEqual(0.20);   // CI includes baseR
@@ -146,7 +150,7 @@ describe('topDeviations – CI integration', () => {
     for (let i = 0; i < 80; i++) localPts.push(radPt(52.05, 9.75));
     for (let i = 0; i < 20; i++) localPts.push(pkwPt(52.05, 9.75));
 
-    const baselineCounts = { total: 200, byMask: { 1: 40, 4: 160 } };
+    const baselineCounts = { total: 200, byMask: { [MASK_RAD]: 40, [MASK_PKW]: 160 } };
 
     const ctx = {
       allPts: localPts,
@@ -157,7 +161,7 @@ describe('topDeviations – CI integration', () => {
     };
 
     const result = UA.topDeviations(ctx, fakeBounds);
-    const radRow = result.rows.find(r => r.mask === 1);
+    const radRow = result.rows.find(r => r.mask === MASK_RAD);
     expect(radRow).toBeDefined();
     expect(radRow.isSignificant).toBe(true);
     expect(radRow.ciLow).toBeGreaterThan(0.20);  // CI entirely above baseR
@@ -169,7 +173,7 @@ describe('topDeviations – CI integration', () => {
     for (let i = 0; i < 5; i++) localPts.push(radPt(52.05, 9.75));
     for (let i = 0; i < 5; i++) localPts.push(pkwPt(52.05, 9.75));
 
-    const baselineCounts = { total: 200, byMask: { 1: 20, 4: 180 } };
+    const baselineCounts = { total: 200, byMask: { [MASK_RAD]: 20, [MASK_PKW]: 180 } };
 
     const ctx = {
       allPts: localPts,

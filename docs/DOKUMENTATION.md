@@ -838,7 +838,7 @@ Für fundierte Maßnahmenvorschläge sollte die Werkbank als **Erkenntniswerkzeu
 
 ### Konfidenzintervalle für Faktor-Abweichungen
 
-Die Tabelle „Top-Abweichungen" im Export vergleicht, wie häufig ein Beteiligungsmuster (z. B. Rad + PKW) im markierten Bereich im Vergleich zum Stadtdurchschnitt vorkommt. Das Ergebnis wird als **Faktor** ausgedrückt, z. B. „2,0× – doppelt so oft wie im Stadtschnitt".
+Die Tabelle „Top-Abweichungen" im Export vergleicht, wie häufig ein Beteiligungsmuster (z. B. Rad + PKW) im markierten Bereich im Vergleich zum Stadtdurchschnitt vorkommt. Das Ergebnis wird als **Faktor** ausgedrückt, z. B. „2,0× – doppelt so oft wie im Stadtdurchschnitt".
 
 Ein solcher Faktor ist bei kleinen Fallzahlen statistisch wenig belastbar. Bei z. B. 4 lokalen Fällen ist „2,0×" rein zufällig genauso wahrscheinlich wie „0,8×". Ohne Angabe einer Streubreite kann die Zahl im politischen Prozess missverstanden werden.
 
