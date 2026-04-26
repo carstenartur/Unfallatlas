@@ -941,6 +941,62 @@
       }));
     }
 
+    // ---- 8d. STUNDEN-HEATMAP (#A2) ----
+    if (sd && sd.heatmap && sd.heatmap.total > 0 && UA.heatmap) {
+      const hm = sd.heatmap;
+      children.push(new Paragraph({
+        text: "STUNDEN-HEATMAP (WERKTAG VS. WOCHENENDE)",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }));
+      // Build a 25-row table: 1 header + 24 hour rows. Per-cell shading
+      // mirrors the SVG in HTML so DOCX/PDF readers see the same hot/cold
+      // pattern even when they can't render inline SVG.
+      const headerRow = new TableRow({
+        children: ["Stunde", "Mo–Fr", "Sa/So"].map(t => new TableCell({
+          borders: cellBorder,
+          shading: { fill: "EEEEEE" },
+          children: [new Paragraph({ children: [new TextRun({ text: t, bold: true })] })]
+        }))
+      });
+      const rows = [headerRow];
+      for (let h = 0; h < 24; h++) {
+        const cells = [
+          new TableCell({
+            borders: cellBorder,
+            children: [new Paragraph({ children: [new TextRun({ text: `${String(h).padStart(2, "0")}:00`, bold: true })] })]
+          })
+        ];
+        for (let c = 0; c < 2; c++) {
+          const v = hm.matrix[h][c];
+          const fill = UA.heatmap.cellColor(v, hm.max);
+          // docx shading.fill expects 6-hex without leading "#"
+          const hex = fill.replace(/^#/, "");
+          const txtColor = UA.heatmap.readableTextColor(fill).replace(/^#/, "");
+          cells.push(new TableCell({
+            borders: cellBorder,
+            shading: { fill: hex },
+            children: [new Paragraph({
+              alignment: undefined,
+              children: [new TextRun({ text: v > 0 ? String(v) : "", color: txtColor })]
+            })]
+          }));
+        }
+        rows.push(new TableRow({ children: cells }));
+      }
+      children.push(new Table({
+        width: { size: 60, type: WidthType.PERCENTAGE },
+        rows
+      }));
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `Gesamt: ${hm.total} Unfälle (Mo–Fr: ${hm.colTotals[0]}, Sa/So: ${hm.colTotals[1]}). `, italics: true }),
+          new TextRun({ text: `Max. ${hm.max} Unfälle pro Stunde × Tagestyp.`, italics: true })
+        ],
+        spacing: { before: 100, after: 200 }
+      }));
+    }
+
     // ---- 9. BESCHLUSSVORSCHLAG section ----
     children.push(
       new Paragraph({
@@ -1944,6 +2000,49 @@
           { text: `(Slope ${slopeStr}/Jahr, R² ${r2Str}, n=${t.nYears})`, italics: true }
         ],
         style: "normal",
+        margin: [0, 0, 0, 8]
+      });
+    }
+
+    // ---- STUNDEN-HEATMAP (#A2) ----
+    if (sd && sd.heatmap && sd.heatmap.total > 0 && UA.heatmap) {
+      const hm = sd.heatmap;
+      docDefinition.content.push({ text: "STUNDEN-HEATMAP (WERKTAG VS. WOCHENENDE)", style: "subheader" });
+      const body = [];
+      // Header row
+      body.push(["Stunde", "Mo–Fr", "Sa/So"].map(t => ({ text: t, bold: true, fillColor: "#EEEEEE", fontSize: 9, alignment: "center" })));
+      for (let h = 0; h < 24; h++) {
+        const row = [{ text: `${String(h).padStart(2, "0")}:00`, fontSize: 9, bold: true }];
+        for (let c = 0; c < 2; c++) {
+          const v = hm.matrix[h][c];
+          const fill = UA.heatmap.cellColor(v, hm.max);
+          const txt = UA.heatmap.readableTextColor(fill);
+          row.push({
+            text: v > 0 ? String(v) : "",
+            fontSize: 9,
+            alignment: "center",
+            color: txt,
+            fillColor: fill
+          });
+        }
+        body.push(row);
+      }
+      docDefinition.content.push({
+        // Constrain width so the heatmap doesn't span the whole page; the
+        // narrow 3-column layout reads better at typical magnifications.
+        table: {
+          headerRows: 1,
+          // Slim hour col, two equal data cols; total ≈ 200 pt < page width.
+          widths: [40, 60, 60],
+          body
+        },
+        layout: "lightHorizontalLines",
+        margin: [0, 4, 0, 6]
+      });
+      docDefinition.content.push({
+        text: `Gesamt: ${hm.total} Unfälle (Mo–Fr: ${hm.colTotals[0]}, Sa/So: ${hm.colTotals[1]}). Max. ${hm.max} Unfälle pro Stunde × Tagestyp.`,
+        italics: true,
+        fontSize: 9,
         margin: [0, 0, 0, 8]
       });
     }

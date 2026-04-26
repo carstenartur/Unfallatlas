@@ -62,9 +62,11 @@
         // can decide which optional sections to include in the preview.
         const cbCosts    = document.getElementById("cbIncludeCosts");
         const cbMeasures = document.getElementById("cbIncludeMeasures");
+        const cbHeatmap  = document.getElementById("cbIncludeHeatmap");
         ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
           includeCosts:    cbCosts    ? cbCosts.checked    : true,
-          includeMeasures: cbMeasures ? cbMeasures.checked : true
+          includeMeasures: cbMeasures ? cbMeasures.checked : true,
+          includeHeatmap:  cbHeatmap  ? cbHeatmap.checked  : true
         });
         const r = await UA.computeExportReport(ctx);
         ui.exportProgress.textContent = "Fertig.";

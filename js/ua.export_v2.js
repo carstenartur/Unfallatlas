@@ -768,6 +768,20 @@
       }
     }
 
+    // ---- Hour × daytype heatmap (#A2) ----
+    // Gated by ctx.exportOptions.includeHeatmap (default ON). Cheap to compute
+    // (single pass over filteredPts), but the renderers would otherwise burn
+    // page space on a panel the user explicitly hid.
+    const includeHeatmap = !ctx.exportOptions || ctx.exportOptions.includeHeatmap !== false;
+    let heatmap = null;
+    if (includeHeatmap && UA.heatmap && typeof UA.heatmap.computeHourDaytypeMatrix === "function") {
+      try {
+        heatmap = UA.heatmap.computeHourDaytypeMatrix(filteredPts);
+      } catch (e) {
+        console.warn("Heatmap computation failed:", e);
+      }
+    }
+
     const vars = {
       city: CITY_RAW,
       CITY: CITY_RAW,
@@ -890,6 +904,27 @@
       const slopeStr = Number.isFinite(yearlyTrend.slope) ? yearlyTrend.slope.toFixed(2) : "—";
       const r2Str = Number.isFinite(yearlyTrend.r2) ? yearlyTrend.r2.toFixed(2) : "—";
       lines.push(`  Klassifikation: ${yearlyTrend.classification} (Slope ${slopeStr}/Jahr, R² ${r2Str}, n=${yearlyTrend.nYears}).`);
+      lines.push("");
+    }
+
+    // Stunden-Heatmap (#A2): Top-3 Spitzenstunden je Tagestyp als
+    // textfreundliche Zusammenfassung. Die volle 24×2-Matrix steckt in
+    // structured.heatmap und wird in HTML/PDF/DOCX vollständig dargestellt.
+    if (heatmap && heatmap.total > 0) {
+      lines.push("Stunden-Heatmap (Werktag vs. Wochenende):");
+      lines.push(`  Gesamt im Bereich: ${heatmap.total} (Mo–Fr: ${heatmap.colTotals[0]}, Sa/So: ${heatmap.colTotals[1]}).`);
+      const topPerCol = (col) => {
+        const ranked = heatmap.hours
+          .map(h => ({ h, v: heatmap.matrix[h][col] }))
+          .filter(x => x.v > 0)
+          .sort((a, b) => b.v - a.v)
+          .slice(0, 3);
+        return ranked.length === 0
+          ? "—"
+          : ranked.map(x => `${String(x.h).padStart(2, "0")}:00 (${x.v})`).join(", ");
+      };
+      lines.push(`  Spitzenstunden Mo–Fr: ${topPerCol(0)}.`);
+      lines.push(`  Spitzenstunden Sa/So: ${topPerCol(1)}.`);
       lines.push("");
     }
 
@@ -1406,6 +1441,18 @@
         </div>
         ` : ``}
 
+        ${(heatmap && heatmap.total > 0 && UA.heatmap && UA.heatmap.renderHeatmapSVG) ? `
+        <div style="margin-top:12px; font-weight:900;">Stunden-Heatmap (Werktag vs. Wochenende)</div>
+        <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-top:6px;">
+          <div>${UA.heatmap.renderHeatmapSVG(heatmap)}</div>
+          <div style="font-size:12px; color:#555; max-width:260px;">
+            <div>Gesamt: <strong>${heatmap.total}</strong> Unfälle (Mo–Fr: ${heatmap.colTotals[0]}, Sa/So: ${heatmap.colTotals[1]}).</div>
+            <div>Dunkelste Zelle: max. ${heatmap.max} Unfälle pro Stunde × Tagestyp.</div>
+            <div style="margin-top:4px;">Lesart: jede Zelle zeigt, wie viele Unfälle der gewählten Auswertung in einer bestimmten Stunde an Werktagen bzw. am Wochenende registriert wurden.</div>
+          </div>
+        </div>
+        ` : ``}
+
         <div style="margin-top:10px; color:#555; font-size:12px;">
           <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
@@ -1455,6 +1502,7 @@
       recommendedMeasures,
       timeClusters: timeClusters,
       yearlyTrend,
+      heatmap,
       darkFigureNote: DARK_FIGURE_NOTE
     };
 

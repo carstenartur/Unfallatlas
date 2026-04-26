@@ -222,6 +222,10 @@
             <input type="checkbox" id="cbIncludeMeasures" checked style="cursor:pointer;">
             <span>Maßnahmenvorschläge</span>
           </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="Stunden-Heatmap (Werktag vs. Wochenende) im Antrag mit ausweisen.">
+            <input type="checkbox" id="cbIncludeHeatmap" checked style="cursor:pointer;">
+            <span>Stunden-Heatmap</span>
+          </label>
           <label style="display:flex; align-items:center; gap:5px;">
             <span>Einzelunfälle anzeigen:</span>
             <select id="accidentViewSel" aria-label="Gruppierung der Einzelunfall-Tabelle" style="padding:4px 6px; border-radius:6px; border:1px solid rgba(0,0,0,.2);">
@@ -420,6 +424,7 @@
   <script src="js/ua.costs.js?v=2026-01-01"></script>
   <script src="js/ua.measures.js?v=2026-01-01"></script>
   <script src="js/ua.trend.js?v=2026-01-01"></script>
+  <script src="js/ua.heatmap.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>

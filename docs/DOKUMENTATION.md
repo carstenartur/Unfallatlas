@@ -35,6 +35,9 @@
 - [Volkswirtschaftliche Kosten](#volkswirtschaftliche-kosten)
 - [Maßnahmenkatalog](#maßnahmenkatalog)
 - [Verkehrszeit-Muster (Time Cluster)](#verkehrszeit-muster-time-cluster)
+- [Mehrjahres-Trend](#mehrjahres-trend)
+- [Stunden-Heatmap im Antrag](#stunden-heatmap-im-antrag)
+- [Dunkelziffer-Pflichthinweis](#dunkelziffer-pflichthinweis)
 
 ---
 
@@ -1005,3 +1008,47 @@ Das `hours`-Feld nutzt `[[startH, startM], [endH, endM]]` (halboffen `[start, en
 - Cluster werden anhand **Stunde + Wochentagsgruppe** klassifiziert; präzisere Information (Minute) liegt im Unfallatlas nicht flächendeckend vor.
 - Items ohne erkennbare Stunde landen im Bucket **„Andere / unbekannte Uhrzeit"**.
 - Wenn keine stadtspezifische Konfig vorliegt, wird der konservative Default verwendet – Schulwege liegen stadtweit ähnlich (07:00–08:30 / 12:00–14:00). Für lokale Sondersituationen (z. B. Schichtbeginn 06:00) sollte ein Stadt-Override hinterlegt werden.
+
+---
+
+## Mehrjahres-Trend
+
+Im Antrags-Export wird zusätzlich zu den jährlichen Zählungen ein **linearer Trend über die Gesamtsumme pro Jahr** ausgewiesen (`structured.yearlyTrend`, Helper: `js/ua.trend.js`). Berechnet werden:
+
+- Jährliche Zählungen pro Schweregrad (Getötete / Schwerverletzte / Leichtverletzte / Summe)
+- Slope, Intercept und R² einer einfachen Ordinary-Least-Squares-Regression über die Gesamtsumme
+- Eine qualitative Klassifikation: `rückläufig` / `stagnierend` / `steigend` / `unbestimmt`
+
+### Klassifikations-Schwellwerte
+
+Bewusst konservativ gewählt, um bei kleinen Fallzahlen keine Trends „herbeizurechnen":
+
+| Bedingung | Klassifikation |
+| --- | --- |
+| `nYears < 3` oder Mittelwert ≤ 0 | `unbestimmt` |
+| `R² < 0.3` (schlechter Fit) | `stagnierend` |
+| `|slope/mean| < 0.05` (Schwankung < 5 % p.a.) | `stagnierend` |
+| `slope/mean ≥ +0.05` | `steigend` |
+| `slope/mean ≤ -0.05` | `rückläufig` |
+
+Die Trend-Sektion erscheint in **HTML** (kompaktes SVG-Liniendiagramm + Tabelle), **DOCX** und **PDF** (Tabelle + Klassifikationssatz). Bei Datenzeiträumen unter drei Jahren wird die Tabelle gerendert, die Klassifikation aber als „unbestimmt" markiert.
+
+---
+
+## Stunden-Heatmap im Antrag
+
+Die in der Karten-Ansicht bereits verfügbare Heatmap wird auf Wunsch als **24×2-Matrix Stunde × Tagestyp** in den Antrag übernommen (`structured.heatmap`, Helper: `js/ua.heatmap.js`):
+
+- 24 Zeilen (Stunden 00:00–23:00) × 2 Spalten (Werktag Mo–Fr, Wochenende Sa/So)
+- Farbskala von Weiß bis dunkelblau (`#08306B`) linear nach Zellwert
+- Zellbeschriftung mit Anzahl, Textfarbe automatisch kontrastiert (schwarz/weiß)
+- HTML zeigt ein Inline-SVG samt Beschriftung; DOCX und PDF rendern dieselbe Information als gefärbte Tabelle (24 Stunden × 2 Tagestypen)
+- Im Plain-Text-Export wird stattdessen eine knappe Top-3-Spitzenstunden-Liste pro Tagestyp ausgegeben
+
+Die Sektion lässt sich im Export-Modal über den Schalter **„Stunden-Heatmap"** abschalten (`exportOptions.includeHeatmap`, Default: an).
+
+---
+
+## Dunkelziffer-Pflichthinweis
+
+In allen Antrags-Renderpfaden (Text, HTML, DOCX, PDF) erscheint ein nicht abschaltbarer Hinweis darauf, dass die Unfallatlas-Daten der polizeilich erfassten Unfälle (mit Personenschaden) entsprechen und keine Vergleiche zu erfassten Sachschäden oder Beinahe-Unfällen zulassen. Konstante: `UA.DARK_FIGURE_NOTE` in `js/ua.export_v2.js`. Felder: `title`, `body`, `sourceLabel`, `sourceUrl`. Der Block ist Teil von `structured.darkFigureNote` und wird bewusst auch dann mit ausgegeben, wenn andere optionale Sektionen (Kosten, Maßnahmen) deaktiviert sind.
