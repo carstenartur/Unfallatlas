@@ -76,11 +76,15 @@ Die Katalogstruktur ist bundesweit angelegt, die *reale*
 Materialisierung der Unfalldaten (Stufe A `supported`) wird aber
 bewusst stufenweise auf größere Städte ausgerollt:
 
-1. **Priorität 1 – Großstädte > 500.000 Einwohner**: Berlin, Hamburg,
-   München, Köln, Frankfurt am Main, Stuttgart, Düsseldorf, Leipzig,
-   Dortmund, Essen, Bremen, Dresden, Hannover, Nürnberg, Duisburg.
-2. **Priorität 2 – Großstädte > 300.000 Einwohner**: Bochum,
-   Wuppertal, Bielefeld, Bonn, Münster (weitere folgen).
+1. **Priorität 1 – Großstädte > 500.000 Einwohner (vollständig
+   materialisiert)**: Berlin, Hamburg, München, Köln, Frankfurt am
+   Main, Stuttgart, Düsseldorf, Leipzig, Dortmund, Essen, Bremen,
+   Dresden, Hannover, Nürnberg, Duisburg.
+2. **Priorität 2 – Großstädte > 300.000 Einwohner**:
+   - bereits materialisiert: Bochum, Wuppertal, Bielefeld, Bonn,
+     Münster.
+   - in Rollout-Queue (`qualityFlag: "rollout-queued"`, in
+     `cities.txt`): Karlsruhe, Mannheim, Augsburg.
 3. Kleinere Städte und ländliche Räume bleiben im Katalog erhalten,
    laufen aber zunächst als `partially_supported`.
 
@@ -92,7 +96,9 @@ Eine Stadt steht nur dann auf `accidentDataSupport: 'supported'`,
 wenn die zugehörige `out/output_all_years_<id>.geojson` *tatsächlich*
 im Repo liegt; Städte aus der Rollout-Queue tragen das `qualityFlag:
 "rollout-queued"` und bleiben bis zum nächsten Workflow-Lauf ehrlich
-`partially_supported`.  Details siehe
+`partially_supported`.  Das Diagnose-Skript
+[`scripts/check-city-rollout.js`](scripts/check-city-rollout.js)
+listet jederzeit alle hochstufungsreifen Kandidaten.  Details siehe
 [`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md#rollout-strategie-erst-500k-dann-300k).
 
 ### Stufe B – Portal-Seed-Liste für politische Recherche
@@ -107,10 +113,10 @@ ausschließlich über die Seed-Liste eingespielt.
 
 Einstufung:
 
-- **`supported`** (4 Städte): Berlin, Hamburg, Hannover, Bonn –
-  konkretes Portal **und** registrierter Provider in
-  `cityPortalRegistry`.
-- **`partially_supported`** (24 Städte aus dem Seed-PR): konkretes
+- **`supported`** (9 Städte): Berlin, Hamburg, Hannover, Bonn
+  (dedizierte Provider) sowie Bielefeld, Chemnitz, Halle (Saale),
+  Magdeburg, Nürnberg (über den generischen `sessionNetProvider`).
+- **`partially_supported`** (29 Städte aus dem Seed-PR): konkretes
   Portal aus der Seed-Liste hinterlegt, Provider folgt;
   UI/API zeigen das ehrlich an.
 - **`unsupported`**: kein belastbarer Portalbezug – kein verwaister

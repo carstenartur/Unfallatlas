@@ -348,6 +348,74 @@ describe('cityRegistry – Kopplung an cities.txt und out/', () => {
     }
   });
 
+  test('Upgrade-Pfad-Drift: Städte in cities.txt mit GeoJSON in out/ stehen auch auf accidentDataSupport=supported', () => {
+    // Spiegel zur Materialisierungs-Honesty: sobald die Workflows
+    // GeoJSON+POI für eine Stadt geliefert haben (und sie in
+    // cities.txt steht), muss sie auch wirklich auf `supported`
+    // hochgezogen werden – sonst behauptet die UI weiterhin
+    // „partially_supported", obwohl die Datenlage längst da ist.
+    // Genau dieses Drift-Szenario erkennt scripts/check-city-rollout.js
+    // als „Upgrade-Kandidat".  Der Test schiebt das automatisch in CI.
+    // Hinweis: hier wird bewusst auf den Status, nicht auf das Flag
+    // `rollout-queued` geprüft – `rollout-queued` ist UI-/Doku-
+    // Hinweis und wird im separaten „Rollout-Queue"-Test abgesichert.
+    const txtSlugs = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
+    const stale = [];
+    for (const c of cityRegistry.listCities()) {
+      const assets = cityRegistry.getDataAssets(c.id);
+      if (assets.accidents && txtSlugs.has(c.id) &&
+          c.accidentDataSupport !== 'supported') {
+        stale.push(c.id);
+      }
+    }
+    expect(stale).toEqual([]);
+  });
+
+  test('"accident-data-generated" Flag korrespondiert beidseitig mit GeoJSON in out/ und Status=supported', () => {
+    // Das Flag ist eine Behauptung, dass die Materialisierung gelaufen
+    // ist – wenn die Datei fehlt, ist das Flag eine Lüge.  Umgekehrt
+    // gehört das Flag nur an Einträge, die auch wirklich auf
+    // `accidentDataSupport: 'supported'` stehen; ein
+    // partially_supported-Eintrag mit dem Flag wäre selbst inkonsistent.
+    for (const c of cityRegistry.listCities()) {
+      const hasFlag = (c.qualityFlags || []).includes('accident-data-generated');
+      const hasFile = cityRegistry.getDataAssets(c.id).accidents;
+      if (hasFlag) {
+        expect(hasFile).toBe(true);
+        expect(c.accidentDataSupport).toBe('supported');
+      }
+    }
+  });
+
+  test('"poi-generated" Flag korrespondiert beidseitig mit POI-GeoJSON in out/ und Status=supported', () => {
+    // Analog zur Stufe-A-Datenlage: das Flag ist nur dann ehrlich,
+    // wenn auch die POI-GeoJSON existiert und die Stadt wirklich auf
+    // Stufe A `supported` steht (`partially_supported` mit POI-Flag
+    // wäre genauso irreführend wie `partially_supported` mit
+    // `accident-data-generated`).
+    for (const c of cityRegistry.listCities()) {
+      const hasFlag = (c.qualityFlags || []).includes('poi-generated');
+      const hasFile = cityRegistry.getDataAssets(c.id).poi;
+      if (hasFlag) {
+        expect(hasFile).toBe(true);
+        expect(c.accidentDataSupport).toBe('supported');
+      }
+    }
+  });
+
+  test('Großstädte > 500.000 (populationClass=metropolis) sind in cities.txt eingetragen', () => {
+    // Strategische Vorgabe der Rollout-Phase: alle Metropolen
+    // (>500k) sollen mindestens in der Rollout-Liste stehen, damit
+    // der Workflow sie reproduzierbar nachgenerieren kann.  Sie
+    // dürfen Stufe A noch `partially_supported` führen – das wird
+    // durch andere Tests separat geprüft.
+    const txtSlugs = new Set(cityRegistry.readCitiesTxt().map(e => e.slug));
+    const missing = cityRegistry.listCities()
+      .filter(c => c.populationClass === 'metropolis' && !txtSlugs.has(c.id))
+      .map(c => c.id);
+    expect(missing).toEqual([]);
+  });
+
   test('getDataAssets meldet vorhandene Outputs für die Workflow-Städte', () => {
     // Wir prüfen das nur für Hannover – die Datei ist im Repo
     // (out/output_all_years_hannover.geojson) und entstammt dem

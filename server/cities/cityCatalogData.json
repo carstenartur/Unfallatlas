@@ -134,7 +134,7 @@
         "gemeinde": "08111000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "supported",
       "rankingSupport": "supported",
@@ -142,7 +142,8 @@
       "portalBaseUrl": "https://www.stuttgart.de/rathaus/gemeinderat/ratsdokumente-sitzungskalender",
       "qualityFlags": [
         "state-capital",
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -180,14 +181,15 @@
         "gemeinde": "14713000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "other",
       "portalBaseUrl": "https://www.leipzig.de/rathaus/stadtrat/ratsinformationssystem",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -202,14 +204,15 @@
         "gemeinde": "05913000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "other",
       "portalBaseUrl": "https://rathaus.dortmund.de/dosys/doRat.nsf/",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -224,14 +227,15 @@
         "gemeinde": "05113000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "ris",
       "portalBaseUrl": "https://ris.essen.de/",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -246,7 +250,7 @@
         "gemeinde": "04011000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -255,7 +259,8 @@
       "qualityFlags": [
         "state-capital",
         "city-state",
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -270,7 +275,7 @@
         "gemeinde": "14612000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
@@ -278,7 +283,8 @@
       "portalBaseUrl": "https://www.dresden.de/de/rathaus/politik/stadtrat/ratsinfo.php",
       "qualityFlags": [
         "state-capital",
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -317,14 +323,15 @@
         "gemeinde": "09564000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "sessionnet",
       "portalBaseUrl": "https://online-service2.nuernberg.de/buergerinfo/info.asp",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed",
         "sessionnet-generic-provider"
       ]
@@ -340,14 +347,15 @@
         "gemeinde": "05112000"
       },
       "populationClass": "metropolis",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "other",
       "portalBaseUrl": "https://www.duisburg.de/rathaus/rathausundpolitik/ratgremien/ratsinformationssystem",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -362,14 +370,15 @@
         "gemeinde": "05911000"
       },
       "populationClass": "large",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "other",
       "portalBaseUrl": "https://www.bochum.de/Ratsinformationssystem",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -384,14 +393,15 @@
         "gemeinde": "05124000"
       },
       "populationClass": "large",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "ris",
       "portalBaseUrl": "https://ris.wuppertal.de/",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -453,14 +463,15 @@
         "gemeinde": "05515000"
       },
       "populationClass": "large",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "other",
       "portalBaseUrl": "https://www.stadt-muenster.de/ratsservice/startseite",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -482,6 +493,7 @@
       "knownPortalType": "other",
       "portalBaseUrl": "https://sitzungskalender.karlsruhe.de/db/ratsinformation",
       "qualityFlags": [
+        "rollout-queued",
         "portal-from-seed"
       ]
     },
@@ -503,6 +515,7 @@
       "knownPortalType": "other",
       "portalBaseUrl": "https://www.mannheim.de/de/stadt-gestalten/politik/buergerinformationssystem",
       "qualityFlags": [
+        "rollout-queued",
         "portal-from-seed"
       ]
     },
@@ -524,6 +537,7 @@
       "knownPortalType": "allris",
       "portalBaseUrl": "https://www.augsburg.de/ratsinfo",
       "qualityFlags": [
+        "rollout-queued",
         "portal-from-seed"
       ]
     },
