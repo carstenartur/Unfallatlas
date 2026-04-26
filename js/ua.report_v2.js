@@ -595,8 +595,40 @@
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
 
-      // Accident details table
-      if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+      // Accident details table – grouped by severity
+      if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
+        children.push(new Paragraph({
+          text: "EINZELUNFÄLLE IM BEREICH",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        for (const g of sd.accidentDetails.groups) {
+          const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
+          children.push(new Paragraph({
+            text: headerText,
+            bold: true,
+            spacing: { before: 200, after: 100 }
+          }));
+          const detailRows = g.rows.map((r, i) => {
+            const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+            const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
+            return [String(i + 1), String(r.year ?? "—"), r.involved, hour, r.weekday || "—", r.roadCondition || "—", coords];
+          });
+          children.push(makeDocxTable(
+            ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
+            detailRows
+          ));
+          if (g.overflow > 0) {
+            children.push(new Paragraph({
+              text: `… und ${g.overflow} weitere ${g.sevLabel}`,
+              italics: true,
+              spacing: { after: 100 }
+            }));
+          }
+        }
+        children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      } else if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+        // Fallback for legacy data without groups
         children.push(new Paragraph({
           text: "EINZELUNFÄLLE IM BEREICH",
           heading: HeadingLevel.HEADING_2,
@@ -605,15 +637,15 @@
         const detailRows = sd.accidentDetails.rows.map((r, i) => {
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
           const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, r.involved, hour, coords];
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, r.involved, hour, r.weekday || "—", r.roadCondition || "—", coords];
         });
         children.push(makeDocxTable(
-          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Koordinaten"],
+          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
           detailRows
         ));
         if (sd.accidentDetails.truncated) {
           children.push(new Paragraph({
-            text: `... und ${sd.accidentDetails.total - sd.accidentDetails.rows.length} weitere Unfälle`,
+            text: `… und ${sd.accidentDetails.total - sd.accidentDetails.rows.length} weitere Unfälle`,
             italics: true,
             spacing: { after: 100 }
           }));
@@ -1334,21 +1366,43 @@
         ));
       }
 
-      // Accident details table
-      if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+      // Accident details table – grouped by severity
+      if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
+        docDefinition.content.push({ text: "EINZELUNFÄLLE IM BEREICH", style: "subheader" });
+        for (const g of sd.accidentDetails.groups) {
+          const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
+          docDefinition.content.push({ text: headerText, bold: true, margin: [0, 8, 0, 4] });
+          const detailRows = g.rows.map((r, i) => {
+            const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+            const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
+            return [String(i + 1), String(r.year ?? "—"), replaceEmojisForPDF(r.involved), hour, r.weekday || "—", r.roadCondition || "—", coords];
+          });
+          docDefinition.content.push(makePdfTable(
+            ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
+            detailRows
+          ));
+          if (g.overflow > 0) {
+            docDefinition.content.push({
+              text: `… und ${g.overflow} weitere ${g.sevLabel}`,
+              style: "small"
+            });
+          }
+        }
+      } else if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+        // Fallback for legacy data without groups
         docDefinition.content.push({ text: "EINZELUNFÄLLE IM BEREICH", style: "subheader" });
         const detailRows = sd.accidentDetails.rows.map((r, i) => {
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
           const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, replaceEmojisForPDF(r.involved), hour, coords];
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, replaceEmojisForPDF(r.involved), hour, r.weekday || "—", r.roadCondition || "—", coords];
         });
         docDefinition.content.push(makePdfTable(
-          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Koordinaten"],
+          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
           detailRows
         ));
         if (sd.accidentDetails.truncated) {
           docDefinition.content.push({
-            text: `... und ${sd.accidentDetails.total - sd.accidentDetails.rows.length} weitere Unfälle`,
+            text: `… und ${sd.accidentDetails.total - sd.accidentDetails.rows.length} weitere Unfälle`,
             style: "small"
           });
         }

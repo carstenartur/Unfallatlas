@@ -472,7 +472,7 @@
   // --------------------
   const SEV_LABEL_MAP = { "1": "Getötet", "2": "Schwerverletzt", "3": "Leichtverletzt" };
   const WEEKDAY_LABEL_MAP = {
-    "1": "So", "2": "Mo–Fr", "3": "Mo–Fr", "4": "Mo–Fr", "5": "Mo–Fr", "6": "Mo–Fr", "7": "Sa"
+    "1": "So", "2": "Mo", "3": "Di", "4": "Mi", "5": "Do", "6": "Fr", "7": "Sa"
   };
   const ROAD_COND_LABEL_MAP = { "0": "trocken", "1": "nass/feucht", "2": "winterglatt" };
 
@@ -483,7 +483,7 @@
   }
 
   function accidentDetailTable(filteredPts, maxRows) {
-    if (maxRows === undefined) maxRows = 50;
+    if (maxRows === undefined) maxRows = 20;
     const items = [];
 
     for (const p of filteredPts) {
@@ -511,17 +511,44 @@
       });
     }
 
-    // Sort: severity ascending (1=worst first), then year descending
-    items.sort((a, b) => {
-      const sa = Number(a.severity) || 99;
-      const sb = Number(b.severity) || 99;
-      if (sa !== sb) return sa - sb;
-      return (b.year || 0) - (a.year || 0);
-    });
+    // Group by severity (1=Getötet, 2=Schwerverletzt, 3=Leichtverletzt), skip empty groups.
+    // Within each group sort by year descending, then hour ascending as tiebreaker.
+    const SEV_KEYS = ["1", "2", "3"];
+    const groups = [];
+    for (const sevKey of SEV_KEYS) {
+      const group = items
+        .filter(r => r.severity === sevKey)
+        .sort((a, b) => {
+          const yd = (b.year || 0) - (a.year || 0);
+          if (yd !== 0) return yd;
+          return (a.hour != null ? a.hour : 99) - (b.hour != null ? b.hour : 99);
+        });
+      if (group.length === 0) continue;
 
-    const truncated = items.length > maxRows;
-    return { rows: items.slice(0, maxRows), total: items.length, truncated };
+      // Bit-count histogram: for each involvement bit, count how many accidents in this group have it set.
+      const histParts = [];
+      for (const [bit, emoji] of COMBO_BITS) {
+        const count = group.filter(r => r.mask & bit).length;
+        if (count > 0) histParts.push(`${emoji}: ${count}`);
+      }
+      const histogram = histParts.join(" · ");
+
+      const count = group.length;
+      const rows = group.slice(0, maxRows);
+      const overflow = count - rows.length;
+
+      groups.push({ sevKey, sevLabel: SEV_LABEL_MAP[sevKey], count, rows, overflow, histogram });
+    }
+
+    const allRows = groups.flatMap(g => g.rows);
+    const total = items.length;
+    const truncated = groups.some(g => g.overflow > 0);
+
+    return { groups, rows: allRows, total, truncated };
   }
+
+  // Export for testing and external use
+  UA.accidentDetailTable = accidentDetailTable;
 
   // --------------------
   // Public API: UA.computeExportReport(ctx)
@@ -765,16 +792,19 @@
       lines.push("");
     }
 
-    // Add accident details (up to 50 rows)
-    if (accidentDetails.rows.length > 0) {
+    // Add accident details grouped by severity
+    if (accidentDetails.groups.length > 0) {
       lines.push("Einzelunfälle im Bereich:");
-      lines.push("  # | Jahr | Schwere | Beteiligte | Uhrzeit | Koordinaten");
-      accidentDetails.rows.forEach((r, i) => {
-        const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-        lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.sevLabel} | ${r.involved} | ${hour} | ${formatCoords(r.lat, r.lon)}`);
-      });
-      if (accidentDetails.truncated) {
-        lines.push(`  ... und ${accidentDetails.total - accidentDetails.rows.length} weitere Unfälle`);
+      for (const g of accidentDetails.groups) {
+        lines.push(`  --- ${g.sevLabel} (n=${g.count})${g.histogram ? " | " + g.histogram : ""} ---`);
+        lines.push("  # | Jahr | Beteiligte | Uhrzeit | Wochentag | Fahrbahnzustand | Koordinaten");
+        g.rows.forEach((r, i) => {
+          const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+          lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.involved} | ${hour} | ${r.weekday} | ${r.roadCondition} | ${formatCoords(r.lat, r.lon)}`);
+        });
+        if (g.overflow > 0) {
+          lines.push(`  … und ${g.overflow} weitere ${g.sevLabel}`);
+        }
       }
       lines.push("");
     }
@@ -969,21 +999,23 @@
         </table>
         ` : ""}
 
-        ${accidentDetails.rows.length > 0 ? `
-        <div style="margin-top:12px; font-weight:900;">Einzelunfälle im Bereich (max. 50)</div>
-        <table class="report" style="margin-top:6px;">
+        ${accidentDetails.groups.length > 0 ? `
+        <div style="margin-top:12px; font-weight:900;">Einzelunfälle im Bereich</div>
+        ${accidentDetails.groups.map(g => `
+        <div style="font-weight:700; margin-top:10px;">${UA.escHtml(g.sevLabel)} (n=${g.count})${g.histogram ? ` <span style="font-weight:400; font-size:12px;"> — ${UA.escHtml(g.histogram)}</span>` : ""}</div>
+        <table class="report" style="margin-top:4px;">
           <thead>
-            <tr><th>#</th><th style="text-align:right;">Jahr</th><th>Schwere</th><th>Beteiligte</th><th style="text-align:right;">Uhrzeit</th><th>Koordinaten</th></tr>
+            <tr><th>#</th><th style="text-align:right;">Jahr</th><th>Beteiligte</th><th style="text-align:right;">Uhrzeit</th><th>Wochentag</th><th>Fahrbahnzustand</th><th>Koordinaten</th></tr>
           </thead>
           <tbody>
-            ${accidentDetails.rows.map((r, i) => {
+            ${g.rows.map((r, i) => {
               const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
               const coords = formatCoords(r.lat, r.lon);
-              return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.sevLabel)}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td style="font-size:11px; color:#555;">${UA.escHtml(coords)}</td></tr>`;
+              return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td>${UA.escHtml(r.weekday)}</td><td>${UA.escHtml(r.roadCondition)}</td><td style="font-size:11px; color:#555;">${UA.escHtml(coords)}</td></tr>`;
             }).join("")}
           </tbody>
         </table>
-        ${accidentDetails.truncated ? `<div style="color:#777; font-size:12px; margin-top:4px;">... und ${accidentDetails.total - accidentDetails.rows.length} weitere Unfälle</div>` : ""}
+        ${g.overflow > 0 ? `<div style="color:#777; font-size:12px; margin-top:4px;">… und ${g.overflow} weitere ${UA.escHtml(g.sevLabel)}</div>` : ""}`).join("")}
         ` : ""}
 
         ${poiHtmlSection}
