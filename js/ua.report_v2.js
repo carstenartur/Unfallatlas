@@ -1208,8 +1208,12 @@
   }
 
   /**
-   * Replace emoji icons with text labels for PDF compatibility
-   * pdfMake's default Roboto font doesn't support emoji glyphs
+   * Replace emoji icons with text labels for PDF compatibility.
+   * pdfMake's default Roboto font doesn't support emoji glyphs; for plain
+   * `text` cells (and the textual report fallback) we substitute readable
+   * short labels. For *table cells* that carry involvement icons we use the
+   * richer `pdfInvolvementCell` helper below, which embeds inline SVG icons
+   * so the symbols are visually preserved in the exported PDF.
    * @param {string} text - Text containing emoji icons
    * @returns {string} Text with emojis replaced by readable labels
    */
@@ -1222,6 +1226,81 @@
       .replace(/\u{1F69B}/gu, "[Gkfz]")    // 🚛 Heavy vehicle
       .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
   }
+
+  // ---------------------------------------------------------------------
+  // PDF involvement icons (issue: "Symbole … sichtbar machen in der PDF")
+  //
+  // Inline-SVG pictograms for the 6 involvement classes. They are embedded
+  // directly into pdfMake table cells via { svg, width, height } content
+  // nodes, which renders independently of the (Roboto) text font and so
+  // works without bundling an emoji-capable TTF.
+  //
+  // The SVGs are kept tiny and monochrome (single dark-grey fill) so they
+  // print cleanly in B/W and stay legible at the table font sizes we use
+  // (~9 pt). All viewBoxes are 24×24 → easy to scale uniformly.
+  // ---------------------------------------------------------------------
+  const PDF_ICON_FILL = "#222";
+  // Source: Material-design / Tabler-style minimalist pictograms, hand-trimmed
+  // to single <path> elements per icon to keep the inline SVG small. Each is
+  // a stand-alone, self-contained SVG document (no external refs).
+  const PDF_INVOLVEMENT_ICONS = {
+    bike:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="' + PDF_ICON_FILL + '" d="M5 18a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm14 1.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM15 6h3v2h-2l-2.3 4.6 2 3.4H13l-1.5-2.6L9 17H7l3.5-6.3L9 8H7V6h3l1.5 3h2L15 6Z"/></svg>',
+    ped:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="' + PDF_ICON_FILL + '" d="M13.5 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM10 8h2.5l2 4 2.5 1-.5 1.5-3-1-1.5-2v3l2 5h-1.7l-2-5-2 5H6l2-6V9.5L7 11l-2 1V10l2.5-1L10 8Z"/></svg>',
+    car:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="' + PDF_ICON_FILL + '" d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V17a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4.5A1.5 1.5 0 0 1 4.5 11H5Zm1.7 0h10.6l-1-3a.5.5 0 0 0-.5-.4H8.2a.5.5 0 0 0-.5.4l-1 3ZM7 14.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm10 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>',
+    moto:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="' + PDF_ICON_FILL + '" d="M5 17a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm14 1.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM14 7h3l2 4-2 1-2-3h-1.5l-1.5 2 2.5 2-1 1.5-3-2.5-2 1V12l1.5-1L8 8H6V6h2.5L11 8h3V7Z"/></svg>',
+    truck: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="' + PDF_ICON_FILL + '" d="M3 7a1 1 0 0 1 1-1h9v8H3V7Zm11 1h3.5l2.5 3v3h-1a2 2 0 1 1-4 0h-1V8Zm3 5h2v-1.5L17.7 9.5H17V13ZM7 17a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm10 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4ZM7 15.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1Zm10 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1Z"/></svg>',
+    bus:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="' + PDF_ICON_FILL + '" d="M6 4h12a2 2 0 0 1 2 2v10a2 2 0 0 1-1 1.7V19a1 1 0 0 1-2 0v-1H7v1a1 1 0 0 1-2 0v-1.3A2 2 0 0 1 4 16V6a2 2 0 0 1 2-2Zm0 2v5h12V6H6Zm0 7v3h12v-3H6Zm2 2.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>'
+  };
+  // Map original emoji codepoints → icon key. Mirrors COMBO_BITS in
+  // js/ua.export_v2.js so the two stay in sync.
+  const PDF_EMOJI_TO_KEY = {
+    "\u{1F6B2}": "bike",   // 🚲
+    "\u{1F6B6}": "ped",    // 🚶
+    "\u{1F697}": "car",    // 🚗
+    "\u{1F3CD}": "moto",   // 🏍 (variation-selector handled by stripping below)
+    "\u{1F69B}": "truck",  // 🚛
+    "\u{1F68C}": "bus"     // 🚌
+  };
+  // Regex matches any of the involvement emojis (with optional VS-16 selector).
+  const PDF_EMOJI_RE = /(\u{1F6B2}|\u{1F6B6}|\u{1F697}|\u{1F3CD}\u{FE0F}?|\u{1F69B}|\u{1F68C})/u;
+
+  /**
+   * Build a pdfMake table-cell content node for an involvement label.
+   * If `label` contains no involvement emoji, returns the original string
+   * unchanged so callers stay back-compatible. Otherwise returns a `columns`
+   * node where every emoji is rendered as an inline SVG icon and any non-
+   * emoji text (e.g. " + ", counts, prefixes like "Mask " for unknown masks)
+   * is preserved as plain text — emojis themselves are replaced with their
+   * pictogram so no glyph is left for the unsupported font to render.
+   *
+   * @param {string} label   e.g. "🚲+🚗" or "🚲: 4"
+   * @param {object} [opts]  { fontSize?: number, iconSize?: number, bold?: boolean }
+   * @returns {string|object} pdfMake content node
+   */
+  function pdfInvolvementCell(label, opts) {
+    const s = String(label == null ? "" : label);
+    if (!PDF_EMOJI_RE.test(s)) return s;
+    const fontSize = (opts && opts.fontSize) || 9;
+    const iconSize = (opts && opts.iconSize) || (fontSize + 2);
+    const bold = !!(opts && opts.bold);
+    // Tokenise: split on the emoji regex, alternating text / emoji.
+    const parts = s.split(PDF_EMOJI_RE);
+    const cols = [];
+    for (const part of parts) {
+      if (!part) continue;
+      // Strip optional VS-16 (\uFE0F) so the lookup hits 🏍.
+      const stripped = part.replace(/\uFE0F/g, "");
+      const key = PDF_EMOJI_TO_KEY[stripped];
+      if (key && PDF_INVOLVEMENT_ICONS[key]) {
+        cols.push({ svg: PDF_INVOLVEMENT_ICONS[key], width: iconSize, height: iconSize, margin: [0, 0, 1, 0] });
+      } else {
+        cols.push({ text: part, fontSize, bold, margin: [0, 1, 1, 0] });
+      }
+    }
+    return { columns: cols, columnGap: 1 };
+  }
+  // Expose for unit tests; harmless if a future refactor moves it elsewhere.
+  UA.pdfInvolvementCell = pdfInvolvementCell;
 
   /**
    * Generate and download PDF document
@@ -1253,17 +1332,36 @@
 
     // Helper: build pdfmake table with header row
     // Optional: rowHighlights is an array of booleans – true = highlight that data row
-    function makePdfTable(headers, dataRows, rowHighlights) {
+    // Optional: opts.widths overrides column widths (default: equal "*" split).
+    //           opts.fontSize overrides per-cell font size (default 9).
+    // Cells may be plain strings (rendered as { text }) OR pre-built pdfMake
+    // content objects (e.g. { columns: [...] } for cells produced by
+    // pdfInvolvementCell). The latter pass through unchanged so callers can
+    // embed inline SVG icons or other rich layouts without extra plumbing.
+    function makePdfTable(headers, dataRows, rowHighlights, opts) {
+      const fontSize = (opts && opts.fontSize) || 9;
+      const widths = (opts && opts.widths) || headers.map(() => "*");
+      const wrapCell = (cell, highlight) => {
+        if (cell != null && typeof cell === "object") {
+          // Pass-through for rich content (svg/columns/stack). Apply highlight
+          // by wrapping in a 1-row table-like fillColor cell only if needed —
+          // pdfMake honors `fillColor` on the cell descriptor itself, which
+          // for compound nodes we set on the wrapping object.
+          return highlight ? Object.assign({}, cell, { fillColor: "#FFFFCC" }) : cell;
+        }
+        return {
+          text: String(cell ?? ""),
+          fontSize,
+          ...(highlight ? { fillColor: "#FFFFCC", bold: true } : {})
+        };
+      };
       return {
         table: {
           headerRows: 1,
-          widths: headers.map(() => "*"),
+          widths,
           body: [
-            headers.map(h => ({ text: h, bold: true, fillColor: "#EEEEEE" })),
-            ...dataRows.map((row, i) => row.map(cell => ({
-              text: String(cell ?? ""), fontSize: 10,
-              ...(rowHighlights && rowHighlights[i] ? { fillColor: "#FFFFCC", bold: true } : {})
-            })))
+            headers.map(h => ({ text: h, bold: true, fillColor: "#EEEEEE", fontSize })),
+            ...dataRows.map((row, i) => row.map(cell => wrapCell(cell, !!(rowHighlights && rowHighlights[i]))))
           ]
         },
         layout: "lightHorizontalLines",
@@ -1288,7 +1386,10 @@
 
     const docDefinition = {
       pageSize: "A4",
-      pageMargins: [60, 60, 60, 60],
+      // Reduced left/right margins (was 60/60) so wide tables — especially the
+      // Einzelunfall-Detailtabelle with 7+ columns — fit within the printable
+      // area instead of overflowing the page edge.
+      pageMargins: [40, 60, 40, 60],
       content: [],
       styles: {
         header: {
@@ -1369,7 +1470,14 @@
 
     if (kvRahmen.length > 0) {
       docDefinition.content.push({ text: "Rahmendaten", style: "subheader" });
-      docDefinition.content.push(makePdfTable(["Feld", "Wert"], kvRahmen));
+      // Narrow label column + flexible value column so long values like the
+      // Werkbank-Link don't push the whole table off-page.
+      docDefinition.content.push(makePdfTable(
+        ["Feld", "Wert"],
+        kvRahmen,
+        undefined,
+        { widths: ["auto", "*"] }
+      ));
     }
 
     // ---- Aktive Filter table ----
@@ -1379,14 +1487,18 @@
     if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand",   String(filters.roadCondition)]);
     if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", String(filters.involvementMode)]);
 
-    const partLabels = [];
-    if (filters.includeCyclist)    partLabels.push("[Rad]");
-    if (filters.includePedestrian) partLabels.push("[Fuss]");
-    if (filters.includeCar)        partLabels.push("[PKW]");
-    if (filters.includeMotorcycle) partLabels.push("[Krad]");
-    if (filters.includeGkfz)       partLabels.push("[Gkfz]");
-    if (filters.includeSonstig)    partLabels.push("[Sonst]");
-    if (partLabels.length > 0) filterRows.push(["Beteiligte", partLabels.join(", ")]);
+    // Render the active "Beteiligte" line with real icons (one cell per active
+    // category) instead of the legacy "[Rad], [PKW]" text fallback.
+    const partEmojis = [];
+    if (filters.includeCyclist)    partEmojis.push("\u{1F6B2}");
+    if (filters.includePedestrian) partEmojis.push("\u{1F6B6}");
+    if (filters.includeCar)        partEmojis.push("\u{1F697}");
+    if (filters.includeMotorcycle) partEmojis.push("\u{1F3CD}");
+    if (filters.includeGkfz)       partEmojis.push("\u{1F69B}");
+    if (filters.includeSonstig)    partEmojis.push("\u{1F68C}");
+    if (partEmojis.length > 0) {
+      filterRows.push(["Beteiligte", pdfInvolvementCell(partEmojis.join("+"))]);
+    }
 
     if (filters.hourFrom != null && filters.hourTo != null) {
       filterRows.push(["Zeitraum", `${filters.hourFrom}:00-${filters.hourTo}:00 Uhr`]);
@@ -1395,7 +1507,12 @@
 
     if (filterRows.length > 0) {
       docDefinition.content.push({ text: "Aktive Filter", style: "subheader" });
-      docDefinition.content.push(makePdfTable(["Filter", "Wert"], filterRows));
+      docDefinition.content.push(makePdfTable(
+        ["Filter", "Wert"],
+        filterRows,
+        undefined,
+        { widths: ["auto", "*"] }
+      ));
     }
 
     // ---- SACHVERHALT section ----
@@ -1445,11 +1562,16 @@
           const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2) + "x" + (r.isSignificant === false ? " (n.s.)" : "");
-          return [replaceEmojisForPDF(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
+          return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
+        // Explicit widths: pattern column gets the slack (*), narrow numeric
+        // columns are sized to their content so the table stops overflowing
+        // on narrower viewports/pageSizes.
         docDefinition.content.push(makePdfTable(
           ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
-          devRows
+          devRows,
+          undefined,
+          { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
         ));
         const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
         if (allNonSig) {
@@ -1468,11 +1590,13 @@
         const yrRows = sd.yearTable.map(row => [
           String(row.year),
           String(row.total),
-          row.classes.length ? replaceEmojisForPDF(row.classes.join(", ")) : "—"
+          row.classes.length ? pdfInvolvementCell(row.classes.join(", ")) : "—"
         ]);
         docDefinition.content.push(makePdfTable(
           ["Jahr", "Summe", "Kombinationen"],
-          yrRows
+          yrRows,
+          undefined,
+          { widths: ["auto", "auto", "*"] }
         ));
       }
 
@@ -1480,7 +1604,7 @@
       if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
         docDefinition.content.push({ text: "Beteiligungskombination × Schweregrad:", style: "normal" });
         const ctRows = sd.crossTable.rows.map(r => [
-          replaceEmojisForPDF(r.label), String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
+          pdfInvolvementCell(r.label), String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
         ]);
         // Highlight rows whose mask matches the active filter
         const ctHighlights = sd.crossTable.rows.map(r => isPdfActiveFilterRow(r.mask));
@@ -1495,7 +1619,8 @@
         docDefinition.content.push(makePdfTable(
           ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
           ctRows,
-          ctHighlights
+          ctHighlights,
+          { widths: ["*", "auto", "auto", "auto", "auto"] }
         ));
       }
 
@@ -1576,8 +1701,10 @@
             docDefinition.content.push({ text: headerText, bold: true, margin: [0, 8, 0, 4] });
           }
           const detailRows = g.rows.map((r, i) => {
-            // Use the strategy's docx row producer (same column shape as DOCX),
-            // but route emoji-bearing fields through replaceEmojisForPDF.
+            // Use the strategy's docx row producer (same column shape as DOCX).
+            // For PDF we keep the cell contents but route emoji-bearing strings
+            // through pdfInvolvementCell so the icons render as real SVG
+            // pictograms instead of being lost to the Roboto font.
             let cells;
             if (view && view.renderRow && view.renderRow.docx) {
               cells = view.renderRow.docx(r, i);
@@ -1586,11 +1713,19 @@
               const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
               cells = [String(i + 1), String(r.year ?? "—"), r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
             }
-            // Replace emojis in the "Beteiligte" cell (heuristic: any cell containing a non-ASCII char that's not part of common labels).
-            // Simpler: apply replaceEmojisForPDF to each cell defensively.
-            return cells.map(c => typeof c === "string" ? replaceEmojisForPDF(c) : c);
+            // Promote any string cell that carries involvement emojis to a rich
+            // SVG-based content node; non-string (already rich) cells pass
+            // through unchanged. Strings without emojis remain plain strings.
+            return cells.map(c => typeof c === "string" ? pdfInvolvementCell(c) : c);
           });
-          docDefinition.content.push(makePdfTable(cols, detailRows));
+          // Tighter column widths so a 7-column accident-details table stays
+          // within the printable area (was overflowing on A4 even with margin
+          // tightened to 40 pt). Numeric/short-text columns sized to content;
+          // the lone star column absorbs the slack.
+          const detailWidths = (cols.length === 7)
+            ? ["auto", "auto", "*", "auto", "auto", "auto", "auto"]
+            : cols.map(() => "*");
+          docDefinition.content.push(makePdfTable(cols, detailRows, undefined, { widths: detailWidths, fontSize: 8 }));
           if (g.overflow > 0) {
             const label = g.overflowLabel || `weitere ${g.sevLabel || ""}`;
             docDefinition.content.push({
@@ -1605,11 +1740,15 @@
         const detailRows = sd.accidentDetails.rows.map((r, i) => {
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
           const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, replaceEmojisForPDF(r.involved), hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, pdfInvolvementCell(r.involved), hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
         });
         docDefinition.content.push(makePdfTable(
           ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
-          detailRows
+          detailRows,
+          undefined,
+          // 8-column legacy layout: same width strategy with one extra "auto"
+          // column for the explicit Schwere label.
+          { widths: ["auto", "auto", "auto", "*", "auto", "auto", "auto", "auto"], fontSize: 8 }
         ));
         if (sd.accidentDetails.truncated) {
           docDefinition.content.push({
