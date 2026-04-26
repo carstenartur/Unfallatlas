@@ -756,6 +756,18 @@
       }
     }
 
+    // ---- Yearly trend (#C2): linear regression over per-year counts ----
+    // Always computed when UA.trend is available — it's a pure function over
+    // the in-bounds points, so we don't gate it behind a modal toggle.
+    let yearlyTrend = null;
+    if (UA.trend && typeof UA.trend.computeYearlyTrend === "function") {
+      try {
+        yearlyTrend = UA.trend.computeYearlyTrend(filteredPts);
+      } catch (e) {
+        console.warn("Yearly trend computation failed:", e);
+      }
+    }
+
     const vars = {
       city: CITY_RAW,
       CITY: CITY_RAW,
@@ -864,6 +876,20 @@
     // Add methodology section (Gen-2)
     if (tMethod) {
       lines.push(tpl(tMethod, vars).trim());
+      lines.push("");
+    }
+
+    // Mehrjahres-Trend (#C2): kompakte Tabelle + Klassifikation.
+    if (yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) {
+      lines.push("Mehrjahres-Trend (Gesamtzahl pro Jahr):");
+      const header = "  Jahr | Getötete | Schwerverletzte | Leichtverletzte | Summe";
+      lines.push(header);
+      for (let i = 0; i < yearlyTrend.years.length; i++) {
+        lines.push(`  ${yearlyTrend.years[i]} | ${yearlyTrend.counts.fatal[i]} | ${yearlyTrend.counts.severe[i]} | ${yearlyTrend.counts.light[i]} | ${yearlyTrend.counts.total[i]}`);
+      }
+      const slopeStr = Number.isFinite(yearlyTrend.slope) ? yearlyTrend.slope.toFixed(2) : "—";
+      const r2Str = Number.isFinite(yearlyTrend.r2) ? yearlyTrend.r2.toFixed(2) : "—";
+      lines.push(`  Klassifikation: ${yearlyTrend.classification} (Slope ${slopeStr}/Jahr, R² ${r2Str}, n=${yearlyTrend.nYears}).`);
       lines.push("");
     }
 
@@ -1363,6 +1389,23 @@
           <div style="margin-top:4px; font-style:italic;">${UA.escHtml(DARK_FIGURE_NOTE.sourceLabel)}${DARK_FIGURE_NOTE.sourceUrl ? ` <a href="${UA.escHtml(DARK_FIGURE_NOTE.sourceUrl)}" target="_blank" rel="noopener">Link</a>` : ""}</div>
         </div>
 
+        ${(yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) ? `
+        <div style="margin-top:12px; font-weight:900;">Mehrjahres-Trend</div>
+        <div style="margin:6px 0;">${(UA.trend && UA.trend.renderTrendSVG) ? UA.trend.renderTrendSVG(yearlyTrend) : ""}</div>
+        <table class="report" style="font-size:12px;">
+          <thead><tr><th>Jahr</th><th style="text-align:right;">Getötete</th><th style="text-align:right;">Schwerverletzte</th><th style="text-align:right;">Leichtverletzte</th><th style="text-align:right;">Summe</th></tr></thead>
+          <tbody>
+            ${yearlyTrend.years.map((y, i) => `<tr><td>${y}</td><td style="text-align:right;">${yearlyTrend.counts.fatal[i]}</td><td style="text-align:right;">${yearlyTrend.counts.severe[i]}</td><td style="text-align:right;">${yearlyTrend.counts.light[i]}</td><td style="text-align:right;">${yearlyTrend.counts.total[i]}</td></tr>`).join("")}
+          </tbody>
+        </table>
+        <div style="font-size:12px; color:#555;">
+          Klassifikation: <strong>${UA.escHtml(yearlyTrend.classification)}</strong>
+          (Slope ${Number.isFinite(yearlyTrend.slope) ? yearlyTrend.slope.toFixed(2) : "—"}/Jahr,
+          R² ${Number.isFinite(yearlyTrend.r2) ? yearlyTrend.r2.toFixed(2) : "—"},
+          n=${yearlyTrend.nYears})
+        </div>
+        ` : ``}
+
         <div style="margin-top:10px; color:#555; font-size:12px;">
           <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
@@ -1411,6 +1454,7 @@
       economicImpact,
       recommendedMeasures,
       timeClusters: timeClusters,
+      yearlyTrend,
       darkFigureNote: DARK_FIGURE_NOTE
     };
 

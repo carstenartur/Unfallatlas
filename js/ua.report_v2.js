@@ -912,6 +912,35 @@
       }
     }
 
+    // ---- 8c. MEHRJAHRES-TREND (#C2) ----
+    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0) {
+      const t = sd.yearlyTrend;
+      children.push(new Paragraph({
+        text: "MEHRJAHRES-TREND",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }));
+      const trendHeader = ["Jahr", "Getötete", "Schwerverletzte", "Leichtverletzte", "Summe"];
+      const trendRows = t.years.map((y, i) => [
+        String(y),
+        String(t.counts.fatal[i]),
+        String(t.counts.severe[i]),
+        String(t.counts.light[i]),
+        String(t.counts.total[i])
+      ]);
+      children.push(makeDocxTable(trendHeader, trendRows));
+      const slopeStr = Number.isFinite(t.slope) ? t.slope.toFixed(2) : "—";
+      const r2Str = Number.isFinite(t.r2) ? t.r2.toFixed(2) : "—";
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: "Klassifikation: ", bold: true }),
+          new TextRun({ text: `${t.classification} ` }),
+          new TextRun({ text: `(Slope ${slopeStr}/Jahr, R² ${r2Str}, n=${t.nYears})`, italics: true })
+        ],
+        spacing: { after: 200 }
+      }));
+    }
+
     // ---- 9. BESCHLUSSVORSCHLAG section ----
     children.push(
       new Paragraph({
@@ -1887,6 +1916,36 @@
         docDefinition.content.push({ text: note.body, style: "normal" });
         docDefinition.content.push({ text: note.sourceLabel, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
       }
+    }
+
+    // ---- MEHRJAHRES-TREND (#C2) ----
+    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0) {
+      const t = sd.yearlyTrend;
+      docDefinition.content.push({ text: "MEHRJAHRES-TREND", style: "subheader" });
+      const trendRows = t.years.map((y, i) => [
+        String(y),
+        String(t.counts.fatal[i]),
+        String(t.counts.severe[i]),
+        String(t.counts.light[i]),
+        String(t.counts.total[i])
+      ]);
+      docDefinition.content.push(makePdfTable(
+        ["Jahr", "Getötete", "Schwerverletzte", "Leichtverletzte", "Summe"],
+        trendRows,
+        undefined,
+        { widths: ["auto", "auto", "auto", "auto", "*"] }
+      ));
+      const slopeStr = Number.isFinite(t.slope) ? t.slope.toFixed(2) : "—";
+      const r2Str = Number.isFinite(t.r2) ? t.r2.toFixed(2) : "—";
+      docDefinition.content.push({
+        text: [
+          { text: "Klassifikation: ", bold: true },
+          { text: `${t.classification} ` },
+          { text: `(Slope ${slopeStr}/Jahr, R² ${r2Str}, n=${t.nYears})`, italics: true }
+        ],
+        style: "normal",
+        margin: [0, 0, 0, 8]
+      });
     }
 
     // ---- BESCHLUSSVORSCHLAG section ----
