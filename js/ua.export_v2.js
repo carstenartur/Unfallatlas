@@ -45,6 +45,23 @@
   }
 
   // --------------------
+  // Dunkelziffer / Erfassungsgrenzen (#C3)
+  // Pflicht-Hinweisblock in allen Antrags-Ausgaben (Text/HTML/DOCX/PDF), damit
+  // Adressaten verstehen, dass die offiziellen Zahlen nur einen Ausschnitt der
+  // tatsächlichen Verkehrssicherheitsbelastung abbilden. Quelle/Faktor sind in
+  // docs/DOKUMENTATION.md hinterlegt.
+  // --------------------
+  const DARK_FIGURE_NOTE = Object.freeze({
+    title: "Datenerfassung – Dunkelziffer und Erfassungsgrenzen",
+    body: "Erfasst sind ausschließlich polizeilich aufgenommene Verkehrsunfälle mit Personenschaden. Reine Sachschäden, Beinaheunfälle und nicht gemeldete Unfälle (Dunkelziffer) sind nicht enthalten. Studien schätzen, dass insbesondere bei Radunfällen ohne Fremdverschulden sowie bei leichten Verletzungen ein erheblicher Anteil der Vorfälle nicht in der amtlichen Statistik landet — die tatsächliche Belastung kann je nach Verkehrsart um den Faktor 2–10 höher liegen.",
+    sourceLabel: "Quelle: BASt – Bundesanstalt für Straßenwesen; Unfallforschung der Versicherer (UDV).",
+    sourceUrl: "https://www.bast.de/"
+  });
+  // Exportieren, damit Tests und andere Module (Doku-Generator) die selbe
+  // Definition wiederverwenden können.
+  UA.DARK_FIGURE_NOTE = DARK_FIGURE_NOTE;
+
+  // --------------------
   // Unfallklassen / Masken (robust, unabhängig von anderen Modulen)
   // --------------------
   // 6-Bit-Maske: Rad=1, Fuß=2, PKW=4, Krad=8, Gkfz=16, Sonstig=32
@@ -989,6 +1006,12 @@
       }
       lines.push("");
     }
+
+    // Dunkelziffer-Pflichthinweis (#C3) – immer, kein Toggle.
+    lines.push(DARK_FIGURE_NOTE.title + ":");
+    lines.push("  " + DARK_FIGURE_NOTE.body);
+    lines.push("  " + DARK_FIGURE_NOTE.sourceLabel);
+    lines.push("");
 
     lines.push(tpl(tBesch, vars).trim());
     lines.push("");
