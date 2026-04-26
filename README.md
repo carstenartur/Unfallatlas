@@ -1,8 +1,11 @@
 # Unfallwerkbank – Interaktive Unfallanalyse für deutsche Städte
 
-> **Wo passieren Fahrradunfälle? Wo sind Schulwege gefährdet? Wo braucht es bessere Radinfrastruktur?**
+> **Wo passieren Fahrradunfälle? Wo sind Schulwege gefährlich? Wo braucht es bessere Radinfrastruktur?**
 >
 > Die Unfallwerkbank macht amtliche Verkehrsunfalldaten (2016–2024) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
+
+[![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/carstenartur/Unfallatlas?sort=semver&label=Release)](https://github.com/carstenartur/Unfallatlas/releases/latest)
+[![Docker Image](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Funfallatlas-blue?logo=docker)](https://github.com/carstenartur/Unfallatlas/pkgs/container/unfallatlas)
 
 [![Startansicht der Unfallwerkbank V2](docs/screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
@@ -21,6 +24,7 @@
 | **Maßnahmen-Steckbriefe (Priorisierung)** | 🎯 [docs/LOCATION_BRIEF.md](docs/LOCATION_BRIEF.md) |
 | **Persistenz-/Analyse-Service (Spring Boot)** | 🗄️ [analysis-service/README.md](analysis-service/README.md) |
 | **Release-Checklist** | ✅ [docs/release-checklist.md](docs/release-checklist.md) |
+| **Release-Guide (Versioning & Artefacts)** | 🚢 [docs/RELEASING.md](docs/RELEASING.md) |
 | **Entwickler-Doku (Tests, CI)** | 🧰 [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 ---
