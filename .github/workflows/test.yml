@@ -68,6 +68,9 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
+      - name: Run accessibility tests
+        run: npx playwright test tests/e2e/accessibility.spec.js --project=chromium
+
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: always()
@@ -88,3 +91,64 @@ jobs:
         with:
           name: documentation-screenshots
           path: docs/screenshots/
+
+  firefox-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Firefox
+        run: npx playwright install --with-deps firefox
+
+      - name: Run Firefox smoke tests
+        run: npx playwright test --project=firefox-smoke
+
+      - name: Upload Firefox smoke report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report-firefox-smoke
+          path: playwright-report/
+
+  webkit-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright WebKit
+        run: npx playwright install --with-deps webkit
+
+      - name: Run WebKit smoke tests
+        run: npx playwright test --project=webkit-smoke
+
+      - name: Upload WebKit smoke report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report-webkit-smoke
+          path: playwright-report/
+
