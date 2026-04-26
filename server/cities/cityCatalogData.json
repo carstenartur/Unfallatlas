@@ -486,14 +486,15 @@
         "gemeinde": "08212000"
       },
       "populationClass": "large",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "other",
       "portalBaseUrl": "https://sitzungskalender.karlsruhe.de/db/ratsinformation",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -508,14 +509,15 @@
         "gemeinde": "08222000"
       },
       "populationClass": "large",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "other",
       "portalBaseUrl": "https://www.mannheim.de/de/stadt-gestalten/politik/buergerinformationssystem",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },
@@ -530,14 +532,15 @@
         "gemeinde": "09761000"
       },
       "populationClass": "large",
-      "accidentDataSupport": "partially_supported",
+      "accidentDataSupport": "supported",
       "politicalContextSupport": "partially_supported",
       "analysisServiceSupport": "partially_supported",
       "rankingSupport": "partially_supported",
       "knownPortalType": "allris",
       "portalBaseUrl": "https://www.augsburg.de/ratsinfo",
       "qualityFlags": [
-        "rollout-queued",
+        "accident-data-generated",
+        "poi-generated",
         "portal-from-seed"
       ]
     },

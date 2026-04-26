@@ -80,6 +80,14 @@ jobs:
           print("GeoJSON OK:", len(files))
           PY
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Sync City-Registry (auto-fix Drift)
+        run: node scripts/check-city-rollout.js --fix
+
       - name: Commit & Push changes
         run: |
           set -euo pipefail
