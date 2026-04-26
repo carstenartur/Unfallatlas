@@ -58,6 +58,14 @@
       ui.exportBoxTa.value = "…";
       await new Promise(r=>setTimeout(r,0));
       try {
+        // Mirror modal toggles into ctx.exportOptions so computeExportReport
+        // can decide which optional sections to include in the preview.
+        const cbCosts    = document.getElementById("cbIncludeCosts");
+        const cbMeasures = document.getElementById("cbIncludeMeasures");
+        ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
+          includeCosts:    cbCosts    ? cbCosts.checked    : true,
+          includeMeasures: cbMeasures ? cbMeasures.checked : true
+        });
         const r = await UA.computeExportReport(ctx);
         ui.exportProgress.textContent = "Fertig.";
         ui.exportHtml.innerHTML = r.html;
@@ -93,6 +101,17 @@
         }
       });
     }
+
+    // Re-render preview when cost / measures toggles change (only while modal open).
+    const _wireToggleRerender = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        if (ui.modalOverlay.style.display === "flex") rerenderExportReport();
+      });
+    };
+    _wireToggleRerender("cbIncludeCosts");
+    _wireToggleRerender("cbIncludeMeasures");
 
     ui.btnCopyText.addEventListener("click", async ()=> {
       await writeClipboard(ui.exportBoxTa.value || "");

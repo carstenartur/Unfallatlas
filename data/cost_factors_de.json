@@ -1,0 +1,17 @@
+{
+  "_comment": "Volkswirtschaftliche Unfallkostensätze (Deutschland) für die automatische Antrags-Berechnung. WICHTIG: Die hier hinterlegten Werte sind grobe Hausnummern auf Basis der publizierten Größenordnungen aus BASt-Berichten und müssen vor produktivem Einsatz mit dem aktuellsten BASt-Bericht 'Volkswirtschaftliche Kosten von Straßenverkehrsunfällen' verifiziert und ggf. aktualisiert werden. Bei jeder Aktualisierung bitte 'source.year' und 'source.url' anpassen.",
+  "version": 1,
+  "source": {
+    "publisher": "BASt – Bundesanstalt für Straßenwesen",
+    "title": "Volkswirtschaftliche Kosten von Straßenverkehrsunfällen in Deutschland (Größenordnung)",
+    "year": 2023,
+    "url": "https://www.bast.de/DE/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
+    "note": "Werte sind Größenordnungen auf Basis publizierter BASt-Daten. Vor produktiver Nutzung bitte mit aktuellem BASt-Bericht abgleichen."
+  },
+  "perAccident": {
+    "fatal":  { "value": 1300000, "unit": "EUR", "key": "ukategorie=1", "label": "Getöteter" },
+    "severe": { "value":  140000, "unit": "EUR", "key": "ukategorie=2", "label": "Schwerverletzter" },
+    "light":  { "value":    5000, "unit": "EUR", "key": "ukategorie=3", "label": "Leichtverletzter" }
+  },
+  "disclaimer": "Grobe Schätzung volkswirtschaftlicher Kosten nach BASt-Größenordnungen. Berücksichtigt sind Personenschäden (Heilbehandlung, Reha, Wiederbeschaffungskosten, Wertschöpfungsverluste, immaterielle Schäden). Sachschäden ohne Personenschaden sind nicht erfasst. Kein Ersatz für ein Fachgutachten."
+}

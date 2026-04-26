@@ -214,11 +214,20 @@
             <input type="checkbox" id="cbIncludeRefs" checked style="cursor:pointer;">
             <span>Referenzdokumente</span>
           </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+            <input type="checkbox" id="cbIncludeCosts" checked style="cursor:pointer;">
+            <span>Volkswirtschaftliche Kosten</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+            <input type="checkbox" id="cbIncludeMeasures" checked style="cursor:pointer;">
+            <span>Maßnahmenvorschläge</span>
+          </label>
           <label style="display:flex; align-items:center; gap:5px;">
             <span>Einzelunfälle anzeigen:</span>
             <select id="accidentViewSel" aria-label="Gruppierung der Einzelunfall-Tabelle" style="padding:4px 6px; border-radius:6px; border:1px solid rgba(0,0,0,.2);">
               <option value="bySeverity">nach Schwere</option>
               <option value="byInvolvement">nach Beteiligung</option>
+              <option value="byTimePattern">nach Verkehrszeit-Muster</option>
               <option value="flat">chronologisch</option>
             </select>
           </label>
@@ -405,7 +414,11 @@
   <script src="js/ua.data_v2.js?v=2026-01-01"></script>
   <script src="js/ua.filters.js?v=2026-01-01"></script>
   <script src="js/ua.map_v2.js?v=2026-01-01"></script>
+  <script src="js/ua.time_clusters.js?v=2026-01-01"></script>
   <script src="js/ua.accident_views.js?v=2026-01-01"></script>
+  <script src="js/ua.stats.js?v=2026-01-01"></script>
+  <script src="js/ua.costs.js?v=2026-01-01"></script>
+  <script src="js/ua.measures.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>
