@@ -124,7 +124,13 @@ function deriveFeatures(structured, contextHints) {
     tags: Array.from(tags),
     normalizedHints,
     poiSummary: summarizePoi(poi),
-    references: summarizeReferences(structured?.references || [])
+    references: summarizeReferences(structured?.references || []),
+    // Stufe-1-Anreicherungen: bereits in `structured` enthaltene Aggregationen
+    // werden 1:1 weitergereicht, damit Prompt-Builder und deterministischer
+    // Fallback sie ohne Neuberechnung nutzen können. Beide Felder sind optional
+    // und dürfen `null` sein.
+    yearlyTrend: structured?.yearlyTrend || null,
+    osmContext:  structured?.osmContext  || null
   };
   // Konfliktmuster werden auf Basis aller obigen Features berechnet
   // und als zusätzliches Feld angehängt. Sie sind ein Spezialfall von

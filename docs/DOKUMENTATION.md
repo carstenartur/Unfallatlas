@@ -38,6 +38,8 @@
 - [Mehrjahres-Trend](#mehrjahres-trend)
 - [Stunden-Heatmap im Antrag](#stunden-heatmap-im-antrag)
 - [Dunkelziffer-Pflichthinweis](#dunkelziffer-pflichthinweis)
+- [OSM-Kontext-Anreicherung](#osm-kontext-anreicherung)
+- [KI-Antragsentwurf (optional)](#ki-antragsentwurf-optional)
 
 ---
 
@@ -1052,3 +1054,38 @@ Die Sektion lässt sich im Export-Modal über den Schalter **„Stunden-Heatmap"
 ## Dunkelziffer-Pflichthinweis
 
 In allen Antrags-Renderpfaden (Text, HTML, DOCX, PDF) erscheint ein nicht abschaltbarer Hinweis darauf, dass die Unfallatlas-Daten der polizeilich erfassten Unfälle (mit Personenschaden) entsprechen und keine Vergleiche zu erfassten Sachschäden oder Beinahe-Unfällen zulassen. Konstante: `UA.DARK_FIGURE_NOTE` in `js/ua.export_v2.js`. Felder: `title`, `body`, `sourceLabel`, `sourceUrl`. Der Block ist Teil von `structured.darkFigureNote` und wird bewusst auch dann mit ausgegeben, wenn andere optionale Sektionen (Kosten, Maßnahmen) deaktiviert sind.
+
+## OSM-Kontext-Anreicherung
+
+Optionale Anreicherung des Antrags um verkehrsräumliche Eckdaten aus OpenStreetMap (Issue #220 / Punkt **#C4**). Helper: `js/ua.osm_context.js`, ausgespielt als `structured.osmContext`.
+
+`UA.osmContext.fetchOsmContext(bbox, opts)` ruft die [Overpass-API](https://overpass-api.de/) für die Bounding-Box des markierten Bereichs auf und aggregiert:
+
+- **Vorherrschendes Tempolimit** (`maxspeed`, mph wird in km/h umgerechnet), inkl. Histogramm und Stichprobengröße.
+- **Radverkehrsanlagen** (`highway=cycleway`, `bicycle=designated`, `cycleway:*`-Tags); ausgewiesen werden Zahl betroffener Wegabschnitte und Anteil an den klassifizierten Hauptachsen.
+- **Signalisierte Knoten** (`highway=traffic_signals`) und **markierte Querungen** (`highway=crossing`).
+- **Ø Fahrstreifen** (`lanes`) und **Ø Fahrbahnbreite** (`width`) – jeweils nur über klassifizierte Hauptverbindungen, mit Stichprobengröße.
+
+Eigenschaften:
+
+- **Defensiv** – jeder Netzfehler/HTTP-Fehler/Timeout liefert `{ quality: { error } }`, niemals einen Throw. Der HTML/DOCX/PDF-Renderer zeigt in dem Fall „Verkehrsräumlicher Kontext (OSM): nicht verfügbar (…)".
+- **Cache** – In-Memory, Schlüssel = gerundete Bbox + Endpoint, TTL 1 h, LRU bei > 50 Einträgen.
+- **Konfigurierbar** – `setEndpoint(url)` für Self-Hosted-Mirrors; `opts.timeoutMs` (Default 8 s); `opts.fetch` zum Stubben in Tests; `exportOptions.osmContextOverride` zum Überspringen der Anfrage komplett (z. B. für vorgefertigte Daten).
+- **Toggle** – `cbIncludeOsmContext` im Export-Modal; `exportOptions.includeOsmContext` (Default: an).
+
+Die Quelle wird im Antrag immer mitgeführt: „OpenStreetMap-Mitwirkende (ODbL 1.0), via Overpass API".
+
+## KI-Antragsentwurf (optional)
+
+Optionaler, **serverseitiger** KI-Schritt (Issue #220 / Punkt **#E1**). Die KI-Logik bleibt vollständig in `server/ai/` und damit im Docker-Image; das Frontend ist ein dünner Client.
+
+**Backend.** Endpoint `POST /api/ai/export-assessment/v2?mode=proposal-brief` (siehe [`server/ai/README.md`](../server/ai/README.md)). `deriveFeatures(structured)` propagiert seit `exportAssessmentPrompt.v2.3` zusätzlich `structured.yearlyTrend` und `structured.osmContext` in den Prompt; der Prompt-Builder rendert sie als eigene Sektionen `=== TREND ===` (Klassifikation aus linearer Regression) und `=== OSM-KONTEXT ===` (vorherrschendes Tempolimit, Radinfrastruktur, signalisierte Knoten, Querungen, Ø Fahrstreifen/Breite). Damit erhält die KI die Stufe-1-Anreicherungen ohne separaten Re-Compute.
+
+**Frontend.** Modul `js/ua.ai_proposal.js`, Button „✨ KI-Antragsentwurf" im Export-Modal:
+
+1. Ruft `UA.computeExportReport(ctx)` auf, um das deterministische `structured`-Objekt zu erzeugen (identisch mit Word/PDF-Export).
+2. Sendet es per `fetch('/api/ai/export-assessment/v2?mode=proposal-brief', …)` an den Server.
+3. Rendert die `proposalBrief.v1`-Antwort (Titel, Kurzfassung, Langfassung, Beschlussvorschlag, Prüfauftrag, Maßnahmen, Caveats) als kompakten Inline-Block; hängt parallel den Text an das Kopierfeld an.
+4. Robustheit: HTTP 503 (`AI_NOT_CONFIGURED`) → freundlicher Hinweis, dass der Operator `GEMINI_API_KEY` nicht gesetzt hat – der deterministische Antrag bleibt davon unberührt. `source: "fallback"` wird sichtbar als „deterministischer Fallback ohne KI" gekennzeichnet, damit Leser:innen die Quelle einordnen können.
+
+Konfiguration siehe `server/ai/README.md` (Umgebungsvariablen `GEMINI_API_KEY`, `AI_ASSESSMENT_MODEL`, `AI_ASSESSMENT_TIMEOUT_MS`, `AI_ASSESSMENT_MAX_RETRIES`, `AI_PROVIDER`).

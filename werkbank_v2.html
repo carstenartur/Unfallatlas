@@ -278,6 +278,18 @@
         </button>
       </div>
 
+      <!-- KI-Antragsentwurf (#E1) – ruft serverseitigen /api/ai/export-assessment/v2 auf.
+           Backend bleibt im Docker-Image; Frontend nur Aufruf + Anzeige. -->
+      <div id="aiProposalSection" style="margin-top:14px; padding:12px; border:1px solid rgba(0,0,0,.1); border-radius:12px; background:rgba(0,0,0,.02);">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button id="btnAiProposal" aria-label="KI-Antragsentwurf generieren" style="padding:10px 16px; background:#5a3fa0; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
+            <span aria-hidden="true">✨</span> KI-Antragsentwurf
+          </button>
+          <span id="aiProposalStatus" style="font-size:12px; color:#555;" role="status" aria-live="polite"></span>
+        </div>
+        <div id="aiProposalResult" style="display:none; margin-top:10px; font-size:13px;" aria-label="KI-Antragsentwurf"></div>
+      </div>
+
       <div class="row" style="margin-top:15px;">
         <label for="exportBoxTa" style="grid-column:1/-1; font-weight:800;">Text zum Kopieren (Word/Clipboard)</label>
         <textarea id="exportBoxTa" style="grid-column:1/-1; width:100%; min-height:220px; resize:vertical; padding:10px; border-radius:12px; border:1px solid rgba(0,0,0,.15); font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></textarea>
@@ -431,6 +443,7 @@
   <script src="js/ua.heatmap.js?v=2026-01-01"></script>
   <script src="js/ua.osm_context.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
+  <script src="js/ua.ai_proposal.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>
   <script src="js/ua.app_v2.js?v=2026-01-01"></script>

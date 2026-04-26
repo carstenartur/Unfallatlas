@@ -160,6 +160,14 @@
         catch (e) { alert("KML-Export fehlgeschlagen: " + String(e)); }
       });
     }
+
+    // KI-Antragsentwurf (#E1) — Frontend-Aufruf des serverseitigen
+    // /api/ai/export-assessment/v2-Endpoints. Die KI-Logik bleibt im
+    // Docker-Image (server/ai/), hier nur Aufruf + Anzeige.
+    if (UA.aiProposal && typeof UA.aiProposal.wire === "function") {
+      try { UA.aiProposal.wire(ctx); }
+      catch (e) { console.warn("aiProposal.wire failed:", e); }
+    }
   }
 
   async function main(){
