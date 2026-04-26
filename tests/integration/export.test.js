@@ -673,6 +673,8 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8'));
     // Load utils (provides UA.normKey needed for filename sanitization)
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.utils.js'), 'utf8'));
+    // ua.accident_views.js defines UA.accidentViews / UA.applyAccidentView (must precede ua.export_v2.js)
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.accident_views.js'), 'utf8'));
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.export_v2.js'), 'utf8'));
     UA = window.UA;
   });
@@ -1262,8 +1264,8 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       expect(rows[2].severity).toBe('3');
     });
 
-    test('accidentDetails truncates at maxRows and sets truncated flag', async () => {
-      // Create 60 in-bounds points to trigger truncation at default maxRows=50
+    test('accidentDetails truncates at maxRows per group and sets truncated flag', async () => {
+      // Create 60 in-bounds points with the same severity to trigger per-group truncation at default maxRows=20
       const manyPts = Array.from({ length: 60 }, (_, i) => ({
         lat: 52.5, lon: 9.7,
         props: { year: '2022', ukategorie: '3', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0', strzustand: '0', uwochentag: '2' }
@@ -1284,9 +1286,14 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       const result = await UA.computeExportReport(ctx);
       const ad = result.structured.accidentDetails;
 
-      expect(ad.rows.length).toBe(50);
+      // Per-group cap of 20: all 60 are Leichtverletzt → 1 group, 20 rows shown, 40 overflow
+      expect(ad.rows.length).toBe(20);
       expect(ad.total).toBe(60);
       expect(ad.truncated).toBe(true);
+      expect(ad.groups.length).toBe(1);
+      expect(ad.groups[0].count).toBe(60);
+      expect(ad.groups[0].rows.length).toBe(20);
+      expect(ad.groups[0].overflow).toBe(40);
     });
 
     test('crossTable and accidentDetails appear in text output', async () => {

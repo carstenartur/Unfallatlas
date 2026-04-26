@@ -52,6 +52,7 @@
     ui.btnCloseModal = document.getElementById('btnCloseModal');
     ui.btnCopyText = document.getElementById('btnCopyText');
     ui.btnCopyLink = document.getElementById('btnCopyLink');
+    ui.accidentViewSel = document.getElementById('accidentViewSel');
 
     ctx.ui = ui;
 

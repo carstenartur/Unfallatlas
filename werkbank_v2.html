@@ -214,6 +214,14 @@
             <input type="checkbox" id="cbIncludeRefs" checked style="cursor:pointer;">
             <span>Referenzdokumente</span>
           </label>
+          <label style="display:flex; align-items:center; gap:5px;">
+            <span>Einzelunfälle anzeigen:</span>
+            <select id="accidentViewSel" aria-label="Gruppierung der Einzelunfall-Tabelle" style="padding:4px 6px; border-radius:6px; border:1px solid rgba(0,0,0,.2);">
+              <option value="bySeverity">nach Schwere</option>
+              <option value="byInvolvement">nach Beteiligung</option>
+              <option value="flat">chronologisch</option>
+            </select>
+          </label>
         </div>
         <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <label for="heatExportOpacity" style="font-size:13px; white-space:nowrap;">Heatmap-Transparenz (Export):</label>
@@ -397,6 +405,7 @@
   <script src="js/ua.data_v2.js?v=2026-01-01"></script>
   <script src="js/ua.filters.js?v=2026-01-01"></script>
   <script src="js/ua.map_v2.js?v=2026-01-01"></script>
+  <script src="js/ua.accident_views.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>

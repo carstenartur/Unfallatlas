@@ -355,12 +355,26 @@ Der Export enthält eine **Kreuztabelle**, die alle Beteiligungskombinationen (z
 
 #### Einzelunfall-Tabelle
 
-Die **Einzelunfall-Tabelle** listet die einzelnen Unfälle im markierten Bereich auf (maximal 50 Einträge). Jede Zeile enthält:
+Die **Einzelunfall-Tabelle** listet die einzelnen Unfälle im markierten Bereich auf. Die Darstellung wird über eine austauschbare **Sicht-Strategie** gesteuert (`UA.accidentViews`); Default ist die Gruppierung nach Schweregrad. Jede Gruppe enthält bis zu 20 Einträge (Standard-Cap pro Gruppe); bei Überlauf erscheint ein Hinweis „… und N weitere". Leere Gruppen werden weggelassen.
+
+**Sichten / Strategien:**
+
+- `bySeverity` (Default) – drei Sektionen *Getötete*, *Schwerverletzte*, *Leichtverletzte*; Header trägt Beteiligungs-Histogramm und Tagestyp-Verteilung (z. B. *🚲: 7 · 🚗: 9 · 🚶: 3 · Werktag: 9 · Wochenende: 3*). Innerhalb der Gruppe Jahr absteigend, dann Stunde aufsteigend.
+- `byInvolvement` – gruppiert nach Beteiligungsmuster (Bit-Maske); Header trägt Schweregrad-Badges plus Tagestyp-Verteilung (z. B. *🚲+🚗 (n=12) [† 1 / S 4 / L 7] — Werktag: 9 · Wochenende: 3*). Häufigstes Muster zuerst. Innerhalb der Gruppe Schwere aufsteigend, dann Jahr absteigend.
+- `flat` – einzige Gruppe ohne Header, chronologisch (Jahr absteigend, Schwere aufsteigend); behält den historischen Cap von 50 Zeilen.
+
+**URL-Parameter:** `?accidentView=byInvolvement` öffnet die App direkt mit der gewählten Sicht; ungültige Werte fallen auf `bySeverity` zurück. Das Export-Modal enthält außerdem ein Dropdown „Einzelunfälle anzeigen" (`#accidentViewSel`), das den Report live neu rendert (HTML-Vorschau, Text-Box und nachfolgende Word-/PDF-Exporte).
+
+Das Beteiligungs-Histogramm zeigt pro Beteiligungsart, in wie vielen Unfällen dieser Gruppe diese Art vorkommt (Bit-Zählung: ein Rad+PKW-Unfall zählt bei beiden). Zusätzlich wird pro Gruppe – sofern Wochentag-Daten vorliegen – die Aufteilung *Werktag / Wochenende* ausgewiesen, weil sich Verkehrsmuster (Berufs-/Schulverkehr werktags vs. Freizeitverkehr am Wochenende) deutlich unterscheiden und für die Maßnahmenbewertung relevant sind. Die Klassifikation Werktag/Wochenende leitet sich aus `UA.WEEKEND_SET` ab (Sa/So = Wochenende) und ist damit konsistent mit der dayType-Filterung.
+
+Jede Zeile enthält:
 
 - **Jahr** des Unfalls
-- **Schweregrad** (Getötete / Schwer- / Leichtverletzte)
+- **Schwere** (nur in `byInvolvement` und `flat` als eigene Spalte; in `bySeverity` ergibt sich die Schwere aus dem Gruppen-Header)
 - **Beteiligungsart** (z. B. Rad, PKW, Fuß)
 - **Uhrzeit** des Unfalls
+- **Wochentag** des Unfalls inkl. Tagestyp, z. B. *Mi (Werktag)* oder *Sa (Wochenende)*
+- **Fahrbahnzustand** (trocken / nass/feucht / winterglatt)
 - **Koordinaten** (Breitengrad / Längengrad)
 
 #### Detailkarte
