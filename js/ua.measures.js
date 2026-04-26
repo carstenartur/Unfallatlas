@@ -247,11 +247,14 @@
     // Determine each end's currency suffix ("Mio. €", "Tsd. €" or " €").
     // Only collapse the unit when both ends carry the same suffix — otherwise
     // we'd silently turn "80 Tsd." + "1,5 Mio. €" into "80 – 1,5 Mio. €" and
-    // drop the "Tsd." on the lower bound.
+    // drop the "Tsd." on the lower bound. We return `m[0]` (the actual matched
+    // text) instead of reconstructing the suffix so any whitespace variation
+    // in the input is preserved verbatim.
     const suffixOf = (s) => {
-      const m = s.match(/\s(Mio\.|Tsd\.)\s*€\s*$/);
-      if (m) return " " + m[1] + " €";
-      if (/\s€\s*$/.test(s)) return " €";
+      const m = s.match(/\s+(?:Mio\.|Tsd\.)\s*€\s*$/);
+      if (m) return m[0];
+      const m2 = s.match(/\s+€\s*$/);
+      if (m2) return m2[0];
       return "";
     };
     const sa = suffixOf(a);
