@@ -9,9 +9,12 @@ Successfully implemented a comprehensive test concept for the Unfallatlas applic
 ### 1. Test Infrastructure ✅
 
 **Tools Installed:**
-- ✅ Jest ^29.7.0 for unit and integration testing
-- ✅ Playwright ^1.48.0 for end-to-end testing
+- ✅ Jest for unit and integration testing (version: see `package.json`)
+- ✅ Playwright for end-to-end testing (version: see `package.json`)
 - ✅ jsdom environment for browser API mocking
+
+> Note: concrete tool versions are intentionally not duplicated in this report;
+> `package.json` is the single source of truth.
 
 **Configuration Files:**
 - ✅ `package.json` - Dependencies and test scripts

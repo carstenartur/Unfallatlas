@@ -9,14 +9,16 @@ Dieses Dokument beschreibt die Implementierung des Testkonzepts für die Unfalla
 ### 1. Testwerkzeuge
 
 #### Jest (Unit- und Integrationstests)
-- **Version**: ^29.7.0
 - **Konfiguration**: `package.json` mit jsdom-Umgebung
 - **Verwendung**: Unit-Tests, Integrationstests, Performance-Tests
 
 #### Playwright (End-to-End-Tests)
-- **Version**: ^1.48.0
-- **Browser**: Chromium (konfigurierbar für weitere Browser)
+- **Browser**: Chromium, Firefox-Smoke, WebKit-Smoke (konfigurierbar in `playwright.config.js`)
 - **Konfiguration**: `playwright.config.js`
+
+> **Hinweis:** `package.json` ist die einzige Quelle der Wahrheit für Versionsnummern.
+> Diese Dokumentation pflegt bewusst keine konkreten Versionsangaben mehr –
+> bei Bedarf bitte direkt `package.json` konsultieren.
 
 ### 2. GitHub Actions Workflow
 

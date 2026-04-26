@@ -15,6 +15,8 @@ tests/
 │   └── export.test.js         # Document export integration tests
 ├── e2e/                       # End-to-end tests using Playwright
 │   ├── werkbank.spec.js       # User workflow tests
+│   ├── smoke.spec.js          # Cross-browser smoke tests (chromium, firefox-smoke, webkit-smoke)
+│   ├── accessibility.spec.js  # axe-core accessibility tests (main page + export modal)
 │   ├── screenshots.spec.js    # Automated screenshot generation (16 screenshots + PDF render)
 │   ├── demo.spec.js           # Demo GIF video generation
 │   └── helpers.js             # CDN route interception for offline tests (pdfmake, docx)

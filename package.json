@@ -28,8 +28,9 @@
     "traffic-safety"
   ],
   "author": "Carsten Artur",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0",
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",

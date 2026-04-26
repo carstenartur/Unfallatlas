@@ -51,9 +51,11 @@ Das Projekt verfügt über eine umfassende Testsuite zur Sicherstellung von Qual
 
 ### Test-Framework
 
-- **Jest** (v29.7.0) für Unit-Tests, Integrationstests und Performance-Tests
-- **Playwright** (v1.48.0) für End-to-End-Tests im Browser
+- **Jest** für Unit-Tests, Integrationstests und Performance-Tests (Version siehe `package.json`)
+- **Playwright** für End-to-End-Tests im Browser (Version siehe `package.json`)
 - **jsdom** für Browser-API-Simulation in Jest
+
+> Konkrete Versionsnummern werden bewusst nicht in der Doku gepflegt – `package.json` ist die Quelle der Wahrheit.
 
 ### Test-Kategorien
 

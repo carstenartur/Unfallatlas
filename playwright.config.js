@@ -12,7 +12,7 @@ export default defineConfig({
     ['junit', { outputFile: 'test-results/junit.xml' }]
   ],
   use: {
-    baseURL: 'http://localhost:8000',
+    baseURL: process.env.BASE_URL || 'http://localhost:8000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -34,9 +34,21 @@ export default defineConfig({
       },
       testMatch: /demo\.spec/,
     },
+    // Cross-Browser Smoke-Tests (Firefox + WebKit)
+    {
+      name: 'firefox-smoke',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: /smoke\.spec/,
+    },
+    {
+      name: 'webkit-smoke',
+      use: { ...devices['Desktop Safari'] },
+      testMatch: /smoke\.spec/,
+    },
   ],
 
-  webServer: {
+  // Only start a local web server when not targeting a live/remote BASE_URL
+  webServer: process.env.BASE_URL ? undefined : {
     command: 'python3 -m http.server 8000',
     url: 'http://localhost:8000',
     reuseExistingServer: !process.env.CI,
