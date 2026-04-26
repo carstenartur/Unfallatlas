@@ -232,7 +232,7 @@ jobs:
         if: ${{ !inputs.skip_tests }}
         run: |
           npm ci
-          npm test || true
+          npm test
 
       # 6. Build website bundle
       - name: Create website bundle ZIP
@@ -365,7 +365,11 @@ jobs:
             gh issue list --state closed \
               --search "closed:>${PREVIOUS_DATE}" \
               --json number,title \
-              --jq '.[] | "- #\(.number): \(.title)"' > release_notes.md || true
+              --jq '.[] | "- #\(.number): \(.title)"' > release_notes.md
+            if [ $? -ne 0 ]; then
+              echo "::warning::Could not fetch closed issues – using fallback release notes"
+              echo "No closed issues could be fetched since $PREVIOUS_TAG" > release_notes.md
+            fi
             if [ ! -s release_notes.md ]; then
               echo "No closed issues found since $PREVIOUS_TAG" > release_notes.md
             fi
@@ -454,7 +458,12 @@ jobs:
 
           # Also sync package.json if it has a version field
           if node -e "const p=require('./package.json'); process.exit(p.version ? 0 : 1)" 2>/dev/null; then
-            npm version "${NEXT_VERSION%-SNAPSHOT}" --no-git-tag-version --allow-same-version || true
+            NEXT_RELEASE_VERSION="${NEXT_VERSION%-SNAPSHOT}"
+            if npm version "${NEXT_RELEASE_VERSION}" --no-git-tag-version --allow-same-version; then
+              echo "package.json version synced to ${NEXT_RELEASE_VERSION}"
+            else
+              echo "::warning::Failed to sync package.json version to ${NEXT_RELEASE_VERSION} – continuing anyway"
+            fi
           fi
           echo "Versions bumped to ${NEXT_VERSION}"
 

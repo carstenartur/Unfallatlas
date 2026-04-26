@@ -79,7 +79,7 @@ After a successful release with version `X.Y.Z`:
 | Docker image (latest) | `ghcr.io/carstenartur/unfallatlas:latest` |
 | Spring Boot JAR | GitHub Release asset `unfallatlas-analysis-service-X.Y.Z.jar` |
 | Static website bundle | GitHub Release asset `unfallatlas-website-X.Y.Z.zip` |
-| Git tag | `v X.Y.Z` on `main` |
+| Git tag | `vX.Y.Z` on `main` |
 | Maintenance branch | `maintenance/X.Y.x` |
 
 ---
