@@ -501,7 +501,7 @@
     return "—";
   }
 
-  function accidentDetailTable(filteredPts, maxRows, viewId) {
+  function accidentDetailTable(filteredPts, maxRows, viewId, viewOpts) {
     const items = [];
 
     for (const p of filteredPts) {
@@ -535,6 +535,8 @@
     // old per-group cap argument; tests and callers may still pass a number).
     // The override is passed explicitly to applyAccidentView so the shared
     // strategy object is never mutated (re-entrant / concurrent safe).
+    // `viewOpts` may carry strategy-specific data (e.g. byTimePattern uses
+    // `clusters` to support per-city time-cluster overrides).
     const resolvedViewId = viewId || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
     const view = (UA.resolveAccidentView ? UA.resolveAccidentView(resolvedViewId) : null);
     const explicitCap = (maxRows !== undefined && Number.isFinite(Number(maxRows)))
@@ -544,9 +546,11 @@
       ? explicitCap
       : (view && Number.isFinite(view.rowCap) ? view.rowCap : 20);
 
+    const opts = Object.assign({ rowCap: cap }, viewOpts || {});
+
     let viewResult;
     if (UA.applyAccidentView) {
-      viewResult = UA.applyAccidentView(items, resolvedViewId, { rowCap: cap });
+      viewResult = UA.applyAccidentView(items, resolvedViewId, opts);
     } else {
       // Should not happen in production (ua.accident_views.js loads before ua.export_v2.js).
       viewResult = { viewId: resolvedViewId, columns: [], groups: [], total: items.length, truncated: false };
@@ -622,10 +626,23 @@
     const filteredPts = getPointsInBounds(ctx);  // see getPointsInBounds() below
     const crossTable = crossTableSeverityByMask(filteredPts);
     const accidentViewId = ctx.accidentView || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
-    const accidentDetails = accidentDetailTable(filteredPts, undefined, accidentViewId);
 
     const CITY_RAW = ctx.CITY_RAW || "—";
     const citySlug = UA.normKey ? UA.normKey(CITY_RAW) : CITY_RAW.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+
+    // Load time clusters (city-overridable) for byTimePattern view; fall through
+    // to default cluster set when not configured. Loaded eagerly so the view
+    // strategy receives them deterministically.
+    let timeClusters = null;
+    if (UA.timeClusters && UA.timeClusters.loadTimeClusters) {
+      try {
+        const cfg = await UA.timeClusters.loadTimeClusters(citySlug);
+        timeClusters = (cfg && Array.isArray(cfg.clusters)) ? cfg.clusters : null;
+      } catch (e) {
+        console.warn("Time-cluster loading failed:", e);
+      }
+    }
+    const accidentDetails = accidentDetailTable(filteredPts, undefined, accidentViewId, { clusters: timeClusters });
 
     // Load POI data
     let poiAnalysis = null;
@@ -668,6 +685,51 @@
     }
 
     const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
+
+    // ---- Economic impact (PR-C / B2): annual external cost via BASt-like factors ----
+    // Compute over the data range (preferred) or fall back to 1-year. Items are
+    // counted via severityStats (already filtered by non-involvement filters + bounds).
+    let economicImpact = null;
+    if (UA.costs && UA.costs.loadCostFactors) {
+      try {
+        const factors = await UA.costs.loadCostFactors();
+        const yearsCount = (range && range.minY != null && range.maxY != null)
+          ? Math.max(1, range.maxY - range.minY + 1)
+          : 1;
+        const calc = UA.costs.computeAnnualCost(sev.bySev, yearsCount, factors);
+        economicImpact = {
+          annual: calc.annual,
+          total: calc.total,
+          years: calc.years,
+          breakdown: calc.breakdown,
+          counts: calc.counts,
+          source: factors.source,
+          disclaimer: factors.disclaimer
+        };
+      } catch (e) {
+        console.warn("Economic impact computation failed:", e);
+      }
+    }
+
+    // ---- Recommended measures (PR-D / B1+B3) ----
+    // Derive detected patterns from `dev.focus` (significant/overrepresented masks).
+    // When not significant we still surface the masks but recommendation is still
+    // helpful as an evidence-based starting point. Limit handled inside the module.
+    let recommendedMeasures = null;
+    if (UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
+      try {
+        const detectedPatterns = (dev.focus || []).map(r => Number(r.mask)).filter(Number.isFinite);
+        if (detectedPatterns.length > 0) {
+          const catalog = await UA.measures.loadCatalog(citySlug);
+          recommendedMeasures = UA.measures.recommendMeasures(detectedPatterns, catalog, {
+            limit: 5,
+            economicImpact: economicImpact
+          });
+        }
+      } catch (e) {
+        console.warn("Measure recommendation failed:", e);
+      }
+    }
 
     const vars = {
       city: CITY_RAW,
@@ -777,6 +839,54 @@
     // Add methodology section (Gen-2)
     if (tMethod) {
       lines.push(tpl(tMethod, vars).trim());
+      lines.push("");
+    }
+
+    // Add economic impact (PR-C / B2): respect ctx.exportOptions.includeCosts (default ON)
+    const includeCosts = !ctx.exportOptions || ctx.exportOptions.includeCosts !== false;
+    if (includeCosts && economicImpact && economicImpact.total > 0) {
+      const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
+      lines.push("Volkswirtschaftliche Bedeutung (Schätzung):");
+      lines.push(`  Geschätzte externe Kosten im Bereich: ${fmt(economicImpact.total)} (Datenzeitraum ${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"}).`);
+      lines.push(`  Pro Jahr: ca. ${fmt(economicImpact.annual)}.`);
+      lines.push(`  Aufschlüsselung – Getötete: ${fmt(economicImpact.breakdown.fatal)} · Schwerverletzte: ${fmt(economicImpact.breakdown.severe)} · Leichtverletzte: ${fmt(economicImpact.breakdown.light)}.`);
+      if (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year)) {
+        const srcParts = [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ");
+        lines.push(`  Quelle: ${srcParts}.`);
+      }
+      if (economicImpact.disclaimer) {
+        lines.push(`  Hinweis: ${economicImpact.disclaimer}`);
+      }
+      lines.push("");
+    }
+
+    // Add recommended measures (PR-D / B1+B3): respect ctx.exportOptions.includeMeasures (default ON)
+    const includeMeasures = !ctx.exportOptions || ctx.exportOptions.includeMeasures !== false;
+    if (includeMeasures && recommendedMeasures && recommendedMeasures.measures.length > 0) {
+      const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
+      const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
+      lines.push("Empfohlene Maßnahmen (automatischer Vorschlag, basierend auf detektierten Mustern):");
+      let i = 1;
+      for (const item of recommendedMeasures.measures) {
+        const m = item.measure;
+        const cost = fmtCost(m.costRange);
+        const red = fmtRed(m.effect && m.effect.expectedReductionPct);
+        const ev = (m.effect && m.effect.evidenceLevel) ? ` Evidenz ${m.effect.evidenceLevel}` : "";
+        lines.push(`  ${i}. ${m.label}`);
+        if (m.description) lines.push(`     ${m.description}`);
+        lines.push(`     Kosten: ${cost} pro ${m.perUnit || "Einheit"} · erwartete Reduktion: ${red} ·${ev} · Vorlauf: ${m.leadTime || "—"}`);
+        if (item.amortisation && item.amortisation.years) {
+          const [best, worst] = item.amortisation.years;
+          lines.push(`     Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre (Best- bis Worst-Case).`);
+        }
+        if (Array.isArray(m.considerations) && m.considerations.length > 0) {
+          for (const c of m.considerations) lines.push(`     – ${c}`);
+        }
+        i++;
+      }
+      if (recommendedMeasures.disclaimer) {
+        lines.push(`  Hinweis: ${recommendedMeasures.disclaimer}`);
+      }
       lines.push("");
     }
 
@@ -1008,6 +1118,73 @@
       refDocsHtmlSection += `</ul>`;
     }
 
+    // Build economic-impact HTML section (PR-C / B2)
+    let economicImpactHtmlSection = "";
+    if (includeCosts && economicImpact && economicImpact.total > 0) {
+      const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
+      const srcParts = (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year))
+        ? [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ")
+        : "";
+      const srcUrl = (economicImpact.source && economicImpact.source.url) ? economicImpact.source.url : "";
+      economicImpactHtmlSection = `
+        <div style="margin-top:12px; font-weight:900;">Volkswirtschaftliche Bedeutung (Schätzung)</div>
+        <table class="report" style="margin-top:6px;">
+          <thead>
+            <tr><th>Kategorie</th><th style="text-align:right;">Anzahl</th><th style="text-align:right;">Geschätzte Kosten</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Getötete</td><td style="text-align:right;">${economicImpact.counts.fatal}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.fatal))}</td></tr>
+            <tr><td>Schwerverletzte</td><td style="text-align:right;">${economicImpact.counts.severe}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.severe))}</td></tr>
+            <tr><td>Leichtverletzte</td><td style="text-align:right;">${economicImpact.counts.light}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.light))}</td></tr>
+            <tr style="font-weight:700; border-top:2px solid #aaa;"><td>Gesamt im Datenzeitraum (${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"})</td><td style="text-align:right;">${economicImpact.counts.fatal + economicImpact.counts.severe + economicImpact.counts.light}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.total))}</td></tr>
+            <tr style="font-weight:700;"><td>Pro Jahr</td><td></td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.annual))}</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:6px; color:#555; font-size:12px;">
+          ${srcParts ? `<div><strong>Quelle:</strong> ${UA.escHtml(srcParts)}${srcUrl ? ` (<a href="${UA.escHtml(srcUrl)}" target="_blank" rel="noopener">Link</a>)` : ""}</div>` : ""}
+          ${economicImpact.disclaimer ? `<div style="font-style:italic; margin-top:4px;">${UA.escHtml(economicImpact.disclaimer)}</div>` : ""}
+        </div>`;
+    }
+
+    // Build recommended-measures HTML section (PR-D / B1+B3)
+    let measuresHtmlSection = "";
+    if (includeMeasures && recommendedMeasures && recommendedMeasures.measures.length > 0) {
+      const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
+      const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
+      const itemsHtml = recommendedMeasures.measures.map((item) => {
+        const m = item.measure;
+        const cost = fmtCost(m.costRange);
+        const red = fmtRed(m.effect && m.effect.expectedReductionPct);
+        const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
+        const amort = (item.amortisation && item.amortisation.years)
+          ? `<div style="color:#0a5; font-size:12px; margin-top:2px;"><strong>Amortisation:</strong> ca. ${item.amortisation.years[0].toFixed(1)} – ${item.amortisation.years[1].toFixed(1)} Jahre</div>`
+          : "";
+        const considerationsHtml = (Array.isArray(m.considerations) && m.considerations.length > 0)
+          ? `<ul style="margin:4px 0 0 18px; padding:0; color:#555; font-size:12px;">${m.considerations.map(c => `<li>${UA.escHtml(c)}</li>`).join("")}</ul>`
+          : "";
+        return `
+          <li style="margin-bottom:10px;">
+            <div style="font-weight:700;">${UA.escHtml(m.label)}</div>
+            ${m.description ? `<div style="color:#444; font-size:13px; margin-top:2px;">${UA.escHtml(m.description)}</div>` : ""}
+            <div style="color:#666; font-size:12px; margin-top:2px;">
+              <strong>Kosten:</strong> ${UA.escHtml(cost)} pro ${UA.escHtml(m.perUnit || "Einheit")} ·
+              <strong>Reduktion:</strong> ${UA.escHtml(red)} ·
+              ${ev ? UA.escHtml(ev) + " · " : ""}<strong>Vorlauf:</strong> ${UA.escHtml(m.leadTime || "—")}
+            </div>
+            ${amort}
+            ${considerationsHtml}
+          </li>`;
+      }).join("");
+      const sourcesHtml = (recommendedMeasures.sources && recommendedMeasures.sources.length > 0)
+        ? `<div style="color:#666; font-size:12px; margin-top:6px;"><strong>Quellen:</strong> ${recommendedMeasures.sources.map(s => UA.escHtml(s.title || "")).filter(Boolean).join(" · ")}</div>`
+        : "";
+      measuresHtmlSection = `
+        <div style="margin-top:12px; font-weight:900;">Empfohlene Maßnahmen (automatischer Vorschlag)</div>
+        <ol style="margin-top:6px;">${itemsHtml}</ol>
+        ${sourcesHtml}
+        ${recommendedMeasures.disclaimer ? `<div style="color:#555; font-size:12px; font-style:italic; margin-top:4px;">${UA.escHtml(recommendedMeasures.disclaimer)}</div>` : ""}`;
+    }
+
     // Build accident-detail HTML section using the active view strategy.
     // Each group has pre-rendered headers (text/html/docx) and we wrap each row
     // with the strategy's renderRow.html callback.
@@ -1116,6 +1293,10 @@
         </table>
         ` : ""}
 
+        ${economicImpactHtmlSection}
+
+        ${measuresHtmlSection}
+
         ${accidentHtmlSection}
 
         ${poiHtmlSection}
@@ -1189,7 +1370,10 @@
       politicalReferences: ctx.politicalReferences || [],
       patterns: matchedPatterns,
       crossTable,
-      accidentDetails
+      accidentDetails,
+      economicImpact,
+      recommendedMeasures,
+      timeClusters: timeClusters
     };
 
     return { text: textOut, html: htmlOut, structured };

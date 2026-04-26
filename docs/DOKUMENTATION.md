@@ -32,6 +32,9 @@
 - [Häufige Fragen (FAQ)](#häufige-fragen-faq)
 - [Methodik und Grenzen](#methodik-und-grenzen)
 - [Statistische Belastbarkeit](#statistische-belastbarkeit)
+- [Volkswirtschaftliche Kosten](#volkswirtschaftliche-kosten)
+- [Maßnahmenkatalog](#maßnahmenkatalog)
+- [Verkehrszeit-Muster (Time Cluster)](#verkehrszeit-muster-time-cluster)
 
 ---
 
@@ -863,3 +866,142 @@ Das Wilson-Score-Intervall ist in `js/ua.stats.js` implementiert (`UA.wilsonScor
 - Das Konfidenzintervall beschreibt die **Stichprobenvariabilität** unter der Annahme einer Binomialverteilung. Es berücksichtigt keine systematischen Fehler (z. B. Erfassungslücken, räumliche Autokorrelation).
 - Ein signifikantes Ergebnis ist kein Beweis für eine kausale Ursache – es ist ein statistischer Hinweis, der eine Ortsbegehung und fachliche Einschätzung nahelegt, aber nicht ersetzt.
 - Bei sehr kleinen Ausschnitten (< 5 Unfälle insgesamt) sollte die Auswertung grundsätzlich mit besonderer Vorsicht interpretiert werden.
+
+---
+
+## Volkswirtschaftliche Kosten
+
+Die Werkbank ergänzt jeden Antrag automatisch um eine Schätzung der **externen Kosten** der im markierten Bereich registrierten Unfälle. Damit wird der Bezug zwischen Sicherheitsdefiziten und gesellschaftlichen Folgekosten herstellbar – ein häufig gewünschter Block in politischen Anträgen.
+
+### Datenquelle und Größenordnungen
+
+Die Sätze stammen aus der Veröffentlichungslinie der **BASt (Bundesanstalt für Straßenwesen)** zum Bericht „Volkswirtschaftliche Kosten von Straßenverkehrsunfällen". Die in der Werkbank hinterlegten Beträge sind Größenordnungen pro Person nach Schwere des Personenschadens (Heilbehandlung, Reha, Wertschöpfungsverluste, immaterielle Schäden):
+
+| Schwere | Geschätzte Kosten pro Person |
+| ------- | ---------------------------- |
+| Getöteter | ca. 1,3 Mio. € |
+| Schwerverletzter | ca. 140 Tsd. € |
+| Leichtverletzter | ca. 5 Tsd. € |
+
+Die Werte liegen in `data/cost_factors_de.json`. Sie können vor produktiver Nutzung an den jeweils aktuellsten BASt-Bericht angepasst werden (Felder `perAccident.<level>.value`, `source.year`, `source.url`).
+
+### Darstellung im Antrag
+
+- HTML-Vorschau / Text / DOCX / PDF enthalten einen Block **„Volkswirtschaftliche Bedeutung"** mit der Aufschlüsselung pro Schweregrad sowie Gesamt- und Pro-Jahr-Kosten (über den Datenzeitraum verteilt).
+- Quelle und Disclaimer („Grobe Schätzung … kein Ersatz für ein Fachgutachten") werden immer mit ausgegeben.
+- Die Sektion lässt sich im Export-Modal über den Schalter **„Volkswirtschaftliche Kosten"** ein- und ausblenden (Default: an).
+
+### Methodische Einordnung
+
+- Erfasst sind nur **Personenschäden**. Sachschadensunfälle ohne Personenschaden tauchen im Unfallatlas nicht auf und sind in der Schätzung nicht enthalten.
+- Die Berechnung ist eine lineare Hochrechnung: `Anzahl × Kostensatz`. Sekundäreffekte (Stauwirkung, Vermeidungseffekte) sind nicht berücksichtigt.
+- Die Sektion ist explizit als **„Schätzung"** gekennzeichnet und ersetzt kein Fachgutachten.
+
+---
+
+## Maßnahmenkatalog
+
+Auf Basis der detektierten überrepräsentierten Beteiligungsmuster (Wilson-signifikante Faktor-Abweichungen, siehe oben) schlägt die Werkbank automatisch passende Verkehrssicherheits-Maßnahmen aus einem evidenzbasierten Katalog vor.
+
+### Quellen
+
+Der Basiskatalog liegt in `data/measures_catalog.json`. Quellen pro Maßnahme:
+
+- **FGSV ERA 2010** – Empfehlungen für Radverkehrsanlagen (geschützte Radstreifen, Radfurten, etc.)
+- **FGSV RASt 06** – Richtlinien für die Anlage von Stadtstraßen
+- **BASt-Berichte** zu Maßnahmenwirkung im Knotenpunktbereich und auf Tempo-30-Strecken
+
+### Aufbau
+
+Jede Maßnahme enthält:
+
+| Feld | Bedeutung |
+| ---- | --------- |
+| `costRange` | Kostenspanne in EUR (untere/obere Hausnummer) |
+| `perUnit`   | Bezugseinheit (Knoten, Querung, 100 m, …) |
+| `leadTime`  | Typische Vorlaufzeit von Beschluss bis Wirkbetrieb |
+| `effect.targetPatterns` | Bit-Masken der Beteiligungsmuster, gegen die die Maßnahme nachweislich wirkt |
+| `effect.expectedReductionPct` | Erwartungsspanne der Unfallreduktion in % |
+| `effect.evidenceLevel` | A (gut belegt), B (gut belegte Erfahrung), C (Erfahrung) |
+| `considerations` | Praxis-Hinweise / Stolpersteine |
+
+### Empfehlungs-Engine
+
+Die Engine (`js/ua.measures.js → recommendMeasures`) ordnet jeder Maßnahme einen **Score** zu, der sich aus der Anzahl getroffener Beteiligungsmuster ergibt. Sortierung im Antrag:
+
+1. höchster Score zuerst
+2. bei Gleichstand: günstigere Maßnahme zuerst
+3. bei Gleichstand: alphabetisch nach Label
+
+Maßnahmen ohne Match werden nicht gelistet. Im Antrag erscheint die Sektion **„Empfohlene Maßnahmen"** mit bis zu 5 Vorschlägen.
+
+### Amortisationsangabe
+
+Wenn die volkswirtschaftliche Kostenschätzung verfügbar ist (siehe oben), wird pro Maßnahme die geschätzte **Amortisationszeit** mit ausgegeben (Best- bis Worst-Case anhand `costRange × expectedReductionPct`). Die Sektion lässt sich im Export-Modal über den Schalter **„Maßnahmenvorschläge"** abschalten.
+
+### Stadt-Override
+
+Kommunen können einen eigenen Katalog hinterlegen unter `templates/measures_<citySlug>_catalog.json`. Maßnahmen mit gleicher `id` überschreiben die Basis (z. B. lokale Kosten / Vorlauf). Neue `id`s werden ergänzt. Das Format ist identisch zum Basiskatalog.
+
+### Methodische Einordnung
+
+- Wirkungswerte sind **Erfahrungsspannen** und kein Ersatz für ein Fachgutachten.
+- Kostenangaben sind bundesweite Hausnummern; lokale Preise weichen ab.
+- Die Vorschläge dienen als evidenzbasierter Startpunkt für die Diskussion in Bezirksrat / Verkehrskommission.
+
+---
+
+## Verkehrszeit-Muster (Time Cluster)
+
+Die Einzelunfall-Tabelle im Export kann nach **Verkehrszeit-Mustern** gruppiert werden. Damit lassen sich z. B. Schulwegunfälle morgens explizit von Berufsverkehr und Nachtgeschehen trennen.
+
+### Verfügbare Cluster (Default)
+
+| Cluster | Werktag/WE | Zeitfenster |
+| ------- | ---------- | ----------- |
+| Schulverkehr (morgens) | Werktag | 07:00–08:30 |
+| Schulverkehr (nachmittags) | Werktag | 12:00–14:00 |
+| Berufsverkehr (morgens) | Werktag | 06:30–09:30 |
+| Berufsverkehr (abends) | Werktag | 16:00–19:00 |
+| Werktag (sonst tagsüber) | Werktag | 09:30–16:00 |
+| Werktag (Abend) | Werktag | 19:00–22:00 |
+| Werktag (Nacht) | Werktag | 22:00–05:00 |
+| Wochenende (Tag) | Wochenende | 08:00–22:00 |
+| Wochenende (Nacht) | Wochenende | 22:00–08:00 |
+
+**Wichtig: Reihenfolge ist signifikant.** Das **erste matchende Cluster gewinnt**. So gehört 07:30 immer zu „Schulverkehr (morgens)" und nicht zu „Berufsverkehr (morgens)", obwohl beide Zeitfenster sich überlappen.
+
+### Auswahl im Antrag
+
+Im Export-Modal steht unter **„Einzelunfälle anzeigen"** der Eintrag **„nach Verkehrszeit-Muster"**. Die Auswahl wird per URL-Parameter `accidentView=byTimePattern` persistiert und beim Teilen des Links wiederhergestellt.
+
+### Stadt-Override
+
+Kommunen mit abweichenden Schul- oder Bürozeiten können eigene Cluster hinterlegen. Fallback-Reihenfolge:
+
+1. `templates/time_clusters_<citySlug>.json` (stadtspezifisch)
+2. `templates/time_clusters.json` (generisch)
+3. eingebauter Default in `js/ua.time_clusters.js`
+
+Beispielkonfiguration: `templates/time_clusters_hannover.json`. Dateiformat:
+
+```json
+{
+  "version": 1,
+  "city": "Hannover",
+  "clusters": [
+    { "id": "werktag_schule_morgens", "label": "Schulverkehr (morgens)",
+      "weekdayGroup": "Werktag", "hours": [[7, 0], [8, 30]] },
+    { "id": "werktag_nacht", "label": "Werktag (Nacht)",
+      "weekdayGroup": "Werktag", "hours": [[22, 0], [29, 0]] }
+  ]
+}
+```
+
+Das `hours`-Feld nutzt `[[startH, startM], [endH, endM]]` (halboffen `[start, end)`). Werte über `24` werden als „Folgetag" interpretiert (z. B. `[22,0]–[29,0]` = 22:00 bis 05:00 des Folgetags).
+
+### Methodische Einordnung
+
+- Cluster werden anhand **Stunde + Wochentagsgruppe** klassifiziert; präzisere Information (Minute) liegt im Unfallatlas nicht flächendeckend vor.
+- Items ohne erkennbare Stunde landen im Bucket **„Andere / unbekannte Uhrzeit"**.
+- Wenn keine stadtspezifische Konfig vorliegt, wird der konservative Default verwendet – Schulwege liegen stadtweit ähnlich (07:00–08:30 / 12:00–14:00). Für lokale Sondersituationen (z. B. Schichtbeginn 06:00) sollte ein Stadt-Override hinterlegt werden.

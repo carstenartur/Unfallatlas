@@ -605,6 +605,81 @@
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
 
+      // Economic impact (PR-C / B2): Volkswirtschaftliche Bedeutung
+      if (options.includeCosts !== false && sd.economicImpact && sd.economicImpact.total > 0) {
+        const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
+        const ei = sd.economicImpact;
+        children.push(new Paragraph({
+          text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        const eiRows = [
+          ["Getötete", String(ei.counts.fatal), fmt(ei.breakdown.fatal)],
+          ["Schwerverletzte", String(ei.counts.severe), fmt(ei.breakdown.severe)],
+          ["Leichtverletzte", String(ei.counts.light), fmt(ei.breakdown.light)],
+          [`Gesamt im Datenzeitraum (${ei.years} Jahr${ei.years === 1 ? "" : "e"})`,
+            String(ei.counts.fatal + ei.counts.severe + ei.counts.light),
+            fmt(ei.total)],
+          ["Pro Jahr", "", fmt(ei.annual)]
+        ];
+        children.push(makeDocxTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
+        if (ei.source && (ei.source.publisher || ei.source.year)) {
+          const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
+          children.push(new Paragraph({ text: `Quelle: ${srcParts}`, spacing: { after: 60 } }));
+        }
+        if (ei.disclaimer) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: ei.disclaimer, italics: true })],
+            spacing: { after: 200 }
+          }));
+        }
+      }
+
+      // Recommended measures (PR-D / B1+B3)
+      if (options.includeMeasures !== false && sd.recommendedMeasures && sd.recommendedMeasures.measures && sd.recommendedMeasures.measures.length > 0) {
+        const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
+        const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
+        children.push(new Paragraph({
+          text: "EMPFOHLENE MASSNAHMEN",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        let i = 1;
+        for (const item of sd.recommendedMeasures.measures) {
+          const m = item.measure;
+          children.push(new Paragraph({
+            children: [new TextRun({ text: `${i}. ${m.label}`, bold: true })],
+            spacing: { after: 40 }
+          }));
+          if (m.description) {
+            children.push(new Paragraph({ text: m.description, spacing: { after: 40 } }));
+          }
+          const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
+          const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
+          children.push(new Paragraph({ text: meta, spacing: { after: 40 } }));
+          if (item.amortisation && item.amortisation.years) {
+            const [best, worst] = item.amortisation.years;
+            children.push(new Paragraph({
+              text: `Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre.`,
+              spacing: { after: 40 }
+            }));
+          }
+          if (Array.isArray(m.considerations)) {
+            for (const c of m.considerations) {
+              children.push(new Paragraph({ text: "• " + c, spacing: { after: 20 } }));
+            }
+          }
+          i++;
+        }
+        if (sd.recommendedMeasures.disclaimer) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: sd.recommendedMeasures.disclaimer, italics: true })],
+            spacing: { before: 100, after: 200 }
+          }));
+        }
+      }
+
       // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
         const view = (typeof UA !== "undefined" && UA.resolveAccidentView)
@@ -1396,14 +1471,60 @@
       }
 
       // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
+      // Economic impact (PR-C / B2): Volkswirtschaftliche Bedeutung
+      if (options.includeCosts !== false && sd.economicImpact && sd.economicImpact.total > 0) {
+        const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
+        const ei = sd.economicImpact;
+        docDefinition.content.push({ text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)", style: "subheader" });
+        const eiRows = [
+          ["Getötete", String(ei.counts.fatal), fmt(ei.breakdown.fatal)],
+          ["Schwerverletzte", String(ei.counts.severe), fmt(ei.breakdown.severe)],
+          ["Leichtverletzte", String(ei.counts.light), fmt(ei.breakdown.light)],
+          [`Gesamt (${ei.years} Jahr${ei.years === 1 ? "" : "e"})`,
+            String(ei.counts.fatal + ei.counts.severe + ei.counts.light),
+            fmt(ei.total)],
+          ["Pro Jahr", "", fmt(ei.annual)]
+        ];
+        docDefinition.content.push(makePdfTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
+        if (ei.source && (ei.source.publisher || ei.source.year)) {
+          const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
+          docDefinition.content.push({ text: `Quelle: ${srcParts}`, style: "normal", margin: [0, 4, 0, 0] });
+        }
+        if (ei.disclaimer) {
+          docDefinition.content.push({ text: ei.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
+        }
+      }
+
+      // Recommended measures (PR-D / B1+B3)
+      if (options.includeMeasures !== false && sd.recommendedMeasures && sd.recommendedMeasures.measures && sd.recommendedMeasures.measures.length > 0) {
+        const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
+        const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
+        docDefinition.content.push({ text: "EMPFOHLENE MASSNAHMEN", style: "subheader" });
+        let i = 1;
+        for (const item of sd.recommendedMeasures.measures) {
+          const m = item.measure;
+          docDefinition.content.push({ text: `${i}. ${m.label}`, bold: true, margin: [0, 6, 0, 2] });
+          if (m.description) docDefinition.content.push({ text: m.description, style: "normal" });
+          const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
+          const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
+          docDefinition.content.push({ text: meta, style: "normal" });
+          if (item.amortisation && item.amortisation.years) {
+            const [best, worst] = item.amortisation.years;
+            docDefinition.content.push({ text: `Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre.`, style: "normal" });
+          }
+          if (Array.isArray(m.considerations)) {
+            for (const c of m.considerations) {
+              docDefinition.content.push({ text: "• " + c, style: "normal", margin: [10, 0, 0, 0] });
+            }
+          }
+          i++;
+        }
+        if (sd.recommendedMeasures.disclaimer) {
+          docDefinition.content.push({ text: sd.recommendedMeasures.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
+        }
+      }
+
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
-        const view = (typeof UA !== "undefined" && UA.resolveAccidentView)
-          ? UA.resolveAccidentView(sd.accidentDetails.viewId)
-          : null;
-        const cols = (sd.accidentDetails.columns && sd.accidentDetails.columns.length)
-          ? sd.accidentDetails.columns
-          : ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"];
-        docDefinition.content.push({ text: "EINZELUNFÄLLE IM BEREICH", style: "subheader" });
         for (const g of sd.accidentDetails.groups) {
           const docxHeader = (g.headers && Array.isArray(g.headers.docx)) ? g.headers.docx : null;
           if (docxHeader && docxHeader.length > 0) {
@@ -1737,6 +1858,8 @@
     const cbIncludeMap = document.getElementById("cbIncludeMap");
     const cbIncludePOIs = document.getElementById("cbIncludePOIs");
     const cbIncludeRefs = document.getElementById("cbIncludeRefs");
+    const cbIncludeCosts = document.getElementById("cbIncludeCosts");
+    const cbIncludeMeasures = document.getElementById("cbIncludeMeasures");
     const heatExportOpacityEl = document.getElementById("heatExportOpacity");
     const exportProgress = document.getElementById("exportProgress");
     const heatExportOpacityValEl = document.getElementById("heatExportOpacityVal");
@@ -1783,7 +1906,13 @@
           
           exportProgress.textContent = inProgressText;
 
-          // Get current report data
+          // Get current report data. Pass cost/measures opt-out via ctx so
+          // computeExportReport can honour the modal toggles when building
+          // the text/HTML/structured payload (default: include both).
+          ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
+            includeCosts:    cbIncludeCosts    ? cbIncludeCosts.checked    : true,
+            includeMeasures: cbIncludeMeasures ? cbIncludeMeasures.checked : true
+          });
           const reportData = await UA.computeExportReport(ctx);
 
           // Get export options
@@ -1793,6 +1922,8 @@
             includeMap: cbIncludeMap ? cbIncludeMap.checked : true,
             includePOIs: cbIncludePOIs ? cbIncludePOIs.checked : true,
             includeReferences: cbIncludeRefs ? cbIncludeRefs.checked : true,
+            includeCosts:    cbIncludeCosts    ? cbIncludeCosts.checked    : true,
+            includeMeasures: cbIncludeMeasures ? cbIncludeMeasures.checked : true,
             heatmapExportOpacity: heatOpacityPct / 100
           };
 
