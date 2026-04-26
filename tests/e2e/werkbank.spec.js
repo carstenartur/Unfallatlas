@@ -274,6 +274,34 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
     await expect(includeMapCb).toBeChecked();
   });
 
+  test('accident view selector exists with three options and switching changes the report', async ({ page }) => {
+    const sel = page.locator('#accidentViewSel');
+    await expect(sel).toBeVisible();
+    // Has the three planned options
+    const optionValues = await sel.locator('option').evaluateAll(opts => opts.map(o => o.value));
+    expect(optionValues).toEqual(expect.arrayContaining(['bySeverity', 'byInvolvement', 'flat']));
+    // Default should resolve to bySeverity
+    await expect(sel).toHaveValue('bySeverity');
+
+    // Capture HTML before switching
+    const reportEl = page.locator('#exportHtml');
+    await expect(reportEl).toContainText('Einzelunfälle', { timeout: 15000 });
+    const before = await reportEl.innerHTML();
+
+    // Switch to byInvolvement and wait for re-render to settle
+    await sel.selectOption('byInvolvement');
+    // The re-render is async; wait until innerHTML actually changes (or at least the URL param flips)
+    await expect.poll(async () => {
+      const url = new URL(page.url());
+      return url.searchParams.get('accidentView');
+    }, { timeout: 10000 }).toBe('byInvolvement');
+    // Allow up to 10s for the rerender
+    await expect.poll(async () => {
+      const html = await reportEl.innerHTML();
+      return html !== before;
+    }, { timeout: 15000 }).toBe(true);
+  });
+
   test('should have Word and PDF export buttons', async ({ page }) => {
     const wordBtn = page.locator('#btnExportWord');
     const pdfBtn = page.locator('#btnExportPDF');

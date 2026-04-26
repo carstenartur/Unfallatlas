@@ -39,6 +39,7 @@ gezielt auf einzelne Bereiche scopen können und unnötigen Kontext vermeiden.
 - **Pfade:**
   - `js/ua.export_v2.js` – Export-Modal, Datenaufbereitung, Download-Trigger
   - `js/ua.report_v2.js` – PDF- und Word-Dokument-Generierung
+  - `js/ua.accident_views.js` – Strategie-Registry für die Einzelunfall-Tabelle (`bySeverity`, `byInvolvement`, `flat`)
   - `js/ua.export.js` – V1-Export (deprecated)
 - **Externe Libs (CDN / node_modules):**
   - `pdfmake@0.3.7`
@@ -47,6 +48,8 @@ gezielt auf einzelne Bereiche scopen können und unnötigen Kontext vermeiden.
 - **Tests:**
   - `tests/integration/export.test.js`
   - `tests/unit/ua.report_v2.test.js`
+  - `tests/unit/ua.export_v2.accidentDetailTable.test.js`
+  - `tests/unit/ua.accident_views.test.js`
   - E2E-Export-Modal: `tests/e2e/werkbank.spec.js` (Suite „Drawing and Export")
 
 ---

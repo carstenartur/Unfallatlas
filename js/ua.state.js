@@ -30,6 +30,7 @@
     selWest: "selWest",
     selNorth: "selNorth",
     selEast: "selEast",
+    accidentView: "accidentView",
     export: "export",
     tour: "tour"
   };

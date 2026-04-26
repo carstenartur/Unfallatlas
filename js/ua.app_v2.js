@@ -48,6 +48,46 @@
     ui.btnCloseModal.addEventListener('click', closeModal);
     ui.modalOverlay.addEventListener('click', (e)=>{ if (e.target === ui.modalOverlay) closeModal(); });
 
+    async function rerenderExportReport(){
+      ui.exportProgress.textContent = "Report wird erzeugt…";
+      ui.exportHtml.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
+      ui.exportBoxTa.value = "…";
+      await new Promise(r=>setTimeout(r,0));
+      try {
+        const r = await UA.computeExportReport(ctx);
+        ui.exportProgress.textContent = "Fertig.";
+        ui.exportHtml.innerHTML = r.html;
+        ui.exportBoxTa.value = r.text;
+        const modalTitleEl = document.querySelector('#modalOverlay .modalTitle');
+        if (modalTitleEl && r.structured && r.structured.meta && r.structured.meta.gremium) {
+          const gremiumTyp = r.structured.meta.gremium.typ;
+          if (gremiumTyp) {
+            modalTitleEl.textContent = UA.deriveDocTitle ? UA.deriveDocTitle(gremiumTyp) : gremiumTyp;
+          }
+        }
+      } catch (e) {
+        ui.exportProgress.textContent = "Fehler.";
+        ui.exportHtml.innerHTML = `<div style="color:#b00; font-weight:900;">Export fehlgeschlagen</div><div>${UA.escHtml(String(e))}</div>`;
+        ui.exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
+      }
+    }
+
+    // Bind the accident-view selector: switching the strategy re-renders the report
+    // (HTML preview + text-to-copy) and persists the choice as a URL param.
+    if (ui.accidentViewSel) {
+      const initial = ctx.accidentView || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
+      ui.accidentViewSel.value = initial;
+      ui.accidentViewSel.addEventListener('change', () => {
+        const v = ui.accidentViewSel.value || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
+        ctx.accidentView = v;
+        UA.setQS({ accidentView: v });
+        // Only re-render if the modal is visible (user is looking at the report).
+        if (ui.modalOverlay.style.display === "flex") {
+          rerenderExportReport();
+        }
+      });
+    }
+
     ui.btnCopyText.addEventListener("click", async ()=> {
       await writeClipboard(ui.exportBoxTa.value || "");
       alert("Kopiert.");
@@ -60,30 +100,10 @@
 
     ui.btnOpenExport.addEventListener("click", async ()=> {
       openModal();
-      ui.exportProgress.textContent = "Report wird erzeugt…";
-      ui.exportHtml.innerHTML = `<div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>`;
-      ui.exportBoxTa.value = "…";
-      await new Promise(r=>setTimeout(r,0));
-
-      try {
-        const r = await UA.computeExportReport(ctx);
-        ui.exportProgress.textContent = "Fertig.";
-        ui.exportHtml.innerHTML = r.html;
-        ui.exportBoxTa.value = r.text;
-        // Update modal title based on committee type from structured data
-        const modalTitleEl = document.querySelector('#modalOverlay .modalTitle');
-        if (modalTitleEl && r.structured && r.structured.meta && r.structured.meta.gremium) {
-          const gremiumTyp = r.structured.meta.gremium.typ;
-          if (gremiumTyp) {
-            modalTitleEl.textContent = UA.deriveDocTitle ? UA.deriveDocTitle(gremiumTyp) : gremiumTyp;
-          }
-        }
-        UA.setQS({ export: 1 });
-      } catch(e) {
-        ui.exportProgress.textContent = "Fehler.";
-        ui.exportHtml.innerHTML = `<div style="color:#b00; font-weight:900;">Export fehlgeschlagen</div><div>${UA.escHtml(String(e))}</div>`;
-        ui.exportBoxTa.value = "Export fehlgeschlagen: " + String(e);
-      }
+      await rerenderExportReport();
+      // Persist the export marker in the URL only after a successful render.
+      // (rerenderExportReport sets the title; setQS here is intentional.)
+      try { UA.setQS({ export: 1 }); } catch {}
     });
 
     const btnExportCSV = document.getElementById("btnExportCSV");
@@ -137,6 +157,11 @@
     ctx.showOnlyAboveAverage = UA.qBool("showOnlyAboveAverage", false);
     ctx.showSchools = UA.qBool("showSchools", true);
     ctx.showKindergartens = UA.qBool("showKindergartens", true);
+    // Accident-view strategy (URL ?accidentView=bySeverity|byInvolvement|flat)
+    {
+      const v = UA.qGet("accidentView", UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
+      ctx.accidentView = (UA.accidentViews && UA.accidentViews[v]) ? v : (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
+    }
 
     UA.bindDom(ctx);
     UA.initLeaflet(ctx);

@@ -482,8 +482,7 @@
     return "—";
   }
 
-  function accidentDetailTable(filteredPts, maxRows) {
-    if (maxRows === undefined) maxRows = 20;
+  function accidentDetailTable(filteredPts, maxRows, viewId) {
     const items = [];
 
     for (const p of filteredPts) {
@@ -511,42 +510,69 @@
       });
     }
 
-    // Group by severity (1=Getötet, 2=Schwerverletzt, 3=Leichtverletzt), skip empty groups.
-    // Within each group sort by year descending, then hour ascending as tiebreaker.
-    const SEV_KEYS = ["1", "2", "3"];
-    const groups = [];
-    for (const sevKey of SEV_KEYS) {
-      const group = items
-        .filter(r => r.severity === sevKey)
-        .sort((a, b) => {
-          const yd = (b.year || 0) - (a.year || 0);
-          if (yd !== 0) return yd;
-          // Sort null/undefined hours last (treat as 99 = after all real hours 0–23)
-          const HOUR_SORT_LAST = 99;
-          return (a.hour != null ? a.hour : HOUR_SORT_LAST) - (b.hour != null ? b.hour : HOUR_SORT_LAST);
-        });
-      if (group.length === 0) continue;
+    // Delegate grouping/cap/header rendering to the strategy registry.
+    // `maxRows` overrides the strategy's default rowCap (back-compat with the
+    // old per-group cap argument; tests and callers may still pass a number).
+    const resolvedViewId = viewId || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
+    const view = (UA.resolveAccidentView ? UA.resolveAccidentView(resolvedViewId) : null);
+    const cap = (maxRows !== undefined && Number.isFinite(Number(maxRows)))
+      ? Number(maxRows)
+      : (view && Number.isFinite(view.rowCap) ? view.rowCap : 20);
 
-      // Bit-count histogram: for each involvement bit, count how many accidents in this group have it set.
-      const histParts = [];
-      for (const [bit, emoji] of COMBO_BITS) {
-        const count = group.filter(r => r.mask & bit).length;
-        if (count > 0) histParts.push(`${emoji}: ${count}`);
+    let viewResult;
+    if (UA.applyAccidentView) {
+      // Temporarily honor the explicit cap by running through applyAccidentView
+      // with a per-call override of view.rowCap.
+      const originalCap = view.rowCap;
+      try {
+        view.rowCap = cap;
+        viewResult = UA.applyAccidentView(items, resolvedViewId);
+      } finally {
+        view.rowCap = originalCap;
       }
-      const histogram = histParts.join(" · ");
-
-      const count = group.length;
-      const rows = group.slice(0, maxRows);
-      const overflow = count - rows.length;
-
-      groups.push({ sevKey, sevLabel: SEV_LABEL_MAP[sevKey], count, rows, overflow, histogram });
+    } else {
+      // Should not happen in production (ua.accident_views.js loads before ua.export_v2.js).
+      viewResult = { viewId: resolvedViewId, columns: [], groups: [], total: items.length, truncated: false };
     }
 
-    const allRows = groups.flatMap(g => g.rows);
-    const total = items.length;
-    const truncated = groups.some(g => g.overflow > 0);
+    // Back-compat shape expected by existing tests / consumers:
+    //   - groups[].sevKey, sevLabel (singular: "Getötet"), count, rows, overflow, histogram
+    //   - rows: flattened cap-applied rows
+    //   - total, truncated
+    // For non-bySeverity views these legacy fields are best-effort.
+    const legacyGroups = viewResult.groups.map(g => {
+      const sevKey = g.key;
+      const isSeverityKey = sevKey === "1" || sevKey === "2" || sevKey === "3";
+      // Singular label (PR #219 contract). Plural form lives in meta.sevLabel.
+      const sevLabelSingular = isSeverityKey
+        ? SEV_LABEL_MAP[sevKey]
+        : ((g.meta && g.meta.label) || g.key);
+      return {
+        // Back-compat keys (PR #219 tests and ua.report_v2 fallback)
+        sevKey: isSeverityKey ? sevKey : g.key,
+        sevLabel: sevLabelSingular,
+        count: g.count,
+        rows: g.rows,
+        overflow: g.overflow,
+        histogram: (g.meta && g.meta.histogram) || "",
+        // Strategy-aware keys (used by ua.report_v2 / new HTML/text rendering)
+        key: g.key,
+        meta: g.meta,
+        headers: g.headers,
+        overflowLabel: g.overflowLabel
+      };
+    });
 
-    return { groups, rows: allRows, total, truncated };
+    const allRows = legacyGroups.flatMap(g => g.rows);
+
+    return {
+      viewId: viewResult.viewId,
+      columns: viewResult.columns,
+      groups: legacyGroups,
+      rows: allRows,
+      total: viewResult.total,
+      truncated: viewResult.truncated
+    };
   }
 
   // Export for testing and external use
@@ -577,7 +603,8 @@
     // Both new summary tables share this filtered list to avoid repeated full scans over ctx.allPts.
     const filteredPts = getPointsInBounds(ctx);  // see getPointsInBounds() below
     const crossTable = crossTableSeverityByMask(filteredPts);
-    const accidentDetails = accidentDetailTable(filteredPts);
+    const accidentViewId = ctx.accidentView || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
+    const accidentDetails = accidentDetailTable(filteredPts, undefined, accidentViewId);
 
     const CITY_RAW = ctx.CITY_RAW || "—";
     const citySlug = UA.normKey ? UA.normKey(CITY_RAW) : CITY_RAW.toLowerCase().replace(/[^a-z0-9]+/g, "_");
@@ -794,18 +821,28 @@
       lines.push("");
     }
 
-    // Add accident details grouped by severity
+    // Add accident details using the active view strategy
     if (accidentDetails.groups.length > 0) {
+      const view = UA.resolveAccidentView ? UA.resolveAccidentView(accidentDetails.viewId) : null;
+      const colHeader = (accidentDetails.columns && accidentDetails.columns.length)
+        ? accidentDetails.columns.join(" | ")
+        : "# | Jahr | Beteiligte | Uhrzeit | Wochentag | Fahrbahnzustand | Koordinaten";
       lines.push("Einzelunfälle im Bereich:");
       for (const g of accidentDetails.groups) {
-        lines.push(`  --- ${g.sevLabel} (n=${g.count})${g.histogram ? " | " + g.histogram : ""} ---`);
-        lines.push("  # | Jahr | Beteiligte | Uhrzeit | Wochentag | Fahrbahnzustand | Koordinaten");
+        const headerText = g.headers && g.headers.text ? g.headers.text : "";
+        if (headerText) lines.push("  " + headerText);
+        lines.push("  " + colHeader);
         g.rows.forEach((r, i) => {
-          const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-          lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.involved} | ${hour} | ${r.weekday} | ${r.roadCondition} | ${formatCoords(r.lat, r.lon)}`);
+          if (view && view.renderRow && view.renderRow.text) {
+            lines.push(view.renderRow.text(r, i));
+          } else {
+            const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+            lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.involved} | ${hour} | ${r.weekday} | ${r.roadCondition} | ${formatCoords(r.lat, r.lon)}`);
+          }
         });
         if (g.overflow > 0) {
-          lines.push(`  … und ${g.overflow} weitere ${g.sevLabel}`);
+          const label = g.overflowLabel || `weitere ${g.sevLabel}`;
+          lines.push(`  … und ${g.overflow} ${label}`);
         }
       }
       lines.push("");
@@ -940,6 +977,46 @@
       refDocsHtmlSection += `</ul>`;
     }
 
+    // Build accident-detail HTML section using the active view strategy.
+    // Each group has pre-rendered headers (text/html/docx) and we wrap each row
+    // with the strategy's renderRow.html callback.
+    let accidentHtmlSection = "";
+    if (accidentDetails.groups.length > 0) {
+      const view = UA.resolveAccidentView ? UA.resolveAccidentView(accidentDetails.viewId) : null;
+      const cols = (accidentDetails.columns && accidentDetails.columns.length)
+        ? accidentDetails.columns
+        : ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"];
+      const colsHtml = cols.map((c, i) => {
+        const align = (i === 0 || c === "Jahr" || c === "Uhrzeit") ? "" : "";
+        const ta = (c === "Jahr" || c === "Uhrzeit") ? ' style="text-align:right;"' : "";
+        return `<th${ta}>${UA.escHtml(c)}</th>`;
+      }).join("");
+      const groupsHtml = accidentDetails.groups.map(g => {
+        const headerHtml = (g.headers && g.headers.html) ? g.headers.html : "";
+        const rowsHtml = g.rows.map((r, i) => {
+          if (view && view.renderRow && view.renderRow.html) return view.renderRow.html(r, i);
+          // Defensive fallback
+          const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+          return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td>${UA.escHtml(r.weekday)}</td><td>${UA.escHtml(r.roadCondition)}</td><td style="font-size:11px; color:#555;">${UA.escHtml(formatCoords(r.lat, r.lon))}</td></tr>`;
+        }).join("");
+        const overflowLabel = g.overflowLabel || `weitere ${g.sevLabel || ""}`;
+        const overflowHtml = g.overflow > 0
+          ? `<div style="color:#777; font-size:12px; margin-top:4px;">… und ${g.overflow} ${UA.escHtml(overflowLabel)}</div>`
+          : "";
+        return `${headerHtml}
+        <table class="report" style="margin-top:4px;">
+          <thead>
+            <tr>${colsHtml}</tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        ${overflowHtml}`;
+      }).join("");
+      accidentHtmlSection = `
+        <div style="margin-top:12px; font-weight:900;">Einzelunfälle im Bereich</div>
+        ${groupsHtml}`;
+    }
+
     const htmlOut = `
       <div style="font:14px/1.35 system-ui;">
         <div style="font-weight:950; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
@@ -1001,24 +1078,7 @@
         </table>
         ` : ""}
 
-        ${accidentDetails.groups.length > 0 ? `
-        <div style="margin-top:12px; font-weight:900;">Einzelunfälle im Bereich</div>
-        ${accidentDetails.groups.map(g => `
-        <div style="font-weight:700; margin-top:10px;">${UA.escHtml(g.sevLabel)} (n=${g.count})${g.histogram ? ` <span style="font-weight:400; font-size:12px;"> — ${UA.escHtml(g.histogram)}</span>` : ""}</div>
-        <table class="report" style="margin-top:4px;">
-          <thead>
-            <tr><th>#</th><th style="text-align:right;">Jahr</th><th>Beteiligte</th><th style="text-align:right;">Uhrzeit</th><th>Wochentag</th><th>Fahrbahnzustand</th><th>Koordinaten</th></tr>
-          </thead>
-          <tbody>
-            ${g.rows.map((r, i) => {
-              const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-              const coords = formatCoords(r.lat, r.lon);
-              return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td>${UA.escHtml(r.weekday)}</td><td>${UA.escHtml(r.roadCondition)}</td><td style="font-size:11px; color:#555;">${UA.escHtml(coords)}</td></tr>`;
-            }).join("")}
-          </tbody>
-        </table>
-        ${g.overflow > 0 ? `<div style="color:#777; font-size:12px; margin-top:4px;">… und ${g.overflow} weitere ${UA.escHtml(g.sevLabel)}</div>` : ""}`).join("")}
-        ` : ""}
+        ${accidentHtmlSection}
 
         ${poiHtmlSection}
         

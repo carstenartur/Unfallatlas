@@ -673,6 +673,8 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8'));
     // Load utils (provides UA.normKey needed for filename sanitization)
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.utils.js'), 'utf8'));
+    // ua.accident_views.js defines UA.accidentViews / UA.applyAccidentView (must precede ua.export_v2.js)
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.accident_views.js'), 'utf8'));
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.export_v2.js'), 'utf8'));
     UA = window.UA;
   });

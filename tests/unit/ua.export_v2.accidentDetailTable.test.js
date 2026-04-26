@@ -19,6 +19,10 @@ describe('accidentDetailTable', () => {
     const filtersPath = path.resolve(__dirname, '../../js/ua.filters.js');
     (function(window) { eval(fs.readFileSync(filtersPath, 'utf8')); })(mockWindow);
 
+    // Load ua.accident_views.js (must precede ua.export_v2.js)
+    const viewsPath = path.resolve(__dirname, '../../js/ua.accident_views.js');
+    (function(window) { eval(fs.readFileSync(viewsPath, 'utf8')); })(mockWindow);
+
     // Minimal stubs needed by ua.export_v2.js at load time
     mockWindow.fetch = async () => ({ ok: false });
     mockWindow.L = { latLngBounds: () => {} };

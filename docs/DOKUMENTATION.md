@@ -355,18 +355,22 @@ Der Export enthält eine **Kreuztabelle**, die alle Beteiligungskombinationen (z
 
 #### Einzelunfall-Tabelle
 
-Die **Einzelunfall-Tabelle** listet die einzelnen Unfälle im markierten Bereich auf, gruppiert nach Schweregrad. Jede Gruppe enthält bis zu 20 Einträge (Standard-Cap pro Gruppe); bei Überlauf erscheint ein Hinweis „… und N weitere". Leere Gruppen (z. B. keine Getöteten) werden weggelassen.
+Die **Einzelunfall-Tabelle** listet die einzelnen Unfälle im markierten Bereich auf. Die Darstellung wird über eine austauschbare **Sicht-Strategie** gesteuert (`UA.accidentViews`); Default ist die Gruppierung nach Schweregrad. Jede Gruppe enthält bis zu 20 Einträge (Standard-Cap pro Gruppe); bei Überlauf erscheint ein Hinweis „… und N weitere". Leere Gruppen werden weggelassen.
 
-**Gruppen-Header:** Für jede Schweregrad-Kategorie wird ein eigener Abschnitt ausgegeben:
-- **Getötete (n=X)** mit Beteiligungs-Histogramm (z. B. *🚲: 3 · 🚗: 2*)
-- **Schwerverletzte (n=Y)** mit Beteiligungs-Histogramm
-- **Leichtverletzte (n=Z)** mit Beteiligungs-Histogramm
+**Sichten / Strategien:**
 
-Das Histogramm zeigt pro Beteiligungsart, in wie vielen Unfällen dieser Gruppe diese Art vorkommt (Bit-Zählung: ein Rad+PKW-Unfall zählt bei beiden). Sortierung innerhalb jeder Gruppe: Jahr absteigend, bei gleichem Jahr Stunde aufsteigend.
+- `bySeverity` (Default) – drei Sektionen *Getötete*, *Schwerverletzte*, *Leichtverletzte*; Header trägt Beteiligungs-Histogramm (z. B. *🚲: 7 · 🚗: 9 · 🚶: 3*). Innerhalb der Gruppe Jahr absteigend, dann Stunde aufsteigend.
+- `byInvolvement` – gruppiert nach Beteiligungsmuster (Bit-Maske); Header trägt Schweregrad-Badges (z. B. *🚲+🚗 (n=12) [† 1 / S 4 / L 7]*). Häufigstes Muster zuerst. Innerhalb der Gruppe Schwere aufsteigend, dann Jahr absteigend.
+- `flat` – einzige Gruppe ohne Header, chronologisch (Jahr absteigend, Schwere aufsteigend); behält den historischen Cap von 50 Zeilen.
+
+**URL-Parameter:** `?accidentView=byInvolvement` öffnet die App direkt mit der gewählten Sicht; ungültige Werte fallen auf `bySeverity` zurück. Das Export-Modal enthält außerdem ein Dropdown „Einzelunfälle anzeigen" (`#accidentViewSel`), das den Report live neu rendert (HTML-Vorschau, Text-Box und nachfolgende Word-/PDF-Exporte).
+
+Das Beteiligungs-Histogramm zeigt pro Beteiligungsart, in wie vielen Unfällen dieser Gruppe diese Art vorkommt (Bit-Zählung: ein Rad+PKW-Unfall zählt bei beiden).
 
 Jede Zeile enthält:
 
 - **Jahr** des Unfalls
+- **Schwere** (nur in `byInvolvement` und `flat` als eigene Spalte; in `bySeverity` ergibt sich die Schwere aus dem Gruppen-Header)
 - **Beteiligungsart** (z. B. Rad, PKW, Fuß)
 - **Uhrzeit** des Unfalls
 - **Wochentag** (Mo, Di, Mi, Do, Fr, Sa, So)

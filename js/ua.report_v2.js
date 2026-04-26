@@ -595,32 +595,51 @@
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
 
-      // Accident details table – grouped by severity
+      // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
+        const view = (typeof UA !== "undefined" && UA.resolveAccidentView)
+          ? UA.resolveAccidentView(sd.accidentDetails.viewId)
+          : null;
+        const cols = (sd.accidentDetails.columns && sd.accidentDetails.columns.length)
+          ? sd.accidentDetails.columns
+          : ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"];
         children.push(new Paragraph({
           text: "EINZELUNFÄLLE IM BEREICH",
           heading: HeadingLevel.HEADING_2,
           spacing: { before: 400, after: 200 }
         }));
         for (const g of sd.accidentDetails.groups) {
-          const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
-          children.push(new Paragraph({
-            text: headerText,
-            bold: true,
-            spacing: { before: 200, after: 100 }
-          }));
+          // Render header from the strategy (skip empty headers, e.g. flat view)
+          const docxHeader = (g.headers && Array.isArray(g.headers.docx)) ? g.headers.docx : null;
+          if (docxHeader && docxHeader.length > 0) {
+            for (const h of docxHeader) {
+              children.push(new Paragraph({
+                text: h.text || "",
+                bold: !!h.bold,
+                spacing: { before: 200, after: 100 }
+              }));
+            }
+          } else if (g.sevLabel) {
+            // Back-compat: synthesize a header for plain { sevLabel, histogram } groups
+            const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
+            children.push(new Paragraph({
+              text: headerText,
+              bold: true,
+              spacing: { before: 200, after: 100 }
+            }));
+          }
           const detailRows = g.rows.map((r, i) => {
+            if (view && view.renderRow && view.renderRow.docx) return view.renderRow.docx(r, i);
+            // Defensive fallback (matches the previous bySeverity layout)
             const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
             const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
             return [String(i + 1), String(r.year ?? "—"), r.involved, hour, r.weekday || "—", r.roadCondition || "—", coords];
           });
-          children.push(makeDocxTable(
-            ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
-            detailRows
-          ));
+          children.push(makeDocxTable(cols, detailRows));
           if (g.overflow > 0) {
+            const label = g.overflowLabel || `weitere ${g.sevLabel || ""}`;
             children.push(new Paragraph({
-              text: `… und ${g.overflow} weitere ${g.sevLabel}`,
+              text: `… und ${g.overflow} ${label}`,
               italics: true,
               spacing: { after: 100 }
             }));
@@ -1366,24 +1385,45 @@
         ));
       }
 
-      // Accident details table – grouped by severity
+      // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
+        const view = (typeof UA !== "undefined" && UA.resolveAccidentView)
+          ? UA.resolveAccidentView(sd.accidentDetails.viewId)
+          : null;
+        const cols = (sd.accidentDetails.columns && sd.accidentDetails.columns.length)
+          ? sd.accidentDetails.columns
+          : ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"];
         docDefinition.content.push({ text: "EINZELUNFÄLLE IM BEREICH", style: "subheader" });
         for (const g of sd.accidentDetails.groups) {
-          const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
-          docDefinition.content.push({ text: headerText, bold: true, margin: [0, 8, 0, 4] });
+          const docxHeader = (g.headers && Array.isArray(g.headers.docx)) ? g.headers.docx : null;
+          if (docxHeader && docxHeader.length > 0) {
+            for (const h of docxHeader) {
+              docDefinition.content.push({ text: h.text || "", bold: !!h.bold, margin: [0, 8, 0, 4] });
+            }
+          } else if (g.sevLabel) {
+            const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
+            docDefinition.content.push({ text: headerText, bold: true, margin: [0, 8, 0, 4] });
+          }
           const detailRows = g.rows.map((r, i) => {
-            const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-            const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-            return [String(i + 1), String(r.year ?? "—"), replaceEmojisForPDF(r.involved), hour, r.weekday || "—", r.roadCondition || "—", coords];
+            // Use the strategy's docx row producer (same column shape as DOCX),
+            // but route emoji-bearing fields through replaceEmojisForPDF.
+            let cells;
+            if (view && view.renderRow && view.renderRow.docx) {
+              cells = view.renderRow.docx(r, i);
+            } else {
+              const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
+              const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
+              cells = [String(i + 1), String(r.year ?? "—"), r.involved, hour, r.weekday || "—", r.roadCondition || "—", coords];
+            }
+            // Replace emojis in the "Beteiligte" cell (heuristic: any cell containing a non-ASCII char that's not part of common labels).
+            // Simpler: apply replaceEmojisForPDF to each cell defensively.
+            return cells.map(c => typeof c === "string" ? replaceEmojisForPDF(c) : c);
           });
-          docDefinition.content.push(makePdfTable(
-            ["#", "Jahr", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
-            detailRows
-          ));
+          docDefinition.content.push(makePdfTable(cols, detailRows));
           if (g.overflow > 0) {
+            const label = g.overflowLabel || `weitere ${g.sevLabel || ""}`;
             docDefinition.content.push({
-              text: `… und ${g.overflow} weitere ${g.sevLabel}`,
+              text: `… und ${g.overflow} ${label}`,
               style: "small"
             });
           }
