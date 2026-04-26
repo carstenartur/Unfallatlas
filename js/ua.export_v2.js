@@ -471,9 +471,20 @@
   // Accepts a pre-filtered list of points (already in-bounds, already passing non-involvement filters).
   // --------------------
   const SEV_LABEL_MAP = { "1": "Getötet", "2": "Schwerverletzt", "3": "Leichtverletzt" };
-  const WEEKDAY_LABEL_MAP = {
-    "1": "So", "2": "Mo", "3": "Di", "4": "Mi", "5": "Do", "6": "Fr", "7": "Sa"
-  };
+
+  // Weekday raw codes (1=So, 2=Mo, …, 7=Sa) → { day, group }.
+  // The Werktag/Wochenende grouping is derived from UA.WEEKEND_SET (single
+  // source of truth in ua.utils.js) so it never drifts from how the rest of
+  // the app classifies day-types (filters, dayType selector, etc.).
+  const WEEKDAY_LABEL_MAP = (() => {
+    const days = { "1": "So", "2": "Mo", "3": "Di", "4": "Mi", "5": "Do", "6": "Fr", "7": "Sa" };
+    const weekendSet = (UA.WEEKEND_SET instanceof Set) ? UA.WEEKEND_SET : new Set(["1", "7"]);
+    const m = {};
+    for (const k of Object.keys(days)) {
+      m[k] = { day: days[k], group: weekendSet.has(k) ? "Wochenende" : "Werktag" };
+    }
+    return m;
+  })();
   const ROAD_COND_LABEL_MAP = { "0": "trocken", "1": "nass/feucht", "2": "winterglatt" };
 
   // Shared helper: format lat/lon pair for display; uses "—" when coordinates are missing
@@ -504,7 +515,8 @@
         sevLabel: SEV_LABEL_MAP[severity] || severity,
         involved: COMBO_LABEL[mask] || ("Mask " + mask),
         hour: Number.isFinite(hour) ? hour : null,
-        weekday: WEEKDAY_LABEL_MAP[weekdayRaw] || weekdayRaw,
+        weekday: WEEKDAY_LABEL_MAP[weekdayRaw]?.day ?? weekdayRaw,
+        weekdayGroup: WEEKDAY_LABEL_MAP[weekdayRaw]?.group ?? null,
         roadCondition: ROAD_COND_LABEL_MAP[roadCondRaw] || roadCondRaw,
         mask
       });
@@ -837,7 +849,7 @@
             lines.push(view.renderRow.text(r, i));
           } else {
             const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-            lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.involved} | ${hour} | ${r.weekday} | ${r.roadCondition} | ${formatCoords(r.lat, r.lon)}`);
+            lines.push(`  ${i + 1} | ${r.year ?? "—"} | ${r.involved} | ${hour} | ${(UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—"))} | ${r.roadCondition} | ${formatCoords(r.lat, r.lon)}`);
           }
         });
         if (g.overflow > 0) {
@@ -997,7 +1009,7 @@
           if (view && view.renderRow && view.renderRow.html) return view.renderRow.html(r, i);
           // Defensive fallback
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-          return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td>${UA.escHtml(r.weekday)}</td><td>${UA.escHtml(r.roadCondition)}</td><td style="font-size:11px; color:#555;">${UA.escHtml(formatCoords(r.lat, r.lon))}</td></tr>`;
+          return `<tr><td>${i + 1}</td><td style="text-align:right;">${r.year ?? "—"}</td><td>${UA.escHtml(r.involved)}</td><td style="text-align:right;">${hour}</td><td>${UA.escHtml(UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—"))}</td><td>${UA.escHtml(r.roadCondition)}</td><td style="font-size:11px; color:#555;">${UA.escHtml(formatCoords(r.lat, r.lon))}</td></tr>`;
         }).join("");
         const overflowLabel = g.overflowLabel || `weitere ${g.sevLabel || ""}`;
         const overflowHtml = g.overflow > 0

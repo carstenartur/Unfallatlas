@@ -65,6 +65,16 @@
     if (lat != null && lon != null) return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
     return "—";
   }
+  // Combine weekday label with day-type ("Werktag" / "Wochenende"). When the
+  // group is unknown (e.g. raw code missing) the bare day token is returned —
+  // and "—" is used as a final fallback so tables stay aligned.
+  function fmtWeekday(it) {
+    const day = it.weekday || "—";
+    if (it.weekdayGroup === "Werktag" || it.weekdayGroup === "Wochenende") {
+      return `${day} (${it.weekdayGroup})`;
+    }
+    return day;
+  }
 
   // Build histogram "🚲: 7 · 🚗: 9" over a list of items (bit-counts over masks,
   // skipping zero counts; preserves COMBO_BITS order Rad, Fuß, PKW, Krad, Gkfz, Sonst.).
@@ -74,6 +84,28 @@
       const c = items.filter(r => (r.mask & bit) !== 0).length;
       if (c > 0) parts.push(`${emoji}: ${c}`);
     }
+    return parts.join(" · ");
+  }
+
+  // Count how many items fall into Werktag vs. Wochenende. Items without a
+  // recognized weekdayGroup are silently skipped (counted in neither bucket).
+  function buildWeekdayGroupCounts(items) {
+    const c = { Werktag: 0, Wochenende: 0 };
+    for (const it of items) {
+      if (it.weekdayGroup === "Werktag" || it.weekdayGroup === "Wochenende") {
+        c[it.weekdayGroup] += 1;
+      }
+    }
+    return c;
+  }
+
+  // Format weekday-group counts as "Werktag: 9 · Wochenende: 3" (only counts > 0).
+  // Returns "" when both counts are 0 so callers can omit the block entirely.
+  function fmtWeekdayGroupCounts(counts) {
+    if (!counts) return "";
+    const parts = [];
+    if (counts.Werktag > 0) parts.push(`Werktag: ${counts.Werktag}`);
+    if (counts.Wochenende > 0) parts.push(`Wochenende: ${counts.Wochenende}`);
     return parts.join(" · ");
   }
 
@@ -100,24 +132,24 @@
   // Columns differ by view (severity column makes sense for byInvolvement / flat
   // but is redundant when rows are already grouped by severity).
   function renderRowTextWithSeverity(it, idx) {
-    return `  ${idx + 1} | ${it.year ?? "—"} | ${it.sevLabel} | ${it.involved} | ${fmtHour(it.hour)} | ${it.weekday} | ${it.roadCondition} | ${fmtCoords(it.lat, it.lon)}`;
+    return `  ${idx + 1} | ${it.year ?? "—"} | ${it.sevLabel} | ${it.involved} | ${fmtHour(it.hour)} | ${fmtWeekday(it)} | ${it.roadCondition} | ${fmtCoords(it.lat, it.lon)}`;
   }
   function renderRowTextNoSeverity(it, idx) {
-    return `  ${idx + 1} | ${it.year ?? "—"} | ${it.involved} | ${fmtHour(it.hour)} | ${it.weekday} | ${it.roadCondition} | ${fmtCoords(it.lat, it.lon)}`;
+    return `  ${idx + 1} | ${it.year ?? "—"} | ${it.involved} | ${fmtHour(it.hour)} | ${fmtWeekday(it)} | ${it.roadCondition} | ${fmtCoords(it.lat, it.lon)}`;
   }
   function renderRowHtmlWithSeverity(it, idx) {
-    return `<tr><td>${idx + 1}</td><td style="text-align:right;">${it.year ?? "—"}</td><td>${escHtml(it.sevLabel)}</td><td>${escHtml(it.involved)}</td><td style="text-align:right;">${fmtHour(it.hour)}</td><td>${escHtml(it.weekday)}</td><td>${escHtml(it.roadCondition)}</td><td style="font-size:11px; color:#555;">${escHtml(fmtCoords(it.lat, it.lon))}</td></tr>`;
+    return `<tr><td>${idx + 1}</td><td style="text-align:right;">${it.year ?? "—"}</td><td>${escHtml(it.sevLabel)}</td><td>${escHtml(it.involved)}</td><td style="text-align:right;">${fmtHour(it.hour)}</td><td>${escHtml(fmtWeekday(it))}</td><td>${escHtml(it.roadCondition)}</td><td style="font-size:11px; color:#555;">${escHtml(fmtCoords(it.lat, it.lon))}</td></tr>`;
   }
   function renderRowHtmlNoSeverity(it, idx) {
-    return `<tr><td>${idx + 1}</td><td style="text-align:right;">${it.year ?? "—"}</td><td>${escHtml(it.involved)}</td><td style="text-align:right;">${fmtHour(it.hour)}</td><td>${escHtml(it.weekday)}</td><td>${escHtml(it.roadCondition)}</td><td style="font-size:11px; color:#555;">${escHtml(fmtCoords(it.lat, it.lon))}</td></tr>`;
+    return `<tr><td>${idx + 1}</td><td style="text-align:right;">${it.year ?? "—"}</td><td>${escHtml(it.involved)}</td><td style="text-align:right;">${fmtHour(it.hour)}</td><td>${escHtml(fmtWeekday(it))}</td><td>${escHtml(it.roadCondition)}</td><td style="font-size:11px; color:#555;">${escHtml(fmtCoords(it.lat, it.lon))}</td></tr>`;
   }
   // DOCX/PDF row producers return raw cell strings; the export module wraps
   // them via the existing makeDocxTable / makePdfTable helpers.
   function renderRowCellsWithSeverity(it, idx) {
-    return [String(idx + 1), String(it.year ?? "—"), it.sevLabel, it.involved, fmtHour(it.hour), it.weekday || "—", it.roadCondition || "—", fmtCoords(it.lat, it.lon)];
+    return [String(idx + 1), String(it.year ?? "—"), it.sevLabel, it.involved, fmtHour(it.hour), fmtWeekday(it), it.roadCondition || "—", fmtCoords(it.lat, it.lon)];
   }
   function renderRowCellsNoSeverity(it, idx) {
-    return [String(idx + 1), String(it.year ?? "—"), it.involved, fmtHour(it.hour), it.weekday || "—", it.roadCondition || "—", fmtCoords(it.lat, it.lon)];
+    return [String(idx + 1), String(it.year ?? "—"), it.involved, fmtHour(it.hour), fmtWeekday(it), it.roadCondition || "—", fmtCoords(it.lat, it.lon)];
   }
 
   // Column header lists used by the export consumer to build tables.
@@ -148,6 +180,7 @@
           meta: {
             totalCount: sub.length,
             histogram: buildInvolvementHistogram(sub),
+            weekdayGroupCounts: buildWeekdayGroupCounts(sub),
             sevLabel: SEV_HEADER_LABEL[sevKey] || sevKey,
             sevSingular: SEV_LABEL_MAP[sevKey] || sevKey
           }
@@ -157,16 +190,22 @@
     },
     renderHeader: {
       text(g) {
-        return `--- ${g.meta.sevLabel} (n=${g.meta.totalCount})${g.meta.histogram ? " | " + g.meta.histogram : ""} ---`;
+        const wg = fmtWeekdayGroupCounts(g.meta.weekdayGroupCounts);
+        const tail = [g.meta.histogram, wg].filter(Boolean).join(" · ");
+        return `--- ${g.meta.sevLabel} (n=${g.meta.totalCount})${tail ? " | " + tail : ""} ---`;
       },
       html(g) {
-        const hist = g.meta.histogram
-          ? ` <span style="font-weight:400; font-size:12px;"> — ${escHtml(g.meta.histogram)}</span>`
+        const wg = fmtWeekdayGroupCounts(g.meta.weekdayGroupCounts);
+        const tail = [g.meta.histogram, wg].filter(Boolean).join(" · ");
+        const hist = tail
+          ? ` <span style="font-weight:400; font-size:12px;"> — ${escHtml(tail)}</span>`
           : "";
         return `<div style="font-weight:700; margin-top:10px;">${escHtml(g.meta.sevLabel)} (n=${g.meta.totalCount})${hist}</div>`;
       },
       docx(g) {
-        const headerText = `${g.meta.sevLabel} (n=${g.meta.totalCount})${g.meta.histogram ? "  —  " + g.meta.histogram : ""}`;
+        const wg = fmtWeekdayGroupCounts(g.meta.weekdayGroupCounts);
+        const tail = [g.meta.histogram, wg].filter(Boolean).join(" · ");
+        const headerText = `${g.meta.sevLabel} (n=${g.meta.totalCount})${tail ? "  —  " + tail : ""}`;
         return [{ text: headerText, bold: true }];
       }
     },
@@ -213,7 +252,8 @@
             label: (UA.COMBO_LABEL && UA.COMBO_LABEL[mask]) || ("Mask " + mask),
             totalCount: sub.length,
             severityCounts: sevCounts,
-            severityBadges: fmtSeverityBadges(sevCounts)
+            severityBadges: fmtSeverityBadges(sevCounts),
+            weekdayGroupCounts: buildWeekdayGroupCounts(sub)
           }
         });
       }
@@ -228,17 +268,21 @@
     renderHeader: {
       text(g) {
         const badges = g.meta.severityBadges ? ` [${g.meta.severityBadges}]` : "";
-        return `--- ${g.meta.label} (n=${g.meta.totalCount})${badges} ---`;
+        const wg = fmtWeekdayGroupCounts(g.meta.weekdayGroupCounts);
+        return `--- ${g.meta.label} (n=${g.meta.totalCount})${badges}${wg ? " | " + wg : ""} ---`;
       },
       html(g) {
         const badges = g.meta.severityBadges
           ? ` <span style="font-weight:400; font-size:12px;"> [${escHtml(g.meta.severityBadges)}]</span>`
           : "";
-        return `<div style="font-weight:700; margin-top:10px;">${escHtml(g.meta.label)} (n=${g.meta.totalCount})${badges}</div>`;
+        const wg = fmtWeekdayGroupCounts(g.meta.weekdayGroupCounts);
+        const wgHtml = wg ? ` <span style="font-weight:400; font-size:12px;"> — ${escHtml(wg)}</span>` : "";
+        return `<div style="font-weight:700; margin-top:10px;">${escHtml(g.meta.label)} (n=${g.meta.totalCount})${badges}${wgHtml}</div>`;
       },
       docx(g) {
         const badges = g.meta.severityBadges ? `  [${g.meta.severityBadges}]` : "";
-        const headerText = `${g.meta.label} (n=${g.meta.totalCount})${badges}`;
+        const wg = fmtWeekdayGroupCounts(g.meta.weekdayGroupCounts);
+        const headerText = `${g.meta.label} (n=${g.meta.totalCount})${badges}${wg ? "  —  " + wg : ""}`;
         return [{ text: headerText, bold: true }];
       }
     },
@@ -293,6 +337,12 @@
 
   UA.accidentViews = { bySeverity, byInvolvement, flat };
   UA.ACCIDENT_VIEW_DEFAULT = "bySeverity";
+  // Re-export weekday formatting + group-count helpers so legacy/non-strategy
+  // code paths render the same "Mi (Werktag)" string and use the same Werktag/
+  // Wochenende counts.
+  UA.fmtWeekday = fmtWeekday;
+  UA.buildWeekdayGroupCounts = buildWeekdayGroupCounts;
+  UA.fmtWeekdayGroupCounts = fmtWeekdayGroupCounts;
 
   // Resolve a view id to a strategy, falling back to the default for unknown ids.
   UA.resolveAccidentView = function resolveAccidentView(viewId) {

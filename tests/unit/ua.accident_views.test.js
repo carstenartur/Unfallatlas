@@ -24,7 +24,8 @@ describe('UA.accidentViews', () => {
   });
 
   // Helper to build a minimal item (already in the post-extraction shape from accidentDetailTable).
-  function item({ severity = "2", year = 2022, hour = 10, mask = 1, lat = 52.0, lon = 9.7 } = {}) {
+  function item({ severity = "2", year = 2022, hour = 10, mask = 1, lat = 52.0, lon = 9.7,
+                  weekday = "Mo", weekdayGroup = "Werktag" } = {}) {
     const sevLabelMap = { "1": "Getötet", "2": "Schwerverletzt", "3": "Leichtverletzt" };
     const involved = (UA.COMBO_LABEL && UA.COMBO_LABEL[mask]) || ("Mask " + mask);
     return {
@@ -33,7 +34,8 @@ describe('UA.accidentViews', () => {
       sevLabel: sevLabelMap[String(severity)] || "?",
       involved,
       hour,
-      weekday: "Mo",
+      weekday,
+      weekdayGroup,
       roadCondition: "trocken",
       mask
     };
@@ -250,12 +252,13 @@ describe('UA.accidentViews', () => {
   // ---------------------------------------------------------------------
   describe('header rendering (text)', () => {
     test('bySeverity header text format', () => {
+      // Items have default weekdayGroup="Werktag" from the helper.
       const items = [
         item({ severity: "1", mask: 5 }),
         item({ severity: "1", mask: 1 })
       ];
       const r = UA.applyAccidentView(items, 'bySeverity');
-      expect(r.groups[0].headers.text).toBe('--- Getötete (n=2) | 🚲: 2 · 🚗: 1 ---');
+      expect(r.groups[0].headers.text).toBe('--- Getötete (n=2) | 🚲: 2 · 🚗: 1 · Werktag: 2 ---');
     });
 
     test('byInvolvement header text format', () => {
@@ -264,7 +267,7 @@ describe('UA.accidentViews', () => {
         item({ mask: 5, severity: "2" })
       ];
       const r = UA.applyAccidentView(items, 'byInvolvement');
-      expect(r.groups[0].headers.text).toBe('--- 🚲+🚗 (n=2) [† 1 / S 1] ---');
+      expect(r.groups[0].headers.text).toBe('--- 🚲+🚗 (n=2) [† 1 / S 1] | Werktag: 2 ---');
     });
 
     test('flat header text is empty (single ungrouped section)', () => {
@@ -335,6 +338,102 @@ describe('UA.accidentViews', () => {
     test('unknown viewId falls back to default (bySeverity)', () => {
       const r = UA.applyAccidentView([item({ severity: "1" })], 'totally-unknown');
       expect(r.viewId).toBe(UA.ACCIDENT_VIEW_DEFAULT);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Weekday group: Werktag vs. Wochenende
+  // ---------------------------------------------------------------------
+  describe('weekday Werktag/Wochenende', () => {
+    test('UA.fmtWeekday combines day and group; falls back to bare day when group missing', () => {
+      expect(UA.fmtWeekday({ weekday: "Mi", weekdayGroup: "Werktag" })).toBe("Mi (Werktag)");
+      expect(UA.fmtWeekday({ weekday: "Sa", weekdayGroup: "Wochenende" })).toBe("Sa (Wochenende)");
+      expect(UA.fmtWeekday({ weekday: "Mi", weekdayGroup: null })).toBe("Mi");
+      expect(UA.fmtWeekday({ weekday: "Mi" })).toBe("Mi");
+      // Final fallback when no day at all
+      expect(UA.fmtWeekday({})).toBe("—");
+    });
+
+    test('row renderers (text/html/docx) inject "Day (Group)" when group is present', () => {
+      const it = item({ weekday: "Sa", weekdayGroup: "Wochenende" });
+      const v = UA.accidentViews.byInvolvement;
+      expect(v.renderRow.text(it, 0)).toContain("Sa (Wochenende)");
+      expect(v.renderRow.html(it, 0)).toContain("Sa (Wochenende)");
+      expect(v.renderRow.docx(it, 0)).toContain("Sa (Wochenende)");
+    });
+
+    test('row renderers fall back to bare day when group is missing', () => {
+      const it = item({ weekday: "Mi", weekdayGroup: null });
+      const v = UA.accidentViews.bySeverity;
+      const txt = v.renderRow.text(it, 0);
+      expect(txt).toContain("| Mi |");
+      expect(txt).not.toContain("(Werktag)");
+      expect(txt).not.toContain("(Wochenende)");
+    });
+
+    test('bySeverity meta.weekdayGroupCounts reflects group composition', () => {
+      const items = [
+        // 9 Werktag, 3 Wochenende, all severity=2 → one group
+        ...Array.from({ length: 9 }, () => item({ severity: "2", weekdayGroup: "Werktag" })),
+        ...Array.from({ length: 3 }, () => item({ severity: "2", weekdayGroup: "Wochenende" }))
+      ];
+      const [g] = UA.accidentViews.bySeverity.group(items);
+      expect(g.meta.weekdayGroupCounts).toEqual({ Werktag: 9, Wochenende: 3 });
+    });
+
+    test('bySeverity header text appends "Werktag: N · Wochenende: M" when both > 0', () => {
+      const items = [
+        ...Array.from({ length: 9 }, () => item({ severity: "2", weekdayGroup: "Werktag" })),
+        ...Array.from({ length: 3 }, () => item({ severity: "2", weekdayGroup: "Wochenende" }))
+      ];
+      const r = UA.applyAccidentView(items, 'bySeverity');
+      expect(r.groups[0].headers.text).toContain("Werktag: 9");
+      expect(r.groups[0].headers.text).toContain("Wochenende: 3");
+    });
+
+    test('bySeverity header omits weekday block when no items have weekdayGroup', () => {
+      const items = Array.from({ length: 3 }, () => item({ severity: "2", weekdayGroup: null }));
+      const r = UA.applyAccidentView(items, 'bySeverity');
+      expect(r.groups[0].headers.text).not.toContain("Werktag");
+      expect(r.groups[0].headers.text).not.toContain("Wochenende");
+    });
+
+    test('bySeverity header lists only counts > 0 (single side)', () => {
+      const items = Array.from({ length: 4 }, () => item({ severity: "2", weekdayGroup: "Werktag" }));
+      const r = UA.applyAccidentView(items, 'bySeverity');
+      expect(r.groups[0].headers.text).toContain("Werktag: 4");
+      expect(r.groups[0].headers.text).not.toContain("Wochenende:");
+    });
+
+    test('byInvolvement meta also carries weekdayGroupCounts', () => {
+      const items = [
+        item({ mask: 5, weekdayGroup: "Werktag" }),
+        item({ mask: 5, weekdayGroup: "Werktag" }),
+        item({ mask: 5, weekdayGroup: "Wochenende" })
+      ];
+      const [g] = UA.accidentViews.byInvolvement.group(items);
+      expect(g.meta.weekdayGroupCounts).toEqual({ Werktag: 2, Wochenende: 1 });
+    });
+
+    test('items without a recognized weekdayGroup are not miscounted', () => {
+      // Build items directly (bypass the helper's default weekdayGroup="Werktag")
+      const items = [
+        { ...item({ severity: "2" }), weekdayGroup: "Werktag" },
+        { ...item({ severity: "2" }), weekdayGroup: null },
+        { ...item({ severity: "2" }), weekdayGroup: undefined },
+        { ...item({ severity: "2" }), weekdayGroup: "Bogus" }
+      ];
+      const [g] = UA.accidentViews.bySeverity.group(items);
+      expect(g.meta.weekdayGroupCounts).toEqual({ Werktag: 1, Wochenende: 0 });
+    });
+
+    test('UA.buildWeekdayGroupCounts handles empty input', () => {
+      expect(UA.buildWeekdayGroupCounts([])).toEqual({ Werktag: 0, Wochenende: 0 });
+    });
+
+    test('UA.fmtWeekdayGroupCounts returns "" when both counts are 0', () => {
+      expect(UA.fmtWeekdayGroupCounts({ Werktag: 0, Wochenende: 0 })).toBe("");
+      expect(UA.fmtWeekdayGroupCounts(null)).toBe("");
     });
   });
 });

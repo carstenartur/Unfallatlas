@@ -633,7 +633,7 @@
             // Defensive fallback (matches the previous bySeverity layout)
             const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
             const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-            return [String(i + 1), String(r.year ?? "—"), r.involved, hour, r.weekday || "—", r.roadCondition || "—", coords];
+            return [String(i + 1), String(r.year ?? "—"), r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
           });
           children.push(makeDocxTable(cols, detailRows));
           if (g.overflow > 0) {
@@ -656,7 +656,7 @@
         const detailRows = sd.accidentDetails.rows.map((r, i) => {
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
           const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, r.involved, hour, r.weekday || "—", r.roadCondition || "—", coords];
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
         });
         children.push(makeDocxTable(
           ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
@@ -1413,7 +1413,7 @@
             } else {
               const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
               const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-              cells = [String(i + 1), String(r.year ?? "—"), r.involved, hour, r.weekday || "—", r.roadCondition || "—", coords];
+              cells = [String(i + 1), String(r.year ?? "—"), r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
             }
             // Replace emojis in the "Beteiligte" cell (heuristic: any cell containing a non-ASCII char that's not part of common labels).
             // Simpler: apply replaceEmojisForPDF to each cell defensively.
@@ -1434,7 +1434,7 @@
         const detailRows = sd.accidentDetails.rows.map((r, i) => {
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
           const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, replaceEmojisForPDF(r.involved), hour, r.weekday || "—", r.roadCondition || "—", coords];
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, replaceEmojisForPDF(r.involved), hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
         });
         docDefinition.content.push(makePdfTable(
           ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],

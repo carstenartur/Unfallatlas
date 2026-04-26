@@ -179,6 +179,41 @@ describe('accidentDetailTable', () => {
     expect(weekdays).not.toContain('Mo–Fr');
   });
 
+  test('weekdayGroup is set on each item and consistent with UA.WEEKEND_SET', () => {
+    const pts = [
+      { lat: 52, lon: 9, props: { ukategorie: '3', year: '2022', ustunde: '10', uwochentag: '1', strzustand: '0', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0' } }, // So → Wochenende
+      { lat: 52, lon: 9, props: { ukategorie: '3', year: '2022', ustunde: '10', uwochentag: '2', strzustand: '0', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0' } }, // Mo → Werktag
+      { lat: 52, lon: 9, props: { ukategorie: '3', year: '2022', ustunde: '10', uwochentag: '5', strzustand: '0', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0' } }, // Do → Werktag
+      { lat: 52, lon: 9, props: { ukategorie: '3', year: '2022', ustunde: '10', uwochentag: '7', strzustand: '0', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0' } }  // Sa → Wochenende
+    ];
+    const result = UA.accidentDetailTable(pts);
+    const byWeekday = Object.fromEntries(result.rows.map(r => [r.weekday, r.weekdayGroup]));
+    expect(byWeekday.So).toBe('Wochenende');
+    expect(byWeekday.Sa).toBe('Wochenende');
+    expect(byWeekday.Mo).toBe('Werktag');
+    expect(byWeekday.Do).toBe('Werktag');
+    // Cross-check with UA.WEEKEND_SET (single source of truth in ua.utils.js)
+    expect(UA.WEEKEND_SET.has('1')).toBe(true);  // So
+    expect(UA.WEEKEND_SET.has('7')).toBe(true);  // Sa
+    expect(UA.WEEKEND_SET.has('2')).toBe(false); // Mo
+    expect(UA.WEEKEND_SET.has('5')).toBe(false); // Do
+  });
+
+  test('items with missing uwochentag get weekdayGroup=null and do not break the table', () => {
+    const pts = [
+      // Missing uwochentag entirely
+      { lat: 52, lon: 9, props: { ukategorie: '3', year: '2022', ustunde: '10', strzustand: '0', IstRad: '1', IstFuss: '0', IstPKW: '0', IstKrad: '0' } }
+    ];
+    const result = UA.accidentDetailTable(pts);
+    expect(result.rows.length).toBe(1);
+    expect(result.rows[0].weekdayGroup).toBeNull();
+    // Group meta histogram counts must show 0 weekday-group hits for this item
+    const g = result.groups[0];
+    expect(g.meta.weekdayGroupCounts).toEqual({ Werktag: 0, Wochenende: 0 });
+    // And the group header text must not include any "Werktag:" / "Wochenende:" block
+    expect(g.headers.text).not.toMatch(/Werktag:|Wochenende:/);
+  });
+
   test('groups property and count reflect total group size before cap', () => {
     const pts = Array.from({ length: 5 }, () => pt('1', 2022, 10));
     const result = UA.accidentDetailTable(pts, 3);
