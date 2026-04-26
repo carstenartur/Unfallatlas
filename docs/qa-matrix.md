@@ -103,4 +103,4 @@ Legende: ✅ getestet · ⚠️ teilweise · ❌ offen
 
 ---
 
-*Stand: automatisch aus Repository-Stand abgeleitet – bitte bei neuen Testzugängen aktualisieren.*
+*Stand: manuell gepflegt auf Basis des aktuellen Repository-Stands – bitte bei neuen Testzugängen aktualisieren.*
