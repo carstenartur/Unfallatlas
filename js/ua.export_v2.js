@@ -415,7 +415,15 @@
       const locR = local.total ? (locCnt / local.total) : 0;
       const baseR = baseline.total ? (baseCnt / baseline.total) : 0;
       const factor = (baseR > 0) ? (locR / baseR) : Infinity;
-      rows.push({ mask: m, label: COMBO_LABEL[m] || ("Mask " + m), locCnt, baseCnt, locR, baseR, factor });
+
+      // Wilson-Score-Konfidenzintervall (95 %) für den lokalen Anteil
+      const ci = (typeof UA.wilsonScoreInterval === "function")
+        ? UA.wilsonScoreInterval(locCnt, local.total)
+        : { low: 0, high: 1 };
+      // Signifikant überrepräsentiert: untere CI-Grenze liegt über baseR
+      const isSignificant = local.total > 0 && baseR > 0 && ci.low > baseR;
+
+      rows.push({ mask: m, label: COMBO_LABEL[m] || ("Mask " + m), locCnt, baseCnt, locR, baseR, factor, ciLow: ci.low, ciHigh: ci.high, isSignificant });
     }
     rows.sort((a, b) => (b.factor - a.factor));
 
@@ -586,6 +594,7 @@
 
   // Export for testing and external use
   UA.accidentDetailTable = accidentDetailTable;
+  UA.topDeviations = topDeviations;
 
   // --------------------
   // Public API: UA.computeExportReport(ctx)
@@ -738,7 +747,13 @@
     if (dev.focus.length) {
       lines.push("Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):");
       for (const r of dev.focus) {
-        lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${r.factor.toFixed(2)}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
+        const ciStr = `95%-KI: ${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}`;
+        const sigStr = r.isSignificant ? "signifikant" : "nicht signifikant – kleine Datenmenge";
+        lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${r.factor.toFixed(2)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
+      }
+      const allNonSignificant = dev.focus.every(r => !r.isSignificant);
+      if (allNonSignificant) {
+        lines.push("Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (kleine Fallzahlen). Die Faktor-Werte sollten mit Vorsicht interpretiert werden.");
       }
       lines.push("");
       // Include pattern-specific assessments (Gen-2) if available, else fall back to heuristic
@@ -904,14 +919,19 @@
     // ---- HTML (Modal) ----
     const focusRows = dev.focus.length ? dev.focus : dev.rows.slice(0, 5);
 
-    const mkDevRow = (r) => `
+    const fmtCI = (r) => `[${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}]`;
+    const mkDevRow = (r) => {
+      const sigStyle = r.isSignificant ? "" : " color:#999;";
+      const sigTooltip = r.isSignificant ? "" : ` title="Nicht signifikant – kleine Datenmenge (95%-KI schließt Stadtwert ein)"`;
+      return `
       <tr>
         <td><span class="pill">${UA.escHtml(r.label)}</span></td>
         <td style="text-align:right;">${r.locCnt.toLocaleString()}</td>
         <td style="text-align:right;">${fmtPct(r.locR)}</td>
         <td style="text-align:right;">${fmtPct(r.baseR)}</td>
-        <td style="text-align:right; font-weight:900;">${r.factor.toFixed(2)}×</td>
+        <td style="text-align:right; font-weight:900;${sigStyle}"${sigTooltip}>${r.factor.toFixed(2)}× <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${r.isSignificant ? "" : " <span style=\"font-size:10px; color:#bbb;\">n.s.</span>"}</td>
       </tr>`;
+    };
 
     const mkYearRow = (row) => `
       <tr>
@@ -1044,12 +1064,18 @@
         <div style="margin-top:12px; font-weight:900;">Top-Abweichungen</div>
         <table class="report">
           <thead>
-            <tr><th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor</th></tr>
+            <tr><th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor [95%-KI]</th></tr>
           </thead>
           <tbody>
             ${focusRows.filter(r => r.locCnt > 0).map(mkDevRow).join("") || "<tr><td colspan=\"5\" style=\"color:#777;\">—</td></tr>"}
           </tbody>
         </table>
+        ${(() => {
+          const allNonSig = focusRows.filter(r => r.locCnt > 0).length > 0 && focusRows.filter(r => r.locCnt > 0).every(r => !r.isSignificant);
+          return allNonSig
+            ? `<div style="margin-top:6px; color:#888; font-size:12px; font-style:italic;">Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-Konfidenzintervall schließt den Stadtwert ein). Bei kleinen Fallzahlen sind Faktor-Werte mit Vorsicht zu interpretieren.</div>`
+            : "";
+        })()}
 
         <div style="margin-top:12px; font-weight:900;">Unfälle pro Jahr (im Ausschnitt)</div>
         <table class="report">

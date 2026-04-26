@@ -31,6 +31,7 @@
 - [URL-Parameter (Referenz)](#url-parameter-referenz)
 - [Häufige Fragen (FAQ)](#häufige-fragen-faq)
 - [Methodik und Grenzen](#methodik-und-grenzen)
+- [Statistische Belastbarkeit](#statistische-belastbarkeit)
 
 ---
 
@@ -830,3 +831,35 @@ Die Werkbank verwendet ausschließlich Daten aus dem [Unfallatlas](https://unfal
 ### Empfehlung
 
 Für fundierte Maßnahmenvorschläge sollte die Werkbank als **Erkenntniswerkzeug** genutzt werden – ergänzt durch Ortsbegehungen, Unfallkommissionsberichte und verkehrsplanerische Expertise.
+
+---
+
+## Statistische Belastbarkeit
+
+### Konfidenzintervalle für Faktor-Abweichungen
+
+Die Tabelle „Top-Abweichungen" im Export vergleicht, wie häufig ein Beteiligungsmuster (z. B. Rad + PKW) im markierten Bereich im Vergleich zum Stadtdurchschnitt vorkommt. Das Ergebnis wird als **Faktor** ausgedrückt, z. B. „2,0× – doppelt so oft wie im Stadtschnitt".
+
+Ein solcher Faktor ist bei kleinen Fallzahlen statistisch wenig belastbar. Bei z. B. 4 lokalen Fällen ist „2,0×" rein zufällig genauso wahrscheinlich wie „0,8×". Ohne Angabe einer Streubreite kann die Zahl im politischen Prozess missverstanden werden.
+
+#### Wilson-Score-Konfidenzintervall
+
+Die Werkbank berechnet für jeden Faktoreintrag ein **95 %-Konfidenzintervall nach Wilson** für den lokalen Anteil. Das Intervall gibt an, in welchem Bereich der „wahre" lokale Anteil mit 95 % Wahrscheinlichkeit liegt, wenn man die beobachteten Daten als Stichprobe betrachtet.
+
+**Beispiel:** 4 Rad+PKW-Unfälle von insgesamt 10 lokalen Unfällen → beobachteter Anteil 40 %. Das Wilson-CI (95 %) liegt bei ca. 12 % – 74 %. Wenn der Stadtwert bei 22 % liegt und damit **innerhalb** dieses Intervalls, ist die Abweichung statistisch nicht signifikant.
+
+#### Darstellung im Export
+
+- Hinter jedem Faktor erscheint das Konfidenzintervall als Klammer: z. B. **1,82× [8,0 % – 41,0 %]**
+- Nicht-signifikante Einträge (CI schließt den Stadtwert ein) werden **grau** dargestellt und mit dem Hinweis *n.s.* markiert (Tooltip: „Nicht signifikant – kleine Datenmenge").
+- Wenn **alle** Top-Abweichungen nicht-signifikant sind, erscheint ein gemeinsamer Hinweistext im Sachverhalt-Block: *„Alle aufgeführten Abweichungen sind statistisch nicht signifikant. Bei kleinen Fallzahlen sind Faktor-Werte mit Vorsicht zu interpretieren."*
+
+#### Technische Umsetzung
+
+Das Wilson-Score-Intervall ist in `js/ua.stats.js` implementiert (`UA.wilsonScoreInterval(k, n, z=1.96)`). Die Funktion wird von `topDeviations()` in `js/ua.export_v2.js` aufgerufen und erweitert jeden Tabelleneintrag um die Felder `ciLow`, `ciHigh` und `isSignificant`.
+
+#### Grenzen der Methode
+
+- Das Konfidenzintervall beschreibt die **Stichprobenvariabilität** unter der Annahme einer Binomialverteilung. Es berücksichtigt keine systematischen Fehler (z. B. Erfassungslücken, räumliche Autokorrelation).
+- Ein signifikantes Ergebnis ist kein Beweis für eine kausale Ursache – es ist ein statistischer Hinweis, der eine Ortsbegehung und fachliche Einschätzung nahelegt, aber nicht ersetzt.
+- Bei sehr kleinen Ausschnitten (< 5 Unfälle insgesamt) sollte die Auswertung grundsätzlich mit besonderer Vorsicht interpretiert werden.

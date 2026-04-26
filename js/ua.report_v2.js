@@ -526,12 +526,22 @@
         const devRows = sd.deviations.focus.map(r => {
           const locPct = sd.deviations.local.total ? ((r.locR) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
-          return [r.label, String(r.locCnt), locPct, basePct, r.factor.toFixed(2) + "×"];
+          const ciLowPct = r.ciLow != null ? (r.ciLow * 100).toFixed(1).replace(".", ",") + " %" : "—";
+          const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
+          const factorStr = r.factor.toFixed(2) + "×" + (r.isSignificant === false ? " (n.s.)" : "");
+          return [r.label, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         children.push(makeDocxTable(
-          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor"],
+          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
           devRows
         ));
+        const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
+        if (allNonSig) {
+          children.push(new Paragraph({
+            text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+            spacing: { after: 100 }
+          }));
+        }
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
 
