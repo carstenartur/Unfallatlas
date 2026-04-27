@@ -45,6 +45,51 @@
   }
 
   // --------------------
+  // Render-Helfer: Trend-Qualifier (PR-β) und OSM-Voraussetzungen (PR-γ).
+  // Werden von Text-, HTML-, DOCX- und PDF-Renderern verwendet, damit der
+  // Wortlaut in allen Pfaden identisch ist.
+  // --------------------
+
+  /**
+   * Übersetzt die `yearlyTrend.classification` (steigend / stagnierend /
+   * rückläufig / unbestimmt) in einen menschlich lesbaren Antragstext.
+   * Liefert `null`, wenn die Klassifikation fehlt — der Caller blendet dann.
+   */
+  function trendQualifierText(classification) {
+    switch (classification) {
+      case "steigend":     return "im Mittel der letzten Jahre steigend";
+      case "stagnierend":  return "stagnierend hoch (kein erkennbarer Rückgang)";
+      case "rückläufig":   return "rückläufig im Mehrjahresvergleich";
+      case "unbestimmt":   return "Trend statistisch unbestimmt (zu wenig Datenjahre)";
+      default:             return null;
+    }
+  }
+
+  /**
+   * Baut für die Empfehlungsliste eine kompakte Hinweiszeile zum
+   * OSM-Datenstand:
+   *  - "OSM-Voraussetzungen mangels Daten nicht geprüft (Tempolimit, Fahrbahnbreite)"
+   *  - "OSM-Kontext nicht abgerufen (HTTP 504): Voraussetzungen wurden nicht geprüft."
+   *  - `null` wenn alle Achsen abgedeckt sind.
+   *
+   * @param {object|null} coverage  Ausgabe von `UA.measures.osmCoverage`
+   */
+  function osmCoverageNote(coverage) {
+    if (!coverage) return null;
+    if (!coverage.present) {
+      const why = coverage.error ? ` (${coverage.error})` : "";
+      // Plain text only – TEXT/HTML/DOCX consumers wrap or escape this string,
+      // so any inline Markdown (`**…**`) would leak verbatim into the output.
+      // Render-site emphasis (e.g. <strong>) is the responsibility of the caller.
+      return `OSM-Kontext nicht abgerufen${why}: Maßnahmen-Voraussetzungen wurden mangels Daten nicht geprüft – die unten gelisteten Vorschläge können daher räumliche Voraussetzungen verletzen.`;
+    }
+    if (coverage.hasGap) {
+      return `OSM-Voraussetzungen mangels Daten nicht geprüft: ${coverage.missingAxes.join(", ")}. Die Vorschläge wurden nicht anhand dieser Achse(n) gefiltert.`;
+    }
+    return null;
+  }
+
+  // --------------------
   // Dunkelziffer / Erfassungsgrenzen (#C3)
   // Pflicht-Hinweisblock in allen Antrags-Ausgaben (Text/HTML/DOCX/PDF), damit
   // Adressaten verstehen, dass die offiziellen Zahlen nur einen Ausschnitt der
@@ -60,6 +105,39 @@
   // Exportieren, damit Tests und andere Module (Doku-Generator) die selbe
   // Definition wiederverwenden können.
   UA.DARK_FIGURE_NOTE = DARK_FIGURE_NOTE;
+
+  /**
+   * Entfernt führende „Marker"-Zeilen, die rein aus einem `[...]`-Block bestehen
+   * (z. B. `[Interner Hinweis – vor Versand entfernen]` als erste Zeile von
+   * `templates/outro_internal_note.txt`). Solche Marker sind als visuelle
+   * Erinnerung im Template gedacht und sollen weder im fertigen Antrag noch in
+   * Klartext-/HTML-/DOCX-/PDF-Renderpfaden auftauchen. Der inhaltliche Rest
+   * (Erklärtext + `{{LINK}}`) bleibt unverändert. Bracket-Lines mitten im
+   * Body bleiben erhalten – nur die zusammenhängende Marker-Header-Sequenz
+   * am Anfang wird entfernt (PR-QA Task 8).
+   */
+  function stripInternalMarkerHeader(s) {
+    if (s == null) return s;
+    if (s === "") return s;
+    return String(s).replace(/^(?:[ \t]*\[[^\]\n]*\][ \t]*\r?\n)+/, "");
+  }
+  UA._stripInternalMarkerHeader = stripInternalMarkerHeader;
+
+  /**
+   * Tiny predicate: true wenn der `recommendedMeasures`-Block für den
+   * Renderer überhaupt etwas zu zeigen hat (entweder Empfehlungen oder
+   * mindestens einen filteredOut-Eintrag, den wir transparent listen).
+   * Geteilt von TEXT- und HTML-Pfad sowie dem DOCX/PDF-Renderer in
+   * `js/ua.report_v2.js`, der dieselbe Bedingung als
+   * `UA.hasRecommendationsOrFiltered` konsumiert.
+   */
+  function hasRecommendationsOrFiltered(rm) {
+    if (!rm) return false;
+    if (Array.isArray(rm.measures) && rm.measures.length > 0) return true;
+    if (Array.isArray(rm.filteredOut) && rm.filteredOut.length > 0) return true;
+    return false;
+  }
+  UA.hasRecommendationsOrFiltered = hasRecommendationsOrFiltered;
 
   // --------------------
   // Unfallklassen / Masken (robust, unabhängig von anderen Modulen)
@@ -113,7 +191,10 @@
   const PATTERN_MAP = {
     1: {
       template: "pattern_rad_solo",
-      vars: (r) => ({ RAD_SOLO_FACTOR: r.factor.toFixed(2), RAD_SOLO_LOCAL: String(r.locCnt) })
+      // RAD_SOLO_CITY ist in templates/pattern_rad_solo.txt referenziert, war aber
+      // bis hierher nie belegt → der Antrag enthielt sichtbar "stadtweit  Fällen".
+      // Wir binden den stadtweiten Vergleichswert aus `r.baseCnt`.
+      vars: (r) => ({ RAD_SOLO_FACTOR: r.factor.toFixed(2), RAD_SOLO_LOCAL: String(r.locCnt), RAD_SOLO_CITY: String(r.baseCnt) })
     },
     3: {
       template: "pattern_rad_fuss",
@@ -712,6 +793,47 @@
 
     const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
 
+    // ---- Yearly trend (#C2): linear regression over per-year counts ----
+    // Always computed when UA.trend is available — it's a pure function over
+    // the in-bounds points, so we don't gate it behind a modal toggle.
+    // Computed early so downstream blocks (e.g. economicImpact.trendQualifier)
+    // can reference the trend classification.
+    let yearlyTrend = null;
+    if (UA.trend && typeof UA.trend.computeYearlyTrend === "function") {
+      try {
+        yearlyTrend = UA.trend.computeYearlyTrend(filteredPts);
+      } catch (e) {
+        console.warn("Yearly trend computation failed:", e);
+      }
+    }
+
+    // ---- OSM context (#C4) ----
+    // Network call to the Overpass API; gated by exportOptions.includeOsmContext
+    // (default ON). The helper is fully defensive — it returns either the
+    // aggregated summary, a `{ quality.error }` stub, or `null` (invalid bbox).
+    // We tolerate all three so a slow/blocked Overpass mirror never breaks the
+    // report. Caller can pass `ctx.exportOptions.osmContextOverride` (already
+    // computed payload) to skip the fetch — used by tests and the AI flow,
+    // which may want to feed pre-fetched context into the prompt.
+    // Computed early so the recommendedMeasures filter can read its summary.
+    const includeOsmContext = !ctx.exportOptions || ctx.exportOptions.includeOsmContext !== false;
+    let osmContext = null;
+    if (includeOsmContext && UA.osmContext && typeof UA.osmContext.fetchOsmContext === "function") {
+      const override = ctx.exportOptions && ctx.exportOptions.osmContextOverride;
+      if (override !== undefined) {
+        osmContext = override;
+      } else {
+        try {
+          osmContext = await UA.osmContext.fetchOsmContext({
+            south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng
+          }, ctx.exportOptions && ctx.exportOptions.osmContextOpts);
+        } catch (e) {
+          console.warn("OSM context fetch failed:", e);
+          osmContext = null;
+        }
+      }
+    }
+
     // ---- Economic impact (PR-C / B2): annual external cost via BASt-like factors ----
     // Only computed when the modal toggle "Volkswirtschaftliche Kosten" is on
     // (default ON). Skipping avoids a fetch + parse on the common opted-out path.
@@ -730,7 +852,11 @@
           breakdown: calc.breakdown,
           counts: calc.counts,
           source: factors.source,
-          disclaimer: factors.disclaimer
+          disclaimer: factors.disclaimer,
+          // Trend-Qualifier (PR-β): nutzt die bereits berechnete `yearlyTrend`-
+          // Klassifikation, damit Antragstexte den Kostenblock ehrlich
+          // einordnen können ("stagnierend hoch", "rückläufig").
+          trendQualifier: (yearlyTrend && yearlyTrend.classification) || null
         };
       } catch (e) {
         console.warn("Economic impact computation failed:", e);
@@ -740,6 +866,8 @@
     // ---- Recommended measures (PR-D / B1+B3) ----
     // Only computed when the modal toggle "Maßnahmenvorschläge" is on
     // (default ON). Avoids loading the catalog on the common opted-out path.
+    // Receives `osmContext` so the engine can suppress measures whose
+    // `prerequisites` are not met (z. B. Tempo 30 nur, wenn aktuell > 30).
     let recommendedMeasures = null;
     if (includeMeasures && UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
       try {
@@ -748,23 +876,12 @@
           const catalog = await UA.measures.loadCatalog(citySlug);
           recommendedMeasures = UA.measures.recommendMeasures(detectedPatterns, catalog, {
             limit: 5,
-            economicImpact: economicImpact
+            economicImpact: economicImpact,
+            osmContext: osmContext
           });
         }
       } catch (e) {
         console.warn("Measure recommendation failed:", e);
-      }
-    }
-
-    // ---- Yearly trend (#C2): linear regression over per-year counts ----
-    // Always computed when UA.trend is available — it's a pure function over
-    // the in-bounds points, so we don't gate it behind a modal toggle.
-    let yearlyTrend = null;
-    if (UA.trend && typeof UA.trend.computeYearlyTrend === "function") {
-      try {
-        yearlyTrend = UA.trend.computeYearlyTrend(filteredPts);
-      } catch (e) {
-        console.warn("Yearly trend computation failed:", e);
       }
     }
 
@@ -779,32 +896,6 @@
         heatmap = UA.heatmap.computeHourDaytypeMatrix(filteredPts);
       } catch (e) {
         console.warn("Heatmap computation failed:", e);
-      }
-    }
-
-    // ---- OSM context (#C4) ----
-    // Network call to the Overpass API; gated by exportOptions.includeOsmContext
-    // (default ON). The helper is fully defensive — it returns either the
-    // aggregated summary, a `{ quality.error }` stub, or `null` (invalid bbox).
-    // We tolerate all three so a slow/blocked Overpass mirror never breaks the
-    // report. Caller can pass `ctx.exportOptions.osmContextOverride` (already
-    // computed payload) to skip the fetch — used by tests and the AI flow,
-    // which may want to feed pre-fetched context into the prompt.
-    const includeOsmContext = !ctx.exportOptions || ctx.exportOptions.includeOsmContext !== false;
-    let osmContext = null;
-    if (includeOsmContext && UA.osmContext && typeof UA.osmContext.fetchOsmContext === "function") {
-      const override = ctx.exportOptions && ctx.exportOptions.osmContextOverride;
-      if (override !== undefined) {
-        osmContext = override;
-      } else {
-        try {
-          osmContext = await UA.osmContext.fetchOsmContext({
-            south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng
-          }, ctx.exportOptions && ctx.exportOptions.osmContextOpts);
-        } catch (e) {
-          console.warn("OSM context fetch failed:", e);
-          osmContext = null;
-        }
       }
     }
 
@@ -854,7 +945,9 @@
     const tIntro = introResult.content;
     const isGen2Intro = introResult.isGen2;
     const tBesch = beschResult.content;
-    const tHinw = hinwResult.content;
+    // PR-QA Task 8: Marker-Zeile aus dem internal-note-Template entfernen, damit
+    // `[Interner Hinweis – vor Versand entfernen]` nicht im offiziellen Antrag landet.
+    const tHinw = stripInternalMarkerHeader(hinwResult.content);
     const tLiz = lizResult.content;
 
     // ---- Text (Clipboard/Word) ----
@@ -980,6 +1073,10 @@
       lines.push(`  Geschätzte externe Kosten im Bereich: ${fmt(economicImpact.total)} (Datenzeitraum ${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"}).`);
       lines.push(`  Pro Jahr: ca. ${fmt(economicImpact.annual)}.`);
       lines.push(`  Aufschlüsselung – Getötete: ${fmt(economicImpact.breakdown.fatal)} · Schwerverletzte: ${fmt(economicImpact.breakdown.severe)} · Leichtverletzte: ${fmt(economicImpact.breakdown.light)}.`);
+      // Trend-Qualifier: Klassifikation der Mehrjahres-Trendlinie (PR-β),
+      // damit Antragstexte den Kostenblock ehrlich einordnen können.
+      const tq = trendQualifierText(economicImpact.trendQualifier);
+      if (tq) lines.push(`  Mehrjahres-Trend: ${tq}.`);
       if (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year)) {
         const srcParts = [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ");
         lines.push(`  Quelle: ${srcParts}.`);
@@ -992,10 +1089,14 @@
 
     // Add recommended measures (PR-D / B1+B3): respect ctx.exportOptions.includeMeasures (default ON).
     // Note: `recommendedMeasures` is null when the toggle was off (load gated above).
-    if (includeMeasures && recommendedMeasures && recommendedMeasures.measures.length > 0) {
+    if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
       const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       lines.push("Empfohlene Maßnahmen (automatischer Vorschlag, basierend auf detektierten Mustern):");
+      // OSM-Datenstand-Hinweis: Wenn Achsen relevant sind, aber nicht
+      // belastbar geprüft werden konnten, vor der Liste klar markieren.
+      const cov = osmCoverageNote(recommendedMeasures.osmCoverage);
+      if (cov) lines.push(`  Hinweis (OSM-Datenstand): ${cov}`);
       let i = 1;
       for (const item of recommendedMeasures.measures) {
         const m = item.measure;
@@ -1013,6 +1114,13 @@
           for (const c of m.considerations) lines.push(`     – ${c}`);
         }
         i++;
+      }
+      // Wegen OSM-Voraussetzungen ausgeschlossene Vorschläge transparent listen.
+      if (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0) {
+        lines.push("  Wegen OSM-Voraussetzungen NICHT empfohlen:");
+        for (const f of recommendedMeasures.filteredOut) {
+          lines.push(`    – ${f.label}: ${f.reason}`);
+        }
       }
       if (recommendedMeasures.disclaimer) {
         lines.push(`  Hinweis: ${recommendedMeasures.disclaimer}`);
@@ -1277,6 +1385,7 @@
           </tbody>
         </table>
         <div style="margin-top:6px; color:#555; font-size:12px;">
+          ${(() => { const tq = trendQualifierText(economicImpact.trendQualifier); return tq ? `<div><strong>Mehrjahres-Trend:</strong> ${UA.escHtml(tq)}.</div>` : ""; })()}
           ${srcParts ? `<div><strong>Quelle:</strong> ${UA.escHtml(srcParts)}${srcUrl ? ` (<a href="${UA.escHtml(srcUrl)}" target="_blank" rel="noopener">Link</a>)` : ""}</div>` : ""}
           ${economicImpact.disclaimer ? `<div style="font-style:italic; margin-top:4px;">${UA.escHtml(economicImpact.disclaimer)}</div>` : ""}
         </div>`;
@@ -1284,7 +1393,7 @@
 
     // Build recommended-measures HTML section (PR-D / B1+B3)
     let measuresHtmlSection = "";
-    if (includeMeasures && recommendedMeasures && recommendedMeasures.measures.length > 0) {
+    if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
       const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       const itemsHtml = recommendedMeasures.measures.map((item) => {
@@ -1314,9 +1423,29 @@
       const sourcesHtml = (recommendedMeasures.sources && recommendedMeasures.sources.length > 0)
         ? `<div style="color:#666; font-size:12px; margin-top:6px;"><strong>Quellen:</strong> ${recommendedMeasures.sources.map(s => UA.escHtml(s.title || "")).filter(Boolean).join(" · ")}</div>`
         : "";
+      // OSM-Datenstand-Hinweis vor der Liste, damit die Unsicherheit
+      // sofort sichtbar ist und nicht erst unten als Fußnote.
+      const cov = osmCoverageNote(recommendedMeasures.osmCoverage);
+      const coverageHtml = cov
+        ? `<div style="margin-top:6px; padding:6px 10px; background:#fff7e0; border:1px solid #f0c060; border-radius:4px; font-size:12px;"><strong>OSM-Datenstand:</strong> ${UA.escHtml(cov)}</div>`
+        : "";
+      // Wegen OSM-Voraussetzungen nicht empfohlene Vorschläge transparent listen.
+      const filteredHtml = (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0)
+        ? `<details style="margin-top:8px; color:#555; font-size:12px;">
+            <summary style="cursor:pointer;"><strong>Wegen OSM-Voraussetzungen NICHT empfohlen</strong> (${recommendedMeasures.filteredOut.length})</summary>
+            <ul style="margin:4px 0 0 18px; padding:0;">
+              ${recommendedMeasures.filteredOut.map(f => `<li><strong>${UA.escHtml(f.label)}:</strong> ${UA.escHtml(f.reason || "Voraussetzungen nicht erfüllt")}</li>`).join("")}
+            </ul>
+          </details>`
+        : "";
+      const listHtml = (recommendedMeasures.measures.length > 0)
+        ? `<ol style="margin-top:6px;">${itemsHtml}</ol>`
+        : `<div style="margin-top:6px; color:#666; font-style:italic;">Keine Maßnahmen empfohlen (alle Vorschläge wurden gefiltert oder kein Muster ausreichend signifikant).</div>`;
       measuresHtmlSection = `
         <div style="margin-top:12px; font-weight:900;">Empfohlene Maßnahmen (automatischer Vorschlag)</div>
-        <ol style="margin-top:6px;">${itemsHtml}</ol>
+        ${coverageHtml}
+        ${listHtml}
+        ${filteredHtml}
         ${sourcesHtml}
         ${recommendedMeasures.disclaimer ? `<div style="color:#555; font-size:12px; font-style:italic; margin-top:4px;">${UA.escHtml(recommendedMeasures.disclaimer)}</div>` : ""}`;
     }

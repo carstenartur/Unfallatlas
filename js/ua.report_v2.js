@@ -257,6 +257,35 @@
   // Expose for use in other modules (e.g. ua.app_v2.js for dynamic modal title)
   UA.deriveDocTitle = deriveDocTitle;
 
+  // --------------------
+  // Trend-Qualifier (PR-β) und OSM-Voraussetzungen-Hinweis (PR-γ).
+  // Identische Wortwahl wie in `js/ua.export_v2.js` (TEXT/HTML), damit
+  // DOCX und PDF dieselben Antragstexte ausgeben.
+  // --------------------
+  function trendQualifierTextDocx(classification) {
+    switch (classification) {
+      case "steigend":     return "im Mittel der letzten Jahre steigend";
+      case "stagnierend":  return "stagnierend hoch (kein erkennbarer Rückgang)";
+      case "rückläufig":   return "rückläufig im Mehrjahresvergleich";
+      case "unbestimmt":   return "Trend statistisch unbestimmt (zu wenig Datenjahre)";
+      default:             return null;
+    }
+  }
+  function osmCoverageNoteDocx(coverage) {
+    if (!coverage) return null;
+    if (!coverage.present) {
+      const why = coverage.error ? ` (${coverage.error})` : "";
+      return `OSM-Kontext nicht abgerufen${why}: Maßnahmen-Voraussetzungen wurden mangels Daten NICHT geprüft – die unten gelisteten Vorschläge können daher räumliche Voraussetzungen verletzen.`;
+    }
+    if (coverage.hasGap) {
+      return `OSM-Voraussetzungen mangels Daten nicht geprüft: ${coverage.missingAxes.join(", ")}. Die Vorschläge wurden NICHT anhand dieser Achse(n) gefiltert.`;
+    }
+    return null;
+  }
+  // Exportieren, damit Tests die Helfer direkt prüfen können.
+  UA.trendQualifierTextDocx = trendQualifierTextDocx;
+  UA.osmCoverageNoteDocx = osmCoverageNoteDocx;
+
   /**
    * Generate and download Word document
    * @param {Object} ctx - Application context
@@ -282,11 +311,13 @@
       right:  { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" }
     };
 
-    // Helper: build a table cell containing plain text
+    // Helper: build a table cell containing plain text. Emoji-bearing strings
+    // (e.g. "🚲+🚗") get sanitized first so DOCX viewers without an emoji-
+    // capable body font still show the involvement labels (PR-QA Task 1).
     function textCell(text, bold) {
       return new TableCell({
         borders: cellBorder,
-        children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })]
+        children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(text), bold })] })]
       });
     }
 
@@ -306,13 +337,16 @@
 
     // Helper to build a simple bordered table from headers + rows (plain text cells)
     // Optional: rowHighlights is an array of booleans – true = highlight that data row
+    // Cells go through `replaceEmojisForDocx` so involvement icons fall back to
+    // text labels (`[Rad]+[PKW]`) when the Word installation lacks an emoji
+    // body font (PR-QA Task 1).
     function makeDocxTable(headers, dataRows, rowHighlights) {
       const makeRow = (cells, bold, highlight) =>
         new TableRow({
           children: cells.map(text => {
             const cell = new TableCell({
               borders: cellBorder,
-              children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(text), bold })] })],
               ...(highlight ? { shading: { fill: "FFFFCC" } } : {})
             });
             return cell;
@@ -343,7 +377,11 @@
     }
 
     const children = [];
-    const textLines = reportData.text ? reportData.text.split("\n") : [];
+    // PR-QA Task 1: Body-Text durch dieselbe Emoji→Label-Substitution wie der
+    // PDF-Renderer schicken – DOCX hat dasselbe Font-Risiko (Beteiligungs-
+    // Symbole bleiben auf vielen Word-Installationen leer).
+    const docxText = replaceEmojisForDocx(reportData.text || "");
+    const textLines = docxText ? docxText.split("\n") : [];
 
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
@@ -624,6 +662,14 @@
           ["Pro Jahr", "", fmt(ei.annual)]
         ];
         children.push(makeDocxTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
+        // Trend-Qualifier (PR-β): konsistent mit TEXT/HTML/PDF.
+        const tq = trendQualifierTextDocx(ei.trendQualifier);
+        if (tq) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: `Mehrjahres-Trend: ${tq}.`, bold: true })],
+            spacing: { before: 80, after: 40 }
+          }));
+        }
         if (ei.source && (ei.source.publisher || ei.source.year)) {
           const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
           children.push(new Paragraph({ text: `Quelle: ${srcParts}`, spacing: { after: 60 } }));
@@ -637,7 +683,8 @@
       }
 
       // Recommended measures (PR-D / B1+B3)
-      if (options.includeMeasures !== false && sd.recommendedMeasures && sd.recommendedMeasures.measures && sd.recommendedMeasures.measures.length > 0) {
+      if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         children.push(new Paragraph({
@@ -645,8 +692,16 @@
           heading: HeadingLevel.HEADING_2,
           spacing: { before: 400, after: 200 }
         }));
+        // OSM-Datenstand-Hinweis vor der Liste, kursiv hervorgehoben.
+        const cov = osmCoverageNoteDocx(sd.recommendedMeasures.osmCoverage);
+        if (cov) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: `OSM-Datenstand: ${cov}`, italics: true })],
+            spacing: { after: 120 }
+          }));
+        }
         let i = 1;
-        for (const item of sd.recommendedMeasures.measures) {
+        for (const item of (sd.recommendedMeasures.measures || [])) {
           const m = item.measure;
           children.push(new Paragraph({
             children: [new TextRun({ text: `${i}. ${m.label}`, bold: true })],
@@ -671,6 +726,19 @@
             }
           }
           i++;
+        }
+        // Wegen OSM-Voraussetzungen ausgeschlossene Vorschläge transparent listen.
+        if (Array.isArray(sd.recommendedMeasures.filteredOut) && sd.recommendedMeasures.filteredOut.length > 0) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: "Wegen OSM-Voraussetzungen NICHT empfohlen:", bold: true })],
+            spacing: { before: 120, after: 40 }
+          }));
+          for (const f of sd.recommendedMeasures.filteredOut) {
+            children.push(new Paragraph({
+              text: `• ${f.label}: ${f.reason || "Voraussetzungen nicht erfüllt"}`,
+              spacing: { after: 20 }
+            }));
+          }
         }
         if (sd.recommendedMeasures.disclaimer) {
           children.push(new Paragraph({
@@ -1355,6 +1423,22 @@
       .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
   }
 
+  /**
+   * DOCX-Variante derselben Emoji→Text-Ersetzung. DOCX rendert Emojis nur,
+   * wenn der Word-Client einen emoji-fähigen Body-Font (z. B. Segoe UI Emoji)
+   * eingerichtet hat – auf vielen Verwaltungs-Arbeitsplätzen ist das nicht
+   * der Fall, dort tauchen die Beteiligungs-Icons als bloße Trennzeichen
+   * (`+`, `=`) auf. Wir substituieren konsequent die gleichen Kurzlabels wie
+   * in der PDF, damit Tabellen und Fließtext lesbar bleiben.
+   * Exportiert als `UA.replaceEmojisForDocx`, damit Tests ihn einzeln prüfen
+   * können.
+   */
+  function replaceEmojisForDocx(text) {
+    return replaceEmojisForPDF(String(text == null ? "" : text));
+  }
+  UA.replaceEmojisForDocx = replaceEmojisForDocx;
+
+
   // ---------------------------------------------------------------------
   // PDF involvement icons (issue: "Symbole … sichtbar machen in der PDF")
   //
@@ -1768,6 +1852,11 @@
           ["Pro Jahr", "", fmt(ei.annual)]
         ];
         docDefinition.content.push(makePdfTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
+        // Trend-Qualifier (PR-β): konsistent mit TEXT/HTML/DOCX.
+        const tq = trendQualifierTextDocx(ei.trendQualifier);
+        if (tq) {
+          docDefinition.content.push({ text: `Mehrjahres-Trend: ${tq}.`, bold: true, margin: [0, 4, 0, 2] });
+        }
         if (ei.source && (ei.source.publisher || ei.source.year)) {
           const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
           docDefinition.content.push({ text: `Quelle: ${srcParts}`, style: "normal", margin: [0, 4, 0, 0] });
@@ -1778,12 +1867,21 @@
       }
 
       // Recommended measures (PR-D / B1+B3)
-      if (options.includeMeasures !== false && sd.recommendedMeasures && sd.recommendedMeasures.measures && sd.recommendedMeasures.measures.length > 0) {
+      if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         docDefinition.content.push({ text: "EMPFOHLENE MASSNAHMEN", style: "subheader" });
+        const cov = osmCoverageNoteDocx(sd.recommendedMeasures.osmCoverage);
+        if (cov) {
+          docDefinition.content.push({
+            text: `OSM-Datenstand: ${cov}`,
+            italics: true, fontSize: 9, margin: [0, 2, 0, 6],
+            color: "#a05000"
+          });
+        }
         let i = 1;
-        for (const item of sd.recommendedMeasures.measures) {
+        for (const item of (sd.recommendedMeasures.measures || [])) {
           const m = item.measure;
           docDefinition.content.push({ text: `${i}. ${m.label}`, bold: true, margin: [0, 6, 0, 2] });
           if (m.description) docDefinition.content.push({ text: m.description, style: "normal" });
@@ -1800,6 +1898,12 @@
             }
           }
           i++;
+        }
+        if (Array.isArray(sd.recommendedMeasures.filteredOut) && sd.recommendedMeasures.filteredOut.length > 0) {
+          docDefinition.content.push({ text: "Wegen OSM-Voraussetzungen NICHT empfohlen:", bold: true, margin: [0, 8, 0, 2] });
+          for (const f of sd.recommendedMeasures.filteredOut) {
+            docDefinition.content.push({ text: `• ${f.label}: ${f.reason || "Voraussetzungen nicht erfüllt"}`, style: "normal", margin: [10, 0, 0, 0] });
+          }
         }
         if (sd.recommendedMeasures.disclaimer) {
           docDefinition.content.push({ text: sd.recommendedMeasures.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });

@@ -41,7 +41,10 @@
       "considerations": [
         "Bei Hauptverkehrsstraßen Begründung nach StVO § 45 erforderlich",
         "Wirkung am höchsten in Kombination mit baulichen Maßnahmen (Engstellen, Versatz)"
-      ]
+      ],
+      "prerequisites": {
+        "currentSpeedLimitGt": 30
+      }
     },
     {
       "id": "mittelinsel",
@@ -60,7 +63,10 @@
         "Mindestbreite Fahrbahn ca. 7,50 m vor Umbau",
         "Beleuchtung prüfen, taktiles Leitsystem für barrierefreie Nutzung",
         "Bei Buslinien Schleppkurven prüfen"
-      ]
+      ],
+      "prerequisites": {
+        "minLaneWidthM": 7.5
+      }
     },
     {
       "id": "lsa_anpassung",
@@ -78,7 +84,10 @@
       "considerations": [
         "Konflikt mit Leistungsfähigkeit Kfz prüfen",
         "Besonders relevant bei Linienbus- und Lkw-Verkehr"
-      ]
+      ],
+      "prerequisites": {
+        "minTrafficSignals": 1
+      }
     },
     {
       "id": "protected_bike_lane",
@@ -96,7 +105,10 @@
       "considerations": [
         "Knotenpunktführung mit besonderer Sorgfalt planen (Sichtbeziehungen)",
         "Bei beengten Verhältnissen ggf. Wegfall von Parkplätzen erforderlich"
-      ]
+      ],
+      "prerequisites": {
+        "noExistingBikeInfra": true
+      }
     },
     {
       "id": "radweg_querung",
@@ -114,7 +126,8 @@
       "considerations": [
         "Wirkung erfahrungsbasiert; Kombination mit baulichen Maßnahmen empfehlenswert",
         "Markierung muss instand gehalten werden"
-      ]
+      ],
+      "_prerequisitesRationale": "Bewusst keine OSM-Voraussetzung: Markierungs-Furten lohnen unabhängig vom bestehenden Tempolimit oder der Fahrbahnbreite (sie wirken auch dort, wo bereits Radinfrastruktur existiert)."
     },
     {
       "id": "abbiegeassistent_kampagne",
@@ -132,7 +145,8 @@
       "considerations": [
         "Wirkung mittel- bis langfristig",
         "Sinnvoll in Kombination mit baulichen LSA-/Knotenpunkt-Maßnahmen"
-      ]
+      ],
+      "_prerequisitesRationale": "Bewusst keine OSM-Voraussetzung: organisatorische Maßnahme ohne räumlichen Bezug (Flotten- und Fahrertraining), unabhängig von Tempolimit/Breite/Radinfrastruktur."
     },
     {
       "id": "querungshilfe_fuss",
@@ -150,7 +164,10 @@
       "considerations": [
         "Voraussetzungen R-FGÜ (Querungsfrequenz, Sicht) prüfen",
         "Bei hoher Geschwindigkeit zusätzlich bauliche Geschwindigkeitsdämpfung"
-      ]
+      ],
+      "prerequisites": {
+        "maxCrossings": 1
+      }
     },
     {
       "id": "fahrbahn_verengung",
@@ -168,7 +185,10 @@
       "considerations": [
         "Bei Mischverkehr mit Lkw Mindestbreite einhalten",
         "Wirkung am stärksten in Kombination mit Tempo 30"
-      ]
+      ],
+      "prerequisites": {
+        "minLaneWidthM": 6.5
+      }
     },
     {
       "id": "sicht_freischnitt",
@@ -186,7 +206,8 @@
       "considerations": [
         "Dauerhafte Pflege erforderlich",
         "Allein meist nicht ausreichend bei strukturellem Problem"
-      ]
+      ],
+      "_prerequisitesRationale": "Bewusst keine OSM-Voraussetzung: Sichtachsen-Pflege ist überall sinnvoll und kann nicht aus dem groben OSM-Bild abgeleitet werden (Bewuchs/Parkdruck stehen nicht im Tag-Schema)."
     },
     {
       "id": "knotenpunkt_umbau",
@@ -205,7 +226,8 @@
         "Hoher Planungsaufwand und Kostenrisiko",
         "Mittel- bis langfristige Maßnahme",
         "Wirkung gut belegt für Mini-Kreisverkehre"
-      ]
+      ],
+      "_prerequisitesRationale": "Bewusst keine OSM-Voraussetzung: ein Knotenpunkt-Umbau wird auch bei beengten Verhältnissen, vorhandener Bestands-Radinfra oder bei jedem Tempolimit empfohlen, sobald die Mustererkennung darauf zeigt — die räumliche Eignung wird im Detailplanungsschritt geprüft, nicht hier."
     },
     {
       "id": "schulwegsicherung",
@@ -223,7 +245,10 @@
       "considerations": [
         "Sinnvoll bei Time-Cluster-Hits 'werktag_schule_morgens/nachmittags'",
         "Kombination mit baulicher Querungshilfe verstärkt Wirkung"
-      ]
+      ],
+      "prerequisites": {
+        "currentSpeedLimitGt": 30
+      }
     },
     {
       "id": "fahrbahnbelag_sanierung",
@@ -241,7 +266,8 @@
       "considerations": [
         "Vor allem relevant bei Rad-Alleinunfällen (Maske 1)",
         "Bei Schienenquerungen Lösung mit Verkehrsbetrieb abstimmen"
-      ]
+      ],
+      "_prerequisitesRationale": "Bewusst keine OSM-Voraussetzung: Belagsschäden lassen sich nicht aus OSM-Tags ableiten — die Maßnahme wird ausschließlich über die Mustererkennung (Maske 1) gerechtfertigt."
     }
   ]
 }

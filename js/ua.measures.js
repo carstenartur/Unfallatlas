@@ -35,7 +35,9 @@
         leadTime: "1–3 Monate",
         effect: { targetPatterns: [1, 2, 3, 5, 6], expectedReductionPct: [10, 25], evidenceLevel: "A" },
         description: "Anordnung von Tempo 30 zur Reduktion von Häufigkeit und Schwere.",
-        considerations: []
+        considerations: [],
+        // Konsistent zum Voll-Katalog: nur empfehlen, wenn aktuell > 30 km/h gilt.
+        prerequisites: { currentSpeedLimitGt: 30 }
       }
     ]
   });
@@ -163,6 +165,174 @@
   }
 
   /**
+   * Prüft, ob eine Maßnahme angesichts des erkannten OSM-Kontexts
+   * sinnvoll ist. Wenn keine Voraussetzungen definiert sind oder der
+   * OSM-Kontext fehlt / die nötigen Felder unbekannt sind, gilt:
+   * **kein Ausschluss** (die Empfehlung bleibt erhalten – wir wollen
+   * keine fachliche Maßnahme nur wegen fehlender Daten unterdrücken).
+   *
+   * Unterstützte Voraussetzungen (alle optional, alle müssen passen):
+   *  - `currentSpeedLimitGt`   : nur empfehlen, wenn dominanter
+   *                              maxspeed > Schwelle (z. B. Tempo 30 nur,
+   *                              wenn aktuell > 30 km/h gilt).
+   *  - `minLaneWidthM`         : nur empfehlen, wenn durchschnittliche
+   *                              Fahrbahnbreite ≥ Schwelle.
+   *  - `noExistingBikeInfra`   : true → nur empfehlen, wenn der Anteil
+   *                              vorhandener Radinfrastruktur klein ist
+   *                              (`cycleInfraShare < BIKE_INFRA_THRESHOLD`).
+   *  - `minTrafficSignals`     : nur empfehlen, wenn ≥ N signalisierte
+   *                              Knoten im Bereich liegen (LSA-Anpassung
+   *                              setzt eine bestehende LSA voraus).
+   *  - `maxCrossings`          : nur empfehlen, wenn ≤ N markierte
+   *                              Querungen vorhanden sind (eine zusätzliche
+   *                              Fußquerung lohnt nicht, wenn es schon
+   *                              mehrere gibt).
+   *
+   * @param {object} measure
+   * @param {object|null} osmContext  vollständiges `structured.osmContext`
+   *                                  (mit `summary` aus UA.osmContext)
+   * @returns {{ ok: boolean, reason?: string }}
+   */
+  function passesPrerequisites(measure, osmContext) {
+    const pre = measure && measure.prerequisites;
+    if (!pre || typeof pre !== "object") return { ok: true };
+    const summary = osmContext && osmContext.summary;
+    // Ohne OSM-Daten: Voraussetzungen können nicht widerlegt werden →
+    // Maßnahme bleibt drin (defensiv, vermeidet falsch-negative Filter).
+    if (!summary || typeof summary !== "object") return { ok: true };
+
+    if (Number.isFinite(Number(pre.currentSpeedLimitGt))) {
+      const dom = Number(summary.dominantMaxspeed);
+      // Nur ausschließen, wenn dominantMaxspeed bekannt ist (Sample > 0
+      // und numerischer Wert da) und ≤ Schwelle. `null`/0-Sample → pass.
+      if (Number.isFinite(dom) && summary.dominantMaxspeed != null
+          && Number(summary.speedSampleSize || 0) > 0
+          && dom <= Number(pre.currentSpeedLimitGt)) {
+        return { ok: false, reason: `aktuelles Tempolimit ${dom} km/h ≤ ${pre.currentSpeedLimitGt}` };
+      }
+    }
+
+    if (Number.isFinite(Number(pre.minLaneWidthM))) {
+      const w = Number(summary.avgWidthMeters);
+      // Nur ausschließen, wenn Breite bekannt (Sample > 0) und unter Schwelle.
+      if (Number.isFinite(w) && Number(summary.widthSampleSize || 0) > 0 && w < Number(pre.minLaneWidthM)) {
+        return { ok: false, reason: `Fahrbahnbreite ${w.toFixed(1)} m < ${pre.minLaneWidthM} m` };
+      }
+    }
+
+    if (pre.noExistingBikeInfra === true) {
+      const share = Number(summary.cycleInfraShare);
+      // `cycleInfraShare` ist null, wenn keine klassifizierten Wege da sind →
+      // dann nicht ausschließen. Sonst Schwelle 0,30 (mindestens 30 % der
+      // klassifizierten Wege bereits mit Radinfrastruktur → unterdrücken).
+      const BIKE_INFRA_THRESHOLD = 0.30;
+      if (Number.isFinite(share) && share >= BIKE_INFRA_THRESHOLD) {
+        return { ok: false, reason: `Radinfrastruktur bereits vorhanden (Anteil ${(share * 100).toFixed(0)} %)` };
+      }
+    }
+
+    if (Number.isFinite(Number(pre.minTrafficSignals))) {
+      // Anzahl signalisierter Knoten ist immer im Summary präsent (0 = bekannt
+      // null). Wir prüfen direkt gegen die Schwelle — 0 schlägt eindeutig fehl.
+      const sig = Number(summary.trafficSignals);
+      if (Number.isFinite(sig) && sig < Number(pre.minTrafficSignals)) {
+        return { ok: false, reason: `keine signalisierten Knoten im Bereich (n=${sig})` };
+      }
+    }
+
+    if (Number.isFinite(Number(pre.maxCrossings))) {
+      const cr = Number(summary.crossings);
+      if (Number.isFinite(cr) && cr > Number(pre.maxCrossings)) {
+        return { ok: false, reason: `bereits ${cr} markierte Querungen vorhanden` };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  /**
+   * Sammelt die OSM-Achsen, die im gegebenen Maßnahmen-Subset
+   * tatsächlich genutzt werden ("welche Achsen sind hier überhaupt
+   * relevant?"). Damit kann der Renderer entscheiden, ob der OSM-Kontext
+   * für diese Empfehlungsliste ausreichend ist.
+   *
+   * @param {object[]} measures  Liste von Maßnahmen-Objekten
+   * @returns {{ speed: boolean, width: boolean, bikeInfra: boolean, signals: boolean, crossings: boolean }}
+   */
+  function collectPrerequisiteAxes(measures) {
+    const axes = { speed: false, width: false, bikeInfra: false, signals: false, crossings: false };
+    for (const m of (measures || [])) {
+      const pre = m && m.prerequisites;
+      if (!pre || typeof pre !== "object") continue;
+      if (Number.isFinite(Number(pre.currentSpeedLimitGt))) axes.speed = true;
+      if (Number.isFinite(Number(pre.minLaneWidthM))) axes.width = true;
+      if (pre.noExistingBikeInfra === true) axes.bikeInfra = true;
+      if (Number.isFinite(Number(pre.minTrafficSignals))) axes.signals = true;
+      if (Number.isFinite(Number(pre.maxCrossings))) axes.crossings = true;
+    }
+    return axes;
+  }
+
+  /**
+   * Bewertet die OSM-Datenabdeckung für die übergebenen Achsen.
+   * Liefert pro Achse, ob sie aus dem `osmContext.summary` belastbar
+   * geprüft werden konnte — auf dieser Basis kann der Renderer den
+   * "OSM-Voraussetzungen mangels Daten nicht geprüft"-Hinweis bauen.
+   *
+   * Verwendet dieselben Schwellen wie `passesPrerequisites`:
+   *  - speed     : `dominantMaxspeed != null && speedSampleSize > 0`
+   *  - width     : `avgWidthMeters != null && widthSampleSize > 0`
+   *  - bikeInfra : `cycleInfraShare != null` (Share kann auch 0 sein)
+   *  - signals   : `trafficSignals != null` (auch 0 ist eine Information)
+   *  - crossings : `crossings != null`
+   *
+   * @param {object|null} osmContext   `structured.osmContext`
+   * @param {object} axes              Ausgabe von `collectPrerequisiteAxes`
+   * @returns {{
+   *   present: boolean,
+   *   error: string|null,
+   *   axes: object,
+   *   missingAxes: string[],
+   *   hasGap: boolean
+   * }}
+   */
+  function osmCoverage(osmContext, axes) {
+    const want = axes || { speed: false, width: false, bikeInfra: false, signals: false, crossings: false };
+    const error = (osmContext && osmContext.quality && osmContext.quality.error) || null;
+    const summary = osmContext && osmContext.summary;
+    const result = {
+      present: !!summary,
+      error,
+      axes: { speed: false, width: false, bikeInfra: false, signals: false, crossings: false },
+      missingAxes: [],
+      hasGap: false
+    };
+    if (summary) {
+      result.axes.speed = (summary.dominantMaxspeed != null
+        && Number(summary.speedSampleSize || 0) > 0);
+      result.axes.width = (summary.avgWidthMeters != null
+        && Number(summary.widthSampleSize || 0) > 0);
+      result.axes.bikeInfra = (summary.cycleInfraShare != null);
+      result.axes.signals = (summary.trafficSignals != null);
+      result.axes.crossings = (summary.crossings != null);
+    }
+    const labels = {
+      speed: "Tempolimit",
+      width: "Fahrbahnbreite",
+      bikeInfra: "Radinfrastruktur",
+      signals: "signalisierte Knoten",
+      crossings: "markierte Querungen"
+    };
+    for (const k of ["speed", "width", "bikeInfra", "signals", "crossings"]) {
+      if (want[k] && !result.axes[k]) {
+        result.missingAxes.push(labels[k]);
+        result.hasGap = true;
+      }
+    }
+    return result;
+  }
+
+  /**
    * Empfehlungs-Engine.
    *
    * @param {number[]} detectedPatterns  Bit-Masken überrepräsentierter Muster
@@ -171,6 +341,9 @@
    * @param {number}   [opts.limit=5]    Maximalzahl Empfehlungen
    * @param {object}   [opts.economicImpact]  Optional, ergibt Amortisations-Block
    *                   (Format: { annual: number } aus UA.costs.computeAnnualCost)
+   * @param {object}   [opts.osmContext]      Optional, `structured.osmContext`.
+   *                   Wird genutzt, um Maßnahmen mit `prerequisites`-Block zu
+   *                   filtern (z. B. Tempo 30 nur, wenn aktuell > 30 km/h).
    * @returns {{
    *   measures: Array<{
    *     measure: object,
@@ -179,7 +352,8 @@
    *     amortisation?: { years: [number, number]|null, lowYears: number|null, highYears: number|null }
    *   }>,
    *   sources: object[],
-   *   disclaimer: string
+   *   disclaimer: string,
+   *   filteredOut?: Array<{ id: string, label: string, reason: string }>
    * }}
    */
   function recommendMeasures(detectedPatterns, catalog, opts) {
@@ -188,11 +362,19 @@
     const annual = opts && opts.economicImpact && Number.isFinite(opts.economicImpact.annual)
       ? Number(opts.economicImpact.annual)
       : null;
+    const osmContext = (opts && opts.osmContext) || null;
 
     const scored = [];
+    const filteredOut = [];
     for (const m of cat.measures) {
       const s = scoreMeasure(m, detectedPatterns);
       if (s.score <= 0) continue;
+      // OSM-Kontext-Voraussetzungen prüfen, bevor wir die Maßnahme aufnehmen.
+      const pre = passesPrerequisites(m, osmContext);
+      if (!pre.ok) {
+        filteredOut.push({ id: m.id, label: m.label, reason: pre.reason || "Voraussetzungen nicht erfüllt" });
+        continue;
+      }
       const entry = { measure: m, score: s.score, matchedPatterns: s.matchedPatterns };
 
       // Amortisation: für die untere bzw. obere Wirkungsspanne durchrechnen
@@ -225,10 +407,23 @@
       return String(a.measure.label || "").localeCompare(String(b.measure.label || ""), "de");
     });
 
+    // Welche OSM-Achsen sind im finalen Set + den weggefilterten relevant?
+    // Wir betrachten **beide** Mengen, damit der Renderer auch dann auf
+    // fehlende Daten hinweisen kann, wenn ein Vorschlag mangels Kontext
+    // gar nicht erst gefiltert werden konnte.
+    const reachedMeasures = scored.map(e => e.measure)
+      .concat((cat.measures || []).filter(m => m.prerequisites && filteredOut.find(f => f.id === m.id)));
+    const usedAxes = collectPrerequisiteAxes(reachedMeasures);
+    const coverage = osmCoverage(osmContext, usedAxes);
+
     return {
       measures: scored.slice(0, limit),
       sources: cat.sources || [],
-      disclaimer: cat.disclaimer || FALLBACK.disclaimer
+      disclaimer: cat.disclaimer || FALLBACK.disclaimer,
+      filteredOut,
+      // OSM-Datenabdeckung für diese Empfehlungsliste. Renderer können daraus
+      // den "OSM-Voraussetzungen mangels Daten nicht geprüft"-Hinweis bauen.
+      osmCoverage: coverage
     };
   }
 
@@ -283,6 +478,9 @@
     mergeCatalogs,
     recommendMeasures,
     scoreMeasure,
+    passesPrerequisites,
+    collectPrerequisiteAxes,
+    osmCoverage,
     formatCostRange,
     formatReductionRange,
     FALLBACK,

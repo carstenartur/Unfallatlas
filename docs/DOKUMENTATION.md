@@ -895,6 +895,7 @@ Die Werte liegen in `data/cost_factors_de.json`. Sie können vor produktiver Nut
 - HTML-Vorschau / Text / DOCX / PDF enthalten einen Block **„Volkswirtschaftliche Bedeutung"** mit der Aufschlüsselung pro Schweregrad sowie Gesamt- und Pro-Jahr-Kosten (über den Datenzeitraum verteilt).
 - Quelle und Disclaimer („Grobe Schätzung … kein Ersatz für ein Fachgutachten") werden immer mit ausgegeben.
 - Die Sektion lässt sich im Export-Modal über den Schalter **„Volkswirtschaftliche Kosten"** ein- und ausblenden (Default: an).
+- Optional liefert das Feld `economicImpact.trendQualifier` die Klassifikation der Mehrjahres-Trendlinie (`steigend` / `stagnierend` / `rückläufig` / `unbestimmt`), sodass nachgelagerte Texte den Kostenblock einordnen können (z. B. „stagnierend hoch" bei `stagnierend`). Der Qualifier wird in **allen vier Renderpfaden** (TEXT, HTML, DOCX, PDF) als Zeile „Mehrjahres-Trend: …" direkt unter der Kostentabelle ausgegeben – die Wortwahl ist über `js/ua.export_v2.js → trendQualifierText` und `js/ua.report_v2.js → trendQualifierTextDocx` synchron gehalten.
 
 ### Methodische Einordnung
 
@@ -929,6 +930,41 @@ Jede Maßnahme enthält:
 | `effect.expectedReductionPct` | Erwartungsspanne der Unfallreduktion in % |
 | `effect.evidenceLevel` | A (gut belegt), B (gut belegte Erfahrung), C (Erfahrung) |
 | `considerations` | Praxis-Hinweise / Stolpersteine |
+| `prerequisites` *(optional)* | OSM-Kontext-Bedingungen, die erfüllt sein müssen, damit die Maßnahme empfohlen wird (siehe unten) |
+
+#### OSM-Kontext-gesteuerte Voraussetzungen
+
+Wenn der OSM-Kontext (`structured.osmContext`) verfügbar ist, filtert die Empfehlungs-Engine Maßnahmen, deren `prerequisites` lokal nicht erfüllt sind. So werden z. B. Tempo-30-Anordnungen nicht in Tempo-30-Zonen vorgeschlagen, Mittelinseln nicht in zu schmalen Straßen, geschützte Radstreifen nicht dort, wo bereits Radinfrastruktur existiert. Unterstützte Felder:
+
+| Feld | Wirkung |
+| ---- | ------- |
+| `currentSpeedLimitGt` | Maßnahme nur, wenn dominanter `maxspeed` größer als der Schwellenwert ist (z. B. Tempo 30 nur, wenn aktuell > 30 km/h gelten). |
+| `minLaneWidthM` | Maßnahme nur, wenn die durchschnittliche Fahrbahnbreite ≥ Schwellenwert ist (z. B. Mittelinsel nur ab 7,50 m). |
+| `noExistingBikeInfra` | Maßnahme nur, wenn der Anteil vorhandener Radinfrastruktur (`cycleInfraShare`) klein ist (Schwelle 30 %). |
+| `minTrafficSignals` | Maßnahme nur, wenn ≥ N signalisierte Knoten im Bereich liegen (z. B. „LSA-Anpassung" setzt eine bestehende LSA voraus). |
+| `maxCrossings` | Maßnahme nur, wenn ≤ N markierte Querungen vorhanden sind (eine zusätzliche Querungshilfe lohnt nicht, wenn es bereits mehrere gibt). |
+
+##### Wann wird ausgeschlossen, wann nicht?
+
+Die Engine arbeitet bewusst defensiv und unterscheidet klar zwischen drei Fällen:
+
+| Fall | Ergebnis | Sichtbar im Antrag |
+| ---- | -------- | ------------------ |
+| OSM-Kontext vorhanden **und** Achse belastbar geprüft (Sample > 0) **und** Voraussetzung **nicht erfüllt** | Maßnahme wird ausgeschlossen | Kompakter Block „Wegen OSM-Voraussetzungen NICHT empfohlen" am Ende der Empfehlungsliste, mit menschen­lesbarer Begründung pro Vorschlag (z. B. „aktuelles Tempolimit 30 km/h ≤ 30"). |
+| OSM-Kontext vorhanden **und** Voraussetzung erfüllt | Maßnahme bleibt empfohlen | Normale Listung. |
+| OSM-Kontext fehlt komplett **oder** relevante Achse mangels Tags nicht ableitbar | Maßnahme bleibt empfohlen (defensiv) | Hinweisblock vor der Liste: „OSM-Datenstand: OSM-Voraussetzungen mangels Daten nicht geprüft (`<Achse>`, …)". So entsteht keine Scheinsicherheit. |
+
+Die Felder `recommendedMeasures.filteredOut` und `recommendedMeasures.osmCoverage` enthalten diese Information strukturiert; alle vier Renderpfade (TEXT, HTML, DOCX, PDF) stellen sie konsistent dar.
+
+##### Pflege des Katalogs
+
+Die `prerequisites` sind ein evolutionärer Mechanismus. Der Katalog (`data/measures_catalog.json`) wird Schritt für Schritt erweitert; jede Maßnahme **ohne** `prerequisites` trägt eine `_prerequisitesRationale` mit der fachlichen Begründung, warum aus dem OSM-Bild keine sinnvolle Filterachse abgeleitet werden kann (z. B. Belagsanierung, Sichtachsen-Pflege, Kampagnen).
+
+Bei der Erweiterung gilt:
+
+- **Konservativ filtern**: lieber im Zweifel die Maßnahme empfehlen, als sie wegen einer Achse zu unterdrücken, die im konkreten Fall nicht greift.
+- **Spannen, keine Punktwerte**: `prerequisites` sind Schwellen, nicht Hartschnitte – Grenzwerte werden mit der gleichen Toleranz wie der OSM-Kontext (Sample-Größe) behandelt.
+- **Begründen**: jede neue Achse braucht eine Quellen- oder Erfahrungsbegründung, die in `docs/DOKUMENTATION.md` nachvollziehbar ist.
 
 ### Empfehlungs-Engine
 
