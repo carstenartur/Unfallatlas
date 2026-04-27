@@ -103,6 +103,22 @@
   // Definition wiederverwenden können.
   UA.DARK_FIGURE_NOTE = DARK_FIGURE_NOTE;
 
+  /**
+   * Tiny predicate: true wenn der `recommendedMeasures`-Block für den
+   * Renderer überhaupt etwas zu zeigen hat (entweder Empfehlungen oder
+   * mindestens einen filteredOut-Eintrag, den wir transparent listen).
+   * Geteilt von TEXT- und HTML-Pfad sowie dem DOCX/PDF-Renderer in
+   * `js/ua.report_v2.js`, der dieselbe Bedingung als
+   * `UA.hasRecommendationsOrFiltered` konsumiert.
+   */
+  function hasRecommendationsOrFiltered(rm) {
+    if (!rm) return false;
+    if (Array.isArray(rm.measures) && rm.measures.length > 0) return true;
+    if (Array.isArray(rm.filteredOut) && rm.filteredOut.length > 0) return true;
+    return false;
+  }
+  UA.hasRecommendationsOrFiltered = hasRecommendationsOrFiltered;
+
   // --------------------
   // Unfallklassen / Masken (robust, unabhängig von anderen Modulen)
   // --------------------
@@ -1048,9 +1064,7 @@
 
     // Add recommended measures (PR-D / B1+B3): respect ctx.exportOptions.includeMeasures (default ON).
     // Note: `recommendedMeasures` is null when the toggle was off (load gated above).
-    if (includeMeasures && recommendedMeasures
-        && (recommendedMeasures.measures.length > 0
-            || (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0))) {
+    if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
       const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       lines.push("Empfohlene Maßnahmen (automatischer Vorschlag, basierend auf detektierten Mustern):");
@@ -1354,9 +1368,7 @@
 
     // Build recommended-measures HTML section (PR-D / B1+B3)
     let measuresHtmlSection = "";
-    if (includeMeasures && recommendedMeasures
-        && (recommendedMeasures.measures.length > 0
-            || (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0))) {
+    if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
       const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       const itemsHtml = recommendedMeasures.measures.map((item) => {

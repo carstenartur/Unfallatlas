@@ -674,9 +674,8 @@
       }
 
       // Recommended measures (PR-D / B1+B3)
-      if (options.includeMeasures !== false && sd.recommendedMeasures
-          && ((sd.recommendedMeasures.measures && sd.recommendedMeasures.measures.length > 0)
-              || (Array.isArray(sd.recommendedMeasures.filteredOut) && sd.recommendedMeasures.filteredOut.length > 0))) {
+      if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         children.push(new Paragraph({
@@ -1843,9 +1842,8 @@
       }
 
       // Recommended measures (PR-D / B1+B3)
-      if (options.includeMeasures !== false && sd.recommendedMeasures
-          && ((sd.recommendedMeasures.measures && sd.recommendedMeasures.measures.length > 0)
-              || (Array.isArray(sd.recommendedMeasures.filteredOut) && sd.recommendedMeasures.filteredOut.length > 0))) {
+      if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         docDefinition.content.push({ text: "EMPFOHLENE MASSNAHMEN", style: "subheader" });
