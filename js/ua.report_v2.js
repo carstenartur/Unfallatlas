@@ -119,6 +119,63 @@
   }
 
   /**
+   * Detach markers that leaflet-image@0.4.0 cannot render from the given map.
+   *
+   * Background: leaflet-image's handleMarkerLayer assumes every marker icon
+   * exposes an HTMLImageElement at marker._icon with a .src URL. For markers
+   * created with L.divIcon (used by our POI layer for school/kindergarten
+   * pictograms) marker._icon is a <div>, so reading marker._icon.src yields
+   * undefined. leaflet-image then throws inside an asynchronous image.onload,
+   * its callback is never invoked, and any awaited capture hangs forever —
+   * which breaks the entire Word/PDF export pipeline.
+   *
+   * To work around this we temporarily detach those non-imageable markers
+   * from the map before invoking leaflet-image and re-attach them afterwards.
+   *
+   * @param {Object} map - Leaflet map instance
+   * @returns {Function} Restore function that re-attaches detached markers.
+   */
+  function detachUncapturableMarkers(map) {
+    const detached = [];
+    if (!map || typeof map.eachLayer !== "function" || typeof window.L === "undefined") {
+      return function () {};
+    }
+    try {
+      map.eachLayer(function (layer) {
+        if (!(layer instanceof window.L.Marker)) return;
+        const icon = layer.options && layer.options.icon;
+        if (!icon) return;
+        const isDivIcon = window.L.DivIcon && icon instanceof window.L.DivIcon;
+        const iconUrl = icon.options && icon.options.iconUrl;
+        // leaflet-image only knows how to draw markers backed by a real image
+        // URL. Anything else (DivIcon, custom icons without iconUrl) crashes
+        // the capture, so detach it for the duration of the snapshot.
+        if (isDivIcon || typeof iconUrl !== "string" || !iconUrl) {
+          detached.push(layer);
+          map.removeLayer(layer);
+        }
+      });
+    } catch (err) {
+      console.warn("Failed to scan markers for export capture:", err);
+    }
+    return function restoreDetachedMarkers() {
+      for (const marker of detached) {
+        try {
+          marker.addTo(map);
+        } catch (err) {
+          console.warn("Failed to re-attach marker after export capture:", err);
+        }
+      }
+    };
+  }
+
+  // Safety timeout (ms) for leaflet-image. Some marker/layer combinations can
+  // cause leaflet-image's internal queue to never invoke its callback (see
+  // detachUncapturableMarkers above). Without an upper bound the export
+  // promise would hang indefinitely and the export buttons stay disabled.
+  const MAP_CAPTURE_TIMEOUT_MS = 30000;
+
+  /**
    * Capture current map view as base64 image
    * @param {Object} ctx - Application context with map instance
    * @param {Object} options - Export options
@@ -150,38 +207,63 @@
             restoreHeat = bakeHeatOpacityIntoCanvas(ctx.heatLayer, exportOpacity);
           }
 
+          // Detach markers leaflet-image can't render (DivIcon / no iconUrl)
+          // BEFORE invoking leafletImage — otherwise the capture throws inside
+          // an async image.onload, never invokes its callback, and the export
+          // promise hangs forever (breaking Word + PDF export).
+          const restoreMarkers = detachUncapturableMarkers(ctx.map);
+
+          let settled = false;
+          const finish = function (err, dataUrl) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(safetyTimer);
+            restoreMarkers();
+            restoreHeat();
+            if (err) reject(err);
+            else resolve(dataUrl);
+          };
+
+          // Safety net: if leaflet-image's callback is never invoked (e.g. an
+          // unhandled async error inside one of its layer handlers), reject
+          // with a clear error so the export UI can recover instead of hanging.
+          const safetyTimer = setTimeout(() => {
+            const e = new Error(
+              "Kartenaufnahme abgebrochen: leaflet-image hat nicht innerhalb von " +
+              (MAP_CAPTURE_TIMEOUT_MS / 1000) + "s geantwortet."
+            );
+            console.error(e.message);
+            finish(e);
+          }, MAP_CAPTURE_TIMEOUT_MS);
+
           try {
             // Use leaflet-image to capture the map with all layers and styling
             window.leafletImage(ctx.map, (err, canvas) => {
-              // Restore original heat canvas pixels as soon as capture is done
-              restoreHeat();
-
               if (err) {
                 console.error("leaflet-image capture error:", err);
-                reject(err);
+                finish(err);
                 return;
               }
 
               try {
                 // Convert canvas to base64 data URL (PNG format preserves transparency)
                 const dataUrl = canvas.toDataURL("image/png");
-                
+
                 // Verify the data URL is valid
                 if (!dataUrl || !dataUrl.startsWith("data:image/png;base64,")) {
-                  reject(new Error("Invalid map image data URL generated"));
+                  finish(new Error("Invalid map image data URL generated"));
                   return;
                 }
-                
-                resolve(dataUrl);
+
+                finish(null, dataUrl);
               } catch (e) {
                 console.error("Canvas to data URL conversion error:", e);
-                reject(e);
+                finish(e);
               }
             });
           } catch (e) {
-            restoreHeat();
             console.error("leafletImage call error:", e);
-            reject(e);
+            finish(e);
           }
         }, MAP_CAPTURE_DELAY_MS); // Small delay to ensure tiles are loaded
       } catch (e) {
@@ -190,6 +272,9 @@
       }
     });
   };
+
+  // Expose for tests
+  UA._detachUncapturableMarkers = detachUncapturableMarkers;
 
   // =====================================================================
   // Word Document Export (using docx.js)
