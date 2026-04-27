@@ -45,6 +45,48 @@
   }
 
   // --------------------
+  // Render-Helfer: Trend-Qualifier (PR-β) und OSM-Voraussetzungen (PR-γ).
+  // Werden von Text-, HTML-, DOCX- und PDF-Renderern verwendet, damit der
+  // Wortlaut in allen Pfaden identisch ist.
+  // --------------------
+
+  /**
+   * Übersetzt die `yearlyTrend.classification` (steigend / stagnierend /
+   * rückläufig / unbestimmt) in einen menschlich lesbaren Antragstext.
+   * Liefert `null`, wenn die Klassifikation fehlt — der Caller blendet dann.
+   */
+  function trendQualifierText(classification) {
+    switch (classification) {
+      case "steigend":     return "im Mittel der letzten Jahre steigend";
+      case "stagnierend":  return "stagnierend hoch (kein erkennbarer Rückgang)";
+      case "rückläufig":   return "rückläufig im Mehrjahresvergleich";
+      case "unbestimmt":   return "Trend statistisch unbestimmt (zu wenig Datenjahre)";
+      default:             return null;
+    }
+  }
+
+  /**
+   * Baut für die Empfehlungsliste eine kompakte Hinweiszeile zum
+   * OSM-Datenstand:
+   *  - "OSM-Voraussetzungen mangels Daten nicht geprüft (Tempolimit, Fahrbahnbreite)"
+   *  - "OSM-Kontext nicht abgerufen (HTTP 504): Voraussetzungen wurden nicht geprüft."
+   *  - `null` wenn alle Achsen abgedeckt sind.
+   *
+   * @param {object|null} coverage  Ausgabe von `UA.measures.osmCoverage`
+   */
+  function osmCoverageNote(coverage) {
+    if (!coverage) return null;
+    if (!coverage.present) {
+      const why = coverage.error ? ` (${coverage.error})` : "";
+      return `OSM-Kontext nicht abgerufen${why}: Maßnahmen-Voraussetzungen wurden mangels Daten **nicht** geprüft – die unten gelisteten Vorschläge können daher räumliche Voraussetzungen verletzen.`;
+    }
+    if (coverage.hasGap) {
+      return `OSM-Voraussetzungen mangels Daten nicht geprüft: ${coverage.missingAxes.join(", ")}. Die Vorschläge wurden **nicht** anhand dieser Achse(n) gefiltert.`;
+    }
+    return null;
+  }
+
+  // --------------------
   // Dunkelziffer / Erfassungsgrenzen (#C3)
   // Pflicht-Hinweisblock in allen Antrags-Ausgaben (Text/HTML/DOCX/PDF), damit
   // Adressaten verstehen, dass die offiziellen Zahlen nur einen Ausschnitt der
@@ -990,6 +1032,10 @@
       lines.push(`  Geschätzte externe Kosten im Bereich: ${fmt(economicImpact.total)} (Datenzeitraum ${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"}).`);
       lines.push(`  Pro Jahr: ca. ${fmt(economicImpact.annual)}.`);
       lines.push(`  Aufschlüsselung – Getötete: ${fmt(economicImpact.breakdown.fatal)} · Schwerverletzte: ${fmt(economicImpact.breakdown.severe)} · Leichtverletzte: ${fmt(economicImpact.breakdown.light)}.`);
+      // Trend-Qualifier: Klassifikation der Mehrjahres-Trendlinie (PR-β),
+      // damit Antragstexte den Kostenblock ehrlich einordnen können.
+      const tq = trendQualifierText(economicImpact.trendQualifier);
+      if (tq) lines.push(`  Mehrjahres-Trend: ${tq}.`);
       if (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year)) {
         const srcParts = [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ");
         lines.push(`  Quelle: ${srcParts}.`);
@@ -1002,10 +1048,16 @@
 
     // Add recommended measures (PR-D / B1+B3): respect ctx.exportOptions.includeMeasures (default ON).
     // Note: `recommendedMeasures` is null when the toggle was off (load gated above).
-    if (includeMeasures && recommendedMeasures && recommendedMeasures.measures.length > 0) {
+    if (includeMeasures && recommendedMeasures
+        && (recommendedMeasures.measures.length > 0
+            || (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0))) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
       const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       lines.push("Empfohlene Maßnahmen (automatischer Vorschlag, basierend auf detektierten Mustern):");
+      // OSM-Datenstand-Hinweis: Wenn Achsen relevant sind, aber nicht
+      // belastbar geprüft werden konnten, vor der Liste klar markieren.
+      const cov = osmCoverageNote(recommendedMeasures.osmCoverage);
+      if (cov) lines.push(`  Hinweis (OSM-Datenstand): ${cov}`);
       let i = 1;
       for (const item of recommendedMeasures.measures) {
         const m = item.measure;
@@ -1023,6 +1075,13 @@
           for (const c of m.considerations) lines.push(`     – ${c}`);
         }
         i++;
+      }
+      // Wegen OSM-Voraussetzungen ausgeschlossene Vorschläge transparent listen.
+      if (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0) {
+        lines.push("  Wegen OSM-Voraussetzungen NICHT empfohlen:");
+        for (const f of recommendedMeasures.filteredOut) {
+          lines.push(`    – ${f.label}: ${f.reason}`);
+        }
       }
       if (recommendedMeasures.disclaimer) {
         lines.push(`  Hinweis: ${recommendedMeasures.disclaimer}`);
@@ -1287,6 +1346,7 @@
           </tbody>
         </table>
         <div style="margin-top:6px; color:#555; font-size:12px;">
+          ${(() => { const tq = trendQualifierText(economicImpact.trendQualifier); return tq ? `<div><strong>Mehrjahres-Trend:</strong> ${UA.escHtml(tq)}.</div>` : ""; })()}
           ${srcParts ? `<div><strong>Quelle:</strong> ${UA.escHtml(srcParts)}${srcUrl ? ` (<a href="${UA.escHtml(srcUrl)}" target="_blank" rel="noopener">Link</a>)` : ""}</div>` : ""}
           ${economicImpact.disclaimer ? `<div style="font-style:italic; margin-top:4px;">${UA.escHtml(economicImpact.disclaimer)}</div>` : ""}
         </div>`;
@@ -1294,7 +1354,9 @@
 
     // Build recommended-measures HTML section (PR-D / B1+B3)
     let measuresHtmlSection = "";
-    if (includeMeasures && recommendedMeasures && recommendedMeasures.measures.length > 0) {
+    if (includeMeasures && recommendedMeasures
+        && (recommendedMeasures.measures.length > 0
+            || (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0))) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
       const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       const itemsHtml = recommendedMeasures.measures.map((item) => {
@@ -1324,9 +1386,29 @@
       const sourcesHtml = (recommendedMeasures.sources && recommendedMeasures.sources.length > 0)
         ? `<div style="color:#666; font-size:12px; margin-top:6px;"><strong>Quellen:</strong> ${recommendedMeasures.sources.map(s => UA.escHtml(s.title || "")).filter(Boolean).join(" · ")}</div>`
         : "";
+      // OSM-Datenstand-Hinweis vor der Liste, damit die Unsicherheit
+      // sofort sichtbar ist und nicht erst unten als Fußnote.
+      const cov = osmCoverageNote(recommendedMeasures.osmCoverage);
+      const coverageHtml = cov
+        ? `<div style="margin-top:6px; padding:6px 10px; background:#fff7e0; border:1px solid #f0c060; border-radius:4px; font-size:12px;"><strong>OSM-Datenstand:</strong> ${UA.escHtml(cov)}</div>`
+        : "";
+      // Wegen OSM-Voraussetzungen nicht empfohlene Vorschläge transparent listen.
+      const filteredHtml = (Array.isArray(recommendedMeasures.filteredOut) && recommendedMeasures.filteredOut.length > 0)
+        ? `<details style="margin-top:8px; color:#555; font-size:12px;">
+            <summary style="cursor:pointer;"><strong>Wegen OSM-Voraussetzungen NICHT empfohlen</strong> (${recommendedMeasures.filteredOut.length})</summary>
+            <ul style="margin:4px 0 0 18px; padding:0;">
+              ${recommendedMeasures.filteredOut.map(f => `<li><strong>${UA.escHtml(f.label)}:</strong> ${UA.escHtml(f.reason || "Voraussetzungen nicht erfüllt")}</li>`).join("")}
+            </ul>
+          </details>`
+        : "";
+      const listHtml = (recommendedMeasures.measures.length > 0)
+        ? `<ol style="margin-top:6px;">${itemsHtml}</ol>`
+        : `<div style="margin-top:6px; color:#666; font-style:italic;">Keine Maßnahmen empfohlen (alle Vorschläge wurden gefiltert oder kein Muster ausreichend signifikant).</div>`;
       measuresHtmlSection = `
         <div style="margin-top:12px; font-weight:900;">Empfohlene Maßnahmen (automatischer Vorschlag)</div>
-        <ol style="margin-top:6px;">${itemsHtml}</ol>
+        ${coverageHtml}
+        ${listHtml}
+        ${filteredHtml}
         ${sourcesHtml}
         ${recommendedMeasures.disclaimer ? `<div style="color:#555; font-size:12px; font-style:italic; margin-top:4px;">${UA.escHtml(recommendedMeasures.disclaimer)}</div>` : ""}`;
     }
