@@ -21,11 +21,12 @@ function baseStructured(extra) {
 describe('#E1 — deriveFeatures pass-through of Stufe-1 enrichments', () => {
   test('exposes osmContext and yearlyTrend on the features object', () => {
     const f = deriveFeatures(baseStructured({
-      yearlyTrend: { classification: 'steigend', slope: 1.0, rSquared: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 },
+      yearlyTrend: { classification: 'steigend', slope: 1.0, r2: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 },
       osmContext: { summary: { dominantMaxspeed: 50, speedSampleSize: 4, cycleInfraWays: 1, cycleInfraShare: 0.25, trafficSignals: 1, crossings: 0, wayCount: 4, avgLanes: null, avgWidthMeters: null, lanesSampleSize: 0, widthSampleSize: 0 }, source: { publisher: 'OSM', license: 'ODbL', url: '', retrievedVia: 'Overpass API' } }
     }), null);
     expect(f.yearlyTrend).toBeTruthy();
     expect(f.yearlyTrend.classification).toBe('steigend');
+    expect(f.yearlyTrend.r2).toBe(0.99);
     expect(f.osmContext).toBeTruthy();
     expect(f.osmContext.summary.dominantMaxspeed).toBe(50);
   });
@@ -61,12 +62,19 @@ describe('#E1 — buildPrompt renders new sections', () => {
     expect(user).toContain('Ø Fahrbahnbreite: 7.5 m');
   });
 
-  test('appends the regression-classification line when yearlyTrend is present', () => {
+  test('appends the regression-classification line when yearlyTrend is present (real `r2` field)', () => {
     const { user } = buildPrompt(aiInput({
-      yearlyTrend: { classification: 'steigend', slope: 1.0, rSquared: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 }
+      yearlyTrend: { classification: 'steigend', slope: 1.0, r2: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 }
     }), 'assessment');
     expect(user).toMatch(/Klassifikation \(lineare Regression\): steigend/);
     expect(user).toMatch(/R²=0\.99/);
+  });
+
+  test('also accepts the legacy `rSquared` alias', () => {
+    const { user } = buildPrompt(aiInput({
+      yearlyTrend: { classification: 'steigend', slope: 1.0, rSquared: 0.42, nYears: 5, mean: 10 }
+    }), 'assessment');
+    expect(user).toMatch(/R²=0\.42/);
   });
 
   test('does NOT add the OSM section when osmContext.summary is missing (e.g. error stub)', () => {
@@ -78,7 +86,7 @@ describe('#E1 — buildPrompt renders new sections', () => {
 
   test('does NOT add the regression line when yearlyTrend.classification is "unbestimmt"', () => {
     const { user } = buildPrompt(aiInput({
-      yearlyTrend: { classification: 'unbestimmt', slope: 0, rSquared: 0, nYears: 1 }
+      yearlyTrend: { classification: 'unbestimmt', slope: 0, r2: 0, nYears: 1 }
     }), 'assessment');
     expect(user).not.toMatch(/Klassifikation \(lineare Regression\)/);
   });

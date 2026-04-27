@@ -1069,7 +1069,7 @@ Optionale Anreicherung des Antrags um verkehrsräumliche Eckdaten aus OpenStreet
 Eigenschaften:
 
 - **Defensiv** – jeder Netzfehler/HTTP-Fehler/Timeout liefert `{ quality: { error } }`, niemals einen Throw. Der HTML/DOCX/PDF-Renderer zeigt in dem Fall „Verkehrsräumlicher Kontext (OSM): nicht verfügbar (…)".
-- **Cache** – In-Memory, Schlüssel = gerundete Bbox + Endpoint, TTL 1 h, LRU bei > 50 Einträgen.
+- **Cache** – In-Memory, Schlüssel = Endpoint + gerundete Bbox; erfolgreiche Ergebnisse TTL 1 h, Fehler-Stubs (HTTP/Netz/Timeout) TTL 1 min, damit transiente Overpass-Hänger nicht für eine Stunde durchschlagen. Eviction true LRU (Cache-Hits aktualisieren die Recency) bei > 50 Einträgen.
 - **Konfigurierbar** – `setEndpoint(url)` für Self-Hosted-Mirrors; `opts.timeoutMs` (Default 8 s); `opts.fetch` zum Stubben in Tests; `exportOptions.osmContextOverride` zum Überspringen der Anfrage komplett (z. B. für vorgefertigte Daten).
 - **Toggle** – `cbIncludeOsmContext` im Export-Modal; `exportOptions.includeOsmContext` (Default: an).
 

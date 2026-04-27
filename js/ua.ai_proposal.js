@@ -45,6 +45,22 @@
       resultEl.innerHTML = "";
 
       try {
+        // Mirror the modal toggles into ctx.exportOptions so the AI request
+        // sees exactly the same `structured` shape the user will download
+        // (and we don't trigger an unwanted Overpass call when the user has
+        // unchecked the OSM-Kontext toggle). Mirrors the logic in
+        // js/ua.app_v2.js#rerenderExportReport.
+        const cbCosts    = document.getElementById("cbIncludeCosts");
+        const cbMeasures = document.getElementById("cbIncludeMeasures");
+        const cbHeatmap  = document.getElementById("cbIncludeHeatmap");
+        const cbOsm      = document.getElementById("cbIncludeOsmContext");
+        ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
+          includeCosts:      cbCosts    ? cbCosts.checked    : (ctx.exportOptions ? ctx.exportOptions.includeCosts      !== false : true),
+          includeMeasures:   cbMeasures ? cbMeasures.checked : (ctx.exportOptions ? ctx.exportOptions.includeMeasures   !== false : true),
+          includeHeatmap:    cbHeatmap  ? cbHeatmap.checked  : (ctx.exportOptions ? ctx.exportOptions.includeHeatmap    !== false : true),
+          includeOsmContext: cbOsm      ? cbOsm.checked      : (ctx.exportOptions ? ctx.exportOptions.includeOsmContext !== false : true)
+        });
+
         // Reuse the deterministic export pipeline so the AI sees exactly the
         // same `structured` object the user would download as Word/PDF.
         const report = await UA.computeExportReport(ctx);

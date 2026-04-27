@@ -15,9 +15,13 @@
  *  - **Pures DOM-freies Modul** – nutzt nur `fetch` (window/global) + `URLSearchParams`,
  *    damit Tests es ohne jsdom/Leaflet ausführen können.
  *  - **Optional** – jeder Renderer prüft `structured.osmContext != null`.
- *  - **Defensiv** – jeder Netzfehler/Timeout liefert `null` (kein Throw),
- *    `quality.error` enthält die Ursache.
- *  - **Frei-Tier-schonend** – In-Memory-Cache (key: gerundete bbox + tag-set),
+ *  - **Defensiv** – Netz-/HTTP-/Timeout-Fehler werfen nicht, sondern liefern
+ *    einen Ergebnis-Stub `{ quality: { error } }`; Renderer überspringen den
+ *    Block dann (`summary` fehlt).
+ *  - **Frei-Tier-schonend** – In-Memory-Cache (Schlüssel: Endpoint + gerundete
+ *    bbox) mit TTL 1 h und LRU-Eviction (Cache-Hits aktualisieren die
+ *    Recency, transiente Fehler werden mit deutlich kürzerer TTL gecached,
+ *    damit ein 1-Sekunden-Hänger nicht 1 h "OSM nicht verfügbar" auslöst);
  *    Standardtimeout 8 s, Standard-Endpoint via `OVERPASS_ENDPOINT` ersetzbar
  *    (siehe `setEndpoint`); kein automatisches Polling.
  */
@@ -27,7 +31,11 @@
 
   const DEFAULT_ENDPOINT = "https://overpass-api.de/api/interpreter";
   const DEFAULT_TIMEOUT_MS = 8000;
-  const CACHE_TTL_MS = 60 * 60 * 1000; // 1 h
+  const CACHE_TTL_MS = 60 * 60 * 1000; // 1 h für erfolgreiche Aggregationen
+  // Fehler-Stubs (HTTP/Netz/Timeout) werden mit deutlich kürzerer TTL
+  // gecached, damit ein transienter Overpass-Hänger nicht 1 h lang als
+  // "OSM nicht verfügbar" durchschlägt.
+  const ERROR_CACHE_TTL_MS = 60 * 1000; // 1 min
 
   let _endpoint = DEFAULT_ENDPOINT;
   /** @type {Map<string, {at:number, value:any}>} */
@@ -137,11 +145,11 @@
     let cycleWays = 0, namedWays = 0;
     for (const t of ways) {
       if (hasCycleInfra(t)) cycleWays++;
-      // "namedWays" = ways with a name OR a non-residential highway class
-      // serving as denominator for the cycle-share computation. Pure
+      // "namedWays" = ways with a name OR a non-residential, non-service highway
+      // class — serves as denominator for the cycle-share computation. Pure
       // residential/service stretches are commonly bicycle-permitted by
-      // default and would distort the share.
-      if (t.name || (t.highway && t.highway !== "service" && t.highway !== "footway" && t.highway !== "path")) {
+      // default and would distort the share, so we exclude them here too.
+      if (t.name || (t.highway && t.highway !== "residential" && t.highway !== "service" && t.highway !== "footway" && t.highway !== "path")) {
         namedWays++;
       }
     }
@@ -205,7 +213,20 @@
     const now = Date.now();
     if (!opts || !opts.force) {
       const hit = _cache.get(key);
-      if (hit && (now - hit.at) < CACHE_TTL_MS) return hit.value;
+      if (hit) {
+        // TTL hängt vom Eintragstyp ab: Fehler-Stubs altern schnell, damit
+        // transiente Overpass-Probleme keine Stundensperre erzeugen.
+        const ttl = hit.ttl || CACHE_TTL_MS;
+        if ((now - hit.at) < ttl) {
+          // True LRU: refresh recency on hit, indem wir den Eintrag löschen
+          // und am Ende der Map (jüngste Position) wieder einfügen.
+          _cache.delete(key);
+          _cache.set(key, hit);
+          return hit.value;
+        }
+        // expired → drop
+        _cache.delete(key);
+      }
     }
 
     const query = buildQuery(bbox, opts);
@@ -226,13 +247,13 @@
       }
       if (!response.ok) {
         const out = { quality: { error: `HTTP ${response.status}`, fetchedAt: new Date(now).toISOString() } };
-        _rememberInCache(key, out, now);
+        _rememberInCache(key, out, now, ERROR_CACHE_TTL_MS);
         return out;
       }
       body = await response.json();
     } catch (e) {
       const out = { quality: { error: String(e && e.message || e), fetchedAt: new Date(now).toISOString() } };
-      _rememberInCache(key, out, now);
+      _rememberInCache(key, out, now, ERROR_CACHE_TTL_MS);
       return out;
     }
 
@@ -248,17 +269,23 @@
         endpoint: ep
       }
     });
-    _rememberInCache(key, result, now);
+    _rememberInCache(key, result, now, CACHE_TTL_MS);
     return result;
   }
 
-  function _rememberInCache(key, value, at) {
-    if (_cache.size >= MAX_CACHE) {
-      // Evict oldest (insertion order) entry — Map preserves insertion order.
+  function _rememberInCache(key, value, at, ttl) {
+    // True-LRU-Eviction: bereits vorhandenen Eintrag mit gleichem Key zuerst
+    // entfernen, dann am Ende einfügen — damit ist der jüngste Eintrag
+    // immer der zuletzt eingefügte. Wenn die Größe das Limit erreicht,
+    // verwerfen wir den ältesten Eintrag (Map-Iterationsreihenfolge =
+    // Einfügereihenfolge ⇒ keys().next().value ist least-recently-used).
+    if (_cache.has(key)) _cache.delete(key);
+    while (_cache.size >= MAX_CACHE) {
       const firstKey = _cache.keys().next().value;
-      if (firstKey) _cache.delete(firstKey);
+      if (!firstKey) break;
+      _cache.delete(firstKey);
     }
-    _cache.set(key, { at, value });
+    _cache.set(key, { at, value, ttl: ttl || CACHE_TTL_MS });
   }
 
   function clearCache() { _cache.clear(); }

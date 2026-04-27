@@ -127,7 +127,10 @@ function buildPrompt(aiInput, mode) {
   const yt = f.yearlyTrend;
   if (yt && yt.classification && yt.classification !== 'unbestimmt') {
     const slope = Number.isFinite(yt.slope) ? yt.slope.toFixed(2) : '–';
-    const r2    = Number.isFinite(yt.rSquared) ? yt.rSquared.toFixed(2) : '–';
+    // js/ua.trend.js liefert das Bestimmtheitsmaß als `r2`; ältere Varianten
+    // hießen `rSquared`. Für Robustheit beide Felder akzeptieren.
+    const r2Value = Number.isFinite(yt.r2) ? yt.r2 : yt.rSquared;
+    const r2    = Number.isFinite(r2Value) ? r2Value.toFixed(2) : '–';
     lines.push(`Klassifikation (lineare Regression): ${yt.classification} (Steigung ${slope}/Jahr, R²=${r2}, n=${yt.nYears})`);
   }
 

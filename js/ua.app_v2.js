@@ -116,6 +116,8 @@
     };
     _wireToggleRerender("cbIncludeCosts");
     _wireToggleRerender("cbIncludeMeasures");
+    _wireToggleRerender("cbIncludeHeatmap");
+    _wireToggleRerender("cbIncludeOsmContext");
 
     ui.btnCopyText.addEventListener("click", async ()=> {
       await writeClipboard(ui.exportBoxTa.value || "");
