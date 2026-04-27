@@ -163,6 +163,69 @@
   }
 
   /**
+   * Prüft, ob eine Maßnahme angesichts des erkannten OSM-Kontexts
+   * sinnvoll ist. Wenn keine Voraussetzungen definiert sind oder der
+   * OSM-Kontext fehlt / die nötigen Felder unbekannt sind, gilt:
+   * **kein Ausschluss** (die Empfehlung bleibt erhalten – wir wollen
+   * keine fachliche Maßnahme nur wegen fehlender Daten unterdrücken).
+   *
+   * Unterstützte Voraussetzungen (alle optional, alle müssen passen):
+   *  - `currentSpeedLimitGt`   : nur empfehlen, wenn dominanter
+   *                              maxspeed > Schwelle (z. B. Tempo 30 nur,
+   *                              wenn aktuell > 30 km/h gilt).
+   *  - `minLaneWidthM`         : nur empfehlen, wenn durchschnittliche
+   *                              Fahrbahnbreite ≥ Schwelle.
+   *  - `noExistingBikeInfra`   : true → nur empfehlen, wenn der Anteil
+   *                              vorhandener Radinfrastruktur klein ist
+   *                              (`cycleInfraShare < BIKE_INFRA_THRESHOLD`).
+   *
+   * @param {object} measure
+   * @param {object|null} osmContext  vollständiges `structured.osmContext`
+   *                                  (mit `summary` aus UA.osmContext)
+   * @returns {{ ok: boolean, reason?: string }}
+   */
+  function passesPrerequisites(measure, osmContext) {
+    const pre = measure && measure.prerequisites;
+    if (!pre || typeof pre !== "object") return { ok: true };
+    const summary = osmContext && osmContext.summary;
+    // Ohne OSM-Daten: Voraussetzungen können nicht widerlegt werden →
+    // Maßnahme bleibt drin (defensiv, vermeidet falsch-negative Filter).
+    if (!summary || typeof summary !== "object") return { ok: true };
+
+    if (Number.isFinite(Number(pre.currentSpeedLimitGt))) {
+      const dom = Number(summary.dominantMaxspeed);
+      // Nur ausschließen, wenn dominantMaxspeed bekannt ist (Sample > 0
+      // und numerischer Wert da) und ≤ Schwelle. `null`/0-Sample → pass.
+      if (Number.isFinite(dom) && summary.dominantMaxspeed != null
+          && Number(summary.speedSampleSize || 0) > 0
+          && dom <= Number(pre.currentSpeedLimitGt)) {
+        return { ok: false, reason: `aktuelles Tempolimit ${dom} km/h ≤ ${pre.currentSpeedLimitGt}` };
+      }
+    }
+
+    if (Number.isFinite(Number(pre.minLaneWidthM))) {
+      const w = Number(summary.avgWidthMeters);
+      // Nur ausschließen, wenn Breite bekannt (Sample > 0) und unter Schwelle.
+      if (Number.isFinite(w) && Number(summary.widthSampleSize || 0) > 0 && w < Number(pre.minLaneWidthM)) {
+        return { ok: false, reason: `Fahrbahnbreite ${w.toFixed(1)} m < ${pre.minLaneWidthM} m` };
+      }
+    }
+
+    if (pre.noExistingBikeInfra === true) {
+      const share = Number(summary.cycleInfraShare);
+      // `cycleInfraShare` ist null, wenn keine klassifizierten Wege da sind →
+      // dann nicht ausschließen. Sonst Schwelle 0,30 (mindestens 30 % der
+      // klassifizierten Wege bereits mit Radinfrastruktur → unterdrücken).
+      const BIKE_INFRA_THRESHOLD = 0.30;
+      if (Number.isFinite(share) && share >= BIKE_INFRA_THRESHOLD) {
+        return { ok: false, reason: `Radinfrastruktur bereits vorhanden (Anteil ${(share * 100).toFixed(0)} %)` };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  /**
    * Empfehlungs-Engine.
    *
    * @param {number[]} detectedPatterns  Bit-Masken überrepräsentierter Muster
@@ -171,6 +234,9 @@
    * @param {number}   [opts.limit=5]    Maximalzahl Empfehlungen
    * @param {object}   [opts.economicImpact]  Optional, ergibt Amortisations-Block
    *                   (Format: { annual: number } aus UA.costs.computeAnnualCost)
+   * @param {object}   [opts.osmContext]      Optional, `structured.osmContext`.
+   *                   Wird genutzt, um Maßnahmen mit `prerequisites`-Block zu
+   *                   filtern (z. B. Tempo 30 nur, wenn aktuell > 30 km/h).
    * @returns {{
    *   measures: Array<{
    *     measure: object,
@@ -179,7 +245,8 @@
    *     amortisation?: { years: [number, number]|null, lowYears: number|null, highYears: number|null }
    *   }>,
    *   sources: object[],
-   *   disclaimer: string
+   *   disclaimer: string,
+   *   filteredOut?: Array<{ id: string, label: string, reason: string }>
    * }}
    */
   function recommendMeasures(detectedPatterns, catalog, opts) {
@@ -188,11 +255,19 @@
     const annual = opts && opts.economicImpact && Number.isFinite(opts.economicImpact.annual)
       ? Number(opts.economicImpact.annual)
       : null;
+    const osmContext = (opts && opts.osmContext) || null;
 
     const scored = [];
+    const filteredOut = [];
     for (const m of cat.measures) {
       const s = scoreMeasure(m, detectedPatterns);
       if (s.score <= 0) continue;
+      // OSM-Kontext-Voraussetzungen prüfen, bevor wir die Maßnahme aufnehmen.
+      const pre = passesPrerequisites(m, osmContext);
+      if (!pre.ok) {
+        filteredOut.push({ id: m.id, label: m.label, reason: pre.reason || "Voraussetzungen nicht erfüllt" });
+        continue;
+      }
       const entry = { measure: m, score: s.score, matchedPatterns: s.matchedPatterns };
 
       // Amortisation: für die untere bzw. obere Wirkungsspanne durchrechnen
@@ -228,7 +303,8 @@
     return {
       measures: scored.slice(0, limit),
       sources: cat.sources || [],
-      disclaimer: cat.disclaimer || FALLBACK.disclaimer
+      disclaimer: cat.disclaimer || FALLBACK.disclaimer,
+      filteredOut
     };
   }
 
@@ -283,6 +359,7 @@
     mergeCatalogs,
     recommendMeasures,
     scoreMeasure,
+    passesPrerequisites,
     formatCostRange,
     formatReductionRange,
     FALLBACK,

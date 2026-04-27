@@ -318,4 +318,192 @@ describe('UA.measures', () => {
       }
     });
   });
+
+  describe('passesPrerequisites (OSM-Kontext-Filter)', () => {
+    const baseMeasure = (prerequisites) => ({
+      id: 'm', label: 'M',
+      effect: { targetPatterns: [1], expectedReductionPct: [10, 25], evidenceLevel: 'A' },
+      prerequisites
+    });
+
+    test('no prerequisites → always ok', () => {
+      const m = { id: 'm', label: 'M', effect: { targetPatterns: [1], expectedReductionPct: [10, 25], evidenceLevel: 'A' } };
+      expect(UA.measures.passesPrerequisites(m, null).ok).toBe(true);
+      expect(UA.measures.passesPrerequisites(m, { summary: { dominantMaxspeed: 50 } }).ok).toBe(true);
+    });
+
+    test('missing osmContext → defensive pass-through (do not suppress on missing data)', () => {
+      const m = baseMeasure({ currentSpeedLimitGt: 30 });
+      expect(UA.measures.passesPrerequisites(m, null).ok).toBe(true);
+      expect(UA.measures.passesPrerequisites(m, {}).ok).toBe(true);
+      expect(UA.measures.passesPrerequisites(m, { summary: null }).ok).toBe(true);
+    });
+
+    test('currentSpeedLimitGt: suppress when dominant limit ≤ threshold', () => {
+      const m = baseMeasure({ currentSpeedLimitGt: 30 });
+      const r = UA.measures.passesPrerequisites(m, { summary: { dominantMaxspeed: 30, speedSampleSize: 5 } });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/30/);
+    });
+
+    test('currentSpeedLimitGt: pass when dominant limit > threshold', () => {
+      const m = baseMeasure({ currentSpeedLimitGt: 30 });
+      expect(UA.measures.passesPrerequisites(m, { summary: { dominantMaxspeed: 50, speedSampleSize: 5 } }).ok).toBe(true);
+    });
+
+    test('currentSpeedLimitGt: pass when dominant limit unknown (null)', () => {
+      const m = baseMeasure({ currentSpeedLimitGt: 30 });
+      expect(UA.measures.passesPrerequisites(m, { summary: { dominantMaxspeed: null, speedSampleSize: 0 } }).ok).toBe(true);
+    });
+
+    test('minLaneWidthM: suppress when avgWidth below threshold (with samples)', () => {
+      const m = baseMeasure({ minLaneWidthM: 7.5 });
+      const r = UA.measures.passesPrerequisites(m, { summary: { avgWidthMeters: 6.0, widthSampleSize: 4 } });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/7\.5/);
+    });
+
+    test('minLaneWidthM: pass when avgWidth ≥ threshold', () => {
+      const m = baseMeasure({ minLaneWidthM: 7.5 });
+      expect(UA.measures.passesPrerequisites(m, { summary: { avgWidthMeters: 7.6, widthSampleSize: 3 } }).ok).toBe(true);
+    });
+
+    test('minLaneWidthM: pass when no width samples available', () => {
+      const m = baseMeasure({ minLaneWidthM: 7.5 });
+      expect(UA.measures.passesPrerequisites(m, { summary: { avgWidthMeters: null, widthSampleSize: 0 } }).ok).toBe(true);
+    });
+
+    test('noExistingBikeInfra: suppress when cycleInfraShare ≥ 0.30', () => {
+      const m = baseMeasure({ noExistingBikeInfra: true });
+      const r = UA.measures.passesPrerequisites(m, { summary: { cycleInfraShare: 0.9 } });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/Radinfrastruktur/);
+    });
+
+    test('noExistingBikeInfra: pass when cycleInfraShare = 0', () => {
+      const m = baseMeasure({ noExistingBikeInfra: true });
+      expect(UA.measures.passesPrerequisites(m, { summary: { cycleInfraShare: 0 } }).ok).toBe(true);
+    });
+
+    test('noExistingBikeInfra: pass when cycleInfraShare unknown (null)', () => {
+      const m = baseMeasure({ noExistingBikeInfra: true });
+      expect(UA.measures.passesPrerequisites(m, { summary: { cycleInfraShare: null } }).ok).toBe(true);
+    });
+  });
+
+  describe('recommendMeasures with osmContext (PR-γ prerequisites)', () => {
+    // Minimaler Test-Katalog mit drei Maßnahmen, jede mit eigenen prerequisites,
+    // sodass die OSM-gesteuerte Filterung deterministisch beobachtbar ist.
+    const TEST_CATALOG = {
+      version: 1,
+      sources: [],
+      disclaimer: 'test',
+      measures: [
+        {
+          id: 'tempo_30', label: 'Tempo 30', costRange: [2000, 8000],
+          effect: { targetPatterns: [5], expectedReductionPct: [10, 25], evidenceLevel: 'A' },
+          prerequisites: { currentSpeedLimitGt: 30 }
+        },
+        {
+          id: 'mittelinsel', label: 'Mittelinsel', costRange: [25000, 80000],
+          effect: { targetPatterns: [6], expectedReductionPct: [25, 45], evidenceLevel: 'B' },
+          prerequisites: { minLaneWidthM: 7.5 }
+        },
+        {
+          id: 'protected_bike_lane', label: 'PBL', costRange: [80000, 250000],
+          effect: { targetPatterns: [5], expectedReductionPct: [30, 50], evidenceLevel: 'B' },
+          prerequisites: { noExistingBikeInfra: true }
+        }
+      ]
+    };
+
+    test('Maske 5 + bikeInfraShare = 0 → PBL empfohlen', () => {
+      const r = UA.measures.recommendMeasures([5], TEST_CATALOG, {
+        osmContext: { summary: { cycleInfraShare: 0, dominantMaxspeed: 50, speedSampleSize: 3 } }
+      });
+      const ids = r.measures.map(m => m.measure.id);
+      expect(ids).toContain('protected_bike_lane');
+    });
+
+    test('Maske 5 + bikeInfraShare = 0.9 → PBL NICHT empfohlen, in filteredOut', () => {
+      const r = UA.measures.recommendMeasures([5], TEST_CATALOG, {
+        osmContext: { summary: { cycleInfraShare: 0.9, dominantMaxspeed: 50, speedSampleSize: 3 } }
+      });
+      const ids = r.measures.map(m => m.measure.id);
+      expect(ids).not.toContain('protected_bike_lane');
+      expect(r.filteredOut.find(f => f.id === 'protected_bike_lane')).toBeDefined();
+    });
+
+    test('Maske 6 + Fahrbahnbreite < 7,50 m → Mittelinsel NICHT empfohlen', () => {
+      const r = UA.measures.recommendMeasures([6], TEST_CATALOG, {
+        osmContext: { summary: { avgWidthMeters: 5.5, widthSampleSize: 4 } }
+      });
+      const ids = r.measures.map(m => m.measure.id);
+      expect(ids).not.toContain('mittelinsel');
+      expect(r.filteredOut.find(f => f.id === 'mittelinsel')).toBeDefined();
+    });
+
+    test('Maske 5 + dominantMaxspeed = 30 → Tempo 30 NICHT empfohlen', () => {
+      const r = UA.measures.recommendMeasures([5], TEST_CATALOG, {
+        osmContext: { summary: { dominantMaxspeed: 30, speedSampleSize: 5, cycleInfraShare: 0 } }
+      });
+      const ids = r.measures.map(m => m.measure.id);
+      expect(ids).not.toContain('tempo_30');
+      expect(r.filteredOut.find(f => f.id === 'tempo_30')).toBeDefined();
+    });
+
+    test('Maske 5 + dominantMaxspeed = 50 → Tempo 30 empfohlen', () => {
+      const r = UA.measures.recommendMeasures([5], TEST_CATALOG, {
+        osmContext: { summary: { dominantMaxspeed: 50, speedSampleSize: 5, cycleInfraShare: 0 } }
+      });
+      const ids = r.measures.map(m => m.measure.id);
+      expect(ids).toContain('tempo_30');
+    });
+
+    test('osmContext fehlt → keine Maßnahme wird durch prerequisites unterdrückt', () => {
+      const r = UA.measures.recommendMeasures([5, 6], TEST_CATALOG, {});
+      const ids = r.measures.map(m => m.measure.id);
+      expect(ids).toContain('tempo_30');
+      expect(ids).toContain('protected_bike_lane');
+      expect(ids).toContain('mittelinsel');
+      expect(r.filteredOut).toEqual([]);
+    });
+
+    test('Sortierung Kosten asc bleibt erhalten', () => {
+      const r = UA.measures.recommendMeasures([5], TEST_CATALOG, {
+        osmContext: { summary: { dominantMaxspeed: 50, speedSampleSize: 5, cycleInfraShare: 0 } }
+      });
+      // tempo_30 (2000) sollte vor protected_bike_lane (80000) kommen.
+      const ids = r.measures.map(m => m.measure.id);
+      expect(ids.indexOf('tempo_30')).toBeLessThan(ids.indexOf('protected_bike_lane'));
+    });
+  });
+
+  describe('Real catalog has prerequisites for key measures', () => {
+    test('tempo_30 has currentSpeedLimitGt prerequisite', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const cat = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
+      const t30 = cat.measures.find(m => m.id === 'tempo_30');
+      expect(t30).toBeDefined();
+      expect(t30.prerequisites).toBeDefined();
+      expect(t30.prerequisites.currentSpeedLimitGt).toBe(30);
+    });
+
+    test('mittelinsel has minLaneWidthM prerequisite', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const cat = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
+      const mi = cat.measures.find(m => m.id === 'mittelinsel');
+      expect(mi.prerequisites.minLaneWidthM).toBeCloseTo(7.5);
+    });
+
+    test('protected_bike_lane has noExistingBikeInfra prerequisite', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const cat = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
+      const pbl = cat.measures.find(m => m.id === 'protected_bike_lane');
+      expect(pbl.prerequisites.noExistingBikeInfra).toBe(true);
+    });
+  });
 });

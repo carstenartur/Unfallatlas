@@ -712,6 +712,47 @@
 
     const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
 
+    // ---- Yearly trend (#C2): linear regression over per-year counts ----
+    // Always computed when UA.trend is available — it's a pure function over
+    // the in-bounds points, so we don't gate it behind a modal toggle.
+    // Computed early so downstream blocks (e.g. economicImpact.trendQualifier)
+    // can reference the trend classification.
+    let yearlyTrend = null;
+    if (UA.trend && typeof UA.trend.computeYearlyTrend === "function") {
+      try {
+        yearlyTrend = UA.trend.computeYearlyTrend(filteredPts);
+      } catch (e) {
+        console.warn("Yearly trend computation failed:", e);
+      }
+    }
+
+    // ---- OSM context (#C4) ----
+    // Network call to the Overpass API; gated by exportOptions.includeOsmContext
+    // (default ON). The helper is fully defensive — it returns either the
+    // aggregated summary, a `{ quality.error }` stub, or `null` (invalid bbox).
+    // We tolerate all three so a slow/blocked Overpass mirror never breaks the
+    // report. Caller can pass `ctx.exportOptions.osmContextOverride` (already
+    // computed payload) to skip the fetch — used by tests and the AI flow,
+    // which may want to feed pre-fetched context into the prompt.
+    // Computed early so the recommendedMeasures filter can read its summary.
+    const includeOsmContext = !ctx.exportOptions || ctx.exportOptions.includeOsmContext !== false;
+    let osmContext = null;
+    if (includeOsmContext && UA.osmContext && typeof UA.osmContext.fetchOsmContext === "function") {
+      const override = ctx.exportOptions && ctx.exportOptions.osmContextOverride;
+      if (override !== undefined) {
+        osmContext = override;
+      } else {
+        try {
+          osmContext = await UA.osmContext.fetchOsmContext({
+            south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng
+          }, ctx.exportOptions && ctx.exportOptions.osmContextOpts);
+        } catch (e) {
+          console.warn("OSM context fetch failed:", e);
+          osmContext = null;
+        }
+      }
+    }
+
     // ---- Economic impact (PR-C / B2): annual external cost via BASt-like factors ----
     // Only computed when the modal toggle "Volkswirtschaftliche Kosten" is on
     // (default ON). Skipping avoids a fetch + parse on the common opted-out path.
@@ -730,7 +771,11 @@
           breakdown: calc.breakdown,
           counts: calc.counts,
           source: factors.source,
-          disclaimer: factors.disclaimer
+          disclaimer: factors.disclaimer,
+          // Trend-Qualifier (PR-β): nutzt die bereits berechnete `yearlyTrend`-
+          // Klassifikation, damit Antragstexte den Kostenblock ehrlich
+          // einordnen können ("stagnierend hoch", "rückläufig").
+          trendQualifier: (yearlyTrend && yearlyTrend.classification) || null
         };
       } catch (e) {
         console.warn("Economic impact computation failed:", e);
@@ -740,6 +785,8 @@
     // ---- Recommended measures (PR-D / B1+B3) ----
     // Only computed when the modal toggle "Maßnahmenvorschläge" is on
     // (default ON). Avoids loading the catalog on the common opted-out path.
+    // Receives `osmContext` so the engine can suppress measures whose
+    // `prerequisites` are not met (z. B. Tempo 30 nur, wenn aktuell > 30).
     let recommendedMeasures = null;
     if (includeMeasures && UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
       try {
@@ -748,23 +795,12 @@
           const catalog = await UA.measures.loadCatalog(citySlug);
           recommendedMeasures = UA.measures.recommendMeasures(detectedPatterns, catalog, {
             limit: 5,
-            economicImpact: economicImpact
+            economicImpact: economicImpact,
+            osmContext: osmContext
           });
         }
       } catch (e) {
         console.warn("Measure recommendation failed:", e);
-      }
-    }
-
-    // ---- Yearly trend (#C2): linear regression over per-year counts ----
-    // Always computed when UA.trend is available — it's a pure function over
-    // the in-bounds points, so we don't gate it behind a modal toggle.
-    let yearlyTrend = null;
-    if (UA.trend && typeof UA.trend.computeYearlyTrend === "function") {
-      try {
-        yearlyTrend = UA.trend.computeYearlyTrend(filteredPts);
-      } catch (e) {
-        console.warn("Yearly trend computation failed:", e);
       }
     }
 
@@ -779,32 +815,6 @@
         heatmap = UA.heatmap.computeHourDaytypeMatrix(filteredPts);
       } catch (e) {
         console.warn("Heatmap computation failed:", e);
-      }
-    }
-
-    // ---- OSM context (#C4) ----
-    // Network call to the Overpass API; gated by exportOptions.includeOsmContext
-    // (default ON). The helper is fully defensive — it returns either the
-    // aggregated summary, a `{ quality.error }` stub, or `null` (invalid bbox).
-    // We tolerate all three so a slow/blocked Overpass mirror never breaks the
-    // report. Caller can pass `ctx.exportOptions.osmContextOverride` (already
-    // computed payload) to skip the fetch — used by tests and the AI flow,
-    // which may want to feed pre-fetched context into the prompt.
-    const includeOsmContext = !ctx.exportOptions || ctx.exportOptions.includeOsmContext !== false;
-    let osmContext = null;
-    if (includeOsmContext && UA.osmContext && typeof UA.osmContext.fetchOsmContext === "function") {
-      const override = ctx.exportOptions && ctx.exportOptions.osmContextOverride;
-      if (override !== undefined) {
-        osmContext = override;
-      } else {
-        try {
-          osmContext = await UA.osmContext.fetchOsmContext({
-            south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng
-          }, ctx.exportOptions && ctx.exportOptions.osmContextOpts);
-        } catch (e) {
-          console.warn("OSM context fetch failed:", e);
-          osmContext = null;
-        }
       }
     }
 

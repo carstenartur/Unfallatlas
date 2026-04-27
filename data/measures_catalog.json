@@ -41,7 +41,10 @@
       "considerations": [
         "Bei Hauptverkehrsstraßen Begründung nach StVO § 45 erforderlich",
         "Wirkung am höchsten in Kombination mit baulichen Maßnahmen (Engstellen, Versatz)"
-      ]
+      ],
+      "prerequisites": {
+        "currentSpeedLimitGt": 30
+      }
     },
     {
       "id": "mittelinsel",
@@ -60,7 +63,10 @@
         "Mindestbreite Fahrbahn ca. 7,50 m vor Umbau",
         "Beleuchtung prüfen, taktiles Leitsystem für barrierefreie Nutzung",
         "Bei Buslinien Schleppkurven prüfen"
-      ]
+      ],
+      "prerequisites": {
+        "minLaneWidthM": 7.5
+      }
     },
     {
       "id": "lsa_anpassung",
@@ -96,7 +102,10 @@
       "considerations": [
         "Knotenpunktführung mit besonderer Sorgfalt planen (Sichtbeziehungen)",
         "Bei beengten Verhältnissen ggf. Wegfall von Parkplätzen erforderlich"
-      ]
+      ],
+      "prerequisites": {
+        "noExistingBikeInfra": true
+      }
     },
     {
       "id": "radweg_querung",
@@ -168,7 +177,10 @@
       "considerations": [
         "Bei Mischverkehr mit Lkw Mindestbreite einhalten",
         "Wirkung am stärksten in Kombination mit Tempo 30"
-      ]
+      ],
+      "prerequisites": {
+        "minLaneWidthM": 6.5
+      }
     },
     {
       "id": "sicht_freischnitt",

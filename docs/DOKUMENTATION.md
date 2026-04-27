@@ -895,6 +895,7 @@ Die Werte liegen in `data/cost_factors_de.json`. Sie können vor produktiver Nut
 - HTML-Vorschau / Text / DOCX / PDF enthalten einen Block **„Volkswirtschaftliche Bedeutung"** mit der Aufschlüsselung pro Schweregrad sowie Gesamt- und Pro-Jahr-Kosten (über den Datenzeitraum verteilt).
 - Quelle und Disclaimer („Grobe Schätzung … kein Ersatz für ein Fachgutachten") werden immer mit ausgegeben.
 - Die Sektion lässt sich im Export-Modal über den Schalter **„Volkswirtschaftliche Kosten"** ein- und ausblenden (Default: an).
+- Optional liefert das Feld `economicImpact.trendQualifier` die Klassifikation der Mehrjahres-Trendlinie (`steigend` / `stagnierend` / `rückläufig` / `unbestimmt`), sodass nachgelagerte Texte den Kostenblock einordnen können (z. B. „stagnierend hoch" bei `stagnierend`).
 
 ### Methodische Einordnung
 
@@ -929,6 +930,19 @@ Jede Maßnahme enthält:
 | `effect.expectedReductionPct` | Erwartungsspanne der Unfallreduktion in % |
 | `effect.evidenceLevel` | A (gut belegt), B (gut belegte Erfahrung), C (Erfahrung) |
 | `considerations` | Praxis-Hinweise / Stolpersteine |
+| `prerequisites` *(optional)* | OSM-Kontext-Bedingungen, die erfüllt sein müssen, damit die Maßnahme empfohlen wird (siehe unten) |
+
+#### OSM-Kontext-gesteuerte Voraussetzungen
+
+Wenn der OSM-Kontext (`structured.osmContext`) verfügbar ist, filtert die Empfehlungs-Engine Maßnahmen, deren `prerequisites` lokal nicht erfüllt sind. So werden z. B. Tempo-30-Anordnungen nicht in Tempo-30-Zonen vorgeschlagen, Mittelinseln nicht in zu schmalen Straßen, geschützte Radstreifen nicht dort, wo bereits Radinfrastruktur existiert. Unterstützte Felder:
+
+| Feld | Wirkung |
+| ---- | ------- |
+| `currentSpeedLimitGt` | Maßnahme nur, wenn dominanter `maxspeed` größer als der Schwellenwert ist (z. B. Tempo 30 nur, wenn aktuell > 30 km/h gelten). |
+| `minLaneWidthM` | Maßnahme nur, wenn die durchschnittliche Fahrbahnbreite ≥ Schwellenwert ist (z. B. Mittelinsel nur ab 7,50 m). |
+| `noExistingBikeInfra` | Maßnahme nur, wenn der Anteil vorhandener Radinfrastruktur (`cycleInfraShare`) klein ist (Schwelle 30 %). |
+
+**Defensiv:** Sind die nötigen OSM-Felder unbekannt (z. B. weil die Overpass-API nicht antwortet oder zu wenig getaggte Wege im Bereich liegen), wird **nicht** unterdrückt – fehlende Daten führen nicht zu falsch-negativen Empfehlungen.
 
 ### Empfehlungs-Engine
 

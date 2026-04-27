@@ -257,6 +257,16 @@ Die Wahl der Version erfolgt durch die URL. Alle weiteren Funktionen (Filter, Da
 │   ├── ua.video-export.js    # Video-Export Client-Modul
 │   ├── ua.app_v2.js          # V2 App-Logik
 │   ├── ua.map_v2.js          # V2 Kartenlogik
+│   ├── ua.accident_views.js  # Strategie-Registry für Einzelunfall-Tabelle
+│   │                          (bySeverity / byInvolvement / flat / byTimePattern)
+│   ├── ua.time_clusters.js   # Verkehrszeit-Cluster (Loader + Default-Definition)
+│   ├── ua.costs.js           # Volkswirtschaftliche Kosten (BASt-Größenordnungen)
+│   ├── ua.measures.js        # Maßnahmenkatalog + Empfehlungs-Engine
+│   │                          (filtert via OSM-Kontext-Voraussetzungen)
+│   ├── ua.osm_context.js     # OSM-Kontext-Anreicherung (Overpass-API)
+│   ├── ua.trend.js           # Mehrjahres-Trendlinie (lineare Regression)
+│   ├── ua.heatmap.js         # Stunde × Wochentag-Heatmap
+│   ├── ua.ai_proposal.js     # KI-Antragsentwurf (Brücke zur Server-API)
 │   └── ...                   # Gemeinsame Module
 ├── out/
 │   ├── poi_hannover.geojson  # POI-Daten (GeoJSON)
