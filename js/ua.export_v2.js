@@ -78,10 +78,13 @@
     if (!coverage) return null;
     if (!coverage.present) {
       const why = coverage.error ? ` (${coverage.error})` : "";
-      return `OSM-Kontext nicht abgerufen${why}: Maßnahmen-Voraussetzungen wurden mangels Daten **nicht** geprüft – die unten gelisteten Vorschläge können daher räumliche Voraussetzungen verletzen.`;
+      // Plain text only – TEXT/HTML/DOCX consumers wrap or escape this string,
+      // so any inline Markdown (`**…**`) would leak verbatim into the output.
+      // Render-site emphasis (e.g. <strong>) is the responsibility of the caller.
+      return `OSM-Kontext nicht abgerufen${why}: Maßnahmen-Voraussetzungen wurden mangels Daten nicht geprüft – die unten gelisteten Vorschläge können daher räumliche Voraussetzungen verletzen.`;
     }
     if (coverage.hasGap) {
-      return `OSM-Voraussetzungen mangels Daten nicht geprüft: ${coverage.missingAxes.join(", ")}. Die Vorschläge wurden **nicht** anhand dieser Achse(n) gefiltert.`;
+      return `OSM-Voraussetzungen mangels Daten nicht geprüft: ${coverage.missingAxes.join(", ")}. Die Vorschläge wurden nicht anhand dieser Achse(n) gefiltert.`;
     }
     return null;
   }

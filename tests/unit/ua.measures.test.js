@@ -389,6 +389,54 @@ describe('UA.measures', () => {
       const m = baseMeasure({ noExistingBikeInfra: true });
       expect(UA.measures.passesPrerequisites(m, { summary: { cycleInfraShare: null } }).ok).toBe(true);
     });
+
+    test('minTrafficSignals: suppress when trafficSignals below threshold', () => {
+      const m = baseMeasure({ minTrafficSignals: 1 });
+      const r = UA.measures.passesPrerequisites(m, { summary: { trafficSignals: 0 } });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/signalisierte/);
+    });
+
+    test('minTrafficSignals: pass when trafficSignals ≥ threshold', () => {
+      const m = baseMeasure({ minTrafficSignals: 1 });
+      expect(UA.measures.passesPrerequisites(m, { summary: { trafficSignals: 1 } }).ok).toBe(true);
+      expect(UA.measures.passesPrerequisites(m, { summary: { trafficSignals: 5 } }).ok).toBe(true);
+    });
+
+    test('minTrafficSignals: pass defensively when trafficSignals field is missing', () => {
+      // The OSM fetcher always populates trafficSignals as an integer (0 when
+      // none found), so the "unknown" case is an entirely missing field — the
+      // prerequisite must then pass-through (no false negatives, mirrors
+      // speed/width). `null` is treated as 0 by `Number(null)`, which matches
+      // the "known: keine signalisierten Knoten" semantics documented inline.
+      const m = baseMeasure({ minTrafficSignals: 1 });
+      expect(UA.measures.passesPrerequisites(m, { summary: {} }).ok).toBe(true);
+      expect(UA.measures.passesPrerequisites(m, { summary: { trafficSignals: undefined } }).ok).toBe(true);
+    });
+
+    test('maxCrossings: suppress when crossings above threshold', () => {
+      const m = baseMeasure({ maxCrossings: 0 });
+      const r = UA.measures.passesPrerequisites(m, { summary: { crossings: 2 } });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/Querungen/);
+    });
+
+    test('maxCrossings: pass when crossings ≤ threshold', () => {
+      const m = baseMeasure({ maxCrossings: 0 });
+      expect(UA.measures.passesPrerequisites(m, { summary: { crossings: 0 } }).ok).toBe(true);
+      const m2 = baseMeasure({ maxCrossings: 3 });
+      expect(UA.measures.passesPrerequisites(m2, { summary: { crossings: 3 } }).ok).toBe(true);
+    });
+
+    test('maxCrossings: pass defensively when crossings field is missing', () => {
+      // OSM fetcher always populates crossings as integer (0 when none); the
+      // "unknown" case is a missing field. `Number(null)===0` would actually
+      // suppress (n=0 ≤ threshold ⇒ pass for max-style); but for the missing
+      // case we must absolutely not suppress.
+      const m = baseMeasure({ maxCrossings: 0 });
+      expect(UA.measures.passesPrerequisites(m, { summary: {} }).ok).toBe(true);
+      expect(UA.measures.passesPrerequisites(m, { summary: { crossings: undefined } }).ok).toBe(true);
+    });
   });
 
   describe('recommendMeasures with osmContext (PR-γ prerequisites)', () => {

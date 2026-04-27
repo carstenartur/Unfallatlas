@@ -19,6 +19,11 @@
 describe('Export QA blocker fixes', () => {
   let UA;
   let mockWindow;
+  // Capture the pre-suite global.fetch state so we can restore it in afterEach
+  // and never leak our offline stub into other Jest test files in the same
+  // worker (would otherwise cause flaky cross-file failures).
+  const HAD_FETCH = Object.prototype.hasOwnProperty.call(global, 'fetch');
+  const ORIG_FETCH = HAD_FETCH ? global.fetch : undefined;
 
   beforeEach(() => {
     const fs = require('fs');
@@ -47,6 +52,11 @@ describe('Export QA blocker fixes', () => {
     if (UA.osmContext && UA.osmContext.clearCache) UA.osmContext.clearCache();
     if (UA.costs && UA.costs._resetCache) UA.costs._resetCache();
     if (UA.measures && UA.measures._resetCache) UA.measures._resetCache();
+  });
+
+  afterEach(() => {
+    if (HAD_FETCH) global.fetch = ORIG_FETCH;
+    else delete global.fetch;
   });
 
   // --------------------------------------------------------------------

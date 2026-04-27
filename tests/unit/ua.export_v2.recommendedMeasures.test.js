@@ -18,6 +18,10 @@
 
 describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follow-up)', () => {
   let UA;
+  // Capture the pre-suite global.fetch state so the offline stub doesn't leak
+  // into other Jest test files in the same worker (cross-file flakiness).
+  const HAD_FETCH = Object.prototype.hasOwnProperty.call(global, 'fetch');
+  const ORIG_FETCH = HAD_FETCH ? global.fetch : undefined;
 
   beforeEach(() => {
     const fs = require('fs');
@@ -49,6 +53,11 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
     UA.osmContext.clearCache();
     UA.costs._resetCache();
     UA.measures._resetCache();
+  });
+
+  afterEach(() => {
+    if (HAD_FETCH) global.fetch = ORIG_FETCH;
+    else delete global.fetch;
   });
 
   // Build a single accident point. Pattern bit 1 (Rad alone) → matches the
