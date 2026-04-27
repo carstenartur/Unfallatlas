@@ -104,6 +104,23 @@
   UA.DARK_FIGURE_NOTE = DARK_FIGURE_NOTE;
 
   /**
+   * Entfernt führende „Marker"-Zeilen, die rein aus einem `[...]`-Block bestehen
+   * (z. B. `[Interner Hinweis – vor Versand entfernen]` als erste Zeile von
+   * `templates/outro_internal_note.txt`). Solche Marker sind als visuelle
+   * Erinnerung im Template gedacht und sollen weder im fertigen Antrag noch in
+   * Klartext-/HTML-/DOCX-/PDF-Renderpfaden auftauchen. Der inhaltliche Rest
+   * (Erklärtext + `{{LINK}}`) bleibt unverändert. Bracket-Lines mitten im
+   * Body bleiben erhalten – nur die zusammenhängende Marker-Header-Sequenz
+   * am Anfang wird entfernt (PR-QA Task 8).
+   */
+  function stripInternalMarkerHeader(s) {
+    if (s == null) return s;
+    if (s === "") return s;
+    return String(s).replace(/^(?:[ \t]*\[[^\]\n]*\][ \t]*\r?\n)+/, "");
+  }
+  UA._stripInternalMarkerHeader = stripInternalMarkerHeader;
+
+  /**
    * Tiny predicate: true wenn der `recommendedMeasures`-Block für den
    * Renderer überhaupt etwas zu zeigen hat (entweder Empfehlungen oder
    * mindestens einen filteredOut-Eintrag, den wir transparent listen).
@@ -171,7 +188,10 @@
   const PATTERN_MAP = {
     1: {
       template: "pattern_rad_solo",
-      vars: (r) => ({ RAD_SOLO_FACTOR: r.factor.toFixed(2), RAD_SOLO_LOCAL: String(r.locCnt) })
+      // RAD_SOLO_CITY ist in templates/pattern_rad_solo.txt referenziert, war aber
+      // bis hierher nie belegt → der Antrag enthielt sichtbar "stadtweit  Fällen".
+      // Wir binden den stadtweiten Vergleichswert aus `r.baseCnt`.
+      vars: (r) => ({ RAD_SOLO_FACTOR: r.factor.toFixed(2), RAD_SOLO_LOCAL: String(r.locCnt), RAD_SOLO_CITY: String(r.baseCnt) })
     },
     3: {
       template: "pattern_rad_fuss",
@@ -922,7 +942,9 @@
     const tIntro = introResult.content;
     const isGen2Intro = introResult.isGen2;
     const tBesch = beschResult.content;
-    const tHinw = hinwResult.content;
+    // PR-QA Task 8: Marker-Zeile aus dem internal-note-Template entfernen, damit
+    // `[Interner Hinweis – vor Versand entfernen]` nicht im offiziellen Antrag landet.
+    const tHinw = stripInternalMarkerHeader(hinwResult.content);
     const tLiz = lizResult.content;
 
     // ---- Text (Clipboard/Word) ----

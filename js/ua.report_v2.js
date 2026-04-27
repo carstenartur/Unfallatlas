@@ -311,11 +311,13 @@
       right:  { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" }
     };
 
-    // Helper: build a table cell containing plain text
+    // Helper: build a table cell containing plain text. Emoji-bearing strings
+    // (e.g. "🚲+🚗") get sanitized first so DOCX viewers without an emoji-
+    // capable body font still show the involvement labels (PR-QA Task 1).
     function textCell(text, bold) {
       return new TableCell({
         borders: cellBorder,
-        children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })]
+        children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(text), bold })] })]
       });
     }
 
@@ -335,13 +337,16 @@
 
     // Helper to build a simple bordered table from headers + rows (plain text cells)
     // Optional: rowHighlights is an array of booleans – true = highlight that data row
+    // Cells go through `replaceEmojisForDocx` so involvement icons fall back to
+    // text labels (`[Rad]+[PKW]`) when the Word installation lacks an emoji
+    // body font (PR-QA Task 1).
     function makeDocxTable(headers, dataRows, rowHighlights) {
       const makeRow = (cells, bold, highlight) =>
         new TableRow({
           children: cells.map(text => {
             const cell = new TableCell({
               borders: cellBorder,
-              children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ""), bold })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(text), bold })] })],
               ...(highlight ? { shading: { fill: "FFFFCC" } } : {})
             });
             return cell;
@@ -372,7 +377,11 @@
     }
 
     const children = [];
-    const textLines = reportData.text ? reportData.text.split("\n") : [];
+    // PR-QA Task 1: Body-Text durch dieselbe Emoji→Label-Substitution wie der
+    // PDF-Renderer schicken – DOCX hat dasselbe Font-Risiko (Beteiligungs-
+    // Symbole bleiben auf vielen Word-Installationen leer).
+    const docxText = replaceEmojisForDocx(reportData.text || "");
+    const textLines = docxText ? docxText.split("\n") : [];
 
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
@@ -1413,6 +1422,22 @@
       .replace(/\u{1F69B}/gu, "[Gkfz]")    // 🚛 Heavy vehicle
       .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
   }
+
+  /**
+   * DOCX-Variante derselben Emoji→Text-Ersetzung. DOCX rendert Emojis nur,
+   * wenn der Word-Client einen emoji-fähigen Body-Font (z. B. Segoe UI Emoji)
+   * eingerichtet hat – auf vielen Verwaltungs-Arbeitsplätzen ist das nicht
+   * der Fall, dort tauchen die Beteiligungs-Icons als bloße Trennzeichen
+   * (`+`, `=`) auf. Wir substituieren konsequent die gleichen Kurzlabels wie
+   * in der PDF, damit Tabellen und Fließtext lesbar bleiben.
+   * Exportiert als `UA.replaceEmojisForDocx`, damit Tests ihn einzeln prüfen
+   * können.
+   */
+  function replaceEmojisForDocx(text) {
+    return replaceEmojisForPDF(String(text == null ? "" : text));
+  }
+  UA.replaceEmojisForDocx = replaceEmojisForDocx;
+
 
   // ---------------------------------------------------------------------
   // PDF involvement icons (issue: "Symbole … sichtbar machen in der PDF")
