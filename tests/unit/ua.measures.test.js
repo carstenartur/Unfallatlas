@@ -480,29 +480,24 @@ describe('UA.measures', () => {
   });
 
   describe('Real catalog has prerequisites for key measures', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const REAL_CATALOG = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
+
     test('tempo_30 has currentSpeedLimitGt prerequisite', () => {
-      const fs = require('fs');
-      const path = require('path');
-      const cat = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
-      const t30 = cat.measures.find(m => m.id === 'tempo_30');
+      const t30 = REAL_CATALOG.measures.find(m => m.id === 'tempo_30');
       expect(t30).toBeDefined();
       expect(t30.prerequisites).toBeDefined();
       expect(t30.prerequisites.currentSpeedLimitGt).toBe(30);
     });
 
     test('mittelinsel has minLaneWidthM prerequisite', () => {
-      const fs = require('fs');
-      const path = require('path');
-      const cat = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
-      const mi = cat.measures.find(m => m.id === 'mittelinsel');
+      const mi = REAL_CATALOG.measures.find(m => m.id === 'mittelinsel');
       expect(mi.prerequisites.minLaneWidthM).toBeCloseTo(7.5);
     });
 
     test('protected_bike_lane has noExistingBikeInfra prerequisite', () => {
-      const fs = require('fs');
-      const path = require('path');
-      const cat = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
-      const pbl = cat.measures.find(m => m.id === 'protected_bike_lane');
+      const pbl = REAL_CATALOG.measures.find(m => m.id === 'protected_bike_lane');
       expect(pbl.prerequisites.noExistingBikeInfra).toBe(true);
     });
   });
