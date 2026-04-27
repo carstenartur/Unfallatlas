@@ -222,6 +222,14 @@
             <input type="checkbox" id="cbIncludeMeasures" checked style="cursor:pointer;">
             <span>Maßnahmenvorschläge</span>
           </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="Stunden-Heatmap (Werktag vs. Wochenende) im Antrag mit ausweisen.">
+            <input type="checkbox" id="cbIncludeHeatmap" checked style="cursor:pointer;">
+            <span>Stunden-Heatmap</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;" title="OSM-Kontext (Tempolimit, Radwege, Knoten, Querungen) für den markierten Bereich abfragen und im Antrag ausweisen. Erfordert Netzzugriff auf die Overpass-API.">
+            <input type="checkbox" id="cbIncludeOsmContext" checked style="cursor:pointer;">
+            <span>OSM-Kontext</span>
+          </label>
           <label style="display:flex; align-items:center; gap:5px;">
             <span>Einzelunfälle anzeigen:</span>
             <select id="accidentViewSel" aria-label="Gruppierung der Einzelunfall-Tabelle" style="padding:4px 6px; border-radius:6px; border:1px solid rgba(0,0,0,.2);">
@@ -268,6 +276,18 @@
         <button id="btnExportKML" aria-label="Export als KML-Datei" style="flex:1; min-width:110px; padding:10px 16px; background:#b06020; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px;">
           <span aria-hidden="true">📍</span> KML
         </button>
+      </div>
+
+      <!-- KI-Antragsentwurf (#E1) – ruft serverseitigen /api/ai/export-assessment/v2 auf.
+           Backend bleibt im Docker-Image; Frontend nur Aufruf + Anzeige. -->
+      <div id="aiProposalSection" style="margin-top:14px; padding:12px; border:1px solid rgba(0,0,0,.1); border-radius:12px; background:rgba(0,0,0,.02);">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button id="btnAiProposal" aria-label="KI-Antragsentwurf generieren" style="padding:10px 16px; background:#5a3fa0; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
+            <span aria-hidden="true">✨</span> KI-Antragsentwurf
+          </button>
+          <span id="aiProposalStatus" style="font-size:12px; color:#555;" role="status" aria-live="polite"></span>
+        </div>
+        <div id="aiProposalResult" style="display:none; margin-top:10px; font-size:13px;" aria-label="KI-Antragsentwurf"></div>
       </div>
 
       <div class="row" style="margin-top:15px;">
@@ -419,7 +439,11 @@
   <script src="js/ua.stats.js?v=2026-01-01"></script>
   <script src="js/ua.costs.js?v=2026-01-01"></script>
   <script src="js/ua.measures.js?v=2026-01-01"></script>
+  <script src="js/ua.trend.js?v=2026-01-01"></script>
+  <script src="js/ua.heatmap.js?v=2026-01-01"></script>
+  <script src="js/ua.osm_context.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
+  <script src="js/ua.ai_proposal.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-01-01"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>
   <script src="js/ua.app_v2.js?v=2026-01-01"></script>

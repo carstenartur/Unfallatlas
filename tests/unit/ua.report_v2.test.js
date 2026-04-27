@@ -656,11 +656,44 @@ describe('UA.report_v2 - Export Functions', () => {
   }
 
   function extractPdfText(definition) {
-    return definition.content.flatMap(item => {
-      if (typeof item.text === 'string') return [item.text];
-      if (item.table) return item.table.body.flat().map(c => c.text || '');
-      return [];
-    }).join(' ');
+    // Collect all string content from the pdfMake definition tree, including
+    // cells that use compound nodes ({ columns: […] } / { stack: […] }) so
+    // assertions stay meaningful for cells that mix inline-SVG icons with
+    // text fragments.
+    const out = [];
+    const walk = (node) => {
+      if (node == null) return;
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (typeof node === 'string') { out.push(node); return; }
+      if (typeof node !== 'object') return;
+      if (typeof node.text === 'string') out.push(node.text);
+      else if (Array.isArray(node.text)) walk(node.text);
+      if (Array.isArray(node.columns)) walk(node.columns);
+      if (Array.isArray(node.stack)) walk(node.stack);
+      if (Array.isArray(node.content)) walk(node.content);
+      if (node.table && Array.isArray(node.table.body)) walk(node.table.body);
+    };
+    walk(definition.content);
+    return out.join(' ');
+  }
+
+  // Collect all inline SVG strings emitted into the PDF so tests can assert
+  // that involvement icons are rendered as pictograms (rather than text
+  // fallbacks or — worse — raw emoji code points the Roboto font can't show).
+  function extractPdfSvgs(definition) {
+    const out = [];
+    const walk = (node) => {
+      if (node == null) return;
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (typeof node !== 'object') return;
+      if (typeof node.svg === 'string') out.push(node.svg);
+      if (Array.isArray(node.columns)) walk(node.columns);
+      if (Array.isArray(node.stack)) walk(node.stack);
+      if (Array.isArray(node.content)) walk(node.content);
+      if (node.table && Array.isArray(node.table.body)) walk(node.table.body);
+    };
+    walk(definition.content);
+    return out;
   }
 
   describe('exportToWord – crossTable and accidentDetails sections', () => {
@@ -791,12 +824,18 @@ describe('UA.report_v2 - Export Functions', () => {
 
       await UA.exportToPDF(ctx, reportData, { includeMap: false });
 
-      const allText = extractPdfText(getDefinition());
+      const def = getDefinition();
+      const allText = extractPdfText(def);
+      const svgs = extractPdfSvgs(def);
       expect(allText).toContain('Beteiligungskombination');
       expect(allText).toContain('Getötete');
       expect(allText).toContain('Gesamt');
-      // Label should have emojis replaced
-      expect(allText).toContain('[Rad]+[PKW]');
+      // The 🚲+🚗 label must surface as inline SVG icons (not as raw emoji
+      // glyphs the Roboto font can't render and not as text labels anymore).
+      expect(allText).not.toContain('🚲');
+      expect(allText).not.toContain('🚗');
+      expect(svgs.length).toBeGreaterThanOrEqual(2);
+      expect(svgs.some(s => /<svg/.test(s))).toBe(true);
     });
 
     test('should include accident details table in PDF when structured.accidentDetails is present', async () => {
@@ -818,14 +857,19 @@ describe('UA.report_v2 - Export Functions', () => {
 
       await UA.exportToPDF(ctx, reportData, { includeMap: false });
 
-      const allText = extractPdfText(getDefinition());
+      const def = getDefinition();
+      const allText = extractPdfText(def);
+      const svgs = extractPdfSvgs(def);
       expect(allText).toContain('EINZELUNF');  // EINZELUNFÄLLE
       expect(allText).toContain('Schwerverletzt');
-      // involved emoji should be replaced
-      expect(allText).toContain('[Rad]+[PKW]');
+      // Beteiligte cell must carry SVG pictograms (one for 🚲, one for 🚗) –
+      // emoji glyphs themselves must not leak into the PDF text stream.
+      expect(allText).not.toContain('🚲');
+      expect(allText).not.toContain('🚗');
+      expect(svgs.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('replaceEmojisForPDF should replace Gkfz and Sonstig emojis', async () => {
+    test('PDF involvement icons cover Gkfz and Sonstig (🚛 / 🚌)', async () => {
       const getDefinition = capturePdfDefinition();
       const ctx = { CITY_RAW: 'Test' };
       const reportData = {
@@ -844,13 +888,18 @@ describe('UA.report_v2 - Export Functions', () => {
 
       await UA.exportToPDF(ctx, reportData, { includeMap: false });
 
-      const allText = extractPdfText(getDefinition());
-      // 🚛 → [Gkfz], 🚌 → [Sonst]
-      expect(allText).toContain('[Gkfz]');
-      expect(allText).toContain('[Sonst]');
-      // Raw emojis must NOT appear in PDF
+      const def = getDefinition();
+      const allText = extractPdfText(def);
+      const svgs = extractPdfSvgs(def);
+      // Raw emojis must NOT appear anywhere in the PDF (Roboto can't render
+      // them; they would either disappear or print as tofu).
       expect(allText).not.toContain('🚛');
       expect(allText).not.toContain('🚌');
+      expect(allText).not.toContain('🚲');
+      // Three icons expected total: 🚲 + 🚛 in row 1, 🚌 in row 2.
+      expect(svgs.length).toBeGreaterThanOrEqual(3);
+      // SVG contents should include path data, not be empty wrappers.
+      expect(svgs.every(s => /<path/.test(s))).toBe(true);
     });
   });
 

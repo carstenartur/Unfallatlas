@@ -14,7 +14,7 @@
  */
 
 /** Versionskennung – Teil des Cache-Keys. */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.2';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.3';
 
 const SYSTEM_PROMPT_ASSESSMENT = `Du bist Verkehrssicherheitsexpertin für deutsche Kommunen.
 Du erhältst aufbereitete Unfallatlas-Daten und musst eine fachliche Bewertung erstellen.
@@ -118,12 +118,52 @@ function buildPrompt(aiInput, mode) {
     lines.push(`Trend nicht eindeutig bestimmbar (Datenpunkte: ${trend.rangeYears || 0}).`);
   }
 
+  // Stufe-1-Anreicherung: kompakte Klassifikation aus js/ua.trend.js, falls
+  // mitgeliefert. Liefert eine zweite, an strikten Schwellen orientierte
+  // Lesart (steigend/rückläufig/stagnierend/unbestimmt) – ergänzt die obige
+  // Erst-Letzte-Schätzung um die Regressions-Sicht. classifyTrend() liefert
+  // bei zu wenigen Jahren oder unklarer Statistik 'unbestimmt' – diese
+  // Variante blenden wir aus, weil sie keinen Mehrwert für die KI hat.
+  const yt = f.yearlyTrend;
+  if (yt && yt.classification && yt.classification !== 'unbestimmt') {
+    const slope = Number.isFinite(yt.slope) ? yt.slope.toFixed(2) : '–';
+    // js/ua.trend.js liefert das Bestimmtheitsmaß als `r2`; ältere Varianten
+    // hießen `rSquared`. Für Robustheit beide Felder akzeptieren.
+    const r2Value = Number.isFinite(yt.r2) ? yt.r2 : yt.rSquared;
+    const r2    = Number.isFinite(r2Value) ? r2Value.toFixed(2) : '–';
+    lines.push(`Klassifikation (lineare Regression): ${yt.classification} (Steigung ${slope}/Jahr, R²=${r2}, n=${yt.nYears})`);
+  }
+
   lines.push('');
   lines.push('=== RÄUMLICHE VERDICHTUNG ===');
   if (sp.hint && sp.hint !== 'insufficient_data' && sp.hint !== 'insufficient_coords') {
     lines.push(`Hinweis: ${sp.hint} (Spannweite ca. ${sp.spanMeters} m, Stichprobe ${sp.sampleSize}/${sp.totalAccidents}).`);
   } else {
     lines.push('(zu wenig Einzelpunkte für eine räumliche Aussage)');
+  }
+
+  // Stufe-1-Anreicherung: OSM-Kontext aus js/ua.osm_context.js, falls
+  // mitgeliefert. Wir spielen *nur* die Aggregation aus, niemals einen
+  // Fehler-Stub – die KI soll keine "OSM nicht verfügbar"-Hinweise
+  // formulieren, das übernimmt der deterministische Renderer.
+  const osm = f.osmContext;
+  if (osm && osm.summary) {
+    lines.push('');
+    lines.push('=== OSM-KONTEXT ===');
+    const s = osm.summary;
+    if (s.dominantMaxspeed != null) {
+      lines.push(`Vorherrschendes Tempolimit: ${s.dominantMaxspeed} km/h (n=${s.speedSampleSize} Wegabschnitte)`);
+    }
+    if (s.cycleInfraWays > 0) {
+      const sh = (s.cycleInfraShare != null) ? ` (${Math.round(s.cycleInfraShare * 100)} % der klassifizierten Hauptachsen)` : '';
+      lines.push(`Radinfrastruktur an ${s.cycleInfraWays} Wegabschnitten${sh}`);
+    } else if (s.wayCount > 0) {
+      lines.push('Keine separaten Radverkehrsanlagen erkannt.');
+    }
+    if (s.trafficSignals > 0) lines.push(`Signalisierte Knoten: ${s.trafficSignals}`);
+    if (s.crossings > 0)      lines.push(`Markierte Querungen: ${s.crossings}`);
+    if (s.avgLanes != null)   lines.push(`Ø Fahrstreifen: ${s.avgLanes.toFixed(1)} (n=${s.lanesSampleSize})`);
+    if (s.avgWidthMeters != null) lines.push(`Ø Fahrbahnbreite: ${s.avgWidthMeters.toFixed(1)} m (n=${s.widthSampleSize})`);
   }
 
   if (poi) {

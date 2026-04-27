@@ -62,9 +62,13 @@
         // can decide which optional sections to include in the preview.
         const cbCosts    = document.getElementById("cbIncludeCosts");
         const cbMeasures = document.getElementById("cbIncludeMeasures");
+        const cbHeatmap  = document.getElementById("cbIncludeHeatmap");
+        const cbOsm      = document.getElementById("cbIncludeOsmContext");
         ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
-          includeCosts:    cbCosts    ? cbCosts.checked    : true,
-          includeMeasures: cbMeasures ? cbMeasures.checked : true
+          includeCosts:      cbCosts    ? cbCosts.checked    : true,
+          includeMeasures:   cbMeasures ? cbMeasures.checked : true,
+          includeHeatmap:    cbHeatmap  ? cbHeatmap.checked  : true,
+          includeOsmContext: cbOsm      ? cbOsm.checked      : true
         });
         const r = await UA.computeExportReport(ctx);
         ui.exportProgress.textContent = "Fertig.";
@@ -112,6 +116,8 @@
     };
     _wireToggleRerender("cbIncludeCosts");
     _wireToggleRerender("cbIncludeMeasures");
+    _wireToggleRerender("cbIncludeHeatmap");
+    _wireToggleRerender("cbIncludeOsmContext");
 
     ui.btnCopyText.addEventListener("click", async ()=> {
       await writeClipboard(ui.exportBoxTa.value || "");
@@ -155,6 +161,14 @@
         try { UA.exportToKML(ctx); }
         catch (e) { alert("KML-Export fehlgeschlagen: " + String(e)); }
       });
+    }
+
+    // KI-Antragsentwurf (#E1) — Frontend-Aufruf des serverseitigen
+    // /api/ai/export-assessment/v2-Endpoints. Die KI-Logik bleibt im
+    // Docker-Image (server/ai/), hier nur Aufruf + Anzeige.
+    if (UA.aiProposal && typeof UA.aiProposal.wire === "function") {
+      try { UA.aiProposal.wire(ctx); }
+      catch (e) { console.warn("aiProposal.wire failed:", e); }
     }
   }
 

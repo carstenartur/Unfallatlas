@@ -35,6 +35,11 @@
 - [Volkswirtschaftliche Kosten](#volkswirtschaftliche-kosten)
 - [Maßnahmenkatalog](#maßnahmenkatalog)
 - [Verkehrszeit-Muster (Time Cluster)](#verkehrszeit-muster-time-cluster)
+- [Mehrjahres-Trend](#mehrjahres-trend)
+- [Stunden-Heatmap im Antrag](#stunden-heatmap-im-antrag)
+- [Dunkelziffer-Pflichthinweis](#dunkelziffer-pflichthinweis)
+- [OSM-Kontext-Anreicherung](#osm-kontext-anreicherung)
+- [KI-Antragsentwurf (optional)](#ki-antragsentwurf-optional)
 
 ---
 
@@ -1005,3 +1010,82 @@ Das `hours`-Feld nutzt `[[startH, startM], [endH, endM]]` (halboffen `[start, en
 - Cluster werden anhand **Stunde + Wochentagsgruppe** klassifiziert; präzisere Information (Minute) liegt im Unfallatlas nicht flächendeckend vor.
 - Items ohne erkennbare Stunde landen im Bucket **„Andere / unbekannte Uhrzeit"**.
 - Wenn keine stadtspezifische Konfig vorliegt, wird der konservative Default verwendet – Schulwege liegen stadtweit ähnlich (07:00–08:30 / 12:00–14:00). Für lokale Sondersituationen (z. B. Schichtbeginn 06:00) sollte ein Stadt-Override hinterlegt werden.
+
+---
+
+## Mehrjahres-Trend
+
+Im Antrags-Export wird zusätzlich zu den jährlichen Zählungen ein **linearer Trend über die Gesamtsumme pro Jahr** ausgewiesen (`structured.yearlyTrend`, Helper: `js/ua.trend.js`). Berechnet werden:
+
+- Jährliche Zählungen pro Schweregrad (Getötete / Schwerverletzte / Leichtverletzte / Summe)
+- Slope, Intercept und R² einer einfachen Ordinary-Least-Squares-Regression über die Gesamtsumme
+- Eine qualitative Klassifikation: `rückläufig` / `stagnierend` / `steigend` / `unbestimmt`
+
+### Klassifikations-Schwellwerte
+
+Bewusst konservativ gewählt, um bei kleinen Fallzahlen keine Trends „herbeizurechnen":
+
+| Bedingung | Klassifikation |
+| --- | --- |
+| `nYears < 3` oder Mittelwert ≤ 0 | `unbestimmt` |
+| `R² < 0.3` (schlechter Fit) | `stagnierend` |
+| `|slope/mean| < 0.05` (Schwankung < 5 % p.a.) | `stagnierend` |
+| `slope/mean ≥ +0.05` | `steigend` |
+| `slope/mean ≤ -0.05` | `rückläufig` |
+
+Die Trend-Sektion erscheint in **HTML** (kompaktes SVG-Liniendiagramm + Tabelle), **DOCX** und **PDF** (Tabelle + Klassifikationssatz). Bei Datenzeiträumen unter drei Jahren wird die Tabelle gerendert, die Klassifikation aber als „unbestimmt" markiert.
+
+---
+
+## Stunden-Heatmap im Antrag
+
+Die in der Karten-Ansicht bereits verfügbare Heatmap wird auf Wunsch als **24×2-Matrix Stunde × Tagestyp** in den Antrag übernommen (`structured.heatmap`, Helper: `js/ua.heatmap.js`):
+
+- 24 Zeilen (Stunden 00:00–23:00) × 2 Spalten (Werktag Mo–Fr, Wochenende Sa/So)
+- Farbskala von Weiß bis dunkelblau (`#08306B`) linear nach Zellwert
+- Zellbeschriftung mit Anzahl, Textfarbe automatisch kontrastiert (schwarz/weiß)
+- HTML zeigt ein Inline-SVG samt Beschriftung; DOCX und PDF rendern dieselbe Information als gefärbte Tabelle (24 Stunden × 2 Tagestypen)
+- Im Plain-Text-Export wird stattdessen eine knappe Top-3-Spitzenstunden-Liste pro Tagestyp ausgegeben
+
+Die Sektion lässt sich im Export-Modal über den Schalter **„Stunden-Heatmap"** abschalten (`exportOptions.includeHeatmap`, Default: an).
+
+---
+
+## Dunkelziffer-Pflichthinweis
+
+In allen Antrags-Renderpfaden (Text, HTML, DOCX, PDF) erscheint ein nicht abschaltbarer Hinweis darauf, dass die Unfallatlas-Daten der polizeilich erfassten Unfälle (mit Personenschaden) entsprechen und keine Vergleiche zu erfassten Sachschäden oder Beinahe-Unfällen zulassen. Konstante: `UA.DARK_FIGURE_NOTE` in `js/ua.export_v2.js`. Felder: `title`, `body`, `sourceLabel`, `sourceUrl`. Der Block ist Teil von `structured.darkFigureNote` und wird bewusst auch dann mit ausgegeben, wenn andere optionale Sektionen (Kosten, Maßnahmen) deaktiviert sind.
+
+## OSM-Kontext-Anreicherung
+
+Optionale Anreicherung des Antrags um verkehrsräumliche Eckdaten aus OpenStreetMap (Issue #220 / Punkt **#C4**). Helper: `js/ua.osm_context.js`, ausgespielt als `structured.osmContext`.
+
+`UA.osmContext.fetchOsmContext(bbox, opts)` ruft die [Overpass-API](https://overpass-api.de/) für die Bounding-Box des markierten Bereichs auf und aggregiert:
+
+- **Vorherrschendes Tempolimit** (`maxspeed`, mph wird in km/h umgerechnet), inkl. Histogramm und Stichprobengröße.
+- **Radverkehrsanlagen** (`highway=cycleway`, `bicycle=designated`, `cycleway:*`-Tags); ausgewiesen werden Zahl betroffener Wegabschnitte und Anteil an den klassifizierten Hauptachsen.
+- **Signalisierte Knoten** (`highway=traffic_signals`) und **markierte Querungen** (`highway=crossing`).
+- **Ø Fahrstreifen** (`lanes`) und **Ø Fahrbahnbreite** (`width`) – jeweils nur über klassifizierte Hauptverbindungen, mit Stichprobengröße.
+
+Eigenschaften:
+
+- **Defensiv** – jeder Netzfehler/HTTP-Fehler/Timeout liefert `{ quality: { error } }`, niemals einen Throw. Der HTML/DOCX/PDF-Renderer zeigt in dem Fall „Verkehrsräumlicher Kontext (OSM): nicht verfügbar (…)".
+- **Cache** – In-Memory, Schlüssel = Endpoint + gerundete Bbox; erfolgreiche Ergebnisse TTL 1 h, Fehler-Stubs (HTTP/Netz/Timeout) TTL 1 min, damit transiente Overpass-Hänger nicht für eine Stunde durchschlagen. Eviction true LRU (Cache-Hits aktualisieren die Recency) bei > 50 Einträgen.
+- **Konfigurierbar** – `setEndpoint(url)` für Self-Hosted-Mirrors; `opts.timeoutMs` (Default 8 s); `opts.fetch` zum Stubben in Tests; `exportOptions.osmContextOverride` zum Überspringen der Anfrage komplett (z. B. für vorgefertigte Daten).
+- **Toggle** – `cbIncludeOsmContext` im Export-Modal; `exportOptions.includeOsmContext` (Default: an).
+
+Die Quelle wird im Antrag immer mitgeführt: „OpenStreetMap-Mitwirkende (ODbL 1.0), via Overpass API".
+
+## KI-Antragsentwurf (optional)
+
+Optionaler, **serverseitiger** KI-Schritt (Issue #220 / Punkt **#E1**). Die KI-Logik bleibt vollständig in `server/ai/` und damit im Docker-Image; das Frontend ist ein dünner Client.
+
+**Backend.** Endpoint `POST /api/ai/export-assessment/v2?mode=proposal-brief` (siehe [`server/ai/README.md`](../server/ai/README.md)). `deriveFeatures(structured)` propagiert seit `exportAssessmentPrompt.v2.3` zusätzlich `structured.yearlyTrend` und `structured.osmContext` in den Prompt; der Prompt-Builder rendert sie als eigene Sektionen `=== TREND ===` (Klassifikation aus linearer Regression) und `=== OSM-KONTEXT ===` (vorherrschendes Tempolimit, Radinfrastruktur, signalisierte Knoten, Querungen, Ø Fahrstreifen/Breite). Damit erhält die KI die Stufe-1-Anreicherungen ohne separaten Re-Compute.
+
+**Frontend.** Modul `js/ua.ai_proposal.js`, Button „✨ KI-Antragsentwurf" im Export-Modal:
+
+1. Ruft `UA.computeExportReport(ctx)` auf, um das deterministische `structured`-Objekt zu erzeugen (identisch mit Word/PDF-Export).
+2. Sendet es per `fetch('/api/ai/export-assessment/v2?mode=proposal-brief', …)` an den Server.
+3. Rendert die `proposalBrief.v1`-Antwort (Titel, Kurzfassung, Langfassung, Beschlussvorschlag, Prüfauftrag, Maßnahmen, Caveats) als kompakten Inline-Block; hängt parallel den Text an das Kopierfeld an.
+4. Robustheit: HTTP 503 (`AI_NOT_CONFIGURED`) → freundlicher Hinweis, dass der Operator `GEMINI_API_KEY` nicht gesetzt hat – der deterministische Antrag bleibt davon unberührt. `source: "fallback"` wird sichtbar als „deterministischer Fallback ohne KI" gekennzeichnet, damit Leser:innen die Quelle einordnen können.
+
+Konfiguration siehe `server/ai/README.md` (Umgebungsvariablen `GEMINI_API_KEY`, `AI_ASSESSMENT_MODEL`, `AI_ASSESSMENT_TIMEOUT_MS`, `AI_ASSESSMENT_MAX_RETRIES`, `AI_PROVIDER`).
