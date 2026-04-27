@@ -71,6 +71,8 @@
     if (v == null) return null;
     const s = String(v).trim().toLowerCase();
     if (s === "" || s === "none" || s === "signals" || s === "variable") return null;
+    // OSM-Konvention: maxspeed=walk meint "Schritttempo" – wir setzen
+    // pragmatisch ~7 km/h an (entspricht etwa StVO-Schrittgeschwindigkeit).
     if (s === "walk") return 7;
     // mph?
     const mph = s.match(/^(\d+(?:\.\d+)?)\s*mph$/);

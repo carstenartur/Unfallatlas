@@ -21,11 +21,11 @@ function baseStructured(extra) {
 describe('#E1 — deriveFeatures pass-through of Stufe-1 enrichments', () => {
   test('exposes osmContext and yearlyTrend on the features object', () => {
     const f = deriveFeatures(baseStructured({
-      yearlyTrend: { classification: 'rising', slope: 1.0, rSquared: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 },
+      yearlyTrend: { classification: 'steigend', slope: 1.0, rSquared: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 },
       osmContext: { summary: { dominantMaxspeed: 50, speedSampleSize: 4, cycleInfraWays: 1, cycleInfraShare: 0.25, trafficSignals: 1, crossings: 0, wayCount: 4, avgLanes: null, avgWidthMeters: null, lanesSampleSize: 0, widthSampleSize: 0 }, source: { publisher: 'OSM', license: 'ODbL', url: '', retrievedVia: 'Overpass API' } }
     }), null);
     expect(f.yearlyTrend).toBeTruthy();
-    expect(f.yearlyTrend.classification).toBe('rising');
+    expect(f.yearlyTrend.classification).toBe('steigend');
     expect(f.osmContext).toBeTruthy();
     expect(f.osmContext.summary.dominantMaxspeed).toBe(50);
   });
@@ -63,9 +63,9 @@ describe('#E1 — buildPrompt renders new sections', () => {
 
   test('appends the regression-classification line when yearlyTrend is present', () => {
     const { user } = buildPrompt(aiInput({
-      yearlyTrend: { classification: 'rising', slope: 1.0, rSquared: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 }
+      yearlyTrend: { classification: 'steigend', slope: 1.0, rSquared: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 }
     }), 'assessment');
-    expect(user).toMatch(/Klassifikation \(lineare Regression\): rising/);
+    expect(user).toMatch(/Klassifikation \(lineare Regression\): steigend/);
     expect(user).toMatch(/R²=0\.99/);
   });
 
@@ -76,9 +76,9 @@ describe('#E1 — buildPrompt renders new sections', () => {
     expect(user).not.toContain('=== OSM-KONTEXT ===');
   });
 
-  test('does NOT add the regression line when yearlyTrend.classification is "insufficient_data"', () => {
+  test('does NOT add the regression line when yearlyTrend.classification is "unbestimmt"', () => {
     const { user } = buildPrompt(aiInput({
-      yearlyTrend: { classification: 'insufficient_data', slope: 0, rSquared: 0, nYears: 1 }
+      yearlyTrend: { classification: 'unbestimmt', slope: 0, rSquared: 0, nYears: 1 }
     }), 'assessment');
     expect(user).not.toMatch(/Klassifikation \(lineare Regression\)/);
   });

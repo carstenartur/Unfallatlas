@@ -120,10 +120,12 @@ function buildPrompt(aiInput, mode) {
 
   // Stufe-1-Anreicherung: kompakte Klassifikation aus js/ua.trend.js, falls
   // mitgeliefert. Liefert eine zweite, an strikten Schwellen orientierte
-  // Lesart (steigend/fallend/stagnierend/unklar) – ergänzt die obige
-  // Erst-Letzte-Schätzung um die Regressions-Sicht.
+  // Lesart (steigend/rückläufig/stagnierend/unbestimmt) – ergänzt die obige
+  // Erst-Letzte-Schätzung um die Regressions-Sicht. classifyTrend() liefert
+  // bei zu wenigen Jahren oder unklarer Statistik 'unbestimmt' – diese
+  // Variante blenden wir aus, weil sie keinen Mehrwert für die KI hat.
   const yt = f.yearlyTrend;
-  if (yt && yt.classification && yt.classification !== 'insufficient_data') {
+  if (yt && yt.classification && yt.classification !== 'unbestimmt') {
     const slope = Number.isFinite(yt.slope) ? yt.slope.toFixed(2) : '–';
     const r2    = Number.isFinite(yt.rSquared) ? yt.rSquared.toFixed(2) : '–';
     lines.push(`Klassifikation (lineare Regression): ${yt.classification} (Steigung ${slope}/Jahr, R²=${r2}, n=${yt.nYears})`);
