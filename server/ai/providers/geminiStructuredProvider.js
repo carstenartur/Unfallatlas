@@ -28,7 +28,7 @@ const https = require('https');
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /** Hard-Cap für Retry-After-Werte, um endlose Hänger zu vermeiden (5 Minuten). */
-const RATELIMIT_DELAY_HARD_CAP_MS = 5 * 60 * 1000;
+const RATE_LIMIT_DELAY_HARD_CAP_MS = 5 * 60 * 1000;
 
 class RetryableError extends Error {
   constructor(message, statusCode) {
@@ -134,7 +134,7 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
         }
         rlUsed++;
         const hint = typeof err.retryAfterMs === 'number' ? err.retryAfterMs : rlMinDelayMs;
-        const delay = Math.min(Math.max(hint, 0), RATELIMIT_DELAY_HARD_CAP_MS);
+        const delay = Math.min(Math.max(hint, 0), RATE_LIMIT_DELAY_HARD_CAP_MS);
         console.log(`[gemini] 429 rate-limited, sleeping ${delay}ms before retry ${rlUsed}/${rlRetries}`);
         await sleep(delay);
       } else {
