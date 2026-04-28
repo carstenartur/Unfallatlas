@@ -50,19 +50,32 @@
       return 0;
     };
 
-    const cells = new Map(); // key -> {total, byMask, latSum, lonSum}
+    const cells = new Map(); // key -> {total, byMask, latSum, lonSum, points, bbox}
     if (!Array.isArray(points)) return [];
     for (const p of points) {
       if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
       const key = keyFn(p);
       let c = cells.get(key);
       if (!c) {
-        c = { key, total: 0, byMask: {}, latSum: 0, lonSum: 0 };
+        c = {
+          key, total: 0, byMask: {}, latSum: 0, lonSum: 0,
+          points: [],
+          minLat: Infinity, maxLat: -Infinity,
+          minLon: Infinity, maxLon: -Infinity
+        };
         cells.set(key, c);
       }
       c.total++;
       c.latSum += p.lat;
       c.lonSum += p.lon;
+      // Track per-cell bbox + members so downstream consumers (export cluster
+      // maps) can fitBounds exactly and render only the cluster's own points
+      // — guaranteeing table↔map consistency (Tasks 1, 4, 5, 7).
+      if (p.lat < c.minLat) c.minLat = p.lat;
+      if (p.lat > c.maxLat) c.maxLat = p.lat;
+      if (p.lon < c.minLon) c.minLon = p.lon;
+      if (p.lon > c.maxLon) c.maxLon = p.lon;
+      c.points.push(p);
       const m = maskFn(p);
       if (m) c.byMask[m] = (c.byMask[m] || 0) + 1;
     }
@@ -82,7 +95,14 @@
         lat: c.latSum / c.total,
         lon: c.lonSum / c.total,
         dominantMask,
-        dominantCount
+        dominantCount,
+        bounds: {
+          south: c.minLat,
+          west: c.minLon,
+          north: c.maxLat,
+          east: c.maxLon
+        },
+        points: c.points
       });
     }
     // Sortierung: Anzahl absteigend; Tie-Break über Schlüssel für Determinismus.
@@ -273,7 +293,15 @@
         lon: h.lon,
         total: h.total,
         zoom: zoomFor(h.total),
-        label: targets.length === 0 ? "Hauptcluster" : "Sekundärcluster"
+        label: targets.length === 0 ? "Hauptcluster" : "Sekundärcluster",
+        // Bounding box derived from the cluster's actual coordinates and the
+        // cluster's own point list. Both are used by the export pipeline to
+        // (a) fitBounds the captured map onto the cluster (Tasks 1, 7),
+        // (b) draw export markers only for the cluster's points so the
+        //     visible n exactly matches the table (Tasks 4, 5, 6),
+        // (c) build a unique, cluster-specific Werkbank URL (Task 3).
+        bounds: h.bounds || null,
+        points: Array.isArray(h.points) ? h.points : []
       });
     }
     return targets;

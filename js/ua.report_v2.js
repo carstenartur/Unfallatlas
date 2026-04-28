@@ -385,7 +385,13 @@
     let token = null;
     try {
       if (typeof UA.beginExportMapMode === "function") {
-        token = UA.beginExportMapMode(ctx);
+        // Allow callers (e.g. cluster maps) to restrict the severity overlay
+        // to a specific subset of points so the visible markers exactly match
+        // the table count below the map (Tasks 4, 5, 6).
+        const beginOpts = (options && Array.isArray(options.exportPoints))
+          ? { points: options.exportPoints }
+          : undefined;
+        token = UA.beginExportMapMode(ctx, beginOpts);
       }
       // A short wait gives Leaflet a tick to lay out the overlay layer
       // before leaflet-image walks the layer list.
@@ -491,17 +497,42 @@
     try {
       for (const t of targets) {
         try {
-          ctx.map.setView([t.lat, t.lon], t.zoom, { animate: false });
+          // Prefer fitBounds on the cluster's actual bounding box so the map
+          // shows exactly the cluster area – never an unrelated part of the
+          // city (Task 7). A small padding keeps edge markers visible.
+          let actualZoom = t.zoom;
+          if (t.bounds && typeof window !== "undefined" && window.L
+              && Number.isFinite(t.bounds.south)) {
+            const ll = window.L.latLngBounds(
+              [t.bounds.south, t.bounds.west],
+              [t.bounds.north, t.bounds.east]
+            );
+            // maxZoom guard avoids over-zooming for single-point clusters
+            // where bounds collapse to a point.
+            ctx.map.fitBounds(ll, { animate: false, padding: [16, 16], maxZoom: t.zoom });
+            try { actualZoom = ctx.map.getZoom(); } catch { /* fall back to planned t.zoom */ }
+          } else {
+            ctx.map.setView([t.lat, t.lon], t.zoom, { animate: false });
+          }
           // Tile load + Leaflet render tick.
           await new Promise(r => setTimeout(r, 500));
-          const image = await UA.captureExportMapImage(ctx, options);
+          // Render only the cluster's own points as severity markers so the
+          // visible n exactly matches the table (Task 5 / Task 6 verification
+          // sentence).
+          const captureOpts = { ...options };
+          if (Array.isArray(t.points) && t.points.length) {
+            captureOpts.exportPoints = t.points;
+          }
+          const image = await UA.captureExportMapImage(ctx, captureOpts);
           out.push({
             label: t.label,
             image,
             total: t.total,
             lat: t.lat,
             lon: t.lon,
-            zoom: t.zoom
+            zoom: actualZoom,
+            bounds: t.bounds || null,
+            points: Array.isArray(t.points) ? t.points : []
           });
         } catch (err) {
           console.warn("Cluster map capture failed for target (graceful fallback):", t, err);
@@ -518,6 +549,80 @@
   }
   // Exported for tests; the public name stays inside the IIFE.
   UA._captureClusterMaps = captureClusterMaps;
+
+  /**
+   * Build the German verification sentence required below every exported map
+   * (Task 6). The exact wording is mandated by the Werkbank export spec.
+   * @param {number} n
+   * @returns {string}
+   */
+  function mapVerificationSentence(n) {
+    const safe = Number.isFinite(Number(n)) ? Math.max(0, Math.trunc(Number(n))) : 0;
+    return `Die dargestellten Punkte entsprechen exakt den in der Tabelle aufgeführten Unfällen (n = ${safe}).`;
+  }
+  UA.mapVerificationSentence = mapVerificationSentence;
+
+  /**
+   * Count points whose coordinates fall inside a {south,west,north,east}
+   * bounding box. Used for Task 5 (cross-check map ↔ table count) and to
+   * compute n for the verification sentence (Task 6).
+   * @param {Array<{lat:number,lon:number}>} points
+   * @param {{south:number,west:number,north:number,east:number}|null|undefined} bounds
+   * @returns {number}
+   */
+  function countPointsInBounds(points, bounds) {
+    if (!Array.isArray(points) || !bounds) return 0;
+    const { south, west, north, east } = bounds;
+    if (![south, west, north, east].every(Number.isFinite)) return 0;
+    let n = 0;
+    for (const p of points) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      if (p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east) n++;
+    }
+    return n;
+  }
+  UA._countPointsInBounds = countPointsInBounds;
+
+  /**
+   * Derive a {south,west,north,east} bbox from a Leaflet LatLngBounds object.
+   * Tolerant of plain {south,west,north,east} objects (already serialised).
+   * Returns null if no usable input.
+   */
+  function boundsToBbox(b) {
+    if (!b) return null;
+    if (typeof b.getSouth === "function") {
+      return {
+        south: b.getSouth(), west: b.getWest(),
+        north: b.getNorth(), east: b.getEast()
+      };
+    }
+    if (Number.isFinite(b.south) && Number.isFinite(b.west)
+        && Number.isFinite(b.north) && Number.isFinite(b.east)) {
+      return { south: b.south, west: b.west, north: b.north, east: b.east };
+    }
+    return null;
+  }
+  UA._boundsToBbox = boundsToBbox;
+
+  /**
+   * Derive a {south,west,north,east} bbox enclosing all supplied points.
+   * Returns null if no valid coordinates are present.
+   */
+  function bboxFromPoints(points) {
+    if (!Array.isArray(points) || !points.length) return null;
+    let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+    let any = false;
+    for (const p of points) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      any = true;
+      if (p.lat < south) south = p.lat;
+      if (p.lat > north) north = p.lat;
+      if (p.lon < west) west = p.lon;
+      if (p.lon > east) east = p.lon;
+    }
+    return any ? { south, west, north, east } : null;
+  }
+  UA._bboxFromPoints = bboxFromPoints;
 
   /**
    * Derive a document title from the Gremium type string.
@@ -1230,6 +1335,15 @@
           })
         );
 
+        // Verification sentence (Task 6) – n is the number of accident points
+        // currently rendered (= rows in the Einzelunfall-Tabelle).
+        const overviewN = Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0;
+        children.push(new Paragraph({
+          text: mapVerificationSentence(overviewN),
+          italics: true,
+          spacing: { after: 200 }
+        }));
+
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
@@ -1251,6 +1365,14 @@
                 data: Uint8Array.from(detailBinary, c => c.charCodeAt(0)),
                 transformation: { width: 600, height: 400 }
               })],
+              spacing: { after: 100 }
+            }));
+            // Verification sentence for detail map (Task 6).
+            const detailBbox = boundsToBbox(ctx.selectionBounds);
+            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            children.push(new Paragraph({
+              text: mapVerificationSentence(detailN),
+              italics: true,
               spacing: { after: 200 }
             }));
           } catch (detailErr) {
@@ -1258,10 +1380,27 @@
           }
         }
 
-        // Cluster maps: one zoom-in per dominant accident hotspot (Tasks 2, 3, 4).
+        // Cluster maps: one zoom-in per dominant accident hotspot (Tasks 1–7).
+        // Each cluster gets:
+        //   – its own bbox-driven map view (fitBounds → no unrelated areas)
+        //   – a unique heading "<label> – n Unfälle (Zoom z)" matching the table
+        //   – the verification sentence below the image
         try {
           const clusterMaps = await captureClusterMaps(ctx, options);
           for (const cm of clusterMaps) {
+            // Task 5: do not render a cluster map if the visible point count
+            // would not match the stated total.
+            const visibleN = Array.isArray(cm.points)
+              ? cm.points.length
+              : countPointsInBounds(ctx.viewportPts || [], cm.bounds);
+            if (visibleN !== cm.total) {
+              console.warn(
+                "Cluster map skipped: point/total mismatch",
+                { label: cm.label, total: cm.total, visibleN }
+              );
+              continue;
+            }
+
             const cBase64 = cm.image.replace(/^data:image\/png;base64,/, "");
             let cBinary;
             try {
@@ -1280,6 +1419,11 @@
                 data: Uint8Array.from(cBinary, c => c.charCodeAt(0)),
                 transformation: { width: 600, height: 400 }
               })],
+              spacing: { after: 100 }
+            }));
+            children.push(new Paragraph({
+              text: mapVerificationSentence(cm.total),
+              italics: true,
               spacing: { after: 200 }
             }));
           }
@@ -1666,8 +1810,9 @@
    * @param {Object} ctx - Application context
    * @returns {string} URL to Werkbank page with current parameters
    */
-  function buildWerkbankUrl(ctx) {
+  function buildWerkbankUrl(ctx, override) {
     const params = new URLSearchParams();
+    const ovr = override || {};
     
     // City
     if (ctx.CITY_RAW) {
@@ -1701,18 +1846,34 @@
     if (ctx.showCluster !== undefined) params.set("showCluster", ctx.showCluster ? 1 : 0);
     if (ctx.showHeatmap !== undefined) params.set("showHeatmap", ctx.showHeatmap ? 1 : 0);
     if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", ctx.showOnlyAboveAverage ? 1 : 0);
-    
-    // Map position
-    if (ctx.map) {
+
+    // Map position – override.center / override.zoom take precedence so each
+    // exported map (overview, detail, cluster A, cluster B) gets its own
+    // unique URL pointing exactly at its cluster (Task 3).
+    if (ovr.center && Number.isFinite(ovr.center.lat) && Number.isFinite(ovr.center.lon)) {
+      params.set("centerLat", Number(ovr.center.lat).toFixed(6));
+      params.set("centerLon", Number(ovr.center.lon).toFixed(6));
+    } else if (ctx.map) {
       const center = ctx.map.getCenter();
-      const zoom = ctx.map.getZoom();
       params.set("centerLat", center.lat.toFixed(6));
       params.set("centerLon", center.lng.toFixed(6));
-      params.set("zoom", zoom);
     }
-    
-    // Selection bounds
-    if (ctx.selectionBounds) {
+    if (Number.isFinite(Number(ovr.zoom))) {
+      params.set("zoom", Number(ovr.zoom));
+    } else if (ctx.map) {
+      params.set("zoom", ctx.map.getZoom());
+    }
+
+    // Selection / cluster bounds. An explicit override.bounds wins so cluster
+    // maps publish their own bbox (selSouth/selWest/selNorth/selEast – Task 1).
+    const b = ovr.bounds;
+    if (b && Number.isFinite(b.south) && Number.isFinite(b.west)
+        && Number.isFinite(b.north) && Number.isFinite(b.east)) {
+      params.set("selSouth", Number(b.south).toFixed(6));
+      params.set("selWest",  Number(b.west).toFixed(6));
+      params.set("selNorth", Number(b.north).toFixed(6));
+      params.set("selEast",  Number(b.east).toFixed(6));
+    } else if (ctx.selectionBounds) {
       params.set("selSouth", ctx.selectionBounds.getSouth().toFixed(6));
       params.set("selWest", ctx.selectionBounds.getWest().toFixed(6));
       params.set("selNorth", ctx.selectionBounds.getNorth().toFixed(6));
@@ -2482,11 +2643,31 @@
           style: "small"
         });
 
+        // Verification sentence (Task 6) – n is the count of accident points
+        // currently rendered in the overview viewport.
+        const overviewN = Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0;
+        docDefinition.content.push({
+          text: mapVerificationSentence(overviewN),
+          style: "small",
+          italics: true,
+          margin: [0, 4, 0, 8]
+        });
+
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
             const detailImageData = await captureDetailMap(ctx, options);
-            const detailWerkbankUrl = buildWerkbankUrl(ctx);
+            // Unique URL for detail map: explicit selSouth/West/North/East
+            // and centered on the selection (Tasks 1, 3).
+            const detailBbox = boundsToBbox(ctx.selectionBounds);
+            const detailCenter = detailBbox ? {
+              lat: (detailBbox.south + detailBbox.north) / 2,
+              lon: (detailBbox.west + detailBbox.east) / 2
+            } : null;
+            const detailWerkbankUrl = buildWerkbankUrl(ctx, {
+              bounds: detailBbox,
+              center: detailCenter
+            });
             docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader" });
             docDefinition.content.push({
               image: detailImageData,
@@ -2500,7 +2681,14 @@
               color: "blue",
               decoration: "underline",
               style: "normal",
-              margin: [0, 5, 0, 10]
+              margin: [0, 5, 0, 4]
+            });
+            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            docDefinition.content.push({
+              text: mapVerificationSentence(detailN),
+              style: "small",
+              italics: true,
+              margin: [0, 0, 0, 8]
             });
           } catch (detailErr) {
             console.warn("Detail map capture failed for PDF (graceful fallback):", detailErr);
@@ -2508,12 +2696,34 @@
         }
 
         // Cluster maps: one zoomed-in PDF page section per dominant accident
-        // hotspot (Tasks 2, 3, 4). Each map is centered on the actual
-        // coordinate centroid (not on selectionBounds), with a zoom level
-        // chosen by point density.
+        // hotspot (Tasks 1–7). Each map gets:
+        //   – fitBounds onto its own bbox (no unrelated areas, Task 7)
+        //   – a unique Werkbank URL with cluster-specific selSouth/…/selEast
+        //     and centerLat/Lon/zoom (Tasks 1, 3)
+        //   – heading "<label> – n Unfälle (Zoom z)" (matches the table)
+        //   – verification sentence "Die dargestellten Punkte … (n = X)." (Task 6)
         try {
           const clusterMaps = await captureClusterMaps(ctx, options);
           for (const cm of clusterMaps) {
+            // Task 5: only render a cluster map when the visible point count
+            // matches the stated total. This is the explicit consistency
+            // gate required by the spec.
+            const visibleN = Array.isArray(cm.points)
+              ? cm.points.length
+              : countPointsInBounds(ctx.viewportPts || [], cm.bounds);
+            if (visibleN !== cm.total) {
+              console.warn(
+                "Cluster map skipped: point/total mismatch",
+                { label: cm.label, total: cm.total, visibleN }
+              );
+              continue;
+            }
+
+            const clusterUrl = buildWerkbankUrl(ctx, {
+              bounds: cm.bounds,
+              center: { lat: cm.lat, lon: cm.lon },
+              zoom: cm.zoom
+            });
             docDefinition.content.push({
               text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
               style: "subheader"
@@ -2521,7 +2731,22 @@
             docDefinition.content.push({
               image: cm.image,
               fit: [475, 350],
-              margin: [0, 10, 0, 10]
+              margin: [0, 10, 0, 10],
+              link: clusterUrl
+            });
+            docDefinition.content.push({
+              text: "→ In Werkbank öffnen",
+              link: clusterUrl,
+              color: "blue",
+              decoration: "underline",
+              style: "normal",
+              margin: [0, 5, 0, 4]
+            });
+            docDefinition.content.push({
+              text: mapVerificationSentence(cm.total),
+              style: "small",
+              italics: true,
+              margin: [0, 0, 0, 8]
             });
           }
         } catch (clusterErr) {
