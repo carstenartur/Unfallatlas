@@ -1319,7 +1319,7 @@
       if (exportMode !== "political") {
         const allNonSignificant = dev.focus.every(r => !r.isSignificant);
         if (allNonSignificant) {
-          lines.push("Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (kleine Fallzahlen). Die Faktor-Werte sollten mit Vorsicht interpretieren.");
+          lines.push("Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (kleine Fallzahlen). Die Faktor-Werte sollten mit Vorsicht interpretiert werden.");
         }
       }
       lines.push("");

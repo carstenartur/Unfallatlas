@@ -563,6 +563,20 @@
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
 
+    // Task 5: Dedup-Guard. Renderpfad pro Sektion höchstens einmal ausgeben.
+    // Aktuell rendert dieser Code jede Sektion exakt einmal aus structured;
+    // diese Guard-Set verhindert zukünftige Regressions, bei denen Text-
+    // Fallback (`textLines`) und structured-Pfad denselben Block doppeln.
+    const renderedSections = new Set();
+    /** @returns {boolean} true wenn schon gerendert (Caller skipt dann). */
+    function _alreadyRendered(name) {
+      if (renderedSections.has(name)) return true;
+      renderedSections.add(name);
+      return false;
+    }
+    // Expose for nested helpers within this function.
+    const sectionGuard = _alreadyRendered;
+
     // Helper: determine if a cross-table row mask matches the active filter
     const afm = (sd && sd.meta && sd.meta.activeFilterMask) || 0;
     const afMode = (sd && sd.meta && sd.meta.involvementMode) || "or";
@@ -740,7 +754,7 @@
     }
 
     // ---- 6. STATISTIK section with real tables (from structured data) ----
-    if (sd) {
+    if (sd && !sectionGuard("STATISTIK")) {
       children.push(
         new Paragraph({
           text: "STATISTIK",
@@ -918,7 +932,8 @@
 
       // Recommended measures (PR-D / B1+B3)
       if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
-          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
+          && !sectionGuard("EMPFOHLENE MASSNAHMEN")) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         children.push(new Paragraph({
@@ -1215,7 +1230,8 @@
     }
 
     // ---- 8c. MEHRJAHRES-TREND (#C2) ----
-    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0) {
+    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0
+        && !sectionGuard("MEHRJAHRES-TREND")) {
       const t = sd.yearlyTrend;
       children.push(new Paragraph({
         text: "MEHRJAHRES-TREND",
@@ -1782,6 +1798,14 @@
     // Use structured data if available
     const sd = reportData.structured || null;
 
+    // Task 5: Dedup-Guard für PDF (siehe DOCX-Variante).
+    const renderedSections = new Set();
+    function sectionGuard(name) {
+      if (renderedSections.has(name)) return true;
+      renderedSections.add(name);
+      return false;
+    }
+
     // Helper: format percentage for PDF
     function fmtPctPdf(n, total) {
       return total ? ((n / total) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
@@ -2012,7 +2036,7 @@
     }
 
     // ---- STATISTIK section with real tables (from structured data) ----
-    if (sd) {
+    if (sd && !sectionGuard("STATISTIK")) {
       docDefinition.content.push({ text: "STATISTIK", style: "subheader" });
 
       // Severity table
@@ -2160,7 +2184,8 @@
 
       // Recommended measures (PR-D / B1+B3)
       if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
-          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
+          && !sectionGuard("EMPFOHLENE MASSNAHMEN")) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         docDefinition.content.push({ text: "EMPFOHLENE MASSNAHMEN", style: "subheader" });
@@ -2414,7 +2439,8 @@
     }
 
     // ---- MEHRJAHRES-TREND (#C2) ----
-    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0) {
+    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0
+        && !sectionGuard("MEHRJAHRES-TREND")) {
       const t = sd.yearlyTrend;
       docDefinition.content.push({ text: "MEHRJAHRES-TREND", style: "subheader" });
       const trendRows = t.years.map((y, i) => [
