@@ -401,9 +401,10 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(appendChildSpy).not.toHaveBeenCalled();
     });
 
-    test('should not invoke onProgress when libraries are already present', async () => {
+    test('should not invoke onProgress when window libraries are pre-loaded (CDN load skipped)', async () => {
       // Real libraries are already set on window in beforeEach.
-      // The onProgress callback should NOT be called when the early-return path is taken.
+      // With _exportLibrariesLoaded = false, the function still returns early
+      // via the "pre-loaded on window" guard — onProgress should not be called.
       UA._exportLibrariesLoaded = false;
 
       const progressSpy = jest.fn();
