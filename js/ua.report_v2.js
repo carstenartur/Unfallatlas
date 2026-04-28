@@ -656,21 +656,30 @@
       };
     }
 
-    // Invariante 2: Punkte, die der Export tatsächlich auf der Übersichts-
-    // Karte rendert (= ctx.viewportPts innerhalb der Export-Bounds), müssen
-    // in Anzahl mit der Gesamt-Fallzahl übereinstimmen. Nur so deckt sich
-    // „262 Unfälle im Bereich" (Tabelle) mit den 262 Markern (Karte).
+    // Invariante 2: Die Punkte, die der Export auf der Übersichtskarte
+    // rendert (= ctx.viewportPts innerhalb der Export-Bounds), müssen mit
+    // den Zeilen der Einzelunfall-Tabelle (= structured.accidentDetails)
+    // übereinstimmen. Beide Datenquellen sind beteiligungsgefiltert
+    // (mask>0 + Involvement-Filter), während structured.totalAccidents
+    // alle non-involvement-gefilterten Punkte (inkl. mask=0) zählt — ein
+    // direkter Vergleich gegen totalAccidents erzeugte bei realen Daten
+    // immer einen False-Positive (siehe Sanierungsplan Phase 2.2).
+    // Fallback auf totalAccidents nur, wenn accidentDetails fehlt
+    // (Alt-Reports/Tests ohne Detail-Tabelle).
+    const ad2 = structured.accidentDetails;
+    const ad2Total = (ad2 && Number.isFinite(ad2.total)) ? ad2.total : null;
+    const tableN = (ad2Total !== null) ? ad2Total : totalAccidents;
     const bbox = exportBoundsFromCtx(ctx);
     const pts = (ctx && Array.isArray(ctx.viewportPts)) ? ctx.viewportPts : null;
     if (bbox && pts) {
       const nMap = countPointsInBounds(pts, bbox);
-      if (nMap !== totalAccidents) {
+      if (nMap !== tableN) {
         return {
           ok: false,
           kind: "table_map_mismatch",
-          nTable: totalAccidents,
+          nTable: tableN,
           nMap,
-          message: `Export abgebrochen: Tabelle (n=${totalAccidents}) und Karte (n=${nMap}) inkonsistent.`
+          message: `Export abgebrochen: Tabelle (n=${tableN}) und Karte (n=${nMap}) inkonsistent.`
         };
       }
     }
@@ -1491,9 +1500,16 @@
           })
         );
 
-        // Verification sentence (Task 6) – n is the number of accident points
-        // currently rendered (= rows in the Einzelunfall-Tabelle).
-        const overviewN = Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0;
+        // Verification sentence (Task 6) – n MUST be the canonical
+        // Einzelunfall-Tabellen-Zählung („Tabelle" im Verifikationssatz).
+        // ctx.viewportPts.length basiert auf gepaddingten Karten-Bounds und
+        // kann Punkte außerhalb der Export-Bounds enthalten — würde also
+        // eine größere Zahl ausgeben als auf der Karte sichtbar sind und
+        // würde dem Pre-Flight-Konsistenz-Gate widersprechen.
+        const overviewN =
+          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0));
         children.push(new Paragraph({
           text: mapVerificationSentence(overviewN),
           italics: true,
@@ -2867,9 +2883,13 @@
           style: "small"
         });
 
-        // Verification sentence (Task 6) – n is the count of accident points
-        // currently rendered in the overview viewport.
-        const overviewN = Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0;
+        // Verification sentence (Task 6) – n MUST be the canonical
+        // Einzelunfall-Tabellen-Zählung (siehe DOCX-Branch oben für die
+        // ausführliche Begründung).
+        const overviewN =
+          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0));
         docDefinition.content.push({
           text: mapVerificationSentence(overviewN),
           style: "small",

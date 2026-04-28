@@ -68,9 +68,12 @@ describe('UA.validateExportConsistency – Pre-Flight-Konsistenz-Gate', () => {
     });
 
     test('tolerates accidentDetails.total ≤ totalAccidents (mask-0 difference)', () => {
-      const pts = [PT(50.73, 7.10), PT(50.74, 7.11)];
+      // Realistisches Szenario: severityStats zählt 2 Punkte (inkl. mask=0),
+      // accidentDetails listet aber nur den 1 involvement-gefilterten Punkt.
+      // viewportPts ist ebenfalls involvement-gefiltert → 1 Punkt → matches
+      // accidentDetails.total. Pre-Flight darf das nicht blockieren.
+      const pts = [PT(50.73, 7.10)];
       const ctx = makeCtx(pts, BBOX);
-      // 2 in bounds (severity), 1 with mask !== 0 (table) – legitimate.
       const structured = {
         totalAccidents: 2,
         accidentDetails: { total: 1 }
@@ -152,13 +155,33 @@ describe('UA.validateExportConsistency – Pre-Flight-Konsistenz-Gate', () => {
     });
 
     test('only counts viewportPts inside the export bbox', () => {
-      // 3 in-bounds, 2 outside. totalAccidents=3 → must succeed.
+      // 3 in-bounds, 2 outside. accidentDetails.total=3 → must succeed.
       const pts = [
         PT(50.73, 7.10), PT(50.74, 7.11), PT(50.75, 7.12), // in
         PT(60.00, 7.10), PT(50.73, 9.00)                   // out
       ];
       const ctx = makeCtx(pts, BBOX);
       const structured = { totalAccidents: 3, accidentDetails: { total: 3 } };
+      expect(UA.validateExportConsistency(ctx, structured)).toEqual({ ok: true });
+    });
+
+    test('uses accidentDetails.total as canonical map↔table comparator (Comments 1+2)', () => {
+      // Realistic case: severityStats counts ALL non-involvement-filtered
+      // points (incl. mask=0) → totalAccidents=5; accidentDetails lists
+      // only the 3 involvement-filtered ones; viewportPts mirrors the
+      // involvement filter → 3. Pre-Flight must compare against
+      // accidentDetails (3==3), NOT totalAccidents (3 !== 5).
+      const pts = [PT(50.73, 7.10), PT(50.74, 7.11), PT(50.75, 7.12)];
+      const ctx = makeCtx(pts, BBOX);
+      const structured = { totalAccidents: 5, accidentDetails: { total: 3 } };
+      expect(UA.validateExportConsistency(ctx, structured)).toEqual({ ok: true });
+    });
+
+    test('falls back to totalAccidents when accidentDetails missing', () => {
+      // Older reports without accidentDetails: keep legacy behaviour.
+      const pts = [PT(50.73, 7.10), PT(50.74, 7.11)];
+      const ctx = makeCtx(pts, BBOX);
+      const structured = { totalAccidents: 2 };
       expect(UA.validateExportConsistency(ctx, structured)).toEqual({ ok: true });
     });
   });
