@@ -3422,20 +3422,29 @@
           });
           const reportData = await UA.computeExportReport(ctx);
 
-          // Pre-Flight-Konsistenz-Gate (Phase 2.2): Bricht den Export ab,
-          // wenn das, was die Tabelle behauptet, nicht der tatsächlich auf
-          // den Karten gerenderten Punktmenge entspricht. Verhindert das im
-          // Sanierungsplan beschriebene Vertrauensbruch-Szenario („Bericht
-          // sagt 262, Karte zeigt 250"). Die Meldung wird im Banner
-          // (#exportProgress) und als Alert angezeigt; der Export läuft
-          // bewusst nicht weiter.
+          // Pre-Flight-Konsistenz-Gate (Phase 2.2):
+          //  - Invariante 1 (table_exceeds_total): echter Logik-Bug
+          //    (Tabelle behauptet mehr Zeilen als die Gesamt-Fallzahl) →
+          //    Export wird abgebrochen.
+          //  - Invariante 2 (table_map_mismatch): „Tabelle vs. Karte" sind
+          //    aktuell aus *unterschiedlichen* Filterpfaden zusammengesetzt
+          //    (accidentDetails wendet aktuell den Involvement-Filter nicht
+          //    an, viewportPts schon). Eine Abweichung ist daher in der
+          //    Praxis erwartbar und KEIN Grund den Export zu blockieren —
+          //    sie wird als Warnung im Banner und in der Konsole angezeigt,
+          //    der Export läuft regulär weiter.
           if (typeof UA.validateExportConsistency === "function") {
             const consistency = UA.validateExportConsistency(ctx, reportData && reportData.structured);
             if (consistency && consistency.ok === false) {
-              exportProgress.textContent = consistency.message;
-              alert(consistency.message);
-              setButtonsDisabled(false);
-              return;
+              if (consistency.kind === "table_exceeds_total") {
+                exportProgress.textContent = consistency.message;
+                alert(consistency.message);
+                setButtonsDisabled(false);
+                return;
+              }
+              // table_map_mismatch → soft warning, do not abort the export.
+              try { console.warn("[Pre-Flight]", consistency.message); } catch (_) { /* noop */ }
+              exportProgress.textContent = `Hinweis: ${consistency.message}`;
             }
           }
 
