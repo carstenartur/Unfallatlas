@@ -465,7 +465,9 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 | `AI_PROVIDER` | `gemini` | Auswahl des KI-Providers (`gemini` oder `null` zum Deaktivieren) |
 | `AI_ASSESSMENT_MODEL` | `gemini-2.0-flash` | Modellname; geht in den Cache-Key ein |
 | `AI_ASSESSMENT_TIMEOUT_MS` | `30000` | Hard-Timeout pro KI-Request (ms) |
-| `AI_ASSESSMENT_MAX_RETRIES` | `2` | Retry-Versuche im strukturierten Provider bei `429`/`5xx` |
+| `AI_ASSESSMENT_MAX_RETRIES` | `2` | Retry-Versuche im strukturierten Provider bei `5xx`/Timeout |
+| `AI_ASSESSMENT_RATELIMIT_RETRIES` | `0` | Retry-Versuche bei `429` (Rate Limit). Standard `0` → `429` wird sofort an den Aufrufer weitergegeben (deterministischer Fallback greift in v2). |
+| `AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS` | `60000` | Mindestwartezeit (ms) zwischen `429`-Retries, wenn kein `Retry-After`-Hinweis vom Server vorliegt (nur relevant bei `RATELIMIT_RETRIES > 0`). |
 | `AI_CACHE_PATH` | – (in-memory) | Optionaler Pfad für Persistenz des KI-Antwort-Caches |
 | `AI_JOBS_PATH` | – (in-memory) | Optionaler Pfad für Persistenz der Job-Queue |
 | `PORTAL_SEARCH_TIMEOUT_MS` | `10000` | HTTP-Timeout für jede Portal-Anfrage der politischen Recherche (ms) |

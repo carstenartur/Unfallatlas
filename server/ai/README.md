@@ -115,8 +115,14 @@ Bestand (v1, unverändert):
   Der Schlüssel ist `sha256( JSON.stringify({ input, promptVersion, model, mode }) )`
   über einer **kanonisch sortierten** Repräsentation des Inputs.  TTL Standard 1h,
   LRU-Verdrängung bei > 200 Einträgen.
-* **Retry/Backoff:** der Provider wiederholt bei `429` und `5xx` mit
-  exponentiellem Backoff (`500 ms · 2^attempt`), Standard bis zu 2 Wiederholungen.
+* **Retry/Backoff:** der Provider unterscheidet zwei Fehlerklassen:
+  * **`429` (Rate Limit):** wird per Default **nicht** retried (`AI_ASSESSMENT_RATELIMIT_RETRIES=0`).
+    Damit landet der Fehler sofort beim deterministischen Fallback, ohne weitere Quota zu verbrennen.
+    Falls retried wird (`RATELIMIT_RETRIES > 0`), wartet der Provider mindestens
+    `AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS` (Standard 60 s) oder den vom Server gelieferten
+    `Retry-After`-Wert.
+  * **`5xx` / Netz-/Timeout-Fehler:** werden mit exponentiellem Backoff (`500 ms · 2^attempt`)
+    bis zu `AI_ASSESSMENT_MAX_RETRIES`-mal (Standard 2) wiederholt.
 * **Concurrency-Queue:** alle Provider-Aufrufe gehen durch
   `AiJobQueue` (Standard `concurrency=1`).  Damit gibt es keine parallelen
   Gemini-Aufrufe pro Server-Prozess.
@@ -133,7 +139,8 @@ Bestand (v1, unverändert):
 |-----------------------------------------------------|--------------------------------------------------------------|
 | `GEMINI_API_KEY` fehlt + `withFallback:true`        | deterministischer Fallback aus Features + Vorselektion       |
 | `GEMINI_API_KEY` fehlt + `withFallback:false`       | HTTP 503                                                      |
-| Provider-Timeout / 429 / 5xx                        | Retry mit Backoff (bis `AI_ASSESSMENT_MAX_RETRIES`)          |
+| Provider-Timeout / 5xx                              | Retry mit Backoff (bis `AI_ASSESSMENT_MAX_RETRIES`)          |
+| Provider `429` (Rate Limit)                         | Kein Retry per Default (sofortiger Fallback); optional via `AI_ASSESSMENT_RATELIMIT_RETRIES` mit `Retry-After`-Auswertung |
 | Provider-Antwort kein gültiges JSON                 | `parseJsonLoose()` extrahiert (Markdown-Fences, eingebettetes JSON) |
 | Schema-Validierung schlägt fehl                     | **einmaliger** Reparaturversuch (gleiche Anfrage + Korrekturhinweis) |
 | Reparaturversuch schlägt fehl + `withFallback:true` | deterministischer Fallback                                    |
@@ -152,7 +159,9 @@ Ergebnis zu liefern.
 | `GEMINI_API_KEY`              | *(Pflicht für KI)*     | API-Schlüssel                              |
 | `AI_ASSESSMENT_MODEL`         | `gemini-2.0-flash`     | Modellname                                 |
 | `AI_ASSESSMENT_TIMEOUT_MS`    | `30000`                | Timeout pro Anfrage                        |
-| `AI_ASSESSMENT_MAX_RETRIES`   | `2`                    | Wiederholungen bei `429`/`5xx`             |
+| `AI_ASSESSMENT_MAX_RETRIES`   | `2`                    | Wiederholungen bei `5xx`/Timeout           |
+| `AI_ASSESSMENT_RATELIMIT_RETRIES` | `0`              | Wiederholungen bei `429` (Standard: kein Retry) |
+| `AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS` | `60000`     | Mindestwartezeit (ms) bei `429`-Retry      |
 
 ---
 
@@ -246,7 +255,9 @@ Verhalten:
 | `AI_PROVIDER`                  | `gemini` (Standard) \| `null`                                 |
 | `AI_ASSESSMENT_MODEL`          | Modellname (Standard `gemini-2.0-flash`)                      |
 | `AI_ASSESSMENT_TIMEOUT_MS`     | Pro-Request-Timeout                                           |
-| `AI_ASSESSMENT_MAX_RETRIES`    | Max. Retries bei 429/5xx/Timeout (Standard 2)                 |
+| `AI_ASSESSMENT_MAX_RETRIES`    | Max. Retries bei 5xx/Timeout (Standard 2)                     |
+| `AI_ASSESSMENT_RATELIMIT_RETRIES` | Retries bei 429 (Standard 0 – kein Retry)                 |
+| `AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS` | Mindestwartezeit bei 429-Retry (Standard 60000 ms)   |
 | `AI_CACHE_PATH`                | Optional: Datei für persistierten Antwort-Cache               |
 | `AI_JOBS_PATH`                 | Optional: Datei für persistierte Jobs                         |
 
