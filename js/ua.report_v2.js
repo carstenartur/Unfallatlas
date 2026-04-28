@@ -1309,6 +1309,39 @@
         }
       }
 
+      // Goldstandard-Sektion 8: Priorisierung (DOCX). Drei-Bucket-Listen
+      // mit den vom User vorgegebenen Überschriften. Leere Buckets werden
+      // explizit ausgewiesen, damit die Wahrnehmung nicht zu „nur lang-
+      // fristig möglich" verschoben wird.
+      if (sd.prioritization && sd.prioritization.meta && sd.prioritization.meta.totals.all > 0) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: "Priorisierung (Umsetzungshorizont)", bold: true, size: 24 })],
+          spacing: { before: 240, after: 120 }
+        }));
+        const renderBucketDocx = (heading, bucket) => {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: heading, bold: true })],
+            spacing: { before: 120, after: 40 }
+          }));
+          if (bucket.length === 0) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: "— keine Maßnahmen in diesem Horizont —", italics: true })],
+              spacing: { after: 40 }
+            }));
+            return;
+          }
+          for (const it of bucket) {
+            children.push(new Paragraph({
+              text: `• ${it.label} (Vorlauf: ${it.leadTime})`,
+              spacing: { after: 20 }
+            }));
+          }
+        };
+        renderBucketDocx("Kurzfristig (0–3 Monate)", sd.prioritization.kurzfristig);
+        renderBucketDocx("Mittelfristig (3–12 Monate)", sd.prioritization.mittelfristig);
+        renderBucketDocx("Langfristig (>12 Monate)", sd.prioritization.langfristig);
+      }
+
       // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
         const view = (typeof UA !== "undefined" && UA.resolveAccidentView)
@@ -2631,6 +2664,31 @@
         if (sd.recommendedMeasures.disclaimer) {
           docDefinition.content.push({ text: sd.recommendedMeasures.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
         }
+      }
+
+      // Goldstandard-Sektion 8: Priorisierung (PDF). Drei-Bucket-Listen
+      // analog zur DOCX-Sektion oben. Leere Buckets werden explizit
+      // ausgewiesen, damit das Bild „der Bereich erfordert nur lange
+      // Maßnahmen" nicht entsteht.
+      if (sd.prioritization && sd.prioritization.meta && sd.prioritization.meta.totals.all > 0) {
+        docDefinition.content.push({ text: "Priorisierung (Umsetzungshorizont)", style: "h2", margin: [0, 12, 0, 6] });
+        const renderBucketPdf = (heading, bucket) => {
+          docDefinition.content.push({ text: heading, bold: true, margin: [0, 6, 0, 2] });
+          if (bucket.length === 0) {
+            docDefinition.content.push({ text: "— keine Maßnahmen in diesem Horizont —", italics: true, color: "#666666", margin: [10, 0, 0, 0] });
+            return;
+          }
+          for (const it of bucket) {
+            docDefinition.content.push({
+              text: `• ${it.label} (Vorlauf: ${it.leadTime})`,
+              style: "normal",
+              margin: [10, 0, 0, 0]
+            });
+          }
+        };
+        renderBucketPdf("Kurzfristig (0–3 Monate)", sd.prioritization.kurzfristig);
+        renderBucketPdf("Mittelfristig (3–12 Monate)", sd.prioritization.mittelfristig);
+        renderBucketPdf("Langfristig (>12 Monate)", sd.prioritization.langfristig);
       }
 
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {

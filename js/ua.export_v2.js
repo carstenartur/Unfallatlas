@@ -1620,6 +1620,38 @@
       lines.push("");
     }
 
+    // Goldstandard-Sektion 8: Priorisierung nach Umsetzungshorizont.
+    // Bezirksvertretungen erwarten klare Zeit-Buckets („was ist in 3
+    // Monaten machbar?"). Wir berechnen die Priorisierung hier einmal
+    // (deterministisch aus `recommendedMeasures.measures[]`) und teilen
+    // das Ergebnis sowohl mit dem HTML-Renderer (HTML-Section unten) als
+    // auch mit `structured.prioritization`, das DOCX/PDF/AI konsumieren.
+    // null, wenn der includeMeasures-Toggle aus oder die Liste leer ist.
+    const _prioritization = (includeMeasures && recommendedMeasures
+        && UA.measures && typeof UA.measures.buildPrioritization === "function")
+      ? UA.measures.buildPrioritization(recommendedMeasures)
+      : null;
+    if (_prioritization && _prioritization.meta && _prioritization.meta.totals.all > 0) {
+      lines.push("Priorisierung (Umsetzungshorizont):");
+      const renderBucket = (heading, bucket) => {
+        if (bucket.length === 0) {
+          lines.push(`  ${heading}: — keine Maßnahmen in diesem Horizont —`);
+          return;
+        }
+        lines.push(`  ${heading}:`);
+        for (const it of bucket) {
+          lines.push(`    – ${it.label} (Vorlauf: ${it.leadTime})`);
+        }
+      };
+      renderBucket("Kurzfristig (0–3 Monate)", _prioritization.kurzfristig);
+      renderBucket("Mittelfristig (3–12 Monate)", _prioritization.mittelfristig);
+      renderBucket("Langfristig (>12 Monate)", _prioritization.langfristig);
+      // "unbekannt" bewusst NICHT rendern, um den Eindruck einer vierten
+      // Kategorie zu vermeiden – falls leadTime fehlt, ist die Maßnahme
+      // bereits in der Hauptliste mit "Vorlauf: —" sichtbar.
+      lines.push("");
+    }
+
     // Add POI information to text report
     if (poiAnalysis && (poiAnalysis.totalWithin > 0 || poiAnalysis.totalNear > 0)) {
       lines.push("POI-Analyse (Schulen, Kindergärten, Kitas):");
@@ -1949,6 +1981,28 @@
         ${recommendedMeasures.disclaimer ? `<div style="color:#555; font-size:12px; font-style:italic; margin-top:4px;">${UA.escHtml(recommendedMeasures.disclaimer)}</div>` : ""}`;
     }
 
+    // Goldstandard-Sektion 8: Priorisierung (HTML). Spiegelt die TEXT-
+    // Sektion oben 1:1, aber als kompakte Liste pro Bucket. Ein leerer
+    // Bucket wird explizit ausgewiesen, damit die Wahrnehmung nicht zu
+    // „nur Langfristig möglich" verschoben wird.
+    let prioritizationHtmlSection = "";
+    if (_prioritization && _prioritization.meta && _prioritization.meta.totals.all > 0) {
+      const renderBucketHtml = (heading, bucket) => {
+        if (bucket.length === 0) {
+          return `<div style="margin-top:6px;"><strong>${UA.escHtml(heading)}:</strong> <em style="color:#777;">— keine Maßnahmen in diesem Horizont —</em></div>`;
+        }
+        const items = bucket.map(it =>
+          `<li>${UA.escHtml(it.label)} <span style="color:#666; font-size:12px;">(Vorlauf: ${UA.escHtml(it.leadTime)})</span></li>`
+        ).join("");
+        return `<div style="margin-top:6px;"><strong>${UA.escHtml(heading)}:</strong></div><ul style="margin:2px 0 0 0;">${items}</ul>`;
+      };
+      prioritizationHtmlSection = `
+        <div style="margin-top:12px; font-weight:900;">Priorisierung (Umsetzungshorizont)</div>
+        ${renderBucketHtml("Kurzfristig (0–3 Monate)", _prioritization.kurzfristig)}
+        ${renderBucketHtml("Mittelfristig (3–12 Monate)", _prioritization.mittelfristig)}
+        ${renderBucketHtml("Langfristig (>12 Monate)", _prioritization.langfristig)}`;
+    }
+
     // Build accident-detail HTML section using the active view strategy.
     // Each group has pre-rendered headers (text/html/docx) and we wrap each row
     // with the strategy's renderRow.html callback.
@@ -2100,6 +2154,8 @@
         ${economicImpactHtmlSection}
 
         ${measuresHtmlSection}
+
+        ${prioritizationHtmlSection}
 
         ${accidentHtmlSection}
 
@@ -2253,6 +2309,11 @@
     structured.executiveSummary = buildExecutiveSummary(structured, { mode: exportMode });
     // Task 4: URSACHEN UND MASSNAHMEN-Mapping aus dev.focus + Maßnahmenkatalog.
     structured.causesMeasures = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+    // Goldstandard-Sektion 8: Priorisierung nach Umsetzungshorizont
+    // (Kurzfristig 0–3 Monate / Mittelfristig 3–12 Monate / Langfristig
+    // >12 Monate). Bereits oben für TEXT/HTML berechnet (`_prioritization`),
+    // hier nur durchreichen, damit DOCX/PDF/AI denselben Inhalt sehen.
+    structured.prioritization = _prioritization || null;
     // Task 8: Analytische OSM-Schlussfolgerungen (0–3 Sätze).
     structured.osmInsights = deriveOsmInsights(osmContext);
     // Task 7: Map-Reference-Sätze (Anlage 1 zeigt Konzentration im Bereich …).

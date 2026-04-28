@@ -471,6 +471,115 @@
     return `${range[0]}–${range[1]} %`;
   }
 
+  // --------------------------------------------------------------------
+  // Priorisierung nach Umsetzungshorizont (Goldstandard-Sektion 8).
+  // --------------------------------------------------------------------
+  // Bezirksvertretungen brauchen nicht die volle Maßnahmen­liste, sondern
+  // eine 30-Sekunden-Antwort darauf, *wann* welche Schritte realistisch
+  // umsetzbar sind. Wir leiten die Zuordnung deterministisch aus der
+  // `leadTime`-Spannweite jedes Maßnahmen-Eintrags im Katalog ab — kein
+  // neuer Datenkanal, keine zusätzliche Quelle, keine Heuristik im
+  // Renderer.
+  //
+  // Regel (entspricht 1:1 dem User-Goldstandard "0–3 / 3–12 / >12 Monate"):
+  //   - Oberes Ende des Spans Y (aus "X–Y Monate") entscheidet.
+  //   - Y ≤ 3   →  "kurzfristig"
+  //   - Y ≤ 12  →  "mittelfristig"
+  //   - Y > 12  →  "langfristig"
+  //   - parsing fehlgeschlagen / leer →  "unbekannt"
+  //
+  // Liberales Parsing: akzeptiert Bindestrich, Halbgeviertstrich und
+  // Geviertstrich („1-3", „1–3", „1—3 Monate") sowie einzelne Zahlen
+  // („6 Monate" → Y=6).
+  // --------------------------------------------------------------------
+  const TIME_HORIZON_KEYS = Object.freeze(["kurzfristig", "mittelfristig", "langfristig", "unbekannt"]);
+
+  function parseLeadTimeUpperMonths(leadTime) {
+    if (typeof leadTime !== "string") return null;
+    const s = leadTime.trim();
+    if (!s) return null;
+    // Match "<num>[ ]?[-–—][ ]?<num> Monate" or "<num> Monate".
+    const range = s.match(/(\d+)\s*[-\u2013\u2014]\s*(\d+)/);
+    if (range) {
+      const upper = parseInt(range[2], 10);
+      return Number.isFinite(upper) ? upper : null;
+    }
+    const single = s.match(/(\d+)/);
+    if (single) {
+      const n = parseInt(single[1], 10);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+
+  function classifyTimeHorizon(leadTime) {
+    const upper = parseLeadTimeUpperMonths(leadTime);
+    if (upper === null) return "unbekannt";
+    if (upper <= 3) return "kurzfristig";
+    if (upper <= 12) return "mittelfristig";
+    return "langfristig";
+  }
+
+  /**
+   * Bucket recommendedMeasures.measures into the three Goldstandard time
+   * horizons + a residual "unbekannt" slot. Preserves the input order
+   * inside each bucket (which is the score/cost-sorted order produced by
+   * `recommendMeasures`), so the renderers don't have to re-sort.
+   *
+   * The `meta.totals` block lets the renderer surface „Kurzfristig (n=2)"
+   * counts and decide whether an empty bucket should be rendered as
+   * „— keine Maßnahmen in diesem Horizont —" rather than silently
+   * omitted (avoids the misleading impression that only long-term action
+   * is possible).
+   *
+   * @param {object|null} recommendedMeasures  structured.recommendedMeasures shape from `recommendMeasures()`
+   * @returns {{
+   *   kurzfristig: Array,
+   *   mittelfristig: Array,
+   *   langfristig: Array,
+   *   unbekannt: Array,
+   *   meta: { totals: {kurzfristig:number,mittelfristig:number,langfristig:number,unbekannt:number,all:number} }
+   * }}
+   */
+  function buildPrioritization(recommendedMeasures) {
+    const buckets = { kurzfristig: [], mittelfristig: [], langfristig: [], unbekannt: [] };
+    const items = (recommendedMeasures && Array.isArray(recommendedMeasures.measures))
+      ? recommendedMeasures.measures
+      : [];
+
+    for (const item of items) {
+      const m = (item && item.measure) || null;
+      if (!m) continue;
+      const horizon = classifyTimeHorizon(m.leadTime);
+      buckets[horizon].push({
+        id: m.id,
+        label: m.label,
+        leadTime: m.leadTime || "—",
+        horizon,
+        // Carry the original entry so renderers can pull description /
+        // costRange / effect without a second lookup.
+        entry: item
+      });
+    }
+
+    return {
+      kurzfristig: buckets.kurzfristig,
+      mittelfristig: buckets.mittelfristig,
+      langfristig: buckets.langfristig,
+      unbekannt: buckets.unbekannt,
+      meta: {
+        totals: {
+          kurzfristig: buckets.kurzfristig.length,
+          mittelfristig: buckets.mittelfristig.length,
+          langfristig: buckets.langfristig.length,
+          unbekannt: buckets.unbekannt.length,
+          all: buckets.kurzfristig.length + buckets.mittelfristig.length
+            + buckets.langfristig.length + buckets.unbekannt.length
+        }
+      }
+    };
+  }
+
   UA.measures = {
     loadBaseCatalog,
     loadCityOverride,
@@ -483,6 +592,9 @@
     osmCoverage,
     formatCostRange,
     formatReductionRange,
+    classifyTimeHorizon,
+    buildPrioritization,
+    TIME_HORIZON_KEYS,
     FALLBACK,
     _resetCache
   };
