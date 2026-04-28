@@ -390,7 +390,20 @@
       // A short wait gives Leaflet a tick to lay out the overlay layer
       // before leaflet-image walks the layer list.
       await new Promise(r => setTimeout(r, 50));
-      return await UA.captureMapImage(ctx, options);
+      // leaflet-image ignores the canvas CSS opacity that beginExportMapMode
+      // sets, so we additionally clamp the baked heatmap opacity used by
+      // captureMapImage to the same ≤0.35 ceiling. Cloned to avoid mutating
+      // the caller's options object.
+      const exportOptions = { ...options };
+      const HEAT_EXPORT_CEILING = 0.35;
+      if (typeof exportOptions.heatmapExportOpacity === "number"
+          && Number.isFinite(exportOptions.heatmapExportOpacity)) {
+        exportOptions.heatmapExportOpacity = Math.min(
+          exportOptions.heatmapExportOpacity, HEAT_EXPORT_CEILING);
+      } else {
+        exportOptions.heatmapExportOpacity = HEAT_EXPORT_CEILING;
+      }
+      return await UA.captureMapImage(ctx, exportOptions);
     } finally {
       if (typeof UA.endExportMapMode === "function") {
         try { UA.endExportMapMode(ctx, token); } catch { /* swallow */ }

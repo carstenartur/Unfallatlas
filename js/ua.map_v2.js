@@ -236,8 +236,10 @@
     const o = opts || {};
     const maxTargets = Math.max(0, Math.min(3,
       Number.isFinite(Number(o.maxTargets)) ? Number(o.maxTargets) : 2));
-    const minTotal = Math.max(2, Number(o.minTotal) || 5);
-    const minSepM = Math.max(0, Number(o.minSeparationM) || 200);
+    const minTotal = Math.max(2,
+      Number.isFinite(Number(o.minTotal)) ? Number(o.minTotal) : 5);
+    const minSepM = Math.max(0,
+      Number.isFinite(Number(o.minSeparationM)) ? Number(o.minSeparationM) : 200);
     const hotspots = UA.computeTopHotspots(points, { k: 3, minTotal });
     if (!hotspots.length || maxTargets === 0) return [];
 

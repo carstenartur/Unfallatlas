@@ -106,6 +106,25 @@ describe('UA.deriveSpatialArgumentation (Task 6)', () => {
     expect(out[0]).toMatch(/räumlich verteilt|kein dominanter Knotenpunkt/);
   });
 
+  test('uses singular wording for the fallback when only a single hotspot exists', () => {
+    // One hotspot cell with 4 points + 5 spread-out singletons.
+    // Top share = 4/9 ≈ 44 % → does NOT trigger the ≥50% concentration branch
+    // and there is only one cell with ≥2 → falls into the default branch
+    // with ranked.length === 1 (must use singular German wording).
+    const pts = [];
+    for (let i = 0; i < 4; i++) pts.push({ lat: 52.37500 + i * 0.00001, lon: 9.73000 + i * 0.00001 });
+    pts.push({ lat: 52.39000, lon: 9.80000 });
+    pts.push({ lat: 52.40000, lon: 9.81000 });
+    pts.push({ lat: 52.41000, lon: 9.82000 });
+    pts.push({ lat: 52.42000, lon: 9.83000 });
+    pts.push({ lat: 52.43000, lon: 9.84000 });
+    const out = UA.deriveSpatialArgumentation(pts);
+    expect(out.length).toBe(1);
+    // Must NOT contain the ungrammatical "1 räumlich getrennte Schwerpunkte".
+    expect(out[0]).not.toMatch(/1 räumlich getrennte Schwerpunkte/);
+    expect(out[0]).toMatch(/ein räumlich abgegrenzter Schwerpunkt/);
+  });
+
   test('ignores points without finite coordinates', () => {
     const pts = [
       { lat: NaN, lon: 9.7 },

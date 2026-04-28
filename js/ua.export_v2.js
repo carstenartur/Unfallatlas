@@ -324,8 +324,8 @@
   // Task 6 – Räumliche Argumentation aus Unfallkoordinaten
   // --------------------
   /**
-   * Leitet aus den tatsächlichen Unfallkoordinaten 1–2 Sätze ab, die das
-   * räumliche Muster benennen (Knotenpunkt-Konzentration, Korridor entlang
+   * Leitet aus den tatsächlichen Unfallkoordinaten genau einen Satz ab, der
+   * das räumliche Muster benennt (Knotenpunkt-Konzentration, Korridor entlang
    * einer Achse, mehrere verteilte Schwerpunkte oder durchgängige
    * Verteilung). Bewusst koordinatenbasiert – die Heatmap zeigt nur
    * aggregierte Dichte und darf laut Aufgabenstellung nicht als alleinige
@@ -339,12 +339,12 @@
    *     - "konzentriert"        : eine Zelle deckt ≥ 50 % aller Punkte ab.
    *     - "knotenpunktnah"      : 2–3 Top-Zellen, paarweise Abstand ≤ 150 m.
    *     - "korridor"            : Top-Zellen liegen entlang einer Achse
-   *                               (Hauptvarianz ≥ 3× Querkomponente, Spannweite ≥ 200 m).
+   *                               (Hauptvarianz ≥ 9× Querkomponente, Spannweite ≥ 200 m).
    *     - "verteilte_schwerpunkte": mehrere Zellen, kein dominanter Knoten.
    *     - "diffus"              : keine Zelle erreicht den Mindestcluster.
    *
    * @param {Array<{lat:number,lon:number}>} points
-   * @returns {string[]} 0–2 Sätze, fertig formatiert (deutsch).
+   * @returns {string[]} Genau 0 (n<3) oder 1 Satz, fertig formatiert (deutsch).
    */
   function deriveSpatialArgumentation(points) {
     const sentences = [];
@@ -441,8 +441,12 @@
         return sentences;
       }
     }
-    // Default: mehrere getrennte Schwerpunkte.
-    sentences.push(`Im markierten Bereich treten ${ranked.length} räumlich getrennte Schwerpunkte auf; eine Bündelung an einem einzelnen Knotenpunkt liegt nicht vor.`);
+    // Default: mehrere getrennte Schwerpunkte (oder ein einzelner Schwerpunkt
+    // mit < 50 % Anteil, der bisher keiner anderen Heuristik entspricht).
+    const fallbackSentence = ranked.length === 1
+      ? `Im markierten Bereich tritt ein räumlich abgegrenzter Schwerpunkt auf; eine Bündelung an einem einzelnen Knotenpunkt liegt nicht vor.`
+      : `Im markierten Bereich treten ${ranked.length} räumlich getrennte Schwerpunkte auf; eine Bündelung an einem einzelnen Knotenpunkt liegt nicht vor.`;
+    sentences.push(fallbackSentence);
     return sentences;
   }
   UA.deriveSpatialArgumentation = deriveSpatialArgumentation;
