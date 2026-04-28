@@ -8,8 +8,8 @@
   const DEFAULT_TEMPLATES = {
     intro: `Bezirksratsantrag (Entwurf) – Unfallwerkbank\n\nBetreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im markierten Bereich\n`,
     sachverhalt: `Sachverhalt:\nIm markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.\n\nVerletzungsschwere (Ausschnitt):\n{{severity_summary}}`,
-    beschluss: `Beschlussvorschlag:\nDer Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung.\n3) Monitoring: Nach Umsetzung Evaluation anhand Unfallatlas-Daten der Folgejahre.\n`,
-    hinweis: `Hinweis (intern, vor Versand entfernen): Dieser Text wurde automatisiert erzeugt. Link zur Überarbeitung: {{link}}\n`,
+    beschluss: `Beschlussvorschlag:\nDer Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins, innerhalb von 3 Monaten umzusetzen): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung – mit verbindlichem Umsetzungszeitplan.\n3) Evaluation: Wirksamkeit nach 12 Monaten anhand der Unfallatlas-Daten überprüfen und der Bezirksvertretung berichten.\n`,
+    hinweis: ``,
     lizenz: `Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).\n`
   };
 
@@ -106,6 +106,220 @@
   // Definition wiederverwenden können.
   UA.DARK_FIGURE_NOTE = DARK_FIGURE_NOTE;
 
+  // --------------------
+  // Task 9 / Task 10 – Politischer Sprachmodus
+  // --------------------
+  /**
+   * Übersetzt einen technischen Faktor (Über-/Unterrepräsentation gegenüber
+   * dem Stadtdurchschnitt) in eine politisch-allgemeinverständliche
+   * Formulierung. Ohne `opts.mode` ist der Default `"political"` (Wortband);
+   * `opts.mode = "technical"` (oder jeder andere Wert) liefert die Roh-Faktor-Zahl.
+   *
+   * Bands wurden bewusst eng gewählt, um Übertreibungen zu vermeiden:
+   *   ≥ 2.0  → "mehr als doppelt so häufig wie im Stadtmittel"
+   *   ≥ 1.5  → "rund 1,5-mal so häufig wie im Stadtmittel"
+   *   ≥ 1.35 → "deutlich häufiger als im Stadtmittel"
+   *   < 1.35 → "leicht erhöht gegenüber dem Stadtmittel"
+   *
+   * @param {number} factor   z. B. r.factor aus topDeviations
+   * @param {object} [opts]
+   * @param {string} [opts.mode="political"]  "political" → Wortband, sonst Roh-Faktor.
+   * @returns {string}
+   */
+  function formatFactorPolitical(factor, opts) {
+    const mode = (opts && opts.mode) || "political";
+    if (!Number.isFinite(factor)) return "k. A.";
+    if (mode !== "political") {
+      return `Faktor ${factor.toFixed(2)}`;
+    }
+    if (factor >= 2.0) return "mehr als doppelt so häufig wie im Stadtmittel";
+    if (factor >= 1.5) return "rund 1,5-mal so häufig wie im Stadtmittel";
+    if (factor >= 1.35) return "deutlich häufiger als im Stadtmittel";
+    return "leicht erhöht gegenüber dem Stadtmittel";
+  }
+  UA.formatFactorPolitical = formatFactorPolitical;
+
+  // --------------------
+  // Task 2 – Kurzbewertung / Executive Summary
+  // --------------------
+  /**
+   * Baut deterministisch einen Executive-Summary-Block für den Antrag.
+   * Ableitung erfolgt aus bereits vorhandenen Feldern in `structured`
+   * (deviations, severity, yearlyTrend) – kein neues Analyse-Modul.
+   *
+   * @param {object} structured  Output von computeExportReport.structured
+   * @param {object} [opts]
+   * @param {string} [opts.mode="political"]
+   * @returns {{ classification: string, bullets: string[], urgency: string }}
+   */
+  function buildExecutiveSummary(structured, opts) {
+    const mode = (opts && opts.mode) || "political";
+    const focus = (structured && structured.deviations && Array.isArray(structured.deviations.focus))
+      ? structured.deviations.focus : [];
+    const sev = (structured && structured.severity) || { total: 0, bySev: {} };
+    const yt = (structured && structured.yearlyTrend) || null;
+    const top = focus[0] || null;
+    const total = sev.total || 0;
+
+    // 1) Klassifikation: Unfallschwerpunkt? Wir definieren hier:
+    //    - "auffälliger Unfallschwerpunkt" wenn ein Fokus-Muster mit
+    //      Faktor ≥ 1.5 + isSignificant existiert ODER Anteil Schwer/Tot ≥ 30 %.
+    //    - "Häufungspunkt" bei mind. einem Fokus-Muster (Faktor ≥ 1.35).
+    //    - "unauffällig" sonst.
+    const fatal = Number(sev.bySev && sev.bySev["1"]) || 0;
+    const severe = Number(sev.bySev && sev.bySev["2"]) || 0;
+    const heavyShare = total > 0 ? (fatal + severe) / total : 0;
+    const hasStrongFocus = focus.some(r => r.factor >= 1.5 && r.isSignificant);
+    const hasFocus = focus.length > 0;
+    let classification;
+    if (hasStrongFocus || heavyShare >= 0.30) {
+      classification = "Auffälliger Unfallschwerpunkt – verkehrssicherheitsfachliches Handeln erforderlich.";
+    } else if (hasFocus) {
+      classification = "Lokaler Häufungspunkt mit erhöhtem Risikoprofil – Prüfung empfohlen.";
+    } else {
+      classification = "Im markierten Bereich kein eindeutiger Unfallschwerpunkt erkennbar.";
+    }
+
+    // 2) Bullets (2–4): aus existierenden Feldern. Bei dünner Datenlage
+    //    weniger Bullets statt "k. A."-Bullets (Open-Question-Default).
+    const bullets = [];
+    bullets.push(`Insgesamt ${total} polizeilich erfasste Unfälle mit Personenschaden im markierten Bereich.`);
+    if (top && Number.isFinite(top.factor)) {
+      const factorPhrase = formatFactorPolitical(top.factor, { mode });
+      const lbl = top.textLabel || top.label || "auffälliges Muster";
+      bullets.push(`Schwerpunktmuster ${lbl}: ${factorPhrase}.`);
+    }
+    if (yt && yt.classification) {
+      const tq = trendQualifierText(yt.classification);
+      if (tq) bullets.push(`Mehrjahres-Trend: ${tq}.`);
+    }
+    if (heavyShare > 0) {
+      const pct = (heavyShare * 100).toFixed(0);
+      bullets.push(`Schwere Verletzungsfolgen (Getötete + Schwerverletzte): ${pct} % der erfassten Fälle.`);
+    }
+    // Begrenzen auf 2–4. Wenn weniger als 2 zur Verfügung stehen
+    // (extrem dünne Daten), liefern wir die wenigen ehrlich aus.
+    const limited = bullets.slice(0, 4);
+
+    // 3) Urgency: Klassifikation + Trend.
+    let urgency;
+    const trend = yt && yt.classification;
+    if (hasStrongFocus && (trend === "steigend" || trend === "stagnierend")) {
+      urgency = "Dringliche Befassung geboten – die Häufung ist signifikant und nicht rückläufig.";
+    } else if (hasStrongFocus) {
+      urgency = "Zeitnahe Befassung geboten.";
+    } else if (hasFocus) {
+      urgency = "Befassung empfohlen; Wirksamkeit der Maßnahmen monitoren.";
+    } else {
+      urgency = "Beobachtungsmodus – regelmäßige Auswertung mit Unfallatlas-Daten.";
+    }
+
+    return { classification, bullets: limited, urgency };
+  }
+  UA.buildExecutiveSummary = buildExecutiveSummary;
+
+  // --------------------
+  // Task 4 – Ursachen → Maßnahmen-Mapping
+  // --------------------
+  /**
+   * Deterministischer Fallback, falls der Maßnahmenkatalog für ein
+   * detektiertes Muster keine Empfehlung liefert. Schlüssel = Maske.
+   * Werte = Liste von Maßnahmen-Labels, sehr kurz und politisch lesbar.
+   */
+  const CAUSE_MEASURE_FALLBACK = Object.freeze({
+    1:  ["Oberflächeninstandsetzung", "Schienenquerung sichern", "Engstellen entschärfen"],
+    2:  ["Querungsverbesserung (Mittelinsel/Zebra)", "Sichtbeziehungen herstellen"],
+    3:  ["Trennung Fuß-/Radverkehr", "Querungsverbesserung"],
+    5:  ["Knotenpunkt-Sichtbeziehungen prüfen", "Konfliktarme Radführung", "Tempoanpassung"],
+    6:  ["Querungsverbesserung", "Tempoanpassung", "Sichtbeziehungen prüfen"],
+    7:  ["Knotenpunkt-Umgestaltung", "Getrennte Signalphasen", "Querungsverbesserung"],
+    16: ["Schleppkurven prüfen", "Geometrie-Anpassung", "Lieferzonen ausweisen"],
+    17: ["Abbiegeassistent fördern", "Getrennte Signalphasen", "Sichtbeziehungen am Knoten"],
+    18: ["Sichtbeziehungen am Knoten", "Getrennte Signalphasen für Fußverkehr"],
+    20: ["Fahrbahnbreiten/Engstellen prüfen", "Überholverbot prüfen"],
+    21: ["Knotenumgestaltung mit Radverkehrsführung", "Abbiegeschutz"],
+    22: ["Knotenumgestaltung", "Sicherer Fußverkehr"]
+  });
+
+  /**
+   * Erzeugt strukturierte Zeilen `[{ cause, measures[] }]` für die
+   * "URSACHEN UND MASSNAHMEN"-Sektion.
+   *
+   * @param {Array<{mask:number,label?:string,textLabel?:string}>} detectedFocusRows  z. B. structured.deviations.focus
+   * @param {object|null} recommendedMeasures  structured.recommendedMeasures (kann null sein)
+   * @returns {Array<{ cause: string, mask: number, measures: string[] }>}
+   */
+  function buildCausesMeasuresSection(detectedFocusRows, recommendedMeasures) {
+    const focus = Array.isArray(detectedFocusRows) ? detectedFocusRows : [];
+    if (focus.length === 0) return [];
+
+    // Map: mask -> Liste der Maßnahmen-Labels aus dem Katalog (gefiltert).
+    const catalogByMask = {};
+    if (recommendedMeasures && Array.isArray(recommendedMeasures.measures)) {
+      for (const item of recommendedMeasures.measures) {
+        const m = item && item.measure;
+        if (!m) continue;
+        const tgt = (m.effect && Array.isArray(m.effect.targetPatterns)) ? m.effect.targetPatterns : [];
+        for (const t of tgt) {
+          const key = Number(t);
+          if (!Number.isFinite(key)) continue;
+          if (!catalogByMask[key]) catalogByMask[key] = [];
+          if (!catalogByMask[key].includes(m.label)) catalogByMask[key].push(m.label);
+        }
+      }
+    }
+
+    return focus.map(r => {
+      const mask = Number(r.mask);
+      const cause = r.textLabel || r.label || formatInvolvementCombo(mask, { format: "text" });
+      let measures = (catalogByMask[mask] && catalogByMask[mask].slice(0, 3)) || [];
+      if (measures.length === 0) {
+        const fb = CAUSE_MEASURE_FALLBACK[mask];
+        if (Array.isArray(fb) && fb.length > 0) measures = fb.slice(0, 3);
+      }
+      if (measures.length === 0) {
+        measures = ["Keine spezifische Maßnahme aus Katalog (siehe allgemeine Maßnahmen)."];
+      }
+      return { cause, mask, measures };
+    });
+  }
+  UA.buildCausesMeasuresSection = buildCausesMeasuresSection;
+
+  // --------------------
+  // Task 8 – Analytische OSM-Schlussfolgerungen
+  // --------------------
+  /**
+   * Liefert 0–3 deterministische Sätze, die aus `structured.osmContext.summary`
+   * direkt ableitbar sind (z. B. "Tempo 30 bereits etabliert").
+   * @param {object|null} osmContext
+   * @returns {string[]}
+   */
+  function deriveOsmInsights(osmContext) {
+    const out = [];
+    if (!osmContext || !osmContext.summary) return out;
+    const s = osmContext.summary;
+    if (Number.isFinite(s.cycleInfraShare) && s.cycleInfraShare < 0.30) {
+      out.push("Geringer Anteil sicherer Radinfrastruktur (< 30 % der Hauptachsen) – strukturelles Defizit.");
+    }
+    if (Number.isFinite(s.dominantMaxspeed) && Number(s.speedSampleSize || 0) > 0) {
+      if (s.dominantMaxspeed <= 30) {
+        out.push("Tempo 30 ist bereits etabliert – keine zusätzliche Tempoabsenkung empfohlen; Fokus auf Infrastruktur und Sichtbeziehungen.");
+      } else if (s.dominantMaxspeed >= 50) {
+        out.push("Vorherrschendes Tempolimit ≥ 50 km/h – Tempoabsenkung im Bereich des Schwerpunkts prüfen.");
+      }
+    }
+    if (Number.isFinite(s.crossings) && Number.isFinite(s.trafficSignals)) {
+      if (s.crossings === 0 && s.trafficSignals === 0) {
+        out.push("Keine markierten Querungen oder signalisierten Knoten erfasst – Querungsangebot prüfen.");
+      } else if (s.crossings >= 3 && s.trafficSignals === 0) {
+        out.push("Mehrere markierte Querungen ohne Signalisierung – Sicherung (LSA, Mittelinsel) prüfen.");
+      }
+    }
+    return out;
+  }
+  UA.deriveOsmInsights = deriveOsmInsights;
+
+
   /**
    * Entfernt führende „Marker"-Zeilen, die rein aus einem `[...]`-Block bestehen
    * (z. B. `[Interner Hinweis – vor Versand entfernen]` als erste Zeile von
@@ -144,10 +358,77 @@
   // --------------------
   // 6-Bit-Maske: Rad=1, Fuß=2, PKW=4, Krad=8, Gkfz=16, Sonstig=32
   const COMBO_BITS = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🚌"]];
+  // Deterministische Text-Labels (Task 1) – identische Reihenfolge wie COMBO_BITS,
+  // damit eine 6-Bit-Maske eindeutig auf "[Rad]+[PKW]" abgebildet werden kann.
+  // Entspricht den Ersetzungen in `replaceEmojisForPDF`/`replaceEmojisForDocx`,
+  // wird hier aber primär für Tabellen verwendet, die den Text-Pfad nehmen.
+  const COMBO_BIT_LABELS = [[1,"[Rad]"],[2,"[Fuss]"],[4,"[PKW]"],[8,"[Krad]"],[16,"[Lkw]"],[32,"[Sonst]"]];
   const COMBO_LABEL = {};
   for (let m = 1; m <= 63; m++) {
     COMBO_LABEL[m] = COMBO_BITS.filter(([b]) => m & b).map(([,e]) => e).join("+");
   }
+
+  /**
+   * Task 1 – Deterministische Beteiligungs-Kombinations-Formatierung für
+   * Tabellen (Cross-Tabelle, Pro-Jahr, Einzelunfälle). Ersetzt die ad-hoc
+   * Stringifizierung, die bei kaputtem Datenstand sichtbare "+", "=" oder
+   * "0" zurückließ.
+   *
+   * @param {number|string|null|undefined} input  Maske (0..63) oder beliebiger
+   *        Vorschlags-String (z. B. "🚲+🚗", "[Rad]+[PKW]", "🚲: 4").
+   *        Akzeptiert numerische Strings ("5") als Maske.
+   * @param {object} [opts]
+   * @param {string} [opts.format="text"]  "text" → "[Rad]+[PKW]", "emoji" → "🚲+🚗".
+   * @param {string} [opts.fallback="k. A."] Fallback bei leerem/symbol-only Ergebnis.
+   * @returns {string} Lesbare Beteiligungskombination oder Fallback.
+   */
+  function formatInvolvementCombo(input, opts) {
+    const format = (opts && opts.format) || "text";
+    const fallback = (opts && opts.fallback != null) ? String(opts.fallback) : "k. A.";
+
+    // 1) Numerische Eingabe oder rein-numerischer String → Bitmaske.
+    let mask = null;
+    if (typeof input === "number" && Number.isFinite(input)) {
+      mask = input;
+    } else if (typeof input === "string" && /^-?\d+$/.test(input.trim())) {
+      mask = Number(input.trim());
+    }
+    if (mask != null) {
+      mask = mask & 63; // nur 6 Bits relevant
+      if (mask === 0) return fallback;
+      const bits = format === "emoji" ? COMBO_BITS : COMBO_BIT_LABELS;
+      const parts = bits.filter(([b]) => mask & b).map(([, label]) => label);
+      return parts.length > 0 ? parts.join("+") : fallback;
+    }
+
+    // 2) String: Emojis zu Labels normalisieren (für "text"-Format).
+    if (typeof input === "string") {
+      let s = input;
+      if (format === "text") {
+        // Inline-Normalisierung (gleicher Mapping-Tabelle wie
+        // COMBO_BIT_LABELS und `replaceEmojisForDocx` in ua.report_v2.js –
+        // wir wollen keine cross-module load-order-Abhängigkeit).
+        s = s
+          .replace(/\u{1F6B2}/gu, "[Rad]")
+          .replace(/\u{1F6B6}/gu, "[Fuss]")
+          .replace(/\u{1F697}/gu, "[PKW]")
+          .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]")
+          .replace(/\u{1F69B}/gu, "[Lkw]")
+          .replace(/\u{1F68C}/gu, "[Sonst]");
+      }
+      // Prüfen, ob nach der Normalisierung lesbarer Inhalt übrig ist:
+      // Etiketten wie "[Rad]" enthalten Buchstaben → ok. Fällt das alles weg
+      // und es bleiben nur Trennzeichen/Ziffern/Whitespace, wechseln wir auf
+      // den Fallback (das war exakt der QA-Bug "+, =, 0").
+      const stripped = s.replace(/\[[^\]]+\]/g, "X"); // Etiketten zählen als Inhalt
+      if (!/[A-Za-zÄÖÜäöüß]/.test(stripped)) return fallback;
+      return s.trim() || fallback;
+    }
+
+    // 3) Sonstige Eingaben (null, undefined, {}): Fallback.
+    return fallback;
+  }
+  UA.formatInvolvementCombo = formatInvolvementCombo;
 
   function maskFromProps(pr) {
     // sowohl lower-case als auch Originalfelder tolerieren
@@ -468,7 +749,9 @@
       const classes = Object.entries(r.byMask)
         .map(([m, c]) => ({ m: Number(m), c }))
         .sort((a, b) => b.c - a.c)
-        .map(e => `${COMBO_LABEL[e.m] || ("Mask " + e.m)}=${e.c}`);
+        // Task 1: emoji-Label fürs HTML/PDF (mit pdfInvolvementCell-SVG),
+        // textLabel als deterministischer Bracket-Fallback für DOCX/Klartext.
+        .map(e => `${COMBO_LABEL[e.m] || formatInvolvementCombo(e.m, { format: "emoji" })}=${e.c}`);
       out.push({ year: y, total: r.total, classes });
     }
     return out;
@@ -524,7 +807,15 @@
       // gewollt ist (Stadt-Baseline kennt das Muster nicht, lokal tritt es auf).
       const isSignificant = local.total > 0 && ci.low > baseR;
 
-      rows.push({ mask: m, label: COMBO_LABEL[m] || ("Mask " + m), locCnt, baseCnt, locR, baseR, factor, ciLow: ci.low, ciHigh: ci.high, isSignificant });
+      rows.push({
+        mask: m,
+        // Emoji-Label (für HTML/PDF mit Icon-Substitution) plus
+        // deterministisches Bracket-Label (Task 1, für DOCX/Klartext).
+        label: COMBO_LABEL[m] || formatInvolvementCombo(m, { format: "emoji" }),
+        textLabel: formatInvolvementCombo(m, { format: "text" }),
+        locCnt, baseCnt, locR, baseR, factor,
+        ciLow: ci.low, ciHigh: ci.high, isSignificant
+      });
     }
     rows.sort((a, b) => (b.factor - a.factor));
 
@@ -560,7 +851,12 @@
     const rows = Object.entries(byMask).map(([mStr, v]) => {
       const mask = Number(mStr);
       const total = v.sev1 + v.sev2 + v.sev3;
-      return { mask, label: COMBO_LABEL[mask] || ("Mask " + mask), sev1: v.sev1, sev2: v.sev2, sev3: v.sev3, total };
+      return {
+        mask,
+        label: COMBO_LABEL[mask] || formatInvolvementCombo(mask, { format: "emoji" }),
+        textLabel: formatInvolvementCombo(mask, { format: "text" }),
+        sev1: v.sev1, sev2: v.sev2, sev3: v.sev3, total
+      };
     });
 
     rows.sort((a, b) => b.total - a.total);
@@ -736,6 +1032,13 @@
     // common path where the user disabled the corresponding modal options.
     const includeCosts = !ctx.exportOptions || ctx.exportOptions.includeCosts !== false;
     const includeMeasures = !ctx.exportOptions || ctx.exportOptions.includeMeasures !== false;
+
+    // Task 10: Politischer Sprachmodus. Ausschließlich über
+    // ctx.exportOptions.mode aktiviert (UI-Checkbox #cbPoliticalLanguage).
+    // Wirkt sich auf Faktor-Wording (Task 9) und 95%-KI-Auslassung (Task 10) aus.
+    const exportMode = (ctx.exportOptions && ctx.exportOptions.mode === "political")
+      ? "political"
+      : "technical";
 
     // Load time clusters only when the byTimePattern view is actually active —
     // the other strategies (bySeverity / byInvolvement / flat) ignore the
@@ -973,21 +1276,64 @@
       lines.push(`Datum: ${vars.date}`);
     }
     lines.push("");
+
+    // Task 2 – KURZBEWERTUNG (Executive Summary). Build deterministically
+    // from the structured fields we already computed; renders in TEXT/HTML/
+    // DOCX/PDF as the first content block after the cover.
+    const _executiveSummary = buildExecutiveSummary({
+      deviations: dev, severity: sev, yearlyTrend
+    }, { mode: exportMode });
+    lines.push("KURZBEWERTUNG:");
+    lines.push("  " + _executiveSummary.classification);
+    for (const b of _executiveSummary.bullets) lines.push("  • " + b);
+    lines.push("  " + _executiveSummary.urgency);
+    lines.push("");
+
+    // Task 7 – Map-Reference Sätze unmittelbar nach KURZBEWERTUNG.
+    if (areaName) {
+      lines.push(`Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im Bereich ${areaName}.`);
+    } else {
+      lines.push("Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im markierten Bereich.");
+    }
+    if (loc && (loc.details || loc.label)) {
+      lines.push(`Schwerpunkt der Häufung: ${loc.details || loc.label}.`);
+    }
+    lines.push("");
+
     lines.push(tpl(tSach, vars).trim());
     lines.push("");
 
     if (dev.focus.length) {
       lines.push("Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):");
       for (const r of dev.focus) {
-        const ciStr = `95%-KI: ${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}`;
-        const sigStr = r.isSignificant ? "signifikant" : "nicht signifikant – kleine Datenmenge";
-        lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${r.factor.toFixed(2)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
+        // Task 9/10: Politischer Modus → Faktor in Worten, kein 95%-KI.
+        if (exportMode === "political") {
+          const phrase = formatFactorPolitical(r.factor, { mode: "political" });
+          const lbl = r.textLabel || r.label;
+          lines.push(`- ${lbl}: ${phrase} (lokal ${r.locCnt} Fälle, stadtweit ${r.baseCnt}).`);
+        } else {
+          const ciStr = `95%-KI: ${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}`;
+          const sigStr = r.isSignificant ? "signifikant" : "nicht signifikant – kleine Datenmenge";
+          lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${r.factor.toFixed(2)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
+        }
       }
-      const allNonSignificant = dev.focus.every(r => !r.isSignificant);
-      if (allNonSignificant) {
-        lines.push("Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (kleine Fallzahlen). Die Faktor-Werte sollten mit Vorsicht interpretiert werden.");
+      // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
+      if (exportMode !== "political") {
+        const allNonSignificant = dev.focus.every(r => !r.isSignificant);
+        if (allNonSignificant) {
+          lines.push("Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (kleine Fallzahlen). Die Faktor-Werte sollten mit Vorsicht interpretiert werden.");
+        }
       }
       lines.push("");
+      // Task 4 – URSACHEN UND MASSNAHMEN-Block direkt nach den Abweichungen.
+      const _causes = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+      if (_causes.length > 0) {
+        lines.push("URSACHEN UND MASSNAHMEN (kurz):");
+        for (const c of _causes) {
+          lines.push(`  ${c.cause}: ${c.measures.join("; ")}`);
+        }
+        lines.push("");
+      }
       // Include pattern-specific assessments (Gen-2) if available, else fall back to heuristic
       if (matchedPatterns.length > 0) {
         for (const p of matchedPatterns) {
@@ -1228,8 +1574,15 @@
 
     lines.push(tpl(tBesch, vars).trim());
     lines.push("");
-    lines.push(tpl(tHinw, vars).trim());
-    lines.push("");
+    // Task 6: Interner Hinweis ("automatisiert erzeugt (Vorentwurf)") wird
+    // nicht mehr ausgegeben – `tHinw` ist nun leer (templates/hinweis.txt /
+    // outro_internal_note.txt sind absichtlich entleert). Nur falls ein
+    // Stadt-Override doch noch Inhalt liefert, behalten wir die Zeile.
+    const hinwBody = tpl(tHinw || "", vars).trim();
+    if (hinwBody) {
+      lines.push(hinwBody);
+      lines.push("");
+    }
     lines.push(tpl(tLiz, vars).trim());
 
     const textOut = lines.join("\n").replace(/\n{3,}/g, "\n\n");
@@ -1489,6 +1842,34 @@
         ${groupsHtml}`;
     }
 
+    // Pre-compute map-reference + executive summary HTML helpers (Task 7).
+    const _mapRef0 = areaName
+      ? `Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im Bereich ${areaName}.`
+      : "Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im markierten Bereich.";
+    const _mapRef1 = (loc && (loc.details || loc.label))
+      ? `Schwerpunkt der Häufung: ${loc.details || loc.label}.`
+      : "";
+
+    // Task 4 – HTML-Sektion "Ursachen und Maßnahmen".
+    const _causesHtml = (() => {
+      const cm = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+      if (cm.length === 0) return "";
+      const rowsHtml = cm.map(c => `<tr><td>${UA.escHtml(c.cause)}</td><td>${c.measures.map(m => UA.escHtml(m)).join("; ")}</td></tr>`).join("");
+      return `
+        <div style="margin-top:12px; font-weight:900;">Ursachen und Maßnahmen</div>
+        <table class="report" style="margin-top:6px;">
+          <thead><tr><th>Auffälliges Muster</th><th>Empfohlene Maßnahmen (Auswahl)</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>`;
+    })();
+
+    // Task 8 – HTML-Sektion "OSM-Schlussfolgerungen".
+    const _osmInsightsHtml = (() => {
+      const ins = deriveOsmInsights(osmContext);
+      if (ins.length === 0) return "";
+      return `<div style="margin-top:6px;"><strong>OSM-Schlussfolgerungen:</strong><ul style="margin:4px 0 0 18px;">${ins.map(s => `<li>${UA.escHtml(s)}</li>`).join("")}</ul></div>`;
+    })();
+
     const htmlOut = `
       <div style="font:14px/1.35 system-ui;">
         <div style="font-weight:950; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
@@ -1503,6 +1884,14 @@
   </div>
 ` : ``}
           
+        </div>
+
+        <div style="margin-top:12px; padding:10px 12px; background:#f6f7fb; border-left:4px solid #2a4a8a; border-radius:4px;">
+          <div style="font-weight:950; font-size:14px;">KURZBEWERTUNG</div>
+          <div style="margin-top:4px;">${UA.escHtml(_executiveSummary.classification)}</div>
+          ${_executiveSummary.bullets.length > 0 ? `<ul style="margin:6px 0 0 18px;">${_executiveSummary.bullets.map(b => `<li>${UA.escHtml(b)}</li>`).join("")}</ul>` : ""}
+          <div style="margin-top:6px; font-style:italic;">${UA.escHtml(_executiveSummary.urgency)}</div>
+          <div style="margin-top:6px; color:#444;">${UA.escHtml(_mapRef0)}${_mapRef1 ? " " + UA.escHtml(_mapRef1) : ""}</div>
         </div>
 
         <div style="margin-top:12px; font-weight:900;">Top-Abweichungen</div>
@@ -1522,6 +1911,8 @@
             })()}
           </tbody>
         </table>
+
+        ${_causesHtml}
 
         <div style="margin-top:12px; font-weight:900;">Unfälle pro Jahr (im Ausschnitt)</div>
         <table class="report">
@@ -1640,6 +2031,7 @@
           </tbody>
         </table>
         <div style="font-size:11px; color:#666; margin-top:4px;">Quelle: <a href="${UA.escHtml(osmContext.source.url)}" target="_blank" rel="noopener">${UA.escHtml(osmContext.source.publisher)}</a> (${UA.escHtml(osmContext.source.license)}), via ${UA.escHtml(osmContext.source.retrievedVia)}.</div>
+        ${_osmInsightsHtml}
         ` : (osmContext && osmContext.quality && osmContext.quality.error) ? `
         <div style="margin-top:12px; font-weight:900;">Verkehrsräumlicher Kontext (OSM)</div>
         <div style="font-size:12px; color:#777;">Nicht verfügbar (${UA.escHtml(osmContext.quality.error)}).</div>
@@ -1669,6 +2061,8 @@
     }
     if (ctx.involvementMode) filters.involvementMode = ctx.involvementMode;
 
+    // Task 10: structured.meta.mode reflects exportMode (computed earlier).
+
     const structured = {
       meta: {
         city: CITY_RAW,
@@ -1679,7 +2073,8 @@
         filters,
         gremium: gremiumMatch,
         activeFilterMask,
-        involvementMode: ctx.involvementMode || "or"
+        involvementMode: ctx.involvementMode || "or",
+        mode: exportMode
       },
       severity: sev,
       deviations: dev,
@@ -1698,6 +2093,27 @@
       osmContext,
       darkFigureNote: DARK_FIGURE_NOTE
     };
+
+    // Task 2: KURZBEWERTUNG / Executive Summary aus den bereits berechneten
+    // Strukturdaten ableiten – deterministisch, ohne neue Analyse.
+    structured.executiveSummary = buildExecutiveSummary(structured, { mode: exportMode });
+    // Task 4: URSACHEN UND MASSNAHMEN-Mapping aus dev.focus + Maßnahmenkatalog.
+    structured.causesMeasures = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+    // Task 8: Analytische OSM-Schlussfolgerungen (0–3 Sätze).
+    structured.osmInsights = deriveOsmInsights(osmContext);
+    // Task 7: Map-Reference-Sätze (Anlage 1 zeigt Konzentration im Bereich …).
+    {
+      const mapRefs = [];
+      if (areaName) {
+        mapRefs.push(`Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im Bereich ${areaName}.`);
+      } else {
+        mapRefs.push("Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im markierten Bereich.");
+      }
+      if (loc && (loc.details || loc.label)) {
+        mapRefs.push(`Schwerpunkt der Häufung: ${loc.details || loc.label}.`);
+      }
+      structured.mapReferences = mapRefs;
+    }
 
     return { text: textOut, html: htmlOut, structured };
   };

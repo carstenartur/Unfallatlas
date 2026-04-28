@@ -563,6 +563,20 @@
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
 
+    // Task 5: Dedup-Guard. Renderpfad pro Sektion höchstens einmal ausgeben.
+    // Aktuell rendert dieser Code jede Sektion exakt einmal aus structured;
+    // diese Guard-Set verhindert zukünftige Regressions, bei denen Text-
+    // Fallback (`textLines`) und structured-Pfad denselben Block doppeln.
+    const renderedSections = new Set();
+    /** @returns {boolean} true wenn schon gerendert (Caller überspringt dann). */
+    function _alreadyRendered(name) {
+      if (renderedSections.has(name)) return true;
+      renderedSections.add(name);
+      return false;
+    }
+    // Expose for nested helpers within this function.
+    const sectionGuard = _alreadyRendered;
+
     // Helper: determine if a cross-table row mask matches the active filter
     const afm = (sd && sd.meta && sd.meta.activeFilterMask) || 0;
     const afMode = (sd && sd.meta && sd.meta.involvementMode) || "or";
@@ -681,6 +695,35 @@
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
     }
 
+    // ---- 4b. KURZBEWERTUNG (Task 2) ----
+    if (sd && sd.executiveSummary) {
+      const es = sd.executiveSummary;
+      children.push(new Paragraph({
+        text: "KURZBEWERTUNG",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }));
+      children.push(new Paragraph({
+        children: [new TextRun({ text: es.classification, bold: true })],
+        spacing: { after: 120 }
+      }));
+      for (const b of (es.bullets || [])) {
+        children.push(new Paragraph({ text: "• " + b, spacing: { after: 60 } }));
+      }
+      if (es.urgency) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: es.urgency, italics: true })],
+          spacing: { before: 100, after: 200 }
+        }));
+      }
+      // Task 7 – Map reference sentences immediately after KURZBEWERTUNG.
+      if (Array.isArray(sd.mapReferences) && sd.mapReferences.length > 0) {
+        for (const s of sd.mapReferences) {
+          children.push(new Paragraph({ text: s, spacing: { after: 80 } }));
+        }
+      }
+    }
+
     // ---- 5. SACHVERHALT section ----
     children.push(
       new Paragraph({
@@ -711,7 +754,7 @@
     }
 
     // ---- 6. STATISTIK section with real tables (from structured data) ----
-    if (sd) {
+    if (sd && !sectionGuard("STATISTIK")) {
       children.push(
         new Paragraph({
           text: "STATISTIK",
@@ -737,27 +780,52 @@
 
       // Deviations table
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
+        const isPolitical = sd.meta && sd.meta.mode === "political";
         children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", spacing: { after: 100 } }));
+        const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
+        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2)}`);
         const devRows = sd.deviations.focus.map(r => {
           const locPct = sd.deviations.local.total ? ((r.locR) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          const muster = r.textLabel || fmtCombo(r.mask, { format: "text" });
+          if (isPolitical) {
+            // Task 9/10: politisches Wording; 95%-KI weggelassen.
+            return [muster, String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
+          }
           const ciLowPct = r.ciLow != null ? (r.ciLow * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2) + "×" + (r.isSignificant === false ? " (n.s.)" : "");
-          return [r.label, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
+          return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
-        children.push(makeDocxTable(
-          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
-          devRows
-        ));
-        const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
-        if (allNonSig) {
-          children.push(new Paragraph({
-            text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
-            spacing: { after: 100 }
-          }));
+        const headers = isPolitical
+          ? ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"]
+          : ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"];
+        children.push(makeDocxTable(headers, devRows));
+        if (!isPolitical) {
+          const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
+          if (allNonSig) {
+            children.push(new Paragraph({
+              text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+              spacing: { after: 100 }
+            }));
+          }
         }
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+
+        // Task 4 – URSACHEN UND MASSNAHMEN direkt nach den Abweichungen.
+        if (Array.isArray(sd.causesMeasures) && sd.causesMeasures.length > 0) {
+          children.push(new Paragraph({
+            text: "URSACHEN UND MASSNAHMEN",
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 200, after: 100 }
+          }));
+          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          children.push(makeDocxTable(
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            cmRows
+          ));
+          children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+        }
       }
 
       // Year table
@@ -778,8 +846,11 @@
       // Cross-table: Beteiligungskombination × Schweregrad
       if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
         children.push(new Paragraph({ text: "Beteiligungskombination × Schweregrad:", spacing: { after: 100 } }));
+        // PR-QA Task 1: deterministische Text-Labels in der DOCX-Tabelle.
+        const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
         const ctRows = sd.crossTable.rows.map(r => [
-          r.label, String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
+          r.textLabel || fmtCombo(r.mask, { format: "text" }),
+          String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
         ]);
         // Highlight rows whose mask matches the active filter
         const ctHighlights = sd.crossTable.rows.map(r => isActiveFilterRow(r.mask));
@@ -861,7 +932,8 @@
 
       // Recommended measures (PR-D / B1+B3)
       if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
-          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
+          && !sectionGuard("EMPFOHLENE MASSNAHMEN")) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         children.push(new Paragraph({
@@ -1158,7 +1230,8 @@
     }
 
     // ---- 8c. MEHRJAHRES-TREND (#C2) ----
-    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0) {
+    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0
+        && !sectionGuard("MEHRJAHRES-TREND")) {
       const t = sd.yearlyTrend;
       children.push(new Paragraph({
         text: "MEHRJAHRES-TREND",
@@ -1271,8 +1344,19 @@
         children: [
           new TextRun({ text: `Quelle: ${oc.source.publisher} (${oc.source.license}), via ${oc.source.retrievedVia}.`, italics: true })
         ],
-        spacing: { before: 100, after: 200 }
+        spacing: { before: 100, after: 100 }
       }));
+      // Task 8 – analytische Schlussfolgerungen aus den OSM-Werten.
+      if (Array.isArray(sd.osmInsights) && sd.osmInsights.length > 0) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: "OSM-Schlussfolgerungen:", bold: true })],
+          spacing: { before: 100, after: 60 }
+        }));
+        for (const s of sd.osmInsights) {
+          children.push(new Paragraph({ text: "• " + s, spacing: { after: 60 } }));
+        }
+        children.push(new Paragraph({ text: "", spacing: { after: 100 } }));
+      }
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       children.push(new Paragraph({
         text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
@@ -1308,7 +1392,7 @@
       // Default text if not found
       children.push(
         new Paragraph({
-          text: "Der Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.",
+          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
           spacing: { after: 200 }
         })
       );
@@ -1596,7 +1680,7 @@
       .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
       .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
       .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]")  // 🏍 Motorcycle (optional variation selector)
-      .replace(/\u{1F69B}/gu, "[Gkfz]")    // 🚛 Heavy vehicle
+      .replace(/\u{1F69B}/gu, "[Lkw]")     // 🚛 Heavy vehicle (Gkfz → [Lkw], Task 1)
       .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
   }
 
@@ -1713,6 +1797,14 @@
 
     // Use structured data if available
     const sd = reportData.structured || null;
+
+    // Task 5: Dedup-Guard für PDF (siehe DOCX-Variante).
+    const renderedSections = new Set();
+    function sectionGuard(name) {
+      if (renderedSections.has(name)) return true;
+      renderedSections.add(name);
+      return false;
+    }
 
     // Helper: format percentage for PDF
     function fmtPctPdf(n, total) {
@@ -1904,6 +1996,24 @@
       ));
     }
 
+    // ---- KURZBEWERTUNG (Task 2) ----
+    if (sd && sd.executiveSummary) {
+      const es = sd.executiveSummary;
+      docDefinition.content.push({ text: "KURZBEWERTUNG", style: "subheader" });
+      docDefinition.content.push({ text: es.classification, bold: true, margin: [0, 0, 0, 6] });
+      for (const b of (es.bullets || [])) {
+        docDefinition.content.push({ text: "• " + b, margin: [0, 0, 0, 3] });
+      }
+      if (es.urgency) {
+        docDefinition.content.push({ text: es.urgency, italics: true, margin: [0, 4, 0, 8] });
+      }
+      if (Array.isArray(sd.mapReferences) && sd.mapReferences.length > 0) {
+        for (const s of sd.mapReferences) {
+          docDefinition.content.push({ text: s, margin: [0, 0, 0, 4] });
+        }
+      }
+    }
+
     // ---- SACHVERHALT section ----
     docDefinition.content.push({
       text: "SACHVERHALT",
@@ -1926,7 +2036,7 @@
     }
 
     // ---- STATISTIK section with real tables (from structured data) ----
-    if (sd) {
+    if (sd && !sectionGuard("STATISTIK")) {
       docDefinition.content.push({ text: "STATISTIK", style: "subheader" });
 
       // Severity table
@@ -1942,34 +2052,63 @@
         ]
       ));
 
-      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis
+      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis (or political simplification).
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
+        const isPolitical = sd.meta && sd.meta.mode === "political";
+        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2)}`);
         docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal" });
         const devRows = sd.deviations.focus.map(r => {
           const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          if (isPolitical) {
+            // Task 9/10: politisches Wording, kein 95%-KI.
+            return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
+          }
           const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2) + "x" + (r.isSignificant === false ? " (n.s.)" : "");
           return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
-        // Explicit widths: pattern column gets the slack (*), narrow numeric
-        // columns are sized to their content so the table stops overflowing
-        // on narrower viewports/pageSizes.
-        docDefinition.content.push(makePdfTable(
-          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
-          devRows,
-          undefined,
-          { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
-        ));
-        const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
-        if (allNonSig) {
-          docDefinition.content.push({
-            text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
-            style: "normal",
-            italics: true,
-            margin: [0, 4, 0, 8]
-          });
+        if (isPolitical) {
+          docDefinition.content.push(makePdfTable(
+            ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"],
+            devRows,
+            undefined,
+            { widths: ["*", "auto", "auto", "auto", "*"] }
+          ));
+        } else {
+          // Explicit widths: pattern column gets the slack (*), narrow numeric
+          // columns are sized to their content so the table stops overflowing
+          // on narrower viewports/pageSizes.
+          docDefinition.content.push(makePdfTable(
+            ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
+            devRows,
+            undefined,
+            { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
+          ));
+        }
+        // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
+        if (!isPolitical) {
+          const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
+          if (allNonSig) {
+            docDefinition.content.push({
+              text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+              style: "normal",
+              italics: true,
+              margin: [0, 4, 0, 8]
+            });
+          }
+        }
+        // Task 4 – URSACHEN UND MASSNAHMEN direkt nach den Abweichungen.
+        if (Array.isArray(sd.causesMeasures) && sd.causesMeasures.length > 0) {
+          docDefinition.content.push({ text: "URSACHEN UND MASSNAHMEN", style: "subheader" });
+          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          docDefinition.content.push(makePdfTable(
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            cmRows,
+            undefined,
+            { widths: ["auto", "*"] }
+          ));
         }
       }
 
@@ -2045,7 +2184,8 @@
 
       // Recommended measures (PR-D / B1+B3)
       if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
-          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)) {
+          && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
+          && !sectionGuard("EMPFOHLENE MASSNAHMEN")) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         docDefinition.content.push({ text: "EMPFOHLENE MASSNAHMEN", style: "subheader" });
@@ -2204,7 +2344,7 @@
           text: [
             "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern.\n",
             "Farben: rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte.\n",
-            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Gkfz]=Lkw, [Sonst]=Sonstige.\n",
+            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Lkw]=Lkw/Gkfz, [Sonst]=Sonstige.\n",
             "POIs wie Schulen und Kitas sind hervorgehoben."
           ].join(""),
           style: "small"
@@ -2299,7 +2439,8 @@
     }
 
     // ---- MEHRJAHRES-TREND (#C2) ----
-    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0) {
+    if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0
+        && !sectionGuard("MEHRJAHRES-TREND")) {
       const t = sd.yearlyTrend;
       docDefinition.content.push({ text: "MEHRJAHRES-TREND", style: "subheader" });
       const trendRows = t.years.map((y, i) => [
@@ -2414,8 +2555,16 @@
         text: `Quelle: ${oc.source.publisher} (${oc.source.license}), via ${oc.source.retrievedVia}.`,
         italics: true,
         fontSize: 9,
-        margin: [0, 0, 0, 8]
+        margin: [0, 0, 0, 4]
       });
+      // Task 8 – analytische OSM-Schlussfolgerungen.
+      if (Array.isArray(sd.osmInsights) && sd.osmInsights.length > 0) {
+        docDefinition.content.push({ text: "OSM-Schlussfolgerungen:", bold: true, margin: [0, 4, 0, 2] });
+        for (const s of sd.osmInsights) {
+          docDefinition.content.push({ text: "• " + s, margin: [0, 0, 0, 2] });
+        }
+        docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
+      }
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
       docDefinition.content.push({
@@ -2443,7 +2592,7 @@
       }
     } else {
       docDefinition.content.push({
-        text: "Der Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.",
+        text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
         style: "normal"
       });
     }

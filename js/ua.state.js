@@ -23,6 +23,7 @@
     showOnlyAboveAverage: "showOnlyAboveAverage",
     showSchools: "showSchools",
     showKindergartens: "showKindergartens",
+    showArgumentation: "showArgumentation",
     centerLat: "centerLat",
     centerLon: "centerLon",
     zoom: "zoom",

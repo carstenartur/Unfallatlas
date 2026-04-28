@@ -126,7 +126,8 @@
       showHeatmap: ctx.showHeatmap ? 1 : 0,
       showOnlyAboveAverage: ctx.showOnlyAboveAverage ? 1 : 0,
       showSchools: ctx.showSchools ? 1 : 0,
-      showKindergartens: ctx.showKindergartens ? 1 : 0
+      showKindergartens: ctx.showKindergartens ? 1 : 0,
+      showArgumentation: ctx.showArgumentation ? 1 : 0
     });
     UA.syncViewToUrl(ctx);
   };
@@ -205,6 +206,7 @@
     ctx.showOnlyAboveAverage = UA.qBool("showOnlyAboveAverage", false);
     ctx.showSchools = UA.qBool("showSchools", true);
     ctx.showKindergartens = UA.qBool("showKindergartens", true);
+    ctx.showArgumentation = UA.qBool("showArgumentation", true);
 
     UA.setBtnState(ui.btnModeOr, ctx.involvementMode==="or");
     UA.setBtnState(ui.btnModeAnd, ctx.involvementMode==="and");
