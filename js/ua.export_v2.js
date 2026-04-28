@@ -242,37 +242,54 @@
   });
 
   /**
-   * Erzeugt strukturierte Zeilen `[{ cause, measures[] }]` für die
-   * "URSACHEN UND MASSNAHMEN"-Sektion.
+   * Erzeugt strukturierte Zeilen `[{ cause, mask, measures, measureRefs }]`
+   * für die "URSACHEN UND MASSNAHMEN"-Sektion.
+   *
+   * - `measures` (string[]): Maßnahmen-Labels, max 3 (Backward-compat).
+   * - `measureRefs` (Array<{idx, label}>): 1-basierte Indizes in
+   *   `recommendedMeasures.measures[]`. Renderer können daraus
+   *   „Maßnahme #1 (Tempo-30-Anordnung)" bauen statt das Label
+   *   stumm zu wiederholen (Goldstandard Items 5–6: explizite
+   *   Cross-Reference statt Redundanz).
+   *
+   * Wenn keine Maßnahme zu einer Ursache passt (z. B. Toggle aus
+   * oder Filter zu eng), greift der Fallback aus
+   * `CAUSE_MEASURE_FALLBACK` und `measureRefs` bleibt leer — der
+   * Renderer fällt dann automatisch auf die Label-Darstellung zurück.
    *
    * @param {Array<{mask:number,label?:string,textLabel?:string}>} detectedFocusRows  z. B. structured.deviations.focus
    * @param {object|null} recommendedMeasures  structured.recommendedMeasures (kann null sein)
-   * @returns {Array<{ cause: string, mask: number, measures: string[] }>}
+   * @returns {Array<{ cause: string, mask: number, measures: string[], measureRefs: Array<{idx:number,label:string}> }>}
    */
   function buildCausesMeasuresSection(detectedFocusRows, recommendedMeasures) {
     const focus = Array.isArray(detectedFocusRows) ? detectedFocusRows : [];
     if (focus.length === 0) return [];
 
-    // Map: mask -> Liste der Maßnahmen-Labels aus dem Katalog (gefiltert).
-    const catalogByMask = {};
+    // Map: mask -> Liste von { idx, label } aus recommendedMeasures.measures.
+    // `idx` ist 1-basiert, identisch zur Nummerierung im Empfohlene-
+    // Maßnahmen-Block (TEXT/HTML/DOCX/PDF rendern beide bei 1).
+    const refsByMask = {};
     if (recommendedMeasures && Array.isArray(recommendedMeasures.measures)) {
-      for (const item of recommendedMeasures.measures) {
+      recommendedMeasures.measures.forEach((item, i) => {
         const m = item && item.measure;
-        if (!m) continue;
+        if (!m) return;
         const tgt = (m.effect && Array.isArray(m.effect.targetPatterns)) ? m.effect.targetPatterns : [];
         for (const t of tgt) {
           const key = Number(t);
           if (!Number.isFinite(key)) continue;
-          if (!catalogByMask[key]) catalogByMask[key] = [];
-          if (!catalogByMask[key].includes(m.label)) catalogByMask[key].push(m.label);
+          if (!refsByMask[key]) refsByMask[key] = [];
+          if (!refsByMask[key].some(e => e.idx === i + 1)) {
+            refsByMask[key].push({ idx: i + 1, label: m.label });
+          }
         }
-      }
+      });
     }
 
     return focus.map(r => {
       const mask = Number(r.mask);
       const cause = r.textLabel || r.label || formatInvolvementCombo(mask, { format: "text" });
-      let measures = (catalogByMask[mask] && catalogByMask[mask].slice(0, 3)) || [];
+      const refs = (refsByMask[mask] || []).slice(0, 3);
+      let measures = refs.map(e => e.label);
       if (measures.length === 0) {
         const fb = CAUSE_MEASURE_FALLBACK[mask];
         if (Array.isArray(fb) && fb.length > 0) measures = fb.slice(0, 3);
@@ -280,7 +297,7 @@
       if (measures.length === 0) {
         measures = ["Keine spezifische Maßnahme aus Katalog (siehe allgemeine Maßnahmen)."];
       }
-      return { cause, mask, measures };
+      return { cause, mask, measures, measureRefs: refs };
     });
   }
   UA.buildCausesMeasuresSection = buildCausesMeasuresSection;
@@ -1323,6 +1340,29 @@
             economicImpact: economicImpact,
             osmContext: osmContext
           });
+          // Enrich each entry with `derivedFrom`: the human-readable focus
+          // labels that triggered this measure. This is the explicit link
+          // back to the URSACHEN-block (Goldstandard Items 5–6: avoid
+          // unmoored repetition between „Ursachen" and „Empfohlene
+          // Maßnahmen"). matchedPatterns already carries the masks; we
+          // resolve them against dev.focus once so renderers can simply
+          // print labels without re-doing the lookup per format.
+          if (recommendedMeasures && Array.isArray(recommendedMeasures.measures)) {
+            const focusByMask = new Map();
+            for (const r of (dev.focus || [])) {
+              const k = Number(r.mask);
+              if (Number.isFinite(k) && !focusByMask.has(k)) {
+                focusByMask.set(k, r.textLabel || r.label || formatInvolvementCombo(k, { format: "text" }));
+              }
+            }
+            for (const item of recommendedMeasures.measures) {
+              const masks = Array.isArray(item.matchedPatterns) ? item.matchedPatterns : [];
+              item.derivedFrom = masks
+                .map(m => Number(m))
+                .filter(Number.isFinite)
+                .map(m => ({ mask: m, label: focusByMask.get(m) || formatInvolvementCombo(m, { format: "text" }) }));
+            }
+          }
         }
       } catch (e) {
         console.warn("Measure recommendation failed:", e);
@@ -1476,7 +1516,16 @@
       if (_causes.length > 0) {
         lines.push("URSACHEN UND MASSNAHMEN (kurz):");
         for (const c of _causes) {
-          lines.push(`  ${c.cause}: ${c.measures.join("; ")}`);
+          // Wenn die Empfohlene-Maßnahmen-Liste die Maßnahme bereits
+          // enthält, referenzieren wir per „#N (Label)" — so sieht der
+          // Leser die Verbindung zur Detail-Liste unten und wir
+          // wiederholen das Label nicht stumm. Ohne Cross-Refs (z. B.
+          // Maßnahmen-Toggle aus, Fallback aus CAUSE_MEASURE_FALLBACK)
+          // bleibt die alte Label-Liste erhalten.
+          const list = (c.measureRefs && c.measureRefs.length > 0)
+            ? c.measureRefs.map(e => `#${e.idx} (${e.label})`).join("; ")
+            : c.measures.join("; ");
+          lines.push(`  ${c.cause}: ${list}`);
         }
         lines.push("");
       }
@@ -1598,6 +1647,13 @@
         lines.push(`  ${i}. ${m.label}`);
         if (m.description) lines.push(`     ${m.description}`);
         lines.push(`     Kosten: ${cost} pro ${m.perUnit || "Einheit"} · erwartete Reduktion: ${red} ·${ev} · Vorlauf: ${m.leadTime || "—"}`);
+        // Goldstandard Items 5–6: Cross-Reference zurück in den
+        // URSACHEN-Block. Macht für den Leser explizit, *warum* genau
+        // diese Maßnahme vorgeschlagen wird — und verhindert, dass der
+        // Eindruck einer beliebigen, unverbundenen Liste entsteht.
+        if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
+          lines.push(`     Abgeleitet aus auffälligem Muster: ${item.derivedFrom.map(d => d.label).join(" · ")}`);
+        }
         if (item.amortisation && item.amortisation.years) {
           const [best, worst] = item.amortisation.years;
           lines.push(`     Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre (Best- bis Worst-Case).`);
@@ -1938,6 +1994,12 @@
         const considerationsHtml = (Array.isArray(m.considerations) && m.considerations.length > 0)
           ? `<ul style="margin:4px 0 0 18px; padding:0; color:#555; font-size:12px;">${m.considerations.map(c => `<li>${UA.escHtml(c)}</li>`).join("")}</ul>`
           : "";
+        // Goldstandard Items 5–6: explizite Cross-Reference auf den
+        // URSACHEN-Block. Das macht die Maßnahme nachvollziehbar und
+        // verhindert die Wahrnehmung „beliebige Liste".
+        const derivedHtml = (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0)
+          ? `<div style="color:#555; font-size:12px; margin-top:2px;"><strong>Abgeleitet aus:</strong> ${item.derivedFrom.map(d => UA.escHtml(d.label)).join(" · ")}</div>`
+          : "";
         return `
           <li style="margin-bottom:10px;">
             <div style="font-weight:700;">${UA.escHtml(m.label)}</div>
@@ -1947,6 +2009,7 @@
               <strong>Reduktion:</strong> ${UA.escHtml(red)} ·
               ${ev ? UA.escHtml(ev) + " · " : ""}<strong>Vorlauf:</strong> ${UA.escHtml(m.leadTime || "—")}
             </div>
+            ${derivedHtml}
             ${amort}
             ${considerationsHtml}
           </li>`;
@@ -2056,11 +2119,17 @@
     const _causesHtml = (() => {
       const cm = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
       if (cm.length === 0) return "";
-      const rowsHtml = cm.map(c => `<tr><td>${UA.escHtml(c.cause)}</td><td>${c.measures.map(m => UA.escHtml(m)).join("; ")}</td></tr>`).join("");
+      const rowsHtml = cm.map(c => {
+        // Cross-Reference per Maßnahmen-Nummer, falls verfügbar (siehe TEXT-Block).
+        const right = (c.measureRefs && c.measureRefs.length > 0)
+          ? c.measureRefs.map(e => `<strong>#${e.idx}</strong> ${UA.escHtml(e.label)}`).join("; ")
+          : c.measures.map(m => UA.escHtml(m)).join("; ");
+        return `<tr><td>${UA.escHtml(c.cause)}</td><td>${right}</td></tr>`;
+      }).join("");
       return `
         <div style="margin-top:12px; font-weight:900;">Ursachen und Maßnahmen</div>
         <table class="report" style="margin-top:6px;">
-          <thead><tr><th>Auffälliges Muster</th><th>Empfohlene Maßnahmen (Auswahl)</th></tr></thead>
+          <thead><tr><th>Auffälliges Muster</th><th>Empfohlene Maßnahmen (siehe Liste unten)</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>`;
     })();

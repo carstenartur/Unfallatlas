@@ -1123,9 +1123,16 @@
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 200, after: 100 }
           }));
-          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          // Cross-Reference per Maßnahmen-Nummer, falls verfügbar — sonst
+          // klassische Label-Liste (Backward-compat).
+          const cmRows = sd.causesMeasures.map(c => [
+            c.cause,
+            (c.measureRefs && c.measureRefs.length > 0)
+              ? c.measureRefs.map(e => `#${e.idx} (${e.label})`).join("; ")
+              : c.measures.join("; ")
+          ]);
           children.push(makeDocxTable(
-            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (siehe Liste unten)"],
             cmRows
           ));
           children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
@@ -1274,6 +1281,18 @@
           const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
           const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
           children.push(new Paragraph({ text: meta, spacing: { after: 40 } }));
+          // Goldstandard Items 5–6: explizite Cross-Reference auf den
+          // URSACHEN-Block, damit der Leser sofort sieht, *warum* diese
+          // Maßnahme empfohlen wird.
+          if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
+            children.push(new Paragraph({
+              children: [
+                new TextRun({ text: "Abgeleitet aus auffälligem Muster: ", italics: true }),
+                new TextRun({ text: item.derivedFrom.map(d => d.label).join(" · "), italics: true })
+              ],
+              spacing: { after: 40 }
+            }));
+          }
           if (item.amortisation && item.amortisation.years) {
             const [best, worst] = item.amortisation.years;
             children.push(new Paragraph({
@@ -2541,9 +2560,14 @@
         // Task 4 – URSACHEN UND MASSNAHMEN direkt nach den Abweichungen.
         if (Array.isArray(sd.causesMeasures) && sd.causesMeasures.length > 0) {
           docDefinition.content.push({ text: "URSACHEN UND MASSNAHMEN", style: "subheader" });
-          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          const cmRows = sd.causesMeasures.map(c => [
+            c.cause,
+            (c.measureRefs && c.measureRefs.length > 0)
+              ? c.measureRefs.map(e => `#${e.idx} (${e.label})`).join("; ")
+              : c.measures.join("; ")
+          ]);
           docDefinition.content.push(makePdfTable(
-            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (siehe Liste unten)"],
             cmRows,
             undefined,
             { widths: ["auto", "*"] }
@@ -2644,6 +2668,15 @@
           const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
           const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
           docDefinition.content.push({ text: meta, style: "normal" });
+          // Goldstandard Items 5–6: explizite Cross-Reference auf den
+          // URSACHEN-Block (analog DOCX/HTML/TEXT).
+          if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
+            docDefinition.content.push({
+              text: `Abgeleitet aus auffälligem Muster: ${item.derivedFrom.map(d => d.label).join(" · ")}`,
+              italics: true, fontSize: 10, color: "#555555",
+              margin: [0, 0, 0, 2]
+            });
+          }
           if (item.amortisation && item.amortisation.years) {
             const [best, worst] = item.amortisation.years;
             docDefinition.content.push({ text: `Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre.`, style: "normal" });
