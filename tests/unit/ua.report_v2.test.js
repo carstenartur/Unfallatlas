@@ -400,6 +400,18 @@ describe('UA.report_v2 - Export Functions', () => {
       // No <script> elements should have been injected (CDN loading was skipped)
       expect(appendChildSpy).not.toHaveBeenCalled();
     });
+
+    test('should not invoke onProgress when libraries are already present', async () => {
+      // Real libraries are already set on window in beforeEach.
+      // The onProgress callback should NOT be called when the early-return path is taken.
+      UA._exportLibrariesLoaded = false;
+
+      const progressSpy = jest.fn();
+      await UA.ensureExportLibraries(progressSpy);
+
+      expect(UA._exportLibrariesLoaded).toBe(true);
+      expect(progressSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('exportToPDF', () => {
@@ -451,7 +463,7 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(downloadSpy.mock.calls[0][0]).toMatch(/Bezirksratsantrag_Hannover_.*\.pdf/);
 
       // Verify a real, non-empty PDF is generated (%PDF magic bytes)
-      const buffer = await capturedDoc.getBuffer();
+      const buffer = await new Promise((resolve) => capturedDoc.getBuffer(resolve));
       expect(buffer.length).toBeGreaterThan(0);
       expect(String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3])).toBe('%PDF');
     });

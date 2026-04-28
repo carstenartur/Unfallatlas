@@ -24,7 +24,6 @@
 
       const script = document.createElement('script');
       script.src = src;
-      script.crossOrigin = 'anonymous';
       script.onload = () => resolve();
       script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
       document.head.appendChild(script);
@@ -32,10 +31,31 @@
   }
 
   /**
-   * Ensure export libraries are loaded
+   * Try loading a script from a list of CDN URLs in order, stopping at first success.
+   * @param {string[]} urls - CDN URLs to try (primary first, then fallbacks)
+   * @param {string|null} globalCheck - Global variable name to check if already loaded
    * @returns {Promise<void>}
    */
-  UA.ensureExportLibraries = async function ensureExportLibraries() {
+  async function loadScriptWithFallback(urls, globalCheck) {
+    let lastError;
+    for (const src of urls) {
+      try {
+        await loadScript(src, globalCheck);
+        return;
+      } catch (e) {
+        lastError = e;
+        console.warn(`Failed to load ${src}, trying fallback...`);
+      }
+    }
+    throw lastError;
+  }
+
+  /**
+   * Ensure export libraries are loaded
+   * @param {Function} [onProgress] - Optional callback(message) called as each library loads
+   * @returns {Promise<void>}
+   */
+  UA.ensureExportLibraries = async function ensureExportLibraries(onProgress) {
     if (UA._exportLibrariesLoaded) return;
     
     // In test environment, libraries might already be loaded or mocked
@@ -49,19 +69,41 @@
       UA._exportLibrariesLoaded = true;
       return;
     }
+
+    function progress(msg) {
+      if (typeof onProgress === 'function') onProgress(msg);
+    }
     
     try {
-      // NOTE: Keep CDN versions in sync with package.json and tests/e2e/werkbank.spec.js setupCDNRoutes().
-      // docx@9.x uses dist/index.iife.js (IIFE format); docx@8.x used build/index.umd.js.
-      await Promise.all([
-        loadScript('https://unpkg.com/docx@9.6.1/dist/index.iife.js', 'docx'),
-        loadScript('https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js', 'pdfMake'),
-        loadScript('https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js', 'saveAs')
-      ]);
+      // NOTE: Keep CDN versions in sync with package.json and tests/e2e/helpers.js setupCDNRoutes().
+      // Primary CDN: jsDelivr. Fallback CDN: unpkg.
+      // docx@9.x uses dist/index.iife.js (IIFE format).
+      // pdfmake@0.2.x: vfs_fonts.js registers fonts via pdfMake.addVirtualFileSystem() side-effect.
+      progress('Lade Bibliothek 1/3: docx…');
+      await loadScriptWithFallback([
+        'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js',
+        'https://unpkg.com/docx@9.6.1/dist/index.iife.js'
+      ], 'docx');
+
+      progress('Lade Bibliothek 2/3: pdfMake…');
+      await loadScriptWithFallback([
+        'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/pdfmake.min.js',
+        'https://unpkg.com/pdfmake@0.2.20/build/pdfmake.min.js'
+      ], 'pdfMake');
+
+      progress('Lade Bibliothek 3/3: FileSaver…');
+      await loadScriptWithFallback([
+        'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js',
+        'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js'
+      ], 'saveAs');
       
-      // Load vfs_fonts after pdfMake
-      if (window.pdfMake && !window.pdfMake.vfs) {
-        await loadScript('https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js', null);
+      // Load vfs_fonts after pdfMake so it can register fonts via side-effect
+      if (window.pdfMake) {
+        progress('Lade Schriftarten…');
+        await loadScriptWithFallback([
+          'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/vfs_fonts.js',
+          'https://unpkg.com/pdfmake@0.2.20/build/vfs_fonts.js'
+        ], null);
       }
       
       UA._exportLibrariesLoaded = true;
@@ -2570,8 +2612,10 @@
           button.style.cursor = "not-allowed";
           button.disabled = true;
 
-          // Ensure libraries are loaded (with progress indication)
-          await UA.ensureExportLibraries();
+          // Ensure libraries are loaded (with per-library progress indication)
+          await UA.ensureExportLibraries(function(msg) {
+            exportProgress.textContent = msg;
+          });
           
           exportProgress.textContent = inProgressText;
 
