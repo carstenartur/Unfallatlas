@@ -90,6 +90,193 @@
     return ranked.slice(0, k);
   };
 
+  // Severity colors are also used by the export map overlay – expose them.
+  UA.SEVERITY_COLORS = SEVERITY_COLORS;
+
+  // ----------------------------
+  // PDF/DOCX export – Kartenoptimierung
+  // ----------------------------
+  // Ziel (Aufgabenstellung):
+  //   Im Export sollen einzelne Unfallorte deutlich erkennbar sein
+  //   (Knotenpunkt vs. Korridor), nicht nur die Heatmap-Dichte. Wir
+  //   ergänzen die Karte deshalb vor jeder Aufnahme um eine zusätzliche
+  //   Schicht hochkontraster, severity-farbiger Punkte mit weißem Rand
+  //   und reduzieren parallel die Heatmap-Deckkraft.
+  // Wirkung ist bewusst auf den Export-Pfad beschränkt – die interaktive
+  // Karte bleibt unverändert.
+  // ----------------------------
+
+  // Marker-Größen / -Stile für den Export. Bewusst nur leicht größer als
+  // die interaktiven Marker (radius 4) – wir wollen Sichtbarkeit, aber
+  // weder Überlappung verstärken noch die Karte „verstopfen" (Task 5/7).
+  const EXPORT_MARKER_RADIUS = 6;
+  const EXPORT_MARKER_BORDER = "#ffffff";
+  const EXPORT_MARKER_BORDER_W = 1.5;
+  const EXPORT_HEAT_OPACITY_MAX = 0.35;
+
+  /**
+   * Aktiviert den Export-Stil auf der Karte:
+   *  - dimmt die Heatmap (CSS-Opacity ≤ 0.35), damit Punkte sichtbar bleiben.
+   *  - überlagert die aktuellen Punkte (`ctx.viewportPts`) mit hochkontrast­
+   *    farbigen Severity-Punkten (rot/orange/gelb, weißer Rand).
+   * Liefert ein Token, das `endExportMapMode` zum Wiederherstellen braucht.
+   * Idempotent: ein doppelter Aufruf legt keine zweite Overlay-Schicht an.
+   *
+   * @param {object} ctx
+   * @param {object} [opts]
+   * @param {Array}  [opts.points]   Override für die Punkte (Default: ctx.viewportPts)
+   * @param {number} [opts.radius]   Override für den Marker-Radius (Default 6)
+   * @returns {{layer:object|null, prevHeatOpacity:string|null, active:boolean}}
+   */
+  UA.beginExportMapMode = function beginExportMapMode(ctx, opts) {
+    const token = { layer: null, prevHeatOpacity: null, active: false };
+    if (!ctx || !ctx.map || typeof window === "undefined" || !window.L) return token;
+    if (ctx._exportMapToken) return ctx._exportMapToken; // idempotent
+
+    // 1) Heatmap dimmen (nur CSS – wird von leaflet-image via bake-helper im
+    //    Report-Modul ohnehin in die Pixel gebrannt; wir setzen hier nur das
+    //    sichtbare CSS, damit die Punkte auch beim Live-Capture nicht
+    //    optisch überdeckt werden).
+    if (ctx.heatLayer) {
+      try {
+        const c = ctx.heatLayer._canvas
+          || (ctx.heatLayer._renderer && ctx.heatLayer._renderer._container);
+        if (c && c.style) {
+          token.prevHeatOpacity = c.style.opacity;
+          const cur = parseFloat(c.style.opacity);
+          if (!Number.isFinite(cur) || cur > EXPORT_HEAT_OPACITY_MAX) {
+            c.style.opacity = String(EXPORT_HEAT_OPACITY_MAX);
+          }
+        }
+      } catch { /* keep going – heatmap dimming is a nice-to-have */ }
+    }
+
+    // 2) Severity-Overlay aufbauen.
+    const pts = (opts && Array.isArray(opts.points)) ? opts.points : (ctx.viewportPts || []);
+    const radius = (opts && Number.isFinite(opts.radius)) ? opts.radius : EXPORT_MARKER_RADIUS;
+    const layer = window.L.layerGroup();
+    for (const p of pts) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      const k = String((p.props && p.props.ukategorie) || "");
+      const fill = SEVERITY_COLORS[k] || SEVERITY_COLORS["default"];
+      try {
+        window.L.circleMarker([p.lat, p.lon], {
+          radius,
+          color: EXPORT_MARKER_BORDER,
+          weight: EXPORT_MARKER_BORDER_W,
+          opacity: 1.0,
+          fillColor: fill,
+          fillOpacity: 0.95,
+          // Ohne Interaktion → leaflet-image rendert nur Geometrie.
+          interactive: false
+        }).addTo(layer);
+      } catch { /* skip malformed point */ }
+    }
+    try { layer.addTo(ctx.map); } catch { /* tolerate stub maps in tests */ }
+    token.layer = layer;
+    token.active = true;
+    ctx._exportMapToken = token;
+    return token;
+  };
+
+  /**
+   * Hebt den Export-Stil wieder auf. Sicher gegen doppelte Aufrufe und
+   * gegen abgebrochene Begin-Pfade (token kann undefined/leer sein).
+   */
+  UA.endExportMapMode = function endExportMapMode(ctx, token) {
+    if (!ctx) return;
+    const t = token || ctx._exportMapToken;
+    if (!t) return;
+    if (t.layer) {
+      try { t.layer.remove(); } catch { /* noop */ }
+      t.layer = null;
+    }
+    if (ctx.heatLayer && t.prevHeatOpacity !== null) {
+      try {
+        const c = ctx.heatLayer._canvas
+          || (ctx.heatLayer._renderer && ctx.heatLayer._renderer._container);
+        if (c && c.style) c.style.opacity = t.prevHeatOpacity;
+      } catch { /* noop */ }
+      t.prevHeatOpacity = null;
+    }
+    t.active = false;
+    if (ctx._exportMapToken === t) ctx._exportMapToken = null;
+  };
+
+  /**
+   * Ermittelt zusätzliche, zentrierte Detail-Karten aus den Hotspot-Zellen
+   * (siehe `computeTopHotspots`). Liefert pro Karte:
+   *   { lat, lon, total, zoom, label }
+   * – `zoom` wird aus der Punktdichte abgeleitet (mehr Punkte → näher dran),
+   * – `label` ist ein deutscher Titel für die Bildunterschrift.
+   *
+   * Heuristik (Task 2/3/4):
+   *  - Mindestens 5 Punkte pro Hotspot, sonst nicht eigenständig zeigen.
+   *  - Top-1: Hauptcluster (immer Map B).
+   *  - Top-2: Sekundärcluster (Map C) – nur wenn ≥ 5 Punkte UND vom Top-1
+   *    räumlich getrennt (≥ 200 m), damit nicht zwei nahezu identische
+   *    Karten produziert werden.
+   *  - Zoom-Stufen:
+   *      ≥ 20 Punkte → 19 (Knotenpunkt-Detail)
+   *      ≥ 10 Punkte → 18
+   *      sonst       → 17
+   *
+   * Reine Funktion: keine Leaflet-Abhängigkeit, deterministisch, testbar.
+   *
+   * @param {Array<{lat:number,lon:number}>} points
+   * @param {object} [opts]
+   * @param {number} [opts.maxTargets=2]      Max additional map captures (clamped to 0..3).
+   * @param {number} [opts.minTotal=5]        Minimum points per hotspot. Hard floor of 2 –
+   *                                          smaller values would make every isolated point
+   *                                          a "cluster" and produce noisy maps.
+   * @param {number} [opts.minSeparationM=200] Minimum distance between targets, in metres.
+   * @returns {Array<{lat:number,lon:number,total:number,zoom:number,label:string}>}
+   */
+  UA.computeClusterMapTargets = function computeClusterMapTargets(points, opts) {
+    const o = opts || {};
+    const maxTargets = Math.max(0, Math.min(3,
+      Number.isFinite(Number(o.maxTargets)) ? Number(o.maxTargets) : 2));
+    const minTotal = Math.max(2, Number(o.minTotal) || 5);
+    const minSepM = Math.max(0, Number(o.minSeparationM) || 200);
+    const hotspots = UA.computeTopHotspots(points, { k: 3, minTotal });
+    if (!hotspots.length || maxTargets === 0) return [];
+
+    const M_PER_DEG_LAT = 111320;
+    function distM(a, b) {
+      const meanLat = (a.lat + b.lat) / 2;
+      const mPerDegLon = 111320 * Math.cos(meanLat * Math.PI / 180);
+      const dx = (a.lon - b.lon) * mPerDegLon;
+      const dy = (a.lat - b.lat) * M_PER_DEG_LAT;
+      return Math.hypot(dx, dy);
+    }
+    function zoomFor(total) {
+      if (total >= 20) return 19;
+      if (total >= 10) return 18;
+      return 17;
+    }
+
+    const targets = [];
+    for (const h of hotspots) {
+      if (targets.length >= maxTargets) break;
+      // Mindestabstand zu bereits gewählten Targets, damit keine doppelten
+      // Karten desselben Knotens entstehen (Task 3 verlangt sinnvoll
+      // getrennte räumliche Einheiten).
+      let tooClose = false;
+      for (const t of targets) {
+        if (distM(t, h) < minSepM) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+      targets.push({
+        lat: h.lat,
+        lon: h.lon,
+        total: h.total,
+        zoom: zoomFor(h.total),
+        label: targets.length === 0 ? "Hauptcluster" : "Sekundärcluster"
+      });
+    }
+    return targets;
+  };
+
   // ----------------------------
   // Argumentationsansicht – Overlay (Task 2)
   // ----------------------------

@@ -368,6 +368,36 @@
   // Expose for tests
   UA._detachUncapturableMarkers = detachUncapturableMarkers;
 
+  /**
+   * Capture the current map view styled for export: high-contrast accident
+   * points overlay (severity-coloured, white border) on top of a dimmed
+   * heatmap. This is what the Tasks call for: locations dominate, density
+   * stays as supporting context (Tasks 1, 5, 7).
+   *
+   * The wrapper is symmetric – `endExportMapMode` always runs, even on
+   * capture errors – so the live map state is restored unconditionally.
+   *
+   * @param {Object} ctx
+   * @param {Object} [options]
+   * @returns {Promise<string>} Base64 PNG data URL
+   */
+  UA.captureExportMapImage = async function captureExportMapImage(ctx, options = {}) {
+    let token = null;
+    try {
+      if (typeof UA.beginExportMapMode === "function") {
+        token = UA.beginExportMapMode(ctx);
+      }
+      // A short wait gives Leaflet a tick to lay out the overlay layer
+      // before leaflet-image walks the layer list.
+      await new Promise(r => setTimeout(r, 50));
+      return await UA.captureMapImage(ctx, options);
+    } finally {
+      if (typeof UA.endExportMapMode === "function") {
+        try { UA.endExportMapMode(ctx, token); } catch { /* swallow */ }
+      }
+    }
+  };
+
   // =====================================================================
   // Word Document Export (using docx.js)
   // =====================================================================
@@ -404,7 +434,9 @@
       // Wait for tiles to load and the map to re-render
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      const imageData = await UA.captureMapImage(ctx, options);
+      // Use export-styled capture so individual accident points are visible
+      // on the detail map (Tasks 1, 5).
+      const imageData = await UA.captureExportMapImage(ctx, options);
       return imageData;
     } finally {
       // Always restore original map state
@@ -415,6 +447,64 @@
       }
     }
   }
+
+  /**
+   * Capture additional zoom-in maps for the dominant accident clusters
+   * (Tasks 2, 3, 4). Centers each capture on the actual coordinate centroid
+   * of the cluster (not on selectionBounds), at a zoom level chosen by
+   * point density. Returns at most `opts.maxTargets` captures (default 2).
+   *
+   * Each returned entry: { label, image, total, lat, lon, zoom }.
+   * Failures for individual targets are logged and skipped – we never let a
+   * single cluster capture break the export pipeline.
+   *
+   * @param {Object} ctx
+   * @param {Object} options
+   * @param {Object} [opts]
+   * @returns {Promise<Array<{label:string,image:string,total:number,lat:number,lon:number,zoom:number}>>}
+   */
+  async function captureClusterMaps(ctx, options, opts) {
+    if (!ctx || !ctx.map) return [];
+    if (typeof UA.computeClusterMapTargets !== "function") return [];
+    const points = (ctx.viewportPts && ctx.viewportPts.length)
+      ? ctx.viewportPts
+      : (ctx.allPts || []);
+    const targets = UA.computeClusterMapTargets(points, opts);
+    if (!targets.length) return [];
+
+    const origCenter = ctx.map.getCenter();
+    const origZoom = ctx.map.getZoom();
+    const out = [];
+    try {
+      for (const t of targets) {
+        try {
+          ctx.map.setView([t.lat, t.lon], t.zoom, { animate: false });
+          // Tile load + Leaflet render tick.
+          await new Promise(r => setTimeout(r, 500));
+          const image = await UA.captureExportMapImage(ctx, options);
+          out.push({
+            label: t.label,
+            image,
+            total: t.total,
+            lat: t.lat,
+            lon: t.lon,
+            zoom: t.zoom
+          });
+        } catch (err) {
+          console.warn("Cluster map capture failed for target (graceful fallback):", t, err);
+        }
+      }
+    } finally {
+      try {
+        ctx.map.setView(origCenter, origZoom, { animate: false });
+      } catch (restoreErr) {
+        console.warn("Failed to restore map view after cluster capture:", restoreErr);
+      }
+    }
+    return out;
+  }
+  // Exported for tests; the public name stays inside the IIFE.
+  UA._captureClusterMaps = captureClusterMaps;
 
   /**
    * Derive a document title from the Gremium type string.
@@ -1086,7 +1176,7 @@
           })
         );
 
-        const mapImageData = await UA.captureMapImage(ctx, options);
+        const mapImageData = await UA.captureExportMapImage(ctx, options);
         
         // Remove data URL prefix to get raw base64 (leaflet-image produces PNG)
         const base64Data = mapImageData.replace(/^data:image\/png;base64,/, "");
@@ -1117,7 +1207,7 @@
         const legendText =
           ctx && typeof ctx.t === "function"
             ? ctx.t("report.map.legend")
-            : "Legende: Darstellung entsprechend der aktuellen Kartendarstellung.";
+            : "Legende: Darstellung entsprechend der aktuellen Kartendarstellung. Punkte: rot = Getötete, orange = Schwerverletzte, gelb = Leichtverletzte.";
 
         children.push(
           new Paragraph({
@@ -1153,6 +1243,35 @@
           } catch (detailErr) {
             console.warn("Detail map capture failed (graceful fallback):", detailErr);
           }
+        }
+
+        // Cluster maps: one zoom-in per dominant accident hotspot (Tasks 2, 3, 4).
+        try {
+          const clusterMaps = await captureClusterMaps(ctx, options);
+          for (const cm of clusterMaps) {
+            const cBase64 = cm.image.replace(/^data:image\/png;base64,/, "");
+            let cBinary;
+            try {
+              cBinary = atob(cBase64);
+            } catch {
+              console.warn("Cluster map image could not be decoded – skipping");
+              continue;
+            }
+            children.push(new Paragraph({
+              text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
+              heading: HeadingLevel.HEADING_3,
+              spacing: { before: 200, after: 100 }
+            }));
+            children.push(new Paragraph({
+              children: [new ImageRun({
+                data: Uint8Array.from(cBinary, c => c.charCodeAt(0)),
+                transformation: { width: 600, height: 400 }
+              })],
+              spacing: { after: 200 }
+            }));
+          }
+        } catch (clusterErr) {
+          console.warn("Cluster maps capture failed (graceful fallback):", clusterErr);
         }
       } catch (e) {
         console.error("Map capture failed:", e);
@@ -2316,7 +2435,7 @@
           style: "subheader"
         });
 
-        const mapImageData = await UA.captureMapImage(ctx, options);
+        const mapImageData = await UA.captureExportMapImage(ctx, options);
         const werkbankUrl = buildWerkbankUrl(ctx);
 
         // Calculate image dimensions: constrain to A4 content area (475pt wide, ~650pt tall)
@@ -2343,7 +2462,7 @@
         docDefinition.content.push({
           text: [
             "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern.\n",
-            "Farben: rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte.\n",
+            "Punkte: rot = Getötete, orange = Schwerverletzte, gelb = Leichtverletzte (mit weißem Rand für Sichtbarkeit).\n",
             "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Lkw]=Lkw/Gkfz, [Sonst]=Sonstige.\n",
             "POIs wie Schulen und Kitas sind hervorgehoben."
           ].join(""),
@@ -2373,6 +2492,27 @@
           } catch (detailErr) {
             console.warn("Detail map capture failed for PDF (graceful fallback):", detailErr);
           }
+        }
+
+        // Cluster maps: one zoomed-in PDF page section per dominant accident
+        // hotspot (Tasks 2, 3, 4). Each map is centered on the actual
+        // coordinate centroid (not on selectionBounds), with a zoom level
+        // chosen by point density.
+        try {
+          const clusterMaps = await captureClusterMaps(ctx, options);
+          for (const cm of clusterMaps) {
+            docDefinition.content.push({
+              text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
+              style: "subheader"
+            });
+            docDefinition.content.push({
+              image: cm.image,
+              fit: [475, 350],
+              margin: [0, 10, 0, 10]
+            });
+          }
+        } catch (clusterErr) {
+          console.warn("Cluster maps capture failed for PDF (graceful fallback):", clusterErr);
         }
       } catch (e) {
         console.error("Map capture failed for PDF:", e);
