@@ -3443,7 +3443,7 @@
                 return;
               }
               // table_map_mismatch → soft warning, do not abort the export.
-              try { console.warn("[Pre-Flight]", consistency.message); } catch (_) { /* noop */ }
+              console.warn("[Pre-Flight]", consistency.message);
               exportProgress.textContent = `Hinweis: ${consistency.message}`;
             }
           }
