@@ -9,6 +9,7 @@
  * NOTE: Keep CDN versions and file paths in sync with package.json and
  * the loadScript() calls in js/ua.report_v2.js ensureExportLibraries().
  * docx@9.x uses dist/index.iife.js; docx@8.x used build/index.umd.js.
+ * Primary CDN is jsDelivr; fallback is unpkg — both are intercepted here.
  *
  * @param {import('@playwright/test').Page} page
  */
@@ -18,16 +19,34 @@ export async function setupCDNRoutes(page) {
   const root = path.resolve(process.cwd());
 
   const routes = [
+    // jsDelivr (primary)
+    {
+      url: 'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js',
+      file: path.join(root, 'node_modules/docx/dist/index.iife.js')
+    },
+    {
+      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/pdfmake.min.js',
+      file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
+    },
+    {
+      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/vfs_fonts.js',
+      file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
+    },
+    {
+      url: 'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js',
+      file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js')
+    },
+    // unpkg (fallback)
     {
       url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
       file: path.join(root, 'node_modules/docx/dist/index.iife.js')
     },
     {
-      url: 'https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js',
+      url: 'https://unpkg.com/pdfmake@0.2.20/build/pdfmake.min.js',
       file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
     },
     {
-      url: 'https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js',
+      url: 'https://unpkg.com/pdfmake@0.2.20/build/vfs_fonts.js',
       file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
     },
     {

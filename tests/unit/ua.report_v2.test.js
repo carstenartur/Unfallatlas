@@ -400,6 +400,46 @@ describe('UA.report_v2 - Export Functions', () => {
       // No <script> elements should have been injected (CDN loading was skipped)
       expect(appendChildSpy).not.toHaveBeenCalled();
     });
+
+    test('should not invoke onProgress when window libraries are pre-loaded (CDN load skipped)', async () => {
+      // Real libraries are already set on window in beforeEach.
+      // With _exportLibrariesLoaded = false, the function still returns early
+      // via the "pre-loaded on window" guard — onProgress should not be called.
+      UA._exportLibrariesLoaded = false;
+
+      const progressSpy = jest.fn();
+      await UA.ensureExportLibraries(progressSpy);
+
+      expect(UA._exportLibrariesLoaded).toBe(true);
+      expect(progressSpy).not.toHaveBeenCalled();
+    });
+
+    test('should share in-flight Promise when called concurrently (no duplicate script injection)', async () => {
+      // Simulate concurrent calls: inject a fake in-flight Promise to simulate a load
+      // already underway and verify that a second call awaits it without injecting new scripts.
+      UA._exportLibrariesLoaded = false;
+      UA._exportLibrariesLoading = null;
+
+      let resolveLoading;
+      const fakeLoading = new Promise((res) => { resolveLoading = res; });
+      UA._exportLibrariesLoading = fakeLoading;
+
+      const appendChildSpy = jest.spyOn(document.head, 'appendChild');
+
+      // Two concurrent calls while a load is in-flight
+      const p1 = UA.ensureExportLibraries();
+      const p2 = UA.ensureExportLibraries();
+
+      // Neither call should have injected any scripts (they both defer to fakeLoading)
+      expect(appendChildSpy).not.toHaveBeenCalled();
+
+      // Both calls resolve once the in-flight Promise resolves
+      resolveLoading();
+      await Promise.all([p1, p2]); // should not throw
+
+      // Clean up
+      UA._exportLibrariesLoading = null;
+    });
   });
 
   describe('exportToPDF', () => {
@@ -451,7 +491,7 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(downloadSpy.mock.calls[0][0]).toMatch(/Bezirksratsantrag_Hannover_.*\.pdf/);
 
       // Verify a real, non-empty PDF is generated (%PDF magic bytes)
-      const buffer = await capturedDoc.getBuffer();
+      const buffer = await new Promise((resolve) => capturedDoc.getBuffer(resolve));
       expect(buffer.length).toBeGreaterThan(0);
       expect(String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3])).toBe('%PDF');
     });

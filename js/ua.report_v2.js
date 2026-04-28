@@ -1,8 +1,9 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
-  // Initialize export libraries loaded flag
+  // Initialize export libraries loaded flag and in-flight load guard
   UA._exportLibrariesLoaded = false;
+  UA._exportLibrariesLoading = null;
 
   // =====================================================================
   // Lazy Loading Utilities for Export Libraries
@@ -24,7 +25,6 @@
 
       const script = document.createElement('script');
       script.src = src;
-      script.crossOrigin = 'anonymous';
       script.onload = () => resolve();
       script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
       document.head.appendChild(script);
@@ -32,10 +32,33 @@
   }
 
   /**
-   * Ensure export libraries are loaded
+   * Try loading a script from a list of CDN URLs in order, stopping at first success.
+   * @param {string[]} urls - CDN URLs to try (primary first, then fallbacks)
+   * @param {string|null} globalCheck - Global variable name to check if already loaded
    * @returns {Promise<void>}
    */
-  UA.ensureExportLibraries = async function ensureExportLibraries() {
+  async function loadScriptWithFallback(urls, globalCheck) {
+    let lastError;
+    for (const src of urls) {
+      try {
+        await loadScript(src, globalCheck);
+        return;
+      } catch (e) {
+        lastError = e;
+        console.warn(`Failed to load ${src}, trying fallback...`);
+      }
+    }
+    throw lastError;
+  }
+
+  /**
+   * Ensure export libraries are loaded.
+   * Concurrent calls share the same in-flight Promise so scripts are only
+   * injected once even if Word and PDF buttons are clicked simultaneously.
+   * @param {Function} [onProgress] - Optional callback(message) called as each library loads
+   * @returns {Promise<void>}
+   */
+  UA.ensureExportLibraries = async function ensureExportLibraries(onProgress) {
     if (UA._exportLibrariesLoaded) return;
     
     // In test environment, libraries might already be loaded or mocked
@@ -49,26 +72,60 @@
       UA._exportLibrariesLoaded = true;
       return;
     }
-    
-    try {
-      // NOTE: Keep CDN versions in sync with package.json and tests/e2e/werkbank.spec.js setupCDNRoutes().
-      // docx@9.x uses dist/index.iife.js (IIFE format); docx@8.x used build/index.umd.js.
-      await Promise.all([
-        loadScript('https://unpkg.com/docx@9.6.1/dist/index.iife.js', 'docx'),
-        loadScript('https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js', 'pdfMake'),
-        loadScript('https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js', 'saveAs')
-      ]);
-      
-      // Load vfs_fonts after pdfMake
-      if (window.pdfMake && !window.pdfMake.vfs) {
-        await loadScript('https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js', null);
-      }
-      
-      UA._exportLibrariesLoaded = true;
-    } catch (e) {
-      console.error('Failed to load export libraries:', e);
-      throw new Error('Export-Bibliotheken konnten nicht geladen werden. Bitte Seite neu laden.');
+
+    // If a load is already in progress, share it to avoid duplicate script injections.
+    // Subsequent callers silently join — progress messages go to the first caller's UI.
+    if (UA._exportLibrariesLoading) {
+      return UA._exportLibrariesLoading;
     }
+
+    function progress(msg) {
+      if (typeof onProgress === 'function') onProgress(msg);
+    }
+
+    UA._exportLibrariesLoading = (async function doLoad() {
+      try {
+        // NOTE: Keep CDN versions in sync with package.json and tests/e2e/helpers.js setupCDNRoutes().
+        // Primary CDN: jsDelivr. Fallback CDN: unpkg.
+        // docx@9.x uses dist/index.iife.js (IIFE format).
+        // pdfmake@0.2.x: vfs_fonts.js registers fonts via pdfMake.addVirtualFileSystem() side-effect.
+        progress('Lade Bibliothek 1/3: docx…');
+        await loadScriptWithFallback([
+          'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js',
+          'https://unpkg.com/docx@9.6.1/dist/index.iife.js'
+        ], 'docx');
+
+        progress('Lade Bibliothek 2/3: pdfMake…');
+        await loadScriptWithFallback([
+          'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/pdfmake.min.js',
+          'https://unpkg.com/pdfmake@0.2.20/build/pdfmake.min.js'
+        ], 'pdfMake');
+
+        progress('Lade Bibliothek 3/3: FileSaver…');
+        await loadScriptWithFallback([
+          'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js',
+          'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js'
+        ], 'saveAs');
+        
+        // Load vfs_fonts after pdfMake so it can register fonts via side-effect
+        if (window.pdfMake) {
+          progress('Lade Schriftarten…');
+          await loadScriptWithFallback([
+            'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/vfs_fonts.js',
+            'https://unpkg.com/pdfmake@0.2.20/build/vfs_fonts.js'
+          ], null);
+        }
+        
+        UA._exportLibrariesLoaded = true;
+      } catch (e) {
+        console.error('Failed to load export libraries:', e);
+        throw new Error('Export-Bibliotheken konnten nicht geladen werden. Bitte Seite neu laden.');
+      } finally {
+        UA._exportLibrariesLoading = null;
+      }
+    })();
+
+    return UA._exportLibrariesLoading;
   };
 
   // =====================================================================
@@ -2564,14 +2621,24 @@
       exportFn
     ) {
       button.addEventListener("click", async () => {
+        // Collect all export buttons so both can be disabled during load/export
+        const allExportButtons = [btnExportWord, btnExportPDF].filter(Boolean);
+        function setButtonsDisabled(disabled) {
+          allExportButtons.forEach((btn) => {
+            btn.style.opacity = disabled ? "0.6" : "1";
+            btn.style.cursor = disabled ? "not-allowed" : "pointer";
+            btn.disabled = disabled;
+          });
+        }
         try {
           exportProgress.textContent = "Lade Export-Bibliotheken...";
-          button.style.opacity = "0.6";
-          button.style.cursor = "not-allowed";
-          button.disabled = true;
+          setButtonsDisabled(true);
 
-          // Ensure libraries are loaded (with progress indication)
-          await UA.ensureExportLibraries();
+          // Ensure libraries are loaded (with per-library progress indication).
+          // Concurrent clicks share the same in-flight Promise via UA._exportLibrariesLoading.
+          await UA.ensureExportLibraries(function(msg) {
+            exportProgress.textContent = msg;
+          });
           
           exportProgress.textContent = inProgressText;
 
@@ -2604,9 +2671,7 @@
           exportProgress.textContent = `Fehler: ${e.message}`;
           alert(alertErrorPrefix + e.message);
         } finally {
-          button.style.opacity = "1";
-          button.style.cursor = "pointer";
-          button.disabled = false;
+          setButtonsDisabled(false);
         }
       });
     }
