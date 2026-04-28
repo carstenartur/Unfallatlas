@@ -87,7 +87,8 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
   const retries         = Number.isFinite(maxRetries) ? maxRetries
                          : (Number(process.env.AI_ASSESSMENT_MAX_RETRIES) || 2);
   const rlRetries       = Number(process.env.AI_ASSESSMENT_RATELIMIT_RETRIES) || 0;
-  const rlMinDelayMs    = Number(process.env.AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS) || 60_000;
+  const parsedRlMinDelayMs = Number(process.env.AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS);
+  const rlMinDelayMs    = Number.isFinite(parsedRlMinDelayMs) ? Math.max(parsedRlMinDelayMs, 0) : 60_000;
   const temp            = Number.isFinite(temperature) ? temperature : 0.2;
 
   const url = `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
@@ -106,7 +107,6 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
     generationConfig
   });
 
-  let lastErr;
   let transientUsed  = 0;
   let rlUsed         = 0;
 
@@ -122,7 +122,6 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
       }
       return text;
     } catch (err) {
-      lastErr = err;
       if (!err || !err.retryable) {
         throw err;
       }

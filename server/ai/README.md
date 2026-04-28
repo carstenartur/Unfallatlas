@@ -118,9 +118,9 @@ Bestand (v1, unverändert):
 * **Retry/Backoff:** der Provider unterscheidet zwei Fehlerklassen:
   * **`429` (Rate Limit):** wird per Default **nicht** retried (`AI_ASSESSMENT_RATELIMIT_RETRIES=0`).
     Damit landet der Fehler sofort beim deterministischen Fallback, ohne weitere Quota zu verbrennen.
-    Falls retried wird (`RATELIMIT_RETRIES > 0`), wartet der Provider mindestens
-    `AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS` (Standard 60 s) oder den vom Server gelieferten
-    `Retry-After`-Wert.
+    Falls retried wird (`RATELIMIT_RETRIES > 0`), verwendet der Provider den vom Server gelieferten
+    `Retry-After`-Wert, falls vorhanden; andernfalls fällt er auf
+    `AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS` (Standard 60 s) zurück.
   * **`5xx` / Netz-/Timeout-Fehler:** werden mit exponentiellem Backoff (`500 ms · 2^attempt`)
     bis zu `AI_ASSESSMENT_MAX_RETRIES`-mal (Standard 2) wiederholt.
 * **Concurrency-Queue:** alle Provider-Aufrufe gehen durch

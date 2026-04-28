@@ -191,6 +191,55 @@ describe('callStructuredGemini – 429 with RATELIMIT_RETRIES=1', () => {
     );
   });
 
+  test('uses HTTP-date Retry-After header for sleep delay', async () => {
+    process.env.AI_ASSESSMENT_RATELIMIT_RETRIES = '1';
+    process.env.AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS = '1000';
+
+    // Build an HTTP-date 30 seconds in the future
+    const futureDate = new Date(Date.now() + 30_000).toUTCString();
+    const successBody = makeGeminiResponse('{"result":"ok"}');
+    mockHttpsRequest([
+      { statusCode: 429, headers: { 'retry-after': futureDate }, body: '{"error":{"code":429}}' },
+      { statusCode: 200, body: successBody }
+    ]);
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    const promise = callStructuredGemini({ user: 'hello' });
+    await jest.runAllTimersAsync();
+    await promise;
+
+    // Should sleep roughly 30000ms (allow some tolerance in the log message)
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/sleeping \d+ms/)
+    );
+    expect(https.request).toHaveBeenCalledTimes(2);
+  });
+
+  test('hard-cap clamps delay to RATE_LIMIT_DELAY_HARD_CAP_MS (5 min)', async () => {
+    process.env.AI_ASSESSMENT_RATELIMIT_RETRIES = '1';
+    // No min-delay env set, defaults to 60000; but we send a huge Retry-After
+    process.env.AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS = '0';
+
+    const successBody = makeGeminiResponse('{"result":"ok"}');
+    // Retry-After of 1 hour (3600s) → should be clamped to 5 min (300000ms)
+    mockHttpsRequest([
+      { statusCode: 429, headers: { 'retry-after': '3600' }, body: '{"error":{"code":429}}' },
+      { statusCode: 200, body: successBody }
+    ]);
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    const promise = callStructuredGemini({ user: 'hello' });
+    await jest.runAllTimersAsync();
+    await promise;
+
+    // 3600s → clamped to 300000ms (5 min hard-cap)
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/sleeping 300000ms/)
+    );
+  });
+
   test('uses retryDelay from body JSON when no header present', async () => {
     process.env.AI_ASSESSMENT_RATELIMIT_RETRIES = '1';
     // Set a very short min-delay so only retryDelay matters
@@ -261,6 +310,28 @@ describe('callStructuredGemini – 429 with RATELIMIT_RETRIES=1', () => {
 
     expect(err).toBeInstanceOf(RateLimitError);
     expect(https.request).toHaveBeenCalledTimes(2);
+  });
+
+  test('explicit rlMinDelayMs=0 is respected (not replaced by 60000 default)', async () => {
+    process.env.AI_ASSESSMENT_RATELIMIT_RETRIES = '1';
+    process.env.AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS = '0';
+
+    const successBody = makeGeminiResponse('{"result":"ok"}');
+    // No Retry-After hint → fallback to rlMinDelayMs=0
+    mockHttpsRequest([
+      { statusCode: 429, body: '{"error":{"code":429}}' },
+      { statusCode: 200, body: successBody }
+    ]);
+
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    const promise = callStructuredGemini({ user: 'hello' });
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/sleeping 0ms/)
+    );
   });
 });
 
