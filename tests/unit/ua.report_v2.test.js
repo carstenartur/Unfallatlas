@@ -413,6 +413,33 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(UA._exportLibrariesLoaded).toBe(true);
       expect(progressSpy).not.toHaveBeenCalled();
     });
+
+    test('should share in-flight Promise when called concurrently (no duplicate script injection)', async () => {
+      // Simulate concurrent calls: inject a fake in-flight Promise to simulate a load
+      // already underway and verify that a second call awaits it without injecting new scripts.
+      UA._exportLibrariesLoaded = false;
+      UA._exportLibrariesLoading = null;
+
+      let resolveLoading;
+      const fakeLoading = new Promise((res) => { resolveLoading = res; });
+      UA._exportLibrariesLoading = fakeLoading;
+
+      const appendChildSpy = jest.spyOn(document.head, 'appendChild');
+
+      // Two concurrent calls while a load is in-flight
+      const p1 = UA.ensureExportLibraries();
+      const p2 = UA.ensureExportLibraries();
+
+      // Neither call should have injected any scripts (they both defer to fakeLoading)
+      expect(appendChildSpy).not.toHaveBeenCalled();
+
+      // Both calls resolve once the in-flight Promise resolves
+      resolveLoading();
+      await Promise.all([p1, p2]); // should not throw
+
+      // Clean up
+      UA._exportLibrariesLoading = null;
+    });
   });
 
   describe('exportToPDF', () => {
