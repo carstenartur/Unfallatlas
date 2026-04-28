@@ -2224,6 +2224,12 @@
         involvementMode: ctx.involvementMode || "or",
         mode: exportMode
       },
+      // Kanonische Gesamtzahl der dokumentierten Unfälle (== severity.total).
+      // Wird vom Pre-Flight-Konsistenz-Gate (UA.validateExportConsistency)
+      // gegen die in den Karten gerenderten Punkte geprüft, damit die im
+      // Dokument behauptete Fallzahl ("262 Unfälle") mit der Markerzahl auf
+      // der Karte übereinstimmt. Mismatch → Export bricht ab.
+      totalAccidents: (sev && Number.isFinite(sev.total)) ? sev.total : 0,
       severity: sev,
       deviations: dev,
       yearTable: yr,

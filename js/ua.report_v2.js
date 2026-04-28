@@ -584,6 +584,102 @@
   UA._countPointsInBounds = countPointsInBounds;
 
   /**
+   * Derive a {south,west,north,east} bbox from the export-relevant area on
+   * `ctx`. Mirrors `boundsForExport` in js/ua.export_v2.js (selectionBounds
+   * wins, otherwise the current map viewport). Returns null if no usable
+   * bounds are available — in that case the consistency check below short-
+   * circuits as success.
+   */
+  function exportBoundsFromCtx(ctx) {
+    if (!ctx) return null;
+    const lb = ctx.selectionBounds || (ctx.map && typeof ctx.map.getBounds === "function" ? ctx.map.getBounds() : null);
+    if (!lb || typeof lb.getSouthWest !== "function" || typeof lb.getNorthEast !== "function") return null;
+    const sw = lb.getSouthWest();
+    const ne = lb.getNorthEast();
+    if (!sw || !ne || !Number.isFinite(sw.lat) || !Number.isFinite(sw.lng) || !Number.isFinite(ne.lat) || !Number.isFinite(ne.lng)) return null;
+    return { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng };
+  }
+  UA._exportBoundsFromCtx = exportBoundsFromCtx;
+
+  /**
+   * Pre-Flight-Konsistenz-Gate für PDF/DOCX-Export (Phase 2.2 des Sanierungs-
+   * plans). Stellt die Invariante sicher:
+   *
+   *   accidentDetails.total ≤ structured.totalAccidents
+   *   countPointsInBounds(ctx.viewportPts, exportBbox) === structured.totalAccidents
+   *
+   * Hintergrund: Der Render-Gate für Cluster-Karten (Task 5) prüft nur
+   * einzelne Bounding-Boxen. Eine globale Inkonsistenz – etwa wenn das
+   * Tabellen-Modell mehr Punkte führt, als auf den Karten tatsächlich
+   * gerendert werden – würde dort durchrutschen und Vertrauen brechen
+   * („Bericht behauptet 262, Karte zeigt 250").
+   *
+   * Bei Mismatch liefert die Funktion `{ ok: false, ... }` mit einer
+   * deutschen Fehlermeldung im exakt vom Plan vorgeschriebenen Wortlaut
+   * („Export abgebrochen: Tabelle (n=X) und Karte (n=Y) inkonsistent.").
+   * Aufrufer (Export-Handler) brechen den Export daraufhin ab und zeigen
+   * die Meldung im Modal-Banner (#exportProgress).
+   *
+   * Defensiv: fehlende/unvollständige Eingaben → ok:true (kein false-positive
+   * Abbruch in Tests oder bei sehr kleinen Datensätzen ohne Bounds).
+   *
+   * @param {Object} ctx        Application context (uses ctx.viewportPts und
+   *                            ctx.selectionBounds / ctx.map).
+   * @param {Object} structured Output von UA.computeExportReport(...).structured
+   * @returns {{ok:boolean, message?:string, nTable?:number, nMap?:number, kind?:string}}
+   */
+  function validateExportConsistency(ctx, structured) {
+    if (!structured || typeof structured !== "object") return { ok: true };
+
+    // Kanonische Fallzahl: bevorzugt structured.totalAccidents (Phase-2.2-
+    // Erweiterung), Fallback severity.total für Alt-Reports/Tests.
+    let totalAccidents = null;
+    if (Number.isFinite(structured.totalAccidents)) {
+      totalAccidents = structured.totalAccidents;
+    } else if (structured.severity && Number.isFinite(structured.severity.total)) {
+      totalAccidents = structured.severity.total;
+    }
+    if (totalAccidents === null) return { ok: true };
+
+    // Invariante 1: Detail-Tabelle darf nie mehr Zeilen führen als die
+    // Gesamt-Fallzahl behauptet (mask-0-Punkte werden in accidentDetails
+    // ausgefiltert, sind aber in severity.total mitgezählt → ≤, nicht ===).
+    const ad = structured.accidentDetails;
+    const adTotal = (ad && Number.isFinite(ad.total)) ? ad.total : null;
+    if (adTotal !== null && adTotal > totalAccidents) {
+      return {
+        ok: false,
+        kind: "table_exceeds_total",
+        nTable: adTotal,
+        nMap: totalAccidents,
+        message: `Export abgebrochen: Tabelle (n=${adTotal}) und Karte (n=${totalAccidents}) inkonsistent.`
+      };
+    }
+
+    // Invariante 2: Punkte, die der Export tatsächlich auf der Übersichts-
+    // Karte rendert (= ctx.viewportPts innerhalb der Export-Bounds), müssen
+    // in Anzahl mit der Gesamt-Fallzahl übereinstimmen. Nur so deckt sich
+    // „262 Unfälle im Bereich" (Tabelle) mit den 262 Markern (Karte).
+    const bbox = exportBoundsFromCtx(ctx);
+    const pts = (ctx && Array.isArray(ctx.viewportPts)) ? ctx.viewportPts : null;
+    if (bbox && pts) {
+      const nMap = countPointsInBounds(pts, bbox);
+      if (nMap !== totalAccidents) {
+        return {
+          ok: false,
+          kind: "table_map_mismatch",
+          nTable: totalAccidents,
+          nMap,
+          message: `Export abgebrochen: Tabelle (n=${totalAccidents}) und Karte (n=${nMap}) inkonsistent.`
+        };
+      }
+    }
+
+    return { ok: true };
+  }
+  UA.validateExportConsistency = validateExportConsistency;
+
+  /**
    * Derive a {south,west,north,east} bbox from a Leaflet LatLngBounds object.
    * Tolerant of plain {south,west,north,east} objects (already serialised).
    * Returns null if no usable input.
@@ -3214,6 +3310,23 @@
             includeMeasures: cbIncludeMeasures ? cbIncludeMeasures.checked : true
           });
           const reportData = await UA.computeExportReport(ctx);
+
+          // Pre-Flight-Konsistenz-Gate (Phase 2.2): Bricht den Export ab,
+          // wenn das, was die Tabelle behauptet, nicht der tatsächlich auf
+          // den Karten gerenderten Punktmenge entspricht. Verhindert das im
+          // Sanierungsplan beschriebene Vertrauensbruch-Szenario („Bericht
+          // sagt 262, Karte zeigt 250"). Die Meldung wird im Banner
+          // (#exportProgress) und als Alert angezeigt; der Export läuft
+          // bewusst nicht weiter.
+          if (typeof UA.validateExportConsistency === "function") {
+            const consistency = UA.validateExportConsistency(ctx, reportData && reportData.structured);
+            if (consistency && consistency.ok === false) {
+              exportProgress.textContent = consistency.message;
+              alert(consistency.message);
+              setButtonsDisabled(false);
+              return;
+            }
+          }
 
           // Get export options
           const rawPct = heatExportOpacityEl ? parseInt(heatExportOpacityEl.value, 10) : 40;
