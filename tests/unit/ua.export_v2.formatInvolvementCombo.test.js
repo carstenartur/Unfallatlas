@@ -8,6 +8,8 @@
 
 describe('UA.formatInvolvementCombo (Task 1)', () => {
   let UA;
+  let prevFetch;
+  let hadFetch;
   beforeEach(() => {
     const fs = require('fs');
     const path = require('path');
@@ -25,10 +27,16 @@ describe('UA.formatInvolvementCombo (Task 1)', () => {
     load('ua.costs.js');
     load('ua.measures.js');
     win.fetch = async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => '' });
+    hadFetch = Object.prototype.hasOwnProperty.call(global, 'fetch');
+    prevFetch = global.fetch;
     global.fetch = win.fetch;
     win.L = { latLngBounds: () => {} };
     load('ua.export_v2.js');
     UA = win.UA;
+  });
+  afterEach(() => {
+    if (hadFetch) global.fetch = prevFetch;
+    else delete global.fetch;
   });
 
   test('is exposed on UA', () => {

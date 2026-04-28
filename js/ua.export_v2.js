@@ -112,7 +112,8 @@
   /**
    * Übersetzt einen technischen Faktor (Über-/Unterrepräsentation gegenüber
    * dem Stadtdurchschnitt) in eine politisch-allgemeinverständliche
-   * Formulierung. Default-Modus ("technical") liefert die Roh-Faktor-Zahl.
+   * Formulierung. Ohne `opts.mode` ist der Default `"political"` (Wortband);
+   * `opts.mode = "technical"` (oder jeder andere Wert) liefert die Roh-Faktor-Zahl.
    *
    * Bands wurden bewusst eng gewählt, um Übertreibungen zu vermeiden:
    *   ≥ 2.0  → "mehr als doppelt so häufig wie im Stadtmittel"
@@ -1032,9 +1033,10 @@
     const includeCosts = !ctx.exportOptions || ctx.exportOptions.includeCosts !== false;
     const includeMeasures = !ctx.exportOptions || ctx.exportOptions.includeMeasures !== false;
 
-    // Task 10: Politischer Sprachmodus. Per export-Option oder ctx.mode aktiviert.
+    // Task 10: Politischer Sprachmodus. Ausschließlich über
+    // ctx.exportOptions.mode aktiviert (UI-Checkbox #cbPoliticalLanguage).
     // Wirkt sich auf Faktor-Wording (Task 9) und 95%-KI-Auslassung (Task 10) aus.
-    const exportMode = (ctx.exportOptions && ctx.exportOptions.mode === "political") || ctx.mode === "political"
+    const exportMode = (ctx.exportOptions && ctx.exportOptions.mode === "political")
       ? "political"
       : "technical";
 

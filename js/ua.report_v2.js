@@ -568,7 +568,7 @@
     // diese Guard-Set verhindert zukünftige Regressions, bei denen Text-
     // Fallback (`textLines`) und structured-Pfad denselben Block doppeln.
     const renderedSections = new Set();
-    /** @returns {boolean} true wenn schon gerendert (Caller skipt dann). */
+    /** @returns {boolean} true wenn schon gerendert (Caller überspringt dann). */
     function _alreadyRendered(name) {
       if (renderedSections.has(name)) return true;
       renderedSections.add(name);

@@ -25,15 +25,21 @@
   // optionale `cellKeyFn(point) -> "cx:cy"` (im Browser via Leaflet
   // map.project bereitgestellt) und liefert die K Zellen mit den meisten
   // Unfällen inklusive Schwerpunkt-Lat/Lon und dominantem Beteiligungs-Mask.
-  // Ohne `cellKeyFn` fällt der Helfer auf ein grobes Lat/Lon-Bin (~55 m bei
-  // 52° N) zurück, damit Tests ohne Map laufen können.
+  // Ohne `cellKeyFn` fällt der Helfer auf ein grobes, ungewichtetes Lat/Lon-Bin
+  // zurück (siehe `fallbackKey`), das nur für Tests / headless-Aufrufe gedacht
+  // ist – im Browser wird immer `cellKeyFn` aus `renderArgumentationOverlay`
+  // übergeben, der die echten Pixel-Zellen aus `HOTSPOT.cellPx` benutzt.
   UA.computeTopHotspots = function computeTopHotspots(points, options) {
     const opts = options || {};
     const k = Math.max(1, Math.min(10, Number(opts.k) || 3));
     const minTotal = Math.max(1, Number(opts.minTotal) || 2);
     const cellKeyFn = typeof opts.cellKeyFn === "function" ? opts.cellKeyFn : null;
     const fallbackKey = (p) => {
-      // ~0.0005° ≈ 55 m bei 52° N – ausreichend für Tests / Fallback.
+      // Quadrat in Grad-Einheiten – bewusst ungleich in Metern: bei 52° N
+      // entspricht 0,0005° Latitude ≈ 56 m, 0,0005° Longitude ≈ 34 m. Das
+      // reicht für Tests / Fallback (Cluster-Erkennung in einer Stadt), nicht
+      // für produktive Hotspot-Analyse – dort liefert `renderArgumentationOverlay`
+      // einen pixel-basierten `cellKeyFn`.
       const cy = Math.floor((p.lat || 0) / 0.0005);
       const cx = Math.floor((p.lon || 0) / 0.0005);
       return cx + ":" + cy;
