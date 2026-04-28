@@ -7,14 +7,18 @@
  *   - akzeptiert ein optionales `responseSchema` (Gemini Structured Output)
  *   - nutzt zwingend `responseMimeType: application/json`
  *   - implementiert Retry mit exponential backoff bei
- *     429 (rate limit), 5xx (transient), Netz-Timeouts
- *   - unterscheidet wiederholbare und endgültige Fehler
+ *     5xx (transient), Netz-Timeouts
+ *   - 429 (rate limit) wird getrennt behandelt: kein Retry per Default,
+ *     separate Konfiguration über AI_ASSESSMENT_RATELIMIT_RETRIES
+ *   - unterscheidet wiederholbare, rate-limited und endgültige Fehler
  *
  * Konfiguration (Umgebungsvariablen):
- *   GEMINI_API_KEY            – Pflicht
- *   AI_ASSESSMENT_MODEL       – Standard: gemini-2.0-flash
- *   AI_ASSESSMENT_TIMEOUT_MS  – Standard: 30000
- *   AI_ASSESSMENT_MAX_RETRIES – Standard: 2 (also bis zu 3 Versuche)
+ *   GEMINI_API_KEY                    – Pflicht
+ *   AI_ASSESSMENT_MODEL               – Standard: gemini-2.0-flash
+ *   AI_ASSESSMENT_TIMEOUT_MS          – Standard: 30000
+ *   AI_ASSESSMENT_MAX_RETRIES         – Standard: 2 (bis zu 3 Versuche bei 5xx/Timeout)
+ *   AI_ASSESSMENT_RATELIMIT_RETRIES   – Standard: 0 (kein Retry bei 429)
+ *   AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS – Standard: 60000 (60 s Mindestwartezeit bei 429-Retry)
  *
  * @module server/ai/providers/geminiStructuredProvider
  */
@@ -22,6 +26,9 @@
 const https = require('https');
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+/** Hard-Cap für Retry-After-Werte, um endlose Hänger zu vermeiden (5 Minuten). */
+const RATE_LIMIT_DELAY_HARD_CAP_MS = 5 * 60 * 1000;
 
 class RetryableError extends Error {
   constructor(message, statusCode) {
@@ -40,6 +47,22 @@ class FatalError extends Error {
 }
 
 /**
+ * Wird geworfen, wenn die Gemini-API HTTP 429 zurückgibt.
+ * Enthält optional die vom Server empfohlene Wartezeit in Millisekunden.
+ */
+class RateLimitError extends RetryableError {
+  /**
+   * @param {string} message
+   * @param {number} [retryAfterMs] – vom Server empfohlene Wartezeit in ms (optional)
+   */
+  constructor(message, retryAfterMs) {
+    super(message, 429);
+    this.rateLimit = true;
+    this.retryAfterMs = typeof retryAfterMs === 'number' ? retryAfterMs : undefined;
+  }
+}
+
+/**
  * Sendet System+User Prompt an Gemini und gibt den Antworttext zurück.
  *
  * @param {object} args
@@ -47,7 +70,7 @@ class FatalError extends Error {
  * @param {string} args.user
  * @param {object} [args.responseSchema]    – optional, JSON-Schema-Subset (Gemini-Format)
  * @param {number} [args.temperature]       – Standard 0.2
- * @param {number} [args.maxRetries]        – Standard aus Env
+ * @param {number} [args.maxRetries]        – Standard aus Env (AI_ASSESSMENT_MAX_RETRIES)
  * @returns {Promise<string>}                 – roher JSON-String
  */
 async function callStructuredGemini({ system, user, responseSchema, temperature, maxRetries } = {}) {
@@ -59,11 +82,14 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
     throw new FatalError('Benutzerprompt fehlt oder ist ungültig.', 0);
   }
 
-  const model       = process.env.AI_ASSESSMENT_MODEL     || 'gemini-2.0-flash';
-  const timeoutMs   = Number(process.env.AI_ASSESSMENT_TIMEOUT_MS) || 30_000;
-  const retries     = Number.isFinite(maxRetries) ? maxRetries
-                     : (Number(process.env.AI_ASSESSMENT_MAX_RETRIES) || 2);
-  const temp        = Number.isFinite(temperature) ? temperature : 0.2;
+  const model           = process.env.AI_ASSESSMENT_MODEL     || 'gemini-2.0-flash';
+  const timeoutMs       = Number(process.env.AI_ASSESSMENT_TIMEOUT_MS) || 30_000;
+  const retries         = Number.isFinite(maxRetries) ? maxRetries
+                         : (Number(process.env.AI_ASSESSMENT_MAX_RETRIES) || 2);
+  const rlRetries       = Number(process.env.AI_ASSESSMENT_RATELIMIT_RETRIES) || 0;
+  const parsedRlMinDelayMs = Number(process.env.AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS);
+  const rlMinDelayMs    = Number.isFinite(parsedRlMinDelayMs) ? Math.max(parsedRlMinDelayMs, 0) : 60_000;
+  const temp            = Number.isFinite(temperature) ? temperature : 0.2;
 
   const url = `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
@@ -81,8 +107,11 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
     generationConfig
   });
 
-  let lastErr;
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  let transientUsed  = 0;
+  let rlUsed         = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
     try {
       const rawText = await httpPost(url, body, timeoutMs);
       const parsed  = JSON.parse(rawText);
@@ -93,17 +122,32 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
       }
       return text;
     } catch (err) {
-      lastErr = err;
-      if (!err || !err.retryable || attempt === retries) {
+      if (!err || !err.retryable) {
         throw err;
       }
-      // Exponential backoff: 500ms, 1000ms, 2000ms ...
-      const delay = 500 * Math.pow(2, attempt);
-      await sleep(delay);
+
+      if (err.rateLimit) {
+        // 429 Rate Limit – separate Retry-Konfiguration
+        if (rlUsed >= rlRetries) {
+          throw err;
+        }
+        rlUsed++;
+        const hint = typeof err.retryAfterMs === 'number' ? err.retryAfterMs : rlMinDelayMs;
+        const delay = Math.min(Math.max(hint, 0), RATE_LIMIT_DELAY_HARD_CAP_MS);
+        console.log(`[gemini] 429 rate-limited, sleeping ${delay}ms before retry ${rlUsed}/${rlRetries}`);
+        await sleep(delay);
+      } else {
+        // 5xx / Netz-/Timeout-Fehler – exponential backoff
+        if (transientUsed >= retries) {
+          throw err;
+        }
+        // Exponential backoff: 500ms, 1000ms, 2000ms ...
+        const delay = 500 * Math.pow(2, transientUsed);
+        transientUsed++;
+        await sleep(delay);
+      }
     }
   }
-  // Unreachable, but keeps eslint happy
-  throw lastErr;
 }
 
 function sleep(ms) {
@@ -132,7 +176,12 @@ function httpPost(url, body, timeoutMs) {
         const status = res.statusCode || 0;
         if (status >= 200 && status < 300) {
           resolve(text);
-        } else if (status === 429 || (status >= 500 && status < 600)) {
+        } else if (status === 429) {
+          reject(new RateLimitError(
+            `Gemini-API 429: ${text.slice(0, 200)}`,
+            parseRetryAfterMs(res.headers, text)
+          ));
+        } else if (status >= 500 && status < 600) {
           reject(new RetryableError(`Gemini-API ${status}: ${text.slice(0, 200)}`, status));
         } else {
           reject(new FatalError(`Gemini-API ${status}: ${text.slice(0, 200)}`, status));
@@ -151,8 +200,58 @@ function httpPost(url, body, timeoutMs) {
   });
 }
 
+/**
+ * Liest den Retry-After-Hinweis aus Response-Header und/oder Body.
+ *
+ * Unterstützte Quellen:
+ *   1. `Retry-After` Header (Sekunden als Integer oder HTTP-Datum)
+ *   2. `error.details[*].retryDelay` im Body (Format `"<n>s"`)
+ *
+ * @param {object} headers – Node-HTTP-Response-Headers
+ * @param {string} bodyText – roher Antwort-Text
+ * @returns {number|undefined} Wartezeit in ms oder undefined
+ */
+function parseRetryAfterMs(headers, bodyText) {
+  // 1. Retry-After Header
+  const retryAfterHeader = headers && headers['retry-after'];
+  if (retryAfterHeader) {
+    const asSeconds = parseInt(retryAfterHeader, 10);
+    if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+      return asSeconds * 1000;
+    }
+    // HTTP-Date format
+    const asDate = Date.parse(retryAfterHeader);
+    if (Number.isFinite(asDate)) {
+      const ms = asDate - Date.now();
+      if (ms > 0) return ms;
+      return 0;
+    }
+  }
+
+  // 2. retryDelay in Body JSON (defensiv)
+  try {
+    const parsed = JSON.parse(bodyText);
+    const details = parsed?.error?.details;
+    if (Array.isArray(details)) {
+      for (const detail of details) {
+        if (typeof detail.retryDelay === 'string') {
+          const match = detail.retryDelay.match(/^(\d+(?:\.\d+)?)s$/);
+          if (match) {
+            return Math.round(parseFloat(match[1]) * 1000);
+          }
+        }
+      }
+    }
+  } catch (_) {
+    // Body war kein gültiges JSON – ignorieren
+  }
+
+  return undefined;
+}
+
 module.exports = {
   callStructuredGemini,
   RetryableError,
-  FatalError
+  FatalError,
+  RateLimitError
 };
