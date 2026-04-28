@@ -64,11 +64,15 @@
         const cbMeasures = document.getElementById("cbIncludeMeasures");
         const cbHeatmap  = document.getElementById("cbIncludeHeatmap");
         const cbOsm      = document.getElementById("cbIncludeOsmContext");
+        const cbPol      = document.getElementById("cbPoliticalLanguage");
         ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
           includeCosts:      cbCosts    ? cbCosts.checked    : true,
           includeMeasures:   cbMeasures ? cbMeasures.checked : true,
           includeHeatmap:    cbHeatmap  ? cbHeatmap.checked  : true,
-          includeOsmContext: cbOsm      ? cbOsm.checked      : true
+          includeOsmContext: cbOsm      ? cbOsm.checked      : true,
+          // Task 10: "Politische Sprache" – Faktoren in Bänder übersetzen,
+          // 95%-KI im Modus ausblenden. Default aus (technisch).
+          mode: (cbPol && cbPol.checked) ? "political" : "technical"
         });
         const r = await UA.computeExportReport(ctx);
         ui.exportProgress.textContent = "Fertig.";
@@ -118,6 +122,7 @@
     _wireToggleRerender("cbIncludeMeasures");
     _wireToggleRerender("cbIncludeHeatmap");
     _wireToggleRerender("cbIncludeOsmContext");
+    _wireToggleRerender("cbPoliticalLanguage");
 
     ui.btnCopyText.addEventListener("click", async ()=> {
       await writeClipboard(ui.exportBoxTa.value || "");

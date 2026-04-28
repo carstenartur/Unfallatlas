@@ -681,6 +681,35 @@
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
     }
 
+    // ---- 4b. KURZBEWERTUNG (Task 2) ----
+    if (sd && sd.executiveSummary) {
+      const es = sd.executiveSummary;
+      children.push(new Paragraph({
+        text: "KURZBEWERTUNG",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }));
+      children.push(new Paragraph({
+        children: [new TextRun({ text: es.classification, bold: true })],
+        spacing: { after: 120 }
+      }));
+      for (const b of (es.bullets || [])) {
+        children.push(new Paragraph({ text: "• " + b, spacing: { after: 60 } }));
+      }
+      if (es.urgency) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: es.urgency, italics: true })],
+          spacing: { before: 100, after: 200 }
+        }));
+      }
+      // Task 7 – Map reference sentences immediately after KURZBEWERTUNG.
+      if (Array.isArray(sd.mapReferences) && sd.mapReferences.length > 0) {
+        for (const s of sd.mapReferences) {
+          children.push(new Paragraph({ text: s, spacing: { after: 80 } }));
+        }
+      }
+    }
+
     // ---- 5. SACHVERHALT section ----
     children.push(
       new Paragraph({
@@ -737,30 +766,52 @@
 
       // Deviations table
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
+        const isPolitical = sd.meta && sd.meta.mode === "political";
         children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", spacing: { after: 100 } }));
         const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
+        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2)}`);
         const devRows = sd.deviations.focus.map(r => {
           const locPct = sd.deviations.local.total ? ((r.locR) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          const muster = r.textLabel || fmtCombo(r.mask, { format: "text" });
+          if (isPolitical) {
+            // Task 9/10: politisches Wording; 95%-KI weggelassen.
+            return [muster, String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
+          }
           const ciLowPct = r.ciLow != null ? (r.ciLow * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2) + "×" + (r.isSignificant === false ? " (n.s.)" : "");
-          // Task 1: deterministisches Text-Label statt Roh-Emoji-Label.
-          const muster = r.textLabel || fmtCombo(r.mask, { format: "text" });
           return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
-        children.push(makeDocxTable(
-          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
-          devRows
-        ));
-        const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
-        if (allNonSig) {
-          children.push(new Paragraph({
-            text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
-            spacing: { after: 100 }
-          }));
+        const headers = isPolitical
+          ? ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"]
+          : ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"];
+        children.push(makeDocxTable(headers, devRows));
+        if (!isPolitical) {
+          const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
+          if (allNonSig) {
+            children.push(new Paragraph({
+              text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+              spacing: { after: 100 }
+            }));
+          }
         }
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+
+        // Task 4 – URSACHEN UND MASSNAHMEN direkt nach den Abweichungen.
+        if (Array.isArray(sd.causesMeasures) && sd.causesMeasures.length > 0) {
+          children.push(new Paragraph({
+            text: "URSACHEN UND MASSNAHMEN",
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 200, after: 100 }
+          }));
+          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          children.push(makeDocxTable(
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            cmRows
+          ));
+          children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+        }
       }
 
       // Year table
@@ -1277,8 +1328,19 @@
         children: [
           new TextRun({ text: `Quelle: ${oc.source.publisher} (${oc.source.license}), via ${oc.source.retrievedVia}.`, italics: true })
         ],
-        spacing: { before: 100, after: 200 }
+        spacing: { before: 100, after: 100 }
       }));
+      // Task 8 – analytische Schlussfolgerungen aus den OSM-Werten.
+      if (Array.isArray(sd.osmInsights) && sd.osmInsights.length > 0) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: "OSM-Schlussfolgerungen:", bold: true })],
+          spacing: { before: 100, after: 60 }
+        }));
+        for (const s of sd.osmInsights) {
+          children.push(new Paragraph({ text: "• " + s, spacing: { after: 60 } }));
+        }
+        children.push(new Paragraph({ text: "", spacing: { after: 100 } }));
+      }
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       children.push(new Paragraph({
         text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
@@ -1910,6 +1972,24 @@
       ));
     }
 
+    // ---- KURZBEWERTUNG (Task 2) ----
+    if (sd && sd.executiveSummary) {
+      const es = sd.executiveSummary;
+      docDefinition.content.push({ text: "KURZBEWERTUNG", style: "subheader" });
+      docDefinition.content.push({ text: es.classification, bold: true, margin: [0, 0, 0, 6] });
+      for (const b of (es.bullets || [])) {
+        docDefinition.content.push({ text: "• " + b, margin: [0, 0, 0, 3] });
+      }
+      if (es.urgency) {
+        docDefinition.content.push({ text: es.urgency, italics: true, margin: [0, 4, 0, 8] });
+      }
+      if (Array.isArray(sd.mapReferences) && sd.mapReferences.length > 0) {
+        for (const s of sd.mapReferences) {
+          docDefinition.content.push({ text: s, margin: [0, 0, 0, 4] });
+        }
+      }
+    }
+
     // ---- SACHVERHALT section ----
     docDefinition.content.push({
       text: "SACHVERHALT",
@@ -1948,34 +2028,63 @@
         ]
       ));
 
-      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis
+      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis (or political simplification).
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
+        const isPolitical = sd.meta && sd.meta.mode === "political";
+        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2)}`);
         docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal" });
         const devRows = sd.deviations.focus.map(r => {
           const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          if (isPolitical) {
+            // Task 9/10: politisches Wording, kein 95%-KI.
+            return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
+          }
           const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2) + "x" + (r.isSignificant === false ? " (n.s.)" : "");
           return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
-        // Explicit widths: pattern column gets the slack (*), narrow numeric
-        // columns are sized to their content so the table stops overflowing
-        // on narrower viewports/pageSizes.
-        docDefinition.content.push(makePdfTable(
-          ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
-          devRows,
-          undefined,
-          { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
-        ));
-        const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
-        if (allNonSig) {
-          docDefinition.content.push({
-            text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
-            style: "normal",
-            italics: true,
-            margin: [0, 4, 0, 8]
-          });
+        if (isPolitical) {
+          docDefinition.content.push(makePdfTable(
+            ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"],
+            devRows,
+            undefined,
+            { widths: ["*", "auto", "auto", "auto", "*"] }
+          ));
+        } else {
+          // Explicit widths: pattern column gets the slack (*), narrow numeric
+          // columns are sized to their content so the table stops overflowing
+          // on narrower viewports/pageSizes.
+          docDefinition.content.push(makePdfTable(
+            ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
+            devRows,
+            undefined,
+            { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
+          ));
+        }
+        // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
+        if (!isPolitical) {
+          const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
+          if (allNonSig) {
+            docDefinition.content.push({
+              text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+              style: "normal",
+              italics: true,
+              margin: [0, 4, 0, 8]
+            });
+          }
+        }
+        // Task 4 – URSACHEN UND MASSNAHMEN direkt nach den Abweichungen.
+        if (Array.isArray(sd.causesMeasures) && sd.causesMeasures.length > 0) {
+          docDefinition.content.push({ text: "URSACHEN UND MASSNAHMEN", style: "subheader" });
+          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          docDefinition.content.push(makePdfTable(
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            cmRows,
+            undefined,
+            { widths: ["auto", "*"] }
+          ));
         }
       }
 
@@ -2420,8 +2529,16 @@
         text: `Quelle: ${oc.source.publisher} (${oc.source.license}), via ${oc.source.retrievedVia}.`,
         italics: true,
         fontSize: 9,
-        margin: [0, 0, 0, 8]
+        margin: [0, 0, 0, 4]
       });
+      // Task 8 – analytische OSM-Schlussfolgerungen.
+      if (Array.isArray(sd.osmInsights) && sd.osmInsights.length > 0) {
+        docDefinition.content.push({ text: "OSM-Schlussfolgerungen:", bold: true, margin: [0, 4, 0, 2] });
+        for (const s of sd.osmInsights) {
+          docDefinition.content.push({ text: "• " + s, margin: [0, 0, 0, 2] });
+        }
+        docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
+      }
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
       docDefinition.content.push({
