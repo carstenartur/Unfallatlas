@@ -76,7 +76,7 @@ describe('Export QA blocker fixes', () => {
       expect(UA.replaceEmojisForDocx('🏍')).toBe('[Krad]');
       // Same with the FE0F variation selector that some sources emit.
       expect(UA.replaceEmojisForDocx('🏍\uFE0F')).toBe('[Krad]');
-      expect(UA.replaceEmojisForDocx('🚛')).toBe('[Gkfz]');
+      expect(UA.replaceEmojisForDocx('🚛')).toBe('[Lkw]');
       expect(UA.replaceEmojisForDocx('🚌')).toBe('[Sonst]');
     });
 
@@ -85,7 +85,7 @@ describe('Export QA blocker fixes', () => {
       // After substitution all parts must be present, in order, including labels.
       expect(UA.replaceEmojisForDocx('🚲+🚗=2')).toBe('[Rad]+[PKW]=2');
       expect(UA.replaceEmojisForDocx('🚲+🚶+🚛'))
-        .toBe('[Rad]+[Fuss]+[Gkfz]');
+        .toBe('[Rad]+[Fuss]+[Lkw]');
     });
 
     test('handles null/undefined defensively (Word table cells often pass null)', () => {

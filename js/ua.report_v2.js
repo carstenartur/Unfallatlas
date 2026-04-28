@@ -738,13 +738,16 @@
       // Deviations table
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
         children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", spacing: { after: 100 } }));
+        const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
         const devRows = sd.deviations.focus.map(r => {
           const locPct = sd.deviations.local.total ? ((r.locR) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
           const ciLowPct = r.ciLow != null ? (r.ciLow * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2) + "×" + (r.isSignificant === false ? " (n.s.)" : "");
-          return [r.label, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
+          // Task 1: deterministisches Text-Label statt Roh-Emoji-Label.
+          const muster = r.textLabel || fmtCombo(r.mask, { format: "text" });
+          return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         children.push(makeDocxTable(
           ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
@@ -778,8 +781,11 @@
       // Cross-table: Beteiligungskombination × Schweregrad
       if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
         children.push(new Paragraph({ text: "Beteiligungskombination × Schweregrad:", spacing: { after: 100 } }));
+        // PR-QA Task 1: deterministische Text-Labels in der DOCX-Tabelle.
+        const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
         const ctRows = sd.crossTable.rows.map(r => [
-          r.label, String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
+          r.textLabel || fmtCombo(r.mask, { format: "text" }),
+          String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
         ]);
         // Highlight rows whose mask matches the active filter
         const ctHighlights = sd.crossTable.rows.map(r => isActiveFilterRow(r.mask));
@@ -1308,7 +1314,7 @@
       // Default text if not found
       children.push(
         new Paragraph({
-          text: "Der Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.",
+          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
           spacing: { after: 200 }
         })
       );
@@ -1596,7 +1602,7 @@
       .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
       .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
       .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]")  // 🏍 Motorcycle (optional variation selector)
-      .replace(/\u{1F69B}/gu, "[Gkfz]")    // 🚛 Heavy vehicle
+      .replace(/\u{1F69B}/gu, "[Lkw]")     // 🚛 Heavy vehicle (Gkfz → [Lkw], Task 1)
       .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
   }
 
@@ -2204,7 +2210,7 @@
           text: [
             "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern.\n",
             "Farben: rot=Tote, orange=Schwerverletzte, gelb=Leichtverletzte.\n",
-            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Gkfz]=Lkw, [Sonst]=Sonstige.\n",
+            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Lkw]=Lkw/Gkfz, [Sonst]=Sonstige.\n",
             "POIs wie Schulen und Kitas sind hervorgehoben."
           ].join(""),
           style: "small"
@@ -2443,7 +2449,7 @@
       }
     } else {
       docDefinition.content.push({
-        text: "Der Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.",
+        text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
         style: "normal"
       });
     }

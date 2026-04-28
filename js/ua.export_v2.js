@@ -8,8 +8,8 @@
   const DEFAULT_TEMPLATES = {
     intro: `Bezirksratsantrag (Entwurf) – Unfallwerkbank\n\nBetreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im markierten Bereich\n`,
     sachverhalt: `Sachverhalt:\nIm markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.\n\nVerletzungsschwere (Ausschnitt):\n{{severity_summary}}`,
-    beschluss: `Beschlussvorschlag:\nDer Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung.\n3) Monitoring: Nach Umsetzung Evaluation anhand Unfallatlas-Daten der Folgejahre.\n`,
-    hinweis: `Hinweis (intern, vor Versand entfernen): Dieser Text wurde automatisiert erzeugt. Link zur Überarbeitung: {{link}}\n`,
+    beschluss: `Beschlussvorschlag:\nDer Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins, innerhalb von 3 Monaten umzusetzen): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung – mit verbindlichem Umsetzungszeitplan.\n3) Evaluation: Wirksamkeit nach 12 Monaten anhand der Unfallatlas-Daten überprüfen und der Bezirksvertretung berichten.\n`,
+    hinweis: ``,
     lizenz: `Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).\n`
   };
 
@@ -144,10 +144,77 @@
   // --------------------
   // 6-Bit-Maske: Rad=1, Fuß=2, PKW=4, Krad=8, Gkfz=16, Sonstig=32
   const COMBO_BITS = [[1,"🚲"],[2,"🚶"],[4,"🚗"],[8,"🏍️"],[16,"🚛"],[32,"🚌"]];
+  // Deterministische Text-Labels (Task 1) – identische Reihenfolge wie COMBO_BITS,
+  // damit eine 6-Bit-Maske eindeutig auf "[Rad]+[PKW]" abgebildet werden kann.
+  // Entspricht den Ersetzungen in `replaceEmojisForPDF`/`replaceEmojisForDocx`,
+  // wird hier aber primär für Tabellen verwendet, die den Text-Pfad nehmen.
+  const COMBO_BIT_LABELS = [[1,"[Rad]"],[2,"[Fuss]"],[4,"[PKW]"],[8,"[Krad]"],[16,"[Lkw]"],[32,"[Sonst]"]];
   const COMBO_LABEL = {};
   for (let m = 1; m <= 63; m++) {
     COMBO_LABEL[m] = COMBO_BITS.filter(([b]) => m & b).map(([,e]) => e).join("+");
   }
+
+  /**
+   * Task 1 – Deterministische Beteiligungs-Kombinations-Formatierung für
+   * Tabellen (Cross-Tabelle, Pro-Jahr, Einzelunfälle). Ersetzt die ad-hoc
+   * Stringifizierung, die bei kaputtem Datenstand sichtbare "+", "=" oder
+   * "0" zurückließ.
+   *
+   * @param {number|string|null|undefined} input  Maske (0..63) oder beliebiger
+   *        Vorschlags-String (z. B. "🚲+🚗", "[Rad]+[PKW]", "🚲: 4").
+   *        Akzeptiert numerische Strings ("5") als Maske.
+   * @param {object} [opts]
+   * @param {string} [opts.format="text"]  "text" → "[Rad]+[PKW]", "emoji" → "🚲+🚗".
+   * @param {string} [opts.fallback="k. A."] Fallback bei leerem/symbol-only Ergebnis.
+   * @returns {string} Lesbare Beteiligungskombination oder Fallback.
+   */
+  function formatInvolvementCombo(input, opts) {
+    const format = (opts && opts.format) || "text";
+    const fallback = (opts && opts.fallback != null) ? String(opts.fallback) : "k. A.";
+
+    // 1) Numerische Eingabe oder rein-numerischer String → Bitmaske.
+    let mask = null;
+    if (typeof input === "number" && Number.isFinite(input)) {
+      mask = input;
+    } else if (typeof input === "string" && /^-?\d+$/.test(input.trim())) {
+      mask = Number(input.trim());
+    }
+    if (mask != null) {
+      mask = mask & 63; // nur 6 Bits relevant
+      if (mask === 0) return fallback;
+      const bits = format === "emoji" ? COMBO_BITS : COMBO_BIT_LABELS;
+      const parts = bits.filter(([b]) => mask & b).map(([, label]) => label);
+      return parts.length > 0 ? parts.join("+") : fallback;
+    }
+
+    // 2) String: Emojis zu Labels normalisieren (für "text"-Format).
+    if (typeof input === "string") {
+      let s = input;
+      if (format === "text") {
+        // Inline-Normalisierung (gleicher Mapping-Tabelle wie
+        // COMBO_BIT_LABELS und `replaceEmojisForDocx` in ua.report_v2.js –
+        // wir wollen keine cross-module load-order-Abhängigkeit).
+        s = s
+          .replace(/\u{1F6B2}/gu, "[Rad]")
+          .replace(/\u{1F6B6}/gu, "[Fuss]")
+          .replace(/\u{1F697}/gu, "[PKW]")
+          .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]")
+          .replace(/\u{1F69B}/gu, "[Lkw]")
+          .replace(/\u{1F68C}/gu, "[Sonst]");
+      }
+      // Prüfen, ob nach der Normalisierung lesbarer Inhalt übrig ist:
+      // Etiketten wie "[Rad]" enthalten Buchstaben → ok. Fällt das alles weg
+      // und es bleiben nur Trennzeichen/Ziffern/Whitespace, wechseln wir auf
+      // den Fallback (das war exakt der QA-Bug "+, =, 0").
+      const stripped = s.replace(/\[[^\]]+\]/g, "X"); // Etiketten zählen als Inhalt
+      if (!/[A-Za-zÄÖÜäöüß]/.test(stripped)) return fallback;
+      return s.trim() || fallback;
+    }
+
+    // 3) Sonstige Eingaben (null, undefined, {}): Fallback.
+    return fallback;
+  }
+  UA.formatInvolvementCombo = formatInvolvementCombo;
 
   function maskFromProps(pr) {
     // sowohl lower-case als auch Originalfelder tolerieren
@@ -468,7 +535,9 @@
       const classes = Object.entries(r.byMask)
         .map(([m, c]) => ({ m: Number(m), c }))
         .sort((a, b) => b.c - a.c)
-        .map(e => `${COMBO_LABEL[e.m] || ("Mask " + e.m)}=${e.c}`);
+        // Task 1: emoji-Label fürs HTML/PDF (mit pdfInvolvementCell-SVG),
+        // textLabel als deterministischer Bracket-Fallback für DOCX/Klartext.
+        .map(e => `${COMBO_LABEL[e.m] || formatInvolvementCombo(e.m, { format: "emoji" })}=${e.c}`);
       out.push({ year: y, total: r.total, classes });
     }
     return out;
@@ -524,7 +593,15 @@
       // gewollt ist (Stadt-Baseline kennt das Muster nicht, lokal tritt es auf).
       const isSignificant = local.total > 0 && ci.low > baseR;
 
-      rows.push({ mask: m, label: COMBO_LABEL[m] || ("Mask " + m), locCnt, baseCnt, locR, baseR, factor, ciLow: ci.low, ciHigh: ci.high, isSignificant });
+      rows.push({
+        mask: m,
+        // Emoji-Label (für HTML/PDF mit Icon-Substitution) plus
+        // deterministisches Bracket-Label (Task 1, für DOCX/Klartext).
+        label: COMBO_LABEL[m] || formatInvolvementCombo(m, { format: "emoji" }),
+        textLabel: formatInvolvementCombo(m, { format: "text" }),
+        locCnt, baseCnt, locR, baseR, factor,
+        ciLow: ci.low, ciHigh: ci.high, isSignificant
+      });
     }
     rows.sort((a, b) => (b.factor - a.factor));
 
@@ -560,7 +637,12 @@
     const rows = Object.entries(byMask).map(([mStr, v]) => {
       const mask = Number(mStr);
       const total = v.sev1 + v.sev2 + v.sev3;
-      return { mask, label: COMBO_LABEL[mask] || ("Mask " + mask), sev1: v.sev1, sev2: v.sev2, sev3: v.sev3, total };
+      return {
+        mask,
+        label: COMBO_LABEL[mask] || formatInvolvementCombo(mask, { format: "emoji" }),
+        textLabel: formatInvolvementCombo(mask, { format: "text" }),
+        sev1: v.sev1, sev2: v.sev2, sev3: v.sev3, total
+      };
     });
 
     rows.sort((a, b) => b.total - a.total);
@@ -1228,8 +1310,15 @@
 
     lines.push(tpl(tBesch, vars).trim());
     lines.push("");
-    lines.push(tpl(tHinw, vars).trim());
-    lines.push("");
+    // Task 6: Interner Hinweis ("automatisiert erzeugt (Vorentwurf)") wird
+    // nicht mehr ausgegeben – `tHinw` ist nun leer (templates/hinweis.txt /
+    // outro_internal_note.txt sind absichtlich entleert). Nur falls ein
+    // Stadt-Override doch noch Inhalt liefert, behalten wir die Zeile.
+    const hinwBody = tpl(tHinw || "", vars).trim();
+    if (hinwBody) {
+      lines.push(hinwBody);
+      lines.push("");
+    }
     lines.push(tpl(tLiz, vars).trim());
 
     const textOut = lines.join("\n").replace(/\n{3,}/g, "\n\n");
