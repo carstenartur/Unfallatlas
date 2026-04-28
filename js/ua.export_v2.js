@@ -878,13 +878,22 @@
     const out = [];
     for (const y of years) {
       const r = rows.get(y) || { total: 0, byMask: {} };
-      const classes = Object.entries(r.byMask)
+      const sorted = Object.entries(r.byMask)
         .map(([m, c]) => ({ m: Number(m), c }))
-        .sort((a, b) => b.c - a.c)
-        // Task 1: emoji-Label fürs HTML/PDF (mit pdfInvolvementCell-SVG),
-        // textLabel als deterministischer Bracket-Fallback für DOCX/Klartext.
-        .map(e => `${COMBO_LABEL[e.m] || formatInvolvementCombo(e.m, { format: "emoji" })}=${e.c}`);
-      out.push({ year: y, total: r.total, classes });
+        .sort((a, b) => b.c - a.c);
+      // Task 1: emoji-Label fürs HTML/PDF (mit pdfInvolvementCell-SVG-Substitution).
+      // Separator ist `: ` statt `=`, damit auch ohne Emoji-Glyph nichts wie
+      // "+= 4" stehen bleibt – siehe QA-Plan Phase 1.2 (keine "+", "=", "0").
+      const classes = sorted.map(e =>
+        `${COMBO_LABEL[e.m] || formatInvolvementCombo(e.m, { format: "emoji" })}: ${e.c}`
+      );
+      // textClasses: deterministischer Bracket-Fallback für DOCX/Klartext,
+      // wo Emoji-Fonts auf Verwaltungs-Arbeitsplätzen nicht zwingend
+      // vorhanden sind. Wird vom DOCX-Renderer bevorzugt, falls vorhanden.
+      const textClasses = sorted.map(e =>
+        `${formatInvolvementCombo(e.m, { format: "text" })}: ${e.c}`
+      );
+      out.push({ year: y, total: r.total, classes, textClasses });
     }
     return out;
   }

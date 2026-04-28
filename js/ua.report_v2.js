@@ -1039,11 +1039,19 @@
       // Year table
       if (sd.yearTable && sd.yearTable.length > 0) {
         children.push(new Paragraph({ text: "Unfälle pro Jahr im Ausschnitt:", spacing: { after: 100 } }));
-        const yrRows = sd.yearTable.map(row => [
-          String(row.year),
-          String(row.total),
-          row.classes.length ? row.classes.join(", ") : "—"
-        ]);
+        const yrRows = sd.yearTable.map(row => {
+          // Phase 1.2: DOCX bevorzugt das deterministische Bracket-Label
+          // (`textClasses`), damit auch ohne Emoji-fähigen Body-Font in Word
+          // keine kaputten Trennzeichen ("+", "=") sichtbar werden.
+          const cls = (row.textClasses && row.textClasses.length)
+            ? row.textClasses
+            : (row.classes || []);
+          return [
+            String(row.year),
+            String(row.total),
+            cls.length ? cls.join(", ") : "—"
+          ];
+        });
         children.push(makeDocxTable(
           ["Jahr", "Summe", "Kombinationen"],
           yrRows
@@ -2177,6 +2185,15 @@
           bold: true,
           margin: [0, 10, 0, 5]
         },
+        // Phase 1.4: dritte Hierarchiestufe für Sub-Sub-Sektionen
+        // (z. B. "Detailansicht – markierter Bereich" und einzelne
+        // Cluster-Karten innerhalb von KARTENAUSSCHNITT). Kleinere Schrift
+        // und engere Margins trennen sie optisch von Hauptkapiteln.
+        subheader2: {
+          fontSize: 12,
+          bold: true,
+          margin: [0, 6, 0, 3]
+        },
         normal: {
           fontSize: 11,
           margin: [0, 0, 0, 5]
@@ -2577,20 +2594,40 @@
           }
         }
       } else if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
-        // Fallback for legacy data without groups
+        // Fallback for legacy data without groups.
+        // Phase 1.1: Statt eines 8-Spalters splitten wir in zwei kompakte
+        // Tabellen ("Zeit/Ort" + "Beteiligung/Zustand"), korreliert über
+        // die laufende Nr. (#). Damit bleiben beide Tabellen ≤ 5 Spalten
+        // und es gibt keinen rechten Überlauf mehr auf A4.
         docDefinition.content.push({ text: "EINZELUNFÄLLE IM BEREICH", style: "subheader" });
-        const detailRows = sd.accidentDetails.rows.map((r, i) => {
+
+        const ts = sd.accidentDetails.rows.map((r, i) => {
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-          const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, pdfInvolvementCell(r.involved), hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
+          const wd = (typeof UA !== "undefined" && UA.fmtWeekday)
+            ? UA.fmtWeekday(r)
+            : (r.weekday || "—");
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, hour, wd];
         });
+        docDefinition.content.push({ text: "Zeit", style: "subheader2" });
         docDefinition.content.push(makePdfTable(
-          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
-          detailRows,
+          ["#", "Jahr", "Schwere", "Uhrzeit", "Wochentag"],
+          ts,
           undefined,
-          // 8-column legacy layout: same width strategy with one extra "auto"
-          // column for the explicit Schwere label.
-          { widths: ["auto", "auto", "auto", "*", "auto", "auto", "auto", "auto"], fontSize: 8 }
+          { widths: ["auto", "auto", "auto", "auto", "*"], fontSize: 8 }
+        ));
+
+        const bs = sd.accidentDetails.rows.map((r, i) => {
+          const coords = (r.lat != null && r.lon != null)
+            ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}`
+            : "—";
+          return [String(i + 1), pdfInvolvementCell(r.involved), r.roadCondition || "—", coords];
+        });
+        docDefinition.content.push({ text: "Beteiligung & Ort", style: "subheader2" });
+        docDefinition.content.push(makePdfTable(
+          ["#", "Beteiligte", "Fahrbahnzustand", "Koordinaten"],
+          bs,
+          undefined,
+          { widths: ["auto", "*", "auto", "auto"], fontSize: 8 }
         ));
         if (sd.accidentDetails.truncated) {
           docDefinition.content.push({
@@ -2668,7 +2705,7 @@
               bounds: detailBbox,
               center: detailCenter
             });
-            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader" });
+            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader2" });
             docDefinition.content.push({
               image: detailImageData,
               fit: [475, 350],
@@ -2726,7 +2763,7 @@
             });
             docDefinition.content.push({
               text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
-              style: "subheader"
+              style: "subheader2"
             });
             docDefinition.content.push({
               image: cm.image,
