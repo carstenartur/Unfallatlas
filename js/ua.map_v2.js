@@ -11,6 +11,174 @@
     "default": "#999999"  // Gray for unknown
   };
 
+  // Argumentationsansicht: Ring-Farbe und Standardradius (in Metern).
+  // Bewusst kontraststark, druckfest – ein Bezirksverordneter soll in
+  // <10 s sehen, wo das Problem liegt.
+  const ARG_HOTSPOT_RING = "#d62728";
+  const ARG_HOTSPOT_FILL = "#d62728";
+  const ARG_HOTSPOT_RADIUS_M = 80;
+
+  // ----------------------------
+  // Argumentationsansicht – Top-N Hotspots ermitteln (Task 2)
+  // ----------------------------
+  // Reines Datenhelfer ohne Leaflet-Abhängigkeit: nimmt Punkte und eine
+  // optionale `cellKeyFn(point) -> "cx:cy"` (im Browser via Leaflet
+  // map.project bereitgestellt) und liefert die K Zellen mit den meisten
+  // Unfällen inklusive Schwerpunkt-Lat/Lon und dominantem Beteiligungs-Mask.
+  // Ohne `cellKeyFn` fällt der Helfer auf ein grobes Lat/Lon-Bin (~55 m bei
+  // 52° N) zurück, damit Tests ohne Map laufen können.
+  UA.computeTopHotspots = function computeTopHotspots(points, options) {
+    const opts = options || {};
+    const k = Math.max(1, Math.min(10, Number(opts.k) || 3));
+    const minTotal = Math.max(1, Number(opts.minTotal) || 2);
+    const cellKeyFn = typeof opts.cellKeyFn === "function" ? opts.cellKeyFn : null;
+    const fallbackKey = (p) => {
+      // ~0.0005° ≈ 55 m bei 52° N – ausreichend für Tests / Fallback.
+      const cy = Math.floor((p.lat || 0) / 0.0005);
+      const cx = Math.floor((p.lon || 0) / 0.0005);
+      return cx + ":" + cy;
+    };
+    const keyFn = cellKeyFn || fallbackKey;
+    const maskFn = (p) => {
+      if (UA.maskFromProps) return UA.maskFromProps(p && p.props);
+      return 0;
+    };
+
+    const cells = new Map(); // key -> {total, byMask, latSum, lonSum}
+    if (!Array.isArray(points)) return [];
+    for (const p of points) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      const key = keyFn(p);
+      let c = cells.get(key);
+      if (!c) {
+        c = { key, total: 0, byMask: {}, latSum: 0, lonSum: 0 };
+        cells.set(key, c);
+      }
+      c.total++;
+      c.latSum += p.lat;
+      c.lonSum += p.lon;
+      const m = maskFn(p);
+      if (m) c.byMask[m] = (c.byMask[m] || 0) + 1;
+    }
+
+    const ranked = [];
+    for (const c of cells.values()) {
+      if (c.total < minTotal) continue;
+      // Dominanter Beteiligungs-Mask (für Tooltip & Konsistenz mit dem Antragstext).
+      let dominantMask = 0;
+      let dominantCount = 0;
+      for (const [m, cnt] of Object.entries(c.byMask)) {
+        if (cnt > dominantCount) { dominantMask = Number(m); dominantCount = cnt; }
+      }
+      ranked.push({
+        key: c.key,
+        total: c.total,
+        lat: c.latSum / c.total,
+        lon: c.lonSum / c.total,
+        dominantMask,
+        dominantCount
+      });
+    }
+    // Sortierung: Anzahl absteigend; Tie-Break über Schlüssel für Determinismus.
+    ranked.sort((a, b) => (b.total - a.total) || String(a.key).localeCompare(String(b.key)));
+    return ranked.slice(0, k);
+  };
+
+  // ----------------------------
+  // Argumentationsansicht – Overlay (Task 2)
+  // ----------------------------
+  // Hebt die Top-1..3 Hotspots mit kontraststarken Ringen und nummerierten
+  // Badges hervor; Tooltip zeigt Anzahl + dominantes Beteiligungsmuster, damit
+  // die Karte sichtbar dasselbe Cluster benennt, das auch im Antragstext
+  // (KURZBEWERTUNG / mapReferences) erwähnt wird.
+  UA.renderArgumentationOverlay = function renderArgumentationOverlay(ctx) {
+    if (ctx.argumentationLayer) {
+      try { ctx.argumentationLayer.remove(); } catch {}
+      ctx.argumentationLayer = null;
+    }
+    if (!ctx.showArgumentation) return;
+    const map = ctx.map;
+    if (!map || !window.L) return;
+    const pts = ctx.viewportPts || [];
+    if (pts.length < 3) return; // Bei sehr wenigen Punkten kein "Hotspot" sinnvoll.
+
+    // Auf Leaflet-projizierte Pixel-Zellen aufsetzen, damit die Zell­größe
+    // sich konsistent mit dem bereits bestehenden Hotspot-Raster verhält.
+    let cellKeyFn = null;
+    try {
+      UA.updateHotspotCellPx(ctx);
+      const z = map.getZoom();
+      const px = (UA.HOTSPOT && UA.HOTSPOT.cellPx) || 110;
+      cellKeyFn = (p) => {
+        const pt = map.project(L.latLng(p.lat, p.lon), z);
+        return Math.floor(pt.x / px) + ":" + Math.floor(pt.y / px);
+      };
+    } catch {
+      cellKeyFn = null; // Fallback im Helper greift.
+    }
+
+    // Mindest-Schwelle: skaliert mit der Datenmenge, damit auf großen
+    // Auswahlen ein Hotspot wirklich aussagekräftig ist (nicht jedes
+    // einzelne Häufchen).
+    const minTotal = Math.max(3, Math.round(pts.length * 0.04));
+    const top = UA.computeTopHotspots(pts, { k: 3, minTotal, cellKeyFn });
+    if (!top.length) return;
+
+    const labelForMask = (m) => {
+      if (UA.formatInvolvementCombo) return UA.formatInvolvementCombo(m, { format: "text" });
+      return m ? "Mask " + m : "k. A.";
+    };
+
+    const layer = L.featureGroup();
+    let rank = 1;
+    for (const h of top) {
+      // Großer, halbtransparenter Ring – druckfest und auch ohne Hover sichtbar.
+      const ring = L.circle([h.lat, h.lon], {
+        radius: ARG_HOTSPOT_RADIUS_M,
+        color: ARG_HOTSPOT_RING,
+        weight: 3,
+        opacity: 0.95,
+        fillColor: ARG_HOTSPOT_FILL,
+        fillOpacity: 0.08,
+        interactive: true
+      });
+      const tooltipText = `Hotspot ${rank}: ${h.total} Unfälle` +
+        (h.dominantCount > 0 ? ` · dominantes Muster: ${labelForMask(h.dominantMask)} (${h.dominantCount})` : "");
+      ring.bindTooltip(tooltipText, { direction: "top", sticky: true });
+      ring.bindPopup(
+        `<div style="font:13px/1.35 system-ui; min-width:200px;">` +
+        `<div style="font-weight:900; margin-bottom:4px;">Hotspot ${rank}</div>` +
+        `<div>Unfälle im Cluster: <strong>${h.total}</strong></div>` +
+        (h.dominantCount > 0
+          ? `<div>Dominantes Muster: <strong>${labelForMask(h.dominantMask)}</strong> (${h.dominantCount})</div>`
+          : "") +
+        `</div>`
+      );
+      layer.addLayer(ring);
+
+      // Nummern-Badge als divIcon, damit auch im PDF-Snapshot eindeutig.
+      const badge = L.marker([h.lat, h.lon], {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: "ua-arg-badge",
+          html: `<div style="background:${ARG_HOTSPOT_RING};color:#fff;` +
+                `font:900 13px/1 system-ui;width:22px;height:22px;border-radius:50%;` +
+                `display:flex;align-items:center;justify-content:center;` +
+                `border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);">` +
+                `${rank}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        })
+      });
+      layer.addLayer(badge);
+      rank++;
+    }
+
+    layer.addTo(map);
+    ctx.argumentationLayer = layer;
+  };
+
   // ----------------------------
   // Cluster Popup (mit "zu grob, bitte reinzoomen" bei kleinen Zoomstufen)
   // ----------------------------
@@ -297,9 +465,11 @@
         if (ctx.showKindergartens === undefined) ctx.showKindergartens = true;
         if (ctx.showCluster === undefined) ctx.showCluster = true;
         if (ctx.showHeatmap === undefined) ctx.showHeatmap = true;
+        if (ctx.showArgumentation === undefined) ctx.showArgumentation = true;
 
         // Create legend items
         const items = [
+          { id: 'argumentation', icon: '🎯', label: 'Argumentation (Top-Hotspots)', stateKey: 'showArgumentation' },
           { id: 'schools', icon: '🏫', label: 'Schulen', stateKey: 'showSchools' },
           { id: 'kindergartens', icon: '👶', label: 'Kindergärten', stateKey: 'showKindergartens' },
           { id: 'cluster', icon: '📍', label: 'Cluster', stateKey: 'showCluster' },
@@ -357,7 +527,8 @@
       showSchools: 'schools',
       showKindergartens: 'kindergartens',
       showCluster: 'cluster',
-      showHeatmap: 'heatmap'
+      showHeatmap: 'heatmap',
+      showArgumentation: 'argumentation'
     };
     for (const [stateKey, layerId] of Object.entries(mapping)) {
       const btn = document.querySelector(`.layer-legend-control button[data-layer="${layerId}"]`);
@@ -549,6 +720,10 @@
 
     // ---- POI Layer (schools, kindergartens)
     UA.renderPOILayer(ctx);
+
+    // ---- Argumentationsansicht: Top-Hotspots hervorheben (Task 2).
+    // Wird *nach* Cluster/Heatmap gerendert, damit die Ringe oben liegen.
+    UA.renderArgumentationOverlay(ctx);
 
     // Update stats and store hotInfo in context
     ctx._lastHotInfo = hotInfo;

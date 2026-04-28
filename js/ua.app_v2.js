@@ -191,7 +191,8 @@
       showHeatmap: true,
       showOnlyAboveAverage: false,
       showSchools: true,
-      showKindergartens: true
+      showKindergartens: true,
+      showArgumentation: true
     };
 
     if (UA.cleanUrlIfNeeded()) return;
@@ -204,6 +205,7 @@
     ctx.showOnlyAboveAverage = UA.qBool("showOnlyAboveAverage", false);
     ctx.showSchools = UA.qBool("showSchools", true);
     ctx.showKindergartens = UA.qBool("showKindergartens", true);
+    ctx.showArgumentation = UA.qBool("showArgumentation", true);
     // Accident-view strategy (URL ?accidentView=bySeverity|byInvolvement|flat)
     {
       const v = UA.qGet("accidentView", UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
