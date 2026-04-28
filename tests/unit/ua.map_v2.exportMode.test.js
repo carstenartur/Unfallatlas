@@ -126,6 +126,25 @@ describe('ua.map_v2 export helpers', () => {
       const pts = Array.from({ length: 8 }, (_, i) => ({ lat: 52.375 + i * 0.000005, lon: 9.73 + i * 0.000005, props: {} }));
       expect(UA.computeClusterMapTargets(pts, { maxTargets: 0, minTotal: 2 })).toEqual([]);
     });
+
+    test('exposes per-cluster bounds + member points (consistency with table)', () => {
+      // 8 points all inside the same lat/lon bin → one cluster.
+      const pts = [];
+      for (let i = 0; i < 8; i++) {
+        pts.push({ lat: 52.37500 + i * 0.000005, lon: 9.73000 + i * 0.000005, props: {} });
+      }
+      const [t] = UA.computeClusterMapTargets(pts, { minTotal: 2 });
+      // bounds enclose every cluster point and nothing more.
+      expect(t.bounds).toBeDefined();
+      expect(t.bounds.south).toBeCloseTo(52.37500, 5);
+      expect(t.bounds.north).toBeCloseTo(52.37500 + 7 * 0.000005, 5);
+      expect(t.bounds.west).toBeCloseTo(9.73000, 5);
+      expect(t.bounds.east).toBeCloseTo(9.73000 + 7 * 0.000005, 5);
+      // points list matches the cluster total (Task 5 invariant).
+      expect(Array.isArray(t.points)).toBe(true);
+      expect(t.points.length).toBe(t.total);
+      expect(t.points.length).toBe(8);
+    });
   });
 
   // ---------------------------------------------------------------

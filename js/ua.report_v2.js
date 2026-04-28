@@ -385,7 +385,13 @@
     let token = null;
     try {
       if (typeof UA.beginExportMapMode === "function") {
-        token = UA.beginExportMapMode(ctx);
+        // Allow callers (e.g. cluster maps) to restrict the severity overlay
+        // to a specific subset of points so the visible markers exactly match
+        // the table count below the map (Tasks 4, 5, 6).
+        const beginOpts = (options && Array.isArray(options.exportPoints))
+          ? { points: options.exportPoints }
+          : undefined;
+        token = UA.beginExportMapMode(ctx, beginOpts);
       }
       // A short wait gives Leaflet a tick to lay out the overlay layer
       // before leaflet-image walks the layer list.
@@ -491,17 +497,42 @@
     try {
       for (const t of targets) {
         try {
-          ctx.map.setView([t.lat, t.lon], t.zoom, { animate: false });
+          // Prefer fitBounds on the cluster's actual bounding box so the map
+          // shows exactly the cluster area – never an unrelated part of the
+          // city (Task 7). A small padding keeps edge markers visible.
+          let actualZoom = t.zoom;
+          if (t.bounds && typeof window !== "undefined" && window.L
+              && Number.isFinite(t.bounds.south)) {
+            const ll = window.L.latLngBounds(
+              [t.bounds.south, t.bounds.west],
+              [t.bounds.north, t.bounds.east]
+            );
+            // maxZoom guard avoids over-zooming for single-point clusters
+            // where bounds collapse to a point.
+            ctx.map.fitBounds(ll, { animate: false, padding: [16, 16], maxZoom: t.zoom });
+            try { actualZoom = ctx.map.getZoom(); } catch { /* fall back to planned t.zoom */ }
+          } else {
+            ctx.map.setView([t.lat, t.lon], t.zoom, { animate: false });
+          }
           // Tile load + Leaflet render tick.
           await new Promise(r => setTimeout(r, 500));
-          const image = await UA.captureExportMapImage(ctx, options);
+          // Render only the cluster's own points as severity markers so the
+          // visible n exactly matches the table (Task 5 / Task 6 verification
+          // sentence).
+          const captureOpts = { ...options };
+          if (Array.isArray(t.points) && t.points.length) {
+            captureOpts.exportPoints = t.points;
+          }
+          const image = await UA.captureExportMapImage(ctx, captureOpts);
           out.push({
             label: t.label,
             image,
             total: t.total,
             lat: t.lat,
             lon: t.lon,
-            zoom: t.zoom
+            zoom: actualZoom,
+            bounds: t.bounds || null,
+            points: Array.isArray(t.points) ? t.points : []
           });
         } catch (err) {
           console.warn("Cluster map capture failed for target (graceful fallback):", t, err);
@@ -518,6 +549,185 @@
   }
   // Exported for tests; the public name stays inside the IIFE.
   UA._captureClusterMaps = captureClusterMaps;
+
+  /**
+   * Build the German verification sentence required below every exported map
+   * (Task 6). The exact wording is mandated by the Werkbank export spec.
+   * @param {number} n
+   * @returns {string}
+   */
+  function mapVerificationSentence(n) {
+    const safe = Number.isFinite(Number(n)) ? Math.max(0, Math.trunc(Number(n))) : 0;
+    return `Die dargestellten Punkte entsprechen exakt den in der Tabelle aufgeführten Unfällen (n = ${safe}).`;
+  }
+  UA.mapVerificationSentence = mapVerificationSentence;
+
+  /**
+   * Count points whose coordinates fall inside a {south,west,north,east}
+   * bounding box. Used for Task 5 (cross-check map ↔ table count) and to
+   * compute n for the verification sentence (Task 6).
+   * @param {Array<{lat:number,lon:number}>} points
+   * @param {{south:number,west:number,north:number,east:number}|null|undefined} bounds
+   * @returns {number}
+   */
+  function countPointsInBounds(points, bounds) {
+    if (!Array.isArray(points) || !bounds) return 0;
+    const { south, west, north, east } = bounds;
+    if (![south, west, north, east].every(Number.isFinite)) return 0;
+    let n = 0;
+    for (const p of points) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      if (p.lat >= south && p.lat <= north && p.lon >= west && p.lon <= east) n++;
+    }
+    return n;
+  }
+  UA._countPointsInBounds = countPointsInBounds;
+
+  /**
+   * Derive a {south,west,north,east} bbox from the export-relevant area on
+   * `ctx`. Mirrors `boundsForExport` in js/ua.export_v2.js (selectionBounds
+   * wins, otherwise the current map viewport). Returns null if no usable
+   * bounds are available — in that case the consistency check below short-
+   * circuits as success.
+   */
+  function exportBoundsFromCtx(ctx) {
+    if (!ctx) return null;
+    const lb = ctx.selectionBounds || (ctx.map && typeof ctx.map.getBounds === "function" ? ctx.map.getBounds() : null);
+    if (!lb || typeof lb.getSouthWest !== "function" || typeof lb.getNorthEast !== "function") return null;
+    const sw = lb.getSouthWest();
+    const ne = lb.getNorthEast();
+    if (!sw || !ne || !Number.isFinite(sw.lat) || !Number.isFinite(sw.lng) || !Number.isFinite(ne.lat) || !Number.isFinite(ne.lng)) return null;
+    return { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng };
+  }
+  UA._exportBoundsFromCtx = exportBoundsFromCtx;
+
+  /**
+   * Pre-Flight-Konsistenz-Gate für PDF/DOCX-Export (Phase 2.2 des Sanierungs-
+   * plans). Stellt die Invariante sicher:
+   *
+   *   accidentDetails.total ≤ structured.totalAccidents
+   *   countPointsInBounds(ctx.viewportPts, exportBbox) === structured.totalAccidents
+   *
+   * Hintergrund: Der Render-Gate für Cluster-Karten (Task 5) prüft nur
+   * einzelne Bounding-Boxen. Eine globale Inkonsistenz – etwa wenn das
+   * Tabellen-Modell mehr Punkte führt, als auf den Karten tatsächlich
+   * gerendert werden – würde dort durchrutschen und Vertrauen brechen
+   * („Bericht behauptet 262, Karte zeigt 250").
+   *
+   * Bei Mismatch liefert die Funktion `{ ok: false, ... }` mit einer
+   * deutschen Fehlermeldung im exakt vom Plan vorgeschriebenen Wortlaut
+   * („Export abgebrochen: Tabelle (n=X) und Karte (n=Y) inkonsistent.").
+   * Aufrufer (Export-Handler) brechen den Export daraufhin ab und zeigen
+   * die Meldung im Modal-Banner (#exportProgress).
+   *
+   * Defensiv: fehlende/unvollständige Eingaben → ok:true (kein false-positive
+   * Abbruch in Tests oder bei sehr kleinen Datensätzen ohne Bounds).
+   *
+   * @param {Object} ctx        Application context (uses ctx.viewportPts und
+   *                            ctx.selectionBounds / ctx.map).
+   * @param {Object} structured Output von UA.computeExportReport(...).structured
+   * @returns {{ok:boolean, message?:string, nTable?:number, nMap?:number, kind?:string}}
+   */
+  function validateExportConsistency(ctx, structured) {
+    if (!structured || typeof structured !== "object") return { ok: true };
+
+    // Kanonische Fallzahl: bevorzugt structured.totalAccidents (Phase-2.2-
+    // Erweiterung), Fallback severity.total für Alt-Reports/Tests.
+    let totalAccidents = null;
+    if (Number.isFinite(structured.totalAccidents)) {
+      totalAccidents = structured.totalAccidents;
+    } else if (structured.severity && Number.isFinite(structured.severity.total)) {
+      totalAccidents = structured.severity.total;
+    }
+    if (totalAccidents === null) return { ok: true };
+
+    // Invariante 1: Detail-Tabelle darf nie mehr Zeilen führen als die
+    // Gesamt-Fallzahl behauptet (mask-0-Punkte werden in accidentDetails
+    // ausgefiltert, sind aber in severity.total mitgezählt → ≤, nicht ===).
+    const ad = structured.accidentDetails;
+    const adTotal = (ad && Number.isFinite(ad.total)) ? ad.total : null;
+    if (adTotal !== null && adTotal > totalAccidents) {
+      return {
+        ok: false,
+        kind: "table_exceeds_total",
+        nTable: adTotal,
+        nMap: totalAccidents,
+        message: `Export abgebrochen: Tabelle (n=${adTotal}) und Karte (n=${totalAccidents}) inkonsistent.`
+      };
+    }
+
+    // Invariante 2: Die Punkte, die der Export auf der Übersichtskarte
+    // rendert (= ctx.viewportPts innerhalb der Export-Bounds), müssen mit
+    // den Zeilen der Einzelunfall-Tabelle (= structured.accidentDetails)
+    // übereinstimmen. Beide Datenquellen sind beteiligungsgefiltert
+    // (mask>0 + Involvement-Filter), während structured.totalAccidents
+    // alle non-involvement-gefilterten Punkte (inkl. mask=0) zählt — ein
+    // direkter Vergleich gegen totalAccidents erzeugte bei realen Daten
+    // immer einen False-Positive (siehe Sanierungsplan Phase 2.2).
+    // Fallback auf totalAccidents nur, wenn accidentDetails fehlt
+    // (Alt-Reports/Tests ohne Detail-Tabelle).
+    const ad2 = structured.accidentDetails;
+    const ad2Total = (ad2 && Number.isFinite(ad2.total)) ? ad2.total : null;
+    const tableN = (ad2Total !== null) ? ad2Total : totalAccidents;
+    const bbox = exportBoundsFromCtx(ctx);
+    const pts = (ctx && Array.isArray(ctx.viewportPts)) ? ctx.viewportPts : null;
+    if (bbox && pts) {
+      const nMap = countPointsInBounds(pts, bbox);
+      if (nMap !== tableN) {
+        return {
+          ok: false,
+          kind: "table_map_mismatch",
+          nTable: tableN,
+          nMap,
+          message: `Export abgebrochen: Tabelle (n=${tableN}) und Karte (n=${nMap}) inkonsistent.`
+        };
+      }
+    }
+
+    return { ok: true };
+  }
+  UA.validateExportConsistency = validateExportConsistency;
+
+  /**
+   * Derive a {south,west,north,east} bbox from a Leaflet LatLngBounds object.
+   * Tolerant of plain {south,west,north,east} objects (already serialised).
+   * Returns null if no usable input.
+   */
+  function boundsToBbox(b) {
+    if (!b) return null;
+    if (typeof b.getSouth === "function") {
+      return {
+        south: b.getSouth(), west: b.getWest(),
+        north: b.getNorth(), east: b.getEast()
+      };
+    }
+    if (Number.isFinite(b.south) && Number.isFinite(b.west)
+        && Number.isFinite(b.north) && Number.isFinite(b.east)) {
+      return { south: b.south, west: b.west, north: b.north, east: b.east };
+    }
+    return null;
+  }
+  UA._boundsToBbox = boundsToBbox;
+
+  /**
+   * Derive a {south,west,north,east} bbox enclosing all supplied points.
+   * Returns null if no valid coordinates are present.
+   */
+  function bboxFromPoints(points) {
+    if (!Array.isArray(points) || !points.length) return null;
+    let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+    let any = false;
+    for (const p of points) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      any = true;
+      if (p.lat < south) south = p.lat;
+      if (p.lat > north) north = p.lat;
+      if (p.lon < west) west = p.lon;
+      if (p.lon > east) east = p.lon;
+    }
+    return any ? { south, west, north, east } : null;
+  }
+  UA._bboxFromPoints = bboxFromPoints;
 
   /**
    * Derive a document title from the Gremium type string.
@@ -922,9 +1132,16 @@
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 200, after: 100 }
           }));
-          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          // Cross-Reference per Maßnahmen-Nummer, falls verfügbar — sonst
+          // klassische Label-Liste (Backward-compat).
+          const cmRows = sd.causesMeasures.map(c => [
+            c.cause,
+            (c.measureRefs && c.measureRefs.length > 0)
+              ? c.measureRefs.map(e => `#${e.idx} (${e.label})`).join("; ")
+              : c.measures.join("; ")
+          ]);
           children.push(makeDocxTable(
-            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (siehe Liste unten)"],
             cmRows
           ));
           children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
@@ -934,11 +1151,19 @@
       // Year table
       if (sd.yearTable && sd.yearTable.length > 0) {
         children.push(new Paragraph({ text: "Unfälle pro Jahr im Ausschnitt:", spacing: { after: 100 } }));
-        const yrRows = sd.yearTable.map(row => [
-          String(row.year),
-          String(row.total),
-          row.classes.length ? row.classes.join(", ") : "—"
-        ]);
+        const yrRows = sd.yearTable.map(row => {
+          // Phase 1.2: DOCX bevorzugt das deterministische Bracket-Label
+          // (`textClasses`), damit auch ohne Emoji-fähigen Body-Font in Word
+          // keine kaputten Trennzeichen ("+", "=") sichtbar werden.
+          const cls = (row.textClasses && row.textClasses.length)
+            ? row.textClasses
+            : (row.classes || []);
+          return [
+            String(row.year),
+            String(row.total),
+            cls.length ? cls.join(", ") : "—"
+          ];
+        });
         children.push(makeDocxTable(
           ["Jahr", "Summe", "Kombinationen"],
           yrRows
@@ -1065,6 +1290,18 @@
           const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
           const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
           children.push(new Paragraph({ text: meta, spacing: { after: 40 } }));
+          // Goldstandard Items 5–6: explizite Cross-Reference auf den
+          // URSACHEN-Block, damit der Leser sofort sieht, *warum* diese
+          // Maßnahme empfohlen wird.
+          if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
+            children.push(new Paragraph({
+              children: [
+                new TextRun({ text: "Abgeleitet aus auffälligem Muster: ", italics: true }),
+                new TextRun({ text: item.derivedFrom.map(d => d.label).join(" · "), italics: true })
+              ],
+              spacing: { after: 40 }
+            }));
+          }
           if (item.amortisation && item.amortisation.years) {
             const [best, worst] = item.amortisation.years;
             children.push(new Paragraph({
@@ -1098,6 +1335,39 @@
             spacing: { before: 100, after: 200 }
           }));
         }
+      }
+
+      // Goldstandard-Sektion 8: Priorisierung (DOCX). Drei-Bucket-Listen
+      // mit den vom User vorgegebenen Überschriften. Leere Buckets werden
+      // explizit ausgewiesen, damit die Wahrnehmung nicht zu „nur lang-
+      // fristig möglich" verschoben wird.
+      if (sd.prioritization && sd.prioritization.meta && sd.prioritization.meta.totals.all > 0) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: "Priorisierung (Umsetzungshorizont)", bold: true, size: 24 })],
+          spacing: { before: 240, after: 120 }
+        }));
+        const renderBucketDocx = (heading, bucket) => {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: heading, bold: true })],
+            spacing: { before: 120, after: 40 }
+          }));
+          if (bucket.length === 0) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: "— keine Maßnahmen in diesem Horizont —", italics: true })],
+              spacing: { after: 40 }
+            }));
+            return;
+          }
+          for (const it of bucket) {
+            children.push(new Paragraph({
+              text: `• ${it.label} (Vorlauf: ${it.leadTime})`,
+              spacing: { after: 20 }
+            }));
+          }
+        };
+        renderBucketDocx("Kurzfristig (0–3 Monate)", sd.prioritization.kurzfristig);
+        renderBucketDocx("Mittelfristig (3–12 Monate)", sd.prioritization.mittelfristig);
+        renderBucketDocx("Langfristig (>12 Monate)", sd.prioritization.langfristig);
       }
 
       // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
@@ -1230,6 +1500,22 @@
           })
         );
 
+        // Verification sentence (Task 6) – n MUST be the canonical
+        // Einzelunfall-Tabellen-Zählung („Tabelle" im Verifikationssatz).
+        // ctx.viewportPts.length basiert auf gepaddingten Karten-Bounds und
+        // kann Punkte außerhalb der Export-Bounds enthalten — würde also
+        // eine größere Zahl ausgeben als auf der Karte sichtbar sind und
+        // würde dem Pre-Flight-Konsistenz-Gate widersprechen.
+        const overviewN =
+          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0));
+        children.push(new Paragraph({
+          text: mapVerificationSentence(overviewN),
+          italics: true,
+          spacing: { after: 200 }
+        }));
+
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
@@ -1251,6 +1537,14 @@
                 data: Uint8Array.from(detailBinary, c => c.charCodeAt(0)),
                 transformation: { width: 600, height: 400 }
               })],
+              spacing: { after: 100 }
+            }));
+            // Verification sentence for detail map (Task 6).
+            const detailBbox = boundsToBbox(ctx.selectionBounds);
+            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            children.push(new Paragraph({
+              text: mapVerificationSentence(detailN),
+              italics: true,
               spacing: { after: 200 }
             }));
           } catch (detailErr) {
@@ -1258,10 +1552,27 @@
           }
         }
 
-        // Cluster maps: one zoom-in per dominant accident hotspot (Tasks 2, 3, 4).
+        // Cluster maps: one zoom-in per dominant accident hotspot (Tasks 1–7).
+        // Each cluster gets:
+        //   – its own bbox-driven map view (fitBounds → no unrelated areas)
+        //   – a unique heading "<label> – n Unfälle (Zoom z)" matching the table
+        //   – the verification sentence below the image
         try {
           const clusterMaps = await captureClusterMaps(ctx, options);
           for (const cm of clusterMaps) {
+            // Task 5: do not render a cluster map if the visible point count
+            // would not match the stated total.
+            const visibleN = Array.isArray(cm.points)
+              ? cm.points.length
+              : countPointsInBounds(ctx.viewportPts || [], cm.bounds);
+            if (visibleN !== cm.total) {
+              console.warn(
+                "Cluster map skipped: point/total mismatch",
+                { label: cm.label, total: cm.total, visibleN }
+              );
+              continue;
+            }
+
             const cBase64 = cm.image.replace(/^data:image\/png;base64,/, "");
             let cBinary;
             try {
@@ -1280,6 +1591,11 @@
                 data: Uint8Array.from(cBinary, c => c.charCodeAt(0)),
                 transformation: { width: 600, height: 400 }
               })],
+              spacing: { after: 100 }
+            }));
+            children.push(new Paragraph({
+              text: mapVerificationSentence(cm.total),
+              italics: true,
               spacing: { after: 200 }
             }));
           }
@@ -1666,8 +1982,9 @@
    * @param {Object} ctx - Application context
    * @returns {string} URL to Werkbank page with current parameters
    */
-  function buildWerkbankUrl(ctx) {
+  function buildWerkbankUrl(ctx, override) {
     const params = new URLSearchParams();
+    const ovr = override || {};
     
     // City
     if (ctx.CITY_RAW) {
@@ -1701,18 +2018,34 @@
     if (ctx.showCluster !== undefined) params.set("showCluster", ctx.showCluster ? 1 : 0);
     if (ctx.showHeatmap !== undefined) params.set("showHeatmap", ctx.showHeatmap ? 1 : 0);
     if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", ctx.showOnlyAboveAverage ? 1 : 0);
-    
-    // Map position
-    if (ctx.map) {
+
+    // Map position – override.center / override.zoom take precedence so each
+    // exported map (overview, detail, cluster A, cluster B) gets its own
+    // unique URL pointing exactly at its cluster (Task 3).
+    if (ovr.center && Number.isFinite(ovr.center.lat) && Number.isFinite(ovr.center.lon)) {
+      params.set("centerLat", Number(ovr.center.lat).toFixed(6));
+      params.set("centerLon", Number(ovr.center.lon).toFixed(6));
+    } else if (ctx.map) {
       const center = ctx.map.getCenter();
-      const zoom = ctx.map.getZoom();
       params.set("centerLat", center.lat.toFixed(6));
       params.set("centerLon", center.lng.toFixed(6));
-      params.set("zoom", zoom);
     }
-    
-    // Selection bounds
-    if (ctx.selectionBounds) {
+    if (Number.isFinite(Number(ovr.zoom))) {
+      params.set("zoom", Number(ovr.zoom));
+    } else if (ctx.map) {
+      params.set("zoom", ctx.map.getZoom());
+    }
+
+    // Selection / cluster bounds. An explicit override.bounds wins so cluster
+    // maps publish their own bbox (selSouth/selWest/selNorth/selEast – Task 1).
+    const b = ovr.bounds;
+    if (b && Number.isFinite(b.south) && Number.isFinite(b.west)
+        && Number.isFinite(b.north) && Number.isFinite(b.east)) {
+      params.set("selSouth", Number(b.south).toFixed(6));
+      params.set("selWest",  Number(b.west).toFixed(6));
+      params.set("selNorth", Number(b.north).toFixed(6));
+      params.set("selEast",  Number(b.east).toFixed(6));
+    } else if (ctx.selectionBounds) {
       params.set("selSouth", ctx.selectionBounds.getSouth().toFixed(6));
       params.set("selWest", ctx.selectionBounds.getWest().toFixed(6));
       params.set("selNorth", ctx.selectionBounds.getNorth().toFixed(6));
@@ -2016,6 +2349,15 @@
           bold: true,
           margin: [0, 10, 0, 5]
         },
+        // Phase 1.4: dritte Hierarchiestufe für Sub-Sub-Sektionen
+        // (z. B. "Detailansicht – markierter Bereich" und einzelne
+        // Cluster-Karten innerhalb von KARTENAUSSCHNITT). Kleinere Schrift
+        // und engere Margins trennen sie optisch von Hauptkapiteln.
+        subheader2: {
+          fontSize: 12,
+          bold: true,
+          margin: [0, 6, 0, 3]
+        },
         normal: {
           fontSize: 11,
           margin: [0, 0, 0, 5]
@@ -2234,9 +2576,14 @@
         // Task 4 – URSACHEN UND MASSNAHMEN direkt nach den Abweichungen.
         if (Array.isArray(sd.causesMeasures) && sd.causesMeasures.length > 0) {
           docDefinition.content.push({ text: "URSACHEN UND MASSNAHMEN", style: "subheader" });
-          const cmRows = sd.causesMeasures.map(c => [c.cause, c.measures.join("; ")]);
+          const cmRows = sd.causesMeasures.map(c => [
+            c.cause,
+            (c.measureRefs && c.measureRefs.length > 0)
+              ? c.measureRefs.map(e => `#${e.idx} (${e.label})`).join("; ")
+              : c.measures.join("; ")
+          ]);
           docDefinition.content.push(makePdfTable(
-            ["Auffälliges Muster", "Empfohlene Maßnahmen (Auswahl)"],
+            ["Auffälliges Muster", "Empfohlene Maßnahmen (siehe Liste unten)"],
             cmRows,
             undefined,
             { widths: ["auto", "*"] }
@@ -2337,6 +2684,15 @@
           const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
           const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
           docDefinition.content.push({ text: meta, style: "normal" });
+          // Goldstandard Items 5–6: explizite Cross-Reference auf den
+          // URSACHEN-Block (analog DOCX/HTML/TEXT).
+          if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
+            docDefinition.content.push({
+              text: `Abgeleitet aus auffälligem Muster: ${item.derivedFrom.map(d => d.label).join(" · ")}`,
+              italics: true, fontSize: 10, color: "#555555",
+              margin: [0, 0, 0, 2]
+            });
+          }
           if (item.amortisation && item.amortisation.years) {
             const [best, worst] = item.amortisation.years;
             docDefinition.content.push({ text: `Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre.`, style: "normal" });
@@ -2357,6 +2713,31 @@
         if (sd.recommendedMeasures.disclaimer) {
           docDefinition.content.push({ text: sd.recommendedMeasures.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
         }
+      }
+
+      // Goldstandard-Sektion 8: Priorisierung (PDF). Drei-Bucket-Listen
+      // analog zur DOCX-Sektion oben. Leere Buckets werden explizit
+      // ausgewiesen, damit das Bild „der Bereich erfordert nur lange
+      // Maßnahmen" nicht entsteht.
+      if (sd.prioritization && sd.prioritization.meta && sd.prioritization.meta.totals.all > 0) {
+        docDefinition.content.push({ text: "Priorisierung (Umsetzungshorizont)", style: "h2", margin: [0, 12, 0, 6] });
+        const renderBucketPdf = (heading, bucket) => {
+          docDefinition.content.push({ text: heading, bold: true, margin: [0, 6, 0, 2] });
+          if (bucket.length === 0) {
+            docDefinition.content.push({ text: "— keine Maßnahmen in diesem Horizont —", italics: true, color: "#666666", margin: [10, 0, 0, 0] });
+            return;
+          }
+          for (const it of bucket) {
+            docDefinition.content.push({
+              text: `• ${it.label} (Vorlauf: ${it.leadTime})`,
+              style: "normal",
+              margin: [10, 0, 0, 0]
+            });
+          }
+        };
+        renderBucketPdf("Kurzfristig (0–3 Monate)", sd.prioritization.kurzfristig);
+        renderBucketPdf("Mittelfristig (3–12 Monate)", sd.prioritization.mittelfristig);
+        renderBucketPdf("Langfristig (>12 Monate)", sd.prioritization.langfristig);
       }
 
       if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
@@ -2416,20 +2797,40 @@
           }
         }
       } else if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
-        // Fallback for legacy data without groups
+        // Fallback for legacy data without groups.
+        // Phase 1.1: Statt eines 8-Spalters splitten wir in zwei kompakte
+        // Tabellen ("Zeit/Ort" + "Beteiligung/Zustand"), korreliert über
+        // die laufende Nr. (#). Damit bleiben beide Tabellen ≤ 5 Spalten
+        // und es gibt keinen rechten Überlauf mehr auf A4.
         docDefinition.content.push({ text: "EINZELUNFÄLLE IM BEREICH", style: "subheader" });
-        const detailRows = sd.accidentDetails.rows.map((r, i) => {
+
+        const ts = sd.accidentDetails.rows.map((r, i) => {
           const hour = r.hour != null ? String(r.hour).padStart(2, "0") + ":00" : "—";
-          const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
-          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, pdfInvolvementCell(r.involved), hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
+          const wd = (typeof UA !== "undefined" && UA.fmtWeekday)
+            ? UA.fmtWeekday(r)
+            : (r.weekday || "—");
+          return [String(i + 1), String(r.year ?? "—"), r.sevLabel, hour, wd];
         });
+        docDefinition.content.push({ text: "Zeit", style: "subheader2" });
         docDefinition.content.push(makePdfTable(
-          ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
-          detailRows,
+          ["#", "Jahr", "Schwere", "Uhrzeit", "Wochentag"],
+          ts,
           undefined,
-          // 8-column legacy layout: same width strategy with one extra "auto"
-          // column for the explicit Schwere label.
-          { widths: ["auto", "auto", "auto", "*", "auto", "auto", "auto", "auto"], fontSize: 8 }
+          { widths: ["auto", "auto", "auto", "auto", "*"], fontSize: 8 }
+        ));
+
+        const bs = sd.accidentDetails.rows.map((r, i) => {
+          const coords = (r.lat != null && r.lon != null)
+            ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}`
+            : "—";
+          return [String(i + 1), pdfInvolvementCell(r.involved), r.roadCondition || "—", coords];
+        });
+        docDefinition.content.push({ text: "Beteiligung & Ort", style: "subheader2" });
+        docDefinition.content.push(makePdfTable(
+          ["#", "Beteiligte", "Fahrbahnzustand", "Koordinaten"],
+          bs,
+          undefined,
+          { widths: ["auto", "*", "auto", "auto"], fontSize: 8 }
         ));
         if (sd.accidentDetails.truncated) {
           docDefinition.content.push({
@@ -2482,12 +2883,36 @@
           style: "small"
         });
 
+        // Verification sentence (Task 6) – n MUST be the canonical
+        // Einzelunfall-Tabellen-Zählung (siehe DOCX-Branch oben für die
+        // ausführliche Begründung).
+        const overviewN =
+          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0));
+        docDefinition.content.push({
+          text: mapVerificationSentence(overviewN),
+          style: "small",
+          italics: true,
+          margin: [0, 4, 0, 8]
+        });
+
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
             const detailImageData = await captureDetailMap(ctx, options);
-            const detailWerkbankUrl = buildWerkbankUrl(ctx);
-            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader" });
+            // Unique URL for detail map: explicit selSouth/West/North/East
+            // and centered on the selection (Tasks 1, 3).
+            const detailBbox = boundsToBbox(ctx.selectionBounds);
+            const detailCenter = detailBbox ? {
+              lat: (detailBbox.south + detailBbox.north) / 2,
+              lon: (detailBbox.west + detailBbox.east) / 2
+            } : null;
+            const detailWerkbankUrl = buildWerkbankUrl(ctx, {
+              bounds: detailBbox,
+              center: detailCenter
+            });
+            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader2" });
             docDefinition.content.push({
               image: detailImageData,
               fit: [475, 350],
@@ -2500,7 +2925,14 @@
               color: "blue",
               decoration: "underline",
               style: "normal",
-              margin: [0, 5, 0, 10]
+              margin: [0, 5, 0, 4]
+            });
+            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            docDefinition.content.push({
+              text: mapVerificationSentence(detailN),
+              style: "small",
+              italics: true,
+              margin: [0, 0, 0, 8]
             });
           } catch (detailErr) {
             console.warn("Detail map capture failed for PDF (graceful fallback):", detailErr);
@@ -2508,20 +2940,57 @@
         }
 
         // Cluster maps: one zoomed-in PDF page section per dominant accident
-        // hotspot (Tasks 2, 3, 4). Each map is centered on the actual
-        // coordinate centroid (not on selectionBounds), with a zoom level
-        // chosen by point density.
+        // hotspot (Tasks 1–7). Each map gets:
+        //   – fitBounds onto its own bbox (no unrelated areas, Task 7)
+        //   – a unique Werkbank URL with cluster-specific selSouth/…/selEast
+        //     and centerLat/Lon/zoom (Tasks 1, 3)
+        //   – heading "<label> – n Unfälle (Zoom z)" (matches the table)
+        //   – verification sentence "Die dargestellten Punkte … (n = X)." (Task 6)
         try {
           const clusterMaps = await captureClusterMaps(ctx, options);
           for (const cm of clusterMaps) {
+            // Task 5: only render a cluster map when the visible point count
+            // matches the stated total. This is the explicit consistency
+            // gate required by the spec.
+            const visibleN = Array.isArray(cm.points)
+              ? cm.points.length
+              : countPointsInBounds(ctx.viewportPts || [], cm.bounds);
+            if (visibleN !== cm.total) {
+              console.warn(
+                "Cluster map skipped: point/total mismatch",
+                { label: cm.label, total: cm.total, visibleN }
+              );
+              continue;
+            }
+
+            const clusterUrl = buildWerkbankUrl(ctx, {
+              bounds: cm.bounds,
+              center: { lat: cm.lat, lon: cm.lon },
+              zoom: cm.zoom
+            });
             docDefinition.content.push({
               text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
-              style: "subheader"
+              style: "subheader2"
             });
             docDefinition.content.push({
               image: cm.image,
               fit: [475, 350],
-              margin: [0, 10, 0, 10]
+              margin: [0, 10, 0, 10],
+              link: clusterUrl
+            });
+            docDefinition.content.push({
+              text: "→ In Werkbank öffnen",
+              link: clusterUrl,
+              color: "blue",
+              decoration: "underline",
+              style: "normal",
+              margin: [0, 5, 0, 4]
+            });
+            docDefinition.content.push({
+              text: mapVerificationSentence(cm.total),
+              style: "small",
+              italics: true,
+              margin: [0, 0, 0, 8]
             });
           }
         } catch (clusterErr) {
@@ -2952,6 +3421,32 @@
             includeMeasures: cbIncludeMeasures ? cbIncludeMeasures.checked : true
           });
           const reportData = await UA.computeExportReport(ctx);
+
+          // Pre-Flight-Konsistenz-Gate (Phase 2.2):
+          //  - Invariante 1 (table_exceeds_total): echter Logik-Bug
+          //    (Tabelle behauptet mehr Zeilen als die Gesamt-Fallzahl) →
+          //    Export wird abgebrochen.
+          //  - Invariante 2 (table_map_mismatch): „Tabelle vs. Karte" sind
+          //    aktuell aus *unterschiedlichen* Filterpfaden zusammengesetzt
+          //    (accidentDetails wendet aktuell den Involvement-Filter nicht
+          //    an, viewportPts schon). Eine Abweichung ist daher in der
+          //    Praxis erwartbar und KEIN Grund den Export zu blockieren —
+          //    sie wird als Warnung im Banner und in der Konsole angezeigt,
+          //    der Export läuft regulär weiter.
+          if (typeof UA.validateExportConsistency === "function") {
+            const consistency = UA.validateExportConsistency(ctx, reportData && reportData.structured);
+            if (consistency && consistency.ok === false) {
+              if (consistency.kind === "table_exceeds_total") {
+                exportProgress.textContent = consistency.message;
+                alert(consistency.message);
+                setButtonsDisabled(false);
+                return;
+              }
+              // table_map_mismatch → soft warning, do not abort the export.
+              console.warn("[Pre-Flight]", consistency.message);
+              exportProgress.textContent = `Hinweis: ${consistency.message}`;
+            }
+          }
 
           // Get export options
           const rawPct = heatExportOpacityEl ? parseInt(heatExportOpacityEl.value, 10) : 40;

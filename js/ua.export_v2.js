@@ -242,37 +242,54 @@
   });
 
   /**
-   * Erzeugt strukturierte Zeilen `[{ cause, measures[] }]` für die
-   * "URSACHEN UND MASSNAHMEN"-Sektion.
+   * Erzeugt strukturierte Zeilen `[{ cause, mask, measures, measureRefs }]`
+   * für die "URSACHEN UND MASSNAHMEN"-Sektion.
+   *
+   * - `measures` (string[]): Maßnahmen-Labels, max 3 (Backward-compat).
+   * - `measureRefs` (Array<{idx, label}>): 1-basierte Indizes in
+   *   `recommendedMeasures.measures[]`. Renderer können daraus
+   *   „Maßnahme #1 (Tempo-30-Anordnung)" bauen statt das Label
+   *   stumm zu wiederholen (Goldstandard Items 5–6: explizite
+   *   Cross-Reference statt Redundanz).
+   *
+   * Wenn keine Maßnahme zu einer Ursache passt (z. B. Toggle aus
+   * oder Filter zu eng), greift der Fallback aus
+   * `CAUSE_MEASURE_FALLBACK` und `measureRefs` bleibt leer — der
+   * Renderer fällt dann automatisch auf die Label-Darstellung zurück.
    *
    * @param {Array<{mask:number,label?:string,textLabel?:string}>} detectedFocusRows  z. B. structured.deviations.focus
    * @param {object|null} recommendedMeasures  structured.recommendedMeasures (kann null sein)
-   * @returns {Array<{ cause: string, mask: number, measures: string[] }>}
+   * @returns {Array<{ cause: string, mask: number, measures: string[], measureRefs: Array<{idx:number,label:string}> }>}
    */
   function buildCausesMeasuresSection(detectedFocusRows, recommendedMeasures) {
     const focus = Array.isArray(detectedFocusRows) ? detectedFocusRows : [];
     if (focus.length === 0) return [];
 
-    // Map: mask -> Liste der Maßnahmen-Labels aus dem Katalog (gefiltert).
-    const catalogByMask = {};
+    // Map: mask -> Liste von { idx, label } aus recommendedMeasures.measures.
+    // `idx` ist 1-basiert, identisch zur Nummerierung im Empfohlene-
+    // Maßnahmen-Block (TEXT/HTML/DOCX/PDF rendern beide bei 1).
+    const refsByMask = {};
     if (recommendedMeasures && Array.isArray(recommendedMeasures.measures)) {
-      for (const item of recommendedMeasures.measures) {
+      recommendedMeasures.measures.forEach((item, i) => {
         const m = item && item.measure;
-        if (!m) continue;
+        if (!m) return;
         const tgt = (m.effect && Array.isArray(m.effect.targetPatterns)) ? m.effect.targetPatterns : [];
         for (const t of tgt) {
           const key = Number(t);
           if (!Number.isFinite(key)) continue;
-          if (!catalogByMask[key]) catalogByMask[key] = [];
-          if (!catalogByMask[key].includes(m.label)) catalogByMask[key].push(m.label);
+          if (!refsByMask[key]) refsByMask[key] = [];
+          if (!refsByMask[key].some(e => e.idx === i + 1)) {
+            refsByMask[key].push({ idx: i + 1, label: m.label });
+          }
         }
-      }
+      });
     }
 
     return focus.map(r => {
       const mask = Number(r.mask);
       const cause = r.textLabel || r.label || formatInvolvementCombo(mask, { format: "text" });
-      let measures = (catalogByMask[mask] && catalogByMask[mask].slice(0, 3)) || [];
+      const refs = (refsByMask[mask] || []).slice(0, 3);
+      let measures = refs.map(e => e.label);
       if (measures.length === 0) {
         const fb = CAUSE_MEASURE_FALLBACK[mask];
         if (Array.isArray(fb) && fb.length > 0) measures = fb.slice(0, 3);
@@ -280,7 +297,7 @@
       if (measures.length === 0) {
         measures = ["Keine spezifische Maßnahme aus Katalog (siehe allgemeine Maßnahmen)."];
       }
-      return { cause, mask, measures };
+      return { cause, mask, measures, measureRefs: refs };
     });
   }
   UA.buildCausesMeasuresSection = buildCausesMeasuresSection;
@@ -878,13 +895,22 @@
     const out = [];
     for (const y of years) {
       const r = rows.get(y) || { total: 0, byMask: {} };
-      const classes = Object.entries(r.byMask)
+      const sorted = Object.entries(r.byMask)
         .map(([m, c]) => ({ m: Number(m), c }))
-        .sort((a, b) => b.c - a.c)
-        // Task 1: emoji-Label fürs HTML/PDF (mit pdfInvolvementCell-SVG),
-        // textLabel als deterministischer Bracket-Fallback für DOCX/Klartext.
-        .map(e => `${COMBO_LABEL[e.m] || formatInvolvementCombo(e.m, { format: "emoji" })}=${e.c}`);
-      out.push({ year: y, total: r.total, classes });
+        .sort((a, b) => b.c - a.c);
+      // Task 1: emoji-Label fürs HTML/PDF (mit pdfInvolvementCell-SVG-Substitution).
+      // Separator ist `: ` statt `=`, damit auch ohne Emoji-Glyph nichts wie
+      // "+= 4" stehen bleibt – siehe QA-Plan Phase 1.2 (keine "+", "=", "0").
+      const classes = sorted.map(e =>
+        `${COMBO_LABEL[e.m] || formatInvolvementCombo(e.m, { format: "emoji" })}: ${e.c}`
+      );
+      // textClasses: deterministischer Bracket-Fallback für DOCX/Klartext,
+      // wo Emoji-Fonts auf Verwaltungs-Arbeitsplätzen nicht zwingend
+      // vorhanden sind. Wird vom DOCX-Renderer bevorzugt, falls vorhanden.
+      const textClasses = sorted.map(e =>
+        `${formatInvolvementCombo(e.m, { format: "text" })}: ${e.c}`
+      );
+      out.push({ year: y, total: r.total, classes, textClasses });
     }
     return out;
   }
@@ -1314,6 +1340,29 @@
             economicImpact: economicImpact,
             osmContext: osmContext
           });
+          // Enrich each entry with `derivedFrom`: the human-readable focus
+          // labels that triggered this measure. This is the explicit link
+          // back to the URSACHEN-block (Goldstandard Items 5–6: avoid
+          // unmoored repetition between „Ursachen" and „Empfohlene
+          // Maßnahmen"). matchedPatterns already carries the masks; we
+          // resolve them against dev.focus once so renderers can simply
+          // print labels without re-doing the lookup per format.
+          if (recommendedMeasures && Array.isArray(recommendedMeasures.measures)) {
+            const focusByMask = new Map();
+            for (const r of (dev.focus || [])) {
+              const k = Number(r.mask);
+              if (Number.isFinite(k) && !focusByMask.has(k)) {
+                focusByMask.set(k, r.textLabel || r.label || formatInvolvementCombo(k, { format: "text" }));
+              }
+            }
+            for (const item of recommendedMeasures.measures) {
+              const masks = Array.isArray(item.matchedPatterns) ? item.matchedPatterns : [];
+              item.derivedFrom = masks
+                .map(m => Number(m))
+                .filter(Number.isFinite)
+                .map(m => ({ mask: m, label: focusByMask.get(m) || formatInvolvementCombo(m, { format: "text" }) }));
+            }
+          }
         }
       } catch (e) {
         console.warn("Measure recommendation failed:", e);
@@ -1467,7 +1516,16 @@
       if (_causes.length > 0) {
         lines.push("URSACHEN UND MASSNAHMEN (kurz):");
         for (const c of _causes) {
-          lines.push(`  ${c.cause}: ${c.measures.join("; ")}`);
+          // Wenn die Empfohlene-Maßnahmen-Liste die Maßnahme bereits
+          // enthält, referenzieren wir per „#N (Label)" — so sieht der
+          // Leser die Verbindung zur Detail-Liste unten und wir
+          // wiederholen das Label nicht stumm. Ohne Cross-Refs (z. B.
+          // Maßnahmen-Toggle aus, Fallback aus CAUSE_MEASURE_FALLBACK)
+          // bleibt die alte Label-Liste erhalten.
+          const list = (c.measureRefs && c.measureRefs.length > 0)
+            ? c.measureRefs.map(e => `#${e.idx} (${e.label})`).join("; ")
+            : c.measures.join("; ");
+          lines.push(`  ${c.cause}: ${list}`);
         }
         lines.push("");
       }
@@ -1589,6 +1647,13 @@
         lines.push(`  ${i}. ${m.label}`);
         if (m.description) lines.push(`     ${m.description}`);
         lines.push(`     Kosten: ${cost} pro ${m.perUnit || "Einheit"} · erwartete Reduktion: ${red} ·${ev} · Vorlauf: ${m.leadTime || "—"}`);
+        // Goldstandard Items 5–6: Cross-Reference zurück in den
+        // URSACHEN-Block. Macht für den Leser explizit, *warum* genau
+        // diese Maßnahme vorgeschlagen wird — und verhindert, dass der
+        // Eindruck einer beliebigen, unverbundenen Liste entsteht.
+        if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
+          lines.push(`     Abgeleitet aus auffälligem Muster: ${item.derivedFrom.map(d => d.label).join(" · ")}`);
+        }
         if (item.amortisation && item.amortisation.years) {
           const [best, worst] = item.amortisation.years;
           lines.push(`     Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre (Best- bis Worst-Case).`);
@@ -1608,6 +1673,38 @@
       if (recommendedMeasures.disclaimer) {
         lines.push(`  Hinweis: ${recommendedMeasures.disclaimer}`);
       }
+      lines.push("");
+    }
+
+    // Goldstandard-Sektion 8: Priorisierung nach Umsetzungshorizont.
+    // Bezirksvertretungen erwarten klare Zeit-Buckets („was ist in 3
+    // Monaten machbar?"). Wir berechnen die Priorisierung hier einmal
+    // (deterministisch aus `recommendedMeasures.measures[]`) und teilen
+    // das Ergebnis sowohl mit dem HTML-Renderer (HTML-Section unten) als
+    // auch mit `structured.prioritization`, das DOCX/PDF/AI konsumieren.
+    // null, wenn der includeMeasures-Toggle aus oder die Liste leer ist.
+    const _prioritization = (includeMeasures && recommendedMeasures
+        && UA.measures && typeof UA.measures.buildPrioritization === "function")
+      ? UA.measures.buildPrioritization(recommendedMeasures)
+      : null;
+    if (_prioritization && _prioritization.meta && _prioritization.meta.totals.all > 0) {
+      lines.push("Priorisierung (Umsetzungshorizont):");
+      const renderBucket = (heading, bucket) => {
+        if (bucket.length === 0) {
+          lines.push(`  ${heading}: — keine Maßnahmen in diesem Horizont —`);
+          return;
+        }
+        lines.push(`  ${heading}:`);
+        for (const it of bucket) {
+          lines.push(`    – ${it.label} (Vorlauf: ${it.leadTime})`);
+        }
+      };
+      renderBucket("Kurzfristig (0–3 Monate)", _prioritization.kurzfristig);
+      renderBucket("Mittelfristig (3–12 Monate)", _prioritization.mittelfristig);
+      renderBucket("Langfristig (>12 Monate)", _prioritization.langfristig);
+      // "unbekannt" bewusst NICHT rendern, um den Eindruck einer vierten
+      // Kategorie zu vermeiden – falls leadTime fehlt, ist die Maßnahme
+      // bereits in der Hauptliste mit "Vorlauf: —" sichtbar.
       lines.push("");
     }
 
@@ -1897,6 +1994,12 @@
         const considerationsHtml = (Array.isArray(m.considerations) && m.considerations.length > 0)
           ? `<ul style="margin:4px 0 0 18px; padding:0; color:#555; font-size:12px;">${m.considerations.map(c => `<li>${UA.escHtml(c)}</li>`).join("")}</ul>`
           : "";
+        // Goldstandard Items 5–6: explizite Cross-Reference auf den
+        // URSACHEN-Block. Das macht die Maßnahme nachvollziehbar und
+        // verhindert die Wahrnehmung „beliebige Liste".
+        const derivedHtml = (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0)
+          ? `<div style="color:#555; font-size:12px; margin-top:2px;"><strong>Abgeleitet aus:</strong> ${item.derivedFrom.map(d => UA.escHtml(d.label)).join(" · ")}</div>`
+          : "";
         return `
           <li style="margin-bottom:10px;">
             <div style="font-weight:700;">${UA.escHtml(m.label)}</div>
@@ -1906,6 +2009,7 @@
               <strong>Reduktion:</strong> ${UA.escHtml(red)} ·
               ${ev ? UA.escHtml(ev) + " · " : ""}<strong>Vorlauf:</strong> ${UA.escHtml(m.leadTime || "—")}
             </div>
+            ${derivedHtml}
             ${amort}
             ${considerationsHtml}
           </li>`;
@@ -1938,6 +2042,28 @@
         ${filteredHtml}
         ${sourcesHtml}
         ${recommendedMeasures.disclaimer ? `<div style="color:#555; font-size:12px; font-style:italic; margin-top:4px;">${UA.escHtml(recommendedMeasures.disclaimer)}</div>` : ""}`;
+    }
+
+    // Goldstandard-Sektion 8: Priorisierung (HTML). Spiegelt die TEXT-
+    // Sektion oben 1:1, aber als kompakte Liste pro Bucket. Ein leerer
+    // Bucket wird explizit ausgewiesen, damit die Wahrnehmung nicht zu
+    // „nur Langfristig möglich" verschoben wird.
+    let prioritizationHtmlSection = "";
+    if (_prioritization && _prioritization.meta && _prioritization.meta.totals.all > 0) {
+      const renderBucketHtml = (heading, bucket) => {
+        if (bucket.length === 0) {
+          return `<div style="margin-top:6px;"><strong>${UA.escHtml(heading)}:</strong> <em style="color:#777;">— keine Maßnahmen in diesem Horizont —</em></div>`;
+        }
+        const items = bucket.map(it =>
+          `<li>${UA.escHtml(it.label)} <span style="color:#666; font-size:12px;">(Vorlauf: ${UA.escHtml(it.leadTime)})</span></li>`
+        ).join("");
+        return `<div style="margin-top:6px;"><strong>${UA.escHtml(heading)}:</strong></div><ul style="margin:2px 0 0 0;">${items}</ul>`;
+      };
+      prioritizationHtmlSection = `
+        <div style="margin-top:12px; font-weight:900;">Priorisierung (Umsetzungshorizont)</div>
+        ${renderBucketHtml("Kurzfristig (0–3 Monate)", _prioritization.kurzfristig)}
+        ${renderBucketHtml("Mittelfristig (3–12 Monate)", _prioritization.mittelfristig)}
+        ${renderBucketHtml("Langfristig (>12 Monate)", _prioritization.langfristig)}`;
     }
 
     // Build accident-detail HTML section using the active view strategy.
@@ -1993,11 +2119,17 @@
     const _causesHtml = (() => {
       const cm = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
       if (cm.length === 0) return "";
-      const rowsHtml = cm.map(c => `<tr><td>${UA.escHtml(c.cause)}</td><td>${c.measures.map(m => UA.escHtml(m)).join("; ")}</td></tr>`).join("");
+      const rowsHtml = cm.map(c => {
+        // Cross-Reference per Maßnahmen-Nummer, falls verfügbar (siehe TEXT-Block).
+        const right = (c.measureRefs && c.measureRefs.length > 0)
+          ? c.measureRefs.map(e => `<strong>#${e.idx}</strong> ${UA.escHtml(e.label)}`).join("; ")
+          : c.measures.map(m => UA.escHtml(m)).join("; ");
+        return `<tr><td>${UA.escHtml(c.cause)}</td><td>${right}</td></tr>`;
+      }).join("");
       return `
         <div style="margin-top:12px; font-weight:900;">Ursachen und Maßnahmen</div>
         <table class="report" style="margin-top:6px;">
-          <thead><tr><th>Auffälliges Muster</th><th>Empfohlene Maßnahmen (Auswahl)</th></tr></thead>
+          <thead><tr><th>Auffälliges Muster</th><th>Empfohlene Maßnahmen (siehe Liste unten)</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>`;
     })();
@@ -2091,6 +2223,8 @@
         ${economicImpactHtmlSection}
 
         ${measuresHtmlSection}
+
+        ${prioritizationHtmlSection}
 
         ${accidentHtmlSection}
 
@@ -2215,6 +2349,12 @@
         involvementMode: ctx.involvementMode || "or",
         mode: exportMode
       },
+      // Kanonische Gesamtzahl der dokumentierten Unfälle (== severity.total).
+      // Wird vom Pre-Flight-Konsistenz-Gate (UA.validateExportConsistency)
+      // gegen die in den Karten gerenderten Punkte geprüft, damit die im
+      // Dokument behauptete Fallzahl ("262 Unfälle") mit der Markerzahl auf
+      // der Karte übereinstimmt. Mismatch → Export bricht ab.
+      totalAccidents: (sev && Number.isFinite(sev.total)) ? sev.total : 0,
       severity: sev,
       deviations: dev,
       yearTable: yr,
@@ -2238,6 +2378,11 @@
     structured.executiveSummary = buildExecutiveSummary(structured, { mode: exportMode });
     // Task 4: URSACHEN UND MASSNAHMEN-Mapping aus dev.focus + Maßnahmenkatalog.
     structured.causesMeasures = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+    // Goldstandard-Sektion 8: Priorisierung nach Umsetzungshorizont
+    // (Kurzfristig 0–3 Monate / Mittelfristig 3–12 Monate / Langfristig
+    // >12 Monate). Bereits oben für TEXT/HTML berechnet (`_prioritization`),
+    // hier nur durchreichen, damit DOCX/PDF/AI denselben Inhalt sehen.
+    structured.prioritization = _prioritization || null;
     // Task 8: Analytische OSM-Schlussfolgerungen (0–3 Sätze).
     structured.osmInsights = deriveOsmInsights(osmContext);
     // Task 7: Map-Reference-Sätze (Anlage 1 zeigt Konzentration im Bereich …).
