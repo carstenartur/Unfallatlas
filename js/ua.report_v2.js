@@ -213,13 +213,48 @@
           // promise hangs forever (breaking Word + PDF export).
           const restoreMarkers = detachUncapturableMarkers(ctx.map);
 
+          // Idempotent cleanup that restores both side-effects (detached
+          // markers + baked heatmap canvas) exactly once, even if a late
+          // leaflet-image callback fires after the safety timeout already
+          // settled the promise. Any restore error is logged and surfaced
+          // through `finish()` only when the primary path didn't already
+          // produce one.
+          let restoredCaptureState = false;
+          const restoreCaptureState = function () {
+            if (restoredCaptureState) return null;
+            restoredCaptureState = true;
+
+            let restoreError = null;
+            try {
+              restoreMarkers();
+            } catch (e) {
+              restoreError = e;
+            }
+            try {
+              restoreHeat();
+            } catch (e) {
+              if (!restoreError) restoreError = e;
+            }
+            return restoreError;
+          };
+
           let settled = false;
           const finish = function (err, dataUrl) {
-            if (settled) return;
+            if (settled) {
+              // Late callback after timeout: still ensure cleanup happens
+              // exactly once, but don't change the already-settled result.
+              restoreCaptureState();
+              return;
+            }
             settled = true;
             clearTimeout(safetyTimer);
-            restoreMarkers();
-            restoreHeat();
+
+            const restoreError = restoreCaptureState();
+            if (restoreError) {
+              console.error("Map capture cleanup error:", restoreError);
+              if (!err) err = restoreError;
+            }
+
             if (err) reject(err);
             else resolve(dataUrl);
           };
