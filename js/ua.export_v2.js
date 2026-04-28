@@ -320,6 +320,134 @@
   UA.deriveOsmInsights = deriveOsmInsights;
 
 
+  // --------------------
+  // Task 6 – Räumliche Argumentation aus Unfallkoordinaten
+  // --------------------
+  /**
+   * Leitet aus den tatsächlichen Unfallkoordinaten 1–2 Sätze ab, die das
+   * räumliche Muster benennen (Knotenpunkt-Konzentration, Korridor entlang
+   * einer Achse, mehrere verteilte Schwerpunkte oder durchgängige
+   * Verteilung). Bewusst koordinatenbasiert – die Heatmap zeigt nur
+   * aggregierte Dichte und darf laut Aufgabenstellung nicht als alleinige
+   * Quelle für räumliche Aussagen dienen.
+   *
+   * Algorithmus:
+   *  1. Punkte in ~55 m-Bins (lat/lon-Raster) aggregieren – grobe Knoten-Auflösung,
+   *     verträglich mit GPS-Streuung der Polizeidaten.
+   *  2. Hotspot-Zellen (≥2 Fälle) sortiert nach Anzahl absteigend.
+   *  3. Klassifikation:
+   *     - "konzentriert"        : eine Zelle deckt ≥ 50 % aller Punkte ab.
+   *     - "knotenpunktnah"      : 2–3 Top-Zellen, paarweise Abstand ≤ 150 m.
+   *     - "korridor"            : Top-Zellen liegen entlang einer Achse
+   *                               (Hauptvarianz ≥ 3× Querkomponente, Spannweite ≥ 200 m).
+   *     - "verteilte_schwerpunkte": mehrere Zellen, kein dominanter Knoten.
+   *     - "diffus"              : keine Zelle erreicht den Mindestcluster.
+   *
+   * @param {Array<{lat:number,lon:number}>} points
+   * @returns {string[]} 0–2 Sätze, fertig formatiert (deutsch).
+   */
+  function deriveSpatialArgumentation(points) {
+    const sentences = [];
+    const pts = Array.isArray(points)
+      ? points.filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon))
+      : [];
+    const n = pts.length;
+    // Bei sehr wenigen Punkten ist jede räumliche Aussage spekulativ – dann
+    // lieber schweigen, als eine Scheinaussage zu generieren.
+    if (n < 3) return sentences;
+
+    // 1) Binning auf ~55 m: 0,0005° ≈ 56 m Latitude. Wir nehmen die gleiche
+    //    Auflösung wie der Lat/Lon-Fallback in UA.computeTopHotspots, damit
+    //    Karten-Hotspots und Antragstext dieselben Cluster benennen.
+    const STEP = 0.0005;
+    const cells = new Map();
+    for (const p of pts) {
+      const cy = Math.floor(p.lat / STEP);
+      const cx = Math.floor(p.lon / STEP);
+      const key = cx + ":" + cy;
+      let c = cells.get(key);
+      if (!c) { c = { total: 0, latSum: 0, lonSum: 0 }; cells.set(key, c); }
+      c.total++;
+      c.latSum += p.lat;
+      c.lonSum += p.lon;
+    }
+    const ranked = [];
+    for (const c of cells.values()) {
+      if (c.total < 2) continue;
+      ranked.push({ total: c.total, lat: c.latSum / c.total, lon: c.lonSum / c.total });
+    }
+    ranked.sort((a, b) => b.total - a.total);
+
+    // 2) Keine echten Cluster → diffuse Verteilung benennen.
+    if (ranked.length === 0) {
+      sentences.push("Die Unfälle sind im markierten Bereich räumlich verteilt; ein dominanter Knotenpunkt ist anhand der Koordinaten nicht erkennbar.");
+      return sentences;
+    }
+
+    const top = ranked[0];
+    const topShare = top.total / n;
+
+    // 3a) Eine Zelle deckt den Großteil aller Punkte ab → klare Konzentration.
+    if (topShare >= 0.5) {
+      const pct = Math.round(topShare * 100);
+      sentences.push(`Die Unfälle konzentrieren sich auf einen engen Bereich (${top.total} von ${n} Fällen, rund ${pct} %, in unmittelbarer Nähe zueinander) – das Muster ist knotenpunkttypisch.`);
+      return sentences;
+    }
+
+    // 3b) Mehrere Hotspots → räumliche Lage analysieren.
+    //     Distanzen in Metern via äquirektangulärer Näherung (Stadtmaßstab),
+    //     bezogen auf den Cluster-Schwerpunkt.
+    const top3 = ranked.slice(0, Math.min(3, ranked.length));
+    const meanLat = top3.reduce((s, c) => s + c.lat, 0) / top3.length;
+    const M_PER_DEG_LAT = 111320;
+    const M_PER_DEG_LON = 111320 * Math.cos(meanLat * Math.PI / 180);
+    const xy = top3.map(c => ({
+      x: (c.lon - top3[0].lon) * M_PER_DEG_LON,
+      y: (c.lat - top3[0].lat) * M_PER_DEG_LAT
+    }));
+    let maxPair = 0;
+    for (let i = 0; i < xy.length; i++) {
+      for (let j = i + 1; j < xy.length; j++) {
+        const d = Math.hypot(xy[i].x - xy[j].x, xy[i].y - xy[j].y);
+        if (d > maxPair) maxPair = d;
+      }
+    }
+    // Eng beieinander liegende Top-Zellen → zentraler Knotenbereich.
+    if (top3.length >= 2 && maxPair <= 150) {
+      sentences.push(`Mehrere Häufungen liegen in unmittelbarer Nähe zueinander (${top3.length} Schwerpunktzellen mit ${top3.reduce((s, c) => s + c.total, 0)} Fällen auf engem Raum) – das Muster spricht für einen zentralen Knotenpunktbereich.`);
+      return sentences;
+    }
+    // Korridor-Heuristik: Hauptvarianz vs. Querkomponente.
+    if (top3.length >= 3 && maxPair >= 200) {
+      const cx = xy.reduce((s, p) => s + p.x, 0) / xy.length;
+      const cy = xy.reduce((s, p) => s + p.y, 0) / xy.length;
+      let sxx = 0, syy = 0, sxy = 0;
+      for (const p of xy) {
+        const dx = p.x - cx, dy = p.y - cy;
+        sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
+      }
+      // Eigenwerte der 2×2-Kovarianzmatrix (Hauptachsentransformation).
+      const tr = sxx + syy;
+      const det = sxx * syy - sxy * sxy;
+      const disc = Math.max(0, tr * tr / 4 - det);
+      const lambda1 = tr / 2 + Math.sqrt(disc); // Hauptachse
+      const lambda2 = tr / 2 - Math.sqrt(disc); // Querachse
+      // Korridor-Schwellwert: Hauptvarianz ≥ 9× Querkomponente entspricht
+      // einer Standardabweichungs-Streckung von ≥ 3× entlang der Hauptachse
+      // gegenüber der Querachse (Kommentar oben spricht von "3× Querkomponente"
+      // bezogen auf Standardabweichungen, nicht Varianzen).
+      if (lambda1 > 0 && (lambda2 <= 0 || lambda1 / lambda2 >= 9)) {
+        sentences.push(`Die Schwerpunkte ziehen sich entlang einer Achse (Spannweite rund ${Math.round(maxPair)} m) – die Häufung folgt dem Verlauf einer durchgehenden Verkehrsverbindung (Korridor).`);
+        return sentences;
+      }
+    }
+    // Default: mehrere getrennte Schwerpunkte.
+    sentences.push(`Im markierten Bereich treten ${ranked.length} räumlich getrennte Schwerpunkte auf; eine Bündelung an einem einzelnen Knotenpunkt liegt nicht vor.`);
+    return sentences;
+  }
+  UA.deriveSpatialArgumentation = deriveSpatialArgumentation;
+
+
   /**
    * Entfernt führende „Marker"-Zeilen, die rein aus einem `[...]`-Block bestehen
    * (z. B. `[Interner Hinweis – vor Versand entfernen]` als erste Zeile von
@@ -1295,6 +1423,11 @@
     } else {
       lines.push("Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im markierten Bereich.");
     }
+    // Task 6 – Räumliche Argumentation aus Koordinaten (nicht aus Heatmap):
+    // Knotenpunkt vs. Korridor vs. verteilte Schwerpunkte.
+    for (const s of deriveSpatialArgumentation(filteredPts)) {
+      lines.push(s);
+    }
     if (loc && (loc.details || loc.label)) {
       lines.push(`Schwerpunkt der Häufung: ${loc.details || loc.label}.`);
     }
@@ -1846,6 +1979,8 @@
     const _mapRef0 = areaName
       ? `Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im Bereich ${areaName}.`
       : "Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im markierten Bereich.";
+    // Task 6 – koordinaten-basierte Sätze zwischen Generalsatz und Lage-Detail.
+    const _spatialSentences = deriveSpatialArgumentation(filteredPts);
     const _mapRef1 = (loc && (loc.details || loc.label))
       ? `Schwerpunkt der Häufung: ${loc.details || loc.label}.`
       : "";
@@ -1891,7 +2026,7 @@
           <div style="margin-top:4px;">${UA.escHtml(_executiveSummary.classification)}</div>
           ${_executiveSummary.bullets.length > 0 ? `<ul style="margin:6px 0 0 18px;">${_executiveSummary.bullets.map(b => `<li>${UA.escHtml(b)}</li>`).join("")}</ul>` : ""}
           <div style="margin-top:6px; font-style:italic;">${UA.escHtml(_executiveSummary.urgency)}</div>
-          <div style="margin-top:6px; color:#444;">${UA.escHtml(_mapRef0)}${_mapRef1 ? " " + UA.escHtml(_mapRef1) : ""}</div>
+          <div style="margin-top:6px; color:#444;">${UA.escHtml(_mapRef0)}${_spatialSentences.length ? " " + _spatialSentences.map(s => UA.escHtml(s)).join(" ") : ""}${_mapRef1 ? " " + UA.escHtml(_mapRef1) : ""}</div>
         </div>
 
         <div style="margin-top:12px; font-weight:900;">Top-Abweichungen</div>
@@ -2108,6 +2243,12 @@
         mapRefs.push(`Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im Bereich ${areaName}.`);
       } else {
         mapRefs.push("Die in Anlage 1 dokumentierte Karte zeigt die räumliche Verteilung der Vorfälle im markierten Bereich.");
+      }
+      // Task 6: koordinaten-basierte räumliche Argumentation (Knotenpunkt /
+      // Korridor / verteilte Schwerpunkte) – wird konsistent in TEXT, HTML,
+      // DOCX und PDF gerendert.
+      for (const s of deriveSpatialArgumentation(filteredPts)) {
+        mapRefs.push(s);
       }
       if (loc && (loc.details || loc.label)) {
         mapRefs.push(`Schwerpunkt der Häufung: ${loc.details || loc.label}.`);
