@@ -47,9 +47,9 @@ describe('political-mode + summary helpers', () => {
       expect(UA.formatFactorPolitical(1.1)).toBe('leicht erhöht gegenüber dem Stadtmittel');
     });
 
-    test('technical mode preserves the raw factor', () => {
-      expect(UA.formatFactorPolitical(2.5, { mode: 'technical' })).toBe('Faktor 2.50');
-      expect(UA.formatFactorPolitical(1.345, { mode: 'technical' })).toBe('Faktor 1.34');
+    test('technical mode preserves the raw factor (German decimal comma)', () => {
+      expect(UA.formatFactorPolitical(2.5, { mode: 'technical' })).toBe('Faktor 2,50');
+      expect(UA.formatFactorPolitical(1.345, { mode: 'technical' })).toBe('Faktor 1,34');
     });
 
     test('non-finite input → "k. A."', () => {

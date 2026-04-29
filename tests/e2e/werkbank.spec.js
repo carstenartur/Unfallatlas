@@ -559,8 +559,12 @@ test.describe('Werkbank V2 - Accessibility', () => {
     const wordBtn = page.locator('#btnExportWord');
     const pdfBtn = page.locator('#btnExportPDF');
     
-    await expect(wordBtn).toHaveAttribute('aria-label', 'Export als Word-Dokument');
-    await expect(pdfBtn).toHaveAttribute('aria-label', 'Export als PDF-Dokument');
+    // QA-Härtung „Export-Dialog": Aria-Label benennt die primäre Aktion
+    // jetzt explizit als „Antrag als Word/PDF … erzeugen" — das ist für
+    // Screenreader-Nutzer deutlich aussagekräftiger als das vorherige
+    // generische „Export als Word-Dokument".
+    await expect(wordBtn).toHaveAttribute('aria-label', 'Antrag als Word-Dokument erzeugen');
+    await expect(pdfBtn).toHaveAttribute('aria-label', 'Antrag als PDF-Dokument erzeugen');
   });
 });
 
