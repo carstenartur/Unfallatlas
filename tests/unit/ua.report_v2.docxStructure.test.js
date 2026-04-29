@@ -10,7 +10,8 @@
  *      bei `ImageRun` führte zu `word/media/...undefined`, was den
  *      LibreOffice-Headless-Export hängen ließ).
  *   2. Alle `word/media/*` referenzieren auf eine erlaubte Bildendung
- *      (.png, .jpg, .jpeg, .gif, .bmp, .svg).
+ *      (.png, .jpg, .jpeg, .gif, .bmp, .svg, .emf, .wmf — alle in OOXML
+ *      gültigen Raster-/Vektor-Formate).
  *   3. Alle `<wp:docPr>`-Elemente haben eindeutige `id`-Attribute.
  *   4. Alle `<wp:docPr>`-Elemente haben einen nicht-leeren Alt-Text
  *      (`descr` oder `title`).
