@@ -203,6 +203,17 @@
 
     if (UA.cleanUrlIfNeeded()) return;
 
+    // QA-Härtung „URL = Source of Truth": Während der Init-Phase
+    // wird die URL ausschliesslich GELESEN. Schreibwege (UA.setQS aus
+    // bindUi/syncAllToUrl/syncViewToUrl/recomputeAndRender→saveCityState)
+    // werden über UA._hydrating unterdrückt. Nach dem ersten
+    // recomputeAndRender wird die URL einmal gezielt normalisiert
+    // (siehe Block am Ende dieser Funktion). So kann es weder zu
+    // konkurrierenden setState-Aufrufen während des Daten-Ladens
+    // kommen noch zu unbeabsichtigten History-Einträgen.
+    if (typeof UA.setHydrating === "function") UA.setHydrating(true);
+    try {
+
     // Read layer visibility from URL before initLeaflet, because
     // addLayerLegend (called inside initLeaflet) uses these values
     // to set the initial CSS class on legend buttons.
@@ -303,10 +314,33 @@ if (UA.qBool("export", false)) {
 }
 
     // auto open export
+    } finally {
+      // QA-Härtung „URL = Source of Truth": Hydration-Phase beenden
+      // und URL EINMAL gezielt aus dem hydrierten ctx-Zustand
+      // normalisieren. Damit ist die URL nach `main()` deterministisch
+      // genau dann gleich, wenn der UI-Zustand gleich ist – und ein
+      // zweiter Reload mit derselben URL erzeugt denselben UI-Zustand
+      // und dieselbe URL (Idempotenz).
+      if (typeof UA.setHydrating === "function") UA.setHydrating(false);
+      try {
+        if (ctx && ctx.ui && typeof UA.syncAllToUrl === "function") {
+          UA.syncAllToUrl(ctx);
+        }
+      } catch (e) {
+        // Bewusst geschluckt: ein fehlgeschlagener Normalisierungs-
+        // Schreibvorgang darf den App-Start nicht verhindern.
+        console.warn("URL-Normalisierung nach Hydration fehlgeschlagen:", e);
+      }
+    }
   }
 
   main().catch(err => {
     console.error(err);
+    // QA-Härtung „URL = Source of Truth": auch im Fehlerpfad das
+    // Hydration-Flag sicher abräumen, damit nachgelagerte UI-Events
+    // (Retry, manuelle Bedienelemente) wieder in die URL schreiben
+    // können.
+    try { if (typeof UA.setHydrating === "function") UA.setHydrating(false); } catch {}
     try {
       const statEl = document.getElementById("stat");
       if (statEl) {

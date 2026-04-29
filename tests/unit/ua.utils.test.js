@@ -176,6 +176,54 @@ describe('UA.utils - Utility Functions', () => {
       UA.setQS({ test: 'value' });
       expect(true).toBe(true);
     });
+
+    test('does NOT call window.location.replace while UA._hydrating is true (replace=true path)', () => {
+      // QA-Härtung „URL = Source of Truth": während der Hydration darf
+      // setQS keinen Schreibzugriff auf die URL machen, sonst entstehen
+      // konkurrierende setState-Aufrufe mit den Lese-Pfaden. Der
+      // beobachtbare Pfad in dieser Test-Umgebung ist der replace=true-
+      // Zweig, weil window.location.replace auf mockWindow gemockt
+      // werden kann (history.replaceState läuft in jsdom global).
+      global.mockWin.location.replace = jest.fn();
+      UA.setHydrating(true);
+      try {
+        UA.setQS({ severity: '2' }, true);
+      } finally {
+        UA.setHydrating(false);
+      }
+      expect(global.mockWin.location.replace).not.toHaveBeenCalled();
+    });
+
+    test('returns the projected URL string even while hydrating (so "Link kopieren" still works)', () => {
+      UA.setHydrating(true);
+      try {
+        const url = UA.setQS({ severity: '2', zoom: 14 });
+        expect(url).toContain('severity=2');
+        expect(url).toContain('zoom=14');
+      } finally {
+        UA.setHydrating(false);
+      }
+    });
+
+    test('calls window.location.replace again once UA._hydrating flips back to false', () => {
+      global.mockWin.location.replace = jest.fn();
+
+      UA.setHydrating(true);
+      UA.setQS({ severity: '1' }, true);
+      expect(global.mockWin.location.replace).not.toHaveBeenCalled();
+
+      UA.setHydrating(false);
+      UA.setQS({ severity: '1' }, true);
+      expect(global.mockWin.location.replace).toHaveBeenCalledTimes(1);
+    });
+
+    test('isHydrating reflects setHydrating', () => {
+      expect(UA.isHydrating()).toBe(false);
+      UA.setHydrating(true);
+      expect(UA.isHydrating()).toBe(true);
+      UA.setHydrating(false);
+      expect(UA.isHydrating()).toBe(false);
+    });
   });
 
   describe('WEEKEND_SET', () => {
