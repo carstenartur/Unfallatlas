@@ -1,8 +1,9 @@
 /**
  * URL-State-Hydration – Bonn-Regressionstest
  *
- * Lockt den in der QA-Review identifizierten Reproduzierbarkeits-Bug
- * fest: Eine vollständig parametrisierte Bonn-URL (Stadt, Beteiligungs-
+ * Sichert den in der QA-Review identifizierten Reproduzierbarkeits-Bug
+ * gegen Regressionen ab: Eine vollständig parametrisierte Bonn-URL
+ * (Stadt, Beteiligungs-
  * filter, UND-Modus, Layer, Zeit/Schwere/Fahrbahn, Kartenposition und
  * insbesondere ein Auswahlrechteck via selSouth/selWest/selNorth/selEast)
  * muss den UI-Zustand vollständig wiederherstellen.
@@ -98,12 +99,17 @@ test.describe('URL-State-Hydration – Bonn', () => {
 
     await page.locator('#btnClearDraw').click();
 
-    // URL darf keine sel*-Parameter mehr enthalten.
-    await expect.poll(() => new URL(page.url()).searchParams.has('selSouth')).toBe(false);
-    const url = new URL(page.url());
-    for (const k of ['selSouth', 'selWest', 'selNorth', 'selEast']) {
-      expect(url.searchParams.has(k)).toBe(false);
-    }
+    // URL darf keine sel*-Parameter mehr enthalten. Wir warten bis
+    // die URL aktualisiert ist und prüfen dann alle vier Keys
+    // konsistent in einer einzigen poll-Schleife.
+    await expect
+      .poll(() => {
+        const url = new URL(page.url());
+        return ['selSouth', 'selWest', 'selNorth', 'selEast'].some((k) =>
+          url.searchParams.has(k)
+        );
+      })
+      .toBe(false);
 
     // Stat-Zeile zeigt "Markierung: aktiv" nicht mehr.
     await expect(page.locator('#stat')).not.toContainText(/Markierung:\s*aktiv/);
