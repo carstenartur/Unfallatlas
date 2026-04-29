@@ -17,7 +17,7 @@
  *       wie ein einzelnes „all", „Build: -" oder „Quelle: -" als
  *       sichtbarer Zellinhalt.
  *
- * Wir bewusst nicht binär per pdfjs-dist parsen — pdfjs-dist v5 liefert
+ * Wir parsen bewusst nicht binär per pdfjs-dist — pdfjs-dist v5 liefert
  * nur ESM-Builds, die in Jest+CJS schwer einzubinden sind, und das
  * `docDefinition`-Modell ist die einzige Quelle, aus der pdfMake den
  * sichtbaren Text rendert. Eine Lücke zwischen Modell und Rendering
