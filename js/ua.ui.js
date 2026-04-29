@@ -278,10 +278,14 @@
     if (UA.selectionParamsPresent()) {
       const s = UA.qNum("selSouth", null), w=UA.qNum("selWest", null), n=UA.qNum("selNorth", null), e=UA.qNum("selEast", null);
       // QA-Härtung „Fehlerhandling": ungültige sel*-Parameter (NaN,
-      // verkehrte Reihenfolge, ausserhalb DE-Bbox) werden ignoriert
-      // statt einen leeren oder gespiegelten Selektionsbereich zu
-      // zeichnen. Reicht den Fall „URL enthält Quatsch" sauber durch
-      // (Defaults greifen, kein Crash).
+      // verkehrte Reihenfolge, außerhalb gültiger Lat/Lon-Range
+      // ±90/±180) werden ignoriert statt einen leeren oder
+      // gespiegelten Selektionsbereich zu zeichnen. Reicht den Fall
+      // „URL enthält Quatsch" sauber durch (Defaults greifen, kein
+      // Crash). Eine engere Deutschland-Bounding-Box wird hier
+      // bewusst nicht erzwungen, damit grenznahe Bezirke und
+      // Tests/Beispieldaten außerhalb DE nicht versehentlich
+      // verworfen werden.
       const allFinite = [s,w,n,e].every(x => x!==null && Number.isFinite(x));
       const inLatRange = allFinite && s >= -90 && n <= 90 && s < n;
       const inLonRange = allFinite && w >= -180 && e <= 180 && w < e;
