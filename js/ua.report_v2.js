@@ -857,25 +857,6 @@
       });
     }
 
-    // Helper: build a table cell containing a clickable hyperlink.
-    // PR-QA „Werkbank-Link in Tabelle": akzeptiert optional einen kurzen
-    // Linktext, damit lange URLs (z. B. der vollständige Werkbank-Link mit
-    // allen Filter-Parametern) nicht roh in eine Tabellenzelle geschrieben
-    // werden — das sprengt sonst das Tabellenlayout.
-    function linkCell(url, displayText) {
-      const text = displayText || url;
-      const link = ExternalHyperlink
-        ? new ExternalHyperlink({
-            link: url,
-            children: [new TextRun({ text, style: "Hyperlink" })]
-          })
-        : new TextRun({ text });
-      return new TableCell({
-        borders: cellBorder,
-        children: [new Paragraph({ children: [link] })]
-      });
-    }
-
     // Helper to build a simple bordered table from headers + rows (plain text cells)
     // Optional: rowHighlights is an array of booleans – true = highlight that data row
     // Cells go through `replaceEmojisForDocx` so involvement icons fall back to
@@ -888,8 +869,8 @@
     //    Seitenrand hinauslaufen (A4 nutzbare Breite ≈ 9000 Twips).
     //  - Kopfzeile als wiederholter Header (`tableHeader: true`), damit lange
     //    Tabellen auch auf Folgeseiten ihre Spaltenbeschriftung behalten.
-    //  - `cantSplit: false` zusammen mit gleichmäßiger Verteilung ermöglicht
-    //    Zellumbruch in schmalen Spalten.
+    //  - gleichmäßige bzw. gewichtete Spaltenverteilung fördert Zellumbruch
+    //    in schmalen Spalten, ohne hier zusätzliche Row-Optionen zu setzen.
     function _twipsForCols(numCols, weights) {
       const total = 9000; // ≈ A4 (210 mm) Portrait usable width in twips
       if (Array.isArray(weights) && weights.length === numCols) {

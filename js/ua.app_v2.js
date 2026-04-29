@@ -221,14 +221,10 @@
     UA.bindDom(ctx);
     UA.initLeaflet(ctx);
 
-    // Cities
-    let cities;
-    try {
-      cities = await UA.loadCitiesList(ctx);
-    } catch (e) {
-      console.error("loadCitiesList failed:", e);
-      cities = [ctx.CITY_RAW];
-    }
+    // Cities — UA.loadCitiesList fängt Lade-Fehler intern ab und liefert
+    // eine Fallback-Liste mit der aktuell aktiven Stadt, daher kein
+    // try/catch hier nötig.
+    const cities = await UA.loadCitiesList(ctx);
     UA.setCityDropdown(ctx, cities);
 
     // data — bei Fehler eine verständliche Meldung anzeigen statt

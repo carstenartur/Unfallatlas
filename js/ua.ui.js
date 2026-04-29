@@ -199,10 +199,10 @@
   };
 
   /**
-   * QA-Härtung „Ladezustand": Wird aufgerufen, wenn `loadCitiesList`
-   * fehlgeschlagen ist (Fallback-Liste mit nur einer Stadt) oder wenn der
-   * GeoJSON-Datenfetch scheitert. Setzt eine sichtbare Fehleroption +
-   * passende Stat-Meldung.
+   * QA-Härtung „Ladezustand": Wird aufgerufen, wenn der GeoJSON-Datenfetch
+   * (UA.loadCityData) scheitert. Setzt eine sichtbare Fehleroption am
+   * Stadt-Dropdown und eine verständliche Stat-Meldung, damit Nutzer:innen
+   * den Zustand ohne Browser-Konsole erkennen.
    */
   UA.markCityDropdownError = function markCityDropdownError(ctx, message) {
     const ui = ctx && ctx.ui;
