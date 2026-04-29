@@ -42,7 +42,13 @@
   function bindExport(ctx){
     const ui = ctx.ui;
 
-    function openModal(){ ui.modalOverlay.style.display = "flex"; }
+    function openModal(){
+      ui.modalOverlay.style.display = "flex";
+      // QA-Härtung „Export-Dialog": Hinweis „kein Bereich markiert"
+      // dynamisch ein-/ausblenden, abhängig vom aktuellen ctx-Zustand.
+      const hint = document.getElementById("noSelectionHint");
+      if (hint) hint.hidden = !!ctx.selectionBounds;
+    }
     function closeModal(){ ui.modalOverlay.style.display = "none"; }
 
     ui.btnCloseModal.addEventListener('click', closeModal);
@@ -216,12 +222,32 @@
     UA.initLeaflet(ctx);
 
     // Cities
-    const cities = await UA.loadCitiesList(ctx);
+    let cities;
+    try {
+      cities = await UA.loadCitiesList(ctx);
+    } catch (e) {
+      console.error("loadCitiesList failed:", e);
+      cities = [ctx.CITY_RAW];
+    }
     UA.setCityDropdown(ctx, cities);
 
-    // data
-    await UA.loadCityData(ctx);
-    
+    // data — bei Fehler eine verständliche Meldung anzeigen statt
+    // unkommentiert in den globalen catch-Pfad zu fallen (QA-Härtung
+    // „Ladezustand"). Wir werfen dennoch weiter, damit das `main()`-catch
+    // greifen kann; vorher wird der UI-Zustand sauber gesetzt.
+    try {
+      await UA.loadCityData(ctx);
+    } catch (e) {
+      if (typeof UA.markCityDropdownError === "function") {
+        UA.markCityDropdownError(ctx,
+          "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.");
+      }
+      throw e;
+    }
+    // Build/Quelle erst jetzt anzeigen — dataSourceCode wurde von
+    // loadCityData gesetzt, BUILD ist seit Seitenstart bekannt.
+    if (typeof UA.maybeRevealMetaInfo === "function") UA.maybeRevealMetaInfo(ctx);
+
     // POI data (optional, fail-safe)
     await UA.loadPOIData(ctx);
 
@@ -287,8 +313,14 @@ if (UA.qBool("export", false)) {
     console.error(err);
     try {
       const statEl = document.getElementById("stat");
-      if (statEl) statEl.textContent = String(err);
+      if (statEl) {
+        // QA-Härtung „Ladezustand": Statt der rohen Exception eine
+        // verständliche Fehlermeldung anzeigen. Die Originalmeldung
+        // bleibt in der Konsole für Entwickler.
+        statEl.textContent =
+          "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
+        statEl.setAttribute("role", "alert");
+      }
     } catch {}
-    alert(String(err));
   });
 })();

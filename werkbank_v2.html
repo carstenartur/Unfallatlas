@@ -51,9 +51,33 @@
     </div>
 
     <div class="panelBody">
+      <!--
+        QA-Härtung „Nutzerführung": Kommunale Anwender:innen sollen sofort
+        sehen, wie sie zu einem Antrag kommen. Die drei Schritte spiegeln
+        die existierenden Bedienelemente weiter unten (Stadt-Select,
+        „Bereich markieren", „Analyse/Export öffnen") und brauchen daher
+        keine eigene Logik. Klein gehalten, damit der Filter-Block weiter
+        sichtbar bleibt.
+      -->
+      <div id="quickStartHint" role="note" aria-label="Analyse in drei Schritten"
+           style="margin:0 0 10px; padding:8px 10px; background:rgba(44,90,160,.08); border-left:3px solid #2c5aa0; border-radius:6px; font-size:12px; line-height:1.5;">
+        <strong>Analyse in 3 Schritten:</strong>
+        <span style="white-space:nowrap;">1. Stadt wählen</span> →
+        <span style="white-space:nowrap;">2. Bereich markieren</span> →
+        <span style="white-space:nowrap;">3. Antrag exportieren</span>
+      </div>
+
       <div class="row">
         <label for="citySel">Stadt</label>
-        <select id="citySel"><option value="">Lade…</option></select>
+        <!--
+          Aria-busy + Loading-Option signalisieren Lade-Status; sobald
+          UA.setCityDropdown die Liste setzt, wird aria-busy entfernt und
+          die Option ersetzt. Bei Fehlern verbleibt eine sichtbare
+          Fehleroption (siehe ua.ui.js / ua.app_v2.js).
+        -->
+        <select id="citySel" aria-busy="true">
+          <option value="" disabled selected>Städte werden geladen …</option>
+        </select>
       </div>
 
       <div class="row">
@@ -120,20 +144,32 @@
         </select>
       </div>
 
-      <div class="row">
-        <label for="maxPoints">Max Punkte</label>
-        <input id="maxPoints" type="number" min="500" step="500" value="100000" />
-      </div>
+      <!--
+        QA-Härtung „Nutzerführung": Entwickler-/Tuning-Knöpfe (Max Punkte,
+        Viewport-Puffer, Heat-Radius) sind für die kommunale Hauptaufgabe
+        nicht relevant und werden in ein einklappbares <details>
+        verschoben. Tooltips erklären die Begriffe im Klartext.
+      -->
+      <details id="advancedSettings" style="margin-top:6px;">
+        <summary style="cursor:pointer; font-weight:800; padding:6px 0; user-select:none;">
+          ⚙ Erweiterte Einstellungen
+        </summary>
 
-      <div class="row">
-        <label for="viewportPaddingPct">Viewport-Puffer</label>
-        <input id="viewportPaddingPct" type="number" min="0" max="100" step="5" value="20" />
-      </div>
+        <div class="row">
+          <label for="maxPoints" title="Maximale Anzahl an Unfallpunkten, die gleichzeitig auf der Karte gerendert werden. Höhere Werte = vollständigeres Bild, langsamere Karte.">Max Punkte</label>
+          <input id="maxPoints" type="number" min="500" step="500" value="100000" />
+        </div>
 
-      <div class="row">
-        <label for="heatRadius">Heat-Radius</label>
-        <input id="heatRadius" type="number" min="5" max="60" step="1" value="25" />
-      </div>
+        <div class="row">
+          <label for="viewportPaddingPct" title="Puffer um den sichtbaren Kartenausschnitt (Prozent). Größerer Puffer lädt Daten knapp außerhalb des Bildes, damit beim Verschieben weniger nachgeladen werden muss.">Viewport-Puffer (%)</label>
+          <input id="viewportPaddingPct" type="number" min="0" max="100" step="5" value="20" />
+        </div>
+
+        <div class="row">
+          <label for="heatRadius" title="Radius eines Heatmap-Punktes in Pixeln. Größere Werte = weichere/größere Wärmeflächen.">Heat-Radius (px)</label>
+          <input id="heatRadius" type="number" min="5" max="60" step="1" value="25" />
+        </div>
+      </details>
 
       <div class="toggles">
         <div id="toggleCluster" class="btn active">Cluster</div>
@@ -149,7 +185,8 @@
       </div>
 
       <div style="margin-top:8px;">
-        <div id="btnPolCtxOpen" class="btn" style="background:rgba(233,248,240,.92);border-color:rgba(100,200,140,.6);" title="Frühere politische Vorgänge für diesen Bereich recherchieren">🔍 Politische Vorgänge recherchieren</div>
+        <div id="btnPolCtxOpen" class="btn" style="background:rgba(233,248,240,.92);border-color:rgba(100,200,140,.6);"
+             title="Findet frühere Anträge, Beschlüsse und Verwaltungsantworten zum markierten Bereich – damit Sie auf bestehende politische Vorgänge Bezug nehmen können statt sie zu doppeln.">🔍 Politische Vorgänge recherchieren</div>
       </div>
 
       <div style="margin-top:8px;">
@@ -175,9 +212,14 @@
       </div>
 
       <div class="stat" id="stat">Lade Daten…</div>
-      <div class="muted">
-        Quelle: <code id="dataSourceCode">-</code><br/>
-        Build: <code id="buildInfo">-</code>
+      <!--
+        QA-Härtung „Ladezustand": Quelle/Build erst sichtbar, wenn echte
+        Werte vorhanden sind (siehe ua.ui.js setBuildInfoIfReady und
+        ua.data_v2.js). Anfangs hidden, damit kein Dauer-„-" erscheint.
+      -->
+      <div class="muted" id="metaInfoBox" hidden>
+        Quelle: <code id="dataSourceCode"></code><br/>
+        Build: <code id="buildInfo"></code>
       </div>
     </div>
   </div>
@@ -193,6 +235,19 @@
         </div>
       </div>
       <div class="progressLine" id="exportProgress">-</div>
+
+      <!--
+        QA-Härtung „Export-Dialog": Hinweisbanner, wenn keine Markierung
+        vorhanden ist. Wird per JS (ua.app_v2.js) bei jedem Öffnen
+        aktualisiert (`hidden` toggeln). Default: sichtbar bei keiner
+        Markierung.
+      -->
+      <div id="noSelectionHint" role="note"
+           style="margin-top:8px; padding:8px 10px; background:rgba(255,193,7,.14); border-left:3px solid #d39e00; border-radius:6px; font-size:13px; line-height:1.5;">
+        ⚠️ <strong>Kein Bereich markiert.</strong>
+        Es wird der aktuelle Kartenausschnitt verwendet.
+        Für präzisere Anträge bitte zuerst „Bereich markieren" nutzen.
+      </div>
 
       <div id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85);">
         <div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>
@@ -251,48 +306,71 @@
         </div>
       </div>
 
-      <!-- Export Buttons -->
-      <div style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="btnExportWord" aria-label="Export als Word-Dokument" style="flex:1; min-width:150px; padding:12px 20px; background:#2c5aa0; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
-          <span aria-hidden="true">📄</span> Word (.docx)
-        </button>
-        <button id="btnExportPDF" aria-label="Export als PDF-Dokument" style="flex:1; min-width:150px; padding:12px 20px; background:#c41e3a; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
-          <span aria-hidden="true">📑</span> PDF
-        </button>
-      </div>
+      <!--
+        QA-Härtung „Export-Dialog": Aktionen sind in vier visuell klar
+        getrennte Gruppen sortiert (Antrag / Datenexport / Visualisierung
+        / Zusatzanalysen). Die primäre Aktion (Antrag als Word/PDF) bleibt
+        oben mit kräftiger Farbgebung; sekundäre Exporte (CSV/GeoJSON/KML)
+        und Video sind kompakter dargestellt.
+      -->
+      <fieldset id="exportGroupAntrag"
+                style="margin-top:15px; padding:10px 12px; border:1px solid rgba(44,90,160,.35); border-radius:12px; background:rgba(44,90,160,.04);">
+        <legend style="font-weight:900; padding:0 6px; color:#2c5aa0;">📝 Antrag (primär)</legend>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button id="btnExportWord" aria-label="Antrag als Word-Dokument erzeugen" style="flex:1; min-width:150px; padding:12px 20px; background:#2c5aa0; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <span aria-hidden="true">📄</span> Antrag als Word (.docx)
+          </button>
+          <button id="btnExportPDF" aria-label="Antrag als PDF-Dokument erzeugen" style="flex:1; min-width:150px; padding:12px 20px; background:#c41e3a; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <span aria-hidden="true">📑</span> Antrag als PDF
+          </button>
+        </div>
+      </fieldset>
 
-      <!-- Video Export Button (nur in der Docker-Distribution sichtbar) -->
-      <div id="videoExportContainer" style="display:none; margin-top:10px;">
-        <button id="btnExportVideo" aria-label="Analyse als GIF-Video exportieren" style="width:100%; padding:12px 20px; background:#1a7a5a; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+      <fieldset id="exportGroupData"
+                style="margin-top:10px; padding:8px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px;">
+        <legend style="font-weight:700; padding:0 6px; color:#555;">📊 Datenexport (sekundär)</legend>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="btnExportCSV" aria-label="Export als CSV-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#2a7a4b; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span aria-hidden="true">📊</span> CSV
+          </button>
+          <button id="btnExportGeoJSON" aria-label="Export als GeoJSON-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#6a3f9e; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span aria-hidden="true">🗺️</span> GeoJSON
+          </button>
+          <button id="btnExportKML" aria-label="Export als KML-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#b06020; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span aria-hidden="true">📍</span> KML
+          </button>
+        </div>
+      </fieldset>
+
+      <!-- Visualisierung: Video Export Button (nur in der Docker-Distribution sichtbar) -->
+      <fieldset id="videoExportContainer" data-export-group="visualization"
+                style="display:none; margin-top:10px; padding:8px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px;">
+        <legend style="font-weight:700; padding:0 6px; color:#555;">🎬 Visualisierung</legend>
+        <button id="btnExportVideo" aria-label="Analyse als GIF-Video exportieren" style="width:100%; padding:10px 16px; background:#1a7a5a; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
           <span aria-hidden="true">🎬</span> Als Video exportieren
         </button>
         <div id="videoExportProgress" style="display:none; margin-top:6px; font-size:12px; color:#555; text-align:center;"></div>
-      </div>
+      </fieldset>
 
-      <!-- Data Export Buttons (CSV / GeoJSON / KML) -->
-      <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="btnExportCSV" aria-label="Export als CSV-Datei" style="flex:1; min-width:110px; padding:10px 16px; background:#2a7a4b; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px;">
-          <span aria-hidden="true">📊</span> CSV
-        </button>
-        <button id="btnExportGeoJSON" aria-label="Export als GeoJSON-Datei" style="flex:1; min-width:110px; padding:10px 16px; background:#6a3f9e; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px;">
-          <span aria-hidden="true">🗺️</span> GeoJSON
-        </button>
-        <button id="btnExportKML" aria-label="Export als KML-Datei" style="flex:1; min-width:110px; padding:10px 16px; background:#b06020; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px;">
-          <span aria-hidden="true">📍</span> KML
-        </button>
-      </div>
-
-      <!-- KI-Antragsentwurf (#E1) – ruft serverseitigen /api/ai/export-assessment/v2 auf.
-           Backend bleibt im Docker-Image; Frontend nur Aufruf + Anzeige. -->
-      <div id="aiProposalSection" style="margin-top:14px; padding:12px; border:1px solid rgba(0,0,0,.1); border-radius:12px; background:rgba(0,0,0,.02);">
+      <!--
+        Zusatzanalysen: KI-Antragsentwurf (#E1) – ruft serverseitigen
+        /api/ai/export-assessment/v2 auf. Backend bleibt im Docker-Image;
+        Frontend nur Aufruf + Anzeige. Beschriftung als
+        „Antragsentwurf erstellen" + KI-Hinweis im Tooltip.
+      -->
+      <fieldset id="aiProposalSection" data-export-group="extras"
+                style="margin-top:14px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(0,0,0,.02);">
+        <legend style="font-weight:700; padding:0 6px; color:#555;">✨ Zusatzanalysen</legend>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <button id="btnAiProposal" aria-label="KI-Antragsentwurf generieren" style="padding:10px 16px; background:#5a3fa0; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
-            <span aria-hidden="true">✨</span> KI-Antragsentwurf
+          <button id="btnAiProposal" aria-label="Antragsentwurf KI-gestützt erstellen"
+                  title="Erstellt einen Antragsentwurf KI-gestützt aus den aktuellen Filtern und Kennzahlen. Beta – bitte Inhalt vor Einreichung redaktionell prüfen."
+                  style="padding:9px 14px; background:#5a3fa0; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
+            <span aria-hidden="true">✨</span> Antragsentwurf erstellen <span style="font-size:10px; opacity:.85; padding:1px 4px; border:1px solid currentColor; border-radius:4px; margin-left:4px;">KI · Beta</span>
           </button>
           <span id="aiProposalStatus" style="font-size:12px; color:#555;" role="status" aria-live="polite"></span>
         </div>
         <div id="aiProposalResult" style="display:none; margin-top:10px; font-size:13px;" aria-label="KI-Antragsentwurf"></div>
-      </div>
+      </fieldset>
 
       <div class="row" style="margin-top:15px;">
         <label for="exportBoxTa" style="grid-column:1/-1; font-weight:800;">Text zum Kopieren (Word/Clipboard)</label>

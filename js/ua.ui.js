@@ -11,6 +11,9 @@
     ui.statEl = document.getElementById('stat');
     ui.buildInfo = document.getElementById("buildInfo");
     ui.dataSourceCode = document.getElementById("dataSourceCode");
+    ui.metaInfoBox = document.getElementById("metaInfoBox");
+    ui.noSelectionHint = document.getElementById("noSelectionHint");
+    ui.quickStartHint  = document.getElementById("quickStartHint");
 
     ui.citySel = document.getElementById("citySel");
     ui.severityEl = document.getElementById("severity");
@@ -56,7 +59,28 @@
 
     ctx.ui = ui;
 
-    if (ui.buildInfo) ui.buildInfo.textContent = UA.BUILD || "";
+    // QA-Härtung „Ladezustand": Build/Quelle erst sichtbar machen, wenn
+    // beide echte Werte tragen. UA.BUILD ist beim Laden der Seite über
+    // ein <meta>-Pendant + Inline-Script gesetzt; bei statischen Builds
+    // ohne BUILD bleibt das Meta-Box hidden, statt einen Dauer-„-"-
+    // Platzhalter zu zeigen.
+    UA.maybeRevealMetaInfo(ctx);
+  };
+
+  /**
+   * QA-Härtung „Ladezustand": Zeigt die Meta-Info-Box (Quelle/Build) nur
+   * an, wenn beide Felder einen echten Wert haben. Wird sowohl direkt nach
+   * `bindDom` als auch nach `loadCityData` aufgerufen — letzteres setzt
+   * `dataSourceCode.textContent` auf die GeoJSON-URL.
+   */
+  UA.maybeRevealMetaInfo = function maybeRevealMetaInfo(ctx) {
+    const ui = ctx && ctx.ui;
+    if (!ui || !ui.metaInfoBox) return;
+    const build = (UA.BUILD || "").trim();
+    if (build && ui.buildInfo) ui.buildInfo.textContent = build;
+    const source = (ui.dataSourceCode && ui.dataSourceCode.textContent || "").trim();
+    const ready = !!build && !!source && source !== "-";
+    ui.metaInfoBox.hidden = !ready;
   };
 
   function setCollapsed(ctx, on){
@@ -157,6 +181,8 @@
   UA.setCityDropdown = function setCityDropdown(ctx, cities){
     const ui = ctx.ui;
     ui.citySel.innerHTML = "";
+    // QA-Härtung „Ladezustand": Liste ist da → aria-busy abräumen.
+    ui.citySel.removeAttribute("aria-busy");
     for (const c of cities) {
       const opt = document.createElement("option");
       opt.value = c;
@@ -170,6 +196,30 @@
       ui.citySel.insertBefore(opt, ui.citySel.firstChild);
     }
     ui.citySel.value = ctx.CITY_RAW;
+  };
+
+  /**
+   * QA-Härtung „Ladezustand": Wird aufgerufen, wenn `loadCitiesList`
+   * fehlgeschlagen ist (Fallback-Liste mit nur einer Stadt) oder wenn der
+   * GeoJSON-Datenfetch scheitert. Setzt eine sichtbare Fehleroption +
+   * passende Stat-Meldung.
+   */
+  UA.markCityDropdownError = function markCityDropdownError(ctx, message) {
+    const ui = ctx && ctx.ui;
+    if (!ui || !ui.citySel) return;
+    ui.citySel.removeAttribute("aria-busy");
+    // Erste Option durch eine sichtbare Fehleroption ersetzen, damit User
+    // den Zustand sehen ohne Console öffnen zu müssen.
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.disabled = true;
+    opt.selected = true;
+    opt.textContent = message || "Daten konnten nicht geladen werden";
+    ui.citySel.insertBefore(opt, ui.citySel.firstChild);
+    if (ui.statEl) {
+      ui.statEl.textContent =
+        "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
+    }
   };
 
   UA.bindUi = function bindUi(ctx){
