@@ -803,6 +803,10 @@
     // und ID-Vergabe für alle drei Karten-Bildquellen (Übersicht, Detail,
     // Cluster) und werden vom QA-Test geprüft.
     // ---------------------------------------------------------------
+    // Bild-IDs starten bewusst bei 1000 (statt 1), damit sie sich von
+    // historischen `docPr id="1"` Werten klar abheben — erleichtert das
+    // Debugging in alten vs. neuen DOCX und macht den QA-Test gegen
+    // doppelte ID="1" robuster.
     let _docxImageIdSeq = 1000;
     function nextImageId() { return String(_docxImageIdSeq++); }
 
@@ -1225,8 +1229,13 @@
           ? ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"]
           : ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"];
         children.push(makeDocxTable(headers, devRows, undefined, {
-          // 6-spaltige Abweichungstabelle: schmalere Zahl-Spalten,
-          // breitere „Muster"- und „95%-KI"-Spalten — verhindert Überlauf.
+          // Spaltengewichte (relative Anteile, werden in `_twipsForCols`
+          // normiert). Reihenfolge entspricht den Headern oben:
+          //   technisch:  Muster | Lokal | Lokal % | Stadt % | Faktor | 95%-KI
+          //   politisch:  Muster | Lokal | Lokal % | Stadt % | Einordnung
+          // Das „Muster"- und das „95%-KI"/„Einordnung"-Feld sind die
+          // textreichen Spalten und bekommen den meisten Platz; die drei
+          // Zahl-Spalten in der Mitte werden bewusst schmaler gehalten.
           colWeights: isPolitical
             ? [2.0, 0.8, 1.0, 1.0, 1.6]
             : [1.8, 0.7, 0.9, 0.9, 0.9, 1.6]
@@ -1541,10 +1550,16 @@
             return [String(i + 1), String(r.year ?? "—"), r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
           });
           children.push(makeDocxTable(cols, detailRows, undefined, {
-            // 8-spaltige Einzelunfälle-Tabelle: schmale „#"-, Jahr- und
-            // Uhrzeit-Spalten, breite „Beteiligte"- und „Koordinaten"-
-            // Spalten. Verhindert Überlauf rechts und abgeschnittene
-            // Beteiligungslabels (PR-QA „Tabellenlayout").
+            // Einzelunfälle-Tabelle: Spaltenanzahl hängt von der gewählten
+            // accidentDetails-View ab.
+            //   7-Spalten-Layout (View ohne Schwere-Spalte):
+            //     #  | Jahr | Beteiligte | Uhrzeit | Wochentag | Fahrbahnzustand | Koordinaten
+            //   8-Spalten-Layout (View mit Schwere-Spalte):
+            //     #  | Jahr | Schwere | Beteiligte | Uhrzeit | Wochentag | Fahrbahnzustand | Koordinaten
+            // Gewichte: laufende Nummer und Jahr sind sehr schmal, „Beteiligte"
+            // und „Koordinaten" brauchen viel Platz, die Mittel-Spalten halten
+            // sich an typische Inhalte (Uhrzeit „08:30", Wochentag „Mittwoch",
+            // Fahrbahnzustand „nass/feucht/schlüpfrig").
             colWeights: cols.length === 7
               ? [0.5, 0.7, 1.5, 0.9, 1.0, 1.2, 1.6]
               : cols.length === 8
