@@ -1104,6 +1104,49 @@
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
     }
 
+    // ---- 4a. ANTRAG / BESCHLUSSVORSCHLAG (Layout-PR „Semantische
+    // Dokumentstruktur"): Verwaltungsdokumente führen den Antragstext
+    // direkt nach dem Dokumentkopf, damit das Lesegremium ohne Suchen
+    // erkennt, worüber abgestimmt werden soll. Der ausführliche
+    // Wortlaut bleibt zusätzlich am Ende erhalten (BESCHLUSSVORSCHLAG-
+    // Block via sectionGuard nicht mehr doppelt gerendert).
+    {
+      const beschlussLeadDocx = extractSection(textLines, "Beschlussvorschlag:");
+      const beschlussTextDocx = (Array.isArray(beschlussLeadDocx) ? beschlussLeadDocx : [])
+        .map(l => String(l || "").trim())
+        .filter(Boolean);
+      children.push(new Paragraph({
+        text: "ANTRAG / BESCHLUSSVORSCHLAG",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 300, after: 150 }
+      }));
+      if (beschlussTextDocx.length > 0) {
+        for (const line of beschlussTextDocx) {
+          children.push(new Paragraph({ text: line, spacing: { after: 120 } }));
+        }
+      } else {
+        children.push(new Paragraph({
+          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
+          spacing: { after: 200 }
+        }));
+      }
+      // markiere die spätere Sektion als bereits gerendert, damit kein
+      // doppelter „BESCHLUSSVORSCHLAG"-Block am Dokumentende erscheint.
+      sectionGuard("BESCHLUSSVORSCHLAG");
+    }
+
+    // ---- 4a-2. BEGRÜNDUNG (Sammelüberschrift) ----
+    // Layout-PR „Semantische Dokumentstruktur": Sachverhalt, Statistik,
+    // Bewertung und Maßnahmen sind zusammen die Begründung des Antrags.
+    // Eine sichtbare Heading-2-Klammer macht das im PDF/DOCX explizit
+    // sichtbar – sonst wirkt die Aufzählung wie unzusammenhängende
+    // Einzelblöcke.
+    children.push(new Paragraph({
+      text: "BEGRÜNDUNG",
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 300, after: 100 }
+    }));
+
     // ---- 4b. KURZBEWERTUNG (Task 2) ----
     if (sd && sd.executiveSummary) {
       const es = sd.executiveSummary;
@@ -1958,33 +2001,39 @@
       }));
     }
 
-    // ---- 9. BESCHLUSSVORSCHLAG section ----
-    children.push(
-      new Paragraph({
-        text: "BESCHLUSSVORSCHLAG",
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 400, after: 200 }
-      })
-    );
+    // ---- 9. BESCHLUSSVORSCHLAG section (Wortlaut, Wiederholung) ----
+    // Layout-PR „Semantische Dokumentstruktur": der Antrag wurde bereits
+    // unter „ANTRAG / BESCHLUSSVORSCHLAG" oben am Dokument geführt.
+    // Diese Sektion wird daher per sectionGuard übersprungen, damit der
+    // Wortlaut nicht doppelt erscheint.
+    if (!sectionGuard("BESCHLUSSVORSCHLAG")) {
+      children.push(
+        new Paragraph({
+          text: "BESCHLUSSVORSCHLAG",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        })
+      );
 
-    const beschlussSection = extractSection(textLines, "Beschlussvorschlag:");
-    if (beschlussSection.length > 0) {
-      for (const line of beschlussSection) {
+      const beschlussSection = extractSection(textLines, "Beschlussvorschlag:");
+      if (beschlussSection.length > 0) {
+        for (const line of beschlussSection) {
+          children.push(
+            new Paragraph({
+              text: line,
+              spacing: { after: 100 }
+            })
+          );
+        }
+      } else {
+        // Default text if not found
         children.push(
           new Paragraph({
-            text: line,
-            spacing: { after: 100 }
+            text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
+            spacing: { after: 200 }
           })
         );
       }
-    } else {
-      // Default text if not found
-      children.push(
-        new Paragraph({
-          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
-          spacing: { after: 200 }
-        })
-      );
     }
 
     // ---- 10. FACHLICHE BEZÜGE section (if enabled) ----
@@ -2065,9 +2114,15 @@
     }
 
     // ---- 13. Anlagen block ----
+    // Layout-PR „Vor Anlagen Seitenumbruch": Anlagen sind im
+    // Verwaltungsdokument ein eigener Abschnitt und beginnen daher auf
+    // einer neuen Seite. `pageBreakBefore: true` erzwingt das in DOCX,
+    // unabhängig davon, ob die vorausgehende Sektion knapp am
+    // Seitenende endet.
     children.push(new Paragraph({
       text: "ANLAGEN",
       heading: HeadingLevel.HEADING_2,
+      pageBreakBefore: true,
       spacing: { before: 400, after: 200 }
     }));
     children.push(new Paragraph({ text: "Anlage 1: Kartenansicht", spacing: { after: 80 } }));
@@ -2674,6 +2729,40 @@
         { widths: ["auto", "*"] }
       ));
     }
+
+    // ---- ANTRAG / BESCHLUSSVORSCHLAG (oben, Layout-PR) ----
+    // Verwaltungsdokumente führen den Antragstext direkt nach dem
+    // Dokumentkopf — siehe Begleit-Kommentar im DOCX-Export. Der
+    // ausführliche Wortlaut bleibt zusätzlich am Ende erhalten,
+    // wird aber per sectionGuard nicht mehr doppelt gerendert.
+    {
+      const beschlussLeadPdf = extractSection(textLines, "Beschlussvorschlag:");
+      const beschlussLinesPdf = (Array.isArray(beschlussLeadPdf) ? beschlussLeadPdf : [])
+        .map(l => String(l || "").trim())
+        .filter(Boolean);
+      docDefinition.content.push({
+        text: "ANTRAG / BESCHLUSSVORSCHLAG",
+        style: "subheader"
+      });
+      if (beschlussLinesPdf.length > 0) {
+        for (const line of beschlussLinesPdf) {
+          const content = textWithLinks(line);
+          docDefinition.content.push({ text: content, style: "normal" });
+        }
+      } else {
+        docDefinition.content.push({
+          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
+          style: "normal"
+        });
+      }
+      sectionGuard("BESCHLUSSVORSCHLAG");
+    }
+
+    // ---- BEGRÜNDUNG (Sammelüberschrift) ----
+    docDefinition.content.push({
+      text: "BEGRÜNDUNG",
+      style: "subheader"
+    });
 
     // ---- KURZBEWERTUNG (Task 2) ----
     if (sd && sd.executiveSummary) {
@@ -3412,26 +3501,30 @@
       });
     }
 
-    // ---- BESCHLUSSVORSCHLAG section ----
-    docDefinition.content.push({
-      text: "BESCHLUSSVORSCHLAG",
-      style: "subheader"
-    });
+    // ---- BESCHLUSSVORSCHLAG section (Wortlaut, Wiederholung) ----
+    // Siehe DOCX-Export: durch sectionGuard wird hier nicht erneut
+    // gerendert, wenn der Antrag bereits oben am Dokument steht.
+    if (!sectionGuard("BESCHLUSSVORSCHLAG")) {
+      docDefinition.content.push({
+        text: "BESCHLUSSVORSCHLAG",
+        style: "subheader"
+      });
 
-    const beschlussSection = extractSection(textLines, "Beschlussvorschlag:");
-    if (beschlussSection.length > 0) {
-      for (const line of beschlussSection) {
-        const content = textWithLinks(line);
+      const beschlussSection = extractSection(textLines, "Beschlussvorschlag:");
+      if (beschlussSection.length > 0) {
+        for (const line of beschlussSection) {
+          const content = textWithLinks(line);
+          docDefinition.content.push({
+            text: content,
+            style: "normal"
+          });
+        }
+      } else {
         docDefinition.content.push({
-          text: content,
+          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
           style: "normal"
         });
       }
-    } else {
-      docDefinition.content.push({
-        text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
-        style: "normal"
-      });
     }
 
     // ---- FACHLICHE BEZÜGE section (if enabled) ----
@@ -3471,9 +3564,13 @@
     }
 
     // ---- ANLAGEN block (feature parity with Word export) ----
+    // Layout-PR „Vor Anlagen Seitenumbruch": Anlagen beginnen auf
+    // einer neuen Seite — sonst klebt der Anhang optisch am Fließtext
+    // der Begründung.
     docDefinition.content.push({
       text: "ANLAGEN",
-      style: "subheader"
+      style: "subheader",
+      pageBreak: "before"
     });
     docDefinition.content.push({ text: "Anlage 1: Kartenansicht", style: "normal" });
     docDefinition.content.push({ text: "Anlage 2: Statistische Übersicht", style: "normal" });
