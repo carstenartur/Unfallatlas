@@ -240,4 +240,40 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
     const visibleTexts = [...documentXml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(t => t[1]);
     expect(visibleTexts.filter(t => t.trim() === 'all')).toHaveLength(0);
   });
+
+  /**
+   * Layout-PR „Semantische Dokumentstruktur":
+   *   - Antrag/Beschlussvorschlag steht oben am Dokument
+   *   - Begründung ist als Sammel-Heading sichtbar
+   *   - die ANLAGEN-Sektion erzwingt einen Seitenumbruch
+   *   - der ausführliche Beschlussvorschlag erscheint nicht doppelt
+   *     (gleiche Heading-Wortkette darf max. 1 Treffer haben).
+   */
+  test('DOCX führt Antrag/Begründung als echte Überschriften und bricht vor ANLAGEN um', async () => {
+    const zip = await exportAndUnzip(makeFixtureCtx(), makeFixtureReportData(), { includeMap: false });
+    const documentXml = await readText(zip, 'word/document.xml');
+    const visibleTexts = [...documentXml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(t => t[1]);
+
+    // Pflicht-Sektionen vorhanden
+    expect(visibleTexts).toContain('ANTRAG / BESCHLUSSVORSCHLAG');
+    expect(visibleTexts).toContain('BEGRÜNDUNG');
+    expect(visibleTexts).toContain('SACHVERHALT');
+    expect(visibleTexts).toContain('ANLAGEN');
+
+    // Genau ein Antrags-Heading (kein doppelter Beschlussvorschlag-Block)
+    const antragHits = visibleTexts.filter(t =>
+      t === 'BESCHLUSSVORSCHLAG' || t === 'ANTRAG / BESCHLUSSVORSCHLAG'
+    );
+    expect(antragHits).toHaveLength(1);
+
+    // ANLAGEN steht in einem Paragraph mit pageBreakBefore-Eigenschaft
+    // (docx@9.x serialisiert pageBreakBefore als <w:pageBreakBefore/>
+    // innerhalb der <w:pPr> dieses Absatzes — der Block muss in einem
+    // 5-KB-Fenster vor dem Heading-Text erscheinen).
+    const anlagenIdx = documentXml.indexOf('>ANLAGEN<');
+    expect(anlagenIdx).toBeGreaterThan(-1);
+    const windowStart = Math.max(0, anlagenIdx - 5000);
+    const windowSlice = documentXml.slice(windowStart, anlagenIdx);
+    expect(windowSlice).toMatch(/<w:pageBreakBefore\s*\/?>/);
+  });
 });

@@ -17,12 +17,30 @@
     return Number.isFinite(n) ? n : def;
   };
 
+  // Guard-Flag für die deterministische URL-State-Hydration:
+  // Solange `UA._hydrating === true` ist, schreibt `UA.setQS` NICHT
+  // zurück in window.location. Das verhindert konkurrierende
+  // setState-Aufrufe während der Init-Phase (Stadt-/Daten-Laden,
+  // bindUi-Defaults, Event-Wiring), bei der ausschliesslich die
+  // URL als Source of Truth gelesen werden soll.
+  // `setHydrating(true)` darf von außen aufgerufen werden, um die
+  // Hydration-Phase explizit einzurahmen.
+  UA._hydrating = false;
+  UA.setHydrating = (on) => { UA._hydrating = !!on; };
+  UA.isHydrating  = () => !!UA._hydrating;
+
   UA.setQS = (updates, replace=false) => {
     const u = new URL(window.location.href);
     for (const [k,v] of Object.entries(updates)) {
       if (v === null || v === undefined || v === "") u.searchParams.delete(k);
       else u.searchParams.set(k, String(v));
     }
+    // Während der Hydration KEINE Schreibrunde in die URL — wir
+    // wollen die URL erst NACH dem vollständigen Hydrieren ein
+    // einziges Mal normalisieren (siehe ua.app_v2.js main()).
+    // Den (potenziell normalisierten) Ziel-String geben wir trotzdem
+    // zurück, damit Aufrufer wie "Link kopieren" weiter funktionieren.
+    if (UA._hydrating) return u.toString();
     if (replace) window.location.replace(u.toString());
     else history.replaceState(null, "", u.toString());
     return u.toString();

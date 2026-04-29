@@ -203,6 +203,17 @@
 
     if (UA.cleanUrlIfNeeded()) return;
 
+    // QA-Härtung „URL = Source of Truth": Während der Init-Phase
+    // wird die URL ausschliesslich GELESEN. Schreibwege (UA.setQS aus
+    // bindUi/syncAllToUrl/syncViewToUrl/recomputeAndRender→saveCityState)
+    // werden über UA._hydrating unterdrückt. Nach dem ersten
+    // recomputeAndRender wird die URL einmal gezielt normalisiert
+    // (siehe Block am Ende dieser Funktion). So kann es weder zu
+    // konkurrierenden setState-Aufrufen während des Daten-Ladens
+    // kommen noch zu unbeabsichtigten History-Einträgen.
+    if (typeof UA.setHydrating === "function") UA.setHydrating(true);
+    try {
+
     // Read layer visibility from URL before initLeaflet, because
     // addLayerLegend (called inside initLeaflet) uses these values
     // to set the initial CSS class on legend buttons.
@@ -303,10 +314,35 @@ if (UA.qBool("export", false)) {
 }
 
     // auto open export
+    } finally {
+      // QA-Härtung „URL = Source of Truth": Hydration-Phase beenden
+      // und URL EINMAL gezielt aus dem hydrierten ctx-Zustand
+      // normalisieren. Damit ist die URL nach `main()` deterministisch
+      // genau dann gleich, wenn der UI-Zustand gleich ist – und ein
+      // zweiter Reload mit derselben URL erzeugt denselben UI-Zustand
+      // und dieselbe URL (Idempotenz).
+      if (typeof UA.setHydrating === "function") UA.setHydrating(false);
+      try {
+        if (ctx && ctx.ui && typeof UA.syncAllToUrl === "function") {
+          UA.syncAllToUrl(ctx);
+        }
+      } catch (e) {
+        // Bewusst geschluckt: ein fehlgeschlagener Normalisierungs-
+        // Schreibvorgang darf den App-Start nicht verhindern.
+        console.warn("URL-Normalisierung nach Hydration fehlgeschlagen:", e);
+      }
+    }
   }
 
   main().catch(err => {
     console.error(err);
+    // QA-Härtung „URL = Source of Truth": auch im Fehlerpfad das
+    // Hydration-Flag sicher abräumen, damit nachgelagerte UI-Events
+    // (Retry, manuelle Bedienelemente) wieder in die URL schreiben
+    // können. Bewusst geschluckt: ein gescheitertes Cleanup darf das
+    // Anzeigen der Fehlermeldung unten nicht verhindern.
+    try { if (typeof UA.setHydrating === "function") UA.setHydrating(false); }
+    catch (cleanupErr) { console.warn("setHydrating(false) im catch fehlgeschlagen:", cleanupErr); }
     try {
       const statEl = document.getElementById("stat");
       if (statEl) {
@@ -317,6 +353,11 @@ if (UA.qBool("export", false)) {
           "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
         statEl.setAttribute("role", "alert");
       }
-    } catch {}
+    } catch (uiErr) {
+      // Bewusst geschluckt: wenn nicht einmal das DOM erreichbar ist,
+      // gibt es keinen sinnvollen Anzeige-Pfad mehr; die ursprüngliche
+      // Exception wurde bereits oben in die Konsole geschrieben.
+      console.warn("Anzeige der Fehlermeldung fehlgeschlagen:", uiErr);
+    }
   });
 })();

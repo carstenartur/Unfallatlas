@@ -277,10 +277,24 @@
     }
     if (UA.selectionParamsPresent()) {
       const s = UA.qNum("selSouth", null), w=UA.qNum("selWest", null), n=UA.qNum("selNorth", null), e=UA.qNum("selEast", null);
-      if ([s,w,n,e].every(x => x!==null && Number.isFinite(x))) {
+      // QA-Härtung „Fehlerhandling": ungültige sel*-Parameter (NaN,
+      // verkehrte Reihenfolge, außerhalb gültiger Lat/Lon-Range
+      // ±90/±180) werden ignoriert statt einen leeren oder
+      // gespiegelten Selektionsbereich zu zeichnen. Reicht den Fall
+      // „URL enthält Quatsch" sauber durch (Defaults greifen, kein
+      // Crash). Eine engere Deutschland-Bounding-Box wird hier
+      // bewusst nicht erzwungen, damit grenznahe Bezirke und
+      // Tests/Beispieldaten außerhalb DE nicht versehentlich
+      // verworfen werden.
+      const allFinite = [s,w,n,e].every(x => x!==null && Number.isFinite(x));
+      const inLatRange = allFinite && s >= -90 && n <= 90 && s < n;
+      const inLonRange = allFinite && w >= -180 && e <= 180 && w < e;
+      if (allFinite && inLatRange && inLonRange) {
         ctx.selectionBounds = L.latLngBounds([s,w],[n,e]);
         ctx.drawnItems.clearLayers();
         ctx.drawnItems.addLayer(L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2}));
+      } else {
+        console.warn("Ungültige sel*-Parameter in URL ignoriert:", { s, w, n, e });
       }
     }
 
