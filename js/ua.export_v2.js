@@ -130,7 +130,8 @@
     const mode = (opts && opts.mode) || "political";
     if (!Number.isFinite(factor)) return "k. A.";
     if (mode !== "political") {
-      return `Faktor ${factor.toFixed(2)}`;
+      // PR-QA „Textqualität": deutsches Komma (2,18 statt 2.18).
+      return `Faktor ${factor.toFixed(2).replace(".", ",")}`;
     }
     if (factor >= 2.0) return "mehr als doppelt so häufig wie im Stadtmittel";
     if (factor >= 1.5) return "rund 1,5-mal so häufig wie im Stadtmittel";
@@ -615,6 +616,11 @@
     return "Auffälligkeit kann auf lokale Führungs-/Sicht-/Querungsprobleme hinweisen; eine Ortsbegehung und Unfallkommissionsprüfung ist angezeigt.";
   }
 
+  // PR-QA „Textqualität": Helper, der den Faktor im deutschen Zahlformat
+  // (Komma statt Punkt) liefert; verwendet von allen PATTERN_MAP-Vars
+  // sowie der Abweichungs-Tabelle.
+  const _fmtFactorDe = (f) => (Number.isFinite(f) ? f.toFixed(2).replace(".", ",") : "k. A.");
+
   // --------------------
   // Pattern template matching
   // --------------------
@@ -624,31 +630,31 @@
       // RAD_SOLO_CITY ist in templates/pattern_rad_solo.txt referenziert, war aber
       // bis hierher nie belegt → der Antrag enthielt sichtbar "stadtweit  Fällen".
       // Wir binden den stadtweiten Vergleichswert aus `r.baseCnt`.
-      vars: (r) => ({ RAD_SOLO_FACTOR: r.factor.toFixed(2), RAD_SOLO_LOCAL: String(r.locCnt), RAD_SOLO_CITY: String(r.baseCnt) })
+      vars: (r) => ({ RAD_SOLO_FACTOR: _fmtFactorDe(r.factor), RAD_SOLO_LOCAL: String(r.locCnt), RAD_SOLO_CITY: String(r.baseCnt) })
     },
     3: {
       template: "pattern_rad_fuss",
-      vars: (r) => ({ RAD_FUSS_FACTOR: r.factor.toFixed(2), RAD_FUSS_LOCAL: String(r.locCnt) })
+      vars: (r) => ({ RAD_FUSS_FACTOR: _fmtFactorDe(r.factor), RAD_FUSS_LOCAL: String(r.locCnt) })
     },
     5: {
       template: "pattern_rad_pkw",
-      vars: (r) => ({ RAD_PKW_FACTOR: r.factor.toFixed(2), RAD_PKW_LOCAL: String(r.locCnt) })
+      vars: (r) => ({ RAD_PKW_FACTOR: _fmtFactorDe(r.factor), RAD_PKW_LOCAL: String(r.locCnt) })
     },
     6: {
       template: "pattern_pkw_fuss",
-      vars: (r) => ({ PKW_FUSS_FACTOR: r.factor.toFixed(2), PKW_FUSS_LOCAL: String(r.locCnt) })
+      vars: (r) => ({ PKW_FUSS_FACTOR: _fmtFactorDe(r.factor), PKW_FUSS_LOCAL: String(r.locCnt) })
     },
     17: {
       template: "pattern_rad_gkfz",
-      vars: (r) => ({ RAD_GKFZ_FACTOR: r.factor.toFixed(2), RAD_GKFZ_LOCAL: String(r.locCnt) })
+      vars: (r) => ({ RAD_GKFZ_FACTOR: _fmtFactorDe(r.factor), RAD_GKFZ_LOCAL: String(r.locCnt) })
     },
     18: {
       template: "pattern_fuss_gkfz",
-      vars: (r) => ({ FUSS_GKFZ_FACTOR: r.factor.toFixed(2), FUSS_GKFZ_LOCAL: String(r.locCnt) })
+      vars: (r) => ({ FUSS_GKFZ_FACTOR: _fmtFactorDe(r.factor), FUSS_GKFZ_LOCAL: String(r.locCnt) })
     },
     20: {
       template: "pattern_pkw_gkfz",
-      vars: (r) => ({ PKW_GKFZ_FACTOR: r.factor.toFixed(2), PKW_GKFZ_LOCAL: String(r.locCnt) })
+      vars: (r) => ({ PKW_GKFZ_FACTOR: _fmtFactorDe(r.factor), PKW_GKFZ_LOCAL: String(r.locCnt) })
     }
   };
 
@@ -1500,7 +1506,7 @@
         } else {
           const ciStr = `95%-KI: ${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}`;
           const sigStr = r.isSignificant ? "signifikant" : "nicht signifikant – kleine Datenmenge";
-          lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${r.factor.toFixed(2)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
+          lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${_fmtFactorDe(r.factor)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
         }
       }
       // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
@@ -1865,7 +1871,7 @@
       const sigStyle = r.isSignificant ? "" : " color:#999;";
       const sigTooltip = r.isSignificant ? "" : ` title="Nicht signifikant – kleine Datenmenge (95%-KI schließt Stadtwert ein)"`;
       const nsBadge = r.isSignificant ? "" : ` <span style="font-size:10px; color:#bbb;">n.s.</span>`;
-      const factorCell = `${r.factor.toFixed(2)}× <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${nsBadge}`;
+      const factorCell = `${_fmtFactorDe(r.factor)}× <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${nsBadge}`;
       return `
       <tr>
         <td><span class="pill">${UA.escHtml(r.label)}</span></td>

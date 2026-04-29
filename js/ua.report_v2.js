@@ -793,6 +793,48 @@
     const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun,
             Table, TableRow, TableCell, WidthType, BorderStyle, ExternalHyperlink } = window.docx;
 
+    // ---------------------------------------------------------------
+    // PR-QA „DOCX-Härtung": eindeutige docPr-IDs + altText pro Bild.
+    // docx@9.x speichert Bilder ohne `type` als `word/media/*.undefined`,
+    // was Word/LibreOffice/PDF-Konverter destabilisiert. Außerdem vergibt
+    // die Library ohne `altText.id` für jedes Bild dieselbe `docPr id="1"`,
+    // was OOXML-technisch unsauber ist und Screenreader stört. Die Helper
+    // `nextImageId()` und `pngImageRun()` zentralisieren Type, Alt-Text
+    // und ID-Vergabe für alle drei Karten-Bildquellen (Übersicht, Detail,
+    // Cluster) und werden vom QA-Test geprüft.
+    // ---------------------------------------------------------------
+    let _docxImageIdSeq = 1000;
+    function nextImageId() { return String(_docxImageIdSeq++); }
+
+    /**
+     * Build a docx ImageRun for a PNG with mandatory accessibility
+     * metadata. Decodes either a base64-encoded data URL or raw base64
+     * (leaflet-image always produces PNG).
+     * @param {string} dataUrlOrBase64 - data URL or raw base64 string
+     * @param {{width:number,height:number}} transformation
+     * @param {{title:string, description:string}} alt
+     */
+    function pngImageRun(dataUrlOrBase64, transformation, alt) {
+      const base64 = String(dataUrlOrBase64 || "").replace(/^data:image\/png;base64,/, "");
+      const binaryString = atob(base64);
+      const data = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+      const id = nextImageId();
+      const altText = {
+        // `name` is also used as the image's filename inside the DOCX
+        // package — must be unique to avoid collisions in word/media.
+        name: `Bild_${id}`,
+        title: (alt && alt.title) || "Karte",
+        description: (alt && alt.description) || "Kartenausschnitt des untersuchten Unfallbereichs",
+        id
+      };
+      return new ImageRun({
+        type: "png",            // ← fixes word/media/*.undefined bug
+        data,
+        transformation,
+        altText
+      });
+    }
+
     // Helper: shared cell border style
     const cellBorder = {
       top:    { style: BorderStyle.SINGLE, size: 1, color: "AAAAAA" },
@@ -811,14 +853,19 @@
       });
     }
 
-    // Helper: build a table cell containing a clickable hyperlink
-    function linkCell(url) {
+    // Helper: build a table cell containing a clickable hyperlink.
+    // PR-QA „Werkbank-Link in Tabelle": akzeptiert optional einen kurzen
+    // Linktext, damit lange URLs (z. B. der vollständige Werkbank-Link mit
+    // allen Filter-Parametern) nicht roh in eine Tabellenzelle geschrieben
+    // werden — das sprengt sonst das Tabellenlayout.
+    function linkCell(url, displayText) {
+      const text = displayText || url;
       const link = ExternalHyperlink
         ? new ExternalHyperlink({
             link: url,
-            children: [new TextRun({ text: url, style: "Hyperlink" })]
+            children: [new TextRun({ text, style: "Hyperlink" })]
           })
-        : new TextRun({ text: url });
+        : new TextRun({ text });
       return new TableCell({
         borders: cellBorder,
         children: [new Paragraph({ children: [link] })]
@@ -830,39 +877,96 @@
     // Cells go through `replaceEmojisForDocx` so involvement icons fall back to
     // text labels (`[Rad]+[PKW]`) when the Word installation lacks an emoji
     // body font (PR-QA Task 1).
-    function makeDocxTable(headers, dataRows, rowHighlights) {
-      const makeRow = (cells, bold, highlight) =>
+    //
+    // PR-QA „Tabellenlayout":
+    //  - explizite Spaltenbreiten (DXA-Twips) statt der generischen Default-
+    //    Verteilung von docx@9, damit lange Tabellen nicht über den rechten
+    //    Seitenrand hinauslaufen (A4 nutzbare Breite ≈ 9000 Twips).
+    //  - Kopfzeile als wiederholter Header (`tableHeader: true`), damit lange
+    //    Tabellen auch auf Folgeseiten ihre Spaltenbeschriftung behalten.
+    //  - `cantSplit: false` zusammen mit gleichmäßiger Verteilung ermöglicht
+    //    Zellumbruch in schmalen Spalten.
+    function _twipsForCols(numCols, weights) {
+      const total = 9000; // ≈ A4 (210 mm) Portrait usable width in twips
+      if (Array.isArray(weights) && weights.length === numCols) {
+        const sum = weights.reduce((a, b) => a + b, 0) || numCols;
+        return weights.map(w => Math.max(400, Math.round(total * w / sum)));
+      }
+      // even split, but never narrower than 400 twips per column
+      const each = Math.max(400, Math.floor(total / Math.max(1, numCols)));
+      return Array(numCols).fill(each);
+    }
+
+    function makeDocxTable(headers, dataRows, rowHighlights, opts) {
+      const numCols = headers.length;
+      const colWidths = _twipsForCols(numCols, opts && opts.colWeights);
+      const makeRow = (cells, bold, highlight, isHeader) =>
         new TableRow({
-          children: cells.map(text => {
-            const cell = new TableCell({
+          tableHeader: !!isHeader,
+          children: cells.map((text, ci) => {
+            return new TableCell({
               borders: cellBorder,
+              width: { size: colWidths[ci] || colWidths[0], type: WidthType.DXA },
               children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(text), bold })] })],
               ...(highlight ? { shading: { fill: "FFFFCC" } } : {})
             });
-            return cell;
           })
         });
       return new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
+        columnWidths: colWidths,
         rows: [
-          makeRow(headers, true, false),
-          ...dataRows.map((row, i) => makeRow(row, false, rowHighlights ? rowHighlights[i] : false))
+          makeRow(headers, true, false, true),
+          ...dataRows.map((row, i) => makeRow(row, false, rowHighlights ? rowHighlights[i] : false, false))
         ]
       });
     }
 
-    // Helper to build a 2-column key/value table where the value cell may be a hyperlink
+    // Helper to build a 2-column key/value table where the value cell may be a hyperlink.
+    // Row schema:
+    //   [key, value, false]                       → plain value cell
+    //   [key, displayText, true, hrefOverride?]   → hyperlink cell; if
+    //         hrefOverride is set, the URL stored in the link is taken
+    //         from there and `displayText` is shown as a short caption.
+    //
+    // PR-QA „Tabellenlayout": schmale Label-Spalte (~2200 twips ≈ 38 mm),
+    // breite Wert-Spalte (~6800 twips). Dadurch passen lange Werte
+    // (Bereich, Hinweis-Text) sauber, ohne dass die Label-Spalte unnötig
+    // viel Platz frisst.
     function makeKVTable(rows) {
+      const colWidths = [2200, 6800];
       return new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: rows.map(([key, value, isLink]) =>
-          new TableRow({
-            children: [
-              textCell(key, true),
-              isLink ? linkCell(value) : textCell(value, false)
-            ]
-          })
-        )
+        columnWidths: colWidths,
+        rows: rows.map(([key, value, isLink, hrefOverride]) => {
+          const keyCell = new TableCell({
+            borders: cellBorder,
+            width: { size: colWidths[0], type: WidthType.DXA },
+            children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(key), bold: true })] })]
+          });
+          let valueCell;
+          if (isLink) {
+            const href = hrefOverride || value;
+            const link = ExternalHyperlink
+              ? new ExternalHyperlink({
+                  link: href,
+                  children: [new TextRun({ text: value, style: "Hyperlink" })]
+                })
+              : new TextRun({ text: value });
+            valueCell = new TableCell({
+              borders: cellBorder,
+              width: { size: colWidths[1], type: WidthType.DXA },
+              children: [new Paragraph({ children: [link] })]
+            });
+          } else {
+            valueCell = new TableCell({
+              borders: cellBorder,
+              width: { size: colWidths[1], type: WidthType.DXA },
+              children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(value), bold: false })] })]
+            });
+          }
+          return new TableRow({ children: [keyCell, valueCell] });
+        })
       });
     }
 
@@ -961,7 +1065,7 @@
       metaArea              ? ["Bereich",               metaArea,              false]   : null,
       metaCity              ? ["Stadt",                 metaCity,              false]   : null,
       metaDate              ? ["Exportdatum",           metaDate,              false]   : null,
-      metaLink              ? ["Werkbank-Link",         metaLink,              IS_LINK] : null,
+      metaLink              ? ["Werkbank-Link",         "Werkbank-Link öffnen", IS_LINK, metaLink] : null,
       gremiumMeta.hinweis   ? ["Zuständigkeitshinweis", gremiumMeta.hinweis,   false]   : null
     ].filter(Boolean);
 
@@ -976,12 +1080,19 @@
     }
 
     // ---- 4. Aktive Filter ----
+    // PR-QA „Textqualität": rohe technische Filterwerte (z. B. "all",
+    // "wet", numerische Codes) in lesbare deutsche Begriffe übersetzen.
+    // Sonst landen Zeilen wie „Schweregrad: all" oder „Wochentag: all" im
+    // einreichungsreifen Antrag und wirken wie ein Rohdatenexport.
     const filters = (sd && sd.meta && sd.meta.filters) || {};
     const filterRows = [];
+    const fmtFilterValue = (UA && typeof UA.formatFilterValue === "function")
+      ? UA.formatFilterValue
+      : (key, val) => String(val);
 
-    if (filters.severity   != null) filterRows.push(["Schweregrad",       String(filters.severity),        false]);
-    if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand", String(filters.roadCondition),  false]);
-    if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", String(filters.involvementMode), false]);
+    if (filters.severity   != null) filterRows.push(["Schweregrad",       fmtFilterValue("severity", filters.severity),               false]);
+    if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand", fmtFilterValue("roadCondition", filters.roadCondition),    false]);
+    if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", fmtFilterValue("involvementMode", filters.involvementMode), false]);
 
     // Build participation flags label
     const partLabels = [];
@@ -996,7 +1107,7 @@
     if (filters.hourFrom != null && filters.hourTo != null) {
       filterRows.push(["Zeitraum", `${filters.hourFrom}:00–${filters.hourTo}:00 Uhr`, false]);
     }
-    if (filters.dayType != null) filterRows.push(["Wochentag", String(filters.dayType), false]);
+    if (filters.dayType != null) filterRows.push(["Wochentag", fmtFilterValue("dayType", filters.dayType), false]);
 
     if (filterRows.length > 0) {
       children.push(new Paragraph({
@@ -1096,7 +1207,7 @@
         const isPolitical = sd.meta && sd.meta.mode === "political";
         children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", spacing: { after: 100 } }));
         const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
-        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2)}`);
+        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2).replace(".", ",")}`);
         const devRows = sd.deviations.focus.map(r => {
           const locPct = sd.deviations.local.total ? ((r.locR) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
@@ -1107,13 +1218,32 @@
           }
           const ciLowPct = r.ciLow != null ? (r.ciLow * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const factorStr = r.factor.toFixed(2) + "×" + (r.isSignificant === false ? " (n.s.)" : "");
+          const factorStr = r.factor.toFixed(2).replace(".", ",") + "×" + (r.isSignificant === false ? " (n.s.)" : "");
           return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         const headers = isPolitical
           ? ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"]
           : ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"];
-        children.push(makeDocxTable(headers, devRows));
+        children.push(makeDocxTable(headers, devRows, undefined, {
+          // 6-spaltige Abweichungstabelle: schmalere Zahl-Spalten,
+          // breitere „Muster"- und „95%-KI"-Spalten — verhindert Überlauf.
+          colWeights: isPolitical
+            ? [2.0, 0.8, 1.0, 1.0, 1.6]
+            : [1.8, 0.7, 0.9, 0.9, 0.9, 1.6]
+        }));
+        // PR-QA „Begriffliche Inkonsistenzen": Kurze Erklärung des
+        // Faktor-Werts, damit Leser:innen ohne statistischen Hintergrund
+        // verstehen, was „Faktor 2,18" bedeutet.
+        if (!isPolitical) {
+          children.push(new Paragraph({
+            children: [
+              new TextRun({ text: "Lesart: ", bold: true }),
+              new TextRun({ text: "„Faktor 2,18" }),
+              new TextRun({ text: "× bedeutet, dass das jeweilige Beteiligungsmuster im untersuchten Bereich rund 2,18-mal so häufig vorkommt wie im Stadtdurchschnitt. Werte > 1 = überrepräsentiert, Werte < 1 = unterrepräsentiert. Die 95 %-Konfidenzintervalle zeigen die statistische Unsicherheit bei kleinen Fallzahlen." })
+            ],
+            spacing: { after: 100 }
+          }));
+        }
         if (!isPolitical) {
           const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
           if (allNonSig) {
@@ -1410,7 +1540,17 @@
             const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
             return [String(i + 1), String(r.year ?? "—"), r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
           });
-          children.push(makeDocxTable(cols, detailRows));
+          children.push(makeDocxTable(cols, detailRows, undefined, {
+            // 8-spaltige Einzelunfälle-Tabelle: schmale „#"-, Jahr- und
+            // Uhrzeit-Spalten, breite „Beteiligte"- und „Koordinaten"-
+            // Spalten. Verhindert Überlauf rechts und abgeschnittene
+            // Beteiligungslabels (PR-QA „Tabellenlayout").
+            colWeights: cols.length === 7
+              ? [0.5, 0.7, 1.5, 0.9, 1.0, 1.2, 1.6]
+              : cols.length === 8
+                ? [0.5, 0.7, 1.0, 1.5, 0.9, 1.0, 1.2, 1.4]
+                : undefined
+          }));
           if (g.overflow > 0) {
             const label = g.overflowLabel || `weitere ${g.sevLabel || ""}`;
             children.push(new Paragraph({
@@ -1435,7 +1575,9 @@
         });
         children.push(makeDocxTable(
           ["#", "Jahr", "Schwere", "Beteiligte", "Uhrzeit", "Wochentag", "Fahrbahnzustand", "Koordinaten"],
-          detailRows
+          detailRows,
+          undefined,
+          { colWeights: [0.5, 0.7, 1.0, 1.5, 0.9, 1.0, 1.2, 1.4] }
         ));
         if (sd.accidentDetails.truncated) {
           children.push(new Paragraph({
@@ -1460,13 +1602,17 @@
         );
 
         const mapImageData = await UA.captureExportMapImage(ctx, options);
-        
-        // Remove data URL prefix to get raw base64 (leaflet-image produces PNG)
-        const base64Data = mapImageData.replace(/^data:image\/png;base64,/, "");
 
-        let binaryString;
+        let mainMapRun;
         try {
-          binaryString = atob(base64Data);
+          mainMapRun = pngImageRun(
+            mapImageData,
+            { width: 600, height: 400 },
+            {
+              title: "Übersichtskarte",
+              description: "Übersichtskarte des untersuchten Unfallbereichs mit allen gefilterten Unfällen"
+            }
+          );
         } catch (decodeError) {
           console.error("Failed to decode base64 map image data:", decodeError);
           throw new Error("Kartenbild konnte nicht dekodiert werden: ungültige Base64-Bilddaten");
@@ -1474,15 +1620,7 @@
 
         children.push(
           new Paragraph({
-            children: [
-              new ImageRun({
-                data: Uint8Array.from(binaryString, c => c.charCodeAt(0)),
-                transformation: {
-                  width: 600,
-                  height: 400
-                }
-              })
-            ],
+            children: [mainMapRun],
             spacing: { after: 200 }
           })
         );
@@ -1520,10 +1658,16 @@
         if (ctx.selectionBounds) {
           try {
             const detailImageData = await captureDetailMap(ctx, options);
-            const detailBase64 = detailImageData.replace(/^data:image\/png;base64,/, "");
-            let detailBinary;
+            let detailRun;
             try {
-              detailBinary = atob(detailBase64);
+              detailRun = pngImageRun(
+                detailImageData,
+                { width: 600, height: 400 },
+                {
+                  title: "Detailkarte",
+                  description: "Detailansicht des markierten Auswahlbereichs mit den darin liegenden Unfällen"
+                }
+              );
             } catch (e2) {
               throw new Error("Detailkartenbild konnte nicht dekodiert werden");
             }
@@ -1533,10 +1677,7 @@
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
-              children: [new ImageRun({
-                data: Uint8Array.from(detailBinary, c => c.charCodeAt(0)),
-                transformation: { width: 600, height: 400 }
-              })],
+              children: [detailRun],
               spacing: { after: 100 }
             }));
             // Verification sentence for detail map (Task 6).
@@ -1574,9 +1715,16 @@
             }
 
             const cBase64 = cm.image.replace(/^data:image\/png;base64,/, "");
-            let cBinary;
+            let cRun;
             try {
-              cBinary = atob(cBase64);
+              cRun = pngImageRun(
+                cBase64,
+                { width: 600, height: 400 },
+                {
+                  title: `Cluster-Karte: ${cm.label || "Hotspot"}`,
+                  description: `Zoomansicht eines Unfall-Hotspots (${cm.total} Unfälle, Zoom ${cm.zoom})`
+                }
+              );
             } catch {
               console.warn("Cluster map image could not be decoded – skipping");
               continue;
@@ -1587,10 +1735,7 @@
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
-              children: [new ImageRun({
-                data: Uint8Array.from(cBinary, c => c.charCodeAt(0)),
-                transformation: { width: 600, height: 400 }
-              })],
+              children: [cRun],
               spacing: { after: 100 }
             }));
             children.push(new Paragraph({
@@ -2164,6 +2309,64 @@
   }
   UA.replaceEmojisForDocx = replaceEmojisForDocx;
 
+  /**
+   * PR-QA „Textqualität": Übersetzt rohe technische Filterwerte in
+   * lesbare deutsche Begriffe. Rohwerte wie "all", "wet", "dry" entstehen
+   * direkt aus den UI-Selectors und gehören nicht in einen
+   * einreichungsreifen Bezirksratsantrag.
+   *
+   * Bekannte Werte werden umgesetzt; alles andere wird unverändert
+   * zurückgegeben (numerische Codes, Eigennamen). "all" bzw. "*" werden
+   * grundsätzlich zu „Alle" bzw. „Alle (keine Einschränkung)".
+   *
+   * @param {string} key   - Filtername (z. B. "severity", "dayType")
+   * @param {string|number} val
+   * @returns {string}
+   */
+  function formatFilterValue(key, val) {
+    if (val == null) return "—";
+    const s = String(val).trim();
+    const lower = s.toLowerCase();
+    if (lower === "all" || lower === "*" || lower === "any") return "Alle (keine Einschränkung)";
+    const dicts = {
+      severity: {
+        "1": "Getötete", "2": "Schwerverletzte", "3": "Leichtverletzte",
+        "tot": "Getötete", "schwer": "Schwerverletzte", "leicht": "Leichtverletzte"
+      },
+      roadCondition: {
+        "0": "trocken", "1": "nass/feucht/schlüpfrig", "2": "winterglatt",
+        "dry": "trocken", "wet": "nass/feucht/schlüpfrig", "winter": "winterglatt"
+      },
+      dayType: {
+        "weekday": "Werktag (Mo–Fr)", "weekend": "Wochenende (Sa/So)",
+        "mo-fr": "Werktag (Mo–Fr)", "sa-so": "Wochenende (Sa/So)"
+      },
+      involvementMode: {
+        "or": "ODER (eine der gewählten Beteiligungen)",
+        "and": "UND (alle gewählten Beteiligungen gemeinsam)",
+        "solo": "Nur Solo (genau eine Beteiligung)"
+      }
+    };
+    const dict = dicts[key];
+    if (dict && Object.prototype.hasOwnProperty.call(dict, lower)) return dict[lower];
+    return s;
+  }
+  UA.formatFilterValue = formatFilterValue;
+
+  /**
+   * PR-QA „Textqualität": Deutsches Zahlformat für Faktor-Werte. Aus
+   * „Faktor 2.18" wird „Faktor 2,18". Wird sowohl im DOCX/PDF als auch
+   * in den TEXT/HTML-Renderern verwendet. Liefert „k. A." bei NaN/∞.
+   * @param {number} factor
+   * @param {number} [decimals=2]
+   */
+  function formatFactorDe(factor, decimals) {
+    if (!Number.isFinite(factor)) return "k. A.";
+    const d = (typeof decimals === "number") ? decimals : 2;
+    return factor.toFixed(d).replace(".", ",");
+  }
+  UA.formatFactorDe = formatFactorDe;
+
 
   // ---------------------------------------------------------------------
   // PDF involvement icons (issue: "Symbole … sichtbar machen in der PDF")
@@ -2419,7 +2622,11 @@
       metaArea             ? ["Bereich",               metaArea]             : null,
       metaCity             ? ["Stadt",                 metaCity]             : null,
       metaDate             ? ["Exportdatum",           metaDate]             : null,
-      metaLink             ? ["Werkbank-Link",         metaLink]             : null,
+      // PR-QA „Werkbank-Link in Tabelle": kurzer Linktext statt
+      // vollständigem URL — pdfmake-Hyperlink über `link:` + Zellinhalt.
+      metaLink             ? ["Werkbank-Link",
+                              { text: "Werkbank-Link öffnen", link: metaLink, color: "blue", decoration: "underline" }
+                             ] : null,
       gremiumMeta.hinweis  ? ["Zuständigkeitshinweis", gremiumMeta.hinweis]  : null
     ].filter(Boolean);
 
@@ -2436,11 +2643,13 @@
     }
 
     // ---- Aktive Filter table ----
+    // PR-QA „Textqualität": rohe Werte wie "all" in lesbare Begriffe
+    // übersetzen (siehe UA.formatFilterValue für die Wörterbücher).
     const filters = (sd && sd.meta && sd.meta.filters) || {};
     const filterRows = [];
-    if (filters.severity      != null) filterRows.push(["Schweregrad",       String(filters.severity)]);
-    if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand",   String(filters.roadCondition)]);
-    if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", String(filters.involvementMode)]);
+    if (filters.severity      != null) filterRows.push(["Schweregrad",       UA.formatFilterValue("severity", filters.severity)]);
+    if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand",   UA.formatFilterValue("roadCondition", filters.roadCondition)]);
+    if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", UA.formatFilterValue("involvementMode", filters.involvementMode)]);
 
     // Render the active "Beteiligte" line with real icons (one cell per active
     // category) instead of the legacy "[Rad], [PKW]" text fallback.
@@ -2458,7 +2667,7 @@
     if (filters.hourFrom != null && filters.hourTo != null) {
       filterRows.push(["Zeitraum", `${filters.hourFrom}:00-${filters.hourTo}:00 Uhr`]);
     }
-    if (filters.dayType != null) filterRows.push(["Wochentag", String(filters.dayType)]);
+    if (filters.dayType != null) filterRows.push(["Wochentag", UA.formatFilterValue("dayType", filters.dayType)]);
 
     if (filterRows.length > 0) {
       docDefinition.content.push({ text: "Aktive Filter", style: "subheader" });
@@ -2529,7 +2738,7 @@
       // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis (or political simplification).
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
         const isPolitical = sd.meta && sd.meta.mode === "political";
-        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2)}`);
+        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2).replace(".", ",")}`);
         docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal" });
         const devRows = sd.deviations.focus.map(r => {
           const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
@@ -2540,7 +2749,7 @@
           }
           const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const factorStr = r.factor.toFixed(2) + "x" + (r.isSignificant === false ? " (n.s.)" : "");
+          const factorStr = r.factor.toFixed(2).replace(".", ",") + "x" + (r.isSignificant === false ? " (n.s.)" : "");
           return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         if (isPolitical) {
@@ -2560,6 +2769,16 @@
             undefined,
             { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
           ));
+          // PR-QA „Begriffliche Inkonsistenzen": Lesehilfe für Faktor-Wert.
+          docDefinition.content.push({
+            text: [
+              { text: "Lesart: ", bold: true },
+              { text: "„Faktor 2,18×" },
+              { text: " bedeutet, dass das Beteiligungsmuster im untersuchten Bereich rund 2,18-mal so häufig vorkommt wie im Stadtdurchschnitt. Werte > 1 = überrepräsentiert, Werte < 1 = unterrepräsentiert. Die 95 %-Konfidenzintervalle zeigen die statistische Unsicherheit bei kleinen Fallzahlen." }
+            ],
+            style: "small",
+            margin: [0, 2, 0, 6]
+          });
         }
         // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
         if (!isPolitical) {
