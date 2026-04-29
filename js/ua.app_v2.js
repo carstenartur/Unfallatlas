@@ -339,8 +339,10 @@ if (UA.qBool("export", false)) {
     // QA-Härtung „URL = Source of Truth": auch im Fehlerpfad das
     // Hydration-Flag sicher abräumen, damit nachgelagerte UI-Events
     // (Retry, manuelle Bedienelemente) wieder in die URL schreiben
-    // können.
-    try { if (typeof UA.setHydrating === "function") UA.setHydrating(false); } catch {}
+    // können. Bewusst geschluckt: ein gescheitertes Cleanup darf das
+    // Anzeigen der Fehlermeldung unten nicht verhindern.
+    try { if (typeof UA.setHydrating === "function") UA.setHydrating(false); }
+    catch (cleanupErr) { console.warn("setHydrating(false) im catch fehlgeschlagen:", cleanupErr); }
     try {
       const statEl = document.getElementById("stat");
       if (statEl) {
@@ -351,6 +353,11 @@ if (UA.qBool("export", false)) {
           "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
         statEl.setAttribute("role", "alert");
       }
-    } catch {}
+    } catch (uiErr) {
+      // Bewusst geschluckt: wenn nicht einmal das DOM erreichbar ist,
+      // gibt es keinen sinnvollen Anzeige-Pfad mehr; die ursprüngliche
+      // Exception wurde bereits oben in die Konsole geschrieben.
+      console.warn("Anzeige der Fehlermeldung fehlgeschlagen:", uiErr);
+    }
   });
 })();

@@ -263,8 +263,9 @@ test.describe('URL-State-Hydration – Determinismus', () => {
 
     // Verkehrte Reihenfolge (south > north) – Hydration darf KEINEN
     // Selektionsbereich anlegen, sondern den Fall sauber ignorieren.
-    const BAD = 'werkbank_v2.html?city=Bonn&selSouth=50.74&selWest=7.13&selNorth=50.71&selEast=7.08';
-    await page.goto(BAD);
+    const INVERTED_BOUNDS_URL =
+      'werkbank_v2.html?city=Bonn&selSouth=50.74&selWest=7.13&selNorth=50.71&selEast=7.08';
+    await page.goto(INVERTED_BOUNDS_URL);
     await page.waitForLoadState('networkidle');
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
 
