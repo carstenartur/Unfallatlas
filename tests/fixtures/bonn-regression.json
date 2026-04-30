@@ -1,0 +1,32 @@
+{
+  "_comment": "Bonn-Regression-Fixture (PR 3 / Spec-Item 11). Synthetisches Datensample im Bereich Bonn-Bad Godesberg, das die Datenstruktur reproduziert, an der der ursprüngliche QA-Befund auftrat (Mehrjahres-Trend-Pipe-Text-Leak in den SACHVERHALT-Block, fehlende Bildunterschriften, fehlende Scope-Erklärung). Punkte sind {lat, lon, props}-Records mit denselben property-Keys, die der GeoJSON-Loader für ctx.allPts erzeugt (USTUNDE -> ustunde, UJAHR -> year, etc.).",
+  "city": "Bonn",
+  "bounds": {
+    "south": 50.69,
+    "west": 7.13,
+    "north": 50.74,
+    "east": 7.18
+  },
+  "points": [
+    { "lat": 50.7050, "lon": 7.1500, "props": { "ukategorie": "3", "IstRad": 1, "year": 2019, "ustunde": 8 } },
+    { "lat": 50.7100, "lon": 7.1520, "props": { "ukategorie": "2", "IstRad": 1, "year": 2019, "ustunde": 17 } },
+    { "lat": 50.7150, "lon": 7.1540, "props": { "ukategorie": "3", "IstFuss": 1, "year": 2020, "ustunde": 9 } },
+    { "lat": 50.7160, "lon": 7.1545, "props": { "ukategorie": "3", "IstPKW": 1, "year": 2020, "ustunde": 12 } },
+    { "lat": 50.7170, "lon": 7.1550, "props": { "ukategorie": "3", "IstPKW": 1, "year": 2020, "ustunde": 14 } },
+    { "lat": 50.7180, "lon": 7.1555, "props": { "ukategorie": "2", "IstRad": 1, "year": 2020, "ustunde": 16 } },
+    { "lat": 50.7190, "lon": 7.1560, "props": { "ukategorie": "3", "IstFuss": 1, "year": 2021, "ustunde": 7 } },
+    { "lat": 50.7200, "lon": 7.1565, "props": { "ukategorie": "3", "IstPKW": 1, "year": 2021, "ustunde": 11 } },
+    { "lat": 50.7210, "lon": 7.1570, "props": { "ukategorie": "3", "IstRad": 1, "year": 2021, "ustunde": 13 } },
+    { "lat": 50.7220, "lon": 7.1575, "props": { "ukategorie": "3", "IstPKW": 1, "year": 2021, "ustunde": 15 } },
+    { "lat": 50.7230, "lon": 7.1580, "props": { "ukategorie": "3", "IstFuss": 1, "year": 2022, "ustunde": 8 } },
+    { "lat": 50.7240, "lon": 7.1585, "props": { "ukategorie": "2", "IstKrad": 1, "year": 2022, "ustunde": 18 } },
+    { "lat": 50.7250, "lon": 7.1590, "props": { "ukategorie": "3", "IstPKW": 1, "year": 2022, "ustunde": 10 } },
+    { "lat": 50.7260, "lon": 7.1595, "props": { "ukategorie": "3", "IstRad": 1, "year": 2022, "ustunde": 17 } },
+    { "lat": 50.7270, "lon": 7.1600, "props": { "ukategorie": "3", "IstPKW": 1, "year": 2023, "ustunde": 9 } },
+    { "lat": 50.7280, "lon": 7.1605, "props": { "ukategorie": "3", "IstFuss": 1, "year": 2023, "ustunde": 11 } },
+    { "lat": 50.7290, "lon": 7.1610, "props": { "ukategorie": "3", "IstRad": 1, "year": 2023, "ustunde": 14 } },
+    { "lat": 50.7300, "lon": 7.1615, "props": { "ukategorie": "2", "IstPKW": 1, "year": 2023, "ustunde": 16 } },
+    { "lat": 50.7310, "lon": 7.1620, "props": { "ukategorie": "3", "IstKrad": 1, "year": 2023, "ustunde": 19 } },
+    { "lat": 50.7320, "lon": 7.1625, "props": { "ukategorie": "3", "IstPKW": 1, "year": 2023, "ustunde": 8 } }
+  ]
+}
