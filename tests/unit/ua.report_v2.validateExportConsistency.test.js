@@ -190,4 +190,97 @@ describe('UA.validateExportConsistency – Pre-Flight-Konsistenz-Gate', () => {
   test('UA.validateExportConsistency is exposed as a function', () => {
     expect(typeof UA.validateExportConsistency).toBe('function');
   });
+
+  // ---- Invariante 3: cluster-subset (PR 2 / Spec-Item 5) -------------
+  describe('cluster-subset (Invariante 3)', () => {
+    test('accepts groups whose count is ≤ accidentDetails.total', () => {
+      const pts = [PT(50.73, 7.10), PT(50.74, 7.11), PT(50.75, 7.12)];
+      const ctx = makeCtx(pts, BBOX);
+      const structured = {
+        totalAccidents: 3,
+        accidentDetails: {
+          total: 3,
+          groups: [
+            { sevKey: '3', sevLabel: 'Leichtverletzte', count: 2 },
+            { sevKey: '2', sevLabel: 'Schwerverletzte', count: 1 }
+          ]
+        }
+      };
+      expect(UA.validateExportConsistency(ctx, structured)).toEqual({ ok: true });
+    });
+
+    test('accepts groups whose summed counts EQUAL accidentDetails.total (no auto-summing rejection)', () => {
+      // Spec-Item 5 explicitly requires we do NOT auto-equate
+      // mainCluster.n + secondaryCluster.n with the overview total.
+      // Valid sums must still pass.
+      const pts = [PT(50.73, 7.10), PT(50.74, 7.11), PT(50.75, 7.12), PT(50.76, 7.13)];
+      const ctx = makeCtx(pts, BBOX);
+      const structured = {
+        totalAccidents: 4,
+        accidentDetails: {
+          total: 4,
+          groups: [
+            { sevKey: 'mainCluster', sevLabel: 'Hauptcluster', count: 3 },
+            { sevKey: 'secondaryCluster', sevLabel: 'Nebencluster', count: 1 }
+          ]
+        }
+      };
+      expect(UA.validateExportConsistency(ctx, structured)).toEqual({ ok: true });
+    });
+
+    test('accepts groups whose summed counts are LESS than total (subset, not exhaustive)', () => {
+      // Clusters need not be exhaustive — the rule is „cluster.n ≤ overview.n",
+      // not „sum(clusters) === overview". A non-summing subset must pass.
+      const pts = [PT(50.73, 7.10), PT(50.74, 7.11), PT(50.75, 7.12), PT(50.76, 7.13)];
+      const ctx = makeCtx(pts, BBOX);
+      const structured = {
+        totalAccidents: 4,
+        accidentDetails: {
+          total: 4,
+          groups: [
+            { sevKey: 'mainCluster', sevLabel: 'Hauptcluster', count: 2 }
+          ]
+        }
+      };
+      expect(UA.validateExportConsistency(ctx, structured)).toEqual({ ok: true });
+    });
+
+    test('rejects when a single cluster.n exceeds accidentDetails.total', () => {
+      const pts = [PT(50.73, 7.10), PT(50.74, 7.11)];
+      const ctx = makeCtx(pts, BBOX);
+      const structured = {
+        totalAccidents: 2,
+        accidentDetails: {
+          total: 2,
+          groups: [
+            { sevKey: 'mainCluster', sevLabel: 'Hauptcluster', count: 5 }
+          ]
+        }
+      };
+      const r = UA.validateExportConsistency(ctx, structured);
+      expect(r.ok).toBe(false);
+      expect(r.kind).toBe('cluster_exceeds_total');
+      expect(r.nCluster).toBe(5);
+      expect(r.nTable).toBe(2);
+      expect(r.clusterLabel).toBe('Hauptcluster');
+      expect(r.message).toMatch(/Cluster „Hauptcluster" \(n=5\) ist größer als die Tabellen-Gesamtsumme \(n=2\)/);
+    });
+
+    test('tolerates groups missing count (defensive)', () => {
+      const pts = [PT(50.73, 7.10)];
+      const ctx = makeCtx(pts, BBOX);
+      const structured = {
+        totalAccidents: 1,
+        accidentDetails: {
+          total: 1,
+          groups: [
+            { sevKey: 'x', sevLabel: 'X' }, // no count → ignored
+            null,                            // null → ignored
+            { sevKey: 'y', sevLabel: 'Y', count: 1 }
+          ]
+        }
+      };
+      expect(UA.validateExportConsistency(ctx, structured)).toEqual({ ok: true });
+    });
+  });
 });

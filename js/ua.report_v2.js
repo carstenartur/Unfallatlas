@@ -5,6 +5,82 @@
   UA._exportLibrariesLoaded = false;
   UA._exportLibrariesLoading = null;
 
+  // ---------------------------------------------------------------------
+  // Hinweis zur Zählweise (PR 2 / Spec-Item 4 — „Hinweis-zur-Zählweise"-Box)
+  //
+  // Wird sowohl in DOCX als auch in PDF unmittelbar nach dem „Aktive
+  // Filter"-Block eingefügt. Die Box stellt für Verwaltungspublikum klar,
+  // welche Population die in den Tabellen genannten Fallzahlen abdecken,
+  // damit Ausschnittszahlen nicht versehentlich als stadtweite Statistik
+  // gelesen werden.
+  const HINWEIS_ZAEHLWEISE_LINES = [
+    "Hinweis zur Zählweise:",
+    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Kartenausschnitt unter den oben genannten Filtern (Aktiver Filter-Scope). Stadtweite Vergleichswerte (z. B. in den Top-Abweichungen) sind als \"Baseline\" gekennzeichnet."
+  ];
+
+  // ---------------------------------------------------------------------
+  // Figure-Caption-Counter (PR 2 / Spec-Item 4 — „Abbildung N: …")
+  //
+  // Beide Renderer (DOCX + PDF) erzeugen genau drei Bildklassen:
+  // Übersichtskarte, Detailkarte, Cluster-Karten (1..n). Die Caption-Box
+  // hängt unter jedem Bild eine durchnummerierte Bildunterschrift an,
+  // damit das resultierende Dokument zitierfähig wird (z. B. „siehe
+  // Abbildung 2"). Für jeden Export-Aufruf wird ein frischer Counter
+  // erzeugt; die DOCX- und PDF-Pfade verwenden je einen eigenen.
+  function makeFigureCounter() {
+    let n = 0;
+    return {
+      next(subject) {
+        n += 1;
+        return { index: n, caption: `Abbildung ${n}: ${subject}` };
+      }
+    };
+  }
+
+
+  // ---------------------------------------------------------------------
+  // Block headers used to terminate the SACHVERHALT extraction in DOCX
+  // and PDF export. The TEXT renderer in js/ua.export_v2.js emits these
+  // headers after "Sachverhalt:". Used by extractSection() and by the
+  // PDF/DOCX SACHVERHALT extraction call sites to terminate the
+  // SACHVERHALT block before the next major section. Without this,
+  // blocks like "Mehrjahres-Trend (Gesamtzahl pro Jahr):\n  Jahr |
+  // Getötete | …" leak into the SACHVERHALT paragraph as raw pipe-text
+  // and then render again later as proper structured tables — exactly
+  // the QA blocker tracked by the regression assertion in
+  // tests/unit/ua.report_v2.pdfQA.test.js.
+  //
+  // The list also includes "Sachverhalt:" itself so that an unexpected
+  // re-entry of the entry marker terminates extraction defensively (the
+  // first "Sachverhalt:" line activates collection and is consumed by
+  // the inSection flag in extractSection; only a second occurrence would
+  // be matched against this list). The DOCX call site explicitly filters
+  // out the entry marker since it's already used as the sectionHeader
+  // argument.
+  //
+  // Headers are matched via String.prototype.startsWith on the trimmed
+  // line, so substrings of headers (e.g. "Auffälligkeiten (" matches both
+  // "Auffälligkeiten:" and "Auffälligkeiten (Top-Abweichungen…)") are
+  // sufficient.
+  const POST_SACHVERHALT_STOP_HEADERS = [
+    "Sachverhalt:",
+    "Auffälligkeiten:",
+    "Auffälligkeiten (",
+    "URSACHEN UND MASSNAHMEN",
+    "Bewertung / Interpretation",
+    "Methodik",
+    "Mehrjahres-Trend",
+    "Stunden-Heatmap",
+    "Verkehrsräumlicher Kontext",
+    "Volkswirtschaftliche Bedeutung",
+    "Empfohlene Maßnahmen",
+    "POI-Analyse",
+    "Bezugsdokumente:",
+    "Beschlussvorschlag:",
+    "Hinweis (intern)",
+    "Datenquelle"
+  ];
+
   // =====================================================================
   // Lazy Loading Utilities for Export Libraries
   // =====================================================================
@@ -549,6 +625,7 @@
   }
   // Exported for tests; the public name stays inside the IIFE.
   UA._captureClusterMaps = captureClusterMaps;
+  UA._captureDetailMap = captureDetailMap;
 
   /**
    * Build the German verification sentence required below every exported map
@@ -681,6 +758,33 @@
           nMap,
           message: `Export abgebrochen: Tabelle (n=${tableN}) und Karte (n=${nMap}) inkonsistent.`
         };
+      }
+    }
+
+    // Invariante 3 (PR 2 / Spec-Item 5 — cluster-subset): Jede Cluster-/
+    // Gruppen-Zählung in accidentDetails.groups ist eine Teilmenge der
+    // Gesamtfallzahl im Ausschnitt. Eine Gruppe darf NIE größer sein als
+    // die Gesamtmenge der sie enthaltenden Tabelle. Außerdem darf die
+    // Summe mehrerer Cluster (z. B. mainCluster + secondaryCluster) NICHT
+    // automatisch mit der Gesamtsumme gleichgesetzt werden — Cluster
+    // können sich nicht überlappen, müssen aber auch nicht erschöpfend
+    // sein. Dieser Check fängt verfälschte Cluster-Counts ab, bevor sie
+    // im PDF/DOCX als „n=X" gerendert und in den Verifikationssatz
+    // übernommen werden.
+    if (ad2 && Array.isArray(ad2.groups) && Number.isFinite(tableN)) {
+      for (const g of ad2.groups) {
+        if (!g || !Number.isFinite(g.count)) continue;
+        if (g.count > tableN) {
+          const label = g.sevLabel || g.key || "(unbenannt)";
+          return {
+            ok: false,
+            kind: "cluster_exceeds_total",
+            nCluster: g.count,
+            nTable: tableN,
+            clusterLabel: label,
+            message: `Export abgebrochen: Cluster „${label}" (n=${g.count}) ist größer als die Tabellen-Gesamtsumme (n=${tableN}).`
+          };
+        }
       }
     }
 
@@ -1104,6 +1208,46 @@
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
     }
 
+    // ---- 4b. Hinweis zur Zählweise (PR 2 / Spec-Item 4) ----
+    // Direkt nach dem „Aktive Filter"-Block, damit Lesende beim Übergang
+    // zu den eigentlichen Inhalten wissen, worauf sich alle folgenden
+    // Fallzahlen beziehen. Optisch als kursive Info-Box gestaltet.
+    children.push(new Paragraph({
+      children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[0], bold: true, italics: true })],
+      spacing: { before: 100, after: 60 }
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[1], italics: true })],
+      spacing: { after: 200 }
+    }));
+
+    // ---- 4c. Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
+    // Spiegelt structured.methodikScope (drei Sätze) als kompakter
+    // Methodik-Block in das DOCX. Der Block fasst die in
+    // structured.meta.activeFilterScope / patternAnalysisScope /
+    // baselineScope hinterlegten Definitionen für Lesende zusammen.
+    if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
+      children.push(new Paragraph({
+        text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+        heading: HeadingLevel.HEADING_3,
+        spacing: { before: 100, after: 80 }
+      }));
+      for (const ln of sd.methodikScope.lines) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: String(ln) })],
+          spacing: { after: 60 }
+        }));
+      }
+      children.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+    }
+
+    // ---- 4d. Figure-Caption-Counter (PR 2 / Spec-Item 4) ----
+    // Pro DOCX-Aufruf wird ein eigener Counter erzeugt; jede der drei
+    // Bildklassen (Übersichts-, Detail-, Cluster-Karte) ruft figCounter
+    // .next(...) auf und fügt die Bildunterschrift unmittelbar unter
+    // dem ImageRun ein.
+    const figCounter = makeFigureCounter();
+
     // ---- 4a. ANTRAG / BESCHLUSSVORSCHLAG (Layout-PR „Semantische
     // Dokumentstruktur"): Verwaltungsdokumente führen den Antragstext
     // direkt nach dem Dokumentkopf, damit das Lesegremium ohne Suchen
@@ -1185,11 +1329,14 @@
       })
     );
 
-    // Parse the text report to extract the SACHVERHALT section using helper
+    // Parse the text report to extract the SACHVERHALT section using helper.
+    // Stop list mirrors POST_SACHVERHALT_STOP_HEADERS (minus "Sachverhalt:"
+    // itself, which is the entry marker) so post-Sachverhalt blocks like
+    // Mehrjahres-Trend never leak into the SACHVERHALT paragraph.
     const sachverhaltSection = extractSection(
       textLines,
       "Sachverhalt:",
-      ["Auffälligkeiten:", "POI-Analyse", "Bezugsdokumente:", "Beschlussvorschlag:"]
+      POST_SACHVERHALT_STOP_HEADERS.filter(h => h !== "Sachverhalt:")
     );
 
     const sachverhaltContent = Array.isArray(sachverhaltSection)
@@ -1640,6 +1787,26 @@
           })
         );
 
+        // Layout-Pass / Spec-Item 6 + 7: erklärender Lead-in vor der
+        // Bilderfolge — stellt die Dramaturgie her (Text → Bild → Tabelle)
+        // und macht die Detail-/Cluster-Karten als Teilmengen der
+        // Übersichtskarte explizit verständlich.
+        children.push(new Paragraph({
+          children: [new TextRun({
+            text: "Die folgenden Karten zeigen unterschiedliche Detailebenen. Detail- und Clusteransichten sind Teilmengen der Gesamtansicht."
+          })],
+          spacing: { after: 160 }
+        }));
+
+        // Layout-Pass / Spec-Item 6: Parent-Count für Caption-Cross-References
+        // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle aus
+        // Abbildung 1."). M = Gesamtfallzahl im Ausschnitt mit denselben
+        // Fallback-Quellen wie der Verifikationssatz weiter unten.
+        const docxParentN =
+          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : null));
+
         const mapImageData = await UA.captureExportMapImage(ctx, options);
 
         let mainMapRun;
@@ -1663,6 +1830,16 @@
             spacing: { after: 200 }
           })
         );
+
+        // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
+        children.push(new Paragraph({
+          children: [new TextRun({
+            text: figCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
+            italics: true,
+            bold: true
+          })],
+          spacing: { after: 80 }
+        }));
 
         const legendText =
           ctx && typeof ctx.t === "function"
@@ -1696,7 +1873,7 @@
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
-            const detailImageData = await captureDetailMap(ctx, options);
+            const detailImageData = await (UA._captureDetailMap || captureDetailMap)(ctx, options);
             let detailRun;
             try {
               detailRun = pngImageRun(
@@ -1722,6 +1899,19 @@
             // Verification sentence for detail map (Task 6).
             const detailBbox = boundsToBbox(ctx.selectionBounds);
             const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            // PR 2 / Spec-Item 4: numbered figure caption.
+            // Layout-Pass: Subset-Cross-Reference auf Abbildung 1.
+            const detailFig = figCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
+            const detailCaptionText = (docxParentN != null)
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung 1.`
+              : detailFig.caption;
+            children.push(new Paragraph({
+              children: [new TextRun({
+                text: detailCaptionText,
+                italics: true
+              })],
+              spacing: { after: 80 }
+            }));
             children.push(new Paragraph({
               text: mapVerificationSentence(detailN),
               italics: true,
@@ -1738,7 +1928,7 @@
         //   – a unique heading "<label> – n Unfälle (Zoom z)" matching the table
         //   – the verification sentence below the image
         try {
-          const clusterMaps = await captureClusterMaps(ctx, options);
+          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(ctx, options);
           for (const cm of clusterMaps) {
             // Task 5: do not render a cluster map if the visible point count
             // would not match the stated total.
@@ -1776,6 +1966,19 @@
             children.push(new Paragraph({
               children: [cRun],
               spacing: { after: 100 }
+            }));
+            // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
+            // Layout-Pass: Subset-Cross-Reference auf Abbildung 1.
+            const clusterFig = figCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
+            const clusterCaptionText = (docxParentN != null)
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung 1.`
+              : clusterFig.caption;
+            children.push(new Paragraph({
+              children: [new TextRun({
+                text: clusterCaptionText,
+                italics: true
+              })],
+              spacing: { after: 80 }
             }));
             children.push(new Paragraph({
               text: mapVerificationSentence(cm.total),
@@ -2569,7 +2772,36 @@
       };
     }
 
-    // Helper: determine if a cross-table row mask matches the active filter (for PDF)
+    // Helper: noteBox — light-gray, padded, single-cell info box.
+    // Wird im Layout-PR für die "Hinweis zur Zählweise"-Box (und potentiell
+    // weitere kursiv-graue Hinweisblöcke) verwendet, damit pdfMake echtes
+    // Padding + Hintergrund rendert (Text-Knoten allein erlauben das nicht).
+    // `lines` ist ein Array von pdfMake-text-Knoten ODER plain-Strings.
+    function makePdfNoteBox(lines) {
+      const linesArr = (Array.isArray(lines) ? lines : [lines])
+        .filter((x) => x != null);
+      const stack = linesArr.map((ln) => {
+        if (ln && typeof ln === "object") return ln;
+        return { text: String(ln), style: "noteBox" };
+      });
+      return {
+        table: {
+          widths: ["*"],
+          body: [[
+            {
+              stack,
+              fillColor: "#F2F2F2",
+              margin: [8, 6, 8, 6],
+              border: [false, false, false, false]
+            }
+          ]]
+        },
+        layout: "noBorders",
+        margin: [0, 6, 0, 8]
+      };
+    }
+
+
     const pdfAfm = (sd && sd.meta && sd.meta.activeFilterMask) || 0;
     const pdfAfMode = (sd && sd.meta && sd.meta.involvementMode) || "or";
     function isPdfActiveFilterRow(rowMask) {
@@ -2592,6 +2824,59 @@
       pageMargins: [40, 60, 40, 60],
       content: [],
       styles: {
+        // ---- Layout-Pass: kanonische Style-Namen ----
+        // Die neuen Stilnamen (title/sectionHeader/subsectionHeader/body/
+        // lead/caption/noteBox) bilden die im Layout-PR vorgegebene zentrale
+        // Typografie ab. Die Legacy-Namen (header/subheader/subheader2/
+        // normal/small) bleiben als Aliase erhalten, damit bestehende Call-
+        // sites unverändert weiter funktionieren — neue Inhalte SOLLEN aber
+        // konsequent die kanonischen Namen verwenden.
+        title: {
+          fontSize: 20,
+          bold: true,
+          alignment: "center",
+          margin: [0, 0, 0, 12]
+        },
+        sectionHeader: {
+          fontSize: 15,
+          bold: true,
+          margin: [0, 12, 0, 6]
+        },
+        subsectionHeader: {
+          fontSize: 12,
+          bold: true,
+          margin: [0, 8, 0, 4]
+        },
+        body: {
+          fontSize: 11,
+          margin: [0, 0, 0, 4],
+          lineHeight: 1.3
+        },
+        lead: {
+          fontSize: 12,
+          bold: true,
+          margin: [0, 0, 0, 6]
+        },
+        caption: {
+          fontSize: 9,
+          italics: true,
+          color: "#444444",
+          margin: [0, 2, 0, 8]
+        },
+        // noteBox als Style-Definition — wird von einer leichten Tabelle mit
+        // einer einzigen Zelle (fillColor=lightGray) genutzt, damit pdfMake
+        // tatsächlich Padding+Background rendert (pdfMake unterstützt
+        // Padding nicht direkt auf Text-Knoten). Bewusst KEIN `margin` hier:
+        // der Style wird per Zeile (`stack[i].style = "noteBox"`) gesetzt
+        // und würde sich sonst pro Zeile aufaddieren — Außenabstände
+        // kommen vom Cell-`margin` (Padding) und der Wrapper-Tabelle in
+        // `makePdfNoteBox()`.
+        noteBox: {
+          fontSize: 10,
+          color: "#222222"
+        },
+
+        // ---- Legacy-Aliase (siehe Kommentar oben) ----
         header: {
           fontSize: 18,
           bold: true,
@@ -2730,6 +3015,41 @@
       ));
     }
 
+    // ---- Hinweis zur Zählweise (PR 2 / Spec-Item 4) ----
+    // Layout-Pass: als echte noteBox (light-gray, padded) statt als loser
+    // kursiver Text — damit der Hinweis visuell als Block erkennbar ist
+    // und vom Antragstext klar abgesetzt wird.
+    docDefinition.content.push(makePdfNoteBox([
+      { text: HINWEIS_ZAEHLWEISE_LINES[0], style: "noteBox", bold: true, margin: [0, 0, 0, 3] },
+      { text: HINWEIS_ZAEHLWEISE_LINES[1], style: "noteBox" }
+    ]));
+
+    // ---- Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
+    if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
+      docDefinition.content.push({
+        text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+        style: "subsectionHeader"
+      });
+      for (const ln of sd.methodikScope.lines) {
+        docDefinition.content.push({
+          text: String(ln),
+          style: "body"
+        });
+      }
+      docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
+    }
+
+    // PR 2 / Spec-Item 4: per-export figure-caption counter (PDF side).
+    const pdfFigCounter = makeFigureCounter();
+    // Layout-Pass / Spec-Item 6: Parent-Count für Caption-Cross-References
+    // ("Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle aus
+    // Abbildung 1."). M = Gesamtfallzahl im Ausschnitt
+    // (= structured.accidentDetails.total mit Fallback auf totalAccidents).
+    const pdfParentN =
+      (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total))
+        ? sd.accidentDetails.total
+        : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents : null);
+
     // ---- ANTRAG / BESCHLUSSVORSCHLAG (oben, Layout-PR) ----
     // Verwaltungsdokumente führen den Antragstext direkt nach dem
     // Dokumentkopf — siehe Begleit-Kommentar im DOCX-Export. Der
@@ -2791,8 +3111,16 @@
 
     const sachverhaltSection = extractSection(textLines, "Sachverhalt:");
     if (sachverhaltSection.length > 0) {
+      // Defense in depth: the default stop-list in extractSection already
+      // terminates at every post-Sachverhalt block header, but keep this
+      // inline guard in sync with POST_SACHVERHALT_STOP_HEADERS so future
+      // refactors of extractSection cannot regress the QA blocker.
       for (const line of sachverhaltSection) {
-        if (line.includes("Auffälligkeiten:") || line.includes("POI-Analyse") || line.includes("Bezugsdokumente:")) {
+        const trimmed = line.trim();
+        const hitsBlockHeader = POST_SACHVERHALT_STOP_HEADERS.some(
+          h => h !== "Sachverhalt:" && trimmed.startsWith(h)
+        );
+        if (hitsBlockHeader) {
           break;
         }
         const content = textWithLinks(line);
@@ -3150,7 +3478,16 @@
       try {
         docDefinition.content.push({
           text: "KARTENAUSSCHNITT",
-          style: "subheader"
+          style: "sectionHeader"
+        });
+
+        // Layout-Pass / Spec-Item 6 + 7: erklärender Absatz vor der Bilderfolge.
+        // Stellt die Dramaturgie her (Text → Bild → Tabelle) und macht die
+        // Detail- und Cluster-Karten als Teilmengen der Übersichtskarte
+        // explizit verständlich.
+        docDefinition.content.push({
+          text: "Die folgenden Karten zeigen unterschiedliche Detailebenen. Detail- und Clusteransichten sind Teilmengen der Gesamtansicht.",
+          style: "body"
         });
 
         const mapImageData = await UA.captureExportMapImage(ctx, options);
@@ -3165,6 +3502,14 @@
           fit: [PDF_MAX_IMG_WIDTH, PDF_MAX_IMG_HEIGHT],
           margin: [0, 10, 0, 10],
           link: werkbankUrl
+        });
+
+        // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
+        // Layout-Pass: kanonischer `caption`-Style; bleibt Abbildung 1 (Parent
+        // für alle weiteren Cross-Reference-Captions).
+        docDefinition.content.push({
+          text: pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
+          style: "caption"
         });
 
         // Add "In Werkbank öffnen" link
@@ -3204,7 +3549,7 @@
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
-            const detailImageData = await captureDetailMap(ctx, options);
+            const detailImageData = await (UA._captureDetailMap || captureDetailMap)(ctx, options);
             // Unique URL for detail map: explicit selSouth/West/North/East
             // and centered on the selection (Tasks 1, 3).
             const detailBbox = boundsToBbox(ctx.selectionBounds);
@@ -3216,12 +3561,25 @@
               bounds: detailBbox,
               center: detailCenter
             });
-            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader2" });
+            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subsectionHeader" });
             docDefinition.content.push({
               image: detailImageData,
               fit: [475, 350],
               margin: [0, 10, 0, 10],
               link: detailWerkbankUrl
+            });
+            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            // PR 2 / Spec-Item 4: numbered figure caption.
+            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
+            // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle
+            // aus Abbildung 1.").
+            const detailFig = pdfFigCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
+            const detailCaptionText = (pdfParentN != null)
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
+              : detailFig.caption;
+            docDefinition.content.push({
+              text: detailCaptionText,
+              style: "caption"
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
@@ -3231,7 +3589,6 @@
               style: "normal",
               margin: [0, 5, 0, 4]
             });
-            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
             docDefinition.content.push({
               text: mapVerificationSentence(detailN),
               style: "small",
@@ -3251,7 +3608,7 @@
         //   – heading "<label> – n Unfälle (Zoom z)" (matches the table)
         //   – verification sentence "Die dargestellten Punkte … (n = X)." (Task 6)
         try {
-          const clusterMaps = await captureClusterMaps(ctx, options);
+          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(ctx, options);
           for (const cm of clusterMaps) {
             // Task 5: only render a cluster map when the visible point count
             // matches the stated total. This is the explicit consistency
@@ -3274,13 +3631,24 @@
             });
             docDefinition.content.push({
               text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
-              style: "subheader2"
+              style: "subsectionHeader"
             });
             docDefinition.content.push({
               image: cm.image,
               fit: [475, 350],
               margin: [0, 10, 0, 10],
               link: clusterUrl
+            });
+            // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
+            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
+            // auf Abbildung 1 (Übersicht).
+            const clusterFig = pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
+            const clusterCaptionText = (pdfParentN != null)
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
+              : clusterFig.caption;
+            docDefinition.content.push({
+              text: clusterCaptionText,
+              style: "caption"
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
@@ -3620,19 +3988,12 @@
   function extractSection(lines, sectionHeader, stopSections) {
     const result = [];
     let inSection = false;
-    
-    // Default stop sections if none provided
-    const defaultStopSections = [
-      "Sachverhalt:",
-      "Auffälligkeiten:",
-      "POI-Analyse",
-      "Bezugsdokumente:",
-      "Beschlussvorschlag:",
-      "Hinweis (intern)",
-      "Datenquelle"
-    ];
-    
-    const stopPatterns = stopSections || defaultStopSections;
+
+    // Default stop sections cover every post-Sachverhalt block header
+    // emitted by the TEXT renderer in js/ua.export_v2.js — see
+    // POST_SACHVERHALT_STOP_HEADERS for rationale and the regression
+    // assertion in tests/unit/ua.report_v2.pdfQA.test.js.
+    const stopPatterns = stopSections || POST_SACHVERHALT_STOP_HEADERS;
     
     for (const line of lines) {
       if (line.includes(sectionHeader)) {

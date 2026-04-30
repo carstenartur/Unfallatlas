@@ -2342,6 +2342,48 @@
 
     // Task 10: structured.meta.mode reflects exportMode (computed earlier).
 
+    // Scope-Erklärung (PR 2 / Spec-Items 4 + 6):
+    // Drei Scopes machen explizit, worauf sich welche Zahl bezieht. Sie werden
+    // in `structured.meta` gespiegelt, damit alle Renderer (TEXT/HTML/DOCX/PDF)
+    // sowie nachgelagerte AI-Assessments dieselbe Definition referenzieren.
+    //
+    //   - activeFilterScope: Was zählt als „Unfall im Ausschnitt"? – die
+    //     Kombination aus Bounding-Box + UI-Filtern + Beteiligungsmaske, die
+    //     der Anwender im Werkbank-UI gesetzt hat.
+    //   - patternAnalysisScope: Auf welcher Population basieren die in den
+    //     Auffälligkeiten gemeldeten Muster? – identisch mit
+    //     activeFilterScope, jedoch zusätzlich mask>0 (Beteiligungsfilter
+    //     greifen) und ohne Cap.
+    //   - baselineScope: Welche Vergleichsgruppe definiert „normal" für die
+    //     Top-Abweichungen? – stadtweite Population mit denselben Nicht-
+    //     Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).
+    const activeFilterScope = {
+      bounds: bStr,
+      areaName: areaName || null,
+      filters,
+      involvementMode: ctx.involvementMode || "or",
+      activeFilterMask
+    };
+    const patternAnalysisScope = {
+      basis: "Punkte im Ausschnitt mit Beteiligungsmaske > 0",
+      bounds: bStr,
+      filters,
+      involvementMode: ctx.involvementMode || "or"
+    };
+    const baselineScope = {
+      basis: "Stadtweite Population mit identischen Nicht-Beteiligungsfiltern",
+      city: CITY_RAW,
+      filters: {
+        // Nur die nicht-beteiligungsbezogenen Filter sind in der Baseline
+        // wirksam – dieselben, die topDeviations() für den Stadtbezug nutzt.
+        severity: filters.severity,
+        roadCondition: filters.roadCondition,
+        hourFrom: filters.hourFrom,
+        hourTo: filters.hourTo,
+        dayType: filters.dayType
+      }
+    };
+
     const structured = {
       meta: {
         city: CITY_RAW,
@@ -2353,7 +2395,10 @@
         gremium: gremiumMatch,
         activeFilterMask,
         involvementMode: ctx.involvementMode || "or",
-        mode: exportMode
+        mode: exportMode,
+        activeFilterScope,
+        patternAnalysisScope,
+        baselineScope
       },
       // Kanonische Gesamtzahl der dokumentierten Unfälle (== severity.total).
       // Wird vom Pre-Flight-Konsistenz-Gate (UA.validateExportConsistency)
@@ -2410,6 +2455,24 @@
       }
       structured.mapReferences = mapRefs;
     }
+
+    // Methodik-Scope-Block (PR 2 / Spec-Item 6): drei Sätze, die die in
+    // structured.meta.* hinterlegten Scopes in eine renderfertige, für
+    // Verwaltungspublikum verständliche Sprache übersetzen. DOCX/PDF
+    // rendern dieses Block 1:1 unterhalb der „Hinweis zur Zählweise"-Box;
+    // TEXT/HTML können denselben Inhalt anhängen (deferred — keine
+    // Renderer-Anpassung im selben Patch nötig, da Roh-Text-Renderer dies
+    // bereits über das Methodik-HTML-Snippet abdeckt).
+    structured.methodikScope = {
+      title: "Methodik – Scope der Auswertung",
+      lines: [
+        `Aktiver Filter-Scope: Auswertung umfasst Unfälle innerhalb des markierten Bereichs (${bStr})${
+          areaName ? ` – „${areaName}"` : ""
+        } unter den oben aufgeführten Filtern.`,
+        "Muster-Analyse: Auffälligkeiten und Top-Abweichungen werden auf der gefilterten Population im Ausschnitt (Beteiligungsmaske > 0) berechnet.",
+        `Vergleichs-Baseline: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`
+      ]
+    };
 
     return { text: textOut, html: htmlOut, structured };
   };
