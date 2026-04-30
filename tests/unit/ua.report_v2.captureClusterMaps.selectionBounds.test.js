@@ -150,16 +150,18 @@ describe('captureClusterMaps – selectionBounds filter', () => {
     // Selection covers only 2 isolated points — not enough for minTotal=5.
     const selectionBounds = makeBounds(52.360, 9.720, 52.380, 9.740);
 
-    const insidePoints = makeCluster(52.370, 9.730, 2); // only 2 points
+    const insidePoints = makeCluster(52.370, 9.730, 2); // only 2 points inside
 
-    // Dense outside cluster that would otherwise produce a target.
+    // Dense outside cluster that would otherwise produce a target without filtering.
     const outsideCluster = makeCluster(52.400, 9.800, 10);
 
-    // computeClusterMapTargets spy: returns empty when called with ≤2 pts
-    // (simulates minTotal threshold behaviour), non-empty otherwise.
+    // Capture the pts argument to verify that ONLY inside-selection points
+    // were passed — the outside cluster must not sneak through.
+    let capturedPoints = null;
     UA.computeClusterMapTargets = (pts) => {
-      // Only the 2 inside points should reach here after filtering.
-      // No matter what, return empty to simulate "threshold not met".
+      capturedPoints = pts;
+      // Return empty to simulate "threshold not met" — matches what would
+      // happen with minTotal=5 and only 2 inside-selection points.
       return [];
     };
 
@@ -171,7 +173,12 @@ describe('captureClusterMaps – selectionBounds filter', () => {
 
     const result = await UA._captureClusterMaps(ctx, {}, { minTotal: 5 });
 
-    // No cluster targets from outside must sneak in; result must be empty.
+    // The function must have passed only inside-selection points.
+    expect(capturedPoints).not.toBeNull();
+    expect(capturedPoints).toHaveLength(insidePoints.length);
+    expect(capturedPoints.every(p => selectionBounds.contains([p.lat, p.lon]))).toBe(true);
+
+    // And since no cluster meets the threshold, the result must be empty.
     expect(result).toEqual([]);
   });
 
