@@ -15,7 +15,7 @@
   // gelesen werden.
   const HINWEIS_ZAEHLWEISE_LINES = [
     "Hinweis zur Zählweise:",
-    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Kartenausschnitt unter den oben genannten Filtern (Aktiver Filter-Scope). Stadtweite Vergleichswerte (z. B. in den Top-Abweichungen) sind als \"Baseline\" gekennzeichnet."
+    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Auswertungsbereich (Kartenausschnitt + aktive Filter). Stadtweite Vergleichswerte (z. B. in den Top-Abweichungen) werden als \"Vergleich mit dem Stadtgebiet\" gekennzeichnet."
   ];
 
   // ---------------------------------------------------------------------
@@ -792,6 +792,93 @@
   }
   UA.validateExportConsistency = validateExportConsistency;
 
+  // ---------------------------------------------------------------------
+  // QA-PR „Export-Semantik vor Layout" — Export-QA-Gate
+  //
+  // Prüft den `pdfMake`-`docDefinition.content`-Baum (oder den DOCX-
+  // Children-Baum) auf verbotene Tokens, bevor die Datei erzeugt wird:
+  //   - Beteiligten-Emojis  (🚲/🚗/🚶/🚌/🏍/🚛)
+  //   - FontAwesome / Private-Use-Codepoints  (U+E000…U+F8FF)
+  //   - „Fetch is aborted" / „Beteiligungsmaske" / isoliertes „Scope"
+  //   - „undefined" / „null" als sichtbarer Zellinhalt
+  //   - „+ :" oder „+:"-Kombinationen ohne Textlabel (das frühere
+  //     QA-Symptom „Symbol-Wüste" in den Kreuztabellen).
+  //
+  // Liefert `{ ok:true }` oder `{ ok:false, violations: [...] }`. Caller
+  // (in `exportToPDF`) wirft auf Verletzung mit lesbarer Meldung, damit
+  // der Export NICHT als „PR-reifes" PDF nach außen dringt.
+  // ---------------------------------------------------------------------
+  function _walkVisibleStrings(node, sink) {
+    if (node == null) return;
+    if (Array.isArray(node)) { for (const n of node) _walkVisibleStrings(n, sink); return; }
+    if (typeof node === "string") { sink(node); return; }
+    if (typeof node !== "object") return;
+    if (typeof node.text === "string") sink(node.text);
+    else if (Array.isArray(node.text)) _walkVisibleStrings(node.text, sink);
+    if (Array.isArray(node.stack))   _walkVisibleStrings(node.stack, sink);
+    if (Array.isArray(node.columns)) _walkVisibleStrings(node.columns, sink);
+    if (Array.isArray(node.ul))      _walkVisibleStrings(node.ul, sink);
+    if (Array.isArray(node.ol))      _walkVisibleStrings(node.ol, sink);
+    if (node.table && Array.isArray(node.table.body)) {
+      for (const row of node.table.body) for (const cell of row) _walkVisibleStrings(cell, sink);
+    }
+  }
+
+  // Forbidden glyphs: involvement emojis + FontAwesome/private-use range.
+  const _QA_FORBIDDEN_GLYPH_RE =
+    /(\u{1F6B2}|\u{1F6B6}|\u{1F697}|\u{1F3CD}\u{FE0F}?|\u{1F69B}|\u{1F68C}|[\uE000-\uF8FF])/u;
+  // Forbidden technical words / phrases.
+  const _QA_FORBIDDEN_PHRASES = [
+    { re: /Fetch is aborted/i,                                  reason: 'Technische Fehlermeldung "Fetch is aborted" im Antrag.' },
+    { re: /Beteiligungsmaske/,                                  reason: 'Technischer Begriff "Beteiligungsmaske" im sichtbaren Text.' },
+    { re: /(?:^|[^A-Za-zÄÖÜäöüß])Scope(?:[^A-Za-zÄÖÜäöüß]|$)/,  reason: 'Entwicklerjargon "Scope" im sichtbaren Text.' },
+    { re: /Vergleichs-Baseline/,                                reason: 'Entwicklerjargon "Vergleichs-Baseline" im sichtbaren Text.' },
+    { re: /Aktiver Filter-Scope/,                               reason: 'Entwicklerjargon "Aktiver Filter-Scope" im sichtbaren Text.' },
+    { re: /Muster-Analyse/,                                     reason: 'Entwicklerjargon "Muster-Analyse" im sichtbaren Text.' }
+  ];
+  // „+ :" / „+:" mit nur Symbolen drumherum (typisches QA-Symptom).
+  const _QA_PLUS_COLON_RE = /\+\s*:/;
+
+  /**
+   * Run the export-content QA gate over the visible strings of a pdfMake
+   * docDefinition.content tree (or any tree with the `text`/`stack`/
+   * `columns`/`table.body` shape we use).
+   *
+   * @param {Array|object} contentRoot
+   * @returns {{ok: true} | {ok: false, violations: Array<{kind:string,sample:string,reason:string}>}}
+   */
+  function runExportQAGate(contentRoot) {
+    const violations = [];
+    const seenSamples = new Set();
+    const push = (kind, sample, reason) => {
+      const key = kind + "|" + sample;
+      if (seenSamples.has(key)) return;
+      seenSamples.add(key);
+      violations.push({ kind, sample, reason });
+    };
+    _walkVisibleStrings(contentRoot, (s) => {
+      const str = String(s);
+      if (!str) return;
+      if (_QA_FORBIDDEN_GLYPH_RE.test(str)) {
+        push("glyph", str.slice(0, 80), "Beteiligten-Symbol oder Private-Use-Glyph im sichtbaren Export.");
+      }
+      for (const { re, reason } of _QA_FORBIDDEN_PHRASES) {
+        if (re.test(str)) push("phrase", str.slice(0, 120), reason);
+      }
+      // Standalone "undefined"/"null" cell content (whitespace tolerated).
+      if (/^\s*(?:undefined|null)\s*$/.test(str)) {
+        push("placeholder", str, 'Roher Platzhalter ("undefined"/"null") als Zellinhalt.');
+      }
+      // "+ :" / "+:" pattern (cross-table symbol-wüste).
+      if (_QA_PLUS_COLON_RE.test(str)) {
+        push("symbolOnly", str.slice(0, 80), 'Beteiligungs-Kombination ohne Textlabel ("+ :"-Muster).');
+      }
+    });
+    if (violations.length === 0) return { ok: true };
+    return { ok: false, violations };
+  }
+  UA.runExportQAGate = runExportQAGate;
+
   /**
    * Derive a {south,west,north,east} bbox from a Leaflet LatLngBounds object.
    * Tolerant of plain {south,west,north,east} objects (already serialised).
@@ -1183,15 +1270,21 @@
     if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand", fmtFilterValue("roadCondition", filters.roadCondition),    false]);
     if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", fmtFilterValue("involvementMode", filters.involvementMode), false]);
 
-    // Build participation flags label
-    const partLabels = [];
-    if (filters.includeCyclist)    partLabels.push("🚲 Rad");
-    if (filters.includePedestrian) partLabels.push("🚶 Fuß");
-    if (filters.includeCar)        partLabels.push("🚗 PKW");
-    if (filters.includeMotorcycle) partLabels.push("🏍️ Krad");
-    if (filters.includeGkfz)       partLabels.push("🚛 Gkfz");
-    if (filters.includeSonstig)    partLabels.push("🚌 Sonst.");
-    if (partLabels.length > 0) filterRows.push(["Beteiligte", partLabels.join(", "), false]);
+    // Build participation flags label — Prosa-Form (QA-PR „Export-Semantik
+    // vor Layout"): keine Emojis im DOCX-Sichtbereich.
+    const partCodes = [];
+    if (filters.includeCyclist)    partCodes.push("Rad");
+    if (filters.includePedestrian) partCodes.push("Fuss");
+    if (filters.includeCar)        partCodes.push("PKW");
+    if (filters.includeMotorcycle) partCodes.push("Krad");
+    if (filters.includeGkfz)       partCodes.push("Lkw");
+    if (filters.includeSonstig)    partCodes.push("Sonst");
+    if (partCodes.length > 0) {
+      const partProse = (typeof UA.formatParticipantCombinationForExport === "function")
+        ? UA.formatParticipantCombinationForExport(partCodes)
+        : partCodes.join(" + ");
+      filterRows.push(["Beteiligte", partProse, false]);
+    }
 
     if (filters.hourFrom != null && filters.hourTo != null) {
       filterRows.push(["Zeitraum", `${filters.hourFrom}:00–${filters.hourTo}:00 Uhr`, false]);
@@ -2199,7 +2292,9 @@
         spacing: { before: 400, after: 200 }
       }));
       children.push(new Paragraph({
-        children: [new TextRun({ text: `Nicht verfügbar (${sd.osmContext.quality.error}).`, italics: true })],
+        // QA-PR „Export-Semantik": keine technischen Fehlerstrings im
+        // Antrag (vorher: „Nicht verfügbar (Fetch is aborted)").
+        children: [new TextRun({ text: "OSM-Kontextdaten konnten beim Export nicht geladen werden.", italics: true })],
         spacing: { after: 200 }
       }));
     }
@@ -2529,34 +2624,53 @@
   }
 
   /**
-   * Replace emoji icons with text labels for PDF compatibility.
-   * pdfMake's default Roboto font doesn't support emoji glyphs; for plain
-   * `text` cells (and the textual report fallback) we substitute readable
-   * short labels. For *table cells* that carry involvement icons we use the
-   * richer `pdfInvolvementCell` helper below, which embeds inline SVG icons
-   * so the symbols are visually preserved in the exported PDF.
-   * @param {string} text - Text containing emoji icons
-   * @returns {string} Text with emojis replaced by readable labels
+   * Replace involvement icons / bracket tokens with verwaltungstaugliche
+   * prose labels for PDF export (QA-PR „Export-Semantik vor Layout").
+   *
+   * Im sichtbaren PDF dürfen weder Emojis (`🚲`/`🚗`/…) noch die
+   * Übergangs-Bracket-Tokens (`[Rad]`/`[PKW]`/…) erscheinen — sie sind
+   * für ein Verwaltungspublikum nicht akzeptabel und auf vielen
+   * Behörden-Arbeitsplätzen ohne Emoji-Font unleserlich. Stattdessen
+   * nutzen wir die zentralen Prosa-Labels aus
+   * `UA.proseLabelForExport` (definiert in js/ua.export_v2.js).
+   *
+   * Fallback: wenn das Modul `UA.proseLabelForExport` nicht geladen ist
+   * (bei Standalone-Tests von ua.report_v2.js ohne ua.export_v2.js),
+   * substituieren wir mit derselben Prosa-Tabelle als Inline-Fallback.
+   *
+   * @param {string} text - Text containing emoji icons and/or [Rad]-tokens
+   * @returns {string} Text with all involvement glyphs replaced by prose
    */
   function replaceEmojisForPDF(text) {
-    return text
-      .replace(/\u{1F6B2}/gu, "[Rad]")      // 🚲 Bicycle
-      .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
-      .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
-      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]")  // 🏍 Motorcycle (optional variation selector)
-      .replace(/\u{1F69B}/gu, "[Lkw]")     // 🚛 Heavy vehicle (Gkfz → [Lkw], Task 1)
-      .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
+    if (text == null) return "";
+    if (typeof UA.proseLabelForExport === "function") {
+      return UA.proseLabelForExport(text);
+    }
+    // Inline fallback (mirror of UA.proseLabelForExport).
+    let s = String(text);
+    const PROSE = {
+      Rad: "Radverkehr", Fuss: "Fußverkehr", PKW: "PKW",
+      Krad: "Motorrad", Lkw: "LKW/Güterverkehr", Sonst: "Sonstige Beteiligte"
+    };
+    s = s.replace(/\[(Rad|Fuss|PKW|Krad|Lkw|Sonst)\]/g, (_, k) => PROSE[k] || _);
+    s = s
+      .replace(/\u{1F6B2}/gu, PROSE.Rad)
+      .replace(/\u{1F6B6}/gu, PROSE.Fuss)
+      .replace(/\u{1F697}/gu, PROSE.PKW)
+      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, PROSE.Krad)
+      .replace(/\u{1F69B}/gu, PROSE.Lkw)
+      .replace(/\u{1F68C}/gu, PROSE.Sonst);
+    s = s.replace(/(\p{L})\s*\+\s*(\p{L})/gu, "$1 + $2");
+    return s;
   }
 
   /**
-   * DOCX-Variante derselben Emoji→Text-Ersetzung. DOCX rendert Emojis nur,
-   * wenn der Word-Client einen emoji-fähigen Body-Font (z. B. Segoe UI Emoji)
-   * eingerichtet hat – auf vielen Verwaltungs-Arbeitsplätzen ist das nicht
-   * der Fall, dort tauchen die Beteiligungs-Icons als bloße Trennzeichen
-   * (`+`, `=`) auf. Wir substituieren konsequent die gleichen Kurzlabels wie
-   * in der PDF, damit Tabellen und Fließtext lesbar bleiben.
-   * Exportiert als `UA.replaceEmojisForDocx`, damit Tests ihn einzeln prüfen
-   * können.
+   * DOCX-Variante derselben Prosa-Substitution. Wir routen die DOCX-
+   * Anzeigetexte durch dieselbe Funktion wie das PDF, damit beide
+   * Exportformate identische Beteiligten-Beschriftungen führen
+   * (QA-PR „Export-Semantik vor Layout").
+   * Exportiert als `UA.replaceEmojisForDocx`, damit Tests sie einzeln
+   * prüfen können.
    */
   function replaceEmojisForDocx(text) {
     return replaceEmojisForPDF(String(text == null ? "" : text));
@@ -2752,8 +2866,14 @@
           // for compound nodes we set on the wrapping object.
           return highlight ? Object.assign({}, cell, { fillColor: "#FFFFCC" }) : cell;
         }
+        // QA-PR „Export-Semantik vor Layout": jede sichtbare String-Zelle
+        // wird durch die zentrale Prosa-Substitution gefiltert. Damit
+        // erscheinen weder Beteiligten-Emojis (🚲/🚗/…) noch die internen
+        // Bracket-Tokens („[Rad]+[PKW]") in den PDF-Tabellen — nur die
+        // verwaltungstauglichen Prosa-Labels („Radverkehr + PKW").
+        const safe = replaceEmojisForPDF(String(cell ?? ""));
         return {
-          text: String(cell ?? ""),
+          text: safe,
           fontSize,
           ...(highlight ? { fillColor: "#FFFFCC", bold: true } : {})
         };
@@ -2987,17 +3107,20 @@
     if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand",   UA.formatFilterValue("roadCondition", filters.roadCondition)]);
     if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", UA.formatFilterValue("involvementMode", filters.involvementMode)]);
 
-    // Render the active "Beteiligte" line with real icons (one cell per active
-    // category) instead of the legacy "[Rad], [PKW]" text fallback.
-    const partEmojis = [];
-    if (filters.includeCyclist)    partEmojis.push("\u{1F6B2}");
-    if (filters.includePedestrian) partEmojis.push("\u{1F6B6}");
-    if (filters.includeCar)        partEmojis.push("\u{1F697}");
-    if (filters.includeMotorcycle) partEmojis.push("\u{1F3CD}");
-    if (filters.includeGkfz)       partEmojis.push("\u{1F69B}");
-    if (filters.includeSonstig)    partEmojis.push("\u{1F68C}");
-    if (partEmojis.length > 0) {
-      filterRows.push(["Beteiligte", pdfInvolvementCell(partEmojis.join("+"))]);
+    // Render the active "Beteiligte" line as Prosa-Textlabel (QA-PR
+    // „Export-Semantik vor Layout"): keine Emojis/Icons im PDF.
+    const partCodesPdf = [];
+    if (filters.includeCyclist)    partCodesPdf.push("Rad");
+    if (filters.includePedestrian) partCodesPdf.push("Fuss");
+    if (filters.includeCar)        partCodesPdf.push("PKW");
+    if (filters.includeMotorcycle) partCodesPdf.push("Krad");
+    if (filters.includeGkfz)       partCodesPdf.push("Lkw");
+    if (filters.includeSonstig)    partCodesPdf.push("Sonst");
+    if (partCodesPdf.length > 0) {
+      const partProsePdf = (typeof UA.formatParticipantCombinationForExport === "function")
+        ? UA.formatParticipantCombinationForExport(partCodesPdf)
+        : partCodesPdf.join(" + ");
+      filterRows.push(["Beteiligte", partProsePdf]);
     }
 
     if (filters.hourFrom != null && filters.hourTo != null) {
@@ -3156,14 +3279,18 @@
         const devRows = sd.deviations.focus.map(r => {
           const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          // QA-PR „Export-Semantik": Prosa-Label statt SVG-Icons.
+          const muster = (typeof UA.formatParticipantCombinationForExport === "function")
+            ? UA.formatParticipantCombinationForExport(r.mask)
+            : (r.textLabel || r.label);
           if (isPolitical) {
             // Task 9/10: politisches Wording, kein 95%-KI.
-            return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
+            return [muster, String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
           }
           const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2).replace(".", ",") + "x" + (r.isSignificant === false ? " (n.s.)" : "");
-          return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
+          return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         if (isPolitical) {
           docDefinition.content.push(makePdfTable(
@@ -3226,11 +3353,22 @@
       // Year table
       if (sd.yearTable && sd.yearTable.length > 0) {
         docDefinition.content.push({ text: "Unfälle pro Jahr im Ausschnitt:", style: "normal" });
-        const yrRows = sd.yearTable.map(row => [
-          String(row.year),
-          String(row.total),
-          row.classes.length ? pdfInvolvementCell(row.classes.join(", ")) : "—"
-        ]);
+        // QA-PR „Export-Semantik": „Kombinationen"-Spalte als Prosa,
+        // niemals als Icon-/Bracket-Text. textClasses (Bracket-Form) wird
+        // durch proseLabelForExport in „Radverkehr + PKW: 4" überführt.
+        const proseFor = (typeof UA.proseLabelForExport === "function")
+          ? UA.proseLabelForExport
+          : (s) => String(s == null ? "" : s);
+        const yrRows = sd.yearTable.map(row => {
+          const cls = (row.textClasses && row.textClasses.length)
+            ? row.textClasses.map(proseFor)
+            : (row.classes || []).map(proseFor);
+          return [
+            String(row.year),
+            String(row.total),
+            cls.length ? cls.join(", ") : "—"
+          ];
+        });
         docDefinition.content.push(makePdfTable(
           ["Jahr", "Summe", "Kombinationen"],
           yrRows,
@@ -3242,9 +3380,13 @@
       // Cross-table: Beteiligungskombination × Schweregrad
       if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
         docDefinition.content.push({ text: "Beteiligungskombination × Schweregrad:", style: "normal" });
-        const ctRows = sd.crossTable.rows.map(r => [
-          pdfInvolvementCell(r.label), String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
-        ]);
+        const ctRows = sd.crossTable.rows.map(r => {
+          // QA-PR „Export-Semantik": Prosa-Label statt SVG-Icons.
+          const label = (typeof UA.formatParticipantCombinationForExport === "function")
+            ? UA.formatParticipantCombinationForExport(r.mask)
+            : (r.textLabel || r.label);
+          return [label, String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)];
+        });
         // Highlight rows whose mask matches the active filter
         const ctHighlights = sd.crossTable.rows.map(r => isPdfActiveFilterRow(r.mask));
         ctRows.push([
@@ -3396,9 +3538,13 @@
           }
           const detailRows = g.rows.map((r, i) => {
             // Use the strategy's docx row producer (same column shape as DOCX).
-            // For PDF we keep the cell contents but route emoji-bearing strings
-            // through pdfInvolvementCell so the icons render as real SVG
-            // pictograms instead of being lost to the Roboto font.
+            // QA-PR „Export-Semantik": jede String-Zelle wird durch
+            // proseLabelForExport gefiltert — danach enthält keine Detail-
+            // tabellen-Zelle mehr ein Beteiligten-Emoji oder ein Bracket-
+            // Token wie „[Rad]+[PKW]"; sichtbar bleibt nur Prosa
+            // („Radverkehr + PKW"). Vorher wurden Strings stattdessen
+            // durch pdfInvolvementCell als SVG-Icons gerendert — das hat
+            // der QA-Bericht ausdrücklich als „kaputte Symbole" markiert.
             let cells;
             if (view && view.renderRow && view.renderRow.docx) {
               cells = view.renderRow.docx(r, i);
@@ -3407,10 +3553,10 @@
               const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
               cells = [String(i + 1), String(r.year ?? "—"), r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
             }
-            // Promote any string cell that carries involvement emojis to a rich
-            // SVG-based content node; non-string (already rich) cells pass
-            // through unchanged. Strings without emojis remain plain strings.
-            return cells.map(c => typeof c === "string" ? pdfInvolvementCell(c) : c);
+            const proseFor = (typeof UA.proseLabelForExport === "function")
+              ? UA.proseLabelForExport
+              : (s) => String(s == null ? "" : s);
+            return cells.map(c => typeof c === "string" ? proseFor(c) : c);
           });
           // Tighter column widths so a 7-column accident-details table stays
           // within the printable area (was overflowing on A4 even with margin
@@ -3455,7 +3601,11 @@
           const coords = (r.lat != null && r.lon != null)
             ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}`
             : "—";
-          return [String(i + 1), pdfInvolvementCell(r.involved), r.roadCondition || "—", coords];
+          // QA-PR „Export-Semantik": Prosa statt SVG-Icons.
+          const involvedProse = (typeof UA.proseLabelForExport === "function")
+            ? UA.proseLabelForExport(r.involved)
+            : String(r.involved == null ? "" : r.involved);
+          return [String(i + 1), involvedProse, r.roadCondition || "—", coords];
         });
         docDefinition.content.push({ text: "Beteiligung & Ort", style: "subheader2" });
         docDefinition.content.push(makePdfTable(
@@ -3862,7 +4012,9 @@
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
       docDefinition.content.push({
-        text: `Nicht verfügbar (${sd.osmContext.quality.error}).`,
+        // QA-PR „Export-Semantik": verwaltungstauglicher Hinweis statt
+        // technischer Fehlerstring.
+        text: "OSM-Kontextdaten konnten beim Export nicht geladen werden.",
         italics: true,
         fontSize: 9,
         margin: [0, 0, 0, 8]
@@ -3971,6 +4123,30 @@
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "");
     const filename = `${titleSlug}_${citySlug}_${today.replace(/\./g, "-")}.pdf`;
+
+    // QA-PR „Export-Semantik vor Layout" — Pre-flight-Gate über den
+    // sichtbaren docDefinition-Text. Bricht den Export ab, falls noch
+    // Beteiligten-Emojis, FontAwesome-Glyphen, „Fetch is aborted",
+    // „Beteiligungsmaske", „Scope" usw. im sichtbaren Output stehen.
+    // Akzeptanzkriterium: das erzeugte PDF wirkt wie ein Verwaltungs-
+    // dokument und nicht wie ein UI-Dump.
+    if (!options || options._skipQAGate !== true) {
+      const gate = runExportQAGate(docDefinition.content);
+      if (!gate.ok) {
+        const head = gate.violations.slice(0, 3).map(v => v.reason).join(" | ");
+        const more = gate.violations.length > 3 ? ` (+${gate.violations.length - 3} weitere)` : "";
+        const msg = `Export abgebrochen: PDF-Inhalt enthält noch nicht-verwaltungstaugliche Tokens — ${head}${more}.`;
+        // Banner für UI-Sichtbarkeit, falls vorhanden.
+        try {
+          const bar = (typeof document !== "undefined") ? document.getElementById("exportProgress") : null;
+          if (bar) { bar.textContent = msg; bar.style.display = "block"; }
+        } catch (_) { /* DOM nicht verfügbar (Tests) → still */ }
+        const err = new Error(msg);
+        err.qaViolations = gate.violations;
+        throw err;
+      }
+    }
+
     window.pdfMake.createPdf(docDefinition).download(filename);
   };
 

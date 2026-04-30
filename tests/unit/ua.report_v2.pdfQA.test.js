@@ -292,7 +292,10 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
 
     // Header und Erläuterungssatz müssen beide sichtbar sein.
     expect(allTexts.some(t => t === 'Hinweis zur Zählweise:')).toBe(true);
-    expect(allTexts.some(t => /Aktiver Filter-Scope/.test(t))).toBe(true);
+    // QA-PR „Export-Semantik vor Layout": kein Entwicklerjargon mehr —
+    // statt „Aktiver Filter-Scope" / „Baseline" verwenden wir Prosa
+    // („Auswertungsbereich" / „Vergleich mit dem Stadtgebiet").
+    expect(allTexts.some(t => /Auswertungsbereich/.test(t))).toBe(true);
     // Die Box muss vor jeder STATISTIK/SACHVERHALT-Sektion erscheinen.
     const hinweisIdx = allTexts.findIndex(t => t === 'Hinweis zur Zählweise:');
     const sachverhaltIdx = allTexts.findIndex(t => /^SACHVERHALT|^UNFALLLAGE/.test(t));
@@ -302,26 +305,27 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     }
   });
 
-  test('PDF enthält Methodik – Scope der Auswertung mit drei Sätzen', async () => {
-    // Methodik-Scope ist Teil der Begründung des PDFs und stammt aus
-    // structured.methodikScope. Da unsere Fixture diese Felder nicht
-    // setzt, muss der Renderer den Block weglassen — wir testen daher
-    // mit aktivem methodikScope:
+  test('PDF enthält Methodik – Auswertungsbereich mit drei Sätzen (Prosa-Begriffe)', async () => {
+    // QA-PR „Export-Semantik vor Layout": Methodik-Block verwendet
+    // verwaltungstaugliche Begriffe statt Entwicklerjargon —
+    //   „Auswertungsbereich" statt „Aktiver Filter-Scope"
+    //   „Analyse auffälliger Unfallmuster" statt „Muster-Analyse"
+    //   „Vergleich mit dem Stadtgebiet" statt „Vergleichs-Baseline"
     const data = makeFixtureReportData();
     data.structured.methodikScope = {
-      title: 'Methodik – Scope der Auswertung',
+      title: 'Methodik – Auswertungsbereich',
       lines: [
-        'Aktiver Filter-Scope: Auswertung umfasst Unfälle innerhalb des markierten Bereichs.',
-        'Muster-Analyse: Auffälligkeiten werden auf der gefilterten Population berechnet.',
-        'Vergleichs-Baseline: Stadtweite Population in Hannover unter denselben Filtern.'
+        'Auswertungsbereich: Auswertung umfasst Unfälle innerhalb des markierten Bereichs.',
+        'Analyse auffälliger Unfallmuster: Auffälligkeiten werden auf der gefilterten Population berechnet.',
+        'Vergleich mit dem Stadtgebiet: Stadtweite Population in Hannover unter denselben Filtern.'
       ]
     };
     const { definition } = await runPdfExport(makeFixtureCtx(), data, { includeMap: false });
     const allTexts = collectTexts(definition.content).map(t => String(t));
-    expect(allTexts.some(t => /Methodik – Scope der Auswertung/.test(t))).toBe(true);
-    expect(allTexts.some(t => /Aktiver Filter-Scope: /.test(t))).toBe(true);
-    expect(allTexts.some(t => /Muster-Analyse: /.test(t))).toBe(true);
-    expect(allTexts.some(t => /Vergleichs-Baseline: /.test(t))).toBe(true);
+    expect(allTexts.some(t => /Methodik – Auswertungsbereich/.test(t))).toBe(true);
+    expect(allTexts.some(t => /^Auswertungsbereich: /.test(t))).toBe(true);
+    expect(allTexts.some(t => /^Analyse auffälliger Unfallmuster: /.test(t))).toBe(true);
+    expect(allTexts.some(t => /^Vergleich mit dem Stadtgebiet: /.test(t))).toBe(true);
   });
 
   // ------------------------------------------------------------------

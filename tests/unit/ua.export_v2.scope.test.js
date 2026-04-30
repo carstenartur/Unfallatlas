@@ -121,9 +121,9 @@ describe('UA.computeExportReport – scope fields (PR 2)', () => {
     expect(ms.title).toMatch(/Methodik/i);
     expect(Array.isArray(ms.lines)).toBe(true);
     expect(ms.lines.length).toBe(3);
-    expect(ms.lines[0]).toMatch(/Aktiver Filter-Scope/);
-    expect(ms.lines[1]).toMatch(/Muster-Analyse/);
-    expect(ms.lines[2]).toMatch(/Vergleichs-Baseline/);
+    expect(ms.lines[0]).toMatch(/Auswertungsbereich/);
+    expect(ms.lines[1]).toMatch(/Analyse auffälliger Unfallmuster/);
+    expect(ms.lines[2]).toMatch(/Vergleich mit dem Stadtgebiet/);
     // Baseline-Satz nennt die Stadt namentlich.
     expect(ms.lines[2]).toMatch(/Hannover/);
   });
