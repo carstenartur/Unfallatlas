@@ -5,6 +5,49 @@
   UA._exportLibrariesLoaded = false;
   UA._exportLibrariesLoading = null;
 
+  // ---------------------------------------------------------------------
+  // Block headers used to terminate the SACHVERHALT extraction in DOCX
+  // and PDF export. The TEXT renderer in js/ua.export_v2.js emits these
+  // headers after "Sachverhalt:". Used by extractSection() and by the
+  // PDF/DOCX SACHVERHALT extraction call sites to terminate the
+  // SACHVERHALT block before the next major section. Without this,
+  // blocks like "Mehrjahres-Trend (Gesamtzahl pro Jahr):\n  Jahr |
+  // Getötete | …" leak into the SACHVERHALT paragraph as raw pipe-text
+  // and then render again later as proper structured tables — exactly
+  // the QA blocker tracked by the regression assertion in
+  // tests/unit/ua.report_v2.pdfQA.test.js.
+  //
+  // The list also includes "Sachverhalt:" itself so that an unexpected
+  // re-entry of the entry marker terminates extraction defensively (the
+  // first "Sachverhalt:" line activates collection and is consumed by
+  // the inSection flag in extractSection; only a second occurrence would
+  // be matched against this list). The DOCX call site explicitly filters
+  // out the entry marker since it's already used as the sectionHeader
+  // argument.
+  //
+  // Headers are matched via String.prototype.startsWith on the trimmed
+  // line, so substrings of headers (e.g. "Auffälligkeiten (" matches both
+  // "Auffälligkeiten:" and "Auffälligkeiten (Top-Abweichungen…)") are
+  // sufficient.
+  const POST_SACHVERHALT_STOP_HEADERS = [
+    "Sachverhalt:",
+    "Auffälligkeiten:",
+    "Auffälligkeiten (",
+    "URSACHEN UND MASSNAHMEN",
+    "Bewertung / Interpretation",
+    "Methodik",
+    "Mehrjahres-Trend",
+    "Stunden-Heatmap",
+    "Verkehrsräumlicher Kontext",
+    "Volkswirtschaftliche Bedeutung",
+    "Empfohlene Maßnahmen",
+    "POI-Analyse",
+    "Bezugsdokumente:",
+    "Beschlussvorschlag:",
+    "Hinweis (intern)",
+    "Datenquelle"
+  ];
+
   // =====================================================================
   // Lazy Loading Utilities for Export Libraries
   // =====================================================================
@@ -1185,11 +1228,14 @@
       })
     );
 
-    // Parse the text report to extract the SACHVERHALT section using helper
+    // Parse the text report to extract the SACHVERHALT section using helper.
+    // Stop list mirrors POST_SACHVERHALT_STOP_HEADERS (minus "Sachverhalt:"
+    // itself, which is the entry marker) so post-Sachverhalt blocks like
+    // Mehrjahres-Trend never leak into the SACHVERHALT paragraph.
     const sachverhaltSection = extractSection(
       textLines,
       "Sachverhalt:",
-      ["Auffälligkeiten:", "POI-Analyse", "Bezugsdokumente:", "Beschlussvorschlag:"]
+      POST_SACHVERHALT_STOP_HEADERS.filter(h => h !== "Sachverhalt:")
     );
 
     const sachverhaltContent = Array.isArray(sachverhaltSection)
@@ -2791,8 +2837,16 @@
 
     const sachverhaltSection = extractSection(textLines, "Sachverhalt:");
     if (sachverhaltSection.length > 0) {
+      // Defense in depth: the default stop-list in extractSection already
+      // terminates at every post-Sachverhalt block header, but keep this
+      // inline guard in sync with POST_SACHVERHALT_STOP_HEADERS so future
+      // refactors of extractSection cannot regress the QA blocker.
       for (const line of sachverhaltSection) {
-        if (line.includes("Auffälligkeiten:") || line.includes("POI-Analyse") || line.includes("Bezugsdokumente:")) {
+        const trimmed = line.trim();
+        const hitsBlockHeader = POST_SACHVERHALT_STOP_HEADERS.some(
+          h => h !== "Sachverhalt:" && trimmed.startsWith(h)
+        );
+        if (hitsBlockHeader) {
           break;
         }
         const content = textWithLinks(line);
@@ -3620,19 +3674,12 @@
   function extractSection(lines, sectionHeader, stopSections) {
     const result = [];
     let inSection = false;
-    
-    // Default stop sections if none provided
-    const defaultStopSections = [
-      "Sachverhalt:",
-      "Auffälligkeiten:",
-      "POI-Analyse",
-      "Bezugsdokumente:",
-      "Beschlussvorschlag:",
-      "Hinweis (intern)",
-      "Datenquelle"
-    ];
-    
-    const stopPatterns = stopSections || defaultStopSections;
+
+    // Default stop sections cover every post-Sachverhalt block header
+    // emitted by the TEXT renderer in js/ua.export_v2.js — see
+    // POST_SACHVERHALT_STOP_HEADERS for rationale and the regression
+    // assertion in tests/unit/ua.report_v2.pdfQA.test.js.
+    const stopPatterns = stopSections || POST_SACHVERHALT_STOP_HEADERS;
     
     for (const line of lines) {
       if (line.includes(sectionHeader)) {

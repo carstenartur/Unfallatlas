@@ -219,4 +219,67 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     expect(buffer.length).toBeGreaterThan(1024);
     expect(String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3])).toBe('%PDF');
   });
+
+  // ------------------------------------------------------------------
+  // Regression gate: PDF-Export-QA Blocker „Mehrjahres-Trend als
+  // Pipe-Text". Der TEXT-Renderer in js/ua.export_v2.js emittiert nach
+  // „Sachverhalt:" mehrere Blöcke (Auffälligkeiten, URSACHEN UND
+  // MASSNAHMEN, Bewertung / Interpretation, Methodik, Mehrjahres-Trend,
+  // Stunden-Heatmap, Verkehrsräumlicher Kontext, Volkswirtschaftliche
+  // Bedeutung, Empfohlene Maßnahmen). Ohne vollständige Stop-Liste in
+  // extractSection() fließen diese Blöcke als Roh-Pipetext in die
+  // SACHVERHALT-Paragraphen des PDFs ein — und der Mehrjahres-Trend wird
+  // anschließend ein zweites Mal als echte pdfMake-Tabelle gerendert.
+  //
+  // Dieser Test fixiert eine reportData.text-Payload, die genau diese
+  // Failure-Mode reproduziert (Pipe-Header + 2019/2020 Pipe-Datenzeilen),
+  // und stellt sicher, dass im sichtbaren PDF-Inhalt weder die
+  // Pipe-Headerzeile noch eine Pipe-Datenzeile auftaucht.
+  function makeReportDataWithPipeTrendLeak() {
+    const data = makeFixtureReportData();
+    data.text = [
+      'Sachverhalt:',
+      'Im markierten Bereich der Deisterstraße häufen sich Unfälle mit Radfahrenden.',
+      '',
+      'Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):',
+      '- Rad: lokal 50,0 % vs Stadt 20,0 % (Faktor 2,50, 95%-KI: 30,0 % – 70,0 %; signifikant).',
+      '',
+      'Mehrjahres-Trend (Gesamtzahl pro Jahr):',
+      '  Jahr | Getötete | Schwerverletzte | Leichtverletzte | Summe',
+      '  2019 | 0 | 2 | 36 | 38',
+      '  2020 | 0 | 1 | 41 | 42',
+      '  Klassifikation: steigend (Slope 2,97/Jahr, R² 0,62, n=6).',
+      '',
+      'Stunden-Heatmap (Werktag vs. Wochenende):',
+      '  Gesamt im Bereich: 80 (Mo–Fr: 60, Sa/So: 20).',
+      '',
+      'Beschlussvorschlag:',
+      'Der Bezirksrat fordert die Verwaltung auf, die Verkehrssicherheit im markierten Bereich kurzfristig zu verbessern.'
+    ].join('\n');
+    return data;
+  }
+
+  test('SACHVERHALT enthält keine Pipe-Tabellenzeile aus dem Mehrjahres-Trend', async () => {
+    const { definition } = await runPdfExport(
+      makeFixtureCtx(),
+      makeReportDataWithPipeTrendLeak(),
+      { includeMap: false }
+    );
+    const allTexts = collectTexts(definition.content).map(t => String(t));
+
+    // (a) Pipe-Headerzeile darf nicht als sichtbarer Text auftauchen.
+    const headerHits = allTexts.filter(t => /Jahr\s*\|\s*Getötete\s*\|/.test(t));
+    expect(headerHits).toEqual([]);
+
+    // (b) Pipe-Datenzeile (z. B. "2019 | 0 | 2 | 36 | 38") darf nicht
+    // als sichtbarer Text auftauchen — das ist die exakte QA-Klage aus
+    // dem PDF-Export-Bericht.
+    const dataRowHits = allTexts.filter(t => /^\s*\d{4}\s*\|\s*\d+\s*\|/m.test(t));
+    expect(dataRowHits).toEqual([]);
+
+    // (c) Auch Stunden-Heatmap-Lead darf nicht in den SACHVERHALT-Block
+    // leaken (gleicher Mechanismus, anderes Symptom).
+    const heatmapLeaks = allTexts.filter(t => /Stunden-Heatmap \(Werktag/.test(t));
+    expect(heatmapLeaks).toEqual([]);
+  });
 });
