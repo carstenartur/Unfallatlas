@@ -2866,11 +2866,14 @@
         // noteBox als Style-Definition — wird von einer leichten Tabelle mit
         // einer einzigen Zelle (fillColor=lightGray) genutzt, damit pdfMake
         // tatsächlich Padding+Background rendert (pdfMake unterstützt
-        // Padding nicht direkt auf Text-Knoten).
+        // Padding nicht direkt auf Text-Knoten). Bewusst KEIN `margin` hier:
+        // der Style wird per Zeile (`stack[i].style = "noteBox"`) gesetzt
+        // und würde sich sonst pro Zeile aufaddieren — Außenabstände
+        // kommen vom Cell-`margin` (Padding) und der Wrapper-Tabelle in
+        // `makePdfNoteBox()`.
         noteBox: {
           fontSize: 10,
-          color: "#222222",
-          margin: [0, 6, 0, 8]
+          color: "#222222"
         },
 
         // ---- Legacy-Aliase (siehe Kommentar oben) ----

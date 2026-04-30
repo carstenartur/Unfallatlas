@@ -198,27 +198,41 @@ async function main() {
     process.exit(0);
   }
 
-  // Determine page count (prefer pdfinfo; fallback: probe pages 1..maxPages until first failure).
+  // Determine page count. Prefer pdfinfo for an exact count; otherwise we
+  // probe pages 1..maxPages and treat the first failure at p>1 as end-of-
+  // document rather than a real render failure (poppler/gs return non-zero
+  // with messages like "Wrong page range" / "Requested FirstPage is greater
+  // than the number of pages in the file"). A failure on page 1 is still a
+  // real failure (the PDF cannot be rendered at all).
   let pageCount = null;
+  let probing = false;
   if (pdfinfo) {
     pageCount = await getPageCount(pdfinfo, args.pdf, args.timeoutPerPage * 1000);
   }
   if (!pageCount || pageCount < 1) {
-    log('check-pdf-render: pdfinfo unavailable or returned no Pages count — using --max-pages as upper bound.');
+    log('check-pdf-render: pdfinfo unavailable or returned no Pages count — probing pages 1..--max-pages until end-of-document.');
     pageCount = args.maxPages;
+    probing = true;
   }
   pageCount = Math.min(pageCount, args.maxPages);
 
-  log(`check-pdf-render: ${args.pdf} (${pageCount} pages, ${tools.length} tool(s), ${args.timeoutPerPage}s/page)`);
+  log(`check-pdf-render: ${args.pdf} (${probing ? 'up to ' : ''}${pageCount} pages, ${tools.length} tool(s), ${args.timeoutPerPage}s/page)`);
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-render-'));
   let failures = 0;
   try {
     for (const tool of tools) {
       log(`  [${tool.name}] starting per-page render gate`);
+      let renderedPages = 0;
       for (let p = 1; p <= pageCount; p++) {
         const r = await runWithTimeout(tool.bin, tool.mkArgs(args.pdf, p, tmpDir), args.timeoutPerPage * 1000);
         if (!r.ok) {
+          // In probing mode, treat any failure beyond page 1 as end-of-document.
+          // Timeouts are always real failures (the renderer is unresponsive).
+          if (probing && p > 1 && !r.timedOut) {
+            log(`  [${tool.name}] page ${p}: end-of-document (probed, ${renderedPages} page(s) rendered ok)`);
+            break;
+          }
           failures++;
           const reason = r.timedOut
             ? `TIMEOUT after ${args.timeoutPerPage}s`
@@ -227,8 +241,11 @@ async function main() {
           if (r.stderr && !args.quiet) {
             process.stderr.write(r.stderr.split('\n').map(l => '      ' + l).join('\n') + '\n');
           }
-        } else if (!args.quiet) {
-          log(`  [${tool.name}] page ${p}: ok`);
+        } else {
+          renderedPages++;
+          if (!args.quiet) {
+            log(`  [${tool.name}] page ${p}: ok`);
+          }
         }
       }
     }
