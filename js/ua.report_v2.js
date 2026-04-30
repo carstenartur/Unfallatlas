@@ -625,6 +625,7 @@
   }
   // Exported for tests; the public name stays inside the IIFE.
   UA._captureClusterMaps = captureClusterMaps;
+  UA._captureDetailMap = captureDetailMap;
 
   /**
    * Build the German verification sentence required below every exported map
@@ -1786,6 +1787,26 @@
           })
         );
 
+        // Layout-Pass / Spec-Item 6 + 7: erklärender Lead-in vor der
+        // Bilderfolge — stellt die Dramaturgie her (Text → Bild → Tabelle)
+        // und macht die Detail-/Cluster-Karten als Teilmengen der
+        // Übersichtskarte explizit verständlich.
+        children.push(new Paragraph({
+          children: [new TextRun({
+            text: "Die folgenden Karten zeigen unterschiedliche Detailebenen. Detail- und Clusteransichten sind Teilmengen der Gesamtansicht."
+          })],
+          spacing: { after: 160 }
+        }));
+
+        // Layout-Pass / Spec-Item 6: Parent-Count für Caption-Cross-References
+        // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle aus
+        // Abbildung 1."). M = Gesamtfallzahl im Ausschnitt mit denselben
+        // Fallback-Quellen wie der Verifikationssatz weiter unten.
+        const docxParentN =
+          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : null));
+
         const mapImageData = await UA.captureExportMapImage(ctx, options);
 
         let mainMapRun;
@@ -1852,7 +1873,7 @@
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
-            const detailImageData = await captureDetailMap(ctx, options);
+            const detailImageData = await (UA._captureDetailMap || captureDetailMap)(ctx, options);
             let detailRun;
             try {
               detailRun = pngImageRun(
@@ -1875,18 +1896,22 @@
               children: [detailRun],
               spacing: { after: 100 }
             }));
-            // PR 2 / Spec-Item 4: numbered figure caption.
-            children.push(new Paragraph({
-              children: [new TextRun({
-                text: figCounter.next("Detailansicht des markierten Bereichs").caption,
-                italics: true,
-                bold: true
-              })],
-              spacing: { after: 80 }
-            }));
             // Verification sentence for detail map (Task 6).
             const detailBbox = boundsToBbox(ctx.selectionBounds);
             const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            // PR 2 / Spec-Item 4: numbered figure caption.
+            // Layout-Pass: Subset-Cross-Reference auf Abbildung 1.
+            const detailFig = figCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
+            const detailCaptionText = (docxParentN != null)
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung 1.`
+              : detailFig.caption;
+            children.push(new Paragraph({
+              children: [new TextRun({
+                text: detailCaptionText,
+                italics: true
+              })],
+              spacing: { after: 80 }
+            }));
             children.push(new Paragraph({
               text: mapVerificationSentence(detailN),
               italics: true,
@@ -1903,7 +1928,7 @@
         //   – a unique heading "<label> – n Unfälle (Zoom z)" matching the table
         //   – the verification sentence below the image
         try {
-          const clusterMaps = await captureClusterMaps(ctx, options);
+          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(ctx, options);
           for (const cm of clusterMaps) {
             // Task 5: do not render a cluster map if the visible point count
             // would not match the stated total.
@@ -1943,11 +1968,15 @@
               spacing: { after: 100 }
             }));
             // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
+            // Layout-Pass: Subset-Cross-Reference auf Abbildung 1.
+            const clusterFig = figCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
+            const clusterCaptionText = (docxParentN != null)
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung 1.`
+              : clusterFig.caption;
             children.push(new Paragraph({
               children: [new TextRun({
-                text: figCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`).caption,
-                italics: true,
-                bold: true
+                text: clusterCaptionText,
+                italics: true
               })],
               spacing: { after: 80 }
             }));
@@ -2743,7 +2772,36 @@
       };
     }
 
-    // Helper: determine if a cross-table row mask matches the active filter (for PDF)
+    // Helper: noteBox — light-gray, padded, single-cell info box.
+    // Wird im Layout-PR für die "Hinweis zur Zählweise"-Box (und potentiell
+    // weitere kursiv-graue Hinweisblöcke) verwendet, damit pdfMake echtes
+    // Padding + Hintergrund rendert (Text-Knoten allein erlauben das nicht).
+    // `lines` ist ein Array von pdfMake-text-Knoten ODER plain-Strings.
+    function makePdfNoteBox(lines) {
+      const linesArr = (Array.isArray(lines) ? lines : [lines])
+        .filter((x) => x != null);
+      const stack = linesArr.map((ln) => {
+        if (ln && typeof ln === "object") return ln;
+        return { text: String(ln), style: "noteBox" };
+      });
+      return {
+        table: {
+          widths: ["*"],
+          body: [[
+            {
+              stack,
+              fillColor: "#F2F2F2",
+              margin: [8, 6, 8, 6],
+              border: [false, false, false, false]
+            }
+          ]]
+        },
+        layout: "noBorders",
+        margin: [0, 6, 0, 8]
+      };
+    }
+
+
     const pdfAfm = (sd && sd.meta && sd.meta.activeFilterMask) || 0;
     const pdfAfMode = (sd && sd.meta && sd.meta.involvementMode) || "or";
     function isPdfActiveFilterRow(rowMask) {
@@ -2766,6 +2824,56 @@
       pageMargins: [40, 60, 40, 60],
       content: [],
       styles: {
+        // ---- Layout-Pass: kanonische Style-Namen ----
+        // Die neuen Stilnamen (title/sectionHeader/subsectionHeader/body/
+        // lead/caption/noteBox) bilden die im Layout-PR vorgegebene zentrale
+        // Typografie ab. Die Legacy-Namen (header/subheader/subheader2/
+        // normal/small) bleiben als Aliase erhalten, damit bestehende Call-
+        // sites unverändert weiter funktionieren — neue Inhalte SOLLEN aber
+        // konsequent die kanonischen Namen verwenden.
+        title: {
+          fontSize: 20,
+          bold: true,
+          alignment: "center",
+          margin: [0, 0, 0, 12]
+        },
+        sectionHeader: {
+          fontSize: 15,
+          bold: true,
+          margin: [0, 12, 0, 6]
+        },
+        subsectionHeader: {
+          fontSize: 12,
+          bold: true,
+          margin: [0, 8, 0, 4]
+        },
+        body: {
+          fontSize: 11,
+          margin: [0, 0, 0, 4],
+          lineHeight: 1.3
+        },
+        lead: {
+          fontSize: 12,
+          bold: true,
+          margin: [0, 0, 0, 6]
+        },
+        caption: {
+          fontSize: 9,
+          italics: true,
+          color: "#444444",
+          margin: [0, 2, 0, 8]
+        },
+        // noteBox als Style-Definition — wird von einer leichten Tabelle mit
+        // einer einzigen Zelle (fillColor=lightGray) genutzt, damit pdfMake
+        // tatsächlich Padding+Background rendert (pdfMake unterstützt
+        // Padding nicht direkt auf Text-Knoten).
+        noteBox: {
+          fontSize: 10,
+          color: "#222222",
+          margin: [0, 6, 0, 8]
+        },
+
+        // ---- Legacy-Aliase (siehe Kommentar oben) ----
         header: {
           fontSize: 18,
           bold: true,
@@ -2905,35 +3013,24 @@
     }
 
     // ---- Hinweis zur Zählweise (PR 2 / Spec-Item 4) ----
-    // Spiegelt den DOCX-Hinweis-Block in das PDF (kursive Info-Box). Wird
-    // direkt nach „Aktive Filter" eingefügt, damit Lesende beim Übergang
-    // zu den eigentlichen Inhalten den Bezugsrahmen kennen.
-    docDefinition.content.push({
-      text: HINWEIS_ZAEHLWEISE_LINES[0],
-      style: "small",
-      bold: true,
-      italics: true,
-      margin: [0, 6, 0, 2]
-    });
-    docDefinition.content.push({
-      text: HINWEIS_ZAEHLWEISE_LINES[1],
-      style: "small",
-      italics: true,
-      margin: [0, 0, 0, 8]
-    });
+    // Layout-Pass: als echte noteBox (light-gray, padded) statt als loser
+    // kursiver Text — damit der Hinweis visuell als Block erkennbar ist
+    // und vom Antragstext klar abgesetzt wird.
+    docDefinition.content.push(makePdfNoteBox([
+      { text: HINWEIS_ZAEHLWEISE_LINES[0], style: "noteBox", bold: true, margin: [0, 0, 0, 3] },
+      { text: HINWEIS_ZAEHLWEISE_LINES[1], style: "noteBox" }
+    ]));
 
     // ---- Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
     if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
       docDefinition.content.push({
         text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
-        style: "subheader2",
-        margin: [0, 4, 0, 4]
+        style: "subsectionHeader"
       });
       for (const ln of sd.methodikScope.lines) {
         docDefinition.content.push({
           text: String(ln),
-          style: "small",
-          margin: [0, 0, 0, 3]
+          style: "body"
         });
       }
       docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
@@ -2941,6 +3038,14 @@
 
     // PR 2 / Spec-Item 4: per-export figure-caption counter (PDF side).
     const pdfFigCounter = makeFigureCounter();
+    // Layout-Pass / Spec-Item 6: Parent-Count für Caption-Cross-References
+    // ("Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle aus
+    // Abbildung 1."). M = Gesamtfallzahl im Ausschnitt
+    // (= structured.accidentDetails.total mit Fallback auf totalAccidents).
+    const pdfParentN =
+      (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total))
+        ? sd.accidentDetails.total
+        : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents : null);
 
     // ---- ANTRAG / BESCHLUSSVORSCHLAG (oben, Layout-PR) ----
     // Verwaltungsdokumente führen den Antragstext direkt nach dem
@@ -3370,7 +3475,16 @@
       try {
         docDefinition.content.push({
           text: "KARTENAUSSCHNITT",
-          style: "subheader"
+          style: "sectionHeader"
+        });
+
+        // Layout-Pass / Spec-Item 6 + 7: erklärender Absatz vor der Bilderfolge.
+        // Stellt die Dramaturgie her (Text → Bild → Tabelle) und macht die
+        // Detail- und Cluster-Karten als Teilmengen der Übersichtskarte
+        // explizit verständlich.
+        docDefinition.content.push({
+          text: "Die folgenden Karten zeigen unterschiedliche Detailebenen. Detail- und Clusteransichten sind Teilmengen der Gesamtansicht.",
+          style: "body"
         });
 
         const mapImageData = await UA.captureExportMapImage(ctx, options);
@@ -3388,12 +3502,11 @@
         });
 
         // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
+        // Layout-Pass: kanonischer `caption`-Style; bleibt Abbildung 1 (Parent
+        // für alle weiteren Cross-Reference-Captions).
         docDefinition.content.push({
           text: pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
-          style: "small",
-          italics: true,
-          bold: true,
-          margin: [0, 0, 0, 4]
+          style: "caption"
         });
 
         // Add "In Werkbank öffnen" link
@@ -3433,7 +3546,7 @@
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
-            const detailImageData = await captureDetailMap(ctx, options);
+            const detailImageData = await (UA._captureDetailMap || captureDetailMap)(ctx, options);
             // Unique URL for detail map: explicit selSouth/West/North/East
             // and centered on the selection (Tasks 1, 3).
             const detailBbox = boundsToBbox(ctx.selectionBounds);
@@ -3445,20 +3558,25 @@
               bounds: detailBbox,
               center: detailCenter
             });
-            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subheader2" });
+            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subsectionHeader" });
             docDefinition.content.push({
               image: detailImageData,
               fit: [475, 350],
               margin: [0, 10, 0, 10],
               link: detailWerkbankUrl
             });
+            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
             // PR 2 / Spec-Item 4: numbered figure caption.
+            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
+            // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle
+            // aus Abbildung 1.").
+            const detailFig = pdfFigCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
+            const detailCaptionText = (pdfParentN != null)
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
+              : detailFig.caption;
             docDefinition.content.push({
-              text: pdfFigCounter.next("Detailansicht des markierten Bereichs").caption,
-              style: "small",
-              italics: true,
-              bold: true,
-              margin: [0, 0, 0, 4]
+              text: detailCaptionText,
+              style: "caption"
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
@@ -3468,7 +3586,6 @@
               style: "normal",
               margin: [0, 5, 0, 4]
             });
-            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
             docDefinition.content.push({
               text: mapVerificationSentence(detailN),
               style: "small",
@@ -3488,7 +3605,7 @@
         //   – heading "<label> – n Unfälle (Zoom z)" (matches the table)
         //   – verification sentence "Die dargestellten Punkte … (n = X)." (Task 6)
         try {
-          const clusterMaps = await captureClusterMaps(ctx, options);
+          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(ctx, options);
           for (const cm of clusterMaps) {
             // Task 5: only render a cluster map when the visible point count
             // matches the stated total. This is the explicit consistency
@@ -3511,7 +3628,7 @@
             });
             docDefinition.content.push({
               text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
-              style: "subheader2"
+              style: "subsectionHeader"
             });
             docDefinition.content.push({
               image: cm.image,
@@ -3520,12 +3637,15 @@
               link: clusterUrl
             });
             // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
+            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
+            // auf Abbildung 1 (Übersicht).
+            const clusterFig = pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
+            const clusterCaptionText = (pdfParentN != null)
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
+              : clusterFig.caption;
             docDefinition.content.push({
-              text: pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`).caption,
-              style: "small",
-              italics: true,
-              bold: true,
-              margin: [0, 0, 0, 4]
+              text: clusterCaptionText,
+              style: "caption"
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
