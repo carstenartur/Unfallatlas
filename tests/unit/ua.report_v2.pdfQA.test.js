@@ -282,4 +282,90 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     const heatmapLeaks = allTexts.filter(t => /Stunden-Heatmap \(Werktag/.test(t));
     expect(heatmapLeaks).toEqual([]);
   });
+
+  // ------------------------------------------------------------------
+  // PR 2 / Spec-Item 4 — „Hinweis zur Zählweise"-Box
+  // ------------------------------------------------------------------
+  test('PDF enthält die "Hinweis zur Zählweise"-Box nach Aktive-Filter-Block', async () => {
+    const { definition } = await runPdfExport(makeFixtureCtx(), makeFixtureReportData(), { includeMap: false });
+    const allTexts = collectTexts(definition.content).map(t => String(t));
+
+    // Header und Erläuterungssatz müssen beide sichtbar sein.
+    expect(allTexts.some(t => t === 'Hinweis zur Zählweise:')).toBe(true);
+    expect(allTexts.some(t => /Aktiver Filter-Scope/.test(t))).toBe(true);
+    // Die Box muss vor jeder STATISTIK/SACHVERHALT-Sektion erscheinen.
+    const hinweisIdx = allTexts.findIndex(t => t === 'Hinweis zur Zählweise:');
+    const sachverhaltIdx = allTexts.findIndex(t => /^SACHVERHALT|^UNFALLLAGE/.test(t));
+    expect(hinweisIdx).toBeGreaterThan(-1);
+    if (sachverhaltIdx > -1) {
+      expect(hinweisIdx).toBeLessThan(sachverhaltIdx);
+    }
+  });
+
+  test('PDF enthält Methodik – Scope der Auswertung mit drei Sätzen', async () => {
+    // Methodik-Scope ist Teil der Begründung des PDFs und stammt aus
+    // structured.methodikScope. Da unsere Fixture diese Felder nicht
+    // setzt, muss der Renderer den Block weglassen — wir testen daher
+    // mit aktivem methodikScope:
+    const data = makeFixtureReportData();
+    data.structured.methodikScope = {
+      title: 'Methodik – Scope der Auswertung',
+      lines: [
+        'Aktiver Filter-Scope: Auswertung umfasst Unfälle innerhalb des markierten Bereichs.',
+        'Muster-Analyse: Auffälligkeiten werden auf der gefilterten Population berechnet.',
+        'Vergleichs-Baseline: Stadtweite Population in Hannover unter denselben Filtern.'
+      ]
+    };
+    const { definition } = await runPdfExport(makeFixtureCtx(), data, { includeMap: false });
+    const allTexts = collectTexts(definition.content).map(t => String(t));
+    expect(allTexts.some(t => /Methodik – Scope der Auswertung/.test(t))).toBe(true);
+    expect(allTexts.some(t => /Aktiver Filter-Scope: /.test(t))).toBe(true);
+    expect(allTexts.some(t => /Muster-Analyse: /.test(t))).toBe(true);
+    expect(allTexts.some(t => /Vergleichs-Baseline: /.test(t))).toBe(true);
+  });
+
+  // ------------------------------------------------------------------
+  // PR 2 / Spec-Item 4 — Numbered figure captions („Abbildung N: …")
+  // ------------------------------------------------------------------
+  // Captions sit directly under each map image; without map capture
+  // (includeMap:false) the renderer emits no images, so we cannot
+  // assert caption count from the includeMap:false fixture. Instead
+  // we verify the caption HELPER via a focused unit, and verify the
+  // structural insertion via includeMap:true with a stubbed
+  // captureExportMapImage / captureClusterMaps.
+  test('numbered figure captions appear under each map image', async () => {
+    // Stub the leaflet capture helpers so includeMap:true produces a
+    // deterministic image stream without an actual map instance.
+    const PNG_1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=';
+    const PNG_DATAURL = 'data:image/png;base64,' + PNG_1x1;
+    UA.captureExportMapImage = jest.fn(async () => PNG_DATAURL);
+    UA._captureClusterMaps = jest.fn(async () => [
+      { label: 'Cluster A', image: PNG_DATAURL, total: 5, lat: 52.37, lon: 9.73, zoom: 18, bounds: { south: 52.36, west: 9.72, north: 52.38, east: 9.74 }, points: [] }
+    ]);
+    // Provide a minimal map stub so includeMap branch enters but the
+    // detail-map path is skipped (selectionBounds absent).
+    const ctx = {
+      CITY_RAW: 'Hannover',
+      map: {
+        getCenter: () => ({ lat: 52.3759, lng: 9.7320 }),
+        getZoom: () => 14,
+        setView: () => {}
+      }
+    };
+    const { definition } = await runPdfExport(ctx, makeFixtureReportData(), { includeMap: true });
+    const allTexts = collectTexts(definition.content).map(t => String(t));
+
+    const captionHits = allTexts.filter(t => /^Abbildung \d+: /.test(t));
+    // We expect at least the Übersichtskarte caption (Cluster maps may
+    // be skipped if visibleN!==total — we only assert ≥ 1 here).
+    expect(captionHits.length).toBeGreaterThanOrEqual(1);
+    // First caption must be Abbildung 1, numbering monotonically increases.
+    const numbers = captionHits.map(t => Number(t.match(/^Abbildung (\d+):/)[1]));
+    expect(numbers[0]).toBe(1);
+    for (let i = 1; i < numbers.length; i++) {
+      expect(numbers[i]).toBe(numbers[i - 1] + 1);
+    }
+    // Subjects must be derived from the image type.
+    expect(captionHits[0]).toMatch(/Übersichtskarte/);
+  });
 });

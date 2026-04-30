@@ -6,6 +6,39 @@
   UA._exportLibrariesLoading = null;
 
   // ---------------------------------------------------------------------
+  // Hinweis zur Zählweise (PR 2 / Spec-Item 4 — „Hinweis-zur-Zählweise"-Box)
+  //
+  // Wird sowohl in DOCX als auch in PDF unmittelbar nach dem „Aktive
+  // Filter"-Block eingefügt. Die Box stellt für Verwaltungspublikum klar,
+  // welche Population die in den Tabellen genannten Fallzahlen abdecken,
+  // damit Ausschnittszahlen nicht versehentlich als stadtweite Statistik
+  // gelesen werden.
+  const HINWEIS_ZAEHLWEISE_LINES = [
+    "Hinweis zur Zählweise:",
+    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Kartenausschnitt unter den oben genannten Filtern (Aktiver Filter-Scope). Stadtweite Vergleichswerte (z. B. in den Top-Abweichungen) sind als \"Baseline\" gekennzeichnet."
+  ];
+
+  // ---------------------------------------------------------------------
+  // Figure-Caption-Counter (PR 2 / Spec-Item 4 — „Abbildung N: …")
+  //
+  // Beide Renderer (DOCX + PDF) erzeugen genau drei Bildklassen:
+  // Übersichtskarte, Detailkarte, Cluster-Karten (1..n). Die Caption-Box
+  // hängt unter jedem Bild eine durchnummerierte Bildunterschrift an,
+  // damit das resultierende Dokument zitierfähig wird (z. B. „siehe
+  // Abbildung 2"). Für jeden Export-Aufruf wird ein frischer Counter
+  // erzeugt; die DOCX- und PDF-Pfade verwenden je einen eigenen.
+  function makeFigureCounter() {
+    let n = 0;
+    return {
+      next(subject) {
+        n += 1;
+        return { index: n, caption: `Abbildung ${n}: ${subject}` };
+      }
+    };
+  }
+
+
+  // ---------------------------------------------------------------------
   // Block headers used to terminate the SACHVERHALT extraction in DOCX
   // and PDF export. The TEXT renderer in js/ua.export_v2.js emits these
   // headers after "Sachverhalt:". Used by extractSection() and by the
@@ -727,6 +760,33 @@
       }
     }
 
+    // Invariante 3 (PR 2 / Spec-Item 5 — cluster-subset): Jede Cluster-/
+    // Gruppen-Zählung in accidentDetails.groups ist eine Teilmenge der
+    // Gesamtfallzahl im Ausschnitt. Eine Gruppe darf NIE größer sein als
+    // die Gesamtmenge der sie enthaltenden Tabelle. Außerdem darf die
+    // Summe mehrerer Cluster (z. B. mainCluster + secondaryCluster) NICHT
+    // automatisch mit der Gesamtsumme gleichgesetzt werden — Cluster
+    // können sich nicht überlappen, müssen aber auch nicht erschöpfend
+    // sein. Dieser Check fängt verfälschte Cluster-Counts ab, bevor sie
+    // im PDF/DOCX als „n=X" gerendert und in den Verifikationssatz
+    // übernommen werden.
+    if (ad2 && Array.isArray(ad2.groups) && Number.isFinite(tableN)) {
+      for (const g of ad2.groups) {
+        if (!g || !Number.isFinite(g.count)) continue;
+        if (g.count > tableN) {
+          const label = g.sevLabel || g.key || "(unbenannt)";
+          return {
+            ok: false,
+            kind: "cluster_exceeds_total",
+            nCluster: g.count,
+            nTable: tableN,
+            clusterLabel: label,
+            message: `Export abgebrochen: Cluster „${label}" (n=${g.count}) ist größer als die Tabellen-Gesamtsumme (n=${tableN}).`
+          };
+        }
+      }
+    }
+
     return { ok: true };
   }
   UA.validateExportConsistency = validateExportConsistency;
@@ -1146,6 +1206,46 @@
       children.push(makeKVTable(filterRows));
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
     }
+
+    // ---- 4b. Hinweis zur Zählweise (PR 2 / Spec-Item 4) ----
+    // Direkt nach dem „Aktive Filter"-Block, damit Lesende beim Übergang
+    // zu den eigentlichen Inhalten wissen, worauf sich alle folgenden
+    // Fallzahlen beziehen. Optisch als kursive Info-Box gestaltet.
+    children.push(new Paragraph({
+      children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[0], bold: true, italics: true })],
+      spacing: { before: 100, after: 60 }
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[1], italics: true })],
+      spacing: { after: 200 }
+    }));
+
+    // ---- 4c. Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
+    // Spiegelt structured.methodikScope (drei Sätze) als kompakter
+    // Methodik-Block in das DOCX. Der Block fasst die in
+    // structured.meta.activeFilterScope / patternAnalysisScope /
+    // baselineScope hinterlegten Definitionen für Lesende zusammen.
+    if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
+      children.push(new Paragraph({
+        text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+        heading: HeadingLevel.HEADING_3,
+        spacing: { before: 100, after: 80 }
+      }));
+      for (const ln of sd.methodikScope.lines) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: String(ln) })],
+          spacing: { after: 60 }
+        }));
+      }
+      children.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+    }
+
+    // ---- 4d. Figure-Caption-Counter (PR 2 / Spec-Item 4) ----
+    // Pro DOCX-Aufruf wird ein eigener Counter erzeugt; jede der drei
+    // Bildklassen (Übersichts-, Detail-, Cluster-Karte) ruft figCounter
+    // .next(...) auf und fügt die Bildunterschrift unmittelbar unter
+    // dem ImageRun ein.
+    const figCounter = makeFigureCounter();
 
     // ---- 4a. ANTRAG / BESCHLUSSVORSCHLAG (Layout-PR „Semantische
     // Dokumentstruktur"): Verwaltungsdokumente führen den Antragstext
@@ -1710,6 +1810,16 @@
           })
         );
 
+        // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
+        children.push(new Paragraph({
+          children: [new TextRun({
+            text: figCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
+            italics: true,
+            bold: true
+          })],
+          spacing: { after: 80 }
+        }));
+
         const legendText =
           ctx && typeof ctx.t === "function"
             ? ctx.t("report.map.legend")
@@ -1764,6 +1874,15 @@
             children.push(new Paragraph({
               children: [detailRun],
               spacing: { after: 100 }
+            }));
+            // PR 2 / Spec-Item 4: numbered figure caption.
+            children.push(new Paragraph({
+              children: [new TextRun({
+                text: figCounter.next("Detailansicht des markierten Bereichs").caption,
+                italics: true,
+                bold: true
+              })],
+              spacing: { after: 80 }
             }));
             // Verification sentence for detail map (Task 6).
             const detailBbox = boundsToBbox(ctx.selectionBounds);
@@ -1822,6 +1941,15 @@
             children.push(new Paragraph({
               children: [cRun],
               spacing: { after: 100 }
+            }));
+            // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
+            children.push(new Paragraph({
+              children: [new TextRun({
+                text: figCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`).caption,
+                italics: true,
+                bold: true
+              })],
+              spacing: { after: 80 }
             }));
             children.push(new Paragraph({
               text: mapVerificationSentence(cm.total),
@@ -2776,6 +2904,44 @@
       ));
     }
 
+    // ---- Hinweis zur Zählweise (PR 2 / Spec-Item 4) ----
+    // Spiegelt den DOCX-Hinweis-Block in das PDF (kursive Info-Box). Wird
+    // direkt nach „Aktive Filter" eingefügt, damit Lesende beim Übergang
+    // zu den eigentlichen Inhalten den Bezugsrahmen kennen.
+    docDefinition.content.push({
+      text: HINWEIS_ZAEHLWEISE_LINES[0],
+      style: "small",
+      bold: true,
+      italics: true,
+      margin: [0, 6, 0, 2]
+    });
+    docDefinition.content.push({
+      text: HINWEIS_ZAEHLWEISE_LINES[1],
+      style: "small",
+      italics: true,
+      margin: [0, 0, 0, 8]
+    });
+
+    // ---- Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
+    if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
+      docDefinition.content.push({
+        text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+        style: "subheader2",
+        margin: [0, 4, 0, 4]
+      });
+      for (const ln of sd.methodikScope.lines) {
+        docDefinition.content.push({
+          text: String(ln),
+          style: "small",
+          margin: [0, 0, 0, 3]
+        });
+      }
+      docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
+    }
+
+    // PR 2 / Spec-Item 4: per-export figure-caption counter (PDF side).
+    const pdfFigCounter = makeFigureCounter();
+
     // ---- ANTRAG / BESCHLUSSVORSCHLAG (oben, Layout-PR) ----
     // Verwaltungsdokumente führen den Antragstext direkt nach dem
     // Dokumentkopf — siehe Begleit-Kommentar im DOCX-Export. Der
@@ -3221,6 +3387,15 @@
           link: werkbankUrl
         });
 
+        // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
+        docDefinition.content.push({
+          text: pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
+          style: "small",
+          italics: true,
+          bold: true,
+          margin: [0, 0, 0, 4]
+        });
+
         // Add "In Werkbank öffnen" link
         docDefinition.content.push({
           text: "→ In Werkbank öffnen",
@@ -3276,6 +3451,14 @@
               fit: [475, 350],
               margin: [0, 10, 0, 10],
               link: detailWerkbankUrl
+            });
+            // PR 2 / Spec-Item 4: numbered figure caption.
+            docDefinition.content.push({
+              text: pdfFigCounter.next("Detailansicht des markierten Bereichs").caption,
+              style: "small",
+              italics: true,
+              bold: true,
+              margin: [0, 0, 0, 4]
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
@@ -3335,6 +3518,14 @@
               fit: [475, 350],
               margin: [0, 10, 0, 10],
               link: clusterUrl
+            });
+            // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
+            docDefinition.content.push({
+              text: pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`).caption,
+              style: "small",
+              italics: true,
+              bold: true,
+              margin: [0, 0, 0, 4]
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
