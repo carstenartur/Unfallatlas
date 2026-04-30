@@ -561,9 +561,21 @@
   async function captureClusterMaps(ctx, options, opts) {
     if (!ctx || !ctx.map) return [];
     if (typeof UA.computeClusterMapTargets !== "function") return [];
-    const points = (ctx.viewportPts && ctx.viewportPts.length)
+    let points = (ctx.viewportPts && ctx.viewportPts.length)
       ? ctx.viewportPts
       : (ctx.allPts || []);
+
+    // When the user has drawn a selection rectangle, restrict the cluster
+    // analysis to points inside that rectangle. Without this filter,
+    // computeClusterMapTargets could pick hotspots from a different part of
+    // the viewport that are completely unrelated to the marked area.
+    if (ctx.selectionBounds && typeof ctx.selectionBounds.contains === "function") {
+      points = points.filter(p =>
+        Number.isFinite(p?.lat) && Number.isFinite(p?.lon) &&
+        ctx.selectionBounds.contains([p.lat, p.lon])
+      );
+    }
+
     const targets = UA.computeClusterMapTargets(points, opts);
     if (!targets.length) return [];
 
