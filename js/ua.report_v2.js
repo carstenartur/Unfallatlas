@@ -704,7 +704,7 @@
     // the viewport that are completely unrelated to the marked area.
     if (ctx.selectionBounds && typeof ctx.selectionBounds.contains === "function") {
       points = points.filter(p =>
-        Number.isFinite(p && p.lat) && Number.isFinite(p && p.lon) &&
+        Number.isFinite(p?.lat) && Number.isFinite(p?.lon) &&
         ctx.selectionBounds.contains([p.lat, p.lon])
       );
     }
