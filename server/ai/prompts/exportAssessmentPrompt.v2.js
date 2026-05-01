@@ -14,7 +14,7 @@
  */
 
 /** Versionskennung – Teil des Cache-Keys. */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.3';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.4';
 
 const SYSTEM_PROMPT_ASSESSMENT = `Du bist Verkehrssicherheitsexpertin für deutsche Kommunen.
 Du erhältst aufbereitete Unfallatlas-Daten und musst eine fachliche Bewertung erstellen.
@@ -164,6 +164,41 @@ function buildPrompt(aiInput, mode) {
     if (s.crossings > 0)      lines.push(`Markierte Querungen: ${s.crossings}`);
     if (s.avgLanes != null)   lines.push(`Ø Fahrstreifen: ${s.avgLanes.toFixed(1)} (n=${s.lanesSampleSize})`);
     if (s.avgWidthMeters != null) lines.push(`Ø Fahrbahnbreite: ${s.avgWidthMeters.toFixed(1)} m (n=${s.widthSampleSize})`);
+  }
+
+  // Orts- und musterbezogene Empfehlungen aus UA.contextMeasures (Spec
+  // Items 4–8). Wir geben der KI die deterministisch ermittelten
+  // Prüfaufträge + Maßnahmenoptionen mit, damit sie keine zum Ortskontext
+  // unpassenden Standardmaßnahmen vorschlägt (Beispiel aus Spec: NICHT
+  // „Bewuchs zurückschneiden" am Hauptbahnhof). Der Block ist optional;
+  // wenn die feature-Pipeline ihn nicht liefert, wird er stumm übersprungen.
+  const ctxMeasures = f.contextualMeasures;
+  if (ctxMeasures && Array.isArray(ctxMeasures.matchedRules) && ctxMeasures.matchedRules.length > 0) {
+    lines.push('');
+    lines.push('=== ORTS- & MUSTERBEZOGENE EMPFEHLUNGEN (deterministisch) ===');
+    lines.push('Diese Vorschläge stammen aus einer regelbasierten (Pattern × Ortskontext)-Matrix und sind als');
+    lines.push('Hilfestellung gedacht. Übernimm passende Punkte direkt in deine Maßnahmen-/Prüfauftragsfelder.');
+    lines.push('Vermeide ausdrücklich Standardmaßnahmen, die hier NICHT enthalten sind, wenn der Ortskontext');
+    lines.push('sie unplausibel macht (z. B. „Bewuchs zurückschneiden" am Hauptbahnhof oder im Schienenbereich).');
+    if (ctxMeasures.rationale) {
+      lines.push('');
+      lines.push(`Hinweis: ${ctxMeasures.rationale}`);
+    }
+    if (Array.isArray(ctxMeasures.contexts) && ctxMeasures.contexts.length) {
+      lines.push(`Erkannte Kontexte: ${ctxMeasures.contexts.join(', ')}`);
+    }
+    if (Array.isArray(ctxMeasures.patterns) && ctxMeasures.patterns.length) {
+      lines.push(`Erkannte Muster:   ${ctxMeasures.patterns.join(', ')}`);
+    }
+    const renderBucket = (heading, items) => {
+      if (!Array.isArray(items) || items.length === 0) return;
+      lines.push('');
+      lines.push(`${heading}:`);
+      for (const it of items) lines.push(`  - ${it}`);
+    };
+    renderBucket('Erforderliche Vor-Ort-Prüfung',     ctxMeasures.pruefauftraege);
+    renderBucket('Kurzfristig prüfbar',               ctxMeasures.kurzfristig);
+    renderBucket('Baulich/organisatorisch zu prüfen', ctxMeasures.mittelfristig);
   }
 
   if (poi) {

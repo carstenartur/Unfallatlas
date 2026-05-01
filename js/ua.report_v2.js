@@ -1806,6 +1806,39 @@
         }
       }
 
+      // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
+      // Items 4–8). Direkt VOR „EMPFOHLENE MASSNAHMEN" — Antrag soll mit
+      // den passenden Prüfaufträgen beginnen, nicht mit Standardmaßnahmen.
+      if (options.includeMeasures !== false && sd.contextualMeasures
+          && Array.isArray(sd.contextualMeasures.matchedRules)
+          && sd.contextualMeasures.matchedRules.length > 0
+          && !sectionGuard("ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN")) {
+        children.push(new Paragraph({
+          text: "ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        if (sd.contextualMeasures.rationale) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: sd.contextualMeasures.rationale, italics: true })],
+            spacing: { after: 200 }
+          }));
+        }
+        const renderBucketDocxCtx = (heading, items) => {
+          if (!Array.isArray(items) || items.length === 0) return;
+          children.push(new Paragraph({
+            children: [new TextRun({ text: heading, bold: true })],
+            spacing: { before: 120, after: 40 }
+          }));
+          for (const it of items) {
+            children.push(new Paragraph({ text: "• " + it, spacing: { after: 20 } }));
+          }
+        };
+        renderBucketDocxCtx("Erforderliche Vor-Ort-Prüfung",     sd.contextualMeasures.pruefauftraege);
+        renderBucketDocxCtx("Kurzfristig prüfbar",               sd.contextualMeasures.kurzfristig);
+        renderBucketDocxCtx("Baulich/organisatorisch zu prüfen", sd.contextualMeasures.mittelfristig);
+      }
+
       // Recommended measures (PR-D / B1+B3)
       if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
           && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
@@ -3597,6 +3630,37 @@
         if (ei.disclaimer) {
           docDefinition.content.push({ text: ei.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
         }
+      }
+
+      // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
+      // Items 4–8). Direkt VOR „EMPFOHLENE MASSNAHMEN" — analog zur DOCX-
+      // Sektion oben. Nutzt pdfMake-Styles ("subheader" für Heading-2,
+      // bold/italics inline, eingerückte Bullets via margin: [10, …]).
+      if (options.includeMeasures !== false && sd.contextualMeasures
+          && Array.isArray(sd.contextualMeasures.matchedRules)
+          && sd.contextualMeasures.matchedRules.length > 0
+          && !sectionGuard("ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN")) {
+        docDefinition.content.push({ text: "ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN", style: "subheader" });
+        if (sd.contextualMeasures.rationale) {
+          docDefinition.content.push({
+            text: sd.contextualMeasures.rationale,
+            italics: true, fontSize: 10, margin: [0, 2, 0, 8]
+          });
+        }
+        const renderBucketPdfCtx = (heading, items) => {
+          if (!Array.isArray(items) || items.length === 0) return;
+          docDefinition.content.push({ text: heading, bold: true, margin: [0, 6, 0, 2] });
+          for (const it of items) {
+            docDefinition.content.push({
+              text: "• " + it,
+              style: "normal",
+              margin: [10, 0, 0, 2]
+            });
+          }
+        };
+        renderBucketPdfCtx("Erforderliche Vor-Ort-Prüfung",     sd.contextualMeasures.pruefauftraege);
+        renderBucketPdfCtx("Kurzfristig prüfbar",               sd.contextualMeasures.kurzfristig);
+        renderBucketPdfCtx("Baulich/organisatorisch zu prüfen", sd.contextualMeasures.mittelfristig);
       }
 
       // Recommended measures (PR-D / B1+B3)

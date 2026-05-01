@@ -2281,6 +2281,31 @@
         </div>`;
     }
 
+    // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
+    // Items 4–8). Wird VOR `measuresHtmlSection` ausgegeben, damit die
+    // HTML-Vorschau dem TEXT-/DOCX-/PDF-Aufbau folgt: erst kontext-
+    // spezifische Prüfaufträge mit Disclaimer, dann katalog-basierte
+    // Maßnahmenliste. Bleibt leer, wenn keine Regel matched (Spec-Item 10).
+    let contextualMeasuresHtmlSection = "";
+    if (includeMeasures && contextualMeasures
+        && Array.isArray(contextualMeasures.matchedRules)
+        && contextualMeasures.matchedRules.length > 0) {
+      const renderBucketHtmlCtx = (heading, items) => {
+        if (!Array.isArray(items) || items.length === 0) return "";
+        const lis = items.map(it => `<li>${UA.escHtml(it)}</li>`).join("");
+        return `<div style="margin-top:6px;"><strong>${UA.escHtml(heading)}:</strong></div><ul style="margin:2px 0 0 18px;">${lis}</ul>`;
+      };
+      const rationaleHtml = contextualMeasures.rationale
+        ? `<div style="margin-top:4px; font-style:italic; color:#444;">${UA.escHtml(contextualMeasures.rationale)}</div>`
+        : "";
+      contextualMeasuresHtmlSection = `
+        <div style="margin-top:12px; font-weight:900;">Orts- und musterbezogene Empfehlungen</div>
+        ${rationaleHtml}
+        ${renderBucketHtmlCtx("Erforderliche Vor-Ort-Prüfung",     contextualMeasures.pruefauftraege)}
+        ${renderBucketHtmlCtx("Kurzfristig prüfbar",               contextualMeasures.kurzfristig)}
+        ${renderBucketHtmlCtx("Baulich/organisatorisch zu prüfen", contextualMeasures.mittelfristig)}`;
+    }
+
     // Build recommended-measures HTML section (PR-D / B1+B3)
     let measuresHtmlSection = "";
     if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
@@ -2524,6 +2549,8 @@
         ` : ""}
 
         ${economicImpactHtmlSection}
+
+        ${contextualMeasuresHtmlSection}
 
         ${measuresHtmlSection}
 
