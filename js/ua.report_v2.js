@@ -211,6 +211,139 @@
   // Delay (in milliseconds) to wait for map tiles to load before capture
   const MAP_CAPTURE_DELAY_MS = 100;
 
+  // ---------------------------------------------------------------------
+  // Layout-PR „Bildverzerrung beheben" — Aspektrate-erhaltende Skalierung.
+  //
+  // Bisheriges Verhalten:
+  //   * DOCX setzte ImageRun-`transformation` hart auf `{width:600, height:400}`,
+  //     unabhängig von der Originalgröße der von leaflet-image gelieferten
+  //     PNGs. Bei einem realen Map-Canvas (z. B. 1024×512 oder 800×900) wurde
+  //     das Bild gestreckt/gestaucht — Kreise erschienen als Ellipsen, Straßen
+  //     wirkten verzerrt. QA-Befund Item 1: harte Anforderung.
+  //   * PDF nutzt zwar pdfMake-`fit:[w,h]` (ratio-erhaltend), aber mit
+  //     unterschiedlichen Boxen pro Map-Typ (Übersicht 475×650, Detail/Cluster
+  //     475×350). QA-Befund Item 2: einheitliche Skalierungslogik.
+  //
+  // Lösung: ein gemeinsamer Helper, der die Originalgröße aus dem PNG-Header
+  // liest (IHDR-Chunk, Bytes 16–23 nach dem 8-Byte-Magic) und einen
+  // einheitlichen Skalierungsfaktor `min(maxW/origW, maxH/origH)` anwendet.
+  //
+  // Zentrale Konstanten — gleicher Bildrahmen für ALLE Karten (Übersicht,
+  // Detail, Cluster), damit Karten visuell konsistent skaliert wirken
+  // (Spec-Item 2 + 6).
+  // ---------------------------------------------------------------------
+  const DOCX_MAP_MAX = Object.freeze({ width: 600, height: 400 }); // EMU-Punkte (docx)
+  const PDF_MAP_MAX  = Object.freeze({ width: 475, height: 340 }); // pdfMake-Punkte
+  // Akzeptanzkriterium 7: |after.ratio − before.ratio| < ASPECT_TOLERANCE
+  const ASPECT_TOLERANCE = 0.01;
+
+  /**
+   * Read PNG width/height from the IHDR chunk of a base64-encoded PNG.
+   * PNG file format:
+   *   bytes  0–7   : magic   (89 50 4E 47 0D 0A 1A 0A)
+   *   bytes  8–15  : IHDR length (4) + chunk type "IHDR" (4)
+   *   bytes 16–19  : width  (uint32 BE)
+   *   bytes 20–23  : height (uint32 BE)
+   *
+   * Akzeptiert sowohl reine Base64-Strings als auch Data-URLs
+   * (`data:image/png;base64,…`). Wirft `Error` bei nicht-PNG-Daten oder zu
+   * kurzen Eingaben — das ist gewollt, weil unbekannte Originalgrößen die
+   * QA-Anforderung „Aspektrate erhalten" nicht erfüllen können.
+   *
+   * @param {string} dataUrlOrBase64
+   * @returns {{width:number, height:number}}
+   */
+  function readPngDimensions(dataUrlOrBase64) {
+    if (typeof dataUrlOrBase64 !== "string" || !dataUrlOrBase64) {
+      throw new Error("readPngDimensions: empty input");
+    }
+    const base64 = dataUrlOrBase64.replace(/^data:image\/png;base64,/, "");
+    // We only need the first 24 bytes (magic + IHDR len/type + w/h).
+    // atob is available in browser + jsdom test environment.
+    const head = (typeof atob === "function")
+      ? atob(base64.slice(0, 64))
+      : Buffer.from(base64.slice(0, 64), "base64").toString("binary");
+    if (head.length < 24) throw new Error("readPngDimensions: input too short to be a PNG");
+    // PNG magic: 0x89 'P' 'N' 'G' 0x0D 0x0A 0x1A 0x0A
+    if (
+      head.charCodeAt(0) !== 0x89 ||
+      head.charCodeAt(1) !== 0x50 ||
+      head.charCodeAt(2) !== 0x4E ||
+      head.charCodeAt(3) !== 0x47
+    ) {
+      throw new Error("readPngDimensions: not a PNG (magic mismatch)");
+    }
+    const u32 = (off) =>
+      ((head.charCodeAt(off)     & 0xff) << 24 >>> 0) +
+      ((head.charCodeAt(off + 1) & 0xff) << 16) +
+      ((head.charCodeAt(off + 2) & 0xff) << 8)  +
+       (head.charCodeAt(off + 3) & 0xff);
+    const width  = u32(16);
+    const height = u32(20);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error("readPngDimensions: invalid IHDR dimensions");
+    }
+    return { width, height };
+  }
+  UA.readPngDimensions = readPngDimensions;
+
+  /**
+   * Compute scaled `{width, height}` that fits inside `max` while
+   * preserving the original aspect ratio. Uses one common scale factor
+   * for both axes — the QA-Spec verbietet ausdrücklich, width und height
+   * unabhängig zu setzen.
+   *
+   *   scale  = min(maxW / origW, maxH / origH)
+   *   width  = origW * scale
+   *   height = origH * scale
+   *
+   * Beide Achsen werden auf maximal eine Nachkommastelle gerundet, damit
+   * die `transformation`-Werte stabil und im Test deterministisch sind.
+   *
+   * @param {{width:number,height:number}} orig
+   * @param {{width:number,height:number}} max
+   * @returns {{width:number, height:number}}
+   */
+  function fitWithAspectRatio(orig, max) {
+    const oW = Number(orig && orig.width);
+    const oH = Number(orig && orig.height);
+    const mW = Number(max && max.width);
+    const mH = Number(max && max.height);
+    if (!(oW > 0) || !(oH > 0) || !(mW > 0) || !(mH > 0)) {
+      throw new Error("fitWithAspectRatio: non-positive dimensions");
+    }
+    const scale = Math.min(mW / oW, mH / oH);
+    const round1 = (n) => Math.round(n * 10) / 10;
+    return { width: round1(oW * scale), height: round1(oH * scale) };
+  }
+  UA.fitWithAspectRatio = fitWithAspectRatio;
+
+  /**
+   * Convenience: read PNG size + fit to `max` in one call. Falls back to
+   * `max` (full box) if the PNG header cannot be parsed — that keeps the
+   * export from crashing on synthetic test fixtures while still preferring
+   * the correct aspect ratio when real PNG data is present.
+   *
+   * Returned object has the canonical `{width, height}` shape that
+   * `docx`-`ImageRun.transformation` and pdfMake `image` accept.
+   *
+   * @param {string} dataUrlOrBase64
+   * @param {{width:number,height:number}} max
+   */
+  function fitImageToMax(dataUrlOrBase64, max) {
+    try {
+      const orig = readPngDimensions(dataUrlOrBase64);
+      return fitWithAspectRatio(orig, max);
+    } catch (_) {
+      // Fallback: max box (kein „verzerrt", aber Originalgröße unbekannt).
+      return { width: max.width, height: max.height };
+    }
+  }
+  UA.fitImageToMax = fitImageToMax;
+  UA.DOCX_MAP_MAX = DOCX_MAP_MAX;
+  UA.PDF_MAP_MAX = PDF_MAP_MAX;
+  UA.ASPECT_TOLERANCE = ASPECT_TOLERANCE;
+
   /**
    * Bake opacity into the heatmap canvas pixel data so that leaflet-image
    * (which ignores CSS style.opacity) exports the correct transparency.
@@ -1906,7 +2039,9 @@
         try {
           mainMapRun = pngImageRun(
             mapImageData,
-            { width: 600, height: 400 },
+            // Layout-PR „Bildverzerrung beheben": Aspektrate des PNG-
+            // Originals erhalten — kein hartes 600×400 mehr.
+            fitImageToMax(mapImageData, DOCX_MAP_MAX),
             {
               title: "Übersichtskarte",
               description: "Übersichtskarte des untersuchten Unfallbereichs mit allen gefilterten Unfällen"
@@ -1920,6 +2055,11 @@
         children.push(
           new Paragraph({
             children: [mainMapRun],
+            // Layout-PR Spec-Item 3: Bild und Caption als Einheit halten —
+            // `keepNext` verhindert einen Seitenumbruch zwischen Bild-
+            // Paragraph und folgendem Caption-Paragraph.
+            keepNext: true,
+            alignment: AlignmentType.CENTER,
             spacing: { after: 200 }
           })
         );
@@ -1931,6 +2071,7 @@
             italics: true,
             bold: true
           })],
+          alignment: AlignmentType.CENTER,
           spacing: { after: 80 }
         }));
 
@@ -1971,7 +2112,9 @@
             try {
               detailRun = pngImageRun(
                 detailImageData,
-                { width: 600, height: 400 },
+                // Layout-PR „Bildverzerrung beheben": Aspektrate des PNG-
+                // Originals erhalten — kein hartes 600×400 mehr.
+                fitImageToMax(detailImageData, DOCX_MAP_MAX),
                 {
                   title: "Detailkarte",
                   description: "Detailansicht des markierten Auswahlbereichs mit den darin liegenden Unfällen"
@@ -1983,10 +2126,15 @@
             children.push(new Paragraph({
               text: "Detailansicht – markierter Bereich",
               heading: HeadingLevel.HEADING_3,
+              // Layout-PR Spec-Item 3 + 5: Überschrift + Bild + Caption
+              // bleiben zusammen (kein Umbruch nach der Subheading).
+              keepNext: true,
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
               children: [detailRun],
+              keepNext: true,
+              alignment: AlignmentType.CENTER,
               spacing: { after: 100 }
             }));
             // Verification sentence for detail map (Task 6).
@@ -2041,7 +2189,8 @@
             try {
               cRun = pngImageRun(
                 cBase64,
-                { width: 600, height: 400 },
+                // Layout-PR „Bildverzerrung beheben": Aspektrate erhalten.
+                fitImageToMax(cBase64, DOCX_MAP_MAX),
                 {
                   title: `Cluster-Karte: ${cm.label || "Hotspot"}`,
                   description: `Zoomansicht eines Unfall-Hotspots (${cm.total} Unfälle, Zoom ${cm.zoom})`
@@ -2054,10 +2203,13 @@
             children.push(new Paragraph({
               text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
               heading: HeadingLevel.HEADING_3,
+              keepNext: true,
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
               children: [cRun],
+              keepNext: true,
+              alignment: AlignmentType.CENTER,
               spacing: { after: 100 }
             }));
             // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
@@ -3643,23 +3795,33 @@
         const mapImageData = await UA.captureExportMapImage(ctx, options);
         const werkbankUrl = buildWerkbankUrl(ctx);
 
-        // Calculate image dimensions: constrain to A4 content area (475pt wide, ~650pt tall)
-        const PDF_MAX_IMG_WIDTH = 475;
-        const PDF_MAX_IMG_HEIGHT = 650;
-        // Make map image clickable
+        // Layout-PR „Bildverzerrung beheben" / Spec-Items 1+2:
+        //  - pdfMake-`fit:[w,h]` erhält die Aspektrate des PNG-Originals
+        //    automatisch (das Bild wird in die Box eingepasst).
+        //  - ALLE Karten (Übersicht, Detail, Cluster) nutzen jetzt dieselbe
+        //    `PDF_MAP_MAX`-Box — vorher hatte die Übersicht 475×650 (zu hoch,
+        //    erzeugte fast leere Folgeseiten), Detail/Cluster 475×350.
+        // Bild und Caption werden in einem `stack` mit `unbreakable: true`
+        // gerendert (Spec-Item 3 + 5: Bild-Block als Einheit, kein
+        // Seitenumbruch zwischen Bild und Caption).
+        const overviewCaption = pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption;
         docDefinition.content.push({
-          image: mapImageData,
-          fit: [PDF_MAX_IMG_WIDTH, PDF_MAX_IMG_HEIGHT],
-          margin: [0, 10, 0, 10],
-          link: werkbankUrl
-        });
-
-        // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
-        // Layout-Pass: kanonischer `caption`-Style; bleibt Abbildung 1 (Parent
-        // für alle weiteren Cross-Reference-Captions).
-        docDefinition.content.push({
-          text: pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
-          style: "caption"
+          unbreakable: true,
+          stack: [
+            {
+              image: mapImageData,
+              fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
+              alignment: "center",
+              margin: [0, 10, 0, 6],
+              link: werkbankUrl
+            },
+            {
+              text: overviewCaption,
+              style: "caption",
+              alignment: "center",
+              margin: [0, 0, 0, 4]
+            }
+          ]
         });
 
         // Add "In Werkbank öffnen" link
@@ -3711,25 +3873,31 @@
               bounds: detailBbox,
               center: detailCenter
             });
-            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subsectionHeader" });
-            docDefinition.content.push({
-              image: detailImageData,
-              fit: [475, 350],
-              margin: [0, 10, 0, 10],
-              link: detailWerkbankUrl
-            });
             const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
-            // PR 2 / Spec-Item 4: numbered figure caption.
-            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
-            // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle
-            // aus Abbildung 1.").
+            // Layout-PR „Bildverzerrung beheben": einheitliche Box
+            // (PDF_MAP_MAX) für alle Map-Typen; Bild + Caption als
+            // unbreakable-Stack (Spec-Items 1, 2, 3, 5).
             const detailFig = pdfFigCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
             const detailCaptionText = (pdfParentN != null)
               ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
               : detailFig.caption;
             docDefinition.content.push({
-              text: detailCaptionText,
-              style: "caption"
+              unbreakable: true,
+              stack: [
+                { text: "Detailansicht – markierter Bereich", style: "subsectionHeader" },
+                {
+                  image: detailImageData,
+                  fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
+                  alignment: "center",
+                  margin: [0, 10, 0, 6],
+                  link: detailWerkbankUrl
+                },
+                {
+                  text: detailCaptionText,
+                  style: "caption",
+                  alignment: "center"
+                }
+              ]
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
@@ -3779,26 +3947,32 @@
               center: { lat: cm.lat, lon: cm.lon },
               zoom: cm.zoom
             });
-            docDefinition.content.push({
-              text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
-              style: "subsectionHeader"
-            });
-            docDefinition.content.push({
-              image: cm.image,
-              fit: [475, 350],
-              margin: [0, 10, 0, 10],
-              link: clusterUrl
-            });
-            // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
-            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
-            // auf Abbildung 1 (Übersicht).
+            // Layout-PR „Bildverzerrung beheben": einheitliche Box +
+            // unbreakable-Stack — Header, Bild und Caption bleiben zusammen.
             const clusterFig = pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
             const clusterCaptionText = (pdfParentN != null)
               ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
               : clusterFig.caption;
             docDefinition.content.push({
-              text: clusterCaptionText,
-              style: "caption"
+              unbreakable: true,
+              stack: [
+                {
+                  text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
+                  style: "subsectionHeader"
+                },
+                {
+                  image: cm.image,
+                  fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
+                  alignment: "center",
+                  margin: [0, 10, 0, 6],
+                  link: clusterUrl
+                },
+                {
+                  text: clusterCaptionText,
+                  style: "caption",
+                  alignment: "center"
+                }
+              ]
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",

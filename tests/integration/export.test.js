@@ -166,12 +166,19 @@ Der Bezirksrat bittet die Verwaltung, den markierten Bereich zu prüfen.`,
       expect(window.pdfMake.createPdf).toHaveBeenCalled();
       
       const pdfDefinition = window.pdfMake.createPdf.mock.calls[0][0];
-      
-      // Verify map section is included
-      const hasMapImage = pdfDefinition.content.some(item => 
-        item.image && item.image.startsWith('data:image/png;base64,')
-      );
-      expect(hasMapImage).toBe(true);
+
+      // Verify map section is included. Layout-PR „Bildverzerrung beheben":
+      // Bild und Caption werden jetzt als `unbreakable: true` Stack
+      // gerendert, das Bild liegt also unter `item.stack[*]` statt direkt
+      // unter `item`. Wir suchen rekursiv.
+      function hasImage(node) {
+        if (!node) return false;
+        if (Array.isArray(node)) return node.some(hasImage);
+        if (typeof node !== 'object') return false;
+        if (typeof node.image === 'string' && node.image.startsWith('data:image/png;base64,')) return true;
+        return hasImage(node.stack) || hasImage(node.columns);
+      }
+      expect(hasImage(pdfDefinition.content)).toBe(true);
     });
   });
 
