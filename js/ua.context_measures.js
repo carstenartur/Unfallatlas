@@ -41,7 +41,7 @@
  * deterministisch und auditierbar.
  */
 (() => {
-  const UA = (window.UA = window.UA || {});
+  const UA = (typeof window !== "undefined" ? (window.UA = window.UA || {}) : (globalThis.UA = globalThis.UA || {}));
 
   // ----------------------------------------------------------------
   // Mask → Pattern-Key. Die Masken kommen aus `dev.focus[].mask` in
