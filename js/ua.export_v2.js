@@ -1559,6 +1559,22 @@
     // (default ON). Avoids loading the catalog on the common opted-out path.
     // Receives `osmContext` so the engine can suppress measures whose
     // `prerequisites` are not met (z. B. Tempo 30 nur, wenn aktuell > 30).
+    //
+    // Kontextuelle Maßnahmen-Logik (UA.contextMeasures, separate Engine):
+    //   Liefert (Pattern × Kontext)-spezifische Prüfaufträge und ergänzt
+    //   sie als `structured.contextualMeasures`. Außerdem werden die
+    //   erkannten Kontexte an `recommendMeasures` als
+    //   `opts.activeContexts` weitergereicht — die Katalog-Engine kann
+    //   damit generische Maßnahmen unterdrücken, deren `prerequisites`
+    //   `suppressInContexts` setzen (z. B. „Sichtbeziehungen
+    //   herstellen / Bewuchs zurückschneiden" entfällt im Bahnhofs-/
+    //   Schienen-Kontext, sofern keine explizite Sicht-Evidenz vorliegt).
+    let activeContexts = null;
+    if (UA.contextMeasures && typeof UA.contextMeasures.detectContexts === "function") {
+      const ovr = ctx.exportOptions && ctx.exportOptions.contextTypes;
+      activeContexts = UA.contextMeasures.detectContexts(osmContext, ovr);
+    }
+
     let recommendedMeasures = null;
     if (includeMeasures && UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
       try {
@@ -1568,7 +1584,8 @@
           recommendedMeasures = UA.measures.recommendMeasures(detectedPatterns, catalog, {
             limit: 5,
             economicImpact: economicImpact,
-            osmContext: osmContext
+            osmContext: osmContext,
+            activeContexts: activeContexts
           });
           // Enrich each entry with `derivedFrom`: the human-readable focus
           // labels that triggered this measure. This is the explicit link
@@ -1596,6 +1613,42 @@
         }
       } catch (e) {
         console.warn("Measure recommendation failed:", e);
+      }
+    }
+
+    // Orts- und musterbezogene Empfehlungen (UA.contextMeasures). Wird
+    // *vor* dem TEXT-Rendering berechnet, damit die kontext-spezifischen
+    // Prüfaufträge im Antrag VOR der allgemeinen Maßnahmenliste stehen
+    // — ein Antrag muss mit den passenden Vorschlägen beginnen, nicht
+    // mit pauschalen Standardmaßnahmen (QA-Spec Item 5+8). Das fertige
+    // Objekt wird unten zusätzlich in `structured.contextualMeasures`
+    // durchgereicht.
+    let contextualMeasures = null;
+    if (UA.contextMeasures && typeof UA.contextMeasures.deriveContextualMeasures === "function") {
+      try {
+        // classifyPatterns liest aus structured.deviations + severity +
+        // weather + heatmap. Hier rekonstruieren wir die nötigen Felder
+        // aus den lokalen Variablen (structured wird erst weiter unten
+        // zusammengesetzt, siehe `const structured = { … }`).
+        const stubForClassifier = {
+          deviations: { focus: dev.focus || [] },
+          severity: { bySev: sev.bySev || {} }
+          // weather/heatmap-Eskalationen werden bewusst weggelassen,
+          // solange computeExportReport sie nicht im selben Schema in
+          // structured ablegt — die Fallback-Pfade in classifyPatterns
+          // sind defensiv (fehlende Felder schweigen).
+        };
+        const pKeys = UA.contextMeasures.classifyPatterns(stubForClassifier);
+        const cm = UA.contextMeasures.deriveContextualMeasures(pKeys, activeContexts || new Set());
+        if (cm && Array.isArray(cm.matchedRules) && cm.matchedRules.length > 0) {
+          contextualMeasures = {
+            ...cm,
+            patterns: Array.from(pKeys),
+            contexts: Array.from(activeContexts || [])
+          };
+        }
+      } catch (e) {
+        console.warn("contextualMeasures derivation failed:", e);
       }
     }
 
@@ -1855,6 +1908,26 @@
       if (economicImpact.disclaimer) {
         lines.push(`  Hinweis: ${economicImpact.disclaimer}`);
       }
+      lines.push("");
+    }
+
+    // Orts- und musterbezogene Empfehlungen — VOR der allgemeinen
+    // Maßnahmenliste, damit der Antrag mit den passenden Vorschlägen
+    // beginnt (Spec-Item 5+8). Drei Buckets, jeweils 1–2 Sätze;
+    // explizite Unsicherheitsformulierung (Spec-Item 6).
+    if (includeMeasures && contextualMeasures) {
+      lines.push("Orts- und musterbezogene Empfehlungen:");
+      if (contextualMeasures.rationale) {
+        lines.push(`  ${contextualMeasures.rationale}`);
+      }
+      const renderBlock = (heading, items) => {
+        if (!Array.isArray(items) || items.length === 0) return;
+        lines.push(`  ${heading}:`);
+        for (const it of items) lines.push(`    – ${it}`);
+      };
+      renderBlock("Erforderliche Vor-Ort-Prüfung", contextualMeasures.pruefauftraege);
+      renderBlock("Kurzfristig prüfbar", contextualMeasures.kurzfristig);
+      renderBlock("Baulich/organisatorisch zu prüfen", contextualMeasures.mittelfristig);
       lines.push("");
     }
 
@@ -2658,6 +2731,10 @@
     // >12 Monate). Bereits oben für TEXT/HTML berechnet (`_prioritization`),
     // hier nur durchreichen, damit DOCX/PDF/AI denselben Inhalt sehen.
     structured.prioritization = _prioritization || null;
+    // Orts- und musterbezogene Empfehlungen: bereits oben berechnet
+    // (`contextualMeasures`), hier nur durchreichen, damit DOCX/PDF/AI
+    // denselben Inhalt sehen wie die TEXT-Sektion.
+    structured.contextualMeasures = contextualMeasures || null;
     // Task 8: Analytische OSM-Schlussfolgerungen (0–3 Sätze).
     structured.osmInsights = deriveOsmInsights(osmContext);
     // Task 7: Map-Reference-Sätze (Anlage 1 zeigt Konzentration im Bereich …).

@@ -207,7 +207,11 @@
         "Dauerhafte Pflege erforderlich",
         "Allein meist nicht ausreichend bei strukturellem Problem"
       ],
-      "_prerequisitesRationale": "Bewusst keine OSM-Voraussetzung: Sichtachsen-Pflege ist überall sinnvoll und kann nicht aus dem groben OSM-Bild abgeleitet werden (Bewuchs/Parkdruck stehen nicht im Tag-Schema)."
+      "prerequisites": {
+        "suppressInContexts": ["bahnhof", "busbahnhof", "straßenbahn_schienen", "gleisquerung"],
+        "requireContexts": ["sichtbehinderung", "bewuchs"]
+      },
+      "_prerequisitesRationale": "Sichtachsen-Pflege ist nur dort eine Hauptmaßnahme, wo Sichtbehinderung tatsächlich der Engpass ist. Im Bahnhofs-/Busbahnhofs-/Schienen-Umfeld ist „Bewuchs zurückschneiden\" fachlich unpassend (QA-Spec Item 7) und wird daher unterdrückt, sofern kein expliziter Sicht-/Bewuchs-Hinweis im Kontext gesetzt ist."
     },
     {
       "id": "knotenpunkt_umbau",
