@@ -276,4 +276,54 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
     const windowSlice = documentXml.slice(windowStart, anlagenIdx);
     expect(windowSlice).toMatch(/<w:pageBreakBefore\s*\/?>/);
   });
+
+  /**
+   * PR #238 (Spec-Items 4–8): `structured.contextualMeasures` muss als
+   * eigene Sektion „ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN" mit den drei
+   * Bucket-Headings + Rationale-Disclaimer gerendert werden, und zwar
+   * direkt VOR „EMPFOHLENE MASSNAHMEN", damit der Antrag mit den orts-
+   * und musterbezogenen Prüfaufträgen beginnt, nicht mit Standard-
+   * Maßnahmen.
+   */
+  test('DOCX rendert contextualMeasures vor EMPFOHLENE MASSNAHMEN inkl. Bucket-Headings', async () => {
+    // hasRecommendationsOrFiltered wird normalerweise von ua.export_v2.js
+    // bereitgestellt — hier lokal stubben, damit auch der EMPFOHLENE-
+    // MASSNAHMEN-Block gerendert wird, gegen den wir die Reihenfolge
+    // prüfen wollen.
+    UA.hasRecommendationsOrFiltered = (rm) =>
+      !!rm && Array.isArray(rm.measures) && rm.measures.length > 0;
+
+    const reportData = makeFixtureReportData();
+    reportData.structured.contextualMeasures = {
+      matchedRules: [{ pattern: 'kreuzung', context: 'ortslage' }],
+      rationale: 'Hinweise basierend auf Mustern und örtlichem Kontext.',
+      pruefauftraege: ['Sichtdreieck Knotenpunkt prüfen'],
+      kurzfristig:    ['Markierung erneuern'],
+      mittelfristig:  ['Knoten umbauen']
+    };
+    reportData.structured.recommendedMeasures = {
+      measures: [
+        { measure: { label: 'Tempo 30', leadTime: '0–3 Monate' } }
+      ],
+      filteredOut: []
+    };
+
+    const zip = await exportAndUnzip(makeFixtureCtx(), reportData, { includeMap: false });
+    const documentXml = await readText(zip, 'word/document.xml');
+    const visibleTexts = [...documentXml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(t => t[1]);
+
+    // Sektion + Disclaimer + Bucket-Headings vorhanden
+    expect(visibleTexts).toContain('ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN');
+    expect(visibleTexts).toContain('Hinweise basierend auf Mustern und örtlichem Kontext.');
+    expect(visibleTexts).toContain('Erforderliche Vor-Ort-Prüfung');
+    expect(visibleTexts).toContain('Kurzfristig prüfbar');
+    expect(visibleTexts).toContain('Baulich/organisatorisch zu prüfen');
+
+    // Reihenfolge: contextualMeasures-Heading kommt VOR EMPFOHLENE MASSNAHMEN
+    const ctxIdx = documentXml.indexOf('ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN');
+    const recIdx = documentXml.indexOf('EMPFOHLENE MASSNAHMEN');
+    expect(ctxIdx).toBeGreaterThan(-1);
+    expect(recIdx).toBeGreaterThan(-1);
+    expect(ctxIdx).toBeLessThan(recIdx);
+  });
 });
