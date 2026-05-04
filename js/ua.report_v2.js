@@ -15,7 +15,7 @@
   // gelesen werden.
   const HINWEIS_ZAEHLWEISE_LINES = [
     "Hinweis zur Zählweise:",
-    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Kartenausschnitt unter den oben genannten Filtern (Aktiver Filter-Scope). Stadtweite Vergleichswerte (z. B. in den Top-Abweichungen) sind als \"Baseline\" gekennzeichnet."
+    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Auswertungsbereich (Kartenausschnitt + aktive Filter). Stadtweite Vergleichswerte (z. B. in den Top-Abweichungen) werden als \"Vergleich mit dem Stadtgebiet\" gekennzeichnet."
   ];
 
   // ---------------------------------------------------------------------
@@ -210,6 +210,148 @@
 
   // Delay (in milliseconds) to wait for map tiles to load before capture
   const MAP_CAPTURE_DELAY_MS = 100;
+
+  // ---------------------------------------------------------------------
+  // Layout-PR „Bildverzerrung beheben" — Aspektrate-erhaltende Skalierung.
+  //
+  // Bisheriges Verhalten:
+  //   * DOCX setzte ImageRun-`transformation` hart auf `{width:600, height:400}`,
+  //     unabhängig von der Originalgröße der von leaflet-image gelieferten
+  //     PNGs. Bei einem realen Map-Canvas (z. B. 1024×512 oder 800×900) wurde
+  //     das Bild gestreckt/gestaucht — Kreise erschienen als Ellipsen, Straßen
+  //     wirkten verzerrt. QA-Befund Item 1: harte Anforderung.
+  //   * PDF nutzt zwar pdfMake-`fit:[w,h]` (ratio-erhaltend), aber mit
+  //     unterschiedlichen Boxen pro Map-Typ (Übersicht 475×650, Detail/Cluster
+  //     475×350). QA-Befund Item 2: einheitliche Skalierungslogik.
+  //
+  // Lösung: ein gemeinsamer Helper, der die Originalgröße aus dem PNG-Header
+  // liest (IHDR-Chunk, Bytes 16–23 nach dem 8-Byte-Magic) und einen
+  // einheitlichen Skalierungsfaktor `min(maxW/origW, maxH/origH)` anwendet.
+  //
+  // Zentrale Konstanten — gleicher Bildrahmen für ALLE Karten (Übersicht,
+  // Detail, Cluster), damit Karten visuell konsistent skaliert wirken
+  // (Spec-Item 2 + 6).
+  // ---------------------------------------------------------------------
+  const DOCX_MAP_MAX = Object.freeze({ width: 600, height: 400 }); // EMU-Punkte (docx)
+  const PDF_MAP_MAX  = Object.freeze({ width: 475, height: 340 }); // pdfMake-Punkte
+  // Akzeptanzkriterium 7: |after.ratio − before.ratio| < ASPECT_TOLERANCE
+  const ASPECT_TOLERANCE = 0.01;
+
+  /**
+   * Read PNG width/height from the IHDR chunk of a base64-encoded PNG.
+   * PNG file format:
+   *   bytes  0–7   : magic   (89 50 4E 47 0D 0A 1A 0A)
+   *   bytes  8–15  : IHDR length (4) + chunk type "IHDR" (4)
+   *   bytes 16–19  : width  (uint32 BE)
+   *   bytes 20–23  : height (uint32 BE)
+   *
+   * Akzeptiert sowohl reine Base64-Strings als auch Data-URLs
+   * (`data:image/png;base64,…`). Wirft `Error` bei nicht-PNG-Daten oder zu
+   * kurzen Eingaben — das ist gewollt, weil unbekannte Originalgrößen die
+   * QA-Anforderung „Aspektrate erhalten" nicht erfüllen können.
+   *
+   * @param {string} dataUrlOrBase64
+   * @returns {{width:number, height:number}}
+   */
+  function readPngDimensions(dataUrlOrBase64) {
+    if (typeof dataUrlOrBase64 !== "string" || !dataUrlOrBase64) {
+      throw new Error("readPngDimensions: empty input");
+    }
+    const base64 = dataUrlOrBase64.replace(/^data:image\/png;base64,/, "");
+    // We only need the first 24 bytes (magic + IHDR len/type + w/h).
+    // atob is available in browser + jsdom test environment.
+    const head = (typeof atob === "function")
+      ? atob(base64.slice(0, 64))
+      : Buffer.from(base64.slice(0, 64), "base64").toString("binary");
+    if (head.length < 24) throw new Error("readPngDimensions: input too short to be a PNG");
+    // Full 8-byte PNG magic: 0x89 'P' 'N' 'G' 0x0D 0x0A 0x1A 0x0A
+    const PNG_MAGIC = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    for (let i = 0; i < PNG_MAGIC.length; i++) {
+      if (head.charCodeAt(i) !== PNG_MAGIC[i]) {
+        throw new Error("readPngDimensions: not a PNG (magic mismatch)");
+      }
+    }
+    // The first chunk in a PNG must be IHDR. Bytes 8..11 = chunk length,
+    // bytes 12..15 = chunk type. Validate "IHDR" so that arbitrary data
+    // with a valid PNG prefix cannot pass.
+    if (
+      head.charCodeAt(12) !== 0x49 || // 'I'
+      head.charCodeAt(13) !== 0x48 || // 'H'
+      head.charCodeAt(14) !== 0x44 || // 'D'
+      head.charCodeAt(15) !== 0x52    // 'R'
+    ) {
+      throw new Error("readPngDimensions: missing IHDR chunk");
+    }
+    const u32 = (off) =>
+      ((head.charCodeAt(off)     & 0xff) << 24 >>> 0) +
+      ((head.charCodeAt(off + 1) & 0xff) << 16) +
+      ((head.charCodeAt(off + 2) & 0xff) << 8)  +
+       (head.charCodeAt(off + 3) & 0xff);
+    const width  = u32(16);
+    const height = u32(20);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error("readPngDimensions: invalid IHDR dimensions");
+    }
+    return { width, height };
+  }
+  UA.readPngDimensions = readPngDimensions;
+
+  /**
+   * Compute scaled `{width, height}` that fits inside `max` while
+   * preserving the original aspect ratio. Uses one common scale factor
+   * for both axes — the QA-Spec verbietet ausdrücklich, width und height
+   * unabhängig zu setzen.
+   *
+   *   scale  = min(maxW / origW, maxH / origH)
+   *   width  = origW * scale
+   *   height = origH * scale
+   *
+   * Beide Achsen werden auf maximal eine Nachkommastelle gerundet, damit
+   * die `transformation`-Werte stabil und im Test deterministisch sind.
+   *
+   * @param {{width:number,height:number}} orig
+   * @param {{width:number,height:number}} max
+   * @returns {{width:number, height:number}}
+   */
+  function fitWithAspectRatio(orig, max) {
+    const oW = Number(orig && orig.width);
+    const oH = Number(orig && orig.height);
+    const mW = Number(max && max.width);
+    const mH = Number(max && max.height);
+    if (!(oW > 0) || !(oH > 0) || !(mW > 0) || !(mH > 0)) {
+      throw new Error("fitWithAspectRatio: non-positive dimensions");
+    }
+    const scale = Math.min(mW / oW, mH / oH);
+    const round1 = (n) => Math.round(n * 10) / 10;
+    return { width: round1(oW * scale), height: round1(oH * scale) };
+  }
+  UA.fitWithAspectRatio = fitWithAspectRatio;
+
+  /**
+   * Convenience: read PNG size + fit to `max` in one call. Falls back to
+   * `max` (full box) if the PNG header cannot be parsed — that keeps the
+   * export from crashing on synthetic test fixtures while still preferring
+   * the correct aspect ratio when real PNG data is present.
+   *
+   * Returned object has the canonical `{width, height}` shape that
+   * `docx`-`ImageRun.transformation` and pdfMake `image` accept.
+   *
+   * @param {string} dataUrlOrBase64
+   * @param {{width:number,height:number}} max
+   */
+  function fitImageToMax(dataUrlOrBase64, max) {
+    try {
+      const orig = readPngDimensions(dataUrlOrBase64);
+      return fitWithAspectRatio(orig, max);
+    } catch (_) {
+      // Fallback: max box (kein „verzerrt", aber Originalgröße unbekannt).
+      return { width: max.width, height: max.height };
+    }
+  }
+  UA.fitImageToMax = fitImageToMax;
+  UA.DOCX_MAP_MAX = DOCX_MAP_MAX;
+  UA.PDF_MAP_MAX = PDF_MAP_MAX;
+  UA.ASPECT_TOLERANCE = ASPECT_TOLERANCE;
 
   /**
    * Bake opacity into the heatmap canvas pixel data so that leaflet-image
@@ -804,6 +946,93 @@
   }
   UA.validateExportConsistency = validateExportConsistency;
 
+  // ---------------------------------------------------------------------
+  // QA-PR „Export-Semantik vor Layout" — Export-QA-Gate
+  //
+  // Prüft den `pdfMake`-`docDefinition.content`-Baum (oder den DOCX-
+  // Children-Baum) auf verbotene Tokens, bevor die Datei erzeugt wird:
+  //   - Beteiligten-Emojis  (🚲/🚗/🚶/🚌/🏍/🚛)
+  //   - FontAwesome / Private-Use-Codepoints  (U+E000…U+F8FF)
+  //   - „Fetch is aborted" / „Beteiligungsmaske" / isoliertes „Scope"
+  //   - „undefined" / „null" als sichtbarer Zellinhalt
+  //   - „+ :" oder „+:"-Kombinationen ohne Textlabel (das frühere
+  //     QA-Symptom „Symbol-Wüste" in den Kreuztabellen).
+  //
+  // Liefert `{ ok:true }` oder `{ ok:false, violations: [...] }`. Caller
+  // (in `exportToPDF`) wirft auf Verletzung mit lesbarer Meldung, damit
+  // der Export NICHT als „PR-reifes" PDF nach außen dringt.
+  // ---------------------------------------------------------------------
+  function _walkVisibleStrings(node, sink) {
+    if (node == null) return;
+    if (Array.isArray(node)) { for (const n of node) _walkVisibleStrings(n, sink); return; }
+    if (typeof node === "string") { sink(node); return; }
+    if (typeof node !== "object") return;
+    if (typeof node.text === "string") sink(node.text);
+    else if (Array.isArray(node.text)) _walkVisibleStrings(node.text, sink);
+    if (Array.isArray(node.stack))   _walkVisibleStrings(node.stack, sink);
+    if (Array.isArray(node.columns)) _walkVisibleStrings(node.columns, sink);
+    if (Array.isArray(node.ul))      _walkVisibleStrings(node.ul, sink);
+    if (Array.isArray(node.ol))      _walkVisibleStrings(node.ol, sink);
+    if (node.table && Array.isArray(node.table.body)) {
+      for (const row of node.table.body) for (const cell of row) _walkVisibleStrings(cell, sink);
+    }
+  }
+
+  // Forbidden glyphs: involvement emojis + FontAwesome/private-use range.
+  const _QA_FORBIDDEN_GLYPH_RE =
+    /(\u{1F6B2}|\u{1F6B6}|\u{1F697}|\u{1F3CD}\u{FE0F}?|\u{1F69B}|\u{1F68C}|[\uE000-\uF8FF])/u;
+  // Forbidden technical words / phrases.
+  const _QA_FORBIDDEN_PHRASES = [
+    { re: /Fetch is aborted/i,                                  reason: 'Technische Fehlermeldung "Fetch is aborted" im Antrag.' },
+    { re: /Beteiligungsmaske/,                                  reason: 'Technischer Begriff "Beteiligungsmaske" im sichtbaren Text.' },
+    { re: /(?:^|[^A-Za-zÄÖÜäöüß])Scope(?:[^A-Za-zÄÖÜäöüß]|$)/,  reason: 'Entwicklerjargon "Scope" im sichtbaren Text.' },
+    { re: /Vergleichs-Baseline/,                                reason: 'Entwicklerjargon "Vergleichs-Baseline" im sichtbaren Text.' },
+    { re: /Aktiver Filter-Scope/,                               reason: 'Entwicklerjargon "Aktiver Filter-Scope" im sichtbaren Text.' },
+    { re: /Muster-Analyse/,                                     reason: 'Entwicklerjargon "Muster-Analyse" im sichtbaren Text.' }
+  ];
+  // „+ :" / „+:" mit nur Symbolen drumherum (typisches QA-Symptom).
+  const _QA_PLUS_COLON_RE = /\+\s*:/;
+
+  /**
+   * Run the export-content QA gate over the visible strings of a pdfMake
+   * docDefinition.content tree (or any tree with the `text`/`stack`/
+   * `columns`/`table.body` shape we use).
+   *
+   * @param {Array|object} contentRoot
+   * @returns {{ok: true} | {ok: false, violations: Array<{kind:string,sample:string,reason:string}>}}
+   */
+  function runExportQAGate(contentRoot) {
+    const violations = [];
+    const seenSamples = new Set();
+    const push = (kind, sample, reason) => {
+      const key = kind + "|" + sample;
+      if (seenSamples.has(key)) return;
+      seenSamples.add(key);
+      violations.push({ kind, sample, reason });
+    };
+    _walkVisibleStrings(contentRoot, (s) => {
+      const str = String(s);
+      if (!str) return;
+      if (_QA_FORBIDDEN_GLYPH_RE.test(str)) {
+        push("glyph", str.slice(0, 80), "Beteiligten-Symbol oder Private-Use-Glyph im sichtbaren Export.");
+      }
+      for (const { re, reason } of _QA_FORBIDDEN_PHRASES) {
+        if (re.test(str)) push("phrase", str.slice(0, 120), reason);
+      }
+      // Standalone "undefined"/"null" cell content (whitespace tolerated).
+      if (/^\s*(?:undefined|null)\s*$/.test(str)) {
+        push("placeholder", str, 'Roher Platzhalter ("undefined"/"null") als Zellinhalt.');
+      }
+      // "+ :" / "+:" pattern (cross-table symbol-wüste).
+      if (_QA_PLUS_COLON_RE.test(str)) {
+        push("symbolOnly", str.slice(0, 80), 'Beteiligungs-Kombination ohne Textlabel ("+ :"-Muster).');
+      }
+    });
+    if (violations.length === 0) return { ok: true };
+    return { ok: false, violations };
+  }
+  UA.runExportQAGate = runExportQAGate;
+
   /**
    * Derive a {south,west,north,east} bbox from a Leaflet LatLngBounds object.
    * Tolerant of plain {south,west,north,east} objects (already serialised).
@@ -1195,15 +1424,21 @@
     if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand", fmtFilterValue("roadCondition", filters.roadCondition),    false]);
     if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", fmtFilterValue("involvementMode", filters.involvementMode), false]);
 
-    // Build participation flags label
-    const partLabels = [];
-    if (filters.includeCyclist)    partLabels.push("🚲 Rad");
-    if (filters.includePedestrian) partLabels.push("🚶 Fuß");
-    if (filters.includeCar)        partLabels.push("🚗 PKW");
-    if (filters.includeMotorcycle) partLabels.push("🏍️ Krad");
-    if (filters.includeGkfz)       partLabels.push("🚛 Gkfz");
-    if (filters.includeSonstig)    partLabels.push("🚌 Sonst.");
-    if (partLabels.length > 0) filterRows.push(["Beteiligte", partLabels.join(", "), false]);
+    // Build participation flags label — Prosa-Form (QA-PR „Export-Semantik
+    // vor Layout"): keine Emojis im DOCX-Sichtbereich.
+    const partCodes = [];
+    if (filters.includeCyclist)    partCodes.push("Rad");
+    if (filters.includePedestrian) partCodes.push("Fuss");
+    if (filters.includeCar)        partCodes.push("PKW");
+    if (filters.includeMotorcycle) partCodes.push("Krad");
+    if (filters.includeGkfz)       partCodes.push("Lkw");
+    if (filters.includeSonstig)    partCodes.push("Sonst");
+    if (partCodes.length > 0) {
+      const partProse = (typeof UA.formatParticipantCombinationForExport === "function")
+        ? UA.formatParticipantCombinationForExport(partCodes)
+        : partCodes.join(" + ");
+      filterRows.push(["Beteiligte", partProse, false]);
+    }
 
     if (filters.hourFrom != null && filters.hourTo != null) {
       filterRows.push(["Zeitraum", `${filters.hourFrom}:00–${filters.hourTo}:00 Uhr`, false]);
@@ -1580,6 +1815,39 @@
         }
       }
 
+      // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
+      // Items 4–8). Direkt VOR „EMPFOHLENE MASSNAHMEN" — Antrag soll mit
+      // den passenden Prüfaufträgen beginnen, nicht mit Standardmaßnahmen.
+      if (options.includeMeasures !== false && sd.contextualMeasures
+          && Array.isArray(sd.contextualMeasures.matchedRules)
+          && sd.contextualMeasures.matchedRules.length > 0
+          && !sectionGuard("ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN")) {
+        children.push(new Paragraph({
+          text: "ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN",
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 400, after: 200 }
+        }));
+        if (sd.contextualMeasures.rationale) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: sd.contextualMeasures.rationale, italics: true })],
+            spacing: { after: 200 }
+          }));
+        }
+        const renderBucketDocxCtx = (heading, items) => {
+          if (!Array.isArray(items) || items.length === 0) return;
+          children.push(new Paragraph({
+            children: [new TextRun({ text: heading, bold: true })],
+            spacing: { before: 120, after: 40 }
+          }));
+          for (const it of items) {
+            children.push(new Paragraph({ text: "• " + it, spacing: { after: 20 } }));
+          }
+        };
+        renderBucketDocxCtx("Erforderliche Vor-Ort-Prüfung",     sd.contextualMeasures.pruefauftraege);
+        renderBucketDocxCtx("Kurzfristig prüfbar",               sd.contextualMeasures.kurzfristig);
+        renderBucketDocxCtx("Baulich/organisatorisch zu prüfen", sd.contextualMeasures.mittelfristig);
+      }
+
       // Recommended measures (PR-D / B1+B3)
       if (options.includeMeasures !== false && UA.hasRecommendationsOrFiltered
           && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
@@ -1711,7 +1979,7 @@
           if (docxHeader && docxHeader.length > 0) {
             for (const h of docxHeader) {
               children.push(new Paragraph({
-                text: h.text || "",
+                text: replaceEmojisForDocx(h.text || ""),
                 bold: !!h.bold,
                 spacing: { before: 200, after: 100 }
               }));
@@ -1720,7 +1988,7 @@
             // Back-compat: synthesize a header for plain { sevLabel, histogram } groups
             const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
             children.push(new Paragraph({
-              text: headerText,
+              text: replaceEmojisForDocx(headerText),
               bold: true,
               spacing: { before: 200, after: 100 }
             }));
@@ -1825,7 +2093,9 @@
         try {
           mainMapRun = pngImageRun(
             mapImageData,
-            { width: 600, height: 400 },
+            // Layout-PR „Bildverzerrung beheben": Aspektrate des PNG-
+            // Originals erhalten — kein hartes 600×400 mehr.
+            fitImageToMax(mapImageData, DOCX_MAP_MAX),
             {
               title: "Übersichtskarte",
               description: "Übersichtskarte des untersuchten Unfallbereichs mit allen gefilterten Unfällen"
@@ -1839,6 +2109,11 @@
         children.push(
           new Paragraph({
             children: [mainMapRun],
+            // Layout-PR Spec-Item 3: Bild und Caption als Einheit halten —
+            // `keepNext` verhindert einen Seitenumbruch zwischen Bild-
+            // Paragraph und folgendem Caption-Paragraph.
+            keepNext: true,
+            alignment: AlignmentType.CENTER,
             spacing: { after: 200 }
           })
         );
@@ -1850,6 +2125,7 @@
             italics: true,
             bold: true
           })],
+          alignment: AlignmentType.CENTER,
           spacing: { after: 80 }
         }));
 
@@ -1890,7 +2166,9 @@
             try {
               detailRun = pngImageRun(
                 detailImageData,
-                { width: 600, height: 400 },
+                // Layout-PR „Bildverzerrung beheben": Aspektrate des PNG-
+                // Originals erhalten — kein hartes 600×400 mehr.
+                fitImageToMax(detailImageData, DOCX_MAP_MAX),
                 {
                   title: "Detailkarte",
                   description: "Detailansicht des markierten Auswahlbereichs mit den darin liegenden Unfällen"
@@ -1902,10 +2180,15 @@
             children.push(new Paragraph({
               text: "Detailansicht – markierter Bereich",
               heading: HeadingLevel.HEADING_3,
+              // Layout-PR Spec-Item 3 + 5: Überschrift + Bild + Caption
+              // bleiben zusammen (kein Umbruch nach der Subheading).
+              keepNext: true,
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
               children: [detailRun],
+              keepNext: true,
+              alignment: AlignmentType.CENTER,
               spacing: { after: 100 }
             }));
             // Verification sentence for detail map (Task 6).
@@ -1960,7 +2243,8 @@
             try {
               cRun = pngImageRun(
                 cBase64,
-                { width: 600, height: 400 },
+                // Layout-PR „Bildverzerrung beheben": Aspektrate erhalten.
+                fitImageToMax(cBase64, DOCX_MAP_MAX),
                 {
                   title: `Cluster-Karte: ${cm.label || "Hotspot"}`,
                   description: `Zoomansicht eines Unfall-Hotspots (${cm.total} Unfälle, Zoom ${cm.zoom})`
@@ -1973,10 +2257,13 @@
             children.push(new Paragraph({
               text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
               heading: HeadingLevel.HEADING_3,
+              keepNext: true,
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
               children: [cRun],
+              keepNext: true,
+              alignment: AlignmentType.CENTER,
               spacing: { after: 100 }
             }));
             // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
@@ -2211,7 +2498,9 @@
         spacing: { before: 400, after: 200 }
       }));
       children.push(new Paragraph({
-        children: [new TextRun({ text: `Nicht verfügbar (${sd.osmContext.quality.error}).`, italics: true })],
+        // QA-PR „Export-Semantik": keine technischen Fehlerstrings im
+        // Antrag (vorher: „Nicht verfügbar (Fetch is aborted)").
+        children: [new TextRun({ text: "OSM-Kontextdaten konnten beim Export nicht geladen werden.", italics: true })],
         spacing: { after: 200 }
       }));
     }
@@ -2541,34 +2830,53 @@
   }
 
   /**
-   * Replace emoji icons with text labels for PDF compatibility.
-   * pdfMake's default Roboto font doesn't support emoji glyphs; for plain
-   * `text` cells (and the textual report fallback) we substitute readable
-   * short labels. For *table cells* that carry involvement icons we use the
-   * richer `pdfInvolvementCell` helper below, which embeds inline SVG icons
-   * so the symbols are visually preserved in the exported PDF.
-   * @param {string} text - Text containing emoji icons
-   * @returns {string} Text with emojis replaced by readable labels
+   * Replace involvement icons / bracket tokens with verwaltungstaugliche
+   * prose labels for PDF export (QA-PR „Export-Semantik vor Layout").
+   *
+   * Im sichtbaren PDF dürfen weder Emojis (`🚲`/`🚗`/…) noch die
+   * Übergangs-Bracket-Tokens (`[Rad]`/`[PKW]`/…) erscheinen — sie sind
+   * für ein Verwaltungspublikum nicht akzeptabel und auf vielen
+   * Behörden-Arbeitsplätzen ohne Emoji-Font unleserlich. Stattdessen
+   * nutzen wir die zentralen Prosa-Labels aus
+   * `UA.proseLabelForExport` (definiert in js/ua.export_v2.js).
+   *
+   * Fallback: wenn das Modul `UA.proseLabelForExport` nicht geladen ist
+   * (bei Standalone-Tests von ua.report_v2.js ohne ua.export_v2.js),
+   * substituieren wir mit derselben Prosa-Tabelle als Inline-Fallback.
+   *
+   * @param {string} text - Text containing emoji icons and/or [Rad]-tokens
+   * @returns {string} Text with all involvement glyphs replaced by prose
    */
   function replaceEmojisForPDF(text) {
-    return text
-      .replace(/\u{1F6B2}/gu, "[Rad]")      // 🚲 Bicycle
-      .replace(/\u{1F6B6}/gu, "[Fuss]")     // 🚶 Pedestrian
-      .replace(/\u{1F697}/gu, "[PKW]")      // 🚗 Car
-      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, "[Krad]")  // 🏍 Motorcycle (optional variation selector)
-      .replace(/\u{1F69B}/gu, "[Lkw]")     // 🚛 Heavy vehicle (Gkfz → [Lkw], Task 1)
-      .replace(/\u{1F68C}/gu, "[Sonst]");   // 🚌 Other (bus)
+    if (text == null) return "";
+    if (typeof UA.proseLabelForExport === "function") {
+      return UA.proseLabelForExport(text);
+    }
+    // Inline fallback (mirror of UA.proseLabelForExport).
+    let s = String(text);
+    const PROSE = {
+      Rad: "Radverkehr", Fuss: "Fußverkehr", PKW: "PKW",
+      Krad: "Motorrad", Lkw: "LKW/Güterverkehr", Sonst: "Sonstige Beteiligte"
+    };
+    s = s.replace(/\[(Rad|Fuss|PKW|Krad|Lkw|Sonst)\]/g, (_, k) => PROSE[k] || _);
+    s = s
+      .replace(/\u{1F6B2}/gu, PROSE.Rad)
+      .replace(/\u{1F6B6}/gu, PROSE.Fuss)
+      .replace(/\u{1F697}/gu, PROSE.PKW)
+      .replace(/\u{1F3CD}[\u{FE0F}]?/gu, PROSE.Krad)
+      .replace(/\u{1F69B}/gu, PROSE.Lkw)
+      .replace(/\u{1F68C}/gu, PROSE.Sonst);
+    s = s.replace(/(\p{L})\s*\+\s*(\p{L})/gu, "$1 + $2");
+    return s;
   }
 
   /**
-   * DOCX-Variante derselben Emoji→Text-Ersetzung. DOCX rendert Emojis nur,
-   * wenn der Word-Client einen emoji-fähigen Body-Font (z. B. Segoe UI Emoji)
-   * eingerichtet hat – auf vielen Verwaltungs-Arbeitsplätzen ist das nicht
-   * der Fall, dort tauchen die Beteiligungs-Icons als bloße Trennzeichen
-   * (`+`, `=`) auf. Wir substituieren konsequent die gleichen Kurzlabels wie
-   * in der PDF, damit Tabellen und Fließtext lesbar bleiben.
-   * Exportiert als `UA.replaceEmojisForDocx`, damit Tests ihn einzeln prüfen
-   * können.
+   * DOCX-Variante derselben Prosa-Substitution. Wir routen die DOCX-
+   * Anzeigetexte durch dieselbe Funktion wie das PDF, damit beide
+   * Exportformate identische Beteiligten-Beschriftungen führen
+   * (QA-PR „Export-Semantik vor Layout").
+   * Exportiert als `UA.replaceEmojisForDocx`, damit Tests sie einzeln
+   * prüfen können.
    */
   function replaceEmojisForDocx(text) {
     return replaceEmojisForPDF(String(text == null ? "" : text));
@@ -2764,8 +3072,14 @@
           // for compound nodes we set on the wrapping object.
           return highlight ? Object.assign({}, cell, { fillColor: "#FFFFCC" }) : cell;
         }
+        // QA-PR „Export-Semantik vor Layout": jede sichtbare String-Zelle
+        // wird durch die zentrale Prosa-Substitution gefiltert. Damit
+        // erscheinen weder Beteiligten-Emojis (🚲/🚗/…) noch die internen
+        // Bracket-Tokens („[Rad]+[PKW]") in den PDF-Tabellen — nur die
+        // verwaltungstauglichen Prosa-Labels („Radverkehr + PKW").
+        const safe = replaceEmojisForPDF(String(cell ?? ""));
         return {
-          text: String(cell ?? ""),
+          text: safe,
           fontSize,
           ...(highlight ? { fillColor: "#FFFFCC", bold: true } : {})
         };
@@ -2999,17 +3313,20 @@
     if (filters.roadCondition != null) filterRows.push(["Fahrbahnzustand",   UA.formatFilterValue("roadCondition", filters.roadCondition)]);
     if (filters.involvementMode != null) filterRows.push(["Beteiligungsmodus", UA.formatFilterValue("involvementMode", filters.involvementMode)]);
 
-    // Render the active "Beteiligte" line with real icons (one cell per active
-    // category) instead of the legacy "[Rad], [PKW]" text fallback.
-    const partEmojis = [];
-    if (filters.includeCyclist)    partEmojis.push("\u{1F6B2}");
-    if (filters.includePedestrian) partEmojis.push("\u{1F6B6}");
-    if (filters.includeCar)        partEmojis.push("\u{1F697}");
-    if (filters.includeMotorcycle) partEmojis.push("\u{1F3CD}");
-    if (filters.includeGkfz)       partEmojis.push("\u{1F69B}");
-    if (filters.includeSonstig)    partEmojis.push("\u{1F68C}");
-    if (partEmojis.length > 0) {
-      filterRows.push(["Beteiligte", pdfInvolvementCell(partEmojis.join("+"))]);
+    // Render the active "Beteiligte" line as Prosa-Textlabel (QA-PR
+    // „Export-Semantik vor Layout"): keine Emojis/Icons im PDF.
+    const partCodesPdf = [];
+    if (filters.includeCyclist)    partCodesPdf.push("Rad");
+    if (filters.includePedestrian) partCodesPdf.push("Fuss");
+    if (filters.includeCar)        partCodesPdf.push("PKW");
+    if (filters.includeMotorcycle) partCodesPdf.push("Krad");
+    if (filters.includeGkfz)       partCodesPdf.push("Lkw");
+    if (filters.includeSonstig)    partCodesPdf.push("Sonst");
+    if (partCodesPdf.length > 0) {
+      const partProsePdf = (typeof UA.formatParticipantCombinationForExport === "function")
+        ? UA.formatParticipantCombinationForExport(partCodesPdf)
+        : partCodesPdf.join(" + ");
+      filterRows.push(["Beteiligte", partProsePdf]);
     }
 
     if (filters.hourFrom != null && filters.hourTo != null) {
@@ -3168,14 +3485,18 @@
         const devRows = sd.deviations.focus.map(r => {
           const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
+          // QA-PR „Export-Semantik": Prosa-Label statt SVG-Icons.
+          const muster = (typeof UA.formatParticipantCombinationForExport === "function")
+            ? UA.formatParticipantCombinationForExport(r.mask)
+            : (r.textLabel || r.label);
           if (isPolitical) {
             // Task 9/10: politisches Wording, kein 95%-KI.
-            return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
+            return [muster, String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
           }
           const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const factorStr = r.factor.toFixed(2).replace(".", ",") + "x" + (r.isSignificant === false ? " (n.s.)" : "");
-          return [pdfInvolvementCell(r.label), String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
+          return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         if (isPolitical) {
           docDefinition.content.push(makePdfTable(
@@ -3238,11 +3559,22 @@
       // Year table
       if (sd.yearTable && sd.yearTable.length > 0) {
         docDefinition.content.push({ text: "Unfälle pro Jahr im Ausschnitt:", style: "normal" });
-        const yrRows = sd.yearTable.map(row => [
-          String(row.year),
-          String(row.total),
-          row.classes.length ? pdfInvolvementCell(row.classes.join(", ")) : "—"
-        ]);
+        // QA-PR „Export-Semantik": „Kombinationen"-Spalte als Prosa,
+        // niemals als Icon-/Bracket-Text. textClasses (Bracket-Form) wird
+        // durch proseLabelForExport in „Radverkehr + PKW: 4" überführt.
+        const proseFor = (typeof UA.proseLabelForExport === "function")
+          ? UA.proseLabelForExport
+          : (s) => String(s == null ? "" : s);
+        const yrRows = sd.yearTable.map(row => {
+          const cls = (row.textClasses && row.textClasses.length)
+            ? row.textClasses.map(proseFor)
+            : (row.classes || []).map(proseFor);
+          return [
+            String(row.year),
+            String(row.total),
+            cls.length ? cls.join(", ") : "—"
+          ];
+        });
         docDefinition.content.push(makePdfTable(
           ["Jahr", "Summe", "Kombinationen"],
           yrRows,
@@ -3254,9 +3586,13 @@
       // Cross-table: Beteiligungskombination × Schweregrad
       if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
         docDefinition.content.push({ text: "Beteiligungskombination × Schweregrad:", style: "normal" });
-        const ctRows = sd.crossTable.rows.map(r => [
-          pdfInvolvementCell(r.label), String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)
-        ]);
+        const ctRows = sd.crossTable.rows.map(r => {
+          // QA-PR „Export-Semantik": Prosa-Label statt SVG-Icons.
+          const label = (typeof UA.formatParticipantCombinationForExport === "function")
+            ? UA.formatParticipantCombinationForExport(r.mask)
+            : (r.textLabel || r.label);
+          return [label, String(r.sev1), String(r.sev2), String(r.sev3), String(r.total)];
+        });
         // Highlight rows whose mask matches the active filter
         const ctHighlights = sd.crossTable.rows.map(r => isPdfActiveFilterRow(r.mask));
         ctRows.push([
@@ -3303,6 +3639,37 @@
         if (ei.disclaimer) {
           docDefinition.content.push({ text: ei.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
         }
+      }
+
+      // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
+      // Items 4–8). Direkt VOR „EMPFOHLENE MASSNAHMEN" — analog zur DOCX-
+      // Sektion oben. Nutzt pdfMake-Styles ("subheader" für Heading-2,
+      // bold/italics inline, eingerückte Bullets via margin: [10, …]).
+      if (options.includeMeasures !== false && sd.contextualMeasures
+          && Array.isArray(sd.contextualMeasures.matchedRules)
+          && sd.contextualMeasures.matchedRules.length > 0
+          && !sectionGuard("ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN")) {
+        docDefinition.content.push({ text: "ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN", style: "subheader" });
+        if (sd.contextualMeasures.rationale) {
+          docDefinition.content.push({
+            text: sd.contextualMeasures.rationale,
+            italics: true, fontSize: 10, margin: [0, 2, 0, 8]
+          });
+        }
+        const renderBucketPdfCtx = (heading, items) => {
+          if (!Array.isArray(items) || items.length === 0) return;
+          docDefinition.content.push({ text: heading, bold: true, margin: [0, 6, 0, 2] });
+          for (const it of items) {
+            docDefinition.content.push({
+              text: "• " + it,
+              style: "normal",
+              margin: [10, 0, 0, 2]
+            });
+          }
+        };
+        renderBucketPdfCtx("Erforderliche Vor-Ort-Prüfung",     sd.contextualMeasures.pruefauftraege);
+        renderBucketPdfCtx("Kurzfristig prüfbar",               sd.contextualMeasures.kurzfristig);
+        renderBucketPdfCtx("Baulich/organisatorisch zu prüfen", sd.contextualMeasures.mittelfristig);
       }
 
       // Recommended measures (PR-D / B1+B3)
@@ -3400,17 +3767,21 @@
           const docxHeader = (g.headers && Array.isArray(g.headers.docx)) ? g.headers.docx : null;
           if (docxHeader && docxHeader.length > 0) {
             for (const h of docxHeader) {
-              docDefinition.content.push({ text: h.text || "", bold: !!h.bold, margin: [0, 8, 0, 4] });
+              docDefinition.content.push({ text: replaceEmojisForPDF(h.text || ""), bold: !!h.bold, margin: [0, 8, 0, 4] });
             }
           } else if (g.sevLabel) {
             const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
-            docDefinition.content.push({ text: headerText, bold: true, margin: [0, 8, 0, 4] });
+            docDefinition.content.push({ text: replaceEmojisForPDF(headerText), bold: true, margin: [0, 8, 0, 4] });
           }
           const detailRows = g.rows.map((r, i) => {
             // Use the strategy's docx row producer (same column shape as DOCX).
-            // For PDF we keep the cell contents but route emoji-bearing strings
-            // through pdfInvolvementCell so the icons render as real SVG
-            // pictograms instead of being lost to the Roboto font.
+            // QA-PR „Export-Semantik": jede String-Zelle wird durch
+            // proseLabelForExport gefiltert — danach enthält keine Detail-
+            // tabellen-Zelle mehr ein Beteiligten-Emoji oder ein Bracket-
+            // Token wie „[Rad]+[PKW]"; sichtbar bleibt nur Prosa
+            // („Radverkehr + PKW"). Vorher wurden Strings stattdessen
+            // durch pdfInvolvementCell als SVG-Icons gerendert — das hat
+            // der QA-Bericht ausdrücklich als „kaputte Symbole" markiert.
             let cells;
             if (view && view.renderRow && view.renderRow.docx) {
               cells = view.renderRow.docx(r, i);
@@ -3419,10 +3790,10 @@
               const coords = (r.lat != null && r.lon != null) ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` : "—";
               cells = [String(i + 1), String(r.year ?? "—"), r.involved, hour, (typeof UA !== "undefined" && UA.fmtWeekday ? UA.fmtWeekday(r) : (r.weekday || "—")), r.roadCondition || "—", coords];
             }
-            // Promote any string cell that carries involvement emojis to a rich
-            // SVG-based content node; non-string (already rich) cells pass
-            // through unchanged. Strings without emojis remain plain strings.
-            return cells.map(c => typeof c === "string" ? pdfInvolvementCell(c) : c);
+            const proseFor = (typeof UA.proseLabelForExport === "function")
+              ? UA.proseLabelForExport
+              : (s) => String(s == null ? "" : s);
+            return cells.map(c => typeof c === "string" ? proseFor(c) : c);
           });
           // Tighter column widths so a 7-column accident-details table stays
           // within the printable area (was overflowing on A4 even with margin
@@ -3467,7 +3838,11 @@
           const coords = (r.lat != null && r.lon != null)
             ? `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}`
             : "—";
-          return [String(i + 1), pdfInvolvementCell(r.involved), r.roadCondition || "—", coords];
+          // QA-PR „Export-Semantik": Prosa statt SVG-Icons.
+          const involvedProse = (typeof UA.proseLabelForExport === "function")
+            ? UA.proseLabelForExport(r.involved)
+            : String(r.involved == null ? "" : r.involved);
+          return [String(i + 1), involvedProse, r.roadCondition || "—", coords];
         });
         docDefinition.content.push({ text: "Beteiligung & Ort", style: "subheader2" });
         docDefinition.content.push(makePdfTable(
@@ -3505,23 +3880,33 @@
         const mapImageData = await UA.captureExportMapImage(ctx, options);
         const werkbankUrl = buildWerkbankUrl(ctx);
 
-        // Calculate image dimensions: constrain to A4 content area (475pt wide, ~650pt tall)
-        const PDF_MAX_IMG_WIDTH = 475;
-        const PDF_MAX_IMG_HEIGHT = 650;
-        // Make map image clickable
+        // Layout-PR „Bildverzerrung beheben" / Spec-Items 1+2:
+        //  - pdfMake-`fit:[w,h]` erhält die Aspektrate des PNG-Originals
+        //    automatisch (das Bild wird in die Box eingepasst).
+        //  - ALLE Karten (Übersicht, Detail, Cluster) nutzen jetzt dieselbe
+        //    `PDF_MAP_MAX`-Box — vorher hatte die Übersicht 475×650 (zu hoch,
+        //    erzeugte fast leere Folgeseiten), Detail/Cluster 475×350.
+        // Bild und Caption werden in einem `stack` mit `unbreakable: true`
+        // gerendert (Spec-Item 3 + 5: Bild-Block als Einheit, kein
+        // Seitenumbruch zwischen Bild und Caption).
+        const overviewCaption = pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption;
         docDefinition.content.push({
-          image: mapImageData,
-          fit: [PDF_MAX_IMG_WIDTH, PDF_MAX_IMG_HEIGHT],
-          margin: [0, 10, 0, 10],
-          link: werkbankUrl
-        });
-
-        // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
-        // Layout-Pass: kanonischer `caption`-Style; bleibt Abbildung 1 (Parent
-        // für alle weiteren Cross-Reference-Captions).
-        docDefinition.content.push({
-          text: pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
-          style: "caption"
+          unbreakable: true,
+          stack: [
+            {
+              image: mapImageData,
+              fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
+              alignment: "center",
+              margin: [0, 10, 0, 6],
+              link: werkbankUrl
+            },
+            {
+              text: overviewCaption,
+              style: "caption",
+              alignment: "center",
+              margin: [0, 0, 0, 4]
+            }
+          ]
         });
 
         // Add "In Werkbank öffnen" link
@@ -3573,25 +3958,31 @@
               bounds: detailBbox,
               center: detailCenter
             });
-            docDefinition.content.push({ text: "Detailansicht – markierter Bereich", style: "subsectionHeader" });
-            docDefinition.content.push({
-              image: detailImageData,
-              fit: [475, 350],
-              margin: [0, 10, 0, 10],
-              link: detailWerkbankUrl
-            });
             const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
-            // PR 2 / Spec-Item 4: numbered figure caption.
-            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
-            // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle
-            // aus Abbildung 1.").
+            // Layout-PR „Bildverzerrung beheben": einheitliche Box
+            // (PDF_MAP_MAX) für alle Map-Typen; Bild + Caption als
+            // unbreakable-Stack (Spec-Items 1, 2, 3, 5).
             const detailFig = pdfFigCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
             const detailCaptionText = (pdfParentN != null)
               ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
               : detailFig.caption;
             docDefinition.content.push({
-              text: detailCaptionText,
-              style: "caption"
+              unbreakable: true,
+              stack: [
+                { text: "Detailansicht – markierter Bereich", style: "subsectionHeader" },
+                {
+                  image: detailImageData,
+                  fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
+                  alignment: "center",
+                  margin: [0, 10, 0, 6],
+                  link: detailWerkbankUrl
+                },
+                {
+                  text: detailCaptionText,
+                  style: "caption",
+                  alignment: "center"
+                }
+              ]
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
@@ -3641,26 +4032,32 @@
               center: { lat: cm.lat, lon: cm.lon },
               zoom: cm.zoom
             });
-            docDefinition.content.push({
-              text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
-              style: "subsectionHeader"
-            });
-            docDefinition.content.push({
-              image: cm.image,
-              fit: [475, 350],
-              margin: [0, 10, 0, 10],
-              link: clusterUrl
-            });
-            // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
-            // Layout-Pass: kanonischer `caption`-Style + Subset-Cross-Reference
-            // auf Abbildung 1 (Übersicht).
+            // Layout-PR „Bildverzerrung beheben": einheitliche Box +
+            // unbreakable-Stack — Header, Bild und Caption bleiben zusammen.
             const clusterFig = pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
             const clusterCaptionText = (pdfParentN != null)
               ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
               : clusterFig.caption;
             docDefinition.content.push({
-              text: clusterCaptionText,
-              style: "caption"
+              unbreakable: true,
+              stack: [
+                {
+                  text: `${cm.label} – ${cm.total} Unfälle (Zoom ${cm.zoom})`,
+                  style: "subsectionHeader"
+                },
+                {
+                  image: cm.image,
+                  fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
+                  alignment: "center",
+                  margin: [0, 10, 0, 6],
+                  link: clusterUrl
+                },
+                {
+                  text: clusterCaptionText,
+                  style: "caption",
+                  alignment: "center"
+                }
+              ]
             });
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
@@ -3874,7 +4271,9 @@
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
       docDefinition.content.push({
-        text: `Nicht verfügbar (${sd.osmContext.quality.error}).`,
+        // QA-PR „Export-Semantik": verwaltungstauglicher Hinweis statt
+        // technischer Fehlerstring.
+        text: "OSM-Kontextdaten konnten beim Export nicht geladen werden.",
         italics: true,
         fontSize: 9,
         margin: [0, 0, 0, 8]
@@ -3983,6 +4382,30 @@
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "");
     const filename = `${titleSlug}_${citySlug}_${today.replace(/\./g, "-")}.pdf`;
+
+    // QA-PR „Export-Semantik vor Layout" — Pre-flight-Gate über den
+    // sichtbaren docDefinition-Text. Bricht den Export ab, falls noch
+    // Beteiligten-Emojis, FontAwesome-Glyphen, „Fetch is aborted",
+    // „Beteiligungsmaske", „Scope" usw. im sichtbaren Output stehen.
+    // Akzeptanzkriterium: das erzeugte PDF wirkt wie ein Verwaltungs-
+    // dokument und nicht wie ein UI-Dump.
+    if (!options || options._skipQAGate !== true) {
+      const gate = runExportQAGate(docDefinition.content);
+      if (!gate.ok) {
+        const head = gate.violations.slice(0, 3).map(v => v.reason).join(" | ");
+        const more = gate.violations.length > 3 ? ` (+${gate.violations.length - 3} weitere)` : "";
+        const msg = `Export abgebrochen: PDF-Inhalt enthält noch nicht-verwaltungstaugliche Tokens — ${head}${more}.`;
+        // Banner für UI-Sichtbarkeit, falls vorhanden.
+        try {
+          const bar = (typeof document !== "undefined") ? document.getElementById("exportProgress") : null;
+          if (bar) { bar.textContent = msg; bar.style.display = "block"; }
+        } catch (_) { /* DOM nicht verfügbar (Tests) → still */ }
+        const err = new Error(msg);
+        err.qaViolations = gate.violations;
+        throw err;
+      }
+    }
+
     window.pdfMake.createPdf(docDefinition).download(filename);
   };
 

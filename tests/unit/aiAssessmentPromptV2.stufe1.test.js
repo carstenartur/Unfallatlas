@@ -90,4 +90,37 @@ describe('#E1 — buildPrompt renders new sections', () => {
     }), 'assessment');
     expect(user).not.toMatch(/Klassifikation \(lineare Regression\)/);
   });
+
+  test('passes structured.contextualMeasures through and renders the ORTS- & MUSTERBEZOGENE EMPFEHLUNGEN block', () => {
+    // Pass-through: deriveFeatures muss `contextualMeasures` aus dem
+    // structured-Objekt 1:1 nach `features.contextualMeasures` legen.
+    const structured = baseStructured({
+      contextualMeasures: {
+        matchedRules: [{ pattern: 'kreuzung', context: 'bahnhof' }],
+        rationale: 'Bahnhofsumfeld erkannt — Bewuchs-Maßnahmen unterdrückt.',
+        contexts: ['bahnhof'],
+        patterns: ['kreuzung'],
+        pruefauftraege: ['Sichtbeziehungen am Knotenpunkt prüfen'],
+        kurzfristig:   ['Markierung erneuern'],
+        mittelfristig: ['Knoten umbauen']
+      }
+    });
+    const features = deriveFeatures(structured, null);
+    expect(features.contextualMeasures).toBeTruthy();
+    expect(features.contextualMeasures.matchedRules).toHaveLength(1);
+    expect(features.contextualMeasures.pruefauftraege[0])
+      .toContain('Sichtbeziehungen');
+
+    const { user } = buildPrompt({
+      meta: structured.meta,
+      features,
+      preselectedMeasures: []
+    }, 'proposal-brief');
+    expect(user).toContain('=== ORTS- & MUSTERBEZOGENE EMPFEHLUNGEN');
+    expect(user).toContain('Bahnhofsumfeld erkannt');
+    expect(user).toContain('Erforderliche Vor-Ort-Prüfung:');
+    expect(user).toContain('Kurzfristig prüfbar:');
+    expect(user).toContain('Baulich/organisatorisch zu prüfen:');
+    expect(user).toContain('- Sichtbeziehungen am Knotenpunkt prüfen');
+  });
 });

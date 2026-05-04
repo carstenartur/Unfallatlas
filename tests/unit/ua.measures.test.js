@@ -207,6 +207,76 @@ describe('UA.measures', () => {
       expect(r.measures.length).toBeGreaterThan(0);
       expect(r.disclaimer).toBeDefined();
     });
+
+    test('passesContextSuppression: drops measures whose suppressInContexts hits the active context', () => {
+      // QA-Spec Item 7: „Sichtbeziehungen herstellen / Bewuchs zurückschneiden"
+      // ist im Bahnhofs-/Schienen-Umfeld unpassend und muss unterdrückt werden.
+      const c = {
+        sources: [],
+        disclaimer: 'd',
+        measures: [
+          {
+            id: 'sicht_freischnitt',
+            label: 'Sichtbeziehungen herstellen (Bewuchs/Parken)',
+            costRange: [1000, 10000],
+            effect: { targetPatterns: [1], expectedReductionPct: [5, 20], evidenceLevel: 'B' },
+            prerequisites: {
+              suppressInContexts: ['bahnhof', 'busbahnhof', 'straßenbahn_schienen'],
+              requireContexts: ['sichtbehinderung', 'bewuchs']
+            }
+          },
+          {
+            id: 'tempo_30',
+            label: 'Tempo-30-Anordnung',
+            costRange: [2000, 8000],
+            effect: { targetPatterns: [1], expectedReductionPct: [10, 25], evidenceLevel: 'A' }
+          }
+        ]
+      };
+      const r = UA.measures.recommendMeasures([1], c, {
+        activeContexts: new Set(['bahnhof', 'straßenbahn_schienen'])
+      });
+      const labels = r.measures.map(m => m.measure.label);
+      expect(labels).not.toContain('Sichtbeziehungen herstellen (Bewuchs/Parken)');
+      expect(labels).toContain('Tempo-30-Anordnung');
+      // Filtered-out trace contains the suppressed measure with a Kontext-Reason.
+      expect(r.filteredOut.some(f => f.id === 'sicht_freischnitt' && /Ortskontext|bahnhof/i.test(f.reason))).toBe(true);
+    });
+
+    test('passesContextSuppression: requireContexts whitelist keeps the measure when explicit Sicht-Hinweis is set', () => {
+      const c = {
+        sources: [], disclaimer: 'd',
+        measures: [{
+          id: 'sicht_freischnitt',
+          label: 'Sicht',
+          costRange: [1, 2],
+          effect: { targetPatterns: [1], expectedReductionPct: [5, 20], evidenceLevel: 'B' },
+          prerequisites: {
+            suppressInContexts: ['bahnhof'],
+            requireContexts: ['sichtbehinderung']
+          }
+        }]
+      };
+      const r = UA.measures.recommendMeasures([1], c, {
+        activeContexts: new Set(['bahnhof', 'sichtbehinderung'])
+      });
+      expect(r.measures.length).toBe(1);
+    });
+
+    test('passesContextSuppression: no-op when activeContexts is empty / null', () => {
+      const c = {
+        sources: [], disclaimer: 'd',
+        measures: [{
+          id: 'sicht_freischnitt',
+          label: 'Sicht',
+          costRange: [1, 2],
+          effect: { targetPatterns: [1], expectedReductionPct: [5, 20], evidenceLevel: 'B' },
+          prerequisites: { suppressInContexts: ['bahnhof'] }
+        }]
+      };
+      expect(UA.measures.recommendMeasures([1], c, {}).measures.length).toBe(1);
+      expect(UA.measures.recommendMeasures([1], c, { activeContexts: new Set() }).measures.length).toBe(1);
+    });
   });
 
   describe('formatCostRange', () => {

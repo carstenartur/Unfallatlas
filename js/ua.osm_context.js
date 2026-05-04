@@ -69,6 +69,18 @@
       // signals & crossings (nodes)
       `  node["highway"="traffic_signals"]${b};`,
       `  node["highway"="crossing"]${b};`,
+      // Stationen / Haltepunkte (nodes): railway=station, public_transport=station,
+      // amenity=bus_station — versorgen die Kontext-Erkennung in
+      // js/ua.context_measures.js mit `bahnhof` / `busbahnhof`.
+      `  node["railway"="station"]${b};`,
+      `  node["public_transport"="station"]${b};`,
+      `  node["amenity"="bus_station"]${b};`,
+      // Schienen (ways): tram + light_rail. Stadtbahn-Schienen sind die
+      // direkte Evidenz für `straßenbahn_schienen`/`gleisquerung`-Kontexte
+      // (Spec-Item 2). Vollbahn (railway=rail) wird hier bewusst NICHT
+      // erfasst — die Kontext-Sprache adressiert nur Straßen-Gleise.
+      `  way["railway"="tram"]${b};`,
+      `  way["railway"="light_rail"]${b};`,
       `);`,
       `out tags;`
     ].join("\n");
@@ -105,6 +117,36 @@
   }
 
   /**
+   * Test whether a way's tags suggest a shared foot+cycle surface — used
+   * to surface `gemeinsame_fuss_rad_flaeche` (Spec-Item 2). Heuristik:
+   *  - highway=path mit foot=designated UND bicycle=designated
+   *  - highway=footway mit bicycle in {designated, yes, permissive}
+   *  - highway=cycleway mit foot in {designated, yes, permissive}
+   *  - segregated=no in Kombination mit Fuß-/Rad-Erlaubnis (StVO Z. 240)
+   */
+  function isMixedFootCycle(tags) {
+    if (!tags) return false;
+    const hw = tags.highway;
+    const bike = String(tags.bicycle || "").toLowerCase();
+    const foot = String(tags.foot || "").toLowerCase();
+    const seg  = String(tags.segregated || "").toLowerCase();
+    const positiveBike = bike === "designated" || bike === "yes" || bike === "permissive";
+    const positiveFoot = foot === "designated" || foot === "yes" || foot === "permissive";
+    if (hw === "path" && foot === "designated" && bike === "designated") return true;
+    if (hw === "footway" && positiveBike) return true;
+    if (hw === "cycleway" && positiveFoot) return true;
+    if (seg === "no" && (positiveBike || hw === "cycleway") && (positiveFoot || hw === "footway")) return true;
+    return false;
+  }
+
+  /** Cobblestone / sett surfaces — `kopfsteinpflaster` context (Spec-Item 2). */
+  function isCobblestoneSurface(tags) {
+    if (!tags) return false;
+    const s = String(tags.surface || "").toLowerCase();
+    return s === "cobblestone" || s === "sett" || s === "unhewn_cobblestone";
+  }
+
+  /**
    * Aggregate raw Overpass elements into a compact summary that's safe to
    * embed into reports.
    *
@@ -115,12 +157,33 @@
     const ways = [];
     let trafficSignals = 0;
     let crossings = 0;
+    // Kontext-Zähler für UA.contextMeasures.detectContexts (Spec-Items 2/4).
+    // Werden über `contexts: { … }` ausgespielt, damit der Konsument keine
+    // OSM-Tags re-parsen muss.
+    let trainStations = 0;
+    let busStations = 0;
+    let tramTrackWays = 0;
+    let cobblestoneWays = 0;
+    let mixedFootCycleWays = 0;
     for (const el of (elements || [])) {
       if (!el) continue;
       const tags = el.tags || {};
-      if (el.type === "way" && tags.highway) ways.push(tags);
-      else if (el.type === "node" && tags.highway === "traffic_signals") trafficSignals++;
-      else if (el.type === "node" && tags.highway === "crossing") crossings++;
+      if (el.type === "way") {
+        const isRailWay = (tags.railway === "tram" || tags.railway === "light_rail");
+        // Schienen-Ways werden NICHT in `ways` aufgenommen (würden sonst die
+        // Tempo-/Cycle-Statistiken verzerren), aber für den Kontext gezählt.
+        if (tags.highway && !isRailWay) {
+          ways.push(tags);
+          if (isMixedFootCycle(tags)) mixedFootCycleWays++;
+          if (isCobblestoneSurface(tags)) cobblestoneWays++;
+        }
+        if (isRailWay) tramTrackWays++;
+      } else if (el.type === "node") {
+        if (tags.highway === "traffic_signals") trafficSignals++;
+        else if (tags.highway === "crossing") crossings++;
+        if (tags.railway === "station" || tags.public_transport === "station") trainStations++;
+        if (tags.amenity === "bus_station") busStations++;
+      }
     }
 
     // Maxspeed distribution (count of ways per limit)
@@ -181,6 +244,18 @@
         avgWidthMeters: avg(widthVals),
         lanesSampleSize: lanesVals.length,
         widthSampleSize: widthVals.length
+      },
+      // Counters für UA.contextMeasures.detectContexts. Bewusst eigener
+      // Sub-Block (kein Mischen mit `summary`), damit der Konsument klar
+      // erkennt, dass es sich um Kontext-Evidenz und nicht um Geometrie-
+      // Kennzahlen handelt. Felder bleiben 0, wenn nichts erkannt wurde —
+      // detectContexts fragt strikt `> 0` ab.
+      contexts: {
+        trainStations,
+        busStations,
+        tramTrackWays,
+        cobblestoneWays,
+        mixedFootCycleWays
       },
       // Provenance for the report footer.
       source: {
@@ -297,6 +372,7 @@
   function summarizeForText(ctx) {
     if (!ctx || !ctx.summary) return null;
     const s = ctx.summary;
+    const c = ctx.contexts || {};
     const parts = [];
     if (s.dominantMaxspeed != null) {
       parts.push(`vorherrschendes Tempolimit ${s.dominantMaxspeed} km/h (n=${s.speedSampleSize})`);
@@ -312,6 +388,12 @@
     if (s.trafficSignals > 0) parts.push(`${s.trafficSignals} signalisierte Knoten`);
     if (s.crossings > 0)      parts.push(`${s.crossings} markierte Querungen`);
     if (s.avgLanes != null)   parts.push(`Ø ${s.avgLanes.toFixed(1)} Fahrstreifen`);
+    // Kontext-Evidenz (Spec-Item 2 Felder) — knapp anhängen, nur wenn ≥1.
+    if (c.trainStations > 0)       parts.push(`${c.trainStations} Bahnhof/Haltepunkt(e) im Bereich`);
+    if (c.busStations > 0)         parts.push(`${c.busStations} Busbahnhof(/e) im Bereich`);
+    if (c.tramTrackWays > 0)       parts.push(`${c.tramTrackWays} Schienen-Wegabschnitt(e) (Tram/Stadtbahn)`);
+    if (c.cobblestoneWays > 0)     parts.push(`${c.cobblestoneWays} Wegabschnitt(e) mit Pflaster/Kopfstein`);
+    if (c.mixedFootCycleWays > 0)  parts.push(`${c.mixedFootCycleWays} gemeinsame Fuß-/Radfläche(n)`);
     if (parts.length === 0) return null;
     return parts.join("; ") + ".";
   }
@@ -321,6 +403,8 @@
     aggregate,
     parseMaxspeed,
     hasCycleInfra,
+    isMixedFootCycle,
+    isCobblestoneSurface,
     buildQuery,
     summarizeForText,
     setEndpoint,

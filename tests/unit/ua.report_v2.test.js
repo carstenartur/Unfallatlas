@@ -846,7 +846,11 @@ describe('UA.report_v2 - Export Functions', () => {
       return () => captured;
     }
 
-    test('should include cross-table in PDF when structured.crossTable is present', async () => {
+    test('cross-table renders Beteiligten-Kombination als Prosa-Textlabel (kein Emoji, kein SVG)', async () => {
+      // QA-PR „Export-Semantik vor Layout": Tabellenzellen für Beteiligten-
+      // kombinationen führen ausschließlich Prosa („Radverkehr + PKW") —
+      // weder Emoji-Glyphen (Roboto rendert sie nicht), noch SVG-Icons
+      // (laut QA-Bericht für Verwaltung nicht akzeptabel).
       const getDefinition = capturePdfDefinition();
       const ctx = { CITY_RAW: 'Hannover' };
       const reportData = {
@@ -855,7 +859,7 @@ describe('UA.report_v2 - Export Functions', () => {
           severity: { total: 5, bySev: { '1': 1, '2': 2, '3': 2 } },
           crossTable: {
             rows: [
-              { mask: 5, label: '🚲+🚗', sev1: 0, sev2: 3, sev3: 12, total: 15 }
+              { mask: 5, label: '🚲+🚗', textLabel: '[Rad]+[PKW]', sev1: 0, sev2: 3, sev3: 12, total: 15 }
             ],
             totals: { sev1: 0, sev2: 3, sev3: 12, total: 15 }
           }
@@ -870,15 +874,18 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(allText).toContain('Beteiligungskombination');
       expect(allText).toContain('Getötete');
       expect(allText).toContain('Gesamt');
-      // The 🚲+🚗 label must surface as inline SVG icons (not as raw emoji
-      // glyphs the Roboto font can't render and not as text labels anymore).
+      // Prosa statt Emoji oder Bracket.
+      expect(allText).toContain('Radverkehr');
+      expect(allText).toContain('PKW');
       expect(allText).not.toContain('🚲');
       expect(allText).not.toContain('🚗');
-      expect(svgs.length).toBeGreaterThanOrEqual(2);
-      expect(svgs.some(s => /<svg/.test(s))).toBe(true);
+      expect(allText).not.toContain('[Rad]');
+      expect(allText).not.toContain('[PKW]');
+      // Keine Pictogramme/SVG mehr in der Beteiligten-Spalte.
+      expect(svgs.length).toBe(0);
     });
 
-    test('should include accident details table in PDF when structured.accidentDetails is present', async () => {
+    test('accident-details Beteiligten-Spalte ist Prosa (keine Emojis, keine SVG-Icons)', async () => {
       const getDefinition = capturePdfDefinition();
       const ctx = { CITY_RAW: 'Hannover' };
       const reportData = {
@@ -902,14 +909,15 @@ describe('UA.report_v2 - Export Functions', () => {
       const svgs = extractPdfSvgs(def);
       expect(allText).toContain('EINZELUNF');  // EINZELUNFÄLLE
       expect(allText).toContain('Schwerverletzt');
-      // Beteiligte cell must carry SVG pictograms (one for 🚲, one for 🚗) –
-      // emoji glyphs themselves must not leak into the PDF text stream.
+      // QA-PR: Prosa statt Emoji/SVG.
+      expect(allText).toContain('Radverkehr');
+      expect(allText).toContain('PKW');
       expect(allText).not.toContain('🚲');
       expect(allText).not.toContain('🚗');
-      expect(svgs.length).toBeGreaterThanOrEqual(2);
+      expect(svgs.length).toBe(0);
     });
 
-    test('PDF involvement icons cover Gkfz and Sonstig (🚛 / 🚌)', async () => {
+    test('Gkfz und Sonstig-Klassen werden als Prosa exportiert (LKW/Güterverkehr, Sonstige Beteiligte)', async () => {
       const getDefinition = capturePdfDefinition();
       const ctx = { CITY_RAW: 'Test' };
       const reportData = {
@@ -918,8 +926,8 @@ describe('UA.report_v2 - Export Functions', () => {
           severity: { total: 2, bySev: { '3': 2 } },
           crossTable: {
             rows: [
-              { mask: 17, label: '🚲+🚛', sev1: 0, sev2: 0, sev3: 1, total: 1 },
-              { mask: 32, label: '🚌', sev1: 0, sev2: 0, sev3: 1, total: 1 }
+              { mask: 17, label: '🚲+🚛', textLabel: '[Rad]+[Lkw]', sev1: 0, sev2: 0, sev3: 1, total: 1 },
+              { mask: 32, label: '🚌',    textLabel: '[Sonst]',    sev1: 0, sev2: 0, sev3: 1, total: 1 }
             ],
             totals: { sev1: 0, sev2: 0, sev3: 2, total: 2 }
           }
@@ -931,15 +939,16 @@ describe('UA.report_v2 - Export Functions', () => {
       const def = getDefinition();
       const allText = extractPdfText(def);
       const svgs = extractPdfSvgs(def);
-      // Raw emojis must NOT appear anywhere in the PDF (Roboto can't render
-      // them; they would either disappear or print as tofu).
+      // Keine Emojis im sichtbaren Text.
       expect(allText).not.toContain('🚛');
       expect(allText).not.toContain('🚌');
       expect(allText).not.toContain('🚲');
-      // Three icons expected total: 🚲 + 🚛 in row 1, 🚌 in row 2.
-      expect(svgs.length).toBeGreaterThanOrEqual(3);
-      // SVG contents should include path data, not be empty wrappers.
-      expect(svgs.every(s => /<path/.test(s))).toBe(true);
+      // Prosa-Labels für alle drei betroffenen Klassen.
+      expect(allText).toContain('Radverkehr');
+      expect(allText).toContain('LKW/Güterverkehr');
+      expect(allText).toContain('Sonstige Beteiligte');
+      // Keine SVG-Icons mehr (das war der QA-Befund).
+      expect(svgs.length).toBe(0);
     });
   });
 

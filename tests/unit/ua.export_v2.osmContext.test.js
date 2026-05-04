@@ -92,12 +92,18 @@ describe('UA.computeExportReport – structured.osmContext (#C4)', () => {
     expect(r.html).toContain('50 km/h');
   });
 
-  test('renders an error stub when osmContext.quality.error is present', async () => {
+  test('renders a verwaltungstauglichen error hint when osmContext.quality.error is present', async () => {
+    // QA-PR „Export-Semantik vor Layout": Anstelle des rohen Fehlerstrings
+    // („Fetch is aborted" / „HTTP 504") rendert der Export einen für die
+    // Verwaltung lesbaren Hinweis. Der originale Fehlerstring darf NICHT
+    // im sichtbaren Text/HTML auftauchen.
     const stub = { quality: { error: 'HTTP 504', fetchedAt: new Date().toISOString() } };
     const r = await UA.computeExportReport(makeCtx({ osmContextOverride: stub }));
     expect(r.structured.osmContext).toEqual(stub);
-    expect(r.text).toMatch(/OSM\): nicht verfügbar.*HTTP 504/);
-    expect(r.html).toContain('Nicht verfügbar (HTTP 504)');
+    expect(r.text).toMatch(/OSM-Kontextdaten konnten beim Export nicht geladen werden\./);
+    expect(r.text).not.toMatch(/HTTP 504/);
+    expect(r.html).toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
+    expect(r.html).not.toContain('HTTP 504');
   });
 
   test('exportOptions.includeOsmContext=false suppresses the section entirely', async () => {

@@ -130,7 +130,14 @@ function deriveFeatures(structured, contextHints) {
     // Fallback sie ohne Neuberechnung nutzen können. Beide Felder sind optional
     // und dürfen `null` sein.
     yearlyTrend: structured?.yearlyTrend || null,
-    osmContext:  structured?.osmContext  || null
+    osmContext:  structured?.osmContext  || null,
+    // Orts- und musterbezogene Empfehlungen werden 1:1 weitergereicht.
+    // Der Prompt-Builder rendert daraus den Block „=== ORTS- & MUSTER-
+    // BEZOGENE EMPFEHLUNGEN ===" als Hilfestellung für die KI, damit
+    // diese keine zum Ortskontext unpassenden Standardmaßnahmen
+    // (z. B. „Bewuchs zurückschneiden" am Hauptbahnhof) vorschlägt.
+    // Optional, darf null sein — der Renderer skipped den Block dann.
+    contextualMeasures: structured?.contextualMeasures || null
   };
   // Konfliktmuster werden auf Basis aller obigen Features berechnet
   // und als zusätzliches Feld angehängt. Sie sind ein Spezialfall von

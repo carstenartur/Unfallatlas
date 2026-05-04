@@ -580,6 +580,230 @@
   }
   UA.formatInvolvementCombo = formatInvolvementCombo;
 
+  // ------------------------------------------------------------------
+  // QA-PR „Export-Semantik vor Layout" — zentrale Prosa-Labels für
+  // Beteiligten-Klassen. Tabellen, Filter-Zeilen und Detail-Tabellen in
+  // PDF/DOCX dürfen keine Icons, Emojis, Bracket-Tokens („[Rad]"),
+  // FontAwesome- oder SVG-Pictogramme enthalten — nur stabile, für ein
+  // Verwaltungspublikum lesbare Textlabels.
+  //
+  // Mapping (Spec QA-Befund Punkt 1):
+  //   Rad   → "Radverkehr"
+  //   Fuss  → "Fußverkehr"
+  //   PKW   → "PKW"
+  //   Krad  → "Motorrad"
+  //   Lkw   → "LKW/Güterverkehr"
+  //   Sonst → "Sonstige Beteiligte"
+  // ------------------------------------------------------------------
+  const PARTICIPANT_PROSE = {
+    Rad:   "Radverkehr",
+    Fuss:  "Fußverkehr",
+    PKW:   "PKW",
+    Krad:  "Motorrad",
+    Lkw:   "LKW/Güterverkehr",
+    Sonst: "Sonstige Beteiligte"
+  };
+  // Bit → Code, in derselben Reihenfolge wie COMBO_BITS (Rad=1 … Sonst=32),
+  // damit eine 6-Bit-Maske in eine geordnete Code-Liste zerlegt werden kann.
+  const PARTICIPANT_BIT_TO_CODE = { 1: "Rad", 2: "Fuss", 4: "PKW", 8: "Krad", 16: "Lkw", 32: "Sonst" };
+  // Synonyme/legacy Schreibweisen → Code (case-insensitiv). Akzeptiert
+  // sowohl die Bracket-Tokens („[Rad]" aus dem alten DOCX/PDF-Pfad) als
+  // auch Klartext-Varianten („Fuß", „Motorrad", „Gkfz").
+  const PARTICIPANT_ALIAS = {
+    "rad": "Rad", "fahrrad": "Rad", "bike": "Rad",
+    "fuss": "Fuss", "fuß": "Fuss", "fussverkehr": "Fuss", "fußverkehr": "Fuss", "ped": "Fuss",
+    "pkw": "PKW", "auto": "PKW", "car": "PKW",
+    "krad": "Krad", "motorrad": "Krad", "moto": "Krad",
+    "lkw": "Lkw", "gkfz": "Lkw", "truck": "Lkw", "lkw/güterverkehr": "Lkw",
+    "sonst": "Sonst", "sonstig": "Sonst", "sonstige": "Sonst", "bus": "Sonst", "sonstige beteiligte": "Sonst"
+  };
+  // Emoji → Code (mirrors COMBO_BITS in this module).
+  const PARTICIPANT_EMOJI_TO_CODE = {
+    "\u{1F6B2}": "Rad",
+    "\u{1F6B6}": "Fuss",
+    "\u{1F697}": "PKW",
+    "\u{1F3CD}": "Krad",
+    "\u{1F69B}": "Lkw",
+    "\u{1F68C}": "Sonst"
+  };
+  const PARTICIPANT_FALLBACK = "Keine Angabe";
+
+  /**
+   * Normalisiere einen beliebigen Eingabewert auf den kanonischen Code
+   * ("Rad"/"Fuss"/"PKW"/"Krad"/"Lkw"/"Sonst") oder `null` bei nicht
+   * erkennbaren Eingaben.
+   * @param {string|number} input
+   */
+  function _normalizeParticipantCode(input) {
+    if (input == null) return null;
+    if (typeof input === "number" && Number.isFinite(input)) {
+      const m = input & 63;
+      return PARTICIPANT_BIT_TO_CODE[m] || null;
+    }
+    let s = String(input).trim();
+    if (!s) return null;
+    // Bracket-Token: "[Rad]" → "Rad"
+    const br = s.match(/^\[([^\]]+)\]$/);
+    if (br) s = br[1];
+    // Reines Emoji?
+    const em = s.replace(/\uFE0F/g, "");
+    if (PARTICIPANT_EMOJI_TO_CODE[em]) return PARTICIPANT_EMOJI_TO_CODE[em];
+    // Numerisch als String?
+    if (/^-?\d+$/.test(s)) {
+      const m = Number(s) & 63;
+      return PARTICIPANT_BIT_TO_CODE[m] || null;
+    }
+    // Direktcode oder Alias?
+    if (Object.prototype.hasOwnProperty.call(PARTICIPANT_PROSE, s)) return s;
+    const lower = s.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(PARTICIPANT_ALIAS, lower)) return PARTICIPANT_ALIAS[lower];
+    return null;
+  }
+
+  /**
+   * Verwaltungstaugliches Prosa-Label für eine einzelne Beteiligungsklasse.
+   * Akzeptiert Code ("Rad"), Bit-Wert (1), Bracket-Token ("[Rad]") oder
+   * Emoji (`🚲`). Unbekannte/leere Werte → `"Keine Angabe"`.
+   *
+   * @param {string|number|null|undefined} input
+   * @param {object} [opts]
+   * @param {string} [opts.fallback="Keine Angabe"]
+   * @returns {string}
+   */
+  function formatParticipantForExport(input, opts) {
+    const fallback = (opts && opts.fallback != null) ? String(opts.fallback) : PARTICIPANT_FALLBACK;
+    const code = _normalizeParticipantCode(input);
+    if (!code) return fallback;
+    return PARTICIPANT_PROSE[code] || fallback;
+  }
+  UA.formatParticipantForExport = formatParticipantForExport;
+
+  /**
+   * Prosa-Label für eine Beteiligungs-Kombination. Eingabe kann sein:
+   *   - Bit-Maske (Number, z. B. 5 → "Radverkehr + PKW")
+   *   - Array von Codes/Bits/Emojis (z. B. ["Rad","PKW"] oder [1,4])
+   *   - String mit Trennzeichen `+` / `,` / ` ` (z. B. "[Rad]+[PKW]")
+   *
+   * Reihenfolge ist deterministisch (Rad, Fuss, PKW, Krad, Lkw, Sonst),
+   * Duplikate werden eliminiert. Leere/komplett unerkannte Eingabe →
+   * `opts.fallback` (default `"Keine Angabe"`).
+   *
+   * @param {number|string|Array|null|undefined} input
+   * @param {object} [opts]
+   * @param {string} [opts.fallback="Keine Angabe"]
+   * @param {string} [opts.separator=" + "]
+   * @returns {string}
+   */
+  function formatParticipantCombinationForExport(input, opts) {
+    const fallback = (opts && opts.fallback != null) ? String(opts.fallback) : PARTICIPANT_FALLBACK;
+    const separator = (opts && opts.separator != null) ? String(opts.separator) : " + ";
+
+    // 1) Maske (Number) oder rein-numerischer String → Bits in fester
+    //    Reihenfolge entpacken.
+    let codes = null;
+    if (typeof input === "number" && Number.isFinite(input)) {
+      const m = input & 63;
+      if (m === 0) return fallback;
+      codes = [];
+      for (const bit of [1, 2, 4, 8, 16, 32]) {
+        if (m & bit) codes.push(PARTICIPANT_BIT_TO_CODE[bit]);
+      }
+    } else if (typeof input === "string" && /^-?\d+$/.test(input.trim())) {
+      return formatParticipantCombinationForExport(Number(input.trim()), opts);
+    } else if (Array.isArray(input)) {
+      codes = [];
+      for (const it of input) {
+        const c = _normalizeParticipantCode(it);
+        if (c && codes.indexOf(c) === -1) codes.push(c);
+      }
+    } else if (typeof input === "string") {
+      // Tokenize on separators that real call-sites emit: "+", ",", "/",
+      // " ", " · " — und auch Emoji-Sequenzen (ohne Trennzeichen).
+      // Wir splitten zunächst grob, normalisieren jedes Token einzeln.
+      // Emoji-only Sequenzen: pro Zeichen splitten (Spread auf Codepoints).
+      const raw = input.trim();
+      if (!raw) return fallback;
+      let parts = raw.split(/\s*[+,/·]\s*|\s+/).filter(Boolean);
+      // Falls ein Token noch mehrere Emojis enthält („🚲🚗"), aufspalten.
+      const expanded = [];
+      for (const p of parts) {
+        // Bracket-Token oder Code direkt verwenden.
+        if (/^\[[^\]]+\]$/.test(p) || /^[A-Za-zÄÖÜäöüß/]+$/.test(p)) {
+          expanded.push(p);
+          continue;
+        }
+        // Emoji-Sequenz: in einzelne Codepoints zerlegen.
+        const cps = Array.from(p);
+        for (const cp of cps) {
+          if (cp === "\uFE0F") continue;
+          expanded.push(cp);
+        }
+      }
+      codes = [];
+      // Prefer kanonische Sortierung: Wir sortieren am Ende nach Bit.
+      const seen = new Set();
+      for (const tok of expanded) {
+        const c = _normalizeParticipantCode(tok);
+        if (c && !seen.has(c)) {
+          seen.add(c);
+          codes.push(c);
+        }
+      }
+    } else if (input != null) {
+      // {} / boolean / sonstiges → fallback
+      return fallback;
+    } else {
+      return fallback;
+    }
+
+    if (!codes || codes.length === 0) return fallback;
+    // Deterministische Reihenfolge: nach Bit aufsteigend (Rad, Fuss, PKW, …).
+    const codeToBit = { Rad: 1, Fuss: 2, PKW: 4, Krad: 8, Lkw: 16, Sonst: 32 };
+    codes.sort((a, b) => (codeToBit[a] || 99) - (codeToBit[b] || 99));
+    return codes.map(c => PARTICIPANT_PROSE[c]).join(separator);
+  }
+  UA.formatParticipantCombinationForExport = formatParticipantCombinationForExport;
+
+  /**
+   * Wandelt einen beliebigen Anzeige-String (Tabellenzelle, Beschriftung,
+   * Fließtext) in eine Prosa-Form um, in der weder Beteiligten-Emojis
+   * noch Bracket-Tokens (`[Rad]`) übrig bleiben. Das ist der zentrale
+   * Filter, durch den jeder vom DOCX/PDF-Renderer ausgegebene Zellinhalt
+   * läuft (siehe `replaceEmojisForDocx` / `replaceEmojisForPDF` in
+   * js/ua.report_v2.js).
+   *
+   * Beispiele:
+   *   "🚲+🚗"             → "Radverkehr + PKW"
+   *   "[Rad]+[PKW]"        → "Radverkehr + PKW"
+   *   "[Rad]+[PKW]: 3"     → "Radverkehr + PKW: 3"
+   *   "Mehrjahres-Trend"   → "Mehrjahres-Trend"   (unverändert)
+   *   ""                   → ""
+   *   null/undefined       → ""
+   */
+  function proseLabelForExport(text) {
+    if (text == null) return "";
+    let s = String(text);
+    if (!s) return s;
+    // 1) Bracket-Tokens "[Rad]"/"[PKW]"/… → Prosa.
+    s = s.replace(/\[([A-Za-zÄÖÜäöüß]+)\]/g, (m, tok) => {
+      const code = _normalizeParticipantCode(tok);
+      return code ? PARTICIPANT_PROSE[code] : m;
+    });
+    // 2) Beteiligten-Emojis → Prosa (mit optionalem VS-16).
+    s = s.replace(/(\u{1F6B2}|\u{1F6B6}|\u{1F697}|\u{1F3CD}\u{FE0F}?|\u{1F69B}|\u{1F68C})/gu, (m) => {
+      const stripped = m.replace(/\uFE0F/g, "");
+      const code = PARTICIPANT_EMOJI_TO_CODE[stripped];
+      return code ? PARTICIPANT_PROSE[code] : m;
+    });
+    // 3) Trennzeichen vereinheitlichen, wenn es zwischen zwei Prosa-Labels
+    //    steht. Wir betrachten "+" zwischen Wörtern (kein Operator-Pluszeichen
+    //    in Faktoren wie "2,5+x" — daher nur, wenn beide Seiten Buchstaben
+    //    oder schließende Klammer/Wort sind).
+    s = s.replace(/(\p{L})\s*\+\s*(\p{L})/gu, "$1 + $2");
+    return s;
+  }
+  UA.proseLabelForExport = proseLabelForExport;
+
   function maskFromProps(pr) {
     // sowohl lower-case als auch Originalfelder tolerieren
     const get = (k) => {
@@ -1335,6 +1559,22 @@
     // (default ON). Avoids loading the catalog on the common opted-out path.
     // Receives `osmContext` so the engine can suppress measures whose
     // `prerequisites` are not met (z. B. Tempo 30 nur, wenn aktuell > 30).
+    //
+    // Kontextuelle Maßnahmen-Logik (UA.contextMeasures, separate Engine):
+    //   Liefert (Pattern × Kontext)-spezifische Prüfaufträge und ergänzt
+    //   sie als `structured.contextualMeasures`. Außerdem werden die
+    //   erkannten Kontexte an `recommendMeasures` als
+    //   `opts.activeContexts` weitergereicht — die Katalog-Engine kann
+    //   damit generische Maßnahmen unterdrücken, deren `prerequisites`
+    //   `suppressInContexts` setzen (z. B. „Sichtbeziehungen
+    //   herstellen / Bewuchs zurückschneiden" entfällt im Bahnhofs-/
+    //   Schienen-Kontext, sofern keine explizite Sicht-Evidenz vorliegt).
+    let activeContexts = null;
+    if (UA.contextMeasures && typeof UA.contextMeasures.detectContexts === "function") {
+      const ovr = ctx.exportOptions && ctx.exportOptions.contextTypes;
+      activeContexts = UA.contextMeasures.detectContexts(osmContext, ovr);
+    }
+
     let recommendedMeasures = null;
     if (includeMeasures && UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
       try {
@@ -1344,7 +1584,8 @@
           recommendedMeasures = UA.measures.recommendMeasures(detectedPatterns, catalog, {
             limit: 5,
             economicImpact: economicImpact,
-            osmContext: osmContext
+            osmContext: osmContext,
+            activeContexts: activeContexts
           });
           // Enrich each entry with `derivedFrom`: the human-readable focus
           // labels that triggered this measure. This is the explicit link
@@ -1372,6 +1613,42 @@
         }
       } catch (e) {
         console.warn("Measure recommendation failed:", e);
+      }
+    }
+
+    // Orts- und musterbezogene Empfehlungen (UA.contextMeasures). Wird
+    // *vor* dem TEXT-Rendering berechnet, damit die kontext-spezifischen
+    // Prüfaufträge im Antrag VOR der allgemeinen Maßnahmenliste stehen
+    // — ein Antrag muss mit den passenden Vorschlägen beginnen, nicht
+    // mit pauschalen Standardmaßnahmen (QA-Spec Item 5+8). Das fertige
+    // Objekt wird unten zusätzlich in `structured.contextualMeasures`
+    // durchgereicht.
+    let contextualMeasures = null;
+    if (UA.contextMeasures && typeof UA.contextMeasures.deriveContextualMeasures === "function") {
+      try {
+        // classifyPatterns liest aus structured.deviations + severity +
+        // weather + heatmap. Hier rekonstruieren wir die nötigen Felder
+        // aus den lokalen Variablen (structured wird erst weiter unten
+        // zusammengesetzt, siehe `const structured = { … }`).
+        const stubForClassifier = {
+          deviations: { focus: dev.focus || [] },
+          severity: { bySev: sev.bySev || {} }
+          // weather/heatmap-Eskalationen werden bewusst weggelassen,
+          // solange computeExportReport sie nicht im selben Schema in
+          // structured ablegt — die Fallback-Pfade in classifyPatterns
+          // sind defensiv (fehlende Felder schweigen).
+        };
+        const pKeys = UA.contextMeasures.classifyPatterns(stubForClassifier);
+        const cm = UA.contextMeasures.deriveContextualMeasures(pKeys, activeContexts || new Set());
+        if (cm && Array.isArray(cm.matchedRules) && cm.matchedRules.length > 0) {
+          contextualMeasures = {
+            ...cm,
+            patterns: Array.from(pKeys),
+            contexts: Array.from(activeContexts || [])
+          };
+        }
+      } catch (e) {
+        console.warn("contextualMeasures derivation failed:", e);
       }
     }
 
@@ -1608,7 +1885,7 @@
       lines.push(`  Quelle: ${osmContext.source.publisher} (${osmContext.source.license}), via ${osmContext.source.retrievedVia}.`);
       lines.push("");
     } else if (osmContext && osmContext.quality && osmContext.quality.error) {
-      lines.push(`Verkehrsräumlicher Kontext (OSM): nicht verfügbar (${osmContext.quality.error}).`);
+      lines.push("Verkehrsräumlicher Kontext (OSM): OSM-Kontextdaten konnten beim Export nicht geladen werden.");
       lines.push("");
     }
 
@@ -1631,6 +1908,26 @@
       if (economicImpact.disclaimer) {
         lines.push(`  Hinweis: ${economicImpact.disclaimer}`);
       }
+      lines.push("");
+    }
+
+    // Orts- und musterbezogene Empfehlungen — VOR der allgemeinen
+    // Maßnahmenliste, damit der Antrag mit den passenden Vorschlägen
+    // beginnt (Spec-Item 5+8). Drei Buckets, jeweils 1–2 Sätze;
+    // explizite Unsicherheitsformulierung (Spec-Item 6).
+    if (includeMeasures && contextualMeasures) {
+      lines.push("Orts- und musterbezogene Empfehlungen:");
+      if (contextualMeasures.rationale) {
+        lines.push(`  ${contextualMeasures.rationale}`);
+      }
+      const renderBlock = (heading, items) => {
+        if (!Array.isArray(items) || items.length === 0) return;
+        lines.push(`  ${heading}:`);
+        for (const it of items) lines.push(`    – ${it}`);
+      };
+      renderBlock("Erforderliche Vor-Ort-Prüfung", contextualMeasures.pruefauftraege);
+      renderBlock("Kurzfristig prüfbar", contextualMeasures.kurzfristig);
+      renderBlock("Baulich/organisatorisch zu prüfen", contextualMeasures.mittelfristig);
       lines.push("");
     }
 
@@ -1984,6 +2281,31 @@
         </div>`;
     }
 
+    // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
+    // Items 4–8). Wird VOR `measuresHtmlSection` ausgegeben, damit die
+    // HTML-Vorschau dem TEXT-/DOCX-/PDF-Aufbau folgt: erst kontext-
+    // spezifische Prüfaufträge mit Disclaimer, dann katalog-basierte
+    // Maßnahmenliste. Bleibt leer, wenn keine Regel matched (Spec-Item 10).
+    let contextualMeasuresHtmlSection = "";
+    if (includeMeasures && contextualMeasures
+        && Array.isArray(contextualMeasures.matchedRules)
+        && contextualMeasures.matchedRules.length > 0) {
+      const renderBucketHtmlCtx = (heading, items) => {
+        if (!Array.isArray(items) || items.length === 0) return "";
+        const lis = items.map(it => `<li>${UA.escHtml(it)}</li>`).join("");
+        return `<div style="margin-top:6px;"><strong>${UA.escHtml(heading)}:</strong></div><ul style="margin:2px 0 0 18px;">${lis}</ul>`;
+      };
+      const rationaleHtml = contextualMeasures.rationale
+        ? `<div style="margin-top:4px; font-style:italic; color:#444;">${UA.escHtml(contextualMeasures.rationale)}</div>`
+        : "";
+      contextualMeasuresHtmlSection = `
+        <div style="margin-top:12px; font-weight:900;">Orts- und musterbezogene Empfehlungen</div>
+        ${rationaleHtml}
+        ${renderBucketHtmlCtx("Erforderliche Vor-Ort-Prüfung",     contextualMeasures.pruefauftraege)}
+        ${renderBucketHtmlCtx("Kurzfristig prüfbar",               contextualMeasures.kurzfristig)}
+        ${renderBucketHtmlCtx("Baulich/organisatorisch zu prüfen", contextualMeasures.mittelfristig)}`;
+    }
+
     // Build recommended-measures HTML section (PR-D / B1+B3)
     let measuresHtmlSection = "";
     if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
@@ -2228,6 +2550,8 @@
 
         ${economicImpactHtmlSection}
 
+        ${contextualMeasuresHtmlSection}
+
         ${measuresHtmlSection}
 
         ${prioritizationHtmlSection}
@@ -2313,7 +2637,7 @@
         ${_osmInsightsHtml}
         ` : (osmContext && osmContext.quality && osmContext.quality.error) ? `
         <div style="margin-top:12px; font-weight:900;">Verkehrsräumlicher Kontext (OSM)</div>
-        <div style="font-size:12px; color:#777;">Nicht verfügbar (${UA.escHtml(osmContext.quality.error)}).</div>
+        <div style="font-size:12px; color:#777;">OSM-Kontextdaten konnten beim Export nicht geladen werden.</div>
         ` : ``}
 
         <div style="margin-top:10px; color:#555; font-size:12px;">
@@ -2434,6 +2758,10 @@
     // >12 Monate). Bereits oben für TEXT/HTML berechnet (`_prioritization`),
     // hier nur durchreichen, damit DOCX/PDF/AI denselben Inhalt sehen.
     structured.prioritization = _prioritization || null;
+    // Orts- und musterbezogene Empfehlungen: bereits oben berechnet
+    // (`contextualMeasures`), hier nur durchreichen, damit DOCX/PDF/AI
+    // denselben Inhalt sehen wie die TEXT-Sektion.
+    structured.contextualMeasures = contextualMeasures || null;
     // Task 8: Analytische OSM-Schlussfolgerungen (0–3 Sätze).
     structured.osmInsights = deriveOsmInsights(osmContext);
     // Task 7: Map-Reference-Sätze (Anlage 1 zeigt Konzentration im Bereich …).
@@ -2464,13 +2792,13 @@
     // Renderer-Anpassung im selben Patch nötig, da Roh-Text-Renderer dies
     // bereits über das Methodik-HTML-Snippet abdeckt).
     structured.methodikScope = {
-      title: "Methodik – Scope der Auswertung",
+      title: "Methodik – Auswertungsbereich",
       lines: [
-        `Aktiver Filter-Scope: Auswertung umfasst Unfälle innerhalb des markierten Bereichs (${bStr})${
+        `Auswertungsbereich: Auswertung umfasst Unfälle innerhalb des markierten Bereichs (${bStr})${
           areaName ? ` – „${areaName}"` : ""
         } unter den oben aufgeführten Filtern.`,
-        "Muster-Analyse: Auffälligkeiten und Top-Abweichungen werden auf der gefilterten Population im Ausschnitt (Beteiligungsmaske > 0) berechnet.",
-        `Vergleichs-Baseline: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`
+        "Analyse auffälliger Unfallmuster: Auffälligkeiten und Top-Abweichungen werden auf der gefilterten Population im Ausschnitt (Unfälle mit erfasster Beteiligung) berechnet.",
+        `Vergleich mit dem Stadtgebiet: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`
       ]
     };
 

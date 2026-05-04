@@ -68,24 +68,26 @@ describe('Export QA blocker fixes', () => {
       expect(typeof UA.replaceEmojisForDocx).toBe('function');
     });
 
-    test('substitutes all six involvement emojis with their bracketed text labels', () => {
-      // Mirror of the COMBO_BITS map in ua.export_v2.js.
-      expect(UA.replaceEmojisForDocx('🚲')).toBe('[Rad]');
-      expect(UA.replaceEmojisForDocx('🚶')).toBe('[Fuss]');
-      expect(UA.replaceEmojisForDocx('🚗')).toBe('[PKW]');
-      expect(UA.replaceEmojisForDocx('🏍')).toBe('[Krad]');
+    test('substitutes all six involvement emojis with verwaltungstaugliche Prosa-Labels', () => {
+      // QA-PR „Export-Semantik vor Layout": keine Bracket-Tokens mehr,
+      // nur noch Prosa, die ein Verwaltungspublikum direkt versteht.
+      expect(UA.replaceEmojisForDocx('🚲')).toBe('Radverkehr');
+      expect(UA.replaceEmojisForDocx('🚶')).toBe('Fußverkehr');
+      expect(UA.replaceEmojisForDocx('🚗')).toBe('PKW');
+      expect(UA.replaceEmojisForDocx('🏍')).toBe('Motorrad');
       // Same with the FE0F variation selector that some sources emit.
-      expect(UA.replaceEmojisForDocx('🏍\uFE0F')).toBe('[Krad]');
-      expect(UA.replaceEmojisForDocx('🚛')).toBe('[Lkw]');
-      expect(UA.replaceEmojisForDocx('🚌')).toBe('[Sonst]');
+      expect(UA.replaceEmojisForDocx('🏍\uFE0F')).toBe('Motorrad');
+      expect(UA.replaceEmojisForDocx('🚛')).toBe('LKW/Güterverkehr');
+      expect(UA.replaceEmojisForDocx('🚌')).toBe('Sonstige Beteiligte');
     });
 
     test('preserves the "+"/"=" separators between bits (the QA failure pattern)', () => {
       // The QA report saw "+, =" because emojis vanished but separators stayed.
       // After substitution all parts must be present, in order, including labels.
-      expect(UA.replaceEmojisForDocx('🚲+🚗=2')).toBe('[Rad]+[PKW]=2');
+      // Spaces around "+" sind Teil der Prosa-Form (lesbarere Verkehrsklauseln).
+      expect(UA.replaceEmojisForDocx('🚲+🚗=2')).toBe('Radverkehr + PKW=2');
       expect(UA.replaceEmojisForDocx('🚲+🚶+🚛'))
-        .toBe('[Rad]+[Fuss]+[Lkw]');
+        .toBe('Radverkehr + Fußverkehr + LKW/Güterverkehr');
     });
 
     test('handles null/undefined defensively (Word table cells often pass null)', () => {

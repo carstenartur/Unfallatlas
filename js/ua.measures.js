@@ -251,6 +251,46 @@
   }
 
   /**
+   * Context-based suppression. Some catalog measures only make sense
+   * when no incompatible Ortskontext is active — e. g. „Sichtbeziehungen
+   * herstellen / Bewuchs zurückschneiden" is *not* a credible main
+   * recommendation in a Hauptbahnhof / Busbahnhof / Schienen setting
+   * (QA-Spec Item 7).
+   *
+   * The catalog declares this via `prerequisites.suppressInContexts:
+   * ["bahnhof","busbahnhof","straßenbahn_schienen","gleisquerung", …]`.
+   * If ANY of those keys is present in the active context Set AND the
+   * catalog does NOT also carry an explicit positive-evidence whitelist
+   * (`prerequisites.requireContexts`), the measure is filtered out.
+   *
+   * `requireContexts: ["sichtbehinderung"]` lets a measure stay in
+   * even if `suppressInContexts` would otherwise drop it — used to
+   * surface „Bewuchs zurückschneiden" only when an explicit Sicht-Hint
+   * (POI / OSM / Caller-Override) is present.
+   *
+   * @param {object} measure
+   * @param {Set<string>|Iterable<string>|null} activeContexts
+   * @returns {{ok:boolean, reason?:string}}
+   */
+  function passesContextSuppression(measure, activeContexts) {
+    const pre = measure && measure.prerequisites;
+    if (!pre || typeof pre !== "object") return { ok: true };
+    const suppress = Array.isArray(pre.suppressInContexts) ? pre.suppressInContexts : null;
+    if (!suppress || suppress.length === 0) return { ok: true };
+    const ctx = (activeContexts instanceof Set) ? activeContexts
+      : (activeContexts && typeof activeContexts[Symbol.iterator] === "function") ? new Set(activeContexts)
+      : null;
+    if (!ctx || ctx.size === 0) return { ok: true };
+    const hits = suppress.filter(k => ctx.has(k));
+    if (hits.length === 0) return { ok: true };
+    // Positive-evidence whitelist: wenn der Caller einen Sicht-/Bewuchs-
+    // Hinweis explizit setzt, bleibt die Maßnahme drin.
+    const required = Array.isArray(pre.requireContexts) ? pre.requireContexts : null;
+    if (required && required.some(k => ctx.has(k))) return { ok: true };
+    return { ok: false, reason: `unpassend im Ortskontext: ${hits.join(", ")}` };
+  }
+
+  /**
    * Sammelt die OSM-Achsen, die im gegebenen Maßnahmen-Subset
    * tatsächlich genutzt werden ("welche Achsen sind hier überhaupt
    * relevant?"). Damit kann der Renderer entscheiden, ob der OSM-Kontext
@@ -363,6 +403,7 @@
       ? Number(opts.economicImpact.annual)
       : null;
     const osmContext = (opts && opts.osmContext) || null;
+    const activeContexts = (opts && opts.activeContexts) || null;
 
     const scored = [];
     const filteredOut = [];
@@ -373,6 +414,14 @@
       const pre = passesPrerequisites(m, osmContext);
       if (!pre.ok) {
         filteredOut.push({ id: m.id, label: m.label, reason: pre.reason || "Voraussetzungen nicht erfüllt" });
+        continue;
+      }
+      // Kontextuelle Suppression (Spec-Item 7): „Bewuchs zurückschneiden"
+      // entfällt im Bahnhofs-/Schienen-Kontext, sofern keine explizite
+      // Sicht-Evidenz gesetzt ist.
+      const supp = passesContextSuppression(m, activeContexts);
+      if (!supp.ok) {
+        filteredOut.push({ id: m.id, label: m.label, reason: supp.reason || "Im Ortskontext unpassend" });
         continue;
       }
       const entry = { measure: m, score: s.score, matchedPatterns: s.matchedPatterns };
@@ -588,6 +637,7 @@
     recommendMeasures,
     scoreMeasure,
     passesPrerequisites,
+    passesContextSuppression,
     collectPrerequisiteAxes,
     osmCoverage,
     formatCostRange,

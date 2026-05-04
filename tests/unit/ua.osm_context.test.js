@@ -140,6 +140,77 @@ describe('UA.osmContext', () => {
         license: 'ODbL 1.0'
       }));
     });
+
+    test('counts station nodes for bahnhof / busbahnhof contexts', () => {
+      const els = [
+        { type: 'node', tags: { railway: 'station', name: 'Hbf' } },
+        { type: 'node', tags: { public_transport: 'station' } },
+        { type: 'node', tags: { amenity: 'bus_station' } },
+        { type: 'node', tags: { amenity: 'bus_station' } }
+      ];
+      const out = UA.osmContext.aggregate(els);
+      expect(out.contexts.trainStations).toBe(2); // railway=station + public_transport=station
+      expect(out.contexts.busStations).toBe(2);
+    });
+
+    test('counts tram/light_rail ways but excludes them from highway statistics', () => {
+      const els = [
+        { type: 'way', tags: { railway: 'tram' } },
+        { type: 'way', tags: { railway: 'light_rail' } },
+        { type: 'way', tags: { highway: 'primary', maxspeed: '50' } }
+      ];
+      const out = UA.osmContext.aggregate(els);
+      expect(out.contexts.tramTrackWays).toBe(2);
+      expect(out.summary.wayCount).toBe(1);     // only highway=primary
+      expect(out.summary.dominantMaxspeed).toBe(50);
+    });
+
+    test('detects cobblestone / sett surfaces', () => {
+      const els = [
+        { type: 'way', tags: { highway: 'residential', surface: 'cobblestone' } },
+        { type: 'way', tags: { highway: 'residential', surface: 'sett' } },
+        { type: 'way', tags: { highway: 'residential', surface: 'unhewn_cobblestone' } },
+        { type: 'way', tags: { highway: 'residential', surface: 'asphalt' } }
+      ];
+      const out = UA.osmContext.aggregate(els);
+      expect(out.contexts.cobblestoneWays).toBe(3);
+    });
+
+    test('detects shared foot/cycle areas via segregation tags', () => {
+      const els = [
+        { type: 'way', tags: { highway: 'path',     foot: 'designated', bicycle: 'designated' } },
+        { type: 'way', tags: { highway: 'footway',  bicycle: 'yes' } },
+        { type: 'way', tags: { highway: 'cycleway', foot: 'designated' } },
+        { type: 'way', tags: { highway: 'footway',  bicycle: 'no' } }      // not mixed
+      ];
+      const out = UA.osmContext.aggregate(els);
+      expect(out.contexts.mixedFootCycleWays).toBe(3);
+    });
+
+    test('zero counters when no relevant tags are present', () => {
+      const out = UA.osmContext.aggregate([
+        { type: 'way', tags: { highway: 'primary' } }
+      ]);
+      expect(out.contexts).toEqual({
+        trainStations: 0,
+        busStations: 0,
+        tramTrackWays: 0,
+        cobblestoneWays: 0,
+        mixedFootCycleWays: 0
+      });
+    });
+  });
+
+  // ── buildQuery extension for tram/station/cobblestone ──────────────────────
+  describe('buildQuery extensions', () => {
+    test('embeds station + tram queries alongside the highway query', () => {
+      const q = UA.osmContext.buildQuery({ south: 0, west: 0, north: 1, east: 1 });
+      expect(q).toMatch(/node\["amenity"="bus_station"\]/);
+      expect(q).toMatch(/node\["railway"="station"\]/);
+      expect(q).toMatch(/node\["public_transport"="station"\]/);
+      expect(q).toMatch(/way\["railway"="tram"\]/);
+      expect(q).toMatch(/way\["railway"="light_rail"\]/);
+    });
   });
 
   // ── summarizeForText ───────────────────────────────────────────────────────
@@ -159,6 +230,23 @@ describe('UA.osmContext', () => {
       expect(txt).toMatch(/Radinfrastruktur an 1 Wegabschnitt/);
       expect(txt).toMatch(/1 signalisierte Knoten/);
       expect(txt.endsWith('.')).toBe(true);
+    });
+
+    test('appends station / tram / surface context fragments when present', () => {
+      const ctx = UA.osmContext.aggregate([
+        { type: 'way',  tags: { highway: 'primary' } },
+        { type: 'node', tags: { railway: 'station' } },
+        { type: 'node', tags: { amenity: 'bus_station' } },
+        { type: 'way',  tags: { railway: 'tram' } },
+        { type: 'way',  tags: { highway: 'residential', surface: 'cobblestone' } },
+        { type: 'way',  tags: { highway: 'footway', bicycle: 'yes' } }
+      ]);
+      const txt = UA.osmContext.summarizeForText(ctx);
+      expect(txt).toMatch(/Bahnhof|Haltepunkt/);
+      expect(txt).toMatch(/Busbahnhof/);
+      expect(txt).toMatch(/Schienen/);
+      expect(txt).toMatch(/Pflaster|Kopfstein/);
+      expect(txt).toMatch(/gemeinsame Fuß-\/Radfläche/);
     });
   });
 
