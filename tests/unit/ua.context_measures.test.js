@@ -51,9 +51,20 @@ describe('UA.contextMeasures – orts- und musterbezogene Empfehlungen', () => {
       expect(out.has('rad_alleinunfall_schwer')).toBe(true);
     });
 
+    test('mask 1 + KSI ≥ 1 also escalates with computeExportReport-style "1"/"2"/"3" bySev keys', () => {
+      // computeExportReport / severityStats produce bySev with String-Keys
+      // ("1"/"2"/"3"), not the sev1/sev2 alias used in some tests.
+      // Both shapes must escalate to rad_alleinunfall_schwer.
+      const out = UA.contextMeasures.classifyPatterns({
+        deviations: { focus: [{ mask: 1 }] },
+        severity: { bySev: { "1": 0, "2": 2, "3": 8 } }
+      });
+      expect(out.has('rad_alleinunfall_schwer')).toBe(true);
+    });
+
     test('multiple masks map to multiple pattern keys', () => {
       const out = UA.contextMeasures.classifyPatterns({
-        deviations: { focus: [{ mask: 5 }, { mask: 17 }, { mask: 9 }] },
+        deviations: { focus: [{ mask: 5 }, { mask: 17 }, { mask: 33 }] },
         severity: { bySev: {} }
       });
       expect(out.has('rad_pkw_kollision')).toBe(true);

@@ -264,14 +264,23 @@
       ? atob(base64.slice(0, 64))
       : Buffer.from(base64.slice(0, 64), "base64").toString("binary");
     if (head.length < 24) throw new Error("readPngDimensions: input too short to be a PNG");
-    // PNG magic: 0x89 'P' 'N' 'G' 0x0D 0x0A 0x1A 0x0A
+    // Full 8-byte PNG magic: 0x89 'P' 'N' 'G' 0x0D 0x0A 0x1A 0x0A
+    const PNG_MAGIC = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    for (let i = 0; i < PNG_MAGIC.length; i++) {
+      if (head.charCodeAt(i) !== PNG_MAGIC[i]) {
+        throw new Error("readPngDimensions: not a PNG (magic mismatch)");
+      }
+    }
+    // The first chunk in a PNG must be IHDR. Bytes 8..11 = chunk length,
+    // bytes 12..15 = chunk type. Validate "IHDR" so that arbitrary data
+    // with a valid PNG prefix cannot pass.
     if (
-      head.charCodeAt(0) !== 0x89 ||
-      head.charCodeAt(1) !== 0x50 ||
-      head.charCodeAt(2) !== 0x4E ||
-      head.charCodeAt(3) !== 0x47
+      head.charCodeAt(12) !== 0x49 || // 'I'
+      head.charCodeAt(13) !== 0x48 || // 'H'
+      head.charCodeAt(14) !== 0x44 || // 'D'
+      head.charCodeAt(15) !== 0x52    // 'R'
     ) {
-      throw new Error("readPngDimensions: not a PNG (magic mismatch)");
+      throw new Error("readPngDimensions: missing IHDR chunk");
     }
     const u32 = (off) =>
       ((head.charCodeAt(off)     & 0xff) << 24 >>> 0) +

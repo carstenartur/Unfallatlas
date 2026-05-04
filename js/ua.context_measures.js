@@ -45,18 +45,22 @@
 
   // ----------------------------------------------------------------
   // Mask → Pattern-Key. Die Masken kommen aus `dev.focus[].mask` in
-  // `js/ua.export_v2.js` PATTERN_MAP (Bit 1=Rad, 2=Fuß, 4=PKW, 8=Bus,
-  // 16=Gkfz). „Schwer" wird zusätzlich anhand der Schweregrad-Statistik
-  // (`structured.severity.bySev.sev2 = Schwerverletzte`) markiert.
+  // `js/ua.export_v2.js` COMBO_BITS (Bit 1=Rad 🚲, 2=Fuß 🚶, 4=PKW 🚗,
+  // 8=Krad 🏍️, 16=Gkfz 🚛, 32=Sonstig/Bus 🚌). „Schwer" wird zusätzlich
+  // anhand der Schweregrad-Statistik (KSI = Getötete + Schwerverletzte)
+  // markiert. `bySev` aus computeExportReport liefert String-Keys
+  // ("1"/"2"/"3"), tests reichen z. T. die Alias-Form ("sev1"/"sev2")
+  // herein — `classifyPatterns` akzeptiert daher beide Schreibweisen.
   // ----------------------------------------------------------------
   const MASK_TO_BASE_PATTERN = Object.freeze({
     1:  "rad_alleinunfall",
     3:  "rad_fuss_konflikt",
     5:  "rad_pkw_kollision",
     6:  "fuss_pkw_kollision",
-    9:  "rad_bus_konflikt",
-    17: "lkw_rad_abbiegen",
-    18: "lkw_fuss_abbiegen"
+    9:  "rad_krad_konflikt",   // Rad (1) + Krad (8)
+    17: "lkw_rad_abbiegen",    // Rad (1) + Gkfz (16)
+    18: "lkw_fuss_abbiegen",   // Fuß (2) + Gkfz (16)
+    33: "rad_bus_konflikt"     // Rad (1) + Sonstig/Bus (32)
   });
 
   /**
@@ -91,9 +95,12 @@
     // Severity escalation: KSI = sev1 (Getötete) + sev2 (Schwerverletzte).
     // Wenn KSI ≥ 1 UND ein Rad-Alleinunfall-Muster da ist, gilt das als
     // „rad_alleinunfall_schwer" (Antragssprache). Wir leiten KSI aus
-    // structured.severity.bySev ab, das computeExportReport immer setzt.
+    // structured.severity.bySev ab, das computeExportReport mit String-
+    // Keys "1"/"2"/"3" befüllt; einige Tests verwenden die Alias-Form
+    // sev1/sev2 — wir lesen defensiv beide Schreibweisen.
     const bySev = (structured.severity && structured.severity.bySev) || {};
-    const ksi = Number(bySev.sev1 || 0) + Number(bySev.sev2 || 0);
+    const ksi = Number(bySev.sev1 || bySev["1"] || 0)
+              + Number(bySev.sev2 || bySev["2"] || 0);
     if (out.has("rad_alleinunfall") && ksi >= 1) {
       out.add("rad_alleinunfall_schwer");
     }
@@ -131,10 +138,11 @@
   //   - tramTrackWays > 0           → straßenbahn_schienen, gleisquerung
   //   - cobblestoneWays > 0         → kopfsteinpflaster
   //   - mixedFootCycleWays > 0      → gemeinsame_fuss_rad_flaeche
-  // Heutige `js/ua.osm_context.js` exportiert diese Felder noch nicht;
-  // dort ist eine eigene PR geplant. Solange bleibt die Heuristik leer
-  // und der Override-Pfad trägt die Kontexte (Spec-Item 2 erlaubt das
-  // explizit).
+  // `js/ua.osm_context.js` exportiert diese Felder als
+  // `osmContext.contexts.{trainStations,busStations,tramTrackWays,
+  // cobblestoneWays,mixedFootCycleWays}`. Override-Pfad bleibt erhalten
+  // (Spec-Item 2 erlaubt das explizit), wenn der Caller eine eigene
+  // Liste mitgibt.
   // ----------------------------------------------------------------
   const KNOWN_CONTEXT_KEYS = Object.freeze(new Set([
     "bahnhof", "busbahnhof", "straßenbahn_schienen", "gleisquerung",

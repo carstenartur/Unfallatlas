@@ -169,14 +169,15 @@
       if (!el) continue;
       const tags = el.tags || {};
       if (el.type === "way") {
-        if (tags.highway) {
+        const isRailWay = (tags.railway === "tram" || tags.railway === "light_rail");
+        // Schienen-Ways werden NICHT in `ways` aufgenommen (würden sonst die
+        // Tempo-/Cycle-Statistiken verzerren), aber für den Kontext gezählt.
+        if (tags.highway && !isRailWay) {
           ways.push(tags);
           if (isMixedFootCycle(tags)) mixedFootCycleWays++;
           if (isCobblestoneSurface(tags)) cobblestoneWays++;
         }
-        // Schienen-Ways werden NICHT in `ways` aufgenommen (würden sonst die
-        // Tempo-/Cycle-Statistiken verzerren), aber für den Kontext gezählt.
-        if (tags.railway === "tram" || tags.railway === "light_rail") tramTrackWays++;
+        if (isRailWay) tramTrackWays++;
       } else if (el.type === "node") {
         if (tags.highway === "traffic_signals") trafficSignals++;
         else if (tags.highway === "crossing") crossings++;

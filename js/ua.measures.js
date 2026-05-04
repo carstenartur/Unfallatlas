@@ -258,9 +258,9 @@
    * (QA-Spec Item 7).
    *
    * The catalog declares this via `prerequisites.suppressInContexts:
-   * ["bahnhof","busbahnhof","tram_tracks", …]`. If ANY of those keys is
-   * present in the active context Set AND the catalog does NOT also
-   * carry an explicit positive-evidence whitelist
+   * ["bahnhof","busbahnhof","straßenbahn_schienen","gleisquerung", …]`.
+   * If ANY of those keys is present in the active context Set AND the
+   * catalog does NOT also carry an explicit positive-evidence whitelist
    * (`prerequisites.requireContexts`), the measure is filtered out.
    *
    * `requireContexts: ["sichtbehinderung"]` lets a measure stay in
