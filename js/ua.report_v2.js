@@ -794,6 +794,100 @@
   UA.mapVerificationSentence = mapVerificationSentence;
 
   /**
+   * Total number of involvement participant categories (Rad, Fuss, PKW,
+   * Krad, Lkw, Sonst). Used to detect "alle Kombinationen" vs. echte
+   * Auswahl-Restriktion.
+   */
+  const INVOLVEMENT_CATEGORY_COUNT = 6;
+
+  /**
+   * Inspects the active filters object (sd.meta.filters) and derives the
+   * currently selected involvement participant codes plus a Prosa-Label
+   * ("Rad + PKW") and a `hasRestriction` flag.
+   *
+   * - `hasRestriction` is true exactly when the user has narrowed the
+   *   involvement filter to a non-empty proper subset of the 6 known
+   *   categories (i.e. 1..5 of them are selected). When all six (or none)
+   *   are selected we treat the involvement axis as unrestricted, so no
+   *   separate Auswahl-Karte is rendered.
+   * - `prose` falls back to a simple `Code1 + Code2` join if the central
+   *   formatter is unavailable (e.g. unit tests that only load the
+   *   report module).
+   *
+   * @param {object} filters Plain `meta.filters` object as built by
+   *   computeExportReport.
+   * @returns {{codes:string[], hasRestriction:boolean, prose:string}}
+   */
+  function activeInvolvementSelection(filters) {
+    const codes = [];
+    if (filters && filters.includeCyclist)    codes.push("Rad");
+    if (filters && filters.includePedestrian) codes.push("Fuss");
+    if (filters && filters.includeCar)        codes.push("PKW");
+    if (filters && filters.includeMotorcycle) codes.push("Krad");
+    if (filters && filters.includeGkfz)       codes.push("Lkw");
+    if (filters && filters.includeSonstig)    codes.push("Sonst");
+    const hasRestriction =
+      codes.length > 0 && codes.length < INVOLVEMENT_CATEGORY_COUNT;
+    const prose = (codes.length > 0
+      && typeof UA.formatParticipantCombinationForExport === "function")
+      ? UA.formatParticipantCombinationForExport(codes)
+      : codes.join(" + ");
+    return { codes, hasRestriction, prose };
+  }
+  UA._activeInvolvementSelection = activeInvolvementSelection;
+
+  /**
+   * Sentence that explicitly names the active involvement selection on
+   * an Auswahl-Karte ("Nur Unfälle mit Beteiligung ‹Rad + PKW›
+   * dargestellt."). Returned verbatim so the same wording can be reused
+   * across DOCX/PDF and asserted from tests.
+   *
+   * @param {string} prose Prosa-Label, e.g. "Radverkehr + PKW".
+   * @returns {string}
+   */
+  function selectionHintSentence(prose) {
+    const safe = (typeof prose === "string" && prose.trim()) ? prose.trim() : "";
+    return `Nur Unfälle mit Beteiligung \u2039${safe}\u203A dargestellt.`;
+  }
+  UA._selectionHintSentence = selectionHintSentence;
+
+  /**
+   * Builds the overview-map point set for the new "Übersichtskarte – alle
+   * Beteiligungs-Kombinationen". Mirrors `getPointsInBounds` from
+   * js/ua.export_v2.js: applies non-involvement filters and the export
+   * bbox, but **bypasses** the involvement filter so every accident in
+   * the bounded area is shown — independent of the user's
+   * Beteiligungs-Auswahl.
+   *
+   * Returns an empty array if `ctx.allPts` is missing or no usable
+   * bounds can be derived (defensive: callers gracefully skip the extra
+   * map in that case).
+   *
+   * @param {object} ctx
+   * @returns {Array}
+   */
+  function getAllCombinationPointsInBounds(ctx) {
+    if (!ctx || !Array.isArray(ctx.allPts)) return [];
+    const bbox = exportBoundsFromCtx(ctx);
+    const out = [];
+    for (const p of ctx.allPts) {
+      if (!p || !p.props) continue;
+      if (typeof UA.matchesNonInvolvementFilters === "function"
+          && !UA.matchesNonInvolvementFilters(ctx, p.props)) continue;
+      if (typeof UA.maskFromProps === "function"
+          && UA.maskFromProps(p.props) === 0) continue;
+      if (bbox) {
+        if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+        if (p.lat < bbox.south || p.lat > bbox.north
+            || p.lon < bbox.west || p.lon > bbox.east) continue;
+      }
+      out.push(p);
+    }
+    return out;
+  }
+  UA._getAllCombinationPointsInBounds = getAllCombinationPointsInBounds;
+
+  /**
    * Count points whose coordinates fall inside a {south,west,north,east}
    * bounding box. Used for Task 5 (cross-check map ↔ table count) and to
    * compute n for the verification sentence (Task 6).
@@ -2080,12 +2174,69 @@
 
         // Layout-Pass / Spec-Item 6: Parent-Count für Caption-Cross-References
         // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle aus
-        // Abbildung 1."). M = Gesamtfallzahl im Ausschnitt mit denselben
+        // Abbildung K."). M = Gesamtfallzahl im Ausschnitt mit denselben
         // Fallback-Quellen wie der Verifikationssatz weiter unten.
         const docxParentN =
           (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
           : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
             : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : null));
+
+        // Doppelte Karten (Antrags-PR „Aussagekraft"):
+        // Bei aktiver Beteiligungs-Restriktion (1..5 von 6 Kategorien
+        // ausgewählt) rendern wir vor der Auswahl-Karte zusätzlich eine
+        // „Übersichtskarte – alle Beteiligungs-Kombinationen". So sieht
+        // das Lesegremium auf einen Blick die Gesamtsituation und kann
+        // die Restriktion der nachfolgenden Auswahl-Karte einordnen.
+        const docxSelection = activeInvolvementSelection(filters);
+        let docxSelectionFigIndex = 1;
+        if (docxSelection.hasRestriction) {
+          try {
+            const allCombPts = getAllCombinationPointsInBounds(ctx);
+            const allCombImage = await UA.captureExportMapImage(ctx, {
+              ...options,
+              exportPoints: allCombPts
+            });
+            let allCombRun;
+            try {
+              allCombRun = pngImageRun(
+                allCombImage,
+                fitImageToMax(allCombImage, DOCX_MAP_MAX),
+                {
+                  title: "Übersichtskarte – alle Beteiligungs-Kombinationen",
+                  description: "Übersichtskarte des untersuchten Bereichs ohne Beteiligungs-Filter (alle Kombinationen)"
+                }
+              );
+            } catch (decodeError) {
+              console.error("Failed to decode all-combinations overview map:", decodeError);
+              throw new Error("Übersichtskartenbild (alle Kombinationen) konnte nicht dekodiert werden");
+            }
+            children.push(new Paragraph({
+              children: [allCombRun],
+              keepNext: true,
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 200 }
+            }));
+            const allCombFig = figCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im markierten Bereich");
+            children.push(new Paragraph({
+              children: [new TextRun({
+                text: allCombFig.caption,
+                italics: true,
+                bold: true
+              })],
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 80 }
+            }));
+            children.push(new Paragraph({
+              text: mapVerificationSentence(allCombPts.length),
+              italics: true,
+              spacing: { after: 200 }
+            }));
+            // Die folgende Auswahl-Karte ist Abbildung 2.
+            docxSelectionFigIndex = allCombFig.index + 1;
+          } catch (allCombErr) {
+            console.warn("All-combinations overview capture failed (graceful fallback):", allCombErr);
+          }
+        }
 
         const mapImageData = await UA.captureExportMapImage(ctx, options);
 
@@ -2119,9 +2270,15 @@
         );
 
         // PR 2 / Spec-Item 4: numbered figure caption directly under the image.
+        // Doppelte Karten: Wenn eine Beteiligungs-Restriktion aktiv ist,
+        // beschriften wir diese Karte explizit als „Auswahl-Karte" und
+        // benennen die aktive Auswahl im Caption.
+        const docxMainMapCaptionSubject = docxSelection.hasRestriction
+          ? `Auswahl-Karte – Unfälle mit Beteiligung \u2039${docxSelection.prose}\u203A im markierten Bereich`
+          : "Übersichtskarte – gefilterte Unfälle im markierten Bereich";
         children.push(new Paragraph({
           children: [new TextRun({
-            text: figCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption,
+            text: figCounter.next(docxMainMapCaptionSubject).caption,
             italics: true,
             bold: true
           })],
@@ -2155,9 +2312,18 @@
         children.push(new Paragraph({
           text: mapVerificationSentence(overviewN),
           italics: true,
-          spacing: { after: 200 }
+          spacing: { after: docxSelection.hasRestriction ? 80 : 200 }
         }));
-
+        // Doppelte Karten / Caption-Transparenz: nennt die aktive
+        // Beteiligungs-Auswahl explizit unter der Auswahl-Karte
+        // („Nur Unfälle mit Beteiligung ‹Rad + PKW› dargestellt.").
+        if (docxSelection.hasRestriction) {
+          children.push(new Paragraph({
+            text: selectionHintSentence(docxSelection.prose),
+            italics: true,
+            spacing: { after: 200 }
+          }));
+        }
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
@@ -2195,10 +2361,12 @@
             const detailBbox = boundsToBbox(ctx.selectionBounds);
             const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
             // PR 2 / Spec-Item 4: numbered figure caption.
-            // Layout-Pass: Subset-Cross-Reference auf Abbildung 1.
+            // Layout-Pass: Subset-Cross-Reference auf die Auswahl-Karte
+            // (Abbildung 1, oder Abbildung 2 wenn zusätzlich eine
+            // „alle Beteiligungs-Kombinationen"-Übersicht davor gesetzt ist).
             const detailFig = figCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
             const detailCaptionText = (docxParentN != null)
-              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung 1.`
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
               : detailFig.caption;
             children.push(new Paragraph({
               children: [new TextRun({
@@ -2210,8 +2378,15 @@
             children.push(new Paragraph({
               text: mapVerificationSentence(detailN),
               italics: true,
-              spacing: { after: 200 }
+              spacing: { after: docxSelection.hasRestriction ? 80 : 200 }
             }));
+            if (docxSelection.hasRestriction) {
+              children.push(new Paragraph({
+                text: selectionHintSentence(docxSelection.prose),
+                italics: true,
+                spacing: { after: 200 }
+              }));
+            }
           } catch (detailErr) {
             console.warn("Detail map capture failed (graceful fallback):", detailErr);
           }
@@ -2267,10 +2442,10 @@
               spacing: { after: 100 }
             }));
             // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
-            // Layout-Pass: Subset-Cross-Reference auf Abbildung 1.
+            // Layout-Pass: Subset-Cross-Reference auf die Auswahl-Karte.
             const clusterFig = figCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
             const clusterCaptionText = (docxParentN != null)
-              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung 1.`
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
               : clusterFig.caption;
             children.push(new Paragraph({
               children: [new TextRun({
@@ -2282,8 +2457,15 @@
             children.push(new Paragraph({
               text: mapVerificationSentence(cm.total),
               italics: true,
-              spacing: { after: 200 }
+              spacing: { after: docxSelection.hasRestriction ? 80 : 200 }
             }));
+            if (docxSelection.hasRestriction) {
+              children.push(new Paragraph({
+                text: selectionHintSentence(docxSelection.prose),
+                italics: true,
+                spacing: { after: 200 }
+              }));
+            }
           }
         } catch (clusterErr) {
           console.warn("Cluster maps capture failed (graceful fallback):", clusterErr);
@@ -3877,8 +4059,53 @@
           style: "body"
         });
 
-        const mapImageData = await UA.captureExportMapImage(ctx, options);
         const werkbankUrl = buildWerkbankUrl(ctx);
+
+        // Doppelte Karten (PDF-Pendant): bei aktiver Beteiligungs-Restriktion
+        // wird zuerst eine „Übersichtskarte – alle Beteiligungs-Kombinationen"
+        // gerendert, danach die „Auswahl-Karte". Vergleiche DOCX-Branch
+        // weiter oben für die ausführliche Begründung.
+        const pdfSelection = activeInvolvementSelection(filters);
+        let pdfSelectionFigIndex = 1;
+        if (pdfSelection.hasRestriction) {
+          try {
+            const allCombPts = getAllCombinationPointsInBounds(ctx);
+            const allCombImage = await UA.captureExportMapImage(ctx, {
+              ...options,
+              exportPoints: allCombPts
+            });
+            const allCombFig = pdfFigCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im markierten Bereich");
+            docDefinition.content.push({
+              unbreakable: true,
+              stack: [
+                {
+                  image: allCombImage,
+                  fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
+                  alignment: "center",
+                  margin: [0, 10, 0, 6],
+                  link: werkbankUrl
+                },
+                {
+                  text: allCombFig.caption,
+                  style: "caption",
+                  alignment: "center",
+                  margin: [0, 0, 0, 4]
+                }
+              ]
+            });
+            docDefinition.content.push({
+              text: mapVerificationSentence(allCombPts.length),
+              style: "small",
+              italics: true,
+              margin: [0, 4, 0, 8]
+            });
+            pdfSelectionFigIndex = allCombFig.index + 1;
+          } catch (allCombErr) {
+            console.warn("All-combinations overview capture failed for PDF (graceful fallback):", allCombErr);
+          }
+        }
+
+        const mapImageData = await UA.captureExportMapImage(ctx, options);
 
         // Layout-PR „Bildverzerrung beheben" / Spec-Items 1+2:
         //  - pdfMake-`fit:[w,h]` erhält die Aspektrate des PNG-Originals
@@ -3889,7 +4116,12 @@
         // Bild und Caption werden in einem `stack` mit `unbreakable: true`
         // gerendert (Spec-Item 3 + 5: Bild-Block als Einheit, kein
         // Seitenumbruch zwischen Bild und Caption).
-        const overviewCaption = pdfFigCounter.next("Übersichtskarte – gefilterte Unfälle im markierten Bereich").caption;
+        // Doppelte Karten: Caption nennt explizit die aktive
+        // Beteiligungs-Auswahl, wenn restringiert.
+        const pdfMainMapCaptionSubject = pdfSelection.hasRestriction
+          ? `Auswahl-Karte – Unfälle mit Beteiligung \u2039${pdfSelection.prose}\u203A im markierten Bereich`
+          : "Übersichtskarte – gefilterte Unfälle im markierten Bereich";
+        const overviewCaption = pdfFigCounter.next(pdfMainMapCaptionSubject).caption;
         docDefinition.content.push({
           unbreakable: true,
           stack: [
@@ -3940,8 +4172,18 @@
           text: mapVerificationSentence(overviewN),
           style: "small",
           italics: true,
-          margin: [0, 4, 0, 8]
+          margin: [0, 4, 0, pdfSelection.hasRestriction ? 2 : 8]
         });
+        // Doppelte Karten / Caption-Transparenz: nennt die aktive
+        // Beteiligungs-Auswahl explizit unter der Auswahl-Karte.
+        if (pdfSelection.hasRestriction) {
+          docDefinition.content.push({
+            text: selectionHintSentence(pdfSelection.prose),
+            style: "small",
+            italics: true,
+            margin: [0, 0, 0, 8]
+          });
+        }
 
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
@@ -3964,7 +4206,7 @@
             // unbreakable-Stack (Spec-Items 1, 2, 3, 5).
             const detailFig = pdfFigCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
             const detailCaptionText = (pdfParentN != null)
-              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
               : detailFig.caption;
             docDefinition.content.push({
               unbreakable: true,
@@ -3996,8 +4238,16 @@
               text: mapVerificationSentence(detailN),
               style: "small",
               italics: true,
-              margin: [0, 0, 0, 8]
+              margin: [0, 0, 0, pdfSelection.hasRestriction ? 2 : 8]
             });
+            if (pdfSelection.hasRestriction) {
+              docDefinition.content.push({
+                text: selectionHintSentence(pdfSelection.prose),
+                style: "small",
+                italics: true,
+                margin: [0, 0, 0, 8]
+              });
+            }
           } catch (detailErr) {
             console.warn("Detail map capture failed for PDF (graceful fallback):", detailErr);
           }
@@ -4036,7 +4286,7 @@
             // unbreakable-Stack — Header, Bild und Caption bleiben zusammen.
             const clusterFig = pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
             const clusterCaptionText = (pdfParentN != null)
-              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung 1.`
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
               : clusterFig.caption;
             docDefinition.content.push({
               unbreakable: true,
@@ -4071,8 +4321,16 @@
               text: mapVerificationSentence(cm.total),
               style: "small",
               italics: true,
-              margin: [0, 0, 0, 8]
+              margin: [0, 0, 0, pdfSelection.hasRestriction ? 2 : 8]
             });
+            if (pdfSelection.hasRestriction) {
+              docDefinition.content.push({
+                text: selectionHintSentence(pdfSelection.prose),
+                style: "small",
+                italics: true,
+                margin: [0, 0, 0, 8]
+              });
+            }
           }
         } catch (clusterErr) {
           console.warn("Cluster maps capture failed for PDF (graceful fallback):", clusterErr);
