@@ -869,6 +869,11 @@
   function getAllCombinationPointsInBounds(ctx) {
     if (!ctx || !Array.isArray(ctx.allPts)) return [];
     const bbox = exportBoundsFromCtx(ctx);
+    // Defensive: an unbounded "alle Kombinationen"-Karte würde quer über
+    // die Stadt streuen und dem Lesegremium falsche Maßstäbe vermitteln;
+    // ohne nutzbare Export-Bounds liefern wir lieber gar nichts und der
+    // Aufrufer überspringt die Karte (try/catch um den Capture-Block).
+    if (!bbox) return [];
     const out = [];
     for (const p of ctx.allPts) {
       if (!p || !p.props) continue;
@@ -876,11 +881,9 @@
           && !UA.matchesNonInvolvementFilters(ctx, p.props)) continue;
       if (typeof UA.maskFromProps === "function"
           && UA.maskFromProps(p.props) === 0) continue;
-      if (bbox) {
-        if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
-        if (p.lat < bbox.south || p.lat > bbox.north
-            || p.lon < bbox.west || p.lon > bbox.east) continue;
-      }
+      if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      if (p.lat < bbox.south || p.lat > bbox.north
+          || p.lon < bbox.west || p.lon > bbox.east) continue;
       out.push(p);
     }
     return out;
@@ -2301,14 +2304,30 @@
 
         // Verification sentence (Task 6) – n MUST be the canonical
         // Einzelunfall-Tabellen-Zählung („Tabelle" im Verifikationssatz).
-        // ctx.viewportPts.length basiert auf gepaddingten Karten-Bounds und
-        // kann Punkte außerhalb der Export-Bounds enthalten — würde also
-        // eine größere Zahl ausgeben als auf der Karte sichtbar sind und
-        // würde dem Pre-Flight-Konsistenz-Gate widersprechen.
-        const overviewN =
-          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
-          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
-            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0));
+        // Bei aktiver Beteiligungs-Restriktion zeigt die Auswahl-Karte
+        // jedoch nur die Beteiligungs-gefilterten Punkte (= ctx.viewportPts
+        // im Export-bbox), nicht die volle Tabellen-Population. Wir
+        // schalten dann auf den tatsächlichen Karten-Zähler (selectionN)
+        // um, damit der Verifikationssatz weiterhin das hält, was die
+        // Karte zeigt; bei "alle Kombinationen" bleibt es beim Tabellen-
+        // Total wie bisher.
+        const exportBboxForCounts = exportBoundsFromCtx(ctx);
+        const selectionN = docxSelection.hasRestriction
+          ? countPointsInBounds(ctx.viewportPts || [], exportBboxForCounts)
+          : null;
+        const overviewN = docxSelection.hasRestriction
+          ? selectionN
+          : ((sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+            : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+              : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0)));
+        // Parent-N für Subset-Cross-References (Detail/Cluster).
+        // Verweist immer auf die Auswahl-Karte (= zuletzt gesetzte
+        // figCounter-Index in docxSelectionFigIndex). Unter Restriktion
+        // ist das die Beteiligungs-gefilterte Population, sonst die
+        // Tabellen-/all-Kombinationen-Population.
+        const docxParentNForSubset = docxSelection.hasRestriction
+          ? selectionN
+          : docxParentN;
         children.push(new Paragraph({
           text: mapVerificationSentence(overviewN),
           italics: true,
@@ -2365,8 +2384,8 @@
             // (Abbildung 1, oder Abbildung 2 wenn zusätzlich eine
             // „alle Beteiligungs-Kombinationen"-Übersicht davor gesetzt ist).
             const detailFig = figCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
-            const detailCaptionText = (docxParentN != null)
-              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
+            const detailCaptionText = (docxParentNForSubset != null)
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentNForSubset} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
               : detailFig.caption;
             children.push(new Paragraph({
               children: [new TextRun({
@@ -2444,8 +2463,8 @@
             // PR 2 / Spec-Item 4: numbered figure caption per cluster map.
             // Layout-Pass: Subset-Cross-Reference auf die Auswahl-Karte.
             const clusterFig = figCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
-            const clusterCaptionText = (docxParentN != null)
-              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${docxParentN} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
+            const clusterCaptionText = (docxParentNForSubset != null)
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${docxParentNForSubset} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
               : clusterFig.caption;
             children.push(new Paragraph({
               children: [new TextRun({
@@ -2874,6 +2893,10 @@
     }
     
     // UI filters (if available)
+    // override.allCombinations=true forces all six involvement checkboxes
+    // to "1" so the link reproduces the all-combinations Übersichtskarte
+    // even when the live UI has restricted involvement filters set.
+    const allCombOverride = ovr.allCombinations === true;
     if (ctx.ui) {
       if (ctx.ui.severityEl) params.set("severity", ctx.ui.severityEl.value);
       if (ctx.ui.roadConditionEl) params.set("roadCondition", ctx.ui.roadConditionEl.value);
@@ -2883,12 +2906,12 @@
       if (ctx.ui.maxPointsEl) params.set("maxPoints", ctx.ui.maxPointsEl.value);
       if (ctx.ui.viewportPaddingEl) params.set("viewportPaddingPct", ctx.ui.viewportPaddingEl.value);
       if (ctx.ui.heatRadiusEl) params.set("heatRadius", ctx.ui.heatRadiusEl.value);
-      if (ctx.ui.incBikeEl) params.set("includeCyclist", ctx.ui.incBikeEl.checked ? 1 : 0);
-      if (ctx.ui.incPedEl) params.set("includePedestrian", ctx.ui.incPedEl.checked ? 1 : 0);
-      if (ctx.ui.incCarEl) params.set("includeCar", ctx.ui.incCarEl.checked ? 1 : 0);
-      if (ctx.ui.incMotoEl) params.set("includeMotorcycle", ctx.ui.incMotoEl.checked ? 1 : 0);
-      if (ctx.ui.incGkfzEl) params.set("includeGkfz", ctx.ui.incGkfzEl.checked ? 1 : 0);
-      if (ctx.ui.incSonEl) params.set("includeSonstig", ctx.ui.incSonEl.checked ? 1 : 0);
+      if (ctx.ui.incBikeEl) params.set("includeCyclist",    allCombOverride ? 1 : (ctx.ui.incBikeEl.checked ? 1 : 0));
+      if (ctx.ui.incPedEl)  params.set("includePedestrian", allCombOverride ? 1 : (ctx.ui.incPedEl.checked  ? 1 : 0));
+      if (ctx.ui.incCarEl)  params.set("includeCar",        allCombOverride ? 1 : (ctx.ui.incCarEl.checked  ? 1 : 0));
+      if (ctx.ui.incMotoEl) params.set("includeMotorcycle", allCombOverride ? 1 : (ctx.ui.incMotoEl.checked ? 1 : 0));
+      if (ctx.ui.incGkfzEl) params.set("includeGkfz",       allCombOverride ? 1 : (ctx.ui.incGkfzEl.checked ? 1 : 0));
+      if (ctx.ui.incSonEl)  params.set("includeSonstig",    allCombOverride ? 1 : (ctx.ui.incSonEl.checked  ? 1 : 0));
     }
     
     // Involvement mode
@@ -4074,6 +4097,13 @@
               ...options,
               exportPoints: allCombPts
             });
+            // Eigener Werkbank-Link für die alle-Kombinationen-Karte:
+            // override.allCombinations=true setzt alle sechs Beteiligungs-
+            // Checkboxen in der URL auf 1, sodass das Klicken auf das Bild
+            // die unrestringierte Übersicht reproduziert (statt eine Karte
+            // zu öffnen, die einen anderen Punktbestand zeigt als das
+            // Bild im PDF).
+            const allCombUrl = buildWerkbankUrl(ctx, { allCombinations: true });
             const allCombFig = pdfFigCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im markierten Bereich");
             docDefinition.content.push({
               unbreakable: true,
@@ -4083,7 +4113,7 @@
                   fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
                   alignment: "center",
                   margin: [0, 10, 0, 6],
-                  link: werkbankUrl
+                  link: allCombUrl
                 },
                 {
                   text: allCombFig.caption,
@@ -4164,10 +4194,23 @@
         // Verification sentence (Task 6) – n MUST be the canonical
         // Einzelunfall-Tabellen-Zählung (siehe DOCX-Branch oben für die
         // ausführliche Begründung).
-        const overviewN =
-          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
-          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
-            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0));
+        // Bei aktiver Beteiligungs-Restriktion zeigt die Auswahl-Karte
+        // nur die Beteiligungs-gefilterten Punkte (= ctx.viewportPts im
+        // Export-bbox). Verifikationssatz und Subset-Parent-N richten
+        // sich dann nach diesem tatsächlichen Karten-Zähler statt nach
+        // dem Tabellen-Total (= alle-Kombinationen-Zahl).
+        const exportBboxForCounts = exportBoundsFromCtx(ctx);
+        const selectionN = pdfSelection.hasRestriction
+          ? countPointsInBounds(ctx.viewportPts || [], exportBboxForCounts)
+          : null;
+        const overviewN = pdfSelection.hasRestriction
+          ? selectionN
+          : ((sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
+            : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
+              : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0)));
+        const pdfParentNForSubset = pdfSelection.hasRestriction
+          ? selectionN
+          : pdfParentN;
         docDefinition.content.push({
           text: mapVerificationSentence(overviewN),
           style: "small",
@@ -4205,8 +4248,8 @@
             // (PDF_MAP_MAX) für alle Map-Typen; Bild + Caption als
             // unbreakable-Stack (Spec-Items 1, 2, 3, 5).
             const detailFig = pdfFigCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
-            const detailCaptionText = (pdfParentN != null)
-              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
+            const detailCaptionText = (pdfParentNForSubset != null)
+              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentNForSubset} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
               : detailFig.caption;
             docDefinition.content.push({
               unbreakable: true,
@@ -4285,8 +4328,8 @@
             // Layout-PR „Bildverzerrung beheben": einheitliche Box +
             // unbreakable-Stack — Header, Bild und Caption bleiben zusammen.
             const clusterFig = pdfFigCounter.next(`Cluster-Karte – ${cm.label} (n=${cm.total})`);
-            const clusterCaptionText = (pdfParentN != null)
-              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentN} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
+            const clusterCaptionText = (pdfParentNForSubset != null)
+              ? `${clusterFig.caption} Die ${cm.total} dargestellten Unfälle sind eine Teilmenge der ${pdfParentNForSubset} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
               : clusterFig.caption;
             docDefinition.content.push({
               unbreakable: true,

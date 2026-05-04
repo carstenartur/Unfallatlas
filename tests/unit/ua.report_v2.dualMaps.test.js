@@ -89,6 +89,15 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
   });
 
   describe('UA._getAllCombinationPointsInBounds', () => {
+    test('returns [] when no usable export bounds can be derived (defensive)', () => {
+      // ctx without selectionBounds and without ctx.map → exportBoundsFromCtx
+      // returns null. Per JSDoc the helper must then return [] rather than
+      // an unbounded city-wide point set (which would render a misleading
+      // "alle Kombinationen"-Karte spread across the whole city).
+      const ctx = { allPts: [{ lat: 52.37, lon: 9.73, props: { istrad: '1' } }] };
+      expect(UA._getAllCombinationPointsInBounds(ctx)).toEqual([]);
+    });
+
     test('returns points filtered by bounds + non-involvement filters, ignoring the involvement filter', () => {
       const ctx = {
         allPts: [
@@ -234,12 +243,66 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
       args => args[1] && Array.isArray(args[1].exportPoints));
     expect(callsWithExportPoints.length).toBeGreaterThanOrEqual(1);
 
-    // 5) Detail-Caption verweist auf die Auswahl-Karte (Abbildung 2), nicht
-    //    auf die alle-Kombinationen-Übersicht.
+    // 5) Detail-Caption verweist auf die Auswahl-Karte (Abbildung 2) und
+    //    der Parent-N entspricht jetzt dem tatsächlichen Karten-Zähler
+    //    der Auswahl-Karte (= involvement-gefilterte viewportPts im
+    //    Export-bbox = 32) — NICHT mehr dem Tabellen-Total (262), das
+    //    bei restringiertem Beteiligungs-Filter über der Karten-
+    //    Population liegen würde.
     const detailCaption = texts.find(
       t => /^Abbildung 3: Detailausschnitt/.test(t));
     expect(detailCaption).toBeDefined();
-    expect(detailCaption).toMatch(/Teilmenge der 262 Unfälle aus Abbildung 2\.$/);
+    expect(detailCaption).toMatch(/Teilmenge der 32 Unfälle aus Abbildung 2\.$/);
+
+    // 6) Verifikationssatz unter der Auswahl-Karte nutzt denselben
+    //    Karten-Zähler (n = 32), nicht das Tabellen-Total.
+    expect(texts.some(
+      t => /^Die dargestellten Punkte entsprechen exakt den in der Tabelle aufgeführten Unfällen \(n = 32\)\.$/.test(t)
+    )).toBe(true);
+
+    // 7) Der Werkbank-Link der alle-Kombinationen-Karte überschreibt die
+    //    Beteiligungs-Filter auf "alle 1" — sonst würde das Klicken auf
+    //    das Bild eine restringierte Werkbank-Ansicht öffnen, die die
+    //    abgebildete „alle Kombinationen"-Karte nicht reproduzieren kann.
+    function collectLinks(node, out) {
+      out = out || [];
+      if (node == null) return out;
+      if (Array.isArray(node)) { for (const i of node) collectLinks(i, out); return out; }
+      if (typeof node !== 'object') return out;
+      if (typeof node.link === 'string') out.push(node.link);
+      if (Array.isArray(node.stack))   collectLinks(node.stack, out);
+      if (Array.isArray(node.columns)) collectLinks(node.columns, out);
+      if (Array.isArray(node.text))    collectLinks(node.text, out);
+      if (node.table && Array.isArray(node.table.body)) {
+        for (const row of node.table.body) for (const cell of row) collectLinks(cell, out);
+      }
+      return out;
+    }
+    // Helper test on buildWerkbankUrl directly: ensures the
+    // allCombinations override forces all six involvement params to "1"
+    // even when the live UI/ctx has them off (here ctx.ui is undefined,
+    // so we feed a fake one with restricted checkboxes).
+    const ctxWithUi = {
+      CITY_RAW: 'Hannover',
+      map: { getCenter: () => ({ lat: 52.37, lng: 9.73 }), getZoom: () => 14 },
+      ui: {
+        incBikeEl: { checked: true },  incPedEl: { checked: false },
+        incCarEl:  { checked: true },  incMotoEl: { checked: false },
+        incGkfzEl: { checked: false }, incSonEl:  { checked: false }
+      }
+    };
+    const restrictedUrl = UA.buildWerkbankUrl(ctxWithUi);
+    const allCombUrl    = UA.buildWerkbankUrl(ctxWithUi, { allCombinations: true });
+    const restrictedQs = new URL(restrictedUrl).searchParams;
+    const allCombQs    = new URL(allCombUrl).searchParams;
+    expect(restrictedQs.get('includePedestrian')).toBe('0');
+    expect(restrictedQs.get('includeMotorcycle')).toBe('0');
+    for (const k of [
+      'includeCyclist', 'includePedestrian', 'includeCar',
+      'includeMotorcycle', 'includeGkfz', 'includeSonstig'
+    ]) {
+      expect(allCombQs.get(k)).toBe('1');
+    }
   });
 
   test('PDF export without involvement restriction keeps single overview map ("Abbildung 1") and no selection hint', async () => {
