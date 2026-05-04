@@ -1979,7 +1979,7 @@
           if (docxHeader && docxHeader.length > 0) {
             for (const h of docxHeader) {
               children.push(new Paragraph({
-                text: h.text || "",
+                text: replaceEmojisForDocx(h.text || ""),
                 bold: !!h.bold,
                 spacing: { before: 200, after: 100 }
               }));
@@ -1988,7 +1988,7 @@
             // Back-compat: synthesize a header for plain { sevLabel, histogram } groups
             const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
             children.push(new Paragraph({
-              text: headerText,
+              text: replaceEmojisForDocx(headerText),
               bold: true,
               spacing: { before: 200, after: 100 }
             }));
@@ -3767,11 +3767,11 @@
           const docxHeader = (g.headers && Array.isArray(g.headers.docx)) ? g.headers.docx : null;
           if (docxHeader && docxHeader.length > 0) {
             for (const h of docxHeader) {
-              docDefinition.content.push({ text: h.text || "", bold: !!h.bold, margin: [0, 8, 0, 4] });
+              docDefinition.content.push({ text: replaceEmojisForPDF(h.text || ""), bold: !!h.bold, margin: [0, 8, 0, 4] });
             }
           } else if (g.sevLabel) {
             const headerText = `${g.sevLabel} (n=${g.count})${g.histogram ? "  —  " + g.histogram : ""}`;
-            docDefinition.content.push({ text: headerText, bold: true, margin: [0, 8, 0, 4] });
+            docDefinition.content.push({ text: replaceEmojisForPDF(headerText), bold: true, margin: [0, 8, 0, 4] });
           }
           const detailRows = g.rows.map((r, i) => {
             // Use the strategy's docx row producer (same column shape as DOCX).
