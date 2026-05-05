@@ -2022,6 +2022,33 @@
             spacing: { before: 100, after: 200 }
           }));
         }
+        // Issue 2 (a): Quellen vollständig — Titel, Publisher, Jahr, URL
+        // als anklickbarer Hyperlink (wenn vorhanden), analog zur
+        // Anlage „Quellen & Methodische Hinweise" weiter unten.
+        if (Array.isArray(sd.recommendedMeasures.sources) && sd.recommendedMeasures.sources.length > 0) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: "Quellen:", bold: true })],
+            spacing: { before: 80, after: 40 }
+          }));
+          for (const s of sd.recommendedMeasures.sources) {
+            if (!s || !s.title) continue;
+            const meta = [s.publisher, s.year].filter(Boolean).join(", ");
+            const head = meta ? `${s.title} (${meta})` : s.title;
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `– ${head}` })],
+              spacing: { after: 20 }
+            }));
+            if (s.url) {
+              const urlLink = ExternalHyperlink
+                ? new ExternalHyperlink({
+                    link: s.url,
+                    children: [new TextRun({ text: `  ${s.url}`, style: "Hyperlink" })]
+                  })
+                : new TextRun({ text: `  ${s.url}` });
+              children.push(new Paragraph({ children: [urlLink], spacing: { after: 40 } }));
+            }
+          }
+        }
       }
 
       // Goldstandard-Sektion 8: Priorisierung (DOCX). Drei-Bucket-Listen
@@ -2788,6 +2815,63 @@
         } else {
           for (const line of refsTextSection) {
             children.push(new Paragraph({ text: line, spacing: { after: 100 } }));
+          }
+        }
+      }
+
+      // Issue 2 (e): Bisherige politische Befassung — Vorgänge aus
+      // ctx.politicalReferences (politisches Recherche-Panel) als eigene
+      // Unterüberschrift mit allen verfügbaren Feldern. Vorher nur in
+      // TEXT/HTML sichtbar, fehlte komplett im DOCX-Export.
+      const polRefs = sd && sd.politicalReferences;
+      if (Array.isArray(polRefs) && polRefs.length > 0) {
+        children.push(new Paragraph({
+          text: "Bisherige politische Befassung",
+          heading: HeadingLevel.HEADING_3,
+          spacing: { before: 200, after: 120 }
+        }));
+        for (const ref of polRefs) {
+          const title = ref.title || "Ohne Titel";
+          const meta = [ref.type, ref.date, ref.gremium, ref.number].filter(Boolean).join(" · ");
+          children.push(new Paragraph({
+            children: [
+              new TextRun({ text: `- ${title}`, bold: true }),
+              ...(meta ? [new TextRun({ text: ` (${meta})`, italics: true })] : [])
+            ],
+            spacing: { after: 40 }
+          }));
+          if (ref.referenceType && ref.referenceType !== ref.type) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `  Klassifikation: ${ref.referenceType}`, italics: true })],
+              spacing: { after: 20 }
+            }));
+          }
+          if (ref.snippet) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `  Auszug: ${String(ref.snippet).slice(0, 240)}` })],
+              spacing: { after: 20 }
+            }));
+          }
+          if (ref.reason) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `  Relevanz: ${ref.reason}`, italics: true })],
+              spacing: { after: 20 }
+            }));
+          }
+          if (ref.url) {
+            const urlLink = ExternalHyperlink
+              ? new ExternalHyperlink({
+                  link: ref.url,
+                  children: [new TextRun({ text: `  ${ref.url}`, style: "Hyperlink" })]
+                })
+              : new TextRun({ text: `  ${ref.url}` });
+            children.push(new Paragraph({ children: [urlLink], spacing: { after: 20 } }));
+          }
+          if (ref.source) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `  Portal: ${ref.source}`, italics: true })],
+              spacing: { after: 80 }
+            }));
           }
         }
       }
@@ -3938,6 +4022,32 @@
         if (sd.recommendedMeasures.disclaimer) {
           docDefinition.content.push({ text: sd.recommendedMeasures.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
         }
+        // Issue 2 (a): Quellen vollständig — Titel, Publisher, Jahr, URL
+        // als anklickbarer Link (pdfMake `link:` + Decoration).
+        if (Array.isArray(sd.recommendedMeasures.sources) && sd.recommendedMeasures.sources.length > 0) {
+          docDefinition.content.push({ text: "Quellen:", bold: true, margin: [0, 4, 0, 2] });
+          for (const s of sd.recommendedMeasures.sources) {
+            if (!s || !s.title) continue;
+            const meta = [s.publisher, s.year].filter(Boolean).join(", ");
+            const head = meta ? `${s.title} (${meta})` : s.title;
+            if (s.url) {
+              docDefinition.content.push({
+                text: [
+                  { text: `– ${head} ` },
+                  { text: s.url, link: s.url, color: "blue", decoration: "underline" }
+                ],
+                style: "normal",
+                margin: [10, 0, 0, 2]
+              });
+            } else {
+              docDefinition.content.push({
+                text: `– ${head}`,
+                style: "normal",
+                margin: [10, 0, 0, 2]
+              });
+            }
+          }
+        }
       }
 
       // Goldstandard-Sektion 8: Priorisierung (PDF). Drei-Bucket-Listen
@@ -4652,6 +4762,61 @@
             docDefinition.content.push({
               text: content,
               style: "normal"
+            });
+          }
+        }
+      }
+
+      // Issue 2 (e): Bisherige politische Befassung — analog zu DOCX,
+      // damit PDF-Reports die ausgewählten Vorgänge mit allen Feldern
+      // (Klassifikation, Auszug, Relevanz, URL, Portal) zeigen.
+      const polRefs = sd && sd.politicalReferences;
+      if (Array.isArray(polRefs) && polRefs.length > 0) {
+        docDefinition.content.push({
+          text: "Bisherige politische Befassung",
+          style: "h2",
+          margin: [0, 8, 0, 4]
+        });
+        for (const ref of polRefs) {
+          const title = ref.title || "Ohne Titel";
+          const meta = [ref.type, ref.date, ref.gremium, ref.number].filter(Boolean).join(" · ");
+          docDefinition.content.push({
+            text: meta ? `- ${title} (${meta})` : `- ${title}`,
+            bold: true,
+            style: "normal",
+            margin: [0, 4, 0, 2]
+          });
+          if (ref.referenceType && ref.referenceType !== ref.type) {
+            docDefinition.content.push({
+              text: `  Klassifikation: ${ref.referenceType}`,
+              italics: true, style: "normal", margin: [10, 0, 0, 2]
+            });
+          }
+          if (ref.snippet) {
+            docDefinition.content.push({
+              text: `  Auszug: ${String(ref.snippet).slice(0, 240)}`,
+              style: "normal", margin: [10, 0, 0, 2]
+            });
+          }
+          if (ref.reason) {
+            docDefinition.content.push({
+              text: `  Relevanz: ${ref.reason}`,
+              italics: true, style: "normal", margin: [10, 0, 0, 2]
+            });
+          }
+          if (ref.url) {
+            docDefinition.content.push({
+              text: [
+                { text: "  " },
+                { text: ref.url, link: ref.url, color: "blue", decoration: "underline" }
+              ],
+              style: "normal", margin: [10, 0, 0, 2]
+            });
+          }
+          if (ref.source) {
+            docDefinition.content.push({
+              text: `  Portal: ${ref.source}`,
+              italics: true, style: "normal", margin: [10, 0, 0, 4]
             });
           }
         }

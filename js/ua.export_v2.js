@@ -2029,6 +2029,18 @@
       if (recommendedMeasures.disclaimer) {
         lines.push(`  Hinweis: ${recommendedMeasures.disclaimer}`);
       }
+      // Issue 2 (a): Quellen vollständig — Titel, Publisher, Jahr und URL.
+      // Vorher wurden Quellen nur in der HTML-Vorschau gerendert, sodass
+      // TEXT-Reports (und damit AI-Konsum) die Belege nicht sahen.
+      if (Array.isArray(recommendedMeasures.sources) && recommendedMeasures.sources.length > 0) {
+        lines.push("  Quellen:");
+        for (const s of recommendedMeasures.sources) {
+          if (!s || !s.title) continue;
+          const meta = [s.publisher, s.year].filter(Boolean).join(", ");
+          const head = meta ? `${s.title} (${meta})` : s.title;
+          lines.push(s.url ? `    – ${head} — ${s.url}` : `    – ${head}`);
+        }
+      }
       lines.push("");
     }
 
@@ -2104,16 +2116,26 @@
       lines.push("");
     }
 
-    // Add political references to text report
+    // Add political references to text report.
+    // Issue 2 (e): Quellen vollständig — neben Titel/Typ/Datum/Gremium/
+    // Nummer/URL auch referenceType (feinere Klassifikation), reason
+    // (Begründung der Relevanz), snippet (Textauszug) und source
+    // (Provider-Kürzel, transparenter Quellenhinweis).
     if (ctx.politicalReferences && ctx.politicalReferences.length > 0) {
       lines.push("Bisherige politische Befassung:");
       for (const ref of ctx.politicalReferences) {
         lines.push(`- ${ref.title || "Ohne Titel"}`);
+        if (ref.referenceType && ref.referenceType !== ref.type) {
+          lines.push(`  Klassifikation: ${ref.referenceType}`);
+        }
         if (ref.type) lines.push(`  Typ: ${ref.type}`);
         if (ref.date) lines.push(`  Datum: ${ref.date}`);
         if (ref.gremium) lines.push(`  Gremium: ${ref.gremium}`);
         if (ref.number) lines.push(`  Nummer: ${ref.number}`);
+        if (ref.snippet) lines.push(`  Auszug: ${String(ref.snippet).slice(0, 240)}`);
+        if (ref.reason) lines.push(`  Relevanz: ${ref.reason}`);
         if (ref.url) lines.push(`  URL: ${ref.url}`);
+        if (ref.source) lines.push(`  Quelle (Portal): ${ref.source}`);
       }
       lines.push("");
     }
@@ -2401,7 +2423,15 @@
           </li>`;
       }).join("");
       const sourcesHtml = (recommendedMeasures.sources && recommendedMeasures.sources.length > 0)
-        ? `<div style="color:#666; font-size:12px; margin-top:6px;"><strong>Quellen:</strong> ${recommendedMeasures.sources.map(s => UA.escHtml(s.title || "")).filter(Boolean).join(" · ")}</div>`
+        ? `<div style="color:#666; font-size:12px; margin-top:6px;"><strong>Quellen:</strong> ${recommendedMeasures.sources.map(s => {
+            const title = s.title || "";
+            if (!title) return "";
+            const meta = [s.publisher, s.year].filter(Boolean).map(v => UA.escHtml(String(v))).join(", ");
+            const label = meta ? `${UA.escHtml(title)} (${meta})` : UA.escHtml(title);
+            return s.url
+              ? `<a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${label}</a>`
+              : label;
+          }).filter(Boolean).join(" · ")}</div>`
         : "";
       // OSM-Datenstand-Hinweis vor der Liste, damit die Unsicherheit
       // sofort sichtbar ist und nicht erst unten als Fußnote.
@@ -2637,6 +2667,19 @@
               html += `<strong>${UA.escHtml(ref.title || 'Ohne Titel')}</strong>`;
             }
             if (meta.length) html += ` <span style="color:#666;font-size:12px;">(${meta.join(' · ')})</span>`;
+            // Issue 2 (e): zusätzliche Felder konsistent ausgeben.
+            if (ref.referenceType && ref.referenceType !== ref.type) {
+              html += `<div style="font-size:11px;color:#777;margin-top:2px;"><em>Klassifikation:</em> ${UA.escHtml(ref.referenceType)}</div>`;
+            }
+            if (ref.snippet) {
+              html += `<div style="font-size:11px;color:#555;margin-top:2px;line-height:1.4;">${UA.escHtml(String(ref.snippet).slice(0, 240))}</div>`;
+            }
+            if (ref.reason) {
+              html += `<div style="font-size:11px;color:#666;margin-top:2px;"><em>Relevanz:</em> ${UA.escHtml(ref.reason)}</div>`;
+            }
+            if (ref.source) {
+              html += `<div style="font-size:11px;color:#888;margin-top:2px;"><em>Portal:</em> ${UA.escHtml(ref.source)}</div>`;
+            }
             html += `</li>`;
           }
           html += `</ul>`;

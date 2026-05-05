@@ -134,6 +134,10 @@
             data-date="${UA.escHtml(ref.date || '')}"
             data-gremium="${UA.escHtml(ref.gremium || '')}"
             data-number="${UA.escHtml(ref.number || '')}"
+            data-reference-type="${UA.escHtml(ref.referenceType || '')}"
+            data-reason="${UA.escHtml(ref.reason || '')}"
+            data-snippet="${UA.escHtml(ref.snippet || '')}"
+            data-source="${UA.escHtml(ref.source || '')}"
           />
           <div style="flex:1;">
             <div style="font-weight:700;font-size:13px;line-height:1.3;">
@@ -297,12 +301,19 @@
   UA.PoliticalContext.getSelectedReferences = function getSelectedReferences() {
     const checks = document.querySelectorAll('.polCtxCheck:checked');
     return [...checks].map(cb => ({
-      title:   cb.dataset.title   || '',
-      type:    cb.dataset.type    || 'Sonstige',
-      date:    cb.dataset.date    || null,
-      gremium: cb.dataset.gremium || null,
-      number:  cb.dataset.number  || null,
-      url:     cb.dataset.url     || ''
+      title:         cb.dataset.title         || '',
+      type:          cb.dataset.type          || 'Sonstige',
+      date:          cb.dataset.date          || null,
+      gremium:       cb.dataset.gremium       || null,
+      number:        cb.dataset.number        || null,
+      url:           cb.dataset.url           || '',
+      // Issue 2 (e): zusätzliche Felder aus dem Suchergebnis übernehmen,
+      // damit alle Renderer (TEXT/HTML/DOCX/PDF) Klassifikation,
+      // Begründung, Auszug und Portal-Quelle anzeigen können.
+      referenceType: cb.dataset.referenceType || null,
+      reason:        cb.dataset.reason        || null,
+      snippet:       cb.dataset.snippet       || null,
+      source:        cb.dataset.source        || null
     }));
   };
 
