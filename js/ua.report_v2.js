@@ -2559,8 +2559,17 @@
         children.push(new Paragraph({ text: note.body, spacing: { after: 100 } }));
         children.push(new Paragraph({
           children: [new TextRun({ text: note.sourceLabel, italics: true })],
-          spacing: { after: 200 }
+          spacing: { after: note.sources && note.sources.length > 0 ? 50 : 200 }
         }));
+        if (note.sources && note.sources.length > 0) {
+          for (const src of note.sources) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, size: 18 })],
+              spacing: { after: 50 }
+            }));
+          }
+          children.push(new Paragraph({ text: "", spacing: { after: 150 } }));
+        }
       }
     }
 
@@ -4438,7 +4447,13 @@
       if (note) {
         docDefinition.content.push({ text: note.title, style: "subheader" });
         docDefinition.content.push({ text: note.body, style: "normal" });
-        docDefinition.content.push({ text: note.sourceLabel, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
+        docDefinition.content.push({ text: note.sourceLabel, italics: true, fontSize: 9, margin: [0, 4, 0, note.sources && note.sources.length > 0 ? 2 : 8] });
+        if (note.sources && note.sources.length > 0) {
+          for (const src of note.sources) {
+            docDefinition.content.push({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, fontSize: 8, margin: [8, 0, 0, 2] });
+          }
+          docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
+        }
       }
     }
 
