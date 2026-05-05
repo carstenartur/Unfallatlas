@@ -2219,7 +2219,7 @@
               alignment: AlignmentType.CENTER,
               spacing: { after: 200 }
             }));
-            const allCombFig = figCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im markierten Bereich");
+            const allCombFig = figCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im aktuellen Kartenausschnitt");
             children.push(new Paragraph({
               children: [new TextRun({
                 text: allCombFig.caption,
@@ -2277,8 +2277,8 @@
         // beschriften wir diese Karte explizit als „Auswahl-Karte" und
         // benennen die aktive Auswahl im Caption.
         const docxMainMapCaptionSubject = docxSelection.hasRestriction
-          ? `Auswahl-Karte – Unfälle mit Beteiligung \u2039${docxSelection.prose}\u203A im markierten Bereich`
-          : "Übersichtskarte – gefilterte Unfälle im markierten Bereich";
+          ? `Auswahl-Karte – Unfälle mit Beteiligung \u2039${docxSelection.prose}\u203A im aktuellen Kartenausschnitt`
+          : "Übersichtskarte – gefilterte Unfälle im aktuellen Kartenausschnitt";
         children.push(new Paragraph({
           children: [new TextRun({
             text: figCounter.next(docxMainMapCaptionSubject).caption,
@@ -2383,7 +2383,7 @@
             // Layout-Pass: Subset-Cross-Reference auf die Auswahl-Karte
             // (Abbildung 1, oder Abbildung 2 wenn zusätzlich eine
             // „alle Beteiligungs-Kombinationen"-Übersicht davor gesetzt ist).
-            const detailFig = figCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
+            const detailFig = figCounter.next("Detailausschnitt – markiertes Auswahlrechteck");
             const detailCaptionText = (docxParentNForSubset != null)
               ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentNForSubset} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
               : detailFig.caption;
@@ -4113,7 +4113,7 @@
             // zu öffnen, die einen anderen Punktbestand zeigt als das
             // Bild im PDF).
             const allCombUrl = buildWerkbankUrl(ctx, { allCombinations: true });
-            const allCombFig = pdfFigCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im markierten Bereich");
+            const allCombFig = pdfFigCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im aktuellen Kartenausschnitt");
             docDefinition.content.push({
               unbreakable: true,
               stack: [
@@ -4158,8 +4158,8 @@
         // Doppelte Karten: Caption nennt explizit die aktive
         // Beteiligungs-Auswahl, wenn restringiert.
         const pdfMainMapCaptionSubject = pdfSelection.hasRestriction
-          ? `Auswahl-Karte – Unfälle mit Beteiligung \u2039${pdfSelection.prose}\u203A im markierten Bereich`
-          : "Übersichtskarte – gefilterte Unfälle im markierten Bereich";
+          ? `Auswahl-Karte – Unfälle mit Beteiligung \u2039${pdfSelection.prose}\u203A im aktuellen Kartenausschnitt`
+          : "Übersichtskarte – gefilterte Unfälle im aktuellen Kartenausschnitt";
         const overviewCaption = pdfFigCounter.next(pdfMainMapCaptionSubject).caption;
         docDefinition.content.push({
           unbreakable: true,
@@ -4256,7 +4256,7 @@
             // Layout-PR „Bildverzerrung beheben": einheitliche Box
             // (PDF_MAP_MAX) für alle Map-Typen; Bild + Caption als
             // unbreakable-Stack (Spec-Items 1, 2, 3, 5).
-            const detailFig = pdfFigCounter.next("Detailausschnitt innerhalb des markierten Bereichs");
+            const detailFig = pdfFigCounter.next("Detailausschnitt – markiertes Auswahlrechteck");
             const detailCaptionText = (pdfParentNForSubset != null)
               ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentNForSubset} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
               : detailFig.caption;

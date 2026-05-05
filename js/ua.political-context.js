@@ -60,13 +60,12 @@
     // Stadtname immer ergänzen (Basiskontext)
     if (ctx.CITY_RAW) terms.add(ctx.CITY_RAW.trim());
 
-    // Straßenname aus ctx (falls vorhanden, z. B. vom Reverse-Geocoder)
-    if (ctx.locationHint && ctx.locationHint.street) {
-      terms.add(ctx.locationHint.street);
-    }
-    if (ctx.locationHint && ctx.locationHint.district) {
-      terms.add(ctx.locationHint.district);
-    }
+    // Straßenname / Stadtbezirk aus ctx.locationHint (vom Reverse-Geocoder
+    // via UA.ensureLocationHint() oder UA.computeExportReport() befüllt).
+    const hint = ctx.locationHint || {};
+    if (hint.street)   terms.add(hint.street);
+    if (hint.district) terms.add(hint.district);
+    if (hint.suburb && hint.suburb !== hint.district) terms.add(hint.suburb);
 
     // Gremium aus dem Export-Kontext
     const gremiumName = ctx.ui && ctx.ui._lastExportResult &&
@@ -84,8 +83,11 @@
       });
     }
 
-    // Fallback: allgemeines Thema Verkehr
-    if (terms.size <= 1) {
+    // Fallback auf allgemeines Verkehrsthema NUR, wenn weder Straße noch
+    // Stadtbezirk/Suburb ableitbar sind. Sonst würde der Topic-only-Pfad
+    // die orts-spezifischen Treffer überdecken.
+    const hasLocation = !!(hint.street || hint.district || hint.suburb);
+    if (!hasLocation && terms.size <= 1) {
       terms.add('Radverkehr');
     }
 
@@ -181,15 +183,80 @@
   // ── Panel öffnen ─────────────────────────────────────────────────────────────
 
   /**
+   * Führt die Suche mit dem aktuellen ctx + UI-Input aus und rendert das
+   * Ergebnis ins Panel. Wiederverwendet vom „Suchen"-Button und von der
+   * Auto-Suche beim Panel-Open.
+   *
+   * @param {object} ctx
+   * @returns {Promise<void>}
+   */
+  async function runSearch(ctx) {
+    const statusEl  = document.getElementById('polCtxStatus');
+    const resultsEl = document.getElementById('polCtxResults');
+    const basisEl   = document.getElementById('polCtxBasis');
+    const btnSearch = document.getElementById('polCtxBtnSearch');
+    if (!statusEl || !resultsEl) return;
+
+    const terms = UA.PoliticalContext.buildSearchTerms(ctx);
+
+    // „Suche basiert auf …": macht für Nutzer transparent, welche Begriffe
+    // die Auto-Suche einsetzt (Stadt + Straße + Stadtbezirk + ggf. Gremium).
+    if (basisEl) {
+      const escHtml = (UA && UA.escHtml) ? UA.escHtml : (s => String(s == null ? '' : s));
+      const basisHtml = terms.length
+        ? `Suche basiert auf: <strong>${terms.map(t => escHtml(t)).join('</strong>, <strong>')}</strong>`
+        : 'Suche basiert auf: <em>(keine Suchbegriffe)</em>';
+      basisEl.innerHTML = basisHtml;
+    }
+
+    statusEl.textContent = 'Suche läuft…';
+    resultsEl.innerHTML  = '';
+    if (btnSearch) btnSearch.disabled = true;
+
+    try {
+      const result = await UA.PoliticalContext.search({
+        city: ctx.CITY_RAW || '',
+        searchTerms: terms,
+        context: {
+          gremium: (ctx.ui && ctx.ui._lastExportResult &&
+            ctx.ui._lastExportResult.structured &&
+            ctx.ui._lastExportResult.structured.meta &&
+            ctx.ui._lastExportResult.structured.meta.gremium &&
+            ctx.ui._lastExportResult.structured.meta.gremium.name) || ''
+        },
+        maxResults: 15
+      });
+      statusEl.textContent = result.references.length > 0
+        ? `${result.references.length} Vorgänge gefunden.`
+        : 'Keine Vorgänge gefunden.';
+      renderResults(resultsEl, result);
+    } catch (err) {
+      statusEl.textContent = 'Fehler: ' + String(err.message || err);
+    } finally {
+      if (btnSearch) btnSearch.disabled = false;
+    }
+  }
+  UA.PoliticalContext._runSearch = runSearch;
+
+  /**
    * Öffnet das politische Recherche-Panel und startet ggf. direkt die Suche.
    *
    * @param {object} ctx
    */
-  UA.PoliticalContext.openPanel = function openPanel(ctx) {
+  UA.PoliticalContext.openPanel = async function openPanel(ctx) {
     const panel = document.getElementById('polCtxPanel');
     if (!panel) return;
 
     panel.style.display = 'flex';
+
+    // Issue 3: Vor dem Vorbelegen / Auto-Suche sicherstellen, dass
+    // ctx.locationHint mit Straße/Stadtbezirk gefüllt ist (on-demand
+    // Reverse-Geocoding über den vorhandenen _rgCache).
+    try {
+      if (typeof UA.ensureLocationHint === 'function') {
+        await UA.ensureLocationHint(ctx);
+      }
+    } catch (_) { /* defensive: ohne Hint geht's mit Stadt + Fallback */ }
 
     // Suchbegriffe vorbelegen
     const inputEl = document.getElementById('polCtxSearchInput');
@@ -202,6 +269,21 @@
       const city = ((ctx && ctx.CITY_RAW) || '').trim();
       const filtered = terms.filter(t => ((t || '').trim()) !== city);
       inputEl.value = filtered.join(', ');
+    }
+
+    // Issue 3: Auto-Suche, sobald ein Ortsbezug ableitbar war oder ein
+    // Gremium aus einem vorigen Export bekannt ist. Sonst (nur Stadt +
+    // generischer Fallback) bleibt es beim Klick-Trigger, damit die KI-
+    // Quote des Servers nicht für reine Stadt-Topic-Suchen verbraucht wird.
+    const hint = (ctx && ctx.locationHint) || {};
+    const hasLocation = !!(hint.street || hint.district || hint.suburb);
+    const hasGremium = !!(ctx.ui && ctx.ui._lastExportResult &&
+      ctx.ui._lastExportResult.structured &&
+      ctx.ui._lastExportResult.structured.meta &&
+      ctx.ui._lastExportResult.structured.meta.gremium &&
+      ctx.ui._lastExportResult.structured.meta.gremium.name);
+    if (hasLocation || hasGremium) {
+      try { await runSearch(ctx); } catch (_) { /* status zeigt Fehler */ }
     }
   };
 
@@ -245,7 +327,9 @@
 
     // Panel öffnen
     btnOpen.addEventListener('click', () => {
-      UA.PoliticalContext.openPanel(ctx);
+      // openPanel ist async; wir fangen Errors defensiv ab, damit das
+      // Click-Handler-Promise keinen unhandled-rejection-Logspam verursacht.
+      Promise.resolve(UA.PoliticalContext.openPanel(ctx)).catch(() => {});
     });
 
     // Panel schließen
@@ -257,38 +341,8 @@
 
     // Suche starten
     if (btnSearch) {
-      btnSearch.addEventListener('click', async () => {
-        if (!statusEl || !resultsEl) return;
-
-        const inputEl = document.getElementById('polCtxSearchInput');
-        const terms = UA.PoliticalContext.buildSearchTerms(ctx);
-
-        statusEl.textContent = 'Suche läuft…';
-        resultsEl.innerHTML = '';
-        btnSearch.disabled = true;
-
-        try {
-          const result = await UA.PoliticalContext.search({
-            city: ctx.CITY_RAW || '',
-            searchTerms: terms,
-            context: {
-              gremium: (ctx.ui && ctx.ui._lastExportResult &&
-                ctx.ui._lastExportResult.structured &&
-                ctx.ui._lastExportResult.structured.meta &&
-                ctx.ui._lastExportResult.structured.meta.gremium &&
-                ctx.ui._lastExportResult.structured.meta.gremium.name) || ''
-            },
-            maxResults: 15
-          });
-          statusEl.textContent = result.references.length > 0
-            ? `${result.references.length} Vorgänge gefunden.`
-            : 'Keine Vorgänge gefunden.';
-          renderResults(resultsEl, result);
-        } catch (err) {
-          statusEl.textContent = 'Fehler: ' + String(err.message || err);
-        } finally {
-          btnSearch.disabled = false;
-        }
+      btnSearch.addEventListener('click', () => {
+        Promise.resolve(runSearch(ctx)).catch(() => {});
       });
     }
 
