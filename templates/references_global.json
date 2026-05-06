@@ -1,0 +1,36 @@
+{
+  "documents": [
+    {
+      "title": "Alleinunfälle von Radfahrenden in Deutschland, Österreich und der Schweiz",
+      "author": "Unfallforschung der Versicherer (UDV)",
+      "url": "https://www.udv.de/udv/themen/alleinunfaelle-von-radfahrenden-in-deutschland-oesterreich-und-der-schweiz-197328",
+      "description": "Studie zu typischen Ursachen von Rad-Alleinunfällen: Infrastrukturmängel wie schlechter Belag, Bordsteinkanten, Schienenquerungen und ungünstige Radverkehrsführung spielen eine zentrale Rolle."
+    },
+    {
+      "title": "Volkswirtschaftliche Kosten von Straßenverkehrsunfällen in Deutschland",
+      "author": "Bundesanstalt für Straßenwesen (BASt)",
+      "url": "https://www.bast.de/DE/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
+      "description": "Methodische Grundlage der im Antrag verwendeten volkswirtschaftlichen Kostenschätzung je Unfall nach Schweregrad."
+    },
+    {
+      "title": "Empfehlungen für Radverkehrsanlagen (ERA)",
+      "author": "Forschungsgesellschaft für Straßen- und Verkehrswesen (FGSV)",
+      "date": "2010",
+      "url": "https://www.fgsv-verlag.de/era",
+      "description": "Bundesweit geltendes Regelwerk zur Planung, zum Entwurf und zum Betrieb von Radverkehrsanlagen. Definiert Standards für sichere Radverkehrsführung, insbesondere an Knotenpunkten und im Längsverkehr."
+    },
+    {
+      "title": "Richtlinien für die Anlage von Stadtstraßen (RASt 06)",
+      "author": "Forschungsgesellschaft für Straßen- und Verkehrswesen (FGSV)",
+      "date": "2006",
+      "url": "https://www.fgsv-verlag.de/rast-06",
+      "description": "Bundesweit geltendes Regelwerk zur Gestaltung von Stadtstraßen. Grundlage für Querschnitts- und Knotenpunktplanung sowie für die Bemessung und Sicherheitsbewertung innerörtlicher Straßenräume."
+    },
+    {
+      "title": "Schulwegsicherung – Systematische Analyse und Maßnahmen",
+      "author": "Deutsche Verkehrswacht",
+      "url": "https://www.verkehrswacht-medien-service.de/schulweg/",
+      "description": "Leitfaden zur Identifikation und Entschärfung von Gefahrenstellen auf Schulwegen. Relevant bei Unfallhäufungen im Umfeld von Schulen, Kindergärten und Kitas."
+    }
+  ]
+}

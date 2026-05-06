@@ -1089,7 +1089,23 @@ Die Sektion lässt sich im Export-Modal über den Schalter **„Stunden-Heatmap"
 
 ## Dunkelziffer-Pflichthinweis
 
-In allen Antrags-Renderpfaden (Text, HTML, DOCX, PDF) erscheint ein nicht abschaltbarer Hinweis darauf, dass die Unfallatlas-Daten der polizeilich erfassten Unfälle (mit Personenschaden) entsprechen und keine Vergleiche zu erfassten Sachschäden oder Beinahe-Unfällen zulassen. Konstante: `UA.DARK_FIGURE_NOTE` in `js/ua.export_v2.js`. Felder: `title`, `body`, `sourceLabel`, `sourceUrl`. Der Block ist Teil von `structured.darkFigureNote` und wird bewusst auch dann mit ausgegeben, wenn andere optionale Sektionen (Kosten, Maßnahmen) deaktiviert sind.
+In allen Antrags-Renderpfaden (Text, HTML, DOCX, PDF) erscheint ein nicht abschaltbarer Hinweis darauf, dass die Unfallatlas-Daten der polizeilich erfassten Unfälle (mit Personenschaden) entsprechen und keine Vergleiche zu erfassten Sachschäden oder Beinahe-Unfällen zulassen. Konstante: `UA.DARK_FIGURE_NOTE` in `js/ua.export_v2.js`. Felder: `title`, `body`, `sourceLabel`, `sourceUrl`, `sources[]`. Der Block ist Teil von `structured.darkFigureNote` und wird bewusst auch dann mit ausgegeben, wenn andere optionale Sektionen (Kosten, Maßnahmen) deaktiviert sind.
+
+Das Feld `sources` enthält ein Array mit je `label` und `url` für BASt (Volkswirtschaftliche Kosten) und UDV (Unfallforschung der Versicherer). Alle Renderpfade (Text, HTML, DOCX, PDF) geben beide Quellenlinks aus. `sourceLabel`/`sourceUrl` bleiben für Abwärtskompatibilität erhalten und werden aus `sources[0]` abgeleitet.
+
+## Globale Evidenzquellen
+
+Zusätzlich zu den stadtspezifischen Bezugsdokumenten (`templates/references_<stadtslug>.json`) existiert eine stadtunabhängige Referenzdatei `templates/references_global.json`. Sie enthält Forschungsquellen, die für alle Städte gleichermaßen gelten:
+
+| Quelle | Relevanz |
+|---|---|
+| UDV – Alleinunfälle von Radfahrenden (D/A/CH) | Belegt infrastrukturelle Ursachen bei Rad-Alleinunfällen (Belag, Kanten, Schienen) |
+| BASt – Volkswirtschaftliche Kosten von Straßenverkehrsunfällen | Methodische Grundlage der Kostenschätzung im Antrag |
+| FGSV ERA (2010) – Empfehlungen für Radverkehrsanlagen | Bundesweites Regelwerk für Radverkehrsplanung |
+| FGSV RASt 06 – Richtlinien für die Anlage von Stadtstraßen | Bundesweites Regelwerk für Knotenpunkt- und Querschnittsgestaltung |
+| Deutsche Verkehrswacht – Schulwegsicherung | Relevant bei Unfallhäufungen im Umfeld von Schulen und Kitas |
+
+Der Loader (`loadReferenceDocuments` in `js/ua.export_v2.js`) lädt stets zuerst `references_global.json`, dann (falls vorhanden) die stadtspezifische Datei. Duplikate (gleicher `title` + `author`) werden bereinigt; stadtspezifische Einträge gewinnen bei Kollision. Das Ergebnis erscheint als `structured.references` in allen Renderpfaden. Fehlt die stadtspezifische Datei (z. B. bei Bonn, Hamburg), stehen trotzdem alle globalen Quellen zur Verfügung.
 
 ## OSM-Kontext-Anreicherung
 

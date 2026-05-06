@@ -100,7 +100,17 @@
     title: "Datenerfassung – Dunkelziffer und Erfassungsgrenzen",
     body: "Erfasst sind ausschließlich polizeilich aufgenommene Verkehrsunfälle mit Personenschaden. Reine Sachschäden, Beinaheunfälle und nicht gemeldete Unfälle (Dunkelziffer) sind nicht enthalten. Studien schätzen, dass insbesondere bei Radunfällen ohne Fremdverschulden sowie bei leichten Verletzungen ein erheblicher Anteil der Vorfälle nicht in der amtlichen Statistik landet — die tatsächliche Belastung kann je nach Verkehrsart um den Faktor 2–10 höher liegen.",
     sourceLabel: "Quelle: BASt – Bundesanstalt für Straßenwesen; Unfallforschung der Versicherer (UDV).",
-    sourceUrl: "https://www.bast.de/"
+    sourceUrl: "https://www.bast.de/DE/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
+    sources: Object.freeze([
+      Object.freeze({
+        label: "BASt – Volkswirtschaftliche Kosten von Straßenverkehrsunfällen",
+        url: "https://www.bast.de/DE/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
+      }),
+      Object.freeze({
+        label: "UDV – Unfallforschung der Versicherer",
+        url: "https://www.udv.de/"
+      })
+    ])
   });
   // Exportieren, damit Tests und andere Module (Doku-Generator) die selbe
   // Definition wiederverwenden können.
@@ -977,17 +987,42 @@
   // --------------------
   // Reference documents loading
   // --------------------
-  async function loadReferenceDocuments(citySlug) {
-    const refPath = `templates/references_${citySlug}.json`;
+
+  /** Load a single references JSON file; returns parsed data or null on any error. */
+  async function _fetchRefFile(path) {
     try {
-      const r = await fetch(refPath, { cache: "no-store" });
+      const r = await fetch(path, { cache: "no-store" });
       if (!r.ok) return null;
-      const data = await r.json();
-      return data;
+      return await r.json();
     } catch (e) {
-      console.warn(`Reference documents not available for ${citySlug}:`, e);
+      console.warn(`Reference documents not available at ${path}:`, e);
       return null;
     }
+  }
+
+  /**
+   * Load references_global.json plus (if citySlug is given) references_<city>.json,
+   * merge the two document lists, and deduplicate by (title+author).
+   * City-specific entries win over global entries on collision.
+   * Returns { documents: [...] } or null if nothing could be loaded.
+   */
+  async function loadReferenceDocuments(citySlug) {
+    const globalData = await _fetchRefFile("templates/references_global.json");
+    const cityData = citySlug ? await _fetchRefFile(`templates/references_${citySlug}.json`) : null;
+
+    const globalDocs = (globalData && Array.isArray(globalData.documents)) ? globalData.documents : [];
+    const cityDocs   = (cityData   && Array.isArray(cityData.documents))   ? cityData.documents   : [];
+
+    if (globalDocs.length === 0 && cityDocs.length === 0) return null;
+
+    // Deduplicate: city entries override global entries with the same title+author key.
+    const dedupKey = (d) => `${(d.title || "").trim().toLowerCase()}|${(d.author || "").trim().toLowerCase()}`;
+    const cityKeys = new Set(cityDocs.map(dedupKey));
+    const merged = [
+      ...globalDocs.filter(d => !cityKeys.has(dedupKey(d))),
+      ...cityDocs
+    ];
+    return { documents: merged };
   }
 
   // --------------------
@@ -1395,6 +1430,24 @@
     let loc = null;
     if (center) {
       loc = await UA.reverseGeocode(center.lat, center.lng);
+      // Issue 3: cache compact `locationHint` on ctx so the political-context
+      // panel can use street/district from the same reverse-geocode result
+      // without redoing the call.
+      try {
+        const a = (loc && loc.address) || {};
+        const adm = (loc && loc.admin) || {};
+        const street = a.road || null;
+        const district = a.city_district || adm.city_district || adm.borough || adm.quarter || null;
+        const suburb = a.suburb || adm.suburb || null;
+        if (street || district || suburb) {
+          ctx.locationHint = {
+            street: street || null,
+            district: district || null,
+            suburb: suburb || null,
+            label: (loc && loc.label) || null
+          };
+        }
+      } catch (_) { /* defensive */ }
     }
     
     const sw = bounds.getSouthWest();
@@ -1976,6 +2029,18 @@
       if (recommendedMeasures.disclaimer) {
         lines.push(`  Hinweis: ${recommendedMeasures.disclaimer}`);
       }
+      // Issue 2 (a): Quellen vollständig — Titel, Publisher, Jahr und URL.
+      // Vorher wurden Quellen nur in der HTML-Vorschau gerendert, sodass
+      // TEXT-Reports (und damit AI-Konsum) die Belege nicht sahen.
+      if (Array.isArray(recommendedMeasures.sources) && recommendedMeasures.sources.length > 0) {
+        lines.push("  Quellen:");
+        for (const s of recommendedMeasures.sources) {
+          if (!s || !s.title) continue;
+          const meta = [s.publisher, s.year].filter(Boolean).join(", ");
+          const head = meta ? `${s.title} (${meta})` : s.title;
+          lines.push(s.url ? `    – ${head} — ${s.url}` : `    – ${head}`);
+        }
+      }
       lines.push("");
     }
 
@@ -2051,16 +2116,26 @@
       lines.push("");
     }
 
-    // Add political references to text report
+    // Add political references to text report.
+    // Issue 2 (e): Quellen vollständig — neben Titel/Typ/Datum/Gremium/
+    // Nummer/URL auch referenceType (feinere Klassifikation), reason
+    // (Begründung der Relevanz), snippet (Textauszug) und source
+    // (Provider-Kürzel, transparenter Quellenhinweis).
     if (ctx.politicalReferences && ctx.politicalReferences.length > 0) {
       lines.push("Bisherige politische Befassung:");
       for (const ref of ctx.politicalReferences) {
         lines.push(`- ${ref.title || "Ohne Titel"}`);
+        if (ref.referenceType && ref.referenceType !== ref.type) {
+          lines.push(`  Klassifikation: ${ref.referenceType}`);
+        }
         if (ref.type) lines.push(`  Typ: ${ref.type}`);
         if (ref.date) lines.push(`  Datum: ${ref.date}`);
         if (ref.gremium) lines.push(`  Gremium: ${ref.gremium}`);
         if (ref.number) lines.push(`  Nummer: ${ref.number}`);
+        if (ref.snippet) lines.push(`  Auszug: ${String(ref.snippet).slice(0, 240)}`);
+        if (ref.reason) lines.push(`  Relevanz: ${ref.reason}`);
         if (ref.url) lines.push(`  URL: ${ref.url}`);
+        if (ref.source) lines.push(`  Quelle (Portal): ${ref.source}`);
       }
       lines.push("");
     }
@@ -2107,6 +2182,11 @@
     lines.push(DARK_FIGURE_NOTE.title + ":");
     lines.push("  " + DARK_FIGURE_NOTE.body);
     lines.push("  " + DARK_FIGURE_NOTE.sourceLabel);
+    if (DARK_FIGURE_NOTE.sources && DARK_FIGURE_NOTE.sources.length > 0) {
+      for (const src of DARK_FIGURE_NOTE.sources) {
+        lines.push("  - " + src.label + (src.url ? " (" + src.url + ")" : ""));
+      }
+    }
     lines.push("");
 
     lines.push(tpl(tBesch, vars).trim());
@@ -2343,7 +2423,15 @@
           </li>`;
       }).join("");
       const sourcesHtml = (recommendedMeasures.sources && recommendedMeasures.sources.length > 0)
-        ? `<div style="color:#666; font-size:12px; margin-top:6px;"><strong>Quellen:</strong> ${recommendedMeasures.sources.map(s => UA.escHtml(s.title || "")).filter(Boolean).join(" · ")}</div>`
+        ? `<div style="color:#666; font-size:12px; margin-top:6px;"><strong>Quellen:</strong> ${recommendedMeasures.sources.map(s => {
+            const title = s.title || "";
+            if (!title) return "";
+            const meta = [s.publisher, s.year].filter(Boolean).map(v => UA.escHtml(String(v))).join(", ");
+            const label = meta ? `${UA.escHtml(title)} (${meta})` : UA.escHtml(title);
+            return s.url
+              ? `<a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${label}</a>`
+              : label;
+          }).filter(Boolean).join(" · ")}</div>`
         : "";
       // OSM-Datenstand-Hinweis vor der Liste, damit die Unsicherheit
       // sofort sichtbar ist und nicht erst unten als Fußnote.
@@ -2579,6 +2667,19 @@
               html += `<strong>${UA.escHtml(ref.title || 'Ohne Titel')}</strong>`;
             }
             if (meta.length) html += ` <span style="color:#666;font-size:12px;">(${meta.join(' · ')})</span>`;
+            // Issue 2 (e): zusätzliche Felder konsistent ausgeben.
+            if (ref.referenceType && ref.referenceType !== ref.type) {
+              html += `<div style="font-size:11px;color:#777;margin-top:2px;"><em>Klassifikation:</em> ${UA.escHtml(ref.referenceType)}</div>`;
+            }
+            if (ref.snippet) {
+              html += `<div style="font-size:11px;color:#555;margin-top:2px;line-height:1.4;">${UA.escHtml(String(ref.snippet).slice(0, 240))}</div>`;
+            }
+            if (ref.reason) {
+              html += `<div style="font-size:11px;color:#666;margin-top:2px;"><em>Relevanz:</em> ${UA.escHtml(ref.reason)}</div>`;
+            }
+            if (ref.source) {
+              html += `<div style="font-size:11px;color:#888;margin-top:2px;"><em>Portal:</em> ${UA.escHtml(ref.source)}</div>`;
+            }
             html += `</li>`;
           }
           html += `</ul>`;
@@ -2588,7 +2689,7 @@
         <div style="margin-top:12px; padding:8px 10px; border:1px solid #f0c36d; background:#fff8e1; border-radius:6px; font-size:12px; color:#5a4400;">
           <div style="font-weight:700; margin-bottom:2px;">${UA.escHtml(DARK_FIGURE_NOTE.title)}</div>
           <div>${UA.escHtml(DARK_FIGURE_NOTE.body)}</div>
-          <div style="margin-top:4px; font-style:italic;">${UA.escHtml(DARK_FIGURE_NOTE.sourceLabel)}${DARK_FIGURE_NOTE.sourceUrl ? ` <a href="${UA.escHtml(DARK_FIGURE_NOTE.sourceUrl)}" target="_blank" rel="noopener">Link</a>` : ""}</div>
+          <div style="margin-top:4px; font-style:italic;">${UA.escHtml(DARK_FIGURE_NOTE.sourceLabel)}</div>${(DARK_FIGURE_NOTE.sources && DARK_FIGURE_NOTE.sources.length > 0) ? `<ul style="margin:4px 0 0 0; padding-left:16px;">${DARK_FIGURE_NOTE.sources.map(s => `<li><a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${UA.escHtml(s.label)}</a></li>`).join("")}</ul>` : (DARK_FIGURE_NOTE.sourceUrl ? `<a href="${UA.escHtml(DARK_FIGURE_NOTE.sourceUrl)}" target="_blank" rel="noopener">Link</a>` : "")}
         </div>
 
         ${(yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) ? `
@@ -3039,6 +3140,17 @@ ${placemarks}
           city: a.city || a.town || a.village || a.municipality || null,
           state: a.state || null,
           postcode: a.postcode || null
+        },
+        // Address fields useful for political-context search (Issue 3):
+        // expose road/suburb/city_district as a flat object so callers can
+        // build a compact `locationHint` without re-parsing `details`.
+        address: {
+          road: a.road || null,
+          house_number: a.house_number ? String(a.house_number) : null,
+          suburb: a.suburb || a.neighbourhood || null,
+          city_district: a.city_district || a.borough || a.quarter || null,
+          city: a.city || a.town || a.village || a.municipality || null,
+          postcode: a.postcode || null
         }
       };
 
@@ -3049,6 +3161,60 @@ ${placemarks}
       return fallback;
     }
   };
+
+  // ---------------------------------------------------------------------
+  // UA.ensureLocationHint(ctx) — Issue 3 (Vorgangs-Suche):
+  // Stellt sicher, dass `ctx.locationHint` mit { street, district, suburb,
+  // label } belegt ist, indem es bei Bedarf reverseGeocode auf den
+  // Mittelpunkt der aktuellen Selektion / des Map-Centers anwendet.
+  // Idempotent + benutzt den vorhandenen `_rgCache`. Liefert das
+  // `locationHint`-Objekt zurück (oder null, wenn kein Center ableitbar).
+  //
+  // Wird aus dem politischen-Recherche-Panel (`UA.PoliticalContext.openPanel`)
+  // aufgerufen, damit die Auto-Suche Stadt + Straße + Stadtbezirk kennt,
+  // ohne dass vorher ein voller Export gerechnet werden musste.
+  UA.ensureLocationHint = async function ensureLocationHint(ctx) {
+    if (!ctx) return null;
+    if (ctx.locationHint && (ctx.locationHint.street || ctx.locationHint.district || ctx.locationHint.suburb)) {
+      return ctx.locationHint;
+    }
+    // Center bevorzugt aus selectionBounds, sonst aus Map.
+    let center = null;
+    try {
+      if (ctx.selectionBounds && typeof ctx.selectionBounds.getCenter === "function") {
+        const c = ctx.selectionBounds.getCenter();
+        if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) center = { lat: c.lat, lng: c.lng };
+      }
+      if (!center && ctx.map && typeof ctx.map.getCenter === "function") {
+        const c = ctx.map.getCenter();
+        if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) center = { lat: c.lat, lng: c.lng };
+      }
+    } catch (_) { /* defensive: kein Center → null */ }
+    if (!center || typeof UA.reverseGeocode !== "function") return null;
+    try {
+      const loc = await UA.reverseGeocode(center.lat, center.lng);
+      const a = (loc && loc.address) || {};
+      const adm = (loc && loc.admin) || {};
+      const street = a.road || null;
+      const district = a.city_district || adm.city_district || adm.borough || adm.quarter || null;
+      const suburb = a.suburb || adm.suburb || null;
+      if (!street && !district && !suburb) {
+        // Nichts brauchbares im Reverse-Geocoding-Ergebnis — keinen Hint
+        // setzen, damit Aufrufer den Topic-only-Fallback nutzen.
+        return null;
+      }
+      ctx.locationHint = {
+        street: street || null,
+        district: district || null,
+        suburb: suburb || null,
+        label: (loc && loc.label) || null
+      };
+      return ctx.locationHint;
+    } catch (_) {
+      return null;
+    }
+  };
+
   
   
 })();
