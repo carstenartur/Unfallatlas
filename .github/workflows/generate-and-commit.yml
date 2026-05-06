@@ -88,22 +88,17 @@ jobs:
       # ---------------------------------------------------------------
       # Enrichment (Tier-B done in CI, see docs/enrichment.md)
       #
-      # OSM/DEM/Traffic source data is downloaded by the workflow once
-      # per run and dropped into the directories pointed to by the env
-      # vars below. When a directory does not exist or does not contain
-      # a per-city dataset, the corresponding stage is silently skipped
-      # — every enriched field is optional and the web app degrades to
-      # the un-enriched payload without changes.
+      # The script reads OSM/DEM/Traffic source data from the dirs
+      # named by the env vars below. No producer step is wired up yet
+      # in this workflow, so by default the directories are absent and
+      # every enrichment stage no-ops — the converter output is left
+      # functionally unchanged. Adding `download-osm` /
+      # `download-dem` / `download-traffic` steps that drop
+      # `osm_<city>.json` / `dem_<city>.json` / `traffic_<city>.json`
+      # into these dirs before "Run enrichment" is the planned
+      # follow-up; once they exist, wrap them in `actions/cache` keyed
+      # on the dataset version.
       # ---------------------------------------------------------------
-      - name: Cache enrichment source data
-        uses: actions/cache@v4
-        with:
-          path: |
-            .enrichment-cache/osm
-            .enrichment-cache/dem
-            .enrichment-cache/traffic
-          key: enrichment-data-v1-${{ hashFiles('cities.txt') }}
-
       - name: Run enrichment
         env:
           ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm

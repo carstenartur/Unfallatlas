@@ -81,8 +81,13 @@
    * what the per-feature properties already carry.
    *
    * @param {object} ctx          Application context (for dicts lookup;
-   *                              ctx.geojsonProps holds the FC.properties
-   *                              parsed at load time, if available).
+   *                              dicts are read from
+   *                              `ctx.geojsonProps?.enrichmentDicts` —
+   *                              i.e. the parsed FC.properties stashed
+   *                              by the loader at fetch time. As a
+   *                              compatibility fallback, an explicit
+   *                              `ctx.enrichmentDicts` is also
+   *                              accepted.)
    * @param {string} cityRaw      Raw city name (e.g. "Bonn").
    */
   function load(ctx, cityRaw) {
@@ -96,7 +101,7 @@
       ]);
       const ways = (waysResp && waysResp.ok) ? await waysResp.json().catch(() => null) : null;
       const meta = (metaResp && metaResp.ok) ? await metaResp.json().catch(() => null) : null;
-      const dicts = (ctx && ctx.enrichmentDicts) || null;
+      const dicts = (ctx && (ctx.geojsonProps?.enrichmentDicts || ctx.enrichmentDicts)) || null;
       return { slug: u.slug, ways, meta, dicts };
     })();
 

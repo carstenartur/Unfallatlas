@@ -205,6 +205,49 @@ describe('enrich_geojson — enrichCity', () => {
   test('throws on non-FeatureCollection input', () => {
     expect(() => enrich.enrichCity({ type: 'Feature' }, 'x')).toThrow(/FeatureCollection/);
   });
+
+  test('memoises per-way provider lookups: each way is enriched once even when many features match it', () => {
+    // Three accidents on W1 + one on W2 → osm.wayAttributes /
+    // dem.wayElevation / traffic.wayTraffic must each be called
+    // exactly once per way, not once per accident.
+    const calls = { osmWay: 0, demWay: 0, trafficWay: 0 };
+    const providers = {
+      osm: {
+        source: 'OSM test',
+        matchFeature: (lat) => (lat === 50.1)
+          ? { matched_way_id: 'W1', road_context_source: 'osm' }
+          : { matched_way_id: 'W2', road_context_source: 'osm' },
+        wayAttributes: (wayId) => { calls.osmWay++; return { highway: 'residential' }; },
+      },
+      dem: {
+        source: 'SRTM30',
+        elevateFeature: () => null,
+        wayElevation: (wayId) => { calls.demWay++; return { road_slope_percent: 1.2 }; },
+      },
+      traffic: {
+        source: 'BASt SDV',
+        wayTraffic: (wayId) => {
+          calls.trafficWay++;
+          return { traffic_volume_value: 5000, _proxy_class: 'medium' };
+        },
+      },
+    };
+    const gj = fcWith([
+      ptFeature(1, 7.0, 50.1),  // → W1
+      ptFeature(2, 7.0, 50.1),  // → W1
+      ptFeature(3, 7.0, 50.1),  // → W1
+      ptFeature(4, 7.0, 50.2),  // → W2
+    ]);
+    enrich.enrichCity(gj, 'testcity', { providers });
+    // Two unique ways, so 2 calls per provider — not 4.
+    expect(calls.osmWay).toBe(2);
+    expect(calls.demWay).toBe(2);
+    expect(calls.trafficWay).toBe(2);
+    // But every accident on a traffic-bearing way still gets the
+    // per-feature `traffic_proxy_class` denormalisation.
+    expect(gj.features.map(f => f.properties.traffic_proxy_class))
+      .toEqual(['medium', 'medium', 'medium', 'medium']);
+  });
 });
 
 describe('enrich_geojson — file-on-disk wrapper', () => {
@@ -215,7 +258,7 @@ describe('enrich_geojson — file-on-disk wrapper', () => {
   });
   afterEach(() => { fs.rmSync(tmpRoot, { recursive: true, force: true }); });
 
-  test('reads, enriches, writes — and produces all three artefacts', () => {
+  test('with all providers off: rewrites only the geojson; no meta/ways spam', () => {
     const slug = 'bonn';
     const gj = fcWith([ ptFeature(1, 7.0, 50.0) ]);
     const p  = enrich.pathsForCity(tmpRoot, slug);
@@ -223,18 +266,61 @@ describe('enrich_geojson — file-on-disk wrapper', () => {
 
     const r = enrich.enrichCityFile(tmpRoot, slug, { useOsm: false, useDem: false, useTraffic: false });
     expect(r.skipped).toBe(false);
+    expect(r.wroteCompanions).toBe(false);
     expect(fs.existsSync(p.geojson)).toBe(true);
-    expect(fs.existsSync(p.ways)).toBe(true);
-    expect(fs.existsSync(p.meta)).toBe(true);
+    // No meaningful enrichment → no spurious ways/meta files (otherwise
+    // the weekly enrich.yml cron would commit a fresh `generatedAt`
+    // timestamp on every run).
+    expect(fs.existsSync(p.ways)).toBe(false);
+    expect(fs.existsSync(p.meta)).toBe(false);
 
-    // The unenriched file is still a valid FeatureCollection with the
-    // same number of features. This is the regression that asserts
-    // the existing js/ua.data_v2.js loader keeps working with no
+    // The geojson is still a valid FeatureCollection with the same
+    // number of features. This is the regression that asserts the
+    // existing js/ua.data_v2.js loader keeps working with no
     // enrichment data.
     const written = JSON.parse(fs.readFileSync(p.geojson, 'utf8'));
     expect(written.type).toBe('FeatureCollection');
     expect(written.features).toHaveLength(1);
     expect(written.features[0].properties.id).toBe('1');
+  });
+
+  test('with at least one provider: writes ways + meta sidecars', () => {
+    const slug = 'bonn';
+    const gj = fcWith([
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [7.20000, 50.10000] },
+        properties: { id: '1' } },
+    ]);
+    const p  = enrich.pathsForCity(tmpRoot, slug);
+    fs.writeFileSync(p.geojson, JSON.stringify(gj));
+
+    const providers = {
+      osm: {
+        source: 'OSM test', extractDate: '2026-01-10',
+        matchFeature: (lat, lon) => (lat === 50.1 && lon === 7.2)
+          ? { matched_way_id: 'W1', road_context_source: 'osm' } : null,
+        wayAttributes: () => ({ highway: 'residential', maxspeed: 30 }),
+      },
+      dem: null, traffic: null,
+    };
+    const r = enrich.enrichCityFile(tmpRoot, slug, { providers });
+    expect(r.wroteCompanions).toBe(true);
+    expect(fs.existsSync(p.ways)).toBe(true);
+    expect(fs.existsSync(p.meta)).toBe(true);
+  });
+
+  test('cleans up stale companion files when a re-run drops back to no-provider state', () => {
+    const slug = 'bonn';
+    const gj = fcWith([ ptFeature(1, 7.0, 50.0) ]);
+    const p  = enrich.pathsForCity(tmpRoot, slug);
+    fs.writeFileSync(p.geojson, JSON.stringify(gj));
+    // Pre-create a stale ways + meta file pretending a previous run
+    // had enrichment data.
+    fs.writeFileSync(p.ways, '{"W_old":{}}');
+    fs.writeFileSync(p.meta, '{"old":true}');
+
+    enrich.enrichCityFile(tmpRoot, slug, { useOsm: false, useDem: false, useTraffic: false });
+    expect(fs.existsSync(p.ways)).toBe(false);
+    expect(fs.existsSync(p.meta)).toBe(false);
   });
 
   test('returns skipped result when input geojson is missing', () => {

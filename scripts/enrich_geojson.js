@@ -337,7 +337,15 @@ function enrichCity(geojson, citySlug, opts = {}) {
   }
 
   // Collect way attributes lazily, only for ways we actually touch.
+  // Per-way provider lookups are memoised: each provider is called at
+  // most once per way, regardless of how many accidents match it. The
+  // per-feature `traffic_proxy_class` denormalisation lives in
+  // wayProxyClass below so it can still be applied to every accident
+  // that maps to a traffic-bearing way without re-invoking the
+  // provider.
   const ways = {};
+  const wayEnriched   = new Set();   // wayIds for which OSM/DEM lookups already ran
+  const wayProxyClass = new Map();   // wayId → traffic_proxy_class (or undefined)
 
   let nMatched = 0, nElevated = 0, nTraffic = 0;
 
@@ -368,31 +376,39 @@ function enrichCity(geojson, citySlug, opts = {}) {
     }
 
     if (wayId) {
-      const w = ways[wayId] || (ways[wayId] = {});
-      if (osm) {
-        const a = osm.wayAttributes(wayId);
-        if (a) Object.assign(w, a);
-      }
-      if (dem) {
-        const a = dem.wayElevation(wayId);
-        if (a) Object.assign(w, a);
-      }
-      if (traffic) {
-        const t = traffic.wayTraffic(wayId);
-        if (t) {
-          const proxyClass = t._proxy_class;
-          delete t._proxy_class;
-          Object.assign(w, t);
-          if (proxyClass) {
-            // Per-feature proxy class is the only traffic crumb we
-            // denormalise onto the accident itself, because the UI
-            // colours points by it without paying the lazy-load cost.
-            props.traffic_proxy_class = proxyClass;
-            nTraffic++;
+      // First time we see this wayId: ask each provider once.
+      if (!wayEnriched.has(wayId)) {
+        wayEnriched.add(wayId);
+        const w = ways[wayId] = ways[wayId] || {};
+        if (osm) {
+          const a = osm.wayAttributes(wayId);
+          if (a) Object.assign(w, a);
+        }
+        if (dem) {
+          const a = dem.wayElevation(wayId);
+          if (a) Object.assign(w, a);
+        }
+        if (traffic) {
+          const t = traffic.wayTraffic(wayId);
+          if (t) {
+            const proxyClass = t._proxy_class;
+            delete t._proxy_class;
+            Object.assign(w, t);
+            wayProxyClass.set(wayId, proxyClass);
           }
         }
+        stripUndefined(w);
       }
-      stripUndefined(w);
+
+      // Per-feature proxy class is the only traffic crumb we
+      // denormalise onto the accident itself, because the UI colours
+      // points by it without paying the lazy-load cost. Apply on
+      // every matching feature, using the cached per-way value.
+      const proxyClass = wayProxyClass.get(wayId);
+      if (proxyClass) {
+        props.traffic_proxy_class = proxyClass;
+        nTraffic++;
+      }
     }
 
     stripUndefined(props);
@@ -477,12 +493,30 @@ function enrichCityFile(repoRoot, citySlug, opts) {
   // indentation) — matches the existing on-disk format produced by
   // convertAmt2gmaps.sh, and is the smallest viable representation.
   fs.writeFileSync(p.geojson, JSON.stringify(geojson));
-  fs.writeFileSync(p.ways, JSON.stringify(ways));
-  fs.writeFileSync(p.meta, JSON.stringify(meta, null, 2) + '\n');
+
+  // The companion ways file and the meta sidecar are only meaningful
+  // when at least one provider produced data. Skipping them in the
+  // no-provider case keeps the weekly enrich.yml cron a true no-op
+  // (otherwise the always-fresh `generatedAt` timestamp would create
+  // a new commit on every run even when nothing actually changed —
+  // see the related guard in .github/workflows/enrich.yml).
+  const hasEnrichment = Object.keys(ways).length > 0
+    || Object.keys(meta.sources || {}).length > 0;
+  if (hasEnrichment) {
+    fs.writeFileSync(p.ways, JSON.stringify(ways));
+    fs.writeFileSync(p.meta, JSON.stringify(meta, null, 2) + '\n');
+  } else {
+    // Clean up any stale companion files from a previous run that did
+    // have enrichment data — the script must be deterministic and
+    // self-consistent.
+    for (const stale of [p.ways, p.meta]) {
+      if (fs.existsSync(stale)) fs.unlinkSync(stale);
+    }
+  }
 
   const sizeAfter = gzippedSize(p.geojson);
   return {
-    citySlug, skipped: false, meta,
+    citySlug, skipped: false, meta, wroteCompanions: hasEnrichment,
     sizes: { gzipBefore: sizeBefore, gzipAfter: sizeAfter, gzipDelta: sizeAfter - sizeBefore },
   };
 }

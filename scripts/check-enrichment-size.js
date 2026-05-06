@@ -126,7 +126,15 @@ function main(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--update')         opts.update = true;
-    else if (a === '--threshold') opts.thresholdPct = +argv[++i];
+    else if (a === '--threshold') {
+      const raw = argv[++i];
+      const n   = Number(raw);
+      if (raw == null || !Number.isFinite(n) || n < 0) {
+        console.error(`[size-check] --threshold needs a non-negative number, got ${JSON.stringify(raw)}`);
+        return 2;
+      }
+      opts.thresholdPct = n;
+    }
     else if (a === '--help' || a === '-h') {
       process.stdout.write('Usage: node scripts/check-enrichment-size.js [--update] [--threshold <pct>]\n');
       return 0;
@@ -141,4 +149,4 @@ if (require.main === module) {
   process.exit(main(process.argv.slice(2)));
 }
 
-module.exports = { check, listCityFiles, BASELINE_PATH, DEFAULT_THRESHOLD_PCT };
+module.exports = { check, listCityFiles, main, BASELINE_PATH, DEFAULT_THRESHOLD_PCT };

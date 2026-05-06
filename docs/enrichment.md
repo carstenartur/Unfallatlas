@@ -28,7 +28,7 @@ diffable and revertable through the normal commit/PR flow.
 * `.github/workflows/generate-and-commit.yml` — runs enrichment +
   size-check after the converter and before `check-city-rollout.js`.
 * `.github/workflows/enrich.yml` — standalone wrapper
-  (`workflow_dispatch` + monthly `schedule`) for refreshing only the
+  (`workflow_dispatch` + weekly `schedule`) for refreshing only the
   enrichment when DEM tiles or traffic datasets change.
 
 ## What ends up in the files
@@ -109,6 +109,13 @@ Per-file dataset-wide attribution:
 
 The web app loads it lazily, **only when the Context-Layers panel is
 opened**, behind a `requestIdleCallback` guard.
+
+The sidecar — and the companion `ways_<city>.json` — are only emitted
+when at least one provider produced data. A run with no providers
+configured rewrites the GeoJSON in place but never touches the
+sidecar files, so the weekly `enrich.yml` cron stays a true no-op
+until provider data is wired up. (For the same reason, the cron's
+commit step ignores meta-only diffs.)
 
 ## Slope classification
 

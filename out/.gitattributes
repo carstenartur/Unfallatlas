@@ -1,8 +1,15 @@
 # Reduce merge churn on CI-generated and CI-enriched data files.
 # The enrichment pipeline (scripts/enrich_geojson.js) and the converter
 # (convertAmt2gmaps.sh) both rewrite these files in full on every run,
-# so a union merge avoids spurious conflicts when two branches both
-# regenerate them.
-*.geojson  merge=union
-ways_*.json  merge=union
-*.enrichment.meta.json  merge=union
+# so on a merge conflict the right answer is "regenerate on the next
+# CI run" — never a hand-merged JSON.
+#
+# We deliberately avoid `merge=union` here: union concatenates the
+# conflicting hunks line-by-line, which on JSON produces syntactically
+# invalid output (duplicated braces, dangling commas) that would
+# silently break the loader. Marking the files as binary-style merge
+# (-merge) makes git refuse to auto-merge and surface a conflict
+# instead, which the CI regenerator then resolves cleanly.
+*.geojson                -merge
+ways_*.json              -merge
+*.enrichment.meta.json   -merge

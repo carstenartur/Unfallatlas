@@ -131,4 +131,34 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       UA.contextLayers.clearCache();
     }
   });
+
+  test('reads dicts from ctx.geojsonProps.enrichmentDicts (doc-aligned path)', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    global.fetch = () => Promise.resolve({ ok: false });
+    try {
+      const ctx = { geojsonProps: { enrichmentDicts: { highway: ['residential', 'secondary'] } } };
+      const state = await UA.contextLayers.load(ctx, 'Bonn');
+      expect(state.dicts).toEqual({ highway: ['residential', 'secondary'] });
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  test('falls back to ctx.enrichmentDicts when geojsonProps is absent (back-compat)', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    global.fetch = () => Promise.resolve({ ok: false });
+    try {
+      const ctx = { enrichmentDicts: { highway: ['x'] } };
+      const state = await UA.contextLayers.load(ctx, 'Köln');
+      expect(state.dicts).toEqual({ highway: ['x'] });
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
 });

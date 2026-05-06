@@ -9,7 +9,6 @@
 const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
-const zlib = require('zlib');
 
 // We test the public check() against a sandbox: temporarily redirect
 // the module-level constants by spawning a fresh require with a
@@ -47,5 +46,21 @@ describe('check-enrichment-size — gzip size budget logic', () => {
     expect(growthOk(1000, 1100)).toBe(true);
     expect(growthOk(1000, 1101)).toBe(false);
     expect(growthOk(1000, 800)).toBe(true);    // shrinking is always fine
+  });
+});
+
+describe('check-enrichment-size — CLI argument validation', () => {
+  let origErr;
+  beforeEach(() => { origErr = console.error; console.error = () => {}; });
+  afterEach(() => { console.error = origErr; });
+
+  test('--threshold without a value exits non-zero (does not silently disable the gate)', () => {
+    expect(sizeChecker.main(['--threshold'])).toBe(2);
+  });
+  test('--threshold with a non-numeric value exits non-zero', () => {
+    expect(sizeChecker.main(['--threshold', 'banana'])).toBe(2);
+  });
+  test('--threshold with a negative value exits non-zero', () => {
+    expect(sizeChecker.main(['--threshold', '-5'])).toBe(2);
   });
 });

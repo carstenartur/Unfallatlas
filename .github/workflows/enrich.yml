@@ -52,15 +52,14 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Cache enrichment source data
-        uses: actions/cache@v4
-        with:
-          path: |
-            .enrichment-cache/osm
-            .enrichment-cache/dem
-            .enrichment-cache/traffic
-          key: enrichment-data-v1-${{ hashFiles('cities.txt') }}
-
+      # No producer step is wired up yet for OSM/DEM/Traffic source
+      # data. The script reads from the dirs named by the env vars
+      # below; when they are absent (the current default) every
+      # enrichment stage no-ops. A future PR will add download steps
+      # that drop `osm_<city>.json` / `dem_<city>.json` /
+      # `traffic_<city>.json` into these dirs and wrap them in
+      # `actions/cache` keyed on the dataset version. See
+      # docs/enrichment.md for the schema.
       - name: Run enrichment
         env:
           ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
@@ -77,10 +76,20 @@ jobs:
       - name: Check enriched payload size budget
         run: node scripts/check-enrichment-size.js
 
+      # Commit only when something other than the meta-sidecar
+      # `generatedAt` timestamp changed. The sidecar is always
+      # rewritten on every run, so committing it unconditionally would
+      # produce a no-op commit on every weekly cron tick.
       - name: Commit & Push changes
         run: |
           set -euo pipefail
-          git add -A out/
-          git diff --cached --quiet && exit 0
+          # Stage everything but the meta sidecars first; only if there
+          # are real diffs do we then also stage the sidecars.
+          git add -A -- out/ ':!out/*.enrichment.meta.json'
+          if git diff --cached --quiet; then
+            echo "No enrichment changes other than meta timestamps; skipping commit."
+            exit 0
+          fi
+          git add -A -- out/
           git commit -m "Re-run enrichment (scripts/enrich_geojson.js)"
           git push origin HEAD:${{ github.ref_name }}
