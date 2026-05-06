@@ -106,7 +106,8 @@ describe('check-enrichment-size — end-to-end CLI exit code (issue criterion 4)
     expect(r.status).toBe(0);
     expect(fs.existsSync(path.join(tmpRoot, 'out/.enrichment-size-baseline.json'))).toBe(true);
 
-    // Now grow the payload by ~50× to blow past +10 %.
+    // Now grow the payload: 5000 features × 100 chars/blob ≈ 50× the
+    // baseline size, well past the +10 % budget.
     const huge = { type: 'FeatureCollection',
       features: Array.from({ length: 5000 }, (_, i) => ({ id: i, blob: 'x'.repeat(100) })) };
     writeCity('demo', huge);
