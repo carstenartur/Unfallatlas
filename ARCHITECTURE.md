@@ -45,6 +45,37 @@ Diese Datei enthält technische Informationen für Entwickler, die am Unfallatla
 
 ---
 
+## Datenanreicherung in CI
+
+Höhen-, OSM-Straßen- und Verkehrsmengen-Kontextinformationen werden
+**in den GitHub-Actions-Workflows** in die per-Stadt-GeoJSON-Dateien
+gebacken (Tier-B). Das statische Frontend konsumiert ausschließlich
+fertig vorberechnete Dateien und wartet **nie** auf einen Server.
+
+Die Pipeline besteht aus drei Bausteinen:
+
+* `scripts/enrich_geojson.js` reichert die per-Stadt-GeoJSON
+  in-place an, schreibt eine kompakte Begleitdatei
+  `out/ways_<city>.json` (per-Way-Attribute, geteilt zwischen vielen
+  Unfällen) sowie einen Sidecar `out/output_all_years_<city>.enrichment.meta.json`
+  mit der Datensatz-Provenance.
+* `scripts/check-enrichment-size.js` ist die CI-Bremsschwelle: er
+  vergleicht die *gzip*-Größen jeder Stadt-Datei gegen
+  `out/.enrichment-size-baseline.json` und bricht den Workflow ab,
+  wenn das dokumentierte Wachstumsbudget überschritten wird.
+* `js/ua.context_layers.js` lädt die Begleitdatei und den Sidecar
+  **lazy**, erst wenn das Context-Layers-Panel geöffnet wird, und
+  sogar dann hinter `requestIdleCallback`.
+
+Die existierenden Hot-Path-Module (`js/ua.data_v2.js`,
+`js/ua.filters.js`, `js/ua.map_v2.js`, `js/ua.export_v2.js`,
+`js/ua.report_v2.js`) hängen **nicht** von der Anreicherung ab. Alle
+neuen Felder sind optional, alle Werte werden bei Abwesenheit der
+Quelldaten einfach ausgelassen, der Code im Browser bleibt unverändert
+schnell. Vollständige Schemadokumentation: [`docs/enrichment.md`](docs/enrichment.md).
+
+---
+
 ## Qualitätssicherung und Tests
 
 Das Projekt verfügt über eine umfassende Testsuite zur Sicherstellung von Qualität, Stabilität und Performance.

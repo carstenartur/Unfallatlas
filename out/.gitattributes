@@ -1,0 +1,8 @@
+# Reduce merge churn on CI-generated and CI-enriched data files.
+# The enrichment pipeline (scripts/enrich_geojson.js) and the converter
+# (convertAmt2gmaps.sh) both rewrite these files in full on every run,
+# so a union merge avoids spurious conflicts when two branches both
+# regenerate them.
+*.geojson  merge=union
+ways_*.json  merge=union
+*.enrichment.meta.json  merge=union

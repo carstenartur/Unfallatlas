@@ -1,0 +1,86 @@
+name: Enrich GeoJSONs
+
+# Standalone wrapper around scripts/enrich_geojson.js. Runs the
+# enrichment stage *without* re-running the heavy convertAmt2gmaps.sh
+# step, so DEM tile refreshes or new traffic-count datasets can be
+# picked up without rebuilding the accident GeoJSONs themselves.
+#
+# See docs/enrichment.md for the schema and the "Kontext nicht Ursache"
+# disclaimer.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_osm:
+        description: 'Skip the OSM road-match stage'
+        type: boolean
+        default: false
+      skip_dem:
+        description: 'Skip the DEM elevation/slope stage'
+        type: boolean
+        default: false
+      skip_traffic:
+        description: 'Skip the traffic-volume stage'
+        type: boolean
+        default: false
+  schedule:
+    # Every Sunday at 04:00 UTC. Note: cron's day-of-month and
+    # day-of-week fields are OR-combined, so a "first Sunday of the
+    # month" pattern would fire on any of days 1-7 *or* on every
+    # Sunday — not the intended intersection. Weekly is cheap enough
+    # because the script is fully idempotent.
+    - cron: '0 4 * * 0'
+
+permissions:
+  contents: write
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+
+      - name: Set up Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Cache enrichment source data
+        uses: actions/cache@v4
+        with:
+          path: |
+            .enrichment-cache/osm
+            .enrichment-cache/dem
+            .enrichment-cache/traffic
+          key: enrichment-data-v1-${{ hashFiles('cities.txt') }}
+
+      - name: Run enrichment
+        env:
+          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ "${{ inputs.skip_osm }}"     == "true" ]]; then ARGS+=(--no-osm); fi
+          if [[ "${{ inputs.skip_dem }}"     == "true" ]]; then ARGS+=(--no-dem); fi
+          if [[ "${{ inputs.skip_traffic }}" == "true" ]]; then ARGS+=(--no-traffic); fi
+          node scripts/enrich_geojson.js "${ARGS[@]}"
+
+      - name: Check enriched payload size budget
+        run: node scripts/check-enrichment-size.js
+
+      - name: Commit & Push changes
+        run: |
+          set -euo pipefail
+          git add -A out/
+          git diff --cached --quiet && exit 0
+          git commit -m "Re-run enrichment (scripts/enrich_geojson.js)"
+          git push origin HEAD:${{ github.ref_name }}
