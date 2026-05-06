@@ -64,3 +64,62 @@ describe('check-enrichment-size — CLI argument validation', () => {
     expect(sizeChecker.main(['--threshold', '-5'])).toBe(2);
   });
 });
+
+describe('check-enrichment-size — end-to-end CLI exit code (issue criterion 4)', () => {
+  // Prove that the size gate actually fails the CI workflow when a
+  // city's gzipped payload exceeds the baseline by more than the
+  // threshold. We do this by spawning the script with a sandbox repo
+  // root via a tiny harness — using a child_process so the module's
+  // OUT_DIR resolves relative to the harness, not the real repo.
+  const { spawnSync } = require('child_process');
+  let tmpRoot;
+
+  beforeEach(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-size-gate-'));
+    fs.mkdirSync(path.join(tmpRoot, 'scripts'));
+    fs.mkdirSync(path.join(tmpRoot, 'out'));
+    // The script resolves OUT_DIR via __dirname/.., so just copy the
+    // script into the sandbox's scripts/ directory.
+    fs.copyFileSync(
+      path.join(__dirname, '../../scripts/check-enrichment-size.js'),
+      path.join(tmpRoot, 'scripts/check-enrichment-size.js'),
+    );
+  });
+  afterEach(() => { fs.rmSync(tmpRoot, { recursive: true, force: true }); });
+
+  function writeCity(slug, payloadObj) {
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', `output_all_years_${slug}.geojson`),
+      JSON.stringify(payloadObj),
+    );
+  }
+
+  function run(args = []) {
+    return spawnSync('node', [path.join(tmpRoot, 'scripts/check-enrichment-size.js'), ...args],
+      { encoding: 'utf8' });
+  }
+
+  test('exits 1 and emits FAIL when any city exceeds the +10 % gzipped budget', () => {
+    // Seed: a small payload, baseline captured from it.
+    writeCity('demo', { type: 'FeatureCollection', features: [{ a: 1 }] });
+    let r = run();
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(path.join(tmpRoot, 'out/.enrichment-size-baseline.json'))).toBe(true);
+
+    // Now grow the payload by ~50× to blow past +10 %.
+    const huge = { type: 'FeatureCollection',
+      features: Array.from({ length: 5000 }, (_, i) => ({ id: i, blob: 'x'.repeat(100) })) };
+    writeCity('demo', huge);
+
+    r = run();
+    expect(r.status).toBe(1);
+    expect(r.stderr + r.stdout).toMatch(/FAIL/);
+  });
+
+  test('exits 0 when the city stays within the budget', () => {
+    writeCity('demo', { type: 'FeatureCollection', features: [{ id: 1 }] });
+    expect(run().status).toBe(0);            // seeds baseline
+    // Same payload — well within +10 %.
+    expect(run().status).toBe(0);
+  });
+});
