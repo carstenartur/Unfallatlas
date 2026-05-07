@@ -536,4 +536,48 @@ describe('osm_producer — produceCity tiling', () => {
       })
     ).rejects.toThrow(/Cannot create a string longer than/);
   });
+
+  test('streaming dedup: 4 tiles sharing the same 2 Way-IDs produce exactly 2 ways and correct totalElements count', async () => {
+    // Two points far enough apart that each matches a distinct way.
+    const inputFc = fc([pt(1, 7.0005, 50.0), pt(2, 7.0005, 50.1)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_dedupcity.geojson'),
+      JSON.stringify(inputFc),
+    );
+
+    // Every tile returns the same 2 Way-IDs — they should be deduplicated
+    // down to exactly 2 ways in the output.
+    const stubFetch = async () => ({
+      version: 0.6,
+      elements: [
+        {
+          type: 'way', id: 101,
+          tags: { highway: 'primary' },
+          geometry: [{ lat: 50.0, lon: 7.0 }, { lat: 50.0, lon: 7.001 }],
+        },
+        {
+          type: 'way', id: 102,
+          tags: { highway: 'secondary' },
+          geometry: [{ lat: 50.1, lon: 7.0 }, { lat: 50.1, lon: 7.001 }],
+        },
+      ],
+    });
+
+    const r = await osm.produceCity(tmpRoot, 'dedupcity', {
+      outDir: path.join(tmpRoot, 'cache'),
+      fetchOverpass: stubFetch,
+      interTileDelayMs: 0,
+    });
+
+    expect(r.skipped).toBeFalsy();
+    // 4 tiles × 2 elements each = 8 total elements before dedup.
+    expect(r.tiles.elements).toBe(8);
+    // After dedup only 2 unique ways should survive as candidates.
+    expect(r.counts.candidates).toBe(2);
+    // Both ways were snapped to by the two distinct accident points.
+    const written = JSON.parse(fs.readFileSync(
+      path.join(tmpRoot, 'cache', 'osm_dedupcity.json'), 'utf8',
+    ));
+    expect(Object.keys(written.ways)).toHaveLength(2);
+  });
 });

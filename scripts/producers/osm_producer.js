@@ -583,12 +583,14 @@ async function produceCity(repoRoot, citySlug, opts) {
   /**
    * Fetch `tile` and, on splittable errors, recursively split 2×2 until
    * either the request succeeds, MIN_TILE_DEG is reached, or MAX_TILE_DEPTH
-   * is exceeded.  Returns a merged Overpass JSON object.
+   * is exceeded.  Each leaf response is passed to `onTile` immediately so
+   * the raw JSON can be GC'd before the next tile is fetched (no accumulation).
    */
-  async function fetchTileRecursive(tile, depth) {
+  async function fetchTileRecursive(tile, depth, onTile) {
     const q = buildOverpassQuery(tile, { timeoutMs: o.overpassTimeoutMs });
+    let resp;
     try {
-      return await fetchFn(q);
+      resp = await fetchFn(q);
     } catch (e) {
       const latSpan = tile.maxLat - tile.minLat;
       const lonSpan = tile.maxLon - tile.minLon;
@@ -616,24 +618,39 @@ async function produceCity(repoRoot, citySlug, opts) {
       const subTiles = tileBbox(tile, 2, 2);
       // Each split replaces 1 tile with 4 children → net leaf-tile gain = +3.
       extraLeafTiles += subTiles.length - 1;
-      const responses = [];
       for (let i = 0; i < subTiles.length; i++) {
         if (i > 0 && interTileDelayMs > 0) await sleep(interTileDelayMs);
-        responses.push(await fetchTileRecursive(subTiles[i], depth + 1));
+        await fetchTileRecursive(subTiles[i], depth + 1, onTile);
       }
-      return mergeOverpassResponses(responses);
+      return;
+    }
+    // Deliver the leaf response to the caller; resp goes out of scope here
+    // so the GC can reclaim the raw JSON before the next tile arrives.
+    await onTile(resp);
+  }
+
+  // Streaming dedup: parse each tile's response into a slim way map immediately,
+  // then drop the raw JSON so the GC can reclaim it before the next tile arrives.
+  // Peak memory stays at ~(one raw tile response) + (growing slim way map),
+  // instead of (all raw responses) + merged copy + parsed copy.
+  const wayMap = new Map();   // wayId (string) → slim way object
+  let totalElements = 0;
+
+  async function ingestTile(resp) {
+    if (!resp || !Array.isArray(resp.elements)) return;
+    totalElements += resp.elements.length;
+    const slim = parseOverpassResponse(resp);
+    for (const w of slim) {
+      if (!wayMap.has(w.id)) wayMap.set(w.id, w);
     }
   }
 
-  // Fetch all initial tiles, with per-tile adaptive subdivision on error.
-  const tileResponses = [];
   for (let i = 0; i < initialTiles.length; i++) {
     if (i > 0 && interTileDelayMs > 0) await sleep(interTileDelayMs);
-    tileResponses.push(await fetchTileRecursive(initialTiles[i], 0));
+    await fetchTileRecursive(initialTiles[i], 0, ingestTile);
   }
 
-  const merged = mergeOverpassResponses(tileResponses);
-  const ways = parseOverpassResponse(merged);
+  const ways = Array.from(wayMap.values());
 
   const dataset = buildOsmDataset(fc, ways, {
     maxDistanceM: o.maxDistanceM,
@@ -658,7 +675,7 @@ async function produceCity(repoRoot, citySlug, opts) {
     tiles: {
       initial:   initialTiles.length,
       leafTiles: initialTiles.length + extraLeafTiles,
-      elements:  merged.elements.length,
+      elements:  totalElements,
     },
     bbox,
     outFile,
@@ -740,7 +757,7 @@ async function main(argv) {
             : `${r.tiles ? r.tiles.leafTiles : '?'} tiles`;
           console.log(
             `[osm-producer] ${slug}: ${tileStatusMsg}, ` +
-            `${r.tiles ? r.tiles.elements : '?'} elements (after dedup), ` +
+            `${r.tiles ? r.tiles.elements : '?'} elements (before dedup), ` +
             `${r.counts.matched}/${r.counts.features} features matched, ` +
             `${r.counts.ways} ways kept → ${r.outFile}`
           );
