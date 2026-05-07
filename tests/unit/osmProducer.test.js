@@ -576,7 +576,7 @@ describe('osm_producer — produceCity tiling', () => {
     expect(r.counts.candidates).toBe(2);
     // Both ways were snapped to by the two distinct accident points.
     const written = JSON.parse(fs.readFileSync(
-      require('path').join(tmpRoot, 'cache', 'osm_dedupcity.json'), 'utf8',
+      path.join(tmpRoot, 'cache', 'osm_dedupcity.json'), 'utf8',
     ));
     expect(Object.keys(written.ways)).toHaveLength(2);
   });
