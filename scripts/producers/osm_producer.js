@@ -418,6 +418,7 @@ async function fetchOverpass(query, opts) {
     }
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    let nonRetryable = false;
     try {
       const resp = await fetchImpl(endpoint, {
         method: 'POST',
@@ -430,8 +431,11 @@ async function fetchOverpass(query, opts) {
       });
       if (!resp.ok) {
         lastErr = new Error(`Overpass HTTP ${resp.status}`);
-        // 4xx (except 429) are not worth retrying.
+        // 4xx (except 429) are not worth retrying. Mark the error as
+        // non-retryable and rethrow so the surrounding catch can
+        // bubble it out instead of looping.
         if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) {
+          nonRetryable = true;
           throw lastErr;
         }
         continue;
@@ -440,8 +444,8 @@ async function fetchOverpass(query, opts) {
       return json;
     } catch (e) {
       lastErr = e;
-      // AbortError + network errors → retry; explicit non-retryable
-      // 4xx already threw above.
+      if (nonRetryable) throw lastErr;
+      // AbortError + network errors → retry.
     } finally {
       if (timer) clearTimeout(timer);
     }

@@ -293,6 +293,45 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
   });
 });
 
+describe('osm_producer — fetchOverpass retry policy', () => {
+  test('retries on 429 then succeeds', async () => {
+    let calls = 0;
+    const stubFetch = async () => {
+      calls++;
+      if (calls < 2) return { ok: false, status: 429, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({ elements: [] }) };
+    };
+    const r = await osm.fetchOverpass('q', { fetch: stubFetch, retries: 3, backoffMs: 1, timeoutMs: 1000 });
+    expect(r).toEqual({ elements: [] });
+    expect(calls).toBe(2);
+  });
+
+  test('does NOT retry on non-429 4xx (fast-fail)', async () => {
+    let calls = 0;
+    const stubFetch = async () => {
+      calls++;
+      return { ok: false, status: 400, json: async () => ({}) };
+    };
+    await expect(
+      osm.fetchOverpass('q', { fetch: stubFetch, retries: 3, backoffMs: 1, timeoutMs: 1000 })
+    ).rejects.toThrow(/HTTP 400/);
+    // Critical: only one HTTP call, not 4 (= 1 + 3 retries).
+    expect(calls).toBe(1);
+  });
+
+  test('retries network errors then surfaces last error', async () => {
+    let calls = 0;
+    const stubFetch = async () => {
+      calls++;
+      throw new Error('ECONNRESET');
+    };
+    await expect(
+      osm.fetchOverpass('q', { fetch: stubFetch, retries: 2, backoffMs: 1, timeoutMs: 1000 })
+    ).rejects.toThrow(/ECONNRESET/);
+    expect(calls).toBe(3); // initial + 2 retries
+  });
+});
+
 describe('osm_producer — parseArgs', () => {
   test('parses CLI flags, falls back to env / defaults', () => {
     const prev = process.env.ENRICH_OSM_DATA_DIR;
