@@ -347,3 +347,193 @@ describe('osm_producer — parseArgs', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// New tests for tiling / dedup / adaptive subdivision
+// ---------------------------------------------------------------------------
+
+describe('osm_producer — tileBbox', () => {
+  test('produces N×M sub-bboxes that exactly cover the original bbox', () => {
+    const orig = { minLat: 50.0, minLon: 7.0, maxLat: 51.0, maxLon: 8.0 };
+    const tiles = osm.tileBbox(orig, 2, 3); // 2 columns, 3 rows = 6 tiles
+    expect(tiles).toHaveLength(6);
+
+    // Union of all tiles must cover the original extent exactly.
+    const minLat = Math.min(...tiles.map(t => t.minLat));
+    const maxLat = Math.max(...tiles.map(t => t.maxLat));
+    const minLon = Math.min(...tiles.map(t => t.minLon));
+    const maxLon = Math.max(...tiles.map(t => t.maxLon));
+    expect(minLat).toBeCloseTo(orig.minLat, 10);
+    expect(maxLat).toBeCloseTo(orig.maxLat, 10);
+    expect(minLon).toBeCloseTo(orig.minLon, 10);
+    expect(maxLon).toBeCloseTo(orig.maxLon, 10);
+  });
+
+  test('1×1 returns a single tile identical to the original bbox', () => {
+    const orig = { minLat: 49.0, minLon: 6.5, maxLat: 50.0, maxLon: 7.5 };
+    const tiles = osm.tileBbox(orig, 1, 1);
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0]).toEqual(orig);
+  });
+
+  test('all tiles have equal dimensions', () => {
+    const orig = { minLat: 50.0, minLon: 7.0, maxLat: 51.0, maxLon: 9.0 };
+    const tiles = osm.tileBbox(orig, 4, 4);
+    const latH = (orig.maxLat - orig.minLat) / 4;
+    const lonW = (orig.maxLon - orig.minLon) / 4;
+    for (const t of tiles) {
+      expect(t.maxLat - t.minLat).toBeCloseTo(latH, 10);
+      expect(t.maxLon - t.minLon).toBeCloseTo(lonW, 10);
+    }
+  });
+
+  test('returns [] for a null bbox', () => {
+    expect(osm.tileBbox(null, 2, 2)).toEqual([]);
+  });
+});
+
+describe('osm_producer — mergeOverpassResponses', () => {
+  test('deduplicates elements with the same type/id across responses', () => {
+    const r1 = { elements: [
+      { type: 'way', id: 1, tags: { highway: 'primary' } },
+      { type: 'way', id: 2, tags: { highway: 'secondary' } },
+    ] };
+    const r2 = { elements: [
+      { type: 'way', id: 2, tags: { highway: 'secondary' } }, // duplicate
+      { type: 'way', id: 3, tags: { highway: 'tertiary' } },
+    ] };
+    const merged = osm.mergeOverpassResponses([r1, r2]);
+    expect(merged.elements).toHaveLength(3);
+    expect(merged.elements.map(e => e.id)).toEqual([1, 2, 3]);
+  });
+
+  test('first-occurrence geometry wins for duplicates', () => {
+    const r1 = { elements: [{ type: 'way', id: 99, tags: { highway: 'primary' } }] };
+    const r2 = { elements: [{ type: 'way', id: 99, tags: { highway: 'secondary' } }] };
+    const merged = osm.mergeOverpassResponses([r1, r2]);
+    expect(merged.elements).toHaveLength(1);
+    expect(merged.elements[0].tags.highway).toBe('primary');
+  });
+
+  test('handles empty / missing elements arrays gracefully', () => {
+    expect(osm.mergeOverpassResponses([]).elements).toHaveLength(0);
+    expect(osm.mergeOverpassResponses([{}, { elements: [] }]).elements).toHaveLength(0);
+  });
+
+  test('nodes and ways with the same id are kept separately', () => {
+    const r1 = { elements: [{ type: 'node', id: 5, lat: 50, lon: 7 }] };
+    const r2 = { elements: [{ type: 'way',  id: 5, tags: {}, geometry: [] }] };
+    const merged = osm.mergeOverpassResponses([r1, r2]);
+    expect(merged.elements).toHaveLength(2);
+  });
+});
+
+describe('osm_producer — produceCity tiling', () => {
+  let tmpRoot;
+  beforeEach(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'osm-tiling-'));
+    fs.mkdirSync(path.join(tmpRoot, 'out'));
+  });
+  afterEach(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  test('2×2 default tiling: fetchOverpass is called 4 times and all ways are merged', async () => {
+    const inputFc = fc([pt(1, 7.0005, 50.0), pt(2, 7.0008, 50.00002)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_tilecity.geojson'),
+      JSON.stringify(inputFc),
+    );
+
+    let callCount = 0;
+    // Each tile returns a distinct way — 4 tiles → 4 unique ways.
+    const stubFetch = async () => {
+      const id = 500 + (++callCount);
+      return {
+        version: 0.6,
+        elements: [{
+          type: 'way', id,
+          tags: { highway: 'residential' },
+          geometry: [{ lat: 50.0, lon: 7.0 }, { lat: 50.0, lon: 7.001 }],
+        }],
+      };
+    };
+
+    const r = await osm.produceCity(tmpRoot, 'tilecity', {
+      outDir: path.join(tmpRoot, 'cache'),
+      fetchOverpass: stubFetch,
+      interTileDelayMs: 0,
+    });
+
+    expect(callCount).toBe(4);
+    expect(r.skipped).toBeFalsy();
+    // 4 unique ways from 4 tiles, all deduplicated.
+    expect(r.counts.candidates).toBe(4);
+    expect(r.tiles.initial).toBe(4);
+    expect(r.tiles.total).toBe(4);
+    expect(r.tiles.elements).toBe(4);
+  });
+
+  test('adaptive subdivision: V8 string error triggers recursive 2×2 split, producer does not abort', async () => {
+    // Points far apart so each 2×2 tile is ~0.05 deg — large enough to split
+    // (MIN_TILE_DEG = 0.02, so each sub-tile would be ~0.025 ≥ 0.02 → allowed).
+    const inputFc = fc([pt(1, 7.0, 50.0), pt(2, 7.1, 50.1)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_splitcity.geojson'),
+      JSON.stringify(inputFc),
+    );
+
+    let callCount = 0;
+    // The very first tile fetch throws the V8 string error; all others succeed.
+    const stubFetch = async () => {
+      callCount++;
+      if (callCount === 1) {
+        throw new Error('Cannot create a string longer than 0x1fffffe8 characters');
+      }
+      return {
+        version: 0.6,
+        elements: [{
+          type: 'way', id: 600 + callCount,
+          tags: { highway: 'residential' },
+          geometry: [{ lat: 50.0, lon: 7.0 }, { lat: 50.0, lon: 7.001 }],
+        }],
+      };
+    };
+
+    const r = await osm.produceCity(tmpRoot, 'splitcity', {
+      outDir: path.join(tmpRoot, 'cache'),
+      fetchOverpass: stubFetch,
+      interTileDelayMs: 0,
+    });
+
+    // Should NOT abort.
+    expect(r.skipped).toBeFalsy();
+    // Tile 0 fails (call 1), then 4 sub-tiles + 3 remaining initial tiles = 8 calls total.
+    expect(callCount).toBe(8);
+    // 4 initial tiles + 4 sub-tiles from the split = 8 total effective tiles.
+    expect(r.tiles.total).toBe(8);
+    expect(r.tiles.initial).toBe(4);
+  });
+
+  test('min-tile escalation: error is re-thrown once tiles become too small to subdivide', async () => {
+    // Single point → tiny bbox after padBbox → each 2×2 tile is ≈0.005 deg.
+    // Subdividing would yield 0.0025 deg < MIN_TILE_DEG (0.02), so the error escalates.
+    const inputFc = fc([pt(1, 7.0005, 50.0)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_mintilecity.geojson'),
+      JSON.stringify(inputFc),
+    );
+
+    const stubFetch = async () => {
+      throw new Error('Cannot create a string longer than 0x1fffffe8 characters');
+    };
+
+    await expect(
+      osm.produceCity(tmpRoot, 'mintilecity', {
+        outDir: path.join(tmpRoot, 'cache'),
+        fetchOverpass: stubFetch,
+        interTileDelayMs: 0,
+      })
+    ).rejects.toThrow(/Cannot create a string longer than/);
+  });
+});
