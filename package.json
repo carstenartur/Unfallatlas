@@ -63,7 +63,7 @@
     "@playwright/test": "1.59.1",
     "docx": "9.6.1",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.3.2",
+    "express-rate-limit": "^8.5.1",
     "file-saver": "2.0.5",
     "pdfmake": "0.2.20"
   }
