@@ -377,16 +377,30 @@ function buildOsmDataset(fc, ways, opts) {
   // shipping them all would bloat the producer cache for no
   // downstream benefit — `enrich_geojson.js` only ever reads ways
   // whose ids appear in the index.
+  const wayGeometries = {};
   for (const w of ways) {
     if (!usedWays.has(w.id)) continue;
     wayTable[w.id] = normalizeWay(w);
+    // Keep just the way's endpoints so the DEM producer can compute
+    // `road_slope_percent` without re-hitting Overpass. Endpoints are
+    // a tiny addition (~32 bytes/way) compared to the full inline
+    // geometry, and the enrichment script's `loadOsmProvider`
+    // ignores keys it doesn't know about.
+    const g = w.geometry;
+    if (Array.isArray(g) && g.length >= 2) {
+      wayGeometries[w.id] = [
+        { lat: g[0].lat, lon: g[0].lon },
+        { lat: g[g.length - 1].lat, lon: g[g.length - 1].lon },
+      ];
+    }
   }
 
   return {
-    source:      o.source      || 'OpenStreetMap (Overpass)',
-    extractDate: o.extractDate || new Date().toISOString().slice(0, 10),
-    ways:        wayTable,
-    index:       indexEntries,
+    source:        o.source      || 'OpenStreetMap (Overpass)',
+    extractDate:   o.extractDate || new Date().toISOString().slice(0, 10),
+    ways:          wayTable,
+    wayGeometries,
+    index:         indexEntries,
   };
 }
 

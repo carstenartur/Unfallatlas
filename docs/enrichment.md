@@ -207,28 +207,53 @@ run locally with hand-crafted fixtures (see
 ### Producers
 
 The `osm_<city>.json` / `dem_<city>.json` / `traffic_<city>.json`
-files are populated by per-source *producer* scripts that run as a
-preceding step in `.github/workflows/enrich.yml`:
+files are populated by per-source *producer* scripts that run as
+preceding steps in `.github/workflows/enrich.yml`:
 
-| Producer | Script | Status |
-| --- | --- | --- |
-| OSM     | `scripts/producers/osm_producer.js` | wired up |
-| DEM     | —                                   | not yet wired |
-| Traffic | —                                   | not yet wired |
+| Producer | Script | Source | Status |
+| --- | --- | --- | --- |
+| OSM     | `scripts/producers/osm_producer.js`     | Overpass `way[highway]`            | wired up |
+| DEM     | `scripts/producers/dem_producer.js`     | Open-Meteo Elevation API (SRTM 90 m) | wired up |
+| Traffic | `scripts/producers/traffic_producer.js` | OSM `highway` → DTV proxy          | wired up |
 
-The OSM producer reads `cities.txt`, derives a bounding box from each
-`out/output_all_years_<city>.geojson`, queries the public Overpass
-API (`way[highway]` with `out tags geom;`), snaps every accident
-point to the nearest way (≤ 50 m by default) and writes
-`osm_<city>.json`. The CI step is wrapped in `actions/cache` keyed
-on the producer version + ISO week, so Overpass is hit at most once
-per week.
+* **OSM** reads `cities.txt`, derives a bounding box from each
+  `out/output_all_years_<city>.geojson`, queries the public Overpass
+  API (`way[highway]` with `out tags geom;`), snaps every accident
+  point to the nearest way (≤ 50 m by default) and writes
+  `osm_<city>.json` (plus a top-level `wayGeometries` table holding
+  each matched way's endpoints, used by the DEM producer).
+* **DEM** dedupes accident points at 5 dp (≈ 1.1 m), then queries
+  Open-Meteo's free Elevation API (no API key, batch up to 100
+  coords/call) for the centre + 4 cardinal neighbours per point. The
+  signed steepest-axis gradient yields `slope_percent`. When the
+  OSM producer's output is available, per-way `road_slope_percent`
+  is also computed from each way's endpoints.
+* **Traffic** is intentionally a *proxy* derived from each matched
+  OSM way's `highway` class (motorway → ~50 000 DTV, residential →
+  ~800, etc.) — see `HIGHWAY_DTV_PROXY` in
+  `scripts/producers/traffic_producer.js`. Real licensable counts
+  (BASt SDV, city Zählstellen) can be plugged in later by a parallel
+  producer that overwrites `traffic_<slug>.json`. Output is marked
+  `source: "OSM-highway-proxy"`, `confidence: "low"` so the proxy
+  nature is explicit downstream.
+
+Each producer's CI step is wrapped in `actions/cache` keyed on the
+producer version + the ISO week, so upstream APIs are hit at most
+once per week. The traffic key additionally includes the OSM key, so
+a refreshed OSM cache invalidates the dependent traffic cache.
 
 Run locally:
 
 ```bash
-node scripts/producers/osm_producer.js --city Bonn --out-dir .enrichment-cache/osm
-node scripts/enrich_geojson.js --city Bonn
+node scripts/producers/osm_producer.js     --city Bonn --out-dir .enrichment-cache/osm
+ENRICH_OSM_DATA_DIR=.enrichment-cache/osm \
+  node scripts/producers/dem_producer.js     --city Bonn --out-dir .enrichment-cache/dem
+ENRICH_OSM_DATA_DIR=.enrichment-cache/osm \
+  node scripts/producers/traffic_producer.js --city Bonn --out-dir .enrichment-cache/traffic
+ENRICH_OSM_DATA_DIR=.enrichment-cache/osm \
+  ENRICH_DEM_DATA_DIR=.enrichment-cache/dem \
+  ENRICH_TRAFFIC_DATA_DIR=.enrichment-cache/traffic \
+  node scripts/enrich_geojson.js --city Bonn
 ```
 
 ## Source data licensing

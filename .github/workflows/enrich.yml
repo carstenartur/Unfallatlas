@@ -52,22 +52,26 @@ jobs:
         with:
           node-version: '24'
 
-      # Producer step for OSM source data. The DEM and Traffic
-      # producers are *not* wired up yet — when their data dirs are
-      # absent, those enrichment stages silently no-op. See
-      # docs/enrichment.md for the schema.
-      #
-      # The OSM producer cache is keyed on the producer version + the
-      # ISO week, so we re-extract from Overpass at most once per
-      # week — well within the public API's fair-use policy and in
-      # line with the weekly cron schedule above.
-      - name: Compute OSM producer cache key
-        id: osm_cache_key
+      # Producer steps for OSM, DEM and Traffic source data. Each
+      # producer's cache is keyed on its own version + the ISO week,
+      # so we re-extract from upstream sources at most once per week —
+      # well within fair-use policies and in line with the weekly
+      # cron schedule above. Traffic depends on the OSM cache, so its
+      # step runs after the OSM step. See docs/enrichment.md for the
+      # schemas.
+      - name: Compute producer cache keys
+        id: producer_cache_keys
         run: |
           set -euo pipefail
-          PRODUCER_VERSION=$(node -e "console.log(require('./scripts/producers/osm_producer.js').PRODUCER_VERSION)")
+          OSM_VER=$(node     -e "console.log(require('./scripts/producers/osm_producer.js').PRODUCER_VERSION)")
+          DEM_VER=$(node     -e "console.log(require('./scripts/producers/dem_producer.js').PRODUCER_VERSION)")
+          TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer.js').PRODUCER_VERSION)")
           ISO_WEEK=$(date -u +%G-W%V)
-          echo "key=osm-${PRODUCER_VERSION}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
+          echo "osm=osm-${OSM_VER}-${ISO_WEEK}"             >> "$GITHUB_OUTPUT"
+          echo "dem=dem-${DEM_VER}-${ISO_WEEK}"             >> "$GITHUB_OUTPUT"
+          # Traffic key includes the OSM key so a refreshed OSM cache
+          # invalidates the traffic cache (its input changed).
+          echo "traffic=traffic-${TRAFFIC_VER}-osm-${OSM_VER}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
 
       - name: Restore OSM producer cache
         if: ${{ inputs.skip_osm != true }}
@@ -75,13 +79,43 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/.enrichment-cache/osm
-          key: ${{ steps.osm_cache_key.outputs.key }}
+          key: ${{ steps.producer_cache_keys.outputs.osm }}
 
       - name: Produce OSM source data
         if: ${{ inputs.skip_osm != true && steps.osm_cache.outputs.cache-hit != 'true' }}
         env:
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
         run: node scripts/producers/osm_producer.js
+
+      - name: Restore DEM producer cache
+        if: ${{ inputs.skip_dem != true }}
+        id: dem_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/dem
+          key: ${{ steps.producer_cache_keys.outputs.dem }}
+
+      - name: Produce DEM source data
+        if: ${{ inputs.skip_dem != true && steps.dem_cache.outputs.cache-hit != 'true' }}
+        env:
+          ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+        run: node scripts/producers/dem_producer.js
+
+      - name: Restore Traffic producer cache
+        if: ${{ inputs.skip_traffic != true }}
+        id: traffic_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/traffic
+          key: ${{ steps.producer_cache_keys.outputs.traffic }}
+
+      - name: Produce Traffic source data
+        if: ${{ inputs.skip_traffic != true && steps.traffic_cache.outputs.cache-hit != 'true' }}
+        env:
+          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
+        run: node scripts/producers/traffic_producer.js
 
       - name: Run enrichment
         env:
