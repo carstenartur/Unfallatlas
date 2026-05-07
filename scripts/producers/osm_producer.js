@@ -61,7 +61,8 @@ const DEFAULT_INTER_CITY_DELAY_MS = 2_000;
 // Tiling defaults — kept separate from city delay so tests can set either to 0.
 const DEFAULT_INTER_TILE_DELAY_MS = 1_000;
 const MIN_TILE_DEG = 0.02;   // ≈ 2 km at mid-European latitudes
-const MAX_TILE_DEPTH = 4;    // up to 16×16 = 256 tiles in the worst case
+const MAX_TILE_DEPTH = 4;    // per-tile recursion limit: one leaf can become 4^4=256 sub-tiles;
+                              // with 4 initial tiles the absolute worst case is 4×256=1024 leaf tiles
 
 // 50 m is generous enough to absorb both the 1.1 m grid bucketing in
 // `enrich_geojson.js`'s OSM provider and the typical horizontal error
@@ -573,10 +574,11 @@ async function produceCity(repoRoot, citySlug, opts) {
   // via parseArgs / --tile-delay so production runs are polite to Overpass.
   const interTileDelayMs = Number.isFinite(o.interTileDelayMs) ? o.interTileDelayMs : 0;
 
-  // Track the total number of effective tile fetches (initial + sub-tiles
-  // added when a tile is recursively split).
+  // Track the number of *leaf* tile fetches (successful requests that actually
+  // returned data).  When a tile is split 2×2, the parent is replaced by 4
+  // children, so the net change to the leaf count is +3 (not +4).
   const initialTiles = tileBbox(bbox, 2, 2);
-  let subTileCount = 0; // extra tiles beyond the initial set
+  let extraLeafTiles = 0; // net increase in leaf tiles beyond the initial set
 
   /**
    * Fetch `tile` and, on splittable errors, recursively split 2×2 until
@@ -612,7 +614,8 @@ async function produceCity(repoRoot, citySlug, opts) {
       );
 
       const subTiles = tileBbox(tile, 2, 2);
-      subTileCount += subTiles.length;
+      // Each split replaces 1 tile with 4 children → net leaf-tile gain = +3.
+      extraLeafTiles += subTiles.length - 1;
       const responses = [];
       for (let i = 0; i < subTiles.length; i++) {
         if (i > 0 && interTileDelayMs > 0) await sleep(interTileDelayMs);
@@ -653,9 +656,9 @@ async function produceCity(repoRoot, citySlug, opts) {
       ways:        Object.keys(dataset.ways).length,
     },
     tiles: {
-      initial:  initialTiles.length,
-      total:    initialTiles.length + subTileCount,
-      elements: merged.elements.length,
+      initial:   initialTiles.length,
+      leafTiles: initialTiles.length + extraLeafTiles,
+      elements:  merged.elements.length,
     },
     bbox,
     outFile,
@@ -732,9 +735,9 @@ async function main(argv) {
         if (r.skipped) {
           console.log(`[osm-producer] ${slug}: SKIP (${r.reason})`);
         } else {
-          const tileStatusMsg = r.tiles && r.tiles.total > r.tiles.initial
-            ? `${r.tiles.initial} tiles → ${r.tiles.total} sub-tiles after split`
-            : `${r.tiles ? r.tiles.total : '?'} tiles`;
+          const tileStatusMsg = r.tiles && r.tiles.leafTiles > r.tiles.initial
+            ? `${r.tiles.initial} tiles → ${r.tiles.leafTiles} leaf tiles after split`
+            : `${r.tiles ? r.tiles.leafTiles : '?'} tiles`;
           console.log(
             `[osm-producer] ${slug}: ${tileStatusMsg}, ` +
             `${r.tiles ? r.tiles.elements : '?'} elements (after dedup), ` +

@@ -470,7 +470,7 @@ describe('osm_producer — produceCity tiling', () => {
     // 4 unique ways from 4 tiles, all deduplicated.
     expect(r.counts.candidates).toBe(4);
     expect(r.tiles.initial).toBe(4);
-    expect(r.tiles.total).toBe(4);
+    expect(r.tiles.leafTiles).toBe(4);
     expect(r.tiles.elements).toBe(4);
   });
 
@@ -508,10 +508,10 @@ describe('osm_producer — produceCity tiling', () => {
 
     // Should NOT abort.
     expect(r.skipped).toBeFalsy();
-    // Tile 0 fails (call 1), then 4 sub-tiles + 3 remaining initial tiles = 8 calls total.
+    // Tile 0 fails (call 1), then 4 sub-tiles + 3 remaining initial tiles = 8 Overpass calls.
     expect(callCount).toBe(8);
-    // 4 initial tiles + 4 sub-tiles from the split = 8 total effective tiles.
-    expect(r.tiles.total).toBe(8);
+    // 3 unchanged initial tiles + 4 leaf sub-tiles replacing the failed one = 7 leaf tiles.
+    expect(r.tiles.leafTiles).toBe(7);
     expect(r.tiles.initial).toBe(4);
   });
 
