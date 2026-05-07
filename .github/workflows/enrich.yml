@@ -85,6 +85,7 @@ jobs:
         if: ${{ inputs.skip_osm != true && steps.osm_cache.outputs.cache-hit != 'true' }}
         env:
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+          NODE_OPTIONS: --max-old-space-size=7168
         run: node scripts/producers/osm_producer.js
 
       - name: Restore DEM producer cache
