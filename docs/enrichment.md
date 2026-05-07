@@ -204,6 +204,33 @@ source is temporarily unavailable, and makes the script trivial to
 run locally with hand-crafted fixtures (see
 `tests/unit/enrichGeojson.test.js`).
 
+### Producers
+
+The `osm_<city>.json` / `dem_<city>.json` / `traffic_<city>.json`
+files are populated by per-source *producer* scripts that run as a
+preceding step in `.github/workflows/enrich.yml`:
+
+| Producer | Script | Status |
+| --- | --- | --- |
+| OSM     | `scripts/producers/osm_producer.js` | wired up |
+| DEM     | —                                   | not yet wired |
+| Traffic | —                                   | not yet wired |
+
+The OSM producer reads `cities.txt`, derives a bounding box from each
+`out/output_all_years_<city>.geojson`, queries the public Overpass
+API (`way[highway]` with `out tags geom;`), snaps every accident
+point to the nearest way (≤ 50 m by default) and writes
+`osm_<city>.json`. The CI step is wrapped in `actions/cache` keyed
+on the producer version + ISO week, so Overpass is hit at most once
+per week.
+
+Run locally:
+
+```bash
+node scripts/producers/osm_producer.js --city Bonn --out-dir .enrichment-cache/osm
+node scripts/enrich_geojson.js --city Bonn
+```
+
 ## Source data licensing
 
 The schema's `*_source` fields are designed for **selective omission**.

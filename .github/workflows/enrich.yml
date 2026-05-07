@@ -52,14 +52,37 @@ jobs:
         with:
           node-version: '24'
 
-      # No producer step is wired up yet for OSM/DEM/Traffic source
-      # data. The script reads from the dirs named by the env vars
-      # below; when they are absent (the current default) every
-      # enrichment stage no-ops. A future PR will add download steps
-      # that drop `osm_<city>.json` / `dem_<city>.json` /
-      # `traffic_<city>.json` into these dirs and wrap them in
-      # `actions/cache` keyed on the dataset version. See
+      # Producer step for OSM source data. The DEM and Traffic
+      # producers are *not* wired up yet — when their data dirs are
+      # absent, those enrichment stages silently no-op. See
       # docs/enrichment.md for the schema.
+      #
+      # The OSM producer cache is keyed on the producer version + the
+      # ISO week, so we re-extract from Overpass at most once per
+      # week — well within the public API's fair-use policy and in
+      # line with the weekly cron schedule above.
+      - name: Compute OSM producer cache key
+        id: osm_cache_key
+        run: |
+          set -euo pipefail
+          PRODUCER_VERSION=$(node -e "console.log(require('./scripts/producers/osm_producer.js').PRODUCER_VERSION)")
+          ISO_WEEK=$(date -u +%G-W%V)
+          echo "key=osm-${PRODUCER_VERSION}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore OSM producer cache
+        if: ${{ inputs.skip_osm != true }}
+        id: osm_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/osm
+          key: ${{ steps.osm_cache_key.outputs.key }}
+
+      - name: Produce OSM source data
+        if: ${{ inputs.skip_osm != true && steps.osm_cache.outputs.cache-hit != 'true' }}
+        env:
+          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+        run: node scripts/producers/osm_producer.js
+
       - name: Run enrichment
         env:
           ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
