@@ -1,0 +1,95 @@
+name: Enrich GeoJSONs
+
+# Standalone wrapper around scripts/enrich_geojson.js. Runs the
+# enrichment stage *without* re-running the heavy convertAmt2gmaps.sh
+# step, so DEM tile refreshes or new traffic-count datasets can be
+# picked up without rebuilding the accident GeoJSONs themselves.
+#
+# See docs/enrichment.md for the schema and the "Kontext nicht Ursache"
+# disclaimer.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_osm:
+        description: 'Skip the OSM road-match stage'
+        type: boolean
+        default: false
+      skip_dem:
+        description: 'Skip the DEM elevation/slope stage'
+        type: boolean
+        default: false
+      skip_traffic:
+        description: 'Skip the traffic-volume stage'
+        type: boolean
+        default: false
+  schedule:
+    # Every Sunday at 04:00 UTC. Note: cron's day-of-month and
+    # day-of-week fields are OR-combined, so a "first Sunday of the
+    # month" pattern would fire on any of days 1-7 *or* on every
+    # Sunday — not the intended intersection. Weekly is cheap enough
+    # because the script is fully idempotent.
+    - cron: '0 4 * * 0'
+
+permissions:
+  contents: write
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+
+      - name: Set up Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # No producer step is wired up yet for OSM/DEM/Traffic source
+      # data. The script reads from the dirs named by the env vars
+      # below; when they are absent (the current default) every
+      # enrichment stage no-ops. A future PR will add download steps
+      # that drop `osm_<city>.json` / `dem_<city>.json` /
+      # `traffic_<city>.json` into these dirs and wrap them in
+      # `actions/cache` keyed on the dataset version. See
+      # docs/enrichment.md for the schema.
+      - name: Run enrichment
+        env:
+          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ "${{ inputs.skip_osm }}"     == "true" ]]; then ARGS+=(--no-osm); fi
+          if [[ "${{ inputs.skip_dem }}"     == "true" ]]; then ARGS+=(--no-dem); fi
+          if [[ "${{ inputs.skip_traffic }}" == "true" ]]; then ARGS+=(--no-traffic); fi
+          node scripts/enrich_geojson.js "${ARGS[@]}"
+
+      - name: Check enriched payload size budget
+        run: node scripts/check-enrichment-size.js
+
+      # Commit only when something other than the meta-sidecar
+      # `generatedAt` timestamp changed. The sidecar is always
+      # rewritten on every run, so committing it unconditionally would
+      # produce a no-op commit on every weekly cron tick.
+      - name: Commit & Push changes
+        run: |
+          set -euo pipefail
+          # Stage everything but the meta sidecars first; only if there
+          # are real diffs do we then also stage the sidecars.
+          git add -A -- out/ ':!out/*.enrichment.meta.json'
+          if git diff --cached --quiet; then
+            echo "No enrichment changes other than meta timestamps; skipping commit."
+            exit 0
+          fi
+          git add -A -- out/
+          git commit -m "Re-run enrichment (scripts/enrich_geojson.js)"
+          git push origin HEAD:${{ github.ref_name }}
