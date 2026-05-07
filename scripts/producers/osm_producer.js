@@ -568,8 +568,9 @@ async function produceCity(repoRoot, citySlug, opts) {
     backoffMs: o.backoffMs,
     timeoutMs: o.overpassTimeoutMs,
   }));
-  // Callers that inject a stub (tests) leave interTileDelayMs unset → 0
-  // so tests stay fast. The CLI sets it via parseArgs / --tile-delay.
+  // When called programmatically (e.g., in tests), callers typically omit
+  // interTileDelayMs and want no delay. The CLI sets it to DEFAULT_INTER_TILE_DELAY_MS
+  // via parseArgs / --tile-delay so production runs are polite to Overpass.
   const interTileDelayMs = Number.isFinite(o.interTileDelayMs) ? o.interTileDelayMs : 0;
 
   // Track the total number of effective tile fetches (initial + sub-tiles
@@ -597,11 +598,13 @@ async function produceCity(repoRoot, citySlug, opts) {
       );
       if (!canSplit) throw e;
 
+      // isSplittableError guarantees the message matches one of these four
+      // patterns; the last branch is therefore always 'http-429'.
       const reason = e.message.includes('Cannot create a string longer than')
         ? 'string-too-long'
         : e.message.includes('HTTP 504') ? 'http-504'
         : e.message.includes('HTTP 509') ? 'http-509'
-        : 'http-429';
+        : 'http-429'; // only remaining splittable pattern
       console.warn(
         `[osm-producer] ${citySlug}: subdividing tile ` +
         `[${tile.minLat},${tile.minLon},${tile.maxLat},${tile.maxLon}] ` +
@@ -729,11 +732,11 @@ async function main(argv) {
         if (r.skipped) {
           console.log(`[osm-producer] ${slug}: SKIP (${r.reason})`);
         } else {
-          const tilePart = r.tiles && r.tiles.total > r.tiles.initial
+          const tileStatusMsg = r.tiles && r.tiles.total > r.tiles.initial
             ? `${r.tiles.initial} tiles → ${r.tiles.total} sub-tiles after split`
             : `${r.tiles ? r.tiles.total : '?'} tiles`;
           console.log(
-            `[osm-producer] ${slug}: ${tilePart}, ` +
+            `[osm-producer] ${slug}: ${tileStatusMsg}, ` +
             `${r.tiles ? r.tiles.elements : '?'} elements (after dedup), ` +
             `${r.counts.matched}/${r.counts.features} features matched, ` +
             `${r.counts.ways} ways kept → ${r.outFile}`
