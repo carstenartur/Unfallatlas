@@ -58,6 +58,11 @@ const DEFAULT_OVERPASS_TIMEOUT_MS = 180_000;
 const DEFAULT_OVERPASS_RETRIES = 3;
 const DEFAULT_OVERPASS_BACKOFF_MS = 5_000;
 const DEFAULT_INTER_CITY_DELAY_MS = 2_000;
+// Tiling defaults — kept separate from city delay so tests can set either to 0.
+const DEFAULT_INTER_TILE_DELAY_MS = 1_000;
+const MIN_TILE_DEG = 0.02;   // ≈ 2 km at mid-European latitudes
+const MAX_TILE_DEPTH = 4;    // per-tile recursion limit: one leaf can become 4^4=256 sub-tiles;
+                              // with 4 initial tiles the absolute worst case is 4×256=1024 leaf tiles
 
 // 50 m is generous enough to absorb both the 1.1 m grid bucketing in
 // `enrich_geojson.js`'s OSM provider and the typical horizontal error
@@ -340,6 +345,74 @@ function nearestWayIndexed(lat, lon, index, opts) {
 }
 
 // ---------------------------------------------------------------------------
+// BBox tiling helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Split `bbox` into nx×ny equal sub-bboxes that together cover the original.
+ * Each sub-bbox has the same shape as the input: {minLat, minLon, maxLat, maxLon}.
+ *
+ * @param {object} bbox  { minLat, minLon, maxLat, maxLon }
+ * @param {number} nx    number of columns (longitude splits)
+ * @param {number} ny    number of rows (latitude splits)
+ * @returns {object[]}
+ */
+function tileBbox(bbox, nx, ny) {
+  if (!bbox) return [];
+  const latStep = (bbox.maxLat - bbox.minLat) / ny;
+  const lonStep = (bbox.maxLon - bbox.minLon) / nx;
+  const tiles = [];
+  for (let y = 0; y < ny; y++) {
+    for (let x = 0; x < nx; x++) {
+      tiles.push({
+        minLat: bbox.minLat + y * latStep,
+        minLon: bbox.minLon + x * lonStep,
+        maxLat: bbox.minLat + (y + 1) * latStep,
+        maxLon: bbox.minLon + (x + 1) * lonStep,
+      });
+    }
+  }
+  return tiles;
+}
+
+/**
+ * Merge multiple Overpass JSON responses into one, deduplicating elements
+ * by `type/id` (first occurrence wins — both responses carry the same full
+ * geometry for ways that span a tile boundary).
+ *
+ * @param {object[]} responses  array of Overpass JSON objects
+ * @returns {{ version: number, elements: object[] }}
+ */
+function mergeOverpassResponses(responses) {
+  const seen = new Set();
+  const elements = [];
+  for (const r of responses || []) {
+    for (const el of r.elements || []) {
+      const key = `${el.type}/${el.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      elements.push(el);
+    }
+  }
+  return { version: 0.6, elements };
+}
+
+/**
+ * Returns true for errors that are caused by an overly large Overpass
+ * response and should trigger an adaptive tile split instead of a hard
+ * failure.
+ */
+function isSplittableError(e) {
+  const msg = (e && e.message) || '';
+  return (
+    msg.includes('Cannot create a string longer than') ||
+    msg.includes('Overpass HTTP 504') ||
+    msg.includes('Overpass HTTP 509') ||
+    msg.includes('Overpass HTTP 429')
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dataset assembly
 // ---------------------------------------------------------------------------
 
@@ -490,15 +563,77 @@ async function produceCity(repoRoot, citySlug, opts) {
     return { citySlug, skipped: true, reason: 'no usable coordinates' };
   }
 
-  const query = buildOverpassQuery(bbox, { timeoutMs: o.overpassTimeoutMs });
   const fetchFn = o.fetchOverpass || ((q) => fetchOverpass(q, {
     endpoint:  o.endpoint,
     retries:   o.retries,
     backoffMs: o.backoffMs,
     timeoutMs: o.overpassTimeoutMs,
   }));
-  const raw = await fetchFn(query);
-  const ways = parseOverpassResponse(raw);
+  // When called programmatically (e.g., in tests), callers typically omit
+  // interTileDelayMs and want no delay. The CLI sets it to DEFAULT_INTER_TILE_DELAY_MS
+  // via parseArgs / --tile-delay so production runs are polite to Overpass.
+  const interTileDelayMs = Number.isFinite(o.interTileDelayMs) ? o.interTileDelayMs : 0;
+
+  // Track the number of *leaf* tile fetches (successful requests that actually
+  // returned data).  When a tile is split 2×2, the parent is replaced by 4
+  // children, so the net change to the leaf count is +3 (not +4).
+  const initialTiles = tileBbox(bbox, 2, 2);
+  let extraLeafTiles = 0; // net increase in leaf tiles beyond the initial set
+
+  /**
+   * Fetch `tile` and, on splittable errors, recursively split 2×2 until
+   * either the request succeeds, MIN_TILE_DEG is reached, or MAX_TILE_DEPTH
+   * is exceeded.  Returns a merged Overpass JSON object.
+   */
+  async function fetchTileRecursive(tile, depth) {
+    const q = buildOverpassQuery(tile, { timeoutMs: o.overpassTimeoutMs });
+    try {
+      return await fetchFn(q);
+    } catch (e) {
+      const latSpan = tile.maxLat - tile.minLat;
+      const lonSpan = tile.maxLon - tile.minLon;
+      const canSplit = (
+        isSplittableError(e) &&
+        depth < MAX_TILE_DEPTH &&
+        latSpan / 2 >= MIN_TILE_DEG &&
+        lonSpan / 2 >= MIN_TILE_DEG
+      );
+      if (!canSplit) throw e;
+
+      // isSplittableError guarantees the message matches one of these four
+      // patterns; the last branch is therefore always 'http-429'.
+      const reason = e.message.includes('Cannot create a string longer than')
+        ? 'string-too-long'
+        : e.message.includes('HTTP 504') ? 'http-504'
+        : e.message.includes('HTTP 509') ? 'http-509'
+        : 'http-429'; // only remaining splittable pattern
+      console.warn(
+        `[osm-producer] ${citySlug}: subdividing tile ` +
+        `[${tile.minLat},${tile.minLon},${tile.maxLat},${tile.maxLon}] ` +
+        `(depth=${depth + 1}, reason=${reason})`
+      );
+
+      const subTiles = tileBbox(tile, 2, 2);
+      // Each split replaces 1 tile with 4 children → net leaf-tile gain = +3.
+      extraLeafTiles += subTiles.length - 1;
+      const responses = [];
+      for (let i = 0; i < subTiles.length; i++) {
+        if (i > 0 && interTileDelayMs > 0) await sleep(interTileDelayMs);
+        responses.push(await fetchTileRecursive(subTiles[i], depth + 1));
+      }
+      return mergeOverpassResponses(responses);
+    }
+  }
+
+  // Fetch all initial tiles, with per-tile adaptive subdivision on error.
+  const tileResponses = [];
+  for (let i = 0; i < initialTiles.length; i++) {
+    if (i > 0 && interTileDelayMs > 0) await sleep(interTileDelayMs);
+    tileResponses.push(await fetchTileRecursive(initialTiles[i], 0));
+  }
+
+  const merged = mergeOverpassResponses(tileResponses);
+  const ways = parseOverpassResponse(merged);
 
   const dataset = buildOsmDataset(fc, ways, {
     maxDistanceM: o.maxDistanceM,
@@ -520,6 +655,11 @@ async function produceCity(repoRoot, citySlug, opts) {
       matched:     dataset.index.length,
       ways:        Object.keys(dataset.ways).length,
     },
+    tiles: {
+      initial:   initialTiles.length,
+      leafTiles: initialTiles.length + extraLeafTiles,
+      elements:  merged.elements.length,
+    },
     bbox,
     outFile,
   };
@@ -535,6 +675,7 @@ function parseArgs(argv) {
     outDir: process.env.ENRICH_OSM_DATA_DIR || '.enrichment-cache/osm',
     maxDistanceM: DEFAULT_MAX_SNAP_DISTANCE_M,
     interCityDelayMs: DEFAULT_INTER_CITY_DELAY_MS,
+    interTileDelayMs: DEFAULT_INTER_TILE_DELAY_MS,
     json: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -543,6 +684,7 @@ function parseArgs(argv) {
     else if (a === '--out-dir')      opts.outDir = argv[++i];
     else if (a === '--max-distance') opts.maxDistanceM = Number(argv[++i]);
     else if (a === '--delay')        opts.interCityDelayMs = Number(argv[++i]);
+    else if (a === '--tile-delay')   opts.interTileDelayMs = Number(argv[++i]);
     else if (a === '--json')         opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a.startsWith('--'))     console.warn(`[osm-producer] unknown flag ignored: ${a}`);
@@ -560,6 +702,7 @@ function printHelp() {
                          or .enrichment-cache/osm)
   --max-distance <m>     max snap distance for accident → way (default: ${DEFAULT_MAX_SNAP_DISTANCE_M})
   --delay <ms>           politeness delay between cities (default: ${DEFAULT_INTER_CITY_DELAY_MS})
+  --tile-delay <ms>      politeness delay between tile requests (default: ${DEFAULT_INTER_TILE_DELAY_MS})
   --json                 emit machine-readable summary
 
 Environment:
@@ -592,9 +735,14 @@ async function main(argv) {
         if (r.skipped) {
           console.log(`[osm-producer] ${slug}: SKIP (${r.reason})`);
         } else {
+          const tileStatusMsg = r.tiles && r.tiles.leafTiles > r.tiles.initial
+            ? `${r.tiles.initial} tiles → ${r.tiles.leafTiles} leaf tiles after split`
+            : `${r.tiles ? r.tiles.leafTiles : '?'} tiles`;
           console.log(
-            `[osm-producer] ${slug}: ${r.counts.matched}/${r.counts.features} features matched, ` +
-            `${r.counts.ways} ways kept (of ${r.counts.candidates} in bbox) → ${r.outFile}`
+            `[osm-producer] ${slug}: ${tileStatusMsg}, ` +
+            `${r.tiles ? r.tiles.elements : '?'} elements (after dedup), ` +
+            `${r.counts.matched}/${r.counts.features} features matched, ` +
+            `${r.counts.ways} ways kept → ${r.outFile}`
           );
         }
       }
@@ -621,6 +769,9 @@ if (require.main === module) {
 module.exports = {
   PRODUCER_VERSION,
   DEFAULT_MAX_SNAP_DISTANCE_M,
+  MIN_TILE_DEG,
+  MAX_TILE_DEPTH,
+  DEFAULT_INTER_TILE_DELAY_MS,
   slugCity,
   readCitiesTxt,
   bboxFromFeatureCollection,
@@ -635,6 +786,8 @@ module.exports = {
   buildWayIndex,
   nearestWayIndexed,
   buildOsmDataset,
+  tileBbox,
+  mergeOverpassResponses,
   fetchOverpass,
   produceCity,
   parseArgs,
