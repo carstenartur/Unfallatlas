@@ -33,6 +33,7 @@
  *   {
  *     source:         "OSM-highway-proxy",
  *     datasetVersion: "<producer version>",
+ *     extractDate:    "YYYY-MM-DD",
  *     ways: { "<wayId>": { value, unit: "DTV", year, confidence } }
  *   }
  *

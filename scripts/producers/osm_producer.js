@@ -34,9 +34,11 @@
  *
  * Design notes
  * ------------
- * - DEM and traffic producers are *not* implemented yet; this PR only
- *   wires up OSM. Subsequent producers can sit next to this file and
- *   share the same CLI shape.
+ * - Sibling producers (`dem_producer.js`, `traffic_producer.js`)
+ *   share the same CLI shape and write to their own
+ *   `$ENRICH_*_DATA_DIR` cache directories. The traffic producer
+ *   depends on this producer's output (it derives a DTV proxy from
+ *   each matched way's `highway` tag).
  * - Pure helpers (bbox computation, Overpass response parsing, way
  *   normalisation, nearest-way snap) are exported so
  *   `tests/unit/osmProducer.test.js` can exercise them without going

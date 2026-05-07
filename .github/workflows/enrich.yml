@@ -102,8 +102,15 @@ jobs:
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
         run: node scripts/producers/dem_producer.js
 
+      # Traffic depends on the OSM cache (it derives a DTV proxy from
+      # each matched way's `highway` tag). When OSM is skipped, we
+      # would otherwise either save an empty traffic cache under a
+      # valid weekly key — which would then short-circuit subsequent
+      # runs in the same week — or run the producer with no input.
+      # Both restore and produce are therefore gated on `skip_osm`
+      # as well.
       - name: Restore Traffic producer cache
-        if: ${{ inputs.skip_traffic != true }}
+        if: ${{ inputs.skip_traffic != true && inputs.skip_osm != true }}
         id: traffic_cache
         uses: actions/cache@v5
         with:
@@ -111,7 +118,7 @@ jobs:
           key: ${{ steps.producer_cache_keys.outputs.traffic }}
 
       - name: Produce Traffic source data
-        if: ${{ inputs.skip_traffic != true && steps.traffic_cache.outputs.cache-hit != 'true' }}
+        if: ${{ inputs.skip_traffic != true && inputs.skip_osm != true && steps.traffic_cache.outputs.cache-hit != 'true' }}
         env:
           ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
           ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm

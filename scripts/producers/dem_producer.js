@@ -26,8 +26,9 @@
  *   5. Writes the on-disk payload expected by `loadDemProvider`:
  *
  *        {
- *          source:       "OpenMeteo SRTM",
- *          resolution_m: 90,
+ *          source:        "OpenMeteo SRTM",
+ *          resolution_m:  90,
+ *          extractDate:   "YYYY-MM-DD",
  *          points:        [ { lat, lon, elevation_m, slope_percent, confidence } ],
  *          wayElevations: { "<wayId>": { road_slope_percent } }
  *        }
@@ -417,7 +418,7 @@ async function produceCity(repoRoot, citySlug, opts) {
 
   const dataset = buildDemDataset(points, elevations, {
     source:       o.source,
-    resolution_m: o.resolutionM,
+    resolution_m: Number.isFinite(o.resolution_m) ? o.resolution_m : o.resolutionM,
     extractDate:  o.extractDate,
     confidence:   o.confidence,
     offsetM,
@@ -459,6 +460,8 @@ function parseArgs(argv) {
     if (a === '--city')              opts.cities.push(argv[++i]);
     else if (a === '--out-dir')      opts.outDir = argv[++i];
     else if (a === '--osm-dir')      opts.osmDir = argv[++i];
+    else if (a === '--source')       opts.source = argv[++i];
+    else if (a === '--resolution')   opts.resolution_m = Number(argv[++i]);
     else if (a === '--delay')        opts.interCityDelayMs = Number(argv[++i]);
     else if (a === '--json')         opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
@@ -478,6 +481,10 @@ function printHelp() {
   --osm-dir <path>       directory holding osm_<slug>.json (used to
                          compute per-way road_slope_percent;
                          default: $ENRICH_OSM_DATA_DIR)
+  --source <label>       provenance label written into each entry
+                         (default: ${DEFAULT_SOURCE})
+  --resolution <m>       DEM resolution in metres written into the
+                         payload (default: ${DEFAULT_RESOLUTION_M})
   --delay <ms>           politeness delay between cities (default: ${DEFAULT_INTER_CITY_DELAY_MS})
   --json                 emit machine-readable summary
 

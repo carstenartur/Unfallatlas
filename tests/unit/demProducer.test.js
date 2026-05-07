@@ -347,13 +347,42 @@ describe('dem_producer — parseArgs', () => {
     const prev = process.env.ENRICH_DEM_DATA_DIR;
     process.env.ENRICH_DEM_DATA_DIR = '/tmp/x';
     try {
-      const opts = dem.parseArgs(['--city', 'Bonn', '--osm-dir', '/tmp/osm']);
+      const opts = dem.parseArgs(['--city', 'Bonn', '--osm-dir', '/tmp/osm', '--resolution', '30', '--source', 'DGM1']);
       expect(opts.cities).toEqual(['Bonn']);
       expect(opts.outDir).toBe('/tmp/x');
       expect(opts.osmDir).toBe('/tmp/osm');
+      expect(opts.resolution_m).toBe(30);
+      expect(opts.source).toBe('DGM1');
     } finally {
       if (prev === undefined) delete process.env.ENRICH_DEM_DATA_DIR;
       else process.env.ENRICH_DEM_DATA_DIR = prev;
+    }
+  });
+});
+
+describe('dem_producer — produceCity honours --resolution / --source overrides', () => {
+  test('writes resolution_m and source from opts into the dataset', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([pt(1, 7.0, 50.0)])),
+    );
+
+    try {
+      await dem.produceCity(repoRoot, 'bonn', {
+        outDir,
+        resolution_m: 30,
+        source: 'DGM1',
+        fetchElevations: async (samples) => samples.map(() => 100),
+      });
+      const written = JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8'));
+      expect(written.resolution_m).toBe(30);
+      expect(written.source).toBe('DGM1');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
 });
