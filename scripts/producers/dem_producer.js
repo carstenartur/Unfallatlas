@@ -35,11 +35,11 @@
  * Elevation source
  * ----------------
  * Open-Meteo's free Elevation API
- * (https://open-elevation.com/), no API key, returns SRTM-derived
- * values at ~90 m horizontal resolution. Up to 100 lat/lon pairs per
- * request. The endpoint is overridable via `$OPEN_METEO_ELEVATION_ENDPOINT`,
- * the function is fully injectable via `opts.fetchElevations` so unit
- * tests don't touch the network.
+ * (https://open-meteo.com/en/docs/elevation-api), no API key, returns
+ * SRTM-derived values at ~90 m horizontal resolution. Up to 100
+ * lat/lon pairs per request. The endpoint is overridable via
+ * `$OPEN_METEO_ELEVATION_ENDPOINT`, the function is fully injectable
+ * via `opts.fetchElevations` so unit tests don't touch the network.
  *
  * Output dir defaults to `$ENRICH_DEM_DATA_DIR`, then
  * `.enrichment-cache/dem`. Re-running the producer is idempotent: each
