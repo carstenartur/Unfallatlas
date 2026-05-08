@@ -54,9 +54,21 @@ const PRODUCER_VERSION = '1.0.0';
 
 const DEFAULT_ELEVATION_ENDPOINT = 'https://api.open-meteo.com/v1/elevation';
 const DEFAULT_ELEVATION_TIMEOUT_MS = 60_000;
-const DEFAULT_ELEVATION_RETRIES   = 3;
+const DEFAULT_ELEVATION_RETRIES   = 5;
 const DEFAULT_ELEVATION_BACKOFF_MS = 5_000;
-const DEFAULT_INTER_CITY_DELAY_MS = 1_000;
+// Open-Meteo rate-limits aggressively (HTTP 429 + transient connection
+// resets afterwards). When a 429 fires we wait significantly longer than
+// generic transient errors before retrying. `Retry-After` (when present)
+// overrides this, capped to MAX_RATE_LIMIT_BACKOFF_MS so a misbehaving
+// proxy can't stall the whole job.
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 30_000;
+const MAX_RATE_LIMIT_BACKOFF_MS     = 5 * 60_000;
+// After a city fails with a rate-limit-related error we cool down before
+// touching the API again, so the next city doesn't immediately get
+// "fetch failed" because the upstream is still blocking the runner IP.
+const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 60_000;
+const DEFAULT_INTER_CITY_DELAY_MS   = 5_000;
+const DEFAULT_INTER_BATCH_DELAY_MS  = 250;
 const DEFAULT_BATCH_SIZE = 100;
 
 // Distance in degrees between a point and its cardinal neighbours used
@@ -185,22 +197,33 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function fetchElevations(samples, opts) {
   const o = opts || {};
   const endpoint  = o.endpoint  || process.env.OPEN_METEO_ELEVATION_ENDPOINT || DEFAULT_ELEVATION_ENDPOINT;
-  const retries   = Number.isFinite(o.retries)   ? o.retries   : DEFAULT_ELEVATION_RETRIES;
+  const retries   = Math.max(0, Math.floor(
+    Number.isFinite(o.retries) ? o.retries : DEFAULT_ELEVATION_RETRIES,
+  ));
   const backoffMs = Number.isFinite(o.backoffMs) ? o.backoffMs : DEFAULT_ELEVATION_BACKOFF_MS;
+  const rateLimitBackoffMs = Number.isFinite(o.rateLimitBackoffMs)
+    ? o.rateLimitBackoffMs : DEFAULT_RATE_LIMIT_BACKOFF_MS;
   const timeoutMs = Number.isFinite(o.timeoutMs) ? o.timeoutMs : DEFAULT_ELEVATION_TIMEOUT_MS;
-  const batchSize = Number.isFinite(o.batchSize) ? o.batchSize : DEFAULT_BATCH_SIZE;
+  const batchSize = Math.max(1, Math.floor(
+    Number.isFinite(o.batchSize) ? o.batchSize : DEFAULT_BATCH_SIZE,
+  ));
+  const interBatchDelayMs = Number.isFinite(o.interBatchDelayMs)
+    ? o.interBatchDelayMs : DEFAULT_INTER_BATCH_DELAY_MS;
   const fetchImpl = o.fetch || (typeof fetch !== 'undefined' ? fetch : null);
+  const onRateLimit = typeof o.onRateLimit === 'function' ? o.onRateLimit : null;
+  const sleepImpl = typeof o.sleep === 'function' ? o.sleep : sleep;
   if (!fetchImpl) throw new Error('No fetch implementation available — pass opts.fetch');
 
   const out = new Array(samples.length);
   for (let i = 0; i < samples.length; i += batchSize) {
+    if (i > 0 && interBatchDelayMs > 0) await sleepImpl(interBatchDelayMs);
     const slice = samples.slice(i, i + batchSize);
     const lats = slice.map(s => s.lat).join(',');
     const lons = slice.map(s => s.lon).join(',');
     const url  = `${endpoint}?latitude=${lats}&longitude=${lons}`;
 
     const data = await fetchWithRetry(fetchImpl, url, {
-      retries, backoffMs, timeoutMs,
+      retries, backoffMs, rateLimitBackoffMs, timeoutMs, onRateLimit, sleep: sleepImpl,
     });
     const elev = Array.isArray(data?.elevation) ? data.elevation : [];
     for (let j = 0; j < slice.length; j++) {
@@ -211,11 +234,59 @@ async function fetchElevations(samples, opts) {
   return out;
 }
 
+/**
+ * Parse an HTTP `Retry-After` header value. The header may be either an
+ * integer number of seconds or an HTTP-date. Returns the wait in ms,
+ * capped to MAX_RATE_LIMIT_BACKOFF_MS, or undefined if the value can't
+ * be parsed / is non-positive.
+ */
+function parseRetryAfterMs(headerValue) {
+  if (headerValue == null) return undefined;
+  const s = String(headerValue).trim();
+  if (s === '') return undefined;
+  if (/^\d+$/.test(s)) {
+    const ms = Number(s) * 1000;
+    if (!Number.isFinite(ms) || ms <= 0) return undefined;
+    return Math.min(ms, MAX_RATE_LIMIT_BACKOFF_MS);
+  }
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return undefined;
+  const ms = t - Date.now();
+  if (ms <= 0) return undefined;
+  return Math.min(ms, MAX_RATE_LIMIT_BACKOFF_MS);
+}
+
+/**
+ * Read a header value from a fetch Response in a defensive way. The
+ * test stubs use plain objects without a `headers` getter; real
+ * `fetch` returns a `Headers` instance.
+ */
+function readHeader(resp, name) {
+  if (!resp) return undefined;
+  const h = resp.headers;
+  if (!h) return undefined;
+  if (typeof h.get === 'function') return h.get(name);
+  // Plain-object fallback (case-insensitive).
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(h)) {
+    if (k.toLowerCase() === lower) return h[k];
+  }
+  return undefined;
+}
+
 async function fetchWithRetry(fetchImpl, url, opts) {
-  const { retries, backoffMs, timeoutMs } = opts;
+  const { retries, backoffMs, rateLimitBackoffMs, timeoutMs, onRateLimit } = opts;
+  const sleepImpl = typeof opts.sleep === 'function' ? opts.sleep : sleep;
   let lastErr = null;
+  let nextSleepMs = 0; // overridden by Retry-After when a 429 sets it.
   for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) await sleep(backoffMs * Math.pow(2, attempt - 1));
+    if (attempt > 0) {
+      const wait = nextSleepMs > 0
+        ? nextSleepMs
+        : backoffMs * Math.pow(2, attempt - 1);
+      await sleepImpl(wait);
+      nextSleepMs = 0;
+    }
 
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
@@ -228,11 +299,23 @@ async function fetchWithRetry(fetchImpl, url, opts) {
       });
       if (!resp.ok) {
         lastErr = new Error(`Elevation HTTP ${resp.status}`);
+        lastErr.status = resp.status;
         // 4xx (except 429) are not worth retrying. Same fast-fail
         // convention as scripts/producers/osm_producer.js.
         if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) {
           nonRetryable = true;
           throw lastErr;
+        }
+        if (resp.status === 429) {
+          if (onRateLimit) { try { onRateLimit(); } catch (_) { /* ignore */ } }
+          const retryAfter = parseRetryAfterMs(readHeader(resp, 'retry-after'));
+          // Use Retry-After when present, otherwise the dedicated
+          // rate-limit backoff with mild exponential growth (capped).
+          const fallback = Math.min(
+            rateLimitBackoffMs * Math.pow(2, attempt),
+            MAX_RATE_LIMIT_BACKOFF_MS,
+          );
+          nextSleepMs = retryAfter !== undefined ? retryAfter : fallback;
         }
         continue;
       }
@@ -381,12 +464,19 @@ async function produceCity(repoRoot, citySlug, opts) {
   }
 
   const offsetM = Number.isFinite(o.offsetM) ? o.offsetM : NEIGHBOUR_OFFSET_M;
+  // Track whether the API rate-limited us during this city so the
+  // caller (main loop) can cool down before hitting it again.
+  let rateLimited = false;
+  const onRateLimit = () => { rateLimited = true; };
   const fetchFn = o.fetchElevations || ((s) => fetchElevations(s, {
-    endpoint:  o.endpoint,
-    retries:   o.retries,
-    backoffMs: o.backoffMs,
-    timeoutMs: o.elevationTimeoutMs,
-    batchSize: o.batchSize,
+    endpoint:           o.endpoint,
+    retries:            o.retries,
+    backoffMs:          o.backoffMs,
+    rateLimitBackoffMs: o.rateLimitBackoffMs,
+    timeoutMs:          o.elevationTimeoutMs,
+    batchSize:          o.batchSize,
+    interBatchDelayMs:  o.interBatchDelayMs,
+    onRateLimit,
   }));
 
   // Per-point sample set (5 elevations each), flattened.
@@ -434,6 +524,7 @@ async function produceCity(repoRoot, citySlug, opts) {
   return {
     citySlug,
     skipped: false,
+    rateLimited,
     counts: {
       uniquePoints: points.length,
       withElevation: dataset.points.length,
@@ -452,18 +543,23 @@ function parseArgs(argv) {
     cities: [],
     outDir: process.env.ENRICH_DEM_DATA_DIR || '.enrichment-cache/dem',
     osmDir: process.env.ENRICH_OSM_DATA_DIR || null,
-    interCityDelayMs: DEFAULT_INTER_CITY_DELAY_MS,
+    interCityDelayMs:    DEFAULT_INTER_CITY_DELAY_MS,
+    rateLimitCooldownMs: DEFAULT_RATE_LIMIT_COOLDOWN_MS,
     json: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--city')              opts.cities.push(argv[++i]);
-    else if (a === '--out-dir')      opts.outDir = argv[++i];
-    else if (a === '--osm-dir')      opts.osmDir = argv[++i];
-    else if (a === '--source')       opts.source = argv[++i];
-    else if (a === '--resolution')   opts.resolution_m = Number(argv[++i]);
-    else if (a === '--delay')        opts.interCityDelayMs = Number(argv[++i]);
-    else if (a === '--json')         opts.json = true;
+    if (a === '--city')                   opts.cities.push(argv[++i]);
+    else if (a === '--out-dir')           opts.outDir = argv[++i];
+    else if (a === '--osm-dir')           opts.osmDir = argv[++i];
+    else if (a === '--source')            opts.source = argv[++i];
+    else if (a === '--resolution')        opts.resolution_m = Number(argv[++i]);
+    else if (a === '--delay')             opts.interCityDelayMs = Number(argv[++i]);
+    else if (a === '--inter-batch-delay') opts.interBatchDelayMs = Number(argv[++i]);
+    else if (a === '--retries')           opts.retries = Number(argv[++i]);
+    else if (a === '--rate-limit-backoff') opts.rateLimitBackoffMs = Number(argv[++i]);
+    else if (a === '--rate-limit-cooldown') opts.rateLimitCooldownMs = Number(argv[++i]);
+    else if (a === '--json')              opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a.startsWith('--'))     console.warn(`[dem-producer] unknown flag ignored: ${a}`);
   }
@@ -486,6 +582,16 @@ function printHelp() {
   --resolution <m>       DEM resolution in metres written into the
                          payload (default: ${DEFAULT_RESOLUTION_M})
   --delay <ms>           politeness delay between cities (default: ${DEFAULT_INTER_CITY_DELAY_MS})
+  --inter-batch-delay <ms>
+                         politeness delay between elevation batches
+                         within a city (default: ${DEFAULT_INTER_BATCH_DELAY_MS})
+  --retries <n>          retries per elevation request (default: ${DEFAULT_ELEVATION_RETRIES})
+  --rate-limit-backoff <ms>
+                         base backoff after HTTP 429 when the server
+                         doesn't send Retry-After (default: ${DEFAULT_RATE_LIMIT_BACKOFF_MS})
+  --rate-limit-cooldown <ms>
+                         extra cool-down before the next city after
+                         this one tripped a 429 (default: ${DEFAULT_RATE_LIMIT_COOLDOWN_MS})
   --json                 emit machine-readable summary
 
 Environment:
@@ -510,12 +616,29 @@ async function main(argv) {
 
   const summary = { producer: 'dem', producerVersion: PRODUCER_VERSION, cities: [] };
   let exit = 0;
+  // When the upstream API rate-limits us, the connection is often
+  // closed for a while afterwards (next requests get "fetch failed").
+  // Wait at least `rateLimitCooldownMs` before touching it again.
+  let coolDownUntil = 0;
   for (let i = 0; i < citySlugs.length; i++) {
     const slug = citySlugs[i];
-    if (i > 0 && opts.interCityDelayMs > 0) await sleep(opts.interCityDelayMs);
+    if (i > 0) {
+      const baseDelay = opts.interCityDelayMs > 0 ? opts.interCityDelayMs : 0;
+      const cooldown  = Math.max(0, coolDownUntil - Date.now());
+      const wait = Math.max(baseDelay, cooldown);
+      if (wait > 0) {
+        if (cooldown > 0 && !opts.json) {
+          console.log(`[dem-producer] cooling down ${Math.round(wait / 1000)}s after rate-limit before ${slug}`);
+        }
+        await sleep(wait);
+      }
+    }
     try {
       const r = await produceCity(repoRoot, slug, opts);
       summary.cities.push(r);
+      if (r.rateLimited) {
+        coolDownUntil = Date.now() + (opts.rateLimitCooldownMs || 0);
+      }
       if (!opts.json) {
         if (r.skipped) {
           console.log(`[dem-producer] ${slug}: SKIP (${r.reason})`);
@@ -533,10 +656,23 @@ async function main(argv) {
       const errEntry = { citySlug: slug, skipped: true, reason: `error: ${e.message}` };
       summary.cities.push(errEntry);
       if (!opts.json) console.error(`[dem-producer] ${slug}: ERROR ${e.message}`);
+      // Cool down on any rate-limit-shaped failure so we don't immediately
+      // re-trigger the upstream block on the next city.
+      if (isRateLimitError(e)) {
+        coolDownUntil = Date.now() + (opts.rateLimitCooldownMs || 0);
+      }
     }
   }
   if (opts.json) process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
   return exit;
+}
+
+function isRateLimitError(err) {
+  if (!err) return false;
+  if (err.status === 429) return true;
+  const msg = String(err.message || err);
+  // "HTTP 429" from fetchWithRetry, "fetch failed" cascade after 429.
+  return /\b429\b/.test(msg) || /fetch failed/i.test(msg);
 }
 
 if (require.main === module) {
@@ -550,6 +686,10 @@ module.exports = {
   PRODUCER_VERSION,
   DEFAULT_SOURCE,
   DEFAULT_RESOLUTION_M,
+  DEFAULT_RATE_LIMIT_BACKOFF_MS,
+  DEFAULT_RATE_LIMIT_COOLDOWN_MS,
+  DEFAULT_INTER_BATCH_DELAY_MS,
+  MAX_RATE_LIMIT_BACKOFF_MS,
   NEIGHBOUR_OFFSET_M,
   slugCity,
   readCitiesTxt,
@@ -560,6 +700,8 @@ module.exports = {
   computeWayElevations,
   readOsmWaySpans,
   fetchElevations,
+  parseRetryAfterMs,
+  isRateLimitError,
   buildDemDataset,
   produceCity,
   parseArgs,
