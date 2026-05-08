@@ -242,6 +242,57 @@ producer version + the ISO week, so upstream APIs are hit at most
 once per week. The traffic key additionally includes the OSM key, so
 a refreshed OSM cache invalidates the dependent traffic cache.
 
+The cache steps use `save-always: true`, and each producer's
+`produceCity` skips cities whose per-city output file
+(`osm_<slug>.json` / `dem_<slug>.json` / `traffic_<slug>.json`) is
+already present. Together this makes runs **resumable**: an
+interrupted, timed-out, 429-throttled or cancelled run still saves
+the cities it managed to produce, and the next invocation only
+fetches the cities that are still missing.
+
+To force a full re-fetch (e.g. after upstream data has changed but
+the producer version hasn't been bumped) pass the corresponding
+workflow input (`force_osm` / `force_dem` / `force_traffic`) on
+`workflow_dispatch`, or run the producer locally with `--force`.
+
+### DEM throughput knobs
+
+Open-Meteo dominates the wall-clock for big cities. Two knobs in
+`dem_producer.js` keep it manageable:
+
+* **Sample dedup** (always on): every elevation sample —
+  the centre point + four cardinal neighbours per accident, and the
+  start/end of every matched OSM way — is bucketed at 5 dp
+  (≈ 1.1 m, the same precision the enricher uses to look points up)
+  before being sent to the API. Adjacent accidents and overlapping
+  neighbour cells therefore collapse into a single request. The
+  per-city log line shows the dedup ratio
+  (`[<unique>/<total> samples after dedup]`).
+* **`--concurrency <n>`**: dispatches up to `n` elevation batches in
+  parallel within a city. Default is `1` (sequential, the original
+  politeness-first behaviour). Open-Meteo tolerates ~4–5 concurrent
+  batches when combined with the existing inter-batch delay; values
+  above that risk tripping the 429 cool-down. Exposed as
+  `dem_concurrency` (default `4`) in the per-city matrix workflow.
+
+### Per-city matrix workflow
+
+`.github/workflows/enrich-matrix.yml` is an optional, parallel
+variant of `enrich.yml`. It splits the producer stage into one
+matrix job per city (`max_parallel` configurable, default `4`),
+caches each city's outputs under a per-city + per-week key, then
+hands every city's three small JSONs to an aggregator job via
+`actions/upload-artifact`. The aggregator unpacks the artifacts
+into a single `.enrichment-cache/` tree, runs the regular
+`scripts/enrich_geojson.js` + size-budget check, and commits.
+
+Trade-off: 3-4× lower wall-clock for the producer stage at the
+cost of more total runner-minutes (one runner per city instead of
+one shared runner) and a larger CI surface. Use it for one-off
+"rebuild everything" runs after a producer version bump; the
+default scheduled run still uses the simpler single-job
+`enrich.yml`.
+
 Run locally:
 
 ```bash

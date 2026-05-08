@@ -180,6 +180,18 @@ function produceCity(repoRoot, citySlug, opts) {
     return { citySlug, skipped: true, reason: 'no osm cache for city' };
   }
 
+  // Resume support: skip cities whose traffic_<slug>.json already
+  // exists. The traffic producer is purely local (no network) so the
+  // savings are modest, but keeping the same semantics as the OSM /
+  // DEM producers means a `--force` flag flips them all together.
+  const outDirEarly = o.outDir;
+  if (outDirEarly && !o.force) {
+    const existingOut = path.join(outDirEarly, `traffic_${citySlug}.json`);
+    if (fs.existsSync(existingOut)) {
+      return { citySlug, skipped: true, reason: 'already cached', outFile: existingOut };
+    }
+  }
+
   const dataset = buildTrafficDataset(ways, {
     source:         o.source,
     datasetVersion: o.datasetVersion,
@@ -225,6 +237,7 @@ function parseArgs(argv) {
     else if (a === '--osm-dir')      opts.osmDir = argv[++i];
     else if (a === '--year')         opts.year = Number(argv[++i]);
     else if (a === '--delay')        opts.interCityDelayMs = Number(argv[++i]);
+    else if (a === '--force')        opts.force = true;
     else if (a === '--json')         opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a.startsWith('--'))     console.warn(`[traffic-producer] unknown flag ignored: ${a}`);
@@ -245,6 +258,10 @@ function printHelp() {
   --year <YYYY>          reference year written into each entry
                          (default: current UTC year)
   --delay <ms>           politeness delay between cities (default: ${DEFAULT_INTER_CITY_DELAY_MS})
+  --force                re-run every city even if traffic_<slug>.json
+                         already exists in the output directory
+                         (default: resume — skip cities whose output
+                         file is already present)
   --json                 emit machine-readable summary
 
 Environment:

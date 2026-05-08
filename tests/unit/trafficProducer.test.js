@@ -165,6 +165,50 @@ describe('traffic_producer — produceCity', () => {
     }
   });
 
+  test('resume: skips when traffic_<slug>.json already exists in outDir', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'traffic-prod-'));
+    const osmDir = path.join(tmp, 'osm');
+    const outDir = path.join(tmp, 'traffic');
+    fs.mkdirSync(osmDir, { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(osmDir, 'osm_bonn.json'), JSON.stringify({
+      ways: { '100': { highway: 'residential' } },
+      index: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'traffic_bonn.json'), '{"sentinel":true}');
+    try {
+      const r = traffic.produceCity(tmp, 'bonn', { outDir, osmDir });
+      expect(r.skipped).toBe(true);
+      expect(r.reason).toMatch(/already cached/);
+      expect(JSON.parse(fs.readFileSync(path.join(outDir, 'traffic_bonn.json'), 'utf8')))
+        .toEqual({ sentinel: true });
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('force: re-runs even when traffic_<slug>.json already exists', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'traffic-prod-'));
+    const osmDir = path.join(tmp, 'osm');
+    const outDir = path.join(tmp, 'traffic');
+    fs.mkdirSync(osmDir, { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(osmDir, 'osm_bonn.json'), JSON.stringify({
+      ways: { '100': { highway: 'residential' } },
+      index: [],
+    }));
+    fs.writeFileSync(path.join(outDir, 'traffic_bonn.json'), '{"sentinel":true}');
+    try {
+      const r = traffic.produceCity(tmp, 'bonn', { outDir, osmDir, force: true });
+      expect(r.skipped).toBeFalsy();
+      const written = JSON.parse(fs.readFileSync(path.join(outDir, 'traffic_bonn.json'), 'utf8'));
+      expect(written.sentinel).toBeUndefined();
+      expect(written.ways['100'].value).toBe(800);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test('produced traffic_<slug>.json is consumable by enrich_geojson loadTrafficProvider', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'traffic-prod-'));
     const osmDir     = path.join(tmp, 'osm');
@@ -232,5 +276,10 @@ describe('traffic_producer — parseArgs', () => {
       if (prevOsm === undefined) delete process.env.ENRICH_OSM_DATA_DIR;
       else process.env.ENRICH_OSM_DATA_DIR = prevOsm;
     }
+  });
+
+  test('--force flips the resume guard off', () => {
+    expect(traffic.parseArgs([]).force).toBeFalsy();
+    expect(traffic.parseArgs(['--force']).force).toBe(true);
   });
 });

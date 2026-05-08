@@ -192,7 +192,11 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
  * array of numbers (or undefined for failed samples) in the same order.
  *
  * The request is split into batches of `batchSize` samples — Open-Meteo
- * accepts up to 100 coordinates per call.
+ * accepts up to 100 coordinates per call. When `concurrency > 1`,
+ * batches are dispatched via a small promise pool (workers pull the
+ * next batch index off a shared cursor) so inter-batch wall-time
+ * shrinks proportionally. The default of 1 preserves the original
+ * sequential, politeness-first behaviour for callers that don't opt in.
  */
 async function fetchElevations(samples, opts) {
   const o = opts || {};
@@ -209,29 +213,112 @@ async function fetchElevations(samples, opts) {
   ));
   const interBatchDelayMs = Number.isFinite(o.interBatchDelayMs)
     ? o.interBatchDelayMs : DEFAULT_INTER_BATCH_DELAY_MS;
+  const concurrency = Math.max(1, Math.floor(
+    Number.isFinite(o.concurrency) ? o.concurrency : 1,
+  ));
   const fetchImpl = o.fetch || (typeof fetch !== 'undefined' ? fetch : null);
   const onRateLimit = typeof o.onRateLimit === 'function' ? o.onRateLimit : null;
   const sleepImpl = typeof o.sleep === 'function' ? o.sleep : sleep;
   if (!fetchImpl) throw new Error('No fetch implementation available — pass opts.fetch');
 
-  const out = new Array(samples.length);
+  // Pre-compute batch boundaries so workers can pull off a shared
+  // cursor regardless of `concurrency`.
+  const batches = [];
   for (let i = 0; i < samples.length; i += batchSize) {
-    if (i > 0 && interBatchDelayMs > 0) await sleepImpl(interBatchDelayMs);
-    const slice = samples.slice(i, i + batchSize);
+    batches.push({ start: i, end: Math.min(i + batchSize, samples.length) });
+  }
+
+  const out = new Array(samples.length);
+  let cursor = 0;
+  let firstError = null;
+
+  async function processBatch(batchIndex) {
+    const { start, end } = batches[batchIndex];
+    const slice = samples.slice(start, end);
     const lats = slice.map(s => s.lat).join(',');
     const lons = slice.map(s => s.lon).join(',');
     const url  = `${endpoint}?latitude=${lats}&longitude=${lons}`;
-
     const data = await fetchWithRetry(fetchImpl, url, {
       retries, backoffMs, rateLimitBackoffMs, timeoutMs, onRateLimit, sleep: sleepImpl,
     });
     const elev = Array.isArray(data?.elevation) ? data.elevation : [];
     for (let j = 0; j < slice.length; j++) {
       const v = elev[j];
-      out[i + j] = Number.isFinite(v) ? v : undefined;
+      out[start + j] = Number.isFinite(v) ? v : undefined;
     }
   }
+
+  async function worker() {
+    // Stop dispatching new batches once any sibling has failed so the
+    // first error surfaces quickly instead of waiting for in-flight
+    // batches that follow it.
+    //
+    // The politeness delay is applied *between* successive batches
+    // handled by the same worker — never before its first fetch —
+    // regardless of which global batch index that first fetch happens
+    // to be. With concurrency=1 this still yields N-1 delays for N
+    // batches; with concurrency>k each of the k workers gets its own
+    // (M_w − 1) delays where M_w is how many batches that worker
+    // handled. This mirrors the original sequential behaviour without
+    // imposing a spurious "warm-up" sleep on workers that picked up
+    // batch index ≥ 1 as their first task.
+    let didFetch = false;
+    while (cursor < batches.length && firstError == null) {
+      const myIdx = cursor++;
+      if (didFetch && interBatchDelayMs > 0) {
+        await sleepImpl(interBatchDelayMs);
+      }
+      try {
+        await processBatch(myIdx);
+      } catch (e) {
+        if (firstError == null) firstError = e;
+        return;
+      }
+      didFetch = true;
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, batches.length || 1) }, worker);
+  await Promise.all(workers);
+  if (firstError != null) throw firstError;
   return out;
+}
+
+/**
+ * Dedup a list of {lat, lon} samples by their quantised position
+ * (5 dp ≈ 1.1 m, the same bucket the enricher uses to look points
+ * up). Issues `fetchFn(uniqueSamples)` once and returns an array of
+ * elevations that's index-aligned with the original `samples` —
+ * duplicates pull from the same cached fetch result. At Open-Meteo's
+ * SRTM 90 m resolution, a centre point and a neighbour ~30 m away
+ * frequently quantise to the same cell, so on real city data this
+ * typically halves the number of HTTP samples without changing the
+ * output payload.
+ */
+async function fetchElevationsDedup(samples, fetchFn) {
+  const indexByKey = new Map();   // qkey → index in `unique`
+  const unique = [];
+  const indices = new Array(samples.length);
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    const key = `${quantize(s.lat)},${quantize(s.lon)}`;
+    let idx = indexByKey.get(key);
+    if (idx === undefined) {
+      idx = unique.length;
+      indexByKey.set(key, idx);
+      unique.push({ lat: s.lat, lon: s.lon });
+    }
+    indices[i] = idx;
+  }
+  const elevations = await fetchFn(unique);
+  if (!Array.isArray(elevations) || elevations.length !== unique.length) {
+    throw new Error(
+      `elevation provider returned ${elevations?.length} values, expected ${unique.length} (deduplicated)`,
+    );
+  }
+  const out = new Array(samples.length);
+  for (let i = 0; i < samples.length; i++) out[i] = elevations[indices[i]];
+  return { elevations: out, uniqueCount: unique.length };
 }
 
 /**
@@ -452,6 +539,18 @@ async function produceCity(repoRoot, citySlug, opts) {
   if (!fs.existsSync(inputFile)) {
     return { citySlug, skipped: true, reason: 'no input geojson' };
   }
+  // Resume support: if the per-city output already exists, skip the
+  // (very expensive) elevation fetches. See osm_producer.js for the
+  // motivation; here it matters even more because Open-Meteo
+  // 429-cool-downs are 60 s each. Pass `force: true` (CLI: `--force`)
+  // to bypass.
+  const outDirEarly = o.outDir;
+  if (outDirEarly && !o.force) {
+    const existingOut = path.join(outDirEarly, `dem_${citySlug}.json`);
+    if (fs.existsSync(existingOut)) {
+      return { citySlug, skipped: true, reason: 'already cached', outFile: existingOut };
+    }
+  }
   let fc;
   try {
     fc = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
@@ -476,6 +575,7 @@ async function produceCity(repoRoot, citySlug, opts) {
     timeoutMs:          o.elevationTimeoutMs,
     batchSize:          o.batchSize,
     interBatchDelayMs:  o.interBatchDelayMs,
+    concurrency:        o.concurrency,
     onRateLimit,
   }));
 
@@ -484,19 +584,26 @@ async function produceCity(repoRoot, citySlug, opts) {
   for (const pt of points) {
     for (const s of buildSampleSet(pt, offsetM)) flatSamples.push(s);
   }
-  const elevations = await fetchFn(flatSamples);
-  if (!Array.isArray(elevations) || elevations.length !== flatSamples.length) {
-    throw new Error(`elevation provider returned ${elevations?.length} values, expected ${flatSamples.length}`);
+  // Dedup at SRTM-grid precision (5 dp ≈ 1.1 m) before hitting the
+  // network: a centre point and its ~30 m cardinal neighbours often
+  // share a quantised cell, and so do nearby accidents' samples.
+  const { elevations, uniqueCount: pointUniqueCount } =
+    await fetchElevationsDedup(flatSamples, fetchFn);
+  if (elevations.length !== flatSamples.length) {
+    throw new Error(`elevation provider returned ${elevations.length} values, expected ${flatSamples.length}`);
   }
 
   // Per-way slope (best-effort): only when `osm_<slug>.json` is present.
   const osmDir = o.osmDir || process.env.ENRICH_OSM_DATA_DIR || null;
   const spans = readOsmWaySpans(osmDir, citySlug);
   let wayElevations = {};
+  let wayUniqueCount = 0;
   if (spans.length > 0) {
     const endpoints = [];
     for (const span of spans) endpoints.push(span.start, span.end);
-    const elevs = await fetchFn(endpoints);
+    const dedup = await fetchElevationsDedup(endpoints, fetchFn);
+    const elevs = dedup.elevations;
+    wayUniqueCount = dedup.uniqueCount;
     const startElevs = [];
     const endElevs   = [];
     for (let i = 0; i < spans.length; i++) {
@@ -529,6 +636,13 @@ async function produceCity(repoRoot, citySlug, opts) {
       uniquePoints: points.length,
       withElevation: dataset.points.length,
       ways:          Object.keys(wayElevations).length,
+      // How many distinct elevation samples we actually fetched after
+      // dedup, vs. the naive 5×uniquePoints + 2×ways. Useful for
+      // confirming the dedup ratio in CI logs.
+      pointSamplesUnique: pointUniqueCount,
+      pointSamplesTotal:  flatSamples.length,
+      waySamplesUnique:   wayUniqueCount,
+      waySamplesTotal:    spans.length * 2,
     },
     outFile,
   };
@@ -556,9 +670,11 @@ function parseArgs(argv) {
     else if (a === '--resolution')        opts.resolution_m = Number(argv[++i]);
     else if (a === '--delay')             opts.interCityDelayMs = Number(argv[++i]);
     else if (a === '--inter-batch-delay') opts.interBatchDelayMs = Number(argv[++i]);
+    else if (a === '--concurrency')       opts.concurrency = Number(argv[++i]);
     else if (a === '--retries')           opts.retries = Number(argv[++i]);
     else if (a === '--rate-limit-backoff') opts.rateLimitBackoffMs = Number(argv[++i]);
     else if (a === '--rate-limit-cooldown') opts.rateLimitCooldownMs = Number(argv[++i]);
+    else if (a === '--force')             opts.force = true;
     else if (a === '--json')              opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a.startsWith('--'))     console.warn(`[dem-producer] unknown flag ignored: ${a}`);
@@ -585,6 +701,10 @@ function printHelp() {
   --inter-batch-delay <ms>
                          politeness delay between elevation batches
                          within a city (default: ${DEFAULT_INTER_BATCH_DELAY_MS})
+  --concurrency <n>      number of elevation batches to dispatch in
+                         parallel within a city (default: 1; Open-Meteo
+                         tolerates up to ~4–5 concurrent requests when
+                         combined with the inter-batch delay)
   --retries <n>          retries per elevation request (default: ${DEFAULT_ELEVATION_RETRIES})
   --rate-limit-backoff <ms>
                          base backoff after HTTP 429 when the server
@@ -592,6 +712,10 @@ function printHelp() {
   --rate-limit-cooldown <ms>
                          extra cool-down before the next city after
                          this one tripped a 429 (default: ${DEFAULT_RATE_LIMIT_COOLDOWN_MS})
+  --force                re-fetch every city even if dem_<slug>.json
+                         already exists in the output directory
+                         (default: resume — skip cities whose output
+                         file is already present)
   --json                 emit machine-readable summary
 
 Environment:
@@ -643,9 +767,12 @@ async function main(argv) {
         if (r.skipped) {
           console.log(`[dem-producer] ${slug}: SKIP (${r.reason})`);
         } else {
+          const dedupNote = (Number.isFinite(r.counts.pointSamplesUnique) && Number.isFinite(r.counts.pointSamplesTotal) && r.counts.pointSamplesTotal > 0)
+            ? ` [${r.counts.pointSamplesUnique}/${r.counts.pointSamplesTotal} samples after dedup]`
+            : '';
           console.log(
             `[dem-producer] ${slug}: ${r.counts.withElevation}/${r.counts.uniquePoints} unique points elevated, ` +
-            `${r.counts.ways} ways with road_slope_percent → ${r.outFile}`
+            `${r.counts.ways} ways with road_slope_percent${dedupNote} → ${r.outFile}`
           );
         }
       }
@@ -700,6 +827,7 @@ module.exports = {
   computeWayElevations,
   readOsmWaySpans,
   fetchElevations,
+  fetchElevationsDedup,
   parseRetryAfterMs,
   isRateLimitError,
   buildDemDataset,

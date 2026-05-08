@@ -245,6 +245,61 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     expect(r.reason).toMatch(/no input geojson/);
   });
 
+  test('resume: skips when osm_<slug>.json already exists in outDir', async () => {
+    const inputFc = fc([pt(1, 7.0005, 50.0)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(inputFc),
+    );
+    const outDir = path.join(tmpRoot, 'cache');
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'osm_bonn.json'), '{"sentinel":true}');
+
+    const r = await osm.produceCity(tmpRoot, 'bonn', {
+      outDir,
+      fetchOverpass: async () => { throw new Error('must not be called'); },
+    });
+    expect(r.skipped).toBe(true);
+    expect(r.reason).toMatch(/already cached/);
+    // Existing payload must not be overwritten by the resume guard.
+    expect(JSON.parse(fs.readFileSync(path.join(outDir, 'osm_bonn.json'), 'utf8')))
+      .toEqual({ sentinel: true });
+  });
+
+  test('force: re-runs even when osm_<slug>.json already exists', async () => {
+    const inputFc = fc([pt(1, 7.0005, 50.0)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(inputFc),
+    );
+    const outDir = path.join(tmpRoot, 'cache');
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'osm_bonn.json'), '{"sentinel":true}');
+
+    let called = 0;
+    const stubFetch = async () => {
+      called += 1;
+      return {
+        version: 0.6,
+        elements: [
+          { type: 'way', id: 200, tags: { highway: 'residential' },
+            geometry: [{ lat: 50, lon: 7 }, { lat: 50, lon: 7.001 }] },
+        ],
+      };
+    };
+
+    const r = await osm.produceCity(tmpRoot, 'bonn', {
+      outDir,
+      force: true,
+      fetchOverpass: stubFetch,
+    });
+    expect(r.skipped).toBeFalsy();
+    expect(called).toBeGreaterThan(0);
+    const written = JSON.parse(fs.readFileSync(path.join(outDir, 'osm_bonn.json'), 'utf8'));
+    expect(written.sentinel).toBeUndefined();
+    expect(written.ways['200']).toBeTruthy();
+  });
+
   test('produced osm_<slug>.json is consumable by enrich_geojson loadOsmProvider', async () => {
     // Round-trip test: we build an osm_<slug>.json, point
     // ENRICH_OSM_DATA_DIR at its directory, run enrichCity, and
@@ -345,6 +400,11 @@ describe('osm_producer — parseArgs', () => {
       if (prev === undefined) delete process.env.ENRICH_OSM_DATA_DIR;
       else process.env.ENRICH_OSM_DATA_DIR = prev;
     }
+  });
+
+  test('--force flips the resume guard off', () => {
+    expect(osm.parseArgs([]).force).toBeFalsy();
+    expect(osm.parseArgs(['--force']).force).toBe(true);
   });
 });
 

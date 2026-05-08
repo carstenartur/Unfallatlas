@@ -552,6 +552,18 @@ async function produceCity(repoRoot, citySlug, opts) {
   if (!fs.existsSync(inputFile)) {
     return { citySlug, skipped: true, reason: 'no input geojson' };
   }
+  // Resume support: if the per-city output already exists, treat the
+  // city as done. Combined with `save-always: true` on the workflow's
+  // cache step, this lets a timed-out / 429-throttled / cancelled run
+  // be picked up by the next invocation without re-fetching everything
+  // from Overpass. Pass `force: true` (CLI: `--force`) to bypass.
+  const outDirEarly = o.outDir;
+  if (outDirEarly && !o.force) {
+    const existingOut = path.join(outDirEarly, `osm_${citySlug}.json`);
+    if (fs.existsSync(existingOut)) {
+      return { citySlug, skipped: true, reason: 'already cached', outFile: existingOut };
+    }
+  }
   let fc;
   try {
     fc = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
@@ -702,6 +714,7 @@ function parseArgs(argv) {
     else if (a === '--max-distance') opts.maxDistanceM = Number(argv[++i]);
     else if (a === '--delay')        opts.interCityDelayMs = Number(argv[++i]);
     else if (a === '--tile-delay')   opts.interTileDelayMs = Number(argv[++i]);
+    else if (a === '--force')        opts.force = true;
     else if (a === '--json')         opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a.startsWith('--'))     console.warn(`[osm-producer] unknown flag ignored: ${a}`);
@@ -720,6 +733,10 @@ function printHelp() {
   --max-distance <m>     max snap distance for accident → way (default: ${DEFAULT_MAX_SNAP_DISTANCE_M})
   --delay <ms>           politeness delay between cities (default: ${DEFAULT_INTER_CITY_DELAY_MS})
   --tile-delay <ms>      politeness delay between tile requests (default: ${DEFAULT_INTER_TILE_DELAY_MS})
+  --force                re-fetch every city even if osm_<slug>.json
+                         already exists in the output directory
+                         (default: resume — skip cities whose output
+                         file is already present)
   --json                 emit machine-readable summary
 
 Environment:
