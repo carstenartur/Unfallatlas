@@ -346,6 +346,92 @@ describe('dem_producer — fetchElevations retry policy', () => {
     // retries clamped to 0 → exactly one attempt, no retry loop.
     expect(calls).toBe(1);
   });
+
+  test('concurrency>1 dispatches batches in parallel and preserves order', async () => {
+    // Each batch waits ~50 ms before resolving. Sequentially, 4 batches
+    // would take ~200 ms; with concurrency=4 they should overlap and
+    // finish in ~50–80 ms. We mainly assert correctness here (order +
+    // overlap), not exact timing, to avoid flaky CI.
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const stubFetch = async (url) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(r => setTimeout(r, 20));
+      inFlight--;
+      const lats = url.match(/latitude=([^&]+)/)[1].split(',');
+      return { ok: true, status: 200, json: async () => ({ elevation: lats.map(Number) }) };
+    };
+    const samples = Array.from({ length: 8 }, (_, i) => ({ lat: 50 + i, lon: 7 }));
+    const r = await dem.fetchElevations(samples, {
+      fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000,
+      batchSize: 2, interBatchDelayMs: 0, concurrency: 4,
+    });
+    expect(r).toEqual(samples.map(s => s.lat));
+    expect(maxInFlight).toBeGreaterThan(1);
+  });
+
+  test('concurrency>1 surfaces the first batch error', async () => {
+    let calls = 0;
+    const stubFetch = async () => {
+      calls++;
+      // Second batch always fails (non-retryable 4xx).
+      if (calls === 2) return { ok: false, status: 400, json: async () => ({}) };
+      const all = [10, 20];
+      return { ok: true, status: 200, json: async () => ({ elevation: all }) };
+    };
+    const samples = Array.from({ length: 8 }, (_, i) => ({ lat: 50 + i, lon: 7 }));
+    await expect(dem.fetchElevations(samples, {
+      fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000,
+      batchSize: 2, interBatchDelayMs: 0, concurrency: 4,
+    })).rejects.toThrow(/HTTP 400/);
+  });
+
+  test('clamps concurrency to >= 1', async () => {
+    const stubFetch = async (url) => {
+      const lats = url.match(/latitude=([^&]+)/)[1].split(',');
+      return { ok: true, status: 200, json: async () => ({ elevation: lats.map(Number) }) };
+    };
+    const samples = [{ lat: 50, lon: 7 }, { lat: 51, lon: 7 }];
+    const r = await dem.fetchElevations(samples, {
+      fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000,
+      batchSize: 1, interBatchDelayMs: 0, concurrency: 0,
+    });
+    expect(r).toEqual([50, 51]);
+  });
+});
+
+describe('dem_producer — fetchElevationsDedup', () => {
+  test('collapses samples that share a quantised (lat,lon) cell', async () => {
+    const seen = [];
+    const fetchFn = async (unique) => {
+      seen.push(unique.length);
+      return unique.map((s) => 100 + s.lat); // deterministic
+    };
+    const samples = [
+      { lat: 50.000001, lon: 7.0 }, // → 50.00000
+      { lat: 50.000002, lon: 7.0 }, // → 50.00000 (same cell)
+      { lat: 50.5,      lon: 7.0 }, // distinct
+      { lat: 50.000001, lon: 7.0 }, // dup of #0
+    ];
+    const { elevations, uniqueCount } = await dem.fetchElevationsDedup(samples, fetchFn);
+    // Only 2 unique cells were sent to the fetcher.
+    expect(seen).toEqual([2]);
+    expect(uniqueCount).toBe(2);
+    // Outputs are index-aligned with the input array.
+    expect(elevations).toHaveLength(samples.length);
+    expect(elevations[0]).toBe(elevations[1]); // shared cell
+    expect(elevations[3]).toBe(elevations[0]); // dup of #0
+    expect(elevations[2]).not.toBe(elevations[0]);
+  });
+
+  test('throws if the underlying fetcher returns the wrong length', async () => {
+    const fetchFn = async () => [1, 2, 3]; // wrong length on purpose
+    await expect(dem.fetchElevationsDedup(
+      [{ lat: 50, lon: 7 }, { lat: 51, lon: 7 }],
+      fetchFn,
+    )).rejects.toThrow(/expected 2 \(deduplicated\)/);
+  });
 });
 
 describe('dem_producer — parseRetryAfterMs', () => {
@@ -455,6 +541,44 @@ describe('dem_producer — produceCity (end-to-end with stubbed elevation provid
     }
   });
 
+  test('produceCity reports dedup counts and skips re-fetching shared neighbour cells', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    // Two accidents ~30 m apart along latitude — far enough that
+    // `uniquePointsFromFeatureCollection` keeps both at 5 dp, but
+    // close enough that pt2's centre coincides with pt1's north
+    // neighbour (and vice versa for the south), so dedup must drop
+    // those overlaps. Without dedup that's 2×5=10 samples; with dedup
+    // it should drop noticeably.
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([
+        pt(1, 7.0, 50.0),
+        pt(2, 7.0, 50.00027), // ~30 m north → overlaps neighbour cell
+      ])),
+    );
+    try {
+      let receivedSampleCount = 0;
+      const r = await dem.produceCity(repoRoot, 'bonn', {
+        outDir,
+        fetchElevations: async (samples) => {
+          receivedSampleCount = samples.length;
+          return samples.map(() => 100);
+        },
+      });
+      expect(r.skipped).toBeFalsy();
+      // 2 unique points × 5 samples = 10 raw samples; dedup must drop
+      // at least the duplicated centre, so unique < total.
+      expect(r.counts.pointSamplesTotal).toBe(10);
+      expect(r.counts.pointSamplesUnique).toBeLessThan(r.counts.pointSamplesTotal);
+      expect(receivedSampleCount).toBe(r.counts.pointSamplesUnique);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test('force: re-fetches even when dem_<slug>.json already exists', async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
     const repoRoot = path.join(tmp, 'repo');
@@ -495,11 +619,16 @@ describe('dem_producer — produceCity (end-to-end with stubbed elevation provid
     );
 
     try {
-      // 1 m climb to north → +1.667 %
+      // 1 m climb to north → +1.667 %.  After dedup (5 dp ≈ 1.1 m) the
+      // `role` metadata is stripped before the fetcher sees the
+      // samples — the real Open-Meteo API only sees lat/lon, and the
+      // dedup helper deliberately strips everything else so duplicate
+      // (lat,lon) pairs collapse into a single request. Discriminate
+      // by latitude instead, which is what the real API does.
       const fetchStub = async (samples) => samples.map((s) => {
-        if (s.role === 'n') return 101;
-        if (s.role === 's') return 100;
-        return 100;
+        if (s.lat > 50) return 101; // north neighbour
+        if (s.lat < 50) return 100; // south neighbour
+        return 100;                 // centre / east / west
       });
       await dem.produceCity(repoRoot, 'bonn', { outDir, fetchElevations: fetchStub });
 
@@ -547,6 +676,11 @@ describe('dem_producer — parseArgs', () => {
   test('--force flips the resume guard off', () => {
     expect(dem.parseArgs([]).force).toBeFalsy();
     expect(dem.parseArgs(['--force']).force).toBe(true);
+  });
+
+  test('--concurrency parses into opts.concurrency', () => {
+    expect(dem.parseArgs([]).concurrency).toBeUndefined();
+    expect(dem.parseArgs(['--concurrency', '4']).concurrency).toBe(4);
   });
 });
 

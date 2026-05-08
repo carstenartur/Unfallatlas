@@ -1,0 +1,276 @@
+name: Enrich GeoJSONs (per-city matrix)
+
+# Optional, parallel variant of `enrich.yml`. Splits the producer
+# stage across one matrix job per city so the wall-clock time scales
+# inversely with `max-parallel`. The aggregate job downloads every
+# city's per-producer artifacts, drops them back into a unified
+# `.enrichment-cache/{osm,dem,traffic}/`, then runs the enrichment
+# script and commits the result exactly like `enrich.yml`.
+#
+# Why this exists alongside `enrich.yml`:
+#   * `enrich.yml` (single job) is the simplest and cheapest to
+#     operate; with the resume guard + `save-always` cache it stays
+#     well within the 6 h job timeout for the current city list.
+#   * `enrich-matrix.yml` (this file) is for one-off "rebuild
+#     everything" runs where wall-clock matters more than runner
+#     minutes — e.g. after bumping a producer version.
+#
+# Each per-city producer step still uses `actions/cache` (keyed on
+# producer-version + ISO-week + city slug) and the producers' own
+# resume guard, so re-runs in the same week skip cities that were
+# already produced. Trigger only via workflow_dispatch — no schedule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_parallel:
+        description: 'How many city jobs to run concurrently (rate-limit-friendly default: 4)'
+        type: string
+        default: '4'
+      force_osm:
+        description: 'Re-run OSM producer for every city even if cached output exists'
+        type: boolean
+        default: false
+      force_dem:
+        description: 'Re-run DEM producer for every city even if cached output exists'
+        type: boolean
+        default: false
+      force_traffic:
+        description: 'Re-run Traffic producer for every city even if cached output exists'
+        type: boolean
+        default: false
+      dem_concurrency:
+        description: 'How many DEM batches each city may dispatch in parallel (Open-Meteo, default: 4)'
+        type: string
+        default: '4'
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------
+  # 1. Read cities.txt and project it into a JSON array the matrix
+  #    expansion can consume.
+  # ---------------------------------------------------------------------
+  list-cities:
+    runs-on: ubuntu-latest
+    outputs:
+      cities: ${{ steps.list.outputs.cities }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Build city slug list
+        id: list
+        run: |
+          set -euo pipefail
+          # Strip comments and blank lines; one entry per row.
+          mapfile -t NAMES < <(sed -E 's/#.*$//' cities.txt | awk 'NF')
+          if [[ ${#NAMES[@]} -eq 0 ]]; then
+            echo "cities.txt is empty — nothing to do" >&2
+            exit 1
+          fi
+          # Slugify identically to scripts/producers/*.js (lowercase,
+          # umlaut transliteration, non-alnum → _, trim).
+          SLUGS=()
+          for n in "${NAMES[@]}"; do
+            slug=$(node -e "
+              const s = process.argv[1].toLowerCase()
+                .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+                .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+\$/g,'');
+              process.stdout.write(s);
+            " "$n")
+            SLUGS+=("$slug")
+          done
+          # Emit a JSON array with both the original name (for --city)
+          # and the slug (for cache keys + artifact names).
+          JSON=$(node -e "
+            const names = process.argv[1].split(',');
+            const slugs = process.argv[2].split(',');
+            const out = names.map((name,i) => ({ name, slug: slugs[i] }));
+            process.stdout.write(JSON.stringify(out));
+          " "$(IFS=,; echo "${NAMES[*]}")" "$(IFS=,; echo "${SLUGS[*]}")")
+          echo "cities=$JSON" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------
+  # 2. Per-city producer fan-out. Each job produces only its assigned
+  #    city, caches the per-city outputs, and uploads them as artifacts.
+  # ---------------------------------------------------------------------
+  produce-city:
+    needs: list-cities
+    runs-on: ubuntu-latest
+    strategy:
+      # One slow city must not abort the rest — the aggregator can
+      # always re-run with `force_*` for the missing slugs.
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        city: ${{ fromJson(needs.list-cities.outputs.cities) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Compute producer cache keys (per city)
+        id: keys
+        run: |
+          set -euo pipefail
+          OSM_VER=$(node     -e "console.log(require('./scripts/producers/osm_producer.js').PRODUCER_VERSION)")
+          DEM_VER=$(node     -e "console.log(require('./scripts/producers/dem_producer.js').PRODUCER_VERSION)")
+          TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer.js').PRODUCER_VERSION)")
+          ISO_WEEK=$(date -u +%G-W%V)
+          SLUG="${{ matrix.city.slug }}"
+          echo "osm=osm-${OSM_VER}-${ISO_WEEK}-${SLUG}"                         >> "$GITHUB_OUTPUT"
+          echo "dem=dem-${DEM_VER}-${ISO_WEEK}-${SLUG}"                         >> "$GITHUB_OUTPUT"
+          echo "traffic=traffic-${TRAFFIC_VER}-osm-${OSM_VER}-${ISO_WEEK}-${SLUG}" >> "$GITHUB_OUTPUT"
+
+      # OSM ----------------------------------------------------------------
+      - name: Restore OSM cache for ${{ matrix.city.slug }}
+        id: osm_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/osm
+          key: ${{ steps.keys.outputs.osm }}
+          save-always: true
+
+      - name: Produce OSM (${{ matrix.city.name }})
+        if: ${{ steps.osm_cache.outputs.cache-hit != 'true' }}
+        env:
+          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          set -euo pipefail
+          ARGS=(--city "${{ matrix.city.name }}")
+          if [[ "${{ inputs.force_osm }}" == "true" ]]; then ARGS+=(--force); fi
+          node scripts/producers/osm_producer.js "${ARGS[@]}"
+
+      # DEM ----------------------------------------------------------------
+      - name: Restore DEM cache for ${{ matrix.city.slug }}
+        id: dem_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/dem
+          key: ${{ steps.keys.outputs.dem }}
+          save-always: true
+
+      - name: Produce DEM (${{ matrix.city.name }})
+        if: ${{ steps.dem_cache.outputs.cache-hit != 'true' }}
+        env:
+          ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+        run: |
+          set -euo pipefail
+          ARGS=(--city "${{ matrix.city.name }}" --concurrency "${{ inputs.dem_concurrency }}")
+          if [[ "${{ inputs.force_dem }}" == "true" ]]; then ARGS+=(--force); fi
+          node scripts/producers/dem_producer.js "${ARGS[@]}"
+
+      # Traffic ------------------------------------------------------------
+      - name: Restore Traffic cache for ${{ matrix.city.slug }}
+        id: traffic_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/traffic
+          key: ${{ steps.keys.outputs.traffic }}
+          save-always: true
+
+      - name: Produce Traffic (${{ matrix.city.name }})
+        if: ${{ steps.traffic_cache.outputs.cache-hit != 'true' }}
+        env:
+          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
+        run: |
+          set -euo pipefail
+          ARGS=(--city "${{ matrix.city.name }}")
+          if [[ "${{ inputs.force_traffic }}" == "true" ]]; then ARGS+=(--force); fi
+          node scripts/producers/traffic_producer.js "${ARGS[@]}"
+
+      # Hand off to aggregator via artifacts. Keep the directory layout
+      # so the aggregator can simply unpack everything into
+      # `.enrichment-cache/`.
+      - name: Upload city artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: enrichment-cache-${{ matrix.city.slug }}
+          path: |
+            .enrichment-cache/osm/osm_${{ matrix.city.slug }}.json
+            .enrichment-cache/dem/dem_${{ matrix.city.slug }}.json
+            .enrichment-cache/traffic/traffic_${{ matrix.city.slug }}.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------
+  # 3. Aggregate: pull every per-city artifact back into a single
+  #    `.enrichment-cache/` tree, run the enrichment, commit.
+  # ---------------------------------------------------------------------
+  aggregate:
+    needs: produce-city
+    runs-on: ubuntu-latest
+    # Run aggregation even when individual matrix jobs failed — the
+    # enrichment script silently no-ops on missing per-city files,
+    # so partial coverage is still useful.
+    if: ${{ always() }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+
+      - name: Set up Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Download all city artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # All artifacts from the matrix jobs share the
+          # `enrichment-cache-` prefix.
+          pattern: enrichment-cache-*
+          path: ${{ github.workspace }}/.artifacts
+          merge-multiple: true
+
+      - name: Reassemble .enrichment-cache/ from artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p .enrichment-cache/osm .enrichment-cache/dem .enrichment-cache/traffic
+          # download-artifact with merge-multiple flattens each
+          # artifact into the same root, preserving the relative path
+          # we passed to upload-artifact (.enrichment-cache/...).
+          if [[ -d .artifacts/.enrichment-cache ]]; then
+            cp -r .artifacts/.enrichment-cache/. .enrichment-cache/
+          fi
+          echo "OSM cache:"     ; ls -1 .enrichment-cache/osm     2>/dev/null | wc -l
+          echo "DEM cache:"     ; ls -1 .enrichment-cache/dem     2>/dev/null | wc -l
+          echo "Traffic cache:" ; ls -1 .enrichment-cache/traffic 2>/dev/null | wc -l
+
+      - name: Run enrichment
+        env:
+          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+        run: node scripts/enrich_geojson.js
+
+      - name: Check enriched payload size budget
+        run: node scripts/check-enrichment-size.js
+
+      # Same commit-only-on-real-diff guard as enrich.yml.
+      - name: Commit & Push changes
+        run: |
+          set -euo pipefail
+          git add -A -- out/ ':!out/*.enrichment.meta.json'
+          if git diff --cached --quiet; then
+            echo "No enrichment changes other than meta timestamps; skipping commit."
+            exit 0
+          fi
+          git add -A -- out/
+          git commit -m "Re-run enrichment via per-city matrix (scripts/enrich_geojson.js)"
+          git push origin HEAD:${{ github.ref_name }}
