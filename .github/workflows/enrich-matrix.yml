@@ -74,22 +74,25 @@ jobs:
           # umlaut transliteration, non-alnum → _, trim).
           SLUGS=()
           for n in "${NAMES[@]}"; do
-            slug=$(node -e "
+            # Single-quote the node script so neither bash nor GitHub
+            # Actions touch its contents — the `$` in `/_+$/g` is the
+            # JS regex end-of-string anchor and must reach node intact.
+            slug=$(node -e '
               const s = process.argv[1].toLowerCase()
-                .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
-                .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+\$/g,'');
+                .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
+                .replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
               process.stdout.write(s);
-            " "$n")
+            ' "$n")
             SLUGS+=("$slug")
           done
           # Emit a JSON array with both the original name (for --city)
           # and the slug (for cache keys + artifact names).
-          JSON=$(node -e "
-            const names = process.argv[1].split(',');
-            const slugs = process.argv[2].split(',');
+          JSON=$(node -e '
+            const names = process.argv[1].split(",");
+            const slugs = process.argv[2].split(",");
             const out = names.map((name,i) => ({ name, slug: slugs[i] }));
             process.stdout.write(JSON.stringify(out));
-          " "$(IFS=,; echo "${NAMES[*]}")" "$(IFS=,; echo "${SLUGS[*]}")")
+          ' "$(IFS=,; echo "${NAMES[*]}")" "$(IFS=,; echo "${SLUGS[*]}")")
           echo "cities=$JSON" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------
@@ -105,7 +108,7 @@ jobs:
       fail-fast: false
       max-parallel: ${{ fromJSON(inputs.max_parallel) }}
       matrix:
-        city: ${{ fromJson(needs.list-cities.outputs.cities) }}
+        city: ${{ fromJSON(needs.list-cities.outputs.cities) }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -139,7 +142,10 @@ jobs:
           save-always: true
 
       - name: Produce OSM (${{ matrix.city.name }})
-        if: ${{ steps.osm_cache.outputs.cache-hit != 'true' }}
+        # Always run: the per-city resume guard inside `produceCity`
+        # short-circuits cheaply when the cache already contains this
+        # slug's output, and gating on `cache-hit` here would make
+        # `force_osm` ineffective on weekly cache hits.
         env:
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
           NODE_OPTIONS: --max-old-space-size=6144
@@ -159,7 +165,8 @@ jobs:
           save-always: true
 
       - name: Produce DEM (${{ matrix.city.name }})
-        if: ${{ steps.dem_cache.outputs.cache-hit != 'true' }}
+        # See "Produce OSM" — same reasoning, also lets `force_dem`
+        # take effect on cache hits.
         env:
           ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
@@ -179,7 +186,8 @@ jobs:
           save-always: true
 
       - name: Produce Traffic (${{ matrix.city.name }})
-        if: ${{ steps.traffic_cache.outputs.cache-hit != 'true' }}
+        # See "Produce OSM" — same reasoning, also lets `force_traffic`
+        # take effect on cache hits.
         env:
           ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
           ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm

@@ -234,12 +234,6 @@ async function fetchElevations(samples, opts) {
 
   async function processBatch(batchIndex) {
     const { start, end } = batches[batchIndex];
-    // Politeness delay applies between consecutive batches a worker
-    // fetches; with concurrency>1, multiple workers still observe
-    // their own per-worker delays.
-    if (batchIndex > 0 && interBatchDelayMs > 0) {
-      await sleepImpl(interBatchDelayMs);
-    }
     const slice = samples.slice(start, end);
     const lats = slice.map(s => s.lat).join(',');
     const lons = slice.map(s => s.lon).join(',');
@@ -258,14 +252,29 @@ async function fetchElevations(samples, opts) {
     // Stop dispatching new batches once any sibling has failed so the
     // first error surfaces quickly instead of waiting for in-flight
     // batches that follow it.
+    //
+    // The politeness delay is applied *between* successive batches
+    // handled by the same worker — never before its first fetch —
+    // regardless of which global batch index that first fetch happens
+    // to be. With concurrency=1 this still yields N-1 delays for N
+    // batches; with concurrency>k each of the k workers gets its own
+    // (M_w − 1) delays where M_w is how many batches that worker
+    // handled. This mirrors the original sequential behaviour without
+    // imposing a spurious "warm-up" sleep on workers that picked up
+    // batch index ≥ 1 as their first task.
+    let didFetch = false;
     while (cursor < batches.length && firstError == null) {
       const myIdx = cursor++;
+      if (didFetch && interBatchDelayMs > 0) {
+        await sleepImpl(interBatchDelayMs);
+      }
       try {
         await processBatch(myIdx);
       } catch (e) {
         if (firstError == null) firstError = e;
         return;
       }
+      didFetch = true;
     }
   }
 

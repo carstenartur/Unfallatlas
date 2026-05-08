@@ -399,6 +399,29 @@ describe('dem_producer — fetchElevations retry policy', () => {
     });
     expect(r).toEqual([50, 51]);
   });
+
+  test('concurrency>1: each worker skips the politeness delay before its first fetch', async () => {
+    // 4 batches, 2 workers — each worker handles 2 batches, so we
+    // expect exactly 2 sleeps total (one per worker, between its
+    // first and second batch). The previous implementation gated on
+    // the global batch index, which would have emitted 3 sleeps
+    // (every worker that picked up batch index ≥ 1 slept before its
+    // very first fetch — a spurious warm-up that defeated the
+    // intended parallelism).
+    const sleeps = [];
+    const sleepStub = async (ms) => { sleeps.push(ms); };
+    const stubFetch = async (url) => {
+      const lats = url.match(/latitude=([^&]+)/)[1].split(',');
+      return { ok: true, status: 200, json: async () => ({ elevation: lats.map(Number) }) };
+    };
+    const samples = Array.from({ length: 4 }, (_, i) => ({ lat: 50 + i, lon: 7 }));
+    await dem.fetchElevations(samples, {
+      fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000,
+      batchSize: 1, interBatchDelayMs: 50, concurrency: 2,
+      sleep: sleepStub,
+    });
+    expect(sleeps).toEqual([50, 50]);
+  });
 });
 
 describe('dem_producer — fetchElevationsDedup', () => {

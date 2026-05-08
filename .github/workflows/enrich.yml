@@ -105,7 +105,14 @@ jobs:
           save-always: true
 
       - name: Produce OSM source data
-        if: ${{ inputs.skip_osm != true && steps.osm_cache.outputs.cache-hit != 'true' }}
+        # Always run when not skipped. With `save-always: true`, a cache
+        # hit may be partial (some cities missing because a previous
+        # run was cancelled / 429-throttled), and a `force_osm` request
+        # must take effect even when the cache key matches. The
+        # per-city resume guard inside `produceCity` makes the no-op
+        # case (everything already cached) cheap — a single existsSync
+        # per city.
+        if: ${{ inputs.skip_osm != true }}
         env:
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
           NODE_OPTIONS: --max-old-space-size=6144
@@ -125,7 +132,9 @@ jobs:
           save-always: true
 
       - name: Produce DEM source data
-        if: ${{ inputs.skip_dem != true && steps.dem_cache.outputs.cache-hit != 'true' }}
+        # See "Produce OSM source data" — same reasoning: partial
+        # caches and `force_dem` both need the producer to run.
+        if: ${{ inputs.skip_dem != true }}
         env:
           ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
@@ -152,7 +161,9 @@ jobs:
           save-always: true
 
       - name: Produce Traffic source data
-        if: ${{ inputs.skip_traffic != true && inputs.skip_osm != true && steps.traffic_cache.outputs.cache-hit != 'true' }}
+        # See "Produce OSM source data" — same reasoning: partial
+        # caches and `force_traffic` both need the producer to run.
+        if: ${{ inputs.skip_traffic != true && inputs.skip_osm != true }}
         env:
           ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
           ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
