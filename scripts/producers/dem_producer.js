@@ -262,8 +262,9 @@ function readHeader(resp, name) {
   if (!h) return undefined;
   if (typeof h.get === 'function') return h.get(name);
   // Plain-object fallback (case-insensitive).
+  const lower = name.toLowerCase();
   for (const k of Object.keys(h)) {
-    if (k.toLowerCase() === name.toLowerCase()) return h[k];
+    if (k.toLowerCase() === lower) return h[k];
   }
   return undefined;
 }
@@ -621,7 +622,7 @@ async function main(argv) {
       const wait = Math.max(baseDelay, cooldown);
       if (wait > 0) {
         if (cooldown > 0 && !opts.json) {
-          console.log(`[dem-producer] cooling down ${Math.round(wait/1000)}s after rate-limit before ${slug}`);
+          console.log(`[dem-producer] cooling down ${Math.round(wait / 1000)}s after rate-limit before ${slug}`);
         }
         await sleep(wait);
       }
