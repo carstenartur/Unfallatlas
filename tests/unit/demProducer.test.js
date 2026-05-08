@@ -219,7 +219,7 @@ describe('dem_producer — fetchElevations retry policy', () => {
     };
     const r = await dem.fetchElevations(
       [{ lat: 50, lon: 7 }, { lat: 51, lon: 8 }],
-      { fetch: stubFetch, retries: 3, backoffMs: 1, timeoutMs: 1000, batchSize: 100 },
+      { fetch: stubFetch, retries: 3, backoffMs: 1, rateLimitBackoffMs: 1, timeoutMs: 1000, batchSize: 100 },
     );
     expect(r).toEqual([100, 200]);
     expect(calls).toBe(2);
@@ -237,6 +237,53 @@ describe('dem_producer — fetchElevations retry policy', () => {
     expect(calls).toBe(1);
   });
 
+  test('honours Retry-After header on 429', async () => {
+    const sleepGaps = [];
+    let lastTs = Date.now();
+    let calls = 0;
+    const stubFetch = async () => {
+      const now = Date.now();
+      sleepGaps.push(now - lastTs);
+      lastTs = now;
+      calls++;
+      if (calls < 2) {
+        return {
+          ok: false, status: 429,
+          headers: { 'retry-after': '1' }, // 1 second
+          json: async () => ({}),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({ elevation: [42] }) };
+    };
+    const r = await dem.fetchElevations(
+      [{ lat: 50, lon: 7 }],
+      { fetch: stubFetch, retries: 3, backoffMs: 1, rateLimitBackoffMs: 50_000, timeoutMs: 1000 },
+    );
+    expect(r).toEqual([42]);
+    // 2nd attempt should wait roughly Retry-After (1s), not the
+    // 50s rate-limit fallback.
+    expect(sleepGaps[1]).toBeGreaterThanOrEqual(900);
+    expect(sleepGaps[1]).toBeLessThan(5_000);
+  }, 10_000);
+
+  test('invokes onRateLimit callback exactly when a 429 fires', async () => {
+    let hits = 0;
+    let calls = 0;
+    const stubFetch = async () => {
+      calls++;
+      if (calls === 1) return { ok: false, status: 429, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({ elevation: [1] }) };
+    };
+    await dem.fetchElevations(
+      [{ lat: 50, lon: 7 }],
+      {
+        fetch: stubFetch, retries: 3, backoffMs: 1, rateLimitBackoffMs: 1,
+        timeoutMs: 1000, onRateLimit: () => { hits++; },
+      },
+    );
+    expect(hits).toBe(1);
+  });
+
   test('chunks into batchSize-sized requests', async () => {
     const calls = [];
     const stubFetch = async (url) => {
@@ -247,9 +294,65 @@ describe('dem_producer — fetchElevations retry policy', () => {
     const samples = Array.from({ length: 5 }, (_, i) => ({ lat: 50 + i, lon: 7 }));
     const r = await dem.fetchElevations(samples, {
       fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000, batchSize: 2,
+      interBatchDelayMs: 0,
     });
     expect(r).toHaveLength(5);
     expect(calls).toHaveLength(3); // 2 + 2 + 1
+  });
+
+  test('inserts interBatchDelayMs between sub-batches', async () => {
+    const tsAtCall = [];
+    const stubFetch = async (url) => {
+      tsAtCall.push(Date.now());
+      const lats = url.match(/latitude=([^&]+)/)[1].split(',');
+      return { ok: true, status: 200, json: async () => ({ elevation: lats.map(Number) }) };
+    };
+    const samples = Array.from({ length: 3 }, (_, i) => ({ lat: 50 + i, lon: 7 }));
+    await dem.fetchElevations(samples, {
+      fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000, batchSize: 1,
+      interBatchDelayMs: 80,
+    });
+    expect(tsAtCall).toHaveLength(3);
+    // Each pair of consecutive batches must be at least ~interBatchDelayMs apart.
+    expect(tsAtCall[1] - tsAtCall[0]).toBeGreaterThanOrEqual(60);
+    expect(tsAtCall[2] - tsAtCall[1]).toBeGreaterThanOrEqual(60);
+  });
+});
+
+describe('dem_producer — parseRetryAfterMs', () => {
+  test('parses integer seconds', () => {
+    expect(dem.parseRetryAfterMs('5')).toBe(5_000);
+    expect(dem.parseRetryAfterMs('0')).toBeUndefined();
+  });
+  test('parses HTTP-date in the future, ignores past dates', () => {
+    const future = new Date(Date.now() + 4_000).toUTCString();
+    const parsed = dem.parseRetryAfterMs(future);
+    expect(parsed).toBeGreaterThan(2_000);
+    expect(parsed).toBeLessThanOrEqual(5_000);
+    const past = new Date(Date.now() - 60_000).toUTCString();
+    expect(dem.parseRetryAfterMs(past)).toBeUndefined();
+  });
+  test('caps absurd values to MAX_RATE_LIMIT_BACKOFF_MS', () => {
+    expect(dem.parseRetryAfterMs('99999')).toBe(dem.MAX_RATE_LIMIT_BACKOFF_MS);
+  });
+  test('returns undefined on garbage / empty input', () => {
+    expect(dem.parseRetryAfterMs(undefined)).toBeUndefined();
+    expect(dem.parseRetryAfterMs(null)).toBeUndefined();
+    expect(dem.parseRetryAfterMs('')).toBeUndefined();
+    expect(dem.parseRetryAfterMs('not-a-date')).toBeUndefined();
+  });
+});
+
+describe('dem_producer — isRateLimitError', () => {
+  test('classifies HTTP 429 / fetch failed as rate-limit', () => {
+    expect(dem.isRateLimitError(new Error('Elevation HTTP 429'))).toBe(true);
+    expect(dem.isRateLimitError(new Error('fetch failed'))).toBe(true);
+    const err = new Error('boom'); err.status = 429;
+    expect(dem.isRateLimitError(err)).toBe(true);
+  });
+  test('does not misclassify other errors', () => {
+    expect(dem.isRateLimitError(new Error('Elevation HTTP 500'))).toBe(false);
+    expect(dem.isRateLimitError(null)).toBe(false);
   });
 });
 
