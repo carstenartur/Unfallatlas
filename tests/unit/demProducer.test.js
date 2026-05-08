@@ -238,13 +238,10 @@ describe('dem_producer — fetchElevations retry policy', () => {
   });
 
   test('honours Retry-After header on 429', async () => {
-    const sleepGaps = [];
-    let lastTs = Date.now();
+    const sleeps = [];
+    const sleepStub = async (ms) => { sleeps.push(ms); };
     let calls = 0;
     const stubFetch = async () => {
-      const now = Date.now();
-      sleepGaps.push(now - lastTs);
-      lastTs = now;
       calls++;
       if (calls < 2) {
         return {
@@ -257,14 +254,16 @@ describe('dem_producer — fetchElevations retry policy', () => {
     };
     const r = await dem.fetchElevations(
       [{ lat: 50, lon: 7 }],
-      { fetch: stubFetch, retries: 3, backoffMs: 1, rateLimitBackoffMs: 50_000, timeoutMs: 1000 },
+      {
+        fetch: stubFetch, retries: 3, backoffMs: 1, rateLimitBackoffMs: 50_000,
+        timeoutMs: 1000, sleep: sleepStub,
+      },
     );
     expect(r).toEqual([42]);
-    // 2nd attempt should wait roughly Retry-After (1s), not the
-    // 50s rate-limit fallback.
-    expect(sleepGaps[1]).toBeGreaterThanOrEqual(900);
-    expect(sleepGaps[1]).toBeLessThan(5_000);
-  }, 10_000);
+    // The pre-attempt sleep before the retry should be ~Retry-After (1000 ms),
+    // not the 50 s rate-limit fallback.
+    expect(sleeps).toEqual([1000]);
+  });
 
   test('invokes onRateLimit callback exactly when a 429 fires', async () => {
     let hits = 0;
@@ -301,21 +300,51 @@ describe('dem_producer — fetchElevations retry policy', () => {
   });
 
   test('inserts interBatchDelayMs between sub-batches', async () => {
-    const tsAtCall = [];
+    const sleeps = [];
+    const sleepStub = async (ms) => { sleeps.push(ms); };
     const stubFetch = async (url) => {
-      tsAtCall.push(Date.now());
       const lats = url.match(/latitude=([^&]+)/)[1].split(',');
       return { ok: true, status: 200, json: async () => ({ elevation: lats.map(Number) }) };
     };
     const samples = Array.from({ length: 3 }, (_, i) => ({ lat: 50 + i, lon: 7 }));
     await dem.fetchElevations(samples, {
       fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000, batchSize: 1,
-      interBatchDelayMs: 80,
+      interBatchDelayMs: 80, sleep: sleepStub,
     });
-    expect(tsAtCall).toHaveLength(3);
-    // Each pair of consecutive batches must be at least ~interBatchDelayMs apart.
-    expect(tsAtCall[1] - tsAtCall[0]).toBeGreaterThanOrEqual(60);
-    expect(tsAtCall[2] - tsAtCall[1]).toBeGreaterThanOrEqual(60);
+    // 3 batches → 2 inter-batch delays of exactly interBatchDelayMs.
+    expect(sleeps).toEqual([80, 80]);
+  });
+
+  test('clamps batchSize to >= 1 to avoid an infinite loop', async () => {
+    const calls = [];
+    const stubFetch = async (url) => {
+      calls.push(url);
+      const lats = url.match(/latitude=([^&]+)/)[1].split(',');
+      return { ok: true, status: 200, json: async () => ({ elevation: lats.map(Number) }) };
+    };
+    const samples = Array.from({ length: 3 }, (_, i) => ({ lat: 50 + i, lon: 7 }));
+    // batchSize=0 would never advance the loop without clamping.
+    const r = await dem.fetchElevations(samples, {
+      fetch: stubFetch, retries: 0, backoffMs: 1, timeoutMs: 1000, batchSize: 0,
+      interBatchDelayMs: 0,
+    });
+    expect(r).toHaveLength(3);
+    // Falls back to default batch size (≥ 1), so all samples processed.
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('clamps negative retries to 0', async () => {
+    let calls = 0;
+    const stubFetch = async () => {
+      calls++;
+      return { ok: false, status: 500, json: async () => ({}) };
+    };
+    await expect(dem.fetchElevations(
+      [{ lat: 50, lon: 7 }],
+      { fetch: stubFetch, retries: -5, backoffMs: 1, timeoutMs: 1000, interBatchDelayMs: 0 },
+    )).rejects.toThrow();
+    // retries clamped to 0 → exactly one attempt, no retry loop.
+    expect(calls).toBe(1);
   });
 });
 

@@ -197,28 +197,33 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function fetchElevations(samples, opts) {
   const o = opts || {};
   const endpoint  = o.endpoint  || process.env.OPEN_METEO_ELEVATION_ENDPOINT || DEFAULT_ELEVATION_ENDPOINT;
-  const retries   = Number.isFinite(o.retries)   ? o.retries   : DEFAULT_ELEVATION_RETRIES;
+  const retries   = Math.max(0, Math.floor(
+    Number.isFinite(o.retries) ? o.retries : DEFAULT_ELEVATION_RETRIES,
+  ));
   const backoffMs = Number.isFinite(o.backoffMs) ? o.backoffMs : DEFAULT_ELEVATION_BACKOFF_MS;
   const rateLimitBackoffMs = Number.isFinite(o.rateLimitBackoffMs)
     ? o.rateLimitBackoffMs : DEFAULT_RATE_LIMIT_BACKOFF_MS;
   const timeoutMs = Number.isFinite(o.timeoutMs) ? o.timeoutMs : DEFAULT_ELEVATION_TIMEOUT_MS;
-  const batchSize = Number.isFinite(o.batchSize) ? o.batchSize : DEFAULT_BATCH_SIZE;
+  const batchSize = Math.max(1, Math.floor(
+    Number.isFinite(o.batchSize) && o.batchSize >= 1 ? o.batchSize : DEFAULT_BATCH_SIZE,
+  ));
   const interBatchDelayMs = Number.isFinite(o.interBatchDelayMs)
     ? o.interBatchDelayMs : DEFAULT_INTER_BATCH_DELAY_MS;
   const fetchImpl = o.fetch || (typeof fetch !== 'undefined' ? fetch : null);
   const onRateLimit = typeof o.onRateLimit === 'function' ? o.onRateLimit : null;
+  const sleepImpl = typeof o.sleep === 'function' ? o.sleep : sleep;
   if (!fetchImpl) throw new Error('No fetch implementation available — pass opts.fetch');
 
   const out = new Array(samples.length);
   for (let i = 0; i < samples.length; i += batchSize) {
-    if (i > 0 && interBatchDelayMs > 0) await sleep(interBatchDelayMs);
+    if (i > 0 && interBatchDelayMs > 0) await sleepImpl(interBatchDelayMs);
     const slice = samples.slice(i, i + batchSize);
     const lats = slice.map(s => s.lat).join(',');
     const lons = slice.map(s => s.lon).join(',');
     const url  = `${endpoint}?latitude=${lats}&longitude=${lons}`;
 
     const data = await fetchWithRetry(fetchImpl, url, {
-      retries, backoffMs, rateLimitBackoffMs, timeoutMs, onRateLimit,
+      retries, backoffMs, rateLimitBackoffMs, timeoutMs, onRateLimit, sleep: sleepImpl,
     });
     const elev = Array.isArray(data?.elevation) ? data.elevation : [];
     for (let j = 0; j < slice.length; j++) {
@@ -271,6 +276,7 @@ function readHeader(resp, name) {
 
 async function fetchWithRetry(fetchImpl, url, opts) {
   const { retries, backoffMs, rateLimitBackoffMs, timeoutMs, onRateLimit } = opts;
+  const sleepImpl = typeof opts.sleep === 'function' ? opts.sleep : sleep;
   let lastErr = null;
   let nextSleepMs = 0; // overridden by Retry-After when a 429 sets it.
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -278,7 +284,7 @@ async function fetchWithRetry(fetchImpl, url, opts) {
       const wait = nextSleepMs > 0
         ? nextSleepMs
         : backoffMs * Math.pow(2, attempt - 1);
-      await sleep(wait);
+      await sleepImpl(wait);
       nextSleepMs = 0;
     }
 
