@@ -23,6 +23,23 @@ on:
         description: 'Skip the traffic-volume stage'
         type: boolean
         default: false
+      # Force flags re-run a producer even if a per-city output file is
+      # already present in the (cached) output directory. Without these
+      # flags the producers now resume — i.e. only generate the cities
+      # that are still missing — so an interrupted, timed-out or
+      # 429-throttled previous run is picked up where it left off.
+      force_osm:
+        description: 'Re-run OSM producer for every city even if cached output exists'
+        type: boolean
+        default: false
+      force_dem:
+        description: 'Re-run DEM producer for every city even if cached output exists'
+        type: boolean
+        default: false
+      force_traffic:
+        description: 'Re-run Traffic producer for every city even if cached output exists'
+        type: boolean
+        default: false
   schedule:
     # Every Sunday at 04:00 UTC. Note: cron's day-of-month and
     # day-of-week fields are OR-combined, so a "first Sunday of the
@@ -80,13 +97,23 @@ jobs:
         with:
           path: ${{ github.workspace }}/.enrichment-cache/osm
           key: ${{ steps.producer_cache_keys.outputs.osm }}
+          # Persist whatever the producer managed to generate even when
+          # the job is cancelled or fails (e.g. Overpass timeout, 429
+          # cool-down, runner timeout). Combined with the resume guard
+          # in produceCity, the next run only fetches the cities that
+          # are still missing.
+          save-always: true
 
       - name: Produce OSM source data
         if: ${{ inputs.skip_osm != true && steps.osm_cache.outputs.cache-hit != 'true' }}
         env:
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
           NODE_OPTIONS: --max-old-space-size=6144
-        run: node scripts/producers/osm_producer.js
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ "${{ inputs.force_osm }}" == "true" ]]; then ARGS+=(--force); fi
+          node scripts/producers/osm_producer.js "${ARGS[@]}"
 
       - name: Restore DEM producer cache
         if: ${{ inputs.skip_dem != true }}
@@ -95,13 +122,18 @@ jobs:
         with:
           path: ${{ github.workspace }}/.enrichment-cache/dem
           key: ${{ steps.producer_cache_keys.outputs.dem }}
+          save-always: true
 
       - name: Produce DEM source data
         if: ${{ inputs.skip_dem != true && steps.dem_cache.outputs.cache-hit != 'true' }}
         env:
           ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
           ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
-        run: node scripts/producers/dem_producer.js
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ "${{ inputs.force_dem }}" == "true" ]]; then ARGS+=(--force); fi
+          node scripts/producers/dem_producer.js "${ARGS[@]}"
 
       # Traffic depends on the OSM cache (it derives a DTV proxy from
       # each matched way's `highway` tag). When OSM is skipped, we
@@ -117,13 +149,18 @@ jobs:
         with:
           path: ${{ github.workspace }}/.enrichment-cache/traffic
           key: ${{ steps.producer_cache_keys.outputs.traffic }}
+          save-always: true
 
       - name: Produce Traffic source data
         if: ${{ inputs.skip_traffic != true && inputs.skip_osm != true && steps.traffic_cache.outputs.cache-hit != 'true' }}
         env:
           ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
           ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
-        run: node scripts/producers/traffic_producer.js
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ "${{ inputs.force_traffic }}" == "true" ]]; then ARGS+=(--force); fi
+          node scripts/producers/traffic_producer.js "${ARGS[@]}"
 
       - name: Run enrichment
         env:

@@ -452,6 +452,18 @@ async function produceCity(repoRoot, citySlug, opts) {
   if (!fs.existsSync(inputFile)) {
     return { citySlug, skipped: true, reason: 'no input geojson' };
   }
+  // Resume support: if the per-city output already exists, skip the
+  // (very expensive) elevation fetches. See osm_producer.js for the
+  // motivation; here it matters even more because Open-Meteo
+  // 429-cool-downs are 60 s each. Pass `force: true` (CLI: `--force`)
+  // to bypass.
+  const outDirEarly = o.outDir;
+  if (outDirEarly && !o.force) {
+    const existingOut = path.join(outDirEarly, `dem_${citySlug}.json`);
+    if (fs.existsSync(existingOut)) {
+      return { citySlug, skipped: true, reason: 'already cached', outFile: existingOut };
+    }
+  }
   let fc;
   try {
     fc = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
@@ -559,6 +571,7 @@ function parseArgs(argv) {
     else if (a === '--retries')           opts.retries = Number(argv[++i]);
     else if (a === '--rate-limit-backoff') opts.rateLimitBackoffMs = Number(argv[++i]);
     else if (a === '--rate-limit-cooldown') opts.rateLimitCooldownMs = Number(argv[++i]);
+    else if (a === '--force')             opts.force = true;
     else if (a === '--json')              opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a.startsWith('--'))     console.warn(`[dem-producer] unknown flag ignored: ${a}`);
@@ -592,6 +605,10 @@ function printHelp() {
   --rate-limit-cooldown <ms>
                          extra cool-down before the next city after
                          this one tripped a 429 (default: ${DEFAULT_RATE_LIMIT_COOLDOWN_MS})
+  --force                re-fetch every city even if dem_<slug>.json
+                         already exists in the output directory
+                         (default: resume — skip cities whose output
+                         file is already present)
   --json                 emit machine-readable summary
 
 Environment:

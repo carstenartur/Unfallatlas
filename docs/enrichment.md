@@ -242,6 +242,19 @@ producer version + the ISO week, so upstream APIs are hit at most
 once per week. The traffic key additionally includes the OSM key, so
 a refreshed OSM cache invalidates the dependent traffic cache.
 
+The cache steps use `save-always: true`, and each producer's
+`produceCity` skips cities whose per-city output file
+(`osm_<slug>.json` / `dem_<slug>.json` / `traffic_<slug>.json`) is
+already present. Together this makes runs **resumable**: an
+interrupted, timed-out, 429-throttled or cancelled run still saves
+the cities it managed to produce, and the next invocation only
+fetches the cities that are still missing.
+
+To force a full re-fetch (e.g. after upstream data has changed but
+the producer version hasn't been bumped) pass the corresponding
+workflow input (`force_osm` / `force_dem` / `force_traffic`) on
+`workflow_dispatch`, or run the producer locally with `--force`.
+
 Run locally:
 
 ```bash

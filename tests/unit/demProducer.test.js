@@ -430,6 +430,59 @@ describe('dem_producer — produceCity (end-to-end with stubbed elevation provid
     }
   });
 
+  test('resume: skips when dem_<slug>.json already exists in outDir', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([pt(1, 7.0, 50.0)])),
+    );
+    fs.writeFileSync(path.join(outDir, 'dem_bonn.json'), '{"sentinel":true}');
+    try {
+      const r = await dem.produceCity(repoRoot, 'bonn', {
+        outDir,
+        fetchElevations: async () => { throw new Error('must not be called'); },
+      });
+      expect(r.skipped).toBe(true);
+      expect(r.reason).toMatch(/already cached/);
+      expect(JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8')))
+        .toEqual({ sentinel: true });
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('force: re-fetches even when dem_<slug>.json already exists', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([pt(1, 7.0, 50.0)])),
+    );
+    fs.writeFileSync(path.join(outDir, 'dem_bonn.json'), '{"sentinel":true}');
+    try {
+      let called = 0;
+      const r = await dem.produceCity(repoRoot, 'bonn', {
+        outDir,
+        force: true,
+        fetchElevations: async (samples) => { called += 1; return samples.map(() => 100); },
+      });
+      expect(r.skipped).toBeFalsy();
+      expect(called).toBeGreaterThan(0);
+      const written = JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8'));
+      expect(written.sentinel).toBeUndefined();
+      expect(written.points[0].elevation_m).toBe(100);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test('produced dem_<slug>.json is consumable by enrich_geojson loadDemProvider', async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
     const repoRoot = path.join(tmp, 'repo');
@@ -489,6 +542,11 @@ describe('dem_producer — parseArgs', () => {
       if (prev === undefined) delete process.env.ENRICH_DEM_DATA_DIR;
       else process.env.ENRICH_DEM_DATA_DIR = prev;
     }
+  });
+
+  test('--force flips the resume guard off', () => {
+    expect(dem.parseArgs([]).force).toBeFalsy();
+    expect(dem.parseArgs(['--force']).force).toBe(true);
   });
 });
 
