@@ -205,7 +205,7 @@ async function fetchElevations(samples, opts) {
     ? o.rateLimitBackoffMs : DEFAULT_RATE_LIMIT_BACKOFF_MS;
   const timeoutMs = Number.isFinite(o.timeoutMs) ? o.timeoutMs : DEFAULT_ELEVATION_TIMEOUT_MS;
   const batchSize = Math.max(1, Math.floor(
-    Number.isFinite(o.batchSize) && o.batchSize >= 1 ? o.batchSize : DEFAULT_BATCH_SIZE,
+    Number.isFinite(o.batchSize) ? o.batchSize : DEFAULT_BATCH_SIZE,
   ));
   const interBatchDelayMs = Number.isFinite(o.interBatchDelayMs)
     ? o.interBatchDelayMs : DEFAULT_INTER_BATCH_DELAY_MS;
