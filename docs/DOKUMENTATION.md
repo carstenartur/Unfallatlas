@@ -171,10 +171,14 @@ Durch geschickte Kombination der Filter lassen sich gezielte Fragestellungen bea
 
 ### Kontext (neu)
 
-> _Screenshot folgt_ – `docs/screenshots/17-kontext-filter.png` (Filter-Panel)
-> und `docs/screenshots/18-popup-kontextdaten.png` (Popup mit
-> Unfalldetails plus neuem Abschnitt **Kontextdaten**) werden mit der
-> nächsten UI-Aufnahme nachgereicht.
+> **Live-Screenshots.** Die drei PNGs in `docs/screenshots/` werden
+> deterministisch durch `npm run regen:context-assets` aus demselben
+> Container erzeugt, gegen den der Testcontainers-Integrationstest läuft
+> (siehe [`docs/screenshots/README.md`](screenshots/README.md)):
+> `17-kontext-filter.png` (Filter-Panel),
+> `18-popup-kontextdaten.png` (Popup mit zusätzlichem Block
+> **Kontextdaten**) und
+> `19-kontext-traffic-proxy.png` (aktive Verkehrsproxy-Filter).
 
 Im Filter-Panel erscheint – sobald der geladene Datensatz entsprechende
 Felder mitbringt – die zusätzliche Sektion **„Kontext (neu)"**. Sie

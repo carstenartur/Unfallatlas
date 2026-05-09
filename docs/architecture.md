@@ -255,6 +255,25 @@ Wichtige Garantien:
 Die Betriebs-Matrix mit Konfigurations­hinweisen findet sich im
 [README](../README.md#%EF%B8%8F-betriebsarten--betriebs-matrix).
 
+> **Testabdeckung Video-Export.** Da `server/video-export.js` zur
+> Laufzeit das `ffmpeg`-Binary aus dem Dockerfile aufruft, würde ein
+> in-process Unit-Test diese Abhängigkeit nie erfassen. Die volle
+> Pipeline (Express → Playwright → ffmpeg → GIF) wird stattdessen über
+> den Testcontainers-Test
+> [`tests/integration/videoExport.testcontainers.test.js`](../tests/integration/videoExport.testcontainers.test.js)
+> verifiziert. Er startet das produktive Image (bevorzugt
+> `ghcr.io/carstenartur/unfallatlas:latest` aus
+> [`docker-publish.yml`](../.github/workflows/docker-publish.yml),
+> sonst lokaler `docker build`), POSTet die im Testbody dokumentierte
+> Kontext-URL und prüft, dass die Antwort eine echte GIF-Datei
+> (`GIF89a`-Magic, `0x3B`-Trailer, 50 KB ≤ Größe ≤ 8 MB) und der
+> Container-Log frei von `[export-video] Fehler` ist. Lokal: per
+> `npm run test:integration:tc`; in CI als eigener Job
+> `video-export-integration` in
+> [`.github/workflows/test.yml`](../.github/workflows/test.yml). Der
+> Test wird automatisch übersprungen, wenn kein Docker-Socket
+> erreichbar ist.
+
 ---
 
 ## 6. Drei Ebenen der Auswertung

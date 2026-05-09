@@ -318,6 +318,21 @@ Das Projekt enthält einen automatisierten Demo-Ablauf auf Basis von [Playwright
 > Verkehrsklasse-DTV-Proxy, „nur auf gematchten Straßen") sowie einen
 > Block **Kontextdaten** in den Marker-Popups. Details:
 > [`docs/DOKUMENTATION.md` → Kontext (neu)](docs/DOKUMENTATION.md#kontext-neu).
+>
+> **Kontextdaten ≠ Unfallursache.** Hangneigung und Verkehrsklasse-DTV-Proxy
+> beschreiben die Umgebung der Unfälle (Topographie, OSM-`highway`-Schätzung),
+> sie sind kein Kausalitätsbeleg.
+>
+> Eine context-spezifische GIF-Demo (`docs/demo-context.gif`) und drei
+> begleitende PNGs (17–19 in `docs/screenshots/`) lassen sich
+> reproduzierbar erzeugen mit:
+>
+> ```bash
+> # bevorzugt das im docker-publish.yml gebaute Image,
+> # sonst lokaler `docker build`
+> export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
+> npm run regen:context-assets
+> ```
 
 <details>
 <summary><strong>Demo-Video selbst erzeugen (klicken zum Aufklappen)</strong></summary>

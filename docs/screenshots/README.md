@@ -27,29 +27,55 @@ referenzierten PNG-Screenshots der Unfallwerkbank V2.
 ## TODO – Kontextdaten-Screenshots (PR #260)
 
 Mit der Einführung der Kontextdaten (PR #260, „Kontext (neu)") sind
-zwei zusätzliche Screenshots vorgesehen. Sie werden mit der nächsten
-UI-Aufnahme nachgereicht (live-Browser-Capture; nicht im Rahmen der
-reinen Dokumentations-PR möglich):
+drei zusätzliche Screenshots vorgesehen. Sie werden **automatisch**
+durch das Regen-Skript erzeugt (siehe unten) und müssen nicht von Hand
+aufgenommen werden:
 
 | Nummer | Datei | Beschreibung |
 |---|---|---|
 | 17 | `17-kontext-filter.png` | Filter-Panel mit aufgeklappter Sektion **Kontext (neu)** (Hangneigung, Verkehrsklasse-DTV-Proxy, „nur auf gematchten Straßen") |
 | 18 | `18-popup-kontextdaten.png` | Marker-Popup mit Standard-Unfalldetails plus zusätzlichem Block **Kontextdaten** (Topographie, Straßenkontext, Verkehrsexposition mit „proxy"-Badge) |
+| 19 | `19-kontext-traffic-proxy.png` | Karte mit aktiven Verkehrsklasse-DTV-Proxy-Filterchips (Bestätigung, dass die Verkehrsexposition projekteigene OSM-`highway`-Schätzung ist) |
 
 Beide Screenshots sollen die explizite **Proxy/Schätzung**-Kennzeichnung
 sichtbar enthalten — der Verkehrsklassen-Wert ist ein
 *projekteigener OSM-`highway`-Proxy*, **keine gemessene
 Verkehrsdichte**.
 
-### Aufnahme-Anleitung
+### Aufnahme-Anleitung — `npm run regen:context-assets`
 
-1. `werkbank_v2.html` lokal mit einer Stadt öffnen, deren GeoJSON
-   bereits angereichert wurde (siehe `out/output_all_years_<slug>.geojson`
-   sowie der Capability-Detect in `js/ua.context_layers.js`).
-2. Filter-Panel scrollen, bis die Sektion **„Kontext (neu)"** sichtbar
-   ist — Screenshot 17 aufnehmen.
-3. Auf einen Marker klicken, dessen Popup einen *Kontextdaten*-Block
-   zeigt — Screenshot 18 aufnehmen.
-4. Beide PNGs als `17-kontext-filter.png` / `18-popup-kontextdaten.png`
-   in dieses Verzeichnis legen und die Platzhalter-Hinweise in
-   `docs/DOKUMENTATION.md` (Abschnitt „Kontext (neu)") entfernen.
+Das Skript [`scripts/regen-context-assets.js`](../../scripts/regen-context-assets.js)
+startet **denselben** `unfallatlas`-Container, gegen den auch der
+[Testcontainers-Integrationstest](../../tests/integration/videoExport.testcontainers.test.js)
+läuft (Image-Quelle: `UNFALLATLAS_IMAGE` env oder lokaler `docker build`).
+Test- und Doku-Asset teilen sich damit *eine* URL und *eine* Quelle:
+
+```bash
+# einmalig — das im docker-publish.yml gebaute Image bevorzugen, sonst lokal bauen
+export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
+
+npm run regen:context-assets
+```
+
+Erzeugt:
+
+- `docs/demo-context.gif` (über `POST /api/export-video` mit
+  `ctxSlope=steep,very_steep&ctxTraffic=high,very_high&ctxOnlyMatched=1`),
+- die drei oben gelisteten PNGs in diesem Verzeichnis.
+
+Der aufgezeichnete Viewport zeigt nur die GitHub-Pages-konforme URL
+(kein `localhost:8000` im Ribbon — die Werkbank ist dieselbe statische
+HTML-Datei, lokal über den Container ausgeliefert).
+
+Voraussetzungen:
+
+- Docker läuft (`docker version` zeigt einen Server),
+- `npm ci` wurde ausgeführt (Playwright wird von `@playwright/test`
+  bereitgestellt, ist bereits Dev-Dependency).
+
+Datei-Größen-Budget (im Skript geprüft, sonst Exit-Code ≠ 0):
+GIF ≤ 4 MB, PNG ≤ 600 KB.
+
+Die Platzhalter-Hinweise in `docs/DOKUMENTATION.md` (Abschnitt
+„Kontext (neu)") werden mit dem ersten erfolgreichen Lauf des Skripts
+gegen die fertigen PNG-Pfade ausgetauscht.
