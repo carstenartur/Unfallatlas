@@ -245,8 +245,215 @@ function encodeGeometry(points) {
 }
 
 // ---------------------------------------------------------------------------
-// Providers
+// Slippy-map tiling for the full-network context layer (v3 schema)
 //
+// The matched-only `ways_<city>.json` payload (v1/v2) was small enough to
+// ship as one monolithic file because it only carried ways an accident
+// snapped to. The PRODUCER_VERSION 1.2.0 OSM dataset now ships the entire
+// bbox road network — for Berlin that grows the per-way table from
+// ~8 MB to an estimated 50–80 MB. Shipping that as a single fetch on
+// page load would blow the gzipped-size CI gate and waste bandwidth on
+// areas the user never pans into.
+//
+// Solution: write the per-way attrs + simplified geometry into per-tile
+// JSON files at a fixed slippy-tile zoom (Z=13 ≈ 5 km × 3 km in DE).
+// The browser-side loader (`UA.contextLayers.loadTilesForBbox`) then
+// fetches only the tiles intersecting the current viewport.
+//
+// Tile layout on disk:
+//   out/ctxtiles/<slug>/index.json     ← manifest (tile list + dicts +
+//                                        wayId → tile reverse index)
+//   out/ctxtiles/<slug>/<x>/<y>.json   ← per-tile { ways, geometries }
+//
+// Each tile uses the same `{ways:{wayId:attrs}, geometries:{wayId:[lat,lon,...]}}`
+// shape as the v2 ways file, so the existing `UA.contextRoadLayer.buildLayer`
+// + `UA.contextLayers.resolveWay` codepaths work unchanged on a merged
+// tile state.
+// ---------------------------------------------------------------------------
+
+const CTX_TILE_ZOOM = 13;
+
+function lonToTileX(lon, z) {
+  return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
+}
+function latToTileY(lat, z) {
+  const rad = (lat * Math.PI) / 180;
+  return Math.floor(
+    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
+      Math.pow(2, z)
+  );
+}
+function tileXToLon(x, z) {
+  return (x / Math.pow(2, z)) * 360 - 180;
+}
+function tileYToLat(y, z) {
+  const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z);
+  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+/** Return all (x,y) tile coordinates the polyline intersects at zoom z. */
+function tilesForPolyline(points, z) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (!Number.isFinite(p?.lat) || !Number.isFinite(p?.lon)) continue;
+    const x = lonToTileX(p.lon, z), y = latToTileY(p.lat, z);
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  if (!Number.isFinite(minX)) return [];
+  const out = [];
+  // Ways crossing tile boundaries are duplicated into every covered
+  // tile (small disk waste, big simplicity win — see plan §1).
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      out.push([x, y]);
+    }
+  }
+  return out;
+}
+
+/**
+ * Build the per-tile payload + manifest for a city.
+ *
+ * @param {object[]}  fullWays   [{ id, attrs, geom }] — `attrs` is a
+ *                               raw (string/number) attrs row, `geom`
+ *                               is the *generalised* polyline already
+ *                               (a flat `[lat,lon,…]` array as produced
+ *                               by `encodeGeometry`).
+ * @returns {{ tiles: Map<string,{ways:object, geometries:object}>,
+ *             manifest: object,
+ *             dicts: object }}
+ */
+function buildContextTiles(fullWays, opts = {}) {
+  const z = Number.isInteger(opts.zoom) ? opts.zoom : CTX_TILE_ZOOM;
+  const tiles = new Map();   // "x/y" → { ways, geometries }
+  const wayIndex = {};       // wayId → [x, y] (first tile only — used
+                             //  for popup hydration, see resolveWayAcrossTiles)
+
+  for (const w of fullWays) {
+    const flat = w.geom;
+    if (!Array.isArray(flat) || flat.length < 4 || (flat.length % 2) !== 0) continue;
+    // Decode flat → points just for tile assignment; cheap.
+    const pts = [];
+    for (let i = 0; i < flat.length; i += 2) {
+      pts.push({ lat: flat[i], lon: flat[i + 1] });
+    }
+    const txy = tilesForPolyline(pts, z);
+    if (txy.length === 0) continue;
+    wayIndex[w.id] = txy[0]; // canonical tile = first one
+    for (const [x, y] of txy) {
+      const key = `${x}/${y}`;
+      let bucket = tiles.get(key);
+      if (!bucket) { bucket = { x, y, ways: {}, geometries: {} }; tiles.set(key, bucket); }
+      bucket.ways[w.id]       = w.attrs;
+      bucket.geometries[w.id] = flat;
+    }
+  }
+
+  // Build dictionaries across the full network so all tiles share the
+  // same int codes (otherwise the popup hydration would have to ship
+  // a per-tile dict too — wasteful).
+  const dicts = {};
+  for (const field of DICT_FIELDS) {
+    const seen = new Map();
+    for (const bucket of tiles.values()) {
+      for (const wayId of Object.keys(bucket.ways)) {
+        const v = bucket.ways[wayId][field];
+        if (v == null) continue;
+        const key = String(v);
+        if (!seen.has(key)) seen.set(key, seen.size);
+      }
+    }
+    if (seen.size > 0) {
+      const arr = new Array(seen.size);
+      for (const [v, i] of seen.entries()) arr[i] = v;
+      dicts[field] = arr;
+    }
+  }
+  // Apply dict coding in place.
+  for (const bucket of tiles.values()) {
+    for (const wayId of Object.keys(bucket.ways)) {
+      const row = bucket.ways[wayId];
+      for (const field of DICT_FIELDS) {
+        const dict = dicts[field];
+        const v = row[field];
+        if (v == null || !dict) continue;
+        const idx = dict.indexOf(String(v));
+        if (idx >= 0) row[field] = idx;
+      }
+    }
+  }
+
+  const manifestTiles = [];
+  for (const bucket of tiles.values()) {
+    manifestTiles.push({
+      x: bucket.x, y: bucket.y,
+      wayCount: Object.keys(bucket.ways).length,
+    });
+  }
+  manifestTiles.sort((a, b) => (a.x - b.x) || (a.y - b.y));
+
+  const manifest = {
+    schemaVersion: 3,
+    z,
+    coverage: 'full',
+    tiles: manifestTiles,
+    wayIndex,
+    dicts,
+  };
+  return { tiles, manifest, dicts };
+}
+
+/**
+ * Persist tile payloads + manifest to disk under `out/ctxtiles/<slug>/`.
+ * Replaces the directory's contents to stay idempotent across re-runs.
+ */
+function writeContextTiles(repoRoot, citySlug, fullWays, opts = {}) {
+  const baseDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+  // Wipe stale tile files from a previous run so a way that moved
+  // tiles (or was removed entirely) doesn't leave a dangling fetch
+  // target. Cheap — the dir is small and per-city.
+  if (fs.existsSync(baseDir)) {
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(baseDir, { recursive: true });
+
+  const built = buildContextTiles(fullWays, opts);
+  // Per-tile files in <baseDir>/<x>/<y>.json
+  for (const bucket of built.tiles.values()) {
+    const xDir = path.join(baseDir, String(bucket.x));
+    if (!fs.existsSync(xDir)) fs.mkdirSync(xDir, { recursive: true });
+    const file = path.join(xDir, `${bucket.y}.json`);
+    fs.writeFileSync(file, JSON.stringify({
+      schemaVersion: 3,
+      ways:       bucket.ways,
+      geometries: bucket.geometries,
+    }));
+  }
+
+  // Augment the manifest with per-tile gzipped sizes for the per-tile
+  // budget gate (see scripts/check-enrichment-size.js).
+  for (const t of built.manifest.tiles) {
+    const file = path.join(baseDir, String(t.x), `${t.y}.json`);
+    if (fs.existsSync(file)) t.bytes = gzippedSize(file);
+  }
+  if (opts.source)      built.manifest.source      = opts.source;
+  if (opts.extractDate) built.manifest.extractDate = opts.extractDate;
+
+  fs.writeFileSync(
+    path.join(baseDir, 'index.json'),
+    JSON.stringify(built.manifest)
+  );
+
+  return {
+    tileCount: built.manifest.tiles.length,
+    wayCount:  Object.keys(built.manifest.wayIndex).length,
+    indexPath: path.join('out', 'ctxtiles', citySlug, 'index.json'),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Each provider receives (citySlug, providerOpts) and returns either a
 // per-feature lookup (lat,lon,props) → partial enrichment, or a per-way
 // table. When the provider data is not available, returns null and the
@@ -320,6 +527,16 @@ function loadOsmProvider(citySlug) {
       }
       return out.length >= 2 ? out : null;
     },
+    // Full-network coverage (PRODUCER_VERSION 1.2.0+): the on-disk
+    // OSM dataset now contains *every* way Overpass returned in the
+    // city bbox, not only the ways an accident snapped to. Returning
+    // the full id list lets enrichCity build the per-tile context
+    // payload for the front-end's "Straßennetz" overlay independently
+    // of accident locations.
+    listWayIds() {
+      return data.ways && typeof data.ways === 'object' ? Object.keys(data.ways) : [];
+    },
+    coverage: data.coverage || (data.coverage === undefined ? null : data.coverage),
   };
 }
 
@@ -581,13 +798,69 @@ function enrichCity(geojson, citySlug, opts = {}) {
     geojson.properties.enrichmentDicts = dicts;
   }
 
+  // ---------------------------------------------------------------------
+  // Full-network context table (PRODUCER_VERSION 1.2.0+, schemaVersion 3)
+  //
+  // Independent of the matched-only `ways`/`geometries` returned above
+  // (which power the legacy v2 ways file kept for backward compat). The
+  // tile writer in enrichCityFile consumes this `fullWays` array and
+  // splits it into per-Z/X/Y JSON files so the front-end overlay can
+  // render road properties for the entire bbox network without loading
+  // a single monolithic blob.
+  //
+  // Slope is intentionally NOT looked up here — the DEM provider is
+  // sample-driven (one elevation per accident point) and only knows
+  // `road_slope_percent` for ways an accident snapped to. The matched-
+  // only attrs already cover that; for unmatched ways the front-end
+  // falls back to the highway-tag DTV proxy for traffic and to no
+  // slope colouring (legend handles "kein Signal" gracefully).
+  // ---------------------------------------------------------------------
+  const fullWays = [];
+  if (osm && typeof osm.listWayIds === 'function') {
+    for (const wayId of osm.listWayIds()) {
+      const a = osm.wayAttributes(wayId);
+      if (!a) continue;
+      const row = { ...a };
+      if (traffic) {
+        const t = traffic.wayTraffic(wayId);
+        if (t) {
+          delete t._proxy_class;
+          Object.assign(row, t);
+        }
+      }
+      // Mirror the matched-only enrichment so per-tile rows carry the
+      // slope hint when DEM data happens to be available for an
+      // unmatched way (rare but possible if the tile producer extends
+      // coverage in the future).
+      if (dem && typeof dem.wayElevation === 'function') {
+        const e = dem.wayElevation(wayId);
+        if (e) Object.assign(row, e);
+      }
+      stripUndefined(row);
+      let geom = null;
+      if (typeof osm.wayGeometry === 'function') {
+        const raw = osm.wayGeometry(wayId);
+        if (Array.isArray(raw) && raw.length >= 2) {
+          const simplified = geomToleranceM > 0
+            ? douglasPeucker(raw, geomToleranceM)
+            : raw;
+          if (Array.isArray(simplified) && simplified.length >= 2) {
+            geom = encodeGeometry(simplified);
+          }
+        }
+      }
+      if (!geom) continue;
+      fullWays.push({ id: wayId, attrs: row, geom });
+    }
+  }
+
   const meta = {
     schemaVersion: 1,
     enrichmentScriptVersion: ENRICHMENT_SCRIPT_VERSION,
     citySlug,
     generatedAt: new Date().toISOString(),
     sources: stripUndefined({
-      osm: osm     ? stripUndefined({ source: osm.source, producerVersion: osm.producerVersion, extractDate: osm.extractDate }) : undefined,
+      osm: osm     ? stripUndefined({ source: osm.source, producerVersion: osm.producerVersion, extractDate: osm.extractDate, coverage: osm.coverage || undefined }) : undefined,
       dem: dem     ? stripUndefined({ source: dem.source, producerVersion: dem.producerVersion, resolutionM: dem.resolutionM }) : undefined,
       traffic: traffic ? stripUndefined({ source: traffic.source, producerVersion: traffic.producerVersion, datasetVersion: traffic.datasetVersion }) : undefined,
     }),
@@ -598,11 +871,12 @@ function enrichCity(geojson, citySlug, opts = {}) {
       withTrafficProxy: nTraffic,
       ways: Object.keys(ways).length,
       wayGeometries: Object.keys(geometries).length,
+      fullWays: fullWays.length,
     },
     dictFields: Object.keys(dicts),
   };
 
-  return { geojson, ways, geometries, meta };
+  return { geojson, ways, geometries, fullWays, meta };
 }
 
 // ---------------------------------------------------------------------------
@@ -629,21 +903,53 @@ function enrichCityFile(repoRoot, citySlug, opts) {
   try { geojson = JSON.parse(raw); }
   catch (e) { return { citySlug, skipped: true, reason: `invalid JSON: ${e.message}` }; }
 
-  const { ways, geometries, meta } = enrichCity(geojson, citySlug, opts);
+  const { ways, geometries, fullWays, meta } = enrichCity(geojson, citySlug, opts);
 
   // Write enriched GeoJSON. We deliberately write compact (no
   // indentation) — matches the existing on-disk format produced by
   // convertAmt2gmaps.sh, and is the smallest viable representation.
   fs.writeFileSync(p.geojson, JSON.stringify(geojson));
 
-  // Compose the on-disk `ways_<city>.json` payload. New shape (v2):
-  //   { schemaVersion: 2, ways: {…}, geometries: {…} }
-  // The loader (`js/ua.context_layers.js`) accepts both this shape and
-  // the legacy flat `{ wayId: attrs }` shape so caches stay readable
-  // while a new producer rolls out.
-  const waysPayload = (geometries && Object.keys(geometries).length > 0)
-    ? { schemaVersion: 2, ways, geometries }
-    : { schemaVersion: 2, ways };
+  // Two on-disk shapes for `ways_<city>.json`:
+  //
+  //   v3 (PRODUCER_VERSION 1.2.0 + full-network OSM dataset): a thin
+  //       envelope that points the loader at the per-tile context
+  //       payload under `out/ctxtiles/<slug>/`. The browser only
+  //       fetches tiles intersecting the current viewport so Berlin's
+  //       full road network stays fast.
+  //
+  //   v2 (matched-only fallback, used when the OSM dataset still
+  //       carries the pre-1.2.0 matched-only shape — i.e. no
+  //       `coverage:"full"` flag): the legacy
+  //       `{ schemaVersion:2, ways:{…}, geometries:{…} }` blob.
+  //
+  // The loader (`js/ua.context_layers.js`) accepts both shapes plus
+  // the legacy flat v1 form so caches stay readable while a new
+  // producer rolls out.
+  let waysPayload;
+  let tileWriteResult = null;
+  const wantsTiles = Array.isArray(fullWays) && fullWays.length > 0;
+  if (wantsTiles) {
+    tileWriteResult = writeContextTiles(repoRoot, citySlug, fullWays, {
+      source:      meta.sources?.osm?.source,
+      extractDate: meta.sources?.osm?.extractDate,
+    });
+    waysPayload = {
+      schemaVersion: 3,
+      coverage:      'full',
+      tileIndexUrl:  `out/ctxtiles/${citySlug}/index.json`,
+      generatedAt:   meta.generatedAt,
+    };
+    meta.counts.contextTiles = tileWriteResult.tileCount;
+  } else {
+    waysPayload = (geometries && Object.keys(geometries).length > 0)
+      ? { schemaVersion: 2, ways, geometries }
+      : { schemaVersion: 2, ways };
+    // Wipe any previously-written tile dir so we don't leave stale
+    // tiles behind when a city falls back to the matched-only path.
+    const tileDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+    if (fs.existsSync(tileDir)) fs.rmSync(tileDir, { recursive: true, force: true });
+  }
 
   // The companion ways file and the meta sidecar are only meaningful
   // when at least one provider produced data. Skipping them in the
@@ -652,6 +958,7 @@ function enrichCityFile(repoRoot, citySlug, opts) {
   // a new commit on every run even when nothing actually changed —
   // see the related guard in .github/workflows/enrich.yml).
   const hasEnrichment = Object.keys(ways).length > 0
+    || (wantsTiles)
     || Object.keys(meta.sources || {}).length > 0;
   if (hasEnrichment) {
     fs.writeFileSync(p.ways, JSON.stringify(waysPayload));
@@ -663,11 +970,14 @@ function enrichCityFile(repoRoot, citySlug, opts) {
     for (const stale of [p.ways, p.meta]) {
       if (fs.existsSync(stale)) fs.unlinkSync(stale);
     }
+    const tileDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+    if (fs.existsSync(tileDir)) fs.rmSync(tileDir, { recursive: true, force: true });
   }
 
   const sizeAfter = gzippedSize(p.geojson);
   return {
     citySlug, skipped: false, meta, wroteCompanions: hasEnrichment,
+    contextTiles: tileWriteResult,
     sizes: { gzipBefore: sizeBefore, gzipAfter: sizeAfter, gzipDelta: sizeAfter - sizeBefore },
   };
 }
@@ -770,6 +1080,15 @@ module.exports = {
   classifyTrafficProxy,
   douglasPeucker,
   encodeGeometry,
+  // Slippy-tile helpers (PRODUCER_VERSION 1.2.0+, schemaVersion 3).
+  CTX_TILE_ZOOM,
+  lonToTileX,
+  latToTileY,
+  tileXToLon,
+  tileYToLat,
+  tilesForPolyline,
+  buildContextTiles,
+  writeContextTiles,
   enrichCity,
   enrichCityFile,
   pathsForCity,
