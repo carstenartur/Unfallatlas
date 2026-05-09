@@ -95,11 +95,13 @@ describe('dem_tile_producer — tilesForBbox', () => {
     expect(names).toHaveLength(4);
   });
 
-  test('Germany coverage (approx 9×8 = 72 tiles, some overlap)', () => {
+  test('Germany coverage (approx 9×10 = 90 tiles)', () => {
     // Roughly the German bounding box.
     const bbox = { minLat: 47, maxLat: 55, minLon: 6, maxLon: 15 };
     const names = tile.tilesForBbox(bbox);
-    expect(names.length).toBe(9 * 10); // (55-47+1) * (15-6+1)
+    // Lat tiles: floor(47)..floor(55) = 47..55 = 9 values
+    // Lon tiles: floor(6)..floor(15)  =  6..15 = 10 values → 9 × 10 = 90
+    expect(names.length).toBe(9 * 10);
   });
 
   test('returns [] for null bbox', () => {

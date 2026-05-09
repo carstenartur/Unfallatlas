@@ -685,7 +685,7 @@ describe('dem_producer — produceCity (end-to-end with stubbed elevation provid
 
 /**
  * Build a synthetic SRTM3 (1201×1201) HGT tile as a Buffer.
- * `elevFn(row, col, n)` returns the elevation (Int16) for that cell.
+ * `elevFn(row, col, side)` returns the elevation (Int16) for that cell.
  * Row 0 = northernmost, Col 0 = westernmost.
  */
 function makeTile(side, elevFn) {
@@ -737,7 +737,7 @@ describe('dem_producer — makeLocalElevationSampler', () => {
     try {
       // N-S gradient: row 0 (north, lat=51) = 1200 m, row 1200 (south, lat=50) = 0 m.
       // Intermediate row r → elevation = 1200 - r m.
-      const buf = makeTile(SIDE, (row, _col, n) => n - 1 - row);
+      const buf = makeTile(SIDE, (row, _col, side) => side - 1 - row);
       fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
 
       const sampler = dem.makeLocalElevationSampler(tmp);
@@ -784,7 +784,7 @@ describe('dem_producer — makeLocalElevationSampler', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
     try {
       // N-S gradient: row 0 (north) = SIDE-1 m, row SIDE-1 (south) = 0 m.
-      const buf = makeTile(SIDE, (row, _col, n) => n - 1 - row);
+      const buf = makeTile(SIDE, (row, _col, side) => side - 1 - row);
       fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
 
       const sampler = dem.makeLocalElevationSampler(tmp);

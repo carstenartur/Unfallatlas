@@ -104,6 +104,7 @@ const SRTM1_SIDE = 3601;
 // SRTM3: 1201×1201 Int16 samples per 1°×1° tile.
 const SRTM3_SIDE = 1201;
 // Maximum number of tiles to keep in the LRU in-memory cache.
+// ~26 MB per SRTM1 tile (3601×3601 × 2 bytes) × 10 = ~260 MB total.
 const MAX_CACHED_TILES = 10;
 // SRTM no-data marker.
 const SRTM_NO_DATA = -32768;
@@ -376,6 +377,7 @@ function makeLocalElevationSampler(tilesDir) {
     const pixelSizeLatM = (1 / (n - 1)) * M_PER_DEG_LAT;
     const cosLat = Math.cos(lat * Math.PI / 180);
     const pixelSizeLonM = (1 / (n - 1)) * M_PER_DEG_LAT *
+                          // Guard against division instability near the poles (|lat| ≈ 90°).
                           (cosLat > 1e-6 ? cosLat : 1);
 
     const distNS = (ys - yn) * pixelSizeLatM;

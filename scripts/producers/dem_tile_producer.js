@@ -46,6 +46,8 @@ const zlib = require('zlib');
 
 const PRODUCER_VERSION = '1.0.0';
 
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 60_000;
+
 // ---------------------------------------------------------------------------
 // Tile naming (SRTM 1°×1° convention)
 // ---------------------------------------------------------------------------
@@ -174,7 +176,7 @@ async function downloadTile(name, tilesDir, opts) {
       const city = o.city ? ` (city ${o.city})` : '';
       console.log(`[dem-tile-producer] downloading ${name}.hgt.gz${city} ...`);
     }
-    const timeout = o.timeout || 60_000;
+    const timeout = o.timeout || DEFAULT_DOWNLOAD_TIMEOUT_MS;
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), timeout) : null;
     try {
