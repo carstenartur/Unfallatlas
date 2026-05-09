@@ -172,6 +172,7 @@ function stripUndefined(obj) {
 
 const DEFAULT_GEOM_TOLERANCE_M = 3;
 const COORD_DECIMALS = 5; // ≈ 1.1 m — same precision as POINT_LOOKUP_PRECISION
+const COORD_SCALE = Math.pow(10, COORD_DECIMALS);
 
 // Equirectangular metres-per-degree at mid-European latitude (50°N).
 // Plenty accurate for sub-kilometre Douglas–Peucker tolerance.
@@ -225,8 +226,7 @@ function douglasPeucker(points, toleranceM) {
 }
 
 function roundCoord(n) {
-  const f = Math.pow(10, COORD_DECIMALS);
-  return Math.round(n * f) / f;
+  return Math.round(n * COORD_SCALE) / COORD_SCALE;
 }
 
 /**

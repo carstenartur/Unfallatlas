@@ -954,12 +954,17 @@
       c.style.padding    = '6px 8px';
       c.style.font       = '12px/1.3 system-ui, sans-serif';
       c.style.borderRadius = '4px';
+      // A11y: this is a logically grouped set of layer toggles.
+      c.setAttribute('role', 'group');
+      c.setAttribute('aria-label', 'Karten-Layer für Straßenkontext');
 
       const title = document.createElement('div');
+      title.id = 'context-overlay-control-title';
       title.textContent = 'Karten-Layer';
       title.style.fontWeight = '700';
       title.style.marginBottom = '4px';
       c.appendChild(title);
+      c.setAttribute('aria-labelledby', 'context-overlay-control-title');
 
       const add = (kind, label) => {
         const id  = 'ctxOverlay_' + kind;
@@ -972,6 +977,7 @@
         cb.id     = id;
         cb.checked = !!reg.active[kind];
         cb.setAttribute('data-context-overlay', kind);
+        cb.setAttribute('aria-label', label);
         cb.addEventListener('change', () => {
           UA.setContextOverlayActive(ctx, kind, cb.checked);
         });

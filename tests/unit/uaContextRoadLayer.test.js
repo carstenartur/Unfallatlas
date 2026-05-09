@@ -173,18 +173,29 @@ describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
 });
 
 describe('UA.contextRoadLayer — buildLegend', () => {
-  test('returns a DOM element with one swatch + label per class', () => {
+  test('returns a DOM element with one swatch + label per class, swatches use the slope ramp', () => {
     const { UA } = loadModule();
     const el = UA.contextRoadLayer.buildLegend('slope');
     expect(el.tagName).toBe('DIV');
     expect(el.className).toMatch(/context-road-legend/);
     const rows = el.querySelectorAll('.context-road-legend__row');
     expect(rows.length).toBe(UA.contextRoadLayer.SLOPE_CLASS_VALUES.length);
-    // Each row carries a coloured swatch.
-    for (const row of rows) {
-      const sw = row.querySelector('.context-road-legend__swatch');
-      expect(sw.style.background).not.toBe('transparent');
-    }
+    // Each row's swatch background must match the documented slope ramp colour
+    // for its class — guards against ramp/legend drift.
+    rows.forEach((row, i) => {
+      const cls = UA.contextRoadLayer.SLOPE_CLASS_VALUES[i];
+      const sw  = row.querySelector('.context-road-legend__swatch');
+      const expected = UA.contextRoadLayer.slopeClassColor(cls);
+      // jsdom normalises CSS colour to rgb(...). Match either form.
+      const bg = sw.style.background || sw.style.backgroundColor;
+      expect(bg).toBeTruthy();
+      // Accept the original "#rrggbb" or the rgb(r, g, b) form jsdom produces.
+      const r = parseInt(expected.slice(1, 3), 16);
+      const g = parseInt(expected.slice(3, 5), 16);
+      const b = parseInt(expected.slice(5, 7), 16);
+      const rgb = `rgb(${r}, ${g}, ${b})`;
+      expect([expected, rgb]).toContain(bg);
+    });
   });
 
   test('traffic legend uses the traffic ramp', () => {
