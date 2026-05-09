@@ -128,7 +128,7 @@
   // --------------------
   const ENRICHMENT_SOURCES_NOTE = Object.freeze({
     title: "Kontextdaten – Datenquellen",
-    body: "Die in dieser Auswertung dargestellten Kontextdaten (Höhe, Hangneigung, Straßenattribute, geschätzte Verkehrslast) sind aus offenen Datenquellen abgeleitet und beschreiben die Umgebung der Unfallorte – nicht deren Ursachen.",
+    body: "Die in dieser Auswertung dargestellten Kontextdaten (Höhe, Hangneigung, OSM-Straßenattribute, geschätzte Verkehrsexposition als Proxy) sind aus offenen Datenquellen abgeleitet und beschreiben die Umgebung der Unfallorte – nicht deren Ursachen. Die Verkehrsklasse ist eine projekteigene Grobschätzung anhand der OSM-Straßenklasse und keine gemessene Verkehrsdichte.",
     sources: Object.freeze([
       Object.freeze({
         label: "SRTM 30 m Geländemodell (NASA, via AWS Open Data)",
@@ -139,8 +139,8 @@
         url:   "https://www.openstreetmap.org/copyright"
       }),
       Object.freeze({
-        label: "DTV-Proxy aus highway-Tag (FGSV/BASt-Heuristik, ohne Zähldaten)",
-        url:   "https://www.bast.de/"
+        label: "Verkehrsklasse: projekteigener OSM-highway-Proxy (keine gemessenen Zähldaten)",
+        url:   "https://wiki.openstreetmap.org/wiki/Key:highway"
       })
     ])
   });
