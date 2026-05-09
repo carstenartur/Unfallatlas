@@ -94,10 +94,19 @@ describe('URL builders are unaffected by enrichment', () => {
 });
 
 describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () => {
-  function loadDataAndContextLayers() {
+  function loadDataAndContextLayers(opts) {
     const fs = require('fs');
     const path = require('path');
+    // The lazy loader (UA.contextLayers.loadAtIdle) closes over `window`
+    // captured at module-evaluation time. To deterministically exercise
+    // the requestIdleCallback branch (rather than the setTimeout
+    // fallback), install the shim on the `win` sandbox *before* the
+    // module sources are evaluated. opts.idle = false skips the shim
+    // so we can also cover the setTimeout fallback path on demand.
     const win = { UA: {}, location: { href: 'http://localhost/' } };
+    if (!opts || opts.idle !== false) {
+      win.requestIdleCallback = (cb) => cb();
+    }
     win.UA.normKey = (s) => String(s ?? '').toLowerCase();
     const load = (rel) => {
       const p = path.resolve(__dirname, '../../js/' + rel);
@@ -106,15 +115,6 @@ describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () =>
     load('ua.context_layers.js');
     load('ua.data_v2.js');
     return win.UA;
-  }
-
-  function makeCtx(geojson, extra) {
-    const dom = { textContent: null };
-    return Object.assign({
-      CITY_RAW: 'Bonn',
-      ui: { dataSourceCode: dom },
-      __nextResp: { ok: true, json: async () => geojson },
-    }, extra || {});
   }
 
   test('triggers loadAtIdle and stashes resolved state on ctx.contextLayerState when hasOsmContext', async () => {
@@ -144,8 +144,6 @@ describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () =>
       // sidecar meta is optional → 404
       return Promise.resolve({ ok: false });
     };
-    // Synchronous idle-callback shim so we can await deterministically.
-    global.window = { requestIdleCallback: (cb) => cb() };
 
     try {
       const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
@@ -160,7 +158,6 @@ describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () =>
       expect(calls).toBeGreaterThanOrEqual(2);
     } finally {
       delete global.fetch;
-      delete global.window;
       UA.contextLayers.clearCache();
     }
   });
@@ -181,7 +178,6 @@ describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () =>
       fetched.push(url);
       return Promise.resolve({ ok: true, json: async () => fcGeojson });
     };
-    global.window = { requestIdleCallback: (cb) => cb() };
     try {
       const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
       await UA.loadCityData(ctx);
@@ -192,7 +188,72 @@ describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () =>
       expect(fetched.filter((u) => u.includes('ways_'))).toHaveLength(0);
     } finally {
       delete global.fetch;
-      delete global.window;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  test('city-switch race: late-resolving ways for previous city does NOT overwrite new state', async () => {
+    const UA = loadDataAndContextLayers();
+    UA.contextLayers.clearCache();
+    const bonnGeojson = {
+      type: 'FeatureCollection',
+      properties: { enrichmentDicts: {} },
+      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+        properties: { id: '1', matched_way_id: 'W1' } }],
+    };
+    let resolveWays;
+    global.fetch = (url) => {
+      if (url.endsWith('output_all_years_bonn.geojson')) {
+        return Promise.resolve({ ok: true, json: async () => bonnGeojson });
+      }
+      if (url.endsWith('ways_bonn.json')) {
+        // Defer the resolution so we can flip ctx.CITY_RAW first.
+        return new Promise((res) => { resolveWays = () => res({ ok: true, json: async () => ({ 'W1': { highway: 0 } }) }); });
+      }
+      return Promise.resolve({ ok: false });
+    };
+    try {
+      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
+      await UA.loadCityData(ctx);
+      // User switched city before ways_*.json finished loading.
+      ctx.CITY_RAW = 'Köln';
+      // Now let the deferred ways response resolve.
+      resolveWays();
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      // The stale Bonn payload must NOT be stashed into the new ctx.
+      expect(ctx.contextLayerState).toBeNull();
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  test('triggers a lightweight UA.renderLayers re-render when state arrives so popups gain context without manual rebuild', async () => {
+    const UA = loadDataAndContextLayers();
+    UA.contextLayers.clearCache();
+    const gj = {
+      type: 'FeatureCollection',
+      properties: { enrichmentDicts: {} },
+      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+        properties: { id: '1', matched_way_id: 'W1' } }],
+    };
+    global.fetch = (url) => {
+      if (url.endsWith('output_all_years_bonn.geojson')) return Promise.resolve({ ok: true, json: async () => gj });
+      if (url.endsWith('ways_bonn.json')) return Promise.resolve({ ok: true, json: async () => ({ 'W1': { highway: 0 } }) });
+      return Promise.resolve({ ok: false });
+    };
+    try {
+      let renderCalls = 0;
+      UA.renderLayers = (c) => { renderCalls++; expect(c._dataChanged).toBe(true); };
+      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } }, map: {} };
+      await UA.loadCityData(ctx);
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(renderCalls).toBeGreaterThanOrEqual(1);
+      expect(ctx.contextLayerState).toBeTruthy();
+    } finally {
+      delete global.fetch;
       UA.contextLayers.clearCache();
     }
   });

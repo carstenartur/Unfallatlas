@@ -56,12 +56,37 @@
       // This is fire-and-forget: if the state is not yet ready when a
       // popup opens, the renderer simply falls back to per-feature data
       // (no waiting, no spinner — see plan PR-C "Race-tolerant").
+      //
+      // Two follow-up safeguards from PR-C review:
+      //   1. Capture the city slug at scheduling time and only stash
+      //      the resolved state if `ctx.CITY_RAW` still matches when
+      //      the promise resolves. Otherwise an in-place city switch
+      //      (Tour mode, citySel.change without page reload) could
+      //      overwrite the new city's state with the previous city's.
+      //   2. Trigger a lightweight rebuild (`renderLayers` with
+      //      `_dataChanged = true`) once the state arrives, so already
+      //      bound markers gain popups without requiring a zoom/data
+      //      change. Guarded behind feature detection — the loader
+      //      stays usable in test environments without a full UI.
       ctx.contextLayerState = null;
       if (ctx.contextCapabilities && ctx.contextCapabilities.hasOsmContext
           && typeof UA.contextLayers.loadAtIdle === 'function') {
+        const expectedSlug = (UA.normKey ? UA.normKey(ctx.CITY_RAW) : String(ctx.CITY_RAW || '').toLowerCase());
         try {
           Promise.resolve(UA.contextLayers.loadAtIdle(ctx, ctx.CITY_RAW))
-            .then((state) => { ctx.contextLayerState = state || null; })
+            .then((state) => {
+              const currentSlug = (UA.normKey ? UA.normKey(ctx.CITY_RAW) : String(ctx.CITY_RAW || '').toLowerCase());
+              if (currentSlug !== expectedSlug) return; // city switched while loading
+              ctx.contextLayerState = state || null;
+              // Re-render so already-bound markers pick up hydrated
+              // way attrs in their popups. Pure best-effort: ignored
+              // when the map renderer is not available (e.g. unit
+              // tests, headless contexts).
+              if (typeof UA.renderLayers === 'function' && ctx.map) {
+                ctx._dataChanged = true;
+                try { UA.renderLayers(ctx); } catch (_) { /* keep going */ }
+              }
+            })
             .catch(() => { /* optional file: stay null, popup degrades gracefully */ });
         } catch (_) { /* idle-callback unavailable: ignore */ }
       }
