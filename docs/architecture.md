@@ -61,6 +61,83 @@ Wichtige Eigenschaften:
   Stadt-/Bezirks-Portale ab; aus dem Browser ist das wegen CORS nicht
   möglich. Ohne Server steht diese Funktion nicht zur Verfügung.
 
+### 1.1 Anreicherungs-Pipeline (Kontextdaten)
+
+Neben den amtlichen Unfalldaten erzeugt der Workflow
+[`.github/workflows/enrich.yml`](../.github/workflows/enrich.yml)
+**optional Kontextdaten** (Topographie, OSM-Straßenattribute,
+Verkehrsklasse-Proxy). Diese werden im Browser **lazy** nachgeladen,
+ändern den Hot-Path (`UA.loadCityData`) nicht und sind in jeder Schicht
+strikt **„Kontext, nicht Ursache"**.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  GitHub Actions (.github/workflows/enrich.yml)                       │
+│                                                                      │
+│  scripts/producers/                                                  │
+│   ├── osm_producer.js      → Overpass-API → osm_<slug>.json          │
+│   ├── dem_producer.js      → SRTM 30 m / Open-Meteo → dem_<slug>.json│
+│   └── traffic_producer.js  → osm_<slug>.json → traffic_<slug>.json   │
+│                              (projekteigener OSM-highway-Proxy,      │
+│                              keine Zähldaten)                        │
+│  ▼                                                                   │
+│  scripts/enrich_geojson.js  (Tier-B Anreicherung)                    │
+│  ▼                                                                   │
+│  out/output_all_years_<city>.geojson  (per-feature Felder)           │
+│  out/ways_<city>.json                 (per-way Attribute)            │
+│  out/output_all_years_<city>.enrichment.meta.json  (Sidecar)         │
+└──────────────────────────────────────────────────────────────────────┘
+              │ statisch ausgeliefert (GitHub Pages oder lokal)
+              ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  Frontend (Browser)                                                  │
+│                                                                      │
+│  ua.data_v2.loadCityData                                             │
+│   ├── lädt out/output_all_years_<city>.geojson (Hot-Path)            │
+│   ├── UA.contextLayers.detect → ctx.contextCapabilities              │
+│   │   {hasElevation, hasSlope, hasOsmContext, hasTrafficProxy,       │
+│   │    hasAny}                                                       │
+│   └── UA.contextLayers.loadAtIdle → ctx.contextLayerState            │
+│       (lazy fetch von ways_<city>.json + meta-Sidecar via            │
+│        requestIdleCallback)                                          │
+│                                                                      │
+│  ua.popup_context.composeAccidentPopupHtml                           │
+│   └── hydratisiert Way-Attribute aus ctx.contextLayerState           │
+│       (per-feature gewinnt; Race-tolerant: state=null → Popup        │
+│        nutzt nur Per-Feature-Daten, keine Spinner)                   │
+│                                                                      │
+│  ua.ui.refreshContextFilterVisibility                                │
+│   └── blendet die UI-Sektion „Kontext (neu)" pro Capability ein/aus  │
+│       und setzt veraltete Chip-Filter zurück                         │
+│                                                                      │
+│  ua.filters.matchesContextFilters                                    │
+│   └── konsultiert pro Filter-Zeile ctx.contextCapabilities;          │
+│       fehlende Capability → defensives No-Op statt versteckter       │
+│       Ergebnis-Reduktion                                             │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+Wichtige Eigenschaften:
+
+- **CI macht die Anreicherung, das Frontend zeigt sie nur an.** Die
+  Producer laufen offline in GitHub Actions; der Browser sieht nur die
+  fertigen `out/*.geojson` + `out/ways_<slug>.json`-Artefakte.
+- **`ways_<city>.json` ist optional und lazy.** Der Hauptdaten-Hot-Path
+  bleibt unverändert; `ways_<city>.json` wird per
+  `requestIdleCallback` geholt und nur zur Popup-Hydration verwendet.
+  Schlägt der Fetch fehl (404, Netzwerkfehler), bleiben Popups mit den
+  Per-Feature-Werten funktionsfähig und Filter behandeln die Capability
+  als abwesend.
+- **Capability-Gating überall.** UI-Sektion, Filter-Pruning und
+  Export-Quellenhinweis lesen alle aus derselben Quelle
+  (`UA.contextLayers.capabilitiesFromDetection`), sodass Frontend und
+  Filter nie auseinanderlaufen.
+- **„Kontext nicht Ursache"** – als verpflichtender Disclaimer in
+  Popup, Filter-Hinweistext und Export-Quellenblock.
+
+Detaillierte Datenmodellbeschreibung, Cache-Schlüssel, Slope-Klassifikation
+und Größengarantien siehe [`docs/enrichment.md`](enrichment.md).
+
 ---
 
 ## 2. Deterministischer Export-/Analysepfad

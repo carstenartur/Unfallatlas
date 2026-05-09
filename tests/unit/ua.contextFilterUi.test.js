@@ -155,3 +155,101 @@ describe('UA.refreshContextFilterVisibility — capabilities → visibility', ()
     expect(urlSyncCalls).toBe(1);
   });
 });
+
+describe('URL round-trip — shared links reproduce the same context filters', () => {
+  // QA contract from the docs (DOKUMENTATION.md → URL-Parameter
+  // (Referenz) → Kontext (neu)): copying a URL from a colleague who
+  // had ctxSlope/ctxTraffic/ctxOnlyMatched set must reproduce the
+  // exact same filter chips locally, and re-projecting the state back
+  // to the URL must produce the same querystring (keys may reorder).
+  function paramsFrom(url) {
+    return new URL(url).searchParams;
+  }
+
+  test('init → readChips → setQS produces a URL whose ctx* params match the input', () => {
+    const inputUrl = 'http://localhost/werkbank_v2.html?city=Bonn&ctxSlope=flat,steep&ctxTraffic=high,very_high&ctxOnlyMatched=1';
+    const UA = loadUI(inputUrl);
+    UA.setHydrating(true); // keep setQS pure; do not touch location.
+    try {
+      const ui = makeUi();
+      const ctx = { ui };
+      UA.initContextFilters(ctx);
+
+      // Capability gate: simulate a fully enriched dataset so the chips
+      // stay live (the resetting branch is exercised by other tests).
+      ctx.contextCapabilities = { hasSlope: true, hasTrafficProxy: true, hasOsmContext: true, hasAny: true };
+
+      // A user toggles a chip back and forth (idempotent round-trip).
+      UA.readContextFilterChips(ctx);
+      const cf = ctx.contextFilters;
+      expect([...cf.slopeClasses].sort()).toEqual(['flat','steep']);
+      expect([...cf.trafficClasses].sort()).toEqual(['high','very_high']);
+      expect(cf.onlyMatchedWays).toBe(true);
+
+      // Project state back to URL using the exact pattern syncAllToUrl
+      // uses in ua.ui.js (CSV joined alphabetically by chip iteration
+      // order; ctxOnlyMatched mapped to 1/0; empty Set → empty string,
+      // which UA.setQS deletes from the URL).
+      const slopeStr   = [...cf.slopeClasses].join(',');
+      const trafficStr = [...cf.trafficClasses].join(',');
+      const projected = UA.setQS({
+        ctxSlope:       slopeStr,
+        ctxTraffic:     trafficStr,
+        ctxOnlyMatched: cf.onlyMatchedWays ? 1 : 0,
+      });
+
+      const inP = paramsFrom(inputUrl);
+      const outP = paramsFrom(projected);
+      // CSV order is irrelevant — compare as sets.
+      expect(outP.get('ctxSlope').split(',').sort()).toEqual(inP.get('ctxSlope').split(',').sort());
+      expect(outP.get('ctxTraffic').split(',').sort()).toEqual(inP.get('ctxTraffic').split(',').sort());
+      expect(outP.get('ctxOnlyMatched')).toBe(inP.get('ctxOnlyMatched'));
+      // Original non-context params must still be present.
+      expect(outP.get('city')).toBe('Bonn');
+    } finally {
+      UA.setHydrating(false);
+    }
+  });
+
+  test('cleared filters are removed from the URL (no hidden empty params)', () => {
+    const UA = loadUI('http://localhost/werkbank_v2.html?ctxSlope=flat&ctxTraffic=high&ctxOnlyMatched=1');
+    UA.setHydrating(true);
+    try {
+      const ui = makeUi();
+      const ctx = { ui };
+      UA.initContextFilters(ctx);
+      // User unchecks everything.
+      for (const el of ui.ctxSlopeChipEls)   el.checked = false;
+      for (const el of ui.ctxTrafficChipEls) el.checked = false;
+      ui.ctxOnlyMatchedEl.checked = false;
+      UA.readContextFilterChips(ctx);
+      const projected = UA.setQS({
+        ctxSlope:       [...ctx.contextFilters.slopeClasses].join(','),
+        ctxTraffic:     [...ctx.contextFilters.trafficClasses].join(','),
+        ctxOnlyMatched: ctx.contextFilters.onlyMatchedWays ? 1 : 0,
+      });
+      const p = paramsFrom(projected);
+      // Empty CSVs are deleted by UA.setQS; ctxOnlyMatched=0 is kept
+      // explicitly only if the helper writes it. Either way, the
+      // re-hydration of an empty/zero state must yield empty filters.
+      expect(p.get('ctxSlope')).toBeNull();
+      expect(p.get('ctxTraffic')).toBeNull();
+    } finally {
+      UA.setHydrating(false);
+    }
+  });
+
+  test('legacy URL without any ctx* params still works (back-compat)', () => {
+    const UA = loadUI('http://localhost/werkbank_v2.html?city=Bonn&severity=1');
+    const ui = makeUi();
+    const ctx = { ui };
+    UA.initContextFilters(ctx);
+    expect(ctx.contextFilters.slopeClasses.size).toBe(0);
+    expect(ctx.contextFilters.trafficClasses.size).toBe(0);
+    expect(ctx.contextFilters.onlyMatchedWays).toBe(false);
+    // No chip becomes checked just because the URL doesn't carry the keys.
+    expect(ui.ctxSlopeChipEls.every(c => !c.checked)).toBe(true);
+    expect(ui.ctxTrafficChipEls.every(c => !c.checked)).toBe(true);
+    expect(ui.ctxOnlyMatchedEl.checked).toBe(false);
+  });
+});
