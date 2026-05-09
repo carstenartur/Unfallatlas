@@ -94,6 +94,20 @@
       "pause": 3000
     },
     {
+      "action": "setContextOverlay",
+      "kind": "slope",
+      "active": true,
+      "description": "Karten-Layer (oben links): Straßensteigung als farbige Linien einblenden – flach bis sehr steil",
+      "pause": 4000
+    },
+    {
+      "action": "setContextOverlay",
+      "kind": "traffic",
+      "active": true,
+      "description": "Karten-Layer (oben links): Verkehrsbelastung dazuschalten – die Legende unten links erklärt die Farbskala",
+      "pause": 4000
+    },
+    {
       "action": "openExport",
       "description": "Analyse-Export öffnen – Bezirksratsantrag erstellen",
       "pause": 5000

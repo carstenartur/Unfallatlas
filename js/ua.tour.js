@@ -209,6 +209,25 @@
         break;
       }
 
+      case "setContextOverlay": {
+        // Toggle one of the road-context overlays (slope/traffic) via
+        // the public API. Acts as a no-op when the city has no
+        // enriched geometries (capability gating handled inside
+        // UA.setContextOverlayActive). Used by the onboarding tour
+        // to point at the top-left "Karten-Layer" control and the
+        // bottom-left legend.
+        if (typeof UA.setContextOverlayActive !== "function") break;
+        const kind = String(step.kind || "").trim();
+        if (!kind) break;
+        const active = step.active !== false; // defaults to true
+        try {
+          UA.setContextOverlayActive(_ctx, kind, active);
+        } catch (e) {
+          console.warn("[Tour] setContextOverlay failed:", e);
+        }
+        break;
+      }
+
       case "openExport": {
         if (_ctx.ui && _ctx.ui.btnOpenExport) {
           _ctx.ui.btnOpenExport.click();

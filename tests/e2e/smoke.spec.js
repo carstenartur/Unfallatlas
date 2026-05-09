@@ -101,4 +101,54 @@ test.describe('Smoke – Werkbank V2', () => {
     const exportModal = page.locator('#modalOverlay');
     await expect(exportModal).toBeVisible({ timeout: 5000 });
   });
+
+  // Item 3 (post-PR #261 follow-up): the new top-left "Karten-Layer"
+  // overlay control is mounted by ua.map_v2 only when the loaded city
+  // exposes `hasOsmContext`. Asserting its presence on Bonn (which
+  // ships with enriched ways_bonn.json) makes any future CSS or
+  // capability-detection regression that hides it visible in CI.
+  test('Karten-Layer-Control ist für Stadt mit OSM-Kontext sichtbar', async ({ page }) => {
+    await page.goto('werkbank_v2.html?city=Bonn');
+    await page.waitForLoadState('networkidle');
+
+    // Gate: only enforce the assertion when the deployment actually
+    // has the per-city ways file. That is the same precondition the
+    // app uses to mount the control (capabilitiesFromDetection →
+    // hasOsmContext), so a missing file is "no overlays expected".
+    const baseUrl = new URL(page.url());
+    const waysUrl = new URL('out/ways_bonn.json', baseUrl).toString();
+    const waysHead = await page.request.fetch(waysUrl, { method: 'HEAD' }).catch(() => null);
+    test.skip(!waysHead || !waysHead.ok(), 'ways_bonn.json not deployed — overlay control not expected');
+
+    const overlayCtrl = page.locator('.context-overlay-control');
+    await expect(overlayCtrl).toBeVisible({ timeout: 15000 });
+    // Title + capability-gated checkbox(es) must be present so a CSS
+    // regression that hides only one of them still trips the test.
+    await expect(overlayCtrl).toContainText('Karten-Layer');
+    const checkboxes = overlayCtrl.locator('input[type="checkbox"][data-context-overlay]');
+    await expect.poll(async () => await checkboxes.count(), { timeout: 15000 })
+      .toBeGreaterThan(0);
+  });
+
+  // Item 11 (post-PR #261 follow-up): a stale v1 ways_<city>.json
+  // from a previous deploy would silently disable the new overlays
+  // (loader downgrades to legacy flat shape, no `geometries`). The
+  // smoke test fails closed on an unexpectedly old schema so the
+  // operator notices before users do.
+  test('ways_bonn.json hat schemaVersion >= 2 (Producer 1.1.0)', async ({ page }) => {
+    await page.goto('werkbank_v2.html');
+    const baseUrl = new URL(page.url());
+    const waysUrl = new URL('out/ways_bonn.json', baseUrl).toString();
+    // Cache-bust so an edge cache cannot mask a stale file.
+    const resp = await page.request.fetch(`${waysUrl}?cb=${Date.now()}`, {
+      headers: { 'cache-control': 'no-cache' },
+    });
+    expect(resp.ok(), `ways_bonn.json fetch failed (HTTP ${resp.status()})`).toBe(true);
+    const payload = await resp.json();
+    expect(payload && typeof payload === 'object', 'ways_bonn.json is not a JSON object').toBe(true);
+    expect(
+      typeof payload.schemaVersion === 'number' && payload.schemaVersion >= 2,
+      `ways_bonn.json schemaVersion is "${payload.schemaVersion}" — expected >= 2 (rerun enrich.yml with producer 1.1.0)`
+    ).toBe(true);
+  });
 });
