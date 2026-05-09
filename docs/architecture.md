@@ -134,16 +134,21 @@ Wichtige Eigenschaften:
   Filter nie auseinanderlaufen.
 - **„Kontext nicht Ursache"** – als verpflichtender Disclaimer in
   Popup, Filter-Hinweistext und Export-Quellenblock.
-- **Kontext als Karten-Layer (first class).** `ways_<city>.json` enthält
-  in Schema v2 zusätzlich einen `geometries`-Block (per-Way generalisierte
-  Polylinien). `js/ua.context_road_layer.js` baut daraus zwei
-  Canvas-gerenderte Leaflet-Layer („Straßensteigung" + „Verkehrsbelastung"),
-  die per Karten-Layer-Control (oben links) ein-/ausgeschaltet werden
-  können. Die Overlays zeichnen **ausschließlich die im Enrichment-Lauf
-  gematchten OSM-Wege** — sie sind kein vollständiges Straßennetz-Modell;
-  vollständige Beschreibung (kanonisch) siehe
-  [`docs/enrichment.md` → „Datenausschnitt: matched-only, kein vollständiges Straßennetz"](enrichment.md#matched-only-disclaimer).
-  Die Chip-Filter (`#ctxFilterSection`)
+- **Kontext als Karten-Layer (first class).** `ways_<city>.json` ist
+  ab Producer 1.2.0 / `schemaVersion: 3` ein dünner Envelope, der auf
+  `out/ctxtiles/<slug>/<x>/<y>.json` (Slippy-Tiles, Z=13) verweist.
+  `js/ua.context_road_layer.js` baut daraus zwei Canvas-gerenderte
+  Leaflet-Layer („Straßensteigung" + „Verkehrsbelastung"), die per
+  Karten-Layer-Control (oben links) ein-/ausgeschaltet werden können.
+  Die Overlays zeichnen **das vollständige OSM-Straßennetz im
+  Stadt-BBox** (viewport-lazy via `loadTilesForBbox`); die Slope-
+  *Farbe* bleibt jedoch sample-getrieben (nur entlang gematchter Wege),
+  die Verkehrs-Klasse basiert auf dem DTV-Proxy. Vollständige
+  Beschreibung (kanonisch) siehe
+  [`docs/enrichment.md` → „Datenausschnitt der Karten-Layer (Straßennetz vs. matched-only Signal)"](enrichment.md#matched-only-disclaimer).
+  Ältere v1/v2-Caches bleiben kompatibel und zeichnen weiterhin nur die
+  gematchten Wege, bis CI sie nach dem Producer-Bump ersetzt. Die
+  Chip-Filter (`#ctxFilterSection`)
   bleiben erhalten als „Detailanalyse"-Sekundärwerkzeug; URL-Keys
   (`ctxSlope`, `ctxTraffic`, `ctxOnlyMatched`) sind unverändert. Neuer
   URL-Key: `mapLayer=slope,traffic`.

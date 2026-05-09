@@ -47,11 +47,13 @@ Overlays sind defaultmäßig **aus** und merken sich ihren Zustand in
 der URL (`?mapLayer=slope,traffic`) — geteilte Links bringen die
 Layer-Sichtbarkeit also mit.
 
-> **Wichtig — Datenausschnitt:** Die Karten-Layer zeigen ausschließlich
-> die OSM-Straßenabschnitte, die im Enrichment-Lauf tatsächlich von
-> mindestens einem Unfallpunkt getroffen wurden. Vollständige
+> **Hinweis — Datenabdeckung:** Mit Producer 1.2.0 / `schemaVersion: 3`
+> zeigen die Karten-Layer das **vollständige OSM-Straßennetz im
+> Stadt-BBox** (ausgeliefert als Slippy-Tiles, viewport-lazy). Die
+> *Slope-Farbe* bleibt sample-getrieben (nur entlang gematchter Wege),
+> die *Verkehrs-Klasse* basiert auf dem DTV-Proxy. Vollständige
 > Beschreibung (kanonisch) in
-> [`docs/enrichment.md` → „Datenausschnitt: matched-only, kein vollständiges Straßennetz"](docs/enrichment.md#matched-only-disclaimer).
+> [`docs/enrichment.md` → „Datenausschnitt der Karten-Layer (Straßennetz vs. matched-only Signal)"](docs/enrichment.md#matched-only-disclaimer).
 
 Die bestehenden Chip-Filter („Kontext-Filter (Detailanalyse)") bleiben
 als Sekundärwerkzeug erhalten und blenden Unfallpunkte unabhängig von

@@ -291,7 +291,16 @@ function tileYToLat(y, z) {
   return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
 }
 
-/** Return all (x,y) tile coordinates the polyline intersects at zoom z. */
+/**
+ * Return every (x,y) tile coordinate covered by the *vertex bounding
+ * box* of the polyline at zoom z. This is a deliberate over-approximation
+ * — a long, gently-curving way that only clips the corner of an
+ * intermediate tile is still emitted into that tile too. The cost is
+ * a small amount of disk duplication; the benefit is a trivial
+ * implementation that is easy to verify and that guarantees the
+ * front-end never misses a way for its viewport (no segment-vs-tile
+ * traversal needed). See plan §1.
+ */
 function tilesForPolyline(points, z) {
   if (!Array.isArray(points) || points.length === 0) return [];
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -303,8 +312,6 @@ function tilesForPolyline(points, z) {
   }
   if (!Number.isFinite(minX)) return [];
   const out = [];
-  // Ways crossing tile boundaries are duplicated into every covered
-  // tile (small disk waste, big simplicity win — see plan §1).
   for (let x = minX; x <= maxX; x++) {
     for (let y = minY; y <= maxY; y++) {
       out.push([x, y]);
@@ -371,16 +378,28 @@ function buildContextTiles(fullWays, opts = {}) {
       dicts[field] = arr;
     }
   }
-  // Apply dict coding in place.
+  // Apply dict coding in place. We pre-build a value→index map per
+  // field so the inner loop is O(1) per (way, field) instead of an
+  // O(|dict|) `indexOf` scan — matters for full-network cities where
+  // tens of thousands of ways × ~half a dozen dict fields would
+  // otherwise dominate enrichment runtime.
+  const dictIndex = {};
+  for (const field of DICT_FIELDS) {
+    const dict = dicts[field];
+    if (!dict) continue;
+    const idxMap = new Map();
+    for (let i = 0; i < dict.length; i++) idxMap.set(dict[i], i);
+    dictIndex[field] = idxMap;
+  }
   for (const bucket of tiles.values()) {
     for (const wayId of Object.keys(bucket.ways)) {
       const row = bucket.ways[wayId];
       for (const field of DICT_FIELDS) {
-        const dict = dicts[field];
+        const idxMap = dictIndex[field];
         const v = row[field];
-        if (v == null || !dict) continue;
-        const idx = dict.indexOf(String(v));
-        if (idx >= 0) row[field] = idx;
+        if (v == null || !idxMap) continue;
+        const idx = idxMap.get(String(v));
+        if (typeof idx === 'number') row[field] = idx;
       }
     }
   }
@@ -815,8 +834,14 @@ function enrichCity(geojson, citySlug, opts = {}) {
   // falls back to the highway-tag DTV proxy for traffic and to no
   // slope colouring (legend handles "kein Signal" gracefully).
   // ---------------------------------------------------------------------
+  // Gate full-network tile production on an explicit `coverage:"full"`
+  // signal from the OSM provider. Older / matched-only OSM caches still
+  // expose `listWayIds()` (it's derived from `data.ways`), but emitting
+  // a v3 / `coverage:"full"` envelope for them would mis-advertise the
+  // dataset to the loader and break the v2 fallback path. See review
+  // feedback on the post-PR-#261 follow-up.
   const fullWays = [];
-  if (osm && typeof osm.listWayIds === 'function') {
+  if (osm && osm.coverage === 'full' && typeof osm.listWayIds === 'function') {
     for (const wayId of osm.listWayIds()) {
       const a = osm.wayAttributes(wayId);
       if (!a) continue;

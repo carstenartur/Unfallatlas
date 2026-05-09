@@ -260,23 +260,49 @@ analytical step in the Maßnahmen-Workflow.
 
 <a id="matched-only-disclaimer"></a>
 
-## Datenausschnitt: matched-only, kein vollständiges Straßennetz
+## Datenausschnitt der Karten-Layer (Straßennetz vs. matched-only Signal)
 
 > **Kanonischer Disclaimer — referenziert von `WERKBANK_V2.md` und
 > `docs/architecture.md`.** Beim Aktualisieren bitte ausschließlich
 > diesen Absatz pflegen, damit die Beschreibung nicht auseinanderdriftet.
 
-`ways_<city>.json` und die daraus gebauten Karten-Layer
-(„Straßensteigung", „Verkehrsbelastung") enthalten **ausschließlich
-die OSM-Straßenabschnitte, die im Enrichment-Lauf tatsächlich von
-mindestens einem Unfallpunkt getroffen wurden** (`matched_way_id` ≠
-null in der per-City-GeoJSON). Sie sind **kein vollständiges
-Straßennetz-Modell**: Straßen ohne Unfälle im Datensatz werden bewusst
-nicht eingefärbt, damit die Visualisierung dem im Atlas analysierten
-Materialumfang entspricht. Wer das vollständige Netz sehen möchte,
-blendet zusätzlich eine externe OSM-Kachelschicht ein. Diese Wahl ist
-absichtlich und stützt die „Kontext nicht Ursache"-Disclaimer-Politik
-oben: gezeigt wird genau das Material, auf dem die Analyse beruht.
+Mit `PRODUCER_VERSION = '1.2.0'` und `schemaVersion: 3` zeigen die
+Karten-Layer („Straßensteigung", „Verkehrsbelastung") **das vollständige
+OSM-Straßennetz im BBox der Stadt** an, nicht mehr nur die im
+Enrichment-Lauf gematchten Wege. Technisch wird das Netz in
+Slippy-Tiles (`out/ctxtiles/<slug>/<x>/<y>.json`) ausgeliefert; der
+Browser holt nur Tiles, die das aktuelle Viewport schneiden.
+
+Inhaltlich gilt weiterhin: die *Datenquellen* hinter den Farbklassen
+unterscheiden sich nach Wegtyp.
+
+* **Verkehrsbelastung** stammt aus dem DTV-Proxy (Highway-Tag → Klassen-
+  schätzung, ohne tatsächliche Zählungen). Jeder Weg im Netz bekommt
+  damit einen Klassenwert, **kein** gemessener Verkehrswert.
+* **Straßensteigung** wird per DEM nur entlang der Wege berechnet, an die
+  ein Unfallpunkt gesnappt wurde (sample-getriebener Pipeline-Lauf, siehe
+  „Slope" oben). Auf nicht-gematchten Wegen erscheint daher in der
+  Steigungs-Legende „kein Signal" — die Polylinie ist sichtbar, aber
+  ohne Steigungsfarbe.
+* Der Chip-Filter „Nur Unfallstrecken" (`ctxOnlyMatched`) ist eine
+  **Filteroperation auf Unfallpunkten**, nicht auf den Karten-Layern.
+  Er bleibt unverändert verfügbar und ist *unabhängig* von der
+  Datenabdeckung der Layer.
+
+Die Wahl, das volle Netz darzustellen statt nur gematchter Wege,
+stützt die „Kontext nicht Ursache"-Disclaimer-Politik oben:
+Anwender:innen sehen explizit, welche Straßen *kein* Slope-Signal
+tragen (weil dort schlicht kein gemeldeter Unfall lag) statt sie
+unsichtbar zu machen.
+
+### Legacy / Kompatibilität
+
+Ältere `ways_<city>.json` im Schema v1/v2 (matched-only) werden vom
+Loader weiterhin akzeptiert; die Overlays zeichnen in diesem Fall nur
+die im Enrichment-Lauf gematchten OSM-Wege (das ursprüngliche
+„matched-only"-Verhalten). Beim nächsten geplanten Enrich-Lauf nach dem
+Producer-Bump ersetzt CI diese Dateien durch die v3-Envelope plus
+zugehöriges `out/ctxtiles/<slug>/`-Verzeichnis.
 
 ## Roll-out: regenerating `ways_<city>.json` for v2 geometries
 

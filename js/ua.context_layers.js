@@ -371,13 +371,17 @@
     if (cacheMap.has(key)) return cacheMap.get(key);
     const url = _tileUrl(state, x, y);
     if (!url) return Promise.resolve(null);
+    // On a transient failure (network blip, 5xx, partial deploy, JSON
+    // parse error) we drop the cache entry so a later overlay rebuild
+    // or popup hydration can retry — otherwise the first failed fetch
+    // would permanently disable the tile for the rest of the session.
     const p = (async () => {
       let resp;
       try { resp = await fetch(url, { cache: 'force-cache' }); }
-      catch (_) { return null; }
-      if (!resp || !resp.ok) return null;
+      catch (_) { cacheMap.delete(key); return null; }
+      if (!resp || !resp.ok) { cacheMap.delete(key); return null; }
       let json = null;
-      try { json = await resp.json(); } catch (_) { return null; }
+      try { json = await resp.json(); } catch (_) { cacheMap.delete(key); return null; }
       _ingestTile(state, json);
       return json;
     })();

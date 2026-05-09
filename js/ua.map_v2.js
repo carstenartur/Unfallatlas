@@ -967,24 +967,35 @@
   // Internal: install (once) a debounced map.moveend handler that
   // refreshes the v3 tile data + active overlays for the new viewport.
   // No-op for v1/v2 states (state.tileIndex absent) so legacy cities
-  // don't pay any cost.
+  // don't pay any cost — viewport-bound rendering and lazy tile fetch
+  // are v3-only concepts.
   function _ensureMoveEndHandler(ctx) {
     const reg = _ensureOverlayRegistry(ctx);
     if (!ctx.map || typeof ctx.map.on !== 'function') return;
+    const state = ctx.contextLayerState;
+    const isV3 = !!(state && state.tileIndex && state._tileCache);
     const anyActive = CONTEXT_OVERLAY_KINDS.some(k => reg.active[k]);
-    if (!anyActive) {
+    if (!anyActive || !isV3) {
       if (reg._moveEndHandler) {
         try { ctx.map.off('moveend', reg._moveEndHandler); } catch (_) {}
         reg._moveEndHandler = null;
       }
+      if (reg._moveEndTimer) {
+        try { clearTimeout(reg._moveEndTimer); } catch (_) {}
+        reg._moveEndTimer = null;
+      }
       return;
     }
     if (reg._moveEndHandler) return;
-    let timer = null;
     const handler = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
+      if (reg._moveEndTimer) clearTimeout(reg._moveEndTimer);
+      reg._moveEndTimer = setTimeout(() => {
+        reg._moveEndTimer = null;
+        // Bail out if overlays were turned off (or the city was
+        // swapped to a non-v3 state) while the debounce was pending.
+        const stillActive = CONTEXT_OVERLAY_KINDS.some(k => reg.active[k]);
+        const stillV3 = !!(ctx.contextLayerState && ctx.contextLayerState.tileIndex);
+        if (!stillActive || !stillV3) return;
         _ensureViewportTilesLoaded(ctx).then(() => {
           // Always rebuild — even when no new tiles arrived, the
           // viewport bound used by buildLayer() has changed so the

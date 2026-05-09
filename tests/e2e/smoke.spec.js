@@ -134,8 +134,9 @@ test.describe('Smoke – Werkbank V2', () => {
   // from a previous deploy would silently disable the new overlays
   // (loader downgrades to legacy flat shape, no `geometries`). The
   // smoke test fails closed on an unexpectedly old schema so the
-  // operator notices before users do.
-  test('ways_bonn.json hat schemaVersion >= 2 (Producer 1.1.0)', async ({ page }) => {
+  // operator notices before users do. Accepts schemaVersion >= 2
+  // (envelope v2 with `geometries`, or v3 tile-index envelope).
+  test('ways_bonn.json hat schemaVersion >= 2 (envelope mit geometries oder tile-index)', async ({ page }) => {
     await page.goto('werkbank_v2.html');
     const baseUrl = new URL(page.url());
     const waysUrl = new URL('out/ways_bonn.json', baseUrl).toString();
@@ -148,7 +149,7 @@ test.describe('Smoke – Werkbank V2', () => {
     expect(payload && typeof payload === 'object', 'ways_bonn.json is not a JSON object').toBe(true);
     expect(
       typeof payload.schemaVersion === 'number' && payload.schemaVersion >= 2,
-      `ways_bonn.json schemaVersion is "${payload.schemaVersion}" — expected >= 2 (rerun enrich.yml with producer 1.1.0)`
+      `ways_bonn.json schemaVersion is "${payload.schemaVersion}" — expected >= 2 (rerun enrich.yml so a current producer regenerates the file)`
     ).toBe(true);
   });
 });
