@@ -15,18 +15,14 @@ test.describe('Popup context data', () => {
         return p && (p.elevation_m != null || p.slope_percent != null || p.traffic_proxy_class != null);
       });
       if (!feature) return '';
-      const detection = (window.UA.contextLayers && window.UA.contextLayers.detect)
-        ? window.UA.contextLayers.detect(gj)
-        : { availableFields: [] };
-      const available = new Set(detection.availableFields || []);
-      return window.UA.buildAccidentContextPopupHtml({
-        contextCapabilities: {
-          hasElevation: available.has('elevation_m'),
-          hasSlope: available.has('slope_percent') || available.has('slope_class') || available.has('slope_source'),
-          hasOsmContext: available.has('matched_way_id'),
-          hasTrafficProxy: available.has('traffic_proxy_class'),
-        },
-      }, feature.properties || {}) || '';
+      // Derive capability flags via the single source of truth so the
+      // e2e never drifts from CAPABILITY_FIELDS in ua.context_layers.js.
+      const detection = window.UA.contextLayers.detect(gj);
+      const contextCapabilities = window.UA.contextLayers.capabilitiesFromDetection(detection);
+      return window.UA.buildAccidentContextPopupHtml(
+        { contextCapabilities },
+        feature.properties || {}
+      ) || '';
     });
 
     expect(html).toContain('Höhe');

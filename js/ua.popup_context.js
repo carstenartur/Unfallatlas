@@ -67,6 +67,10 @@
   // bleiben bewusst unübersetzt — wir spiegeln OSM-Tags 1:1 wider, um
   // Diskussionen mit dem OSM-Datenstand des Reviewers nicht zu
   // erschweren.
+  // Hinweis: `road_slope_percent` wird bewusst NICHT hier geführt.
+  // Es ist ein Topographie-Wert (Straßenneigung) und gehört laut Spec
+  // („Topography: elevation, local slope, road slope, …") in die
+  // Topographie-Sektion. Hier doppelt zu rendern wäre verwirrend.
   const OSM_FIELD_LABELS = Object.freeze({
     highway:            'Straßentyp',
     maxspeed:           'Tempolimit',
@@ -74,13 +78,11 @@
     surface:            'Belag',
     cycleway:           'Radführung',
     osm_incline:        'OSM-Steigung',
-    road_slope_percent: 'Straßenneigung',
   });
 
   // Die Reihenfolge entscheidet auch über die Reihenfolge im Popup.
   const OSM_FIELD_ORDER = Object.freeze([
-    'highway', 'maxspeed', 'lanes', 'surface', 'cycleway',
-    'osm_incline', 'road_slope_percent',
+    'highway', 'maxspeed', 'lanes', 'surface', 'cycleway', 'osm_incline',
   ]);
 
   // ---------------------------------------------------------------------------
@@ -209,7 +211,6 @@
         if (!isPresent(p[key])) return '';
         let value = p[key];
         if (key === 'maxspeed') value = `${value} km/h`;
-        if (key === 'road_slope_percent') value = `${formatNumber(value, 1)} %`;
         return rowHtml(OSM_FIELD_LABELS[key], value, { field: key });
       })
       .filter(Boolean);

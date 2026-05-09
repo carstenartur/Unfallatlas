@@ -160,6 +160,29 @@ describe('UA.popupContext.render — public contract', () => {
     })).not.toThrow();
   });
 
+  test('renders road_slope_percent in Topographie only (no duplicate row in Straßenkontext)', () => {
+    const UA = loadModules();
+    const html = UA.popupContext.render(
+      {
+        elevation_m: 100,
+        slope_percent: 1.0,
+        road_slope_percent: 2.4,
+        highway: 'residential',
+      },
+      { hasElevation: true, hasSlope: true, hasOsmContext: true }
+    );
+    // Exactly one Straßenneigung row, in Topographie.
+    const matches = html.match(/Straßenneigung/g) || [];
+    expect(matches.length).toBe(1);
+    const topoIdx = html.indexOf('data-ua-context-section="topography"');
+    const roadIdx = html.indexOf('data-ua-context-section="road"');
+    const labelIdx = html.indexOf('Straßenneigung');
+    expect(topoIdx).toBeGreaterThan(-1);
+    expect(roadIdx).toBeGreaterThan(topoIdx);
+    expect(labelIdx).toBeGreaterThan(topoIdx);
+    expect(labelIdx).toBeLessThan(roadIdx);
+  });
+
   test('formatNumber returns null for non-finite values and uses comma decimal separator', () => {
     const UA = loadModules();
     expect(UA.popupContext.formatNumber(NaN, 1)).toBeNull();
