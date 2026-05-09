@@ -46,9 +46,29 @@
       ctx.contextCapabilities = (typeof UA.contextLayers.capabilitiesFromDetection === 'function')
         ? UA.contextLayers.capabilitiesFromDetection(detection)
         : null;
+
+      // Lazy-load ways_<city>.json + sidecar meta in the background as
+      // soon as we know the FeatureCollection carries OSM context. The
+      // resolved state is stashed on ctx.contextLayerState so popup
+      // composition (UA.composeAccidentPopupHtml) can hydrate per-way
+      // attributes (highway/maxspeed/lanes/surface/cycleway/osm_incline/
+      // road_slope_percent) onto the per-feature props at render time.
+      // This is fire-and-forget: if the state is not yet ready when a
+      // popup opens, the renderer simply falls back to per-feature data
+      // (no waiting, no spinner — see plan PR-C "Race-tolerant").
+      ctx.contextLayerState = null;
+      if (ctx.contextCapabilities && ctx.contextCapabilities.hasOsmContext
+          && typeof UA.contextLayers.loadAtIdle === 'function') {
+        try {
+          Promise.resolve(UA.contextLayers.loadAtIdle(ctx, ctx.CITY_RAW))
+            .then((state) => { ctx.contextLayerState = state || null; })
+            .catch(() => { /* optional file: stay null, popup degrades gracefully */ });
+        } catch (_) { /* idle-callback unavailable: ignore */ }
+      }
     } else {
       ctx.contextLayerDetection = null;
       ctx.contextCapabilities = null;
+      ctx.contextLayerState = null;
     }
     ctx.allPts = UA.extractPoints(gj);
   };

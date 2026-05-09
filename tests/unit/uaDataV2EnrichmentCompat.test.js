@@ -92,3 +92,108 @@ describe('URL builders are unaffected by enrichment', () => {
     expect(UA.buildDataUrl('Bonn')).toBe('out/output_all_years_bonn.geojson');
   });
 });
+
+describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () => {
+  function loadDataAndContextLayers() {
+    const fs = require('fs');
+    const path = require('path');
+    const win = { UA: {}, location: { href: 'http://localhost/' } };
+    win.UA.normKey = (s) => String(s ?? '').toLowerCase();
+    const load = (rel) => {
+      const p = path.resolve(__dirname, '../../js/' + rel);
+      (function (window) { eval(fs.readFileSync(p, 'utf8')); })(win);
+    };
+    load('ua.context_layers.js');
+    load('ua.data_v2.js');
+    return win.UA;
+  }
+
+  function makeCtx(geojson, extra) {
+    const dom = { textContent: null };
+    return Object.assign({
+      CITY_RAW: 'Bonn',
+      ui: { dataSourceCode: dom },
+      __nextResp: { ok: true, json: async () => geojson },
+    }, extra || {});
+  }
+
+  test('triggers loadAtIdle and stashes resolved state on ctx.contextLayerState when hasOsmContext', async () => {
+    const UA = loadDataAndContextLayers();
+    UA.contextLayers.clearCache();
+
+    const fcGeojson = {
+      type: 'FeatureCollection',
+      properties: { enrichmentDicts: { highway: ['residential'] } },
+      features: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+        properties: { id: '1', matched_way_id: 'W1', elevation_m: 1 },
+      }],
+    };
+    const waysJson = { 'W1': { highway: 0, maxspeed: 30 } };
+
+    let calls = 0;
+    global.fetch = (url) => {
+      calls++;
+      if (url.endsWith('output_all_years_bonn.geojson')) {
+        return Promise.resolve({ ok: true, json: async () => fcGeojson });
+      }
+      if (url.endsWith('ways_bonn.json')) {
+        return Promise.resolve({ ok: true, json: async () => waysJson });
+      }
+      // sidecar meta is optional → 404
+      return Promise.resolve({ ok: false });
+    };
+    // Synchronous idle-callback shim so we can await deterministically.
+    global.window = { requestIdleCallback: (cb) => cb() };
+
+    try {
+      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
+      await UA.loadCityData(ctx);
+      expect(ctx.contextCapabilities.hasOsmContext).toBe(true);
+      // loadAtIdle is fire-and-forget — flush microtasks.
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(ctx.contextLayerState).toBeTruthy();
+      expect(ctx.contextLayerState.ways).toEqual(waysJson);
+      expect(ctx.contextLayerState.dicts).toEqual({ highway: ['residential'] });
+      expect(calls).toBeGreaterThanOrEqual(2);
+    } finally {
+      delete global.fetch;
+      delete global.window;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  test('does NOT trigger lazy load when geojson has no OSM context fields', async () => {
+    const UA = loadDataAndContextLayers();
+    UA.contextLayers.clearCache();
+    const fcGeojson = {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+        properties: { id: '1', ukategorie: '2' },
+      }],
+    };
+    const fetched = [];
+    global.fetch = (url) => {
+      fetched.push(url);
+      return Promise.resolve({ ok: true, json: async () => fcGeojson });
+    };
+    global.window = { requestIdleCallback: (cb) => cb() };
+    try {
+      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
+      await UA.loadCityData(ctx);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(ctx.contextCapabilities.hasOsmContext).toBe(false);
+      expect(ctx.contextLayerState).toBeNull();
+      // Only the geojson was fetched — no ways_*.json / sidecar requests.
+      expect(fetched.filter((u) => u.includes('ways_'))).toHaveLength(0);
+    } finally {
+      delete global.fetch;
+      delete global.window;
+      UA.contextLayers.clearCache();
+    }
+  });
+});

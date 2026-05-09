@@ -231,6 +231,77 @@ describe('UA.composeAccidentPopupHtml — preserves base content, appends contex
   });
 });
 
+describe('UA.composeAccidentPopupHtml — PR-C ways_<city>.json hydration', () => {
+  const baseCtx = () => ({
+    contextCapabilities: { hasOsmContext: true, hasSlope: true, hasElevation: true, hasAny: true },
+    contextLayerState: {
+      ways: { 'W42': { highway: 1, maxspeed: 50, lanes: 2, surface: 0, road_slope_percent: 3.4 } },
+      dicts: { highway: ['residential', 'secondary'], surface: ['asphalt'] },
+    },
+  });
+
+  test('hydrates per-way attrs (highway/maxspeed/lanes/surface/road_slope_percent) onto a copy of props at render time', () => {
+    const UA = loadModules();
+    const ctx = baseCtx();
+    const props = Object.freeze({ matched_way_id: 'W42' });
+    const html = UA.composeAccidentPopupHtml(ctx, props);
+    expect(html).toContain('Straßenkontext');
+    expect(html).toContain('secondary');     // dict-resolved highway code 1
+    expect(html).toContain('50 km/h');       // maxspeed formatted
+    expect(html).toContain('asphalt');       // dict-resolved surface code 0
+    expect(html).toContain('Straßenneigung'); // road_slope_percent surfaced in Topographie
+  });
+
+  test('does not mutate input props during hydration', () => {
+    const UA = loadModules();
+    const ctx = baseCtx();
+    const props = { matched_way_id: 'W42' };
+    const before = JSON.stringify(props);
+    UA.composeAccidentPopupHtml(ctx, props);
+    expect(JSON.stringify(props)).toBe(before);
+    expect(props.highway).toBeUndefined();
+  });
+
+  test('per-feature values win over way attrs when both are present', () => {
+    const UA = loadModules();
+    const ctx = baseCtx();
+    const props = { matched_way_id: 'W42', highway: 'tertiary', maxspeed: 30 };
+    const html = UA.composeAccidentPopupHtml(ctx, props);
+    expect(html).toContain('tertiary');   // from per-feature
+    expect(html).toContain('30 km/h');    // from per-feature
+    expect(html).not.toContain('secondary');
+    expect(html).not.toContain('50 km/h');
+  });
+
+  test('race-tolerant: no contextLayerState yet → render returns null (popup falls back, no waiting)', () => {
+    const UA = loadModules();
+    const ctx = { contextCapabilities: { hasOsmContext: true } };
+    // Without state and without per-feature osm fields, Straßenkontext
+    // has nothing to show. Renderer correctly returns null (no empty
+    // section, no spinner) — the consumer simply binds no popup.
+    const html = UA.composeAccidentPopupHtml(ctx, { matched_way_id: 'W42' });
+    expect(html).toBeNull();
+  });
+
+  test('no matched_way_id → state is ignored, plain render path', () => {
+    const UA = loadModules();
+    const ctx = baseCtx();
+    const html = UA.composeAccidentPopupHtml(ctx, { elevation_m: 12 });
+    // Topographie gets rendered, but no Straßenkontext (no per-feature highway,
+    // and no matched_way_id means no hydration trigger).
+    expect(html).toContain('Topographie');
+    expect(html).not.toContain('secondary');
+  });
+
+  test('unknown way-id (not in cache) falls through gracefully', () => {
+    const UA = loadModules();
+    const ctx = baseCtx();
+    const html = UA.composeAccidentPopupHtml(ctx, { matched_way_id: 'W_UNKNOWN' });
+    // resolveWay returns null → no merge → Straßenkontext suppressed.
+    expect(html).toBeNull();
+  });
+});
+
 describe('UA.contextLayers.capabilitiesFromDetection — single source of truth', () => {
   test('maps detected fields to capability flags + hasAny', () => {
     const UA = loadModules();
