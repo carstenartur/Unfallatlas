@@ -48,6 +48,55 @@
     const ht = parseInt(ui.hToEl.value || "23", 10);
     if (h < hf || h > ht) return false;
 
+    // PR-D: Kontextfilter (Hangneigung / Verkehrsklasse / nur-gematchte
+    // Straßen). Werden nur konsultiert, wenn der Datensatz die jeweilige
+    // Capability überhaupt trägt — sonst ausgegraut/unsichtbar (siehe
+    // ua.ui.js). Per-Feature-Felder gewinnen analog zur Popup-Hydration
+    // (PR-C); Way-Attribute aus ctx.contextLayerState liefern z. B. den
+    // OSM-Way-Match für die "nur gematchten Straßen"-Toggle.
+    if (typeof UA.matchesContextFilters === "function") {
+      if (!UA.matchesContextFilters(ctx, pr)) return false;
+    }
+
+    return true;
+  };
+
+  /**
+   * PR-D: Pure-function context filter consulted by
+   * matchesNonInvolvementFilters. Returns true when the feature passes
+   * every active context constraint (or when no context filters are
+   * active). Reads filter state from ctx.contextFilters (populated by
+   * ua.ui.js bindings) so the function is trivially testable without a
+   * DOM. Falls back gracefully when ctx.contextFilters is missing.
+   *
+   * Active selection semantics (matches existing involvement chips):
+   *   - chips empty           → filter disabled, accept anything
+   *   - chips = ['flat']      → only flat slope_class accepted
+   *   - chips = ['flat','gentle'] → either accepted (OR within row)
+   *
+   * Cross-row (slope × traffic × matched) is AND, like all existing
+   * non-involvement filters.
+   */
+  UA.matchesContextFilters = function matchesContextFilters(ctx, pr){
+    const cf = ctx && ctx.contextFilters;
+    if (!cf) return true;
+    const slopeSel    = cf.slopeClasses;
+    const trafficSel  = cf.trafficClasses;
+    const onlyMatched = !!cf.onlyMatchedWays;
+
+    if (slopeSel && slopeSel.size > 0) {
+      const v = pr && pr.slope_class;
+      if (!v || !slopeSel.has(String(v))) return false;
+    }
+    if (trafficSel && trafficSel.size > 0) {
+      const v = pr && pr.traffic_proxy_class;
+      if (!v || !trafficSel.has(String(v))) return false;
+    }
+    if (onlyMatched) {
+      // matched_way_id may be a string ID; treat empty/null as no match.
+      const id = pr && pr.matched_way_id;
+      if (id === undefined || id === null || id === "") return false;
+    }
     return true;
   };
 

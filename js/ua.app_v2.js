@@ -272,6 +272,12 @@
 
 
     UA.bindUi(ctx);
+    // PR-D: After URL/DOM hydration, reveal context filter section based
+    // on capabilities detected during loadCityData. Idempotent — also
+    // re-runnable after an in-place city switch.
+    if (typeof UA.refreshContextFilterVisibility === 'function') {
+      UA.refreshContextFilterVisibility(ctx);
+    }
     bindExport(ctx);
 
     // Initialize tour module (gracefully degraded – only if ua.tour.js is loaded)
