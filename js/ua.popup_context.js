@@ -349,8 +349,7 @@
     if (!p.matched_way_id) return p;
     const state = ctx && ctx.contextLayerState;
     if (!state || !state.ways) return p;
-    const cl = (typeof window !== 'undefined' && window.UA && window.UA.contextLayers)
-      || (UA && UA.contextLayers);
+    const cl = UA.contextLayers;
     if (!cl || typeof cl.resolveWay !== 'function') return p;
     let resolved;
     try { resolved = cl.resolveWay(state, p.matched_way_id); }
