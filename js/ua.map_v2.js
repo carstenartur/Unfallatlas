@@ -923,6 +923,15 @@
           opacity: 0.8,
           fillOpacity: 0.6
         });
+        // Compose popup HTML — base content (none today, hook for
+        // future PRs) plus the optional Kontextdaten section. Helper
+        // returns null when neither produces content, so we don't
+        // attach an empty popup to thousands of markers.
+        const composeFn = (typeof UA.composeAccidentPopupHtml === 'function')
+          ? UA.composeAccidentPopupHtml
+          : null;
+        const popupHtml = composeFn ? composeFn(ctx, p.props, { baseHtml: '' }) : null;
+        if (popupHtml) m.bindPopup(popupHtml, { maxWidth: 360 });
         m._uaProps = p.props || {};
         m._uaPoint = p;
         return m;

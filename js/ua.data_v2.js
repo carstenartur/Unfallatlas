@@ -35,6 +35,21 @@
     const resp = await fetch(url, { cache:"no-store" });
     if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
     const gj = await resp.json();
+    ctx.geojsonProps = gj?.properties || null;
+    if (UA.contextLayers && typeof UA.contextLayers.detect === 'function') {
+      // Detect once per GeoJSON load; capability flags are derived via
+      // the central helper so loader/UI/tests cannot drift out of
+      // sync. The detection result itself is also cached on `ctx` for
+      // future panels/legends/exports that want the raw field list.
+      const detection = UA.contextLayers.detect(gj);
+      ctx.contextLayerDetection = detection;
+      ctx.contextCapabilities = (typeof UA.contextLayers.capabilitiesFromDetection === 'function')
+        ? UA.contextLayers.capabilitiesFromDetection(detection)
+        : null;
+    } else {
+      ctx.contextLayerDetection = null;
+      ctx.contextCapabilities = null;
+    }
     ctx.allPts = UA.extractPoints(gj);
   };
 
