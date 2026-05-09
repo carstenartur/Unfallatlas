@@ -7,6 +7,8 @@
     "test": "jest",
     "test:unit": "jest --testPathPatterns=tests/unit",
     "test:integration": "jest --testPathPatterns=tests/integration",
+    "test:integration:tc": "jest --config=tests/integration/jest.testcontainers.config.js",
+    "regen:context-assets": "node scripts/regen-context-assets.js",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:headed": "playwright test --project=chromium --headed",
     "test:performance": "jest --testPathPatterns=tests/performance",
@@ -35,7 +37,8 @@
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
-    "pdfjs-dist": "^5.6.205"
+    "pdfjs-dist": "^5.6.205",
+    "testcontainers": "^11.14.0"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -47,6 +50,10 @@
     ],
     "testMatch": [
       "**/tests/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "\\.testcontainers\\.test\\.js$"
     ],
     "collectCoverageFrom": [
       "js/**/*.js",
