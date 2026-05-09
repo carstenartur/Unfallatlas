@@ -11,6 +11,145 @@
     "default": "#999999"  // Gray for unknown
   };
 
+  const CONTEXT_CLASS_LABELS_DE = {
+    slope_class: {
+      flat: "flach",
+      gentle: "leicht",
+      moderate: "mäßig",
+      steep: "steil",
+      very_steep: "sehr steil",
+    },
+    traffic_proxy_class: {
+      low: "niedrig",
+      medium: "mittel",
+      high: "hoch",
+      very_high: "sehr hoch",
+    },
+  };
+
+  const OSM_CONTEXT_FIELDS = [
+    "highway",
+    "maxspeed",
+    "lanes",
+    "surface",
+    "cycleway",
+    "osm_incline",
+    "road_slope_percent",
+  ];
+
+  function esc(s) {
+    if (UA.escHtml) return UA.escHtml(s);
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  function fmtDeNum(v, digits = 1, stripZero = true) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    let out = n.toFixed(digits);
+    if (stripZero) out = out.replace(/\.0+$/, "");
+    return out.replace(".", ",");
+  }
+
+  function mapContextLabel(kind, value) {
+    const map = CONTEXT_CLASS_LABELS_DE[kind] || {};
+    return map[String(value)] || String(value);
+  }
+
+  function sourceShort(source) {
+    const s = String(source || "").trim();
+    if (!s) return null;
+    if (/srtm/i.test(s)) return "SRTM";
+    if (/open[- ]?meteo/i.test(s)) return "Open-Meteo";
+    if (s.length <= 14) return s;
+    const initials = s.split(/\s+/).filter(Boolean).map(p => p[0]).join("").toUpperCase();
+    return initials || s.slice(0, 14);
+  }
+
+  UA.buildAccidentContextPopupHtml = function buildAccidentContextPopupHtml(ctx, props) {
+    const p = props || {};
+    const caps = ctx && ctx.contextCapabilities ? ctx.contextCapabilities : {};
+
+    const elevationText = (p.elevation_m !== undefined && p.elevation_m !== null)
+      ? `${fmtDeNum(p.elevation_m)} m ü. NN`
+      : null;
+    const slopePct = (p.slope_percent !== undefined && p.slope_percent !== null)
+      ? `${fmtDeNum(p.slope_percent, 1, false)} %`
+      : null;
+    const slopeClass = p.slope_class != null ? mapContextLabel("slope_class", p.slope_class) : null;
+    const slopeText = slopePct && slopeClass ? `${slopePct} (${slopeClass})` : slopePct;
+    const slopeSourceFull = p.slope_source != null ? String(p.slope_source) : "";
+    const slopeSourceShort = sourceShort(slopeSourceFull);
+    const trafficText = p.traffic_proxy_class != null
+      ? mapContextLabel("traffic_proxy_class", p.traffic_proxy_class)
+      : null;
+    const roadSlopeText = (p.road_slope_percent !== undefined && p.road_slope_percent !== null)
+      ? `${fmtDeNum(p.road_slope_percent, 1, false)} %`
+      : null;
+
+    const hasGeomSection = !!(
+      (caps.hasElevation && elevationText) ||
+      (caps.hasSlope && (slopeText || slopeSourceShort))
+    );
+    const hasOsmFields = OSM_CONTEXT_FIELDS.some((k) => p[k] !== undefined && p[k] !== null && p[k] !== "");
+    const hasOsmSection = !!(caps.hasOsmContext && (hasOsmFields || p.matched_way_id != null));
+    const hasTrafficSection = !!(caps.hasTrafficProxy && trafficText);
+    if (!hasGeomSection && !hasOsmSection && !hasTrafficSection) return null;
+
+    const pushRow = (label, value) => {
+      if (value === undefined || value === null || value === "") return;
+      html += (
+        `<div style="display:grid; grid-template-columns:118px 1fr; gap:6px; margin-top:2px;">` +
+          `<div style="color:#666;">${esc(label)}</div>` +
+          `<div>${esc(value)}</div>` +
+        `</div>`
+      );
+    };
+
+    let html =
+      `<div style="font:13px/1.35 system-ui; min-width:230px;">` +
+      `<div style="font-weight:900; margin-bottom:4px;">Kontextdaten</div>`;
+
+    if (hasGeomSection) {
+      html += `<div style="margin-top:6px; font-weight:800;">Geometrie</div>`;
+      pushRow("Höhe", elevationText);
+      pushRow("Hangneigung", slopeText);
+      if (slopeSourceShort) {
+        html += (
+          `<div style="margin-top:2px; color:#777; font-size:11px;" title="${esc(slopeSourceFull)}">` +
+            `Quelle: ${esc(slopeSourceShort)}` +
+          `</div>`
+        );
+      }
+    }
+
+    if (hasOsmSection) {
+      const wayLabel = p.matched_way_id != null
+        ? `<span style="font-size:11px; color:#777;" title="Matched Way-ID: ${esc(p.matched_way_id)}">Way-ID: ${esc(p.matched_way_id)}</span>`
+        : "";
+      html += `<div style="margin-top:8px; font-weight:800;">Straßenkontext ${wayLabel}</div>`;
+      pushRow("Straßentyp", p.highway);
+      pushRow("Tempo", p.maxspeed != null ? `${p.maxspeed} km/h` : null);
+      pushRow("Fahrstreifen", p.lanes);
+      pushRow("Belag", p.surface);
+      pushRow("Radführung", p.cycleway);
+      pushRow("OSM-Steigung", p.osm_incline);
+      pushRow("Straßenneigung", roadSlopeText);
+    }
+
+    if (hasTrafficSection) {
+      html += `<div style="margin-top:8px; font-weight:800;">Verkehrslast</div>`;
+      pushRow("Verkehrsklasse", trafficText);
+    }
+
+    html += `<div style="margin-top:8px; color:#666; font-size:11px;"><em>Kontextdaten beschreiben die Umgebung, nicht die Unfallursache.</em></div>`;
+    html += `</div>`;
+    return html;
+  };
+
   // Argumentationsansicht: Ring-Farbe und Standardradius (in Metern).
   // Bewusst kontraststark, druckfest – ein Bezirksverordneter soll in
   // <10 s sehen, wo das Problem liegt.
@@ -923,6 +1062,8 @@
           opacity: 0.8,
           fillOpacity: 0.6
         });
+        const popupHtml = UA.buildAccidentContextPopupHtml(ctx, p.props);
+        if (popupHtml) m.bindPopup(popupHtml, { maxWidth: 340 });
         m._uaProps = p.props || {};
         m._uaPoint = p;
         return m;

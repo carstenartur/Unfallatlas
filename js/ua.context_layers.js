@@ -37,9 +37,18 @@
     'road_context_source',
     'elevation_m',
     'slope_percent',
+    'slope_abs_percent',
     'slope_class',
     'slope_source',
+    'slope_confidence',
     'traffic_proxy_class',
+    'highway',
+    'maxspeed',
+    'lanes',
+    'surface',
+    'cycleway',
+    'osm_incline',
+    'road_slope_percent',
   ];
 
   const SAMPLE_SIZE = 200; // enough to detect rare fields without

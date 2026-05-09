@@ -56,14 +56,21 @@ describe('UA.contextLayers.detect — backward-compatibility regression', () => 
       properties: { enrichmentDicts: { highway: ['residential'] } },
       features: [
         { type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-          properties: { id: '1', matched_way_id: 'W1', elevation_m: 123.4, slope_class: 'steep',
-                        traffic_proxy_class: 'high' } },
+          properties: {
+            id: '1',
+            matched_way_id: 'W1',
+            elevation_m: 123.4,
+            slope_class: 'very_steep',
+            traffic_proxy_class: 'very_high',
+            highway: 'residential',
+            road_slope_percent: 4.2,
+          } },
       ],
     };
     const r = UA.contextLayers.detect(gj);
     expect(r.hasDicts).toBe(true);
     expect(r.availableFields).toEqual(expect.arrayContaining([
-      'matched_way_id', 'elevation_m', 'slope_class', 'traffic_proxy_class',
+      'matched_way_id', 'elevation_m', 'slope_class', 'traffic_proxy_class', 'highway', 'road_slope_percent',
     ]));
     // Fields not on the sample stay out of the list (no false positives).
     expect(r.availableFields).not.toContain('slope_source');

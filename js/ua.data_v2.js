@@ -35,6 +35,30 @@
     const resp = await fetch(url, { cache:"no-store" });
     if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
     const gj = await resp.json();
+    ctx.geojsonProps = gj?.properties || null;
+    if (UA.contextLayers && typeof UA.contextLayers.detect === 'function') {
+      const detection = UA.contextLayers.detect(gj);
+      const available = new Set(detection?.availableFields || []);
+      ctx.contextLayerDetection = detection;
+      ctx.contextCapabilities = {
+        hasElevation: available.has('elevation_m'),
+        hasSlope: available.has('slope_percent') || available.has('slope_class') || available.has('slope_source'),
+        hasOsmContext: (
+          available.has('matched_way_id') ||
+          available.has('highway') ||
+          available.has('maxspeed') ||
+          available.has('lanes') ||
+          available.has('surface') ||
+          available.has('cycleway') ||
+          available.has('osm_incline') ||
+          available.has('road_slope_percent')
+        ),
+        hasTrafficProxy: available.has('traffic_proxy_class'),
+      };
+    } else {
+      ctx.contextLayerDetection = null;
+      ctx.contextCapabilities = null;
+    }
     ctx.allPts = UA.extractPoints(gj);
   };
 
