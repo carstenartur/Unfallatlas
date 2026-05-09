@@ -187,8 +187,14 @@
               `front-end likely outdated; context overlays will be disabled for this city.`
             );
           }
-          // Treat as "no enrichment available" — capabilities flow
-          // through CAPABILITY_FIELDS which checks state.ways/geometries.
+          // Treat as "no enrichment available". Capability flags
+          // themselves come from per-feature fields via detect() /
+          // capabilitiesFromDetection() and are unaffected here, but
+          // the actual context overlays (slope/traffic) require
+          // state.geometries to render, and popup hydration consults
+          // state.ways. Returning both as null cleanly disables
+          // overlay rendering and per-way popup enrichment without
+          // touching the capability flags that drive the chip filters.
           return { slug: u.slug, ways: null, geometries: null, meta, dicts };
         }
         if (raw.ways && typeof raw.ways === 'object') {

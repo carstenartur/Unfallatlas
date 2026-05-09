@@ -943,6 +943,16 @@
     const caps = ctx.contextCapabilities || {};
     const state = ctx.contextLayerState;
     const hasGeom = !!(state && state.geometries && Object.keys(state.geometries).length);
+    // Three-state model for the layer control:
+    //   - state === null            → still loading (loadAtIdle pending)
+    //   - state !== null && hasGeom → ready, checkboxes enabled
+    //   - state !== null && !hasGeom → loaded but no per-way geometries
+    //                                   (legacy/v1 ways file or unsupported
+    //                                   future schema). Overlays cannot be
+    //                                   built — show a non-loading hint
+    //                                   instead of a permanent "(lädt …)".
+    const isLoadingGeom    = (state === null);
+    const geomUnavailable  = (state !== null) && !hasGeom;
 
     // Detach any prior layers + controls so a city switch starts clean.
     for (const kind of CONTEXT_OVERLAY_KINDS) {
@@ -1008,13 +1018,23 @@
       c.appendChild(title);
       c.setAttribute('aria-labelledby', 'context-overlay-control-title');
 
-      // Pending hint — only when capabilities exist but the lazy
-      // geometry load hasn't resolved yet. Disabled checkboxes make
-      // it visually clear that the layers will become available
-      // shortly without losing the user's deep-link intent.
-      if (!hasGeom) {
+      // Pending vs. unavailable hint — the overlay control is built
+      // even for capability-positive cities whose geometry table is
+      // missing (legacy v1 ways file or unsupported future schema),
+      // so we must distinguish the two cases:
+      //   * isLoadingGeom    → "(lädt …)" — transient, will resolve.
+      //   * geomUnavailable  → permanent "Layer nicht verfügbar"
+      //                        hint, no spinner-like wording.
+      if (isLoadingGeom) {
         const hint = document.createElement('div');
         hint.textContent = '(lädt …)';
+        hint.style.fontSize = '11px';
+        hint.style.color    = '#888';
+        hint.style.marginBottom = '4px';
+        c.appendChild(hint);
+      } else if (geomUnavailable) {
+        const hint = document.createElement('div');
+        hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
         hint.style.fontSize = '11px';
         hint.style.color    = '#888';
         hint.style.marginBottom = '4px';
@@ -1025,7 +1045,9 @@
         const id  = 'ctxOverlay_' + kind;
         const row = document.createElement('label');
         row.style.display = 'block';
-        row.style.cursor  = hasGeom ? 'pointer' : 'wait';
+        // Cursor: 'wait' for transient loading, default for permanent
+        // unavailability so it doesn't look like a spinner forever.
+        row.style.cursor  = hasGeom ? 'pointer' : (isLoadingGeom ? 'wait' : 'not-allowed');
         row.htmlFor = id;
         if (!hasGeom) row.style.opacity = '0.6';
         const cb  = document.createElement('input');

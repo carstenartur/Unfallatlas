@@ -69,6 +69,15 @@
       //      change. Guarded behind feature detection — the loader
       //      stays usable in test environments without a full UI.
       ctx.contextLayerState = null;
+      // Clear stale provenance from the previously loaded city
+      // *immediately* — the tooltip is otherwise refreshed only after
+      // loadAtIdle() resolves, which can be many idle ticks later on
+      // large GeoJSON loads. Without this synchronous clear the user
+      // would briefly see the previous city's "ⓘ Datenstand" content
+      // attached to the new city's header.
+      if (typeof UA.updateEnrichmentProvenance === 'function') {
+        try { UA.updateEnrichmentProvenance(ctx); } catch (_) { /* keep going */ }
+      }
       if (ctx.contextCapabilities && ctx.contextCapabilities.hasOsmContext
           && typeof UA.contextLayers.loadAtIdle === 'function') {
         const expectedSlug = (UA.normKey ? UA.normKey(ctx.CITY_RAW) : String(ctx.CITY_RAW || '').toLowerCase());

@@ -119,7 +119,7 @@ describe('UA.refreshContextFilterVisibility — capabilities → visibility', ()
     expect(ui.ctxOnlyMatchedRow.hidden).toBe(true);
   });
 
-  test('hides empty-state copy as soon as slope OR traffic capability is present', () => {
+  test('hides empty-state copy as soon as slope OR traffic OR matched-only capability is present', () => {
     const UA = loadUI('http://localhost/');
     const ui = makeUi();
     const ctx = {
@@ -131,6 +131,25 @@ describe('UA.refreshContextFilterVisibility — capabilities → visibility', ()
     expect(ui.ctxFilterSection.hidden).toBe(false);
     expect(ui.ctxFilterEmpty.hidden).toBe(true);
     expect(ui.ctxSlopeRow.hidden).toBe(false);
+  });
+
+  test('hides empty-state copy when only matched-only (hasOsmContext) is present, even without slope/traffic', () => {
+    // Regression for review feedback on first follow-up commit: the
+    // matched-only toggle alone is a meaningful UI surface, so we must
+    // not show the "no enriched context data" hint above it.
+    const UA = loadUI('http://localhost/');
+    const ui = makeUi();
+    const ctx = {
+      ui,
+      contextCapabilities: { hasSlope: false, hasTrafficProxy: false, hasOsmContext: true },
+      contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(), onlyMatchedWays: false },
+    };
+    UA.refreshContextFilterVisibility(ctx);
+    expect(ui.ctxFilterSection.hidden).toBe(false);
+    expect(ui.ctxFilterEmpty.hidden).toBe(true);
+    expect(ui.ctxSlopeRow.hidden).toBe(true);
+    expect(ui.ctxTrafficRow.hidden).toBe(true);
+    expect(ui.ctxOnlyMatchedRow.hidden).toBe(false);
   });
 
   test('fully hidden when no capabilities are present', () => {

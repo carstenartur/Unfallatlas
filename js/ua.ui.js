@@ -550,14 +550,16 @@
     const showTraffic = !!caps.hasTrafficProxy;
     const showMatched = !!caps.hasOsmContext;
     const showAny     = showSlope || showTraffic || showMatched;
-    // Empty-state: when neither slope nor traffic is present, the
+    // Empty-state: when *no* relevant context capability is present
+    // (i.e. neither slope, nor traffic, nor matched-only OSM), the
     // section now stays *visible* so we can show a one-line hint
     // explaining that this city has no enriched context data,
     // instead of the section silently disappearing (which previously
-    // looked like a bug to first-time users). The matched-only
-    // toggle alone (hasOsmContext without slope/traffic) does NOT
-    // trigger the empty state — the toggle itself is meaningful then.
-    const showEmpty   = !showSlope && !showTraffic;
+    // looked like a bug to first-time users). When hasOsmContext is
+    // true (matched-only toggle visible), the toggle itself is the
+    // meaningful UI and the empty-state hint must NOT appear, even
+    // if slope/traffic are absent.
+    const showEmpty   = !showSlope && !showTraffic && !showMatched;
 
     sec.hidden = !(showAny || showEmpty);
     if (ui.ctxFilterEmpty)    ui.ctxFilterEmpty.hidden    = !showEmpty;

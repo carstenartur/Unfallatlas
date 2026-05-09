@@ -381,7 +381,11 @@ function loadTrafficProvider(citySlug) {
   return {
     name: 'traffic',
     source: data.source || null,
-    producerVersion: data.producerVersion || null,
+    // Fall back to datasetVersion so the new provenance (UI tooltip,
+    // meta sidecar) gets a stable version string for traffic sources
+    // that only set datasetVersion and not the newer producerVersion
+    // field (review feedback on first follow-up commit).
+    producerVersion: data.producerVersion || data.datasetVersion || null,
     datasetVersion: data.datasetVersion || null,
     wayTraffic(wayId) {
       const w = data.ways && data.ways[wayId];
