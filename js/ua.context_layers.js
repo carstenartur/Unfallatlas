@@ -109,6 +109,19 @@
   // Cache: cityKey → Promise<state>
   const cache = new Map();
 
+  // Schema-version negotiation. The on-disk `ways_<city>.json` payload
+  // ships with `schemaVersion` since v2 (the legacy v1 flat shape has
+  // no version field at all and is detected by the absence of a
+  // `ways` map — see the load() body). When a future producer bumps
+  // the schema (e.g. to v3), older deployments must FAIL LOUD instead
+  // of silently rendering an inconsistent half-state. The constant is
+  // a single source of truth for both the loader and the test suite.
+  const SUPPORTED_WAYS_SCHEMA_VERSIONS = [1, 2];
+  // Track which slugs have already produced an "unsupported version"
+  // warning so we never spam the console — one warning per city is
+  // enough to surface the regression on the operator's screen.
+  const _warnedUnsupportedSchema = new Set();
+
   function urls(cityRaw) {
     const slug = (UA.normKey ? UA.normKey(cityRaw) : String(cityRaw || '').toLowerCase());
     return {
@@ -152,8 +165,32 @@
       //   v1 (legacy):  { "<wayId>": {attrs}, ... }
       // The v2 shape is a strict superset; v1 is detected by the
       // absence of a `ways` map and the presence of object values.
+      //
+      // Schema-version negotiation: when `schemaVersion` is set but
+      // unknown to this build (e.g. the producer ships v3 before the
+      // front-end is updated), we fail loudly with a single console
+      // warning per city and treat the file as missing — the popup
+      // and overlays then degrade gracefully instead of half-rendering
+      // an inconsistent state. v1 (no `schemaVersion` field) is
+      // explicitly accepted via SUPPORTED_WAYS_SCHEMA_VERSIONS.
       let ways = null, geometries = null;
       if (raw && typeof raw === 'object') {
+        const declaredVer = (typeof raw.schemaVersion === 'number')
+          ? raw.schemaVersion
+          : (raw.ways && typeof raw.ways === 'object' ? null : 1);
+        if (declaredVer != null && !SUPPORTED_WAYS_SCHEMA_VERSIONS.includes(declaredVer)) {
+          if (!_warnedUnsupportedSchema.has(u.slug)) {
+            _warnedUnsupportedSchema.add(u.slug);
+            console.warn(
+              `[ua.context_layers] ways_${u.slug}.json schemaVersion=${declaredVer} ` +
+              `is not in SUPPORTED_WAYS_SCHEMA_VERSIONS=${JSON.stringify(SUPPORTED_WAYS_SCHEMA_VERSIONS)} — ` +
+              `front-end likely outdated; context overlays will be disabled for this city.`
+            );
+          }
+          // Treat as "no enrichment available" — capabilities flow
+          // through CAPABILITY_FIELDS which checks state.ways/geometries.
+          return { slug: u.slug, ways: null, geometries: null, meta, dicts };
+        }
         if (raw.ways && typeof raw.ways === 'object') {
           ways = raw.ways;
           geometries = (raw.geometries && typeof raw.geometries === 'object')
@@ -205,6 +242,7 @@
     detect,
     capabilitiesFromDetection,
     CAPABILITY_FIELDS,
+    SUPPORTED_WAYS_SCHEMA_VERSIONS,
     load,
     loadAtIdle,
     resolveWay,

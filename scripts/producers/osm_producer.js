@@ -475,11 +475,12 @@ function buildOsmDataset(fc, ways, opts) {
   }
 
   return {
-    source:        o.source      || 'OpenStreetMap (Overpass)',
-    extractDate:   o.extractDate || new Date().toISOString().slice(0, 10),
-    ways:          wayTable,
+    source:          o.source      || 'OpenStreetMap (Overpass)',
+    producerVersion: o.producerVersion || PRODUCER_VERSION,
+    extractDate:     o.extractDate || new Date().toISOString().slice(0, 10),
+    ways:            wayTable,
     wayGeometries,
-    index:         indexEntries,
+    index:           indexEntries,
   };
 }
 

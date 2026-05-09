@@ -161,6 +161,7 @@ describe('osm_producer — buildOsmDataset', () => {
       { maxDistanceM: 50, extractDate: '2026-05-07' },
     );
     expect(ds.source).toBe('OpenStreetMap (Overpass)');
+    expect(ds.producerVersion).toBe(osm.PRODUCER_VERSION);
     expect(ds.extractDate).toBe('2026-05-07');
     expect(ds.index).toEqual([
       { lat: 50.0,     lon: 7.0005, way_id: '1' },

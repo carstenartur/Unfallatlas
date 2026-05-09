@@ -41,6 +41,7 @@ function makeUi(overrides = {}) {
   const trafficChips = ['low','medium','high','very_high'].map(v => makeChip(v, 'traffic'));
   return Object.assign({
     ctxFilterSection:  { hidden: true },
+    ctxFilterEmpty:    { hidden: true },
     ctxSlopeRow:       { hidden: true },
     ctxTrafficRow:     { hidden: true },
     ctxOnlyMatchedRow: { hidden: true },
@@ -103,12 +104,47 @@ describe('UA.readContextFilterChips — DOM → state', () => {
 });
 
 describe('UA.refreshContextFilterVisibility — capabilities → visibility', () => {
-  test('fully hidden when no capabilities are present', () => {
+  test('shows empty-state copy (section visible, all rows hidden) when no slope/traffic capabilities', () => {
     const UA = loadUI('http://localhost/');
     const ui = makeUi();
     const ctx = { ui, contextCapabilities: {}, contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(), onlyMatchedWays: false } };
     UA.refreshContextFilterVisibility(ctx);
-    expect(ui.ctxFilterSection.hidden).toBe(true);
+    // Section now stays visible to host the empty-state hint…
+    expect(ui.ctxFilterSection.hidden).toBe(false);
+    // …with the empty-state hint shown…
+    expect(ui.ctxFilterEmpty.hidden).toBe(false);
+    // …and every chip row hidden because no capability is present.
+    expect(ui.ctxSlopeRow.hidden).toBe(true);
+    expect(ui.ctxTrafficRow.hidden).toBe(true);
+    expect(ui.ctxOnlyMatchedRow.hidden).toBe(true);
+  });
+
+  test('hides empty-state copy as soon as slope OR traffic capability is present', () => {
+    const UA = loadUI('http://localhost/');
+    const ui = makeUi();
+    const ctx = {
+      ui,
+      contextCapabilities: { hasSlope: true },
+      contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(), onlyMatchedWays: false },
+    };
+    UA.refreshContextFilterVisibility(ctx);
+    expect(ui.ctxFilterSection.hidden).toBe(false);
+    expect(ui.ctxFilterEmpty.hidden).toBe(true);
+    expect(ui.ctxSlopeRow.hidden).toBe(false);
+  });
+
+  test('fully hidden when no capabilities are present', () => {
+    // Historical contract: previously asserted the section was hidden
+    // when capabilities were empty. After the empty-state addition the
+    // section stays visible to host the hint; the chip ROWS remain
+    // hidden, which is the actual user-facing invariant.
+    const UA = loadUI('http://localhost/');
+    const ui = makeUi();
+    const ctx = { ui, contextCapabilities: {}, contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(), onlyMatchedWays: false } };
+    UA.refreshContextFilterVisibility(ctx);
+    expect(ui.ctxSlopeRow.hidden).toBe(true);
+    expect(ui.ctxTrafficRow.hidden).toBe(true);
+    expect(ui.ctxOnlyMatchedRow.hidden).toBe(true);
   });
 
   test('reveals only the rows whose capability is present', () => {

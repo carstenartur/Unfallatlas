@@ -1035,6 +1035,14 @@
         cb.disabled = !hasGeom;
         cb.setAttribute('data-context-overlay', kind);
         cb.setAttribute('aria-label', label);
+        // A11y (item 6, post-PR #261): make the toggles part of the
+        // natural keyboard tab order alongside the existing Leaflet
+        // controls (zoom, attribution), and announce the legend as
+        // their description so screen-reader users get the colour
+        // semantics without having to physically locate the
+        // bottom-left legend.
+        cb.setAttribute('tabindex', '0');
+        cb.setAttribute('aria-describedby', 'context-overlay-legend');
         cb.addEventListener('change', () => {
           UA.setContextOverlayActive(ctx, kind, cb.checked);
         });
@@ -1060,6 +1068,14 @@
       c.style.font        = '11px/1.3 system-ui, sans-serif';
       c.style.maxWidth    = '220px';
       c.style.display     = 'none';
+      // A11y: stable id so the overlay-control checkboxes can point
+      // their `aria-describedby` at the live legend (item 6 of the
+      // post-PR #261 follow-up plan). `region` + label make screen
+      // readers announce it as a meaningful map landmark instead of
+      // an anonymous floating div.
+      c.id = 'context-overlay-legend';
+      c.setAttribute('role', 'region');
+      c.setAttribute('aria-label', 'Legende der Karten-Layer');
       return c;
     };
     legend.addTo(ctx.map);

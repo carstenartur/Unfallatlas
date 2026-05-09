@@ -288,6 +288,7 @@ function loadOsmProvider(citySlug) {
   return {
     name: 'osm',
     source: data.source || 'OpenStreetMap (Overpass)',
+    producerVersion: data.producerVersion || null,
     extractDate: data.extractDate || null,
     matchFeature(lat, lon) {
       const wayId = wayIndex.get(pointKey(lat, lon));
@@ -343,6 +344,7 @@ function loadDemProvider(citySlug) {
   return {
     name: 'dem',
     source: data.source || 'SRTM30',
+    producerVersion: data.producerVersion || null,
     resolutionM: data.resolution_m || null,
     elevateFeature(lat, lon) {
       const p = pointIndex.get(pointKey(lat, lon));
@@ -379,6 +381,7 @@ function loadTrafficProvider(citySlug) {
   return {
     name: 'traffic',
     source: data.source || null,
+    producerVersion: data.producerVersion || null,
     datasetVersion: data.datasetVersion || null,
     wayTraffic(wayId) {
       const w = data.ways && data.ways[wayId];
@@ -580,9 +583,9 @@ function enrichCity(geojson, citySlug, opts = {}) {
     citySlug,
     generatedAt: new Date().toISOString(),
     sources: stripUndefined({
-      osm: osm     ? stripUndefined({ source: osm.source, extractDate: osm.extractDate }) : undefined,
-      dem: dem     ? stripUndefined({ source: dem.source, resolutionM: dem.resolutionM }) : undefined,
-      traffic: traffic ? stripUndefined({ source: traffic.source, datasetVersion: traffic.datasetVersion }) : undefined,
+      osm: osm     ? stripUndefined({ source: osm.source, producerVersion: osm.producerVersion, extractDate: osm.extractDate }) : undefined,
+      dem: dem     ? stripUndefined({ source: dem.source, producerVersion: dem.producerVersion, resolutionM: dem.resolutionM }) : undefined,
+      traffic: traffic ? stripUndefined({ source: traffic.source, producerVersion: traffic.producerVersion, datasetVersion: traffic.datasetVersion }) : undefined,
     }),
     counts: {
       features: geojson.features.length,

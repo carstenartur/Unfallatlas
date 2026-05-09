@@ -424,11 +424,12 @@ function makeLocalElevationSampler(tilesDir) {
 function buildDemDatasetLocal(points, results, opts) {
   const o = opts || {};
   const out = {
-    source:        o.source       || LOCAL_SOURCE,
-    resolution_m:  o.resolution_m || LOCAL_RESOLUTION_M,
-    extractDate:   o.extractDate  || new Date().toISOString().slice(0, 10),
-    points:        [],
-    wayElevations: o.wayElevations || {},
+    source:          o.source       || LOCAL_SOURCE,
+    producerVersion: o.producerVersion || PRODUCER_VERSION,
+    resolution_m:    o.resolution_m || LOCAL_RESOLUTION_M,
+    extractDate:     o.extractDate  || new Date().toISOString().slice(0, 10),
+    points:          [],
+    wayElevations:   o.wayElevations || {},
   };
   for (let i = 0; i < points.length; i++) {
     const { elevation, slope } = results[i] || {};
@@ -764,11 +765,12 @@ function buildDemDataset(points, elevations, opts) {
   const o = opts || {};
   const offsetM = Number.isFinite(o.offsetM) ? o.offsetM : NEIGHBOUR_OFFSET_M;
   const out = {
-    source:       o.source       || DEFAULT_SOURCE,
-    resolution_m: o.resolution_m || DEFAULT_RESOLUTION_M,
-    extractDate:  o.extractDate  || new Date().toISOString().slice(0, 10),
-    points:       [],
-    wayElevations: o.wayElevations || {},
+    source:          o.source       || DEFAULT_SOURCE,
+    producerVersion: o.producerVersion || PRODUCER_VERSION,
+    resolution_m:    o.resolution_m || DEFAULT_RESOLUTION_M,
+    extractDate:     o.extractDate  || new Date().toISOString().slice(0, 10),
+    points:          [],
+    wayElevations:   o.wayElevations || {},
   };
   for (let i = 0; i < points.length; i++) {
     const base = i * 5;

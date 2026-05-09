@@ -140,9 +140,10 @@ Wichtige Eigenschaften:
   Canvas-gerenderte Leaflet-Layer („Straßensteigung" + „Verkehrsbelastung"),
   die per Karten-Layer-Control (oben links) ein-/ausgeschaltet werden
   können. Die Overlays zeichnen **ausschließlich die im Enrichment-Lauf
-  gematchten OSM-Wege** (`matched_way_id` ≠ null) — sie sind kein
-  vollständiges Straßennetz-Modell, sondern spiegeln den im Atlas
-  analysierten Materialumfang wider. Die Chip-Filter (`#ctxFilterSection`)
+  gematchten OSM-Wege** — sie sind kein vollständiges Straßennetz-Modell;
+  vollständige Beschreibung (kanonisch) siehe
+  [`docs/enrichment.md` → „Datenausschnitt: matched-only, kein vollständiges Straßennetz"](enrichment.md#matched-only-disclaimer).
+  Die Chip-Filter (`#ctxFilterSection`)
   bleiben erhalten als „Detailanalyse"-Sekundärwerkzeug; URL-Keys
   (`ctxSlope`, `ctxTraffic`, `ctxOnlyMatched`) sind unverändert. Neuer
   URL-Key: `mapLayer=slope,traffic`.

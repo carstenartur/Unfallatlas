@@ -139,9 +139,9 @@ Per-file dataset-wide attribution:
   "citySlug": "bonn",
   "generatedAt": "2026-01-15T03:14:15.000Z",
   "sources": {
-    "osm":     { "source": "OpenStreetMap (Overpass)", "extractDate": "2026-01-10" },
-    "dem":     { "source": "SRTM30", "resolutionM": 30 },
-    "traffic": { "source": "BASt SDV", "datasetVersion": "2024" }
+    "osm":     { "source": "OpenStreetMap (Overpass)", "producerVersion": "1.1.0", "extractDate": "2026-01-10" },
+    "dem":     { "source": "SRTM30",                   "producerVersion": "1.0.0", "resolutionM": 30 },
+    "traffic": { "source": "BASt SDV",                 "producerVersion": "1.0.0", "datasetVersion": "2024" }
   },
   "counts": { "features": 1234, "matchedToWay": 1100, "withElevation": 1234, "withTrafficProxy": 410, "ways": 320 },
   "dictFields": ["highway", "surface"]
@@ -157,6 +157,14 @@ configured rewrites the GeoJSON in place but never touches the
 sidecar files, so the weekly `enrich.yml` cron stays a true no-op
 until provider data is wired up. (For the same reason, the cron's
 commit step ignores meta-only diffs.)
+
+Each per-source block also embeds a `producerVersion` field that is
+mirrored from the corresponding `osm_<city>.json` /
+`dem_<city>.json` / `traffic_<city>.json` payload (which now also
+carries `producerVersion` at the top level). This lets QA jobs assert
+the deployed producer version with a one-liner — e.g.
+`jq -r '.producerVersion' out/osm_bonn.json` — without falling back to
+node-count heuristics.
 
 ## Slope classification
 
@@ -229,6 +237,26 @@ enriched field: **a steep slope, a busy road, or a particular road
 class is *context*, not a cause**. The enrichment exposes the local
 environment of an accident; causal attribution remains a manual
 analytical step in the Maßnahmen-Workflow.
+
+<a id="matched-only-disclaimer"></a>
+
+## Datenausschnitt: matched-only, kein vollständiges Straßennetz
+
+> **Kanonischer Disclaimer — referenziert von `WERKBANK_V2.md` und
+> `docs/architecture.md`.** Beim Aktualisieren bitte ausschließlich
+> diesen Absatz pflegen, damit die Beschreibung nicht auseinanderdriftet.
+
+`ways_<city>.json` und die daraus gebauten Karten-Layer
+(„Straßensteigung", „Verkehrsbelastung") enthalten **ausschließlich
+die OSM-Straßenabschnitte, die im Enrichment-Lauf tatsächlich von
+mindestens einem Unfallpunkt getroffen wurden** (`matched_way_id` ≠
+null in der per-City-GeoJSON). Sie sind **kein vollständiges
+Straßennetz-Modell**: Straßen ohne Unfälle im Datensatz werden bewusst
+nicht eingefärbt, damit die Visualisierung dem im Atlas analysierten
+Materialumfang entspricht. Wer das vollständige Netz sehen möchte,
+blendet zusätzlich eine externe OSM-Kachelschicht ein. Diese Wahl ist
+absichtlich und stützt die „Kontext nicht Ursache"-Disclaimer-Politik
+oben: gezeigt wird genau das Material, auf dem die Analyse beruht.
 
 ## Roll-out: regenerating `ways_<city>.json` for v2 geometries
 

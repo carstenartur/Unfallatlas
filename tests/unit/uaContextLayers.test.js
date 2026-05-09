@@ -210,4 +210,50 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       UA.contextLayers.clearCache();
     }
   });
+
+  test('exposes SUPPORTED_WAYS_SCHEMA_VERSIONS as a frozen-ish constant covering v1 + v2', () => {
+    const UA = loadModule();
+    expect(Array.isArray(UA.contextLayers.SUPPORTED_WAYS_SCHEMA_VERSIONS)).toBe(true);
+    expect(UA.contextLayers.SUPPORTED_WAYS_SCHEMA_VERSIONS).toEqual(expect.arrayContaining([1, 2]));
+  });
+
+  test('unknown future schemaVersion (e.g. v3) → state.ways/geometries=null + one console.warn', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    const v3 = {
+      schemaVersion: 3,
+      ways: { 'W1': { highway: 0 } },
+      geometries: { 'W1': [50, 7, 50.001, 7.001] },
+      somethingNew: { foo: 'bar' },
+    };
+    let calls = 0;
+    global.fetch = (url) => {
+      if (url.endsWith('ways_future.json')) return Promise.resolve({ ok: true, json: async () => v3 });
+      return Promise.resolve({ ok: false });
+    };
+    const origWarn = console.warn;
+    const seen = [];
+    console.warn = (...args) => { seen.push(args.join(' ')); calls++; };
+    try {
+      const state = await UA.contextLayers.load({}, 'future');
+      expect(state.ways).toBeNull();
+      expect(state.geometries).toBeNull();
+      // Capability detection downstream sees null/no-fields => hasOsmContext=false.
+      expect(seen.length).toBeGreaterThanOrEqual(1);
+      expect(seen[0]).toMatch(/schemaVersion=3/);
+      expect(seen[0]).toMatch(/SUPPORTED_WAYS_SCHEMA_VERSIONS/);
+
+      // Second load (different city) must warn for that one too, but
+      // a re-load of the same slug must NOT spam the console.
+      const before = calls;
+      // Same slug — cached, no second fetch, no second warn.
+      await UA.contextLayers.load({}, 'future');
+      expect(calls).toBe(before);
+    } finally {
+      console.warn = origWarn;
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
 });

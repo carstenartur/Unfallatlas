@@ -47,15 +47,11 @@ Overlays sind defaultmäßig **aus** und merken sich ihren Zustand in
 der URL (`?mapLayer=slope,traffic`) — geteilte Links bringen die
 Layer-Sichtbarkeit also mit.
 
-> **Wichtig — Datenausschnitt:** Die Karten-Layer zeigen
-> ausschließlich die OSM-Straßenabschnitte, die im Enrichment-Lauf
-> tatsächlich von mindestens einem Unfallpunkt getroffen wurden
-> (`matched_way_id` in der per-City GeoJSON). Sie sind **kein
-> vollständiges Straßennetz-Modell**: Straßen ohne Unfälle im
-> Datensatz werden bewusst nicht eingefärbt, damit die Visualisierung
-> dem im Atlas analysierten Materialumfang entspricht. Wer das
-> komplette Netz sehen will, blendet zusätzlich eine externe
-> OSM-Kachelschicht ein.
+> **Wichtig — Datenausschnitt:** Die Karten-Layer zeigen ausschließlich
+> die OSM-Straßenabschnitte, die im Enrichment-Lauf tatsächlich von
+> mindestens einem Unfallpunkt getroffen wurden. Vollständige
+> Beschreibung (kanonisch) in
+> [`docs/enrichment.md` → „Datenausschnitt: matched-only, kein vollständiges Straßennetz"](docs/enrichment.md#matched-only-disclaimer).
 
 Die bestehenden Chip-Filter („Kontext-Filter (Detailanalyse)") bleiben
 als Sekundärwerkzeug erhalten und blenden Unfallpunkte unabhängig von
