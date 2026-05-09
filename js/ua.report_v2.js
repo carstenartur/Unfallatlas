@@ -78,7 +78,9 @@
     "Bezugsdokumente:",
     "Beschlussvorschlag:",
     "Hinweis (intern)",
-    "Datenquelle"
+    "Datenquelle",
+    "Datenerfassung",
+    "Kontextdaten"
   ];
 
   // =====================================================================
@@ -2600,6 +2602,29 @@
       }
     }
 
+    // ---- 8b2. PR-E – KONTEXTDATEN-QUELLENHINWEIS ----
+    // Dokumentiert die Datenquellen für Topographie-/OSM-/Verkehrslast-
+    // Felder. Wird nur dann gerendert, wenn der Datensatz sie tatsächlich
+    // trägt (`sd.enrichmentSourcesNote` ist sonst null).
+    {
+      const enrichNote = sd && sd.enrichmentSourcesNote;
+      if (enrichNote) {
+        children.push(new Paragraph({
+          text: enrichNote.title,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 200 }
+        }));
+        children.push(new Paragraph({ text: enrichNote.body, spacing: { after: 100 } }));
+        for (const src of enrichNote.sources) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, size: 18 })],
+            spacing: { after: 50 }
+          }));
+        }
+        children.push(new Paragraph({ text: "", spacing: { after: 150 } }));
+      }
+    }
+
     // ---- 8c. MEHRJAHRES-TREND (#C2) ----
     if (sd && sd.yearlyTrend && Array.isArray(sd.yearlyTrend.years) && sd.yearlyTrend.years.length > 0
         && !sectionGuard("MEHRJAHRES-TREND")) {
@@ -4564,6 +4589,20 @@
           }
           docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
         }
+      }
+    }
+
+    // ---- PR-E – KONTEXTDATEN-QUELLENHINWEIS ----
+    // Spiegel zum DOCX-Block; nur wenn der Datensatz Kontextfelder trägt.
+    {
+      const enrichNote = sd && sd.enrichmentSourcesNote;
+      if (enrichNote) {
+        docDefinition.content.push({ text: enrichNote.title, style: "subheader" });
+        docDefinition.content.push({ text: enrichNote.body, style: "normal" });
+        for (const src of enrichNote.sources) {
+          docDefinition.content.push({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, fontSize: 8, margin: [8, 0, 0, 2] });
+        }
+        docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
       }
     }
 
