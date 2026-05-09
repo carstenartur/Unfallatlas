@@ -95,6 +95,13 @@
                 ctx._dataChanged = true;
                 try { UA.renderLayers(ctx); } catch (_) { /* keep going */ }
               }
+              // First-class context map overlays: now that the per-way
+              // geometry table is hydrated, (re-)wire the slope /
+              // traffic Leaflet controls. Idempotent — refresh tears
+              // down any prior controls before rebuilding.
+              if (typeof UA.refreshContextOverlays === 'function' && ctx.map) {
+                try { UA.refreshContextOverlays(ctx); } catch (_) { /* keep going */ }
+              }
             })
             .catch(() => { /* optional file: stay null, popup degrades gracefully */ });
         } catch (_) { /* idle-callback unavailable: ignore */ }

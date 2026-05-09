@@ -67,6 +67,36 @@ essentially the same size it was before enrichment.
 | `traffic_volume_source` | string | traffic |
 | `traffic_volume_confidence` | string | traffic |
 
+### `ways_<city>.json` schema (v2)
+
+The companion file uses a small wrapper object so a new
+**`geometries`** block can ship side-by-side with the per-way attribute
+table. The loader (`js/ua.context_layers.js`) accepts both this v2
+shape and the legacy flat `{ "<wayId>": { …attrs } }` shape, so older
+caches stay readable while a new producer rolls out.
+
+```json
+{
+  "schemaVersion": 2,
+  "ways": {
+    "12345": { "highway": 0, "maxspeed": 30, "road_slope_percent": 4.2 }
+  },
+  "geometries": {
+    "12345": [50.12345, 7.98765, 50.12350, 7.98770, 50.12360, 7.98780]
+  }
+}
+```
+
+`geometries[wayId]` is a **flat `[lat, lon, lat, lon, …]` array** of
+5-decimal floats (≈ 1.1 m precision), pre-generalised once at
+enrichment time with Douglas–Peucker (default tolerance ≈ 3 m, raise
+via `opts.geomToleranceM` in `enrichCity`). The flat encoding gzips
+roughly 2× smaller than the equivalent `[{lat,lon}, …]` array. The
+block is **optional** — when the OSM producer cannot supply a
+polyline, the key is omitted entirely; the front-end's
+"Straßensteigung" / "Verkehrsbelastung" map overlays then stay empty
+and the chip filters keep working unchanged.
+
 High-cardinality categorical fields (`highway`, `surface`, `cycleway`)
 are written as **short integer codes**. The lookup tables live at the
 FeatureCollection's top level under `properties.enrichmentDicts`, e.g.

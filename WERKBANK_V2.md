@@ -33,6 +33,27 @@ Die V2-Version verwendet zusätzlich folgende Module:
 - `ua.video-export.js` – Client-seitiger Video-Export (Parameter-Sammlung für Docker-basierte GIF-Erzeugung)
 - `ua.app_v2.js` – V2-spezifische App-Logik (dynamischer Modal-Titel, Tour-Integration)
 - `ua.map_v2.js` – V2-Kartenlogik (Detailkarte, erweiterte Heatmap-Steuerung)
+- `ua.context_road_layer.js` – First-class Karten-Layer für Straßenkontext
+  („Straßensteigung" / „Verkehrsbelastung", siehe unten)
+
+## Karten-Layer: Straßensteigung / Verkehrsbelastung
+
+Wenn die Stadt mit Slope- bzw. DTV-Daten angereichert wurde, blendet
+die Karte oben links ein **Karten-Layer-Control** ein (Checkboxen
+„Straßensteigung" und „Verkehrsbelastung"). Beim Aktivieren werden die
+betroffenen Straßenabschnitte direkt auf der Karte farbig eingefärbt
+(Canvas-Rendering, Klassen-Rampe siehe Legende unten links). Beide
+Overlays sind defaultmäßig **aus** und merken sich ihren Zustand in
+der URL (`?mapLayer=slope,traffic`) — geteilte Links bringen die
+Layer-Sichtbarkeit also mit.
+
+Die bestehenden Chip-Filter („Kontext-Filter (Detailanalyse)") bleiben
+als Sekundärwerkzeug erhalten und blenden Unfallpunkte unabhängig von
+den Map-Layern aus. URL-Keys (`ctxSlope`, `ctxTraffic`,
+`ctxOnlyMatched`) sind unverändert.
+
+> Screenshot-Platzhalter: *Karten-Layer Straßensteigung / Verkehrsbelastung*
+
 
 ## POI-Integration
 

@@ -143,10 +143,27 @@
         fetch(u.ways, { cache: 'force-cache' }).catch(() => null),
         fetch(u.meta, { cache: 'force-cache' }).catch(() => null),
       ]);
-      const ways = (waysResp && waysResp.ok) ? await waysResp.json().catch(() => null) : null;
+      const raw  = (waysResp && waysResp.ok) ? await waysResp.json().catch(() => null) : null;
       const meta = (metaResp && metaResp.ok) ? await metaResp.json().catch(() => null) : null;
       const dicts = (ctx && (ctx.geojsonProps?.enrichmentDicts || ctx.enrichmentDicts)) || null;
-      return { slug: u.slug, ways, meta, dicts };
+
+      // ways_<city>.json supports two shapes:
+      //   v2 (current): { schemaVersion: 2, ways: {…}, geometries: {…} }
+      //   v1 (legacy):  { "<wayId>": {attrs}, ... }
+      // The v2 shape is a strict superset; v1 is detected by the
+      // absence of a `ways` map and the presence of object values.
+      let ways = null, geometries = null;
+      if (raw && typeof raw === 'object') {
+        if (raw.ways && typeof raw.ways === 'object') {
+          ways = raw.ways;
+          geometries = (raw.geometries && typeof raw.geometries === 'object')
+            ? raw.geometries : null;
+        } else {
+          // Legacy flat shape — every top-level value is a per-way attrs object.
+          ways = raw;
+        }
+      }
+      return { slug: u.slug, ways, geometries, meta, dicts };
     })();
 
     cache.set(u.slug, p);

@@ -176,6 +176,12 @@
       ctxSlope:        slopeStr,
       ctxTraffic:      trafficStr,
       ctxOnlyMatched:  cf.onlyMatchedWays ? 1 : 0,
+      // First-class context map overlays (slope/traffic). CSV; empty
+      // string when no overlay is active. See UA.refreshContextOverlays
+      // and UA.parseMapLayerCsv.
+      mapLayer: (typeof UA.serializeMapLayerCsv === 'function')
+        ? UA.serializeMapLayerCsv(ctx.contextOverlays && ctx.contextOverlays.active)
+        : '',
     });
     UA.syncViewToUrl(ctx);
   };
@@ -458,8 +464,9 @@
   };
 
   /**
-   * Show/hide the Kontext (neu) section and its sub-rows based on which
-   * capabilities the loaded city actually carries
+   * Show/hide the "Kontext-Filter (Detailanalyse)" section and its
+   * sub-rows based on which capabilities the loaded city actually
+   * carries
    * (ctx.contextCapabilities, populated by ua.data_v2.loadCityData via
    * UA.contextLayers.capabilitiesFromDetection). When a row is hidden,
    * its filter is also reset so we don't leak a hidden restriction.

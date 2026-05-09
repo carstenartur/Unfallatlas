@@ -10,7 +10,9 @@
  *
  * Input:  out/output_all_years_<city>.geojson
  * Output: out/output_all_years_<city>.geojson  (in-place, enriched)
- *         out/ways_<city>.json                  (per-way attribute table)
+ *         out/ways_<city>.json                  (per-way attribute table
+ *                                                + generalised geometries
+ *                                                — see "geometries" block)
  *         out/output_all_years_<city>.enrichment.meta.json (sidecar)
  *
  * Design constraints (see plan §C):
@@ -155,6 +157,94 @@ function stripUndefined(obj) {
 }
 
 // ---------------------------------------------------------------------------
+// Geometry generalization (Douglas–Peucker)
+//
+// The producer (`scripts/producers/osm_producer.js`) ships the full
+// per-way polyline. We generalise it once at enrichment time so the
+// front-end "Straßensteigung" / "Verkehrsbelastung" map overlays can
+// render thousands of road segments in a single canvas pass without
+// blowing up the on-disk `ways_<city>.json`.
+//
+// The default tolerance (~3 m) is generous enough to absorb OSM node
+// jitter while preserving curvature; raise via opts.geomToleranceM
+// (e.g. 10 m for very dense cities).
+// ---------------------------------------------------------------------------
+
+const DEFAULT_GEOM_TOLERANCE_M = 3;
+const COORD_DECIMALS = 5; // ≈ 1.1 m — same precision as POINT_LOOKUP_PRECISION
+
+// Equirectangular metres-per-degree at mid-European latitude (50°N).
+// Plenty accurate for sub-kilometre Douglas–Peucker tolerance.
+const M_PER_DEG_LAT = 111_320;
+function mPerDegLon(latDeg) {
+  return Math.cos((latDeg * Math.PI) / 180) * M_PER_DEG_LAT;
+}
+
+// Perpendicular distance (metres) from point P to segment AB.
+function perpendicularDistanceM(p, a, b) {
+  const lat0 = (a.lat + b.lat) / 2;
+  const mxLon = mPerDegLon(lat0);
+  const ax = (a.lon) * mxLon, ay = a.lat * M_PER_DEG_LAT;
+  const bx = (b.lon) * mxLon, by = b.lat * M_PER_DEG_LAT;
+  const px = (p.lon) * mxLon, py = p.lat * M_PER_DEG_LAT;
+  const dx = bx - ax, dy = by - ay;
+  const seg2 = dx * dx + dy * dy;
+  if (seg2 === 0) {
+    const ex = px - ax, ey = py - ay;
+    return Math.sqrt(ex * ex + ey * ey);
+  }
+  // Project P onto AB, clamp to segment, then measure.
+  let t = ((px - ax) * dx + (py - ay) * dy) / seg2;
+  if (t < 0) t = 0; else if (t > 1) t = 1;
+  const cx = ax + t * dx, cy = ay + t * dy;
+  const ex = px - cx, ey = py - cy;
+  return Math.sqrt(ex * ex + ey * ey);
+}
+
+function douglasPeucker(points, toleranceM) {
+  if (!Array.isArray(points) || points.length <= 2) return points || [];
+  // Iterative DP — no recursion-depth risk on long ways.
+  const keep = new Uint8Array(points.length);
+  keep[0] = 1; keep[points.length - 1] = 1;
+  const stack = [[0, points.length - 1]];
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    let maxD = 0, idx = -1;
+    for (let k = i + 1; k < j; k++) {
+      const d = perpendicularDistanceM(points[k], points[i], points[j]);
+      if (d > maxD) { maxD = d; idx = k; }
+    }
+    if (idx !== -1 && maxD > toleranceM) {
+      keep[idx] = 1;
+      stack.push([i, idx], [idx, j]);
+    }
+  }
+  const out = [];
+  for (let k = 0; k < points.length; k++) if (keep[k]) out.push(points[k]);
+  return out;
+}
+
+function roundCoord(n) {
+  const f = Math.pow(10, COORD_DECIMALS);
+  return Math.round(n * f) / f;
+}
+
+/**
+ * Encode a generalised polyline as a flat `[lat, lon, lat, lon, ...]`
+ * array of 5-decimal numbers. Flat-array encoding is roughly 2× smaller
+ * gzipped than the equivalent `[{lat,lon},...]` representation while
+ * remaining trivial to decode in the browser.
+ */
+function encodeGeometry(points) {
+  const out = new Array(points.length * 2);
+  for (let i = 0; i < points.length; i++) {
+    out[i * 2]     = roundCoord(points[i].lat);
+    out[i * 2 + 1] = roundCoord(points[i].lon);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Providers
 //
 // Each provider receives (citySlug, providerOpts) and returns either a
@@ -215,6 +305,19 @@ function loadOsmProvider(citySlug) {
         cycleway:     w.cycleway     != null ? String(w.cycleway): undefined,
         osm_incline:  w.osm_incline  != null ? String(w.osm_incline) : undefined,
       });
+    },
+    wayGeometry(wayId) {
+      const wg = data.wayGeometries;
+      if (!wg) return null;
+      const g = wg[wayId];
+      if (!Array.isArray(g) || g.length < 2) return null;
+      const out = [];
+      for (const p of g) {
+        if (Number.isFinite(p?.lat) && Number.isFinite(p?.lon)) {
+          out.push({ lat: p.lat, lon: p.lon });
+        }
+      }
+      return out.length >= 2 ? out : null;
     },
   };
 }
@@ -344,8 +447,16 @@ function enrichCity(geojson, citySlug, opts = {}) {
   // that maps to a traffic-bearing way without re-invoking the
   // provider.
   const ways = {};
+  const geometries = {};                // wayId → flat [lat,lon,lat,lon,...] (generalised)
   const wayEnriched   = new Set();   // wayIds for which OSM/DEM lookups already ran
   const wayProxyClass = new Map();   // wayId → traffic_proxy_class (or undefined)
+
+  // Generalisation tolerance for the per-way polylines we ship in
+  // ways_<city>.json. Documented default = ~3 m; raise for very dense
+  // cities. Set to 0 to disable generalisation entirely (tests).
+  const geomToleranceM = (typeof opts.geomToleranceM === 'number' && opts.geomToleranceM >= 0)
+    ? opts.geomToleranceM
+    : DEFAULT_GEOM_TOLERANCE_M;
 
   let nMatched = 0, nElevated = 0, nTraffic = 0;
 
@@ -383,6 +494,19 @@ function enrichCity(geojson, citySlug, opts = {}) {
         if (osm) {
           const a = osm.wayAttributes(wayId);
           if (a) Object.assign(w, a);
+          // Per-way polyline (full vertex list from the OSM producer)
+          // → generalised + flat-encoded for the front-end overlay.
+          if (typeof osm.wayGeometry === 'function') {
+            const raw = osm.wayGeometry(wayId);
+            if (Array.isArray(raw) && raw.length >= 2) {
+              const simplified = geomToleranceM > 0
+                ? douglasPeucker(raw, geomToleranceM)
+                : raw;
+              if (Array.isArray(simplified) && simplified.length >= 2) {
+                geometries[wayId] = encodeGeometry(simplified);
+              }
+            }
+          }
         }
         if (dem) {
           const a = dem.wayElevation(wayId);
@@ -456,11 +580,12 @@ function enrichCity(geojson, citySlug, opts = {}) {
       withElevation: nElevated,
       withTrafficProxy: nTraffic,
       ways: Object.keys(ways).length,
+      wayGeometries: Object.keys(geometries).length,
     },
     dictFields: Object.keys(dicts),
   };
 
-  return { geojson, ways, meta };
+  return { geojson, ways, geometries, meta };
 }
 
 // ---------------------------------------------------------------------------
@@ -487,12 +612,21 @@ function enrichCityFile(repoRoot, citySlug, opts) {
   try { geojson = JSON.parse(raw); }
   catch (e) { return { citySlug, skipped: true, reason: `invalid JSON: ${e.message}` }; }
 
-  const { ways, meta } = enrichCity(geojson, citySlug, opts);
+  const { ways, geometries, meta } = enrichCity(geojson, citySlug, opts);
 
   // Write enriched GeoJSON. We deliberately write compact (no
   // indentation) — matches the existing on-disk format produced by
   // convertAmt2gmaps.sh, and is the smallest viable representation.
   fs.writeFileSync(p.geojson, JSON.stringify(geojson));
+
+  // Compose the on-disk `ways_<city>.json` payload. New shape (v2):
+  //   { schemaVersion: 2, ways: {…}, geometries: {…} }
+  // The loader (`js/ua.context_layers.js`) accepts both this shape and
+  // the legacy flat `{ wayId: attrs }` shape so caches stay readable
+  // while a new producer rolls out.
+  const waysPayload = (geometries && Object.keys(geometries).length > 0)
+    ? { schemaVersion: 2, ways, geometries }
+    : { schemaVersion: 2, ways };
 
   // The companion ways file and the meta sidecar are only meaningful
   // when at least one provider produced data. Skipping them in the
@@ -503,7 +637,7 @@ function enrichCityFile(repoRoot, citySlug, opts) {
   const hasEnrichment = Object.keys(ways).length > 0
     || Object.keys(meta.sources || {}).length > 0;
   if (hasEnrichment) {
-    fs.writeFileSync(p.ways, JSON.stringify(ways));
+    fs.writeFileSync(p.ways, JSON.stringify(waysPayload));
     fs.writeFileSync(p.meta, JSON.stringify(meta, null, 2) + '\n');
   } else {
     // Clean up any stale companion files from a previous run that did
@@ -613,9 +747,12 @@ module.exports = {
   PER_FEATURE_FIELDS,
   PER_WAY_FIELDS,
   DICT_FIELDS,
+  DEFAULT_GEOM_TOLERANCE_M,
   slugCity,
   classifySlope,
   classifyTrafficProxy,
+  douglasPeucker,
+  encodeGeometry,
   enrichCity,
   enrichCityFile,
   pathsForCity,

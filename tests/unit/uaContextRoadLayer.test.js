@@ -1,0 +1,198 @@
+'use strict';
+
+/**
+ * Tests for js/ua.context_road_layer.js
+ *
+ * Covers the pure helpers (class → colour, classification from per-way
+ * attrs, polyline decode), the layer builder against a fake Leaflet
+ * stub + fake hydrated state, and the legend HTML.
+ */
+
+const fs   = require('fs');
+const path = require('path');
+
+function loadModule() {
+  // Stub Leaflet just enough to record calls without DOM.
+  const layerGroupCalls = [];
+  const polylineCalls = [];
+  const fakeRenderer  = { _id: 'canvas' };
+  const win = {
+    UA: {},
+    L: {
+      canvas: () => fakeRenderer,
+      layerGroup: () => {
+        const layers = [];
+        const lg = {
+          _layers: layers,
+          addLayer: (l) => { layers.push(l); return lg; },
+          getLayers: () => layers.slice(),
+          addTo: () => lg,
+          remove: () => lg,
+        };
+        layerGroupCalls.push(lg);
+        return lg;
+      },
+      polyline: (latlngs, opts) => {
+        const obj = { _latlngs: latlngs, _opts: opts, feature: null };
+        polylineCalls.push(obj);
+        return obj;
+      },
+    },
+    document: global.document,
+  };
+  const filePath = path.resolve(__dirname, '../../js/ua.context_road_layer.js');
+  const src = fs.readFileSync(filePath, 'utf8');
+  (function (window, document) { eval(src); })(win, global.document);
+  return { UA: win.UA, polylineCalls, layerGroupCalls };
+}
+
+describe('UA.contextRoadLayer — class colour mappings', () => {
+  test('exposes ordered class lists matching the chip filters', () => {
+    const { UA } = loadModule();
+    expect(UA.contextRoadLayer.SLOPE_CLASS_VALUES)
+      .toEqual(['flat', 'gentle', 'moderate', 'steep', 'very_steep']);
+    expect(UA.contextRoadLayer.TRAFFIC_CLASS_VALUES)
+      .toEqual(['low', 'medium', 'high', 'very_high']);
+  });
+
+  test('slopeClassColor / trafficClassColor return ordered ramps and null for unknown', () => {
+    const { UA } = loadModule();
+    for (const cls of UA.contextRoadLayer.SLOPE_CLASS_VALUES) {
+      expect(UA.contextRoadLayer.slopeClassColor(cls)).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+    for (const cls of UA.contextRoadLayer.TRAFFIC_CLASS_VALUES) {
+      expect(UA.contextRoadLayer.trafficClassColor(cls)).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+    expect(UA.contextRoadLayer.slopeClassColor('bogus')).toBeNull();
+    expect(UA.contextRoadLayer.trafficClassColor(null)).toBeNull();
+  });
+
+  test('classifySlope/classifyTrafficProxy match the documented thresholds', () => {
+    const { UA } = loadModule();
+    expect(UA.contextRoadLayer.classifySlope(0)).toBe('flat');
+    expect(UA.contextRoadLayer.classifySlope(3)).toBe('gentle');
+    expect(UA.contextRoadLayer.classifySlope(-3)).toBe('gentle');
+    expect(UA.contextRoadLayer.classifySlope(8)).toBe('steep');
+    expect(UA.contextRoadLayer.classifySlope(15)).toBe('very_steep');
+    expect(UA.contextRoadLayer.classifyTrafficProxy(500)).toBe('low');
+    expect(UA.contextRoadLayer.classifyTrafficProxy(20000)).toBe('very_high');
+    expect(UA.contextRoadLayer.classifySlope(undefined)).toBeNull();
+  });
+});
+
+describe('UA.contextRoadLayer — classify*FromAttrs', () => {
+  test('classifySlopeFromAttrs prefers road_slope_percent, falls back to osm_incline', () => {
+    const { UA } = loadModule();
+    expect(UA.contextRoadLayer.classifySlopeFromAttrs({ road_slope_percent: 5 })).toBe('moderate');
+    expect(UA.contextRoadLayer.classifySlopeFromAttrs({ osm_incline: '7%' })).toBe('steep');
+    expect(UA.contextRoadLayer.classifySlopeFromAttrs({ osm_incline: 'up' })).toBeNull();
+    expect(UA.contextRoadLayer.classifySlopeFromAttrs({})).toBeNull();
+    expect(UA.contextRoadLayer.classifySlopeFromAttrs(null)).toBeNull();
+  });
+
+  test('classifyTrafficFromAttrs prefers explicit DTV value, falls back to highway proxy', () => {
+    const { UA } = loadModule();
+    expect(UA.contextRoadLayer.classifyTrafficFromAttrs({ traffic_volume_value: 8000 })).toBe('high');
+    expect(UA.contextRoadLayer.classifyTrafficFromAttrs({ highway: 'motorway' })).toBe('very_high');
+    expect(UA.contextRoadLayer.classifyTrafficFromAttrs({ highway: 'residential' })).toBe('low');
+    expect(UA.contextRoadLayer.classifyTrafficFromAttrs({ highway: 'unknown_kind' })).toBeNull();
+    expect(UA.contextRoadLayer.classifyTrafficFromAttrs({})).toBeNull();
+  });
+});
+
+describe('UA.contextRoadLayer — decodeGeometry', () => {
+  test('decodes a flat lat/lon array into [[lat,lon], ...]', () => {
+    const { UA } = loadModule();
+    expect(UA.contextRoadLayer.decodeGeometry([50, 7, 50.001, 7.001]))
+      .toEqual([[50, 7], [50.001, 7.001]]);
+  });
+
+  test('returns null on malformed input', () => {
+    const { UA } = loadModule();
+    expect(UA.contextRoadLayer.decodeGeometry(null)).toBeNull();
+    expect(UA.contextRoadLayer.decodeGeometry([1, 2])).toBeNull();         // <2 points
+    expect(UA.contextRoadLayer.decodeGeometry([1, 2, 3])).toBeNull();      // odd length
+    expect(UA.contextRoadLayer.decodeGeometry([NaN, 1, 2, 3])).toBeNull(); // non-finite
+  });
+});
+
+describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
+  function fakeState() {
+    return {
+      ways: {
+        'W1': { highway: 0, road_slope_percent: 7 },   // → "steep"
+        'W2': { highway: 1 },                          // → no slope
+        'W3': { highway: 2, road_slope_percent: 1 },   // → "flat"
+      },
+      dicts: { highway: ['residential', 'service', 'motorway'] },
+      geometries: {
+        'W1': [50, 7, 50.001, 7.001],
+        'W2': [50.1, 7, 50.101, 7.001],
+        'W3': [50.2, 7, 50.201, 7.001],
+        'W_no_attrs': [50.3, 7, 50.301, 7.001],   // no entry in ways → skipped
+      },
+    };
+  }
+
+  test('buildSlopeLayer renders one polyline per way that has a slope class', () => {
+    const { UA, polylineCalls } = loadModule();
+    const layer = UA.contextRoadLayer.buildSlopeLayer(fakeState());
+    expect(layer.getLayers()).toHaveLength(2);  // W1 + W3
+    // Colours come from the slope ramp.
+    const colors = polylineCalls.map(p => p._opts.color);
+    expect(colors).toEqual(expect.arrayContaining([
+      UA.contextRoadLayer.slopeClassColor('steep'),
+      UA.contextRoadLayer.slopeClassColor('flat'),
+    ]));
+    // Each line carries a tiny feature payload for hover tooltips.
+    for (const p of polylineCalls) {
+      expect(p.feature.properties.kind).toBe('slope');
+      expect(typeof p.feature.properties.way_id).toBe('string');
+      expect(UA.contextRoadLayer.SLOPE_CLASS_VALUES)
+        .toContain(p.feature.properties.class);
+    }
+  });
+
+  test('buildTrafficLayer uses the resolved highway dict for classification', () => {
+    const { UA, polylineCalls } = loadModule();
+    const layer = UA.contextRoadLayer.buildTrafficLayer(fakeState());
+    // All three ways have a `highway` value → all three get a traffic class.
+    expect(layer.getLayers()).toHaveLength(3);
+    // motorway → very_high
+    const veryHigh = polylineCalls.find(
+      p => p._opts.color === UA.contextRoadLayer.trafficClassColor('very_high'));
+    expect(veryHigh).toBeTruthy();
+    expect(veryHigh.feature.properties.kind).toBe('traffic');
+  });
+
+  test('returns an empty layer when state has no geometries (lazy-load not done)', () => {
+    const { UA } = loadModule();
+    const layer = UA.contextRoadLayer.buildSlopeLayer({ ways: {}, dicts: {} });
+    expect(layer.getLayers()).toHaveLength(0);
+  });
+});
+
+describe('UA.contextRoadLayer — buildLegend', () => {
+  test('returns a DOM element with one swatch + label per class', () => {
+    const { UA } = loadModule();
+    const el = UA.contextRoadLayer.buildLegend('slope');
+    expect(el.tagName).toBe('DIV');
+    expect(el.className).toMatch(/context-road-legend/);
+    const rows = el.querySelectorAll('.context-road-legend__row');
+    expect(rows.length).toBe(UA.contextRoadLayer.SLOPE_CLASS_VALUES.length);
+    // Each row carries a coloured swatch.
+    for (const row of rows) {
+      const sw = row.querySelector('.context-road-legend__swatch');
+      expect(sw.style.background).not.toBe('transparent');
+    }
+  });
+
+  test('traffic legend uses the traffic ramp', () => {
+    const { UA } = loadModule();
+    const el = UA.contextRoadLayer.buildLegend('traffic');
+    const rows = el.querySelectorAll('.context-road-legend__row');
+    expect(rows.length).toBe(UA.contextRoadLayer.TRAFFIC_CLASS_VALUES.length);
+    expect(el.querySelector('.context-road-legend__title').textContent)
+      .toMatch(/Verkehr/);
+  });
+});

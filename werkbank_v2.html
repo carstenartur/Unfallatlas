@@ -154,7 +154,12 @@
         verwirren.
       -->
       <div id="ctxFilterSection" hidden>
-        <div style="margin-top:10px; font-weight:900;">Kontext (neu)</div>
+        <div style="margin-top:10px; font-weight:900;">Kontext-Filter (Detailanalyse)</div>
+        <div style="margin-top:2px; font-size:11px; color:#666; line-height:1.4;">
+          Die Karte zeigt Steigung und Verkehr farbig je Straßenabschnitt
+          (Karten-Layer oben links). Diese Filter blenden zusätzlich
+          einzelne Unfallpunkte aus.
+        </div>
         <details open style="margin-top:4px;">
           <summary style="cursor:pointer; user-select:none; font-size:12px; color:#555;">
             Topographie &amp; Straßenkontext
@@ -192,7 +197,8 @@
 
           <div style="margin-top:6px; font-size:11px; color:#777; line-height:1.4;">
             <em>Filter zeigen nur Unfälle, deren Umgebung den gewählten Kategorien entspricht.
-            Unfälle ohne entsprechende Kontextdaten werden ausgeblendet.</em>
+            Unfälle ohne entsprechende Kontextdaten werden ausgeblendet. Die farbige
+            Hervorhebung der Straßen selbst erfolgt über die Karten-Layer.</em>
           </div>
         </details>
       </div>
@@ -568,6 +574,7 @@
   <script src="js/ua.state.js?v=2026-01-01"></script>
   <script src="js/ua.ui.js?v=2026-01-01"></script>
   <script src="js/ua.context_layers.js?v=2026-01-01"></script>
+  <script src="js/ua.context_road_layer.js?v=2026-01-01"></script>
   <script src="js/ua.popup_context.js?v=2026-01-01"></script>
   <script src="js/ua.data_v2.js?v=2026-01-01"></script>
   <script src="js/ua.filters.js?v=2026-01-01"></script>

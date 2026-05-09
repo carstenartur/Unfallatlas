@@ -784,6 +784,236 @@
     }
   };
 
+  // ----------------------------
+  // Context road overlays ("Straßensteigung" / "Verkehrsbelastung")
+  //
+  // First-class map layers backed by the per-way geometry+attrs that
+  // `UA.contextLayers.loadAtIdle` lazily loads from `ways_<city>.json`.
+  // Overlays are off by default; toggling either one builds the
+  // Leaflet LayerGroup the first time and just flips visibility on
+  // subsequent toggles. Capability gating (`ctx.contextCapabilities`)
+  // hides controls for cities that don't carry the corresponding
+  // enrichment field.
+  //
+  // URL state: `?mapLayer=slope,traffic` (csv, empty when nothing
+  // active). Persisted through `UA.syncAllToUrl`; hydrated in
+  // `UA.app_v2`'s main() before `UA.refreshContextOverlays(ctx)` runs.
+  // ----------------------------
+
+  const CONTEXT_OVERLAY_KINDS = ['slope', 'traffic'];
+
+  UA.parseMapLayerCsv = function parseMapLayerCsv(raw) {
+    const out = { slope: false, traffic: false };
+    if (!raw) return out;
+    const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
+    for (const p of parts) if (p in out) out[p] = true;
+    return out;
+  };
+
+  UA.serializeMapLayerCsv = function serializeMapLayerCsv(active) {
+    const a = active || {};
+    const out = [];
+    for (const k of CONTEXT_OVERLAY_KINDS) if (a[k]) out.push(k);
+    return out.join(',');
+  };
+
+  // Internal: returns `ctx.contextOverlays`, lazily creating it. The
+  // registry holds the L.LayerGroup per kind (built on first toggle),
+  // the desired-active flags, the layer control, and the legend control.
+  function _ensureOverlayRegistry(ctx) {
+    if (!ctx.contextOverlays) {
+      ctx.contextOverlays = {
+        active:  { slope: false, traffic: false },
+        layers:  { slope: null,  traffic: null  },
+        // The controls are managed by refreshContextOverlays; track
+        // them so we can tear them down on city switch.
+        layerControl:  null,
+        legendControl: null,
+      };
+    }
+    return ctx.contextOverlays;
+  }
+
+  // Internal: build (or reuse) the L.LayerGroup for the given kind.
+  function _buildOverlay(ctx, kind) {
+    const reg = _ensureOverlayRegistry(ctx);
+    if (reg.layers[kind]) return reg.layers[kind];
+    if (!UA.contextRoadLayer) return null;
+    const state = ctx.contextLayerState;
+    if (!state || !state.geometries) return null;
+    try {
+      const layer = (kind === 'slope')
+        ? UA.contextRoadLayer.buildSlopeLayer(state)
+        : UA.contextRoadLayer.buildTrafficLayer(state);
+      reg.layers[kind] = layer;
+      return layer;
+    } catch (e) {
+      console.warn(`[context-overlay] build "${kind}" failed:`, e);
+      return null;
+    }
+  }
+
+  // Internal: refresh the floating legend so it shows the colour ramp
+  // for whichever overlays are currently visible. Idempotent.
+  function _refreshContextLegend(ctx) {
+    const reg = _ensureOverlayRegistry(ctx);
+    if (!reg.legendControl || !reg.legendControl._container) return;
+    const c = reg.legendControl._container;
+    while (c.firstChild) c.removeChild(c.firstChild);
+    let added = 0;
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      if (!reg.active[kind]) continue;
+      try {
+        c.appendChild(UA.contextRoadLayer.buildLegend(kind));
+        added++;
+      } catch (_) { /* ignore */ }
+    }
+    c.style.display = added > 0 ? '' : 'none';
+  }
+
+  // Public: set an overlay active/inactive. Lazy-builds + adds/removes
+  // the LayerGroup on `ctx.map`, persists state to the URL, and
+  // refreshes the floating legend. Safe to call when controls have
+  // not been wired (acts as a no-op).
+  UA.setContextOverlayActive = function setContextOverlayActive(ctx, kind, active) {
+    if (!CONTEXT_OVERLAY_KINDS.includes(kind)) return;
+    const reg = _ensureOverlayRegistry(ctx);
+    const want = !!active;
+    if (reg.active[kind] === want) return;
+
+    if (want) {
+      const layer = _buildOverlay(ctx, kind);
+      if (layer && ctx.map && typeof layer.addTo === 'function') {
+        try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
+      }
+    } else if (reg.layers[kind] && ctx.map && typeof reg.layers[kind].remove === 'function') {
+      try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
+    }
+    reg.active[kind] = want;
+    _refreshContextLegend(ctx);
+    if (typeof UA.syncAllToUrl === 'function') {
+      try { UA.syncAllToUrl(ctx); } catch (_) { /* tolerate hydration */ }
+    }
+  };
+
+  /**
+   * Wire (or re-wire) the context-overlay controls onto the map.
+   * Called once `ctx.contextLayerState` resolves and after every
+   * city switch. Idempotent — tears down previous controls first.
+   * Renders nothing for cities without the corresponding capability.
+   */
+  UA.refreshContextOverlays = function refreshContextOverlays(ctx) {
+    if (!ctx || !ctx.map || !window.L || !UA.contextRoadLayer) return;
+    const reg  = _ensureOverlayRegistry(ctx);
+    const caps = ctx.contextCapabilities || {};
+    const state = ctx.contextLayerState;
+    const hasGeom = !!(state && state.geometries && Object.keys(state.geometries).length);
+
+    // Detach any prior layers + controls so a city switch starts clean.
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      if (reg.layers[kind]) {
+        try { reg.layers[kind].remove(); } catch (_) {}
+        reg.layers[kind] = null;
+      }
+    }
+    if (reg.layerControl) {
+      try { reg.layerControl.remove(); } catch (_) {}
+      reg.layerControl = null;
+    }
+    if (reg.legendControl) {
+      try { reg.legendControl.remove(); } catch (_) {}
+      reg.legendControl = null;
+    }
+
+    // Determine which overlays the city actually supports.
+    const showSlope   = !!caps.hasSlope        && hasGeom;
+    const showTraffic = !!caps.hasTrafficProxy && hasGeom;
+    if (!showSlope && !showTraffic) {
+      // Reset stale active flags so a city switch can't leak a hidden
+      // restriction into the URL.
+      reg.active.slope   = false;
+      reg.active.traffic = false;
+      if (typeof UA.syncAllToUrl === 'function') {
+        try { UA.syncAllToUrl(ctx); } catch (_) {}
+      }
+      return;
+    }
+    if (!showSlope)   reg.active.slope   = false;
+    if (!showTraffic) reg.active.traffic = false;
+
+    // Layer control — top-left to avoid the existing draw + bottom-
+    // right legend controls. We use a custom control rather than
+    // `L.control.layers` so capability gating + URL persistence stay
+    // explicit and the styling matches the existing layer-legend UX.
+    const ctrl = window.L.control({ position: 'topleft' });
+    ctrl.onAdd = function() {
+      const c = window.L.DomUtil.create('div', 'context-overlay-control leaflet-bar');
+      window.L.DomEvent.disableClickPropagation(c);
+      window.L.DomEvent.disableScrollPropagation(c);
+      c.style.background = '#fff';
+      c.style.padding    = '6px 8px';
+      c.style.font       = '12px/1.3 system-ui, sans-serif';
+      c.style.borderRadius = '4px';
+
+      const title = document.createElement('div');
+      title.textContent = 'Karten-Layer';
+      title.style.fontWeight = '700';
+      title.style.marginBottom = '4px';
+      c.appendChild(title);
+
+      const add = (kind, label) => {
+        const id  = 'ctxOverlay_' + kind;
+        const row = document.createElement('label');
+        row.style.display = 'block';
+        row.style.cursor  = 'pointer';
+        row.htmlFor = id;
+        const cb  = document.createElement('input');
+        cb.type   = 'checkbox';
+        cb.id     = id;
+        cb.checked = !!reg.active[kind];
+        cb.setAttribute('data-context-overlay', kind);
+        cb.addEventListener('change', () => {
+          UA.setContextOverlayActive(ctx, kind, cb.checked);
+        });
+        row.appendChild(cb);
+        row.appendChild(document.createTextNode(' ' + label));
+        c.appendChild(row);
+      };
+      if (showSlope)   add('slope',   'Straßensteigung');
+      if (showTraffic) add('traffic', 'Verkehrsbelastung');
+      return c;
+    };
+    ctrl.addTo(ctx.map);
+    reg.layerControl = ctrl;
+
+    // Floating legend — bottom-left, only visible when ≥ 1 overlay active.
+    const legend = window.L.control({ position: 'bottomleft' });
+    legend.onAdd = function() {
+      const c = window.L.DomUtil.create('div', 'context-overlay-legend');
+      window.L.DomEvent.disableClickPropagation(c);
+      c.style.background  = 'rgba(255,255,255,0.92)';
+      c.style.padding     = '6px 8px';
+      c.style.borderRadius = '4px';
+      c.style.font        = '11px/1.3 system-ui, sans-serif';
+      c.style.maxWidth    = '220px';
+      c.style.display     = 'none';
+      return c;
+    };
+    legend.addTo(ctx.map);
+    reg.legendControl = legend;
+
+    // Re-apply the desired active flags (e.g. hydrated from URL).
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      if (reg.active[kind]) {
+        const layer = _buildOverlay(ctx, kind);
+        if (layer && typeof layer.addTo === 'function') {
+          try { layer.addTo(ctx.map); } catch (_) {}
+        }
+      }
+    }
+    _refreshContextLegend(ctx);
+  };
+
   UA.fitToAllPoints = function fitToAllPoints(ctx) {
     const points = ctx.allPts || [];
     if (!points.length) return;
