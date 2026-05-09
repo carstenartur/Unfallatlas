@@ -82,10 +82,13 @@ jobs:
           set -euo pipefail
           OSM_VER=$(node     -e "console.log(require('./scripts/producers/osm_producer.js').PRODUCER_VERSION)")
           DEM_VER=$(node     -e "console.log(require('./scripts/producers/dem_producer.js').PRODUCER_VERSION)")
+          TILE_VER=$(node    -e "console.log(require('./scripts/producers/dem_tile_producer.js').PRODUCER_VERSION)")
           TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer.js').PRODUCER_VERSION)")
           ISO_WEEK=$(date -u +%G-W%V)
+          YEAR=$(date -u +%Y)
           echo "osm=osm-${OSM_VER}-${ISO_WEEK}"             >> "$GITHUB_OUTPUT"
           echo "dem=dem-${DEM_VER}-${ISO_WEEK}"             >> "$GITHUB_OUTPUT"
+          echo "dem_tiles=dem-tiles-${TILE_VER}-${YEAR}"    >> "$GITHUB_OUTPUT"
           # Traffic key includes the OSM key so a refreshed OSM cache
           # invalidates the traffic cache (its input changed).
           echo "traffic=traffic-${TRAFFIC_VER}-osm-${OSM_VER}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
@@ -122,6 +125,28 @@ jobs:
           if [[ "${{ inputs.force_osm }}" == "true" ]]; then ARGS+=(--force); fi
           node scripts/producers/osm_producer.js "${ARGS[@]}"
 
+      # DEM tile cache — SRTM tiles change essentially never, so we use
+      # an annual cache key. `save-always: true` persists a partial
+      # download so the next run only fetches the tiles that are still
+      # missing. The tile downloader script is a separate step before
+      # the DEM producer so it can be skipped independently.
+      - name: Restore DEM tiles cache
+        if: ${{ inputs.skip_dem != true }}
+        id: dem_tiles_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/dem-tiles
+          key: ${{ steps.producer_cache_keys.outputs.dem_tiles }}
+          save-always: true
+
+      - name: Download DEM tiles
+        if: ${{ inputs.skip_dem != true }}
+        env:
+          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
+        run: |
+          set -euo pipefail
+          node scripts/producers/dem_tile_producer.js
+
       - name: Restore DEM producer cache
         if: ${{ inputs.skip_dem != true }}
         id: dem_cache
@@ -134,10 +159,13 @@ jobs:
       - name: Produce DEM source data
         # See "Produce OSM source data" — same reasoning: partial
         # caches and `force_dem` both need the producer to run.
+        # ENRICH_DEM_TILES_DIR activates local tile sampling by default,
+        # so no Open-Meteo API calls are made in the hot path.
         if: ${{ inputs.skip_dem != true }}
         env:
-          ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
-          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_OSM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
         run: |
           set -euo pipefail
           ARGS=()
