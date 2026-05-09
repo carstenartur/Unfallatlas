@@ -337,3 +337,130 @@ describe('enrich_geojson — file-on-disk wrapper', () => {
     expect(enrich.parseArgs(['--json'])).toMatchObject({ json: true });
   });
 });
+
+describe('enrich_geojson — geometries (PR: first-class context overlays)', () => {
+  test('douglasPeucker collapses straight-line points and keeps endpoints', () => {
+    // Five collinear points along the equator — DP must drop the
+    // three middle nodes when tolerance is well above zero.
+    const line = [
+      { lat: 0, lon: 0 },
+      { lat: 0, lon: 0.0001 },
+      { lat: 0, lon: 0.0002 },
+      { lat: 0, lon: 0.0003 },
+      { lat: 0, lon: 0.0004 },
+    ];
+    const out = enrich.douglasPeucker(line, 1);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toEqual({ lat: 0, lon: 0 });
+    expect(out[1]).toEqual({ lat: 0, lon: 0.0004 });
+  });
+
+  test('douglasPeucker preserves significant deviations', () => {
+    // Triangle: tip pokes ~110 m north of the baseline at the midpoint.
+    const tri = [
+      { lat: 50.0,    lon: 7.0   },
+      { lat: 50.001,  lon: 7.001 },  // ~110 m north → must survive
+      { lat: 50.0,    lon: 7.002 },
+    ];
+    expect(enrich.douglasPeucker(tri, 5)).toHaveLength(3);
+  });
+
+  test('encodeGeometry emits flat 5-decimal lat/lon array', () => {
+    const enc = enrich.encodeGeometry([{ lat: 50.123456, lon: 7.987654 }, { lat: 50.2, lon: 7.9 }]);
+    expect(enc).toEqual([50.12346, 7.98765, 50.2, 7.9]);
+  });
+
+  test('enrichCity emits a "geometries" block when the OSM provider exposes wayGeometry()', () => {
+    const providers = {
+      osm: {
+        source: 'OSM test',
+        matchFeature: (lat, lon) => (lat === 50.0 && lon === 7.0)
+          ? { matched_way_id: 'W1', road_context_source: 'osm' } : null,
+        wayAttributes: () => ({ highway: 'residential' }),
+        wayGeometry: (wayId) => (wayId === 'W1') ? [
+          { lat: 50.000, lon: 7.000 },
+          { lat: 50.001, lon: 7.001 },
+          { lat: 50.002, lon: 7.002 },
+        ] : null,
+      },
+      dem: null, traffic: null,
+    };
+    const gj = fcWith([ ptFeature(1, 7.0, 50.0) ]);
+    const r = enrich.enrichCity(gj, 'testcity', { providers, geomToleranceM: 0 });
+    expect(r.geometries).toBeTruthy();
+    expect(r.geometries.W1).toBeTruthy();
+    expect(r.geometries.W1.length % 2).toBe(0);
+    expect(r.geometries.W1.length).toBeGreaterThanOrEqual(4);
+    expect(r.meta.counts.wayGeometries).toBe(1);
+  });
+
+  test('enrichCity gracefully returns empty geometries when the OSM provider lacks wayGeometry()', () => {
+    const providers = {
+      osm: {
+        source: 'OSM legacy',
+        matchFeature: () => ({ matched_way_id: 'W1', road_context_source: 'osm' }),
+        wayAttributes: () => ({ highway: 'residential' }),
+        // No wayGeometry method — older provider.
+      },
+      dem: null, traffic: null,
+    };
+    const gj = fcWith([ ptFeature(1, 7.0, 50.0) ]);
+    const r = enrich.enrichCity(gj, 'testcity', { providers });
+    expect(r.geometries).toEqual({});
+    expect(r.meta.counts.wayGeometries).toBe(0);
+  });
+});
+
+describe('enrich_geojson — file-on-disk wrapper: ways_<city>.json schema', () => {
+  let tmpRoot;
+  beforeEach(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-enrich-shape-'));
+    fs.mkdirSync(path.join(tmpRoot, 'out'));
+  });
+  afterEach(() => { fs.rmSync(tmpRoot, { recursive: true, force: true }); });
+
+  test('writes the v2 shape { schemaVersion, ways, geometries } when geometries are present', () => {
+    const slug = 'bonn';
+    const gj = fcWith([ { type: 'Feature', geometry: { type: 'Point', coordinates: [7.0, 50.0] }, properties: { id: '1' } } ]);
+    const p  = enrich.pathsForCity(tmpRoot, slug);
+    fs.writeFileSync(p.geojson, JSON.stringify(gj));
+
+    const providers = {
+      osm: {
+        source: 'OSM test',
+        matchFeature: () => ({ matched_way_id: 'W1', road_context_source: 'osm' }),
+        wayAttributes: () => ({ highway: 'residential' }),
+        wayGeometry: () => [{ lat: 50, lon: 7 }, { lat: 50.001, lon: 7.001 }],
+      },
+      dem: null, traffic: null,
+    };
+    enrich.enrichCityFile(tmpRoot, slug, { providers });
+    const written = JSON.parse(fs.readFileSync(p.ways, 'utf8'));
+    expect(written.schemaVersion).toBe(2);
+    expect(written.ways).toBeTruthy();
+    expect(written.ways.W1).toBeTruthy();
+    expect(written.geometries).toBeTruthy();
+    expect(Array.isArray(written.geometries.W1)).toBe(true);
+  });
+
+  test('writes { schemaVersion, ways } (no geometries key) when the provider gives none', () => {
+    const slug = 'bonn';
+    const gj = fcWith([ { type: 'Feature', geometry: { type: 'Point', coordinates: [7.0, 50.0] }, properties: { id: '1' } } ]);
+    const p  = enrich.pathsForCity(tmpRoot, slug);
+    fs.writeFileSync(p.geojson, JSON.stringify(gj));
+
+    const providers = {
+      osm: {
+        source: 'OSM legacy',
+        matchFeature: () => ({ matched_way_id: 'W1', road_context_source: 'osm' }),
+        wayAttributes: () => ({ highway: 'residential' }),
+      },
+      dem: null, traffic: null,
+    };
+    enrich.enrichCityFile(tmpRoot, slug, { providers });
+    const written = JSON.parse(fs.readFileSync(p.ways, 'utf8'));
+    expect(written.schemaVersion).toBe(2);
+    expect(written.ways.W1).toBeTruthy();
+    expect(written.geometries).toBeUndefined();
+  });
+});

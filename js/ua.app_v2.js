@@ -278,6 +278,21 @@
     if (typeof UA.refreshContextFilterVisibility === 'function') {
       UA.refreshContextFilterVisibility(ctx);
     }
+    // First-class context map overlays (Straßensteigung /
+    // Verkehrsbelastung). Hydrate the desired state from the URL
+    // *before* refreshContextOverlays builds the controls, so a
+    // shared link with `?mapLayer=slope,traffic` shows the overlays
+    // immediately. Default is "all off"; the controls themselves only
+    // appear when the city carries the corresponding capability.
+    if (typeof UA.parseMapLayerCsv === 'function') {
+      const desired = UA.parseMapLayerCsv(UA.qGet('mapLayer', ''));
+      ctx.contextOverlays = ctx.contextOverlays || { active: { slope: false, traffic: false }, layers: { slope: null, traffic: null }, layerControl: null, legendControl: null };
+      ctx.contextOverlays.active.slope   = !!desired.slope;
+      ctx.contextOverlays.active.traffic = !!desired.traffic;
+    }
+    if (typeof UA.refreshContextOverlays === 'function') {
+      UA.refreshContextOverlays(ctx);
+    }
     bindExport(ctx);
 
     // Initialize tour module (gracefully degraded – only if ua.tour.js is loaded)

@@ -67,6 +67,47 @@ essentially the same size it was before enrichment.
 | `traffic_volume_source` | string | traffic |
 | `traffic_volume_confidence` | string | traffic |
 
+### `ways_<city>.json` schema (v2)
+
+The companion file uses a small wrapper object so a new
+**`geometries`** block can ship side-by-side with the per-way attribute
+table. The loader (`js/ua.context_layers.js`) accepts both this v2
+shape and the legacy flat `{ "<wayId>": { …attrs } }` shape, so older
+caches stay readable while a new producer rolls out.
+
+```json
+{
+  "schemaVersion": 2,
+  "ways": {
+    "12345": { "highway": 0, "maxspeed": 30, "road_slope_percent": 4.2 }
+  },
+  "geometries": {
+    "12345": [50.12345, 7.98765, 50.12350, 7.98770, 50.12360, 7.98780]
+  }
+}
+```
+
+`geometries[wayId]` is a **flat `[lat, lon, lat, lon, …]` array** of
+5-decimal floats (≈ 1.1 m precision), pre-generalised once at
+enrichment time with Douglas–Peucker (default tolerance ≈ 3 m, raise
+via `opts.geomToleranceM` in `enrichCity`). The flat encoding gzips
+roughly 2× smaller than the equivalent `[{lat,lon}, …]` array. The
+block is **optional** — when the OSM producer cannot supply a
+polyline, the key is omitted entirely; the front-end's
+"Straßensteigung" / "Verkehrsbelastung" map overlays then stay empty
+and the chip filters keep working unchanged.
+
+> **Scope of the road-context layers.** Only OSM ways that the
+> snapping step in `scripts/enrich_geojson.js` actually attached to at
+> least one accident point survive into `ways_<city>.json` and its
+> `geometries` block. Both the upstream OSM producer
+> (`scripts/producers/osm_producer.js`) and the enrichment step drop
+> all other ways. The "Straßensteigung" / "Verkehrsbelastung" map
+> overlays therefore visualise the **subset of the road network the
+> Atlas has data for**, not the full street network of the city. This
+> is intentional: the layers exist to colour the segments that drive
+> the analytical findings, not to compete with a base map.
+
 High-cardinality categorical fields (`highway`, `surface`, `cycleway`)
 are written as **short integer codes**. The lookup tables live at the
 FeatureCollection's top level under `properties.enrichmentDicts`, e.g.
@@ -189,7 +230,59 @@ class is *context*, not a cause**. The enrichment exposes the local
 environment of an accident; causal attribution remains a manual
 analytical step in the Maßnahmen-Workflow.
 
-## Pluggable providers
+## Roll-out: regenerating `ways_<city>.json` for v2 geometries
+
+The `geometries` block in the v2 schema is produced **only** when the
+upstream OSM producer (`scripts/producers/osm_producer.js`) ships the
+full per-way polyline. That capability landed with
+`PRODUCER_VERSION = '1.1.0'` (pre-1.1.0 caches stored only the first +
+last node and therefore cannot be turned into road overlays). The
+producer's CI cache is keyed on `PRODUCER_VERSION`, so a normal
+`enrich.yml` run after the bump will re-fetch from Overpass once and
+backfill the new geometry table.
+
+**QA checklist before merging a deploy that depends on the road
+overlays:**
+
+1. Confirm the latest `out/osm_<city>.json` was produced by
+   `osm_producer.js` ≥ 1.1.0. The producer version is not embedded in
+   the per-city file, so check either the `enrich.yml` run summary
+   (`producerVersion` field of the OSM job log) or spot-check that any
+   way under `.ways` has more than two entries in its `geometry`
+   array — pre-1.1.0 caches stored only the first + last node. If the
+   file is older, re-run `enrich.yml` (or its `osm` job); the cache
+   key is bumped so it will refetch from Overpass once.
+2. Re-run `node scripts/enrich_geojson.js` so each
+   `out/ways_<city>.json` is rewritten with `schemaVersion: 2` and a
+   non-empty `geometries` map. The script is idempotent, so re-running
+   on already-enriched data is safe.
+3. Spot-check one city in the browser: open
+   `werkbank_v2.html?city=<slug>&mapLayer=slope,traffic` — the
+   "Karten-Layer" control should appear top-left and the matched road
+   segments should be colour-coded.
+
+A fall-back is built in: a v1 (legacy flat) `ways_<city>.json` still
+loads — popups and chip filters keep working — but the road-overlay
+checkboxes stay disabled with a "(lädt …)" hint until a v2 file is
+deployed. There is no client-side migration; the file must be
+regenerated on the producer side.
+
+The unit suite enforces the schema contract:
+
+* `tests/unit/osmProducer.test.js` — full per-way geometry retained
+  for indexed ways, dropped for everything else; `PRODUCER_VERSION`
+  pinned.
+* `tests/unit/enrichGeojson.test.js` — `enrichCity()` emits
+  `schemaVersion: 2`, the `geometries` block, and the Douglas–Peucker
+  generalisation; the v2 file shape round-trips on disk.
+* `tests/unit/uaContextLayers.test.js` — loader accepts both v2 and
+  legacy flat shapes and exposes `state.geometries`.
+
+If any of those three suites starts failing on a producer-version bump
+or schema change, treat it as a roll-out gate, not an isolated test
+failure.
+
+
 
 `scripts/enrich_geojson.js` reads its source data from offline files
 located via env vars:

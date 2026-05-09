@@ -33,6 +33,37 @@ Die V2-Version verwendet zusätzlich folgende Module:
 - `ua.video-export.js` – Client-seitiger Video-Export (Parameter-Sammlung für Docker-basierte GIF-Erzeugung)
 - `ua.app_v2.js` – V2-spezifische App-Logik (dynamischer Modal-Titel, Tour-Integration)
 - `ua.map_v2.js` – V2-Kartenlogik (Detailkarte, erweiterte Heatmap-Steuerung)
+- `ua.context_road_layer.js` – First-class Karten-Layer für Straßenkontext
+  („Straßensteigung" / „Verkehrsbelastung", siehe unten)
+
+## Karten-Layer: Straßensteigung / Verkehrsbelastung
+
+Wenn die Stadt mit Slope- bzw. DTV-Daten angereichert wurde, blendet
+die Karte oben links ein **Karten-Layer-Control** ein (Checkboxen
+„Straßensteigung" und „Verkehrsbelastung"). Beim Aktivieren werden die
+betroffenen Straßenabschnitte direkt auf der Karte farbig eingefärbt
+(Canvas-Rendering, Klassen-Rampe siehe Legende unten links). Beide
+Overlays sind defaultmäßig **aus** und merken sich ihren Zustand in
+der URL (`?mapLayer=slope,traffic`) — geteilte Links bringen die
+Layer-Sichtbarkeit also mit.
+
+> **Wichtig — Datenausschnitt:** Die Karten-Layer zeigen
+> ausschließlich die OSM-Straßenabschnitte, die im Enrichment-Lauf
+> tatsächlich von mindestens einem Unfallpunkt getroffen wurden
+> (`matched_way_id` in der per-City GeoJSON). Sie sind **kein
+> vollständiges Straßennetz-Modell**: Straßen ohne Unfälle im
+> Datensatz werden bewusst nicht eingefärbt, damit die Visualisierung
+> dem im Atlas analysierten Materialumfang entspricht. Wer das
+> komplette Netz sehen will, blendet zusätzlich eine externe
+> OSM-Kachelschicht ein.
+
+Die bestehenden Chip-Filter („Kontext-Filter (Detailanalyse)") bleiben
+als Sekundärwerkzeug erhalten und blenden Unfallpunkte unabhängig von
+den Map-Layern aus. URL-Keys (`ctxSlope`, `ctxTraffic`,
+`ctxOnlyMatched`) sind unverändert.
+
+> Screenshot-Platzhalter: *Karten-Layer Straßensteigung / Verkehrsbelastung*
+
 
 ## POI-Integration
 

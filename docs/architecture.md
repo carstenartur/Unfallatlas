@@ -134,6 +134,18 @@ Wichtige Eigenschaften:
   Filter nie auseinanderlaufen.
 - **„Kontext nicht Ursache"** – als verpflichtender Disclaimer in
   Popup, Filter-Hinweistext und Export-Quellenblock.
+- **Kontext als Karten-Layer (first class).** `ways_<city>.json` enthält
+  in Schema v2 zusätzlich einen `geometries`-Block (per-Way generalisierte
+  Polylinien). `js/ua.context_road_layer.js` baut daraus zwei
+  Canvas-gerenderte Leaflet-Layer („Straßensteigung" + „Verkehrsbelastung"),
+  die per Karten-Layer-Control (oben links) ein-/ausgeschaltet werden
+  können. Die Overlays zeichnen **ausschließlich die im Enrichment-Lauf
+  gematchten OSM-Wege** (`matched_way_id` ≠ null) — sie sind kein
+  vollständiges Straßennetz-Modell, sondern spiegeln den im Atlas
+  analysierten Materialumfang wider. Die Chip-Filter (`#ctxFilterSection`)
+  bleiben erhalten als „Detailanalyse"-Sekundärwerkzeug; URL-Keys
+  (`ctxSlope`, `ctxTraffic`, `ctxOnlyMatched`) sind unverändert. Neuer
+  URL-Key: `mapLayer=slope,traffic`.
 
 Detaillierte Datenmodellbeschreibung, Cache-Schlüssel, Slope-Klassifikation
 und Größengarantien siehe [`docs/enrichment.md`](enrichment.md).

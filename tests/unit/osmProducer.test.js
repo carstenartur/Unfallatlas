@@ -346,6 +346,47 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
       else process.env.ENRICH_OSM_DATA_DIR = prevEnv;
     }
   });
+
+  test('keeps the full per-way polyline for ways the index touches, drops the rest', async () => {
+    // Two accidents — both snap to way #200. Way #999 is in the
+    // bbox response but no accident references it, so it must NOT
+    // appear in the `wayGeometries` table (size guard from §C).
+    const inputFc = fc([pt(1, 7.0001, 50.0), pt(2, 7.0009, 50.0)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(inputFc),
+    );
+    const outDir = path.join(tmpRoot, 'cache');
+    const r = await osm.produceCity(tmpRoot, 'bonn', {
+      outDir,
+      fetchOverpass: async () => ({
+        elements: [
+          { type: 'way', id: 200, tags: { highway: 'residential' },
+            geometry: [
+              { lat: 50, lon: 7.000 },
+              { lat: 50, lon: 7.0005 },
+              { lat: 50, lon: 7.0010 },
+              { lat: 50, lon: 7.0015 },
+            ] },
+          { type: 'way', id: 999, tags: { highway: 'service' },
+            geometry: [
+              { lat: 50.5, lon: 8.0 },
+              { lat: 50.5, lon: 8.001 },
+            ] },
+        ],
+      }),
+    });
+    expect(r.skipped).toBeFalsy();
+    const written = JSON.parse(fs.readFileSync(path.join(outDir, 'osm_bonn.json'), 'utf8'));
+    expect(written.wayGeometries).toBeTruthy();
+    // Way 200 is matched → full vertex list is preserved (4 nodes,
+    // not just the 2 endpoints we used to ship).
+    expect(written.wayGeometries['200']).toHaveLength(4);
+    expect(written.wayGeometries['200'][1]).toEqual({ lat: 50, lon: 7.0005 });
+    // Way 999 is unreferenced → not emitted at all.
+    expect(written.wayGeometries['999']).toBeUndefined();
+    expect(written.ways['999']).toBeUndefined();
+  });
 });
 
 describe('osm_producer — fetchOverpass retry policy', () => {

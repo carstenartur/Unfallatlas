@@ -51,7 +51,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const PRODUCER_VERSION = '1.0.0';
+const PRODUCER_VERSION = '1.1.0';
 
 const DEFAULT_OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
 const DEFAULT_OVERPASS_TIMEOUT_MS = 180_000;
@@ -456,17 +456,21 @@ function buildOsmDataset(fc, ways, opts) {
   for (const w of ways) {
     if (!usedWays.has(w.id)) continue;
     wayTable[w.id] = normalizeWay(w);
-    // Keep just the way's endpoints so the DEM producer can compute
-    // `road_slope_percent` without re-hitting Overpass. Endpoints are
-    // a tiny addition (~32 bytes/way) compared to the full inline
-    // geometry, and the enrichment script's `loadOsmProvider`
-    // ignores keys it doesn't know about.
+    // Keep the full polyline so the enrichment step can ship a
+    // generalised geometry per matched way in `ways_<city>.json` —
+    // this is what the front-end "Straßensteigung" / "Verkehrsbelastung"
+    // map overlays render. The DEM producer's `readOsmWaySpans`
+    // already only inspects `g[0]` and `g[g.length-1]`, so keeping
+    // the intermediate points is fully back-compatible.
     const g = w.geometry;
     if (Array.isArray(g) && g.length >= 2) {
-      wayGeometries[w.id] = [
-        { lat: g[0].lat, lon: g[0].lon },
-        { lat: g[g.length - 1].lat, lon: g[g.length - 1].lon },
-      ];
+      const coords = [];
+      for (const p of g) {
+        if (Number.isFinite(p?.lat) && Number.isFinite(p?.lon)) {
+          coords.push({ lat: p.lat, lon: p.lon });
+        }
+      }
+      if (coords.length >= 2) wayGeometries[w.id] = coords;
     }
   }
 

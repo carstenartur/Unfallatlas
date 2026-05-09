@@ -168,4 +168,46 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       UA.contextLayers.clearCache();
     }
   });
+
+  test('v2 ways_<city>.json shape — parses { ways, geometries } into state.ways + state.geometries', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    const v2 = {
+      schemaVersion: 2,
+      ways: { 'W1': { highway: 0 } },
+      geometries: { 'W1': [50, 7, 50.001, 7.001] },
+    };
+    global.fetch = (url) => {
+      if (url.endsWith('ways_bonn.json')) return Promise.resolve({ ok: true, json: async () => v2 });
+      return Promise.resolve({ ok: false });
+    };
+    try {
+      const state = await UA.contextLayers.load({}, 'Bonn');
+      expect(state.ways).toEqual({ 'W1': { highway: 0 } });
+      expect(state.geometries).toEqual({ 'W1': [50, 7, 50.001, 7.001] });
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  test('v1 (legacy) flat ways_<city>.json shape — still parses, geometries=null', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    const v1 = { 'W1': { highway: 0 }, 'W2': { highway: 1 } };
+    global.fetch = (url) => {
+      if (url.endsWith('ways_bonn.json')) return Promise.resolve({ ok: true, json: async () => v1 });
+      return Promise.resolve({ ok: false });
+    };
+    try {
+      const state = await UA.contextLayers.load({}, 'Bonn');
+      expect(state.ways).toEqual(v1);
+      expect(state.geometries).toBeNull();
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
 });
