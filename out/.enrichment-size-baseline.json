@@ -1,32 +1,6 @@
 {
-  "generatedAt": "2026-05-07T03:47:28.588Z",
+  "generatedAt": "2026-05-09T00:00:00.000Z",
   "thresholdPctDefault": 10,
-  "cities": {
-    "augsburg": 315523,
-    "berlin": 2365867,
-    "bielefeld": 171235,
-    "bochum": 162370,
-    "bonn": 212299,
-    "braunschweig": 138033,
-    "bremen": 550048,
-    "dortmund": 294086,
-    "dresden": 522506,
-    "duesseldorf": 383143,
-    "duisburg": 253421,
-    "essen": 280464,
-    "frankfurt_am_main": 623670,
-    "hamburg": 1705237,
-    "hannover": 538242,
-    "heilbronn": 122859,
-    "karlsruhe": 285253,
-    "koeln": 741409,
-    "leipzig": 465970,
-    "mannheim": 228379,
-    "muenchen": 1201166,
-    "muenster": 202395,
-    "nuernberg": 486888,
-    "stuttgart": 446909,
-    "wolfsburg": 65545,
-    "wuppertal": 159756
-  }
+  "_comment": "Cleared on 2026-05-09: the previous baseline was captured before the enrichment workflow wrote elevation/slope/OSM fields into the per-city geojson. The size-check script seeds this file from the next successful run, after which the +10% guard is active against post-enrichment sizes.",
+  "cities": {}
 }
