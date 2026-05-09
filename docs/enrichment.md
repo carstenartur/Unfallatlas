@@ -212,9 +212,10 @@ preceding steps in `.github/workflows/enrich.yml`:
 
 | Producer | Script | Source | Status |
 | --- | --- | --- | --- |
-| OSM     | `scripts/producers/osm_producer.js`     | Overpass `way[highway]`            | wired up |
-| DEM     | `scripts/producers/dem_producer.js`     | Open-Meteo Elevation API (SRTM 90 m) | wired up |
-| Traffic | `scripts/producers/traffic_producer.js` | OSM `highway` → DTV proxy          | wired up |
+| OSM     | `scripts/producers/osm_producer.js`      | Overpass `way[highway]`                | wired up |
+| DEM     | `scripts/producers/dem_producer.js`      | SRTM Local Tiles (local, see below)    | wired up |
+| DEM tiles | `scripts/producers/dem_tile_producer.js` | AWS Open Data SRTM HTTPS mirror (HGT) | wired up |
+| Traffic | `scripts/producers/traffic_producer.js`  | OSM `highway` → DTV proxy              | wired up |
 
 * **OSM** reads `cities.txt`, derives a bounding box from each
   `out/output_all_years_<city>.geojson`, queries the public Overpass
@@ -222,12 +223,14 @@ preceding steps in `.github/workflows/enrich.yml`:
   point to the nearest way (≤ 50 m by default) and writes
   `osm_<city>.json` (plus a top-level `wayGeometries` table holding
   each matched way's endpoints, used by the DEM producer).
-* **DEM** dedupes accident points at 5 dp (≈ 1.1 m), then queries
-  Open-Meteo's free Elevation API (no API key, batch up to 100
-  coords/call) for the centre + 4 cardinal neighbours per point. The
-  signed steepest-axis gradient yields `slope_percent`. When the
-  OSM producer's output is available, per-way `road_slope_percent`
-  is also computed from each way's endpoints.
+* **DEM** (default: local SRTM tile sampling, see below) deduplicates
+  accident points at 5 dp (≈ 1.1 m), then for each unique point
+  looks up elevation from a locally-cached SRTM HGT tile. The slope
+  is derived from the adjacent pixel gradient within the tile (1
+  pixel ≈ 30 m for SRTM1) in a **single** memory read — no network
+  calls. When the OSM producer's output is available, per-way
+  `road_slope_percent` is also computed from each way's endpoints via
+  the same tile lookup.
 * **Traffic** is intentionally a *proxy* derived from each matched
   OSM way's `highway` class (motorway → ~50 000 DTV, residential →
   ~800, etc.) — see `HIGHWAY_DTV_PROXY` in
@@ -255,25 +258,55 @@ the producer version hasn't been bumped) pass the corresponding
 workflow input (`force_osm` / `force_dem` / `force_traffic`) on
 `workflow_dispatch`, or run the producer locally with `--force`.
 
-### DEM throughput knobs
+### DEM local tile sampling
 
-Open-Meteo dominates the wall-clock for big cities. Two knobs in
-`dem_producer.js` keep it manageable:
+Open-Meteo's free Elevation API imposes a tight request budget (~10 000
+requests/day/IP). With ~10 000 unique accident points × 5 samples per
+point × 25 cities = ~1.25 million requests/run, GitHub-runner IPs are
+reliably rate-limited (HTTP 429) within seconds. No amount of backoff
+tuning fixes a structural 125× overuse.
 
-* **Sample dedup** (always on): every elevation sample —
-  the centre point + four cardinal neighbours per accident, and the
-  start/end of every matched OSM way — is bucketed at 5 dp
-  (≈ 1.1 m, the same precision the enricher uses to look points up)
-  before being sent to the API. Adjacent accidents and overlapping
-  neighbour cells therefore collapse into a single request. The
-  per-city log line shows the dedup ratio
-  (`[<unique>/<total> samples after dedup]`).
-* **`--concurrency <n>`**: dispatches up to `n` elevation batches in
-  parallel within a city. Default is `1` (sequential, the original
-  politeness-first behaviour). Open-Meteo tolerates ~4–5 concurrent
-  batches when combined with the existing inter-batch delay; values
-  above that risk tripping the 429 cool-down. Exposed as
-  `dem_concurrency` (default `4`) in the per-city matrix workflow.
+**Solution**: download SRTM 1°×1° HGT tiles once per year and sample
+them in-process. Germany needs approximately 30 tiles
+(≈ 9° × 8° = 72°², but many are ocean/border); each is ≈ 26 MB
+uncompressed (SRTM1, 3601×3601 Int16 samples). Total cache size: up to
+~780 MB uncompressed, stored under `$ENRICH_DEM_TILES_DIR`.
+
+**Tile source**: AWS Open Data SRTM HTTPS mirror — no API key or login
+required:
+```
+https://s3.amazonaws.com/elevation-tiles-prod/skadi/<NS><lat>/<name>.hgt.gz
+```
+
+**Cache key**: `dem-tiles-<version>-YYYY` (annual). SRTM is a fixed
+survey; the tiles never change. `save-always: true` persists partial
+downloads.
+
+**Sampling algorithm**: bilinear interpolation from the four surrounding
+pixels (O(1) in-memory read). Slope is derived from the adjacent-pixel
+gradient within the same tile — no extra lookups. This reduces the
+per-point sample count from 5 (old API path) to **1**.
+
+**HTTP API fallback**: set `--use-api` on the CLI (or don't set
+`$ENRICH_DEM_TILES_DIR`) to revert to the Open-Meteo path. The mocked
+`opts.fetchElevations` used in unit tests is unaffected — it is always
+honoured when provided.
+
+#### Seeding the tile cache manually (offline / first run)
+
+```bash
+# Download all tiles for cities listed in cities.txt.
+ENRICH_DEM_TILES_DIR=.enrichment-cache/dem-tiles \
+  node scripts/producers/dem_tile_producer.js
+
+# Download tiles for a single city.
+ENRICH_DEM_TILES_DIR=.enrichment-cache/dem-tiles \
+  node scripts/producers/dem_tile_producer.js --city Bonn
+```
+
+Each `.hgt.gz` download is decompressed on-the-fly; only the raw
+`.hgt` file is stored in the cache directory. Already-downloaded tiles
+are skipped automatically (`--force` overrides this).
 
 ### Per-city matrix workflow
 
@@ -297,14 +330,29 @@ Run locally:
 
 ```bash
 node scripts/producers/osm_producer.js     --city Bonn --out-dir .enrichment-cache/osm
+
+# Download SRTM tiles for Bonn (skipped on subsequent runs — tiles are cached).
+ENRICH_DEM_TILES_DIR=.enrichment-cache/dem-tiles \
+  node scripts/producers/dem_tile_producer.js --city Bonn
+
 ENRICH_OSM_DATA_DIR=.enrichment-cache/osm \
+ENRICH_DEM_TILES_DIR=.enrichment-cache/dem-tiles \
   node scripts/producers/dem_producer.js     --city Bonn --out-dir .enrichment-cache/dem
+
 ENRICH_OSM_DATA_DIR=.enrichment-cache/osm \
   node scripts/producers/traffic_producer.js --city Bonn --out-dir .enrichment-cache/traffic
+
 ENRICH_OSM_DATA_DIR=.enrichment-cache/osm \
   ENRICH_DEM_DATA_DIR=.enrichment-cache/dem \
   ENRICH_TRAFFIC_DATA_DIR=.enrichment-cache/traffic \
   node scripts/enrich_geojson.js --city Bonn
+```
+
+To fall back to the Open-Meteo API (e.g. for testing or debugging):
+
+```bash
+ENRICH_OSM_DATA_DIR=.enrichment-cache/osm \
+  node scripts/producers/dem_producer.js --city Bonn --use-api --out-dir .enrichment-cache/dem
 ```
 
 ## Source data licensing

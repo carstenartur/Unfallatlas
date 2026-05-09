@@ -679,6 +679,288 @@ describe('dem_producer — produceCity (end-to-end with stubbed elevation provid
   });
 });
 
+// ---------------------------------------------------------------------------
+// makeLocalElevationSampler tests
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a synthetic SRTM3 (1201×1201) HGT tile as a Buffer.
+ * `elevFn(row, col, n)` returns the elevation (Int16) for that cell.
+ * Row 0 = northernmost, Col 0 = westernmost.
+ */
+function makeTile(side, elevFn) {
+  const n = side || 1201;
+  const buf = Buffer.alloc(n * n * 2);
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      const v = elevFn(row, col, n);
+      // Allow -32768 (SRTM no-data) to pass through unmodified.
+      const clamped = v === -32768 ? -32768 : Math.max(-32767, Math.min(32767, Math.round(v)));
+      buf.writeInt16BE(clamped, (row * n + col) * 2);
+    }
+  }
+  return buf;
+}
+
+describe('dem_producer — makeLocalElevationSampler', () => {
+  const SIDE = 1201; // SRTM3 for smaller test data
+
+  test('sampleElevation returns undefined when tile file is absent', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
+    try {
+      const sampler = dem.makeLocalElevationSampler(tmp);
+      expect(sampler.sampleElevation(50.5, 7.5)).toBeUndefined();
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('sampleElevation returns correct bilinearly-interpolated elevation', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
+    try {
+      // Flat tile: all 250 m.
+      const buf = makeTile(SIDE, () => 250);
+      fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
+
+      const sampler = dem.makeLocalElevationSampler(tmp);
+      // Any point in N50E007 should return 250 m.
+      expect(sampler.sampleElevation(50.0, 7.0)).toBeCloseTo(250, 0);
+      expect(sampler.sampleElevation(50.5, 7.5)).toBeCloseTo(250, 0);
+      expect(sampler.sampleElevation(50.999, 7.999)).toBeCloseTo(250, 0);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('sampleElevation bilinearly interpolates from a linear N-S gradient', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
+    try {
+      // N-S gradient: row 0 (north, lat=51) = 1200 m, row 1200 (south, lat=50) = 0 m.
+      // Intermediate row r → elevation = 1200 - r m.
+      const buf = makeTile(SIDE, (row, _col, n) => n - 1 - row);
+      fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
+
+      const sampler = dem.makeLocalElevationSampler(tmp);
+      // lat 50.5 → midpoint of tile → ~600 m (exact at pixel centres).
+      const elev = sampler.sampleElevation(50.5, 7.5);
+      expect(elev).toBeGreaterThan(580);
+      expect(elev).toBeLessThan(620);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('sampleElevation returns undefined for SRTM no-data pixels', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
+    try {
+      // Tile filled with no-data (-32768).
+      const buf = makeTile(SIDE, () => -32768);
+      fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
+
+      const sampler = dem.makeLocalElevationSampler(tmp);
+      expect(sampler.sampleElevation(50.5, 7.5)).toBeUndefined();
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('sampleElevationWithSlope returns {elevation, slope} from a single tile access', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
+    try {
+      // Flat tile → slope = 0.
+      const buf = makeTile(SIDE, () => 100);
+      fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
+
+      const sampler = dem.makeLocalElevationSampler(tmp);
+      const { elevation, slope } = sampler.sampleElevationWithSlope(50.5, 7.5, 30);
+      expect(elevation).toBeCloseTo(100, 0);
+      expect(slope).toBeCloseTo(0, 4);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('sampleElevationWithSlope picks up the dominant gradient direction', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
+    try {
+      // N-S gradient: row 0 (north) = SIDE-1 m, row SIDE-1 (south) = 0 m.
+      const buf = makeTile(SIDE, (row, _col, n) => n - 1 - row);
+      fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
+
+      const sampler = dem.makeLocalElevationSampler(tmp);
+      // Interior point → slope should be positive (uphill to north).
+      const { elevation, slope } = sampler.sampleElevationWithSlope(50.5, 7.5, 30);
+      expect(Number.isFinite(elevation)).toBe(true);
+      // Slope > 0 because the tile rises to the north.
+      expect(slope).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('LRU cache: loads each tile only once per sampler instance', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-sampler-'));
+    try {
+      const buf = makeTile(SIDE, () => 42);
+      fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
+
+      let readCount = 0;
+      const origReadFileSync = fs.readFileSync;
+      // Spy: count how many times the tile file is actually read.
+      fs.readFileSync = (...args) => {
+        const result = origReadFileSync(...args);
+        if (typeof args[0] === 'string' && args[0].endsWith('.hgt')) readCount++;
+        return result;
+      };
+
+      try {
+        const sampler = dem.makeLocalElevationSampler(tmp);
+        sampler.sampleElevation(50.1, 7.1);
+        sampler.sampleElevation(50.5, 7.5);
+        sampler.sampleElevation(50.9, 7.9);
+        // All three points are in N50E007 — only one file read.
+        expect(readCount).toBe(1);
+      } finally {
+        fs.readFileSync = origReadFileSync;
+      }
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('dem_producer — produceCity with local tile sampler', () => {
+  const SIDE = 1201;
+
+  function makeFlatTile(elev) {
+    return makeTile(SIDE, () => elev);
+  }
+
+  test('uses local tile sampler when tilesDir is set, no fetchElevations calls', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-local-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    const tilesDir = path.join(tmp, 'tiles');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(tilesDir);
+    // Write a flat 100 m tile for N50E007.
+    fs.writeFileSync(path.join(tilesDir, 'N50E007.hgt'), makeFlatTile(100));
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([pt(1, 7.0, 50.0), pt(2, 7.5, 50.5)])),
+    );
+    try {
+      // No fetchElevations → must use local tile path, no network calls.
+      const r = await dem.produceCity(repoRoot, 'bonn', { outDir, tilesDir });
+      expect(r.skipped).toBeFalsy();
+      expect(r.localTiles).toBe(true);
+      // Local path: 1 lookup per unique point.
+      expect(r.counts.pointSamplesTotal).toBe(r.counts.uniquePoints);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('local tile path writes dem_<slug>.json with correct elevation and zero slope', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-local-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    const tilesDir = path.join(tmp, 'tiles');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(tilesDir);
+    fs.writeFileSync(path.join(tilesDir, 'N50E007.hgt'), makeFlatTile(200));
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([pt(1, 7.0, 50.0)])),
+    );
+    try {
+      // No fetchElevations → uses local tile path.
+      const r = await dem.produceCity(repoRoot, 'bonn', { outDir, tilesDir });
+      expect(r.skipped).toBeFalsy();
+      expect(r.localTiles).toBe(true);
+      // 1 unique point → 1 lookup, not 5.
+      expect(r.counts.pointSamplesTotal).toBe(1);
+      expect(r.counts.pointSamplesUnique).toBe(1);
+
+      const written = JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8'));
+      expect(written.source).toBe(dem.LOCAL_SOURCE);
+      expect(written.resolution_m).toBe(dem.LOCAL_RESOLUTION_M);
+      expect(written.points).toHaveLength(1);
+      expect(written.points[0].elevation_m).toBeCloseTo(200, 0);
+      expect(written.points[0].slope_percent).toBeCloseTo(0, 1);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('--use-api flag routes to HTTP even when tilesDir is set', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-local-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    const tilesDir = path.join(tmp, 'tiles');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(tilesDir);
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([pt(1, 7.0, 50.0)])),
+    );
+    try {
+      let fetchCalls = 0;
+      const r = await dem.produceCity(repoRoot, 'bonn', {
+        outDir,
+        tilesDir,
+        useApi: true,
+        fetchElevations: async (samples) => { fetchCalls++; return samples.map(() => 99); },
+      });
+      expect(r.skipped).toBeFalsy();
+      expect(r.localTiles).toBe(false);
+      expect(fetchCalls).toBeGreaterThan(0);
+      const written = JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8'));
+      expect(written.points[0].elevation_m).toBe(99);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('dem_producer — buildDemDatasetLocal', () => {
+  test('builds dataset from sampler results, 1 result per point', () => {
+    const points = [{ lat: 50.0, lon: 7.0 }, { lat: 50.1, lon: 7.1 }];
+    const results = [
+      { elevation: 100, slope: 0 },
+      { elevation: 200, slope: 2.5 },
+    ];
+    const ds = dem.buildDemDatasetLocal(points, results, {
+      extractDate: '2026-05-01',
+      confidence: 'srtm1-30m',
+    });
+    expect(ds.source).toBe(dem.LOCAL_SOURCE);
+    expect(ds.resolution_m).toBe(dem.LOCAL_RESOLUTION_M);
+    expect(ds.extractDate).toBe('2026-05-01');
+    expect(ds.points).toHaveLength(2);
+    expect(ds.points[0]).toEqual({
+      lat: 50.0, lon: 7.0, elevation_m: 100, slope_percent: 0, confidence: 'srtm1-30m',
+    });
+    expect(ds.points[1].slope_percent).toBe(2.5);
+  });
+
+  test('drops points with undefined elevation', () => {
+    const points = [{ lat: 50.0, lon: 7.0 }];
+    const results = [{ elevation: undefined, slope: 0 }];
+    const ds = dem.buildDemDatasetLocal(points, results, {});
+    expect(ds.points).toHaveLength(0);
+  });
+
+  test('omits slope_percent when slope is undefined', () => {
+    const points = [{ lat: 50.0, lon: 7.0 }];
+    const results = [{ elevation: 100, slope: undefined }];
+    const ds = dem.buildDemDatasetLocal(points, results, {});
+    expect(ds.points).toHaveLength(1);
+    expect(ds.points[0].slope_percent).toBeUndefined();
+    expect(ds.points[0].elevation_m).toBe(100);
+  });
+});
+
 describe('dem_producer — parseArgs', () => {
   test('parses CLI flags, falls back to env / defaults', () => {
     const prev = process.env.ENRICH_DEM_DATA_DIR;
@@ -704,6 +986,12 @@ describe('dem_producer — parseArgs', () => {
   test('--concurrency parses into opts.concurrency', () => {
     expect(dem.parseArgs([]).concurrency).toBeUndefined();
     expect(dem.parseArgs(['--concurrency', '4']).concurrency).toBe(4);
+  });
+
+  test('--tiles-dir and --use-api parse correctly', () => {
+    const opts = dem.parseArgs(['--tiles-dir', '/tmp/tiles', '--use-api']);
+    expect(opts.tilesDir).toBe('/tmp/tiles');
+    expect(opts.useApi).toBe(true);
   });
 });
 

@@ -15,10 +15,12 @@
  *   1. Reads `out/output_all_years_<slug>.geojson`.
  *   2. Deduplicates accident coordinates at 5dp (≈ 1.1 m) — the same
  *      bucketing the enricher uses to look points up.
- *   3. For every unique point, samples elevation at 5 locations: the
- *      point itself plus four cardinal neighbours offset by ~30 m.
- *      The four neighbours give a local NS / EW gradient, from which
- *      the steepest signed slope (in percent) is derived.
+ *   3. DEFAULT: samples elevation from locally-cached SRTM 1°×1° HGT
+ *      tiles (downloaded by `dem_tile_producer.js`). One lookup per
+ *      point; slope comes from the pixel gradient within the same tile.
+ *      API FALLBACK: when `--use-api` is passed or no tile directory
+ *      is set, falls back to the Open-Meteo API (5 HTTP samples per
+ *      point — the original behaviour).
  *   4. Optionally enriches per-way data: when `osm_<slug>.json` is
  *      available (typically produced by `osm_producer.js`), the mean
  *      grade between each way's first and last node is computed and
@@ -26,15 +28,24 @@
  *   5. Writes the on-disk payload expected by `loadDemProvider`:
  *
  *        {
- *          source:        "OpenMeteo SRTM",
- *          resolution_m:  90,
+ *          source:        "SRTM Local Tiles",    // or "OpenMeteo SRTM"
+ *          resolution_m:  30,                    // or 90 for API
  *          extractDate:   "YYYY-MM-DD",
  *          points:        [ { lat, lon, elevation_m, slope_percent, confidence } ],
  *          wayElevations: { "<wayId>": { road_slope_percent } }
  *        }
  *
- * Elevation source
- * ----------------
+ * Local tile sampling (default)
+ * -----------------------------
+ * Reads SRTM1 HGT tiles from `$ENRICH_DEM_TILES_DIR` (or `--tiles-dir`).
+ * Each tile is a 3601×3601 Int16 big-endian binary file. Elevation is
+ * bilinearly interpolated from the four surrounding pixels; slope is
+ * computed from the adjacent pixel gradient (1 pixel ≈ 30 m) — so only
+ * ONE lookup is required per point instead of the five the API path needs.
+ * An LRU cache keeps up to 10 tiles in memory (~260 MB).
+ *
+ * HTTP API fallback
+ * -----------------
  * Open-Meteo's free Elevation API
  * (https://open-meteo.com/en/docs/elevation-api), no API key, returns
  * SRTM-derived values at ~90 m horizontal resolution. Up to 100
@@ -82,6 +93,20 @@ const NEIGHBOUR_OFFSET_M = 30;
 // (transitively) into every accident's `slope_source` field.
 const DEFAULT_SOURCE = 'OpenMeteo SRTM';
 const DEFAULT_RESOLUTION_M = 90;
+
+// Source label and resolution used when local SRTM tiles are available.
+const LOCAL_SOURCE = 'SRTM Local Tiles';
+const LOCAL_RESOLUTION_M = 30; // SRTM1 is 1 arc-second ≈ 30 m
+
+// SRTM HGT tile constants
+// SRTM1: 3601×3601 Int16 samples per 1°×1° tile.
+const SRTM1_SIDE = 3601;
+// SRTM3: 1201×1201 Int16 samples per 1°×1° tile.
+const SRTM3_SIDE = 1201;
+// Maximum number of tiles to keep in the LRU in-memory cache.
+const MAX_CACHED_TILES = 10;
+// SRTM no-data marker.
+const SRTM_NO_DATA = -32768;
 
 const M_PER_DEG_LAT = 111_320;
 
@@ -179,6 +204,230 @@ function computeSlopePercent(samples, offsetM = NEIGHBOUR_OFFSET_M) {
 function round1(n) {
   if (typeof n !== 'number' || !Number.isFinite(n)) return undefined;
   return Math.round(n * 10) / 10;
+}
+
+// ---------------------------------------------------------------------------
+// Local SRTM tile sampling (zero network calls in the hot path)
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the SRTM tile name (e.g. "N50E007") for the tile containing
+ * (lat, lon). Used internally; also exported so tests can exercise it.
+ */
+function makeTileName(lat, lon) {
+  const tileLat = Math.floor(lat);
+  const tileLon = Math.floor(lon);
+  const ns = tileLat >= 0 ? 'N' : 'S';
+  const ew = tileLon >= 0 ? 'E' : 'W';
+  return (
+    ns + String(Math.abs(tileLat)).padStart(2, '0') +
+    ew + String(Math.abs(tileLon)).padStart(3, '0')
+  );
+}
+
+/**
+ * Create a local elevation sampler backed by SRTM HGT tile files in
+ * `tilesDir`. Returns an object with two methods:
+ *
+ *   sampleElevation(lat, lon)
+ *     Bilinearly interpolated elevation in metres, or undefined if the
+ *     tile file is absent or the pixel is marked no-data (−32768).
+ *
+ *   sampleElevationWithSlope(lat, lon, offsetM?)
+ *     Elevation + signed slope percent in a SINGLE tile access.
+ *     The slope is derived from the gradient between adjacent pixels
+ *     in the tile (1 pixel ≈ 30 m for SRTM1), so no extra lookups are
+ *     needed. Returns { elevation, slope } (slope may be undefined when
+ *     any adjacent pixel is no-data or at the tile edge).
+ *
+ * Tiles are loaded lazily and kept in an LRU cache of at most
+ * `MAX_CACHED_TILES` entries (≈ 260 MB for SRTM1).
+ *
+ * Tile format: raw Int16 big-endian, SRTM row-major order (row 0 =
+ * northernmost row, col 0 = westernmost column). Supports both SRTM1
+ * (3601×3601) and SRTM3 (1201×1201) files — the tile size is derived
+ * from the file length.
+ */
+function makeLocalElevationSampler(tilesDir) {
+  // name → { data: Int16Array, side: number } | null (null = tile absent)
+  const cache = new Map();
+  const order = []; // LRU insertion order (oldest first)
+
+  function loadTile(name) {
+    if (cache.has(name)) {
+      // Refresh LRU position.
+      const i = order.indexOf(name);
+      if (i >= 0) order.splice(i, 1);
+      order.push(name);
+      return cache.get(name);
+    }
+    const hgtPath = path.join(tilesDir, name + '.hgt');
+    let tile = null;
+    if (fs.existsSync(hgtPath)) {
+      const buf = fs.readFileSync(hgtPath);
+      const nSamples = buf.length / 2;
+      // Derive the tile side length from file size.
+      const side = nSamples === SRTM1_SIDE * SRTM1_SIDE ? SRTM1_SIDE
+                 : nSamples === SRTM3_SIDE * SRTM3_SIDE ? SRTM3_SIDE
+                 : Math.round(Math.sqrt(nSamples));
+      const data = new Int16Array(nSamples);
+      for (let i = 0; i < nSamples; i++) {
+        data[i] = buf.readInt16BE(i * 2);
+      }
+      tile = { data, side };
+    }
+    // LRU eviction.
+    if (order.length >= MAX_CACHED_TILES) {
+      const evict = order.shift();
+      cache.delete(evict);
+    }
+    cache.set(name, tile);
+    order.push(name);
+    return tile;
+  }
+
+  /**
+   * Bilinear interpolation within a single tile. Returns undefined when
+   * any of the four surrounding pixels is SRTM_NO_DATA.
+   */
+  function bilinear(tile, yf, xf) {
+    const { data, side } = tile;
+    const n = side;
+    const y0 = Math.min(Math.floor(yf), n - 2);
+    const x0 = Math.min(Math.floor(xf), n - 2);
+    const y1 = y0 + 1;
+    const x1 = x0 + 1;
+    const dy = yf - y0;
+    const dx = xf - x0;
+    const v00 = data[y0 * n + x0];
+    const v01 = data[y0 * n + x1];
+    const v10 = data[y1 * n + x0];
+    const v11 = data[y1 * n + x1];
+    if (v00 === SRTM_NO_DATA || v01 === SRTM_NO_DATA ||
+        v10 === SRTM_NO_DATA || v11 === SRTM_NO_DATA) return undefined;
+    return v00 * (1 - dx) * (1 - dy) +
+           v01 *      dx  * (1 - dy) +
+           v10 * (1 - dx) *      dy  +
+           v11 *      dx  *      dy;
+  }
+
+  function sampleElevation(lat, lon) {
+    const tileLat = Math.floor(lat);
+    const tileLon = Math.floor(lon);
+    const name = makeTileName(tileLat, tileLon);
+    const tile = loadTile(name);
+    if (!tile) return undefined;
+    const { side } = tile;
+    const n = side;
+    const latFrac = lat - tileLat;
+    const lonFrac = lon - tileLon;
+    // SRTM: row 0 = northernmost → yf increases as lat decreases.
+    const yf = (1 - latFrac) * (n - 1);
+    const xf = lonFrac * (n - 1);
+    return bilinear(tile, yf, xf);
+  }
+
+  /**
+   * Return { elevation, slope } in a single tile access.
+   * slope is the steepest signed slope percent derived from the
+   * pixel-neighbour gradient (same formula as computeSlopePercent).
+   */
+  function sampleElevationWithSlope(lat, lon, offsetM) {
+    const effOffsetM = Number.isFinite(offsetM) ? offsetM : NEIGHBOUR_OFFSET_M;
+    const tileLat = Math.floor(lat);
+    const tileLon = Math.floor(lon);
+    const name = makeTileName(tileLat, tileLon);
+    const tile = loadTile(name);
+    if (!tile) return { elevation: undefined, slope: undefined };
+
+    const { data, side } = tile;
+    const n = side;
+    const latFrac = lat - tileLat;
+    const lonFrac = lon - tileLon;
+    const yf = (1 - latFrac) * (n - 1);
+    const xf = lonFrac * (n - 1);
+
+    // Bilinear elevation.
+    const elevation = bilinear(tile, yf, xf);
+    if (elevation === undefined) return { elevation: undefined, slope: undefined };
+
+    // Nearest-pixel index for the gradient.
+    const y = Math.min(Math.round(yf), n - 1);
+    const x = Math.min(Math.round(xf), n - 1);
+
+    // Adjacent pixels (clamped at tile boundary).
+    const yn = Math.max(0, y - 1);
+    const ys = Math.min(n - 1, y + 1);
+    const xe = Math.min(n - 1, x + 1);
+    const xw = Math.max(0, x - 1);
+
+    const eN = data[yn * n + x];
+    const eS = data[ys * n + x];
+    const eE = data[y * n + xe];
+    const eW = data[y * n + xw];
+
+    if (eN === SRTM_NO_DATA || eS === SRTM_NO_DATA ||
+        eE === SRTM_NO_DATA || eW === SRTM_NO_DATA) {
+      return { elevation, slope: undefined };
+    }
+
+    // Ground distance for N-S gradient (in metres). Uses actual pixel
+    // span (2 pixels when interior, 1 pixel at the edge).
+    const pixelSizeLatM = (1 / (n - 1)) * M_PER_DEG_LAT;
+    const cosLat = Math.cos(lat * Math.PI / 180);
+    const pixelSizeLonM = (1 / (n - 1)) * M_PER_DEG_LAT *
+                          (cosLat > 1e-6 ? cosLat : 1);
+
+    const distNS = (ys - yn) * pixelSizeLatM;
+    const distEW = (xe - xw) * pixelSizeLonM;
+
+    const gNS = distNS > 0 ? (eN - eS) / distNS : 0;
+    const gEW = distEW > 0 ? (eE - eW) / distEW : 0;
+    const dominant = Math.abs(gNS) >= Math.abs(gEW) ? gNS : gEW;
+    const slope = dominant * 100;
+
+    return { elevation, slope };
+  }
+
+  return { sampleElevation, sampleElevationWithSlope };
+}
+
+/**
+ * Build the per-city DEM dataset from local-sampler results (1 result
+ * per unique point). This is the counterpart to `buildDemDataset` for
+ * the tile-sampling path.
+ *
+ * @param {Array<{lat,lon}>} points        deduplicated accident points
+ * @param {Array<{elevation,slope}>} results  one entry per point
+ * @param {object} [opts]
+ *   - source         provenance label (default: LOCAL_SOURCE)
+ *   - resolution_m   numeric DEM resolution (default: LOCAL_RESOLUTION_M)
+ *   - extractDate    ISO date for provenance (default: today)
+ *   - confidence     per-point confidence label (default: undefined)
+ *   - wayElevations  optional { wayId: { road_slope_percent } } table
+ */
+function buildDemDatasetLocal(points, results, opts) {
+  const o = opts || {};
+  const out = {
+    source:        o.source       || LOCAL_SOURCE,
+    resolution_m:  o.resolution_m || LOCAL_RESOLUTION_M,
+    extractDate:   o.extractDate  || new Date().toISOString().slice(0, 10),
+    points:        [],
+    wayElevations: o.wayElevations || {},
+  };
+  for (let i = 0; i < points.length; i++) {
+    const { elevation, slope } = results[i] || {};
+    if (!Number.isFinite(elevation)) continue;
+    const entry = {
+      lat: points[i].lat,
+      lon: points[i].lon,
+      elevation_m: round1(elevation),
+    };
+    if (Number.isFinite(slope)) entry.slope_percent = round1(slope);
+    if (o.confidence) entry.confidence = o.confidence;
+    out.points.push(entry);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -563,8 +812,68 @@ async function produceCity(repoRoot, citySlug, opts) {
   }
 
   const offsetM = Number.isFinite(o.offsetM) ? o.offsetM : NEIGHBOUR_OFFSET_M;
-  // Track whether the API rate-limited us during this city so the
-  // caller (main loop) can cool down before hitting it again.
+  const osmDir  = o.osmDir || process.env.ENRICH_OSM_DATA_DIR || null;
+  const spans   = readOsmWaySpans(osmDir, citySlug);
+
+  // ------------------------------------------------------------------
+  // Determine which path to use: local tile sampler (default) or HTTP.
+  // ------------------------------------------------------------------
+  const tilesDir = o.tilesDir || process.env.ENRICH_DEM_TILES_DIR || null;
+  const useLocalTiles = tilesDir && !o.useApi && !o.fetchElevations;
+
+  if (useLocalTiles) {
+    // LOCAL TILE PATH — zero network calls in the hot path.
+    // One lookup per point gives elevation + slope from the pixel gradient.
+    const sampler = makeLocalElevationSampler(tilesDir);
+    const results = points.map(pt =>
+      sampler.sampleElevationWithSlope(pt.lat, pt.lon, offsetM),
+    );
+
+    // Per-way slope via local tile lookup at way endpoints.
+    let wayElevations = {};
+    if (spans.length > 0) {
+      const startElevs = spans.map(s => sampler.sampleElevation(s.start.lat, s.start.lon));
+      const endElevs   = spans.map(s => sampler.sampleElevation(s.end.lat, s.end.lon));
+      wayElevations = computeWayElevations(spans, startElevs, endElevs);
+    }
+
+    const dataset = buildDemDatasetLocal(points, results, {
+      source:       o.source,
+      resolution_m: Number.isFinite(o.resolution_m) ? o.resolution_m : o.resolutionM,
+      extractDate:  o.extractDate,
+      confidence:   o.confidence,
+      wayElevations,
+    });
+
+    const outDir = o.outDir;
+    if (!outDir) throw new Error('produceCity: opts.outDir required');
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    const outFile = path.join(outDir, `dem_${citySlug}.json`);
+    fs.writeFileSync(outFile, JSON.stringify(dataset));
+
+    const withElevation = dataset.points.length;
+    return {
+      citySlug,
+      skipped: false,
+      rateLimited: false,
+      localTiles: true,
+      counts: {
+        uniquePoints:  points.length,
+        withElevation,
+        ways: Object.keys(wayElevations).length,
+        // Local path: 1 lookup per point (no 5-sample expansion).
+        pointSamplesUnique: withElevation,
+        pointSamplesTotal:  points.length,
+        waySamplesUnique:   spans.length,
+        waySamplesTotal:    spans.length,
+      },
+      outFile,
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // HTTP API PATH — original behaviour, kept for --use-api and tests.
+  // ------------------------------------------------------------------
   let rateLimited = false;
   const onRateLimit = () => { rateLimited = true; };
   const fetchFn = o.fetchElevations || ((s) => fetchElevations(s, {
@@ -594,8 +903,6 @@ async function produceCity(repoRoot, citySlug, opts) {
   }
 
   // Per-way slope (best-effort): only when `osm_<slug>.json` is present.
-  const osmDir = o.osmDir || process.env.ENRICH_OSM_DATA_DIR || null;
-  const spans = readOsmWaySpans(osmDir, citySlug);
   let wayElevations = {};
   let wayUniqueCount = 0;
   if (spans.length > 0) {
@@ -632,6 +939,7 @@ async function produceCity(repoRoot, citySlug, opts) {
     citySlug,
     skipped: false,
     rateLimited,
+    localTiles: false,
     counts: {
       uniquePoints: points.length,
       withElevation: dataset.points.length,
@@ -655,17 +963,21 @@ async function produceCity(repoRoot, citySlug, opts) {
 function parseArgs(argv) {
   const opts = {
     cities: [],
-    outDir: process.env.ENRICH_DEM_DATA_DIR || '.enrichment-cache/dem',
-    osmDir: process.env.ENRICH_OSM_DATA_DIR || null,
+    outDir:   process.env.ENRICH_DEM_DATA_DIR   || '.enrichment-cache/dem',
+    osmDir:   process.env.ENRICH_OSM_DATA_DIR   || null,
+    tilesDir: process.env.ENRICH_DEM_TILES_DIR  || null,
     interCityDelayMs:    DEFAULT_INTER_CITY_DELAY_MS,
     rateLimitCooldownMs: DEFAULT_RATE_LIMIT_COOLDOWN_MS,
     json: false,
+    useApi: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--city')                   opts.cities.push(argv[++i]);
     else if (a === '--out-dir')           opts.outDir = argv[++i];
     else if (a === '--osm-dir')           opts.osmDir = argv[++i];
+    else if (a === '--tiles-dir')         opts.tilesDir = argv[++i];
+    else if (a === '--use-api')           opts.useApi = true;
     else if (a === '--source')            opts.source = argv[++i];
     else if (a === '--resolution')        opts.resolution_m = Number(argv[++i]);
     else if (a === '--delay')             opts.interCityDelayMs = Number(argv[++i]);
@@ -693,10 +1005,16 @@ function printHelp() {
   --osm-dir <path>       directory holding osm_<slug>.json (used to
                          compute per-way road_slope_percent;
                          default: $ENRICH_OSM_DATA_DIR)
+  --tiles-dir <path>     directory holding downloaded SRTM .hgt tiles
+                         (default: $ENRICH_DEM_TILES_DIR). When set and
+                         --use-api is not passed, tile sampling is used
+                         instead of the Open-Meteo API.
+  --use-api              force the HTTP API path even when --tiles-dir
+                         is set (useful for debugging or offline gaps)
   --source <label>       provenance label written into each entry
-                         (default: ${DEFAULT_SOURCE})
+                         (default: ${LOCAL_SOURCE} / ${DEFAULT_SOURCE})
   --resolution <m>       DEM resolution in metres written into the
-                         payload (default: ${DEFAULT_RESOLUTION_M})
+                         payload (default: ${LOCAL_RESOLUTION_M} / ${DEFAULT_RESOLUTION_M})
   --delay <ms>           politeness delay between cities (default: ${DEFAULT_INTER_CITY_DELAY_MS})
   --inter-batch-delay <ms>
                          politeness delay between elevation batches
@@ -721,6 +1039,8 @@ function printHelp() {
 Environment:
   ENRICH_DEM_DATA_DIR              fallback for --out-dir
   ENRICH_OSM_DATA_DIR              fallback for --osm-dir
+  ENRICH_DEM_TILES_DIR             fallback for --tiles-dir (enables local
+                                   tile sampling when set)
   OPEN_METEO_ELEVATION_ENDPOINT    override elevation API endpoint
                                    (default: ${DEFAULT_ELEVATION_ENDPOINT})
 `);
@@ -813,11 +1133,14 @@ module.exports = {
   PRODUCER_VERSION,
   DEFAULT_SOURCE,
   DEFAULT_RESOLUTION_M,
+  LOCAL_SOURCE,
+  LOCAL_RESOLUTION_M,
   DEFAULT_RATE_LIMIT_BACKOFF_MS,
   DEFAULT_RATE_LIMIT_COOLDOWN_MS,
   DEFAULT_INTER_BATCH_DELAY_MS,
   MAX_RATE_LIMIT_BACKOFF_MS,
   NEIGHBOUR_OFFSET_M,
+  SRTM_NO_DATA,
   slugCity,
   readCitiesTxt,
   quantize,
@@ -830,7 +1153,10 @@ module.exports = {
   fetchElevationsDedup,
   parseRetryAfterMs,
   isRateLimitError,
+  makeTileName,
+  makeLocalElevationSampler,
   buildDemDataset,
+  buildDemDatasetLocal,
   produceCity,
   parseArgs,
   main,

@@ -125,11 +125,14 @@ jobs:
           set -euo pipefail
           OSM_VER=$(node     -e "console.log(require('./scripts/producers/osm_producer.js').PRODUCER_VERSION)")
           DEM_VER=$(node     -e "console.log(require('./scripts/producers/dem_producer.js').PRODUCER_VERSION)")
+          TILE_VER=$(node    -e "console.log(require('./scripts/producers/dem_tile_producer.js').PRODUCER_VERSION)")
           TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer.js').PRODUCER_VERSION)")
           ISO_WEEK=$(date -u +%G-W%V)
+          YEAR=$(date -u +%Y)
           SLUG="${{ matrix.city.slug }}"
           echo "osm=osm-${OSM_VER}-${ISO_WEEK}-${SLUG}"                         >> "$GITHUB_OUTPUT"
           echo "dem=dem-${DEM_VER}-${ISO_WEEK}-${SLUG}"                         >> "$GITHUB_OUTPUT"
+          echo "dem_tiles=dem-tiles-${TILE_VER}-${YEAR}"                         >> "$GITHUB_OUTPUT"
           echo "traffic=traffic-${TRAFFIC_VER}-osm-${OSM_VER}-${ISO_WEEK}-${SLUG}" >> "$GITHUB_OUTPUT"
 
       # OSM ----------------------------------------------------------------
@@ -156,6 +159,21 @@ jobs:
           node scripts/producers/osm_producer.js "${ARGS[@]}"
 
       # DEM ----------------------------------------------------------------
+      - name: Restore DEM tiles cache
+        id: dem_tiles_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/dem-tiles
+          key: ${{ steps.keys.outputs.dem_tiles }}
+          save-always: true
+
+      - name: Download DEM tiles (${{ matrix.city.name }})
+        env:
+          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
+        run: |
+          set -euo pipefail
+          node scripts/producers/dem_tile_producer.js --city "${{ matrix.city.name }}"
+
       - name: Restore DEM cache for ${{ matrix.city.slug }}
         id: dem_cache
         uses: actions/cache@v5
@@ -167,9 +185,11 @@ jobs:
       - name: Produce DEM (${{ matrix.city.name }})
         # See "Produce OSM" — same reasoning, also lets `force_dem`
         # take effect on cache hits.
+        # ENRICH_DEM_TILES_DIR activates local tile sampling (no API calls).
         env:
-          ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
-          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_OSM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
         run: |
           set -euo pipefail
           ARGS=(--city "${{ matrix.city.name }}" --concurrency "${{ inputs.dem_concurrency }}")
