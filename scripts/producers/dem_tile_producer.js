@@ -18,13 +18,6 @@
  * These are SRTM1 tiles (1 arc-second ≈ 30 m resolution), 3601×3601
  * Int16 samples, big-endian. No-data marker: −32768.
  *
- * A secondary URL (OpenTopography) is tried if the AWS URL fails:
- *   https://portal.opentopography.org/API/globaldem?demtype=SRTMGL1&
- *     south=<lat>&north=<lat+1>&west=<lon>&east=<lon+1>&outputFormat=GTiff
- *   (returns a raw HGT-like binary stream with the same layout when
- *    outputFormat=GTiff — but for simplicity we only use the AWS mirror
- *    which gives us a ready-to-use HGT.gz directly).
- *
  * Cache key: `dem-tiles-1.0.0-YYYY` — SRTM data is essentially static.
  * `save-always: true` in the workflow so a partial download persists.
  *
@@ -133,7 +126,9 @@ function readCitiesTxt(repoRoot) {
 // Tile download
 // ---------------------------------------------------------------------------
 
-// Build candidate URLs for a tile (tried in order until one succeeds).
+// Valid decompressed byte sizes for SRTM tiles (Int16, big-endian).
+const SRTM1_BYTES = 3601 * 3601 * 2; // ~26 MB — SRTM1 (1″ ≈ 30 m)
+const SRTM3_BYTES = 1201 * 1201 * 2; // ~2.9 MB — SRTM3 (3″ ≈ 90 m)
 function tileUrls(name) {
   const lat = parseInt(name.slice(1, 3), 10);
   const ns = name[0]; // 'N' or 'S'
@@ -191,8 +186,20 @@ async function downloadTile(name, tilesDir, opts) {
       }
       const gzBuf = Buffer.from(await resp.arrayBuffer());
       const hgtBuf = zlib.gunzipSync(gzBuf);
+      // Validate decompressed size against known SRTM tile sizes.
+      if (hgtBuf.length !== SRTM1_BYTES && hgtBuf.length !== SRTM3_BYTES) {
+        lastErr = new Error(
+          `Unexpected tile size ${hgtBuf.length} bytes for ${name} (expected ${SRTM1_BYTES} or ${SRTM3_BYTES})`,
+        );
+        continue;
+      }
       if (!fs.existsSync(tilesDir)) fs.mkdirSync(tilesDir, { recursive: true });
-      fs.writeFileSync(outPath, hgtBuf);
+      // Atomic write: write to a temp file first, then rename so an
+      // interrupted write doesn't leave a truncated/corrupt .hgt file
+      // that would be incorrectly treated as cached on the next run.
+      const tmpPath = outPath + '.tmp';
+      fs.writeFileSync(tmpPath, hgtBuf);
+      fs.renameSync(tmpPath, outPath);
       if (!o.silent) {
         const mb = (hgtBuf.length / 1_048_576).toFixed(1);
         console.log(`[dem-tile-producer] ${name}.hgt saved (${mb} MB uncompressed)`);
@@ -214,7 +221,6 @@ async function downloadTile(name, tilesDir, opts) {
  *
  * opts:
  *   fetch, force, silent, timeout  — passed through to downloadTile
- *   outDir                          — overrides tilesDir
  */
 async function downloadTilesForCities(repoRoot, citySlugs, tilesDir, opts) {
   const o = opts || {};

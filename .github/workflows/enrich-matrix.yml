@@ -96,11 +96,60 @@ jobs:
           echo "cities=$JSON" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------
-  # 2. Per-city producer fan-out. Each job produces only its assigned
+  # 2. Seed DEM tile cache once for all cities.  SRTM tiles are static
+  #    so a shared annual cache key is appropriate. Doing this in a
+  #    dedicated job (rather than inside every matrix leg) avoids the
+  #    GitHub Actions cache-key immutability problem: only the first job
+  #    to finish on a cache miss can write the cache, leaving later
+  #    concurrent jobs without their newly-downloaded tiles. By seeding
+  #    the tile cache here, all per-city produce-city jobs get a warm,
+  #    read-only restore — no writes needed from within the matrix.
+  # ---------------------------------------------------------------------
+  seed-dem-tiles:
+    needs: list-cities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Compute DEM tile cache key
+        id: tile_key
+        run: |
+          set -euo pipefail
+          TILE_VER=$(node -e "console.log(require('./scripts/producers/dem_tile_producer.js').PRODUCER_VERSION)")
+          YEAR=$(date -u +%Y)
+          echo "key=dem-tiles-${TILE_VER}-${YEAR}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore DEM tiles cache
+        id: dem_tiles_cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.enrichment-cache/dem-tiles
+          key: ${{ steps.tile_key.outputs.key }}
+          # save-always: true persists whatever tiles were downloaded even
+          # if the job is interrupted, so partial progress is never lost.
+          save-always: true
+
+      - name: Download DEM tiles (all cities)
+        env:
+          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
+        run: |
+          set -euo pipefail
+          # Download tiles for every city (no --city flag → all cities).
+          node scripts/producers/dem_tile_producer.js
+
+  # ---------------------------------------------------------------------
+  # 3. Per-city producer fan-out. Each job produces only its assigned
   #    city, caches the per-city outputs, and uploads them as artifacts.
   # ---------------------------------------------------------------------
   produce-city:
-    needs: list-cities
+    needs: [list-cities, seed-dem-tiles]
     runs-on: ubuntu-latest
     strategy:
       # One slow city must not abort the rest — the aggregator can
@@ -159,20 +208,14 @@ jobs:
           node scripts/producers/osm_producer.js "${ARGS[@]}"
 
       # DEM ----------------------------------------------------------------
-      - name: Restore DEM tiles cache
+      - name: Restore DEM tiles cache (read-only)
+        # Tiles were seeded by the seed-dem-tiles job; this is a restore-only
+        # step — save-always is intentionally omitted to avoid duplicate writes.
         id: dem_tiles_cache
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/.enrichment-cache/dem-tiles
           key: ${{ steps.keys.outputs.dem_tiles }}
-          save-always: true
-
-      - name: Download DEM tiles (${{ matrix.city.name }})
-        env:
-          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
-        run: |
-          set -euo pipefail
-          node scripts/producers/dem_tile_producer.js --city "${{ matrix.city.name }}"
 
       - name: Restore DEM cache for ${{ matrix.city.slug }}
         id: dem_cache
@@ -232,7 +275,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # 3. Aggregate: pull every per-city artifact back into a single
+  # 4. Aggregate: pull every per-city artifact back into a single
   #    `.enrichment-cache/` tree, run the enrichment, commit.
   # ---------------------------------------------------------------------
   aggregate:

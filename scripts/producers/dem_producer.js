@@ -234,7 +234,7 @@ function makeTileName(lat, lon) {
  *     Bilinearly interpolated elevation in metres, or undefined if the
  *     tile file is absent or the pixel is marked no-data (−32768).
  *
- *   sampleElevationWithSlope(lat, lon, offsetM?)
+ *   sampleElevationWithSlope(lat, lon)
  *     Elevation + signed slope percent in a SINGLE tile access.
  *     The slope is derived from the gradient between adjacent pixels
  *     in the tile (1 pixel ≈ 30 m for SRTM1), so no extra lookups are
@@ -268,9 +268,22 @@ function makeLocalElevationSampler(tilesDir) {
       const buf = fs.readFileSync(hgtPath);
       const nSamples = buf.length / 2;
       // Derive the tile side length from file size.
-      const side = nSamples === SRTM1_SIDE * SRTM1_SIDE ? SRTM1_SIDE
-                 : nSamples === SRTM3_SIDE * SRTM3_SIDE ? SRTM3_SIDE
-                 : Math.round(Math.sqrt(nSamples));
+      let side;
+      if (nSamples === SRTM1_SIDE * SRTM1_SIDE) {
+        side = SRTM1_SIDE;
+      } else if (nSamples === SRTM3_SIDE * SRTM3_SIDE) {
+        side = SRTM3_SIDE;
+      } else {
+        const approx = Math.round(Math.sqrt(nSamples));
+        if (approx * approx !== nSamples) {
+          // Truncated or corrupt tile — don't cache bad data.
+          console.warn(`[dem-producer] ${name}.hgt has unexpected byte count ${buf.length} — skipping tile`);
+          cache.set(name, null);
+          order.push(name);
+          return null;
+        }
+        side = approx;
+      }
       const data = new Int16Array(nSamples);
       for (let i = 0; i < nSamples; i++) {
         data[i] = buf.readInt16BE(i * 2);
@@ -333,8 +346,7 @@ function makeLocalElevationSampler(tilesDir) {
    * slope is the steepest signed slope percent derived from the
    * pixel-neighbour gradient (same formula as computeSlopePercent).
    */
-  function sampleElevationWithSlope(lat, lon, offsetM) {
-    const effOffsetM = Number.isFinite(offsetM) ? offsetM : NEIGHBOUR_OFFSET_M;
+  function sampleElevationWithSlope(lat, lon) {
     const tileLat = Math.floor(lat);
     const tileLon = Math.floor(lon);
     const name = makeTileName(tileLat, tileLon);
@@ -377,8 +389,9 @@ function makeLocalElevationSampler(tilesDir) {
     const pixelSizeLatM = (1 / (n - 1)) * M_PER_DEG_LAT;
     const cosLat = Math.cos(lat * Math.PI / 180);
     const pixelSizeLonM = (1 / (n - 1)) * M_PER_DEG_LAT *
-                          // Guard against division instability near the poles (|lat| ≈ 90°).
-                          (cosLat > 1e-6 ? cosLat : 1);
+                          // Clamp to a small epsilon to avoid E-W gradient distortion
+                          // near the poles (cosLat approaches 0 at |lat| = 90°).
+                          Math.max(cosLat, 1e-6);
 
     const distNS = (ys - yn) * pixelSizeLatM;
     const distEW = (xe - xw) * pixelSizeLonM;
@@ -828,7 +841,7 @@ async function produceCity(repoRoot, citySlug, opts) {
     // One lookup per point gives elevation + slope from the pixel gradient.
     const sampler = makeLocalElevationSampler(tilesDir);
     const results = points.map(pt =>
-      sampler.sampleElevationWithSlope(pt.lat, pt.lon, offsetM),
+      sampler.sampleElevationWithSlope(pt.lat, pt.lon),
     );
 
     // Per-way slope via local tile lookup at way endpoints.
@@ -863,11 +876,12 @@ async function produceCity(repoRoot, citySlug, opts) {
         uniquePoints:  points.length,
         withElevation,
         ways: Object.keys(wayElevations).length,
-        // Local path: 1 lookup per point (no 5-sample expansion).
-        pointSamplesUnique: withElevation,
+        // Local path: 1 lookup per unique point (no 5-sample expansion),
+        // 2 lookups per way span (start + end endpoint).
+        pointSamplesUnique: points.length,
         pointSamplesTotal:  points.length,
-        waySamplesUnique:   spans.length,
-        waySamplesTotal:    spans.length,
+        waySamplesUnique:   spans.length * 2,
+        waySamplesTotal:    spans.length * 2,
       },
       outFile,
     };

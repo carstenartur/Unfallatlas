@@ -772,7 +772,7 @@ describe('dem_producer — makeLocalElevationSampler', () => {
       fs.writeFileSync(path.join(tmp, 'N50E007.hgt'), buf);
 
       const sampler = dem.makeLocalElevationSampler(tmp);
-      const { elevation, slope } = sampler.sampleElevationWithSlope(50.5, 7.5, 30);
+      const { elevation, slope } = sampler.sampleElevationWithSlope(50.5, 7.5);
       expect(elevation).toBeCloseTo(100, 0);
       expect(slope).toBeCloseTo(0, 4);
     } finally {
@@ -789,7 +789,7 @@ describe('dem_producer — makeLocalElevationSampler', () => {
 
       const sampler = dem.makeLocalElevationSampler(tmp);
       // Interior point → slope should be positive (uphill to north).
-      const { elevation, slope } = sampler.sampleElevationWithSlope(50.5, 7.5, 30);
+      const { elevation, slope } = sampler.sampleElevationWithSlope(50.5, 7.5);
       expect(Number.isFinite(elevation)).toBe(true);
       // Slope > 0 because the tile rises to the north.
       expect(slope).toBeGreaterThan(0);
