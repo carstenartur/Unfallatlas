@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "muenchen",
+  "generatedAt": "2026-05-09T06:06:47.613Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "extractDate": "2026-05-09"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 43988,
+    "matchedToWay": 43987,
+    "withElevation": 43988,
+    "withTrafficProxy": 38938,
+    "ways": 14474
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ]
+}

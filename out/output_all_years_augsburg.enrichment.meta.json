@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "augsburg",
+  "generatedAt": "2026-05-09T06:06:56.787Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "extractDate": "2026-05-09"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 11354,
+    "matchedToWay": 11354,
+    "withElevation": 11354,
+    "withTrafficProxy": 10397,
+    "ways": 3739
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ]
+}

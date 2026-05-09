@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "dortmund",
+  "generatedAt": "2026-05-09T06:06:52.410Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "extractDate": "2026-05-09"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 10267,
+    "matchedToWay": 10267,
+    "withElevation": 10267,
+    "withTrafficProxy": 9732,
+    "ways": 4974
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ]
+}

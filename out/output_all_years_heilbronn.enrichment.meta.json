@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "heilbronn",
+  "generatedAt": "2026-05-09T06:06:50.249Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "extractDate": "2026-05-09"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 4252,
+    "matchedToWay": 4252,
+    "withElevation": 4252,
+    "withTrafficProxy": 4029,
+    "ways": 1683
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ]
+}
