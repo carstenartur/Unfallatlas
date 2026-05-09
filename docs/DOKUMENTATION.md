@@ -63,6 +63,12 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
+> **Hinweis:** Das Video zeigt die UI vor Einführung der Kontextdaten;
+> die aktuelle Oberfläche enthält zusätzlich die Sektion
+> **Kontext (neu)** im Filter-Panel sowie einen Block **Kontextdaten**
+> in den Marker-Popups – siehe Abschnitt
+> [Kontext (neu)](#kontext-neu).
+
 ---
 
 ## Voraussetzungen
@@ -160,6 +166,65 @@ Durch geschickte Kombination der Filter lassen sich gezielte Fragestellungen bea
 **Auto+Fahrrad-Unfälle (UND-Modus)** zeigen Stellen, an denen es regelmäßig zu Kollisionen zwischen Pkw und Rad kommt – ein typischer Hinweis auf fehlende oder unzureichende Radinfrastruktur.
 
 **Fahrrad-Alleinunfälle** deuten häufig auf schlechte Fahrbahnoberfläche, gefährliche Bordsteinkanten oder unübersichtliche Radwegführung hin. Diese Unfälle werden oft übersehen, weil kein Unfallgegner beteiligt ist.
+
+---
+
+### Kontext (neu)
+
+> **Live-Screenshots.** Die drei PNGs in `docs/screenshots/` werden
+> deterministisch durch `npm run regen:context-assets` aus demselben
+> Container erzeugt, gegen den der Testcontainers-Integrationstest läuft
+> (siehe [`docs/screenshots/README.md`](screenshots/README.md)):
+> `17-kontext-filter.png` (Filter-Panel),
+> `18-popup-kontextdaten.png` (Popup mit zusätzlichem Block
+> **Kontextdaten**) und
+> `19-kontext-traffic-proxy.png` (aktive Verkehrsproxy-Filter).
+
+Im Filter-Panel erscheint – sobald der geladene Datensatz entsprechende
+Felder mitbringt – die zusätzliche Sektion **„Kontext (neu)"**. Sie
+beschreibt **die Umgebung** der Unfälle (Topographie, Straßenklasse,
+Verkehrsexposition) – nicht deren Ursache.
+
+| Filter | Werte | Bedeutung |
+|---|---|---|
+| **Hangneigung** | flach · leicht · mäßig · steil · sehr steil | Klassifikation der lokalen Steigung an der Unfallstelle, abgeleitet aus dem SRTM-30 m-Geländemodell. |
+| **Verkehrsklasse (DTV-Proxy)** | niedrig · mittel · hoch · sehr hoch | **Projekteigene Grobschätzung** der Verkehrsexposition anhand der OpenStreetMap-`highway`-Klasse (z. B. `motorway` → `very_high`, `residential` → `low`). **Keine gemessene Verkehrsdichte und keine amtliche FGSV/BASt-Tabelle.** |
+| **nur auf gematchten Straßen** | an / aus | Blendet Unfälle aus, die nicht eindeutig auf einen OSM-Way gematcht werden konnten. |
+
+**Logik:** Innerhalb einer Zeile werden mehrere Auswahlen
+**ODER**-verknüpft (z. B. „flach + leicht" zeigt Unfälle in beiden
+Klassen). Über die Zeilen hinweg gilt **UND** – analog zu allen anderen
+Filtern. Sind keine Chips gewählt, ist der jeweilige Filter inaktiv.
+
+**Kontextdaten ≠ Unfallursache.** Eine starke Steigung, eine viel
+befahrene Straße oder eine bestimmte Straßenklasse sind **Kontext**, kein
+Kausalitätsbeleg. Die Daten dienen der schnelleren Filterung
+vergleichbarer Unfallorte und ersetzen keine ursachenbezogene
+Einzelfallprüfung.
+
+**Datengrundlage:**
+
+- **Hangneigung / Höhe** – abgeleitet aus dem SRTM-30 m-Geländemodell
+  (NASA, via AWS Open Data).
+- **Straßenkontext** – OpenStreetMap-Attribute (`highway`, `maxspeed`,
+  `lanes`, `surface`, `cycleway`, `osm_incline`); © OpenStreetMap-Mitwirkende, ODbL.
+- **Verkehrsklasse** – projekteigener OSM-`highway`-Proxy, **keine
+  gemessenen Zähldaten**. Details siehe
+  [`scripts/producers/traffic_producer.js`](../scripts/producers/traffic_producer.js)
+  und [`docs/enrichment.md`](enrichment.md).
+
+**Verfügbarkeit:** Die Sektion und die einzelnen Zeilen werden nur
+eingeblendet, wenn der Datensatz die jeweiligen Felder enthält. Lädt
+man eine Stadt ohne diese Anreicherung, bleibt der Bereich versteckt –
+selbst wenn die URL noch alte `ctxSlope=…`/`ctxTraffic=…`-Werte
+mitbringt, wirken diese dort nicht (siehe URL-Parameter-Referenz).
+
+**Im Popup** zeigt jeder Unfall-Marker zusätzlich einen Block
+**„Kontextdaten"** (sofern vorhanden) mit Topographie, Straßenkontext
+und Verkehrsexposition. Der Block wird per Lazy-Load aus
+`out/ways_<city>.json` mit Way-Attributen angereichert. Schlägt der
+Lazy-Load fehl (404, Netzwerkfehler), bleibt der Popup mit den reinen
+Per-Feature-Werten funktionsfähig.
 
 ---
 
@@ -739,10 +804,47 @@ unterstützten Parameter auf:
 | `showSchools` | Schulen auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
 | `showKindergartens` | Kindergärten/Kitas auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
 
-**Beispiel-URL:**
-```
-werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&includeGkfz=1&includeSonstig=1&involvementMode=and&showHeatmap=1&showCluster=0&hourFrom=6&hourTo=18&zoom=15&centerLat=50.7330&centerLon=7.0950
-```
+### Kontext (neu)
+
+Diese Parameter steuern die Sektion **Kontext (neu)** im Filter-Panel
+(Hangneigung, Verkehrsklasse-DTV-Proxy, „nur auf gematchten Straßen").
+
+| Parameter | Beschreibung | Werte | Standard |
+|---|---|---|---|
+| `ctxSlope` | Hangneigungs-Klassen (CSV) | beliebige Kombination aus `flat`, `gentle`, `moderate`, `steep`, `very_steep` | (leer = kein Filter) |
+| `ctxTraffic` | Verkehrsklasse-DTV-Proxy (CSV) | beliebige Kombination aus `low`, `medium`, `high`, `very_high` | (leer = kein Filter) |
+| `ctxOnlyMatched` | nur Unfälle auf gematchten OSM-Wegen | `0` / `1` | `0` |
+
+**Beispiel:** `?ctxSlope=steep,very_steep&ctxTraffic=high,very_high&ctxOnlyMatched=1`
+zeigt nur Unfälle an steilen oder sehr steilen Hängen, auf hoch oder
+sehr hoch belasteten Straßen, mit erfolgreichem OSM-Way-Match.
+
+**QA-Garantien (siehe `tests/unit/ua.contextFilterUi.test.js`,
+`tests/unit/ua.contextFilters.test.js`,
+`tests/unit/ua.qaHardening.test.js`):**
+
+- **Abwärtskompatibilität.** Alte Links ohne diese Parameter laden
+  unverändert; die Default-Werte oben gelten als ob nie ein Kontextfilter
+  gesetzt worden wäre.
+- **Unbekannte/veraltete Werte.** Werte außerhalb der erlaubten Liste
+  werden beim Hydratisieren still verworfen
+  (`UA.initContextFilters`/`parseCsvSet`); ein Tippfehler wie
+  `ctxSlope=bogus` führt zu *keinem* Filter, nicht zu einer leeren
+  Ergebnismenge.
+- **Stadt ohne Kontextdaten.** Lädt man eine Stadt, die keine
+  Anreicherung trägt (`ctx.contextCapabilities.hasAny === false`), wirkt
+  ein in der URL übrig gebliebener `ctxSlope=…`/`ctxTraffic=…` *nicht*
+  als versteckter Filter – die jeweilige Capability ist abgeschaltet, der
+  Filter ist defensiv ein No-Op (`UA.matchesContextFilters` prüft
+  `ctx.contextCapabilities` pro Zeile).
+- **Auto-Reset bei Stadtwechsel.** `UA.refreshContextFilterVisibility`
+  wird nach jedem Datenladevorgang aufgerufen; verschwindet eine
+  Capability beim Stadtwechsel, wird der zugehörige Chip-Status
+  zurückgesetzt **und** über `UA.syncAllToUrl` aus der URL entfernt.
+- **Round-Trip beim Teilen.** Der Komplett-State – inklusive
+  `ctxSlope`, `ctxTraffic`, `ctxOnlyMatched` – wird über
+  `UA.syncAllToUrl` zurück in die URL geschrieben, sodass kopierte Links
+  exakt dieselbe Filter-Kombination reproduzieren.
 
 ---
 

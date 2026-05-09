@@ -46,6 +46,7 @@
 | Funktion | Beschreibung |
 |---|---|
 | **Filterkombinationen** | Schwere, Beteiligung (🚲 🚶 🚗 🏍️ 🚛 🚌 – ODER / UND / Alleinunfall), Uhrzeit, Wochentag, Fahrbahnzustand |
+| **Kontextfilter (neu)** | Zusätzliche Sektion „Kontext (neu)" für Hangneigung, Verkehrsklasse-DTV-Proxy und „nur auf gematchten Straßen". Nur sichtbar, wenn der Datensatz die jeweilige Anreicherung trägt. Die Verkehrsklasse ist ein **projekteigener OSM-`highway`-Proxy**, **keine gemessene Verkehrsdichte**. Details: [`docs/DOKUMENTATION.md` → Kontext (neu)](docs/DOKUMENTATION.md#kontext-neu). |
 | **Cluster-Analyse** | Klick auf Cluster zeigt Beteiligungskombinationen mit Vergleich zum Stadtdurchschnitt |
 | **Heatmap & Hotspots** | Dichteverteilung und automatische Erkennung überrepräsentierter Muster |
 | **POI-Overlay** | Ab Zoomstufe 15: Schulen 🏫 und Kitas 🧒 auf der Karte – Schulwegsicherheit prüfen |
@@ -311,6 +312,27 @@ Die **Werkbank V2** enthält einen eingebauten Tour-Player (`js/ua.tour.js`) der
 Das Projekt enthält einen automatisierten Demo-Ablauf auf Basis von [Playwright](https://playwright.dev/). Er durchläuft die wichtigsten Funktionen der Werkbank (Stadt wählen → Filter setzen → Heatmap → Legende → Export) und zeichnet das Ergebnis als Video auf.
 
 ![Demo-Ablauf der Unfallwerkbank V2](docs/demo.gif)
+
+> **Hinweis:** Das Video zeigt die UI vor Einführung der Kontextdaten;
+> die aktuelle Oberfläche enthält zusätzlich Kontextfilter (Hangneigung,
+> Verkehrsklasse-DTV-Proxy, „nur auf gematchten Straßen") sowie einen
+> Block **Kontextdaten** in den Marker-Popups. Details:
+> [`docs/DOKUMENTATION.md` → Kontext (neu)](docs/DOKUMENTATION.md#kontext-neu).
+>
+> **Kontextdaten ≠ Unfallursache.** Hangneigung und Verkehrsklasse-DTV-Proxy
+> beschreiben die Umgebung der Unfälle (Topographie, OSM-`highway`-Schätzung),
+> sie sind kein Kausalitätsbeleg.
+>
+> Eine context-spezifische GIF-Demo (`docs/demo-context.gif`) und drei
+> begleitende PNGs (17–19 in `docs/screenshots/`) lassen sich
+> reproduzierbar erzeugen mit:
+>
+> ```bash
+> # bevorzugt das im docker-publish.yml gebaute Image,
+> # sonst lokaler `docker build`
+> export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
+> npm run regen:context-assets
+> ```
 
 <details>
 <summary><strong>Demo-Video selbst erzeugen (klicken zum Aufklappen)</strong></summary>

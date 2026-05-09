@@ -145,6 +145,59 @@
       </div>
 
       <!--
+        PR-D: „Kontext (neu)" – topographische und straßenbezogene
+        Filter. Anfangs hidden; ua.ui.js zeigt die Sektion nur dann,
+        wenn die geladene Stadt mindestens eine der entsprechenden
+        Capabilities (slope/traffic/osm) trägt. Je Capability werden
+        nur die zugehörigen Chips/Toggles angezeigt — alles andere
+        bleibt visuell aus, statt mit unbedienbaren Steuerelementen zu
+        verwirren.
+      -->
+      <div id="ctxFilterSection" hidden>
+        <div style="margin-top:10px; font-weight:900;">Kontext (neu)</div>
+        <details open style="margin-top:4px;">
+          <summary style="cursor:pointer; user-select:none; font-size:12px; color:#555;">
+            Topographie &amp; Straßenkontext
+          </summary>
+
+          <div id="ctxSlopeRow" hidden style="margin-top:6px;">
+            <div style="font-size:12px; color:#555; margin-bottom:2px;">Hangneigung</div>
+            <div class="chips">
+              <label class="chip"><input type="checkbox" data-ctx-slope="flat"      > <span>flach</span></label>
+              <label class="chip"><input type="checkbox" data-ctx-slope="gentle"    > <span>leicht</span></label>
+              <label class="chip"><input type="checkbox" data-ctx-slope="moderate"  > <span>mäßig</span></label>
+              <label class="chip"><input type="checkbox" data-ctx-slope="steep"     > <span>steil</span></label>
+              <label class="chip"><input type="checkbox" data-ctx-slope="very_steep"> <span>sehr steil</span></label>
+            </div>
+          </div>
+
+          <div id="ctxTrafficRow" hidden style="margin-top:6px;">
+            <div style="font-size:12px; color:#555; margin-bottom:2px;">Verkehrsklasse (DTV-Proxy)</div>
+            <div class="chips">
+              <label class="chip"><input type="checkbox" data-ctx-traffic="low"      > <span>niedrig</span></label>
+              <label class="chip"><input type="checkbox" data-ctx-traffic="medium"   > <span>mittel</span></label>
+              <label class="chip"><input type="checkbox" data-ctx-traffic="high"     > <span>hoch</span></label>
+              <label class="chip"><input type="checkbox" data-ctx-traffic="very_high"> <span>sehr hoch</span></label>
+            </div>
+          </div>
+
+          <div id="ctxOnlyMatchedRow" hidden style="margin-top:6px;">
+            <label class="chip" style="display:inline-flex; align-items:center; gap:6px;">
+              <input type="checkbox" id="ctxOnlyMatched" />
+              <span title="Blendet Unfälle aus, die nicht eindeutig auf einen OSM-Way gematcht werden konnten.">
+                nur auf gematchten Straßen
+              </span>
+            </label>
+          </div>
+
+          <div style="margin-top:6px; font-size:11px; color:#777; line-height:1.4;">
+            <em>Filter zeigen nur Unfälle, deren Umgebung den gewählten Kategorien entspricht.
+            Unfälle ohne entsprechende Kontextdaten werden ausgeblendet.</em>
+          </div>
+        </details>
+      </div>
+
+      <!--
         QA-Härtung „Nutzerführung": Entwickler-/Tuning-Knöpfe (Max Punkte,
         Viewport-Puffer, Heat-Radius) sind für die kommunale Hauptaufgabe
         nicht relevant und werden in ein einklappbares <details>

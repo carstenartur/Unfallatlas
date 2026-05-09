@@ -117,6 +117,48 @@
   UA.DARK_FIGURE_NOTE = DARK_FIGURE_NOTE;
 
   // --------------------
+  // PR-E – Enrichment-Quellen-Hinweis
+  // Dokumentiert die Datenquellen für die in PR-A/B/C/D dargestellten
+  // Kontextdaten (Topographie, Verkehrslast, OSM-Straßenattribute).
+  // Wird nur dann gerendert, wenn der Datensatz mindestens eines der
+  // Kontextfelder trägt (`structured.enrichmentSourcesNote` ist sonst
+  // null). Quellen sind bewusst klein gehalten und stadtübergreifend
+  // — produzentenspezifische Versionen (OSM-Stand, SRTM-Tile) liefert
+  // bereits die `*.enrichment.meta.json` als Anhang im Repo.
+  // --------------------
+  const ENRICHMENT_SOURCES_NOTE = Object.freeze({
+    title: "Kontextdaten – Datenquellen",
+    body: "Die in dieser Auswertung dargestellten Kontextdaten (Höhe, Hangneigung, OSM-Straßenattribute, geschätzte Verkehrsexposition als Proxy) sind aus offenen Datenquellen abgeleitet und beschreiben die Umgebung der Unfallorte – nicht deren Ursachen. Die Verkehrsklasse ist eine projekteigene Grobschätzung anhand der OSM-Straßenklasse und keine gemessene Verkehrsdichte.",
+    sources: Object.freeze([
+      Object.freeze({
+        label: "SRTM 30 m Geländemodell (NASA, via AWS Open Data)",
+        url:   "https://registry.opendata.aws/terrain-tiles/"
+      }),
+      Object.freeze({
+        label: "OpenStreetMap-Straßenattribute (© OpenStreetMap-Mitwirkende, ODbL)",
+        url:   "https://www.openstreetmap.org/copyright"
+      }),
+      Object.freeze({
+        label: "Verkehrsklasse: projekteigener OSM-highway-Proxy (keine gemessenen Zähldaten)",
+        url:   "https://wiki.openstreetmap.org/wiki/Key:highway"
+      })
+    ])
+  });
+  UA.ENRICHMENT_SOURCES_NOTE = ENRICHMENT_SOURCES_NOTE;
+
+  /**
+   * Pure helper: returns the enrichment-sources note iff the dataset
+   * actually carries any context field (`ctx.contextCapabilities.hasAny`).
+   * Returns null otherwise so renderers can do a single null check.
+   */
+  function pickEnrichmentSourcesNote(ctx) {
+    const caps = ctx && ctx.contextCapabilities;
+    if (!caps || !caps.hasAny) return null;
+    return ENRICHMENT_SOURCES_NOTE;
+  }
+  UA._pickEnrichmentSourcesNote = pickEnrichmentSourcesNote;
+
+  // --------------------
   // Task 9 / Task 10 – Politischer Sprachmodus
   // --------------------
   /**
@@ -2189,6 +2231,18 @@
     }
     lines.push("");
 
+    // PR-E: Quellen-Hinweis für die in PR-A/B/C/D dargestellten
+    // Kontextdaten — nur wenn der Datensatz solche Felder trägt.
+    const enrichNote = pickEnrichmentSourcesNote(ctx);
+    if (enrichNote) {
+      lines.push(enrichNote.title + ":");
+      lines.push("  " + enrichNote.body);
+      for (const src of enrichNote.sources) {
+        lines.push("  - " + src.label + (src.url ? " (" + src.url + ")" : ""));
+      }
+      lines.push("");
+    }
+
     lines.push(tpl(tBesch, vars).trim());
     lines.push("");
     // Task 6: Interner Hinweis ("automatisiert erzeugt (Vorentwurf)") wird
@@ -2692,6 +2746,14 @@
           <div style="margin-top:4px; font-style:italic;">${UA.escHtml(DARK_FIGURE_NOTE.sourceLabel)}</div>${(DARK_FIGURE_NOTE.sources && DARK_FIGURE_NOTE.sources.length > 0) ? `<ul style="margin:4px 0 0 0; padding-left:16px;">${DARK_FIGURE_NOTE.sources.map(s => `<li><a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${UA.escHtml(s.label)}</a></li>`).join("")}</ul>` : (DARK_FIGURE_NOTE.sourceUrl ? `<a href="${UA.escHtml(DARK_FIGURE_NOTE.sourceUrl)}" target="_blank" rel="noopener">Link</a>` : "")}
         </div>
 
+        ${(() => { const _en = pickEnrichmentSourcesNote(ctx); return _en ? `
+        <div style="margin-top:8px; padding:8px 10px; border:1px solid #cfe3f7; background:#f4f9ff; border-radius:6px; font-size:12px; color:#26425e;">
+          <div style="font-weight:700; margin-bottom:2px;">${UA.escHtml(_en.title)}</div>
+          <div>${UA.escHtml(_en.body)}</div>
+          <ul style="margin:4px 0 0 0; padding-left:16px;">${_en.sources.map(s => `<li><a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${UA.escHtml(s.label)}</a></li>`).join("")}</ul>
+        </div>
+        ` : ``; })()}
+
         ${(yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) ? `
         <div style="margin-top:12px; font-weight:900;">Mehrjahres-Trend</div>
         <div style="margin:6px 0;">${(UA.trend && UA.trend.renderTrendSVG) ? UA.trend.renderTrendSVG(yearlyTrend) : ""}</div>
@@ -2846,7 +2908,10 @@
       yearlyTrend,
       heatmap,
       osmContext,
-      darkFigureNote: DARK_FIGURE_NOTE
+      darkFigureNote: DARK_FIGURE_NOTE,
+      // PR-E: only set when the dataset actually carries context data —
+      // renderers (TEXT/HTML/DOCX/PDF) treat null as "no Anhang section".
+      enrichmentSourcesNote: pickEnrichmentSourcesNote(ctx)
     };
 
     // Task 2: KURZBEWERTUNG / Executive Summary aus den bereits berechneten

@@ -57,6 +57,22 @@
     ui.btnCopyLink = document.getElementById('btnCopyLink');
     ui.accidentViewSel = document.getElementById('accidentViewSel');
 
+    // PR-D: Kontextfilter (Hangneigung / Verkehrsklasse / nur gematchte
+    // Straßen). Die Sektion und Unter-Reihen sind initial hidden;
+    // UA.refreshContextFilterVisibility() schaltet sie nur ein, wenn
+    // die Stadt die jeweilige Capability trägt (siehe ctx.contextCapabilities).
+    ui.ctxFilterSection      = document.getElementById('ctxFilterSection');
+    ui.ctxSlopeRow           = document.getElementById('ctxSlopeRow');
+    ui.ctxTrafficRow         = document.getElementById('ctxTrafficRow');
+    ui.ctxOnlyMatchedRow     = document.getElementById('ctxOnlyMatchedRow');
+    ui.ctxOnlyMatchedEl      = document.getElementById('ctxOnlyMatched');
+    ui.ctxSlopeChipEls       = ui.ctxFilterSection
+      ? Array.from(ui.ctxFilterSection.querySelectorAll('input[data-ctx-slope]'))
+      : [];
+    ui.ctxTrafficChipEls     = ui.ctxFilterSection
+      ? Array.from(ui.ctxFilterSection.querySelectorAll('input[data-ctx-traffic]'))
+      : [];
+
     ctx.ui = ui;
 
     // QA-Härtung „Ladezustand": Build/Quelle erst sichtbar machen, wenn
@@ -129,6 +145,9 @@
 
   UA.syncAllToUrl = function syncAllToUrl(ctx){
     const ui = ctx.ui;
+    const cf = ctx.contextFilters || {};
+    const slopeStr   = cf.slopeClasses   ? Array.from(cf.slopeClasses).sort().join(",")   : "";
+    const trafficStr = cf.trafficClasses ? Array.from(cf.trafficClasses).sort().join(",") : "";
     UA.setQS({
       city: ctx.CITY_RAW,
       severity: ui.severityEl.value,
@@ -151,7 +170,12 @@
       showOnlyAboveAverage: ctx.showOnlyAboveAverage ? 1 : 0,
       showSchools: ctx.showSchools ? 1 : 0,
       showKindergartens: ctx.showKindergartens ? 1 : 0,
-      showArgumentation: ctx.showArgumentation ? 1 : 0
+      showArgumentation: ctx.showArgumentation ? 1 : 0,
+      // PR-D: Kontextfilter — leere Strings (kein Filter aktiv) werden
+      // von UA.setQS automatisch aus der URL entfernt.
+      ctxSlope:        slopeStr,
+      ctxTraffic:      trafficStr,
+      ctxOnlyMatched:  cf.onlyMatchedWays ? 1 : 0,
     });
     UA.syncViewToUrl(ctx);
   };
@@ -317,6 +341,33 @@
     ui.btnHeat.addEventListener("click", ()=>{ ctx.showHeatmap=!ctx.showHeatmap; UA.setBtnState(ui.btnHeat, ctx.showHeatmap); UA.syncAllToUrl(ctx); ctx._dataChanged = true; if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx); UA.renderLayers(ctx); });
     ui.btnOnlyHot.addEventListener("click", ()=>{ ctx.showOnlyAboveAverage=!ctx.showOnlyAboveAverage; UA.setBtnState(ui.btnOnlyHot, ctx.showOnlyAboveAverage); UA.syncAllToUrl(ctx); ctx._dataChanged = true; UA.renderLayers(ctx); });
 
+    // PR-D: Kontextfilter — Hydration aus URL + Listener. Die Sektion
+    // selbst bleibt hidden, bis nach dem Daten-Load
+    // UA.refreshContextFilterVisibility(ctx) sie für die jeweils
+    // unterstützten Felder freischaltet.
+    UA.initContextFilters(ctx);
+    for (const el of ui.ctxSlopeChipEls) {
+      el.addEventListener("change", () => {
+        UA.readContextFilterChips(ctx);
+        UA.syncAllToUrl(ctx);
+        UA.recomputeAndRender(ctx);
+      });
+    }
+    for (const el of ui.ctxTrafficChipEls) {
+      el.addEventListener("change", () => {
+        UA.readContextFilterChips(ctx);
+        UA.syncAllToUrl(ctx);
+        UA.recomputeAndRender(ctx);
+      });
+    }
+    if (ui.ctxOnlyMatchedEl) {
+      ui.ctxOnlyMatchedEl.addEventListener("change", () => {
+        UA.readContextFilterChips(ctx);
+        UA.syncAllToUrl(ctx);
+        UA.recomputeAndRender(ctx);
+      });
+    }
+
     // draw controls
     ui.btnDraw.addEventListener('click', () => {
       const toolbar = ctx.drawControl._toolbars?.draw;
@@ -345,6 +396,107 @@
     // Sync legend button CSS to reflect URL-restored state
     // (addLayerLegend runs before bindUi, so buttons may have wrong initial class)
     if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx);
+  };
+
+  // ---------------------------------------------------------------------------
+  // PR-D: Kontextfilter helpers
+  // ---------------------------------------------------------------------------
+
+  // Allowed values mirror SLOPE_CLASS_THRESHOLDS / TRAFFIC_PROXY_THRESHOLDS in
+  // scripts/enrich_geojson.js. Anything outside this set is silently dropped
+  // when hydrating from the URL — so a stale querystring from an older app
+  // version cannot enable a filter that doesn't exist anymore.
+  const SLOPE_CLASS_VALUES   = new Set(["flat","gentle","moderate","steep","very_steep"]);
+  const TRAFFIC_CLASS_VALUES = new Set(["low","medium","high","very_high"]);
+
+  function parseCsvSet(raw, allowed) {
+    if (!raw) return new Set();
+    return new Set(String(raw).split(",").map(s => s.trim()).filter(s => allowed.has(s)));
+  }
+
+  /**
+   * Initialise ctx.contextFilters from the URL and apply the resulting
+   * checkbox state to the DOM. Idempotent — safe to call multiple times.
+   */
+  UA.initContextFilters = function initContextFilters(ctx){
+    const ui = ctx.ui || {};
+    const slopeSel   = parseCsvSet(UA.qGet("ctxSlope", ""),   SLOPE_CLASS_VALUES);
+    const trafficSel = parseCsvSet(UA.qGet("ctxTraffic", ""), TRAFFIC_CLASS_VALUES);
+    const onlyMatched = UA.qBool("ctxOnlyMatched", false);
+
+    ctx.contextFilters = {
+      slopeClasses:    slopeSel,
+      trafficClasses:  trafficSel,
+      onlyMatchedWays: onlyMatched,
+    };
+
+    for (const el of ui.ctxSlopeChipEls || []) {
+      el.checked = slopeSel.has(el.dataset.ctxSlope);
+    }
+    for (const el of ui.ctxTrafficChipEls || []) {
+      el.checked = trafficSel.has(el.dataset.ctxTraffic);
+    }
+    if (ui.ctxOnlyMatchedEl) ui.ctxOnlyMatchedEl.checked = onlyMatched;
+  };
+
+  /** Read the current checkbox state into ctx.contextFilters. */
+  UA.readContextFilterChips = function readContextFilterChips(ctx){
+    const ui = ctx.ui || {};
+    const slope   = new Set();
+    const traffic = new Set();
+    for (const el of ui.ctxSlopeChipEls || []) {
+      if (el.checked && SLOPE_CLASS_VALUES.has(el.dataset.ctxSlope)) slope.add(el.dataset.ctxSlope);
+    }
+    for (const el of ui.ctxTrafficChipEls || []) {
+      if (el.checked && TRAFFIC_CLASS_VALUES.has(el.dataset.ctxTraffic)) traffic.add(el.dataset.ctxTraffic);
+    }
+    ctx.contextFilters = {
+      slopeClasses:    slope,
+      trafficClasses:  traffic,
+      onlyMatchedWays: !!(ui.ctxOnlyMatchedEl && ui.ctxOnlyMatchedEl.checked),
+    };
+  };
+
+  /**
+   * Show/hide the Kontext (neu) section and its sub-rows based on which
+   * capabilities the loaded city actually carries
+   * (ctx.contextCapabilities, populated by ua.data_v2.loadCityData via
+   * UA.contextLayers.capabilitiesFromDetection). When a row is hidden,
+   * its filter is also reset so we don't leak a hidden restriction.
+   * Safe to call multiple times (e.g. after an in-place city switch);
+   * idempotent.
+   */
+  UA.refreshContextFilterVisibility = function refreshContextFilterVisibility(ctx){
+    const ui   = ctx.ui || {};
+    const caps = ctx.contextCapabilities || {};
+    const sec  = ui.ctxFilterSection;
+    if (!sec) return;
+
+    const showSlope   = !!caps.hasSlope;
+    const showTraffic = !!caps.hasTrafficProxy;
+    const showMatched = !!caps.hasOsmContext;
+    const showAny     = showSlope || showTraffic || showMatched;
+
+    sec.hidden = !showAny;
+    if (ui.ctxSlopeRow)       ui.ctxSlopeRow.hidden       = !showSlope;
+    if (ui.ctxTrafficRow)     ui.ctxTrafficRow.hidden     = !showTraffic;
+    if (ui.ctxOnlyMatchedRow) ui.ctxOnlyMatchedRow.hidden = !showMatched;
+
+    const cf = ctx.contextFilters || (ctx.contextFilters = { slopeClasses: new Set(), trafficClasses: new Set(), onlyMatchedWays: false });
+    let mutated = false;
+    if (!showSlope && cf.slopeClasses && cf.slopeClasses.size) {
+      cf.slopeClasses = new Set(); mutated = true;
+      for (const el of ui.ctxSlopeChipEls || []) el.checked = false;
+    }
+    if (!showTraffic && cf.trafficClasses && cf.trafficClasses.size) {
+      cf.trafficClasses = new Set(); mutated = true;
+      for (const el of ui.ctxTrafficChipEls || []) el.checked = false;
+    }
+    if (!showMatched && cf.onlyMatchedWays) {
+      cf.onlyMatchedWays = false; mutated = true;
+      if (ui.ctxOnlyMatchedEl) ui.ctxOnlyMatchedEl.checked = false;
+    }
+    if (mutated && typeof UA.syncAllToUrl === 'function') UA.syncAllToUrl(ctx);
   };
 
 })();

@@ -309,6 +309,15 @@
    * keine Kontextdaten, ist das Ergebnis `null` (Aufrufer soll dann
    * gar keinen Popup binden).
    *
+   * Hydration (PR-C): Sind im Feature `matched_way_id` *und* in
+   * `ctx.contextLayerState` ein bereits geladener `ways_<city>.json`-
+   * Snapshot vorhanden, werden die Way-Attribute (highway, maxspeed,
+   * lanes, surface, cycleway, osm_incline, road_slope_percent, …) per
+   * `UA.contextLayers.resolveWay` aufgelöst und auf eine *Kopie* der
+   * Properties gemerged. Per-Feature-Werte gewinnen — die Way-Attribute
+   * füllen nur fehlende Felder. Ist der Cache noch nicht geladen
+   * (Race), wird die Sektion einfach weggelassen (kein Warten).
+   *
    * @param {object|null} ctx
    * @param {object|null} props
    * @param {{ baseHtml?: string|null }} [opts]
@@ -317,7 +326,8 @@
   function composeAccidentPopupHtml(ctx, props, opts) {
     const base = opts && typeof opts.baseHtml === 'string' ? opts.baseHtml : '';
     const caps = (ctx && ctx.contextCapabilities) || {};
-    const ctxHtml = render(props, caps);
+    const renderProps = hydrateWayAttrs(ctx, props);
+    const ctxHtml = render(renderProps, caps);
     if (!base && !ctxHtml) return null;
     if (!ctxHtml) return base || null;
     if (!base) return ctxHtml;
@@ -325,13 +335,44 @@
     return `${base}${sep}${ctxHtml}`;
   }
 
+  // Way-Felder, die wir aus dem Lazy-Cache in die Popup-Props mergen.
+  // Bewusst eine White-List, damit z. B. interne Indizes oder künftige
+  // Felder, die der Renderer (noch) nicht versteht, nicht stillschweigend
+  // angeschleppt werden. road_context_source liefert das Quellen-Badge.
+  const HYDRATABLE_WAY_FIELDS = Object.freeze([
+    'highway', 'maxspeed', 'lanes', 'surface', 'cycleway',
+    'osm_incline', 'road_slope_percent', 'road_context_source',
+  ]);
+
+  function hydrateWayAttrs(ctx, props) {
+    const p = props || {};
+    if (!p.matched_way_id) return p;
+    const state = ctx && ctx.contextLayerState;
+    if (!state || !state.ways) return p;
+    const cl = UA.contextLayers;
+    if (!cl || typeof cl.resolveWay !== 'function') return p;
+    let resolved;
+    try { resolved = cl.resolveWay(state, p.matched_way_id); }
+    catch (_) { return p; }
+    if (!resolved || typeof resolved !== 'object') return p;
+    const merged = { ...p };
+    for (const k of HYDRATABLE_WAY_FIELDS) {
+      if (resolved[k] === undefined || resolved[k] === null || resolved[k] === '') continue;
+      if (merged[k] !== undefined && merged[k] !== null && merged[k] !== '') continue; // per-feature wins
+      merged[k] = resolved[k];
+    }
+    return merged;
+  }
+
   UA.popupContext = {
     LABELS_DE,
     OSM_FIELD_LABELS,
     OSM_FIELD_ORDER,
+    HYDRATABLE_WAY_FIELDS,
     formatNumber,
     classifySource,
     render,
+    hydrateWayAttrs,
   };
   UA.composeAccidentPopupHtml = composeAccidentPopupHtml;
 

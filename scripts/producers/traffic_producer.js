@@ -53,11 +53,13 @@ const DEFAULT_UNIT   = 'DTV';
 const DEFAULT_CONFIDENCE = 'low';
 
 // Typical DTV (vehicles/day) for each OSM `highway` class. The values
-// are rounded order-of-magnitude estimates based on the FGSV HBS
-// road-class typicals; they are deliberately *not* meant as anything
-// more precise than a coarse proxy. Keeping them in one place makes
-// the catalogue easy to audit and replace with regional defaults
-// later.
+// are project-internal, rounded order-of-magnitude estimates indexed
+// by the OSM highway tag — they are deliberately *not* meant as
+// anything more precise than a coarse proxy and are NOT backed by a
+// specific FGSV/BASt published table. Treat the resulting
+// `traffic_proxy_class` as an exposure indicator, never as measured
+// traffic density. Keeping the catalogue in one place makes it easy
+// to audit and replace with regional defaults later.
 //
 // Anything not in the table maps to `undefined` and produces no
 // traffic entry for that way (the enricher then leaves the
