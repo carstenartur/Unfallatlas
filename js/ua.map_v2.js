@@ -875,11 +875,21 @@
   // the LayerGroup on `ctx.map`, persists state to the URL, and
   // refreshes the floating legend. Safe to call when controls have
   // not been wired (acts as a no-op).
+  //
+  // Also keeps the layer-control checkbox in sync, so programmatic
+  // callers (tour player, URL hydration, …) see the UI reflect the
+  // overlay's actual visibility.
   UA.setContextOverlayActive = function setContextOverlayActive(ctx, kind, active) {
     if (!CONTEXT_OVERLAY_KINDS.includes(kind)) return;
     const reg = _ensureOverlayRegistry(ctx);
     const want = !!active;
-    if (reg.active[kind] === want) return;
+    if (reg.active[kind] === want) {
+      // Even when the desired state already matches, keep the
+      // checkbox in sync — a previous teardown may have left it
+      // stale. This is cheap (one DOM lookup).
+      _syncOverlayCheckbox(reg, kind, want);
+      return;
+    }
 
     if (want) {
       const layer = _buildOverlay(ctx, kind);
@@ -890,17 +900,42 @@
       try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
     }
     reg.active[kind] = want;
+    _syncOverlayCheckbox(reg, kind, want);
     _refreshContextLegend(ctx);
     if (typeof UA.syncAllToUrl === 'function') {
       try { UA.syncAllToUrl(ctx); } catch (_) { /* tolerate hydration */ }
     }
   };
 
+  // Internal: mirror `reg.active[kind]` onto the layer-control
+  // checkbox without re-triggering its `change` handler. No-op when
+  // the control isn't built or the input has been removed.
+  function _syncOverlayCheckbox(reg, kind, want) {
+    const ctrl = reg.layerControl;
+    const c = ctrl && (ctrl._container || (typeof ctrl.getContainer === 'function' ? ctrl.getContainer() : null));
+    if (!c || typeof c.querySelector !== 'function') return;
+    const cb = c.querySelector('input[data-context-overlay="' + kind + '"]');
+    if (cb && cb.checked !== !!want) cb.checked = !!want;
+  }
+
   /**
    * Wire (or re-wire) the context-overlay controls onto the map.
-   * Called once `ctx.contextLayerState` resolves and after every
-   * city switch. Idempotent — tears down previous controls first.
-   * Renders nothing for cities without the corresponding capability.
+   * Called immediately during `main()` (capabilities only), and again
+   * after `ctx.contextLayerState` resolves via `loadAtIdle` (now with
+   * geometries). Idempotent — tears down previous controls first.
+   *
+   * Crucially, this is called twice during a normal cold start:
+   *   1. before the lazy geometry load resolves — `state` is null,
+   *      controls render but the checkboxes are disabled, and any
+   *      previously-hydrated `reg.active.*` flags (e.g. from a
+   *      `?mapLayer=…` deep link) are PRESERVED until the geometry
+   *      arrives so the URL state isn't silently dropped.
+   *   2. after the lazy load resolves — controls re-render, disabled
+   *      state lifts, and any previously-pending `reg.active.*` flags
+   *      auto-trigger the actual layer build via setContextOverlayActive.
+   *
+   * Renders nothing for cities without the corresponding capability
+   * flag (`ctx.contextCapabilities.{hasSlope,hasTrafficProxy}`).
    */
   UA.refreshContextOverlays = function refreshContextOverlays(ctx) {
     if (!ctx || !ctx.map || !window.L || !UA.contextRoadLayer) return;
@@ -925,19 +960,26 @@
       reg.legendControl = null;
     }
 
-    // Determine which overlays the city actually supports.
-    const showSlope   = !!caps.hasSlope        && hasGeom;
-    const showTraffic = !!caps.hasTrafficProxy && hasGeom;
+    // Gate the controls on capabilities, NOT on geometry. The geometry
+    // is loaded lazily and may legitimately not be there yet on the
+    // first call; resetting `reg.active` at that point would clobber
+    // a `?mapLayer=…` deep link before it had a chance to take effect.
+    const showSlope   = !!caps.hasSlope;
+    const showTraffic = !!caps.hasTrafficProxy;
     if (!showSlope && !showTraffic) {
-      // Reset stale active flags so a city switch can't leak a hidden
-      // restriction into the URL.
-      reg.active.slope   = false;
-      reg.active.traffic = false;
-      if (typeof UA.syncAllToUrl === 'function') {
+      // City genuinely has no slope / no traffic data — drop any stale
+      // active flags so a city switch can't leak a hidden restriction
+      // into the URL.
+      let changed = false;
+      if (reg.active.slope)   { reg.active.slope   = false; changed = true; }
+      if (reg.active.traffic) { reg.active.traffic = false; changed = true; }
+      if (changed && typeof UA.syncAllToUrl === 'function') {
         try { UA.syncAllToUrl(ctx); } catch (_) {}
       }
       return;
     }
+    // Drop active flags only for capabilities that actually disappeared
+    // (mirroring the chip-filter pruning in refreshContextFilterVisibility).
     if (!showSlope)   reg.active.slope   = false;
     if (!showTraffic) reg.active.traffic = false;
 
@@ -966,16 +1008,31 @@
       c.appendChild(title);
       c.setAttribute('aria-labelledby', 'context-overlay-control-title');
 
+      // Pending hint — only when capabilities exist but the lazy
+      // geometry load hasn't resolved yet. Disabled checkboxes make
+      // it visually clear that the layers will become available
+      // shortly without losing the user's deep-link intent.
+      if (!hasGeom) {
+        const hint = document.createElement('div');
+        hint.textContent = '(lädt …)';
+        hint.style.fontSize = '11px';
+        hint.style.color    = '#888';
+        hint.style.marginBottom = '4px';
+        c.appendChild(hint);
+      }
+
       const add = (kind, label) => {
         const id  = 'ctxOverlay_' + kind;
         const row = document.createElement('label');
         row.style.display = 'block';
-        row.style.cursor  = 'pointer';
+        row.style.cursor  = hasGeom ? 'pointer' : 'wait';
         row.htmlFor = id;
+        if (!hasGeom) row.style.opacity = '0.6';
         const cb  = document.createElement('input');
         cb.type   = 'checkbox';
         cb.id     = id;
         cb.checked = !!reg.active[kind];
+        cb.disabled = !hasGeom;
         cb.setAttribute('data-context-overlay', kind);
         cb.setAttribute('aria-label', label);
         cb.addEventListener('change', () => {

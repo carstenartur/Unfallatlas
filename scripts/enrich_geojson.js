@@ -404,7 +404,14 @@ function loadTrafficProvider(citySlug) {
 
 /**
  * Enrich a single city in memory. Returns
- *   { geojson, ways, meta, stats }
+ *   { geojson, ways, geometries, meta }
+ *
+ * - `geojson`     The mutated FeatureCollection (per-feature props enriched).
+ * - `ways`        wayId → per-way attribute row (dict-coded for high-card fields).
+ * - `geometries`  wayId → flat `[lat, lon, lat, lon, …]` generalised polyline,
+ *                 5-decimal floats. Empty object when the OSM provider does
+ *                 not expose `wayGeometry()` (older caches).
+ * - `meta`        Sidecar payload (sources, counts, dictFields).
  *
  * @param {object}  geojson      Parsed FeatureCollection (mutated in place).
  * @param {string}  citySlug     normalised slug, e.g. "bonn".
@@ -412,7 +419,10 @@ function loadTrafficProvider(citySlug) {
  * @param {boolean} opts.useOsm
  * @param {boolean} opts.useDem
  * @param {boolean} opts.useTraffic
- * @param {object}  opts.providers   Provider overrides for tests.
+ * @param {object}  opts.providers       Provider overrides for tests.
+ * @param {number}  opts.geomToleranceM  Douglas–Peucker tolerance for the
+ *                                       per-way polyline (default ≈ 3 m;
+ *                                       set to 0 to disable generalisation).
  */
 function enrichCity(geojson, citySlug, opts = {}) {
   const useOsm     = opts.useOsm     !== false;

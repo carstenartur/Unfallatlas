@@ -82,8 +82,10 @@
     return 'very_steep';
   }
   // DTV proxy table for ways that only carry a `highway` tag (mirrors
-  // scripts/producers/traffic_producer.js). Kept terse — anything not
-  // listed maps to "low".
+  // scripts/producers/traffic_producer.js). Highway types not listed
+  // here are treated as "no signal" and the layer skips them — by
+  // design, since their volume is genuinely unknown and an arbitrary
+  // "low" default would mislead the visual.
   const HIGHWAY_DTV_PROXY = {
     motorway: 50000, motorway_link: 20000,
     trunk:    30000, trunk_link:    15000,
