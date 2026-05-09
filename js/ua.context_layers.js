@@ -71,6 +71,41 @@
     return out;
   }
 
+  // Field groupings that drive the four high-level capability flags.
+  // Kept here (next to PER_FEATURE_FIELDS / detect) so adding a new
+  // context field is a one-line change in this module instead of
+  // touching the data loader, the popup renderer and every test in
+  // parallel.
+  const CAPABILITY_FIELDS = {
+    hasElevation:    ['elevation_m'],
+    hasSlope:        ['slope_percent', 'slope_abs_percent', 'slope_class', 'slope_source', 'slope_confidence'],
+    hasOsmContext:   ['matched_way_id', 'highway', 'maxspeed', 'lanes', 'surface', 'cycleway', 'osm_incline', 'road_slope_percent', 'road_context_source'],
+    hasTrafficProxy: ['traffic_proxy_class'],
+  };
+
+  /**
+   * Derive the high-level capability flags consumed by the UI (popup,
+   * future panel, future filters) from a `detect()` result. Single
+   * source of truth — the data loader, the popup renderer and the
+   * tests all go through this helper so adding a field never drifts
+   * between layers.
+   *
+   * @param {{ availableFields?: string[] }|null|undefined} detection
+   * @returns {{ hasElevation:boolean, hasSlope:boolean, hasOsmContext:boolean, hasTrafficProxy:boolean, hasAny:boolean }}
+   */
+  function capabilitiesFromDetection(detection) {
+    const available = new Set((detection && detection.availableFields) || []);
+    const caps = {};
+    let hasAny = false;
+    for (const flag of Object.keys(CAPABILITY_FIELDS)) {
+      const present = CAPABILITY_FIELDS[flag].some(f => available.has(f));
+      caps[flag] = present;
+      if (present) hasAny = true;
+    }
+    caps.hasAny = hasAny;
+    return caps;
+  }
+
   // Cache: cityKey → Promise<state>
   const cache = new Map();
 
@@ -151,6 +186,8 @@
 
   UA.contextLayers = {
     detect,
+    capabilitiesFromDetection,
+    CAPABILITY_FIELDS,
     load,
     loadAtIdle,
     resolveWay,

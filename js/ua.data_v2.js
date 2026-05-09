@@ -37,24 +37,15 @@
     const gj = await resp.json();
     ctx.geojsonProps = gj?.properties || null;
     if (UA.contextLayers && typeof UA.contextLayers.detect === 'function') {
+      // Detect once per GeoJSON load; capability flags are derived via
+      // the central helper so loader/UI/tests cannot drift out of
+      // sync. The detection result itself is also cached on `ctx` for
+      // future panels/legends/exports that want the raw field list.
       const detection = UA.contextLayers.detect(gj);
-      const available = new Set(detection?.availableFields || []);
       ctx.contextLayerDetection = detection;
-      ctx.contextCapabilities = {
-        hasElevation: available.has('elevation_m'),
-        hasSlope: available.has('slope_percent') || available.has('slope_class') || available.has('slope_source'),
-        hasOsmContext: (
-          available.has('matched_way_id') ||
-          available.has('highway') ||
-          available.has('maxspeed') ||
-          available.has('lanes') ||
-          available.has('surface') ||
-          available.has('cycleway') ||
-          available.has('osm_incline') ||
-          available.has('road_slope_percent')
-        ),
-        hasTrafficProxy: available.has('traffic_proxy_class'),
-      };
+      ctx.contextCapabilities = (typeof UA.contextLayers.capabilitiesFromDetection === 'function')
+        ? UA.contextLayers.capabilitiesFromDetection(detection)
+        : null;
     } else {
       ctx.contextLayerDetection = null;
       ctx.contextCapabilities = null;
