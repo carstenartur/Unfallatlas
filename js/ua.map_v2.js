@@ -842,14 +842,41 @@
     const state = ctx.contextLayerState;
     if (!state || !state.geometries) return null;
     try {
+      // PR-E (full-network v3): when the loaded state has tile-based
+      // coverage, only build polylines for the current viewport — the
+      // moveend handler below rebuilds the layer as the user pans.
+      const opts = (state.tileIndex && ctx.map && typeof ctx.map.getBounds === 'function')
+        ? { bounds: ctx.map.getBounds() }
+        : undefined;
       const layer = (kind === 'slope')
-        ? UA.contextRoadLayer.buildSlopeLayer(state)
-        : UA.contextRoadLayer.buildTrafficLayer(state);
+        ? UA.contextRoadLayer.buildSlopeLayer(state, opts)
+        : UA.contextRoadLayer.buildTrafficLayer(state, opts);
       reg.layers[kind] = layer;
       return layer;
     } catch (e) {
       console.warn(`[context-overlay] build "${kind}" failed:`, e);
       return null;
+    }
+  }
+
+  // Internal: rebuild every active overlay LayerGroup in place. Used by
+  // the `moveend` handler so the slope/traffic ramps stay in sync with
+  // the v3 tile data that arrives lazily as the user pans.
+  function _rebuildActiveOverlays(ctx) {
+    const reg = _ensureOverlayRegistry(ctx);
+    if (!ctx.map || !UA.contextRoadLayer) return;
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      if (!reg.active[kind]) continue;
+      // Tear down the previous layer and rebuild against the
+      // (now possibly larger) state.geometries.
+      if (reg.layers[kind] && typeof reg.layers[kind].remove === 'function') {
+        try { reg.layers[kind].remove(); } catch (_) {}
+      }
+      reg.layers[kind] = null;
+      const layer = _buildOverlay(ctx, kind);
+      if (layer && typeof layer.addTo === 'function') {
+        try { layer.addTo(ctx.map); } catch (_) {}
+      }
     }
   }
 
@@ -892,20 +919,83 @@
     }
 
     if (want) {
-      const layer = _buildOverlay(ctx, kind);
-      if (layer && ctx.map && typeof layer.addTo === 'function') {
-        try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
-      }
+      // PR-E: kick off a viewport-bounded tile fetch first so the
+      // initial overlay build sees the data for the current viewport.
+      // Best-effort — falls back silently to whatever's already in
+      // state.geometries (v1/v2 path resolves immediately).
+      _ensureViewportTilesLoaded(ctx).then(() => {
+        const layer = _buildOverlay(ctx, kind);
+        if (layer && ctx.map && typeof layer.addTo === 'function') {
+          try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
+        }
+      });
     } else if (reg.layers[kind] && ctx.map && typeof reg.layers[kind].remove === 'function') {
       try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
     }
     reg.active[kind] = want;
     _syncOverlayCheckbox(reg, kind, want);
     _refreshContextLegend(ctx);
+    // PR-E: install / tear down the moveend handler the first time an
+    // overlay turns on / the last one turns off. Idempotent — the
+    // handler is stored on the registry to enable later removal.
+    _ensureMoveEndHandler(ctx);
     if (typeof UA.syncAllToUrl === 'function') {
       try { UA.syncAllToUrl(ctx); } catch (_) { /* tolerate hydration */ }
     }
   };
+
+  // Internal: kick off a viewport tile fetch and re-render active
+  // overlays once new data arrives. v1/v2 states resolve immediately
+  // and the rebuild is a no-op.
+  function _ensureViewportTilesLoaded(ctx) {
+    const state = ctx.contextLayerState;
+    const cl = UA.contextLayers;
+    if (!state || !ctx.map || !cl || typeof cl.loadTilesForBbox !== 'function') {
+      return Promise.resolve();
+    }
+    let bounds = null;
+    try { bounds = (typeof ctx.map.getBounds === 'function') ? ctx.map.getBounds() : null; }
+    catch (_) { bounds = null; }
+    if (!bounds) return Promise.resolve();
+    const before = state.geometries ? Object.keys(state.geometries).length : 0;
+    return cl.loadTilesForBbox(state, bounds).then(() => {
+      const after = state.geometries ? Object.keys(state.geometries).length : 0;
+      if (after > before) _rebuildActiveOverlays(ctx);
+    }).catch(() => { /* tile fetch failure → fall back to existing data */ });
+  }
+
+  // Internal: install (once) a debounced map.moveend handler that
+  // refreshes the v3 tile data + active overlays for the new viewport.
+  // No-op for v1/v2 states (state.tileIndex absent) so legacy cities
+  // don't pay any cost.
+  function _ensureMoveEndHandler(ctx) {
+    const reg = _ensureOverlayRegistry(ctx);
+    if (!ctx.map || typeof ctx.map.on !== 'function') return;
+    const anyActive = CONTEXT_OVERLAY_KINDS.some(k => reg.active[k]);
+    if (!anyActive) {
+      if (reg._moveEndHandler) {
+        try { ctx.map.off('moveend', reg._moveEndHandler); } catch (_) {}
+        reg._moveEndHandler = null;
+      }
+      return;
+    }
+    if (reg._moveEndHandler) return;
+    let timer = null;
+    const handler = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        _ensureViewportTilesLoaded(ctx).then(() => {
+          // Always rebuild — even when no new tiles arrived, the
+          // viewport bound used by buildLayer() has changed so the
+          // visible polylines must be re-filtered.
+          _rebuildActiveOverlays(ctx);
+        });
+      }, 250);
+    };
+    ctx.map.on('moveend', handler);
+    reg._moveEndHandler = handler;
+  }
 
   // Internal: mirror `reg.active[kind]` onto the layer-control
   // checkbox without re-triggering its `change` handler. No-op when
@@ -942,7 +1032,14 @@
     const reg  = _ensureOverlayRegistry(ctx);
     const caps = ctx.contextCapabilities || {};
     const state = ctx.contextLayerState;
-    const hasGeom = !!(state && state.geometries && Object.keys(state.geometries).length);
+    // PR-E (full-network v3): a state with `tileIndex` is considered
+    // "ready" even when `state.geometries` is still empty — the per-
+    // tile fetch happens on overlay enable / map move, not at load
+    // time. Without this the v3 envelope would render the permanent
+    // "Layer nicht verfügbar (alte Datenversion)" hint.
+    const hasV3Tiles = !!(state && state.tileIndex);
+    const hasGeom = hasV3Tiles
+      || !!(state && state.geometries && Object.keys(state.geometries).length);
     // Three-state model for the layer control:
     //   - state === null            → still loading (loadAtIdle pending)
     //   - state !== null && hasGeom → ready, checkboxes enabled

@@ -97,16 +97,36 @@ polyline, the key is omitted entirely; the front-end's
 "Straßensteigung" / "Verkehrsbelastung" map overlays then stay empty
 and the chip filters keep working unchanged.
 
-> **Scope of the road-context layers.** Only OSM ways that the
-> snapping step in `scripts/enrich_geojson.js` actually attached to at
-> least one accident point survive into `ways_<city>.json` and its
-> `geometries` block. Both the upstream OSM producer
-> (`scripts/producers/osm_producer.js`) and the enrichment step drop
-> all other ways. The "Straßensteigung" / "Verkehrsbelastung" map
-> overlays therefore visualise the **subset of the road network the
-> Atlas has data for**, not the full street network of the city. This
-> is intentional: the layers exist to colour the segments that drive
-> the analytical findings, not to compete with a base map.
+> **Scope of the road-context layers.**
+>
+> *Up to PRODUCER_VERSION 1.1.x* the OSM producer + enrichment step
+> only emitted ways an accident snapped to. The road-overlay legend
+> therefore only coloured ~1 % of the city's streets — confusing for
+> users who saw "Straßensteigung" but only ~12 short segments lit up.
+>
+> *PRODUCER_VERSION 1.2.0 ("full road network", schemaVersion 3)*
+> ships **every** OSM way inside the city bbox. To keep the gzipped
+> CI-size budget intact, the per-way table is split into per-Z/X/Y
+> slippy-map tiles under `out/ctxtiles/<slug>/` (Z=13 ≈ 5 km × 3 km
+> in DE; ≤ ~150 tiles per city, even Berlin). The browser only
+> fetches the tiles intersecting the current map viewport — see
+> `UA.contextLayers.loadTilesForBbox` in `js/ua.context_layers.js`.
+> The on-disk `ways_<slug>.json` is then a thin **v3 envelope**:
+>
+> ```json
+> { "schemaVersion": 3, "coverage": "full",
+>   "tileIndexUrl": "out/ctxtiles/bonn/index.json" }
+> ```
+>
+> The loader continues to accept the legacy v1 (flat) and v2
+> (`{schemaVersion:2, ways, geometries}`) shapes for unchanged
+> back-compat with checked-in `out/` snapshots and third-party
+> tooling — see `SUPPORTED_WAYS_SCHEMA_VERSIONS = [1,2,3]`.
+>
+> The "**nur auf gematchten Straßen**" chip in the filter panel is
+> **independent** of the layer's coverage: it filters accident
+> points (those with `matched_way_id` set) regardless of how many
+> ways the overlay layer happens to render.
 
 High-cardinality categorical fields (`highway`, `surface`, `cycleway`)
 are written as **short integer codes**. The lookup tables live at the

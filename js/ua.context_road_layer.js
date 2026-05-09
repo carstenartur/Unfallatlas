@@ -222,10 +222,42 @@
     const renderer = o.renderer
       || (typeof window.L.canvas === 'function' ? window.L.canvas({ padding: 0.2 }) : undefined);
 
+    // Optional viewport filter (PR-E full-network overlay). When the
+    // caller supplies `bounds` (typically `map.getBounds()`), we only
+    // emit polylines whose bounding box intersects that rectangle —
+    // crucial for v3 tile loads where `state.geometries` may carry
+    // way data well outside the user's current view. Falsy bounds
+    // disables the filter (legacy v1/v2 behaviour).
+    const bounds = o.bounds || null;
+    let bSouth, bNorth, bWest, bEast;
+    if (bounds) {
+      if (typeof bounds.getSouth === 'function') {
+        bSouth = bounds.getSouth(); bNorth = bounds.getNorth();
+        bWest  = bounds.getWest();  bEast  = bounds.getEast();
+      } else {
+        bSouth = bounds.south; bNorth = bounds.north;
+        bWest  = bounds.west;  bEast  = bounds.east;
+      }
+    }
+    const intersectsBounds = (latlngs) => {
+      if (!bounds || !Number.isFinite(bSouth)) return true;
+      let minLat = +Infinity, maxLat = -Infinity, minLon = +Infinity, maxLon = -Infinity;
+      for (const ll of latlngs) {
+        const lat = ll[0], lon = ll[1];
+        if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+        if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+      }
+      // AABB intersection test (lat is inverted on slippy but Leaflet
+      // bounds are still south≤north, west≤east so the standard test
+      // works directly).
+      return !(maxLat < bSouth || minLat > bNorth || maxLon < bWest || minLon > bEast);
+    };
+
     for (const wayId of Object.keys(state.geometries)) {
       const flat = state.geometries[wayId];
       const latlngs = decodeGeometry(flat);
       if (!latlngs) continue;
+      if (!intersectsBounds(latlngs)) continue;
       const attrs = resolveAttrs(wayId);
       const cls   = classifier(attrs);
       if (!cls) continue;

@@ -170,6 +170,20 @@ describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
     const layer = UA.contextRoadLayer.buildSlopeLayer({ ways: {}, dicts: {} });
     expect(layer.getLayers()).toHaveLength(0);
   });
+
+  test('opts.bounds restricts emitted polylines to the viewport AABB (PR-E full-network)', () => {
+    const { UA } = loadModule();
+    // Bounds covering only W1's lat/lon (lat≈50.000, lon≈7.000) — W2
+    // (lat≈50.1) and W3 (lat≈50.2) must be filtered out even though
+    // their attrs would otherwise produce a class.
+    const bounds = {
+      getSouth: () => 49.9, getNorth: () => 50.05,
+      getWest:  () => 6.9,  getEast:  () => 7.1,
+    };
+    const layer = UA.contextRoadLayer.buildSlopeLayer(fakeState(), { bounds });
+    const ids = layer.getLayers().map(l => l.feature.properties.way_id);
+    expect(ids).toEqual(['W1']);
+  });
 });
 
 describe('UA.contextRoadLayer — buildLegend', () => {

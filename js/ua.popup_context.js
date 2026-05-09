@@ -348,12 +348,24 @@
     const p = props || {};
     if (!p.matched_way_id) return p;
     const state = ctx && ctx.contextLayerState;
-    if (!state || !state.ways) return p;
+    if (!state) return p;
     const cl = UA.contextLayers;
-    if (!cl || typeof cl.resolveWay !== 'function') return p;
+    if (!cl) return p;
+    // PR-E (full-network v3): prefer resolveWayAcrossTiles when
+    // available — it consults the per-tile cache and (race-tolerantly)
+    // triggers a single tile fetch for ways not yet loaded. Falls back
+    // to the legacy resolveWay for v1/v2 states (state.ways is the
+    // monolithic map).
     let resolved;
-    try { resolved = cl.resolveWay(state, p.matched_way_id); }
-    catch (_) { return p; }
+    try {
+      if (typeof cl.resolveWayAcrossTiles === 'function') {
+        resolved = cl.resolveWayAcrossTiles(state, p.matched_way_id);
+      } else if (typeof cl.resolveWay === 'function' && state.ways) {
+        resolved = cl.resolveWay(state, p.matched_way_id);
+      } else {
+        return p;
+      }
+    } catch (_) { return p; }
     if (!resolved || typeof resolved !== 'object') return p;
     const merged = { ...p };
     for (const k of HYDRATABLE_WAY_FIELDS) {
