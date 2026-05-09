@@ -107,42 +107,59 @@ async function captureScreenshots(baseUrl) {
     log(`wrote ${PNG_TRAFFIC}`);
 
     // 18 — Popup mit Kontextdaten. Marker mit kleinster matchender
-    // feature-id wählen, damit reproduzierbar.
+    // accident-id (UA._uaProps.id) wählen, damit reproduzierbar. Werkbank_v2
+    // bindet `_uaProps` auf jeden L.circleMarker (siehe ua.map_v2.js
+    // `m._uaProps = p.props`); ein `layer.feature` existiert dort nicht.
+    // Wir verwenden _leaflet_id als stabilen Fallback und vergleichen
+    // immer numerisch.
     const markerInfo = await page.evaluate(() => {
-      // The map exposes a global `map` reference in werkbank_v2; iterate
-      // visible markers, find smallest feature id that has a context
-      // block in its bound popup.
       try {
         // eslint-disable-next-line no-undef
         const m = window.map || (window.UA && window.UA.ctx && window.UA.ctx.map);
         if (!m) return null;
+        const pickId = (layer) => {
+          const props = layer && layer._uaProps;
+          if (props && props.id != null) {
+            const n = Number(props.id);
+            if (!Number.isNaN(n)) return n;
+          }
+          return Number(layer && layer._leaflet_id);
+        };
         let best = null;
         m.eachLayer((layer) => {
-          if (!layer.getPopup) return;
-          const p = layer.getPopup && layer.getPopup();
+          if (!layer.getPopup || !layer.getLatLng) return;
+          const p = layer.getPopup();
           if (!p) return;
           const html = p.getContent && p.getContent();
           if (typeof html !== 'string' || !/Kontextdaten/i.test(html)) return;
-          const id = (layer.feature && layer.feature.id) || layer._leaflet_id;
+          const id = pickId(layer);
+          if (!Number.isFinite(id)) return;
           if (best === null || id < best.id) {
-            const ll = layer.getLatLng && layer.getLatLng();
-            best = { id, lat: ll && ll.lat, lng: ll && ll.lng };
+            const ll = layer.getLatLng();
+            best = { id, leafletId: layer._leaflet_id, lat: ll && ll.lat, lng: ll && ll.lng };
           }
         });
         return best;
       } catch (_) { return null; }
     });
     if (markerInfo && markerInfo.lat != null) {
-      await page.evaluate((info) => {
+      const opened = await page.evaluate((info) => {
         // eslint-disable-next-line no-undef
         const m = window.map || (window.UA && window.UA.ctx && window.UA.ctx.map);
-        if (!m) return;
+        if (!m) return false;
+        let hit = false;
         m.eachLayer((layer) => {
-          if (layer.getLatLng && layer.feature && layer.feature.id === info.id) {
+          if (hit || !layer.getLatLng || !layer.openPopup) return;
+          if (layer._leaflet_id === info.leafletId) {
             layer.openPopup();
+            hit = true;
           }
         });
+        return hit;
       }, markerInfo);
+      if (!opened) {
+        log(`WARN: marker with id=${markerInfo.id} (_leaflet_id=${markerInfo.leafletId}) vanished before openPopup`);
+      }
       await page.waitForTimeout(500);
       await page.screenshot({ path: PNG_POPUP, fullPage: false });
       log(`wrote ${PNG_POPUP} (marker id=${markerInfo.id})`);

@@ -51,9 +51,11 @@
     // PR-D: Kontextfilter (Hangneigung / Verkehrsklasse / nur-gematchte
     // Straßen). Werden nur konsultiert, wenn der Datensatz die jeweilige
     // Capability überhaupt trägt — sonst ausgegraut/unsichtbar (siehe
-    // ua.ui.js). Per-Feature-Felder gewinnen analog zur Popup-Hydration
-    // (PR-C); Way-Attribute aus ctx.contextLayerState liefern z. B. den
-    // OSM-Way-Match für die "nur gematchten Straßen"-Toggle.
+    // ua.ui.js). matchesContextFilters wertet ausschließlich
+    // per-feature-Felder aus (slope_class / traffic_proxy_class /
+    // matched_way_id) — die optionale ways_<city>.json (PR-C,
+    // ctx.contextLayerState) wird hier *nicht* benötigt; diese Sidecar
+    // dient nur der Popup-Hydration.
     if (typeof UA.matchesContextFilters === "function") {
       if (!UA.matchesContextFilters(ctx, pr)) return false;
     }
