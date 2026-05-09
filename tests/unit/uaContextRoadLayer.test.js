@@ -134,23 +134,37 @@ describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
     };
   }
 
-  test('buildSlopeLayer renders one polyline per way that has a slope class', () => {
+  test('buildSlopeLayer renders coloured polylines for ways with a slope class and neutral grey for the rest (default showUnclassified)', () => {
     const { UA, polylineCalls } = loadModule();
     const layer = UA.contextRoadLayer.buildSlopeLayer(fakeState());
-    expect(layer.getLayers()).toHaveLength(2);  // W1 + W3
-    // Colours come from the slope ramp.
+    // W1 + W3 (with slope class) plus W2 + W_no_attrs (no slope) — every
+    // way present in `state.geometries` becomes a polyline; classified
+    // ways get the colour ramp, the rest fall back to neutral grey.
+    expect(layer.getLayers()).toHaveLength(4);
+    // Coloured swatches for the two classified ways…
     const colors = polylineCalls.map(p => p._opts.color);
     expect(colors).toEqual(expect.arrayContaining([
       UA.contextRoadLayer.slopeClassColor('steep'),
       UA.contextRoadLayer.slopeClassColor('flat'),
+      UA.contextRoadLayer.SLOPE_NO_SIGNAL_COLOR,
     ]));
     // Each line carries a tiny feature payload for hover tooltips.
+    const okClasses = UA.contextRoadLayer.SLOPE_CLASS_VALUES.concat(['no_signal']);
     for (const p of polylineCalls) {
       expect(p.feature.properties.kind).toBe('slope');
       expect(typeof p.feature.properties.way_id).toBe('string');
-      expect(UA.contextRoadLayer.SLOPE_CLASS_VALUES)
-        .toContain(p.feature.properties.class);
+      expect(okClasses).toContain(p.feature.properties.class);
     }
+    // The unclassified way is tagged with class === 'no_signal'.
+    const noSignal = polylineCalls.find(p => p.feature.properties.class === 'no_signal');
+    expect(noSignal).toBeTruthy();
+    expect(noSignal.feature.properties.way_id).toBe('W2');
+  });
+
+  test('buildSlopeLayer with showUnclassified:false renders only classified ways (legacy behaviour)', () => {
+    const { UA } = loadModule();
+    const layer = UA.contextRoadLayer.buildSlopeLayer(fakeState(), { showUnclassified: false });
+    expect(layer.getLayers()).toHaveLength(2);  // W1 + W3 only
   });
 
   test('buildTrafficLayer uses the resolved highway dict for classification', () => {
@@ -187,7 +201,7 @@ describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
 });
 
 describe('UA.contextRoadLayer — buildLegend', () => {
-  test('returns a DOM element with one swatch + label per class, swatches use the slope ramp', () => {
+  test('returns a DOM element with one swatch + label per class, swatches use the slope ramp + appended "kein Steigungssignal" row', () => {
     const { UA } = loadModule();
     const el = UA.contextRoadLayer.buildLegend('slope');
     expect(el.tagName).toBe('DIV');
@@ -210,14 +224,27 @@ describe('UA.contextRoadLayer — buildLegend', () => {
       const rgb = `rgb(${r}, ${g}, ${b})`;
       expect([expected, rgb]).toContain(bg);
     });
+    // "kein Steigungssignal" row is appended below the colour ramp.
+    const noSignal = el.querySelector('.context-road-legend__nosignal');
+    expect(noSignal).toBeTruthy();
+    expect(noSignal.querySelector('.context-road-legend__label').textContent)
+      .toMatch(/kein Steigungssignal/);
+    const noSignalSw = noSignal.querySelector('.context-road-legend__swatch');
+    const expectedGrey = UA.contextRoadLayer.SLOPE_NO_SIGNAL_COLOR;
+    const r = parseInt(expectedGrey.slice(1, 3), 16);
+    const g = parseInt(expectedGrey.slice(3, 5), 16);
+    const b = parseInt(expectedGrey.slice(5, 7), 16);
+    const bg = noSignalSw.style.background || noSignalSw.style.backgroundColor;
+    expect([expectedGrey, `rgb(${r}, ${g}, ${b})`]).toContain(bg);
   });
 
-  test('traffic legend uses the traffic ramp', () => {
+  test('traffic legend uses the traffic ramp and has no "no signal" row', () => {
     const { UA } = loadModule();
     const el = UA.contextRoadLayer.buildLegend('traffic');
     const rows = el.querySelectorAll('.context-road-legend__row');
     expect(rows.length).toBe(UA.contextRoadLayer.TRAFFIC_CLASS_VALUES.length);
     expect(el.querySelector('.context-road-legend__title').textContent)
       .toMatch(/Verkehr/);
+    expect(el.querySelector('.context-road-legend__nosignal')).toBeNull();
   });
 });

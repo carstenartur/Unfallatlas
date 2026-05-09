@@ -827,12 +827,15 @@ function enrichCity(geojson, citySlug, opts = {}) {
   // render road properties for the entire bbox network without loading
   // a single monolithic blob.
   //
-  // Slope is intentionally NOT looked up here — the DEM provider is
-  // sample-driven (one elevation per accident point) and only knows
-  // `road_slope_percent` for ways an accident snapped to. The matched-
-  // only attrs already cover that; for unmatched ways the front-end
-  // falls back to the highway-tag DTV proxy for traffic and to no
-  // slope colouring (legend handles "kein Signal" gracefully).
+  // Slope is looked up per way via `dem.wayElevation(wayId)` below. The
+  // DEM producer (scripts/producers/dem_producer.js) computes
+  // `road_slope_percent` for *every* way in `wayGeometries` — both the
+  // local-tile path (`makeLocalElevationSampler`) and the HTTP API path
+  // walk all way endpoints from `osm_<slug>.json`, not just those an
+  // accident snapped to. So the v3 context tiles carry slope colouring
+  // for the full bbox network whenever DEM data is available; ways
+  // without a slope signal are rendered in neutral grey by the front-
+  // end overlay (see SLOPE_NO_SIGNAL_COLOR in js/ua.context_road_layer.js).
   // ---------------------------------------------------------------------
   // Gate full-network tile production on an explicit `coverage:"full"`
   // signal from the OSM provider. Older / matched-only OSM caches still

@@ -279,11 +279,15 @@ unterscheiden sich nach Wegtyp.
 * **Verkehrsbelastung** stammt aus dem DTV-Proxy (Highway-Tag → Klassen-
   schätzung, ohne tatsächliche Zählungen). Jeder Weg im Netz bekommt
   damit einen Klassenwert, **kein** gemessener Verkehrswert.
-* **Straßensteigung** wird per DEM nur entlang der Wege berechnet, an die
-  ein Unfallpunkt gesnappt wurde (sample-getriebener Pipeline-Lauf, siehe
-  „Slope" oben). Auf nicht-gematchten Wegen erscheint daher in der
-  Steigungs-Legende „kein Signal" — die Polylinie ist sichtbar, aber
-  ohne Steigungsfarbe.
+* **Straßensteigung** wird per DEM für **alle** OSM-Wege im v3-Kontext-
+  netz berechnet — der DEM-Producer (`scripts/producers/dem_producer.js`)
+  liest jede Way-Geometrie aus `osm_<slug>.json` (`wayGeometries`) und
+  ermittelt `road_slope_percent` aus den Endpunkten via lokaler SRTM-
+  Tiles bzw. (im API-Pfad) einer einzigen Open-Meteo-Anfrage pro
+  Endpunkt. Ways ohne berechenbares Signal (DEM-Lücke, Way < 5 m, etc.)
+  erscheinen in der Steigungs-Legende als „kein Steigungssignal" und
+  werden in neutralem Grau gezeichnet — die Polylinie ist sichtbar,
+  aber ohne Farbklasse.
 * Der Chip-Filter „Nur Unfallstrecken" (`ctxOnlyMatched`) ist eine
   **Filteroperation auf Unfallpunkten**, nicht auf den Karten-Layern.
   Er bleibt unverändert verfügbar und ist *unabhängig* von der

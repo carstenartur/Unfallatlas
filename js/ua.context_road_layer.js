@@ -46,6 +46,13 @@
     steep:      'steil (≤ 10 %)',
     very_steep: 'sehr steil (> 10 %)',
   };
+  // Neutral colour + label for ways present in the v3 context network
+  // but without a slope signal (no DEM coverage / SRTM gap / way too
+  // short). Rendered when the caller opts in via `opts.showUnclassified`
+  // so the user can see that the road is in the dataset, just without
+  // a calculated slope.
+  const SLOPE_NO_SIGNAL_COLOR = '#bdbdbd';
+  const SLOPE_NO_SIGNAL_LABEL_DE = 'kein Steigungssignal';
   const TRAFFIC_LABELS_DE = {
     low:       'niedrig (≤ 1 000 DTV)',
     medium:    'mittel (≤ 5 000 DTV)',
@@ -260,8 +267,20 @@
       if (!intersectsBounds(latlngs)) continue;
       const attrs = resolveAttrs(wayId);
       const cls   = classifier(attrs);
-      if (!cls) continue;
-      const color = colorFor(cls);
+      let color, featureClass;
+      if (cls) {
+        color = colorFor(cls);
+        featureClass = cls;
+      } else if (o.showUnclassified && kind === 'slope') {
+        // Render the road in neutral grey so users see that the way is
+        // covered by the v3 context network even when no slope signal
+        // could be calculated. Mirrors the "kein Steigungssignal" row
+        // appended to buildLegend('slope').
+        color = SLOPE_NO_SIGNAL_COLOR;
+        featureClass = 'no_signal';
+      } else {
+        continue;
+      }
       if (!color) continue;
       try {
         const line = window.L.polyline(latlngs, lineStyle(color, { renderer, weight: o.weight, opacity: o.opacity }));
@@ -269,7 +288,7 @@
         // without re-resolving the way table.
         line.feature = {
           type: 'Feature',
-          properties: { way_id: String(wayId), class: cls, kind },
+          properties: { way_id: String(wayId), class: featureClass, kind },
           geometry: null,
         };
         group.addLayer(line);
@@ -278,7 +297,16 @@
     return group;
   }
 
-  function buildSlopeLayer(state, opts)   { return buildLayer(state, 'slope',   opts); }
+  function buildSlopeLayer(state, opts) {
+    // Slope overlay defaults to showing unclassified ways in neutral
+    // grey so the v3 full-network coverage is visible at a glance —
+    // colour = slope calculated, grey = road covered but no signal.
+    const o = opts || {};
+    const merged = (o.showUnclassified === undefined)
+      ? Object.assign({}, o, { showUnclassified: true })
+      : o;
+    return buildLayer(state, 'slope', merged);
+  }
   function buildTrafficLayer(state, opts) { return buildLayer(state, 'traffic', opts); }
 
   /**
@@ -310,6 +338,24 @@
       row.appendChild(lbl);
       div.appendChild(row);
     }
+    // For the slope layer, append an explicit "no signal" row so users
+    // can tell coloured = slope calculated apart from neutral/grey =
+    // road is in the v3 context network but no slope could be derived
+    // (DEM gap, way too short, etc.). Uses a distinct DOM class so
+    // tests / styling can target it independently of the value rows.
+    if (kind === 'slope') {
+      const row = document.createElement('div');
+      row.className = 'context-road-legend__nosignal';
+      const sw = document.createElement('span');
+      sw.className = 'context-road-legend__swatch';
+      sw.style.background = SLOPE_NO_SIGNAL_COLOR;
+      const lbl = document.createElement('span');
+      lbl.className = 'context-road-legend__label';
+      lbl.textContent = SLOPE_NO_SIGNAL_LABEL_DE;
+      row.appendChild(sw);
+      row.appendChild(lbl);
+      div.appendChild(row);
+    }
     return div;
   }
 
@@ -320,6 +366,8 @@
     TRAFFIC_LABELS_DE,
     SLOPE_COLORS,
     TRAFFIC_COLORS,
+    SLOPE_NO_SIGNAL_COLOR,
+    SLOPE_NO_SIGNAL_LABEL_DE,
     HIGHWAY_DTV_PROXY,
     classifySlope,
     classifyTrafficProxy,
