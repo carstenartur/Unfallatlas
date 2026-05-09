@@ -81,6 +81,66 @@ describe('UA.matchesContextFilters — pure predicate', () => {
     expect(UA.matchesContextFilters(ctx, { matched_way_id: null })).toBe(false);
     expect(UA.matchesContextFilters(ctx, {})).toBe(false);
   });
+
+  describe('capability safety net (defense in depth)', () => {
+    // If a stale URL contains ctxSlope=flat for a city that doesn't
+    // carry slope data, the filter MUST silently degrade to a no-op
+    // instead of zeroing the result set. UA.refreshContextFilterVisibility
+    // resets chips after init, but it runs only after bindUi and not at
+    // all for non-UI consumers (headless tests, batch tools).
+    test('slope filter is a no-op when contextCapabilities.hasSlope is false', () => {
+      const UA = loadFilters();
+      const ctx = {
+        contextCapabilities: { hasSlope: false, hasTrafficProxy: false, hasOsmContext: false, hasAny: false },
+        contextFilters: { slopeClasses: new Set(['flat']), trafficClasses: new Set(), onlyMatchedWays: false },
+      };
+      expect(UA.matchesContextFilters(ctx, { slope_class: 'steep' })).toBe(true);
+      expect(UA.matchesContextFilters(ctx, {})).toBe(true);
+    });
+
+    test('traffic filter is a no-op when contextCapabilities.hasTrafficProxy is false', () => {
+      const UA = loadFilters();
+      const ctx = {
+        contextCapabilities: { hasSlope: false, hasTrafficProxy: false, hasOsmContext: false, hasAny: false },
+        contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(['high']), onlyMatchedWays: false },
+      };
+      expect(UA.matchesContextFilters(ctx, { traffic_proxy_class: 'low' })).toBe(true);
+      expect(UA.matchesContextFilters(ctx, {})).toBe(true);
+    });
+
+    test('onlyMatchedWays is a no-op when contextCapabilities.hasOsmContext is false', () => {
+      const UA = loadFilters();
+      const ctx = {
+        contextCapabilities: { hasSlope: false, hasTrafficProxy: false, hasOsmContext: false, hasAny: false },
+        contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(), onlyMatchedWays: true },
+      };
+      expect(UA.matchesContextFilters(ctx, {})).toBe(true);
+    });
+
+    test('per-row gating is independent: hasSlope=true + hasOsmContext=false still enforces slope but not onlyMatched', () => {
+      const UA = loadFilters();
+      const ctx = {
+        contextCapabilities: { hasSlope: true, hasTrafficProxy: false, hasOsmContext: false, hasAny: true },
+        contextFilters: { slopeClasses: new Set(['flat']), trafficClasses: new Set(), onlyMatchedWays: true },
+      };
+      expect(UA.matchesContextFilters(ctx, { slope_class: 'flat' })).toBe(true);
+      expect(UA.matchesContextFilters(ctx, { slope_class: 'steep' })).toBe(false);
+      // onlyMatchedWays is gated off → no matched_way_id is fine.
+      expect(UA.matchesContextFilters(ctx, { slope_class: 'flat' })).toBe(true);
+    });
+
+    test('absence of contextCapabilities (legacy/headless) keeps the previous strict behaviour', () => {
+      // Back-compat: if no capability info is provided, behave exactly
+      // like before this hardening — strict filter as authored.
+      const UA = loadFilters();
+      const ctx = {
+        contextFilters: { slopeClasses: new Set(['flat']), trafficClasses: new Set(), onlyMatchedWays: false },
+      };
+      expect(UA.matchesContextFilters(ctx, { slope_class: 'flat' })).toBe(true);
+      expect(UA.matchesContextFilters(ctx, { slope_class: 'steep' })).toBe(false);
+      expect(UA.matchesContextFilters(ctx, {})).toBe(false);
+    });
+  });
 });
 
 describe('Integration: matchesNonInvolvementFilters consults context filters', () => {

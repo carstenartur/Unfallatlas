@@ -229,7 +229,7 @@ describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () =>
     }
   });
 
-  test('triggers a lightweight UA.renderLayers re-render when state arrives so popups gain context without manual rebuild', async () => {
+  test('triggers a lightweight UA.renderLayers re-render when state arrives AFTER markers were built (cluster/heat layer present)', async () => {
     const UA = loadDataAndContextLayers();
     UA.contextLayers.clearCache();
     const gj = {
@@ -246,11 +246,48 @@ describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () =>
     try {
       let renderCalls = 0;
       UA.renderLayers = (c) => { renderCalls++; expect(c._dataChanged).toBe(true); };
-      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } }, map: {} };
+      // Simulate an already-rendered map: clusterLayer present.
+      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } }, map: {}, clusterLayer: {} };
       await UA.loadCityData(ctx);
       await new Promise((r) => setTimeout(r, 0));
       await new Promise((r) => setTimeout(r, 0));
       expect(renderCalls).toBeGreaterThanOrEqual(1);
+      expect(ctx.contextLayerState).toBeTruthy();
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  test('skips the post-load re-render when no marker layer has been built yet (perf hardening for large GeoJSON)', async () => {
+    // Defense in depth: if ways_<city>.json finishes BEFORE the first
+    // renderLayers() call (typical fast-cache hit), the imminent first
+    // render will already see ctx.contextLayerState and there is no
+    // already-bound popup that needs refreshing — re-rendering would
+    // be a wasted full marker rebuild for huge cities.
+    const UA = loadDataAndContextLayers();
+    UA.contextLayers.clearCache();
+    const gj = {
+      type: 'FeatureCollection',
+      properties: { enrichmentDicts: {} },
+      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+        properties: { id: '1', matched_way_id: 'W1' } }],
+    };
+    global.fetch = (url) => {
+      if (url.endsWith('output_all_years_bonn.geojson')) return Promise.resolve({ ok: true, json: async () => gj });
+      if (url.endsWith('ways_bonn.json')) return Promise.resolve({ ok: true, json: async () => ({ 'W1': { highway: 0 } }) });
+      return Promise.resolve({ ok: false });
+    };
+    try {
+      let renderCalls = 0;
+      UA.renderLayers = () => { renderCalls++; };
+      // No clusterLayer / heatLayer on ctx → first render hasn't run yet.
+      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } }, map: {} };
+      await UA.loadCityData(ctx);
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(renderCalls).toBe(0);
+      // The state must still be stashed so the imminent first render picks it up.
       expect(ctx.contextLayerState).toBeTruthy();
     } finally {
       delete global.fetch;

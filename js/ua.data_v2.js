@@ -82,7 +82,16 @@
               // way attrs in their popups. Pure best-effort: ignored
               // when the map renderer is not available (e.g. unit
               // tests, headless contexts).
-              if (typeof UA.renderLayers === 'function' && ctx.map) {
+              //
+              // QA hardening: skip the rebuild entirely when no marker
+              // layer has been built yet — the imminent first
+              // renderLayers() will already see ctx.contextLayerState
+              // and there is no stale popup to refresh. This avoids a
+              // duplicate full marker rebuild on large GeoJSON files
+              // (city loads with 100k+ accidents) where the cluster
+              // construction dominates the frame budget.
+              const hasBuiltLayer = !!(ctx.clusterLayer || ctx.heatLayer);
+              if (hasBuiltLayer && typeof UA.renderLayers === 'function' && ctx.map) {
                 ctx._dataChanged = true;
                 try { UA.renderLayers(ctx); } catch (_) { /* keep going */ }
               }

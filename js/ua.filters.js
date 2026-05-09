@@ -80,19 +80,31 @@
   UA.matchesContextFilters = function matchesContextFilters(ctx, pr){
     const cf = ctx && ctx.contextFilters;
     if (!cf) return true;
+
+    // Defense in depth: honour ctx.contextCapabilities so that a stale
+    // URL or programmatic state with e.g. ctxSlope=flat for a city that
+    // doesn't carry slope data degrades to a no-op rather than silently
+    // zeroing the result set. UA.refreshContextFilterVisibility resets
+    // chips when a capability disappears, but it runs only after bindUi
+    // — and is not invoked at all by non-UI consumers (e.g. headless
+    // tests, batch tools). Treat each row as inactive when its
+    // capability is missing.
+    const caps = (ctx && ctx.contextCapabilities) || null;
+    const capOk = (flag) => !caps || caps[flag];
+
     const slopeSel    = cf.slopeClasses;
     const trafficSel  = cf.trafficClasses;
     const onlyMatched = !!cf.onlyMatchedWays;
 
-    if (slopeSel && slopeSel.size > 0) {
+    if (slopeSel && slopeSel.size > 0 && capOk('hasSlope')) {
       const v = pr && pr.slope_class;
       if (!v || !slopeSel.has(String(v))) return false;
     }
-    if (trafficSel && trafficSel.size > 0) {
+    if (trafficSel && trafficSel.size > 0 && capOk('hasTrafficProxy')) {
       const v = pr && pr.traffic_proxy_class;
       if (!v || !trafficSel.has(String(v))) return false;
     }
-    if (onlyMatched) {
+    if (onlyMatched && capOk('hasOsmContext')) {
       // matched_way_id may be a string ID; treat empty/null as no match.
       const id = pr && pr.matched_way_id;
       if (id === undefined || id === null || id === "") return false;
