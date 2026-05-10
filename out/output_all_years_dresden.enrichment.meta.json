@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "dresden",
-  "generatedAt": "2026-05-10T07:47:09.980Z",
+  "generatedAt": "2026-05-10T16:27:11.277Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 101322,
+    "withSlope": 80200,
+    "noSlopeSignal": 21122,
+    "coveragePercent": 79.2,
+    "classCounts": {
+      "flat": 39598,
+      "gentle": 19905,
+      "moderate": 10092,
+      "steep": 6979,
+      "very_steep": 3626
+    },
+    "missingReasonCounts": {
+      "way_too_short": 21082,
+      "no_geometry": 40
+    },
+    "methodCounts": {
+      "median_segments": 80200
+    },
+    "confidenceCounts": {
+      "high": 16786,
+      "medium": 17269,
+      "low": 46145
+    },
+    "verySteepShare": 4.5
+  },
   "tileIndexPath": "ctxtiles/dresden/index.json"
 }

@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "wolfsburg",
-  "generatedAt": "2026-05-10T07:46:50.871Z",
+  "generatedAt": "2026-05-10T16:26:49.696Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 22186,
+    "withSlope": 19939,
+    "noSlopeSignal": 2247,
+    "coveragePercent": 89.9,
+    "classCounts": {
+      "flat": 12096,
+      "gentle": 4968,
+      "moderate": 1853,
+      "steep": 830,
+      "very_steep": 192
+    },
+    "missingReasonCounts": {
+      "way_too_short": 2243,
+      "no_geometry": 4
+    },
+    "methodCounts": {
+      "median_segments": 19939
+    },
+    "confidenceCounts": {
+      "high": 5971,
+      "low": 9009,
+      "medium": 4959
+    },
+    "verySteepShare": 1
+  },
   "tileIndexPath": "ctxtiles/wolfsburg/index.json"
 }

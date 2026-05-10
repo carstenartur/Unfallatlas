@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "duesseldorf",
-  "generatedAt": "2026-05-10T07:46:48.209Z",
+  "generatedAt": "2026-05-10T16:26:46.703Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 89566,
+    "withSlope": 73294,
+    "noSlopeSignal": 16272,
+    "coveragePercent": 81.8,
+    "classCounts": {
+      "flat": 41240,
+      "gentle": 18340,
+      "moderate": 7896,
+      "steep": 4361,
+      "very_steep": 1457
+    },
+    "missingReasonCounts": {
+      "way_too_short": 16246,
+      "no_geometry": 26
+    },
+    "methodCounts": {
+      "median_segments": 73294
+    },
+    "confidenceCounts": {
+      "high": 14946,
+      "medium": 16340,
+      "low": 42008
+    },
+    "verySteepShare": 2
+  },
   "tileIndexPath": "ctxtiles/duesseldorf/index.json"
 }

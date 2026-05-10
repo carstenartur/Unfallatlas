@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "heilbronn",
-  "generatedAt": "2026-05-10T07:46:44.925Z",
+  "generatedAt": "2026-05-10T16:26:42.982Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 22124,
+    "withSlope": 20239,
+    "noSlopeSignal": 1885,
+    "coveragePercent": 91.5,
+    "classCounts": {
+      "flat": 8639,
+      "gentle": 5230,
+      "moderate": 2992,
+      "steep": 2518,
+      "very_steep": 860
+    },
+    "missingReasonCounts": {
+      "way_too_short": 1875,
+      "no_geometry": 10
+    },
+    "methodCounts": {
+      "median_segments": 20239
+    },
+    "confidenceCounts": {
+      "low": 10289,
+      "high": 5539,
+      "medium": 4411
+    },
+    "verySteepShare": 4.2
+  },
   "tileIndexPath": "ctxtiles/heilbronn/index.json"
 }

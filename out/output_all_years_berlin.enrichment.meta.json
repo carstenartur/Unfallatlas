@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "berlin",
-  "generatedAt": "2026-05-10T07:46:04.781Z",
+  "generatedAt": "2026-05-10T16:25:59.039Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 427570,
+    "withSlope": 320641,
+    "noSlopeSignal": 106929,
+    "coveragePercent": 75,
+    "classCounts": {
+      "flat": 164981,
+      "gentle": 82270,
+      "moderate": 39564,
+      "steep": 25199,
+      "very_steep": 8627
+    },
+    "missingReasonCounts": {
+      "way_too_short": 106785,
+      "no_geometry": 144
+    },
+    "methodCounts": {
+      "median_segments": 320641
+    },
+    "confidenceCounts": {
+      "high": 61546,
+      "medium": 63410,
+      "low": 195685
+    },
+    "verySteepShare": 2.7
+  },
   "tileIndexPath": "ctxtiles/berlin/index.json"
 }

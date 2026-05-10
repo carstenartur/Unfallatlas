@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "leipzig",
-  "generatedAt": "2026-05-10T07:46:55.682Z",
+  "generatedAt": "2026-05-10T16:26:55.189Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 81500,
+    "withSlope": 66517,
+    "noSlopeSignal": 14983,
+    "coveragePercent": 81.6,
+    "classCounts": {
+      "flat": 41086,
+      "gentle": 16376,
+      "moderate": 5921,
+      "steep": 2594,
+      "very_steep": 540
+    },
+    "missingReasonCounts": {
+      "way_too_short": 14955,
+      "no_geometry": 28
+    },
+    "methodCounts": {
+      "median_segments": 66517
+    },
+    "confidenceCounts": {
+      "high": 13717,
+      "medium": 14661,
+      "low": 38139
+    },
+    "verySteepShare": 0.8
+  },
   "tileIndexPath": "ctxtiles/leipzig/index.json"
 }

@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bielefeld",
-  "generatedAt": "2026-05-10T07:46:43.202Z",
+  "generatedAt": "2026-05-10T16:26:41.084Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 54647,
+    "withSlope": 49717,
+    "noSlopeSignal": 4930,
+    "coveragePercent": 91,
+    "classCounts": {
+      "flat": 24858,
+      "gentle": 13300,
+      "moderate": 6188,
+      "steep": 3644,
+      "very_steep": 1727
+    },
+    "missingReasonCounts": {
+      "way_too_short": 4926,
+      "no_geometry": 4
+    },
+    "methodCounts": {
+      "median_segments": 49717
+    },
+    "confidenceCounts": {
+      "high": 11475,
+      "low": 26462,
+      "medium": 11780
+    },
+    "verySteepShare": 3.5
+  },
   "tileIndexPath": "ctxtiles/bielefeld/index.json"
 }

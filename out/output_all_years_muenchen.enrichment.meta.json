@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "muenchen",
-  "generatedAt": "2026-05-10T07:46:29.084Z",
+  "generatedAt": "2026-05-10T16:26:25.767Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 146528,
+    "withSlope": 118614,
+    "noSlopeSignal": 27914,
+    "coveragePercent": 80.9,
+    "classCounts": {
+      "flat": 62425,
+      "gentle": 30172,
+      "moderate": 14324,
+      "steep": 9013,
+      "very_steep": 2680
+    },
+    "missingReasonCounts": {
+      "way_too_short": 27776,
+      "no_geometry": 138
+    },
+    "methodCounts": {
+      "median_segments": 118614
+    },
+    "confidenceCounts": {
+      "low": 69605,
+      "high": 24357,
+      "medium": 24652
+    },
+    "verySteepShare": 2.3
+  },
   "tileIndexPath": "ctxtiles/muenchen/index.json"
 }

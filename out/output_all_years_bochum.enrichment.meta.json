@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bochum",
-  "generatedAt": "2026-05-10T07:47:18.002Z",
+  "generatedAt": "2026-05-10T16:27:20.119Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 78603,
+    "withSlope": 64004,
+    "noSlopeSignal": 14599,
+    "coveragePercent": 81.4,
+    "classCounts": {
+      "flat": 28250,
+      "gentle": 17665,
+      "moderate": 9644,
+      "steep": 6360,
+      "very_steep": 2085
+    },
+    "missingReasonCounts": {
+      "way_too_short": 14578,
+      "no_geometry": 21
+    },
+    "methodCounts": {
+      "median_segments": 64004
+    },
+    "confidenceCounts": {
+      "medium": 12929,
+      "high": 10084,
+      "low": 40991
+    },
+    "verySteepShare": 3.3
+  },
   "tileIndexPath": "ctxtiles/bochum/index.json"
 }

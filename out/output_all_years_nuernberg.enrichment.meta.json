@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "nuernberg",
-  "generatedAt": "2026-05-10T07:47:13.710Z",
+  "generatedAt": "2026-05-10T16:27:15.318Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 55063,
+    "withSlope": 48659,
+    "noSlopeSignal": 6404,
+    "coveragePercent": 88.4,
+    "classCounts": {
+      "flat": 26525,
+      "gentle": 12372,
+      "moderate": 5465,
+      "steep": 3249,
+      "very_steep": 1048
+    },
+    "missingReasonCounts": {
+      "way_too_short": 6396,
+      "no_geometry": 8
+    },
+    "methodCounts": {
+      "median_segments": 48659
+    },
+    "confidenceCounts": {
+      "high": 11976,
+      "low": 24603,
+      "medium": 12080
+    },
+    "verySteepShare": 2.2
+  },
   "tileIndexPath": "ctxtiles/nuernberg/index.json"
 }

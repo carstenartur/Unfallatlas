@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "frankfurt_am_main",
-  "generatedAt": "2026-05-10T07:46:39.817Z",
+  "generatedAt": "2026-05-10T16:26:37.447Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 95204,
+    "withSlope": 78736,
+    "noSlopeSignal": 16468,
+    "coveragePercent": 82.7,
+    "classCounts": {
+      "flat": 40395,
+      "gentle": 20490,
+      "moderate": 9671,
+      "steep": 6162,
+      "very_steep": 2018
+    },
+    "missingReasonCounts": {
+      "way_too_short": 16426,
+      "no_geometry": 42
+    },
+    "methodCounts": {
+      "median_segments": 78736
+    },
+    "confidenceCounts": {
+      "high": 19224,
+      "medium": 18267,
+      "low": 41245
+    },
+    "verySteepShare": 2.6
+  },
   "tileIndexPath": "ctxtiles/frankfurt_am_main/index.json"
 }

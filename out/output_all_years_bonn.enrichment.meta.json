@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bonn",
-  "generatedAt": "2026-05-10T07:45:57.906Z",
+  "generatedAt": "2026-05-10T16:25:50.910Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 43246,
+    "withSlope": 36394,
+    "noSlopeSignal": 6852,
+    "coveragePercent": 84.2,
+    "classCounts": {
+      "flat": 17855,
+      "gentle": 9395,
+      "moderate": 4661,
+      "steep": 3087,
+      "very_steep": 1396
+    },
+    "missingReasonCounts": {
+      "way_too_short": 6844,
+      "no_geometry": 8
+    },
+    "methodCounts": {
+      "median_segments": 36394
+    },
+    "confidenceCounts": {
+      "high": 6950,
+      "low": 21009,
+      "medium": 8435
+    },
+    "verySteepShare": 3.8
+  },
   "tileIndexPath": "ctxtiles/bonn/index.json"
 }

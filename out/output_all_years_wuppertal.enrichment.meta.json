@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "wuppertal",
-  "generatedAt": "2026-05-10T07:47:20.554Z",
+  "generatedAt": "2026-05-10T16:27:22.960Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
@@ -12,7 +12,7 @@
     },
     "dem": {
       "source": "SRTM Local Tiles",
-      "producerVersion": null,
+      "producerVersion": "1.1.0",
       "resolutionM": 30
     },
     "traffic": {
@@ -36,5 +36,31 @@
     "surface",
     "cycleway"
   ],
+  "slope": {
+    "totalWays": 48318,
+    "withSlope": 41456,
+    "noSlopeSignal": 6862,
+    "coveragePercent": 85.8,
+    "classCounts": {
+      "flat": 12117,
+      "gentle": 9489,
+      "moderate": 7141,
+      "steep": 7707,
+      "very_steep": 5002
+    },
+    "missingReasonCounts": {
+      "way_too_short": 6848,
+      "no_geometry": 14
+    },
+    "methodCounts": {
+      "median_segments": 41456
+    },
+    "confidenceCounts": {
+      "high": 9352,
+      "medium": 10112,
+      "low": 21992
+    },
+    "verySteepShare": 12.1
+  },
   "tileIndexPath": "ctxtiles/wuppertal/index.json"
 }
