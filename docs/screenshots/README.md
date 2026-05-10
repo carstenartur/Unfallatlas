@@ -24,6 +24,12 @@ referenzierten PNG-Screenshots der Unfallwerkbank V2.
 | 15 | `15-export-pdf-rendered.png` | Gerenderter PDF-Export |
 | 16 | `16-antrag-inhalt.png` | Antrag-Inhalt |
 
+Alle map-haltigen Screenshots werden in den E2E-Tests erst nach einem
+Leaflet-Tile-Stabilitäts-Check erstellt (`waitForMapTiles`: keine
+`leaflet-tile-loading` mehr, mindestens ein `leaflet-tile-loaded`), plus
+kurzer Paint-Pause und defensivem `document.fonts.ready`. Dadurch sind die
+Bilder über CI-Re-Runs reproduzierbar.
+
 ## TODO – Kontextdaten-Screenshots (PR #260)
 
 Mit der Einführung der Kontextdaten (PR #260, „Kontext (neu)") sind

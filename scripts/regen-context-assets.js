@@ -70,6 +70,27 @@ function log(...args) {
   console.log('[regen-context-assets]', ...args);
 }
 
+async function waitForMapTiles(page, timeout = 15000) {
+  try {
+    await page.waitForFunction(() => {
+      const map = document.querySelector('.leaflet-container');
+      if (!map) return false;
+      const loadingTiles = map.querySelectorAll('img.leaflet-tile-loading').length;
+      const loadedTiles = map.querySelectorAll('img.leaflet-tile-loaded').length;
+      return loadingTiles === 0 && loadedTiles > 0;
+    }, { timeout });
+  } catch (err) {
+    throw new Error(
+      `Leaflet tiles did not reach a stable loaded state within ${timeout}ms: ${err && err.message ? err.message : err}`
+    );
+  }
+  await page.waitForTimeout(250);
+}
+
+async function waitForFonts(page) {
+  await page.evaluate(() => (document.fonts && document.fonts.ready) || null);
+}
+
 async function fetchGif(baseUrl) {
   log(`POST ${baseUrl}/api/export-video`);
   const res = await fetch(`${baseUrl}/api/export-video`, {
@@ -91,11 +112,15 @@ async function captureScreenshots(baseUrl) {
     log(`browse ${baseUrl}/werkbank_v2.html${CONTEXT_QS}`);
     await page.goto(`${baseUrl}/werkbank_v2.html${CONTEXT_QS}`);
     await page.waitForLoadState('networkidle');
+    await waitForMapTiles(page);
+    await waitForFonts(page);
 
     // 17 — Kontext-Filter-Sektion (komplette Seite, der Filter ist links)
     if (await page.locator('#ctxFilterSection').count() > 0) {
       await page.locator('#ctxFilterSection').scrollIntoViewIfNeeded();
     }
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: PNG_FILTER, fullPage: false });
     log(`wrote ${PNG_FILTER}`);
 
@@ -103,6 +128,8 @@ async function captureScreenshots(baseUrl) {
     // Verkehrs-Chip). Wir nehmen denselben Viewport, der Unterschied
     // zwischen 17 und 19 liegt im aktiven Filter — die URL setzt beide,
     // sodass das zweite Bild den vollen aktiven Stand dokumentiert.
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: PNG_TRAFFIC, fullPage: false });
     log(`wrote ${PNG_TRAFFIC}`);
 
@@ -161,6 +188,8 @@ async function captureScreenshots(baseUrl) {
         log(`WARN: marker with id=${markerInfo.id} (_leaflet_id=${markerInfo.leafletId}) vanished before openPopup`);
       }
       await page.waitForTimeout(500);
+      await waitForMapTiles(page);
+      await waitForFonts(page);
       await page.screenshot({ path: PNG_POPUP, fullPage: false });
       log(`wrote ${PNG_POPUP} (marker id=${markerInfo.id})`);
     } else {
