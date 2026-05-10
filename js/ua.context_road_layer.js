@@ -53,6 +53,18 @@
   // a calculated slope.
   const SLOPE_NO_SIGNAL_COLOR = '#bdbdbd';
   const SLOPE_NO_SIGNAL_LABEL_DE = 'kein Steigungssignal';
+  // Muted colour for ways that DO have a slope class but whose
+  // confidence is "low" (typically endpoint-method readings or
+  // sample_count < 3 — see scripts/producers/dem_producer.js). These
+  // are precisely the ways that drive the "Berlin renders as deep red"
+  // bug: a single noisy DEM endpoint difference can flip an obviously
+  // flat residential street into `very_steep`. Rendering them in a
+  // distinct muted slate-blue makes them visually separable from the
+  // YlOrRd ramp without pretending the road is flat. Distinct from
+  // SLOPE_NO_SIGNAL_COLOR (warm grey) so users can tell "no signal"
+  // apart from "signal but unreliable" at a glance.
+  const SLOPE_LOW_CONFIDENCE_COLOR = '#9aa9b8';
+  const SLOPE_LOW_CONFIDENCE_LABEL_DE = 'geringe Konfidenz';
   const TRAFFIC_LABELS_DE = {
     low:       'niedrig (≤ 1 000 DTV)',
     medium:    'mittel (≤ 5 000 DTV)',
@@ -274,8 +286,29 @@
       if (!intersectsBounds(latlngs)) continue;
       const attrs = resolveAttrs(wayId);
       const cls   = classifier(attrs);
+      // PR-berlin-slope-renderer: the renderer must agree with the
+      // confidence the enrichment pipeline assigned to the slope. A
+      // `very_steep` class with `road_slope_confidence:'low'` is the
+      // exact signature of endpoint-noise on a flat residential
+      // street (Berlin) — colouring it deep red was the root of the
+      // "Berlin slope layer renders deep red everywhere" bug.
+      // Policy:
+      //   - high / medium confidence → ramp colour (renders as before)
+      //   - low confidence            → muted colour (visually distinct)
+      //   - missing class             → existing showUnclassified path
+      // Only applied to the slope kind; traffic colouring is unchanged.
+      const confidence = (kind === 'slope' && attrs && typeof attrs.road_slope_confidence === 'string')
+        ? attrs.road_slope_confidence : null;
+      const isLowConfidence = (kind === 'slope' && confidence === 'low');
       let color, featureClass;
-      if (cls) {
+      if (cls && isLowConfidence) {
+        // Keep the underlying class on the feature payload so a
+        // tooltip / debug overlay can still surface the calculated
+        // value, but render the polyline in the muted swatch so it
+        // does not dominate the viewport visually.
+        color = SLOPE_LOW_CONFIDENCE_COLOR;
+        featureClass = 'low_confidence';
+      } else if (cls) {
         color = colorFor(cls);
         featureClass = cls;
       } else if (o.showUnclassified && kind === 'slope') {
@@ -292,10 +325,32 @@
       try {
         const line = window.L.polyline(latlngs, lineStyle(color, { renderer, weight: o.weight, opacity: o.opacity }));
         // Tiny payload so a future hover/tooltip can read the class
-        // without re-resolving the way table.
+        // without re-resolving the way table. For slope features we
+        // also expose the confidence + numeric percent + method +
+        // sample-count so the debug overlay (and any future
+        // hover-tooltip in the UI) can show full provenance without
+        // touching the ways table again.
+        const featureProps = { way_id: String(wayId), class: featureClass, kind };
+        if (kind === 'slope') {
+          // Underlying calculated class even when the renderer chose
+          // a muted swatch — useful for debugging the noise-gate.
+          if (cls) featureProps.slope_class = cls;
+          if (confidence) featureProps.slope_confidence = confidence;
+          if (attrs) {
+            if (Number.isFinite(attrs.road_slope_percent)) {
+              featureProps.slope_percent = attrs.road_slope_percent;
+            }
+            if (typeof attrs.road_slope_method === 'string' && attrs.road_slope_method) {
+              featureProps.slope_method = attrs.road_slope_method;
+            }
+            if (Number.isFinite(attrs.road_slope_sample_count)) {
+              featureProps.slope_sample_count = attrs.road_slope_sample_count;
+            }
+          }
+        }
         line.feature = {
           type: 'Feature',
-          properties: { way_id: String(wayId), class: featureClass, kind },
+          properties: featureProps,
           geometry: null,
         };
         // Optional debug overlay: show the numeric slope percent as a
@@ -368,12 +423,26 @@
       row.appendChild(lbl);
       div.appendChild(row);
     }
-    // For the slope layer, append an explicit "no signal" row so users
-    // can tell coloured = slope calculated apart from neutral/grey =
-    // road is in the v3 context network but no slope could be derived
-    // (DEM gap, way too short, etc.). Uses a distinct DOM class so
-    // tests / styling can target it independently of the value rows.
+    // For the slope layer, append explicit "geringe Konfidenz" and
+    // "kein Steigungssignal" rows so users can tell coloured = slope
+    // calculated with confidence apart from muted = signal but
+    // unreliable apart from neutral grey = road is in the v3 context
+    // network but no slope could be derived (DEM gap, way too short,
+    // etc.). Each uses a distinct DOM class so tests / styling can
+    // target it independently of the value rows.
     if (kind === 'slope') {
+      const lowConfRow = document.createElement('div');
+      lowConfRow.className = 'context-road-legend__lowconfidence';
+      const lowConfSw = document.createElement('span');
+      lowConfSw.className = 'context-road-legend__swatch';
+      lowConfSw.style.background = SLOPE_LOW_CONFIDENCE_COLOR;
+      const lowConfLbl = document.createElement('span');
+      lowConfLbl.className = 'context-road-legend__label';
+      lowConfLbl.textContent = SLOPE_LOW_CONFIDENCE_LABEL_DE;
+      lowConfRow.appendChild(lowConfSw);
+      lowConfRow.appendChild(lowConfLbl);
+      div.appendChild(lowConfRow);
+
       const row = document.createElement('div');
       row.className = 'context-road-legend__nosignal';
       const sw = document.createElement('span');
@@ -398,6 +467,8 @@
     TRAFFIC_COLORS,
     SLOPE_NO_SIGNAL_COLOR,
     SLOPE_NO_SIGNAL_LABEL_DE,
+    SLOPE_LOW_CONFIDENCE_COLOR,
+    SLOPE_LOW_CONFIDENCE_LABEL_DE,
     HIGHWAY_DTV_PROXY,
     classifySlope,
     classifyTrafficProxy,

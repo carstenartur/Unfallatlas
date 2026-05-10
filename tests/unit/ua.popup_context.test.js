@@ -189,6 +189,28 @@ describe('UA.popupContext.render — public contract', () => {
     expect(UA.popupContext.formatNumber('not-a-number', 1)).toBeNull();
     expect(UA.popupContext.formatNumber(3.25, 1)).toBe('3,3');
   });
+
+  test('does not render "null %" rows when slope/elevation values are non-finite (Infinity/NaN/garbage)', () => {
+    const UA = loadModules();
+    // Hand-edited / malformed payload: values pass the null/undefined/'' guard
+    // but are not finite numbers. Rows must either fall back to the class
+    // label (when present) or be omitted entirely — never "null %".
+    const html = UA.popupContext.render(
+      {
+        elevation_m: Infinity,
+        slope_percent: NaN,
+        slope_class: 'flat',
+        road_slope_percent: 'oops',
+        road_slope_class: 'gentle',
+      },
+      { hasElevation: true, hasSlope: true }
+    );
+    expect(html).not.toContain('null %');
+    expect(html).not.toContain('null m ü. NN');
+    // Class-only fallbacks are still surfaced.
+    expect(html).toContain('Hangneigung lokal');
+    expect(html).toContain('Straßenneigung');
+  });
 });
 
 describe('UA.composeAccidentPopupHtml — preserves base content, appends context', () => {
@@ -361,6 +383,55 @@ describe('UA.composeAccidentPopupHtml — PR-E v3 tile-based hydration (race-tol
     expect(html).toContain('50 km/h');
     expect(html).toContain('asphalt');
     expect(html).toContain('Straßenneigung');
+  });
+});
+
+describe('UA.composeAccidentPopupHtml — PR-berlin-slope-renderer: per-way slope provenance hydration', () => {
+  test('hydrates road_slope_class / confidence / method / sample_count from ways table', () => {
+    const UA = loadModules();
+    const ctx = {
+      contextCapabilities: { hasOsmContext: true, hasSlope: true, hasAny: true },
+      contextLayerState: {
+        ways: {
+          W42: {
+            highway: 0,
+            road_slope_percent: 12.7,
+            road_slope_class: 'very_steep',
+            road_slope_confidence: 'low',
+            road_slope_method: 'endpoint',
+            road_slope_sample_count: 1,
+          },
+        },
+        dicts: { highway: ['residential'] },
+      },
+    };
+    const html = UA.composeAccidentPopupHtml(ctx, { matched_way_id: 'W42' });
+    // Numeric percent + class label appear together so the popup
+    // explains *why* the renderer chose a colour for this way.
+    expect(html).toMatch(/Straßenneigung[\s\S]*12,7\s?%[\s\S]*sehr steil/);
+    // Confidence falls back to the human label for "low".
+    expect(html).toMatch(/Konfidenz[\s\S]*niedrig/);
+    // Method + sample-count expose the debug provenance the user asked for.
+    expect(html).toMatch(/Methode[\s\S]*endpoint/);
+    expect(html).toMatch(/Stichproben[\s\S]*1/);
+  });
+
+  test('per-way road_slope_confidence wins over per-feature slope_confidence', () => {
+    const UA = loadModules();
+    const ctx = {
+      contextCapabilities: { hasSlope: true, hasOsmContext: true, hasAny: true },
+      contextLayerState: {
+        ways: { W7: { highway: 0, road_slope_percent: 1.0, road_slope_confidence: 'high' } },
+        dicts: { highway: ['residential'] },
+      },
+    };
+    // Per-feature carries a weaker confidence that should be overridden.
+    const html = UA.composeAccidentPopupHtml(ctx, {
+      matched_way_id: 'W7',
+      slope_confidence: 'low',
+    });
+    expect(html).toMatch(/Konfidenz[\s\S]*hoch/);
+    expect(html).not.toMatch(/Konfidenz[\s\S]*niedrig/);
   });
 });
 
