@@ -308,11 +308,16 @@
             && typeof line.bindTooltip === 'function') {
           const rsp = (attrs && Number.isFinite(attrs.road_slope_percent))
             ? attrs.road_slope_percent : null;
-          if (rsp !== null) {
-            try {
-              line.bindTooltip(`${rsp} %`, { permanent: true, direction: 'center', className: 'context-road-debug-tooltip' });
-            } catch (_) { /* tooltip unsupported in this Leaflet build */ }
-          }
+        if (rsp !== null) {
+          // bindTooltip itself is feature-detected above; this catch
+          // only guards against Leaflet builds that throw on
+          // unsupported tooltip *options* (e.g. very old or stripped
+          // builds without `permanent`). Failure here is non-fatal —
+          // the polyline still renders, just without the debug label.
+          try {
+            line.bindTooltip(`${rsp} %`, { permanent: true, direction: 'center', className: 'context-road-debug-tooltip' });
+          } catch (_) { /* tooltip options unsupported in this Leaflet build */ }
+        }
         }
         group.addLayer(line);
       } catch (_) { /* malformed line — skip */ }

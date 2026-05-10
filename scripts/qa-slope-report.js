@@ -165,7 +165,10 @@ function loadTilesForBbox(repoRoot, slug, bbox) {
       if (!fs.existsSync(tileFile)) continue;
       let payload;
       try { payload = JSON.parse(fs.readFileSync(tileFile, 'utf8')); }
-      catch (_) { continue; }
+      catch (e) {
+        console.warn(`[qa-slope] skipping unreadable tile ${path.relative(repoRoot, tileFile)}: ${e.message}`);
+        continue;
+      }
       const tWays = payload.ways || {};
       const tGeom = payload.geometries || {};
       for (const wayId of Object.keys(tWays)) {
@@ -285,10 +288,12 @@ function assembleReport(args) {
   // Try the full-diagnostic path; merge per-way DEM samples back in
   // when available. Tile data still gives us the canonical
   // road_slope_percent / class / confidence values written by the
-  // producer.
+  // producer. `runFullDiagnostic` already logs its own warnings, so
+  // this catch is a last-resort safety net for unexpected
+  // (programmer-error) exceptions only.
   let fullDiag = null;
   try { fullDiag = runFullDiagnostic(repoRoot, args.city, bbox); }
-  catch (e) { console.warn('[qa-slope] full-diagnostic unavailable:', e.message); }
+  catch (e) { console.warn('[qa-slope] runFullDiagnostic threw:', e.message); }
   const diagById = new Map();
   if (fullDiag && Array.isArray(fullDiag.ways)) {
     for (const d of fullDiag.ways) diagById.set(String(d.wayId), d);

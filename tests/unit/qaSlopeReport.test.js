@@ -159,9 +159,9 @@ describe('qa-slope-report — assembleReport (tile-only fallback)', () => {
       city: 'testcity', centerLat: c.lat, centerLon: c.lon, zoom: 16,
       viewportPx: { w: 1280, h: 800 }, repoRoot: root,
     });
-    const text = qa.summaryTable(report);
-    expect(text).toMatch(/ways in viewport: 3/);
-    expect(text).toMatch(/very_steep\s+1/);
-    expect(text).toMatch(/flat\s+1/);
+    const summaryText = qa.summaryTable(report);
+    expect(summaryText).toMatch(/ways in viewport: 3/);
+    expect(summaryText).toMatch(/very_steep\s+1/);
+    expect(summaryText).toMatch(/flat\s+1/);
   });
 });
