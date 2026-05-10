@@ -149,6 +149,31 @@
     };
   }
 
+  function _tileIndexUrlFromMetaPath(p) {
+    if (typeof p !== 'string') return null;
+    const trimmed = p.trim().replace(/^\.?\//, '');
+    if (!trimmed) return null;
+    if (/^(https?:)?\/\//i.test(trimmed)) return trimmed;
+    if (trimmed.startsWith('out/')) return trimmed;
+    return `out/${trimmed}`;
+  }
+
+  function _attachTileUrlIndex(manifest, tileIndexUrl) {
+    if (!manifest || typeof manifest !== 'object') return manifest;
+    const root = (typeof tileIndexUrl === 'string' && tileIndexUrl)
+      ? tileIndexUrl.replace(/\/[^/]*$/, '')
+      : null;
+    const byKey = new Map();
+    for (const t of (manifest.tiles || [])) {
+      if (!t || !Number.isFinite(t.x) || !Number.isFinite(t.y)) continue;
+      const key = `${t.x}/${t.y}`;
+      byKey.set(key, root ? `${root}/${t.x}/${t.y}.json` : key);
+    }
+    manifest.tileUrlByKey = byKey;
+    manifest.tileKeySet = new Set(byKey.keys());
+    return manifest;
+  }
+
   /**
    * Lazily fetch ways_<city>.json + *.enrichment.meta.json. Cached per
    * city. Both files are optional — if either 404s, the corresponding
@@ -177,6 +202,9 @@
       const raw  = (waysResp && waysResp.ok) ? await waysResp.json().catch(() => null) : null;
       const meta = (metaResp && metaResp.ok) ? await metaResp.json().catch(() => null) : null;
       const dicts = (ctx && (ctx.geojsonProps?.enrichmentDicts || ctx.enrichmentDicts)) || null;
+      const metaSchemaVersion = (meta && Number.isFinite(meta.schemaVersion)) ? Number(meta.schemaVersion) : null;
+      const metaTileIndexUrl = _tileIndexUrlFromMetaPath(meta && meta.tileIndexPath);
+      const shouldUseMetaV3 = !!(metaSchemaVersion != null && metaSchemaVersion >= 3 && metaTileIndexUrl);
 
       // ways_<city>.json supports two shapes:
       //   v2 (current): { schemaVersion: 2, ways: {…}, geometries: {…} }
@@ -246,10 +274,34 @@
           ways = raw;
         }
       }
+      // Sidecar-driven v3 mode: if the sidecar says schema>=3 and points
+      // at a tile manifest, prefer that even when ways_<slug>.json is a
+      // legacy v1/v2 payload. This keeps deploys resilient when the sidecar
+      // and ways file are temporarily out of sync.
+      if (shouldUseMetaV3) {
+        coverage = coverage || 'full';
+        tileIndexUrl = metaTileIndexUrl;
+        ways = {};
+        geometries = {};
+      }
+      if (tileIndexUrl && (!ways || !geometries)) {
+        if (!ways || typeof ways !== 'object') ways = {};
+        if (!geometries || typeof geometries !== 'object') geometries = {};
+      }
+      if (tileIndexUrl && !tileIndex) {
+        try {
+          const manResp = await fetch(tileIndexUrl, { cache: 'force-cache' });
+          if (manResp && manResp.ok) {
+            const manifest = await manResp.json().catch(() => null);
+            if (manifest && typeof manifest === 'object') tileIndex = manifest;
+          }
+        } catch (_) { /* manifest optional — degrades gracefully */ }
+      }
       // Prefer the dicts shipped with the tile manifest over the
       // per-FeatureCollection dicts: in v3 the per-tile attrs are
       // int-coded against the tile-manifest dicts (a superset of
       // anything the FC contains).
+      tileIndex = _attachTileUrlIndex(tileIndex, tileIndexUrl);
       const effectiveDicts = (tileIndex && tileIndex.dicts) || dicts;
       return {
         slug: u.slug,
@@ -343,6 +395,10 @@
   }
 
   function _tileUrl(state, x, y) {
+    if (state && state.tileIndex && state.tileIndex.tileUrlByKey instanceof Map) {
+      const fromMap = state.tileIndex.tileUrlByKey.get(`${x}/${y}`);
+      if (fromMap) return fromMap;
+    }
     // Manifest URL is e.g. "out/ctxtiles/<slug>/index.json" → strip
     // the trailing /index.json segment to get the tile root.
     const manUrl = state && state.tileIndexUrl;

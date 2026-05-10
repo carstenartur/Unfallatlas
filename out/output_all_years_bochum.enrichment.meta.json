@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bochum",
   "generatedAt": "2026-05-10T05:33:21.960Z",
@@ -35,5 +35,6 @@
     "highway",
     "surface",
     "cycleway"
-  ]
+  ],
+  "tileIndexPath": "ctxtiles/bochum/index.json"
 }

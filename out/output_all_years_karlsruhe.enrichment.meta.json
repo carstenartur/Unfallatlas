@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "karlsruhe",
   "generatedAt": "2026-05-10T05:33:27.295Z",
@@ -35,5 +35,6 @@
     "highway",
     "surface",
     "cycleway"
-  ]
+  ],
+  "tileIndexPath": "ctxtiles/karlsruhe/index.json"
 }

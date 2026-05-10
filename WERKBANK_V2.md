@@ -50,6 +50,10 @@ Layer-Sichtbarkeit also mit.
 > **Hinweis — Datenabdeckung:** Mit Producer 1.2.0 / `schemaVersion: 3`
 > zeigen die Karten-Layer das **vollständige OSM-Straßennetz im
 > Stadt-BBox** (ausgeliefert als Slippy-Tiles, viewport-lazy). Die
+> Tile-Manifest-URL kommt aus dem Sidecar
+> `output_all_years_<slug>.enrichment.meta.json` (`tileIndexPath`).
+> 
+> 
 > *Slope-Farbe* bleibt sample-getrieben (nur entlang gematchter Wege),
 > die *Verkehrs-Klasse* basiert auf dem DTV-Proxy. Vollständige
 > Beschreibung (kanonisch) in
