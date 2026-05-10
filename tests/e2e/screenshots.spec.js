@@ -4,36 +4,12 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupCDNRoutes } from './helpers.js';
+import { setupCDNRoutes, waitForMapTiles, waitForFonts } from './helpers.js';
 
 /** Hilfsfunktion: Seite mit URL-Parametern laden und auf Datenladen warten */
 async function loadPage(page, params = '') {
   await page.goto('/werkbank_v2.html' + params);
   await page.waitForLoadState('networkidle');
-}
-
-/** Hilfsfunktion: Warten bis Leaflet-Tiles sichtbar fertig geladen sind */
-async function waitForMapTiles(page, timeout = 15000) {
-  try {
-    await page.waitForFunction(() => {
-      const map = document.querySelector('.leaflet-container');
-      if (!map) return false;
-      const loadingTiles = map.querySelectorAll('img.leaflet-tile-loading').length;
-      const loadedTiles = map.querySelectorAll('img.leaflet-tile-loaded').length;
-      return loadingTiles === 0 && loadedTiles > 0;
-    }, { timeout });
-  } catch (err) {
-    throw new Error(
-      `Leaflet tiles did not reach a stable loaded state within ${timeout}ms: ${err && err.message ? err.message : err}`
-    );
-  }
-  // kurzes Zusatzfenster für finales Paint nach dem letzten Tile-Decode
-  await page.waitForTimeout(250);
-}
-
-/** Hilfsfunktion: Defensiv auf Font-Readiness warten (kein Fehler ohne Font-API) */
-async function waitForFonts(page) {
-  await page.evaluate(() => (document.fonts && document.fonts.ready) || null);
 }
 
 /** Hilfsfunktion: Warten bis Städte geladen sind (prüft auch ob Lade-Placeholder verschwunden) */

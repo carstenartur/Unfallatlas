@@ -70,27 +70,6 @@ function log(...args) {
   console.log('[regen-context-assets]', ...args);
 }
 
-async function waitForMapTiles(page, timeout = 15000) {
-  try {
-    await page.waitForFunction(() => {
-      const map = document.querySelector('.leaflet-container');
-      if (!map) return false;
-      const loadingTiles = map.querySelectorAll('img.leaflet-tile-loading').length;
-      const loadedTiles = map.querySelectorAll('img.leaflet-tile-loaded').length;
-      return loadingTiles === 0 && loadedTiles > 0;
-    }, { timeout });
-  } catch (err) {
-    throw new Error(
-      `Leaflet tiles did not reach a stable loaded state within ${timeout}ms: ${err && err.message ? err.message : err}`
-    );
-  }
-  await page.waitForTimeout(250);
-}
-
-async function waitForFonts(page) {
-  await page.evaluate(() => (document.fonts && document.fonts.ready) || null);
-}
-
 async function fetchGif(baseUrl) {
   log(`POST ${baseUrl}/api/export-video`);
   const res = await fetch(`${baseUrl}/api/export-video`, {
@@ -105,6 +84,7 @@ async function fetchGif(baseUrl) {
 }
 
 async function captureScreenshots(baseUrl) {
+  const { waitForMapTiles, waitForFonts } = await import('../tests/e2e/helpers.js');
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
