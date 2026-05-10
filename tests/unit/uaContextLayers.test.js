@@ -224,6 +224,31 @@ describe('UA.contextLayers.load — lazy + cached', () => {
     }
   });
 
+  test('v3 sidecar path normalizes backslashes in tileIndexPath', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    const meta = {
+      schemaVersion: 3,
+      tileIndexPath: 'ctxtiles\\bonn\\index.json',
+    };
+    const manifest = { schemaVersion: 3, z: 13, tiles: [{ x: 4280, y: 2730 }] };
+    global.fetch = (url) => {
+      if (url.endsWith('ways_bonn.json')) return Promise.resolve({ ok: false });
+      if (url.endsWith('output_all_years_bonn.enrichment.meta.json')) return Promise.resolve({ ok: true, json: async () => meta });
+      if (url.endsWith('ctxtiles/bonn/index.json')) return Promise.resolve({ ok: true, json: async () => manifest });
+      return Promise.resolve({ ok: false });
+    };
+    try {
+      const state = await UA.contextLayers.load({}, 'Bonn');
+      expect(state.tileIndexUrl).toBe('out/ctxtiles/bonn/index.json');
+      expect(state.tileIndex.tileUrlByKey.get('4280/2730')).toBe('out/ctxtiles/bonn/4280/2730.json');
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
+
   test('v1 (legacy) flat ways_<city>.json shape — still parses, geometries=null', async () => {
     const UA = loadModule();
     UA.contextLayers.clearCache();

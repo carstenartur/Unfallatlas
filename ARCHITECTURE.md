@@ -60,7 +60,7 @@ Die Pipeline besteht aus drei Bausteinen:
   Unfällen) sowie einen Sidecar `out/output_all_years_<city>.enrichment.meta.json`
   mit der Datensatz-Provenance. Im aktuellen v3-Pfad enthält der
   Sidecar `schemaVersion: 3` plus `tileIndexPath` auf
-  `out/ctxtiles/<slug>/index.json`.
+  `ctxtiles/<slug>/index.json`.
 * `scripts/check-enrichment-size.js` ist die CI-Bremsschwelle: er
   vergleicht die *gzip*-Größen jeder Stadt-Datei gegen
   `out/.enrichment-size-baseline.json` und bricht den Workflow ab,

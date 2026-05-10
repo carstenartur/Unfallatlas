@@ -455,6 +455,7 @@ function writeContextTiles(repoRoot, citySlug, fullWays, opts = {}) {
     zoom:            Number.isInteger(opts.zoom) ? opts.zoom : CTX_TILE_ZOOM,
     generatedAt:     opts.generatedAt,
     producerVersion: opts.producerVersion || null,
+    dicts:           built.dicts,
   });
   if (opts.source)      manifest.source      = opts.source;
   if (opts.extractDate) manifest.extractDate = opts.extractDate;
@@ -464,8 +465,8 @@ function writeContextTiles(repoRoot, citySlug, fullWays, opts = {}) {
   return {
     tileCount: manifest.tiles.length,
     wayCount:  Object.keys(manifest.wayIndex || {}).length,
-    indexPath: path.join('ctxtiles', citySlug, 'index.json'),
-    indexUrl:  path.join('out', 'ctxtiles', citySlug, 'index.json'),
+    indexPath: path.posix.join('ctxtiles', citySlug, 'index.json'),
+    indexUrl:  path.posix.join('out', 'ctxtiles', citySlug, 'index.json'),
   };
 }
 
@@ -480,26 +481,42 @@ function buildContextTileManifestFromDisk(repoRoot, citySlug, opts = {}) {
   const baseDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
   const tiles = [];
   const wayIndex = {};
+  const malformedTiles = [];
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
   if (fs.existsSync(baseDir)) {
-    for (const xDirEnt of fs.readdirSync(baseDir, { withFileTypes: true })) {
+    const xDirEntries = fs.readdirSync(baseDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && Number.isInteger(Number.parseInt(e.name, 10)))
+      .sort((a, b) => Number.parseInt(a.name, 10) - Number.parseInt(b.name, 10));
+    for (const xDirEnt of xDirEntries) {
       if (!xDirEnt.isDirectory()) continue;
       const x = Number.parseInt(xDirEnt.name, 10);
       if (!Number.isInteger(x)) continue;
       const xDir = path.join(baseDir, xDirEnt.name);
-      for (const yFileEnt of fs.readdirSync(xDir, { withFileTypes: true })) {
+      const yFileEntries = fs.readdirSync(xDir, { withFileTypes: true })
+        .filter((e) => e.isFile() && /\.json$/i.test(e.name) && Number.isInteger(Number.parseInt(e.name.replace(/\.json$/i, ''), 10)))
+        .sort((a, b) => {
+          const ay = Number.parseInt(a.name.replace(/\.json$/i, ''), 10);
+          const by = Number.parseInt(b.name.replace(/\.json$/i, ''), 10);
+          return ay - by;
+        });
+      for (const yFileEnt of yFileEntries) {
         if (!yFileEnt.isFile() || !/\.json$/i.test(yFileEnt.name)) continue;
         const y = Number.parseInt(yFileEnt.name.replace(/\.json$/i, ''), 10);
         if (!Number.isInteger(y)) continue;
         const file = path.join(xDir, yFileEnt.name);
         let wayCount = 0;
+        let payload = null;
         try {
-          const payload = JSON.parse(fs.readFileSync(file, 'utf8'));
+          payload = JSON.parse(fs.readFileSync(file, 'utf8'));
           const wayIds = Object.keys((payload && payload.ways) || {});
           wayCount = wayIds.length;
           for (const wayId of wayIds) if (!(wayId in wayIndex)) wayIndex[wayId] = [x, y];
-        } catch (_) { /* malformed tile -> keep tile listed, count as empty */ }
+        } catch (e) {
+          malformedTiles.push({ x, y, file, error: e && e.message ? e.message : String(e) });
+          continue;
+        }
+        if (!payload || typeof payload !== 'object') continue;
         tiles.push({ x, y, wayCount, bytes: gzippedSize(file) });
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (y < minY) minY = y; if (y > maxY) maxY = y;
@@ -515,6 +532,11 @@ function buildContextTileManifestFromDisk(repoRoot, citySlug, opts = {}) {
       tileYToLat(minY, z),
     ]
     : null;
+  if (malformedTiles.length > 0) {
+    for (const m of malformedTiles) {
+      console.warn(`[enrich] malformed context tile skipped for ${citySlug} at ${m.x}/${m.y}: ${m.error}`);
+    }
+  }
 
   return stripUndefined({
     schemaVersion: 3,
@@ -525,6 +547,7 @@ function buildContextTileManifestFromDisk(repoRoot, citySlug, opts = {}) {
     tiles,
     bbox,
     wayIndex,
+    dicts: (opts && opts.dicts && typeof opts.dicts === 'object') ? opts.dicts : undefined,
     generatedAt: opts.generatedAt || new Date().toISOString(),
     producerVersion: opts.producerVersion || undefined,
   });

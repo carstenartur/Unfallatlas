@@ -151,7 +151,7 @@
 
   function _tileIndexUrlFromMetaPath(p) {
     if (typeof p !== 'string') return null;
-    const trimmed = p.trim().replace(/^\.?\//, '');
+    const trimmed = p.trim().replace(/\\/g, '/').replace(/^\.?\//, '');
     if (!trimmed) return null;
     if (/^(https?:)?\/\//i.test(trimmed)) return trimmed;
     if (trimmed.startsWith('out/')) return trimmed;
