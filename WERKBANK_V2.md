@@ -54,9 +54,10 @@ Layer-Sichtbarkeit also mit.
 > `output_all_years_<slug>.enrichment.meta.json` (`tileIndexPath`).
 > 
 > 
-> *Slope-Farbe* bleibt sample-getrieben (nur entlang gematchter Wege),
-> die *Verkehrs-Klasse* basiert auf dem DTV-Proxy. Vollständige
-> Beschreibung (kanonisch) in
+> *Slope-Farbe* deckt mit `dem_producer.js` ≥ 1.1.0 das **gesamte**
+> v3-Kontextnetz ab (Median der Segment-Steigungen aus lokalen
+> SRTM-Tiles); die *Verkehrs-Klasse* basiert auf dem DTV-Proxy.
+> Vollständige Beschreibung (kanonisch) in
 > [`docs/enrichment.md` → „Datenausschnitt der Karten-Layer (Straßennetz vs. matched-only Signal)"](docs/enrichment.md#matched-only-disclaimer).
 
 Die bestehenden Chip-Filter („Kontext-Filter (Detailanalyse)") bleiben
