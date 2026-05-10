@@ -217,6 +217,9 @@ jobs:
       - name: Check enriched payload size budget
         run: node scripts/check-enrichment-size.js
 
+      - name: Validate v3 context-layer datasets
+        run: node scripts/check-context-datasets.js
+
       # Commit only when something other than the meta-sidecar
       # `generatedAt` timestamp changed. The sidecar is always
       # rewritten on every run, so committing it unconditionally would

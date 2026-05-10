@@ -320,4 +320,34 @@ describe('enrich_geojson — enrichCityFile writes v3 envelope + ctxtiles when O
     });
     expect(fs.existsSync(path.join(tmpRoot, 'out', 'ctxtiles', 'swap'))).toBe(false);
   });
+
+  test('refuses to write a v3 envelope when fullWays produces a tile manifest with empty dicts', () => {
+    // A pathological OSM provider whose way carries only numeric
+    // attrs — none of the DICT_FIELDS (highway/surface/cycleway). The
+    // generated manifest would therefore have an empty `dicts` block
+    // and the loader's slope classifier would return null for every
+    // way (root cause of the original "empty slope legend in
+    // Bielefeld" symptom). The fail-fast guard in enrichCityFile
+    // must surface this at CI time instead of shipping a broken v3
+    // dataset.
+    const noDictOsm = {
+      name: 'osm', source: 'test', extractDate: '2026-05-09', coverage: 'full',
+      matchFeature: () => null,
+      // No `highway`/`surface`/`cycleway` → dicts will be empty {}.
+      wayAttributes: () => ({ maxspeed: 30, lanes: 2 }),
+      wayGeometry:   () => [{ lat: 50.10, lon: 7.20 }, { lat: 50.10, lon: 7.205 }],
+      listWayIds:    () => ['W_NO_DICT'],
+    };
+    const inputFc = fc([pt('a', 7.20, 50.10)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_nodict.geojson'),
+      JSON.stringify(inputFc)
+    );
+    expect(() => enrich.enrichCityFile(tmpRoot, 'nodict', {
+      providers: { osm: noDictOsm, dem: null, traffic: null },
+    })).toThrow(/empty `dicts` block/);
+    // On failure the v3 envelope must NOT be on disk so a CI re-run
+    // sees the same failure deterministically.
+    expect(fs.existsSync(path.join(tmpRoot, 'out', 'ways_nodict.json'))).toBe(false);
+  });
 });

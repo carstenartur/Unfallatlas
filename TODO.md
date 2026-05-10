@@ -1,134 +1,94 @@
-# TODO — Testcontainers- und Architektur-Folgearbeiten
+# TODO — Empfehlungen jenseits des Bielefeld/slope‑Bugs
 
-Stand: 2026-05-10
+Stand: nach dem Refokus auf den ursprünglichen Bug
+(Bielefeld + `mapLayer=slope` → leere Legende / leerer Tile‑Index).
 
-Diese Datei sammelt Empfehlungen aus der Diskussion zu testcontainers-Tests
-analog zu den Taxonomie- und Photographer-Projekten. Sie ergänzt die jetzt
-gemergte **Schicht-1-Suite** (`tests/integration/apiSmoke.testcontainers.test.js`),
-die das bestehende `unfallatlas`-Image (Node + Express + Playwright + ffmpeg)
-End-to-End gegen ein breites Cross-Section von Routen prüft, ohne den
-`analysis-service` oder PostgreSQL zu starten.
+Diese Datei sammelt Vorschläge, die im Gespräch zu PR #265 aufkamen,
+die aber **nicht** direkt zum Bielefeld‑Bug gehören. Sie sollen separat
+priorisiert und in eigenen kleinen PRs umgesetzt werden — nicht in
+einen Mehrzweck‑PR gepackt werden, der die eigentliche Stoßrichtung
+verwässert (siehe Lehre aus PR #265).
 
----
+## a) Aktueller Fokus — Bielefeld + slope (in dieser Iteration)
 
-## 1. Architektur-Vorgabe: alles in ein Docker-Image, kein `docker-compose`
+- [x] Generischen API‑Smoke‑Test entfernt
+      (`tests/integration/apiSmoke.testcontainers.test.js`)
+      — siehe Punkt 1 unten falls jemand ihn doch noch will.
+- [x] Fokussierter Reproduktionstest hinzugefügt
+      (`tests/integration/bielefeldSlope.testcontainers.test.js`):
+      startet das gebaute `unfallatlas`‑Image und assertet die ganze
+      Kette `ways → tile index → tile payload → slope‑Layer + Legende`.
+- [x] Build‑Zeit‑Validator `scripts/check-context-datasets.js`
+      + `npm run validate:context-datasets`, in `enrich.yml`,
+      `enrich-matrix.yml` und `generate-and-commit.yml` als CI‑Gate
+      verdrahtet.
+- [x] Pipeline‑Härtung in `scripts/enrich_geojson.js`: schlägt
+      hart fehl, wenn ein v3‑Envelope mit 0 Tiles oder ohne `dicts`
+      geschrieben würde (Unit‑Test in
+      `tests/unit/enrichGeojson.tiles.test.js`).
 
-> Aus meiner sicht brauche ich docker compose nicht. Alles könnte in ein
-> docker image. — User, 2026-05-10
+## 1. Generische API‑Smoke‑Tests (`/api/health`, `/api/ai-assessment-available`, `/api/political-context/supported`)
 
-Status quo:
+**Status:** ausgeklammert.
+**Begründung:** Der ursprüngliche Aufhänger zum Thema „Testcontainers"
+war Reproduktion des Slope/Tile‑Bugs in Bielefeld — nicht das
+generische Absichern öffentlicher API‑Endpunkte. Die Smoke‑Tests aus
+PR #265 haben den eigentlichen Bug nicht berührt und sollten — wenn
+gewünscht — in einem eigenen, klar als „API‑Smoke" gekennzeichneten PR
+landen. Vor einem solchen PR bitte zuerst klären:
 
-- **Zwei** unabhängige Images:
-  - `Dockerfile` (Repo-Root) → Node/Express/Playwright/ffmpeg, Port 8000.
-  - `analysis-service/Dockerfile` → Spring Boot 3 / Java 21, Port 8081,
-    benötigt zusätzlich PostgreSQL.
-- Verknüpft über `docker-compose.yml` mit Profil `persist`.
+- Welche konkrete Regression soll der Smoke‑Test fangen, die nicht
+  bereits durch die bestehenden Unit‑/Integrationstests abgedeckt ist?
+- Lohnen sich +60 s CI‑Laufzeit pro Endpunkt, oder reicht ein einziger
+  Health‑Probe‑Aufruf am Anfang der bestehenden
+  `videoExport.testcontainers.test.js`?
 
-Ziel: **ein einziges Image**, das die Werkbank inkl. Persistenz/Read-API
-bedient — ohne Compose, ohne separates Postgres, ohne zwei Build-Pipelines.
+Erst nach „ja" auf eine der beiden Fragen sinnvoll.
 
-Mögliche Wege (je nach Aufwand/Akzeptanz noch zu entscheiden):
+## 2. `docker-compose.yml` evaluieren / abschaffen
 
-- [ ] **Variante A — Embedded DB im Spring-Boot-Image.**
-      `analysis-service` auf eine eingebettete Datenbank umstellen
-      (H2 mit Datei-Persistenz oder besser **embedded PostgreSQL** via
-      `io.zonky.test:embedded-postgres`/`pg-embedded` für Produktions-
-      parität mit Flyway-Migrationen V1–V4). Der gesamte Java-Stack läuft
-      dann im selben Container, ohne externen Postgres-Service.
-- [ ] **Variante B — Spring-Boot-Service in das Node-Image hochziehen.**
-      Multi-stage Dockerfile, das das Fat-JAR aus `analysis-service/` baut
-      und im Node-Image neben dem Express-Server startet (z. B. via
-      `s6-overlay`, `supervisord` oder einem simplen Shell-Wrapper, der
-      Java-Prozess + Node-Prozess gemeinsam überwacht). Ports 8000 + 8081
-      werden beide vom selben Container exposed.
-- [ ] **Variante C — Java-Service durch eine in-process Node-Implementierung
-      ersetzen.** Die `BatchJobController`/`SearchController`/
-      `LocationBriefController`-Funktionalität direkt in Express-Routen
-      portieren, Persistenz auf SQLite (`better-sqlite3`) oder eine
-      In-Memory-Repräsentation umstellen. Eliminiert die JVM komplett.
-      Bricht aber die jetzige Spring-Data-/Hibernate-Search-Schicht.
+**Anregung des Maintainers:** „Aus meiner Sicht brauche ich docker
+compose nicht. Alles könnte in ein docker image."
 
-Akzeptanzkriterien für die gewählte Variante:
+**Status:** offen, eigener PR.
+**Vorschlag für die Umsetzung:**
 
-- [ ] `docker run -p 8000:8000 ghcr.io/carstenartur/unfallatlas` startet
-      Werkbank **inkl.** persistenter `/api/location-briefs/...`,
-      `/api/priorities/...`, `/api/batch/jobs/...`, `/api/search/...`
-      ohne weitere Container.
-- [ ] `docker-compose.yml` kann gelöscht werden (oder bleibt nur als
-      Convenience für Dev-Setups mit externer DB).
-- [ ] `ANALYSIS_SERVICE_BASE_URL` entfällt im Default-Pfad — die Routen
-      sind ohne Konfiguration "verfügbar", `ensureAnalysisServiceConfigured`
-      kann entweder entfernt oder auf "nur konfigurierbar, wenn explizit
-      eine externe URL gesetzt wird" reduziert werden.
-- [ ] Image-Größe bleibt vertretbar (Java 21 JRE + Node + Playwright-
-      Browser ist groß; ggf. distroless/jlink prüfen).
+- Prüfen, was `docker-compose.yml` heute zusätzlich zum reinen
+  `Dockerfile` startet (ggf. nur `analysis-service/`?). Wenn der
+  Mehrwert ausschließlich Convenience ist (`docker compose up` statt
+  `docker run`), kann die Datei ersatzlos entfernt werden.
+- Das `npm run start:docker`‑Skript dann entweder löschen oder auf
+  `docker run -p 8000:8000 unfallatlas` umstellen.
+- README/`TESTING.md` nach Erwähnungen von `docker compose` durchsuchen
+  und konsolidieren.
+- Falls der Analysis‑Service (Spring Boot) zwingend separat laufen
+  muss, das in der README dokumentieren statt es in compose zu
+  verstecken.
 
----
+**Wichtig:** Diese Aufräumarbeit ist **unabhängig** vom Bielefeld‑Bug
+und sollte einen eigenen, kleinen PR bekommen.
 
-## 2. Schicht-2 testcontainers-Tests (Multi-Container, derzeit nicht nötig)
+## 3. Frontend‑Resilienz für leere/kaputte Tile‑Indizes
 
-**Voraussetzung:** Solange der `analysis-service` ein eigenes Image bleibt,
-müssten Tests gegen die Forwarder-Routen (`/api/location-briefs/...`,
-`/api/priorities/...`, `/api/batch/jobs/...`, `/api/search/...`) drei
-Container in einem `Network.newNetwork()` aufsetzen
-(Node + Spring Boot + PostgreSQL).
+Selbst mit dem neuen Build‑Gate kann ein Browser auf einem alten
+Deployment landen. Optionen:
 
-Mit der unter §1 angestrebten Vereinfachung (alles in ein Image) **entfällt
-Schicht 2 komplett** — die Routen würden dann von Schicht 1 mitabgedeckt,
-weil sie im selben Image laufen.
+- In `js/ua.context_layers.js` `load()` einen sichtbaren UI‑Hinweis
+  zeigen, wenn der `tileIndexUrl`‑Fetch 404/500 oder leeres `tiles`
+  liefert (z.B. „Kontextdaten konnten nicht geladen werden — bitte
+  Seite neu laden").
+- Heute fällt der Loader still auf „kein Layer" zurück, was zu der
+  gleichen leeren Legende führt, die wir gerade gefixt haben.
 
-- [ ] **Erst nach §1 entscheiden:** ob Schicht-2-Tests jemals gebraucht
-      werden. Wenn alles in ein Image wandert, diesen Punkt streichen.
-- [ ] Falls die Multi-Container-Architektur dauerhaft bleibt: eine
-      `analysisServiceForwarders.testcontainers.test.js` ergänzen, die
-      `Postgres` + `unfallatlas/analysis-service:local` + `unfallatlas`
-      über `Network.newNetwork()` koppelt und einen End-to-End-Roundtrip
-      über `POST /api/location-brief` → `GET /api/location-briefs/by-location/...`
-      ausführt. Pattern analog Taxonomie/Photographer.
+Eigener kleiner PR, sobald jemand Zeit hat.
 
----
+## 4. Erweiterte Bielefeld‑Asserts im Reproduktionstest
 
-## 3. Schicht-3: testcontainers im Java-Modul `analysis-service/`
+Wenn der jetzige Test in CI stabil läuft, kann man ihn ausbauen um:
 
-Heute benutzen die Spring-Boot-Tests
-(`FlywayMigrationsTest`, `AnalysisJobRepositoryTest`,
-`LocationBriefRepositoryTest`, `CityPrioritizationJobIntegrationTest`)
-**H2** statt eines echten PostgreSQL — die Flyway-Migrationen V1–V4 werden
-also nie gegen die Engine validiert, gegen die sie in Produktion laufen.
+- Snapshot der gerenderten Legenden‑Farben (catch CSS‑Regressions).
+- Click auf einen Slope‑Polyline‑Pfad → Popup mit `slope_class`.
+- Wechsel `mapLayer=slope` ↔ `mapLayer=traffic` ohne Reload.
 
-- [ ] Dependency `org.testcontainers:postgresql` (passend zur Spring-Boot-
-      BOM) im `analysis-service/pom.xml` ergänzen. Vorher
-      `gh-advisory-database` für die gewählte Version prüfen.
-- [ ] `@Testcontainers` + `@Container PostgreSQLContainer<>("postgres:18")`
-      in `FlywayMigrationsTest` einsetzen, damit `V1__init_schema.sql`,
-      `V2__harden_indexes_and_idempotency.sql`,
-      `V3__analysis_job_batch_link.sql`,
-      `V4__batch_ranking_artifacts.sql` gegen Postgres 18 laufen.
-- [ ] Repository-Tests (`AnalysisJobRepositoryTest`,
-      `LocationBriefRepositoryTest`) auf den gleichen Container umstellen,
-      damit JSONB-Spalten, Generated Columns und Postgres-spezifische
-      Constraints korrekt geprüft werden.
-- [ ] Maven-Profil so wählen, dass die testcontainers-Suite **nicht** im
-      jedem `mvn test`-Lauf zwingend Docker braucht
-      (z. B. eigenes Profil `-Pit` oder `@EnabledIfDockerAvailable`).
-
-Hinweis: Wenn §1 Variante C (Java-Service entfällt) gewählt wird, ist auch
-Schicht 3 hinfällig.
-
----
-
-## 4. Aufräumen rund um die Schicht-1-Suite (kleine Folgeschritte)
-
-- [ ] In `.github/workflows/` einen optionalen Job `integration-tc`
-      ergänzen, der `npm run test:integration:tc` mit
-      `UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:<sha>` ausführt
-      (nach `docker-publish.yml`). Heute laufen die testcontainers-Tests
-      nur lokal; in CI würden sie ebenfalls Schutz bieten.
-- [ ] README/`docs/` um einen kurzen Abschnitt "Integrationstests mit
-      testcontainers" ergänzen, der `npm run test:integration:tc` und die
-      Skip-Semantik (`RUN_TESTCONTAINERS=1`, `UNFALLATLAS_IMAGE`)
-      dokumentiert.
-- [ ] Wenn weitere Endpunkte hinzukommen, sollten sie in
-      `apiSmoke.testcontainers.test.js` als zusätzliches `it()` ergänzt
-      werden — nicht als neue Datei, damit pro Jest-Lauf weiterhin nur
-      **ein** Container hochgefahren wird.
+Aktuell bewusst nicht gemacht, um den Test fokussiert auf den Bug zu
+halten.

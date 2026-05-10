@@ -1045,6 +1045,34 @@ function enrichCityFile(repoRoot, citySlug, opts) {
       generatedAt: meta.generatedAt,
       producerVersion: meta.sources?.osm?.producerVersion || null,
     });
+    // Fail-fast guard: a v3 envelope with an empty / dictless tile
+    // index is what produced the original "Bielefeld + mapLayer=slope
+    // shows empty legend" bug. Refuse to ship a v3 ways file in that
+    // case — the loader would fetch a 404 manifest (or a manifest
+    // without `dicts`), the slope classifier would return null for
+    // every way, and the UI would render "Layer nicht verfügbar
+    // (alte Datenversion)" or an empty legend. Surface the failure at
+    // CI time so the build never produces a broken v3 dataset.
+    if (!tileWriteResult || tileWriteResult.tileCount === 0) {
+      throw new Error(
+        `[enrich] ${citySlug}: refusing to write v3 ways envelope — writeContextTiles produced 0 tiles ` +
+        `from ${fullWays.length} fullWays. Check the OSM producer output.`
+      );
+    }
+    const writtenIndex = path.join(
+      repoRoot, 'out', 'ctxtiles', citySlug, 'index.json'
+    );
+    let writtenManifest = null;
+    try { writtenManifest = JSON.parse(fs.readFileSync(writtenIndex, 'utf8')); }
+    catch (_) { /* fall through to throw below */ }
+    if (!writtenManifest || !writtenManifest.dicts ||
+        typeof writtenManifest.dicts !== 'object' ||
+        Object.keys(writtenManifest.dicts).length === 0) {
+      throw new Error(
+        `[enrich] ${citySlug}: refusing to write v3 ways envelope — tile manifest at ${writtenIndex} ` +
+        'is missing or has an empty `dicts` block (per-tile int-coded attrs would be undecodable).'
+      );
+    }
     waysPayload = {
       schemaVersion: 3,
       coverage:      'full',

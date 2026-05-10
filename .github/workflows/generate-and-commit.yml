@@ -109,6 +109,9 @@ jobs:
       - name: Check enriched payload size budget
         run: node scripts/check-enrichment-size.js
 
+      - name: Validate v3 context-layer datasets
+        run: node scripts/check-context-datasets.js
+
       - name: Sync City-Registry (auto-fix Drift)
         run: node scripts/check-city-rollout.js --fix
 
