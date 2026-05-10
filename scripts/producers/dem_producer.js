@@ -22,9 +22,15 @@
  *      is set, falls back to the Open-Meteo API (5 HTTP samples per
  *      point — the original behaviour).
  *   4. Optionally enriches per-way data: when `osm_<slug>.json` is
- *      available (typically produced by `osm_producer.js`), the mean
- *      grade between each way's first and last node is computed and
- *      written to `wayElevations[<wayId>].road_slope_percent`.
+ *      available (typically produced by `osm_producer.js`), a robust
+ *      median-of-segment-slopes is computed for **every** way in the
+ *      file's `wayGeometries` table — i.e. the *full* v3 city-bbox
+ *      network, not only the ways an accident snapped to. The result
+ *      is written to `wayElevations[<wayId>].road_slope_percent`.
+ *      This is the data the v3 slope context layer renders; without
+ *      it the front-end overlay falls back to neutral grey for every
+ *      unsampled way (and the build-time
+ *      `scripts/check-context-datasets.js` gate fails on coverage).
  *   5. Writes the on-disk payload expected by `loadDemProvider`:
  *
  *        {
@@ -61,7 +67,16 @@
 const fs   = require('fs');
 const path = require('path');
 
-const PRODUCER_VERSION = '1.0.0';
+// PRODUCER_VERSION
+//   1.0.0 — initial release; per-way slope from endpoint elevations only.
+//   1.1.0 — per-way slope is computed for the *full* OSM bbox network
+//           (every way in `osm_<slug>.json`'s `wayGeometries`), not
+//           only the ways an accident snapped to. This is the v3
+//           contract the front-end slope context layer and the
+//           `check-context-datasets` coverage gate depend on. Bumping
+//           the version invalidates the workflow's DEM cache so
+//           previously cached matched-only DEM datasets are regenerated.
+const PRODUCER_VERSION = '1.1.0';
 
 const DEFAULT_ELEVATION_ENDPOINT = 'https://api.open-meteo.com/v1/elevation';
 const DEFAULT_ELEVATION_TIMEOUT_MS = 60_000;
@@ -805,6 +820,47 @@ function readOsmWaySpans(osmDir, citySlug) {
 }
 
 /**
+ * Decide whether an existing on-disk `dem_<slug>.json` is fresh enough
+ * to skip the (expensive) per-city regeneration in the resume guard.
+ *
+ * The on-disk file may have been generated against an older
+ * `osm_<slug>.json` whose `wayGeometries` only contained the matched
+ * (accident-snapped) ways — that's the pre-PRODUCER_VERSION 1.2.0
+ * world. Since the v3 OSM producer now ships the **full** city-bbox
+ * network, a stale matched-only DEM cache covers <10 % of the current
+ * way count and would silently leave the v3 slope context layer
+ * mostly grey (and trip `scripts/check-context-datasets.js`).
+ *
+ * @param {string} demFile  absolute path to the existing dem_<slug>.json
+ * @param {string|null} osmDir  directory holding osm_<slug>.json, or null
+ * @param {string} citySlug
+ * @param {{minCoverage?: number}} [opts]
+ * @returns {boolean} true → cache is fresh, false → regenerate
+ */
+function _isDemCacheFresh(demFile, osmDir, citySlug, opts) {
+  const minCoverage = (opts && Number.isFinite(opts.minCoverage)) ? opts.minCoverage : 0.5;
+  if (!osmDir) return true; // No OSM context to compare against — assume fresh.
+  let dem;
+  try { dem = JSON.parse(fs.readFileSync(demFile, 'utf8')); }
+  catch (_) { return false; } // Unreadable cache → regenerate to repair it.
+  const osmFile = path.join(osmDir, `osm_${citySlug}.json`);
+  if (!fs.existsSync(osmFile)) return true; // Nothing to compare against.
+  let osm;
+  try { osm = JSON.parse(fs.readFileSync(osmFile, 'utf8')); }
+  catch (_) { return true; }
+  const osmWayCount = (osm && osm.wayGeometries && typeof osm.wayGeometries === 'object')
+    ? Object.keys(osm.wayGeometries).length : 0;
+  if (osmWayCount === 0) return true; // OSM doesn't ship ways → can't judge.
+  const demWayCount = (dem && dem.wayElevations && typeof dem.wayElevations === 'object')
+    ? Object.keys(dem.wayElevations).length : 0;
+  // Stale if the DEM cache covers materially less of the network than
+  // the current OSM file does. The threshold is intentionally generous
+  // (50 %) so genuine "every short way got a `missing_reason`" cases
+  // don't trigger unnecessary regenerations.
+  return (demWayCount / osmWayCount) >= minCoverage;
+}
+
+/**
  * Compute robust per-way slope from the full OSM polyline by sampling
  * elevation every ~30 m and taking the **median** of the resulting
  * per-segment grades. Median (rather than endpoint difference) is the
@@ -975,10 +1031,20 @@ async function produceCity(repoRoot, citySlug, opts) {
   // 429-cool-downs are 60 s each. Pass `force: true` (CLI: `--force`)
   // to bypass.
   const outDirEarly = o.outDir;
+  const osmDir  = o.osmDir || process.env.ENRICH_OSM_DATA_DIR || null;
   if (outDirEarly && !o.force) {
     const existingOut = path.join(outDirEarly, `dem_${citySlug}.json`);
     if (fs.existsSync(existingOut)) {
-      return { citySlug, skipped: true, reason: 'already cached', outFile: existingOut };
+      // Freshness check: a `dem_<slug>.json` left over from before
+      // OSM PRODUCER_VERSION 1.2.0 (matched-only ways) covers only a
+      // small fraction of the current full-network `wayGeometries`.
+      // Re-using such a cache would silently leave the v3 slope
+      // context layer mostly grey and trip the coverage gate in
+      // `scripts/check-context-datasets.js`. Treat materially
+      // undercovered DEM caches as stale and regenerate.
+      if (_isDemCacheFresh(existingOut, osmDir, citySlug)) {
+        return { citySlug, skipped: true, reason: 'already cached', outFile: existingOut };
+      }
     }
   }
   let fc;
@@ -993,7 +1059,6 @@ async function produceCity(repoRoot, citySlug, opts) {
   }
 
   const offsetM = Number.isFinite(o.offsetM) ? o.offsetM : NEIGHBOUR_OFFSET_M;
-  const osmDir  = o.osmDir || process.env.ENRICH_OSM_DATA_DIR || null;
   const spans   = readOsmWaySpans(osmDir, citySlug);
 
   // ------------------------------------------------------------------
@@ -1341,6 +1406,7 @@ module.exports = {
   WAY_SLOPE_MIN_SEGMENT_M,
   WAY_SLOPE_MIN_TOTAL_M,
   readOsmWaySpans,
+  _isDemCacheFresh,
   fetchElevations,
   fetchElevationsDedup,
   parseRetryAfterMs,

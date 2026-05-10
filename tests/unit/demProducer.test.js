@@ -204,10 +204,114 @@ describe('dem_producer — readOsmWaySpans', () => {
 });
 
 // ---------------------------------------------------------------------------
-// computeWaySlopesLocal — robust per-way slope from full polyline
-// (PR-bielefeld-slope: replaces the endpoint-only slope which produced
-// wildly different values for adjacent parallel residential streets).
+// _isDemCacheFresh — resume-guard freshness check that prevents reuse of
+// a `dem_<slug>.json` generated against an older matched-only OSM file
+// once the OSM producer has upgraded to coverage:'full' (PRODUCER_VERSION
+// 1.2.0+). See dem_producer.js: stale matched-only DEM caches would leave
+// the v3 slope context layer mostly grey and trip the coverage gate in
+// scripts/check-context-datasets.js.
 // ---------------------------------------------------------------------------
+
+describe('dem_producer — _isDemCacheFresh', () => {
+  function setup(demContent, osmContent) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-fresh-'));
+    const demFile = path.join(tmp, 'dem_bonn.json');
+    fs.writeFileSync(demFile, JSON.stringify(demContent));
+    if (osmContent !== undefined) {
+      fs.writeFileSync(path.join(tmp, 'osm_bonn.json'), JSON.stringify(osmContent));
+    }
+    return { tmp, demFile };
+  }
+
+  test('treats DEM as fresh when no osmDir is provided', () => {
+    const { tmp, demFile } = setup({ wayElevations: {} });
+    try {
+      expect(dem._isDemCacheFresh(demFile, null, 'bonn')).toBe(true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('treats DEM as fresh when osm_<slug>.json is missing', () => {
+    const { tmp, demFile } = setup({ wayElevations: {} });
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'no-such-city')).toBe(true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('treats DEM as fresh when OSM has no wayGeometries (legacy schema)', () => {
+    const { tmp, demFile } = setup(
+      { wayElevations: {} },
+      { ways: {}, index: [] },
+    );
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn')).toBe(true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('treats DEM as fresh when wayElevations covers ≥50% of OSM ways', () => {
+    const { tmp, demFile } = setup(
+      { wayElevations: { 1: {}, 2: {}, 3: {} } },
+      { wayGeometries: { 1: [], 2: [], 3: [], 4: [] } }, // 75% coverage
+    );
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn')).toBe(true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('treats DEM as STALE when wayElevations covers <50% of OSM ways', () => {
+    // Realistic post-v3 scenario: matched-only DEM (~6k) vs full OSM (~74k) → ~8 %.
+    const dems = {};
+    for (let i = 0; i < 6; i++) dems[i] = {};
+    const osms = {};
+    for (let i = 0; i < 74; i++) osms[i] = [];
+    const { tmp, demFile } = setup(
+      { wayElevations: dems },
+      { wayGeometries: osms },
+    );
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn')).toBe(false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('treats DEM as stale when the file is unreadable JSON', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-fresh-'));
+    const demFile = path.join(tmp, 'dem_bonn.json');
+    fs.writeFileSync(demFile, '{not json');
+    fs.writeFileSync(
+      path.join(tmp, 'osm_bonn.json'),
+      JSON.stringify({ wayGeometries: { 1: [], 2: [] } }),
+    );
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn')).toBe(false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('honours a custom minCoverage threshold', () => {
+    const { tmp, demFile } = setup(
+      { wayElevations: { 1: {}, 2: {} } },
+      { wayGeometries: { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [] } },
+    );
+    try {
+      // 20 % coverage: stale at default (50 %)…
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn')).toBe(false);
+      // …but fresh when caller relaxes the threshold to 10 %.
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn', { minCoverage: 0.1 })).toBe(true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('dem_producer — computeWaySlopesLocal', () => {
   // Build a north-south polyline at 50°N with `vertices` evenly spaced
@@ -669,6 +773,46 @@ describe('dem_producer — produceCity (end-to-end with stubbed elevation provid
       expect(r.reason).toMatch(/already cached/);
       expect(JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8')))
         .toEqual({ sentinel: true });
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('resume: REGENERATES when existing dem_<slug>.json undercovers current osm_<slug>.json (matched-only stale cache)', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    const osmDir   = path.join(tmp, 'osm');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.mkdirSync(osmDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson'),
+      JSON.stringify(fc([pt(1, 7.0, 50.0)])),
+    );
+    // Stale matched-only DEM cache: 1 wayElevation entry…
+    fs.writeFileSync(
+      path.join(outDir, 'dem_bonn.json'),
+      JSON.stringify({ sentinel: 'stale', wayElevations: { 1: {} } }),
+    );
+    // …against a current full-network OSM with 20 wayGeometries.
+    const wg = {};
+    for (let i = 0; i < 20; i++) wg[i] = [{ lat: 50, lon: 7 }, { lat: 50.001, lon: 7 }];
+    fs.writeFileSync(
+      path.join(osmDir, 'osm_bonn.json'),
+      JSON.stringify({ ways: {}, wayGeometries: wg, index: [] }),
+    );
+    try {
+      const r = await dem.produceCity(repoRoot, 'bonn', {
+        outDir,
+        osmDir,
+        fetchElevations: async (samples) => samples.map(() => 100),
+      });
+      expect(r.skipped).toBe(false);
+      // The sentinel from the stale cache must be gone — the producer regenerated.
+      const written = JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8'));
+      expect(written.sentinel).toBeUndefined();
+      expect(written.points).toBeDefined();
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
