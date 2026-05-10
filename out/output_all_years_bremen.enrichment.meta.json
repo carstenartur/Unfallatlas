@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 3,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "bremen",
+  "generatedAt": "2026-05-10T21:48:17.272Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "producerVersion": "1.1.0",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 19992,
+    "matchedToWay": 19895,
+    "withElevation": 19992,
+    "withTrafficProxy": 19185,
+    "ways": 6238,
+    "wayGeometries": 6238,
+    "fullWays": 75304,
+    "contextTiles": 97
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ],
+  "slope": {
+    "totalWays": 75304,
+    "withSlope": 67211,
+    "noSlopeSignal": 8093,
+    "coveragePercent": 89.3,
+    "classCounts": {
+      "flat": 43475,
+      "gentle": 15566,
+      "moderate": 5352,
+      "steep": 2318,
+      "very_steep": 500
+    },
+    "missingReasonCounts": {
+      "way_too_short": 8077,
+      "no_geometry": 16
+    },
+    "methodCounts": {
+      "median_segments": 67211
+    },
+    "confidenceCounts": {
+      "high": 16445,
+      "low": 33876,
+      "medium": 16890
+    },
+    "verySteepShare": 0.7,
+    "flatGentleShare": 87.8
+  },
+  "tileIndexPath": "ctxtiles/bremen/index.json"
+}

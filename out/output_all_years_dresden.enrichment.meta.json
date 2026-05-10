@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 3,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "dresden",
+  "generatedAt": "2026-05-10T21:48:21.266Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "producerVersion": "1.1.0",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 18935,
+    "matchedToWay": 18780,
+    "withElevation": 18935,
+    "withTrafficProxy": 18141,
+    "ways": 6332,
+    "wayGeometries": 6332,
+    "fullWays": 101322,
+    "contextTiles": 64
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ],
+  "slope": {
+    "totalWays": 101322,
+    "withSlope": 80200,
+    "noSlopeSignal": 21122,
+    "coveragePercent": 79.2,
+    "classCounts": {
+      "flat": 39598,
+      "gentle": 19905,
+      "moderate": 10092,
+      "steep": 6979,
+      "very_steep": 3626
+    },
+    "missingReasonCounts": {
+      "way_too_short": 21082,
+      "no_geometry": 40
+    },
+    "methodCounts": {
+      "median_segments": 80200
+    },
+    "confidenceCounts": {
+      "high": 16786,
+      "medium": 17269,
+      "low": 46145
+    },
+    "verySteepShare": 4.5,
+    "flatGentleShare": 74.2
+  },
+  "tileIndexPath": "ctxtiles/dresden/index.json"
+}

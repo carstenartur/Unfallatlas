@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 3,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "augsburg",
+  "generatedAt": "2026-05-10T21:48:42.000Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "producerVersion": "1.1.0",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 11354,
+    "matchedToWay": 11308,
+    "withElevation": 11354,
+    "withTrafficProxy": 10394,
+    "ways": 3700,
+    "wayGeometries": 3700,
+    "fullWays": 54627,
+    "contextTiles": 28
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ],
+  "slope": {
+    "totalWays": 54627,
+    "withSlope": 42515,
+    "noSlopeSignal": 12112,
+    "coveragePercent": 77.8,
+    "classCounts": {
+      "flat": 23021,
+      "gentle": 11295,
+      "moderate": 4985,
+      "steep": 2664,
+      "very_steep": 550
+    },
+    "missingReasonCounts": {
+      "way_too_short": 12081,
+      "no_geometry": 31
+    },
+    "methodCounts": {
+      "median_segments": 42515
+    },
+    "confidenceCounts": {
+      "low": 28604,
+      "high": 6697,
+      "medium": 7214
+    },
+    "verySteepShare": 1.3,
+    "flatGentleShare": 80.7
+  },
+  "tileIndexPath": "ctxtiles/augsburg/index.json"
+}

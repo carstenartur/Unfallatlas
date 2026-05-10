@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 3,
+  "enrichmentScriptVersion": "1.0.0",
+  "citySlug": "frankfurt_am_main",
+  "generatedAt": "2026-05-10T21:47:46.948Z",
+  "sources": {
+    "osm": {
+      "source": "OpenStreetMap (Overpass)",
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
+    },
+    "dem": {
+      "source": "SRTM Local Tiles",
+      "producerVersion": "1.1.0",
+      "resolutionM": 30
+    },
+    "traffic": {
+      "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
+      "datasetVersion": "1.0.0"
+    }
+  },
+  "counts": {
+    "features": 22500,
+    "matchedToWay": 22350,
+    "withElevation": 22500,
+    "withTrafficProxy": 20646,
+    "ways": 8433,
+    "wayGeometries": 8433,
+    "fullWays": 95204,
+    "contextTiles": 61
+  },
+  "dictFields": [
+    "highway",
+    "surface",
+    "cycleway"
+  ],
+  "slope": {
+    "totalWays": 95204,
+    "withSlope": 78736,
+    "noSlopeSignal": 16468,
+    "coveragePercent": 82.7,
+    "classCounts": {
+      "flat": 40395,
+      "gentle": 20490,
+      "moderate": 9671,
+      "steep": 6162,
+      "very_steep": 2018
+    },
+    "missingReasonCounts": {
+      "way_too_short": 16426,
+      "no_geometry": 42
+    },
+    "methodCounts": {
+      "median_segments": 78736
+    },
+    "confidenceCounts": {
+      "high": 19224,
+      "medium": 18267,
+      "low": 41245
+    },
+    "verySteepShare": 2.6,
+    "flatGentleShare": 77.3
+  },
+  "tileIndexPath": "ctxtiles/frankfurt_am_main/index.json"
+}
