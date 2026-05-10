@@ -135,6 +135,10 @@ describe('enrich_geojson — enrichCityFile writes v3 envelope + ctxtiles when O
     expect(r.skipped).toBeFalsy();
     expect(r.contextTiles).toBeTruthy();
     expect(r.contextTiles.tileCount).toBeGreaterThan(0);
+    expect(r.contextTiles.indexPath).toBe('ctxtiles/testtiles/index.json');
+    expect(r.contextTiles.indexUrl).toBe('out/ctxtiles/testtiles/index.json');
+    expect(r.meta.schemaVersion).toBe(3);
+    expect(r.meta.tileIndexPath).toBe('ctxtiles/testtiles/index.json');
 
     // (a) Envelope: ways_<slug>.json now ships the v3 thin shape.
     const envelope = JSON.parse(
@@ -152,8 +156,12 @@ describe('enrich_geojson — enrichCityFile writes v3 envelope + ctxtiles when O
     const manifestPath = path.join(tmpRoot, 'out', 'ctxtiles', 'testtiles', 'index.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     expect(manifest.schemaVersion).toBe(3);
+    expect(manifest.citySlug).toBe('testtiles');
+    expect(manifest.tileScheme).toBe('slippy-z13');
     expect(manifest.coverage).toBe('full');
     expect(manifest.z).toBe(13);
+    expect(manifest.dicts).toBeTruthy();
+    expect(Array.isArray(manifest.dicts.highway)).toBe(true);
     expect(manifest.tiles.length).toBe(r.contextTiles.tileCount);
     for (const t of manifest.tiles) {
       expect(t).toEqual(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number), wayCount: expect.any(Number) }));
@@ -180,6 +188,85 @@ describe('enrich_geojson — enrichCityFile writes v3 envelope + ctxtiles when O
     const enriched = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
     expect(enriched.features[0].properties.matched_way_id).toBe('W1');
     expect(enriched.features[0].properties.road_context_source).toBe('osm');
+  });
+
+  test('buildContextTileManifestFromDisk reconstructs tile list from on-disk files', () => {
+    const tileDir = path.join(tmpRoot, 'out', 'ctxtiles', 'diskscan');
+    fs.mkdirSync(path.join(tileDir, '100'), { recursive: true });
+    fs.mkdirSync(path.join(tileDir, '101'), { recursive: true });
+    fs.writeFileSync(path.join(tileDir, '100', '200.json'), JSON.stringify({
+      schemaVersion: 3,
+      ways: { A: { highway: 0 }, B: { highway: 1 } },
+      geometries: { A: [50, 7, 50.001, 7.001], B: [50, 7, 50.002, 7.002] },
+    }));
+    fs.writeFileSync(path.join(tileDir, '101', '200.json'), JSON.stringify({
+      schemaVersion: 3,
+      ways: { C: { highway: 0 } },
+      geometries: { C: [50.01, 7.01, 50.02, 7.02] },
+    }));
+    // A stray file must not affect the manifest.
+    fs.writeFileSync(path.join(tileDir, 'index.json'), '{}');
+
+    const m = enrich.buildContextTileManifestFromDisk(tmpRoot, 'diskscan', {
+      zoom: 13,
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      producerVersion: '1.2.0',
+    });
+    expect(m.schemaVersion).toBe(3);
+    expect(m.citySlug).toBe('diskscan');
+    expect(m.tiles).toEqual([
+      expect.objectContaining({ x: 100, y: 200, wayCount: 2 }),
+      expect.objectContaining({ x: 101, y: 200, wayCount: 1 }),
+    ]);
+    expect(m.wayIndex.A).toEqual([100, 200]);
+    expect(m.wayIndex.C).toEqual([101, 200]);
+    expect(Array.isArray(m.bbox)).toBe(true);
+    expect(m.bbox).toHaveLength(4);
+    expect(m.tileScheme).toBe('slippy-z13');
+    expect(m.generatedAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(m.producerVersion).toBe('1.2.0');
+  });
+
+  test('buildContextTileManifestFromDisk chooses deterministic canonical wayIndex tile', () => {
+    const tileDir = path.join(tmpRoot, 'out', 'ctxtiles', 'deterministic');
+    fs.mkdirSync(path.join(tileDir, '101'), { recursive: true });
+    fs.mkdirSync(path.join(tileDir, '100'), { recursive: true });
+    // Write higher-x first on purpose; canonical assignment must still
+    // prefer the numerically smaller tile after sorted traversal.
+    fs.writeFileSync(path.join(tileDir, '101', '200.json'), JSON.stringify({
+      schemaVersion: 3,
+      ways: { SAME: { highway: 1 } },
+      geometries: { SAME: [50.01, 7.01, 50.02, 7.02] },
+    }));
+    fs.writeFileSync(path.join(tileDir, '100', '200.json'), JSON.stringify({
+      schemaVersion: 3,
+      ways: { SAME: { highway: 0 } },
+      geometries: { SAME: [50, 7, 50.001, 7.001] },
+    }));
+    const m = enrich.buildContextTileManifestFromDisk(tmpRoot, 'deterministic', { zoom: 13 });
+    expect(m.wayIndex.SAME).toEqual([100, 200]);
+  });
+
+  test('buildContextTileManifestFromDisk skips malformed tiles and warns', () => {
+    const tileDir = path.join(tmpRoot, 'out', 'ctxtiles', 'badtiles');
+    fs.mkdirSync(path.join(tileDir, '100'), { recursive: true });
+    fs.writeFileSync(path.join(tileDir, '100', '200.json'), '{"schemaVersion":3,"ways":{"A":{"highway":0}}');
+    fs.writeFileSync(path.join(tileDir, '100', '201.json'), JSON.stringify({
+      schemaVersion: 3,
+      ways: { B: { highway: 1 } },
+      geometries: { B: [50, 7, 50.001, 7.001] },
+    }));
+    const origWarn = console.warn;
+    const warnings = [];
+    console.warn = (...args) => warnings.push(args.join(' '));
+    try {
+      const m = enrich.buildContextTileManifestFromDisk(tmpRoot, 'badtiles', { zoom: 13 });
+      expect(m.tiles).toHaveLength(1);
+      expect(m.tiles[0]).toEqual(expect.objectContaining({ x: 100, y: 201, wayCount: 1 }));
+      expect(warnings.some((w) => /malformed context tile skipped/.test(w))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
   });
 
   test('falls back to the v2 envelope when OSM provider has no listWayIds (legacy matched-only path)', () => {

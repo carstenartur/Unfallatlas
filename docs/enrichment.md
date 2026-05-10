@@ -148,22 +148,23 @@ FeatureCollection's top level under `properties.enrichmentDicts`, e.g.
 strings on read. This dictionary encoding cuts the per-feature byte
 cost of categorical road tags by ~70 % vs. inline strings.
 
-### Sidecar `*.enrichment.meta.json`
+### Sidecar `*.enrichment.meta.json` (aktueller Stand: v3)
 
 Per-file dataset-wide attribution:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bonn",
   "generatedAt": "2026-01-15T03:14:15.000Z",
+  "tileIndexPath": "ctxtiles/bonn/index.json",
   "sources": {
     "osm":     { "source": "OpenStreetMap (Overpass)", "producerVersion": "1.1.0", "extractDate": "2026-01-10" },
     "dem":     { "source": "SRTM30",                   "producerVersion": "1.0.0", "resolutionM": 30 },
     "traffic": { "source": "BASt SDV",                 "producerVersion": "1.0.0", "datasetVersion": "2024" }
   },
-  "counts": { "features": 1234, "matchedToWay": 1100, "withElevation": 1234, "withTrafficProxy": 410, "ways": 320 },
+  "counts": { "features": 1234, "matchedToWay": 1100, "withElevation": 1234, "withTrafficProxy": 410, "ways": 320, "fullWays": 22000, "contextTiles": 49 },
   "dictFields": ["highway", "surface"]
 }
 ```
@@ -240,6 +241,9 @@ attributes per accident would have been wasteful.
     returns the list of optional fields the city actually has.
   - `UA.contextLayers.loadAtIdle(ctx, cityRaw)` schedules the lazy
     fetch of `ways_<city>.json` + `*.enrichment.meta.json` at idle.
+    Bei `schemaVersion >= 3` liest der Loader den Manifest-Pfad aus
+    `tileIndexPath` (Sidecar) und lädt daraus viewport-lazy die
+    tatsächlichen Z/X/Y-Tiles.
   - `UA.contextLayers.resolveWay(state, wayId)` maps int-coded
     categoricals back to strings via the dictionaries.
 * The hot-path loader `js/ua.data_v2.js` is **unchanged**. Reading

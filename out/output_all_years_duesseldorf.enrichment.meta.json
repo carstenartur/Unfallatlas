@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "duesseldorf",
   "generatedAt": "2026-05-10T05:32:56.140Z",
@@ -35,5 +35,6 @@
     "highway",
     "surface",
     "cycleway"
-  ]
+  ],
+  "tileIndexPath": "ctxtiles/duesseldorf/index.json"
 }

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "leipzig",
   "generatedAt": "2026-05-10T05:33:02.616Z",
@@ -35,5 +35,6 @@
     "highway",
     "surface",
     "cycleway"
-  ]
+  ],
+  "tileIndexPath": "ctxtiles/leipzig/index.json"
 }

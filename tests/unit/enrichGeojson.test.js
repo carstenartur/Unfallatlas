@@ -145,7 +145,7 @@ describe('enrich_geojson — enrichCity', () => {
     expect(ways.W1.traffic_volume_year).toBe(2024);
 
     // Meta contains provenance + counts + dictFields.
-    expect(meta.schemaVersion).toBe(1);
+    expect(meta.schemaVersion).toBe(3);
     expect(meta.enrichmentScriptVersion).toBe(enrich.ENRICHMENT_SCRIPT_VERSION);
     expect(meta.counts.features).toBe(4);
     expect(meta.counts.matchedToWay).toBe(3);

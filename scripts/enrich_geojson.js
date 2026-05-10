@@ -451,25 +451,106 @@ function writeContextTiles(repoRoot, citySlug, fullWays, opts = {}) {
     }));
   }
 
-  // Augment the manifest with per-tile gzipped sizes for the per-tile
-  // budget gate (see scripts/check-enrichment-size.js).
-  for (const t of built.manifest.tiles) {
-    const file = path.join(baseDir, String(t.x), `${t.y}.json`);
-    if (fs.existsSync(file)) t.bytes = gzippedSize(file);
-  }
-  if (opts.source)      built.manifest.source      = opts.source;
-  if (opts.extractDate) built.manifest.extractDate = opts.extractDate;
+  const manifest = buildContextTileManifestFromDisk(repoRoot, citySlug, {
+    zoom:            Number.isInteger(opts.zoom) ? opts.zoom : CTX_TILE_ZOOM,
+    generatedAt:     opts.generatedAt,
+    producerVersion: opts.producerVersion || null,
+    dicts:           built.dicts,
+  });
+  if (opts.source)      manifest.source      = opts.source;
+  if (opts.extractDate) manifest.extractDate = opts.extractDate;
 
-  fs.writeFileSync(
-    path.join(baseDir, 'index.json'),
-    JSON.stringify(built.manifest)
-  );
+  fs.writeFileSync(path.join(baseDir, 'index.json'), JSON.stringify(manifest));
 
   return {
-    tileCount: built.manifest.tiles.length,
-    wayCount:  Object.keys(built.manifest.wayIndex).length,
-    indexPath: path.join('out', 'ctxtiles', citySlug, 'index.json'),
+    tileCount: manifest.tiles.length,
+    wayCount:  Object.keys(manifest.wayIndex || {}).length,
+    indexPath: path.posix.join('ctxtiles', citySlug, 'index.json'),
+    indexUrl:  path.posix.join('out', 'ctxtiles', citySlug, 'index.json'),
   };
+}
+
+/**
+ * Reconstruct the tile manifest from what is physically present on disk
+ * (`out/ctxtiles/<slug>/<x>/<y>.json`). This avoids schema drift between
+ * producer/enrichment internals and what the browser can actually fetch
+ * on static hosting (GitHub Pages has no directory listing).
+ */
+function buildContextTileManifestFromDisk(repoRoot, citySlug, opts = {}) {
+  const z = Number.isInteger(opts.zoom) ? opts.zoom : CTX_TILE_ZOOM;
+  const baseDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+  const tiles = [];
+  const wayIndex = {};
+  const malformedTiles = [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  if (fs.existsSync(baseDir)) {
+    const xDirEntries = fs.readdirSync(baseDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && Number.isInteger(Number.parseInt(e.name, 10)))
+      .sort((a, b) => Number.parseInt(a.name, 10) - Number.parseInt(b.name, 10));
+    for (const xDirEnt of xDirEntries) {
+      if (!xDirEnt.isDirectory()) continue;
+      const x = Number.parseInt(xDirEnt.name, 10);
+      if (!Number.isInteger(x)) continue;
+      const xDir = path.join(baseDir, xDirEnt.name);
+      const yFileEntries = fs.readdirSync(xDir, { withFileTypes: true })
+        .filter((e) => e.isFile() && /\.json$/i.test(e.name) && Number.isInteger(Number.parseInt(e.name.replace(/\.json$/i, ''), 10)))
+        .sort((a, b) => {
+          const ay = Number.parseInt(a.name.replace(/\.json$/i, ''), 10);
+          const by = Number.parseInt(b.name.replace(/\.json$/i, ''), 10);
+          return ay - by;
+        });
+      for (const yFileEnt of yFileEntries) {
+        if (!yFileEnt.isFile() || !/\.json$/i.test(yFileEnt.name)) continue;
+        const y = Number.parseInt(yFileEnt.name.replace(/\.json$/i, ''), 10);
+        if (!Number.isInteger(y)) continue;
+        const file = path.join(xDir, yFileEnt.name);
+        let wayCount = 0;
+        let payload = null;
+        try {
+          payload = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const wayIds = Object.keys((payload && payload.ways) || {});
+          wayCount = wayIds.length;
+          for (const wayId of wayIds) if (!(wayId in wayIndex)) wayIndex[wayId] = [x, y];
+        } catch (e) {
+          malformedTiles.push({ x, y, file, error: e && e.message ? e.message : String(e) });
+          continue;
+        }
+        if (!payload || typeof payload !== 'object') continue;
+        tiles.push({ x, y, wayCount, bytes: gzippedSize(file) });
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  tiles.sort((a, b) => (a.x - b.x) || (a.y - b.y));
+  const bbox = Number.isFinite(minX)
+    ? [
+      tileXToLon(minX, z),
+      tileYToLat(maxY + 1, z),
+      tileXToLon(maxX + 1, z),
+      tileYToLat(minY, z),
+    ]
+    : null;
+  if (malformedTiles.length > 0) {
+    for (const m of malformedTiles) {
+      console.warn(`[enrich] malformed context tile skipped for ${citySlug} at ${m.x}/${m.y}: ${m.error}`);
+    }
+  }
+
+  return stripUndefined({
+    schemaVersion: 3,
+    citySlug,
+    tileScheme: `slippy-z${z}`,
+    coverage: 'full',
+    z,
+    tiles,
+    bbox,
+    wayIndex,
+    dicts: (opts && opts.dicts && typeof opts.dicts === 'object') ? opts.dicts : undefined,
+    generatedAt: opts.generatedAt || new Date().toISOString(),
+    producerVersion: opts.producerVersion || undefined,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -883,7 +964,7 @@ function enrichCity(geojson, citySlug, opts = {}) {
   }
 
   const meta = {
-    schemaVersion: 1,
+    schemaVersion: 3,
     enrichmentScriptVersion: ENRICHMENT_SCRIPT_VERSION,
     citySlug,
     generatedAt: new Date().toISOString(),
@@ -961,6 +1042,8 @@ function enrichCityFile(repoRoot, citySlug, opts) {
     tileWriteResult = writeContextTiles(repoRoot, citySlug, fullWays, {
       source:      meta.sources?.osm?.source,
       extractDate: meta.sources?.osm?.extractDate,
+      generatedAt: meta.generatedAt,
+      producerVersion: meta.sources?.osm?.producerVersion || null,
     });
     waysPayload = {
       schemaVersion: 3,
@@ -969,6 +1052,7 @@ function enrichCityFile(repoRoot, citySlug, opts) {
       generatedAt:   meta.generatedAt,
     };
     meta.counts.contextTiles = tileWriteResult.tileCount;
+    meta.tileIndexPath = tileWriteResult.indexPath;
   } else {
     waysPayload = (geometries && Object.keys(geometries).length > 0)
       ? { schemaVersion: 2, ways, geometries }
@@ -977,6 +1061,7 @@ function enrichCityFile(repoRoot, citySlug, opts) {
     // tiles behind when a city falls back to the matched-only path.
     const tileDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
     if (fs.existsSync(tileDir)) fs.rmSync(tileDir, { recursive: true, force: true });
+    delete meta.tileIndexPath;
   }
 
   // The companion ways file and the meta sidecar are only meaningful
@@ -1116,6 +1201,7 @@ module.exports = {
   tileYToLat,
   tilesForPolyline,
   buildContextTiles,
+  buildContextTileManifestFromDisk,
   writeContextTiles,
   enrichCity,
   enrichCityFile,
