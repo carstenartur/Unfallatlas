@@ -14,10 +14,16 @@ verwässert (siehe Lehre aus PR #265).
 - [x] Generischen API‑Smoke‑Test entfernt
       (`tests/integration/apiSmoke.testcontainers.test.js`)
       — siehe Punkt 1 unten falls jemand ihn doch noch will.
-- [x] Fokussierter Reproduktionstest hinzugefügt
-      (`tests/integration/bielefeldSlope.testcontainers.test.js`):
-      startet das gebaute `unfallatlas`‑Image und assertet die ganze
-      Kette `ways → tile index → tile payload → slope‑Layer + Legende`.
+- [ ] Fokussierter Reproduktionstest (Bielefeld + slope) wieder
+      aktivieren, sobald `ghcr.io/carstenartur/unfallatlas:latest`
+      neu gebaut wurde und die re‑enriched Bielefeld‑Daten enthält.
+      Ein erster Anlauf
+      (`tests/integration/bielefeldSlope.testcontainers.test.js`)
+      lief in CI gegen das alte Image grün‑negativ und wurde
+      entfernt; die Slope‑Logik ist durch Unit‑Tests
+      (`tests/unit/enrichGeojson.*.test.js`,
+      `tests/unit/uaContextLayers.test.js`,
+      `tests/unit/ua.context_road_layer.test.js`) abgedeckt.
 - [x] Build‑Zeit‑Validator `scripts/check-context-datasets.js`
       + `npm run validate:context-datasets`, in `enrich.yml`,
       `enrich-matrix.yml` und `generate-and-commit.yml` als CI‑Gate

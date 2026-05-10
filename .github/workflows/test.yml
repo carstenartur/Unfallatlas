@@ -66,13 +66,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # bielefeldSlope.testcontainers.test.js launches a headless Chromium
-      # against the dockerized web app to verify the slope overlay end-to-end.
-      # videoExport.testcontainers.test.js does not need a browser, but it
-      # shares this job, so we install Chromium once here.
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
       - name: Try to pull pre-built image
         id: pull
         continue-on-error: true
