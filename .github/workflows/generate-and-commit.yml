@@ -112,6 +112,9 @@ jobs:
       - name: Validate v3 context-layer datasets
         run: node scripts/check-context-datasets.js
 
+      - name: Validate per-city slope plausibility
+        run: node scripts/check-slope-plausibility.js
+
       - name: Sync City-Registry (auto-fix Drift)
         run: node scripts/check-city-rollout.js --fix
 

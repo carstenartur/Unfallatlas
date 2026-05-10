@@ -239,6 +239,57 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/16-antrag-inhalt.png', fullPage: false });
   });
+  // --- Slope-Diagnose-Screenshots (PR-berlin-slope-qa) ---
+  //
+  // Verifiziert visuell, dass der Slope-Layer die per-Stadt
+  // Plausibilitätsprüfung erfüllt: Berlin (flach) muss überwiegend in
+  // flat/gentle erscheinen, Bielefeld zeigt eine breitere Verteilung.
+  // Jeweils zwei Varianten: Standard und mit `?debugSlope=1`, die die
+  // numerische Steigung pro Polyline als Tooltip einblendet.
+
+  test('17 Slope-Layer Berlin', async ({ page }) => {
+    test.setTimeout(60000);
+    await loadPage(page,
+      '?city=Berlin&mapLayer=slope' +
+      '&centerLat=52.521463&centerLon=13.379320&zoom=16');
+    await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.locator('#map').screenshot({ path: 'docs/screenshots/slope-berlin.png' });
+  });
+
+  test('18 Slope-Layer Berlin – Debug-Overlay', async ({ page }) => {
+    test.setTimeout(60000);
+    await loadPage(page,
+      '?city=Berlin&mapLayer=slope&debugSlope=1' +
+      '&centerLat=52.521463&centerLon=13.379320&zoom=16');
+    await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.locator('#map').screenshot({ path: 'docs/screenshots/slope-berlin-debug.png' });
+  });
+
+  test('19 Slope-Layer Bielefeld', async ({ page }) => {
+    test.setTimeout(60000);
+    await loadPage(page,
+      '?city=Bielefeld&mapLayer=slope' +
+      '&centerLat=52.0302&centerLon=8.5325&zoom=15');
+    await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.locator('#map').screenshot({ path: 'docs/screenshots/slope-bielefeld.png' });
+  });
+
+  test('20 Slope-Layer Bielefeld – Debug-Overlay', async ({ page }) => {
+    test.setTimeout(60000);
+    await loadPage(page,
+      '?city=Bielefeld&mapLayer=slope&debugSlope=1' +
+      '&centerLat=52.0302&centerLon=8.5325&zoom=15');
+    await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.locator('#map').screenshot({ path: 'docs/screenshots/slope-bielefeld-debug.png' });
+  });
 });
 
 test.describe('Werkbank V2 – PDF-Export Rendering', () => {

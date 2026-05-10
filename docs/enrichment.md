@@ -197,6 +197,66 @@ node-count heuristics.
 | `steep`       | ≤ 10 % |
 | `very_steep`  | > 10 % |
 
+> **Einheit:** Die Schwellwerte oben werden auf **Prozent** angewendet,
+> nicht auf das Verhältnis. Eine 5 %-Steigung ist `road_slope_percent = 5`,
+> nicht `0.05`. `tests/unit/enrichGeojson.test.js` pinnt diesen Vertrag
+> mit parametrischen Tests und einem expliziten Regressions-Test für den
+> 0.05-Fall.
+
+## Slope diagnostics (PR-berlin-slope-qa)
+
+Drei zusammenhängende Sicherungsnetze stellen sicher, dass die
+Slope-Klassifizierung pro Stadt plausibel bleibt:
+
+1. **Per-City-Plausibilitätsprüfung.**
+   `scripts/slope-plausibility.json` listet pro Stadt eine Obergrenze
+   für `slope.verySteepShare` und eine Untergrenze für
+   `slope.flatGentleShare`. `npm run validate:slope-plausibility`
+   liest jede `out/output_all_years_<slug>.enrichment.meta.json` und
+   bricht die CI ab, wenn die Werte nicht im Erwartungsbereich liegen.
+   Berlin (flach) darf z. B. höchstens 5 % `very_steep` enthalten,
+   Stuttgart bis zu 25 %. Städte ohne Eintrag fallen auf `_default`
+   (30 % / 30 %) zurück.
+
+2. **Diagnose-Report `npm run qa:slope`.**
+   Erzeugt `out/qa/slope_<slug>.json` und `.csv` für eine angegebene
+   Viewport-Bbox (Default: Berlin Mitte, 52.521463 / 13.379320, z=16).
+   Wenn die Producer-Eingaben (`out/osm_<slug>.json` und ein DEM-
+   Tiles-Verzeichnis via `ENRICH_DEM_TILES_DIR`) verfügbar sind, läuft
+   `_sampleAlongPolyline` mit dem lokalen DEM-Sampler erneut, sodass
+   der Report die *exakten* Zahlen des Producers zeigt. Andernfalls
+   wird auf den Tile-Layer (`out/ctxtiles/<slug>/`) zurückgegriffen.
+   Das CI-Workflow `.github/workflows/enrich.yml` lädt diesen Report
+   für Berlin und Bielefeld als Artefakt hoch.
+
+3. **Optionales Debug-Overlay im Frontend.**
+   `?mapLayer=slope&debugSlope=1` zeigt pro Straße `road_slope_percent`
+   als permanenten Tooltip in der Karte. Mit `&debugSlopeSamples=1`
+   können (sobald ein zukünftiger Producer DEM-Sample-Punkte in
+   `out/ctxtiles/<slug>/debug/<x>/<y>.json` schreibt) auch die
+   einzelnen DEM-Abtastpunkte gerendert werden. Das Overlay ist hinter
+   Query-Params verborgen und beeinflusst die Produktion nicht.
+
+### Vorher/Nachher-Screenshots reproduzieren
+
+```bash
+# „Nachher" (aktueller Branch) — Slope-Layer für Berlin und Bielefeld
+npm run test:e2e -- tests/e2e/screenshots.spec.js \
+  -g "Slope-Layer (Berlin|Bielefeld)"
+
+# „Vorher" (Vergleichsbranch, z. B. main) — selber Aufruf nach
+# `git checkout main && npm install`. Die Vorher-Bilder werden NICHT
+# eingecheckt; sobald der Diagnose-Fix gemerged ist, sind sie obsolet.
+```
+
+Die zugehörige Plausibilitätsprüfung kann jederzeit isoliert laufen:
+
+```bash
+npm run validate:slope-plausibility   # CI-Gate
+npm run qa:slope                      # Berlin-Diagnose-Report
+node scripts/qa-slope-report.js --city bielefeld
+```
+
 ## Traffic proxy classification
 
 `traffic_proxy_class` is derived from the DTV (Durchschnittliche

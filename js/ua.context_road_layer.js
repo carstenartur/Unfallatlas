@@ -298,6 +298,22 @@
           properties: { way_id: String(wayId), class: featureClass, kind },
           geometry: null,
         };
+        // Optional debug overlay: show the numeric slope percent as a
+        // permanent tooltip so on-screen + computed values can be
+        // sight-checked in the field. Only wired for the slope kind
+        // and only when the caller opts in (URL: ?debugSlope=1). Uses
+        // bindTooltip when available; degrades gracefully when the
+        // Leaflet stub under test doesn't provide it.
+        if (kind === 'slope' && o.debug && o.debug.showPercent
+            && typeof line.bindTooltip === 'function') {
+          const rsp = (attrs && Number.isFinite(attrs.road_slope_percent))
+            ? attrs.road_slope_percent : null;
+          if (rsp !== null) {
+            try {
+              line.bindTooltip(`${rsp} %`, { permanent: true, direction: 'center', className: 'context-road-debug-tooltip' });
+            } catch (_) { /* tooltip unsupported in this Leaflet build */ }
+          }
+        }
         group.addLayer(line);
       } catch (_) { /* malformed line — skip */ }
     }

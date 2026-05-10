@@ -24,6 +24,28 @@ referenzierten PNG-Screenshots der Unfallwerkbank V2.
 | 15 | `15-export-pdf-rendered.png` | Gerenderter PDF-Export |
 | 16 | `16-antrag-inhalt.png` | Antrag-Inhalt |
 
+## Slope-Diagnose (PR-berlin-slope-qa)
+
+| Datei | Beschreibung |
+|---|---|
+| `slope-berlin.png` | Berlin Mitte (z=16) mit aktivem `mapLayer=slope` — die Plausibilitätsprüfung verlangt überwiegend `flat`/`gentle`. |
+| `slope-berlin-debug.png` | Wie oben, mit `?debugSlope=1` — pro Polyline wird `road_slope_percent` als permanenter Tooltip eingeblendet. |
+| `slope-bielefeld.png` | Bielefeld (z=15) mit aktivem `mapLayer=slope` als Vergleichsstadt mit gemischterer Verteilung. |
+| `slope-bielefeld-debug.png` | Bielefeld mit Debug-Overlay (`?debugSlope=1`). |
+
+Die Debug-Variante ist hinter einer Query-Param geschaltet (`debugSlope=1`,
+optional `debugSlopeSamples=1`) und wirkt sich nie auf die Produktion aus.
+Sie dient ausschließlich der Sichtprüfung: Wenn die On-Screen-Farbe und
+der numerische Tooltip widersprechen, ist das ein klarer Hinweis auf
+Encoding-Drift in der Renderer- oder Producer-Pipeline.
+
+Vorher/Nachher-Erzeugung: Die „Vorher"-Bilder werden nicht eingecheckt
+(sie würden mit dem Fix sofort obsolet); siehe
+`docs/enrichment.md` → *Slope-Diagnose* für die exakte Reproduktions-
+befehlskette.
+
+
+
 Alle map-haltigen Screenshots werden in den E2E-Tests erst nach einem
 Leaflet-Tile-Stabilitäts-Check erstellt (`waitForMapTiles`: keine
 `leaflet-tile-loading` mehr, mindestens ein `leaflet-tile-loaded`), plus

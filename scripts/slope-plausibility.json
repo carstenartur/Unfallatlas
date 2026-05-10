@@ -1,0 +1,38 @@
+{
+  "$comment": "PR-berlin-slope-qa: per-city upper bounds for slope.verySteepShare (% of signal ways) and lower bounds for slope.flatGentleShare (% of signal ways), enforced by scripts/check-slope-plausibility.js. Bounds are based on actual topography — Berlin / Bremen / Münster are essentially flat, Stuttgart and Wuppertal are genuinely hilly. Cities not listed fall back to `_default` so adding a new city to cities.txt does not silently weaken the gate.",
+  "_default": {
+    "maxVerySteepShare": 30,
+    "minFlatGentleShare": 30
+  },
+  "cities": {
+    "berlin":            { "maxVerySteepShare":  5, "minFlatGentleShare": 60 },
+    "bremen":            { "maxVerySteepShare":  5, "minFlatGentleShare": 60 },
+    "hamburg":           { "maxVerySteepShare":  5, "minFlatGentleShare": 55 },
+    "hannover":          { "maxVerySteepShare":  5, "minFlatGentleShare": 55 },
+    "muenster":          { "maxVerySteepShare":  5, "minFlatGentleShare": 60 },
+    "leipzig":           { "maxVerySteepShare":  5, "minFlatGentleShare": 55 },
+    "braunschweig":      { "maxVerySteepShare":  5, "minFlatGentleShare": 55 },
+    "wolfsburg":         { "maxVerySteepShare":  5, "minFlatGentleShare": 55 },
+    "duisburg":          { "maxVerySteepShare":  5, "minFlatGentleShare": 55 },
+
+    "augsburg":          { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+    "muenchen":          { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+    "nuernberg":         { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+    "koeln":             { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+    "duesseldorf":       { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+    "frankfurt_am_main": { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+    "mannheim":          { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+    "dortmund":          { "maxVerySteepShare": 10, "minFlatGentleShare": 45 },
+
+    "bielefeld":         { "maxVerySteepShare": 15, "minFlatGentleShare": 35 },
+    "bochum":            { "maxVerySteepShare": 15, "minFlatGentleShare": 35 },
+    "bonn":              { "maxVerySteepShare": 15, "minFlatGentleShare": 35 },
+    "essen":             { "maxVerySteepShare": 15, "minFlatGentleShare": 35 },
+    "dresden":           { "maxVerySteepShare": 15, "minFlatGentleShare": 35 },
+    "heilbronn":         { "maxVerySteepShare": 15, "minFlatGentleShare": 35 },
+    "karlsruhe":         { "maxVerySteepShare": 15, "minFlatGentleShare": 35 },
+
+    "stuttgart":         { "maxVerySteepShare": 25, "minFlatGentleShare": 25 },
+    "wuppertal":         { "maxVerySteepShare": 25, "minFlatGentleShare": 20 }
+  }
+}
