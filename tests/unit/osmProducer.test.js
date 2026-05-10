@@ -94,6 +94,37 @@ describe('osm_producer — bboxFromFeatureCollection', () => {
     });
     expect(b).toEqual({ minLat: 50.0, minLon: 7.0, maxLat: 51.0, maxLon: 8.0 });
   });
+
+  test('bboxStatsFromFeatureCollection returns raw + clipped from a single pass', () => {
+    const features = [];
+    for (let i = 0; i < 200; i++) {
+      features.push(pt(i, 13.70 + (i % 20) * 0.01, 51.04 + Math.floor(i / 20) * 0.01));
+    }
+    features.push(pt(999, 8.41, 49.01));
+    const stats = osm.bboxStatsFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 });
+    expect(stats.n).toBe(201);
+    expect(stats.raw.minLat).toBeCloseTo(49.01);
+    expect(stats.raw.minLon).toBeCloseTo(8.41);
+    expect(stats.clipped.minLat).toBeGreaterThanOrEqual(51.04);
+    expect(stats.clipped.minLon).toBeGreaterThanOrEqual(13.70);
+    // raw and clipped must be distinct objects when clipping kicks in
+    // (the produceCity warning relies on `stats.raw !== stats.clipped`).
+    expect(stats.clipped).not.toBe(stats.raw);
+  });
+
+  test('bboxStatsFromFeatureCollection: clipped === raw when clipping is disabled or too few samples', () => {
+    const features = [pt(1, 7.0, 50.0), pt(2, 7.5, 50.5), pt(3, 8.0, 51.0)];
+    const noOpts   = osm.bboxStatsFromFeatureCollection(fc(features));
+    const tooSmall = osm.bboxStatsFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 });
+    expect(noOpts.clipped).toBe(noOpts.raw);
+    expect(tooSmall.clipped).toBe(tooSmall.raw);
+    expect(noOpts.raw).toEqual({ minLat: 50.0, minLon: 7.0, maxLat: 51.0, maxLon: 8.0 });
+  });
+
+  test('bboxStatsFromFeatureCollection: empty / null input → null bboxes, n=0', () => {
+    expect(osm.bboxStatsFromFeatureCollection(null)).toEqual({ raw: null, clipped: null, n: 0 });
+    expect(osm.bboxStatsFromFeatureCollection(fc([]))).toEqual({ raw: null, clipped: null, n: 0 });
+  });
 });
 
 describe('osm_producer — buildOverpassQuery', () => {

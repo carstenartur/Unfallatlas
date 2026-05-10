@@ -127,6 +127,59 @@ describe('dem_tile_producer — bboxFromFeatureCollection', () => {
     expect(tile.bboxFromFeatureCollection(null)).toBeNull();
     expect(tile.bboxFromFeatureCollection(fc([]))).toBeNull();
   });
+
+  test('outlierClipPercentile clips a single distant outlier on a large dataset', () => {
+    // Same Dresden-shaped scenario as the osm_producer test: 200 in-cluster
+    // points + one stray ~400 km away. Without clipping the stray would
+    // expand the SRTM tile-download set across multiple unrelated regions.
+    const features = [];
+    for (let i = 0; i < 200; i++) {
+      features.push(pt(13.70 + (i % 20) * 0.01, 51.04 + Math.floor(i / 20) * 0.01));
+    }
+    features.push(pt(8.41, 49.01)); // stray, far southwest
+    const raw     = tile.bboxFromFeatureCollection(fc(features));
+    const clipped = tile.bboxFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 });
+    expect(raw.minLat).toBeCloseTo(49.01);
+    expect(clipped.minLat).toBeGreaterThanOrEqual(51.04);
+    expect(clipped.minLon).toBeGreaterThanOrEqual(13.70);
+    expect(clipped.maxLon).toBeLessThanOrEqual(13.90);
+  });
+
+  test('outlierClipPercentile is a no-op on tiny inputs (under outlierClipMinSamples)', () => {
+    const features = [pt(7.0, 50.0), pt(8.0, 51.0)];
+    expect(tile.bboxFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 }))
+      .toEqual({ minLat: 50, maxLat: 51, minLon: 7, maxLon: 8 });
+  });
+
+  test('bboxStatsFromFeatureCollection returns raw + clipped from a single pass', () => {
+    const features = [];
+    for (let i = 0; i < 200; i++) {
+      features.push(pt(13.70 + (i % 20) * 0.01, 51.04 + Math.floor(i / 20) * 0.01));
+    }
+    features.push(pt(8.41, 49.01));
+    const stats = tile.bboxStatsFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 });
+    expect(stats.n).toBe(201);
+    expect(stats.raw.minLat).toBeCloseTo(49.01);
+    expect(stats.clipped.minLat).toBeGreaterThanOrEqual(51.04);
+    expect(stats.clipped).not.toBe(stats.raw);
+  });
+});
+
+describe('dem_tile_producer — parseArgs', () => {
+  test('default --bbox-outlier-clip is the documented DEFAULT_BBOX_OUTLIER_CLIP', () => {
+    const opts = tile.parseArgs([]);
+    expect(opts.bboxOutlierClipPercentile).toBeCloseTo(0.005);
+  });
+
+  test('--bbox-outlier-clip 0 disables clipping', () => {
+    const opts = tile.parseArgs(['--bbox-outlier-clip', '0']);
+    expect(opts.bboxOutlierClipPercentile).toBe(0);
+  });
+
+  test('--bbox-outlier-clip parses a custom percentile', () => {
+    const opts = tile.parseArgs(['--bbox-outlier-clip', '0.01']);
+    expect(opts.bboxOutlierClipPercentile).toBeCloseTo(0.01);
+  });
 });
 
 // ---------------------------------------------------------------------------

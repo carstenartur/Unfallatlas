@@ -89,49 +89,58 @@ function tilesForBbox(bbox) {
 const DEFAULT_BBOX_OUTLIER_CLIP = 0.005;
 const DEFAULT_BBOX_OUTLIER_MIN_SAMPLES = 50;
 
-function bboxFromFeatureCollection(fc, opts) {
-  if (!fc || !Array.isArray(fc.features)) return null;
+function bboxStatsFromFeatureCollection(fc, opts) {
+  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) {
+    return { raw: null, clipped: null, n: 0 };
+  }
   const o = opts || {};
-  const lats = [];
-  const lons = [];
+  const p = Number.isFinite(o.outlierClipPercentile) ? o.outlierClipPercentile : 0;
+  const minSamples = Number.isFinite(o.outlierClipMinSamples)
+    ? o.outlierClipMinSamples
+    : DEFAULT_BBOX_OUTLIER_MIN_SAMPLES;
+  // Only allocate per-coordinate arrays when percentile clipping is
+  // actually requested — otherwise we keep streaming O(1)-memory min/max.
+  const wantClip = p > 0 && p < 0.5;
+  const lats = wantClip ? [] : null;
+  const lons = wantClip ? [] : null;
+
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLon = Infinity, maxLon = -Infinity;
+  let n = 0;
   for (const f of fc.features) {
     const c = f && f.geometry && f.geometry.coordinates;
     if (!Array.isArray(c) || c.length < 2) continue;
     const lon = +c[0], lat = +c[1];
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-    lats.push(lat);
-    lons.push(lon);
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (wantClip) { lats.push(lat); lons.push(lon); }
+    n++;
   }
-  if (lats.length === 0) return null;
+  if (n === 0) return { raw: null, clipped: null, n: 0 };
 
-  const p = Number.isFinite(o.outlierClipPercentile) ? o.outlierClipPercentile : 0;
-  const minSamples = Number.isFinite(o.outlierClipMinSamples)
-    ? o.outlierClipMinSamples
-    : DEFAULT_BBOX_OUTLIER_MIN_SAMPLES;
-
-  if (p > 0 && p < 0.5 && lats.length >= minSamples) {
+  const raw = { minLat, maxLat, minLon, maxLon };
+  let clipped = raw;
+  if (wantClip && n >= minSamples) {
     lats.sort((a, b) => a - b);
     lons.sort((a, b) => a - b);
-    const lastIdx = lats.length - 1;
-    const loIdx = Math.floor(lastIdx * p);
-    const hiIdx = Math.floor(lastIdx * (1 - p));
-    return {
+    // Symmetric clip; both indices clamped to a valid, non-empty range.
+    const loIdx = Math.max(0, Math.min(n - 1, Math.floor(n * p)));
+    const hiIdx = Math.max(loIdx, Math.min(n - 1, Math.ceil(n * (1 - p)) - 1));
+    clipped = {
       minLat: lats[loIdx],
       maxLat: lats[hiIdx],
       minLon: lons[loIdx],
       maxLon: lons[hiIdx],
     };
   }
+  return { raw, clipped, n };
+}
 
-  let minLat = Infinity, maxLat = -Infinity;
-  let minLon = Infinity, maxLon = -Infinity;
-  for (let i = 0; i < lats.length; i++) {
-    if (lats[i] < minLat) minLat = lats[i];
-    if (lats[i] > maxLat) maxLat = lats[i];
-    if (lons[i] < minLon) minLon = lons[i];
-    if (lons[i] > maxLon) maxLon = lons[i];
-  }
-  return { minLat, maxLat, minLon, maxLon };
+function bboxFromFeatureCollection(fc, opts) {
+  return bboxStatsFromFeatureCollection(fc, opts).clipped;
 }
 
 // ---------------------------------------------------------------------------
@@ -397,6 +406,7 @@ module.exports = {
   tileName,
   tilesForBbox,
   bboxFromFeatureCollection,
+  bboxStatsFromFeatureCollection,
   slugCity,
   readCitiesTxt,
   downloadTile,
