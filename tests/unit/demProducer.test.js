@@ -433,7 +433,65 @@ describe('dem_producer — computeWaySlopesLocal', () => {
     const out = dem.computeWaySlopesLocal(spans, (lat) => 100 + (lat - 50) * 1000);
     expect(out['W5'].road_slope_method).toBe('median_segments');
     expect(out['W5'].road_slope_sample_count).toBe(1);
-    expect(['low', 'medium']).toContain(out['W5'].road_slope_confidence);
+    // Sample-count clamp: <3 segments → confidence forced to 'low'
+    // and the way is tagged road_slope_low_sample for the renderer.
+    expect(out['W5'].road_slope_confidence).toBe('low');
+    expect(out['W5'].road_slope_low_sample).toBe(true);
+  });
+
+  test('drops sub-WAY_SLOPE_MIN_SEGMENT_M segments before aggregating', () => {
+    // 200 m flat tail (true elevation = 100 m everywhere) preceded by
+    // one 4 m segment with a noisy +5 m elevation jump. The 4 m
+    // segment is below WAY_SLOPE_MIN_SEGMENT_M (5 m) so it must be
+    // discarded — the way is then classified flat and only the 200 m
+    // tail contributes to road_slope_sample_count.
+    const dLat4m   = 4   / M_PER_DEG_LAT_TEST;
+    const dLat200m = 200 / M_PER_DEG_LAT_TEST;
+    const points = [
+      { lat: 50,                          lon: 7 },
+      { lat: 50 + dLat4m,                 lon: 7 },
+      { lat: 50 + dLat4m + dLat200m,      lon: 7 },
+    ];
+    const spans = [{ wayId: 'WTAIL', points, start: points[0], end: points[points.length - 1] }];
+    // Flat-200m tail at 100 m + 5 m noisy spike at the second vertex.
+    const sampler = (lat /* lon */) => {
+      const distM = (lat - 50) * M_PER_DEG_LAT_TEST;
+      // Anything inside the 4 m noisy segment gets the spiked
+      // elevation; the rest of the way is at 100 m.
+      if (distM > 0.5 && distM < 4.5) return 105;
+      return 100;
+    };
+    const out = dem.computeWaySlopesLocal(spans, sampler, { stepM: 30 });
+    const r = out['WTAIL'];
+    expect(r.road_slope_method).toBe('median_segments');
+    // The 4 m noisy segment was dropped → median is the flat tail's
+    // 0 % grade, classifiable as 'flat'.
+    expect(Math.abs(r.road_slope_percent)).toBeLessThanOrEqual(0.1);
+    // Only the 200 m tail's segment(s) remained. It can be 1–N
+    // depending on _sampleAlongPolyline anchoring; what matters is
+    // the noisy ≥-5-m-resolution segment is gone.
+    expect(r.road_slope_sample_count).toBeGreaterThanOrEqual(1);
+    expect(r.road_slope_max_abs_percent).toBeLessThan(1);
+  });
+
+  test('road_slope_method is "median_segments" whenever road_slope_percent is set', () => {
+    // Mixed batch: short way (skipped), normal way, sampler-empty way.
+    const polyline = nsPolyline(5, 30);
+    const tiny     = [{ lat: 50, lon: 7 }, { lat: 50.00005, lon: 7 }];
+    const spans = [
+      { wayId: 'A', points: polyline,  start: polyline[0],  end: polyline[polyline.length - 1] },
+      { wayId: 'B', points: tiny,      start: tiny[0],      end: tiny[1] },
+      { wayId: 'C', points: polyline,  start: polyline[0],  end: polyline[polyline.length - 1] },
+    ];
+    const sampler = (lat /*, lon*/) => (lat === 50 ? 100 : 100 + (lat - 50) * 1000);
+    const out = dem.computeWaySlopesLocal(spans, sampler);
+    for (const id of Object.keys(out)) {
+      const r = out[id];
+      if (Number.isFinite(r.road_slope_percent)) {
+        expect(r.road_slope_method).toBe('median_segments');
+      }
+    }
+    expect(out['B'].road_slope_percent).toBeUndefined();
   });
 });
 

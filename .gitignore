@@ -1,6 +1,9 @@
 out/*.zip
 out/*.tmp
 out/**/*.tmp
+# PR-berlin-slope-qa: diagnostic QA reports — generated on demand, not
+# committed (CI uploads them as workflow artefacts instead).
+out/qa/
 
 # Testing
 node_modules/

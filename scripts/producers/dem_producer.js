@@ -958,13 +958,26 @@ function computeWaySlopesLocal(spans, sampler, opts) {
       continue;
     }
     const med = _median(segSlopes);
+    const lowSample = segSlopes.length < 3;
     out[span.wayId] = {
       road_slope_percent:         round1(med),
       road_slope_max_abs_percent: round1(maxAbs),
       road_slope_method:          'median_segments',
       road_slope_sample_count:    segSlopes.length,
-      road_slope_confidence:      _slopeConfidence(segSlopes.length, totalLengthM, o.resolutionM),
+      // Sample-count-aware confidence: any way with fewer than 3
+      // contributing segments is clamped to 'low' so the renderer /
+      // validator can deprioritise it. The base heuristic is
+      // length-aware, but on residential streets shorter than ~90 m
+      // it's still SRTM-quantisation-dominated and a 'medium' label
+      // would be misleading.
+      road_slope_confidence:      lowSample ? 'low' : _slopeConfidence(segSlopes.length, totalLengthM, o.resolutionM),
     };
+    if (lowSample) {
+      // Optional diagnostic so the renderer can hide / desaturate
+      // these without rebuilding the histogram. Only emitted when
+      // true so payload size for high-confidence cities is unchanged.
+      out[span.wayId].road_slope_low_sample = true;
+    }
   }
   return out;
 }
@@ -1442,6 +1455,13 @@ module.exports = {
   WAY_SLOPE_MIN_SEGMENT_M,
   WAY_SLOPE_MIN_TOTAL_M,
   readOsmWaySpans,
+  // Exported for diagnostic tooling (scripts/qa-slope-report.js) so the
+  // QA report shows the *exact* numbers the producer used — never a
+  // re-implementation that could drift.
+  _haversineMeters,
+  _median,
+  _sampleAlongPolyline,
+  _slopeConfidence,
   _isDemCacheFresh,
   fetchElevations,
   fetchElevationsDedup,

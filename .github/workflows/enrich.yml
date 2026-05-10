@@ -243,6 +243,30 @@ jobs:
       - name: Validate v3 context-layer datasets
         run: node scripts/check-context-datasets.js
 
+      - name: Validate per-city slope plausibility
+        # PR-berlin-slope-qa: per-city upper bounds on
+        # slope.verySteepShare (and lower bounds on
+        # slope.flatGentleShare) so a flat city like Berlin cannot
+        # silently render mostly very_steep without failing the build.
+        run: node scripts/check-slope-plausibility.js
+
+      - name: Berlin slope QA report (artifact)
+        # Diagnostic artefact for the Berlin viewport requested in
+        # the slope-plausibility issue. Optional — never fails the
+        # build, but the JSON+CSV are uploaded for spot-checks.
+        if: always()
+        run: |
+          node scripts/qa-slope-report.js --city berlin || true
+          node scripts/qa-slope-report.js --city bielefeld || true
+
+      - name: Upload slope QA artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slope-qa-reports
+          path: out/qa/
+          if-no-files-found: ignore
+
       # Commit only when something other than the meta-sidecar
       # `generatedAt` timestamp changed. The sidecar is always
       # rewritten on every run, so committing it unconditionally would

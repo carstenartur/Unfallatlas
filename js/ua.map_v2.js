@@ -847,7 +847,19 @@
       // moveend handler below rebuilds the layer as the user pans.
       const opts = (state.tileIndex && ctx.map && typeof ctx.map.getBounds === 'function')
         ? { bounds: ctx.map.getBounds() }
-        : undefined;
+        : {};
+      // PR-berlin-slope-qa: optional debug overlay. Read once from
+      // the URL — the toggle is hidden behind a query param so it
+      // never affects production rendering. `?debugSlope=1` shows the
+      // numeric road_slope_percent as a permanent tooltip on each
+      // slope polyline so values can be sight-checked in the field.
+      if (kind === 'slope' && typeof UA.qGet === 'function') {
+        const showPercent = String(UA.qGet('debugSlope', '') || '') === '1';
+        const showSamples = String(UA.qGet('debugSlopeSamples', '') || '') === '1';
+        if (showPercent || showSamples) {
+          opts.debug = { showPercent, showSamples };
+        }
+      }
       const layer = (kind === 'slope')
         ? UA.contextRoadLayer.buildSlopeLayer(state, opts)
         : UA.contextRoadLayer.buildTrafficLayer(state, opts);

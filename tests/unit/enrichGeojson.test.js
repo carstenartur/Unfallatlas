@@ -40,6 +40,43 @@ describe('enrich_geojson — pure helpers', () => {
     expect(enrich.classifySlope(NaN)).toBeUndefined();
   });
 
+  // PR-berlin-slope-qa: pin the contract that thresholds are applied
+  // to *percent* values, not ratios. The regression we're guarding
+  // against would feed a 5 % slope as 0.05 (ratio) and silently
+  // classify every road as "flat" — or, worse, classify a true 0.05 %
+  // grade as "very_steep" if `<=` were flipped to `<` somewhere.
+  test.each([
+    [ 0,        'flat'      ],
+    [ 0.5,      'flat'      ],
+    [ 1.9999,   'flat'      ],
+    [ 2,        'flat'      ],
+    [ 2.0001,   'gentle'    ],
+    [ 3,        'gentle'    ],
+    [ 4,        'gentle'    ],
+    [ 4.0001,   'moderate'  ],
+    [ 5,        'moderate'  ],
+    [ 6,        'moderate'  ],
+    [ 6.0001,   'steep'     ],
+    [ 8,        'steep'     ],
+    [ 10,       'steep'     ],
+    [ 10.0001,  'very_steep'],
+    [ 15,       'very_steep'],
+    [ -15,      'very_steep'],
+    [ -2,       'flat'      ],
+    [ -8,       'steep'     ],
+  ])('classifySlope(%s) === %s — thresholds are PERCENT, not ratios', (input, expected) => {
+    expect(enrich.classifySlope(input)).toBe(expected);
+  });
+
+  test('classifySlope(0.05) === "flat" — guards against the ratio-vs-percent bug', () => {
+    // If the pipeline ever fed `slope_percent = 0.05` (a 5 % grade
+    // expressed as a ratio), the renderer must NOT treat it as
+    // very_steep. The thresholds stay in percent space, so 0.05 % is
+    // unambiguously flat.
+    expect(enrich.classifySlope(0.05)).toBe('flat');
+    expect(enrich.classifySlope(0.05)).not.toBe('very_steep');
+  });
+
   test('classifyTrafficProxy thresholds match the documented bands', () => {
     expect(enrich.classifyTrafficProxy(500)).toBe('low');
     expect(enrich.classifyTrafficProxy(3000)).toBe('medium');
@@ -80,6 +117,9 @@ describe('enrich_geojson — pure helpers', () => {
     expect(s.methodCounts.median_segments).toBe(4);
     expect(s.confidenceCounts).toEqual({ high: 2, medium: 1, low: 1 });
     expect(s.verySteepShare).toBe(25);
+    // PR-berlin-slope-qa: companion share for the city-level
+    // plausibility gate. Two of four signal ways are flat/gentle.
+    expect(s.flatGentleShare).toBe(50);
   });
 
   test('summarizeSlopeQuality returns zero-counts on empty input', () => {
@@ -88,6 +128,7 @@ describe('enrich_geojson — pure helpers', () => {
     expect(s.withSlope).toBe(0);
     expect(s.coveragePercent).toBe(0);
     expect(s.verySteepShare).toBe(0);
+    expect(s.flatGentleShare).toBe(0);
   });
 });
 

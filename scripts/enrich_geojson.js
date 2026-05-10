@@ -181,6 +181,12 @@ function summarizeSlopeQuality(fullWays) {
     methodCounts: {},
     confidenceCounts: {},
     verySteepShare: 0,
+    // Companion to verySteepShare for the city-level plausibility gate:
+    // the share of ways the validator considers "expected" for flat
+    // cities (Berlin, Bremen, Münster, …). A low flatGentleShare on
+    // such a city is a tell-tale that endpoint-noise has crept back
+    // in alongside a runaway verySteepShare.
+    flatGentleShare: 0,
   };
   if (!Array.isArray(fullWays) || fullWays.length === 0) return out;
   for (const w of fullWays) {
@@ -207,6 +213,9 @@ function summarizeSlopeQuality(fullWays) {
     : 0;
   out.verySteepShare = out.withSlope > 0
     ? Math.round((out.classCounts.very_steep / out.withSlope) * 1000) / 10
+    : 0;
+  out.flatGentleShare = out.withSlope > 0
+    ? Math.round(((out.classCounts.flat + out.classCounts.gentle) / out.withSlope) * 1000) / 10
     : 0;
   return out;
 }

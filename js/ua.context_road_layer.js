@@ -298,6 +298,29 @@
           properties: { way_id: String(wayId), class: featureClass, kind },
           geometry: null,
         };
+        // Optional debug overlay: show the numeric slope percent as a
+        // permanent tooltip so on-screen + computed values can be
+        // sight-checked in the field. Only wired for the slope kind
+        // and only when the caller opts in (URL: ?debugSlope=1). Uses
+        // bindTooltip when available; degrades gracefully when the
+        // Leaflet stub under test doesn't provide it. Single flat
+        // guard so the whole block is unambiguously gated on
+        // slope + debug.showPercent + bindTooltip-present + finite %.
+        const rsp = (attrs && Number.isFinite(attrs.road_slope_percent))
+          ? attrs.road_slope_percent : null;
+        if (kind === 'slope'
+            && o.debug && o.debug.showPercent
+            && typeof line.bindTooltip === 'function'
+            && rsp !== null) {
+          // bindTooltip itself is feature-detected above; this catch
+          // only guards against Leaflet builds that throw on
+          // unsupported tooltip *options* (e.g. very old or stripped
+          // builds without `permanent`). Failure here is non-fatal —
+          // the polyline still renders, just without the debug label.
+          try {
+            line.bindTooltip(`${rsp} %`, { permanent: true, direction: 'center', className: 'context-road-debug-tooltip' });
+          } catch (_) { /* tooltip options unsupported in this Leaflet build */ }
+        }
         group.addLayer(line);
       } catch (_) { /* malformed line — skip */ }
     }
