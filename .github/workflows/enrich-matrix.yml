@@ -229,12 +229,19 @@ jobs:
         # See "Produce OSM" — same reasoning, also lets `force_dem`
         # take effect on cache hits.
         # ENRICH_DEM_TILES_DIR activates local tile sampling (no API calls).
+        # PR-bielefeld-slope: hard-fail when local tiles are missing
+        # rather than silently dropping to the rate-limited API path.
         env:
           ENRICH_DEM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/dem
           ENRICH_OSM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/osm
           ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
         run: |
           set -euo pipefail
+          if [ ! -d "$ENRICH_DEM_TILES_DIR" ] || [ -z "$(ls -A "$ENRICH_DEM_TILES_DIR" 2>/dev/null)" ]; then
+            echo "::error::ENRICH_DEM_TILES_DIR ($ENRICH_DEM_TILES_DIR) is missing or empty." >&2
+            echo "::error::Refusing to fall back to the Open-Meteo elevation API in CI." >&2
+            exit 1
+          fi
           ARGS=(--city "${{ matrix.city.name }}" --concurrency "${{ inputs.dem_concurrency }}")
           if [[ "${{ inputs.force_dem }}" == "true" ]]; then ARGS+=(--force); fi
           node scripts/producers/dem_producer.js "${ARGS[@]}"

@@ -117,12 +117,19 @@
 
   /**
    * Resolve a slope class from a per-way attrs row. Prefers an
-   * explicit `road_slope_percent` (already int-coded? no — slope
-   * fields are numeric, see scripts/enrich_geojson.js); falls back to
-   * `osm_incline` when present. Returns null when no slope signal.
+   * **explicit `road_slope_class`** written by the enrichment pipeline
+   * (so the renderer agrees with the validator's class histogram and
+   * never re-classifies in the browser). Falls back to deriving the
+   * class from `road_slope_percent` or `osm_incline` for older payloads
+   * that haven't been re-enriched yet.
+   * Returns null when no slope signal is available.
    */
   function classifySlopeFromAttrs(attrs) {
     if (!attrs || typeof attrs !== 'object') return null;
+    const explicit = attrs.road_slope_class;
+    if (typeof explicit === 'string' && SLOPE_CLASS_VALUES.indexOf(explicit) !== -1) {
+      return explicit;
+    }
     const rsp = attrs.road_slope_percent;
     const c = classifySlope(rsp);
     if (c) return c;

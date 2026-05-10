@@ -81,8 +81,18 @@ describe('UA.contextRoadLayer — class colour mappings', () => {
 });
 
 describe('UA.contextRoadLayer — classify*FromAttrs', () => {
-  test('classifySlopeFromAttrs prefers road_slope_percent, falls back to osm_incline', () => {
+  test('classifySlopeFromAttrs prefers explicit road_slope_class, then road_slope_percent, then osm_incline', () => {
     const { UA } = loadModule();
+    // PR-bielefeld-slope: the renderer must honour the class chosen by
+    // the enrichment pipeline, so the validator's class histogram and
+    // the on-screen colour always agree.
+    expect(UA.contextRoadLayer.classifySlopeFromAttrs({
+      road_slope_class: 'steep', road_slope_percent: 1,
+    })).toBe('steep');
+    // Unknown class string falls through to numeric reclassification.
+    expect(UA.contextRoadLayer.classifySlopeFromAttrs({
+      road_slope_class: 'bogus', road_slope_percent: 5,
+    })).toBe('moderate');
     expect(UA.contextRoadLayer.classifySlopeFromAttrs({ road_slope_percent: 5 })).toBe('moderate');
     expect(UA.contextRoadLayer.classifySlopeFromAttrs({ osm_incline: '7%' })).toBe('steep');
     expect(UA.contextRoadLayer.classifySlopeFromAttrs({ osm_incline: 'up' })).toBeNull();

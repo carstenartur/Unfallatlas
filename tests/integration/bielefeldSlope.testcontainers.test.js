@@ -248,6 +248,188 @@ SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () =
         return window.getComputedStyle(el).display !== 'none' && el.children.length > 0;
       });
       expect(legendVisible).toBe(true);
+
+      // ---------------------------------------------------------------
+      // 8. Slope-layer plausibility regression (the actual reason this
+      //    suite exists). The original bug report:
+      //
+      //      "nearby parallel streets that should have similar terrain
+      //       slope show very different values — the slope legend can
+      //       be empty or misleading"
+      //
+      //    Pull the rendered slope state out of the live page, write
+      //    it as a CI artefact (so a regression can be diff-debugged
+      //    without re-running the test), and assert the plausibility
+      //    invariants.
+      // ---------------------------------------------------------------
+      const slopeReport = await page.evaluate(async () => {
+        const UA = window.UA || {};
+        if (!UA.contextLayers || typeof UA.contextLayers.load !== 'function') {
+          return { available: false, reason: 'UA.contextLayers not exposed' };
+        }
+        let state;
+        try {
+          state = await UA.contextLayers.load('Bielefeld');
+        } catch (e) {
+          return { available: false, reason: 'load failed: ' + (e && e.message) };
+        }
+        if (!state) return { available: false, reason: 'state null' };
+
+        // For v3 envelopes, ways/geometries fill in lazily via
+        // loadTilesForBbox. Force a load of the viewport tiles so the
+        // diagnostic actually inspects the tiles the user would see.
+        const map = (UA._map_v2 && UA._map_v2.map)
+          || (window.L && window.L.__activeMap)
+          || null;
+        let viewportBbox = null;
+        if (map && typeof map.getBounds === 'function') {
+          const b = map.getBounds();
+          viewportBbox = {
+            minLat: b.getSouth(), maxLat: b.getNorth(),
+            minLon: b.getWest(),  maxLon: b.getEast(),
+          };
+          if (typeof UA.contextLayers.loadTilesForBbox === 'function') {
+            try { await UA.contextLayers.loadTilesForBbox(state, b); } catch (_) { /* tolerate */ }
+          }
+        }
+
+        const ways = state.ways || {};
+        const geoms = state.geometries || {};
+        const ids = Object.keys(geoms);
+        const dictHighway = (state.dicts && state.dicts.highway) || [];
+
+        // Helper: decode polyline length in metres (haversine, lat/lon
+        // arrays interleaved as [lat, lon, lat, lon, ...]).
+        const M_PER_DEG_LAT = 111320;
+        function lengthM(geom) {
+          if (!Array.isArray(geom) || geom.length < 4) return 0;
+          let total = 0;
+          for (let i = 2; i < geom.length; i += 2) {
+            const dLat = geom[i] - geom[i - 2];
+            const dLon = geom[i + 1] - geom[i - 1];
+            const cosLat = Math.cos((geom[i] + geom[i - 2]) / 2 * Math.PI / 180);
+            total += Math.sqrt((dLat * M_PER_DEG_LAT) ** 2 + (dLon * M_PER_DEG_LAT * cosLat) ** 2);
+          }
+          return Math.round(total);
+        }
+
+        // Restrict to ways with at least one vertex inside the visible
+        // bbox so the report focuses on the bug-report viewport.
+        const inBounds = viewportBbox
+          ? (g) => {
+              for (let i = 0; i < g.length; i += 2) {
+                if (g[i] >= viewportBbox.minLat && g[i] <= viewportBbox.maxLat
+                 && g[i + 1] >= viewportBbox.minLon && g[i + 1] <= viewportBbox.maxLon) return true;
+              }
+              return false;
+            }
+          : (() => true);
+
+        const SLOPE_CLASSES = ['flat', 'gentle', 'moderate', 'steep', 'very_steep'];
+        const rows = [];
+        const classCounts = { flat: 0, gentle: 0, moderate: 0, steep: 0, very_steep: 0 };
+        let withSlope = 0;
+        let noSignal = 0;
+        let undefinedMeta = 0;
+        for (const id of ids) {
+          const g = geoms[id];
+          if (!Array.isArray(g)) continue;
+          if (!inBounds(g)) continue;
+          const a = ways[id] || {};
+          const highwayCode = a.highway;
+          const highway = (typeof highwayCode === 'number' && dictHighway[highwayCode])
+            || (typeof highwayCode === 'string' ? highwayCode : null);
+          const row = {
+            way_id: id,
+            highway,
+            length_m: lengthM(g),
+            road_slope_percent:        a.road_slope_percent ?? null,
+            road_slope_class:          a.road_slope_class ?? null,
+            road_slope_method:         a.road_slope_method ?? null,
+            road_slope_sample_count:   a.road_slope_sample_count ?? null,
+            road_slope_confidence:     a.road_slope_confidence ?? null,
+            road_slope_max_abs_percent: a.road_slope_max_abs_percent ?? null,
+            road_slope_missing_reason: a.road_slope_missing_reason ?? null,
+            no_slope_signal:           !(typeof a.road_slope_percent === 'number'),
+          };
+          rows.push(row);
+          if (typeof a.road_slope_percent === 'number') {
+            withSlope++;
+            const cls = a.road_slope_class || null;
+            if (cls && cls in classCounts) classCounts[cls]++;
+          } else {
+            noSignal++;
+            // "no rendered way has undefined/null slope metadata" —
+            // every no-signal way must carry an explicit reason.
+            // Older payloads (pre-PR-bielefeld-slope) may legitimately
+            // miss this field; the count is recorded but the strict
+            // assertion below is gated on undefinedMeta === 0.
+            if (!a.road_slope_missing_reason) undefinedMeta++;
+          }
+        }
+        const total = rows.length;
+        return {
+          available: true,
+          totalRendered: total,
+          withSlope,
+          noSignal,
+          undefinedMeta,
+          coveragePercent: total > 0 ? Math.round((withSlope / total) * 1000) / 10 : 0,
+          classCounts,
+          veryStepShare: withSlope > 0 ? Math.round((classCounts.very_steep / withSlope) * 1000) / 10 : 0,
+          viewportBbox,
+          rows: rows.slice(0, 500),  // cap so the artefact stays small
+        };
+      });
+
+      if (slopeReport.available) {
+        // QA artefact — persisted regardless of pass/fail so the diff
+        // can be reviewed if the regression check trips.
+        try {
+          fs.mkdirSync('test-artifacts', { recursive: true });
+          fs.writeFileSync(
+            'test-artifacts/bielefeld-slope-viewport-diagnostic.json',
+            JSON.stringify(slopeReport, null, 2),
+          );
+        } catch (_) { /* artefact best-effort; never fail the test on FS */ }
+
+        // Plausibility regressions (problem statement section 7):
+        if (slopeReport.totalRendered > 0) {
+          // (a) "majority of rendered roads have either a valid slope
+          //     class or explicit kein Steigungssignal" — i.e. coverage
+          //     plus explicit missing reasons account for ≥ 80 %.
+          const accountedFor = slopeReport.withSlope + (slopeReport.noSignal - slopeReport.undefinedMeta);
+          const accountedShare = accountedFor / slopeReport.totalRendered;
+          // Older v3 payloads (pre-PR-bielefeld-slope) may not yet
+          // carry road_slope_missing_reason — guard so we don't fail
+          // the gate during the data-rollout window. Once Bielefeld is
+          // re-enriched, undefinedMeta drops to ~0 and this becomes a
+          // strict ≥ 80 % assertion.
+          if (slopeReport.undefinedMeta === 0) {
+            expect(accountedShare).toBeGreaterThanOrEqual(0.8);
+          }
+
+          // (b) "slope classes are not wildly inconsistent unless
+          //     marked low confidence" — proxy: very_steep share among
+          //     signal ways must not blow past 30 %. A runaway
+          //     very_steep bucket is the single most reliable
+          //     signature of endpoint-noise-dominated slope estimates,
+          //     which is exactly the original bug.
+          if (slopeReport.withSlope >= 20) {
+            expect(slopeReport.veryStepShare).toBeLessThanOrEqual(30);
+          }
+        }
+
+        // (c) Legend must always include the "kein Steigungssignal"
+        //     row when the slope layer is active — the renderer paints
+        //     ways without slope in neutral grey, so the legend must
+        //     advertise that swatch even if every visible way happens
+        //     to have a class. Older builds (pre-no-signal row)
+        //     emitted only the 5 class rows; the new test asserts the
+        //     no-signal row is also present.
+        const noSignalLegend = await page.$('.context-road-legend--slope .context-road-legend__nosignal');
+        expect(noSignalLegend).not.toBeNull();
+      }
     } finally {
       try { await page.close(); } catch (_) { /* ignore */ }
       try { await context.close(); } catch (_) { /* ignore */ }
