@@ -173,25 +173,37 @@
     const rows = [];
 
     if (caps.hasElevation && isPresent(p.elevation_m)) {
-      rows.push(rowHtml('Höhe', `${formatNumber(p.elevation_m, 0)} m ü. NN`, { field: 'elevation_m' }));
+      // formatNumber returns null for non-finite values (NaN/Infinity/garbage
+      // strings) — only render the row when we can actually produce a number,
+      // otherwise we'd emit "null m ü. NN".
+      const elevText = formatNumber(p.elevation_m, 0);
+      if (elevText !== null) {
+        rows.push(rowHtml('Höhe', `${elevText} m ü. NN`, { field: 'elevation_m' }));
+      }
     }
     if (caps.hasSlope) {
-      const slopePct = isPresent(p.slope_percent) ? `${formatNumber(p.slope_percent, 1)} %` : null;
+      // Defensive: isPresent only guards null/undefined/'', but the value can
+      // still be NaN/Infinity for hand-edited datasets. formatNumber returns
+      // null in that case; treat it as "no numeric value" so we don't render
+      // "null %" — fall back to the class label alone if available.
+      const slopePctNum = isPresent(p.slope_percent) ? formatNumber(p.slope_percent, 1) : null;
+      const slopePct = slopePctNum !== null ? `${slopePctNum} %` : null;
       const slopeCls = isPresent(p.slope_class)   ? labelFor('slope_class', p.slope_class) : null;
       const slopeText = slopePct && slopeCls ? `${slopePct} (${slopeCls})` : (slopePct || slopeCls);
       if (slopeText) rows.push(rowHtml('Hangneigung lokal', slopeText, { field: 'slope_percent' }));
 
-      if (isPresent(p.road_slope_percent)) {
-        const pctText = `${formatNumber(p.road_slope_percent, 1)} %`;
-        const roadCls = isPresent(p.road_slope_class)
-          ? labelFor('slope_class', p.road_slope_class) : null;
+      const roadPctNum = isPresent(p.road_slope_percent) ? formatNumber(p.road_slope_percent, 1) : null;
+      const roadCls = isPresent(p.road_slope_class)
+        ? labelFor('slope_class', p.road_slope_class) : null;
+      if (roadPctNum !== null) {
+        const pctText = `${roadPctNum} %`;
         const roadText = roadCls ? `${pctText} (${roadCls})` : pctText;
         rows.push(rowHtml('Straßenneigung', roadText, { field: 'road_slope_percent' }));
-      } else if (isPresent(p.road_slope_class)) {
+      } else if (roadCls) {
         // Class without a numeric percent (rare but possible for hand-
         // edited datasets). Surface it so the renderer's colour can
         // still be explained from the popup.
-        rows.push(rowHtml('Straßenneigung', labelFor('slope_class', p.road_slope_class), { field: 'road_slope_class' }));
+        rows.push(rowHtml('Straßenneigung', roadCls, { field: 'road_slope_class' }));
       }
       // Per-way confidence (road_slope_confidence) wins over per-feature
       // (slope_confidence) when both are present — it describes the

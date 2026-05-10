@@ -189,6 +189,28 @@ describe('UA.popupContext.render — public contract', () => {
     expect(UA.popupContext.formatNumber('not-a-number', 1)).toBeNull();
     expect(UA.popupContext.formatNumber(3.25, 1)).toBe('3,3');
   });
+
+  test('does not render "null %" rows when slope/elevation values are non-finite (Infinity/NaN/garbage)', () => {
+    const UA = loadModules();
+    // Hand-edited / malformed payload: values pass the null/undefined/'' guard
+    // but are not finite numbers. Rows must either fall back to the class
+    // label (when present) or be omitted entirely — never "null %".
+    const html = UA.popupContext.render(
+      {
+        elevation_m: Infinity,
+        slope_percent: NaN,
+        slope_class: 'flat',
+        road_slope_percent: 'oops',
+        road_slope_class: 'gentle',
+      },
+      { hasElevation: true, hasSlope: true }
+    );
+    expect(html).not.toContain('null %');
+    expect(html).not.toContain('null m ü. NN');
+    // Class-only fallbacks are still surfaced.
+    expect(html).toContain('Hangneigung lokal');
+    expect(html).toContain('Straßenneigung');
+  });
 });
 
 describe('UA.composeAccidentPopupHtml — preserves base content, appends context', () => {
