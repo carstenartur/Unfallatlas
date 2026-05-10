@@ -364,6 +364,55 @@ describe('UA.composeAccidentPopupHtml — PR-E v3 tile-based hydration (race-tol
   });
 });
 
+describe('UA.composeAccidentPopupHtml — PR-berlin-slope-renderer: per-way slope provenance hydration', () => {
+  test('hydrates road_slope_class / confidence / method / sample_count from ways table', () => {
+    const UA = loadModules();
+    const ctx = {
+      contextCapabilities: { hasOsmContext: true, hasSlope: true, hasAny: true },
+      contextLayerState: {
+        ways: {
+          W42: {
+            highway: 0,
+            road_slope_percent: 12.7,
+            road_slope_class: 'very_steep',
+            road_slope_confidence: 'low',
+            road_slope_method: 'endpoint',
+            road_slope_sample_count: 1,
+          },
+        },
+        dicts: { highway: ['residential'] },
+      },
+    };
+    const html = UA.composeAccidentPopupHtml(ctx, { matched_way_id: 'W42' });
+    // Numeric percent + class label appear together so the popup
+    // explains *why* the renderer chose a colour for this way.
+    expect(html).toMatch(/Straßenneigung[\s\S]*12,7\s?%[\s\S]*sehr steil/);
+    // Confidence falls back to the human label for "low".
+    expect(html).toMatch(/Konfidenz[\s\S]*niedrig/);
+    // Method + sample-count expose the debug provenance the user asked for.
+    expect(html).toMatch(/Methode[\s\S]*endpoint/);
+    expect(html).toMatch(/Stichproben[\s\S]*1/);
+  });
+
+  test('per-way road_slope_confidence wins over per-feature slope_confidence', () => {
+    const UA = loadModules();
+    const ctx = {
+      contextCapabilities: { hasSlope: true, hasOsmContext: true, hasAny: true },
+      contextLayerState: {
+        ways: { W7: { highway: 0, road_slope_percent: 1.0, road_slope_confidence: 'high' } },
+        dicts: { highway: ['residential'] },
+      },
+    };
+    // Per-feature carries a weaker confidence that should be overridden.
+    const html = UA.composeAccidentPopupHtml(ctx, {
+      matched_way_id: 'W7',
+      slope_confidence: 'low',
+    });
+    expect(html).toMatch(/Konfidenz[\s\S]*hoch/);
+    expect(html).not.toMatch(/Konfidenz[\s\S]*niedrig/);
+  });
+});
+
 describe('UA.contextLayers.capabilitiesFromDetection — single source of truth', () => {
   test('maps detected fields to capability flags + hasAny', () => {
     const UA = loadModules();

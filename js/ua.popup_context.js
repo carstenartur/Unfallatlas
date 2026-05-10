@@ -182,10 +182,35 @@
       if (slopeText) rows.push(rowHtml('Hangneigung lokal', slopeText, { field: 'slope_percent' }));
 
       if (isPresent(p.road_slope_percent)) {
-        rows.push(rowHtml('Straßenneigung', `${formatNumber(p.road_slope_percent, 1)} %`, { field: 'road_slope_percent' }));
+        const pctText = `${formatNumber(p.road_slope_percent, 1)} %`;
+        const roadCls = isPresent(p.road_slope_class)
+          ? labelFor('slope_class', p.road_slope_class) : null;
+        const roadText = roadCls ? `${pctText} (${roadCls})` : pctText;
+        rows.push(rowHtml('Straßenneigung', roadText, { field: 'road_slope_percent' }));
+      } else if (isPresent(p.road_slope_class)) {
+        // Class without a numeric percent (rare but possible for hand-
+        // edited datasets). Surface it so the renderer's colour can
+        // still be explained from the popup.
+        rows.push(rowHtml('Straßenneigung', labelFor('slope_class', p.road_slope_class), { field: 'road_slope_class' }));
       }
-      if (isPresent(p.slope_confidence)) {
-        rows.push(rowHtml('Konfidenz', labelFor('confidence', p.slope_confidence), { field: 'slope_confidence' }));
+      // Per-way confidence (road_slope_confidence) wins over per-feature
+      // (slope_confidence) when both are present — it describes the
+      // signal that drives the slope-overlay colouring policy. Falls
+      // back to the per-feature value for backward compatibility with
+      // datasets that only carry slope_confidence.
+      const confValue = isPresent(p.road_slope_confidence)
+        ? p.road_slope_confidence
+        : (isPresent(p.slope_confidence) ? p.slope_confidence : null);
+      if (confValue) {
+        rows.push(rowHtml('Konfidenz', labelFor('confidence', confValue), {
+          field: isPresent(p.road_slope_confidence) ? 'road_slope_confidence' : 'slope_confidence',
+        }));
+      }
+      if (isPresent(p.road_slope_method)) {
+        rows.push(rowHtml('Methode', String(p.road_slope_method), { field: 'road_slope_method' }));
+      }
+      if (Number.isFinite(Number(p.road_slope_sample_count))) {
+        rows.push(rowHtml('Stichproben', String(p.road_slope_sample_count), { field: 'road_slope_sample_count' }));
       }
     }
 
@@ -341,7 +366,9 @@
   // angeschleppt werden. road_context_source liefert das Quellen-Badge.
   const HYDRATABLE_WAY_FIELDS = Object.freeze([
     'highway', 'maxspeed', 'lanes', 'surface', 'cycleway',
-    'osm_incline', 'road_slope_percent', 'road_context_source',
+    'osm_incline', 'road_slope_percent', 'road_slope_class',
+    'road_slope_confidence', 'road_slope_method', 'road_slope_sample_count',
+    'road_context_source',
   ]);
 
   function hydrateWayAttrs(ctx, props) {
