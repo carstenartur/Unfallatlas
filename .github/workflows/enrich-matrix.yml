@@ -180,7 +180,14 @@ jobs:
           YEAR=$(date -u +%Y)
           SLUG="${{ matrix.city.slug }}"
           echo "osm=osm-${OSM_VER}-${ISO_WEEK}-${SLUG}"                         >> "$GITHUB_OUTPUT"
-          echo "dem=dem-${DEM_VER}-${ISO_WEEK}-${SLUG}"                         >> "$GITHUB_OUTPUT"
+          # DEM cache key includes the OSM producer version so any
+          # future OSM coverage upgrade (e.g. matched-only → full
+          # network) auto-invalidates the DEM cache. Mirrors the
+          # single-job workflow in `.github/workflows/enrich.yml`,
+          # plus the matrix-wide per-city `${SLUG}` suffix that all
+          # cache keys in this file carry so each matrix job restores
+          # only its own city's payload.
+          echo "dem=dem-${DEM_VER}-osm-${OSM_VER}-${ISO_WEEK}-${SLUG}"           >> "$GITHUB_OUTPUT"
           echo "dem_tiles=dem-tiles-${TILE_VER}-${YEAR}"                         >> "$GITHUB_OUTPUT"
           echo "traffic=traffic-${TRAFFIC_VER}-osm-${OSM_VER}-${ISO_WEEK}-${SLUG}" >> "$GITHUB_OUTPUT"
 

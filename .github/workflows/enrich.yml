@@ -87,7 +87,13 @@ jobs:
           ISO_WEEK=$(date -u +%G-W%V)
           YEAR=$(date -u +%Y)
           echo "osm=osm-${OSM_VER}-${ISO_WEEK}"             >> "$GITHUB_OUTPUT"
-          echo "dem=dem-${DEM_VER}-${ISO_WEEK}"             >> "$GITHUB_OUTPUT"
+          # DEM cache key includes the OSM version so any future
+          # OSM-producer coverage upgrade (e.g. matched-only → full
+          # network) auto-invalidates the DEM cache. Without this tie,
+          # the DEM cache is reused with the new OSM input and per-way
+          # slope coverage silently drops to the matched-only baseline,
+          # which trips `scripts/check-context-datasets.js`.
+          echo "dem=dem-${DEM_VER}-osm-${OSM_VER}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
           echo "dem_tiles=dem-tiles-${TILE_VER}-${YEAR}"    >> "$GITHUB_OUTPUT"
           # Traffic key includes the OSM key so a refreshed OSM cache
           # invalidates the traffic cache (its input changed).

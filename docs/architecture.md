@@ -141,9 +141,10 @@ Wichtige Eigenschaften:
   Leaflet-Layer („Straßensteigung" + „Verkehrsbelastung"), die per
   Karten-Layer-Control (oben links) ein-/ausgeschaltet werden können.
   Die Overlays zeichnen **das vollständige OSM-Straßennetz im
-  Stadt-BBox** (viewport-lazy via `loadTilesForBbox`); die Slope-
-  *Farbe* bleibt jedoch sample-getrieben (nur entlang gematchter Wege),
-  die Verkehrs-Klasse basiert auf dem DTV-Proxy. Vollständige
+  Stadt-BBox** (viewport-lazy via `loadTilesForBbox`). Mit
+  `dem_producer.js` ≥ 1.1.0 trägt **jeder** Weg im v3-Kontextnetz
+  eine Slope-Klasse aus dem Median seiner Segment-Steigungen
+  (lokale SRTM-Tiles); die Verkehrs-Klasse basiert auf dem DTV-Proxy. Vollständige
   Beschreibung (kanonisch) siehe
   [`docs/enrichment.md` → „Datenausschnitt der Karten-Layer (Straßennetz vs. matched-only Signal)"](enrichment.md#matched-only-disclaimer).
   Ältere v1/v2-Caches bleiben kompatibel und zeichnen weiterhin nur die

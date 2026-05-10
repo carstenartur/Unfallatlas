@@ -160,9 +160,9 @@ Per-file dataset-wide attribution:
   "generatedAt": "2026-01-15T03:14:15.000Z",
   "tileIndexPath": "ctxtiles/bonn/index.json",
   "sources": {
-    "osm":     { "source": "OpenStreetMap (Overpass)", "producerVersion": "1.1.0", "extractDate": "2026-01-10" },
-    "dem":     { "source": "SRTM30",                   "producerVersion": "1.0.0", "resolutionM": 30 },
-    "traffic": { "source": "BASt SDV",                 "producerVersion": "1.0.0", "datasetVersion": "2024" }
+    "osm":     { "source": "OpenStreetMap (Overpass)", "producerVersion": "1.2.0", "extractDate": "2026-01-10", "coverage": "full" },
+    "dem":     { "source": "SRTM Local Tiles",         "producerVersion": "1.1.0", "resolutionM": 30 },
+    "traffic": { "source": "OSM-highway-proxy",        "producerVersion": "1.0.0", "datasetVersion": "1.0.0" }
   },
   "counts": { "features": 1234, "matchedToWay": 1100, "withElevation": 1234, "withTrafficProxy": 410, "ways": 320, "fullWays": 22000, "contextTiles": 49 },
   "dictFields": ["highway", "surface"]
@@ -284,14 +284,17 @@ unterscheiden sich nach Wegtyp.
   schätzung, ohne tatsächliche Zählungen). Jeder Weg im Netz bekommt
   damit einen Klassenwert, **kein** gemessener Verkehrswert.
 * **Straßensteigung** wird per DEM für **alle** OSM-Wege im v3-Kontext-
-  netz berechnet — der DEM-Producer (`scripts/producers/dem_producer.js`)
-  liest jede Way-Geometrie aus `osm_<slug>.json` (`wayGeometries`) und
-  ermittelt `road_slope_percent` aus den Endpunkten via lokaler SRTM-
-  Tiles bzw. (im API-Pfad) einer einzigen Open-Meteo-Anfrage pro
-  Endpunkt. Ways ohne berechenbares Signal (DEM-Lücke, Way < 5 m, etc.)
-  erscheinen in der Steigungs-Legende als „kein Steigungssignal" und
-  werden in neutralem Grau gezeichnet — die Polylinie ist sichtbar,
-  aber ohne Farbklasse.
+  netz berechnet — der DEM-Producer (`scripts/producers/dem_producer.js`,
+  ab `PRODUCER_VERSION = '1.1.0'`) liest jede Way-Geometrie aus
+  `osm_<slug>.json` (`wayGeometries`), tastet die Polylinie alle ~30 m
+  über lokale SRTM-Tiles ab und schreibt den **Median der Segment-
+  Steigungen** als `road_slope_percent` (Methode `median_segments`,
+  robust gegen einzelne SRTM-Ausreißer auf kurzen Wohnstraßen). Im
+  API-Fallback (`--use-api`) wird ersatzweise nur die Endpunkt-Steigung
+  berechnet (Methode `endpoint`, `confidence: low`). Ways ohne
+  berechenbares Signal (DEM-Lücke, Way < 5 m, etc.) erscheinen in der
+  Steigungs-Legende als „kein Steigungssignal" und werden in neutralem
+  Grau gezeichnet — die Polylinie ist sichtbar, aber ohne Farbklasse.
 * Der Chip-Filter „Nur Unfallstrecken" (`ctxOnlyMatched`) ist eine
   **Filteroperation auf Unfallpunkten**, nicht auf den Karten-Layern.
   Er bleibt unverändert verfügbar und ist *unabhängig* von der
@@ -396,16 +399,28 @@ preceding steps in `.github/workflows/enrich.yml`:
   `out/output_all_years_<city>.geojson`, queries the public Overpass
   API (`way[highway]` with `out tags geom;`), snaps every accident
   point to the nearest way (≤ 50 m by default) and writes
-  `osm_<city>.json` (plus a top-level `wayGeometries` table holding
-  each matched way's endpoints, used by the DEM producer).
+  `osm_<city>.json`. Since `PRODUCER_VERSION = '1.2.0'` the on-disk
+  payload carries `coverage: "full"` and a top-level `wayGeometries`
+  table holding the **full** polyline of every way in the city
+  bbox (not only the matched ones), which the DEM producer consumes.
 * **DEM** (default: local SRTM tile sampling, see below) deduplicates
   accident points at 5 dp (≈ 1.1 m), then for each unique point
   looks up elevation from a locally-cached SRTM HGT tile. The slope
   is derived from the adjacent pixel gradient within the tile (1
   pixel ≈ 30 m for SRTM1) in a **single** memory read — no network
   calls. When the OSM producer's output is available, per-way
-  `road_slope_percent` is also computed from each way's endpoints via
-  the same tile lookup.
+  `road_slope_percent` is computed for **every** way in
+  `wayGeometries` (i.e. the full v3 city-bbox network, since
+  `PRODUCER_VERSION = '1.1.0'`) by sampling the polyline every ~30 m
+  via the same tile lookup and taking the **median** of the
+  per-segment grades. The legacy `--use-api` path still uses
+  endpoint-only slopes (low confidence) to stay inside the
+  Open-Meteo free tier. The workflow's `dem` cache key includes the
+  OSM producer version, so any future OSM coverage upgrade
+  auto-invalidates the DEM cache; per-city resume additionally falls
+  back to a freshness check that regenerates a stale matched-only
+  `dem_<slug>.json` when its `wayElevations` covers <50 % of the
+  current `osm_<slug>.json`'s `wayGeometries`.
 * **Traffic** is intentionally a *proxy* derived from each matched
   OSM way's `highway` class (motorway → ~50 000 DTV, residential →
   ~800, etc.) — see `HIGHWAY_DTV_PROXY` in
