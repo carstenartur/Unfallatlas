@@ -165,7 +165,7 @@ function bboxFromFeatureCollection(fc, opts) {
     lons.sort((a, b) => a - b);
     const lastIdx = lats.length - 1;
     const loIdx = Math.floor(lastIdx * p);
-    const hiIdx = Math.ceil(lastIdx * (1 - p));
+    const hiIdx = Math.floor(lastIdx * (1 - p));
     return {
       minLat: lats[loIdx],
       minLon: lons[loIdx],
