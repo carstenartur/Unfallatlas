@@ -225,19 +225,22 @@ function _readJson(file) {
   }
 }
 
-// Strip a leading "./" or "/" so the path joins cleanly with repoRoot.
-// Inputs the producer emits are always POSIX-relative (e.g.
-// "ctxtiles/bielefeld/index.json" or "out/ctxtiles/bielefeld/index.json").
+// Normalize an input path (either repo-root-relative like
+// "out/ctxtiles/<slug>/index.json" from the ways envelope, or
+// out/-relative like "ctxtiles/<slug>/index.json" from the meta
+// sidecar) to a single repo-root-relative form that always starts
+// with "out/". Callers join the result against the repo root.
 function _toLocalPath(p) {
   if (typeof p !== 'string') return '';
+  // Strip a leading "./" or "/" so the join works regardless of how
+  // the producer wrote the path.
   let s = p.replace(/\\/g, '/').replace(/^\.?\//, '');
-  // The meta sidecar stores tileIndexPath relative to `out/`, the ways
-  // envelope stores tileIndexUrl relative to the repo root. Normalize
-  // both to a repo-root-relative form so callers can resolve against
-  // repoRoot uniformly.
+  // The meta sidecar stores tileIndexPath relative to `out/`, the
+  // ways envelope stores tileIndexUrl relative to the repo root.
+  // Re-prefix `out/` when missing so the returned form is always
+  // repo-root-relative and the caller can resolve uniformly against
+  // the repo root.
   if (!s.startsWith('out/')) s = 'out/' + s;
-  // Strip the leading "out/" once so the caller can prefix with whatever
-  // base they want; we re-prefix consistently in the call site.
   return s;
 }
 
