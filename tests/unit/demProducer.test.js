@@ -311,6 +311,55 @@ describe('dem_producer — _isDemCacheFresh', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  test('clamps an out-of-range minCoverage so the resume guard cannot be bypassed', () => {
+    // 20 % coverage. A negative `minCoverage` (or >1) would let any
+    // ratio look fresh / stale and silently disable the guard. Clamp
+    // to [0,1] → negative becomes 0 (always fresh, but explicit), >1
+    // becomes 1 (only 100 %-covered caches pass).
+    const { tmp, demFile } = setup(
+      { wayElevations: { 1: {}, 2: {} } },
+      { wayGeometries: { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [] } },
+    );
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn', { minCoverage: -1 })).toBe(true); // 0 lower bound
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn', { minCoverage: 5 })).toBe(false); // 1 upper bound
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('short-circuits the OSM parse when DEM cache producerVersion >= 1.1.0', () => {
+    // Anything produced by dem_producer >= 1.1.0 is by construction in
+    // sync with the current OSM `wayGeometries` shape (the workflow's
+    // DEM cache key already includes the OSM producer version), so the
+    // freshness check should skip the potentially-large OSM parse on
+    // the cache-hit path. We simulate that here by leaving the OSM
+    // file in a state that *would* otherwise mark the cache stale (8 %
+    // coverage) and asserting that the v1.1.0 DEM still passes.
+    const { tmp, demFile } = setup(
+      { producerVersion: '1.1.0', wayElevations: { 1: {} } },
+      { wayGeometries: { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [], 12: [] } },
+    );
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn')).toBe(true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('does NOT short-circuit when DEM cache producerVersion is older than 1.1.0', () => {
+    // Pre-1.1.0 caches must still go through the way-count ratio.
+    const { tmp, demFile } = setup(
+      { producerVersion: '1.0.0', wayElevations: { 1: {} } },
+      { wayGeometries: { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [], 12: [] } },
+    );
+    try {
+      expect(dem._isDemCacheFresh(demFile, tmp, 'bonn')).toBe(false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('dem_producer — computeWaySlopesLocal', () => {

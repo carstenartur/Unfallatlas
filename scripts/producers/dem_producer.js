@@ -820,7 +820,26 @@ function readOsmWaySpans(osmDir, citySlug) {
 }
 
 /**
- * Decide whether an existing on-disk `dem_<slug>.json` is fresh enough
+ * Tiny non-prerelease semver `a >= b` comparator. Splits on `.`, pads
+ * shorter side with zeros, compares numerically. Returns `false` for
+ * non-string / non-numeric inputs (caller treats that as "older").
+ * Intentionally local to dem_producer to avoid pulling in `semver`.
+ */
+function _semverGte(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const pa = a.split('.').map((s) => Number.parseInt(s, 10));
+  const pb = b.split('.').map((s) => Number.parseInt(s, 10));
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const ai = Number.isFinite(pa[i]) ? pa[i] : 0;
+    const bi = Number.isFinite(pb[i]) ? pb[i] : 0;
+    if (ai > bi) return true;
+    if (ai < bi) return false;
+  }
+  return true;
+}
+
+/**
  * to skip the (expensive) per-city regeneration in the resume guard.
  *
  * The on-disk file may have been generated against an older
@@ -839,11 +858,27 @@ function readOsmWaySpans(osmDir, citySlug) {
  * @returns {boolean} true → cache is fresh, false → regenerate
  */
 function _isDemCacheFresh(demFile, osmDir, citySlug, opts) {
-  const minCoverage = (opts && Number.isFinite(opts.minCoverage)) ? opts.minCoverage : 0.5;
+  // Clamp `minCoverage` to [0,1]. Negative values would make any cache
+  // look fresh (>= negative ratio) and >1 values would make every cache
+  // look stale; both would defeat the resume guard. Fall back to the
+  // 50 % default for non-finite or out-of-range inputs.
+  const rawMinCoverage = opts && Number.isFinite(opts.minCoverage) ? opts.minCoverage : 0.5;
+  const minCoverage = Math.max(0, Math.min(1, rawMinCoverage));
   if (!osmDir) return true; // No OSM context to compare against — assume fresh.
   let dem;
   try { dem = JSON.parse(fs.readFileSync(demFile, 'utf8')); }
   catch (_) { return false; } // Unreadable cache → regenerate to repair it.
+  // Fast path: a DEM cache produced by this script's full-network era
+  // (PRODUCER_VERSION >= 1.1.0) is by construction in sync with the
+  // current OSM `wayGeometries` shape, since the workflow's DEM cache
+  // key already includes the OSM producer version (see
+  // `.github/workflows/enrich.yml` + `enrich-matrix.yml`). Skip the
+  // (potentially expensive) `osm_<slug>.json` parse on the common
+  // cache-hit path; only fall through to the way-count ratio when the
+  // DEM file is missing/older than 1.1.0.
+  if (dem && typeof dem.producerVersion === 'string' && _semverGte(dem.producerVersion, '1.1.0')) {
+    return true;
+  }
   const osmFile = path.join(osmDir, `osm_${citySlug}.json`);
   if (!fs.existsSync(osmFile)) return true; // Nothing to compare against.
   let osm;
