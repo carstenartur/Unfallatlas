@@ -75,3 +75,38 @@ export async function setupCDNRoutes(page) {
     });
   }
 }
+
+/**
+ * Wartet auf stabilen Leaflet-Tile-Zustand:
+ * - keine `leaflet-tile-loading`-Tiles mehr
+ * - mindestens ein `leaflet-tile-loaded`-Tile vorhanden
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {number} timeout
+ */
+export async function waitForMapTiles(page, timeout = 15000) {
+  try {
+    await page.waitForFunction(() => {
+      const map = document.querySelector('.leaflet-container');
+      if (!map) return false;
+      const loadingTiles = map.querySelectorAll('img.leaflet-tile-loading').length;
+      const loadedTiles = map.querySelectorAll('img.leaflet-tile-loaded').length;
+      return loadingTiles === 0 && loadedTiles > 0;
+    }, { timeout });
+  } catch (err) {
+    throw new Error(
+      `Leaflet tiles did not reach a stable loaded state within ${timeout}ms: ${err && err.message ? err.message : err}`
+    );
+  }
+  // kurzes Zusatzfenster für finales Paint nach dem letzten Tile-Decode
+  await page.waitForTimeout(250);
+}
+
+/**
+ * Defensiv auf Font-Readiness warten (kein Fehler ohne Font-API)
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function waitForFonts(page) {
+  await page.evaluate(() => (document.fonts && document.fonts.ready) || null);
+}

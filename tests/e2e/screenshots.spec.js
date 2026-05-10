@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupCDNRoutes } from './helpers.js';
+import { setupCDNRoutes, waitForMapTiles, waitForFonts } from './helpers.js';
 
 /** Hilfsfunktion: Seite mit URL-Parametern laden und auf Datenladen warten */
 async function loadPage(page, params = '') {
@@ -36,12 +36,16 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
 
   test('01 Startansicht', async ({ page }) => {
     await loadPage(page);
+    await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/01-startansicht.png', fullPage: true });
   });
 
   test('02 Stadtauswahl', async ({ page }) => {
     await loadPage(page);
     await waitForCities(page);
+    await waitForFonts(page);
     const panel = page.locator('#panel');
     await panel.screenshot({ path: 'docs/screenshots/02-stadtauswahl.png' });
   });
@@ -57,12 +61,15 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     if (!(await gkfz.isChecked())) await gkfz.click();
     const son = page.locator('#incSon');
     if (!(await son.isChecked())) await son.click();
+    await waitForFonts(page);
     const panel = page.locator('#panel');
     await panel.screenshot({ path: 'docs/screenshots/03-filter.png' });
   });
 
   test('04 Cluster-Ansicht', async ({ page }) => {
     await loadPage(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.locator('#map').screenshot({ path: 'docs/screenshots/04-cluster-ansicht.png' });
   });
 
@@ -72,16 +79,20 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await loadPage(page, '?city=Bonn&showHeatmap=1&showCluster=0');
     await waitForCities(page);
     await waitForData(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.locator('#map').screenshot({ path: 'docs/screenshots/05-heatmap-ansicht.png' });
   });
 
   test('06 Legende', async ({ page }) => {
     await loadPage(page);
+    await waitForMapTiles(page);
     await page.locator('#legendBtn').click();
     await page.waitForFunction(() => {
       const el = document.querySelector('#legendBox');
       return el && window.getComputedStyle(el).display !== 'none';
     });
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/06-legende.png', fullPage: true });
   });
 
@@ -96,6 +107,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       return prog && prog.textContent.includes('Fertig');
     }, { timeout: 30000 });
     await page.waitForTimeout(1000);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/07-export-modal.png', fullPage: true });
   });
 
@@ -103,6 +116,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await loadPage(page);
     await page.locator('#hFrom').fill('6');
     await page.locator('#hTo').fill('18');
+    await waitForFonts(page);
     const panel = page.locator('#panel');
     await panel.screenshot({ path: 'docs/screenshots/08-stundenfilter.png' });
   });
@@ -118,6 +132,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       '&centerLat=50.7330&centerLon=7.0950&zoom=15' +
       '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
     await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/09-bereich-markieren.png', fullPage: true });
   });
 
@@ -129,6 +145,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
       '&centerLat=50.7350&centerLon=7.1000&zoom=14');
     await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/10-auto-fahrrad-und.png', fullPage: true });
   });
 
@@ -140,6 +158,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
       '&centerLat=50.7350&centerLon=7.1000&zoom=13');
     await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/11-fahrrad-alleinunfaelle.png', fullPage: true });
   });
 
@@ -151,6 +171,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
       '&centerLat=50.7350&centerLon=7.0950&zoom=16');
     await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/12-poi-schulen-kitas.png', fullPage: true });
   });
 
@@ -163,6 +185,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       '&centerLat=50.7326&centerLon=7.0963&zoom=16' +
       '&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010');
     await waitForCities(page);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/13-bonn-hbf-radunfaelle.png', fullPage: true });
   });
 
@@ -183,6 +207,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       return prog && prog.textContent.includes('Fertig');
     }, { timeout: 30000 });
     await page.waitForTimeout(1000);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/14-export-filterkontext.png', fullPage: true });
   });
 
@@ -209,6 +235,8 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await modal.evaluate((el, pos) => el.scrollTo({ top: pos, behavior: 'instant' }),
       Math.round(scrollHeight * 0.3));
     await page.waitForTimeout(500);
+    await waitForMapTiles(page);
+    await waitForFonts(page);
     await page.screenshot({ path: 'docs/screenshots/16-antrag-inhalt.png', fullPage: false });
   });
 });
