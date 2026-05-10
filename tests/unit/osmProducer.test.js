@@ -59,6 +59,72 @@ describe('osm_producer — bboxFromFeatureCollection', () => {
     });
     expect(osm.padBbox(null)).toBeNull();
   });
+
+  test('outlierClipPercentile=0 (default) preserves classic min/max behaviour', () => {
+    const features = [pt(1, 7.0, 50.0), pt(2, 7.5, 50.5), pt(3, 99, 99)];
+    const b = osm.bboxFromFeatureCollection(fc(features));
+    expect(b).toEqual({ minLat: 50.0, minLon: 7.0, maxLat: 99, maxLon: 99 });
+  });
+
+  test('outlierClipPercentile clips a single distant outlier on a large dataset', () => {
+    // 200 points clustered in a small Dresden-sized window plus one stray point
+    // that — with the classic min/max bbox — would inflate the area ~100×.
+    const features = [];
+    for (let i = 0; i < 200; i++) {
+      const lat = 51.04 + (i % 10) * 0.01; // 51.04 .. 51.13
+      const lon = 13.70 + Math.floor(i / 10) * 0.01; // 13.70 .. 13.89
+      features.push(pt(i, lon, lat));
+    }
+    features.push(pt(999, 8.41, 49.01)); // stray, ~400 km southwest
+    const raw     = osm.bboxFromFeatureCollection(fc(features));
+    const clipped = osm.bboxFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 });
+    expect(raw.minLat).toBeCloseTo(49.01);
+    expect(raw.minLon).toBeCloseTo(8.41);
+    // The clip should drop the outlier and keep the city footprint.
+    expect(clipped.minLat).toBeGreaterThanOrEqual(51.04);
+    expect(clipped.maxLat).toBeLessThanOrEqual(51.14);
+    expect(clipped.minLon).toBeGreaterThanOrEqual(13.70);
+    expect(clipped.maxLon).toBeLessThanOrEqual(13.90);
+  });
+
+  test('outlierClipPercentile is a no-op on tiny inputs (under outlierClipMinSamples)', () => {
+    const features = [pt(1, 7.0, 50.0), pt(2, 7.5, 50.5), pt(3, 8.0, 51.0)];
+    const b = osm.bboxFromFeatureCollection(fc(features), {
+      outlierClipPercentile: 0.005,
+    });
+    expect(b).toEqual({ minLat: 50.0, minLon: 7.0, maxLat: 51.0, maxLon: 8.0 });
+  });
+
+  test('bboxStatsFromFeatureCollection returns raw + clipped from a single pass', () => {
+    const features = [];
+    for (let i = 0; i < 200; i++) {
+      features.push(pt(i, 13.70 + (i % 20) * 0.01, 51.04 + Math.floor(i / 20) * 0.01));
+    }
+    features.push(pt(999, 8.41, 49.01));
+    const stats = osm.bboxStatsFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 });
+    expect(stats.n).toBe(201);
+    expect(stats.raw.minLat).toBeCloseTo(49.01);
+    expect(stats.raw.minLon).toBeCloseTo(8.41);
+    expect(stats.clipped.minLat).toBeGreaterThanOrEqual(51.04);
+    expect(stats.clipped.minLon).toBeGreaterThanOrEqual(13.70);
+    // raw and clipped must be distinct objects when clipping kicks in
+    // (the produceCity warning relies on `stats.raw !== stats.clipped`).
+    expect(stats.clipped).not.toBe(stats.raw);
+  });
+
+  test('bboxStatsFromFeatureCollection: clipped === raw when clipping is disabled or too few samples', () => {
+    const features = [pt(1, 7.0, 50.0), pt(2, 7.5, 50.5), pt(3, 8.0, 51.0)];
+    const noOpts   = osm.bboxStatsFromFeatureCollection(fc(features));
+    const tooSmall = osm.bboxStatsFromFeatureCollection(fc(features), { outlierClipPercentile: 0.005 });
+    expect(noOpts.clipped).toBe(noOpts.raw);
+    expect(tooSmall.clipped).toBe(tooSmall.raw);
+    expect(noOpts.raw).toEqual({ minLat: 50.0, minLon: 7.0, maxLat: 51.0, maxLon: 8.0 });
+  });
+
+  test('bboxStatsFromFeatureCollection: empty / null input → null bboxes, n=0', () => {
+    expect(osm.bboxStatsFromFeatureCollection(null)).toEqual({ raw: null, clipped: null, n: 0 });
+    expect(osm.bboxStatsFromFeatureCollection(fc([]))).toEqual({ raw: null, clipped: null, n: 0 });
+  });
 });
 
 describe('osm_producer — buildOverpassQuery', () => {

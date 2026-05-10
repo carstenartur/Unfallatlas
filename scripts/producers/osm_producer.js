@@ -85,6 +85,20 @@ const MAX_TILE_DEPTH = 4;    // per-tile recursion limit: one leaf can become 4^
 // of the published Unfallatlas coordinates (~10-20 m).
 const DEFAULT_MAX_SNAP_DISTANCE_M = 50;
 
+// Outlier-resistant bbox defaults. A single stray point (e.g. a row whose
+// coordinates accidentally landed in another city) can balloon the raw
+// min/max bbox by an order of magnitude — the resulting Overpass query then
+// returns a multi-hundred-MB response that exceeds V8's string limit and
+// blows the producer up with an OOM (see workflow run 25617630656). Clipping
+// to the inner 99 % of the lat/lon distribution removes such outliers while
+// keeping the real city footprint intact (the surrounding `padBbox` margin
+// still absorbs near-edge points).
+const DEFAULT_BBOX_OUTLIER_CLIP = 0.005;
+// Don't apply the percentile clip when there are too few points to estimate
+// a stable percentile — small fixtures used by unit tests should keep the
+// classic min/max behaviour.
+const DEFAULT_BBOX_OUTLIER_MIN_SAMPLES = 50;
+
 // ---------------------------------------------------------------------------
 // City list / slugging — kept independent of `scripts/enrich_geojson.js`'s
 // internals to avoid a circular dependency, but identical in behaviour.
@@ -114,12 +128,38 @@ function readCitiesTxt(repoRoot) {
 // ---------------------------------------------------------------------------
 
 /**
- * Compute the lat/lon bounding box of all Point features in a
- * GeoJSON FeatureCollection. Returns null if there are no usable
- * coordinates.
+ * Single-pass computation of both the raw min/max bbox and (optionally)
+ * the percentile-clipped bbox of all Point features in a GeoJSON
+ * FeatureCollection. Returns `{ raw, clipped, n }`; `raw`/`clipped` are
+ * null when there are no usable coordinates. When percentile clipping
+ * is disabled (or the sample size is below the min-samples threshold)
+ * `clipped === raw` and no per-coordinate arrays are allocated, so the
+ * default path stays a streaming min/max with O(1) extra memory.
+ *
+ * Options:
+ *   outlierClipPercentile  — when > 0 (and < 0.5), clip the bbox to the
+ *     [p, 1-p] percentile range of lat/lon (computed independently).
+ *     Default 0 → classic min/max only.
+ *   outlierClipMinSamples  — minimum number of valid points required
+ *     before percentile clipping is applied. Default 50 — small inputs
+ *     (e.g. unit-test fixtures) always fall back to min/max.
  */
-function bboxFromFeatureCollection(fc) {
-  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) return null;
+function bboxStatsFromFeatureCollection(fc, opts) {
+  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) {
+    return { raw: null, clipped: null, n: 0 };
+  }
+  const o = opts || {};
+  const p = Number.isFinite(o.outlierClipPercentile) ? o.outlierClipPercentile : 0;
+  const minSamples = Number.isFinite(o.outlierClipMinSamples)
+    ? o.outlierClipMinSamples
+    : DEFAULT_BBOX_OUTLIER_MIN_SAMPLES;
+  // Only allocate per-coordinate arrays when percentile clipping is
+  // actually requested — otherwise we keep the historical streaming
+  // O(1)-memory min/max behaviour.
+  const wantClip = p > 0 && p < 0.5;
+  const lats = wantClip ? [] : null;
+  const lons = wantClip ? [] : null;
+
   let minLat = Infinity, maxLat = -Infinity;
   let minLon = Infinity, maxLon = -Infinity;
   let n = 0;
@@ -132,10 +172,41 @@ function bboxFromFeatureCollection(fc) {
     if (lat > maxLat) maxLat = lat;
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
+    if (wantClip) { lats.push(lat); lons.push(lon); }
     n++;
   }
-  if (n === 0) return null;
-  return { minLat, minLon, maxLat, maxLon };
+  if (n === 0) return { raw: null, clipped: null, n: 0 };
+
+  const raw = { minLat, minLon, maxLat, maxLon };
+  let clipped = raw;
+  if (wantClip && n >= minSamples) {
+    lats.sort((a, b) => a - b);
+    lons.sort((a, b) => a - b);
+    // Drop the bottom and top percentile of samples symmetrically.
+    // Using `n` (not n-1) keeps the dropped count consistent across
+    // input sizes (e.g. for n=200, p=0.005 → drop index 0 and 199).
+    // Both indices are clamped to a valid, non-empty range.
+    const loIdx = Math.max(0, Math.min(n - 1, Math.floor(n * p)));
+    const hiIdx = Math.max(loIdx, Math.min(n - 1, Math.ceil(n * (1 - p)) - 1));
+    clipped = {
+      minLat: lats[loIdx],
+      minLon: lons[loIdx],
+      maxLat: lats[hiIdx],
+      maxLon: lons[hiIdx],
+    };
+  }
+  return { raw, clipped, n };
+}
+
+/**
+ * Compute the lat/lon bounding box of all Point features in a
+ * GeoJSON FeatureCollection. Returns null if there are no usable
+ * coordinates. See `bboxStatsFromFeatureCollection` for the option
+ * shape; this thin wrapper returns the clipped bbox (or raw min/max
+ * when no clipping is requested).
+ */
+function bboxFromFeatureCollection(fc, opts) {
+  return bboxStatsFromFeatureCollection(fc, opts).clipped;
 }
 
 /**
@@ -593,9 +664,35 @@ async function produceCity(repoRoot, citySlug, opts) {
   } catch (e) {
     return { citySlug, skipped: true, reason: `invalid input geojson: ${e.message}` };
   }
-  const bbox = padBbox(bboxFromFeatureCollection(fc), o.bboxMarginDeg);
+  // Compute the city bbox with outlier-resistant clipping enabled by
+  // default. A single stray coordinate (e.g. Dresden in workflow run
+  // 25617630656 had one row near Karlsruhe) would otherwise inflate the
+  // bbox by ~10× and trigger an OOM in the Overpass response handling.
+  // `bboxStatsFromFeatureCollection` computes raw + clipped in a single
+  // scan, so we avoid double-iterating the (potentially large) feature list.
+  const clipPercentile = Number.isFinite(o.bboxOutlierClipPercentile)
+    ? o.bboxOutlierClipPercentile
+    : DEFAULT_BBOX_OUTLIER_CLIP;
+  const stats = bboxStatsFromFeatureCollection(fc, {
+    outlierClipPercentile: clipPercentile,
+    outlierClipMinSamples: o.bboxOutlierMinSamples,
+  });
+  const bbox = padBbox(stats.clipped, o.bboxMarginDeg);
   if (!bbox) {
     return { citySlug, skipped: true, reason: 'no usable coordinates' };
+  }
+  // Surface significant outlier clipping so data-quality issues stay visible
+  // even though we no longer crash on them.
+  if (stats.raw && stats.clipped && stats.raw !== stats.clipped) {
+    const rawSpan  = Math.max(stats.raw.maxLat - stats.raw.minLat, stats.raw.maxLon - stats.raw.minLon);
+    const clipSpan = Math.max(stats.clipped.maxLat - stats.clipped.minLat, stats.clipped.maxLon - stats.clipped.minLon);
+    if (rawSpan > 0 && clipSpan > 0 && rawSpan / clipSpan >= 2) {
+      console.warn(
+        `[osm-producer] ${citySlug}: clipped outlier bbox ` +
+        `(raw ${rawSpan.toFixed(3)}° → clipped ${clipSpan.toFixed(3)}°, ` +
+        `factor ${(rawSpan / clipSpan).toFixed(1)}×). Investigate stray coordinates in input geojson.`
+      );
+    }
   }
 
   const fetchFn = o.fetchOverpass || ((q) => fetchOverpass(q, {
@@ -728,6 +825,7 @@ function parseArgs(argv) {
     maxDistanceM: DEFAULT_MAX_SNAP_DISTANCE_M,
     interCityDelayMs: DEFAULT_INTER_CITY_DELAY_MS,
     interTileDelayMs: DEFAULT_INTER_TILE_DELAY_MS,
+    bboxOutlierClipPercentile: DEFAULT_BBOX_OUTLIER_CLIP,
     json: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -737,6 +835,7 @@ function parseArgs(argv) {
     else if (a === '--max-distance') opts.maxDistanceM = Number(argv[++i]);
     else if (a === '--delay')        opts.interCityDelayMs = Number(argv[++i]);
     else if (a === '--tile-delay')   opts.interTileDelayMs = Number(argv[++i]);
+    else if (a === '--bbox-outlier-clip') opts.bboxOutlierClipPercentile = Number(argv[++i]);
     else if (a === '--force')        opts.force = true;
     else if (a === '--json')         opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
@@ -756,6 +855,10 @@ function printHelp() {
   --max-distance <m>     max snap distance for accident → way (default: ${DEFAULT_MAX_SNAP_DISTANCE_M})
   --delay <ms>           politeness delay between cities (default: ${DEFAULT_INTER_CITY_DELAY_MS})
   --tile-delay <ms>      politeness delay between tile requests (default: ${DEFAULT_INTER_TILE_DELAY_MS})
+  --bbox-outlier-clip <p> clip the city bbox to the [p, 1-p] percentile range
+                         of accident coordinates so a single stray point does
+                         not balloon the Overpass query area (default: ${DEFAULT_BBOX_OUTLIER_CLIP};
+                         set to 0 to disable and use the raw min/max bbox)
   --force                re-fetch every city even if osm_<slug>.json
                          already exists in the output directory
                          (default: resume — skip cities whose output
@@ -830,9 +933,12 @@ module.exports = {
   MIN_TILE_DEG,
   MAX_TILE_DEPTH,
   DEFAULT_INTER_TILE_DELAY_MS,
+  DEFAULT_BBOX_OUTLIER_CLIP,
+  DEFAULT_BBOX_OUTLIER_MIN_SAMPLES,
   slugCity,
   readCitiesTxt,
   bboxFromFeatureCollection,
+  bboxStatsFromFeatureCollection,
   padBbox,
   buildOverpassQuery,
   parseOverpassResponse,

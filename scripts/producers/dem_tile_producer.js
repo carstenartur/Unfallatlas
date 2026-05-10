@@ -83,10 +83,30 @@ function tilesForBbox(bbox) {
 // Bounding-box helpers (local copy — keeps this script self-contained)
 // ---------------------------------------------------------------------------
 
-function bboxFromFeatureCollection(fc) {
-  if (!fc || !Array.isArray(fc.features)) return null;
+// Outlier-resistant bbox defaults — see osm_producer.js for rationale.
+// A single stray accident coordinate would otherwise expand the SRTM tile
+// download set across multiple unrelated regions.
+const DEFAULT_BBOX_OUTLIER_CLIP = 0.005;
+const DEFAULT_BBOX_OUTLIER_MIN_SAMPLES = 50;
+
+function bboxStatsFromFeatureCollection(fc, opts) {
+  if (!fc || !Array.isArray(fc.features) || fc.features.length === 0) {
+    return { raw: null, clipped: null, n: 0 };
+  }
+  const o = opts || {};
+  const p = Number.isFinite(o.outlierClipPercentile) ? o.outlierClipPercentile : 0;
+  const minSamples = Number.isFinite(o.outlierClipMinSamples)
+    ? o.outlierClipMinSamples
+    : DEFAULT_BBOX_OUTLIER_MIN_SAMPLES;
+  // Only allocate per-coordinate arrays when percentile clipping is
+  // actually requested — otherwise we keep streaming O(1)-memory min/max.
+  const wantClip = p > 0 && p < 0.5;
+  const lats = wantClip ? [] : null;
+  const lons = wantClip ? [] : null;
+
   let minLat = Infinity, maxLat = -Infinity;
   let minLon = Infinity, maxLon = -Infinity;
+  let n = 0;
   for (const f of fc.features) {
     const c = f && f.geometry && f.geometry.coordinates;
     if (!Array.isArray(c) || c.length < 2) continue;
@@ -96,9 +116,31 @@ function bboxFromFeatureCollection(fc) {
     if (lat > maxLat) maxLat = lat;
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
+    if (wantClip) { lats.push(lat); lons.push(lon); }
+    n++;
   }
-  if (!Number.isFinite(minLat)) return null;
-  return { minLat, maxLat, minLon, maxLon };
+  if (n === 0) return { raw: null, clipped: null, n: 0 };
+
+  const raw = { minLat, maxLat, minLon, maxLon };
+  let clipped = raw;
+  if (wantClip && n >= minSamples) {
+    lats.sort((a, b) => a - b);
+    lons.sort((a, b) => a - b);
+    // Symmetric clip; both indices clamped to a valid, non-empty range.
+    const loIdx = Math.max(0, Math.min(n - 1, Math.floor(n * p)));
+    const hiIdx = Math.max(loIdx, Math.min(n - 1, Math.ceil(n * (1 - p)) - 1));
+    clipped = {
+      minLat: lats[loIdx],
+      maxLat: lats[hiIdx],
+      minLon: lons[loIdx],
+      maxLon: lons[hiIdx],
+    };
+  }
+  return { raw, clipped, n };
+}
+
+function bboxFromFeatureCollection(fc, opts) {
+  return bboxStatsFromFeatureCollection(fc, opts).clipped;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,7 +280,12 @@ async function downloadTilesForCities(repoRoot, citySlugs, tilesDir, opts) {
       if (!o.silent) console.warn(`[dem-tile-producer] ${slug}: invalid geojson, skipping`);
       continue;
     }
-    const bbox = bboxFromFeatureCollection(fc);
+    const bbox = bboxFromFeatureCollection(fc, {
+      outlierClipPercentile: Number.isFinite(o.bboxOutlierClipPercentile)
+        ? o.bboxOutlierClipPercentile
+        : DEFAULT_BBOX_OUTLIER_CLIP,
+      outlierClipMinSamples: o.bboxOutlierMinSamples,
+    });
     if (!bbox) {
       if (!o.silent) console.warn(`[dem-tile-producer] ${slug}: no usable coordinates, skipping`);
       continue;
@@ -274,6 +321,7 @@ function parseArgs(argv) {
     cities: [],
     outDir: process.env.ENRICH_DEM_TILES_DIR || '.enrichment-cache/dem-tiles',
     force: false,
+    bboxOutlierClipPercentile: DEFAULT_BBOX_OUTLIER_CLIP,
     json: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -281,6 +329,7 @@ function parseArgs(argv) {
     if (a === '--city')          opts.cities.push(argv[++i]);
     else if (a === '--out-dir')  opts.outDir = argv[++i];
     else if (a === '--force')    opts.force = true;
+    else if (a === '--bbox-outlier-clip') opts.bboxOutlierClipPercentile = Number(argv[++i]);
     else if (a === '--json')     opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a.startsWith('--')) console.warn(`[dem-tile-producer] unknown flag ignored: ${a}`);
@@ -297,6 +346,11 @@ function printHelp() {
   --out-dir <path> tile output directory (default: $ENRICH_DEM_TILES_DIR
                    or .enrichment-cache/dem-tiles)
   --force          re-download even if the tile file already exists
+  --bbox-outlier-clip <p>
+                   clip the city bbox to the [p, 1-p] percentile range of
+                   accident coordinates so a single stray point does not
+                   inflate the SRTM tile-download set (default: ${DEFAULT_BBOX_OUTLIER_CLIP};
+                   set to 0 to disable and use the raw min/max bbox)
   --json           emit machine-readable summary
 
 Tiles are downloaded from the AWS Open Data SRTM HTTPS mirror:
@@ -324,6 +378,7 @@ async function main(argv) {
 
   const summary = await downloadTilesForCities(repoRoot, citySlugs, opts.outDir, {
     force: opts.force,
+    bboxOutlierClipPercentile: opts.bboxOutlierClipPercentile,
     silent: opts.json,
   });
 
@@ -351,6 +406,7 @@ module.exports = {
   tileName,
   tilesForBbox,
   bboxFromFeatureCollection,
+  bboxStatsFromFeatureCollection,
   slugCity,
   readCitiesTxt,
   downloadTile,
