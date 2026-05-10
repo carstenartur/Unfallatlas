@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "braunschweig",
-  "generatedAt": "2026-05-10T05:32:54.206Z",
+  "generatedAt": "2026-05-10T07:46:45.982Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

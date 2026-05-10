@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "essen",
-  "generatedAt": "2026-05-10T05:33:09.093Z",
+  "generatedAt": "2026-05-10T07:47:03.225Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "berlin",
-  "generatedAt": "2026-05-10T05:32:18.425Z",
+  "generatedAt": "2026-05-10T07:46:04.781Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

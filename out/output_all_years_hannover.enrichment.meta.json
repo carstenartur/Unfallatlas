@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "hannover",
-  "generatedAt": "2026-05-10T05:32:09.509Z",
+  "generatedAt": "2026-05-10T07:45:55.152Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

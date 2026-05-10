@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "muenchen",
-  "generatedAt": "2026-05-10T05:32:39.752Z",
+  "generatedAt": "2026-05-10T07:46:29.084Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

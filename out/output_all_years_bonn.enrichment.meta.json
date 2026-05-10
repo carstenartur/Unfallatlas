@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bonn",
-  "generatedAt": "2026-05-10T05:32:11.953Z",
+  "generatedAt": "2026-05-10T07:45:57.906Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

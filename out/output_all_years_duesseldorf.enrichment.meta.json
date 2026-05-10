@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "duesseldorf",
-  "generatedAt": "2026-05-10T05:32:56.140Z",
+  "generatedAt": "2026-05-10T07:46:48.209Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

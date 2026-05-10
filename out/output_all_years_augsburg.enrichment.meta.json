@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "augsburg",
-  "generatedAt": "2026-05-10T05:33:30.747Z",
+  "generatedAt": "2026-05-10T07:47:28.141Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

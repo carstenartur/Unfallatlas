@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "dresden",
-  "generatedAt": "2026-05-10T05:33:14.982Z",
+  "generatedAt": "2026-05-10T07:47:09.980Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",

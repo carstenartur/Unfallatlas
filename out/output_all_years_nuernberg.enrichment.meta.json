@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "nuernberg",
-  "generatedAt": "2026-05-10T05:33:18.233Z",
+  "generatedAt": "2026-05-10T07:47:13.710Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
