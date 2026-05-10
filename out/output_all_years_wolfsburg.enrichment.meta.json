@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "wolfsburg",
-  "generatedAt": "2026-05-09T06:06:51.005Z",
+  "generatedAt": "2026-05-10T05:32:58.376Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 2211,
-    "matchedToWay": 2211,
+    "matchedToWay": 2203,
     "withElevation": 2211,
-    "withTrafficProxy": 2065,
-    "ways": 1276
+    "withTrafficProxy": 2058,
+    "ways": 1265,
+    "wayGeometries": 1265,
+    "fullWays": 22186,
+    "contextTiles": 45
   },
   "dictFields": [
     "highway",

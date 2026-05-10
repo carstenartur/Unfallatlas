@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bielefeld",
-  "generatedAt": "2026-05-09T06:06:50.071Z",
+  "generatedAt": "2026-05-10T05:32:51.857Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 5892,
-    "matchedToWay": 5892,
+    "matchedToWay": 5868,
     "withElevation": 5892,
-    "withTrafficProxy": 5681,
-    "ways": 2910
+    "withTrafficProxy": 5658,
+    "ways": 2888,
+    "wayGeometries": 2888,
+    "fullWays": 54647,
+    "contextTiles": 55
   },
   "dictFields": [
     "highway",

@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bonn",
-  "generatedAt": "2026-05-09T06:06:40.970Z",
+  "generatedAt": "2026-05-10T05:32:11.953Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 7387,
-    "matchedToWay": 7387,
+    "matchedToWay": 7373,
     "withElevation": 7387,
-    "withTrafficProxy": 6916,
-    "ways": 3485
+    "withTrafficProxy": 6917,
+    "ways": 3472,
+    "wayGeometries": 3472,
+    "fullWays": 43246,
+    "contextTiles": 30
   },
   "dictFields": [
     "highway",

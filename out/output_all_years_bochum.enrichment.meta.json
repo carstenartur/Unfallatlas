@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bochum",
-  "generatedAt": "2026-05-09T06:06:55.377Z",
+  "generatedAt": "2026-05-10T05:33:21.960Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 5596,
-    "matchedToWay": 5596,
+    "matchedToWay": 5589,
     "withElevation": 5596,
     "withTrafficProxy": 5292,
-    "ways": 3119
+    "ways": 3109,
+    "wayGeometries": 3109,
+    "fullWays": 78603,
+    "contextTiles": 35
   },
   "dictFields": [
     "highway",

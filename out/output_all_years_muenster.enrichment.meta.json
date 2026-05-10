@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "muenster",
-  "generatedAt": "2026-05-09T06:06:55.807Z",
+  "generatedAt": "2026-05-10T05:33:25.720Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 7060,
-    "matchedToWay": 7060,
+    "matchedToWay": 7005,
     "withElevation": 7060,
-    "withTrafficProxy": 6708,
-    "ways": 3189
+    "withTrafficProxy": 6652,
+    "ways": 3144,
+    "wayGeometries": 3144,
+    "fullWays": 40121,
+    "contextTiles": 51
   },
   "dictFields": [
     "highway",

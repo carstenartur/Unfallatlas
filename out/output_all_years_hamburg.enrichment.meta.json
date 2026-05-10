@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "hamburg",
-  "generatedAt": "2026-05-09T06:06:45.833Z",
+  "generatedAt": "2026-05-10T05:32:32.223Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 62327,
-    "matchedToWay": 62320,
+    "matchedToWay": 61607,
     "withElevation": 62327,
-    "withTrafficProxy": 57290,
-    "ways": 20706
+    "withTrafficProxy": 56730,
+    "ways": 20290,
+    "wayGeometries": 20290,
+    "fullWays": 216215,
+    "contextTiles": 136
   },
   "dictFields": [
     "highway",

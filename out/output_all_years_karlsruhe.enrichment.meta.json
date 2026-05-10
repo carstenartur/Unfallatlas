@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "karlsruhe",
-  "generatedAt": "2026-05-09T06:06:56.123Z",
+  "generatedAt": "2026-05-10T05:33:27.295Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 10138,
-    "matchedToWay": 10138,
+    "matchedToWay": 10102,
     "withElevation": 10138,
-    "withTrafficProxy": 9518,
-    "ways": 4489
+    "withTrafficProxy": 9496,
+    "ways": 4455,
+    "wayGeometries": 4455,
+    "fullWays": 52420,
+    "contextTiles": 34
   },
   "dictFields": [
     "highway",

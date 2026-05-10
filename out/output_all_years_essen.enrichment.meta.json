@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "essen",
-  "generatedAt": "2026-05-09T06:06:52.769Z",
+  "generatedAt": "2026-05-10T05:33:09.093Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 9815,
-    "matchedToWay": 9815,
+    "matchedToWay": 9767,
     "withElevation": 9815,
-    "withTrafficProxy": 9551,
-    "ways": 4102
+    "withTrafficProxy": 9523,
+    "ways": 4063,
+    "wayGeometries": 4063,
+    "fullWays": 86908,
+    "contextTiles": 49
   },
   "dictFields": [
     "highway",

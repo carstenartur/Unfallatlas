@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "frankfurt_am_main",
-  "generatedAt": "2026-05-09T06:06:49.644Z",
+  "generatedAt": "2026-05-10T05:32:49.010Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 22500,
-    "matchedToWay": 22500,
+    "matchedToWay": 22350,
     "withElevation": 22500,
-    "withTrafficProxy": 20712,
-    "ways": 8549
+    "withTrafficProxy": 20646,
+    "ways": 8433,
+    "wayGeometries": 8433,
+    "fullWays": 95204,
+    "contextTiles": 61
   },
   "dictFields": [
     "highway",

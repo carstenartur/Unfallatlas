@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "duesseldorf",
-  "generatedAt": "2026-05-09T06:06:50.771Z",
+  "generatedAt": "2026-05-10T05:32:56.140Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 13490,
-    "matchedToWay": 13490,
+    "matchedToWay": 13462,
     "withElevation": 13490,
-    "withTrafficProxy": 12865,
-    "ways": 5741
+    "withTrafficProxy": 12846,
+    "ways": 5710,
+    "wayGeometries": 5710,
+    "fullWays": 89566,
+    "contextTiles": 54
   },
   "dictFields": [
     "highway",

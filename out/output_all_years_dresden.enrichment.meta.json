@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "dresden",
-  "generatedAt": "2026-05-09T06:06:54.064Z",
+  "generatedAt": "2026-05-10T05:33:14.982Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 18935,
-    "matchedToWay": 18928,
+    "matchedToWay": 18780,
     "withElevation": 18935,
-    "withTrafficProxy": 18255,
-    "ways": 6418
+    "withTrafficProxy": 18141,
+    "ways": 6332,
+    "wayGeometries": 6332,
+    "fullWays": 101322,
+    "contextTiles": 64
   },
   "dictFields": [
     "highway",

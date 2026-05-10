@@ -2,27 +2,34 @@
   "schemaVersion": 1,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "koeln",
-  "generatedAt": "2026-05-09T06:06:48.782Z",
+  "generatedAt": "2026-05-10T05:32:45.071Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
-      "extractDate": "2026-05-09"
+      "producerVersion": "1.2.0",
+      "extractDate": "2026-05-10",
+      "coverage": "full"
     },
     "dem": {
       "source": "SRTM Local Tiles",
+      "producerVersion": null,
       "resolutionM": 30
     },
     "traffic": {
       "source": "OSM-highway-proxy",
+      "producerVersion": "1.0.0",
       "datasetVersion": "1.0.0"
     }
   },
   "counts": {
     "features": 26198,
-    "matchedToWay": 26198,
+    "matchedToWay": 26008,
     "withElevation": 26198,
-    "withTrafficProxy": 25224,
-    "ways": 9605
+    "withTrafficProxy": 25050,
+    "ways": 9483,
+    "wayGeometries": 9483,
+    "fullWays": 111601,
+    "contextTiles": 71
   },
   "dictFields": [
     "highway",
