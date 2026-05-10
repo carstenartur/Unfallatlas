@@ -825,11 +825,12 @@ function readOsmWaySpans(osmDir, citySlug) {
  *
  * The on-disk file may have been generated against an older
  * `osm_<slug>.json` whose `wayGeometries` only contained the matched
- * (accident-snapped) ways — that's the pre-PRODUCER_VERSION 1.2.0
- * world. Since the v3 OSM producer now ships the **full** city-bbox
- * network, a stale matched-only DEM cache covers <10 % of the current
- * way count and would silently leave the v3 slope context layer
- * mostly grey (and trip `scripts/check-context-datasets.js`).
+ * (accident-snapped) ways — that's the pre-1.2.0 OSM-producer world.
+ * Since the v3 OSM producer (PRODUCER_VERSION 1.2.0+ in
+ * `osm_producer.js`) now ships the **full** city-bbox network, a
+ * stale matched-only DEM cache covers <10 % of the current way count
+ * and would silently leave the v3 slope context layer mostly grey
+ * (and trip `scripts/check-context-datasets.js`).
  *
  * @param {string} demFile  absolute path to the existing dem_<slug>.json
  * @param {string|null} osmDir  directory holding osm_<slug>.json, or null
@@ -1036,11 +1037,11 @@ async function produceCity(repoRoot, citySlug, opts) {
     const existingOut = path.join(outDirEarly, `dem_${citySlug}.json`);
     if (fs.existsSync(existingOut)) {
       // Freshness check: a `dem_<slug>.json` left over from before
-      // OSM PRODUCER_VERSION 1.2.0 (matched-only ways) covers only a
-      // small fraction of the current full-network `wayGeometries`.
-      // Re-using such a cache would silently leave the v3 slope
-      // context layer mostly grey and trip the coverage gate in
-      // `scripts/check-context-datasets.js`. Treat materially
+      // the OSM producer's v1.2.0 release (matched-only ways) covers
+      // only a small fraction of the current full-network
+      // `wayGeometries`. Re-using such a cache would silently leave
+      // the v3 slope context layer mostly grey and trip the coverage
+      // gate in `scripts/check-context-datasets.js`. Treat materially
       // undercovered DEM caches as stale and regenerate.
       if (_isDemCacheFresh(existingOut, osmDir, citySlug)) {
         return { citySlug, skipped: true, reason: 'already cached', outFile: existingOut };
