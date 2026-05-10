@@ -267,7 +267,11 @@ function main(argv) {
   const repoRoot = (argv && argv[0]) ? path.resolve(argv[0]) : REPO_ROOT_DEFAULT;
   const result = validateAll(repoRoot);
   // Always print the per-city report so CI logs are self-explanatory.
-  console.log(_formatReport(result));
+  // Route to stderr on failure so CI tooling that greps stdout vs.
+  // stderr (and the documented contract above) sees violations on
+  // stderr, while a clean run prints to stdout.
+  const sink = result.summary.failed > 0 ? console.error : console.log;
+  sink(_formatReport(result));
   if (result.summary.failed > 0) {
     process.exitCode = 1;
   }

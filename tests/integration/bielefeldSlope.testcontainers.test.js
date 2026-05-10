@@ -72,14 +72,7 @@ function dockerLikelyAvailable() {
   try { return fs.existsSync('/var/run/docker.sock'); } catch (_) { return false; }
 }
 
-const SUITE_DESCRIBE = dockerLikelyAvailable() ? describe : describe.skip;
-if (SUITE_DESCRIBE === describe.skip) {
-  // eslint-disable-next-line no-console
-  console.warn(
-    '[bielefeldSlope.testcontainers] Skipping suite — no Docker socket and DOCKER_HOST unset. ' +
-    'Set RUN_TESTCONTAINERS=1 to force.'
-  );
-}
+const SUITE_DESCRIBE_DOCKER_OK = dockerLikelyAvailable();
 
 // Lazy-require so the module load never crashes on machines without
 // `@playwright/test` installed (the test would still skip cleanly via
@@ -93,21 +86,30 @@ function loadChromium() {
   }
 }
 
-async function tryLaunchBrowser() {
-  const chromium = loadChromium();
-  if (!chromium) return { browser: null, reason: '@playwright/test not installed' };
-  try {
-    const browser = await chromium.launch({ headless: true, timeout: BROWSER_LAUNCH_TIMEOUT_MS });
-    return { browser, reason: null };
-  } catch (err) {
-    return { browser: null, reason: err && err.message ? err.message : String(err) };
-  }
+// Decide at definition time whether the suite can possibly run. Both
+// Docker AND `@playwright/test` must be present; otherwise Jest would
+// either fail confusingly later or — worse — silently pass an early
+// return inside the test body. By gating SUITE_DESCRIBE here we keep
+// the behavior honest: in dev (no Docker / no Playwright) the suite
+// is skipped at the top of the run; in CI, where `RUN_TESTCONTAINERS=1`
+// is set, Docker is required and a missing Playwright is reported by
+// the explicit beforeAll throw below (no silent pass).
+const HAS_CHROMIUM_MODULE = loadChromium() !== null;
+const SUITE_CAN_RUN = SUITE_DESCRIBE_DOCKER_OK && HAS_CHROMIUM_MODULE;
+const SUITE_DESCRIBE = SUITE_CAN_RUN ? describe : describe.skip;
+if (!SUITE_CAN_RUN) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[bielefeldSlope.testcontainers] Skipping suite — ' +
+    (!SUITE_DESCRIBE_DOCKER_OK
+      ? 'no Docker socket and DOCKER_HOST unset. Set RUN_TESTCONTAINERS=1 to force.'
+      : '@playwright/test is not installed.')
+  );
 }
 
 SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () => {
   let handle = null;
   let browser = null;
-  let skipReason = null;
 
   beforeAll(async () => {
     const probe = await isDockerAvailable();
@@ -118,16 +120,12 @@ SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () =
       );
     }
     handle = await startUnfallatlasContainer();
-    const launched = await tryLaunchBrowser();
-    if (!launched.browser) {
-      skipReason = launched.reason;
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[bielefeldSlope.testcontainers] Skipping browser-driven assertions — ${skipReason}.`
-      );
-      return;
-    }
-    browser = launched.browser;
+    // The suite gate already guarantees Playwright is installed.
+    // A launch failure here is a real CI problem (missing Chromium
+    // binary, broken sandbox, etc.) and must surface as a failure
+    // rather than a silent pass.
+    const chromium = loadChromium();
+    browser = await chromium.launch({ headless: true, timeout: BROWSER_LAUNCH_TIMEOUT_MS });
   }, 10 * 60 * 1000);
 
   afterAll(async () => {
@@ -138,17 +136,6 @@ SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () =
   });
 
   it('loads ways_bielefeld.json, a non-empty v3 tile index, ≥1 per-tile payload, and renders a populated slope legend', async () => {
-    if (skipReason) {
-      // The skip reason is already on the console from beforeAll; mark
-      // the test as "todo" by short-circuiting here. We deliberately do
-      // NOT mark it as passed — the calling `it.skip` would also work
-      // but Jest then needs a static `it.skip` call. Instead we throw a
-      // dedicated marker error so CI logs make the skip visible.
-      // eslint-disable-next-line no-console
-      console.warn(`[bielefeldSlope.testcontainers] Test body skipped: ${skipReason}`);
-      return;
-    }
-
     const url = `${handle.baseUrl}/${BIELEFELD_URL}`;
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -172,8 +159,21 @@ SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () =
       }
     });
 
+    // Set up the tile-payload race-tolerant wait BEFORE navigation so
+    // we never miss the first tile fetch (which is debounced behind
+    // moveend/loadAtIdle and may resolve before our `expect` runs).
+    const firstTilePayloadPromise = page.waitForResponse(
+      (resp) => /\/out\/ctxtiles\/bielefeld\/\d+\/\d+\.json(\?|$)/.test(resp.url()),
+      { timeout: ASSERTION_WAIT_MS }
+    );
+
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: PAGE_NAVIGATION_TIMEOUT_MS });
+      // Use 'load' instead of 'networkidle': the map page keeps
+      // background network activity going (tile fetches, retries, idle
+      // callbacks), which makes 'networkidle' flaky. We rely on the
+      // explicit waitForSelector / waitForFunction / waitForResponse
+      // assertions below for deterministic synchronization.
+      await page.goto(url, { waitUntil: 'load', timeout: PAGE_NAVIGATION_TIMEOUT_MS });
 
       // The slope overlay control is built lazily once
       // ctx.contextLayerState resolves (loadAtIdle). Wait for the
@@ -203,9 +203,11 @@ SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () =
       expect(Object.keys(indexBody.dicts).length).toBeGreaterThan(0);
 
       // 3. With mapLayer=slope the loader should have prefetched at
-      //    least one per-tile payload for the current viewport. Wait
-      //    a brief moment for the moveend-driven tile load, then
-      //    assert.
+      //    least one per-tile payload for the current viewport. Await
+      //    the pre-armed waitForResponse promise so we don't race
+      //    against the moveend-debounced tile fetch.
+      const firstTileResp = await firstTilePayloadPromise;
+      expect(firstTileResp.status()).toBe(200);
       await page.waitForFunction(() => {
         return !!document.querySelector('.context-road-legend--slope');
       }, { timeout: ASSERTION_WAIT_MS });
