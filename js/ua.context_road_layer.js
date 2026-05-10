@@ -303,12 +303,15 @@
         // sight-checked in the field. Only wired for the slope kind
         // and only when the caller opts in (URL: ?debugSlope=1). Uses
         // bindTooltip when available; degrades gracefully when the
-        // Leaflet stub under test doesn't provide it.
-        if (kind === 'slope' && o.debug && o.debug.showPercent
-            && typeof line.bindTooltip === 'function') {
-          const rsp = (attrs && Number.isFinite(attrs.road_slope_percent))
-            ? attrs.road_slope_percent : null;
-        if (rsp !== null) {
+        // Leaflet stub under test doesn't provide it. Single flat
+        // guard so the whole block is unambiguously gated on
+        // slope + debug.showPercent + bindTooltip-present + finite %.
+        const rsp = (attrs && Number.isFinite(attrs.road_slope_percent))
+          ? attrs.road_slope_percent : null;
+        if (kind === 'slope'
+            && o.debug && o.debug.showPercent
+            && typeof line.bindTooltip === 'function'
+            && rsp !== null) {
           // bindTooltip itself is feature-detected above; this catch
           // only guards against Leaflet builds that throw on
           // unsupported tooltip *options* (e.g. very old or stripped
@@ -317,7 +320,6 @@
           try {
             line.bindTooltip(`${rsp} %`, { permanent: true, direction: 'center', className: 'context-road-debug-tooltip' });
           } catch (_) { /* tooltip options unsupported in this Leaflet build */ }
-        }
         }
         group.addLayer(line);
       } catch (_) { /* malformed line — skip */ }

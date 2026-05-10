@@ -88,7 +88,7 @@ function validateAll(repoRoot, opts = {}) {
   if (!fs.existsSync(outDir)) {
     return {
       cities,
-      summary: { total: 0, ok: 0, failed: 0, skippedNoSlope: 0, skippedNoBounds: 0 },
+      summary: { total: 0, ok: 0, failed: 0, skippedNoSlope: 0, usedDefaultBounds: 0 },
       plausibilityError: plausibility.ok ? undefined : plausibility.error,
     };
   }
@@ -98,7 +98,7 @@ function validateAll(repoRoot, opts = {}) {
     .sort();
 
   let skippedNoSlope = 0;
-  let skippedNoBounds = 0;
+  let usedDefaultBounds = 0;
   for (const metaFile of metaFiles) {
     const m = metaFile.match(/^output_all_years_(.+)\.enrichment\.meta\.json$/);
     if (!m) continue;
@@ -109,20 +109,24 @@ function validateAll(repoRoot, opts = {}) {
       skippedNoSlope++;
       continue;
     }
-    if (result.skip === 'no_bounds') {
-      skippedNoBounds++;
-      cities.push(result);
-      continue;
+    if (result.usedDefault) {
+      // Cities that fall back to `_default` ARE validated — just
+      // against the table-wide default bounds rather than a per-city
+      // entry. Count them in total/ok/failed alongside listed cities;
+      // the `usedDefaultBounds` counter is just an informational
+      // tally so the summary line can highlight that the default was
+      // exercised.
+      usedDefaultBounds++;
     }
     cities.push(result);
   }
 
   const summary = {
-    total: cities.filter(c => c.skip !== 'no_bounds').length,
-    ok: cities.filter(c => c.ok && c.skip !== 'no_bounds').length,
+    total: cities.length,
+    ok: cities.filter(c => c.ok).length,
     failed: cities.filter(c => !c.ok).length,
     skippedNoSlope,
-    skippedNoBounds,
+    usedDefaultBounds,
   };
   return {
     cities,
@@ -182,7 +186,11 @@ function _validateCity(slug, meta, plausibility) {
     verySteepShare,
     flatGentleShare,
     bounds: effective,
-    skip: bounds ? undefined : 'no_bounds',
+    // True when no per-city entry was found and the validator fell
+    // back to `_default`. The city is still validated and counted in
+    // total/ok/failed — this flag is purely informational so callers
+    // can highlight default-bound usage in summaries.
+    usedDefault: !bounds,
   };
 }
 
@@ -200,9 +208,10 @@ function _formatReport(result) {
     lines.push(`! plausibility table problem: ${result.plausibilityError}`);
   }
   for (const c of result.cities) {
-    const tag = c.skip === 'no_bounds'
-      ? '?'
-      : (c.ok ? '✓' : '✗');
+    // No more "?" tag — `_default`-validated cities are first-class
+    // pass/fail results. The fallback is communicated via the inline
+    // warning below.
+    const tag = c.ok ? '✓' : '✗';
     const detail = (typeof c.verySteepShare === 'number')
       ? ` verySteep=${c.verySteepShare}% flatGentle=${c.flatGentleShare}%`
       : '';
@@ -216,7 +225,7 @@ function _formatReport(result) {
     `Summary: ${s.ok}/${s.total} cities OK` +
     (s.failed > 0 ? `, ${s.failed} failed` : '') +
     (s.skippedNoSlope > 0 ? ` (${s.skippedNoSlope} without slope signal)` : '') +
-    (s.skippedNoBounds > 0 ? ` (${s.skippedNoBounds} not in plausibility table — using _default)` : '')
+    (s.usedDefaultBounds > 0 ? ` (${s.usedDefaultBounds} validated against _default — not in plausibility table)` : '')
   );
   return lines.join('\n');
 }

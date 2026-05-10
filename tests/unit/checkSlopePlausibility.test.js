@@ -147,10 +147,15 @@ describe('check-slope-plausibility — validateAll', () => {
       cities: { berlin: { maxVerySteepShare: 5, minFlatGentleShare: 60 } },
     });
     const r = checker.validateAll(root, { plausibilityFile: plausFile });
-    expect(r.summary.skippedNoBounds).toBe(1);
+    // _default-validated cities now count toward total/ok (no more
+    // "0/0 cities OK" while a city silently passes via the default).
+    expect(r.summary.usedDefaultBounds).toBe(1);
+    expect(r.summary.total).toBe(1);
+    expect(r.summary.ok).toBe(1);
     const c = r.cities.find(x => x.slug === 'newcity');
     expect(c.warnings.join(' ')).toMatch(/not listed/);
     expect(c.ok).toBe(true);                           // _default is permissive
+    expect(c.usedDefault).toBe(true);
   });
 
   test('falls back to _default and STILL fails when share exceeds the _default bound', () => {
