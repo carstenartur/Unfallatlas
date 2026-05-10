@@ -54,6 +54,41 @@ describe('enrich_geojson — pure helpers', () => {
     expect(enrich.slugCity('Frankfurt am Main')).toBe('frankfurt_am_main');
     expect(enrich.slugCity('Nürnberg')).toBe('nuernberg');
   });
+
+  // -----------------------------------------------------------------
+  // PR-bielefeld-slope: per-city slope-quality summary written into
+  // the enrichment meta sidecar so the build-time validator can gate
+  // on coverage + endpoint-noise tell-tales.
+  // -----------------------------------------------------------------
+
+  test('summarizeSlopeQuality counts coverage, classes, and missing reasons', () => {
+    const fullWays = [
+      { id: 'W1', attrs: { road_slope_percent: 1.0, road_slope_class: 'flat',     road_slope_method: 'median_segments', road_slope_confidence: 'high' } },
+      { id: 'W2', attrs: { road_slope_percent: 3.0, road_slope_class: 'gentle',   road_slope_method: 'median_segments', road_slope_confidence: 'high' } },
+      { id: 'W3', attrs: { road_slope_percent: 7.0, road_slope_class: 'steep',    road_slope_method: 'median_segments', road_slope_confidence: 'medium' } },
+      { id: 'W4', attrs: { road_slope_percent: 15,  road_slope_class: 'very_steep', road_slope_method: 'median_segments', road_slope_confidence: 'low' } },
+      { id: 'W5', attrs: { road_slope_missing_reason: 'way_too_short' } },
+      { id: 'W6', attrs: { road_slope_missing_reason: 'dem_no_data' } },
+    ];
+    const s = enrich.summarizeSlopeQuality(fullWays);
+    expect(s.totalWays).toBe(6);
+    expect(s.withSlope).toBe(4);
+    expect(s.noSlopeSignal).toBe(2);
+    expect(s.coveragePercent).toBeCloseTo(66.7, 1);
+    expect(s.classCounts).toEqual({ flat: 1, gentle: 1, moderate: 0, steep: 1, very_steep: 1 });
+    expect(s.missingReasonCounts).toEqual({ way_too_short: 1, dem_no_data: 1 });
+    expect(s.methodCounts.median_segments).toBe(4);
+    expect(s.confidenceCounts).toEqual({ high: 2, medium: 1, low: 1 });
+    expect(s.veryStepShare).toBe(25);
+  });
+
+  test('summarizeSlopeQuality returns zero-counts on empty input', () => {
+    const s = enrich.summarizeSlopeQuality([]);
+    expect(s.totalWays).toBe(0);
+    expect(s.withSlope).toBe(0);
+    expect(s.coveragePercent).toBe(0);
+    expect(s.veryStepShare).toBe(0);
+  });
 });
 
 describe('enrich_geojson — enrichCity', () => {

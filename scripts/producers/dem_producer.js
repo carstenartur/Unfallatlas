@@ -686,13 +686,92 @@ async function fetchWithRetry(fetchImpl, url, opts) {
 // Per-way slope from OSM data
 // ---------------------------------------------------------------------------
 
+// Multi-sample slope along the OSM polyline: spacing between elevation
+// probes (~one DEM cell at SRTM1 resolution).
+const WAY_SLOPE_SAMPLE_STEP_M = 30;
+// Per-segment minimum horizontal distance: anything shorter is
+// dominated by SRTM quantisation noise (one cell ≈ ±5 m elevation
+// resolution), so a tiny segment can otherwise produce a >50 % slope
+// for a flat residential street. Re-used by the legacy endpoint path.
+const WAY_SLOPE_MIN_SEGMENT_M = 5;
+// Whole-way minimum length: ways shorter than this cannot give a
+// meaningful slope at SRTM resolution and are tagged `way_too_short`.
+const WAY_SLOPE_MIN_TOTAL_M = 10;
+
+function _haversineMeters(aLat, aLon, bLat, bLon) {
+  const dLatM = (bLat - aLat) * M_PER_DEG_LAT;
+  const cosLat = Math.cos((aLat + bLat) / 2 * Math.PI / 180);
+  const dLonM = (bLon - aLon) * M_PER_DEG_LAT * cosLat;
+  return Math.sqrt(dLatM * dLatM + dLonM * dLonM);
+}
+
+function _median(values) {
+  const v = values.slice().sort((a, b) => a - b);
+  const n = v.length;
+  if (n === 0) return undefined;
+  if (n % 2) return v[(n - 1) / 2];
+  return (v[n / 2 - 1] + v[n / 2]) / 2;
+}
+
 /**
- * Read `osm_<slug>.json` (when present) and return one sample-pair
- * per way: { wayId, start: {lat,lon}, end: {lat,lon} }. Returns []
- * when no OSM data is available — the per-way slope pass is then
- * skipped silently. The OSM producer writes a top-level
- * `wayGeometries` table holding each matched way's endpoints; older
- * caches without that field cause this function to return [].
+ * Walk a polyline and emit equally-spaced sample points (cumulative
+ * spacing ≈ `stepM`). Always includes the first and last vertex so
+ * the way's full extent is covered. Pure / synchronous so callers
+ * can hand it any sampler.
+ */
+function _sampleAlongPolyline(points, stepM) {
+  if (!Array.isArray(points) || points.length < 2) return [];
+  const step = Math.max(1, stepM);
+  const out = [{ lat: points[0].lat, lon: points[0].lon, distM: 0 }];
+  let cum = 0;       // cumulative distance from start
+  let nextAt = step; // next desired sample distance
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    const segLen = _haversineMeters(a.lat, a.lon, b.lat, b.lon);
+    if (!(segLen > 0)) continue;
+    while (nextAt <= cum + segLen) {
+      const t = (nextAt - cum) / segLen;
+      out.push({
+        lat: a.lat + (b.lat - a.lat) * t,
+        lon: a.lon + (b.lon - a.lon) * t,
+        distM: nextAt,
+      });
+      nextAt += step;
+    }
+    cum += segLen;
+  }
+  // Always anchor the final vertex so the way's total length is honoured.
+  const last = out[out.length - 1];
+  if (last.distM < cum - 0.5) {
+    const tail = points[points.length - 1];
+    out.push({ lat: tail.lat, lon: tail.lon, distM: cum });
+  }
+  return out;
+}
+
+/**
+ * Confidence label given how many segments contributed to the slope
+ * estimate and the way's total length.
+ */
+function _slopeConfidence(sampleCount, totalLengthM, resolutionM) {
+  if (!Number.isFinite(sampleCount) || sampleCount <= 0) return undefined;
+  const res = Number.isFinite(resolutionM) && resolutionM > 0 ? resolutionM : 30;
+  // Need several DEM-cell-sized segments and a way that genuinely spans
+  // multiple cells before we trust the result.
+  if (sampleCount >= 5 && totalLengthM >= res * 4) return 'high';
+  if (sampleCount >= 2 && totalLengthM >= res * 2) return 'medium';
+  return 'low';
+}
+
+/**
+ * Read `osm_<slug>.json` (when present) and return one entry per way:
+ * `{ wayId, points: [{lat,lon}, ...], start, end }`. The full polyline
+ * is preserved so the per-way slope pass can sample elevation along the
+ * actual road geometry (not just the endpoints, which are dominated by
+ * SRTM noise on short residential streets and produce wildly different
+ * slope estimates for nearby parallel roads).
+ *
+ * `start`/`end` are kept for callers that only need the endpoints.
  */
 function readOsmWaySpans(osmDir, citySlug) {
   if (!osmDir) return [];
@@ -707,21 +786,104 @@ function readOsmWaySpans(osmDir, citySlug) {
     for (const wayId of Object.keys(wg)) {
       const g = wg[wayId];
       if (!Array.isArray(g) || g.length < 2) continue;
-      const a = g[0], b = g[g.length - 1];
-      if (Number.isFinite(a?.lat) && Number.isFinite(a?.lon)
-       && Number.isFinite(b?.lat) && Number.isFinite(b?.lon)) {
-        out.push({ wayId, start: a, end: b });
+      const points = [];
+      for (const p of g) {
+        if (Number.isFinite(p?.lat) && Number.isFinite(p?.lon)) {
+          points.push({ lat: p.lat, lon: p.lon });
+        }
       }
+      if (points.length < 2) continue;
+      out.push({
+        wayId,
+        points,
+        start: points[0],
+        end:   points[points.length - 1],
+      });
     }
   }
   return out;
 }
 
 /**
- * Compute mean grade (percent) for a set of way spans, given centre
- * elevations at each endpoint. Returns a `{ wayId: { road_slope_percent } }`
- * lookup table. Spans below 5 m horizontal length are skipped — they
- * would amplify SRTM noise out of all proportion to the actual slope.
+ * Compute robust per-way slope from the full OSM polyline by sampling
+ * elevation every ~30 m and taking the **median** of the resulting
+ * per-segment grades. Median (rather than endpoint difference) is the
+ * fix for the "nearby parallel streets show very different slope"
+ * regression: a single noisy DEM lookup at one endpoint can flip the
+ * sign or magnitude of the endpoint slope, but cannot move the median
+ * of a handful of segment slopes by much.
+ *
+ * @param {Array<{wayId, points:Array<{lat,lon}>}>} spans  full polylines
+ * @param {(lat:number, lon:number) => number|undefined}  sampler
+ * @param {{resolutionM?: number}} [opts]
+ * @returns {Object<string, object>}  per-wayId result row
+ *
+ * Per-way row fields (all optional; kept compact):
+ *   - road_slope_percent          signed median slope (percent grade)
+ *   - road_slope_max_abs_percent  diagnostic, worst absolute segment slope
+ *   - road_slope_method           'median_segments' when slope is set
+ *   - road_slope_sample_count     number of segments that contributed
+ *   - road_slope_confidence       'high' | 'medium' | 'low'
+ *   - road_slope_missing_reason   set ONLY when road_slope_percent is omitted
+ *                                 ('no_geometry' | 'way_too_short' |
+ *                                  'segments_too_short' | 'dem_no_data')
+ */
+function computeWaySlopesLocal(spans, sampler, opts) {
+  const o = opts || {};
+  const stepM = Number.isFinite(o.stepM) ? o.stepM : WAY_SLOPE_SAMPLE_STEP_M;
+  const out = {};
+  for (const span of spans) {
+    const samples = _sampleAlongPolyline(span.points, stepM);
+    if (samples.length < 2) {
+      out[span.wayId] = { road_slope_missing_reason: 'no_geometry' };
+      continue;
+    }
+    const totalLengthM = samples[samples.length - 1].distM;
+    if (totalLengthM < WAY_SLOPE_MIN_TOTAL_M) {
+      out[span.wayId] = { road_slope_missing_reason: 'way_too_short' };
+      continue;
+    }
+    const elevs = samples.map(s => sampler(s.lat, s.lon));
+    const segSlopes = [];
+    let maxAbs = 0;
+    for (let i = 1; i < samples.length; i++) {
+      const eA = elevs[i - 1], eB = elevs[i];
+      if (!Number.isFinite(eA) || !Number.isFinite(eB)) continue;
+      const dist = samples[i].distM - samples[i - 1].distM;
+      if (dist < WAY_SLOPE_MIN_SEGMENT_M) continue;
+      const s = ((eB - eA) / dist) * 100;
+      segSlopes.push(s);
+      const a = Math.abs(s);
+      if (a > maxAbs) maxAbs = a;
+    }
+    if (segSlopes.length === 0) {
+      // Discriminate "DEM gave us no usable elevations" vs "every
+      // segment below the noise threshold" so the validator can act.
+      const anyValid = elevs.some(Number.isFinite);
+      out[span.wayId] = {
+        road_slope_missing_reason: anyValid ? 'segments_too_short' : 'dem_no_data',
+      };
+      continue;
+    }
+    const med = _median(segSlopes);
+    out[span.wayId] = {
+      road_slope_percent:         round1(med),
+      road_slope_max_abs_percent: round1(maxAbs),
+      road_slope_method:          'median_segments',
+      road_slope_sample_count:    segSlopes.length,
+      road_slope_confidence:      _slopeConfidence(segSlopes.length, totalLengthM, o.resolutionM),
+    };
+  }
+  return out;
+}
+
+/**
+ * Endpoint-only slope (legacy, used by the HTTP `--use-api` path where
+ * we deliberately do not sample 30+ extra elevations per way to stay
+ * inside Open-Meteo's free-tier rate limit). Returns the same row
+ * shape as `computeWaySlopesLocal` — `road_slope_method: 'endpoint'`,
+ * confidence `'low'`, and `road_slope_missing_reason` set when the
+ * span is unusable. Spans below 5 m horizontal length are skipped.
  */
 function computeWayElevations(spans, startElevs, endElevs) {
   const out = {};
@@ -729,13 +891,15 @@ function computeWayElevations(spans, startElevs, endElevs) {
     const span = spans[i];
     const eA = startElevs[i], eB = endElevs[i];
     if (!Number.isFinite(eA) || !Number.isFinite(eB)) continue;
-    const dLatM = (span.end.lat - span.start.lat) * M_PER_DEG_LAT;
-    const cosLat = Math.cos((span.start.lat + span.end.lat) / 2 * Math.PI / 180);
-    const dLonM = (span.end.lon - span.start.lon) * M_PER_DEG_LAT * cosLat;
-    const dist  = Math.sqrt(dLatM * dLatM + dLonM * dLonM);
-    if (dist < 5) continue;
+    const dist = _haversineMeters(span.start.lat, span.start.lon, span.end.lat, span.end.lon);
+    if (dist < WAY_SLOPE_MIN_SEGMENT_M) continue;
     const slope = ((eB - eA) / dist) * 100;
-    out[span.wayId] = { road_slope_percent: round1(slope) };
+    out[span.wayId] = {
+      road_slope_percent:      round1(slope),
+      road_slope_method:       'endpoint',
+      road_slope_sample_count: 1,
+      road_slope_confidence:   'low',
+    };
   }
   return out;
 }
@@ -846,12 +1010,15 @@ async function produceCity(repoRoot, citySlug, opts) {
       sampler.sampleElevationWithSlope(pt.lat, pt.lon),
     );
 
-    // Per-way slope via local tile lookup at way endpoints.
+    // Per-way slope via local tile lookup along the *full* polyline
+    // (median of segment slopes, robust to single-cell SRTM noise).
     let wayElevations = {};
     if (spans.length > 0) {
-      const startElevs = spans.map(s => sampler.sampleElevation(s.start.lat, s.start.lon));
-      const endElevs   = spans.map(s => sampler.sampleElevation(s.end.lat, s.end.lon));
-      wayElevations = computeWayElevations(spans, startElevs, endElevs);
+      wayElevations = computeWaySlopesLocal(
+        spans,
+        (lat, lon) => sampler.sampleElevation(lat, lon),
+        { resolutionM: LOCAL_RESOLUTION_M },
+      );
     }
 
     const dataset = buildDemDatasetLocal(points, results, {
@@ -876,14 +1043,17 @@ async function produceCity(repoRoot, citySlug, opts) {
       localTiles: true,
       counts: {
         uniquePoints:  points.length,
+        // Count only ways that ended up with a slope, not the
+        // missing-reason placeholders.
+        ways: Object.values(wayElevations).filter(w => Number.isFinite(w?.road_slope_percent)).length,
         withElevation,
-        ways: Object.keys(wayElevations).length,
-        // Local path: 1 lookup per unique point (no 5-sample expansion),
-        // 2 lookups per way span (start + end endpoint).
+        // Local path: 1 lookup per unique point (no 5-sample expansion).
+        // Multi-sample slope walks the polyline so the per-way sample
+        // count varies by way length; report the upper bound for logs.
         pointSamplesUnique: points.length,
         pointSamplesTotal:  points.length,
-        waySamplesUnique:   spans.length * 2,
-        waySamplesTotal:    spans.length * 2,
+        waySamplesUnique:   spans.length,
+        waySamplesTotal:    spans.length,
       },
       outFile,
     };
@@ -961,7 +1131,7 @@ async function produceCity(repoRoot, citySlug, opts) {
     counts: {
       uniquePoints: points.length,
       withElevation: dataset.points.length,
-      ways:          Object.keys(wayElevations).length,
+      ways: Object.values(wayElevations).filter(w => Number.isFinite(w?.road_slope_percent)).length,
       // How many distinct elevation samples we actually fetched after
       // dedup, vs. the naive 5×uniquePoints + 2×ways. Useful for
       // confirming the dedup ratio in CI logs.
@@ -1166,6 +1336,10 @@ module.exports = {
   buildSampleSet,
   computeSlopePercent,
   computeWayElevations,
+  computeWaySlopesLocal,
+  WAY_SLOPE_SAMPLE_STEP_M,
+  WAY_SLOPE_MIN_SEGMENT_M,
+  WAY_SLOPE_MIN_TOTAL_M,
   readOsmWaySpans,
   fetchElevations,
   fetchElevationsDedup,

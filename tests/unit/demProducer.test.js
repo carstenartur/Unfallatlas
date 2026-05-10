@@ -144,7 +144,147 @@ describe('dem_producer — buildDemDataset', () => {
   });
 });
 
-describe('dem_producer — computeWayElevations', () => {
+describe('dem_producer — readOsmWaySpans', () => {
+  test('reads endpoints from wayGeometries', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    try {
+      fs.writeFileSync(path.join(tmp, 'osm_bonn.json'), JSON.stringify({
+        ways: { '1': { highway: 'residential' } },
+        wayGeometries: {
+          '1': [{ lat: 50, lon: 7 }, { lat: 50.001, lon: 7.001 }],
+        },
+        index: [],
+      }));
+      const spans = dem.readOsmWaySpans(tmp, 'bonn');
+      expect(spans).toHaveLength(1);
+      expect(spans[0].wayId).toBe('1');
+      expect(spans[0].start).toEqual({ lat: 50, lon: 7 });
+      expect(spans[0].end).toEqual({ lat: 50.001, lon: 7.001 });
+      // PR-bielefeld-slope: full polyline must now be preserved so
+      // computeWaySlopesLocal can median-aggregate per-segment slopes.
+      expect(Array.isArray(spans[0].points)).toBe(true);
+      expect(spans[0].points).toEqual([{ lat: 50, lon: 7 }, { lat: 50.001, lon: 7.001 }]);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('preserves intermediate vertices, not just the endpoints', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    try {
+      const polyline = [
+        { lat: 50.000, lon: 7.000 },
+        { lat: 50.001, lon: 7.000 },
+        { lat: 50.002, lon: 7.000 },
+        { lat: 50.003, lon: 7.000 },
+      ];
+      fs.writeFileSync(path.join(tmp, 'osm_bonn.json'), JSON.stringify({
+        ways: { '1': { highway: 'residential' } },
+        wayGeometries: { '1': polyline },
+        index: [],
+      }));
+      const spans = dem.readOsmWaySpans(tmp, 'bonn');
+      expect(spans[0].points).toEqual(polyline);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('returns [] when the file or wayGeometries are missing', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
+    try {
+      expect(dem.readOsmWaySpans(tmp, 'bonn')).toEqual([]);
+      // File without wayGeometries (older OSM cache).
+      fs.writeFileSync(path.join(tmp, 'osm_bonn.json'), JSON.stringify({ ways: {}, index: [] }));
+      expect(dem.readOsmWaySpans(tmp, 'bonn')).toEqual([]);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeWaySlopesLocal — robust per-way slope from full polyline
+// (PR-bielefeld-slope: replaces the endpoint-only slope which produced
+// wildly different values for adjacent parallel residential streets).
+// ---------------------------------------------------------------------------
+
+describe('dem_producer — computeWaySlopesLocal', () => {
+  // Build a north-south polyline at 50°N with `vertices` evenly spaced
+  // every ~`stepM` metres, then apply a sampler that returns the
+  // requested elevation at each lookup.
+  const M_PER_DEG_LAT_TEST = 111_320;
+  function nsPolyline(vertices, stepM) {
+    const dLat = stepM / M_PER_DEG_LAT_TEST;
+    const out = [];
+    for (let i = 0; i < vertices; i++) out.push({ lat: 50 + i * dLat, lon: 7 });
+    return out;
+  }
+
+  test('uses median of segment slopes — robust to a single noisy DEM cell', () => {
+    // 600 m way, sampled every 30 m → 20+ segments. One segment has a
+    // wildly noisy elevation (would dominate an endpoint-only slope).
+    const polyline = nsPolyline(21, 30); // 20 vertices × 30 m = 600 m
+    const spans = [{ wayId: 'W1', points: polyline, start: polyline[0], end: polyline[polyline.length - 1] }];
+    // True elevation rises 1 m every 30 m (≈ 3.3 % grade), but pretend
+    // one mid-way DEM lookup returns +30 m of noise.
+    const sampler = (lat /* lon */) => {
+      // Map back to vertex index via lat delta.
+      const dLat = lat - 50;
+      const stepM = 30;
+      const distM = dLat * M_PER_DEG_LAT_TEST;
+      const idx   = Math.round(distM / stepM);
+      let elev = 100 + idx * 1;
+      if (idx === 10) elev += 30;       // single wildly-wrong cell
+      return elev;
+    };
+    const out = dem.computeWaySlopesLocal(spans, sampler, { resolutionM: 30 });
+    const r = out['W1'];
+    expect(r.road_slope_method).toBe('median_segments');
+    // Median is unaffected by the single huge spike → ≈ 3.3 % grade.
+    expect(r.road_slope_percent).toBeGreaterThan(2);
+    expect(r.road_slope_percent).toBeLessThan(5);
+    // Diagnostic: max abs reflects the noisy segment.
+    expect(r.road_slope_max_abs_percent).toBeGreaterThan(50);
+    expect(r.road_slope_sample_count).toBeGreaterThanOrEqual(5);
+    expect(r.road_slope_confidence).toBe('high');
+    expect(r.road_slope_missing_reason).toBeUndefined();
+  });
+
+  test('flags way_too_short for ways below the minimum total length', () => {
+    const tiny = [{ lat: 50, lon: 7 }, { lat: 50.00005, lon: 7 }]; // ~5.5 m
+    const spans = [{ wayId: 'W2', points: tiny, start: tiny[0], end: tiny[1] }];
+    const out = dem.computeWaySlopesLocal(spans, () => 100);
+    expect(out['W2']).toEqual({ road_slope_missing_reason: 'way_too_short' });
+  });
+
+  test('flags no_geometry when polyline has fewer than 2 points', () => {
+    const spans = [{ wayId: 'W3', points: [{ lat: 50, lon: 7 }] }];
+    const out = dem.computeWaySlopesLocal(spans, () => 100);
+    expect(out['W3']).toEqual({ road_slope_missing_reason: 'no_geometry' });
+  });
+
+  test('flags dem_no_data when sampler returns no usable elevations', () => {
+    const polyline = nsPolyline(5, 30);
+    const spans = [{ wayId: 'W4', points: polyline, start: polyline[0], end: polyline[polyline.length - 1] }];
+    const out = dem.computeWaySlopesLocal(spans, () => undefined);
+    expect(out['W4'].road_slope_percent).toBeUndefined();
+    expect(out['W4'].road_slope_missing_reason).toBe('dem_no_data');
+  });
+
+  test('low confidence when only one segment contributes', () => {
+    // Just enough length to clear the way_too_short threshold but only
+    // one usable segment after the sampling step (1 vertex pair, ≥ step).
+    const polyline = nsPolyline(2, 30); // 30 m, one segment
+    const spans = [{ wayId: 'W5', points: polyline, start: polyline[0], end: polyline[polyline.length - 1] }];
+    const out = dem.computeWaySlopesLocal(spans, (lat) => 100 + (lat - 50) * 1000);
+    expect(out['W5'].road_slope_method).toBe('median_segments');
+    expect(out['W5'].road_slope_sample_count).toBe(1);
+    expect(['low', 'medium']).toContain(out['W5'].road_slope_confidence);
+  });
+});
+
+describe('dem_producer — computeWayElevations (legacy endpoint path)', () => {
   test('skips spans below 5 m horizontal length', () => {
     const spans = [{
       wayId: '1',
@@ -163,6 +303,10 @@ describe('dem_producer — computeWayElevations', () => {
     // 5 m climb over ~100 m → +5 %
     const out = dem.computeWayElevations(spans, [100], [105]);
     expect(out['1'].road_slope_percent).toBeCloseTo(5, 1);
+    // Endpoint method is now self-describing for the renderer/validator.
+    expect(out['1'].road_slope_method).toBe('endpoint');
+    expect(out['1'].road_slope_sample_count).toBe(1);
+    expect(out['1'].road_slope_confidence).toBe('low');
   });
 
   test('skips spans with missing elevation', () => {
@@ -172,40 +316,6 @@ describe('dem_producer — computeWayElevations', () => {
       end:   { lat: 50.0009, lon: 7.0 },
     }];
     expect(dem.computeWayElevations(spans, [undefined], [105])).toEqual({});
-  });
-});
-
-describe('dem_producer — readOsmWaySpans', () => {
-  test('reads endpoints from wayGeometries', () => {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
-    try {
-      fs.writeFileSync(path.join(tmp, 'osm_bonn.json'), JSON.stringify({
-        ways: { '1': { highway: 'residential' } },
-        wayGeometries: {
-          '1': [{ lat: 50, lon: 7 }, { lat: 50.001, lon: 7.001 }],
-        },
-        index: [],
-      }));
-      const spans = dem.readOsmWaySpans(tmp, 'bonn');
-      expect(spans).toHaveLength(1);
-      expect(spans[0].wayId).toBe('1');
-      expect(spans[0].start).toEqual({ lat: 50, lon: 7 });
-      expect(spans[0].end).toEqual({ lat: 50.001, lon: 7.001 });
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
-    }
-  });
-
-  test('returns [] when the file or wayGeometries are missing', () => {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-prod-'));
-    try {
-      expect(dem.readOsmWaySpans(tmp, 'bonn')).toEqual([]);
-      // File without wayGeometries (older OSM cache).
-      fs.writeFileSync(path.join(tmp, 'osm_bonn.json'), JSON.stringify({ ways: {}, index: [] }));
-      expect(dem.readOsmWaySpans(tmp, 'bonn')).toEqual([]);
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
-    }
   });
 });
 

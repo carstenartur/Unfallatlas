@@ -149,4 +149,92 @@ describe('check-context-datasets', () => {
     expect(r.cities[0].ok).toBe(false);
     expect(r.cities[0].problems.join('\n')).toMatch(/schemaVersion is 2, expected 3/);
   });
+
+  // -----------------------------------------------------------------
+  // Slope-quality gate (PR-bielefeld-slope). When the meta sidecar
+  // carries a `slope` block (written by `summarizeSlopeQuality()` in
+  // scripts/enrich_geojson.js), the validator enforces coverage and
+  // very_steep-share thresholds — both proxies for the actual
+  // observed bug ("nearby parallel streets show wildly different
+  // slope values" → noise-dominated endpoint slopes inflate the
+  // very_steep bucket).
+  // -----------------------------------------------------------------
+
+  function writeGoodCityWithSlope(repoRoot, slug, slope) {
+    writeGoodCity(repoRoot, slug);
+    const metaFile = path.join(repoRoot, 'out', `output_all_years_${slug}.enrichment.meta.json`);
+    const m = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+    m.slope = slope;
+    fs.writeFileSync(metaFile, JSON.stringify(m));
+  }
+
+  test('passes when slope-quality summary is healthy', () => {
+    writeGoodCityWithSlope(tmpRoot, 'goodslope', {
+      totalWays: 100, withSlope: 90, noSlopeSignal: 10,
+      coveragePercent: 90, veryStepShare: 5,
+      classCounts: { flat: 30, gentle: 30, moderate: 20, steep: 8, very_steep: 2 },
+      missingReasonCounts: { way_too_short: 10 },
+      methodCounts: { median_segments: 90 },
+      confidenceCounts: { high: 60, medium: 25, low: 5 },
+    });
+    const r = validateAll(tmpRoot);
+    expect(r.cities[0].ok).toBe(true);
+  });
+
+  test('fails when slope coverage is below the configured threshold', () => {
+    writeGoodCityWithSlope(tmpRoot, 'badcoverage', {
+      totalWays: 100, withSlope: 20, noSlopeSignal: 80,
+      coveragePercent: 20, veryStepShare: 0,
+      classCounts: { flat: 20, gentle: 0, moderate: 0, steep: 0, very_steep: 0 },
+      missingReasonCounts: { dem_no_data: 80 },
+      methodCounts: { median_segments: 20 },
+      confidenceCounts: { high: 20 },
+    });
+    const r = validateAll(tmpRoot);
+    expect(r.cities[0].ok).toBe(false);
+    expect(r.cities[0].problems.join('\n')).toMatch(/slope coverage 20% is below threshold/);
+  });
+
+  test('fails when the very_steep share is unrealistically high (endpoint-noise tell-tale)', () => {
+    writeGoodCityWithSlope(tmpRoot, 'spikes', {
+      totalWays: 100, withSlope: 100, noSlopeSignal: 0,
+      coveragePercent: 100, veryStepShare: 70,
+      classCounts: { flat: 5, gentle: 10, moderate: 10, steep: 5, very_steep: 70 },
+      missingReasonCounts: {},
+      methodCounts: { endpoint: 100 },
+      confidenceCounts: { low: 100 },
+    });
+    const r = validateAll(tmpRoot);
+    expect(r.cities[0].ok).toBe(false);
+    expect(r.cities[0].problems.join('\n')).toMatch(/very_steep share is 70%/);
+  });
+
+  test('honours MIN_SLOPE_COVERAGE_PERCENT env override', () => {
+    writeGoodCityWithSlope(tmpRoot, 'override', {
+      totalWays: 100, withSlope: 30, noSlopeSignal: 70,
+      coveragePercent: 30, veryStepShare: 0,
+      classCounts: { flat: 30, gentle: 0, moderate: 0, steep: 0, very_steep: 0 },
+      missingReasonCounts: { way_too_short: 70 },
+      methodCounts: { median_segments: 30 },
+      confidenceCounts: { high: 30 },
+    });
+    const prev = process.env.MIN_SLOPE_COVERAGE_PERCENT;
+    process.env.MIN_SLOPE_COVERAGE_PERCENT = '20';
+    try {
+      const r = validateAll(tmpRoot);
+      expect(r.cities[0].ok).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.MIN_SLOPE_COVERAGE_PERCENT;
+      else process.env.MIN_SLOPE_COVERAGE_PERCENT = prev;
+    }
+  });
+
+  test('skips slope checks silently when the meta sidecar has no slope block (rollout compat)', () => {
+    // Existing v3 cities written before this PR have no `slope` block.
+    // The validator must not break them — only newly-regenerated cities
+    // get the new gate applied.
+    writeGoodCity(tmpRoot, 'noslope');
+    const r = validateAll(tmpRoot);
+    expect(r.cities[0].ok).toBe(true);
+  });
 });

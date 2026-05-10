@@ -73,6 +73,12 @@ const PER_WAY_FIELDS = [
   'cycleway',
   'osm_incline',
   'road_slope_percent',
+  'road_slope_class',
+  'road_slope_method',
+  'road_slope_sample_count',
+  'road_slope_confidence',
+  'road_slope_max_abs_percent',
+  'road_slope_missing_reason',
   'traffic_volume_value',
   'traffic_volume_unit',
   'traffic_volume_year',
@@ -141,6 +147,68 @@ function classifySlope(percent) {
 
 function classifyTrafficProxy(dtv) {
   return classifyFromThresholds(dtv, TRAFFIC_PROXY_THRESHOLDS);
+}
+
+/**
+ * Summarise the per-way slope signal for the validator gate.
+ *
+ * Iterates the full-network ways assembled for v3 context tiles and
+ * returns a compact report suitable for embedding in the per-city
+ * enrichment meta sidecar:
+ *   - totalWays           how many ways the slope layer can render
+ *   - withSlope           ways with a numeric `road_slope_percent`
+ *   - noSlopeSignal       ways without a slope signal (rendered grey)
+ *   - coveragePercent     `withSlope / totalWays * 100`, 1 dp
+ *   - classCounts         histogram per `road_slope_class`
+ *   - missingReasonCounts histogram per `road_slope_missing_reason`
+ *   - methodCounts        histogram per `road_slope_method`
+ *   - confidenceCounts    histogram per `road_slope_confidence`
+ *   - veryStepShare       fraction of *signal* ways classified
+ *                         `very_steep`; a runaway value here is the
+ *                         most reliable single-number tell-tale that
+ *                         endpoint-noise has crept back in.
+ *
+ * Pure / synchronous; tests can call directly.
+ */
+function summarizeSlopeQuality(fullWays) {
+  const out = {
+    totalWays: 0,
+    withSlope: 0,
+    noSlopeSignal: 0,
+    coveragePercent: 0,
+    classCounts: { flat: 0, gentle: 0, moderate: 0, steep: 0, very_steep: 0 },
+    missingReasonCounts: {},
+    methodCounts: {},
+    confidenceCounts: {},
+    veryStepShare: 0,
+  };
+  if (!Array.isArray(fullWays) || fullWays.length === 0) return out;
+  for (const w of fullWays) {
+    out.totalWays++;
+    const a = (w && w.attrs) || {};
+    if (Number.isFinite(a.road_slope_percent)) {
+      out.withSlope++;
+      const cls = a.road_slope_class || classifySlope(a.road_slope_percent);
+      if (cls && cls in out.classCounts) out.classCounts[cls]++;
+    } else {
+      out.noSlopeSignal++;
+      const r = a.road_slope_missing_reason || 'unknown';
+      out.missingReasonCounts[r] = (out.missingReasonCounts[r] || 0) + 1;
+    }
+    if (a.road_slope_method) {
+      out.methodCounts[a.road_slope_method] = (out.methodCounts[a.road_slope_method] || 0) + 1;
+    }
+    if (a.road_slope_confidence) {
+      out.confidenceCounts[a.road_slope_confidence] = (out.confidenceCounts[a.road_slope_confidence] || 0) + 1;
+    }
+  }
+  out.coveragePercent = out.totalWays > 0
+    ? Math.round((out.withSlope / out.totalWays) * 1000) / 10
+    : 0;
+  out.veryStepShare = out.withSlope > 0
+    ? Math.round((out.classCounts.very_steep / out.withSlope) * 1000) / 10
+    : 0;
+  return out;
 }
 
 function gzippedSize(filePath) {
@@ -680,7 +748,20 @@ function loadDemProvider(citySlug) {
     wayElevation(wayId) {
       const w = data.wayElevations && data.wayElevations[wayId];
       if (!w) return null;
-      return stripUndefined({ road_slope_percent: round1(w.road_slope_percent) });
+      const slope = round1(w.road_slope_percent);
+      // Derive road_slope_class once at enrichment time so the renderer
+      // doesn't need to know the threshold table — and so the validator
+      // can count signal vs no-signal ways without re-classifying.
+      const cls = classifySlope(slope);
+      return stripUndefined({
+        road_slope_percent:         slope,
+        road_slope_max_abs_percent: round1(w.road_slope_max_abs_percent),
+        road_slope_class:           cls,
+        road_slope_method:          w.road_slope_method || undefined,
+        road_slope_sample_count:    Number.isFinite(w.road_slope_sample_count) ? w.road_slope_sample_count : undefined,
+        road_slope_confidence:      w.road_slope_confidence || undefined,
+        road_slope_missing_reason:  (slope == null) ? (w.road_slope_missing_reason || undefined) : undefined,
+      });
     },
   };
 }
@@ -963,6 +1044,13 @@ function enrichCity(geojson, citySlug, opts = {}) {
     }
   }
 
+  // -----------------------------------------------------------------
+  // Slope-quality summary (drives the build-time validator gate so we
+  // never silently deploy a city whose slope context layer is missing
+  // or dominated by SRTM noise on residential streets).
+  // -----------------------------------------------------------------
+  const slopeQuality = summarizeSlopeQuality(fullWays);
+
   const meta = {
     schemaVersion: 3,
     enrichmentScriptVersion: ENRICHMENT_SCRIPT_VERSION,
@@ -983,6 +1071,7 @@ function enrichCity(geojson, citySlug, opts = {}) {
       fullWays: fullWays.length,
     },
     dictFields: Object.keys(dicts),
+    slope: slopeQuality,
   };
 
   return { geojson, ways, geometries, fullWays, meta };
@@ -1219,6 +1308,7 @@ module.exports = {
   slugCity,
   classifySlope,
   classifyTrafficProxy,
+  summarizeSlopeQuality,
   douglasPeucker,
   encodeGeometry,
   // Slippy-tile helpers (PRODUCER_VERSION 1.2.0+, schemaVersion 3).

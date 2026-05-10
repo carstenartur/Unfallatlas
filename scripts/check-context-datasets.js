@@ -38,6 +38,22 @@
  *       schemaVersion === 3
  *       coverage      === 'full'
  *       tileIndexUrl  resolves to the same on-disk index.json
+ *   - The meta sidecar carries a `slope` quality summary written by
+ *       `summarizeSlopeQuality()` (see scripts/enrich_geojson.js):
+ *       slope.classCounts        present + plausible histogram
+ *       slope.noSignalCount      present
+ *       slope.coveragePercent    >= MIN_SLOPE_COVERAGE_PERCENT (default 50)
+ *       slope.veryStepShare      <= MAX_VERY_STEEP_SHARE_PERCENT (default 30)
+ *                                (a runaway `very_steep` share is the
+ *                                 single most reliable tell-tale that
+ *                                 endpoint-noise has crept back in and
+ *                                 produced wildly inconsistent slopes
+ *                                 for adjacent residential streets)
+ *
+ * Both thresholds are configurable via env so a one-off bad-DEM city
+ * can be unblocked without rewriting the script:
+ *   MIN_SLOPE_COVERAGE_PERCENT=30 npm run validate:context-datasets
+ *   MAX_VERY_STEEP_SHARE_PERCENT=50 npm run validate:context-datasets
  *
  * Exit codes
  * ----------
@@ -59,6 +75,20 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO_ROOT_DEFAULT = path.resolve(__dirname, '..');
+
+// Defaults; overridable via env to unblock one-off bad-DEM cities
+// without rewriting the script (see file header).
+const DEFAULT_MIN_SLOPE_COVERAGE_PERCENT = 50;
+const DEFAULT_MAX_VERY_STEEP_SHARE_PERCENT = 30;
+
+function _slopeThresholds() {
+  const min = Number(process.env.MIN_SLOPE_COVERAGE_PERCENT);
+  const max = Number(process.env.MAX_VERY_STEEP_SHARE_PERCENT);
+  return {
+    minCoveragePercent: Number.isFinite(min) ? min : DEFAULT_MIN_SLOPE_COVERAGE_PERCENT,
+    maxVeryStepShare:   Number.isFinite(max) ? max : DEFAULT_MAX_VERY_STEEP_SHARE_PERCENT,
+  };
+}
 
 /**
  * Walk `<repoRoot>/out` and return one validation result per v3 city.
@@ -210,6 +240,37 @@ function _validateV3City(repoRoot, slug, meta) {
           `but meta sidecar tileIndexPath points at ${path.relative(repoRoot, indexAbs)}`
         );
       }
+    }
+  }
+
+  // 4. Slope-quality summary in the meta sidecar (PR-bielefeld-slope).
+  //    Absence of the block is treated as a non-fatal warning so older
+  //    cached cities don't break the gate during the rollout — but
+  //    when present, the thresholds are enforced.
+  const slope = meta.slope;
+  if (slope && typeof slope === 'object') {
+    const t = _slopeThresholds();
+    if (!slope.classCounts || typeof slope.classCounts !== 'object') {
+      problems.push('slope-quality summary is missing `classCounts`');
+    }
+    if (!Number.isFinite(slope.noSlopeSignal) && !Number.isFinite(slope.noSignalCount)) {
+      // Accept both names defensively (script writes `noSlopeSignal`).
+      problems.push('slope-quality summary is missing `noSlopeSignal`');
+    }
+    if (!Number.isFinite(slope.coveragePercent)) {
+      problems.push('slope-quality summary is missing `coveragePercent`');
+    } else if (slope.coveragePercent < t.minCoveragePercent) {
+      problems.push(
+        `slope coverage ${slope.coveragePercent}% is below threshold ${t.minCoveragePercent}% ` +
+        `(set MIN_SLOPE_COVERAGE_PERCENT to override) — slope layer would mostly render in neutral grey`
+      );
+    }
+    if (Number.isFinite(slope.veryStepShare) && slope.veryStepShare > t.maxVeryStepShare) {
+      problems.push(
+        `slope very_steep share is ${slope.veryStepShare}% of signal ways, ` +
+        `above threshold ${t.maxVeryStepShare}% — likely DEM-noise-dominated endpoint slopes ` +
+        `(adjacent parallel streets will look wildly inconsistent in the slope overlay)`
+      );
     }
   }
 
