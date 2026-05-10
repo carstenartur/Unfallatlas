@@ -842,14 +842,41 @@
     const state = ctx.contextLayerState;
     if (!state || !state.geometries) return null;
     try {
+      // PR-E (full-network v3): when the loaded state has tile-based
+      // coverage, only build polylines for the current viewport — the
+      // moveend handler below rebuilds the layer as the user pans.
+      const opts = (state.tileIndex && ctx.map && typeof ctx.map.getBounds === 'function')
+        ? { bounds: ctx.map.getBounds() }
+        : undefined;
       const layer = (kind === 'slope')
-        ? UA.contextRoadLayer.buildSlopeLayer(state)
-        : UA.contextRoadLayer.buildTrafficLayer(state);
+        ? UA.contextRoadLayer.buildSlopeLayer(state, opts)
+        : UA.contextRoadLayer.buildTrafficLayer(state, opts);
       reg.layers[kind] = layer;
       return layer;
     } catch (e) {
       console.warn(`[context-overlay] build "${kind}" failed:`, e);
       return null;
+    }
+  }
+
+  // Internal: rebuild every active overlay LayerGroup in place. Used by
+  // the `moveend` handler so the slope/traffic ramps stay in sync with
+  // the v3 tile data that arrives lazily as the user pans.
+  function _rebuildActiveOverlays(ctx) {
+    const reg = _ensureOverlayRegistry(ctx);
+    if (!ctx.map || !UA.contextRoadLayer) return;
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      if (!reg.active[kind]) continue;
+      // Tear down the previous layer and rebuild against the
+      // (now possibly larger) state.geometries.
+      if (reg.layers[kind] && typeof reg.layers[kind].remove === 'function') {
+        try { reg.layers[kind].remove(); } catch (_) {}
+      }
+      reg.layers[kind] = null;
+      const layer = _buildOverlay(ctx, kind);
+      if (layer && typeof layer.addTo === 'function') {
+        try { layer.addTo(ctx.map); } catch (_) {}
+      }
     }
   }
 
@@ -892,20 +919,94 @@
     }
 
     if (want) {
-      const layer = _buildOverlay(ctx, kind);
-      if (layer && ctx.map && typeof layer.addTo === 'function') {
-        try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
-      }
+      // PR-E: kick off a viewport-bounded tile fetch first so the
+      // initial overlay build sees the data for the current viewport.
+      // Best-effort — falls back silently to whatever's already in
+      // state.geometries (v1/v2 path resolves immediately).
+      _ensureViewportTilesLoaded(ctx).then(() => {
+        const layer = _buildOverlay(ctx, kind);
+        if (layer && ctx.map && typeof layer.addTo === 'function') {
+          try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
+        }
+      });
     } else if (reg.layers[kind] && ctx.map && typeof reg.layers[kind].remove === 'function') {
       try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
     }
     reg.active[kind] = want;
     _syncOverlayCheckbox(reg, kind, want);
     _refreshContextLegend(ctx);
+    // PR-E: install / tear down the moveend handler the first time an
+    // overlay turns on / the last one turns off. Idempotent — the
+    // handler is stored on the registry to enable later removal.
+    _ensureMoveEndHandler(ctx);
     if (typeof UA.syncAllToUrl === 'function') {
       try { UA.syncAllToUrl(ctx); } catch (_) { /* tolerate hydration */ }
     }
   };
+
+  // Internal: kick off a viewport tile fetch and re-render active
+  // overlays once new data arrives. v1/v2 states resolve immediately
+  // and the rebuild is a no-op.
+  function _ensureViewportTilesLoaded(ctx) {
+    const state = ctx.contextLayerState;
+    const cl = UA.contextLayers;
+    if (!state || !ctx.map || !cl || typeof cl.loadTilesForBbox !== 'function') {
+      return Promise.resolve();
+    }
+    let bounds = null;
+    try { bounds = (typeof ctx.map.getBounds === 'function') ? ctx.map.getBounds() : null; }
+    catch (_) { bounds = null; }
+    if (!bounds) return Promise.resolve();
+    const before = state.geometries ? Object.keys(state.geometries).length : 0;
+    return cl.loadTilesForBbox(state, bounds).then(() => {
+      const after = state.geometries ? Object.keys(state.geometries).length : 0;
+      if (after > before) _rebuildActiveOverlays(ctx);
+    }).catch(() => { /* tile fetch failure → fall back to existing data */ });
+  }
+
+  // Internal: install (once) a debounced map.moveend handler that
+  // refreshes the v3 tile data + active overlays for the new viewport.
+  // No-op for v1/v2 states (state.tileIndex absent) so legacy cities
+  // don't pay any cost — viewport-bound rendering and lazy tile fetch
+  // are v3-only concepts.
+  function _ensureMoveEndHandler(ctx) {
+    const reg = _ensureOverlayRegistry(ctx);
+    if (!ctx.map || typeof ctx.map.on !== 'function') return;
+    const state = ctx.contextLayerState;
+    const isV3 = !!(state && state.tileIndex && state._tileCache);
+    const anyActive = CONTEXT_OVERLAY_KINDS.some(k => reg.active[k]);
+    if (!anyActive || !isV3) {
+      if (reg._moveEndHandler) {
+        try { ctx.map.off('moveend', reg._moveEndHandler); } catch (_) {}
+        reg._moveEndHandler = null;
+      }
+      if (reg._moveEndTimer) {
+        try { clearTimeout(reg._moveEndTimer); } catch (_) {}
+        reg._moveEndTimer = null;
+      }
+      return;
+    }
+    if (reg._moveEndHandler) return;
+    const handler = () => {
+      if (reg._moveEndTimer) clearTimeout(reg._moveEndTimer);
+      reg._moveEndTimer = setTimeout(() => {
+        reg._moveEndTimer = null;
+        // Bail out if overlays were turned off (or the city was
+        // swapped to a non-v3 state) while the debounce was pending.
+        const stillActive = CONTEXT_OVERLAY_KINDS.some(k => reg.active[k]);
+        const stillV3 = !!(ctx.contextLayerState && ctx.contextLayerState.tileIndex);
+        if (!stillActive || !stillV3) return;
+        _ensureViewportTilesLoaded(ctx).then(() => {
+          // Always rebuild — even when no new tiles arrived, the
+          // viewport bound used by buildLayer() has changed so the
+          // visible polylines must be re-filtered.
+          _rebuildActiveOverlays(ctx);
+        });
+      }, 250);
+    };
+    ctx.map.on('moveend', handler);
+    reg._moveEndHandler = handler;
+  }
 
   // Internal: mirror `reg.active[kind]` onto the layer-control
   // checkbox without re-triggering its `change` handler. No-op when
@@ -942,7 +1043,24 @@
     const reg  = _ensureOverlayRegistry(ctx);
     const caps = ctx.contextCapabilities || {};
     const state = ctx.contextLayerState;
-    const hasGeom = !!(state && state.geometries && Object.keys(state.geometries).length);
+    // PR-E (full-network v3): a state with `tileIndex` is considered
+    // "ready" even when `state.geometries` is still empty — the per-
+    // tile fetch happens on overlay enable / map move, not at load
+    // time. Without this the v3 envelope would render the permanent
+    // "Layer nicht verfügbar (alte Datenversion)" hint.
+    const hasV3Tiles = !!(state && state.tileIndex);
+    const hasGeom = hasV3Tiles
+      || !!(state && state.geometries && Object.keys(state.geometries).length);
+    // Three-state model for the layer control:
+    //   - state === null            → still loading (loadAtIdle pending)
+    //   - state !== null && hasGeom → ready, checkboxes enabled
+    //   - state !== null && !hasGeom → loaded but no per-way geometries
+    //                                   (legacy/v1 ways file or unsupported
+    //                                   future schema). Overlays cannot be
+    //                                   built — show a non-loading hint
+    //                                   instead of a permanent "(lädt …)".
+    const isLoadingGeom    = (state === null);
+    const geomUnavailable  = (state !== null) && !hasGeom;
 
     // Detach any prior layers + controls so a city switch starts clean.
     for (const kind of CONTEXT_OVERLAY_KINDS) {
@@ -1008,13 +1126,23 @@
       c.appendChild(title);
       c.setAttribute('aria-labelledby', 'context-overlay-control-title');
 
-      // Pending hint — only when capabilities exist but the lazy
-      // geometry load hasn't resolved yet. Disabled checkboxes make
-      // it visually clear that the layers will become available
-      // shortly without losing the user's deep-link intent.
-      if (!hasGeom) {
+      // Pending vs. unavailable hint — the overlay control is built
+      // even for capability-positive cities whose geometry table is
+      // missing (legacy v1 ways file or unsupported future schema),
+      // so we must distinguish the two cases:
+      //   * isLoadingGeom    → "(lädt …)" — transient, will resolve.
+      //   * geomUnavailable  → permanent "Layer nicht verfügbar"
+      //                        hint, no spinner-like wording.
+      if (isLoadingGeom) {
         const hint = document.createElement('div');
         hint.textContent = '(lädt …)';
+        hint.style.fontSize = '11px';
+        hint.style.color    = '#888';
+        hint.style.marginBottom = '4px';
+        c.appendChild(hint);
+      } else if (geomUnavailable) {
+        const hint = document.createElement('div');
+        hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
         hint.style.fontSize = '11px';
         hint.style.color    = '#888';
         hint.style.marginBottom = '4px';
@@ -1025,7 +1153,9 @@
         const id  = 'ctxOverlay_' + kind;
         const row = document.createElement('label');
         row.style.display = 'block';
-        row.style.cursor  = hasGeom ? 'pointer' : 'wait';
+        // Cursor: 'wait' for transient loading, default for permanent
+        // unavailability so it doesn't look like a spinner forever.
+        row.style.cursor  = hasGeom ? 'pointer' : (isLoadingGeom ? 'wait' : 'not-allowed');
         row.htmlFor = id;
         if (!hasGeom) row.style.opacity = '0.6';
         const cb  = document.createElement('input');
@@ -1035,6 +1165,14 @@
         cb.disabled = !hasGeom;
         cb.setAttribute('data-context-overlay', kind);
         cb.setAttribute('aria-label', label);
+        // A11y (item 6, post-PR #261): make the toggles part of the
+        // natural keyboard tab order alongside the existing Leaflet
+        // controls (zoom, attribution), and announce the legend as
+        // their description so screen-reader users get the colour
+        // semantics without having to physically locate the
+        // bottom-left legend.
+        cb.setAttribute('tabindex', '0');
+        cb.setAttribute('aria-describedby', 'context-overlay-legend');
         cb.addEventListener('change', () => {
           UA.setContextOverlayActive(ctx, kind, cb.checked);
         });
@@ -1060,6 +1198,14 @@
       c.style.font        = '11px/1.3 system-ui, sans-serif';
       c.style.maxWidth    = '220px';
       c.style.display     = 'none';
+      // A11y: stable id so the overlay-control checkboxes can point
+      // their `aria-describedby` at the live legend (item 6 of the
+      // post-PR #261 follow-up plan). `region` + label make screen
+      // readers announce it as a meaningful map landmark instead of
+      // an anonymous floating div.
+      c.id = 'context-overlay-legend';
+      c.setAttribute('role', 'region');
+      c.setAttribute('aria-label', 'Legende der Karten-Layer');
       return c;
     };
     legend.addTo(ctx.map);

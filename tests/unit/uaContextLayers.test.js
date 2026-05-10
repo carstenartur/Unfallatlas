@@ -210,4 +210,196 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       UA.contextLayers.clearCache();
     }
   });
+
+  test('exposes SUPPORTED_WAYS_SCHEMA_VERSIONS as a frozen-ish constant covering v1 + v2 + v3', () => {
+    const UA = loadModule();
+    expect(Array.isArray(UA.contextLayers.SUPPORTED_WAYS_SCHEMA_VERSIONS)).toBe(true);
+    expect(UA.contextLayers.SUPPORTED_WAYS_SCHEMA_VERSIONS).toEqual(expect.arrayContaining([1, 2, 3]));
+  });
+
+  test('unknown future schemaVersion (e.g. v9) → state.ways/geometries=null + one console.warn', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    const v9 = {
+      schemaVersion: 9,
+      ways: { 'W1': { highway: 0 } },
+      geometries: { 'W1': [50, 7, 50.001, 7.001] },
+      somethingNew: { foo: 'bar' },
+    };
+    let calls = 0;
+    global.fetch = (url) => {
+      if (url.endsWith('ways_future.json')) return Promise.resolve({ ok: true, json: async () => v9 });
+      return Promise.resolve({ ok: false });
+    };
+    const origWarn = console.warn;
+    const seen = [];
+    console.warn = (...args) => { seen.push(args.join(' ')); calls++; };
+    try {
+      const state = await UA.contextLayers.load({}, 'future');
+      expect(state.ways).toBeNull();
+      expect(state.geometries).toBeNull();
+      // Capability detection downstream sees null/no-fields => hasOsmContext=false.
+      expect(seen.length).toBeGreaterThanOrEqual(1);
+      expect(seen[0]).toMatch(/schemaVersion=9/);
+      expect(seen[0]).toMatch(/SUPPORTED_WAYS_SCHEMA_VERSIONS/);
+
+      // Second load (different city) must warn for that one too, but
+      // a re-load of the same slug must NOT spam the console.
+      const before = calls;
+      // Same slug — cached, no second fetch, no second warn.
+      await UA.contextLayers.load({}, 'future');
+      expect(calls).toBe(before);
+    } finally {
+      console.warn = origWarn;
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // v3 (full-network tile envelope) — see scripts/enrich_geojson.js
+  // ----------------------------------------------------------------------
+
+  test('v3 envelope: load() resolves with coverage/tileIndex; ways/geometries start empty and are populated by loadTilesForBbox', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+
+    const envelope = {
+      schemaVersion: 3,
+      coverage: 'full',
+      tileIndexUrl: 'out/ctxtiles/bonn/index.json',
+    };
+    // Manifest with two tiles; we'll pretend the bounds intersects only one.
+    const manifest = {
+      schemaVersion: 3,
+      z: 13,
+      coverage: 'full',
+      tiles: [
+        { x: 4280, y: 2730, wayCount: 1 },
+        { x: 4290, y: 2730, wayCount: 1 },
+      ],
+      wayIndex: { W1: [4280, 2730], W2: [4290, 2730] },
+      dicts: { highway: ['residential', 'secondary'] },
+    };
+    const tileA = {
+      schemaVersion: 3,
+      ways: { W1: { highway: 0, maxspeed: 30 } },
+      geometries: { W1: [50, 7, 50.001, 7.001] },
+    };
+    const tileB = {
+      schemaVersion: 3,
+      ways: { W2: { highway: 1, maxspeed: 50 } },
+      geometries: { W2: [51, 8, 51.001, 8.001] },
+    };
+    const fetchCalls = [];
+    global.fetch = (url) => {
+      fetchCalls.push(url);
+      if (url.endsWith('ways_bonn.json'))                   return Promise.resolve({ ok: true, json: async () => envelope });
+      if (url.endsWith('ctxtiles/bonn/index.json'))         return Promise.resolve({ ok: true, json: async () => manifest });
+      if (url.endsWith('ctxtiles/bonn/4280/2730.json'))     return Promise.resolve({ ok: true, json: async () => tileA });
+      if (url.endsWith('ctxtiles/bonn/4290/2730.json'))     return Promise.resolve({ ok: true, json: async () => tileB });
+      return Promise.resolve({ ok: false });
+    };
+    try {
+      const state = await UA.contextLayers.load({}, 'Bonn');
+      expect(state.coverage).toBe('full');
+      expect(state.tileIndex).toBeTruthy();
+      expect(state.tileIndex.tiles).toHaveLength(2);
+      // Manifest dicts win over (absent) FC dicts.
+      expect(state.dicts.highway).toEqual(['residential', 'secondary']);
+      // Empty before any tile fetch.
+      expect(Object.keys(state.ways)).toEqual([]);
+      expect(Object.keys(state.geometries)).toEqual([]);
+
+      // Bounds that only covers tile A's lat/lon area.
+      const tileALat = (((1 - Math.log(Math.tan(50 * Math.PI / 180) + 1 / Math.cos(50 * Math.PI / 180)) / Math.PI) / 2) * Math.pow(2, 13));
+      // Easier: pick known tile coords directly via inverse mercator
+      // — the loader uses lonToTileX/latToTileY internally; trust the
+      // manifest filtering to limit fetches to known tiles, and pass
+      // bounds covering only tile A's coordinate range.
+      const xLon = (4280 / Math.pow(2, 13)) * 360 - 180; // NW corner lon of tile A
+      const xLonNext = (4281 / Math.pow(2, 13)) * 360 - 180;
+      const n = Math.PI - (2 * Math.PI * 2730) / Math.pow(2, 13);
+      const yLat = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+      const n2 = Math.PI - (2 * Math.PI * 2731) / Math.pow(2, 13);
+      const yLatNext = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n2) - Math.exp(-n2)));
+      const bounds = {
+        getSouth: () => Math.min(yLat, yLatNext) + 0.001,
+        getNorth: () => Math.max(yLat, yLatNext) - 0.001,
+        getWest:  () => xLon + 0.001,
+        getEast:  () => xLonNext - 0.001,
+      };
+      const merged = await UA.contextLayers.loadTilesForBbox(state, bounds);
+      // Only tile A was within bounds → only tile A fetched.
+      const tileFetches = fetchCalls.filter(u => /ctxtiles\/bonn\/\d+\/\d+\.json$/.test(u));
+      expect(tileFetches).toEqual(['out/ctxtiles/bonn/4280/2730.json']);
+      expect(merged.ways.W1).toBeDefined();
+      expect(merged.geometries.W1).toEqual([50, 7, 50.001, 7.001]);
+      expect(merged.ways.W2).toBeUndefined();
+
+      // Calling again with the same bounds re-uses the in-flight cache (no extra fetch).
+      const before = fetchCalls.length;
+      await UA.contextLayers.loadTilesForBbox(state, bounds);
+      expect(fetchCalls.length).toBe(before);
+    } finally {
+      delete global.fetch;
+      UA.contextLayers.clearCache();
+    }
+  });
+
+  test('loadTilesForBbox is a no-op for v1/v2 states (returns the already-loaded data)', async () => {
+    const UA = loadModule();
+    const state = {
+      tileIndex: null, _tileCache: null,
+      ways: { W1: { highway: 'residential' } },
+      geometries: { W1: [50, 7, 50.001, 7.001] },
+    };
+    const merged = await UA.contextLayers.loadTilesForBbox(state, { getSouth: () => 0, getNorth: () => 1, getWest: () => 0, getEast: () => 1 });
+    expect(merged.ways).toBe(state.ways);
+    expect(merged.geometries).toBe(state.geometries);
+  });
+
+  test('resolveWayAcrossTiles returns null and triggers a single tile fetch for unloaded ways (race-tolerant popup hydration)', async () => {
+    const UA = loadModule();
+    UA.contextLayers.clearCache();
+    UA.normKey = (s) => String(s || '').toLowerCase();
+    const fetchCalls = [];
+    const tile = {
+      schemaVersion: 3,
+      ways: { Z9: { highway: 0 } },
+      geometries: { Z9: [50, 7, 50.001, 7.001] },
+    };
+    global.fetch = (url) => {
+      fetchCalls.push(url);
+      if (url.endsWith('ctxtiles/x/100/200.json')) return Promise.resolve({ ok: true, json: async () => tile });
+      return Promise.resolve({ ok: false });
+    };
+    const state = {
+      slug: 'x',
+      ways: {}, geometries: {},
+      tileIndex: { z: 13, dicts: { highway: ['residential'] }, wayIndex: { Z9: [100, 200] }, tiles: [{ x: 100, y: 200, wayCount: 1 }] },
+      tileIndexUrl: 'out/ctxtiles/x/index.json',
+      _tileCache: new Map(),
+      dicts: { highway: ['residential'] },
+    };
+    try {
+      // First call — way not loaded yet → null AND a fetch is triggered.
+      const r1 = UA.contextLayers.resolveWayAcrossTiles(state, 'Z9');
+      expect(r1).toBeNull();
+      expect(fetchCalls.length).toBe(1);
+      // Wait for the in-flight fetch to settle.
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise(r => setTimeout(r, 0));
+      // Second call — way is now resolved with dict-decoded attrs.
+      const r2 = UA.contextLayers.resolveWayAcrossTiles(state, 'Z9');
+      expect(r2).toEqual({ highway: 'residential' });
+      // No new fetch — the way is already in state.
+      expect(fetchCalls.length).toBe(1);
+    } finally {
+      delete global.fetch;
+    }
+  });
 });

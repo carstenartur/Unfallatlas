@@ -51,7 +51,23 @@
 const fs   = require('fs');
 const path = require('path');
 
-const PRODUCER_VERSION = '1.1.0';
+// 1.2.0: emit all ways inside the city bbox (no longer pruned to ways
+//         that an accident snapped to) and widen the Overpass filter to
+//         path/cycleway/track/footway/pedestrian/living_street/service so
+//         the front-end full-network slope/traffic overlay has data for
+//         the entire visible road network. Cache key bumps so the first
+//         CI run after the bump re-fetches every city.
+const PRODUCER_VERSION = '1.2.0';
+
+// Highway tag values the producer ships into the on-disk OSM dataset.
+// Mirrors HIGHWAY_DTV_PROXY in scripts/producers/traffic_producer.js
+// + js/ua.context_road_layer.js — the front-end slope/traffic overlay
+// only knows how to colour these classes, so requesting more from
+// Overpass would only bloat the cache.
+const OVERPASS_HIGHWAY_REGEX =
+  '^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|' +
+  'secondary|secondary_link|tertiary|tertiary_link|unclassified|' +
+  'residential|living_street|service|pedestrian|track|path|footway|cycleway)$';
 
 const DEFAULT_OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
 const DEFAULT_OVERPASS_TIMEOUT_MS = 180_000;
@@ -145,10 +161,14 @@ function buildOverpassQuery(bbox, opts) {
   const timeoutS = Math.max(30, Math.floor((opts && opts.timeoutMs ? opts.timeoutMs : DEFAULT_OVERPASS_TIMEOUT_MS) / 1000));
   // Overpass bbox order: (south, west, north, east).
   const b = `(${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon})`;
+  // Restrict to the highway types the front-end overlay can actually
+  // render. Fewer ways → smaller per-tile JSON → less bandwidth on
+  // pan/zoom. The regex is a single Overpass filter, so it stays one
+  // query (no overhead vs. the previous `way["highway"]`).
   return [
     `[out:json][timeout:${timeoutS}];`,
     `(`,
-    `  way["highway"]${b};`,
+    `  way["highway"~"${OVERPASS_HIGHWAY_REGEX}"]${b};`,
     `);`,
     // `out geom` inlines the way's node coordinates so we don't need a
     // second roundtrip to resolve node refs.
@@ -431,7 +451,6 @@ function buildOsmDataset(fc, ways, opts) {
   const o = opts || {};
   const index = buildWayIndex(ways);
   const wayTable = {};
-  const usedWays = new Set();
   const indexEntries = [];
 
   if (fc && Array.isArray(fc.features)) {
@@ -443,25 +462,23 @@ function buildOsmDataset(fc, ways, opts) {
       const hit = nearestWayIndexed(lat, lon, index, { maxDistanceM: o.maxDistanceM });
       if (!hit) continue;
       indexEntries.push({ lat, lon, way_id: hit.way_id });
-      usedWays.add(hit.way_id);
     }
   }
 
-  // Only emit the ways that the accident points actually snapped to.
-  // The bbox query inevitably returns far more ways than we need, and
-  // shipping them all would bloat the producer cache for no
-  // downstream benefit — `enrich_geojson.js` only ever reads ways
-  // whose ids appear in the index.
+  // Emit the *full* set of ways inside the city bbox (since
+  // PRODUCER_VERSION 1.2.0). The downstream enrichment step
+  // (`scripts/enrich_geojson.js`) needs the full road network so the
+  // browser-side slope/traffic overlay can render road properties
+  // independently of accident locations — this is the architectural
+  // fix the "matched-only context layer is confusing" issue describes.
   const wayGeometries = {};
   for (const w of ways) {
-    if (!usedWays.has(w.id)) continue;
     wayTable[w.id] = normalizeWay(w);
     // Keep the full polyline so the enrichment step can ship a
-    // generalised geometry per matched way in `ways_<city>.json` —
-    // this is what the front-end "Straßensteigung" / "Verkehrsbelastung"
-    // map overlays render. The DEM producer's `readOsmWaySpans`
-    // already only inspects `g[0]` and `g[g.length-1]`, so keeping
-    // the intermediate points is fully back-compatible.
+    // generalised geometry per way in the per-tile context payloads.
+    // The DEM producer's `readOsmWaySpans` only inspects `g[0]` and
+    // `g[g.length-1]`, so keeping the intermediate points is
+    // back-compatible.
     const g = w.geometry;
     if (Array.isArray(g) && g.length >= 2) {
       const coords = [];
@@ -475,11 +492,13 @@ function buildOsmDataset(fc, ways, opts) {
   }
 
   return {
-    source:        o.source      || 'OpenStreetMap (Overpass)',
-    extractDate:   o.extractDate || new Date().toISOString().slice(0, 10),
-    ways:          wayTable,
+    source:          o.source      || 'OpenStreetMap (Overpass)',
+    producerVersion: o.producerVersion || PRODUCER_VERSION,
+    extractDate:     o.extractDate || new Date().toISOString().slice(0, 10),
+    coverage:        'full',
+    ways:            wayTable,
     wayGeometries,
-    index:         indexEntries,
+    index:           indexEntries,
   };
 }
 
@@ -806,6 +825,7 @@ if (require.main === module) {
 
 module.exports = {
   PRODUCER_VERSION,
+  OVERPASS_HIGHWAY_REGEX,
   DEFAULT_MAX_SNAP_DISTANCE_M,
   MIN_TILE_DEG,
   MAX_TILE_DEPTH,

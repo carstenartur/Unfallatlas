@@ -69,6 +69,15 @@
       //      change. Guarded behind feature detection — the loader
       //      stays usable in test environments without a full UI.
       ctx.contextLayerState = null;
+      // Clear stale provenance from the previously loaded city
+      // *immediately* — the tooltip is otherwise refreshed only after
+      // loadAtIdle() resolves, which can be many idle ticks later on
+      // large GeoJSON loads. Without this synchronous clear the user
+      // would briefly see the previous city's "ⓘ Datenstand" content
+      // attached to the new city's header.
+      if (typeof UA.updateEnrichmentProvenance === 'function') {
+        try { UA.updateEnrichmentProvenance(ctx); } catch (_) { /* keep going */ }
+      }
       if (ctx.contextCapabilities && ctx.contextCapabilities.hasOsmContext
           && typeof UA.contextLayers.loadAtIdle === 'function') {
         const expectedSlug = (UA.normKey ? UA.normKey(ctx.CITY_RAW) : String(ctx.CITY_RAW || '').toLowerCase());
@@ -102,6 +111,14 @@
               if (typeof UA.refreshContextOverlays === 'function' && ctx.map) {
                 try { UA.refreshContextOverlays(ctx); } catch (_) { /* keep going */ }
               }
+              // Item 10: surface enrichment provenance (generatedAt,
+              // enrichmentScriptVersion, per-source extractDate /
+              // producerVersion) in the city-header "ⓘ Datenstand"
+              // tooltip. Best-effort — function is a no-op when the
+              // metaInfoBox / tip element is absent (e.g. tests).
+              if (typeof UA.updateEnrichmentProvenance === 'function') {
+                try { UA.updateEnrichmentProvenance(ctx); } catch (_) { /* keep going */ }
+              }
             })
             .catch(() => { /* optional file: stay null, popup degrades gracefully */ });
         } catch (_) { /* idle-callback unavailable: ignore */ }
@@ -110,6 +127,11 @@
       ctx.contextLayerDetection = null;
       ctx.contextCapabilities = null;
       ctx.contextLayerState = null;
+      // Make sure stale provenance from a previously loaded city
+      // doesn't bleed into a city without enrichment.
+      if (typeof UA.updateEnrichmentProvenance === 'function') {
+        try { UA.updateEnrichmentProvenance(ctx); } catch (_) { /* keep going */ }
+      }
     }
     ctx.allPts = UA.extractPoints(gj);
   };

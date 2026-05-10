@@ -109,6 +109,37 @@
   // Cache: cityKey → Promise<state>
   const cache = new Map();
 
+  // Schema-version negotiation. The on-disk `ways_<city>.json` payload
+  // ships with `schemaVersion` since v2 (the legacy v1 flat shape has
+  // no version field at all and is detected by the absence of a
+  // `ways` map — see the load() body). When a future producer bumps
+  // the schema (e.g. to v3), older deployments must FAIL LOUD instead
+  // of silently rendering an inconsistent half-state. The constant is
+  // a single source of truth for both the loader and the test suite.
+  const SUPPORTED_WAYS_SCHEMA_VERSIONS = [1, 2, 3];
+  // Track which slugs have already produced an "unsupported version"
+  // warning so we never spam the console — one warning per city is
+  // enough to surface the regression on the operator's screen.
+  const _warnedUnsupportedSchema = new Set();
+
+  // Z=13 slippy-tile zoom — must match CTX_TILE_ZOOM in
+  // scripts/enrich_geojson.js. The browser-side loader recomputes the
+  // tile coords from the (manifest-stamped) zoom, but we keep the
+  // constant local as the default for older manifests / unit tests
+  // that don't carry the field.
+  const CTX_TILE_DEFAULT_ZOOM = 13;
+
+  function _lonToTileX(lon, z) {
+    return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
+  }
+  function _latToTileY(lat, z) {
+    const rad = (lat * Math.PI) / 180;
+    return Math.floor(
+      ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
+        Math.pow(2, z)
+    );
+  }
+
   function urls(cityRaw) {
     const slug = (UA.normKey ? UA.normKey(cityRaw) : String(cityRaw || '').toLowerCase());
     return {
@@ -152,9 +183,61 @@
       //   v1 (legacy):  { "<wayId>": {attrs}, ... }
       // The v2 shape is a strict superset; v1 is detected by the
       // absence of a `ways` map and the presence of object values.
+      //
+      // Schema-version negotiation: when `schemaVersion` is set but
+      // unknown to this build (e.g. the producer ships v3 before the
+      // front-end is updated), we fail loudly with a single console
+      // warning per city and treat the file as missing — the popup
+      // and overlays then degrade gracefully instead of half-rendering
+      // an inconsistent state. v1 (no `schemaVersion` field) is
+      // explicitly accepted via SUPPORTED_WAYS_SCHEMA_VERSIONS.
       let ways = null, geometries = null;
+      let coverage = null;
+      let tileIndex = null;
+      let tileIndexUrl = null;
       if (raw && typeof raw === 'object') {
-        if (raw.ways && typeof raw.ways === 'object') {
+        const declaredVer = (typeof raw.schemaVersion === 'number')
+          ? raw.schemaVersion
+          : (raw.ways && typeof raw.ways === 'object' ? null : 1);
+        if (declaredVer != null && !SUPPORTED_WAYS_SCHEMA_VERSIONS.includes(declaredVer)) {
+          if (!_warnedUnsupportedSchema.has(u.slug)) {
+            _warnedUnsupportedSchema.add(u.slug);
+            console.warn(
+              `[ua.context_layers] ways_${u.slug}.json schemaVersion=${declaredVer} ` +
+              `is not in SUPPORTED_WAYS_SCHEMA_VERSIONS=${JSON.stringify(SUPPORTED_WAYS_SCHEMA_VERSIONS)} — ` +
+              `front-end likely outdated; context overlays will be disabled for this city.`
+            );
+          }
+          return { slug: u.slug, ways: null, geometries: null, meta, dicts };
+        }
+        if (declaredVer === 3) {
+          // v3 envelope: thin pointer to per-tile context payloads.
+          // The browser only fetches tiles intersecting the current
+          // map viewport via `loadTilesForBbox`. `state.ways` /
+          // `state.geometries` start empty and are populated lazily
+          // from each loaded tile so the existing road-overlay /
+          // popup code paths keep working unchanged on the merged
+          // state.
+          coverage     = raw.coverage || 'full';
+          tileIndexUrl = (typeof raw.tileIndexUrl === 'string')
+            ? raw.tileIndexUrl
+            : `out/ctxtiles/${u.slug}/index.json`;
+          ways         = {};
+          geometries   = {};
+          // Eagerly fetch the (small) manifest so the popup hydration
+          // path can resolve a wayId → tile coordinates without an
+          // extra round-trip per popup. The per-tile payloads remain
+          // lazy.
+          try {
+            const manResp = await fetch(tileIndexUrl, { cache: 'force-cache' });
+            if (manResp && manResp.ok) {
+              const manifest = await manResp.json().catch(() => null);
+              if (manifest && typeof manifest === 'object') {
+                tileIndex = manifest;
+              }
+            }
+          } catch (_) { /* manifest optional — degrades gracefully */ }
+        } else if (raw.ways && typeof raw.ways === 'object') {
           ways = raw.ways;
           geometries = (raw.geometries && typeof raw.geometries === 'object')
             ? raw.geometries : null;
@@ -163,7 +246,22 @@
           ways = raw;
         }
       }
-      return { slug: u.slug, ways, geometries, meta, dicts };
+      // Prefer the dicts shipped with the tile manifest over the
+      // per-FeatureCollection dicts: in v3 the per-tile attrs are
+      // int-coded against the tile-manifest dicts (a superset of
+      // anything the FC contains).
+      const effectiveDicts = (tileIndex && tileIndex.dicts) || dicts;
+      return {
+        slug: u.slug,
+        ways, geometries, meta,
+        dicts: effectiveDicts,
+        coverage,
+        tileIndex,
+        tileIndexUrl,
+        // Per-tile cache: "x/y" → Promise<{ways,geometries}>. Initialised
+        // lazily so v1/v2 loads pay zero overhead.
+        _tileCache: tileIndex ? new Map() : null,
+      };
     })();
 
     cache.set(u.slug, p);
@@ -201,13 +299,176 @@
 
   function clearCache() { cache.clear(); }
 
+  // ---------------------------------------------------------------------
+  // v3 tile-bbox loading (full-network coverage)
+  //
+  // The v3 envelope only carries a manifest pointer; the per-way attrs
+  // and geometries live in per-Z/X/Y tile files. `loadTilesForBbox`
+  // computes the tiles intersecting `bounds`, fetches the missing ones
+  // (in-flight dedup via the per-state `_tileCache`), and merges them
+  // into `state.ways` / `state.geometries` so the existing
+  // `UA.contextRoadLayer.buildLayer` and `UA.contextLayers.resolveWay`
+  // codepaths keep working unchanged.
+  //
+  // For v1/v2 inputs `loadTilesForBbox` is a no-op that resolves to the
+  // already-loaded full state, so call sites don't need to branch.
+  // ---------------------------------------------------------------------
+
+  function _tilesForLeafletBounds(bounds, z) {
+    if (!bounds) return [];
+    let south, north, west, east;
+    if (typeof bounds.getSouth === 'function') {
+      south = bounds.getSouth(); north = bounds.getNorth();
+      west  = bounds.getWest();  east  = bounds.getEast();
+    } else if (Array.isArray(bounds) && bounds.length === 4) {
+      // [south, west, north, east]
+      [south, west, north, east] = bounds;
+    } else if (bounds && typeof bounds === 'object') {
+      south = bounds.south; north = bounds.north;
+      west  = bounds.west;  east  = bounds.east;
+    }
+    if (!Number.isFinite(south) || !Number.isFinite(north) ||
+        !Number.isFinite(west)  || !Number.isFinite(east)) return [];
+    const xMin = _lonToTileX(Math.min(west, east), z);
+    const xMax = _lonToTileX(Math.max(west, east), z);
+    const yMin = _latToTileY(Math.max(south, north), z);
+    const yMax = _latToTileY(Math.min(south, north), z);
+    const out = [];
+    for (let x = xMin; x <= xMax; x++) {
+      for (let y = yMin; y <= yMax; y++) {
+        out.push([x, y]);
+      }
+    }
+    return out;
+  }
+
+  function _tileUrl(state, x, y) {
+    // Manifest URL is e.g. "out/ctxtiles/<slug>/index.json" → strip
+    // the trailing /index.json segment to get the tile root.
+    const manUrl = state && state.tileIndexUrl;
+    if (typeof manUrl !== 'string' || !manUrl) return null;
+    const root = manUrl.replace(/\/[^/]*$/, '');
+    return `${root}/${x}/${y}.json`;
+  }
+
+  function _ingestTile(state, tile) {
+    if (!tile || typeof tile !== 'object') return;
+    if (tile.ways && typeof tile.ways === 'object') {
+      for (const wayId of Object.keys(tile.ways)) {
+        if (!(wayId in state.ways)) state.ways[wayId] = tile.ways[wayId];
+      }
+    }
+    if (tile.geometries && typeof tile.geometries === 'object') {
+      for (const wayId of Object.keys(tile.geometries)) {
+        if (!(wayId in state.geometries)) state.geometries[wayId] = tile.geometries[wayId];
+      }
+    }
+  }
+
+  function _fetchTile(state, x, y) {
+    const cacheMap = state._tileCache;
+    const key = `${x}/${y}`;
+    if (cacheMap.has(key)) return cacheMap.get(key);
+    const url = _tileUrl(state, x, y);
+    if (!url) return Promise.resolve(null);
+    // On a transient failure (network blip, 5xx, partial deploy, JSON
+    // parse error) we drop the cache entry so a later overlay rebuild
+    // or popup hydration can retry — otherwise the first failed fetch
+    // would permanently disable the tile for the rest of the session.
+    const p = (async () => {
+      let resp;
+      try { resp = await fetch(url, { cache: 'force-cache' }); }
+      catch (_) { cacheMap.delete(key); return null; }
+      if (!resp || !resp.ok) { cacheMap.delete(key); return null; }
+      let json = null;
+      try { json = await resp.json(); } catch (_) { cacheMap.delete(key); return null; }
+      _ingestTile(state, json);
+      return json;
+    })();
+    cacheMap.set(key, p);
+    return p;
+  }
+
+  /**
+   * Lazily fetch the per-tile context payloads intersecting `bounds`,
+   * merge them into `state.ways` / `state.geometries`, and resolve
+   * once every tile has been ingested. v1/v2 states resolve immediately
+   * with the already-loaded data — call sites don't branch.
+   *
+   * @param {object} state              result of UA.contextLayers.load()
+   * @param {L.LatLngBounds|object} bounds
+   * @returns {Promise<{ways:object,geometries:object}>}
+   */
+  function loadTilesForBbox(state, bounds) {
+    if (!state) return Promise.resolve({ ways: {}, geometries: {} });
+    if (!state.tileIndex || !state._tileCache) {
+      // v1/v2 state — already fully loaded.
+      return Promise.resolve({
+        ways:       state.ways || {},
+        geometries: state.geometries || {},
+      });
+    }
+    const z = (typeof state.tileIndex.z === 'number') ? state.tileIndex.z : CTX_TILE_DEFAULT_ZOOM;
+    const want = _tilesForLeafletBounds(bounds, z);
+    if (want.length === 0) {
+      return Promise.resolve({ ways: state.ways, geometries: state.geometries });
+    }
+    // Limit to tiles the manifest actually lists — saves a round-trip
+    // per empty area (e.g. when the user pans out over the sea).
+    const known = new Set(
+      (state.tileIndex.tiles || []).map(t => `${t.x}/${t.y}`)
+    );
+    const fetches = [];
+    for (const [x, y] of want) {
+      if (!known.has(`${x}/${y}`)) continue;
+      fetches.push(_fetchTile(state, x, y));
+    }
+    return Promise.all(fetches).then(() => ({
+      ways:       state.ways,
+      geometries: state.geometries,
+    }));
+  }
+
+  /**
+   * Resolve a wayId across all loaded tiles. If the way isn't in the
+   * already-loaded `state.ways` AND the manifest knows which tile it
+   * lives in, kick off a fetch for that tile (fire-and-forget — the
+   * popup re-renders when the tile arrives via the same race-tolerant
+   * path the legacy hydration uses).
+   *
+   * Returns the resolved attrs **synchronously** when available, or
+   * `null` otherwise.
+   *
+   * @param {object} state
+   * @param {string} wayId
+   * @returns {object|null}
+   */
+  function resolveWayAcrossTiles(state, wayId) {
+    if (!state || !wayId) return null;
+    const direct = resolveWay(state, wayId);
+    if (direct) return direct;
+    // v3: consult manifest's reverse index → trigger the (single) tile
+    // fetch so the next popup open finds the way.
+    const idx = state.tileIndex && state.tileIndex.wayIndex && state.tileIndex.wayIndex[wayId];
+    if (Array.isArray(idx) && idx.length === 2 && state._tileCache) {
+      const [x, y] = idx;
+      // fire-and-forget; popup renderer re-runs after re-render
+      try { _fetchTile(state, x, y); } catch (_) { /* noop */ }
+    }
+    return null;
+  }
+
   UA.contextLayers = {
     detect,
     capabilitiesFromDetection,
     CAPABILITY_FIELDS,
+    SUPPORTED_WAYS_SCHEMA_VERSIONS,
+    CTX_TILE_DEFAULT_ZOOM,
     load,
     loadAtIdle,
+    loadTilesForBbox,
     resolveWay,
+    resolveWayAcrossTiles,
     clearCache,
     PER_FEATURE_FIELDS,
   };

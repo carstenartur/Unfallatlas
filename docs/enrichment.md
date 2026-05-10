@@ -97,16 +97,36 @@ polyline, the key is omitted entirely; the front-end's
 "Straßensteigung" / "Verkehrsbelastung" map overlays then stay empty
 and the chip filters keep working unchanged.
 
-> **Scope of the road-context layers.** Only OSM ways that the
-> snapping step in `scripts/enrich_geojson.js` actually attached to at
-> least one accident point survive into `ways_<city>.json` and its
-> `geometries` block. Both the upstream OSM producer
-> (`scripts/producers/osm_producer.js`) and the enrichment step drop
-> all other ways. The "Straßensteigung" / "Verkehrsbelastung" map
-> overlays therefore visualise the **subset of the road network the
-> Atlas has data for**, not the full street network of the city. This
-> is intentional: the layers exist to colour the segments that drive
-> the analytical findings, not to compete with a base map.
+> **Scope of the road-context layers.**
+>
+> *Up to PRODUCER_VERSION 1.1.x* the OSM producer + enrichment step
+> only emitted ways an accident snapped to. The road-overlay legend
+> therefore only coloured ~1 % of the city's streets — confusing for
+> users who saw "Straßensteigung" but only ~12 short segments lit up.
+>
+> *PRODUCER_VERSION 1.2.0 ("full road network", schemaVersion 3)*
+> ships **every** OSM way inside the city bbox. To keep the gzipped
+> CI-size budget intact, the per-way table is split into per-Z/X/Y
+> slippy-map tiles under `out/ctxtiles/<slug>/` (Z=13 ≈ 5 km × 3 km
+> in DE; ≤ ~150 tiles per city, even Berlin). The browser only
+> fetches the tiles intersecting the current map viewport — see
+> `UA.contextLayers.loadTilesForBbox` in `js/ua.context_layers.js`.
+> The on-disk `ways_<slug>.json` is then a thin **v3 envelope**:
+>
+> ```json
+> { "schemaVersion": 3, "coverage": "full",
+>   "tileIndexUrl": "out/ctxtiles/bonn/index.json" }
+> ```
+>
+> The loader continues to accept the legacy v1 (flat) and v2
+> (`{schemaVersion:2, ways, geometries}`) shapes for unchanged
+> back-compat with checked-in `out/` snapshots and third-party
+> tooling — see `SUPPORTED_WAYS_SCHEMA_VERSIONS = [1,2,3]`.
+>
+> The "**nur auf gematchten Straßen**" chip in the filter panel is
+> **independent** of the layer's coverage: it filters accident
+> points (those with `matched_way_id` set) regardless of how many
+> ways the overlay layer happens to render.
 
 High-cardinality categorical fields (`highway`, `surface`, `cycleway`)
 are written as **short integer codes**. The lookup tables live at the
@@ -139,9 +159,9 @@ Per-file dataset-wide attribution:
   "citySlug": "bonn",
   "generatedAt": "2026-01-15T03:14:15.000Z",
   "sources": {
-    "osm":     { "source": "OpenStreetMap (Overpass)", "extractDate": "2026-01-10" },
-    "dem":     { "source": "SRTM30", "resolutionM": 30 },
-    "traffic": { "source": "BASt SDV", "datasetVersion": "2024" }
+    "osm":     { "source": "OpenStreetMap (Overpass)", "producerVersion": "1.1.0", "extractDate": "2026-01-10" },
+    "dem":     { "source": "SRTM30",                   "producerVersion": "1.0.0", "resolutionM": 30 },
+    "traffic": { "source": "BASt SDV",                 "producerVersion": "1.0.0", "datasetVersion": "2024" }
   },
   "counts": { "features": 1234, "matchedToWay": 1100, "withElevation": 1234, "withTrafficProxy": 410, "ways": 320 },
   "dictFields": ["highway", "surface"]
@@ -157,6 +177,14 @@ configured rewrites the GeoJSON in place but never touches the
 sidecar files, so the weekly `enrich.yml` cron stays a true no-op
 until provider data is wired up. (For the same reason, the cron's
 commit step ignores meta-only diffs.)
+
+Each per-source block also embeds a `producerVersion` field that is
+mirrored from the corresponding `osm_<city>.json` /
+`dem_<city>.json` / `traffic_<city>.json` payload (which now also
+carries `producerVersion` at the top level). This lets QA jobs assert
+the deployed producer version with a one-liner — e.g.
+`jq -r '.producerVersion' out/osm_bonn.json` — without falling back to
+node-count heuristics.
 
 ## Slope classification
 
@@ -229,6 +257,56 @@ enriched field: **a steep slope, a busy road, or a particular road
 class is *context*, not a cause**. The enrichment exposes the local
 environment of an accident; causal attribution remains a manual
 analytical step in the Maßnahmen-Workflow.
+
+<a id="matched-only-disclaimer"></a>
+
+## Datenausschnitt der Karten-Layer (Straßennetz vs. matched-only Signal)
+
+> **Kanonischer Disclaimer — referenziert von `WERKBANK_V2.md` und
+> `docs/architecture.md`.** Beim Aktualisieren bitte ausschließlich
+> diesen Absatz pflegen, damit die Beschreibung nicht auseinanderdriftet.
+
+Mit `PRODUCER_VERSION = '1.2.0'` und `schemaVersion: 3` zeigen die
+Karten-Layer („Straßensteigung", „Verkehrsbelastung") **das vollständige
+OSM-Straßennetz im BBox der Stadt** an, nicht mehr nur die im
+Enrichment-Lauf gematchten Wege. Technisch wird das Netz in
+Slippy-Tiles (`out/ctxtiles/<slug>/<x>/<y>.json`) ausgeliefert; der
+Browser holt nur Tiles, die das aktuelle Viewport schneiden.
+
+Inhaltlich gilt weiterhin: die *Datenquellen* hinter den Farbklassen
+unterscheiden sich nach Wegtyp.
+
+* **Verkehrsbelastung** stammt aus dem DTV-Proxy (Highway-Tag → Klassen-
+  schätzung, ohne tatsächliche Zählungen). Jeder Weg im Netz bekommt
+  damit einen Klassenwert, **kein** gemessener Verkehrswert.
+* **Straßensteigung** wird per DEM für **alle** OSM-Wege im v3-Kontext-
+  netz berechnet — der DEM-Producer (`scripts/producers/dem_producer.js`)
+  liest jede Way-Geometrie aus `osm_<slug>.json` (`wayGeometries`) und
+  ermittelt `road_slope_percent` aus den Endpunkten via lokaler SRTM-
+  Tiles bzw. (im API-Pfad) einer einzigen Open-Meteo-Anfrage pro
+  Endpunkt. Ways ohne berechenbares Signal (DEM-Lücke, Way < 5 m, etc.)
+  erscheinen in der Steigungs-Legende als „kein Steigungssignal" und
+  werden in neutralem Grau gezeichnet — die Polylinie ist sichtbar,
+  aber ohne Farbklasse.
+* Der Chip-Filter „Nur Unfallstrecken" (`ctxOnlyMatched`) ist eine
+  **Filteroperation auf Unfallpunkten**, nicht auf den Karten-Layern.
+  Er bleibt unverändert verfügbar und ist *unabhängig* von der
+  Datenabdeckung der Layer.
+
+Die Wahl, das volle Netz darzustellen statt nur gematchter Wege,
+stützt die „Kontext nicht Ursache"-Disclaimer-Politik oben:
+Anwender:innen sehen explizit, welche Straßen *kein* Slope-Signal
+tragen (weil dort schlicht kein gemeldeter Unfall lag) statt sie
+unsichtbar zu machen.
+
+### Legacy / Kompatibilität
+
+Ältere `ways_<city>.json` im Schema v1/v2 (matched-only) werden vom
+Loader weiterhin akzeptiert; die Overlays zeichnen in diesem Fall nur
+die im Enrichment-Lauf gematchten OSM-Wege (das ursprüngliche
+„matched-only"-Verhalten). Beim nächsten geplanten Enrich-Lauf nach dem
+Producer-Bump ersetzt CI diese Dateien durch die v3-Envelope plus
+zugehöriges `out/ctxtiles/<slug>/`-Verzeichnis.
 
 ## Roll-out: regenerating `ways_<city>.json` for v2 geometries
 

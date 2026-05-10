@@ -302,6 +302,68 @@ describe('UA.composeAccidentPopupHtml — PR-C ways_<city>.json hydration', () =
   });
 });
 
+describe('UA.composeAccidentPopupHtml — PR-E v3 tile-based hydration (race-tolerant)', () => {
+  test('uses resolveWayAcrossTiles when present; way not yet in any tile → renders base only (no Straßenkontext)', () => {
+    const UA = loadModules();
+    const calls = [];
+    // Simulate a v3 state: ways/dicts maps are empty (no tile loaded
+    // yet). The popup MUST not block on a tile fetch; instead it
+    // renders the base popup and the next re-render (after the tile
+    // arrives) will pick up the hydrated attrs.
+    const ctx = {
+      contextCapabilities: { hasOsmContext: true, hasSlope: true, hasAny: true },
+      contextLayerState: {
+        ways: {}, geometries: {}, dicts: {},
+        tileIndex: { z: 13, wayIndex: { W42: [100, 200] }, tiles: [{ x: 100, y: 200, wayCount: 1 }], dicts: {} },
+        tileIndexUrl: 'out/ctxtiles/x/index.json',
+        _tileCache: new Map(),
+      },
+    };
+    // Stub resolveWayAcrossTiles to mimic the loader behaviour: returns
+    // null AND records the request (the real impl would fire-and-forget
+    // a tile fetch).
+    const origResolve = UA.contextLayers.resolveWayAcrossTiles;
+    UA.contextLayers.resolveWayAcrossTiles = (state, wayId) => {
+      calls.push(wayId);
+      return null;
+    };
+    try {
+      const html = UA.composeAccidentPopupHtml(ctx, { matched_way_id: 'W42' });
+      // No per-feature data + null hydration → Straßenkontext is
+      // suppressed. The popup degrades to base-only (returned as null
+      // here because no baseHtml was supplied).
+      expect(html).toBeNull();
+      // resolveWayAcrossTiles was consulted (which would fire a tile
+      // fetch in production).
+      expect(calls).toEqual(['W42']);
+    } finally {
+      UA.contextLayers.resolveWayAcrossTiles = origResolve;
+    }
+  });
+
+  test('after the tile arrives, a re-render shows full Straßenkontext attrs', () => {
+    const UA = loadModules();
+    const ctx = {
+      contextCapabilities: { hasOsmContext: true, hasSlope: true, hasAny: true },
+      contextLayerState: {
+        // Tile has now been merged in: ways[W42] is present.
+        ways: { W42: { highway: 1, maxspeed: 50, lanes: 2, surface: 0, road_slope_percent: 3.4 } },
+        geometries: { W42: [50, 7, 50.001, 7.001] },
+        dicts: { highway: ['residential', 'secondary'], surface: ['asphalt'] },
+        tileIndex: { z: 13, wayIndex: { W42: [100, 200] }, tiles: [{ x: 100, y: 200, wayCount: 1 }], dicts: { highway: ['residential', 'secondary'], surface: ['asphalt'] } },
+        tileIndexUrl: 'out/ctxtiles/x/index.json',
+        _tileCache: new Map(),
+      },
+    };
+    const html = UA.composeAccidentPopupHtml(ctx, { matched_way_id: 'W42' });
+    expect(html).toContain('Straßenkontext');
+    expect(html).toContain('secondary');
+    expect(html).toContain('50 km/h');
+    expect(html).toContain('asphalt');
+    expect(html).toContain('Straßenneigung');
+  });
+});
+
 describe('UA.contextLayers.capabilitiesFromDetection — single source of truth', () => {
   test('maps detected fields to capability flags + hasAny', () => {
     const UA = loadModules();

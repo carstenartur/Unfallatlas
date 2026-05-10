@@ -62,10 +62,10 @@ describe('osm_producer — bboxFromFeatureCollection', () => {
 });
 
 describe('osm_producer — buildOverpassQuery', () => {
-  test('emits a way[highway] bbox query with the documented order', () => {
+  test('emits a way[highway~regex] bbox query with the documented order', () => {
     const q = osm.buildOverpassQuery({ minLat: 50, minLon: 7, maxLat: 51, maxLon: 8 }, {});
     expect(q).toMatch(/\[out:json\]\[timeout:\d+\];/);
-    expect(q).toMatch(/way\["highway"\]\(50,7,51,8\)/);
+    expect(q).toMatch(/way\["highway"~"\^[^"]+"\]\(50,7,51,8\)/);
     expect(q).toMatch(/out tags geom;/);
   });
 });
@@ -161,15 +161,24 @@ describe('osm_producer — buildOsmDataset', () => {
       { maxDistanceM: 50, extractDate: '2026-05-07' },
     );
     expect(ds.source).toBe('OpenStreetMap (Overpass)');
+    expect(ds.producerVersion).toBe(osm.PRODUCER_VERSION);
     expect(ds.extractDate).toBe('2026-05-07');
+    // coverage:"full" was added in PRODUCER_VERSION 1.2.0 to signal to
+    // the enrichment pipeline that the dataset spans the entire bbox
+    // and not just the matched ways.
+    expect(ds.coverage).toBe('full');
     expect(ds.index).toEqual([
       { lat: 50.0,     lon: 7.0005, way_id: '1' },
       { lat: 50.00001, lon: 7.0006, way_id: '1' },
     ]);
-    // Way 2 is in the bbox query result but no accident snapped to
-    // it, so it must NOT bloat the on-disk payload.
-    expect(Object.keys(ds.ways)).toEqual(['1']);
+    // PRODUCER_VERSION 1.2.0+: the on-disk dataset now ships *every*
+    // way Overpass returned in the bbox, not just the ones an accident
+    // snapped to. The downstream enrichment pipeline tiles the full
+    // network into per-Z/X/Y context payloads so the front-end slope/
+    // traffic overlay can render the entire road network.
+    expect(Object.keys(ds.ways).sort()).toEqual(['1', '2']);
     expect(ds.ways['1']).toEqual({ highway: 'residential', maxspeed: 30 });
+    expect(ds.ways['2']).toEqual({ highway: 'unclassified' });
   });
 
   test('points outside snap distance are dropped', () => {
@@ -179,7 +188,9 @@ describe('osm_producer — buildOsmDataset', () => {
       { maxDistanceM: 50 },
     );
     expect(ds.index).toEqual([]);
-    expect(ds.ways).toEqual({});
+    // Ways are still emitted (full-coverage dataset); only the
+    // accident→way snap index is empty.
+    expect(Object.keys(ds.ways).sort()).toEqual(['1', '2']);
   });
 });
 
@@ -224,7 +235,7 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     expect(r.counts).toEqual({ features: 2, candidates: 1, matched: 2, ways: 1 });
 
     // The query must contain the bbox that bounds the input points.
-    expect(capturedQuery).toMatch(/way\["highway"\]\(/);
+    expect(capturedQuery).toMatch(/way\["highway"~"\^[^"]+"\]\(/);
 
     const written = JSON.parse(
       fs.readFileSync(path.join(outDir, 'osm_bonn.json'), 'utf8'),
@@ -347,10 +358,12 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     }
   });
 
-  test('keeps the full per-way polyline for ways the index touches, drops the rest', async () => {
+  test('emits all bbox ways (full-network coverage), not just the matched ones', async () => {
     // Two accidents — both snap to way #200. Way #999 is in the
-    // bbox response but no accident references it, so it must NOT
-    // appear in the `wayGeometries` table (size guard from §C).
+    // bbox response but no accident references it; since
+    // PRODUCER_VERSION 1.2.0 the dataset is now full-coverage, so #999
+    // must ALSO appear in the on-disk payload (with its full vertex
+    // list) so the front-end full-network overlay can render it.
     const inputFc = fc([pt(1, 7.0001, 50.0), pt(2, 7.0009, 50.0)]);
     fs.writeFileSync(
       path.join(tmpRoot, 'out', 'output_all_years_bonn.geojson'),
@@ -378,14 +391,35 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     });
     expect(r.skipped).toBeFalsy();
     const written = JSON.parse(fs.readFileSync(path.join(outDir, 'osm_bonn.json'), 'utf8'));
+    expect(written.coverage).toBe('full');
     expect(written.wayGeometries).toBeTruthy();
-    // Way 200 is matched → full vertex list is preserved (4 nodes,
-    // not just the 2 endpoints we used to ship).
     expect(written.wayGeometries['200']).toHaveLength(4);
     expect(written.wayGeometries['200'][1]).toEqual({ lat: 50, lon: 7.0005 });
-    // Way 999 is unreferenced → not emitted at all.
-    expect(written.wayGeometries['999']).toBeUndefined();
-    expect(written.ways['999']).toBeUndefined();
+    // Full-network coverage: way #999 is now emitted even though no
+    // accident snapped to it.
+    expect(written.wayGeometries['999']).toHaveLength(2);
+    expect(written.ways['999']).toEqual({ highway: 'service' });
+  });
+});
+
+describe('osm_producer — buildOverpassQuery (PRODUCER_VERSION 1.2.0)', () => {
+  test('restricts to the highway types the front-end overlay can render', () => {
+    const q = osm.buildOverpassQuery(
+      { minLat: 50, minLon: 7, maxLat: 51, maxLon: 8 },
+      { timeoutMs: 60_000 },
+    );
+    // The query must use a regex filter (not the bare `way["highway"]`
+    // selector) so we don't fetch tags like `proposed`/`construction`
+    // that the front-end has no overlay class for.
+    expect(q).toMatch(/way\["highway"~"\^/);
+    // Path-class ways were added in 1.2.0 so the overlay covers
+    // pedestrian/cycling infrastructure too.
+    expect(q).toContain('cycleway');
+    expect(q).toContain('footway');
+    expect(q).toContain('path');
+    expect(q).toContain('living_street');
+    expect(q).toContain('residential');
+    expect(q).toContain('motorway');
   });
 });
 

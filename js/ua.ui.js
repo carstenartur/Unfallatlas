@@ -62,6 +62,7 @@
     // UA.refreshContextFilterVisibility() schaltet sie nur ein, wenn
     // die Stadt die jeweilige Capability trägt (siehe ctx.contextCapabilities).
     ui.ctxFilterSection      = document.getElementById('ctxFilterSection');
+    ui.ctxFilterEmpty        = document.getElementById('ctxFilterEmpty');
     ui.ctxSlopeRow           = document.getElementById('ctxSlopeRow');
     ui.ctxTrafficRow         = document.getElementById('ctxTrafficRow');
     ui.ctxOnlyMatchedRow     = document.getElementById('ctxOnlyMatchedRow');
@@ -97,6 +98,72 @@
     const source = (ui.dataSourceCode && ui.dataSourceCode.textContent || "").trim();
     const ready = !!build && !!source && source !== "-";
     ui.metaInfoBox.hidden = !ready;
+  };
+
+  /**
+   * Render the "ⓘ Datenstand" tooltip in the city header / meta-info
+   * box from the enrichment sidecar (item 10 of the post-PR #261
+   * follow-up plan). Pure (no side effects beyond DOM toggling) and
+   * idempotent — safe to call multiple times as ctx.contextLayerState
+   * resolves asynchronously.
+   *
+   * Surfaces, in a single line per source: generation timestamp,
+   * enrichment script version and per-source extractDate /
+   * producerVersion / datasetVersion. Hides itself when no enrichment
+   * meta is available so cities without enrichment don't grow a stale
+   * placeholder.
+   */
+  UA.updateEnrichmentProvenance = function updateEnrichmentProvenance(ctx) {
+    const ui = ctx && ctx.ui;
+    if (!ui) return;
+    const wrap = document.getElementById('enrichmentProvenance');
+    const tip  = document.getElementById('enrichmentProvenanceTip');
+    if (!wrap || !tip) return;
+
+    const meta = ctx.contextLayerState && ctx.contextLayerState.meta;
+    if (!meta || typeof meta !== 'object') {
+      wrap.hidden = true;
+      tip.setAttribute('title', '');
+      tip.removeAttribute('aria-label');
+      return;
+    }
+
+    const lines = [];
+    if (meta.generatedAt)              lines.push('Erzeugt: ' + meta.generatedAt);
+    if (meta.enrichmentScriptVersion)  lines.push('Enrichment-Skript: v' + meta.enrichmentScriptVersion);
+    const sources = meta.sources || {};
+    const fmtSource = (key, label) => {
+      const s = sources[key];
+      if (!s || typeof s !== 'object') return null;
+      const parts = [];
+      if (s.source)          parts.push(s.source);
+      if (s.producerVersion) parts.push('Producer v' + s.producerVersion);
+      if (s.extractDate)     parts.push(s.extractDate);
+      if (s.datasetVersion)  parts.push('Dataset ' + s.datasetVersion);
+      if (s.resolutionM)     parts.push(s.resolutionM + ' m');
+      return label + ': ' + parts.join(', ');
+    };
+    const osmLine     = fmtSource('osm',     'OSM');
+    const demLine     = fmtSource('dem',     'DEM');
+    const trafficLine = fmtSource('traffic', 'Traffic');
+    if (osmLine)     lines.push(osmLine);
+    if (demLine)     lines.push(demLine);
+    if (trafficLine) lines.push(trafficLine);
+
+    if (lines.length === 0) {
+      wrap.hidden = true;
+      tip.setAttribute('title', '');
+      tip.removeAttribute('aria-label');
+      return;
+    }
+    const text = lines.join('\n');
+    tip.setAttribute('title', text);
+    // Mirror into aria-label so screen-readers that don't read `title`
+    // on focus still announce the provenance when the user tabs to
+    // the marker. (Browsers are inconsistent about announcing
+    // `title`; aria-label is universal.)
+    tip.setAttribute('aria-label', 'Datenstand: ' + lines.join('; '));
+    wrap.hidden = false;
   };
 
   function setCollapsed(ctx, on){
@@ -483,8 +550,19 @@
     const showTraffic = !!caps.hasTrafficProxy;
     const showMatched = !!caps.hasOsmContext;
     const showAny     = showSlope || showTraffic || showMatched;
+    // Empty-state: when *no* relevant context capability is present
+    // (i.e. neither slope, nor traffic, nor matched-only OSM), the
+    // section now stays *visible* so we can show a one-line hint
+    // explaining that this city has no enriched context data,
+    // instead of the section silently disappearing (which previously
+    // looked like a bug to first-time users). When hasOsmContext is
+    // true (matched-only toggle visible), the toggle itself is the
+    // meaningful UI and the empty-state hint must NOT appear, even
+    // if slope/traffic are absent.
+    const showEmpty   = !showSlope && !showTraffic && !showMatched;
 
-    sec.hidden = !showAny;
+    sec.hidden = !(showAny || showEmpty);
+    if (ui.ctxFilterEmpty)    ui.ctxFilterEmpty.hidden    = !showEmpty;
     if (ui.ctxSlopeRow)       ui.ctxSlopeRow.hidden       = !showSlope;
     if (ui.ctxTrafficRow)     ui.ctxTrafficRow.hidden     = !showTraffic;
     if (ui.ctxOnlyMatchedRow) ui.ctxOnlyMatchedRow.hidden = !showMatched;
