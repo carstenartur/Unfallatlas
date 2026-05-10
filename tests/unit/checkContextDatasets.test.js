@@ -171,7 +171,7 @@ describe('check-context-datasets', () => {
   test('passes when slope-quality summary is healthy', () => {
     writeGoodCityWithSlope(tmpRoot, 'goodslope', {
       totalWays: 100, withSlope: 90, noSlopeSignal: 10,
-      coveragePercent: 90, veryStepShare: 5,
+      coveragePercent: 90, verySteepShare: 5,
       classCounts: { flat: 30, gentle: 30, moderate: 20, steep: 8, very_steep: 2 },
       missingReasonCounts: { way_too_short: 10 },
       methodCounts: { median_segments: 90 },
@@ -184,7 +184,7 @@ describe('check-context-datasets', () => {
   test('fails when slope coverage is below the configured threshold', () => {
     writeGoodCityWithSlope(tmpRoot, 'badcoverage', {
       totalWays: 100, withSlope: 20, noSlopeSignal: 80,
-      coveragePercent: 20, veryStepShare: 0,
+      coveragePercent: 20, verySteepShare: 0,
       classCounts: { flat: 20, gentle: 0, moderate: 0, steep: 0, very_steep: 0 },
       missingReasonCounts: { dem_no_data: 80 },
       methodCounts: { median_segments: 20 },
@@ -198,7 +198,7 @@ describe('check-context-datasets', () => {
   test('fails when the very_steep share is unrealistically high (endpoint-noise tell-tale)', () => {
     writeGoodCityWithSlope(tmpRoot, 'spikes', {
       totalWays: 100, withSlope: 100, noSlopeSignal: 0,
-      coveragePercent: 100, veryStepShare: 70,
+      coveragePercent: 100, verySteepShare: 70,
       classCounts: { flat: 5, gentle: 10, moderate: 10, steep: 5, very_steep: 70 },
       missingReasonCounts: {},
       methodCounts: { endpoint: 100 },
@@ -212,7 +212,7 @@ describe('check-context-datasets', () => {
   test('honours MIN_SLOPE_COVERAGE_PERCENT env override', () => {
     writeGoodCityWithSlope(tmpRoot, 'override', {
       totalWays: 100, withSlope: 30, noSlopeSignal: 70,
-      coveragePercent: 30, veryStepShare: 0,
+      coveragePercent: 30, verySteepShare: 0,
       classCounts: { flat: 30, gentle: 0, moderate: 0, steep: 0, very_steep: 0 },
       missingReasonCounts: { way_too_short: 70 },
       methodCounts: { median_segments: 30 },

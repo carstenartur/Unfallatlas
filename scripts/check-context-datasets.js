@@ -43,7 +43,7 @@
  *       slope.classCounts        present + plausible histogram
  *       slope.noSignalCount      present
  *       slope.coveragePercent    >= MIN_SLOPE_COVERAGE_PERCENT (default 50)
- *       slope.veryStepShare      <= MAX_VERY_STEEP_SHARE_PERCENT (default 30)
+ *       slope.verySteepShare      <= MAX_VERY_STEEP_SHARE_PERCENT (default 30)
  *                                (a runaway `very_steep` share is the
  *                                 single most reliable tell-tale that
  *                                 endpoint-noise has crept back in and
@@ -86,7 +86,7 @@ function _slopeThresholds() {
   const max = Number(process.env.MAX_VERY_STEEP_SHARE_PERCENT);
   return {
     minCoveragePercent: Number.isFinite(min) ? min : DEFAULT_MIN_SLOPE_COVERAGE_PERCENT,
-    maxVeryStepShare:   Number.isFinite(max) ? max : DEFAULT_MAX_VERY_STEEP_SHARE_PERCENT,
+    maxVerySteepShare:   Number.isFinite(max) ? max : DEFAULT_MAX_VERY_STEEP_SHARE_PERCENT,
   };
 }
 
@@ -265,10 +265,10 @@ function _validateV3City(repoRoot, slug, meta) {
         `(set MIN_SLOPE_COVERAGE_PERCENT to override) — slope layer would mostly render in neutral grey`
       );
     }
-    if (Number.isFinite(slope.veryStepShare) && slope.veryStepShare > t.maxVeryStepShare) {
+    if (Number.isFinite(slope.verySteepShare) && slope.verySteepShare > t.maxVerySteepShare) {
       problems.push(
-        `slope very_steep share is ${slope.veryStepShare}% of signal ways, ` +
-        `above threshold ${t.maxVeryStepShare}% — likely DEM-noise-dominated endpoint slopes ` +
+        `slope very_steep share is ${slope.verySteepShare}% of signal ways, ` +
+        `above threshold ${t.maxVerySteepShare}% — likely DEM-noise-dominated endpoint slopes ` +
         `(adjacent parallel streets will look wildly inconsistent in the slope overlay)`
       );
     }

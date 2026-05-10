@@ -163,7 +163,7 @@ function classifyTrafficProxy(dtv) {
  *   - missingReasonCounts histogram per `road_slope_missing_reason`
  *   - methodCounts        histogram per `road_slope_method`
  *   - confidenceCounts    histogram per `road_slope_confidence`
- *   - veryStepShare       fraction of *signal* ways classified
+ *   - verySteepShare       fraction of *signal* ways classified
  *                         `very_steep`; a runaway value here is the
  *                         most reliable single-number tell-tale that
  *                         endpoint-noise has crept back in.
@@ -180,7 +180,7 @@ function summarizeSlopeQuality(fullWays) {
     missingReasonCounts: {},
     methodCounts: {},
     confidenceCounts: {},
-    veryStepShare: 0,
+    verySteepShare: 0,
   };
   if (!Array.isArray(fullWays) || fullWays.length === 0) return out;
   for (const w of fullWays) {
@@ -205,7 +205,7 @@ function summarizeSlopeQuality(fullWays) {
   out.coveragePercent = out.totalWays > 0
     ? Math.round((out.withSlope / out.totalWays) * 1000) / 10
     : 0;
-  out.veryStepShare = out.withSlope > 0
+  out.verySteepShare = out.withSlope > 0
     ? Math.round((out.classCounts.very_steep / out.withSlope) * 1000) / 10
     : 0;
   return out;

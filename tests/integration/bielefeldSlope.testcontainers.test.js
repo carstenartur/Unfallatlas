@@ -376,7 +376,7 @@ SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () =
           undefinedMeta,
           coveragePercent: total > 0 ? Math.round((withSlope / total) * 1000) / 10 : 0,
           classCounts,
-          veryStepShare: withSlope > 0 ? Math.round((classCounts.very_steep / withSlope) * 1000) / 10 : 0,
+          verySteepShare: withSlope > 0 ? Math.round((classCounts.very_steep / withSlope) * 1000) / 10 : 0,
           viewportBbox,
           rows: rows.slice(0, 500),  // cap so the artefact stays small
         };
@@ -416,7 +416,7 @@ SUITE_DESCRIBE('Bielefeld + mapLayer=slope — testcontainers integration', () =
           //     signature of endpoint-noise-dominated slope estimates,
           //     which is exactly the original bug.
           if (slopeReport.withSlope >= 20) {
-            expect(slopeReport.veryStepShare).toBeLessThanOrEqual(30);
+            expect(slopeReport.verySteepShare).toBeLessThanOrEqual(30);
           }
         }
 

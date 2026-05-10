@@ -79,7 +79,7 @@ describe('enrich_geojson — pure helpers', () => {
     expect(s.missingReasonCounts).toEqual({ way_too_short: 1, dem_no_data: 1 });
     expect(s.methodCounts.median_segments).toBe(4);
     expect(s.confidenceCounts).toEqual({ high: 2, medium: 1, low: 1 });
-    expect(s.veryStepShare).toBe(25);
+    expect(s.verySteepShare).toBe(25);
   });
 
   test('summarizeSlopeQuality returns zero-counts on empty input', () => {
@@ -87,7 +87,7 @@ describe('enrich_geojson — pure helpers', () => {
     expect(s.totalWays).toBe(0);
     expect(s.withSlope).toBe(0);
     expect(s.coveragePercent).toBe(0);
-    expect(s.veryStepShare).toBe(0);
+    expect(s.verySteepShare).toBe(0);
   });
 });
 
