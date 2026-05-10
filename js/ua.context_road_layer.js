@@ -301,7 +301,7 @@
         ? attrs.road_slope_confidence : null;
       const isLowConfidence = (kind === 'slope' && confidence === 'low');
       let color, featureClass;
-      if (cls && kind === 'slope' && isLowConfidence) {
+      if (cls && isLowConfidence) {
         // Keep the underlying class on the feature payload so a
         // tooltip / debug overlay can still surface the calculated
         // value, but render the polyline in the muted swatch so it
