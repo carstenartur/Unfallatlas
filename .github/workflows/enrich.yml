@@ -161,6 +161,14 @@ jobs:
         # caches and `force_dem` both need the producer to run.
         # ENRICH_DEM_TILES_DIR activates local tile sampling by default,
         # so no Open-Meteo API calls are made in the hot path.
+        #
+        # PR-bielefeld-slope: hard-fail before invoking the producer
+        # when the tile dir is missing or empty. Silently falling back
+        # to the Open-Meteo API in production is exactly how we ended
+        # up with rate-limit-shaped slope holes for some cities; the
+        # producer's per-way slope quality is also lower on the API
+        # path (endpoint-only, low confidence), so we'd ship a mostly
+        # grey slope layer without ever noticing.
         if: ${{ inputs.skip_dem != true }}
         env:
           ENRICH_DEM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/dem
@@ -168,6 +176,15 @@ jobs:
           ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
         run: |
           set -euo pipefail
+          if [ ! -d "$ENRICH_DEM_TILES_DIR" ] || [ -z "$(ls -A "$ENRICH_DEM_TILES_DIR" 2>/dev/null)" ]; then
+            echo "::error::ENRICH_DEM_TILES_DIR ($ENRICH_DEM_TILES_DIR) is missing or empty." >&2
+            echo "::error::Refusing to fall back to the Open-Meteo elevation API in CI:" >&2
+            echo "::error::  - rate limits would silently leave cities with patchy slope data" >&2
+            echo "::error::  - the API path uses endpoint-only slope (low confidence) and" >&2
+            echo "::error::    produces wildly inconsistent values for adjacent residential streets." >&2
+            echo "::error::Re-run the 'Download DEM tiles' step or unblock the cache and try again." >&2
+            exit 1
+          fi
           ARGS=()
           if [[ "${{ inputs.force_dem }}" == "true" ]]; then ARGS+=(--force); fi
           node scripts/producers/dem_producer.js "${ARGS[@]}"
@@ -216,6 +233,9 @@ jobs:
 
       - name: Check enriched payload size budget
         run: node scripts/check-enrichment-size.js
+
+      - name: Validate v3 context-layer datasets
+        run: node scripts/check-context-datasets.js
 
       # Commit only when something other than the meta-sidecar
       # `generatedAt` timestamp changed. The sidecar is always

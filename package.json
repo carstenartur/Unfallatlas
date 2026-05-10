@@ -13,6 +13,7 @@
     "test:e2e:headed": "playwright test --project=chromium --headed",
     "test:performance": "jest --testPathPatterns=tests/performance",
     "test:render-gate": "node scripts/check-pdf-render.js",
+    "validate:context-datasets": "node scripts/check-context-datasets.js",
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
