@@ -135,7 +135,8 @@ describe('ua.map_v2 context overlays', () => {
     };
 
     UA.setContextOverlayActive(ctx, 'slope', true);
-    await new Promise((r) => setTimeout(r, 0));
+    expect(ctx.contextOverlays.layers.slope).toBeNull();
+    await Promise.resolve();
 
     expect(ctx.contextOverlays.layers.slope).toBeTruthy();
     expect(ctx.map._layers).toContain(ctx.contextOverlays.layers.slope);
