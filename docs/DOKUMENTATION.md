@@ -803,6 +803,9 @@ unterstützten Parameter auf:
 | `tour` | Tour-Datei laden | `demo`, URL | (keine) |
 | `showSchools` | Schulen auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
 | `showKindergartens` | Kindergärten/Kitas auf Karte anzeigen | `0` / `1` | `1` (ab Zoom 14) |
+| `mapLayer` | Karten-Layer für Straßenkontext (CSV) | `slope`, `traffic` oder `slope,traffic` | (leer = aus) |
+| `debugSlope` | Debug-Labels mit Straßensteigung anzeigen | `0` / `1` | `0` |
+| `debugSlopeSamples` | Debug-Samples der Hangneigung anzeigen | `0` / `1` | `0` |
 
 ### Kontext (neu)
 
