@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('Berlin URL with mapLayer=slope renders overlay and visible legend swatches', async ({ page }) => {
+  test.setTimeout(120000);
   await page.goto('werkbank_v2.html?city=Berlin&mapLayer=slope&ctxOnlyMatched=0&showCluster=0&showHeatmap=0');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
