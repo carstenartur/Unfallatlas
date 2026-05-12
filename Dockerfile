@@ -12,7 +12,7 @@
 # Start:  docker run -p 8000:8000 unfallatlas
 # Image:  ghcr.io/carstenartur/unfallatlas
 
-FROM mcr.microsoft.com/playwright:v1.59.1-noble
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
 
 # ffmpeg für WebM → GIF-Konvertierung
 RUN apt-get update && apt-get install -y --no-install-recommends \
