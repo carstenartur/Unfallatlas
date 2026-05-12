@@ -200,6 +200,7 @@
       showKindergartens: true,
       showArgumentation: true
     };
+    UA.ctx = ctx;
 
     if (UA.cleanUrlIfNeeded()) return;
 

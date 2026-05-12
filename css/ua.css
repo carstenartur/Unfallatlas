@@ -231,6 +231,38 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
   line-height: 1;
 }
 
+.context-road-legend {
+  background: rgba(255,255,255,.92);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.3;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.context-road-legend__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.context-road-legend__row,
+.context-road-legend__nosignal,
+.context-road-legend__lowconfidence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+.context-road-legend__swatch {
+  display: inline-block;
+  width: 16px;
+  height: 10px;
+  border: 1px solid rgba(0,0,0,.25);
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.context-road-legend__label {
+  white-space: nowrap;
+}
+
 /* ============================================================
    Tour Overlay
    ============================================================ */

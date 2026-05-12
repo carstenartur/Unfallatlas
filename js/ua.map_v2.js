@@ -825,11 +825,15 @@
       ctx.contextOverlays = {
         active:  { slope: false, traffic: false },
         layers:  { slope: null,  traffic: null  },
+        pending: { slope: false, traffic: false },
         // The controls are managed by refreshContextOverlays; track
         // them so we can tear them down on city switch.
         layerControl:  null,
         legendControl: null,
       };
+    }
+    if (!ctx.contextOverlays.pending) {
+      ctx.contextOverlays.pending = { slope: false, traffic: false };
     }
     return ctx.contextOverlays;
   }
@@ -840,7 +844,10 @@
     if (reg.layers[kind]) return reg.layers[kind];
     if (!UA.contextRoadLayer) return null;
     const state = ctx.contextLayerState;
-    if (!state || !state.geometries) return null;
+    if (!state || !state.geometries) {
+      reg.pending[kind] = true;
+      return null;
+    }
     try {
       // PR-E (full-network v3): when the loaded state has tile-based
       // coverage, only build polylines for the current viewport — the
@@ -864,6 +871,7 @@
         ? UA.contextRoadLayer.buildSlopeLayer(state, opts)
         : UA.contextRoadLayer.buildTrafficLayer(state, opts);
       reg.layers[kind] = layer;
+      reg.pending[kind] = false;
       return layer;
     } catch (e) {
       console.warn(`[context-overlay] build "${kind}" failed:`, e);
@@ -901,7 +909,7 @@
     while (c.firstChild) c.removeChild(c.firstChild);
     let added = 0;
     for (const kind of CONTEXT_OVERLAY_KINDS) {
-      if (!reg.active[kind]) continue;
+      if (!reg.active[kind] || !reg.layers[kind]) continue;
       try {
         c.appendChild(UA.contextRoadLayer.buildLegend(kind));
         added++;
@@ -923,6 +931,15 @@
     const reg = _ensureOverlayRegistry(ctx);
     const want = !!active;
     if (reg.active[kind] === want) {
+      if (want && !reg.layers[kind]) {
+        _ensureViewportTilesLoaded(ctx).then(() => {
+          const layer = _buildOverlay(ctx, kind);
+          if (layer && ctx.map && typeof layer.addTo === 'function') {
+            try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
+          }
+          _refreshContextLegend(ctx);
+        });
+      }
       // Even when the desired state already matches, keep the
       // checkbox in sync — a previous teardown may have left it
       // stale. This is cheap (one DOM lookup).
@@ -1233,6 +1250,11 @@
       }
     }
     _refreshContextLegend(ctx);
+    if (hasV3Tiles && CONTEXT_OVERLAY_KINDS.some(kind => reg.active[kind])) {
+      _ensureViewportTilesLoaded(ctx).then(() => {
+        _refreshContextLegend(ctx);
+      });
+    }
   };
 
   UA.fitToAllPoints = function fitToAllPoints(ctx) {
