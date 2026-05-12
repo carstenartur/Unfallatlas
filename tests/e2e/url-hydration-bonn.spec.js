@@ -140,6 +140,49 @@ test.describe('URL-State-Hydration – Determinismus', () => {
     return out;
   }
 
+  test('mapLayer + ctxSlope bleiben beim ersten Load und nach Reload stabil (idempotent)', async ({ page }) => {
+    const url = 'werkbank_v2.html?city=Bonn&mapLayer=slope,traffic&ctxSlope=steep,very_steep';
+    await page.goto(url);
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
+    await expect.poll(() => new URL(page.url()).searchParams.get('centerLat')).not.toBeNull();
+
+    await expect(page.locator('#ctxOverlay_slope')).toBeChecked();
+    await expect(page.locator('#ctxOverlay_traffic')).toBeChecked();
+    await expect(page.locator('[data-ctx-slope="steep"]')).toBeChecked();
+    await expect(page.locator('[data-ctx-slope="very_steep"]')).toBeChecked();
+
+    const urlA = await paramsOf(page);
+    const overlaysA = await page.evaluate(() => ({
+      slope: document.getElementById('ctxOverlay_slope')?.checked || false,
+      traffic: document.getElementById('ctxOverlay_traffic')?.checked || false,
+    }));
+
+    expect(urlA.city).toBe('Bonn');
+    expect(urlA.mapLayer).toBe('slope,traffic');
+    expect(urlA.ctxSlope).toBe('steep,very_steep');
+    const stableA = page.url();
+    await page.waitForTimeout(300);
+    expect(page.url()).toBe(stableA);
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
+
+    await expect(page.locator('#ctxOverlay_slope')).toBeChecked();
+    await expect(page.locator('#ctxOverlay_traffic')).toBeChecked();
+    await expect(page.locator('[data-ctx-slope="steep"]')).toBeChecked();
+    await expect(page.locator('[data-ctx-slope="very_steep"]')).toBeChecked();
+
+    const urlB = await paramsOf(page);
+    const overlaysB = await page.evaluate(() => ({
+      slope: document.getElementById('ctxOverlay_slope')?.checked || false,
+      traffic: document.getElementById('ctxOverlay_traffic')?.checked || false,
+    }));
+    expect(urlB).toEqual(urlA);
+    expect(overlaysB).toEqual(overlaysA);
+  });
+
   test('zwei aufeinanderfolgende Reloads ergeben denselben URL- und UI-Zustand', async ({ page }) => {
     await page.goto(BONN_URL);
     await page.waitForLoadState('networkidle');
