@@ -200,7 +200,6 @@
       showKindergartens: true,
       showArgumentation: true
     };
-
     if (UA.cleanUrlIfNeeded()) return;
 
     // QA-Härtung „URL = Source of Truth": Während der Init-Phase
