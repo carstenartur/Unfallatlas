@@ -938,7 +938,7 @@
             try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
           }
           _refreshContextLegend(ctx);
-        });
+        }).catch(() => { /* tile fetch failure handled in _ensureViewportTilesLoaded */ });
       }
       // Even when the desired state already matches, keep the
       // checkbox in sync — a previous teardown may have left it

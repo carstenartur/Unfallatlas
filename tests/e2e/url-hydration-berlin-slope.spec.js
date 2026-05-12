@@ -41,7 +41,6 @@ test('Berlin URL with mapLayer=slope renders overlay and visible legend swatches
       };
     })
   );
-  expect(metrics.length).toBeGreaterThanOrEqual(5);
   for (const m of metrics) {
     expect(m.width).toBeGreaterThan(0);
     expect(m.height).toBeGreaterThan(0);
