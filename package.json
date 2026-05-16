@@ -13,6 +13,7 @@
     "test:e2e:headed": "playwright test --project=chromium --headed",
     "test:performance": "jest --testPathPatterns=tests/performance",
     "test:render-gate": "node scripts/check-pdf-render.js",
+    "generate:sample-pdf": "node scripts/generate-sample-pdf.js",
     "validate:context-datasets": "node scripts/check-context-datasets.js",
     "validate:slope-plausibility": "node scripts/check-slope-plausibility.js",
     "qa:slope": "node scripts/qa-slope-report.js",

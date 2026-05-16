@@ -78,6 +78,33 @@ jobs:
           UNFALLATLAS_IMAGE: ${{ steps.pull.outputs.image }}
         run: npm run test:integration:tc
 
+  pdf-render-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Poppler and Ghostscript
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y poppler-utils ghostscript
+
+      - name: Generate sample PDF
+        run: npm run generate:sample-pdf
+
+      - name: Run PDF render gate
+        run: npm run test:render-gate -- --pdf out/ci-render-gate.pdf --timeout-per-page 30
+
   e2e-tests:
     runs-on: ubuntu-latest
     
