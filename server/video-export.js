@@ -27,9 +27,13 @@ const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
+const { VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
 
 const execFileAsync = promisify(execFile);
 const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
+const WEBP_QUALITY = 60;
+const WEBM_TO_ANIMATED_IMAGE_FILTER = 'setpts=0.15*PTS,fps=8,scale=800:-1:flags=lanczos';
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 const CDN_ROUTES = [
@@ -92,13 +96,20 @@ async function flyToAndWait(page, lat, lng, zoom) {
 }
 
 /**
- * Erzeugt ein GIF-Video des Analyse-Ablaufs basierend auf den übergebenen
+ * Erzeugt ein Export-Video des Analyse-Ablaufs basierend auf den übergebenen
  * URL-Parametern.
  *
  * @param {Object} params  URL-Parameter der Werkbank
- * @returns {Promise<string>}  Pfad zur erzeugten GIF-Datei (muss vom Aufrufer gelöscht werden)
- */
-async function exportVideo(params) {
+ * @param {{ format?: 'gif'|'webp'|'apng' }} [opts]
+ * @returns {Promise<{ path: string, format: 'gif'|'webp'|'apng', contentType: string, extension: string }>}
+  */
+async function exportVideo(params, opts = {}) {
+  const format = String(opts.format || 'gif').toLowerCase();
+  const formatMeta = VIDEO_EXPORT_FORMATS[format];
+  if (!formatMeta) {
+    throw new Error(`unsupported_format:${format}`);
+  }
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'unfallatlas-video-export-'));
   const videoDir = path.join(tmpDir, 'video');
   fs.mkdirSync(videoDir, { recursive: true });
@@ -348,35 +359,68 @@ async function exportVideo(params) {
     }
     webmPath = videoPath;
 
-    // ── 16. WebM → GIF konvertieren ────────────────────────────────────────
-    // GIF wird AUSSERHALB von tmpDir gespeichert, damit tmpDir vollständig
-    // aufgeräumt werden kann bevor der GIF-Pfad zurückgegeben wird.
-    const gifPath = path.join(os.tmpdir(), `unfallatlas-export-${Date.now()}.gif`);
-    const palettePath = path.join(tmpDir, 'palette.png');
+    // ── 16. WebM → Zielformat konvertieren ─────────────────────────────────
+    const outputPath = path.join(
+      os.tmpdir(),
+      `unfallatlas-export-${Date.now()}-${crypto.randomUUID()}.${formatMeta.extension}`
+    );
 
-    // Schritt 1: Palette erzeugen (async, damit der Event-Loop nicht blockiert)
-    await execFileAsync('ffmpeg', [
-      '-y',
-      '-ss', '1',
-      '-i', webmPath,
-      '-vf', 'fps=4,scale=800:-1:flags=lanczos,palettegen=max_colors=96:stats_mode=diff',
-      palettePath
-    ], { timeout: FFMPEG_TIMEOUT_MS });
+    if (format === 'gif') {
+      const palettePath = path.join(tmpDir, 'palette.png');
+      // Schritt 1: Palette erzeugen (async, damit der Event-Loop nicht blockiert)
+      await execFileAsync('ffmpeg', [
+        '-y',
+        '-ss', '1',
+        '-i', webmPath,
+        '-vf', 'fps=4,scale=800:-1:flags=lanczos,palettegen=max_colors=96:stats_mode=diff',
+        palettePath
+      ], { timeout: FFMPEG_TIMEOUT_MS });
 
-    // Schritt 2: GIF mit Palette erzeugen (async)
-    await execFileAsync('ffmpeg', [
-      '-y',
-      '-ss', '1',
-      '-i', webmPath,
-      '-i', palettePath,
-      '-lavfi', 'fps=4,scale=800:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4',
-      gifPath
-    ], { timeout: FFMPEG_TIMEOUT_MS });
+      // Schritt 2: GIF mit Palette erzeugen (async)
+      await execFileAsync('ffmpeg', [
+        '-y',
+        '-ss', '1',
+        '-i', webmPath,
+        '-i', palettePath,
+        '-lavfi', 'fps=4,scale=800:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4',
+        outputPath
+      ], { timeout: FFMPEG_TIMEOUT_MS });
+    } else if (format === 'webp') {
+      await execFileAsync('ffmpeg', [
+        '-y',
+        '-i', webmPath,
+        '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
+        '-loop', '0',
+        '-vcodec', 'libwebp',
+        '-lossless', '0',
+        '-q:v', String(WEBP_QUALITY),
+        '-compression_level', '6',
+        '-preset', 'picture',
+        '-an',
+        '-vsync', '0',
+        outputPath
+      ], { timeout: FFMPEG_TIMEOUT_MS });
+    } else if (format === 'apng') {
+      await execFileAsync('ffmpeg', [
+        '-y',
+        '-i', webmPath,
+        '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
+        '-pix_fmt', 'pal8',
+        '-plays', '0',
+        '-f', 'apng',
+        outputPath
+      ], { timeout: FFMPEG_TIMEOUT_MS });
+    }
 
     // Gesamtes tmpDir (enthält video/ + palette.png + .webm) aufräumen
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* ignore */ }
 
-    return gifPath;
+    return {
+      path: outputPath,
+      format,
+      contentType: formatMeta.contentType,
+      extension: formatMeta.extension
+    };
 
   } catch (err) {
     if (browser) {

@@ -106,6 +106,7 @@ describe('capabilities', () => {
     expect(cap.available).toBe(true);
     expect(cap.reasonCode).toBe('server_only_feature');
     expect(cap.details.dockerRecommended).toBe(true);
+    expect(cap.details.supportedFormats).toEqual(['gif', 'webp', 'apng']);
   });
 
   test('getCapabilities: aggregiert alle Features inkl. analysisService', () => {

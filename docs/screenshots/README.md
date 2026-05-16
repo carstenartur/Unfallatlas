@@ -102,7 +102,7 @@ Voraussetzungen:
   bereitgestellt, ist bereits Dev-Dependency).
 
 Datei-Größen-Budget (im Skript geprüft, sonst Exit-Code ≠ 0):
-GIF ≤ 4 MB, PNG ≤ 600 KB.
+GIF ≤ 10 MB, PNG ≤ 600 KB.
 
 Analog regeneriert `npm run regen:demo` das in der README eingebettete
 `docs/demo.gif` über denselben Container-Helper
