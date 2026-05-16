@@ -64,8 +64,8 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
 > Ergänzend gibt es eine kontextspezifische GIF-Demo
-> (`docs/demo-context.gif`) und drei begleitende PNGs (17–19 unter
-> `docs/screenshots/`) für die Sektion **Kontext (neu)**:
+> (`demo-context.gif`) und drei begleitende PNGs (17–19 unter
+> `screenshots/`) für die Sektion **Kontext (neu)**:
 > [Kontext (neu)](#kontext-neu).
 
 ---

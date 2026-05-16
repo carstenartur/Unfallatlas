@@ -56,8 +56,10 @@ async function fetchGif(baseUrl) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(README_DEMO_BODY)
   });
-  if (res.status !== 200) {
-    throw new Error(`POST /api/export-video → HTTP ${res.status}`);
+  if (!res.ok) {
+    const responseText = await res.text().catch(() => '');
+    const detail = responseText ? `, body=${responseText.slice(0, 600)}` : '';
+    throw new Error(`POST /api/export-video → HTTP ${res.status} ${res.statusText}${detail}`);
   }
   return Buffer.from(await res.arrayBuffer());
 }

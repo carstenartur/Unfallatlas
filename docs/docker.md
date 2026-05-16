@@ -4,9 +4,9 @@
 
 Die Unfallwerkbank ist als fertiges Docker-Image unter
 `ghcr.io/carstenartur/unfallatlas` verfügbar.
-Die Docker-Distribution enthält gegenüber der GitHub-Pages-Version einen
-zusätzlichen **„🎬 Als Video exportieren"-Button**, der den kompletten
-Analyse-Ablauf als GIF-Video generiert.
+Im Vergleich zu GitHub Pages (statisch, ohne Backend) sind im
+servergestützten Betrieb zusätzliche Features verfügbar, darunter der
+**„🎬 Als Video exportieren"-Button**.
 
 ## Schnellstart
 
@@ -31,9 +31,10 @@ docker build -t unfallatlas .
 docker run -p 8000:8000 unfallatlas
 ```
 
-## Video-Export-Funktion (nur Docker)
+## Video-Export-Funktion (Server-Betrieb: Node oder Docker)
 
-Nach dem Start der Docker-Version erscheint im Export-Bereich ein
+Sobald die Werkbank mit Backend läuft (lokaler Node-Server oder Docker),
+erscheint im Export-Bereich ein
 **„🎬 Als Video exportieren"-Button**. Dieser:
 
 1. Sammelt alle aktuellen Einstellungen (Stadt, Filter, Kartenposition, markierter Bereich)
@@ -41,7 +42,9 @@ Nach dem Start der Docker-Version erscheint im Export-Bereich ein
 3. Playwright spielt den kompletten Ablauf animiert durch – von der Standardansicht über die Filterauswahl bis zum Bezirksratsantrag
 4. Das fertige GIF wird automatisch heruntergeladen
 
-> **Hinweis:** Der Button ist ausschließlich in der Docker-Distribution sichtbar. Auf GitHub Pages ist er nicht vorhanden (graceful degradation).
+> **Hinweis:** Auf GitHub Pages (ohne Backend) ist der Button nicht
+> vorhanden (graceful degradation). In servergestützten Varianten
+> (Node/Docker) ist er verfügbar.
 
 ## README-Demo-GIF reproduzieren
 
