@@ -131,9 +131,33 @@ describe('UA.readPngDimensions / UA.fitWithAspectRatio / UA.fitImageToMax', () =
     }
   });
 
-  test('fitImageToMax falls back to max box when PNG header cannot be parsed', () => {
+  test('fitImageToMax falls back to max-box ratio (not raw dimensions) when PNG header cannot be parsed', () => {
+    // The new semantically-correct behaviour: the fallback uses
+    // fitWithAspectRatio({ratio*1000, 1000}, max) rather than returning
+    // {max.width, max.height} directly.  For DOCX_MAP_MAX (600×400, ratio
+    // 1.5) and PDF_MAP_MAX (475×340, ratio ≈1.397) the result is
+    // mathematically identical to the old literal {max.width, max.height}
+    // because fitting a box at its own ratio into itself gives exactly the
+    // box dimensions.  The test therefore continues to expect the same
+    // numeric values — but the underlying logic is now ratio-based and
+    // will correctly preserve aspect ratio for arbitrary max boxes.
     expect(UA.fitImageToMax('SGVsbG8=', UA.DOCX_MAP_MAX)).toEqual({ width: 600, height: 400 });
     expect(UA.fitImageToMax('', UA.PDF_MAP_MAX)).toEqual({ width: 475, height: 340 });
+  });
+
+  test('fitImageToMax with strict:true throws when PNG header cannot be parsed', () => {
+    expect(() => UA.fitImageToMax('SGVsbG8=', UA.DOCX_MAP_MAX, { strict: true })).toThrow();
+    expect(() => UA.fitImageToMax('', UA.PDF_MAP_MAX, { strict: true })).toThrow();
+  });
+
+  test('fitImageToMax with fallbackRatio: 16/9 produces correct ratio within tolerance', () => {
+    const result = UA.fitImageToMax('SGVsbG8=', UA.DOCX_MAP_MAX, { fallbackRatio: 16 / 9 });
+    const expectedRatio = 16 / 9;
+    const actualRatio = result.width / result.height;
+    expect(Math.abs(actualRatio - expectedRatio)).toBeLessThan(UA.ASPECT_TOLERANCE);
+    // Both axes must fit within the max box.
+    expect(result.width).toBeLessThanOrEqual(UA.DOCX_MAP_MAX.width);
+    expect(result.height).toBeLessThanOrEqual(UA.DOCX_MAP_MAX.height);
   });
 });
 

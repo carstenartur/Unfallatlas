@@ -189,3 +189,12 @@ cd analysis-service && SPRING_PROFILES_ACTIVE=prod \
       [`server/ai/README.md`](../server/ai/README.md),
       [`server/political-context/README.md`](../server/political-context/README.md),
       [`analysis-service/README.md`](../analysis-service/README.md)
+
+## 7. Stabilisierungs-Checks (vor Release)
+
+- [ ] README-Linkprüfung: kein `¢erLat`/`¢erLon`, keine isolierten kaputten Symbolzeichen (`grep -nP "¢er(Lat|Lon)" README.md` muss leer sein).
+- [ ] Demo-GIF (`docs/demo.gif`) zeigt aktuellen UI-Stand (Datum/Commit notieren).
+- [ ] Live-Demo-Hydration: Playwright-Test gegen GitHub Pages mit Bonn-URL grün.
+- [ ] Steigungslayer bleibt nach Filterwechsel/Stadtreload/Exportdialog sichtbar.
+- [ ] PDF-Render-Gate in CI grün (`npm run generate:sample-pdf && npm run test:render-gate -- --pdf out/ci-render-gate.pdf`).
+- [ ] Bildseitenverhältnistest (`ua.report_v2.imageAspectRatio.test.js`) grün.

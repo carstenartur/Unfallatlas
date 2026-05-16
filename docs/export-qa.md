@@ -68,7 +68,7 @@ Legende: ✅ automatisiert · ⚠️ teilweise · ❌ offen / manuell
 |-------------|--------------|--------|------|
 | Per-Page-Render mit Timeout | Jede Seite wird durch `pdftoppm`, `pdfimages` und `gs` ohne Timeout (default 15 s/Seite) gerendert. | ⚠️ optional | `scripts/check-pdf-render.js`, npm: `npm run test:render-gate -- --pdf <path>` |
 | Skip-Mode ohne Binaries | Ohne installierte Poppler-/Ghostscript-Tools überspringt das Skript freundlich (Exit 0). | ✅ | `scripts/check-pdf-render.js` (which-Probe) |
-| CI-Integration | Workflow-Stage mit installiertem `poppler-utils` + `ghostscript`. | ❌ separates Review (System-Binaries in CI) | – |
+| CI-Integration | Workflow-Stage mit installiertem `poppler-utils` + `ghostscript`. | ✅ | `.github/workflows/test.yml` Job `pdf-render-gate` |
 
 ### Lokale Nutzung
 

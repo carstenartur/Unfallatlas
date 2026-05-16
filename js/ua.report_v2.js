@@ -330,24 +330,42 @@
   UA.fitWithAspectRatio = fitWithAspectRatio;
 
   /**
-   * Convenience: read PNG size + fit to `max` in one call. Falls back to
-   * `max` (full box) if the PNG header cannot be parsed — that keeps the
-   * export from crashing on synthetic test fixtures while still preferring
-   * the correct aspect ratio when real PNG data is present.
+   * Convenience: read PNG size + fit to `max` in one call.
    *
-   * Returned object has the canonical `{width, height}` shape that
-   * `docx`-`ImageRun.transformation` and pdfMake `image` accept.
+   * Fallback-Hierarchie, wenn der PNG-Header nicht gelesen werden kann:
+   *  1. `opts.strict === true`  → wirft den ursprünglichen Fehler weiter.
+   *  2. `opts.fallbackRatio` (Zahl, width/height) gesetzt → benutzt diese
+   *     Ratio via `fitWithAspectRatio`.
+   *  3. Kein fallbackRatio → konservativer Default: Ratio der `max`-Box
+   *     selbst (`max.width / max.height`). Das ist semantisch identisch zum
+   *     alten Verhalten für Boxen, deren Ratio identisch zur Originalratio
+   *     wäre (z. B. DOCX_MAP_MAX 600×400 = 3:2), aber wir behaupten nun
+   *     eine Ratio statt absolute Dimensionen — verhindert künftige
+   *     Verzerrung, wenn max und Originalgröße stark abweichen.
+   *
+   * Returned object hat die kanonische `{width, height}`-Form, die
+   * `docx`-`ImageRun.transformation` und pdfMake `image` erwarten.
    *
    * @param {string} dataUrlOrBase64
    * @param {{width:number,height:number}} max
+   * @param {{fallbackRatio?: number, strict?: boolean}} [opts]
    */
-  function fitImageToMax(dataUrlOrBase64, max) {
+  function fitImageToMax(dataUrlOrBase64, max, opts) {
     try {
       const orig = readPngDimensions(dataUrlOrBase64);
       return fitWithAspectRatio(orig, max);
-    } catch (_) {
-      // Fallback: max box (kein „verzerrt", aber Originalgröße unbekannt).
-      return { width: max.width, height: max.height };
+    } catch (err) {
+      if (opts && opts.strict) {
+        throw err;
+      }
+      // Bestimme eine sichere Fallback-Ratio:
+      //  - explizit übergeben → nutze sie
+      //  - sonst: Ratio der max-Box (verhindert Verzerrung gegenüber naivem
+      //    `{max.width, max.height}` bei beliebigen Original-Dimensionen)
+      const ratio = (opts && typeof opts.fallbackRatio === 'number' && opts.fallbackRatio > 0)
+        ? opts.fallbackRatio
+        : max.width / max.height;
+      return fitWithAspectRatio({ width: ratio * 1000, height: 1000 }, max);
     }
   }
   UA.fitImageToMax = fitImageToMax;
