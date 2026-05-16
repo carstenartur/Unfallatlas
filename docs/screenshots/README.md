@@ -102,7 +102,7 @@ Voraussetzungen:
   bereitgestellt, ist bereits Dev-Dependency).
 
 Datei-Größen-Budget (im Skript geprüft, sonst Exit-Code ≠ 0):
-GIF ≤ 4 MB, PNG ≤ 600 KB.
+GIF ≤ 10 MB, PNG ≤ 600 KB.
 
 Die Platzhalter-Hinweise in `docs/DOKUMENTATION.md` (Abschnitt
 „Kontext (neu)") werden mit dem ersten erfolgreichen Lauf des Skripts

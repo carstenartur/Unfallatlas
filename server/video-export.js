@@ -27,28 +27,13 @@ const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
+const { VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
 
 const execFileAsync = promisify(execFile);
 const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
-const WEBP_QUALITY = 30;
-const WEBM_TO_ANIMATED_IMAGE_FILTER = 'fps=8,scale=800:-1:flags=lanczos';
-const ANIMATED_EXPORT_START_SECONDS = 1;
-const ANIMATED_EXPORT_DURATION_SECONDS = 12;
-
-const EXPORT_FORMATS = Object.freeze({
-  gif: Object.freeze({
-    contentType: 'image/gif',
-    extension: 'gif'
-  }),
-  webp: Object.freeze({
-    contentType: 'image/webp',
-    extension: 'webp'
-  }),
-  apng: Object.freeze({
-    contentType: 'image/apng',
-    extension: 'apng'
-  })
-});
+const WEBP_QUALITY = 60;
+const WEBM_TO_ANIMATED_IMAGE_FILTER = 'setpts=0.15*PTS,fps=8,scale=800:-1:flags=lanczos';
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 const CDN_ROUTES = [
@@ -117,10 +102,10 @@ async function flyToAndWait(page, lat, lng, zoom) {
  * @param {Object} params  URL-Parameter der Werkbank
  * @param {{ format?: 'gif'|'webp'|'apng' }} [opts]
  * @returns {Promise<{ path: string, format: 'gif'|'webp'|'apng', contentType: string, extension: string }>}
- */
+  */
 async function exportVideo(params, opts = {}) {
   const format = String(opts.format || 'gif').toLowerCase();
-  const formatMeta = EXPORT_FORMATS[format];
+  const formatMeta = VIDEO_EXPORT_FORMATS[format];
   if (!formatMeta) {
     throw new Error(`unsupported_format:${format}`);
   }
@@ -375,7 +360,10 @@ async function exportVideo(params, opts = {}) {
     webmPath = videoPath;
 
     // ── 16. WebM → Zielformat konvertieren ─────────────────────────────────
-    const outputPath = path.join(os.tmpdir(), `unfallatlas-export-${Date.now()}.${formatMeta.extension}`);
+    const outputPath = path.join(
+      os.tmpdir(),
+      `unfallatlas-export-${Date.now()}-${crypto.randomUUID()}.${formatMeta.extension}`
+    );
 
     if (format === 'gif') {
       const palettePath = path.join(tmpDir, 'palette.png');
@@ -400,8 +388,6 @@ async function exportVideo(params, opts = {}) {
     } else if (format === 'webp') {
       await execFileAsync('ffmpeg', [
         '-y',
-        '-ss', String(ANIMATED_EXPORT_START_SECONDS),
-        '-t', String(ANIMATED_EXPORT_DURATION_SECONDS),
         '-i', webmPath,
         '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
         '-loop', '0',
@@ -417,8 +403,6 @@ async function exportVideo(params, opts = {}) {
     } else if (format === 'apng') {
       await execFileAsync('ffmpeg', [
         '-y',
-        '-ss', String(ANIMATED_EXPORT_START_SECONDS),
-        '-t', String(ANIMATED_EXPORT_DURATION_SECONDS),
         '-i', webmPath,
         '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
         '-pix_fmt', 'pal8',

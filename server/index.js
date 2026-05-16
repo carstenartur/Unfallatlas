@@ -30,6 +30,7 @@ const { rateLimit } = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const { exportVideo }   = require('./video-export.js');
+const { SUPPORTED_VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
 const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
 const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAssessmentServiceV2.js');
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
@@ -101,7 +102,6 @@ const locationBriefRateLimit = rateLimit({
 // Concurrency guard: at most MAX_CONCURRENT Playwright/ffmpeg jobs at once.
 const MAX_CONCURRENT = 2;
 let activeExports = 0;
-const SUPPORTED_VIDEO_EXPORT_FORMATS = Object.freeze(['gif', 'webp', 'apng']);
 
 function concurrencyGuard(req, res, next) {
   if (activeExports >= MAX_CONCURRENT) {
@@ -110,6 +110,23 @@ function concurrencyGuard(req, res, next) {
     });
   }
   activeExports++;
+  next();
+}
+
+function parseRequestedVideoExportFormat(req) {
+  const body = req.body || {};
+  return String(body.format || req.query.format || 'gif').toLowerCase();
+}
+
+function validateVideoExportFormat(req, res, next) {
+  const requestedFormat = parseRequestedVideoExportFormat(req);
+  if (!SUPPORTED_VIDEO_EXPORT_FORMATS.includes(requestedFormat)) {
+    return res.status(400).json({
+      error: 'unsupported_format',
+      supportedFormats: SUPPORTED_VIDEO_EXPORT_FORMATS
+    });
+  }
+  req.videoExportFormat = requestedFormat;
   next();
 }
 
@@ -185,19 +202,11 @@ app.get('/api/video-export-available', (_req, res) => {
  *
  * Antwort: Bilddatei als Download (image/gif | image/webp | image/apng)
  */
-app.post('/api/export-video', videoExportRateLimit, concurrencyGuard, async (req, res) => {
+app.post('/api/export-video', videoExportRateLimit, validateVideoExportFormat, concurrencyGuard, async (req, res) => {
   const rawBody = req.body || {};
   const params = { ...rawBody };
   delete params.format;
-
-  const requestedFormat = String(rawBody.format || req.query.format || 'gif').toLowerCase();
-  if (!SUPPORTED_VIDEO_EXPORT_FORMATS.includes(requestedFormat)) {
-    activeExports--;
-    return res.status(400).json({
-      error: 'unsupported_format',
-      supportedFormats: SUPPORTED_VIDEO_EXPORT_FORMATS
-    });
-  }
+  const requestedFormat = req.videoExportFormat || parseRequestedVideoExportFormat(req);
 
   // Note: activeExports is incremented in concurrencyGuard (before next())
   let exportResult = null;

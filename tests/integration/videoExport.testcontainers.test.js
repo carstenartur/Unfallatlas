@@ -87,15 +87,18 @@ if (SUITE_DESCRIBE === describe.skip) {
   );
 }
 
-async function postExportVideo(baseUrl, format) {
+async function postExportVideo(baseUrl, opts = {}) {
+  const { bodyFormat, queryFormat } = opts;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const body = {
     ...CONTEXT_BODY
   };
-  if (format !== undefined) body.format = format;
+  if (bodyFormat !== undefined) body.format = bodyFormat;
+  const url = new URL(`${baseUrl}/api/export-video`);
+  if (queryFormat !== undefined) url.searchParams.set('format', queryFormat);
   try {
-    const res = await fetch(`${baseUrl}/api/export-video`, {
+    const res = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -127,12 +130,13 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
   });
 
   test.each([
-    { format: undefined, expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
-    { format: 'gif', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
-    { format: 'webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
-    { format: 'apng', expectedContentType: /^image\/apng/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES }
-  ])('returns valid $expectedExt export (format=$format)', async ({ format, expectedContentType, expectedExt, budget }) => {
-    const { status, contentType, body } = await postExportVideo(handle.baseUrl, format);
+    { request: {}, label: 'default', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
+    { request: { bodyFormat: 'gif' }, label: 'body:gif', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
+    { request: { bodyFormat: 'webp' }, label: 'body:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
+    { request: { bodyFormat: 'apng' }, label: 'body:apng', expectedContentType: /^image\/apng/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES },
+    { request: { queryFormat: 'webp' }, label: 'query:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES }
+  ])('returns valid $expectedExt export ($label)', async ({ request, expectedContentType, expectedExt, budget }) => {
+    const { status, contentType, body } = await postExportVideo(handle.baseUrl, request);
 
     expect(status).toBe(200);
     expect(contentType).toMatch(expectedContentType);
@@ -158,7 +162,7 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
   }, 6 * 60 * 1000);
 
   it('rejects unsupported export format', async () => {
-    const { status, body } = await postExportVideo(handle.baseUrl, 'mp4');
+    const { status, body } = await postExportVideo(handle.baseUrl, { bodyFormat: 'mp4' });
     const json = JSON.parse(body.toString('utf8'));
     expect(status).toBe(400);
     expect(json).toEqual(expect.objectContaining({

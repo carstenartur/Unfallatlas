@@ -29,6 +29,7 @@
  * @property {string}  reason      – kurze, lesbare Begründung
  * @property {object}  [details]   – optionale Zusatzinfos (z. B. Provider-Name)
  */
+const { SUPPORTED_VIDEO_EXPORT_FORMATS } = require('../video-export-formats.js');
 
 /**
  * Standardisierte Gründe.  Bewusst klein gehalten – das Frontend kann
@@ -159,7 +160,7 @@ function videoExport() {
     reason:    'Video-Export erfordert den Server und (in der Praxis) das Docker-Image.',
     details:   {
       dockerRecommended: true,
-      supportedFormats: ['gif', 'webp', 'apng']
+      supportedFormats: SUPPORTED_VIDEO_EXPORT_FORMATS
     }
   };
 }
