@@ -157,7 +157,10 @@ function videoExport() {
     available: true,
     reasonCode: REASON_CODES.SERVER_ONLY_FEATURE,
     reason:    'Video-Export erfordert den Server und (in der Praxis) das Docker-Image.',
-    details:   { dockerRecommended: true }
+    details:   {
+      dockerRecommended: true,
+      supportedFormats: ['gif', 'webp', 'apng']
+    }
   };
 }
 

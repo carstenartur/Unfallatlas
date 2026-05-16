@@ -81,7 +81,7 @@ docker run -p 8000:8000 -e GEMINI_API_KEY=... \
 - [ ] Container startet, `http://localhost:8000` erreichbar
 - [ ] Werkbank lädt (`werkbank_v2.html`), Karte sichtbar
 - [ ] Button **„🎬 Als Video exportieren"** ist sichtbar (nur Docker)
-- [ ] Video-Export liefert eine `.gif`-Datei zum Download
+- [ ] Video-Export liefert in allen drei Formaten (`gif`, `webp`, `apng`) eine valide Datei (Magic-Byte-Check)
 - [ ] Mit gesetztem `GEMINI_API_KEY`: KI-Bewertung funktioniert (s. o.)
 - [ ] Ohne `GEMINI_API_KEY`: KI-Endpunkte verhalten sich wie in Variante 2
 - [ ] Politische Recherche funktioniert für die unterstützten Städte

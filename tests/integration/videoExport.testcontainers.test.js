@@ -12,8 +12,9 @@
  * test stays green.
  *
  * This test starts the production container, hits the route, and proves
- * the response is a real GIF — i.e. the full Express + Playwright +
- * ffmpeg pipeline ran end-to-end inside Docker.
+ * the response is a real animated export file (GIF/WebP/APNG) — i.e.
+ * the full Express + Playwright + ffmpeg pipeline ran end-to-end inside
+ * Docker.
  *
  * Skip semantics
  * --------------
@@ -42,6 +43,9 @@ const {
 } = require('./lib/startUnfallatlasContainer');
 
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000; // 5 min — Playwright recording + ffmpeg can take 60-120 s on a cold container
+const GIF_BUDGET_BYTES = 10 * 1024 * 1024;
+const WEBP_BUDGET_BYTES = 4 * 1024 * 1024;
+const APNG_BUDGET_BYTES = 8 * 1024 * 1024;
 
 // Body that drives the new context UI — same payload the docs-asset
 // regen script POSTs, so the test and the regen share one URL.
@@ -83,14 +87,18 @@ if (SUITE_DESCRIBE === describe.skip) {
   );
 }
 
-async function postExportVideo(baseUrl) {
+async function postExportVideo(baseUrl, format) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const body = {
+    ...CONTEXT_BODY
+  };
+  if (format !== undefined) body.format = format;
   try {
     const res = await fetch(`${baseUrl}/api/export-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(CONTEXT_BODY),
+      body: JSON.stringify(body),
       signal: controller.signal
     });
     const buf = Buffer.from(await res.arrayBuffer());
@@ -118,35 +126,49 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     if (handle) await handle.stop();
   });
 
-  it('returns a real GIF (ffmpeg pipeline ran inside the container)', async () => {
-    const { status, contentType, body } = await postExportVideo(handle.baseUrl);
+  test.each([
+    { format: undefined, expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
+    { format: 'gif', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
+    { format: 'webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
+    { format: 'apng', expectedContentType: /^image\/apng/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES }
+  ])('returns valid $expectedExt export (format=$format)', async ({ format, expectedContentType, expectedExt, budget }) => {
+    const { status, contentType, body } = await postExportVideo(handle.baseUrl, format);
 
     expect(status).toBe(200);
-    expect(contentType).toMatch(/^image\/gif/i);
+    expect(contentType).toMatch(expectedContentType);
 
-    // GIF89a magic — proves it is a real GIF, not an HTML error page or
-    // an empty `res.sendFile` stub.
-    expect(body.length).toBeGreaterThan(6);
-    expect(body.slice(0, 6).toString('ascii')).toBe('GIF89a');
-
-    // GIF trailer — proves the file is complete (ffmpeg did not abort
-    // mid-write).
-    expect(body[body.length - 1]).toBe(0x3b);
-
-    // Size budget — catches both "empty 1-byte file" and "runaway
-    // recording" regressions.
-    const MIN = 50 * 1024;        // 50 KB
-    const MAX = 16 * 1024 * 1024; // 16 MB — generous budget so transient
-                                  // Chromium / font-rendering variance
-                                  // (observed ~8.2 MB on otherwise-passing
-                                  // runs) does not flake the suite.
+    const MIN = 50 * 1024; // 50 KB
     expect(body.length).toBeGreaterThanOrEqual(MIN);
-    expect(body.length).toBeLessThanOrEqual(MAX);
+    expect(body.length).toBeLessThanOrEqual(budget);
 
-    // Container logs must not contain the server-side error marker —
-    // guards against silent fallbacks where the route returns 200 from
-    // a stale on-disk file while ffmpeg actually failed.
+    if (expectedExt === 'gif') {
+      const header = body.slice(0, 6).toString('ascii');
+      expect(['GIF87a', 'GIF89a']).toContain(header);
+      expect(body[body.length - 1]).toBe(0x3b);
+    } else if (expectedExt === 'webp') {
+      expect(body.slice(0, 4).toString('ascii')).toBe('RIFF');
+      expect(body.slice(8, 12).toString('ascii')).toBe('WEBP');
+      expect(body.includes(Buffer.from('VP8X', 'ascii'))).toBe(true);
+      expect(body.includes(Buffer.from('ANIM', 'ascii'))).toBe(true);
+    } else if (expectedExt === 'apng') {
+      const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      expect(body.subarray(0, 8).equals(pngSig)).toBe(true);
+      expect(body.includes(Buffer.from('acTL', 'ascii'))).toBe(true);
+    }
+  }, 6 * 60 * 1000);
+
+  it('rejects unsupported export format', async () => {
+    const { status, body } = await postExportVideo(handle.baseUrl, 'mp4');
+    const json = JSON.parse(body.toString('utf8'));
+    expect(status).toBe(400);
+    expect(json).toEqual(expect.objectContaining({
+      error: 'unsupported_format'
+    }));
+    expect(json.supportedFormats).toEqual(['gif', 'webp', 'apng']);
+  }, 60 * 1000);
+
+  it('container logs stay free of export-video error marker', async () => {
     const logs = await handle.getLogs();
     expect(logs).not.toMatch(/\[export-video\] Fehler/);
-  }, 6 * 60 * 1000);
+  });
 });

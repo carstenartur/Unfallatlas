@@ -12,6 +12,46 @@
  */
 (() => {
   'use strict';
+  const VIDEO_EXPORT_FORMAT_KEY = 'ua:videoExportFormat';
+  const DEFAULT_VIDEO_EXPORT_FORMAT = 'webp';
+  const SUPPORTED_VIDEO_EXPORT_FORMATS = new Set(['gif', 'webp', 'apng']);
+
+  function readPreferredFormat() {
+    try {
+      const stored = localStorage.getItem(VIDEO_EXPORT_FORMAT_KEY);
+      if (stored && SUPPORTED_VIDEO_EXPORT_FORMATS.has(stored)) return stored;
+    } catch (_) { /* ignore storage issues */ }
+    return DEFAULT_VIDEO_EXPORT_FORMAT;
+  }
+
+  function applyPreferredFormatSelection() {
+    const selected = readPreferredFormat();
+    const radios = document.querySelectorAll('input[name="videoExportFormat"]');
+    if (!radios.length) return selected;
+    let found = false;
+    radios.forEach((radio) => {
+      const checked = radio.value === selected;
+      radio.checked = checked;
+      if (checked) found = true;
+      radio.addEventListener('change', () => {
+        if (!radio.checked) return;
+        try { localStorage.setItem(VIDEO_EXPORT_FORMAT_KEY, radio.value); } catch (_) { /* ignore */ }
+      });
+    });
+    if (!found) {
+      const first = radios[0];
+      first.checked = true;
+      try { localStorage.setItem(VIDEO_EXPORT_FORMAT_KEY, first.value); } catch (_) { /* ignore */ }
+      return first.value;
+    }
+    return selected;
+  }
+
+  function currentSelectedFormat() {
+    const checked = document.querySelector('input[name="videoExportFormat"]:checked');
+    const candidate = checked ? checked.value : readPreferredFormat();
+    return SUPPORTED_VIDEO_EXPORT_FORMATS.has(candidate) ? candidate : DEFAULT_VIDEO_EXPORT_FORMAT;
+  }
 
   /**
    * Aktuellen Zustand der Werkbank als Parameter-Objekt auslesen.
@@ -66,6 +106,7 @@
     const container = document.getElementById('videoExportContainer');
     if (!container) return;
     container.style.display = '';
+    applyPreferredFormatSelection();
 
     const btn = document.getElementById('btnExportVideo');
     if (!btn) return;
@@ -81,6 +122,7 @@
       }
 
       try {
+        params.format = currentSelectedFormat();
         const response = await fetch('/api/export-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -96,12 +138,12 @@
           throw new Error(msg);
         }
 
-        // GIF als Blob empfangen und Download auslösen
+        // Datei als Blob empfangen und Download auslösen
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'unfallatlas-analyse.gif';
+        a.download = `unfallatlas-analyse.${params.format || DEFAULT_VIDEO_EXPORT_FORMAT}`;
         document.body.appendChild(a);
         a.click();
         setTimeout(() => {

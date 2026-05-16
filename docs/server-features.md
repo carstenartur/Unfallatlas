@@ -30,7 +30,7 @@ Beschreibung folgt in den jeweiligen Abschnitten.
 | GET     | `/api/health`                     | Liveness-Check                                       |
 | GET     | `/api/status`                     | **Aggregierte Capability-Übersicht** aller optionalen Features |
 | GET     | `/api/video-export-available`     | Feature-Flag Video-Export                            |
-| POST    | `/api/export-video`               | GIF-Video-Export (Playwright/ffmpeg, Docker-Distribution) |
+| POST    | `/api/export-video`               | Video-Export (GIF/WebP/APNG, Playwright/ffmpeg, Docker-Distribution) |
 | GET     | `/api/ai-assessment-available`    | Feature-Flag KI (v1) – `GEMINI_API_KEY` gesetzt?     |
 
 **Gruppe „AI" – Optionale KI-Bewertung** (siehe §2 – §4)
@@ -302,11 +302,19 @@ der Aufrufer eine konsistente, leere Liste verarbeiten kann.
 
 ## 6. `POST /api/export-video` (Docker-Distribution)
 
-Erzeugt animiertes GIF des aktuellen Werkbank-Zustands.
+Erzeugt ein animiertes Export-Bild des aktuellen Werkbank-Zustands.
 
 - Body: aktuelle URL-Parameter der Werkbank (Stadt, Filter, Karten­position
   …).  Siehe Inline-Doku in [`server/index.js`](../server/index.js).
-- Antwort: `image/gif` als Download.
+- Optionaler Parameter `format` (Body **oder** Query): `gif` | `webp` | `apng`.
+- Default ohne `format`: `gif` (abwärtskompatibel).
+- Unbekannter `format`-Wert: `400` mit `{ "error": "unsupported_format", "supportedFormats": ["gif","webp","apng"] }`.
+- Content-Type-Mapping:
+  - `gif`  → `image/gif`
+  - `webp` → `image/webp`
+  - `apng` → `image/apng`
+- Dateiname im Download-Header:
+  `attachment; filename="unfallatlas-analyse.<ext>"`.
 - Limit: 3 Requests/min/IP, max. `MAX_CONCURRENT = 2` parallele Jobs
   (sonst `429`).
 - Voraussetzung: Playwright + Chromium + ffmpeg vorhanden (im

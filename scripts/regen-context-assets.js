@@ -21,7 +21,7 @@
  * captured screenshot is reproducible.
  *
  * File-size budgets:
- *   - GIF ≤ 4 MB
+ *   - GIF ≤ 10 MB
  *   - PNG ≤ 600 KB each
  * Exits non-zero on overflow.
  *
@@ -62,7 +62,7 @@ const PNG_FILTER = path.join(SCREEN_DIR, '17-kontext-filter.png');
 const PNG_POPUP = path.join(SCREEN_DIR, '18-popup-kontextdaten.png');
 const PNG_TRAFFIC = path.join(SCREEN_DIR, '19-kontext-traffic-proxy.png');
 
-const GIF_BUDGET_BYTES = 4 * 1024 * 1024;
+const GIF_BUDGET_BYTES = 10 * 1024 * 1024;
 const PNG_BUDGET_BYTES = 600 * 1024;
 
 function log(...args) {

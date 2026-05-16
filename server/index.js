@@ -2,7 +2,7 @@
  * Express-Server für die Docker-Distribution der Unfallwerkbank.
  *
  * Stellt die statischen Werkbank-Dateien bereit und bietet folgende Endpunkte:
- *   POST /api/export-video                – GIF-Video-Export (Playwright/ffmpeg)
+ *   POST /api/export-video                – Video-Export (GIF/WebP/APNG, Playwright/ffmpeg)
  *   POST /api/ai/export-assessment        – optionale KI-gestützte Bewertung (Gemini)
  *   GET  /api/ai-assessment-available     – Feature-Flag (GEMINI_API_KEY vorhanden?)
  *   POST /api/political-context/search    – serverseitige Recherche politischer Vorgänge
@@ -101,6 +101,7 @@ const locationBriefRateLimit = rateLimit({
 // Concurrency guard: at most MAX_CONCURRENT Playwright/ffmpeg jobs at once.
 const MAX_CONCURRENT = 2;
 let activeExports = 0;
+const SUPPORTED_VIDEO_EXPORT_FORMATS = Object.freeze(['gif', 'webp', 'apng']);
 
 function concurrencyGuard(req, res, next) {
   if (activeExports >= MAX_CONCURRENT) {
@@ -179,32 +180,46 @@ app.get('/api/video-export-available', (_req, res) => {
  *   centerLat, centerLon, zoom, selSouth, selWest, selNorth, selEast,
  *   maxPoints, viewportPaddingPct, heatRadius
  *
- * Antwort: GIF-Datei als Download
+ * Zusätzlicher Parameter:
+ *   format (optional, body oder query) – gif | webp | apng (Default: gif)
+ *
+ * Antwort: Bilddatei als Download (image/gif | image/webp | image/apng)
  */
 app.post('/api/export-video', videoExportRateLimit, concurrencyGuard, async (req, res) => {
-  const params = req.body || {};
+  const rawBody = req.body || {};
+  const params = { ...rawBody };
+  delete params.format;
+
+  const requestedFormat = String(rawBody.format || req.query.format || 'gif').toLowerCase();
+  if (!SUPPORTED_VIDEO_EXPORT_FORMATS.includes(requestedFormat)) {
+    activeExports--;
+    return res.status(400).json({
+      error: 'unsupported_format',
+      supportedFormats: SUPPORTED_VIDEO_EXPORT_FORMATS
+    });
+  }
 
   // Note: activeExports is incremented in concurrencyGuard (before next())
-  let gifPath = null;
+  let exportResult = null;
   try {
-    gifPath = await exportVideo(params);
+    exportResult = await exportVideo(params, { format: requestedFormat });
 
-    res.setHeader('Content-Type', 'image/gif');
-    res.setHeader('Content-Disposition', 'attachment; filename="unfallatlas-analyse.gif"');
-    res.sendFile(gifPath, (err) => {
+    res.setHeader('Content-Type', exportResult.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="unfallatlas-analyse.${exportResult.extension}"`);
+    res.sendFile(exportResult.path, (err) => {
       activeExports--;
       if (err && !res.headersSent) {
         res.status(500).json({ error: 'Fehler beim Senden der Datei' });
       }
-      // Temporäre GIF-Datei aufräumen
-      try { fs.unlinkSync(gifPath); } catch (_) { /* ignore */ }
+      // Temporäre Datei aufräumen
+      try { fs.unlinkSync(exportResult.path); } catch (_) { /* ignore */ }
     });
   } catch (err) {
     activeExports--;
     console.error('[export-video] Fehler:', err);
-    // Temporäre GIF-Datei aufräumen falls vorhanden
-    if (gifPath) {
-      try { fs.unlinkSync(gifPath); } catch (_) { /* ignore */ }
+    // Temporäre Datei aufräumen falls vorhanden
+    if (exportResult && exportResult.path) {
+      try { fs.unlinkSync(exportResult.path); } catch (_) { /* ignore */ }
     }
     if (!res.headersSent) {
       res.status(500).json({ error: err.message || 'Interner Fehler beim Video-Export' });
