@@ -95,7 +95,9 @@ jobs:
         run: npm ci
 
       - name: Install Poppler and Ghostscript
-        run: sudo apt-get install -y poppler-utils ghostscript
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y poppler-utils ghostscript
 
       - name: Generate sample PDF
         run: npm run generate:sample-pdf

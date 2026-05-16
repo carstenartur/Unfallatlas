@@ -335,13 +335,15 @@
    * Fallback-Hierarchie, wenn der PNG-Header nicht gelesen werden kann:
    *  1. `opts.strict === true`  → wirft den ursprünglichen Fehler weiter.
    *  2. `opts.fallbackRatio` (Zahl, width/height) gesetzt → benutzt diese
-   *     Ratio via `fitWithAspectRatio`.
+   *     bekannte Ratio via `fitWithAspectRatio`. Empfohlen, wenn der
+   *     Aufrufer das Canvas- oder Viewport-Seitenverhältnis kennt.
    *  3. Kein fallbackRatio → konservativer Default: Ratio der `max`-Box
-   *     selbst (`max.width / max.height`). Das ist semantisch identisch zum
-   *     alten Verhalten für Boxen, deren Ratio identisch zur Originalratio
-   *     wäre (z. B. DOCX_MAP_MAX 600×400 = 3:2), aber wir behaupten nun
-   *     eine Ratio statt absolute Dimensionen — verhindert künftige
-   *     Verzerrung, wenn max und Originalgröße stark abweichen.
+   *     selbst (`max.width / max.height`). Das bewahrt die Proportionen
+   *     der Zielbox, NICHT die des Originalbildes (das unbekannt ist).
+   *     Dieser Fallback verhindert das unabhängige Setzen von width/height
+   *     aus der alten Implementierung, liefert aber weiterhin nur dann die
+   *     korrekte Originalratio, wenn Originalbild und max-Box zufällig
+   *     dieselbe Ratio haben. Für präzises Seitenverhältnis → opts.fallbackRatio.
    *
    * Returned object hat die kanonische `{width, height}`-Form, die
    * `docx`-`ImageRun.transformation` und pdfMake `image` erwarten.
@@ -359,9 +361,9 @@
         throw err;
       }
       // Bestimme eine sichere Fallback-Ratio:
-      //  - explizit übergeben → nutze sie
-      //  - sonst: Ratio der max-Box (verhindert Verzerrung gegenüber naivem
-      //    `{max.width, max.height}` bei beliebigen Original-Dimensionen)
+      //  - explizit übergeben → nutze sie (bewahrt bekannte Originalratio)
+      //  - sonst: Ratio der max-Box (bewahrt Box-Proportionen, nicht
+      //    Originalratio — Originalratio ist ohne Header nicht bekannt)
       const ratio = (opts && typeof opts.fallbackRatio === 'number' && opts.fallbackRatio > 0)
         ? opts.fallbackRatio
         : max.width / max.height;

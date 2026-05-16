@@ -42,7 +42,15 @@ pdfMakeLib.vfs   = pdfFonts;
 
 const mockWindow = {
   UA: {},
-  location: { href: 'http://localhost/', pathname: '/werkbank_v2.html', search: '', hash: '' },
+  location: {
+    href: 'http://localhost/',
+    pathname: '/werkbank_v2.html',
+    search: '',
+    hash: '',
+    origin: 'http://localhost',
+    protocol: 'http:',
+    host: 'localhost',
+  },
   pdfMake: pdfMakeLib,
   docx: require('docx'),
   saveAs: () => {},
@@ -64,6 +72,32 @@ const reportSrc = fs.readFileSync(path.resolve(__dirname, '..', 'js', 'ua.report
 (new Function('window', reportSrc))(mockWindow);
 
 const UA = mockWindow.UA;
+
+// ---------------------------------------------------------------------------
+// Stub map-capture helpers directly on UA so the image path runs end-to-end
+// through the PDF rendering pipeline (fitImageToMax, image nodes, etc.)
+// without needing a real Leaflet instance or a browser URL context.
+//
+// A synthetic 1×1 PNG is used — the render gate exercises whether pdfmake
+// can serialise and poppler/gs can render the resulting PDF pages, not
+// whether the pixel content is accurate.
+// ---------------------------------------------------------------------------
+const STUB_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+UA.captureExportMapImage = async () => STUB_PNG;
+UA._captureExportMapImage = UA.captureExportMapImage;
+UA._captureDetailMap = async () => STUB_PNG;
+UA._captureClusterMaps = async () => [{
+  image: STUB_PNG,
+  bounds: { south: 50.69, west: 7.13, north: 50.74, east: 7.18 },
+  total: 3,
+  points: [],
+  label: 'Cluster Bonn-Zentrum',
+  zoom: 16,
+  lat: 50.7326,
+  lon: 7.0963,
+}];
 
 // ---------------------------------------------------------------------------
 // Intercept pdfMake.createPdf to capture the docDefinition buffer via
@@ -136,7 +170,7 @@ const reportData = {
 (async () => {
   try {
     await UA.exportToPDF(ctx, reportData, {
-      includeMap: false,
+      includeMap: true,
       includePOIs: false,
       includeReferences: false,
       _skipQAGate: true,
