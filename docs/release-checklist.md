@@ -81,7 +81,7 @@ docker run -p 8000:8000 -e GEMINI_API_KEY=... \
 - [ ] Container startet, `http://localhost:8000` erreichbar
 - [ ] Werkbank lädt (`werkbank_v2.html`), Karte sichtbar
 - [ ] Button **„🎬 Als Video exportieren"** ist sichtbar (nur Docker)
-- [ ] Video-Export liefert eine `.gif`-Datei zum Download
+- [ ] Video-Export liefert in allen drei Formaten (`gif`, `webp`, `apng`) eine valide Datei (Magic-Byte-Check)
 - [ ] Mit gesetztem `GEMINI_API_KEY`: KI-Bewertung funktioniert (s. o.)
 - [ ] Ohne `GEMINI_API_KEY`: KI-Endpunkte verhalten sich wie in Variante 2
 - [ ] Politische Recherche funktioniert für die unterstützten Städte
@@ -189,3 +189,12 @@ cd analysis-service && SPRING_PROFILES_ACTIVE=prod \
       [`server/ai/README.md`](../server/ai/README.md),
       [`server/political-context/README.md`](../server/political-context/README.md),
       [`analysis-service/README.md`](../analysis-service/README.md)
+
+## 7. Stabilisierungs-Checks (vor Release)
+
+- [ ] README-Linkprüfung: kein `¢erLat`/`¢erLon`, keine isolierten kaputten Symbolzeichen (`grep -nP "¢er(Lat|Lon)" README.md` muss leer sein).
+- [ ] Demo-GIF aktuell — `npm run regen:demo` neu ausgeführt, Datum/Commit im PR notiert.
+- [ ] Live-Demo-Hydration: Playwright-Test gegen GitHub Pages mit Bonn-URL grün.
+- [ ] Steigungslayer bleibt nach Filterwechsel/Stadtreload/Exportdialog sichtbar.
+- [ ] PDF-Render-Gate in CI grün (`npm run generate:sample-pdf && npm run test:render-gate -- --pdf out/ci-render-gate.pdf`).
+- [ ] Bildseitenverhältnistest (`ua.report_v2.imageAspectRatio.test.js`) grün.

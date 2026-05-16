@@ -63,10 +63,9 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
-> **Hinweis:** Das Video zeigt die UI vor Einführung der Kontextdaten;
-> die aktuelle Oberfläche enthält zusätzlich die Sektion
-> **Kontext (neu)** im Filter-Panel sowie einen Block **Kontextdaten**
-> in den Marker-Popups – siehe Abschnitt
+> Ergänzend gibt es eine kontextspezifische GIF-Demo
+> (`demo-context.gif`) und drei begleitende PNGs (17–19 unter
+> `screenshots/`) für die Sektion **Kontext (neu)**:
 > [Kontext (neu)](#kontext-neu).
 
 ---
@@ -595,7 +594,7 @@ Dieses Beispiel zeigt den typischen Ablauf von der Analyse bis zum fertigen Antr
 | `convertAmt2gmaps.sh` | Linux / macOS | Unfallatlas-Daten herunterladen und in CSV/GeoJSON/KML konvertieren |
 | `convertAmt2gmaps.ps1` | Windows (PowerShell) | Gleiche Funktion für Windows |
 
-Ausführliche Informationen zu Parametern und Nutzung: → [README.md](../README.md)
+Ausführliche Informationen zu Parametern und Nutzung: → [usage.md](../usage.md)
 
 ---
 
@@ -879,9 +878,21 @@ Nach dem erstmaligen Laden der Seite und der Daten (GeoJSON) funktionieren Filte
 
 Die Docker-Distribution der Unfallwerkbank (`ghcr.io/carstenartur/unfallatlas`) bietet einen zusätzlichen **„🎬 Als Video exportieren"-Button** im Export-Bereich, der auf GitHub Pages nicht vorhanden ist.
 
-### Funktion
+### Formateigenschaften
 
-Der Video-Export erzeugt ein animiertes GIF, das den **kompletten Analyse-Ablauf** zeigt:
+Der Video-Export kann den **kompletten Analyse-Ablauf** als `gif`, `webp` oder `apng` ausgeben.
+
+| Format | Autoplay in `<img>` | Loop in `<img>` | Player-/Button-Rahmen | Typische Größenordnung | Browser-Support |
+|---|---|---|---|---|---|
+| GIF | Ja | Ja | Nein | größer | maximal kompatibel |
+| Animated WebP | Ja | Ja | Nein | kleinste Datei | modern, breit unterstützt |
+| APNG | Ja | Ja | Nein | Mittelweg | modern, breit unterstützt |
+
+Alle drei Formate lassen sich in README/HTML ohne Play-Button einbetten. MP4/WebM wird bewusst nicht angeboten, weil GitHub-`<video>`-Einbettungen dort i. d. R. einen Player mit Controls/Play-Button zeigen.
+
+### Ablauf
+
+Unabhängig vom Ausgabeformat wird derselbe Ablauf aufgezeichnet:
 
 1. Standardansicht (Default-Einstellungen, Hannover)
 2. Stadt aus der aktuellen Auswahl wird im Dropdown gesetzt
@@ -903,13 +914,40 @@ docker run -p 8000:8000 ghcr.io/carstenartur/unfallatlas
 
 # Werkbank konfigurieren: Stadt wählen, Filter setzen, Bereich markieren
 # → „🎬 Als Video exportieren" klicken
-# → GIF wird generiert und automatisch heruntergeladen (1–2 Minuten)
+# → gewünschtes Format auswählen (GIF/WebP/APNG)
+# → Datei wird generiert und automatisch heruntergeladen (1–2 Minuten)
 ```
+
+API-Beispiel (WebP):
+
+```bash
+curl -X POST "http://localhost:8000/api/export-video?format=webp" \
+  -H "Content-Type: application/json" \
+  -d '{"city":"Hannover","zoom":"13"}' \
+  --output unfallatlas-analyse.webp
+```
+
+### README-Demo-GIF regenerieren
+
+Das Skript `npm run regen:demo` nutzt dieselbe Container-Infrastruktur wie
+der Testcontainers-Test
+[`tests/integration/videoExport.testcontainers.test.js`](../tests/integration/videoExport.testcontainers.test.js)
+und schreibt das Ergebnis nach `docs/demo.gif`.
+
+```bash
+# bevorzugt das in docker-publish.yml gebaute Image,
+# sonst lokaler docker build
+export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
+npm run regen:demo
+```
+
+Damit teilen sich Test und README-Demo eine gemeinsame Quelle
+(*single source of truth*).
 
 ### Technische Details
 
 - Playwright (Headless-Chromium) nimmt den Ablauf als `.webm` auf
-- `ffmpeg` konvertiert das Video zu einem optimierten GIF (800px breit, 4fps, Palette-Optimierung)
+- `ffmpeg` konvertiert anschließend nach GIF / Animated WebP / APNG
 - Temporäre Dateien werden nach dem Download automatisch bereinigt
 
 ---

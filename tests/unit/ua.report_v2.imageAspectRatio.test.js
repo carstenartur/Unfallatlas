@@ -131,9 +131,33 @@ describe('UA.readPngDimensions / UA.fitWithAspectRatio / UA.fitImageToMax', () =
     }
   });
 
-  test('fitImageToMax falls back to max box when PNG header cannot be parsed', () => {
+  test('fitImageToMax falls back to max-box ratio (not raw dimensions) when PNG header cannot be parsed', () => {
+    // Without opts.fallbackRatio or opts.strict, the fallback uses the
+    // max-box's own ratio (max.width / max.height) via fitWithAspectRatio.
+    // This does NOT preserve the original image's aspect ratio (which is
+    // unknown when the header is unreadable); it preserves the target box's
+    // own proportions — a safe default that avoids independent width/height
+    // assignment. For callers that know the original ratio, opts.fallbackRatio
+    // should be used instead. For the standard boxes (DOCX_MAP_MAX 600×400,
+    // PDF_MAP_MAX 475×340), fitting the box ratio into itself gives exactly
+    // the box dimensions, so numeric values match the old behaviour.
     expect(UA.fitImageToMax('SGVsbG8=', UA.DOCX_MAP_MAX)).toEqual({ width: 600, height: 400 });
     expect(UA.fitImageToMax('', UA.PDF_MAP_MAX)).toEqual({ width: 475, height: 340 });
+  });
+
+  test('fitImageToMax with strict:true throws when PNG header cannot be parsed', () => {
+    expect(() => UA.fitImageToMax('SGVsbG8=', UA.DOCX_MAP_MAX, { strict: true })).toThrow();
+    expect(() => UA.fitImageToMax('', UA.PDF_MAP_MAX, { strict: true })).toThrow();
+  });
+
+  test('fitImageToMax with fallbackRatio: 16/9 produces correct ratio within tolerance', () => {
+    const result = UA.fitImageToMax('SGVsbG8=', UA.DOCX_MAP_MAX, { fallbackRatio: 16 / 9 });
+    const expectedRatio = 16 / 9;
+    const actualRatio = result.width / result.height;
+    expect(Math.abs(actualRatio - expectedRatio)).toBeLessThan(UA.ASPECT_TOLERANCE);
+    // Both axes must fit within the max box.
+    expect(result.width).toBeLessThanOrEqual(UA.DOCX_MAP_MAX.width);
+    expect(result.height).toBeLessThanOrEqual(UA.DOCX_MAP_MAX.height);
   });
 });
 

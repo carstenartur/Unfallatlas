@@ -3,7 +3,7 @@
  *
  * Used by:
  *   - `tests/integration/videoExport.testcontainers.test.js`
- *     (asserts POST /api/export-video returns a real GIF — i.e. ffmpeg
+ *     (asserts POST /api/export-video returns valid animated files — i.e. ffmpeg
  *     from the Dockerfile actually ran).
  *   - `scripts/regen-context-assets.js`
  *     (regenerates `docs/demo-context.gif` + Kontext-PNGs from the

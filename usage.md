@@ -1,5 +1,7 @@
 # Unfallatlas – Usage
 
+> Diese Seite ist Teil der Unfallatlas-Doku. Zurück zur [README](README.md).
+
 Diese Datei beschreibt die **Bedienung beider Skriptvarianten**:
 
 - **Shell (Linux/macOS):** `convertAmt2gmaps.sh`

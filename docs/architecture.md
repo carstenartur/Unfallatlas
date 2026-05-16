@@ -271,8 +271,64 @@ Wichtige Garantien:
 | KI-Bewertung v2 mit Fallback       | ❌ | ✅ Fallback | ✅ KI |
 | KI-Bewertung v2 ohne Fallback      | ❌ | ❌ (503) | ✅ |
 
-Die Betriebs-Matrix mit Konfigurations­hinweisen findet sich im
-[README](../README.md#%EF%B8%8F-betriebsarten--betriebs-matrix).
+Die kompakte Einordnung für Endnutzer:innen findet sich in der
+[README](../README.md). Die folgende Matrix enthält die ausführliche
+Betreiber-/Technik-Sicht.
+
+### 5.1 Betriebsarten / Betriebs-Matrix (ausführlich)
+
+| Funktion | Browser-only<br>(GitHub Pages) | Lokaler Server<br>**ohne** `GEMINI_API_KEY` | Lokaler Server<br>**mit** `GEMINI_API_KEY` | Docker |
+|---|:---:|:---:|:---:|:---:|
+| Karte, Filter, Cluster, Heatmap, Hotspots | ✅ | ✅ | ✅ | ✅ |
+| POI-Overlay (Schulen, Kitas)              | ✅ | ✅ | ✅ | ✅ |
+| Bereichsauswahl, geteilte URLs            | ✅ | ✅ | ✅ | ✅ |
+| CSV / GeoJSON / KML-Export                | ✅ | ✅ | ✅ | ✅ |
+| **Deterministischer PDF-/Word-Export**    | ✅ | ✅ | ✅ | ✅ |
+| Geführte Tour & Recorder                  | ✅ | ✅ | ✅ | ✅ |
+| **Politische Recherche** (Hannover, Berlin, Bonn, Hamburg) | ❌ | ✅ | ✅ | ✅ |
+| **KI-Bewertung v2** (mit Fallback)        | ❌ | ✅ Fallback¹ | ✅ KI | ✅ (KI nur mit Key) |
+| **KI-Bewertung v1** (`/api/ai/export-assessment`) | ❌ | ❌ (`503`) | ✅ | ✅ (nur mit Key) |
+| **Video-Export** (`.gif`)                 | ❌ | ✅ | ✅ | ✅ |
+| Konfiguration nötig                       | – | Node 18+ installieren, `npm run start:server` | zusätzlich `GEMINI_API_KEY` setzen | nur `docker run …` (optional `-e GEMINI_API_KEY=…`) |
+
+¹ Ohne `GEMINI_API_KEY` antwortet `POST /api/ai/export-assessment/v2`
+mit `200 OK` und `source: "fallback"` (deterministischer, datengestützter
+Output ohne KI-Texte). Wer das nicht will, setzt `withFallback: false` im
+Body und erhält dann `503`.
+
+### 5.2 NPM-Skripte (Kurzreferenz)
+
+| Skript | Zweck |
+|---|---|
+| `npm start` / `npm run start:server` | Lokalen Express-Server auf `:8000` starten (`node server/index.js`) |
+| `npm run start:docker` | Docker-Image bauen und starten (`docker compose up --build`) |
+| `npm test` | Unit- und Integrationstests (Jest) |
+| `npm run test:e2e` | End-to-End-Tests im Chromium-Browser (Playwright) |
+| `npm run test:coverage` | Jest mit Coverage-Report unter `coverage/` |
+| `npm run smoke` | Smoke-Tests gegen einen laufenden Server (`scripts/smoke.sh`) |
+| `npm run demo` | Erzeugt ein Demo-Video (Playwright `demo`-Projekt) |
+
+Browser-Entwicklung benötigt keinen Build-Schritt: einfach
+`werkbank_v2.html` lokal öffnen oder einen statischen HTTP-Server (z. B.
+`python -m http.server`) im Repo-Root starten.
+
+Status-Endpunkt für Frontend / Smoke: `GET http://localhost:8000/api/status`
+(siehe [`docs/server-features.md`](server-features.md)).
+
+### 5.3 Konfiguration (Auszug)
+
+| Variable | Standard | Wirkung |
+|---|---|---|
+| `PORT` | `8000` | Port des Express-Servers |
+| `GEMINI_API_KEY` | – | aktiviert die KI-Bewertung; ohne Key bleibt der Fallback aktiv |
+| `AI_ASSESSMENT_MODEL` | `gemini-2.0-flash` | Gemini-Modell für die Bewertung |
+| `AI_ASSESSMENT_TIMEOUT_MS` | `30000` | Timeout pro KI-Request (ms) |
+| `AI_ASSESSMENT_MAX_RETRIES` | `2` | Retries bei `429`/`5xx` |
+| `PORTAL_SEARCH_TIMEOUT_MS` | `10000` | Timeout pro Portal-Anfrage (ms) der politischen Recherche |
+| `AI_CACHE_PATH`, `AI_JOBS_PATH` | – | optionale Persistenz von KI-Cache und Job-Queue |
+
+Vollständige Liste aller Endpunkte, Request-/Response-Beispiele,
+Fehlerfälle und Env-Variablen: [`docs/server-features.md`](server-features.md).
 
 > **Testabdeckung Video-Export.** Da `server/video-export.js` zur
 > Laufzeit das `ffmpeg`-Binary aus dem Dockerfile aufruft, würde ein
