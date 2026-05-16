@@ -104,6 +104,10 @@ Voraussetzungen:
 Datei-Größen-Budget (im Skript geprüft, sonst Exit-Code ≠ 0):
 GIF ≤ 4 MB, PNG ≤ 600 KB.
 
+Analog regeneriert `npm run regen:demo` das in der README eingebettete
+`docs/demo.gif` über denselben Container-Helper
+([`scripts/regen-readme-demo.js`](../../scripts/regen-readme-demo.js)).
+
 Die Platzhalter-Hinweise in `docs/DOKUMENTATION.md` (Abschnitt
 „Kontext (neu)") werden mit dem ersten erfolgreichen Lauf des Skripts
 gegen die fertigen PNG-Pfade ausgetauscht.

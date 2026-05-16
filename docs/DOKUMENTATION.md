@@ -63,10 +63,9 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
-> **Hinweis:** Das Video zeigt die UI vor Einführung der Kontextdaten;
-> die aktuelle Oberfläche enthält zusätzlich die Sektion
-> **Kontext (neu)** im Filter-Panel sowie einen Block **Kontextdaten**
-> in den Marker-Popups – siehe Abschnitt
+> Ergänzend gibt es eine kontextspezifische GIF-Demo
+> (`docs/demo-context.gif`) und drei begleitende PNGs (17–19 unter
+> `docs/screenshots/`) für die Sektion **Kontext (neu)**:
 > [Kontext (neu)](#kontext-neu).
 
 ---
@@ -595,7 +594,7 @@ Dieses Beispiel zeigt den typischen Ablauf von der Analyse bis zum fertigen Antr
 | `convertAmt2gmaps.sh` | Linux / macOS | Unfallatlas-Daten herunterladen und in CSV/GeoJSON/KML konvertieren |
 | `convertAmt2gmaps.ps1` | Windows (PowerShell) | Gleiche Funktion für Windows |
 
-Ausführliche Informationen zu Parametern und Nutzung: → [README.md](../README.md)
+Ausführliche Informationen zu Parametern und Nutzung: → [usage.md](../usage.md)
 
 ---
 
@@ -905,6 +904,23 @@ docker run -p 8000:8000 ghcr.io/carstenartur/unfallatlas
 # → „🎬 Als Video exportieren" klicken
 # → GIF wird generiert und automatisch heruntergeladen (1–2 Minuten)
 ```
+
+### README-Demo-GIF regenerieren
+
+Das Skript `npm run regen:demo` nutzt dieselbe Container-Infrastruktur wie
+der Testcontainers-Test
+[`tests/integration/videoExport.testcontainers.test.js`](../tests/integration/videoExport.testcontainers.test.js)
+und schreibt das Ergebnis nach `docs/demo.gif`.
+
+```bash
+# bevorzugt das in docker-publish.yml gebaute Image,
+# sonst lokaler docker build
+export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
+npm run regen:demo
+```
+
+Damit teilen sich Test und README-Demo eine gemeinsame Quelle
+(*single source of truth*).
 
 ### Technische Details
 
