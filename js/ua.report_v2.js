@@ -166,7 +166,7 @@
         // NOTE: Keep CDN versions in sync with package.json and tests/e2e/helpers.js setupCDNRoutes().
         // Primary CDN: jsDelivr. Fallback CDN: unpkg.
         // docx@9.x uses dist/index.iife.js (IIFE format).
-        // pdfmake@0.2.x: vfs_fonts.js registers fonts via pdfMake.addVirtualFileSystem() side-effect.
+        // pdfmake@0.3.x: vfs_fonts.js registers fonts via pdfMake.addVirtualFileSystem() side-effect.
         progress('Lade Bibliothek 1/3: docx…');
         await loadScriptWithFallback([
           'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js',
@@ -175,8 +175,8 @@
 
         progress('Lade Bibliothek 2/3: pdfMake…');
         await loadScriptWithFallback([
-          'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/pdfmake.min.js',
-          'https://unpkg.com/pdfmake@0.2.20/build/pdfmake.min.js'
+          'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/pdfmake.min.js',
+          'https://unpkg.com/pdfmake@0.3.8/build/pdfmake.min.js'
         ], 'pdfMake');
 
         progress('Lade Bibliothek 3/3: FileSaver…');
@@ -189,8 +189,8 @@
         if (window.pdfMake) {
           progress('Lade Schriftarten…');
           await loadScriptWithFallback([
-            'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/vfs_fonts.js',
-            'https://unpkg.com/pdfmake@0.2.20/build/vfs_fonts.js'
+            'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/vfs_fonts.js',
+            'https://unpkg.com/pdfmake@0.3.8/build/vfs_fonts.js'
           ], null);
         }
         

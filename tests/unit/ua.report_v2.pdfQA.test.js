@@ -33,7 +33,11 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
   beforeEach(() => {
     const pdfMakeLib = require('pdfmake/build/pdfmake');
     const pdfFonts = require('pdfmake/build/vfs_fonts');
-    pdfMakeLib.vfs = pdfFonts;
+    if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
+      pdfMakeLib.addVirtualFileSystem(pdfFonts);
+    } else {
+      pdfMakeLib.vfs = pdfFonts;
+    }
 
     window.UA = {};
     window.docx = require('docx');
@@ -72,10 +76,21 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
 
     await UA.exportToPDF(ctx, reportData, options || {});
 
-    const buffer = await new Promise((resolve, reject) => {
-      try { capturedDoc.getBuffer((b) => resolve(b)); }
-      catch (e) { reject(e); }
-    });
+    let buffer;
+    try {
+      const maybePromise = capturedDoc.getBuffer();
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        buffer = await maybePromise;
+      }
+    } catch (_) {
+      // Fallback for callback-based pdfmake versions.
+    }
+    if (!buffer) {
+      buffer = await new Promise((resolve, reject) => {
+        try { capturedDoc.getBuffer((b) => resolve(b)); }
+        catch (e) { reject(e); }
+      });
+    }
     return { definition: capturedDef, buffer };
   }
 

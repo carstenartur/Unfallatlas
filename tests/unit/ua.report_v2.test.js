@@ -23,7 +23,11 @@ describe('UA.report_v2 - Export Functions', () => {
     // saveAs is kept as a spy – we validate the blob passed to it, not the browser download itself.
     const pdfMakeLib = require('pdfmake/build/pdfmake');
     const pdfFonts = require('pdfmake/build/vfs_fonts');
-    pdfMakeLib.vfs = pdfFonts;
+    if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
+      pdfMakeLib.addVirtualFileSystem(pdfFonts);
+    } else {
+      pdfMakeLib.vfs = pdfFonts;
+    }
 
     window.UA = {};
     window.leafletImage = mockLeafletImage;
@@ -491,7 +495,24 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(downloadSpy.mock.calls[0][0]).toMatch(/Bezirksratsantrag_Hannover_.*\.pdf/);
 
       // Verify a real, non-empty PDF is generated (%PDF magic bytes)
-      const buffer = await new Promise((resolve) => capturedDoc.getBuffer(resolve));
+      let buffer;
+      try {
+        const maybePromise = capturedDoc.getBuffer();
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          buffer = await maybePromise;
+        }
+      } catch (_) {
+        // Fallback for callback-based pdfmake versions.
+      }
+      if (!buffer) {
+        buffer = await new Promise((resolve, reject) => {
+          try {
+            capturedDoc.getBuffer(resolve);
+          } catch (err) {
+            reject(err);
+          }
+        });
+      }
       expect(buffer.length).toBeGreaterThan(0);
       expect(String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3])).toBe('%PDF');
     });

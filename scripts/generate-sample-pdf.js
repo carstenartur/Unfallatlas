@@ -38,7 +38,11 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 // ---------------------------------------------------------------------------
 const pdfMakeLib = require('pdfmake/build/pdfmake');
 const pdfFonts   = require('pdfmake/build/vfs_fonts');
-pdfMakeLib.vfs   = pdfFonts;
+if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
+  pdfMakeLib.addVirtualFileSystem(pdfFonts);
+} else {
+  pdfMakeLib.vfs = pdfFonts;
+}
 
 const mockWindow = {
   UA: {},
@@ -187,14 +191,34 @@ const reportData = {
   }
 
   // Use getBuffer() (Node.js pdfmake API) to serialise the definition to PDF.
-  origCreatePdf(capturedDef).getBuffer((buffer) => {
-    try {
-      fs.writeFileSync(outPath, buffer);
-      process.stdout.write('generate-sample-pdf: wrote ' + buffer.length + ' bytes to ' + outPath + '\n');
-      process.exit(0);
-    } catch (writeErr) {
-      process.stderr.write('generate-sample-pdf: failed to write ' + outPath + ': ' + writeErr.message + '\n');
-      process.exit(1);
+  // pdfmake 0.3.x returns a Promise; older versions support callback style.
+  let buffer;
+  const pdfDoc = origCreatePdf(capturedDef);
+  try {
+    const maybePromise = pdfDoc.getBuffer();
+    if (maybePromise && typeof maybePromise.then === 'function') {
+      buffer = await maybePromise;
     }
-  });
+  } catch (_) {
+    // Fallback for callback-based pdfmake versions.
+  }
+
+  if (!buffer) {
+    buffer = await new Promise((resolve, reject) => {
+      try {
+        pdfDoc.getBuffer(resolve);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  try {
+    fs.writeFileSync(outPath, buffer);
+    process.stdout.write('generate-sample-pdf: wrote ' + buffer.length + ' bytes to ' + outPath + '\n');
+    process.exit(0);
+  } catch (writeErr) {
+    process.stderr.write('generate-sample-pdf: failed to write ' + outPath + ': ' + writeErr.message + '\n');
+    process.exit(1);
+  }
 })();
