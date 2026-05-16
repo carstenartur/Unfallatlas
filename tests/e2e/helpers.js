@@ -25,11 +25,11 @@ export async function setupCDNRoutes(page) {
       file: path.join(root, 'node_modules/docx/dist/index.iife.js')
     },
     {
-      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/pdfmake.min.js',
+      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/pdfmake.min.js',
       file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
     },
     {
-      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.20/build/vfs_fonts.js',
+      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/vfs_fonts.js',
       file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
     },
     {
@@ -42,11 +42,11 @@ export async function setupCDNRoutes(page) {
       file: path.join(root, 'node_modules/docx/dist/index.iife.js')
     },
     {
-      url: 'https://unpkg.com/pdfmake@0.2.20/build/pdfmake.min.js',
+      url: 'https://unpkg.com/pdfmake@0.3.8/build/pdfmake.min.js',
       file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
     },
     {
-      url: 'https://unpkg.com/pdfmake@0.2.20/build/vfs_fonts.js',
+      url: 'https://unpkg.com/pdfmake@0.3.8/build/vfs_fonts.js',
       file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
     },
     {
