@@ -1,5 +1,7 @@
 # Bundesweiter Städte-/Regionen-Katalog
 
+> Diese Seite ist Teil der Unfallatlas-Doku. Zurück zur [README](../README.md).
+
 > Zentrale, maschinenlesbare Registry, die für jede unterstützte deutsche
 > Stadt / Region transparent macht, **welche Funktionen der Werkbank
 > dort verfügbar sind**.  Basis für die schrittweise Skalierung von
