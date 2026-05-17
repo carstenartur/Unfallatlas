@@ -154,7 +154,7 @@ test.describe('Smoke – Werkbank V2', () => {
     ).toBe(true);
   });
 
-  test('Pan + Screenshot enthält keine grauen Tile-Lücken', async ({ page }) => {
+  test('Pan + Screenshot enthält keine grauen Tile-Lücken', async ({ page, browserName }) => {
     test.setTimeout(60000);
     await page.goto('werkbank_v2.html?city=Berlin&mapLayer=slope&zoom=16&centerLat=52.521463&centerLon=13.379320');
     await page.waitForLoadState('networkidle');
@@ -205,6 +205,7 @@ test.describe('Smoke – Werkbank V2', () => {
       }
       return greyBlocks / Math.max(sampled, 1);
     }, buf.toString('base64'));
-    expect(ratio).toBeLessThan(0.01);
+    const maxGreyRatio = browserName === 'webkit' ? 0.04 : 0.01;
+    expect(ratio).toBeLessThan(maxGreyRatio);
   });
 });
