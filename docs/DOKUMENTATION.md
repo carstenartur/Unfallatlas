@@ -63,6 +63,10 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
+> Regeneration: `npm run regen:demo` erzeugt bevorzugt ein GIF (`demo.gif`)
+> bis 10 MB und wechselt bei größeren Dateien automatisch auf
+> `demo.webp` (sonst `demo.apng`).
+
 > Ergänzend gibt es eine kontextspezifische GIF-Demo
 > (`demo-context.gif`) und drei begleitende PNGs (17–19 unter
 > `screenshots/`) für die Sektion **Kontext (neu)**:

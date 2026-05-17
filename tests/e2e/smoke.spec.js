@@ -12,6 +12,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { waitForMapTiles } from './helpers.js';
 
 /**
  * Hängt Listener an Page an, die sowohl `pageerror` als auch
@@ -151,5 +152,59 @@ test.describe('Smoke – Werkbank V2', () => {
       typeof payload.schemaVersion === 'number' && payload.schemaVersion >= 2,
       `ways_bonn.json schemaVersion is "${payload.schemaVersion}" — expected >= 2 (rerun enrich.yml so a current producer regenerates the file)`
     ).toBe(true);
+  });
+
+  test('Pan + Screenshot enthält keine grauen Tile-Lücken', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.goto('werkbank_v2.html?city=Berlin&mapLayer=slope&zoom=16&centerLat=52.521463&centerLon=13.379320');
+    await page.waitForLoadState('networkidle');
+    await waitForMapTiles(page);
+
+    await page.evaluate(() => {
+      const map = window._uaMap || (window.UA && window.UA.ctx && window.UA.ctx.map);
+      if (!map) return;
+      const c = map.getCenter();
+      map.panTo([c.lat + 0.004, c.lng + 0.006], { animate: false });
+    });
+    await waitForMapTiles(page);
+
+    const buf = await page.locator('#map').screenshot();
+    const ratio = await page.evaluate(async (b64) => {
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = `data:image/png;base64,${b64}`;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      const w = canvas.width;
+      let greyBlocks = 0;
+      let sampled = 0;
+      const at = (x, y) => {
+        const i = (y * w + x) * 4;
+        return [d[i], d[i + 1], d[i + 2], d[i + 3]];
+      };
+      for (let y = 0; y < canvas.height - 32; y += 4) {
+        for (let x = 0; x < canvas.width - 32; x += 4) {
+          const [r, g, b, a] = at(x, y);
+          if (a < 250) continue;
+          sampled += 1;
+          const nearGrey = r >= 236 && r <= 246 && g >= 236 && g <= 246 && b >= 236 && b <= 246;
+          if (!nearGrey) continue;
+          const [r1, g1, b1] = at(x + 32, y);
+          const [r2, g2, b2] = at(x, y + 32);
+          const flat = Math.abs(r - r1) <= 2 && Math.abs(g - g1) <= 2 && Math.abs(b - b1) <= 2
+            && Math.abs(r - r2) <= 2 && Math.abs(g - g2) <= 2 && Math.abs(b - b2) <= 2;
+          if (flat) greyBlocks += 1;
+        }
+      }
+      return greyBlocks / Math.max(sampled, 1);
+    }, buf.toString('base64'));
+    expect(ratio).toBeLessThan(0.01);
   });
 });

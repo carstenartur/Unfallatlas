@@ -59,8 +59,9 @@ export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
 npm run regen:demo
 ```
 
-Damit werden Test und Doku-Asset (`docs/demo.gif`) aus derselben
-Video-Export-Pipeline erzeugt.
+Damit werden Test und Doku-Asset (`docs/demo.gif`, bei >10 MB automatisch
+`docs/demo.webp` oder `docs/demo.apng`) aus derselben Video-Export-Pipeline
+erzeugt.
 
 ## Verwandte Doku
 

@@ -75,6 +75,18 @@ async function waitForData(page) {
 
 /** Wartet bis Kartenkacheln geladen sind */
 async function waitForTiles(page) {
+  const usedUaHelper = await page.evaluate(async () => {
+    if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') return false;
+    const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
+    if (!map) return false;
+    const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
+    await window.UA.waitForMapFullyRendered(map, {
+      ctx: window.UA.ctx || null,
+      timeoutMs
+    });
+    return true;
+  }).catch(() => false);
+  if (usedUaHelper) return;
   await page.waitForFunction(() => {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4

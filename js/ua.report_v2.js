@@ -471,6 +471,7 @@
   // detachUncapturableMarkers above). Without an upper bound the export
   // promise would hang indefinitely and the export buttons stay disabled.
   const MAP_CAPTURE_TIMEOUT_MS = 30000;
+  UA.MAP_CAPTURE_TIMEOUT_MS = MAP_CAPTURE_TIMEOUT_MS;
 
   /**
    * Capture current map view as base64 image
@@ -487,8 +488,10 @@
       }
 
       try {
-        // Wait a moment for any pending tile loads or animations to complete
-        setTimeout(() => {
+        const waitForRender = (typeof UA.waitForMapFullyRendered === 'function')
+          ? UA.waitForMapFullyRendered(ctx.map, { ctx, timeoutMs: MAP_CAPTURE_TIMEOUT_MS })
+          : new Promise((r) => setTimeout(r, MAP_CAPTURE_DELAY_MS));
+        Promise.resolve(waitForRender).catch(() => null).then(() => {
           // Bake heatmap opacity into canvas pixels so leaflet-image picks it up
           // (leaflet-image ignores CSS style.opacity on the canvas element)
           let restoreHeat = function () {};
@@ -597,7 +600,7 @@
             console.error("leafletImage call error:", e);
             finish(e);
           }
-        }, MAP_CAPTURE_DELAY_MS); // Small delay to ensure tiles are loaded
+        });
       } catch (e) {
         console.error("captureMapImage error:", e);
         reject(e);

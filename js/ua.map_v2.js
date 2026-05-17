@@ -801,6 +801,75 @@
   // ----------------------------
 
   const CONTEXT_OVERLAY_KINDS = ['slope', 'traffic'];
+  const CONTEXT_TILE_DEFAULT_ZOOM = 13;
+
+  function _lonToTileX(lon, z) {
+    return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
+  }
+  function _latToTileY(lat, z) {
+    const rad = (lat * Math.PI) / 180;
+    return Math.floor(
+      ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
+        Math.pow(2, z)
+    );
+  }
+
+  function _viewportTileDiagnostics(ctx) {
+    const state = ctx && ctx.contextLayerState;
+    const map = ctx && ctx.map;
+    if (!state || !state.tileIndex || !map || typeof map.getBounds !== 'function') {
+      return { expectedKeys: [], missingKeys: [], loadedKeys: [], expectedTileCount: 0 };
+    }
+    let bounds = null;
+    try { bounds = map.getBounds(); } catch (_) { bounds = null; }
+    if (!bounds) return { expectedKeys: [], missingKeys: [], loadedKeys: [], expectedTileCount: 0 };
+    const z = Number.isFinite(state.tileIndex.z) ? state.tileIndex.z : CONTEXT_TILE_DEFAULT_ZOOM;
+    const south = bounds.getSouth();
+    const north = bounds.getNorth();
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    if (!Number.isFinite(south) || !Number.isFinite(north) || !Number.isFinite(west) || !Number.isFinite(east)) {
+      return { expectedKeys: [], missingKeys: [], loadedKeys: [], expectedTileCount: 0 };
+    }
+    const xMin = _lonToTileX(Math.min(west, east), z);
+    const xMax = _lonToTileX(Math.max(west, east), z);
+    const yMin = _latToTileY(Math.max(south, north), z);
+    const yMax = _latToTileY(Math.min(south, north), z);
+    const known = (state.tileIndex.tileKeySet instanceof Set)
+      ? state.tileIndex.tileKeySet
+      : new Set(((state.tileIndex.tiles || []).map(t => `${t.x}/${t.y}`)));
+    const expectedKeys = [];
+    const loadedKeys = [];
+    const missingKeys = [];
+    for (let x = xMin; x <= xMax; x++) {
+      for (let y = yMin; y <= yMax; y++) {
+        const key = `${x}/${y}`;
+        if (!known.has(key)) continue;
+        expectedKeys.push(key);
+        if (state._tileCache && state._tileCache.has(key)) loadedKeys.push(key);
+        else missingKeys.push(key);
+      }
+    }
+    return { expectedKeys, loadedKeys, missingKeys, expectedTileCount: expectedKeys.length };
+  }
+
+  function _countOverlayFeatures(layer) {
+    if (!layer) return 0;
+    if (typeof layer.getLayers === 'function') {
+      try { return (layer.getLayers() || []).length; } catch (_) { return 0; }
+    }
+    return 0;
+  }
+
+  function _logOverlayConsistency(ctx, kind, layer, tileDiag) {
+    const reg = _ensureOverlayRegistry(ctx);
+    const builtFeatures = _countOverlayFeatures(layer);
+    const expectedTiles = tileDiag && Number.isFinite(tileDiag.expectedTileCount) ? tileDiag.expectedTileCount : 0;
+    const missingTiles = tileDiag && Array.isArray(tileDiag.missingKeys) ? tileDiag.missingKeys.length : 0;
+    console.warn(
+      `[context-overlay] consistency kind=${kind} active=${!!reg.active[kind]} features=${builtFeatures} expectedTiles=${expectedTiles} missingTiles=${missingTiles}`
+    );
+  }
 
   UA.parseMapLayerCsv = function parseMapLayerCsv(raw) {
     const out = { slope: false, traffic: false };
@@ -838,10 +907,8 @@
     return ctx.contextOverlays;
   }
 
-  // Internal: build (or reuse) the L.LayerGroup for the given kind.
-  function _buildOverlay(ctx, kind) {
+  function _buildOverlayLayer(ctx, kind) {
     const reg = _ensureOverlayRegistry(ctx);
-    if (reg.layers[kind]) return reg.layers[kind];
     if (!UA.contextRoadLayer) return null;
     const state = ctx.contextLayerState;
     if (!state || !state.geometries) {
@@ -870,7 +937,6 @@
       const layer = (kind === 'slope')
         ? UA.contextRoadLayer.buildSlopeLayer(state, opts)
         : UA.contextRoadLayer.buildTrafficLayer(state, opts);
-      reg.layers[kind] = layer;
       reg.pending[kind] = false;
       return layer;
     } catch (e) {
@@ -879,25 +945,55 @@
     }
   }
 
+  // Internal: build (or reuse) the L.LayerGroup for the given kind.
+  function _buildOverlay(ctx, kind) {
+    const reg = _ensureOverlayRegistry(ctx);
+    if (reg.layers[kind]) return reg.layers[kind];
+    const layer = _buildOverlayLayer(ctx, kind);
+    if (layer) reg.layers[kind] = layer;
+    return layer;
+  }
+
   // Internal: rebuild every active overlay LayerGroup in place. Used by
   // the `moveend` handler so the slope/traffic ramps stay in sync with
   // the v3 tile data that arrives lazily as the user pans.
-  function _rebuildActiveOverlays(ctx) {
+  async function _rebuildActiveOverlays(ctx) {
     const reg = _ensureOverlayRegistry(ctx);
     if (!ctx.map || !UA.contextRoadLayer) return;
-    for (const kind of CONTEXT_OVERLAY_KINDS) {
-      if (!reg.active[kind]) continue;
-      // Tear down the previous layer and rebuild against the
-      // (now possibly larger) state.geometries.
-      if (reg.layers[kind] && typeof reg.layers[kind].remove === 'function') {
-        try { reg.layers[kind].remove(); } catch (_) {}
+    if (reg._overlayRebuildInFlight) return reg._overlayRebuildInFlight;
+    reg._overlayRebuildInFlight = Promise.resolve().then(async () => {
+      const tileDiag = await _ensureViewportTilesLoaded(ctx, { skipOverlayRebuild: true });
+      for (const kind of CONTEXT_OVERLAY_KINDS) {
+        if (!reg.active[kind]) continue;
+        const prevLayer = reg.layers[kind];
+        const nextLayer = _buildOverlayLayer(ctx, kind);
+        if (!nextLayer) {
+          _logOverlayConsistency(ctx, kind, prevLayer, tileDiag);
+          continue;
+        }
+        try {
+          if (typeof nextLayer.addTo === 'function') nextLayer.addTo(ctx.map);
+          reg.layers[kind] = nextLayer;
+          if (prevLayer && prevLayer !== nextLayer && typeof prevLayer.remove === 'function') {
+            try { prevLayer.remove(); } catch (_) {}
+          }
+        } catch (e) {
+          console.warn(`[context-overlay] attach "${kind}" failed:`, e);
+          if (nextLayer && nextLayer !== prevLayer && typeof nextLayer.remove === 'function') {
+            try { nextLayer.remove(); } catch (_) {}
+          }
+          reg.layers[kind] = prevLayer || null;
+        }
+        _logOverlayConsistency(ctx, kind, reg.layers[kind], tileDiag);
       }
-      reg.layers[kind] = null;
-      const layer = _buildOverlay(ctx, kind);
-      if (layer && typeof layer.addTo === 'function') {
-        try { layer.addTo(ctx.map); } catch (_) {}
+      _refreshContextLegend(ctx);
+      if (typeof UA.refreshContextOverlayZOrder === 'function') {
+        try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
       }
-    }
+    }).finally(() => {
+      reg._overlayRebuildInFlight = null;
+    });
+    return reg._overlayRebuildInFlight;
   }
 
   // Internal: refresh the floating legend so it shows the colour ramp
@@ -937,6 +1033,9 @@
           if (layer && ctx.map && typeof layer.addTo === 'function') {
             try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
           }
+          if (typeof UA.refreshContextOverlayZOrder === 'function') {
+            try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
+          }
           _refreshContextLegend(ctx);
         }).catch(() => { /* tile fetch failure handled in _ensureViewportTilesLoaded */ });
       }
@@ -957,6 +1056,9 @@
         if (layer && ctx.map && typeof layer.addTo === 'function') {
           try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
         }
+        if (typeof UA.refreshContextOverlayZOrder === 'function') {
+          try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
+        }
       });
     } else if (reg.layers[kind] && ctx.map && typeof reg.layers[kind].remove === 'function') {
       try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
@@ -976,21 +1078,23 @@
   // Internal: kick off a viewport tile fetch and re-render active
   // overlays once new data arrives. v1/v2 states resolve immediately
   // and the rebuild is a no-op.
-  function _ensureViewportTilesLoaded(ctx) {
+  function _ensureViewportTilesLoaded(ctx, opts = {}) {
     const state = ctx.contextLayerState;
     const cl = UA.contextLayers;
+    const preDiag = _viewportTileDiagnostics(ctx);
     if (!state || !ctx.map || !cl || typeof cl.loadTilesForBbox !== 'function') {
-      return Promise.resolve();
+      return Promise.resolve(preDiag);
     }
     let bounds = null;
     try { bounds = (typeof ctx.map.getBounds === 'function') ? ctx.map.getBounds() : null; }
     catch (_) { bounds = null; }
-    if (!bounds) return Promise.resolve();
+    if (!bounds) return Promise.resolve(preDiag);
     const before = state.geometries ? Object.keys(state.geometries).length : 0;
     return cl.loadTilesForBbox(state, bounds).then(() => {
       const after = state.geometries ? Object.keys(state.geometries).length : 0;
-      if (after > before) _rebuildActiveOverlays(ctx);
-    }).catch(() => { /* tile fetch failure → fall back to existing data */ });
+      if (after > before && !opts.skipOverlayRebuild) _rebuildActiveOverlays(ctx);
+      return _viewportTileDiagnostics(ctx);
+    }).catch(() => preDiag);
   }
 
   // Internal: install (once) a debounced map.moveend handler that
@@ -1047,6 +1151,121 @@
     const cb = c.querySelector('input[data-context-overlay="' + kind + '"]');
     if (cb && cb.checked !== !!want) cb.checked = !!want;
   }
+
+  UA.refreshContextOverlayZOrder = function refreshContextOverlayZOrder(ctx) {
+    if (!ctx || !ctx.map) return;
+    const reg = _ensureOverlayRegistry(ctx);
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      const layer = reg.layers[kind];
+      if (!reg.active[kind] || !layer) continue;
+      try {
+        if (typeof layer.eachLayer === 'function') {
+          layer.eachLayer((child) => {
+            if (child && typeof child.bringToFront === 'function') child.bringToFront();
+          });
+        } else if (typeof layer.bringToFront === 'function') {
+          layer.bringToFront();
+        }
+      } catch (_) {}
+    }
+    // Keep interaction-heavy layers above context polylines.
+    for (const top of [ctx.clusterLayer, ctx.poiLayer, ctx.argumentationLayer]) {
+      if (top && typeof top.bringToFront === 'function') {
+        try { top.bringToFront(); } catch (_) {}
+      }
+    }
+  };
+
+  UA.waitForMapFullyRendered = function waitForMapFullyRendered(map, opts = {}) {
+    const timeoutMs = Math.max(1000, Number(opts.timeoutMs) || 30000);
+    const ctx = opts.ctx || (UA && UA.ctx) || null;
+    const tileTimeoutMs = Math.min(timeoutMs, Number(opts.tileTimeoutMs) || 15000);
+    const cl = UA.contextLayers;
+    const layerCtor = window.L && window.L.TileLayer;
+    const raf = (typeof window.requestAnimationFrame === 'function')
+      ? window.requestAnimationFrame.bind(window)
+      : (cb) => setTimeout(cb, 16);
+
+    const waitForTileLayers = () => new Promise((resolve) => {
+      if (!map || typeof map.eachLayer !== 'function' || !layerCtor) {
+        resolve();
+        return;
+      }
+      const tileLayers = [];
+      map.eachLayer((layer) => {
+        if (layer instanceof layerCtor) tileLayers.push(layer);
+      });
+      if (tileLayers.length === 0) {
+        resolve();
+        return;
+      }
+      let pending = 0;
+      let sawLoad = false;
+      let done = false;
+      const cleanups = [];
+      const finish = () => {
+        if (done) return;
+        done = true;
+        for (const c of cleanups) c();
+        resolve();
+      };
+      const maybeDone = () => {
+        if (pending <= 0 && sawLoad) finish();
+      };
+      for (const layer of tileLayers) {
+        if (typeof layer.isLoading === 'function' && layer.isLoading()) {
+          pending += 1;
+        } else {
+          sawLoad = true;
+        }
+        const onLoading = () => { pending += 1; };
+        const onLoad = () => {
+          sawLoad = true;
+          pending = Math.max(0, pending - 1);
+          maybeDone();
+        };
+        if (typeof layer.on === 'function' && typeof layer.off === 'function') {
+          layer.on('loading', onLoading);
+          layer.on('load', onLoad);
+          cleanups.push(() => {
+            try { layer.off('loading', onLoading); } catch (_) {}
+            try { layer.off('load', onLoad); } catch (_) {}
+          });
+        }
+      }
+      if (pending <= 0) {
+        if (sawLoad) finish();
+        else setTimeout(finish, 150);
+      } else {
+        setTimeout(finish, tileTimeoutMs);
+      }
+    });
+
+    const waitForContextTiles = () => {
+      if (!ctx || !ctx.contextOverlays || !CONTEXT_OVERLAY_KINDS.some(k => ctx.contextOverlays.active && ctx.contextOverlays.active[k])) {
+        return Promise.resolve();
+      }
+      if (!ctx.contextLayerState || !ctx.contextLayerState.tileIndex || !cl || typeof cl.loadTilesForBbox !== 'function') {
+        return Promise.resolve();
+      }
+      let bounds = null;
+      try { bounds = map && typeof map.getBounds === 'function' ? map.getBounds() : null; } catch (_) { bounds = null; }
+      if (!bounds) return Promise.resolve();
+      return cl.loadTilesForBbox(ctx.contextLayerState, bounds).then(() => undefined).catch(() => undefined);
+    };
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(), timeoutMs);
+      Promise.resolve()
+        .then(waitForTileLayers)
+        .then(waitForContextTiles)
+        .then(() => new Promise((r) => raf(() => raf(r))))
+        .finally(() => {
+          clearTimeout(timeout);
+          resolve();
+        });
+    });
+  };
 
   /**
    * Wire (or re-wire) the context-overlay controls onto the map.
@@ -1452,6 +1671,9 @@
     // ---- Argumentationsansicht: Top-Hotspots hervorheben (Task 2).
     // Wird *nach* Cluster/Heatmap gerendert, damit die Ringe oben liegen.
     UA.renderArgumentationOverlay(ctx);
+    if (typeof UA.refreshContextOverlayZOrder === 'function') {
+      try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
+    }
 
     // Update stats and store hotInfo in context
     ctx._lastHotInfo = hotInfo;

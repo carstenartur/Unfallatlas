@@ -85,6 +85,17 @@ export async function setupCDNRoutes(page) {
  * @param {number} timeout
  */
 export async function waitForMapTiles(page, timeout = 15000) {
+  const usedUaHelper = await page.evaluate(async (timeoutMs) => {
+    if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') return false;
+    const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
+    if (!map) return false;
+    await window.UA.waitForMapFullyRendered(map, {
+      ctx: window.UA.ctx || null,
+      timeoutMs
+    });
+    return true;
+  }, timeout).catch(() => false);
+  if (usedUaHelper) return;
   try {
     await page.waitForFunction(() => {
       const map = document.querySelector('.leaflet-container');
