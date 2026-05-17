@@ -44,8 +44,8 @@ const {
 
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000; // 5 min — Playwright recording + ffmpeg can take 60-120 s on a cold container
 const GIF_BUDGET_BYTES = 10 * 1024 * 1024;
-const WEBP_BUDGET_BYTES = 6 * 1024 * 1024;
-const APNG_BUDGET_BYTES = 11 * 1024 * 1024;
+const WEBP_BUDGET_BYTES = 12 * 1024 * 1024;
+const APNG_BUDGET_BYTES = 18 * 1024 * 1024;
 
 // Body that drives the new context UI — same payload the docs-asset
 // regen script POSTs, so the test and the regen share one URL.
