@@ -1,6 +1,6 @@
 'use strict';
 
-const ANIMATED_IMAGE_FILTER = 'fps=4,scale=800:-1:flags=lanczos';
+const ANIMATED_IMAGE_FILTER = 'fps=3,scale=720:-1:flags=lanczos';
 
 module.exports = {
   ANIMATED_IMAGE_FILTER

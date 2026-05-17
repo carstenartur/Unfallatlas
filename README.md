@@ -50,7 +50,7 @@ und reduziert Missverständnisse bei Übergaben oder Präsentationen.
 
 ## 🎬 Demo-Video
 
-![Demo-Ablauf der Unfallwerkbank V2](docs/demo.webp)
+![Demo-Ablauf der Unfallwerkbank V2](docs/demo.gif)
 
 Kontextdaten-spezifische Demo (`docs/demo-context.gif`) und begleitende
 Screenshots (17–19) sind in der Nutzerdoku dokumentiert:
