@@ -64,6 +64,7 @@ function makeCtx(UA) {
   const map = {
     _layers: [],
     _controls: [],
+    _events: {},
     getBounds() {
       return {
         getSouth: () => 50,
@@ -72,8 +73,14 @@ function makeCtx(UA) {
         getEast: () => 8,
       };
     },
-    on() {},
-    off() {},
+    on(evt, fn) {
+      this._events[evt] = fn;
+    },
+    off(evt, fn) {
+      if (!this._events[evt]) return;
+      if (!fn || this._events[evt] === fn) delete this._events[evt];
+    },
+    getZoom() { return 14; },
   };
 
   UA.contextRoadLayer = {
@@ -140,5 +147,49 @@ describe('ua.map_v2 context overlays', () => {
 
     expect(ctx.contextOverlays.layers.slope).toBeTruthy();
     expect(ctx.map._layers).toContain(ctx.contextOverlays.layers.slope);
+  });
+
+  test('moveend keeps old active overlay until viewport tiles finished loading', async () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    const tileKey = '4250/2770';
+    ctx.contextLayerState = {
+      ways: { W1: { road_slope_class: 'steep' }, W2: { road_slope_class: 'gentle' } },
+      geometries: { W1: [50.0, 7.0, 50.001, 7.001] },
+      tileIndex: { z: 13, tiles: [{ x: 4250, y: 2770 }], tileKeySet: new Set([tileKey]) },
+      _tileCache: new Map([[tileKey, Promise.resolve({})]]),
+    };
+    ctx.contextOverlays.active.slope = false;
+    let loadCall = 0;
+    UA.contextLayers = {
+      loadTilesForBbox: jest.fn(() => {
+        loadCall += 1;
+        if (loadCall === 1) {
+          return Promise.resolve({ ways: ctx.contextLayerState.ways, geometries: ctx.contextLayerState.geometries });
+        }
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            ctx.contextLayerState.geometries.W2 = [50.002, 7.002, 50.003, 7.003];
+            resolve({ ways: ctx.contextLayerState.ways, geometries: ctx.contextLayerState.geometries });
+          }, 100);
+        });
+      }),
+    };
+
+    UA.setContextOverlayActive(ctx, 'slope', true);
+    await new Promise((r) => setTimeout(r, 130));
+    const oldLayer = ctx.contextOverlays.layers.slope;
+    expect(oldLayer).toBeTruthy();
+
+    expect(typeof ctx.map._events.moveend).toBe('function');
+    ctx.map._events.moveend();
+    await new Promise((r) => setTimeout(r, 120));
+    expect(ctx.contextOverlays.layers.slope).toBe(oldLayer);
+    expect(ctx.map._layers).toContain(oldLayer);
+
+    await new Promise((r) => setTimeout(r, 420));
+    expect(ctx.contextOverlays.layers.slope).not.toBe(oldLayer);
+    expect(ctx.map._layers).not.toContain(oldLayer);
+    expect(ctx.contextOverlays.layers.slope.getLayers().length).toBeGreaterThan(1);
   });
 });

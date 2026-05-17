@@ -84,7 +84,7 @@ describe('UA.captureMapImage', () => {
     const promise = UA.captureMapImage({ map });
 
     // Drive past MAP_CAPTURE_DELAY_MS so leafletImage gets invoked.
-    jest.advanceTimersByTime(200);
+    await jest.advanceTimersByTimeAsync(200);
 
     expect(mapPassedToLeafletImage).toBe(map);
     // The DivIcon marker must be detached BEFORE leafletImage runs.
@@ -108,7 +108,7 @@ describe('UA.captureMapImage', () => {
     mockWindow.leafletImage = function (m, cb) { leafletImageCallback = cb; };
 
     const promise = UA.captureMapImage({ map });
-    jest.advanceTimersByTime(200);
+    await jest.advanceTimersByTimeAsync(200);
 
     expect(map.removed).toEqual([divMarker]);
 
@@ -132,13 +132,13 @@ describe('UA.captureMapImage', () => {
     // with the assertions while we still hold the same promise.
     promise.catch(() => {});
 
-    jest.advanceTimersByTime(200); // past MAP_CAPTURE_DELAY_MS
+    await jest.advanceTimersByTimeAsync(200); // past MAP_CAPTURE_DELAY_MS
     // Marker is detached; not yet restored.
     expect(map.removed).toEqual([divMarker]);
     expect(map.added).toEqual([]);
 
     // Advance past MAP_CAPTURE_TIMEOUT_MS (30 000 ms).
-    jest.advanceTimersByTime(30_000);
+    await jest.advanceTimersByTimeAsync(30_000);
 
     await expect(promise).rejects.toThrow(/Kartenaufnahme abgebrochen/);
     // Cleanup must run on the timeout path, restoring the detached marker.

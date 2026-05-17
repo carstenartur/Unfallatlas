@@ -75,6 +75,18 @@ async function waitForData(page) {
 
 /** Wartet bis Kartenkacheln geladen sind */
 async function waitForTiles(page) {
+  const usedUaHelper = await page.evaluate(async () => {
+    if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') return false;
+    const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
+    if (!map) return false;
+    const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
+    const ok = await window.UA.waitForMapFullyRendered(map, {
+      ctx: window.UA.ctx || null,
+      timeoutMs
+    });
+    return ok === true;
+  }).catch(() => false);
+  if (usedUaHelper) return;
   await page.waitForFunction(() => {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4
@@ -93,6 +105,35 @@ async function flyToAndWait(page, lat, lng, zoom) {
     });
   }, { lat, lng, zoom });
   await waitForTiles(page);
+}
+
+/** Wartet auf frisch gerenderte Export-Vorschaubilder im Modal */
+async function waitForFreshExportPreview(page, opts = {}) {
+  const timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : 45000;
+  const previousFingerprint = String(opts.previousFingerprint || '');
+  await page.waitForFunction((prevFp) => {
+    const progress = document.querySelector('#exportProgress');
+    if (!progress || !/Fertig/.test(progress.textContent || '')) return false;
+
+    const root = document.querySelector('#exportHtml');
+    if (!root) return false;
+    const loadingHint = root.textContent || '';
+    if (/\(Report wird erzeugt/.test(loadingHint)) return false;
+
+    const imgs = Array.from(root.querySelectorAll('img'));
+    const rendered = imgs
+      .map((img) => ({
+        src: String(img.getAttribute('src') || ''),
+        ok: !!(img.complete && img.naturalWidth > 0)
+      }))
+      .filter((m) => /^data:image\/png;base64,/.test(m.src));
+    if (rendered.length === 0) return false;
+    if (!rendered.every((m) => m.ok)) return false;
+
+    const fp = rendered.map((m) => `${m.src.length}:${m.src.slice(0, 32)}`).join('|');
+    if (prevFp && fp === prevFp) return false;
+    return true;
+  }, previousFingerprint, { timeout: timeoutMs });
 }
 
 /**
@@ -313,12 +354,21 @@ async function exportVideo(params, opts = {}) {
     }
 
     // ── 12. Export / Analyse öffnen ────────────────────────────────────────
+    const beforeExportFingerprint = await page.evaluate(() => {
+      const root = document.querySelector('#exportHtml');
+      if (!root) return '';
+      const imgs = Array.from(root.querySelectorAll('img[src^="data:image/png;base64,"]'));
+      return imgs.map((img) => {
+        const src = String(img.getAttribute('src') || '');
+        return `${src.length}:${src.slice(0, 32)}`;
+      }).join('|');
+    }).catch(() => '');
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 10000 });
-    await page.waitForFunction(() => {
-      const prog = document.querySelector('#exportProgress');
-      return prog && prog.textContent.includes('Fertig');
-    }, { timeout: 30000 }).catch(() => { /* weitermachen auch wenn kein "Fertig" */ });
+    await waitForFreshExportPreview(page, {
+      previousFingerprint: beforeExportFingerprint,
+      timeoutMs: 45000
+    }).catch(() => { /* weiche Rückfallebene: Video läuft weiter */ });
     await page.waitForTimeout(4000);
 
     // ── 13. Durch den Antrag scrollen ──────────────────────────────────────
