@@ -29,11 +29,11 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const { VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
+const { ANIMATED_IMAGE_FILTER } = require('./video-export-filters.js');
 
 const execFileAsync = promisify(execFile);
 const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
 const WEBP_QUALITY = 60;
-const WEBM_TO_ANIMATED_IMAGE_FILTER = 'setpts=0.15*PTS,fps=8,scale=800:-1:flags=lanczos';
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 const CDN_ROUTES = [
@@ -422,7 +422,7 @@ async function exportVideo(params, opts = {}) {
         '-y',
         '-ss', '1',
         '-i', webmPath,
-        '-vf', 'fps=4,scale=800:-1:flags=lanczos,palettegen=max_colors=96:stats_mode=diff',
+        '-vf', `${ANIMATED_IMAGE_FILTER},palettegen=max_colors=96:stats_mode=diff`,
         palettePath
       ], { timeout: FFMPEG_TIMEOUT_MS });
 
@@ -432,14 +432,14 @@ async function exportVideo(params, opts = {}) {
         '-ss', '1',
         '-i', webmPath,
         '-i', palettePath,
-        '-lavfi', 'fps=4,scale=800:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4',
+        '-lavfi', `${ANIMATED_IMAGE_FILTER}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4`,
         outputPath
       ], { timeout: FFMPEG_TIMEOUT_MS });
     } else if (format === 'webp') {
       await execFileAsync('ffmpeg', [
         '-y',
         '-i', webmPath,
-        '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
+        '-vf', ANIMATED_IMAGE_FILTER,
         '-loop', '0',
         '-vcodec', 'libwebp',
         '-lossless', '0',
@@ -454,7 +454,7 @@ async function exportVideo(params, opts = {}) {
       await execFileAsync('ffmpeg', [
         '-y',
         '-i', webmPath,
-        '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
+        '-vf', ANIMATED_IMAGE_FILTER,
         '-pix_fmt', 'pal8',
         '-plays', '0',
         '-f', 'apng',
@@ -482,4 +482,4 @@ async function exportVideo(params, opts = {}) {
   }
 }
 
-module.exports = { exportVideo };
+module.exports = { exportVideo, ANIMATED_IMAGE_FILTER };
