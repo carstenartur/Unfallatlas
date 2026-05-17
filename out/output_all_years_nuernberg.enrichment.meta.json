@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "nuernberg",
-  "generatedAt": "2026-05-10T21:48:25.357Z",
+  "generatedAt": "2026-05-17T05:33:00.687Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-10",
+      "extractDate": "2026-05-17",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 17676,
     "matchedToWay": 17596,
     "withElevation": 17676,
-    "withTrafficProxy": 15921,
-    "ways": 6037,
-    "wayGeometries": 6037,
-    "fullWays": 55063,
+    "withTrafficProxy": 15925,
+    "ways": 6069,
+    "wayGeometries": 6069,
+    "fullWays": 55137,
     "contextTiles": 47
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 55063,
-    "withSlope": 48659,
-    "noSlopeSignal": 6404,
+    "totalWays": 55137,
+    "withSlope": 48732,
+    "noSlopeSignal": 6405,
     "coveragePercent": 88.4,
     "classCounts": {
-      "flat": 26525,
-      "gentle": 12372,
-      "moderate": 5465,
-      "steep": 3249,
-      "very_steep": 1048
+      "flat": 26568,
+      "gentle": 12384,
+      "moderate": 5473,
+      "steep": 3258,
+      "very_steep": 1049
     },
     "missingReasonCounts": {
-      "way_too_short": 6396,
+      "way_too_short": 6397,
       "no_geometry": 8
     },
     "methodCounts": {
-      "median_segments": 48659
+      "median_segments": 48732
     },
     "confidenceCounts": {
-      "high": 11976,
-      "low": 24603,
-      "medium": 12080
+      "high": 11972,
+      "low": 26234,
+      "medium": 10526
     },
     "verySteepShare": 2.2,
     "flatGentleShare": 79.9

@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bielefeld",
-  "generatedAt": "2026-05-10T21:47:50.640Z",
+  "generatedAt": "2026-05-17T05:32:22.510Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-10",
+      "extractDate": "2026-05-17",
       "coverage": "full"
     },
     "dem": {
@@ -28,7 +28,7 @@
     "withTrafficProxy": 5658,
     "ways": 2888,
     "wayGeometries": 2888,
-    "fullWays": 54647,
+    "fullWays": 54675,
     "contextTiles": 55
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 54647,
-    "withSlope": 49717,
-    "noSlopeSignal": 4930,
+    "totalWays": 54675,
+    "withSlope": 49741,
+    "noSlopeSignal": 4934,
     "coveragePercent": 91,
     "classCounts": {
-      "flat": 24858,
-      "gentle": 13300,
-      "moderate": 6188,
+      "flat": 24867,
+      "gentle": 13314,
+      "moderate": 6189,
       "steep": 3644,
       "very_steep": 1727
     },
     "missingReasonCounts": {
-      "way_too_short": 4926,
+      "way_too_short": 4930,
       "no_geometry": 4
     },
     "methodCounts": {
-      "median_segments": 49717
+      "median_segments": 49741
     },
     "confidenceCounts": {
-      "high": 11475,
-      "low": 26462,
-      "medium": 11780
+      "high": 11480,
+      "low": 28029,
+      "medium": 10232
     },
     "verySteepShare": 3.5,
     "flatGentleShare": 76.8

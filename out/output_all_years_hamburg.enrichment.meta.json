@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "hamburg",
-  "generatedAt": "2026-05-10T21:47:25.702Z",
+  "generatedAt": "2026-05-17T05:31:54.570Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-10",
+      "extractDate": "2026-05-17",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 62327,
     "matchedToWay": 61607,
     "withElevation": 62327,
-    "withTrafficProxy": 56730,
-    "ways": 20290,
-    "wayGeometries": 20290,
-    "fullWays": 216215,
+    "withTrafficProxy": 56733,
+    "ways": 20298,
+    "wayGeometries": 20298,
+    "fullWays": 216272,
     "contextTiles": 136
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 216215,
-    "withSlope": 181081,
-    "noSlopeSignal": 35134,
-    "coveragePercent": 83.8,
+    "totalWays": 216272,
+    "withSlope": 181111,
+    "noSlopeSignal": 35161,
+    "coveragePercent": 83.7,
     "classCounts": {
-      "flat": 105585,
-      "gentle": 45959,
-      "moderate": 18041,
-      "steep": 8858,
+      "flat": 105595,
+      "gentle": 45967,
+      "moderate": 18052,
+      "steep": 8859,
       "very_steep": 2638
     },
     "missingReasonCounts": {
-      "way_too_short": 35089,
+      "way_too_short": 35116,
       "no_geometry": 45
     },
     "methodCounts": {
-      "median_segments": 181081
+      "median_segments": 181111
     },
     "confidenceCounts": {
-      "medium": 40273,
-      "high": 34527,
-      "low": 106281
+      "medium": 34623,
+      "high": 34531,
+      "low": 111957
     },
     "verySteepShare": 1.5,
     "flatGentleShare": 83.7

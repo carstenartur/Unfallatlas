@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "duesseldorf",
-  "generatedAt": "2026-05-10T21:47:56.277Z",
+  "generatedAt": "2026-05-17T05:32:28.907Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-10",
+      "extractDate": "2026-05-17",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 13462,
     "withElevation": 13490,
     "withTrafficProxy": 12846,
-    "ways": 5710,
-    "wayGeometries": 5710,
-    "fullWays": 89566,
+    "ways": 5713,
+    "wayGeometries": 5713,
+    "fullWays": 89615,
     "contextTiles": 54
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 89566,
-    "withSlope": 73294,
-    "noSlopeSignal": 16272,
+    "totalWays": 89615,
+    "withSlope": 73332,
+    "noSlopeSignal": 16283,
     "coveragePercent": 81.8,
     "classCounts": {
-      "flat": 41240,
-      "gentle": 18340,
-      "moderate": 7896,
-      "steep": 4361,
+      "flat": 41257,
+      "gentle": 18353,
+      "moderate": 7903,
+      "steep": 4362,
       "very_steep": 1457
     },
     "missingReasonCounts": {
-      "way_too_short": 16246,
+      "way_too_short": 16257,
       "no_geometry": 26
     },
     "methodCounts": {
-      "median_segments": 73294
+      "median_segments": 73332
     },
     "confidenceCounts": {
-      "high": 14946,
-      "medium": 16340,
-      "low": 42008
+      "high": 14945,
+      "medium": 14224,
+      "low": 44163
     },
     "verySteepShare": 2,
     "flatGentleShare": 81.3
