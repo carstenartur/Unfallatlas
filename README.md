@@ -4,8 +4,12 @@
 >
 > Die Unfallwerkbank macht amtliche Verkehrsunfalldaten (2016–2024) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
 
-[![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/carstenartur/Unfallatlas?sort=semver&label=Release)](https://github.com/carstenartur/Unfallatlas/releases/latest)
-[![Docker Image](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Funfallatlas-blue?logo=docker)](https://github.com/carstenartur/Unfallatlas/pkgs/container/unfallatlas)
+[![CI](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml)
+[![Tests](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/carstenartur/Unfallatlas?sort=semver&label=Release)](https://github.com/carstenartur/Unfallatlas/releases/latest)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Funfallatlas-blue?logo=docker)](https://github.com/carstenartur/Unfallatlas/pkgs/container/unfallatlas)
+[![License](https://img.shields.io/github/license/carstenartur/Unfallatlas)](LICENSE)
+[![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-informational?logo=owasp)](https://github.com/carstenartur/Unfallatlas/dependency-graph/sbom)
 
 [![Startansicht der Unfallwerkbank V2](docs/screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
