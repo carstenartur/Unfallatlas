@@ -76,20 +76,26 @@ async function waitForData(page) {
 
 /** Wartet bis Kartenkacheln geladen sind */
 async function waitForTiles(page) {
-  const usedUaHelper = await page.evaluate(async ({ stableMs }) => {
-    if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') return false;
+  const helperResult = await page.evaluate(async ({ stableMs }) => {
+    if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') {
+      return { supported: false, ok: false };
+    }
     const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
-    if (!map) return false;
-    const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
-    const ok = await window.UA.waitForMapFullyRendered(map, {
-      ctx: window.UA.ctx || null,
-      timeoutMs,
-      minTileImages: 4,
-      tileStableMs: stableMs
-    });
-    return ok === true;
-  }, { stableMs: VIDEO_TILE_STABLE_MS }).catch(() => false);
-  if (usedUaHelper) return;
+    if (!map) return { supported: false, ok: false };
+    try {
+      const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
+      const ok = await window.UA.waitForMapFullyRendered(map, {
+        ctx: window.UA.ctx || null,
+        timeoutMs,
+        minTileImages: 4,
+        tileStableMs: stableMs
+      });
+      return { supported: true, ok: ok === true };
+    } catch (_) {
+      return { supported: true, ok: false };
+    }
+  }, { stableMs: VIDEO_TILE_STABLE_MS }).catch(() => ({ supported: false, ok: false }));
+  if (helperResult.supported) return;
   await page.waitForFunction(() => {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4
