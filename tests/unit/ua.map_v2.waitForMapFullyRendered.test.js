@@ -92,4 +92,67 @@ describe('UA.waitForMapFullyRendered', () => {
     };
     await expect(UA.waitForMapFullyRendered(map, { timeoutMs: 20, tileTimeoutMs: 20 })).resolves.toBe(false);
   });
+
+  test('returns false while visible Leaflet tile images are still incomplete', async () => {
+    const win = loadMapModule();
+    const UA = win.UA;
+    win.document = {
+      querySelectorAll(selector) {
+        if (selector !== '.leaflet-tile-pane img') return [];
+        return [{
+          complete: false,
+          naturalWidth: 0,
+          naturalHeight: 0,
+          className: 'leaflet-tile leaflet-tile-loading',
+        }];
+      },
+    };
+    const map = {
+      eachLayer() {},
+      getBounds() { return null; },
+    };
+
+    await expect(UA.waitForMapFullyRendered(map, {
+      timeoutMs: 40,
+      tileTimeoutMs: 40,
+      minTileImages: 1,
+      tileStableMs: 0,
+    })).resolves.toBe(false);
+  });
+
+  test('waits for visible tile images to stay complete for a stable period', async () => {
+    const win = loadMapModule();
+    const UA = win.UA;
+    const tile = {
+      complete: false,
+      naturalWidth: 0,
+      naturalHeight: 0,
+      className: 'leaflet-tile leaflet-tile-loading',
+    };
+    win.document = {
+      querySelectorAll(selector) {
+        if (selector !== '.leaflet-tile-pane img') return [];
+        return [tile];
+      },
+    };
+    const map = {
+      eachLayer() {},
+      getBounds() { return null; },
+    };
+
+    const p = UA.waitForMapFullyRendered(map, {
+      timeoutMs: 500,
+      tileTimeoutMs: 500,
+      minTileImages: 1,
+      tileStableMs: 20,
+    });
+    setTimeout(() => {
+      tile.complete = true;
+      tile.naturalWidth = 256;
+      tile.naturalHeight = 256;
+      tile.className = 'leaflet-tile';
+    }, 10);
+
+    await expect(p).resolves.toBe(true);
+  });
 });

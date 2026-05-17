@@ -1182,6 +1182,8 @@
     const timeoutMs = Math.max(1000, Number(opts.timeoutMs) || 30000);
     const ctx = opts.ctx || (UA && UA.ctx) || null;
     const tileTimeoutMs = Math.min(timeoutMs, Number(opts.tileTimeoutMs) || 15000);
+    const tileStableMs = Math.max(0, Number(opts.tileStableMs) || 0);
+    const minTileImages = Math.max(0, Number(opts.minTileImages) || 0);
     const cl = UA.contextLayers;
     const layerCtor = window.L && window.L.TileLayer;
     const raf = (typeof window.requestAnimationFrame === 'function')
@@ -1259,6 +1261,52 @@
       timeout = setTimeout(() => finish(false), tileTimeoutMs);
     });
 
+    const tileImagesReady = () => {
+      const doc = window.document;
+      if (!doc || typeof doc.querySelectorAll !== 'function') return true;
+      const imgs = Array.from(doc.querySelectorAll('.leaflet-tile-pane img'));
+      if (imgs.length === 0) return minTileImages === 0;
+      if (imgs.length < minTileImages) return false;
+      return imgs.every((img) => {
+        const className = String(img.className || '');
+        return !!(img.complete && img.naturalWidth > 0 && img.naturalHeight > 0)
+          && !/\bleaflet-tile-loading\b/.test(className);
+      });
+    };
+
+    const waitForTileImages = () => new Promise((resolve) => {
+      if (tileImagesReady() && tileStableMs === 0) {
+        resolve(true);
+        return;
+      }
+      let stableSince = null;
+      let done = false;
+      const started = Date.now();
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        resolve(!!ok);
+      };
+      const tick = () => {
+        if (done) return;
+        if (Date.now() - started > tileTimeoutMs) {
+          finish(false);
+          return;
+        }
+        if (tileImagesReady()) {
+          if (stableSince === null) stableSince = Date.now();
+          if (Date.now() - stableSince >= tileStableMs) {
+            finish(true);
+            return;
+          }
+        } else {
+          stableSince = null;
+        }
+        raf(tick);
+      };
+      tick();
+    });
+
     const waitForContextTiles = () => {
       if (!ctx || !ctx.contextOverlays || !CONTEXT_OVERLAY_KINDS.some(k => ctx.contextOverlays.active && ctx.contextOverlays.active[k])) {
         return Promise.resolve(true);
@@ -1286,6 +1334,14 @@
         .then((tilesOk) => {
           if (!tilesOk) return false;
           return waitForContextTiles();
+        })
+        .then((contextOk) => {
+          if (!contextOk) return false;
+          return waitForTileLayers();
+        })
+        .then((tilesOk) => {
+          if (!tilesOk) return false;
+          return waitForTileImages();
         })
         .then((contextOk) => {
           if (!contextOk) {

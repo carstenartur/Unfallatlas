@@ -34,6 +34,7 @@ const { ANIMATED_IMAGE_FILTER } = require('./video-export-filters.js');
 const execFileAsync = promisify(execFile);
 const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
 const WEBP_QUALITY = 60;
+const VIDEO_TILE_STABLE_MS = 800;
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 const CDN_ROUTES = [
@@ -75,23 +76,26 @@ async function waitForData(page) {
 
 /** Wartet bis Kartenkacheln geladen sind */
 async function waitForTiles(page) {
-  const usedUaHelper = await page.evaluate(async () => {
+  const usedUaHelper = await page.evaluate(async ({ stableMs }) => {
     if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') return false;
     const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
     if (!map) return false;
     const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
     const ok = await window.UA.waitForMapFullyRendered(map, {
       ctx: window.UA.ctx || null,
-      timeoutMs
+      timeoutMs,
+      minTileImages: 4,
+      tileStableMs: stableMs
     });
     return ok === true;
-  }).catch(() => false);
+  }, { stableMs: VIDEO_TILE_STABLE_MS }).catch(() => false);
   if (usedUaHelper) return;
   await page.waitForFunction(() => {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4
-      && [...imgs].every(i => i.complete && i.naturalWidth > 0);
+      && [...imgs].every(i => i.complete && i.naturalWidth > 0 && i.naturalHeight > 0 && !/\bleaflet-tile-loading\b/.test(String(i.className || '')));
   }, { timeout: 30000 }).catch(() => { /* Tiles optional, weitermachen */ });
+  await page.waitForTimeout(VIDEO_TILE_STABLE_MS);
 }
 
 /** Bewegt die Karte per flyTo und wartet auf Tiles + Animation */
