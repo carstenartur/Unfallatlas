@@ -61,7 +61,7 @@ Sie ermöglicht:
 
 Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter setzen → Heatmap → Legende → Export.
 
-![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
+![Demo-Ablauf der Unfallwerkbank V2](demo.webp)
 
 > Regeneration: `npm run regen:demo` erzeugt bevorzugt ein GIF (`demo.gif`)
 > bis 10 MB und wechselt bei größeren Dateien automatisch auf

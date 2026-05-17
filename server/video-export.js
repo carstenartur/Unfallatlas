@@ -107,6 +107,35 @@ async function flyToAndWait(page, lat, lng, zoom) {
   await waitForTiles(page);
 }
 
+/** Wartet auf frisch gerenderte Export-Vorschaubilder im Modal */
+async function waitForFreshExportPreview(page, opts = {}) {
+  const timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : 45000;
+  const previousFingerprint = String(opts.previousFingerprint || '');
+  await page.waitForFunction((prevFp) => {
+    const progress = document.querySelector('#exportProgress');
+    if (!progress || !/Fertig/.test(progress.textContent || '')) return false;
+
+    const root = document.querySelector('#exportHtml');
+    if (!root) return false;
+    const loadingHint = root.textContent || '';
+    if (/\(Report wird erzeugt/.test(loadingHint)) return false;
+
+    const imgs = Array.from(root.querySelectorAll('img'));
+    const rendered = imgs
+      .map((img) => ({
+        src: String(img.getAttribute('src') || ''),
+        ok: !!(img.complete && img.naturalWidth > 0)
+      }))
+      .filter((m) => /^data:image\/png;base64,/.test(m.src));
+    if (rendered.length === 0) return false;
+    if (!rendered.every((m) => m.ok)) return false;
+
+    const fp = rendered.map((m) => `${m.src.length}:${m.src.slice(0, 32)}`).join('|');
+    if (prevFp && fp === prevFp) return false;
+    return true;
+  }, previousFingerprint, { timeout: timeoutMs });
+}
+
 /**
  * Erzeugt ein Export-Video des Analyse-Ablaufs basierend auf den übergebenen
  * URL-Parametern.
@@ -325,12 +354,21 @@ async function exportVideo(params, opts = {}) {
     }
 
     // ── 12. Export / Analyse öffnen ────────────────────────────────────────
+    const beforeExportFingerprint = await page.evaluate(() => {
+      const root = document.querySelector('#exportHtml');
+      if (!root) return '';
+      const imgs = Array.from(root.querySelectorAll('img[src^="data:image/png;base64,"]'));
+      return imgs.map((img) => {
+        const src = String(img.getAttribute('src') || '');
+        return `${src.length}:${src.slice(0, 32)}`;
+      }).join('|');
+    }).catch(() => '');
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 10000 });
-    await page.waitForFunction(() => {
-      const prog = document.querySelector('#exportProgress');
-      return prog && prog.textContent.includes('Fertig');
-    }, { timeout: 30000 }).catch(() => { /* weitermachen auch wenn kein "Fertig" */ });
+    await waitForFreshExportPreview(page, {
+      previousFingerprint: beforeExportFingerprint,
+      timeoutMs: 45000
+    }).catch(() => { /* weiche Rückfallebene: Video läuft weiter */ });
     await page.waitForTimeout(4000);
 
     // ── 13. Durch den Antrag scrollen ──────────────────────────────────────
