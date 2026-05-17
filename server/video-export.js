@@ -29,11 +29,12 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const { VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
+const { ANIMATED_IMAGE_FILTER } = require('./video-export-filters.js');
 
 const execFileAsync = promisify(execFile);
 const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
 const WEBP_QUALITY = 60;
-const WEBM_TO_ANIMATED_IMAGE_FILTER = 'setpts=0.15*PTS,fps=8,scale=800:-1:flags=lanczos';
+const VIDEO_TILE_STABLE_MS = 800;
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 const CDN_ROUTES = [
@@ -75,23 +76,32 @@ async function waitForData(page) {
 
 /** Wartet bis Kartenkacheln geladen sind */
 async function waitForTiles(page) {
-  const usedUaHelper = await page.evaluate(async () => {
-    if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') return false;
+  const helperResult = await page.evaluate(async ({ stableMs }) => {
+    if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') {
+      return { supported: false, ok: false };
+    }
     const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
-    if (!map) return false;
-    const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
-    const ok = await window.UA.waitForMapFullyRendered(map, {
-      ctx: window.UA.ctx || null,
-      timeoutMs
-    });
-    return ok === true;
-  }).catch(() => false);
-  if (usedUaHelper) return;
+    if (!map) return { supported: false, ok: false };
+    try {
+      const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
+      const ok = await window.UA.waitForMapFullyRendered(map, {
+        ctx: window.UA.ctx || null,
+        timeoutMs,
+        minTileImages: 4,
+        tileStableMs: stableMs
+      });
+      return { supported: true, ok: ok === true };
+    } catch (_) {
+      return { supported: true, ok: false };
+    }
+  }, { stableMs: VIDEO_TILE_STABLE_MS }).catch(() => ({ supported: false, ok: false }));
+  if (helperResult.supported) return;
   await page.waitForFunction(() => {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4
-      && [...imgs].every(i => i.complete && i.naturalWidth > 0);
+      && [...imgs].every(i => i.complete && i.naturalWidth > 0 && i.naturalHeight > 0 && !/\bleaflet-tile-loading\b/.test(String(i.className || '')));
   }, { timeout: 30000 }).catch(() => { /* Tiles optional, weitermachen */ });
+  await page.waitForTimeout(VIDEO_TILE_STABLE_MS);
 }
 
 /** Bewegt die Karte per flyTo und wartet auf Tiles + Animation */
@@ -422,7 +432,7 @@ async function exportVideo(params, opts = {}) {
         '-y',
         '-ss', '1',
         '-i', webmPath,
-        '-vf', 'fps=4,scale=800:-1:flags=lanczos,palettegen=max_colors=96:stats_mode=diff',
+        '-vf', `${ANIMATED_IMAGE_FILTER},palettegen=max_colors=96:stats_mode=diff`,
         palettePath
       ], { timeout: FFMPEG_TIMEOUT_MS });
 
@@ -432,14 +442,14 @@ async function exportVideo(params, opts = {}) {
         '-ss', '1',
         '-i', webmPath,
         '-i', palettePath,
-        '-lavfi', 'fps=4,scale=800:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4',
+        '-lavfi', `${ANIMATED_IMAGE_FILTER}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4`,
         outputPath
       ], { timeout: FFMPEG_TIMEOUT_MS });
     } else if (format === 'webp') {
       await execFileAsync('ffmpeg', [
         '-y',
         '-i', webmPath,
-        '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
+        '-vf', ANIMATED_IMAGE_FILTER,
         '-loop', '0',
         '-vcodec', 'libwebp',
         '-lossless', '0',
@@ -454,7 +464,7 @@ async function exportVideo(params, opts = {}) {
       await execFileAsync('ffmpeg', [
         '-y',
         '-i', webmPath,
-        '-vf', WEBM_TO_ANIMATED_IMAGE_FILTER,
+        '-vf', ANIMATED_IMAGE_FILTER,
         '-pix_fmt', 'pal8',
         '-plays', '0',
         '-f', 'apng',
@@ -482,4 +492,4 @@ async function exportVideo(params, opts = {}) {
   }
 }
 
-module.exports = { exportVideo };
+module.exports = { exportVideo, ANIMATED_IMAGE_FILTER };
