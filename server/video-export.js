@@ -80,11 +80,11 @@ async function waitForTiles(page) {
     const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
     if (!map) return false;
     const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
-    await window.UA.waitForMapFullyRendered(map, {
+    const ok = await window.UA.waitForMapFullyRendered(map, {
       ctx: window.UA.ctx || null,
       timeoutMs
     });
-    return true;
+    return ok === true;
   }).catch(() => false);
   if (usedUaHelper) return;
   await page.waitForFunction(() => {

@@ -89,11 +89,11 @@ export async function waitForMapTiles(page, timeout = 15000) {
     if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') return false;
     const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
     if (!map) return false;
-    await window.UA.waitForMapFullyRendered(map, {
+    const ok = await window.UA.waitForMapFullyRendered(map, {
       ctx: window.UA.ctx || null,
       timeoutMs
     });
-    return true;
+    return ok === true;
   }, timeout).catch(() => false);
   if (usedUaHelper) return;
   try {

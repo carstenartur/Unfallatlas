@@ -22,6 +22,7 @@ const {
 
 const DOCS_DIR = path.join(REPO_ROOT, 'docs');
 const README_PATH = path.join(REPO_ROOT, 'README.md');
+const DOKUMENTATION_PATH = path.join(REPO_ROOT, 'docs', 'DOKUMENTATION.md');
 const DEMO_ASSET_PATHS = Object.freeze({
   gif: path.join(DOCS_DIR, 'demo.gif'),
   webp: path.join(DOCS_DIR, 'demo.webp'),
@@ -118,6 +119,15 @@ function syncReadmeDemoSrc(relAssetPath) {
   if (next !== readme) fs.writeFileSync(README_PATH, next);
 }
 
+function syncDocumentationDemoSrc(relAssetPath) {
+  const docs = fs.readFileSync(DOKUMENTATION_PATH, 'utf8');
+  const next = docs.replace(
+    /!\[Demo-Ablauf der Unfallwerkbank V2\]\(demo\.(?:gif|webp|apng)\)/g,
+    `![Demo-Ablauf der Unfallwerkbank V2](${relAssetPath.replace(/^docs\//, '')})`
+  );
+  if (next !== docs) fs.writeFileSync(DOKUMENTATION_PATH, next);
+}
+
 async function chooseDemoAsset(baseUrl, opts = {}) {
   const fetchExportFn = typeof opts.fetchExportFn === 'function' ? opts.fetchExportFn : fetchExport;
   const gifBudgetBytes = Number.isFinite(Number(opts.gifBudgetBytes)) ? Number(opts.gifBudgetBytes) : GIF_BUDGET_BYTES;
@@ -162,6 +172,7 @@ async function main() {
       if (fmt !== chosenFormat && fs.existsSync(p)) fs.unlinkSync(p);
     }
     syncReadmeDemoSrc(`docs/demo.${chosenFormat}`);
+    syncDocumentationDemoSrc(`docs/demo.${chosenFormat}`);
   } finally {
     await handle.stop();
   }
@@ -180,6 +191,7 @@ if (require.main === module) {
 module.exports = {
   assertAnimatedShape,
   chooseDemoAsset,
+  syncDocumentationDemoSrc,
   syncReadmeDemoSrc,
   main,
 };

@@ -866,6 +866,8 @@
     const builtFeatures = _countOverlayFeatures(layer);
     const expectedTiles = tileDiag && Number.isFinite(tileDiag.expectedTileCount) ? tileDiag.expectedTileCount : 0;
     const missingTiles = tileDiag && Array.isArray(tileDiag.missingKeys) ? tileDiag.missingKeys.length : 0;
+    const inconsistent = (missingTiles > 0) || (!!reg.active[kind] && builtFeatures === 0);
+    if (!inconsistent) return;
     console.warn(
       `[context-overlay] consistency kind=${kind} active=${!!reg.active[kind]} features=${builtFeatures} expectedTiles=${expectedTiles} missingTiles=${missingTiles}`
     );
@@ -1188,7 +1190,7 @@
 
     const waitForTileLayers = () => new Promise((resolve) => {
       if (!map || typeof map.eachLayer !== 'function' || !layerCtor) {
-        resolve();
+        resolve(true);
         return;
       }
       const tileLayers = [];
@@ -1196,33 +1198,47 @@
         if (layer instanceof layerCtor) tileLayers.push(layer);
       });
       if (tileLayers.length === 0) {
-        resolve();
+        resolve(true);
         return;
       }
-      let pending = 0;
-      let sawLoad = false;
+      const layerLoading = new Map();
+      let sawLoadedState = false;
       let done = false;
       const cleanups = [];
-      const finish = () => {
+      let timeout = null;
+      const finish = (ok) => {
         if (done) return;
         done = true;
+        if (timeout) clearTimeout(timeout);
         for (const c of cleanups) c();
-        resolve();
+        resolve(!!ok);
+      };
+      const anyLoading = () => {
+        for (const v of layerLoading.values()) {
+          if (v) return true;
+        }
+        return false;
       };
       const maybeDone = () => {
-        if (pending <= 0 && sawLoad) finish();
+        if (!anyLoading() && sawLoadedState) finish(true);
       };
       for (const layer of tileLayers) {
-        if (typeof layer.isLoading === 'function' && layer.isLoading()) {
-          pending += 1;
-        } else {
-          sawLoad = true;
-        }
-        const onLoading = () => { pending += 1; };
-        const onLoad = () => {
-          sawLoad = true;
-          pending = Math.max(0, pending - 1);
+        const getLoading = () => !!(typeof layer.isLoading === 'function' && layer.isLoading());
+        const syncLoading = () => {
+          const isLoading = getLoading();
+          layerLoading.set(layer, isLoading);
+          if (!isLoading) sawLoadedState = true;
           maybeDone();
+        };
+        syncLoading();
+        const onLoading = () => { syncLoading(); };
+        const onLoad = () => {
+          sawLoadedState = true;
+          if (typeof layer.isLoading === 'function') syncLoading();
+          else {
+            layerLoading.set(layer, false);
+            maybeDone();
+          }
         };
         if (typeof layer.on === 'function' && typeof layer.off === 'function') {
           layer.on('loading', onLoading);
@@ -1233,36 +1249,53 @@
           });
         }
       }
-      if (pending <= 0) {
-        if (sawLoad) finish();
-        else setTimeout(finish, 150);
-      } else {
-        setTimeout(finish, tileTimeoutMs);
+      if (!anyLoading()) {
+        if (!sawLoadedState) {
+          sawLoadedState = true;
+        }
+        finish(true);
+        return;
       }
+      timeout = setTimeout(() => finish(false), tileTimeoutMs);
     });
 
     const waitForContextTiles = () => {
       if (!ctx || !ctx.contextOverlays || !CONTEXT_OVERLAY_KINDS.some(k => ctx.contextOverlays.active && ctx.contextOverlays.active[k])) {
-        return Promise.resolve();
+        return Promise.resolve(true);
       }
       if (!ctx.contextLayerState || !ctx.contextLayerState.tileIndex || !cl || typeof cl.loadTilesForBbox !== 'function') {
-        return Promise.resolve();
+        return Promise.resolve(true);
       }
       let bounds = null;
       try { bounds = map && typeof map.getBounds === 'function' ? map.getBounds() : null; } catch (_) { bounds = null; }
-      if (!bounds) return Promise.resolve();
-      return cl.loadTilesForBbox(ctx.contextLayerState, bounds).then(() => undefined).catch(() => undefined);
+      if (!bounds) return Promise.resolve(true);
+      return cl.loadTilesForBbox(ctx.contextLayerState, bounds).then(() => true).catch(() => false);
     };
 
     return new Promise((resolve) => {
-      const timeout = setTimeout(() => resolve(), timeoutMs);
+      let settled = false;
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(!!ok);
+      };
+      const timeout = setTimeout(() => finish(false), timeoutMs);
       Promise.resolve()
         .then(waitForTileLayers)
-        .then(waitForContextTiles)
-        .then(() => new Promise((r) => raf(() => raf(r))))
-        .finally(() => {
-          clearTimeout(timeout);
-          resolve();
+        .then((tilesOk) => {
+          if (!tilesOk) return false;
+          return waitForContextTiles();
+        })
+        .then((contextOk) => {
+          if (!contextOk) {
+            finish(false);
+            return;
+          }
+          new Promise((r) => raf(() => raf(r))).then(() => finish(true)).catch(() => finish(false));
+        })
+        .catch(() => {
+          finish(false);
         });
     });
   };

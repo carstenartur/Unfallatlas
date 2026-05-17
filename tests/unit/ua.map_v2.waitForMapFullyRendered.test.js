@@ -77,8 +77,19 @@ describe('UA.waitForMapFullyRendered', () => {
       tileLayer._loading = false;
       tileLayer.emit('load');
     }, 10);
-    await p;
+    await expect(p).resolves.toBe(true);
     expect(UA.contextLayers.loadTilesForBbox).toHaveBeenCalledTimes(1);
     expect(hydrated).toBe(true);
+  });
+
+  test('returns false when tile loading does not settle before timeout', async () => {
+    const win = loadMapModule();
+    const UA = win.UA;
+    const tileLayer = new FakeTileLayer();
+    const map = {
+      eachLayer(fn) { fn(tileLayer); },
+      getBounds() { return null; },
+    };
+    await expect(UA.waitForMapFullyRendered(map, { timeoutMs: 20, tileTimeoutMs: 20 })).resolves.toBe(false);
   });
 });
