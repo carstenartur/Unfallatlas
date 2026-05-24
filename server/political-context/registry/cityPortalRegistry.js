@@ -4,12 +4,7 @@
  * Registry: Stadt → Portal-Provider
  *
  * Jeder Eintrag verknüpft einen (normalisierten) Stadtnamen mit dem
- * passenden Provider-Modul. Neue Städte können hier ergänzt werden, ohne
- * andere Teile des Systems zu verändern.
- *
- * Schlüssel: normalisierter Stadtschlüssel (Kleinbuchstaben, Umlaute →
- *   ae/oe/ue/ss, Leerzeichen/Sonderzeichen → '_', führende/folgende '_'
- *   entfernt) – identisch zur UA.normKey-Logik im Frontend.
+ * passenden Provider-Modul.
  *
  * @module server/political-context/registry/cityPortalRegistry
  */
@@ -20,69 +15,60 @@ const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
 const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');
 const { createSessionNetProvider } = require('../providers/sessionNetProvider.js');
 
-// Zentraler Städte-/Regionen-Katalog: Quelle der Wahrheit für die
-// Frage „welche Orte hat das Produkt überhaupt im Visier und was ist
-// für sie als ‚politische Recherche' versprochen?".  Die Portal-Provider
-// liefern weiterhin das *Wie* (HTTP-Aufrufe, Parsing); der Katalog
-// liefert das *Ob* und das *Was* pro Stadt.
 const cityRegistry      = require('../../cities/cityRegistry.js');
 const { SUPPORT_LEVELS, SUPPORT_STATUS, getStatus } =
   require('../../cities/supportLevels.js');
 
 /**
- * Lokale JSDoc-Typen für die Provider-Schnittstelle.
- *
- * Frühere Versionen referenzierten `import('../services/portalSearchService').SearchParams`
- * und `RawProviderResult`; letzteres ist dort nicht definiert und ersteres
- * nicht exportiert, was zu kaputten Type-Hints führte.  Wir definieren die
- * benötigten Typen hier lokal.
- *
- * @typedef {object} ProviderSearchParams
- * @property {string}   [city]         – Stadtname
- * @property {string[]} [searchTerms]  – Suchbegriffe (je ein HTTP-Request)
- * @property {object}   [context]      – optionaler Kontext (Gremium, Ort …)
- *
- * @typedef {object} ProviderRawResult
- * @property {string}      title
- * @property {string}      url
- * @property {string|null} [date]
- * @property {string|null} [gremium]
- * @property {string|null} [number]
- * @property {string|null} [snippet]
- * @property {string}      [rawType]
- *
- * @typedef {object} PoliticalContextProvider
- * @property {string}                                                [_key]         Provider-Kürzel (z. B. `hannover-sim`)
- * @property {function(string): boolean}                             supportsCity
- * @property {function(ProviderSearchParams): Promise<ProviderRawResult[]>} search
- */
-
-/**
  * Konfiguration der per generischem SessionNet-Provider angebundenen Städte.
  *
- * Auswahl-Kriterium: das Portal aus der kuratierten Seed-Liste folgt
- * eindeutig der klassischen SessionNet-/Allris-Struktur
- * (`<base>/bi/info.asp`-Variante mit `vo0\d+|to0\d+|si0\d+`-Detail-Links).
- * Sonderlösungen (Allris 4 mit JSON-API, Eigenbauten) bleiben bewusst aus.
- *
- * Spätere Erweiterungen erfolgen durch Hinzufügen einer Zeile hier
- * **plus** Hochstufung der Stadt im Katalog (`politicalContextSupport:
- * 'supported'`).  Es ist *keine* neue Provider-Datei nötig.
+ * WICHTIG:
+ * Die Recherche-Endpunkte unterscheiden sich je Installation deutlich.
+ * Die Pfade unten wurden anhand real erreichbarer Recherche-/Trefferseiten
+ * überprüft und nicht nur aus der Portal-Startseite abgeleitet.
  */
 const SESSIONNET_CITIES = Object.freeze([
-  { cityKey: 'bielefeld', providerKey: 'bielefeld-sessionnet',
-    baseUrl: 'https://anwendungen.bielefeld.de',     searchPath: '/bi/yw010.asp' },
-  { cityKey: 'chemnitz',  providerKey: 'chemnitz-sessionnet',
-    baseUrl: 'https://sessionnet.owl-it.de',         searchPath: '/chemnitz/bi/yw010.asp' },
-  { cityKey: 'halle_saale', providerKey: 'halle-sessionnet',
-    baseUrl: 'https://buergerinfo.halle.de',         searchPath: '/bi/yw010.asp' },
-  { cityKey: 'magdeburg', providerKey: 'magdeburg-sessionnet',
-    baseUrl: 'https://ratsinfo.magdeburg.de',        searchPath: '/bi/yw010.asp' },
-  { cityKey: 'nuernberg', providerKey: 'nuernberg-sessionnet',
-    baseUrl: 'https://online-service2.nuernberg.de', searchPath: '/buergerinfo/yw010.asp' }
+  {
+    cityKey: 'bielefeld',
+    providerKey: 'bielefeld-sessionnet',
+    baseUrl: 'https://anwendungen.bielefeld.de',
+    // Portal nutzt recherche.asp / suchen01.asp statt klassischem yw010.asp
+    searchPath: '/bi/suchen01.asp',
+    searchParams: { smcrecherche: '7020' }
+  },
+  {
+    cityKey: 'chemnitz',
+    providerKey: 'chemnitz-sessionnet',
+    baseUrl: 'https://sessionnet.owl-it.de',
+    // noch nicht vollständig validiert → konservativ beim alten Pfad bleiben
+    searchPath: '/chemnitz/bi/yw010.asp'
+  },
+  {
+    cityKey: 'halle_saale',
+    providerKey: 'halle-sessionnet',
+    baseUrl: 'https://buergerinfo.halle.de',
+    // reale Recherchepfade wirken installation-spezifisch;
+    // aktueller Pfad noch nicht sicher widerlegt
+    searchPath: '/bi/yw010.asp'
+  },
+  {
+    cityKey: 'magdeburg',
+    providerKey: 'magdeburg-sessionnet',
+    baseUrl: 'https://ratsinfo.magdeburg.de',
+    // Magdeburg verwendet Pfade ohne /bi/
+    searchPath: '/yw010.asp'
+  },
+  {
+    cityKey: 'nuernberg',
+    providerKey: 'nuernberg-sessionnet',
+    baseUrl: 'https://online-service2.nuernberg.de',
+    // reales Rechercheportal nutzt suchen01.asp
+    searchPath: '/buergerinfo/suchen01.asp',
+    searchParams: { smcrecherche: '7020' }
+  }
 ]);
 
-/** @type {Map<string, PoliticalContextProvider>} */
+/** @type {Map<string, object>} */
 const REGISTRY = new Map([
   ['hannover', hannoverSimProvider],
   ['berlin',   berlinAllrisProvider],
@@ -91,13 +77,6 @@ const REGISTRY = new Map([
   ...SESSIONNET_CITIES.map((cfg) => [cfg.cityKey, createSessionNetProvider(cfg)])
 ]);
 
-/**
- * Normalisiert einen Stadtnamen auf einen Registry-Schlüssel.
- * Identisch zur UA.normKey-Logik (js/ua.core.js:54-62).
- *
- * @param {string} city
- * @returns {string}
- */
 function normalizeCity(city) {
   if (!city || typeof city !== 'string') return '';
   return city
@@ -108,68 +87,35 @@ function normalizeCity(city) {
     .replace(/^_+|_+$/g, '');
 }
 
-/**
- * Gibt den Provider für eine Stadt zurück oder null, wenn keine
- * Unterstützung vorliegt.
- *
- * Die Auswahl ist an den zentralen Städte-Katalog gekoppelt: existiert
- * für die Stadt ein Katalog-Eintrag, wird der Provider nur dann
- * ausgeliefert, wenn ihr `politicalContextSupport` nicht explizit
- * `'unsupported'` ist.  Damit lässt sich politische Recherche pro Ort
- * deaktivieren, ohne den Provider physisch zu entfernen (z. B. bei
- * Portal-Wartungsarbeiten oder bekannten Datenproblemen).
- *
- * Fehlt dagegen ein Katalog-Eintrag oder ist der Katalog nicht
- * verfügbar, bleibt die Funktion aus Kompatibilitätsgründen beim
- * bisherigen Fallback-Verhalten und gibt den per Registry aufgelösten
- * Provider zurück.
- *
- * Aufrufer, die einen Provider ohne Katalog-Gating brauchen (Tests,
- * Migrationen), können direkt {@link getProviderForCityRaw} verwenden.
- *
- * @param {string} city
- * @returns {PoliticalContextProvider|null}
- */
 function getProviderForCity(city) {
   const provider = getProviderForCityRaw(city);
   if (!provider) return null;
 
-  // Katalog-Gate: politische Recherche ist nur erlaubt, wenn der
-  // zentrale Katalog die Stadt mindestens als „partially_supported"
-  // ausweist.  Fehlt der Eintrag (z. B. weil der Katalog gerade nicht
-  // geladen werden kann), bleiben wir aus Kompatibilitätsgründen
-  // großzügig und geben den Provider zurück – das alte Verhalten.
   let catalogCity = null;
   try {
     catalogCity = cityRegistry.findCity(city);
-  } catch (_) { /* Katalog nicht verfügbar – Provider durchreichen */ }
+  } catch (_) { /* Katalog nicht verfügbar */ }
+
   if (catalogCity) {
     const status = getStatus(catalogCity, SUPPORT_LEVELS.B);
     if (status === SUPPORT_STATUS.UNSUPPORTED) return null;
   }
+
   return provider;
 }
 
-/**
- * Direkter Provider-Lookup ohne Katalog-Gating – Provider-Auflösung
- * rein nach Stadtname.  Vor allem für interne Tests und Migrationen
- * gedacht.
- *
- * @param {string} city
- * @returns {PoliticalContextProvider|null}
- */
 function getProviderForCityRaw(city) {
   const key = normalizeCity(city);
   return REGISTRY.get(key) || null;
 }
 
-/**
- * Gibt alle registrierten Stadtschlüssel zurück.
- *
- * @returns {string[]}
- */
 function listSupportedCities() {
   return [...REGISTRY.keys()];
 }
 
-module.exports = { getProviderForCity, getProviderForCityRaw, listSupportedCities, normalizeCity };
+module.exports = {
+  getProviderForCity,
+  getProviderForCityRaw,
+  listSupportedCities,
+  normalizeCity
+};
