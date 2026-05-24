@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "duisburg",
-  "generatedAt": "2026-05-17T05:33:03.494Z",
+  "generatedAt": "2026-05-24T05:34:34.743Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-17",
+      "extractDate": "2026-05-24",
       "coverage": "full"
     },
     "dem": {
@@ -28,7 +28,7 @@
     "withTrafficProxy": 8657,
     "ways": 3682,
     "wayGeometries": 3682,
-    "fullWays": 43645,
+    "fullWays": 43677,
     "contextTiles": 49
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 43645,
-    "withSlope": 40091,
-    "noSlopeSignal": 3554,
+    "totalWays": 43677,
+    "withSlope": 40121,
+    "noSlopeSignal": 3556,
     "coveragePercent": 91.9,
     "classCounts": {
-      "flat": 23731,
-      "gentle": 9735,
-      "moderate": 3937,
-      "steep": 2118,
+      "flat": 23749,
+      "gentle": 9739,
+      "moderate": 3942,
+      "steep": 2121,
       "very_steep": 570
     },
     "missingReasonCounts": {
-      "way_too_short": 3544,
+      "way_too_short": 3546,
       "no_geometry": 10
     },
     "methodCounts": {
-      "median_segments": 40091
+      "median_segments": 40121
     },
     "confidenceCounts": {
-      "medium": 8862,
-      "high": 11210,
-      "low": 20019
+      "medium": 8870,
+      "high": 11213,
+      "low": 20038
     },
     "verySteepShare": 1.4,
     "flatGentleShare": 83.5

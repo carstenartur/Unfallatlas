@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "dortmund",
-  "generatedAt": "2026-05-17T05:32:42.557Z",
+  "generatedAt": "2026-05-24T05:34:15.882Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-17",
+      "extractDate": "2026-05-24",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 10205,
     "withElevation": 10267,
     "withTrafficProxy": 9671,
-    "ways": 4927,
-    "wayGeometries": 4927,
-    "fullWays": 117139,
+    "ways": 4930,
+    "wayGeometries": 4930,
+    "fullWays": 117232,
     "contextTiles": 59
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 117139,
-    "withSlope": 94406,
-    "noSlopeSignal": 22733,
+    "totalWays": 117232,
+    "withSlope": 94484,
+    "noSlopeSignal": 22748,
     "coveragePercent": 80.6,
     "classCounts": {
-      "flat": 47673,
-      "gentle": 25307,
-      "moderate": 12073,
-      "steep": 7165,
+      "flat": 47707,
+      "gentle": 25337,
+      "moderate": 12081,
+      "steep": 7171,
       "very_steep": 2188
     },
     "missingReasonCounts": {
-      "way_too_short": 22689,
+      "way_too_short": 22704,
       "no_geometry": 44
     },
     "methodCounts": {
-      "median_segments": 94406
+      "median_segments": 94484
     },
     "confidenceCounts": {
-      "high": 18503,
-      "low": 58741,
-      "medium": 17162
+      "high": 18499,
+      "low": 58796,
+      "medium": 17189
     },
     "verySteepShare": 2.3,
     "flatGentleShare": 77.3

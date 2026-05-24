@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bremen",
-  "generatedAt": "2026-05-17T05:32:51.916Z",
+  "generatedAt": "2026-05-24T05:34:24.274Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-17",
+      "extractDate": "2026-05-24",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 19895,
     "withElevation": 19992,
     "withTrafficProxy": 19185,
-    "ways": 6238,
-    "wayGeometries": 6238,
-    "fullWays": 75678,
+    "ways": 6240,
+    "wayGeometries": 6240,
+    "fullWays": 75723,
     "contextTiles": 97
   },
   "dictFields": [
@@ -37,31 +37,31 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 75678,
-    "withSlope": 67557,
-    "noSlopeSignal": 8121,
+    "totalWays": 75723,
+    "withSlope": 67596,
+    "noSlopeSignal": 8127,
     "coveragePercent": 89.3,
     "classCounts": {
-      "flat": 43682,
-      "gentle": 15670,
-      "moderate": 5383,
-      "steep": 2322,
+      "flat": 43697,
+      "gentle": 15686,
+      "moderate": 5388,
+      "steep": 2325,
       "very_steep": 500
     },
     "missingReasonCounts": {
-      "way_too_short": 8105,
+      "way_too_short": 8111,
       "no_geometry": 16
     },
     "methodCounts": {
-      "median_segments": 67557
+      "median_segments": 67596
     },
     "confidenceCounts": {
-      "high": 16450,
-      "low": 36414,
-      "medium": 14693
+      "high": 16457,
+      "low": 36438,
+      "medium": 14701
     },
     "verySteepShare": 0.7,
-    "flatGentleShare": 87.9
+    "flatGentleShare": 87.8
   },
   "tileIndexPath": "ctxtiles/bremen/index.json"
 }

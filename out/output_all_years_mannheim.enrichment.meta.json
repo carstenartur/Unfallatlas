@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "mannheim",
-  "generatedAt": "2026-05-17T05:33:16.278Z",
+  "generatedAt": "2026-05-24T05:34:46.265Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-17",
+      "extractDate": "2026-05-24",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 8064,
     "matchedToWay": 8034,
     "withElevation": 8064,
-    "withTrafficProxy": 7421,
-    "ways": 3719,
-    "wayGeometries": 3719,
-    "fullWays": 48616,
+    "withTrafficProxy": 7422,
+    "ways": 3718,
+    "wayGeometries": 3718,
+    "fullWays": 48629,
     "contextTiles": 36
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 48616,
-    "withSlope": 40381,
-    "noSlopeSignal": 8235,
+    "totalWays": 48629,
+    "withSlope": 40393,
+    "noSlopeSignal": 8236,
     "coveragePercent": 83.1,
     "classCounts": {
-      "flat": 21943,
-      "gentle": 10129,
-      "moderate": 4731,
-      "steep": 2746,
+      "flat": 21947,
+      "gentle": 10131,
+      "moderate": 4734,
+      "steep": 2749,
       "very_steep": 832
     },
     "missingReasonCounts": {
-      "way_too_short": 8225,
+      "way_too_short": 8226,
       "no_geometry": 10
     },
     "methodCounts": {
-      "median_segments": 40381
+      "median_segments": 40393
     },
     "confidenceCounts": {
-      "low": 24516,
-      "high": 8369,
-      "medium": 7496
+      "low": 24525,
+      "high": 8368,
+      "medium": 7500
     },
     "verySteepShare": 2.1,
     "flatGentleShare": 79.4
