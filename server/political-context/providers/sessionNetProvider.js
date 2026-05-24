@@ -5,16 +5,15 @@
  * informationssysteme (CC e-gov / Sternberg SessionNet, klassische
  * `<base>/bi/info.asp`-Variante).
  *
- * Viele deutsche Städte betreiben dieses System mit nahezu identischer
- * HTML-Struktur (Tabelle mit Detail-Links auf `vo0\d+.asp` /
- * `to0\d+.asp` / `si0\d+.asp`).  Statt für jede Stadt einen eigenen
- * Provider zu schreiben, parametrisiert dieses Modul den Provider per
- * Konfiguration (Stadt, Basis-URL, Such-Pfad).
+ * Viele deutsche Städte betreiben dieses System mit ähnlicher HTML-Struktur
+ * (Tabelle mit Detail-Links auf `vo0\d+.asp` / `to0\d+.asp` / `si0\d+.asp`).
+ * Die Recherche-Endpunkte unterscheiden sich jedoch je Installation
+ * (`yw010.asp`, `suche.asp`, `suchen01.asp` mit festen Parametern etc.).
+ * Deshalb ist der Suchpfad pro Stadt konfigurierbar.
  *
- * Architektur-Hinweis: Stadt-/Portal-spezifische Sonderlogik wird
- * bewusst NICHT hier eingebaut.  Wer ein Portal anbinden will, das
- * vom Standard abweicht (z. B. Allris 4 mit JSON-API), schreibt
- * einen eigenen Provider.
+ * Architektur-Hinweis: Stadt-/Portal-spezifische Sonderlogik wird bewusst
+ * NICHT hier eingebaut. Wer ein Portal anbinden will, das vom Standard
+ * abweicht (z. B. Allris 4 mit JSON-API), schreibt einen eigenen Provider.
  *
  * Quelle der Parser-Heuristik: `bonnAllrisProvider.js` (klassisches
  * SessionNet, dort über Jahre stabil).
@@ -38,7 +37,8 @@ const MAX_RESULTS = 20;
  * @property {string} cityKey      Normalisierter Stadtschlüssel (z. B. `bielefeld`)
  * @property {string} providerKey  Provider-Kürzel für Logging / `meta.providerKey`
  * @property {string} baseUrl      Portal-Basis ohne Pfad (z. B. `https://anwendungen.bielefeld.de`)
- * @property {string} searchPath   Pfad des Such-Endpunkts (z. B. `/bi/yw010.asp`)
+ * @property {string} searchPath   Pfad des Such-Endpunkts (z. B. `/bi/suchen01.asp`)
+ * @property {object} [searchParams] Feste portal-spezifische Parameter, z. B. `{ smcrecherche: '7020' }`
  * @property {string} [detailDir]  Verzeichnis für relative Detail-Links
  *                                 (Standard: aus searchPath abgeleitet)
  */
@@ -50,12 +50,17 @@ const MAX_RESULTS = 20;
  *   - `SUCH_OBJ`  – `'V'` (Vorlagen/Drucksachen)
  *   - `SUCHMAX`   – Trefferlimit
  *
+ * Manche Installationen benötigen zusätzlich feste Parameter wie
+ * `smcrecherche=7020`; diese werden vor den Standards eingefügt und können
+ * bei Bedarf überschrieben werden.
+ *
  * @param {SessionNetProviderConfig} config
  * @param {string} term
  * @returns {string}
  */
 function buildSearchUrl(config, term) {
   const params = new URLSearchParams({
+    ...(config.searchParams || {}),
     MM:       'Suche',
     SUCH:     term,
     SUCH_OBJ: 'V',
@@ -66,7 +71,7 @@ function buildSearchUrl(config, term) {
 
 /**
  * Berechnet das Detail-Verzeichnis (für relative Links wie `vo020.asp?…`)
- * aus `searchPath` (z. B. `/bi/yw010.asp` → `/bi/`).
+ * aus `searchPath` (z. B. `/bi/suchen01.asp` → `/bi/`).
  *
  * @param {SessionNetProviderConfig} config
  * @returns {string}
@@ -190,9 +195,10 @@ function createSessionNetProvider(config) {
     throw new TypeError('createSessionNetProvider: config.searchPath must start with "/"');
   }
 
-  // Gefroren, damit Provider zur Laufzeit nicht versehentlich umkonfiguriert
-  // werden können (z. B. Querverweis aus einem anderen Modul).
-  const cfg = Object.freeze({ ...config });
+  const cfg = Object.freeze({
+    ...config,
+    searchParams: Object.freeze({ ...(config.searchParams || {}) })
+  });
 
   return Object.freeze({
     _key: cfg.providerKey,
