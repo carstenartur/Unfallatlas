@@ -378,7 +378,7 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       const { getDocument, GlobalWorkerOptions } = await import('https://pdfjs-test-cdn/pdf.min.mjs');
       GlobalWorkerOptions.workerSrc = 'https://pdfjs-test-cdn/pdf.worker.min.mjs';
 
-      const loadingTask = getDocument('https://pdfjs-test-cdn/document.pdf');
+      const loadingTask = getDocument({ url: 'https://pdfjs-test-cdn/document.pdf' });
       const pdfDoc = await loadingTask.promise;
       const pdfPage = await pdfDoc.getPage(1);
       const viewport = pdfPage.getViewport({ scale: 1.5 });
