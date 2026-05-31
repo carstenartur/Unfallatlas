@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "stuttgart",
-  "generatedAt": "2026-05-24T05:34:08.332Z",
+  "generatedAt": "2026-05-31T05:48:50.966Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-24",
+      "extractDate": "2026-05-31",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 16009,
     "withElevation": 16046,
     "withTrafficProxy": 15126,
-    "ways": 6645,
-    "wayGeometries": 6645,
-    "fullWays": 75208,
+    "ways": 6646,
+    "wayGeometries": 6646,
+    "fullWays": 75224,
     "contextTiles": 43
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 75208,
-    "withSlope": 63331,
-    "noSlopeSignal": 11877,
+    "totalWays": 75224,
+    "withSlope": 63342,
+    "noSlopeSignal": 11882,
     "coveragePercent": 84.2,
     "classCounts": {
-      "flat": 24636,
-      "gentle": 15966,
-      "moderate": 9466,
-      "steep": 8197,
-      "very_steep": 5066
+      "flat": 24642,
+      "gentle": 15969,
+      "moderate": 9468,
+      "steep": 8198,
+      "very_steep": 5065
     },
     "missingReasonCounts": {
-      "way_too_short": 11856,
+      "way_too_short": 11861,
       "no_geometry": 21
     },
     "methodCounts": {
-      "median_segments": 63331
+      "median_segments": 63342
     },
     "confidenceCounts": {
-      "low": 37073,
+      "low": 37083,
       "medium": 12517,
-      "high": 13741
+      "high": 13742
     },
     "verySteepShare": 8,
     "flatGentleShare": 64.1
