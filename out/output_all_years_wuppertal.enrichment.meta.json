@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "wuppertal",
-  "generatedAt": "2026-05-31T05:49:25.455Z",
+  "generatedAt": "2026-06-07T05:56:54.702Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-31",
+      "extractDate": "2026-06-07",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 5491,
     "matchedToWay": 5444,
     "withElevation": 5491,
-    "withTrafficProxy": 5287,
-    "ways": 2698,
-    "wayGeometries": 2698,
-    "fullWays": 48366,
+    "withTrafficProxy": 5286,
+    "ways": 2707,
+    "wayGeometries": 2707,
+    "fullWays": 48480,
     "contextTiles": 37
   },
   "dictFields": [
@@ -37,31 +37,31 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 48366,
-    "withSlope": 41493,
-    "noSlopeSignal": 6873,
+    "totalWays": 48480,
+    "withSlope": 41589,
+    "noSlopeSignal": 6891,
     "coveragePercent": 85.8,
     "classCounts": {
-      "flat": 12120,
-      "gentle": 9501,
-      "moderate": 7144,
-      "steep": 7716,
-      "very_steep": 5012
+      "flat": 12123,
+      "gentle": 9515,
+      "moderate": 7158,
+      "steep": 7758,
+      "very_steep": 5035
     },
     "missingReasonCounts": {
-      "way_too_short": 6859,
+      "way_too_short": 6877,
       "no_geometry": 14
     },
     "methodCounts": {
-      "median_segments": 41493
+      "median_segments": 41589
     },
     "confidenceCounts": {
-      "high": 9347,
-      "medium": 8840,
-      "low": 23306
+      "high": 9353,
+      "medium": 8850,
+      "low": 23386
     },
     "verySteepShare": 12.1,
-    "flatGentleShare": 52.1
+    "flatGentleShare": 52
   },
   "tileIndexPath": "ctxtiles/wuppertal/index.json"
 }

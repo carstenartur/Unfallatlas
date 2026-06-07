@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "muenster",
-  "generatedAt": "2026-05-31T05:49:27.684Z",
+  "generatedAt": "2026-06-07T05:56:56.789Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-31",
+      "extractDate": "2026-06-07",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 7060,
     "matchedToWay": 7005,
     "withElevation": 7060,
-    "withTrafficProxy": 6656,
+    "withTrafficProxy": 6655,
     "ways": 3145,
     "wayGeometries": 3145,
-    "fullWays": 40195,
+    "fullWays": 40194,
     "contextTiles": 51
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 40195,
+    "totalWays": 40194,
     "withSlope": 35168,
-    "noSlopeSignal": 5027,
+    "noSlopeSignal": 5026,
     "coveragePercent": 87.5,
     "classCounts": {
       "flat": 22357,
-      "gentle": 8416,
-      "moderate": 2971,
-      "steep": 1203,
-      "very_steep": 221
+      "gentle": 8419,
+      "moderate": 2968,
+      "steep": 1204,
+      "very_steep": 220
     },
     "missingReasonCounts": {
-      "way_too_short": 5020,
+      "way_too_short": 5019,
       "no_geometry": 7
     },
     "methodCounts": {
       "median_segments": 35168
     },
     "confidenceCounts": {
-      "low": 19729,
-      "medium": 6953,
-      "high": 8486
+      "low": 19728,
+      "medium": 6955,
+      "high": 8485
     },
     "verySteepShare": 0.6,
     "flatGentleShare": 87.5

@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "hannover",
-  "generatedAt": "2026-05-31T05:47:41.204Z",
+  "generatedAt": "2026-06-07T05:55:18.290Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-05-31",
+      "extractDate": "2026-06-07",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 19126,
     "withElevation": 19248,
     "withTrafficProxy": 17796,
-    "ways": 6048,
-    "wayGeometries": 6048,
-    "fullWays": 74702,
+    "ways": 6054,
+    "wayGeometries": 6054,
+    "fullWays": 74810,
     "contextTiles": 49
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 74702,
-    "withSlope": 56997,
-    "noSlopeSignal": 17705,
+    "totalWays": 74810,
+    "withSlope": 57083,
+    "noSlopeSignal": 17727,
     "coveragePercent": 76.3,
     "classCounts": {
-      "flat": 34731,
-      "gentle": 14072,
-      "moderate": 5142,
-      "steep": 2430,
+      "flat": 34776,
+      "gentle": 14097,
+      "moderate": 5155,
+      "steep": 2433,
       "very_steep": 622
     },
     "missingReasonCounts": {
-      "way_too_short": 17671,
+      "way_too_short": 17693,
       "no_geometry": 34
     },
     "methodCounts": {
-      "median_segments": 56997
+      "median_segments": 57083
     },
     "confidenceCounts": {
-      "high": 13247,
-      "medium": 11445,
-      "low": 32305
+      "high": 13251,
+      "medium": 11458,
+      "low": 32374
     },
     "verySteepShare": 1.1,
     "flatGentleShare": 85.6
