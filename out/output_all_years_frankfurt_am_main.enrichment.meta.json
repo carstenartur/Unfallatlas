@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "frankfurt_am_main",
-  "generatedAt": "2026-06-07T05:56:08.648Z",
+  "generatedAt": "2026-06-14T05:51:30.266Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-07",
+      "extractDate": "2026-06-14",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 22350,
     "withElevation": 22500,
     "withTrafficProxy": 20648,
-    "ways": 8444,
-    "wayGeometries": 8444,
-    "fullWays": 95483,
+    "ways": 8445,
+    "wayGeometries": 8445,
+    "fullWays": 95549,
     "contextTiles": 61
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 95483,
-    "withSlope": 78904,
-    "noSlopeSignal": 16579,
+    "totalWays": 95549,
+    "withSlope": 78955,
+    "noSlopeSignal": 16594,
     "coveragePercent": 82.6,
     "classCounts": {
-      "flat": 40444,
-      "gentle": 20555,
-      "moderate": 9694,
-      "steep": 6184,
-      "very_steep": 2027
+      "flat": 40464,
+      "gentle": 20572,
+      "moderate": 9700,
+      "steep": 6189,
+      "very_steep": 2030
     },
     "missingReasonCounts": {
-      "way_too_short": 16535,
+      "way_too_short": 16550,
       "no_geometry": 44
     },
     "methodCounts": {
-      "median_segments": 78904
+      "median_segments": 78955
     },
     "confidenceCounts": {
-      "high": 19230,
-      "medium": 16165,
-      "low": 43509
+      "high": 19233,
+      "medium": 16172,
+      "low": 43550
     },
     "verySteepShare": 2.6,
     "flatGentleShare": 77.3

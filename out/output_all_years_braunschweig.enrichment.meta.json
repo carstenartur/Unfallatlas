@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "braunschweig",
-  "generatedAt": "2026-06-07T05:56:15.424Z",
+  "generatedAt": "2026-06-14T05:51:37.753Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-07",
+      "extractDate": "2026-06-14",
       "coverage": "full"
     },
     "dem": {
@@ -28,7 +28,7 @@
     "withTrafficProxy": 4314,
     "ways": 2446,
     "wayGeometries": 2446,
-    "fullWays": 38662,
+    "fullWays": 38693,
     "contextTiles": 35
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 38662,
-    "withSlope": 32892,
-    "noSlopeSignal": 5770,
+    "totalWays": 38693,
+    "withSlope": 32912,
+    "noSlopeSignal": 5781,
     "coveragePercent": 85.1,
     "classCounts": {
-      "flat": 20601,
-      "gentle": 8035,
-      "moderate": 2792,
-      "steep": 1238,
+      "flat": 20616,
+      "gentle": 8036,
+      "moderate": 2795,
+      "steep": 1239,
       "very_steep": 226
     },
     "missingReasonCounts": {
-      "way_too_short": 5763,
+      "way_too_short": 5774,
       "no_geometry": 7
     },
     "methodCounts": {
-      "median_segments": 32892
+      "median_segments": 32912
     },
     "confidenceCounts": {
-      "high": 8181,
-      "low": 18023,
-      "medium": 6688
+      "high": 8182,
+      "low": 18038,
+      "medium": 6692
     },
     "verySteepShare": 0.7,
     "flatGentleShare": 87.1

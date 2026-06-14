@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "muenchen",
-  "generatedAt": "2026-06-07T05:55:56.647Z",
+  "generatedAt": "2026-06-14T05:51:17.198Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-07",
+      "extractDate": "2026-06-14",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 43988,
     "matchedToWay": 43759,
     "withElevation": 43988,
-    "withTrafficProxy": 38790,
-    "ways": 14331,
-    "wayGeometries": 14331,
-    "fullWays": 150407,
+    "withTrafficProxy": 38767,
+    "ways": 14346,
+    "wayGeometries": 14346,
+    "fullWays": 151517,
     "contextTiles": 58
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 150407,
-    "withSlope": 121060,
-    "noSlopeSignal": 29347,
-    "coveragePercent": 80.5,
+    "totalWays": 151517,
+    "withSlope": 121782,
+    "noSlopeSignal": 29735,
+    "coveragePercent": 80.4,
     "classCounts": {
-      "flat": 63767,
-      "gentle": 30791,
-      "moderate": 14614,
-      "steep": 9174,
-      "very_steep": 2714
+      "flat": 64151,
+      "gentle": 30953,
+      "moderate": 14700,
+      "steep": 9250,
+      "very_steep": 2728
     },
     "missingReasonCounts": {
-      "way_too_short": 29207,
+      "way_too_short": 29595,
       "no_geometry": 140
     },
     "methodCounts": {
-      "median_segments": 121060
+      "median_segments": 121782
     },
     "confidenceCounts": {
-      "low": 74534,
-      "high": 24669,
-      "medium": 21857
+      "low": 75111,
+      "high": 24765,
+      "medium": 21906
     },
     "verySteepShare": 2.2,
     "flatGentleShare": 78.1
