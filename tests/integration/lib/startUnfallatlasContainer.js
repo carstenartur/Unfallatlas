@@ -37,10 +37,13 @@ const HEALTH_PATH = '/api/health';
 const STARTUP_TIMEOUT_MS = 120_000;
 
 let cachedTestcontainers = null;
-function loadTestcontainers() {
+async function loadTestcontainers() {
   if (cachedTestcontainers) return cachedTestcontainers;
-  // eslint-disable-next-line global-require
-  cachedTestcontainers = require('testcontainers');
+  // Use dynamic import() so Jest can handle testcontainers' ESM-only
+  // transitive dependency (archiver ≥ 8 ships as pure ES module).
+  // Node.js ≥ 22 supports require(esm) natively but Jest's module
+  // system does not, so import() is the portable approach.
+  cachedTestcontainers = await import('testcontainers');
   return cachedTestcontainers;
 }
 
@@ -54,7 +57,7 @@ function loadTestcontainers() {
 async function isDockerAvailable() {
   let tc;
   try {
-    tc = loadTestcontainers();
+    tc = await loadTestcontainers();
   } catch (err) {
     return { available: false, reason: `testcontainers package not installed: ${err.message}` };
   }
@@ -79,7 +82,7 @@ async function isDockerAvailable() {
  * @returns {Promise<{baseUrl: string, container: object, stop: () => Promise<void>, getLogs: () => Promise<string>}>}
  */
 async function startUnfallatlasContainer(opts = {}) {
-  const { GenericContainer, Wait } = loadTestcontainers();
+  const { GenericContainer, Wait } = await loadTestcontainers();
   const startupTimeoutMs = opts.startupTimeoutMs || STARTUP_TIMEOUT_MS;
 
   const imageTag = process.env.UNFALLATLAS_IMAGE;

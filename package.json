@@ -7,7 +7,7 @@
     "test": "jest",
     "test:unit": "jest --testPathPatterns=tests/unit",
     "test:integration": "jest --testPathPatterns=tests/integration",
-    "test:integration:tc": "jest --config=tests/integration/jest.testcontainers.config.js",
+    "test:integration:tc": "NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
     "regen:demo": "node scripts/regen-readme-demo.js",
     "regen:context-assets": "node scripts/regen-context-assets.js",
     "test:e2e": "playwright test --project=chromium",
@@ -43,7 +43,7 @@
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
     "pdfjs-dist": "^6.0.0",
-    "testcontainers": "^12.0.0"
+    "testcontainers": "^12.0.2"
   },
   "jest": {
     "testEnvironment": "jsdom",
