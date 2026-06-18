@@ -57,7 +57,7 @@ jobs:
     outputs:
       cities: ${{ steps.list.outputs.cities }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Build city slug list
@@ -109,7 +109,7 @@ jobs:
     needs: list-cities
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -159,7 +159,7 @@ jobs:
       matrix:
         city: ${{ fromJSON(needs.list-cities.outputs.cities) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -300,7 +300,7 @@ jobs:
     # so partial coverage is still useful.
     if: ${{ always() }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: true
 
