@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "dresden",
-  "generatedAt": "2026-06-14T05:52:07.267Z",
+  "generatedAt": "2026-06-21T05:57:01.766Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-14",
+      "extractDate": "2026-06-21",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 18780,
     "withElevation": 18935,
     "withTrafficProxy": 18130,
-    "ways": 6340,
-    "wayGeometries": 6340,
-    "fullWays": 101651,
+    "ways": 6344,
+    "wayGeometries": 6344,
+    "fullWays": 101777,
     "contextTiles": 64
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 101651,
-    "withSlope": 80375,
-    "noSlopeSignal": 21276,
+    "totalWays": 101777,
+    "withSlope": 80475,
+    "noSlopeSignal": 21302,
     "coveragePercent": 79.1,
     "classCounts": {
-      "flat": 39668,
-      "gentle": 19954,
-      "moderate": 10128,
-      "steep": 6989,
-      "very_steep": 3636
+      "flat": 39705,
+      "gentle": 19980,
+      "moderate": 10145,
+      "steep": 6998,
+      "very_steep": 3647
     },
     "missingReasonCounts": {
-      "way_too_short": 21236,
+      "way_too_short": 21262,
       "no_geometry": 40
     },
     "methodCounts": {
-      "median_segments": 80375
+      "median_segments": 80475
     },
     "confidenceCounts": {
-      "high": 16789,
-      "medium": 15167,
-      "low": 48419
+      "high": 16793,
+      "medium": 15185,
+      "low": 48497
     },
     "verySteepShare": 4.5,
     "flatGentleShare": 74.2

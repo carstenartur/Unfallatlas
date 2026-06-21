@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "leipzig",
-  "generatedAt": "2026-06-14T05:51:49.589Z",
+  "generatedAt": "2026-06-21T05:56:44.003Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-14",
+      "extractDate": "2026-06-21",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 16819,
     "withElevation": 16931,
     "withTrafficProxy": 16141,
-    "ways": 6463,
-    "wayGeometries": 6463,
-    "fullWays": 82395,
+    "ways": 6465,
+    "wayGeometries": 6465,
+    "fullWays": 82515,
     "contextTiles": 53
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 82395,
-    "withSlope": 67084,
-    "noSlopeSignal": 15311,
+    "totalWays": 82515,
+    "withSlope": 67163,
+    "noSlopeSignal": 15352,
     "coveragePercent": 81.4,
     "classCounts": {
-      "flat": 41434,
-      "gentle": 16522,
-      "moderate": 5979,
+      "flat": 41494,
+      "gentle": 16533,
+      "moderate": 5987,
       "steep": 2606,
       "very_steep": 543
     },
     "missingReasonCounts": {
-      "way_too_short": 15283,
+      "way_too_short": 15324,
       "no_geometry": 28
     },
     "methodCounts": {
-      "median_segments": 67084
+      "median_segments": 67163
     },
     "confidenceCounts": {
-      "high": 13757,
-      "medium": 13077,
-      "low": 40250
+      "high": 13775,
+      "medium": 13097,
+      "low": 40291
     },
     "verySteepShare": 0.8,
     "flatGentleShare": 86.4

@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "essen",
-  "generatedAt": "2026-06-14T05:51:58.886Z",
+  "generatedAt": "2026-06-21T05:56:53.316Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-14",
+      "extractDate": "2026-06-21",
       "coverage": "full"
     },
     "dem": {
@@ -26,9 +26,9 @@
     "matchedToWay": 9767,
     "withElevation": 9815,
     "withTrafficProxy": 9523,
-    "ways": 4069,
-    "wayGeometries": 4069,
-    "fullWays": 87052,
+    "ways": 4073,
+    "wayGeometries": 4073,
+    "fullWays": 87078,
     "contextTiles": 49
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 87052,
-    "withSlope": 71725,
-    "noSlopeSignal": 15327,
+    "totalWays": 87078,
+    "withSlope": 71748,
+    "noSlopeSignal": 15330,
     "coveragePercent": 82.4,
     "classCounts": {
-      "flat": 30839,
-      "gentle": 19036,
-      "moderate": 10582,
+      "flat": 30844,
+      "gentle": 19047,
+      "moderate": 10589,
       "steep": 7910,
       "very_steep": 3358
     },
     "missingReasonCounts": {
-      "way_too_short": 15290,
+      "way_too_short": 15293,
       "no_geometry": 37
     },
     "methodCounts": {
-      "median_segments": 71725
+      "median_segments": 71748
     },
     "confidenceCounts": {
-      "low": 42939,
-      "high": 14555,
-      "medium": 14231
+      "low": 42962,
+      "high": 14554,
+      "medium": 14232
     },
     "verySteepShare": 4.7,
     "flatGentleShare": 69.5

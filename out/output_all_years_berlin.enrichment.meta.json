@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "berlin",
-  "generatedAt": "2026-06-14T05:50:48.186Z",
+  "generatedAt": "2026-06-21T05:55:42.107Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-14",
+      "extractDate": "2026-06-21",
       "coverage": "full"
     },
     "dem": {
@@ -23,12 +23,12 @@
   },
   "counts": {
     "features": 87266,
-    "matchedToWay": 86344,
+    "matchedToWay": 86342,
     "withElevation": 87266,
-    "withTrafficProxy": 79805,
-    "ways": 34418,
-    "wayGeometries": 34418,
-    "fullWays": 429660,
+    "withTrafficProxy": 79804,
+    "ways": 34421,
+    "wayGeometries": 34421,
+    "fullWays": 430195,
     "contextTiles": 133
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 429660,
-    "withSlope": 321841,
-    "noSlopeSignal": 107819,
+    "totalWays": 430195,
+    "withSlope": 322238,
+    "noSlopeSignal": 107957,
     "coveragePercent": 74.9,
     "classCounts": {
-      "flat": 165480,
-      "gentle": 82624,
-      "moderate": 39738,
-      "steep": 25334,
-      "very_steep": 8665
+      "flat": 165713,
+      "gentle": 82710,
+      "moderate": 39784,
+      "steep": 25354,
+      "very_steep": 8677
     },
     "missingReasonCounts": {
-      "way_too_short": 107673,
-      "no_geometry": 146
+      "way_too_short": 107809,
+      "no_geometry": 148
     },
     "methodCounts": {
-      "median_segments": 321841
+      "median_segments": 322238
     },
     "confidenceCounts": {
-      "high": 61620,
-      "low": 203958,
-      "medium": 56263
+      "high": 61655,
+      "low": 204301,
+      "medium": 56282
     },
     "verySteepShare": 2.7,
     "flatGentleShare": 77.1

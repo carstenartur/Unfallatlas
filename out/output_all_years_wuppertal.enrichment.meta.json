@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "wuppertal",
-  "generatedAt": "2026-06-14T05:52:20.276Z",
+  "generatedAt": "2026-06-21T05:57:14.795Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-14",
+      "extractDate": "2026-06-21",
       "coverage": "full"
     },
     "dem": {
@@ -28,7 +28,7 @@
     "withTrafficProxy": 5286,
     "ways": 2706,
     "wayGeometries": 2706,
-    "fullWays": 48482,
+    "fullWays": 48491,
     "contextTiles": 37
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 48482,
-    "withSlope": 41591,
-    "noSlopeSignal": 6891,
+    "totalWays": 48491,
+    "withSlope": 41598,
+    "noSlopeSignal": 6893,
     "coveragePercent": 85.8,
     "classCounts": {
-      "flat": 12124,
+      "flat": 12127,
       "gentle": 9514,
-      "moderate": 7158,
-      "steep": 7760,
-      "very_steep": 5035
+      "moderate": 7162,
+      "steep": 7762,
+      "very_steep": 5033
     },
     "missingReasonCounts": {
-      "way_too_short": 6877,
+      "way_too_short": 6879,
       "no_geometry": 14
     },
     "methodCounts": {
-      "median_segments": 41591
+      "median_segments": 41598
     },
     "confidenceCounts": {
-      "high": 9352,
-      "low": 23390,
-      "medium": 8849
+      "high": 9353,
+      "low": 23394,
+      "medium": 8851
     },
     "verySteepShare": 12.1,
     "flatGentleShare": 52
