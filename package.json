@@ -72,7 +72,7 @@
     ]
   },
   "dependencies": {
-    "@playwright/test": "1.60.0",
+    "@playwright/test": "1.61.1",
     "docx": "9.7.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.1",
