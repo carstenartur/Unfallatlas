@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "Unfallwerkbank"
+type: software
+authors:
+  - family-names: Hammer
+    given-names: Carsten
+    alias: carstenartur
+    orcid: "https://orcid.org/0009-0005-1047-6381"
+repository-code: "https://github.com/carstenartur/Unfallatlas"
+url: "https://github.com/carstenartur/Unfallatlas"
+license: Apache-2.0
+version: "2.1.1-SNAPSHOT"
+abstract: >-
+  Unfallwerkbank is an open-source browser and server toolkit for exploring,
+  filtering, visualising and exporting official German road accident open data.
+  It supports interactive Leaflet maps, cluster and heatmap views, context-aware
+  filtering, local political request drafts, PDF/Word exports, optional AI-assisted
+  assessment and an optional Spring Boot analysis service for persistent location
+  action briefs and prioritisation.
+keywords:
+  - road-safety
+  - accident-analysis
+  - open-data
+  - geospatial-analysis
+  - traffic-safety
+  - civic-tech
+  - leaflet
+  - spring-boot
+  - javascript
+  - reproducible-analysis
