@@ -1,0 +1,40 @@
+{
+  "title": "Unfallwerkbank",
+  "upload_type": "software",
+  "creators": [
+    {
+      "name": "Hammer, Carsten",
+      "orcid": "0009-0005-1047-6381",
+      "affiliation": "Independent researcher and software developer"
+    }
+  ],
+  "description": "Unfallwerkbank is an open-source browser and server toolkit for exploring, filtering, visualising and exporting official German road accident open data. It supports interactive Leaflet maps, cluster and heatmap views, context-aware filtering, local political request drafts, PDF/Word exports, optional AI-assisted assessment, and an optional Spring Boot analysis service for persistent location action briefs and prioritisation. The project is intended for civic-tech, municipal road-safety work, reproducible open-data analysis, research, journalism and advocacy around safer walking and cycling infrastructure.",
+  "access_right": "open",
+  "license": "Apache-2.0",
+  "keywords": [
+    "road safety",
+    "accident analysis",
+    "traffic safety",
+    "open data",
+    "geospatial analysis",
+    "civic tech",
+    "municipal planning",
+    "cycling safety",
+    "pedestrian safety",
+    "Leaflet",
+    "JavaScript",
+    "Spring Boot",
+    "reproducible analysis"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/carstenartur/Unfallatlas",
+      "relation": "isSupplementTo",
+      "scheme": "url",
+      "resource_type": "software"
+    }
+  ],
+  "communities": [],
+  "notes": "The Zenodo archive captures a release of the source code, metadata, citation instructions, documentation and release artefacts. Large generated accident-data outputs are intentionally not part of the reusable JavaScript package concept and may be distributed separately according to their source-data licences and provenance notes.",
+  "version": "2.1.1-SNAPSHOT"
+}
