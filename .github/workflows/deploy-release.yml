@@ -13,7 +13,7 @@ on:
         type: string
         default: ''
       skip_tests:
-        description: 'Skip tests during release build'
+        description: 'Skip tests during release build, including Maven test compilation'
         required: false
         type: boolean
         default: false
@@ -160,7 +160,6 @@ jobs:
       - name: Verify release metadata
         env:
           EXPECTED_VERSION: ${{ steps.versions.outputs.release }}
-          RELEASE_MODE: 'true'
         run: |
           python3 - <<'PY'
           import json
@@ -169,28 +168,26 @@ jobs:
           from pathlib import Path
 
           expected = os.environ['EXPECTED_VERSION']
-          release_mode = os.environ['RELEASE_MODE'] == 'true'
 
           citation = Path('CITATION.cff').read_text(encoding='utf-8')
           version_match = re.search(r'^version: "([^"]+)"$', citation, flags=re.MULTILINE)
           if not version_match or version_match.group(1) != expected:
               raise SystemExit(f'CITATION.cff version does not match {expected!r}')
-          has_date_released = bool(re.search(r'^date-released: ', citation, flags=re.MULTILINE))
-          if release_mode and not has_date_released:
+          if not re.search(r'^date-released: ', citation, flags=re.MULTILINE):
               raise SystemExit('CITATION.cff date-released is missing')
 
           with open('.zenodo.json', encoding='utf-8') as handle:
               zenodo = json.load(handle)
           if zenodo.get('version') != expected:
               raise SystemExit(f'.zenodo.json version {zenodo.get("version")!r} != {expected!r}')
-          if release_mode and 'publication_date' not in zenodo:
+          if 'publication_date' not in zenodo:
               raise SystemExit('.zenodo.json publication_date is missing')
 
           with open('codemeta.json', encoding='utf-8') as handle:
               codemeta = json.load(handle)
           if codemeta.get('version') != expected:
               raise SystemExit(f'codemeta.json version {codemeta.get("version")!r} != {expected!r}')
-          if release_mode and 'datePublished' not in codemeta:
+          if 'datePublished' not in codemeta:
               raise SystemExit('codemeta.json datePublished is missing')
           PY
 
@@ -211,14 +208,26 @@ jobs:
           git commit -m "Release version ${{ steps.versions.outputs.release }}" || \
             echo "Nothing to commit (version was already set)."
 
-      - name: Build and verify analysis service
+      - name: Build analysis service release artifact
         run: |
+          set -euo pipefail
           if [[ '${{ inputs.skip_tests }}' == 'true' ]]; then
-            TEST_FLAG='-DskipTests'
+            echo "skip_tests=true: using -Dmaven.test.skip=true so Maven also skips test compilation."
+            MAVEN_ARGS=(-Dmaven.test.skip=true)
           else
-            TEST_FLAG=''
+            MAVEN_ARGS=()
           fi
-          mvn -f analysis-service/pom.xml clean verify $TEST_FLAG
+          mvn -f analysis-service/pom.xml clean verify "${MAVEN_ARGS[@]}"
+
+      - name: Upload Maven test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: analysis-service-test-reports
+          path: |
+            analysis-service/target/surefire-reports/
+            analysis-service/target/failsafe-reports/
+          if-no-files-found: ignore
 
       - name: Run Node tests
         if: ${{ !inputs.skip_tests }}
@@ -246,9 +255,6 @@ jobs:
             codemeta.json
           )
 
-          # Exclude out/ because it contains large generated GeoJSON/CSV data.
-          # Data consumers should fetch those data artefacts separately according
-          # to their source-data licences and provenance.
           DIRS=(css js tours templates docs)
 
           ZIP_ARGS=()
@@ -407,14 +413,14 @@ jobs:
           git add -A -- ':!.github/workflows/'
           git commit -m "Prepare next development version $NEXT_VERSION" || \
             echo "Nothing to commit."
-          echo "branch=$NEXT_VERSION_BRANCH" >> "$GITHUB_ENV"
+          echo "NEXT_VERSION_BRANCH=$NEXT_VERSION_BRANCH" >> "$GITHUB_ENV"
 
       - name: Push next development branch and open PR
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           NEXT_VERSION='${{ steps.versions.outputs.next }}'
-          NEXT_VERSION_BRANCH="$branch"
+          NEXT_VERSION_BRANCH="$NEXT_VERSION_BRANCH"
           BASE_BRANCH='${{ steps.versions.outputs.base_branch }}'
           RELEASE_VERSION='${{ steps.versions.outputs.release }}'
           NEXT_RELEASE_VERSION="${NEXT_VERSION%-SNAPSHOT}"
@@ -457,4 +463,4 @@ jobs:
 
       - name: Dry run – skip next development PR
         if: ${{ inputs.dry_run }}
-        run: echo "::notice::Dry run – would push $branch and open/update a next-development PR"
+        run: echo "::notice::Dry run – would push $NEXT_VERSION_BRANCH and open/update a next-development PR"
