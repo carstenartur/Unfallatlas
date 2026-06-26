@@ -31,6 +31,10 @@
              Authentication Despite channelBinding=require Configuration"
              (Patched in 42.7.7). -->
         <postgresql.version>42.7.7</postgresql.version>
+        <!-- Spring Boot 4.0.6 manages Hibernate ORM 7.2.x.  Hibernate Search
+             must stay on the 8.2.x line; newer 8.3/8.4 lines target newer
+             Hibernate ORM minor versions and fail during auto-indexing. -->
+        <hibernate-search.version>8.2.2.Final</hibernate-search.version>
     </properties>
 
     <dependencies>
@@ -99,14 +103,14 @@
              Infra-Bedarf).  Bootstrap und automatisches Indexing werden
              über `application.properties` gesteuert.
 
-             Hibernate Search 8.0.0 deklariert hibernate-core 7.0; durch
-             Spring-Boot 4.0.6's Dependency-Management läuft alles unter
-             der dort gemanagten ORM-Version (7.2.x), die innerhalb der
-             7.x-Linie kompatibel bleibt. -->
+             Spring Boot 4.0.6 manages Hibernate ORM 7.2.x.  Hibernate Search
+             8.2.2.Final is the matching 8.x line for ORM 7.2; newer 8.3/8.4
+             lines target ORM 7.3/7.4 and can fail with missing Hibernate SPI
+             classes during auto-indexing. -->
         <dependency>
             <groupId>org.hibernate.search</groupId>
             <artifactId>hibernate-search-mapper-orm</artifactId>
-            <version>8.4.0.Final</version>
+            <version>${hibernate-search.version}</version>
             <exclusions>
                 <!-- Wir ziehen hibernate-core über Spring Boot, damit wir
                      bei der gemanagten Version (7.2.x) bleiben. -->
@@ -119,7 +123,7 @@
         <dependency>
             <groupId>org.hibernate.search</groupId>
             <artifactId>hibernate-search-backend-lucene</artifactId>
-            <version>8.4.0.Final</version>
+            <version>${hibernate-search.version}</version>
         </dependency>
 
         <!-- Tests -->
