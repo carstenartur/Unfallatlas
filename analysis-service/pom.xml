@@ -13,7 +13,7 @@
 
     <groupId>de.unfallatlas</groupId>
     <artifactId>unfallatlas-analysis-service</artifactId>
-    <version>2.1.1-SNAPSHOT</version>
+    <version>2.1.1</version>
     <packaging>jar</packaging>
 
     <name>Unfallatlas Analysis Service</name>

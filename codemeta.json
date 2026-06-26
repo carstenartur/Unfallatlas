@@ -6,7 +6,7 @@
   "codeRepository": "https://github.com/carstenartur/Unfallatlas",
   "issueTracker": "https://github.com/carstenartur/Unfallatlas/issues",
   "license": "https://spdx.org/licenses/Apache-2.0",
-  "version": "2.1.1-SNAPSHOT",
+  "version": "2.1.1",
   "programmingLanguage": [
     "JavaScript",
     "HTML",
@@ -53,5 +53,6 @@
     "Java 21+ for the optional analysis service",
     "Docker for full self-hosted operation",
     "Optional AI provider configuration for AI-assisted assessments"
-  ]
+  ],
+  "datePublished": "2026-06-26"
 }
