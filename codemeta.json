@@ -1,0 +1,57 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "name": "Unfallwerkbank",
+  "description": "Open-source browser and server toolkit for exploring, filtering, visualising and exporting official German road accident open data. It supports interactive Leaflet maps, cluster and heatmap views, context-aware filtering, local political request drafts, PDF/Word exports, optional AI-assisted assessment, and an optional Spring Boot analysis service for persistent location action briefs and prioritisation.",
+  "codeRepository": "https://github.com/carstenartur/Unfallatlas",
+  "issueTracker": "https://github.com/carstenartur/Unfallatlas/issues",
+  "license": "https://spdx.org/licenses/Apache-2.0",
+  "version": "2.1.1-SNAPSHOT",
+  "programmingLanguage": [
+    "JavaScript",
+    "HTML",
+    "CSS",
+    "Java",
+    "Shell",
+    "Python"
+  ],
+  "runtimePlatform": "Browser, Node.js, Docker, Java 21, Spring Boot",
+  "applicationCategory": "Road Safety, Geospatial Analysis, Civic Technology, Open Data",
+  "keywords": [
+    "road safety",
+    "accident analysis",
+    "traffic safety",
+    "open data",
+    "geospatial analysis",
+    "civic tech",
+    "municipal planning",
+    "cycling safety",
+    "pedestrian safety",
+    "Leaflet",
+    "JavaScript",
+    "Spring Boot",
+    "reproducible analysis"
+  ],
+  "author": {
+    "@type": "Person",
+    "@id": "https://orcid.org/0009-0005-1047-6381",
+    "givenName": "Carsten",
+    "familyName": "Hammer",
+    "url": "https://github.com/carstenartur"
+  },
+  "maintainer": {
+    "@type": "Person",
+    "@id": "https://orcid.org/0009-0005-1047-6381",
+    "givenName": "Carsten",
+    "familyName": "Hammer",
+    "url": "https://github.com/carstenartur"
+  },
+  "developmentStatus": "active",
+  "softwareRequirements": [
+    "Modern web browser",
+    "Node.js 24+ for tests and optional Node server",
+    "Java 21+ for the optional analysis service",
+    "Docker for full self-hosted operation",
+    "Optional AI provider configuration for AI-assisted assessments"
+  ]
+}
