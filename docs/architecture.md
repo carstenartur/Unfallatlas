@@ -159,7 +159,109 @@ und Größengarantien siehe [`docs/enrichment.md`](enrichment.md).
 
 ---
 
-## 2. TrafficSituation – Domänenmodell (Issue #309)
+## 2. AccidentProvider – Datenanbieter-Abstraktion (Issue #312)
+
+Quelle: [`js/ua.accident_provider.js`](../js/ua.accident_provider.js).
+
+`UA.AccidentProvider` ist die Zugriffsschicht für Unfalldaten.  Sie entkoppelt
+alle Lade­aufrufe vom konkreten Dateipfad und ermöglicht sowohl vollständige
+GeoJSON-Dateien als auch kachelbasiertes Laden — ohne dass Renderer oder
+Analyse-Plugins den Unterschied kennen.
+
+### Zielbild
+
+```
+ProviderRegistry
+├── StaticGeoJsonAccidentProvider   (out/output_all_years_<slug>.geojson)
+└── TiledAccidentProvider           (out/accidenttiles/<slug>/index.json
+                                     out/accidenttiles/<slug>/<z>/<x>/<y>.json)
+```
+
+### Provider-Schnittstelle
+
+Jeder Provider muss drei Methoden implementieren:
+
+| Methode | Beschreibung |
+|---|---|
+| `fetchForCity(cityRaw)` | Alle Unfalldaten der Stadt als GeoJSON FeatureCollection |
+| `fetchForBbox(cityRaw, bounds, zoom?)` | Nur die Daten im angegebenen Bbox-Bereich |
+| `getCapabilities(cityRaw)` | `{ supportsFullCity, supportsTiles, tileZoom?, totalCount? }` |
+| `canProvideForCity(cityRaw)` | `boolean \| Promise<boolean>` — Provider verfügbar? |
+
+### StaticGeoJsonAccidentProvider
+
+Lädt `out/output_all_years_<slug>.geojson` in einem Request — entspricht dem
+bisherigen `UA.loadCityData`-Verhalten.  `fetchForBbox` fällt auf den
+Volllade­pfad zurück; der Aufrufer muss selbst viewport-filtern.
+
+```javascript
+UA.AccidentProvider.createStaticProvider({
+  fetch:       window.fetch,          // injectable (Tests, Node.js)
+  baseUrl:     '',                    // optionaler URL-Präfix (CDN)
+  filePattern: 'out/output_all_years_{slug}.geojson',
+})
+```
+
+### TiledAccidentProvider
+
+Lädt Kacheln aus einer Kachelpyramide analog zum Kontext-Layer-Ansatz in
+`ua.context_layers.js`.
+
+Kachelstruktur:
+```
+out/accidenttiles/<slug>/index.json           ← Manifest
+out/accidenttiles/<slug>/<z>/<x>/<y>.json     ← GeoJSON-Kachel
+```
+
+Manifest-Format (schemaVersion: 1):
+```json
+{
+  "schemaVersion": 1,
+  "city":          "<slug>",
+  "z":             13,
+  "tiles":         [{ "x": 4200, "y": 2750, "count": 42 }],
+  "totalCount":    12345,
+  "generatedAt":   "2026-01-01T00:00:00Z"
+}
+```
+
+`fetchForBbox` berechnet die Slippy-Tile-Koordinaten für die gegebene
+Bounding Box und lädt nur die Kacheln, die der Manifest kennt — unbekannte
+Kacheln werden nie angefragt.
+
+```javascript
+UA.AccidentProvider.createTiledProvider({
+  fetch:    window.fetch,
+  tileRoot: 'out/accidenttiles',
+})
+```
+
+### ProviderRegistry
+
+Ein einfaches, sortierbares Registry für benannte Provider:
+
+```javascript
+const R = UA.AccidentProvider.ProviderRegistry;
+R.register('static', UA.AccidentProvider.createStaticProvider());
+R.register('tiled',  UA.AccidentProvider.createTiledProvider());
+
+// Synchrone Auflösung (bevorzugt Tiled, wenn canProvideForCity === true)
+const p = R.resolve('hannover');
+
+// Asynchrone Auflösung (wartet auf async canProvideForCity)
+const p = await R.resolveAsync('hannover');
+```
+
+### Rückwärtskompatibilität
+
+`UA.buildDataUrl` und `UA.loadCityData` in `ua.data_v2.js` bleiben unverändert.
+Der bestehende `werkbank_v2.html`-Workflow funktioniert weiterhin.
+Neuer Code kann progressiv auf den Provider migrieren, ohne dass ein
+Flag-Day nötig ist.
+
+---
+
+## 3. TrafficSituation – Domänenmodell (Issue #309)
 
 Quelle: [`js/ua.traffic_situation.js`](../js/ua.traffic_situation.js).
 
@@ -215,7 +317,7 @@ TrafficSituation
 
 ---
 
-## 3. Analyse-Plugin-Pipeline (Issue #311)
+## 4. Analyse-Plugin-Pipeline (Issue #311)
 
 Quelle: [`js/ua.analysis_pipeline.js`](../js/ua.analysis_pipeline.js).
 
@@ -319,7 +421,7 @@ PluginResult
 
 ---
 
-## 4. Renderer-unabhängige Visualisierungsarchitektur (Issue #310)
+## 5. Renderer-unabhängige Visualisierungsarchitektur (Issue #310)
 
 Quellen:
 - [`js/ua.scene_graph.js`](../js/ua.scene_graph.js) — Scene Graph
@@ -435,7 +537,7 @@ Mapping `SceneNode.type → Leaflet`:
 
 ---
 
-## 5. Deterministischer Export-/Analysepfad
+## 6. Deterministischer Export-/Analysepfad
 
 Quelle: [`js/ua.export_v2.js`](../js/ua.export_v2.js),
 [`js/ua.report_v2.js`](../js/ua.report_v2.js).
