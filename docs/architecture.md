@@ -215,7 +215,111 @@ TrafficSituation
 
 ---
 
-## 3. Renderer-unabhängige Visualisierungsarchitektur (Issue #310)
+## 3. Analyse-Plugin-Pipeline (Issue #311)
+
+Quelle: [`js/ua.analysis_pipeline.js`](../js/ua.analysis_pipeline.js).
+
+Die Analyse-Pipeline entkoppelt Datenverfügbarkeit, Plugin-Auswahl und
+Artefakt-Erzeugung. Statt Export-, KI- oder Antragslogik direkt an globale
+UI-Zustände zu koppeln, erhalten Plugins ausschließlich einen
+**AnalysisContext** mit read-only Zugriff auf:
+
+- `trafficSituation`
+- `dataRegistry`
+- `capabilityRegistry`
+- bereits vorhandene `resultMap`/Artefakte
+
+### Zentrale Bausteine
+
+```
+TrafficSituation
+   │
+   ▼
+DataRegistry.fromTrafficSituation(...)
+   │
+   ▼
+CapabilityRegistry.deriveCapabilities(...)
+   │
+   ▼
+PluginRegistry
+   │
+   ▼
+runPipeline(...)
+   │
+   ├── PluginResult(status=complete|partial|skipped|failed)
+   └── producedArtifacts → zurück ins DataRegistry
+```
+
+### DataRegistry
+
+Das Registry hält rohe und abgeleitete Daten unter stabilen Schlüsseln
+(`accidents`, `pois`, `roadContext`, `politicalReferences`,
+`environmentalData`, `trafficCounts`, `aiFindings`, `recommendations`,
+`sceneGraph`, `exports`, `viewport`, …). Jeder Eintrag trägt optional
+`provenance`, `updatedAt` und `sourcePlugin`.
+
+### CapabilityRegistry
+
+Capabilities beschreiben, **welche Analysefähigkeiten aktuell wirklich
+verfügbar sind**, unabhängig davon, ob die Daten aus GeoJSON, OSM,
+AI-Layern oder bereits erzeugten Artefakten stammen.
+
+Beispiele:
+
+- `hasAccidentData`
+- `hasPoiData`
+- `hasRoadContext`
+- `hasSlopeData`
+- `hasSurfaceData`
+- `hasRailData`
+- `hasPoliticalReferences`
+- `hasTrafficCounts`
+- `has3dCityModel`
+- `hasAiAssessment`
+- `hasRecommendations`
+
+### Plugin-Vertrag
+
+Ein Plugin wird über `UA.AnalysisPipeline.createPlugin(...)` registriert und
+deklariert explizit:
+
+- `requiredData` / `optionalData`
+- `requiredCapabilities` / `optionalCapabilities`
+- `producedArtifacts`
+- `dependsOn`
+- `supportsPartialData`
+- `supports(context)`
+- `run(context)`
+
+`run(context)` liefert ein strukturiertes `PluginResult` zurück:
+
+```text
+PluginResult
+├── status
+├── producedArtifacts
+├── missingOptionalData / missingOptionalCapabilities
+├── missingRequiredData / missingRequiredCapabilities
+├── warnings
+├── confidence
+├── completeness
+└── provenance
+```
+
+### Graceful Degradation / inkrementelle Migration
+
+- Fehlende **optionale** Daten werden im Resultat gemeldet und führen bei
+  `supportsPartialData: true` zu `status: "partial"` statt zu einem Fehler.
+- Fehlende **required** Daten/Capabilities führen zu `status: "skipped"`
+  mit expliziter Begründung.
+- Erzeugte Artefakte werden wieder ins `DataRegistry` geschrieben; nachfolgende
+  Plugins können sie über `dependsOn` und `requiredData` weiterverwenden.
+- Bestehende Logik wie `computeExportReport`, KI-Bewertung oder
+  Antragsentwürfe kann dadurch Schritt für Schritt in Plugins gekapselt werden,
+  ohne dass sofort alle Datenquellen gleichzeitig verfügbar sein müssen.
+
+---
+
+## 4. Renderer-unabhängige Visualisierungsarchitektur (Issue #310)
 
 Quellen:
 - [`js/ua.scene_graph.js`](../js/ua.scene_graph.js) — Scene Graph
@@ -331,7 +435,7 @@ Mapping `SceneNode.type → Leaflet`:
 
 ---
 
-## 4. Deterministischer Export-/Analysepfad
+## 5. Deterministischer Export-/Analysepfad
 
 Quelle: [`js/ua.export_v2.js`](../js/ua.export_v2.js),
 [`js/ua.report_v2.js`](../js/ua.report_v2.js).
