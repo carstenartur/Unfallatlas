@@ -480,6 +480,7 @@ jobs:
           NV="${NEXT_VERSION:-unknown}"
           BB="${BASE_BRANCH:-unknown}"
           LOCAL_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          RELEASE_COMMIT_SHA=$(git rev-list -n 1 --all --grep "^Release version ${RV}$" 2>/dev/null || true)
 
           {
             echo "## Release Status Summary"
@@ -499,6 +500,11 @@ jobs:
             echo "| Item | Value |"
             echo "|------|-------|"
             echo "| Local HEAD SHA | \`${LOCAL_HEAD}\` |"
+            if [[ -n "$RELEASE_COMMIT_SHA" ]]; then
+              echo "| Release commit SHA | \`${RELEASE_COMMIT_SHA}\` |"
+            else
+              echo "| Release commit SHA | ❓ not found locally |"
+            fi
             echo ""
 
             if [[ "$RV" == "unknown" ]]; then
@@ -516,8 +522,10 @@ jobs:
                 echo "| Remote \`${BB}\` HEAD | ❌ not found |"
               fi
 
-              if [[ -n "$REMOTE_BASE_SHA" && "$LOCAL_HEAD" == "$REMOTE_BASE_SHA" ]]; then
+              if [[ -n "$REMOTE_BASE_SHA" && -n "$RELEASE_COMMIT_SHA" && "$RELEASE_COMMIT_SHA" == "$REMOTE_BASE_SHA" ]]; then
                 echo "| Release commit pushed to \`${BB}\` | ✅ Yes |"
+              elif [[ -z "$RELEASE_COMMIT_SHA" ]]; then
+                echo "| Release commit pushed to \`${BB}\` | ❓ Unknown (release commit not found locally) |"
               else
                 echo "| Release commit pushed to \`${BB}\` | ❌ No |"
               fi
@@ -529,14 +537,11 @@ jobs:
                 echo "| Tag \`v${RV}\` | ❌ Not found |"
               fi
 
-              RELEASE_DATA=$(gh release view "v${RV}" --json isDraft,tagName 2>/dev/null || true)
-              if [[ -n "$RELEASE_DATA" ]]; then
-                IS_DRAFT=$(echo "$RELEASE_DATA" | jq -r '.isDraft // true')
-                if [[ "$IS_DRAFT" == "false" ]]; then
-                  echo "| GitHub Release \`v${RV}\` | ✅ Published |"
-                else
-                  echo "| GitHub Release \`v${RV}\` | ⚠️ Draft (not yet published) |"
-                fi
+              IS_DRAFT=$(gh release view "v${RV}" --json isDraft --jq '.isDraft' 2>/dev/null || true)
+              if [[ "$IS_DRAFT" == "false" ]]; then
+                echo "| GitHub Release \`v${RV}\` | ✅ Published |"
+              elif [[ "$IS_DRAFT" == "true" ]]; then
+                echo "| GitHub Release \`v${RV}\` | ⚠️ Draft (not yet published) |"
               else
                 echo "| GitHub Release \`v${RV}\` | ❌ Not found |"
               fi
