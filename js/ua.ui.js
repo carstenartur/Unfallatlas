@@ -410,9 +410,31 @@
     ui.btnModeAnd.addEventListener("click", ()=> { ctx.involvementMode="and"; UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); UA.setBtnState(ui.btnModeOr,false); UA.setBtnState(ui.btnModeAnd,true); UA.setBtnState(ui.btnModeSolo,false);} );
     ui.btnModeSolo.addEventListener("click", ()=> { ctx.involvementMode="solo"; UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); UA.setBtnState(ui.btnModeOr,false); UA.setBtnState(ui.btnModeAnd,false); UA.setBtnState(ui.btnModeSolo,true);} );
 
-    ui.btnCluster.addEventListener("click", ()=>{ ctx.showCluster=!ctx.showCluster; UA.setBtnState(ui.btnCluster, ctx.showCluster); UA.syncAllToUrl(ctx); ctx._dataChanged = true; if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx); UA.renderLayers(ctx); });
-    ui.btnHeat.addEventListener("click", ()=>{ ctx.showHeatmap=!ctx.showHeatmap; UA.setBtnState(ui.btnHeat, ctx.showHeatmap); UA.syncAllToUrl(ctx); ctx._dataChanged = true; if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx); UA.renderLayers(ctx); });
-    ui.btnOnlyHot.addEventListener("click", ()=>{ ctx.showOnlyAboveAverage=!ctx.showOnlyAboveAverage; UA.setBtnState(ui.btnOnlyHot, ctx.showOnlyAboveAverage); UA.syncAllToUrl(ctx); ctx._dataChanged = true; UA.renderLayers(ctx); });
+    ui.btnCluster.addEventListener("click", ()=>{
+      ctx.showCluster = !ctx.showCluster;
+      UA.setBtnState(ui.btnCluster, ctx.showCluster);
+      UA.syncAllToUrl(ctx);
+      if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx);
+      // Dispatch through the MapStore/RenderScheduler when available so
+      // that stale renders are dropped via epoch tracking.
+      if (ctx.store) { ctx.store.dispatch('layerToggled'); }
+      else { ctx._dataChanged = true; UA.renderLayers(ctx); }
+    });
+    ui.btnHeat.addEventListener("click", ()=>{
+      ctx.showHeatmap = !ctx.showHeatmap;
+      UA.setBtnState(ui.btnHeat, ctx.showHeatmap);
+      UA.syncAllToUrl(ctx);
+      if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx);
+      if (ctx.store) { ctx.store.dispatch('layerToggled'); }
+      else { ctx._dataChanged = true; UA.renderLayers(ctx); }
+    });
+    ui.btnOnlyHot.addEventListener("click", ()=>{
+      ctx.showOnlyAboveAverage = !ctx.showOnlyAboveAverage;
+      UA.setBtnState(ui.btnOnlyHot, ctx.showOnlyAboveAverage);
+      UA.syncAllToUrl(ctx);
+      if (ctx.store) { ctx.store.dispatch('layerToggled'); }
+      else { ctx._dataChanged = true; UA.renderLayers(ctx); }
+    });
 
     // PR-D: Kontextfilter — Hydration aus URL + Listener. Die Sektion
     // selbst bleibt hidden, bis nach dem Daten-Load

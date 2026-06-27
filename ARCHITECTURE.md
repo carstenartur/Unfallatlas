@@ -346,6 +346,38 @@ Längere Erklärung falls nötig.
 
 ---
 
+## Rendering-Architektur (Issue #308)
+
+Die Rendering-Pipeline wurde refaktoriert, um deterministische, debounced Renders zu ermöglichen und Wettlaufbedingungen zwischen asynchronen Ladevorgängen und UI-Events zu vermeiden.
+
+### Datenfluss
+
+```
+UI-Event / Viewport-Change / Daten-Load
+         |
+         ▼
+  ctx.store.dispatch(action)        ← ua.map_store.js
+         |
+         ▼
+  RenderScheduler.schedule(fn)      ← ua.render_scheduler.js
+  (debounce + epoch-guard)
+         |
+         ▼
+  UA.applyFilters(ctx)              ← ua.filters.js
+  UA.applyViewportFilter(ctx)
+  UA.renderLayers(ctx)              ← ua.map_v2.js
+  UA.saveCityState(ctx)             ← ua.state.js
+```
+
+### Schlüssel-Invarianten
+
+- UI-Handler rufen `UA.renderLayers()` **nicht** direkt auf; sie dispatchen eine Action an `ctx.store`.
+- Rendering erfolgt ausschließlich durch den `RenderScheduler`.
+- Asynchrone Context-Ladevorgänge, die nach einem neueren Render ankommen, werden über den Epoch-Mechanismus verworfen.
+- `UA.renderLayers()` selbst ist unverändert — die neue Schicht ist ein reines Routing-Layer davor.
+
+---
+
 ## Module-Übersicht
 
 ### Kern-Module
@@ -368,6 +400,49 @@ Längere Erklärung falls nötig.
 - UI-Event-Handler
 - Element-Referenzen
 - UI-Updates
+- Layer-Toggle-Handler dispatchen seit Issue #308 über `ctx.store`
+
+### Architektur-Module (Issue #308)
+
+**ua.map_scene.js** — `UA.MapScene`
+- Reines Datenmodell (keine Leaflet-Abhängigkeit)
+- Beschreibt eine vollständige Verkehrssituation: Stadt, Viewport, Filter, Layer-Sichtbarkeit, Unfall-Ansicht, Export-Optionen
+- `UA.MapScene.create(overrides)` — Instanz mit Defaults erzeugen
+- `UA.MapScene.fromCtx(ctx)` — aktuellen ctx in ein MapScene-Snapshot überführen
+
+**ua.render_scheduler.js** — `UA.RenderScheduler`
+- Debouncing mit konfigurierbarer Verzögerung
+- Epoch-basierte Stale-Erkennung: ältere Render-Aufrufe werden automatisch verworfen
+- `schedule(fn, delayMs)` — synchron oder mit Timeout
+- `scheduleRaf(fn, delayMs)` — Timeout + requestAnimationFrame (für Viewport-Updates)
+- `cancel()` — ausstehenden Render abbrechen
+- `isStale(epoch)` — prüft, ob ein Epoch veraltet ist
+
+**ua.map_store.js** — `UA.MapStore`
+- Zentraler Action-Dispatcher, gebunden an einen `ctx`
+- Unterstützte Actions: `filtersChanged`, `layerToggled`, `viewportChanged`, `cityLoaded`, `selectionChanged`, `exportModeChanged`, `contextLayerLoaded`
+- `ctx.store = UA.MapStore.create(ctx)` wird in `ua.app_v2.js` nach vollständiger Initialisierung erstellt
+
+**ua.leaflet_map_adapter.js** — `UA.LeafletMapAdapter`
+- Kapselt alle Leaflet-spezifischen Operationen
+- `replaceLayer(current, next)` — atomisches Layer-Austauschen
+- `removeLayer(layer)` — Layer entfernen, gibt null zurück
+- `bringLayerToFront(layer)` — Layer nach vorne bringen (falls unterstützt)
+- `setView(center, zoom)` — Viewport setzen
+- `fitBounds(bounds, opts)` — auf Bounding-Box zoomen
+- `waitUntilStable(opts)` — wartet auf visuell stabilen Map-Zustand
+
+**ua.map_scene_url_codec.js** — `UA.MapSceneUrlCodec`
+- Bidirektionale URL ↔ MapScene Serialisierung
+- `encode(scene)` — MapScene → Query-String (nur Nicht-Default-Werte)
+- `decode(search)` — Query-String → MapScene (mit Defaults für fehlende Parameter)
+- Rückwärtskompatibel mit bestehenden URLs
+
+**ua.preview_map_renderer.js** — `UA.PreviewMapRenderer`
+- Rendert eine vollständige Verkehrssituation aus einem MapScene in einen DOM-Container
+- Ohne Seiteneffekte auf die Live-Karte
+- Einsetzbar für Vorschaubilder, Word/PDF-Exporte und zukünftige Server-seitige Renders
+- `UA.PreviewMapRenderer.render({ container, scene, pts, onReady, waitOpts })`
 
 ### Daten-Module
 
@@ -412,6 +487,7 @@ Längere Erklärung falls nötig.
 - Module-Initialisierung
 - Event-Binding
 - Fehlerbehandlung
+- Erstellt `ctx.store = UA.MapStore.create(ctx)` nach vollständiger Initialisierung
 
 ---
 
@@ -448,4 +524,4 @@ Siehe [LICENSE](LICENSE) für Details zur Projekt-Lizenz.
 
 ---
 
-**Zuletzt aktualisiert:** 2026-01-02
+**Zuletzt aktualisiert:** 2026-06-27
