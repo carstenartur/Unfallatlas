@@ -78,11 +78,6 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  /** Return a copy of `ts` with the layer map replaced by `nextLayers`. */
-  function _withLayers(ts, nextLayers) {
-    return Object.assign({}, ts, { layers: nextLayers });
-  }
-
   // ---- default core section ----
 
   function _defaultCore() {
@@ -243,9 +238,9 @@
       const core = ts.core;
       const scene = {
         city:            (ts.metadata && ts.metadata.city) || '',
-        center:          core.viewport ? core.viewport.center : null,
+        center:          core.viewport && core.viewport.center ? _clone(core.viewport.center) : null,
         zoom:            core.viewport ? core.viewport.zoom   : null,
-        selection:       core.selection    || null,
+        selection:       core.selection ? _clone(core.selection) : null,
         filters:         _clone(core.filters         || {}),
         layers:          _clone(core.layerVisibility || {}),
         accidentView:    core.accidentView || 'bySeverity',
@@ -256,6 +251,9 @@
       const ctxLayer = ts.layers && ts.layers[LAYER_TYPES.CONTEXT_ROAD];
       if (ctxLayer && ctxLayer.meta && ctxLayer.meta.contextOverlays) {
         scene.contextOverlays = _clone(ctxLayer.meta.contextOverlays);
+      }
+      if (UA.MapScene && typeof UA.MapScene.create === 'function') {
+        return UA.MapScene.create(scene);
       }
       return scene;
     },
@@ -269,6 +267,9 @@
      * @returns {TrafficSituation}
      */
     addLayer: function addLayer(ts, layer) {
+      if (!ts || typeof ts !== 'object') {
+        throw new Error('TrafficSituation.addLayer: ts is required');
+      }
       if (!layer || !layer.type) throw new Error('TrafficSituation.addLayer: layer.type is required');
       const nextLayers = Object.assign({}, ts.layers, { [layer.type]: _clone(layer) });
       const nextMeta   = Object.assign({}, ts.metadata, { updated: _now() });
@@ -284,7 +285,7 @@
      * @returns {TrafficSituation}
      */
     removeLayer: function removeLayer(ts, layerType) {
-      if (!ts.layers || !(layerType in ts.layers)) return ts;
+      if (!ts || !ts.layers || !(layerType in ts.layers)) return ts;
       const nextLayers = Object.assign({}, ts.layers);
       delete nextLayers[layerType];
       const nextMeta = Object.assign({}, ts.metadata, { updated: _now() });

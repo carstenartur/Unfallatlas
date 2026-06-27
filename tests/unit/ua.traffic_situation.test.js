@@ -254,6 +254,20 @@ describe('UA.TrafficSituation', () => {
       const scene = UA.TrafficSituation.toMapScene(tsWithCtx);
       expect(scene.contextOverlays.active.slope).toBe(true);
     });
+
+    test('returns cloned center and selection objects', () => {
+      const ts = UA.TrafficSituation.create({
+        core: {
+          viewport: { center: { lat: 53.55, lon: 9.99 }, zoom: 14 },
+          selection: { south: 53.4, west: 9.8, north: 53.7, east: 10.1 }
+        }
+      });
+      const scene = UA.TrafficSituation.toMapScene(ts);
+      scene.center.lat = 0;
+      scene.selection.south = 0;
+      expect(ts.core.viewport.center.lat).toBe(53.55);
+      expect(ts.core.selection.south).toBe(53.4);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -294,6 +308,11 @@ describe('UA.TrafficSituation', () => {
         .toThrow('layer.type is required');
     });
 
+    test('throws a clear error when ts is missing', () => {
+      expect(() => UA.TrafficSituation.addLayer(null, { type: 'poi' }))
+        .toThrow('ts is required');
+    });
+
     test('clones the layer data (no shared references)', () => {
       const LT   = UA.TrafficSituation.LAYER_TYPES;
       const data = { features: [] };
@@ -329,6 +348,10 @@ describe('UA.TrafficSituation', () => {
       ts = UA.TrafficSituation.addLayer(ts, { type: LT.ACCIDENT, version: 1, enabled: true, data: null, meta: {} });
       ts = UA.TrafficSituation.removeLayer(ts, LT.POI);
       expect(ts.layers[LT.ACCIDENT]).toBeDefined();
+    });
+
+    test('returns null unchanged for null ts', () => {
+      expect(UA.TrafficSituation.removeLayer(null, 'poi')).toBeNull();
     });
   });
 
