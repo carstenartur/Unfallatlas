@@ -144,7 +144,7 @@
         });
         if (node.interaction && (node.interaction.selectable || node.interaction.hoverable)) {
           const data    = node.interaction.data || {};
-          const tooltip = (node.semantic && node.semantic.label) || JSON.stringify(data);
+          const tooltip = _escapeHtml((node.semantic && node.semantic.label) || JSON.stringify(data));
           cm.bindTooltip(tooltip);
         }
         _addLayer(cm);
@@ -195,7 +195,7 @@
         });
         const marker = L.marker([g.lat, lon], { icon: icon });
         if (node.semantic && node.semantic.label) {
-          marker.bindTooltip(node.semantic.label);
+          marker.bindTooltip(_escapeHtml(node.semantic.label));
         }
         _addLayer(marker);
       }
@@ -258,7 +258,11 @@
 
       function _coordsToLatLngs(coords) {
         if (!Array.isArray(coords) || !coords.length) return null;
-        // Check for nested polygon ring: [[lon, lat], ...]
+        // GeoJSON polygon rings: [[[lon, lat], ...], ...] — use the outer ring (index 0)
+        if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+          return coords[0].map(c => [c[1], c[0]]);
+        }
+        // Flat ring: [[lon, lat], ...]
         if (Array.isArray(coords[0])) {
           return coords.map(c => [c[1], c[0]]);
         }
@@ -334,7 +338,7 @@
          */
         captureSnapshot: function captureSnapshot() {
           if (typeof UA.captureMapImage === 'function' && _map) {
-            return UA.captureMapImage({}, _map);
+            return UA.captureMapImage({ map: _map }, {});
           }
           return Promise.resolve('data:image/png;base64,');
         }

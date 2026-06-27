@@ -176,8 +176,7 @@
   // ---- SceneGraph root helpers ----
 
   /**
-   * Walk the flat top-level nodes array and locate a node by id.
-   * Does NOT recurse into children — use getNode for that.
+   * Walk the nodes array and locate a node by id, recursing into children.
    */
   function _findNodeById(nodes, id) {
     for (const node of nodes) {
@@ -277,6 +276,8 @@
      */
     removeNode: function removeNode(graph, nodeId) {
       if (!graph || !nodeId) return graph;
+      const exists = graph.nodes.some(n => n.id === nodeId);
+      if (!exists) return graph;
       return Object.assign({}, graph, {
         nodes: graph.nodes.filter(n => n.id !== nodeId)
       });
@@ -311,7 +312,7 @@
      *   - One POINT node per accident in the accident layer
      *   - One CLUSTER node per hotspot cluster (if present)
      *   - One HEAT_FIELD node when heatmap visibility is enabled
-     *   - One POLYGON node per POI zone (if present)
+     *   - One BILLBOARD node per POI point (if present)
      *   - One LABEL node per recommendation (if present)
      *
      * @param {TrafficSituation} ts
@@ -435,7 +436,7 @@
         for (const rec of items) {
           if (!rec || !rec.location) continue;
           const node = SG.createNode(NODE_TYPES.LABEL, {
-            geometry:    { lat: rec.location.lat, lon: rec.location.lon || rec.location.lng },
+            geometry:    { lat: rec.location.lat, lon: rec.location.lon != null ? rec.location.lon : rec.location.lng },
             semantic:    { kind: 'recommendation', label: rec.text || rec.title || '' },
             interaction: { selectable: true, hoverable: true, data: rec },
             lod: {

@@ -74,8 +74,8 @@
     /**
      * Create a renderer instance by wrapping a user-supplied implementation
      * object.  The implementation must provide all four required methods.
-     * The returned object is a sealed object with the renderer interface plus
-     * a `name` and `capabilities` field.
+     * The returned object has the renderer interface plus a `name` and
+     * `capabilities` field.
      *
      * @param {string}   name         — human-readable renderer name
      * @param {object}   impl         — implementation object with render/update/dispose/captureSnapshot
