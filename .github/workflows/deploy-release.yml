@@ -464,3 +464,124 @@ jobs:
       - name: Dry run – skip next development PR
         if: ${{ inputs.dry_run }}
         run: echo "::notice::Dry run – would push $NEXT_VERSION_BRANCH and open/update a next-development PR"
+
+      - name: Release status summary
+        if: always()
+        env:
+          RELEASE_VERSION: ${{ steps.versions.outputs.release || inputs.release_version }}
+          NEXT_VERSION: ${{ steps.versions.outputs.next }}
+          BASE_BRANCH: ${{ steps.versions.outputs.base_branch || github.ref_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SKIP_TESTS: ${{ inputs.skip_tests }}
+        run: |
+          set +e
+
+          RV="${RELEASE_VERSION:-unknown}"
+          NV="${NEXT_VERSION:-unknown}"
+          BB="${BASE_BRANCH:-unknown}"
+          LOCAL_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+
+          {
+            echo "## Release Status Summary"
+            echo ""
+            echo "### Parameters"
+            echo ""
+            echo "| Parameter | Value |"
+            echo "|-----------|-------|"
+            echo "| Release version | \`${RV}\` |"
+            echo "| Next development version | \`${NV}\` |"
+            echo "| Base branch | \`${BB}\` |"
+            echo "| Dry run | \`${DRY_RUN}\` |"
+            echo "| Skip tests | \`${SKIP_TESTS}\` |"
+            echo ""
+            echo "### Local State"
+            echo ""
+            echo "| Item | Value |"
+            echo "|------|-------|"
+            echo "| Local HEAD SHA | \`${LOCAL_HEAD}\` |"
+            echo ""
+
+            if [[ "$RV" == "unknown" ]]; then
+              echo "> ⚠️ Release version could not be determined – the version/preflight step likely failed before any remote mutations occurred."
+            else
+              echo "### Remote Mutation Status"
+              echo ""
+              echo "| Remote object | Status |"
+              echo "|---------------|--------|"
+
+              REMOTE_BASE_SHA=$(git ls-remote origin "refs/heads/${BB}" 2>/dev/null | awk '{print $1}')
+              if [[ -n "$REMOTE_BASE_SHA" ]]; then
+                echo "| Remote \`${BB}\` HEAD | \`${REMOTE_BASE_SHA}\` |"
+              else
+                echo "| Remote \`${BB}\` HEAD | ❌ not found |"
+              fi
+
+              if [[ -n "$REMOTE_BASE_SHA" && "$LOCAL_HEAD" == "$REMOTE_BASE_SHA" ]]; then
+                echo "| Release commit pushed to \`${BB}\` | ✅ Yes |"
+              else
+                echo "| Release commit pushed to \`${BB}\` | ❌ No |"
+              fi
+
+              TAG_SHA=$(git ls-remote origin "refs/tags/v${RV}" 2>/dev/null | awk '{print $1}')
+              if [[ -n "$TAG_SHA" ]]; then
+                echo "| Tag \`v${RV}\` | ✅ Exists |"
+              else
+                echo "| Tag \`v${RV}\` | ❌ Not found |"
+              fi
+
+              RELEASE_DATA=$(gh release view "v${RV}" --json isDraft,tagName 2>/dev/null || true)
+              if [[ -n "$RELEASE_DATA" ]]; then
+                IS_DRAFT=$(echo "$RELEASE_DATA" | jq -r '.isDraft // true')
+                if [[ "$IS_DRAFT" == "false" ]]; then
+                  echo "| GitHub Release \`v${RV}\` | ✅ Published |"
+                else
+                  echo "| GitHub Release \`v${RV}\` | ⚠️ Draft (not yet published) |"
+                fi
+              else
+                echo "| GitHub Release \`v${RV}\` | ❌ Not found |"
+              fi
+
+              MAJOR_MINOR=$(echo "$RV" | sed 's/\.[^.]*$//')
+              MAINT_BRANCH="maintenance/${MAJOR_MINOR}.x"
+              MAINT_SHA=$(git ls-remote origin "refs/heads/${MAINT_BRANCH}" 2>/dev/null | awk '{print $1}')
+              if [[ -n "$MAINT_SHA" ]]; then
+                echo "| Maintenance branch \`${MAINT_BRANCH}\` | ✅ Exists |"
+              else
+                echo "| Maintenance branch \`${MAINT_BRANCH}\` | ❌ Not found |"
+              fi
+
+              if [[ "$NV" != "unknown" ]]; then
+                NEXT_BRANCH="release/prepare-next-${NV}"
+                NEXT_SHA=$(git ls-remote origin "refs/heads/${NEXT_BRANCH}" 2>/dev/null | awk '{print $1}')
+                if [[ -n "$NEXT_SHA" ]]; then
+                  echo "| Next-dev branch \`${NEXT_BRANCH}\` | ✅ Exists |"
+                else
+                  echo "| Next-dev branch \`${NEXT_BRANCH}\` | ❌ Not found |"
+                fi
+
+                PR_NUM=$(gh pr list --base "$BB" --head "$NEXT_BRANCH" \
+                  --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+                if [[ -n "$PR_NUM" ]]; then
+                  echo "| Next-dev PR | ✅ Open (#${PR_NUM}) |"
+                else
+                  echo "| Next-dev PR | ❌ Not found |"
+                fi
+              else
+                echo "| Next-dev branch | ❓ Unknown (version step failed) |"
+                echo "| Next-dev PR | ❓ Unknown (version step failed) |"
+              fi
+
+              echo ""
+
+              if [[ "$DRY_RUN" == "true" ]]; then
+                echo "> ℹ️ **Dry run mode** – remote mutations (commit push, tag, release, maintenance branch, next-dev PR) were intentionally skipped."
+              fi
+            fi
+
+            echo ""
+            echo "### Diagnostic Artifacts"
+            echo ""
+            echo "Maven test reports are uploaded as \`analysis-service-test-reports\` on build failure (see **Artifacts** in this workflow run)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit 0
