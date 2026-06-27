@@ -7,9 +7,11 @@
   // All UI interactions should call store.dispatch(action, payload)
   // instead of directly calling UA.renderLayers(). The store routes
   // every action through a RenderScheduler so that:
-  //   - rapid UI events are debounced into a single render,
+  //   - viewport changes are debounced (350 ms) into a single render,
   //   - asynchronous context loads cannot overwrite newer renders,
   //   - the rendering order is deterministic.
+  // Note: most actions (filtersChanged, layerToggled, …) execute
+  // synchronously (debounceMs: 0); only viewportChanged is debounced.
   //
   // Supported actions:
   //   filtersChanged      — filter/involvement/selection UI changed

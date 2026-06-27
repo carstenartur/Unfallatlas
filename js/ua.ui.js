@@ -416,7 +416,7 @@
       UA.syncAllToUrl(ctx);
       if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx);
       // Dispatch through the MapStore/RenderScheduler when available so
-      // that rapid toggles are debounced and stale renders are dropped.
+      // that stale renders are dropped via epoch tracking.
       if (ctx.store) { ctx.store.dispatch('layerToggled'); }
       else { ctx._dataChanged = true; UA.renderLayers(ctx); }
     });

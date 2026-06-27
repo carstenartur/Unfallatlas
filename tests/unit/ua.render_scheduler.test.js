@@ -143,4 +143,18 @@ describe('UA.RenderScheduler', () => {
     rafCalls[0]();
     expect(fn).toHaveBeenCalledTimes(1);
   });
+
+  test('scheduleRaf() cancel uses clearTimeout when rAF is unavailable', () => {
+    // Load scheduler with no requestAnimationFrame (falls back to setTimeout)
+    const UAnoRaf = loadScheduler({ requestAnimationFrame: undefined });
+    const sched = UAnoRaf.RenderScheduler.create({ debounceMs: 0 });
+    const fn = jest.fn();
+    // scheduleRaf falls back to setTimeout; cancel must use clearTimeout
+    sched.scheduleRaf(fn, 0);
+    // Supersede — cancel() must clear the pending setTimeout, not call
+    // the missing cancelAnimationFrame
+    expect(() => sched.cancel()).not.toThrow();
+    jest.advanceTimersByTime(100);
+    expect(fn).not.toHaveBeenCalled();
+  });
 });

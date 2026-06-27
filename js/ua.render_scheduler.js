@@ -33,14 +33,18 @@
       let timer = null;
       let rafId = null;
 
-      const _cancelPending = function () {
-        if (timer  !== null) { clearTimeout(timer);          timer  = null; }
-        if (rafId  !== null) { cancelAnimationFrame(rafId);  rafId  = null; }
-      };
-
       const _raf = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
         ? window.requestAnimationFrame.bind(window)
         : function (cb) { return setTimeout(cb, 16); };
+
+      const _cancelRaf = (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function')
+        ? window.cancelAnimationFrame.bind(window)
+        : clearTimeout;
+
+      const _cancelPending = function () {
+        if (timer  !== null) { clearTimeout(timer);  timer  = null; }
+        if (rafId  !== null) { _cancelRaf(rafId);    rafId  = null; }
+      };
 
       const scheduler = {
         /**
