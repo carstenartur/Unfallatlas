@@ -444,6 +444,72 @@ TrafficSituation
      └── presentation
 ```
 
+### Visualisierungs-Architektur (Issue #310)
+
+**ua.scene_graph.js** — `UA.SceneGraph`
+- Renderer-unabhängiges Scene-Graph-Modell
+- Enthält Knoten-Typen: POINT, POLYLINE, POLYGON, MESH, BILLBOARD, LABEL, HEAT_FIELD, CLUSTER, ARROW, HIGHLIGHT, CAMERA, LIGHT
+- Level-of-Detail-System (LOD): DISTANT, CITY, STREET, INTERSECTION, PEDESTRIAN
+- Interaction-Events: SELECTION, HOVER, FOCUS, VOICE, GESTURE, EYE_TRACKING
+- Jeder Knoten enthält: geometry, style, semantic, interaction, lod, children
+- API:
+  - `UA.SceneGraph.NODE_TYPES` — alle Knoten-Typ-Konstanten
+  - `UA.SceneGraph.LOD_LEVELS` — alle LOD-Level-Konstanten
+  - `UA.SceneGraph.INTERACTION_EVENTS` — alle Interaktions-Event-Konstanten
+  - `UA.SceneGraph.create(overrides?)` — leeres Scene-Graph erzeugen
+  - `UA.SceneGraph.createNode(type, opts?)` — typisierten Knoten erzeugen
+  - `UA.SceneGraph.addNode(graph, node)` — Knoten hinzufügen (unveränderlich)
+  - `UA.SceneGraph.removeNode(graph, nodeId)` — Knoten entfernen (unveränderlich)
+  - `UA.SceneGraph.getNode(graph, nodeId)` — Knoten suchen (rekursiv)
+  - `UA.SceneGraph.fromTrafficSituation(ts)` — Scene-Graph aus TrafficSituation aufbauen
+
+```
+TrafficSituation
+       │
+       ▼
+  Analysis Pipeline
+       │
+       ▼
+  Semantic Scene
+       │
+       ▼
+  SceneGraph
+       │
+  ┌────┼─────────────┐
+  │    │             │
+  ▼    ▼             ▼
+Leaflet Cesium   RealityKit
+  2D    3D          AR
+```
+
+**ua.renderer.js** — `UA.Renderer`
+- Abstrakte Renderer-Schnittstelle
+- Capability-Flags: RENDER_2D, RENDER_3D, RENDER_AR, SNAPSHOT, STREAMING, EXPORT
+- Jeder Renderer implementiert: render(SceneGraph), update(SceneGraph), dispose(), captureSnapshot()
+- API:
+  - `UA.Renderer.CAPABILITIES` — alle Capability-Konstanten
+  - `UA.Renderer.create(name, impl, caps?)` — Renderer aus Implementierungsobjekt erstellen
+  - `UA.Renderer.createNoop()` — No-Op-Renderer für Tests
+  - `UA.Renderer.assertInterface(r)` — Schnittstellenprüfung (wirft bei fehlenden Methoden)
+- Geplante Implementierungen: LeafletRenderer, MapLibreRenderer, CesiumRenderer, RealityKitRenderer, HtmlRenderer, WordRenderer, PdfRenderer, ImageRenderer
+
+**ua.leaflet_renderer.js** — `UA.LeafletRenderer`
+- Leaflet-Implementierung der Renderer-Schnittstelle
+- Wandelt SceneGraph-Knoten in Leaflet-Layer um:
+  - POINT → `L.circleMarker`
+  - POLYLINE → `L.polyline`
+  - POLYGON → `L.polygon`
+  - BILLBOARD → `L.marker` (DivIcon)
+  - LABEL → `L.marker` (DivIcon mit Text)
+  - ARROW → `L.polyline`
+  - HIGHLIGHT → `L.rectangle` / `L.polygon`
+  - HEAT_FIELD / CLUSTER → an bestehende Pipeline delegiert
+  - CAMERA / LIGHT / MESH → No-Op (3D/AR-only)
+- Capabilities: RENDER_2D, SNAPSHOT
+- API:
+  - `UA.LeafletRenderer.create(container, opts?)` — Renderer erstellen
+  - `renderer.map` — verwaltetes Leaflet-Map-Objekt
+
 ### Architektur-Module (Issue #308)
 
 **ua.map_scene.js** — `UA.MapScene`
@@ -566,4 +632,4 @@ Siehe [LICENSE](LICENSE) für Details zur Projekt-Lizenz.
 
 ---
 
-**Zuletzt aktualisiert:** 2026-06-27 (TrafficSituation-Domänenmodell ergänzt, Issue #309)
+**Zuletzt aktualisiert:** 2026-06-27 (Renderer-unabhängige Visualisierungsarchitektur ergänzt, Issue #310)
