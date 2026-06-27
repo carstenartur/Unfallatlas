@@ -2,6 +2,14 @@
   const UA = (window.UA = window.UA || {});
 
   UA.recomputeAndRender = function recomputeAndRender(ctx){
+    // Prefer the MapStore dispatch path when available so that renders
+    // go through the RenderScheduler (debounced, epoch-guarded).
+    if (ctx && ctx.store) {
+      ctx.store.dispatch('filtersChanged');
+      return;
+    }
+    // Fallback for callers that have not yet created a store (e.g. early
+    // init, tests that don't wire up the full stack).
     UA.applyFilters(ctx);
     UA.applyViewportFilter(ctx);
     ctx._dataChanged = true; // Mark data as changed when filters are applied
@@ -11,6 +19,12 @@
 
   UA.scheduleViewportUpdate = function scheduleViewportUpdate(ctx, isZoom){
     if (!ctx.allPts?.length) return;
+    // Prefer the MapStore dispatch path (uses RenderScheduler with rAF).
+    if (ctx && ctx.store) {
+      ctx.store.dispatch('viewportChanged', { debounceMs: 350 });
+      return;
+    }
+    // Fallback: legacy timer + rAF path kept for backward compatibility.
     if (ctx._moveTimer) clearTimeout(ctx._moveTimer);
     
     // Use longer debounce for smoother performance
@@ -318,6 +332,13 @@
     // map events - separate pan vs zoom handling
     ctx.map.on("moveend", () => UA.scheduleViewportUpdate(ctx, false));
     ctx.map.on("zoomend", () => UA.scheduleViewportUpdate(ctx, true));
+
+    // Initialise the MapStore now that all modules and ctx properties are
+    // ready. From this point on, UA.recomputeAndRender and
+    // UA.scheduleViewportUpdate route through the store/scheduler.
+    if (typeof UA.MapStore !== 'undefined' && typeof UA.MapStore.create === 'function') {
+      ctx.store = UA.MapStore.create(ctx);
+    }
 
     UA.recomputeAndRender(ctx);
 
