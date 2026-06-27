@@ -179,7 +179,7 @@ ProviderRegistry
 
 ### Provider-Schnittstelle
 
-Jeder Provider muss drei Methoden implementieren:
+Jeder Provider muss drei Pflichtmethoden implementieren; `canProvideForCity` ist optional (Standardwert: `true`):
 
 | Methode | Beschreibung |
 |---|---|

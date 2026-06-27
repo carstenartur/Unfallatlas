@@ -24,7 +24,7 @@
    *   fetchForCity(slug)              → Promise<GeoJSON FeatureCollection>
    *   fetchForBbox(slug, bounds, zoom)→ Promise<GeoJSON FeatureCollection>
    *   getCapabilities(slug)           → { supportsFullCity, supportsTiles }
-   *   canProvideForCity(slug)         → boolean  (optional; defaults to true)
+   *   canProvideForCity(slug)         → boolean | Promise<boolean>  (optional; defaults to true)
    *
    * Public API:
    *   UA.AccidentProvider.ProviderRegistry.register(name, provider) → void
@@ -201,7 +201,8 @@
     const opts = options || {};
     const _fetch     = (typeof opts.fetch === 'function') ? opts.fetch :
                        (typeof fetch === 'function')      ? fetch : null;
-    const baseUrl    = (typeof opts.baseUrl === 'string') ? opts.baseUrl : '';
+    const _rawBaseUrl = (typeof opts.baseUrl === 'string') ? opts.baseUrl : '';
+    const baseUrl    = _rawBaseUrl && !_rawBaseUrl.endsWith('/') ? `${_rawBaseUrl}/` : _rawBaseUrl;
     const pattern    = (typeof opts.filePattern === 'string')
       ? opts.filePattern
       : 'out/output_all_years_{slug}.geojson';
@@ -291,7 +292,8 @@
     const opts      = options || {};
     const _fetch    = (typeof opts.fetch === 'function') ? opts.fetch :
                       (typeof fetch === 'function')      ? fetch : null;
-    const baseUrl   = (typeof opts.baseUrl === 'string') ? opts.baseUrl : '';
+    const _rawBaseUrl = (typeof opts.baseUrl === 'string') ? opts.baseUrl : '';
+    const baseUrl   = _rawBaseUrl && !_rawBaseUrl.endsWith('/') ? `${_rawBaseUrl}/` : _rawBaseUrl;
     const tileRoot  = (typeof opts.tileRoot === 'string')
       ? opts.tileRoot.replace(/\/$/, '')
       : 'out/accidenttiles';
@@ -318,14 +320,14 @@
       return _tileUrl(slug, z, x, y);
     }
 
-    function _attachUrlIndex(manifest) {
+    function _attachUrlIndex(slug, manifest) {
       if (!manifest || typeof manifest !== 'object') return manifest;
       const byKey = new Map();
       const z = typeof manifest.z === 'number' ? manifest.z : ACCIDENT_TILE_DEFAULT_ZOOM;
       for (const t of (manifest.tiles || [])) {
         if (!t || !Number.isFinite(t.x) || !Number.isFinite(t.y)) continue;
         const key = `${t.x}/${t.y}`;
-        byKey.set(key, _tileUrl(manifest.city || '', z, t.x, t.y));
+        byKey.set(key, _tileUrl(slug, z, t.x, t.y));
       }
       manifest.tileUrlByKey = byKey;
       manifest.tileKeySet   = new Set(byKey.keys());
@@ -353,7 +355,7 @@
           return null;
         }
         // Attach pre-built URL index for O(1) tile lookups
-        _attachUrlIndex(json);
+        _attachUrlIndex(slug, json);
         return json;
       })();
       _manifestCache.set(slug, p);

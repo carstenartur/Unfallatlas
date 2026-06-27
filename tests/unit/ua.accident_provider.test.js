@@ -315,6 +315,17 @@ describe('UA.AccidentProvider', () => {
       expect(result.features).toHaveLength(1);
     });
 
+    test('normalizes baseUrl without trailing slash', async () => {
+      const fc = makeFeatureCollection([makePoint(50.7, 7.0)]);
+      const responses = { 'https://cdn.example.com/out/output_all_years_bonn.geojson': { body: fc } };
+      const p = UA.AccidentProvider.createStaticProvider({
+        fetch: makeFetch(responses),
+        baseUrl: 'https://cdn.example.com',  // no trailing slash
+      });
+      const result = await p.fetchForCity('bonn');
+      expect(result.features).toHaveLength(1);
+    });
+
     test('fetchForCity rejects when fetch is not available', async () => {
       const p = UA.AccidentProvider.createStaticProvider({ fetch: null });
       await expect(p.fetchForCity(CITY)).rejects.toThrow(/fetch is not available/);
@@ -482,6 +493,34 @@ describe('UA.AccidentProvider', () => {
       });
       const ok = await p.canProvideForCity(CITY);
       expect(ok).toBe(true);
+    });
+
+    test('normalizes baseUrl without trailing slash for tiled provider', async () => {
+      const manifest = makeManifest([{ x: 4200, y: 2750, count: 1 }]);
+      const tile = makeTile([makePoint(52.4, 9.7)]);
+      const responses = {
+        [`https://cdn.example.com/out/accidenttiles/${CITY}/index.json`]:           { body: manifest },
+        [`https://cdn.example.com/out/accidenttiles/${CITY}/${Z}/4200/2750.json`]: { body: tile },
+      };
+      const p = UA.AccidentProvider.createTiledProvider({
+        fetch: makeFetch(responses),
+        baseUrl: 'https://cdn.example.com',  // no trailing slash
+      });
+      const result = await p.fetchForCity(CITY);
+      expect(result.features).toHaveLength(1);
+    });
+
+    test('uses requested slug for tile URLs, not manifest.city', async () => {
+      // manifest.city is 'wrong-city' but the request slug is CITY
+      const manifest = Object.assign(makeManifest([{ x: 4200, y: 2750, count: 1 }]), { city: 'wrong-city' });
+      const tile = makeTile([makePoint(52.4, 9.7)]);
+      const responses = {
+        [`out/accidenttiles/${CITY}/index.json`]:              { body: manifest },
+        [`out/accidenttiles/${CITY}/${Z}/4200/2750.json`]:    { body: tile },
+      };
+      const p = makeProvider(responses);
+      const result = await p.fetchForCity(CITY);
+      expect(result.features).toHaveLength(1);
     });
 
     test('gracefully handles 404 for individual tiles', async () => {
