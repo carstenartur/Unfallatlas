@@ -93,6 +93,10 @@ describe('UA.AnalysisPipeline', () => {
     expect(UA.AnalysisPipeline.hasCapability(capabilityRegistry, UA.AnalysisPipeline.CAPABILITIES.HAS_TRAFFIC_COUNTS)).toBe(true);
     expect(UA.AnalysisPipeline.hasCapability(capabilityRegistry, UA.AnalysisPipeline.CAPABILITIES.HAS_AI_ASSESSMENT)).toBe(true);
 
+    expect(UA.AnalysisPipeline.hasData(dataRegistry, UA.AnalysisPipeline.DATA_KEYS.TRAFFIC_COUNTS)).toBe(true);
+    expect(UA.AnalysisPipeline.getData(dataRegistry, UA.AnalysisPipeline.DATA_KEYS.TRAFFIC_COUNTS))
+      .toEqual([{ aadt: 12000 }]);
+
     const accidentEntry = UA.AnalysisPipeline.describeData(dataRegistry, UA.AnalysisPipeline.DATA_KEYS.ACCIDENTS);
     expect(accidentEntry.provenance.source).toBe('trafficSituation.layers.accident');
   });
@@ -261,5 +265,37 @@ describe('UA.AnalysisPipeline', () => {
       .toEqual({ items: [{ id: 'm-1', title: 'Tempo 30 prüfen' }] });
     expect(UA.AnalysisPipeline.getData(out.dataRegistry, UA.AnalysisPipeline.DATA_KEYS.EXPORTS))
       .toEqual({ summary: 'Export with 1 recommendation(s)' });
+  });
+
+  test('produces a failed result when plugin.supports() throws instead of aborting the pipeline', async () => {
+    const pluginRegistry = UA.AnalysisPipeline.createPluginRegistry([
+      {
+        id: 'throws-on-supports',
+        requiredData: [],
+        producedArtifacts: [],
+        supports: () => { throw new Error('supports boom'); },
+        run: () => ({ producedArtifacts: {} })
+      },
+      {
+        id: 'runs-after',
+        requiredData: [],
+        producedArtifacts: ['afterArtifact'],
+        run: () => ({ producedArtifacts: { afterArtifact: { ok: true } } })
+      }
+    ]);
+
+    const out = await UA.AnalysisPipeline.runPipeline({
+      trafficSituation: UA.TrafficSituation.create(),
+      pluginRegistry: pluginRegistry
+    });
+
+    expect(out.results).toHaveLength(2);
+    const failedResult = out.results.find((r) => r.pluginId === 'throws-on-supports');
+    expect(failedResult.status).toBe('failed');
+    expect(failedResult.warnings[0]).toContain('supports boom');
+
+    const afterResult = out.results.find((r) => r.pluginId === 'runs-after');
+    expect(afterResult.status).toBe('complete');
+    expect(UA.AnalysisPipeline.getData(out.dataRegistry, 'afterArtifact')).toEqual({ ok: true });
   });
 });

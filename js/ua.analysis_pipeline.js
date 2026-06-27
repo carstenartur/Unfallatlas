@@ -164,6 +164,19 @@
       });
     });
 
+    const contextRoadLayer = LT.CONTEXT_ROAD && ts.layers[LT.CONTEXT_ROAD];
+    if (contextRoadLayer && contextRoadLayer.data
+        && _hasDataValue(contextRoadLayer.data.trafficCounts)
+        && !UA.AnalysisPipeline.hasData(registry, DATA_KEYS.TRAFFIC_COUNTS)) {
+      registry = UA.AnalysisPipeline.setData(registry, DATA_KEYS.TRAFFIC_COUNTS, contextRoadLayer.data.trafficCounts, {
+        provenance: {
+          source:         'trafficSituation.layers.' + LT.CONTEXT_ROAD + '.data.trafficCounts',
+          layerType:      LT.CONTEXT_ROAD,
+          extractedField: 'trafficCounts'
+        }
+      });
+    }
+
     return registry;
   }
 
@@ -405,7 +418,32 @@
         const missingOptionalCapabilities = plugin.optionalCapabilities.filter((name) => !UA.AnalysisPipeline.hasCapability(capabilityRegistry, name));
 
         let result;
-        if (await plugin.supports(context) === false) {
+        let supportsResult;
+        let supportsError = null;
+        try {
+          supportsResult = await plugin.supports(context);
+        } catch (err) {
+          supportsError = err;
+        }
+
+        if (supportsError) {
+          result = {
+            pluginId:                    plugin.id,
+            pluginName:                  plugin.name,
+            status:                      PLUGIN_STATUSES.FAILED,
+            producedArtifacts:           {},
+            missingOptionalData:         missingOptionalData,
+            missingOptionalCapabilities: missingOptionalCapabilities,
+            missingRequiredData:         missingRequiredData,
+            missingRequiredCapabilities: missingRequiredCapabilities,
+            warnings:                    [supportsError && supportsError.message ? supportsError.message : String(supportsError)],
+            confidence:                  null,
+            completeness:                0,
+            provenance:                  _defaultProvenance(plugin, context, {
+              error: supportsError && supportsError.message ? supportsError.message : String(supportsError)
+            })
+          };
+        } else if (supportsResult === false) {
           result = {
             pluginId:                    plugin.id,
             pluginName:                  plugin.name,

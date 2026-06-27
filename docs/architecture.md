@@ -235,16 +235,16 @@ UI-Zustände zu koppeln, erhalten Plugins ausschließlich einen
 TrafficSituation
    │
    ▼
-DataRegistry.fromTrafficSituation(...)
+UA.AnalysisPipeline.fromTrafficSituation(...)
    │
    ▼
-CapabilityRegistry.deriveCapabilities(...)
+UA.AnalysisPipeline.deriveCapabilities(...)
    │
    ▼
-PluginRegistry
+UA.AnalysisPipeline.createPluginRegistry(...)
    │
    ▼
-runPipeline(...)
+UA.AnalysisPipeline.runPipeline(...)
    │
    ├── PluginResult(status=complete|partial|skipped|failed)
    └── producedArtifacts → zurück ins DataRegistry
