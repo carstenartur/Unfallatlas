@@ -159,7 +159,63 @@ und Größengarantien siehe [`docs/enrichment.md`](enrichment.md).
 
 ---
 
-## 2. Deterministischer Export-/Analysepfad
+## 2. TrafficSituation – Domänenmodell (Issue #309)
+
+Quelle: [`js/ua.traffic_situation.js`](../js/ua.traffic_situation.js).
+
+`UA.TrafficSituation` ist das erste First-Class-Domänenobjekt der Unfallwerkbank.
+Es repräsentiert eine vollständige, serialisierbare Verkehrssituation als
+einzelnes JSON-kompatibles Objekt und ist die Grundlage für Analyse,
+Export, Vorschau und zukünftige Clients.
+
+```
+TrafficSituation
+├── version      (Schemaversion)
+├── id           (optionaler stabiler Bezeichner – URLs können darauf verweisen)
+├── metadata     { city, created, updated, description }
+├── core
+│    ├── viewport         { center: {lat, lon}|null, zoom: number|null }
+│    ├── selection        { south, west, north, east } | null
+│    ├── filters          (Schweregrad, Tagestyp, Beteiligte, Kontext-Filter, …)
+│    ├── layerVisibility  { showCluster, showHeatmap, showSchools, … }
+│    └── accidentView     (bySeverity | byType | …)
+└── layers       (Objekt, nach Typ indiziert – alle optional und versioniert)
+     ├── accident          GeoJSON-Unfalldaten
+     ├── poi               Points of Interest (Schulen, Spielplätze, …)
+     ├── contextRoad       Straßenkontext-Anreicherung (Steigung, Verkehr)
+     ├── politicalContext  Politikdokumente / Parlamentsanfragen
+     ├── environmental     Wetter, Lichtverhältnisse, Straßenzustand
+     ├── aiAssessment      KI-generierte Situationsbewertung
+     ├── recommendation    Abgeleitete Sicherheitsmaßnahmen
+     ├── export            Export-spezifische Optionen und Artefakte
+     └── presentation      Rendering-Hinweise (Farben, Zoom, Layout)
+```
+
+### Architektonische Prinzipien
+
+- **Leaflet-unabhängig.** Alle Felder sind plain JSON-Werte.
+- **Unveränderlich.** `addLayer`, `removeLayer` geben neue Objekte zurück und mutieren das Original nicht.
+- **Vollständig serialisierbar.** `UA.TrafficSituation.serialize(ts)` erzeugt einen tiefen Klon, der per `JSON.stringify` sicher übertragen werden kann.
+- **Rückwärtskompatibel.** `fromMapScene` / `toMapScene` ermöglichen die schrittweise Migration bestehenden MapScene-basierten Codes.
+- **URL-als-Referenz.** Das `id`-Feld erlaubt es, URLs auf eine konkrete TrafficSituation zu verweisen statt auf UI-State.
+
+### Öffentliche API
+
+| Funktion | Beschreibung |
+|---|---|
+| `UA.TrafficSituation.LAYER_TYPES` | Konstanten für alle Layer-Typen |
+| `UA.TrafficSituation.create(overrides?)` | Neue Instanz mit Defaults |
+| `UA.TrafficSituation.fromMapScene(scene, layers?)` | Aus MapScene erstellen |
+| `UA.TrafficSituation.toMapScene(ts)` | Zu MapScene konvertieren |
+| `UA.TrafficSituation.addLayer(ts, layer)` | Layer hinzufügen (unveränderlich) |
+| `UA.TrafficSituation.removeLayer(ts, layerType)` | Layer entfernen (unveränderlich) |
+| `UA.TrafficSituation.getLayer(ts, layerType)` | Layer abrufen oder null |
+| `UA.TrafficSituation.serialize(ts)` | JSON-sicherer tiefer Klon |
+| `UA.TrafficSituation.deserialize(data)` | Aus JSON wiederherstellen |
+
+---
+
+## 3. Deterministischer Export-/Analysepfad
 
 Quelle: [`js/ua.export_v2.js`](../js/ua.export_v2.js),
 [`js/ua.report_v2.js`](../js/ua.report_v2.js).
@@ -187,7 +243,7 @@ und übernommen hat.
 
 ---
 
-## 3. `server/ai/` – Optionale KI-Bewertung
+## 4. `server/ai/` – Optionale KI-Bewertung
 
 Detaillierter Modul-Überblick: [`server/ai/README.md`](../server/ai/README.md).
 
@@ -221,7 +277,7 @@ Wichtige Garantien:
 
 ---
 
-## 4. `server/political-context/` – Politische Recherche
+## 5. `server/political-context/` – Politische Recherche
 
 Detaillierter Modul-Überblick:
 [`server/political-context/README.md`](../server/political-context/README.md).
@@ -256,7 +312,7 @@ Wichtige Garantien:
 
 ---
 
-## 5. Zusammenspiel der Schichten
+## 6. Zusammenspiel der Schichten
 
 | Funktion                           | Browser allein | Server ohne KI | Server mit KI |
 |---|:---:|:---:|:---:|
@@ -351,7 +407,7 @@ Fehlerfälle und Env-Variablen: [`docs/server-features.md`](server-features.md).
 
 ---
 
-## 6. Drei Ebenen der Auswertung
+## 7. Drei Ebenen der Auswertung
 
 Über die einzelnen Module hinweg kennt das Repository heute **drei
 fachlich unterscheidbare Ebenen**.  Sie unterscheiden sich darin, wie

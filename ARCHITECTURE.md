@@ -402,6 +402,48 @@ UI-Event / Viewport-Change / Daten-Load
 - UI-Updates
 - Layer-Toggle-Handler dispatchen seit Issue #308 über `ctx.store`
 
+### Domain-Modell (Issue #309)
+
+**ua.traffic_situation.js** — `UA.TrafficSituation`
+- Erstes First-Class-Domänenobjekt der Unfallwerkbank
+- Repräsentiert eine vollständige, serialisierbare Verkehrssituation als einzelnes JSON-Objekt
+- Enthält einen unveränderlichen Kern (`core`: Viewport, Filter, Selection, LayerVisibility) und ein optionales Layer-Dictionary
+- Jeder Layer (`ACCIDENT`, `POI`, `CONTEXT_ROAD`, `POLITICAL_CONTEXT`, `ENVIRONMENTAL`, `AI_ASSESSMENT`, `RECOMMENDATION`, `EXPORT`, `PRESENTATION`) ist optional, versioniert und unabhängig einsetzbar
+- Keine Leaflet-Abhängigkeit
+- API:
+  - `UA.TrafficSituation.LAYER_TYPES` — alle Layer-Typ-Konstanten
+  - `UA.TrafficSituation.create(overrides?)` — Instanz mit Defaults erzeugen
+  - `UA.TrafficSituation.fromMapScene(scene, layers?)` — aus MapScene erstellen (Rückwärtskompatibilität)
+  - `UA.TrafficSituation.toMapScene(ts)` — zu MapScene konvertieren (für bestehende Rendering-/URL-Module)
+  - `UA.TrafficSituation.addLayer(ts, layer)` — Layer hinzufügen (neues Objekt, unveränderlich)
+  - `UA.TrafficSituation.removeLayer(ts, layerType)` — Layer entfernen (neues Objekt)
+  - `UA.TrafficSituation.getLayer(ts, layerType)` — Layer abrufen oder null
+  - `UA.TrafficSituation.serialize(ts)` — tiefer Klon als JSON-sicheres Objekt
+  - `UA.TrafficSituation.deserialize(data)` — aus geparster JSON wiederherstellen
+
+```
+TrafficSituation
+├── version      (Schemaversionsnummer)
+├── id           (optionaler stabiler Bezeichner, URL-Referenz)
+├── metadata     { city, created, updated, description }
+├── core
+│    ├── viewport         { center, zoom }
+│    ├── selection        { south, west, north, east } | null
+│    ├── filters          (Schweregrad, Tagestyp, Beteiligte, …)
+│    ├── layerVisibility  { showCluster, showHeatmap, … }
+│    └── accidentView     (bySeverity | byType | …)
+└── layers       (Objekt, nach Typ indiziert — alle optional)
+     ├── accident
+     ├── poi
+     ├── contextRoad
+     ├── politicalContext
+     ├── environmental
+     ├── aiAssessment
+     ├── recommendation
+     ├── export
+     └── presentation
+```
+
 ### Architektur-Module (Issue #308)
 
 **ua.map_scene.js** — `UA.MapScene`
@@ -524,4 +566,4 @@ Siehe [LICENSE](LICENSE) für Details zur Projekt-Lizenz.
 
 ---
 
-**Zuletzt aktualisiert:** 2026-06-27
+**Zuletzt aktualisiert:** 2026-06-27 (TrafficSituation-Domänenmodell ergänzt, Issue #309)
