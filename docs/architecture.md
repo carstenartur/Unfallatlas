@@ -215,7 +215,123 @@ TrafficSituation
 
 ---
 
-## 3. Deterministischer Export-/Analysepfad
+## 3. Renderer-unabhängige Visualisierungsarchitektur (Issue #310)
+
+Quellen:
+- [`js/ua.scene_graph.js`](../js/ua.scene_graph.js) — Scene Graph
+- [`js/ua.renderer.js`](../js/ua.renderer.js) — Renderer-Schnittstelle
+- [`js/ua.leaflet_renderer.js`](../js/ua.leaflet_renderer.js) — Leaflet-Implementierung
+
+### Ziel
+
+Die Visualisierungsschicht soll von Leaflet und der konkreten Unfallquelle
+entkoppelt werden.  Alle zukünftigen Clients — Leaflet, MapLibre, Cesium,
+RealityKit/ARKit, WebXR, Word/PDF, statische Vorschaubilder — konsumieren
+denselben **Scene Graph** und müssen keine Analyse-Logik duplizieren.
+
+### Rendering-Pipeline
+
+```
+TrafficSituation
+       │
+       ▼
+  Analysis Pipeline
+       │
+       ▼
+  Semantic Scene
+       │
+       ▼
+  SceneGraph  ← UA.SceneGraph.fromTrafficSituation(ts)
+       │
+  ┌────┼─────────────┐
+  │    │             │
+  ▼    ▼             ▼
+Leaflet Cesium   RealityKit
+  2D    3D          AR
+```
+
+### 3.1 SceneGraph — `UA.SceneGraph`
+
+Ein SceneGraph ist ein Baum von `SceneNode`-Objekten.
+Jeder Knoten ist ein plain, serialisierbares Objekt:
+
+```
+SceneNode
+├── id          (eindeutig im Graph)
+├── type        NODE_TYPE (point | polyline | polygon | mesh | billboard |
+│               label | heatField | cluster | arrow | highlight | camera | light)
+├── geometry    (renderer-unabhängige Geometriebeschreibung)
+├── style       (Farbe, Größe, Deckkraft, …)
+├── semantic    (Bedeutung: kind, label, severity, year, …)
+├── interaction (selectable, hoverable, data)
+├── lod         (minLevel, maxLevel, overrides — Level-of-Detail-Regeln)
+└── children    (Sub-Knoten, z. B. Cluster → einzelne Punkte)
+```
+
+**Level-of-Detail (LOD):** `DISTANT → CITY → STREET → INTERSECTION → PEDESTRIAN`
+
+Jeder Renderer entscheidet selbst, wie er das angeforderte LOD umsetzt.
+
+**Öffentliche API:**
+
+| Funktion | Beschreibung |
+|---|---|
+| `UA.SceneGraph.NODE_TYPES` | Alle Knoten-Typ-Konstanten |
+| `UA.SceneGraph.LOD_LEVELS` | Alle LOD-Level-Konstanten |
+| `UA.SceneGraph.INTERACTION_EVENTS` | Alle Interaktions-Event-Konstanten |
+| `UA.SceneGraph.create(overrides?)` | Leeres Scene-Graph erstellen |
+| `UA.SceneGraph.createNode(type, opts?)` | Typisierten Knoten erstellen |
+| `UA.SceneGraph.addNode(graph, node)` | Knoten hinzufügen (unveränderlich) |
+| `UA.SceneGraph.removeNode(graph, nodeId)` | Knoten entfernen (unveränderlich) |
+| `UA.SceneGraph.getNode(graph, nodeId)` | Knoten suchen (rekursiv) |
+| `UA.SceneGraph.fromTrafficSituation(ts)` | Scene-Graph aus TrafficSituation bauen |
+
+### 3.2 Renderer-Schnittstelle — `UA.Renderer`
+
+Jeder Renderer implementiert exakt diese vier Methoden:
+
+```
+renderer.render(sceneGraph)     → void | Promise<void>
+renderer.update(sceneGraph)     → void | Promise<void>
+renderer.dispose()              → void
+renderer.captureSnapshot()      → Promise<string>  (data-URL)
+```
+
+**Capability-Flags:** `RENDER_2D`, `RENDER_3D`, `RENDER_AR`, `SNAPSHOT`, `STREAMING`, `EXPORT`
+
+**Öffentliche API:**
+
+| Funktion | Beschreibung |
+|---|---|
+| `UA.Renderer.CAPABILITIES` | Alle Capability-Konstanten |
+| `UA.Renderer.create(name, impl, caps?)` | Renderer aus Impl-Objekt erstellen |
+| `UA.Renderer.createNoop()` | No-Op-Renderer für Tests |
+| `UA.Renderer.assertInterface(r)` | Schnittstellenprüfung (wirft bei fehlenden Methoden) |
+
+**Geplante Implementierungen:**
+`LeafletRenderer` · `MapLibreRenderer` · `CesiumRenderer` · `RealityKitRenderer` · `HtmlRenderer` · `WordRenderer` · `PdfRenderer` · `ImageRenderer`
+
+### 3.3 LeafletRenderer — `UA.LeafletRenderer`
+
+Leaflet-Implementierung mit Capabilities `RENDER_2D` und `SNAPSHOT`.
+
+Mapping `SceneNode.type → Leaflet`:
+
+| SceneNode-Typ | Leaflet-Objekt |
+|---|---|
+| `point` | `L.circleMarker` |
+| `polyline` | `L.polyline` |
+| `polygon` | `L.polygon` |
+| `billboard` | `L.marker` (DivIcon) |
+| `label` | `L.marker` (DivIcon, Text) |
+| `arrow` | `L.polyline` |
+| `highlight` | `L.rectangle` / `L.polygon` |
+| `heatField`, `cluster` | an bestehende Pipeline delegiert |
+| `camera`, `light`, `mesh` | No-Op (3D/AR-only) |
+
+---
+
+## 4. Deterministischer Export-/Analysepfad
 
 Quelle: [`js/ua.export_v2.js`](../js/ua.export_v2.js),
 [`js/ua.report_v2.js`](../js/ua.report_v2.js).
