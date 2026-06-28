@@ -128,7 +128,7 @@ jobs:
 
       - name: Restore DEM tiles cache
         id: dem_tiles_cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.enrichment-cache/dem-tiles
           key: ${{ steps.tile_key.outputs.key }}
@@ -194,7 +194,7 @@ jobs:
       # OSM ----------------------------------------------------------------
       - name: Restore OSM cache for ${{ matrix.city.slug }}
         id: osm_cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.enrichment-cache/osm
           key: ${{ steps.keys.outputs.osm }}
@@ -219,14 +219,14 @@ jobs:
         # Tiles were seeded by the seed-dem-tiles job; this is a restore-only
         # step — save-always is intentionally omitted to avoid duplicate writes.
         id: dem_tiles_cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.enrichment-cache/dem-tiles
           key: ${{ steps.keys.outputs.dem_tiles }}
 
       - name: Restore DEM cache for ${{ matrix.city.slug }}
         id: dem_cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.enrichment-cache/dem
           key: ${{ steps.keys.outputs.dem }}
@@ -256,7 +256,7 @@ jobs:
       # Traffic ------------------------------------------------------------
       - name: Restore Traffic cache for ${{ matrix.city.slug }}
         id: traffic_cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.enrichment-cache/traffic
           key: ${{ steps.keys.outputs.traffic }}
