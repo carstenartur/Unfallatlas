@@ -160,12 +160,16 @@ test.describe('Smoke – Werkbank V2', () => {
     await page.waitForLoadState('networkidle');
     await waitForMapTiles(page);
 
-    await page.evaluate(() => {
-      const map = window._uaMap || (window.UA && window.UA.ctx && window.UA.ctx.map);
-      if (!map) return;
-      const c = map.getCenter();
-      map.panTo([c.lat + 0.004, c.lng + 0.006], { animate: false });
-    });
+    const mapBounds = await page.locator('#map').boundingBox();
+    expect(mapBounds).toBeTruthy();
+    if (mapBounds) {
+      const startX = mapBounds.x + mapBounds.width * 0.5;
+      const startY = mapBounds.y + mapBounds.height * 0.5;
+      await page.mouse.move(startX, startY);
+      await page.mouse.down();
+      await page.mouse.move(startX + 180, startY + 120, { steps: 12 });
+      await page.mouse.up();
+    }
     await waitForMapTiles(page);
 
     const buf = await page.locator('#map').screenshot();
