@@ -198,14 +198,24 @@
     return Math.max(0.2, Math.min(1, value));
   }
 
+  function setDefinedOption(target, key, value) {
+    if (value !== undefined && value !== null) target[key] = value;
+  }
+
+  function leafletOptions(definition) {
+    const options = {};
+    setDefinedOption(options, 'minZoom', definition.minZoom);
+    setDefinedOption(options, 'maxZoom', definition.maxZoom);
+    setDefinedOption(options, 'attribution', definition.attribution);
+    // Do not pass `pane: undefined`: Leaflet treats that as an explicit pane
+    // value and can leave GridLayers half-initialized during later setView().
+    setDefinedOption(options, 'pane', definition.pane);
+    return options;
+  }
+
   function createMapLayer(definition) {
     if (!definition || !window.L) return null;
-    const common = {
-      minZoom: definition.minZoom,
-      maxZoom: definition.maxZoom,
-      attribution: definition.attribution,
-      pane: definition.pane
-    };
+    const common = leafletOptions(definition);
     if (definition.technicalType === 'WMS') {
       if (!window.L.tileLayer || typeof window.L.tileLayer.wms !== 'function') return null;
       return window.L.tileLayer.wms(definition.url, {
@@ -217,10 +227,9 @@
       });
     }
     if (typeof window.L.tileLayer !== 'function') return null;
-    return window.L.tileLayer(definition.url, {
-      ...common,
-      subdomains: definition.subdomains
-    });
+    const xyzOptions = { ...common };
+    setDefinedOption(xyzOptions, 'subdomains', definition.subdomains);
+    return window.L.tileLayer(definition.url, xyzOptions);
   }
 
   UA.MAP_MODE_LABELS = MAP_MODE_LABELS;
