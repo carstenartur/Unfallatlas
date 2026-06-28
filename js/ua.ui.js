@@ -22,6 +22,13 @@
     ui.maxPointsEl = document.getElementById("maxPoints");
     ui.viewportPaddingEl = document.getElementById("viewportPaddingPct");
     ui.heatRadiusEl = document.getElementById("heatRadius");
+    ui.mapModeStandardBtn = document.getElementById("mapModeStandard");
+    ui.mapModeOrthophotoBtn = document.getElementById("mapModeOrthophoto");
+    ui.mapModeHybridBtn = document.getElementById("mapModeHybrid");
+    ui.mapModeAnalysisBtn = document.getElementById("mapModeAnalysis");
+    ui.orthophotoOpacityEl = document.getElementById("orthophotoOpacity");
+    ui.orthophotoOpacityLbl = document.getElementById("orthophotoOpacityLbl");
+    ui.mapLayerStatusEl = document.getElementById("mapLayerStatus");
 
     ui.incBikeEl = document.getElementById("incBike");
     ui.incPedEl  = document.getElementById("incPed");
@@ -56,6 +63,7 @@
     ui.btnCopyText = document.getElementById('btnCopyText');
     ui.btnCopyLink = document.getElementById('btnCopyLink');
     ui.accidentViewSel = document.getElementById('accidentViewSel');
+    ui.exportMapModeHintEl = document.getElementById('exportMapModeHint');
 
     // PR-D: Kontextfilter (Hangneigung / Verkehrsklasse / nur gematchte
     // Straßen). Die Sektion und Unter-Reihen sind initial hidden;
@@ -238,6 +246,8 @@
       showSchools: ctx.showSchools ? 1 : 0,
       showKindergartens: ctx.showKindergartens ? 1 : 0,
       showArgumentation: ctx.showArgumentation ? 1 : 0,
+      mapMode: ctx.mapMode || 'standard',
+      orthophotoOpacity: Math.round((Number(ctx.orthophotoOpacity) || 0.92) * 100),
       // PR-D: Kontextfilter — leere Strings (kein Filter aktiv) werden
       // von UA.setQS automatisch aus der URL entfernt.
       ctxSlope:        slopeStr,
@@ -339,6 +349,12 @@
     ui.maxPointsEl.value = String(Math.max(500, Math.min(200000, parseInt(UA.qGet("maxPoints","100000"),10)||100000)));
     ui.viewportPaddingEl.value = String(Math.max(0, Math.min(100, parseInt(UA.qGet("viewportPaddingPct","20"),10)||20)));
     ui.heatRadiusEl.value = String(Math.max(5, Math.min(60, parseInt(UA.qGet("heatRadius","25"),10)||25)));
+    ctx.mapMode = (typeof UA.resolveMapMode === "function")
+      ? UA.resolveMapMode(UA.qGet("mapMode", ctx.mapMode || "standard"))
+      : (ctx.mapMode || "standard");
+    ctx.orthophotoOpacity = (typeof UA.normalizeMapOpacity === "function")
+      ? UA.normalizeMapOpacity((UA.qNum("orthophotoOpacity", Math.round((ctx.orthophotoOpacity || 0.92) * 100)) || 92) / 100, ctx.orthophotoOpacity || 0.92)
+      : (ctx.orthophotoOpacity || 0.92);
 
     ui.incBikeEl.checked = UA.qBool("includeCyclist", true);
     ui.incPedEl.checked  = UA.qBool("includePedestrian", true);
@@ -362,6 +378,9 @@
     UA.setBtnState(ui.btnCluster, ctx.showCluster);
     UA.setBtnState(ui.btnHeat, ctx.showHeatmap);
     UA.setBtnState(ui.btnOnlyHot, ctx.showOnlyAboveAverage);
+    UA.syncMapModeButtons(ctx);
+    UA.syncOrthophotoOpacityUi(ctx);
+    UA.renderMapLayerStatus(ctx);
 
     UA.syncHourUI(ctx);
 
@@ -409,6 +428,33 @@
     ui.btnModeOr.addEventListener("click", ()=> { ctx.involvementMode="or"; UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); UA.setBtnState(ui.btnModeOr,true); UA.setBtnState(ui.btnModeAnd,false); UA.setBtnState(ui.btnModeSolo,false);} );
     ui.btnModeAnd.addEventListener("click", ()=> { ctx.involvementMode="and"; UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); UA.setBtnState(ui.btnModeOr,false); UA.setBtnState(ui.btnModeAnd,true); UA.setBtnState(ui.btnModeSolo,false);} );
     ui.btnModeSolo.addEventListener("click", ()=> { ctx.involvementMode="solo"; UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); UA.setBtnState(ui.btnModeOr,false); UA.setBtnState(ui.btnModeAnd,false); UA.setBtnState(ui.btnModeSolo,true);} );
+
+    const bindMapMode = (btn, mode) => {
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        ctx.mapMode = mode;
+        if (typeof UA.applyMapMode === "function") UA.applyMapMode(ctx);
+        UA.syncMapModeButtons(ctx);
+        UA.syncAllToUrl(ctx);
+        UA.renderMapLayerStatus(ctx);
+      });
+    };
+    bindMapMode(ui.mapModeStandardBtn, "standard");
+    bindMapMode(ui.mapModeOrthophotoBtn, "orthophoto");
+    bindMapMode(ui.mapModeHybridBtn, "hybrid");
+    bindMapMode(ui.mapModeAnalysisBtn, "analysis");
+    if (ui.orthophotoOpacityEl) {
+      ui.orthophotoOpacityEl.addEventListener("input", () => {
+        const raw = (parseInt(ui.orthophotoOpacityEl.value, 10) || 92) / 100;
+        ctx.orthophotoOpacity = (typeof UA.normalizeMapOpacity === "function")
+          ? UA.normalizeMapOpacity(raw, ctx.orthophotoOpacity || 0.92)
+          : raw;
+        UA.syncOrthophotoOpacityUi(ctx);
+        if (typeof UA.applyMapMode === "function") UA.applyMapMode(ctx);
+        UA.syncAllToUrl(ctx);
+        UA.renderMapLayerStatus(ctx);
+      });
+    }
 
     ui.btnCluster.addEventListener("click", ()=>{
       ctx.showCluster = !ctx.showCluster;
@@ -491,6 +537,61 @@
     // Sync legend button CSS to reflect URL-restored state
     // (addLayerLegend runs before bindUi, so buttons may have wrong initial class)
     if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx);
+  };
+
+  UA.syncMapModeButtons = function syncMapModeButtons(ctx) {
+    const ui = ctx && ctx.ui;
+    if (!ui) return;
+    const mode = (typeof UA.resolveMapMode === "function")
+      ? UA.resolveMapMode(ctx.mapMode)
+      : (ctx.mapMode || "standard");
+    UA.setBtnState(ui.mapModeStandardBtn, mode === "standard");
+    UA.setBtnState(ui.mapModeOrthophotoBtn, mode === "orthophoto");
+    UA.setBtnState(ui.mapModeHybridBtn, mode === "hybrid");
+    UA.setBtnState(ui.mapModeAnalysisBtn, mode === "analysis");
+  };
+
+  UA.syncOrthophotoOpacityUi = function syncOrthophotoOpacityUi(ctx) {
+    const ui = ctx && ctx.ui;
+    if (!ui || !ui.orthophotoOpacityEl || !ui.orthophotoOpacityLbl) return;
+    const opacity = (typeof UA.normalizeMapOpacity === "function")
+      ? UA.normalizeMapOpacity(ctx.orthophotoOpacity, 0.92)
+      : 0.92;
+    const percent = Math.round(opacity * 100);
+    ui.orthophotoOpacityEl.value = String(percent);
+    ui.orthophotoOpacityLbl.textContent = `${percent} %`;
+  };
+
+  UA.renderMapLayerStatus = function renderMapLayerStatus(ctx) {
+    const ui = ctx && ctx.ui;
+    if (!ui) return;
+    const info = (typeof UA.getActiveMapLayerInfo === "function")
+      ? UA.getActiveMapLayerInfo(ctx)
+      : null;
+    const defaultText = "Standardkarte aktiv.";
+    const lines = [];
+    if (!info) {
+      lines.push(defaultText);
+    } else {
+      lines.push(`Kartenmodus: ${info.modeLabel || "Standardkarte"}.`);
+      if (info.orthophoto) {
+        lines.push(`Orthofoto: ${info.orthophoto.displayName} (${info.orthophoto.provider}).`);
+        if (info.orthophotoFallbackFrom) {
+          lines.push(`Fallback aktiv statt ${info.orthophotoFallbackFrom.displayName}.`);
+        }
+        if (info.orthophoto.license) {
+          lines.push(`Lizenz: ${info.orthophoto.license}.`);
+        }
+      } else {
+        lines.push("Kein Orthofoto aktiv.");
+      }
+      if (info.warning) lines.push(info.warning);
+    }
+    const text = lines.join(" ");
+    if (ui.mapLayerStatusEl) ui.mapLayerStatusEl.textContent = text;
+    if (ui.exportMapModeHintEl) {
+      ui.exportMapModeHintEl.textContent = `Word/PDF übernehmen diesen Kartenmodus. ${text}`;
+    }
   };
 
   // ---------------------------------------------------------------------------

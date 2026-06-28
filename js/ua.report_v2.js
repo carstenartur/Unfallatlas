@@ -818,6 +818,50 @@
   }
   UA.mapVerificationSentence = mapVerificationSentence;
 
+  function buildMapSourceNoteLines(ctx) {
+    const info = (typeof UA.getActiveMapLayerInfo === 'function')
+      ? UA.getActiveMapLayerInfo(ctx)
+      : null;
+    if (!info) return [];
+    const lines = [`Kartenmodus: ${info.modeLabel || 'Standardkarte'}.`];
+    if (info.orthophoto) {
+      lines.push(`Orthofoto: ${info.orthophoto.displayName} (${info.orthophoto.provider}).`);
+      if (info.orthophotoFallbackFrom) {
+        lines.push(`Fallback statt ${info.orthophotoFallbackFrom.displayName}.`);
+      }
+      const sourceBits = [info.orthophoto.attribution, info.orthophoto.license].filter(Boolean);
+      if (sourceBits.length) {
+        lines.push(`Quelle/Lizenz: ${sourceBits.join(' | ')}.`);
+      }
+    } else {
+      lines.push('Basiskarte: OpenStreetMap.');
+    }
+    if (info.warning) lines.push(info.warning);
+    return lines;
+  }
+  UA._buildMapSourceNoteLines = buildMapSourceNoteLines;
+
+  function pushDocxMapSourceNote(children, ctx, spacingAfter = 200) {
+    const text = buildMapSourceNoteLines(ctx).join(' ');
+    if (!text) return;
+    children.push(new Paragraph({
+      text,
+      italics: true,
+      spacing: { after: spacingAfter }
+    }));
+  }
+
+  function pushPdfMapSourceNote(docDefinition, ctx, marginBottom = 8) {
+    const text = buildMapSourceNoteLines(ctx).join(' ');
+    if (!text) return;
+    docDefinition.content.push({
+      text,
+      style: 'small',
+      italics: true,
+      margin: [0, 0, 0, marginBottom]
+    });
+  }
+
   /**
    * Total number of involvement participant categories (Rad, Fuss, PKW,
    * Krad, Lkw, Sonst). Used to detect "alle Kombinationen" vs. echte
@@ -2281,6 +2325,7 @@
               alignment: AlignmentType.CENTER,
               spacing: { after: 80 }
             }));
+            pushDocxMapSourceNote(children, ctx, 80);
             children.push(new Paragraph({
               text: mapVerificationSentence(allCombPts.length),
               italics: true,
@@ -2353,6 +2398,7 @@
             spacing: { after: 200 }
           })
         );
+        pushDocxMapSourceNote(children, ctx, 120);
 
         // Verification sentence (Task 6) – n MUST be the canonical
         // Einzelunfall-Tabellen-Zählung („Tabelle" im Verifikationssatz).
@@ -2446,6 +2492,7 @@
               })],
               spacing: { after: 80 }
             }));
+            pushDocxMapSourceNote(children, ctx, 80);
             children.push(new Paragraph({
               text: mapVerificationSentence(detailN),
               italics: true,
@@ -2525,6 +2572,7 @@
               })],
               spacing: { after: 80 }
             }));
+            pushDocxMapSourceNote(children, ctx, 80);
             children.push(new Paragraph({
               text: mapVerificationSentence(cm.total),
               italics: true,
@@ -3064,6 +3112,10 @@
     if (ctx.showCluster !== undefined) params.set("showCluster", ctx.showCluster ? 1 : 0);
     if (ctx.showHeatmap !== undefined) params.set("showHeatmap", ctx.showHeatmap ? 1 : 0);
     if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", ctx.showOnlyAboveAverage ? 1 : 0);
+    if (ctx.mapMode) params.set("mapMode", ctx.mapMode);
+    if (Number.isFinite(Number(ctx.orthophotoOpacity))) {
+      params.set("orthophotoOpacity", Math.round(Number(ctx.orthophotoOpacity) * 100));
+    }
 
     // Map position – override.center / override.zoom take precedence so each
     // exported map (overview, detail, cluster A, cluster B) gets its own
@@ -4296,6 +4348,7 @@
               italics: true,
               margin: [0, 4, 0, 8]
             });
+            pushPdfMapSourceNote(docDefinition, ctx, 8);
             pdfSelectionFigIndex = allCombFig.index + 1;
           } catch (allCombErr) {
             console.warn("All-combinations overview capture failed for PDF (graceful fallback):", allCombErr);
@@ -4337,6 +4390,7 @@
             }
           ]
         });
+        pushPdfMapSourceNote(docDefinition, ctx, 6);
 
         // Add "In Werkbank öffnen" link
         docDefinition.content.push({
@@ -4436,6 +4490,7 @@
                 }
               ]
             });
+            pushPdfMapSourceNote(docDefinition, ctx, 4);
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
               link: detailWerkbankUrl,
@@ -4519,6 +4574,7 @@
                 }
               ]
             });
+            pushPdfMapSourceNote(docDefinition, ctx, 4);
             docDefinition.content.push({
               text: "→ In Werkbank öffnen",
               link: clusterUrl,
