@@ -83,4 +83,50 @@ describe('map layer registry and map modes', () => {
     expect(ctx.baseMapState.orthophotoLayer.opacity).toBeLessThanOrEqual(0.72);
     expect(UA.getActiveMapLayerInfo(ctx).modeLabel).toBe('Analyseansicht');
   });
+
+  test('reports fallback source from latest fallback hop', () => {
+    const map = {
+      layers: [],
+      addLayer(layer) { layer._map = this; if (!this.layers.includes(layer)) this.layers.push(layer); return this; },
+      removeLayer(layer) { this.layers = this.layers.filter(entry => entry !== layer); return this; }
+    };
+    const ctx = { CITY_RAW: 'Bonn', map, mapMode: 'orthophoto', orthophotoOpacity: 0.9 };
+
+    UA.applyMapMode(ctx);
+    const firstLayer = ctx.baseMapState.orthophotoLayer;
+    firstLayer.events.tileerror();
+    firstLayer.events.tileerror();
+    firstLayer.events.tileerror();
+
+    const secondLayer = ctx.baseMapState.orthophotoLayer;
+    secondLayer.events.tileerror();
+    secondLayer.events.tileerror();
+    secondLayer.events.tileerror();
+
+    const info = UA.getActiveMapLayerInfo(ctx);
+    expect(info.orthophoto.id).toBe('bkg-orthophoto');
+    expect(info.orthophotoFallbackFrom.id).toBe('nrw-orthophoto');
+  });
+
+  test('uses standard mode label when orthophoto cannot be resolved', () => {
+    const map = {
+      layers: [],
+      addLayer(layer) { layer._map = this; if (!this.layers.includes(layer)) this.layers.push(layer); return this; },
+      removeLayer(layer) { this.layers = this.layers.filter(entry => entry !== layer); return this; }
+    };
+    const ctx = {
+      CITY_RAW: 'Bonn',
+      map,
+      mapMode: 'orthophoto',
+      orthophotoOpacity: 0.9,
+      baseMapState: { orthophotoCandidates: [], candidateIndex: 0 }
+    };
+
+    UA.applyMapMode(ctx);
+
+    const info = UA.getActiveMapLayerInfo(ctx);
+    expect(info.mode).toBe('standard');
+    expect(info.modeLabel).toBe('Standardkarte');
+    expect(info.orthophoto).toBeNull();
+  });
 });

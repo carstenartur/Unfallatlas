@@ -554,9 +554,11 @@
   UA.syncOrthophotoOpacityUi = function syncOrthophotoOpacityUi(ctx) {
     const ui = ctx && ctx.ui;
     if (!ui || !ui.orthophotoOpacityEl || !ui.orthophotoOpacityLbl) return;
+    const fallbackRaw = Number(ctx && ctx.orthophotoOpacity);
+    const fallbackOpacity = Number.isFinite(fallbackRaw) ? Math.max(0, Math.min(1, fallbackRaw)) : 0.92;
     const opacity = (typeof UA.normalizeMapOpacity === "function")
       ? UA.normalizeMapOpacity(ctx.orthophotoOpacity, 0.92)
-      : 0.92;
+      : fallbackOpacity;
     const percent = Math.round(opacity * 100);
     ui.orthophotoOpacityEl.value = String(percent);
     ui.orthophotoOpacityLbl.textContent = `${percent} %`;

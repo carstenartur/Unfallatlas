@@ -732,6 +732,7 @@
     const state = ctx && ctx.baseMapState;
     const primary = state && Array.isArray(state.orthophotoCandidates) ? state.orthophotoCandidates[0] : null;
     const activeOrthophoto = state && state.activeOrthophotoDef ? state.activeOrthophotoDef : null;
+    const fallbackSource = state && state.fallbackSourceDef ? state.fallbackSourceDef : primary;
     const mode = (typeof UA.resolveMapMode === 'function')
       ? UA.resolveMapMode(ctx && ctx.mapMode)
       : ((ctx && ctx.mapMode) || 'standard');
@@ -739,7 +740,7 @@
       mode,
       modeLabel: LOCAL_MAP_MODE_LABELS[mode] || LOCAL_MAP_MODE_LABELS.standard,
       orthophoto: activeOrthophoto,
-      orthophotoFallbackFrom: (activeOrthophoto && primary && activeOrthophoto.id !== primary.id) ? primary : null,
+      orthophotoFallbackFrom: (activeOrthophoto && fallbackSource && activeOrthophoto.id !== fallbackSource.id) ? fallbackSource : null,
       orthophotoOpacity: _effectiveOrthophotoOpacity(ctx, mode),
       warning: state && state.fallbackReason ? state.fallbackReason : ''
     }, extra || {});
@@ -844,6 +845,8 @@
     _safeAddLayer(ctx.map, state.standardLayer);
     if (wantsOrthophoto) {
       _setMapLayerInfo(ctx, {
+        mode: 'standard',
+        modeLabel: LOCAL_MAP_MODE_LABELS.standard,
         warning: state.fallbackReason || 'Orthofoto nicht verfügbar – Standardkarte aktiv.',
         orthophoto: null
       });
