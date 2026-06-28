@@ -10,7 +10,7 @@ authors:
 repository-code: "https://github.com/carstenartur/Unfallatlas"
 url: "https://github.com/carstenartur/Unfallatlas"
 license: Apache-2.0
-version: "2.1.2-SNAPSHOT"
+version: "2.1.2"
 abstract: >-
   Unfallwerkbank is an open-source browser and server toolkit for exploring,
   filtering, visualising and exporting official German road accident open data.
@@ -29,3 +29,4 @@ keywords:
   - spring-boot
   - javascript
   - reproducible-analysis
+date-released: "2026-06-28"

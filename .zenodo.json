@@ -36,5 +36,6 @@
   ],
   "communities": [],
   "notes": "The Zenodo archive captures a release of the source code, metadata, citation instructions, documentation and release artefacts. Large generated accident-data outputs are intentionally not part of the reusable JavaScript package concept and may be distributed separately according to their source-data licences and provenance notes.",
-  "version": "2.1.2-SNAPSHOT"
+  "version": "2.1.2",
+  "publication_date": "2026-06-28"
 }
