@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.0</version>
+        <version>4.0.6</version>
         <relativePath/>
     </parent>
 
@@ -32,9 +32,12 @@
              (Patched in 42.7.7). -->
         <postgresql.version>42.7.7</postgresql.version>
         <!-- Keep Hibernate Search aligned with the Spring Boot-managed
-             Hibernate ORM stack used by this service.  8.4.0.Final is the
-             version currently configured with Spring Boot 4.1.0 here. -->
-        <hibernate-search.version>8.4.0.Final</hibernate-search.version>
+             Hibernate ORM stack used by this service.  Spring Boot 4.0.6
+             manages the Hibernate ORM 7.2.x line; Hibernate Search 8.2.x is
+             the matching tested line for that ORM generation.  Renovate/Mend
+             bumps to Spring Boot 4.1.x / Hibernate Search 8.4.x must only be
+             merged together with a green analysis-service `mvn clean verify`. -->
+        <hibernate-search.version>8.2.2.Final</hibernate-search.version>
     </properties>
 
     <dependencies>
@@ -103,10 +106,10 @@
              Infra-Bedarf).  Bootstrap und automatisches Indexing werden
              über `application.properties` gesteuert.
 
-             Spring Boot manages Hibernate ORM for this service.  Keep
-             Hibernate Search on the line verified with the current Spring Boot
-             stack; at present that is 8.4.0.Final via
-             `hibernate-search.version`. -->
+             Spring Boot 4.0.6 manages Hibernate ORM 7.2.x.  Hibernate Search
+             8.2.2.Final is the matching 8.x line for ORM 7.2; newer 8.3/8.4
+             lines target newer ORM minor versions and can fail during build,
+             bootstrap or auto-indexing unless the whole stack is migrated. -->
         <dependency>
             <groupId>org.hibernate.search</groupId>
             <artifactId>hibernate-search-mapper-orm</artifactId>
