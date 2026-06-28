@@ -243,6 +243,29 @@
         </div>
       </details>
 
+      <div style="margin-top:10px; font-weight:900;">Kartenmodus</div>
+      <div class="toggles">
+        <div id="mapModeStandard" class="btn active">Standardkarte</div>
+        <div id="mapModeOrthophoto" class="btn">Orthofoto</div>
+        <div id="mapModeHybrid" class="btn">Hybrid</div>
+        <div id="mapModeAnalysis" class="btn">Analyseansicht</div>
+      </div>
+
+      <div class="row">
+        <label for="orthophotoOpacity">Orthofoto-Deckkraft</label>
+        <div class="rangeWrap">
+          <div class="rangeLabel">
+            <span>transparent</span>
+            <span><strong id="orthophotoOpacityLbl">92 %</strong></span>
+          </div>
+          <input id="orthophotoOpacity" type="range" min="20" max="100" step="5" value="92" />
+        </div>
+      </div>
+
+      <div id="mapLayerStatus" style="margin-top:6px; font-size:12px; color:#555; line-height:1.45;">
+        Standardkarte aktiv.
+      </div>
+
       <div class="toggles">
         <div id="toggleCluster" class="btn active">Cluster</div>
         <div id="toggleHeat" class="btn active">Heatmap</div>
@@ -388,6 +411,9 @@
           <label for="heatExportOpacity" style="font-size:13px; white-space:nowrap;">Heatmap-Transparenz (Export):</label>
           <input id="heatExportOpacity" type="range" min="0" max="100" step="5" value="40" style="flex:1; min-width:120px; max-width:200px;">
           <span id="heatExportOpacityVal" style="font-size:13px; min-width:32px;">40 %</span>
+        </div>
+        <div id="exportMapModeHint" style="margin-top:8px; font-size:12px; color:#555; line-height:1.4;">
+          Der aktuelle Kartenmodus wird für Word/PDF übernommen.
         </div>
       </div>
 
@@ -612,14 +638,15 @@
   <script src="js/ua.core.js?v=2026-01-01"></script>
   <script src="js/ua.utils.js?v=2026-01-01"></script>
   <script src="js/ua.state.js?v=2026-01-01"></script>
-  <script src="js/ua.ui.js?v=2026-05-09"></script>
+  <script src="js/ua.map_layer_registry.js?v=2026-06-28"></script>
+  <script src="js/ua.ui.js?v=2026-06-28"></script>
   <script src="js/ua.context_layers.js?v=2026-05-09"></script>
   <script src="js/ua.context_road_layer.js?v=2026-05-09"></script>
   <script src="js/ua.popup_context.js?v=2026-01-01"></script>
   <script src="js/ua.accident_provider.js?v=2026-06-27"></script>
   <script src="js/ua.data_v2.js?v=2026-05-09"></script>
   <script src="js/ua.filters.js?v=2026-01-01"></script>
-  <script src="js/ua.map_v2.js?v=2026-05-09"></script>
+  <script src="js/ua.map_v2.js?v=2026-06-28"></script>
   <script src="js/ua.time_clusters.js?v=2026-01-01"></script>
   <script src="js/ua.accident_views.js?v=2026-01-01"></script>
   <script src="js/ua.stats.js?v=2026-01-01"></script>
@@ -631,9 +658,9 @@
   <script src="js/ua.osm_context.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.ai_proposal.js?v=2026-01-01"></script>
-  <script src="js/ua.report_v2.js?v=2026-01-01"></script>
+  <script src="js/ua.report_v2.js?v=2026-06-28"></script>
   <script src="js/ua.tour.js?v=2026-01-01"></script>
-  <script src="js/ua.app_v2.js?v=2026-05-09"></script>
+  <script src="js/ua.app_v2.js?v=2026-06-28"></script>
   <script src="js/ua.video-export.js?v=2026-01-01"></script>
   <script src="js/ua.political-context.js?v=2026-01-01"></script>
   <script src="js/ua.priorities.js?v=2026-01-01"></script>

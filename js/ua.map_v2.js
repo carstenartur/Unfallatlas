@@ -630,18 +630,242 @@
   // ----------------------------
   // Leaflet init
   // ----------------------------
+  const LOCAL_MAP_MODE_LABELS = UA.MAP_MODE_LABELS || {
+    standard: 'Standardkarte',
+    orthophoto: 'Orthofoto',
+    hybrid: 'Hybrid',
+    analysis: 'Analyseansicht'
+  };
+
+  function _defaultLayerDefinition(id) {
+    if (id === 'hybrid-labels') {
+      return {
+        id,
+        displayName: 'Beschriftungen & Straßennamen',
+        provider: 'CARTO / OpenStreetMap',
+        layerType: 'overlay',
+        technicalType: 'XYZ',
+        url: 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+        subdomains: 'abcd',
+        minZoom: 0,
+        maxZoom: 20,
+        attribution: '&copy; OpenStreetMap-Mitwirkende, &copy; CARTO',
+        license: 'ODbL 1.0 / CARTO'
+      };
+    }
+    return {
+      id: 'standard-osm',
+      displayName: 'OpenStreetMap Standard',
+      provider: 'OpenStreetMap',
+      layerType: 'base',
+      technicalType: 'XYZ',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      minZoom: 0,
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap-Mitwirkende',
+      license: 'ODbL 1.0'
+    };
+  }
+
+  function _getLayerDefinition(id) {
+    if (typeof UA.getMapLayerDefinition === 'function') {
+      const def = UA.getMapLayerDefinition(id);
+      if (def) return def;
+    }
+    return _defaultLayerDefinition(id);
+  }
+
+  function _safeAddLayer(map, layer) {
+    if (!map || !layer || typeof layer.addTo !== 'function') return;
+    try { layer.addTo(map); } catch (_) {}
+  }
+
+  function _safeRemoveLayer(map, layer) {
+    if (!layer) return;
+    try {
+      if (typeof layer.remove === 'function') layer.remove();
+      else if (map && typeof map.removeLayer === 'function') map.removeLayer(layer);
+    } catch (_) {}
+  }
+
+  function _effectiveOrthophotoOpacity(ctx, mode) {
+    const requested = (typeof UA.normalizeMapOpacity === 'function')
+      ? UA.normalizeMapOpacity(ctx && ctx.orthophotoOpacity, 0.92)
+      : 0.92;
+    if (mode === 'analysis') return Math.min(requested, 0.72);
+    return requested;
+  }
+
+  function _ensureBaseMapState(ctx) {
+    const state = ctx.baseMapState = ctx.baseMapState || {
+      standardLayer: null,
+      labelLayer: null,
+      orthophotoLayer: null,
+      orthophotoCandidates: null,
+      candidateIndex: 0,
+      activeOrthophotoDef: null,
+      fallbackReason: '',
+      fallbackSourceDef: null,
+      orthophotoReady: false,
+      orthophotoErrorCount: 0
+    };
+    if (!state.standardLayer) {
+      state.standardLayer = (typeof UA.createMapLayer === 'function' && UA.createMapLayer(_getLayerDefinition('standard-osm')))
+        || L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap-Mitwirkende'
+        });
+    }
+    if (!state.labelLayer) {
+      state.labelLayer = (typeof UA.createMapLayer === 'function' && UA.createMapLayer(_getLayerDefinition('hybrid-labels')))
+        || null;
+    }
+    if (!Array.isArray(state.orthophotoCandidates)) {
+      state.orthophotoCandidates = (typeof UA.resolveRegionalOrthophotoCandidates === 'function')
+        ? UA.resolveRegionalOrthophotoCandidates(ctx)
+        : [];
+    }
+    return state;
+  }
+
+  function _setMapLayerInfo(ctx, extra) {
+    const state = ctx && ctx.baseMapState;
+    const primary = state && Array.isArray(state.orthophotoCandidates) ? state.orthophotoCandidates[0] : null;
+    const activeOrthophoto = state && state.activeOrthophotoDef ? state.activeOrthophotoDef : null;
+    const fallbackSource = state && state.fallbackSourceDef ? state.fallbackSourceDef : primary;
+    const mode = (typeof UA.resolveMapMode === 'function')
+      ? UA.resolveMapMode(ctx && ctx.mapMode)
+      : ((ctx && ctx.mapMode) || 'standard');
+    ctx._activeMapLayerInfo = Object.assign({
+      mode,
+      modeLabel: LOCAL_MAP_MODE_LABELS[mode] || LOCAL_MAP_MODE_LABELS.standard,
+      orthophoto: activeOrthophoto,
+      orthophotoFallbackFrom: (activeOrthophoto && fallbackSource && activeOrthophoto.id !== fallbackSource.id) ? fallbackSource : null,
+      orthophotoOpacity: _effectiveOrthophotoOpacity(ctx, mode),
+      warning: state && state.fallbackReason ? state.fallbackReason : ''
+    }, extra || {});
+    if (typeof UA.renderMapLayerStatus === 'function') {
+      try { UA.renderMapLayerStatus(ctx); } catch (_) {}
+    }
+    return ctx._activeMapLayerInfo;
+  }
+
+  function _applyOrthophotoFallback(ctx, reason) {
+    const state = _ensureBaseMapState(ctx);
+    const previous = state.activeOrthophotoDef || (state.orthophotoCandidates && state.orthophotoCandidates[state.candidateIndex]) || null;
+    _safeRemoveLayer(ctx.map, state.orthophotoLayer);
+    state.fallbackSourceDef = previous || state.fallbackSourceDef;
+    state.orthophotoLayer = null;
+    state.activeOrthophotoDef = null;
+    state.orthophotoReady = false;
+    state.orthophotoErrorCount = 0;
+    state.fallbackReason = reason || 'Orthofoto-Dienst nicht erreichbar – Fallback aktiv.';
+    state.candidateIndex += 1;
+    UA.applyMapMode(ctx);
+  }
+
+  function _ensureOrthophotoLayer(ctx) {
+    const state = _ensureBaseMapState(ctx);
+    while (state.candidateIndex < state.orthophotoCandidates.length) {
+      const def = state.orthophotoCandidates[state.candidateIndex];
+      if (!def) {
+        state.candidateIndex += 1;
+        continue;
+      }
+      if (state.activeOrthophotoDef && state.activeOrthophotoDef.id === def.id && state.orthophotoLayer) {
+        return state.orthophotoLayer;
+      }
+      let layer = null;
+      try {
+        layer = (typeof UA.createMapLayer === 'function') ? UA.createMapLayer(def) : null;
+      } catch (_) {
+        layer = null;
+      }
+      if (!layer) {
+        state.fallbackReason = `${def.displayName} konnte nicht initialisiert werden – nächster Fallback wird verwendet.`;
+        state.fallbackSourceDef = def;
+        state.candidateIndex += 1;
+        continue;
+      }
+      state.orthophotoLayer = layer;
+      state.activeOrthophotoDef = def;
+      state.orthophotoReady = false;
+      state.orthophotoErrorCount = 0;
+      if (typeof layer.on === 'function') {
+        layer.on('load', () => {
+          if (!ctx.baseMapState || ctx.baseMapState.activeOrthophotoDef !== def) return;
+          ctx.baseMapState.orthophotoReady = true;
+          ctx.baseMapState.orthophotoErrorCount = 0;
+          if (!ctx.baseMapState.fallbackReason) _setMapLayerInfo(ctx);
+        });
+        layer.on('tileerror', () => {
+          if (!ctx.baseMapState || ctx.baseMapState.activeOrthophotoDef !== def) return;
+          if (ctx.baseMapState.orthophotoReady) return;
+          ctx.baseMapState.orthophotoErrorCount += 1;
+          if (ctx.baseMapState.orthophotoErrorCount >= 3) {
+            _applyOrthophotoFallback(ctx, `${def.displayName} ist aktuell nicht erreichbar – Fallback aktiviert.`);
+          }
+        });
+      }
+      return layer;
+    }
+    return null;
+  }
+
+  UA.getActiveMapLayerInfo = function getActiveMapLayerInfo(ctx) {
+    return ctx && ctx._activeMapLayerInfo ? ctx._activeMapLayerInfo : _setMapLayerInfo(ctx || {});
+  };
+
+  UA.applyMapMode = function applyMapMode(ctx) {
+    if (!ctx || !ctx.map) return;
+    const state = _ensureBaseMapState(ctx);
+    const mode = (typeof UA.resolveMapMode === 'function')
+      ? UA.resolveMapMode(ctx.mapMode)
+      : (ctx.mapMode || 'standard');
+    const wantsOrthophoto = mode !== 'standard';
+    const orthophotoLayer = wantsOrthophoto ? _ensureOrthophotoLayer(ctx) : null;
+
+    _safeRemoveLayer(ctx.map, state.standardLayer);
+    _safeRemoveLayer(ctx.map, state.labelLayer);
+    _safeRemoveLayer(ctx.map, state.orthophotoLayer);
+
+    if (wantsOrthophoto && orthophotoLayer) {
+      const opacity = _effectiveOrthophotoOpacity(ctx, mode);
+      if (typeof orthophotoLayer.setOpacity === 'function') {
+        try { orthophotoLayer.setOpacity(opacity); } catch (_) {}
+      }
+      _safeAddLayer(ctx.map, orthophotoLayer);
+      if (mode === 'hybrid' || mode === 'analysis') {
+        _safeAddLayer(ctx.map, state.labelLayer);
+      }
+      _setMapLayerInfo(ctx);
+      return;
+    }
+
+    _safeAddLayer(ctx.map, state.standardLayer);
+    if (wantsOrthophoto) {
+      _setMapLayerInfo(ctx, {
+        mode: 'standard',
+        modeLabel: LOCAL_MAP_MODE_LABELS.standard,
+        warning: state.fallbackReason || 'Orthofoto nicht verfügbar – Standardkarte aktiv.',
+        orthophoto: null
+      });
+      return;
+    }
+    state.fallbackReason = '';
+    state.fallbackSourceDef = null;
+    _setMapLayerInfo(ctx, { orthophoto: null });
+  };
+
   UA.initLeaflet = function initLeaflet(ctx) {
     if (!window.L) throw new Error("Leaflet fehlt.");
 
     const map = L.map("map", { preferCanvas: true });
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap-Mitwirkende",
-    }).addTo(map);
-
     map.setView([52.3759, 9.732], 12);
     ctx.map = map;
     window._uaMap = map;  // expose for E2E tests / debugging
+    _ensureBaseMapState(ctx);
+    UA.applyMapMode(ctx);
 
     // draw layer
     ctx.drawnItems = new L.FeatureGroup().addTo(map);

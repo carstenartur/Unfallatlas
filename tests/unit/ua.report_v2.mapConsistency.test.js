@@ -87,6 +87,8 @@ describe('UA.report_v2 – map/table consistency helpers', () => {
     test('per-cluster override produces a unique URL with cluster bbox + center + zoom', () => {
       const ctx = {
         CITY_RAW: 'Hannover',
+        mapMode: 'hybrid',
+        orthophotoOpacity: 0.85,
         map: {
           getCenter: () => ({ lat: 52.37, lng: 9.73 }),
           getZoom: () => 12
@@ -117,11 +119,15 @@ describe('UA.report_v2 – map/table consistency helpers', () => {
       expect(clusterParams.get('centerLat')).toBe('52.371500');
       expect(clusterParams.get('centerLon')).toBe('9.731500');
       expect(clusterParams.get('zoom')).toBe('18');
+      expect(clusterParams.get('mapMode')).toBe('hybrid');
+      expect(clusterParams.get('orthophotoOpacity')).toBe('85');
     });
 
     test('two distinct cluster overrides yield two distinct URLs (no duplicates)', () => {
       const ctx = {
         CITY_RAW: 'Hannover',
+        mapMode: 'orthophoto',
+        orthophotoOpacity: 0.9,
         map: { getCenter: () => ({ lat: 52.37, lng: 9.73 }), getZoom: () => 12 }
       };
       const a = UA.buildWerkbankUrl(ctx, {
@@ -133,6 +139,32 @@ describe('UA.report_v2 – map/table consistency helpers', () => {
         center: { lat: 52.3805, lon: 9.7405 }, zoom: 17
       });
       expect(a).not.toBe(b);
+    });
+  });
+
+  describe('buildMapSourceNoteLines', () => {
+    test('lists mode, orthophoto source, fallback and license', () => {
+      UA.getActiveMapLayerInfo = jest.fn(() => ({
+        modeLabel: 'Hybrid',
+        orthophoto: {
+          displayName: 'NRW Orthofoto (DOP)',
+          provider: 'Geobasis NRW',
+          attribution: 'Quelle: Geobasis NRW',
+          license: 'Datenlizenz Deutschland – Zero – Version 2.0'
+        },
+        orthophotoFallbackFrom: {
+          displayName: 'Bonn Orthofoto'
+        },
+        warning: 'NRW-Fallback aktiv.'
+      }));
+
+      const lines = UA._buildMapSourceNoteLines({});
+
+      expect(lines.join(' ')).toContain('Kartenmodus: Hybrid.');
+      expect(lines.join(' ')).toContain('Orthofoto: NRW Orthofoto (DOP) (Geobasis NRW).');
+      expect(lines.join(' ')).toContain('Fallback statt Bonn Orthofoto.');
+      expect(lines.join(' ')).toContain('Quelle/Lizenz: Quelle: Geobasis NRW | Datenlizenz Deutschland – Zero – Version 2.0.');
+      expect(lines.join(' ')).toContain('NRW-Fallback aktiv.');
     });
   });
 });

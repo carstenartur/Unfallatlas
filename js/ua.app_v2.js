@@ -212,7 +212,9 @@
       showOnlyAboveAverage: false,
       showSchools: true,
       showKindergartens: true,
-      showArgumentation: true
+      showArgumentation: true,
+      mapMode: "standard",
+      orthophotoOpacity: 0.92
     };
     if (UA.cleanUrlIfNeeded()) return;
 
@@ -236,6 +238,12 @@
     ctx.showSchools = UA.qBool("showSchools", true);
     ctx.showKindergartens = UA.qBool("showKindergartens", true);
     ctx.showArgumentation = UA.qBool("showArgumentation", true);
+    ctx.mapMode = (typeof UA.resolveMapMode === "function")
+      ? UA.resolveMapMode(UA.qGet("mapMode", "standard"))
+      : "standard";
+    ctx.orthophotoOpacity = (typeof UA.normalizeMapOpacity === "function")
+      ? UA.normalizeMapOpacity((UA.qNum("orthophotoOpacity", 92) || 92) / 100, 0.92)
+      : 0.92;
     // Accident-view strategy (URL ?accidentView=bySeverity|byInvolvement|flat)
     {
       const v = UA.qGet("accidentView", UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
