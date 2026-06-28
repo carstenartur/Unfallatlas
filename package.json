@@ -1,6 +1,6 @@
 {
   "name": "unfallatlas",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Unfallatlas data converter and analysis tool with interactive visualization",
   "main": "index.js",
   "scripts": {
