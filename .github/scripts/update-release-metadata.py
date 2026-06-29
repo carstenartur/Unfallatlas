@@ -12,6 +12,8 @@ from typing import Any
 
 
 ROOT = Path.cwd()
+ORCID_ID = "0009-0005-1047-6381"
+ORCID_URL = "https://orcid.org/" + ORCID_ID
 
 
 def set_cff_key(text: str, key: str, value: str) -> str:
@@ -69,6 +71,32 @@ def update_codemeta(version: str, release_date: str | None) -> None:
     write_json(path, data)
 
 
+def update_citation_md(version: str, release_date: str | None) -> None:
+    path = ROOT / "CITATION.md"
+    text = path.read_text(encoding="utf-8")
+    text = re.sub(
+        r"(Carsten Hammer\. \*\*Unfallwerkbank\*\*\. Version )[0-9A-Za-z.-]+(\. 2026\.)",
+        rf"\g<1>{version}\2",
+        text,
+    )
+    text = re.sub(r"(  version\s+= \{)[^}]+(\},)", rf"\g<1>{version}\2", text)
+    if release_date:
+        if re.search(r"^  date\s+= \{[^}]+\},$", text, flags=re.MULTILINE):
+            text = re.sub(r"^  date\s+= \{[^}]+\},$", f"  date         = {{{release_date}}},", text, flags=re.MULTILINE)
+        else:
+            text = re.sub(r"^(  version\s+= \{[^}]+\},)$", rf"\1\n  date         = {{{release_date}}},", text, flags=re.MULTILINE)
+    else:
+        text = re.sub(r"^  date\s+= \{[^}]+\},\n", "", text, flags=re.MULTILINE)
+    if "ORCID" not in text:
+        text = text.replace(
+            "## What to cite\n",
+            f"## Author identifier\n\nCarsten Hammer's ORCID iD is [{ORCID_URL}]({ORCID_URL}).\n\n## What to cite\n",
+        )
+    if "  orcid" not in text:
+        text = re.sub(r"(  author\s+= \{Hammer, Carsten\},)", rf"\1\n  orcid        = {{{ORCID_URL}}},", text, flags=re.MULTILINE)
+    path.write_text(text, encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("version", help="Version to write to metadata files")
@@ -83,6 +111,7 @@ def main() -> None:
     update_citation(args.version, release_date)
     update_zenodo(args.version, release_date)
     update_codemeta(args.version, release_date)
+    update_citation_md(args.version, release_date)
 
 
 if __name__ == "__main__":
