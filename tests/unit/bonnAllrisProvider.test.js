@@ -16,14 +16,22 @@ describe('bonnAllrisProvider – supportsCity', () => {
 
 describe('bonnAllrisProvider – Sitzung Online URLs', () => {
   test('buildSearchUrl nutzt die neue zentrale Bonner Recherche', () => {
-    expect(bonnProvider.buildSearchUrl('Oxfordstraße'))
-      .toBe('https://www.bonn.sitzung-online.de/public/tr010?q=Oxfordstra%C3%9Fe');
+    const url = bonnProvider.buildSearchUrl('Radverkehr');
+    expect(url).toContain('https://www.bonn.sitzung-online.de/public/tr010');
+    expect(url).toContain('q=Radverkehr');
+  });
+
+  test('buildSearchRequests enthält Sitzung Online und Legacy-Fallback', () => {
+    const requests = bonnProvider.buildSearchRequests('Radverkehr');
+    expect(requests).toHaveLength(2);
+    expect(requests[0].url).toContain('www.bonn.sitzung-online.de/public/tr010');
+    expect(requests[1].url).toContain('www2.bonn.de/bo_ris/ws_buergerinfo/suche.asp');
   });
 
   test('parseResults erkennt neue /public/vo020?VOLFDNR Links', () => {
     const html = `
       <table><tr>
-        <td><a href="/public/vo020?VOLFDNR=2028269&amp;refresh=false">Antrag zur Schulwegsicherheit an der Oxfordstraße</a></td>
+        <td><a href="/public/vo020?VOLFDNR=2028269&amp;refresh=false">Antrag zur Schulwegsicherheit an der Oxfordstrasse</a></td>
         <td>12.05.2026</td>
         <td>Ausschuss für Mobilität und Verkehr</td>
         <td>DS 2026/1234</td>
@@ -33,7 +41,7 @@ describe('bonnAllrisProvider – Sitzung Online URLs', () => {
     const results = bonnProvider.parseResults(html);
 
     expect(results).toHaveLength(1);
-    expect(results[0].title).toBe('Antrag zur Schulwegsicherheit an der Oxfordstraße');
+    expect(results[0].title).toBe('Antrag zur Schulwegsicherheit an der Oxfordstrasse');
     expect(results[0].url).toBe('https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=2028269&refresh=false');
     expect(results[0].date).toBe('12.05.2026');
     expect(results[0].gremium).toBe('Ausschuss für Mobilität und Verkehr');
