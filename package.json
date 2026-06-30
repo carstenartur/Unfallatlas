@@ -8,6 +8,7 @@
     "test:unit": "jest --testPathPatterns=tests/unit",
     "test:integration": "jest --testPathPatterns=tests/integration",
     "test:integration:tc": "NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
+    "test:location-brief-golden:tc": "RUN_LOCATION_BRIEF_GOLDEN=1 NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
     "regen:demo": "node scripts/regen-readme-demo.js",
     "regen:context-assets": "node scripts/regen-context-assets.js",
     "test:e2e": "playwright test --project=chromium",
