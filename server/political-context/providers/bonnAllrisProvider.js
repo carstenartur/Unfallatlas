@@ -1,24 +1,5 @@
 'use strict';
 
-/**
- * Provider für die Bonner Bürgerinfo (Allris-/SessionNet-basiertes
- * Ratsinformationssystem der Stadt Bonn).
- *
- * Öffentliche Suche:
- *   https://www2.bonn.de/bo_ris/ws_buergerinfo/buergerinfo.asp
- *
- * Such-Endpunkt (GET):
- *   https://www2.bonn.de/bo_ris/ws_buergerinfo/suche.asp
- *   Parameter:
- *     - SUCH    – Suchbegriff
- *     - SUCH_OBJ – 'V' (Vorlagen/Drucksachen)
- *     - SUCHMAX – Trefferlimit
- *
- * URLs sind hartkodiert (kein User-Input → keine SSRF-Naht).
- *
- * @module server/political-context/providers/bonnAllrisProvider
- */
-
 const {
   fetchHtml,
   stripTags,
@@ -27,74 +8,69 @@ const {
   normCityKey
 } = require('./_portalUtils.js');
 
-const PORTAL_BASE = 'https://www2.bonn.de';
-const SEARCH_PATH = '/bo_ris/ws_buergerinfo/suche.asp';
+const PORTAL_BASE = 'https://www.bonn.sitzung-online.de';
+const SEARCH_PATH = '/public/tr010';
+const DETAIL_DIR = '/public/';
 
-/** Maximale Anzahl Treffer pro Suchanfrage. */
+const LEGACY_PORTAL_BASE = 'https://www2.bonn.de';
+const LEGACY_SEARCH_PATH = '/bo_ris/ws_buergerinfo/suche.asp';
+const LEGACY_DETAIL_DIR = '/bo_ris/ws_buergerinfo/';
+
 const MAX_RESULTS = 20;
-
-/** Provider-Kürzel für Logging und `meta.providerKey`. */
 const PROVIDER_KEY = 'bonn-allris';
 
-/**
- * Gibt true zurück, wenn dieser Provider die Stadt unterstützt.
- *
- * @param {string} city
- * @returns {boolean}
- */
 function supportsCity(city) {
   return normCityKey(city) === 'bonn';
 }
 
-/**
- * Baut die Such-URL.
- *
- * @param {string} term
- * @returns {string}
- */
+function buildSitzungOnlineSearchUrl(term) {
+  const params = new URLSearchParams({ q: term });
+  return `${PORTAL_BASE}${SEARCH_PATH}?${params.toString()}`;
+}
+
 function buildSearchUrl(term) {
   const params = new URLSearchParams({
     SUCH: term,
     SUCH_OBJ: 'V',
     SUCHMAX: String(MAX_RESULTS)
   });
-  return `${PORTAL_BASE}${SEARCH_PATH}?${params.toString()}`;
+  return `${LEGACY_PORTAL_BASE}${LEGACY_SEARCH_PATH}?${params.toString()}`;
 }
 
-/**
- * Parst die HTML-Trefferliste.  Die Bonner Bürgerinfo (Allris/SessionNet)
- * gibt Treffer in einer Tabelle aus; jede Zeile enthält einen Link auf
- * die Vorgangsdetails (vo020.asp / vo0050.asp), Datum, Gremium und
- * Drucksachennummer.
- *
- * @param {string} html
- * @returns {object[]}
- */
-function parseResults(html) {
+const buildLegacySearchUrl = buildSearchUrl;
+
+function normalizeHref(href, portalBase, detailDir) {
+  const decoded = decodeEntities(String(href || '')).trim();
+  if (/^https?:\/\//i.test(decoded)) return decoded;
+  if (decoded.startsWith('/')) return `${portalBase}${decoded}`;
+  const cleaned = decoded.replace(/^\.?\/?/, '');
+  if (/\.asp(?:\?|$)/i.test(cleaned)) {
+    return `${LEGACY_PORTAL_BASE}${LEGACY_DETAIL_DIR}${cleaned}`;
+  }
+  return `${portalBase}${detailDir}${cleaned}`;
+}
+
+function parseResults(html, options = {}) {
   const results = [];
+  const portalBase = options.portalBase || PORTAL_BASE;
+  const detailDir = options.detailDir || DETAIL_DIR;
 
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let rowMatch;
-  // eslint-disable-next-line no-cond-assign
   while ((rowMatch = rowRegex.exec(html)) !== null) {
     const row = rowMatch[1];
-
-    // Detail-Link: typischerweise vo020.asp / vo0050.asp / to010.asp
-    const linkMatch = row.match(/<a\s+href="([^"]*(?:vo0\d+|to0\d+|si0\d+)\.asp[^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
+    const linkMatch = row.match(/<a\s+[^>]*href="([^"]*(?:vo|to|si|kp)0?\d+(?:\.asp)?[^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
     if (!linkMatch) continue;
 
     const href = linkMatch[1];
     const rawTitle = decodeEntities(stripTags(linkMatch[2])).trim();
     if (!rawTitle || rawTitle.length < 5) continue;
 
-    const url = href.startsWith('http')
-      ? href
-      : `${PORTAL_BASE}/bo_ris/ws_buergerinfo/${href.replace(/^\.?\/?/, '')}`;
+    const url = normalizeHref(href, portalBase, detailDir);
 
     const cells = [];
     const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
     let cellMatch;
-    // eslint-disable-next-line no-cond-assign
     while ((cellMatch = cellRegex.exec(row)) !== null) {
       cells.push(decodeEntities(stripTags(cellMatch[1])).trim());
     }
@@ -138,30 +114,28 @@ function parseResults(html) {
   return results.slice(0, MAX_RESULTS);
 }
 
-/**
- * Durchsucht die Bonner Bürgerinfo nach politischen Vorgängen.
- *
- * @param {object}   params
- * @param {string[]} params.searchTerms – Suchbegriffe (je ein HTTP-Request)
- * @returns {Promise<object[]>}
- */
 async function search(params) {
   const { searchTerms = [] } = params || {};
   if (!searchTerms.length) return [];
 
   const allResults = [];
-
   for (const term of searchTerms) {
     if (!term || typeof term !== 'string' || !term.trim()) continue;
     const trimmed = term.trim();
-    try {
-      const url = buildSearchUrl(trimmed);
-      const html = await fetchHtml(url);
-      const results = parseResults(html).map((r) => enrichWithReferenceModel(r, trimmed));
-      allResults.push(...results);
-    } catch (err) {
-      // Logging ohne Suchbegriff im Klartext (Datenschutz).
-      console.warn(`[${PROVIDER_KEY}] Suche fehlgeschlagen: ${err.message}`);
+    const requests = [
+      { url: buildSitzungOnlineSearchUrl(trimmed), portalBase: PORTAL_BASE, detailDir: DETAIL_DIR, label: 'sitzung-online' },
+      { url: buildLegacySearchUrl(trimmed), portalBase: LEGACY_PORTAL_BASE, detailDir: LEGACY_DETAIL_DIR, label: 'legacy-buergerinfo' }
+    ];
+
+    for (const request of requests) {
+      try {
+        const html = await fetchHtml(request.url);
+        const results = parseResults(html, request).map((r) => enrichWithReferenceModel(r, trimmed));
+        allResults.push(...results);
+        if (results.length > 0) break;
+      } catch (err) {
+        console.warn(`[${PROVIDER_KEY}] ${request.label} Suche fehlgeschlagen: ${err.message}`);
+      }
     }
   }
 
@@ -173,5 +147,7 @@ module.exports = {
   supportsCity,
   search,
   parseResults,
-  buildSearchUrl
+  buildSearchUrl,
+  buildLegacySearchUrl,
+  buildSitzungOnlineSearchUrl
 };
