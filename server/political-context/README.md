@@ -47,7 +47,7 @@ und einen Registry-Eintrag ergänzt werden, ohne die Export- oder KI-Logik zu ä
       "source":         "hannover-sim",
       "relevanceScore": 87,
       "referenceType":  "Antrag",
-      "reason":         "Suchbegriff „Limmerstraße\" im Titel.",
+      "reason":         "Suchbegriff „Limmerstraße" im Titel.",
       "locationMatch":  "street",
       "topicMatch":     ["Limmerstraße"],
       "streetHints":    ["limmerstraße"],
@@ -77,7 +77,7 @@ server/political-context/
 │   ├── _portalUtils.js              # Geteilte HTTP-/HTML-/Heuristik-Helfer
 │   ├── hannoverSimProvider.js       # Hannover SIM-Portal
 │   ├── berlinAllrisProvider.js      # Berlin Pardok + Bezirks-Allris
-│   ├── bonnAllrisProvider.js        # Bonn Bürgerinfo (Allris/SessionNet)
+│   ├── bonnAllrisProvider.js        # Bonn Bürgerinfo (ALLRIS / Sitzung Online)
 │   └── hamburgParldokProvider.js    # Hamburg Parldok + Bezirks-Allris
 ├── services/
 │   ├── portalSearchService.js       # Orchestrierung
@@ -166,27 +166,11 @@ keine KI.
 | `trafficReason`         | `string\|null`                   | Lesbare Kurzbegründung der Verkehrsklassifikation (max. 240 Zeichen).                                         |
 | `aiGating`              | `{ allowed: boolean, reason: string }\|null` | Ergebnis von `shouldAllowForAiEvaluation` – maschinenlesbare KI-Zulassungsentscheidung mit Begründung.        |
 
-**Variantensuche** (Recall-Verbesserung): der `portalSearchService` erweitert
-die Originalbegriffe per `searchVariantBuilder` um Kombinationen wie
-`Straße + Radverkehr`, `Straße + Verkehrssicherheit`, `Straße + Gremium`,
-`Stadtbezirk + Straße`, `Thema + Stadtteil` (max. 8 Varianten,
-case-insensitiv dedupliziert).  Die ursprünglichen Begriffe bleiben in
-`meta.searchTerms` erhalten.  Deaktivierbar pro Aufruf via
-`expandVariants: false`.
-
-**KI-Zulassungslogik** (`server/political-context/services/aiGatingService.js`,
-Funktion `shouldAllowForAiEvaluation(reference, context)`):
-
-- `non_traffic` → **nie** an die KI weitergeben.
-- `direct_traffic` → nur mit brauchbarem Orts- *oder* Themenbezug
-  (`locationMatch` ∈ {street, district, bbox} **oder** `topicMatch`/`streetHints`/`areaHints`
-  nicht leer).
-- `indirect_traffic` → nur mit *gutem* Ortsbezug (`locationMatch` ∈ {street, district})
-  **oder** mindestens einem `topicMatch`.
-
-Die Suche bleibt damit bewusst breit; die fachliche Auswahl für die
-KI-Bewertung erfolgt zentral und deterministisch – keine KI-basierte
-Erst­klassifikation.
+**Variantensuche** (`portalSearchService`): Die Suche kann Originalbegriffe um
+Kombinationen wie `Straße + Radverkehr`, `Straße + Verkehrssicherheit`,
+`Straße + Gremium`, `Stadtbezirk + Straße`, `Thema + Stadtteil` erweitern.
+Die Originalbegriffe bleiben in `meta.searchTerms` erhalten. Deaktivierbar pro
+Aufruf via `expandVariants: false`.
 
 ---
 
@@ -204,7 +188,7 @@ Erst­klassifikation.
 |:---------------|:-------------------------------------|:------------------|:--------------------------------------------------------------------------------------------------------|
 | `hannover`     | `providers/hannoverSimProvider.js`   | `hannover-sim`    | [Hannover SIM-Ratsinformation](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular)  |
 | `berlin`       | `providers/berlinAllrisProvider.js`  | `berlin-allris`   | [Pardok Abgeordnetenhaus Berlin](https://pardok.parlament-berlin.de/) (+ Bezirks-Allris)                |
-| `bonn`         | `providers/bonnAllrisProvider.js`    | `bonn-allris`     | [Bonner Bürgerinfo (Allris)](https://www2.bonn.de/bo_ris/ws_buergerinfo/buergerinfo.asp)                |
+| `bonn`         | `providers/bonnAllrisProvider.js`    | `bonn-allris`     | [Bonner Bürgerinfo (ALLRIS / Sitzung Online)](https://www.bonn.sitzung-online.de/public/tr010)          |
 | `hamburg`      | `providers/hamburgParldokProvider.js`| `hamburg-parldok` | [Parldok Hamburgische Bürgerschaft](https://www.buergerschaft-hh.de/parldok/formalkriterien) (+ Bezirke) |
 
 Provider-URLs sind ausschließlich im jeweiligen Modul hartkodiert; es findet
@@ -218,31 +202,4 @@ in einer konfigurierbaren Liste innerhalb des jeweiligen Provider-Moduls.
 > auch wenn ein Provider physisch registriert ist.  Damit lässt sich
 > politische Recherche pro Ort gezielt deaktivieren (z. B. bei
 > Portal-Wartung oder bekannten Datenproblemen), ohne den Provider
-> entfernen zu müssen.  `getProviderForCityRaw` umgeht das Gating für
-> interne Tests/Migrationen.
-
----
-
-## Relevanzbewertung
-
-| Faktor                      | Max. Punkte |
-|:----------------------------|------------:|
-| Titelübereinstimmung        |          50 |
-| Snippet-Übereinstimmung     |          20 |
-| Vorgangstyp-Relevanz        |          15 |
-| Gremium-Übereinstimmung     |          10 |
-| Aktualität (≤ 1 Jahr: voll) |           5 |
-| **Gesamt**                  |     **100** |
-
----
-
-## Frontend-Integration
-
-Das Modul `js/ua.political-context.js` bietet:
-
-- **Button** „🔍 Politische Vorgänge recherchieren" im Seitenbereich unter „Ausschnitt & Export"
-- **Panel** mit Suchfeld, Trefferliste und Übernahme-Button
-- **`UA.PoliticalContext.buildSearchTerms(ctx)`** – leitet automatisch Suchbegriffe aus
-  Stadtname, Straßenname und Gremium ab
-- **Übernahme in den Export**: Ausgewählte Vorgänge erscheinen im Word-/PDF-Export
-  unter „Bisherige politische Befassung"
+> physisch zu entfernen.
