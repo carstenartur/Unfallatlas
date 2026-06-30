@@ -31,16 +31,7 @@ jobs:
         run: npm ci
 
       - name: Run unit tests
-        run: |
-          set -o pipefail
-          npm run test:unit -- --runInBand 2>&1 | tee unit-test.log
-
-      - name: Upload unit test log
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: unit-test-log
-          path: unit-test.log
+        run: npm run test:unit -- --runInBand
 
       - name: Run integration tests
         run: npm run test:integration
