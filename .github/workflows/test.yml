@@ -211,3 +211,49 @@ jobs:
         with:
           name: playwright-report-webkit-smoke
           path: playwright-report/
+
+  analysis-service-maven-verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Run Maven clean verify
+        id: mvn
+        run: mvn -f analysis-service/pom.xml clean verify
+
+      - name: Upload Surefire / Failsafe reports on failure
+        uses: actions/upload-artifact@v7
+        if: failure() && steps.mvn.conclusion == 'failure'
+        with:
+          name: analysis-service-test-reports
+          path: |
+            analysis-service/target/surefire-reports/
+            analysis-service/target/failsafe-reports/
+          if-no-files-found: ignore
+
+      - name: Summarise Maven failure
+        if: failure() && steps.mvn.conclusion == 'failure'
+        run: |
+          echo "## ❌ analysis-service Maven build failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d analysis-service/target/surefire-reports ] || [ -d analysis-service/target/failsafe-reports ]; then
+            echo "Test reports have been uploaded as the **analysis-service-test-reports** artifact." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Maven failed **before any test reports were generated** (e.g. compile error or dependency resolution failure)." >> "$GITHUB_STEP_SUMMARY"
+            echo "Check the **Run Maven clean verify** step log above for details." >> "$GITHUB_STEP_SUMMARY"
+          fi
