@@ -22,6 +22,15 @@ const BIT_MASK = Object.freeze({
   istgkfz: 16,
   istsonstig: 32
 });
+const BIT_MASK_FIELDS = Object.freeze({
+  istrad: ['istrad', 'IstRad'],
+  istfuss: ['istfuss', 'IstFuss'],
+  istpkw: ['istpkw', 'IstPKW'],
+  istkrad: ['istkrad', 'IstKrad'],
+  istgkfz: ['istgkfz', 'IstGkfz'],
+  istsonstig: ['istsonstig', 'IstSonstig']
+});
+const CITY_GEOJSON_CACHE = new Map();
 
 function dockerLikelyAvailable() {
   if (process.env.RUN_TESTCONTAINERS === '1') return true;
@@ -41,6 +50,17 @@ async function loadTestcontainers() {
 
 async function startAnalysisServiceContainer() {
   const { GenericContainer, Wait } = await loadTestcontainers();
+  const allowInsecureMavenSsl = process.env.TESTCONTAINERS_MAVEN_INSECURE_SSL === '1';
+  const mavenCommand = [
+    'mvn -q',
+    ...(allowInsecureMavenSsl ? [
+      '-Dmaven.wagon.http.ssl.insecure=true',
+      '-Dmaven.wagon.http.ssl.allowall=true'
+    ] : []),
+    '-DskipTests',
+    'spring-boot:run',
+    '-Dspring-boot.run.jvmArguments="-Dserver.port=8081 -Dspring.profiles.active=dev"'
+  ].join(' ');
   const container = await new GenericContainer('maven:3.9-eclipse-temurin-21')
     .withBindMounts([{
       source: path.resolve(REPO_ROOT, 'analysis-service'),
@@ -52,12 +72,7 @@ async function startAnalysisServiceContainer() {
       '-lc',
       [
         'cd /workspace',
-        'mvn -q',
-        '-Dmaven.wagon.http.ssl.insecure=true',
-        '-Dmaven.wagon.http.ssl.allowall=true',
-        '-DskipTests',
-        'spring-boot:run',
-        '-Dspring-boot.run.jvmArguments="-Dserver.port=8081 -Dspring.profiles.active=dev"'
+        mavenCommand
       ].join(' ')
     ])
     .withExposedPorts(ANALYSIS_PORT)
@@ -77,12 +92,33 @@ function asInt(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function getCaseInsensitiveProp(props, names) {
+  if (!props || !Array.isArray(names) || names.length === 0) return undefined;
+  for (const name of names) {
+    if (props[name] !== undefined) return props[name];
+  }
+  const byLowerName = new Map(Object.entries(props).map(([k, v]) => [String(k).toLowerCase(), v]));
+  for (const name of names) {
+    const v = byLowerName.get(String(name).toLowerCase());
+    if (v !== undefined) return v;
+  }
+  return undefined;
+}
+
+function loadCityGeoJson(citySlug) {
+  if (!CITY_GEOJSON_CACHE.has(citySlug)) {
+    const geo = JSON.parse(fs.readFileSync(
+      path.resolve(REPO_ROOT, `out/output_all_years_${citySlug}.geojson`),
+      'utf8'
+    ));
+    CITY_GEOJSON_CACHE.set(citySlug, geo);
+  }
+  return CITY_GEOJSON_CACHE.get(citySlug);
+}
+
 function buildStructuredFromCase(caseDef) {
   const citySlug = caseDef.city.toLowerCase();
-  const geo = JSON.parse(fs.readFileSync(
-    path.resolve(REPO_ROOT, `out/output_all_years_${citySlug}.geojson`),
-    'utf8'
-  ));
+  const geo = loadCityGeoJson(citySlug);
 
   const points = geo.features.filter((f) => {
     const [lon, lat] = f.geometry.coordinates;
@@ -101,17 +137,17 @@ function buildStructuredFromCase(caseDef) {
 
   for (const f of points) {
     const p = f.properties || {};
-    const sev = asInt(p.ukategorie);
+    const sev = asInt(getCaseInsensitiveProp(p, ['ukategorie', 'UKATEGORIE']));
     if (sev === 1) fatal++;
     else if (sev === 2) serious++;
     else slight++;
 
-    const year = asInt(p.year);
+    const year = asInt(getCaseInsensitiveProp(p, ['year', 'UJAHR']));
     if (year > 0) byYear.set(year, (byYear.get(year) || 0) + 1);
 
     let mask = 0;
     for (const [k, bit] of Object.entries(BIT_MASK)) {
-      if (asInt(p[k]) > 0) mask |= bit;
+      if (asInt(getCaseInsensitiveProp(p, BIT_MASK_FIELDS[k])) > 0) mask |= bit;
     }
     if (mask > 0) {
       const row = byMask.get(mask) || {
@@ -129,7 +165,7 @@ function buildStructuredFromCase(caseDef) {
       year,
       sevLabel: sev === 1 ? 'getötet' : sev === 2 ? 'schwer' : 'leicht',
       involved: String(mask),
-      hour: asInt(p.ustunde),
+      hour: asInt(getCaseInsensitiveProp(p, ['ustunde', 'USTUNDE'])),
       lat,
       lon
     });
