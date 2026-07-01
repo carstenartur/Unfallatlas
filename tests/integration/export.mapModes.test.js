@@ -175,6 +175,28 @@ describe('Export QA – map modes and attribution', () => {
     return Object.keys(node).some((key) => hasPdfImage(node[key]));
   }
 
+  async function getPdfBuffer(doc) {
+    let buffer;
+    try {
+      const maybePromise = doc.getBuffer();
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        buffer = await maybePromise;
+      }
+    } catch (_) {
+      // Fallback for callback-based pdfmake versions.
+    }
+    if (!buffer) {
+      buffer = await new Promise((resolve, reject) => {
+        try {
+          doc.getBuffer(resolve);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+    return buffer;
+  }
+
   const scenarios = [
     {
       city: 'Bonn',
@@ -270,7 +292,7 @@ describe('Export QA – map modes and attribution', () => {
     const pdfText = flattenPdfText(pdfDefinition.content).join(' ');
 
     expect(hasPdfImage(pdfDefinition.content)).toBe(true);
-    const pdfBuffer = await realCreatePdf(pdfDefinition).getBuffer();
+    const pdfBuffer = await getPdfBuffer(realCreatePdf(pdfDefinition));
 
     expect(pdfBuffer.length).toBeGreaterThan(1500);
     expect(pdfText).toContain(`Im markierten Kartenausschnitt ${city} wurden 4 Unfälle ausgewertet.`);
