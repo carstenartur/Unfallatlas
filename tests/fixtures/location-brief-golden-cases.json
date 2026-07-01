@@ -1,0 +1,122 @@
+{
+  "profile": "bicycle_safety_priority",
+  "cities": [
+    {
+      "city": "Bonn",
+      "cases": [
+        {
+          "caseId": "bonn-hbf-rail-bike-solo",
+          "kind": "positive",
+          "description": "Rad-lastiger Bereich rund um Bonn Hbf/Busbahnhof mit Schienen- und Belagshinweisen",
+          "bbox": { "south": 50.73, "west": 7.091, "north": 50.7355, "east": 7.101 },
+          "expectedMinAccidents": 80,
+          "expectedPatterns": ["rad_alleinunfall_oberflaeche", "schienenquerung_spitzwinkel"],
+          "expectedMeasureIdsAnyOf": ["inf_rail_crossing_realign", "inf_surface_repair"],
+          "expectedTopN": 2,
+          "mustNotContainClaims": ["Schienen sind bewiesene Unfallursache"],
+          "contextHints": {
+            "knownHazards": ["Schienenquerung im spitzen Winkel"],
+            "surfaceHints": ["Rutschiger Belag bei Nässe"],
+            "locationHints": ["Busbahnhof/Hauptbahnhof Umfeld"]
+          },
+          "politicalContext": {
+            "meta": { "city": "Bonn" },
+            "references": [
+              {
+                "title": "Antrag: Schienenquerung am Hbf sicherer machen",
+                "type": "Antrag",
+                "url": "https://example.org/bonn/rail",
+                "relevanceScore": 0.92,
+                "trafficRelevance": { "classification": "traffic_safety", "isRelevant": true, "score": 0.92 }
+              }
+            ]
+          },
+          "expectPolicyReadinessMin": "medium"
+        },
+        {
+          "caseId": "bonn-school-crossing",
+          "kind": "positive",
+          "description": "Schulumfeld-Fall mit Querungsdruck-Signal im Bonner Zentrum",
+          "bbox": { "south": 50.734, "west": 7.1005, "north": 50.739, "east": 7.1075 },
+          "expectedMinAccidents": 70,
+          "expectedPatterns": ["schulumfeld_querungsdruck"],
+          "expectedMeasureIdsAnyOf": ["inf_school_route", "qw_warning_signs", "qw_speed_signage"],
+          "expectedTopN": 2,
+          "mustNotContainClaims": ["Ursache ist eindeutig bewiesen"],
+          "contextHints": {
+            "locationHints": ["Schule/Kita im Einzugsbereich mit Bringverkehr"],
+            "notes": ["Fuß- und Radquerungen zu Unterrichtszeiten"]
+          }
+        },
+        {
+          "caseId": "bonn-control-low-data",
+          "kind": "negative",
+          "description": "Kontrollbereich ohne Unfalldichte",
+          "bbox": { "south": 50.5921, "west": 7.1521, "north": 50.5941, "east": 7.1541 },
+          "expectedMinAccidents": 0,
+          "expectedPatterns": ["datenlage_unzureichend"],
+          "expectedTopN": 3,
+          "mustNotContainClaims": ["Schienen sind bewiesene Unfallursache", "Schulwegmaßnahme zwingend"],
+          "expectedWeakDataBasis": true,
+          "mustNotHaveMeasureIds": ["inf_rail_crossing_realign", "inf_school_route"]
+        }
+      ]
+    },
+    {
+      "city": "Hannover",
+      "cases": [
+        {
+          "caseId": "hannover-turning-conflict",
+          "kind": "positive",
+          "description": "Knotenpunkt mit Rad/Kfz-Abbiegekonflikt",
+          "bbox": { "south": 52.362, "west": 9.716, "north": 52.365, "east": 9.72 },
+          "expectedMinAccidents": 20,
+          "expectedPatterns": ["kfz_rad_abbiegekonflikt"],
+          "expectedMeasureIdsAnyOf": ["qw_sight_clearance", "qw_parking_setback", "inf_protected_corner"],
+          "expectedTopN": 2,
+          "mustNotContainClaims": ["Ursache ist gerichtsfest bewiesen"],
+          "politicalContext": {
+            "meta": { "city": "Hannover" },
+            "references": [
+              {
+                "title": "Kulturveranstaltung im Quartier",
+                "type": "Mitteilung",
+                "url": "https://example.org/hannover/culture",
+                "relevanceScore": 0.1,
+                "trafficRelevance": { "classification": "unrelated", "isRelevant": false, "score": 0.0 }
+              }
+            ]
+          },
+          "expectPolicyReadiness": "low"
+        },
+        {
+          "caseId": "hannover-lkw-context",
+          "kind": "positive",
+          "description": "Bereich mit Lkw-/Lieferverkehrskontext",
+          "bbox": { "south": 52.366, "west": 9.7408, "north": 52.3702, "east": 9.7472 },
+          "expectedMinAccidents": 80,
+          "expectedPatterns": ["lkw_lieferverkehr_kontext"],
+          "expectedMeasureIdsAnyOf": ["qw_advance_green_bike", "inf_protected_bike_lane", "inf_truck_routing"],
+          "expectedTopN": 2,
+          "mustNotContainClaims": ["Lkw sind bewiesene Alleinursache"],
+          "contextHints": {
+            "locationHints": ["Lkw-Lieferverkehr an Knotenpunkt"],
+            "notes": ["Abbiegebeziehungen mit Radverkehr"]
+          }
+        },
+        {
+          "caseId": "hannover-control-low-data",
+          "kind": "negative",
+          "description": "Kontrollbereich ohne klare Häufung",
+          "bbox": { "south": 52.47, "west": 9.78, "north": 52.472, "east": 9.782 },
+          "expectedMinAccidents": 0,
+          "expectedPatterns": ["datenlage_unzureichend"],
+          "expectedTopN": 3,
+          "mustNotContainClaims": ["Schulwegmaßnahme zwingend", "Schienen sind bewiesene Unfallursache"],
+          "expectedWeakDataBasis": true,
+          "mustNotHaveMeasureIds": ["inf_rail_crossing_realign", "inf_school_route"]
+        }
+      ]
+    }
+  ]
+}
