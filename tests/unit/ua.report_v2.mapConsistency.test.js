@@ -162,9 +162,28 @@ describe('UA.report_v2 – map/table consistency helpers', () => {
 
       expect(lines.join(' ')).toContain('Kartenmodus: Hybrid.');
       expect(lines.join(' ')).toContain('Orthofoto: NRW Orthofoto (DOP) (Geobasis NRW).');
-      expect(lines.join(' ')).toContain('Fallback statt Bonn Orthofoto.');
+      expect(lines.join(' ')).toContain('Fallback verwendet: NRW Orthofoto (DOP) statt Bonn Orthofoto.');
       expect(lines.join(' ')).toContain('Quelle/Lizenz: Quelle: Geobasis NRW | Datenlizenz Deutschland – Zero – Version 2.0.');
       expect(lines.join(' ')).toContain('NRW-Fallback aktiv.');
+    });
+
+    test('states requested mode and explicit standard fallback when orthophoto is unavailable', () => {
+      UA.getActiveMapLayerInfo = jest.fn(() => ({
+        mode: 'standard',
+        modeLabel: 'Standardkarte',
+        requestedMode: 'orthophoto',
+        requestedModeLabel: 'Orthofoto',
+        orthophoto: null,
+        warning: 'Orthofoto nicht verfügbar – Standardkarte aktiv.'
+      }));
+
+      const lines = UA._buildMapSourceNoteLines({});
+      const text = lines.join(' ');
+
+      expect(text).toContain('Kartenmodus: Standardkarte (angefordert: Orthofoto).');
+      expect(text).toContain('Basiskarte: OpenStreetMap.');
+      expect(text).toContain('Fallback verwendet: Standardkarte (OpenStreetMap).');
+      expect(text).toContain('Orthofoto nicht verfügbar – Standardkarte aktiv.');
     });
   });
 });

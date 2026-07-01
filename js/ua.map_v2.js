@@ -739,6 +739,8 @@
     ctx._activeMapLayerInfo = Object.assign({
       mode,
       modeLabel: LOCAL_MAP_MODE_LABELS[mode] || LOCAL_MAP_MODE_LABELS.standard,
+      requestedMode: mode,
+      requestedModeLabel: LOCAL_MAP_MODE_LABELS[mode] || LOCAL_MAP_MODE_LABELS.standard,
       orthophoto: activeOrthophoto,
       orthophotoFallbackFrom: (activeOrthophoto && fallbackSource && activeOrthophoto.id !== fallbackSource.id) ? fallbackSource : null,
       orthophotoOpacity: _effectiveOrthophotoOpacity(ctx, mode),
