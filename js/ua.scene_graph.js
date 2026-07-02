@@ -381,7 +381,7 @@
             label:           presentation.baseLayerLabel     || '',
             layerId:         presentation.baseLayerId        || null,
             provider:        presentation.baseLayerProvider  || null,
-            attribution:     presentation.baseLayerAttribution || null,
+            attribution:     presentation.baseLayerAttribution || '',
             license:         presentation.baseLayerLicense   || null,
             officialForExport: presentation.baseLayerOfficialForExport !== false
           },

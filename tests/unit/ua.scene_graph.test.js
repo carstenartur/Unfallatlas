@@ -583,6 +583,22 @@ describe('UA.SceneGraph', () => {
       const rasterNodes = sg.nodes.filter(n => n.type === 'raster');
       expect(rasterNodes).toHaveLength(0);
     });
+
+    test('RASTER semantic.attribution defaults to empty string when missing', () => {
+      const ts = UA.TrafficSituation.create();
+      const ts2 = UA.TrafficSituation.addLayer(ts, {
+        type: 'presentation', version: 1, enabled: true,
+        data: {
+          baseLayerUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          baseLayerTechnicalType: 'XYZ'
+        },
+        meta: {}
+      });
+      const sg = UA.SceneGraph.fromTrafficSituation(ts2);
+      const rasterNodes = sg.nodes.filter(n => n.type === 'raster');
+      expect(rasterNodes).toHaveLength(1);
+      expect(rasterNodes[0].semantic.attribution).toBe('');
+    });
   });
 
   // -------------------------------------------------------------------------

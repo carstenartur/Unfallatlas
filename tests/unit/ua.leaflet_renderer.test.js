@@ -281,6 +281,25 @@ describe('UA.LeafletRenderer', () => {
       expect(Lr.tileLayer).not.toHaveBeenCalled();
       expect(Lr.tileLayer.wms).not.toHaveBeenCalled();
     });
+
+    test('removes default base layer when rendering a RASTER node on owned map', async () => {
+      const UAr = makeUA({});
+      const Lr  = makeLeafletStub();
+      const r   = UAr.LeafletRenderer.create(document.createElement('div'), { L: Lr });
+      const defaultBaseLayer = Lr.tileLayer.mock.results[0].value;
+      let sg = UAr.SceneGraph.create();
+      sg = UAr.SceneGraph.addNode(sg, UAr.SceneGraph.createNode('raster', {
+        geometry: {
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          technicalType: 'XYZ'
+        }
+      }));
+
+      await r.render(sg);
+
+      expect(defaultBaseLayer.remove).toHaveBeenCalledTimes(1);
+      expect(Lr.tileLayer).toHaveBeenCalledTimes(2);
+    });
   });
 
   // -------------------------------------------------------------------------

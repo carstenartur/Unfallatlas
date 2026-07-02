@@ -61,6 +61,9 @@
       let _map      = o.map || null;
       let _ownMap   = false;
       let _layers   = [];       // all managed Leaflet layer instances
+      let _defaultBaseLayer = null;
+      const _defaultTileUrl = o.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      const _defaultTileOptions = { maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende' };
 
       // ---- Create or reuse Leaflet map ----
       if (!_map) {
@@ -71,9 +74,8 @@
         const zoom   = o.zoom   != null ? o.zoom : 12;
         const lon    = center.lon != null ? center.lon : center.lng;
         _map = L.map(container, { preferCanvas: true, zoomControl: true });
-        const tileUrl = o.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        L.tileLayer(tileUrl, { maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende' })
-         .addTo(_map);
+        _defaultBaseLayer = L.tileLayer(_defaultTileUrl, _defaultTileOptions);
+        _defaultBaseLayer.addTo(_map);
         _map.setView([center.lat, lon], zoom);
         _ownMap = true;
       }
@@ -93,6 +95,31 @@
           try { l.remove(); } catch (_) {}
         }
         _layers = [];
+      }
+
+      function _sceneHasRaster(sceneGraph) {
+        if (!sceneGraph || !Array.isArray(sceneGraph.nodes)) return false;
+        const NT = UA.SceneGraph && UA.SceneGraph.NODE_TYPES;
+        const rasterType = NT ? NT.RASTER : 'raster';
+        for (const node of sceneGraph.nodes) {
+          if (node && node.type === rasterType) return true;
+        }
+        return false;
+      }
+
+      function _syncDefaultBaseLayer(hasRaster) {
+        if (!_ownMap || !_map || typeof L.tileLayer !== 'function') return;
+        if (hasRaster) {
+          if (_defaultBaseLayer) {
+            try { _defaultBaseLayer.remove(); } catch (_) {}
+            _defaultBaseLayer = null;
+          }
+          return;
+        }
+        if (!_defaultBaseLayer) {
+          _defaultBaseLayer = L.tileLayer(_defaultTileUrl, _defaultTileOptions);
+          try { _defaultBaseLayer.addTo(_map); } catch (_) {}
+        }
       }
 
       function _renderNode(node) {
@@ -329,6 +356,7 @@
          */
         render: function render(sceneGraph) {
           _clearLayers();
+          _syncDefaultBaseLayer(_sceneHasRaster(sceneGraph));
           if (!sceneGraph || !sceneGraph.nodes) return Promise.resolve();
           for (const node of sceneGraph.nodes) {
             _renderNode(node);
@@ -353,6 +381,10 @@
          */
         dispose: function dispose() {
           _clearLayers();
+          if (_defaultBaseLayer) {
+            try { _defaultBaseLayer.remove(); } catch (_) {}
+            _defaultBaseLayer = null;
+          }
           if (_ownMap && _map) {
             try { _map.remove(); } catch (_) {}
             _map   = null;
