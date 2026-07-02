@@ -838,6 +838,9 @@
       if (sourceBits.length) {
         lines.push(`Quelle/Lizenz: ${sourceBits.join(' | ')}.`);
       }
+      if (info.orthophoto.officialForExport === false) {
+        lines.push('Hinweis: Nicht-amtliche Hintergrundkarte – nur zur Vorschau, nicht für amtliche Berichte geeignet.');
+      }
     } else {
       lines.push('Basiskarte: OpenStreetMap.');
       if (requestedDiffers) {

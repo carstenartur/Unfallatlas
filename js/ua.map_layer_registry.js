@@ -43,6 +43,10 @@
       pane: 'overlayPane'
     }),
     Object.freeze({
+      // Source: https://stadtplan.bonn.de/ (ArcGIS-WMS der Bundesstadt Bonn)
+      // WMS GetCapabilities: https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer?SERVICE=WMS&REQUEST=GetCapabilities
+      // Layer: "Orthophoto" – EPSG:3857 nativ unterstützt
+      // Lizenz: Kommunales Open Data gemäß Dienst-Metadaten
       id: 'bonn-orthophoto',
       displayName: 'Bonn Orthofoto',
       provider: 'Bundesstadt Bonn',
@@ -58,12 +62,19 @@
       scope: 'city:bonn',
       attribution: 'Quelle: Bundesstadt Bonn – Orthofoto',
       license: 'Kommunales Open Data / siehe Dienst-Metadaten',
+      metadataUrl: 'https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer?SERVICE=WMS&REQUEST=GetCapabilities',
+      officialForExport: true,
+      usageConstraint: 'Für amtliche Berichte geeignet',
       coverageNote: 'Kommunaler Layer für Bonn',
       updateInfo: 'Befliegungsjahr laut Dienst-Metadaten',
       priority: 400,
       fallbackLayerId: 'nrw-orthophoto'
     }),
     Object.freeze({
+      // Source: https://www.wms.nrw.de/geobasis/wms_nw_dop (Geobasis NRW)
+      // WMS GetCapabilities: https://www.wms.nrw.de/geobasis/wms_nw_dop?SERVICE=WMS&REQUEST=GetCapabilities
+      // Layer: "nw_dop" – EPSG:3857 wird unterstützt
+      // Lizenz: Datenlizenz Deutschland – Zero – Version 2.0
       id: 'nrw-orthophoto',
       displayName: 'NRW Orthofoto (DOP)',
       provider: 'Geobasis NRW',
@@ -79,12 +90,19 @@
       scope: 'state:nw',
       attribution: 'Quelle: Geobasis NRW',
       license: 'Datenlizenz Deutschland – Zero – Version 2.0',
+      metadataUrl: 'https://www.wms.nrw.de/geobasis/wms_nw_dop?SERVICE=WMS&REQUEST=GetCapabilities',
+      officialForExport: true,
+      usageConstraint: 'Für amtliche Berichte geeignet',
       coverageNote: 'Landesweiter Fallback für Nordrhein-Westfalen',
       updateInfo: 'Befliegungsjahr laut Dienst-Metadaten',
       priority: 300,
       fallbackLayerId: 'bkg-orthophoto'
     }),
     Object.freeze({
+      // Source: https://opendata.lgln.niedersachsen.de/ (LGLN Niedersachsen Open Data)
+      // WMS GetCapabilities: https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms?SERVICE=WMS&REQUEST=GetCapabilities
+      // Layer: "dop20" – EPSG:3857 wird unterstützt
+      // Lizenz: Datenlizenz Deutschland – Namensnennung – Version 2.0
       id: 'niedersachsen-orthophoto',
       displayName: 'Niedersachsen Orthofoto (DOP)',
       provider: 'LGLN Niedersachsen',
@@ -100,12 +118,19 @@
       scope: 'state:ni',
       attribution: 'Quelle: LGLN Niedersachsen',
       license: 'Datenlizenz Deutschland – Namensnennung – Version 2.0',
+      metadataUrl: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms?SERVICE=WMS&REQUEST=GetCapabilities',
+      officialForExport: true,
+      usageConstraint: 'Für amtliche Berichte geeignet',
       coverageNote: 'Landesweiter Fallback für Hannover/Niedersachsen',
       updateInfo: 'Befliegungsjahr laut Dienst-Metadaten',
       priority: 300,
       fallbackLayerId: 'bkg-orthophoto'
     }),
     Object.freeze({
+      // Source: https://gdz.bkg.bund.de/index.php/default/digitale-geodaten/digitale-luftbilder.html (BKG Geodatenzentrum)
+      // WMS GetCapabilities: https://sg.geodatenzentrum.de/wms_dop20?SERVICE=WMS&REQUEST=GetCapabilities
+      // Layer: "dop20" – EPSG:3857 wird unterstützt
+      // Lizenz: Siehe Nutzungsbedingungen des BKG (kostenpflichtig für kommerzielle Nutzung)
       id: 'bkg-orthophoto',
       displayName: 'Deutschland Orthofoto (BKG)',
       provider: 'Geodatenzentrum / BKG',
@@ -121,12 +146,20 @@
       scope: 'de',
       attribution: 'Quelle: BKG',
       license: 'Siehe Nutzungsbedingungen des BKG',
+      metadataUrl: 'https://sg.geodatenzentrum.de/wms_dop20?SERVICE=WMS&REQUEST=GetCapabilities',
+      officialForExport: true,
+      usageConstraint: 'Für amtliche Berichte geeignet, BKG-Nutzungsbedingungen beachten',
       coverageNote: 'Bundesweiter amtlicher Fallback',
       updateInfo: 'Befliegungsjahr laut Dienst-Metadaten',
       priority: 200,
       fallbackLayerId: 'esri-world-imagery'
     }),
     Object.freeze({
+      // Source: https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9 (Esri World Imagery)
+      // Technischer Typ: XYZ-Kacheln; keine WMS-Anfragen erforderlich
+      // Lizenz: Esri Terms of Use – nicht-amtlich, nur zur Vorschau geeignet
+      // HINWEIS: Dieser Dienst ist NICHT für amtliche Berichte oder Exporte geeignet.
+      //          Er dient ausschließlich als interaktiver Fallback, wenn alle amtlichen Dienste nicht erreichbar sind.
       id: 'esri-world-imagery',
       displayName: 'World Imagery Fallback',
       provider: 'Esri',
@@ -139,6 +172,9 @@
       scope: 'global',
       attribution: 'Tiles &copy; Esri',
       license: 'Esri Terms of Use',
+      metadataUrl: 'https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9',
+      officialForExport: false,
+      usageConstraint: 'Nur Vorschau/interaktiv – nicht für amtliche Berichte geeignet',
       coverageNote: 'Nicht-amtlicher Fallback, falls regionale Dienste nicht erreichbar sind',
       updateInfo: 'Stand laut Esri-Dienst',
       priority: 100
@@ -241,4 +277,7 @@
   UA.resolveMapMode = resolveMapMode;
   UA.normalizeMapOpacity = normalizeMapOpacity;
   UA.createMapLayer = createMapLayer;
+  UA.getExportSuitableOrthophotoProviders = function getExportSuitableOrthophotoProviders() {
+    return LAYER_DEFINITIONS.filter(def => def.layerType === 'orthophoto' && def.officialForExport === true);
+  };
 })();
