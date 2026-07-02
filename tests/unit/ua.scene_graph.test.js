@@ -45,6 +45,7 @@ describe('UA.SceneGraph', () => {
       expect(NT.HIGHLIGHT).toBe('highlight');
       expect(NT.CAMERA).toBe('camera');
       expect(NT.LIGHT).toBe('light');
+      expect(NT.RASTER).toBe('raster');
     });
 
     test('NODE_TYPES object is frozen', () => {
@@ -97,10 +98,33 @@ describe('UA.SceneGraph', () => {
       expect(sg.metadata.title).toBe('');
     });
 
+    test('metadata includes mapMode defaulting to standard', () => {
+      const sg = UA.SceneGraph.create();
+      expect(sg.metadata.mapMode).toBe('standard');
+    });
+
+    test('metadata includes sourceAttribution defaulting to empty string', () => {
+      const sg = UA.SceneGraph.create();
+      expect(sg.metadata.sourceAttribution).toBe('');
+    });
+
     test('accepts overrides', () => {
       const sg = UA.SceneGraph.create({ id: 'test-1', lod: 'pedestrian' });
       expect(sg.id).toBe('test-1');
       expect(sg.lod).toBe('pedestrian');
+    });
+
+    test('merges metadata overrides including mapMode and sourceAttribution', () => {
+      const sg = UA.SceneGraph.create({
+        metadata: {
+          title: 'Test Graph',
+          mapMode: 'orthophoto',
+          sourceAttribution: '&copy; Geobasis NRW'
+        }
+      });
+      expect(sg.metadata.title).toBe('Test Graph');
+      expect(sg.metadata.mapMode).toBe('orthophoto');
+      expect(sg.metadata.sourceAttribution).toBe('&copy; Geobasis NRW');
     });
 
     test('merges metadata overrides', () => {
@@ -143,6 +167,23 @@ describe('UA.SceneGraph', () => {
       const node = UA.SceneGraph.createNode('polyline');
       expect(node.style.color).toBe('#3498db');
       expect(node.style.weight).toBe(2);
+    });
+
+    test('applies default style for raster type', () => {
+      const node = UA.SceneGraph.createNode('raster');
+      expect(node.style.opacity).toBe(1.0);
+      expect(node.style.maxZoom).toBe(19);
+    });
+
+    test('accepts raster geometry with url and technicalType', () => {
+      const node = UA.SceneGraph.createNode('raster', {
+        geometry: {
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          technicalType: 'XYZ'
+        }
+      });
+      expect(node.geometry.url).toBe('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      expect(node.geometry.technicalType).toBe('XYZ');
     });
 
     test('merges style overrides with defaults', () => {
@@ -457,6 +498,157 @@ describe('UA.SceneGraph', () => {
       const ts = UA.TrafficSituation.create();
       const sg = UA.SceneGraph.fromTrafficSituation(ts);
       expect(sg.lod).toBe('city');
+    });
+
+    test('metadata.mapMode defaults to standard when no presentation layer', () => {
+      const ts = UA.TrafficSituation.create();
+      const sg = UA.SceneGraph.fromTrafficSituation(ts);
+      expect(sg.metadata.mapMode).toBe('standard');
+    });
+
+    test('metadata.mapMode is taken from presentation layer', () => {
+      const ts = UA.TrafficSituation.create();
+      const ts2 = UA.TrafficSituation.addLayer(ts, {
+        type: 'presentation', version: 1, enabled: true,
+        data: { mapMode: 'orthophoto', baseLayerAttribution: 'Quelle: Geobasis NRW' },
+        meta: {}
+      });
+      const sg = UA.SceneGraph.fromTrafficSituation(ts2);
+      expect(sg.metadata.mapMode).toBe('orthophoto');
+      expect(sg.metadata.sourceAttribution).toBe('Quelle: Geobasis NRW');
+    });
+
+    test('adds a RASTER node when presentation layer provides baseLayerUrl', () => {
+      const ts = UA.TrafficSituation.create();
+      const ts2 = UA.TrafficSituation.addLayer(ts, {
+        type: 'presentation', version: 1, enabled: true,
+        data: {
+          mapMode: 'standard',
+          baseLayerId: 'standard-osm',
+          baseLayerUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          baseLayerTechnicalType: 'XYZ',
+          baseLayerLabel: 'OpenStreetMap Standard',
+          baseLayerProvider: 'OpenStreetMap',
+          baseLayerAttribution: '&copy; OpenStreetMap-Mitwirkende',
+          baseLayerLicense: 'ODbL 1.0',
+          baseLayerOfficialForExport: true
+        },
+        meta: {}
+      });
+      const sg = UA.SceneGraph.fromTrafficSituation(ts2);
+      const rasterNodes = sg.nodes.filter(n => n.type === 'raster');
+      expect(rasterNodes).toHaveLength(1);
+      const raster = rasterNodes[0];
+      expect(raster.geometry.url).toBe('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      expect(raster.geometry.technicalType).toBe('XYZ');
+      expect(raster.semantic.layerId).toBe('standard-osm');
+      expect(raster.semantic.provider).toBe('OpenStreetMap');
+      expect(raster.semantic.attribution).toBe('&copy; OpenStreetMap-Mitwirkende');
+      expect(raster.semantic.officialForExport).toBe(true);
+    });
+
+    test('RASTER node supports WMS technicalType', () => {
+      const ts = UA.TrafficSituation.create();
+      const ts2 = UA.TrafficSituation.addLayer(ts, {
+        type: 'presentation', version: 1, enabled: true,
+        data: {
+          mapMode: 'orthophoto',
+          baseLayerUrl: 'https://www.wms.nrw.de/geobasis/wms_nw_dop',
+          baseLayerTechnicalType: 'WMS',
+          baseLayerWmsLayers: 'nw_dop',
+          baseLayerFormat: 'image/png',
+          baseLayerTransparent: false,
+          baseLayerAttribution: 'Quelle: Geobasis NRW',
+          baseLayerOfficialForExport: true
+        },
+        meta: {}
+      });
+      const sg = UA.SceneGraph.fromTrafficSituation(ts2);
+      const rasterNodes = sg.nodes.filter(n => n.type === 'raster');
+      expect(rasterNodes).toHaveLength(1);
+      const raster = rasterNodes[0];
+      expect(raster.geometry.technicalType).toBe('WMS');
+      expect(raster.geometry.layers).toBe('nw_dop');
+      expect(raster.geometry.format).toBe('image/png');
+    });
+
+    test('does not add a RASTER node when no baseLayerUrl in presentation', () => {
+      const ts = UA.TrafficSituation.create();
+      const ts2 = UA.TrafficSituation.addLayer(ts, {
+        type: 'presentation', version: 1, enabled: true,
+        data: { mapMode: 'standard' },
+        meta: {}
+      });
+      const sg = UA.SceneGraph.fromTrafficSituation(ts2);
+      const rasterNodes = sg.nodes.filter(n => n.type === 'raster');
+      expect(rasterNodes).toHaveLength(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('serialization (JSON round-trip)', () => {
+    test('a SceneGraph is fully JSON-serializable', () => {
+      const sg = UA.SceneGraph.create({
+        id: 'test-sg',
+        metadata: {
+          title: 'Test',
+          mapMode: 'standard',
+          sourceAttribution: '&copy; OpenStreetMap-Mitwirkende'
+        }
+      });
+      expect(() => JSON.stringify(sg)).not.toThrow();
+      const parsed = JSON.parse(JSON.stringify(sg));
+      expect(parsed.id).toBe('test-sg');
+      expect(parsed.metadata.mapMode).toBe('standard');
+      expect(parsed.metadata.sourceAttribution).toBe('&copy; OpenStreetMap-Mitwirkende');
+    });
+
+    test('a SceneGraph with nodes is fully JSON-serializable', () => {
+      let sg = UA.SceneGraph.create();
+      sg = UA.SceneGraph.addNode(sg, UA.SceneGraph.createNode('point', {
+        geometry: { lat: 52.37, lon: 9.73 },
+        semantic: { kind: 'accident', label: 'KFZ/FG' },
+        interaction: { selectable: true, data: { UKATEGORIE: 1 } }
+      }));
+      sg = UA.SceneGraph.addNode(sg, UA.SceneGraph.createNode('raster', {
+        geometry: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', technicalType: 'XYZ' },
+        semantic: { kind: 'baseLayer', attribution: '&copy; OpenStreetMap-Mitwirkende' }
+      }));
+      const json = JSON.stringify(sg);
+      expect(() => JSON.parse(json)).not.toThrow();
+      const parsed = JSON.parse(json);
+      expect(parsed.nodes).toHaveLength(2);
+      expect(parsed.nodes[0].type).toBe('point');
+      expect(parsed.nodes[1].type).toBe('raster');
+      expect(parsed.nodes[1].geometry.url).toContain('openstreetmap');
+    });
+
+    test('serialized SceneGraph matches snapshot', () => {
+      // Use a fixed id and created date for determinism
+      let sg = UA.SceneGraph.create({
+        id: 'snapshot-test',
+        metadata: {
+          title: 'Snapshot Test',
+          description: 'Deterministic snapshot for regression detection',
+          created: '2024-01-01T00:00:00.000Z',
+          mapMode: 'standard',
+          sourceAttribution: '© OpenStreetMap-Mitwirkende'
+        }
+      });
+      sg = UA.SceneGraph.addNode(sg, UA.SceneGraph.createNode('point', {
+        id: 'p1',
+        geometry: { lat: 52.37, lon: 9.73 },
+        style: { color: '#e74c3c', radius: 8, opacity: 0.85, fillOpacity: 0.65 },
+        semantic: { kind: 'accident', label: '', severity: 1, year: 2022 },
+        interaction: { selectable: true, hoverable: true, data: { UKATEGORIE: 1 } },
+        lod: { minLevel: 'city', maxLevel: 'pedestrian', overrides: {} }
+      }));
+      sg = UA.SceneGraph.addNode(sg, UA.SceneGraph.createNode('raster', {
+        id: 'r1',
+        geometry: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', technicalType: 'XYZ' },
+        semantic: { kind: 'baseLayer', label: 'OpenStreetMap Standard', attribution: '© OpenStreetMap-Mitwirkende' }
+      }));
+      expect(JSON.parse(JSON.stringify(sg))).toMatchSnapshot();
     });
   });
 });

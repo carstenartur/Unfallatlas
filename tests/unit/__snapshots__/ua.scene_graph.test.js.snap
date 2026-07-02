@@ -1,0 +1,79 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`UA.SceneGraph serialization (JSON round-trip) serialized SceneGraph matches snapshot 1`] = `
+{
+  "id": "snapshot-test",
+  "lod": "city",
+  "metadata": {
+    "created": "2024-01-01T00:00:00.000Z",
+    "description": "Deterministic snapshot for regression detection",
+    "mapMode": "standard",
+    "sourceAttribution": "© OpenStreetMap-Mitwirkende",
+    "title": "Snapshot Test",
+  },
+  "nodes": [
+    {
+      "children": [],
+      "geometry": {
+        "lat": 52.37,
+        "lon": 9.73,
+      },
+      "id": "p1",
+      "interaction": {
+        "data": {
+          "UKATEGORIE": 1,
+        },
+        "hoverable": true,
+        "selectable": true,
+      },
+      "lod": {
+        "maxLevel": "pedestrian",
+        "minLevel": "city",
+        "overrides": {},
+      },
+      "semantic": {
+        "kind": "accident",
+        "label": "",
+        "severity": 1,
+        "year": 2022,
+      },
+      "style": {
+        "color": "#e74c3c",
+        "fillOpacity": 0.65,
+        "opacity": 0.85,
+        "radius": 8,
+      },
+      "type": "point",
+    },
+    {
+      "children": [],
+      "geometry": {
+        "technicalType": "XYZ",
+        "url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      },
+      "id": "r1",
+      "interaction": {
+        "data": null,
+        "hoverable": false,
+        "selectable": false,
+      },
+      "lod": {
+        "maxLevel": "pedestrian",
+        "minLevel": "distant",
+        "overrides": {},
+      },
+      "semantic": {
+        "attribution": "© OpenStreetMap-Mitwirkende",
+        "kind": "baseLayer",
+        "label": "OpenStreetMap Standard",
+      },
+      "style": {
+        "maxZoom": 19,
+        "opacity": 1,
+      },
+      "type": "raster",
+    },
+  ],
+  "version": 1,
+}
+`;

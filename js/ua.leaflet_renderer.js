@@ -30,6 +30,7 @@
   //   CLUSTER     → deferred to UA.renderLayers / ctx (when available)
   //   ARROW       → L.polyline with arrowhead decoration
   //   HIGHLIGHT   → L.polygon with highlight style
+  //   RASTER      → L.tileLayer (XYZ) or L.tileLayer.wms (WMS)
   //   CAMERA/LIGHT/MESH → no-op in 2D mode (logged as unsupported)
   // ----------------------------
 
@@ -113,6 +114,8 @@
           _renderArrow(node);
         } else if (t === (NT ? NT.HIGHLIGHT : 'highlight')) {
           _renderHighlight(node);
+        } else if (t === (NT ? NT.RASTER : 'raster')) {
+          _renderRaster(node);
         } else if (t === (NT ? NT.HEAT_FIELD : 'heatField') ||
                    t === (NT ? NT.CLUSTER    : 'cluster')) {
           // These are managed by the existing rendering pipeline
@@ -252,6 +255,33 @@
         }
         // Fallback: treat as polygon
         _renderPolygon(node);
+      }
+
+      function _renderRaster(node) {
+        const g = node.geometry || {};
+        if (!g.url) return;
+        const s       = node.style || {};
+        const options = {
+          maxZoom:     s.maxZoom  != null ? s.maxZoom : 19,
+          opacity:     s.opacity  != null ? s.opacity : 1.0,
+          attribution: (node.semantic && node.semantic.attribution) || ''
+        };
+        let layer;
+        if (g.technicalType === 'WMS') {
+          if (!L.tileLayer || typeof L.tileLayer.wms !== 'function') return;
+          layer = L.tileLayer.wms(g.url, Object.assign({}, options, {
+            layers:      g.layers      || '',
+            format:      g.format      || 'image/png',
+            transparent: !!g.transparent,
+            uppercase:   true
+          }));
+        } else {
+          if (typeof L.tileLayer !== 'function') return;
+          const xyzOptions = Object.assign({}, options);
+          if (g.subdomains) xyzOptions.subdomains = g.subdomains;
+          layer = L.tileLayer(g.url, xyzOptions);
+        }
+        _addLayer(layer);
       }
 
       // ---- Coordinate helpers ----

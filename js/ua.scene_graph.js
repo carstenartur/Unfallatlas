@@ -44,7 +44,7 @@
   //
   // Node types (UA.SceneGraph.NODE_TYPES):
   //   POINT, POLYLINE, POLYGON, MESH, BILLBOARD, LABEL,
-  //   HEAT_FIELD, CLUSTER, ARROW, HIGHLIGHT, CAMERA, LIGHT
+  //   HEAT_FIELD, CLUSTER, ARROW, HIGHLIGHT, CAMERA, LIGHT, RASTER
   //
   // LOD levels (UA.SceneGraph.LOD_LEVELS):
   //   DISTANT, CITY, STREET, INTERSECTION, PEDESTRIAN
@@ -77,7 +77,8 @@
     ARROW:      'arrow',
     HIGHLIGHT:  'highlight',
     CAMERA:     'camera',
-    LIGHT:      'light'
+    LIGHT:      'light',
+    RASTER:     'raster'
   });
 
   /** Level-of-detail levels, from furthest to closest. */
@@ -146,6 +147,8 @@
         return { intensity: 1.0, color: '#ffffff' };
       case NODE_TYPES.MESH:
         return { color: '#95a5a6', opacity: 0.9, wireframe: false };
+      case NODE_TYPES.RASTER:
+        return { opacity: 1.0, maxZoom: 19 };
       default:
         return {};
     }
@@ -211,9 +214,11 @@
         lod:      LOD_LEVELS.CITY,    // active LOD level
         nodes:    [],                 // root-level nodes
         metadata: {
-          title:       '',
-          description: '',
-          created:     new Date().toISOString()
+          title:            '',
+          description:      '',
+          created:          new Date().toISOString(),
+          mapMode:          'standard',
+          sourceAttribution: ''
         }
       };
       if (!overrides) return defaults;
@@ -314,6 +319,11 @@
      *   - One HEAT_FIELD node when heatmap visibility is enabled
      *   - One BILLBOARD node per POI point (if present)
      *   - One LABEL node per recommendation (if present)
+     *   - One RASTER node for the base tile layer (if present in the presentation layer)
+     *
+     * Scene-level metadata populated:
+     *   - metadata.mapMode          — from the presentation layer (default: 'standard')
+     *   - metadata.sourceAttribution — base-layer attribution string (for export/preview)
      *
      * @param {TrafficSituation} ts
      * @returns {SceneGraph}
@@ -324,17 +334,65 @@
       if (!ts) return SG.create();
 
       const meta = ts.metadata || {};
+
+      // ---- Extract presentation/rendering hints ----
+      const presentationLayer = ts.layers && ts.layers.presentation;
+      const presentation = (presentationLayer && presentationLayer.data) || {};
+      const mapMode = presentation.mapMode || 'standard';
+      const sourceAttribution = presentation.baseLayerAttribution || '';
+
       let graph = SG.create({
         id:  ts.id || null,
         lod: _lodFromZoom(ts.core && ts.core.viewport && ts.core.viewport.zoom),
         metadata: {
-          title:       meta.city || '',
-          description: meta.description || '',
-          created:     meta.created || new Date().toISOString()
+          title:            meta.city || '',
+          description:      meta.description || '',
+          created:          meta.created || new Date().toISOString(),
+          mapMode:          mapMode,
+          sourceAttribution: sourceAttribution
         }
       });
 
       const layerVisibility = (ts.core && ts.core.layerVisibility) || {};
+
+      // ---- RASTER base layer ----
+      // When the presentation layer carries base-tile information, emit a
+      // renderer-independent RASTER node so export/preview code can read the
+      // tile URL and attribution from the scene graph without touching Leaflet.
+      if (presentation.baseLayerUrl) {
+        const rasterNode = SG.createNode(NODE_TYPES.RASTER, {
+          geometry: {
+            url:           presentation.baseLayerUrl,
+            technicalType: presentation.baseLayerTechnicalType || 'XYZ',
+            subdomains:    presentation.baseLayerSubdomains || null,
+            layers:        presentation.baseLayerWmsLayers   || null,
+            format:        presentation.baseLayerFormat      || null,
+            transparent:   presentation.baseLayerTransparent != null
+                             ? !!presentation.baseLayerTransparent : false
+          },
+          style: {
+            opacity: presentation.baseLayerOpacity != null
+                       ? presentation.baseLayerOpacity : 1.0,
+            maxZoom: presentation.baseLayerMaxZoom != null
+                       ? presentation.baseLayerMaxZoom : 19
+          },
+          semantic: {
+            kind:            'baseLayer',
+            label:           presentation.baseLayerLabel     || '',
+            layerId:         presentation.baseLayerId        || null,
+            provider:        presentation.baseLayerProvider  || null,
+            attribution:     presentation.baseLayerAttribution || null,
+            license:         presentation.baseLayerLicense   || null,
+            officialForExport: presentation.baseLayerOfficialForExport !== false
+          },
+          lod: {
+            minLevel: LOD_LEVELS.DISTANT,
+            maxLevel: LOD_LEVELS.PEDESTRIAN,
+            overrides: {}
+          }
+        });
+        graph = SG.addNode(graph, rasterNode);
+      }
 
       // ---- Accident points ----
       const accidentLayer = ts.layers && ts.layers.accident;
