@@ -30,6 +30,65 @@ async function waitForData(page) {
   }, { timeout: 30000 });
 }
 
+const MAP_MODE_BASE_QUERY = '?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0' +
+  '&involvementMode=or&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
+  '&centerLat=50.7330&centerLon=7.0950&zoom=15';
+
+function mapModeQuery(mode, extraParams = '') {
+  return `${MAP_MODE_BASE_QUERY}&mapMode=${mode}${extraParams}`;
+}
+
+async function setupDeterministicMapModeTiles(page, options = {}) {
+  const { orthophotoAvailable = true } = options;
+  const standardTile = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+    <rect width="256" height="256" fill="#eef2f6"/>
+    <path d="M0 84 H256 M0 172 H256 M84 0 V256 M172 0 V256" stroke="#c7d2db" stroke-width="4"/>
+    <path d="M-20 40 L280 220 M-30 210 L270 70" stroke="#9aa8b5" stroke-width="6"/>
+  </svg>`;
+  const orthophotoTile = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+    <defs>
+      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#6f8f54"/>
+        <stop offset="100%" stop-color="#9d8b6f"/>
+      </linearGradient>
+    </defs>
+    <rect width="256" height="256" fill="url(#g)"/>
+    <circle cx="60" cy="70" r="26" fill="#4f6f3f" opacity="0.45"/>
+    <circle cx="180" cy="120" r="34" fill="#45663a" opacity="0.35"/>
+    <rect x="24" y="186" width="208" height="20" fill="#b9a38b" opacity="0.45"/>
+  </svg>`;
+  const labelTile = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+    <rect width="256" height="256" fill="transparent"/>
+    <path d="M12 118 H244 M44 60 L212 196" stroke="#1f2937" stroke-width="2.5" stroke-linecap="round" opacity="0.65"/>
+    <text x="20" y="108" font-size="18" font-family="Arial, sans-serif" fill="#111827" opacity="0.85">Bonn Hbf</text>
+    <text x="128" y="188" font-size="14" font-family="Arial, sans-serif" fill="#111827" opacity="0.8">Hybrid Labels</text>
+  </svg>`;
+
+  await page.route('https://*.tile.openstreetmap.org/**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: standardTile });
+  });
+  await page.route('https://*.basemaps.cartocdn.com/light_only_labels/**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: labelTile });
+  });
+
+  const orthophotoPatterns = [
+    'https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer**',
+    'https://www.wms.nrw.de/geobasis/wms_nw_dop**',
+    'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms**',
+    'https://sg.geodatenzentrum.de/wms_dop20**',
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/**'
+  ];
+  for (const pattern of orthophotoPatterns) {
+    await page.route(pattern, async (route) => {
+      if (!orthophotoAvailable) {
+        await route.fulfill({ status: 503, contentType: 'text/plain; charset=utf-8', body: 'Orthophoto unavailable' });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: orthophotoTile });
+    });
+  }
+}
+
 test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   // Einheitliche Viewport-Größe für alle Screenshots: 1280×800
   test.use({ viewport: { width: 1280, height: 800 } });
@@ -289,6 +348,63 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await waitForMapTiles(page);
     await waitForFonts(page);
     await page.locator('#map').screenshot({ path: 'docs/screenshots/slope-bielefeld-debug.png' });
+  });
+
+  test('21 Kartenmodus Standard (stabil)', async ({ page }) => {
+    await setupDeterministicMapModeTiles(page);
+    await loadPage(page, mapModeQuery('standard', '&showCluster=1&showHeatmap=0'));
+    await waitForCities(page);
+    await waitForData(page);
+    await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Standardkarte.');
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.screenshot({ path: 'docs/screenshots/21-mapmode-standard.png', fullPage: true });
+  });
+
+  test('22 Kartenmodus Orthofoto (stabil)', async ({ page }) => {
+    await setupDeterministicMapModeTiles(page);
+    await loadPage(page, mapModeQuery('orthophoto', '&showCluster=1&showHeatmap=0'));
+    await waitForCities(page);
+    await waitForData(page);
+    await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Orthofoto.');
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.screenshot({ path: 'docs/screenshots/22-mapmode-orthophoto.png', fullPage: true });
+  });
+
+  test('23 Kartenmodus Hybrid (stabil)', async ({ page }) => {
+    await setupDeterministicMapModeTiles(page);
+    await loadPage(page, mapModeQuery('hybrid', '&showCluster=1&showHeatmap=0'));
+    await waitForCities(page);
+    await waitForData(page);
+    await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Hybrid.');
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.screenshot({ path: 'docs/screenshots/23-mapmode-hybrid.png', fullPage: true });
+  });
+
+  test('24 Kartenmodus Analyse (stabil)', async ({ page }) => {
+    await setupDeterministicMapModeTiles(page);
+    await loadPage(page, mapModeQuery('analysis', '&showCluster=0&showHeatmap=1&orthophotoOpacity=65'));
+    await waitForCities(page);
+    await waitForData(page);
+    await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Analyseansicht.');
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.screenshot({ path: 'docs/screenshots/24-mapmode-analysis.png', fullPage: true });
+  });
+
+  test('25 Kartenmodus Orthofoto – Fallback bei Tile-Fehler', async ({ page }) => {
+    await setupDeterministicMapModeTiles(page, { orthophotoAvailable: false });
+    await loadPage(page, mapModeQuery('orthophoto', '&showCluster=1&showHeatmap=0'));
+    await waitForCities(page);
+    await waitForData(page);
+    const status = page.locator('#mapLayerStatus');
+    await expect(status).toContainText('Kartenmodus: Standardkarte.');
+    await expect(status).toContainText('Fallback');
+    await waitForMapTiles(page);
+    await waitForFonts(page);
+    await page.screenshot({ path: 'docs/screenshots/25-mapmode-orthophoto-fallback.png', fullPage: true });
   });
 });
 

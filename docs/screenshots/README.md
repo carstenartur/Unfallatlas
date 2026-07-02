@@ -23,6 +23,11 @@ referenzierten PNG-Screenshots der Unfallwerkbank V2.
 | 14 | `14-export-filterkontext.png` | Export mit Filterkontext |
 | 15 | `15-export-pdf-rendered.png` | Gerenderter PDF-Export |
 | 16 | `16-antrag-inhalt.png` | Antrag-Inhalt |
+| 21 | `21-mapmode-standard.png` | Kartenmodus `standard` (deterministische Tile-Mocks) |
+| 22 | `22-mapmode-orthophoto.png` | Kartenmodus `orthophoto` (deterministische Orthofoto-Tiles) |
+| 23 | `23-mapmode-hybrid.png` | Kartenmodus `hybrid` (Orthofoto + Label-Overlay) |
+| 24 | `24-mapmode-analysis.png` | Kartenmodus `analysis` (Heatmap/Analyse-Overlay auf Orthofoto) |
+| 25 | `25-mapmode-orthophoto-fallback.png` | Orthofoto-Ausfall: erwarteter Fallback auf Standardkarte inkl. Hinweistext |
 
 ## Slope-Diagnose (PR-berlin-slope-qa)
 
@@ -51,6 +56,14 @@ Leaflet-Tile-Stabilitäts-Check erstellt (`waitForMapTiles`: keine
 `leaflet-tile-loading` mehr, mindestens ein `leaflet-tile-loaded`), plus
 kurzer Paint-Pause und defensivem `document.fonts.ready`. Dadurch sind die
 Bilder über CI-Re-Runs reproduzierbar.
+
+## Hinweise zu unvermeidbaren Provider-Unterschieden
+
+Für die Map-Mode-Screenshots (`21`–`25`) werden OSM-, Orthofoto- und
+Hybrid-Label-Tiles im Test deterministisch gemockt. Dadurch bleiben die
+Artefakte stabil, auch wenn externe Tile-Dienste zeitweise abweichende
+Farbbalance, Kachelgrenzen oder Ausfälle zeigen. Screenshot `25` dokumentiert
+den erwarteten Fallback-Fall explizit statt eines unklaren App-Start-Fehlers.
 
 ## TODO – Kontextdaten-Screenshots (PR #260)
 

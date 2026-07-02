@@ -24,6 +24,8 @@
     showSchools: "showSchools",
     showKindergartens: "showKindergartens",
     showArgumentation: "showArgumentation",
+    mapMode: "mapMode",
+    orthophotoOpacity: "orthophotoOpacity",
     ctxSlope: "ctxSlope",
     ctxTraffic: "ctxTraffic",
     ctxOnlyMatched: "ctxOnlyMatched",
