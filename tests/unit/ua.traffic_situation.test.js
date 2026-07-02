@@ -16,6 +16,7 @@ function loadModule(filePath, win) {
 function makeUA() {
   const win = { UA: {}, location: { href: 'http://localhost/' } };
   loadModule('../../js/ua.map_scene.js',         win);
+  loadModule('../../js/ua.map_scene_url_codec.js', win);
   loadModule('../../js/ua.traffic_situation.js', win);
   return win.UA;
 }
@@ -60,6 +61,9 @@ describe('UA.TrafficSituation', () => {
       expect(ts.metadata.created).toBeTruthy();
       expect(ts.metadata.updated).toBeTruthy();
       expect(ts.core).toBeDefined();
+      expect(ts.context).toBeDefined();
+      expect(ts.context.selectionQuery).toBeNull();
+      expect(ts.context.capabilities).toEqual({});
       expect(ts.layers).toEqual({});
     });
 
@@ -87,6 +91,12 @@ describe('UA.TrafficSituation', () => {
     test('core has correct default accidentView', () => {
       const ts = UA.TrafficSituation.create();
       expect(ts.core.accidentView).toBe('bySeverity');
+    });
+
+    test('keeps stable top-level API while context remains transitional', () => {
+      const ts = UA.TrafficSituation.create();
+      expect(Object.keys(ts).sort()).toEqual(['context', 'core', 'id', 'layers', 'metadata', 'version']);
+      expect(ts.context.selectionQuery).toBeNull();
     });
 
     test('merges top-level overrides', () => {
@@ -197,6 +207,17 @@ describe('UA.TrafficSituation', () => {
       const ts = UA.TrafficSituation.fromMapScene(scene, layers);
       expect(ts.layers[LT.ACCIDENT]).toBeDefined();
       expect(ts.layers[LT.ACCIDENT].type).toBe(LT.ACCIDENT);
+    });
+
+    test('maps export options into context', () => {
+      const scene = UA.MapScene.create({
+        exportOptions: { includeCosts: false },
+        contextOverlays: { active: { slope: true, traffic: false } }
+      });
+      const ts = UA.TrafficSituation.fromMapScene(scene);
+      expect(ts.context.exportOptions.includeCosts).toBe(false);
+      expect(ts.context.contextOverlays.active.slope).toBe(true);
+      expect(ts.context.selectionQuery.accidentView).toBe('bySeverity');
     });
 
     test('does not mutate the original scene', () => {
@@ -377,6 +398,41 @@ describe('UA.TrafficSituation', () => {
   });
 
   // -------------------------------------------------------------------------
+  describe('fromCtx', () => {
+    test('captures serializable context capabilities and export options', () => {
+      const map = {
+        getCenter: () => ({ lat: 53.55, lng: 9.99 }),
+        getZoom:   () => 14
+      };
+      const ts = UA.TrafficSituation.fromCtx({
+        CITY_RAW: 'Hamburg',
+        map,
+        contextCapabilities: { hasSlope: true, hasAny: true },
+        exportOptions: { includeMeasures: false },
+        selectedAccidentIds: new Set(['a1', 'a2']),
+        reportOptions: { preview: true }
+      });
+      expect(ts.metadata.city).toBe('Hamburg');
+      expect(ts.context.capabilities.hasSlope).toBe(true);
+      expect(ts.context.exportOptions.includeMeasures).toBe(false);
+      expect(ts.context.selectedAccidentIds).toEqual(['a1', 'a2']);
+      expect(ts.context.reportOptions.preview).toBe(true);
+    });
+
+    test('produces JSON-safe data without Leaflet/DOM references', () => {
+      const ts = UA.TrafficSituation.fromCtx({
+        CITY_RAW: 'Bremen',
+        map: { getCenter: () => ({ lat: 53.08, lng: 8.8 }), getZoom: () => 11 },
+        ui: { severityEl: { value: '1' }, statEl: document.createElement('div') }
+      });
+      const raw = UA.TrafficSituation.serialize(ts);
+      expect(() => JSON.stringify(raw)).not.toThrow();
+      expect(raw.map).toBeUndefined();
+      expect(raw.ui).toBeUndefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   describe('serialize / deserialize', () => {
     test('serialized output is JSON-safe (no functions, no circular refs)', () => {
       const ts  = UA.TrafficSituation.create({ metadata: { city: 'Frankfurt' } });
@@ -417,6 +473,19 @@ describe('UA.TrafficSituation', () => {
 
     test('deserialize throws for non-object input', () => {
       expect(() => UA.TrafficSituation.deserialize('bad')).toThrow();
+    });
+
+    test('URL scene round-trips via TrafficSituation JSON', () => {
+      const url = '?city=Bonn&centerLat=50.73&centerLon=7.1&zoom=13&severity=2&mapLayer=slope';
+      const scene = UA.MapSceneUrlCodec.decode(url);
+      const ts = UA.TrafficSituation.fromMapScene(scene);
+      const raw = UA.TrafficSituation.serialize(ts);
+      const ts2 = UA.TrafficSituation.deserialize(JSON.parse(JSON.stringify(raw)));
+      const scene2 = UA.TrafficSituation.toMapScene(ts2);
+      const encoded = UA.MapSceneUrlCodec.encode(scene2);
+      expect(encoded).toContain('city=Bonn');
+      expect(encoded).toContain('severity=2');
+      expect(encoded).toContain('mapLayer=slope');
     });
   });
 
