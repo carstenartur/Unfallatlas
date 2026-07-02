@@ -838,6 +838,8 @@
       if (sourceBits.length) {
         lines.push(`Quelle/Lizenz: ${sourceBits.join(' | ')}.`);
       }
+      lines.push('Sichtbarer Hinweis: Orthofoto/Luftbild zeigt lediglich visuellen Kontext; möglicherweise relevant, aber nicht als amtliche Unfallursache belegt.');
+      lines.push('Empfehlung: Detailprüfung empfohlen (prüfbedürftig, Vor-Ort-Begehung durch Fachstelle).');
       if (info.orthophoto.officialForExport === false) {
         lines.push('Hinweis: Nicht-amtliche Hintergrundkarte – nur zur Vorschau, nicht für amtliche Berichte geeignet.');
       }

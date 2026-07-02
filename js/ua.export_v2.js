@@ -158,6 +158,34 @@
   }
   UA._pickEnrichmentSourcesNote = pickEnrichmentSourcesNote;
 
+  function buildVisualContextHints(ctx) {
+    const info = (UA && typeof UA.getActiveMapLayerInfo === "function")
+      ? UA.getActiveMapLayerInfo(ctx)
+      : null;
+    const orthophoto = info && info.orthophoto ? info.orthophoto : null;
+    if (!orthophoto) return null;
+
+    return {
+      category: "orthophoto",
+      sourceType: "visual_context",
+      source: {
+        mapMode: info.mode || ctx?.mapMode || null,
+        mapModeLabel: info.modeLabel || null,
+        layerId: orthophoto.id || null,
+        layerName: orthophoto.displayName || null,
+        provider: orthophoto.provider || null,
+        attribution: orthophoto.attribution || null,
+        license: orthophoto.license || null,
+        officialForExport: orthophoto.officialForExport !== false
+      },
+      hints: [
+        "Sichtbarer Hinweis aus Orthofoto/Luftbild: Infrastruktur- und Sichtbeziehungsmerkmale sind möglicherweise relevant, aber keine amtlich belegte Unfallursache."
+      ],
+      recommendation: "Detailprüfung empfohlen (Vor-Ort-Begehung/Unfallkommission); Hinweis ist prüfbedürftig."
+    };
+  }
+  UA._buildVisualContextHints = buildVisualContextHints;
+
   // --------------------
   // Task 9 / Task 10 – Politischer Sprachmodus
   // --------------------
@@ -1578,6 +1606,7 @@
     }
 
     const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
+    const visualContextHints = buildVisualContextHints(ctx);
 
     // ---- Yearly trend (#C2): linear regression over per-year counts ----
     // Always computed when UA.trend is available — it's a pure function over
@@ -1861,6 +1890,18 @@
     }
     if (loc && (loc.details || loc.label)) {
       lines.push(`Schwerpunkt der Häufung: ${loc.details || loc.label}.`);
+    }
+    if (visualContextHints) {
+      const src = visualContextHints.source || {};
+      const srcLabel = [src.layerName, src.provider].filter(Boolean).join(" / ");
+      lines.push("Visuelle Hinweise (Orthofoto/Luftbild):");
+      for (const hint of (visualContextHints.hints || [])) {
+        lines.push(`  - ${hint}`);
+      }
+      if (srcLabel) {
+        lines.push(`  Quelle/Provenienz: ${srcLabel}.`);
+      }
+      lines.push(`  Empfehlung: ${visualContextHints.recommendation}`);
     }
     lines.push("");
 
@@ -2930,6 +2971,7 @@
     structured.contextualMeasures = contextualMeasures || null;
     // Task 8: Analytische OSM-Schlussfolgerungen (0–3 Sätze).
     structured.osmInsights = deriveOsmInsights(osmContext);
+    structured.visualContextHints = visualContextHints;
     // Task 7: Map-Reference-Sätze (Anlage 1 zeigt Konzentration im Bereich …).
     {
       const mapRefs = [];

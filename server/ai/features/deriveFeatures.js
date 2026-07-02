@@ -137,7 +137,8 @@ function deriveFeatures(structured, contextHints) {
     // diese keine zum Ortskontext unpassenden Standardmaßnahmen
     // (z. B. „Bewuchs zurückschneiden" am Hauptbahnhof) vorschlägt.
     // Optional, darf null sein — der Renderer skipped den Block dann.
-    contextualMeasures: structured?.contextualMeasures || null
+    contextualMeasures: structured?.contextualMeasures || null,
+    visualContextHints: structured?.visualContextHints || null
   };
   // Konfliktmuster werden auf Basis aller obigen Features berechnet
   // und als zusätzliches Feld angehängt. Sie sind ein Spezialfall von
