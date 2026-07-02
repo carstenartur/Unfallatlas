@@ -205,6 +205,11 @@ describe('map layer registry and map modes', () => {
       for (const def of wmsProviders) {
         expect(def.metadataUrl).toBeTruthy();
         expect(def.metadataUrl.startsWith('https://')).toBe(true);
+        const parsed = new URL(def.metadataUrl);
+        const service = parsed.searchParams.get('SERVICE') || parsed.searchParams.get('service');
+        const request = parsed.searchParams.get('REQUEST') || parsed.searchParams.get('request');
+        expect((service || '').toUpperCase()).toBe('WMS');
+        expect((request || '').toLowerCase()).toBe('getcapabilities');
       }
     });
   });
