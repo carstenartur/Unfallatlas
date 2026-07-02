@@ -14,7 +14,7 @@
  */
 
 /** Versionskennung – Teil des Cache-Keys. */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.4';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.5';
 
 const SYSTEM_PROMPT_ASSESSMENT = `Du bist Verkehrssicherheitsexpertin für deutsche Kommunen.
 Du erhältst aufbereitete Unfallatlas-Daten und musst eine fachliche Bewertung erstellen.
@@ -36,7 +36,8 @@ Strenge Regeln:
      - "uncertainOrNeedsVerification": was muss vor Ort/durch Fachstelle geprüft werden?
 7. Nutze "detectedConflictPatterns" um plausible Konfliktmuster zu benennen. Stütze dich dabei auf die im Input mitgelieferten Muster und ihre Evidenz – erfinde keine neuen.
 8. Antragstaugliche Felder ("shortAdministrativeSummary", "technicalRationale", "recommendedImmediateAction", "recommendedDetailedExamination", "expectedSafetyBenefit", "whyActionIsPlausibleHere", "whyEvidenceIsLimitedIfApplicable", "suggestedCouncilRequest", "suggestedReviewOrder", "fieldInspectionChecklist") sollen direkt als Rohmaterial für Antrag/Prüfauftrag/Notiz nutzbar sein – nüchtern und konkret.
-9. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema (kein Markdown, kein Fließtext drumherum).`;
+9. Visuelle Hinweise aus Orthofoto/Luftbild sind immer als Beobachtungen zu formulieren ("sichtbarer Hinweis", "möglicherweise relevant", "prüfbedürftig"), nicht als belegte Unfallursachen.
+10. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema (kein Markdown, kein Fließtext drumherum).`;
 
 const SYSTEM_PROMPT_PROPOSAL = `Du bist Referentin für Verkehrspolitik in einer deutschen Kommune.
 Du formulierst aus aufbereiteten Unfallatlas-Daten einen antragsfähigen Maßnahmensteckbrief.
@@ -52,7 +53,8 @@ Strenge Regeln:
 5. Trenne Herkunft per "provenance" (was kommt aus Daten, was hast du formuliert, was ist unsicher).
 6. Antragstaugliche Zusatzfelder ("shortAdministrativeSummary", "recommendedImmediateAction", "recommendedDetailedExamination", "expectedSafetyBenefit", "whyActionIsPlausibleHere", "whyEvidenceIsLimitedIfApplicable", "suggestedCouncilRequest", "suggestedReviewOrder", "fieldInspectionChecklist") sind direkt einsetzbares Rohmaterial.
 7. Ton: sachlich, kommunal-üblich, frei von Polemik.
-8. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema.`;
+8. Visuelle Hinweise aus Orthofoto/Luftbild sind als Kontextbeobachtung zu kennzeichnen (keine kausalen Formulierungen wie "verursacht durch").
+9. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema.`;
 
 /**
  * Baut den Nutzerprompt aus features + preselected.
@@ -72,6 +74,7 @@ function buildPrompt(aiInput, mode) {
   const pre = aiInput?.preselectedMeasures || [];
   const refs = f.references || [];
   const hints = f.normalizedHints || {};
+  const visualHints = f.visualContextHints || null;
 
   const lines = [];
   lines.push('=== KONTEXT ===');
@@ -244,6 +247,26 @@ function buildPrompt(aiInput, mode) {
     if (hints.locationHints?.length) lines.push(`Ortshinweise: ${hints.locationHints.join('; ')}`);
     if (hints.surfaceHints?.length)  lines.push(`Belagshinweise: ${hints.surfaceHints.join('; ')}`);
     if (hints.notes?.length)         lines.push(`Anmerkungen: ${hints.notes.join('; ')}`);
+  }
+
+  if (visualHints && visualHints.sourceType === 'visual_context') {
+    const src = visualHints.source || {};
+    lines.push('');
+    lines.push('=== VISUELLE HINWEISE (ORTHOFOTO/LUFTBILD) ===');
+    const sourceBits = [src.layerName, src.provider].filter(Boolean);
+    if (sourceBits.length) {
+      lines.push(`Provenienz: ${sourceBits.join(' / ')}`);
+    }
+    if (src.mapModeLabel || src.mapMode) {
+      lines.push(`Kartenmodus: ${src.mapModeLabel || src.mapMode}`);
+    }
+    if (Array.isArray(visualHints.hints) && visualHints.hints.length) {
+      lines.push(`Sichtbare Hinweise: ${visualHints.hints.join('; ')}`);
+    }
+    if (visualHints.recommendation) {
+      lines.push(`Prüfempfehlung: ${visualHints.recommendation}`);
+    }
+    lines.push('Einordnung: visuelle Kontextbeobachtung, keine amtlich belegte Unfallursache.');
   }
 
   lines.push('');

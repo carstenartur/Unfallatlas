@@ -351,7 +351,7 @@ describe('exportAssessmentPrompt.v2 buildPrompt', () => {
   }
 
   test('PROMPT_VERSION is stable identifier', () => {
-    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.4');
+    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.5');
   });
 
   test('assessment mode returns system+user strings', () => {
@@ -382,6 +382,20 @@ describe('exportAssessmentPrompt.v2 buildPrompt', () => {
   test('user prompt mentions involvement shares with percentages', () => {
     const { user } = buildPrompt(makeAiInput(), 'assessment');
     expect(user).toMatch(/Rad: \d+ %/);
+  });
+
+  test('user prompt marks orthophoto hints as visual/contextual with provenance', () => {
+    const ai = makeAiInput();
+    ai.features.visualContextHints = {
+      sourceType: 'visual_context',
+      source: { layerName: 'DOP20 Niedersachsen', provider: 'LGLN', mapModeLabel: 'Orthofoto' },
+      hints: ['Sichtbarer Hinweis aus Orthofoto/Luftbild: Querungsbereich wirkt unübersichtlich.'],
+      recommendation: 'Detailprüfung empfohlen (Vor-Ort-Begehung/Unfallkommission); Hinweis ist prüfbedürftig.'
+    };
+    const { user } = buildPrompt(ai, 'assessment');
+    expect(user).toContain('=== VISUELLE HINWEISE (ORTHOFOTO/LUFTBILD) ===');
+    expect(user).toContain('Provenienz: DOP20 Niedersachsen / LGLN');
+    expect(user).toContain('Einordnung: visuelle Kontextbeobachtung, keine amtlich belegte Unfallursache.');
   });
 });
 

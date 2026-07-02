@@ -285,6 +285,9 @@ describe('Export QA – map modes and attribution', () => {
     expect(docxText).toContain('Legende: Darstellung entsprechend der aktuellen Kartendarstellung.');
     if (mapInfo.orthophoto) {
       expect(docxText).toContain('Quelle/Lizenz:');
+      expect(docxText).toContain('Sichtbarer Hinweis: Orthofoto/Luftbild zeigt lediglich visuellen Kontext');
+      expect(docxText).toContain('Empfehlung: Detailprüfung empfohlen');
+      expect(docxText).not.toContain('verursacht durch');
     }
 
     await UA.exportToPDF(ctx, reportData, options);
@@ -300,6 +303,11 @@ describe('Export QA – map modes and attribution', () => {
     expect(pdfText).toContain(`Kartenmodus: ${mapInfo.modeLabel}.`);
     expect(pdfText).toContain(expectedSourceText);
     expect(pdfText).toContain('Punkte: rot = Getötete, orange = Schwerverletzte, gelb = Leichtverletzte (mit weißem Rand für Sichtbarkeit).');
+    if (mapInfo.orthophoto) {
+      expect(pdfText).toContain('Sichtbarer Hinweis: Orthofoto/Luftbild zeigt lediglich visuellen Kontext');
+      expect(pdfText).toContain('Empfehlung: Detailprüfung empfohlen');
+      expect(pdfText).not.toContain('verursacht durch');
+    }
     if (mapInfo.warning) {
       expect(pdfText).toContain(mapInfo.warning);
     }

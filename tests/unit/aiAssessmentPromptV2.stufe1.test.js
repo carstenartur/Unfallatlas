@@ -36,6 +36,19 @@ describe('#E1 — deriveFeatures pass-through of Stufe-1 enrichments', () => {
     expect(f.yearlyTrend).toBeNull();
     expect(f.osmContext).toBeNull();
   });
+
+  test('passes visual orthophoto hints through when provided', () => {
+    const f = deriveFeatures(baseStructured({
+      visualContextHints: {
+        sourceType: 'visual_context',
+        source: { layerName: 'DOP20 Niedersachsen', provider: 'LGLN' },
+        hints: ['Sichtbarer Hinweis aus Orthofoto/Luftbild: mögliche Konfliktfläche.'],
+        recommendation: 'Detailprüfung empfohlen.'
+      }
+    }), null);
+    expect(f.visualContextHints).toBeTruthy();
+    expect(f.visualContextHints.source.layerName).toBe('DOP20 Niedersachsen');
+  });
 });
 
 describe('#E1 — buildPrompt renders new sections', () => {
@@ -89,6 +102,19 @@ describe('#E1 — buildPrompt renders new sections', () => {
       yearlyTrend: { classification: 'unbestimmt', slope: 0, r2: 0, nYears: 1 }
     }), 'assessment');
     expect(user).not.toMatch(/Klassifikation \(lineare Regression\)/);
+  });
+
+  test('renders visual orthophoto hint section with non-causal wording', () => {
+    const { user } = buildPrompt(aiInput({
+      visualContextHints: {
+        sourceType: 'visual_context',
+        source: { layerName: 'DOP20 Niedersachsen', provider: 'LGLN', mapModeLabel: 'Orthofoto' },
+        hints: ['Sichtbarer Hinweis aus Orthofoto/Luftbild: Querungsfläche wirkt konfliktträchtig.'],
+        recommendation: 'Detailprüfung empfohlen (Vor-Ort-Begehung); Hinweis ist prüfbedürftig.'
+      }
+    }), 'proposal-brief');
+    expect(user).toContain('=== VISUELLE HINWEISE (ORTHOFOTO/LUFTBILD) ===');
+    expect(user).toContain('Einordnung: visuelle Kontextbeobachtung, keine amtlich belegte Unfallursache.');
   });
 
   test('passes structured.contextualMeasures through and renders the ORTS- & MUSTERBEZOGENE EMPFEHLUNGEN block', () => {

@@ -164,6 +164,8 @@ describe('UA.report_v2 – map/table consistency helpers', () => {
       expect(lines.join(' ')).toContain('Orthofoto: NRW Orthofoto (DOP) (Geobasis NRW).');
       expect(lines.join(' ')).toContain('Fallback verwendet: NRW Orthofoto (DOP) statt Bonn Orthofoto.');
       expect(lines.join(' ')).toContain('Quelle/Lizenz: Quelle: Geobasis NRW | Datenlizenz Deutschland – Zero – Version 2.0.');
+      expect(lines.join(' ')).toContain('Sichtbarer Hinweis: Orthofoto/Luftbild zeigt lediglich visuellen Kontext; möglicherweise relevant, aber nicht als amtliche Unfallursache belegt.');
+      expect(lines.join(' ')).toContain('Empfehlung: Detailprüfung empfohlen (prüfbedürftig, Vor-Ort-Begehung durch Fachstelle).');
       expect(lines.join(' ')).toContain('NRW-Fallback aktiv.');
     });
 
