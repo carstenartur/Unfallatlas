@@ -25,8 +25,14 @@ describe('UA.AnalysisPipeline', () => {
   test('exposes documented constant registries', () => {
     expect(UA.AnalysisPipeline.DATA_KEYS.ACCIDENTS).toBe('accidents');
     expect(UA.AnalysisPipeline.DATA_KEYS.ROAD_CONTEXT).toBe('roadContext');
+    expect(UA.AnalysisPipeline.DATA_KEYS.OSM_CONTEXT).toBe('osmContext');
+    expect(UA.AnalysisPipeline.DATA_KEYS.MAP_SNAPSHOT).toBe('mapSnapshot');
+    expect(UA.AnalysisPipeline.DATA_KEYS.ORTHOPHOTO).toBe('orthophoto');
     expect(UA.AnalysisPipeline.CAPABILITIES.HAS_ACCIDENT_DATA).toBe('hasAccidentData');
     expect(UA.AnalysisPipeline.CAPABILITIES.HAS_AI_ASSESSMENT).toBe('hasAiAssessment');
+    expect(UA.AnalysisPipeline.CAPABILITIES.HAS_OSM_DATA).toBe('hasOsmData');
+    expect(UA.AnalysisPipeline.CAPABILITIES.HAS_MAP_SNAPSHOT).toBe('hasMapSnapshot');
+    expect(UA.AnalysisPipeline.CAPABILITIES.HAS_ORTHOPHOTO).toBe('hasOrthophoto');
     expect(UA.AnalysisPipeline.PLUGIN_STATUSES.PARTIAL).toBe('partial');
     expect(Object.isFrozen(UA.AnalysisPipeline.DATA_KEYS)).toBe(true);
     expect(Object.isFrozen(UA.AnalysisPipeline.CAPABILITIES)).toBe(true);
@@ -297,5 +303,35 @@ describe('UA.AnalysisPipeline', () => {
     const afterResult = out.results.find((r) => r.pluginId === 'runs-after');
     expect(afterResult.status).toBe('complete');
     expect(UA.AnalysisPipeline.getData(out.dataRegistry, 'afterArtifact')).toEqual({ ok: true });
+  });
+
+  test('OSM, map-snapshot and orthophoto capabilities are available when data is seeded', () => {
+    const DR = UA.AnalysisPipeline;
+    let dataRegistry = DR.createDataRegistry({
+      [DR.DATA_KEYS.OSM_CONTEXT]:  { summary: 'road type: residential' },
+      [DR.DATA_KEYS.MAP_SNAPSHOT]: { dataUrl: 'data:image/png;base64,abc' },
+      [DR.DATA_KEYS.ORTHOPHOTO]:   { provider: 'DOP20', year: 2023 }
+    });
+    const caps = DR.deriveCapabilities(dataRegistry);
+
+    expect(DR.hasCapability(caps, DR.CAPABILITIES.HAS_OSM_DATA)).toBe(true);
+    expect(DR.hasCapability(caps, DR.CAPABILITIES.HAS_MAP_SNAPSHOT)).toBe(true);
+    expect(DR.hasCapability(caps, DR.CAPABILITIES.HAS_ORTHOPHOTO)).toBe(true);
+
+    // Absent when not seeded.
+    dataRegistry = DR.createDataRegistry();
+    const emptyCaps = DR.deriveCapabilities(dataRegistry);
+    expect(DR.hasCapability(emptyCaps, DR.CAPABILITIES.HAS_OSM_DATA)).toBe(false);
+    expect(DR.hasCapability(emptyCaps, DR.CAPABILITIES.HAS_MAP_SNAPSHOT)).toBe(false);
+    expect(DR.hasCapability(emptyCaps, DR.CAPABILITIES.HAS_ORTHOPHOTO)).toBe(false);
+  });
+
+  test('capability overrides can force HAS_OSM_DATA true even without seeded data', () => {
+    const DR = UA.AnalysisPipeline;
+    const dataRegistry = DR.createDataRegistry();
+    const caps = DR.deriveCapabilities(dataRegistry, {
+      [DR.CAPABILITIES.HAS_OSM_DATA]: true
+    });
+    expect(DR.hasCapability(caps, DR.CAPABILITIES.HAS_OSM_DATA)).toBe(true);
   });
 });
