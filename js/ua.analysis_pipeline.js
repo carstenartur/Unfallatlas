@@ -16,7 +16,10 @@
     AI_FINDINGS:          'aiFindings',
     RECOMMENDATIONS:      'recommendations',
     SCENE_GRAPH:          'sceneGraph',
-    EXPORTS:              'exports'
+    EXPORTS:              'exports',
+    OSM_CONTEXT:          'osmContext',
+    MAP_SNAPSHOT:         'mapSnapshot',
+    ORTHOPHOTO:           'orthophoto'
   });
 
   const CAPABILITIES = Object.freeze({
@@ -33,7 +36,10 @@
     HAS_AI_ASSESSMENT:         'hasAiAssessment',
     HAS_RECOMMENDATIONS:       'hasRecommendations',
     HAS_SCENE_GRAPH:           'hasSceneGraph',
-    HAS_EXPORTS:               'hasExports'
+    HAS_EXPORTS:               'hasExports',
+    HAS_OSM_DATA:              'hasOsmData',
+    HAS_MAP_SNAPSHOT:          'hasMapSnapshot',
+    HAS_ORTHOPHOTO:            'hasOrthophoto'
   });
 
   const PLUGIN_STATUSES = Object.freeze({
@@ -223,7 +229,10 @@
         [CAPABILITIES.HAS_AI_ASSESSMENT]:        mark(CAPABILITIES.HAS_AI_ASSESSMENT, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.AI_FINDINGS), [DATA_KEYS.AI_FINDINGS]),
         [CAPABILITIES.HAS_RECOMMENDATIONS]:      mark(CAPABILITIES.HAS_RECOMMENDATIONS, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.RECOMMENDATIONS), [DATA_KEYS.RECOMMENDATIONS]),
         [CAPABILITIES.HAS_SCENE_GRAPH]:          mark(CAPABILITIES.HAS_SCENE_GRAPH, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.SCENE_GRAPH), [DATA_KEYS.SCENE_GRAPH]),
-        [CAPABILITIES.HAS_EXPORTS]:              mark(CAPABILITIES.HAS_EXPORTS, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.EXPORTS), [DATA_KEYS.EXPORTS])
+        [CAPABILITIES.HAS_EXPORTS]:              mark(CAPABILITIES.HAS_EXPORTS, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.EXPORTS), [DATA_KEYS.EXPORTS]),
+        [CAPABILITIES.HAS_OSM_DATA]:             mark(CAPABILITIES.HAS_OSM_DATA, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.OSM_CONTEXT), [DATA_KEYS.OSM_CONTEXT]),
+        [CAPABILITIES.HAS_MAP_SNAPSHOT]:         mark(CAPABILITIES.HAS_MAP_SNAPSHOT, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.MAP_SNAPSHOT), [DATA_KEYS.MAP_SNAPSHOT]),
+        [CAPABILITIES.HAS_ORTHOPHOTO]:           mark(CAPABILITIES.HAS_ORTHOPHOTO, UA.AnalysisPipeline.hasData(dataRegistry, DATA_KEYS.ORTHOPHOTO), [DATA_KEYS.ORTHOPHOTO])
       }),
       dataKeys: Object.freeze(Object.keys(entries))
     });
