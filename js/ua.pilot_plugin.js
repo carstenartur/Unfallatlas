@@ -6,8 +6,8 @@
  *
  * Produces an `accidentStatistics` artifact with total count and a severity
  * breakdown derived from the `accidents` data-registry entry (GeoJSON
- * FeatureCollection or raw points array).  Viewport data is used optionally
- * to annotate the result with the current map context.
+ * FeatureCollection, raw points array, or cluster aggregate data).  Viewport
+ * data is used optionally to annotate the result with the current map context.
  *
  * This plugin does NOT change any existing UI behaviour: it is purely additive
  * and is never wired into the existing export / report pipeline.
@@ -72,10 +72,12 @@
       if (Array.isArray(data.features)) {
         features = data.features;
       } else if (Array.isArray(data.clusters)) {
-        // Cluster-based data: use provided total or cluster length only.
+        // Cluster-based data: counts are available, but per-accident severity is
+        // not, so attribute the total to the unknown bucket.
         const total = typeof data.total === 'number'
           ? data.total
           : data.clusters.reduce((s, c) => s + (typeof c.count === 'number' ? c.count : 1), 0);
+        bySeverity[SEVERITY_KEYS.UNKNOWN] = total;
         return { total, bySeverity };
       }
     }

@@ -72,6 +72,10 @@ describe('UA.PilotPlugin (accident-statistics)', () => {
       };
       const stats = UA.PilotPlugin.computeAccidentStatistics(data);
       expect(stats.total).toBe(8);
+      expect(stats.bySeverity.fatal).toBe(0);
+      expect(stats.bySeverity.serious).toBe(0);
+      expect(stats.bySeverity.slight).toBe(0);
+      expect(stats.bySeverity.unknown).toBe(8);
     });
 
     test('returns zero total for empty or null input', () => {
