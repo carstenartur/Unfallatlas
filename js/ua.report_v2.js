@@ -823,11 +823,16 @@
       ? UA.getActiveMapLayerInfo(ctx)
       : null;
     if (!info) return [];
-    const lines = [`Kartenmodus: ${info.modeLabel || 'Standardkarte'}.`];
+    const activeModeLabel = info.modeLabel || 'Standardkarte';
+    const requestedModeLabel = info.requestedModeLabel || activeModeLabel;
+    const requestedDiffers = !!(info.requestedMode && info.mode && info.requestedMode !== info.mode);
+    const lines = [requestedDiffers
+      ? `Kartenmodus: ${activeModeLabel} (angefordert: ${requestedModeLabel}).`
+      : `Kartenmodus: ${activeModeLabel}.`];
     if (info.orthophoto) {
       lines.push(`Orthofoto: ${info.orthophoto.displayName} (${info.orthophoto.provider}).`);
       if (info.orthophotoFallbackFrom) {
-        lines.push(`Fallback statt ${info.orthophotoFallbackFrom.displayName}.`);
+        lines.push(`Fallback verwendet: ${info.orthophoto.displayName} statt ${info.orthophotoFallbackFrom.displayName}.`);
       }
       const sourceBits = [info.orthophoto.attribution, info.orthophoto.license].filter(Boolean);
       if (sourceBits.length) {
@@ -835,6 +840,9 @@
       }
     } else {
       lines.push('Basiskarte: OpenStreetMap.');
+      if (requestedDiffers) {
+        lines.push('Fallback verwendet: Standardkarte (OpenStreetMap).');
+      }
     }
     if (info.warning) lines.push(info.warning);
     return lines;
@@ -844,7 +852,11 @@
   function pushDocxMapSourceNote(children, ctx, spacingAfter = 200) {
     const text = buildMapSourceNoteLines(ctx).join(' ');
     if (!text) return;
-    children.push(new Paragraph({
+    const ParagraphCtor = (typeof window !== 'undefined' && window.docx && window.docx.Paragraph)
+      ? window.docx.Paragraph
+      : null;
+    if (typeof ParagraphCtor !== 'function') return;
+    children.push(new ParagraphCtor({
       text,
       italics: true,
       spacing: { after: spacingAfter }

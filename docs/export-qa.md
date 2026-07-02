@@ -62,6 +62,22 @@ Legende: ✅ automatisiert · ⚠️ teilweise · ❌ offen / manuell
 
 ---
 
+## Orthofoto-/Kartenmodus-Artefakte
+
+| Anforderung | Beschreibung | Status | Test |
+|-------------|--------------|--------|------|
+| Bonn + Hannover als Export-Fixtures | Die Integrationssuite erzeugt reale DOCX-/PDF-Exports für Bonn und Hannover und deckt `standard`, `orthophoto`, `hybrid` und `analysis` ab. | ✅ | `tests/integration/export.mapModes.test.js` |
+| Sichtbare Kartenbestandteile + Zählkonsistenz | Die erzeugten Artefakte enthalten eingebettete Kartenbilder, den Verifikationssatz `n = 4` und dieselbe Fallzahl im Sachverhalt. | ✅ | `export.mapModes.test.js` |
+| Quellen-/Lizenzhinweise je Kartenmodus | DOCX und PDF enthalten sichtbare Quelltexte für Orthofoto/Basiskarte sowie Lizenz-/Attributionszeilen. | ✅ | `export.mapModes.test.js` |
+| Explizite Fallback-Kommunikation | Wenn `orthophoto` auf die Standardkarte zurückfällt, nennen DOCX und PDF den angeforderten Modus sowie den verwendeten Fallback explizit. | ✅ | `export.mapModes.test.js` |
+
+Die Artefakt-Referenzen sind bewusst testbasiert: Die Suite baut bei jedem
+Lauf erneut echte Word-/PDF-Ausgaben mit denselben Bonn-/Hannover-Szenarien
+und prüft dabei den sichtbaren Dokumenttext sowie die eingebetteten
+Kartenmedien.
+
+---
+
 ## PDF-Render-Gate (Poppler / Ghostscript)
 
 | Anforderung | Beschreibung | Status | Test |
