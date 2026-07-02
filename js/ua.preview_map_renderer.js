@@ -36,8 +36,9 @@
      *
      * Required options:
      *   container {HTMLElement} — the element to render the Leaflet map into.
-     *   scene     {MapScene}   — the traffic situation to render.
+     *   scene     {MapScene}   — optional scene to render.
      *   trafficSituation {TrafficSituation} — optional alternative to `scene`.
+     *                          Provide either `scene` or `trafficSituation`.
      *
      * Optional options:
      *   pts       {Array}    — pre-loaded accident point array (ctx.allPts).
