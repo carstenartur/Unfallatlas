@@ -336,4 +336,39 @@ describe('Export QA – map modes and attribution', () => {
     expect(pdfText).toContain('Fallback verwendet: Standardkarte (OpenStreetMap).');
     expect(pdfText).toContain('Orthofoto nicht verfügbar – Standardkarte aktiv.');
   });
+
+  test('emits non-official-source warning in export when Esri fallback is active', async () => {
+    const mapInfo = {
+      mode: 'orthophoto',
+      modeLabel: 'Orthofoto',
+      requestedMode: 'orthophoto',
+      requestedModeLabel: 'Orthofoto',
+      orthophoto: {
+        id: 'esri-world-imagery',
+        displayName: 'World Imagery Fallback',
+        provider: 'Esri',
+        attribution: 'Tiles &copy; Esri',
+        license: 'Esri Terms of Use',
+        officialForExport: false
+      },
+      warning: ''
+    };
+    const ctx = makeCtx('Bonn', 'orthophoto', mapInfo);
+    const reportData = makeReportData('Bonn', ctx.viewportPts.length);
+    const options = { includeMap: true, includePOIs: false, includeReferences: false };
+
+    await UA.exportToWord(ctx, reportData, options);
+    const zip = await unzipDocxFromSaveAs();
+    const docxText = await collectDocxText(zip);
+
+    expect(docxText).toContain('Orthofoto: World Imagery Fallback (Esri).');
+    expect(docxText).toContain('Nicht-amtliche Hintergrundkarte');
+
+    await UA.exportToPDF(ctx, reportData, options);
+    const pdfDefinition = capturedPdfDefinitions.at(-1);
+    const pdfText = flattenPdfText(pdfDefinition.content).join(' ');
+
+    expect(pdfText).toContain('Orthofoto: World Imagery Fallback (Esri).');
+    expect(pdfText).toContain('Nicht-amtliche Hintergrundkarte');
+  });
 });
