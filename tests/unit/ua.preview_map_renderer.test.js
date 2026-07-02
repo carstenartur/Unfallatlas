@@ -14,6 +14,7 @@ function loadModules(extraWin) {
     })(win);
   };
   load('ua.map_scene.js');
+  load('ua.traffic_situation.js');
   load('ua.leaflet_map_adapter.js');
   load('ua.preview_map_renderer.js');
   return win;
@@ -173,5 +174,40 @@ describe('UA.PreviewMapRenderer', () => {
     expect(ctx.showCluster).toBe(false);
     expect(ctx.showHeatmap).toBe(false);
     expect(ctx.showOnlyAboveAverage).toBe(true);
+  });
+
+  test('render() accepts a TrafficSituation as read-only input', async () => {
+    const mapStub = {
+      setView: jest.fn(),
+      getCenter: () => ({ lat: 52.37, lng: 9.73 }),
+      getZoom: () => 12,
+      eachLayer: jest.fn(),
+      on: jest.fn(),
+      remove: jest.fn()
+    };
+    const layerStub = { addTo: jest.fn(() => layerStub), remove: jest.fn() };
+
+    const { UA } = loadModules({
+      L: { map: jest.fn(() => mapStub), tileLayer: jest.fn(() => layerStub) }
+    });
+    UA.applyFilters        = jest.fn();
+    UA.applyViewportFilter = jest.fn();
+    UA.renderLayers        = jest.fn();
+
+    const ts = UA.TrafficSituation.create({
+      metadata: { city: 'Bonn' },
+      core: {
+        viewport: { center: { lat: 50.73, lon: 7.10 }, zoom: 13 },
+        layerVisibility: { showCluster: false }
+      }
+    });
+
+    const { ctx } = await UA.PreviewMapRenderer.render({
+      container: document.createElement('div'),
+      trafficSituation: ts
+    });
+
+    expect(ctx.CITY_RAW).toBe('Bonn');
+    expect(ctx.showCluster).toBe(false);
   });
 });

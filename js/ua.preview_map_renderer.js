@@ -37,6 +37,7 @@
      * Required options:
      *   container {HTMLElement} — the element to render the Leaflet map into.
      *   scene     {MapScene}   — the traffic situation to render.
+     *   trafficSituation {TrafficSituation} — optional alternative to `scene`.
      *
      * Optional options:
      *   pts       {Array}    — pre-loaded accident point array (ctx.allPts).
@@ -49,21 +50,29 @@
      * Returns a Promise resolving to { ctx: previewCtx, map: previewMap }.
      */
     render: async function renderPreview(opts) {
-      const { container, scene, pts, onReady, waitOpts } = opts || {};
+      const { container, scene, trafficSituation, pts, onReady, waitOpts } = opts || {};
+      const resolvedScene = scene
+        || (
+          trafficSituation
+          && UA.TrafficSituation
+          && typeof UA.TrafficSituation.toMapScene === 'function'
+          ? UA.TrafficSituation.toMapScene(trafficSituation)
+          : null
+        );
       if (!container) throw new Error("PreviewMapRenderer.render: `container` is required");
-      if (!scene)     throw new Error("PreviewMapRenderer.render: `scene` is required");
+      if (!resolvedScene) throw new Error("PreviewMapRenderer.render: `scene` or `trafficSituation` is required");
       if (typeof window === 'undefined' || !window.L) {
         throw new Error("PreviewMapRenderer.render: Leaflet (window.L) is not available");
       }
       const L = window.L;
 
       // ---- Build a minimal context for renderLayers ----
-      const f = scene.filters || {};
-      const l = scene.layers  || {};
+      const f = resolvedScene.filters || {};
+      const l = resolvedScene.layers  || {};
       const cf = f.contextFilters || {};
 
       const previewCtx = {
-        CITY_RAW:             scene.city || "",
+        CITY_RAW:             resolvedScene.city || "",
         allPts:               Array.isArray(pts) ? pts : [],
         filteredAll:          [],
         filteredCapped:       [],
@@ -75,9 +84,9 @@
         showSchools:          l.showSchools          !== false,
         showKindergartens:    l.showKindergartens    !== false,
         showArgumentation:    l.showArgumentation    !== false,
-        accidentView:         scene.accidentView || "bySeverity",
-        exportOptions:        Object.assign({}, scene.exportOptions || {}),
-        contextOverlays:      scene.contextOverlays  || { active: { slope: false, traffic: false } },
+        accidentView:         resolvedScene.accidentView || "bySeverity",
+        exportOptions:        Object.assign({}, resolvedScene.exportOptions || {}),
+        contextOverlays:      resolvedScene.contextOverlays  || { active: { slope: false, traffic: false } },
         // Provide a stub statEl so UA.updateStats does not throw
         ui: {
           statEl:             { textContent: '' },
@@ -106,9 +115,9 @@
       };
 
       // ---- Create a detached Leaflet map ----
-      const center = scene.center || { lat: 52.3759, lon: 9.732 };
+      const center = resolvedScene.center || { lat: 52.3759, lon: 9.732 };
       const lon = center.lon != null ? center.lon : center.lng;
-      const zoom = scene.zoom != null ? scene.zoom : 12;
+      const zoom = resolvedScene.zoom != null ? resolvedScene.zoom : 12;
 
       const previewMap = L.map(container, { preferCanvas: true, zoomControl: true });
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {

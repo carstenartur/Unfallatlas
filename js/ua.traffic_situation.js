@@ -128,6 +128,60 @@
     };
   }
 
+  function _defaultContext() {
+    return {
+      capabilities:       {},
+      selectionQuery:     null,
+      selectedAccidentIds: null,
+      exportOptions:      {},
+      reportOptions:      {},
+      contextOverlays:    { active: { slope: false, traffic: false } }
+    };
+  }
+
+  function _mergeContext(base, overrides) {
+    if (!overrides) return base;
+    const result = Object.assign({}, base, overrides);
+    if (overrides.capabilities) {
+      result.capabilities = Object.assign({}, base.capabilities, overrides.capabilities);
+    }
+    if (overrides.exportOptions) {
+      result.exportOptions = Object.assign({}, base.exportOptions, overrides.exportOptions);
+    }
+    if (overrides.reportOptions) {
+      result.reportOptions = Object.assign({}, base.reportOptions, overrides.reportOptions);
+    }
+    if (overrides.contextOverlays) {
+      result.contextOverlays = Object.assign({}, base.contextOverlays, overrides.contextOverlays);
+      if (overrides.contextOverlays.active) {
+        result.contextOverlays.active = Object.assign(
+          {}, base.contextOverlays.active, overrides.contextOverlays.active
+        );
+      }
+    }
+    return result;
+  }
+
+  function _selectionQueryFromScene(scene) {
+    if (!scene) return null;
+    return {
+      city:         scene.city || '',
+      selection:    scene.selection ? _clone(scene.selection) : null,
+      filters:      scene.filters ? _clone(scene.filters) : {},
+      accidentView: scene.accidentView || 'bySeverity'
+    };
+  }
+
+  function _extractSelectedAccidentIds(ctx) {
+    if (!ctx) return null;
+    const source = Array.isArray(ctx.selectedAccidentIds)
+      ? ctx.selectedAccidentIds
+      : (ctx.selectedAccidentIds instanceof Set ? Array.from(ctx.selectedAccidentIds) : null);
+    if (!source) return null;
+    const out = source.filter((v) => typeof v === 'string' || typeof v === 'number');
+    return out.length ? out : null;
+  }
+
   // ---- deep-merge helpers ----
 
   function _mergeCore(base, overrides) {
@@ -171,6 +225,7 @@
         id:       null,
         metadata: _defaultMetadata(),
         core:     _defaultCore(),
+        context:  _defaultContext(),
         layers:   {}
       };
 
@@ -182,6 +237,9 @@
       }
       if (overrides.core) {
         result.core = _mergeCore(defaults.core, overrides.core);
+      }
+      if (overrides.context) {
+        result.context = _mergeContext(defaults.context, overrides.context);
       }
       if (overrides.layers) {
         result.layers = Object.assign({}, defaults.layers, overrides.layers);
@@ -215,8 +273,36 @@
       return UA.TrafficSituation.create({
         metadata: { city: scene.city || '' },
         core:     core,
+        context: {
+          selectionQuery:  _selectionQueryFromScene(scene),
+          exportOptions:   _clone(scene.exportOptions || {}),
+          contextOverlays: _clone(scene.contextOverlays || _defaultContext().contextOverlays)
+        },
         layers:   layers ? _clone(layers) : {}
       });
+    },
+
+    /**
+     * Build a TrafficSituation directly from the mutable app ctx.
+     *
+     * @param {object} ctx
+     * @returns {TrafficSituation}
+     */
+    fromCtx: function fromCtx(ctx) {
+      const scene = (UA.MapScene && typeof UA.MapScene.fromCtx === 'function')
+        ? UA.MapScene.fromCtx(ctx || null)
+        : null;
+      const ts = UA.TrafficSituation.fromMapScene(scene);
+      const caps = (ctx && ctx.contextCapabilities && typeof ctx.contextCapabilities === 'object')
+        ? _clone(ctx.contextCapabilities)
+        : {};
+      return UA.TrafficSituation.create(Object.assign({}, ts, {
+        context: Object.assign({}, ts.context, {
+          capabilities:       caps || {},
+          selectedAccidentIds: _extractSelectedAccidentIds(ctx),
+          reportOptions:      _clone((ctx && ctx.reportOptions) || {})
+        })
+      }));
     },
 
     /**
@@ -244,8 +330,8 @@
         filters:         _clone(core.filters         || {}),
         layers:          _clone(core.layerVisibility || {}),
         accidentView:    core.accidentView || 'bySeverity',
-        exportOptions:   {},
-        contextOverlays: { active: { slope: false, traffic: false } }
+        exportOptions:   _clone((ts.context && ts.context.exportOptions) || {}),
+        contextOverlays: _clone((ts.context && ts.context.contextOverlays) || { active: { slope: false, traffic: false } })
       };
       // Carry context-overlay state from the contextRoad layer if present.
       const ctxLayer = ts.layers && ts.layers[LAYER_TYPES.CONTEXT_ROAD];
