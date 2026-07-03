@@ -1,38 +1,44 @@
 /**
  * UA.aiProposal — frontend hookup for the optional, server-side
- * AI proposal-brief generator (#E1).
+ * AI proposal-brief generator (#E1) plus a user-owned prompt export.
  *
- * The actual AI logic — prompt builder, Gemini provider, schema validation,
- * caching — lives in `server/ai/` and ships inside the Docker image.  This
- * module is a thin client:
+ * The server-side AI path remains optional and uses the Docker/server
+ * provider configuration (`server/ai/`). The user-owned prompt path added
+ * here deliberately does not call ChatGPT, Gemini or any other model API:
+ * it packages the deterministic Unfallwerkbank facts into a prompt that the
+ * user can copy/download and paste into their own AI account.
  *
+ * Server AI path:
  *   1. Compute the deterministic export report (re-uses `UA.computeExportReport`).
  *   2. POST the `structured` payload to `/api/ai/export-assessment/v2?mode=proposal-brief`.
  *   3. Render the returned `proposalBrief.v1` JSON as a read-only HTML panel
  *      and copy the long-form text into the `exportBoxTa` textarea so the
  *      user can paste it into Word/eMail/etc.
  *
- * Robustness:
- *   - 503 (`AI_NOT_CONFIGURED`) → friendly hint that the operator hasn't set
- *     `GEMINI_API_KEY`. The deterministic report itself remains untouched.
- *   - 200 with `source:"fallback"` → still rendered, but labelled as such so
- *     readers know the text is the deterministic baseline, not LLM-generated.
- *   - any other failure → status line shows the error message.
+ * User-owned prompt path:
+ *   1. Compute the same deterministic report.
+ *   2. Build a self-contained Markdown prompt containing rules, map link,
+ *      structured facts and deterministic report text.
+ *   3. Let the user copy or download that prompt/facts package and open
+ *      ChatGPT/Gemini manually. No token/API cost is incurred by Unfallwerkbank.
  */
 (() => {
   const root = (typeof window !== "undefined") ? window : globalThis;
   const UA = root.UA = root.UA || {};
 
+  const EXTERNAL_AI_FACTS_SCHEMA = "unfallwerkbank.externalAiPromptFacts.v1";
+  const EXTERNAL_AI_PROMPT_SCHEMA = "unfallwerkbank.externalAiPrompt.v1";
+
   /**
-   * Wire up the AI button. Called once during app init when both DOM and
-   * `UA.computeExportReport` are available.
+   * Wire up the AI button and the user-owned prompt controls. Called once
+   * during app init when both DOM and `UA.computeExportReport` are available.
    *
    * @param {object} ctx – the same context object passed to other UA modules.
    */
   function wire(ctx) {
-    const btn       = document.getElementById("btnAiProposal");
-    const statusEl  = document.getElementById("aiProposalStatus");
-    const resultEl  = document.getElementById("aiProposalResult");
+    const btn        = document.getElementById("btnAiProposal");
+    const statusEl   = document.getElementById("aiProposalStatus");
+    const resultEl   = document.getElementById("aiProposalResult");
     const textareaEl = document.getElementById("exportBoxTa");
     if (!btn || !statusEl || !resultEl) return;
 
@@ -45,21 +51,7 @@
       resultEl.innerHTML = "";
 
       try {
-        // Mirror the modal toggles into ctx.exportOptions so the AI request
-        // sees exactly the same `structured` shape the user will download
-        // (and we don't trigger an unwanted Overpass call when the user has
-        // unchecked the OSM-Kontext toggle). Mirrors the logic in
-        // js/ua.app_v2.js#rerenderExportReport.
-        const cbCosts    = document.getElementById("cbIncludeCosts");
-        const cbMeasures = document.getElementById("cbIncludeMeasures");
-        const cbHeatmap  = document.getElementById("cbIncludeHeatmap");
-        const cbOsm      = document.getElementById("cbIncludeOsmContext");
-        ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
-          includeCosts:      cbCosts    ? cbCosts.checked    : (ctx.exportOptions ? ctx.exportOptions.includeCosts      !== false : true),
-          includeMeasures:   cbMeasures ? cbMeasures.checked : (ctx.exportOptions ? ctx.exportOptions.includeMeasures   !== false : true),
-          includeHeatmap:    cbHeatmap  ? cbHeatmap.checked  : (ctx.exportOptions ? ctx.exportOptions.includeHeatmap    !== false : true),
-          includeOsmContext: cbOsm      ? cbOsm.checked      : (ctx.exportOptions ? ctx.exportOptions.includeOsmContext !== false : true)
-        });
+        mirrorExportOptions(ctx);
 
         // Reuse the deterministic export pipeline so the AI sees exactly the
         // same `structured` object the user would download as Word/PDF.
@@ -108,9 +100,11 @@
         btn.innerHTML = originalLabel;
       }
     });
+
+    ensureExternalPromptControls(ctx);
   }
 
-  function setStatus(el, msg) { el.textContent = msg || ""; }
+  function setStatus(el, msg) { if (el) el.textContent = msg || ""; }
 
   function labelForSource(s) {
     switch (s) {
@@ -118,7 +112,7 @@
       case "ai-repaired": return "KI-generiert, schemarepariert";
       case "cache":       return "aus Cache";
       case "fallback":    return "deterministischer Fallback ohne KI";
-      default:            return s || "unbekannte Quelle";
+      default:             return s || "unbekannte Quelle";
     }
   }
 
@@ -176,5 +170,278 @@
     return parts.join("\n\n");
   }
 
-  UA.aiProposal = { wire, _internal: { buildPlainText, labelForSource } };
+  function ensureExternalPromptControls(ctx) {
+    const host = document.getElementById("aiProposalSection");
+    if (!host || document.getElementById("btnAiPromptCopy")) return;
+
+    const wrap = document.createElement("div");
+    wrap.id = "externalAiPromptPanel";
+    wrap.style.cssText = "margin-top:12px; padding-top:10px; border-top:1px solid rgba(0,0,0,.12);";
+    wrap.innerHTML = `
+      <div style="font-size:12px; color:#555; line-height:1.45; margin-bottom:8px;">
+        <strong>Eigenes KI-Konto nutzen:</strong>
+        Die Unfallwerkbank kann ein vollständiges Promptpaket erzeugen. Es wird nichts automatisch an ChatGPT, Gemini oder andere KI-Dienste gesendet; Nutzer:innen kopieren oder laden den Prompt und verwenden ihn selbst im eigenen Konto.
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button id="btnAiPromptCopy" type="button"
+                title="Erzeugt einen vollständigen Prompt und kopiert ihn in die Zwischenablage. Keine Daten werden automatisch an KI-Dienste gesendet."
+                style="padding:8px 12px; background:#315f9e; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; gap:6px;">
+          <span aria-hidden="true">📋</span> Prompt für ChatGPT/Gemini kopieren
+        </button>
+        <button id="btnAiPromptDownloadMd" type="button"
+                style="padding:8px 12px; background:#555; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; gap:6px;">
+          <span aria-hidden="true">⬇</span> Prompt .md
+        </button>
+        <button id="btnAiFactsDownloadJson" type="button"
+                style="padding:8px 12px; background:#555; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; gap:6px;">
+          <span aria-hidden="true">{ }</span> Fakten .json
+        </button>
+        <button id="btnOpenChatGpt" type="button"
+                title="Öffnet ChatGPT in einem neuen Tab. Den kopierten Prompt dort selbst einfügen."
+                style="padding:8px 12px; background:#f5f5f5; color:#222; border:1px solid rgba(0,0,0,.18); border-radius:10px; font-weight:700; cursor:pointer; font-size:12px;">
+          ChatGPT öffnen
+        </button>
+        <button id="btnOpenGemini" type="button"
+                title="Öffnet Gemini in einem neuen Tab. Den kopierten Prompt dort selbst einfügen."
+                style="padding:8px 12px; background:#f5f5f5; color:#222; border:1px solid rgba(0,0,0,.18); border-radius:10px; font-weight:700; cursor:pointer; font-size:12px;">
+          Gemini öffnen
+        </button>
+        <span id="aiPromptStatus" style="font-size:12px; color:#555;" role="status" aria-live="polite"></span>
+      </div>
+    `;
+    host.appendChild(wrap);
+
+    const btnCopy = document.getElementById("btnAiPromptCopy");
+    const btnPromptDownload = document.getElementById("btnAiPromptDownloadMd");
+    const btnFactsDownload = document.getElementById("btnAiFactsDownloadJson");
+    const btnChatGpt = document.getElementById("btnOpenChatGpt");
+    const btnGemini = document.getElementById("btnOpenGemini");
+    const statusEl = document.getElementById("aiPromptStatus");
+
+    btnCopy.addEventListener("click", async () => {
+      await withPromptPackage(ctx, statusEl, async ({ prompt }) => {
+        await writeClipboard(prompt);
+        setStatus(statusEl, "Prompt kopiert. Jetzt in ChatGPT/Gemini einfügen.");
+      });
+    });
+
+    btnPromptDownload.addEventListener("click", async () => {
+      await withPromptPackage(ctx, statusEl, async ({ prompt, promptFilename }) => {
+        downloadTextFile(promptFilename, "text/markdown;charset=utf-8", prompt);
+        setStatus(statusEl, "Prompt-Datei heruntergeladen.");
+      });
+    });
+
+    btnFactsDownload.addEventListener("click", async () => {
+      await withPromptPackage(ctx, statusEl, async ({ facts, factsFilename }) => {
+        downloadTextFile(factsFilename, "application/json;charset=utf-8", stableJson(facts));
+        setStatus(statusEl, "Faktenpaket heruntergeladen.");
+      });
+    });
+
+    btnChatGpt.addEventListener("click", () => openAiSurface("https://chatgpt.com/", statusEl));
+    btnGemini.addEventListener("click", () => openAiSurface("https://gemini.google.com/app", statusEl));
+  }
+
+  async function withPromptPackage(ctx, statusEl, fn) {
+    setStatus(statusEl, "Erzeuge Promptpaket …");
+    try {
+      const pkg = await generateExternalAiPromptPackage(ctx);
+      await fn(pkg);
+    } catch (e) {
+      setStatus(statusEl, "Fehler: " + (e && e.message || e));
+    }
+  }
+
+  function mirrorExportOptions(ctx) {
+    const cbCosts    = document.getElementById("cbIncludeCosts");
+    const cbMeasures = document.getElementById("cbIncludeMeasures");
+    const cbHeatmap  = document.getElementById("cbIncludeHeatmap");
+    const cbOsm      = document.getElementById("cbIncludeOsmContext");
+    const cbPol      = document.getElementById("cbPoliticalLanguage");
+    ctx.exportOptions = Object.assign({}, ctx.exportOptions, {
+      includeCosts:      cbCosts    ? cbCosts.checked    : (ctx.exportOptions ? ctx.exportOptions.includeCosts      !== false : true),
+      includeMeasures:   cbMeasures ? cbMeasures.checked : (ctx.exportOptions ? ctx.exportOptions.includeMeasures   !== false : true),
+      includeHeatmap:    cbHeatmap  ? cbHeatmap.checked  : (ctx.exportOptions ? ctx.exportOptions.includeHeatmap    !== false : true),
+      includeOsmContext: cbOsm      ? cbOsm.checked      : (ctx.exportOptions ? ctx.exportOptions.includeOsmContext !== false : true),
+      mode: (cbPol && cbPol.checked) ? "political" : (ctx.exportOptions && ctx.exportOptions.mode) || "technical"
+    });
+  }
+
+  async function generateExternalAiPromptPackage(ctx) {
+    if (!UA || typeof UA.computeExportReport !== "function") {
+      throw new Error("Exportbericht kann nicht erzeugt werden.");
+    }
+    mirrorExportOptions(ctx || {});
+    const report = await UA.computeExportReport(ctx || {});
+    const structured = report && report.structured;
+    if (!structured) {
+      throw new Error("Kein strukturierter Export verfügbar (bitte Bereich markieren oder Export erneut öffnen).");
+    }
+    const now = new Date().toISOString();
+    const mapUrl = buildCurrentMapUrl(ctx || {});
+    const facts = buildExternalAiFactsPackage({
+      structured,
+      deterministicReportText: report.text || "",
+      mapUrl,
+      generatedAt: now,
+      city: extractCity(structured, ctx || {})
+    });
+    const prompt = buildExternalAiPrompt(facts);
+    const base = filenameBase(facts.city, now);
+    return {
+      facts,
+      prompt,
+      factsFilename: `${base}_facts.json`,
+      promptFilename: `${base}_ki_prompt.md`
+    };
+  }
+
+  function buildExternalAiFactsPackage(input) {
+    const structured = input && input.structured;
+    const city = input && input.city || extractCity(structured || {}, {});
+    return {
+      schemaVersion: EXTERNAL_AI_FACTS_SCHEMA,
+      createdAt: input && input.generatedAt || new Date().toISOString(),
+      generator: "Unfallwerkbank",
+      intendedUse: "Nutzerseitige Antragserstellung in einem eigenen KI-Konto",
+      privacyNote: "Dieses Paket wurde lokal in der Unfallwerkbank erzeugt. Es wird erst an einen KI-Dienst übermittelt, wenn Nutzer:innen es selbst kopieren, hochladen oder einfügen.",
+      city,
+      mapUrl: input && input.mapUrl || "",
+      structured,
+      deterministicReportText: input && input.deterministicReportText || ""
+    };
+  }
+
+  function buildExternalAiPrompt(facts) {
+    const city = facts && facts.city ? facts.city : "der ausgewählten Kommune";
+    const mapUrl = facts && facts.mapUrl ? facts.mapUrl : "(kein Kartenlink verfügbar)";
+    return [
+      `# KI-Prompt für einen kommunalpolitischen Antrag (${city})`,
+      "",
+      `Prompt-Schema: ${EXTERNAL_AI_PROMPT_SCHEMA}`,
+      `Erzeugt am: ${facts && facts.createdAt || "unbekannt"}`,
+      "",
+      "## Aufgabe",
+      "Du unterstützt eine kommunalpolitische Antragstellung auf Grundlage eines Unfallwerkbank-Exports. Erstelle einen sachlichen, prüffähigen Antrag in deutscher Sprache.",
+      "",
+      "Nutze ausschließlich die unten übergebenen Fakten. Erfinde keine Unfallzahlen, Ursachen, Ortsnamen, Behördenzuständigkeiten oder politischen Vorgänge. Wenn Angaben fehlen, formuliere transparent als Prüfauftrag.",
+      "",
+      "## Sicherheits- und Qualitätsregeln",
+      "- Behaupte keine gesicherten Unfallursachen allein aus Unfallatlasdaten, OSM-/GIS-Kontext, Orthofotos oder Kartenbildern.",
+      "- Trenne klar zwischen amtlichen Unfallattributen, rechnerisch/GIS-abgeleiteten Hinweisen, sichtbaren Kontextindizien und Empfehlungen zur fachlichen Detailprüfung.",
+      "- Formuliere vorsichtig mit Begriffen wie „Hinweis“, „auffällig“, „möglicherweise relevant“, „prüfbedürftig“, „Detailprüfung empfohlen“.",
+      "- Verwende den Kartenlink nur als Nachprüf- und Visualisierungshilfe; die maßgeblichen Fakten stehen im JSON-Paket und im deterministischen Bericht.",
+      "- Wenn Datenbasis oder Fallzahl schwach ist, kennzeichne die Unsicherheit statt den Befund rhetorisch zu überhöhen.",
+      "- Erzeuge keine personenbezogenen Annahmen und keine Schuldzuweisungen.",
+      "",
+      "## Gewünschte Ausgabe",
+      "1. Antragstitel",
+      "2. Beschlussvorschlag",
+      "3. Sachverhalt mit Bezug auf Untersuchungsraum, Filter und Fallzahlen",
+      "4. Begründung mit vorsichtiger Interpretation",
+      "5. Prüfauftrag an die Verwaltung",
+      "6. Maßnahmenvorschläge als prüfbare Optionen, nicht als feststehende Ursache-Wirkung-Behauptung",
+      "7. Hinweise zu Datenbasis, Unsicherheiten und Anlagen/Kartenlink",
+      "",
+      "## Kartenlink zur Prüfung",
+      mapUrl,
+      "",
+      "## Faktenpaket der Unfallwerkbank (JSON)",
+      "```json",
+      stableJson(facts),
+      "```",
+      "",
+      "## Hinweis zum Nutzungsmodell",
+      "Dieser Prompt wurde von der Unfallwerkbank erzeugt, aber nicht automatisch an einen KI-Dienst gesendet. Die weitere Verarbeitung erfolgt erst, wenn Nutzer:innen diesen Prompt selbst in ChatGPT, Gemini oder ein anderes Werkzeug ihres eigenen Kontos einfügen."
+    ].join("\n");
+  }
+
+  function extractCity(structured, ctx) {
+    return (structured && structured.meta && (structured.meta.city || structured.meta.cityRaw))
+      || (ctx && (ctx.CITY_RAW || ctx.city))
+      || "unbekannte-stadt";
+  }
+
+  function buildCurrentMapUrl(ctx) {
+    try {
+      if (typeof UA.syncAllToUrl === "function" && ctx && ctx.ui) {
+        UA.syncAllToUrl(ctx);
+      }
+      if (root.location && root.location.href) {
+        const url = new URL(root.location.href);
+        url.searchParams.set("export", "1");
+        return url.href;
+      }
+    } catch (_) { /* ignore */ }
+    return root.location && root.location.href || "";
+  }
+
+  async function writeClipboard(text) {
+    const nav = root.navigator;
+    if (nav && nav.clipboard && typeof nav.clipboard.writeText === "function") {
+      await nav.clipboard.writeText(text);
+      return true;
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "readonly");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, 999999);
+    try { document.execCommand("copy"); }
+    finally { ta.remove(); }
+    return false;
+  }
+
+  function downloadTextFile(filename, mime, text) {
+    const blob = new Blob([text], { type: mime || "text/plain;charset=utf-8" });
+    const url = root.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => root.URL.revokeObjectURL(url), 0);
+  }
+
+  function openAiSurface(url, statusEl) {
+    try {
+      root.open(url, "_blank", "noopener,noreferrer");
+      setStatus(statusEl, "KI-Oberfläche geöffnet. Den kopierten Prompt dort einfügen.");
+    } catch (e) {
+      setStatus(statusEl, "Öffnen fehlgeschlagen: " + (e && e.message || e));
+    }
+  }
+
+  function stableJson(value) {
+    return JSON.stringify(value, null, 2);
+  }
+
+  function filenameBase(city, iso) {
+    const d = String(iso || new Date().toISOString()).slice(0, 10);
+    const c = String(city || "unfallwerkbank")
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "unfallwerkbank";
+    return `${c}_${d}`;
+  }
+
+  UA.aiProposal = {
+    wire,
+    _internal: {
+      buildPlainText,
+      labelForSource,
+      mirrorExportOptions,
+      buildExternalAiFactsPackage,
+      buildExternalAiPrompt,
+      generateExternalAiPromptPackage,
+      filenameBase
+    }
+  };
 })();
