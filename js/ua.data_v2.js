@@ -36,8 +36,13 @@
     // Falls back to direct fetch so existing behaviour is preserved when
     // the provider is unavailable (e.g. tests that don't load the module).
     let gj;
-    const _provider = (UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry)
-      ? UA.AccidentProvider.ProviderRegistry.resolve(ctx.CITY_RAW)
+    const _registry = (UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry)
+      ? UA.AccidentProvider.ProviderRegistry
+      : null;
+    const _provider = _registry
+      ? (typeof _registry.resolveAsync === 'function'
+          ? await _registry.resolveAsync(ctx.CITY_RAW)
+          : _registry.resolve(ctx.CITY_RAW))
       : null;
     if (_provider && typeof _provider.fetchForCity === 'function') {
       try {

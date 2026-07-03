@@ -63,6 +63,20 @@ describe('UA.PilotPlugin (accident-statistics)', () => {
       expect(stats.bySeverity.slight).toBe(2);
     });
 
+    test('counts extracted point arrays that keep feature properties under props', () => {
+      const data = [
+        { lat: 52.3, lon: 9.7, props: { UKATEGORIE: '1' } },
+        { lat: 52.31, lon: 9.71, props: { UKATEGORIE: '2' } },
+        { lat: 52.32, lon: 9.72, props: { UKATEGORIE: '3' } }
+      ];
+      const stats = UA.PilotPlugin.computeAccidentStatistics(data);
+      expect(stats.total).toBe(3);
+      expect(stats.bySeverity.fatal).toBe(1);
+      expect(stats.bySeverity.serious).toBe(1);
+      expect(stats.bySeverity.slight).toBe(1);
+      expect(stats.bySeverity.unknown).toBe(0);
+    });
+
     test('handles cluster-based data using cluster count', () => {
       const data = {
         clusters: [

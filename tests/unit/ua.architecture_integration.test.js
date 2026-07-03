@@ -106,6 +106,38 @@ describe('Architecture integration: AccidentProvider', () => {
     expect(gj.features).toHaveLength(1);
   });
 
+  test('loadCityData uses resolveAsync so async-capable providers can win', async () => {
+    const win = makeWindow();
+    loadArchModules(win);
+    loadModule(win, '../../js/ua.data_v2.js');
+    const UA = win.UA;
+    const fc = makeFC([makePoint(52.3, 9.7, 1)]);
+    const fetchForCity = jest.fn(async () => fc);
+    const staticP = UA.AccidentProvider.createStaticProvider({
+      fetch: makeFetch({ 'out/output_all_years_hannover.geojson': makeFC([]) })
+    });
+    const tiledP = {
+      type: UA.AccidentProvider.PROVIDER_TYPES.TILED,
+      canProvideForCity: () => Promise.resolve(true),
+      fetchForCity,
+      fetchForBbox: async () => fc,
+      getCapabilities: () => ({ supportsFullCity: true, supportsTiles: true })
+    };
+
+    UA.AccidentProvider.ProviderRegistry.register('static', staticP);
+    UA.AccidentProvider.ProviderRegistry.register('tiled', tiledP);
+
+    const ctx = {
+      CITY_RAW: 'hannover',
+      ui: { dataSourceCode: { textContent: '' } }
+    };
+
+    await UA.loadCityData(ctx);
+
+    expect(fetchForCity).toHaveBeenCalledWith('hannover');
+    expect(ctx.allPts).toHaveLength(1);
+  });
+
   test('ProviderRegistry.resolve falls back to first registered when no slug match', () => {
     const p = UA.AccidentProvider.createStaticProvider();
     UA.AccidentProvider.ProviderRegistry.register('static', p);
