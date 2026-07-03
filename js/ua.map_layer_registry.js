@@ -8,6 +8,10 @@
     analysis: 'Analyseansicht'
   });
   const VALID_MAP_MODES = new Set(Object.keys(MAP_MODE_LABELS));
+  // Let users zoom beyond a provider's native tile level without the layer
+  // disappearing. Leaflet will upscale the provider's last native tile via
+  // maxNativeZoom instead of leaving the map blank at z21/z22.
+  const INTERACTIVE_MAX_ZOOM = 22;
 
   const LAYER_DEFINITIONS = Object.freeze([
     Object.freeze({
@@ -43,10 +47,6 @@
       pane: 'overlayPane'
     }),
     Object.freeze({
-      // Source: https://stadtplan.bonn.de/ (ArcGIS-WMS der Bundesstadt Bonn)
-      // WMS GetCapabilities: https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer?SERVICE=WMS&REQUEST=GetCapabilities
-      // Layer: "Orthophoto" – EPSG:3857 nativ unterstützt
-      // Lizenz: Kommunales Open Data gemäß Dienst-Metadaten
       id: 'bonn-orthophoto',
       displayName: 'Bonn Orthofoto',
       provider: 'Bundesstadt Bonn',
@@ -71,10 +71,6 @@
       fallbackLayerId: 'nrw-orthophoto'
     }),
     Object.freeze({
-      // Source: https://www.wms.nrw.de/geobasis/wms_nw_dop (Geobasis NRW)
-      // WMS GetCapabilities: https://www.wms.nrw.de/geobasis/wms_nw_dop?SERVICE=WMS&REQUEST=GetCapabilities
-      // Layer: "nw_dop" – EPSG:3857 wird unterstützt
-      // Lizenz: Datenlizenz Deutschland – Zero – Version 2.0
       id: 'nrw-orthophoto',
       displayName: 'NRW Orthofoto (DOP)',
       provider: 'Geobasis NRW',
@@ -99,10 +95,6 @@
       fallbackLayerId: 'bkg-orthophoto'
     }),
     Object.freeze({
-      // Source: https://opendata.lgln.niedersachsen.de/ (LGLN Niedersachsen Open Data)
-      // WMS GetCapabilities: https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms?SERVICE=WMS&REQUEST=GetCapabilities
-      // Layer: "dop20" – EPSG:3857 wird unterstützt
-      // Lizenz: Datenlizenz Deutschland – Namensnennung – Version 2.0
       id: 'niedersachsen-orthophoto',
       displayName: 'Niedersachsen Orthofoto (DOP)',
       provider: 'LGLN Niedersachsen',
@@ -127,10 +119,6 @@
       fallbackLayerId: 'bkg-orthophoto'
     }),
     Object.freeze({
-      // Source: https://gdz.bkg.bund.de/index.php/default/digitale-geodaten/digitale-luftbilder.html (BKG Geodatenzentrum)
-      // WMS GetCapabilities: https://sg.geodatenzentrum.de/wms_dop20?SERVICE=WMS&REQUEST=GetCapabilities
-      // Layer: "dop20" – EPSG:3857 wird unterstützt
-      // Lizenz: Siehe Nutzungsbedingungen des BKG (kostenpflichtig für kommerzielle Nutzung)
       id: 'bkg-orthophoto',
       displayName: 'Deutschland Orthofoto (BKG)',
       provider: 'Geodatenzentrum / BKG',
@@ -155,11 +143,6 @@
       fallbackLayerId: 'esri-world-imagery'
     }),
     Object.freeze({
-      // Source: https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9 (Esri World Imagery)
-      // Technischer Typ: XYZ-Kacheln; keine WMS-Anfragen erforderlich
-      // Lizenz: Esri Terms of Use – nicht-amtlich, nur zur Vorschau geeignet
-      // HINWEIS: Dieser Dienst ist NICHT für amtliche Berichte oder Exporte geeignet.
-      //          Er dient ausschließlich als interaktiver Fallback, wenn alle amtlichen Dienste nicht erreichbar sind.
       id: 'esri-world-imagery',
       displayName: 'World Imagery Fallback',
       provider: 'Esri',
@@ -241,10 +224,14 @@
   function leafletOptions(definition) {
     const options = {};
     setDefinedOption(options, 'minZoom', definition.minZoom);
-    setDefinedOption(options, 'maxZoom', definition.maxZoom);
+    const nativeMaxZoom = Number.isFinite(definition.maxZoom) ? Number(definition.maxZoom) : null;
+    if (nativeMaxZoom !== null) {
+      setDefinedOption(options, 'maxNativeZoom', nativeMaxZoom);
+      setDefinedOption(options, 'maxZoom', Math.max(nativeMaxZoom, INTERACTIVE_MAX_ZOOM));
+    } else {
+      setDefinedOption(options, 'maxZoom', INTERACTIVE_MAX_ZOOM);
+    }
     setDefinedOption(options, 'attribution', definition.attribution);
-    // Do not pass `pane: undefined`: Leaflet treats that as an explicit pane
-    // value and can leave GridLayers half-initialized during later setView().
     setDefinedOption(options, 'pane', definition.pane);
     return options;
   }
@@ -269,6 +256,7 @@
   }
 
   UA.MAP_MODE_LABELS = MAP_MODE_LABELS;
+  UA.MAP_INTERACTIVE_MAX_ZOOM = INTERACTIVE_MAX_ZOOM;
   UA.getMapLayerRegistry = function getMapLayerRegistry() {
     return LAYER_DEFINITIONS.slice();
   };
