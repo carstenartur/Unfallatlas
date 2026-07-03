@@ -1,10 +1,64 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "dependencyDashboardHeader": "### analysis-service framework stack safety\n- Do not merge framework-stack updates unless `mvn -f analysis-service/pom.xml clean verify` is green.\n- Spring Boot / Hibernate ORM / Hibernate Search version jumps must be reviewed as a coordinated migration (or kept split in separate PRs).",
   "packageRules": [
     {
       "matchManagers": ["html"],
       "enabled": true
+    },
+    {
+      "description": "analysis-service framework stack updates always need explicit dashboard approval and verify.",
+      "matchManagers": ["maven"],
+      "matchFileNames": ["analysis-service/pom.xml"],
+      "matchPackageNames": [
+        "org.springframework.boot:spring-boot-starter-parent",
+        "org.hibernate.orm:*",
+        "org.hibernate.search:*",
+        "org.flywaydb:*"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false,
+      "prBodyNotes": [
+        "⚠️ **analysis-service framework stack gate**: only merge with a green `mvn -f analysis-service/pom.xml clean verify` run.",
+        "If this PR combines Spring Boot + Hibernate ORM/Search line changes, document compatibility and treat it as a coordinated stack migration."
+      ]
+    },
+    {
+      "description": "Keep Spring Boot parent bumps separate for analysis-service.",
+      "matchManagers": ["maven"],
+      "matchFileNames": ["analysis-service/pom.xml"],
+      "matchPackageNames": ["org.springframework.boot:spring-boot-starter-parent"],
+      "groupName": "analysis-service spring boot"
+    },
+    {
+      "description": "Keep Hibernate ORM bumps separate for analysis-service.",
+      "matchManagers": ["maven"],
+      "matchFileNames": ["analysis-service/pom.xml"],
+      "matchPackageNames": ["org.hibernate.orm:*"],
+      "groupName": "analysis-service hibernate orm"
+    },
+    {
+      "description": "Keep Hibernate Search bumps separate for analysis-service.",
+      "matchManagers": ["maven"],
+      "matchFileNames": ["analysis-service/pom.xml"],
+      "matchPackageNames": ["org.hibernate.search:*"],
+      "groupName": "analysis-service hibernate search"
+    },
+    {
+      "description": "Keep Flyway bumps separate for analysis-service.",
+      "matchManagers": ["maven"],
+      "matchFileNames": ["analysis-service/pom.xml"],
+      "matchPackageNames": ["org.flywaydb:*"],
+      "groupName": "analysis-service flyway"
+    },
+    {
+      "description": "Pause Hibernate Search major/minor bumps until deliberate stack migration.",
+      "matchManagers": ["maven"],
+      "matchFileNames": ["analysis-service/pom.xml"],
+      "matchPackageNames": ["org.hibernate.search:*"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
     },
     {
       "description": "pdfmake 0.3.x ist ein Major-Bump mit Breaking Changes an der vfs_fonts-Auslieferung und am Standard-Font-Loader. Der Werkbank-Export-Pfad (js/ua.report_v2.js exportToPDF) lädt vfs_fonts statisch und nutzt Roboto als Default — das funktioniert mit 0.2.x stabil. Das Major-Update wurde in Issue/Renovate-Dashboard #156 evaluiert und zurückgestellt. Wenn pdfmake 0.3.x adoptiert werden soll, muss zuvor die vfs_fonts-Bundling-Strategie (vgl. server/ und Frontend) angepasst werden. Bis dahin: Major-Updates ignorieren, Patch/Minor weiter zulassen.",
