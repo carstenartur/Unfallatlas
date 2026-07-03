@@ -41,7 +41,9 @@ function makeLeafletStub() {
 
   return {
     map:          jest.fn(() => mapStub),
-    tileLayer:    jest.fn(() => layerStub()),
+    tileLayer:    Object.assign(jest.fn(() => layerStub()), {
+      wms: jest.fn(() => layerStub())
+    }),
     circleMarker: jest.fn(() => layerStub()),
     polyline:     jest.fn(() => layerStub()),
     polygon:      jest.fn(() => layerStub()),
@@ -229,6 +231,74 @@ describe('UA.LeafletRenderer', () => {
       await renderer.render(sg);
       // Each render call creates one circleMarker
       expect(L.circleMarker).toHaveBeenCalledTimes(2);
+    });
+
+    test('creates an XYZ tileLayer for a RASTER node with technicalType XYZ', async () => {
+      // Use an external map to avoid the constructor's OSM tile layer call
+      const UAr = makeUA({});
+      const Lr  = makeLeafletStub();
+      const r   = UAr.LeafletRenderer.create(null, { L: Lr, map: Lr._mapStub });
+      let sg = UAr.SceneGraph.create();
+      sg = UAr.SceneGraph.addNode(sg, UAr.SceneGraph.createNode('raster', {
+        geometry: {
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          technicalType: 'XYZ'
+        },
+        semantic: { kind: 'baseLayer', attribution: '&copy; OpenStreetMap-Mitwirkende' }
+      }));
+      await r.render(sg);
+      expect(Lr.tileLayer).toHaveBeenCalledTimes(1);
+      expect(Lr.tileLayer.wms).not.toHaveBeenCalled();
+    });
+
+    test('creates a WMS tileLayer for a RASTER node with technicalType WMS', async () => {
+      const UAr = makeUA({});
+      const Lr  = makeLeafletStub();
+      const r   = UAr.LeafletRenderer.create(null, { L: Lr, map: Lr._mapStub });
+      let sg = UAr.SceneGraph.create();
+      sg = UAr.SceneGraph.addNode(sg, UAr.SceneGraph.createNode('raster', {
+        geometry: {
+          url: 'https://www.wms.nrw.de/geobasis/wms_nw_dop',
+          technicalType: 'WMS',
+          layers: 'nw_dop',
+          format: 'image/png',
+          transparent: false
+        },
+        semantic: { kind: 'baseLayer', attribution: 'Quelle: Geobasis NRW' }
+      }));
+      await r.render(sg);
+      expect(Lr.tileLayer.wms).toHaveBeenCalledTimes(1);
+      expect(Lr.tileLayer).not.toHaveBeenCalled();
+    });
+
+    test('skips RASTER node without url', async () => {
+      const UAr = makeUA({});
+      const Lr  = makeLeafletStub();
+      const r   = UAr.LeafletRenderer.create(null, { L: Lr, map: Lr._mapStub });
+      let sg = UAr.SceneGraph.create();
+      sg = UAr.SceneGraph.addNode(sg, UAr.SceneGraph.createNode('raster', { geometry: {} }));
+      await r.render(sg);
+      expect(Lr.tileLayer).not.toHaveBeenCalled();
+      expect(Lr.tileLayer.wms).not.toHaveBeenCalled();
+    });
+
+    test('removes default base layer when rendering a RASTER node on owned map', async () => {
+      const UAr = makeUA({});
+      const Lr  = makeLeafletStub();
+      const r   = UAr.LeafletRenderer.create(document.createElement('div'), { L: Lr });
+      const defaultBaseLayer = Lr.tileLayer.mock.results[0].value;
+      let sg = UAr.SceneGraph.create();
+      sg = UAr.SceneGraph.addNode(sg, UAr.SceneGraph.createNode('raster', {
+        geometry: {
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          technicalType: 'XYZ'
+        }
+      }));
+
+      await r.render(sg);
+
+      expect(defaultBaseLayer.remove).toHaveBeenCalledTimes(1);
+      expect(Lr.tileLayer).toHaveBeenCalledTimes(2);
     });
   });
 

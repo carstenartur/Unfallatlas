@@ -30,6 +30,7 @@
   //   CLUSTER     → deferred to UA.renderLayers / ctx (when available)
   //   ARROW       → L.polyline with arrowhead decoration
   //   HIGHLIGHT   → L.polygon with highlight style
+  //   RASTER      → L.tileLayer (XYZ) or L.tileLayer.wms (WMS)
   //   CAMERA/LIGHT/MESH → no-op in 2D mode (logged as unsupported)
   // ----------------------------
 
@@ -60,6 +61,9 @@
       let _map      = o.map || null;
       let _ownMap   = false;
       let _layers   = [];       // all managed Leaflet layer instances
+      let _defaultBaseLayer = null;
+      const _defaultTileUrl = o.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      const _defaultTileOptions = { maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende' };
 
       // ---- Create or reuse Leaflet map ----
       if (!_map) {
@@ -70,9 +74,8 @@
         const zoom   = o.zoom   != null ? o.zoom : 12;
         const lon    = center.lon != null ? center.lon : center.lng;
         _map = L.map(container, { preferCanvas: true, zoomControl: true });
-        const tileUrl = o.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        L.tileLayer(tileUrl, { maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende' })
-         .addTo(_map);
+        _defaultBaseLayer = L.tileLayer(_defaultTileUrl, _defaultTileOptions);
+        _defaultBaseLayer.addTo(_map);
         _map.setView([center.lat, lon], zoom);
         _ownMap = true;
       }
@@ -94,6 +97,31 @@
         _layers = [];
       }
 
+      function _sceneHasRaster(sceneGraph) {
+        if (!sceneGraph || !Array.isArray(sceneGraph.nodes)) return false;
+        const NT = UA.SceneGraph && UA.SceneGraph.NODE_TYPES;
+        const rasterType = NT ? NT.RASTER : 'raster';
+        for (const node of sceneGraph.nodes) {
+          if (node && node.type === rasterType) return true;
+        }
+        return false;
+      }
+
+      function _syncDefaultBaseLayer(hasRaster) {
+        if (!_ownMap || !_map || typeof L.tileLayer !== 'function') return;
+        if (hasRaster) {
+          if (_defaultBaseLayer) {
+            try { _defaultBaseLayer.remove(); } catch (_) {}
+            _defaultBaseLayer = null;
+          }
+          return;
+        }
+        if (!_defaultBaseLayer) {
+          _defaultBaseLayer = L.tileLayer(_defaultTileUrl, _defaultTileOptions);
+          try { _defaultBaseLayer.addTo(_map); } catch (_) {}
+        }
+      }
+
       function _renderNode(node) {
         if (!node || !node.type) return;
         const NT = UA.SceneGraph && UA.SceneGraph.NODE_TYPES;
@@ -113,6 +141,8 @@
           _renderArrow(node);
         } else if (t === (NT ? NT.HIGHLIGHT : 'highlight')) {
           _renderHighlight(node);
+        } else if (t === (NT ? NT.RASTER : 'raster')) {
+          _renderRaster(node);
         } else if (t === (NT ? NT.HEAT_FIELD : 'heatField') ||
                    t === (NT ? NT.CLUSTER    : 'cluster')) {
           // These are managed by the existing rendering pipeline
@@ -254,6 +284,33 @@
         _renderPolygon(node);
       }
 
+      function _renderRaster(node) {
+        const g = node.geometry || {};
+        if (!g.url) return;
+        const s       = node.style || {};
+        const options = {
+          maxZoom:     s.maxZoom  != null ? s.maxZoom : 19,
+          opacity:     s.opacity  != null ? s.opacity : 1.0,
+          attribution: (node.semantic && node.semantic.attribution) || ''
+        };
+        let layer;
+        if (g.technicalType === 'WMS') {
+          if (!L.tileLayer || typeof L.tileLayer.wms !== 'function') return;
+          layer = L.tileLayer.wms(g.url, Object.assign({}, options, {
+            layers:      g.layers      || '',
+            format:      g.format      || 'image/png',
+            transparent: !!g.transparent,
+            uppercase:   true
+          }));
+        } else {
+          if (typeof L.tileLayer !== 'function') return;
+          const xyzOptions = Object.assign({}, options);
+          if (g.subdomains) xyzOptions.subdomains = g.subdomains;
+          layer = L.tileLayer(g.url, xyzOptions);
+        }
+        _addLayer(layer);
+      }
+
       // ---- Coordinate helpers ----
 
       function _coordsToLatLngs(coords) {
@@ -299,6 +356,7 @@
          */
         render: function render(sceneGraph) {
           _clearLayers();
+          _syncDefaultBaseLayer(_sceneHasRaster(sceneGraph));
           if (!sceneGraph || !sceneGraph.nodes) return Promise.resolve();
           for (const node of sceneGraph.nodes) {
             _renderNode(node);
@@ -323,6 +381,10 @@
          */
         dispose: function dispose() {
           _clearLayers();
+          if (_defaultBaseLayer) {
+            try { _defaultBaseLayer.remove(); } catch (_) {}
+            _defaultBaseLayer = null;
+          }
           if (_ownMap && _map) {
             try { _map.remove(); } catch (_) {}
             _map   = null;
