@@ -353,7 +353,7 @@
       "```",
       "",
       "## Hinweis zum Nutzungsmodell",
-      "Dieser Prompt wurde von der Unfallwerkbank erzeugt, aber nicht automatisch an einen KI-Dienst gesendet. Die weitere Verarbeitung erfolgt erst, wenn Nutzer:innen diesen Prompt selbst in ChatGPT, Gemini oder ein anderes Werkzeug ihres eigenen Kontos einfügen."
+      "Dieser Prompt wurde von der Unfallwerkbank erzeugt, aber es wird nichts automatisch an einen KI-Dienst gesendet. Die weitere Verarbeitung erfolgt erst, wenn Nutzer:innen diesen Prompt selbst in ChatGPT, Gemini oder ein anderes Werkzeug ihres eigenen Kontos einfügen."
     ].join("\n");
   }
 
@@ -418,7 +418,21 @@
   }
 
   function stableJson(value) {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(sortJsonKeys(value), null, 2);
+  }
+
+  function sortJsonKeys(value) {
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.map(sortJsonKeys);
+    }
+    const out = {};
+    Object.keys(value).sort().forEach((key) => {
+      out[key] = sortJsonKeys(value[key]);
+    });
+    return out;
   }
 
   function filenameBase(city, iso) {
