@@ -176,6 +176,50 @@ describe('UA.PreviewMapRenderer', () => {
     expect(ctx.showOnlyAboveAverage).toBe(true);
   });
 
+  test('installDirectMapModeControl adds on-map buttons that switch map mode', () => {
+    const { UA } = loadModules({
+      L: {
+        control: () => ({
+          addTo(map) {
+            this._container = this.onAdd(map);
+            if (Array.isArray(map._controls)) map._controls.push(this);
+            return this;
+          }
+        }),
+        DomUtil: {
+          create(tag, className) {
+            const el = document.createElement(tag);
+            el.className = className;
+            return el;
+          }
+        },
+        DomEvent: {
+          disableClickPropagation: jest.fn(),
+          disableScrollPropagation: jest.fn()
+        }
+      }
+    });
+
+    const origApplyMapMode = jest.fn();
+    UA.applyMapMode = origApplyMapMode;
+    UA.syncMapModeButtons = jest.fn();
+    UA.renderMapLayerStatus = jest.fn();
+    UA.syncAllToUrl = jest.fn();
+
+    const ctx = { map: { _controls: [] }, mapMode: 'standard' };
+    UA.installDirectMapModeControl(ctx);
+
+    expect(ctx.directMapModeControl).toBeDefined();
+    const btn = ctx.directMapModeControl._uaContainer.querySelector('button[data-map-mode="orthophoto"]');
+    expect(btn).toBeTruthy();
+    btn.click();
+
+    expect(ctx.mapMode).toBe('orthophoto');
+    expect(origApplyMapMode).toHaveBeenCalledWith(ctx);
+    expect(UA.syncAllToUrl).toHaveBeenCalledWith(ctx);
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+  });
+
   test('render() accepts a TrafficSituation as read-only input', async () => {
     const mapStub = {
       setView: jest.fn(),

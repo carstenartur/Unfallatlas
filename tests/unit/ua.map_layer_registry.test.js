@@ -130,6 +130,16 @@ describe('map layer registry and map modes', () => {
     expect(info.orthophoto).toBeNull();
   });
 
+  test('createMapLayer sets maxNativeZoom and interactive maxZoom above native level', () => {
+    const osm = UA.createMapLayer(UA.getMapLayerDefinition('standard-osm'));
+    expect(osm.opts.maxNativeZoom).toBe(19);
+    expect(osm.opts.maxZoom).toBeGreaterThanOrEqual(22);
+
+    const dop = UA.createMapLayer(UA.getMapLayerDefinition('niedersachsen-orthophoto'));
+    expect(dop.opts.maxNativeZoom).toBe(20);
+    expect(dop.opts.maxZoom).toBeGreaterThanOrEqual(22);
+  });
+
   // ---------------------------------------------------------------
   // Provider metadata validation
   // ---------------------------------------------------------------
