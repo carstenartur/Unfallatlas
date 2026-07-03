@@ -19,6 +19,7 @@ describe('context tile performance guards', () => {
   beforeEach(() => {
     originalFetch = global.fetch;
     delete window.UA;
+    delete window.L;
     window.UA = {
       normKey: (s) => String(s || '').toLowerCase(),
     };
@@ -32,6 +33,7 @@ describe('context tile performance guards', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    delete window.L;
   });
 
   function makeBounds() {
