@@ -32,9 +32,24 @@
     ctx.DATA_URL = url;
     ctx.ui.dataSourceCode.textContent = url;
 
-    const resp = await fetch(url, { cache:"no-store" });
-    if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
-    const gj = await resp.json();
+    // Prefer the registered AccidentProvider (architecture boundary, Issue #312).
+    // Falls back to direct fetch so existing behaviour is preserved when
+    // the provider is unavailable (e.g. tests that don't load the module).
+    let gj;
+    const _provider = (UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry)
+      ? UA.AccidentProvider.ProviderRegistry.resolve(ctx.CITY_RAW)
+      : null;
+    if (_provider && typeof _provider.fetchForCity === 'function') {
+      try {
+        gj = await _provider.fetchForCity(ctx.CITY_RAW);
+      } catch (err) {
+        throw new Error(`GeoJSON konnte nicht geladen werden: ${err.message}`);
+      }
+    } else {
+      const resp = await fetch(url, { cache:"no-store" });
+      if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
+      gj = await resp.json();
+    }
     ctx.geojsonProps = gj?.properties || null;
     if (UA.contextLayers && typeof UA.contextLayers.detect === 'function') {
       // Detect once per GeoJSON load; capability flags are derived via
@@ -153,4 +168,19 @@
       ctx.poiData = null;
     }
   };
+
+  // Register the static GeoJSON provider so loadCityData goes through the
+  // AccidentProvider abstraction (architecture boundary, Issue #312).
+  // This is idempotent: if the module is loaded again or this code runs twice,
+  // the existing registration is silently overwritten.
+  if (typeof UA.AccidentProvider !== 'undefined'
+      && UA.AccidentProvider.ProviderRegistry
+      && typeof UA.AccidentProvider.createStaticProvider === 'function') {
+    try {
+      UA.AccidentProvider.ProviderRegistry.register(
+        'static',
+        UA.AccidentProvider.createStaticProvider()
+      );
+    } catch (_) { /* non-fatal if AccidentProvider module is absent or incomplete */ }
+  }
 })();
