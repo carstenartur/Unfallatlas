@@ -3010,6 +3010,17 @@
       ]
     };
 
+    // Attach a serialized TrafficSituation snapshot to the export metadata so
+    // downstream renderers (Word/PDF/AI) can access the domain model without
+    // coupling to raw ctx internals (architecture integration, Issue #312/#341).
+    if (ctx.trafficSituation
+        && typeof UA.TrafficSituation !== 'undefined'
+        && typeof UA.TrafficSituation.serialize === 'function') {
+      try {
+        structured.meta.trafficSituation = UA.TrafficSituation.serialize(ctx.trafficSituation);
+      } catch (_) { /* non-fatal — metadata is optional */ }
+    }
+
     return { text: textOut, html: htmlOut, structured };
   };
 

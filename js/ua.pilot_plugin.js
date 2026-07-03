@@ -83,7 +83,7 @@
     }
 
     features.forEach((feature) => {
-      const props = feature && (feature.properties || feature);
+      const props = feature && (feature.properties || feature.props || feature);
       const sev = _severityOf(props);
       bySeverity[sev] = (bySeverity[sev] || 0) + 1;
     });

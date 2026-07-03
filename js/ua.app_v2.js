@@ -2,6 +2,13 @@
   const UA = (window.UA = window.UA || {});
 
   UA.recomputeAndRender = function recomputeAndRender(ctx){
+    // Keep the TrafficSituation snapshot in sync whenever state changes.
+    if (ctx
+        && typeof UA.TrafficSituation !== 'undefined'
+        && typeof UA.TrafficSituation.fromCtx === 'function') {
+      try { ctx.trafficSituation = UA.TrafficSituation.fromCtx(ctx); }
+      catch (_) { /* non-fatal */ }
+    }
     // Prefer the MapStore dispatch path when available so that renders
     // go through the RenderScheduler (debounced, epoch-guarded).
     if (ctx && ctx.store) {
@@ -346,6 +353,45 @@
     // UA.scheduleViewportUpdate route through the store/scheduler.
     if (typeof UA.MapStore !== 'undefined' && typeof UA.MapStore.create === 'function') {
       ctx.store = UA.MapStore.create(ctx);
+    }
+
+    // Create a LeafletMapAdapter to encapsulate Leaflet operations behind the
+    // renderer-adapter boundary (architecture integration, Issue #312/#342).
+    if (typeof UA.LeafletMapAdapter !== 'undefined'
+        && typeof UA.LeafletMapAdapter.create === 'function') {
+      try { ctx.mapAdapter = UA.LeafletMapAdapter.create(ctx.map); }
+      catch (_) { /* non-fatal */ }
+    }
+
+    // Snapshot the initial TrafficSituation from ctx so export/report/plugin
+    // code can access the domain model without coupling to ctx internals
+    // (architecture integration, Issue #312/#341).
+    if (typeof UA.TrafficSituation !== 'undefined'
+        && typeof UA.TrafficSituation.fromCtx === 'function') {
+      try { ctx.trafficSituation = UA.TrafficSituation.fromCtx(ctx); }
+      catch (_) { /* non-fatal */ }
+    }
+
+    // Run the AnalysisPipeline with the Accident Statistics pilot plugin in
+    // the background (fire-and-forget). Results are stashed on
+    // ctx.lastAnalysisResults for future use by export/report/AI code.
+    // No existing UI behaviour is changed (Issue #312/#340).
+    if (typeof UA.AnalysisPipeline !== 'undefined'
+        && typeof UA.PilotPlugin !== 'undefined') {
+      try {
+        const _dataReg = UA.AnalysisPipeline.createDataRegistry({
+          accidents: ctx.allPts || [],
+          viewport: (ctx.map && typeof ctx.map.getBounds === 'function')
+            ? { bounds: ctx.map.getBounds(), zoom: ctx.map.getZoom() }
+            : null
+        });
+        const _pluginReg = UA.AnalysisPipeline.createPluginRegistry([
+          UA.PilotPlugin.ACCIDENT_STATISTICS
+        ]);
+        UA.AnalysisPipeline.runPipeline({ dataRegistry: _dataReg, pluginRegistry: _pluginReg })
+          .then(function (results) { ctx.lastAnalysisResults = results; })
+          .catch(function () { /* ignore pipeline errors — non-fatal */ });
+      } catch (_) { /* ignore setup errors — non-fatal */ }
     }
 
     UA.recomputeAndRender(ctx);
