@@ -164,6 +164,36 @@ describe('UA.aiProposal (#E1)', () => {
     expect(document.getElementById('aiPromptStatus').textContent).toMatch(/Prompt kopiert/);
   });
 
+  test('generateExternalAiPromptPackage reuses one normalized ctx for option mirroring and report computation', async () => {
+    let seenCtx = null;
+    UA.computeExportReport = async (ctxArg) => {
+      seenCtx = ctxArg;
+      return { structured: { meta: { city: 'Bonn' } }, text: 'Report' };
+    };
+
+    await UA.aiProposal._internal.generateExternalAiPromptPackage();
+
+    expect(seenCtx).toBeTruthy();
+    expect(seenCtx.exportOptions).toBeTruthy();
+    expect(seenCtx.exportOptions.includeCosts).toBe(true);
+    expect(seenCtx.exportOptions.includeMeasures).toBe(true);
+    expect(seenCtx.exportOptions.includeHeatmap).toBe(true);
+    expect(seenCtx.exportOptions.includeOsmContext).toBe(true);
+    expect(seenCtx.exportOptions.mode).toBe('technical');
+  });
+
+  test('open AI surface reports popup blocker when window.open returns null', async () => {
+    UA.computeExportReport = async () => ({ structured: { meta: { city: 'Bonn' } }, text: 'Report' });
+    window.open = jest.fn(() => null);
+    UA.aiProposal.wire({ CITY_RAW: 'Bonn' });
+
+    document.getElementById('btnOpenChatGpt').click();
+    await flush();
+
+    expect(window.open).toHaveBeenCalled();
+    expect(document.getElementById('aiPromptStatus').textContent).toMatch(/Popup-Blocker/);
+  });
+
   test('external prompt helper preserves facts, map link, provenance and cautious wording rules', () => {
     const facts = UA.aiProposal._internal.buildExternalAiFactsPackage({
       city: 'Hannover',

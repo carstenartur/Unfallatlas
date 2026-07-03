@@ -272,20 +272,21 @@
     if (!UA || typeof UA.computeExportReport !== "function") {
       throw new Error("Exportbericht kann nicht erzeugt werden.");
     }
-    mirrorExportOptions(ctx || {});
-    const report = await UA.computeExportReport(ctx || {});
+    const normalizedCtx = ctx || {};
+    mirrorExportOptions(normalizedCtx);
+    const report = await UA.computeExportReport(normalizedCtx);
     const structured = report && report.structured;
     if (!structured) {
       throw new Error("Kein strukturierter Export verfügbar (bitte Bereich markieren oder Export erneut öffnen).");
     }
     const now = new Date().toISOString();
-    const mapUrl = buildCurrentMapUrl(ctx || {});
+    const mapUrl = buildCurrentMapUrl(normalizedCtx);
     const facts = buildExternalAiFactsPackage({
       structured,
       deterministicReportText: report.text || "",
       mapUrl,
       generatedAt: now,
-      city: extractCity(structured, ctx || {})
+      city: extractCity(structured, normalizedCtx)
     });
     const prompt = buildExternalAiPrompt(facts);
     const base = filenameBase(facts.city, now);
@@ -410,7 +411,11 @@
 
   function openAiSurface(url, statusEl) {
     try {
-      root.open(url, "_blank", "noopener,noreferrer");
+      const popup = root.open(url, "_blank", "noopener,noreferrer");
+      if (!popup) {
+        setStatus(statusEl, "Öffnen blockiert (Popup-Blocker). Bitte ChatGPT/Gemini manuell öffnen und den Prompt einfügen.");
+        return;
+      }
       setStatus(statusEl, "KI-Oberfläche geöffnet. Den kopierten Prompt dort einfügen.");
     } catch (e) {
       setStatus(statusEl, "Öffnen fehlgeschlagen: " + (e && e.message || e));
