@@ -24,6 +24,10 @@ describe('context tile performance guards', () => {
     };
     loadModule('../../js/ua.context_layers.js');
     UA = window.UA;
+    // The production guard patches UA.renderLayers after ua.map_v2.js defines
+    // it. Tests define a stub up front so the patch is immediate and no retry
+    // timers remain pending in jsdom.
+    UA.renderLayers = jest.fn();
   });
 
   afterEach(() => {
