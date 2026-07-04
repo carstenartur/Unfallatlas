@@ -118,7 +118,15 @@ jobs:
         id: pull
         continue-on-error: true
         run: |
+          expected_playwright="$(node -e "const lock = require('./package-lock.json'); const v = lock.packages?.['node_modules/@playwright/test']?.version || lock.dependencies?.['@playwright/test']?.version; if (!v) { throw new Error('Could not resolve @playwright/test from package-lock.json'); } process.stdout.write(String(v));")"
           docker pull ghcr.io/carstenartur/unfallatlas:latest
+          actual_playwright="$(docker run --rm --entrypoint node ghcr.io/carstenartur/unfallatlas:latest -e "const v = require('@playwright/test/package.json').version; if (!v) { throw new Error('Could not resolve @playwright/test in image'); } process.stdout.write(String(v));")"
+
+          if [ "$actual_playwright" != "$expected_playwright" ]; then
+            echo "Pre-built image Playwright version mismatch (image=$actual_playwright, checkout=$expected_playwright). Falling back to local Docker build."
+            exit 0
+          fi
+
           echo "image=ghcr.io/carstenartur/unfallatlas:latest" >> "$GITHUB_OUTPUT"
 
       - name: Run testcontainers integration test
