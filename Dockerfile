@@ -3,16 +3,17 @@
 # Basiert auf dem offiziellen Playwright-Docker-Image, das Chromium,
 # alle System-Dependencies und Node.js bereits enthält.
 #
-# Die Image-Version (v1.52.0) ist bewusst auf die exakt gleiche
-# Playwright-Version wie das npm-Paket (@playwright/test@1.52.0)
-# abgestimmt, damit der vorinstallierte Browser des Base-Images
-# genutzt wird und kein zusätzlicher Browser-Download erforderlich ist.
+# Die Image-Version muss zur Version des npm-Pakets `@playwright/test`
+# in package.json / package-lock.json passen. Der Docker-Build setzt
+# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1, damit der Browser aus dem Base-Image
+# genutzt wird. Bei abweichenden Versionen kann der Videoexport im Container
+# fehlschlagen, obwohl die normalen PR-Tests grün waren.
 #
 # Build:  docker build -t unfallatlas .
 # Start:  docker run -p 8000:8000 unfallatlas
 # Image:  ghcr.io/carstenartur/unfallatlas
 
-FROM mcr.microsoft.com/playwright:v1.60.0-noble
+FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
 # ffmpeg für WebM → GIF-Konvertierung
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -28,7 +29,7 @@ WORKDIR /app
 #
 # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 stellt sicher, dass npm keinen
 # zweiten Chromium-Download auslöst – das Base-Image liefert bereits
-# die passende Browser-Version für @playwright/test@1.52.0.
+# die passende Browser-Version für @playwright/test.
 COPY package.json package-lock.json ./
 RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 
