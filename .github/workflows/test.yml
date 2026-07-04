@@ -118,9 +118,9 @@ jobs:
         id: pull
         continue-on-error: true
         run: |
-          expected_playwright="$(node -p "const v = require('./package.json').dependencies['@playwright/test']; const m = String(v || '').match(/\d+\.\d+\.\d+/); if (!m) process.exit(1); process.stdout.write(m[0]);")"
+          expected_playwright="$(node -e "const lock = require('./package-lock.json'); const v = lock.packages?.['node_modules/@playwright/test']?.version || lock.dependencies?.['@playwright/test']?.version; if (!v) { throw new Error('Could not resolve @playwright/test from package-lock.json'); } process.stdout.write(String(v));")"
           docker pull ghcr.io/carstenartur/unfallatlas:latest
-          actual_playwright="$(docker run --rm --entrypoint node ghcr.io/carstenartur/unfallatlas:latest -p "const v = require('@playwright/test/package.json').version; const m = String(v || '').match(/\d+\.\d+\.\d+/); if (!m) process.exit(1); process.stdout.write(m[0]);")"
+          actual_playwright="$(docker run --rm --entrypoint node ghcr.io/carstenartur/unfallatlas:latest -e "const v = require('@playwright/test/package.json').version; if (!v) { throw new Error('Could not resolve @playwright/test in image'); } process.stdout.write(String(v));")"
 
           if [ "$actual_playwright" != "$expected_playwright" ]; then
             echo "Pre-built image Playwright version mismatch (image=$actual_playwright, checkout=$expected_playwright). Falling back to local Docker build."
