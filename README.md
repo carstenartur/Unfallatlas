@@ -5,7 +5,6 @@
 > Die Unfallwerkbank macht amtliche Verkehrsunfalldaten (2016–2024) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
 
 [![CI](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml)
-[![Tests](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml)
 [![Release](https://img.shields.io/github/v/release/carstenartur/Unfallatlas?sort=semver&label=Release)](https://github.com/carstenartur/Unfallatlas/releases/latest)
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Funfallatlas-blue?logo=docker)](https://github.com/carstenartur/Unfallatlas/pkgs/container/unfallatlas)
 [![License](https://img.shields.io/github/license/carstenartur/Unfallatlas)](LICENSE)
@@ -183,6 +182,7 @@ optionale Persistenz-/Batch-Bausteine.
 - [Werkbank-V2-Feature-Referenz](WERKBANK_V2.md)
 - [Export-QA / Render-Gate](docs/export-qa.md)
 - [Test-Dokumentation](tests/README.md)
+- [CI-/Videoexport-Guardrails](docs/ci-video-export-hardening.md)
 
 ### Weitere Themen
 
