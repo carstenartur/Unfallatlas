@@ -118,7 +118,15 @@ jobs:
         id: pull
         continue-on-error: true
         run: |
+          expected_playwright="$(node -p "const v = require('./package.json').dependencies['@playwright/test']; const m = String(v || '').match(/\d+\.\d+\.\d+/); if (!m) process.exit(1); process.stdout.write(m[0]);")"
           docker pull ghcr.io/carstenartur/unfallatlas:latest
+          actual_playwright="$(docker run --rm --entrypoint node ghcr.io/carstenartur/unfallatlas:latest -p "const v = require('@playwright/test/package.json').version; const m = String(v || '').match(/\d+\.\d+\.\d+/); if (!m) process.exit(1); process.stdout.write(m[0]);")"
+
+          if [ "$actual_playwright" != "$expected_playwright" ]; then
+            echo "Pre-built image Playwright version mismatch (image=$actual_playwright, checkout=$expected_playwright). Falling back to local Docker build."
+            exit 0
+          fi
+
           echo "image=ghcr.io/carstenartur/unfallatlas:latest" >> "$GITHUB_OUTPUT"
 
       - name: Run testcontainers integration test
