@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.6</version>
+        <version>4.1.0</version>
         <relativePath/>
     </parent>
 
@@ -37,7 +37,7 @@
              the matching tested line for that ORM generation.  Renovate/Mend
              bumps to Spring Boot 4.1.x / Hibernate Search 8.4.x must only be
              merged together with a green analysis-service `mvn clean verify`. -->
-        <hibernate-search.version>8.2.2.Final</hibernate-search.version>
+        <hibernate-search.version>8.4.0.Final</hibernate-search.version>
     </properties>
 
     <dependencies>
