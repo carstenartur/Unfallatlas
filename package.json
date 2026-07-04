@@ -18,6 +18,7 @@
     "generate:sample-pdf": "node scripts/generate-sample-pdf.js",
     "validate:context-datasets": "node scripts/check-context-datasets.js",
     "validate:slope-plausibility": "node scripts/check-slope-plausibility.js",
+    "validate:playwright-docker": "node scripts/check-playwright-docker-version.js",
     "qa:slope": "node scripts/qa-slope-report.js",
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "jest --watch",
