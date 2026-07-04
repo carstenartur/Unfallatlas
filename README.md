@@ -9,7 +9,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Funfallatlas-blue?logo=docker)](https://github.com/carstenartur/Unfallatlas/pkgs/container/unfallatlas)
 [![License](https://img.shields.io/github/license/carstenartur/Unfallatlas)](LICENSE)
 [![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-informational?logo=owasp)](https://github.com/carstenartur/Unfallatlas/dependency-graph/sbom)
-
+https://doi.org/10.5281/zenodo.20936471
 [![Startansicht der Unfallwerkbank V2](docs/screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
 ---
