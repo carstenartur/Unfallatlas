@@ -67,6 +67,7 @@ jobs:
         run: npm ci
 
       - name: Try to pull pre-built image
+        if: github.event_name == 'pull_request'
         id: pull
         continue-on-error: true
         run: |
