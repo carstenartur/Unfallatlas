@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "koeln",
-  "generatedAt": "2026-06-21T05:56:19.111Z",
+  "generatedAt": "2026-07-05T05:44:53.761Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-21",
+      "extractDate": "2026-07-05",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 26198,
     "matchedToWay": 26008,
     "withElevation": 26198,
-    "withTrafficProxy": 25051,
-    "ways": 9503,
-    "wayGeometries": 9503,
-    "fullWays": 112021,
+    "withTrafficProxy": 25050,
+    "ways": 9507,
+    "wayGeometries": 9507,
+    "fullWays": 112166,
     "contextTiles": 71
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 112021,
-    "withSlope": 98526,
-    "noSlopeSignal": 13495,
-    "coveragePercent": 88,
+    "totalWays": 112166,
+    "withSlope": 98646,
+    "noSlopeSignal": 13520,
+    "coveragePercent": 87.9,
     "classCounts": {
-      "flat": 58927,
-      "gentle": 23995,
-      "moderate": 9488,
-      "steep": 4778,
-      "very_steep": 1338
+      "flat": 58981,
+      "gentle": 24034,
+      "moderate": 9506,
+      "steep": 4784,
+      "very_steep": 1341
     },
     "missingReasonCounts": {
-      "way_too_short": 13462,
+      "way_too_short": 13487,
       "no_geometry": 33
     },
     "methodCounts": {
-      "median_segments": 98526
+      "median_segments": 98646
     },
     "confidenceCounts": {
-      "high": 22329,
-      "low": 56118,
-      "medium": 20079
+      "high": 22324,
+      "low": 56232,
+      "medium": 20090
     },
     "verySteepShare": 1.4,
     "flatGentleShare": 84.2

@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bonn",
-  "generatedAt": "2026-06-21T05:55:33.408Z",
+  "generatedAt": "2026-07-05T05:44:12.513Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-21",
+      "extractDate": "2026-07-05",
       "coverage": "full"
     },
     "dem": {
@@ -28,7 +28,7 @@
     "withTrafficProxy": 6908,
     "ways": 3467,
     "wayGeometries": 3467,
-    "fullWays": 43327,
+    "fullWays": 43344,
     "contextTiles": 30
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 43327,
-    "withSlope": 36444,
-    "noSlopeSignal": 6883,
+    "totalWays": 43344,
+    "withSlope": 36453,
+    "noSlopeSignal": 6891,
     "coveragePercent": 84.1,
     "classCounts": {
-      "flat": 17872,
-      "gentle": 9407,
-      "moderate": 4669,
+      "flat": 17878,
+      "gentle": 9408,
+      "moderate": 4670,
       "steep": 3098,
-      "very_steep": 1398
+      "very_steep": 1399
     },
     "missingReasonCounts": {
-      "way_too_short": 6875,
+      "way_too_short": 6883,
       "no_geometry": 8
     },
     "methodCounts": {
-      "median_segments": 36444
+      "median_segments": 36453
     },
     "confidenceCounts": {
-      "high": 6949,
-      "low": 22200,
-      "medium": 7295
+      "high": 6947,
+      "low": 22208,
+      "medium": 7298
     },
     "verySteepShare": 3.8,
     "flatGentleShare": 74.9

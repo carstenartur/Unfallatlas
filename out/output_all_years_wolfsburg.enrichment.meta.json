@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "wolfsburg",
-  "generatedAt": "2026-06-21T05:56:38.007Z",
+  "generatedAt": "2026-07-05T05:45:10.927Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-21",
+      "extractDate": "2026-07-05",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 2211,
     "matchedToWay": 2203,
     "withElevation": 2211,
-    "withTrafficProxy": 2058,
-    "ways": 1266,
-    "wayGeometries": 1266,
-    "fullWays": 22210,
+    "withTrafficProxy": 2054,
+    "ways": 1268,
+    "wayGeometries": 1268,
+    "fullWays": 22244,
     "contextTiles": 45
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 22210,
-    "withSlope": 19957,
-    "noSlopeSignal": 2253,
+    "totalWays": 22244,
+    "withSlope": 19989,
+    "noSlopeSignal": 2255,
     "coveragePercent": 89.9,
     "classCounts": {
-      "flat": 12112,
-      "gentle": 4968,
-      "moderate": 1856,
-      "steep": 829,
+      "flat": 12130,
+      "gentle": 4976,
+      "moderate": 1861,
+      "steep": 830,
       "very_steep": 192
     },
     "missingReasonCounts": {
-      "way_too_short": 2249,
+      "way_too_short": 2251,
       "no_geometry": 4
     },
     "methodCounts": {
-      "median_segments": 19957
+      "median_segments": 19989
     },
     "confidenceCounts": {
-      "high": 5967,
-      "low": 9630,
-      "medium": 4360
+      "high": 5973,
+      "low": 9651,
+      "medium": 4365
     },
     "verySteepShare": 1,
     "flatGentleShare": 85.6

@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "karlsruhe",
-  "generatedAt": "2026-06-21T05:57:19.255Z",
+  "generatedAt": "2026-07-05T05:45:48.364Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-21",
+      "extractDate": "2026-07-05",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 10138,
     "matchedToWay": 10102,
     "withElevation": 10138,
-    "withTrafficProxy": 9483,
-    "ways": 4464,
-    "wayGeometries": 4464,
-    "fullWays": 52605,
+    "withTrafficProxy": 9482,
+    "ways": 4466,
+    "wayGeometries": 4466,
+    "fullWays": 52742,
     "contextTiles": 34
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 52605,
-    "withSlope": 43106,
-    "noSlopeSignal": 9499,
+    "totalWays": 52742,
+    "withSlope": 43216,
+    "noSlopeSignal": 9526,
     "coveragePercent": 81.9,
     "classCounts": {
-      "flat": 20864,
-      "gentle": 10986,
-      "moderate": 5706,
-      "steep": 4109,
-      "very_steep": 1441
+      "flat": 20909,
+      "gentle": 11021,
+      "moderate": 5722,
+      "steep": 4122,
+      "very_steep": 1442
     },
     "missingReasonCounts": {
-      "way_too_short": 9483,
+      "way_too_short": 9510,
       "no_geometry": 16
     },
     "methodCounts": {
-      "median_segments": 43106
+      "median_segments": 43216
     },
     "confidenceCounts": {
-      "medium": 8042,
-      "high": 9151,
-      "low": 25913
+      "medium": 8061,
+      "high": 9144,
+      "low": 26011
     },
     "verySteepShare": 3.3,
     "flatGentleShare": 73.9

@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "bochum",
-  "generatedAt": "2026-06-21T05:57:11.664Z",
+  "generatedAt": "2026-07-05T05:45:41.380Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-21",
+      "extractDate": "2026-07-05",
       "coverage": "full"
     },
     "dem": {
@@ -25,10 +25,10 @@
     "features": 5596,
     "matchedToWay": 5589,
     "withElevation": 5596,
-    "withTrafficProxy": 5291,
-    "ways": 3112,
-    "wayGeometries": 3112,
-    "fullWays": 78787,
+    "withTrafficProxy": 5293,
+    "ways": 3111,
+    "wayGeometries": 3111,
+    "fullWays": 78878,
     "contextTiles": 35
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 78787,
-    "withSlope": 64099,
-    "noSlopeSignal": 14688,
+    "totalWays": 78878,
+    "withSlope": 64173,
+    "noSlopeSignal": 14705,
     "coveragePercent": 81.4,
     "classCounts": {
-      "flat": 28296,
-      "gentle": 17688,
-      "moderate": 9656,
-      "steep": 6371,
-      "very_steep": 2088
+      "flat": 28324,
+      "gentle": 17707,
+      "moderate": 9673,
+      "steep": 6375,
+      "very_steep": 2094
     },
     "missingReasonCounts": {
-      "way_too_short": 14667,
+      "way_too_short": 14684,
       "no_geometry": 21
     },
     "methodCounts": {
-      "median_segments": 64099
+      "median_segments": 64173
     },
     "confidenceCounts": {
-      "medium": 11134,
-      "high": 10086,
-      "low": 42879
+      "medium": 11146,
+      "high": 10087,
+      "low": 42940
     },
     "verySteepShare": 3.3,
     "flatGentleShare": 71.7

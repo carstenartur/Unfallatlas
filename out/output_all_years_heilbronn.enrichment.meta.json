@@ -2,12 +2,12 @@
   "schemaVersion": 3,
   "enrichmentScriptVersion": "1.0.0",
   "citySlug": "heilbronn",
-  "generatedAt": "2026-06-21T05:56:30.721Z",
+  "generatedAt": "2026-07-05T05:45:04.282Z",
   "sources": {
     "osm": {
       "source": "OpenStreetMap (Overpass)",
       "producerVersion": "1.2.0",
-      "extractDate": "2026-06-21",
+      "extractDate": "2026-07-05",
       "coverage": "full"
     },
     "dem": {
@@ -28,7 +28,7 @@
     "withTrafficProxy": 4010,
     "ways": 1666,
     "wayGeometries": 1666,
-    "fullWays": 22264,
+    "fullWays": 22322,
     "contextTiles": 23
   },
   "dictFields": [
@@ -37,28 +37,28 @@
     "cycleway"
   ],
   "slope": {
-    "totalWays": 22264,
-    "withSlope": 20347,
-    "noSlopeSignal": 1917,
-    "coveragePercent": 91.4,
+    "totalWays": 22322,
+    "withSlope": 20380,
+    "noSlopeSignal": 1942,
+    "coveragePercent": 91.3,
     "classCounts": {
-      "flat": 8684,
-      "gentle": 5252,
-      "moderate": 3007,
-      "steep": 2540,
+      "flat": 8700,
+      "gentle": 5262,
+      "moderate": 3008,
+      "steep": 2546,
       "very_steep": 864
     },
     "missingReasonCounts": {
-      "way_too_short": 1906,
-      "no_geometry": 11
+      "way_too_short": 1930,
+      "no_geometry": 12
     },
     "methodCounts": {
-      "median_segments": 20347
+      "median_segments": 20380
     },
     "confidenceCounts": {
-      "low": 10960,
-      "high": 5549,
-      "medium": 3838
+      "low": 10985,
+      "high": 5550,
+      "medium": 3845
     },
     "verySteepShare": 4.2,
     "flatGentleShare": 68.5
