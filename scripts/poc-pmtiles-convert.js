@@ -134,14 +134,27 @@ function compactAccidentFeature(feature) {
  * @returns {Object} Metadaten-Objekt
  */
 function buildCityMetadata(citySlug, features) {
-  const years = [...new Set(features.map(f => f.properties.year))].sort();
+  const years = [...new Set(features
+    .map((f) => {
+      const year = f?.properties?.year;
+      if (year === undefined || year === null || year === '') {
+        return null;
+      }
+      const parsed = Number(year);
+      return Number.isFinite(parsed) ? parsed : null;
+    })
+    .filter(y => y !== null)
+  )].sort((a, b) => a - b);
   const bbox  = computeBbox(features);
+  const yearRange = years.length > 0
+    ? { min: years[0], max: years[years.length - 1] }
+    : null;
 
   return {
     schemaVersion: 1,
     citySlug,
     featureCount: features.length,
-    yearRange: { min: years[0], max: years[years.length - 1] },
+    yearRange,
     years,
     bbox,
     layers: {
@@ -174,15 +187,30 @@ function buildCityMetadata(citySlug, features) {
  * @returns {number[]} [minLon, minLat, maxLon, maxLat]
  */
 function computeBbox(features) {
+  if (!Array.isArray(features) || features.length === 0) {
+    return null;
+  }
+
   let minLon =  Infinity, minLat =  Infinity;
   let maxLon = -Infinity, maxLat = -Infinity;
 
   for (const f of features) {
-    const [lon, lat] = f.geometry.coordinates;
+    const coords = f?.geometry?.coordinates;
+    if (!Array.isArray(coords) || coords.length < 2) continue;
+
+    const lon = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
+  }
+
+  if (!Number.isFinite(minLon) || !Number.isFinite(minLat)
+    || !Number.isFinite(maxLon) || !Number.isFinite(maxLat)) {
+    return null;
   }
 
   return [
@@ -226,11 +254,12 @@ function runDemo(citySlug = 'augsburg') {
     type: 'FeatureCollection',
     features: compacted,
   });
+  const compactGeoJsonBytes = Buffer.byteLength(compactGeoJson, 'utf8');
 
   console.log(`\nKompaktiertes GeoJSON (ohne redundante Felder):`);
   console.log(`  Properties:   ${Object.keys(compacted[0]?.properties ?? {}).length} Felder`);
-  console.log(`  Dateigröße:   ${(compactGeoJson.length / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`  Einsparung:   ${((1 - compactGeoJson.length / raw.length) * 100).toFixed(1)}%`);
+  console.log(`  Dateigröße:   ${(compactGeoJsonBytes / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`  Einsparung:   ${((1 - compactGeoJsonBytes / raw.length) * 100).toFixed(1)}%`);
 
   // Metadaten generieren
   const metadata = buildCityMetadata(citySlug, compacted);
@@ -317,6 +346,25 @@ function runFixtureDemo() {
     + `${Object.keys(compacted[0].properties).length} Felder`);
 }
 
+/**
+ * Schreibt kompaktiertes GeoJSON ohne Log-Ausgaben auf stdout.
+ * Für Pipelines wie: tippecanoe ... <(node ... --compact-stdout)
+ *
+ * @param {string} citySlug
+ */
+function writeCompactGeoJsonToStdout(citySlug = 'augsburg') {
+  const inputPath = path.join(__dirname, '..', 'out', `output_all_years_${citySlug}.geojson`);
+  if (!fs.existsSync(inputPath)) {
+    console.error(`Fehler: Keine Datei gefunden für --compact-stdout: ${inputPath}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const raw  = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
+  const compacted = raw.features.map(compactAccidentFeature);
+  process.stdout.write(JSON.stringify({ type: 'FeatureCollection', features: compacted }));
+}
+
 // ---------------------------------------------------------------------------
 // CLI-Einstiegspunkt
 // ---------------------------------------------------------------------------
@@ -329,23 +377,35 @@ PMTiles Proof-of-Concept Konverter
 ===================================
 
 Verwendung:
-  node scripts/poc-pmtiles-convert.js [--city <slug>]
+  node scripts/poc-pmtiles-convert.js [--city <slug>] [--demo] [--compact-stdout]
 
 Optionen:
   --city <slug>    Spezifische Stadt für Demo (Standard: augsburg)
+  --demo           Erzwingt Demo mit kleiner Fixture/Inline-Daten
+  --compact-stdout Gibt nur kompaktes GeoJSON auf stdout aus (für Pipelines)
   --help           Diese Hilfe
 
 Weitere Infos: docs/data-format-migration.md
 `);
 } else {
   const cityIdx = args.indexOf('--city');
-  const cityArg = cityIdx !== -1 ? args[cityIdx + 1] : 'augsburg';
-  runDemo(cityArg);
+  const cityArg = cityIdx !== -1 && args[cityIdx + 1] && !args[cityIdx + 1].startsWith('--')
+    ? args[cityIdx + 1]
+    : 'augsburg';
+
+  if (args.includes('--compact-stdout')) {
+    writeCompactGeoJsonToStdout(cityArg);
+  } else if (args.includes('--demo')) {
+    runFixtureDemo();
+  } else {
+    runDemo(cityArg);
+  }
 }
 
 module.exports = {
   compactAccidentFeature,
   buildCityMetadata,
+  computeBbox,
   ACCIDENT_LAYER_FIELDS,
   DROPPED_FIELDS,
   SLOPE_CLASS_CODES,

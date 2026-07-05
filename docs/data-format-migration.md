@@ -317,8 +317,9 @@ Ein minimaler POC-Konvertierungsscript befindet sich unter
 2. Welche Felder pro Feature minimal nötig sind
 3. Wie das neue `metadata/<city>.json` aussieht
 
-Der POC verwendet eine kleine Fixture-Datei (`tests/fixtures/accidents_sample.geojson`,
-10 Features) und erzeugt keine großen Output-Dateien.
+Der POC versucht zuerst eine kleine Fixture-Datei (`tests/fixtures/accidents_sample.geojson`)
+zu laden und fällt, falls sie fehlt, automatisch auf eine eingebaute Inline-Fixture zurück.
+Er erzeugt keine großen Output-Dateien.
 
 ---
 
