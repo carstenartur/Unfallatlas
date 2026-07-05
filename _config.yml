@@ -1,0 +1,55 @@
+# Jekyll configuration for GitHub Pages
+#
+# Without this file Jekyll copies the entire repository into the
+# deployed site, resulting in a ~1.19 GB uncompressed artifact that
+# intermittently exceeds GitHub Pages' 1 GB limit and causes
+# "Deployment failed, try again later" errors.
+#
+# The context-layer tiles in out/ctxtiles/ (841 MB) are the primary
+# contributor to the overshoot.  They are kept in the repository for
+# local / Docker use and for the enrichment pipeline, but they do not
+# need to be hosted on GitHub Pages: the app's ua.context_layers.js
+# handles a missing tile index gracefully (the context overlay simply
+# stays empty).
+#
+# After this exclusion the deployed site shrinks to ~350 MB
+# (accident GeoJSON + HTML/JS/CSS), which is well within the 1 GB
+# limit and makes deployments reliable.
+
+exclude:
+  # Context-layer tiles — 841 MB, main cause of the 1 GB overshoot.
+  - out/ctxtiles/
+
+  # Java / Maven analysis-service — source code only, not part of
+  # the web demo.
+  - analysis-service/
+
+  # Node.js build / test infrastructure.
+  - scripts/
+  - tests/
+  - server/
+  - coverage/
+  - test-results/
+  - playwright-report/
+  - .playwright/
+  - node_modules/
+
+  # Build / tool configuration files that serve no purpose on Pages.
+  - package.json
+  - package-lock.json
+  - Dockerfile
+  - docker-compose.yml
+  - docker-compose.*.yml
+  - cities.txt
+  - playwright.config.js
+  - jest.config.js
+
+  # Developer-facing documentation that is not part of the live demo.
+  - docs/
+  - ARCHITECTURE.md
+  - TESTING.md
+  - TODO.md
+  - FINAL_REPORT.md
+  - WERKBANK_V2.md
+  - CITATION.md
+  - release_notes.md
