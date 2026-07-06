@@ -51,9 +51,18 @@
         throw new Error(`GeoJSON konnte nicht geladen werden: ${err.message}`);
       }
     } else {
-      const resp = await fetch(url, { cache:"no-store" });
-      if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
-      gj = await resp.json();
+      // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
+      if (typeof UA.fetchJsonCompressed === 'function') {
+        try {
+          gj = await UA.fetchJsonCompressed(url);
+        } catch (err) {
+          throw new Error(`GeoJSON konnte nicht geladen werden: ${err.message}`);
+        }
+      } else {
+        const resp = await fetch(url, { cache:"no-store" });
+        if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
+        gj = await resp.json();
+      }
     }
     ctx.geojsonProps = gj?.properties || null;
     if (UA.contextLayers && typeof UA.contextLayers.detect === 'function') {
@@ -159,13 +168,19 @@
   UA.loadPOIData = async function loadPOIData(ctx){
     const url = UA.buildPOIUrl(ctx.CITY_RAW);
     try {
-      const resp = await fetch(url, { cache:"no-store" });
-      if (!resp.ok) {
-        console.info(`POI data not available for ${ctx.CITY_RAW}`);
-        ctx.poiData = null;
-        return;
+      // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
+      let gj;
+      if (typeof UA.fetchJsonCompressed === 'function') {
+        gj = await UA.fetchJsonCompressed(url);
+      } else {
+        const resp = await fetch(url, { cache:"no-store" });
+        if (!resp.ok) {
+          console.info(`POI data not available for ${ctx.CITY_RAW}`);
+          ctx.poiData = null;
+          return;
+        }
+        gj = await resp.json();
       }
-      const gj = await resp.json();
       ctx.poiData = gj;
       console.info(`Loaded ${gj?.features?.length || 0} POIs for ${ctx.CITY_RAW}`);
     } catch(e) {

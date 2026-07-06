@@ -220,6 +220,11 @@
       if (!_fetch) return Promise.reject(new Error('[StaticGeoJsonAccidentProvider] fetch is not available'));
       const p = (async () => {
         const url = _url(slug);
+        // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
+        if (typeof UA.fetchJsonCompressed === 'function') {
+          return UA.fetchJsonCompressed(url, { fetch: _fetch });
+        }
+        // Fallback: direct fetch (legacy / test environments without ua.fetch_gz.js)
         let resp;
         try { resp = await _fetch(url, { cache: 'no-store' }); }
         catch (err) { throw new Error(`[StaticGeoJsonAccidentProvider] network error for ${url}: ${err.message}`); }
@@ -338,12 +343,19 @@
       if (_manifestCache.has(slug)) return _manifestCache.get(slug);
       if (!_fetch) return Promise.resolve(null);
       const p = (async () => {
-        let resp;
-        try { resp = await _fetch(_indexUrl(slug), { cache: 'force-cache' }); }
-        catch (_) { return null; }
-        if (!resp || !resp.ok) return null;
+        const indexUrl = _indexUrl(slug);
         let json = null;
-        try { json = await resp.json(); } catch (_) { return null; }
+        // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
+        if (typeof UA.fetchJsonCompressed === 'function') {
+          try { json = await UA.fetchJsonCompressed(indexUrl, { fetch: _fetch, cache: 'force-cache' }); }
+          catch (_) { return null; }
+        } else {
+          let resp;
+          try { resp = await _fetch(indexUrl, { cache: 'force-cache' }); }
+          catch (_) { return null; }
+          if (!resp || !resp.ok) return null;
+          try { json = await resp.json(); } catch (_) { return null; }
+        }
         if (!json || typeof json !== 'object') return null;
         const ver = typeof json.schemaVersion === 'number' ? json.schemaVersion : null;
         if (ver !== null && !SUPPORTED_TILE_SCHEMA_VERSIONS.includes(ver)) {
@@ -375,6 +387,11 @@
       if (!_fetch) return Promise.resolve(null);
       const url = _tileUrlFromManifest(slug, manifest, x, y);
       const p = (async () => {
+        // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
+        if (typeof UA.fetchJsonCompressed === 'function') {
+          try { return await UA.fetchJsonCompressed(url, { fetch: _fetch, cache: 'force-cache' }); }
+          catch (_) { tileMap.delete(key); return null; }
+        }
         let resp;
         try { resp = await _fetch(url, { cache: 'force-cache' }); }
         catch (_) { tileMap.delete(key); return null; }
