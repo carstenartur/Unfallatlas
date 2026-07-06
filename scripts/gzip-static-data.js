@@ -117,6 +117,9 @@ function parseArgs(argv) {
  */
 function checkState(root, policy) {
   const { _expandGlob, _matchesAny } = _internals(root, policy);
+  const maxRawBytes = typeof policy.maxRawBytes === 'number'
+    ? policy.maxRawBytes
+    : DEFAULT_MAX_RAW_BYTES;
 
   const violations = [];
   const warnings   = [];
@@ -126,6 +129,10 @@ function checkState(root, policy) {
   for (const pat of forbidPatterns) {
     for (const abs of _expandGlob(pat)) {
       if (abs.endsWith('.gz')) continue;
+      let stat;
+      try { stat = fs.statSync(abs); }
+      catch (_) { continue; }
+      if (stat.size < maxRawBytes) continue;
       const gzAbs = `${abs}.gz`;
       const relRaw = path.relative(root, abs).replace(/\\/g, '/');
       const relGz  = path.relative(root, gzAbs).replace(/\\/g, '/');
@@ -257,13 +264,18 @@ function main(argv) {
   // --check mode: read-only validation
   if (args.check) {
     const { ok, violations, warnings } = checkState(args.root, policy);
+    const staleWarnings = warnings.filter(w => w.startsWith('STALE_GZ'));
+    const hasStaleWarnings = staleWarnings.length > 0;
 
     for (const w of warnings) console.warn(w);
 
     if (args.gzipOnly) {
       for (const v of violations) console.error(v);
-      if (!ok) {
+      if (!ok || hasStaleWarnings) {
         console.error(`\n[gzip-static-data] --check --gzip-only FAILED: ${violations.length} violation(s)`);
+        if (hasStaleWarnings) {
+          console.error(`[gzip-static-data] --check --gzip-only FAILED: stale .gz artefacts detected (${staleWarnings.length})`);
+        }
         process.exitCode = 1;
         return;
       }
@@ -272,7 +284,11 @@ function main(argv) {
       for (const v of violations) console.warn(v);
       if (!ok) {
         console.warn(`\n[gzip-static-data] --check: ${violations.length} warning(s) — use --gzip-only to fail on these`);
-      } else {
+      }
+      if (hasStaleWarnings) {
+        console.error(`\n[gzip-static-data] --check FAILED: stale .gz artefacts detected (${staleWarnings.length})`);
+        process.exitCode = 1;
+      } else if (ok) {
         console.log('[gzip-static-data] --check passed ✓');
       }
     }
