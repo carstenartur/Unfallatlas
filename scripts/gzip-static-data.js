@@ -166,7 +166,7 @@ function _internals(root, policy) {
   function _expandGlob(pattern) {
     const regexStr = pattern
       .replace(/\\/g, '/')
-      .replace(/[.+^${}()|[\]]/g, '\\$&')
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
       .replace(/\*\*\//g, '(.*\/)?')
       .replace(/\*\*/g, '.*')
       .replace(/\*/g, '[^/]*');

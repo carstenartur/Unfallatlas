@@ -84,7 +84,7 @@ function _expandGlob(root, pattern) {
   // - `*`   → match within a single segment
   const regexStr = pattern
     .replace(/\\/g, '/')
-    .replace(/[.+^${}()|[\]]/g, '\\$&')   // escape regex special chars (before replacing *)
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')   // escape regex special chars (before replacing *)
     .replace(/\*\*\//g, '(.*\/)?')         // **/ → optional path prefix
     .replace(/\*\*/g, '.*')                // ** → match anything
     .replace(/\*/g, '[^/]*');              // * → match within single segment
@@ -125,7 +125,7 @@ function _matchesAny(filePath, root, patterns) {
   for (const pattern of patterns) {
     const normPattern = pattern.replace(/\\/g, '/');
     const regexStr = normPattern
-      .replace(/[.+^${}()|[\]]/g, '\\$&')
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
       .replace(/\*\*\//g, '(.*\/)?')
       .replace(/\*\*/g, '.*')
       .replace(/\*/g, '[^/]*');
