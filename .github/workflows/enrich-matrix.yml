@@ -346,17 +346,27 @@ jobs:
           ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
         run: node scripts/enrich_geojson.js
 
+      - name: Normalize static data artifacts to gzip-only
+        run: node scripts/gzip-static-data.js --replace-raw --delete-stale --summary-json out/gzip-summary.json
+
+      - name: Verify gzip-only artifact invariants
+        run: node scripts/gzip-static-data.js --check --gzip-only
+
       - name: Check enriched payload size budget
+        env:
+          UNFALLATLAS_DATA_MODE: gzip-only
         run: node scripts/check-enrichment-size.js
 
       - name: Validate v3 context-layer datasets
+        env:
+          UNFALLATLAS_DATA_MODE: gzip-only
         run: node scripts/check-context-datasets.js
 
       # Same commit-only-on-real-diff guard as enrich.yml.
       - name: Commit & Push changes
         run: |
           set -euo pipefail
-          git add -A -- out/ ':!out/*.enrichment.meta.json'
+          git add -A -- out/ ':!out/*.enrichment.meta.json' ':!out/*.enrichment.meta.json.gz'
           if git diff --cached --quiet; then
             echo "No enrichment changes other than meta timestamps; skipping commit."
             exit 0

@@ -9,6 +9,7 @@
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
+const zlib = require('zlib');
 
 const { validateAll } = require('../../scripts/check-context-datasets.js');
 
@@ -235,6 +236,27 @@ describe('check-context-datasets', () => {
     // get the new gate applied.
     writeGoodCity(tmpRoot, 'noslope');
     const r = validateAll(tmpRoot);
+    expect(r.cities[0].ok).toBe(true);
+  });
+
+  test('passes when context dataset files exist only as .gz artifacts', () => {
+    writeGoodCity(tmpRoot, 'gzcity');
+    const outDir = path.join(tmpRoot, 'out');
+    const files = [
+      path.join(outDir, 'output_all_years_gzcity.enrichment.meta.json'),
+      path.join(outDir, 'ways_gzcity.json'),
+      path.join(outDir, 'ctxtiles', 'gzcity', 'index.json'),
+      path.join(outDir, 'ctxtiles', 'gzcity', '100', '200.json'),
+      path.join(outDir, 'ctxtiles', 'gzcity', '101', '200.json'),
+    ];
+    for (const file of files) {
+      const raw = fs.readFileSync(file);
+      fs.writeFileSync(`${file}.gz`, zlib.gzipSync(raw));
+      fs.unlinkSync(file);
+    }
+    const r = validateAll(tmpRoot);
+    expect(r.summary.total).toBe(1);
+    expect(r.summary.failed).toBe(0);
     expect(r.cities[0].ok).toBe(true);
   });
 });

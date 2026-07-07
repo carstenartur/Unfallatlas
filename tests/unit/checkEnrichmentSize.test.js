@@ -9,6 +9,7 @@
 const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
+const zlib = require('zlib');
 
 // We test the public check() against a sandbox: temporarily redirect
 // the module-level constants by spawning a fresh require with a
@@ -77,12 +78,17 @@ describe('check-enrichment-size — end-to-end CLI exit code (issue criterion 4)
   beforeEach(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-size-gate-'));
     fs.mkdirSync(path.join(tmpRoot, 'scripts'));
+    fs.mkdirSync(path.join(tmpRoot, 'scripts/lib'), { recursive: true });
     fs.mkdirSync(path.join(tmpRoot, 'out'));
     // The script resolves OUT_DIR via __dirname/.., so just copy the
     // script into the sandbox's scripts/ directory.
     fs.copyFileSync(
       path.join(__dirname, '../../scripts/check-enrichment-size.js'),
       path.join(tmpRoot, 'scripts/check-enrichment-size.js'),
+    );
+    fs.copyFileSync(
+      path.join(__dirname, '../../scripts/lib/read-json-maybe-gz.js'),
+      path.join(tmpRoot, 'scripts/lib/read-json-maybe-gz.js'),
     );
   });
   afterEach(() => { fs.rmSync(tmpRoot, { recursive: true, force: true }); });
@@ -91,6 +97,14 @@ describe('check-enrichment-size — end-to-end CLI exit code (issue criterion 4)
     fs.writeFileSync(
       path.join(tmpRoot, 'out', `output_all_years_${slug}.geojson`),
       JSON.stringify(payloadObj),
+    );
+  }
+
+  function writeCityGzOnly(slug, payloadObj) {
+    const raw = JSON.stringify(payloadObj);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', `output_all_years_${slug}.geojson.gz`),
+      zlib.gzipSync(Buffer.from(raw, 'utf8')),
     );
   }
 
@@ -122,5 +136,11 @@ describe('check-enrichment-size — end-to-end CLI exit code (issue criterion 4)
     expect(run().status).toBe(0);            // seeds baseline
     // Same payload — well within +10 %.
     expect(run().status).toBe(0);
+  });
+
+  test('works with gzip-only city files (no raw .geojson present)', () => {
+    writeCityGzOnly('demo', { type: 'FeatureCollection', features: [{ id: 1 }] });
+    expect(run().status).toBe(0); // seeds baseline from .gz
+    expect(run().status).toBe(0); // checks again from .gz
   });
 });

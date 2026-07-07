@@ -73,6 +73,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 
 const REPO_ROOT_DEFAULT = path.resolve(__dirname, '..');
 
@@ -109,17 +110,15 @@ function validateAll(repoRoot) {
     };
   }
 
-  const metaFiles = fs.readdirSync(outDir)
-    .filter((f) => /^output_all_years_.+\.enrichment\.meta\.json$/.test(f))
-    .sort();
-
-  for (const metaFile of metaFiles) {
-    const m = metaFile.match(/^output_all_years_(.+)\.enrichment\.meta\.json$/);
-    if (!m) continue;
-    const slug = m[1];
-    const meta = _readJson(path.join(outDir, metaFile));
+  const metaSlugs = new Set();
+  for (const f of fs.readdirSync(outDir)) {
+    const m = f.match(/^output_all_years_(.+)\.enrichment\.meta\.json(?:\.gz)?$/);
+    if (m) metaSlugs.add(m[1]);
+  }
+  for (const slug of [...metaSlugs].sort()) {
+    const meta = _readJson(path.join(outDir, `output_all_years_${slug}.enrichment.meta.json`));
     if (!meta || typeof meta !== 'object') {
-      cities.push({ slug, ok: false, problems: [`meta sidecar ${metaFile} unreadable or invalid JSON`] });
+      cities.push({ slug, ok: false, problems: [`meta sidecar output_all_years_${slug}.enrichment.meta.json unreadable or invalid JSON`] });
       continue;
     }
     if (Number(meta.schemaVersion) !== 3 || typeof meta.tileIndexPath !== 'string') {
@@ -187,7 +186,7 @@ function _validateV3City(repoRoot, slug, meta) {
           continue;
         }
         const tileFile = path.join(baseDir, String(x), `${y}.json`);
-        if (!fs.existsSync(tileFile)) {
+        if (!fs.existsSync(tileFile) && !fs.existsSync(`${tileFile}.gz`)) {
           if (!firstMissing) firstMissing = `${x}/${y}.json`;
           missingCount++;
           continue;
@@ -279,8 +278,7 @@ function _validateV3City(repoRoot, slug, meta) {
 
 function _readJson(file) {
   try {
-    const raw = fs.readFileSync(file, 'utf8');
-    return JSON.parse(raw);
+    return readJsonMaybeGz(file);
   } catch (_) {
     return null;
   }

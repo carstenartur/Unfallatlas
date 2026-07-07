@@ -11,6 +11,7 @@
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
+const zlib = require('zlib');
 
 const checker = require('../../scripts/check-slope-plausibility.js');
 
@@ -189,5 +190,21 @@ describe('check-slope-plausibility — validateAll', () => {
     expect(r.summary.total).toBe(0);
     expect(r.summary.failed).toBe(0);
     expect(r.cities).toEqual([]);
+  });
+
+  test('reads meta sidecars from .gz when raw files are absent', () => {
+    const { root, plausFile } = setup({
+      berlin: { withSlope: 1000, classCounts: { flat: 600, gentle: 200, moderate: 100, steep: 80, very_steep: 20 }, verySteepShare: 2.0, flatGentleShare: 80.0 },
+    }, {
+      _default: { maxVerySteepShare: 30, minFlatGentleShare: 30 },
+      cities: { berlin: { maxVerySteepShare: 5, minFlatGentleShare: 60 } },
+    });
+    const metaPath = path.join(root, 'out', 'output_all_years_berlin.enrichment.meta.json');
+    const raw = fs.readFileSync(metaPath);
+    fs.writeFileSync(`${metaPath}.gz`, zlib.gzipSync(raw));
+    fs.unlinkSync(metaPath);
+    const r = checker.validateAll(root, { plausibilityFile: plausFile });
+    expect(r.summary.failed).toBe(0);
+    expect(r.summary.ok).toBe(1);
   });
 });

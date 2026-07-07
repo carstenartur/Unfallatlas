@@ -12,6 +12,7 @@
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
+const zlib = require('zlib');
 
 const qa = require('../../scripts/qa-slope-report.js');
 
@@ -163,5 +164,29 @@ describe('qa-slope-report — assembleReport (tile-only fallback)', () => {
     expect(summaryText).toMatch(/ways in viewport: 3/);
     expect(summaryText).toMatch(/very_steep\s+1/);
     expect(summaryText).toMatch(/flat\s+1/);
+  });
+
+  test('reads tile index and tile payload from .gz when raw files are absent', () => {
+    const root = mktmp();
+    const c = writeMiniCity(root, 'testcity');
+    const z = 13;
+    const tx = lonToTileX(c.lon, z);
+    const ty = latToTileY(c.lat, z);
+    const indexPath = path.join(root, 'out', 'ctxtiles', 'testcity', 'index.json');
+    const tilePath = path.join(root, 'out', 'ctxtiles', 'testcity', String(tx), `${ty}.json`);
+    for (const file of [indexPath, tilePath]) {
+      fs.writeFileSync(`${file}.gz`, zlib.gzipSync(fs.readFileSync(file)));
+      fs.unlinkSync(file);
+    }
+    const report = qa.assembleReport({
+      city: 'testcity',
+      centerLat: c.lat,
+      centerLon: c.lon,
+      zoom: 16,
+      viewportPx: { w: 1280, h: 800 },
+      repoRoot: root,
+    });
+    expect(report.ok).toBe(true);
+    expect(report.totalWays).toBe(3);
   });
 });
