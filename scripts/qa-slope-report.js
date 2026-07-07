@@ -41,6 +41,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 
 const dem    = require('./producers/dem_producer.js');
 const enrich = require('./enrich_geojson.js');
@@ -141,11 +142,11 @@ function bboxIntersectsLatLngs(bbox, latlngs) {
 function loadTilesForBbox(repoRoot, slug, bbox) {
   const baseDir = path.join(repoRoot, 'out', 'ctxtiles', slug);
   const indexPath = path.join(baseDir, 'index.json');
-  if (!fs.existsSync(indexPath)) {
+  if (!fs.existsSync(indexPath) && !fs.existsSync(`${indexPath}.gz`)) {
     return { ok: false, error: `tile index not found at ${path.relative(repoRoot, indexPath)}`, ways: [], dicts: {} };
   }
   let index;
-  try { index = JSON.parse(fs.readFileSync(indexPath, 'utf8')); }
+  try { index = readJsonMaybeGz(indexPath); }
   catch (e) { return { ok: false, error: `tile index unreadable: ${e.message}`, ways: [], dicts: {} }; }
   const dicts = index.dicts || {};
   const z = Number.isInteger(index.z) ? index.z : 13;
@@ -162,9 +163,9 @@ function loadTilesForBbox(repoRoot, slug, bbox) {
   for (let x = minTx; x <= maxTx; x++) {
     for (let y = minTy; y <= maxTy; y++) {
       const tileFile = path.join(baseDir, String(x), `${y}.json`);
-      if (!fs.existsSync(tileFile)) continue;
+      if (!fs.existsSync(tileFile) && !fs.existsSync(`${tileFile}.gz`)) continue;
       let payload;
-      try { payload = JSON.parse(fs.readFileSync(tileFile, 'utf8')); }
+      try { payload = readJsonMaybeGz(tileFile); }
       catch (e) {
         console.warn(`[qa-slope] skipping unreadable tile ${path.relative(repoRoot, tileFile)}: ${e.message}`);
         continue;

@@ -60,24 +60,41 @@ jobs:
       - name: Validate GeoJSON outputs
         run: |
           python3 - <<'PY'
-          import glob, json, sys
+          import glob, gzip, json, os, sys
           files = sorted(glob.glob("out/output_all_years_*.geojson"))
-          if not files:
-            print("No geojson files found")
-            sys.exit(2)
-          bad = []
+          gz_files = sorted(glob.glob("out/output_all_years_*.geojson.gz"))
+          seen = set()
+          logical = []
           for f in files:
+            slug = f[:-8]  # strip .geojson
+            seen.add(slug)
+            logical.append((slug, f, False))
+          for f in gz_files:
+            slug = f[:-11]  # strip .geojson.gz
+            if slug in seen:
+              continue
+            logical.append((slug, f, True))
+          if not files:
+            if not gz_files:
+              print("No geojson files found (.geojson or .geojson.gz)")
+              sys.exit(2)
+          bad = []
+          for _, f, is_gz in logical:
             try:
-              with open(f,"r",encoding="utf-8") as fp:
-                json.load(fp)
+              if is_gz:
+                with gzip.open(f, "rt", encoding="utf-8") as fp:
+                  json.load(fp)
+              else:
+                with open(f, "r", encoding="utf-8") as fp:
+                  json.load(fp)
             except Exception as e:
-              bad.append((f,str(e)))
+              bad.append((f, str(e)))
           if bad:
             print("Invalid GeoJSON:")
             for f,e in bad:
               print(" -", f, "->", e)
             sys.exit(2)
-          print("GeoJSON OK:", len(files))
+          print("GeoJSON OK:", len(logical))
           PY
 
       - name: Set up Node.js
@@ -106,13 +123,25 @@ jobs:
           ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
         run: node scripts/enrich_geojson.js
 
+      - name: Normalize static data artifacts to gzip-only
+        run: node scripts/gzip-static-data.js --replace-raw --delete-stale --summary-json out/gzip-summary.json
+
+      - name: Verify gzip-only artifact invariants
+        run: node scripts/gzip-static-data.js --check --gzip-only
+
       - name: Check enriched payload size budget
+        env:
+          UNFALLATLAS_DATA_MODE: gzip-only
         run: node scripts/check-enrichment-size.js
 
       - name: Validate v3 context-layer datasets
+        env:
+          UNFALLATLAS_DATA_MODE: gzip-only
         run: node scripts/check-context-datasets.js
 
       - name: Validate per-city slope plausibility
+        env:
+          UNFALLATLAS_DATA_MODE: gzip-only
         run: node scripts/check-slope-plausibility.js
 
       - name: Sync City-Registry (auto-fix Drift)

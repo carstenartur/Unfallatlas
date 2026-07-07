@@ -195,12 +195,18 @@
     if (cache.has(u.slug)) return cache.get(u.slug);
 
     const p = (async () => {
-      const [waysResp, metaResp] = await Promise.all([
-        fetch(u.ways, { cache: 'force-cache' }).catch(() => null),
-        fetch(u.meta, { cache: 'force-cache' }).catch(() => null),
+      // Use UA.fetchJsonCompressed (loads .gz variant automatically) when available;
+      // fall back to direct fetch for backwards compatibility.
+      const _fetchJson = (typeof UA.fetchJsonCompressed === 'function')
+        ? url => UA.fetchJsonCompressed(url, { cache: 'force-cache' }).catch(() => null)
+        : url => fetch(url, { cache: 'force-cache' })
+                    .then(r => r && r.ok ? r.json().catch(() => null) : null)
+                    .catch(() => null);
+
+      const [raw, meta] = await Promise.all([
+        _fetchJson(u.ways),
+        _fetchJson(u.meta),
       ]);
-      const raw  = (waysResp && waysResp.ok) ? await waysResp.json().catch(() => null) : null;
-      const meta = (metaResp && metaResp.ok) ? await metaResp.json().catch(() => null) : null;
       const dicts = (ctx && (ctx.geojsonProps?.enrichmentDicts || ctx.enrichmentDicts)) || null;
       const metaSchemaVersion = (meta && Number.isFinite(meta.schemaVersion)) ? Number(meta.schemaVersion) : null;
       const metaTileIndexUrl = _tileIndexUrlFromMetaPath(meta && meta.tileIndexPath);
@@ -257,12 +263,9 @@
           // extra round-trip per popup. The per-tile payloads remain
           // lazy.
           try {
-            const manResp = await fetch(tileIndexUrl, { cache: 'force-cache' });
-            if (manResp && manResp.ok) {
-              const manifest = await manResp.json().catch(() => null);
-              if (manifest && typeof manifest === 'object') {
-                tileIndex = manifest;
-              }
+            const manifest = await _fetchJson(tileIndexUrl);
+            if (manifest && typeof manifest === 'object') {
+              tileIndex = manifest;
             }
           } catch (_) { /* manifest optional — degrades gracefully */ }
         } else if (raw.ways && typeof raw.ways === 'object') {
@@ -290,11 +293,8 @@
       }
       if (tileIndexUrl && !tileIndex) {
         try {
-          const manResp = await fetch(tileIndexUrl, { cache: 'force-cache' });
-          if (manResp && manResp.ok) {
-            const manifest = await manResp.json().catch(() => null);
-            if (manifest && typeof manifest === 'object') tileIndex = manifest;
-          }
+          const manifest = await _fetchJson(tileIndexUrl);
+          if (manifest && typeof manifest === 'object') tileIndex = manifest;
         } catch (_) { /* manifest optional — degrades gracefully */ }
       }
       // Prefer the dicts shipped with the tile manifest over the
@@ -432,12 +432,18 @@
     // or popup hydration can retry — otherwise the first failed fetch
     // would permanently disable the tile for the rest of the session.
     const p = (async () => {
-      let resp;
-      try { resp = await fetch(url, { cache: 'force-cache' }); }
-      catch (_) { cacheMap.delete(key); return null; }
-      if (!resp || !resp.ok) { cacheMap.delete(key); return null; }
       let json = null;
-      try { json = await resp.json(); } catch (_) { cacheMap.delete(key); return null; }
+      // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
+      if (typeof UA.fetchJsonCompressed === 'function') {
+        try { json = await UA.fetchJsonCompressed(url, { cache: 'force-cache' }); }
+        catch (_) { cacheMap.delete(key); return null; }
+      } else {
+        let resp;
+        try { resp = await fetch(url, { cache: 'force-cache' }); }
+        catch (_) { cacheMap.delete(key); return null; }
+        if (!resp || !resp.ok) { cacheMap.delete(key); return null; }
+        try { json = await resp.json(); } catch (_) { cacheMap.delete(key); return null; }
+      }
       _ingestTile(state, json);
       return json;
     })();

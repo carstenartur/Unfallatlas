@@ -28,6 +28,7 @@
 const fs   = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { readTextMaybeGz } = require('./lib/read-json-maybe-gz');
 
 const REPO_ROOT     = path.resolve(__dirname, '..');
 const OUT_DIR       = path.join(REPO_ROOT, 'out');
@@ -36,18 +37,26 @@ const BASELINE_PATH = path.join(OUT_DIR, '.enrichment-size-baseline.json');
 const DEFAULT_THRESHOLD_PCT = 10; // see docs/enrichment.md
 
 function gzippedSize(filePath) {
-  const raw = fs.readFileSync(filePath);
-  return zlib.gzipSync(raw, { level: 9 }).length;
+  const gzPath = `${filePath}.gz`;
+  if (fs.existsSync(gzPath)) {
+    return fs.statSync(gzPath).size;
+  }
+  const raw = readTextMaybeGz(filePath);
+  return zlib.gzipSync(Buffer.from(raw, 'utf8'), { level: 9 }).length;
 }
 
 function listCityFiles() {
   if (!fs.existsSync(OUT_DIR)) return [];
-  return fs.readdirSync(OUT_DIR)
-    .filter(n => /^output_all_years_[a-z0-9_]+\.geojson$/.test(n))
+  const slugs = new Set();
+  for (const n of fs.readdirSync(OUT_DIR)) {
+    const m = n.match(/^output_all_years_([a-z0-9_]+)\.geojson(?:\.gz)?$/);
+    if (m) slugs.add(m[1]);
+  }
+  return [...slugs]
     .sort()
-    .map(n => ({
-      slug:    n.replace(/^output_all_years_/, '').replace(/\.geojson$/, ''),
-      file:    path.join(OUT_DIR, n),
+    .map(slug => ({
+      slug,
+      file: path.join(OUT_DIR, `output_all_years_${slug}.geojson`),
     }));
 }
 
