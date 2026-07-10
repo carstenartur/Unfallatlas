@@ -82,12 +82,17 @@ function _expandGlob(root, pattern) {
   // - `**/` → zero or more path segments (including none)
   // - `**`  → match across segments
   // - `*`   → match within a single segment
+  //
+  // Use NUL/SOH placeholders so the final `*`→`[^/]*` replacement does not
+  // double-replace the `*` inside the `.*` strings introduced for `**`.
   const regexStr = pattern
     .replace(/\\/g, '/')
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')   // escape regex special chars (before replacing *)
-    .replace(/\*\*\//g, '(.*\/)?')         // **/ → optional path prefix
-    .replace(/\*\*/g, '.*')                // ** → match anything
-    .replace(/\*/g, '[^/]*');              // * → match within single segment
+    .replace(/\*\*\//g, '\x00')              // **/ → placeholder (NUL)
+    .replace(/\*\*/g, '\x01')               // **  → placeholder (SOH)
+    .replace(/\*/g, '[^/]*')               // *   → match within single segment
+    .replace(/\x00/g, '(.*\/)?')           // restore **/ placeholder
+    .replace(/\x01/g, '.*');               // restore ** placeholder
   const re = new RegExp(`^${regexStr}$`);
 
   const results = [];
@@ -126,9 +131,11 @@ function _matchesAny(filePath, root, patterns) {
     const normPattern = pattern.replace(/\\/g, '/');
     const regexStr = normPattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*\*\//g, '(.*\/)?')
-      .replace(/\*\*/g, '.*')
-      .replace(/\*/g, '[^/]*');
+      .replace(/\*\*\//g, '\x00')
+      .replace(/\*\*/g, '\x01')
+      .replace(/\*/g, '[^/]*')
+      .replace(/\x00/g, '(.*\/)?')
+      .replace(/\x01/g, '.*');
     const re = new RegExp(`^${regexStr}$`);
     if (re.test(rel)) return true;
   }
@@ -273,13 +280,20 @@ function compressArtifacts(root, policy, options) {
   }
 
   // Optionally remove stale .gz files that no longer have a corresponding
-  // source file anywhere (i.e. the source was deleted).
+  // source file anywhere (i.e. the source was deleted before this run).
+  // IMPORTANT: skip .gz files that were just created by the compression step
+  // above — when --replace-raw and --delete-stale are combined, the raw files
+  // are deleted by compressArtifact(), so the stale check must not treat
+  // freshly-created .gz artefacts as stale.
+  const justCreatedGz = new Set(entries.map(e => e.file));
   const staleRemoved = [];
   if (deleteStale && !dryRun) {
     for (const pat of compressPatterns) {
       // Build the corresponding .gz pattern
       const gzPat = pat.endsWith('.gz') ? pat : `${pat}.gz`;
       for (const gzAbs of _expandGlob(root, gzPat)) {
+        // Never remove a .gz that was just produced by this run.
+        if (justCreatedGz.has(gzAbs)) continue;
         const rawAbs = gzAbs.slice(0, -3); // strip .gz
         if (!fs.existsSync(rawAbs)) {
           try {
