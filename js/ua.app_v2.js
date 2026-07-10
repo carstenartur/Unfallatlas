@@ -441,11 +441,17 @@ if (UA.qBool("export", false)) {
     try {
       const statEl = document.getElementById("stat");
       if (statEl) {
+        const errMsg = String(err && err.message ? err.message : err || "");
+        const gzipFailure =
+          errMsg.includes('[fetchJsonGz]') ||
+          errMsg.includes('DecompressionStream is not available') ||
+          errMsg.includes('decompression failed');
         // QA-Härtung „Ladezustand": Statt der rohen Exception eine
         // verständliche Fehlermeldung anzeigen. Die Originalmeldung
         // bleibt in der Konsole für Entwickler.
-        statEl.textContent =
-          "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
+        statEl.textContent = gzipFailure
+          ? "Daten konnten nicht geladen werden: gzip-Daten konnten nicht dekomprimiert werden. Bitte modernen Browser verwenden oder Deployment prüfen."
+          : "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
         statEl.setAttribute("role", "alert");
       }
     } catch (uiErr) {

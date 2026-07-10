@@ -124,7 +124,7 @@ jobs:
         run: node scripts/enrich_geojson.js
 
       - name: Normalize static data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw --delete-stale --summary-json out/gzip-summary.json
+        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
 
       - name: Verify gzip-only artifact invariants
         run: node scripts/gzip-static-data.js --check --gzip-only

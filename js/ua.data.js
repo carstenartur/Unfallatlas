@@ -22,14 +22,46 @@
     return `out/output_all_years_${suffix}.geojson`;
   };
 
+  function _isGzipOnlyMode() {
+    try {
+      const mode = window.document
+        ?.querySelector('meta[name="unfallatlas:data-mode"]')
+        ?.getAttribute('content');
+      return mode === 'gzip-only';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function _gzipSupportError(url) {
+    return new Error(
+      `Daten konnten nicht geladen werden: gzip-Daten konnten nicht dekomprimiert werden. ` +
+      `Bitte modernen Browser verwenden oder Deployment prüfen. (${url}.gz)`
+    );
+  }
+
   UA.loadCityData = async function loadCityData(ctx){
     const url = UA.buildDataUrl(ctx.CITY_RAW);
     ctx.DATA_URL = url;
     ctx.ui.dataSourceCode.textContent = url;
 
-    const resp = await fetch(url, { cache:"no-store" });
-    if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
-    const gj = await resp.json();
+    let gj;
+    if (typeof UA.fetchJsonCompressed === 'function') {
+      try {
+        gj = await UA.fetchJsonCompressed(url);
+      } catch (err) {
+        const msg = String(err && err.message ? err.message : err || '');
+        if (msg.includes('DecompressionStream is not available')) throw _gzipSupportError(url);
+        throw new Error(`GeoJSON konnte nicht geladen werden: ${msg}`);
+      }
+    } else if (_isGzipOnlyMode()) {
+      throw _gzipSupportError(url);
+    } else {
+      const resp = await fetch(url, { cache:"no-store" });
+      if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
+      gj = await resp.json();
+    }
+
     ctx.allPts = UA.extractPoints(gj);
   };
 })();

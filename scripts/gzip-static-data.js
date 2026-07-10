@@ -24,7 +24,12 @@
  *
  *   --delete-stale
  *     Remove .gz files whose raw source no longer exists. Can be
- *     combined with --replace-raw.
+ *     combined with --replace-raw only when
+ *     --allow-delete-stale-without-raw is set explicitly.
+ *
+ *   --allow-delete-stale-without-raw
+ *     Explicitly allow stale cleanup in gzip-only states where raw files
+ *     are intentionally absent (unsafe for normal --replace-raw runs).
  *
  *   --check [--gzip-only]
  *     Validate the artefact state without modifying any files.
@@ -75,6 +80,7 @@ function parseArgs(argv) {
   const args = {
     replaceRaw:  false,
     deleteStale: false,
+    allowDeleteStaleWithoutRaw: false,
     check:       false,
     gzipOnly:    false,
     dryRun:      false,
@@ -87,6 +93,9 @@ function parseArgs(argv) {
     switch (argv[i]) {
       case '--replace-raw':  args.replaceRaw  = true; break;
       case '--delete-stale': args.deleteStale = true; break;
+      case '--allow-delete-stale-without-raw':
+        args.allowDeleteStaleWithoutRaw = true;
+        break;
       case '--check':        args.check       = true; break;
       case '--gzip-only':    args.gzipOnly    = true; break;
       case '--dry-run':      args.dryRun      = true; break;
@@ -310,6 +319,7 @@ function main(argv) {
     deleteRaw:   args.replaceRaw,
     dryRun:      args.dryRun,
     deleteStale: args.deleteStale,
+    allowDeleteStaleWithoutRaw: args.allowDeleteStaleWithoutRaw,
   });
 
   const summary = buildSummary(result, args);

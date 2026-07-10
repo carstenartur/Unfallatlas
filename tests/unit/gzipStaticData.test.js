@@ -71,4 +71,73 @@ describe('gzip-static-data --check CLI', () => {
     expect(result.status).toBe(1);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/STALE_GZ/);
   });
+
+  describe('gzip-static-data --replace-raw safety', () => {
+    let dir;
+
+    beforeEach(() => { dir = makeTmpDir(); });
+    afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+
+    test('does not delete existing .gz artefacts in replace-raw mode when no raw files were processed', () => {
+      const gzAbs = path.join(dir, 'out/output_all_years_bonn.geojson.gz');
+      fs.mkdirSync(path.dirname(gzAbs), { recursive: true });
+      fs.writeFileSync(gzAbs, zlib.gzipSync(Buffer.from('{"type":"FeatureCollection","features":[]}', 'utf8')));
+
+      const policyPath = path.join(dir, 'policy.js');
+      fs.writeFileSync(policyPath, `module.exports = ${JSON.stringify({
+        compress: ['out/**/*.geojson'],
+        forbidRaw: [],
+        keepRaw: [],
+        skip: ['out/**/*.gz'],
+        maxRawBytes: 0,
+      }, null, 2)};`);
+
+      const result = spawnSync(
+        'node',
+        [
+          path.join(__dirname, '../../scripts/gzip-static-data.js'),
+          '--replace-raw',
+          '--delete-stale',
+          '--policy', policyPath,
+          dir,
+        ],
+        { encoding: 'utf8' },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(gzAbs)).toBe(true);
+      expect(`${result.stdout}\n${result.stderr}`).toMatch(/Files processed:\s+0/);
+    });
+
+    test('explicit allow-delete-stale-without-raw enables stale cleanup in replace-raw mode', () => {
+      const gzAbs = path.join(dir, 'out/output_all_years_bonn.geojson.gz');
+      fs.mkdirSync(path.dirname(gzAbs), { recursive: true });
+      fs.writeFileSync(gzAbs, zlib.gzipSync(Buffer.from('{"type":"FeatureCollection","features":[]}', 'utf8')));
+
+      const policyPath = path.join(dir, 'policy.js');
+      fs.writeFileSync(policyPath, `module.exports = ${JSON.stringify({
+        compress: ['out/**/*.geojson'],
+        forbidRaw: [],
+        keepRaw: [],
+        skip: ['out/**/*.gz'],
+        maxRawBytes: 0,
+      }, null, 2)};`);
+
+      const result = spawnSync(
+        'node',
+        [
+          path.join(__dirname, '../../scripts/gzip-static-data.js'),
+          '--replace-raw',
+          '--delete-stale',
+          '--allow-delete-stale-without-raw',
+          '--policy', policyPath,
+          dir,
+        ],
+        { encoding: 'utf8' },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(gzAbs)).toBe(false);
+    });
+  });
 });
