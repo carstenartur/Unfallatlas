@@ -443,7 +443,6 @@ if (UA.qBool("export", false)) {
       if (statEl) {
         const errMsg = String(err && err.message ? err.message : err || "");
         const gzipFailure =
-          errMsg.includes('[fetchJsonGz]') ||
           errMsg.includes('DecompressionStream is not available') ||
           errMsg.includes('decompression failed');
         // QA-Härtung „Ladezustand": Statt der rohen Exception eine

@@ -308,7 +308,7 @@ function compressArtifacts(root, policy, options) {
   } else if (deleteStale && !dryRun && deleteRaw && !allowDeleteStaleWithoutRaw) {
     process.stderr.write(
       '[static-data-compression] Skipping stale .gz cleanup in --replace-raw mode; ' +
-      'pass allowDeleteStaleWithoutRaw=true for explicit cleanup.\n'
+      'pass --allow-delete-stale-without-raw (CLI) or allowDeleteStaleWithoutRaw=true (API) for explicit cleanup.\n'
     );
   }
 
