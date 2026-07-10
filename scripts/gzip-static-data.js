@@ -174,9 +174,11 @@ function _internals(root, policy) {
     const regexStr = pattern
       .replace(/\\/g, '/')
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*\*\//g, '(.*\/)?')
-      .replace(/\*\*/g, '.*')
-      .replace(/\*/g, '[^/]*');
+      .replace(/\*\*\//g, '\x00')
+      .replace(/\*\*/g, '\x01')
+      .replace(/\*/g, '[^/]*')
+      .replace(/\x00/g, '(.*\/)?')
+      .replace(/\x01/g, '.*');
     const re = new RegExp(`^${regexStr}$`);
     const results = [];
     function walk(dir) {
@@ -271,13 +273,15 @@ function main(argv) {
 
     if (args.gzipOnly) {
       for (const v of violations) console.error(v);
-      if (!ok || hasStaleWarnings) {
+      if (!ok) {
         console.error(`\n[gzip-static-data] --check --gzip-only FAILED: ${violations.length} violation(s)`);
-        if (hasStaleWarnings) {
-          console.error(`[gzip-static-data] --check --gzip-only FAILED: stale .gz artefacts detected (${staleWarnings.length})`);
-        }
         process.exitCode = 1;
         return;
+      }
+      // In gzip-only mode, .gz files without raw sources are expected —
+      // that is the whole point.  Only report STALE_GZ as informational.
+      if (hasStaleWarnings) {
+        console.log(`[gzip-static-data] --check --gzip-only: ${staleWarnings.length} .gz file(s) have no raw source (expected in gzip-only mode)`);
       }
       console.log('[gzip-static-data] --check --gzip-only passed ✓');
     } else {

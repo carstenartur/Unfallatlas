@@ -148,8 +148,8 @@ function getDataAssets(cityId) {
   const accidentsPath = path.join(OUT_DIR, `output_all_years_${cityId}.geojson`);
   const poiPath       = path.join(OUT_DIR, `poi_${cityId}.geojson`);
   return {
-    accidents: fs.existsSync(accidentsPath),
-    poi:       fs.existsSync(poiPath)
+    accidents: fs.existsSync(accidentsPath) || fs.existsSync(`${accidentsPath}.gz`),
+    poi:       fs.existsSync(poiPath)       || fs.existsSync(`${poiPath}.gz`)
   };
 }
 
