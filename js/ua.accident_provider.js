@@ -205,10 +205,14 @@
     const baseUrl    = _rawBaseUrl && !_rawBaseUrl.endsWith('/') ? `${_rawBaseUrl}/` : _rawBaseUrl;
     const pattern    = (typeof opts.filePattern === 'string')
       ? opts.filePattern
-      : 'out/output_all_years_{slug}.geojson';
+      : null; // resolved per-call via UA.DataPaths when available
 
     function _url(slug) {
-      return baseUrl + pattern.replace('{slug}', slug);
+      // Use central path registry when available (ua.data_paths.js).
+      if (!pattern && UA.DataPaths && typeof UA.DataPaths.accidentGeoJson === 'function') {
+        return baseUrl + UA.DataPaths.accidentGeoJson(slug);
+      }
+      return baseUrl + (pattern || 'out/output_all_years_{slug}.geojson').replace('{slug}', slug);
     }
 
     /** Per-city in-flight cache so duplicate calls don't issue duplicate requests. */
@@ -301,7 +305,7 @@
     const baseUrl   = _rawBaseUrl && !_rawBaseUrl.endsWith('/') ? `${_rawBaseUrl}/` : _rawBaseUrl;
     const tileRoot  = (typeof opts.tileRoot === 'string')
       ? opts.tileRoot.replace(/\/$/, '')
-      : 'out/accidenttiles';
+      : null; // resolved per-call via UA.DataPaths when available
 
     /** Per-city manifest cache: slug → Promise<manifest|null> */
     const _manifestCache = new Map();
@@ -309,11 +313,19 @@
     const _tileCache     = new Map();
 
     function _indexUrl(slug) {
-      return `${baseUrl}${tileRoot}/${slug}/index.json`;
+      // Use central path registry when available (ua.data_paths.js).
+      if (!tileRoot && UA.DataPaths && typeof UA.DataPaths.accidentTileIndex === 'function') {
+        return baseUrl + UA.DataPaths.accidentTileIndex(slug);
+      }
+      return `${baseUrl}${tileRoot || 'out/accidenttiles'}/${slug}/index.json`;
     }
 
     function _tileUrl(slug, z, x, y) {
-      return `${baseUrl}${tileRoot}/${slug}/${z}/${x}/${y}.json`;
+      // Use central path registry when available (ua.data_paths.js).
+      if (!tileRoot && UA.DataPaths && typeof UA.DataPaths.accidentTile === 'function') {
+        return baseUrl + UA.DataPaths.accidentTile(slug, z, x, y);
+      }
+      return `${baseUrl}${tileRoot || 'out/accidenttiles'}/${slug}/${z}/${x}/${y}.json`;
     }
 
     function _tileUrlFromManifest(slug, manifest, x, y) {
