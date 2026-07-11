@@ -5,9 +5,11 @@ name: Enrich GeoJSONs
 # step, so DEM tile refreshes or new traffic-count datasets can be
 # picked up without rebuilding the accident GeoJSONs themselves.
 #
-# This workflow is also triggered automatically after every successful
-# run of "Generate & Commit" (generate-and-commit.yml) via workflow_run,
-# so freshly downloaded accident data is always enriched in one pipeline.
+# This workflow is also triggered automatically after a successful run
+# of "Generate & Commit" (generate-and-commit.yml) on the default
+# branch, so freshly downloaded accident data is still enriched in one
+# pipeline without checking out an untrusted workflow_run head SHA in a
+# privileged job.
 #
 # See docs/enrichment.md for the schema and the "Kontext nicht Ursache"
 # disclaimer.
@@ -65,16 +67,19 @@ jobs:
   enrich:
     runs-on: ubuntu-latest
     # When triggered via workflow_run, only run if the triggering workflow
-    # completed successfully — skip enrichment if generation failed/was
-    # cancelled, as there would be nothing new to enrich.
+    # completed successfully on the default branch. This keeps the
+    # privileged auto-enrichment path on trusted code only.
     if: >-
       github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch
+      )
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: true
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}
 
       - name: Set up Git
         run: |
@@ -317,4 +322,4 @@ jobs:
           fi
           git add -A -- out/
           git commit -m "Re-run enrichment (scripts/enrich_geojson.js)"
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin HEAD:${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref_name }}
