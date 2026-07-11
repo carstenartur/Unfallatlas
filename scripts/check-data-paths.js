@@ -3,11 +3,11 @@
  * scripts/check-data-paths.js
  *
  * Build-time validator: every city listed in cities.txt must have a
- * corresponding `out/output_all_years_<slug>.geojson.gz` file.
+ * corresponding `out/output_all_years_<slug>.geojson` or `.geojson.gz` file.
  *
  * Failures:
  *   - Exit 2 if cities.txt is missing or empty.
- *   - Exit 1 if any expected .geojson.gz file is absent.
+ *   - Exit 1 if both .geojson and .geojson.gz are absent.
  *
  * Why this exists
  * ---------------
@@ -36,6 +36,7 @@ function slugify(name) {
     .toLowerCase()
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
     .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '');
 }
 

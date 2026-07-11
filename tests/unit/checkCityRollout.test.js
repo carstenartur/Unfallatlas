@@ -9,7 +9,6 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 
 const { classify, applyFix } = require('../../scripts/check-city-rollout.js');
 const cityRegistry = require('../../server/cities/cityRegistry.js');
