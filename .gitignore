@@ -6,9 +6,6 @@ out/ci-render-gate.pdf
 # PR-berlin-slope-qa: diagnostic QA reports — generated on demand, not
 # committed (CI uploads them as workflow artefacts instead).
 out/qa/
-# CI accident-data fixtures — generated on the fly by scripts/create-ci-fixtures.js
-# before E2E tests; never committed (real data comes from generate-and-commit workflow).
-out/output_all_years_*.geojson.gz
 
 # Testing
 node_modules/

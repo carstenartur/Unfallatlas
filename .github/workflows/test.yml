@@ -180,8 +180,8 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Generate CI gzip fixtures
-        run: node scripts/create-ci-fixtures.js
+      - name: Normalize data artifacts to gzip-only
+        run: node scripts/gzip-static-data.js --replace-raw
 
       - name: Run E2E tests
         run: npm run test:e2e
@@ -230,8 +230,8 @@ jobs:
       - name: Install Playwright Firefox
         run: npx playwright install --with-deps firefox
 
-      - name: Generate CI gzip fixtures
-        run: node scripts/create-ci-fixtures.js
+      - name: Normalize data artifacts to gzip-only
+        run: node scripts/gzip-static-data.js --replace-raw
 
       - name: Run Firefox smoke tests
         run: npx playwright test --project=firefox-smoke
@@ -263,8 +263,8 @@ jobs:
       - name: Install Playwright WebKit
         run: npx playwright install --with-deps webkit
 
-      - name: Generate CI gzip fixtures
-        run: node scripts/create-ci-fixtures.js
+      - name: Normalize data artifacts to gzip-only
+        run: node scripts/gzip-static-data.js --replace-raw
 
       - name: Run WebKit smoke tests
         run: npx playwright test --project=webkit-smoke
