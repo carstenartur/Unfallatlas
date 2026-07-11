@@ -248,6 +248,7 @@ function compressArtifacts(root, policy, options) {
   const compressPatterns = pol.compress   || ['out/**/*.geojson', 'out/**/*.json', 'out/**/*.csv'];
   const keepRawPatterns  = pol.keepRaw    || [];
   const skipPatterns     = pol.skip       || ['out/**/*.gz', 'out/**/*.tmp'];
+  const forbidRawPatterns = pol.forbidRaw || [];
   const maxRawBytes      = typeof pol.maxRawBytes === 'number' ? pol.maxRawBytes : DEFAULT_MAX_RAW_BYTES;
 
   // Collect all candidate files matching compress patterns.
@@ -261,10 +262,12 @@ function compressArtifacts(root, policy, options) {
       if (_matchesAny(abs, root, skipPatterns)) continue;
       // Skip files on the keepRaw list
       if (_matchesAny(abs, root, keepRawPatterns)) continue;
+      const isForbiddenRaw = _matchesAny(abs, root, forbidRawPatterns);
       // Skip files below the size threshold (leave them uncompressed)
+      // unless the path is explicitly forbidden to remain raw.
       let stat;
       try { stat = fs.statSync(abs); } catch (_) { continue; }
-      if (stat.size < maxRawBytes) continue;
+      if (!isForbiddenRaw && stat.size < maxRawBytes) continue;
       candidates.push(abs);
     }
   }

@@ -190,6 +190,23 @@ describe('compressArtifacts', () => {
     expect(fs.existsSync(`${src}.gz`)).toBe(true);
   });
 
+  test('deleteRaw still compresses forbidRaw files below maxRawBytes', () => {
+    const src = writeFile(dir, 'out/output_all_years_bonn.geojson', '{"type":"FeatureCollection","features":[]}');
+
+    const policy = {
+      compress: ['out/**/*.geojson'],
+      forbidRaw: ['out/output_all_years_*.geojson'],
+      keepRaw: [],
+      skip: ['out/**/*.gz'],
+      maxRawBytes: DEFAULT_MAX_RAW_BYTES * 10,
+    };
+    const result = compressArtifacts(dir, policy, { deleteRaw: true });
+
+    expect(result.entries).toHaveLength(1);
+    expect(fs.existsSync(src)).toBe(false);
+    expect(fs.existsSync(`${src}.gz`)).toBe(true);
+  });
+
   test('deleteStale removes stale .gz files', () => {
     const large = 'x'.repeat(DEFAULT_MAX_RAW_BYTES + 1);
     const src = writeFile(dir, 'out/ways_bonn.json', large);

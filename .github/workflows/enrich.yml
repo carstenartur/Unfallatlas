@@ -304,7 +304,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Validate all expected city GeoJSON files are present
-        run: node scripts/check-data-paths.js
+        run: node scripts/check-data-paths.js --gzip-only --min-features 10
 
       # Commit only when something other than the meta-sidecar
       # `generatedAt` timestamp changed. The sidecar is always

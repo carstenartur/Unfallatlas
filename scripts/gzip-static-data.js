@@ -17,7 +17,7 @@
  *   --replace-raw
  *     Compress all artefacts matching the policy and delete their raw
  *     originals. Run this before committing to ensure the commit target
- *     contains only .gz files for large artefacts.
+ *     contains only .gz files for artefacts that are forbidden to stay raw.
  *
  *     node scripts/gzip-static-data.js --replace-raw
  *     node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
@@ -38,8 +38,8 @@
  *   --check [--gzip-only]
  *     Validate the artefact state without modifying any files.
  *     Without --gzip-only: warns about large uncompressed files.
- *     With    --gzip-only: fails (exit 1) if any large artefact
- *                          exists only in raw form — the gzip-only
+ *     With    --gzip-only: fails (exit 1) if any forbidden artefact
+ *                          exists in raw form — the gzip-only
  *                          invariant is not met.
  *
  *     node scripts/gzip-static-data.js --check
@@ -58,7 +58,7 @@
  * Exit codes
  * ----------
  *   0 – success / all checks passed
- *   1 – at least one check failed (--check --gzip-only: uncompressed large
+ *   1 – at least one check failed (--check --gzip-only: forbidden raw
  *       artefacts present; --check: warnings printed but exit 0 unless
  *       stale .gz detected)
  *
@@ -72,7 +72,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const { compressArtifacts, DEFAULT_MAX_RAW_BYTES } = require('./lib/static-data-compression');
+const { compressArtifacts } = require('./lib/static-data-compression');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
@@ -133,23 +133,16 @@ function parseArgs(argv) {
  * Returns { ok: boolean, violations: string[], warnings: string[] }.
  */
 function checkState(root, policy) {
-  const { _expandGlob, _matchesAny } = _internals(root, policy);
-  const maxRawBytes = typeof policy.maxRawBytes === 'number'
-    ? policy.maxRawBytes
-    : DEFAULT_MAX_RAW_BYTES;
+  const { _expandGlob } = _internals(root, policy);
 
   const violations = [];
   const warnings   = [];
 
-  // Check 1: large artefacts in the forbidRaw list must have a .gz counterpart.
+  // Check 1: artefacts in the forbidRaw list must never exist raw.
   const forbidPatterns = policy.forbidRaw || [];
   for (const pat of forbidPatterns) {
     for (const abs of _expandGlob(pat)) {
       if (abs.endsWith('.gz')) continue;
-      let stat;
-      try { stat = fs.statSync(abs); }
-      catch (_) { continue; }
-      if (stat.size < maxRawBytes) continue;
       const gzAbs = `${abs}.gz`;
       const relRaw = path.relative(root, abs).replace(/\\/g, '/');
       const relGz  = path.relative(root, gzAbs).replace(/\\/g, '/');

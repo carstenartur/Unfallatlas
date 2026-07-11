@@ -73,8 +73,9 @@ module.exports = {
   ],
 
   /**
-   * Patterns that MUST NOT exist as uncompressed large files in the
-   * commit / Pages target. These are checked by `--check --gzip-only`.
+   * Patterns that MUST NOT exist as uncompressed files in the
+   * commit / Pages target. These are checked by `--check --gzip-only`
+   * and are always compressed by `--replace-raw`, regardless of size.
    *
    * Adding a path here does NOT automatically compress it — add it to
    * `compress` as well for that. This list is purely for the gate.
@@ -91,7 +92,8 @@ module.exports = {
   /**
    * Files smaller than this threshold (bytes) may remain uncompressed
    * even if they match a `compress` pattern. Set to 0 to compress
-   * everything regardless of size.
+   * everything regardless of size. This threshold never overrides
+   * `forbidRaw`.
    */
   maxRawBytes: 8 * 1024, // 8 KiB
 };
