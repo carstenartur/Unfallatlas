@@ -2,91 +2,166 @@
 /**
  * scripts/check-data-paths.js
  *
- * Build-time validator: every city listed in cities.txt must have a
- * corresponding `out/output_all_years_<slug>.geojson` or `.geojson.gz` file.
+ * Build-time validator for per-city accident GeoJSON artefacts.
  *
- * Failures:
- *   - Exit 2 if cities.txt is missing or empty.
- *   - Exit 1 if both .geojson and .geojson.gz are absent.
- *
- * Why this exists
- * ---------------
- * The data-generating workflows (generate-and-commit.yml, enrich.yml)
- * can silently succeed even when one city's GeoJSON was not produced
- * (e.g. due to a download timeout or a skipped converter step). Without
- * this gate the JavaScript would silently 404 at runtime for that city.
- *
- * Usage (from repo root):
+ * Usage:
  *   node scripts/check-data-paths.js
- *   node scripts/check-data-paths.js --warn   # print but do not fail
+ *   node scripts/check-data-paths.js --gzip-only --min-features 10
+ *   node scripts/check-data-paths.js --dir _site/out --cities-file cities.txt
+ *   node scripts/check-data-paths.js --warn
  */
 
 'use strict';
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 
-const ROOT       = path.resolve(__dirname, '..');
-const CITIES_TXT = path.join(ROOT, 'cities.txt');
-const OUT_DIR    = path.join(ROOT, 'out');
+const {
+  slugify,
+  readCitiesFile,
+  validateGeoJsonArtifact,
+} = require('./lib/static-data-validation');
 
-// ── Slugify (mirrors convertAmt2gmaps.sh + ua.core.js normKey) ──────────────
-function slugify(name) {
-  return name
-    .toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
+const ROOT = path.resolve(__dirname, '..');
 
-// ── Read cities ──────────────────────────────────────────────────────────────
-if (!fs.existsSync(CITIES_TXT)) {
-  console.error(`check-data-paths: cities.txt not found at ${CITIES_TXT}`);
-  process.exit(2);
-}
+function parseArgs(argv) {
+  const args = {
+    warnOnly: false,
+    dir: path.join(ROOT, 'out'),
+    citiesFile: path.join(ROOT, 'cities.txt'),
+    gzipOnly: false,
+    minFeatures: 0,
+  };
 
-const cities = fs.readFileSync(CITIES_TXT, 'utf8')
-  .split('\n')
-  .map(l => l.replace(/#.*$/, '').trim())  // strip comments
-  .filter(Boolean);
-
-if (cities.length === 0) {
-  console.error('check-data-paths: cities.txt is empty');
-  process.exit(2);
-}
-
-// ── Check expected files ─────────────────────────────────────────────────────
-const warnOnly = process.argv.includes('--warn');
-
-const missing = [];
-for (const city of cities) {
-  const slug = slugify(city);
-  // Accept either the raw .geojson or its .gz counterpart; in production
-  // workflows gzip-static-data.js normalises everything to .geojson.gz.
-  const rawPath = path.join(OUT_DIR, `output_all_years_${slug}.geojson`);
-  const gzPath  = path.join(OUT_DIR, `output_all_years_${slug}.geojson.gz`);
-  if (!fs.existsSync(rawPath) && !fs.existsSync(gzPath)) {
-    missing.push({ city, slug, expected: `out/output_all_years_${slug}.geojson[.gz]` });
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--warn') args.warnOnly = true;
+    else if (arg === '--dir') args.dir = argv[++i] || args.dir;
+    else if (arg === '--cities-file') args.citiesFile = argv[++i] || args.citiesFile;
+    else if (arg === '--gzip-only') args.gzipOnly = true;
+    else if (arg === '--min-features') args.minFeatures = Number.parseInt(argv[++i] || '0', 10);
   }
+
+  if (!Number.isFinite(args.minFeatures) || args.minFeatures < 0) {
+    throw new Error('check-data-paths: --min-features must be a non-negative integer');
+  }
+
+  args.dir = path.resolve(ROOT, args.dir);
+  args.citiesFile = path.resolve(ROOT, args.citiesFile);
+  return args;
 }
 
-// ── Report ───────────────────────────────────────────────────────────────────
-console.log(`check-data-paths: checked ${cities.length} cities from cities.txt`);
+function validateCityArtifact(options) {
+  const outDir = options.outDir;
+  const repoRoot = options.repoRoot || ROOT;
+  const city = options.city;
+  const slug = options.slug || slugify(city);
+  const gzipOnly = !!options.gzipOnly;
+  const minFeatures = Number.isFinite(options.minFeatures) ? options.minFeatures : 0;
 
-if (missing.length === 0) {
-  console.log('check-data-paths: all expected GeoJSON files are present ✓');
-  process.exit(0);
+  const rawPath = path.join(outDir, `output_all_years_${slug}.geojson`);
+  const gzPath = `${rawPath}.gz`;
+  const rawExists = fs.existsSync(rawPath);
+  const gzExists = fs.existsSync(gzPath);
+  const errors = [];
+
+  if (gzipOnly) {
+    if (!gzExists) errors.push(`Missing gzip artefact: ${path.relative(repoRoot, gzPath)}`);
+    if (rawExists) errors.push(`Raw artefact exists in gzip-only mode: ${path.relative(repoRoot, rawPath)}`);
+  } else if (!rawExists && !gzExists) {
+    errors.push(`Missing artefact: ${path.relative(repoRoot, rawPath)}[.gz]`);
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, city, slug, rawExists, gzExists, featureCount: null, errors };
+  }
+
+  const validation = validateGeoJsonArtifact(rawPath, { gzipOnly, minFeatures });
+  return {
+    ok: validation.ok,
+    city,
+    slug,
+    rawExists,
+    gzExists,
+    featureCount: validation.featureCount,
+    errors: validation.errors,
+  };
 }
 
-console.error(`check-data-paths: ${missing.length} missing GeoJSON file(s):`);
-for (const { city, expected } of missing) {
-  console.error(`  - ${city} → ${expected}`);
+function validateDataPaths(options) {
+  const repoRoot = options.repoRoot || ROOT;
+  const outDir = path.resolve(repoRoot, options.dir || 'out');
+  const citiesFile = path.resolve(repoRoot, options.citiesFile || 'cities.txt');
+  const gzipOnly = !!options.gzipOnly;
+  const minFeatures = Number.isFinite(options.minFeatures) ? options.minFeatures : 0;
+
+  const cities = readCitiesFile(citiesFile);
+  const failures = [];
+
+  for (const city of cities) {
+    const result = validateCityArtifact({
+      repoRoot,
+      outDir,
+      city,
+      gzipOnly,
+      minFeatures,
+    });
+    if (!result.ok) failures.push(result);
+  }
+
+  return {
+    checkedCities: cities.length,
+    failures,
+  };
 }
 
-if (warnOnly) {
-  console.warn('check-data-paths: running in --warn mode; not failing the build.');
-  process.exit(0);
+function main(argv) {
+  let args;
+  try {
+    args = parseArgs(argv);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(2);
+  }
+
+  let result;
+  try {
+    result = validateDataPaths(args);
+  } catch (error) {
+    console.error(`check-data-paths: ${error.message}`);
+    process.exit(2);
+  }
+
+  console.log(`check-data-paths: checked ${result.checkedCities} cities from ${path.relative(ROOT, args.citiesFile)}`);
+
+  if (result.failures.length === 0) {
+    console.log('check-data-paths: all expected GeoJSON files are valid ✓');
+    process.exit(0);
+  }
+
+  console.error(`check-data-paths: ${result.failures.length} invalid city artefact(s):`);
+  for (const failure of result.failures) {
+    console.error(`  - ${failure.city} (${failure.slug})`);
+    for (const error of failure.errors) {
+      console.error(`      ${error}`);
+    }
+  }
+
+  if (args.warnOnly) {
+    console.warn('check-data-paths: running in --warn mode; not failing the build.');
+    process.exit(0);
+  }
+
+  process.exit(1);
 }
 
-process.exit(1);
+if (require.main === module) {
+  main(process.argv.slice(2));
+}
+
+module.exports = {
+  parseArgs,
+  validateCityArtifact,
+  validateDataPaths,
+  main,
+};

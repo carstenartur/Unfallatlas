@@ -49,10 +49,8 @@ jobs:
             "${CITY_ARGS[@]}" \
             --rad "" --pkw "" --fuss "" --krad ""
 
-      - name: Validate raw data exists
-        run: |
-          test -n "$(find .build/raw -name 'output_all_years_*.geojson' -print -quit)" \
-            || { echo "::error::No generated raw accident GeoJSON files"; exit 2; }
+      - name: Validate raw accident data for all cities
+        run: node scripts/check-data-paths.js --dir .build/raw --min-features 10
 
       - name: Enrich raw data
         env:
@@ -89,7 +87,8 @@ jobs:
           node scripts/validate-static-data.js \
             --dir _site/out \
             --gzip-only \
-            --require-city hannover
+            --require-cities-file cities.txt \
+            --min-features 10
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

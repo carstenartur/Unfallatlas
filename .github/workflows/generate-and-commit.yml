@@ -14,93 +14,30 @@ jobs:
         with:
           persist-credentials: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - name: Set up Git
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      - name: Run converter once for all cities from cities.txt
-        shell: bash
+      - name: Prepare build directories
         run: |
           set -euo pipefail
+          rm -rf .build/raw
+          mkdir -p .build/raw out
 
-          if [[ ! -f "cities.txt" ]]; then
-            echo "cities.txt missing"
-            exit 2
-          fi
-
-          # Read cities (1 per line), ignore blanks and comments
-          mapfile -t CITIES < <(
-            sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt \
-            | awk 'NF'
-          )
-
-          if (( ${#CITIES[@]} == 0 )); then
-            echo "No cities found in cities.txt"
-            exit 2
-          fi
-
-          echo "Cities (${#CITIES[@]}):"
-          printf ' - %s\n' "${CITIES[@]}"
-
-          # Build args
-          CITY_ARGS=()
-          for c in "${CITIES[@]}"; do
-            CITY_ARGS+=(--city "$c")
-          done
-
-          chmod +x ./convertAmt2gmaps.sh
-
-          # One single call for all cities
-          ./convertAmt2gmaps.sh \
-            --limit 0 \
-            "${CITY_ARGS[@]}" \
-            --rad "" --pkw "" --fuss "" --krad ""
-
-      - name: Validate GeoJSON outputs
+      - name: Generate accident data from cities.txt (restartable)
         run: |
-          python3 - <<'PY'
-          import glob, gzip, json, os, sys
-          files = sorted(glob.glob("out/output_all_years_*.geojson"))
-          gz_files = sorted(glob.glob("out/output_all_years_*.geojson.gz"))
-          seen = set()
-          logical = []
-          for f in files:
-            slug = f[:-8]  # strip .geojson
-            seen.add(slug)
-            logical.append((slug, f, False))
-          for f in gz_files:
-            slug = f[:-11]  # strip .geojson.gz
-            if slug in seen:
-              continue
-            logical.append((slug, f, True))
-          if not files:
-            if not gz_files:
-              print("No geojson files found (.geojson or .geojson.gz)")
-              sys.exit(2)
-          bad = []
-          for _, f, is_gz in logical:
-            try:
-              if is_gz:
-                with gzip.open(f, "rt", encoding="utf-8") as fp:
-                  json.load(fp)
-              else:
-                with open(f, "r", encoding="utf-8") as fp:
-                  json.load(fp)
-            except Exception as e:
-              bad.append((f, str(e)))
-          if bad:
-            print("Invalid GeoJSON:")
-            for f,e in bad:
-              print(" -", f, "->", e)
-            sys.exit(2)
-          print("GeoJSON OK:", len(logical))
-          PY
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
+          chmod +x ./convertAmt2gmaps.sh
+          node scripts/generate-accident-data.js \
+            --cities-file cities.txt \
+            --out-dir out \
+            --temp-root .build/raw \
+            --min-features 10
 
       - name: Normalize static data artifacts to gzip-only
         run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
@@ -108,8 +45,8 @@ jobs:
       - name: Verify gzip-only artifact invariants
         run: node scripts/gzip-static-data.js --check --gzip-only
 
-      - name: Validate all expected city GeoJSON files are present
-        run: node scripts/check-data-paths.js
+      - name: Validate all expected city GeoJSON files are present and complete
+        run: node scripts/check-data-paths.js --gzip-only --min-features 10
 
       - name: Sync City-Registry (auto-fix Drift)
         run: node scripts/check-city-rollout.js --fix
@@ -120,6 +57,7 @@ jobs:
 
           # niemals tmp-Dateien committen
           find out -type f -name '*.tmp' -print -delete || true
+          rm -rf .build
 
           git add -A
           git diff --cached --quiet && exit 0

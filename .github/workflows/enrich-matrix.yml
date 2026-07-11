@@ -366,7 +366,7 @@ jobs:
         # In the matrix workflow some cities may have failed their producer
         # step. Use --warn so an incomplete matrix run still commits whatever
         # was successfully enriched instead of blocking the entire build.
-        run: node scripts/check-data-paths.js --warn
+        run: node scripts/check-data-paths.js --warn --gzip-only --min-features 10
 
       # Same commit-only-on-real-diff guard as enrich.yml.
       - name: Commit & Push changes

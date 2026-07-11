@@ -25,7 +25,7 @@ describe('gzip-static-data checkState', () => {
   beforeEach(() => { dir = makeTmpDir(); });
   afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
-  test('ignores forbidRaw matches below maxRawBytes threshold', () => {
+  test('flags forbidRaw matches below maxRawBytes threshold', () => {
     writeFile(dir, 'out/ways_small.json', '{"v":1}');
 
     const result = checkState(dir, {
@@ -34,8 +34,9 @@ describe('gzip-static-data checkState', () => {
       maxRawBytes: 100,
     });
 
-    expect(result.violations).toHaveLength(0);
-    expect(result.ok).toBe(true);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toMatch(/MISSING_GZ/);
+    expect(result.ok).toBe(false);
   });
 });
 
@@ -171,6 +172,36 @@ describe('gzip-static-data --check CLI', () => {
 
       expect(result.status).toBe(0);
       expect(fs.existsSync(gzAbs)).toBe(false);
+    });
+
+    test('replace-raw compresses and deletes small forbidRaw files', () => {
+      const rawAbs = path.join(dir, 'out/output_all_years_bonn.geojson');
+      fs.mkdirSync(path.dirname(rawAbs), { recursive: true });
+      fs.writeFileSync(rawAbs, '{"type":"FeatureCollection","features":[{"type":"Feature"}]}');
+
+      const policyPath = path.join(dir, 'policy.js');
+      fs.writeFileSync(policyPath, `module.exports = ${JSON.stringify({
+        compress: ['out/**/*.geojson'],
+        forbidRaw: ['out/output_all_years_*.geojson'],
+        keepRaw: [],
+        skip: ['out/**/*.gz'],
+        maxRawBytes: 999999,
+      }, null, 2)};`);
+
+      const result = spawnSync(
+        'node',
+        [
+          path.join(__dirname, '../../scripts/gzip-static-data.js'),
+          '--replace-raw',
+          '--policy', policyPath,
+          dir,
+        ],
+        { encoding: 'utf8' },
+      );
+
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(rawAbs)).toBe(false);
+      expect(fs.existsSync(`${rawAbs}.gz`)).toBe(true);
     });
   });
 });
