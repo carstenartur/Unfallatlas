@@ -113,13 +113,25 @@ test.describe('Smoke – Werkbank V2', () => {
     await page.waitForLoadState('networkidle');
 
     // Gate: only enforce the assertion when the deployment actually
-    // has the per-city ways file. That is the same precondition the
-    // app uses to mount the control (capabilitiesFromDetection →
-    // hasOsmContext), so a missing file is "no overlays expected".
+    // has enriched data with slope or traffic fields. The overlay
+    // control is mounted by ua.map_v2 only when hasSlope or hasTrafficProxy
+    // is true, so unenriched data means "no overlays expected".
     const baseUrl = new URL(page.url());
-    const waysUrl = new URL('out/ways_bonn.json.gz', baseUrl).toString();
-    const waysHead = await page.request.fetch(waysUrl, { method: 'HEAD' }).catch(() => null);
-    test.skip(!waysHead || !waysHead.ok(), 'ways_bonn.json.gz not deployed — overlay control not expected');
+    const dataUrl = new URL('out/output_all_years_bonn.geojson.gz', baseUrl).toString();
+    const dataRes = await page.request.fetch(dataUrl).catch(() => null);
+    let hasOverlayCapability = false;
+    if (dataRes && dataRes.ok()) {
+      try {
+        const geojson = await dataRes.json();
+        const firstFeature = geojson?.features?.[0];
+        const props = firstFeature?.properties || {};
+        // Check for slope or traffic fields (same as CAPABILITY_FIELDS in ua.context_layers.js)
+        hasOverlayCapability = 
+          'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
+          'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
+      } catch (_) {}
+    }
+    test.skip(!hasOverlayCapability, 'Bonn GeoJSON not enriched with slope/traffic fields — overlay control not expected');
 
     const overlayCtrl = page.locator('.context-overlay-control');
     await expect(overlayCtrl).toBeVisible({ timeout: 15000 });

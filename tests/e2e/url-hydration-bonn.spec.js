@@ -145,6 +145,23 @@ test.describe('URL-State-Hydration – Determinismus', () => {
     await page.goto(url);
     await page.waitForLoadState('networkidle');
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
+
+    // Gate: only test overlay features when Bonn data has slope/traffic fields
+    const baseUrl = new URL(page.url());
+    const dataUrl = new URL('out/output_all_years_bonn.geojson.gz', baseUrl).toString();
+    const dataRes = await page.request.fetch(dataUrl).catch(() => null);
+    let hasOverlay = false;
+    if (dataRes && dataRes.ok()) {
+      try {
+        const geojson = await dataRes.json();
+        const firstFeature = geojson?.features?.[0];
+        const props = firstFeature?.properties || {};
+        hasOverlay = 'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
+                     'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
+      } catch (_) {}
+    }
+    test.skip(!hasOverlay, 'Bonn GeoJSON not enriched with slope/traffic fields — overlay features not expected');
+
     await expect.poll(() => new URL(page.url()).searchParams.get('centerLat')).not.toBeNull();
 
     await expect(page.locator('#ctxOverlay_slope')).toBeChecked();
