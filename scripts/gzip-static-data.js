@@ -323,6 +323,26 @@ function main(argv) {
     return;
   }
 
+  const shouldPreflightDestructiveCleanup = args.deleteStale
+    && !args.dryRun
+    && (!args.replaceRaw || args.allowDeleteStaleWithoutRaw)
+    && !args.allowDestructiveCleanup;
+
+  if (shouldPreflightDestructiveCleanup) {
+    const preflight = compressArtifacts(args.root, policy, {
+      deleteRaw: args.replaceRaw,
+      dryRun: true,
+      deleteStale: args.deleteStale,
+      allowDeleteStaleWithoutRaw: args.allowDeleteStaleWithoutRaw,
+    });
+    if (preflight.entries.length === 0) {
+      throw new Error(
+        'Refusing stale cleanup in gzip-only state: no raw inputs matched the compression policy. ' +
+        'Pass --allow-destructive-cleanup to override explicitly.'
+      );
+    }
+  }
+
   const result = compressArtifacts(args.root, policy, {
     deleteRaw:   args.replaceRaw,
     dryRun:      args.dryRun,
@@ -331,13 +351,6 @@ function main(argv) {
   });
 
   const summary = buildSummary(result, args);
-
-  if (args.deleteStale && summary.filesProcessed === 0 && summary.staleRemoved.length > 0 && !args.allowDestructiveCleanup) {
-    throw new Error(
-      'Refusing stale cleanup: removed .gz files even though no raw inputs were processed. ' +
-      'Pass --allow-destructive-cleanup to override explicitly.'
-    );
-  }
 
   console.log(formatSummary(summary));
 

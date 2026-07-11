@@ -26,4 +26,9 @@ describe('legacy HTML entrypoints use gzip-capable loading', () => {
     const html = read('werkbank_v2.html');
     expect(html).toContain('<meta name="unfallatlas:data-mode" content="gzip-only" />');
   });
+
+  test('werkbank.html declares gzip-only data mode', () => {
+    const html = read('werkbank.html');
+    expect(html).toContain('<meta name="unfallatlas:data-mode" content="gzip-only" />');
+  });
 });

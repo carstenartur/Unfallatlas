@@ -109,7 +109,7 @@ describe('gzip-static-data --check CLI', () => {
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/Files processed:\s+0/);
     });
 
-    test('explicit allow-delete-stale-without-raw enables stale cleanup in replace-raw mode', () => {
+    test('allow-delete-stale-without-raw alone still refuses destructive cleanup in replace-raw mode', () => {
       const gzAbs = path.join(dir, 'out/output_all_years_bonn.geojson.gz');
       fs.mkdirSync(path.dirname(gzAbs), { recursive: true });
       fs.writeFileSync(gzAbs, zlib.gzipSync(Buffer.from('{"type":"FeatureCollection","features":[]}', 'utf8')));
@@ -138,7 +138,7 @@ describe('gzip-static-data --check CLI', () => {
 
       expect(result.status).toBe(1);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/Refusing stale cleanup/);
-      expect(fs.existsSync(gzAbs)).toBe(false);
+      expect(fs.existsSync(gzAbs)).toBe(true);
     });
 
     test('allow-destructive-cleanup permits stale cleanup with zero processed files', () => {
