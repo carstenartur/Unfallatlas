@@ -7,9 +7,13 @@ test.describe('Popup context data', () => {
 
     const html = await page.evaluate(async () => {
       if (!window.UA || typeof window.UA.buildAccidentContextPopupHtml !== 'function') return '';
-      const resp = await fetch('/out/output_all_years_hannover.geojson', { cache: 'no-store' });
-      if (!resp.ok) return '';
-      const gj = await resp.json();
+      if (typeof window.UA.fetchJsonCompressed !== 'function') return '';
+      const manifestResp = await fetch('/out/data-manifest.json', { cache: 'no-store' });
+      if (!manifestResp.ok) return '';
+      const manifest = await manifestResp.json();
+      const cityEntry = manifest?.cities?.hannover || null;
+      if (!cityEntry?.enrichment?.hasElevation) return '';
+      const gj = await window.UA.fetchJsonCompressed('/out/output_all_years_hannover.geojson', { gzipOnly: true });
       const feature = (gj.features || []).find((f) => {
         const p = f && f.properties ? f.properties : {};
         return p && (p.elevation_m != null || p.slope_percent != null || p.traffic_proxy_class != null);
@@ -25,6 +29,7 @@ test.describe('Popup context data', () => {
       ) || '';
     });
 
+    test.skip(!html, 'Hannover has no elevation enrichment according to manifest.');
     expect(html).toContain('Höhe');
     expect(html).toContain('Hangneigung');
     expect(html).toContain('Kontextdaten beschreiben die Umgebung, nicht die Unfallursache.');

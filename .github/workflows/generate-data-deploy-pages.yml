@@ -1,0 +1,116 @@
+name: Generate Data and Deploy Pages
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 0'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Prepare build dirs
+        run: |
+          rm -rf .build _site
+          mkdir -p .build/raw .build/enriched _site/out
+
+      - name: Generate raw accident data
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CITY_ARGS=()
+          while IFS= read -r city; do
+            city="$(echo "$city" | sed 's/#.*$//' | xargs)"
+            [ -z "$city" ] && continue
+            CITY_ARGS+=(--city "$city")
+          done < cities.txt
+
+          chmod +x ./convertAmt2gmaps.sh
+          ./convertAmt2gmaps.sh \
+            --outdir .build/raw \
+            --limit 0 \
+            "${CITY_ARGS[@]}" \
+            --rad "" --pkw "" --fuss "" --krad ""
+
+      - name: Validate raw data exists
+        run: |
+          test -n "$(find .build/raw -name 'output_all_years_*.geojson' -print -quit)" \
+            || { echo "::error::No generated raw accident GeoJSON files"; exit 2; }
+
+      - name: Enrich raw data
+        env:
+          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+        run: |
+          node scripts/enrich_geojson.js \
+            --input-dir .build/raw \
+            --output-dir .build/enriched
+
+      - name: Build gzip-only site data
+        run: |
+          node scripts/build-static-data.js \
+            --input-dir .build/enriched \
+            --poi-dir out \
+            --output-dir _site/out \
+            --gzip-only \
+            --manifest _site/out/data-manifest.json
+
+      - name: Copy static app
+        run: |
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.build' \
+            --exclude '_site' \
+            --exclude 'out' \
+            --exclude 'node_modules' \
+            ./ _site/
+
+      - name: Validate gzip-only site
+        run: |
+          node scripts/validate-static-data.js \
+            --dir _site/out \
+            --gzip-only \
+            --require-city hannover
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

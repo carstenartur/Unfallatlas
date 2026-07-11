@@ -31,6 +31,10 @@
  *     Explicitly allow stale cleanup in gzip-only states where raw files
  *     are intentionally absent (unsafe for normal --replace-raw runs).
  *
+ *   --allow-destructive-cleanup
+ *     Explicitly allow a delete-stale run to remove existing .gz artefacts
+ *     even when no raw input files were processed in this run.
+ *
  *   --check [--gzip-only]
  *     Validate the artefact state without modifying any files.
  *     Without --gzip-only: warns about large uncompressed files.
@@ -81,6 +85,7 @@ function parseArgs(argv) {
     replaceRaw:  false,
     deleteStale: false,
     allowDeleteStaleWithoutRaw: false,
+    allowDestructiveCleanup: false,
     check:       false,
     gzipOnly:    false,
     dryRun:      false,
@@ -95,6 +100,9 @@ function parseArgs(argv) {
       case '--delete-stale': args.deleteStale = true; break;
       case '--allow-delete-stale-without-raw':
         args.allowDeleteStaleWithoutRaw = true;
+        break;
+      case '--allow-destructive-cleanup':
+        args.allowDestructiveCleanup = true;
         break;
       case '--check':        args.check       = true; break;
       case '--gzip-only':    args.gzipOnly    = true; break;
@@ -323,6 +331,14 @@ function main(argv) {
   });
 
   const summary = buildSummary(result, args);
+
+  if (args.deleteStale && summary.filesProcessed === 0 && summary.staleRemoved.length > 0 && !args.allowDestructiveCleanup) {
+    throw new Error(
+      'Refusing stale cleanup: removed .gz files even though no raw inputs were processed. ' +
+      'Pass --allow-destructive-cleanup to override explicitly.'
+    );
+  }
+
   console.log(formatSummary(summary));
 
   if (args.summaryJson) {
