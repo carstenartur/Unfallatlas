@@ -69,7 +69,7 @@ function validateCityArtifact(options) {
     if (!gzExists) errors.push(`Missing gzip artefact: ${path.relative(repoRoot, gzPath)}`);
     if (rawExists) errors.push(`Raw artefact exists in gzip-only mode: ${path.relative(repoRoot, rawPath)}`);
   } else if (!rawExists && !gzExists) {
-    errors.push(`Missing artefact: out/output_all_years_${slug}.geojson[.gz]`);
+    errors.push(`Missing artefact: ${path.relative(repoRoot, rawPath)}[.gz]`);
   }
 
   if (errors.length > 0) {
