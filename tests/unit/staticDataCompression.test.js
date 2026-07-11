@@ -216,6 +216,54 @@ describe('compressArtifacts', () => {
     expect(fs.existsSync(`${src}.gz`)).toBe(false);
   });
 
+  test('deleteStale is skipped by default when deleteRaw=true (gzip-only safety)', () => {
+    const large = 'x'.repeat(DEFAULT_MAX_RAW_BYTES + 1);
+    const src = writeFile(dir, 'out/ways_bonn.json', large);
+
+    // First run creates .gz and deletes raw.
+    compressArtifacts(dir, {
+      compress: ['out/**/*.json'],
+      keepRaw: [],
+      skip: ['out/**/*.gz'],
+      maxRawBytes: DEFAULT_MAX_RAW_BYTES,
+    }, { deleteRaw: true });
+
+    // Second run in same replace-raw mode should NOT remove existing .gz
+    // even though raw is absent.
+    const result = compressArtifacts(dir, {
+      compress: ['out/**/*.json'],
+      keepRaw: [],
+      skip: ['out/**/*.gz'],
+      maxRawBytes: DEFAULT_MAX_RAW_BYTES,
+    }, { deleteRaw: true, deleteStale: true });
+
+    expect(result.entries).toHaveLength(0);
+    expect(result.staleRemoved).toHaveLength(0);
+    expect(fs.existsSync(`${src}.gz`)).toBe(true);
+  });
+
+  test('deleteStale can be explicitly re-enabled in deleteRaw mode', () => {
+    const large = 'x'.repeat(DEFAULT_MAX_RAW_BYTES + 1);
+    const src = writeFile(dir, 'out/ways_bonn.json', large);
+
+    compressArtifacts(dir, {
+      compress: ['out/**/*.json'],
+      keepRaw: [],
+      skip: ['out/**/*.gz'],
+      maxRawBytes: DEFAULT_MAX_RAW_BYTES,
+    }, { deleteRaw: true });
+
+    const result = compressArtifacts(dir, {
+      compress: ['out/**/*.json'],
+      keepRaw: [],
+      skip: ['out/**/*.gz'],
+      maxRawBytes: DEFAULT_MAX_RAW_BYTES,
+    }, { deleteRaw: true, deleteStale: true, allowDeleteStaleWithoutRaw: true });
+
+    expect(result.staleRemoved).toHaveLength(1);
+    expect(fs.existsSync(`${src}.gz`)).toBe(false);
+  });
+
   test('top20 is sorted by gzBytes descending', () => {
     const policy = {
       compress: ['out/**/*.json'],

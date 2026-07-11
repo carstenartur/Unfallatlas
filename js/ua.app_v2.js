@@ -266,6 +266,14 @@
     const cities = await UA.loadCitiesList(ctx);
     UA.setCityDropdown(ctx, cities);
 
+    // Export-Modal-Binding so früh wie möglich aufrufen, damit der
+    // Öffnen-Button auch dann funktioniert, wenn loadCityData fehlschlägt
+    // (z.B. kein Netz oder kein Datenfile im CI-Checkout). bindExport
+    // braucht nur ctx.ui (bereits durch bindDom gesetzt) und bindet
+    // ausschließlich DOM-Event-Listener — keine Abhängigkeit zu geladenen
+    // Daten oder der Karte.
+    bindExport(ctx);
+
     // data — bei Fehler eine verständliche Meldung anzeigen statt
     // unkommentiert in den globalen catch-Pfad zu fallen (QA-Härtung
     // „Ladezustand"). Wir werfen dennoch weiter, damit das `main()`-catch
@@ -321,7 +329,6 @@
     if (typeof UA.refreshContextOverlays === 'function') {
       UA.refreshContextOverlays(ctx);
     }
-    bindExport(ctx);
 
     // Initialize tour module (gracefully degraded – only if ua.tour.js is loaded)
     if (typeof UA.initTour === "function") {
@@ -430,7 +437,10 @@ if (UA.qBool("export", false)) {
   }
 
   main().catch(err => {
-    console.error(err);
+    // Log stack/message as string (not the raw Error object) so that
+    // Playwright's msg.text() remains matchable in all browsers while
+    // preserving stack context for debugging.
+    console.error(err && err.stack ? err.stack : (err && err.message ? err.message : String(err)));
     // QA-Härtung „URL = Source of Truth": auch im Fehlerpfad das
     // Hydration-Flag sicher abräumen, damit nachgelagerte UI-Events
     // (Retry, manuelle Bedienelemente) wieder in die URL schreiben
@@ -441,11 +451,16 @@ if (UA.qBool("export", false)) {
     try {
       const statEl = document.getElementById("stat");
       if (statEl) {
+        const errMsg = String(err && err.message ? err.message : err || "");
+        const gzipFailure =
+          errMsg.includes('DecompressionStream is not available') ||
+          errMsg.includes('decompression failed');
         // QA-Härtung „Ladezustand": Statt der rohen Exception eine
         // verständliche Fehlermeldung anzeigen. Die Originalmeldung
         // bleibt in der Konsole für Entwickler.
-        statEl.textContent =
-          "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
+        statEl.textContent = gzipFailure
+          ? "Daten konnten nicht geladen werden: gzip-Daten konnten nicht dekomprimiert werden. Bitte modernen Browser verwenden oder Deployment prüfen."
+          : "Daten konnten nicht geladen werden. Bitte später erneut versuchen oder Quelle prüfen.";
         statEl.setAttribute("role", "alert");
       }
     } catch (uiErr) {

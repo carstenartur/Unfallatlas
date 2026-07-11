@@ -235,7 +235,7 @@ function compressArtifact(sourcePath, options) {
  *
  * @param {string} root    Repository root (or out/ directory root).
  * @param {object} policy
- * @param {{ deleteRaw?: boolean, dryRun?: boolean, deleteStale?: boolean }} [options]
+ * @param {{ deleteRaw?: boolean, dryRun?: boolean, deleteStale?: boolean, allowDeleteStaleWithoutRaw?: boolean }} [options]
  * @returns {SizeSummary}
  */
 function compressArtifacts(root, policy, options) {
@@ -243,6 +243,7 @@ function compressArtifacts(root, policy, options) {
   const deleteRaw   = !!opts.deleteRaw;
   const dryRun      = !!opts.dryRun;
   const deleteStale = !!opts.deleteStale;
+  const allowDeleteStaleWithoutRaw = !!opts.allowDeleteStaleWithoutRaw;
   const pol         = policy   || {};
   const compressPatterns = pol.compress   || ['out/**/*.geojson', 'out/**/*.json', 'out/**/*.csv'];
   const keepRawPatterns  = pol.keepRaw    || [];
@@ -287,7 +288,8 @@ function compressArtifacts(root, policy, options) {
   // freshly-created .gz artefacts as stale.
   const justCreatedGz = new Set(entries.map(e => e.file));
   const staleRemoved = [];
-  if (deleteStale && !dryRun) {
+  const safeToDeleteStale = deleteStale && !dryRun && (!deleteRaw || allowDeleteStaleWithoutRaw);
+  if (safeToDeleteStale) {
     for (const pat of compressPatterns) {
       // Build the corresponding .gz pattern
       const gzPat = pat.endsWith('.gz') ? pat : `${pat}.gz`;
@@ -303,6 +305,11 @@ function compressArtifacts(root, policy, options) {
         }
       }
     }
+  } else if (deleteStale && !dryRun && deleteRaw && !allowDeleteStaleWithoutRaw) {
+    process.stderr.write(
+      '[static-data-compression] Skipping stale .gz cleanup in --replace-raw mode; ' +
+      'pass --allow-delete-stale-without-raw (CLI) or allowDeleteStaleWithoutRaw=true (API) for explicit cleanup.\n'
+    );
   }
 
   const totalRaw    = entries.reduce((s, e) => s + e.rawBytes, 0);

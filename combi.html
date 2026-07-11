@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="unfallatlas:data-mode" content="gzip-only" />
   <title>Unfallatlas – Webkarte (Viewport + Cluster + Heatmap)</title>
 
   <!-- Leaflet -->
@@ -275,6 +276,7 @@
     </div>
   </div>
 
+  <script src="js/ua.fetch_gz.js?v=2026-07-10"></script>
   <script>
     // ======== HARTE ABSICHERUNG: Leaflet muss geladen sein ========
     if (!window.L) {
@@ -468,6 +470,39 @@
         pts.push({ lat, lon, props: f.properties || {} });
       }
       return pts;
+    }
+
+    function isGzipOnlyMode(){
+      try {
+        return document.querySelector('meta[name="unfallatlas:data-mode"]')?.getAttribute("content") === "gzip-only";
+      } catch (_) {
+        return false;
+      }
+    }
+    function gzipSupportError(url){
+      return new Error(
+        `Daten konnten nicht geladen werden: gzip-Daten konnten nicht dekomprimiert werden. ` +
+        `Bitte modernen Browser verwenden oder Deployment prüfen. (${url}.gz)`
+      );
+    }
+    async function fetchJsonData(url){
+      const gzipOnly = isGzipOnlyMode();
+      const fetchCompressed = window.UA && typeof window.UA.fetchJsonCompressed === "function"
+        ? window.UA.fetchJsonCompressed
+        : null;
+      if (!fetchCompressed) {
+        if (gzipOnly) throw gzipSupportError(url);
+        const resp = await fetch(url, { cache: "no-store" });
+        if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}). Erwartet: ${url}`);
+        return resp.json();
+      }
+      try {
+        return await fetchCompressed(url, { gzipOnly });
+      } catch (err) {
+        const msg = String(err && err.message ? err.message : err || "");
+        if (msg.includes("DecompressionStream is not available")) throw gzipSupportError(url);
+        throw new Error(`GeoJSON konnte nicht geladen werden: ${msg}`);
+      }
     }
 
     function fitToAllPoints(points){
@@ -690,10 +725,7 @@
     }
 
     async function main() {
-      const resp = await fetch(DATA_URL, { cache: "no-store" });
-      if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}). Erwartet: ${DATA_URL}`);
-
-      all = await resp.json();
+      all = await fetchJsonData(DATA_URL);
       buildYearOptions(all.features || []);
       allPts = extractPoints(all);
       buildStrzOptions(allPts);

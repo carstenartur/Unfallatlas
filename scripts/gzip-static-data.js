@@ -24,7 +24,16 @@
  *
  *   --delete-stale
  *     Remove .gz files whose raw source no longer exists. Can be
- *     combined with --replace-raw.
+ *     combined with --replace-raw only when
+ *     --allow-delete-stale-without-raw is set explicitly.
+ *
+ *   --allow-delete-stale-without-raw
+ *     Explicitly allow stale cleanup in gzip-only states where raw files
+ *     are intentionally absent (unsafe for normal --replace-raw runs).
+ *
+ *   --allow-destructive-cleanup
+ *     Explicitly allow a delete-stale run to remove existing .gz artefacts
+ *     even when no raw input files were processed in this run.
  *
  *   --check [--gzip-only]
  *     Validate the artefact state without modifying any files.
@@ -75,6 +84,8 @@ function parseArgs(argv) {
   const args = {
     replaceRaw:  false,
     deleteStale: false,
+    allowDeleteStaleWithoutRaw: false,
+    allowDestructiveCleanup: false,
     check:       false,
     gzipOnly:    false,
     dryRun:      false,
@@ -87,6 +98,12 @@ function parseArgs(argv) {
     switch (argv[i]) {
       case '--replace-raw':  args.replaceRaw  = true; break;
       case '--delete-stale': args.deleteStale = true; break;
+      case '--allow-delete-stale-without-raw':
+        args.allowDeleteStaleWithoutRaw = true;
+        break;
+      case '--allow-destructive-cleanup':
+        args.allowDestructiveCleanup = true;
+        break;
       case '--check':        args.check       = true; break;
       case '--gzip-only':    args.gzipOnly    = true; break;
       case '--dry-run':      args.dryRun      = true; break;
@@ -306,13 +323,35 @@ function main(argv) {
     return;
   }
 
+  const shouldPreflightDestructiveCleanup = args.deleteStale
+    && !args.dryRun
+    && (!args.replaceRaw || args.allowDeleteStaleWithoutRaw)
+    && !args.allowDestructiveCleanup;
+
+  if (shouldPreflightDestructiveCleanup) {
+    const preflight = compressArtifacts(args.root, policy, {
+      deleteRaw: args.replaceRaw,
+      dryRun: true,
+      deleteStale: args.deleteStale,
+      allowDeleteStaleWithoutRaw: args.allowDeleteStaleWithoutRaw,
+    });
+    if (preflight.entries.length === 0) {
+      throw new Error(
+        'Refusing stale cleanup in gzip-only state: no raw inputs matched the compression policy. ' +
+        'Pass --allow-destructive-cleanup to override explicitly.'
+      );
+    }
+  }
+
   const result = compressArtifacts(args.root, policy, {
     deleteRaw:   args.replaceRaw,
     dryRun:      args.dryRun,
     deleteStale: args.deleteStale,
+    allowDeleteStaleWithoutRaw: args.allowDeleteStaleWithoutRaw,
   });
 
   const summary = buildSummary(result, args);
+
   console.log(formatSummary(summary));
 
   if (args.summaryJson) {

@@ -347,7 +347,7 @@ jobs:
         run: node scripts/enrich_geojson.js
 
       - name: Normalize static data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw --delete-stale --summary-json out/gzip-summary.json
+        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
 
       - name: Verify gzip-only artifact invariants
         run: node scripts/gzip-static-data.js --check --gzip-only
@@ -361,6 +361,12 @@ jobs:
         env:
           UNFALLATLAS_DATA_MODE: gzip-only
         run: node scripts/check-context-datasets.js
+
+      - name: Validate all expected city GeoJSON files are present
+        # In the matrix workflow some cities may have failed their producer
+        # step. Use --warn so an incomplete matrix run still commits whatever
+        # was successfully enriched instead of blocking the entire build.
+        run: node scripts/check-data-paths.js --warn
 
       # Same commit-only-on-real-diff guard as enrich.yml.
       - name: Commit & Push changes

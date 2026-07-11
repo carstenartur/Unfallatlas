@@ -102,47 +102,14 @@ jobs:
         with:
           node-version: '24'
 
-      # ---------------------------------------------------------------
-      # Enrichment (Tier-B done in CI, see docs/enrichment.md)
-      #
-      # The script reads OSM/DEM/Traffic source data from the dirs
-      # named by the env vars below. No producer step is wired up yet
-      # in this workflow, so by default the directories are absent and
-      # every enrichment stage no-ops — the converter output is left
-      # functionally unchanged. Adding `download-osm` /
-      # `download-dem` / `download-traffic` steps that drop
-      # `osm_<city>.json` / `dem_<city>.json` / `traffic_<city>.json`
-      # into these dirs before "Run enrichment" is the planned
-      # follow-up; once they exist, wrap them in `actions/cache` keyed
-      # on the dataset version.
-      # ---------------------------------------------------------------
-      - name: Run enrichment
-        env:
-          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
-          ENRICH_DEM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/dem
-          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
-        run: node scripts/enrich_geojson.js
-
       - name: Normalize static data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw --delete-stale --summary-json out/gzip-summary.json
+        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
 
       - name: Verify gzip-only artifact invariants
         run: node scripts/gzip-static-data.js --check --gzip-only
 
-      - name: Check enriched payload size budget
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: node scripts/check-enrichment-size.js
-
-      - name: Validate v3 context-layer datasets
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: node scripts/check-context-datasets.js
-
-      - name: Validate per-city slope plausibility
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: node scripts/check-slope-plausibility.js
+      - name: Validate all expected city GeoJSON files are present
+        run: node scripts/check-data-paths.js
 
       - name: Sync City-Registry (auto-fix Drift)
         run: node scripts/check-city-rollout.js --fix

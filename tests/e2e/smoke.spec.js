@@ -117,9 +117,9 @@ test.describe('Smoke – Werkbank V2', () => {
     // app uses to mount the control (capabilitiesFromDetection →
     // hasOsmContext), so a missing file is "no overlays expected".
     const baseUrl = new URL(page.url());
-    const waysUrl = new URL('out/ways_bonn.json', baseUrl).toString();
+    const waysUrl = new URL('out/ways_bonn.json.gz', baseUrl).toString();
     const waysHead = await page.request.fetch(waysUrl, { method: 'HEAD' }).catch(() => null);
-    test.skip(!waysHead || !waysHead.ok(), 'ways_bonn.json not deployed — overlay control not expected');
+    test.skip(!waysHead || !waysHead.ok(), 'ways_bonn.json.gz not deployed — overlay control not expected');
 
     const overlayCtrl = page.locator('.context-overlay-control');
     await expect(overlayCtrl).toBeVisible({ timeout: 15000 });
@@ -140,17 +140,24 @@ test.describe('Smoke – Werkbank V2', () => {
   test('ways_bonn.json hat schemaVersion >= 2 (envelope mit geometries oder tile-index)', async ({ page }) => {
     await page.goto('werkbank_v2.html');
     const baseUrl = new URL(page.url());
-    const waysUrl = new URL('out/ways_bonn.json', baseUrl).toString();
-    // Cache-bust so an edge cache cannot mask a stale file.
-    const resp = await page.request.fetch(`${waysUrl}?cb=${Date.now()}`, {
-      headers: { 'cache-control': 'no-cache' },
-    });
-    expect(resp.ok(), `ways_bonn.json fetch failed (HTTP ${resp.status()})`).toBe(true);
-    const payload = await resp.json();
-    expect(payload && typeof payload === 'object', 'ways_bonn.json is not a JSON object').toBe(true);
+    const waysUrlGz = new URL('out/ways_bonn.json.gz', baseUrl).toString();
+
+    // Gate: skip when the .gz file is not deployed (CI-Checkout ohne Datendateien).
+    const waysHead = await page.request.fetch(waysUrlGz, { method: 'HEAD' }).catch(() => null);
+    test.skip(!waysHead || !waysHead.ok(), 'ways_bonn.json.gz not deployed — schema-version check skipped');
+
+    // Decompress via the UA helper already present on the page so we don't
+    // need to pipe raw gzip bytes through Node.js zlib in the test runner.
+    const payload = await page.evaluate(async (url) => {
+      if (typeof window.UA === 'undefined' || typeof window.UA.fetchJsonCompressed !== 'function') {
+        throw new Error('UA.fetchJsonCompressed not available');
+      }
+      return window.UA.fetchJsonCompressed(url, { gzipOnly: true });
+    }, waysUrlGz);
+    expect(payload && typeof payload === 'object', 'ways_bonn.json.gz is not a JSON object').toBe(true);
     expect(
       typeof payload.schemaVersion === 'number' && payload.schemaVersion >= 2,
-      `ways_bonn.json schemaVersion is "${payload.schemaVersion}" — expected >= 2 (rerun enrich.yml so a current producer regenerates the file)`
+      `ways_bonn.json.gz schemaVersion is "${payload.schemaVersion}" — expected >= 2 (rerun enrich.yml so a current producer regenerates the file)`
     ).toBe(true);
   });
 

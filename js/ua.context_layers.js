@@ -144,8 +144,13 @@
     const slug = (UA.normKey ? UA.normKey(cityRaw) : String(cityRaw || '').toLowerCase());
     return {
       slug,
-      ways: `out/ways_${slug}.json`,
-      meta: `out/output_all_years_${slug}.enrichment.meta.json`,
+      // Use central path registry when available (ua.data_paths.js).
+      ways: (UA.DataPaths && typeof UA.DataPaths.contextWays === 'function')
+        ? UA.DataPaths.contextWays(slug)
+        : `out/ways_${slug}.json`,
+      meta: (UA.DataPaths && typeof UA.DataPaths.enrichmentMeta === 'function')
+        ? UA.DataPaths.enrichmentMeta(slug)
+        : `out/output_all_years_${slug}.enrichment.meta.json`,
     };
   }
 
@@ -255,7 +260,9 @@
           coverage     = raw.coverage || 'full';
           tileIndexUrl = (typeof raw.tileIndexUrl === 'string')
             ? raw.tileIndexUrl
-            : `out/ctxtiles/${u.slug}/index.json`;
+            : ((UA.DataPaths && typeof UA.DataPaths.contextTileIndex === 'function')
+                ? UA.DataPaths.contextTileIndex(u.slug)
+                : `out/ctxtiles/${u.slug}/index.json`);
           ways         = {};
           geometries   = {};
           // Eagerly fetch the (small) manifest so the popup hydration

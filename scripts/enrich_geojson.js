@@ -8,12 +8,12 @@
  * files, so that the static web application gets elevation, OSM-road
  * and traffic context without paying any runtime cost.
  *
- * Input:  out/output_all_years_<city>.geojson
- * Output: out/output_all_years_<city>.geojson  (in-place, enriched)
- *         out/ways_<city>.json                  (per-way attribute table
+ * Input:  <input-dir>/output_all_years_<city>.geojson[.gz]
+ * Output: <output-dir>/output_all_years_<city>.geojson  (enriched)
+ *         <output-dir>/ways_<city>.json                 (per-way attribute table
  *                                                + generalised geometries
  *                                                — see "geometries" block)
- *         out/output_all_years_<city>.enrichment.meta.json (sidecar)
+ *         <output-dir>/output_all_years_<city>.enrichment.meta.json (sidecar)
  *
  * Design constraints (see plan §C):
  *   - Compact field encoding: 1-decimal floats, drop nulls.
@@ -49,6 +49,7 @@
 const fs   = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 
 const ENRICHMENT_SCRIPT_VERSION = '1.0.0';
 
@@ -221,9 +222,14 @@ function summarizeSlopeQuality(fullWays) {
 }
 
 function gzippedSize(filePath) {
-  if (!fs.existsSync(filePath)) return 0;
-  const raw = fs.readFileSync(filePath);
-  return zlib.gzipSync(raw, { level: 9 }).length;
+  if (fs.existsSync(filePath)) {
+    const raw = fs.readFileSync(filePath);
+    return zlib.gzipSync(raw, { level: 9 }).length;
+  }
+  if (fs.existsSync(`${filePath}.gz`)) {
+    return fs.statSync(`${filePath}.gz`).size;
+  }
+  return 0;
 }
 
 // Strip writes "undefined" instead of "null" so that JSON.stringify drops
@@ -505,8 +511,16 @@ function buildContextTiles(fullWays, opts = {}) {
  * Persist tile payloads + manifest to disk under `out/ctxtiles/<slug>/`.
  * Replaces the directory's contents to stay idempotent across re-runs.
  */
-function writeContextTiles(repoRoot, citySlug, fullWays, opts = {}) {
-  const baseDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+function _resolveContextTileBaseDir(outputDirOrRepoRoot, citySlug) {
+  const direct = path.join(outputDirOrRepoRoot, 'ctxtiles', citySlug);
+  const legacy = path.join(outputDirOrRepoRoot, 'out', 'ctxtiles', citySlug);
+  if (fs.existsSync(path.dirname(legacy)) && !fs.existsSync(path.dirname(direct))) return legacy;
+  if (fs.existsSync(legacy) && !fs.existsSync(direct)) return legacy;
+  return direct;
+}
+
+function writeContextTiles(outputDirOrRepoRoot, citySlug, fullWays, opts = {}) {
+  const baseDir = _resolveContextTileBaseDir(outputDirOrRepoRoot, citySlug);
   // Wipe stale tile files from a previous run so a way that moved
   // tiles (or was removed entirely) doesn't leave a dangling fetch
   // target. Cheap — the dir is small and per-city.
@@ -528,7 +542,7 @@ function writeContextTiles(repoRoot, citySlug, fullWays, opts = {}) {
     }));
   }
 
-  const manifest = buildContextTileManifestFromDisk(repoRoot, citySlug, {
+  const manifest = buildContextTileManifestFromDisk(outputDirOrRepoRoot, citySlug, {
     zoom:            Number.isInteger(opts.zoom) ? opts.zoom : CTX_TILE_ZOOM,
     generatedAt:     opts.generatedAt,
     producerVersion: opts.producerVersion || null,
@@ -553,9 +567,9 @@ function writeContextTiles(repoRoot, citySlug, fullWays, opts = {}) {
  * producer/enrichment internals and what the browser can actually fetch
  * on static hosting (GitHub Pages has no directory listing).
  */
-function buildContextTileManifestFromDisk(repoRoot, citySlug, opts = {}) {
+function buildContextTileManifestFromDisk(outputDirOrRepoRoot, citySlug, opts = {}) {
   const z = Number.isInteger(opts.zoom) ? opts.zoom : CTX_TILE_ZOOM;
-  const baseDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+  const baseDir = _resolveContextTileBaseDir(outputDirOrRepoRoot, citySlug);
   const tiles = [];
   const wayIndex = {};
   const malformedTiles = [];
@@ -1090,32 +1104,62 @@ function enrichCity(geojson, citySlug, opts = {}) {
 // File I/O wrapper
 // ---------------------------------------------------------------------------
 
-function pathsForCity(repoRoot, citySlug) {
-  const outDir = path.join(repoRoot, 'out');
+function pathsForCity(inputDirOrRepoRoot, outputDirOrCitySlug, maybeCitySlug) {
+  let inputDir = inputDirOrRepoRoot;
+  let outputDir = outputDirOrCitySlug;
+  let citySlug = maybeCitySlug;
+  if (citySlug === undefined) {
+    // Backward-compatible signature: pathsForCity(repoRoot, citySlug)
+    citySlug = outputDirOrCitySlug;
+    inputDir = path.join(inputDirOrRepoRoot, 'out');
+    outputDir = path.join(inputDirOrRepoRoot, 'out');
+  }
   return {
-    geojson: path.join(outDir, `output_all_years_${citySlug}.geojson`),
-    ways:    path.join(outDir, `ways_${citySlug}.json`),
-    meta:    path.join(outDir, `output_all_years_${citySlug}.enrichment.meta.json`),
+    inputGeojson: path.join(inputDir, `output_all_years_${citySlug}.geojson`),
+    outputGeojson: path.join(outputDir, `output_all_years_${citySlug}.geojson`),
+    // Backward-compatible alias used by existing tests/callers.
+    geojson: path.join(outputDir, `output_all_years_${citySlug}.geojson`),
+    ways: path.join(outputDir, `ways_${citySlug}.json`),
+    meta: path.join(outputDir, `output_all_years_${citySlug}.enrichment.meta.json`),
   };
 }
 
-function enrichCityFile(repoRoot, citySlug, opts) {
-  const p = pathsForCity(repoRoot, citySlug);
-  if (!fs.existsSync(p.geojson)) {
+function enrichCityFile(repoRootOrCitySlug, citySlugOrOpts, maybeOpts) {
+  let citySlug;
+  let opts;
+  if (typeof citySlugOrOpts === 'string') {
+    // Backward-compatible signature:
+    // enrichCityFile(repoRoot, citySlug, opts)
+    citySlug = citySlugOrOpts;
+    opts = Object.assign({}, maybeOpts || {});
+    const repoRoot = path.resolve(repoRootOrCitySlug);
+    opts.inputDir = path.resolve(repoRoot, opts.inputDir || 'out');
+    opts.outputDir = path.resolve(repoRoot, opts.outputDir || 'out');
+  } else {
+    // New signature:
+    // enrichCityFile(citySlug, opts)
+    citySlug = repoRootOrCitySlug;
+    opts = Object.assign({}, citySlugOrOpts || {});
+    opts.inputDir = path.resolve(opts.inputDir || path.join(path.resolve(__dirname, '..'), 'out'));
+    opts.outputDir = path.resolve(opts.outputDir || path.join(path.resolve(__dirname, '..'), 'out'));
+  }
+
+  const p = pathsForCity(opts.inputDir, opts.outputDir, citySlug);
+  if (!fs.existsSync(p.inputGeojson) && !fs.existsSync(`${p.inputGeojson}.gz`)) {
     return { citySlug, skipped: true, reason: 'no input geojson' };
   }
-  const sizeBefore = gzippedSize(p.geojson);
-  const raw = fs.readFileSync(p.geojson, 'utf8');
   let geojson;
-  try { geojson = JSON.parse(raw); }
+  try { geojson = readJsonMaybeGz(p.inputGeojson); }
   catch (e) { return { citySlug, skipped: true, reason: `invalid JSON: ${e.message}` }; }
+  const sizeBefore = gzippedSize(p.inputGeojson);
+  fs.mkdirSync(path.dirname(p.outputGeojson), { recursive: true });
 
   const { ways, geometries, fullWays, meta } = enrichCity(geojson, citySlug, opts);
 
   // Write enriched GeoJSON. We deliberately write compact (no
   // indentation) — matches the existing on-disk format produced by
   // convertAmt2gmaps.sh, and is the smallest viable representation.
-  fs.writeFileSync(p.geojson, JSON.stringify(geojson));
+  fs.writeFileSync(p.outputGeojson, JSON.stringify(geojson));
 
   // Two on-disk shapes for `ways_<city>.json`:
   //
@@ -1137,7 +1181,7 @@ function enrichCityFile(repoRoot, citySlug, opts) {
   let tileWriteResult = null;
   const wantsTiles = Array.isArray(fullWays) && fullWays.length > 0;
   if (wantsTiles) {
-    tileWriteResult = writeContextTiles(repoRoot, citySlug, fullWays, {
+    tileWriteResult = writeContextTiles(opts.outputDir, citySlug, fullWays, {
       source:      meta.sources?.osm?.source,
       extractDate: meta.sources?.osm?.extractDate,
       generatedAt: meta.generatedAt,
@@ -1158,7 +1202,7 @@ function enrichCityFile(repoRoot, citySlug, opts) {
       );
     }
     const writtenIndex = path.join(
-      repoRoot, 'out', 'ctxtiles', citySlug, 'index.json'
+      opts.outputDir, 'ctxtiles', citySlug, 'index.json'
     );
     let writtenManifest = null;
     try { writtenManifest = JSON.parse(fs.readFileSync(writtenIndex, 'utf8')); }
@@ -1185,7 +1229,7 @@ function enrichCityFile(repoRoot, citySlug, opts) {
       : { schemaVersion: 2, ways };
     // Wipe any previously-written tile dir so we don't leave stale
     // tiles behind when a city falls back to the matched-only path.
-    const tileDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+    const tileDir = path.join(opts.outputDir, 'ctxtiles', citySlug);
     if (fs.existsSync(tileDir)) fs.rmSync(tileDir, { recursive: true, force: true });
     delete meta.tileIndexPath;
   }
@@ -1209,11 +1253,11 @@ function enrichCityFile(repoRoot, citySlug, opts) {
     for (const stale of [p.ways, p.meta]) {
       if (fs.existsSync(stale)) fs.unlinkSync(stale);
     }
-    const tileDir = path.join(repoRoot, 'out', 'ctxtiles', citySlug);
+    const tileDir = path.join(opts.outputDir, 'ctxtiles', citySlug);
     if (fs.existsSync(tileDir)) fs.rmSync(tileDir, { recursive: true, force: true });
   }
 
-  const sizeAfter = gzippedSize(p.geojson);
+  const sizeAfter = gzippedSize(p.outputGeojson);
   return {
     citySlug, skipped: false, meta, wroteCompanions: hasEnrichment,
     contextTiles: tileWriteResult,
@@ -1232,6 +1276,8 @@ function parseArgs(argv) {
     useDem: true,
     useTraffic: true,
     json: false,
+    inputDir: null,
+    outputDir: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -1240,6 +1286,8 @@ function parseArgs(argv) {
     else if (a === '--no-traffic') opts.useTraffic = false;
     else if (a === '--json')       opts.json = true;
     else if (a === '--city')       { opts.cities.push(argv[++i]); }
+    else if (a === '--input-dir')  { opts.inputDir = argv[++i] || null; }
+    else if (a === '--output-dir') { opts.outputDir = argv[++i] || null; }
     else if (a === '--help' || a === '-h') { opts.help = true; }
     else if (a.startsWith('--')) { console.warn(`[enrich] unknown flag ignored: ${a}`); }
   }
@@ -1252,6 +1300,10 @@ function printHelp() {
 
   --city <name>     enrich only this city (repeatable)
                     default: every city listed in cities.txt
+  --input-dir <dir> read source GeoJSON files from this directory
+                    default: out
+  --output-dir <dir> write enriched files to this directory
+                     default: out
   --no-osm          skip OSM road-match stage
   --no-dem          skip DEM elevation/slope stage
   --no-traffic      skip traffic-volume stage
@@ -1270,6 +1322,9 @@ function main(argv) {
   if (opts.help) { printHelp(); return 0; }
 
   const repoRoot = path.resolve(__dirname, '..');
+  opts.inputDir = path.resolve(repoRoot, opts.inputDir || 'out');
+  opts.outputDir = path.resolve(repoRoot, opts.outputDir || 'out');
+  fs.mkdirSync(opts.outputDir, { recursive: true });
   let citySlugs = opts.cities.map(slugCity);
   if (citySlugs.length === 0) citySlugs = readCitiesTxt(repoRoot).map(slugCity);
   if (citySlugs.length === 0) {
@@ -1279,7 +1334,7 @@ function main(argv) {
 
   const summary = { script: ENRICHMENT_SCRIPT_VERSION, cities: [] };
   for (const slug of citySlugs) {
-    const r = enrichCityFile(repoRoot, slug, opts);
+    const r = enrichCityFile(slug, opts);
     summary.cities.push(r);
     if (!opts.json) {
       if (r.skipped) {

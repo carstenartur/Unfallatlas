@@ -5,6 +5,12 @@ name: Enrich GeoJSONs
 # step, so DEM tile refreshes or new traffic-count datasets can be
 # picked up without rebuilding the accident GeoJSONs themselves.
 #
+# This workflow is also triggered automatically after a successful run
+# of "Generate & Commit" (generate-and-commit.yml) on the default
+# branch, so freshly downloaded accident data is still enriched in one
+# pipeline without checking out an untrusted workflow_run head SHA in a
+# privileged job.
+#
 # See docs/enrichment.md for the schema and the "Kontext nicht Ursache"
 # disclaimer.
 
@@ -40,6 +46,12 @@ on:
         description: 'Re-run Traffic producer for every city even if cached output exists'
         type: boolean
         default: false
+  workflow_run:
+    # Automatically enrich after every successful accident-data generation run.
+    # This closes the gap where raw GeoJSON was committed without enrichment
+    # when generate-and-commit.yml and enrich.yml were triggered independently.
+    workflows: ["Generate & Commit"]
+    types: [completed]
   schedule:
     # Every Sunday at 04:00 UTC. Note: cron's day-of-month and
     # day-of-week fields are OR-combined, so a "first Sunday of the
@@ -54,10 +66,20 @@ permissions:
 jobs:
   enrich:
     runs-on: ubuntu-latest
+    # When triggered via workflow_run, only run if the triggering workflow
+    # completed successfully on the default branch. This keeps the
+    # privileged auto-enrichment path on trusted code only.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch
+      )
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: true
+          ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}
 
       - name: Set up Git
         run: |
@@ -238,7 +260,7 @@ jobs:
           node scripts/enrich_geojson.js "${ARGS[@]}"
 
       - name: Normalize static data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw --delete-stale --summary-json out/gzip-summary.json
+        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
 
       - name: Verify gzip-only artifact invariants
         run: node scripts/gzip-static-data.js --check --gzip-only
@@ -281,6 +303,9 @@ jobs:
           path: out/qa/
           if-no-files-found: ignore
 
+      - name: Validate all expected city GeoJSON files are present
+        run: node scripts/check-data-paths.js
+
       # Commit only when something other than the meta-sidecar
       # `generatedAt` timestamp changed. The sidecar is always
       # rewritten on every run, so committing it unconditionally would
@@ -297,4 +322,4 @@ jobs:
           fi
           git add -A -- out/
           git commit -m "Re-run enrichment (scripts/enrich_geojson.js)"
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin HEAD:${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref_name }}

@@ -405,12 +405,34 @@ describe('enrich_geojson — file-on-disk wrapper', () => {
     expect(r.reason).toMatch(/no input/);
   });
 
+  test('reads .geojson.gz input when raw file is absent', () => {
+    const zlib = require('zlib');
+    const slug = 'bonn';
+    const inDir = path.join(tmpRoot, 'input');
+    const outDir = path.join(tmpRoot, 'output');
+    fs.mkdirSync(inDir, { recursive: true });
+    const inputGz = path.join(inDir, `output_all_years_${slug}.geojson.gz`);
+    fs.writeFileSync(inputGz, zlib.gzipSync(Buffer.from(JSON.stringify(fcWith([ptFeature(1, 7.0, 50.0)])), 'utf8')));
+
+    const r = enrich.enrichCityFile(slug, {
+      inputDir: inDir,
+      outputDir: outDir,
+      useOsm: false,
+      useDem: false,
+      useTraffic: false,
+    });
+    expect(r.skipped).toBe(false);
+    expect(fs.existsSync(path.join(outDir, `output_all_years_${slug}.geojson`))).toBe(true);
+  });
+
   test('parseArgs handles the documented flags', () => {
     expect(enrich.parseArgs(['--no-osm', '--no-dem', '--no-traffic']))
       .toMatchObject({ useOsm: false, useDem: false, useTraffic: false });
     expect(enrich.parseArgs(['--city', 'Bonn', '--city', 'Köln']))
       .toMatchObject({ cities: ['Bonn', 'Köln'] });
     expect(enrich.parseArgs(['--json'])).toMatchObject({ json: true });
+    expect(enrich.parseArgs(['--input-dir', '.build/raw', '--output-dir', '.build/enriched']))
+      .toMatchObject({ inputDir: '.build/raw', outputDir: '.build/enriched' });
   });
 });
 

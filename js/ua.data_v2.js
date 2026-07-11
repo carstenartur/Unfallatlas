@@ -18,11 +18,19 @@
   };
 
   UA.buildDataUrl = function buildDataUrl(cityRaw){
+    // Delegate to the central path registry when available (ua.data_paths.js).
+    if (UA.DataPaths && typeof UA.DataPaths.accidentGeoJson === 'function') {
+      return UA.DataPaths.accidentGeoJson(cityRaw);
+    }
     const suffix = UA.normKey(cityRaw);
     return `out/output_all_years_${suffix}.geojson`;
   };
 
   UA.buildPOIUrl = function buildPOIUrl(cityRaw){
+    // Delegate to the central path registry when available (ua.data_paths.js).
+    if (UA.DataPaths && typeof UA.DataPaths.poiGeoJson === 'function') {
+      return UA.DataPaths.poiGeoJson(cityRaw);
+    }
     const suffix = UA.normKey(cityRaw);
     return `out/poi_${suffix}.geojson`;
   };
