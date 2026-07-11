@@ -266,6 +266,14 @@
     const cities = await UA.loadCitiesList(ctx);
     UA.setCityDropdown(ctx, cities);
 
+    // Export-Modal-Binding so früh wie möglich aufrufen, damit der
+    // Öffnen-Button auch dann funktioniert, wenn loadCityData fehlschlägt
+    // (z.B. kein Netz oder kein Datenfile im CI-Checkout). bindExport
+    // braucht nur ctx.ui (bereits durch bindDom gesetzt) und bindet
+    // ausschließlich DOM-Event-Listener — keine Abhängigkeit zu geladenen
+    // Daten oder der Karte.
+    bindExport(ctx);
+
     // data — bei Fehler eine verständliche Meldung anzeigen statt
     // unkommentiert in den globalen catch-Pfad zu fallen (QA-Härtung
     // „Ladezustand"). Wir werfen dennoch weiter, damit das `main()`-catch
@@ -321,7 +329,6 @@
     if (typeof UA.refreshContextOverlays === 'function') {
       UA.refreshContextOverlays(ctx);
     }
-    bindExport(ctx);
 
     // Initialize tour module (gracefully degraded – only if ua.tour.js is loaded)
     if (typeof UA.initTour === "function") {
