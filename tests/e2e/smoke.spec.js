@@ -27,9 +27,6 @@ const KNOWN_NON_ACTIONABLE_CONSOLE_ERRORS = [
   // Kein Node-Backend im statischen Test-Server → 404-Probes sind erwartet
   /Failed to load resource.*404/i,
   /\/api\//i,
-  // In CI-Checkout sind keine Datendateien vorhanden (nur auf GitHub Pages
-  // nach dem generate/enrich-Workflow). GeoJSON-404 ist hier nicht aktionierbar.
-  /GeoJSON konnte nicht geladen werden.*HTTP 404/i,
 ];
 
 function isKnownNonActionable(message) {

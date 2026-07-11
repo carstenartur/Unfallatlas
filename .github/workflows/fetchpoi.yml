@@ -67,8 +67,9 @@ jobs:
             CITY_SLUG="$(slug "$CITY")"
             OUTFILE="out/poi_${CITY_SLUG}.geojson"
 
-            if [[ -f "$OUTFILE" ]]; then
-              echo "SKIP (exists): $CITY -> $OUTFILE"
+            # Skip if either the raw or the already-normalized .gz file exists
+            if [[ -f "$OUTFILE" || -f "${OUTFILE}.gz" ]]; then
+              echo "SKIP (exists): $CITY -> $OUTFILE[.gz]"
               continue
             fi
 
@@ -84,15 +85,18 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import glob, json, sys
-          files = sorted(glob.glob("out/poi_*.geojson"))
+          import glob, gzip, json, sys
+          raw_files = sorted(glob.glob("out/poi_*.geojson"))
+          gz_files  = sorted(glob.glob("out/poi_*.geojson.gz"))
+          files = raw_files + gz_files
           if not files:
-            print("No POI geojson files found (out/poi_*.geojson)")
+            print("No POI geojson files found (out/poi_*.geojson[.gz])")
             sys.exit(2)
           bad = []
           for f in files:
             try:
-              with open(f, "r", encoding="utf-8") as fp:
+              opener = gzip.open if f.endswith('.gz') else open
+              with opener(f, "rt", encoding="utf-8") as fp:
                 j = json.load(fp)
               if j.get("type") != "FeatureCollection":
                 raise ValueError("Not a FeatureCollection")
@@ -108,11 +112,22 @@ jobs:
           print("POI GeoJSON OK:", len(files))
           PY
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Normalize POI artifacts to gzip-only
+        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
+
+      - name: Verify gzip-only artifact invariants
+        run: node scripts/gzip-static-data.js --check --gzip-only
+
       - name: Commit & Push changes
         shell: bash
         run: |
           set -euo pipefail
-          git add out/poi_*.geojson 2>/dev/null || true
+          git add out/poi_*.geojson.gz out/gzip-summary.json 2>/dev/null || true
           git diff --cached --quiet && exit 0
           git commit -m "Update POI GeoJSONs (schools/kindergartens) for cities.txt"
           git push origin HEAD:${{ github.ref_name }}

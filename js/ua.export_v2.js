@@ -981,10 +981,12 @@
   async function loadPOIData(citySlug) {
     const poiPath = `out/poi_${citySlug}.geojson`;
     try {
+      if (typeof UA !== 'undefined' && typeof UA.fetchJsonCompressed === 'function') {
+        return await UA.fetchJsonCompressed(poiPath);
+      }
       const r = await fetch(poiPath, { cache: "no-store" });
       if (!r.ok) return null;
-      const data = await r.json();
-      return data;
+      return await r.json();
     } catch (e) {
       console.warn(`POI data not available for ${citySlug}:`, e);
       return null;
