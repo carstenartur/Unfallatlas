@@ -437,7 +437,11 @@ if (UA.qBool("export", false)) {
   }
 
   main().catch(err => {
-    console.error(err);
+    // Log the message string (not the raw Error object) so that
+    // Playwright's msg.text() returns a matchable string in all browsers
+    // (Firefox returns just "Error" for raw Error objects, breaking allowlist
+    // filters in the smoke test).
+    console.error(err && err.message ? err.message : String(err));
     // QA-Härtung „URL = Source of Truth": auch im Fehlerpfad das
     // Hydration-Flag sicher abräumen, damit nachgelagerte UI-Events
     // (Retry, manuelle Bedienelemente) wieder in die URL schreiben
