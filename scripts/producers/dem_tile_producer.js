@@ -37,6 +37,8 @@ const fs   = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
+const { readJsonMaybeGz } = require('../lib/read-json-maybe-gz');
+
 const PRODUCER_VERSION = '1.0.0';
 
 const DEFAULT_DOWNLOAD_TIMEOUT_MS = 60_000;
@@ -270,12 +272,12 @@ async function downloadTilesForCities(repoRoot, citySlugs, tilesDir, opts) {
 
   for (const slug of citySlugs) {
     const geojsonPath = path.join(repoRoot, 'out', `output_all_years_${slug}.geojson`);
-    if (!fs.existsSync(geojsonPath)) {
+    if (!fs.existsSync(geojsonPath) && !fs.existsSync(`${geojsonPath}.gz`)) {
       if (!o.silent) console.warn(`[dem-tile-producer] ${slug}: no geojson, skipping tile computation`);
       continue;
     }
     let fc;
-    try { fc = JSON.parse(fs.readFileSync(geojsonPath, 'utf8')); }
+    try { fc = readJsonMaybeGz(geojsonPath); }
     catch (e) {
       if (!o.silent) console.warn(`[dem-tile-producer] ${slug}: invalid geojson, skipping`);
       continue;

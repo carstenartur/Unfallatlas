@@ -318,6 +318,36 @@ describe('dem_tile_producer — downloadTilesForCities', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  test('reads .geojson.gz input and computes tiles correctly', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-tile-gz-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const tilesDir = path.join(tmp, 'tiles');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(tilesDir, { recursive: true });
+
+    // Write only the gzip variant — no raw .geojson file.
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson.gz'),
+      zlib.gzipSync(JSON.stringify(fc([pt(7.1, 50.1), pt(7.5, 50.5)]))),
+    );
+
+    // Pre-create the tile file so downloadTile returns cached:true (0 downloads).
+    fs.writeFileSync(path.join(tilesDir, 'N50E007.hgt'), makeHgtBuf(1201));
+
+    let fetchCalls = 0;
+    const stubFetch = async () => { fetchCalls++; return { ok: false, status: 404 }; };
+
+    const summary = await tile.downloadTilesForCities(
+      repoRoot, ['bonn'], tilesDir, { fetch: stubFetch, silent: true },
+    );
+
+    expect(summary.errors).toBe(0);
+    expect(summary.cached).toBe(1);
+    expect(summary.downloaded).toBe(0);
+    expect(fetchCalls).toBe(0);
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_) {}
+  });
 });
 
 // ---------------------------------------------------------------------------

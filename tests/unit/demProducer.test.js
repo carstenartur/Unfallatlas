@@ -13,6 +13,7 @@
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
+const zlib = require('zlib');
 
 const dem = require('../../scripts/producers/dem_producer.js');
 
@@ -1377,6 +1378,36 @@ describe('dem_producer — produceCity honours --resolution / --source overrides
       const written = JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8'));
       expect(written.resolution_m).toBe(30);
       expect(written.source).toBe('DGM1');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// gzip-only input coverage
+// ---------------------------------------------------------------------------
+
+describe('dem_producer — produceCity reads .geojson.gz input', () => {
+  test('does not skip when only .geojson.gz is present', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dem-gz-'));
+    const repoRoot = path.join(tmp, 'repo');
+    const outDir   = path.join(tmp, 'out');
+    fs.mkdirSync(path.join(repoRoot, 'out'), { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
+    const inputFc = fc([pt(1, 7.0, 50.0)]);
+    fs.writeFileSync(
+      path.join(repoRoot, 'out', 'output_all_years_bonn.geojson.gz'),
+      zlib.gzipSync(JSON.stringify(inputFc)),
+    );
+    try {
+      const r = await dem.produceCity(repoRoot, 'bonn', {
+        outDir,
+        fetchElevations: async (samples) => samples.map(() => 120),
+      });
+      expect(r.skipped).toBeFalsy();
+      const written = JSON.parse(fs.readFileSync(path.join(outDir, 'dem_bonn.json'), 'utf8'));
+      expect(written.points[0].elevation_m).toBe(120);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

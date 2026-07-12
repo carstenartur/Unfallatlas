@@ -51,6 +51,8 @@
 const fs   = require('fs');
 const path = require('path');
 
+const { readJsonMaybeGz } = require('../lib/read-json-maybe-gz');
+
 // 1.2.0: emit all ways inside the city bbox (no longer pruned to ways
 //         that an accident snapped to) and widen the Overpass filter to
 //         path/cycleway/track/footway/pedestrian/living_street/service so
@@ -643,7 +645,7 @@ async function fetchOverpass(query, opts) {
 async function produceCity(repoRoot, citySlug, opts) {
   const o = opts || {};
   const inputFile = path.join(repoRoot, 'out', `output_all_years_${citySlug}.geojson`);
-  if (!fs.existsSync(inputFile)) {
+  if (!fs.existsSync(inputFile) && !fs.existsSync(`${inputFile}.gz`)) {
     return { citySlug, skipped: true, reason: 'no input geojson' };
   }
   // Resume support: if the per-city output already exists, treat the
@@ -660,7 +662,7 @@ async function produceCity(repoRoot, citySlug, opts) {
   }
   let fc;
   try {
-    fc = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
+    fc = readJsonMaybeGz(inputFile);
   } catch (e) {
     return { citySlug, skipped: true, reason: `invalid input geojson: ${e.message}` };
   }
