@@ -13,6 +13,7 @@
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
+const zlib = require('zlib');
 
 const osm = require('../../scripts/producers/osm_producer.js');
 
@@ -780,5 +781,43 @@ describe('osm_producer — produceCity tiling', () => {
       path.join(tmpRoot, 'cache', 'osm_dedupcity.json'), 'utf8',
     ));
     expect(Object.keys(written.ways)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// gzip-only input coverage
+// ---------------------------------------------------------------------------
+
+describe('osm_producer — produceCity reads .geojson.gz input', () => {
+  let tmpRoot;
+  beforeEach(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'osm-gz-'));
+    fs.mkdirSync(path.join(tmpRoot, 'out'));
+  });
+  afterEach(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  test('does not skip when only .geojson.gz is present', async () => {
+    const inputFc = fc([pt(1, 7.0005, 50.0), pt(2, 7.0008, 50.00002)]);
+    fs.writeFileSync(
+      path.join(tmpRoot, 'out', 'output_all_years_bonn.geojson.gz'),
+      zlib.gzipSync(JSON.stringify(inputFc)),
+    );
+    const outDir = path.join(tmpRoot, 'cache');
+    const r = await osm.produceCity(tmpRoot, 'bonn', {
+      outDir,
+      fetchOverpass: async () => ({
+        version: 0.6,
+        elements: [
+          { type: 'way', id: 100, tags: { highway: 'residential' },
+            geometry: [{ lat: 50, lon: 7 }, { lat: 50, lon: 7.001 }] },
+        ],
+      }),
+    });
+    expect(r.skipped).toBeFalsy();
+    expect(r.counts.features).toBe(2);
+    const written = JSON.parse(fs.readFileSync(path.join(outDir, 'osm_bonn.json'), 'utf8'));
+    expect(written.ways['100']).toBeTruthy();
   });
 });

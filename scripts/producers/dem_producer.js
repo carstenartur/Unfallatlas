@@ -67,6 +67,8 @@
 const fs   = require('fs');
 const path = require('path');
 
+const { readJsonMaybeGz } = require('../lib/read-json-maybe-gz');
+
 // PRODUCER_VERSION
 //   1.0.0 — initial release; per-way slope from endpoint elevations only.
 //   1.1.0 — per-way slope is computed for the *full* OSM bbox network
@@ -1071,7 +1073,7 @@ function buildDemDataset(points, elevations, opts) {
 async function produceCity(repoRoot, citySlug, opts) {
   const o = opts || {};
   const inputFile = path.join(repoRoot, 'out', `output_all_years_${citySlug}.geojson`);
-  if (!fs.existsSync(inputFile)) {
+  if (!fs.existsSync(inputFile) && !fs.existsSync(`${inputFile}.gz`)) {
     return { citySlug, skipped: true, reason: 'no input geojson' };
   }
   // Resume support: if the per-city output already exists, skip the
@@ -1098,7 +1100,7 @@ async function produceCity(repoRoot, citySlug, opts) {
   }
   let fc;
   try {
-    fc = JSON.parse(fs.readFileSync(inputFile, 'utf8'));
+    fc = readJsonMaybeGz(inputFile);
   } catch (e) {
     return { citySlug, skipped: true, reason: `invalid input geojson: ${e.message}` };
   }
