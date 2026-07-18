@@ -15,6 +15,7 @@
     "validate:enrichment-inputs": "node scripts/check-enrichment-inputs.js",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:headed": "playwright test --project=chromium --headed",
+    "test:context-data-e2e": "node scripts/run-context-data-e2e.js",
     "test:performance": "jest --testPathPatterns=tests/performance",
     "test:render-gate": "node scripts/check-pdf-render.js",
     "generate:sample-pdf": "node scripts/generate-sample-pdf.js",
