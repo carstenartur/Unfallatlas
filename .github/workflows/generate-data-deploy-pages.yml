@@ -76,6 +76,12 @@ jobs:
               --output-dir .build/enriched
           done < cities.txt
 
+      - name: Build verified gzip-only accident tiles
+        run: |
+          node scripts/build-accident-tiles.js \
+            --input-dir .build/enriched \
+            --output-dir .build/enriched
+
       - name: Build gzip-only site data
         run: |
           node scripts/build-static-data.js \
