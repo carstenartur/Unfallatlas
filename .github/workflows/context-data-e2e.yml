@@ -80,6 +80,6 @@ jobs:
             test-results/
             .build/context-e2e/site/out/output_all_years_bonn.enrichment.meta.json.gz
             .build/context-e2e/site/out/ways_bonn.json.gz
-            .build/context-e2e/site/out/ctxtiles/bonn/index.json.gz
+            .build/context-e2e/site/out/ctxtiles/bonn/
           if-no-files-found: warn
           retention-days: 14
