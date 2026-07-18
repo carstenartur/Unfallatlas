@@ -1,74 +1,33 @@
 name: Enrich GeoJSONs
 
-# Standalone wrapper around scripts/enrich_geojson.js. Runs the
-# enrichment stage *without* re-running the heavy convertAmt2gmaps.sh
-# step, so DEM tile refreshes or new traffic-count datasets can be
-# picked up without rebuilding the accident GeoJSONs themselves.
-#
-# This workflow is also triggered automatically after a successful run
-# of "Generate & Commit" (generate-and-commit.yml) on the default
-# branch, so freshly downloaded accident data is still enriched in one
-# pipeline without checking out an untrusted workflow_run head SHA in a
-# privileged job.
-#
-# See docs/enrichment.md for the schema and the "Kontext nicht Ursache"
-# disclaimer.
-
 on:
   workflow_dispatch:
     inputs:
-      skip_osm:
-        description: 'Skip the OSM road-match stage'
-        type: boolean
-        default: false
-      skip_dem:
-        description: 'Skip the DEM elevation/slope stage'
-        type: boolean
-        default: false
-      skip_traffic:
-        description: 'Skip the traffic-volume stage'
-        type: boolean
-        default: false
-      # Force flags re-run a producer even if a per-city output file is
-      # already present in the (cached) output directory. Without these
-      # flags the producers now resume — i.e. only generate the cities
-      # that are still missing — so an interrupted, timed-out or
-      # 429-throttled previous run is picked up where it left off.
-      force_osm:
-        description: 'Re-run OSM producer for every city even if cached output exists'
-        type: boolean
-        default: false
-      force_dem:
-        description: 'Re-run DEM producer for every city even if cached output exists'
-        type: boolean
-        default: false
-      force_traffic:
-        description: 'Re-run Traffic producer for every city even if cached output exists'
+      city:
+        description: 'Optional single city; empty means every city in cities.txt'
+        type: string
+        required: false
+      force:
+        description: 'Rebuild OSM, slope and traffic producer data'
         type: boolean
         default: false
   workflow_run:
-    # Automatically enrich after every successful accident-data generation run.
-    # This closes the gap where raw GeoJSON was committed without enrichment
-    # when generate-and-commit.yml and enrich.yml were triggered independently.
     workflows: ["Generate & Commit"]
     types: [completed]
   schedule:
-    # Every Sunday at 04:00 UTC. Note: cron's day-of-month and
-    # day-of-week fields are OR-combined, so a "first Sunday of the
-    # month" pattern would fire on any of days 1-7 *or* on every
-    # Sunday — not the intended intersection. Weekly is cheap enough
-    # because the script is fully idempotent.
     - cron: '0 4 * * 0'
 
 permissions:
   contents: write
 
+concurrency:
+  group: enrich-context-${{ github.event.repository.default_branch }}
+  cancel-in-progress: false
+
 jobs:
   enrich:
     runs-on: ubuntu-latest
-    # When triggered via workflow_run, only run if the triggering workflow
-    # completed successfully on the default branch. This keeps the
-    # privileged auto-enrichment path on trusted code only.
+    timeout-minutes: 360
     if: >-
       github.event_name != 'workflow_run' ||
       (
@@ -81,245 +40,89 @@ jobs:
           persist-credentials: true
           ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}
 
-      - name: Set up Git
-        run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name  "github-actions[bot]"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
 
-      # Producer steps for OSM, DEM and Traffic source data. Each
-      # producer's cache is keyed on its own version + the ISO week,
-      # so we re-extract from upstream sources at most once per week —
-      # well within fair-use policies and in line with the weekly
-      # cron schedule above. Traffic depends on the OSM cache, so its
-      # step runs after the OSM step. See docs/enrichment.md for the
-      # schemas.
-      - name: Compute producer cache keys
-        id: producer_cache_keys
+      - name: Set up Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Compute producer cache key
+        id: cache-key
+        shell: bash
         run: |
           set -euo pipefail
-          OSM_VER=$(node     -e "console.log(require('./scripts/producers/osm_producer.js').PRODUCER_VERSION)")
-          DEM_VER=$(node     -e "console.log(require('./scripts/producers/dem_producer.js').PRODUCER_VERSION)")
-          TILE_VER=$(node    -e "console.log(require('./scripts/producers/dem_tile_producer.js').PRODUCER_VERSION)")
-          TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer.js').PRODUCER_VERSION)")
+          OSM_VER=$(node -e "console.log(require('./scripts/producers/osm_producer').PRODUCER_VERSION)")
+          DEM_VER=$(node -e "console.log(require('./scripts/producers/dem_producer').PRODUCER_VERSION)")
+          TILE_VER=$(node -e "console.log(require('./scripts/producers/dem_tile_producer').PRODUCER_VERSION)")
+          TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer').PRODUCER_VERSION)")
           ISO_WEEK=$(date -u +%G-W%V)
-          YEAR=$(date -u +%Y)
-          echo "osm=osm-${OSM_VER}-${ISO_WEEK}"             >> "$GITHUB_OUTPUT"
-          # DEM cache key includes the OSM version so any future
-          # OSM-producer coverage upgrade (e.g. matched-only → full
-          # network) auto-invalidates the DEM cache. Without this tie,
-          # the DEM cache is reused with the new OSM input and per-way
-          # slope coverage silently drops to the matched-only baseline,
-          # which trips `scripts/check-context-datasets.js`.
-          echo "dem=dem-${DEM_VER}-osm-${OSM_VER}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
-          echo "dem_tiles=dem-tiles-${TILE_VER}-${YEAR}"    >> "$GITHUB_OUTPUT"
-          # Traffic key includes the OSM key so a refreshed OSM cache
-          # invalidates the traffic cache (its input changed).
-          echo "traffic=traffic-${TRAFFIC_VER}-osm-${OSM_VER}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
+          echo "key=context-${OSM_VER}-${DEM_VER}-${TILE_VER}-${TRAFFIC_VER}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
 
-      - name: Restore OSM producer cache
-        if: ${{ inputs.skip_osm != true }}
-        id: osm_cache
+      - name: Restore producer cache
         uses: actions/cache@v6
         with:
-          path: ${{ github.workspace }}/.enrichment-cache/osm
-          key: ${{ steps.producer_cache_keys.outputs.osm }}
-          # Persist whatever the producer managed to generate even when
-          # the job is cancelled or fails (e.g. Overpass timeout, 429
-          # cool-down, runner timeout). Combined with the resume guard
-          # in produceCity, the next run only fetches the cities that
-          # are still missing.
+          path: .enrichment-cache
+          key: ${{ steps.cache-key.outputs.key }}
+          restore-keys: |
+            context-
           save-always: true
 
-      - name: Produce OSM source data
-        # Always run when not skipped. With `save-always: true`, a cache
-        # hit may be partial (some cities missing because a previous
-        # run was cancelled / 429-throttled), and a `force_osm` request
-        # must take effect even when the cache key matches. The
-        # per-city resume guard inside `produceCity` makes the no-op
-        # case (everything already cached) cheap — a single existsSync
-        # per city.
-        if: ${{ inputs.skip_osm != true }}
+      - name: Select cities
+        id: cities
+        shell: bash
         env:
-          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
-          NODE_OPTIONS: --max-old-space-size=6144
+          REQUESTED_CITY: ${{ inputs.city }}
         run: |
           set -euo pipefail
-          ARGS=()
-          if [[ "${{ inputs.force_osm }}" == "true" ]]; then ARGS+=(--force); fi
-          node scripts/producers/osm_producer.js "${ARGS[@]}"
-
-      # DEM tile cache — SRTM tiles change essentially never, so we use
-      # an annual cache key. `save-always: true` persists a partial
-      # download so the next run only fetches the tiles that are still
-      # missing. The tile downloader script is a separate step before
-      # the DEM producer so it can be skipped independently.
-      - name: Restore DEM tiles cache
-        if: ${{ inputs.skip_dem != true }}
-        id: dem_tiles_cache
-        uses: actions/cache@v6
-        with:
-          path: ${{ github.workspace }}/.enrichment-cache/dem-tiles
-          key: ${{ steps.producer_cache_keys.outputs.dem_tiles }}
-          save-always: true
-
-      - name: Download DEM tiles
-        if: ${{ inputs.skip_dem != true }}
-        env:
-          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
-        run: |
-          set -euo pipefail
-          node scripts/producers/dem_tile_producer.js
-
-      - name: Restore DEM producer cache
-        if: ${{ inputs.skip_dem != true }}
-        id: dem_cache
-        uses: actions/cache@v6
-        with:
-          path: ${{ github.workspace }}/.enrichment-cache/dem
-          key: ${{ steps.producer_cache_keys.outputs.dem }}
-          save-always: true
-
-      - name: Produce DEM source data
-        # See "Produce OSM source data" — same reasoning: partial
-        # caches and `force_dem` both need the producer to run.
-        # ENRICH_DEM_TILES_DIR activates local tile sampling by default,
-        # so no Open-Meteo API calls are made in the hot path.
-        #
-        # PR-bielefeld-slope: hard-fail before invoking the producer
-        # when the tile dir is missing or empty. Silently falling back
-        # to the Open-Meteo API in production is exactly how we ended
-        # up with rate-limit-shaped slope holes for some cities; the
-        # producer's per-way slope quality is also lower on the API
-        # path (endpoint-only, low confidence), so we'd ship a mostly
-        # grey slope layer without ever noticing.
-        if: ${{ inputs.skip_dem != true }}
-        env:
-          ENRICH_DEM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/dem
-          ENRICH_OSM_DATA_DIR:  ${{ github.workspace }}/.enrichment-cache/osm
-          ENRICH_DEM_TILES_DIR: ${{ github.workspace }}/.enrichment-cache/dem-tiles
-        run: |
-          set -euo pipefail
-          if [ ! -d "$ENRICH_DEM_TILES_DIR" ] || [ -z "$(ls -A "$ENRICH_DEM_TILES_DIR" 2>/dev/null)" ]; then
-            echo "::error::ENRICH_DEM_TILES_DIR ($ENRICH_DEM_TILES_DIR) is missing or empty." >&2
-            echo "::error::Refusing to fall back to the Open-Meteo elevation API in CI:" >&2
-            echo "::error::  - rate limits would silently leave cities with patchy slope data" >&2
-            echo "::error::  - the API path uses endpoint-only slope (low confidence) and" >&2
-            echo "::error::    produces wildly inconsistent values for adjacent residential streets." >&2
-            echo "::error::Re-run the 'Download DEM tiles' step or unblock the cache and try again." >&2
-            exit 1
+          if [[ -n "${REQUESTED_CITY:-}" ]]; then
+            printf '%s\n' "$REQUESTED_CITY" > .build-context-cities.txt
+          else
+            sed -E 's/#.*$//' cities.txt | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | awk 'NF' > .build-context-cities.txt
           fi
-          ARGS=()
-          if [[ "${{ inputs.force_dem }}" == "true" ]]; then ARGS+=(--force); fi
-          node scripts/producers/dem_producer.js "${ARGS[@]}"
+          test -s .build-context-cities.txt
+          echo "Selected cities:"
+          sed 's/^/ - /' .build-context-cities.txt
 
-      # Traffic depends on the OSM cache (it derives a DTV proxy from
-      # each matched way's `highway` tag). When OSM is skipped, we
-      # would otherwise either save an empty traffic cache under a
-      # valid weekly key — which would then short-circuit subsequent
-      # runs in the same week — or run the producer with no input.
-      # Both restore and produce are therefore gated on `skip_osm`
-      # as well.
-      - name: Restore Traffic producer cache
-        if: ${{ inputs.skip_traffic != true && inputs.skip_osm != true }}
-        id: traffic_cache
-        uses: actions/cache@v6
-        with:
-          path: ${{ github.workspace }}/.enrichment-cache/traffic
-          key: ${{ steps.producer_cache_keys.outputs.traffic }}
-          save-always: true
-
-      - name: Produce Traffic source data
-        # See "Produce OSM source data" — same reasoning: partial
-        # caches and `force_traffic` both need the producer to run.
-        if: ${{ inputs.skip_traffic != true && inputs.skip_osm != true }}
+      - name: Generate context data atomically
+        shell: bash
         env:
-          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
-          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
+          FORCE_CONTEXT: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r city; do
+            ARGS=(--city "$city")
+            if [[ "${FORCE_CONTEXT:-false}" == "true" ]]; then ARGS+=(--force); fi
+            node scripts/generate-context-city.js "${ARGS[@]}"
+          done < .build-context-cities.txt
+
+      - name: Verify producer inputs
+        shell: bash
         run: |
           set -euo pipefail
           ARGS=()
-          if [[ "${{ inputs.force_traffic }}" == "true" ]]; then ARGS+=(--force); fi
-          node scripts/producers/traffic_producer.js "${ARGS[@]}"
+          while IFS= read -r city; do ARGS+=(--city "$city"); done < .build-context-cities.txt
+          node scripts/check-enrichment-inputs.js "${ARGS[@]}"
 
-      - name: Run enrichment
+      - name: Verify generated data
         env:
-          ENRICH_OSM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/osm
-          ENRICH_DEM_DATA_DIR:     ${{ github.workspace }}/.enrichment-cache/dem
-          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+          UNFALLATLAS_DATA_MODE: gzip-only
+        run: |
+          node scripts/gzip-static-data.js --check --gzip-only
+          node scripts/check-context-datasets.js
+          node scripts/check-slope-plausibility.js
+          node scripts/check-data-paths.js --gzip-only --min-features 10
+
+      - name: Commit and push
+        shell: bash
         run: |
           set -euo pipefail
-          ARGS=()
-          if [[ "${{ inputs.skip_osm }}"     == "true" ]]; then ARGS+=(--no-osm); fi
-          if [[ "${{ inputs.skip_dem }}"     == "true" ]]; then ARGS+=(--no-dem); fi
-          if [[ "${{ inputs.skip_traffic }}" == "true" ]]; then ARGS+=(--no-traffic); fi
-          node scripts/enrich_geojson.js "${ARGS[@]}"
-
-      - name: Normalize static data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
-
-      - name: Verify gzip-only artifact invariants
-        run: node scripts/gzip-static-data.js --check --gzip-only
-
-      - name: Check enriched payload size budget
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: node scripts/check-enrichment-size.js
-
-      - name: Validate v3 context-layer datasets
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: node scripts/check-context-datasets.js
-
-      - name: Validate per-city slope plausibility
-        # PR-berlin-slope-qa: per-city upper bounds on
-        # slope.verySteepShare (and lower bounds on
-        # slope.flatGentleShare) so a flat city like Berlin cannot
-        # silently render mostly very_steep without failing the build.
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: node scripts/check-slope-plausibility.js
-
-      - name: Berlin slope QA report (artifact)
-        # Diagnostic artefact for the Berlin viewport requested in
-        # the slope-plausibility issue. Optional — never fails the
-        # build, but the JSON+CSV are uploaded for spot-checks.
-        if: always()
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: |
-          node scripts/qa-slope-report.js --city berlin || true
-          node scripts/qa-slope-report.js --city bielefeld || true
-
-      - name: Upload slope QA artefacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: slope-qa-reports
-          path: out/qa/
-          if-no-files-found: ignore
-
-      - name: Validate all expected city GeoJSON files are present
-        run: node scripts/check-data-paths.js --gzip-only --min-features 10
-
-      # Commit only when something other than the meta-sidecar
-      # `generatedAt` timestamp changed. The sidecar is always
-      # rewritten on every run, so committing it unconditionally would
-      # produce a no-op commit on every weekly cron tick.
-      - name: Commit & Push changes
-        run: |
-          set -euo pipefail
-          # Stage everything but the meta sidecars first; only if there
-          # are real diffs do we then also stage the sidecars.
-          git add -A -- out/ ':!out/*.enrichment.meta.json' ':!out/*.enrichment.meta.json.gz'
+          git add -A -- out/
           if git diff --cached --quiet; then
-            echo "No enrichment changes other than meta timestamps; skipping commit."
+            echo "No context-data changes."
             exit 0
           fi
-          git add -A -- out/
-          git commit -m "Re-run enrichment (scripts/enrich_geojson.js)"
+          git commit -m "Regenerate verified context data"
           git push origin HEAD:${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref_name }}
