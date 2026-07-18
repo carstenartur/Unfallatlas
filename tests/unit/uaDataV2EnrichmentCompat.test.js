@@ -205,7 +205,6 @@ describe('UA.loadPOIData', () => {
     expect(ctx.poiData).toBe(poi);
 
     const missingUA = loadDataModule({ context: false });
-    missingCompressedResources = undefined;
     missingUA.fetchJsonCompressed = jest.fn(async () => { throw new Error('missing'); });
     const missingCtx = { CITY_RAW: 'Bonn' };
     await missingUA.loadPOIData(missingCtx);
