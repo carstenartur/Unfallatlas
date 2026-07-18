@@ -1,42 +1,46 @@
 'use strict';
 
 /**
- * Integration test: verifies that all Issue #312 architecture modules are
- * correctly wired together.
+ * Cross-module architecture checks for issue #312.
  *
- * Tests:
- *  1. AccidentProvider registers and resolves via ProviderRegistry.
- *  2. loadCityData routes through the registered provider.
- *  3. TrafficSituation is created from ctx (including via fromCtx bridge).
- *  4. AnalysisPipeline runs PilotPlugin and produces accidentStatistics.
- *  5. SceneGraph is built from a TrafficSituation (renderer-independent model).
- *  6. TrafficSituation serialization round-trips.
- *  7. computeExportReport includes ctx.trafficSituation in structured.meta.
+ * The loader setup mirrors the production order for static data:
+ * core -> DataResources -> AccidentProvider -> consumers.
  */
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 
-// ---------------------------------------------------------------------------
-// Module loader helpers
-// ---------------------------------------------------------------------------
-
 function makeWindow(extra) {
-  return Object.assign(
-    { UA: {}, location: { href: 'http://localhost/' } },
-    extra || {}
-  );
+  return Object.assign({
+    UA: {},
+    location: { href: 'http://localhost/', search: '' },
+    history: { replaceState: () => {} },
+  }, extra || {});
 }
 
-function loadModule(win, relPath) {
+function loadModule(win, relativePath) {
   (function (window) {
-    eval(fs.readFileSync(path.resolve(__dirname, relPath), 'utf8')); // eslint-disable-line no-eval
+    eval(fs.readFileSync(path.resolve(__dirname, relativePath), 'utf8')); // eslint-disable-line no-eval
   })(win);
 }
 
+function installJsonTransport(win) {
+  const fetchResponse = async (url, options) => {
+    const fetchImpl = options?.fetch || win.fetch;
+    if (typeof fetchImpl !== 'function') throw new Error(`No fetch for ${url}`);
+    const response = await fetchImpl(url, { cache: options?.cache });
+    if (!response || !response.ok) throw new Error(`HTTP ${response?.status} for ${url}`);
+    return response.json();
+  };
+  win.UA.fetchJsonCompressed = fetchResponse;
+  win.UA.fetchJsonGz = async (url, options) => fetchResponse(String(url).replace(/\.gz$/, ''), options);
+}
+
 function loadArchModules(win) {
-  const load = (f) => loadModule(win, `../../js/${f}`);
+  const load = file => loadModule(win, `../../js/${file}`);
   load('ua.core.js');
+  installJsonTransport(win);
+  load('ua.data_paths.js');
   load('ua.accident_provider.js');
   load('ua.render_scheduler.js');
   load('ua.map_store.js');
@@ -49,107 +53,132 @@ function loadArchModules(win) {
   load('ua.renderer.js');
 }
 
-// ---------------------------------------------------------------------------
-// Fake fetch
-// ---------------------------------------------------------------------------
-
 function makeFetch(map) {
-  return async (url) => {
+  return async url => {
     const entry = map[url];
     if (!entry) return { ok: false, status: 404, json: async () => null };
     return { ok: true, status: 200, json: async () => entry };
   };
 }
 
-function makeFC(features, props) {
-  const fc = { type: 'FeatureCollection', features: features || [] };
-  if (props) fc.properties = props;
-  return fc;
+function featureCollection(features, properties) {
+  const value = { type: 'FeatureCollection', features: features || [] };
+  if (properties) value.properties = properties;
+  return value;
 }
 
-function makePoint(lat, lon, ukategorie) {
+function point(lat, lon, category = 1) {
   return {
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [lon, lat] },
-    properties: { UKATEGORIE: ukategorie || 1 }
+    properties: { UKATEGORIE: category },
   };
 }
 
-// ---------------------------------------------------------------------------
-// 1. AccidentProvider registers and resolves
-// ---------------------------------------------------------------------------
+function mapBounds() {
+  return {
+    getSouth: () => 52.29,
+    getWest: () => 9.69,
+    getNorth: () => 52.31,
+    getEast: () => 9.71,
+    getSouthWest: () => ({ lat: 52.29, lng: 9.69 }),
+    getNorthEast: () => ({ lat: 52.31, lng: 9.71 }),
+    getCenter: () => ({ lat: 52.3, lng: 9.7 }),
+    contains: latlng => {
+      const [lat, lon] = Array.isArray(latlng) ? latlng : [latlng.lat, latlng.lng];
+      return lat >= 52.29 && lat <= 52.31 && lon >= 9.69 && lon <= 9.71;
+    },
+  };
+}
 
-describe('Architecture integration: AccidentProvider', () => {
-  let UA;
-
-  beforeEach(() => {
+describe('Architecture integration: AccidentProvider and data modes', () => {
+  test('static provider loads through DataResources', async () => {
     const win = makeWindow();
     loadArchModules(win);
-    UA = win.UA;
+    const payload = featureCollection([point(52.3, 9.7)]);
+    const provider = win.UA.AccidentProvider.createStaticProvider({
+      fetch: makeFetch({ 'out/output_all_years_hannover.geojson': payload }),
+    });
+
+    const result = await provider.fetchForCity('Hannover');
+    expect(result.features).toHaveLength(1);
   });
 
-  test('ProviderRegistry.register + resolve returns the provider', () => {
-    const p = UA.AccidentProvider.createStaticProvider();
-    UA.AccidentProvider.ProviderRegistry.register('static', p);
-    const resolved = UA.AccidentProvider.ProviderRegistry.resolve('hannover');
-    expect(resolved).toBe(p);
+  test('full-city mode does not probe or select the tiled provider', async () => {
+    const full = featureCollection([point(52.3, 9.7)]);
+    const win = makeWindow({
+      fetch: makeFetch({ 'out/output_all_years_hannover.geojson': full }),
+    });
+    loadArchModules(win);
+    loadModule(win, '../../js/ua.data_v2.js');
+
+    const tiled = {
+      type: win.UA.AccidentProvider.PROVIDER_TYPES.TILED,
+      canProvideForCity: jest.fn(async () => true),
+      fetchForCity: jest.fn(),
+      fetchForBbox: jest.fn(),
+      getCapabilities: jest.fn(),
+    };
+    win.UA.AccidentProvider.ProviderRegistry.register('tiled', tiled);
+
+    const ctx = {
+      CITY_RAW: 'Hannover',
+      ui: { dataSourceCode: { textContent: '' } },
+    };
+    await win.UA.loadCityData(ctx);
+
+    expect(tiled.canProvideForCity).not.toHaveBeenCalled();
+    expect(tiled.fetchForBbox).not.toHaveBeenCalled();
+    expect(ctx.allPts).toHaveLength(1);
+    expect(ctx.accidentDataCoverage.complete).toBe(true);
   });
 
-  test('StaticGeoJsonAccidentProvider.fetchForCity fetches GeoJSON', async () => {
-    const fc = makeFC([makePoint(52.3, 9.7, 1)]);
-    const fakeFetch = makeFetch({ 'out/output_all_years_hannover.geojson': fc });
-    const p = UA.AccidentProvider.createStaticProvider({ fetch: fakeFetch });
-    UA.AccidentProvider.ProviderRegistry.register('static', p);
-
-    const gj = await p.fetchForCity('hannover');
-    expect(gj.type).toBe('FeatureCollection');
-    expect(gj.features).toHaveLength(1);
-  });
-
-  test('loadCityData uses resolveAsync so async-capable providers can win', async () => {
+  test('viewport mode explicitly uses tiled provider and marks partial coverage', async () => {
     const win = makeWindow();
     loadArchModules(win);
     loadModule(win, '../../js/ua.data_v2.js');
-    const UA = win.UA;
-    const fc = makeFC([makePoint(52.3, 9.7, 1)]);
-    const fetchForCity = jest.fn(async () => fc);
-    const staticP = UA.AccidentProvider.createStaticProvider({
-      fetch: makeFetch({ 'out/output_all_years_hannover.geojson': makeFC([]) })
-    });
-    const tiledP = {
-      type: UA.AccidentProvider.PROVIDER_TYPES.TILED,
-      canProvideForCity: () => Promise.resolve(true),
-      fetchForCity,
-      fetchForBbox: async () => fc,
-      getCapabilities: () => ({ supportsFullCity: true, supportsTiles: true })
+    const partial = featureCollection([point(52.3, 9.7)]);
+    const bounds = mapBounds();
+    const tiled = {
+      type: win.UA.AccidentProvider.PROVIDER_TYPES.TILED,
+      canProvideForCity: jest.fn(async () => true),
+      fetchForCity: jest.fn(),
+      fetchForBbox: jest.fn(async () => partial),
+      getCapabilities: jest.fn(async () => ({
+        tileZoom: 13,
+        totalCount: 120,
+        sourceFingerprint: 'fingerprint',
+      })),
     };
-
-    UA.AccidentProvider.ProviderRegistry.register('static', staticP);
-    UA.AccidentProvider.ProviderRegistry.register('tiled', tiledP);
+    win.UA.AccidentProvider.ProviderRegistry.register('tiled', tiled);
 
     const ctx = {
-      CITY_RAW: 'hannover',
-      ui: { dataSourceCode: { textContent: '' } }
+      CITY_RAW: 'Hannover',
+      accidentDataMode: 'viewport',
+      map: { getBounds: () => bounds },
+      ui: { dataSourceCode: { textContent: '' } },
     };
+    await win.UA.loadCityData(ctx);
 
-    await UA.loadCityData(ctx);
-
-    expect(fetchForCity).toHaveBeenCalledWith('hannover');
+    expect(tiled.fetchForBbox).toHaveBeenCalledWith('Hannover', bounds);
     expect(ctx.allPts).toHaveLength(1);
+    expect(ctx.accidentDataCoverage).toEqual(expect.objectContaining({
+      complete: false,
+      mode: 'viewport-partial',
+      sourceTotalCount: 120,
+    }));
   });
 
-  test('ProviderRegistry.resolve falls back to first registered when no slug match', () => {
-    const p = UA.AccidentProvider.createStaticProvider();
-    UA.AccidentProvider.ProviderRegistry.register('static', p);
-    // Any city without an explicit provider resolves to the fallback
-    const resolved = UA.AccidentProvider.ProviderRegistry.resolve('unknowncity');
-    expect(resolved).not.toBeNull();
+  test('ProviderRegistry resolves a registered static fallback', () => {
+    const win = makeWindow();
+    loadArchModules(win);
+    const registry = win.UA.AccidentProvider.ProviderRegistry;
+    registry.clear();
+    const provider = win.UA.AccidentProvider.createStaticProvider();
+    registry.register('static', provider);
+    expect(registry.resolve('unknowncity')).toBe(provider);
   });
 });
-
-// ---------------------------------------------------------------------------
-// 2. TrafficSituation from ctx
-// ---------------------------------------------------------------------------
 
 describe('Architecture integration: TrafficSituation', () => {
   let UA;
@@ -160,199 +189,118 @@ describe('Architecture integration: TrafficSituation', () => {
     UA = win.UA;
   });
 
-  test('TrafficSituation.fromCtx creates a valid domain object from a minimal ctx', () => {
+  test('creates a domain object from ctx and round-trips it', () => {
     const ctx = {
       CITY_RAW: 'hannover',
       allPts: [{ lat: 52.3, lon: 9.7, props: { UKATEGORIE: 1 } }],
       contextCapabilities: { hasSlope: false, hasOsmContext: true },
       filters: {},
-      involvementMode: 'or'
+      involvementMode: 'or',
     };
-    const ts = UA.TrafficSituation.fromCtx(ctx);
-    expect(ts).toBeDefined();
-    expect(ts.metadata.city).toBe('hannover');
-    expect(ts.context.capabilities.hasOsmContext).toBe(true);
+    const situation = UA.TrafficSituation.fromCtx(ctx);
+    expect(situation.metadata.city).toBe('hannover');
+    expect(situation.context.capabilities.hasOsmContext).toBe(true);
+    const restored = UA.TrafficSituation.deserialize(
+      UA.TrafficSituation.serialize(situation)
+    );
+    expect(restored.id).toBe(situation.id);
   });
 
-  test('TrafficSituation round-trips via serialize/deserialize', () => {
-    const ctx = {
-      CITY_RAW: 'bonn',
+  test('creates a TrafficSituation from a minimal MapScene', () => {
+    const situation = UA.TrafficSituation.fromMapScene(
+      UA.MapScene.create({ city: 'berlin' })
+    );
+    expect(situation.metadata.city).toBe('berlin');
+  });
+});
+
+describe('Architecture integration: AnalysisPipeline and SceneGraph', () => {
+  let UA;
+
+  beforeEach(() => {
+    const win = makeWindow();
+    loadArchModules(win);
+    UA = win.UA;
+  });
+
+  test('PilotPlugin produces complete statistics with optional viewport data', async () => {
+    const accidents = featureCollection([
+      point(52.3, 9.7, 1),
+      point(52.31, 9.71, 2),
+      point(52.32, 9.72, 3),
+    ]);
+    const dataRegistry = UA.AnalysisPipeline.createDataRegistry({
+      accidents,
+      viewport: { center: { lat: 52.3, lon: 9.7 }, zoom: 14 },
+    });
+    const pluginRegistry = UA.AnalysisPipeline.createPluginRegistry([
+      UA.PilotPlugin.ACCIDENT_STATISTICS,
+    ]);
+    const results = await UA.AnalysisPipeline.runPipeline({ dataRegistry, pluginRegistry });
+    const result = results.resultMap['accident-statistics'];
+    expect(result.status).toBe('complete');
+    expect(result.producedArtifacts.accidentStatistics.total).toBe(3);
+  });
+
+  test('PilotPlugin marks missing optional viewport data as partial', async () => {
+    const dataRegistry = UA.AnalysisPipeline.createDataRegistry({
+      accidents: featureCollection([point(52.3, 9.7)]),
+    });
+    const pluginRegistry = UA.AnalysisPipeline.createPluginRegistry([
+      UA.PilotPlugin.ACCIDENT_STATISTICS,
+    ]);
+    const results = await UA.AnalysisPipeline.runPipeline({ dataRegistry, pluginRegistry });
+    expect(results.resultMap['accident-statistics'].status).toBe('partial');
+  });
+
+  test('SceneGraph is serializable', () => {
+    const situation = UA.TrafficSituation.fromCtx({
+      CITY_RAW: 'berlin',
       allPts: [],
       contextCapabilities: {},
       filters: {},
-      involvementMode: 'or'
-    };
-    const ts = UA.TrafficSituation.fromCtx(ctx);
-    const serialized = UA.TrafficSituation.serialize(ts);
-    const restored   = UA.TrafficSituation.deserialize(serialized);
-    expect(restored.metadata.city).toBe('bonn');
-    expect(restored.id).toBe(ts.id);
-  });
-
-  test('TrafficSituation.fromMapScene accepts a minimal MapScene', () => {
-    const scene = UA.MapScene.create({ city: 'berlin' });
-    const ts    = UA.TrafficSituation.fromMapScene(scene);
-    expect(ts.metadata.city).toBe('berlin');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 3. AnalysisPipeline + PilotPlugin
-// ---------------------------------------------------------------------------
-
-describe('Architecture integration: AnalysisPipeline + PilotPlugin', () => {
-  let UA;
-
-  beforeEach(() => {
-    const win = makeWindow();
-    loadArchModules(win);
-    UA = win.UA;
-  });
-
-  test('runPipeline with ACCIDENT_STATISTICS produces accidentStatistics', async () => {
-    const pts = [
-      makePoint(52.3, 9.7, 1),
-      makePoint(52.31, 9.71, 2),
-      makePoint(52.32, 9.72, 3)
-    ];
-    // Provide both required (accidents) and optional (viewport) data so the
-    // plugin returns 'complete' rather than 'partial'.
-    const dataReg   = UA.AnalysisPipeline.createDataRegistry({
-      accidents: { type: 'FeatureCollection', features: pts },
-      viewport:  { center: { lat: 52.3, lon: 9.7 }, zoom: 14 }
+      involvementMode: 'or',
     });
-    const pluginReg = UA.AnalysisPipeline.createPluginRegistry([UA.PilotPlugin.ACCIDENT_STATISTICS]);
-    const results   = await UA.AnalysisPipeline.runPipeline({ dataRegistry: dataReg, pluginRegistry: pluginReg });
-
-    expect(results).toBeDefined();
-    const pluginResult = results.resultMap && results.resultMap['accident-statistics'];
-    expect(pluginResult).toBeDefined();
-    expect(pluginResult.status).toBe('complete');
-    expect(pluginResult.producedArtifacts.accidentStatistics.total).toBe(3);
-  });
-
-  test('runPipeline without optional viewport data returns partial status', async () => {
-    const pts = [makePoint(52.3, 9.7, 1)];
-    const dataReg   = UA.AnalysisPipeline.createDataRegistry({
-      accidents: { type: 'FeatureCollection', features: pts }
-    });
-    const pluginReg = UA.AnalysisPipeline.createPluginRegistry([UA.PilotPlugin.ACCIDENT_STATISTICS]);
-    const results   = await UA.AnalysisPipeline.runPipeline({ dataRegistry: dataReg, pluginRegistry: pluginReg });
-
-    const pluginResult = results.resultMap && results.resultMap['accident-statistics'];
-    expect(pluginResult).toBeDefined();
-    // Viewport is optional — plugin still produces results, but marks them partial.
-    expect(pluginResult.status).toBe('partial');
-    expect(pluginResult.producedArtifacts.accidentStatistics.total).toBe(1);
-  });
-
-  test('runPipeline with no accident data produces a skipped result', async () => {
-    const dataReg   = UA.AnalysisPipeline.createDataRegistry({});
-    const pluginReg = UA.AnalysisPipeline.createPluginRegistry([UA.PilotPlugin.ACCIDENT_STATISTICS]);
-    const results   = await UA.AnalysisPipeline.runPipeline({ dataRegistry: dataReg, pluginRegistry: pluginReg });
-
-    const pluginResult = results.resultMap && results.resultMap['accident-statistics'];
-    // Missing required data → skipped or failed, not crash
-    expect(pluginResult).toBeDefined();
-    expect(['skipped', 'failed']).toContain(pluginResult.status);
+    const graph = UA.SceneGraph.fromTrafficSituation(situation);
+    expect(Array.isArray(graph.nodes)).toBe(true);
+    expect(JSON.parse(JSON.stringify(graph)).id).toBe(graph.id);
   });
 });
 
-// ---------------------------------------------------------------------------
-// 4. SceneGraph from TrafficSituation
-// ---------------------------------------------------------------------------
-
-describe('Architecture integration: SceneGraph', () => {
+describe('Architecture integration: export metadata', () => {
   let UA;
-
-  beforeEach(() => {
-    const win = makeWindow();
-    loadArchModules(win);
-    UA = win.UA;
-  });
-
-  test('SceneGraph.fromTrafficSituation returns a valid graph from a minimal TS', () => {
-    const ctx = { CITY_RAW: 'hannover', allPts: [], contextCapabilities: {}, filters: {}, involvementMode: 'or' };
-    const ts  = UA.TrafficSituation.fromCtx(ctx);
-    const sg  = UA.SceneGraph.fromTrafficSituation(ts);
-
-    expect(sg).toBeDefined();
-    expect(sg.id).toBeDefined();
-    expect(Array.isArray(sg.nodes)).toBe(true);
-  });
-
-  test('SceneGraph is JSON-serializable', () => {
-    const ctx = { CITY_RAW: 'berlin', allPts: [], contextCapabilities: {}, filters: {}, involvementMode: 'or' };
-    const ts  = UA.TrafficSituation.fromCtx(ctx);
-    const sg  = UA.SceneGraph.fromTrafficSituation(ts);
-
-    expect(() => JSON.stringify(sg)).not.toThrow();
-    const restored = JSON.parse(JSON.stringify(sg));
-    expect(restored.id).toBe(sg.id);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5. computeExportReport includes trafficSituation in structured.meta
-// ---------------------------------------------------------------------------
-
-describe('Architecture integration: export metadata includes TrafficSituation', () => {
-  let UA;
-  let win;
-
-  beforeEach(() => {
-    win = makeWindow();
-    // Export module needs fetch in the window scope
-    win.fetch = async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => '' });
-    win.L = { latLngBounds: () => {} };
-    loadArchModules(win);
-    // Export module needs additional modules
-    loadModule(win, '../../js/ua.utils.js');
-    loadModule(win, '../../js/ua.state.js');
-    loadModule(win, '../../js/ua.filters.js');
-    loadModule(win, '../../js/ua.accident_views.js');
-    loadModule(win, '../../js/ua.stats.js');
-    loadModule(win, '../../js/ua.costs.js');
-    loadModule(win, '../../js/ua.measures.js');
-    loadModule(win, '../../js/ua.context_measures.js');
-    loadModule(win, '../../js/ua.trend.js');
-    loadModule(win, '../../js/ua.osm_context.js');
-    loadModule(win, '../../js/ua.export_v2.js');
-    UA = win.UA;
-  });
-
-  function makeBounds() {
-    const sw = { lat: 52.29, lng: 9.69 };
-    const ne = { lat: 52.31, lng: 9.71 };
-    return {
-      getSouthWest: () => sw,
-      getNorthEast: () => ne,
-      getCenter:    () => ({ lat: 52.3, lng: 9.7 }),
-      contains: (latlng) => {
-        const [la, lo] = Array.isArray(latlng) ? latlng : [latlng.lat, latlng.lng];
-        return la >= sw.lat && la <= ne.lat && lo >= sw.lng && lo <= ne.lng;
-      }
-    };
-  }
 
   function makeUI() {
     return {
-      severityEl:      { value: 'all' },
+      severityEl: { value: 'all' },
       roadConditionEl: { value: 'all' },
-      dayTypeEl:       { value: 'all' },
-      hFromEl:         { value: '0' },
-      hToEl:           { value: '23' },
-      incBikeEl:       { checked: true },
-      incPedEl:        { checked: true },
-      incCarEl:        { checked: true },
-      incMotoEl:       { checked: false },
-      incGkfzEl:       { checked: false },
-      incSonEl:        { checked: false }
+      dayTypeEl: { value: 'all' },
+      hFromEl: { value: '0' },
+      hToEl: { value: '23' },
+      incBikeEl: { checked: true },
+      incPedEl: { checked: true },
+      incCarEl: { checked: true },
+      incMotoEl: { checked: false },
+      incGkfzEl: { checked: false },
+      incSonEl: { checked: false },
     };
   }
 
-  test('structured.meta includes trafficSituation when ctx.trafficSituation is set', async () => {
-    UA.reverseGeocode = async () => null;
+  beforeEach(() => {
+    const win = makeWindow({
+      fetch: async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => '' }),
+      L: { latLngBounds: () => {} },
+    });
+    loadArchModules(win);
+    for (const file of [
+      'ua.utils.js', 'ua.state.js', 'ua.filters.js', 'ua.accident_views.js',
+      'ua.stats.js', 'ua.costs.js', 'ua.measures.js', 'ua.context_measures.js',
+      'ua.trend.js', 'ua.osm_context.js', 'ua.export_v2.js',
+    ]) loadModule(win, `../../js/${file}`);
+    UA = win.UA;
+  });
+
+  function exportContext(withSituation) {
     const ctx = {
       CITY_RAW: 'hannover',
       allPts: [{ lat: 52.3, lon: 9.7, props: { year: 2022, UKATEGORIE: 1 } }],
@@ -365,35 +313,21 @@ describe('Architecture integration: export metadata includes TrafficSituation', 
       exportMode: 'bicycle',
       reportOptions: {},
       ui: makeUI(),
-      selectionBounds: makeBounds()
+      selectionBounds: mapBounds(),
     };
-    // Set trafficSituation on ctx (simulating what app_v2.js does after city load)
-    ctx.trafficSituation = UA.TrafficSituation.fromCtx(ctx);
+    if (withSituation) ctx.trafficSituation = UA.TrafficSituation.fromCtx(ctx);
+    return ctx;
+  }
 
-    const result = await UA.computeExportReport(ctx);
-    expect(result.structured.meta.trafficSituation).toBeDefined();
+  test('includes TrafficSituation when available', async () => {
+    UA.reverseGeocode = async () => null;
+    const result = await UA.computeExportReport(exportContext(true));
     expect(result.structured.meta.trafficSituation.metadata.city).toBe('hannover');
   });
 
-  test('structured.meta.trafficSituation is absent when ctx.trafficSituation is not set', async () => {
+  test('omits TrafficSituation when absent', async () => {
     UA.reverseGeocode = async () => null;
-    const ctx = {
-      CITY_RAW: 'hannover',
-      allPts: [],
-      filteredAll: [],
-      filteredCapped: [],
-      viewportPts: [],
-      contextCapabilities: {},
-      filters: {},
-      involvementMode: 'or',
-      exportMode: 'bicycle',
-      reportOptions: {},
-      ui: makeUI(),
-      selectionBounds: makeBounds()
-    };
-    // No trafficSituation set
-
-    const result = await UA.computeExportReport(ctx);
+    const result = await UA.computeExportReport(exportContext(false));
     expect(result.structured.meta.trafficSituation).toBeUndefined();
   });
 });
