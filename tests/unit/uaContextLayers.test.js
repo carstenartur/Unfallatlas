@@ -351,13 +351,13 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       geometries: { W2: [51, 8, 51.001, 8.001] },
     };
     const fetchCalls = [];
-    global.fetch = (url) => {
-      fetchCalls.push(url);
-      if (url.endsWith('ways_bonn.json'))                   return Promise.resolve({ ok: true, json: async () => envelope });
-      if (url.endsWith('ctxtiles/bonn/index.json'))         return Promise.resolve({ ok: true, json: async () => manifest });
-      if (url.endsWith('ctxtiles/bonn/4280/2730.json'))     return Promise.resolve({ ok: true, json: async () => tileA });
-      if (url.endsWith('ctxtiles/bonn/4290/2730.json'))     return Promise.resolve({ ok: true, json: async () => tileB });
-      return Promise.resolve({ ok: false });
+    UA.fetchJsonCompressed = async (url, options) => {
+      fetchCalls.push({ url, options });
+      if (url.endsWith('ways_bonn.json')) return envelope;
+      if (url.endsWith('ctxtiles/bonn/index.json')) return manifest;
+      if (url.endsWith('ctxtiles/bonn/4280/2730.json')) return tileA;
+      if (url.endsWith('ctxtiles/bonn/4290/2730.json')) return tileB;
+      throw new Error(`unexpected URL: ${url}`);
     };
     try {
       const state = await UA.contextLayers.load({}, 'Bonn');
@@ -371,11 +371,6 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       expect(Object.keys(state.geometries)).toEqual([]);
 
       // Bounds that only covers tile A's lat/lon area.
-      const tileALat = (((1 - Math.log(Math.tan(50 * Math.PI / 180) + 1 / Math.cos(50 * Math.PI / 180)) / Math.PI) / 2) * Math.pow(2, 13));
-      // Easier: pick known tile coords directly via inverse mercator
-      // — the loader uses lonToTileX/latToTileY internally; trust the
-      // manifest filtering to limit fetches to known tiles, and pass
-      // bounds covering only tile A's coordinate range.
       const xLon = (4280 / Math.pow(2, 13)) * 360 - 180; // NW corner lon of tile A
       const xLonNext = (4281 / Math.pow(2, 13)) * 360 - 180;
       const n = Math.PI - (2 * Math.PI * 2730) / Math.pow(2, 13);
@@ -389,9 +384,12 @@ describe('UA.contextLayers.load — lazy + cached', () => {
         getEast:  () => xLonNext - 0.001,
       };
       const merged = await UA.contextLayers.loadTilesForBbox(state, bounds);
-      // Only tile A was within bounds → only tile A fetched.
-      const tileFetches = fetchCalls.filter(u => /ctxtiles\/bonn\/\d+\/\d+\.json$/.test(u));
-      expect(tileFetches).toEqual(['out/ctxtiles/bonn/4280/2730.json']);
+      // Only tile A was within bounds → only tile A fetched as gzip-only.
+      const tileFetches = fetchCalls.filter(c => /ctxtiles\/bonn\/\d+\/\d+\.json$/.test(c.url));
+      expect(tileFetches).toEqual([{
+        url: 'out/ctxtiles/bonn/4280/2730.json',
+        options: { cache: 'force-cache', gzipOnly: true },
+      }]);
       expect(merged.ways.W1).toBeDefined();
       expect(merged.geometries.W1).toEqual([50, 7, 50.001, 7.001]);
       expect(merged.ways.W2).toBeUndefined();
@@ -401,7 +399,6 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       await UA.contextLayers.loadTilesForBbox(state, bounds);
       expect(fetchCalls.length).toBe(before);
     } finally {
-      delete global.fetch;
       UA.contextLayers.clearCache();
     }
   });
@@ -418,7 +415,7 @@ describe('UA.contextLayers.load — lazy + cached', () => {
     expect(merged.geometries).toBe(state.geometries);
   });
 
-  test('resolveWayAcrossTiles returns null and triggers a single tile fetch for unloaded ways (race-tolerant popup hydration)', async () => {
+  test('resolveWayAcrossTiles returns null and triggers a single gzip-only tile fetch for unloaded ways', async () => {
     const UA = loadModule();
     UA.contextLayers.clearCache();
     UA.normKey = (s) => String(s || '').toLowerCase();
@@ -428,10 +425,10 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       ways: { Z9: { highway: 0 } },
       geometries: { Z9: [50, 7, 50.001, 7.001] },
     };
-    global.fetch = (url) => {
-      fetchCalls.push(url);
-      if (url.endsWith('ctxtiles/x/100/200.json')) return Promise.resolve({ ok: true, json: async () => tile });
-      return Promise.resolve({ ok: false });
+    UA.fetchJsonCompressed = async (url, options) => {
+      fetchCalls.push({ url, options });
+      if (url.endsWith('ctxtiles/x/100/200.json')) return tile;
+      throw new Error(`unexpected URL: ${url}`);
     };
     const state = {
       slug: 'x',
@@ -441,22 +438,18 @@ describe('UA.contextLayers.load — lazy + cached', () => {
       _tileCache: new Map(),
       dicts: { highway: ['residential'] },
     };
-    try {
-      // First call — way not loaded yet → null AND a fetch is triggered.
-      const r1 = UA.contextLayers.resolveWayAcrossTiles(state, 'Z9');
-      expect(r1).toBeNull();
-      expect(fetchCalls.length).toBe(1);
-      // Wait for the in-flight fetch to settle.
-      await Promise.resolve();
-      await Promise.resolve();
-      await new Promise(r => setTimeout(r, 0));
-      // Second call — way is now resolved with dict-decoded attrs.
-      const r2 = UA.contextLayers.resolveWayAcrossTiles(state, 'Z9');
-      expect(r2).toEqual({ highway: 'residential' });
-      // No new fetch — the way is already in state.
-      expect(fetchCalls.length).toBe(1);
-    } finally {
-      delete global.fetch;
-    }
+    // First call — way not loaded yet → null AND a fetch is triggered.
+    const r1 = UA.contextLayers.resolveWayAcrossTiles(state, 'Z9');
+    expect(r1).toBeNull();
+    expect(fetchCalls).toEqual([{
+      url: 'out/ctxtiles/x/100/200.json',
+      options: { cache: 'force-cache', gzipOnly: true },
+    }]);
+    await state._tileCache.get('100/200');
+    // Second call — way is now resolved with dict-decoded attrs.
+    const r2 = UA.contextLayers.resolveWayAcrossTiles(state, 'Z9');
+    expect(r2).toEqual({ highway: 'residential' });
+    // No new fetch — the way is already in state.
+    expect(fetchCalls).toHaveLength(1);
   });
 });
