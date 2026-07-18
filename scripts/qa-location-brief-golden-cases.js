@@ -4,10 +4,10 @@
 /**
  * Fast, Docker-free fachliche preflight for issue #296.
  *
- * This command deliberately stops before persistence.  It reads the real
+ * This command deliberately stops before persistence. It reads the real
  * Bonn/Hannover accident files, builds the same deterministic Location Action
  * Briefs as the server and checks patterns, evidence, measures, confidence and
- * a score-based local ranking.  The Testcontainers suite remains the binding
+ * a score-based local ranking. The Testcontainers suite remains the binding
  * end-to-end gate for persistence and Spring Batch ranking.
  */
 
@@ -29,6 +29,7 @@ function parseArgs(argv) {
     markdown: DEFAULT_MARKDOWN,
     failOnMismatch: true
   };
+
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === '--fixture') options.fixture = path.resolve(argv[++index]);
@@ -38,6 +39,7 @@ function parseArgs(argv) {
     else if (arg === '--help' || arg === '-h') options.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
+
   return options;
 }
 
@@ -74,8 +76,7 @@ function includesForbiddenClaim(brief, claim) {
 }
 
 function evaluateCase(city, caseDef, profile) {
-  const fullCase = { ...caseDef, city };
-  const structured = buildStructuredFromCase(fullCase, { repoRoot: REPO_ROOT });
+  const structured = buildStructuredFromCase({ ...caseDef, city }, { repoRoot: REPO_ROOT });
   const brief = buildLocationBrief({
     structured,
     locationId: `${city.toLowerCase()}::${caseDef.caseId}`,
@@ -84,9 +85,12 @@ function evaluateCase(city, caseDef, profile) {
     politicalContext: caseDef.politicalContext
   });
 
-  const patterns = (brief.conflictPatterns || []).map((pattern) => pattern.id);
-  const recommendedMeasures = (brief.recommendedMeasures || []).map((measure) => measure.id);
-  const candidateMeasures = (brief.candidateMeasures || []).map((measure) => measure.id);
+  const conflictPatterns = brief.conflictPatterns || [];
+  const recommended = brief.recommendedMeasures || [];
+  const candidates = brief.candidateMeasures || [];
+  const patterns = conflictPatterns.map((pattern) => pattern.id);
+  const recommendedMeasures = recommended.map((measure) => measure.id);
+  const candidateMeasures = candidates.map((measure) => measure.id);
   const allMeasureIds = [...new Set([...recommendedMeasures, ...candidateMeasures])];
   const checks = [];
 
@@ -99,7 +103,7 @@ function evaluateCase(city, caseDef, profile) {
   );
 
   for (const expectedPattern of (caseDef.expectedPatterns || [])) {
-    const pattern = (brief.conflictPatterns || []).find((item) => item.id === expectedPattern);
+    const pattern = conflictPatterns.find((item) => item.id === expectedPattern);
     addCheck(checks, `pattern:${expectedPattern}`, Boolean(pattern), true, Boolean(pattern));
     addCheck(
       checks,
@@ -112,13 +116,7 @@ function evaluateCase(city, caseDef, profile) {
 
   if ((caseDef.expectedMeasureIdsAnyOf || []).length > 0) {
     const matching = caseDef.expectedMeasureIdsAnyOf.filter((id) => allMeasureIds.includes(id));
-    addCheck(
-      checks,
-      'expected-measure-any-of',
-      matching.length > 0,
-      caseDef.expectedMeasureIdsAnyOf,
-      matching
-    );
+    addCheck(checks, 'expected-measure-any-of', matching.length > 0, caseDef.expectedMeasureIdsAnyOf, matching);
   }
 
   for (const forbiddenMeasure of (caseDef.mustNotHaveMeasureIds || [])) {
@@ -132,44 +130,21 @@ function evaluateCase(city, caseDef, profile) {
   }
 
   for (const forbiddenClaim of (caseDef.mustNotContainClaims || [])) {
-    addCheck(
-      checks,
-      `forbidden-claim:${forbiddenClaim}`,
-      !includesForbiddenClaim(brief, forbiddenClaim),
-      false,
-      includesForbiddenClaim(brief, forbiddenClaim)
-    );
+    const contained = includesForbiddenClaim(brief, forbiddenClaim);
+    addCheck(checks, `forbidden-claim:${forbiddenClaim}`, !contained, false, contained);
   }
 
-  const genericReasons = (brief.recommendedMeasures || []).filter((measure) => {
+  const genericReasons = recommended.filter((measure) => {
     if (typeof measure.whyPreselected !== 'string' || !measure.whyPreselected.trim()) return true;
     const hasStructuredReason = (measure.matchedConflictPatterns || []).length > 0
       || (measure.matchedRiskFactors || []).length > 0;
     return !hasStructuredReason && !/datenlage|vor[- ]?ort|monitoring/i.test(measure.whyPreselected);
   }).map((measure) => measure.id);
-  addCheck(
-    checks,
-    'specific-why-preselected',
-    genericReasons.length === 0,
-    [],
-    genericReasons
-  );
+  addCheck(checks, 'specific-why-preselected', genericReasons.length === 0, [], genericReasons);
 
   if (caseDef.expectedWeakDataBasis) {
-    addCheck(
-      checks,
-      'weak-data-basis',
-      brief.uncertainties?.weakDataBasis === true,
-      true,
-      brief.uncertainties?.weakDataBasis
-    );
-    addCheck(
-      checks,
-      'weak-data-confidence',
-      brief.confidence?.overall === 'low',
-      'low',
-      brief.confidence?.overall
-    );
+    addCheck(checks, 'weak-data-basis', brief.uncertainties?.weakDataBasis === true, true, brief.uncertainties?.weakDataBasis);
+    addCheck(checks, 'weak-data-confidence', brief.confidence?.overall === 'low', 'low', brief.confidence?.overall);
   }
 
   if (caseDef.expectPolicyReadiness) {
@@ -181,6 +156,7 @@ function evaluateCase(city, caseDef, profile) {
       brief.politicalContext?.policyReadiness
     );
   }
+
   if (caseDef.expectPolicyReadinessMin) {
     const actual = brief.politicalContext?.policyReadiness;
     addCheck(
@@ -202,16 +178,10 @@ function evaluateCase(city, caseDef, profile) {
       + Number(structured.severity.bySev['2'] || 0),
     score: brief.deterministicFindings?.activeProfileScore?.total,
     patterns,
-    patternEvidence: Object.fromEntries((brief.conflictPatterns || []).map((pattern) => [
-      pattern.id,
-      pattern.evidence || []
-    ])),
+    patternEvidence: Object.fromEntries(conflictPatterns.map((pattern) => [pattern.id, pattern.evidence || []])),
     recommendedMeasures,
     candidateMeasures,
-    whyPreselected: Object.fromEntries((brief.recommendedMeasures || []).map((measure) => [
-      measure.id,
-      measure.whyPreselected || ''
-    ])),
+    whyPreselected: Object.fromEntries(recommended.map((measure) => [measure.id, measure.whyPreselected || ''])),
     confidence: brief.confidence,
     uncertainties: brief.uncertainties,
     policyReadiness: brief.politicalContext?.policyReadiness,
@@ -226,23 +196,22 @@ function applyLocalRanking(cityResult, caseDefinitions) {
     return scoreDiff !== 0 ? scoreDiff : a.caseId.localeCompare(b.caseId);
   });
   sorted.forEach((item, index) => { item.localPreflightRank = index + 1; });
+
   const byId = new Map(sorted.map((item) => [item.caseId, item]));
   const positiveRanks = [];
 
   for (const caseDef of caseDefinitions) {
     const result = byId.get(caseDef.caseId);
-    if (!result) continue;
-    if (caseDef.kind === 'positive') {
-      positiveRanks.push(result.localPreflightRank);
-      addCheck(
-        result.checks,
-        'local-preflight-top-n',
-        result.localPreflightRank <= Number(caseDef.expectedTopN),
-        `<= ${caseDef.expectedTopN}`,
-        result.localPreflightRank,
-        'Diagnostic only; the binding rank is produced by Spring Batch in the Testcontainers suite.'
-      );
-    }
+    if (!result || caseDef.kind !== 'positive') continue;
+    positiveRanks.push(result.localPreflightRank);
+    addCheck(
+      result.checks,
+      'local-preflight-top-n',
+      result.localPreflightRank <= Number(caseDef.expectedTopN),
+      `<= ${caseDef.expectedTopN}`,
+      result.localPreflightRank,
+      'Diagnostic only; the binding rank is produced by Spring Batch in the Testcontainers suite.'
+    );
   }
 
   const lowestPositiveRank = positiveRanks.length > 0 ? Math.max(...positiveRanks) : 0;
@@ -292,10 +261,11 @@ function buildArtifact(fixturePath) {
   }
 
   const cases = artifact.cities.flatMap((city) => city.cases);
-  const failedChecks = cases.flatMap((item) => item.checks
+  const failedChecks = artifact.cities.flatMap((city) => city.cases.flatMap((item) => item.checks
     .filter((check) => !check.passed)
-    .map((check) => ({ city: artifact.cities.find((city) => city.cases.includes(item)).city, caseId: item.caseId, ...check }))
-  );
+    .map((check) => ({ city: city.city, caseId: item.caseId, ...check }))
+  ));
+
   artifact.summary = {
     cityCount: artifact.cities.length,
     caseCount: cases.length,
@@ -310,8 +280,16 @@ function buildArtifact(fixturePath) {
   return artifact;
 }
 
+/**
+ * Encode untrusted values for a GitHub-flavoured Markdown table cell.
+ * HTML entities avoid ambiguous multi-stage backslash escaping: a source
+ * backslash cannot escape the entity used for a following pipe character.
+ */
 function markdownCell(value) {
-  return String(value ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  return String(value ?? '')
+    .replace(/\r\n?|\n/g, ' ')
+    .replace(/\\/g, '&#92;')
+    .replace(/\|/g, '&#124;');
 }
 
 function renderMarkdown(artifact) {
@@ -327,9 +305,14 @@ function renderMarkdown(artifact) {
   ];
 
   for (const city of artifact.cities) {
-    lines.push(`## ${city.city}`, '', '| Case | Kind | Accidents | Severe | Score | Local rank | Patterns | Recommended measures | Confidence | Result |', '|---|---:|---:|---:|---:|---:|---|---|---|---|');
+    lines.push(
+      `## ${markdownCell(city.city)}`,
+      '',
+      '| Case | Kind | Accidents | Severe | Score | Local rank | Patterns | Recommended measures | Confidence | Result |',
+      '|---|---:|---:|---:|---:|---:|---|---|---|---|'
+    );
     for (const item of city.cases.slice().sort((a, b) => a.localPreflightRank - b.localPreflightRank)) {
-      lines.push([
+      lines.push(`| ${[
         markdownCell(item.caseId),
         markdownCell(item.kind),
         item.accidentCount,
@@ -340,7 +323,7 @@ function renderMarkdown(artifact) {
         markdownCell(item.recommendedMeasures.join(', ')),
         markdownCell(item.confidence?.overall),
         item.passed ? 'PASS' : 'FAIL'
-      ].join(' | ').replace(/^/, '| ').replace(/$/, ' |'));
+      ].join(' | ')} |`);
     }
     lines.push('');
   }
@@ -348,7 +331,11 @@ function renderMarkdown(artifact) {
   if (artifact.failedChecks.length > 0) {
     lines.push('## Mismatches', '');
     for (const failure of artifact.failedChecks) {
-      lines.push(`- **${failure.city} / ${failure.caseId} / ${failure.id}:** expected ${markdownCell(JSON.stringify(failure.expected))}, got ${markdownCell(JSON.stringify(failure.actual))}.`);
+      lines.push(
+        `- **${markdownCell(failure.city)} / ${markdownCell(failure.caseId)} / ${markdownCell(failure.id)}:** `
+        + `expected ${markdownCell(JSON.stringify(failure.expected))}, `
+        + `got ${markdownCell(JSON.stringify(failure.actual))}.`
+      );
     }
     lines.push('');
   }
@@ -405,5 +392,6 @@ module.exports = {
   evaluateCase,
   applyLocalRanking,
   buildArtifact,
+  markdownCell,
   renderMarkdown
 };
