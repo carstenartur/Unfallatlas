@@ -27,7 +27,7 @@
 
   async function readJson(response) {
     const type = response && response.headers && response.headers.get('content-type');
-    if (!response || !response.ok || !type || !type.includes('application/json')) return null;
+    if (!response || !type || !type.includes('application/json')) return null;
     try { return await response.json(); }
     catch (_) { return null; }
   }
@@ -87,14 +87,13 @@
   async function startLocalGeneration(city, capability, statusEl, button) {
     let token = '';
     if (capability.requiresToken) {
-      token = window.prompt('Administrations-Token für die lokale Kontextdatengenerierung:') || '';
+      try { token = sessionStorage.getItem('ua_context_generation_token') || ''; } catch (_) { /* ignore */ }
+      if (!token) token = window.prompt('Administrations-Token für die lokale Kontextdatengenerierung:') || '';
       if (!token) {
         setStatus(statusEl, 'Generierung abgebrochen: kein Administrations-Token angegeben.', 'error');
         return;
       }
       try { sessionStorage.setItem('ua_context_generation_token', token); } catch (_) { /* ignore */ }
-    } else {
-      try { token = sessionStorage.getItem('ua_context_generation_token') || ''; } catch (_) { /* ignore */ }
     }
 
     button.disabled = true;
@@ -194,11 +193,16 @@
       button.onclick = () => startLocalGeneration(city, capability, status, button);
       const active = capability.activeJob;
       if (active && active.id) {
-        button.disabled = true;
-        setStatus(status, `Ein Auftrag für ${active.city} läuft bereits. Status wird verfolgt …`, 'progress');
         let token = '';
         try { token = sessionStorage.getItem('ua_context_generation_token') || ''; } catch (_) { /* ignore */ }
-        pollJob(active.id, token, status, button);
+        if (capability.requiresToken && !token) {
+          button.textContent = `Laufenden Auftrag für ${active.city} mit Token verfolgen`;
+          setStatus(status, 'Ein Auftrag läuft bereits. Zum Anzeigen des Status ist das Administrations-Token nötig.', 'progress');
+        } else {
+          button.disabled = true;
+          setStatus(status, `Ein Auftrag für ${active.city} läuft bereits. Status wird verfolgt …`, 'progress');
+          pollJob(active.id, token, status, button);
+        }
       } else {
         setStatus(status, 'Die Erzeugung läuft im Docker-Container und installiert die Daten erst nach erfolgreicher Prüfung.', 'progress');
       }
