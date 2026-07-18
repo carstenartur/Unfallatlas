@@ -91,7 +91,7 @@
    * between layers.
    *
    * @param {{ availableFields?: string[] }|null|undefined} detection
-   * @returns {{ hasElevation:boolean, hasSlope:boolean, hasOsmContext:boolean, hasTrafficProxy:boolean, hasAny:boolean }}
+   * @returns {{ hasElevation:boolean, hasSlope:boolean, hasOsmContext:boolean, hasTrafficProxy:boolean,hasAny:boolean }}
    */
   function capabilitiesFromDetection(detection) {
     const available = new Set((detection && detection.availableFields) || []);
@@ -357,7 +357,6 @@
   }
 
   function clearCache() { cache.clear(); }
-
   // ---------------------------------------------------------------------
   // v3 tile-bbox loading (full-network coverage)
   //
@@ -439,17 +438,28 @@
     // or popup hydration can retry — otherwise the first failed fetch
     // would permanently disable the tile for the rest of the session.
     const p = (async () => {
+      // v3 context tiles are gzip-only production artefacts. Enforce the
+      // contract at this call site instead of relying on generic URL inference;
+      // otherwise a failed .gz request can silently fall back to raw .json,
+      // leaving checked controls and legends but rendering no streets.
+      if (typeof UA.fetchJsonCompressed !== 'function') {
+        console.warn(`[ua.context_layers] gzip loader unavailable for context tile ${url}`);
+        cacheMap.delete(key);
+        return null;
+      }
       let json = null;
-      // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
-      if (typeof UA.fetchJsonCompressed === 'function') {
-        try { json = await UA.fetchJsonCompressed(url, { cache: 'force-cache' }); }
-        catch (_) { cacheMap.delete(key); return null; }
-      } else {
-        let resp;
-        try { resp = await fetch(url, { cache: 'force-cache' }); }
-        catch (_) { cacheMap.delete(key); return null; }
-        if (!resp || !resp.ok) { cacheMap.delete(key); return null; }
-        try { json = await resp.json(); } catch (_) { cacheMap.delete(key); return null; }
+      try {
+        json = await UA.fetchJsonCompressed(url, {
+          cache: 'force-cache',
+          gzipOnly: true,
+        });
+      } catch (error) {
+        console.warn(
+          `[ua.context_layers] context tile load failed for ${url}: ` +
+          String(error && error.message ? error.message : error)
+        );
+        cacheMap.delete(key);
+        return null;
       }
       _ingestTile(state, json);
       return json;
