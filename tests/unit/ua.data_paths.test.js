@@ -87,19 +87,21 @@ describe('UA.DataResources — central static resource contract', () => {
 });
 
 describe('UA.DataPaths — compatibility facade', () => {
-  test('delegates every legacy method to DataResources', () => {
+  test('returns exactly the registry URLs for every legacy method', () => {
     const UA = makeUA();
-    const spy = jest.spyOn(UA.DataResources, 'url');
 
-    expect(UA.DataPaths.accidentGeoJson('Berlin')).toBe('out/output_all_years_berlin.geojson');
-    expect(UA.DataPaths.poiGeoJson('Bonn')).toBe('out/poi_bonn.geojson');
-    expect(UA.DataPaths.contextWays('Berlin')).toBe('out/ways_berlin.json');
+    expect(UA.DataPaths.accidentGeoJson('Berlin'))
+      .toBe(UA.DataResources.url('accidentGeoJson', { city: 'Berlin' }));
+    expect(UA.DataPaths.poiGeoJson('Bonn'))
+      .toBe(UA.DataResources.url('poiGeoJson', { city: 'Bonn' }));
+    expect(UA.DataPaths.contextWays('Berlin'))
+      .toBe(UA.DataResources.url('contextWays', { city: 'Berlin' }));
     expect(UA.DataPaths.enrichmentMeta('Berlin'))
-      .toBe('out/output_all_years_berlin.enrichment.meta.json');
-    expect(UA.DataPaths.contextTileIndex('Berlin')).toBe('out/ctxtiles/berlin/index.json');
-    expect(UA.DataPaths.accidentTileIndex('Berlin')).toBe('out/accidenttiles/berlin/index.json');
-
-    expect(spy).toHaveBeenCalled();
+      .toBe(UA.DataResources.url('enrichmentMeta', { city: 'Berlin' }));
+    expect(UA.DataPaths.contextTileIndex('Berlin'))
+      .toBe(UA.DataResources.url('contextTileIndex', { city: 'Berlin' }));
+    expect(UA.DataPaths.accidentTileIndex('Berlin'))
+      .toBe(UA.DataResources.url('accidentTileIndex', { city: 'Berlin' }));
   });
 
   test('works with basic lowercase fallback when normKey is absent', () => {
