@@ -90,7 +90,7 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
   });
 
   const response = await page.goto(
-    `/werkbank_v2.html?city=Bonn&accidentDataMode=viewport&centerLat=50.730000&centerLon=7.100000&zoom=15&showCluster=0&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0`,
+    `/werkbank_v2.html?city=Bonn&accidentDataMode=viewport&centerLat=50.730000&centerLon=7.100000&zoom=15&showCluster=1&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0`,
     { waitUntil: 'domcontentloaded' }
   );
   expect(response?.ok()).toBe(true);
@@ -99,6 +99,9 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
   await expect(page.locator('#dataSourceCode')).toContainText('nur aktueller Kartenausschnitt');
   await expect(page.locator('#stat')).toContainText('1');
 
+  // Keep the normal marker layer enabled: disabling both cluster and heatmap
+  // intentionally renders no accidents, which would make a pixel assertion
+  // test the fixture rather than the viewport tile path.
   await page.waitForFunction(() => {
     const target = [255, 127, 0]; // severity category 2
     for (const canvas of document.querySelectorAll('.leaflet-overlay-pane canvas')) {
