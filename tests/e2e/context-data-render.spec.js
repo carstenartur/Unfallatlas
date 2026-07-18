@@ -8,6 +8,56 @@ const VIEW = {
   zoom: process.env.CONTEXT_E2E_ZOOM || '15',
 };
 
+function isContextTileUrl(url) {
+  return /\/out\/ctxtiles\/[^/]+\/(?:\d+\/)?\d+\/\d+\.json(?:\.gz)?(?:[?#]|$)/i.test(url);
+}
+
+async function canvasCounts(page) {
+  return page.evaluate(() => {
+    const slopePalette = [
+      [255, 255, 178],
+      [254, 204, 92],
+      [253, 141, 60],
+      [240, 59, 32],
+      [189, 0, 38],
+      [154, 169, 184],
+    ];
+    const trafficPalette = [
+      [255, 255, 204],
+      [161, 218, 180],
+      [65, 182, 196],
+      [34, 94, 168],
+    ];
+    const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
+      Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8
+    );
+    const counts = { canvases: 0, slopePixels: 0, trafficPixels: 0 };
+    const canvases = document.querySelectorAll('.leaflet-overlay-pane canvas');
+    for (const canvas of canvases) {
+      if (!(canvas instanceof HTMLCanvasElement) || canvas.width === 0 || canvas.height === 0) continue;
+      const style = getComputedStyle(canvas);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+      let pixels;
+      try {
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) continue;
+        pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      } catch (_) {
+        continue;
+      }
+      counts.canvases += 1;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const alpha = pixels[i + 3];
+        if (alpha < 80) continue;
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        if (closeTo(r, g, b, slopePalette)) counts.slopePixels += 1;
+        if (closeTo(r, g, b, trafficPalette)) counts.trafficPixels += 1;
+      }
+    }
+    return counts;
+  });
+}
+
 /**
  * This is deliberately not a producer-file test.
  *
@@ -18,8 +68,8 @@ const VIEW = {
  * failure; there is no conditional skip.
  */
 test.describe('Generated context data – browser end to end', () => {
-  test('Bonn renders slope and traffic road features in the real web page', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('Bonn renders slope and traffic road features in the real web page', async ({ page }, testInfo) => {
+    test.setTimeout(150_000);
 
     const query = new URLSearchParams({
       city: CITY,
@@ -35,7 +85,25 @@ test.describe('Generated context data – browser end to end', () => {
     });
 
     const pageErrors = [];
+    const contextNetwork = [];
     page.on('pageerror', error => pageErrors.push(error.message));
+    page.on('response', response => {
+      const url = response.url();
+      if (isContextTileUrl(url)) contextNetwork.push({ type: 'response', url, status: response.status() });
+    });
+    page.on('requestfailed', request => {
+      const url = request.url();
+      if (isContextTileUrl(url)) {
+        contextNetwork.push({ type: 'requestfailed', url, error: request.failure()?.errorText || 'unknown' });
+      }
+    });
+
+    const attachDiagnostics = async rendered => {
+      await testInfo.attach('context-render-diagnostics.json', {
+        body: Buffer.from(JSON.stringify({ contextNetwork, pageErrors, rendered }, null, 2), 'utf8'),
+        contentType: 'application/json',
+      });
+    };
 
     const response = await page.goto(`werkbank_v2.html?${query.toString()}`);
     expect(response && response.ok(), 'Werkbank HTML was not served successfully').toBe(true);
@@ -55,58 +123,43 @@ test.describe('Generated context data – browser end to end', () => {
     await expect(overlayControl.locator('input[data-context-overlay="slope"]')).toBeChecked();
     await expect(overlayControl.locator('input[data-context-overlay="traffic"]')).toBeChecked();
 
+    // The viewport loader must request gzip tiles directly. A raw tile request
+    // is a regression: production deploys context tiles gzip-only.
+    try {
+      await expect.poll(() => contextNetwork.filter(entry =>
+        entry.type === 'response' && entry.status === 200 && /\.json\.gz(?:[?#]|$)/i.test(entry.url)
+      ).length, {
+        timeout: 30_000,
+        message: `No successful gzip context-tile response. Network: ${JSON.stringify(contextNetwork)}`,
+      }).toBeGreaterThan(0);
+    } catch (error) {
+      await attachDiagnostics(await canvasCounts(page));
+      throw error;
+    }
+
+    const rawRequests = contextNetwork.filter(entry =>
+      /\/\d+\/\d+\.json(?:[?#]|$)/i.test(entry.url) && !/\.json\.gz(?:[?#]|$)/i.test(entry.url)
+    );
+    expect(rawRequests, `Raw context-tile requests are forbidden: ${JSON.stringify(rawRequests)}`).toEqual([]);
+
     // Black-box rendering contract: inspect the pixels users actually see in
     // Leaflet's overlay canvases. `ctx` and the map are intentionally private
     // implementation details, so the test must not depend on window.map or a
-    // test-only global. The palettes are the production ramps from
-    // ua.context_road_layer.js. Transparent/no-signal grey is not counted as a
-    // slope signal.
-    await page.waitForFunction(() => {
-      const slopePalette = [
-        [255, 255, 178], // flat
-        [254, 204, 92],  // gentle
-        [253, 141, 60],  // moderate
-        [240, 59, 32],   // steep
-        [189, 0, 38],    // very_steep
-        [154, 169, 184], // low confidence, still a calculated signal
-      ];
-      const trafficPalette = [
-        [255, 255, 204],
-        [161, 218, 180],
-        [65, 182, 196],
-        [34, 94, 168],
-      ];
-      const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
-        Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8
-      );
-      const counts = { canvases: 0, slopePixels: 0, trafficPixels: 0 };
-      const canvases = document.querySelectorAll('.leaflet-overlay-pane canvas');
-      for (const canvas of canvases) {
-        if (!(canvas instanceof HTMLCanvasElement) || canvas.width === 0 || canvas.height === 0) continue;
-        const style = getComputedStyle(canvas);
-        if (style.display === 'none' || style.visibility === 'hidden') continue;
-        let pixels;
-        try {
-          const context = canvas.getContext('2d', { willReadFrequently: true });
-          if (!context) continue;
-          pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-        } catch (_) {
-          continue;
-        }
-        counts.canvases += 1;
-        for (let i = 0; i < pixels.length; i += 4) {
-          const alpha = pixels[i + 3];
-          if (alpha < 80) continue;
-          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-          if (closeTo(r, g, b, slopePalette)) counts.slopePixels += 1;
-          if (closeTo(r, g, b, trafficPalette)) counts.trafficPixels += 1;
-        }
-      }
-      window.__uaContextCanvasCounts = counts;
-      return counts.slopePixels >= 20 && counts.trafficPixels >= 20;
-    }, null, { timeout: 90_000 });
+    // test-only global.
+    let rendered = await canvasCounts(page);
+    try {
+      await expect.poll(async () => {
+        rendered = await canvasCounts(page);
+        return rendered.slopePixels >= 20 && rendered.trafficPixels >= 20;
+      }, {
+        timeout: 60_000,
+        message: `Context tiles loaded but no visible slope/traffic pixels. Network: ${JSON.stringify(contextNetwork)}`,
+      }).toBe(true);
+    } catch (error) {
+      await attachDiagnostics(rendered);
+      throw error;
+    }
 
-    const rendered = await page.evaluate(() => window.__uaContextCanvasCounts);
     expect(rendered.canvases, 'Leaflet created no visible overlay canvas').toBeGreaterThan(0);
     expect(rendered.slopePixels, 'no visible pixels from the slope signal palette were rendered').toBeGreaterThanOrEqual(20);
     expect(rendered.trafficPixels, 'no visible pixels from the traffic palette were rendered').toBeGreaterThanOrEqual(20);
@@ -119,6 +172,7 @@ test.describe('Generated context data – browser end to end', () => {
     expect(legendText).toMatch(/Straßensteigung/);
     expect(legendText).toMatch(/Verkehrsbelastung/);
 
+    await attachDiagnostics(rendered);
     expect(pageErrors, `pageerror events:\n${pageErrors.join('\n')}`).toHaveLength(0);
   });
 });
