@@ -4,11 +4,8 @@
   /**
    * Accident data provider boundary.
    *
-   * Production resources are resolved and loaded exclusively by
-   * `UA.DataResources`. Providers decide *which* resource is needed, but never
-   * own a concrete `out/...` path or compression fallback. Optional custom
-   * base URLs/patterns for embedded deployments still use DataResources'
-   * generic `fetchJsonUrl` transport.
+   * Providers select logical resources and spatial coverage. `UA.DataResources`
+   * remains the sole owner of physical paths, cache and compression policy.
    */
 
   const UA = (window.UA = window.UA || {});
@@ -19,7 +16,7 @@
     CUSTOM: 'custom',
   });
   const ACCIDENT_TILE_DEFAULT_ZOOM = 13;
-  const SUPPORTED_TILE_SCHEMA_VERSIONS = [1];
+  const SUPPORTED_TILE_SCHEMA_VERSIONS = Object.freeze([1]);
 
   function resources() {
     if (!UA.DataResources) {
@@ -55,8 +52,10 @@
     if (!bounds) return [];
     let south, north, west, east;
     if (typeof bounds.getSouth === 'function') {
-      south = bounds.getSouth(); north = bounds.getNorth();
-      west = bounds.getWest(); east = bounds.getEast();
+      south = bounds.getSouth();
+      north = bounds.getNorth();
+      west = bounds.getWest();
+      east = bounds.getEast();
     } else if (Array.isArray(bounds) && bounds.length === 4) {
       [south, west, north, east] = bounds;
     } else if (typeof bounds === 'object') {
@@ -105,13 +104,13 @@
     }
   }
 
-  async function fetchCustomJson(url, options, optional = false) {
+  function fetchCustomJson(url, options, policy) {
     return resources().fetchJsonUrl(url, {
       fetch: options.fetch,
       decompress: options.decompress,
       cache: options.cache || 'force-cache',
-      compression: options.compression || resources().COMPRESSION.GZIP_PREFERRED,
-      optional,
+      compression: policy.compression,
+      optional: policy.optional === true,
     });
   }
 
@@ -133,7 +132,11 @@
       if (cache.has(slug)) return cache.get(slug);
       const promise = (async () => {
         const url = customUrl(slug);
-        if (url) return fetchCustomJson(url, options);
+        if (url) {
+          return fetchCustomJson(url, options, {
+            compression: resources().COMPRESSION.GZIP_PREFERRED,
+          });
+        }
         return resources().fetchJson('accidentGeoJson', { city: slug }, {
           fetch: options.fetch,
           decompress: options.decompress,
@@ -170,29 +173,33 @@
 
     function customIndexUrl(slug) {
       if (!baseUrl && !tileRoot) return null;
-      const root = tileRoot || 'accidenttiles';
-      return `${baseUrl}${root}/${slug}/index.json`;
+      if (tileRoot) return `${baseUrl}${tileRoot}/${slug}/index.json`;
+      return `${baseUrl}${resources().url('accidentTileIndex', { city: slug })}`;
     }
 
     function customTileUrl(slug, zoom, x, y) {
-      const root = tileRoot || 'accidenttiles';
-      return `${baseUrl}${root}/${slug}/${zoom}/${x}/${y}.json`;
+      if (tileRoot) return `${baseUrl}${tileRoot}/${slug}/${zoom}/${x}/${y}.json`;
+      return `${baseUrl}${resources().url('accidentTile', {
+        city: slug, z: zoom, x, y,
+      })}`;
     }
 
     function attachIndexes(slug, manifest) {
-      const zoom = Number.isInteger(manifest.z) ? manifest.z : ACCIDENT_TILE_DEFAULT_ZOOM;
-      const keys = new Set();
-      const urls = new Map();
+      const zoom = Number.isInteger(manifest.z)
+        ? manifest.z
+        : ACCIDENT_TILE_DEFAULT_ZOOM;
+      const tileKeySet = new Set();
+      const tileUrlByKey = new Map();
       for (const tile of manifest.tiles || []) {
         if (!tile || !Number.isInteger(tile.x) || !Number.isInteger(tile.y)) continue;
         const key = `${tile.x}/${tile.y}`;
-        keys.add(key);
+        tileKeySet.add(key);
         if (baseUrl || tileRoot) {
-          urls.set(key, customTileUrl(slug, zoom, tile.x, tile.y));
+          tileUrlByKey.set(key, customTileUrl(slug, zoom, tile.x, tile.y));
         }
       }
-      manifest.tileKeySet = keys;
-      manifest.tileUrlByKey = urls;
+      manifest.tileKeySet = tileKeySet;
+      manifest.tileUrlByKey = tileUrlByKey;
       return manifest;
     }
 
@@ -200,9 +207,12 @@
       const slug = slugify(cityRaw);
       if (manifestCache.has(slug)) return manifestCache.get(slug);
       const promise = (async () => {
-        const custom = customIndexUrl(slug);
-        const manifest = custom
-          ? await fetchCustomJson(custom, options, true)
+        const customUrl = customIndexUrl(slug);
+        const manifest = customUrl
+          ? await fetchCustomJson(customUrl, options, {
+              compression: resources().COMPRESSION.GZIP_ONLY,
+              optional: true,
+            })
           : await resources().fetchJson('accidentTileIndex', { city: slug }, {
               fetch: options.fetch,
               decompress: options.decompress,
@@ -239,17 +249,24 @@
       const key = `${x}/${y}`;
       if (cache.has(key)) return cache.get(key);
       const promise = (async () => {
-        const custom = manifest.tileUrlByKey && manifest.tileUrlByKey.get(key);
-        const payload = custom
-          ? await fetchCustomJson(custom, options, true)
+        const customUrl = manifest.tileUrlByKey && manifest.tileUrlByKey.get(key);
+        const payload = customUrl
+          ? await fetchCustomJson(customUrl, options, {
+              compression: resources().COMPRESSION.GZIP_ONLY,
+              optional: true,
+            })
           : await resources().fetchJson('accidentTile', {
-              city: slug, z: manifest.z, x, y,
+              city: slug,
+              z: manifest.z,
+              x,
+              y,
             }, {
               fetch: options.fetch,
               decompress: options.decompress,
               optional: true,
             });
-        if (!payload || payload.type !== 'FeatureCollection' || !Array.isArray(payload.features)) {
+        if (!payload || payload.type !== 'FeatureCollection'
+            || !Array.isArray(payload.features)) {
           cache.delete(key);
           return null;
         }
@@ -263,7 +280,9 @@
     async function fetchForCity(cityRaw) {
       const slug = slugify(cityRaw);
       const manifest = await loadManifest(slug);
-      if (!manifest) throw new Error(`[TiledAccidentProvider] No tile index found for city "${slug}"`);
+      if (!manifest) {
+        throw new Error(`[TiledAccidentProvider] No tile index found for city "${slug}"`);
+      }
       const payloads = await Promise.all(
         manifest.tiles.map(tile => fetchTile(slug, manifest, tile.x, tile.y))
       );
@@ -273,7 +292,9 @@
     async function fetchForBbox(cityRaw, bounds) {
       const slug = slugify(cityRaw);
       const manifest = await loadManifest(slug);
-      if (!manifest) throw new Error(`[TiledAccidentProvider] No tile index found for city "${slug}"`);
+      if (!manifest) {
+        throw new Error(`[TiledAccidentProvider] No tile index found for city "${slug}"`);
+      }
       const wanted = tilesForBounds(bounds, manifest.z);
       if (wanted.length === 0) return mergeFeatureCollections([]);
       const payloads = [];
@@ -303,7 +324,9 @@
       fetchForCity,
       fetchForBbox,
       getCapabilities,
-      async canProvideForCity(cityRaw) { return Boolean(await loadManifest(cityRaw)); },
+      async canProvideForCity(cityRaw) {
+        return Boolean(await loadManifest(cityRaw));
+      },
       getManifest: loadManifest,
       clearCache() {
         manifestCache.clear();
@@ -351,7 +374,9 @@
           if ((provider.type === PROVIDER_TYPES.TILED) !== tiledFirst) continue;
           try {
             if (typeof provider.canProvideForCity !== 'function'
-                || await Promise.resolve(provider.canProvideForCity(cityRaw))) return provider;
+                || await Promise.resolve(provider.canProvideForCity(cityRaw))) {
+              return provider;
+            }
           } catch (_) {}
         }
       }
