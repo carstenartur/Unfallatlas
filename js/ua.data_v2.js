@@ -46,6 +46,10 @@
 
   function plainBounds(bounds) {
     if (!bounds) return null;
+    if (UA.AccidentViewportController
+        && typeof UA.AccidentViewportController.normalizeBounds === 'function') {
+      return UA.AccidentViewportController.normalizeBounds(bounds);
+    }
     if (typeof bounds.getSouth === 'function') {
       return {
         south: bounds.getSouth(), west: bounds.getWest(),
@@ -76,9 +80,6 @@
     if (![lat, lon, zoom].every(Number.isFinite)) return false;
     if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
 
-    // The viewport tile query happens before bindUi hydrates the map. Apply the
-    // canonical URL view here so getBounds() addresses the requested city rather
-    // than Leaflet's temporary Hannover bootstrap view.
     ctx.map.setView([lat, lon], zoom);
     return true;
   }
@@ -87,11 +88,29 @@
     const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
     const types = UA.AccidentProvider && UA.AccidentProvider.PROVIDER_TYPES;
     if (!registry || !types || typeof registry.get !== 'function') return null;
-    // Full-city mode must not resolve the registry asynchronously: doing so
-    // would probe the tiled manifest even though the user explicitly requested
-    // the complete city file. Custom embedders opt in by registering `custom`.
     const provider = registry.get('custom');
     return provider && provider.type === types.CUSTOM ? provider : null;
+  }
+
+  function coverageSuffix(coverage) {
+    if (!coverage || coverage.complete) return '';
+    if (coverage.status === 'loading') return ' (Kartenausschnitt wird geladen…)';
+    if (coverage.status === 'degraded') {
+      return ' (Kartenausschnitt teilweise geladen; Stadt unvollständig)';
+    }
+    if (coverage.status === 'complete-for-viewport') {
+      return ' (Kartenausschnitt vollständig; Stadt unvollständig)';
+    }
+    return ' (nur aktueller Kartenausschnitt)';
+  }
+
+  function setAccidentCoverage(ctx, coverage) {
+    ctx.accidentDataCoverage = coverage && Object.isFrozen(coverage)
+      ? coverage
+      : Object.freeze({ ...(coverage || {}) });
+    if (ctx.ui?.dataSourceCode) {
+      ctx.ui.dataSourceCode.textContent = `${ctx.DATA_URL || ''}${coverageSuffix(ctx.accidentDataCoverage)}`;
+    }
   }
 
   async function loadFullCity(cityRaw) {
@@ -134,16 +153,31 @@
       return fallback;
     }
 
+    const dataUrl = resources().url('accidentTileIndex', { city: ctx.CITY_RAW });
+    if (UA.AccidentViewportController
+        && typeof UA.AccidentViewportController.create === 'function'
+        && typeof tiled.fetchTileSetForBbox === 'function') {
+      ctx.accidentViewportController = UA.AccidentViewportController.create({ provider: tiled });
+      ctx.DATA_URL = dataUrl;
+      const pending = ctx.accidentViewportController.load(ctx.CITY_RAW, bounds);
+      setAccidentCoverage(ctx, ctx.accidentViewportController.getSnapshot().coverage);
+      const result = await pending;
+      if (!result.committed) throw new Error('initial accident viewport request became stale');
+      return { geojson: result.geojson, dataUrl, coverage: result.coverage };
+    }
+
     const capabilities = typeof tiled.getCapabilities === 'function'
       ? await tiled.getCapabilities(ctx.CITY_RAW)
       : {};
     const geojson = await tiled.fetchForBbox(ctx.CITY_RAW, bounds);
     return {
       geojson,
-      dataUrl: resources().url('accidentTileIndex', { city: ctx.CITY_RAW }),
+      dataUrl,
       coverage: {
         mode: 'viewport-partial',
         complete: false,
+        viewportComplete: true,
+        status: 'complete-for-viewport',
         provider: 'tiled',
         city: ctx.CITY_RAW,
         bounds: plainBounds(bounds),
@@ -198,7 +232,6 @@
             : String(ctx.CITY_RAW || '').toLowerCase();
           if (currentSlug !== expectedSlug) return;
           ctx.contextLayerState = state || null;
-
           const hasBuiltLayer = !!(ctx.clusterLayer || ctx.heatLayer);
           if (hasBuiltLayer && typeof UA.renderLayers === 'function' && ctx.map) {
             ctx._dataChanged = true;
@@ -215,6 +248,22 @@
     } catch (_) {}
   }
 
+  async function requestAccidentViewport(ctx) {
+    if (!ctx || ctx.accidentDataMode !== 'viewport'
+        || !ctx.accidentViewportController
+        || !ctx.map || typeof ctx.map.getBounds !== 'function') return null;
+    const pending = ctx.accidentViewportController.load(ctx.CITY_RAW, ctx.map.getBounds());
+    setAccidentCoverage(ctx, ctx.accidentViewportController.getSnapshot().coverage);
+    return pending;
+  }
+
+  function commitAccidentViewportResult(ctx, result) {
+    if (!ctx || !result || !result.committed) return false;
+    setAccidentCoverage(ctx, result.coverage);
+    if (result.geojson) ctx.allPts = UA.extractPoints(result.geojson);
+    return result.changed !== false;
+  }
+
   UA.loadCityData = async function loadCityData(ctx){
     let loaded;
     try {
@@ -225,11 +274,7 @@
     }
 
     ctx.DATA_URL = loaded.dataUrl;
-    ctx.accidentDataCoverage = Object.freeze({ ...loaded.coverage });
-    if (ctx.ui?.dataSourceCode) {
-      const suffix = loaded.coverage.complete ? '' : ' (nur aktueller Kartenausschnitt)';
-      ctx.ui.dataSourceCode.textContent = `${loaded.dataUrl}${suffix}`;
-    }
+    setAccidentCoverage(ctx, loaded.coverage);
     refreshContextState(ctx, loaded.geojson);
     ctx.allPts = UA.extractPoints(loaded.geojson);
   };
@@ -255,4 +300,7 @@
   UA.normalizeAccidentDataMode = normalizeAccidentDataMode;
   UA.applyRequestedAccidentViewport = applyRequestedAccidentViewport;
   UA.fetchAccidentGeoJson = fetchAccidentGeoJson;
+  UA.setAccidentCoverage = setAccidentCoverage;
+  UA.requestAccidentViewport = requestAccidentViewport;
+  UA.commitAccidentViewportResult = commitAccidentViewportResult;
 })();
