@@ -27,7 +27,7 @@ jobs:
       smoke_city: ${{ steps.list.outputs.smoke_city }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - id: list
@@ -56,7 +56,7 @@ jobs:
         city: ${{ fromJSON(needs.list-cities.outputs.cities) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
 
@@ -100,7 +100,7 @@ jobs:
         with:
           persist-credentials: true
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'
