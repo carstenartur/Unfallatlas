@@ -55,9 +55,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ARGS=(--city "${{ inputs.city }}" --json)
+          ARGS=(--city "${{ inputs.city }}")
           if [[ "${{ inputs.force }}" == "true" ]]; then ARGS+=(--force); fi
-          node scripts/generate-context-city.js "${ARGS[@]}" | tee context-generation-result.json
+          node scripts/generate-context-city.js "${ARGS[@]}" | tee context-generation.log
 
       - name: Verify producer inputs for selected city
         env:
