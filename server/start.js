@@ -28,8 +28,11 @@ function expressWithContextGeneration(...args) {
   return app;
 }
 
+// Preserve Express' static helpers (`express.json`, `express.static`, Router,
+// …), but never redefine intrinsic Function properties on the wrapper.
+const intrinsicFunctionKeys = new Set(['length', 'name', 'prototype', 'arguments', 'caller']);
 for (const key of Reflect.ownKeys(originalExpress)) {
-  if (key === 'length' || key === 'name' || key === 'prototype') continue;
+  if (intrinsicFunctionKeys.has(key)) continue;
   const descriptor = Object.getOwnPropertyDescriptor(originalExpress, key);
   if (descriptor) Object.defineProperty(expressWithContextGeneration, key, descriptor);
 }
