@@ -121,6 +121,38 @@ describe('accidentDataMode viewport pilot', () => {
     expect(context.ui.dataSourceCode.textContent).toMatch(/nur aktueller Kartenausschnitt/);
   });
 
+  test('viewport mode applies the canonical URL view before reading map bounds', async () => {
+    const win = makeWindow(
+      '?city=Bonn&accidentDataMode=viewport&centerLat=50.73&centerLon=7.1&zoom=15'
+    );
+    const mapBounds = bounds();
+    const map = {
+      setView: jest.fn(),
+      getBounds: jest.fn(() => mapBounds),
+    };
+    const tiled = {
+      type: win.UA.AccidentProvider.PROVIDER_TYPES.TILED,
+      fetchForCity: jest.fn(),
+      fetchForBbox: jest.fn(async () => featureCollection('viewport-url')),
+      getCapabilities: jest.fn(async () => ({ supportsTiles: true, tileZoom: 13 })),
+      canProvideForCity: jest.fn(async () => true),
+    };
+    win.UA.AccidentProvider.ProviderRegistry.register('tiled', tiled);
+
+    const context = {
+      CITY_RAW: 'Bonn',
+      map,
+      ui: { dataSourceCode: { textContent: '' } },
+    };
+    await win.UA.loadCityData(context);
+
+    expect(map.setView).toHaveBeenCalledWith([50.73, 7.1], 15);
+    expect(map.setView.mock.invocationCallOrder[0])
+      .toBeLessThan(map.getBounds.mock.invocationCallOrder[0]);
+    expect(tiled.fetchForBbox).toHaveBeenCalledWith('Bonn', mapBounds);
+    expect(context.allPts[0].props.id).toBe('viewport-url');
+  });
+
   test('viewport mode falls back cleanly when the manifest is unavailable', async () => {
     const win = makeWindow('?accidentDataMode=viewport');
     const tiled = {
