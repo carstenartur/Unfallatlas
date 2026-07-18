@@ -177,11 +177,12 @@ async function installDeterministicContextFixture(container) {
   }
 }
 
-// Serialized into Playwright's browser context by browserAssertionScript().
+// Playwright serializes this function into the browser context. Keep it closed
+// over browser globals only; no eval or test-only product globals are needed.
 function browserPaletteCounter() {
   const slopePalette = [
     [255,255,178], [254,204,92], [253,141,60],
-    [240,59,32], [189,0,38], [154,169,184],
+    [240,59,32], [189,0,38], [154,169,184], [189,189,189],
   ];
   const trafficPalette = [
     [255,255,204], [161,218,180], [65,182,196], [34,94,168],
@@ -199,7 +200,9 @@ function browserPaletteCounter() {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) continue;
       pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    } catch (_) { continue; }
+    } catch (_) {
+      continue;
+    }
     counts.canvases += 1;
     for (let i = 0; i < pixels.length; i += 4) {
       if (pixels[i + 3] < 80) continue;
@@ -213,10 +216,10 @@ function browserPaletteCounter() {
 
 function browserAssertionScript(city) {
   const safeCity = JSON.stringify(city);
-  const paletteCounterSource = browserPaletteCounter.toString();
+  const counterSource = browserPaletteCounter.toString();
   return `
     const { chromium } = require('@playwright/test');
-    const countPalettePixels = ${paletteCounterSource};
+    const countPalettePixels = ${counterSource};
 
     (async () => {
       const city = ${safeCity};
@@ -256,35 +259,27 @@ function browserAssertionScript(city) {
       if (!(await slope.isChecked())) await slope.check();
       if (!(await traffic.isChecked())) await traffic.check();
 
-      await page.waitForFunction((counterSource) => {
-        const counter = (0, eval)('(' + counterSource + ')');
-        const counts = counter();
-        window.__containerContextCounts = counts;
-        const legends = Array.from(document.querySelectorAll('.context-road-legend'))
-          .filter(element => {
-            const style = getComputedStyle(element);
-            return style.display !== 'none' && style.visibility !== 'hidden';
-          });
-        const text = legends.map(element => element.textContent || '').join(' ');
-        return counts.slopePixels >= 20
-          && counts.trafficPixels >= 20
-          && legends.length === 2
-          && text.includes('Straßensteigung')
-          && text.includes('Verkehrsbelastung');
-      }, paletteCounterSource, { timeout: ${CONTEXT_BROWSER_TIMEOUT_MS} });
-
-      const result = await page.evaluate(() => {
-        const legends = Array.from(document.querySelectorAll('.context-road-legend'))
-          .filter(element => {
-            const style = getComputedStyle(element);
-            return style.display !== 'none' && style.visibility !== 'hidden';
-          });
-        return {
-          ...window.__containerContextCounts,
+      const deadline = Date.now() + ${CONTEXT_BROWSER_TIMEOUT_MS};
+      let result = null;
+      while (Date.now() < deadline) {
+        const counts = await page.evaluate(countPalettePixels);
+        const legends = await page.locator('.context-road-legend:visible').allTextContents();
+        result = {
+          ...counts,
           legendCount: legends.length,
-          legendText: legends.map(element => element.textContent || '').join(' ').replace(/\s+/g, ' ').trim(),
+          legendText: legends.join(' ').replace(/\\s+/g, ' ').trim(),
         };
-      });
+        if (result.slopePixels >= 20
+            && result.trafficPixels >= 20
+            && result.legendCount === 2
+            && result.legendText.includes('Straßensteigung')
+            && result.legendText.includes('Verkehrsbelastung')) {
+          break;
+        }
+        await page.waitForTimeout(250);
+      }
+
+      result = result || { canvases: 0, slopePixels: 0, trafficPixels: 0, legendCount: 0, legendText: '' };
       result.city = city;
       result.pageErrors = pageErrors;
       console.log('CONTEXT_E2E_RESULT=' + JSON.stringify(result));
@@ -297,7 +292,10 @@ function browserAssertionScript(city) {
         && result.legendText.includes('Straßensteigung')
         && result.legendText.includes('Verkehrsbelastung')
         && result.pageErrors.length === 0;
-      if (!ok) process.exit(2);
+      if (!ok) {
+        console.error('Visible context contract failed: ' + JSON.stringify(result));
+        process.exit(2);
+      }
     })().catch(error => {
       console.error(error && error.stack ? error.stack : String(error));
       process.exit(1);
