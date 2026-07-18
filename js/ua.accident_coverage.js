@@ -26,22 +26,52 @@
     );
   }
 
-  function wrapExport(name) {
-    const original = UA[name];
-    if (typeof original !== 'function' || original._accidentCoverageGuarded) return;
+  function guarded(name, original) {
+    if (typeof original !== 'function' || original._accidentCoverageGuarded) return original;
     const wrapped = function accidentCoverageGuardedExport(ctx) {
-      assertCompleteAccidentCoverage(ctx, name === 'computeExportReport' ? 'Berichtsexport' : 'Datenexport');
+      assertCompleteAccidentCoverage(
+        ctx,
+        name === 'computeExportReport' ? 'Berichtsexport' : 'Datenexport'
+      );
       return original.apply(this, arguments);
     };
     wrapped._accidentCoverageGuarded = true;
     wrapped._original = original;
-    UA[name] = wrapped;
+    return wrapped;
   }
 
-  for (const name of GUARDED_EXPORTS) wrapExport(name);
+  function installFunctionHook(name) {
+    if (typeof UA[name] === 'function') {
+      UA[name] = guarded(name, UA[name]);
+      return;
+    }
+
+    let pending;
+    try {
+      Object.defineProperty(UA, name, {
+        configurable: true,
+        enumerable: true,
+        get() { return pending; },
+        set(value) {
+          pending = guarded(name, value);
+          Object.defineProperty(UA, name, {
+            value: pending,
+            writable: true,
+            configurable: true,
+            enumerable: true,
+          });
+        },
+      });
+    } catch (_) {
+      // Frozen test doubles can still call the explicit install function later.
+    }
+  }
+
+  function install() {
+    for (const name of GUARDED_EXPORTS) installFunctionHook(name);
+  }
 
   UA.assertCompleteAccidentCoverage = assertCompleteAccidentCoverage;
-  UA.installAccidentCoverageExportGuards = function installAccidentCoverageExportGuards() {
-    for (const name of GUARDED_EXPORTS) wrapExport(name);
-  };
+  UA.installAccidentCoverageExportGuards = install;
+  install();
 })();
