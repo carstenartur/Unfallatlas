@@ -181,6 +181,7 @@ optionale Persistenz-/Batch-Bausteine.
 - [Architektur (Browser + Server + Analysis Service)](docs/architecture.md)
 - [Werkbank-V2-Feature-Referenz](WERKBANK_V2.md)
 - [Export-QA / Render-Gate](docs/export-qa.md)
+- [Golden-Case-QA für Maßnahmen-Steckbriefe](docs/location-brief-golden-qa.md)
 - [Test-Dokumentation](tests/README.md)
 - [CI-/Videoexport-Guardrails](docs/ci-video-export-hardening.md)
 

@@ -356,3 +356,8 @@ politische Kontextverdichtung ab. Die Suite läuft ohne KI-Provider.
 ```
 npm test -- tests/unit/locationBrief
 ```
+
+Die fachliche QA mit realen Bonn-/Hannover-Daten ist separat dokumentiert:
+[`location-brief-golden-qa.md`](location-brief-golden-qa.md). Der schnelle
+Vorlauf läuft ohne Docker; der vollständige Persistenz-/Ranking-Pfad wird
+lokal ausführbar mit Testcontainers geprüft.

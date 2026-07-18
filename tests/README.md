@@ -12,7 +12,9 @@ tests/
 │   ├── ua.ui.test.js          # UI initialization and state tests
 │   └── ua.report_v2.test.js   # Report/export function tests (Word, PDF, crossTable, accidentDetails, deriveDocTitle, buildWerkbankUrl)
 ├── integration/               # Integration tests for complete workflows
-│   └── export.test.js         # Document export integration tests
+│   ├── export.test.js         # Document export integration tests
+│   ├── videoExport.testcontainers.test.js
+│   └── locationBriefGoldenCases.testcontainers.test.js
 ├── e2e/                       # End-to-end tests using Playwright
 │   ├── werkbank.spec.js       # User workflow tests
 │   ├── smoke.spec.js          # Cross-browser smoke tests (chromium, firefox-smoke, webkit-smoke)
@@ -54,6 +56,22 @@ Run integration tests:
 ```bash
 npm run test:integration
 ```
+
+Run the real-data Location Action Brief preflight (Bonn and Hannover,
+Docker-free):
+
+```bash
+npm run qa:location-brief-golden
+```
+
+Run the full persistence and Spring Batch ranking path with Testcontainers:
+
+```bash
+npm run test:location-brief-golden:tc
+```
+
+See [`docs/location-brief-golden-qa.md`](../docs/location-brief-golden-qa.md)
+for the case definitions, interpretation boundary and current reviewed result.
 
 ### Performance Tests
 

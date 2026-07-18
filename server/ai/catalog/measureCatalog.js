@@ -461,7 +461,10 @@ const MEASURE_CATALOG = [
     cautions: [
       'Geringe Fallzahlen ergeben unsichere Vergleiche – ggf. längere Beobachtungszeit'
     ],
-    conflictPatterns: [],
+    // Monitoring is generic for implemented measures, but for an explicitly
+    // insufficient data basis it also has a concrete diagnostic purpose:
+    // extend the observation period before recommending infrastructure.
+    conflictPatterns: ['datenlage_unzureichend'],
     effectDirection: 'verbessert Lernen über Zeit',
     implementationDuration: 'year_plus',
     measureClass: 'operational'

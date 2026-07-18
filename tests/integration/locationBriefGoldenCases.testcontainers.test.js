@@ -4,33 +4,19 @@ const fs = require('fs');
 const path = require('path');
 const { buildLocationBrief } = require('../../server/location-brief');
 const { toIngestPayload } = require('../../server/analysis-service/analysisServiceClient');
+const { buildStructuredFromCase } = require('../../scripts/lib/location-brief-golden-case-data');
 const { isDockerAvailable } = require('./lib/startUnfallatlasContainer');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const ANALYSIS_SERVICE_DIR = path.resolve(REPO_ROOT, 'analysis-service');
 const ANALYSIS_PORT = 8081;
+const ANALYSIS_SERVICE_RUNTIME_IMAGE = 'eclipse-temurin:21-jre';
+const ANALYSIS_SERVICE_IMAGE_TAG = 'unfallatlas-analysis-service:golden-test';
 const PROFILE_RANK = { low: 0, medium: 1, high: 2 };
 const PROFILE = JSON.parse(fs.readFileSync(
   path.resolve(REPO_ROOT, 'tests/fixtures/location-brief-golden-cases.json'),
   'utf8'
 ));
-
-const BIT_MASK = Object.freeze({
-  istrad: 1,
-  istfuss: 2,
-  istpkw: 4,
-  istkrad: 8,
-  istgkfz: 16,
-  istsonstig: 32
-});
-const BIT_MASK_FIELDS = Object.freeze({
-  istrad: ['istrad', 'IstRad'],
-  istfuss: ['istfuss', 'IstFuss'],
-  istpkw: ['istpkw', 'IstPKW'],
-  istkrad: ['istkrad', 'IstKrad'],
-  istgkfz: ['istgkfz', 'IstGkfz'],
-  istsonstig: ['istsonstig', 'IstSonstig']
-});
-const CITY_GEOJSON_CACHE = new Map();
 
 function dockerLikelyAvailable() {
   if (process.env.RUN_TESTCONTAINERS === '1') return true;
@@ -40,7 +26,6 @@ function dockerLikelyAvailable() {
 
 const SUITE_DESCRIBE = dockerLikelyAvailable() ? describe : describe.skip;
 if (SUITE_DESCRIBE === describe.skip) {
-  // eslint-disable-next-line no-console
   console.warn('[locationBriefGoldenCases.testcontainers] Skipping suite — Docker not available.');
 }
 
@@ -48,167 +33,94 @@ async function loadTestcontainers() {
   return import('testcontainers');
 }
 
+function findAnalysisServiceJar() {
+  if (process.env.ANALYSIS_SERVICE_JAR) {
+    const configured = path.resolve(process.env.ANALYSIS_SERVICE_JAR);
+    if (!fs.existsSync(configured)) {
+      throw new Error(`ANALYSIS_SERVICE_JAR does not exist: ${configured}`);
+    }
+    return configured;
+  }
+
+  const targetDir = path.resolve(ANALYSIS_SERVICE_DIR, 'target');
+  if (!fs.existsSync(targetDir)) return null;
+  const candidates = fs.readdirSync(targetDir)
+    .filter((name) => /^unfallatlas-analysis-service-.*\.jar$/.test(name))
+    .filter((name) => !/-(?:sources|javadoc)\.jar$/.test(name))
+    .map((name) => {
+      const filePath = path.resolve(targetDir, name);
+      return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return candidates[0]?.filePath || null;
+}
+
+async function createAnalysisServiceBuilder(GenericContainer) {
+  if (process.env.ANALYSIS_SERVICE_IMAGE) {
+    return {
+      builder: new GenericContainer(process.env.ANALYSIS_SERVICE_IMAGE),
+      source: `image ${process.env.ANALYSIS_SERVICE_IMAGE}`
+    };
+  }
+
+  const jarPath = findAnalysisServiceJar();
+  if (jarPath) {
+    return {
+      builder: new GenericContainer(ANALYSIS_SERVICE_RUNTIME_IMAGE)
+        .withCopyFilesToContainer([{
+          source: jarPath,
+          target: '/app/app.jar',
+          mode: parseInt('0644', 8)
+        }])
+        .withCommand(['java', '-jar', '/app/app.jar']),
+      source: `copied prebuilt JAR ${jarPath}`
+    };
+  }
+
+  return {
+    builder: await GenericContainer.fromDockerfile(ANALYSIS_SERVICE_DIR).build(
+      ANALYSIS_SERVICE_IMAGE_TAG,
+      { deleteOnExit: false }
+    ),
+    source: `local Dockerfile ${path.resolve(ANALYSIS_SERVICE_DIR, 'Dockerfile')}`
+  };
+}
+
 async function startAnalysisServiceContainer() {
   const { GenericContainer, Wait } = await loadTestcontainers();
-  const allowInsecureMavenSsl = process.env.TESTCONTAINERS_MAVEN_INSECURE_SSL === '1';
-  const mavenCommand = [
-    'mvn -q',
-    ...(allowInsecureMavenSsl ? [
-      '-Dmaven.wagon.http.ssl.insecure=true',
-      '-Dmaven.wagon.http.ssl.allowall=true'
-    ] : []),
-    '-DskipTests',
-    'spring-boot:run',
-    '-Dspring-boot.run.jvmArguments="-Dserver.port=8081 -Dspring.profiles.active=dev"'
-  ].join(' ');
-  const container = await new GenericContainer('maven:3.9-eclipse-temurin-21')
-    .withBindMounts([{
-      source: path.resolve(REPO_ROOT, 'analysis-service'),
-      target: '/workspace',
-      mode: 'rw'
-    }])
-    .withCommand([
-      'bash',
-      '-lc',
-      [
-        'cd /workspace',
-        mavenCommand
-      ].join(' ')
-    ])
-    .withExposedPorts(ANALYSIS_PORT)
-    .withWaitStrategy(Wait.forHttp('/actuator/health', ANALYSIS_PORT).forStatusCode(200))
-    .withStartupTimeout(300_000)
-    .start();
+  const { builder, source } = await createAnalysisServiceBuilder(GenericContainer);
+  let serviceLogs = '';
+  let container;
+  try {
+    container = await builder
+      .withEnvironment({
+        SPRING_PROFILES_ACTIVE: 'dev',
+        PORT: String(ANALYSIS_PORT)
+      })
+      .withExposedPorts(ANALYSIS_PORT)
+      .withWaitStrategy(Wait.forAll([
+        Wait.forLogMessage(/Started AnalysisServiceApplication/),
+        Wait.forHttp('/actuator/health', ANALYSIS_PORT).forStatusCode(200)
+      ]))
+      .withLogConsumer((stream) => {
+        stream.on('data', (chunk) => {
+          serviceLogs = `${serviceLogs}${Buffer.from(chunk).toString('utf8')}`.slice(-40_000);
+        });
+      })
+      .withStartupTimeout(180_000)
+      .start();
+  } catch (error) {
+    throw new Error([
+      `Analysis Service failed to start from ${source}: ${error.message}`,
+      '--- Analysis Service log tail ---',
+      serviceLogs.trim() || '(no container logs captured)'
+    ].join('\n'), { cause: error });
+  }
 
   const baseUrl = `http://${container.getHost()}:${container.getMappedPort(ANALYSIS_PORT)}`;
   return {
     baseUrl,
     stop: async () => { try { await container.stop({ timeout: 10 }); } catch (_) {} }
-  };
-}
-
-function asInt(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function getCaseInsensitiveProp(props, names) {
-  if (!props || !Array.isArray(names) || names.length === 0) return undefined;
-  for (const name of names) {
-    if (props[name] !== undefined) return props[name];
-  }
-  const byLowerName = new Map(Object.entries(props).map(([k, v]) => [String(k).toLowerCase(), v]));
-  for (const name of names) {
-    const v = byLowerName.get(String(name).toLowerCase());
-    if (v !== undefined) return v;
-  }
-  return undefined;
-}
-
-function loadCityGeoJson(citySlug) {
-  if (!CITY_GEOJSON_CACHE.has(citySlug)) {
-    const geo = JSON.parse(fs.readFileSync(
-      path.resolve(REPO_ROOT, `out/output_all_years_${citySlug}.geojson`),
-      'utf8'
-    ));
-    CITY_GEOJSON_CACHE.set(citySlug, geo);
-  }
-  return CITY_GEOJSON_CACHE.get(citySlug);
-}
-
-function buildStructuredFromCase(caseDef) {
-  const citySlug = caseDef.city.toLowerCase();
-  const geo = loadCityGeoJson(citySlug);
-
-  const points = geo.features.filter((f) => {
-    const [lon, lat] = f.geometry.coordinates;
-    return lat >= caseDef.bbox.south
-      && lat <= caseDef.bbox.north
-      && lon >= caseDef.bbox.west
-      && lon <= caseDef.bbox.east;
-  });
-
-  const byYear = new Map();
-  const byMask = new Map();
-  const details = [];
-  let fatal = 0;
-  let serious = 0;
-  let slight = 0;
-
-  for (const f of points) {
-    const p = f.properties || {};
-    const sev = asInt(getCaseInsensitiveProp(p, ['ukategorie', 'UKATEGORIE']));
-    if (sev === 1) fatal++;
-    else if (sev === 2) serious++;
-    else slight++;
-
-    const year = asInt(getCaseInsensitiveProp(p, ['year', 'UJAHR']));
-    if (year > 0) byYear.set(year, (byYear.get(year) || 0) + 1);
-
-    let mask = 0;
-    for (const [k, bit] of Object.entries(BIT_MASK)) {
-      if (asInt(getCaseInsensitiveProp(p, BIT_MASK_FIELDS[k])) > 0) mask |= bit;
-    }
-    if (mask > 0) {
-      const row = byMask.get(mask) || {
-        mask, label: String(mask), total: 0, sev1: 0, sev2: 0, sev3: 0
-      };
-      row.total++;
-      if (sev === 1) row.sev1++;
-      else if (sev === 2) row.sev2++;
-      else row.sev3++;
-      byMask.set(mask, row);
-    }
-
-    const [lon, lat] = f.geometry.coordinates;
-    details.push({
-      year,
-      sevLabel: sev === 1 ? 'getötet' : sev === 2 ? 'schwer' : 'leicht',
-      involved: String(mask),
-      hour: asInt(getCaseInsensitiveProp(p, ['ustunde', 'USTUNDE'])),
-      lat,
-      lon
-    });
-  }
-
-  const total = points.length;
-  const crossRows = [...byMask.values()].sort((a, b) => b.total - a.total);
-  return {
-    meta: {
-      city: caseDef.city,
-      areaName: caseDef.description,
-      date: '01.01.2026',
-      filters: { severity: 'all', roadCondition: 'all' },
-      involvementMode: 'or'
-    },
-    severity: { total, bySev: { '1': fatal, '2': serious, '3': slight, other: 0 } },
-    deviations: {
-      focus: crossRows.map((r) => ({
-        mask: r.mask,
-        label: r.label,
-        localCount: r.total,
-        baselineCount: 1,
-        relativeDiff: 1
-      })),
-      rows: []
-    },
-    yearTable: [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([year, n]) => ({ year, total: n })),
-    poi: {
-      withinByType: caseDef.poiWithinByType || {},
-      nearByType: caseDef.poiNearByType || {},
-      totalWithin: Object.values(caseDef.poiWithinByType || {}).reduce((s, x) => s + Number(x || 0), 0),
-      totalNear: Object.values(caseDef.poiNearByType || {}).reduce((s, x) => s + Number(x || 0), 0)
-    },
-    references: [],
-    crossTable: {
-      rows: crossRows,
-      totals: { sev1: fatal, sev2: serious, sev3: slight, total }
-    },
-    accidentDetails: {
-      rows: details.slice(0, 200),
-      total: details.length,
-      truncated: details.length > 200
-    }
   };
 }
 
@@ -248,7 +160,7 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
     const probe = await isDockerAvailable();
     if (!probe.available) throw new Error(`Docker unavailable: ${probe.reason}`);
     handle = await startAnalysisServiceContainer();
-  }, 10 * 60 * 1000);
+  }, 20 * 60 * 1000);
 
   afterAll(async () => {
     if (handle) await handle.stop();
@@ -316,7 +228,8 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
         for (const m of brief.recommendedMeasures) {
           expect(typeof m.whyPreselected).toBe('string');
           expect(m.whyPreselected.length).toBeGreaterThan(0);
-          const hasSpecificReason = (m.matchedConflictPatterns || []).length > 0 || (m.matchedRiskFactors || []).length > 0;
+          const hasSpecificReason = (m.matchedConflictPatterns || []).length > 0
+            || (m.matchedRiskFactors || []).length > 0;
           expect(hasSpecificReason || /datenlage|vor[- ]?ort|monitoring/i.test(m.whyPreselected)).toBe(true);
         }
 
@@ -334,8 +247,9 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
           );
         }
 
+        const locationKey = `${cityDef.city.toLowerCase()}::${c.caseId}`;
         const ingestPayload = toIngestPayload(brief, {
-          locationId: `${cityDef.city.toLowerCase()}::${c.caseId}`,
+          locationId: locationKey,
           city: cityDef.city,
           areaName: c.description,
           profile: PROFILE.profile
@@ -344,19 +258,21 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
         if (!stubCheckDone) {
           const stubResp = await postJson(`${handle.baseUrl}/api/location-briefs/compute-and-store`, ingestPayload);
           expect(stubResp.status).toBe(201);
-          expect(stubResp.body.problemSummary).toBe(ingestPayload.problemSummary);
-          expect(stubResp.body.locationKey).toBe(`${cityDef.city.toLowerCase()}::${c.caseId}`);
+          expect(stubResp.body.deterministicSummary).toBe(ingestPayload.problemSummary);
+          expect(stubResp.body.locationKey).toBe(locationKey);
+          expect(stubResp.body.profileKey).toBe(PROFILE.profile);
           stubCheckDone = true;
         } else {
           const ingestResp = await postJson(`${handle.baseUrl}/api/location-briefs`, ingestPayload);
           expect(ingestResp.status).toBe(201);
-          expect(ingestResp.body.locationKey).toBe(`${cityDef.city.toLowerCase()}::${c.caseId}`);
+          expect(ingestResp.body.locationKey).toBe(locationKey);
+          expect(ingestResp.body.profileKey).toBe(PROFILE.profile);
         }
 
         scored.push({
           caseId: c.caseId,
           kind: c.kind,
-          locationKey: `${cityDef.city.toLowerCase()}::${c.caseId}`,
+          locationKey,
           score: brief.deterministicFindings.activeProfileScore.total,
           patterns: patternIds,
           measures: brief.recommendedMeasures.map((m) => m.id)
@@ -392,13 +308,14 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
           positiveRanks.push(rank);
         }
 
+        const scoredCase = scored.find((s) => s.caseId === c.caseId);
         cityArtifact.cases.push({
           caseId: c.caseId,
           kind: c.kind,
           rank,
-          score: scored.find((s) => s.caseId === c.caseId).score,
-          patterns: scored.find((s) => s.caseId === c.caseId).patterns,
-          measures: scored.find((s) => s.caseId === c.caseId).measures,
+          score: scoredCase.score,
+          patterns: scoredCase.patterns,
+          measures: scoredCase.measures,
           passed: true,
           notes: []
         });
@@ -413,7 +330,9 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
     }
 
     if (process.env.GOLDEN_CASE_QA_ARTIFACT_PATH) {
-      fs.writeFileSync(process.env.GOLDEN_CASE_QA_ARTIFACT_PATH, JSON.stringify(artifact, null, 2), 'utf8');
+      const artifactPath = path.resolve(process.env.GOLDEN_CASE_QA_ARTIFACT_PATH);
+      fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+      fs.writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
     }
   }, 15 * 60 * 1000);
 });

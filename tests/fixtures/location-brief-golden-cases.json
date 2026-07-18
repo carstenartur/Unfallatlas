@@ -26,8 +26,15 @@
                 "title": "Antrag: Schienenquerung am Hbf sicherer machen",
                 "type": "Antrag",
                 "url": "https://example.org/bonn/rail",
-                "relevanceScore": 0.92,
-                "trafficRelevance": { "classification": "traffic_safety", "isRelevant": true, "score": 0.92 }
+                "relevanceScore": 92,
+                "trafficCategory": "direct_traffic",
+                "trafficRelevanceScore": 92,
+                "isTrafficRelevant": true,
+                "locationMatch": "street",
+                "topicMatch": ["Schienenquerung", "Hauptbahnhof"],
+                "streetHints": [],
+                "areaHints": ["Hauptbahnhof"],
+                "aiGating": { "allowed": true, "reason": "Direkter Verkehrsbezug mit Orts- und Themenbezug." }
               }
             ]
           },
@@ -82,8 +89,15 @@
                 "title": "Kulturveranstaltung im Quartier",
                 "type": "Mitteilung",
                 "url": "https://example.org/hannover/culture",
-                "relevanceScore": 0.1,
-                "trafficRelevance": { "classification": "unrelated", "isRelevant": false, "score": 0.0 }
+                "relevanceScore": 10,
+                "trafficCategory": "non_traffic",
+                "trafficRelevanceScore": 0,
+                "isTrafficRelevant": false,
+                "locationMatch": "street",
+                "topicMatch": ["Quartier"],
+                "streetHints": [],
+                "areaHints": [],
+                "aiGating": { "allowed": false, "reason": "Kein Verkehrsbezug erkannt." }
               }
             ]
           },
