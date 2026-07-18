@@ -18,8 +18,15 @@ const demTileProducer = require('./producers/dem_tile_producer');
 const demProducer = require('./producers/dem_producer');
 const trafficProducer = require('./producers/traffic_producer');
 const enricher = require('./enrich_geojson');
+const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { validateAll: validateContextDatasets } = require('./check-context-datasets');
-const { validateCityInputs } = require('./check-enrichment-inputs');
+const {
+  fingerprintJsonArtifact,
+  validateCityInputs,
+  validateOsm,
+  validateDem,
+  validateTraffic,
+} = require('./check-enrichment-inputs');
 const { readCitiesFile, slugify, validateGeoJsonArtifact } = require('./lib/static-data-validation');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -94,6 +101,25 @@ function assertProducerResult(kind, result, expectedFile) {
   }
 }
 
+function producerDatasetIsCurrent(file, validator, inputFingerprint) {
+  if (!fs.existsSync(file) && !fs.existsSync(`${file}.gz`)) return false;
+  try {
+    const data = readJsonMaybeGz(file);
+    return validator(data, { expectedFingerprint: inputFingerprint }).length === 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+function stampProducerDataset(file, inputFingerprint) {
+  const data = readJsonMaybeGz(file);
+  data.inputFingerprint = inputFingerprint;
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data));
+  fs.renameSync(tmp, file);
+  if (fs.existsSync(`${file}.gz`)) fs.rmSync(`${file}.gz`, { force: true });
+}
+
 function withProviderEnvironment(dirs, fn) {
   const names = ['ENRICH_OSM_DATA_DIR', 'ENRICH_DEM_DATA_DIR', 'ENRICH_TRAFFIC_DATA_DIR'];
   const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
@@ -128,14 +154,38 @@ function gzipGeneratedTree(dir) {
   }
 }
 
-function atomicReplaceFile(source, destination) {
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  const tmp = `${destination}.${process.pid}.tmp`;
-  fs.copyFileSync(source, tmp);
-  fs.renameSync(tmp, destination);
+function removePath(target) {
+  fs.rmSync(target, { recursive: true, force: true });
 }
 
-function installGeneratedCity(stagedOut, outputDir, slug) {
+function prepareTransactionEntry(entry, txId) {
+  const parent = path.dirname(entry.destination);
+  fs.mkdirSync(parent, { recursive: true });
+  entry.incoming = `${entry.destination}.${txId}.incoming`;
+  entry.backup = `${entry.destination}.${txId}.backup`;
+  entry.backedUp = false;
+  entry.installed = false;
+  removePath(entry.incoming);
+  removePath(entry.backup);
+  if (!entry.source) return;
+  if (entry.directory) {
+    fs.cpSync(entry.source, entry.incoming, { recursive: true });
+  } else {
+    fs.copyFileSync(entry.source, entry.incoming);
+  }
+}
+
+/**
+ * Install one complete city dataset as a small filesystem transaction.
+ *
+ * POSIX filesystems cannot atomically rename several independent paths in one
+ * syscall, therefore every old destination is first moved to a transaction
+ * backup. If any subsequent rename fails, all already-installed destinations
+ * are removed and every backup is restored in reverse order. The optional
+ * `onCommitStep` hook exists only for deterministic rollback tests.
+ */
+function installGeneratedCity(stagedOut, outputDir, slug, options) {
+  const opts = options || {};
   const required = [
     `output_all_years_${slug}.geojson.gz`,
     `ways_${slug}.json.gz`,
@@ -151,35 +201,68 @@ function installGeneratedCity(stagedOut, outputDir, slug) {
   }
 
   fs.mkdirSync(outputDir, { recursive: true });
-  const tileParent = path.join(outputDir, 'ctxtiles');
-  fs.mkdirSync(tileParent, { recursive: true });
-  const destinationTiles = path.join(tileParent, slug);
-  const incomingTiles = path.join(tileParent, `.${slug}.${process.pid}.incoming`);
-  const backupTiles = path.join(tileParent, `.${slug}.${process.pid}.backup`);
-  fs.rmSync(incomingTiles, { recursive: true, force: true });
-  fs.rmSync(backupTiles, { recursive: true, force: true });
-  fs.cpSync(stagedTiles, incomingTiles, { recursive: true });
+  const txId = `ua-context-${slug}-${Date.now()}-${process.pid}`;
+  const entries = [
+    {
+      label: 'context tiles',
+      source: stagedTiles,
+      destination: path.join(outputDir, 'ctxtiles', slug),
+      directory: true,
+    },
+    ...required.map(name => ({
+      label: name,
+      source: path.join(stagedOut, name),
+      destination: path.join(outputDir, name),
+      directory: false,
+    })),
+    ...required.map(name => ({
+      label: `remove stale raw ${name.replace(/\.gz$/, '')}`,
+      source: null,
+      destination: path.join(outputDir, name.replace(/\.gz$/, '')),
+      directory: false,
+    })),
+  ];
 
-  let movedOldTiles = false;
+  for (const entry of entries) prepareTransactionEntry(entry, txId);
+
   try {
-    if (fs.existsSync(destinationTiles)) {
-      fs.renameSync(destinationTiles, backupTiles);
-      movedOldTiles = true;
+    // Phase 1: move every existing public destination out of the way. No new
+    // data is visible until all old paths have a recoverable backup.
+    for (const entry of entries) {
+      if (fs.existsSync(entry.destination)) {
+        fs.renameSync(entry.destination, entry.backup);
+        entry.backedUp = true;
+      }
     }
-    fs.renameSync(incomingTiles, destinationTiles);
 
-    for (const name of required) {
-      atomicReplaceFile(path.join(stagedOut, name), path.join(outputDir, name));
-      const rawName = name.replace(/\.gz$/, '');
-      fs.rmSync(path.join(outputDir, rawName), { force: true });
+    // Phase 2: install all staged paths. Entries without a source represent
+    // transactional deletions of stale raw files.
+    let step = 0;
+    for (const entry of entries) {
+      if (entry.source) fs.renameSync(entry.incoming, entry.destination);
+      entry.installed = true;
+      step += 1;
+      if (typeof opts.onCommitStep === 'function') opts.onCommitStep({ step, entry });
     }
-    fs.rmSync(backupTiles, { recursive: true, force: true });
+
+    // Only after every destination is in place can old backups be discarded.
+    for (const entry of entries) removePath(entry.backup);
   } catch (error) {
-    fs.rmSync(incomingTiles, { recursive: true, force: true });
-    if (movedOldTiles && !fs.existsSync(destinationTiles) && fs.existsSync(backupTiles)) {
-      fs.renameSync(backupTiles, destinationTiles);
+    // Roll back in reverse order. Destinations whose backup phase was never
+    // reached remain untouched because `backedUp` is false.
+    for (const entry of entries.slice().reverse()) {
+      if (entry.installed && fs.existsSync(entry.destination)) removePath(entry.destination);
+      if (entry.backedUp && fs.existsSync(entry.backup)) {
+        fs.renameSync(entry.backup, entry.destination);
+      }
+      removePath(entry.incoming);
     }
     throw error;
+  } finally {
+    for (const entry of entries) {
+      removePath(entry.incoming);
+      removePath(entry.backup);
+    }
   }
 }
 
@@ -204,79 +287,94 @@ async function generateContextCity(options) {
   fs.mkdirSync(stagedOut, { recursive: true });
   for (const dir of Object.values(dirs)) fs.mkdirSync(dir, { recursive: true });
 
-  const logicalGeoJson = `output_all_years_${slug}.geojson`;
-  copyLogicalArtifact(args.inputDir, producerInput, logicalGeoJson);
-  const inputValidation = validateGeoJsonArtifact(path.join(producerInput, logicalGeoJson), { minFeatures: 1 });
-  if (!inputValidation.ok) throw new Error(`Invalid accident GeoJSON for ${city}: ${inputValidation.errors.join('; ')}`);
+  try {
+    const logicalGeoJson = `output_all_years_${slug}.geojson`;
+    copyLogicalArtifact(args.inputDir, producerInput, logicalGeoJson);
+    const logicalInput = path.join(producerInput, logicalGeoJson);
+    const inputValidation = validateGeoJsonArtifact(logicalInput, { minFeatures: 1 });
+    if (!inputValidation.ok) throw new Error(`Invalid accident GeoJSON for ${city}: ${inputValidation.errors.join('; ')}`);
+    const inputFingerprint = fingerprintJsonArtifact(logicalInput);
 
-  console.log(`[context-generation] ${city}: OSM road network`);
-  const osmResult = await osmProducer.produceCity(producerRoot, slug, {
-    outDir: dirs.osmDir,
-    force: args.force,
-    interTileDelayMs: 1000,
-  });
-  assertProducerResult('OSM', osmResult, path.join(dirs.osmDir, `osm_${slug}.json`));
+    const osmFile = path.join(dirs.osmDir, `osm_${slug}.json`);
+    const demFile = path.join(dirs.demDir, `dem_${slug}.json`);
+    const trafficFile = path.join(dirs.trafficDir, `traffic_${slug}.json`);
 
-  console.log(`[context-generation] ${city}: SRTM tiles`);
-  const tileResult = await demTileProducer.downloadTilesForCities(producerRoot, [slug], dirs.tilesDir, {
-    force: false,
-    silent: false,
-  });
-  if (!tileResult || tileResult.errors > 0) {
-    throw new Error(`DEM tile download failed (${tileResult ? tileResult.errors : 'unknown'} errors)`);
+    console.log(`[context-generation] ${city}: OSM road network`);
+    const forceOsm = args.force || !producerDatasetIsCurrent(osmFile, validateOsm, inputFingerprint);
+    const osmResult = await osmProducer.produceCity(producerRoot, slug, {
+      outDir: dirs.osmDir,
+      force: forceOsm,
+      interTileDelayMs: 1000,
+    });
+    assertProducerResult('OSM', osmResult, osmFile);
+    stampProducerDataset(osmFile, inputFingerprint);
+    const osmRegenerated = !(osmResult && osmResult.skipped);
+
+    console.log(`[context-generation] ${city}: SRTM tiles`);
+    const tileResult = await demTileProducer.downloadTilesForCities(producerRoot, [slug], dirs.tilesDir, {
+      force: false,
+      silent: false,
+    });
+    if (!tileResult || tileResult.errors > 0) {
+      throw new Error(`DEM tile download failed (${tileResult ? tileResult.errors : 'unknown'} errors)`);
+    }
+
+    console.log(`[context-generation] ${city}: elevation and slope`);
+    const forceDem = args.force || osmRegenerated || !producerDatasetIsCurrent(demFile, validateDem, inputFingerprint);
+    const demResult = await demProducer.produceCity(producerRoot, slug, {
+      outDir: dirs.demDir,
+      osmDir: dirs.osmDir,
+      tilesDir: dirs.tilesDir,
+      force: forceDem,
+    });
+    assertProducerResult('DEM', demResult, demFile);
+    stampProducerDataset(demFile, inputFingerprint);
+
+    console.log(`[context-generation] ${city}: traffic proxy`);
+    const forceTraffic = args.force || osmRegenerated || !producerDatasetIsCurrent(trafficFile, validateTraffic, inputFingerprint);
+    const trafficResult = trafficProducer.produceCity(producerRoot, slug, {
+      outDir: dirs.trafficDir,
+      osmDir: dirs.osmDir,
+      force: forceTraffic,
+    });
+    assertProducerResult('Traffic', trafficResult, trafficFile);
+    stampProducerDataset(trafficFile, inputFingerprint);
+
+    const preflight = validateCityInputs(city, dirs, { expectedFingerprint: inputFingerprint });
+    if (!preflight.ok) throw new Error(`Producer preflight failed: ${preflight.problems.join('; ')}`);
+
+    console.log(`[context-generation] ${city}: enrich in staging`);
+    const enrichment = withProviderEnvironment(dirs, () => enricher.enrichCityFile(slug, {
+      inputDir: producerInput,
+      outputDir: stagedOut,
+    }));
+    if (enrichment.skipped || !enrichment.wroteCompanions) {
+      throw new Error(`Enrichment produced no context data: ${enrichment.reason || 'no companions'}`);
+    }
+
+    const validation = validateContextDatasets(runRoot);
+    if (validation.summary.total !== 1 || validation.summary.failed !== 0) {
+      const details = validation.cities.flatMap(item => item.problems || []).join('; ');
+      throw new Error(`Staged context validation failed: ${details || JSON.stringify(validation.summary)}`);
+    }
+
+    gzipGeneratedTree(stagedOut);
+    installGeneratedCity(stagedOut, args.outputDir, slug);
+    console.log(`[context-generation] ${city}: installed atomically`);
+
+    return {
+      city,
+      slug,
+      featureCount: inputValidation.featureCount,
+      inputFingerprint,
+      generatedAt: enrichment.meta && enrichment.meta.generatedAt,
+      counts: enrichment.meta && enrichment.meta.counts,
+      cacheDir: args.cacheDir,
+      outputDir: args.outputDir,
+    };
+  } finally {
+    if (!args.keepWork) fs.rmSync(runRoot, { recursive: true, force: true });
   }
-
-  console.log(`[context-generation] ${city}: elevation and slope`);
-  const demResult = await demProducer.produceCity(producerRoot, slug, {
-    outDir: dirs.demDir,
-    osmDir: dirs.osmDir,
-    tilesDir: dirs.tilesDir,
-    force: args.force,
-  });
-  assertProducerResult('DEM', demResult, path.join(dirs.demDir, `dem_${slug}.json`));
-
-  console.log(`[context-generation] ${city}: traffic proxy`);
-  const trafficResult = trafficProducer.produceCity(producerRoot, slug, {
-    outDir: dirs.trafficDir,
-    osmDir: dirs.osmDir,
-    force: args.force,
-  });
-  assertProducerResult('Traffic', trafficResult, path.join(dirs.trafficDir, `traffic_${slug}.json`));
-
-  const preflight = validateCityInputs(city, dirs);
-  if (!preflight.ok) throw new Error(`Producer preflight failed: ${preflight.problems.join('; ')}`);
-
-  console.log(`[context-generation] ${city}: enrich in staging`);
-  const enrichment = withProviderEnvironment(dirs, () => enricher.enrichCityFile(slug, {
-    inputDir: producerInput,
-    outputDir: stagedOut,
-  }));
-  if (enrichment.skipped || !enrichment.wroteCompanions) {
-    throw new Error(`Enrichment produced no context data: ${enrichment.reason || 'no companions'}`);
-  }
-
-  const validation = validateContextDatasets(runRoot);
-  if (validation.summary.total !== 1 || validation.summary.failed !== 0) {
-    const details = validation.cities.flatMap(item => item.problems || []).join('; ');
-    throw new Error(`Staged context validation failed: ${details || JSON.stringify(validation.summary)}`);
-  }
-
-  gzipGeneratedTree(stagedOut);
-  installGeneratedCity(stagedOut, args.outputDir, slug);
-  console.log(`[context-generation] ${city}: installed atomically`);
-
-  const result = {
-    city,
-    slug,
-    featureCount: inputValidation.featureCount,
-    generatedAt: enrichment.meta && enrichment.meta.generatedAt,
-    counts: enrichment.meta && enrichment.meta.counts,
-    cacheDir: args.cacheDir,
-    outputDir: args.outputDir,
-  };
-
-  if (!args.keepWork) fs.rmSync(runRoot, { recursive: true, force: true });
-  return result;
 }
 
 function printHelp() {
@@ -314,6 +412,9 @@ module.exports = {
   parseArgs,
   resolveCanonicalCity,
   copyLogicalArtifact,
+  assertProducerResult,
+  producerDatasetIsCurrent,
+  stampProducerDataset,
   gzipGeneratedTree,
   installGeneratedCity,
   generateContextCity,
