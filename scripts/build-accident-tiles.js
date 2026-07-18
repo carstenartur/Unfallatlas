@@ -9,7 +9,7 @@ const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { writeJsonArtifact } = require('./lib/static-data-compression');
 const { readCitiesFile, slugify } = require('./lib/static-data-validation');
 
-const PRODUCER_VERSION = '1.0.0';
+const PRODUCER_VERSION = '1.1.0';
 const SCHEMA_VERSION = 1;
 const DEFAULT_ZOOM = 13;
 const EXPLICIT_ID_KEYS = Object.freeze([
@@ -138,8 +138,11 @@ function buildTilePlan(geojson, city, zoom) {
     const x = lonToTileX(lon, zoom);
     const y = latToTileY(lat, zoom);
     const key = `${x}/${y}`;
-    if (!byTile.has(key)) byTile.set(key, { x, y, features: [] });
+    if (!byTile.has(key)) {
+      byTile.set(key, { x, y, features: [], featureIdentities: [] });
+    }
     byTile.get(key).features.push(feature);
+    byTile.get(key).featureIdentities.push(identity.key);
   });
 
   const tiles = Array.from(byTile.values())
@@ -166,6 +169,9 @@ function tilePayload(slug, zoom, tile, sourceProperties) {
     y: tile.y,
     type: 'FeatureCollection',
     features: tile.features,
+    // Stable producer identities let the runtime deduplicate across repeated
+    // and overlapping viewport tile requests without re-hashing application data.
+    featureIdentities: tile.featureIdentities,
   };
   if (sourceProperties) payload.properties = sourceProperties;
   return payload;
@@ -228,19 +234,33 @@ function validateStagedCity(cityDir, manifest, expectedCount) {
   }
 
   let count = 0;
+  const persistedIdentities = new Set();
   for (const tile of manifest.tiles) {
     const tilePath = path.join(cityDir, String(manifest.z), String(tile.x), `${tile.y}.json.gz`);
     if (!fs.existsSync(tilePath)) throw new Error(`missing tile ${tile.x}/${tile.y}`);
     const payload = readGzipJson(tilePath);
     if (payload.type !== 'FeatureCollection' || payload.city !== manifest.city
         || payload.z !== manifest.z || payload.x !== tile.x || payload.y !== tile.y
-        || !Array.isArray(payload.features) || payload.features.length !== tile.count) {
+        || !Array.isArray(payload.features) || payload.features.length !== tile.count
+        || !Array.isArray(payload.featureIdentities)
+        || payload.featureIdentities.length !== payload.features.length) {
       throw new Error(`invalid tile payload ${tile.x}/${tile.y}`);
+    }
+    for (const identity of payload.featureIdentities) {
+      if (typeof identity !== 'string' || !identity) {
+        throw new Error(`invalid feature identity in tile ${tile.x}/${tile.y}`);
+      }
+      if (persistedIdentities.has(identity)) {
+        throw new Error(`duplicate persisted feature identity ${identity}`);
+      }
+      persistedIdentities.add(identity);
     }
     count += payload.features.length;
   }
-  if (count !== expectedCount) {
-    throw new Error(`tile feature total ${count} does not equal source total ${expectedCount}`);
+  if (count !== expectedCount || persistedIdentities.size !== expectedCount) {
+    throw new Error(
+      `tile identity/feature total ${persistedIdentities.size}/${count} does not equal source total ${expectedCount}`
+    );
   }
   if (gzipFiles.length !== manifest.tiles.length + 1) {
     throw new Error('unexpected gzip artefact count in staged tree');
