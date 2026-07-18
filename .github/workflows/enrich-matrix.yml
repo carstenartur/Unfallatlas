@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cities: ${{ steps.list.outputs.cities }}
+      smoke_city: ${{ steps.list.outputs.smoke_city }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -40,7 +41,9 @@ jobs:
           process.stdout.write(JSON.stringify(cities));
           NODE
           )
+          SMOKE_CITY=$(node -e "const c=JSON.parse(process.argv[1]); process.stdout.write(c[0].name)" "$JSON")
           echo "cities=$JSON" >> "$GITHUB_OUTPUT"
+          echo "smoke_city=$SMOKE_CITY" >> "$GITHUB_OUTPUT"
 
   produce-city:
     needs: list-cities
@@ -61,8 +64,11 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .enrichment-cache
-          key: context-matrix-${{ runner.os }}-${{ matrix.city.slug }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}
+          # Per-run suffix allows actions/cache to save producer updates even
+          # when an earlier compatible cache was restored.
+          key: context-matrix-${{ runner.os }}-${{ matrix.city.slug }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}-${{ github.run_id }}
           restore-keys: |
+            context-matrix-${{ runner.os }}-${{ matrix.city.slug }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}-
             context-matrix-${{ runner.os }}-${{ matrix.city.slug }}-
           save-always: true
 
@@ -97,6 +103,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: 'npm'
 
       - name: Set up Git
         run: |
@@ -125,6 +132,18 @@ jobs:
           node scripts/check-context-datasets.js
           node scripts/check-slope-plausibility.js
           node scripts/check-data-paths.js --gzip-only --min-features 10
+
+      - name: Install integration-test dependencies
+        run: npm ci
+
+      - name: Verify matrix output in the real web page
+        env:
+          RUN_TESTCONTAINERS: '1'
+          CONTEXT_E2E_REQUIRE_SHIPPED: '1'
+          CONTEXT_E2E_CITY: ${{ needs.list-cities.outputs.smoke_city }}
+        run: >-
+          npm run test:integration:tc -- --runInBand
+          -t "renders slope and traffic context for a real city in the browser"
 
       - name: Commit and push
         shell: bash
