@@ -98,7 +98,10 @@ async function startAnalysisServiceContainer() {
         PORT: String(ANALYSIS_PORT)
       })
       .withExposedPorts(ANALYSIS_PORT)
-      .withWaitStrategy(Wait.forHttp('/actuator/health', ANALYSIS_PORT).forStatusCode(200))
+      .withWaitStrategy(Wait.forAll([
+        Wait.forLogMessage(/Started AnalysisServiceApplication/),
+        Wait.forHttp('/actuator/health', ANALYSIS_PORT).forStatusCode(200)
+      ]))
       .withLogConsumer((stream) => {
         stream.on('data', (chunk) => {
           serviceLogs = `${serviceLogs}${Buffer.from(chunk).toString('utf8')}`.slice(-40_000);

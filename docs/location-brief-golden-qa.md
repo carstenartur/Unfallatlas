@@ -95,6 +95,7 @@ Der erste reproduzierbare Vorlauf war nur für drei von sechs Fällen grün. Zwe
 
 - Der Location-Brief-Summarizer verstand nur ein älteres, verschachteltes Verkehrsrelevanzformat und ignorierte das kanonische `PoliticalReference`-Format des Portal-Services. Nun zählen ausschließlich kanonisch verkehrsrelevante Treffer mit bestandenem hartem Orts-/Themen-Gate; ein einzelner einschlägiger Antrag ergibt `policyReadiness=medium`.
 - `mon_followup` wurde bei Null-Unfall-Fällen generisch begründet. Die Maßnahme referenziert nun ausdrücklich `datenlage_unzureichend`, sodass die Empfehlung als längerer Beobachtungs-/Prüfbedarf und nicht als beliebige Standardmaßnahme nachvollziehbar ist.
+- Der erste Containerlauf machte außerdem eine veraltete Jackson-2-Property sichtbar, durch die das Spring-Boot-4-JAR beim realen Start abbrach. Die Datumsoption nutzt nun den Jackson-3-Namensraum `spring.jackson.datatype.datetime.*`; ein Maven-Konfigurationsvertrag und der Container-Health-Gate sichern den Startpfad ab.
 
 ## Grenzen
 
