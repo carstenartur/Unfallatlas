@@ -40,6 +40,12 @@ function payload(city, x, y, feature) {
   };
 }
 
+async function loadAndRetain(provider, city, bounds) {
+  const result = await provider.fetchTileSetForBbox(city, bounds);
+  provider.retainForViewport(city, result.requestedTileKeys);
+  return result;
+}
+
 const A = { south: 50.7298, west: 7.0998, north: 50.7302, east: 7.1002 };
 const B = { south: 50.7298, west: 7.2998, north: 50.7302, east: 7.3002 };
 
@@ -133,9 +139,9 @@ describe('TiledAccidentProvider live viewport contract', () => {
     });
 
     const provider = UA.AccidentProvider.createTiledProvider({ maxCachedTiles: 2 });
-    await provider.fetchTileSetForBbox('Bonn', A);
-    await provider.fetchTileSetForBbox('Bonn', B);
-    await provider.fetchTileSetForBbox('Bonn', A);
+    await loadAndRetain(provider, 'Bonn', A);
+    await loadAndRetain(provider, 'Bonn', B);
+    await loadAndRetain(provider, 'Bonn', A);
 
     const tileCalls = UA.fetchJsonGz.mock.calls.map(call => call[0])
       .filter(url => !url.endsWith('/index.json.gz'));
@@ -145,7 +151,7 @@ describe('TiledAccidentProvider live viewport contract', () => {
       .toHaveLength(1);
   });
 
-  test('bounds inactive cache entries without evicting the current viewport', async () => {
+  test('bounds inactive cache entries only after the committed viewport is retained', async () => {
     const UA = makeUA();
     const [a] = UA.AccidentProvider._tilesForBounds(A, 13);
     const [b] = UA.AccidentProvider._tilesForBounds(B, 13);
@@ -170,11 +176,19 @@ describe('TiledAccidentProvider live viewport contract', () => {
     });
 
     const provider = UA.AccidentProvider.createTiledProvider({ maxCachedTiles: 1 });
-    await provider.fetchTileSetForBbox('Bonn', A);
-    await provider.fetchTileSetForBbox('Bonn', B);
+    const resultA = await provider.fetchTileSetForBbox('Bonn', A);
+    provider.retainForViewport('Bonn', resultA.requestedTileKeys);
+    const resultB = await provider.fetchTileSetForBbox('Bonn', B);
+
+    // Merely completing B must not evict A. Only the controller-confirmed
+    // viewport commit decides which keys are pinned during eviction.
+    expect(provider.getCacheSnapshot('Bonn').cities.bonn.tileKeys.sort())
+      .toEqual([keyA, keyB].sort());
+    provider.retainForViewport('Bonn', resultB.requestedTileKeys);
     expect(provider.getCacheSnapshot('Bonn').cities.bonn.tileKeys).toEqual([keyB]);
 
-    await provider.fetchTileSetForBbox('Bonn', A);
+    const nextA = await provider.fetchTileSetForBbox('Bonn', A);
+    provider.retainForViewport('Bonn', nextA.requestedTileKeys);
     expect(provider.getCacheSnapshot('Bonn').cities.bonn.tileKeys).toEqual([keyA]);
     const callsForA = UA.fetchJsonGz.mock.calls.map(call => call[0])
       .filter(url => url.endsWith(`/${a[0]}/${a[1]}.json.gz`));
