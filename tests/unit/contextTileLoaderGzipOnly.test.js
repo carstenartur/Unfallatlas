@@ -3,13 +3,16 @@
 const fs = require('fs');
 const path = require('path');
 
+function evaluate(relPath, win) {
+  const source = fs.readFileSync(path.resolve(__dirname, relPath), 'utf8');
+  (function (window) { eval(source); })(win); // eslint-disable-line no-eval
+}
+
 function loadModule() {
   const win = { UA: {}, requestIdleCallback: undefined };
-  const source = fs.readFileSync(
-    path.resolve(__dirname, '../../js/ua.context_layers.js'),
-    'utf8',
-  );
-  (function (window) { eval(source); })(win); // eslint-disable-line no-eval
+  evaluate('../../js/ua.core.js', win);
+  evaluate('../../js/ua.data_paths.js', win);
+  evaluate('../../js/ua.context_layers.js', win);
   return win.UA;
 }
 
@@ -24,9 +27,7 @@ function v3State() {
       z: 0,
       tiles: [{ x: 0, y: 0, wayCount: 1 }],
       wayIndex: { W1: [0, 0] },
-      tileUrlByKey: new Map([
-        ['0/0', 'out/ctxtiles/bonn/0/0.json'],
-      ]),
+      tileKeySet: new Set(['0/0']),
     },
     _tileCache: new Map(),
   };
@@ -38,72 +39,60 @@ const tilePayload = {
   geometries: { W1: [50.7, 7.1, 50.71, 7.11] },
 };
 
+function worldBounds() {
+  return {
+    getSouth: () => -80,
+    getNorth: () => 80,
+    getWest: () => -170,
+    getEast: () => 170,
+  };
+}
+
 describe('v3 context tile loading', () => {
-  test('viewport loading explicitly requests gzip-only tiles', async () => {
+  test('viewport loading requests the registry-owned gzip resource', async () => {
     const UA = loadModule();
-    const calls = [];
-    UA.fetchJsonCompressed = async (url, options) => {
-      calls.push({ url, options });
-      return tilePayload;
-    };
+    UA.fetchJsonGz = jest.fn(async () => tilePayload);
     const state = v3State();
-    const worldBounds = {
-      getSouth: () => -80,
-      getNorth: () => 80,
-      getWest: () => -170,
-      getEast: () => 170,
-    };
 
-    const merged = await UA.contextLayers.loadTilesForBbox(state, worldBounds);
+    const merged = await UA.contextLayers.loadTilesForBbox(state, worldBounds());
 
-    expect(calls).toEqual([{
-      url: 'out/ctxtiles/bonn/0/0.json',
-      options: { cache: 'force-cache', gzipOnly: true },
-    }]);
+    expect(UA.fetchJsonGz).toHaveBeenCalledWith(
+      'out/ctxtiles/bonn/0/0.json.gz',
+      expect.objectContaining({ cache: 'force-cache' })
+    );
     expect(merged.ways.W1).toEqual(tilePayload.ways.W1);
     expect(merged.geometries.W1).toEqual(tilePayload.geometries.W1);
   });
 
-  test('popup hydration uses the same gzip-only tile contract', async () => {
+  test('popup hydration uses the identical central resource contract', async () => {
     const UA = loadModule();
-    const calls = [];
-    UA.fetchJsonCompressed = async (url, options) => {
-      calls.push({ url, options });
-      return tilePayload;
-    };
+    UA.fetchJsonGz = jest.fn(async () => tilePayload);
     const state = v3State();
 
     expect(UA.contextLayers.resolveWayAcrossTiles(state, 'W1')).toBeNull();
     await state._tileCache.get('0/0');
 
-    expect(calls).toEqual([{
-      url: 'out/ctxtiles/bonn/0/0.json',
-      options: { cache: 'force-cache', gzipOnly: true },
-    }]);
+    expect(UA.fetchJsonGz).toHaveBeenCalledWith(
+      'out/ctxtiles/bonn/0/0.json.gz',
+      expect.objectContaining({ cache: 'force-cache' })
+    );
     expect(UA.contextLayers.resolveWayAcrossTiles(state, 'W1'))
       .toEqual({ highway: 'residential', road_slope_percent: 2.5 });
   });
 
-  test('never falls back to raw fetch when the gzip helper is unavailable', async () => {
+  test('never calls raw fetch when the gzip transport is unavailable', async () => {
     const UA = loadModule();
-    const state = v3State();
     const rawFetch = jest.fn();
     global.fetch = rawFetch;
-    const worldBounds = {
-      getSouth: () => -80,
-      getNorth: () => 80,
-      getWest: () => -170,
-      getEast: () => 170,
-    };
-    const originalWarn = console.warn;
-    console.warn = jest.fn();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      const merged = await UA.contextLayers.loadTilesForBbox(state, worldBounds);
+      const merged = await UA.contextLayers.loadTilesForBbox(v3State(), worldBounds());
       expect(rawFetch).not.toHaveBeenCalled();
       expect(merged.ways).toEqual({});
       expect(merged.geometries).toEqual({});
+      expect(warn).toHaveBeenCalled();
     } finally {
-      console.warn = originalWarn;
+      warn.mockRestore();
       delete global.fetch;
     }
   });
