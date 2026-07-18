@@ -71,13 +71,16 @@
       path: ({ city, x, y }) =>
         `out/ctxtiles/${slug(city)}/${integer(x, 'x')}/${integer(y, 'y')}.json`,
     }),
+    // Accident tile trees are production artefacts, not compatibility files.
+    // Both manifest and payloads are gzip-only so a missing build cannot be
+    // hidden by an accidental raw-file fallback.
     accidentTileIndex: Object.freeze({
-      compression: COMPRESSION.GZIP_PREFERRED,
+      compression: COMPRESSION.GZIP_ONLY,
       cache: 'force-cache',
       path: ({ city }) => `out/accidenttiles/${slug(city)}/index.json`,
     }),
     accidentTile: Object.freeze({
-      compression: COMPRESSION.GZIP_PREFERRED,
+      compression: COMPRESSION.GZIP_ONLY,
       cache: 'force-cache',
       path: ({ city, z, x, y }) =>
         `out/accidenttiles/${slug(city)}/${integer(z, 'z')}/${integer(x, 'x')}/${integer(y, 'y')}.json`,
