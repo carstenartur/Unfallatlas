@@ -2,110 +2,210 @@
   'use strict';
 
   /**
-   * js/ua.data_paths.js
+   * Central registry for every static application resource.
    *
-   * Single source of truth for all static-data file paths.
+   * A resource definition owns both the logical file name and its transport
+   * policy. Callers must not concatenate `out/...` paths or decide between raw
+   * and gzip variants themselves.
    *
-   * Every path that the application resolves at runtime lives here.
-   * No other module should construct `out/…` paths from raw city slugs
-   * directly.  When a path convention changes (e.g. a directory rename
-   * or a new file-format suffix), only this file needs updating.
+   * Preferred API:
+   *   UA.DataResources.url('accidentGeoJson', { city: 'Bonn' })
+   *   UA.DataResources.fetchJson('contextTile', { city: 'Bonn', x: 4256, y: 2754 })
    *
-   * Public API:
-   *   UA.DataPaths.accidentGeoJson(slug)       → out/output_all_years_{slug}.geojson
-   *   UA.DataPaths.poiGeoJson(slug)            → out/poi_{slug}.geojson
-   *   UA.DataPaths.contextWays(slug)           → out/ways_{slug}.json
-   *   UA.DataPaths.enrichmentMeta(slug)        → out/output_all_years_{slug}.enrichment.meta.json
-   *   UA.DataPaths.contextTileIndex(slug)      → out/ctxtiles/{slug}/index.json
-   *   UA.DataPaths.contextTile(slug, z, x, y) → out/ctxtiles/{slug}/{z}/{x}/{y}.json
-   *   UA.DataPaths.accidentTileIndex(slug)     → out/accidenttiles/{slug}/index.json
-   *   UA.DataPaths.accidentTile(slug,z,x,y)   → out/accidenttiles/{slug}/{z}/{x}/{y}.json
-   *
-   * The functions accept raw city names (e.g. "München") or pre-slugified
-   * keys (e.g. "muenchen"). Slugification is delegated to UA.normKey when
-   * available so the slugify logic stays in one place (ua.core.js).
+   * UA.DataPaths remains as a compatibility facade for older modules. It is
+   * deliberately implemented entirely through the registry.
    */
 
   const UA = (window.UA = window.UA || {});
 
-  function _slug(cityRaw) {
+  const COMPRESSION = Object.freeze({
+    RAW: 'raw',
+    GZIP_PREFERRED: 'gzip-preferred',
+    GZIP_ONLY: 'gzip-only',
+  });
+
+  function slug(cityRaw) {
     if (UA.normKey && typeof UA.normKey === 'function') return UA.normKey(cityRaw);
     return String(cityRaw || '').toLowerCase().trim();
   }
 
-  const DataPaths = {
-    /**
-     * Path to the accident GeoJSON for a city.
-     * Example: out/output_all_years_berlin.geojson
-     */
+  function integer(value, label) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new TypeError(`[DataResources] ${label} must be a non-negative integer`);
+    }
+    return parsed;
+  }
+
+  const definitions = Object.freeze({
+    accidentGeoJson: Object.freeze({
+      compression: COMPRESSION.GZIP_PREFERRED,
+      cache: 'no-store',
+      path: ({ city }) => `out/output_all_years_${slug(city)}.geojson`,
+    }),
+    poiGeoJson: Object.freeze({
+      compression: COMPRESSION.GZIP_PREFERRED,
+      cache: 'force-cache',
+      path: ({ city }) => `out/poi_${slug(city)}.geojson`,
+    }),
+    contextWays: Object.freeze({
+      compression: COMPRESSION.GZIP_PREFERRED,
+      cache: 'force-cache',
+      path: ({ city }) => `out/ways_${slug(city)}.json`,
+    }),
+    enrichmentMeta: Object.freeze({
+      compression: COMPRESSION.GZIP_PREFERRED,
+      cache: 'force-cache',
+      path: ({ city }) => `out/output_all_years_${slug(city)}.enrichment.meta.json`,
+    }),
+    contextTileIndex: Object.freeze({
+      compression: COMPRESSION.GZIP_PREFERRED,
+      cache: 'force-cache',
+      path: ({ city }) => `out/ctxtiles/${slug(city)}/index.json`,
+    }),
+    // Context schema v3 stores tiles as <city>/<x>/<y>.json. The zoom is
+    // recorded in the manifest, not repeated in the directory structure.
+    contextTile: Object.freeze({
+      compression: COMPRESSION.GZIP_ONLY,
+      cache: 'force-cache',
+      path: ({ city, x, y }) =>
+        `out/ctxtiles/${slug(city)}/${integer(x, 'x')}/${integer(y, 'y')}.json`,
+    }),
+    accidentTileIndex: Object.freeze({
+      compression: COMPRESSION.GZIP_PREFERRED,
+      cache: 'force-cache',
+      path: ({ city }) => `out/accidenttiles/${slug(city)}/index.json`,
+    }),
+    accidentTile: Object.freeze({
+      compression: COMPRESSION.GZIP_PREFERRED,
+      cache: 'force-cache',
+      path: ({ city, z, x, y }) =>
+        `out/accidenttiles/${slug(city)}/${integer(z, 'z')}/${integer(x, 'x')}/${integer(y, 'y')}.json`,
+    }),
+  });
+
+  function resolve(kind, params) {
+    const definition = definitions[kind];
+    if (!definition) throw new TypeError(`[DataResources] unknown resource kind: ${kind}`);
+    const logicalUrl = definition.path(params || {});
+    return Object.freeze({
+      kind,
+      logicalUrl,
+      gzipUrl: logicalUrl.endsWith('.gz') ? logicalUrl : `${logicalUrl}.gz`,
+      compression: definition.compression,
+      cache: definition.cache,
+    });
+  }
+
+  async function fetchRawJson(url, options) {
+    const opts = options || {};
+    const fetchImpl = (typeof opts.fetch === 'function')
+      ? opts.fetch
+      : (typeof fetch === 'function' ? fetch : null);
+    if (!fetchImpl) throw new Error('fetch is not available');
+    const response = await fetchImpl(url, { cache: opts.cache || 'no-store' });
+    if (!response || !response.ok) {
+      throw new Error(`HTTP ${response && response.status} for ${url}`);
+    }
+    return response.json();
+  }
+
+  async function fetchJsonUrl(logicalUrl, options) {
+    const opts = options || {};
+    const compression = opts.compression || COMPRESSION.GZIP_PREFERRED;
+    const cache = opts.cache || 'no-store';
+    try {
+      if (compression === COMPRESSION.GZIP_ONLY) {
+        if (typeof UA.fetchJsonGz !== 'function') {
+          throw new Error('gzip loader is not available');
+        }
+        const gzipUrl = String(logicalUrl).endsWith('.gz')
+          ? String(logicalUrl)
+          : `${logicalUrl}.gz`;
+        return await UA.fetchJsonGz(gzipUrl, {
+          fetch: opts.fetch,
+          decompress: opts.decompress,
+          cache,
+        });
+      }
+
+      if (compression === COMPRESSION.GZIP_PREFERRED
+          && typeof UA.fetchJsonCompressed === 'function') {
+        return await UA.fetchJsonCompressed(logicalUrl, {
+          fetch: opts.fetch,
+          decompress: opts.decompress,
+          cache,
+          gzipOnly: opts.gzipOnly,
+        });
+      }
+
+      return await fetchRawJson(logicalUrl, { ...opts, cache });
+    } catch (error) {
+      if (opts.optional === true) return null;
+      const message = String(error && error.message ? error.message : error);
+      throw new Error(`[DataResources] failed to load ${logicalUrl}: ${message}`);
+    }
+  }
+
+  function fetchJson(kind, params, options) {
+    const descriptor = resolve(kind, params);
+    // A resource's declared compression mode is authoritative. In particular,
+    // callers cannot accidentally enable a raw fallback for context tiles.
+    return fetchJsonUrl(descriptor.logicalUrl, {
+      ...(options || {}),
+      cache: (options && options.cache) || descriptor.cache,
+      compression: descriptor.compression,
+    });
+  }
+
+  const DataResources = Object.freeze({
+    COMPRESSION,
+    definitions,
+    resolve,
+    url(kind, params) { return resolve(kind, params).logicalUrl; },
+    fetchJson,
+    fetchJsonUrl,
+  });
+
+  const DataPaths = Object.freeze({
     accidentGeoJson(cityRaw) {
-      return `out/output_all_years_${_slug(cityRaw)}.geojson`;
+      return DataResources.url('accidentGeoJson', { city: cityRaw });
     },
-
-    /**
-     * Path to the POI GeoJSON for a city.
-     * Example: out/poi_berlin.geojson
-     */
     poiGeoJson(cityRaw) {
-      return `out/poi_${_slug(cityRaw)}.geojson`;
+      return DataResources.url('poiGeoJson', { city: cityRaw });
     },
-
-    /**
-     * Path to the OSM/DEM/Traffic context-ways JSON for a city.
-     * Example: out/ways_berlin.json
-     */
     contextWays(cityRaw) {
-      return `out/ways_${_slug(cityRaw)}.json`;
+      return DataResources.url('contextWays', { city: cityRaw });
     },
-
-    /**
-     * Path to the enrichment metadata sidecar for a city.
-     * Example: out/output_all_years_berlin.enrichment.meta.json
-     */
     enrichmentMeta(cityRaw) {
-      return `out/output_all_years_${_slug(cityRaw)}.enrichment.meta.json`;
+      return DataResources.url('enrichmentMeta', { city: cityRaw });
     },
-
-    /**
-     * Path to the v3 context-tile index manifest for a city.
-     * Example: out/ctxtiles/berlin/index.json
-     */
     contextTileIndex(cityRaw) {
-      return `out/ctxtiles/${_slug(cityRaw)}/index.json`;
+      return DataResources.url('contextTileIndex', { city: cityRaw });
     },
-
-    /**
-     * Path to a single v3 context tile.
-     * Example: out/ctxtiles/berlin/13/4200/2750.json
-     */
-    contextTile(cityRaw, z, x, y) {
-      return `out/ctxtiles/${_slug(cityRaw)}/${z}/${x}/${y}.json`;
+    contextTile(cityRaw, zOrX, xOrY, maybeY) {
+      // Compatibility with the historical (city,z,x,y) signature. Context v3
+      // never stored z in the path; when four arguments are supplied the zoom
+      // is intentionally ignored and x/y are taken from the last two values.
+      const x = maybeY === undefined ? zOrX : xOrY;
+      const y = maybeY === undefined ? xOrY : maybeY;
+      return DataResources.url('contextTile', { city: cityRaw, x, y });
     },
-
-    /**
-     * Path to the accident-tile index manifest for a city.
-     * Example: out/accidenttiles/berlin/index.json
-     */
     accidentTileIndex(cityRaw) {
-      return `out/accidenttiles/${_slug(cityRaw)}/index.json`;
+      return DataResources.url('accidentTileIndex', { city: cityRaw });
     },
-
-    /**
-     * Path to a single accident tile.
-     * Example: out/accidenttiles/berlin/13/4200/2750.json
-     */
     accidentTile(cityRaw, z, x, y) {
-      return `out/accidenttiles/${_slug(cityRaw)}/${z}/${x}/${y}.json`;
+      return DataResources.url('accidentTile', { city: cityRaw, z, x, y });
     },
-  };
+  });
 
+  UA.DataResources = DataResources;
   UA.DataPaths = DataPaths;
 
   // Optional missing-data recovery UI. Loading it here keeps the existing HTML
   // entry point unchanged and makes the same button available on GitHub Pages
-  // and in the Docker server. The module is self-initialising and degrades to a
-  // safe GitHub Actions link when no local API exists. Minimal test/document
-  // doubles may not implement the complete DOM API, so guard every primitive.
+  // and in the Docker server. Minimal test/document doubles may not implement
+  // the complete DOM API, so guard every primitive.
   if (typeof document !== 'undefined'
       && typeof document.querySelector === 'function'
       && typeof document.createElement === 'function'
