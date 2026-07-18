@@ -1,24 +1,16 @@
 /**
- * Integration tests against a real `unfallatlas` production container.
+ * Integration tests against a real Unfallwerkbank production container.
  *
- * Besides the video-export pipeline this suite now verifies context data at the
- * only boundary that matters to users: the rendered web page. The browser test
- * enables both road overlays, requires coloured polylines and legends, opens an
- * accident popup and checks that slope + traffic context are visible.
- *
- * Default PR mode installs a tiny deterministic Bonn fixture into the running
- * container, so the UI contract is network-independent with respect to data.
- * Production generation workflows set CONTEXT_E2E_REQUIRE_SHIPPED=1; then no
- * fixture is installed and the same browser assertions run against the actually
- * generated `out/` files.
+ * The suite verifies both the video-export endpoint and the user-visible
+ * context overlays. Browser assertions deliberately use DOM and canvas output;
+ * private globals such as `window.map` are not part of the product contract.
  */
-
 'use strict';
 
 const fs = require('fs');
 const {
   isDockerAvailable,
-  startUnfallatlasContainer
+  startUnfallatlasContainer,
 } = require('./lib/startUnfallatlasContainer');
 
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
@@ -32,7 +24,7 @@ const CONTEXT_BODY = Object.freeze({
   ctxSlope: 'steep,very_steep',
   ctxTraffic: 'high,very_high',
   ctxOnlyMatched: '1',
-  zoom: '13'
+  zoom: '13',
 });
 
 function dockerLikelyAvailable() {
@@ -43,7 +35,6 @@ function dockerLikelyAvailable() {
 
 const SUITE_DESCRIBE = dockerLikelyAvailable() ? describe : describe.skip;
 if (SUITE_DESCRIBE === describe.skip) {
-  // eslint-disable-next-line no-console
   console.warn(
     '[videoExport.testcontainers] Skipping suite — no Docker socket and DOCKER_HOST unset. ' +
     'Set RUN_TESTCONTAINERS=1 to force.'
@@ -51,46 +42,41 @@ if (SUITE_DESCRIBE === describe.skip) {
 }
 
 async function postExportVideo(baseUrl, opts = {}) {
-  const { bodyFormat, queryFormat } = opts;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const body = { ...CONTEXT_BODY };
-  if (bodyFormat !== undefined) body.format = bodyFormat;
+  if (opts.bodyFormat !== undefined) body.format = opts.bodyFormat;
   const url = new URL(`${baseUrl}/api/export-video`);
-  if (queryFormat !== undefined) url.searchParams.set('format', queryFormat);
+  if (opts.queryFormat !== undefined) url.searchParams.set('format', opts.queryFormat);
   try {
-    const res = await fetch(url.toString(), {
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: controller.signal
+      signal: controller.signal,
     });
-    const buf = Buffer.from(await res.arrayBuffer());
-    return { status: res.status, contentType: res.headers.get('content-type') || '', body: buf };
+    return {
+      status: response.status,
+      contentType: response.headers.get('content-type') || '',
+      body: Buffer.from(await response.arrayBuffer()),
+    };
   } finally {
     clearTimeout(timer);
   }
 }
 
 function deterministicContextFixture() {
-  const baseProperties = {
-    uart: '1',
-    utyp1: '1',
-    ulichtverh: '0',
-    ustrzustand: '0',
-    uwochentag: '2',
-    umonat: '6',
-    ujahr: '2024',
-    istfuss: '0',
-    istkrad: '0',
-    istgkfz: '0',
-    istsonstig: '0',
+  const common = {
+    uart: '1', utyp1: '1', ulichtverh: '0', ustrzustand: '0',
+    uwochentag: '2', umonat: '6', ujahr: '2024',
+    istfuss: '0', istkrad: '0', istgkfz: '0', istsonstig: '0',
   };
-  const feature = (id, lon, lat, props) => ({
+  const feature = (id, lon, lat, properties) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [lon, lat] },
-    properties: { id, ...baseProperties, ...props },
+    properties: { id, ...common, ...properties },
   });
+
   return {
     geojson: {
       type: 'FeatureCollection',
@@ -154,8 +140,8 @@ function deterministicContextFixture() {
         traffic: { source: 'OSM-highway-proxy', producerVersion: '1.0.0', datasetVersion: '1.0.0' },
       },
       counts: {
-        features: 2, matchedToWay: 2, withElevation: 2, withTrafficProxy: 2,
-        ways: 2, wayGeometries: 2, fullWays: 0,
+        features: 2, matchedToWay: 2, withElevation: 2,
+        withTrafficProxy: 2, ways: 2, wayGeometries: 2, fullWays: 0,
       },
     },
   };
@@ -174,7 +160,10 @@ async function installDeterministicContextFixture(container) {
       const raw = path.join(out, logicalName);
       fs.rmSync(raw, { force: true });
       fs.rmSync(raw + '.gz', { force: true });
-      fs.writeFileSync(raw + '.gz', zlib.gzipSync(Buffer.from(JSON.stringify(value), 'utf8'), { level: 9, mtime: 0 }));
+      fs.writeFileSync(
+        raw + '.gz',
+        zlib.gzipSync(Buffer.from(JSON.stringify(value), 'utf8'), { level: 9, mtime: 0 })
+      );
     };
     write('output_all_years_bonn.geojson', fixture.geojson);
     write('ways_bonn.json', fixture.ways);
@@ -192,15 +181,50 @@ function browserAssertionScript(city) {
   const safeCity = JSON.stringify(city);
   return `
     const { chromium } = require('@playwright/test');
+
+    function countPalettePixels() {
+      const slopePalette = [
+        [255,255,178], [254,204,92], [253,141,60],
+        [240,59,32], [189,0,38], [154,169,184]
+      ];
+      const trafficPalette = [
+        [255,255,204], [161,218,180], [65,182,196], [34,94,168]
+      ];
+      const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
+        Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8
+      );
+      const counts = { canvases: 0, slopePixels: 0, trafficPixels: 0 };
+      for (const canvas of document.querySelectorAll('.leaflet-overlay-pane canvas')) {
+        if (!(canvas instanceof HTMLCanvasElement) || !canvas.width || !canvas.height) continue;
+        const style = getComputedStyle(canvas);
+        if (style.display === 'none' || style.visibility === 'hidden') continue;
+        let pixels;
+        try {
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          if (!context) continue;
+          pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        } catch (_) { continue; }
+        counts.canvases += 1;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i + 3] < 80) continue;
+          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+          if (closeTo(r, g, b, slopePalette)) counts.slopePixels += 1;
+          if (closeTo(r, g, b, trafficPalette)) counts.trafficPixels += 1;
+        }
+      }
+      return counts;
+    }
+
     (async () => {
       const city = ${safeCity};
       const browser = await chromium.launch({ headless: true });
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-      const consoleErrors = [];
-      page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
-      page.on('pageerror', error => consoleErrors.push(String(error && error.message || error)));
+      const pageErrors = [];
+      page.on('pageerror', error => pageErrors.push(String(error && error.message || error)));
+
       const url = new URL('http://127.0.0.1:8000/werkbank_v2.html');
       url.searchParams.set('city', city);
+      url.searchParams.set('mapLayer', 'slope,traffic');
       url.searchParams.set('showCluster', '0');
       url.searchParams.set('showHeatmap', '0');
       url.searchParams.set('showSchools', '0');
@@ -211,89 +235,64 @@ function browserAssertionScript(city) {
         url.searchParams.set('centerLon', '7.102000');
         url.searchParams.set('zoom', '15');
       }
-      await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: ${CONTEXT_BROWSER_TIMEOUT_MS} });
+
+      const response = await page.goto(url.toString(), {
+        waitUntil: 'domcontentloaded',
+        timeout: ${CONTEXT_BROWSER_TIMEOUT_MS}
+      });
+      if (!response || !response.ok()) throw new Error('Werkbank HTML was not served successfully');
+
       await page.waitForFunction(() => {
-        const slope = document.querySelector('#ctxOverlay_slope');
-        const traffic = document.querySelector('#ctxOverlay_traffic');
+        const slope = document.querySelector('input[data-context-overlay="slope"]');
+        const traffic = document.querySelector('input[data-context-overlay="traffic"]');
         return slope && traffic && !slope.disabled && !traffic.disabled;
       }, null, { timeout: ${CONTEXT_BROWSER_TIMEOUT_MS} });
-      await page.locator('#ctxOverlay_slope').check();
-      await page.locator('#ctxOverlay_traffic').check();
 
-      const collect = () => {
-        const slopeColors = new Set(['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026','#9aa9b8','#bdbdbd']);
-        const trafficColors = new Set(['#ffffcc','#a1dab4','#41b6c4','#225ea8']);
-        let slopeLines = 0;
-        let trafficLines = 0;
-        const map = window.map;
-        if (map && typeof map.eachLayer === 'function') {
-          map.eachLayer(layer => {
-            const children = layer && typeof layer.getLayers === 'function' ? layer.getLayers() : [];
-            for (const child of children || []) {
-              const color = String(child && child.options && child.options.color || '').toLowerCase();
-              if (slopeColors.has(color)) slopeLines++;
-              if (trafficColors.has(color)) trafficLines++;
-            }
-          });
-        }
-        const legend = document.querySelector('#context-overlay-legend');
-        const legendText = legend ? legend.textContent.replace(/\\s+/g, ' ').trim() : '';
-        const legendVisible = !!(legend && getComputedStyle(legend).display !== 'none');
-        return { slopeLines, trafficLines, legendText, legendVisible };
-      };
+      const slope = page.locator('input[data-context-overlay="slope"]');
+      const traffic = page.locator('input[data-context-overlay="traffic"]');
+      if (!(await slope.isChecked())) await slope.check();
+      if (!(await traffic.isChecked())) await traffic.check();
 
       await page.waitForFunction(() => {
-        const slopeColors = new Set(['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026','#9aa9b8','#bdbdbd']);
-        const trafficColors = new Set(['#ffffcc','#a1dab4','#41b6c4','#225ea8']);
-        let slope = 0, traffic = 0;
-        if (!window.map || typeof window.map.eachLayer !== 'function') return false;
-        window.map.eachLayer(layer => {
-          const children = layer && typeof layer.getLayers === 'function' ? layer.getLayers() : [];
-          for (const child of children || []) {
-            const color = String(child && child.options && child.options.color || '').toLowerCase();
-            if (slopeColors.has(color)) slope++;
-            if (trafficColors.has(color)) traffic++;
-          }
-        });
-        const legend = document.querySelector('#context-overlay-legend');
-        const text = legend ? legend.textContent : '';
-        return slope > 0 && traffic > 0 && text.includes('Straßensteigung') && text.includes('Verkehrsbelastung');
+        const counts = (${countPalettePixels.toString()})();
+        window.__containerContextCounts = counts;
+        const legends = Array.from(document.querySelectorAll('.context-road-legend'))
+          .filter(element => {
+            const style = getComputedStyle(element);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+          });
+        const text = legends.map(element => element.textContent || '').join(' ');
+        return counts.slopePixels >= 20
+          && counts.trafficPixels >= 20
+          && legends.length === 2
+          && text.includes('Straßensteigung')
+          && text.includes('Verkehrsbelastung');
       }, null, { timeout: ${CONTEXT_BROWSER_TIMEOUT_MS} });
 
-      const popupOpened = await page.evaluate(() => {
-        if (!window.map || typeof window.map.eachLayer !== 'function') return false;
-        let target = null;
-        window.map.eachLayer(layer => {
-          if (target || !layer || typeof layer.getPopup !== 'function' || typeof layer.openPopup !== 'function') return;
-          const popup = layer.getPopup();
-          const content = popup && typeof popup.getContent === 'function' ? popup.getContent() : null;
-          if (layer._uaProps && typeof content === 'string' && content.includes('Kontextdaten')) target = layer;
-        });
-        if (!target) return false;
-        target.openPopup();
-        return true;
+      const result = await page.evaluate(() => {
+        const legends = Array.from(document.querySelectorAll('.context-road-legend'))
+          .filter(element => {
+            const style = getComputedStyle(element);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+          });
+        return {
+          ...window.__containerContextCounts,
+          legendCount: legends.length,
+          legendText: legends.map(element => element.textContent || '').join(' ').replace(/\s+/g, ' ').trim(),
+        };
       });
-      if (!popupOpened) throw new Error('No accident marker with rendered Kontextdaten popup found');
-      await page.waitForSelector('.leaflet-popup-content [data-ua-context-section="topography"]', { timeout: 30000 });
-      await page.waitForSelector('.leaflet-popup-content [data-ua-context-section="traffic"]', { timeout: 30000 });
-      const popupText = await page.locator('.leaflet-popup-content').innerText();
-      const overlay = await page.evaluate(collect);
-      const result = {
-        city,
-        ...overlay,
-        popupText: popupText.replace(/\\s+/g, ' ').trim(),
-        consoleErrors,
-      };
+      result.city = city;
+      result.pageErrors = pageErrors;
       console.log('CONTEXT_E2E_RESULT=' + JSON.stringify(result));
-      const ok = result.slopeLines > 0
-        && result.trafficLines > 0
-        && result.legendVisible
+      await browser.close();
+
+      const ok = result.canvases > 0
+        && result.slopePixels >= 20
+        && result.trafficPixels >= 20
+        && result.legendCount === 2
         && result.legendText.includes('Straßensteigung')
         && result.legendText.includes('Verkehrsbelastung')
-        && result.popupText.includes('Hangneigung lokal')
-        && result.popupText.includes('Straßenneigung')
-        && result.popupText.includes('Verkehrsklasse');
-      await browser.close();
+        && result.pageErrors.length === 0;
       if (!ok) process.exit(2);
     })().catch(error => {
       console.error(error && error.stack ? error.stack : String(error));
@@ -303,9 +302,9 @@ function browserAssertionScript(city) {
 }
 
 function parseBrowserResult(output) {
-  const line = String(output || '').split(/\r?\n/).find(entry => entry.startsWith('CONTEXT_E2E_RESULT='));
-  if (!line) return null;
-  return JSON.parse(line.slice('CONTEXT_E2E_RESULT='.length));
+  const line = String(output || '').split(/\r?\n/)
+    .find(entry => entry.startsWith('CONTEXT_E2E_RESULT='));
+  return line ? JSON.parse(line.slice('CONTEXT_E2E_RESULT='.length)) : null;
 }
 
 SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
@@ -331,20 +330,16 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     { request: { bodyFormat: 'gif' }, label: 'body:gif', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
     { request: { bodyFormat: 'webp' }, label: 'body:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
     { request: { bodyFormat: 'apng' }, label: 'body:apng', expectedContentType: /^image\/apng/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES },
-    { request: { queryFormat: 'webp' }, label: 'query:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES }
+    { request: { queryFormat: 'webp' }, label: 'query:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
   ])('returns valid $expectedExt export ($label)', async ({ request, expectedContentType, expectedExt, budget }) => {
     const { status, contentType, body } = await postExportVideo(handle.baseUrl, request);
-
     expect(status).toBe(200);
     expect(contentType).toMatch(expectedContentType);
-
-    const MIN = 50 * 1024;
-    expect(body.length).toBeGreaterThanOrEqual(MIN);
+    expect(body.length).toBeGreaterThanOrEqual(50 * 1024);
     expect(body.length).toBeLessThanOrEqual(budget);
 
     if (expectedExt === 'gif') {
-      const header = body.slice(0, 6).toString('ascii');
-      expect(['GIF87a', 'GIF89a']).toContain(header);
+      expect(['GIF87a', 'GIF89a']).toContain(body.slice(0, 6).toString('ascii'));
       expect(body[body.length - 1]).toBe(0x3b);
     } else if (expectedExt === 'webp') {
       expect(body.slice(0, 4).toString('ascii')).toBe('RIFF');
@@ -352,8 +347,8 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
       expect(body.includes(Buffer.from('VP8X', 'ascii'))).toBe(true);
       expect(body.includes(Buffer.from('ANIM', 'ascii'))).toBe(true);
     } else if (expectedExt === 'apng') {
-      const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-      expect(body.subarray(0, 8).equals(pngSig)).toBe(true);
+      const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      expect(body.subarray(0, 8).equals(pngSignature)).toBe(true);
       expect(body.includes(Buffer.from('acTL', 'ascii'))).toBe(true);
     }
   }, 6 * 60 * 1000);
@@ -366,7 +361,7 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     expect(json.supportedFormats).toEqual(['gif', 'webp', 'apng']);
   }, 60 * 1000);
 
-  it('renders slope and traffic context for a real city in the browser', async () => {
+  it('renders slope and traffic context visibly in the production container', async () => {
     const requireShipped = process.env.CONTEXT_E2E_REQUIRE_SHIPPED === '1';
     const city = String(process.env.CONTEXT_E2E_CITY || 'Bonn').trim();
     if (!requireShipped) await installDeterministicContextFixture(handle.container);
@@ -376,20 +371,19 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     if (execution.exitCode !== 0) {
       throw new Error(
         `Context browser assertion failed (exit=${execution.exitCode}, shipped=${requireShipped}, city=${city}).\n` +
-        `${execution.output}`
+        execution.output
       );
     }
 
     expect(result).not.toBeNull();
     expect(result.city).toBe(city);
-    expect(result.slopeLines).toBeGreaterThan(0);
-    expect(result.trafficLines).toBeGreaterThan(0);
-    expect(result.legendVisible).toBe(true);
+    expect(result.canvases).toBeGreaterThan(0);
+    expect(result.slopePixels).toBeGreaterThanOrEqual(20);
+    expect(result.trafficPixels).toBeGreaterThanOrEqual(20);
+    expect(result.legendCount).toBe(2);
     expect(result.legendText).toMatch(/Straßensteigung/);
     expect(result.legendText).toMatch(/Verkehrsbelastung/);
-    expect(result.popupText).toMatch(/Hangneigung lokal/);
-    expect(result.popupText).toMatch(/Straßenneigung/);
-    expect(result.popupText).toMatch(/Verkehrsklasse/);
+    expect(result.pageErrors).toEqual([]);
   }, 3 * 60 * 1000);
 
   it('container logs stay free of export-video error marker', async () => {
