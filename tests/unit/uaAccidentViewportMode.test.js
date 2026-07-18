@@ -50,15 +50,17 @@ function bounds() {
 }
 
 function ctx() {
+  const mapBounds = bounds();
   return {
     CITY_RAW: 'Bonn',
-    map: { getBounds: bounds },
+    map: { getBounds: () => mapBounds },
+    mapBounds,
     ui: { dataSourceCode: { textContent: '' } },
   };
 }
 
 describe('accidentDataMode viewport pilot', () => {
-  test('full city remains the default even when a tiled provider is registered', async () => {
+  test('full city remains the default without probing the tiled manifest', async () => {
     const win = makeWindow();
     const tiled = {
       type: win.UA.AccidentProvider.PROVIDER_TYPES.TILED,
@@ -72,6 +74,7 @@ describe('accidentDataMode viewport pilot', () => {
     const context = ctx();
     await win.UA.loadCityData(context);
 
+    expect(tiled.canProvideForCity).not.toHaveBeenCalled();
     expect(tiled.fetchForBbox).not.toHaveBeenCalled();
     expect(context.allPts[0].props.id).toBe('full');
     expect(context.accidentDataMode).toBe('full');
@@ -101,7 +104,7 @@ describe('accidentDataMode viewport pilot', () => {
     const context = ctx();
     await win.UA.loadCityData(context);
 
-    expect(tiled.fetchForBbox).toHaveBeenCalledWith('Bonn', context.map.getBounds());
+    expect(tiled.fetchForBbox).toHaveBeenCalledWith('Bonn', context.mapBounds);
     expect(tiled.fetchForCity).not.toHaveBeenCalled();
     expect(context.allPts[0].props.id).toBe('viewport');
     expect(context.accidentDataCoverage).toEqual(expect.objectContaining({
