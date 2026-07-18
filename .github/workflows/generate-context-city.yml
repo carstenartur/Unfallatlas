@@ -31,6 +31,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: 'npm'
 
       - name: Set up Git
         run: |
@@ -45,8 +46,9 @@ jobs:
             .enrichment-cache/dem
             .enrichment-cache/traffic
             .enrichment-cache/dem-tiles
-          key: context-city-${{ runner.os }}-${{ inputs.city }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}
+          key: context-city-${{ runner.os }}-${{ inputs.city }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}-${{ github.run_id }}
           restore-keys: |
+            context-city-${{ runner.os }}-${{ inputs.city }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}-
             context-city-${{ runner.os }}-${{ inputs.city }}-
             context-city-${{ runner.os }}-
           save-always: true
@@ -74,6 +76,18 @@ jobs:
           UNFALLATLAS_DATA_MODE: gzip-only
         run: node scripts/check-context-datasets.js
 
+      - name: Install integration-test dependencies
+        run: npm ci
+
+      - name: Verify selected city in the real web page
+        env:
+          RUN_TESTCONTAINERS: '1'
+          CONTEXT_E2E_REQUIRE_SHIPPED: '1'
+          CONTEXT_E2E_CITY: ${{ inputs.city }}
+        run: >-
+          npm run test:integration:tc -- --runInBand
+          -t "renders slope and traffic context for a real city in the browser"
+
       - name: Commit generated city data
         shell: bash
         run: |
@@ -96,4 +110,5 @@ jobs:
             echo "- City: \`${{ inputs.city }}\`"
             echo "- Force producers: \`${{ inputs.force }}\`"
             echo "- Atomic generator: \`scripts/generate-context-city.js\`"
+            echo "- Browser integration: real slope and traffic overlays + popup"
           } >> "$GITHUB_STEP_SUMMARY"
