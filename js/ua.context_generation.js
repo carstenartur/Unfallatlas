@@ -142,16 +142,34 @@
     );
   }
 
+  function missingContextLabels() {
+    const section = document.getElementById('ctxFilterSection');
+    if (!section || section.hidden) return [];
+    const rows = [
+      ['Steigung', document.getElementById('ctxSlopeRow')],
+      ['Verkehrsproxy', document.getElementById('ctxTrafficRow')],
+      ['OSM-Straßenbezug', document.getElementById('ctxOnlyMatchedRow')],
+    ];
+    return rows.filter(([, row]) => !row || row.hidden).map(([label]) => label);
+  }
+
   function buildControls(container) {
     let wrap = document.getElementById('ctxGenerationActions');
     if (wrap) return wrap;
     wrap = document.createElement('div');
     wrap.id = 'ctxGenerationActions';
+    wrap.hidden = true;
     wrap.style.marginTop = '8px';
     wrap.style.padding = '8px';
     wrap.style.border = '1px solid rgba(0,0,0,.14)';
     wrap.style.borderRadius = '8px';
     wrap.style.background = 'rgba(255,255,255,.72)';
+
+    const heading = document.createElement('div');
+    heading.id = 'ctxGenerationHeading';
+    heading.style.fontSize = '12px';
+    heading.style.fontWeight = '700';
+    heading.style.marginBottom = '6px';
 
     const button = document.createElement('button');
     button.id = 'ctxGenerateMissingBtn';
@@ -168,20 +186,26 @@
     status.style.fontSize = '11px';
     status.style.lineHeight = '1.4';
 
-    wrap.append(button, status);
+    wrap.append(heading, button, status);
     container.appendChild(wrap);
     return wrap;
   }
 
   async function configure() {
-    const empty = document.getElementById('ctxFilterEmpty');
-    if (!empty) return;
-    const wrap = buildControls(empty);
+    const section = document.getElementById('ctxFilterSection');
+    if (!section) return;
+    const wrap = buildControls(section);
     const button = wrap.querySelector('#ctxGenerateMissingBtn');
     const status = wrap.querySelector('#ctxGenerationStatus');
+    const heading = wrap.querySelector('#ctxGenerationHeading');
     if (!button || button.dataset.configuring === '1') return;
-    button.dataset.configuring = '1';
 
+    const missing = missingContextLabels();
+    wrap.hidden = missing.length === 0;
+    if (wrap.hidden) return;
+    if (heading) heading.textContent = `Fehlende Kontextdaten: ${missing.join(', ')}`;
+
+    button.dataset.configuring = '1';
     const city = selectedCity();
     setStatus(status, 'Prüfe verfügbaren Generierungsweg …', 'progress');
     const capability = await detectLocalCapability(city);
@@ -189,7 +213,7 @@
     button.disabled = false;
 
     if (capability && capability.available && capability.execution === 'local-docker') {
-      button.textContent = `Fehlende Kontextdaten für ${city} lokal erzeugen`;
+      button.textContent = `Kontextdaten für ${city} lokal neu erzeugen`;
       button.onclick = () => startLocalGeneration(city, capability, status, button);
       const active = capability.activeJob;
       if (active && active.id) {
@@ -216,16 +240,25 @@
 
   function init() {
     configure();
-    const empty = document.getElementById('ctxFilterEmpty');
-    if (empty && typeof MutationObserver !== 'undefined') {
-      const observer = new MutationObserver(() => {
-        if (!empty.hidden) configure();
-      });
-      observer.observe(empty, { attributes: true, attributeFilter: ['hidden'] });
+    const observed = [
+      document.getElementById('ctxFilterSection'),
+      document.getElementById('ctxSlopeRow'),
+      document.getElementById('ctxTrafficRow'),
+      document.getElementById('ctxOnlyMatchedRow'),
+    ].filter(Boolean);
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(() => configure());
+      for (const element of observed) observer.observe(element, { attributes: true, attributeFilter: ['hidden'] });
     }
   }
 
-  UA.ContextGeneration = { init, configure, detectLocalCapability, selectedCity };
+  UA.ContextGeneration = {
+    init,
+    configure,
+    detectLocalCapability,
+    selectedCity,
+    missingContextLabels,
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
 })();
