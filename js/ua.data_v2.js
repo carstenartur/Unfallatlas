@@ -1,14 +1,21 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
+  function resources() {
+    if (!UA.DataResources) {
+      throw new Error('UA.DataResources must be loaded before ua.data_v2.js');
+    }
+    return UA.DataResources;
+  }
+
   UA.extractPoints = function extractPoints(geojson){
     const pts = [];
     const feats = geojson?.features || [];
     for (const f of feats){
       const g = f?.geometry;
-      if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
+      if (!g || g.type !== 'Point' || !Array.isArray(g.coordinates)) continue;
       const [lon, lat] = g.coordinates;
-      if (typeof lat !== "number" || typeof lon !== "number") continue;
+      if (typeof lat !== 'number' || typeof lon !== 'number') continue;
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
       if (Math.abs(lat) < 1 && Math.abs(lon) < 1) continue;
       if (lat < 46 || lat > 56 || lon < 4 || lon > 17) continue;
@@ -18,190 +25,116 @@
   };
 
   UA.buildDataUrl = function buildDataUrl(cityRaw){
-    // Delegate to the central path registry when available (ua.data_paths.js).
-    if (UA.DataPaths && typeof UA.DataPaths.accidentGeoJson === 'function') {
-      return UA.DataPaths.accidentGeoJson(cityRaw);
-    }
-    const suffix = UA.normKey(cityRaw);
-    return `out/output_all_years_${suffix}.geojson`;
+    return resources().url('accidentGeoJson', { city: cityRaw });
   };
 
   UA.buildPOIUrl = function buildPOIUrl(cityRaw){
-    // Delegate to the central path registry when available (ua.data_paths.js).
-    if (UA.DataPaths && typeof UA.DataPaths.poiGeoJson === 'function') {
-      return UA.DataPaths.poiGeoJson(cityRaw);
-    }
-    const suffix = UA.normKey(cityRaw);
-    return `out/poi_${suffix}.geojson`;
+    return resources().url('poiGeoJson', { city: cityRaw });
   };
+
+  async function fetchAccidentGeoJson(cityRaw) {
+    const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
+    const provider = registry
+      ? (typeof registry.resolveAsync === 'function'
+          ? await registry.resolveAsync(cityRaw)
+          : registry.resolve(cityRaw))
+      : null;
+    if (provider && typeof provider.fetchForCity === 'function') {
+      return provider.fetchForCity(cityRaw);
+    }
+    return resources().fetchJson('accidentGeoJson', { city: cityRaw });
+  }
+
+  function refreshContextState(ctx, geojson) {
+    ctx.geojsonProps = geojson?.properties || null;
+    if (!UA.contextLayers || typeof UA.contextLayers.detect !== 'function') {
+      ctx.contextLayerDetection = null;
+      ctx.contextCapabilities = null;
+      ctx.contextLayerState = null;
+      if (typeof UA.updateEnrichmentProvenance === 'function') {
+        try { UA.updateEnrichmentProvenance(ctx); } catch (_) {}
+      }
+      return;
+    }
+
+    const detection = UA.contextLayers.detect(geojson);
+    ctx.contextLayerDetection = detection;
+    ctx.contextCapabilities = typeof UA.contextLayers.capabilitiesFromDetection === 'function'
+      ? UA.contextLayers.capabilitiesFromDetection(detection)
+      : null;
+    ctx.contextLayerState = null;
+
+    if (typeof UA.updateEnrichmentProvenance === 'function') {
+      try { UA.updateEnrichmentProvenance(ctx); } catch (_) {}
+    }
+
+    if (!ctx.contextCapabilities?.hasOsmContext
+        || typeof UA.contextLayers.loadAtIdle !== 'function') return;
+
+    const expectedSlug = UA.normKey
+      ? UA.normKey(ctx.CITY_RAW)
+      : String(ctx.CITY_RAW || '').toLowerCase();
+    try {
+      Promise.resolve(UA.contextLayers.loadAtIdle(ctx, ctx.CITY_RAW))
+        .then(state => {
+          const currentSlug = UA.normKey
+            ? UA.normKey(ctx.CITY_RAW)
+            : String(ctx.CITY_RAW || '').toLowerCase();
+          if (currentSlug !== expectedSlug) return;
+          ctx.contextLayerState = state || null;
+
+          const hasBuiltLayer = !!(ctx.clusterLayer || ctx.heatLayer);
+          if (hasBuiltLayer && typeof UA.renderLayers === 'function' && ctx.map) {
+            ctx._dataChanged = true;
+            try { UA.renderLayers(ctx); } catch (_) {}
+          }
+          if (typeof UA.refreshContextOverlays === 'function' && ctx.map) {
+            try { UA.refreshContextOverlays(ctx); } catch (_) {}
+          }
+          if (typeof UA.updateEnrichmentProvenance === 'function') {
+            try { UA.updateEnrichmentProvenance(ctx); } catch (_) {}
+          }
+        })
+        .catch(() => {});
+    } catch (_) {}
+  }
 
   UA.loadCityData = async function loadCityData(ctx){
     const url = UA.buildDataUrl(ctx.CITY_RAW);
     ctx.DATA_URL = url;
     ctx.ui.dataSourceCode.textContent = url;
 
-    // Prefer the registered AccidentProvider (architecture boundary, Issue #312).
-    // Falls back to direct fetch so existing behaviour is preserved when
-    // the provider is unavailable (e.g. tests that don't load the module).
-    let gj;
-    const _registry = (UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry)
-      ? UA.AccidentProvider.ProviderRegistry
-      : null;
-    const _provider = _registry
-      ? (typeof _registry.resolveAsync === 'function'
-          ? await _registry.resolveAsync(ctx.CITY_RAW)
-          : _registry.resolve(ctx.CITY_RAW))
-      : null;
-    if (_provider && typeof _provider.fetchForCity === 'function') {
-      try {
-        gj = await _provider.fetchForCity(ctx.CITY_RAW);
-      } catch (err) {
-        throw new Error(`GeoJSON konnte nicht geladen werden: ${err.message}`);
-      }
-    } else {
-      // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
-      if (typeof UA.fetchJsonCompressed === 'function') {
-        try {
-          gj = await UA.fetchJsonCompressed(url);
-        } catch (err) {
-          throw new Error(`GeoJSON konnte nicht geladen werden: ${err.message}`);
-        }
-      } else {
-        const resp = await fetch(url, { cache:"no-store" });
-        if (!resp.ok) throw new Error(`GeoJSON konnte nicht geladen werden (${resp.status}): ${url}`);
-        gj = await resp.json();
-      }
+    let geojson;
+    try {
+      geojson = await fetchAccidentGeoJson(ctx.CITY_RAW);
+    } catch (error) {
+      const message = String(error && error.message ? error.message : error);
+      throw new Error(`GeoJSON konnte nicht geladen werden: ${message}`);
     }
-    ctx.geojsonProps = gj?.properties || null;
-    if (UA.contextLayers && typeof UA.contextLayers.detect === 'function') {
-      // Detect once per GeoJSON load; capability flags are derived via
-      // the central helper so loader/UI/tests cannot drift out of
-      // sync. The detection result itself is also cached on `ctx` for
-      // future panels/legends/exports that want the raw field list.
-      const detection = UA.contextLayers.detect(gj);
-      ctx.contextLayerDetection = detection;
-      ctx.contextCapabilities = (typeof UA.contextLayers.capabilitiesFromDetection === 'function')
-        ? UA.contextLayers.capabilitiesFromDetection(detection)
-        : null;
 
-      // Lazy-load ways_<city>.json + sidecar meta in the background as
-      // soon as we know the FeatureCollection carries OSM context. The
-      // resolved state is stashed on ctx.contextLayerState so popup
-      // composition (UA.composeAccidentPopupHtml) can hydrate per-way
-      // attributes (highway/maxspeed/lanes/surface/cycleway/osm_incline/
-      // road_slope_percent) onto the per-feature props at render time.
-      // This is fire-and-forget: if the state is not yet ready when a
-      // popup opens, the renderer simply falls back to per-feature data
-      // (no waiting, no spinner — see plan PR-C "Race-tolerant").
-      //
-      // Two follow-up safeguards from PR-C review:
-      //   1. Capture the city slug at scheduling time and only stash
-      //      the resolved state if `ctx.CITY_RAW` still matches when
-      //      the promise resolves. Otherwise an in-place city switch
-      //      (Tour mode, citySel.change without page reload) could
-      //      overwrite the new city's state with the previous city's.
-      //   2. Trigger a lightweight rebuild (`renderLayers` with
-      //      `_dataChanged = true`) once the state arrives, so already
-      //      bound markers gain popups without requiring a zoom/data
-      //      change. Guarded behind feature detection — the loader
-      //      stays usable in test environments without a full UI.
-      ctx.contextLayerState = null;
-      // Clear stale provenance from the previously loaded city
-      // *immediately* — the tooltip is otherwise refreshed only after
-      // loadAtIdle() resolves, which can be many idle ticks later on
-      // large GeoJSON loads. Without this synchronous clear the user
-      // would briefly see the previous city's "ⓘ Datenstand" content
-      // attached to the new city's header.
-      if (typeof UA.updateEnrichmentProvenance === 'function') {
-        try { UA.updateEnrichmentProvenance(ctx); } catch (_) { /* keep going */ }
-      }
-      if (ctx.contextCapabilities && ctx.contextCapabilities.hasOsmContext
-          && typeof UA.contextLayers.loadAtIdle === 'function') {
-        const expectedSlug = (UA.normKey ? UA.normKey(ctx.CITY_RAW) : String(ctx.CITY_RAW || '').toLowerCase());
-        try {
-          Promise.resolve(UA.contextLayers.loadAtIdle(ctx, ctx.CITY_RAW))
-            .then((state) => {
-              const currentSlug = (UA.normKey ? UA.normKey(ctx.CITY_RAW) : String(ctx.CITY_RAW || '').toLowerCase());
-              if (currentSlug !== expectedSlug) return; // city switched while loading
-              ctx.contextLayerState = state || null;
-              // Re-render so already-bound markers pick up hydrated
-              // way attrs in their popups. Pure best-effort: ignored
-              // when the map renderer is not available (e.g. unit
-              // tests, headless contexts).
-              //
-              // QA hardening: skip the rebuild entirely when no marker
-              // layer has been built yet — the imminent first
-              // renderLayers() will already see ctx.contextLayerState
-              // and there is no stale popup to refresh. This avoids a
-              // duplicate full marker rebuild on large GeoJSON files
-              // (city loads with 100k+ accidents) where the cluster
-              // construction dominates the frame budget.
-              const hasBuiltLayer = !!(ctx.clusterLayer || ctx.heatLayer);
-              if (hasBuiltLayer && typeof UA.renderLayers === 'function' && ctx.map) {
-                ctx._dataChanged = true;
-                try { UA.renderLayers(ctx); } catch (_) { /* keep going */ }
-              }
-              // First-class context map overlays: now that the per-way
-              // geometry table is hydrated, (re-)wire the slope /
-              // traffic Leaflet controls. Idempotent — refresh tears
-              // down any prior controls before rebuilding.
-              if (typeof UA.refreshContextOverlays === 'function' && ctx.map) {
-                try { UA.refreshContextOverlays(ctx); } catch (_) { /* keep going */ }
-              }
-              // Item 10: surface enrichment provenance (generatedAt,
-              // enrichmentScriptVersion, per-source extractDate /
-              // producerVersion) in the city-header "ⓘ Datenstand"
-              // tooltip. Best-effort — function is a no-op when the
-              // metaInfoBox / tip element is absent (e.g. tests).
-              if (typeof UA.updateEnrichmentProvenance === 'function') {
-                try { UA.updateEnrichmentProvenance(ctx); } catch (_) { /* keep going */ }
-              }
-            })
-            .catch(() => { /* optional file: stay null, popup degrades gracefully */ });
-        } catch (_) { /* idle-callback unavailable: ignore */ }
-      }
-    } else {
-      ctx.contextLayerDetection = null;
-      ctx.contextCapabilities = null;
-      ctx.contextLayerState = null;
-      // Make sure stale provenance from a previously loaded city
-      // doesn't bleed into a city without enrichment.
-      if (typeof UA.updateEnrichmentProvenance === 'function') {
-        try { UA.updateEnrichmentProvenance(ctx); } catch (_) { /* keep going */ }
-      }
-    }
-    ctx.allPts = UA.extractPoints(gj);
+    refreshContextState(ctx, geojson);
+    ctx.allPts = UA.extractPoints(geojson);
   };
 
   UA.loadPOIData = async function loadPOIData(ctx){
-    const url = UA.buildPOIUrl(ctx.CITY_RAW);
     try {
-      // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
-      let gj;
-      if (typeof UA.fetchJsonCompressed === 'function') {
-        gj = await UA.fetchJsonCompressed(url);
-      } else {
-        const resp = await fetch(url, { cache:"no-store" });
-        if (!resp.ok) {
-          console.info(`POI data not available for ${ctx.CITY_RAW}`);
-          ctx.poiData = null;
-          return;
-        }
-        gj = await resp.json();
+      const geojson = await resources().fetchJson('poiGeoJson', {
+        city: ctx.CITY_RAW,
+      }, { optional: true });
+      if (!geojson) {
+        console.info(`POI data not available for ${ctx.CITY_RAW}`);
+        ctx.poiData = null;
+        return;
       }
-      ctx.poiData = gj;
-      console.info(`Loaded ${gj?.features?.length || 0} POIs for ${ctx.CITY_RAW}`);
-    } catch(e) {
-      console.warn(`Failed to load POI data for ${ctx.CITY_RAW}:`, e);
+      ctx.poiData = geojson;
+      console.info(`Loaded ${geojson?.features?.length || 0} POIs for ${ctx.CITY_RAW}`);
+    } catch (error) {
+      console.warn(`Failed to load POI data for ${ctx.CITY_RAW}:`, error);
       ctx.poiData = null;
     }
   };
 
-  // Register the static GeoJSON provider so loadCityData goes through the
-  // AccidentProvider abstraction (architecture boundary, Issue #312).
-  // This is idempotent: if the module is loaded again or this code runs twice,
-  // the existing registration is silently overwritten.
-  if (typeof UA.AccidentProvider !== 'undefined'
+  if (UA.AccidentProvider
       && UA.AccidentProvider.ProviderRegistry
       && typeof UA.AccidentProvider.createStaticProvider === 'function') {
     try {
@@ -209,6 +142,6 @@
         'static',
         UA.AccidentProvider.createStaticProvider()
       );
-    } catch (_) { /* non-fatal if AccidentProvider module is absent or incomplete */ }
+    } catch (_) {}
   }
 })();
