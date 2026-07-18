@@ -1,0 +1,99 @@
+name: Generate context data for one city
+
+on:
+  workflow_dispatch:
+    inputs:
+      city:
+        description: 'City exactly as listed in cities.txt (for example Bonn)'
+        type: string
+        required: true
+      force:
+        description: 'Rebuild OSM, slope and traffic producer data even when cached files exist'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: context-data-${{ inputs.city }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Set up Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Restore reusable producer cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            .enrichment-cache/osm
+            .enrichment-cache/dem
+            .enrichment-cache/traffic
+            .enrichment-cache/dem-tiles
+          key: context-city-${{ runner.os }}-${{ inputs.city }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}
+          restore-keys: |
+            context-city-${{ runner.os }}-${{ inputs.city }}-
+            context-city-${{ runner.os }}-
+          save-always: true
+
+      - name: Generate and atomically install context data
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARGS=(--city "${{ inputs.city }}" --json)
+          if [[ "${{ inputs.force }}" == "true" ]]; then ARGS+=(--force); fi
+          node scripts/generate-context-city.js "${ARGS[@]}" | tee context-generation-result.json
+
+      - name: Verify producer inputs for selected city
+        env:
+          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
+          ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
+          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+        run: node scripts/check-enrichment-inputs.js --city "${{ inputs.city }}"
+
+      - name: Verify gzip-only artifact invariants
+        run: node scripts/gzip-static-data.js --check --gzip-only
+
+      - name: Validate context datasets
+        env:
+          UNFALLATLAS_DATA_MODE: gzip-only
+        run: node scripts/check-context-datasets.js
+
+      - name: Commit generated city data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- out/
+          if git diff --cached --quiet; then
+            echo "No generated context-data changes."
+            exit 0
+          fi
+          git commit -m "Generate context data for ${{ inputs.city }}"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Publish job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Context generation"
+            echo
+            echo "- City: \`${{ inputs.city }}\`"
+            echo "- Force producers: \`${{ inputs.force }}\`"
+            echo "- Atomic generator: \`scripts/generate-context-city.js\`"
+          } >> "$GITHUB_STEP_SUMMARY"
