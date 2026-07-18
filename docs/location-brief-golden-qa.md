@@ -4,9 +4,17 @@ Diese QA beantwortet die fachliche Kernfrage aus [Issue #296](https://github.com
 
 ## Aktueller Befund
 
-Der schnelle Vorlauf vom 18. Juli 2026 ist für alle sechs definierten Fälle grün. Beide Städte enthalten zwei Positivfälle und einen Negativfall. Innerhalb jeder Stadt liegen die Positivfälle auf Rang 1 und 2, der Null-Unfall-Kontrollfall auf Rang 3.
+Der schnelle Vorlauf und der bindende Testcontainers-Lauf vom 18. Juli 2026
+sind für alle sechs definierten Fälle grün. Der vollständige Lauf auf Commit
+[`aa52d007`](https://github.com/carstenartur/Unfallatlas/commit/aa52d007bccf38668e4e26cf7de7b1bfeb1fa7e4)
+persistierte die Briefs und erzeugte die hier dokumentierten Ränge über Spring
+Batch; das zugehörige
+[`location-brief-golden-case-qa`-Artefakt](https://github.com/carstenartur/Unfallatlas/actions/runs/29656773333/artifacts/8433114825)
+wurde anschließend für Bonn und Hannover geprüft. Beide Städte enthalten zwei
+Positivfälle und einen Negativfall. Im Vorlauf wie im Batch-Ranking liegen die
+Positivfälle auf Rang 1 und 2, der Null-Unfall-Kontrollfall auf Rang 3.
 
-| Stadt | Fall | Typ | Unfälle | Getötet/schwer | Vorlauf-Rang | Erwartete Kernaussage | Ergebnis |
+| Stadt | Fall | Typ | Unfälle | Getötet/schwer | Vorlauf-/Batch-Rang | Erwartete Kernaussage | Ergebnis |
 |---|---|---:|---:|---:|---:|---|---|
 | Bonn | `bonn-hbf-rail-bike-solo` | positiv | 262 | 30 | 1 | Schienen-/Oberflächenmuster und passende Infrastrukturmaßnahmen | bestanden |
 | Bonn | `bonn-school-crossing` | positiv | 210 | 18 | 2 | Schulumfeld-/Querungsdruck und passende Querungsmaßnahmen | bestanden |
