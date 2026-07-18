@@ -8,6 +8,7 @@ const { spawn } = require('child_process');
 const { resolveCanonicalCity } = require('../../scripts/generate-context-city');
 
 const MAX_LOG_LINES = 300;
+const MAX_RETAINED_JOBS = 100;
 const TERMINAL_STATES = new Set(['succeeded', 'failed']);
 
 function boolEnv(value, fallback) {
@@ -28,9 +29,10 @@ function appendLog(job, stream, chunk) {
   if (job.logs.length > MAX_LOG_LINES) job.logs.splice(0, job.logs.length - MAX_LOG_LINES);
 }
 
-function safeJob(job) {
+function safeJob(job, options) {
   if (!job) return null;
-  return {
+  const includeLogs = !options || options.includeLogs !== false;
+  const out = {
     id: job.id,
     city: job.city,
     slug: job.slug,
@@ -40,8 +42,9 @@ function safeJob(job) {
     finishedAt: job.finishedAt || null,
     exitCode: job.exitCode,
     error: job.error || null,
-    logs: job.logs.slice(-80),
   };
+  if (includeLogs) out.logs = job.logs.slice(-80);
+  return out;
 }
 
 class ContextGenerationService {
@@ -70,6 +73,7 @@ class ContextGenerationService {
     const latest = canonical
       ? [...this.jobs.values()].reverse().find(job => job.slug === canonical.slug)
       : null;
+    const publicJobOptions = { includeLogs: !this.token };
     return {
       available: this.enabled && !cityError,
       execution: 'local-docker',
@@ -80,8 +84,8 @@ class ContextGenerationService {
         ? 'context_generation_disabled'
         : (cityError ? 'unknown_city' : null),
       reasonDetail: cityError,
-      activeJob: safeJob(active),
-      latestJob: safeJob(latest),
+      activeJob: safeJob(active, publicJobOptions),
+      latestJob: safeJob(latest, publicJobOptions),
     };
   }
 
@@ -91,6 +95,14 @@ class ContextGenerationService {
     const expected = Buffer.from(this.token);
     const actual = Buffer.from(raw);
     return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  }
+
+  _pruneJobs() {
+    if (this.jobs.size <= MAX_RETAINED_JOBS) return;
+    for (const [id, job] of this.jobs) {
+      if (this.jobs.size <= MAX_RETAINED_JOBS) break;
+      if (id !== this.activeJobId && TERMINAL_STATES.has(job.status)) this.jobs.delete(id);
+    }
   }
 
   start(city, options) {
@@ -121,6 +133,7 @@ class ContextGenerationService {
       logs: [],
     };
     this.jobs.set(job.id, job);
+    this._pruneJobs();
     this.activeJobId = job.id;
 
     const force = options && options.force !== undefined
