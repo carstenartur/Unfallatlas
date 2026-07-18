@@ -59,6 +59,12 @@ Der Test führt dieselben Fälle durch folgende Komponenten:
 4. Der City-Prioritization-Job wird gestartet.
 5. Das persistierte Ranking wird fachlich geprüft und als JSON geschrieben.
 
+Liegt bereits ein ausführbares Analysis-Service-JAR unter
+`analysis-service/target/`, startet Testcontainers dieses direkt in einem
+Java-21-Container. Andernfalls baut der Test lokal das vorhandene
+`analysis-service/Dockerfile`; ein separates Maven auf dem Host ist für den
+lokalen npm-Einstieg daher nicht erforderlich.
+
 Der Job `location-brief-golden-qa` in `.github/workflows/test.yml` ruft ausschließlich diesen lokal ausführbaren npm-Einstieg auf und lädt den Bericht als Artefakt `location-brief-golden-case-qa` hoch. GitHub Actions ist damit Ausführungsumgebung, nicht Testimplementierung.
 
 ## Rollen der Komponenten

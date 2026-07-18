@@ -151,8 +151,24 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven-
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Build Analysis Service test JAR
+        run: mvn -q -f analysis-service/pom.xml -DskipTests package
 
       - name: Run Docker-free golden-case preflight
         run: npm run qa:location-brief-golden

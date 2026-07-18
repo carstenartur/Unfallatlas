@@ -8,7 +8,10 @@ const { buildStructuredFromCase } = require('../../scripts/lib/location-brief-go
 const { isDockerAvailable } = require('./lib/startUnfallatlasContainer');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const ANALYSIS_SERVICE_DIR = path.resolve(REPO_ROOT, 'analysis-service');
 const ANALYSIS_PORT = 8081;
+const ANALYSIS_SERVICE_RUNTIME_IMAGE = 'eclipse-temurin:21-jre';
+const ANALYSIS_SERVICE_IMAGE_TAG = 'unfallatlas-analysis-service:golden-test';
 const PROFILE_RANK = { low: 0, medium: 1, high: 2 };
 const PROFILE = JSON.parse(fs.readFileSync(
   path.resolve(REPO_ROOT, 'tests/fixtures/location-brief-golden-cases.json'),
@@ -31,37 +34,86 @@ async function loadTestcontainers() {
   return import('testcontainers');
 }
 
+function findAnalysisServiceJar() {
+  if (process.env.ANALYSIS_SERVICE_JAR) {
+    const configured = path.resolve(process.env.ANALYSIS_SERVICE_JAR);
+    if (!fs.existsSync(configured)) {
+      throw new Error(`ANALYSIS_SERVICE_JAR does not exist: ${configured}`);
+    }
+    return configured;
+  }
+
+  const targetDir = path.resolve(ANALYSIS_SERVICE_DIR, 'target');
+  if (!fs.existsSync(targetDir)) return null;
+  const candidates = fs.readdirSync(targetDir)
+    .filter((name) => /^unfallatlas-analysis-service-.*\.jar$/.test(name))
+    .filter((name) => !/-(?:sources|javadoc)\.jar$/.test(name))
+    .map((name) => {
+      const filePath = path.resolve(targetDir, name);
+      return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return candidates[0]?.filePath || null;
+}
+
+async function createAnalysisServiceBuilder(GenericContainer) {
+  if (process.env.ANALYSIS_SERVICE_IMAGE) {
+    return {
+      builder: new GenericContainer(process.env.ANALYSIS_SERVICE_IMAGE),
+      source: `image ${process.env.ANALYSIS_SERVICE_IMAGE}`
+    };
+  }
+
+  const jarPath = findAnalysisServiceJar();
+  if (jarPath) {
+    return {
+      builder: new GenericContainer(ANALYSIS_SERVICE_RUNTIME_IMAGE)
+        .withBindMounts([{
+          source: jarPath,
+          target: '/app/app.jar',
+          mode: 'ro'
+        }])
+        .withCommand(['java', '-jar', '/app/app.jar']),
+      source: `prebuilt JAR ${jarPath}`
+    };
+  }
+
+  return {
+    builder: await GenericContainer.fromDockerfile(ANALYSIS_SERVICE_DIR).build(
+      ANALYSIS_SERVICE_IMAGE_TAG,
+      { deleteOnExit: false }
+    ),
+    source: `local Dockerfile ${path.resolve(ANALYSIS_SERVICE_DIR, 'Dockerfile')}`
+  };
+}
+
 async function startAnalysisServiceContainer() {
   const { GenericContainer, Wait } = await loadTestcontainers();
-  const allowInsecureMavenSsl = process.env.TESTCONTAINERS_MAVEN_INSECURE_SSL === '1';
-  const mavenCommand = [
-    'mvn -q',
-    ...(allowInsecureMavenSsl ? [
-      '-Dmaven.wagon.http.ssl.insecure=true',
-      '-Dmaven.wagon.http.ssl.allowall=true'
-    ] : []),
-    '-DskipTests',
-    'spring-boot:run',
-    '-Dspring-boot.run.jvmArguments="-Dserver.port=8081 -Dspring.profiles.active=dev"'
-  ].join(' ');
-  const container = await new GenericContainer('maven:3.9-eclipse-temurin-21')
-    .withBindMounts([{
-      source: path.resolve(REPO_ROOT, 'analysis-service'),
-      target: '/workspace',
-      mode: 'rw'
-    }])
-    .withCommand([
-      'bash',
-      '-lc',
-      [
-        'cd /workspace',
-        mavenCommand
-      ].join(' ')
-    ])
-    .withExposedPorts(ANALYSIS_PORT)
-    .withWaitStrategy(Wait.forHttp('/actuator/health', ANALYSIS_PORT).forStatusCode(200))
-    .withStartupTimeout(300_000)
-    .start();
+  const { builder, source } = await createAnalysisServiceBuilder(GenericContainer);
+  let serviceLogs = '';
+  let container;
+  try {
+    container = await builder
+      .withEnvironment({
+        SPRING_PROFILES_ACTIVE: 'dev',
+        PORT: String(ANALYSIS_PORT)
+      })
+      .withExposedPorts(ANALYSIS_PORT)
+      .withWaitStrategy(Wait.forHttp('/actuator/health', ANALYSIS_PORT).forStatusCode(200))
+      .withLogConsumer((stream) => {
+        stream.on('data', (chunk) => {
+          serviceLogs = `${serviceLogs}${Buffer.from(chunk).toString('utf8')}`.slice(-40_000);
+        });
+      })
+      .withStartupTimeout(180_000)
+      .start();
+  } catch (error) {
+    throw new Error([
+      `Analysis Service failed to start from ${source}: ${error.message}`,
+      '--- Analysis Service log tail ---',
+      serviceLogs.trim() || '(no container logs captured)'
+    ].join('\n'), { cause: error });
+  }
 
   const baseUrl = `http://${container.getHost()}:${container.getMappedPort(ANALYSIS_PORT)}`;
   return {
@@ -106,7 +158,7 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
     const probe = await isDockerAvailable();
     if (!probe.available) throw new Error(`Docker unavailable: ${probe.reason}`);
     handle = await startAnalysisServiceContainer();
-  }, 10 * 60 * 1000);
+  }, 20 * 60 * 1000);
 
   afterAll(async () => {
     if (handle) await handle.stop();
