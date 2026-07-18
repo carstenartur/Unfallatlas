@@ -118,7 +118,8 @@ describe('accidentDataMode viewport pilot', () => {
       bounds: { south: 50.72, west: 7.08, north: 50.74, east: 7.12 },
     }));
     expect(context.DATA_URL).toBe('out/accidenttiles/bonn/index.json');
-    expect(context.ui.dataSourceCode.textContent).toMatch(/nur aktueller Kartenausschnitt/);
+    expect(context.ui.dataSourceCode.textContent)
+      .toMatch(/Kartenausschnitt vollständig; Stadt unvollständig/);
   });
 
   test('viewport mode applies the canonical URL view before reading map bounds', async () => {
