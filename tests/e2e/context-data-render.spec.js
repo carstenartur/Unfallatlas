@@ -54,22 +54,29 @@ test.describe('Generated context data – browser end to end', () => {
     await expect(overlayControl.locator('input[data-context-overlay="traffic"]')).toBeChecked();
 
     // Wait until the v3 context-tile loader has fetched viewport tiles and the
-    // actual Leaflet polylines have been added to the map. We count what the
-    // renderer placed on the map, not what an input JSON claims to contain.
+    // actual Leaflet polylines have been added to the map. Leaflet exposes the
+    // two context overlays as top-level LayerGroups; the road polylines carrying
+    // `feature.properties.kind` are their children, so traversal must recurse.
     await page.waitForFunction(() => {
       const map = window.map || (window.UA && window.UA.ctx && window.UA.ctx.map);
       if (!map || typeof map.eachLayer !== 'function') return false;
       const counts = { slope: 0, slopeSignal: 0, traffic: 0 };
-      map.eachLayer(layer => {
-        const props = layer && layer.feature && layer.feature.properties;
-        if (!props) return;
-        if (props.kind === 'slope') {
+      const visited = new Set();
+      const visit = layer => {
+        if (!layer || visited.has(layer)) return;
+        visited.add(layer);
+        const props = layer.feature && layer.feature.properties;
+        if (props && props.kind === 'slope') {
           counts.slope += 1;
           if (props.class !== 'no_signal') counts.slopeSignal += 1;
-        } else if (props.kind === 'traffic') {
+        } else if (props && props.kind === 'traffic') {
           counts.traffic += 1;
         }
-      });
+        if (typeof layer.getLayers === 'function') {
+          for (const child of layer.getLayers() || []) visit(child);
+        }
+      };
+      map.eachLayer(visit);
       window.__uaContextRenderCounts = counts;
       return counts.slope > 0 && counts.slopeSignal > 0 && counts.traffic > 0;
     }, null, { timeout: 90_000 });
