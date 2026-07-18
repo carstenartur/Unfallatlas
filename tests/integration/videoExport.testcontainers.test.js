@@ -177,43 +177,46 @@ async function installDeterministicContextFixture(container) {
   }
 }
 
+// Serialized into Playwright's browser context by browserAssertionScript().
+function browserPaletteCounter() {
+  const slopePalette = [
+    [255,255,178], [254,204,92], [253,141,60],
+    [240,59,32], [189,0,38], [154,169,184],
+  ];
+  const trafficPalette = [
+    [255,255,204], [161,218,180], [65,182,196], [34,94,168],
+  ];
+  const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
+    Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8
+  );
+  const counts = { canvases: 0, slopePixels: 0, trafficPixels: 0 };
+  for (const canvas of document.querySelectorAll('.leaflet-overlay-pane canvas')) {
+    if (!(canvas instanceof HTMLCanvasElement) || !canvas.width || !canvas.height) continue;
+    const style = getComputedStyle(canvas);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    let pixels;
+    try {
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) continue;
+      pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    } catch (_) { continue; }
+    counts.canvases += 1;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] < 80) continue;
+      const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+      if (closeTo(r, g, b, slopePalette)) counts.slopePixels += 1;
+      if (closeTo(r, g, b, trafficPalette)) counts.trafficPixels += 1;
+    }
+  }
+  return counts;
+}
+
 function browserAssertionScript(city) {
   const safeCity = JSON.stringify(city);
+  const paletteCounterSource = browserPaletteCounter.toString();
   return `
     const { chromium } = require('@playwright/test');
-
-    function countPalettePixels() {
-      const slopePalette = [
-        [255,255,178], [254,204,92], [253,141,60],
-        [240,59,32], [189,0,38], [154,169,184]
-      ];
-      const trafficPalette = [
-        [255,255,204], [161,218,180], [65,182,196], [34,94,168]
-      ];
-      const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
-        Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8
-      );
-      const counts = { canvases: 0, slopePixels: 0, trafficPixels: 0 };
-      for (const canvas of document.querySelectorAll('.leaflet-overlay-pane canvas')) {
-        if (!(canvas instanceof HTMLCanvasElement) || !canvas.width || !canvas.height) continue;
-        const style = getComputedStyle(canvas);
-        if (style.display === 'none' || style.visibility === 'hidden') continue;
-        let pixels;
-        try {
-          const context = canvas.getContext('2d', { willReadFrequently: true });
-          if (!context) continue;
-          pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-        } catch (_) { continue; }
-        counts.canvases += 1;
-        for (let i = 0; i < pixels.length; i += 4) {
-          if (pixels[i + 3] < 80) continue;
-          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-          if (closeTo(r, g, b, slopePalette)) counts.slopePixels += 1;
-          if (closeTo(r, g, b, trafficPalette)) counts.trafficPixels += 1;
-        }
-      }
-      return counts;
-    }
+    const countPalettePixels = ${paletteCounterSource};
 
     (async () => {
       const city = ${safeCity};
@@ -238,7 +241,7 @@ function browserAssertionScript(city) {
 
       const response = await page.goto(url.toString(), {
         waitUntil: 'domcontentloaded',
-        timeout: ${CONTEXT_BROWSER_TIMEOUT_MS}
+        timeout: ${CONTEXT_BROWSER_TIMEOUT_MS},
       });
       if (!response || !response.ok()) throw new Error('Werkbank HTML was not served successfully');
 
@@ -253,8 +256,9 @@ function browserAssertionScript(city) {
       if (!(await slope.isChecked())) await slope.check();
       if (!(await traffic.isChecked())) await traffic.check();
 
-      await page.waitForFunction(() => {
-        const counts = (${countPalettePixels.toString()})();
+      await page.waitForFunction((counterSource) => {
+        const counter = (0, eval)('(' + counterSource + ')');
+        const counts = counter();
         window.__containerContextCounts = counts;
         const legends = Array.from(document.querySelectorAll('.context-road-legend'))
           .filter(element => {
@@ -267,7 +271,7 @@ function browserAssertionScript(city) {
           && legends.length === 2
           && text.includes('Straßensteigung')
           && text.includes('Verkehrsbelastung');
-      }, null, { timeout: ${CONTEXT_BROWSER_TIMEOUT_MS} });
+      }, paletteCounterSource, { timeout: ${CONTEXT_BROWSER_TIMEOUT_MS} });
 
       const result = await page.evaluate(() => {
         const legends = Array.from(document.querySelectorAll('.context-road-legend'))
