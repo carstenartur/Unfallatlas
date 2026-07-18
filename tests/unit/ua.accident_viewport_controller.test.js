@@ -122,13 +122,14 @@ describe('UA.AccidentViewportController', () => {
     ]))).toThrow(/conflicting duplicate feature identity id:a/);
   });
 
-  test('suppresses a late response after a newer viewport epoch starts', async () => {
+  test('suppresses a late response and retains cache only for the committed viewport', async () => {
     const first = deferred();
     const second = deferred();
     const provider = {
       fetchTileSetForBbox: jest.fn()
         .mockImplementationOnce(() => first.promise)
         .mockImplementationOnce(() => second.promise),
+      retainForViewport: jest.fn(),
     };
     const { controller } = makeUA(provider);
 
@@ -136,10 +137,13 @@ describe('UA.AccidentViewportController', () => {
     const secondPending = controller.load('Bonn', BOUNDS_B);
     first.resolve(tileSet([tile('1/1', [point('old')], ['id:old'])]));
     expect(await firstPending).toEqual(expect.objectContaining({ committed: false, stale: true }));
+    expect(provider.retainForViewport).not.toHaveBeenCalled();
 
     second.resolve(tileSet([tile('2/2', [point('current')], ['id:current'])]));
     const current = await secondPending;
     expect(current.committed).toBe(true);
+    expect(provider.retainForViewport).toHaveBeenCalledTimes(1);
+    expect(provider.retainForViewport).toHaveBeenCalledWith('bonn', ['2/2']);
     expect(controller.getSnapshot().geojson.features.map(f => f.properties.id))
       .toEqual(['current']);
   });
