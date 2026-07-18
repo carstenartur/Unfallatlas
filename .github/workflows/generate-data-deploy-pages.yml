@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v7
 
@@ -34,14 +34,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           CITY_ARGS=()
           while IFS= read -r city; do
             city="$(echo "$city" | sed 's/#.*$//' | xargs)"
-            [ -z "$city" ] && continue
+            [[ -z "$city" ]] && continue
             CITY_ARGS+=(--city "$city")
           done < cities.txt
-
           chmod +x ./convertAmt2gmaps.sh
           ./convertAmt2gmaps.sh \
             --outdir .build/raw \
@@ -52,15 +50,27 @@ jobs:
       - name: Validate raw accident data for all cities
         run: node scripts/check-data-paths.js --dir .build/raw --min-features 10
 
-      - name: Enrich raw data
-        env:
-          ENRICH_OSM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/osm
-          ENRICH_DEM_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/dem
-          ENRICH_TRAFFIC_DATA_DIR: ${{ github.workspace }}/.enrichment-cache/traffic
+      - name: Restore context producer cache
+        uses: actions/cache@v6
+        with:
+          path: .enrichment-cache
+          key: pages-context-${{ runner.os }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}
+          restore-keys: |
+            pages-context-${{ runner.os }}-
+          save-always: true
+
+      - name: Generate verified context data from scratch inputs
+        shell: bash
         run: |
-          node scripts/enrich_geojson.js \
-            --input-dir .build/raw \
-            --output-dir .build/enriched
+          set -euo pipefail
+          while IFS= read -r city; do
+            city="$(echo "$city" | sed 's/#.*$//' | xargs)"
+            [[ -z "$city" ]] && continue
+            node scripts/generate-context-city.js \
+              --city "$city" \
+              --input-dir .build/raw \
+              --output-dir .build/enriched
+          done < cities.txt
 
       - name: Build gzip-only site data
         run: |
@@ -82,13 +92,14 @@ jobs:
             --exclude 'node_modules' \
             ./ _site/
 
-      - name: Validate gzip-only site
+      - name: Validate generated site
         run: |
           node scripts/validate-static-data.js \
             --dir _site/out \
             --gzip-only \
             --require-cities-file cities.txt \
             --min-features 10
+          node scripts/check-context-datasets.js _site
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
@@ -104,11 +115,9 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     permissions:
       pages: write
       id-token: write
-
     steps:
       - name: Deploy Pages
         id: deployment
