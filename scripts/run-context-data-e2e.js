@@ -10,13 +10,15 @@
  *
  * It creates an isolated static site under .build/context-e2e/site, runs the
  * canonical OSM -> SRTM slope -> traffic proxy -> enrichment pipeline into
- * that site, starts a plain static HTTP server and executes the non-skipping
- * Playwright browser contract in tests/e2e/context-data-render.spec.js.
+ * that site, validates every generated gzip tile on disk and through the
+ * static HTTP server, and finally executes the non-skipping Playwright browser
+ * contract in tests/e2e/context-data-render.spec.js.
  */
 
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
+const zlib = require('zlib');
 const { spawn } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -77,6 +79,41 @@ function copyOptionalCityArtifact(logicalName) {
   else if (fs.existsSync(sourceRaw)) fs.copyFileSync(sourceRaw, path.join(targetDir, logicalName));
 }
 
+function readGzipJson(file) {
+  const compressed = fs.readFileSync(file);
+  return JSON.parse(zlib.gunzipSync(compressed).toString('utf8'));
+}
+
+function validateGeneratedContextTiles(slug) {
+  const tileRoot = path.join(SITE_ROOT, 'out', 'ctxtiles', slug);
+  const indexFile = path.join(tileRoot, 'index.json.gz');
+  if (!fs.existsSync(indexFile)) throw new Error(`Generated tile index missing: ${indexFile}`);
+  const manifest = readGzipJson(indexFile);
+  if (!manifest || !Array.isArray(manifest.tiles) || manifest.tiles.length === 0) {
+    throw new Error(`Generated tile index is empty or invalid: ${indexFile}`);
+  }
+  let ways = 0;
+  const files = [];
+  for (const tile of manifest.tiles) {
+    const x = Number(tile && tile.x);
+    const y = Number(tile && tile.y);
+    if (!Number.isInteger(x) || !Number.isInteger(y)) {
+      throw new Error(`Invalid tile coordinate in manifest: ${JSON.stringify(tile)}`);
+    }
+    const file = path.join(tileRoot, String(x), `${y}.json.gz`);
+    if (!fs.existsSync(file)) throw new Error(`Manifest references missing gzip tile: ${file}`);
+    const payload = readGzipJson(file);
+    const count = payload && payload.ways && typeof payload.ways === 'object'
+      ? Object.keys(payload.ways).length
+      : 0;
+    if (count === 0) throw new Error(`Generated gzip tile contains no ways: ${file}`);
+    ways += count;
+    files.push({ x, y, file, count });
+  }
+  console.log(`[context-e2e] Disk validation: ${files.length} gzip tiles, ${ways} tile-way entries`);
+  return { manifest, files, ways };
+}
+
 async function choosePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -101,6 +138,28 @@ async function waitForServer(url, child) {
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   throw new Error(`static server did not become ready: ${url}`);
+}
+
+async function validateContextTilesOverHttp(baseUrl, slug, tileData) {
+  let ways = 0;
+  for (const tile of tileData.files) {
+    const url = `${baseUrl}/out/ctxtiles/${encodeURIComponent(slug)}/${tile.x}/${tile.y}.json.gz`;
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Static HTTP server returned ${response.status} for ${url}`);
+    const compressed = Buffer.from(await response.arrayBuffer());
+    let payload;
+    try {
+      payload = JSON.parse(zlib.gunzipSync(compressed).toString('utf8'));
+    } catch (error) {
+      throw new Error(`Static HTTP gzip tile cannot be decompressed/parsed (${url}): ${error.message}`);
+    }
+    const count = payload && payload.ways && typeof payload.ways === 'object'
+      ? Object.keys(payload.ways).length
+      : 0;
+    if (count === 0) throw new Error(`Static HTTP gzip tile contains no ways: ${url}`);
+    ways += count;
+  }
+  console.log(`[context-e2e] HTTP validation: ${tileData.files.length} gzip tiles, ${ways} tile-way entries`);
 }
 
 function stopChild(child) {
@@ -129,6 +188,7 @@ async function main() {
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
     .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   copyOptionalCityArtifact(`poi_${slug}.geojson`);
+  const tileData = validateGeneratedContextTiles(slug);
 
   const port = await choosePort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -151,6 +211,7 @@ async function main() {
   process.once('SIGTERM', cleanup);
   try {
     await waitForServer(`${baseUrl}/werkbank_v2.html`, server);
+    await validateContextTilesOverHttp(baseUrl, slug, tileData);
     const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
     await run(npx, [
       'playwright', 'test',
@@ -173,3 +234,9 @@ main().catch(error => {
   console.error('[context-e2e] FAILED:', error && error.stack ? error.stack : error);
   process.exit(1);
 });
+
+module.exports = {
+  readGzipJson,
+  validateGeneratedContextTiles,
+  validateContextTilesOverHttp,
+};
