@@ -27,7 +27,12 @@ describe('UA.ContextGeneration', () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <select id="citySel"><option selected>Bonn</option></select>
-      <div id="ctxFilterEmpty"></div>
+      <div id="ctxFilterSection">
+        <div id="ctxFilterEmpty"></div>
+        <div id="ctxSlopeRow" hidden></div>
+        <div id="ctxTrafficRow" hidden></div>
+        <div id="ctxOnlyMatchedRow" hidden></div>
+      </div>
     `;
     global.fetch = jest.fn();
   });
@@ -50,6 +55,7 @@ describe('UA.ContextGeneration', () => {
     const button = document.getElementById('ctxGenerateMissingBtn');
     expect(button).not.toBeNull();
     expect(button.textContent).toMatch(/GitHub-Workflow für Bonn öffnen/);
+    expect(document.getElementById('ctxGenerationHeading').textContent).toMatch(/Steigung.*Verkehrsproxy.*OSM-Straßenbezug/);
     expect(document.getElementById('ctxGenerationStatus').textContent).toMatch(/kein Zugangsschlüssel/);
   });
 
@@ -65,9 +71,35 @@ describe('UA.ContextGeneration', () => {
 
     await loadModule();
     const button = document.getElementById('ctxGenerateMissingBtn');
-    expect(button.textContent).toMatch(/Bonn lokal erzeugen/);
+    expect(button.textContent).toMatch(/Bonn.*lokal neu erzeugen/);
     expect(button.disabled).toBe(false);
     expect(document.getElementById('ctxGenerationStatus').textContent).toMatch(/atomar|erfolgreicher Prüfung/i);
+  });
+
+  test('shows recovery for a partial dataset and names only missing capabilities', async () => {
+    document.getElementById('ctxSlopeRow').hidden = false;
+    document.getElementById('ctxOnlyMatchedRow').hidden = false;
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: { get: () => 'text/html' },
+      json: async () => { throw new Error('not json'); },
+    });
+
+    const api = await loadModule();
+    expect(api.missingContextLabels()).toEqual(['Verkehrsproxy']);
+    expect(document.getElementById('ctxGenerationActions').hidden).toBe(false);
+    expect(document.getElementById('ctxGenerationHeading').textContent).toBe('Fehlende Kontextdaten: Verkehrsproxy');
+  });
+
+  test('hides the recovery action when all context capabilities are present', async () => {
+    document.getElementById('ctxSlopeRow').hidden = false;
+    document.getElementById('ctxTrafficRow').hidden = false;
+    document.getElementById('ctxOnlyMatchedRow').hidden = false;
+
+    await loadModule();
+    expect(document.getElementById('ctxGenerationActions').hidden).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   test('keeps a token-protected running job actionable instead of disabling it forever', async () => {
