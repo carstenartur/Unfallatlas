@@ -50,14 +50,14 @@ describe('accident coverage export guard', () => {
     expect(csv).not.toHaveBeenCalled();
   });
 
-  test('guards export functions assigned after the module loads', async () => {
+  test('guards export functions assigned after the module loads', () => {
     const win = { UA: {} };
     const UA = loadModule(win);
     const original = jest.fn(async () => 'report');
     UA.computeExportReport = original;
 
-    await expect(UA.computeExportReport(partial()))
-      .rejects.toThrow(/Berichtsexport ist im Unfall-Tile-Pilotmodus/);
+    expect(() => UA.computeExportReport(partial()))
+      .toThrow(/Berichtsexport ist im Unfall-Tile-Pilotmodus/);
     expect(original).not.toHaveBeenCalled();
   });
 });
