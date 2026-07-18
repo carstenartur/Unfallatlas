@@ -99,10 +99,10 @@ jobs:
       - name: Generate context data atomically
         shell: bash
         env:
-          # A producer-contract push or freshly generated accident dataset must
-          # not reuse old per-city producer files. Scheduled refreshes retain
-          # resumable caches unless the dispatcher explicitly selects force.
-          FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' }}
+          # Producer-contract changes, freshly generated accident datasets and
+          # the weekly refresh must fetch current source data. Only an explicit
+          # manual run with force=false may reuse fingerprint-validated caches.
+          FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
         run: |
           set -euo pipefail
           while IFS= read -r city; do
