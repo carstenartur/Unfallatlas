@@ -193,23 +193,41 @@
         || typeof document.querySelector !== 'function'
         || typeof document.createElement !== 'function'
         || !document.head
-        || typeof document.head.appendChild !== 'function'
-        || document.querySelector(`script[${marker}]`)) return;
+        || typeof document.head.appendChild !== 'function') {
+      return Promise.resolve(false);
+    }
+
+    const existing = document.querySelector(`script[${marker}]`);
+    if (existing) return existing.__uaLoadPromise || Promise.resolve(true);
+
     const script = document.createElement('script');
     script.src = src;
-    // The modules are load-order independent, but preserving insertion order
-    // avoids a needless race in static deployments.
     script.async = false;
     script.setAttribute(marker, '1');
+    script.__uaLoadPromise = new Promise(resolve => {
+      script.addEventListener('load', () => resolve(true), { once: true });
+      // Optional modules must never make the static application fail to start.
+      // Consumers can await the promise and fall back to their legacy path.
+      script.addEventListener('error', () => resolve(false), { once: true });
+    });
     document.head.appendChild(script);
+    return script.__uaLoadPromise;
   }
 
-  injectOptionalModule(
-    'js/ua.accident_coverage.js?v=2026-07-18',
-    'data-ua-accident-coverage'
-  );
-  injectOptionalModule(
-    'js/ua.context_generation.js?v=2026-07-18',
-    'data-ua-context-generation'
-  );
+  const existingPromises = UA.optionalModulePromises || {};
+  UA.optionalModulePromises = Object.freeze({
+    ...existingPromises,
+    accidentViewportController: injectOptionalModule(
+      'js/ua.accident_viewport_controller.js?v=2026-07-18',
+      'data-ua-accident-viewport-controller'
+    ),
+    accidentCoverage: injectOptionalModule(
+      'js/ua.accident_coverage.js?v=2026-07-18',
+      'data-ua-accident-coverage'
+    ),
+    contextGeneration: injectOptionalModule(
+      'js/ua.context_generation.js?v=2026-07-18',
+      'data-ua-context-generation'
+    ),
+  });
 })();
