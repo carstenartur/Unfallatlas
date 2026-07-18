@@ -79,6 +79,20 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
+function copyJsonTree(files, sourceDir, outputDir, repoRoot, processed) {
+  for (const abs of files) {
+    const rel = path.relative(sourceDir, abs).replace(/\\/g, '/').replace(/\.gz$/i, '');
+    const logicalPath = `out/${rel}`;
+    if (processed.has(logicalPath)) continue;
+
+    const sourceLogical = path.join(sourceDir, rel);
+    const text = readTextMaybeGz(sourceLogical);
+    const targetAbs = path.join(outputDir, rel);
+    writeTextArtifact(targetAbs, text, { compression: 'gzip-only', root: repoRoot });
+    processed.add(logicalPath);
+  }
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const repoRoot = args.root ? path.resolve(args.root) : path.resolve(__dirname, '..');
@@ -96,7 +110,8 @@ function main(argv) {
   const accidentFiles = listFiles(inputDir, (abs) => /output_all_years_[^.]+\.geojson(\.gz)?$/i.test(path.basename(abs)));
   const metaFiles = listFiles(inputDir, (abs) => /output_all_years_[^.]+\.enrichment\.meta\.json(\.gz)?$/i.test(path.basename(abs)));
   const waysFiles = listFiles(inputDir, (abs) => /ways_[^.]+\.json(\.gz)?$/i.test(path.basename(abs)));
-  const ctxtileFiles = listFiles(path.join(inputDir, 'ctxtiles'), (abs) => /\.json(\.gz)?$/i.test(abs));
+  const contextTileFiles = listFiles(path.join(inputDir, 'ctxtiles'), (abs) => /\.json(\.gz)?$/i.test(abs));
+  const accidentTileFiles = listFiles(path.join(inputDir, 'accidenttiles'), (abs) => /\.json(\.gz)?$/i.test(abs));
   const poiFiles = listFiles(poiDir, (abs) => /poi_[^.]+\.geojson(\.gz)?$/i.test(path.basename(abs)));
 
   const processed = new Set();
@@ -176,16 +191,22 @@ function main(argv) {
     processed.add(logicalPath);
   }
 
-  for (const abs of ctxtileFiles) {
-    const rel = path.relative(inputDir, abs).replace(/\\/g, '/').replace(/\.gz$/i, '');
-    const logicalPath = `out/${rel}`;
-    if (processed.has(logicalPath)) continue;
+  copyJsonTree(contextTileFiles, inputDir, outputDir, repoRoot, processed);
+  copyJsonTree(accidentTileFiles, inputDir, outputDir, repoRoot, processed);
 
-    const sourceLogical = path.join(inputDir, rel);
-    const text = readTextMaybeGz(sourceLogical);
-    const targetAbs = path.join(outputDir, rel);
-    writeTextArtifact(targetAbs, text, { compression: 'gzip-only', root: repoRoot });
-    processed.add(logicalPath);
+  for (const abs of accidentTileFiles) {
+    const rel = path.relative(inputDir, abs).replace(/\\/g, '/').replace(/\.gz$/i, '');
+    const match = /^accidenttiles\/([^/]+)\/index\.json$/i.exec(rel);
+    if (!match) continue;
+    const slug = match[1];
+    const json = readJsonMaybeGz(path.join(inputDir, rel));
+    ensureCity(slug).accidentTiles = {
+      manifestPath: `out/${rel}.gz`,
+      z: json.z,
+      tiles: Array.isArray(json.tiles) ? json.tiles.length : 0,
+      features: Number(json.totalCount || 0),
+      sourceFingerprint: json.sourceFingerprint || null,
+    };
   }
 
   ensureDir(path.dirname(manifestPath));
@@ -200,4 +221,10 @@ if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = { parseArgs, main, cityFromFile, logicalFromAbsolute };
+module.exports = {
+  parseArgs,
+  main,
+  cityFromFile,
+  logicalFromAbsolute,
+  copyJsonTree,
+};
