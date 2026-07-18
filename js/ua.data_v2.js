@@ -39,7 +39,15 @@
           ? await registry.resolveAsync(cityRaw)
           : registry.resolve(cityRaw))
       : null;
-    if (provider && typeof provider.fetchForCity === 'function') {
+    const staticType = UA.AccidentProvider
+      && UA.AccidentProvider.PROVIDER_TYPES
+      && UA.AccidentProvider.PROVIDER_TYPES.STATIC_GEOJSON;
+
+    // Full-city static files are a first-party DataResources concern. Provider
+    // implementations remain available for tiled and genuinely custom sources.
+    if (provider
+        && typeof provider.fetchForCity === 'function'
+        && provider.type !== staticType) {
       return provider.fetchForCity(cityRaw);
     }
     return resources().fetchJson('accidentGeoJson', { city: cityRaw });
@@ -133,15 +141,4 @@
       ctx.poiData = null;
     }
   };
-
-  if (UA.AccidentProvider
-      && UA.AccidentProvider.ProviderRegistry
-      && typeof UA.AccidentProvider.createStaticProvider === 'function') {
-    try {
-      UA.AccidentProvider.ProviderRegistry.register(
-        'static',
-        UA.AccidentProvider.createStaticProvider()
-      );
-    } catch (_) {}
-  }
 })();
