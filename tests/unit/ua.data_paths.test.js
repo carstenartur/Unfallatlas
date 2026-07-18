@@ -1,11 +1,7 @@
 'use strict';
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-
-// ---------------------------------------------------------------------------
-// Module loader helpers
-// ---------------------------------------------------------------------------
 
 function loadModule(filePath, win) {
   (function (window) {
@@ -15,106 +11,119 @@ function loadModule(filePath, win) {
 
 function makeUA(opts) {
   const win = { UA: {} };
-  // ua.core.js provides UA.normKey — load it first so slugification works.
   loadModule('../../js/ua.core.js', win);
-  if (opts && opts.skipCore) {
-    // Test without normKey to verify the built-in fallback.
-    delete win.UA.normKey;
-  }
+  if (opts && opts.skipCore) delete win.UA.normKey;
   loadModule('../../js/ua.data_paths.js', win);
   return win.UA;
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe('UA.DataPaths — path construction', () => {
+describe('UA.DataResources — central static resource contract', () => {
   let UA;
 
   beforeEach(() => {
     UA = makeUA();
   });
 
-  test('module is exposed on UA.DataPaths', () => {
+  test('exposes one registry for path and loading policy', () => {
+    expect(UA.DataResources).toBeDefined();
+    expect(typeof UA.DataResources.resolve).toBe('function');
+    expect(typeof UA.DataResources.fetchJson).toBe('function');
     expect(UA.DataPaths).toBeDefined();
-    expect(typeof UA.DataPaths.accidentGeoJson).toBe('function');
   });
 
-  test('accidentGeoJson: slugifies and constructs path', () => {
-    expect(UA.DataPaths.accidentGeoJson('Berlin')).toBe('out/output_all_years_berlin.geojson');
-    expect(UA.DataPaths.accidentGeoJson('München')).toBe('out/output_all_years_muenchen.geojson');
-    expect(UA.DataPaths.accidentGeoJson('Frankfurt am Main')).toBe('out/output_all_years_frankfurt_am_main.geojson');
+  test('constructs canonical city resources', () => {
+    expect(UA.DataResources.url('accidentGeoJson', { city: 'München' }))
+      .toBe('out/output_all_years_muenchen.geojson');
+    expect(UA.DataResources.url('poiGeoJson', { city: 'Köln' }))
+      .toBe('out/poi_koeln.geojson');
+    expect(UA.DataResources.url('contextWays', { city: 'Düsseldorf' }))
+      .toBe('out/ways_duesseldorf.json');
+    expect(UA.DataResources.url('enrichmentMeta', { city: 'Berlin' }))
+      .toBe('out/output_all_years_berlin.enrichment.meta.json');
+    expect(UA.DataResources.url('contextTileIndex', { city: 'Berlin' }))
+      .toBe('out/ctxtiles/berlin/index.json');
   });
 
-  test('poiGeoJson: slugifies and constructs path', () => {
-    expect(UA.DataPaths.poiGeoJson('Bonn')).toBe('out/poi_bonn.geojson');
-    expect(UA.DataPaths.poiGeoJson('Köln')).toBe('out/poi_koeln.geojson');
+  test('context schema v3 uses city/x/y without a duplicate zoom directory', () => {
+    expect(UA.DataResources.url('contextTile', { city: 'Berlin', x: 4396, y: 2694 }))
+      .toBe('out/ctxtiles/berlin/4396/2694.json');
+
+    // Historical DataPaths signature remains callable, but z is deliberately
+    // ignored because the manifest already carries it.
+    expect(UA.DataPaths.contextTile('Berlin', 13, 4396, 2694))
+      .toBe('out/ctxtiles/berlin/4396/2694.json');
+    expect(UA.DataPaths.contextTile('Berlin', 4396, 2694))
+      .toBe('out/ctxtiles/berlin/4396/2694.json');
   });
 
-  test('contextWays: slugifies and constructs path', () => {
-    expect(UA.DataPaths.contextWays('Berlin')).toBe('out/ways_berlin.json');
-    expect(UA.DataPaths.contextWays('Düsseldorf')).toBe('out/ways_duesseldorf.json');
-  });
+  test('context tiles are unconditionally gzip-only', async () => {
+    const payload = { ways: { W1: {} }, geometries: { W1: [50, 7, 50.1, 7.1] } };
+    UA.fetchJsonGz = jest.fn(async () => payload);
+    const rawFetch = jest.fn();
 
-  test('enrichmentMeta: slugifies and constructs path', () => {
-    expect(UA.DataPaths.enrichmentMeta('Berlin')).toBe(
-      'out/output_all_years_berlin.enrichment.meta.json'
+    const result = await UA.DataResources.fetchJson('contextTile', {
+      city: 'Bonn', x: 4256, y: 2754,
+    }, { fetch: rawFetch });
+
+    expect(result).toBe(payload);
+    expect(UA.fetchJsonGz).toHaveBeenCalledWith(
+      'out/ctxtiles/bonn/4256/2754.json.gz',
+      expect.objectContaining({ fetch: rawFetch, cache: 'force-cache' })
     );
+    expect(rawFetch).not.toHaveBeenCalled();
   });
 
-  test('contextTileIndex: constructs correct index path', () => {
-    expect(UA.DataPaths.contextTileIndex('Berlin')).toBe('out/ctxtiles/berlin/index.json');
+  test('unknown resources and invalid tile coordinates fail early', () => {
+    expect(() => UA.DataResources.url('unknown', {})).toThrow(/unknown resource kind/);
+    expect(() => UA.DataResources.url('contextTile', { city: 'Bonn', x: '../x', y: 1 }))
+      .toThrow(/x must be a non-negative integer/);
   });
 
-  test('contextTile: constructs correct tile path', () => {
-    expect(UA.DataPaths.contextTile('Berlin', 13, 4396, 2694)).toBe(
-      'out/ctxtiles/berlin/13/4396/2694.json'
-    );
-  });
-
-  test('accidentTileIndex: constructs correct index path', () => {
-    expect(UA.DataPaths.accidentTileIndex('Berlin')).toBe('out/accidenttiles/berlin/index.json');
-  });
-
-  test('accidentTile: constructs correct tile path', () => {
-    expect(UA.DataPaths.accidentTile('Berlin', 13, 4396, 2694)).toBe(
-      'out/accidenttiles/berlin/13/4396/2694.json'
-    );
+  test('accident tile path retains its z/x/y pyramid', () => {
+    expect(UA.DataResources.url('accidentTile', {
+      city: 'Berlin', z: 13, x: 4396, y: 2694,
+    })).toBe('out/accidenttiles/berlin/13/4396/2694.json');
   });
 });
 
-describe('UA.DataPaths — fallback without UA.normKey', () => {
+describe('UA.DataPaths — compatibility facade', () => {
+  test('delegates every legacy method to DataResources', () => {
+    const UA = makeUA();
+    const spy = jest.spyOn(UA.DataResources, 'url');
+
+    expect(UA.DataPaths.accidentGeoJson('Berlin')).toBe('out/output_all_years_berlin.geojson');
+    expect(UA.DataPaths.poiGeoJson('Bonn')).toBe('out/poi_bonn.geojson');
+    expect(UA.DataPaths.contextWays('Berlin')).toBe('out/ways_berlin.json');
+    expect(UA.DataPaths.enrichmentMeta('Berlin'))
+      .toBe('out/output_all_years_berlin.enrichment.meta.json');
+    expect(UA.DataPaths.contextTileIndex('Berlin')).toBe('out/ctxtiles/berlin/index.json');
+    expect(UA.DataPaths.accidentTileIndex('Berlin')).toBe('out/accidenttiles/berlin/index.json');
+
+    expect(spy).toHaveBeenCalled();
+  });
+
   test('works with basic lowercase fallback when normKey is absent', () => {
     const UA = makeUA({ skipCore: true });
-    expect(UA.DataPaths.accidentGeoJson('berlin')).toBe('out/output_all_years_berlin.geojson');
+    expect(UA.DataPaths.accidentGeoJson('berlin'))
+      .toBe('out/output_all_years_berlin.geojson');
   });
 });
 
-describe('UA.DataPaths — delegation from ua.data.js', () => {
-  test('UA.buildDataUrl delegates to DataPaths.accidentGeoJson', () => {
+describe('legacy loaders still receive canonical URLs', () => {
+  test('ua.data.js delegates to the compatibility facade', () => {
     const win = { UA: {} };
     loadModule('../../js/ua.core.js', win);
     loadModule('../../js/ua.data_paths.js', win);
     loadModule('../../js/ua.data.js', win);
     expect(win.UA.buildDataUrl('Berlin')).toBe('out/output_all_years_berlin.geojson');
   });
-});
 
-describe('UA.DataPaths — delegation from ua.data_v2.js', () => {
-  test('UA.buildDataUrl in data_v2 delegates to DataPaths.accidentGeoJson', () => {
+  test('ua.data_v2.js delegates accident and POI paths', () => {
     const win = { UA: {} };
     loadModule('../../js/ua.core.js', win);
     loadModule('../../js/ua.data_paths.js', win);
     loadModule('../../js/ua.data_v2.js', win);
     expect(win.UA.buildDataUrl('Köln')).toBe('out/output_all_years_koeln.geojson');
-  });
-
-  test('UA.buildPOIUrl in data_v2 delegates to DataPaths.poiGeoJson', () => {
-    const win = { UA: {} };
-    loadModule('../../js/ua.core.js', win);
-    loadModule('../../js/ua.data_paths.js', win);
-    loadModule('../../js/ua.data_v2.js', win);
     expect(win.UA.buildPOIUrl('Bonn')).toBe('out/poi_bonn.geojson');
   });
 });
