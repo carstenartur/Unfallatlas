@@ -104,8 +104,14 @@
   // Optional missing-data recovery UI. Loading it here keeps the existing HTML
   // entry point unchanged and makes the same button available on GitHub Pages
   // and in the Docker server. The module is self-initialising and degrades to a
-  // safe GitHub Actions link when no local API exists.
-  if (typeof document !== 'undefined' && !document.querySelector('script[data-ua-context-generation]')) {
+  // safe GitHub Actions link when no local API exists. Minimal test/document
+  // doubles may not implement the complete DOM API, so guard every primitive.
+  if (typeof document !== 'undefined'
+      && typeof document.querySelector === 'function'
+      && typeof document.createElement === 'function'
+      && document.head
+      && typeof document.head.appendChild === 'function'
+      && !document.querySelector('script[data-ua-context-generation]')) {
     const script = document.createElement('script');
     script.src = 'js/ua.context_generation.js?v=2026-07-18';
     script.async = true;
