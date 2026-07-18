@@ -29,7 +29,10 @@ permissions:
 
 concurrency:
   group: context-data-e2e-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # A real-source generation run is expensive. On a PR, only the newest commit
+  # is relevant; keeping superseded runs queued prevented the current Bonn
+  # browser contract from ever starting during active review.
+  cancel-in-progress: true
 
 jobs:
   bonn-generated-and-rendered:
