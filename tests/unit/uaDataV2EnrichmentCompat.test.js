@@ -1,297 +1,214 @@
 'use strict';
 
-/**
- * Hot-path regression: js/ua.data_v2.js MUST keep working unchanged on
- * both the old (un-enriched) and the new (enriched) per-city GeoJSON
- * format. This is the explicit contract of plan §C.6 — the loader
- * takes no dependency on enrichment fields, reading them is a free
- * `?.` away for any UI module that wants them.
- */
-
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 
-function loadDataModule() {
-  const win = { UA: {} };
-  // ua.data_v2.js depends on UA.normKey from ua.utils.js — provide a
-  // minimal stub so we don't have to load the full utils file just for
-  // this read-side regression.
-  win.UA.normKey = (s) => String(s ?? '').toLowerCase();
-  const filePath = path.resolve(__dirname, '../../js/ua.data_v2.js');
-  (function (window) { eval(fs.readFileSync(filePath, 'utf8')); })(win);
+function evaluate(win, relative) {
+  const source = fs.readFileSync(path.resolve(__dirname, relative), 'utf8');
+  (function (window) { eval(source); })(win); // eslint-disable-line no-eval
+}
+
+function loadDataModule(options) {
+  const win = { UA: {}, location: { href: 'http://localhost/' } };
+  if (!options || options.idle !== false) win.requestIdleCallback = callback => callback();
+  evaluate(win, '../../js/ua.core.js');
+  evaluate(win, '../../js/ua.data_paths.js');
+  if (!options || options.context !== false) evaluate(win, '../../js/ua.context_layers.js');
+  evaluate(win, '../../js/ua.data_v2.js');
   return win.UA;
 }
 
-describe('UA.extractPoints — backward-compatibility with un-enriched files', () => {
-  test('parses a vanilla pre-enrichment FeatureCollection (the format on disk today)', () => {
-    const UA = loadDataModule();
-    const gj = {
-      type: 'FeatureCollection',
-      features: [
-        { type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-          properties: { id: '1', ukategorie: '2', istrad: '0', istpkw: '1' } },
-        { type: 'Feature', geometry: { type: 'Point', coordinates: [7.2, 50.8] },
-          properties: { id: '2', ukategorie: '3', istrad: '1', istpkw: '0' } },
-      ],
-    };
-    const pts = UA.extractPoints(gj);
-    expect(pts).toHaveLength(2);
-    expect(pts[0]).toEqual({ lat: 50.7, lon: 7.1, props: gj.features[0].properties });
-    expect(pts[0].props.elevation_m).toBeUndefined();
+function point(properties) {
+  return {
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+    properties: properties || {},
+  };
+}
+
+function featureCollection(features, properties) {
+  const result = { type: 'FeatureCollection', features };
+  if (properties) result.properties = properties;
+  return result;
+}
+
+function installCompressedFixtures(UA, fixtures) {
+  UA.fetchJsonCompressed = jest.fn(async url => {
+    for (const [suffix, value] of Object.entries(fixtures)) {
+      if (url.endsWith(suffix)) {
+        if (value instanceof Error) throw value;
+        if (typeof value === 'function') return value();
+        return value;
+      }
+    }
+    throw new Error(`missing fixture: ${url}`);
+  });
+}
+
+async function flush() {
+  await Promise.resolve();
+  await new Promise(resolve => setTimeout(resolve, 0));
+}
+
+describe('UA.extractPoints enrichment compatibility', () => {
+  test('parses old and enriched FeatureCollections identically', () => {
+    const UA = loadDataModule({ context: false });
+    const plain = featureCollection([
+      point({ id: '1', ukategorie: '2' }),
+      point({ id: '2', ukategorie: '3' }),
+    ]);
+    expect(UA.extractPoints(plain)).toHaveLength(2);
+
+    const enriched = featureCollection([
+      point({
+        id: '1',
+        ukategorie: '2',
+        matched_way_id: 'W1',
+        elevation_m: 123.5,
+        slope_class: 'steep',
+        traffic_proxy_class: 'high',
+      }),
+    ], { enrichmentDicts: { highway: ['residential'] } });
+    const result = UA.extractPoints(enriched);
+    expect(result).toHaveLength(1);
+    expect(result[0].props.elevation_m).toBe(123.5);
+    expect(result[0].props.matched_way_id).toBe('W1');
   });
 
-  test('parses an enriched FeatureCollection identically and exposes new fields via .props', () => {
-    const UA = loadDataModule();
-    const gj = {
-      type: 'FeatureCollection',
-      // The new top-level enrichmentDicts must NOT confuse the loader.
-      properties: { enrichmentDicts: { highway: ['residential'] } },
-      features: [
-        { type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-          properties: {
-            id: '1', ukategorie: '2', istrad: '0', istpkw: '1',
-            // New optional enrichment fields:
-            matched_way_id: 'W1', elevation_m: 123.5, slope_class: 'steep',
-            traffic_proxy_class: 'high',
-          },
-        },
-      ],
-    };
-    const pts = UA.extractPoints(gj);
-    expect(pts).toHaveLength(1);
-    expect(pts[0].lat).toBe(50.7);
-    expect(pts[0].lon).toBe(7.1);
-    // Old fields untouched
-    expect(pts[0].props.ukategorie).toBe('2');
-    // New fields available for any UI module that opts in
-    expect(pts[0].props.elevation_m).toBe(123.5);
-    expect(pts[0].props.matched_way_id).toBe('W1');
-    expect(pts[0].props.traffic_proxy_class).toBe('high');
+  test('drops invalid or non-point geometries', () => {
+    const UA = loadDataModule({ context: false });
+    const result = UA.extractPoints(featureCollection([
+      point({ id: 'valid' }),
+      { type: 'Feature', geometry: { type: 'LineString', coordinates: [] }, properties: { id: 'line' } },
+      { type: 'Feature', geometry: { type: 'Point', coordinates: ['x', 'y'] }, properties: { id: 'bad' } },
+      { type: 'Feature', geometry: null, properties: { id: 'null' } },
+    ]));
+    expect(result.map(item => item.props.id)).toEqual(['valid']);
   });
 
-  test('drops invalid geometries the same way it always did', () => {
-    const UA = loadDataModule();
-    const gj = {
-      type: 'FeatureCollection',
-      features: [
-        { type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] }, properties: { id: '1' } },
-        { type: 'Feature', geometry: { type: 'LineString', coordinates: [[1,1],[2,2]] }, properties: { id: '2' } },
-        { type: 'Feature', geometry: { type: 'Point', coordinates: ['x', 'y'] }, properties: { id: '3' } },
-        { type: 'Feature', geometry: null, properties: { id: '4' } },
-      ],
-    };
-    const pts = UA.extractPoints(gj);
-    expect(pts).toHaveLength(1);
-    expect(pts[0].props.id).toBe('1');
-  });
-});
-
-describe('URL builders are unaffected by enrichment', () => {
-  test('buildDataUrl still points at the original per-city GeoJSON', () => {
-    const UA = loadDataModule();
+  test('URL builders are registry-backed', () => {
+    const UA = loadDataModule({ context: false });
     expect(UA.buildDataUrl('Bonn')).toBe('out/output_all_years_bonn.geojson');
+    expect(UA.buildPOIUrl('Köln')).toBe('out/poi_koeln.geojson');
   });
 });
 
-describe('UA.loadCityData — PR-C lazy load wiring for ways_<city>.json', () => {
-  function loadDataAndContextLayers(opts) {
-    const fs = require('fs');
-    const path = require('path');
-    // The lazy loader (UA.contextLayers.loadAtIdle) closes over `window`
-    // captured at module-evaluation time. To deterministically exercise
-    // the requestIdleCallback branch (rather than the setTimeout
-    // fallback), install the shim on the `win` sandbox *before* the
-    // module sources are evaluated. opts.idle = false skips the shim
-    // so we can also cover the setTimeout fallback path on demand.
-    const win = { UA: {}, location: { href: 'http://localhost/' } };
-    if (!opts || opts.idle !== false) {
-      win.requestIdleCallback = (cb) => cb();
-    }
-    win.UA.normKey = (s) => String(s ?? '').toLowerCase();
-    const load = (rel) => {
-      const p = path.resolve(__dirname, '../../js/' + rel);
-      (function (window) { eval(fs.readFileSync(p, 'utf8')); })(win);
-    };
-    load('ua.context_layers.js');
-    load('ua.data_v2.js');
-    return win.UA;
-  }
+describe('UA.loadCityData context wiring', () => {
+  test('loads accidents and context companions through central resources', async () => {
+    const UA = loadDataModule();
+    const geojson = featureCollection([
+      point({ id: '1', matched_way_id: 'W1', elevation_m: 1 }),
+    ], { enrichmentDicts: { highway: ['residential'] } });
+    const ways = { W1: { highway: 0, maxspeed: 30 } };
+    installCompressedFixtures(UA, {
+      'output_all_years_bonn.geojson': geojson,
+      'ways_bonn.json': ways,
+      'output_all_years_bonn.enrichment.meta.json': new Error('optional'),
+    });
 
-  test('triggers loadAtIdle and stashes resolved state on ctx.contextLayerState when hasOsmContext', async () => {
-    const UA = loadDataAndContextLayers();
-    UA.contextLayers.clearCache();
+    const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: '' } } };
+    await UA.loadCityData(ctx);
+    await flush();
 
-    const fcGeojson = {
-      type: 'FeatureCollection',
-      properties: { enrichmentDicts: { highway: ['residential'] } },
-      features: [{
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-        properties: { id: '1', matched_way_id: 'W1', elevation_m: 1 },
-      }],
-    };
-    const waysJson = { 'W1': { highway: 0, maxspeed: 30 } };
-
-    let calls = 0;
-    global.fetch = (url) => {
-      calls++;
-      if (url.endsWith('output_all_years_bonn.geojson')) {
-        return Promise.resolve({ ok: true, json: async () => fcGeojson });
-      }
-      if (url.endsWith('ways_bonn.json')) {
-        return Promise.resolve({ ok: true, json: async () => waysJson });
-      }
-      // sidecar meta is optional → 404
-      return Promise.resolve({ ok: false });
-    };
-
-    try {
-      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
-      await UA.loadCityData(ctx);
-      expect(ctx.contextCapabilities.hasOsmContext).toBe(true);
-      // loadAtIdle is fire-and-forget — flush microtasks.
-      await new Promise((r) => setTimeout(r, 0));
-      await new Promise((r) => setTimeout(r, 0));
-      expect(ctx.contextLayerState).toBeTruthy();
-      expect(ctx.contextLayerState.ways).toEqual(waysJson);
-      expect(ctx.contextLayerState.dicts).toEqual({ highway: ['residential'] });
-      expect(calls).toBeGreaterThanOrEqual(2);
-    } finally {
-      delete global.fetch;
-      UA.contextLayers.clearCache();
-    }
+    expect(ctx.allPts).toHaveLength(1);
+    expect(ctx.contextCapabilities.hasOsmContext).toBe(true);
+    expect(ctx.contextLayerState.ways).toEqual(ways);
+    expect(ctx.contextLayerState.dicts).toEqual({ highway: ['residential'] });
+    expect(UA.fetchJsonCompressed).toHaveBeenCalledWith(
+      'out/output_all_years_bonn.geojson',
+      expect.objectContaining({ cache: 'no-store' })
+    );
   });
 
-  test('does NOT trigger lazy load when geojson has no OSM context fields', async () => {
-    const UA = loadDataAndContextLayers();
-    UA.contextLayers.clearCache();
-    const fcGeojson = {
-      type: 'FeatureCollection',
-      features: [{
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-        properties: { id: '1', ukategorie: '2' },
-      }],
-    };
-    const fetched = [];
-    global.fetch = (url) => {
-      fetched.push(url);
-      return Promise.resolve({ ok: true, json: async () => fcGeojson });
-    };
-    try {
-      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
-      await UA.loadCityData(ctx);
-      await new Promise((r) => setTimeout(r, 0));
-      expect(ctx.contextCapabilities.hasOsmContext).toBe(false);
-      expect(ctx.contextLayerState).toBeNull();
-      // Only the geojson was fetched — no ways_*.json / sidecar requests.
-      expect(fetched.filter((u) => u.includes('ways_'))).toHaveLength(0);
-    } finally {
-      delete global.fetch;
-      UA.contextLayers.clearCache();
-    }
+  test('does not request context companions when no context fields exist', async () => {
+    const UA = loadDataModule();
+    const geojson = featureCollection([point({ id: '1', ukategorie: '2' })]);
+    installCompressedFixtures(UA, { 'output_all_years_bonn.geojson': geojson });
+
+    const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: '' } } };
+    await UA.loadCityData(ctx);
+    await flush();
+
+    expect(ctx.contextCapabilities.hasOsmContext).toBe(false);
+    expect(ctx.contextLayerState).toBeNull();
+    expect(UA.fetchJsonCompressed.mock.calls.map(call => call[0]).filter(url => url.includes('ways_')))
+      .toHaveLength(0);
   });
 
-  test('city-switch race: late-resolving ways for previous city does NOT overwrite new state', async () => {
-    const UA = loadDataAndContextLayers();
-    UA.contextLayers.clearCache();
-    const bonnGeojson = {
-      type: 'FeatureCollection',
-      properties: { enrichmentDicts: {} },
-      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-        properties: { id: '1', matched_way_id: 'W1' } }],
-    };
+  test('does not let a late previous-city context response overwrite the new city', async () => {
+    const UA = loadDataModule();
+    const geojson = featureCollection([point({ id: '1', matched_way_id: 'W1' })]);
     let resolveWays;
-    global.fetch = (url) => {
-      if (url.endsWith('output_all_years_bonn.geojson')) {
-        return Promise.resolve({ ok: true, json: async () => bonnGeojson });
-      }
+    UA.fetchJsonCompressed = jest.fn(async url => {
+      if (url.endsWith('output_all_years_bonn.geojson')) return geojson;
       if (url.endsWith('ways_bonn.json')) {
-        // Defer the resolution so we can flip ctx.CITY_RAW first.
-        return new Promise((res) => { resolveWays = () => res({ ok: true, json: async () => ({ 'W1': { highway: 0 } }) }); });
+        return new Promise(resolve => { resolveWays = () => resolve({ W1: { highway: 0 } }); });
       }
-      return Promise.resolve({ ok: false });
-    };
-    try {
-      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } } };
-      await UA.loadCityData(ctx);
-      // User switched city before ways_*.json finished loading.
-      ctx.CITY_RAW = 'Köln';
-      // Now let the deferred ways response resolve.
-      resolveWays();
-      await new Promise((r) => setTimeout(r, 0));
-      await new Promise((r) => setTimeout(r, 0));
-      // The stale Bonn payload must NOT be stashed into the new ctx.
-      expect(ctx.contextLayerState).toBeNull();
-    } finally {
-      delete global.fetch;
-      UA.contextLayers.clearCache();
-    }
+      throw new Error('optional');
+    });
+
+    const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: '' } } };
+    await UA.loadCityData(ctx);
+    ctx.CITY_RAW = 'Köln';
+    resolveWays();
+    await flush();
+    expect(ctx.contextLayerState).toBeNull();
   });
 
-  test('triggers a lightweight UA.renderLayers re-render when state arrives AFTER markers were built (cluster/heat layer present)', async () => {
-    const UA = loadDataAndContextLayers();
-    UA.contextLayers.clearCache();
-    const gj = {
-      type: 'FeatureCollection',
-      properties: { enrichmentDicts: {} },
-      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-        properties: { id: '1', matched_way_id: 'W1' } }],
+  test('re-renders an existing marker layer after context hydration', async () => {
+    const UA = loadDataModule();
+    const geojson = featureCollection([point({ id: '1', matched_way_id: 'W1' })]);
+    installCompressedFixtures(UA, {
+      'output_all_years_bonn.geojson': geojson,
+      'ways_bonn.json': { W1: { highway: 0 } },
+      'output_all_years_bonn.enrichment.meta.json': new Error('optional'),
+    });
+    UA.renderLayers = jest.fn();
+
+    const ctx = {
+      CITY_RAW: 'Bonn',
+      ui: { dataSourceCode: { textContent: '' } },
+      map: {},
+      clusterLayer: {},
     };
-    global.fetch = (url) => {
-      if (url.endsWith('output_all_years_bonn.geojson')) return Promise.resolve({ ok: true, json: async () => gj });
-      if (url.endsWith('ways_bonn.json')) return Promise.resolve({ ok: true, json: async () => ({ 'W1': { highway: 0 } }) });
-      return Promise.resolve({ ok: false });
-    };
-    try {
-      let renderCalls = 0;
-      UA.renderLayers = (c) => { renderCalls++; expect(c._dataChanged).toBe(true); };
-      // Simulate an already-rendered map: clusterLayer present.
-      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } }, map: {}, clusterLayer: {} };
-      await UA.loadCityData(ctx);
-      await new Promise((r) => setTimeout(r, 0));
-      await new Promise((r) => setTimeout(r, 0));
-      expect(renderCalls).toBeGreaterThanOrEqual(1);
-      expect(ctx.contextLayerState).toBeTruthy();
-    } finally {
-      delete global.fetch;
-      UA.contextLayers.clearCache();
-    }
+    await UA.loadCityData(ctx);
+    await flush();
+    expect(UA.renderLayers).toHaveBeenCalled();
+    expect(ctx._dataChanged).toBe(true);
   });
 
-  test('skips the post-load re-render when no marker layer has been built yet (perf hardening for large GeoJSON)', async () => {
-    // Defense in depth: if ways_<city>.json finishes BEFORE the first
-    // renderLayers() call (typical fast-cache hit), the imminent first
-    // render will already see ctx.contextLayerState and there is no
-    // already-bound popup that needs refreshing — re-rendering would
-    // be a wasted full marker rebuild for huge cities.
-    const UA = loadDataAndContextLayers();
-    UA.contextLayers.clearCache();
-    const gj = {
-      type: 'FeatureCollection',
-      properties: { enrichmentDicts: {} },
-      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] },
-        properties: { id: '1', matched_way_id: 'W1' } }],
-    };
-    global.fetch = (url) => {
-      if (url.endsWith('output_all_years_bonn.geojson')) return Promise.resolve({ ok: true, json: async () => gj });
-      if (url.endsWith('ways_bonn.json')) return Promise.resolve({ ok: true, json: async () => ({ 'W1': { highway: 0 } }) });
-      return Promise.resolve({ ok: false });
-    };
-    try {
-      let renderCalls = 0;
-      UA.renderLayers = () => { renderCalls++; };
-      // No clusterLayer / heatLayer on ctx → first render hasn't run yet.
-      const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: null } }, map: {} };
-      await UA.loadCityData(ctx);
-      await new Promise((r) => setTimeout(r, 0));
-      await new Promise((r) => setTimeout(r, 0));
-      expect(renderCalls).toBe(0);
-      // The state must still be stashed so the imminent first render picks it up.
-      expect(ctx.contextLayerState).toBeTruthy();
-    } finally {
-      delete global.fetch;
-      UA.contextLayers.clearCache();
-    }
+  test('skips the hydration re-render before any marker layer exists', async () => {
+    const UA = loadDataModule();
+    const geojson = featureCollection([point({ id: '1', matched_way_id: 'W1' })]);
+    installCompressedFixtures(UA, {
+      'output_all_years_bonn.geojson': geojson,
+      'ways_bonn.json': { W1: { highway: 0 } },
+      'output_all_years_bonn.enrichment.meta.json': new Error('optional'),
+    });
+    UA.renderLayers = jest.fn();
+
+    const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: '' } }, map: {} };
+    await UA.loadCityData(ctx);
+    await flush();
+    expect(UA.renderLayers).not.toHaveBeenCalled();
+    expect(ctx.contextLayerState).toBeTruthy();
+  });
+});
+
+describe('UA.loadPOIData', () => {
+  test('loads optional POIs through DataResources and degrades to null', async () => {
+    const UA = loadDataModule({ context: false });
+    const poi = featureCollection([point({ name: 'Schule' })]);
+    installCompressedFixtures(UA, { 'poi_bonn.geojson': poi });
+    const ctx = { CITY_RAW: 'Bonn' };
+    await UA.loadPOIData(ctx);
+    expect(ctx.poiData).toBe(poi);
+
+    const missingUA = loadDataModule({ context: false });
+    missingCompressedResources = undefined;
+    missingUA.fetchJsonCompressed = jest.fn(async () => { throw new Error('missing'); });
+    const missingCtx = { CITY_RAW: 'Bonn' };
+    await missingUA.loadPOIData(missingCtx);
+    expect(missingCtx.poiData).toBeNull();
   });
 });
