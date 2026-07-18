@@ -11,6 +11,16 @@ on:
         description: 'Rebuild OSM, slope and traffic producer data'
         type: boolean
         default: false
+  # A merge that changes the producer/generator contract must rebuild the
+  # checked-in context artifacts. The generated commit only changes out/ and
+  # therefore does not trigger this workflow again.
+  push:
+    branches: [main]
+    paths:
+      - 'cities.txt'
+      - 'scripts/generate-context-city.js'
+      - 'scripts/check-enrichment-inputs.js'
+      - 'scripts/producers/**'
   workflow_run:
     workflows: ["Generate & Commit"]
     types: [completed]
@@ -89,7 +99,10 @@ jobs:
       - name: Generate context data atomically
         shell: bash
         env:
-          FORCE_CONTEXT: ${{ inputs.force }}
+          # A producer-contract push or freshly generated accident dataset must
+          # not reuse old per-city producer files. Scheduled refreshes retain
+          # resumable caches unless the dispatcher explicitly selects force.
+          FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' }}
         run: |
           set -euo pipefail
           while IFS= read -r city; do
