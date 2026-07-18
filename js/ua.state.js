@@ -3,6 +3,7 @@
 
   const CANON = {
     city: "city",
+    accidentDataMode: "accidentDataMode",
     severity: "severity",
     dayType: "dayType",
     roadCondition: "roadCondition",
