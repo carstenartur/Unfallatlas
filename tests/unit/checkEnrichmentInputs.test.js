@@ -89,4 +89,55 @@ describe('check-enrichment-inputs', () => {
     expect(result.ok).toBe(false);
     expect(result.problems.join('\n')).toMatch(/inputFingerprint does not match/);
   });
+
+  test('fingerprint is unchanged when only enrichment fields are added', () => {
+    const rawFile = path.join(root, 'raw.geojson');
+    const enrichedFile = path.join(root, 'enriched.geojson');
+    const baseFeature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+      properties: { id: 'A1', ukategorie: '2', istrad: '1' },
+    };
+    writeJson(rawFile, {
+      type: 'FeatureCollection',
+      features: [baseFeature],
+    });
+    writeJson(enrichedFile, {
+      type: 'FeatureCollection',
+      properties: {
+        enrichmentDicts: { highway: ['residential'] },
+        enrichmentSummary: { matched: 1 },
+      },
+      features: [{
+        ...baseFeature,
+        properties: {
+          ...baseFeature.properties,
+          matched_way_id: 'W1',
+          elevation_m: 100.1,
+          slope_percent: 2.3,
+          slope_class: 'gentle',
+          traffic_proxy_class: 'low',
+          highway: 0,
+        },
+      }],
+    });
+
+    expect(preflight.fingerprintJsonArtifact(enrichedFile))
+      .toBe(preflight.fingerprintJsonArtifact(rawFile));
+  });
+
+  test('fingerprint changes when an official accident value changes', () => {
+    const first = path.join(root, 'first.geojson');
+    const second = path.join(root, 'second.geojson');
+    writeJson(first, {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] }, properties: { id: 'A1', ukategorie: '2' } }],
+    });
+    writeJson(second, {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] }, properties: { id: 'A1', ukategorie: '1' } }],
+    });
+    expect(preflight.fingerprintJsonArtifact(first))
+      .not.toBe(preflight.fingerprintJsonArtifact(second));
+  });
 });
