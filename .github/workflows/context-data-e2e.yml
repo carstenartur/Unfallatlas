@@ -1,0 +1,85 @@
+name: Context data browser E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * 1'
+  pull_request:
+    paths:
+      - '.github/workflows/context-data-e2e.yml'
+      - 'cities.txt'
+      - 'package.json'
+      - 'playwright.config.js'
+      - 'werkbank_v2.html'
+      - 'js/ua.context_layers.js'
+      - 'js/ua.context_road_layer.js'
+      - 'js/ua.data_v2.js'
+      - 'js/ua.fetch_gz.js'
+      - 'js/ua.map_v2.js'
+      - 'scripts/check-enrichment-inputs.js'
+      - 'scripts/enrich_geojson.js'
+      - 'scripts/generate-context-city.js'
+      - 'scripts/run-context-data-e2e.js'
+      - 'scripts/producers/**'
+      - 'tests/e2e/context-data-render.spec.js'
+      - 'tests/e2e/helpers.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: context-data-e2e-${{ github.event.pull_request.number || github.ref }}
+  # A real-source generation run is expensive. On a PR, only the newest commit
+  # is relevant; keeping superseded runs queued prevented the current Bonn
+  # browser contract from ever starting during active review.
+  cancel-in-progress: true
+
+jobs:
+  bonn-generated-and-rendered:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      CONTEXT_E2E_CITY: Bonn
+      CONTEXT_E2E_CACHE_DIR: .build/context-e2e/cache
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # SRTM HGT tiles are immutable source rasters. Cache only those expensive
+      # downloads; the OSM, DEM-derived and traffic producer outputs are rebuilt
+      # by --force on every integration run.
+      - name: Restore immutable SRTM tile cache
+        uses: actions/cache@v6
+        with:
+          path: .build/context-e2e/cache/dem-tiles
+          key: context-e2e-srtm-${{ runner.os }}-${{ hashFiles('scripts/producers/dem_tile_producer.js') }}
+          restore-keys: |
+            context-e2e-srtm-${{ runner.os }}-
+          save-always: true
+
+      - name: Generate Bonn and verify rendered slope and traffic layers
+        run: npm run test:context-data-e2e
+
+      - name: Upload browser report and generated diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: context-data-e2e-bonn
+          path: |
+            playwright-report/
+            test-results/
+            .build/context-e2e/site/out/output_all_years_bonn.enrichment.meta.json.gz
+            .build/context-e2e/site/out/ways_bonn.json.gz
+            .build/context-e2e/site/out/ctxtiles/bonn/
+          if-no-files-found: warn
+          retention-days: 14

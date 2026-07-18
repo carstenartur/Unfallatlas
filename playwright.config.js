@@ -23,7 +23,14 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: /demo\.spec/,
+      // The context-data browser contract has its own project because its
+      // runner first creates a fresh, isolated Bonn dataset from real sources.
+      testIgnore: [/demo\.spec/, /context-data-render\.spec/],
+    },
+    {
+      name: 'context-data-e2e',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /context-data-render\.spec/,
     },
     {
       name: 'demo',
@@ -47,7 +54,8 @@ export default defineConfig({
     },
   ],
 
-  // Only start a local web server when not targeting a live/remote BASE_URL
+  // Only start a local web server when not targeting a live/remote BASE_URL.
+  // The generated-context runner supplies BASE_URL and owns its isolated server.
   webServer: process.env.BASE_URL ? undefined : {
     command: 'python3 -m http.server 8000',
     url: 'http://localhost:8000',

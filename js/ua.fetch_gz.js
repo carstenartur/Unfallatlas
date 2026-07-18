@@ -30,6 +30,11 @@
    *     meta tag; see below) to disable the fallback and hard-fail when
    *     the .gz artefact is missing.
    *
+   *     Context tiles under `out/ctxtiles/<city>/<x>/<y>.json` are always
+   *     gzip-only by repository policy. They never fall back to raw JSON;
+   *     doing so previously left the controls and legends visible while all
+   *     road-tile requests returned 404 and no streets were rendered.
+   *
    * Configuring gzip-only mode for Pages / CI smoke tests
    * -------------------------------------------------------
    * Add a meta tag to the HTML to disable the raw fallback globally:
@@ -55,7 +60,7 @@
   // ---------------------------------------------------------------------------
 
   /**
-   * Detect the global data mode.  Checks (in order):
+   * Detect the global data mode. Checks (in order):
    *   1. `<meta name="unfallatlas:data-mode" content="gzip-only">` in <head>
    *   2. Falls back to 'default' (= allow raw fallback)
    *
@@ -67,6 +72,17 @@
       if (el && el.getAttribute('content') === 'gzip-only') return 'gzip-only';
     } catch (_) { /* headless / test environment */ }
     return 'default';
+  }
+
+  /**
+   * Context-tile payloads are normalized to gzip-only by every production
+   * workflow (`scripts/static-data-policy.js`). Keep this path-level contract
+   * independent of an HTML meta tag so local static servers, Docker and Pages
+   * all resolve the same files.
+   */
+  function _isImplicitGzipOnlyUrl(url) {
+    const clean = String(url || '').replace(/[?#].*$/, '').replace(/\\/g, '/');
+    return /(?:^|\/)out\/ctxtiles\/[^/]+\/(?:\d+\/)?\d+\/\d+\.json$/i.test(clean);
   }
 
   /**
@@ -164,7 +180,8 @@
    * The function appends `.gz` to the provided `url` (unless it already
    * ends with `.gz`) and decompresses the response. If `options.gzipOnly`
    * is false (the default) and the `.gz` fetch fails, it falls back to
-   * the raw URL for local-development convenience.
+   * the raw URL for local-development convenience. Context-tile payloads
+   * are an explicit exception and are always gzip-only.
    *
    * @param {string} url   Logical URL (without .gz suffix).
    * @param {{
@@ -180,7 +197,7 @@
     const urlGz    = url.endsWith('.gz') ? url : `${url}.gz`;
     const gzipOnly = opts.gzipOnly !== undefined
       ? opts.gzipOnly
-      : (_globalDataMode() === 'gzip-only');
+      : (_globalDataMode() === 'gzip-only' || _isImplicitGzipOnlyUrl(url));
 
     try {
       return await UA.fetchJsonGz(urlGz, opts);
@@ -203,4 +220,7 @@
     }
   };
 
+  // Export the policy probe only for unit tests / diagnostics. It is pure and
+  // does not expose mutable application state.
+  UA._isImplicitGzipOnlyUrl = _isImplicitGzipOnlyUrl;
 })();
