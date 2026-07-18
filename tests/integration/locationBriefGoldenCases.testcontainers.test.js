@@ -26,7 +26,6 @@ function dockerLikelyAvailable() {
 
 const SUITE_DESCRIBE = dockerLikelyAvailable() ? describe : describe.skip;
 if (SUITE_DESCRIBE === describe.skip) {
-  // eslint-disable-next-line no-console
   console.warn('[locationBriefGoldenCases.testcontainers] Skipping suite — Docker not available.');
 }
 
@@ -226,7 +225,8 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
         for (const m of brief.recommendedMeasures) {
           expect(typeof m.whyPreselected).toBe('string');
           expect(m.whyPreselected.length).toBeGreaterThan(0);
-          const hasSpecificReason = (m.matchedConflictPatterns || []).length > 0 || (m.matchedRiskFactors || []).length > 0;
+          const hasSpecificReason = (m.matchedConflictPatterns || []).length > 0
+            || (m.matchedRiskFactors || []).length > 0;
           expect(hasSpecificReason || /datenlage|vor[- ]?ort|monitoring/i.test(m.whyPreselected)).toBe(true);
         }
 
@@ -244,8 +244,9 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
           );
         }
 
+        const locationKey = `${cityDef.city.toLowerCase()}::${c.caseId}`;
         const ingestPayload = toIngestPayload(brief, {
-          locationId: `${cityDef.city.toLowerCase()}::${c.caseId}`,
+          locationId: locationKey,
           city: cityDef.city,
           areaName: c.description,
           profile: PROFILE.profile
@@ -254,19 +255,23 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
         if (!stubCheckDone) {
           const stubResp = await postJson(`${handle.baseUrl}/api/location-briefs/compute-and-store`, ingestPayload);
           expect(stubResp.status).toBe(201);
-          expect(stubResp.body.problemSummary).toBe(ingestPayload.problemSummary);
-          expect(stubResp.body.locationKey).toBe(`${cityDef.city.toLowerCase()}::${c.caseId}`);
+          // The read DTO intentionally exposes the persisted problem summary
+          // under the stable field name `deterministicSummary`.
+          expect(stubResp.body.deterministicSummary).toBe(ingestPayload.problemSummary);
+          expect(stubResp.body.locationKey).toBe(locationKey);
+          expect(stubResp.body.profileKey).toBe(PROFILE.profile);
           stubCheckDone = true;
         } else {
           const ingestResp = await postJson(`${handle.baseUrl}/api/location-briefs`, ingestPayload);
           expect(ingestResp.status).toBe(201);
-          expect(ingestResp.body.locationKey).toBe(`${cityDef.city.toLowerCase()}::${c.caseId}`);
+          expect(ingestResp.body.locationKey).toBe(locationKey);
+          expect(ingestResp.body.profileKey).toBe(PROFILE.profile);
         }
 
         scored.push({
           caseId: c.caseId,
           kind: c.kind,
-          locationKey: `${cityDef.city.toLowerCase()}::${c.caseId}`,
+          locationKey,
           score: brief.deterministicFindings.activeProfileScore.total,
           patterns: patternIds,
           measures: brief.recommendedMeasures.map((m) => m.id)
@@ -302,13 +307,14 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
           positiveRanks.push(rank);
         }
 
+        const scoredCase = scored.find((s) => s.caseId === c.caseId);
         cityArtifact.cases.push({
           caseId: c.caseId,
           kind: c.kind,
           rank,
-          score: scored.find((s) => s.caseId === c.caseId).score,
-          patterns: scored.find((s) => s.caseId === c.caseId).patterns,
-          measures: scored.find((s) => s.caseId === c.caseId).measures,
+          score: scoredCase.score,
+          patterns: scoredCase.patterns,
+          measures: scoredCase.measures,
           passed: true,
           notes: []
         });
