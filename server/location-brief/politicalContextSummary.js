@@ -19,19 +19,22 @@
  *
  * **Wichtig**: kein Vorgang darf nur wegen gleicher Straße als wichtig
  * gelten.  Diese Funktion stützt sich daher *primär* auf
- * `trafficRelevance.classification` und `relevanceScore`, die der
- * Portalsuchdienst bereits liefert.  Treffer ohne erkennbare
- * Verkehrsrelevanz werden konservativ ignoriert.
+ * die kanonische Verkehrsklassifikation und das harte Orts-/Themen-Gate,
+ * die der Portalsuchdienst bereits liefert. Treffer ohne bestandene Gates
+ * werden konservativ ignoriert.
  *
  * @module server/location-brief/politicalContextSummary
  */
 
 const TRAFFIC_RELEVANT = new Set(['traffic_safety', 'traffic_infrastructure', 'traffic_general']);
+const CANONICAL_TRAFFIC_RELEVANT = new Set(['direct_traffic', 'indirect_traffic']);
 
 /**
  * @param {object} [searchResult]
  *        Erwartete Felder (alle optional):
- *          - references: Array<{ title, url, type, relevanceScore?, trafficRelevance?: { classification?, score? } }>
+ *          - references: Array<{ title, url, type, relevanceScore?, trafficCategory?,
+ *              trafficRelevanceScore?, isTrafficRelevant?, aiGating?: { allowed? },
+ *              trafficRelevance?: { classification?, score?, isRelevant? } }>
  *          - meta: { city }
  * @returns {PoliticalContextSummary}
  */
@@ -70,6 +73,17 @@ function summarizePoliticalContext(searchResult) {
 
 function isTrafficRelevant(r) {
   if (!r || typeof r !== 'object') return false;
+  // Canonical PoliticalReference shape produced by portalSearchService.
+  // When the hard AI gate is present, reuse its decision: this prevents a
+  // generic city-wide traffic hit without a usable location/topic match from
+  // increasing the political-readiness score for the selected place.
+  if (r.trafficCategory !== undefined || r.isTrafficRelevant !== undefined) {
+    if (!CANONICAL_TRAFFIC_RELEVANT.has(r.trafficCategory)) return false;
+    if (r.isTrafficRelevant !== true) return false;
+    return Boolean(r.aiGating && r.aiGating.allowed === true);
+  }
+
+  // Backward-compatible shape used by older stored search results.
   // Strikt: Treffer wird nur akzeptiert, wenn die Portalsuche ihn explizit
   // als verkehrsrelevant klassifiziert hat (entweder über
   // `trafficRelevance.classification` oder über `isRelevant === true`).
@@ -82,6 +96,8 @@ function isTrafficRelevant(r) {
 }
 
 function relevanceOf(r) {
+  const canonicalTraffic = Number(r?.trafficRelevanceScore);
+  if (Number.isFinite(canonicalTraffic)) return canonicalTraffic;
   const traffic = Number(r?.trafficRelevance?.score);
   if (Number.isFinite(traffic)) return traffic;
   const generic = Number(r?.relevanceScore);
@@ -97,10 +113,12 @@ function countToAttentionLevel(n) {
 function computePolicyReadiness(relevant) {
   if (relevant.length === 0) return 'low';
   // Prefer explicit signals
-  const hasResolution = relevant.some(r => /beschluss|antwort|stellungnahme|maßnahme/i.test(r.type || ''));
+  const hasActionableProceeding = relevant.some(r =>
+    /antrag|beschluss|antwort|stellungnahme|maßnahme/i.test(r.type || '')
+  );
   const hasFresh      = relevant.some(r => isWithinLastYears(r, 2));
   if (relevant.length >= 3 && hasFresh)        return 'high';
-  if (hasResolution || (relevant.length >= 2)) return 'medium';
+  if (hasActionableProceeding || (relevant.length >= 2)) return 'medium';
   return 'low';
 }
 

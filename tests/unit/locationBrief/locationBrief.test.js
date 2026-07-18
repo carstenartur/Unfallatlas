@@ -442,6 +442,24 @@ describe('computeLocationScores / scoreMeasures', () => {
     expect(single.profile).toBe('cost_effective');
     expect(typeof single.total).toBe('number');
   });
+
+  test('Monitoring nennt bei unzureichender Datenlage das konkrete Konfliktmuster', () => {
+    const brief = buildLocationBrief({
+      structured: buildStructured({
+        total: 0,
+        fatal: 0,
+        serious: 0,
+        slight: 0,
+        crossRows: [],
+        accidentRows: 0,
+        yearTable: []
+      })
+    });
+    const monitoring = brief.recommendedMeasures.find((measure) => measure.id === 'mon_followup');
+    expect(monitoring).toBeDefined();
+    expect(monitoring.matchedConflictPatterns).toContain('datenlage_unzureichend');
+    expect(monitoring.whyPreselected).toMatch(/datenlage_unzureichend/);
+  });
 });
 
 describe('summarizePoliticalContext', () => {
@@ -464,5 +482,45 @@ describe('summarizePoliticalContext', () => {
     const s = summarizePoliticalContext(fake);
     expect(s.relatedReferences.length).toBe(1);
     expect(s.relatedReferences[0].title).toMatch(/Querung/);
+  });
+
+  test('kanonischer verkehrsrelevanter Antrag mit hartem Orts-/Themen-Gate erhöht Readiness', () => {
+    const s = summarizePoliticalContext({
+      references: [{
+        title: 'Antrag: Schienenquerung am Hauptbahnhof sicherer machen',
+        type: 'Antrag',
+        url: 'https://example.org/bonn/rail',
+        relevanceScore: 92,
+        trafficCategory: 'direct_traffic',
+        trafficRelevanceScore: 92,
+        isTrafficRelevant: true,
+        locationMatch: 'street',
+        topicMatch: ['Schienenquerung', 'Hauptbahnhof'],
+        aiGating: { allowed: true, reason: 'Direkter Verkehrsbezug mit Orts- und Themenbezug.' }
+      }]
+    });
+    expect(s.previousPoliticalAttention).toBe('some');
+    expect(s.policyReadiness).toBe('medium');
+    expect(s.relatedReferences).toHaveLength(1);
+  });
+
+  test('kanonischer Verkehrstreffer ohne bestandenes Orts-/Themen-Gate erhöht Readiness nicht', () => {
+    const s = summarizePoliticalContext({
+      references: [{
+        title: 'Allgemeine Mobilitätsstrategie',
+        type: 'Antrag',
+        url: 'https://example.org/general',
+        relevanceScore: 95,
+        trafficCategory: 'direct_traffic',
+        trafficRelevanceScore: 95,
+        isTrafficRelevant: true,
+        locationMatch: 'topic-only',
+        topicMatch: [],
+        aiGating: { allowed: false, reason: 'Kein Orts- oder Themenbezug zur ausgewählten Stelle.' }
+      }]
+    });
+    expect(s.previousPoliticalAttention).toBe('none');
+    expect(s.policyReadiness).toBe('low');
+    expect(s.relatedReferences).toEqual([]);
   });
 });

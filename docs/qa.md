@@ -15,6 +15,7 @@ Legende: ✅ automatisiert · ⚠️ teilweise · ❌ offen / nur manuell
 | **Analyse / Report** – Analyse/Export-Modal öffnet, Report wird gerendert | ✅ | `tests/e2e/qa-hardening.spec.js` + `tests/integration/export.qaHardening.test.js` |
 | **Word/PDF-Export** – DOCX/PDF werden erzeugt, sind nicht leer, keine UI-Footer-Platzhalter im Antrag, keine rohen Debug-Tokens (`[Rad]`, `Schweregrad: all`, …), keine `.undefined`-Mediendateien, eindeutige Bild-IDs, Alt-Texte vorhanden | ✅ | `tests/integration/export.qaHardening.test.js`, `tests/unit/ua.report_v2.docxStructure.test.js`, `tests/integration/export.test.js` |
 | **Politische Recherche** – Dialog öffnet, zeigt Mehrwert-Erklärung, hat Lade-/Leer-/Fehler-Slot, Ergebnis-Übernahme bestätigt | ✅ (Öffnen + Slots), ⚠️ (Übernahme-Bestätigung) | `tests/e2e/qa-hardening.spec.js` → „Politische Recherche" |
+| **Location Action Brief Golden Cases** – reale Bonn-/Hannover-Daten, Muster/Evidenz/Maßnahmen, Negativfälle, Persistenz und Stadt-Ranking | ✅ Vorlauf, ✅ Testcontainers-Gate | `npm run qa:location-brief-golden`, `npm run test:location-brief-golden:tc`, [`location-brief-golden-qa.md`](location-brief-golden-qa.md) |
 | **Tour** – „Tour starten" öffnet Banner mit Vor/Zurück/Stop | ✅ | `tests/e2e/qa-hardening.spec.js` → „Geführte Tour" |
 | **Mobile Ansicht** – 390 px Viewport rendert ohne JS-Fehler, Filter erreichbar | ✅ | `tests/e2e/qa-hardening.spec.js` → „Mobile Smoke" |
 | **Fehlerzustände** – Stadt-Dropdown markiert Lade-Fehler, `main()`-Fehler zeigt verständliche Stat-Meldung statt rohe Exception | ✅ (UI-Pfad), ⚠️ (CDN-Ausfall der Map-Libs) | `tests/e2e/qa-hardening.spec.js` „Stadt-Dropdown … oder Fehlerzustand"; `js/ua.app_v2.js` `main().catch` |
@@ -32,6 +33,10 @@ Legende: ✅ automatisiert · ⚠️ teilweise · ❌ offen / nur manuell
 
 # Nur die QA-Härtungs-Suite
 ./node_modules/.bin/playwright test tests/e2e/qa-hardening.spec.js --project=chromium
+
+# Location-Brief Golden Cases: schnell / vollständiger Docker-Pfad
+npm run qa:location-brief-golden
+npm run test:location-brief-golden:tc
 ```
 
 ## Erweiterungs-Ideen
