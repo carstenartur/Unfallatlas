@@ -53,6 +53,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: 'npm'
 
       - name: Set up Git
         run: |
@@ -69,7 +70,8 @@ jobs:
           TILE_VER=$(node -e "console.log(require('./scripts/producers/dem_tile_producer').PRODUCER_VERSION)")
           TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer').PRODUCER_VERSION)")
           ISO_WEEK=$(date -u +%G-W%V)
-          echo "key=context-${OSM_VER}-${DEM_VER}-${TILE_VER}-${TRAFFIC_VER}-${ISO_WEEK}" >> "$GITHUB_OUTPUT"
+          echo "key=context-${OSM_VER}-${DEM_VER}-${TILE_VER}-${TRAFFIC_VER}-${ISO_WEEK}-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          echo "restore=context-${OSM_VER}-${DEM_VER}-${TILE_VER}-${TRAFFIC_VER}-${ISO_WEEK}-" >> "$GITHUB_OUTPUT"
 
       - name: Restore producer cache
         uses: actions/cache@v6
@@ -77,6 +79,7 @@ jobs:
           path: .enrichment-cache
           key: ${{ steps.cache-key.outputs.key }}
           restore-keys: |
+            ${{ steps.cache-key.outputs.restore }}
             context-
           save-always: true
 
@@ -93,8 +96,11 @@ jobs:
             sed -E 's/#.*$//' cities.txt | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | awk 'NF' > .build-context-cities.txt
           fi
           test -s .build-context-cities.txt
+          SMOKE_CITY=$(head -n 1 .build-context-cities.txt)
+          echo "smoke_city=$SMOKE_CITY" >> "$GITHUB_OUTPUT"
           echo "Selected cities:"
           sed 's/^/ - /' .build-context-cities.txt
+          echo "Browser smoke city: $SMOKE_CITY"
 
       - name: Generate context data atomically
         shell: bash
@@ -119,7 +125,7 @@ jobs:
           while IFS= read -r city; do ARGS+=(--city "$city"); done < .build-context-cities.txt
           node scripts/check-enrichment-inputs.js "${ARGS[@]}"
 
-      - name: Verify generated data
+      - name: Verify generated data structures
         env:
           UNFALLATLAS_DATA_MODE: gzip-only
         run: |
@@ -127,6 +133,18 @@ jobs:
           node scripts/check-context-datasets.js
           node scripts/check-slope-plausibility.js
           node scripts/check-data-paths.js --gzip-only --min-features 10
+
+      - name: Install integration-test dependencies
+        run: npm ci
+
+      - name: Verify generated context in the real web page
+        env:
+          RUN_TESTCONTAINERS: '1'
+          CONTEXT_E2E_REQUIRE_SHIPPED: '1'
+          CONTEXT_E2E_CITY: ${{ steps.cities.outputs.smoke_city }}
+        run: >-
+          npm run test:integration:tc -- --runInBand
+          -t "renders slope and traffic context for a real city in the browser"
 
       - name: Commit and push
         shell: bash
