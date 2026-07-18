@@ -55,15 +55,17 @@ function copyStaticApplication() {
     'playwright-report',
     'test-results',
   ]);
-  fs.cpSync(ROOT, SITE_ROOT, {
-    recursive: true,
-    filter(source) {
-      const rel = path.relative(ROOT, source);
-      if (!rel) return true;
-      const top = rel.split(path.sep)[0];
-      return !excludedTopLevel.has(top);
-    },
-  });
+
+  // Copy top-level entries individually. Node correctly rejects `cpSync(ROOT,
+  // ROOT/.build/...)` as copying a directory into its own descendant before a
+  // filter callback can exclude `.build`.
+  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
+    if (excludedTopLevel.has(entry.name)) continue;
+    const source = path.join(ROOT, entry.name);
+    const destination = path.join(SITE_ROOT, entry.name);
+    if (entry.isDirectory()) fs.cpSync(source, destination, { recursive: true });
+    else if (entry.isFile()) fs.copyFileSync(source, destination);
+  }
   fs.mkdirSync(path.join(SITE_ROOT, 'out'), { recursive: true });
 }
 
