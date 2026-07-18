@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - feat/issue-393-live-accident-tiles
 
 permissions:
   contents: write
@@ -17,70 +14,17 @@ concurrency:
 
 jobs:
   patch-commit-driven-cache-eviction:
-    if: github.event_name == 'push' || github.head_ref == 'feat/issue-393-live-accident-tiles'
+    if: github.head_ref == 'feat/issue-393-live-accident-tiles'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Move eviction to the committed controller epoch
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          provider_path = Path('js/ua.accident_provider.js')
-          provider = provider_path.read_text(encoding='utf-8')
-
-          old_trim = "      trimTileCache(slug, new Set(requestedTileKeys));\n      return Object.freeze({"
-          new_trim = "      return Object.freeze({"
-          if provider.count(old_trim) == 1:
-              provider = provider.replace(old_trim, new_trim, 1)
-          elif old_trim not in provider and "function retainForViewport" in provider:
-              print('Provider request eviction already removed.')
-          else:
-              raise SystemExit('Expected exactly one viewport request eviction block')
-
-          old_snapshot = "    function getCacheSnapshot(cityRaw) {"
-          new_snapshot = """    function retainForViewport(cityRaw, tileKeys) {
-      const activeKeys = Array.isArray(tileKeys) ? tileKeys : [];
-      trimTileCache(slugify(cityRaw), new Set(activeKeys));
-    }
-
-    function getCacheSnapshot(cityRaw) {"""
-          if "function retainForViewport" not in provider:
-              if provider.count(old_snapshot) != 1:
-                  raise SystemExit('Expected one cache snapshot function')
-              provider = provider.replace(old_snapshot, new_snapshot, 1)
-
-          old_export = "      getManifest: loadManifest,\n      getCacheSnapshot,"
-          new_export = "      getManifest: loadManifest,\n      retainForViewport,\n      getCacheSnapshot,"
-          if "      retainForViewport,\n      getCacheSnapshot," not in provider:
-              if provider.count(old_export) != 1:
-                  raise SystemExit('Expected one provider cache export block')
-              provider = provider.replace(old_export, new_export, 1)
-
-          provider_path.write_text(provider, encoding='utf-8')
-
-          controller_path = Path('js/ua.accident_viewport_controller.js')
-          controller = controller_path.read_text(encoding='utf-8')
-          old_controller = """        const nextGeoJson = mergeTileSet(tileSet);
-        const requiredTileKeys = Array.from(tileSet.requestedTileKeys || []);"""
-          new_controller = """        const nextGeoJson = mergeTileSet(tileSet);
-        if (typeof provider.retainForViewport === 'function') {
-          provider.retainForViewport(city, tileSet.requestedTileKeys || []);
-        }
-        const requiredTileKeys = Array.from(tileSet.requestedTileKeys || []);"""
-          if "provider.retainForViewport(city" not in controller:
-              if controller.count(old_controller) != 1:
-                  raise SystemExit('Expected one controller merge block')
-              controller = controller.replace(old_controller, new_controller, 1)
-          controller_path.write_text(controller, encoding='utf-8')
-          PY
+      - name: Apply exact cache patch
+        run: node scripts/apply-issue-393-cache-patch.js
 
       - name: Commit patch to PR branch
         shell: bash
@@ -94,4 +38,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add js/ua.accident_provider.js js/ua.accident_viewport_controller.js
           git commit -m "Protect committed viewport tiles during cache eviction"
-          git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          git push origin HEAD:${{ github.head_ref }}
