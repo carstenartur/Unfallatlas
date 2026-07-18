@@ -40,5 +40,9 @@ EXPOSE 8000
 
 ENV PORT=8000
 ENV NODE_ENV=production
+# Der lokale Docker-Server darf fehlende Kontextdaten per UI-Job erzeugen.
+# Öffentliche Installationen können dies mit CONTEXT_GENERATION_ENABLED=false
+# abschalten oder mit CONTEXT_GENERATION_TOKEN absichern.
+ENV CONTEXT_GENERATION_ENABLED=true
 
-CMD ["node", "server/index.js"]
+CMD ["node", "server/start.js"]
