@@ -2,475 +2,321 @@
   'use strict';
 
   /**
-   * js/ua.accident_provider.js
+   * Accident data provider boundary.
    *
-   * Provider abstraction for accident data (Architecture Step 2 & 3).
-   *
-   * This module introduces a clean boundary between data-loading and the
-   * rest of the application. No renderer, plugin or UI module should
-   * fetch accident GeoJSON directly; all access must go through a
-   * registered AccidentProvider.
-   *
-   * Architecture overview:
-   *
-   *   ProviderRegistry
-   *   ├── StaticGeoJsonAccidentProvider
-   *   │     loads out/output_all_years_<slug>.geojson (current behaviour)
-   *   └── TiledAccidentProvider
-   *         loads out/accidenttiles/<slug>/index.json
-   *         then  out/accidenttiles/<slug>/<z>/<x>/<y>.json per bbox
-   *
-   * Provider interface (informal, enforced by validation helper):
-   *   fetchForCity(slug)              → Promise<GeoJSON FeatureCollection>
-   *   fetchForBbox(slug, bounds, zoom)→ Promise<GeoJSON FeatureCollection>
-   *   getCapabilities(slug)           → { supportsFullCity, supportsTiles }
-   *   canProvideForCity(slug)         → boolean | Promise<boolean>  (optional; defaults to true)
-   *
-   * Public API:
-   *   UA.AccidentProvider.ProviderRegistry.register(name, provider) → void
-   *   UA.AccidentProvider.ProviderRegistry.get(name)               → provider|null
-   *   UA.AccidentProvider.ProviderRegistry.resolve(slug)           → provider
-   *   UA.AccidentProvider.ProviderRegistry.list()                  → [{name,provider}]
-   *   UA.AccidentProvider.createStaticProvider(options?)           → provider
-   *   UA.AccidentProvider.createTiledProvider(options?)            → provider
-   *   UA.AccidentProvider.PROVIDER_TYPES                           → frozen object
-   *
-   * Backward compatibility:
-   *   UA.buildDataUrl / UA.loadCityData remain in ua.data_v2.js unchanged.
-   *   Calling code may progressively adopt UA.AccidentProvider without a
-   *   flag day: register the static provider at app start, and swap in
-   *   the tiled provider for cities that have tiles available.
-   *
-   * Reference: the context-layers tiled loading in ua.context_layers.js
-   * served as the design template for TiledAccidentProvider.
+   * Providers select logical resources and spatial coverage. `UA.DataResources`
+   * remains the sole owner of physical paths, cache and compression policy.
    */
 
   const UA = (window.UA = window.UA || {});
 
-  // ---------------------------------------------------------------------------
-  // Constants
-  // ---------------------------------------------------------------------------
-
   const PROVIDER_TYPES = Object.freeze({
     STATIC_GEOJSON: 'staticGeoJson',
-    TILED:          'tiled',
-    CUSTOM:         'custom',
+    TILED: 'tiled',
+    CUSTOM: 'custom',
   });
-
-  /** Default zoom level for accident tiles — must match the tile producer. */
   const ACCIDENT_TILE_DEFAULT_ZOOM = 13;
+  const SUPPORTED_TILE_SCHEMA_VERSIONS = Object.freeze([1]);
 
-  /** Supported tile-index schema versions for TiledAccidentProvider. */
-  const SUPPORTED_TILE_SCHEMA_VERSIONS = [1];
-
-  // ---------------------------------------------------------------------------
-  // Slippy-tile coordinate helpers (mirrors ua.context_layers.js)
-  // ---------------------------------------------------------------------------
-
-  function _lonToTileX(lon, z) {
-    return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
-  }
-
-  function _latToTileY(lat, z) {
-    const rad = (lat * Math.PI) / 180;
-    return Math.floor(
-      ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
-        Math.pow(2, z)
-    );
-  }
-
-  /**
-   * Compute the set of [x, y] tile coordinates intersecting a bounding box.
-   *
-   * `bounds` may be any of:
-   *   - Leaflet LatLngBounds   (getSouth/getNorth/getWest/getEast methods)
-   *   - Array [south, west, north, east]
-   *   - Plain object { south, west, north, east }
-   *
-   * @param {*} bounds
-   * @param {number} z – slippy-tile zoom
-   * @returns {Array<[number,number]>}
-   */
-  function _tilesForBounds(bounds, z) {
-    if (!bounds) return [];
-    let south, north, west, east;
-    if (typeof bounds.getSouth === 'function') {
-      south = bounds.getSouth(); north = bounds.getNorth();
-      west  = bounds.getWest();  east  = bounds.getEast();
-    } else if (Array.isArray(bounds) && bounds.length === 4) {
-      [south, west, north, east] = bounds;
-    } else if (bounds && typeof bounds === 'object') {
-      south = bounds.south; north = bounds.north;
-      west  = bounds.west;  east  = bounds.east;
+  function resources() {
+    if (!UA.DataResources) {
+      throw new Error('UA.DataResources must be loaded before ua.accident_provider.js');
     }
-    if (!Number.isFinite(south) || !Number.isFinite(north) ||
-        !Number.isFinite(west)  || !Number.isFinite(east)) return [];
-    const xMin = _lonToTileX(Math.min(west,  east),  z);
-    const xMax = _lonToTileX(Math.max(west,  east),  z);
-    const yMin = _latToTileY(Math.max(south, north), z);
-    const yMax = _latToTileY(Math.min(south, north), z);
-    const out = [];
-    for (let x = xMin; x <= xMax; x++) {
-      for (let y = yMin; y <= yMax; y++) {
-        out.push([x, y]);
-      }
-    }
-    return out;
+    return UA.DataResources;
   }
 
-  // ---------------------------------------------------------------------------
-  // Shared helpers
-  // ---------------------------------------------------------------------------
-
-  function _slugify(cityRaw) {
+  function slugify(cityRaw) {
     if (UA.normKey && typeof UA.normKey === 'function') return UA.normKey(cityRaw);
     return String(cityRaw || '').toLowerCase().trim();
   }
 
-  /**
-   * Merge multiple GeoJSON FeatureCollection objects (or arrays of features)
-   * into a single FeatureCollection. Preserves the `properties` block of the
-   * first collection that carries one.
-   *
-   * @param {Array<object|null>} sources
-   * @returns {object} GeoJSON FeatureCollection
-   */
-  function _mergeFeatureCollections(sources) {
-    const allFeatures = [];
-    let topLevelProps = null;
-    for (const src of sources) {
-      if (!src) continue;
-      if (Array.isArray(src)) {
-        for (const f of src) { if (f) allFeatures.push(f); }
-      } else if (src.type === 'FeatureCollection' && Array.isArray(src.features)) {
-        if (!topLevelProps && src.properties && typeof src.properties === 'object') {
-          topLevelProps = src.properties;
-        }
-        for (const f of src.features) { if (f) allFeatures.push(f); }
-      }
+  function normalizeBaseUrl(raw) {
+    const value = typeof raw === 'string' ? raw : '';
+    return value && !value.endsWith('/') ? `${value}/` : value;
+  }
+
+  function lonToTileX(lon, zoom) {
+    return Math.floor(((lon + 180) / 360) * Math.pow(2, zoom));
+  }
+
+  function latToTileY(lat, zoom) {
+    const bounded = Math.max(-85.05112878, Math.min(85.05112878, lat));
+    const radians = bounded * Math.PI / 180;
+    return Math.floor(
+      ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2)
+        * Math.pow(2, zoom)
+    );
+  }
+
+  function tilesForBounds(bounds, zoom) {
+    if (!bounds) return [];
+    let south, north, west, east;
+    if (typeof bounds.getSouth === 'function') {
+      south = bounds.getSouth();
+      north = bounds.getNorth();
+      west = bounds.getWest();
+      east = bounds.getEast();
+    } else if (Array.isArray(bounds) && bounds.length === 4) {
+      [south, west, north, east] = bounds;
+    } else if (typeof bounds === 'object') {
+      ({ south, north, west, east } = bounds);
     }
-    const result = { type: 'FeatureCollection', features: allFeatures };
-    if (topLevelProps) result.properties = topLevelProps;
+    if (![south, north, west, east].every(Number.isFinite)) return [];
+
+    const xMin = lonToTileX(Math.min(west, east), zoom);
+    const xMax = lonToTileX(Math.max(west, east), zoom);
+    const yMin = latToTileY(Math.max(south, north), zoom);
+    const yMax = latToTileY(Math.min(south, north), zoom);
+    const result = [];
+    for (let x = xMin; x <= xMax; x++) {
+      for (let y = yMin; y <= yMax; y++) result.push([x, y]);
+    }
     return result;
   }
 
-  // ---------------------------------------------------------------------------
-  // Provider interface validation
-  // ---------------------------------------------------------------------------
+  function mergeFeatureCollections(sources) {
+    const features = [];
+    let properties = null;
+    for (const source of sources || []) {
+      if (!source) continue;
+      if (Array.isArray(source)) {
+        for (const feature of source) if (feature) features.push(feature);
+      } else if (source.type === 'FeatureCollection' && Array.isArray(source.features)) {
+        if (!properties && source.properties && typeof source.properties === 'object') {
+          properties = source.properties;
+        }
+        for (const feature of source.features) if (feature) features.push(feature);
+      }
+    }
+    const result = { type: 'FeatureCollection', features };
+    if (properties) result.properties = properties;
+    return result;
+  }
 
-  /**
-   * Validate that an object satisfies the AccidentProvider interface.
-   * Throws a TypeError if the contract is not met.
-   *
-   * @param {object} provider
-   * @param {string} [label]
-   */
-  function _assertProviderShape(provider, label) {
-    const name = label || 'provider';
+  function assertProviderShape(provider, label = 'provider') {
     if (!provider || typeof provider !== 'object') {
-      throw new TypeError(`[AccidentProvider] ${name} must be an object`);
+      throw new TypeError(`[AccidentProvider] ${label} must be an object`);
     }
-    if (typeof provider.fetchForCity !== 'function') {
-      throw new TypeError(`[AccidentProvider] ${name}.fetchForCity must be a function`);
-    }
-    if (typeof provider.fetchForBbox !== 'function') {
-      throw new TypeError(`[AccidentProvider] ${name}.fetchForBbox must be a function`);
-    }
-    if (typeof provider.getCapabilities !== 'function') {
-      throw new TypeError(`[AccidentProvider] ${name}.getCapabilities must be a function`);
+    for (const method of ['fetchForCity', 'fetchForBbox', 'getCapabilities']) {
+      if (typeof provider[method] !== 'function') {
+        throw new TypeError(`[AccidentProvider] ${label}.${method} must be a function`);
+      }
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // StaticGeoJsonAccidentProvider
-  // ---------------------------------------------------------------------------
+  function fetchCustomJson(url, options, policy) {
+    return resources().fetchJsonUrl(url, {
+      fetch: options.fetch,
+      decompress: options.decompress,
+      cache: options.cache || 'force-cache',
+      compression: policy.compression,
+      optional: policy.optional === true,
+    });
+  }
 
-  /**
-   * Loads the full per-city accident GeoJSON file in one request.
-   * This is the current Unfallwerkbank behaviour, wrapped behind the
-   * AccidentProvider interface so callers are decoupled from the file path.
-   *
-   * @param {object} [options]
-   * @param {string} [options.baseUrl]      URL prefix (default: '')
-   * @param {string} [options.filePattern]  filename template; use '{slug}'
-   *                                        (default: 'out/output_all_years_{slug}.geojson')
-   * @param {function} [options.fetch]      injectable fetch (for tests)
-   * @returns {object} AccidentProvider
-   */
-  function createStaticProvider(options) {
-    const opts = options || {};
-    const _fetch     = (typeof opts.fetch === 'function') ? opts.fetch :
-                       (typeof fetch === 'function')      ? fetch : null;
-    const _rawBaseUrl = (typeof opts.baseUrl === 'string') ? opts.baseUrl : '';
-    const baseUrl    = _rawBaseUrl && !_rawBaseUrl.endsWith('/') ? `${_rawBaseUrl}/` : _rawBaseUrl;
-    const pattern    = (typeof opts.filePattern === 'string')
-      ? opts.filePattern
-      : null; // resolved per-call via UA.DataPaths when available
+  function createStaticProvider(options = {}) {
+    const baseUrl = normalizeBaseUrl(options.baseUrl);
+    const pattern = typeof options.filePattern === 'string' ? options.filePattern : null;
+    const cache = new Map();
 
-    function _url(slug) {
-      // Use central path registry when available (ua.data_paths.js).
-      if (!pattern && UA.DataPaths && typeof UA.DataPaths.accidentGeoJson === 'function') {
-        return baseUrl + UA.DataPaths.accidentGeoJson(slug);
-      }
-      return baseUrl + (pattern || 'out/output_all_years_{slug}.geojson').replace('{slug}', slug);
+    function customUrl(slug) {
+      if (!baseUrl && !pattern) return null;
+      const logical = pattern
+        ? pattern.replace('{slug}', slug)
+        : resources().url('accidentGeoJson', { city: slug });
+      return `${baseUrl}${logical}`;
     }
-
-    /** Per-city in-flight cache so duplicate calls don't issue duplicate requests. */
-    const _cache = new Map();
 
     function fetchForCity(cityRaw) {
-      const slug = _slugify(cityRaw);
-      if (_cache.has(slug)) return _cache.get(slug);
-      if (!_fetch) return Promise.reject(new Error('[StaticGeoJsonAccidentProvider] fetch is not available'));
-      const p = (async () => {
-        const url = _url(slug);
-        // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
-        if (typeof UA.fetchJsonCompressed === 'function') {
-          return UA.fetchJsonCompressed(url, { fetch: _fetch });
+      const slug = slugify(cityRaw);
+      if (cache.has(slug)) return cache.get(slug);
+      const promise = (async () => {
+        const url = customUrl(slug);
+        if (url) {
+          return fetchCustomJson(url, options, {
+            compression: resources().COMPRESSION.GZIP_PREFERRED,
+          });
         }
-        // Fallback: direct fetch (legacy / test environments without ua.fetch_gz.js)
-        let resp;
-        try { resp = await _fetch(url, { cache: 'no-store' }); }
-        catch (err) { throw new Error(`[StaticGeoJsonAccidentProvider] network error for ${url}: ${err.message}`); }
-        if (!resp || !resp.ok) {
-          throw new Error(`[StaticGeoJsonAccidentProvider] HTTP ${resp && resp.status} for ${url}`);
-        }
-        return resp.json();
+        return resources().fetchJson('accidentGeoJson', { city: slug }, {
+          fetch: options.fetch,
+          decompress: options.decompress,
+        });
       })();
-      _cache.set(slug, p);
-      // Remove failed entries so a retry can succeed
-      p.catch(() => _cache.delete(slug));
-      return p;
+      cache.set(slug, promise);
+      promise.catch(() => cache.delete(slug));
+      return promise;
     }
-
-    function fetchForBbox(cityRaw, _bounds, _zoom) {
-      // Static provider does not support tile-level bbox loading.
-      // Return the full city dataset for any bbox request — the caller
-      // must filter by viewport if needed.
-      return fetchForCity(cityRaw);
-    }
-
-    function getCapabilities(_cityRaw) {
-      return Object.freeze({ supportsFullCity: true, supportsTiles: false });
-    }
-
-    function canProvideForCity(_cityRaw) { return true; }
-
-    function clearCache() { _cache.clear(); }
 
     return Object.freeze({
       type: PROVIDER_TYPES.STATIC_GEOJSON,
       fetchForCity,
-      fetchForBbox,
-      getCapabilities,
-      canProvideForCity,
-      clearCache,
+      fetchForBbox: fetchForCity,
+      getCapabilities() {
+        return Object.freeze({
+          supportsFullCity: true,
+          supportsTiles: false,
+          coverage: 'full-city',
+        });
+      },
+      canProvideForCity() { return true; },
+      clearCache() { cache.clear(); },
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // TiledAccidentProvider
-  // ---------------------------------------------------------------------------
+  function createTiledProvider(options = {}) {
+    const baseUrl = normalizeBaseUrl(options.baseUrl);
+    const tileRoot = typeof options.tileRoot === 'string'
+      ? options.tileRoot.replace(/\/$/, '')
+      : null;
+    const manifestCache = new Map();
+    const tileCache = new Map();
 
-  /**
-   * Loads accident data lazily from a tile pyramid, analogous to the
-   * context-layers tiled approach in ua.context_layers.js.
-   *
-   * Tile structure:
-   *   out/accidenttiles/<slug>/index.json   ← manifest
-   *   out/accidenttiles/<slug>/<z>/<x>/<y>.json  ← GeoJSON tile
-   *
-   * Manifest shape (schemaVersion: 1):
-   *   {
-   *     "schemaVersion": 1,
-   *     "city": "<slug>",
-   *     "z": 13,
-   *     "tiles": [{ "x": 4200, "y": 2750, "count": 42 }, …],
-   *     "totalCount": 12345,
-   *     "generatedAt": "2026-01-01T00:00:00Z"
-   *   }
-   *
-   * @param {object} [options]
-   * @param {string} [options.baseUrl]          URL prefix (default: '')
-   * @param {string} [options.tileRoot]         directory containing <slug>/ subdirs
-   *                                            (default: 'out/accidenttiles')
-   * @param {function} [options.fetch]          injectable fetch (for tests)
-   * @returns {object} AccidentProvider
-   */
-  function createTiledProvider(options) {
-    const opts      = options || {};
-    const _fetch    = (typeof opts.fetch === 'function') ? opts.fetch :
-                      (typeof fetch === 'function')      ? fetch : null;
-    const _rawBaseUrl = (typeof opts.baseUrl === 'string') ? opts.baseUrl : '';
-    const baseUrl   = _rawBaseUrl && !_rawBaseUrl.endsWith('/') ? `${_rawBaseUrl}/` : _rawBaseUrl;
-    const tileRoot  = (typeof opts.tileRoot === 'string')
-      ? opts.tileRoot.replace(/\/$/, '')
-      : null; // resolved per-call via UA.DataPaths when available
-
-    /** Per-city manifest cache: slug → Promise<manifest|null> */
-    const _manifestCache = new Map();
-    /** Per-city per-tile cache: slug → Map<"x/y" → Promise<GeoJSON|null>> */
-    const _tileCache     = new Map();
-
-    function _indexUrl(slug) {
-      // Use central path registry when available (ua.data_paths.js).
-      if (!tileRoot && UA.DataPaths && typeof UA.DataPaths.accidentTileIndex === 'function') {
-        return baseUrl + UA.DataPaths.accidentTileIndex(slug);
-      }
-      return `${baseUrl}${tileRoot || 'out/accidenttiles'}/${slug}/index.json`;
+    function customIndexUrl(slug) {
+      if (!baseUrl && !tileRoot) return null;
+      if (tileRoot) return `${baseUrl}${tileRoot}/${slug}/index.json`;
+      return `${baseUrl}${resources().url('accidentTileIndex', { city: slug })}`;
     }
 
-    function _tileUrl(slug, z, x, y) {
-      // Use central path registry when available (ua.data_paths.js).
-      if (!tileRoot && UA.DataPaths && typeof UA.DataPaths.accidentTile === 'function') {
-        return baseUrl + UA.DataPaths.accidentTile(slug, z, x, y);
-      }
-      return `${baseUrl}${tileRoot || 'out/accidenttiles'}/${slug}/${z}/${x}/${y}.json`;
+    function customTileUrl(slug, zoom, x, y) {
+      if (tileRoot) return `${baseUrl}${tileRoot}/${slug}/${zoom}/${x}/${y}.json`;
+      return `${baseUrl}${resources().url('accidentTile', {
+        city: slug, z: zoom, x, y,
+      })}`;
     }
 
-    function _tileUrlFromManifest(slug, manifest, x, y) {
-      if (manifest && manifest.tileUrlByKey instanceof Map) {
-        const fromMap = manifest.tileUrlByKey.get(`${x}/${y}`);
-        if (fromMap) return fromMap;
+    function attachIndexes(slug, manifest) {
+      const zoom = Number.isInteger(manifest.z)
+        ? manifest.z
+        : ACCIDENT_TILE_DEFAULT_ZOOM;
+      const tileKeySet = new Set();
+      const tileUrlByKey = new Map();
+      for (const tile of manifest.tiles || []) {
+        if (!tile || !Number.isInteger(tile.x) || !Number.isInteger(tile.y)) continue;
+        const key = `${tile.x}/${tile.y}`;
+        tileKeySet.add(key);
+        if (baseUrl || tileRoot) {
+          tileUrlByKey.set(key, customTileUrl(slug, zoom, tile.x, tile.y));
+        }
       }
-      const z = (manifest && typeof manifest.z === 'number') ? manifest.z : ACCIDENT_TILE_DEFAULT_ZOOM;
-      return _tileUrl(slug, z, x, y);
-    }
-
-    function _attachUrlIndex(slug, manifest) {
-      if (!manifest || typeof manifest !== 'object') return manifest;
-      const byKey = new Map();
-      const z = typeof manifest.z === 'number' ? manifest.z : ACCIDENT_TILE_DEFAULT_ZOOM;
-      for (const t of (manifest.tiles || [])) {
-        if (!t || !Number.isFinite(t.x) || !Number.isFinite(t.y)) continue;
-        const key = `${t.x}/${t.y}`;
-        byKey.set(key, _tileUrl(slug, z, t.x, t.y));
-      }
-      manifest.tileUrlByKey = byKey;
-      manifest.tileKeySet   = new Set(byKey.keys());
+      manifest.tileKeySet = tileKeySet;
+      manifest.tileUrlByKey = tileUrlByKey;
       return manifest;
     }
 
-    function _loadManifest(slug) {
-      if (_manifestCache.has(slug)) return _manifestCache.get(slug);
-      if (!_fetch) return Promise.resolve(null);
-      const p = (async () => {
-        const indexUrl = _indexUrl(slug);
-        let json = null;
-        // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
-        if (typeof UA.fetchJsonCompressed === 'function') {
-          try { json = await UA.fetchJsonCompressed(indexUrl, { fetch: _fetch, cache: 'force-cache' }); }
-          catch (_) { return null; }
-        } else {
-          let resp;
-          try { resp = await _fetch(indexUrl, { cache: 'force-cache' }); }
-          catch (_) { return null; }
-          if (!resp || !resp.ok) return null;
-          try { json = await resp.json(); } catch (_) { return null; }
-        }
-        if (!json || typeof json !== 'object') return null;
-        const ver = typeof json.schemaVersion === 'number' ? json.schemaVersion : null;
-        if (ver !== null && !SUPPORTED_TILE_SCHEMA_VERSIONS.includes(ver)) {
+    function loadManifest(cityRaw) {
+      const slug = slugify(cityRaw);
+      if (manifestCache.has(slug)) return manifestCache.get(slug);
+      const promise = (async () => {
+        const customUrl = customIndexUrl(slug);
+        const manifest = customUrl
+          ? await fetchCustomJson(customUrl, options, {
+              compression: resources().COMPRESSION.GZIP_ONLY,
+              optional: true,
+            })
+          : await resources().fetchJson('accidentTileIndex', { city: slug }, {
+              fetch: options.fetch,
+              decompress: options.decompress,
+              optional: true,
+            });
+        if (!manifest || typeof manifest !== 'object') return null;
+        if (!SUPPORTED_TILE_SCHEMA_VERSIONS.includes(manifest.schemaVersion)) {
           console.warn(
-            `[TiledAccidentProvider] accidenttiles/${slug}/index.json ` +
-            `schemaVersion=${ver} not in SUPPORTED_TILE_SCHEMA_VERSIONS=` +
-            `${JSON.stringify(SUPPORTED_TILE_SCHEMA_VERSIONS)} — ignoring tile index.`
+            `[TiledAccidentProvider] unsupported accident tile schema `
+            + `${manifest.schemaVersion} for ${slug}`
           );
           return null;
         }
-        // Attach pre-built URL index for O(1) tile lookups
-        _attachUrlIndex(slug, json);
-        return json;
-      })();
-      _manifestCache.set(slug, p);
-      p.catch(() => _manifestCache.delete(slug));
-      return p;
-    }
-
-    function _cityTileCache(slug) {
-      if (!_tileCache.has(slug)) _tileCache.set(slug, new Map());
-      return _tileCache.get(slug);
-    }
-
-    function _fetchTile(slug, manifest, x, y) {
-      const tileMap = _cityTileCache(slug);
-      const key     = `${x}/${y}`;
-      if (tileMap.has(key)) return tileMap.get(key);
-      if (!_fetch) return Promise.resolve(null);
-      const url = _tileUrlFromManifest(slug, manifest, x, y);
-      const p = (async () => {
-        // Prefer UA.fetchJsonCompressed (loads .gz variant automatically) when available.
-        if (typeof UA.fetchJsonCompressed === 'function') {
-          try { return await UA.fetchJsonCompressed(url, { fetch: _fetch, cache: 'force-cache' }); }
-          catch (_) { tileMap.delete(key); return null; }
+        if (manifest.city && manifest.city !== slug) {
+          console.warn(
+            `[TiledAccidentProvider] manifest city ${manifest.city} does not match requested ${slug}`
+          );
         }
-        let resp;
-        try { resp = await _fetch(url, { cache: 'force-cache' }); }
-        catch (_) { tileMap.delete(key); return null; }
-        if (!resp || !resp.ok) { tileMap.delete(key); return null; }
-        let json = null;
-        try { json = await resp.json(); } catch (_) { tileMap.delete(key); return null; }
-        return json;
+        if (!Array.isArray(manifest.tiles) || !Number.isInteger(manifest.z)) return null;
+        return attachIndexes(slug, manifest);
       })();
-      tileMap.set(key, p);
-      return p;
+      manifestCache.set(slug, promise);
+      promise.catch(() => manifestCache.delete(slug));
+      return promise;
+    }
+
+    function cityTileCache(slug) {
+      if (!tileCache.has(slug)) tileCache.set(slug, new Map());
+      return tileCache.get(slug);
+    }
+
+    function fetchTile(slug, manifest, x, y) {
+      const cache = cityTileCache(slug);
+      const key = `${x}/${y}`;
+      if (cache.has(key)) return cache.get(key);
+      const promise = (async () => {
+        const customUrl = manifest.tileUrlByKey && manifest.tileUrlByKey.get(key);
+        const payload = customUrl
+          ? await fetchCustomJson(customUrl, options, {
+              compression: resources().COMPRESSION.GZIP_ONLY,
+              optional: true,
+            })
+          : await resources().fetchJson('accidentTile', {
+              city: slug,
+              z: manifest.z,
+              x,
+              y,
+            }, {
+              fetch: options.fetch,
+              decompress: options.decompress,
+              optional: true,
+            });
+        if (!payload || payload.type !== 'FeatureCollection'
+            || !Array.isArray(payload.features)) {
+          cache.delete(key);
+          return null;
+        }
+        return payload;
+      })();
+      cache.set(key, promise);
+      promise.catch(() => cache.delete(key));
+      return promise;
     }
 
     async function fetchForCity(cityRaw) {
-      const slug     = _slugify(cityRaw);
-      const manifest = await _loadManifest(slug);
+      const slug = slugify(cityRaw);
+      const manifest = await loadManifest(slug);
       if (!manifest) {
         throw new Error(`[TiledAccidentProvider] No tile index found for city "${slug}"`);
       }
-      const tiles = manifest.tiles || [];
-      const tileFetches = tiles.map(({ x, y }) => _fetchTile(slug, manifest, x, y));
-      const results = await Promise.all(tileFetches);
-      return _mergeFeatureCollections(results.filter(Boolean));
+      const payloads = await Promise.all(
+        manifest.tiles.map(tile => fetchTile(slug, manifest, tile.x, tile.y))
+      );
+      return mergeFeatureCollections(payloads.filter(Boolean));
     }
 
-    async function fetchForBbox(cityRaw, bounds, zoom) {
-      const slug     = _slugify(cityRaw);
-      const manifest = await _loadManifest(slug);
+    async function fetchForBbox(cityRaw, bounds) {
+      const slug = slugify(cityRaw);
+      const manifest = await loadManifest(slug);
       if (!manifest) {
         throw new Error(`[TiledAccidentProvider] No tile index found for city "${slug}"`);
       }
-      const z    = (typeof zoom === 'number' && Number.isFinite(zoom))
-        ? zoom
-        : (typeof manifest.z === 'number' ? manifest.z : ACCIDENT_TILE_DEFAULT_ZOOM);
-      const want = _tilesForBounds(bounds, z);
-      if (want.length === 0) return _mergeFeatureCollections([]);
-
-      // Limit to tiles the manifest knows about to avoid spurious 404s
-      const known = manifest.tileKeySet || new Set();
-      const fetches = [];
-      for (const [x, y] of want) {
-        if (!known.has(`${x}/${y}`)) continue;
-        fetches.push(_fetchTile(slug, manifest, x, y));
+      const wanted = tilesForBounds(bounds, manifest.z);
+      if (wanted.length === 0) return mergeFeatureCollections([]);
+      const payloads = [];
+      for (const [x, y] of wanted) {
+        if (!manifest.tileKeySet.has(`${x}/${y}`)) continue;
+        payloads.push(fetchTile(slug, manifest, x, y));
       }
-      const results = await Promise.all(fetches);
-      return _mergeFeatureCollections(results.filter(Boolean));
+      return mergeFeatureCollections((await Promise.all(payloads)).filter(Boolean));
     }
 
     async function getCapabilities(cityRaw) {
-      const slug     = _slugify(cityRaw);
-      const manifest = await _loadManifest(slug);
+      const manifest = await loadManifest(cityRaw);
       return Object.freeze({
-        supportsFullCity: true,
-        supportsTiles:    !!(manifest),
-        tileZoom:         (manifest && typeof manifest.z === 'number') ? manifest.z : ACCIDENT_TILE_DEFAULT_ZOOM,
-        totalCount:       (manifest && Number.isFinite(manifest.totalCount)) ? manifest.totalCount : null,
+        supportsFullCity: Boolean(manifest),
+        supportsTiles: Boolean(manifest),
+        coverage: manifest ? 'viewport-partial' : null,
+        tileZoom: manifest ? manifest.z : ACCIDENT_TILE_DEFAULT_ZOOM,
+        totalCount: manifest && Number.isInteger(manifest.totalCount)
+          ? manifest.totalCount
+          : null,
+        sourceFingerprint: manifest ? manifest.sourceFingerprint || null : null,
       });
-    }
-
-    async function canProvideForCity(cityRaw) {
-      const slug     = _slugify(cityRaw);
-      const manifest = await _loadManifest(slug);
-      return manifest !== null && typeof manifest === 'object';
-    }
-
-    function clearCache() {
-      _manifestCache.clear();
-      _tileCache.clear();
     }
 
     return Object.freeze({
@@ -478,146 +324,71 @@
       fetchForCity,
       fetchForBbox,
       getCapabilities,
-      canProvideForCity,
-      clearCache,
+      async canProvideForCity(cityRaw) {
+        return Boolean(await loadManifest(cityRaw));
+      },
+      getManifest: loadManifest,
+      clearCache() {
+        manifestCache.clear();
+        tileCache.clear();
+      },
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // ProviderRegistry
-  // ---------------------------------------------------------------------------
-
-  /**
-   * A simple registry that maps provider names to AccidentProvider instances.
-   *
-   * Typical setup (app initialisation):
-   *   UA.AccidentProvider.ProviderRegistry.register('static', UA.AccidentProvider.createStaticProvider());
-   *   UA.AccidentProvider.ProviderRegistry.register('tiled',  UA.AccidentProvider.createTiledProvider());
-   *
-   * The registry is a singleton attached to UA.AccidentProvider.ProviderRegistry.
-   * Individual provider instances are independent objects and can also be used
-   * directly without the registry.
-   */
-  const _registryEntries = new Map(); // name → provider
-
+  const entries = new Map();
   const ProviderRegistry = Object.freeze({
-    /**
-     * Register a provider under a name. Overwrites any previous registration
-     * with the same name.
-     *
-     * @param {string} name
-     * @param {object} provider – must satisfy the AccidentProvider interface
-     */
     register(name, provider) {
       if (typeof name !== 'string' || !name) {
         throw new TypeError('[ProviderRegistry] name must be a non-empty string');
       }
-      _assertProviderShape(provider, name);
-      _registryEntries.set(name, provider);
+      assertProviderShape(provider, name);
+      entries.set(name, provider);
     },
-
-    /**
-     * Return the provider registered under `name`, or null if not found.
-     *
-     * @param {string} name
-     * @returns {object|null}
-     */
-    get(name) {
-      return _registryEntries.get(name) || null;
-    },
-
-    /**
-     * Return all registered providers as an array of `{ name, provider }` entries.
-     *
-     * @returns {Array<{name:string, provider:object}>}
-     */
+    get(name) { return entries.get(name) || null; },
     list() {
-      return Array.from(_registryEntries.entries()).map(([name, provider]) => ({ name, provider }));
+      return Array.from(entries.entries()).map(([name, provider]) => ({ name, provider }));
     },
-
-    /**
-     * Resolve the "best" provider for a city.
-     *
-     * Resolution order:
-     *   1. First registered tiled provider whose `canProvideForCity` returns
-     *      true synchronously (async providers skip canProvideForCity check).
-     *   2. First registered static provider whose `canProvideForCity` returns true.
-     *   3. Any registered provider (first one).
-     *   4. null — nothing is registered.
-     *
-     * For async `canProvideForCity` (e.g. TiledAccidentProvider), callers
-     * should explicitly select a provider by name when they know it's
-     * available, or use `resolveAsync` for a promise-based lookup.
-     *
-     * @param {string} cityRaw
-     * @returns {object|null}
-     */
     resolve(cityRaw) {
-      if (_registryEntries.size === 0) return null;
-      const entries = Array.from(_registryEntries.values());
-      for (const p of entries) {
-        if (p.type === PROVIDER_TYPES.TILED &&
-            typeof p.canProvideForCity === 'function') {
-          const result = p.canProvideForCity(cityRaw);
-          // Only use synchronous true — skip async results
-          if (result === true) return p;
-        }
+      if (entries.size === 0) return null;
+      const providers = Array.from(entries.values());
+      for (const provider of providers) {
+        if (provider.type !== PROVIDER_TYPES.TILED) continue;
+        try {
+          if (provider.canProvideForCity(cityRaw) === true) return provider;
+        } catch (_) {}
       }
-      for (const p of entries) {
-        if (p.type !== PROVIDER_TYPES.TILED &&
-            typeof p.canProvideForCity === 'function') {
-          const result = p.canProvideForCity(cityRaw);
-          if (result === true) return p;
-        }
+      for (const provider of providers) {
+        if (provider.type === PROVIDER_TYPES.TILED) continue;
+        try {
+          if (typeof provider.canProvideForCity !== 'function'
+              || provider.canProvideForCity(cityRaw) === true) return provider;
+        } catch (_) {}
       }
-      return entries[0] || null;
+      return providers[0] || null;
     },
-
-    /**
-     * Resolve the best provider asynchronously, respecting async
-     * `canProvideForCity` checks. Tries providers in registration order,
-     * preferring tiled providers over static ones.
-     *
-     * @param {string} cityRaw
-     * @returns {Promise<object|null>}
-     */
     async resolveAsync(cityRaw) {
-      if (_registryEntries.size === 0) return null;
-      const entries = Array.from(_registryEntries.values());
-      // Prefer tiled providers
-      for (const p of entries) {
-        if (p.type === PROVIDER_TYPES.TILED &&
-            typeof p.canProvideForCity === 'function') {
+      if (entries.size === 0) return null;
+      const providers = Array.from(entries.values());
+      for (const tiledFirst of [true, false]) {
+        for (const provider of providers) {
+          if ((provider.type === PROVIDER_TYPES.TILED) !== tiledFirst) continue;
           try {
-            const ok = await Promise.resolve(p.canProvideForCity(cityRaw));
-            if (ok) return p;
-          } catch (_) { /* skip unavailable */ }
+            if (typeof provider.canProvideForCity !== 'function'
+                || await Promise.resolve(provider.canProvideForCity(cityRaw))) {
+              return provider;
+            }
+          } catch (_) {}
         }
       }
-      // Fall back to any other provider
-      for (const p of entries) {
-        if (p.type !== PROVIDER_TYPES.TILED &&
-            typeof p.canProvideForCity === 'function') {
-          try {
-            const ok = await Promise.resolve(p.canProvideForCity(cityRaw));
-            if (ok) return p;
-          } catch (_) { /* skip */ }
-        }
-      }
-      return entries[0] || null;
+      return providers[0] || null;
     },
-
-    /**
-     * Remove all registered providers. Primarily useful in tests.
-     */
-    clear() {
-      _registryEntries.clear();
-    },
+    clear() { entries.clear(); },
   });
 
-  // ---------------------------------------------------------------------------
-  // Public API
-  // ---------------------------------------------------------------------------
+  function registerDefaults() {
+    ProviderRegistry.register('tiled', createTiledProvider());
+    ProviderRegistry.register('static', createStaticProvider());
+  }
 
   UA.AccidentProvider = Object.freeze({
     PROVIDER_TYPES,
@@ -626,10 +397,11 @@
     ProviderRegistry,
     createStaticProvider,
     createTiledProvider,
-
-    // Low-level helpers exposed for testing and advanced use
-    _mergeFeatureCollections,
-    _tilesForBounds,
-    _assertProviderShape,
+    registerDefaults,
+    _mergeFeatureCollections: mergeFeatureCollections,
+    _tilesForBounds: tilesForBounds,
+    _assertProviderShape: assertProviderShape,
   });
+
+  registerDefaults();
 })();

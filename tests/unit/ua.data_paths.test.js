@@ -47,9 +47,6 @@ describe('UA.DataResources — central static resource contract', () => {
   test('context schema v3 uses city/x/y without a duplicate zoom directory', () => {
     expect(UA.DataResources.url('contextTile', { city: 'Berlin', x: 4396, y: 2694 }))
       .toBe('out/ctxtiles/berlin/4396/2694.json');
-
-    // Historical DataPaths signature remains callable, but z is deliberately
-    // ignored because the manifest already carries it.
     expect(UA.DataPaths.contextTile('Berlin', 13, 4396, 2694))
       .toBe('out/ctxtiles/berlin/4396/2694.json');
     expect(UA.DataPaths.contextTile('Berlin', 4396, 2694))
@@ -73,10 +70,33 @@ describe('UA.DataResources — central static resource contract', () => {
     expect(rawFetch).not.toHaveBeenCalled();
   });
 
+  test('accident manifest and payload are unconditionally gzip-only', async () => {
+    const manifest = { schemaVersion: 1, city: 'bonn', z: 13, tiles: [] };
+    const tile = { type: 'FeatureCollection', features: [] };
+    UA.fetchJsonGz = jest.fn(async url => url.endsWith('/index.json.gz') ? manifest : tile);
+    const rawFetch = jest.fn();
+
+    await expect(UA.DataResources.fetchJson('accidentTileIndex', {
+      city: 'Bonn',
+    }, { fetch: rawFetch })).resolves.toBe(manifest);
+    await expect(UA.DataResources.fetchJson('accidentTile', {
+      city: 'Bonn', z: 13, x: 4256, y: 2754,
+    }, { fetch: rawFetch })).resolves.toBe(tile);
+
+    expect(UA.fetchJsonGz.mock.calls.map(call => call[0])).toEqual([
+      'out/accidenttiles/bonn/index.json.gz',
+      'out/accidenttiles/bonn/13/4256/2754.json.gz',
+    ]);
+    expect(rawFetch).not.toHaveBeenCalled();
+  });
+
   test('unknown resources and invalid tile coordinates fail early', () => {
     expect(() => UA.DataResources.url('unknown', {})).toThrow(/unknown resource kind/);
     expect(() => UA.DataResources.url('contextTile', { city: 'Bonn', x: '../x', y: 1 }))
       .toThrow(/x must be a non-negative integer/);
+    expect(() => UA.DataResources.url('accidentTile', {
+      city: 'Bonn', z: 13, x: -1, y: 1,
+    })).toThrow(/x must be a non-negative integer/);
   });
 
   test('accident tile path retains its z/x/y pyramid', () => {

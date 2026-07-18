@@ -32,30 +32,133 @@
     return resources().url('poiGeoJson', { city: cityRaw });
   };
 
-  async function resolvedProvider(cityRaw) {
-    const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
-    if (!registry) return null;
-    return typeof registry.resolveAsync === 'function'
-      ? registry.resolveAsync(cityRaw)
-      : registry.resolve(cityRaw);
+  function normalizeAccidentDataMode(value) {
+    return String(value || '').toLowerCase() === 'viewport' ? 'viewport' : 'full';
   }
 
-  async function fetchAccidentGeoJson(cityRaw) {
-    const provider = await resolvedProvider(cityRaw);
-    const staticType = UA.AccidentProvider
-      && UA.AccidentProvider.PROVIDER_TYPES
-      && UA.AccidentProvider.PROVIDER_TYPES.STATIC_GEOJSON;
-    const registry = resources(false);
-
-    // In production, the complete static city file is always owned by
-    // DataResources. An explicitly injected provider may still operate in an
-    // isolated embedding/test that intentionally has no static registry.
-    if (provider
-        && typeof provider.fetchForCity === 'function'
-        && (provider.type !== staticType || !registry)) {
-      return provider.fetchForCity(cityRaw);
+  function requestedAccidentDataMode(ctx) {
+    if (ctx && ctx.accidentDataMode) return normalizeAccidentDataMode(ctx.accidentDataMode);
+    if (typeof UA.qGet === 'function') {
+      return normalizeAccidentDataMode(UA.qGet('accidentDataMode', 'full'));
     }
-    return resources().fetchJson('accidentGeoJson', { city: cityRaw });
+    return 'full';
+  }
+
+  function plainBounds(bounds) {
+    if (!bounds) return null;
+    if (typeof bounds.getSouth === 'function') {
+      return {
+        south: bounds.getSouth(), west: bounds.getWest(),
+        north: bounds.getNorth(), east: bounds.getEast(),
+      };
+    }
+    if (Array.isArray(bounds) && bounds.length === 4) {
+      return { south: bounds[0], west: bounds[1], north: bounds[2], east: bounds[3] };
+    }
+    if (typeof bounds === 'object') {
+      const result = {
+        south: bounds.south, west: bounds.west,
+        north: bounds.north, east: bounds.east,
+      };
+      return Object.values(result).every(Number.isFinite) ? result : null;
+    }
+    return null;
+  }
+
+  function applyRequestedAccidentViewport(ctx) {
+    if (!ctx || !ctx.map || typeof ctx.map.setView !== 'function') return false;
+    if (typeof UA.viewParamsPresent !== 'function' || !UA.viewParamsPresent()) return false;
+    if (typeof UA.qNum !== 'function') return false;
+
+    const lat = UA.qNum('centerLat', null);
+    const lon = UA.qNum('centerLon', null);
+    const zoom = UA.qNum('zoom', null);
+    if (![lat, lon, zoom].every(Number.isFinite)) return false;
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
+
+    // The viewport tile query happens before bindUi hydrates the map. Apply the
+    // canonical URL view here so getBounds() addresses the requested city rather
+    // than Leaflet's temporary Hannover bootstrap view.
+    ctx.map.setView([lat, lon], zoom);
+    return true;
+  }
+
+  function customProviderForCity() {
+    const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
+    const types = UA.AccidentProvider && UA.AccidentProvider.PROVIDER_TYPES;
+    if (!registry || !types || typeof registry.get !== 'function') return null;
+    // Full-city mode must not resolve the registry asynchronously: doing so
+    // would probe the tiled manifest even though the user explicitly requested
+    // the complete city file. Custom embedders opt in by registering `custom`.
+    const provider = registry.get('custom');
+    return provider && provider.type === types.CUSTOM ? provider : null;
+  }
+
+  async function loadFullCity(cityRaw) {
+    const custom = customProviderForCity();
+    const geojson = custom && typeof custom.fetchForCity === 'function'
+      ? await custom.fetchForCity(cityRaw)
+      : await resources().fetchJson('accidentGeoJson', { city: cityRaw });
+    return {
+      geojson,
+      dataUrl: custom ? 'AccidentProvider:custom' : resources().url('accidentGeoJson', { city: cityRaw }),
+      coverage: {
+        mode: 'full-city',
+        complete: true,
+        provider: custom ? 'custom' : 'static',
+        city: cityRaw,
+        loadedFeatureCount: Array.isArray(geojson?.features) ? geojson.features.length : 0,
+      },
+    };
+  }
+
+  async function loadViewport(ctx) {
+    applyRequestedAccidentViewport(ctx);
+    const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
+    const tiled = registry && registry.get('tiled');
+    const bounds = ctx && ctx.map && typeof ctx.map.getBounds === 'function'
+      ? ctx.map.getBounds()
+      : null;
+    if (!tiled || !bounds || typeof tiled.fetchForBbox !== 'function') {
+      const fallback = await loadFullCity(ctx.CITY_RAW);
+      fallback.coverage.fallbackReason = 'tiled provider or map bounds unavailable';
+      return fallback;
+    }
+
+    let available = false;
+    try { available = await Promise.resolve(tiled.canProvideForCity(ctx.CITY_RAW)); }
+    catch (_) { available = false; }
+    if (!available) {
+      const fallback = await loadFullCity(ctx.CITY_RAW);
+      fallback.coverage.fallbackReason = 'accident tile manifest unavailable';
+      return fallback;
+    }
+
+    const capabilities = typeof tiled.getCapabilities === 'function'
+      ? await tiled.getCapabilities(ctx.CITY_RAW)
+      : {};
+    const geojson = await tiled.fetchForBbox(ctx.CITY_RAW, bounds);
+    return {
+      geojson,
+      dataUrl: resources().url('accidentTileIndex', { city: ctx.CITY_RAW }),
+      coverage: {
+        mode: 'viewport-partial',
+        complete: false,
+        provider: 'tiled',
+        city: ctx.CITY_RAW,
+        bounds: plainBounds(bounds),
+        tileZoom: capabilities.tileZoom || null,
+        sourceTotalCount: capabilities.totalCount || null,
+        sourceFingerprint: capabilities.sourceFingerprint || null,
+        loadedFeatureCount: Array.isArray(geojson?.features) ? geojson.features.length : 0,
+      },
+    };
+  }
+
+  async function fetchAccidentGeoJson(ctx) {
+    const mode = requestedAccidentDataMode(ctx);
+    ctx.accidentDataMode = mode;
+    return mode === 'viewport' ? loadViewport(ctx) : loadFullCity(ctx.CITY_RAW);
   }
 
   function refreshContextState(ctx, geojson) {
@@ -113,23 +216,22 @@
   }
 
   UA.loadCityData = async function loadCityData(ctx){
-    const registry = resources(false);
-    const url = registry
-      ? registry.url('accidentGeoJson', { city: ctx.CITY_RAW })
-      : null;
-    ctx.DATA_URL = url;
-    if (ctx.ui?.dataSourceCode) ctx.ui.dataSourceCode.textContent = url || 'AccidentProvider';
-
-    let geojson;
+    let loaded;
     try {
-      geojson = await fetchAccidentGeoJson(ctx.CITY_RAW);
+      loaded = await fetchAccidentGeoJson(ctx);
     } catch (error) {
       const message = String(error && error.message ? error.message : error);
       throw new Error(`GeoJSON konnte nicht geladen werden: ${message}`);
     }
 
-    refreshContextState(ctx, geojson);
-    ctx.allPts = UA.extractPoints(geojson);
+    ctx.DATA_URL = loaded.dataUrl;
+    ctx.accidentDataCoverage = Object.freeze({ ...loaded.coverage });
+    if (ctx.ui?.dataSourceCode) {
+      const suffix = loaded.coverage.complete ? '' : ' (nur aktueller Kartenausschnitt)';
+      ctx.ui.dataSourceCode.textContent = `${loaded.dataUrl}${suffix}`;
+    }
+    refreshContextState(ctx, loaded.geojson);
+    ctx.allPts = UA.extractPoints(loaded.geojson);
   };
 
   UA.loadPOIData = async function loadPOIData(ctx){
@@ -149,4 +251,8 @@
       ctx.poiData = null;
     }
   };
+
+  UA.normalizeAccidentDataMode = normalizeAccidentDataMode;
+  UA.applyRequestedAccidentViewport = applyRequestedAccidentViewport;
+  UA.fetchAccidentGeoJson = fetchAccidentGeoJson;
 })();

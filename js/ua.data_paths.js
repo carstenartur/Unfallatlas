@@ -7,13 +7,6 @@
    * A resource definition owns both the logical file name and its transport
    * policy. Callers must not concatenate `out/...` paths or decide between raw
    * and gzip variants themselves.
-   *
-   * Preferred API:
-   *   UA.DataResources.url('accidentGeoJson', { city: 'Bonn' })
-   *   UA.DataResources.fetchJson('contextTile', { city: 'Bonn', x: 4256, y: 2754 })
-   *
-   * UA.DataPaths remains as a compatibility facade for older modules. It is
-   * deliberately implemented entirely through the registry.
    */
 
   const UA = (window.UA = window.UA || {});
@@ -63,8 +56,6 @@
       cache: 'force-cache',
       path: ({ city }) => `out/ctxtiles/${slug(city)}/index.json`,
     }),
-    // Context schema v3 stores tiles as <city>/<x>/<y>.json. The zoom is
-    // recorded in the manifest, not repeated in the directory structure.
     contextTile: Object.freeze({
       compression: COMPRESSION.GZIP_ONLY,
       cache: 'force-cache',
@@ -72,12 +63,12 @@
         `out/ctxtiles/${slug(city)}/${integer(x, 'x')}/${integer(y, 'y')}.json`,
     }),
     accidentTileIndex: Object.freeze({
-      compression: COMPRESSION.GZIP_PREFERRED,
+      compression: COMPRESSION.GZIP_ONLY,
       cache: 'force-cache',
       path: ({ city }) => `out/accidenttiles/${slug(city)}/index.json`,
     }),
     accidentTile: Object.freeze({
-      compression: COMPRESSION.GZIP_PREFERRED,
+      compression: COMPRESSION.GZIP_ONLY,
       cache: 'force-cache',
       path: ({ city, z, x, y }) =>
         `out/accidenttiles/${slug(city)}/${integer(z, 'z')}/${integer(x, 'x')}/${integer(y, 'y')}.json`,
@@ -149,8 +140,6 @@
 
   function fetchJson(kind, params, options) {
     const descriptor = resolve(kind, params);
-    // A resource's declared compression mode is authoritative. In particular,
-    // callers cannot accidentally enable a raw fallback for context tiles.
     return fetchJsonUrl(descriptor.logicalUrl, {
       ...(options || {}),
       cache: (options && options.cache) || descriptor.cache,
@@ -184,9 +173,6 @@
       return DataResources.url('contextTileIndex', { city: cityRaw });
     },
     contextTile(cityRaw, zOrX, xOrY, maybeY) {
-      // Compatibility with the historical (city,z,x,y) signature. Context v3
-      // never stored z in the path; when four arguments are supplied the zoom
-      // is intentionally ignored and x/y are taken from the last two values.
       const x = maybeY === undefined ? zOrX : xOrY;
       const y = maybeY === undefined ? xOrY : maybeY;
       return DataResources.url('contextTile', { city: cityRaw, x, y });
@@ -202,20 +188,28 @@
   UA.DataResources = DataResources;
   UA.DataPaths = DataPaths;
 
-  // Optional missing-data recovery UI. Loading it here keeps the existing HTML
-  // entry point unchanged and makes the same button available on GitHub Pages
-  // and in the Docker server. Minimal test/document doubles may not implement
-  // the complete DOM API, so guard every primitive.
-  if (typeof document !== 'undefined'
-      && typeof document.querySelector === 'function'
-      && typeof document.createElement === 'function'
-      && document.head
-      && typeof document.head.appendChild === 'function'
-      && !document.querySelector('script[data-ua-context-generation]')) {
+  function injectOptionalModule(src, marker) {
+    if (typeof document === 'undefined'
+        || typeof document.querySelector !== 'function'
+        || typeof document.createElement !== 'function'
+        || !document.head
+        || typeof document.head.appendChild !== 'function'
+        || document.querySelector(`script[${marker}]`)) return;
     const script = document.createElement('script');
-    script.src = 'js/ua.context_generation.js?v=2026-07-18';
-    script.async = true;
-    script.dataset.uaContextGeneration = '1';
+    script.src = src;
+    // The modules are load-order independent, but preserving insertion order
+    // avoids a needless race in static deployments.
+    script.async = false;
+    script.setAttribute(marker, '1');
     document.head.appendChild(script);
   }
+
+  injectOptionalModule(
+    'js/ua.accident_coverage.js?v=2026-07-18',
+    'data-ua-accident-coverage'
+  );
+  injectOptionalModule(
+    'js/ua.context_generation.js?v=2026-07-18',
+    'data-ua-context-generation'
+  );
 })();

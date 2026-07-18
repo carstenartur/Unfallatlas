@@ -8,6 +8,7 @@ const RUNTIME_CONSUMERS = [
   'js/ua.data.js',
   'js/ua.data_v2.js',
   'js/ua.context_layers.js',
+  'js/ua.accident_provider.js',
   'js/ua.preview_map_renderer.js',
 ];
 
@@ -34,10 +35,12 @@ describe('central browser static-data access architecture', () => {
     expect(source).not.toMatch(/UA\.fetchJson(?:Compressed|Gz)\s*\(/);
   });
 
-  test('DataResources is the sole runtime owner of canonical generated-data paths', () => {
+  test('DataResources owns both context and accident tile gzip policies', () => {
     const registry = read('js/ua.data_paths.js');
     expect(registry).toMatch(/const definitions = Object\.freeze/);
-    expect(registry).toMatch(/contextTile:[\s\S]*GZIP_ONLY/);
+    expect(registry).toMatch(/contextTile:[\s\S]*compression:\s*COMPRESSION\.GZIP_ONLY/);
+    expect(registry).toMatch(/accidentTileIndex:[\s\S]*compression:\s*COMPRESSION\.GZIP_ONLY/);
+    expect(registry).toMatch(/accidentTile:[\s\S]*compression:\s*COMPRESSION\.GZIP_ONLY/);
     expect(registry).toMatch(/fetchJson\(kind, params, options\)/);
   });
 
@@ -60,5 +63,13 @@ describe('central browser static-data access architecture', () => {
     const source = stripComments(read('js/ua.preview_map_renderer.js'));
     expect(source).not.toMatch(/contextLayers\.loadTilesForBbox\s*=/);
     expect(source).not.toMatch(/contextLayers\.resolveWayAcrossTiles\s*=/);
+  });
+
+  test('normal full-city loading cannot resolve or probe the tiled provider', () => {
+    const source = stripComments(read('js/ua.data_v2.js'));
+    const customProviderBlock = source.match(/function customProviderForCity\(\)[\s\S]*?\n  }/);
+    expect(customProviderBlock).not.toBeNull();
+    expect(customProviderBlock[0]).toMatch(/registry\.get\('custom'\)/);
+    expect(customProviderBlock[0]).not.toMatch(/resolveAsync|canProvideForCity/);
   });
 });
