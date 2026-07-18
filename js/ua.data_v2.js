@@ -1,11 +1,11 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
-  function resources() {
-    if (!UA.DataResources) {
+  function resources(required = true) {
+    if (!UA.DataResources && required) {
       throw new Error('UA.DataResources must be loaded before ua.data_v2.js');
     }
-    return UA.DataResources;
+    return UA.DataResources || null;
   }
 
   UA.extractPoints = function extractPoints(geojson){
@@ -32,22 +32,27 @@
     return resources().url('poiGeoJson', { city: cityRaw });
   };
 
-  async function fetchAccidentGeoJson(cityRaw) {
+  async function resolvedProvider(cityRaw) {
     const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
-    const provider = registry
-      ? (typeof registry.resolveAsync === 'function'
-          ? await registry.resolveAsync(cityRaw)
-          : registry.resolve(cityRaw))
-      : null;
+    if (!registry) return null;
+    return typeof registry.resolveAsync === 'function'
+      ? registry.resolveAsync(cityRaw)
+      : registry.resolve(cityRaw);
+  }
+
+  async function fetchAccidentGeoJson(cityRaw) {
+    const provider = await resolvedProvider(cityRaw);
     const staticType = UA.AccidentProvider
       && UA.AccidentProvider.PROVIDER_TYPES
       && UA.AccidentProvider.PROVIDER_TYPES.STATIC_GEOJSON;
+    const registry = resources(false);
 
-    // Full-city static files are a first-party DataResources concern. Provider
-    // implementations remain available for tiled and genuinely custom sources.
+    // In production, the complete static city file is always owned by
+    // DataResources. An explicitly injected provider may still operate in an
+    // isolated embedding/test that intentionally has no static registry.
     if (provider
         && typeof provider.fetchForCity === 'function'
-        && provider.type !== staticType) {
+        && (provider.type !== staticType || !registry)) {
       return provider.fetchForCity(cityRaw);
     }
     return resources().fetchJson('accidentGeoJson', { city: cityRaw });
@@ -108,9 +113,12 @@
   }
 
   UA.loadCityData = async function loadCityData(ctx){
-    const url = UA.buildDataUrl(ctx.CITY_RAW);
+    const registry = resources(false);
+    const url = registry
+      ? registry.url('accidentGeoJson', { city: ctx.CITY_RAW })
+      : null;
     ctx.DATA_URL = url;
-    ctx.ui.dataSourceCode.textContent = url;
+    if (ctx.ui?.dataSourceCode) ctx.ui.dataSourceCode.textContent = url || 'AccidentProvider';
 
     let geojson;
     try {
