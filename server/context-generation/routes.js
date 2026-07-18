@@ -1,7 +1,39 @@
 'use strict';
 
 const path = require('path');
+const { rateLimit } = require('express-rate-limit');
 const { ContextGenerationService } = require('./contextGenerationService');
+
+const capabilityRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'context_generation_status_rate_limited' },
+});
+
+// Starting a producer run can trigger OSM and SRTM downloads. Keep this limit
+// deliberately low even though the service also enforces a single active job.
+const startJobRateLimit = rateLimit({
+  windowMs: 60 * 60_000,
+  max: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'context_generation_start_rate_limited',
+    message: 'Zu viele Generierungsstarts. Bitte den laufenden Auftrag weiterverwenden.',
+  },
+});
+
+// The UI polls every two seconds, so allow a normal browser session sufficient
+// headroom while still bounding brute-force token attempts and accidental loops.
+const jobStatusRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'context_generation_status_rate_limited' },
+});
 
 function requestToken(req) {
   return req.get('authorization') || req.get('x-context-generation-token') || '';
@@ -18,11 +50,11 @@ function registerContextGenerationRoutes(app, options) {
   });
   app.locals.contextGenerationService = service;
 
-  app.get('/api/context-generation/status', (req, res) => {
+  app.get('/api/context-generation/status', capabilityRateLimit, (req, res) => {
     res.json(service.capabilities(String(req.query.city || '').trim()));
   });
 
-  app.post('/api/context-generation/jobs', (req, res) => {
+  app.post('/api/context-generation/jobs', startJobRateLimit, (req, res) => {
     if (!service.isAuthorized(requestToken(req))) {
       return res.status(401).json({
         error: 'context_generation_unauthorized',
@@ -48,7 +80,7 @@ function registerContextGenerationRoutes(app, options) {
     }
   });
 
-  app.get('/api/context-generation/jobs/:jobId', (req, res) => {
+  app.get('/api/context-generation/jobs/:jobId', jobStatusRateLimit, (req, res) => {
     if (!service.isAuthorized(requestToken(req))) {
       return res.status(401).json({
         error: 'context_generation_unauthorized',
