@@ -189,18 +189,22 @@
   UA.DataPaths = DataPaths;
 
   function injectOptionalModule(src, marker) {
-    if (typeof document === 'undefined'
-        || typeof document.querySelector !== 'function'
-        || typeof document.createElement !== 'function'
-        || !document.head
-        || typeof document.head.appendChild !== 'function') {
+    // Use the module's explicit window, not the test runner's ambient global
+    // document. Isolated Unit-test windows intentionally omit `document` and
+    // must receive an already-resolved optional-module promise.
+    const doc = window && window.document;
+    if (!doc
+        || typeof doc.querySelector !== 'function'
+        || typeof doc.createElement !== 'function'
+        || !doc.head
+        || typeof doc.head.appendChild !== 'function') {
       return Promise.resolve(false);
     }
 
-    const existing = document.querySelector(`script[${marker}]`);
+    const existing = doc.querySelector(`script[${marker}]`);
     if (existing) return existing.__uaLoadPromise || Promise.resolve(true);
 
-    const script = document.createElement('script');
+    const script = doc.createElement('script');
     script.src = src;
     script.async = false;
     script.setAttribute(marker, '1');
@@ -210,7 +214,7 @@
       // Consumers can await the promise and fall back to their legacy path.
       script.addEventListener('error', () => resolve(false), { once: true });
     });
-    document.head.appendChild(script);
+    doc.head.appendChild(script);
     return script.__uaLoadPromise;
   }
 
