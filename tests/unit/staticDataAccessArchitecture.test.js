@@ -9,6 +9,7 @@ const RUNTIME_CONSUMERS = [
   'js/ua.data_v2.js',
   'js/ua.context_layers.js',
   'js/ua.accident_provider.js',
+  'js/ua.accident_viewport_controller.js',
   'js/ua.preview_map_renderer.js',
 ];
 
@@ -44,7 +45,7 @@ describe('central browser static-data access architecture', () => {
     expect(registry).toMatch(/fetchJson\(kind, params, options\)/);
   });
 
-  test('HTML loads DataResources before every static-data consumer', () => {
+  test('HTML loads DataResources before every parser-loaded static-data consumer', () => {
     const html = read('werkbank_v2.html');
     const registry = html.indexOf('js/ua.data_paths.js');
     expect(registry).toBeGreaterThanOrEqual(0);
@@ -57,6 +58,16 @@ describe('central browser static-data access architecture', () => {
       const consumer = html.indexOf(script);
       expect(consumer).toBeGreaterThan(registry);
     }
+  });
+
+  test('DataResources bootstraps and exposes an awaitable viewport controller module', () => {
+    const source = read('js/ua.data_paths.js');
+    expect(source).toMatch(/accidentViewportController:\s*injectOptionalModule/);
+    expect(source).toMatch(/ua\.accident_viewport_controller\.js/);
+    expect(source).toMatch(/script\.__uaLoadPromise/);
+    const consumer = read('js/ua.data_v2.js');
+    expect(consumer).toMatch(/ensureAccidentViewportController/);
+    expect(consumer).toMatch(/optionalModulePromises\.accidentViewportController/);
   });
 
   test('preview renderer cannot replace context data access functions', () => {
