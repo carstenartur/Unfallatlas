@@ -398,7 +398,6 @@
       const descriptors = requestedTiles(manifest, bounds);
       const requestedTileKeys = descriptors.map(descriptor => descriptor.key);
       const result = await fetchTileDescriptors(slug, manifest, descriptors);
-      trimTileCache(slug, new Set(requestedTileKeys));
       return Object.freeze({
         city: slug,
         tileZoom: manifest.z,
@@ -447,6 +446,11 @@
       });
     }
 
+    function retainForViewport(cityRaw, tileKeys) {
+      const activeKeys = Array.isArray(tileKeys) ? tileKeys : [];
+      trimTileCache(slugify(cityRaw), new Set(activeKeys));
+    }
+
     function getCacheSnapshot(cityRaw) {
       const slugs = cityRaw == null ? Array.from(tileCache.keys()) : [slugify(cityRaw)];
       const cities = {};
@@ -483,6 +487,7 @@
         return Boolean(await loadManifest(cityRaw));
       },
       getManifest: loadManifest,
+      retainForViewport,
       getCacheSnapshot,
       clearCache,
     });

@@ -158,6 +158,9 @@
         }
 
         const nextGeoJson = mergeTileSet(tileSet);
+        if (typeof provider.retainForViewport === 'function') {
+          provider.retainForViewport(city, tileSet.requestedTileKeys || []);
+        }
         const requiredTileKeys = Array.from(tileSet.requestedTileKeys || []);
         const loadedTileKeys = Array.from(tileSet.loadedTileKeys || []);
         const missingTileKeys = Array.from(tileSet.missingTileKeys || []);
