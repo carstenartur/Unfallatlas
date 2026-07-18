@@ -54,8 +54,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .enrichment-cache
-          key: pages-context-${{ runner.os }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}
+          # actions/cache cannot update an existing exact key. A per-run suffix
+          # creates a writable snapshot while restore-keys reuse the newest
+          # compatible producer cache from earlier runs.
+          key: pages-context-${{ runner.os }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}-${{ github.run_id }}
           restore-keys: |
+            pages-context-${{ runner.os }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}-
             pages-context-${{ runner.os }}-
           save-always: true
 
