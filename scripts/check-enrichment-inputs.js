@@ -5,23 +5,34 @@
  * Strict preflight for the producer datasets consumed by enrich_geojson.js.
  *
  * The enricher removes old context fields before applying providers. Running it
- * with a missing or partial cache can therefore destroy valid slope/traffic
- * data. Production workflows must run this check immediately before enriching.
+ * with a missing, stale or partial cache can therefore destroy valid slope /
+ * traffic data. Production workflows must run this check immediately before
+ * enriching.
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { readCitiesFile, slugify } = require('./lib/static-data-validation');
+const osmProducer = require('./producers/osm_producer');
+const demProducer = require('./producers/dem_producer');
+const trafficProducer = require('./producers/traffic_producer');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
+const CURRENT_PRODUCER_VERSIONS = Object.freeze({
+  osm: osmProducer.PRODUCER_VERSION,
+  dem: demProducer.PRODUCER_VERSION,
+  traffic: trafficProducer.PRODUCER_VERSION,
+});
 
 function parseArgs(argv) {
   const args = {
     root: REPO_ROOT,
     citiesFile: null,
     cities: [],
+    inputDir: null,
     osmDir: null,
     demDir: null,
     trafficDir: null,
@@ -33,6 +44,7 @@ function parseArgs(argv) {
     if (arg === '--root') args.root = path.resolve(argv[++i] || args.root);
     else if (arg === '--cities-file') args.citiesFile = argv[++i] || null;
     else if (arg === '--city') args.cities.push(argv[++i]);
+    else if (arg === '--input-dir') args.inputDir = argv[++i] || null;
     else if (arg === '--osm-dir') args.osmDir = argv[++i] || null;
     else if (arg === '--dem-dir') args.demDir = argv[++i] || null;
     else if (arg === '--traffic-dir') args.trafficDir = argv[++i] || null;
@@ -42,6 +54,7 @@ function parseArgs(argv) {
   }
 
   args.citiesFile = path.resolve(args.citiesFile || path.join(args.root, 'cities.txt'));
+  args.inputDir = path.resolve(args.inputDir || path.join(args.root, 'out'));
   args.osmDir = path.resolve(args.osmDir || process.env.ENRICH_OSM_DATA_DIR || path.join(args.root, '.enrichment-cache/osm'));
   args.demDir = path.resolve(args.demDir || process.env.ENRICH_DEM_DATA_DIR || path.join(args.root, '.enrichment-cache/dem'));
   args.trafficDir = path.resolve(args.trafficDir || process.env.ENRICH_TRAFFIC_DATA_DIR || path.join(args.root, '.enrichment-cache/traffic'));
@@ -59,36 +72,74 @@ function readDataset(file) {
   }
 }
 
-function validateOsm(data) {
+function fingerprintJsonArtifact(file) {
+  const value = readJsonMaybeGz(file);
+  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function validateCommon(data, expectedVersion, versionFields, expectedFingerprint) {
   const errors = [];
   if (!data || typeof data !== 'object') return ['not an object'];
+  const actualVersion = versionFields.map(field => data[field]).find(Boolean);
+  if (!actualVersion) {
+    errors.push(`${versionFields.join('/')} is missing`);
+  } else if (expectedVersion && actualVersion !== expectedVersion) {
+    errors.push(`producer version ${JSON.stringify(actualVersion)}, expected ${JSON.stringify(expectedVersion)}`);
+  }
+  if (typeof data.inputFingerprint !== 'string' || !/^[a-f0-9]{64}$/i.test(data.inputFingerprint)) {
+    errors.push('inputFingerprint is missing or invalid');
+  } else if (expectedFingerprint && data.inputFingerprint !== expectedFingerprint) {
+    errors.push(`inputFingerprint does not match current accident GeoJSON (${data.inputFingerprint} != ${expectedFingerprint})`);
+  }
+  return errors;
+}
+
+function validateOsm(data, options) {
+  const opts = options || {};
+  const errors = validateCommon(
+    data,
+    opts.expectedVersion || CURRENT_PRODUCER_VERSIONS.osm,
+    ['producerVersion'],
+    opts.expectedFingerprint,
+  );
+  if (!data || typeof data !== 'object') return errors;
   if (data.coverage !== 'full') errors.push(`coverage=${JSON.stringify(data.coverage)}, expected "full"`);
   if (!data.ways || typeof data.ways !== 'object' || Object.keys(data.ways).length === 0) errors.push('ways is missing or empty');
   if (!data.wayGeometries || typeof data.wayGeometries !== 'object' || Object.keys(data.wayGeometries).length === 0) errors.push('wayGeometries is missing or empty');
   if (!Array.isArray(data.index)) errors.push('index is not an array');
-  if (!data.producerVersion) errors.push('producerVersion is missing');
   return errors;
 }
 
-function validateDem(data) {
-  const errors = [];
-  if (!data || typeof data !== 'object') return ['not an object'];
+function validateDem(data, options) {
+  const opts = options || {};
+  const errors = validateCommon(
+    data,
+    opts.expectedVersion || CURRENT_PRODUCER_VERSIONS.dem,
+    ['producerVersion'],
+    opts.expectedFingerprint,
+  );
+  if (!data || typeof data !== 'object') return errors;
   if (!Array.isArray(data.points) || data.points.length === 0) errors.push('points is missing or empty');
   if (!data.wayElevations || typeof data.wayElevations !== 'object' || Object.keys(data.wayElevations).length === 0) errors.push('wayElevations is missing or empty');
-  if (!data.producerVersion) errors.push('producerVersion is missing');
   return errors;
 }
 
-function validateTraffic(data) {
-  const errors = [];
-  if (!data || typeof data !== 'object') return ['not an object'];
+function validateTraffic(data, options) {
+  const opts = options || {};
+  const errors = validateCommon(
+    data,
+    opts.expectedVersion || CURRENT_PRODUCER_VERSIONS.traffic,
+    ['producerVersion', 'datasetVersion'],
+    opts.expectedFingerprint,
+  );
+  if (!data || typeof data !== 'object') return errors;
   if (!data.ways || typeof data.ways !== 'object' || Object.keys(data.ways).length === 0) errors.push('ways is missing or empty');
   if (!data.source) errors.push('source is missing');
-  if (!data.datasetVersion && !data.producerVersion) errors.push('datasetVersion/producerVersion is missing');
   return errors;
 }
 
-function validateCityInputs(city, dirs) {
+function validateCityInputs(city, dirs, options) {
+  const opts = options || {};
   const slug = slugify(city);
   const specs = [
     { kind: 'osm', dir: dirs.osmDir, file: `osm_${slug}.json`, validate: validateOsm },
@@ -104,7 +155,7 @@ function validateCityInputs(city, dirs) {
       problems.push(`${spec.kind}: ${loaded.error} (${file})`);
       continue;
     }
-    for (const error of spec.validate(loaded.value)) {
+    for (const error of spec.validate(loaded.value, { expectedFingerprint: opts.expectedFingerprint })) {
       problems.push(`${spec.kind}: ${error} (${file})`);
     }
   }
@@ -120,11 +171,29 @@ function validateAll(args) {
     const slug = slugify(city);
     if (!slug || seen.has(slug)) continue;
     seen.add(slug);
-    cities.push(validateCityInputs(city, args));
+    let expectedFingerprint = null;
+    const inputFile = path.join(args.inputDir, `output_all_years_${slug}.geojson`);
+    try {
+      expectedFingerprint = fingerprintJsonArtifact(inputFile);
+    } catch (error) {
+      cities.push({
+        city,
+        slug,
+        ok: false,
+        problems: [`accident input: ${error.message} (${inputFile}[.gz])`],
+      });
+      continue;
+    }
+    cities.push(validateCityInputs(city, args, { expectedFingerprint }));
   }
   return {
     ok: cities.length > 0 && cities.every(city => city.ok),
-    directories: { osm: args.osmDir, dem: args.demDir, traffic: args.trafficDir },
+    directories: {
+      input: args.inputDir,
+      osm: args.osmDir,
+      dem: args.demDir,
+      traffic: args.trafficDir,
+    },
     cities,
   };
 }
@@ -133,6 +202,7 @@ function printHelp() {
   process.stdout.write(`Usage: node scripts/check-enrichment-inputs.js [options]\n\n` +
     `  --city <name>         validate one city (repeatable)\n` +
     `  --cities-file <path>  default: cities.txt\n` +
+    `  --input-dir <path>    accident GeoJSON directory (default: out)\n` +
     `  --osm-dir <path>      default: $ENRICH_OSM_DATA_DIR or .enrichment-cache/osm\n` +
     `  --dem-dir <path>      default: $ENRICH_DEM_DATA_DIR or .enrichment-cache/dem\n` +
     `  --traffic-dir <path>  default: $ENRICH_TRAFFIC_DATA_DIR or .enrichment-cache/traffic\n` +
@@ -163,8 +233,11 @@ function main(argv) {
 if (require.main === module) process.exit(main(process.argv.slice(2)));
 
 module.exports = {
+  CURRENT_PRODUCER_VERSIONS,
   parseArgs,
   readDataset,
+  fingerprintJsonArtifact,
+  validateCommon,
   validateOsm,
   validateDem,
   validateTraffic,
