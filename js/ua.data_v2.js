@@ -65,18 +65,19 @@
     return null;
   }
 
-  async function customProviderForCity(cityRaw) {
+  function customProviderForCity() {
     const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
-    if (!registry) return null;
-    const provider = typeof registry.resolveAsync === 'function'
-      ? await registry.resolveAsync(cityRaw)
-      : registry.resolve(cityRaw);
     const types = UA.AccidentProvider && UA.AccidentProvider.PROVIDER_TYPES;
-    return provider && types && provider.type === types.CUSTOM ? provider : null;
+    if (!registry || !types || typeof registry.get !== 'function') return null;
+    // Full-city mode must not resolve the registry asynchronously: doing so
+    // would probe the tiled manifest even though the user explicitly requested
+    // the complete city file. Custom embedders opt in by registering `custom`.
+    const provider = registry.get('custom');
+    return provider && provider.type === types.CUSTOM ? provider : null;
   }
 
   async function loadFullCity(cityRaw) {
-    const custom = await customProviderForCity(cityRaw);
+    const custom = customProviderForCity();
     const geojson = custom && typeof custom.fetchForCity === 'function'
       ? await custom.fetchForCity(cityRaw)
       : await resources().fetchJson('accidentGeoJson', { city: cityRaw });
