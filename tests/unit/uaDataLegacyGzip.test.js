@@ -3,50 +3,51 @@
 const fs = require('fs');
 const path = require('path');
 
-function loadLegacyDataModule(win) {
-  const filePath = path.resolve(__dirname, '../../js/ua.data.js');
-  (function (window) { eval(fs.readFileSync(filePath, 'utf8')); })(win); // eslint-disable-line no-eval
+function evaluate(relPath, win) {
+  const source = fs.readFileSync(path.resolve(__dirname, relPath), 'utf8');
+  (function (window) { eval(source); })(win); // eslint-disable-line no-eval
+}
+
+function loadLegacyDataModule() {
+  const win = { UA: {}, document: { querySelector: () => null } };
+  evaluate('../../js/ua.core.js', win);
+  evaluate('../../js/ua.data_paths.js', win);
+  evaluate('../../js/ua.data.js', win);
   return win.UA;
 }
 
-describe('js/ua.data.js gzip compatibility', () => {
-  test('uses UA.fetchJsonCompressed when available', async () => {
-    const win = { UA: {}, document: { querySelector: () => null } };
-    win.UA.normKey = (s) => String(s || '').toLowerCase();
-    const UA = loadLegacyDataModule(win);
-
+describe('js/ua.data.js central resource compatibility', () => {
+  test('loads the canonical accident resource through DataResources', async () => {
+    const UA = loadLegacyDataModule();
     const payload = {
       type: 'FeatureCollection',
-      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [7.1, 50.7] }, properties: { id: '1' } }],
+      features: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+        properties: { id: '1' },
+      }],
     };
-
-    const calls = [];
-    UA.fetchJsonCompressed = async (url) => {
-      calls.push(url);
-      return payload;
-    };
+    UA.fetchJsonCompressed = jest.fn(async () => payload);
 
     const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: '' } } };
     await UA.loadCityData(ctx);
 
-    expect(calls).toEqual(['out/output_all_years_bonn.geojson']);
+    expect(UA.fetchJsonCompressed).toHaveBeenCalledWith(
+      'out/output_all_years_bonn.geojson',
+      expect.objectContaining({ cache: 'no-store' })
+    );
     expect(ctx.allPts).toHaveLength(1);
     expect(ctx.DATA_URL).toBe('out/output_all_years_bonn.geojson');
   });
 
-  test('throws a clear message in gzip-only mode when UA.fetchJsonCompressed is unavailable', async () => {
-    const win = {
-      UA: {},
-      document: {
-        querySelector: () => ({ getAttribute: () => 'gzip-only' }),
-      },
-    };
-    win.UA.normKey = (s) => String(s || '').toLowerCase();
-    const UA = loadLegacyDataModule(win);
-
+  test('surfaces central transport errors with city-data context', async () => {
+    const UA = loadLegacyDataModule();
+    UA.fetchJsonCompressed = jest.fn(async () => {
+      throw new Error('gzip decompression unavailable');
+    });
     const ctx = { CITY_RAW: 'Bonn', ui: { dataSourceCode: { textContent: '' } } };
     await expect(UA.loadCityData(ctx)).rejects.toThrow(
-      'Daten konnten nicht geladen werden: gzip-Daten konnten nicht dekomprimiert werden. Bitte modernen Browser verwenden oder Deployment prüfen.'
+      /GeoJSON konnte nicht geladen werden:.*gzip decompression unavailable/
     );
   });
 });
