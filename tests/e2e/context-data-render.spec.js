@@ -14,7 +14,7 @@ const VIEW = {
  * The dedicated context-data integration runner first generates the selected
  * city into an isolated static site. This test then exercises the public HTML,
  * gzip loader, capability detection, v3 tile-index loader, viewport tile fetch,
- * Leaflet layer construction and visible UI controls. Missing data is a hard
+ * Leaflet canvas rendering and visible UI controls. Missing data is a hard
  * failure; there is no conditional skip.
  */
 test.describe('Generated context data – browser end to end', () => {
@@ -29,6 +29,8 @@ test.describe('Generated context data – browser end to end', () => {
       zoom: VIEW.zoom,
       showCluster: '0',
       showHeatmap: '0',
+      showSchools: '0',
+      showKindergartens: '0',
       showArgumentation: '0',
     });
 
@@ -53,45 +55,69 @@ test.describe('Generated context data – browser end to end', () => {
     await expect(overlayControl.locator('input[data-context-overlay="slope"]')).toBeChecked();
     await expect(overlayControl.locator('input[data-context-overlay="traffic"]')).toBeChecked();
 
-    // Wait until the v3 context-tile loader has fetched viewport tiles and the
-    // actual Leaflet polylines have been added to the map. Leaflet exposes the
-    // two context overlays as top-level LayerGroups; the road polylines carrying
-    // `feature.properties.kind` are their children, so traversal must recurse.
+    // Black-box rendering contract: inspect the pixels users actually see in
+    // Leaflet's overlay canvases. `ctx` and the map are intentionally private
+    // implementation details, so the test must not depend on window.map or a
+    // test-only global. The palettes are the production ramps from
+    // ua.context_road_layer.js. Transparent/no-signal grey is not counted as a
+    // slope signal.
     await page.waitForFunction(() => {
-      const map = window.map || (window.UA && window.UA.ctx && window.UA.ctx.map);
-      if (!map || typeof map.eachLayer !== 'function') return false;
-      const counts = { slope: 0, slopeSignal: 0, traffic: 0 };
-      const visited = new Set();
-      const visit = layer => {
-        if (!layer || visited.has(layer)) return;
-        visited.add(layer);
-        const props = layer.feature && layer.feature.properties;
-        if (props && props.kind === 'slope') {
-          counts.slope += 1;
-          if (props.class !== 'no_signal') counts.slopeSignal += 1;
-        } else if (props && props.kind === 'traffic') {
-          counts.traffic += 1;
+      const slopePalette = [
+        [255, 255, 178], // flat
+        [254, 204, 92],  // gentle
+        [253, 141, 60],  // moderate
+        [240, 59, 32],   // steep
+        [189, 0, 38],    // very_steep
+        [154, 169, 184], // low confidence, still a calculated signal
+      ];
+      const trafficPalette = [
+        [255, 255, 204],
+        [161, 218, 180],
+        [65, 182, 196],
+        [34, 94, 168],
+      ];
+      const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
+        Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8
+      );
+      const counts = { canvases: 0, slopePixels: 0, trafficPixels: 0 };
+      const canvases = document.querySelectorAll('.leaflet-overlay-pane canvas');
+      for (const canvas of canvases) {
+        if (!(canvas instanceof HTMLCanvasElement) || canvas.width === 0 || canvas.height === 0) continue;
+        const style = getComputedStyle(canvas);
+        if (style.display === 'none' || style.visibility === 'hidden') continue;
+        let pixels;
+        try {
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          if (!context) continue;
+          pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        } catch (_) {
+          continue;
         }
-        if (typeof layer.getLayers === 'function') {
-          for (const child of layer.getLayers() || []) visit(child);
+        counts.canvases += 1;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const alpha = pixels[i + 3];
+          if (alpha < 80) continue;
+          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+          if (closeTo(r, g, b, slopePalette)) counts.slopePixels += 1;
+          if (closeTo(r, g, b, trafficPalette)) counts.trafficPixels += 1;
         }
-      };
-      map.eachLayer(visit);
-      window.__uaContextRenderCounts = counts;
-      return counts.slope > 0 && counts.slopeSignal > 0 && counts.traffic > 0;
+      }
+      window.__uaContextCanvasCounts = counts;
+      return counts.slopePixels >= 20 && counts.trafficPixels >= 20;
     }, null, { timeout: 90_000 });
 
-    const rendered = await page.evaluate(() => window.__uaContextRenderCounts);
-    expect(rendered.slope, 'no slope road polylines were rendered').toBeGreaterThan(0);
-    expect(rendered.slopeSignal, 'slope layer only rendered no-signal roads').toBeGreaterThan(0);
-    expect(rendered.traffic, 'no traffic-proxy road polylines were rendered').toBeGreaterThan(0);
+    const rendered = await page.evaluate(() => window.__uaContextCanvasCounts);
+    expect(rendered.canvases, 'Leaflet created no visible overlay canvas').toBeGreaterThan(0);
+    expect(rendered.slopePixels, 'no visible pixels from the slope signal palette were rendered').toBeGreaterThanOrEqual(20);
+    expect(rendered.trafficPixels, 'no visible pixels from the traffic palette were rendered').toBeGreaterThanOrEqual(20);
 
-    // At least one active legend must be visible and describe the current road
-    // context instead of leaving an empty map-layer switch behind.
+    // Both active legends must be visible and describe the current road context,
+    // not merely leave checked switches with an empty map behind.
     const visibleLegends = page.locator('.context-road-legend:visible');
-    await expect.poll(() => visibleLegends.count(), { timeout: 30_000 }).toBeGreaterThan(0);
+    await expect.poll(() => visibleLegends.count(), { timeout: 30_000 }).toBe(2);
     const legendText = (await visibleLegends.allTextContents()).join(' ');
-    expect(legendText).toMatch(/Straßensteigung|Verkehrsbelastung/);
+    expect(legendText).toMatch(/Straßensteigung/);
+    expect(legendText).toMatch(/Verkehrsbelastung/);
 
     expect(pageErrors, `pageerror events:\n${pageErrors.join('\n')}`).toHaveLength(0);
   });
