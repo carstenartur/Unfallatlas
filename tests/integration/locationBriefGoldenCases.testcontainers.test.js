@@ -67,13 +67,13 @@ async function createAnalysisServiceBuilder(GenericContainer) {
   if (jarPath) {
     return {
       builder: new GenericContainer(ANALYSIS_SERVICE_RUNTIME_IMAGE)
-        .withBindMounts([{
+        .withCopyFilesToContainer([{
           source: jarPath,
           target: '/app/app.jar',
-          mode: 'ro'
+          mode: parseInt('0644', 8)
         }])
         .withCommand(['java', '-jar', '/app/app.jar']),
-      source: `prebuilt JAR ${jarPath}`
+      source: `copied prebuilt JAR ${jarPath}`
     };
   }
 
@@ -258,8 +258,6 @@ SUITE_DESCRIBE('Golden-Case QA: Location Brief + Persistenz + City Ranking', () 
         if (!stubCheckDone) {
           const stubResp = await postJson(`${handle.baseUrl}/api/location-briefs/compute-and-store`, ingestPayload);
           expect(stubResp.status).toBe(201);
-          // The read DTO intentionally exposes the persisted problem summary
-          // under the stable field name `deterministicSummary`.
           expect(stubResp.body.deterministicSummary).toBe(ingestPayload.problemSummary);
           expect(stubResp.body.locationKey).toBe(locationKey);
           expect(stubResp.body.profileKey).toBe(PROFILE.profile);
