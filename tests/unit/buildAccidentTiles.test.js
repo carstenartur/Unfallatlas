@@ -81,18 +81,23 @@ describe('build-accident-tiles', () => {
     const manifest = readGzipJson(path.join(cityDir, 'index.json.gz'));
     expect(manifest).toEqual(expect.objectContaining({
       schemaVersion: 1,
+      producerVersion: '1.1.0',
       city: 'bonn',
       z: 13,
       totalCount: 3,
     }));
     expect(manifest.tiles.reduce((sum, tile) => sum + tile.count, 0)).toBe(3);
 
+    const persistedIdentities = [];
     for (const tile of manifest.tiles) {
       const payload = readGzipJson(path.join(cityDir, '13', String(tile.x), `${tile.y}.json.gz`));
       expect(payload.type).toBe('FeatureCollection');
       expect(payload.features).toHaveLength(tile.count);
+      expect(payload.featureIdentities).toHaveLength(tile.count);
       expect(payload.properties).toEqual(fixture().properties);
+      persistedIdentities.push(...payload.featureIdentities);
     }
+    expect(persistedIdentities.sort()).toEqual(['id:a', 'id:b', 'id:c']);
   });
 
   test('produces byte-identical gzip output for the same input', () => {
@@ -145,11 +150,13 @@ describe('build-accident-tiles', () => {
     expect(fs.readFileSync(path.join(existing, 'sentinel.txt'), 'utf8')).toBe('previous');
   });
 
-  test('slippy coordinate helpers match the generated plan', () => {
+  test('slippy coordinate helpers match the generated plan and identities', () => {
     const geojson = fixture();
     const plan = buildTilePlan(geojson, 'Bonn', 13);
     const [lon, lat] = geojson.features[0].geometry.coordinates;
     expect(plan.tiles.some(tile => tile.x === lonToTileX(lon, 13)
       && tile.y === latToTileY(lat, 13))).toBe(true);
+    expect(plan.tiles.flatMap(tile => tile.featureIdentities).sort())
+      .toEqual(['id:a', 'id:b', 'id:c']);
   });
 });
