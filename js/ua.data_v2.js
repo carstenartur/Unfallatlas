@@ -65,6 +65,24 @@
     return null;
   }
 
+  function applyRequestedAccidentViewport(ctx) {
+    if (!ctx || !ctx.map || typeof ctx.map.setView !== 'function') return false;
+    if (typeof UA.viewParamsPresent !== 'function' || !UA.viewParamsPresent()) return false;
+    if (typeof UA.qNum !== 'function') return false;
+
+    const lat = UA.qNum('centerLat', null);
+    const lon = UA.qNum('centerLon', null);
+    const zoom = UA.qNum('zoom', null);
+    if (![lat, lon, zoom].every(Number.isFinite)) return false;
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
+
+    // The viewport tile query happens before bindUi hydrates the map. Apply the
+    // canonical URL view here so getBounds() addresses the requested city rather
+    // than Leaflet's temporary Hannover bootstrap view.
+    ctx.map.setView([lat, lon], zoom);
+    return true;
+  }
+
   function customProviderForCity() {
     const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
     const types = UA.AccidentProvider && UA.AccidentProvider.PROVIDER_TYPES;
@@ -95,6 +113,7 @@
   }
 
   async function loadViewport(ctx) {
+    applyRequestedAccidentViewport(ctx);
     const registry = UA.AccidentProvider && UA.AccidentProvider.ProviderRegistry;
     const tiled = registry && registry.get('tiled');
     const bounds = ctx && ctx.map && typeof ctx.map.getBounds === 'function'
@@ -234,5 +253,6 @@
   };
 
   UA.normalizeAccidentDataMode = normalizeAccidentDataMode;
+  UA.applyRequestedAccidentViewport = applyRequestedAccidentViewport;
   UA.fetchAccidentGeoJson = fetchAccidentGeoJson;
 })();
