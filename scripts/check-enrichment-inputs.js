@@ -16,6 +16,7 @@ const path = require('path');
 
 const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { readCitiesFile, slugify } = require('./lib/static-data-validation');
+const { PER_FEATURE_FIELDS, PER_WAY_FIELDS } = require('./enrich_geojson');
 const osmProducer = require('./producers/osm_producer');
 const demProducer = require('./producers/dem_producer');
 const trafficProducer = require('./producers/traffic_producer');
@@ -26,6 +27,10 @@ const CURRENT_PRODUCER_VERSIONS = Object.freeze({
   dem: demProducer.PRODUCER_VERSION,
   traffic: trafficProducer.PRODUCER_VERSION,
 });
+const ENRICHMENT_FEATURE_FIELDS = new Set([
+  ...(PER_FEATURE_FIELDS || []),
+  ...(PER_WAY_FIELDS || []),
+]);
 
 function parseArgs(argv) {
   const args = {
@@ -72,9 +77,34 @@ function readDataset(file) {
   }
 }
 
+function normalizeAccidentGeoJson(value) {
+  if (!value || typeof value !== 'object') return value;
+  const clone = JSON.parse(JSON.stringify(value));
+  if (Array.isArray(clone.features)) {
+    for (const feature of clone.features) {
+      const properties = feature && feature.properties;
+      if (!properties || typeof properties !== 'object') continue;
+      for (const field of ENRICHMENT_FEATURE_FIELDS) delete properties[field];
+    }
+  }
+  if (clone.properties && typeof clone.properties === 'object' && !Array.isArray(clone.properties)) {
+    delete clone.properties.enrichmentDicts;
+    delete clone.properties.enrichmentSummary;
+    if (Object.keys(clone.properties).length === 0) delete clone.properties;
+  }
+  return clone;
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+}
+
 function fingerprintJsonArtifact(file) {
-  const value = readJsonMaybeGz(file);
-  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const value = normalizeAccidentGeoJson(readJsonMaybeGz(file));
+  return crypto.createHash('sha256').update(canonicalJson(value)).digest('hex');
 }
 
 function validateCommon(data, expectedVersion, versionFields, expectedFingerprint) {
@@ -234,8 +264,11 @@ if (require.main === module) process.exit(main(process.argv.slice(2)));
 
 module.exports = {
   CURRENT_PRODUCER_VERSIONS,
+  ENRICHMENT_FEATURE_FIELDS,
   parseArgs,
   readDataset,
+  normalizeAccidentGeoJson,
+  canonicalJson,
   fingerprintJsonArtifact,
   validateCommon,
   validateOsm,
