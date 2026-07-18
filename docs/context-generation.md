@@ -1,6 +1,6 @@
 # Kontextdaten erzeugen und reparieren
 
-Die Unfallwerkbank kann fehlende OSM-, Steigungs- und Verkehrsproxy-Daten für die aktuell ausgewählte Stadt neu erzeugen. Der Knopf erscheint im Abschnitt **Kontext-Filter (Detailanalyse)**, sobald für die Stadt keine angereicherten Kontextdaten erkannt werden.
+Die Unfallwerkbank kann fehlende OSM-, Steigungs- und Verkehrsproxy-Daten für die aktuell ausgewählte Stadt neu erzeugen. Der Knopf erscheint im Abschnitt **Kontext-Filter (Detailanalyse)**, sobald mindestens eine erwartete Fähigkeit fehlt – also auch bei Teilständen wie „Steigung vorhanden, Verkehrsproxy fehlt“.
 
 ## Sicherheits- und Konsistenzmodell
 
@@ -13,11 +13,37 @@ Die Erzeugung schreibt niemals direkt während der Producer-Läufe in den öffen
 5. alle drei Producer-Dateien streng prüfen;
 6. GeoJSON, Metadaten, Ways-Datei und Kontext-Tiles im Staging erzeugen;
 7. Kontext-Dataset und Steigungsabdeckung prüfen;
-8. erst danach die bisher ausgelieferten Dateien atomar ersetzen.
+8. die erzeugten Daten in einem echten Browser laden und die sichtbaren Layer prüfen;
+9. erst danach die bisher ausgelieferten Dateien atomar ersetzen beziehungsweise committen.
 
 Ein fehlgeschlagener Lauf löscht daher keine zuvor funktionierenden Kontextdaten. Insbesondere ist das frühere Verhalten entfernt, bei fehlenden Producer-Dateien alte Felder zu löschen und trotzdem einen unvollständigen Stand zu committen.
 
+Jede Producer-Datei trägt außerdem einen Fingerabdruck des verwendeten Unfall-GeoJSONs. Ändert sich der Unfalldatensatz, werden dazu nicht mehr passende OSM-, DEM- und Traffic-Caches verworfen; die großen, statischen SRTM-Kacheln dürfen weiterverwendet werden.
+
 > **Verkehrsdichte:** Die derzeit flächendeckend verfügbare Verkehrsklasse ist ein grober, als `OSM-highway-proxy` gekennzeichneter DTV-Proxy. Sie ist keine gemessene Verkehrszählung.
+
+## End-to-End-Prüfung in der Webseite
+
+`tests/integration/videoExport.testcontainers.test.js` startet das reale Docker-Image und öffnet die Werkbank mit Chromium **innerhalb des Containers**. Der Test prüft nicht nur Dateien oder Producer-Eingaben, sondern die tatsächlich gerenderte Oberfläche:
+
+- Steigungs- und Verkehrs-Layer sind vorhanden und bedienbar;
+- beide Layer enthalten mindestens einen farbig gerenderten Straßenabschnitt;
+- die sichtbare Legende enthält „Straßensteigung“ und „Verkehrsbelastung“;
+- ein Unfall-Popup enthält sichtbare Topographie- und Verkehrsdaten, darunter lokale Hangneigung, Straßenneigung und Verkehrsklasse.
+
+In normalen Pull Requests wird dafür eine kleine deterministische Bonn-Probe in den laufenden Testcontainer gelegt. So bleibt der UI-/Container-Test unabhängig von Overpass- oder SRTM-Netzverfügbarkeit.
+
+Die Daten-Workflows starten denselben Test zusätzlich mit `CONTEXT_E2E_REQUIRE_SHIPPED=1`. In diesem Modus wird **keine** Testprobe installiert: Die gerade erzeugten Produktivdateien einer realen Stadt müssen in der Webseite sichtbar sein. Ein formal korrektes, aber leeres oder vom Frontend nicht lesbares Dataset wird dadurch vor dem Commit abgewiesen.
+
+Gezielter lokaler Aufruf mit vorhandenen Produktivdaten:
+
+```bash
+RUN_TESTCONTAINERS=1 \
+CONTEXT_E2E_REQUIRE_SHIPPED=1 \
+CONTEXT_E2E_CITY=Bonn \
+npm run test:integration:tc -- --runInBand \
+  -t "renders slope and traffic context for a real city in the browser"
+```
 
 ## GitHub Pages
 
@@ -31,7 +57,7 @@ Stattdessen:
 
 Workflow-Datei: `.github/workflows/generate-context-city.yml`
 
-Für einen vollständigen parallelen Neuaufbau aller Städte steht **Enrich GeoJSONs (per-city matrix)** zur Verfügung. Der Aggregationsjob läuft nur, wenn sämtliche Städte erfolgreich erzeugt wurden; Teilstände werden nicht mehr committed.
+Für einen vollständigen parallelen Neuaufbau aller Städte steht **Enrich GeoJSONs (per-city matrix)** zur Verfügung. Der Aggregationsjob läuft nur, wenn sämtliche Städte erfolgreich erzeugt wurden; Teilstände werden nicht mehr committed. Vor dem Commit wird eine der erzeugten Städte zusätzlich im echten Browser geprüft.
 
 ## Docker
 
@@ -43,7 +69,7 @@ Im Docker-Image stellt der Node-Server folgende Endpunkte bereit:
 | `POST` | `/api/context-generation/jobs` | Auftrag starten, Body z. B. `{ "city": "Bonn", "force": true }` |
 | `GET` | `/api/context-generation/jobs/:id` | Status und begrenzte letzte Logzeilen |
 
-Der Server akzeptiert ausschließlich Städte aus `cities.txt`, führt höchstens einen Generierungsauftrag gleichzeitig aus und übergibt die Benutzereingabe nicht an eine Shell.
+Der Server akzeptiert ausschließlich Städte aus `cities.txt`, führt höchstens einen Generierungsauftrag gleichzeitig aus und übergibt die Benutzereingabe nicht an eine Shell. Start und Statusabfragen sind rate-limitiert; abgeschlossene Jobdaten werden begrenzt aufbewahrt.
 
 ### Persistente Daten und Caches
 
