@@ -44,6 +44,15 @@
     return 'full';
   }
 
+  async function ensureAccidentViewportController() {
+    const pending = UA.optionalModulePromises
+      && UA.optionalModulePromises.accidentViewportController;
+    if (pending) {
+      try { await Promise.resolve(pending); } catch (_) {}
+    }
+    return UA.AccidentViewportController || null;
+  }
+
   function plainBounds(bounds) {
     if (!bounds) return null;
     if (UA.AccidentViewportController
@@ -154,10 +163,11 @@
     }
 
     const dataUrl = resources().url('accidentTileIndex', { city: ctx.CITY_RAW });
-    if (UA.AccidentViewportController
-        && typeof UA.AccidentViewportController.create === 'function'
+    const controllerApi = await ensureAccidentViewportController();
+    if (controllerApi
+        && typeof controllerApi.create === 'function'
         && typeof tiled.fetchTileSetForBbox === 'function') {
-      ctx.accidentViewportController = UA.AccidentViewportController.create({ provider: tiled });
+      ctx.accidentViewportController = controllerApi.create({ provider: tiled });
       ctx.DATA_URL = dataUrl;
       const pending = ctx.accidentViewportController.load(ctx.CITY_RAW, bounds);
       setAccidentCoverage(ctx, ctx.accidentViewportController.getSnapshot().coverage);
