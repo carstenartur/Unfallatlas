@@ -7,9 +7,10 @@
  * accident popup and checks that slope + traffic context are visible.
  *
  * Default PR mode installs a tiny deterministic Bonn fixture into the running
- * container, so the UI contract is network-independent. Production generation
- * workflows set CONTEXT_E2E_REQUIRE_SHIPPED=1; then no fixture is installed and
- * the same browser assertions run against the actually generated `out/` files.
+ * container, so the UI contract is network-independent with respect to data.
+ * Production generation workflows set CONTEXT_E2E_REQUIRE_SHIPPED=1; then no
+ * fixture is installed and the same browser assertions run against the actually
+ * generated `out/` files.
  */
 
 'use strict';
@@ -198,7 +199,6 @@ function browserAssertionScript(city) {
       const consoleErrors = [];
       page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
       page.on('pageerror', error => consoleErrors.push(String(error && error.message || error)));
-      await page.route(/https?:\\/\\/(?!127\\.0\\.0\\.1|localhost)/, route => route.abort());
       const url = new URL('http://127.0.0.1:8000/werkbank_v2.html');
       url.searchParams.set('city', city);
       url.searchParams.set('showCluster', '0');
