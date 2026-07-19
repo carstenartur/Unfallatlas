@@ -25,7 +25,7 @@
   };
 
   UA.scheduleViewportUpdate = function scheduleViewportUpdate(ctx, isZoom){
-    if (!ctx.allPts?.length) return;
+    if (!ctx.allPts?.length && ctx.accidentDataMode !== 'viewport') return;
     // Prefer the MapStore dispatch path (uses RenderScheduler with rAF).
     if (ctx && ctx.store) {
       ctx.store.dispatch('viewportChanged', { debounceMs: 350 });
