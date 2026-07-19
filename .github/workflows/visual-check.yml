@@ -33,19 +33,21 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Prepare clean candidate directory
+        run: find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+
       - name: Generate screenshots
         run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium
 
       - name: Upload PR screenshots as artifact
         uses: actions/upload-artifact@v7
-        if: always()
         with:
           name: pr-screenshots-${{ github.event.pull_request.number }}
-          path: docs/screenshots/
+          path: docs/screenshots/*.png
+          if-no-files-found: error
           retention-days: 30
 
       - name: Write PR summary
-        if: always()
         run: |
           echo "## 📸 Visual Check – Screenshots" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -60,3 +62,10 @@ jobs:
           echo "- 25-mapmode-orthophoto-fallback.png (Orthofoto-Ausfall → Standard-Fallback)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Bitte die Screenshots unter *Actions → dieser Workflow-Run → Artifacts* prüfen." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report rejected candidate
+        if: failure()
+        run: |
+          echo "## 📸 Visual Check fehlgeschlagen" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "Es wurde bewusst kein Screenshot-Kandidat veröffentlicht. Bitte den fehlgeschlagenen Schritt prüfen." >> "$GITHUB_STEP_SUMMARY"

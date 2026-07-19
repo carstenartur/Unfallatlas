@@ -29,33 +29,29 @@ referenzierten PNG-Screenshots der Unfallwerkbank V2.
 | 24 | `24-mapmode-analysis.png` | Kartenmodus `analysis` (Heatmap/Analyse-Overlay auf Orthofoto) |
 | 25 | `25-mapmode-orthophoto-fallback.png` | Orthofoto-Ausfall: erwarteter Fallback auf Standardkarte inkl. Hinweistext |
 
-## Slope-Diagnose (PR-berlin-slope-qa)
+## Ausgesetzte Slope-Diagnose (QA #400/#404)
 
-| Datei | Beschreibung |
-|---|---|
-| `slope-berlin.png` | Berlin Mitte (z=16) mit aktivem `mapLayer=slope` — die Plausibilitätsprüfung verlangt überwiegend `flat`/`gentle`. |
-| `slope-berlin-debug.png` | Wie oben, mit `?debugSlope=1` — pro Polyline wird `road_slope_percent` als permanenter Tooltip eingeblendet. |
-| `slope-bielefeld.png` | Bielefeld (z=15) mit aktivem `mapLayer=slope` als Vergleichsstadt mit gemischterer Verteilung. |
-| `slope-bielefeld-debug.png` | Bielefeld mit Debug-Overlay (`?debugSlope=1`). |
+Die früheren Dateien `slope-berlin*.png` und `slope-bielefeld*.png` waren
+kein belastbarer Nachweis: Die Szenarien warteten ausschließlich auf die
+Unfall-Layer, nicht auf Context-Geometrie. Die aktuellen Stadtdateien stellen
+für diese Viewports keine nachweisbare Slope-Geometrie bereit; entsprechend
+zeigten alle vier Bilder den Empty State. Das Berliner Normal-/Debug-Paar war
+zusätzlich byte-identisch.
 
-Die Debug-Variante ist hinter einer Query-Param geschaltet (`debugSlope=1`,
-optional `debugSlopeSamples=1`) und wirkt sich nie auf die Produktion aus.
-Sie dient ausschließlich der Sichtprüfung: Wenn die On-Screen-Farbe und
-der numerische Tooltip widersprechen, ist das ein klarer Hinweis auf
-Encoding-Drift in der Renderer- oder Producer-Pipeline.
-
-Vorher/Nachher-Erzeugung: Die „Vorher"-Bilder werden nicht eingecheckt
-(sie würden mit dem Fix sofort obsolet); siehe
-`docs/enrichment.md` → *Slope-Diagnose* für die exakte Reproduktions-
-befehlskette.
+Die Bilder und ihre Generator-Szenarien sind daher entfernt. Eine spätere
+Reaktivierung muss fail-closed mindestens aktive Controls, eine sichtbare
+Legende, tatsächlich gezeichnete Overlay-Pixel und in der Debug-Variante
+numerische Slope-Tooltips nachweisen. Tracking:
+[QA #400](https://github.com/carstenartur/Unfallatlas/issues/400) und
+[QA #404](https://github.com/carstenartur/Unfallatlas/issues/404).
 
 
 
 Alle map-haltigen Screenshots werden in den E2E-Tests erst nach einem
-Leaflet-Tile-Stabilitäts-Check erstellt (`waitForMapTiles`: keine
-`leaflet-tile-loading` mehr, mindestens ein `leaflet-tile-loaded`), plus
-kurzer Paint-Pause und defensivem `document.fonts.ready`. Dadurch sind die
-Bilder über CI-Re-Runs reproduzierbar.
+öffentlichen Lifecycle-Vertrag und einen fail-closed
+Leaflet-Tile-Stabilitäts-Check erstellt (`waitForMapTiles`: Helper-Erfolg,
+keine ladenden Tiles, mindestens ein decodiertes Tile), plus defensivem
+`document.fonts.ready`.
 
 ## Hinweise zu unvermeidbaren Provider-Unterschieden
 

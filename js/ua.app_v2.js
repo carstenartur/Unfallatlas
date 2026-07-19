@@ -62,18 +62,44 @@
 
   function bindExport(ctx){
     const ui = ctx.ui;
+    let focusBeforeModal = null;
+
+    function focusWithoutScrolling(element) {
+      if (!element || typeof element.focus !== "function") return;
+      try { element.focus({ preventScroll: true }); }
+      catch (_) { element.focus(); }
+    }
 
     function openModal(){
+      const active = document.activeElement;
+      focusBeforeModal = active && active !== document.body && typeof active.focus === "function"
+        ? active
+        : ui.btnOpenExport;
       ui.modalOverlay.style.display = "flex";
       // QA-Härtung „Export-Dialog": Hinweis „kein Bereich markiert"
       // dynamisch ein-/ausblenden, abhängig vom aktuellen ctx-Zustand.
       const hint = document.getElementById("noSelectionHint");
       if (hint) hint.hidden = !!ctx.selectionBounds;
+      focusWithoutScrolling(ui.btnCloseModal);
     }
-    function closeModal(){ ui.modalOverlay.style.display = "none"; }
+    function closeModal(){
+      if (ui.modalOverlay.style.display !== "flex") return;
+      ui.modalOverlay.style.display = "none";
+      const returnTarget = focusBeforeModal && focusBeforeModal.isConnected
+        ? focusBeforeModal
+        : ui.btnOpenExport;
+      focusBeforeModal = null;
+      focusWithoutScrolling(returnTarget);
+    }
 
     ui.btnCloseModal.addEventListener('click', closeModal);
     ui.modalOverlay.addEventListener('click', (e)=>{ if (e.target === ui.modalOverlay) closeModal(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || ui.modalOverlay.style.display !== "flex") return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
+    });
 
     // Returns true on a successful render, false if report generation failed.
     // Callers use the return value to decide whether to persist export-related
@@ -221,9 +247,13 @@
       showKindergartens: true,
       showArgumentation: true,
       mapMode: "standard",
-      orthophotoOpacity: 0.92
+      orthophotoOpacity: 0.92,
+      lifecyclePrimary: true
     };
     if (UA.cleanUrlIfNeeded()) return;
+    if (UA._lifecycleReporter && typeof UA._lifecycleReporter.beginLoad === "function") {
+      UA._lifecycleReporter.beginLoad(ctx.CITY_RAW);
+    }
 
     // QA-Härtung „URL = Source of Truth": Während der Init-Phase
     // wird die URL ausschliesslich GELESEN. Schreibwege (UA.setQS aus
@@ -280,6 +310,15 @@
     // greifen kann; vorher wird der UI-Zustand sauber gesetzt.
     try {
       await UA.loadCityData(ctx);
+      if (UA._lifecycleReporter && typeof UA._lifecycleReporter.recordData === "function") {
+        UA._lifecycleReporter.recordData({
+          city: ctx.CITY_RAW,
+          loaded: ctx.allPts?.length || 0,
+          filtered: ctx.filteredAll?.length || 0,
+          viewport: ctx.viewportPts?.length || 0,
+          coverage: ctx.accidentDataCoverage || null
+        });
+      }
     } catch (e) {
       if (typeof UA.markCityDropdownError === "function") {
         UA.markCityDropdownError(ctx,
@@ -437,6 +476,9 @@ if (UA.qBool("export", false)) {
   }
 
   main().catch(err => {
+    if (UA._lifecycleReporter && typeof UA._lifecycleReporter.fail === "function") {
+      UA._lifecycleReporter.fail(err);
+    }
     // Log stack/message as string (not the raw Error object) so that
     // Playwright's msg.text() remains matchable in all browsers while
     // preserving stack context for debugging.

@@ -285,4 +285,34 @@ describe('UA.Priorities.init – Load-Flow', () => {
     document.getElementById('prioBtnClose').click();
     expect(document.getElementById('prioPanel').style.display).toBe('none');
   });
+
+  test('setzt beim Öffnen den Anfangsfokus und stellt ihn nach Escape wieder her', async () => {
+    buildFullDom();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        profiles: ['safety_first'],
+        defaultProfile: 'safety_first',
+        dataStatusValues: []
+      })
+    });
+    const Priorities = loadPrioritiesModule();
+    const openButton = document.getElementById('btnPrioritiesOpen');
+    const closeButton = document.getElementById('prioBtnClose');
+    const panel = document.getElementById('prioPanel');
+
+    Priorities.init({ CITY_RAW: 'Hannover' });
+    openButton.focus();
+    openButton.click();
+
+    expect(panel.style.display).toBe('flex');
+    expect(document.activeElement).toBe(closeButton);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(panel.style.display).toBe('none');
+    expect(document.activeElement).toBe(openButton);
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 });

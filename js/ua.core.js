@@ -40,7 +40,11 @@
   // ---- small DOM helpers ----
   UA.setBtnState = function setBtnState(btn, on) {
     if (!btn) return;
-    btn.classList.toggle("active", !!on);
+    const pressed = !!on;
+    btn.classList.toggle("active", pressed);
+    if (typeof btn.setAttribute === "function") {
+      btn.setAttribute("aria-pressed", pressed ? "true" : "false");
+    }
   };
 
   UA.escHtml = function escHtml(s) {

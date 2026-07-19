@@ -1406,7 +1406,7 @@
 
   UA.waitForMapFullyRendered = function waitForMapFullyRendered(map, opts = {}) {
     const timeoutMs = Math.max(1000, Number(opts.timeoutMs) || 30000);
-    const ctx = opts.ctx || (UA && UA.ctx) || null;
+    const ctx = opts.ctx || null;
     const tileTimeoutMs = Math.min(timeoutMs, Number(opts.tileTimeoutMs) || 15000);
     const tileStableMs = Math.max(0, Number(opts.tileStableMs) || 0);
     const minTileImages = Math.max(0, Number(opts.minTileImages) || 0);
@@ -1867,6 +1867,105 @@
     } catch {}
   }
 
+  function countLayerChildren(layer) {
+    if (!layer || typeof layer.getLayers !== "function") return 0;
+    try { return layer.getLayers().length; } catch { return 0; }
+  }
+
+  function heatCanvasHasPaint(layer) {
+    const canvas = layer && (layer._canvas || (layer._renderer && layer._renderer._container));
+    if (!canvas || !canvas.width || !canvas.height || typeof canvas.getContext !== "function") return false;
+    try {
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context || typeof context.getImageData !== "function") return false;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let alpha = 3; alpha < pixels.length; alpha += 4) {
+        if (pixels[alpha] > 0) return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  function observeHeatmapPaint(layer, renderRevision, expected) {
+    const lifecycle = UA.lifecycle;
+    const reporter = UA._lifecycleReporter;
+    if (!lifecycle || !reporter || typeof reporter.reportLayer !== "function") return;
+    if (expected === 0) {
+      reporter.reportLayer(renderRevision, "heatmap", {
+        processed: 0,
+        visible: 0,
+        painted: true,
+        complete: true
+      });
+      return;
+    }
+    const raf = typeof window.requestAnimationFrame === "function"
+      ? window.requestAnimationFrame.bind(window)
+      : (callback) => setTimeout(callback, 16);
+    let attempts = 0;
+    const inspect = () => {
+      const current = lifecycle.getSnapshot && lifecycle.getSnapshot();
+      if (!current || current.render?.revision !== renderRevision) return;
+      attempts += 1;
+      if (heatCanvasHasPaint(layer)) {
+        reporter.reportLayer(renderRevision, "heatmap", {
+          processed: expected,
+          visible: expected,
+          painted: true,
+          complete: true
+        });
+        return;
+      }
+      // Leaflet.heat schedules its own redraw via requestAnimationFrame.  A
+      // bounded number of frames prevents an invisible/tainted canvas from
+      // ever being reported as ready; lifecycle.whenReady will then fail
+      // closed with a useful snapshot.
+      if (attempts < 30) raf(inspect);
+    };
+    raf(() => raf(inspect));
+  }
+
+  // One delegated handler per MarkerClusterGroup: no per-marker listener,
+  // closure, application-context reference or eagerly allocated popup HTML.
+  // Berlin alone can contain >87k points. Leaflet propagates child click
+  // events with the original marker in `layer`/`propagatedFrom`.
+  UA.materializeAccidentPopup = function materializeAccidentPopup(event) {
+    const candidates = event
+      ? [event.layer, event.propagatedFrom, event.sourceTarget, event.target]
+      : [];
+    const marker = candidates.find((candidate) => candidate && candidate._uaProps)
+      || (this && this._uaProps ? this : null);
+    if (!marker || (typeof marker.getPopup === "function" && marker.getPopup())) return;
+
+    const point = marker._uaPoint || {};
+    const props = marker._uaProps || point.props || {};
+    const owner = (event && event.target && event.target._uaPopupCtx)
+      ? event.target
+      : (this && this._uaPopupCtx ? this : null);
+    const ctx = owner ? owner._uaPopupCtx : null;
+    let popupHtml = null;
+    try {
+      const baseHtml = (typeof UA.renderAccidentBasePopupHtml === "function")
+        ? UA.renderAccidentBasePopupHtml(ctx, props, { lat: point.lat, lon: point.lon })
+        : "";
+      popupHtml = (typeof UA.composeAccidentPopupHtml === "function")
+        ? UA.composeAccidentPopupHtml(ctx, props, { baseHtml })
+        : (baseHtml || null);
+    } catch (error) {
+      console.warn("Unfall-Popup konnte nicht erzeugt werden:", error);
+    } finally {
+      // The point object is only needed for the initial materialisation. The
+      // group retains one shared context reference for its remaining markers.
+      marker._uaPoint = null;
+    }
+
+    if (!popupHtml || typeof marker.bindPopup !== "function") return;
+    marker.bindPopup(popupHtml, { maxWidth: 360 });
+    // A real click can only originate from a visible marker. Keeping the
+    // `_map` guard also makes programmatic tests safe for clustered children.
+    if (marker._map && typeof marker.openPopup === "function") marker.openPopup();
+  };
+
   UA.renderLayers = function renderLayers(ctx) {
     // Layer caching: rebuild on zoom change or data change
     const currentZoom = ctx.map.getZoom();
@@ -1904,11 +2003,62 @@
       }
     }
 
+    // Preview/export maps also reuse renderLayers. Only the primary app ctx is
+    // allowed to advance global readiness, otherwise a small preview could
+    // overwrite the main map's city/counts while a screenshot is waiting.
+    const lifecycleReporter = ctx.lifecyclePrimary === true ? UA._lifecycleReporter : null;
+    const lifecycleRevision = (lifecycleReporter && typeof lifecycleReporter.beginRender === "function")
+      ? lifecycleReporter.beginRender({
+          city: ctx.CITY_RAW,
+          loaded: ctx.allPts?.length || 0,
+          filtered: ctx.filteredAll?.length || 0,
+          viewport: ctx.viewportPts?.length || 0,
+          coverage: ctx.accidentDataCoverage || null,
+          layers: {
+            cluster: {
+              requested: !!ctx.showCluster,
+              expected: ctx.showCluster ? pts.length : 0,
+              processed: 0,
+              complete: !ctx.showCluster
+            },
+            heatmap: {
+              requested: !!ctx.showHeatmap,
+              expected: ctx.showHeatmap ? pts.length : 0,
+              processed: 0,
+              painted: false,
+              complete: !ctx.showHeatmap
+            },
+            poi: {
+              requested: !!((ctx.showSchools || ctx.showKindergartens)
+                && ctx.poiData?.features && currentZoom >= 14),
+              expected: Array.isArray(ctx.poiData?.features) ? ctx.poiData.features.length : 0,
+              processed: 0,
+              complete: false
+            },
+            argumentation: {
+              requested: !!ctx.showArgumentation,
+              expected: ctx.showArgumentation ? pts.length : 0,
+              processed: 0,
+              complete: false
+            }
+          }
+        })
+      : null;
+
     // ---- Cluster (zoom-adaptiv, but only rebuild when needed)
     if (ctx.showCluster && shouldRebuildCluster) {
       const clusterLayer = L.markerClusterGroup({
         chunkedLoading: true,
         chunkInterval: 250,
+        chunkProgress: (processed, total) => {
+          if (lifecycleRevision == null || !lifecycleReporter) return;
+          lifecycleReporter.reportLayer(lifecycleRevision, "cluster", {
+            expected: total,
+            processed,
+            visible: processed,
+            complete: processed >= total
+          });
+        },
         spiderfyOnMaxZoom: true,
         zoomToBoundsOnClick: false,
         showCoverageOnHover: false,
@@ -1930,29 +2080,39 @@
           opacity: 0.8,
           fillOpacity: 0.6
         });
-        // Compose popup HTML — base content (none today, hook for
-        // future PRs) plus the optional Kontextdaten section. Helper
-        // returns null when neither produces content, so we don't
-        // attach an empty popup to thousands of markers.
-        const composeFn = (typeof UA.composeAccidentPopupHtml === 'function')
-          ? UA.composeAccidentPopupHtml
-          : null;
-        const popupHtml = composeFn ? composeFn(ctx, p.props, { baseHtml: '' }) : null;
-        if (popupHtml) m.bindPopup(popupHtml, { maxWidth: 360 });
         m._uaProps = p.props || {};
         m._uaPoint = p;
         return m;
       });
+
+      clusterLayer._uaPopupCtx = ctx;
+      if (typeof clusterLayer.on === "function") {
+        clusterLayer.on("click", UA.materializeAccidentPopup);
+      }
       
       // Use batch add for better performance
       if (markers.length > 0) {
         clusterLayer.addLayers(markers);
+      } else if (lifecycleRevision != null && lifecycleReporter) {
+        lifecycleReporter.reportLayer(lifecycleRevision, "cluster", {
+          expected: 0,
+          processed: 0,
+          visible: 0,
+          complete: true
+        });
       }
 
       clusterLayer.addTo(ctx.map);
       UA.bindClusterPopup(ctx, clusterLayer);
       ctx.clusterLayer = clusterLayer;
       ctx._lastClusterZoom = currentZoom;
+    } else if (ctx.showCluster && lifecycleRevision != null && lifecycleReporter) {
+      const visible = countLayerChildren(ctx.clusterLayer);
+      lifecycleReporter.reportLayer(lifecycleRevision, "cluster", {
+        processed: pts.length,
+        visible,
+        complete: true
+      });
     }
 
     // ---- Heatmap (zoom-adaptiv + opacity per Canvas, only rebuild when needed)
@@ -1978,14 +2138,33 @@
 
       applyHeatOpacity(ctx.heatLayer, opacity);
       ctx._lastHeatZoom = currentZoom;
+      if (lifecycleRevision != null) observeHeatmapPaint(ctx.heatLayer, lifecycleRevision, heatPts.length);
+    } else if (ctx.showHeatmap && lifecycleRevision != null) {
+      observeHeatmapPaint(ctx.heatLayer, lifecycleRevision, pts.length);
     }
 
     // ---- POI Layer (schools, kindergartens)
     UA.renderPOILayer(ctx);
+    if (lifecycleRevision != null && lifecycleReporter) {
+      const visible = countLayerChildren(ctx.poiLayer);
+      lifecycleReporter.reportLayer(lifecycleRevision, "poi", {
+        processed: visible,
+        visible,
+        complete: true
+      });
+    }
 
     // ---- Argumentationsansicht: Top-Hotspots hervorheben (Task 2).
     // Wird *nach* Cluster/Heatmap gerendert, damit die Ringe oben liegen.
     UA.renderArgumentationOverlay(ctx);
+    if (lifecycleRevision != null && lifecycleReporter) {
+      const visible = countLayerChildren(ctx.argumentationLayer);
+      lifecycleReporter.reportLayer(lifecycleRevision, "argumentation", {
+        processed: visible,
+        visible,
+        complete: true
+      });
+    }
     if (typeof UA.refreshContextOverlayZOrder === 'function') {
       try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
     }
@@ -1996,6 +2175,9 @@
     
     // Reset data changed flag
     ctx._dataChanged = false;
+    if (lifecycleRevision != null && lifecycleReporter) {
+      lifecycleReporter.finishRender(lifecycleRevision);
+    }
   };
   
   // Separate stats update function for pan-only updates

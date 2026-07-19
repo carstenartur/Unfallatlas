@@ -241,6 +241,9 @@ jobs:
       - name: Normalize data artifacts to gzip-only
         run: node scripts/gzip-static-data.js --replace-raw
 
+      - name: Prepare clean screenshot candidate directory
+        run: find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+
       - name: Run E2E tests
         run: npm run test:e2e
 
@@ -263,10 +266,11 @@ jobs:
 
       - name: Upload documentation screenshots
         uses: actions/upload-artifact@v7
-        if: always()
+        if: success()
         with:
           name: documentation-screenshots
-          path: docs/screenshots/
+          path: docs/screenshots/*.png
+          if-no-files-found: error
 
   firefox-smoke:
     runs-on: ubuntu-latest

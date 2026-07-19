@@ -31,6 +31,7 @@
   let _recFilterTimer = null;
   let _recMapHandler = null;
   let _recFilterHandlers = [];
+  let _recorderReturnFocus = null;
 
   // ---------------------------------------------------------------------------
   // Utility: Haversine distance in metres
@@ -56,6 +57,15 @@
   // ---------------------------------------------------------------------------
   function el(id) {
     return document.getElementById(id);
+  }
+
+  function focusWithoutScrolling(target) {
+    if (!target || typeof target.focus !== "function") return;
+    try {
+      target.focus({ preventScroll: true });
+    } catch (_) {
+      target.focus();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -633,6 +643,11 @@
     const modal = el("recorderModal");
     if (!modal) return;
 
+    const active = document.activeElement;
+    _recorderReturnFocus = active && active !== document.body && typeof active.focus === "function"
+      ? active
+      : el("tourBtnRecord");
+
     const tour = {
       name: `Aufgenommene Tour – ${new Date().toLocaleString("de-DE")}`,
       steps: _recSteps.slice()
@@ -646,6 +661,18 @@
     renderStepList(tour.steps);
 
     modal.style.display = "flex";
+    focusWithoutScrolling(el("recorderBtnClose"));
+  }
+
+  function closeRecorderEditor() {
+    const modal = el("recorderModal");
+    if (modal) modal.style.display = "none";
+
+    const returnFocus = _recorderReturnFocus || el("tourBtnRecord");
+    _recorderReturnFocus = null;
+    if (returnFocus && document.contains(returnFocus)) {
+      focusWithoutScrolling(returnFocus);
+    }
   }
 
   function renderStepList(steps) {
@@ -686,6 +713,7 @@
       });
 
       const upBtn = document.createElement("button");
+      upBtn.type = "button";
       upBtn.className = "recStepMoveBtn";
       upBtn.textContent = "▲";
       upBtn.title = "Nach oben";
@@ -699,6 +727,7 @@
       });
 
       const downBtn = document.createElement("button");
+      downBtn.type = "button";
       downBtn.className = "recStepMoveBtn";
       downBtn.textContent = "▼";
       downBtn.title = "Nach unten";
@@ -712,6 +741,7 @@
       });
 
       const delBtn = document.createElement("button");
+      delBtn.type = "button";
       delBtn.className = "recStepDelBtn";
       delBtn.textContent = "✕";
       delBtn.title = "Schritt löschen";
@@ -777,8 +807,7 @@
       alert("Ungültiges JSON – bitte korrigieren.");
       return;
     }
-    const modal = el("recorderModal");
-    if (modal) modal.style.display = "none";
+    closeRecorderEditor();
     startTourFromObject(tour);
   }
 
@@ -824,10 +853,16 @@
     const playBtn = el("recorderBtnPlay");
     const modal = el("recorderModal");
 
-    if (closeBtn) closeBtn.addEventListener("click", () => { if (modal) modal.style.display = "none"; });
-    if (modal) modal.addEventListener("click", (e) => { if (e.target === modal) modal.style.display = "none"; });
+    if (closeBtn) closeBtn.addEventListener("click", closeRecorderEditor);
+    if (modal) modal.addEventListener("click", (e) => { if (e.target === modal) closeRecorderEditor(); });
     if (downloadBtn) downloadBtn.addEventListener("click", downloadTourJson);
     if (playBtn) playBtn.addEventListener("click", playRecordedTour);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !modal || modal.style.display !== "flex") return;
+      event.preventDefault();
+      closeRecorderEditor();
+    });
   }
 
   // ---------------------------------------------------------------------------

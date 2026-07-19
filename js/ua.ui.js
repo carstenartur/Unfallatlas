@@ -178,6 +178,8 @@
     const ui = ctx.ui;
     ui.panelEl.classList.toggle('collapsed', on);
     ui.collapseBtn.textContent = on ? ">" : "v";
+    ui.collapseBtn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    ui.collapseBtn.setAttribute('aria-label', on ? 'Bedienfeld ausklappen' : 'Bedienfeld einklappen');
     try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch {}
   }
 
@@ -337,7 +339,12 @@
     if (savedCollapsed === "1") setCollapsed(ctx, true);
 
     ui.collapseBtn.addEventListener('click', () => setCollapsed(ctx, !ui.panelEl.classList.contains('collapsed')));
-    ui.legendBtn.addEventListener('click', () => { ui.legendBox.style.display = (ui.legendBox.style.display==="block") ? "none" : "block"; });
+    ui.legendBtn.addEventListener('click', () => {
+      const expanded = ui.legendBox.style.display !== "block";
+      ui.legendBox.style.display = expanded ? "block" : "none";
+      ui.legendBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      ui.legendBtn.setAttribute('aria-label', expanded ? 'Legende ausblenden' : 'Legende einblenden');
+    });
 
     // defaults from URL
     ui.severityEl.value = UA.qGet("severity","all");

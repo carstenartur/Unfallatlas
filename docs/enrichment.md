@@ -237,17 +237,14 @@ Slope-Klassifizierung pro Stadt plausibel bleibt:
    einzelnen DEM-Abtastpunkte gerendert werden. Das Overlay ist hinter
    Query-Params verborgen und beeinflusst die Produktion nicht.
 
-### Vorher/Nachher-Screenshots reproduzieren
+### Slope-Screenshots (derzeit ausgesetzt)
 
-```bash
-# „Nachher" (aktueller Branch) — Slope-Layer für Berlin und Bielefeld
-npm run test:e2e -- tests/e2e/screenshots.spec.js \
-  -g "Slope-Layer (Berlin|Bielefeld)"
-
-# „Vorher" (Vergleichsbranch, z. B. main) — selber Aufruf nach
-# `git checkout main && npm install`. Die Vorher-Bilder werden NICHT
-# eingecheckt; sobald der Diagnose-Fix gemerged ist, sind sie obsolet.
-```
+Die früheren Berlin-/Bielefeld-Szenarien wurden aus dem kanonischen
+Screenshot-Lauf entfernt: Sie warteten nicht auf Context-Geometrie und
+zeichneten deshalb Empty-State-Karten als vermeintlichen Slope-Nachweis auf.
+Die Reaktivierung erfolgt erst mit einem versionierten Dataset oder Fixture
+und Black-box-Prüfungen für Overlay-Pixel, Legende und Debug-Tooltips
+(Tracking: #400/#404).
 
 Die zugehörige Plausibilitätsprüfung kann jederzeit isoliert laufen:
 

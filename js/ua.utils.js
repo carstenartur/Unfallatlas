@@ -60,7 +60,14 @@
     .replace(/^_/, "")
     .replace(/_$/, "");
 
-  UA.setBtnState = (btn, on) => btn.classList.toggle("active", !!on);
+  UA.setBtnState = (btn, on) => {
+    if (!btn) return;
+    const pressed = !!on;
+    btn.classList.toggle("active", pressed);
+    if (typeof btn.setAttribute === "function") {
+      btn.setAttribute("aria-pressed", pressed ? "true" : "false");
+    }
+  };
 
   UA.WEEKEND_SET = new Set(["1","7"]);
 })();

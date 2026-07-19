@@ -39,12 +39,13 @@ test.describe('Accessibility – Werkbank V2', () => {
     await expect(exportBtn).toBeVisible({ timeout: 5000 });
     await exportBtn.click();
 
-    // Modal-Overlay `#modalOverlay`; tatsächlicher Modal-Inhalt unter `.modal`.
-    const exportModal = page.locator('#modalOverlay .modal');
+    // Den Dialog-Container selbst einschließen, damit axe auch dessen
+    // accessible name, aria-modal und Dialog-Semantik prüft.
+    const exportModal = page.locator('#modalOverlay');
     await expect(exportModal).toBeVisible({ timeout: 5000 });
 
     const results = await new AxeBuilder({ page })
-      .include('#modalOverlay .modal')
+      .include('#modalOverlay')
       .withTags(['wcag2a', 'wcag2aa'])
       .analyze();
 
@@ -57,5 +58,45 @@ test.describe('Accessibility – Werkbank V2', () => {
       `axe found ${blocking.length} serious/critical violation(s) in export modal:\n` +
         blocking.map((v) => `  [${v.impact}] ${v.id}: ${v.description}`).join('\n')
     ).toHaveLength(0);
+  });
+
+  test('Export-Dialog unterstützt Tastaturfokus, Escape und Fokus-Rückgabe', async ({ page }) => {
+    await page.goto('/werkbank_v2.html');
+    await page.waitForLoadState('networkidle');
+
+    const openButton = page.locator('#btnOpenExport');
+    const closeButton = page.locator('#btnCloseModal');
+    const dialog = page.locator('#modalOverlay');
+
+    await openButton.scrollIntoViewIfNeeded();
+    await openButton.focus();
+    await openButton.press('Enter');
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('aria-labelledby', 'exportModalTitle');
+    await expect(closeButton).toBeFocused();
+
+    await page.keyboard.press('Escape');
+
+    await expect(dialog).toBeHidden();
+    await expect(openButton).toBeFocused();
+  });
+
+  test('Legende und Bedienfeld geben ihren Offen-Zustand für Tastaturbedienung aus', async ({ page }) => {
+    await page.goto('/werkbank_v2.html');
+    await page.waitForLoadState('networkidle');
+
+    const legendButton = page.locator('#legendBtn');
+    const legend = page.locator('#legendBox');
+    await legendButton.focus();
+    await legendButton.press('Enter');
+    await expect(legendButton).toHaveAttribute('aria-expanded', 'true');
+    await expect(legend).toBeVisible();
+
+    const collapseButton = page.locator('#collapseBtn');
+    await collapseButton.focus();
+    await collapseButton.press('Space');
+    await expect(collapseButton).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#panelBody')).toBeHidden();
   });
 });

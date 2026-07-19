@@ -91,4 +91,30 @@ describe('UA.PoliticalContext.buildSearchTerms', () => {
     const terms = UA.PoliticalContext.buildSearchTerms(ctx);
     expect(terms.length).toBeLessThanOrEqual(5);
   });
+
+  test('moves focus into the dialog and restores it when Escape closes the dialog', () => {
+    document.body.innerHTML = `
+      <button type="button" id="btnPolCtxOpen">Politische Vorgänge</button>
+      <div id="polCtxPanel" style="display:none">
+        <button type="button" id="polCtxBtnClose">Schließen</button>
+        <input id="polCtxSearchInput" />
+      </div>
+    `;
+
+    const openButton = document.getElementById('btnPolCtxOpen');
+    const panel = document.getElementById('polCtxPanel');
+    const closeButton = document.getElementById('polCtxBtnClose');
+
+    UA.PoliticalContext.init({ CITY_RAW: 'Hannover' });
+    openButton.focus();
+    openButton.click();
+
+    expect(panel.style.display).toBe('flex');
+    expect(document.activeElement).toBe(closeButton);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(panel.style.display).toBe('none');
+    expect(document.activeElement).toBe(openButton);
+  });
 });

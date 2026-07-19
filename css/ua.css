@@ -18,12 +18,16 @@ html, body { height: 100%; margin: 0; }
 .panelSub { color:#666; font-weight:650; }
 .headerBtns { display:flex; gap:8px; align-items:center; }
 .collapseBtn, .legendBtn{
+  appearance: none;
   border: 1px solid rgba(0,0,0,.15);
   background: rgba(250,250,250,.85);
   padding: 6px 10px;
   border-radius: 10px;
   cursor: pointer;
   user-select:none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
   font-weight:800;
   line-height: 1;
 }
@@ -43,6 +47,7 @@ select, input {
 }
 .toggles { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .btn {
+  appearance: none;
   flex: 1;
   padding: 8px 10px;
   border: 1px solid #ddd;
@@ -51,8 +56,13 @@ select, input {
   cursor: pointer;
   user-select: none;
   text-align: center;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   font-weight: 800;
 }
+.panelBody > div:not(.toggles) > button.btn { width: 100%; }
 .btn.active { background: rgba(233,242,255,.92); border-color: rgba(183,212,255,.95); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .chip {
@@ -154,15 +164,25 @@ code { background: rgba(243,243,243,.92); padding: 1px 4px; border-radius: 6px; 
 .modalTitle{ font-weight: 950; font-size: 16px; }
 .modalBtns{ display:flex; gap:8px; flex-wrap: wrap; }
 .smallBtn{
+  appearance: none;
   padding: 8px 10px;
   border: 1px solid #ddd;
   border-radius: 10px;
   background: rgba(250,250,250,.96);
   cursor:pointer;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   font-weight: 850;
   user-select:none;
 }
 .smallBtn:hover{ background: rgba(240,240,240,.98); }
+
+:where(button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid #1d5fd0;
+  outline-offset: 2px;
+}
 .progressLine{ margin: 10px 0; font-size: 12px; color:#333; }
 
 table.report{ width:100%; border-collapse:collapse; margin-top:6px; font-size:13px; }
