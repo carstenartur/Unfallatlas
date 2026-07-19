@@ -176,8 +176,9 @@ async function prepareCoreFilterPanelCapture(page) {
 }
 
 test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
-  // Dokumentationsstandard aus docs/media-manifest.json: 1280×640. Panel-
-  // Ausschnitte ergeben durch das 20px-Viewport-Inset exakt 440×620.
+  // Kanonische Dokumentations-Screenshots verwenden die vollständige
+  // 1280×640-Werkbank. Auch bedienfeldorientierte Szenarien behalten die Karte
+  // sichtbar, damit Filterzustand und räumliches Ergebnis gemeinsam belegt sind.
   test.use({ viewport: { width: 1280, height: 640 } });
 
   test.beforeEach(async ({ page }, testInfo) => {
@@ -204,7 +205,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await prepareCoreFilterPanelCapture(page);
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/02-stadtauswahl.png',
-      selector: '#panel',
+      fullPage: true,
       city: 'Hannover',
       layers: ['cluster', 'heatmap']
     });
@@ -228,7 +229,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await prepareCoreFilterPanelCapture(page);
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/03-filter.png',
-      selector: '#panel',
+      fullPage: true,
       city: 'Hannover',
       layers: ['cluster', 'heatmap'],
       afterRevision: initialRender.render.revision
@@ -309,7 +310,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await page.locator('#hTo').fill('18');
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/08-stundenfilter.png',
-      selector: '#panel',
+      fullPage: true,
       city: 'Hannover',
       layers: ['cluster', 'heatmap'],
       afterRevision: initialRender.render.revision
