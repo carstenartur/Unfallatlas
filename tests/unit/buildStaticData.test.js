@@ -108,7 +108,9 @@ describe('build-static-data', () => {
     }
 
     const manifest = JSON.parse(fs.readFileSync(path.join(outputDir, 'data-manifest.json'), 'utf8'));
+    expect(manifest.schemaVersion).toBe(2);
     expect(manifest.dataMode).toBe('gzip-only');
+    expect(manifest.generatedAt).toBeNull();
     expect(manifest.cities.hannover.accidents.gzipPath)
       .toBe('out/output_all_years_hannover.geojson.gz');
     expect(manifest.cities.hannover.enrichment.hasElevation).toBe(true);
