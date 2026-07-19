@@ -10,6 +10,7 @@ out/qa/
 # Testing
 node_modules/
 _site/
+_site.tmp-*/
 .build/
 coverage/
 test-results/

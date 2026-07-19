@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
+  "evidenceLedger": "qa/screenshot-evidence/provenance.json",
   "defaults": {
     "maxBytes": 1048576,
-    "maxTotalBytes": 26214400,
+    "maxTotalBytes": 15728640,
     "screenshotTarget": { "width": 1280, "height": 640 },
-    "exceptionPolicy": { "trackingIssue": 404, "expiresOn": "2026-09-30" },
-    "reviewPolicy": "Abweichungen von Zielmaß oder 1-MiB-Budget benötigen eine begründete exception; neue Kandidaten müssen das Zielmaß einhalten."
+    "reviewPolicy": "Statische Medien müssen das Zielmaß und 1-MiB-Budget ohne Legacy-Ausnahme einhalten; Animationen benötigen eine explizite, technisch geprüfte Ausnahme."
   },
   "assets": [
     {
@@ -13,8 +13,9 @@
       "kind": "animation",
       "purpose": "Kurzer Überblick über den Analyse- und Exportablauf.",
       "target": { "width": 720, "height": 405 },
-      "maxBytes": 10485760,
-      "exception": "Animation: Das kanonische GIF bleibt für breite Markdown-Kompatibilität bis 10 MiB zulässig; oberhalb davon bricht der Generator ohne Dateimutation ab.",
+      "maxBytes": 9437184,
+      "maxDurationMs": 60000,
+      "exception": "Animierte Übersicht: GIF bleibt für Markdown-Kompatibilität zulässig; 9 MiB und 60 s sind harte Generator- und CI-Grenzen.",
       "references": ["README.md", "docs/DOKUMENTATION.md", "scripts/regen-readme-demo.js"]
     },
     {
@@ -22,9 +23,6 @@
       "kind": "screenshot",
       "purpose": "Einstieg mit real geladenen Hannover-Unfalldaten.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -32,8 +30,6 @@
       "kind": "screenshot",
       "purpose": "Stadtauswahl im Bedienpanel.",
       "target": { "width": 440, "height": 620 },
-      "acceptedLegacy": [{ "width": 464, "height": 800 }],
-      "exception": "Bestandsaufnahme vor dem border-box- und 640px-Viewport-Standard.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -41,8 +37,6 @@
       "kind": "screenshot",
       "purpose": "Beteiligungs-, Schwere- und Zeitfilter.",
       "target": { "width": 440, "height": 620 },
-      "acceptedLegacy": [{ "width": 464, "height": 800 }],
-      "exception": "Bestandsaufnahme vor dem border-box- und 640px-Viewport-Standard.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -50,9 +44,6 @@
       "kind": "screenshot",
       "purpose": "Clusterkarte mit nachgewiesenen realen Unfallpunkten.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 800 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -60,9 +51,6 @@
       "kind": "screenshot",
       "purpose": "Heatmap mit semantisch fertig gerenderten Unfalldaten.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 800 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -70,9 +58,6 @@
       "kind": "screenshot",
       "purpose": "Geöffnete Kartenlegende im Datenkontext.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -80,8 +65,6 @@
       "kind": "screenshot",
       "purpose": "Analyse-/Exportdialog und primäre Dokumentaktionen.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "exception": "Bestandsaufnahme mit altem 810px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -89,8 +72,6 @@
       "kind": "screenshot",
       "purpose": "Bedienpanel mit aktivem Stundenfilter.",
       "target": { "width": 440, "height": 620 },
-      "acceptedLegacy": [{ "width": 464, "height": 800 }],
-      "exception": "Bestandsaufnahme vor dem border-box- und 640px-Viewport-Standard.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -98,9 +79,6 @@
       "kind": "screenshot",
       "purpose": "Markierter Analysebereich auf der Karte.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -108,9 +86,6 @@
       "kind": "screenshot",
       "purpose": "UND-Szenario Pkw und Fahrrad mit realen Unfalltreffern.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -118,9 +93,6 @@
       "kind": "screenshot",
       "purpose": "Alleinunfall-Szenario Fahrrad mit realen Unfalltreffern.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -128,9 +100,6 @@
       "kind": "screenshot",
       "purpose": "POI-Kontext für Schulen und Kitas neben Unfallpunkten.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -138,9 +107,6 @@
       "kind": "screenshot",
       "purpose": "Bonn-Hbf-Szenario Rad/Pkw mit Heatmap und Auswahlbereich.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "maxBytes": 1310720,
-      "exception": "Bestandsbild vor Einführung des 1280×640-/1-MiB-Standards; die nächste bewusste Regeneration ersetzt es.",
       "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -148,8 +114,6 @@
       "kind": "screenshot",
       "purpose": "Exportvorschau mit aktivem Filter- und Auswahlkontext.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "exception": "Bestandsaufnahme mit altem 810px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -165,8 +129,6 @@
       "kind": "screenshot",
       "purpose": "Antragsinhalt im geöffneten Exportdialog.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 800 }],
-      "exception": "Bestandsaufnahme mit altem 800px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -174,8 +136,6 @@
       "kind": "screenshot",
       "purpose": "Deterministisch gemockter Standardkartenmodus.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "exception": "Bestandsaufnahme mit altem 810px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -183,8 +143,6 @@
       "kind": "screenshot",
       "purpose": "Deterministisch gemockter Orthofoto-Modus.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "exception": "Bestandsaufnahme mit altem 810px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -192,8 +150,6 @@
       "kind": "screenshot",
       "purpose": "Deterministisch gemockter Hybridmodus mit Label-Overlay.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "exception": "Bestandsaufnahme mit altem 810px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -201,8 +157,6 @@
       "kind": "screenshot",
       "purpose": "Deterministisch gemockter Analysemodus mit Unfall-Heatmap.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "exception": "Bestandsaufnahme mit altem 810px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -210,8 +164,6 @@
       "kind": "screenshot",
       "purpose": "Expliziter Orthofoto-Ausfall mit sichtbarem Standardkarten-Fallback.",
       "target": { "width": 1280, "height": 640 },
-      "acceptedLegacy": [{ "width": 1280, "height": 810 }],
-      "exception": "Bestandsaufnahme mit altem 810px-Viewport; Dateigröße liegt bereits im Standardbudget.",
       "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     }
   ]

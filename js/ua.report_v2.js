@@ -3770,17 +3770,24 @@
 
     // ---- Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
     if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
+      // Keep this short semantic block together. Without an unbreakable
+      // container pdfMake may carry only the final word of the last sentence
+      // (for example "Wochentag).") onto the next page immediately before
+      // the Antrag heading, which is visually misleading and hard to scan.
       docDefinition.content.push({
-        text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
-        style: "subsectionHeader"
+        unbreakable: true,
+        stack: [
+          {
+            text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+            style: "subsectionHeader"
+          },
+          ...sd.methodikScope.lines.map(ln => ({
+            text: String(ln),
+            style: "body"
+          }))
+        ],
+        margin: [0, 0, 0, 6]
       });
-      for (const ln of sd.methodikScope.lines) {
-        docDefinition.content.push({
-          text: String(ln),
-          style: "body"
-        });
-      }
-      docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
     }
 
     // PR 2 / Spec-Item 4: per-export figure-caption counter (PDF side).

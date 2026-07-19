@@ -341,6 +341,15 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     expect(allTexts.some(t => /^Auswertungsbereich: /.test(t))).toBe(true);
     expect(allTexts.some(t => /^Analyse auffälliger Unfallmuster: /.test(t))).toBe(true);
     expect(allTexts.some(t => /^Vergleich mit dem Stadtgebiet: /.test(t))).toBe(true);
+    const methodikBlock = definition.content.find(node =>
+      node && node.unbreakable === true && Array.isArray(node.stack) &&
+      node.stack.some(child => child && child.text === 'Methodik – Auswertungsbereich')
+    );
+    expect(methodikBlock).toBeDefined();
+    expect(methodikBlock.stack.map(child => child.text)).toEqual([
+      'Methodik – Auswertungsbereich',
+      ...data.structured.methodikScope.lines,
+    ]);
   });
 
   // ------------------------------------------------------------------

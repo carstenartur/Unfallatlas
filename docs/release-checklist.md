@@ -207,7 +207,7 @@ cd analysis-service && SPRING_PROFILES_ACTIVE=prod \
 ## 7. Stabilisierungs-Checks (vor Release)
 
 - [ ] README-Linkprüfung: kein `¢erLat`/`¢erLon`, keine isolierten kaputten Symbolzeichen (`grep -nP "¢er(Lat|Lon)" README.md` muss leer sein).
-- [ ] README-Demo-Asset aktuell — `npm run regen:demo` neu ausgeführt (kanonisches GIF, hartes 10-MiB-Budget ohne stillen Formatwechsel), Datum/Commit im PR notiert.
+- [ ] README-Demo-Asset aktuell — `npm run regen:demo` neu ausgeführt (kanonisches GIF, harte 9-MiB-/60-Sekunden-Budgets ohne stillen Formatwechsel), Datum/Commit im PR notiert.
 - [ ] Live-Demo-Hydration: Playwright-Test gegen GitHub Pages mit Bonn-URL grün.
 - [ ] Steigungslayer bleibt nach Filterwechsel/Stadtreload/Exportdialog sichtbar.
 - [ ] PDF-Render-Gate in CI grün (`npm run generate:sample-pdf && npm run test:render-gate -- --pdf out/ci-render-gate.pdf`).

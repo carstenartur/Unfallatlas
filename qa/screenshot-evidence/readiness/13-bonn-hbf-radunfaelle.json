@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "revision": "2f69300de9bb540091914c2ec415d35f3d287644",
+  "screenshot": {
+    "path": "docs/screenshots/13-bonn-hbf-radunfaelle.png",
+    "bytes": 258897,
+    "sha256": "0d2dbe1ff4357fb1479727cc9f2eef14c33180f549334bc529fdba3f4345eeb9"
+  },
+  "build": {
+    "path": "_site/build-manifest.json",
+    "sha256": "145c6da268e0947db0978b5c19b077ab02192e3741aa0dcb7d55f387f1e3e9e9",
+    "fingerprint": "5995cfec795bd1f914f118dfd3dcdcf7a81be46ac623014a41b9ebbabfa292cc",
+    "applicationFingerprint": "3380f33b5cab32373fa15f697430f0efd3607ab253a6a5690465de21795d34c6",
+    "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
+  },
+  "criteria": {
+    "city": "Bonn",
+    "layers": [
+      "heatmap"
+    ],
+    "requireCompleteCoverage": true
+  },
+  "lifecycle": {
+    "status": "ready",
+    "city": "Bonn",
+    "counts": {
+      "loaded": 7387,
+      "filtered": 1700,
+      "viewport": 238
+    },
+    "coverage": {
+      "mode": "full-city",
+      "complete": true,
+      "provider": "static",
+      "city": "Bonn",
+      "loadedFeatureCount": 7387
+    },
+    "render": {
+      "revision": 2,
+      "completedRevision": 2,
+      "submitted": true,
+      "layers": {
+        "cluster": {
+          "requested": false,
+          "expected": 0,
+          "processed": 0,
+          "visible": 0,
+          "painted": false,
+          "complete": true
+        },
+        "heatmap": {
+          "requested": true,
+          "expected": 238,
+          "processed": 238,
+          "visible": 238,
+          "painted": true,
+          "complete": true
+        },
+        "poi": {
+          "requested": true,
+          "expected": 488,
+          "processed": 14,
+          "visible": 14,
+          "painted": false,
+          "complete": true
+        },
+        "argumentation": {
+          "requested": true,
+          "expected": 238,
+          "processed": 4,
+          "visible": 4,
+          "painted": false,
+          "complete": true
+        }
+      }
+    },
+    "error": null
+  }
+}

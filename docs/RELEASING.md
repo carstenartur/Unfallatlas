@@ -25,8 +25,12 @@ what artefacts are produced for downstream consumers.
    | `skip_tests` | Skip the test suite (not recommended) | `false` |
    | `dry_run` | Validate and build everything without publishing | `true` |
 
-3. Start with `dry_run: true` to verify the run is green before publishing.
-4. Re-run with `dry_run: false` to publish the actual release.
+3. Start with `dry_run: true` to collect all build and QA diagnostics before
+   publishing. While #406 is open, the run is expected to stop at the final
+   complete-provenance gate after producing those diagnostics; no release is
+   currently publishable.
+4. Once #406 is resolved, require a green dry run, then re-run with
+   `dry_run: false` to publish the actual release.
 
 ---
 
@@ -61,17 +65,31 @@ what artefacts are produced for downstream consumers.
    input list is bytewise sorted, every file timestamp is normalised to
    `1980-01-01 00:00 UTC`, and `zip -X` strips host-specific extra fields. The
    same source tree and toolchain therefore produce a reproducible archive.
-   A top-level third-party inventory is included as
-   `vendor/third-party-notices.json`; license texts shipped by the locked npm
-   packages are copied to `vendor/licenses/` and fingerprinted in the build
-   manifest. The release workflow additionally requires
+   A third-party diagnostic inventory is included as
+   `vendor/third-party-notices.json`, alongside a CycloneDX 1.6 file and the
+   checked-in machine-readable gap policy; available license texts from locked
+   npm packages are copied to `vendor/licenses/` and fingerprinted in the build
+   manifest. The diagnostic inventory records delivered-asset hashes,
+   component purls and four decoded font name tables, but its CycloneDX
+   composition remains explicitly incomplete. The release workflow additionally requires
    `complete: true`. It therefore remains deliberately blocked by
    [#406](https://github.com/carstenartur/Unfallatlas/issues/406) until the
    opaque Docx/Pdfmake bundles and embedded Roboto fonts have reproducible,
-   component-level provenance. The incomplete inventory is not a full SBOM.
+   component-level provenance. The validator rejects `complete: true` unless
+   build-lock, contains, license/copyright, font and SBOM-composition evidence
+   are all present and mutually consistent. Every delivered asset additionally
+   needs two policy-pinned Ed25519 DSSE/in-toto/SLSA rebuild attestations that
+   bind the exact output, command, inputs and toolchain. Keys declared only by
+   the build lock are not trusted. The incomplete inventory is not a full SBOM.
 5. **Git tag** – creates an annotated tag `v<release_version>` via the GitHub
-   API.  This tag triggers `docker-publish.yml`, which publishes the Docker
-   image.
+   API. This tag triggers `docker-publish.yml`. Before it authenticates to
+   GHCR or builds an image for publication, that workflow independently builds
+   the canonical site and requires complete vendor provenance. The publish
+   build additionally passes `REQUIRE_COMPLETE_VENDOR_PROVENANCE=1` into the
+   Dockerfile, so the gate is repeated against the `_site` bytes produced
+   inside the image instead of attesting only a runner-side preflight build. A
+   tag, a push to `main`, and a manual dispatch therefore cannot bypass the
+   #406 release gate.
 6. **Maintenance branch** – creates `maintenance/<major>.<minor>.x` if it does
    not yet exist.
 7. **GitHub Release** – creates a GitHub Release with auto-generated release

@@ -21,6 +21,7 @@ const {
   REPO_ROOT
 } = require('../tests/integration/lib/startUnfallatlasContainer');
 const { inspectMedia, validate } = require('./validate-doc-media');
+const { capGifDuration, parseGifTimeline } = require('./gif-timeline');
 
 const DOCS_DIR = path.join(REPO_ROOT, 'docs');
 const MEDIA_MANIFEST_PATH = path.join(DOCS_DIR, 'media-manifest.json');
@@ -29,8 +30,6 @@ const ALTERNATIVE_DEMO_PATHS = Object.freeze([
   path.join(DOCS_DIR, 'demo.webp'),
   path.join(DOCS_DIR, 'demo.apng'),
 ]);
-const GIF_BUDGET_BYTES = 10 * 1024 * 1024;
-
 const README_DEMO_BODY = Object.freeze({
   city: 'Bonn',
   includeCyclist: '1',
@@ -76,47 +75,12 @@ async function fetchExport(baseUrl, format) {
 }
 
 function assertAnimatedShape(buf, format) {
-  if (!buf || buf.length < 12) {
-    throw new Error(`${format.toUpperCase()} too short: ${buf ? buf.length : 0} bytes`);
+  if (String(format).toLowerCase() !== 'gif') {
+    throw new Error(`unsupported animation format without a timeline decoder: ${format}`);
   }
-  if (format === 'gif') {
-    const magic = buf.subarray(0, 6).toString('ascii');
-    if (magic !== 'GIF89a' && magic !== 'GIF87a') {
-      throw new Error(`invalid GIF magic: ${magic}`);
-    }
-    if (buf[buf.length - 1] !== 0x3B) {
-      throw new Error('invalid GIF trailer: expected 0x3B');
-    }
-    const width = buf.readUInt16LE(6);
-    const height = buf.readUInt16LE(8);
-    if (!width || !height) throw new Error('invalid GIF dimensions');
-    let frames = 0;
-    for (let offset = 13; offset < buf.length - 1; offset++) {
-      if (buf[offset] === 0x2C) frames += 1;
-    }
-    if (frames < 2) throw new Error(`GIF is not animated: found ${frames} image frame(s)`);
-    return { width, height, frames };
-  }
-  if (format === 'webp') {
-    if (buf.slice(0, 4).toString('ascii') !== 'RIFF' || buf.slice(8, 12).toString('ascii') !== 'WEBP') {
-      throw new Error('invalid WEBP RIFF magic');
-    }
-    if (!buf.includes(Buffer.from('ANIM', 'ascii'))) {
-      throw new Error('invalid WEBP animation marker (ANIM missing)');
-    }
-    return { animated: true };
-  }
-  if (format === 'apng') {
-    const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    if (!buf.subarray(0, 8).equals(pngSig)) {
-      throw new Error('invalid APNG signature');
-    }
-    if (!buf.includes(Buffer.from('acTL', 'ascii'))) {
-      throw new Error('invalid APNG animation marker (acTL missing)');
-    }
-    return { animated: true };
-  }
-  throw new Error(`unsupported format for shape assertion: ${format}`);
+  const timeline = parseGifTimeline(buf, 'generated GIF');
+  if (!timeline.animated) throw new Error(`GIF is not animated: found ${timeline.frames} image frame(s)`);
+  return timeline;
 }
 
 function loadDemoPolicy() {
@@ -131,7 +95,7 @@ function loadDemoPolicy() {
     throw new Error('media manifest must declare exactly one canonical docs/demo.gif asset');
   }
   const policy = matches[0];
-  const maxBytes = Number(policy.maxBytes || (manifest.defaults && manifest.defaults.maxBytes));
+  const maxBytes = Number(policy.maxBytes);
   const target = policy.target;
   if (!Number.isInteger(maxBytes) || maxBytes <= 0 ||
       !target || !Number.isInteger(target.width) || !Number.isInteger(target.height) ||
@@ -143,7 +107,11 @@ function loadDemoPolicy() {
       throw new Error(`canonical demo manifest entry is missing reference ${reference}`);
     }
   }
-  return { maxBytes, target };
+  const maxDurationMs = Number(policy.maxDurationMs);
+  if (!Number.isInteger(maxDurationMs) || maxDurationMs <= 0) {
+    throw new Error('canonical demo needs a positive integer maxDurationMs budget');
+  }
+  return { maxBytes, maxDurationMs, target };
 }
 
 function assertNoAlternativeDemoAssets() {
@@ -191,9 +159,15 @@ function inspectDemoCandidate(contents, policy) {
 
 async function chooseDemoAsset(baseUrl, opts = {}) {
   const fetchExportFn = typeof opts.fetchExportFn === 'function' ? opts.fetchExportFn : fetchExport;
-  const gifBudgetBytes = Number.isFinite(Number(opts.gifBudgetBytes)) ? Number(opts.gifBudgetBytes) : GIF_BUDGET_BYTES;
+  const gifBudgetBytes = Number(opts.gifBudgetBytes);
+  if (!Number.isInteger(gifBudgetBytes) || gifBudgetBytes <= 0) {
+    throw new Error('chooseDemoAsset requires the explicit positive manifest gifBudgetBytes');
+  }
   const gif = await fetchExportFn(baseUrl, 'gif');
-  const shape = assertAnimatedShape(gif, 'gif');
+  const duration = opts.maxDurationMs
+    ? capGifDuration(gif, Number(opts.maxDurationMs), 'generated README demo GIF')
+    : { buffer: gif, beforeMs: null, afterMs: null, changed: false };
+  const shape = assertAnimatedShape(duration.buffer, 'gif');
   if (opts.expectedDimensions &&
       (shape.width !== Number(opts.expectedDimensions.width) || shape.height !== Number(opts.expectedDimensions.height))) {
     throw new Error(
@@ -201,13 +175,18 @@ async function chooseDemoAsset(baseUrl, opts = {}) {
       `${opts.expectedDimensions.width}x${opts.expectedDimensions.height}; no files were changed`
     );
   }
-  if (gif.length > gifBudgetBytes) {
+  if (duration.buffer.length > gifBudgetBytes) {
     throw new Error(
-      `GIF exceeds canonical budget (${gif.length} bytes > ${gifBudgetBytes} bytes); ` +
+      `GIF exceeds canonical budget (${duration.buffer.length} bytes > ${gifBudgetBytes} bytes); ` +
       'automatic format fallback is disabled because it would require an atomic manifest and documentation migration; no files were changed'
     );
   }
-  return { format: 'gif', buffer: gif, dimensions: { width: shape.width, height: shape.height } };
+  return {
+    format: 'gif',
+    buffer: duration.buffer,
+    dimensions: { width: shape.width, height: shape.height },
+    duration: { beforeMs: duration.beforeMs, afterMs: duration.afterMs, shortened: duration.changed },
+  };
 }
 
 async function main() {
@@ -228,6 +207,7 @@ async function main() {
   try {
     const chosen = await chooseDemoAsset(handle.baseUrl, {
       gifBudgetBytes: policy.maxBytes,
+      maxDurationMs: policy.maxDurationMs,
       expectedDimensions: policy.target,
     });
     inspectDemoCandidate(chosen.buffer, policy);
@@ -238,7 +218,10 @@ async function main() {
       atomicWrite(DEMO_ASSET_PATH, original);
       throw new Error(`generated demo failed documentation media validation:\n${after.errors.join('\n')}`);
     }
-    log(`wrote ${DEMO_ASSET_PATH} (${chosen.buffer.length} bytes, ${chosen.dimensions.width}x${chosen.dimensions.height})`);
+    log(
+      `wrote ${DEMO_ASSET_PATH} (${chosen.buffer.length} bytes, ${chosen.dimensions.width}x${chosen.dimensions.height}, ` +
+      `${chosen.duration.afterMs} ms)`
+    );
   } finally {
     await handle.stop();
   }
@@ -258,6 +241,7 @@ module.exports = {
   assertAnimatedShape,
   assertNoAlternativeDemoAssets,
   chooseDemoAsset,
+  capGifDuration,
   inspectDemoCandidate,
   loadDemoPolicy,
   main,

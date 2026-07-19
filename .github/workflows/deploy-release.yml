@@ -236,11 +236,11 @@ jobs:
         if: ${{ !inputs.skip_tests }}
         run: npm test
 
-      - name: Build and validate canonical website artifact
-        run: |
-          npm run build:site
-          npm run validate:vendor-provenance -- --require-complete
-          npm run validate:media -- --report out/qa/release-documentation-media.json
+      - name: Build canonical website artifact
+        run: npm run build:site
+
+      - name: Validate release documentation media
+        run: npm run validate:media -- --report out/qa/release-documentation-media.json
 
       - name: Upload release media QA evidence
         uses: actions/upload-artifact@v7
@@ -251,6 +251,9 @@ jobs:
             out/qa/release-documentation-media.json
             _site/build-manifest.json
           if-no-files-found: error
+
+      - name: Require complete vendor provenance before publication
+        run: npm run validate:vendor-provenance -- --require-complete
 
       - name: Create website bundle ZIP
         run: |

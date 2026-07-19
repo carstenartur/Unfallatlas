@@ -667,7 +667,7 @@ Betreiber-/Technik-Sicht.
 | **KI-Bewertung v2** (mit Fallback)        | ❌ | ✅ Fallback¹ | ✅ KI | ✅ (KI nur mit Key) |
 | **KI-Bewertung v1** (`/api/ai/export-assessment`) | ❌ | ❌ (`503`) | ✅ | ✅ (nur mit Key) |
 | **Video-Export** (`.gif`)                 | ❌ | ✅ | ✅ | ✅ |
-| Konfiguration nötig                       | – | Node 18+ installieren, `npm run start:server` | zusätzlich `GEMINI_API_KEY` setzen | nur `docker run …` (optional `-e GEMINI_API_KEY=…`) |
+| Konfiguration nötig                       | – | Node 24.x und npm 11 installieren, `npm run start:server` | zusätzlich `GEMINI_API_KEY` setzen | nur `docker run …` (optional `-e GEMINI_API_KEY=…`) |
 
 ¹ Ohne `GEMINI_API_KEY` antwortet `POST /api/ai/export-assessment/v2`
 mit `200 OK` und `source: "fallback"` (deterministischer, datengestützter

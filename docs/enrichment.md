@@ -244,7 +244,7 @@ Screenshot-Lauf entfernt: Sie warteten nicht auf Context-Geometrie und
 zeichneten deshalb Empty-State-Karten als vermeintlichen Slope-Nachweis auf.
 Die Reaktivierung erfolgt erst mit einem versionierten Dataset oder Fixture
 und Black-box-Prüfungen für Overlay-Pixel, Legende und Debug-Tooltips
-(Tracking: #400/#404).
+(Tracking: #400).
 
 Die zugehörige Plausibilitätsprüfung kann jederzeit isoliert laufen:
 

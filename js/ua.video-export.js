@@ -53,52 +53,118 @@
     return SUPPORTED_VIDEO_EXPORT_FORMATS.has(candidate) ? candidate : DEFAULT_VIDEO_EXPORT_FORMAT;
   }
 
+  function checked(id, fallback) {
+    const element = document.getElementById(id);
+    return element ? Boolean(element.checked) : fallback;
+  }
+
+  function value(id, fallback) {
+    const element = document.getElementById(id);
+    return element && element.value !== '' ? element.value : fallback;
+  }
+
+  function active(id, fallback) {
+    const element = document.getElementById(id);
+    if (!element) return fallback;
+    return element.classList.contains('active') || element.getAttribute('aria-pressed') === 'true';
+  }
+
   /**
-   * Aktuellen Zustand der Werkbank als Parameter-Objekt auslesen.
-   * Verwendet bevorzugt window.UA.ctx (vom App-Code befüllt) und
-   * fällt andernfalls auf window.location.search zurück.
+   * Read the state that is actually visible/active in the workbench.  The
+   * nested shape is validated by the exact same contract module that the
+   * server uses before it allocates a browser.
    */
-  function collectParams() {
-    // Bevorzugt: UA.ctx, falls vom App-Code befüllt
-    if (window.UA && window.UA.ctx) {
-      const ctx = window.UA.ctx;
-      return {
-        city:                 ctx.city             || '',
-        severity:             ctx.severity         || 'all',
-        includeCyclist:       ctx.includeCyclist    != null ? String(+ctx.includeCyclist)    : '1',
-        includePedestrian:    ctx.includePedestrian != null ? String(+ctx.includePedestrian) : '1',
-        includeCar:           ctx.includeCar        != null ? String(+ctx.includeCar)        : '1',
-        includeMotorcycle:    ctx.includeMotorcycle != null ? String(+ctx.includeMotorcycle) : '1',
-        includeGkfz:          ctx.includeGkfz       != null ? String(+ctx.includeGkfz)       : '1',
-        includeSonstig:       ctx.includeSonstig    != null ? String(+ctx.includeSonstig)    : '1',
-        involvementMode:      ctx.involvementMode  || 'or',
-        hourFrom:             ctx.hourFrom          != null ? String(ctx.hourFrom) : '0',
-        hourTo:               ctx.hourTo            != null ? String(ctx.hourTo)   : '23',
-        dayType:              ctx.dayType           || 'all',
-        roadCondition:        ctx.roadCondition     || 'all',
-        showCluster:          ctx.showCluster       != null ? String(+ctx.showCluster)          : '1',
-        showHeatmap:          ctx.showHeatmap       != null ? String(+ctx.showHeatmap)          : '0',
-        showOnlyAboveAverage: ctx.showOnlyAboveAverage != null ? String(+ctx.showOnlyAboveAverage) : '0',
-        centerLat:            ctx.centerLat         != null ? String(ctx.centerLat) : '',
-        centerLon:            ctx.centerLon         != null ? String(ctx.centerLon) : '',
-        zoom:                 ctx.zoom              != null ? String(ctx.zoom)      : '',
-        selSouth:             ctx.selSouth          != null ? String(ctx.selSouth)  : '',
-        selWest:              ctx.selWest           != null ? String(ctx.selWest)   : '',
-        selNorth:             ctx.selNorth          != null ? String(ctx.selNorth)  : '',
-        selEast:              ctx.selEast           != null ? String(ctx.selEast)   : '',
-        maxPoints:            ctx.maxPoints         != null ? String(ctx.maxPoints) : '',
-        viewportPaddingPct:   ctx.viewportPaddingPct != null ? String(ctx.viewportPaddingPct) : '',
-        heatRadius:           ctx.heatRadius        != null ? String(ctx.heatRadius) : ''
+  function collectState() {
+    const UA = window.UA || {};
+    const contract = UA.videoExportContract;
+    if (!contract || typeof contract.normalizeState !== 'function') {
+      throw new Error('Video-Export-Vertrag ist nicht geladen.');
+    }
+    const ctx = UA.ctx || {};
+    const map = ctx.map || window._uaMap;
+    const center = map && typeof map.getCenter === 'function' ? map.getCenter() : null;
+    const selectionBounds = ctx.selectionBounds || null;
+    const contextFilters = ctx.contextFilters || {};
+    const overlayState = ctx.contextOverlays && ctx.contextOverlays.active || {};
+
+    let viewport = null;
+    if (center && Number.isFinite(Number(center.lat)) && Number.isFinite(Number(center.lng)) &&
+        map && typeof map.getZoom === 'function') {
+      viewport = {
+        center: { lat: Number(center.lat), lon: Number(center.lng) },
+        zoom: Number(map.getZoom()),
       };
     }
 
-    // Fallback: URL-Parameter auslesen
-    const sp = new URLSearchParams(window.location.search);
-    const p = {};
-    for (const [k, v] of sp.entries()) {
-      p[k] = v;
+    let selection = null;
+    if (selectionBounds && typeof selectionBounds.getSouth === 'function') {
+      selection = {
+        south: Number(selectionBounds.getSouth()),
+        west: Number(selectionBounds.getWest()),
+        north: Number(selectionBounds.getNorth()),
+        east: Number(selectionBounds.getEast()),
+      };
     }
-    return p;
+
+    const slopeChips = document.querySelectorAll('input[data-ctx-slope]');
+    const trafficChips = document.querySelectorAll('input[data-ctx-traffic]');
+    const slopeClasses = slopeChips.length
+      ? Array.from(slopeChips).filter(el => el.checked).map(el => el.dataset.ctxSlope)
+      : Array.from(contextFilters.slopeClasses || []);
+    const trafficClasses = trafficChips.length
+      ? Array.from(trafficChips).filter(el => el.checked).map(el => el.dataset.ctxTraffic)
+      : Array.from(contextFilters.trafficClasses || []);
+
+    return contract.normalizeState({
+      schemaVersion: contract.SCHEMA_VERSION,
+      city: document.getElementById('citySel')
+        ? value('citySel', 'Hannover')
+        : (ctx.CITY_RAW || 'Hannover'),
+      filters: {
+        severity: value('severity', 'all'),
+        involvementMode: active('modeAnd', false)
+          ? 'and'
+          : (active('modeSolo', false) ? 'solo' : (active('modeOr', false) ? 'or' : (ctx.involvementMode || 'or'))),
+        hourFrom: value('hFrom', 0),
+        hourTo: value('hTo', 23),
+        dayType: value('dayType', 'all'),
+        roadCondition: value('roadCondition', 'all'),
+        maxPoints: value('maxPoints', 100000),
+        viewportPaddingPct: value('viewportPaddingPct', 20),
+        heatRadius: value('heatRadius', 25),
+        involvement: {
+          cyclist: checked('incBike', true),
+          pedestrian: checked('incPed', true),
+          car: checked('incCar', true),
+          motorcycle: checked('incMoto', false),
+          gkfz: checked('incGkfz', false),
+          sonstig: checked('incSon', false),
+        },
+      },
+      context: {
+        slopeClasses,
+        trafficClasses,
+        onlyMatchedWays: document.getElementById('ctxOnlyMatched')
+          ? checked('ctxOnlyMatched', false)
+          : Boolean(contextFilters.onlyMatchedWays),
+      },
+      layers: {
+        cluster: active('toggleCluster', ctx.showCluster != null ? Boolean(ctx.showCluster) : true),
+        heatmap: active('toggleHeat', ctx.showHeatmap != null ? Boolean(ctx.showHeatmap) : false),
+        onlyAboveAverage: active(
+          'toggleOnlyHot',
+          ctx.showOnlyAboveAverage != null ? Boolean(ctx.showOnlyAboveAverage) : false
+        ),
+        slope: document.querySelector('input[data-context-overlay="slope"]')
+          ? checked('ctxOverlay_slope', false)
+          : Boolean(overlayState.slope),
+        traffic: document.querySelector('input[data-context-overlay="traffic"]')
+          ? checked('ctxOverlay_traffic', false)
+          : Boolean(overlayState.traffic),
+      },
+      viewport,
+      selection,
+    });
   }
 
   /** Blendet den Video-Export-Button ein */
@@ -112,7 +178,6 @@
     if (!btn) return;
 
     btn.addEventListener('click', async () => {
-      const params = collectParams();
       const progressEl = document.getElementById('videoExportProgress');
 
       btn.disabled = true;
@@ -122,18 +187,20 @@
       }
 
       try {
-        params.format = currentSelectedFormat();
+        const state = collectState();
+        const format = currentSelectedFormat();
         const response = await fetch('/api/export-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params)
+          body: JSON.stringify({ format, state })
         });
 
         if (!response.ok) {
           let msg = `Fehler ${response.status}`;
           try {
             const data = await response.json();
-            if (data && data.error) msg = data.error;
+            if (data && data.message) msg = data.message;
+            else if (data && data.error) msg = data.error;
           } catch (_) { /* ignore */ }
           throw new Error(msg);
         }
@@ -143,7 +210,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `unfallatlas-analyse.${params.format || DEFAULT_VIDEO_EXPORT_FORMAT}`;
+        a.download = `unfallatlas-analyse.${format}`;
         document.body.appendChild(a);
         a.click();
         setTimeout(() => {
@@ -185,6 +252,11 @@
       // Kein Backend → kein Button → keine Fehlermeldung
     }
   }
+
+  // Small test/debug surface: callers can inspect the exact canonical payload
+  // without duplicating the state collection logic.
+  window.UA = window.UA || {};
+  window.UA.videoExportClient = Object.freeze({ collectState });
 
   // Nach DOM-Bereitschaft initialisieren
   if (document.readyState === 'loading') {

@@ -31,6 +31,7 @@ const fs = require('fs');
 const path = require('path');
 const { exportVideo }   = require('./video-export.js');
 const { SUPPORTED_VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
+const { validateVideoExportState } = require('./video-export-request.js');
 const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
 const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAssessmentServiceV2.js');
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
@@ -203,8 +204,12 @@ app.get('/api/video-export-available', (_req, res) => {
 /**
  * POST /api/export-video
  *
- * Body (JSON): aktuelle URL-Parameter der Werkbank (alle optional, mit
- * Ausnahme der unten beschriebenen atomaren Parametergruppen):
+ * Body (JSON): `{ format, state }`, wobei `state` dem kanonischen
+ * Video-Export-Vertrag aus `js/ua.video-export-contract.js` entspricht:
+ *   schemaVersion, city, filters, context, layers, viewport, selection.
+ *
+ * Alte flache URL-Parameter bleiben als Übergangspfad unterstützt (alle
+ * optional, mit Ausnahme der unten beschriebenen atomaren Parametergruppen):
  *   city, severity, includeCyclist, includePedestrian, includeCar,
  *   includeMotorcycle, involvementMode, hourFrom, hourTo, dayType,
  *   roadCondition, showCluster, showHeatmap, showOnlyAboveAverage,
@@ -221,19 +226,39 @@ app.get('/api/video-export-available', (_req, res) => {
  *
  * Antwort: Bilddatei als Download (image/gif | image/webp | image/apng)
  */
-app.post('/api/export-video', videoExportRateLimit, validateVideoExportFormat, concurrencyGuard, async (req, res) => {
-  const rawBody = req.body || {};
-  const params = { ...rawBody };
-  delete params.format;
+app.post('/api/export-video', videoExportRateLimit, validateVideoExportFormat, validateVideoExportState, concurrencyGuard, async (req, res) => {
+  const state = req.videoExportState;
   const requestedFormat = req.videoExportFormat || parseRequestedVideoExportFormat(req);
 
   // Note: activeExports is incremented in concurrencyGuard (before next())
   let exportResult = null;
   try {
-    exportResult = await exportVideo(params, { format: requestedFormat });
+    exportResult = await exportVideo(state, { format: requestedFormat });
 
     res.setHeader('Content-Type', exportResult.contentType);
     res.setHeader('Content-Disposition', `attachment; filename="unfallatlas-analyse.${exportResult.extension}"`);
+    if (exportResult.evidence) {
+      const evidence = exportResult.evidence;
+      res.setHeader('Content-Digest', `sha-256=:${evidence.artifact.sha256Base64}:`);
+      res.setHeader('Digest', `SHA-256=${evidence.artifact.sha256Base64}`);
+      res.setHeader('X-Unfallatlas-Artifact-SHA256', evidence.artifact.sha256);
+      res.setHeader('X-Unfallatlas-Video-State-SHA256', evidence.state.sha256);
+      res.setHeader('X-Unfallatlas-Build-Fingerprint', evidence.build.fingerprint);
+      res.setHeader('X-Unfallatlas-Data-Fingerprint', evidence.data.fingerprint);
+      res.setHeader('X-Unfallatlas-Evidence-SHA256', evidence.sha256);
+      const semantic = evidence.semantic || {};
+      const counts = semantic.lifecycle && semantic.lifecycle.counts || {};
+      const frames = semantic.framesAfterEncoding || {};
+      res.setHeader('X-Unfallatlas-Loaded-Accidents', String(counts.loaded || 0));
+      res.setHeader('X-Unfallatlas-Filtered-Accidents', String(counts.filtered || 0));
+      res.setHeader('X-Unfallatlas-Viewport-Accidents', String(counts.viewport || 0));
+      res.setHeader('X-Unfallatlas-Preview-Accidents', String(semantic.preview && semantic.preview.localAccidents || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Frames', String(frames.frameCount || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Accident-Pixels', String(frames.maxAccidentPixels || frames.maxHeatmapPixels || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Slope-Pixels', String(frames.maxSlopePixels || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Traffic-Pixels', String(frames.maxTrafficPixels || 0));
+      res.setHeader('X-Unfallatlas-PDF-Completed', String(Boolean(semantic.pdf && semantic.pdf.completed)));
+    }
     res.sendFile(exportResult.path, (err) => {
       activeExports--;
       if (err && !res.headersSent) {
@@ -250,7 +275,12 @@ app.post('/api/export-video', videoExportRateLimit, validateVideoExportFormat, c
       try { fs.unlinkSync(exportResult.path); } catch (_) { /* ignore */ }
     }
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'Interner Fehler beim Video-Export' });
+      const status = Number(err && err.status) || 500;
+      res.status(status).json({
+        error: err && err.code || err.message || 'Interner Fehler beim Video-Export',
+        category: status >= 500 ? 'internal_error' : 'invalid_request',
+        message: err && err.message || 'Interner Fehler beim Video-Export',
+      });
     }
   }
 });

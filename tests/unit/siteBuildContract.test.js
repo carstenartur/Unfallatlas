@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -11,6 +12,7 @@ const {
   assertSymlinkFreeTree,
   assertLocalAssetReferences,
   copyEntry,
+  copyVendorAssets,
   copyVendorLicenses,
   installBuiltSite,
   resolveActualPackageManager,
@@ -27,6 +29,48 @@ describe('canonical site build contract', () => {
     'leaflet', 'leaflet-draw', 'leaflet-image', 'leaflet.heat', 'leaflet.markercluster',
     'docx', 'pdfmake', 'file-saver',
   ];
+
+  test('every public site and container publication path requires complete vendor provenance', () => {
+    const workflows = [
+      '.github/workflows/deploy-release.yml',
+      '.github/workflows/generate-data-deploy-pages.yml',
+      '.github/workflows/docker-publish.yml',
+    ];
+    for (const workflowPath of workflows) {
+      const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
+      expect(workflow).toContain('npm run validate:vendor-provenance -- --require-complete');
+      if (workflowPath !== '.github/workflows/docker-publish.yml') {
+        expect(workflow.indexOf('npm run validate:media'))
+          .toBeLessThan(workflow.indexOf('npm run validate:vendor-provenance -- --require-complete'));
+      }
+    }
+
+    const dockerPublish = fs.readFileSync(
+      path.join(ROOT, '.github/workflows/docker-publish.yml'),
+      'utf8'
+    );
+    expect(dockerPublish.indexOf('npm run validate:vendor-provenance -- --require-complete'))
+      .toBeLessThan(dockerPublish.indexOf('docker/login-action'));
+    expect(dockerPublish.indexOf('npm run validate:vendor-provenance -- --require-complete'))
+      .toBeLessThan(dockerPublish.indexOf('docker/build-push-action'));
+
+    const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+    expect(dockerPublish).toMatch(/build-args:\s*\|\s*REQUIRE_COMPLETE_VENDOR_PROVENANCE=1/);
+    expect(dockerfile).toMatch(/ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0/);
+    expect(dockerfile).toMatch(
+      /1\) npm run validate:vendor-provenance -- --require-complete/
+    );
+    expect(dockerfile.indexOf('npm run build:site')).toBeLessThan(
+      dockerfile.indexOf('npm run validate:vendor-provenance -- --require-complete')
+    );
+  });
+
+  test('interrupted atomic site-build staging trees cannot enter Git or Docker contexts', () => {
+    const gitignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
+    const dockerignore = fs.readFileSync(path.join(ROOT, '.dockerignore'), 'utf8');
+    expect(gitignore).toMatch(/^_site\.tmp-\*\/$/m);
+    expect(dockerignore).toMatch(/^_site\.tmp-\*$/m);
+  });
 
   test('all browser dependencies are exact and resolve to the lockfile version', () => {
     const locked = resolveLockedVersions(ROOT);
@@ -187,17 +231,41 @@ describe('canonical site build contract', () => {
     }
   });
 
-  test('vendor notice reports its top-level scope honestly and blocks release while incomplete', () => {
+  test('vendor notice inventories delivered assets and blocks release while component evidence is incomplete', () => {
     expect(Object.keys(VENDOR_LICENSES).sort()).toEqual(browserPackages.sort());
     const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-licenses-'));
     try {
-      const notices = copyVendorLicenses(ROOT, fixture);
+      const copiedAssets = copyVendorAssets(ROOT, fixture);
+      const notices = copyVendorLicenses(ROOT, fixture, undefined, copiedAssets);
       expect(notices.dependencies).toHaveLength(browserPackages.length);
       expect(notices.complete).toBe(false);
-      expect(notices.inventoryScope).toBe('direct-npm-packages-only');
+      expect(notices.inventoryScope).toBe('delivered-assets-with-explicit-component-gaps');
       expect(notices.trackingIssue).toContain('/issues/406');
       expect(fs.existsSync(path.join(fixture, notices.path))).toBe(true);
+      expect(fs.existsSync(path.join(fixture, notices.sbom.path))).toBe(true);
+      expect(fs.existsSync(path.join(fixture, notices.provenancePolicy.path))).toBe(true);
       expect(notices.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(notices.sbom).toMatchObject({ specVersion: '1.6', complete: false });
+      expect(notices.componentCount).toBeGreaterThan(browserPackages.length);
+      expect(notices.assetCount).toBe(VENDOR_ASSETS.length);
+      expect(notices.fontCount).toBe(4);
+      expect(notices.knownGapIds).toEqual(expect.arrayContaining([
+        'docx-opaque-upstream-bundle',
+        'pdfmake-opaque-upstream-bundle',
+        'pdfmake-roboto-font-provenance',
+        'leaflet-heat-embedded-simpleheat',
+        'leaflet-image-embedded-d3-queue',
+        'leaflet-draw-license-text',
+      ]));
+      const notice = JSON.parse(fs.readFileSync(path.join(fixture, notices.path), 'utf8'));
+      const fontContainer = notice.assetAssessments
+        .find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
+      expect(fontContainer.containsFiles).toHaveLength(4);
+      expect(fontContainer.containsFiles.every(ref => ref.startsWith('urn:unfallatlas:font:'))).toBe(true);
+      const sbom = JSON.parse(fs.readFileSync(path.join(fixture, notices.sbom.path), 'utf8'));
+      const fontDependency = sbom.dependencies
+        .find(entry => entry.ref === 'urn:unfallatlas:vendor-asset:vendor/export/pdfmake-fonts.js');
+      expect(fontDependency.dependsOn).toEqual(expect.arrayContaining(fontContainer.containsFiles));
       expect(() => validateVendorProvenance(path.join(fixture, notices.path)))
         .not.toThrow();
       expect(() => validateVendorProvenance(path.join(fixture, notices.path), { requireComplete: true }))
@@ -215,6 +283,93 @@ describe('canonical site build contract', () => {
           expect(dependency.licenseTextPath).toBeNull();
         }
       }
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  test('vendor validator binds delivered assets and declared license evidence to artifact bytes', () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-vendor-mutation-'));
+    try {
+      const copiedAssets = copyVendorAssets(ROOT, fixture);
+      const notices = copyVendorLicenses(ROOT, fixture, undefined, copiedAssets);
+      const manifestPath = path.join(fixture, notices.path);
+      const originalManifest = fs.readFileSync(manifestPath, 'utf8');
+      const manifest = JSON.parse(originalManifest);
+      const sbomPath = path.join(fixture, manifest.sbom.path);
+      const originalSbom = fs.readFileSync(sbomPath, 'utf8');
+      const expectSbomMutation = (mutate, expected) => {
+        const mutatedSbom = JSON.parse(originalSbom);
+        mutate(mutatedSbom);
+        const serialized = `${JSON.stringify(mutatedSbom, null, 2)}\n`;
+        fs.writeFileSync(sbomPath, serialized);
+        const mutatedManifest = JSON.parse(originalManifest);
+        mutatedManifest.sbom.sha256 = crypto.createHash('sha256').update(serialized).digest('hex');
+        fs.writeFileSync(manifestPath, `${JSON.stringify(mutatedManifest, null, 2)}\n`);
+        expect(() => validateVendorProvenance(manifestPath)).toThrow(expected);
+        fs.writeFileSync(sbomPath, originalSbom);
+        fs.writeFileSync(manifestPath, originalManifest);
+      };
+
+      expectSbomMutation(sbom => {
+        const dependency = sbom.dependencies
+          .find(entry => entry.ref.endsWith('vendor/export/pdfmake-fonts.js'));
+        dependency.dependsOn = dependency.dependsOn.filter(ref => !ref.startsWith('urn:unfallatlas:font:'));
+      }, /SBOM contains relation/);
+      expectSbomMutation(sbom => {
+        const asset = sbom.components
+          .find(entry => entry['bom-ref'].endsWith('vendor/export/docx.js'));
+        asset.properties
+          .find(property => property.name === 'unfallatlas:unresolved-detected-components')
+          .value = '[]';
+      }, /SBOM delivered asset evidence mismatch/);
+      expectSbomMutation(sbom => {
+        const asset = sbom.components.find(entry => entry['bom-ref'].includes('vendor-asset:'));
+        asset.hashes.find(hash => hash.alg === 'SHA-256').content = 'b'.repeat(64);
+      }, /SBOM delivered asset evidence mismatch/);
+      expectSbomMutation(sbom => {
+        const index = sbom.components.findIndex(entry => entry.type === 'library');
+        sbom.components.splice(index, 1);
+      }, /SBOM component evidence mismatch/);
+
+      const safeAsset = manifest.assetAssessments.find(asset => asset.gaps.length === 0);
+      safeAsset.path = '../outside-artifact.js';
+      fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      expect(() => validateVendorProvenance(manifestPath)).toThrow(/escapes the artifact root/);
+      fs.writeFileSync(manifestPath, originalManifest);
+
+      const asset = copiedAssets[0];
+      const assetPath = path.join(fixture, asset.path);
+      const assetHashMutation = JSON.parse(originalManifest);
+      assetHashMutation.assetAssessments.find(entry => entry.path === asset.path).sha256 = 'b'.repeat(64);
+      fs.writeFileSync(manifestPath, `${JSON.stringify(assetHashMutation, null, 2)}\n`);
+      expect(() => validateVendorProvenance(manifestPath)).toThrow(/delivered asset .* hash drift/);
+      fs.writeFileSync(manifestPath, originalManifest);
+
+      fs.appendFileSync(assetPath, '\nmutated');
+      expect(() => validateVendorProvenance(manifestPath)).toThrow(/delivered asset .* hash drift/);
+
+      copyVendorAssets(ROOT, fixture);
+      fs.rmSync(assetPath);
+      expect(() => validateVendorProvenance(manifestPath)).toThrow(/Missing delivered asset/);
+      copyVendorAssets(ROOT, fixture);
+
+      const component = JSON.parse(originalManifest).components.find(entry => entry.licenseTexts.length > 0);
+      expect(component).toBeTruthy();
+      const licensePath = path.join(fixture, component.licenseTexts[0].path);
+      const licenseHashMutation = JSON.parse(originalManifest);
+      licenseHashMutation.components
+        .find(entry => entry.purl === component.purl)
+        .licenseTexts[0].sha256 = 'b'.repeat(64);
+      fs.writeFileSync(manifestPath, `${JSON.stringify(licenseHashMutation, null, 2)}\n`);
+      expect(() => validateVendorProvenance(manifestPath)).toThrow(/component license text .* hash drift/);
+      fs.writeFileSync(manifestPath, originalManifest);
+
+      fs.appendFileSync(licensePath, '\nmutated');
+      expect(() => validateVendorProvenance(manifestPath)).toThrow(/component license text .* hash drift/);
+
+      fs.rmSync(licensePath);
+      expect(() => validateVendorProvenance(manifestPath)).toThrow(/Missing component license text/);
     } finally {
       fs.rmSync(fixture, { recursive: true, force: true });
     }

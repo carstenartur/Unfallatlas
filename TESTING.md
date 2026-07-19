@@ -160,11 +160,14 @@ npm ci
 # Produktionsgleiches statisches Artefakt lokal bauen
 npm run build:site
 
-# Dokumentationsmedien, Abmessungen, Integrität und Referenzen prüfen
+# Akzeptierte Dokumentationsmedien inklusive archivierter Evidence prüfen
 npm run validate:media
 
 # Nach Screenshot-Erzeugung: 1:1-Sidecars, Bild-/Build-SHAs und Fingerprints prüfen
 npm run validate:screenshot-evidence
+
+# Erst nach diesem Evidence-Gate die noch nicht übernommene Kandidatenmenge prüfen
+npm run validate:media -- --candidate-screenshots
 
 # Unit-Tests ausführen
 npm run test:unit

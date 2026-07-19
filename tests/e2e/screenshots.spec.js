@@ -428,7 +428,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   // 17–20 (Slope-Diagnose) bleiben bewusst ausgesetzt, bis ein versioniertes
   // Context-Dataset bzw. Fixture echte Overlay-Geometrie bereitstellt. Die
   // früheren Szenarien warteten nur auf Cluster/Heatmap und lieferten dadurch
-  // Empty-State-Karten als vermeintlichen Slope-Beleg (QA #400/#404).
+  // Empty-State-Karten als vermeintlichen Slope-Beleg (QA #400).
 
   test('21 Kartenmodus Standard (stabil)', async ({ page }) => {
     await loadPage(page, mapModeQuery('standard', '&showCluster=1&showHeatmap=0'));

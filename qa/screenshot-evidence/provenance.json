@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Durable, checked-in binding for the reviewed screenshot artifact adopted on 2026-07-19.",
+  "source": {
+    "artifactName": "pr-screenshots-405",
+    "artifactId": 8440785239,
+    "artifactZipSha256": "3b655162f8a747e8bb99a3ba6e755e5054a4b9f9d180f75eb79cde4dbf79636e",
+    "evidenceRevision": "2f69300de9bb540091914c2ec415d35f3d287644",
+    "evidenceStatus": "valid",
+    "evidenceCount": 21
+  },
+  "build": {
+    "manifestSha256": "145c6da268e0947db0978b5c19b077ab02192e3741aa0dcb7d55f387f1e3e9e9",
+    "fingerprint": "5995cfec795bd1f914f118dfd3dcdcf7a81be46ac623014a41b9ebbabfa292cc",
+    "applicationFingerprint": "3380f33b5cab32373fa15f697430f0efd3607ab253a6a5690465de21795d34c6",
+    "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
+  },
+  "summary": {
+    "path": "qa/screenshot-evidence/summary.json",
+    "sha256": "3c8da22430b33dc9be26dd2c1bad51123be1a5e754413064b0bcb66aed6cafce",
+    "entriesSha256": "9ea78ab0c0e4ae94d0efa2fcf900d03b8fe50078593d62c7dbc36aa95a354248"
+  },
+  "readiness": {
+    "directory": "qa/screenshot-evidence/readiness",
+    "files": 21,
+    "bytes": 43015,
+    "entriesSha256": "bd3471c984ad5b996dc8c6f8794a64279ccd9b919e88ac37aa50c43136dc2d2b"
+  }
+}

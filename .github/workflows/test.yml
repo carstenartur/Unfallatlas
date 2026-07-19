@@ -207,13 +207,13 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
 
-      - name: Validate generated documentation media
-        id: validate_media
-        run: npm run validate:media -- --report out/qa/generated-documentation-media.json
-
       - name: Validate one-to-one screenshot evidence
         id: validate_evidence
         run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
+
+      - name: Validate generated documentation media candidate
+        id: validate_media
+        run: npm run validate:media -- --candidate-screenshots --report out/qa/generated-documentation-media.json
 
       - name: Run accessibility tests
         run: npx playwright test tests/e2e/accessibility.spec.js --project=chromium --reporter=line

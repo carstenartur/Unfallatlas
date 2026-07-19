@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { dimensions, validate } = require('../../scripts/validate-doc-media');
+const { ALLOWED_FORMATS, dimensions, inspectMedia, validate } = require('../../scripts/validate-doc-media');
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -16,6 +16,132 @@ describe('documentation media policy', () => {
 
   function writeJson(file, value) {
     fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+  }
+
+  function fileSha256(file) {
+    return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  }
+
+  function tinyFalseGreenGif() {
+    const header = Buffer.alloc(13);
+    header.write('GIF89a', 0, 'ascii');
+    header.writeUInt16LE(720, 6);
+    header.writeUInt16LE(405, 8);
+    header[10] = 0x80;
+    const palette = Buffer.from([0, 0, 0, 255, 255, 255]);
+    const frame = pixel => {
+      const packed = pixel === 0 ? Buffer.from([0x44, 0x01]) : Buffer.from([0x4c, 0x01]);
+      return Buffer.from([
+        0x21, 0xf9, 0x04, 0x00, 0x02, 0x00, 0x00, 0x00,
+        0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0,
+        0x02, 0x02, ...packed, 0x00,
+      ]);
+    };
+    return Buffer.concat([header, palette, frame(0), frame(1), Buffer.from([0x3b])]);
+  }
+
+  function writeEvidenceFixture(root, mediaPath, assetPath) {
+    const evidenceRoot = path.join(root, 'qa', 'screenshot-evidence');
+    const readinessDirectory = path.join(evidenceRoot, 'readiness');
+    fs.mkdirSync(readinessDirectory, { recursive: true });
+    const screenshot = {
+      path: assetPath,
+      bytes: fs.statSync(mediaPath).size,
+      sha256: fileSha256(mediaPath),
+    };
+    const revision = 'a'.repeat(40);
+    const build = {
+      path: '_site/build-manifest.json',
+      sha256: 'b'.repeat(64),
+      fingerprint: 'c'.repeat(64),
+      applicationFingerprint: 'd'.repeat(64),
+      dataFingerprint: 'e'.repeat(64),
+    };
+    const sidecarName = 'candidate.json';
+    const sidecarPath = path.join(readinessDirectory, sidecarName);
+    writeJson(sidecarPath, {
+      schemaVersion: 1,
+      revision,
+      screenshot,
+      build,
+      criteria: { city: 'Teststadt', layers: ['cluster'], requireCompleteCoverage: true },
+      lifecycle: {
+        status: 'ready',
+        city: 'Teststadt',
+        counts: { loaded: 1, filtered: 1, viewport: 1 },
+        coverage: { complete: true, city: 'Teststadt', loadedFeatureCount: 1 },
+        render: {
+          submitted: true,
+          revision: 1,
+          completedRevision: 1,
+          layers: { cluster: { requested: true, expected: 1, processed: 1, visible: 1, complete: true } },
+        },
+        error: null,
+      },
+    });
+    const summaryPath = path.join(evidenceRoot, 'summary.json');
+    const summaryEntry = {
+      ...screenshot,
+      evidence: `out/qa/screenshot-readiness/${sidecarName}`,
+      status: 'valid',
+      errors: [],
+    };
+    writeJson(summaryPath, {
+      schemaVersion: 1,
+      valid: true,
+      revision,
+      build,
+      totals: { screenshots: 1, evidence: 1 },
+      screenshots: [summaryEntry],
+      errors: [],
+    });
+    const readinessBytes = fs.statSync(sidecarPath).size;
+    const readinessHash = fileSha256(sidecarPath);
+    writeJson(path.join(evidenceRoot, 'provenance.json'), {
+      schemaVersion: 1,
+      source: {
+        artifactName: 'fixture', artifactId: 1, artifactZipSha256: 'f'.repeat(64),
+        evidenceRevision: revision, evidenceStatus: 'valid', evidenceCount: 1,
+      },
+      build: {
+        manifestSha256: build.sha256,
+        fingerprint: build.fingerprint,
+        applicationFingerprint: build.applicationFingerprint,
+        dataFingerprint: build.dataFingerprint,
+      },
+      summary: {
+        path: 'qa/screenshot-evidence/summary.json',
+        sha256: fileSha256(summaryPath),
+        entriesSha256: crypto.createHash('sha256')
+          .update(`${screenshot.path}\t${screenshot.sha256}\t${screenshot.bytes}\n`)
+          .digest('hex'),
+      },
+      readiness: {
+        directory: 'qa/screenshot-evidence/readiness',
+        files: 1,
+        bytes: readinessBytes,
+        entriesSha256: crypto.createHash('sha256')
+          .update(`${sidecarName}\t${readinessHash}\t${readinessBytes}\n`)
+          .digest('hex'),
+      },
+    });
+  }
+
+  function rewriteSidecarAndRebind(root, mutate) {
+    const evidenceRoot = path.join(root, 'qa', 'screenshot-evidence');
+    const sidecarPath = path.join(evidenceRoot, 'readiness', 'candidate.json');
+    const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
+    mutate(sidecar);
+    writeJson(sidecarPath, sidecar);
+    const provenancePath = path.join(evidenceRoot, 'provenance.json');
+    const provenance = JSON.parse(fs.readFileSync(provenancePath, 'utf8'));
+    const bytes = fs.statSync(sidecarPath).size;
+    const digest = fileSha256(sidecarPath);
+    provenance.readiness.bytes = bytes;
+    provenance.readiness.entriesSha256 = crypto.createHash('sha256')
+      .update(`candidate.json\t${digest}\t${bytes}\n`)
+      .digest('hex');
+    writeJson(provenancePath, provenance);
   }
 
   function createIsolatedRepository() {
@@ -30,11 +156,11 @@ describe('documentation media policy', () => {
     fs.writeFileSync(path.join(root, 'README.md'), '![Kandidat](docs/candidate.png)\n');
     const isolatedManifest = {
       schemaVersion: 1,
+      evidenceLedger: 'qa/screenshot-evidence/provenance.json',
       defaults: {
         maxBytes: bytes + 1024,
         maxTotalBytes: bytes + 2048,
         screenshotTarget: target,
-        exceptionPolicy: { trackingIssue: 404, expiresOn: '2099-12-31' },
       },
       assets: [{
         path: 'docs/candidate.png',
@@ -46,6 +172,7 @@ describe('documentation media policy', () => {
     };
     const manifestPath = path.join(docs, 'media-manifest.json');
     writeJson(manifestPath, isolatedManifest);
+    writeEvidenceFixture(root, mediaPath, 'docs/candidate.png');
     return { root, manifest: isolatedManifest, manifestPath, mediaPath, target, bytes };
   }
 
@@ -62,14 +189,152 @@ describe('documentation media policy', () => {
     expect(report.totals.assets).toBe(manifest.assets.length);
   });
 
-  test('legacy dimensions and above-default budgets are always justified', () => {
+  test('static media cannot use legacy dimensions or above-default budgets', () => {
     const standardBudget = manifest.defaults.maxBytes;
     for (const asset of manifest.assets) {
-      if ((asset.acceptedLegacy || []).length > 0 || Number(asset.maxBytes || 0) > standardBudget) {
+      expect(asset).not.toHaveProperty('acceptedLegacy');
+      if (asset.kind !== 'animation') {
+        expect(Number(asset.maxBytes || standardBudget)).toBeLessThanOrEqual(standardBudget);
+      } else if (Number(asset.maxBytes || 0) > standardBudget) {
         expect(asset.exception).toEqual(expect.any(String));
         expect(asset.exception.trim().length).toBeGreaterThan(20);
+        expect(asset.maxDurationMs).toEqual(expect.any(Number));
       }
     }
+  });
+
+  test('the canonical animation stays inside its byte and duration exception', () => {
+    const animation = manifest.assets.find(asset => asset.kind === 'animation');
+    const inspected = inspectMedia(path.join(ROOT, animation.path));
+    expect(inspected.animated).toBe(true);
+    expect(inspected.frames).toBeGreaterThan(1);
+    expect(inspected.durationMs).toBeLessThanOrEqual(animation.maxDurationMs);
+    expect(inspected.visualEvidence).toEqual(expect.objectContaining({
+      valid: true,
+      paintedCanvasRatio: 1,
+      uniqueCompositedFrames: expect.any(Number),
+    }));
+    expect(inspected.visualEvidence.uniqueCompositedFrames).toBeGreaterThan(1);
+    expect(inspected.visualEvidence.maxChangedPixels).toBeGreaterThanOrEqual(
+      inspected.visualEvidence.requiredChangedPixels
+    );
+    expect(fs.statSync(path.join(ROOT, animation.path)).size).toBeLessThanOrEqual(animation.maxBytes);
+  });
+
+  test('validate:media rejects tiny visually false-green GIF animation frames', () => {
+    const fixture = createIsolatedRepository();
+    fs.unlinkSync(fixture.mediaPath);
+    const gifPath = path.join(fixture.root, 'docs', 'candidate.gif');
+    fs.writeFileSync(gifPath, tinyFalseGreenGif());
+    fs.writeFileSync(path.join(fixture.root, 'README.md'), '![Kandidat](docs/candidate.gif)\n');
+    fixture.manifest.assets[0] = {
+      path: 'docs/candidate.gif',
+      kind: 'animation',
+      purpose: 'Adversarial tiny-frame animation.',
+      target: { width: 720, height: 405 },
+      maxBytes: 4096,
+      maxDurationMs: 1000,
+      exception: 'Deliberately malformed visual evidence for validator coverage.',
+      references: ['README.md'],
+    };
+    writeJson(fixture.manifestPath, fixture.manifest);
+    const report = validate({
+      root: fixture.root,
+      manifest: 'docs/media-manifest.json',
+      candidateScreenshots: true,
+    });
+    expect(report.valid).toBe(false);
+    expect(report.errors.join('\n')).toMatch(/visual canvas coverage/i);
+  });
+
+  test('every animation requires explicit budgets and a substantive exception', () => {
+    const fixture = createIsolatedRepository();
+    fixture.manifest.assets[0].kind = 'animation';
+    delete fixture.manifest.assets[0].maxBytes;
+    delete fixture.manifest.assets[0].maxDurationMs;
+    delete fixture.manifest.assets[0].exception;
+    writeJson(fixture.manifestPath, fixture.manifest);
+
+    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json' });
+    expect(report.errors).toEqual(expect.arrayContaining([
+      'docs/candidate.png: animation requires an explicit positive maxBytes',
+      'docs/candidate.png: animation requires an explicit positive maxDurationMs',
+      'docs/candidate.png: animation requires a substantive exception rationale',
+    ]));
+  });
+
+  test('animation policy fails closed for WebP/APNG while static WebP remains inspectable', () => {
+    expect([...ALLOWED_FORMATS.animation]).toEqual(['gif']);
+    expect(ALLOWED_FORMATS.screenshot.has('webp')).toBe(true);
+    const fixture = createIsolatedRepository();
+    const webpPath = path.join(fixture.root, 'docs', 'candidate.webp');
+    const webp = Buffer.alloc(30);
+    webp.write('RIFF', 0, 'ascii');
+    webp.writeUInt32LE(22, 4);
+    webp.write('WEBP', 8, 'ascii');
+    webp.write('VP8X', 12, 'ascii');
+    webp.writeUInt32LE(10, 16);
+    expect(inspectMedia((fs.writeFileSync(webpPath, webp), webpPath))).toEqual(expect.objectContaining({
+      format: 'webp', animated: false, width: 1, height: 1,
+    }));
+
+    fixture.manifest.assets[0] = {
+      path: 'docs/candidate.webp', kind: 'animation', purpose: 'Animated policy mutation.',
+      target: { width: 1, height: 1 }, maxBytes: 1000, maxDurationMs: 1000,
+      exception: 'A substantive but unsupported animated WebP policy exception.', references: ['README.md'],
+    };
+    fs.writeFileSync(path.join(fixture.root, 'README.md'), '![Kandidat](docs/candidate.webp)\n');
+    writeJson(fixture.manifestPath, fixture.manifest);
+    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json', candidateScreenshots: true });
+    expect(report.errors).toContain('docs/candidate.webp: webp is not allowed for kind animation');
+  });
+
+  test.each([
+    ['missing coverage', sidecar => { delete sidecar.lifecycle.coverage; }, /lifecycle is not ready/i],
+    ['city mismatch', sidecar => { sidecar.lifecycle.city = 'Andere Stadt'; }, /lifecycle is not ready/i],
+    ['render revision mismatch', sidecar => { sidecar.lifecycle.render.completedRevision = 0; }, /lifecycle is not ready/i],
+    ['unpainted requested heatmap', sidecar => {
+      sidecar.criteria.layers = ['heatmap'];
+      sidecar.lifecycle.render.layers = {
+        heatmap: { requested: true, expected: 1, processed: 1, visible: 1, painted: false, complete: true },
+      };
+    }, /requested heatmap has no painted-pixel evidence/i],
+  ])('durable evidence rejects semantic sidecar mutation: %s', (_label, mutate, expected) => {
+    const fixture = createIsolatedRepository();
+    rewriteSidecarAndRebind(fixture.root, mutate);
+    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json' });
+    expect(report.valid).toBe(false);
+    expect(report.errors.join('\n')).toMatch(expected);
+  });
+
+  test('candidate mode skips only the accepted-ledger binding', () => {
+    const fixture = createIsolatedRepository();
+    fs.writeFileSync(path.join(fixture.root, fixture.manifest.evidenceLedger), '{ broken ledger');
+    expect(validate({ root: fixture.root, manifest: 'docs/media-manifest.json' }).valid).toBe(false);
+    const candidate = validate({
+      root: fixture.root,
+      manifest: 'docs/media-manifest.json',
+      candidateScreenshots: true,
+    });
+    expect(candidate.valid).toBe(true);
+    expect(candidate.evidence.mode).toBe('candidate-screenshots');
+  });
+
+  test('rejects reintroduced legacy dimensions and static budget overrides', () => {
+    const fixture = createIsolatedRepository();
+    fixture.manifest.assets[0].acceptedLegacy = [fixture.target];
+    fixture.manifest.assets[0].maxBytes = fixture.manifest.defaults.maxBytes + 1;
+    fixture.manifest.assets[0].exception = 'A deliberately invalid static-media exception for the mutation test.';
+    writeJson(fixture.manifestPath, fixture.manifest);
+
+    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json' });
+
+    expect(report.valid).toBe(false);
+    expect(report.errors).toEqual(expect.arrayContaining([
+      'docs/candidate.png: acceptedLegacy is no longer permitted',
+      'docs/candidate.png: static media may not declare policy exceptions',
+      `docs/candidate.png: static media may not override the ${fixture.manifest.defaults.maxBytes}-byte standard budget`,
+    ]));
   });
 
   test('new full-screen screenshot candidates target 1280x640', () => {
@@ -261,5 +526,17 @@ describe('documentation media policy', () => {
   ])('%s validates media with the repository-owned command', workflowPath => {
     const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
     expect(workflow).toContain('npm run validate:media');
+  });
+
+  test.each([
+    '.github/workflows/generate-screenshots.yml',
+    '.github/workflows/visual-check.yml',
+    '.github/workflows/test.yml',
+  ])('%s validates semantic evidence before candidate media policy', workflowPath => {
+    const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
+    const evidenceGate = workflow.indexOf('npm run validate:screenshot-evidence');
+    const candidateGate = workflow.indexOf('npm run validate:media -- --candidate-screenshots');
+    expect(evidenceGate).toBeGreaterThan(-1);
+    expect(candidateGate).toBeGreaterThan(evidenceGate);
   });
 });

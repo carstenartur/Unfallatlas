@@ -90,7 +90,6 @@ jobs:
 
       - name: Validate generated site
         run: |
-          npm run validate:vendor-provenance -- --require-complete
           node scripts/validate-static-data.js \
             --dir _site/out \
             --gzip-only \
@@ -108,6 +107,9 @@ jobs:
             out/qa/pages-documentation-media.json
             _site/build-manifest.json
           if-no-files-found: error
+
+      - name: Require complete vendor provenance before deployment
+        run: npm run validate:vendor-provenance -- --require-complete
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

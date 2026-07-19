@@ -16,6 +16,7 @@ const path = require('path');
 
 const { main: buildStaticData } = require('./build-static-data');
 const { validateStaticData } = require('./validate-static-data');
+const { buildDiagnosticProvenance } = require('./vendor-provenance');
 
 const STATIC_ENTRIES = Object.freeze([
   '.zenodo.json',
@@ -335,7 +336,12 @@ function normaliseRepository(repository) {
   return null;
 }
 
-function copyVendorLicenses(repoRoot, outputRoot, lockedVersions = resolveLockedVersions(repoRoot)) {
+function copyVendorLicenses(
+  repoRoot,
+  outputRoot,
+  lockedVersions = resolveLockedVersions(repoRoot),
+  copiedAssets = null
+) {
   const packageNames = Object.keys(lockedVersions).sort();
   const configuredNames = Object.keys(VENDOR_LICENSES).sort();
   if (JSON.stringify(packageNames) !== JSON.stringify(configuredNames)) {
@@ -390,22 +396,36 @@ function copyVendorLicenses(repoRoot, outputRoot, lockedVersions = resolveLocked
     };
   });
 
+  const materializedAssets = copiedAssets || VENDOR_ASSETS.map(([packageName, packagePath, outputPath]) => {
+    const source = path.join(repoRoot, 'node_modules', packageName, packagePath);
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
+      throw new Error(`[build-site] Missing ${packageName} browser asset: ${source}. Run npm ci first.`);
+    }
+    return {
+      package: packageName,
+      path: outputPath,
+      bytes: fs.statSync(source).size,
+      sha256: sha256File(source),
+    };
+  });
+  const diagnostic = buildDiagnosticProvenance(repoRoot, outputRoot, materializedAssets);
   const noticePath = 'vendor/third-party-notices.json';
   const destination = path.join(outputRoot, noticePath);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   const notice = {
     schemaVersion: 2,
     source: 'package-lock.json and npm packages installed by npm ci',
-    inventoryScope: 'direct-npm-packages-only',
+    inventoryScope: 'delivered-assets-with-explicit-component-gaps',
     complete: false,
     trackingIssue: 'https://github.com/carstenartur/Unfallatlas/issues/406',
-    knownGaps: [
-      'opaque docx and pdfmake browser bundles contain components not reproducible from this project lock',
-      'pdfmake-fonts contains four Roboto font binaries requiring font-level OFL provenance',
-      'leaflet-image and leaflet.heat contain bundled transitive components',
-      'leaflet-draw and leaflet-image npm archives do not contain the required top-level license text',
-    ],
+    knownGaps: diagnostic.knownGaps,
     dependencies,
+    components: diagnostic.components,
+    assetAssessments: diagnostic.assets,
+    fontEvidence: diagnostic.fontEvidence,
+    provenancePolicy: diagnostic.policy,
+    vendorBuildLock: null,
+    sbom: diagnostic.sbom,
   };
   fs.writeFileSync(destination, `${JSON.stringify(notice, null, 2)}\n`);
 
@@ -416,6 +436,12 @@ function copyVendorLicenses(repoRoot, outputRoot, lockedVersions = resolveLocked
     inventoryScope: notice.inventoryScope,
     trackingIssue: notice.trackingIssue,
     dependencies,
+    sbom: notice.sbom,
+    provenancePolicy: notice.provenancePolicy,
+    knownGapIds: notice.knownGaps.map(gap => gap.id),
+    componentCount: notice.components.length,
+    assetCount: notice.assetAssessments.length,
+    fontCount: notice.fontEvidence.length,
   };
 }
 
@@ -559,7 +585,7 @@ function buildSite(options = {}) {
     copyEntry(source, path.join(outputRoot, entry));
   }
   const vendorAssets = copyVendorAssets(repoRoot, outputRoot);
-  const thirdPartyNotices = copyVendorLicenses(repoRoot, outputRoot);
+  const thirdPartyNotices = copyVendorLicenses(repoRoot, outputRoot, undefined, vendorAssets);
   if (thirdPartyNotices.complete !== true) {
     process.stderr.write(
       `[build-site] WARNING: vendor provenance is incomplete; Pages/release remain blocked by ` +

@@ -42,13 +42,13 @@ jobs:
       - name: Generate screenshots
         run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium
 
-      - name: Validate dimensions, budgets and references
-        id: validate_media
-        run: npm run validate:media -- --report out/qa/documentation-media.json
-
       - name: Validate one-to-one screenshot evidence
         id: validate_evidence
         run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
+
+      - name: Validate candidate dimensions, budgets and references
+        id: validate_media
+        run: npm run validate:media -- --candidate-screenshots --report out/qa/documentation-media.json
 
       - name: Upload PR screenshots as artifact
         uses: actions/upload-artifact@v7

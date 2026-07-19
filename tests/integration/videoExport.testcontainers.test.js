@@ -8,10 +8,12 @@
 'use strict';
 
 const fs = require('fs');
+const crypto = require('crypto');
 const {
   isDockerAvailable,
   startUnfallatlasContainer,
 } = require('./lib/startUnfallatlasContainer');
+const videoExportContract = require('../../js/ua.video-export-contract.js');
 
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 const GIF_BUDGET_BYTES = 10 * 1024 * 1024;
@@ -24,6 +26,7 @@ const CONTEXT_BODY = Object.freeze({
   ctxSlope: 'steep,very_steep',
   ctxTraffic: 'high,very_high',
   ctxOnlyMatched: '1',
+  mapLayer: 'slope,traffic',
   centerLat: '52.375900',
   centerLon: '9.732000',
   zoom: '13',
@@ -46,7 +49,7 @@ if (SUITE_DESCRIBE === describe.skip) {
 async function postExportVideo(baseUrl, opts = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const body = { ...CONTEXT_BODY };
+  const body = opts.body || { state: videoExportContract.fromLegacyParams(CONTEXT_BODY) };
   if (opts.bodyFormat !== undefined) body.format = opts.bodyFormat;
   const url = new URL(`${baseUrl}/api/export-video`);
   if (opts.queryFormat !== undefined) url.searchParams.set('format', opts.queryFormat);
@@ -60,6 +63,7 @@ async function postExportVideo(baseUrl, opts = {}) {
     return {
       status: response.status,
       contentType: response.headers.get('content-type') || '',
+      headers: Object.fromEntries(response.headers.entries()),
       body: Buffer.from(await response.arrayBuffer()),
     };
   } finally {
@@ -352,11 +356,33 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     { request: { bodyFormat: 'apng' }, label: 'body:apng', expectedContentType: /^image\/apng/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES },
     { request: { queryFormat: 'webp' }, label: 'query:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
   ])('returns valid $expectedExt export ($label)', async ({ request, expectedContentType, expectedExt, budget }) => {
-    const { status, contentType, body } = await postExportVideo(handle.baseUrl, request);
+    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);
     expect(status).toBe(200);
     expect(contentType).toMatch(expectedContentType);
     expect(body.length).toBeGreaterThanOrEqual(50 * 1024);
     expect(body.length).toBeLessThanOrEqual(budget);
+    expect(headers['x-unfallatlas-artifact-sha256']).toBe(
+      crypto.createHash('sha256').update(body).digest('hex')
+    );
+    expect(headers['x-unfallatlas-video-state-sha256']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['x-unfallatlas-build-fingerprint']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['x-unfallatlas-data-fingerprint']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['x-unfallatlas-evidence-sha256']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['content-digest']).toMatch(/^sha-256=:[A-Za-z0-9+/]+=*:\s*$/);
+    expect(headers.digest).toMatch(/^SHA-256=[A-Za-z0-9+/]+=*$/);
+    for (const name of [
+      'x-unfallatlas-loaded-accidents',
+      'x-unfallatlas-filtered-accidents',
+      'x-unfallatlas-viewport-accidents',
+      'x-unfallatlas-preview-accidents',
+      'x-unfallatlas-encoded-frames',
+      'x-unfallatlas-encoded-accident-pixels',
+      'x-unfallatlas-encoded-slope-pixels',
+      'x-unfallatlas-encoded-traffic-pixels',
+    ]) {
+      expect(Number(headers[name])).toBeGreaterThan(0);
+    }
+    expect(headers['x-unfallatlas-pdf-completed']).toBe('true');
 
     if (expectedExt === 'gif') {
       expect(['GIF87a', 'GIF89a']).toContain(body.slice(0, 6).toString('ascii'));
@@ -380,6 +406,22 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     expect(json).toEqual(expect.objectContaining({ error: 'unsupported_format' }));
     expect(json.supportedFormats).toEqual(['gif', 'webp', 'apng']);
   }, 60 * 1000);
+
+  it('rejects a partial canonical viewport with stable 400 before browser work', async () => {
+    const state = videoExportContract.fromLegacyParams(CONTEXT_BODY);
+    state.viewport = { center: { lat: 52.3759 }, zoom: 13 };
+    const startedAt = Date.now();
+    const { status, body } = await postExportVideo(handle.baseUrl, { body: { state } });
+    const elapsedMs = Date.now() - startedAt;
+    const json = JSON.parse(body.toString('utf8'));
+    expect(status).toBe(400);
+    expect(json).toEqual(expect.objectContaining({
+      error: 'incomplete_view',
+      category: 'invalid_request',
+      path: 'state.viewport',
+    }));
+    expect(elapsedMs).toBeLessThan(5000);
+  }, 30 * 1000);
 
   it('renders slope and traffic context visibly in the production container', async () => {
     const requireShipped = process.env.CONTEXT_E2E_REQUIRE_SHIPPED === '1';

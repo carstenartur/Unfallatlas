@@ -25,7 +25,10 @@ Der Build:
   Vendor-Datei-Hashes, Datenmanifest-Hash, Stadt-/Feature-Metadaten, tatsächlich
   ausgeführter Node-/npm-/zlib-Version und der Netzwerk-Policy. Die deklarierte
   `packageManager`-Version wird getrennt von der tatsächlich laufenden
-  npm-Version ausgewiesen.
+  npm-Version ausgewiesen;
+- schreibt ein CycloneDX-1.6-Diagnoseinventar, assetgenaue `contains`-Kanten,
+  entschlüsselte Roboto-TTF-Hashes samt Name-Tabellen und die geprüfte
+  Restlücken-Policy nach `_site/vendor/`.
 
 GitHub Pages, Playwright-E2E, Dokumentations-Screenshots und der isolierte
 Kontextdaten-E2E verwenden denselben Build. GitHub Actions enthält damit nur
@@ -37,6 +40,17 @@ rufen zusätzlich `validate:vendor-provenance -- --require-complete` auf und
 brechen derzeit bewusst ab. [Issue #406](https://github.com/carstenartur/Unfallatlas/issues/406)
 verlangt einen reproduzierbaren Eigenbuild der opaken Exportbundles samt
 Komponenten-SBOM, vollständigen Lizenztexten und Fontprovenienz.
+`validate:vendor-provenance` bindet Notice, Policy und SBOM kryptographisch
+aneinander. `complete: true` allein kann die Veröffentlichung nicht freigeben:
+fehlende Build-Locks, Komponenten, Lizenz-/Copyrighttexte, Fontattestierungen
+oder SBOM-Kanten werden unabhängig davon abgelehnt.
+Ein vollständiger Build-Lock benötigt außerdem für jedes ausgelieferte Asset
+zwei DSSE-signierte in-toto/SLSA-Provenienzen unterschiedlicher, in der
+separaten Policy gepinnter Ed25519-Builder. Die Signaturen binden Output-Hash,
+Lock-ID, direkten `argv`-Befehl, sämtliche Input-Hashes und die konkrete
+Toolchain. Die aktuelle Policy enthält bewusst keine vertrauenswürdigen
+Builder; selbstdeklarierte oder im Lock eingeschleuste Schlüssel können das
+Gate daher nicht öffnen.
 
 ## Netzwerk- und Offline-Verhalten
 
@@ -54,8 +68,10 @@ nicht unterstützt.
 ## Dokumentationsmedien
 
 `npm run validate:media` prüft `docs/media-manifest.json`: Existenz,
-Soll-Abmessungen, Dateibudgets, begründete Bestandsausnahmen sowie lokale
-Markdown-Referenzen. Neue Vollbild-Screenshots werden mit 1280×640 erzeugt und
-müssen höchstens 1 MiB groß sein. Die Screenshot-Workflows veröffentlichen nur
+Soll-Abmessungen, das ausnahmslose 1-MiB-Budget statischer Medien, das
+15-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
+sowie lokale Markdown-Referenzen. Neue Vollbild-Screenshots werden mit
+1280×640 erzeugt und müssen höchstens 1 MiB groß sein. Die
+Screenshot-Workflows veröffentlichen nur
 Review-Artefakte samt JSON-Größenbericht; eine Übernahme erfolgt über einen
 normalen Pull Request.

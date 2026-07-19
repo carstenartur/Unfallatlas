@@ -4,14 +4,30 @@ Dieses Verzeichnis enthält die in `README.md` und `docs/DOKUMENTATION.md`
 referenzierten PNG-Screenshots der Unfallwerkbank V2.
 
 Der maschinenlesbare Vertrag liegt in [`../media-manifest.json`](../media-manifest.json).
-`npm run validate:media` prüft Soll-Abmessungen, 1-MiB-Standardbudget,
-begründete Bestandsausnahmen und alle lokalen Markdown-Referenzen. Neue
+`npm run validate:media` prüft Soll-Abmessungen, das ausnahmslose
+1-MiB-Standardbudget für statische Medien, das 15-MiB-Gesamtbudget und alle
+lokalen Markdown-Referenzen. Neue
 Vollbild-Kandidaten werden mit 1280×640 erzeugt; Workflows veröffentlichen sie
 zusammen mit ihrem Evidence-Sidecar, Evidence-Gesamtbericht und dem exakten
 Buildmanifest ausschließlich als Review-Artefakt. `npm run
 validate:screenshot-evidence` verlangt dabei eine 1:1-Zuordnung und verifiziert
 Bild-SHA-256, Buildmanifest-SHA-256 sowie Build-, Anwendungs- und
 Datenfingerprint erneut vor dem Upload.
+
+Für neu erzeugte, noch nicht übernommene Bilder rufen diese Workflows erst
+`validate:screenshot-evidence` und danach `validate:media
+-- --candidate-screenshots` auf. Dieser explizite Kandidatenmodus überspringt
+nur die Bindung an die bereits akzeptierte Evidence; Maße, Formate, Budgets,
+Referenzen und die vorgelagerte aktuelle Lifecycle-Evidence bleiben zwingend.
+Der normale `validate:media`-Lauf bindet dagegen stets die eingecheckten Bilder
+an die dauerhaft archivierte Evidence.
+
+Die am 19. Juli 2026 übernommenen, semantisch belegten Kandidaten und ihre
+Vorher-/Nachher-Größen sind im
+[`Medien-QA-Bericht`](../media-qa-2026-07-19.md) dokumentiert. Statische
+Legacy-Ausnahmen sind seit dieser Übernahme nicht mehr zulässig. Die dauerhaft
+gebundene Original-Evidence liegt unter
+[`qa/screenshot-evidence`](../../qa/screenshot-evidence/).
 
 ## Konvention
 
@@ -39,7 +55,7 @@ Datenfingerprint erneut vor dem Upload.
 | 24 | `24-mapmode-analysis.png` | Kartenmodus `analysis` (Heatmap/Analyse-Overlay auf Orthofoto) |
 | 25 | `25-mapmode-orthophoto-fallback.png` | Orthofoto-Ausfall: erwarteter Fallback auf Standardkarte inkl. Hinweistext |
 
-## Ausgesetzte Slope-Diagnose (QA #400/#404)
+## Ausgesetzte Slope-Diagnose (QA #400)
 
 Die früheren Dateien `slope-berlin*.png` und `slope-bielefeld*.png` waren
 kein belastbarer Nachweis: Die Szenarien warteten ausschließlich auf die
@@ -52,8 +68,7 @@ Die Bilder und ihre Generator-Szenarien sind daher entfernt. Eine spätere
 Reaktivierung muss fail-closed mindestens aktive Controls, eine sichtbare
 Legende, tatsächlich gezeichnete Overlay-Pixel und in der Debug-Variante
 numerische Slope-Tooltips nachweisen. Tracking:
-[QA #400](https://github.com/carstenartur/Unfallatlas/issues/400) und
-[QA #404](https://github.com/carstenartur/Unfallatlas/issues/404).
+[QA #400](https://github.com/carstenartur/Unfallatlas/issues/400).
 
 
 
@@ -74,7 +89,7 @@ Damit hängen die Review-Artefakte nicht von Live-Tiles, Provider-Verfügbarkeit
 Farbbalance oder Kacheländerungen ab. Screenshot `25` verwendet dieselbe lokale
 Fixture-Schicht und dokumentiert den Orthofoto-Fehlerpfad explizit.
 
-## Review-Kandidaten für Kontextdaten-Screenshots (QA #404)
+## Review-Kandidaten für Kontextdaten-Screenshots (QA #408)
 
 Mit der Einführung der Kontextdaten (PR #260, „Kontext (neu)") sind
 drei zusätzliche Screenshots vorgesehen. Sie sind noch nicht Bestandteil
@@ -142,3 +157,6 @@ Markdown-Referenzen. Danach muss `npm run validate:media` erfolgreich sein.
 Analog regeneriert `npm run regen:demo` das in der README eingebettete
 `docs/demo.gif` über denselben Container-Helper
 ([`scripts/regen-readme-demo.js`](../../scripts/regen-readme-demo.js)).
+Der Helper kürzt ausschließlich die Frame-Zeiten auf höchstens 60 Sekunden;
+alle Frames und Bilddaten bleiben erhalten. Der Validator erzwingt zusätzlich
+das explizite 9-MiB-Animationsbudget.

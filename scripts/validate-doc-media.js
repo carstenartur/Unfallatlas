@@ -6,24 +6,29 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const { execFileSync } = require('child_process');
+const { parseGifTimeline } = require('./gif-timeline');
 
 const ROOT = path.resolve(__dirname, '..');
 const MEDIA_EXTENSIONS = new Set(['.png', '.apng', '.gif', '.jpg', '.jpeg', '.webp', '.mp4']);
 const ALLOWED_FORMATS = Object.freeze({
   screenshot: new Set(['png', 'jpeg', 'webp']),
   'document-preview': new Set(['png', 'jpeg', 'webp']),
-  animation: new Set(['gif', 'webp', 'apng']),
+  // APNG and animated WebP remain unsupported until repository-owned
+  // parsers can validate their complete frame timeline and pixel streams.
+  animation: new Set(['gif']),
 });
+const EVIDENCE_KINDS = new Set(['screenshot', 'document-preview']);
 const IGNORED_DIRECTORIES = new Set([
   '.git', '.build', '_site', 'coverage', 'node_modules', 'playwright-report', 'test-results',
 ]);
 const IGNORED_DIRECTORY_PREFIXES = Object.freeze(['_site.tmp-']);
 
 function parseArgs(argv) {
-  const args = { manifest: 'docs/media-manifest.json', report: null };
+  const args = { manifest: 'docs/media-manifest.json', report: null, candidateScreenshots: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--manifest') args.manifest = argv[++i] || args.manifest;
     else if (argv[i] === '--report') args.report = argv[++i] || null;
+    else if (argv[i] === '--candidate-screenshots') args.candidateScreenshots = true;
     else throw new Error(`[validate-doc-media] Unknown argument: ${argv[i]}`);
   }
   return args;
@@ -117,54 +122,16 @@ function inspectPng(buffer, file, extension) {
 }
 
 function inspectGif(buffer, file) {
-  const signature = buffer.subarray(0, 6).toString('ascii');
-  if (!['GIF87a', 'GIF89a'].includes(signature) || buffer.length < 14) throw new Error(`invalid GIF signature: ${file}`);
-  const width = buffer.readUInt16LE(6);
-  const height = buffer.readUInt16LE(8);
-  if (!width || !height) throw new Error(`invalid GIF dimensions: ${file}`);
-  const skipSubBlocks = start => {
-    let offset = start;
-    while (offset < buffer.length) {
-      const size = buffer[offset++];
-      if (size === 0) return offset;
-      if (offset + size > buffer.length) throw new Error(`truncated GIF data block: ${file}`);
-      offset += size;
-    }
-    throw new Error(`unterminated GIF data block: ${file}`);
+  const timeline = parseGifTimeline(buffer, file);
+  return {
+    width: timeline.width,
+    height: timeline.height,
+    format: 'gif',
+    animated: timeline.animated,
+    frames: timeline.frames,
+    durationMs: timeline.durationMs,
+    visualEvidence: timeline.visualEvidence,
   };
-  let offset = 13;
-  const globalColorTable = !!(buffer[10] & 0x80);
-  if (globalColorTable) offset += 3 * (2 ** ((buffer[10] & 0x07) + 1));
-  let frames = 0;
-  let trailer = false;
-  while (offset < buffer.length) {
-    const introducer = buffer[offset];
-    if (introducer === 0x3b) {
-      trailer = true;
-      offset += 1;
-      break;
-    }
-    if (introducer === 0x21) {
-      if (offset + 2 >= buffer.length) throw new Error(`truncated GIF extension: ${file}`);
-      offset = skipSubBlocks(offset + 2);
-      continue;
-    }
-    if (introducer === 0x2c) {
-      if (offset + 10 > buffer.length) throw new Error(`truncated GIF image descriptor: ${file}`);
-      const packed = buffer[offset + 9];
-      offset += 10;
-      if (packed & 0x80) offset += 3 * (2 ** ((packed & 0x07) + 1));
-      if (offset >= buffer.length) throw new Error(`GIF image data is missing: ${file}`);
-      const lzwMinimumCodeSize = buffer[offset++];
-      if (lzwMinimumCodeSize < 2 || lzwMinimumCodeSize > 8) throw new Error(`invalid GIF LZW code size: ${file}`);
-      offset = skipSubBlocks(offset);
-      frames += 1;
-      continue;
-    }
-    throw new Error(`invalid GIF block introducer 0x${introducer.toString(16)}: ${file}`);
-  }
-  if (!trailer || offset !== buffer.length || frames === 0) throw new Error(`incomplete GIF structure: ${file}`);
-  return { width, height, format: 'gif', animated: frames > 1 };
 }
 
 function inspectJpeg(buffer, file) {
@@ -300,6 +267,259 @@ function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+function evidenceEntriesSha256(entries) {
+  const canonical = entries.map(entry => `${entry.path}\t${entry.sha256}\t${entry.bytes}\n`).join('');
+  return crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
+}
+
+function readinessEntries(repoRoot, directory) {
+  const absolute = path.resolve(repoRoot, directory);
+  ensureInsideRoot(repoRoot, absolute, 'screenshot readiness directory');
+  if (!fs.existsSync(absolute) || !fs.statSync(absolute).isDirectory()) return [];
+  return fs.readdirSync(absolute, { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
+    .map(entry => {
+      const file = path.join(absolute, entry.name);
+      return { name: entry.name, path: file, sha256: sha256(file), bytes: fs.statSync(file).size };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function readinessEntriesSha256(entries) {
+  const canonical = entries.map(entry => `${entry.name}\t${entry.sha256}\t${entry.bytes}\n`).join('');
+  return crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
+}
+
+function validateScreenshotEvidenceLedger(repoRoot, manifest, assets) {
+  const errors = [];
+  const configuredPath = manifest && manifest.evidenceLedger;
+  const report = {
+    path: typeof configuredPath === 'string' ? configuredPath : null,
+    sha256: null,
+    artifactId: null,
+    evidenceRevision: null,
+    entriesSha256: null,
+    summarySha256: null,
+    readinessEntriesSha256: null,
+    screenshots: 0,
+  };
+  if (typeof configuredPath !== 'string' || !configuredPath.trim()) {
+    errors.push('manifest.evidenceLedger must name the checked-in screenshot evidence ledger');
+    return { report, errors };
+  }
+
+  const ledgerPath = path.resolve(repoRoot, configuredPath);
+  try { ensureInsideRoot(repoRoot, ledgerPath, 'manifest evidence ledger path'); }
+  catch (error) { errors.push(error.message); return { report, errors }; }
+  if (!fs.existsSync(ledgerPath) || !fs.statSync(ledgerPath).isFile()) {
+    errors.push(`${configuredPath}: screenshot evidence ledger is missing`);
+    return { report, errors };
+  }
+
+  report.sha256 = sha256(ledgerPath);
+  let ledger;
+  try { ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8')); }
+  catch (error) {
+    errors.push(`${configuredPath}: cannot read screenshot evidence ledger: ${error.message}`);
+    return { report, errors };
+  }
+  const source = ledger && ledger.source || {};
+  if (!ledger || ledger.schemaVersion !== 1) errors.push(`${configuredPath}: schemaVersion must equal 1`);
+  if (typeof source.artifactName !== 'string' || !source.artifactName.trim()) {
+    errors.push(`${configuredPath}: source.artifactName is required`);
+  }
+  if (!isPositiveInteger(source.artifactId)) errors.push(`${configuredPath}: source.artifactId must be a positive integer`);
+  if (!/^[a-f0-9]{40}$/i.test(String(source.evidenceRevision || ''))) {
+    errors.push(`${configuredPath}: source.evidenceRevision must be a full Git revision`);
+  }
+  if (source.evidenceStatus !== 'valid') errors.push(`${configuredPath}: source.evidenceStatus must equal valid`);
+  if (!/^[a-f0-9]{64}$/i.test(String(source.artifactZipSha256 || ''))) {
+    errors.push(`${configuredPath}: source.artifactZipSha256 must be a SHA-256 digest`);
+  }
+  report.artifactId = isPositiveInteger(source.artifactId) ? source.artifactId : null;
+  report.evidenceRevision = typeof source.evidenceRevision === 'string' ? source.evidenceRevision : null;
+
+  const ledgerBuild = ledger && ledger.build || {};
+  for (const field of ['manifestSha256', 'fingerprint', 'applicationFingerprint', 'dataFingerprint']) {
+    if (!/^[a-f0-9]{64}$/i.test(String(ledgerBuild[field] || ''))) {
+      errors.push(`${configuredPath}: build.${field} must be a SHA-256 digest`);
+    }
+  }
+  const summaryPolicy = ledger && ledger.summary || {};
+  const summaryPath = path.resolve(repoRoot, String(summaryPolicy.path || ''));
+  let summary = null;
+  try { ensureInsideRoot(repoRoot, summaryPath, `${configuredPath}: summary path`); }
+  catch (error) { errors.push(error.message); }
+  if (!summaryPolicy.path || !fs.existsSync(summaryPath) || !fs.statSync(summaryPath).isFile()) {
+    errors.push(`${configuredPath}: reviewed evidence summary is missing`);
+  } else {
+    report.summarySha256 = sha256(summaryPath);
+    if (!/^[a-f0-9]{64}$/i.test(String(summaryPolicy.sha256 || '')) ||
+        summaryPolicy.sha256.toLowerCase() !== report.summarySha256) {
+      errors.push(`${configuredPath}: summary.sha256 does not match the checked-in artifact summary`);
+    }
+    try { summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8')); }
+    catch (error) { errors.push(`${summaryPolicy.path}: cannot read evidence summary: ${error.message}`); }
+  }
+  if (summary) {
+    if (summary.schemaVersion !== 1 || summary.valid !== true || !Array.isArray(summary.errors) || summary.errors.length) {
+      errors.push(`${summaryPolicy.path}: artifact summary must be schema 1, valid and error-free`);
+    }
+    if (summary.revision !== source.evidenceRevision) errors.push(`${summaryPolicy.path}: revision does not match provenance`);
+    const summaryBuild = summary.build || {};
+    const buildBindings = {
+      sha256: 'manifestSha256',
+      fingerprint: 'fingerprint',
+      applicationFingerprint: 'applicationFingerprint',
+      dataFingerprint: 'dataFingerprint',
+    };
+    for (const [summaryField, ledgerField] of Object.entries(buildBindings)) {
+      if (summaryBuild[summaryField] !== ledgerBuild[ledgerField]) {
+        errors.push(`${summaryPolicy.path}: build.${summaryField} does not match provenance`);
+      }
+    }
+  }
+
+  const entries = Array.isArray(summary && summary.screenshots) ? summary.screenshots : [];
+  if (!Array.isArray(summary && summary.screenshots)) errors.push(`${summaryPolicy.path || configuredPath}: screenshots must be an array`);
+  report.screenshots = entries.length;
+  const expectedPaths = assets
+    .filter(asset => asset && EVIDENCE_KINDS.has(asset.kind) && typeof asset.path === 'string')
+    .map(asset => asset.path)
+    .sort((a, b) => a.localeCompare(b));
+  const seen = new Set();
+  const normalized = [];
+  const readinessPolicy = ledger && ledger.readiness || {};
+  let readinessFiles = [];
+  try { readinessFiles = readinessEntries(repoRoot, String(readinessPolicy.directory || '')); }
+  catch (error) { errors.push(error.message); }
+  const readinessByName = new Map(readinessFiles.map(entry => [entry.name, entry]));
+  report.readinessEntriesSha256 = readinessEntriesSha256(readinessFiles);
+  if (!/^[a-f0-9]{64}$/i.test(String(readinessPolicy.entriesSha256 || '')) ||
+      readinessPolicy.entriesSha256.toLowerCase() !== report.readinessEntriesSha256) {
+    errors.push(`${configuredPath}: readiness.entriesSha256 does not match the checked-in sidecars`);
+  }
+  const readinessBytes = readinessFiles.reduce((sum, entry) => sum + entry.bytes, 0);
+  if (readinessPolicy.files !== readinessFiles.length || readinessPolicy.bytes !== readinessBytes) {
+    errors.push(`${configuredPath}: readiness file count/bytes do not match the checked-in sidecars`);
+  }
+  for (const entry of entries) {
+    const entryPath = entry && entry.path;
+    if (typeof entryPath !== 'string' || !entryPath || seen.has(entryPath)) {
+      errors.push(`${configuredPath}: missing or duplicate screenshot path ${entryPath || '(empty)'}`);
+      continue;
+    }
+    seen.add(entryPath);
+    const digest = String(entry.sha256 || '');
+    const bytes = entry.bytes;
+    if (!/^[a-f0-9]{64}$/i.test(digest)) errors.push(`${configuredPath}: ${entryPath} has an invalid sha256`);
+    if (!isPositiveInteger(bytes)) errors.push(`${configuredPath}: ${entryPath} has invalid bytes`);
+    normalized.push({ path: entryPath, sha256: digest, bytes });
+
+    if (!expectedPaths.includes(entryPath)) {
+      errors.push(`${configuredPath}: unexpected screenshot ${entryPath}`);
+      continue;
+    }
+    const absolute = path.resolve(repoRoot, entryPath);
+    try { ensureInsideRoot(repoRoot, absolute, `${configuredPath}: screenshot ${entryPath}`); }
+    catch (error) { errors.push(error.message); continue; }
+    if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) continue;
+    const actualBytes = fs.statSync(absolute).size;
+    const actualSha256 = sha256(absolute);
+    if (isPositiveInteger(bytes) && actualBytes !== bytes) {
+      errors.push(`${entryPath}: ${actualBytes} bytes do not match reviewed evidence ${bytes}`);
+    }
+    if (/^[a-f0-9]{64}$/i.test(digest) && actualSha256 !== digest.toLowerCase()) {
+      errors.push(`${entryPath}: sha256 does not match reviewed evidence`);
+    }
+
+    if (entry.status !== 'valid' || !Array.isArray(entry.errors) || entry.errors.length) {
+      errors.push(`${summaryPolicy.path}: ${entryPath} is not recorded as valid and error-free`);
+    }
+    const sidecarName = path.basename(String(entry.evidence || ''));
+    if (entry.evidence !== `out/qa/screenshot-readiness/${sidecarName}` || !sidecarName.endsWith('.json')) {
+      errors.push(`${summaryPolicy.path}: ${entryPath} has an invalid artifact sidecar reference`);
+      continue;
+    }
+    const sidecarFile = readinessByName.get(sidecarName);
+    if (!sidecarFile) {
+      errors.push(`${configuredPath}: reviewed readiness sidecar is missing: ${sidecarName}`);
+      continue;
+    }
+    let sidecar;
+    try { sidecar = JSON.parse(fs.readFileSync(sidecarFile.path, 'utf8')); }
+    catch (error) { errors.push(`${sidecarFile.path}: cannot read readiness sidecar: ${error.message}`); continue; }
+    const shot = sidecar && sidecar.screenshot || {};
+    if (sidecar.schemaVersion !== 1 || sidecar.revision !== source.evidenceRevision ||
+        shot.path !== entryPath || shot.bytes !== bytes || shot.sha256 !== digest) {
+      errors.push(`${sidecarName}: sidecar is not bound to its summary screenshot/revision`);
+    }
+    const sidecarBuild = sidecar && sidecar.build || {};
+    if (sidecarBuild.sha256 !== ledgerBuild.manifestSha256 ||
+        sidecarBuild.fingerprint !== ledgerBuild.fingerprint ||
+        sidecarBuild.applicationFingerprint !== ledgerBuild.applicationFingerprint ||
+        sidecarBuild.dataFingerprint !== ledgerBuild.dataFingerprint) {
+      errors.push(`${sidecarName}: sidecar build fingerprints do not match provenance`);
+    }
+    const lifecycle = sidecar && sidecar.lifecycle || {};
+    const counts = lifecycle.counts || {};
+    const criteria = sidecar && sidecar.criteria || {};
+    const renderLayers = lifecycle.render && lifecycle.render.layers || {};
+    if (lifecycle.status !== 'ready' || lifecycle.error != null ||
+        typeof criteria.city !== 'string' || criteria.city !== lifecycle.city || criteria.requireCompleteCoverage !== true ||
+        !isPositiveInteger(counts.loaded) || !isPositiveInteger(counts.filtered) || !isPositiveInteger(counts.viewport) ||
+        counts.filtered > counts.loaded || counts.viewport > counts.filtered ||
+        !lifecycle.coverage || lifecycle.coverage.complete !== true ||
+        lifecycle.coverage.loadedFeatureCount !== counts.loaded || lifecycle.coverage.city !== lifecycle.city ||
+        !lifecycle.render || lifecycle.render.submitted !== true ||
+        !isPositiveInteger(lifecycle.render.revision) || lifecycle.render.completedRevision !== lifecycle.render.revision) {
+      errors.push(`${sidecarName}: lifecycle is not ready, non-empty, complete and error-free`);
+    }
+    if (!Array.isArray(criteria.layers) || !criteria.layers.length || criteria.layers.some(layer => {
+      const state = renderLayers[layer];
+      return !state || state.requested !== true || state.complete !== true ||
+        !isPositiveInteger(state.expected) || !isPositiveInteger(state.processed) || !isPositiveInteger(state.visible) ||
+        state.processed > state.expected || state.visible > state.processed;
+    })) {
+      errors.push(`${sidecarName}: required rendered layers lack positive complete evidence`);
+    }
+    if (Object.values(renderLayers).some(state => state && state.requested === true && (
+      state.complete !== true || !Number.isInteger(state.expected) || state.expected < 0 ||
+      !Number.isInteger(state.processed) || state.processed < 0 ||
+      !Number.isInteger(state.visible) || state.visible < 0
+    ))) {
+      errors.push(`${sidecarName}: a requested render layer is incomplete or has invalid counts`);
+    }
+    if (renderLayers.heatmap && renderLayers.heatmap.requested === true && renderLayers.heatmap.painted !== true) {
+      errors.push(`${sidecarName}: requested heatmap has no painted-pixel evidence`);
+    }
+  }
+  for (const expectedPath of expectedPaths) {
+    if (!seen.has(expectedPath)) errors.push(`${configuredPath}: reviewed screenshot is missing: ${expectedPath}`);
+  }
+  if (normalized.map(entry => entry.path).join('\n') !== expectedPaths.join('\n')) {
+    errors.push(`${configuredPath}: screenshots must exactly match manifest static media in sorted path order`);
+  }
+  const calculatedEntriesSha256 = evidenceEntriesSha256(normalized);
+  report.entriesSha256 = calculatedEntriesSha256;
+  if (!/^[a-f0-9]{64}$/i.test(String(summaryPolicy.entriesSha256 || '')) ||
+      String(summaryPolicy.entriesSha256).toLowerCase() !== calculatedEntriesSha256) {
+    errors.push(`${configuredPath}: entriesSha256 does not match the canonical path/hash/bytes summary`);
+  }
+  if (summary && (summary.totals && summary.totals.screenshots !== entries.length ||
+      summary.totals && summary.totals.evidence !== entries.length)) {
+    errors.push(`${summaryPolicy.path}: totals do not match the complete screenshot set`);
+  }
+  if (source.evidenceCount !== entries.length || source.evidenceCount !== expectedPaths.length) {
+    errors.push(`${configuredPath}: source.evidenceCount must match the complete screenshot set`);
+  }
+  const expectedSidecars = new Set(entries.map(entry => path.basename(String(entry.evidence || ''))));
+  for (const readinessFile of readinessFiles) {
+    if (!expectedSidecars.has(readinessFile.name)) errors.push(`${configuredPath}: orphan readiness sidecar ${readinessFile.name}`);
+  }
+  return { report, errors };
+}
+
 function resolveRevision(repoRoot) {
   if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA;
   try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
@@ -321,6 +541,7 @@ function failureReport(repoRoot, manifestPath, error, options = {}) {
       path: path.relative(repoRoot, manifestPath).replace(/\\/g, '/'),
       sha256: manifestSha256,
     },
+    evidence: null,
     build: null,
     assets: [],
     totals: { assets: 0, bytes: 0, budget: null },
@@ -347,7 +568,6 @@ function validate(options = {}) {
   }
   const defaultMaxBytes = Number(manifest.defaults && manifest.defaults.maxBytes);
   const maxTotalBytes = Number(manifest.defaults && manifest.defaults.maxTotalBytes);
-  const exceptionPolicy = manifest.defaults && manifest.defaults.exceptionPolicy;
   const rows = [];
   const entries = new Map();
 
@@ -375,8 +595,18 @@ function validate(options = {}) {
       violations.push(`${asset.path}: target width and height must be positive integers`);
     }
     if (asset.maxBytes !== undefined && !isPositiveInteger(asset.maxBytes)) violations.push(`${asset.path}: maxBytes must be a positive integer`);
-    if (asset.acceptedLegacy !== undefined && (!Array.isArray(asset.acceptedLegacy) || asset.acceptedLegacy.some(size => !size || !isPositiveInteger(size.width) || !isPositiveInteger(size.height)))) {
-      violations.push(`${asset.path}: acceptedLegacy must contain positive integer dimensions`);
+    if (asset.acceptedLegacy !== undefined) violations.push(`${asset.path}: acceptedLegacy is no longer permitted`);
+    if (asset.kind === 'animation') {
+      if (!isPositiveInteger(asset.maxBytes)) violations.push(`${asset.path}: animation requires an explicit positive maxBytes`);
+      if (!isPositiveInteger(asset.maxDurationMs)) violations.push(`${asset.path}: animation requires an explicit positive maxDurationMs`);
+      if (typeof asset.exception !== 'string' || asset.exception.trim().length < 20) {
+        violations.push(`${asset.path}: animation requires a substantive exception rationale`);
+      }
+    } else if (asset.exception !== undefined) {
+      violations.push(`${asset.path}: static media may not declare policy exceptions`);
+    }
+    if (asset.maxDurationMs !== undefined && (!isPositiveInteger(asset.maxDurationMs) || asset.kind !== 'animation')) {
+      violations.push(`${asset.path}: maxDurationMs must be a positive integer and is only valid for animations`);
     }
 
     const absolute = path.resolve(repoRoot, asset.path);
@@ -406,7 +636,6 @@ function validate(options = {}) {
 
     let inspected = null;
     let targetMatch = false;
-    let legacyMatch = false;
     let bytes = null;
     if (assetPathSafe && fs.existsSync(absolute) && fs.statSync(absolute).isFile()) {
       try {
@@ -417,28 +646,29 @@ function validate(options = {}) {
         if (asset.kind === 'animation' && inspected.animated !== true) {
           violations.push(`${asset.path}: animation asset contains fewer than two frames`);
         }
+        if (asset.kind === 'animation' && (!inspected.visualEvidence || inspected.visualEvidence.valid !== true)) {
+          violations.push(`${asset.path}: animation lacks validated composited-frame visual evidence`);
+        }
         targetMatch = sameDimensions(inspected, asset.target);
-        legacyMatch = (Array.isArray(asset.acceptedLegacy) ? asset.acceptedLegacy : []).some(expected => sameDimensions(inspected, expected));
-        if (!targetMatch && !legacyMatch) {
-          violations.push(`${asset.path}: ${inspected.width}x${inspected.height} does not match target ${asset.target && asset.target.width}x${asset.target && asset.target.height} or an accepted legacy size`);
+        if (!targetMatch) {
+          violations.push(`${asset.path}: ${inspected.width}x${inspected.height} does not match target ${asset.target && asset.target.width}x${asset.target && asset.target.height}`);
+        }
+        if (asset.kind === 'animation' && isPositiveInteger(asset.maxDurationMs) &&
+            (!Number.isFinite(inspected.durationMs) || inspected.durationMs > asset.maxDurationMs)) {
+          violations.push(`${asset.path}: ${inspected.durationMs ?? 'unknown'} ms exceeds duration budget ${asset.maxDurationMs} ms`);
         }
       } catch (error) { violations.push(error.message); }
       bytes = fs.statSync(absolute).size;
     }
 
     const requestedBudget = asset.maxBytes === undefined ? defaultMaxBytes : Number(asset.maxBytes);
-    const budget = asset.kind === 'screenshot' && targetMatch ? defaultMaxBytes : requestedBudget;
+    const budget = asset.kind === 'screenshot' ? defaultMaxBytes : requestedBudget;
     if (!isPositiveInteger(budget)) violations.push(`${asset.path}: effective budget must be a positive integer`);
     else if (bytes !== null && bytes > budget) violations.push(`${asset.path}: ${bytes} bytes exceeds budget ${budget}`);
-    const needsException = legacyMatch || (isPositiveInteger(requestedBudget) && requestedBudget > defaultMaxBytes);
-    if (needsException) {
-      if (typeof asset.exception !== 'string' || asset.exception.trim().length < 20) violations.push(`${asset.path}: legacy or above-default policy requires a substantive exception rationale`);
-      const expiresOn = exceptionPolicy && exceptionPolicy.expiresOn;
-      const expiry = typeof expiresOn === 'string' ? Date.parse(`${expiresOn}T23:59:59Z`) : NaN;
-      if (!exceptionPolicy || !Number.isInteger(exceptionPolicy.trackingIssue) || !Number.isFinite(expiry) || expiry < Date.now()) {
-        violations.push(`${asset.path}: exception policy requires a tracking issue and a non-expired expiresOn date`);
-      }
+    if (asset.kind !== 'animation' && isPositiveInteger(requestedBudget) && requestedBudget > defaultMaxBytes) {
+      violations.push(`${asset.path}: static media may not override the ${defaultMaxBytes}-byte standard budget`);
     }
+    const needsException = asset.kind === 'animation';
 
     Object.assign(row, {
       bytes,
@@ -447,12 +677,37 @@ function validate(options = {}) {
       dimensions: inspected ? { width: inspected.width, height: inspected.height } : null,
       format: inspected && inspected.format,
       animated: inspected && inspected.animated,
+      frames: inspected && inspected.frames,
+      durationMs: inspected && inspected.durationMs,
+      visualEvidence: inspected && inspected.visualEvidence ? {
+        valid: inspected.visualEvidence.valid,
+        paintedCanvasRatio: inspected.visualEvidence.paintedCanvasRatio,
+        uniqueCompositedFrames: inspected.visualEvidence.uniqueCompositedFrames,
+        changedFrames: inspected.visualEvidence.changedFrames,
+        maxChangedPixels: inspected.visualEvidence.maxChangedPixels,
+        requiredChangedPixels: inspected.visualEvidence.requiredChangedPixels,
+      } : null,
       target: asset.target || null,
-      status: violations.length ? 'error' : (needsException ? 'legacy-exception' : 'valid'),
+      status: violations.length ? 'error' : (needsException ? 'policy-exception' : 'valid'),
     });
     errors.push(...violations);
     rows.push(row);
   }
+
+  const evidenceResult = options.candidateScreenshots
+    ? {
+        report: {
+          mode: 'candidate-screenshots',
+          note: 'accepted screenshot ledger binding is deferred to reviewed promotion',
+        },
+        errors: [],
+      }
+    : validateScreenshotEvidenceLedger(
+        repoRoot,
+        manifest,
+        Array.isArray(manifest.assets) ? manifest.assets : []
+      );
+  errors.push(...evidenceResult.errors);
 
   const committedMedia = listFiles(path.join(repoRoot, 'docs'), file => MEDIA_EXTENSIONS.has(path.extname(file).toLowerCase()), { ignoreDirectories: new Set() })
     .map(file => path.relative(repoRoot, file).replace(/\\/g, '/'));
@@ -494,6 +749,7 @@ function validate(options = {}) {
     valid: errors.length === 0,
     revision: resolveRevision(repoRoot),
     manifest: { path: path.relative(repoRoot, manifestPath).replace(/\\/g, '/'), sha256: sha256(manifestPath) },
+    evidence: evidenceResult.report,
     build,
     assets: rows,
     totals: { assets: rows.length, bytes: totalBytes, budget: isPositiveInteger(maxTotalBytes) ? maxTotalBytes : null },
@@ -505,7 +761,7 @@ function main(argv) {
   const args = parseArgs(argv);
   const report = validate(args);
   for (const row of report.assets) {
-    const prefix = row.status === 'valid' ? 'OK' : (row.status === 'legacy-exception' ? 'EXCEPTION' : 'ERROR');
+    const prefix = row.status === 'valid' ? 'OK' : (row.status === 'policy-exception' ? 'EXCEPTION' : 'ERROR');
     const dimensionsText = row.dimensions ? `${row.dimensions.width}x${row.dimensions.height}` : 'unknown';
     process.stdout.write(`${prefix}\t${row.path}\t${dimensionsText}\t${row.bytes ?? '? '}/${row.budget ?? '?'} bytes\n`);
   }
@@ -540,4 +796,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { dimensions, inspectMedia, markdownMediaReferences, parseArgs, validate };
+module.exports = { ALLOWED_FORMATS, dimensions, inspectMedia, markdownMediaReferences, parseArgs, validate };

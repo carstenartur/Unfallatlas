@@ -64,7 +64,8 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
 > Regeneration: `npm run regen:demo` ersetzt ausschließlich das kanonische
-> `demo.gif`, nachdem Format, Zielmaß und 10-MiB-Budget geprüft wurden. Bei
+> `demo.gif`, nachdem Format, Zielmaß, 60-Sekunden-Dauergrenze und
+> 9-MiB-Budget geprüft wurden. Bei
 > einer Überschreitung bricht der Lauf ohne stillen Formatwechsel ab.
 
 > Kontextmedien 17–19 sind noch keine kanonischen Doku-Assets. Das zugehörige
@@ -933,7 +934,28 @@ API-Beispiel (WebP):
 ```bash
 curl -X POST "http://localhost:8000/api/export-video?format=webp" \
   -H "Content-Type: application/json" \
-  -d '{"city":"Hannover","centerLat":"52.375900","centerLon":"9.732000","zoom":"13"}' \
+  -d '{
+    "state": {
+      "schemaVersion": 1,
+      "city": "Hannover",
+      "filters": {
+        "severity": "all", "involvementMode": "or", "hourFrom": 0, "hourTo": 23,
+        "dayType": "all", "roadCondition": "all", "maxPoints": 100000,
+        "viewportPaddingPct": 20, "heatRadius": 25,
+        "involvement": {
+          "cyclist": true, "pedestrian": true, "car": true,
+          "motorcycle": false, "gkfz": false, "sonstig": false
+        }
+      },
+      "context": { "slopeClasses": [], "trafficClasses": [], "onlyMatchedWays": false },
+      "layers": {
+        "cluster": true, "heatmap": false, "onlyAboveAverage": false,
+        "slope": false, "traffic": false
+      },
+      "viewport": { "center": { "lat": 52.3759, "lon": 9.732 }, "zoom": 13 },
+      "selection": null
+    }
+  }' \
   --output unfallatlas-analyse.webp
 ```
 
@@ -941,6 +963,12 @@ curl -X POST "http://localhost:8000/api/export-video?format=webp" \
 Sobald einer dieser Werte angegeben ist, müssen alle drei vorhanden und gültig
 sein; unvollständige Ansichten werden abgewiesen, statt stillschweigend einen
 anderen Kartenausschnitt zu exportieren.
+
+Das vollständige, streng validierte State-v1-Schema, stabile `400`-Fehlercodes
+und die Integritäts-/Evidenz-Header beschreibt die
+[Server-API-Dokumentation](server-features.md#6-post-apiexport-video-docker-distribution).
+Flache URL-Parameter im JSON-Body werden nur noch als Legacy-Kompatibilität
+akzeptiert.
 
 ### README-Demo-GIF regenerieren
 
@@ -959,7 +987,7 @@ npm run regen:demo
 Damit teilen sich Test und README-Demo eine gemeinsame Quelle
 (*single source of truth*). Das vorhandene Asset wird erst ersetzt, wenn das
 neue GIF animiert ist, dem Manifest-Zielmaß entspricht und innerhalb des
-10-MiB-Budgets liegt. Für einen Formatwechsel ist eine gesonderte Änderung an
+9-MiB- und 60-Sekunden-Budgets liegt. Für einen Formatwechsel ist eine gesonderte Änderung an
 Manifest und Doku-Referenzen erforderlich.
 
 ### Technische Details
