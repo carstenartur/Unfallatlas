@@ -44,7 +44,7 @@ function listFiles(dir, predicate) {
   };
 
   walk(dir);
-  return out;
+  return out.sort();
 }
 
 function cityFromFile(fileName, prefix, suffix) {
@@ -116,9 +116,12 @@ function main(argv) {
 
   const processed = new Set();
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     dataMode: 'gzip-only',
-    generatedAt: new Date().toISOString(),
+    // Keep repeated builds byte-for-byte stable. Source datasets carry their
+    // own acquisition/enrichment timestamps; this deployment manifest records
+    // composition and fingerprints rather than wall-clock build time.
+    generatedAt: null,
     cities: {},
   };
 

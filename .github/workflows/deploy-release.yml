@@ -229,43 +229,45 @@ jobs:
             analysis-service/target/failsafe-reports/
           if-no-files-found: ignore
 
+      - name: Install locked Node dependencies
+        run: npm ci
+
       - name: Run Node tests
         if: ${{ !inputs.skip_tests }}
-        run: |
-          npm ci
-          npm test
+        run: npm test
+
+      - name: Build canonical website artifact
+        run: npm run build:site
+
+      - name: Validate release documentation media
+        run: npm run validate:media -- --report out/qa/release-documentation-media.json
+
+      - name: Upload release media QA evidence
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/release-documentation-media.json') != '' }}
+        with:
+          name: release-documentation-media-report
+          path: |
+            out/qa/release-documentation-media.json
+            _site/build-manifest.json
+          if-no-files-found: error
+
+      - name: Require complete vendor provenance before publication
+        run: npm run validate:vendor-provenance -- --require-complete
 
       - name: Create website bundle ZIP
         run: |
           set -euo pipefail
           VERSION='${{ steps.versions.outputs.release }}'
           ZIP_NAME="unfallatlas-website-${VERSION}.zip"
+          rm -f -- "$ZIP_NAME"
 
-          FILES=(
-            index.html
-            combi.html
-            showcase.html
-            werkbank.html
-            werkbank_v2.html
-            unfallwerkbank.html
-            usage.md
-            README.md
-            CITATION.cff
-            .zenodo.json
-            codemeta.json
+          (
+            cd _site
+            export TZ=UTC
+            find . -type f -exec touch -t 198001010000 {} +
+            find . -type f -print | LC_ALL=C sort | zip -X "../$ZIP_NAME" -@
           )
-
-          DIRS=(css js tours templates docs)
-
-          ZIP_ARGS=()
-          for f in "${FILES[@]}"; do
-            [[ -f "$f" ]] && ZIP_ARGS+=("$f")
-          done
-          for d in "${DIRS[@]}"; do
-            [[ -d "$d" ]] && ZIP_ARGS+=("$d")
-          done
-
-          zip -r "$ZIP_NAME" "${ZIP_ARGS[@]}"
           echo "Created website bundle: $ZIP_NAME ($(du -sh "$ZIP_NAME" | cut -f1))"
 
       - name: Push release commit to remote
