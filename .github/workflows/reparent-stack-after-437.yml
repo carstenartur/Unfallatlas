@@ -1,0 +1,31 @@
+name: One-shot reparent stack after PR 437
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  reparent:
+    if: startsWith(github.head_ref, 'automation/reparent-stack-after-437-trigger')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Load and execute reviewed reparenting script
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin automation/reparent-stack-after-437
+          git show origin/automation/reparent-stack-after-437:scripts/reparent-stack-after-437.sh > /tmp/reparent-stack-after-437.sh
+          bash -n /tmp/reparent-stack-after-437.sh
+          bash /tmp/reparent-stack-after-437.sh
