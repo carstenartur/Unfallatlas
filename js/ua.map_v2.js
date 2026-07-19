@@ -1198,43 +1198,76 @@
   // Internal: rebuild every active overlay LayerGroup in place. Used by
   // the `moveend` handler so the slope/traffic ramps stay in sync with
   // the v3 tile data that arrives lazily as the user pans.
+  async function _runActiveOverlayRebuildPass(ctx, reg) {
+    const tileDiag = await _ensureViewportTilesLoaded(ctx, { skipOverlayRebuild: true });
+    if (!UA.contextRoadLayer) return tileDiag;
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      if (!reg.active[kind]) continue;
+      const prevLayer = reg.layers[kind];
+      const nextLayer = _buildOverlayLayer(ctx, kind);
+      if (!nextLayer) {
+        _logOverlayConsistency(ctx, kind, prevLayer, tileDiag);
+        continue;
+      }
+      try {
+        if (typeof nextLayer.addTo === 'function') nextLayer.addTo(ctx.map);
+        reg.layers[kind] = nextLayer;
+        if (prevLayer && prevLayer !== nextLayer && typeof prevLayer.remove === 'function') {
+          try { prevLayer.remove(); } catch (_) {}
+        }
+      } catch (e) {
+        console.warn(`[context-overlay] attach "${kind}" failed:`, e);
+        if (nextLayer && nextLayer !== prevLayer && typeof nextLayer.remove === 'function') {
+          try { nextLayer.remove(); } catch (_) {}
+        }
+        reg.layers[kind] = prevLayer || null;
+      }
+      _logOverlayConsistency(ctx, kind, reg.layers[kind], tileDiag);
+    }
+    _refreshContextLegend(ctx);
+    if (typeof UA.refreshContextOverlayZOrder === 'function') {
+      try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
+    }
+    return tileDiag;
+  }
+
   async function _rebuildActiveOverlays(ctx) {
     const reg = _ensureOverlayRegistry(ctx);
     if (!ctx.map) return;
-    if (reg._overlayRebuildInFlight) return reg._overlayRebuildInFlight;
+    if (reg._overlayRebuildInFlight) {
+      // Do not let an awaited readiness request silently inherit a pass that
+      // may already be loading the previous viewport. One dirty bit is enough
+      // to coalesce concurrent callers while still guaranteeing a follow-up
+      // pass; requests arriving during that pass queue another one.
+      reg._overlayRebuildQueued = true;
+      return reg._overlayRebuildInFlight;
+    }
+    reg._overlayRebuildQueued = false;
     reg._overlayRebuildInFlight = Promise.resolve().then(async () => {
-      const tileDiag = await _ensureViewportTilesLoaded(ctx, { skipOverlayRebuild: true });
-      if (!UA.contextRoadLayer) return tileDiag;
-      for (const kind of CONTEXT_OVERLAY_KINDS) {
-        if (!reg.active[kind]) continue;
-        const prevLayer = reg.layers[kind];
-        const nextLayer = _buildOverlayLayer(ctx, kind);
-        if (!nextLayer) {
-          _logOverlayConsistency(ctx, kind, prevLayer, tileDiag);
-          continue;
-        }
+      let tileDiag = null;
+      let firstError = null;
+      let runAgain = true;
+      while (runAgain) {
+        // Preserve requests made after the in-flight promise was published but
+        // before this pass started. Clearing first means requests made while
+        // the pass awaits I/O remain visible for the following iteration.
+        const queuedBeforePass = !!reg._overlayRebuildQueued;
+        reg._overlayRebuildQueued = false;
         try {
-          if (typeof nextLayer.addTo === 'function') nextLayer.addTo(ctx.map);
-          reg.layers[kind] = nextLayer;
-          if (prevLayer && prevLayer !== nextLayer && typeof prevLayer.remove === 'function') {
-            try { prevLayer.remove(); } catch (_) {}
-          }
+          tileDiag = await _runActiveOverlayRebuildPass(ctx, reg);
         } catch (e) {
-          console.warn(`[context-overlay] attach "${kind}" failed:`, e);
-          if (nextLayer && nextLayer !== prevLayer && typeof nextLayer.remove === 'function') {
-            try { nextLayer.remove(); } catch (_) {}
-          }
-          reg.layers[kind] = prevLayer || null;
+          // A queued current-viewport pass still has to run after an earlier
+          // failure. Reject afterwards so capture/export never treats a
+          // partially failed readiness cycle as successful.
+          if (!firstError) firstError = e;
         }
-        _logOverlayConsistency(ctx, kind, reg.layers[kind], tileDiag);
+        runAgain = queuedBeforePass || !!reg._overlayRebuildQueued;
       }
-      _refreshContextLegend(ctx);
-      if (typeof UA.refreshContextOverlayZOrder === 'function') {
-        try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
-      }
+      if (firstError) throw firstError;
       return tileDiag;
     }).finally(() => {
       reg._overlayRebuildInFlight = null;
+      reg._overlayRebuildQueued = false;
     });
     return reg._overlayRebuildInFlight;
   }

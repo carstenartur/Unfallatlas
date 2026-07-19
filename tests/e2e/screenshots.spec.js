@@ -159,11 +159,11 @@ async function prepareCoreFilterPanelCapture(page) {
 
     panel.scrollTop = Math.max(
       0,
-      // Keep two pixels of lower-edge clearance while preserving the city
+      // Keep at least two rendered pixels of lower-edge clearance while preserving the city
       // selector below the opaque sticky header. A ten-pixel overscroll put
       // the selector six pixels underneath the header at the canonical
       // 1280x640 capture size.
-      contextSection.offsetTop + contextSection.offsetHeight - panel.clientHeight + 2
+      contextSection.offsetTop + contextSection.offsetHeight - panel.clientHeight + 3
     );
     const panelRect = panel.getBoundingClientRect();
     const sectionRect = contextSection.getBoundingClientRect();
