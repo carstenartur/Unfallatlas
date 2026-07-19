@@ -57,9 +57,11 @@ export default defineConfig({
   // Only start a local web server when not targeting a live/remote BASE_URL.
   // The generated-context runner supplies BASE_URL and owns its isolated server.
   webServer: process.env.BASE_URL ? undefined : {
-    command: 'python3 -m http.server 8000',
+    command: 'npm run serve:site',
     url: 'http://localhost:8000',
-    reuseExistingServer: !process.env.CI,
+    // A foreign/stale server on port 8000 must never satisfy screenshot or
+    // E2E checks for the current checkout.
+    reuseExistingServer: false,
     timeout: 120 * 1000,
   },
 });

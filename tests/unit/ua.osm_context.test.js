@@ -314,5 +314,25 @@ describe('UA.osmContext', () => {
       expect(out).not.toBeNull();
       expect(out.quality.error).toBe('boom');
     });
+
+    test('bounds the complete Overpass body read, not only response headers', async () => {
+      jest.useFakeTimers();
+      try {
+        const fakeFetch = async () => ({
+          ok: true,
+          json: () => new Promise(() => {}),
+        });
+        const pending = UA.osmContext.fetchOsmContext(
+          { south: 52.3, west: 9.73, north: 52.53, east: 9.93 },
+          { fetch: fakeFetch, endpoint: 'https://example.test/stalled-body', timeoutMs: 25 }
+        );
+        await Promise.resolve();
+        jest.advanceTimersByTime(26);
+        const out = await pending;
+        expect(out.quality.error).toMatch(/Overpass timeout after 25ms \(including body\)/);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 });

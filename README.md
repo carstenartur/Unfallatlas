@@ -37,6 +37,18 @@ und reduziert Missverständnisse bei Übergaben oder Präsentationen.
 - **Werkbank V2:** https://carstenartur.github.io/Unfallatlas/werkbank_v2.html
 - **Showcase:** https://carstenartur.github.io/Unfallatlas/showcase.html
 
+Lokale, mit der Produktion identische Ausführung:
+
+```bash
+npm ci
+npm run serve:site
+# http://127.0.0.1:8000/werkbank_v2.html
+```
+
+Der kanonische Build lädt keine Browser-Bibliotheken zur Laufzeit von einem
+CDN. Details zu Dependency-Versionen, Build-Manifest und Offline-Grenzen:
+[`docs/site-build.md`](docs/site-build.md).
+
 ---
 
 ## ⏱️ In 60 Sekunden zur ersten Analyse
@@ -55,9 +67,11 @@ und reduziert Missverständnisse bei Übergaben oder Präsentationen.
 
 ![Demo-Ablauf der Unfallwerkbank V2](docs/demo.gif)
 
-Kontextdaten-spezifische Demo (`docs/demo-context.gif`) und begleitende
-Screenshots (17–19) sind in der Nutzerdoku dokumentiert:
-[`docs/DOKUMENTATION.md` → Kontext (neu)](docs/DOKUMENTATION.md#kontext-neu).
+Kontextdaten-Medien (17–19) werden derzeit bewusst nur als Review-Kandidaten
+unter `.build/doc-media/context/` erzeugt. Erst ein gesonderter Review darf sie
+zusammen mit Manifest und Doku-Referenzen nach `docs/` übernehmen; die
+[Nutzerdoku](docs/DOKUMENTATION.md#kontext-neu) behauptet daher keine bereits
+veröffentlichten Kontextaufnahmen.
 Die Regeneration des README-GIFs ist in `docs/docker.md` beschrieben.
 
 ---

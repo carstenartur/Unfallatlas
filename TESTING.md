@@ -154,8 +154,20 @@ Enthält 3 Beispiel-Bezugsdokumente:
 ### Lokale Entwicklung
 
 ```bash
-# Alle Abhängigkeiten installieren
-npm install
+# Exakt gelockte Abhängigkeiten installieren
+npm ci
+
+# Produktionsgleiches statisches Artefakt lokal bauen
+npm run build:site
+
+# Akzeptierte Dokumentationsmedien inklusive archivierter Evidence prüfen
+npm run validate:media
+
+# Nach Screenshot-Erzeugung: 1:1-Sidecars, Bild-/Build-SHAs und Fingerprints prüfen
+npm run validate:screenshot-evidence
+
+# Erst nach diesem Evidence-Gate die noch nicht übernommene Kandidatenmenge prüfen
+npm run validate:media -- --candidate-screenshots
 
 # Unit-Tests ausführen
 npm run test:unit
@@ -166,7 +178,7 @@ npm run test:integration
 # Performance-Tests ausführen
 npm run test:performance
 
-# E2E-Tests ausführen (erfordert Python für lokalen Server)
+# E2E-Tests ausführen (baut/serviert automatisch dasselbe _site-Artefakt)
 npm run test:e2e
 
 # E2E-Tests im headed Mode (sichtbarer Browser)
@@ -206,7 +218,19 @@ Tests werden automatisch ausgeführt durch GitHub Actions:
 - ✅ Alle Hauptfunktionen der Werkbank V2
 - ✅ Filter-Interaktionen
 - ✅ Export-Modal
-- ✅ Accessibility
+- ✅ Accessibility der Hauptseite und aller vier Arbeitsdialoge
+- ✅ Screenshot-Readiness mit nichtleeren Unfalldaten und vollständiger Abdeckung
+
+Kanonische Dokumentationsscreenshots erhalten unter
+`out/qa/screenshot-readiness/` je einen maschinenlesbaren Nachweis. Dieser
+bindet Bild-SHA-256, Lifecycle-Counts und Renderrevision an den
+`_site/build-manifest.json`- und Datenfingerprint. Der nachgelagerte Validator
+prüft eine exakte 1:1-Zuordnung zu allen manifestierten PNGs sowie Bild- und
+Buildmanifest-SHA-256 und Build-/Anwendungs-/Datenfingerprints. CI lädt
+Diagnoseberichte auch bei einem abgelehnten Kandidaten hoch; Bildkandidaten,
+Sidecars und Buildmanifest jedoch nur gemeinsam nach erfolgreicher Medien- und
+Evidence-Validierung. Die Grundkarten der kanonischen Szenarien `01`–`16` und
+`21`–`25` kommen aus versionierten lokalen SVG-Fixtures statt aus Live-Tiles.
 
 **Performance-Tests**:
 - ✅ Alle kritischen Performance-Szenarien
@@ -217,7 +241,10 @@ Tests werden automatisch ausgeführt durch GitHub Actions:
 
 2. **Map-Image-Capture**: Vollständige Tests für die Kartenbild-Erstellung erfordern eine echte Browser-Umgebung und sind daher hauptsächlich in E2E-Tests implementiert.
 
-3. **Offline-Funktionalität**: Tests setzen voraus, dass externe CDN-Ressourcen (Leaflet, docx.js, pdfMake) erreichbar sind.
+3. **Offline-Grenze**: Browser-Bibliotheken und Unfalldaten sind Teil von
+   `_site`; externe Grundkarten, Overpass und optionale Server-APIs benötigen
+   weiterhin Netz. CDN-Zugriffe für Laufzeitbibliotheken werden im E2E bewusst
+   blockiert.
 
 ## Best Practices
 

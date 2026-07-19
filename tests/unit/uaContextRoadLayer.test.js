@@ -67,6 +67,21 @@ describe('UA.contextRoadLayer — class colour mappings', () => {
     expect(UA.contextRoadLayer.trafficClassColor(null)).toBeNull();
   });
 
+  test('every traffic stroke has at least 3:1 contrast against a white basemap', () => {
+    const { UA } = loadModule();
+    const luminance = (hex) => {
+      const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+        .map(value => value <= 0.04045
+          ? value / 12.92
+          : Math.pow((value + 0.055) / 1.055, 2.4));
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    };
+    for (const cls of UA.contextRoadLayer.TRAFFIC_CLASS_VALUES) {
+      const contrast = 1.05 / (luminance(UA.contextRoadLayer.trafficClassColor(cls)) + 0.05);
+      expect(contrast).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   test('classifySlope/classifyTrafficProxy match the documented thresholds', () => {
     const { UA } = loadModule();
     expect(UA.contextRoadLayer.classifySlope(0)).toBe('flat');
@@ -162,6 +177,7 @@ describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
     const okClasses = UA.contextRoadLayer.SLOPE_CLASS_VALUES.concat(['no_signal']);
     for (const p of polylineCalls) {
       expect(p.feature.properties.kind).toBe('slope');
+      expect(p._opts).toEqual(expect.objectContaining({ weight: 8, opacity: 0.9, dashArray: null }));
       expect(typeof p.feature.properties.way_id).toBe('string');
       expect(okClasses).toContain(p.feature.properties.class);
     }
@@ -187,6 +203,25 @@ describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
       p => p._opts.color === UA.contextRoadLayer.trafficClassColor('very_high'));
     expect(veryHigh).toBeTruthy();
     expect(veryHigh.feature.properties.kind).toBe('traffic');
+    expect(veryHigh._opts).toEqual(expect.objectContaining({
+      weight: 3,
+      opacity: 0.95,
+      dashArray: '10 6',
+    }));
+  });
+
+  test('explicit line-style options override the ergonomic dual-stroke defaults', () => {
+    const { UA, polylineCalls } = loadModule();
+    UA.contextRoadLayer.buildTrafficLayer(fakeState(), {
+      weight: 5,
+      opacity: 0.7,
+      dashArray: '2 2',
+    });
+    expect(polylineCalls[0]._opts).toEqual(expect.objectContaining({
+      weight: 5,
+      opacity: 0.7,
+      dashArray: '2 2',
+    }));
   });
 
   test('returns an empty layer when state has no geometries (lazy-load not done)', () => {
@@ -259,6 +294,12 @@ describe('UA.contextRoadLayer — buildLegend', () => {
     // Low-confidence is a slope-only concept; the traffic legend must
     // not gain a stray row.
     expect(el.querySelector('.context-road-legend__lowconfidence')).toBeNull();
+    expect(el.querySelector('.context-road-legend__encoding').textContent)
+      .toMatch(/gestrichelte Innenlinie/);
+    for (const swatch of el.querySelectorAll('.context-road-legend__swatch')) {
+      expect(swatch.dataset.lineEncoding).toBe('narrow-dashed');
+      expect(swatch.style.borderTop).toMatch(/3px dashed/);
+    }
   });
 
   test('slope legend includes a "geringe Konfidenz" row using SLOPE_LOW_CONFIDENCE_COLOR', () => {
