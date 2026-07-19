@@ -178,6 +178,33 @@ describe('UA.AccidentViewportController', () => {
       .toEqual(['hannover']);
   });
 
+  test('a fatal current request clears old features instead of relabelling them with new bounds', async () => {
+    const provider = {
+      fetchTileSetForBbox: jest.fn()
+        .mockResolvedValueOnce(tileSet([tile('1/1', [point('old')], ['id:old'])]))
+        .mockRejectedValueOnce(new Error('tile transport failed')),
+    };
+    const { controller } = makeUA(provider);
+    await controller.load('Bonn', BOUNDS_A);
+
+    const failed = await controller.load('Bonn', BOUNDS_B);
+
+    expect(failed).toEqual(expect.objectContaining({
+      committed: true,
+      stale: false,
+      changed: true,
+    }));
+    expect(failed.geojson.features).toEqual([]);
+    expect(failed.coverage).toEqual(expect.objectContaining({
+      status: 'degraded',
+      viewportComplete: false,
+      bounds: BOUNDS_B,
+      loadedFeatureCount: 0,
+      error: 'tile transport failed',
+    }));
+    expect(controller.getSnapshot().geojson.features).toEqual([]);
+  });
+
   test('missing tiles produce degraded viewport coverage and never city completeness', async () => {
     const provider = {
       fetchTileSetForBbox: jest.fn(async () => tileSet([

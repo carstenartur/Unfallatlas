@@ -206,6 +206,10 @@
         if (requestEpoch !== epoch) {
           return Object.freeze({ committed: false, stale: true, epoch: requestEpoch });
         }
+        // A fatal request failure cannot associate the previous viewport's
+        // features with the newly requested bounds. Clear the current data
+        // before publishing the degraded state so consumers fail closed.
+        geojson = { type: 'FeatureCollection', features: [] };
         coverage = freezeCoverage({
           ...(coverage || {}),
           mode: 'viewport-partial',
@@ -217,12 +221,12 @@
           epoch: requestEpoch,
           status: 'degraded',
           error: String(error && error.message ? error.message : error),
-          loadedFeatureCount: Array.isArray(geojson.features) ? geojson.features.length : 0,
+          loadedFeatureCount: 0,
         });
         return Object.freeze({
           committed: true,
           stale: false,
-          changed: false,
+          changed: true,
           epoch: requestEpoch,
           geojson,
           coverage,

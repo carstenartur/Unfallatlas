@@ -227,3 +227,74 @@ test('pan and zoom lifecycle caches tiles and suppresses delayed stale responses
   expect(Array.from(requestCounts.keys())
     .some(url => /accidenttiles\/bonn\/.*\.json(?:[?#]|$)/.test(url))).toBe(false);
 });
+
+test('rejects mismatched tile metadata without retaining accidents from the old viewport', async ({ page }) => {
+  const tileZoom = 13;
+  const displayZoom = 15;
+  const aX = tileX(7.1, tileZoom);
+  const y = tileY(50.73, tileZoom);
+  const bX = aX + 2;
+  const manifest = {
+    schemaVersion: 1,
+    producerVersion: 'e2e-fixture',
+    city: 'bonn',
+    z: tileZoom,
+    sourceFingerprint: 'e2e-invalid-tile-sha256',
+    totalCount: 2,
+    explicitIdCount: 2,
+    derivedIdCount: 0,
+    tiles: [
+      { x: aX, y, count: 1 },
+      { x: bX, y, count: 1 },
+    ],
+  };
+  const payloadA = tilePayload('bonn', tileZoom, aX, y, 'a', 3);
+  const invalidPayloadB = {
+    ...tilePayload('bonn', tileZoom, bX, y, 'b', 1),
+    city: 'hannover',
+  };
+  let fullCityRequests = 0;
+
+  await page.route('**/out/accidenttiles/bonn/index.json.gz', route => route.fulfill({
+    status: 200,
+    contentType: 'application/gzip',
+    body: gzipJson(manifest),
+  }));
+  await page.route(`**/out/accidenttiles/bonn/${tileZoom}/${aX}/${y}.json.gz`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/gzip',
+    body: gzipJson(payloadA),
+  }));
+  await page.route(`**/out/accidenttiles/bonn/${tileZoom}/${bX}/${y}.json.gz`, route => route.fulfill({
+    status: 200,
+    contentType: 'application/gzip',
+    body: gzipJson(invalidPayloadB),
+  }));
+  await page.route('**/out/output_all_years_bonn.geojson*', route => {
+    fullCityRequests += 1;
+    return route.abort('failed');
+  });
+
+  const centerLat = tileCenterLat(y, tileZoom);
+  const centerLon = tileCenterLon(aX, tileZoom);
+  const response = await page.goto(
+    `/werkbank_v2.html?city=Bonn&accidentDataMode=viewport`
+      + `&centerLat=${centerLat.toFixed(8)}&centerLon=${centerLon.toFixed(8)}`
+      + `&zoom=${displayZoom}&showCluster=1&showHeatmap=0&showSchools=0`
+      + `&showKindergartens=0&showArgumentation=0`,
+    { waitUntil: 'domcontentloaded' }
+  );
+  expect(response?.ok()).toBe(true);
+
+  await expect(page.locator('#dataSourceCode'))
+    .toContainText('Kartenausschnitt vollständig; Stadt unvollständig');
+  await expect(page.locator('#stat')).toContainText('geladen: 1');
+
+  await pressArrow(page, 'ArrowRight', 26);
+
+  await expect(page.locator('#dataSourceCode'))
+    .toContainText('Kartenausschnitt teilweise geladen; Stadt unvollständig');
+  await expect(page.locator('#stat')).toContainText('geladen: 0');
+  expect(await markerColorVisible(page, [227, 26, 28])).toBe(false);
+  expect(fullCityRequests).toBe(0);
+});

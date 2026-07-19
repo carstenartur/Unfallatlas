@@ -55,8 +55,8 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
     city: 'bonn',
     z: zoom,
     sourceFingerprint: 'e2e-sha256',
-    totalCount: 100,
-    explicitIdCount: 100,
+    totalCount: 1,
+    explicitIdCount: 1,
     derivedIdCount: 0,
     tiles: [{ x, y, count: 1 }],
   };
@@ -68,6 +68,7 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
     y,
     type: 'FeatureCollection',
     features: [accidentFeature()],
+    featureIdentities: ['id:viewport-accident-1'],
   };
 
   const requested = [];

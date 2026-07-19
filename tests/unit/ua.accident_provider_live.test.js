@@ -182,7 +182,7 @@ describe('TiledAccidentProvider live viewport contract', () => {
 
     // Merely completing B must not evict A. Only the controller-confirmed
     // viewport commit decides which keys are pinned during eviction.
-    expect(provider.getCacheSnapshot('Bonn').cities.bonn.tileKeys.sort())
+    expect([...provider.getCacheSnapshot('Bonn').cities.bonn.tileKeys].sort())
       .toEqual([keyA, keyB].sort());
     provider.retainForViewport('Bonn', resultB.requestedTileKeys);
     expect(provider.getCacheSnapshot('Bonn').cities.bonn.tileKeys).toEqual([keyB]);
