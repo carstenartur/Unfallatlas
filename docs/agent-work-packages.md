@@ -7,7 +7,9 @@ gezielt auf einzelne Bereiche scopen können und unnötigen Kontext vermeiden.
 
 ## UI / Browser-App
 
-**Beschreibung:** Interaktive Karten-Werkbank im Browser (kein Build-Schritt, pure ES-Module per CDN).
+**Beschreibung:** Interaktive Karten-Werkbank im Browser. `npm run build:site`
+materialisiert das statische Artefakt und exakt gelockte Vendor-Dateien; die
+Anwendungsquellen bleiben klassische Browser-Skripte ohne Bundler.
 
 - **Pfade:**
   - `js/ua.app_v2.js` – Haupt-Einstiegspunkt (Werkbank V2)
@@ -41,9 +43,9 @@ gezielt auf einzelne Bereiche scopen können und unnötigen Kontext vermeiden.
   - `js/ua.report_v2.js` – PDF- und Word-Dokument-Generierung
   - `js/ua.accident_views.js` – Strategie-Registry für die Einzelunfall-Tabelle (`bySeverity`, `byInvolvement`, `flat`)
   - `js/ua.export.js` – V1-Export (deprecated)
-- **Externe Libs (CDN / node_modules):**
-  - `pdfmake@0.3.7`
-  - `docx@9.6.1`
+- **Gelockte Libs (`package-lock.json` → `_site/vendor/`):**
+  - `pdfmake@0.3.11`
+  - `docx@9.7.1`
   - `file-saver@2.0.5`
 - **Tests:**
   - `tests/integration/export.test.js`
