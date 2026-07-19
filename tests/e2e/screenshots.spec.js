@@ -169,13 +169,21 @@ async function prepareCoreFilterPanelCapture(page) {
     const sectionRect = contextSection.getBoundingClientRect();
     const header = panel.querySelector('.panelHeader');
     const headerRect = header && header.getBoundingClientRect();
+    const headerCap = header && getComputedStyle(header, '::before');
+    const capInset = side => Number.parseFloat(headerCap && headerCap[side]);
     const city = panel.querySelector('#citySel');
     const cityRect = city && city.getBoundingClientRect();
     return {
       panelTop: panelRect.top,
+      panelLeft: panelRect.left,
+      panelRight: panelRect.right,
       panelBottom: panelRect.bottom,
       headerBottom: headerRect && headerRect.bottom,
       headerBackground: header && getComputedStyle(header).backgroundColor,
+      headerCapBackground: headerCap && headerCap.backgroundColor,
+      headerCapTop: headerRect && headerRect.top + capInset('top'),
+      headerCapLeft: headerRect && headerRect.left + capInset('left'),
+      headerCapRight: headerRect && headerRect.right - capInset('right'),
       cityTop: cityRect && cityRect.top,
       cityBottom: cityRect && cityRect.bottom,
       sectionTop: sectionRect.top,
@@ -185,6 +193,10 @@ async function prepareCoreFilterPanelCapture(page) {
   });
   expect(geometry.disclosureOpen).toBe(false);
   expect(geometry.headerBackground).toBe('rgb(255, 255, 255)');
+  expect(geometry.headerCapBackground).toBe('rgb(255, 255, 255)');
+  expect(geometry.headerCapTop).toBeLessThanOrEqual(geometry.panelTop + 0.5);
+  expect(geometry.headerCapLeft).toBeLessThanOrEqual(geometry.panelLeft + 0.5);
+  expect(geometry.headerCapRight).toBeGreaterThanOrEqual(geometry.panelRight - 0.5);
   expect(geometry.cityTop).toBeGreaterThanOrEqual(geometry.headerBottom);
   expect(geometry.cityBottom).toBeLessThanOrEqual(geometry.panelBottom);
   expect(geometry.sectionTop).toBeGreaterThanOrEqual(geometry.headerBottom);

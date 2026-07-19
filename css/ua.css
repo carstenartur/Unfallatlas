@@ -22,6 +22,18 @@ body { overflow: hidden; }
   background: #fff;
   padding-bottom: 8px;
 }
+.panelHeader::before {
+  content: "";
+  position: absolute;
+  /* Cover the scroll container's padding as well as the header box. Without
+     this cap, scrolled controls remain visible in a narrow strip above the
+     otherwise opaque sticky header. */
+  inset: -10px -12px 0;
+  z-index: -1;
+  pointer-events: none;
+  background: #fff;
+  border-radius: 10px 10px 0 0;
+}
 .panelTitle { font-weight: 900; }
 .panelSub { color:#666; font-weight:650; }
 .headerBtns { display:flex; gap:8px; align-items:center; }
