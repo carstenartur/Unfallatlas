@@ -10,6 +10,7 @@ const {
   assertVideoAnalysisState,
   expectedVideoState,
   selectRequiredCity,
+  waitForFreshExportPreview,
   waitForTiles,
 } = require('../../server/video-export');
 
@@ -118,10 +119,42 @@ describe('video export semantic readiness', () => {
 
   test('requires city and a positive local accident count in the fresh preview', async () => {
     const page = { locator: jest.fn().mockReturnValue({ innerText: jest.fn() }) };
-    page.locator().innerText.mockResolvedValue('Auswertung: lokal 42 Unfälle – Bonn');
-    await expect(assertFreshExportContent(page, 'Bonn')).resolves.toEqual({ localAccidents: 42 });
+    page.locator().innerText.mockResolvedValue('Auswertung: lokal 19,248 Unfälle – Hannover');
+    await expect(assertFreshExportContent(page, 'Hannover')).resolves.toEqual({ localAccidents: 19248 });
+    page.locator().innerText.mockResolvedValue('Auswertung: lokal 7.387 Unfälle – Bonn');
+    await expect(assertFreshExportContent(page, 'Bonn')).resolves.toEqual({ localAccidents: 7387 });
     page.locator().innerText.mockResolvedValue('Auswertung: lokal 0 Unfälle – Hannover');
     await expect(assertFreshExportContent(page, 'Hannover')).rejects.toThrow('non-empty local accident data');
+  });
+
+  test('accepts a fresh semantic HTML preview without requiring embedded images', async () => {
+    document.body.innerHTML = `
+      <div id="exportProgress">Fertig.</div>
+      <div id="exportHtml"><h2>Report</h2><p>Auswertung: lokal 19,248 Unfälle – Hannover</p></div>`;
+    const page = {
+      waitForFunction: jest.fn(async (predicate, previousFingerprint) => {
+        expect(predicate(previousFingerprint)).toBe(true);
+      }),
+    };
+    await expect(waitForFreshExportPreview(page, {
+      previousFingerprint: '34:stale', timeoutMs: 1000,
+    })).resolves.toBeUndefined();
+    expect(page.waitForFunction).toHaveBeenCalledWith(
+      expect.any(Function), '34:stale', { timeout: 1000 }
+    );
+  });
+
+  test('fails immediately when report generation exposes an error state', async () => {
+    document.body.innerHTML = `
+      <div id="exportProgress">Fehler.</div>
+      <div id="exportHtml">Export fehlgeschlagen: map capture unavailable</div>`;
+    const page = {
+      waitForFunction: jest.fn(async (predicate, previousFingerprint) => {
+        predicate(previousFingerprint);
+      }),
+    };
+    await expect(waitForFreshExportPreview(page, { timeoutMs: 1000 }))
+      .rejects.toThrow('Export preview failed');
   });
 
   test('uses the real range/hotspot controls and never swallows preview readiness', () => {

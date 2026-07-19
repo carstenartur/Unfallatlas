@@ -290,7 +290,7 @@ async function assertVideoAnalysisState(page, expected) {
 
 async function assertFreshExportContent(page, expectedCity) {
   const content = await page.locator('#exportHtml').innerText();
-  const match = content.match(/lokal\s+([\d.\s]+)\s+Unfälle/i);
+  const match = content.match(/lokal\s+([\d.,\s\u00a0\u202f]+)\s+Unfälle/i);
   const localAccidents = match ? Number(match[1].replace(/\D/g, '')) : 0;
   if (!content.includes(expectedCity)) {
     throw new Error(`Video export preview does not identify requested city ${expectedCity}`);
@@ -301,30 +301,30 @@ async function assertFreshExportContent(page, expectedCity) {
   return { localAccidents };
 }
 
-/** Wartet auf frisch gerenderte Export-Vorschaubilder im Modal */
+/** Wartet auf einen frisch gerenderten, semantisch nichtleeren Exportbericht. */
 async function waitForFreshExportPreview(page, opts = {}) {
   const timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : 45000;
   const previousFingerprint = String(opts.previousFingerprint || '');
   await page.waitForFunction((prevFp) => {
     const progress = document.querySelector('#exportProgress');
-    if (!progress || !/Fertig/.test(progress.textContent || '')) return false;
-
     const root = document.querySelector('#exportHtml');
-    if (!root) return false;
-    const loadingHint = root.textContent || '';
-    if (/\(Report wird erzeugt/.test(loadingHint)) return false;
+    if (!progress || !root) return false;
+    const progressText = String(progress.textContent || '').trim();
+    const content = String(root.textContent || '').replace(/\s+/g, ' ').trim();
+    if (/Fehler/i.test(progressText) || /Export fehlgeschlagen/i.test(content)) {
+      throw new Error(`Export preview failed: ${progressText}; ${content.slice(0, 500)}`);
+    }
+    if (!/Fertig/.test(progressText)) return false;
+    if (/Report wird erzeugt/.test(content)) return false;
+    if (!/Auswertung:\s*lokal\s+[\d.,\s\u00a0\u202f]+\s+Unfälle/i.test(content)) return false;
 
-    const imgs = Array.from(root.querySelectorAll('img'));
-    const rendered = imgs
-      .map((img) => ({
-        src: String(img.getAttribute('src') || ''),
-        ok: !!(img.complete && img.naturalWidth > 0)
-      }))
-      .filter((m) => /^data:image\/png;base64,/.test(m.src));
-    if (rendered.length === 0) return false;
-    if (!rendered.every((m) => m.ok)) return false;
-
-    const fp = rendered.map((m) => `${m.src.length}:${m.src.slice(0, 32)}`).join('|');
+    const html = String(root.innerHTML || '');
+    let hash = 2166136261;
+    for (let i = 0; i < html.length; i++) {
+      hash ^= html.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    const fp = `${html.length}:${(hash >>> 0).toString(16)}`;
     if (prevFp && fp === prevFp) return false;
     return true;
   }, previousFingerprint, { timeout: timeoutMs });
@@ -530,11 +530,13 @@ async function exportVideo(params, opts = {}) {
     const beforeExportFingerprint = await page.evaluate(() => {
       const root = document.querySelector('#exportHtml');
       if (!root) return '';
-      const imgs = Array.from(root.querySelectorAll('img[src^="data:image/png;base64,"]'));
-      return imgs.map((img) => {
-        const src = String(img.getAttribute('src') || '');
-        return `${src.length}:${src.slice(0, 32)}`;
-      }).join('|');
+      const html = String(root.innerHTML || '');
+      let hash = 2166136261;
+      for (let i = 0; i < html.length; i++) {
+        hash ^= html.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return `${html.length}:${(hash >>> 0).toString(16)}`;
     }).catch(() => '');
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 10000 });
