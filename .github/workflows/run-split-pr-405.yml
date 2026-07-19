@@ -15,7 +15,7 @@ jobs:
   split:
     if: >-
       (github.event_name == 'issues' && github.event.issue.title == '[automation] Split PR 405') ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.head.ref == 'automation/split-pr-405')
+      (github.event_name == 'pull_request_target' && startsWith(github.event.pull_request.head.ref, 'automation/split-pr-405'))
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
