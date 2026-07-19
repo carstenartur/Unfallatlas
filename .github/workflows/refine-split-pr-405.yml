@@ -1,0 +1,30 @@
+name: One-shot refine PR 405 split
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  refine:
+    if: startsWith(github.event.pull_request.head.ref, 'automation/refine-split-405-trigger')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Load and execute reviewed refinement script
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin automation/refine-split-405
+          git show origin/automation/refine-split-405:scripts/refine-split-pr-405.sh > /tmp/refine-split-pr-405.sh
+          bash -n /tmp/refine-split-pr-405.sh
+          bash /tmp/refine-split-pr-405.sh
