@@ -61,6 +61,33 @@ test.describe('Smoke – Werkbank V2', () => {
     ).toHaveLength(0);
   });
 
+  test('Build-Manifest dokumentiert Daten, lokale Abhängigkeiten und Lizenzprovenienz', async ({ page }) => {
+    await page.goto('werkbank_v2.html');
+    const baseUrl = new URL(page.url());
+    const manifestUrl = new URL('build-manifest.json', baseUrl).toString();
+    const response = await page.request.get(manifestUrl);
+    expect(response.status()).toBe(200);
+
+    const manifest = await response.json();
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.networkPolicy?.runtimeLibraries).toBe('local-only');
+    expect(Object.keys(manifest.dependencies || {}).length).toBeGreaterThan(0);
+    expect(manifest.vendorAssets?.length).toBeGreaterThan(0);
+    expect(manifest.data?.artifacts?.length).toBeGreaterThan(0);
+    expect(Object.keys(manifest.data?.cities || {}).length).toBeGreaterThan(0);
+    expect(manifest.thirdPartyNotices?.path).toBe('vendor/third-party-notices.json');
+    expect(manifest.thirdPartyNotices?.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.thirdPartyNotices?.dependencies?.length)
+      .toBe(Object.keys(manifest.dependencies).length);
+
+    const noticesUrl = new URL(manifest.thirdPartyNotices.path, baseUrl).toString();
+    const noticesResponse = await page.request.get(noticesUrl);
+    expect(noticesResponse.status()).toBe(200);
+    const notices = await noticesResponse.json();
+    expect(notices.dependencies).toHaveLength(Object.keys(manifest.dependencies).length);
+  });
+
   test('Stadt-Dropdown ist sichtbar und hat auswählbare Optionen', async ({ page }) => {
     await page.goto('werkbank_v2.html');
     await page.waitForLoadState('networkidle');
@@ -118,19 +145,19 @@ test.describe('Smoke – Werkbank V2', () => {
     // is true, so unenriched data means "no overlays expected".
     const baseUrl = new URL(page.url());
     const dataUrl = new URL('out/output_all_years_bonn.geojson.gz', baseUrl).toString();
-    const dataRes = await page.request.fetch(dataUrl).catch(() => null);
-    let hasOverlayCapability = false;
-    if (dataRes && dataRes.ok()) {
-      try {
-        const geojson = await dataRes.json();
-        const firstFeature = geojson?.features?.[0];
-        const props = firstFeature?.properties || {};
-        // Check for slope or traffic fields (same as CAPABILITY_FIELDS in ua.context_layers.js)
-        hasOverlayCapability = 
-          'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
-          'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
-      } catch (_) {}
-    }
+    const geojson = await page.evaluate(async (url) => {
+      if (typeof window.UA === 'undefined' || typeof window.UA.fetchJsonCompressed !== 'function') {
+        throw new Error('UA.fetchJsonCompressed not available');
+      }
+      return window.UA.fetchJsonCompressed(url, { gzipOnly: true });
+    }, dataUrl);
+    expect(Array.isArray(geojson?.features), 'Bonn GeoJSON has no features array').toBe(true);
+    expect(geojson.features.length, 'Bonn GeoJSON unexpectedly contains no accident data').toBeGreaterThan(0);
+    const props = geojson.features[0]?.properties || {};
+    // Check for slope or traffic fields (same as CAPABILITY_FIELDS in ua.context_layers.js)
+    const hasOverlayCapability =
+      'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
+      'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
     test.skip(!hasOverlayCapability, 'Bonn GeoJSON not enriched with slope/traffic fields — overlay control not expected');
 
     const overlayCtrl = page.locator('.context-overlay-control');
