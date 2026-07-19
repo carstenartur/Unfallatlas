@@ -473,6 +473,23 @@
   const MAP_CAPTURE_TIMEOUT_MS = 30000;
   UA.MAP_CAPTURE_TIMEOUT_MS = MAP_CAPTURE_TIMEOUT_MS;
 
+  // Readiness failures are correctness failures, not cosmetic capture errors:
+  // exporting a map before all layers have rendered can produce a plausible
+  // but incomplete accident map. Keep the original rejection object while
+  // carrying that distinction through the intentionally graceful map fallbacks.
+  const mapRenderReadinessFailures = new WeakSet();
+  function markMapRenderReadinessFailure(reason) {
+    const failure = reason && (typeof reason === "object" || typeof reason === "function")
+      ? reason
+      : new Error(String(reason || "Die Karte wurde nicht vollständig gerendert."));
+    mapRenderReadinessFailures.add(failure);
+    return failure;
+  }
+  function isMapRenderReadinessFailure(reason) {
+    return !!reason && (typeof reason === "object" || typeof reason === "function")
+      && mapRenderReadinessFailures.has(reason);
+  }
+
   /**
    * Capture current map view as base64 image
    * @param {Object} ctx - Application context with map instance
@@ -491,7 +508,13 @@
         const waitForRender = (typeof UA.waitForMapFullyRendered === 'function')
           ? UA.waitForMapFullyRendered(ctx.map, { ctx, timeoutMs: MAP_CAPTURE_TIMEOUT_MS })
           : new Promise((r) => setTimeout(r, MAP_CAPTURE_DELAY_MS));
-        Promise.resolve(waitForRender).catch(() => null).then(() => {
+        Promise.resolve(waitForRender).then((fullyRendered) => {
+          if (fullyRendered === false) {
+            throw markMapRenderReadinessFailure(new Error(
+              "Kartenaufnahme abgebrochen: Die Karte wurde nicht vollständig gerendert."
+            ));
+          }
+
           // Bake heatmap opacity into canvas pixels so leaflet-image picks it up
           // (leaflet-image ignores CSS style.opacity on the canvas element)
           let restoreHeat = function () {};
@@ -600,10 +623,15 @@
             console.error("leafletImage call error:", e);
             finish(e);
           }
+        }, (renderError) => {
+          throw markMapRenderReadinessFailure(renderError);
+        }).catch((e) => {
+          console.error("captureMapImage render readiness error:", e);
+          reject(e);
         });
       } catch (e) {
         console.error("captureMapImage error:", e);
-        reject(e);
+        reject(markMapRenderReadinessFailure(e));
       }
     });
   };
@@ -790,6 +818,7 @@
             points: Array.isArray(t.points) ? t.points : []
           });
         } catch (err) {
+          if (isMapRenderReadinessFailure(err)) throw err;
           console.warn("Cluster map capture failed for target (graceful fallback):", t, err);
         }
       }
@@ -2351,6 +2380,7 @@
             // Die folgende Auswahl-Karte ist Abbildung 2.
             docxSelectionFigIndex = allCombFig.index + 1;
           } catch (allCombErr) {
+            if (isMapRenderReadinessFailure(allCombErr)) throw allCombErr;
             console.warn("All-combinations overview capture failed (graceful fallback):", allCombErr);
           }
         }
@@ -2523,6 +2553,7 @@
               }));
             }
           } catch (detailErr) {
+            if (isMapRenderReadinessFailure(detailErr)) throw detailErr;
             console.warn("Detail map capture failed (graceful fallback):", detailErr);
           }
         }
@@ -2604,9 +2635,11 @@
             }
           }
         } catch (clusterErr) {
+          if (isMapRenderReadinessFailure(clusterErr)) throw clusterErr;
           console.warn("Cluster maps capture failed (graceful fallback):", clusterErr);
         }
       } catch (e) {
+        if (isMapRenderReadinessFailure(e)) throw e;
         console.error("Map capture failed:", e);
         children.push(
           new Paragraph({
@@ -3770,17 +3803,24 @@
 
     // ---- Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
     if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
+      // Keep this short semantic block together. Without an unbreakable
+      // container pdfMake may carry only the final word of the last sentence
+      // (for example "Wochentag).") onto the next page immediately before
+      // the Antrag heading, which is visually misleading and hard to scan.
       docDefinition.content.push({
-        text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
-        style: "subsectionHeader"
+        unbreakable: true,
+        stack: [
+          {
+            text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+            style: "subsectionHeader"
+          },
+          ...sd.methodikScope.lines.map(ln => ({
+            text: String(ln),
+            style: "body"
+          }))
+        ],
+        margin: [0, 0, 0, 6]
       });
-      for (const ln of sd.methodikScope.lines) {
-        docDefinition.content.push({
-          text: String(ln),
-          style: "body"
-        });
-      }
-      docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
     }
 
     // PR 2 / Spec-Item 4: per-export figure-caption counter (PDF side).
@@ -3822,28 +3862,41 @@
       sectionGuard("BESCHLUSSVORSCHLAG");
     }
 
-    // ---- BEGRÜNDUNG (Sammelüberschrift) ----
-    docDefinition.content.push({
-      text: "BEGRÜNDUNG",
-      style: "subheader"
-    });
-
-    // ---- KURZBEWERTUNG (Task 2) ----
+    // ---- BEGRÜNDUNG / KURZBEWERTUNG (Task 2) ----
+    // The executive summary is short enough to fit on a page and functions
+    // as one semantic reading unit. Keep its heading, classification,
+    // bullets, urgency and map references together. Otherwise pdfMake can
+    // leave only the final map-reference sentence (for example
+    // "Schwerpunkt der Häufung: …") at the top of the following page.
+    // That continuation has no local heading and is as misleading as the
+    // formerly orphaned final Methodik line.
     if (sd && sd.executiveSummary) {
       const es = sd.executiveSummary;
-      docDefinition.content.push({ text: "KURZBEWERTUNG", style: "subheader" });
-      docDefinition.content.push({ text: es.classification, bold: true, margin: [0, 0, 0, 6] });
+      const executiveSummaryStack = [
+        { text: "BEGRÜNDUNG", style: "subheader" },
+        { text: "KURZBEWERTUNG", style: "subheader" },
+        { text: es.classification, bold: true, margin: [0, 0, 0, 6] }
+      ];
       for (const b of (es.bullets || [])) {
-        docDefinition.content.push({ text: "• " + b, margin: [0, 0, 0, 3] });
+        executiveSummaryStack.push({ text: "• " + b, margin: [0, 0, 0, 3] });
       }
       if (es.urgency) {
-        docDefinition.content.push({ text: es.urgency, italics: true, margin: [0, 4, 0, 8] });
+        executiveSummaryStack.push({ text: es.urgency, italics: true, margin: [0, 4, 0, 8] });
       }
       if (Array.isArray(sd.mapReferences) && sd.mapReferences.length > 0) {
         for (const s of sd.mapReferences) {
-          docDefinition.content.push({ text: s, margin: [0, 0, 0, 4] });
+          executiveSummaryStack.push({ text: s, margin: [0, 0, 0, 4] });
         }
       }
+      docDefinition.content.push({
+        unbreakable: true,
+        stack: executiveSummaryStack
+      });
+    } else {
+      docDefinition.content.push({
+        text: "BEGRÜNDUNG",
+        style: "subheader"
+      });
     }
 
     // ---- SACHVERHALT section ----
@@ -4368,6 +4421,7 @@
             pushPdfMapSourceNote(docDefinition, ctx, 8);
             pdfSelectionFigIndex = allCombFig.index + 1;
           } catch (allCombErr) {
+            if (isMapRenderReadinessFailure(allCombErr)) throw allCombErr;
             console.warn("All-combinations overview capture failed for PDF (graceful fallback):", allCombErr);
           }
         }
@@ -4531,6 +4585,7 @@
               });
             }
           } catch (detailErr) {
+            if (isMapRenderReadinessFailure(detailErr)) throw detailErr;
             console.warn("Detail map capture failed for PDF (graceful fallback):", detailErr);
           }
         }
@@ -4616,9 +4671,11 @@
             }
           }
         } catch (clusterErr) {
+          if (isMapRenderReadinessFailure(clusterErr)) throw clusterErr;
           console.warn("Cluster maps capture failed for PDF (graceful fallback):", clusterErr);
         }
       } catch (e) {
+        if (isMapRenderReadinessFailure(e)) throw e;
         console.error("Map capture failed for PDF:", e);
         docDefinition.content.push({
           text: "[Kartenerstellung fehlgeschlagen]",

@@ -309,14 +309,28 @@
     let response, body;
     try {
       const controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
-      const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+      let timer = null;
       try {
-        response = await fetchFn(ep, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "data=" + encodeURIComponent(query),
-          signal: controller ? controller.signal : undefined
+        // The deadline covers both response headers *and* full JSON body
+        // consumption.  Clearing the timer directly after fetch() used to let
+        // a stalled `response.json()` hang the PDF/video export indefinitely.
+        const request = (async () => {
+          const fetched = await fetchFn(ep, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "data=" + encodeURIComponent(query),
+            signal: controller ? controller.signal : undefined
+          });
+          if (!fetched.ok) return { response: fetched, body: null };
+          return { response: fetched, body: await fetched.json() };
+        })();
+        const deadline = new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            if (controller) controller.abort();
+            reject(new Error(`Overpass timeout after ${timeoutMs}ms (including body)`));
+          }, timeoutMs);
         });
+        ({ response, body } = await Promise.race([request, deadline]));
       } finally {
         if (timer) clearTimeout(timer);
       }
@@ -325,7 +339,6 @@
         _rememberInCache(key, out, now, ERROR_CACHE_TTL_MS);
         return out;
       }
-      body = await response.json();
     } catch (e) {
       const out = { quality: { error: String(e && e.message || e), fetchedAt: new Date(now).toISOString() } };
       _rememberInCache(key, out, now, ERROR_CACHE_TTL_MS);
