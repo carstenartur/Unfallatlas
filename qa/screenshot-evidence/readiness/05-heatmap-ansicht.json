@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "be3664f039612d320c356b7c581a2de1fd4182db",
+  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
   "screenshot": {
     "path": "docs/screenshots/05-heatmap-ansicht.png",
     "bytes": 210890,
@@ -8,9 +8,9 @@
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "9d3b5794ba53ad4c70637c55d4a79c366dacdccd98ac3cfcb8b58eae3be9a3c3",
-    "fingerprint": "8f831c6941238414750fbdb00c859a28163e2938d0b26964418d792a60b1a78a",
-    "applicationFingerprint": "3a6785762ed8854d714cd6b0718fdcd1d03dd10a16e2778d59a81bf20b467732",
+    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
+    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
+    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "criteria": {

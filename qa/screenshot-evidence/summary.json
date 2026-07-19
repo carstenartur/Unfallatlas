@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "valid": true,
-  "revision": "be3664f039612d320c356b7c581a2de1fd4182db",
+  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "9d3b5794ba53ad4c70637c55d4a79c366dacdccd98ac3cfcb8b58eae3be9a3c3",
-    "fingerprint": "8f831c6941238414750fbdb00c859a28163e2938d0b26964418d792a60b1a78a",
-    "applicationFingerprint": "3a6785762ed8854d714cd6b0718fdcd1d03dd10a16e2778d59a81bf20b467732",
+    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
+    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
+    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "screenshots": [
@@ -20,16 +20,16 @@
     },
     {
       "path": "docs/screenshots/02-stadtauswahl.png",
-      "bytes": 87795,
-      "sha256": "56d8dfb6aba7635392968fb08518e8700c4078840f8e0c1f7b3ee9e2b6c8474d",
+      "bytes": 163810,
+      "sha256": "b9316c57a8ef8d42438d87a2ead8972d376e2882b7eb7bfe91e9ffd31bbf2b56",
       "evidence": "out/qa/screenshot-readiness/02-stadtauswahl.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/03-filter.png",
-      "bytes": 88446,
-      "sha256": "acc367f386ce9700d0d27a9a4270ac21119504b24d5dd352198cd802bdba6369",
+      "bytes": 150511,
+      "sha256": "b57d9c75c7aa6601dd6b7057611e45e140692ce14e809dc023cee6efbd0708d1",
       "evidence": "out/qa/screenshot-readiness/03-filter.json",
       "status": "valid",
       "errors": []
@@ -52,8 +52,8 @@
     },
     {
       "path": "docs/screenshots/06-legende.png",
-      "bytes": 181214,
-      "sha256": "bfb03c4092e0737dacb3a963b41566800ecb5b2ff122ea4a35f5c629c8c9e565",
+      "bytes": 182907,
+      "sha256": "ae6aaf888f87f82d4f475f9f9762b3499b5860c6b2c61ff2e10189e6de359977",
       "evidence": "out/qa/screenshot-readiness/06-legende.json",
       "status": "valid",
       "errors": []
@@ -68,8 +68,8 @@
     },
     {
       "path": "docs/screenshots/08-stundenfilter.png",
-      "bytes": 85417,
-      "sha256": "c4614a1fd1c7b53602f990af9ba8018c9ddc1358a1d8c7e77d6122276a137d87",
+      "bytes": 160105,
+      "sha256": "5012e2c9482690a4e6daeb1ffbf962eda0749ab9aeeb6a5ce37ed91c33f2468e",
       "evidence": "out/qa/screenshot-readiness/08-stundenfilter.json",
       "status": "valid",
       "errors": []
@@ -124,8 +124,8 @@
     },
     {
       "path": "docs/screenshots/15-export-pdf-rendered.png",
-      "bytes": 128864,
-      "sha256": "05561375d6a218ef2e92b36ffd3e09a258b6cfcef7af227e8572a62f0835337a",
+      "bytes": 128838,
+      "sha256": "456c8b063d6048a21a3735e4a6dda0bd8d3afc94600c10fd874727cabbf37ac9",
       "evidence": "out/qa/screenshot-readiness/15-export-pdf-rendered.json",
       "status": "valid",
       "errors": []

@@ -2,28 +2,28 @@
   "schemaVersion": 1,
   "purpose": "Durable, checked-in binding for the reviewed screenshot artifact adopted on 2026-07-19.",
   "source": {
-    "artifactName": "pr-screenshots-405",
-    "artifactId": 8443391659,
-    "artifactZipSha256": "bc4d1ebc07ce61b32fb6764188c6e877f17e05ba16108897b009f58df0169ed8",
-    "evidenceRevision": "be3664f039612d320c356b7c581a2de1fd4182db",
+    "artifactName": "pr-screenshots-409",
+    "artifactId": 8443620798,
+    "artifactZipSha256": "0ee8f4d10e3e5974b36d8f0e85092b231a0d0261bff401a2fc84ecddc1d61e7c",
+    "evidenceRevision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
     "evidenceStatus": "valid",
     "evidenceCount": 21
   },
   "build": {
-    "manifestSha256": "9d3b5794ba53ad4c70637c55d4a79c366dacdccd98ac3cfcb8b58eae3be9a3c3",
-    "fingerprint": "8f831c6941238414750fbdb00c859a28163e2938d0b26964418d792a60b1a78a",
-    "applicationFingerprint": "3a6785762ed8854d714cd6b0718fdcd1d03dd10a16e2778d59a81bf20b467732",
+    "manifestSha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
+    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
+    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "summary": {
     "path": "qa/screenshot-evidence/summary.json",
-    "sha256": "4bfcfcac248dbdd5c2925f7919586ad5c00df49e2fbd7a6d112f048a1de29839",
-    "entriesSha256": "f9142b2985033382c478cda9aaea80c1a99dcd0f6c5893096d30d48fc6a4ec40"
+    "sha256": "9340eb997b83cef91d2a5ba700af90bb4218a7defb4a75ed3746f96e76c18171",
+    "entriesSha256": "cfbee600c873feb43abb38de69146341105b3e98571908078007920f5b34887d"
   },
   "readiness": {
     "directory": "qa/screenshot-evidence/readiness",
     "files": 21,
-    "bytes": 43015,
-    "entriesSha256": "302a1e2a4fdd85826836293ca88a2bcecddd69036cca0a7ce18956b5992f5fac"
+    "bytes": 43018,
+    "entriesSha256": "4537e557cf09a95094cafd425bf27a6b78aa7f30ddc89ef8db78855234837eac"
   }
 }
