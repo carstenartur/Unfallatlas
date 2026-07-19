@@ -76,12 +76,18 @@ function deferred() {
   return { promise, resolve };
 }
 
-async function pressArrow(page, key, count) {
-  const map = page.locator('#map');
-  await map.focus();
-  for (let index = 0; index < count; index += 1) {
-    await page.keyboard.press(key);
-  }
+async function panToTile(page, x, y, zoom) {
+  const target = {
+    lat: tileCenterLat(y, zoom),
+    lon: tileCenterLon(x, zoom),
+  };
+  await page.evaluate(({ lat, lon }) => {
+    const map = window._uaMap;
+    if (!map || typeof map.panTo !== 'function') {
+      throw new Error('Leaflet map is not available for deterministic E2E panning');
+    }
+    map.panTo([lat, lon], { animate: false });
+  }, target);
 }
 
 async function markerColorVisible(page, rgb) {
@@ -188,15 +194,15 @@ test('pan and zoom lifecycle caches tiles and suppresses delayed stale responses
   await expect.poll(() => markerColorVisible(page, [255, 255, 51]), { timeout: 30_000 })
     .toBe(true);
 
-  // At zoom 15 an accident z=13 tile is 1024 screen pixels wide. Twenty-six
-  // default Leaflet keyboard pans (80 px each) move from tile A to B.
-  await pressArrow(page, 'ArrowRight', 26);
+  // Use the map API exposed for E2E tests. Rapid keyboard pans are animated by
+  // Leaflet and therefore do not guarantee an accumulated pixel distance.
+  await panToTile(page, bX, y, tileZoom);
   await expect.poll(() => bRequestSeen, { timeout: 15_000 }).toBe(true);
   await expect(page.locator('#dataSourceCode')).toContainText('Kartenausschnitt wird geladen');
 
   // Move to C while B is deliberately still in flight. This must invalidate B
   // immediately and let C become the only commit-capable scheduler epoch.
-  await pressArrow(page, 'ArrowRight', 26);
+  await panToTile(page, cX, y, tileZoom);
   await expect.poll(() => cRequestSeen, { timeout: 15_000 }).toBe(true);
   await expect.poll(() => markerColorVisible(page, [227, 26, 28]), { timeout: 30_000 })
     .toBe(true);
@@ -209,7 +215,7 @@ test('pan and zoom lifecycle caches tiles and suppresses delayed stale responses
 
   // Return to A. Provider cache reuse must avoid a second A network request and
   // deterministic replacement must render exactly the original yellow marker.
-  await pressArrow(page, 'ArrowLeft', 52);
+  await panToTile(page, aX, y, tileZoom);
   await expect.poll(() => markerColorVisible(page, [255, 255, 51]), { timeout: 30_000 })
     .toBe(true);
 
@@ -253,6 +259,7 @@ test('rejects mismatched tile metadata without retaining accidents from the old 
     ...tilePayload('bonn', tileZoom, bX, y, 'b', 1),
     city: 'hannover',
   };
+  let invalidTileRequestSeen = false;
   let fullCityRequests = 0;
 
   await page.route('**/out/accidenttiles/bonn/index.json.gz', route => route.fulfill({
@@ -265,11 +272,14 @@ test('rejects mismatched tile metadata without retaining accidents from the old 
     contentType: 'application/gzip',
     body: gzipJson(payloadA),
   }));
-  await page.route(`**/out/accidenttiles/bonn/${tileZoom}/${bX}/${y}.json.gz`, route => route.fulfill({
-    status: 200,
-    contentType: 'application/gzip',
-    body: gzipJson(invalidPayloadB),
-  }));
+  await page.route(`**/out/accidenttiles/bonn/${tileZoom}/${bX}/${y}.json.gz`, route => {
+    invalidTileRequestSeen = true;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/gzip',
+      body: gzipJson(invalidPayloadB),
+    });
+  });
   await page.route('**/out/output_all_years_bonn.geojson*', route => {
     fullCityRequests += 1;
     return route.abort('failed');
@@ -290,11 +300,14 @@ test('rejects mismatched tile metadata without retaining accidents from the old 
     .toContainText('Kartenausschnitt vollständig; Stadt unvollständig');
   await expect(page.locator('#stat')).toContainText('geladen: 1');
 
-  await pressArrow(page, 'ArrowRight', 26);
+  await panToTile(page, bX, y, tileZoom);
 
+  await expect.poll(() => invalidTileRequestSeen, { timeout: 15_000 }).toBe(true);
   await expect(page.locator('#dataSourceCode'))
     .toContainText('Kartenausschnitt teilweise geladen; Stadt unvollständig');
   await expect(page.locator('#stat')).toContainText('geladen: 0');
+  await expect.poll(() => markerColorVisible(page, [255, 255, 51]), { timeout: 15_000 })
+    .toBe(false);
   expect(await markerColorVisible(page, [227, 26, 28])).toBe(false);
   expect(fullCityRequests).toBe(0);
 });

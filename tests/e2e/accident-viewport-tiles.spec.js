@@ -97,8 +97,9 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
   expect(response?.ok()).toBe(true);
 
   await expect(page.locator('#dataSourceCode')).toContainText('out/accidenttiles/bonn/index.json');
-  await expect(page.locator('#dataSourceCode')).toContainText('nur aktueller Kartenausschnitt');
-  await expect(page.locator('#stat')).toContainText('1');
+  await expect(page.locator('#dataSourceCode'))
+    .toContainText('Kartenausschnitt vollständig; Stadt unvollständig');
+  await expect(page.locator('#stat')).toContainText('geladen: 1');
 
   // Keep the normal marker layer enabled: disabling both cluster and heatmap
   // intentionally renders no accidents, which would make a pixel assertion
