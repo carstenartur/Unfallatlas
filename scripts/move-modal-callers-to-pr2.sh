@@ -76,10 +76,11 @@ commit_push "$B1" "qa: keep modal implementation and callers out of runtime PR"
 NEW1=$(git rev-parse HEAD)
 
 # PR 2: pair native accessible markup with the modal primitive, all modal
-# callers and their focus/Escape tests.
+# callers and their focus/Escape tests. Source these paths from the complete
+# previous PR 2 tree, because the previous PR 1 tree was already stripped.
 git checkout -B "$B2" "$NEW1"
 apply_changed_paths "$OLD2" "$OLD1"
-git checkout "$OLD1" -- \
+git checkout "$OLD2" -- \
   js/ua.utils.js \
   js/ua.app_v2.js \
   js/ua.priorities.js \
