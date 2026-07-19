@@ -1,0 +1,39 @@
+name: PR 437 visual diagnostic
+
+on:
+  pull_request:
+    branches:
+      - split/405-1-runtime-readiness
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run screenshot suite with HTML report
+        shell: bash
+        run: |
+          set +e
+          npx playwright test tests/e2e/screenshots.spec.js --project=chromium --reporter=line,html 2>&1 | tee visual-test.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+      - name: Upload exact diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-437-visual-diagnostic
+          path: |
+            visual-test.log
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
