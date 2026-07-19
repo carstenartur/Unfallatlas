@@ -34,7 +34,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Generate screenshots
-        run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium
+        run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium --reporter=line,html
 
       - name: Upload PR screenshots as artifact
         uses: actions/upload-artifact@v7
@@ -43,6 +43,17 @@ jobs:
           name: pr-screenshots-${{ github.event.pull_request.number }}
           path: docs/screenshots/
           retention-days: 30
+
+      - name: Upload visual failure diagnostics
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: visual-diagnostics-${{ github.event.pull_request.number }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Write PR summary
         if: always()
