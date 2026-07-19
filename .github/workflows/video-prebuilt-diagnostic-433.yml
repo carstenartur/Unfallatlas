@@ -1,0 +1,83 @@
+name: PR 433 prebuilt video diagnostic
+
+on:
+  pull_request:
+    branches:
+      - split/405-2-accessibility-task-surface
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diagnose-prebuilt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      IMAGE: ghcr.io/carstenartur/unfallatlas:latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Pull and describe prebuilt image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE" | tee image-pull.log
+          docker image inspect "$IMAGE" > image-inspect.json
+          expected_playwright="$(node -e "const lock=require('./package-lock.json'); process.stdout.write(String(lock.packages?.['node_modules/@playwright/test']?.version||lock.dependencies?.['@playwright/test']?.version||''));")"
+          actual_playwright="$(docker run --rm --entrypoint node "$IMAGE" -e "process.stdout.write(require('@playwright/test/package.json').version)")"
+          printf 'expected_playwright=%s\nactual_playwright=%s\n' "$expected_playwright" "$actual_playwright" | tee image-version.log
+          test -n "$expected_playwright"
+          test "$expected_playwright" = "$actual_playwright"
+      - name: Run exact prebuilt Testcontainers path
+        shell: bash
+        env:
+          UNFALLATLAS_IMAGE: ghcr.io/carstenartur/unfallatlas:latest
+        run: |
+          set +e
+          timeout --signal=TERM --kill-after=30s 25m npm run test:integration:tc 2>&1 | tee video-prebuilt-test.log
+          status=${PIPESTATUS[0]}
+          {
+            echo '## Exact prebuilt video Testcontainers result'
+            echo
+            echo '```text'
+            tail -n 280 video-prebuilt-test.log
+            echo '```'
+          } > video-prebuilt-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file video-prebuilt-comment.md
+          exit "$status"
+      - name: Collect Docker diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '## docker ps -a'
+            docker ps -a || true
+            echo
+            echo '## docker images'
+            docker images --digests || true
+            echo
+            echo '## docker info'
+            docker info || true
+          } > docker-prebuilt-diagnostics.log 2>&1
+      - name: Upload prebuilt diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-433-video-prebuilt-diagnostic
+          path: |
+            image-pull.log
+            image-inspect.json
+            image-version.log
+            video-prebuilt-test.log
+            docker-prebuilt-diagnostics.log
+          if-no-files-found: warn
+          retention-days: 14
