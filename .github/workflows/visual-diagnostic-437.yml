@@ -7,10 +7,13 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   diagnose:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -19,13 +22,27 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Run screenshot suite with HTML report
+      - name: Run screenshot suite to first failure
+        id: screenshots
         shell: bash
         run: |
           set +e
-          npx playwright test tests/e2e/screenshots.spec.js --project=chromium --reporter=line,html 2>&1 | tee visual-test.log
+          npx playwright test tests/e2e/screenshots.spec.js --project=chromium --reporter=line,html --max-failures=1 2>&1 | tee visual-test.log
           status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
+      - name: Publish concise failure
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '## Exact visual failure'
+            echo
+            echo '```text'
+            tail -n 180 visual-test.log
+            echo '```'
+          } > visual-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file visual-comment.md
       - name: Upload exact diagnostics
         if: always()
         uses: actions/upload-artifact@v7
