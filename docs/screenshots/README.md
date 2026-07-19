@@ -31,16 +31,21 @@ gebundene Original-Evidence liegt unter
 
 ## Konvention
 
+Bedienfeldorientierte Screenshots bleiben Vollbilder der Werkbank: Das relevante
+Steuerelement muss zusammen mit Karte und sichtbarem Unfall-Layer erscheinen.
+Reine `#panel`-Ausschnitte sind kein ausreichender Funktionsnachweis, weil sie
+die räumliche Wirkung der gezeigten Auswahl oder Filterung ausblenden.
+
 | Nummer | Datei | Beschreibung |
 |---|---|---|
 | 01 | `01-startansicht.png` | Startansicht der Werkbank V2 |
-| 02 | `02-stadtauswahl.png` | Stadtauswahl-Dropdown |
-| 03 | `03-filter.png` | Filter-Panel (Beteiligung, Schwere, Zeit, …) |
+| 02 | `02-stadtauswahl.png` | Stadtauswahl mit sichtbarer Karte und Unfalldaten |
+| 03 | `03-filter.png` | Filter-Panel mit sichtbarer Ergebnis-Karte |
 | 04 | `04-cluster-ansicht.png` | Cluster-Ansicht |
 | 05 | `05-heatmap-ansicht.png` | Heatmap-Ansicht |
 | 06 | `06-legende.png` | Legende |
 | 07 | `07-export-modal.png` | Export-Modal |
-| 08 | `08-stundenfilter.png` | Stundenfilter |
+| 08 | `08-stundenfilter.png` | Stundenfilter mit sichtbarer räumlicher Wirkung |
 | 09 | `09-bereich-markieren.png` | Bereich markieren |
 | 10 | `10-auto-fahrrad-und.png` | Auto+Fahrrad UND-Modus |
 | 11 | `11-fahrrad-alleinunfaelle.png` | Fahrrad-Alleinunfälle |
