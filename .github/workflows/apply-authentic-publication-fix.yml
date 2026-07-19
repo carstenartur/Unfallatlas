@@ -1,0 +1,1151 @@
+name: Apply authentic publication screenshot fix
+
+on:
+  push:
+    branches:
+      - fix/screenshot-map-context
+    paths:
+      - .github/workflows/apply-authentic-publication-fix.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-authentic-publication-fix
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v7
+        with:
+          ref: fix/screenshot-map-context
+          fetch-depth: 0
+
+      - name: Configure Git author
+        run: |
+          git config user.name "Unfallwerkbank QA"
+          git config user.email "3164220+carstenartur@users.noreply.github.com"
+
+      - name: Patch screenshot publication architecture
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          ROOT = Path('.')
+
+          def read(path):
+              return (ROOT / path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              (ROOT / path).write_text(text, encoding='utf-8')
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              return text.replace(old, new, 1)
+
+          # ------------------------------------------------------------------
+          # 1. Separate deterministic regression screenshots from publication
+          #    screenshots backed by authentic map-provider responses.
+          # ------------------------------------------------------------------
+          path = 'tests/e2e/screenshots.spec.js'
+          text = read(path)
+          start = text.index('const DETERMINISTIC_MAP_TILES = Object.freeze({')
+          end = text.index('/**\n * Frame the fixed-height panel', start)
+          replacement = r'''const SCREENSHOT_PROFILE = process.env.UA_SCREENSHOT_PROFILE === 'publication'
+            ? 'publication'
+            : 'regression';
+
+          const DETERMINISTIC_MAP_TILES = Object.freeze({
+            standard: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/standard.svg')),
+            orthophoto: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/orthophoto.svg')),
+            labels: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/labels.svg'))
+          });
+          const DETERMINISTIC_EXTERNAL_DATA = Object.freeze({
+            nominatim: Object.freeze({
+              bonn: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/nominatim-reverse-bonn.json')),
+              hannover: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/nominatim-reverse-hannover.json'))
+            }),
+            overpass: Object.freeze({
+              bonn: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/overpass-bonn.json')),
+              hannover: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/overpass-hannover.json'))
+            })
+          });
+          const SCREENSHOT_NETWORK = new WeakMap();
+
+          function classifyMapResource(rawUrl) {
+            const url = new URL(rawUrl);
+            if (/(^|\.)tile\.openstreetmap\.org$/i.test(url.hostname)) {
+              return { kind: 'standard', provider: 'OpenStreetMap', officialForExport: true };
+            }
+            if (/(^|\.)basemaps\.cartocdn\.com$/i.test(url.hostname) &&
+                url.pathname.startsWith('/light_only_labels/')) {
+              return { kind: 'labels', provider: 'CARTO / OpenStreetMap', officialForExport: true };
+            }
+            if (url.hostname === 'www.bonn.de' &&
+                url.pathname.startsWith('/stadtplan-wms/services/orthofoto/MapServer/WMSServer')) {
+              return { kind: 'orthophoto', provider: 'Bundesstadt Bonn', officialForExport: true };
+            }
+            if (url.hostname === 'www.wms.nrw.de' && url.pathname.startsWith('/geobasis/wms_nw_dop')) {
+              return { kind: 'orthophoto', provider: 'Geobasis NRW', officialForExport: true };
+            }
+            if (url.hostname === 'opendata.lgln.niedersachsen.de' &&
+                url.pathname.startsWith('/doorman/noauth/dop_wms')) {
+              return { kind: 'orthophoto', provider: 'LGLN Niedersachsen', officialForExport: true };
+            }
+            if (url.hostname === 'sg.geodatenzentrum.de' && url.pathname.startsWith('/wms_dop20')) {
+              return { kind: 'orthophoto', provider: 'BKG', officialForExport: true };
+            }
+            if (url.hostname === 'server.arcgisonline.com' &&
+                url.pathname.startsWith('/ArcGIS/rest/services/World_Imagery/MapServer/tile/')) {
+              return { kind: 'orthophoto', provider: 'Esri', officialForExport: false };
+            }
+            return null;
+          }
+
+          function mapResponseSummary(page) {
+            const state = SCREENSHOT_NETWORK.get(page) || { responses: [], unexpectedExternalRequests: [] };
+            const grouped = new Map();
+            for (const response of state.responses) {
+              const key = [
+                response.kind,
+                response.provider,
+                response.officialForExport,
+                response.status,
+                response.contentType,
+                response.fixture
+              ].join('\t');
+              const current = grouped.get(key) || { ...response, count: 0 };
+              current.count += 1;
+              grouped.set(key, current);
+            }
+            return Array.from(grouped.values())
+              .sort((a, b) => `${a.kind}\t${a.provider}\t${a.status}`.localeCompare(
+                `${b.kind}\t${b.provider}\t${b.status}`
+              ));
+          }
+
+          function isRasterSuccess(response) {
+            return response.status >= 200 && response.status < 300 &&
+              /^image\/(?:png|jpe?g|webp)(?:;|$)/i.test(response.contentType || '') &&
+              response.fixture !== true;
+          }
+
+          function assertBasemapRequirement(capture, requirement, screenshotPath) {
+            const responses = capture.responses || [];
+            const standard = responses.some(response => response.kind === 'standard' && isRasterSuccess(response));
+            const labels = responses.some(response => response.kind === 'labels' && isRasterSuccess(response));
+            const officialOrthophoto = responses.some(response =>
+              response.kind === 'orthophoto' && response.officialForExport === true && isRasterSuccess(response)
+            );
+            const orthophotoFailure = responses.some(response =>
+              response.kind === 'orthophoto' && (response.status >= 400 || response.status === 0)
+            );
+            const attribution = String(capture.attribution || '');
+            const hasOsmAttribution = /OpenStreetMap/i.test(attribution);
+
+            let valid = false;
+            if (requirement === 'standard') valid = standard && hasOsmAttribution;
+            else if (requirement === 'orthophoto') valid = officialOrthophoto && attribution.length > 0;
+            else if (requirement === 'hybrid') valid = officialOrthophoto && labels && hasOsmAttribution;
+            else if (requirement === 'fallback') valid = orthophotoFailure && standard && hasOsmAttribution;
+            else throw new Error(`Unknown basemap requirement ${requirement}: ${screenshotPath}`);
+
+            if (!valid) {
+              throw new Error(
+                `Publication screenshot lacks authentic ${requirement} basemap evidence: ${screenshotPath}\n` +
+                JSON.stringify(capture, null, 2)
+              );
+            }
+          }
+
+          async function collectBasemapCapture(page, requirement, screenshotPath) {
+            const ui = await page.evaluate(() => ({
+              attribution: (document.querySelector('.leaflet-control-attribution')?.textContent || '').trim(),
+              mapLayerStatus: (document.querySelector('#mapLayerStatus')?.textContent || '').trim()
+            })).catch(() => ({ attribution: '', mapLayerStatus: '' }));
+            const capture = {
+              profile: SCREENSHOT_PROFILE,
+              basemap: {
+                requirement,
+                authentic: false,
+                attribution: ui.attribution,
+                mapLayerStatus: ui.mapLayerStatus,
+                responses: mapResponseSummary(page)
+              }
+            };
+            if (SCREENSHOT_PROFILE === 'publication') {
+              assertBasemapRequirement(capture.basemap, requirement, screenshotPath);
+              capture.basemap.authentic = true;
+            }
+            return capture;
+          }
+
+          async function attachBasemapCapture(screenshotPath, capture) {
+            const fs = await import('node:fs/promises');
+            const path = await import('node:path');
+            const sidecarPath = path.resolve(
+              process.cwd(),
+              'out/qa/screenshot-readiness',
+              `${path.basename(screenshotPath, path.extname(screenshotPath))}.json`
+            );
+            const sidecar = JSON.parse(await fs.readFile(sidecarPath, 'utf8'));
+            sidecar.capture = capture;
+            await fs.writeFile(sidecarPath, `${JSON.stringify(sidecar, null, 2)}\n`);
+          }
+
+          async function captureDocumentationScreenshot(page, options) {
+            const snapshot = await captureDataScreenshot(page, options);
+            const capture = await collectBasemapCapture(
+              page,
+              options.basemap || 'standard',
+              options.path
+            );
+            await attachBasemapCapture(options.path, capture);
+            return snapshot;
+          }
+
+          async function setupScreenshotNetwork(page, options = {}) {
+            const { orthophotoAvailable = true } = options;
+            const state = { responses: [], unexpectedExternalRequests: [] };
+            SCREENSHOT_NETWORK.set(page, state);
+
+            page.on('response', response => {
+              const mapResource = classifyMapResource(response.url());
+              if (!mapResource) return;
+              const contentType = response.headers()['content-type'] || '';
+              state.responses.push({
+                ...mapResource,
+                status: response.status(),
+                contentType,
+                fixture: SCREENSHOT_PROFILE === 'regression',
+                sampleUrl: response.url().split('?')[0]
+              });
+            });
+
+            await page.route(/^https:\/\//, async route => {
+              const request = route.request();
+              const url = new URL(request.url());
+              const mapResource = classifyMapResource(request.url());
+              const nominatimFixture = classifyNominatimFixture(request.url());
+              const overpassFixture = classifyOverpassFixture(
+                request.url(),
+                request.postDataBuffer() || request.postData()
+              );
+
+              if (nominatimFixture) {
+                await route.fulfill({
+                  status: 200,
+                  contentType: 'application/json; charset=utf-8',
+                  body: DETERMINISTIC_EXTERNAL_DATA.nominatim[nominatimFixture]
+                });
+                return;
+              }
+              if (overpassFixture) {
+                await route.fulfill({
+                  status: 200,
+                  contentType: 'application/json; charset=utf-8',
+                  body: DETERMINISTIC_EXTERNAL_DATA.overpass[overpassFixture]
+                });
+                return;
+              }
+              if (url.hostname === 'pdfjs-test-cdn') {
+                await route.fallback();
+                return;
+              }
+              if (mapResource) {
+                if (!orthophotoAvailable && mapResource.kind === 'orthophoto') {
+                  await route.fulfill({
+                    status: 503,
+                    contentType: 'text/plain; charset=utf-8',
+                    body: 'Orthophoto unavailable'
+                  });
+                  return;
+                }
+                if (SCREENSHOT_PROFILE === 'regression') {
+                  const body = mapResource.kind === 'standard'
+                    ? DETERMINISTIC_MAP_TILES.standard
+                    : mapResource.kind === 'labels'
+                      ? DETERMINISTIC_MAP_TILES.labels
+                      : DETERMINISTIC_MAP_TILES.orthophoto;
+                  await route.fulfill({ status: 200, contentType: 'image/svg+xml', body });
+                  return;
+                }
+                await route.continue();
+                return;
+              }
+
+              const postData = request.postDataBuffer();
+              const diagnosticBody = postData
+                ? ` body=${postData.toString('utf8').slice(0, 240)}`
+                : '';
+              state.unexpectedExternalRequests.push(
+                `${request.method()} ${request.resourceType()} ${request.url()}${diagnosticBody}`
+              );
+              await route.abort('blockedbyclient');
+            });
+          }
+
+          function assertNoUnexpectedExternalRequests(page) {
+            const state = SCREENSHOT_NETWORK.get(page) || { unexpectedExternalRequests: [] };
+            if (state.unexpectedExternalRequests.length > 0) {
+              throw new Error(
+                `Screenshot requested unapproved external resources:\n${state.unexpectedExternalRequests.join('\n')}`
+              );
+            }
+          }
+
+          '''
+          text = text[:start] + replacement + text[end:]
+          text = text.replace('setupDeterministicBasemapTiles', 'setupScreenshotNetwork')
+          text = text.replace('await captureDataScreenshot(page, {', 'await captureDocumentationScreenshot(page, {')
+
+          def add_basemap_for_path(source, screenshot_path, requirement):
+              pattern = re.compile(
+                  rf"(path:\s*'{re.escape(screenshot_path)}',[\s\S]*?layers:\s*\[[^\]]+\])"
+              )
+              match = pattern.search(source)
+              if not match:
+                  raise SystemExit(f'could not find screenshot block for {screenshot_path}')
+              block = match.group(1)
+              if 'basemap:' in block:
+                  return source
+              replacement_block = block + f",\n      basemap: '{requirement}'"
+              return source[:match.start(1)] + replacement_block + source[match.end(1):]
+
+          text = add_basemap_for_path(text, 'docs/screenshots/22-mapmode-orthophoto.png', 'orthophoto')
+          text = add_basemap_for_path(text, 'docs/screenshots/23-mapmode-hybrid.png', 'hybrid')
+          text = add_basemap_for_path(text, 'docs/screenshots/24-mapmode-analysis.png', 'orthophoto')
+          text = add_basemap_for_path(text, 'docs/screenshots/25-mapmode-orthophoto-fallback.png', 'fallback')
+
+          text = replace_once(
+              text,
+              "    const readinessSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });\n",
+              "    const readinessSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });\n"
+              "    const pdfBasemapCapture = await collectBasemapCapture(page, 'standard', 'docs/screenshots/15-export-pdf-rendered.png');\n",
+              'capture PDF basemap provenance'
+          )
+          text = replace_once(
+              text,
+              "    // Kartenausschnitt deaktivieren (vermeidet leaflet-image-Abhängigkeit)\n"
+              "    await page.locator('#cbIncludeMap').uncheck();\n",
+              "    // Die PDF-Belegseite muss den Kartenausschnitt tatsächlich enthalten.\n"
+              "    await expect(page.locator('#cbIncludeMap')).toBeChecked();\n",
+              'keep PDF map enabled'
+          )
+          text = replace_once(
+              text,
+              "      const { getDocument, GlobalWorkerOptions } = await import('https://pdfjs-test-cdn/pdf.min.mjs');",
+              "      const { getDocument, GlobalWorkerOptions, OPS } = await import('https://pdfjs-test-cdn/pdf.min.mjs');",
+              'import PDF operator constants'
+          )
+          old_pdf_scan = r'''      const expectedLocalAccidents = ${expectedLocalAccidents};
+          const pageTexts = [];
+          let renderedPageNumber = 1;
+          for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
+            const candidate = await pdfDoc.getPage(pageNumber);
+            const textContent = await candidate.getTextContent();
+            const text = textContent.items.map((item) => item.str || '').join(' ').replace(/\s+/g, ' ').trim();
+            pageTexts.push(text);
+            if (renderedPageNumber === 1) {
+              const countPattern = new RegExp('(?:^|\\D)' + expectedLocalAccidents + '\\s+Unfälle', 'i');
+              if (countPattern.test(text)) renderedPageNumber = pageNumber;
+            }
+          }
+          const pdfPage = await pdfDoc.getPage(renderedPageNumber);'''
+          new_pdf_scan = r'''      const expectedLocalAccidents = ${expectedLocalAccidents};
+          const pageTexts = [];
+          const pageImageCounts = [];
+          let countPageNumber = 0;
+          for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
+            const candidate = await pdfDoc.getPage(pageNumber);
+            const textContent = await candidate.getTextContent();
+            const text = textContent.items.map((item) => item.str || '').join(' ').replace(/\s+/g, ' ').trim();
+            pageTexts.push(text);
+            const operatorList = await candidate.getOperatorList();
+            const imageOperations = new Set([
+              OPS.paintImageXObject,
+              OPS.paintInlineImageXObject,
+              OPS.paintImageMaskXObject
+            ]);
+            pageImageCounts.push(operatorList.fnArray.filter(fn => imageOperations.has(fn)).length);
+            if (countPageNumber === 0) {
+              const countPattern = new RegExp('(?:^|\\D)' + expectedLocalAccidents + '\\s+Unfälle', 'i');
+              if (countPattern.test(text)) countPageNumber = pageNumber;
+            }
+          }
+          const renderedPageNumber = pageImageCounts.findIndex((count, index) =>
+            count > 0 && /OpenStreetMap|Kartenausschnitt|Kartenquelle|Quelle:/i.test(pageTexts[index] || '')
+          ) + 1;
+          if (renderedPageNumber < 1) throw new Error('PDF contains no identifiable rendered map page');
+          if (countPageNumber < 1) throw new Error('PDF contains no page with the expected local accident count');
+          const pdfPage = await pdfDoc.getPage(renderedPageNumber);'''
+          text = replace_once(text, old_pdf_scan, new_pdf_scan, 'scan all PDF pages for map and count')
+          text = replace_once(
+              text,
+              "      window.__pdfRenderedPageText = pageTexts[renderedPageNumber - 1] || '';\n",
+              "      window.__pdfRenderedPageText = pageTexts[renderedPageNumber - 1] || '';\n"
+              "      window.__pdfCountPage = countPageNumber;\n"
+              "      window.__pdfCountPageText = pageTexts[countPageNumber - 1] || '';\n"
+              "      window.__pdfPageImageCounts = pageImageCounts;\n",
+              'publish PDF diagnostics'
+          )
+          text = replace_once(
+              text,
+              "      renderedPageText: window.__pdfRenderedPageText || ''\n",
+              "      renderedPageText: window.__pdfRenderedPageText || '',\n"
+              "      countPage: window.__pdfCountPage || 0,\n"
+              "      countPageText: window.__pdfCountPageText || '',\n"
+              "      pageImageCounts: window.__pdfPageImageCounts || []\n",
+              'read PDF diagnostics'
+          )
+          old_assertions = r'''    expect(pdfDiagnostics.renderedPage).toBeGreaterThan(0);
+          expect(pdfDiagnostics.text).toContain('Unfälle');
+          expect(pdfDiagnostics.text).toMatch(
+            new RegExp(`(?:^|\D)${expectedLocalAccidents}\s+Unfälle`, 'i')
+          );
+          // The evidence page must begin with the complete executive-summary
+          // reading block. This catches real pdfMake pagination, not only the
+          // docDefinition's `unbreakable` declaration.
+          expect(pdfDiagnostics.renderedPageText).toMatch(/^(?:BEGRÜNDUNG\s+)?KURZBEWERTUNG\b/);
+          expect(pdfDiagnostics.renderedPageText).not.toMatch(/^(?:Wochentag\)\.|Schwerpunkt der Häufung:)/);
+
+          // Screenshot der ersten PDF-Seite, auf der die zuvor aus dem Exportmodell
+          // verifizierte lokale Unfallzahl tatsächlich genannt wird.'''
+          new_assertions = r'''    expect(pdfDiagnostics.renderedPage).toBeGreaterThan(0);
+          expect(pdfDiagnostics.countPage).toBeGreaterThan(0);
+          expect(pdfDiagnostics.pageImageCounts[pdfDiagnostics.renderedPage - 1]).toBeGreaterThan(0);
+          expect(pdfDiagnostics.renderedPageText).toMatch(/OpenStreetMap|Kartenausschnitt|Kartenquelle|Quelle:/i);
+          expect(pdfDiagnostics.text).toContain('Unfälle');
+          expect(pdfDiagnostics.text).toMatch(
+            new RegExp(`(?:^|\D)${expectedLocalAccidents}\s+Unfälle`, 'i')
+          );
+          // The count page must preserve the complete executive-summary reading
+          // block, while the rendered evidence page proves that the PDF contains
+          // an actual raster map/image instead of text-only output.
+          expect(pdfDiagnostics.countPageText).toMatch(/^(?:BEGRÜNDUNG\s+)?KURZBEWERTUNG\b/);
+          expect(pdfDiagnostics.countPageText).not.toMatch(/^(?:Wochentag\)\.|Schwerpunkt der Häufung:)/);
+
+          // Screenshot der ersten PDF-Seite mit einer tatsächlich gerenderten
+          // Karten-/Bildoperation; Unfallzahl und alle Seiten wurden separat geprüft.'''
+          text = replace_once(text, old_assertions, new_assertions, 'assert PDF map and count evidence')
+          text = replace_once(
+              text,
+              "    await recordScreenshotEvidence(screenshotPath, afterCaptureSnapshot, {\n"
+              "      city: 'Bonn',\n"
+              "      layers: ['cluster']\n"
+              "    });\n",
+              "    await recordScreenshotEvidence(screenshotPath, afterCaptureSnapshot, {\n"
+              "      city: 'Bonn',\n"
+              "      layers: ['cluster']\n"
+              "    });\n"
+              "    await attachBasemapCapture(screenshotPath, pdfBasemapCapture);\n",
+              'attach PDF basemap evidence'
+          )
+          write(path, text)
+
+          # ------------------------------------------------------------------
+          # 2. Fail-closed authentic-basemap validation for publication runs.
+          # ------------------------------------------------------------------
+          path = 'scripts/validate-screenshot-evidence.js'
+          text = read(path)
+          text = replace_once(
+              text,
+              "  const args = { report: null };",
+              "  const args = { report: null, requireAuthenticBasemap: false };",
+              'validator args'
+          )
+          text = replace_once(
+              text,
+              "    if (argv[index] === '--report') args.report = argv[++index] || null;\n"
+              "    else throw new Error(`[validate-screenshot-evidence] Unknown argument: ${argv[index]}`);",
+              "    if (argv[index] === '--report') args.report = argv[++index] || null;\n"
+              "    else if (argv[index] === '--require-authentic-basemap') args.requireAuthenticBasemap = true;\n"
+              "    else throw new Error(`[validate-screenshot-evidence] Unknown argument: ${argv[index]}`);",
+              'validator authentic flag'
+          )
+          marker = "function listFlatFiles(directory, suffix, label, options = {}) {"
+          helper = r'''function validateAuthenticBasemap(evidence, screenshotPath, requirement, errors) {
+            const capture = evidence && evidence.capture;
+            const basemap = capture && capture.basemap;
+            if (!capture || capture.profile !== 'publication' || !basemap || basemap.authentic !== true) {
+              errors.push(`${screenshotPath}: publication evidence does not prove an authentic basemap`);
+              return;
+            }
+            if (basemap.requirement !== requirement) {
+              errors.push(`${screenshotPath}: basemap requirement ${basemap.requirement || '(missing)'} does not match ${requirement}`);
+            }
+            const responses = Array.isArray(basemap.responses) ? basemap.responses : [];
+            const isRasterSuccess = response => response && response.status >= 200 && response.status < 300 &&
+              /^image\/(?:png|jpe?g|webp)(?:;|$)/i.test(String(response.contentType || '')) &&
+              response.fixture !== true;
+            if (responses.some(response => /svg/i.test(String(response.contentType || '')) || response.fixture === true)) {
+              errors.push(`${screenshotPath}: publication evidence contains synthetic/SVG map responses`);
+            }
+            const standard = responses.some(response => response.kind === 'standard' && isRasterSuccess(response));
+            const labels = responses.some(response => response.kind === 'labels' && isRasterSuccess(response));
+            const officialOrthophoto = responses.some(response =>
+              response.kind === 'orthophoto' && response.officialForExport === true && isRasterSuccess(response)
+            );
+            const orthophotoFailure = responses.some(response =>
+              response.kind === 'orthophoto' && (response.status >= 400 || response.status === 0)
+            );
+            const attribution = String(basemap.attribution || '');
+            const osmAttribution = /OpenStreetMap/i.test(attribution);
+            let satisfied = false;
+            if (requirement === 'standard') satisfied = standard && osmAttribution;
+            else if (requirement === 'orthophoto') satisfied = officialOrthophoto && attribution.length > 0;
+            else if (requirement === 'hybrid') satisfied = officialOrthophoto && labels && osmAttribution;
+            else if (requirement === 'fallback') satisfied = orthophotoFailure && standard && osmAttribution;
+            if (!satisfied) errors.push(`${screenshotPath}: authentic ${requirement} basemap requirement is not satisfied`);
+          }
+
+          '''
+          if marker not in text:
+              raise SystemExit('validator helper marker not found')
+          text = text.replace(marker, helper + marker, 1)
+          text = replace_once(
+              text,
+              "    const expectedScreenshots = (Array.isArray(mediaManifest.assets) ? mediaManifest.assets : [])\n"
+              "      .map(asset => asset && asset.path)",
+              "    const manifestAssets = Array.isArray(mediaManifest.assets) ? mediaManifest.assets : [];\n"
+              "    const manifestAssetsByPath = new Map(manifestAssets.map(asset => [asset && asset.path, asset]));\n"
+              "    const defaultBasemapRequirement = mediaManifest.defaults && mediaManifest.defaults.publicationBasemap || 'standard';\n"
+              "    const expectedScreenshots = manifestAssets\n"
+              "      .map(asset => asset && asset.path)",
+              'index media manifest basemap requirements'
+          )
+          text = replace_once(
+              text,
+              "        validateLifecycle(evidence, screenshotPath, rowErrors);\n",
+              "        validateLifecycle(evidence, screenshotPath, rowErrors);\n"
+              "        if (options.requireAuthenticBasemap === true) {\n"
+              "          const manifestAsset = manifestAssetsByPath.get(screenshotPath) || {};\n"
+              "          validateAuthenticBasemap(\n"
+              "            evidence,\n"
+              "            screenshotPath,\n"
+              "            manifestAsset.basemap || defaultBasemapRequirement,\n"
+              "            rowErrors\n"
+              "          );\n"
+              "        }\n",
+              'validate publication basemap'
+          )
+          text = replace_once(
+              text,
+              "  const report = validate({ root: ROOT });",
+              "  const report = validate({ root: ROOT, requireAuthenticBasemap: args.requireAuthenticBasemap });",
+              'pass authentic flag'
+          )
+          write(path, text)
+
+          # ------------------------------------------------------------------
+          # 3. Checked-in media evidence must always be publication evidence.
+          # ------------------------------------------------------------------
+          path = 'scripts/validate-doc-media.js'
+          text = read(path)
+          marker = "function validateScreenshotEvidenceLedger(repoRoot, manifest, assets) {"
+          helper = r'''function validatePublicationBasemapSidecar(sidecar, expectedRequirement, label, errors) {
+            const capture = sidecar && sidecar.capture;
+            const basemap = capture && capture.basemap;
+            if (!capture || capture.profile !== 'publication' || !basemap || basemap.authentic !== true) {
+              errors.push(`${label}: checked-in documentation media lacks authentic publication-basemap evidence`);
+              return;
+            }
+            if (basemap.requirement !== expectedRequirement) {
+              errors.push(`${label}: publication basemap requirement does not match the media manifest`);
+            }
+            const responses = Array.isArray(basemap.responses) ? basemap.responses : [];
+            const isRasterSuccess = response => response && response.status >= 200 && response.status < 300 &&
+              /^image\/(?:png|jpe?g|webp)(?:;|$)/i.test(String(response.contentType || '')) &&
+              response.fixture !== true;
+            if (responses.some(response => /svg/i.test(String(response.contentType || '')) || response.fixture === true)) {
+              errors.push(`${label}: synthetic/SVG basemap responses cannot certify checked-in documentation`);
+            }
+            const standard = responses.some(response => response.kind === 'standard' && isRasterSuccess(response));
+            const labels = responses.some(response => response.kind === 'labels' && isRasterSuccess(response));
+            const officialOrthophoto = responses.some(response =>
+              response.kind === 'orthophoto' && response.officialForExport === true && isRasterSuccess(response)
+            );
+            const orthophotoFailure = responses.some(response =>
+              response.kind === 'orthophoto' && (response.status >= 400 || response.status === 0)
+            );
+            const attribution = String(basemap.attribution || '');
+            const osmAttribution = /OpenStreetMap/i.test(attribution);
+            let satisfied = false;
+            if (expectedRequirement === 'standard') satisfied = standard && osmAttribution;
+            else if (expectedRequirement === 'orthophoto') satisfied = officialOrthophoto && attribution.length > 0;
+            else if (expectedRequirement === 'hybrid') satisfied = officialOrthophoto && labels && osmAttribution;
+            else if (expectedRequirement === 'fallback') satisfied = orthophotoFailure && standard && osmAttribution;
+            if (!satisfied) errors.push(`${label}: authentic ${expectedRequirement} basemap requirement is not satisfied`);
+          }
+
+          '''
+          if marker not in text:
+              raise SystemExit('doc media helper marker not found')
+          text = text.replace(marker, helper + marker, 1)
+          text = replace_once(
+              text,
+              "  const expectedPaths = assets\n",
+              "  const requirePublicationBasemap = manifest && manifest.defaults &&\n"
+              "    manifest.defaults.requirePublicationBasemapEvidence === true;\n"
+              "  const defaultBasemapRequirement = manifest && manifest.defaults &&\n"
+              "    manifest.defaults.publicationBasemap || 'standard';\n"
+              "  const assetsByPath = new Map(assets.map(asset => [asset && asset.path, asset]));\n"
+              "  const expectedPaths = assets\n",
+              'doc media basemap policy'
+          )
+          text = replace_once(
+              text,
+              "    const shot = sidecar && sidecar.screenshot || {};\n",
+              "    const shot = sidecar && sidecar.screenshot || {};\n"
+              "    if (requirePublicationBasemap) {\n"
+              "      const asset = assetsByPath.get(entryPath) || {};\n"
+              "      validatePublicationBasemapSidecar(\n"
+              "        sidecar,\n"
+              "        asset.basemap || defaultBasemapRequirement,\n"
+              "        sidecarName,\n"
+              "        errors\n"
+              "      );\n"
+              "    }\n",
+              'enforce checked-in publication basemap'
+          )
+          write(path, text)
+
+          # ------------------------------------------------------------------
+          # 4. Explicit local/CI commands.
+          # ------------------------------------------------------------------
+          path = 'package.json'
+          package = json.loads(read(path))
+          scripts = package['scripts']
+          ordered = {}
+          for key, value in scripts.items():
+              ordered[key] = value
+              if key == 'test:e2e':
+                  ordered['test:screenshots:regression'] = (
+                      'UA_SCREENSHOT_PROFILE=regression playwright test tests/e2e/screenshots.spec.js --project=chromium'
+                  )
+                  ordered['generate:screenshots:publication'] = (
+                      'UA_SCREENSHOT_PROFILE=publication playwright test tests/e2e/screenshots.spec.js --project=chromium'
+                  )
+          package['scripts'] = ordered
+          write(path, json.dumps(package, ensure_ascii=False, indent=2) + '\n')
+
+          # ------------------------------------------------------------------
+          # 5. Workflows: automatic CI = regression only; manual workflow =
+          #    authentic publication candidate.
+          # ------------------------------------------------------------------
+          path = '.github/workflows/generate-screenshots.yml'
+          text = read(path)
+          text = text.replace('name: Generate Documentation Screenshots', 'name: Generate Publication Screenshots', 1)
+          text = replace_once(
+              text,
+              '      - name: Generate screenshots\n'
+              '        run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium',
+              '      - name: Generate authentic publication screenshots\n'
+              '        run: npm run generate:screenshots:publication',
+              'publication workflow command'
+          )
+          text = replace_once(
+              text,
+              '        run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json',
+              '        run: npm run validate:screenshot-evidence -- --require-authentic-basemap --report out/qa/screenshot-evidence.json',
+              'publication workflow evidence gate'
+          )
+          text = text.replace('name: documentation-screenshots-${{ github.sha }}',
+                              'name: publication-screenshots-${{ github.sha }}', 1)
+          text = replace_once(
+              text,
+              '            echo "## Dokumentations-Screenshots"\n'
+              '            echo\n'
+              '            echo "Die validierten Kandidaten wurden als Artifact hochgeladen."\n'
+              '            echo "Sie werden bewusst nicht direkt nach `main` geschrieben."\n'
+              '            echo "Bitte Unterschiede prüfen und gewünschte Medien über einen normalen Review-PR übernehmen."',
+              '            echo "## Authentische Publikations-Screenshots"\n'
+              '            echo\n'
+              '            echo "Der manuell gestartete Lauf verwendet echte, allowlist-geprüfte Karten-/Orthofotoantworten."\n'
+              '            echo "Nominatim/Overpass bleiben deterministische lokale Daten-Fixtures."\n'
+              '            echo "Die Kandidaten werden nicht direkt nach `main` geschrieben; Übernahme nur nach Bildreview in einem normalen PR."',
+              'publication workflow summary'
+          )
+          write(path, text)
+
+          path = '.github/workflows/visual-check.yml'
+          text = read(path)
+          text = replace_once(
+              text,
+              '      - name: Generate screenshots\n'
+              '        run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium',
+              '      - name: Generate deterministic regression screenshots\n'
+              '        run: npm run test:screenshots:regression',
+              'visual regression command'
+          )
+          text = text.replace('name: pr-screenshots-${{ github.event.pull_request.number }}',
+                              'name: pr-screenshot-regression-${{ github.event.pull_request.number }}', 1)
+          text = text.replace('**pr-screenshots-${{ github.event.pull_request.number }}**',
+                              '**pr-screenshot-regression-${{ github.event.pull_request.number }}**', 1)
+          text = replace_once(
+              text,
+              '          echo "Screenshots wurden als Artefakt hochgeladen:" >> "$GITHUB_STEP_SUMMARY"',
+              '          echo "Deterministische Regression-Screenshots wurden als Artefakt hochgeladen." >> "$GITHUB_STEP_SUMMARY"\n'
+              '          echo "Sie verwenden bewusst synthetische Tiles und sind **keine Publikationsmedien**." >> "$GITHUB_STEP_SUMMARY"',
+              'visual summary distinction'
+          )
+          write(path, text)
+
+          path = '.github/workflows/test.yml'
+          text = read(path)
+          text = replace_once(
+              text,
+              '      - name: Run E2E tests\n'
+              '        run: npm run test:e2e',
+              '      - name: Run E2E tests with deterministic regression maps\n'
+              '        env:\n'
+              '          UA_SCREENSHOT_PROFILE: regression\n'
+              '        run: npm run test:e2e',
+              'test workflow regression profile'
+          )
+          text = text.replace('name: documentation-screenshots\n',
+                              'name: screenshot-regression\n', 1)
+          text = text.replace('name: documentation-media-report\n',
+                              'name: screenshot-regression-media-report\n', 1)
+          write(path, text)
+
+          # ------------------------------------------------------------------
+          # 6. Manifest and documentation policy.
+          # ------------------------------------------------------------------
+          path = 'docs/media-manifest.json'
+          manifest = json.loads(read(path))
+          manifest['defaults']['requirePublicationBasemapEvidence'] = True
+          manifest['defaults']['publicationBasemap'] = 'standard'
+          by_path = {asset['path']: asset for asset in manifest['assets']}
+          by_path['docs/screenshots/15-export-pdf-rendered.png']['purpose'] = (
+              'Gerenderte PDF-Kartenseite; alle Seiten, die Unfallzahl und mindestens eine echte Rasterkartenoperation werden geprüft.'
+          )
+          by_path['docs/screenshots/21-mapmode-standard.png']['purpose'] = (
+              'Publikationsansicht des Standardkartenmodus mit echter OpenStreetMap-Grundkarte.'
+          )
+          by_path['docs/screenshots/22-mapmode-orthophoto.png']['purpose'] = (
+              'Publikationsansicht mit amtlichem, real geladenem Orthofoto.'
+          )
+          by_path['docs/screenshots/22-mapmode-orthophoto.png']['basemap'] = 'orthophoto'
+          by_path['docs/screenshots/23-mapmode-hybrid.png']['purpose'] = (
+              'Publikationsansicht mit amtlichem Orthofoto und real geladenem Beschriftungs-Layer.'
+          )
+          by_path['docs/screenshots/23-mapmode-hybrid.png']['basemap'] = 'hybrid'
+          by_path['docs/screenshots/24-mapmode-analysis.png']['purpose'] = (
+              'Publikationsansicht der Unfallanalyse auf einem amtlichen, real geladenen Orthofoto.'
+          )
+          by_path['docs/screenshots/24-mapmode-analysis.png']['basemap'] = 'orthophoto'
+          by_path['docs/screenshots/25-mapmode-orthophoto-fallback.png']['purpose'] = (
+              'Expliziter Orthofoto-Ausfall mit echter OpenStreetMap-Grundkarte als sichtbarem Fallback.'
+          )
+          by_path['docs/screenshots/25-mapmode-orthophoto-fallback.png']['basemap'] = 'fallback'
+          write(path, json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+
+          path = 'docs/screenshots/README.md'
+          text = read(path)
+          text = replace_once(
+              text,
+              '| 15 | `15-export-pdf-rendered.png` | Gerenderter PDF-Export |',
+              '| 15 | `15-export-pdf-rendered.png` | Gerenderte PDF-Kartenseite; alle Seiten und Unfallzahl geprüft |',
+              'README PDF description'
+          )
+          text = replace_once(
+              text,
+              '| 21 | `21-mapmode-standard.png` | Kartenmodus `standard` (deterministische Tile-Mocks) |\n'
+              '| 22 | `22-mapmode-orthophoto.png` | Kartenmodus `orthophoto` (deterministische Orthofoto-Tiles) |\n'
+              '| 23 | `23-mapmode-hybrid.png` | Kartenmodus `hybrid` (Orthofoto + Label-Overlay) |\n'
+              '| 24 | `24-mapmode-analysis.png` | Kartenmodus `analysis` (Heatmap/Analyse-Overlay auf Orthofoto) |',
+              '| 21 | `21-mapmode-standard.png` | Kartenmodus `standard` mit echter OpenStreetMap-Grundkarte |\n'
+              '| 22 | `22-mapmode-orthophoto.png` | Kartenmodus `orthophoto` mit amtlichem Orthofoto |\n'
+              '| 23 | `23-mapmode-hybrid.png` | Kartenmodus `hybrid` mit amtlichem Orthofoto und echten Labels |\n'
+              '| 24 | `24-mapmode-analysis.png` | Kartenmodus `analysis` mit Heatmap auf amtlichem Orthofoto |',
+              'README map mode table'
+          )
+          old_section = r'''## Deterministische Grundkarte
+
+          Für sämtliche kanonischen Screenshots (`01`–`16` und `21`–`25`) werden OSM-,
+          Orthofoto- und Hybrid-Label-Anfragen vor dem ersten Seitenaufruf auf die
+          versionierten SVG-Fixtures unter `tests/e2e/fixtures/map-tiles/` geroutet.
+          Damit hängen die Review-Artefakte nicht von Live-Tiles, Provider-Verfügbarkeit,
+          Farbbalance oder Kacheländerungen ab. Screenshot `25` verwendet dieselbe lokale
+          Fixture-Schicht und dokumentiert den Orthofoto-Fehlerpfad explizit.
+          '''
+          new_section = r'''## Zwei getrennte Bildverträge
+
+          Automatische PR-/E2E-Läufe verwenden `UA_SCREENSHOT_PROFILE=regression`.
+          Dabei werden versionierte SVG-Tiles eingesetzt, damit UI-, Layer- und
+          Lifecycle-Regressionen pixelstabil und netzunabhängig geprüft werden können.
+          Diese Artefakte heißen ausdrücklich *Regression-Screenshots* und dürfen niemals
+          als Dokumentations- oder Produktabbildungen übernommen werden.
+
+          Eingecheckte Bilder unter `docs/screenshots/` müssen dagegen aus
+          `UA_SCREENSHOT_PROFILE=publication` stammen. Der manuelle Workflow
+          **Generate Publication Screenshots** lässt ausschließlich allowlist-geprüfte
+          echte Kartenanbieter zu, bindet Raster-Content-Type, Provider, Status,
+          Quellenanzeige und Attribution in jedes Evidence-Sidecar und verwirft SVG- oder
+          Fixture-Antworten. Nominatim und Overpass bleiben lokale stadtbezogene Fixtures,
+          damit Unfall-/Kontextzustand reproduzierbar bleibt. Der manuelle Start vermeidet
+          unnötige Last auf öffentlichen Kartendiensten; eine Übernahme erfordert weiterhin
+          ein visuelles Review in einem normalen PR.
+
+          Screenshot `25` ist die einzige bewusst provozierte Providerstörung: Der
+          Orthofotoabruf wird abgewiesen, anschließend müssen ein echter OSM-Fallback,
+          sichtbare Attribution und der Fallback-Status nachgewiesen sein.
+          '''
+          text = replace_once(text, old_section, new_section, 'README dual screenshot contracts')
+          write(path, text)
+
+          # ------------------------------------------------------------------
+          # 7. Unit-policy fixtures and workflow assertions.
+          # ------------------------------------------------------------------
+          path = 'tests/unit/screenshotEvidencePolicy.test.js'
+          text = read(path)
+          text = replace_once(
+              text,
+              "      criteria: { city: 'Hannover', layers: ['cluster'], requireCompleteCoverage: true },\n"
+              "      lifecycle,\n",
+              "      criteria: { city: 'Hannover', layers: ['cluster'], requireCompleteCoverage: true },\n"
+              "      capture: {\n"
+              "        profile: 'publication',\n"
+              "        basemap: {\n"
+              "          requirement: 'standard', authentic: true, attribution: '© OpenStreetMap-Mitwirkende',\n"
+              "          responses: [{\n"
+              "            kind: 'standard', provider: 'OpenStreetMap', officialForExport: true,\n"
+              "            status: 200, contentType: 'image/png', fixture: false, count: 1\n"
+              "          }]\n"
+              "        }\n"
+              "      },\n"
+              "      lifecycle,\n",
+              'screenshot evidence fixture publication capture'
+          )
+          insertion = r'''
+            test('authentic publication mode rejects synthetic map evidence', () => {
+              const fixture = createFixture();
+              const sidecar = JSON.parse(fs.readFileSync(fixture.evidenceFile, 'utf8'));
+              sidecar.capture.profile = 'regression';
+              sidecar.capture.basemap.authentic = false;
+              sidecar.capture.basemap.responses[0].contentType = 'image/svg+xml';
+              sidecar.capture.basemap.responses[0].fixture = true;
+              writeJson(fixture.evidenceFile, sidecar);
+
+              const report = validate({ root: fixture.root, requireAuthenticBasemap: true });
+
+              expect(report.valid).toBe(false);
+              expect(report.errors.join('\n')).toMatch(/authentic basemap|synthetic/i);
+            });
+
+          '''
+          anchor = "  test('rejects changed image bytes and orphaned evidence', () => {"
+          if anchor not in text:
+              raise SystemExit('evidence policy test anchor missing')
+          text = text.replace(anchor, insertion + anchor, 1)
+          write(path, text)
+
+          path = 'tests/unit/docMediaPolicy.test.js'
+          text = read(path)
+          text = replace_once(
+              text,
+              "      criteria: { city: 'Teststadt', layers: ['cluster'], requireCompleteCoverage: true },\n"
+              "      lifecycle: {",
+              "      criteria: { city: 'Teststadt', layers: ['cluster'], requireCompleteCoverage: true },\n"
+              "      capture: {\n"
+              "        profile: 'publication',\n"
+              "        basemap: {\n"
+              "          requirement: 'standard', authentic: true, attribution: '© OpenStreetMap-Mitwirkende',\n"
+              "          responses: [{\n"
+              "            kind: 'standard', provider: 'OpenStreetMap', officialForExport: true,\n"
+              "            status: 200, contentType: 'image/png', fixture: false, count: 1\n"
+              "          }]\n"
+              "        }\n"
+              "      },\n"
+              "      lifecycle: {",
+              'doc media evidence fixture publication capture'
+          )
+          text = replace_once(
+              text,
+              "        screenshotTarget: target,\n",
+              "        screenshotTarget: target,\n"
+              "        requirePublicationBasemapEvidence: true,\n"
+              "        publicationBasemap: 'standard',\n",
+              'doc media fixture publication policy'
+          )
+          write(path, text)
+
+          path = 'tests/unit/screenshotWorkflowSafety.test.js'
+          text = read(path)
+          text = replace_once(
+              text,
+              "  test('uses the canonical Chromium project and uploads a review artifact', () => {\n"
+              "    expect(workflow).toContain(\n"
+              "      'playwright test tests/e2e/screenshots.spec.js --project=chromium'\n"
+              "    );",
+              "  test('separates authentic publication generation from deterministic PR regression', () => {\n"
+              "    expect(workflow).toContain('npm run generate:screenshots:publication');\n"
+              "    expect(workflow).toContain('--require-authentic-basemap');\n"
+              "    expect(visualCheckWorkflow).toContain('npm run test:screenshots:regression');\n"
+              "    expect(visualCheckWorkflow).toContain('keine Publikationsmedien');",
+              'workflow separation test'
+          )
+          text = replace_once(
+              text,
+              "      [workflow, 'playwright test tests/e2e/screenshots.spec.js'],\n"
+              "      [visualCheckWorkflow, 'playwright test tests/e2e/screenshots.spec.js'],",
+              "      [workflow, 'npm run generate:screenshots:publication'],\n"
+              "      [visualCheckWorkflow, 'npm run test:screenshots:regression'],",
+              'workflow cleanup command expectations'
+          )
+          write(path, text)
+
+          json.loads(read('package.json'))
+          json.loads(read('docs/media-manifest.json'))
+          PY
+
+          rm .github/workflows/apply-authentic-publication-fix.yml
+
+          git add \
+            .github/workflows/generate-screenshots.yml \
+            .github/workflows/visual-check.yml \
+            .github/workflows/test.yml \
+            .github/workflows/apply-authentic-publication-fix.yml \
+            docs/media-manifest.json \
+            docs/screenshots/README.md \
+            package.json \
+            scripts/validate-doc-media.js \
+            scripts/validate-screenshot-evidence.js \
+            tests/e2e/screenshots.spec.js \
+            tests/unit/docMediaPolicy.test.js \
+            tests/unit/screenshotEvidencePolicy.test.js \
+            tests/unit/screenshotWorkflowSafety.test.js
+          git commit -m "test: separate regression and publication screenshot contracts"
+          git push origin HEAD:fix/screenshot-map-context
+          echo "SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run focused policy tests
+        run: |
+          npm run test:unit -- --runInBand \
+            tests/unit/screenshotEvidencePolicy.test.js \
+            tests/unit/docMediaPolicy.test.js \
+            tests/unit/screenshotWorkflowSafety.test.js
+
+      - name: Build exact source commit
+        run: npm run build:site
+
+      - name: Generate authentic publication screenshots
+        env:
+          UA_SCREENSHOT_PROFILE: publication
+          GITHUB_SHA: ${{ env.SOURCE_COMMIT }}
+        run: |
+          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+          mkdir -p out/qa/screenshot-readiness
+          find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
+          npm run generate:screenshots:publication
+
+      - name: Validate authentic screenshot evidence and media
+        env:
+          GITHUB_SHA: ${{ env.SOURCE_COMMIT }}
+        run: |
+          npm run validate:screenshot-evidence -- \
+            --require-authentic-basemap \
+            --report out/qa/screenshot-evidence.json
+          npm run validate:media -- \
+            --candidate-screenshots \
+            --report out/qa/documentation-media.json
+
+      - name: Adopt reviewed evidence and update QA record
+        env:
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          rm -rf qa/screenshot-evidence/readiness
+          mkdir -p qa/screenshot-evidence/readiness
+          cp out/qa/screenshot-readiness/*.json qa/screenshot-evidence/readiness/
+          cp out/qa/screenshot-evidence.json qa/screenshot-evidence/summary.json
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import zipfile
+
+          root = Path('.')
+          source_commit = os.environ['SOURCE_COMMIT']
+          run_id = int(os.environ['WORKFLOW_RUN_ID'])
+
+          def sha_bytes(data):
+              return hashlib.sha256(data).hexdigest()
+
+          def sha_file(path):
+              return sha_bytes(Path(path).read_bytes())
+
+          def evidence_entries(entries):
+              payload = ''.join(f"{entry['path']}\t{entry['sha256']}\t{entry['bytes']}\n" for entry in entries)
+              return sha_bytes(payload.encode())
+
+          def readiness_entries(files):
+              payload = ''.join(
+                  f"{path.name}\t{sha_file(path)}\t{path.stat().st_size}\n"
+                  for path in files
+              )
+              return sha_bytes(payload.encode())
+
+          summary_path = root / 'qa/screenshot-evidence/summary.json'
+          summary = json.loads(summary_path.read_text())
+          readiness_files = sorted((root / 'qa/screenshot-evidence/readiness').glob('*.json'))
+          build_manifest = json.loads((root / '_site/build-manifest.json').read_text())
+
+          zip_path = root / 'out/qa/publication-screenshots-reviewed.zip'
+          with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+              for path in sorted((root / 'docs/screenshots').glob('*.png')):
+                  archive.write(path, path.as_posix())
+              for path in readiness_files:
+                  archive.write(path, path.as_posix())
+              archive.write(summary_path, summary_path.as_posix())
+              archive.write(root / '_site/build-manifest.json', '_site/build-manifest.json')
+
+          provenance = {
+              'schemaVersion': 1,
+              'purpose': 'Durable binding for authentic publication screenshots generated and reviewed on 2026-07-19.',
+              'source': {
+                  'artifactName': f'publication-screenshots-reviewed-{run_id}',
+                  'artifactId': run_id,
+                  'artifactZipSha256': sha_file(zip_path),
+                  'evidenceRevision': source_commit,
+                  'evidenceStatus': 'valid',
+                  'evidenceCount': len(summary['screenshots'])
+              },
+              'build': {
+                  'manifestSha256': summary['build']['sha256'],
+                  'fingerprint': build_manifest['fingerprint'],
+                  'applicationFingerprint': build_manifest['application']['fingerprint'],
+                  'dataFingerprint': build_manifest['data']['fingerprint']
+              },
+              'summary': {
+                  'path': 'qa/screenshot-evidence/summary.json',
+                  'sha256': sha_file(summary_path),
+                  'entriesSha256': evidence_entries(summary['screenshots'])
+              },
+              'readiness': {
+                  'directory': 'qa/screenshot-evidence/readiness',
+                  'files': len(readiness_files),
+                  'bytes': sum(path.stat().st_size for path in readiness_files),
+                  'entriesSha256': readiness_entries(readiness_files)
+              }
+          }
+          (root / 'qa/screenshot-evidence/provenance.json').write_text(
+              json.dumps(provenance, ensure_ascii=False, indent=2) + '\n'
+          )
+
+          baseline = {
+              '01-startansicht.png': 1220417,
+              '02-stadtauswahl.png': 199380,
+              '03-filter.png': 200425,
+              '04-cluster-ansicht.png': 1218699,
+              '05-heatmap-ansicht.png': 1195536,
+              '06-legende.png': 1220527,
+              '07-export-modal.png': 420528,
+              '08-stundenfilter.png': 199747,
+              '09-bereich-markieren.png': 1270828,
+              '10-auto-fahrrad-und.png': 1279981,
+              '11-fahrrad-alleinunfaelle.png': 1159187,
+              '12-poi-schulen-kitas.png': 1189674,
+              '13-bonn-hbf-radunfaelle.png': 1245355,
+              '14-export-filterkontext.png': 389399,
+              '15-export-pdf-rendered.png': 105545,
+              '16-antrag-inhalt.png': 405434,
+              '21-mapmode-standard.png': 467818,
+              '22-mapmode-orthophoto.png': 610341,
+              '23-mapmode-hybrid.png': 640830,
+              '24-mapmode-analysis.png': 859514,
+              '25-mapmode-orthophoto-fallback.png': 467899,
+          }
+          current = {
+              path.name: path.stat().st_size
+              for path in sorted((root / 'docs/screenshots').glob('*.png'))
+          }
+          total_before = sum(baseline.values())
+          total_after = sum(current.values())
+          demo_bytes = (root / 'docs/demo.gif').stat().st_size
+          report = [
+              '# Medien-QA: authentische Publikations-Screenshots (19.07.2026)',
+              '',
+              f'Die Dokumentationsbilder wurden mit dem manuellen Publikationsprofil am exakten Quellcommit `{source_commit}` erzeugt.',
+              'Automatische PR-/E2E-Artefakte bleiben davon getrennte, synthetische Regressionstests und dürfen nicht veröffentlicht werden.',
+              '',
+              '## Nachweise',
+              '',
+              f'- Workflow-Run/Artefakt-ID: `{run_id}`',
+              f"- Review-ZIP SHA-256: `{provenance['source']['artifactZipSha256']}`",
+              f"- Build-Fingerprint: `{provenance['build']['fingerprint']}`",
+              f"- Anwendungs-Fingerprint: `{provenance['build']['applicationFingerprint']}`",
+              f"- Daten-Fingerprint: `{provenance['build']['dataFingerprint']}`",
+              f"- Evidence: **{len(summary['screenshots'])}/{len(summary['screenshots'])}** Sidecars gültig",
+              '- Jede eingecheckte Kartenabbildung bindet Profil, Raster-Content-Type, Provider, Status und sichtbare Attribution.',
+              '- SVG-/Fixture-Tiles sind für eingecheckte Dokumentationsmedien fail-closed ausgeschlossen.',
+              '- PDF-QA hält die Karte aktiviert, scannt alle Seiten, prüft die Unfallzahl und verlangt mindestens eine Rasterkartenoperation.',
+              '',
+              '## Größen',
+              '',
+              '| Asset | Vorher (Byte) | Authentisch (Byte) | Änderung (Byte) |',
+              '|---|---:|---:|---:|'
+          ]
+          for name in sorted(current):
+              before = baseline.get(name, 0)
+              after = current[name]
+              report.append(f'| `{name}` | {before:,}'.replace(',', '.') +
+                            f' | {after:,}'.replace(',', '.') +
+                            f' | {after-before:+,} |'.replace(',', '.'))
+          report.extend([
+              f"| **Screenshots gesamt** | **{total_before:,}** | **{total_after:,}** | **{total_after-total_before:+,}** |".replace(',', '.'),
+              '',
+              f'Alle Dokumentationsmedien zusammen: **{total_after + demo_bytes:,} Byte**.'.replace(',', '.'),
+              '',
+              '## Visuelle Freigabekriterien',
+              '',
+              '- Standardkarten zeigen erkennbare reale Straßen, Gebäude-/Flächensignaturen und OpenStreetMap-Attribution.',
+              '- Orthofoto-/Hybrid-/Analyseansichten zeigen reale amtliche Bilddaten statt generischer Farbflächen.',
+              '- Unfallpunkte, Cluster, Heatmap, Auswahl und Bedienzustand bleiben lesbar.',
+              '- Screenshot 25 zeigt einen echten Standardkarten-Fallback nach bewusst provoziertem Orthofoto-Fehler.',
+              '- Die Übernahme bleibt bis zur manuellen Sichtprüfung dieses konkreten Bildsatzes ein Draft.',
+              ''
+          ])
+          (root / 'docs/media-qa-2026-07-19.md').write_text('\n'.join(report), encoding='utf-8')
+          PY
+
+          npm run validate:media
+
+          git add docs/screenshots qa/screenshot-evidence docs/media-qa-2026-07-19.md
+          git commit -m "docs: replace synthetic maps with authentic publication screenshots"
+          git push origin HEAD:fix/screenshot-map-context
+
+      - name: Upload authentic reviewed candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: publication-screenshots-reviewed-${{ github.run_id }}
+          path: |
+            out/qa/publication-screenshots-reviewed.zip
+            docs/screenshots/*.png
+            qa/screenshot-evidence/
+            docs/media-qa-2026-07-19.md
+          if-no-files-found: error
+          retention-days: 30
