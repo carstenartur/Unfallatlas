@@ -1,4 +1,4 @@
-name: One-shot PR 405 split
+name: One-shot media PR split
 
 on:
   pull_request:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   split:
-    if: startsWith(github.head_ref, 'automation/split-pr-405')
+    if: startsWith(github.head_ref, 'automation/split-pr-405-media')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -22,42 +22,26 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Load and execute reviewed split script
+      - name: Execute focused media split
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin automation/split-pr-405
-          python3 - <<'PY'
-          import subprocess
-          from pathlib import Path
-
-          text = subprocess.check_output([
-              'git', 'show',
-              'origin/automation/split-pr-405:.github/workflows/split-pr-405.yml'
-          ], text=True)
-          marker = '        run: |\n'
-          if marker not in text:
-              raise SystemExit('split run block not found')
-          block = text.split(marker, 1)[1]
-          script = '\n'.join(
-              line[10:] if line.startswith('          ') else line
-              for line in block.splitlines()
-          ) + '\n'
-          Path('/tmp/split-pr-405.sh').write_text(script)
-          PY
-          bash -n /tmp/split-pr-405.sh
+          git show origin/automation/split-pr-405:scripts/split-pr-419.sh > /tmp/split-pr-419.sh
+          chmod +x /tmp/split-pr-419.sh
+          bash -n /tmp/split-pr-419.sh
           set +e
-          bash -x /tmp/split-pr-405.sh 2>&1 | tee /tmp/split-pr-405.log
+          bash -x /tmp/split-pr-419.sh 2>&1 | tee /tmp/split-pr-419.log
           status=${PIPESTATUS[0]}
           set -e
           if [[ $status -ne 0 ]]; then
             {
-              echo '## Split workflow failure'
+              echo '## Media split workflow failure'
               echo
               echo '```text'
-              tail -n 180 /tmp/split-pr-405.log
+              tail -n 180 /tmp/split-pr-419.log
               echo '```'
-            } > /tmp/split-failure.md
-            gh issue comment 420 --body-file /tmp/split-failure.md
+            } > /tmp/media-split-failure.md
+            gh issue comment 420 --body-file /tmp/media-split-failure.md
             exit "$status"
           fi
