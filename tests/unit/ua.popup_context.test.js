@@ -253,6 +253,85 @@ describe('UA.composeAccidentPopupHtml — preserves base content, appends contex
   });
 });
 
+describe('UA.renderAccidentBasePopupHtml — amtliche Unfallstammdaten', () => {
+  test('renders a useful base popup without optional context data', () => {
+    const UA = loadModules();
+    const html = UA.renderAccidentBasePopupHtml(
+      { CITY_RAW: 'Bonn', DATA_URL: 'out/output_all_years_bonn.geojson.gz' },
+      {
+        id: '95846',
+        year: 2019,
+        umonat: '01',
+        ustunde: '19',
+        uwochentag: '3',
+        strzustand: '1',
+        ukategorie: '2',
+        istrad: '1',
+        istpkw: '1',
+      },
+      { lat: 50.733, lon: 7.095 }
+    );
+
+    expect(html).toContain('Amtliche Unfalldaten');
+    expect(html).toContain('Unfall mit Schwerverletzten');
+    expect(html).toContain('Januar 2019');
+    expect(html).toContain('19:00 Uhr');
+    expect(html).toContain('Dienstag');
+    expect(html).toContain('Radverkehr, PKW');
+    expect(html).toContain('nass, feucht oder schlüpfrig');
+    expect(html).toContain('50.73300, 7.09500');
+    expect(html).toContain('95846');
+    expect(html).toContain('out/output_all_years_bonn.geojson.gz');
+    expect(html).toContain('belegen keine Unfallursache');
+  });
+
+  test('supports official uppercase aliases and omits missing rows', () => {
+    const UA = loadModules();
+    const html = UA.renderAccidentBasePopupHtml(
+      { CITY_RAW: 'Hannover' },
+      { OBJECTID: 7, UJAHR: 2024, UKATEGORIE: 3, ISTFUSS: 1 },
+      {}
+    );
+
+    expect(html).toContain('Unfall mit Leichtverletzten');
+    expect(html).toContain('Fußverkehr');
+    expect(html).toContain('2024');
+    expect(html).toContain('Hannover');
+    expect(html).not.toContain('accident-coordinate');
+    expect(html).not.toMatch(/undefined|null/i);
+  });
+
+  test('escapes untrusted property and provenance values', () => {
+    const UA = loadModules();
+    const html = UA.renderAccidentBasePopupHtml(
+      { CITY_RAW: '<img src=x onerror=alert(1)>', DATA_URL: '<script>alert(1)</script>' },
+      { id: '<svg onload=alert(1)>', ukategorie: '<b>4</b>' },
+      { lat: 50.7, lon: 7.1 }
+    );
+
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('<img src=x');
+    expect(html).not.toContain('<svg onload');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('&lt;svg onload=alert(1)&gt;');
+    expect(html).toContain('unbekannt (Code &lt;b&gt;4&lt;/b&gt;)');
+  });
+
+  test('composes basis first and optional context second', () => {
+    const UA = loadModules();
+    const ctx = {
+      CITY_RAW: 'Bonn',
+      contextCapabilities: { hasElevation: true },
+    };
+    const props = { id: 'A-1', ukategorie: '3', elevation_m: 71 };
+    const baseHtml = UA.renderAccidentBasePopupHtml(ctx, props, { lat: 50.7, lon: 7.1 });
+    const html = UA.composeAccidentPopupHtml(ctx, props, { baseHtml });
+
+    expect(html.indexOf('Amtliche Unfalldaten')).toBeLessThan(html.indexOf('Kontextdaten'));
+    expect(html).toContain('Topographie');
+  });
+});
+
 describe('UA.composeAccidentPopupHtml — PR-C ways_<city>.json hydration', () => {
   const baseCtx = () => ({
     contextCapabilities: { hasOsmContext: true, hasSlope: true, hasElevation: true, hasAny: true },

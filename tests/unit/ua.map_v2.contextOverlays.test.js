@@ -23,6 +23,7 @@ function makeLayer(name, getCount) {
 
 function makeLeafletStub() {
   return {
+    canvas: jest.fn(() => ({ kind: 'shared-context-renderer' })),
     DomUtil: {
       create(tag, className) {
         const el = document.createElement(tag);
@@ -133,6 +134,47 @@ describe('ua.map_v2 context overlays', () => {
     expect(ctx.contextOverlays.layers.slope.getLayers().length).toBeGreaterThan(0);
   });
 
+  test('both URL-hydrated layers share one renderer and expose the combined encoding note', () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextCapabilities.hasTrafficProxy = true;
+    ctx.contextOverlays.active.traffic = true;
+    ctx.contextLayerState = {
+      ways: { W1: { road_slope_class: 'steep', traffic_volume_value: 12000 } },
+      geometries: { W1: [50.0, 7.0, 50.001, 7.001] },
+    };
+    const slope = jest.spyOn(UA.contextRoadLayer, 'buildSlopeLayer');
+    const traffic = jest.spyOn(UA.contextRoadLayer, 'buildTrafficLayer');
+
+    UA.refreshContextOverlays(ctx);
+
+    expect(slope).toHaveBeenCalledWith(ctx.contextLayerState, expect.objectContaining({
+      renderer: ctx.contextOverlays.renderer,
+    }));
+    expect(traffic).toHaveBeenCalledWith(ctx.contextLayerState, expect.objectContaining({
+      renderer: ctx.contextOverlays.renderer,
+    }));
+    expect(ctx.contextOverlays.legendControl._container
+      .querySelector('.context-road-legend__combined-note').textContent)
+      .toMatch(/Steigung außen.*Verkehr.*innen/);
+  });
+
+  test('URL-hydrated v3 overlays install the viewport moveend rebuild handler', () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextLayerState = {
+      ways: { W1: { road_slope_class: 'steep' } },
+      geometries: { W1: [50.0, 7.0, 50.001, 7.001] },
+      tileIndex: { z: 13, tiles: [], tileKeySet: new Set() },
+      _tileCache: new Map(),
+    };
+    UA.contextLayers = { loadTilesForBbox: jest.fn().mockResolvedValue({}) };
+
+    UA.refreshContextOverlays(ctx);
+
+    expect(typeof ctx.map._events.moveend).toBe('function');
+  });
+
   test('setContextOverlayActive rebuilds when already active but layer is missing', async () => {
     const UA = loadMapModule();
     const ctx = makeCtx(UA);
@@ -191,5 +233,97 @@ describe('ua.map_v2 context overlays', () => {
     expect(ctx.contextOverlays.layers.slope).not.toBe(oldLayer);
     expect(ctx.map._layers).not.toContain(oldLayer);
     expect(ctx.contextOverlays.layers.slope.getLayers().length).toBeGreaterThan(1);
+  });
+
+  test('readiness queues the current viewport when bounds change during an in-flight rebuild', async () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    const boundsA = {
+      id: 'viewport-a',
+      getSouth: () => 50.0,
+      getNorth: () => 50.01,
+      getWest: () => 7.0,
+      getEast: () => 7.01,
+    };
+    const boundsB = {
+      id: 'viewport-b',
+      getSouth: () => 51.0,
+      getNorth: () => 51.01,
+      getWest: () => 8.0,
+      getEast: () => 8.01,
+    };
+    let currentBounds = boundsA;
+    ctx.map.getBounds = () => currentBounds;
+    ctx.contextLayerState = {
+      ways: {
+        A: { road_slope_class: 'steep' },
+        B: { road_slope_class: 'very_steep' },
+      },
+      geometries: {},
+      tileIndex: { z: 13, tiles: [], tileKeySet: new Set() },
+      _tileCache: new Map(),
+    };
+
+    const deferred = () => {
+      let resolve;
+      const promise = new Promise((done) => { resolve = done; });
+      return { promise, resolve };
+    };
+    const viewportA = deferred();
+    const viewportB = deferred();
+    UA.contextLayers = {
+      loadTilesForBbox: jest.fn((state, bounds) => {
+        if (bounds === boundsA) {
+          return viewportA.promise.then(() => {
+            state.geometries.A = [50.0, 7.0, 50.001, 7.001];
+          });
+        }
+        if (bounds === boundsB) {
+          return viewportB.promise.then(() => {
+            state.geometries.B = [51.0, 8.0, 51.001, 8.001];
+          });
+        }
+        throw new Error('unexpected viewport');
+      }),
+    };
+    const buildSlope = jest.spyOn(UA.contextRoadLayer, 'buildSlopeLayer');
+
+    let firstSettled = false;
+    const firstWaiter = UA.ensureContextOverlaysReady(ctx).then((result) => {
+      firstSettled = true;
+      return result;
+    });
+    await Promise.resolve();
+    expect(UA.contextLayers.loadTilesForBbox).toHaveBeenCalledWith(
+      ctx.contextLayerState,
+      boundsA
+    );
+
+    currentBounds = boundsB;
+    let secondSettled = false;
+    const secondWaiter = UA.ensureContextOverlaysReady(ctx).then((result) => {
+      secondSettled = true;
+      return result;
+    });
+    viewportA.resolve();
+    for (let i = 0; i < 8 && UA.contextLayers.loadTilesForBbox.mock.calls.length < 2; i++) {
+      await Promise.resolve();
+    }
+
+    expect(UA.contextLayers.loadTilesForBbox).toHaveBeenCalledTimes(2);
+    expect(UA.contextLayers.loadTilesForBbox.mock.calls[1][1]).toBe(boundsB);
+    expect(firstSettled).toBe(false);
+    expect(secondSettled).toBe(false);
+
+    viewportB.resolve();
+    const [firstResult, secondResult] = await Promise.all([firstWaiter, secondWaiter]);
+
+    expect(buildSlope).toHaveBeenLastCalledWith(
+      ctx.contextLayerState,
+      expect.objectContaining({ bounds: boundsB })
+    );
+    expect(ctx.contextOverlays.layers.slope.getLayers()).toHaveLength(2);
+    expect(firstResult.features.slope).toBe(2);
+    expect(secondResult.features.slope).toBe(2);
   });
 });

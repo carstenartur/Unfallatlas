@@ -17,12 +17,13 @@ describe('UA.PoliticalContext.buildSearchTerms', () => {
     document.body.innerHTML = '';
     delete window.UA;
 
-    // Minimal UA stub (escHtml + namespace) — die richtige UA-Initialisierung
-    // legt das ua.political-context.js-IIFE selbst an.
-    window.UA = { escHtml: s => String(s == null ? '' : s) };
+    window.UA = {};
 
     const fs = require('fs');
     const path = require('path');
+    const utils = fs.readFileSync(path.resolve(__dirname, '../../js/ua.utils.js'), 'utf8');
+    // eslint-disable-next-line no-eval
+    eval(utils);
     const src = fs.readFileSync(path.resolve(__dirname, '../../js/ua.political-context.js'), 'utf8');
     // eslint-disable-next-line no-eval
     eval(src);
@@ -90,5 +91,31 @@ describe('UA.PoliticalContext.buildSearchTerms', () => {
     };
     const terms = UA.PoliticalContext.buildSearchTerms(ctx);
     expect(terms.length).toBeLessThanOrEqual(5);
+  });
+
+  test('moves focus into the dialog and restores it when Escape closes the dialog', () => {
+    document.body.innerHTML = `
+      <button type="button" id="btnPolCtxOpen">Politische Vorgänge</button>
+      <div id="polCtxPanel" style="display:none">
+        <button type="button" id="polCtxBtnClose">Schließen</button>
+        <input id="polCtxSearchInput" />
+      </div>
+    `;
+
+    const openButton = document.getElementById('btnPolCtxOpen');
+    const panel = document.getElementById('polCtxPanel');
+    const closeButton = document.getElementById('polCtxBtnClose');
+
+    UA.PoliticalContext.init({ CITY_RAW: 'Hannover' });
+    openButton.focus();
+    openButton.click();
+
+    expect(panel.style.display).toBe('flex');
+    expect(document.activeElement).toBe(closeButton);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(panel.style.display).toBe('none');
+    expect(document.activeElement).toBe(openButton);
   });
 });

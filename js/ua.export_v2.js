@@ -3209,6 +3209,7 @@ ${placemarks}
 
   // sehr kleine Cache-Strategie, damit beim Klicken nicht dauernd neue Requests kommen
   const _rgCache = new Map();
+  const DEFAULT_REVERSE_GEOCODE_TIMEOUT_MS = 6000;
 
   UA.reverseGeocode = async function reverseGeocode(lat, lon){
     const key = `${lat.toFixed(5)},${lon.toFixed(5)}`;
@@ -3224,13 +3225,37 @@ ${placemarks}
     try {
       // Nominatim (OSM) Reverse; kann je nach Browser/CORS/Policy manchmal blocken.
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
-      const r = await fetch(url, {
-        method: "GET",
-        cache: "no-store",
-        headers: { "Accept": "application/json" }
-      });
-      if (!r.ok) throw new Error(`reverse status ${r.status}`);
-      const j = await r.json();
+      const configuredTimeout = Number(UA.REVERSE_GEOCODE_TIMEOUT_MS);
+      const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? configuredTimeout
+        : DEFAULT_REVERSE_GEOCODE_TIMEOUT_MS;
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      let timer = null;
+      let j;
+      try {
+        const request = (async () => {
+          const r = await fetch(url, {
+            method: "GET",
+            cache: "no-store",
+            headers: { "Accept": "application/json" },
+            signal: controller ? controller.signal : undefined
+          });
+          if (!r.ok) throw new Error(`reverse status ${r.status}`);
+          // The same deadline intentionally includes the complete response
+          // body.  A server that sends headers and then stalls must not block
+          // a PDF/video export forever.
+          return r.json();
+        })();
+        const deadline = new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            if (controller) controller.abort();
+            reject(new Error(`Nominatim timeout after ${timeoutMs}ms (including body)`));
+          }, timeoutMs);
+        });
+        j = await Promise.race([request, deadline]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
 
       // display_name ist meist am brauchbarsten
       const label = j.display_name || fallback.label;

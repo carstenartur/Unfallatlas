@@ -29,6 +29,29 @@
   const UA = (window.UA = window.UA || {});
   UA.Priorities = UA.Priorities || {};
 
+  let panelController = null;
+
+  function getPanelController(panel) {
+    if (!panelController) {
+      panelController = UA.createModalController(panel, {
+        initialFocus: '#prioBtnClose',
+        returnFocus: () => document.getElementById('btnPrioritiesOpen'),
+        fallbackFocus: () => document.getElementById('collapseBtn'),
+      });
+    }
+    return panelController;
+  }
+
+  function showPanel(panel) {
+    if (!panel) return;
+    getPanelController(panel).open();
+  }
+
+  function closePanel(panel) {
+    if (!panel) return;
+    getPanelController(panel).close();
+  }
+
   // ── API-Zugriff ──────────────────────────────────────────────────────────────
 
   /**
@@ -228,7 +251,7 @@
   UA.Priorities.openPanel = async function openPanel(ctx) {
     const panel = document.getElementById('prioPanel');
     if (!panel) return;
-    panel.style.display = 'flex';
+    showPanel(panel);
 
     const cityInput    = document.getElementById('prioCity');
     const profileSel   = document.getElementById('prioProfile');
@@ -299,7 +322,7 @@
     if (!btnOpen || !panel) return;
 
     btnOpen.addEventListener('click', () => UA.Priorities.openPanel(ctx));
-    if (btnClose) btnClose.addEventListener('click', () => { panel.style.display = 'none'; });
+    if (btnClose) btnClose.addEventListener('click', () => closePanel(panel));
 
     if (btnLoad) {
       btnLoad.addEventListener('click', async () => {
