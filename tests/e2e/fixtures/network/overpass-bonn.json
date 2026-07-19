@@ -1,0 +1,30 @@
+{
+  "version": 0.6,
+  "generator": "Unfallatlas canonical screenshot fixture v1",
+  "osm3s": {
+    "timestamp_osm_base": "2024-01-01T00:00:00Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org and is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "way",
+      "id": 1001,
+      "tags": { "highway": "primary", "name": "Adenauerallee", "maxspeed": "50", "lanes": "2", "width": "7.0", "cycleway:right": "lane" }
+    },
+    {
+      "type": "way",
+      "id": 1002,
+      "tags": { "highway": "residential", "name": "Kaiserstraße", "maxspeed": "30" }
+    },
+    {
+      "type": "node",
+      "id": 2001,
+      "tags": { "highway": "traffic_signals" }
+    },
+    {
+      "type": "node",
+      "id": 2002,
+      "tags": { "highway": "crossing", "crossing": "marked" }
+    }
+  ]
+}

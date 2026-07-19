@@ -23,10 +23,10 @@ async function canvasCounts(page) {
       [154, 169, 184],
     ];
     const trafficPalette = [
-      [255, 255, 204],
-      [161, 218, 180],
-      [65, 182, 196],
-      [34, 94, 168],
+      [42, 157, 143],
+      [39, 125, 161],
+      [58, 90, 152],
+      [27, 27, 94],
     ];
     const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
       Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8

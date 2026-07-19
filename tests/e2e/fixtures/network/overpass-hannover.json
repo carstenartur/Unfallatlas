@@ -1,0 +1,30 @@
+{
+  "version": 0.6,
+  "generator": "Unfallatlas canonical screenshot fixture v1",
+  "osm3s": {
+    "timestamp_osm_base": "2024-01-01T00:00:00Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org and is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "way",
+      "id": 3001,
+      "tags": { "highway": "primary", "name": "Friedrichswall", "maxspeed": "30", "lanes": "2", "width": "7.5", "cycleway:right": "track" }
+    },
+    {
+      "type": "way",
+      "id": 3002,
+      "tags": { "highway": "secondary", "name": "Aegidientorplatz", "maxspeed": "50", "lanes": "3" }
+    },
+    {
+      "type": "node",
+      "id": 4001,
+      "tags": { "highway": "traffic_signals" }
+    },
+    {
+      "type": "node",
+      "id": 4002,
+      "tags": { "highway": "crossing", "crossing": "traffic_signals" }
+    }
+  ]
+}

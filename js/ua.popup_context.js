@@ -148,6 +148,138 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Amtliche Unfall-Basisdaten
+  // ---------------------------------------------------------------------------
+
+  const ACCIDENT_SEVERITY_LABELS = Object.freeze({
+    '1': 'Unfall mit Getöteten',
+    '2': 'Unfall mit Schwerverletzten',
+    '3': 'Unfall mit Leichtverletzten',
+  });
+  const ACCIDENT_WEEKDAY_LABELS = Object.freeze({
+    '1': 'Sonntag', '2': 'Montag', '3': 'Dienstag', '4': 'Mittwoch',
+    '5': 'Donnerstag', '6': 'Freitag', '7': 'Samstag',
+  });
+  const ACCIDENT_ROAD_CONDITION_LABELS = Object.freeze({
+    '0': 'trocken',
+    '1': 'nass, feucht oder schlüpfrig',
+    '2': 'winterglatt',
+  });
+  const ACCIDENT_MONTH_LABELS = Object.freeze([
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+  ]);
+  const ACCIDENT_PARTICIPANTS = Object.freeze([
+    Object.freeze({ keys: ['istrad', 'IstRad', 'ISTRAD'], label: 'Radverkehr' }),
+    Object.freeze({ keys: ['istfuss', 'IstFuss', 'ISTFUSS'], label: 'Fußverkehr' }),
+    Object.freeze({ keys: ['istpkw', 'IstPKW', 'ISTPKW'], label: 'PKW' }),
+    Object.freeze({ keys: ['istkrad', 'IstKrad', 'ISTKRAD'], label: 'Motorrad' }),
+    Object.freeze({ keys: ['istgkfz', 'IstGkfz', 'ISTGKFZ'], label: 'LKW/Güterverkehr' }),
+    Object.freeze({ keys: ['istsonstig', 'IstSonstig', 'ISTSONSTIG'], label: 'Sonstige Beteiligte' }),
+  ]);
+
+  function firstPresentValue(props, keys) {
+    const p = props || {};
+    for (const key of keys) {
+      if (isPresent(p[key])) return p[key];
+    }
+    return null;
+  }
+
+  function codedLabel(value, labels) {
+    if (!isPresent(value)) return null;
+    const code = String(value);
+    return labels[code] || `unbekannt (Code ${code})`;
+  }
+
+  function accidentDateLabel(props) {
+    const year = firstPresentValue(props, ['year', 'ujahr', 'UJAHR']);
+    const rawMonth = firstPresentValue(props, ['umonat', 'UMONAT', 'month']);
+    const month = Number(rawMonth);
+    const monthLabel = Number.isInteger(month) && month >= 1 && month <= 12
+      ? ACCIDENT_MONTH_LABELS[month - 1]
+      : null;
+    if (monthLabel && isPresent(year)) return `${monthLabel} ${year}`;
+    if (isPresent(year)) return String(year);
+    return monthLabel;
+  }
+
+  function accidentTimeLabel(props) {
+    const raw = firstPresentValue(props, ['ustunde', 'USTUNDE', 'hour']);
+    const hour = Number(raw);
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+    return `${String(hour).padStart(2, '0')}:00 Uhr`;
+  }
+
+  function accidentParticipantLabel(props) {
+    const labels = ACCIDENT_PARTICIPANTS
+      .filter(item => item.keys.some(key => String((props || {})[key]) === '1'))
+      .map(item => item.label);
+    return labels.length ? labels.join(', ') : null;
+  }
+
+  function accidentCoordinateLabel(options) {
+    const lat = Number(options && options.lat);
+    const lon = Number(options && options.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  }
+
+  /**
+   * Rendert den kompakten, amtlichen Basisblock eines Unfallmarkers.
+   * Der Block ist unabhängig von optionalen Kontext-Capabilities und wird
+   * deshalb für jeden gültigen Unfallpunkt erzeugt. Abgeleitete Kontextwerte
+   * werden ausschließlich durch `render()` darunter ergänzt.
+   *
+   * @param {object|null} ctx
+   * @param {object|null} props
+   * @param {{lat?: number, lon?: number}} [options]
+   * @returns {string}
+   */
+  function renderAccidentBasePopupHtml(ctx, props, options) {
+    const p = props || {};
+    const severity = firstPresentValue(p, ['ukategorie', 'UKATEGORIE', 'severity']);
+    const severityLabel = codedLabel(severity, ACCIDENT_SEVERITY_LABELS);
+    const weekday = firstPresentValue(p, ['uwochentag', 'UWOCHENTAG', 'weekday']);
+    const roadCondition = firstPresentValue(p, ['strzustand', 'STRZUSTAND', 'roadCondition']);
+    const accidentId = firstPresentValue(p, [
+      'id', 'ID', 'objectid', 'OBJECTID', 'uid', 'UID',
+      'unfall_id', 'UNFALL_ID', 'uidentstlae', 'UIDENTSTLAE',
+    ]);
+    const source = firstPresentValue(
+      (ctx && ctx.geojsonProps) || {},
+      ['source', 'quelle', 'dataSource']
+    ) || (ctx && ctx.DATA_URL) || null;
+    const city = ctx && ctx.CITY_RAW ? String(ctx.CITY_RAW) : null;
+
+    const rows = [
+      rowHtml('Zeitraum', accidentDateLabel(p), { field: 'accident-date' }),
+      rowHtml('Uhrzeit', accidentTimeLabel(p), { field: 'accident-time' }),
+      rowHtml('Wochentag', codedLabel(weekday, ACCIDENT_WEEKDAY_LABELS), { field: 'accident-weekday' }),
+      rowHtml('Beteiligte', accidentParticipantLabel(p), { field: 'accident-participants' }),
+      rowHtml('Fahrbahn', codedLabel(roadCondition, ACCIDENT_ROAD_CONDITION_LABELS), { field: 'accident-road-condition' }),
+      rowHtml('Koordinate', accidentCoordinateLabel(options), { field: 'accident-coordinate' }),
+      rowHtml('Datensatz-ID', accidentId, { field: 'accident-id' }),
+      rowHtml('Stadt', city, { field: 'accident-city' }),
+      rowHtml('Quelle', source, { field: 'accident-source' }),
+    ].filter(Boolean);
+
+    return (
+      `<section data-ua-accident-base role="group" aria-label="Amtliche Unfalldaten"` +
+        ` style="font:13px/1.35 system-ui; min-width:240px;">` +
+        `<div style="font-weight:900; margin-bottom:4px;">Amtliche Unfalldaten</div>` +
+        (severityLabel
+          ? `<div data-ua-field="accident-severity" style="font-weight:800; margin-bottom:4px;">${escHtml(severityLabel)}</div>`
+          : '') +
+        rows.join('') +
+        `<div style="margin-top:7px; color:#666; font-size:11px;">` +
+          `Kontext-Hinweise beschreiben das Umfeld und belegen keine Unfallursache.` +
+        `</div>` +
+      `</section>`
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Sektions-Builder
   // ---------------------------------------------------------------------------
 
@@ -422,9 +554,11 @@
     HYDRATABLE_WAY_FIELDS,
     formatNumber,
     classifySource,
+    renderAccidentBasePopupHtml,
     render,
     hydrateWayAttrs,
   };
+  UA.renderAccidentBasePopupHtml = renderAccidentBasePopupHtml;
   UA.composeAccidentPopupHtml = composeAccidentPopupHtml;
 
   // Backward-compat: bestehende Aufrufer (z. B. ältere Tests, externe
