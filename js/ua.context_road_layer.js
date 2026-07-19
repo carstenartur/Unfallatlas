@@ -72,8 +72,9 @@
     very_high: 'sehr hoch (> 15 000 DTV)',
   };
 
-  // Colour ramps. Slope = ColorBrewer YlOrRd-5; Traffic = YlGnBu-4. Both
-  // are perceptually ordered and colour-blind safe.
+  // Colour ramps. Slope uses ColorBrewer YlOrRd-5. Traffic uses a
+  // teal-to-navy sequence whose four strokes retain at least 3:1 contrast on
+  // white while remaining perceptually ordered and colour-vision robust.
   const SLOPE_COLORS = {
     flat:       '#ffffb2',
     gentle:     '#fecc5c',
@@ -82,10 +83,13 @@
     very_steep: '#bd0026',
   };
   const TRAFFIC_COLORS = {
-    low:       '#ffffcc',
-    medium:    '#a1dab4',
-    high:      '#41b6c4',
-    very_high: '#225ea8',
+    // Every stroke clears 3:1 non-text contrast on white. The previous
+    // yellow/green low classes disappeared on pale basemap tiles, especially
+    // as a 3 px dashed centreline in the combined view.
+    low:       '#2a9d8f',
+    medium:    '#277da1',
+    high:      '#3a5a98',
+    very_high: '#1b1b5e',
   };
 
   // Mirror of SLOPE_CLASS_THRESHOLDS / TRAFFIC_PROXY_THRESHOLDS in
@@ -195,6 +199,7 @@
       color,
       weight:    Number.isFinite(o.weight) ? o.weight : 4,
       opacity:   Number.isFinite(o.opacity) ? o.opacity : 0.85,
+      dashArray: typeof o.dashArray === 'string' && o.dashArray ? o.dashArray : null,
       lineCap:   'round',
       lineJoin:  'round',
       interactive: false,
@@ -214,6 +219,7 @@
    * @param {object}  [opts.renderer]   shared L.canvas() renderer
    * @param {number}  [opts.weight]     line weight (default 4)
    * @param {number}  [opts.opacity]    line opacity (default 0.85)
+   * @param {string}  [opts.dashArray]  Leaflet dash pattern
    * @returns {L.LayerGroup}
    */
   function buildLayer(state, kind, opts) {
@@ -323,7 +329,12 @@
       }
       if (!color) continue;
       try {
-        const line = window.L.polyline(latlngs, lineStyle(color, { renderer, weight: o.weight, opacity: o.opacity }));
+        const line = window.L.polyline(latlngs, lineStyle(color, {
+          renderer,
+          weight: o.weight,
+          opacity: o.opacity,
+          dashArray: o.dashArray,
+        }));
         // Tiny payload so a future hover/tooltip can read the class
         // without re-resolving the way table. For slope features we
         // also expose the confidence + numeric percent + method +
@@ -387,12 +398,22 @@
     // grey so the v3 full-network coverage is visible at a glance —
     // colour = slope calculated, grey = road covered but no signal.
     const o = opts || {};
-    const merged = (o.showUnclassified === undefined)
-      ? Object.assign({}, o, { showUnclassified: true })
-      : o;
+    // A wide solid casing remains visible below the traffic layer when both
+    // encode the same road. Width is a second, colour-independent channel.
+    const merged = Object.assign({ weight: 8, opacity: 0.9 }, o);
+    if (o.showUnclassified === undefined) merged.showUnclassified = true;
     return buildLayer(state, 'slope', merged);
   }
-  function buildTrafficLayer(state, opts) { return buildLayer(state, 'traffic', opts); }
+  function buildTrafficLayer(state, opts) {
+    // The narrow dashed centre line complements the slope casing. It remains
+    // distinguishable for colour-vision deficiencies and exposes the slope
+    // colour both at the flanks and in every dash gap.
+    return buildLayer(state, 'traffic', Object.assign({
+      weight: 3,
+      opacity: 0.95,
+      dashArray: '10 6',
+    }, opts || {}));
+  }
 
   /**
    * Build a small DOM legend block (color swatch + label per class)
@@ -406,6 +427,27 @@
     title.className = 'context-road-legend__title';
     title.textContent = (kind === 'slope') ? 'Straßensteigung' : 'Verkehrsbelastung';
     div.appendChild(title);
+    const encoding = document.createElement('div');
+    encoding.className = 'context-road-legend__encoding';
+    encoding.textContent = kind === 'slope'
+      ? 'breite Grundlinie'
+      : 'gestrichelte Innenlinie';
+    div.appendChild(encoding);
+
+    const styleSwatch = (swatch, color) => {
+      swatch.dataset.lineEncoding = kind === 'slope' ? 'wide-solid' : 'narrow-dashed';
+      if (kind === 'traffic') {
+        swatch.style.background = 'transparent';
+        swatch.style.color = color;
+        swatch.style.height = '0';
+        swatch.style.border = '0';
+        swatch.style.borderTop = `3px dashed ${color}`;
+        swatch.style.borderRadius = '0';
+      } else {
+        swatch.style.background = color;
+        swatch.style.height = '8px';
+      }
+    };
 
     const values = (kind === 'slope') ? SLOPE_CLASS_VALUES : TRAFFIC_CLASS_VALUES;
     const labels = (kind === 'slope') ? SLOPE_LABELS_DE    : TRAFFIC_LABELS_DE;
@@ -415,7 +457,7 @@
       row.className = 'context-road-legend__row';
       const sw = document.createElement('span');
       sw.className = 'context-road-legend__swatch';
-      sw.style.background = colorFn(cls) || 'transparent';
+      styleSwatch(sw, colorFn(cls) || 'transparent');
       const lbl = document.createElement('span');
       lbl.className = 'context-road-legend__label';
       lbl.textContent = labels[cls] || cls;
@@ -435,7 +477,7 @@
       lowConfRow.className = 'context-road-legend__lowconfidence';
       const lowConfSw = document.createElement('span');
       lowConfSw.className = 'context-road-legend__swatch';
-      lowConfSw.style.background = SLOPE_LOW_CONFIDENCE_COLOR;
+      styleSwatch(lowConfSw, SLOPE_LOW_CONFIDENCE_COLOR);
       const lowConfLbl = document.createElement('span');
       lowConfLbl.className = 'context-road-legend__label';
       lowConfLbl.textContent = SLOPE_LOW_CONFIDENCE_LABEL_DE;
@@ -447,7 +489,7 @@
       row.className = 'context-road-legend__nosignal';
       const sw = document.createElement('span');
       sw.className = 'context-road-legend__swatch';
-      sw.style.background = SLOPE_NO_SIGNAL_COLOR;
+      styleSwatch(sw, SLOPE_NO_SIGNAL_COLOR);
       const lbl = document.createElement('span');
       lbl.className = 'context-road-legend__label';
       lbl.textContent = SLOPE_NO_SIGNAL_LABEL_DE;

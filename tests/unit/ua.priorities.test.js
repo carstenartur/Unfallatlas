@@ -18,6 +18,9 @@ const path = require('path');
 function loadPrioritiesModule() {
   // Modul-Quelle in den jsdom-Window-Kontext laden.  Das Modul nutzt eine
   // IIFE und greift auf `window.UA` zu – daher reicht ein einfaches eval.
+  const utils = fs.readFileSync(path.resolve(__dirname, '../../js/ua.utils.js'), 'utf8');
+  // eslint-disable-next-line no-eval
+  eval(utils);
   const src = fs.readFileSync(path.resolve(__dirname, '../../js/ua.priorities.js'), 'utf8');
   // eslint-disable-next-line no-eval
   eval(src);
@@ -189,21 +192,22 @@ describe('UA.Priorities.init – Load-Flow', () => {
   function buildFullDom() {
     document.body.innerHTML = `
       <button id="btnPrioritiesOpen">open</button>
-      <div id="prioPanel" style="display:none;"></div>
-      <button id="prioBtnClose">x</button>
-      <button id="prioBtnLoad">Laden</button>
-      <input id="prioCity" type="text" value="Hannover" />
-      <select id="prioProfile"><option value="safety_first" selected>safety_first</option></select>
-      <select id="prioMode">
-        <option value="top" selected>top</option>
-        <option value="byLocation">byLocation</option>
-      </select>
-      <div id="prioByLocationRow" style="display:none;">
-        <input id="prioLocationKey" type="text" />
+      <div id="prioPanel" style="display:none;">
+        <button id="prioBtnClose">x</button>
+        <button id="prioBtnLoad">Laden</button>
+        <input id="prioCity" type="text" value="Hannover" />
+        <select id="prioProfile"><option value="safety_first" selected>safety_first</option></select>
+        <select id="prioMode">
+          <option value="top" selected>top</option>
+          <option value="byLocation">byLocation</option>
+        </select>
+        <div id="prioByLocationRow" style="display:none;">
+          <input id="prioLocationKey" type="text" />
+        </div>
+        <div id="prioResults"></div>
+        <div id="prioStatus"></div>
+        <span id="prioStatusBadge" style="display:none;"></span>
       </div>
-      <div id="prioResults"></div>
-      <div id="prioStatus"></div>
-      <span id="prioStatusBadge" style="display:none;"></span>
     `;
   }
 
@@ -284,5 +288,35 @@ describe('UA.Priorities.init – Load-Flow', () => {
     document.getElementById('prioPanel').style.display = 'flex';
     document.getElementById('prioBtnClose').click();
     expect(document.getElementById('prioPanel').style.display).toBe('none');
+  });
+
+  test('setzt beim Öffnen den Anfangsfokus und stellt ihn nach Escape wieder her', async () => {
+    buildFullDom();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        profiles: ['safety_first'],
+        defaultProfile: 'safety_first',
+        dataStatusValues: []
+      })
+    });
+    const Priorities = loadPrioritiesModule();
+    const openButton = document.getElementById('btnPrioritiesOpen');
+    const closeButton = document.getElementById('prioBtnClose');
+    const panel = document.getElementById('prioPanel');
+
+    Priorities.init({ CITY_RAW: 'Hannover' });
+    openButton.focus();
+    openButton.click();
+
+    expect(panel.style.display).toBe('flex');
+    expect(document.activeElement).toBe(closeButton);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(panel.style.display).toBe('none');
+    expect(document.activeElement).toBe(openButton);
+
+    await new Promise(resolve => setTimeout(resolve, 0));
   });
 });

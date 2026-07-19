@@ -221,9 +221,24 @@
       showKindergartens: true,
       showArgumentation: true,
       mapMode: "standard",
-      orthophotoOpacity: 0.92
+      orthophotoOpacity: 0.92,
+      lifecyclePrimary: true
     };
+    // Deliberate runtime integration port for modules that execute outside
+    // this closure (for example the video-export client and the headless
+    // export verifier).  Keep the mutable context behind a getter instead of
+    // publishing a second `UA.ctx` alias that can silently drift or be
+    // replaced independently.
+    Object.defineProperty(UA, 'getRuntimeContext', {
+      value: function getRuntimeContext(){ return ctx; },
+      enumerable: false,
+      configurable: false,
+      writable: false
+    });
     if (UA.cleanUrlIfNeeded()) return;
+    if (UA._lifecycleReporter && typeof UA._lifecycleReporter.beginLoad === "function") {
+      UA._lifecycleReporter.beginLoad(ctx.CITY_RAW);
+    }
 
     // QA-Härtung „URL = Source of Truth": Während der Init-Phase
     // wird die URL ausschliesslich GELESEN. Schreibwege (UA.setQS aus
@@ -280,6 +295,15 @@
     // greifen kann; vorher wird der UI-Zustand sauber gesetzt.
     try {
       await UA.loadCityData(ctx);
+      if (UA._lifecycleReporter && typeof UA._lifecycleReporter.recordData === "function") {
+        UA._lifecycleReporter.recordData({
+          city: ctx.CITY_RAW,
+          loaded: ctx.allPts?.length || 0,
+          filtered: ctx.filteredAll?.length || 0,
+          viewport: ctx.viewportPts?.length || 0,
+          coverage: ctx.accidentDataCoverage || null
+        });
+      }
     } catch (e) {
       if (typeof UA.markCityDropdownError === "function") {
         UA.markCityDropdownError(ctx,
@@ -437,6 +461,9 @@ if (UA.qBool("export", false)) {
   }
 
   main().catch(err => {
+    if (UA._lifecycleReporter && typeof UA._lifecycleReporter.fail === "function") {
+      UA._lifecycleReporter.fail(err);
+    }
     // Log stack/message as string (not the raw Error object) so that
     // Playwright's msg.text() remains matchable in all browsers while
     // preserving stack context for debugging.
