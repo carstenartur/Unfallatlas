@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "revision": "2f69300de9bb540091914c2ec415d35f3d287644",
+  "revision": "be3664f039612d320c356b7c581a2de1fd4182db",
   "screenshot": {
     "path": "docs/screenshots/07-export-modal.png",
-    "bytes": 186668,
-    "sha256": "b1b84d105d5494c37ad63d2b1795059aa019e182fe6f1b157c0ee7e703ae4f04"
+    "bytes": 187373,
+    "sha256": "9312b22ae5cb653beff3bcbbafc31fe8a2542aff8c4ace8244ced361979571d0"
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "145c6da268e0947db0978b5c19b077ab02192e3741aa0dcb7d55f387f1e3e9e9",
-    "fingerprint": "5995cfec795bd1f914f118dfd3dcdcf7a81be46ac623014a41b9ebbabfa292cc",
-    "applicationFingerprint": "3380f33b5cab32373fa15f697430f0efd3607ab253a6a5690465de21795d34c6",
+    "sha256": "9d3b5794ba53ad4c70637c55d4a79c366dacdccd98ac3cfcb8b58eae3be9a3c3",
+    "fingerprint": "8f831c6941238414750fbdb00c859a28163e2938d0b26964418d792a60b1a78a",
+    "applicationFingerprint": "3a6785762ed8854d714cd6b0718fdcd1d03dd10a16e2778d59a81bf20b467732",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "criteria": {

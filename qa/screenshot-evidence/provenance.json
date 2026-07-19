@@ -3,27 +3,27 @@
   "purpose": "Durable, checked-in binding for the reviewed screenshot artifact adopted on 2026-07-19.",
   "source": {
     "artifactName": "pr-screenshots-405",
-    "artifactId": 8440785239,
-    "artifactZipSha256": "3b655162f8a747e8bb99a3ba6e755e5054a4b9f9d180f75eb79cde4dbf79636e",
-    "evidenceRevision": "2f69300de9bb540091914c2ec415d35f3d287644",
+    "artifactId": 8443391659,
+    "artifactZipSha256": "bc4d1ebc07ce61b32fb6764188c6e877f17e05ba16108897b009f58df0169ed8",
+    "evidenceRevision": "be3664f039612d320c356b7c581a2de1fd4182db",
     "evidenceStatus": "valid",
     "evidenceCount": 21
   },
   "build": {
-    "manifestSha256": "145c6da268e0947db0978b5c19b077ab02192e3741aa0dcb7d55f387f1e3e9e9",
-    "fingerprint": "5995cfec795bd1f914f118dfd3dcdcf7a81be46ac623014a41b9ebbabfa292cc",
-    "applicationFingerprint": "3380f33b5cab32373fa15f697430f0efd3607ab253a6a5690465de21795d34c6",
+    "manifestSha256": "9d3b5794ba53ad4c70637c55d4a79c366dacdccd98ac3cfcb8b58eae3be9a3c3",
+    "fingerprint": "8f831c6941238414750fbdb00c859a28163e2938d0b26964418d792a60b1a78a",
+    "applicationFingerprint": "3a6785762ed8854d714cd6b0718fdcd1d03dd10a16e2778d59a81bf20b467732",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "summary": {
     "path": "qa/screenshot-evidence/summary.json",
-    "sha256": "3c8da22430b33dc9be26dd2c1bad51123be1a5e754413064b0bcb66aed6cafce",
-    "entriesSha256": "9ea78ab0c0e4ae94d0efa2fcf900d03b8fe50078593d62c7dbc36aa95a354248"
+    "sha256": "4bfcfcac248dbdd5c2925f7919586ad5c00df49e2fbd7a6d112f048a1de29839",
+    "entriesSha256": "f9142b2985033382c478cda9aaea80c1a99dcd0f6c5893096d30d48fc6a4ec40"
   },
   "readiness": {
     "directory": "qa/screenshot-evidence/readiness",
     "files": 21,
     "bytes": 43015,
-    "entriesSha256": "bd3471c984ad5b996dc8c6f8794a64279ccd9b919e88ac37aa50c43136dc2d2b"
+    "entriesSha256": "302a1e2a4fdd85826836293ca88a2bcecddd69036cca0a7ce18956b5992f5fac"
   }
 }

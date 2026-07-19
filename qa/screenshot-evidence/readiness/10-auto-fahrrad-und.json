@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "revision": "2f69300de9bb540091914c2ec415d35f3d287644",
+  "revision": "be3664f039612d320c356b7c581a2de1fd4182db",
   "screenshot": {
     "path": "docs/screenshots/10-auto-fahrrad-und.png",
-    "bytes": 404231,
-    "sha256": "7282180321fd32ad788ce996645b098af16bbea24e0ad8397872386f0f884989"
+    "bytes": 400954,
+    "sha256": "193cc30fd9d77094ca02f8d35b3c91957a1a93f6eeafb5748263986923a7e5ac"
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "145c6da268e0947db0978b5c19b077ab02192e3741aa0dcb7d55f387f1e3e9e9",
-    "fingerprint": "5995cfec795bd1f914f118dfd3dcdcf7a81be46ac623014a41b9ebbabfa292cc",
-    "applicationFingerprint": "3380f33b5cab32373fa15f697430f0efd3607ab253a6a5690465de21795d34c6",
+    "sha256": "9d3b5794ba53ad4c70637c55d4a79c366dacdccd98ac3cfcb8b58eae3be9a3c3",
+    "fingerprint": "8f831c6941238414750fbdb00c859a28163e2938d0b26964418d792a60b1a78a",
+    "applicationFingerprint": "3a6785762ed8854d714cd6b0718fdcd1d03dd10a16e2778d59a81bf20b467732",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "criteria": {
