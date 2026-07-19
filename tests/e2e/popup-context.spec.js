@@ -22,7 +22,10 @@ test.describe('Popup context data', () => {
     const markerPopup = await page.evaluate(async () => {
       let clusterLayer = null;
       window._uaMap.eachLayer(layer => {
-        if (!clusterLayer && layer && typeof layer.getAllChildMarkers === 'function') {
+        // A visible MarkerCluster also exposes getAllChildMarkers().  Select
+        // the owning MarkerClusterGroup explicitly; it is the object carrying
+        // the one shared popup context and the delegated click listener.
+        if (!clusterLayer && layer && layer._uaPopupCtx && typeof layer.getLayers === 'function') {
           clusterLayer = layer;
         }
       });
