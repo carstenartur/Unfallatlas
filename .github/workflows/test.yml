@@ -35,7 +35,6 @@ jobs:
           git config user.email "3164220+carstenartur@users.noreply.github.com"
           git fetch origin --prune
 
-          # Immutable, already reviewed source trees before rewriting the public branches.
           RUNTIME_SOURCE=7c06738c84010eecc0fb03250823f8070f7de7f1
           BUILD_SOURCE=57f0cded80ba7c50e5198ad83091958f33331595
           VIDEO_SOURCE=03e4a8fad445c180697eb9ec43c5f34c29748ee0
@@ -69,25 +68,38 @@ jobs:
             done < <(git diff --name-status -z "$compare_base" "$source" -- "$@")
           }
 
-          # A already contains the reviewed core subset and is based directly on main.
-          git checkout -B "$A" origin/$A
-          git merge-base --is-ancestor origin/main "$A"
-
-          # B: add only accessibility/responsive presentation to A.
-          git checkout -B "$B" "$A"
+          # A: rebuild the focused lifecycle/export subset directly on current main.
+          git checkout -B "$A" origin/main
           apply_changed_paths "$RUNTIME_SOURCE" "$RUNTIME_BASE" \
-            combi.html css/ua.css index.html \
-            js/ua.tour.js js/ua.ui.js \
-            tests/e2e/accessibility.spec.js tests/e2e/task-surface.spec.js \
-            tests/unit/ua.accessibilityBaseline.test.js \
-            tests/unit/ua.tour.dialogA11y.test.js \
-            unfallwerkbank.html werkbank.html werkbank_v2.html
+            README.md TESTING.md WERKBANK_V2.md docs/architecture.md docs/qa.md \
+            js/ua.app_v2.js js/ua.context_road_layer.js js/ua.core.js \
+            js/ua.export_v2.js js/ua.lifecycle.js js/ua.map_v2.js \
+            js/ua.osm_context.js js/ua.political-context.js js/ua.popup_context.js \
+            js/ua.priorities.js js/ua.report_v2.js js/ua.utils.js \
+            playwright.config.js \
+            tests/e2e/context-data-render.spec.js tests/e2e/fixtures \
+            tests/e2e/helpers.js tests/e2e/popup-context.spec.js tests/e2e/smoke.spec.js \
+            tests/e2e/url-hydration-berlin-slope.spec.js \
+            tests/e2e/url-hydration-bonn.spec.js tests/e2e/werkbank.spec.js \
+            tests/unit/ua.lifecycle.test.js tests/unit/ua.map_v2.contextOverlays.test.js \
+            tests/unit/ua.map_v2.lazyPopup.test.js tests/unit/ua.modalController.test.js \
+            tests/unit/ua.osm_context.test.js \
+            tests/unit/ua.political-context.buildSearchTerms.test.js \
+            tests/unit/ua.popup_context.test.js tests/unit/ua.priorities.test.js \
+            tests/unit/ua.report_v2.pdfQA.test.js tests/unit/ua.report_v2.test.js \
+            tests/unit/uaContextRoadLayer.test.js
           git add -A
+          git commit -m "qa: isolate lifecycle and fail-closed export readiness"
+          git push --force-with-lease origin "$A"
+
+          # B: exact reviewed runtime/accessibility tree, with A as its real parent.
+          git checkout -B "$B" "$A"
+          git read-tree --reset -u "${RUNTIME_SOURCE}^{tree}"
           git commit -m "ui: isolate accessibility and responsive task surface"
           git diff --exit-code --quiet "$RUNTIME_SOURCE"
           git push --force-with-lease origin "$B"
 
-          # C: canonical deterministic site build only.
+          # C: canonical build subset on top of the exact B tree.
           git checkout -B "$C" "$B"
           apply_changed_paths "$BUILD_SOURCE" "$RUNTIME_SOURCE" \
             .dockerignore .gitignore package.json package-lock.json \
@@ -95,51 +107,37 @@ jobs:
             server/lib/safeStaticPath.js server/lib/staticDataOverlay.js \
             tests/unit/assetVersioning.test.js tests/unit/buildStaticData.test.js \
             tests/unit/safeStaticPath.test.js tests/unit/siteBuildContract.test.js \
-            tests/unit/staticDataOverlay.test.js \
-            docs/site-build.md docs/docker.md
+            tests/unit/staticDataOverlay.test.js docs/site-build.md docs/docker.md
           git add -A
           git commit -m "build: isolate canonical deterministic site artifact"
           git push --force-with-lease origin "$C"
 
-          # D: publication workflows and vendor/license provenance.
+          # D-G use the exact previously reviewed trees with new linear parents.
           git checkout -B "$D" "$C"
-          apply_changed_paths "$BUILD_SOURCE" "$RUNTIME_SOURCE" \
-            .github/workflows/deploy-release.yml \
-            .github/workflows/docker-publish.yml \
-            .github/workflows/generate-data-deploy-pages.yml \
-            docs/RELEASING.md docs/THIRD_PARTY_NOTICES.md docs/release-checklist.md \
-            scripts/validate-vendor-provenance.js scripts/vendor-provenance.js \
-            tests/unit/vendorProvenance.test.js vendor/provenance-policy.json
-          git add -A
+          git read-tree --reset -u "${BUILD_SOURCE}^{tree}"
           git commit -m "build: isolate vendor and license provenance gates"
           git diff --exit-code --quiet "$BUILD_SOURCE"
           git push --force-with-lease origin "$D"
 
-          # E: video-export contract and integration.
           git checkout -B "$E" "$D"
-          apply_changed_paths "$VIDEO_SOURCE" "$BUILD_SOURCE" .
-          git add -A
+          git read-tree --reset -u "${VIDEO_SOURCE}^{tree}"
           git commit -m "export: isolate video request and evidence contract"
           git diff --exit-code --quiet "$VIDEO_SOURCE"
           git push --force-with-lease origin "$E"
 
-          # F: documentation-media tooling and validators.
           git checkout -B "$F" "$E"
-          apply_changed_paths "$MEDIA_SOURCE" "$VIDEO_SOURCE" .
-          git add -A
+          git read-tree --reset -u "${MEDIA_SOURCE}^{tree}"
           git commit -m "qa: isolate documentation media validation tooling"
           git diff --exit-code --quiet "$MEDIA_SOURCE"
           git push --force-with-lease origin "$F"
 
-          # G: reviewed media bytes and durable evidence only.
           git checkout -B "$G" "$F"
-          apply_changed_paths "$FINAL_SOURCE" "$MEDIA_SOURCE" .
-          git add -A
+          git read-tree --reset -u "${FINAL_SOURCE}^{tree}"
           git commit -m "docs: adopt reviewed media assets and durable evidence"
           git diff --exit-code --quiet "$FINAL_SOURCE"
           git push --force-with-lease origin "$G"
 
-          # The public review chain must be true ancestry, not merely similar trees.
+          git merge-base --is-ancestor origin/main "$A"
           git merge-base --is-ancestor "$A" "$B"
           git merge-base --is-ancestor "$B" "$C"
           git merge-base --is-ancestor "$C" "$D"
@@ -191,23 +189,16 @@ jobs:
           Relates to #397, #400, #404 and #407. Supersedes #409 and the asset/evidence portion of #419.
           EOF
 
-          gh pr edit 418 --base "$D" \
-            --title "QA split 5/7: video export request and evidence contract" \
-            --body-file /tmp/video.md
-          gh pr edit 425 --base "$E" \
-            --title "QA split 6/7: documentation media validation tooling" \
-            --body-file /tmp/media-tools.md
-          gh pr edit 426 --base "$F" \
-            --title "QA split 7/7: reviewed media assets and durable evidence" \
-            --body-file /tmp/media-assets.md
+          gh pr edit 418 --base "$D" --title "QA split 5/7: video export request and evidence contract" --body-file /tmp/video.md
+          gh pr edit 425 --base "$E" --title "QA split 6/7: documentation media validation tooling" --body-file /tmp/media-tools.md
+          gh pr edit 426 --base "$F" --title "QA split 7/7: reviewed media assets and durable evidence" --body-file /tmp/media-assets.md
 
           SUMMARY=$(cat <<EOF
           The seven replacement PRs now form a true linear Git ancestry:
 
           #429 → #416 → #430 → #417 → #418 → #425 → #426
 
-          Tree-equality gates passed at every former reviewed boundary:
-          runtime/accessibility, build/provenance, video export, media tooling and final reviewed media. The final #426 tree is byte-for-byte equal to the previously verified final source tree.
+          Exact tree gates passed for the former reviewed boundaries. The final #426 tree is byte-for-byte equal to the previously verified final source tree from #405 plus the reviewed #409 media corrections.
           EOF
           )
           gh pr comment 405 --body "$SUMMARY"
