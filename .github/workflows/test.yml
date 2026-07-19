@@ -20,17 +20,27 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Verify exact final-tree difference
+      - name: Publish and verify exact final-tree difference
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin split/405-7-reviewed-media-evidence
           OLD=5bf78091c731635751e14a24b1b4e85171bdb04a
           NEW=$(git rev-parse origin/split/405-7-reviewed-media-evidence)
-          EXPECTED=.github/workflows/refine-split-pr-405.yml
           mapfile -t changed < <(git diff --name-only "$OLD" "$NEW")
-          printf 'Direct old/new tree differences:\n'
-          printf '  %s\n' "${changed[@]}"
+          {
+            echo '## Direct old/new final-tree differences'
+            echo
+            echo "Old: \`$OLD\`"
+            echo "New: \`$NEW\`"
+            echo
+            echo '```text'
+            printf '%s\n' "${changed[@]}"
+            echo '```'
+          } > /tmp/direct-diff.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/direct-diff.md
+
+          EXPECTED=.github/workflows/refine-split-pr-405.yml
           if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$EXPECTED" ]]; then
             echo 'Unexpected final-tree difference' >&2
             exit 1
@@ -42,12 +52,9 @@ jobs:
           fi
           git diff --quiet "$OLD" "$NEW" -- . ":(exclude)$EXPECTED"
           {
-            echo '## Final stack verification'
-            echo
-            echo "Old reviewed head: \`$OLD\`"
-            echo "New refined head: \`$NEW\`"
+            echo '## Final stack verification passed'
             echo
             echo 'All product, test, documentation and media bytes are identical.'
-            echo "The only difference is removal of the temporary one-shot workflow \`$EXPECTED\`."
+            echo "The only difference is removal of \`$EXPECTED\`."
           } > /tmp/verification.md
           gh pr comment 442 --body-file /tmp/verification.md
