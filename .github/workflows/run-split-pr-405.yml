@@ -3,6 +3,8 @@ name: Run one-shot split for PR 405
 on:
   issues:
     types: [opened]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -11,13 +13,16 @@ permissions:
 
 jobs:
   split:
-    if: github.event.issue.title == '[automation] Split PR 405'
+    if: >-
+      (github.event_name == 'issues' && github.event.issue.title == '[automation] Split PR 405') ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.ref == 'automation/split-pr-405')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Load reviewed split script
