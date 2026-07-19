@@ -36,6 +36,10 @@ RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 # Gesamten Anwendungscode kopieren (nach npm ci, damit node_modules gecacht bleibt)
 COPY . .
 
+# Materialisiert die exakt gelockten Browser-Abhängigkeiten und dasselbe
+# Site-Artefakt, das Pages, Playwright und die Screenshot-QA verwenden.
+RUN npm run build:site
+
 EXPOSE 8000
 
 ENV PORT=8000

@@ -37,24 +37,6 @@ const WEBP_QUALITY = 60;
 const VIDEO_TILE_STABLE_MS = 800;
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
-const CDN_ROUTES = [
-  {
-    url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
-    file: path.resolve(__dirname, '../node_modules/docx/dist/index.iife.js')
-  },
-  {
-    url: 'https://unpkg.com/pdfmake@0.3.7/build/pdfmake.min.js',
-    file: path.resolve(__dirname, '../node_modules/pdfmake/build/pdfmake.min.js')
-  },
-  {
-    url: 'https://unpkg.com/pdfmake@0.3.7/build/vfs_fonts.js',
-    file: path.resolve(__dirname, '../node_modules/pdfmake/build/vfs_fonts.js')
-  },
-  {
-    url: 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js',
-    file: path.resolve(__dirname, '../node_modules/file-saver/dist/FileSaver.min.js')
-  }
-];
 
 /** Wartet bis Städte im Dropdown geladen sind */
 async function waitForCities(page) {
@@ -76,45 +58,247 @@ async function waitForData(page) {
 
 /** Wartet bis Kartenkacheln geladen sind */
 async function waitForTiles(page) {
-  const helperResult = await page.evaluate(async ({ stableMs }) => {
+  let helperResult;
+  try {
+    helperResult = await page.evaluate(async ({ stableMs }) => {
     if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') {
       return { supported: false, ok: false };
     }
     const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
     if (!map) return { supported: false, ok: false };
-    try {
-      const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
-      const ok = await window.UA.waitForMapFullyRendered(map, {
-        ctx: window.UA.ctx || null,
-        timeoutMs,
-        minTileImages: 4,
-        tileStableMs: stableMs
-      });
-      return { supported: true, ok: ok === true };
-    } catch (_) {
-      return { supported: true, ok: false };
-    }
-  }, { stableMs: VIDEO_TILE_STABLE_MS }).catch(() => ({ supported: false, ok: false }));
-  if (helperResult.supported) return;
+    const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
+    const ok = await window.UA.waitForMapFullyRendered(map, {
+      ctx: window.UA.ctx || null,
+      timeoutMs,
+      minTileImages: 4,
+      tileStableMs: stableMs
+    });
+    return {
+      supported: true,
+      ok: ok === true,
+      lifecycle: window.UA.lifecycle && typeof window.UA.lifecycle.getSnapshot === 'function'
+        ? window.UA.lifecycle.getSnapshot()
+        : null
+    };
+    }, { stableMs: VIDEO_TILE_STABLE_MS });
+  } catch (error) {
+    throw new Error(`Video map readiness failed: ${error && error.message ? error.message : error}`);
+  }
+  if (helperResult.supported) {
+    if (helperResult.ok === true) return;
+    throw new Error(
+      `Video map readiness returned false: ${JSON.stringify(helperResult.lifecycle || null)}`
+    );
+  }
   await page.waitForFunction(() => {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4
       && [...imgs].every(i => i.complete && i.naturalWidth > 0 && i.naturalHeight > 0 && !/\bleaflet-tile-loading\b/.test(String(i.className || '')));
-  }, { timeout: 30000 }).catch(() => { /* Tiles optional, weitermachen */ });
+  }, { timeout: 30000 });
   await page.waitForTimeout(VIDEO_TILE_STABLE_MS);
 }
 
 /** Bewegt die Karte per flyTo und wartet auf Tiles + Animation */
 async function flyToAndWait(page, lat, lng, zoom) {
   await page.evaluate(({ lat, lng, zoom }) => {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       const map = window._uaMap;
-      if (!map) { resolve(); return; }
+      if (!map) { reject(new Error('window._uaMap is unavailable')); return; }
       map.once('moveend', () => setTimeout(resolve, 200));
       map.flyTo([lat, lng], zoom, { duration: 1.2 });
     });
   }, { lat, lng, zoom });
   await waitForTiles(page);
+}
+
+async function selectRequiredCity(page, targetCity) {
+  const option = await page.locator('#citySel').evaluate((select, requested) => {
+    const match = [...select.options].find(candidate =>
+      candidate.value === requested || candidate.textContent.trim() === requested
+    );
+    return match ? { value: match.value, label: match.textContent.trim() } : null;
+  }, targetCity);
+  if (!option) throw new Error(`unknown_city:${targetCity}`);
+  await page.locator('#citySel').selectOption(option.value);
+  return option;
+}
+
+function expectedVideoState(params, city) {
+  const parseHour = (value, fallback, label) => {
+    if (value == null || value === '') return fallback;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 23) {
+      throw new Error(`invalid_${label}:${value}`);
+    }
+    return parsed;
+  };
+  const hourFrom = parseHour(params.hourFrom, 0, 'hourFrom');
+  const hourTo = parseHour(params.hourTo, 23, 'hourTo');
+  if (hourFrom > hourTo) throw new Error(`invalid_hour_range:${hourFrom}-${hourTo}`);
+  const involvementMode = params.involvementMode || 'or';
+  if (!['or', 'and', 'solo'].includes(involvementMode)) {
+    throw new Error(`invalid_involvementMode:${involvementMode}`);
+  }
+  const selectionKeys = ['selSouth', 'selWest', 'selNorth', 'selEast'];
+  const presentSelectionKeys = selectionKeys.filter(key => params[key] != null && params[key] !== '');
+  let selection = null;
+  if (presentSelectionKeys.length > 0) {
+    if (presentSelectionKeys.length !== selectionKeys.length) {
+      throw new Error(`incomplete_selection:${presentSelectionKeys.join(',')}`);
+    }
+    selection = {
+      south: Number(params.selSouth),
+      west: Number(params.selWest),
+      north: Number(params.selNorth),
+      east: Number(params.selEast),
+    };
+    const values = Object.values(selection);
+    if (!values.every(Number.isFinite) || selection.south < -90 || selection.north > 90 ||
+        selection.west < -180 || selection.east > 180 || selection.south >= selection.north ||
+        selection.west >= selection.east) {
+      throw new Error(`invalid_selection:${values.join(',')}`);
+    }
+  }
+  const viewKeys = ['centerLat', 'centerLon', 'zoom'];
+  const presentViewKeys = viewKeys.filter(key => params[key] != null && params[key] !== '');
+  let view = null;
+  if (presentViewKeys.length > 0) {
+    if (presentViewKeys.length !== viewKeys.length) throw new Error(`incomplete_view:${presentViewKeys.join(',')}`);
+    view = { lat: Number(params.centerLat), lon: Number(params.centerLon), zoom: Number(params.zoom) };
+    if (!Number.isFinite(view.lat) || !Number.isFinite(view.lon) || !Number.isFinite(view.zoom) ||
+        view.lat < -90 || view.lat > 90 || view.lon < -180 || view.lon > 180 ||
+        view.zoom < 0 || view.zoom > 24) {
+      throw new Error(`invalid_view:${view.lat},${view.lon},${view.zoom}`);
+    }
+  }
+  return {
+    city,
+    severity: params.severity || 'all',
+    involvementMode,
+    hourFrom,
+    hourTo,
+    dayType: params.dayType || 'all',
+    roadCondition: params.roadCondition || 'all',
+    includeCyclist: params.includeCyclist !== '0',
+    includePedestrian: params.includePedestrian !== '0',
+    includeCar: params.includeCar !== '0',
+    includeMotorcycle: params.includeMotorcycle === '1',
+    includeGkfz: params.includeGkfz === '1',
+    includeSonstig: params.includeSonstig === '1',
+    showCluster: params.showCluster !== '0',
+    showHeatmap: params.showHeatmap === '1',
+    showOnlyAboveAverage: params.showOnlyAboveAverage === '1',
+    selection,
+    view,
+  };
+}
+
+async function assertVideoAnalysisState(page, expected) {
+  const actual = await page.evaluate(async required => {
+    const lifecycle = window.UA && window.UA.lifecycle;
+    if (!lifecycle || typeof lifecycle.whenReady !== 'function') {
+      throw new Error('UA.lifecycle.whenReady is unavailable');
+    }
+    const layers = [];
+    if (required.showCluster) layers.push('cluster');
+    if (required.showHeatmap) layers.push('heatmap');
+    const snapshot = await lifecycle.whenReady({
+      city: required.city,
+      layers,
+      minLoaded: 1,
+      minFiltered: 1,
+      minViewport: 1,
+      requireCompleteCoverage: true,
+    }, { timeoutMs: 45000 });
+    const checked = id => Boolean(document.getElementById(id)?.checked);
+    const active = id => {
+      const element = document.getElementById(id);
+      return Boolean(element && (element.classList.contains('active') || element.getAttribute('aria-pressed') === 'true'));
+    };
+    const citySelect = document.getElementById('citySel');
+    const map = window._uaMap;
+    const center = map && typeof map.getCenter === 'function' ? map.getCenter() : null;
+    const url = new URL(window.location.href);
+    const selectionValues = ['selSouth', 'selWest', 'selNorth', 'selEast']
+      .map(key => url.searchParams.has(key) ? Number(url.searchParams.get(key)) : null);
+    const selection = selectionValues.every(Number.isFinite)
+      ? { south: selectionValues[0], west: selectionValues[1], north: selectionValues[2], east: selectionValues[3] }
+      : null;
+    return {
+      city: snapshot.city,
+      selectedCity: citySelect && citySelect.value,
+      severity: document.getElementById('severity')?.value,
+      involvementMode: active('modeAnd') ? 'and' : (active('modeSolo') ? 'solo' : 'or'),
+      hourFrom: Number(document.getElementById('hFrom')?.value),
+      hourTo: Number(document.getElementById('hTo')?.value),
+      dayType: document.getElementById('dayType')?.value,
+      roadCondition: document.getElementById('roadCondition')?.value,
+      includeCyclist: checked('incBike'),
+      includePedestrian: checked('incPed'),
+      includeCar: checked('incCar'),
+      includeMotorcycle: checked('incMoto'),
+      includeGkfz: checked('incGkfz'),
+      includeSonstig: checked('incSon'),
+      showCluster: active('toggleCluster'),
+      showHeatmap: active('toggleHeat'),
+      showOnlyAboveAverage: active('toggleOnlyHot'),
+      selection,
+      view: center && typeof map.getZoom === 'function'
+        ? { lat: Number(center.lat), lon: Number(center.lng), zoom: Number(map.getZoom()) }
+        : null,
+      lifecycle: snapshot,
+    };
+  }, expected);
+
+  const mismatches = [];
+  for (const [key, required] of Object.entries(expected)) {
+    if (key === 'selection' || key === 'view') continue;
+    if (actual[key] !== required) mismatches.push(`${key}: expected ${required}, got ${actual[key]}`);
+  }
+  if (actual.selectedCity !== expected.city) {
+    mismatches.push(`selectedCity: expected ${expected.city}, got ${actual.selectedCity}`);
+  }
+  if (expected.selection === null) {
+    if (actual.selection !== null) mismatches.push('selection: expected none, got a selection');
+  } else if (!actual.selection) {
+    mismatches.push('selection: requested bounds are missing');
+  } else {
+    for (const key of ['south', 'west', 'north', 'east']) {
+      if (Math.abs(actual.selection[key] - expected.selection[key]) > 0.000001) {
+        mismatches.push(`selection.${key}: expected ${expected.selection[key]}, got ${actual.selection[key]}`);
+      }
+    }
+  }
+  if (expected.view) {
+    if (!actual.view) mismatches.push('view: requested map view is missing');
+    else {
+      for (const key of ['lat', 'lon']) {
+        if (Math.abs(actual.view[key] - expected.view[key]) > 0.000001) {
+          mismatches.push(`view.${key}: expected ${expected.view[key]}, got ${actual.view[key]}`);
+        }
+      }
+      if (actual.view.zoom !== expected.view.zoom) {
+        mismatches.push(`view.zoom: expected ${expected.view.zoom}, got ${actual.view.zoom}`);
+      }
+    }
+  }
+  if (mismatches.length) {
+    throw new Error(`Video analysis state mismatch:\n${mismatches.join('\n')}`);
+  }
+  return actual;
+}
+
+async function assertFreshExportContent(page, expectedCity) {
+  const content = await page.locator('#exportHtml').innerText();
+  const match = content.match(/lokal\s+([\d.\s]+)\s+Unfälle/i);
+  const localAccidents = match ? Number(match[1].replace(/\D/g, '')) : 0;
+  if (!content.includes(expectedCity)) {
+    throw new Error(`Video export preview does not identify requested city ${expectedCity}`);
+  }
+  if (!(localAccidents > 0)) {
+    throw new Error('Video export preview does not prove non-empty local accident data');
+  }
+  return { localAccidents };
 }
 
 /** Wartet auf frisch gerenderte Export-Vorschaubilder im Modal */
@@ -177,19 +361,6 @@ async function exportVideo(params, opts = {}) {
     });
     const page = await context.newPage();
 
-    // CDN-Routen auf lokale node_modules umleiten (offline-fähig)
-    for (const route of CDN_ROUTES) {
-      if (fs.existsSync(route.file)) {
-        await page.route(route.url, async r => {
-          await r.fulfill({
-            status: 200,
-            contentType: 'application/javascript',
-            body: fs.readFileSync(route.file)
-          });
-        });
-      }
-    }
-
     // ── 1. Standardansicht laden ────────────────────────────────────────────
     await page.goto(`${SERVER_URL}/werkbank_v2.html`);
     await page.waitForLoadState('domcontentloaded');
@@ -199,17 +370,8 @@ async function exportVideo(params, opts = {}) {
 
     // ── 2. Stadt auswählen ──────────────────────────────────────────────────
     const targetCity = params.city || 'Hannover';
-    // Prüfen ob die gewünschte Stadt verfügbar ist
-    const cityAvailable = await page.locator('#citySel').evaluate((sel, city) => {
-      return [...sel.options].some(o => o.value === city || o.textContent.trim() === city);
-    }, targetCity);
-
-    if (cityAvailable) {
-      await page.locator('#citySel').selectOption(targetCity);
-    } else {
-      // Fallback: erste verfügbare Stadt
-      await page.locator('#citySel').selectOption({ index: 1 });
-    }
+    const requiredState = expectedVideoState(params, targetCity);
+    await selectRequiredCity(page, targetCity);
     await waitForData(page);
     await waitForTiles(page);
     await page.waitForTimeout(2500);
@@ -258,10 +420,10 @@ async function exportVideo(params, opts = {}) {
     // ── 5. Involvierungs-Modus setzen ───────────────────────────────────────
     const mode = params.involvementMode;
     if (mode === 'and') {
-      await page.locator('#modeAnd').click().catch(() => {});
+      await page.locator('#modeAnd').click();
       await page.waitForTimeout(600);
     } else if (mode === 'solo') {
-      await page.locator('#modeSolo').click().catch(() => {});
+      await page.locator('#modeSolo').click();
       await page.waitForTimeout(600);
     }
     // 'or' ist Standard, kein Klick nötig
@@ -270,28 +432,32 @@ async function exportVideo(params, opts = {}) {
     await page.waitForTimeout(1000);
 
     // ── 6. Tageszeit-Filter setzen ──────────────────────────────────────────
-    const hourFrom = parseInt(params.hourFrom, 10);
-    const hourTo   = parseInt(params.hourTo,   10);
-    if (!isNaN(hourFrom) && hourFrom !== 0) {
-      await page.locator('#hourFrom').fill(String(hourFrom)).catch(() => {});
-      await page.locator('#hourFrom').dispatchEvent('input').catch(() => {});
+    const hourFrom = requiredState.hourFrom;
+    const hourTo = requiredState.hourTo;
+    if (hourFrom !== 0) {
+      await page.locator('#hFrom').evaluate((input, value) => {
+        input.value = String(value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, hourFrom);
       await page.waitForTimeout(400);
     }
-    if (!isNaN(hourTo) && hourTo !== 23) {
-      await page.locator('#hourTo').fill(String(hourTo)).catch(() => {});
-      await page.locator('#hourTo').dispatchEvent('input').catch(() => {});
+    if (hourTo !== 23) {
+      await page.locator('#hTo').evaluate((input, value) => {
+        input.value = String(value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, hourTo);
       await page.waitForTimeout(400);
     }
 
     // ── 7. Wochentag-Filter setzen ──────────────────────────────────────────
     if (params.dayType && params.dayType !== 'all') {
-      await page.locator('#dayType').selectOption(params.dayType).catch(() => {});
+      await page.locator('#dayType').selectOption(params.dayType);
       await page.waitForTimeout(600);
     }
 
     // ── 8. Fahrbahnzustand setzen ───────────────────────────────────────────
     if (params.roadCondition && params.roadCondition !== 'all') {
-      await page.locator('#roadCondition').selectOption(params.roadCondition).catch(() => {});
+      await page.locator('#roadCondition').selectOption(params.roadCondition);
       await page.waitForTimeout(600);
     }
 
@@ -308,7 +474,7 @@ async function exportVideo(params, opts = {}) {
       btn => btn.classList.contains('active') || btn.getAttribute('aria-pressed') === 'true'
     ).catch(() => true);
     if (clusterActive !== wantCluster) {
-      await page.locator('#toggleCluster').click().catch(() => {});
+      await page.locator('#toggleCluster').click();
       await waitForTiles(page);
       await page.waitForTimeout(600);
     }
@@ -318,17 +484,17 @@ async function exportVideo(params, opts = {}) {
       btn => btn.classList.contains('active') || btn.getAttribute('aria-pressed') === 'true'
     ).catch(() => false);
     if (heatActive !== wantHeatmap) {
-      await page.locator('#toggleHeat').click().catch(() => {});
+      await page.locator('#toggleHeat').click();
       await waitForTiles(page);
       await page.waitForTimeout(600);
     }
 
     // Hotspot togglen wenn gewünscht
-    const hotActive = await page.locator('#toggleHot').evaluate(
+    const hotActive = await page.locator('#toggleOnlyHot').evaluate(
       btn => btn.classList.contains('active') || btn.getAttribute('aria-pressed') === 'true'
     ).catch(() => false);
     if (hotActive !== wantHotspot) {
-      await page.locator('#toggleHot').click().catch(() => {});
+      await page.locator('#toggleOnlyHot').click();
       await waitForTiles(page);
       await page.waitForTimeout(600);
     }
@@ -336,32 +502,29 @@ async function exportVideo(params, opts = {}) {
     await page.waitForTimeout(1500);
 
     // ── 10. Zur Kartenposition fliegen ─────────────────────────────────────
-    const lat  = parseFloat(params.centerLat);
-    const lon  = parseFloat(params.centerLon);
-    const zoom = parseFloat(params.zoom);
-    if (!isNaN(lat) && !isNaN(lon) && !isNaN(zoom)) {
-      await flyToAndWait(page, lat, lon, zoom);
+    if (requiredState.view) {
+      await flyToAndWait(page, requiredState.view.lat, requiredState.view.lon, requiredState.view.zoom);
     }
     await page.waitForTimeout(2000);
 
     // ── 11. Bereich markieren (Rechteck zeichnen) ──────────────────────────
-    const hasSel = params.selSouth && params.selWest && params.selNorth && params.selEast;
-    if (hasSel) {
-      await page.locator('#btnDraw').click().catch(() => {});
-      await page.waitForTimeout(500);
-
-      const mapBox = await page.locator('#map').boundingBox();
-      if (mapBox) {
-        const cx = mapBox.x + mapBox.width / 2;
-        const cy = mapBox.y + mapBox.height / 2;
-        await page.mouse.move(cx - 90, cy - 70);
-        await page.mouse.down();
-        await page.mouse.move(cx + 90, cy + 70, { steps: 12 });
-        await page.mouse.up();
-        await waitForTiles(page);
-        await page.waitForTimeout(2000);
-      }
+    if (requiredState.selection) {
+      await page.evaluate(bounds => {
+        const map = window._uaMap;
+        if (!map || !window.L || typeof window.L.rectangle !== 'function') {
+          throw new Error('Leaflet selection API is unavailable');
+        }
+        const layer = window.L.rectangle(
+          [[bounds.south, bounds.west], [bounds.north, bounds.east]],
+          { color: '#2b7cff', weight: 2 }
+        );
+        map.fire(window.L.Draw.Event.CREATED, { layer, layerType: 'rectangle' });
+      }, requiredState.selection);
+      await waitForTiles(page);
+      await page.waitForTimeout(2000);
     }
+
+    await assertVideoAnalysisState(page, requiredState);
 
     // ── 12. Export / Analyse öffnen ────────────────────────────────────────
     const beforeExportFingerprint = await page.evaluate(() => {
@@ -378,7 +541,8 @@ async function exportVideo(params, opts = {}) {
     await waitForFreshExportPreview(page, {
       previousFingerprint: beforeExportFingerprint,
       timeoutMs: 45000
-    }).catch(() => { /* weiche Rückfallebene: Video läuft weiter */ });
+    });
+    await assertFreshExportContent(page, targetCity);
     await page.waitForTimeout(4000);
 
     // ── 13. Durch den Antrag scrollen ──────────────────────────────────────
@@ -397,12 +561,12 @@ async function exportVideo(params, opts = {}) {
     await page.waitForTimeout(2500);
 
     // ── 14. PDF-Export klicken ─────────────────────────────────────────────
-    await page.locator('#btnExportPDF').click().catch(() => {});
+    await page.locator('#btnExportPDF').click();
     await page.waitForTimeout(3000);
 
     // ── 15. Modal schließen ────────────────────────────────────────────────
-    await page.locator('#btnCloseModal').click().catch(() => {});
-    await page.locator('#modalOverlay').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    await page.locator('#btnCloseModal').click();
+    await page.locator('#modalOverlay').waitFor({ state: 'hidden', timeout: 5000 });
     await waitForTiles(page);
     await page.waitForTimeout(1000);
 
@@ -492,4 +656,13 @@ async function exportVideo(params, opts = {}) {
   }
 }
 
-module.exports = { exportVideo, ANIMATED_IMAGE_FILTER };
+module.exports = {
+  ANIMATED_IMAGE_FILTER,
+  assertFreshExportContent,
+  assertVideoAnalysisState,
+  expectedVideoState,
+  exportVideo,
+  selectRequiredCity,
+  waitForFreshExportPreview,
+  waitForTiles,
+};

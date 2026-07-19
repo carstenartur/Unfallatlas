@@ -3,6 +3,16 @@
 Dieses Verzeichnis enthält die in `README.md` und `docs/DOKUMENTATION.md`
 referenzierten PNG-Screenshots der Unfallwerkbank V2.
 
+Der maschinenlesbare Vertrag liegt in [`../media-manifest.json`](../media-manifest.json).
+`npm run validate:media` prüft Soll-Abmessungen, 1-MiB-Standardbudget,
+begründete Bestandsausnahmen und alle lokalen Markdown-Referenzen. Neue
+Vollbild-Kandidaten werden mit 1280×640 erzeugt; Workflows veröffentlichen sie
+zusammen mit ihrem Evidence-Sidecar, Evidence-Gesamtbericht und dem exakten
+Buildmanifest ausschließlich als Review-Artefakt. `npm run
+validate:screenshot-evidence` verlangt dabei eine 1:1-Zuordnung und verifiziert
+Bild-SHA-256, Buildmanifest-SHA-256 sowie Build-, Anwendungs- und
+Datenfingerprint erneut vor dem Upload.
+
 ## Konvention
 
 | Nummer | Datei | Beschreibung |
@@ -48,25 +58,29 @@ numerische Slope-Tooltips nachweisen. Tracking:
 
 
 Alle map-haltigen Screenshots werden in den E2E-Tests erst nach einem
-öffentlichen Lifecycle-Vertrag und einen fail-closed
+öffentlichen Lifecycle-Vertrag und einem fail-closed
 Leaflet-Tile-Stabilitäts-Check erstellt (`waitForMapTiles`: Helper-Erfolg,
 keine ladenden Tiles, mindestens ein decodiertes Tile), plus defensivem
-`document.fonts.ready`.
+`document.fonts.ready`. Der Lifecycle-Snapshot wird unmittelbar vor und nach
+dem Pixel-Capture verglichen; eine dazwischenliegende Daten- oder
+Renderrevision verwirft den Kandidaten.
 
-## Hinweise zu unvermeidbaren Provider-Unterschieden
+## Deterministische Grundkarte
 
-Für die Map-Mode-Screenshots (`21`–`25`) werden OSM-, Orthofoto- und
-Hybrid-Label-Tiles im Test deterministisch gemockt. Dadurch bleiben die
-Artefakte stabil, auch wenn externe Tile-Dienste zeitweise abweichende
-Farbbalance, Kachelgrenzen oder Ausfälle zeigen. Screenshot `25` dokumentiert
-den erwarteten Fallback-Fall explizit statt eines unklaren App-Start-Fehlers.
+Für sämtliche kanonischen Screenshots (`01`–`16` und `21`–`25`) werden OSM-,
+Orthofoto- und Hybrid-Label-Anfragen vor dem ersten Seitenaufruf auf die
+versionierten SVG-Fixtures unter `tests/e2e/fixtures/map-tiles/` geroutet.
+Damit hängen die Review-Artefakte nicht von Live-Tiles, Provider-Verfügbarkeit,
+Farbbalance oder Kacheländerungen ab. Screenshot `25` verwendet dieselbe lokale
+Fixture-Schicht und dokumentiert den Orthofoto-Fehlerpfad explizit.
 
-## TODO – Kontextdaten-Screenshots (PR #260)
+## Review-Kandidaten für Kontextdaten-Screenshots (QA #404)
 
 Mit der Einführung der Kontextdaten (PR #260, „Kontext (neu)") sind
-drei zusätzliche Screenshots vorgesehen. Sie werden **automatisch**
-durch das Regen-Skript erzeugt (siehe unten) und müssen nicht von Hand
-aufgenommen werden:
+drei zusätzliche Screenshots vorgesehen. Sie sind noch nicht Bestandteil
+dieses Verzeichnisses und werden daher weder im Manifest noch in der
+Nutzerdoku als vorhandene Bilder ausgegeben. Das Regen-Skript erzeugt
+ausschließlich unveröffentlichte Review-Kandidaten unter `.build/`:
 
 | Nummer | Datei | Beschreibung |
 |---|---|---|
@@ -74,7 +88,7 @@ aufgenommen werden:
 | 18 | `18-popup-kontextdaten.png` | Marker-Popup mit Standard-Unfalldetails plus zusätzlichem Block **Kontextdaten** (Topographie, Straßenkontext, Verkehrsexposition mit „proxy"-Badge) |
 | 19 | `19-kontext-traffic-proxy.png` | Karte mit aktiven Verkehrsklasse-DTV-Proxy-Filterchips (Bestätigung, dass die Verkehrsexposition projekteigene OSM-`highway`-Schätzung ist) |
 
-Beide Screenshots sollen die explizite **Proxy/Schätzung**-Kennzeichnung
+Die Kandidaten sollen die explizite **Proxy/Schätzung**-Kennzeichnung
 sichtbar enthalten — der Verkehrsklassen-Wert ist ein
 *projekteigener OSM-`highway`-Proxy*, **keine gemessene
 Verkehrsdichte**.
@@ -85,7 +99,7 @@ Das Skript [`scripts/regen-context-assets.js`](../../scripts/regen-context-asset
 startet **denselben** `unfallatlas`-Container, gegen den auch der
 [Testcontainers-Integrationstest](../../tests/integration/videoExport.testcontainers.test.js)
 läuft (Image-Quelle: `UNFALLATLAS_IMAGE` env oder lokaler `docker build`).
-Test- und Doku-Asset teilen sich damit *eine* URL und *eine* Quelle:
+Test und Kandidatengenerierung teilen sich damit *eine* URL und *eine* Quelle:
 
 ```bash
 # einmalig — das im docker-publish.yml gebaute Image bevorzugen, sonst lokal bauen
@@ -94,15 +108,22 @@ export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
 npm run regen:context-assets
 ```
 
-Erzeugt:
+Ein erfolgreicher Lauf erzeugt einen neuen, zeitgestempelten Ordner
+`.build/doc-media/context/run-<Zeitstempel>/` mit:
 
-- `docs/demo-context.gif` (über `POST /api/export-video` mit
+- `demo-context.gif` (über `POST /api/export-video` mit
   `ctxSlope=steep,very_steep&ctxTraffic=high,very_high&ctxOnlyMatched=1`),
-- die drei oben gelisteten PNGs in diesem Verzeichnis.
+- den drei oben gelisteten PNG-Namen unter `screenshots/`, jeweils exakt
+  1280×640,
+- `candidate-report.json` mit Lifecycle-Snapshot, aktivem Filterzustand,
+  gewählter Marker-ID, SHA-256-Werten, Maßen und Budgets.
 
-Der aufgezeichnete Viewport zeigt nur die GitHub-Pages-konforme URL
-(kein `localhost:8000` im Ribbon — die Werkbank ist dieselbe statische
-HTML-Datei, lokal über den Container ausgeliefert).
+Der Lauf bricht ab und veröffentlicht keinen neuen Kandidatenordner, wenn
+Unfalldaten oder Render-Layer nicht semantisch bereit sind, die Kontextsektion
+oder angeforderten Chips fehlen, kein geclusterter Unfallmarker mit
+Kontextdaten-Popup geöffnet werden kann, Browserfehler auftreten oder ein
+Maß-/Dateigrößenbudget verletzt ist. Eine bloße Warnung oder ein ausgelassenes
+Bild gilt nicht als Erfolg.
 
 Voraussetzungen:
 
@@ -111,12 +132,13 @@ Voraussetzungen:
   bereitgestellt, ist bereits Dev-Dependency).
 
 Datei-Größen-Budget (im Skript geprüft, sonst Exit-Code ≠ 0):
-GIF ≤ 10 MB, PNG ≤ 600 KB.
+GIF ≤ 10 MiB, PNG ≤ 600 KiB.
+
+Die Übernahme nach `docs/` ist absichtlich **kein** Teil des Skripts. Sie
+erfordert eine fachliche Bildprüfung sowie eine gemeinsame Änderung an
+`docs/media-manifest.json`, den tatsächlichen Dateien und allen
+Markdown-Referenzen. Danach muss `npm run validate:media` erfolgreich sein.
 
 Analog regeneriert `npm run regen:demo` das in der README eingebettete
 `docs/demo.gif` über denselben Container-Helper
 ([`scripts/regen-readme-demo.js`](../../scripts/regen-readme-demo.js)).
-
-Die Platzhalter-Hinweise in `docs/DOKUMENTATION.md` (Abschnitt
-„Kontext (neu)") werden mit dem ersten erfolgreichen Lauf des Skripts
-gegen die fertigen PNG-Pfade ausgetauscht.

@@ -17,12 +17,13 @@ describe('UA.PoliticalContext.buildSearchTerms', () => {
     document.body.innerHTML = '';
     delete window.UA;
 
-    // Minimal UA stub (escHtml + namespace) — die richtige UA-Initialisierung
-    // legt das ua.political-context.js-IIFE selbst an.
-    window.UA = { escHtml: s => String(s == null ? '' : s) };
+    window.UA = {};
 
     const fs = require('fs');
     const path = require('path');
+    const utils = fs.readFileSync(path.resolve(__dirname, '../../js/ua.utils.js'), 'utf8');
+    // eslint-disable-next-line no-eval
+    eval(utils);
     const src = fs.readFileSync(path.resolve(__dirname, '../../js/ua.political-context.js'), 'utf8');
     // eslint-disable-next-line no-eval
     eval(src);

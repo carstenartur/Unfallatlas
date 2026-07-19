@@ -9,26 +9,24 @@
   <!-- Build info -->
   <meta name="unfallwerkbank-build" content="2026-07-19 00:00 UTC"/>
 
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Browser dependencies are pinned in package-lock.json and copied by npm run build:site. -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <script src="vendor/leaflet/leaflet.js"></script>
 
   <!-- MarkerCluster -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+  <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css" />
+  <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.Default.css" />
+  <script src="vendor/leaflet.markercluster/leaflet.markercluster.js"></script>
 
   <!-- Heatmap -->
-  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
+  <script src="vendor/leaflet.heat/leaflet-heat.js"></script>
 
   <!-- Leaflet.draw -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" crossorigin="" />
-  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js" crossorigin=""></script>
+  <link rel="stylesheet" href="vendor/leaflet-draw/leaflet.draw.css" />
+  <script src="vendor/leaflet-draw/leaflet.draw.js"></script>
 
   <!-- Leaflet Image Export -->
-  <script src="https://unpkg.com/leaflet-image@0.4.0/leaflet-image.js" crossorigin=""></script>
+  <script src="vendor/leaflet-image/leaflet-image.js"></script>
 
   <!-- Document Export Libraries (loaded on demand for better performance) -->
   <!-- These are loaded via script injection when export dialog opens -->
@@ -83,6 +81,13 @@
         <select id="citySel" aria-busy="true" aria-label="Stadt auswählen – Liste wird geladen">
           <option value="" disabled selected>Städte werden geladen …</option>
         </select>
+      </div>
+
+      <div class="taskActionsHeading">Ausschnitt &amp; Export</div>
+      <div class="toggles taskActions" role="group" aria-label="Ausschnitt und Export">
+        <button type="button" id="btnOpenExport" class="btn primaryTaskBtn">Analyse/Export öffnen</button>
+        <button type="button" id="btnDraw" class="btn">Bereich markieren</button>
+        <button type="button" id="btnClearDraw" class="btn">Markierung löschen</button>
       </div>
 
       <div class="row">
@@ -277,13 +282,6 @@
         <button type="button" id="toggleOnlyHot" class="btn" aria-pressed="false">Nur „auffällig"</button>
       </div>
 
-      <div style="margin-top:10px; font-weight:900;">Ausschnitt & Export</div>
-      <div class="toggles">
-        <button type="button" id="btnDraw" class="btn">Bereich markieren</button>
-        <button type="button" id="btnClearDraw" class="btn">Markierung löschen</button>
-        <button type="button" id="btnOpenExport" class="btn">Analyse/Export öffnen</button>
-      </div>
-
       <div style="margin-top:8px;">
         <button type="button" id="btnPolCtxOpen" class="btn" style="background:rgba(233,248,240,.92);border-color:rgba(100,200,140,.6);"
                 title="Findet frühere Anträge, Beschlüsse und Verwaltungsantworten zum markierten Bereich – damit Sie auf bestehende politische Vorgänge Bezug nehmen können statt sie zu doppeln.">🔍 Politische Vorgänge recherchieren</button>
@@ -337,7 +335,7 @@
     </div>
   </div>
 
-  <div class="modalOverlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+  <div class="modalOverlay" id="modalOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="exportModalTitle">
     <div class="modal">
       <div class="modalHeader">
         <div class="modalTitle" id="exportModalTitle">Analyse / Export (Entwurf)</div>
@@ -530,7 +528,7 @@
   </div>
 
   <!-- Recorder Editor Modal -->
-  <div class="modalOverlay" id="recorderModal" role="dialog" aria-modal="true"
+  <div class="modalOverlay" id="recorderModal" role="dialog" aria-modal="true" aria-hidden="true"
        aria-labelledby="recorderModalTitle" style="display:none">
     <div class="modal recorderModal">
       <div class="modalHeader">
@@ -545,13 +543,13 @@
         Beschreibungen und Pausen (ms) bearbeiten, Schritte sortieren oder löschen, dann herunterladen und in <code>tours/</code> ablegen.
       </p>
       <div id="recorderStepList" class="recorderStepList"></div>
-      <div style="margin-top:12px; font-weight:800; font-size:12px;">JSON (direkt editierbar):</div>
+      <label for="recorderJson" style="display:block; margin-top:12px; font-weight:800; font-size:12px;">JSON (direkt editierbar):</label>
       <textarea id="recorderJson" class="recorderJsonArea"></textarea>
     </div>
   </div>
 
   <!-- Politische Kontextrecherche Panel -->
-  <div id="polCtxPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-label="Politische Vorgänge recherchieren" style="display:none;">
+  <div id="polCtxPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Politische Vorgänge recherchieren" style="display:none;">
     <div class="modal" style="max-width:680px;">
       <div class="modalHeader">
         <div class="modalTitle">🔍 Frühere politische Vorgänge recherchieren</div>
@@ -566,6 +564,7 @@
       </p>
 
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+        <label for="polCtxSearchInput" style="flex:1 0 100%;font-size:13px;font-weight:700;">Suchbegriffe</label>
         <input id="polCtxSearchInput" type="text" placeholder="Suchbegriffe (z. B. Straßenname, Kreuzung, Bezirk) …"
           style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font:14px system-ui,sans-serif;" />
         <button type="button" id="polCtxBtnSearch"
@@ -591,7 +590,7 @@
   </div>
 
   <!-- Prioritätenansicht: Top-N und gespeicherte Briefs -->
-  <div id="prioPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-label="Prioritäten und gespeicherte Steckbriefe" style="display:none;">
+  <div id="prioPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Prioritäten und gespeicherte Steckbriefe" style="display:none;">
     <div class="modal" style="max-width:780px;">
       <div class="modalHeader">
         <div class="modalTitle">📊 Prioritäten &amp; gespeicherte Briefs</div>
@@ -685,7 +684,7 @@
   <script src="js/ua.osm_context.js?v=2026-01-01"></script>
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.ai_proposal.js?v=2026-01-01"></script>
-  <script src="js/ua.report_v2.js?v=2026-06-28"></script>
+  <script src="js/ua.report_v2.js?v=2026-07-19"></script>
   <script src="js/ua.tour.js?v=2026-07-19"></script>
   <script src="js/ua.app_v2.js?v=2026-07-19"></script>
   <script src="js/ua.video-export.js?v=2026-01-01"></script>

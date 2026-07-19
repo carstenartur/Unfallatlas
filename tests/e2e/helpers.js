@@ -3,77 +3,15 @@
  */
 
 /**
- * Richtet CDN-Routen auf lokale node_modules um, damit Export-Bibliotheken
- * offline verfügbar sind.
- *
- * NOTE: Keep CDN versions and file paths in sync with package.json and
- * the loadScript() calls in js/ua.report_v2.js ensureExportLibraries().
- * docx@9.x uses dist/index.iife.js; docx@8.x used build/index.umd.js.
- * Primary CDN is jsDelivr; fallback is unpkg — both are intercepted here.
+ * Legacy-named guard retained for existing callers. Browser dependencies now
+ * come from the canonical `_site/vendor` build. Any CDN request is therefore
+ * an architecture regression and is blocked instead of being replaced with
+ * potentially different local bytes.
  *
  * @param {import('@playwright/test').Page} page
  */
 export async function setupCDNRoutes(page) {
-  const path = await import('path');
-  const fs = await import('fs');
-  const root = path.resolve(process.cwd());
-
-  const routes = [
-    // jsDelivr (primary)
-    {
-      url: 'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js',
-      file: path.join(root, 'node_modules/docx/dist/index.iife.js')
-    },
-    {
-      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/pdfmake.min.js',
-      file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
-    },
-    {
-      url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/vfs_fonts.js',
-      file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
-    },
-    {
-      url: 'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js',
-      file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js')
-    },
-    // unpkg (fallback)
-    {
-      url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js',
-      file: path.join(root, 'node_modules/docx/dist/index.iife.js')
-    },
-    {
-      url: 'https://unpkg.com/pdfmake@0.3.8/build/pdfmake.min.js',
-      file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js')
-    },
-    {
-      url: 'https://unpkg.com/pdfmake@0.3.8/build/vfs_fonts.js',
-      file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js')
-    },
-    {
-      url: 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js',
-      file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js')
-    }
-  ];
-
-  const missingRoutes = routes.filter((route) => !fs.existsSync(route.file));
-  if (missingRoutes.length > 0) {
-    throw new Error(
-      'Missing local CDN test assets required for offline testing:\n' +
-      missingRoutes
-        .map((route) => `- ${route.url} -> ${route.file}`)
-        .join('\n')
-    );
-  }
-
-  for (const route of routes) {
-    await page.route(route.url, async (r) => {
-      await r.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body: fs.readFileSync(route.file)
-      });
-    });
-  }
+  await page.route(/https:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com)\//, route => route.abort('blockedbyclient'));
 }
 
 /**
@@ -202,6 +140,149 @@ export async function waitForScreenshotReady(page, options = {}) {
 }
 
 /**
+ * Validate the semantic part of screenshot evidence without filesystem or
+ * browser dependencies. Kept separate so the fail-closed contract is directly
+ * unit-testable in Jest.
+ *
+ * @param {object} snapshot
+ * @param {{city?: string, layers?: string[]}} criteria
+ * @param {string} label
+ */
+export function assertScreenshotSnapshot(snapshot, criteria = {}, label = 'screenshot') {
+  if (!snapshot || snapshot.status !== 'ready') {
+    throw new Error(`Screenshot evidence requires a ready lifecycle snapshot: ${label}`);
+  }
+  if (criteria.city && snapshot.city !== criteria.city) {
+    throw new Error(`Screenshot evidence expected city ${criteria.city}, got ${snapshot.city || '(none)'}: ${label}`);
+  }
+  if (!snapshot.counts || snapshot.counts.loaded < 1 || snapshot.counts.filtered < 1 || snapshot.counts.viewport < 1) {
+    throw new Error(`Screenshot evidence requires non-empty accident data: ${label}`);
+  }
+  if (!snapshot.coverage || snapshot.coverage.complete !== true) {
+    throw new Error(`Screenshot evidence requires complete city-data coverage: ${label}`);
+  }
+  if (!snapshot.render || snapshot.render.submitted !== true ||
+      snapshot.render.completedRevision !== snapshot.render.revision) {
+    throw new Error(`Screenshot evidence requires a completed render revision: ${label}`);
+  }
+  for (const layerName of Array.isArray(criteria.layers) ? criteria.layers : []) {
+    const layer = snapshot.render.layers && snapshot.render.layers[layerName];
+    if (!layer || layer.requested !== true || layer.complete !== true || layer.visible < 1 ||
+        (layerName === 'heatmap' && layer.painted !== true)) {
+      throw new Error(`Screenshot evidence requires visible completed layer ${layerName}: ${label}`);
+    }
+  }
+  return snapshot;
+}
+
+/**
+ * Prove that no lifecycle/data/render transition straddled the browser's
+ * screenshot operation. Volatile browser timing is intentionally excluded;
+ * all application state that can change rendered accident pixels is bound.
+ */
+export function assertStableScreenshotSnapshot(before, after, criteria = {}, label = 'screenshot') {
+  assertScreenshotSnapshot(before, criteria, label);
+  assertScreenshotSnapshot(after, criteria, label);
+  const projection = snapshot => ({
+    city: snapshot.city,
+    counts: snapshot.counts,
+    coverage: snapshot.coverage,
+    render: snapshot.render
+  });
+  if (JSON.stringify(projection(before)) !== JSON.stringify(projection(after))) {
+    throw new Error(`Screenshot lifecycle changed while pixels were captured: ${label}`);
+  }
+  return after;
+}
+
+/**
+ * Persist machine-readable evidence for a generated documentation screenshot.
+ * Each screenshot gets its own sidecar file so parallel Playwright workers
+ * cannot overwrite a shared report.  The sidecar binds the image bytes to the
+ * exact application/data build and the lifecycle snapshot that passed the
+ * semantic readiness gate.
+ *
+ * @param {string} screenshotPath
+ * @param {object} snapshot
+ * @param {{city?: string, layers?: string[]}} criteria
+ */
+export async function recordScreenshotEvidence(screenshotPath, snapshot, criteria = {}) {
+  const [{ default: crypto }, { default: fs }, { default: path }] = await Promise.all([
+    import('crypto'),
+    import('fs'),
+    import('path')
+  ]);
+  const repoRoot = path.resolve(process.cwd());
+  const absoluteScreenshot = path.resolve(repoRoot, screenshotPath);
+  const relativeScreenshot = path.relative(repoRoot, absoluteScreenshot).replace(/\\/g, '/');
+  if (!relativeScreenshot || relativeScreenshot.startsWith('..') || path.isAbsolute(relativeScreenshot)) {
+    throw new Error(`Screenshot path is outside the repository: ${screenshotPath}`);
+  }
+  if (path.posix.dirname(relativeScreenshot) !== 'docs/screenshots' ||
+      path.posix.extname(relativeScreenshot).toLowerCase() !== '.png') {
+    throw new Error(`Canonical screenshot evidence requires a flat docs/screenshots/*.png path: ${relativeScreenshot}`);
+  }
+  if (!fs.existsSync(absoluteScreenshot) || !fs.lstatSync(absoluteScreenshot).isFile() ||
+      fs.lstatSync(absoluteScreenshot).isSymbolicLink()) {
+    throw new Error(`Screenshot evidence cannot be recorded before the image exists: ${relativeScreenshot}`);
+  }
+  const screenshotRealRelative = path.relative(repoRoot, fs.realpathSync(absoluteScreenshot));
+  if (screenshotRealRelative.startsWith('..') || path.isAbsolute(screenshotRealRelative)) {
+    throw new Error(`Screenshot resolves outside the repository: ${relativeScreenshot}`);
+  }
+  if (typeof criteria.city !== 'string' || !criteria.city || !Array.isArray(criteria.layers) || criteria.layers.length === 0 ||
+      criteria.requireCompleteCoverage === false) {
+    throw new Error(`Canonical screenshot evidence requires city, render layers and complete coverage: ${relativeScreenshot}`);
+  }
+  assertScreenshotSnapshot(snapshot, criteria, relativeScreenshot);
+
+  const buildManifestPath = path.join(repoRoot, '_site', 'build-manifest.json');
+  if (!fs.existsSync(buildManifestPath) || !fs.statSync(buildManifestPath).isFile()) {
+    throw new Error('Canonical _site/build-manifest.json is required for screenshot provenance');
+  }
+  const buildBytes = fs.readFileSync(buildManifestPath);
+  const buildManifest = JSON.parse(buildBytes.toString('utf8'));
+  const fingerprints = [
+    buildManifest.fingerprint,
+    buildManifest.application && buildManifest.application.fingerprint,
+    buildManifest.data && buildManifest.data.fingerprint
+  ];
+  if (!fingerprints.every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))) {
+    throw new Error('Canonical build manifest lacks application/data fingerprints');
+  }
+  const imageBytes = fs.readFileSync(absoluteScreenshot);
+  const evidence = {
+    schemaVersion: 1,
+    revision: process.env.GITHUB_SHA || null,
+    screenshot: {
+      path: relativeScreenshot,
+      bytes: imageBytes.length,
+      sha256: crypto.createHash('sha256').update(imageBytes).digest('hex')
+    },
+    build: {
+      path: '_site/build-manifest.json',
+      sha256: crypto.createHash('sha256').update(buildBytes).digest('hex'),
+      fingerprint: buildManifest.fingerprint,
+      applicationFingerprint: buildManifest.application && buildManifest.application.fingerprint,
+      dataFingerprint: buildManifest.data.fingerprint
+    },
+    criteria: {
+      city: criteria.city || null,
+      layers: Array.isArray(criteria.layers) ? criteria.layers.slice() : [],
+      requireCompleteCoverage: criteria.requireCompleteCoverage !== false
+    },
+    lifecycle: snapshot
+  };
+  const basename = path.basename(relativeScreenshot, path.extname(relativeScreenshot));
+  const reportPath = path.join(repoRoot, 'out', 'qa', 'screenshot-readiness', `${basename}.json`);
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  const temporaryPath = `${reportPath}.tmp-${process.pid}-${Math.random().toString(16).slice(2)}`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(evidence, null, 2)}\n`);
+  fs.renameSync(temporaryPath, reportPath);
+  return evidence;
+}
+
+/**
  * Capture a documentation screenshot only after semantic application,
  * Leaflet-tile and font readiness have all been established.
  *
@@ -212,13 +293,18 @@ export async function waitForScreenshotReady(page, options = {}) {
  */
 export async function captureDataScreenshot(page, options) {
   if (!options || !options.path) throw new Error('captureDataScreenshot requires a path');
-  const snapshot = await waitForScreenshotReady(page, options);
+  const initialSnapshot = await waitForScreenshotReady(page, options);
   await waitForMapTiles(page, Math.min(Math.max(1000, Number(options.timeout) || 15000), 30000));
   await waitForFonts(page);
+  const beforeCapture = await waitForScreenshotReady(page, options);
+  assertStableScreenshotSnapshot(initialSnapshot, beforeCapture, options, options.path);
   if (options.selector) {
     await page.locator(options.selector).screenshot({ path: options.path });
   } else {
     await page.screenshot({ path: options.path, fullPage: options.fullPage === true });
   }
-  return snapshot;
+  const afterCapture = await waitForScreenshotReady(page, options);
+  assertStableScreenshotSnapshot(beforeCapture, afterCapture, options, options.path);
+  await recordScreenshotEvidence(options.path, afterCapture, options);
+  return afterCapture;
 }

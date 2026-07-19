@@ -1,4 +1,6 @@
 node_modules
+_site
+.build
 test-results
 playwright-report
 coverage

@@ -15,6 +15,7 @@ describe('Werkbank deployment asset versions', () => {
     'js/ua.lifecycle.js',
     'js/ua.map_v2.js',
     'js/ua.popup_context.js',
+    'js/ua.report_v2.js',
     'js/ua.app_v2.js',
     'js/ua.tour.js',
     'js/ua.political-context.js',

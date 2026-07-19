@@ -66,8 +66,8 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
   test('Kompletter Demo-Flow', async ({ page }) => {
 
     // ── 1. Startansicht laden ──────────────────────────────────────────
-    // CDN-Routen für Export-Bibliotheken einrichten (pdfmake, docx, file-saver)
-    // Muss VOR page.goto geschehen, damit keine CDN-Anfragen verpasst werden.
+    // Laufzeit-CDNs vor Navigation blockieren. Export-Bibliotheken kommen aus
+    // demselben `_site/vendor`-Build wie in Produktion.
     await setupCDNRoutes(page);
     await page.goto('/werkbank_v2.html');
     await page.waitForLoadState('domcontentloaded');
@@ -177,7 +177,7 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.waitForTimeout(1500);
 
     // ── 9d. PDF-Export demonstrieren ──────────────────────────────────
-    //    CDN-Routen sind bereits eingerichtet (setupCDNRoutes am Anfang).
+    //    Der CDN-Regression-Guard ist bereits eingerichtet.
     await page.locator('#btnExportPDF').click();
     await page.waitForTimeout(3000);
 

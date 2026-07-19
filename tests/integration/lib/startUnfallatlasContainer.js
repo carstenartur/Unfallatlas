@@ -6,8 +6,8 @@
  *     (asserts POST /api/export-video returns valid animated files — i.e. ffmpeg
  *     from the Dockerfile actually ran).
  *   - `scripts/regen-context-assets.js`
- *     (regenerates `docs/demo-context.gif` + Kontext-PNGs from the
- *     same container, so test and regen share one source of truth).
+ *     (generates review-only context-media candidates below `.build` from
+ *     the same container, so test and candidate generation share one source).
  *
  * Image source priority:
  *   1. `process.env.UNFALLATLAS_IMAGE` (e.g. the tag produced by

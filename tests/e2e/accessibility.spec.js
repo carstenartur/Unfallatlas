@@ -9,6 +9,13 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { waitForScreenshotReady } from './helpers.js';
+
+function seriousOrCritical(violations) {
+  return violations.filter(
+    (violation) => violation.impact === 'critical' || violation.impact === 'serious'
+  );
+}
 
 test.describe('Accessibility – Werkbank V2', () => {
   test('Hauptseite hat keine critical/serious axe-Violations', async ({ page }) => {
@@ -30,34 +37,61 @@ test.describe('Accessibility – Werkbank V2', () => {
     ).toHaveLength(0);
   });
 
-  test('Export-Modal hat keine critical/serious axe-Violations', async ({ page }) => {
-    await page.goto('werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+  test('alle vier Arbeitsdialoge haben keine critical/serious axe-Violations', async ({ page }) => {
+    await page.goto('werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForScreenshotReady(page, { city: 'Hannover' });
 
-    // Export-Button ist `#btnOpenExport` (werkbank_v2.html:148).
-    const exportBtn = page.locator('#btnOpenExport');
-    await expect(exportBtn).toBeVisible({ timeout: 5000 });
-    await exportBtn.click();
+    const dialogs = [
+      {
+        name: 'Export',
+        selector: '#modalOverlay',
+        open: async () => page.locator('#btnOpenExport').click(),
+        close: async () => page.locator('#btnCloseModal').click(),
+      },
+      {
+        name: 'Politische Kontextrecherche',
+        selector: '#polCtxPanel',
+        open: async () => page.locator('#btnPolCtxOpen').click(),
+        close: async () => page.locator('#polCtxBtnClose').click(),
+      },
+      {
+        name: 'Prioritäten',
+        selector: '#prioPanel',
+        open: async () => page.locator('#btnPrioritiesOpen').click(),
+        close: async () => page.locator('#prioBtnClose').click(),
+      },
+      {
+        name: 'Tour-Rekorder',
+        selector: '#recorderModal',
+        open: async () => {
+          await page.locator('#tourBtnRecord').click();
+          await page.locator('#tourBtnRecord').click();
+        },
+        close: async () => page.locator('#recorderBtnClose').click(),
+      },
+    ];
 
-    // Den Dialog-Container selbst einschließen, damit axe auch dessen
-    // accessible name, aria-modal und Dialog-Semantik prüft.
-    const exportModal = page.locator('#modalOverlay');
-    await expect(exportModal).toBeVisible({ timeout: 5000 });
+    for (const dialog of dialogs) {
+      await dialog.open();
+      await expect(page.locator(dialog.selector)).toBeVisible({ timeout: 5000 });
 
-    const results = await new AxeBuilder({ page })
-      .include('#modalOverlay')
-      .withTags(['wcag2a', 'wcag2aa'])
-      .analyze();
+      const results = await new AxeBuilder({ page })
+        .include(dialog.selector)
+        .withTags(['wcag2a', 'wcag2aa'])
+        .analyze();
+      const blocking = seriousOrCritical(results.violations);
 
-    const blocking = results.violations.filter(
-      (v) => v.impact === 'critical' || v.impact === 'serious'
-    );
+      expect(
+        blocking,
+        `axe found ${blocking.length} serious/critical violation(s) in ${dialog.name}:\n` +
+          blocking.map((violation) =>
+            `  [${violation.impact}] ${violation.id}: ${violation.description}`
+          ).join('\n')
+      ).toHaveLength(0);
 
-    expect(
-      blocking,
-      `axe found ${blocking.length} serious/critical violation(s) in export modal:\n` +
-        blocking.map((v) => `  [${v.impact}] ${v.id}: ${v.description}`).join('\n')
-    ).toHaveLength(0);
+      await dialog.close();
+      await expect(page.locator(dialog.selector)).toBeHidden();
+    }
   });
 
   test('Export-Dialog unterstützt Tastaturfokus, Escape und Fokus-Rückgabe', async ({ page }) => {

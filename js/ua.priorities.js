@@ -29,37 +29,27 @@
   const UA = (window.UA = window.UA || {});
   UA.Priorities = UA.Priorities || {};
 
-  let panelReturnFocus = null;
+  let panelController = null;
 
-  function focusWithoutScrolling(target) {
-    if (!target || typeof target.focus !== 'function') return;
-    try {
-      target.focus({ preventScroll: true });
-    } catch (_) {
-      target.focus();
+  function getPanelController(panel) {
+    if (!panelController) {
+      panelController = UA.createModalController(panel, {
+        initialFocus: '#prioBtnClose',
+        returnFocus: () => document.getElementById('btnPrioritiesOpen'),
+        fallbackFocus: () => document.getElementById('collapseBtn'),
+      });
     }
+    return panelController;
   }
 
   function showPanel(panel) {
     if (!panel) return;
-    if (panel.style.display !== 'flex') {
-      const active = document.activeElement;
-      panelReturnFocus = active && active !== document.body && typeof active.focus === 'function'
-        ? active
-        : document.getElementById('btnPrioritiesOpen');
-    }
-    panel.style.display = 'flex';
-    focusWithoutScrolling(document.getElementById('prioBtnClose'));
+    getPanelController(panel).open();
   }
 
   function closePanel(panel) {
     if (!panel) return;
-    panel.style.display = 'none';
-    const returnFocus = panelReturnFocus || document.getElementById('btnPrioritiesOpen');
-    panelReturnFocus = null;
-    if (returnFocus && document.contains(returnFocus)) {
-      focusWithoutScrolling(returnFocus);
-    }
+    getPanelController(panel).close();
   }
 
   // ── API-Zugriff ──────────────────────────────────────────────────────────────
@@ -333,16 +323,6 @@
 
     btnOpen.addEventListener('click', () => UA.Priorities.openPanel(ctx));
     if (btnClose) btnClose.addEventListener('click', () => closePanel(panel));
-
-    panel.addEventListener('click', event => {
-      if (event.target === panel) closePanel(panel);
-    });
-
-    document.addEventListener('keydown', event => {
-      if (event.key !== 'Escape' || panel.style.display !== 'flex') return;
-      event.preventDefault();
-      closePanel(panel);
-    });
 
     if (btnLoad) {
       btnLoad.addEventListener('click', async () => {

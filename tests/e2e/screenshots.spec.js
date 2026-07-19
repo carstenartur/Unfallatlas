@@ -4,12 +4,18 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
+  assertStableScreenshotSnapshot,
   captureDataScreenshot,
+  recordScreenshotEvidence,
   setupCDNRoutes,
-  waitForFonts,
   waitForScreenshotReady
 } from './helpers.js';
+import networkFixtureRouting from './fixtures/network/routing.cjs';
+
+const { classifyNominatimFixture, classifyOverpassFixture } = networkFixtureRouting;
 
 /** Hilfsfunktion: Seite mit URL-Parametern laden und auf Datenladen warten */
 async function loadPage(page, params = '') {
@@ -41,60 +47,105 @@ function parseLocalAccidentCount(text) {
   return Number(match[1].replace(/\D/g, '')) || 0;
 }
 
-async function setupDeterministicMapModeTiles(page, options = {}) {
+const DETERMINISTIC_MAP_TILES = Object.freeze({
+  standard: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/standard.svg')),
+  orthophoto: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/orthophoto.svg')),
+  labels: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/labels.svg'))
+});
+const DETERMINISTIC_EXTERNAL_DATA = Object.freeze({
+  nominatim: Object.freeze({
+    bonn: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/nominatim-reverse-bonn.json')),
+    hannover: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/nominatim-reverse-hannover.json'))
+  }),
+  overpass: Object.freeze({
+    bonn: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/overpass-bonn.json')),
+    hannover: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/overpass-hannover.json'))
+  })
+});
+const UNEXPECTED_EXTERNAL_REQUESTS = new WeakMap();
+
+async function setupDeterministicBasemapTiles(page, options = {}) {
   const { orthophotoAvailable = true } = options;
-  const standardTile = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-    <rect width="256" height="256" fill="#eef2f6"/>
-    <path d="M0 84 H256 M0 172 H256 M84 0 V256 M172 0 V256" stroke="#c7d2db" stroke-width="4"/>
-    <path d="M-20 40 L280 220 M-30 210 L270 70" stroke="#9aa8b5" stroke-width="6"/>
-  </svg>`;
-  const orthophotoTile = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-    <defs>
-      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#6f8f54"/>
-        <stop offset="100%" stop-color="#9d8b6f"/>
-      </linearGradient>
-    </defs>
-    <rect width="256" height="256" fill="url(#g)"/>
-    <circle cx="60" cy="70" r="26" fill="#4f6f3f" opacity="0.45"/>
-    <circle cx="180" cy="120" r="34" fill="#45663a" opacity="0.35"/>
-    <rect x="24" y="186" width="208" height="20" fill="#b9a38b" opacity="0.45"/>
-  </svg>`;
-  const labelTile = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-    <rect width="256" height="256" fill="transparent"/>
-    <path d="M12 118 H244 M44 60 L212 196" stroke="#1f2937" stroke-width="2.5" stroke-linecap="round" opacity="0.65"/>
-    <text x="20" y="108" font-size="18" font-family="Arial, sans-serif" fill="#111827" opacity="0.85">Bonn Hbf</text>
-    <text x="128" y="188" font-size="14" font-family="Arial, sans-serif" fill="#111827" opacity="0.8">Hybrid Labels</text>
-  </svg>`;
+  const unexpectedExternalRequests = [];
+  UNEXPECTED_EXTERNAL_REQUESTS.set(page, unexpectedExternalRequests);
+  await page.route(/^https:\/\//, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const isStandard = /(^|\.)tile\.openstreetmap\.org$/i.test(url.hostname);
+    const isLabels = /(^|\.)basemaps\.cartocdn\.com$/i.test(url.hostname) &&
+      url.pathname.startsWith('/light_only_labels/');
+    const isOrthophoto = (
+      (url.hostname === 'www.bonn.de' && url.pathname.startsWith('/stadtplan-wms/services/orthofoto/MapServer/WMSServer')) ||
+      (url.hostname === 'www.wms.nrw.de' && url.pathname.startsWith('/geobasis/wms_nw_dop')) ||
+      (url.hostname === 'opendata.lgln.niedersachsen.de' && url.pathname.startsWith('/doorman/noauth/dop_wms')) ||
+      (url.hostname === 'sg.geodatenzentrum.de' && url.pathname.startsWith('/wms_dop20')) ||
+      (url.hostname === 'server.arcgisonline.com' &&
+        url.pathname.startsWith('/ArcGIS/rest/services/World_Imagery/MapServer/tile/'))
+    );
+    const nominatimFixture = classifyNominatimFixture(request.url());
+    const overpassFixture = classifyOverpassFixture(request.url(), request.postData());
 
-  await page.route('https://*.tile.openstreetmap.org/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: standardTile });
-  });
-  await page.route('https://*.basemaps.cartocdn.com/light_only_labels/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: labelTile });
-  });
-
-  const orthophotoPatterns = [
-    'https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer**',
-    'https://www.wms.nrw.de/geobasis/wms_nw_dop**',
-    'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms**',
-    'https://sg.geodatenzentrum.de/wms_dop20**',
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/**'
-  ];
-  for (const pattern of orthophotoPatterns) {
-    await page.route(pattern, async (route) => {
+    if (isStandard || isLabels) {
+      const body = isLabels ? DETERMINISTIC_MAP_TILES.labels : DETERMINISTIC_MAP_TILES.standard;
+      await route.fulfill({ status: 200, contentType: 'image/svg+xml', body });
+      return;
+    }
+    if (isOrthophoto) {
       if (!orthophotoAvailable) {
         await route.fulfill({ status: 503, contentType: 'text/plain; charset=utf-8', body: 'Orthophoto unavailable' });
         return;
       }
-      await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: orthophotoTile });
-    });
+      await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: DETERMINISTIC_MAP_TILES.orthophoto });
+      return;
+    }
+    if (nominatimFixture) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: DETERMINISTIC_EXTERNAL_DATA.nominatim[nominatimFixture]
+      });
+      return;
+    }
+    if (overpassFixture) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: DETERMINISTIC_EXTERNAL_DATA.overpass[overpassFixture]
+      });
+      return;
+    }
+    // The PDF-rendering test installs explicit routes for these local fixture
+    // bytes after page setup. Fall through only to those later handlers.
+    if (url.hostname === 'pdfjs-test-cdn') {
+      await route.fallback();
+      return;
+    }
+    // Canonical artifacts are network-hermetic: every new external request,
+    // independent of resource type, is evidence failure rather than a live
+    // provider-dependent input.
+    unexpectedExternalRequests.push(`${request.method()} ${request.resourceType()} ${request.url()}`);
+    await route.abort('blockedbyclient');
+  });
+}
+
+function assertNoUnexpectedExternalRequests(page) {
+  const unexpected = UNEXPECTED_EXTERNAL_REQUESTS.get(page) || [];
+  if (unexpected.length > 0) {
+    throw new Error(`Canonical screenshot requested unmocked external resources:\n${unexpected.join('\n')}`);
   }
 }
 
 test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
-  // Einheitliche Viewport-Größe für alle Screenshots: 1280×800
-  test.use({ viewport: { width: 1280, height: 800 } });
+  // Dokumentationsstandard aus docs/media-manifest.json: 1280×640. Panel-
+  // Ausschnitte ergeben durch das 20px-Viewport-Inset exakt 440×620.
+  test.use({ viewport: { width: 1280, height: 640 } });
+
+  test.beforeEach(async ({ page }, testInfo) => {
+    await setupDeterministicBasemapTiles(page, {
+      orthophotoAvailable: !testInfo.title.startsWith('25 ')
+    });
+  });
+  test.afterEach(async ({ page }) => assertNoUnexpectedExternalRequests(page));
 
   test('01 Startansicht', async ({ page }) => {
     await loadPage(page);
@@ -110,13 +161,12 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   test('02 Stadtauswahl', async ({ page }) => {
     await loadPage(page);
     await waitForCities(page);
-    await waitForScreenshotReady(page, {
+    await captureDataScreenshot(page, {
+      path: 'docs/screenshots/02-stadtauswahl.png',
+      selector: '#panel',
       city: 'Hannover',
       layers: ['cluster', 'heatmap']
     });
-    await waitForFonts(page);
-    const panel = page.locator('#panel');
-    await panel.screenshot({ path: 'docs/screenshots/02-stadtauswahl.png' });
   });
 
   test('03 Filter', async ({ page }) => {
@@ -134,14 +184,13 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     if (!(await gkfz.isChecked())) await gkfz.click();
     const son = page.locator('#incSon');
     if (!(await son.isChecked())) await son.click();
-    await waitForScreenshotReady(page, {
+    await captureDataScreenshot(page, {
+      path: 'docs/screenshots/03-filter.png',
+      selector: '#panel',
       city: 'Hannover',
       layers: ['cluster', 'heatmap'],
       afterRevision: initialRender.render.revision
     });
-    await waitForFonts(page);
-    const panel = page.locator('#panel');
-    await panel.screenshot({ path: 'docs/screenshots/03-filter.png' });
   });
 
   test('04 Cluster-Ansicht', async ({ page }) => {
@@ -216,14 +265,13 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     });
     await page.locator('#hFrom').fill('6');
     await page.locator('#hTo').fill('18');
-    await waitForScreenshotReady(page, {
+    await captureDataScreenshot(page, {
+      path: 'docs/screenshots/08-stundenfilter.png',
+      selector: '#panel',
       city: 'Hannover',
       layers: ['cluster', 'heatmap'],
       afterRevision: initialRender.render.revision
     });
-    await waitForFonts(page);
-    const panel = page.locator('#panel');
-    await panel.screenshot({ path: 'docs/screenshots/08-stundenfilter.png' });
   });
 
   // --- Neue Screenshots ---
@@ -376,7 +424,6 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   // Empty-State-Karten als vermeintlichen Slope-Beleg (QA #400/#404).
 
   test('21 Kartenmodus Standard (stabil)', async ({ page }) => {
-    await setupDeterministicMapModeTiles(page);
     await loadPage(page, mapModeQuery('standard', '&showCluster=1&showHeatmap=0'));
     await waitForCities(page);
     await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Standardkarte.');
@@ -389,7 +436,6 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   });
 
   test('22 Kartenmodus Orthofoto (stabil)', async ({ page }) => {
-    await setupDeterministicMapModeTiles(page);
     await loadPage(page, mapModeQuery('orthophoto', '&showCluster=1&showHeatmap=0'));
     await waitForCities(page);
     await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Orthofoto.');
@@ -402,7 +448,6 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   });
 
   test('23 Kartenmodus Hybrid (stabil)', async ({ page }) => {
-    await setupDeterministicMapModeTiles(page);
     await loadPage(page, mapModeQuery('hybrid', '&showCluster=1&showHeatmap=0'));
     await waitForCities(page);
     await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Hybrid.');
@@ -415,7 +460,6 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   });
 
   test('24 Kartenmodus Analyse (stabil)', async ({ page }) => {
-    await setupDeterministicMapModeTiles(page);
     await loadPage(page, mapModeQuery('analysis', '&showCluster=0&showHeatmap=1&orthophotoOpacity=65'));
     await waitForCities(page);
     await expect(page.locator('#mapLayerStatus')).toContainText('Kartenmodus: Analyseansicht.');
@@ -428,7 +472,6 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   });
 
   test('25 Kartenmodus Orthofoto – Fallback bei Tile-Fehler', async ({ page }) => {
-    await setupDeterministicMapModeTiles(page, { orthophotoAvailable: false });
     await loadPage(page, mapModeQuery('orthophoto', '&showCluster=1&showHeatmap=0'));
     await waitForCities(page);
     const status = page.locator('#mapLayerStatus');
@@ -446,11 +489,16 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
 test.describe('Werkbank V2 – PDF-Export Rendering', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
+  test.beforeEach(async ({ page }) => {
+    await setupDeterministicBasemapTiles(page);
+  });
+  test.afterEach(async ({ page }) => assertNoUnexpectedExternalRequests(page));
+
   test('15 PDF-Export – Unfallinhalt geprüft und Belegseite gerendert', async ({ page }) => {
     // 90 s: Stadtdaten laden (≤10 s) + pdfmake-Export (≤30 s) + pdfjs-Rendering (≤30 s)
     test.setTimeout(90000);
 
-    // CDN-Routen für Export-Bibliotheken und pdfjs-dist einrichten
+    // Laufzeit-CDNs blockieren; pdfjs-Testmodule werden separat lokal geroutet.
     await setupCDNRoutes(page);
 
     const path = await import('path');
@@ -474,12 +522,12 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     // Semantische Daten- und Layer-Readiness, damit der PDF-Export nicht nur
     // einen bereits aktualisierten Statustext, sondern vollständig gerenderte
     // und vollständige Stadtdaten verwendet.
-    await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
+    const readinessSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
 
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay .modal').waitFor({ state: 'visible' });
 
-    // Warten bis computeExportReport() (inkl. Nominatim-Call) abgeschlossen ist
+    // Warten bis computeExportReport() (inkl. lokal geroutetem Nominatim-Fixture) abgeschlossen ist
     await page.locator('#exportProgress').waitFor({ state: 'visible' });
     await expect(page.locator('#exportProgress')).toContainText('Fertig', { timeout: 30000 });
 
@@ -597,6 +645,18 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
 
     // Screenshot der ersten PDF-Seite, auf der die zuvor aus dem Exportmodell
     // verifizierte lokale Unfallzahl tatsächlich genannt wird.
-    await page.locator('#pdf-canvas').screenshot({ path: 'docs/screenshots/15-export-pdf-rendered.png' });
+    const screenshotPath = 'docs/screenshots/15-export-pdf-rendered.png';
+    await page.locator('#pdf-canvas').screenshot({ path: screenshotPath });
+    const afterCaptureSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
+    assertStableScreenshotSnapshot(
+      readinessSnapshot,
+      afterCaptureSnapshot,
+      { city: 'Bonn', layers: ['cluster'] },
+      screenshotPath
+    );
+    await recordScreenshotEvidence(screenshotPath, afterCaptureSnapshot, {
+      city: 'Bonn',
+      layers: ['cluster']
+    });
   });
 });

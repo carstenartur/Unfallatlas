@@ -31,16 +31,45 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Prepare clean candidate directory
-        run: find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+        run: |
+          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+          mkdir -p out/qa/screenshot-readiness
+          find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
 
       - name: Generate screenshots
         run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium
 
+      - name: Validate dimensions, budgets and references
+        id: validate_media
+        run: npm run validate:media -- --report out/qa/documentation-media.json
+
+      - name: Validate one-to-one screenshot evidence
+        id: validate_evidence
+        run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
+
       - name: Upload reviewed screenshot candidate
         uses: actions/upload-artifact@v7
+        if: ${{ steps.validate_media.outcome == 'success' && steps.validate_evidence.outcome == 'success' }}
         with:
           name: documentation-screenshots-${{ github.sha }}
-          path: docs/screenshots/*.png
+          path: |
+            docs/screenshots/*.png
+            out/qa/screenshot-readiness/*.json
+            out/qa/screenshot-evidence.json
+            _site/build-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload media QA report
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/screenshot-readiness/*.json') != '' }}
+        with:
+          name: documentation-media-report-${{ github.sha }}
+          path: |
+            out/qa/documentation-media.json
+            out/qa/screenshot-evidence.json
+            out/qa/screenshot-readiness/
+            _site/build-manifest.json
           if-no-files-found: error
           retention-days: 30
 

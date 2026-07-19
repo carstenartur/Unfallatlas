@@ -16,7 +16,7 @@ Server-Schicht.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Browser (statisch, GitHub Pages oder lokal über file://)            │
+│  Browser (GitHub Pages oder lokal über den kanonischen _site-Build)   │
 │                                                                      │
 │  werkbank_v2.html                                                    │
 │   ├── js/ua.core.js, ua.state.js, ua.ui.js, ua.map_v2.js             │
@@ -686,9 +686,11 @@ Body und erhält dann `503`.
 | `npm run smoke` | Smoke-Tests gegen einen laufenden Server (`scripts/smoke.sh`) |
 | `npm run demo` | Erzeugt ein Demo-Video (Playwright `demo`-Projekt) |
 
-Browser-Entwicklung benötigt keinen Build-Schritt: einfach
-`werkbank_v2.html` lokal öffnen oder einen statischen HTTP-Server (z. B.
-`python -m http.server`) im Repo-Root starten.
+Browser-Entwicklung und Produktion verwenden denselben kanonischen Einstieg:
+`npm ci && npm run serve:site`. `npm run build:site` erzeugt `_site`, kopiert
+die exakt gelockten Browser-Abhängigkeiten nach `_site/vendor` und schreibt ein
+Build-/Daten-Fingerprint-Manifest. Direktes `file://` oder ein Server im
+Repo-Root wird nicht unterstützt; Details: [`site-build.md`](site-build.md).
 
 Status-Endpunkt für Frontend / Smoke: `GET http://localhost:8000/api/status`
 (siehe [`docs/server-features.md`](server-features.md)).

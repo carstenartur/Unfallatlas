@@ -149,17 +149,17 @@ test.describe('URL-State-Hydration – Determinismus', () => {
     // Gate: only test overlay features when Bonn data has slope/traffic fields
     const baseUrl = new URL(page.url());
     const dataUrl = new URL('out/output_all_years_bonn.geojson.gz', baseUrl).toString();
-    const dataRes = await page.request.fetch(dataUrl).catch(() => null);
-    let hasOverlay = false;
-    if (dataRes && dataRes.ok()) {
-      try {
-        const geojson = await dataRes.json();
-        const firstFeature = geojson?.features?.[0];
-        const props = firstFeature?.properties || {};
-        hasOverlay = 'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
-                     'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
-      } catch (_) {}
-    }
+    const geojson = await page.evaluate(async (url) => {
+      if (!window.UA || typeof window.UA.fetchJsonCompressed !== 'function') {
+        throw new Error('UA.fetchJsonCompressed not available');
+      }
+      return window.UA.fetchJsonCompressed(url, { gzipOnly: true });
+    }, dataUrl);
+    expect(Array.isArray(geojson?.features)).toBe(true);
+    expect(geojson.features.length, 'Bonn GeoJSON unexpectedly contains no accident data').toBeGreaterThan(0);
+    const props = geojson.features[0]?.properties || {};
+    const hasOverlay = 'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
+                       'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
     test.skip(!hasOverlay, 'Bonn GeoJSON not enriched with slope/traffic fields — overlay features not expected');
 
     await expect.poll(() => new URL(page.url()).searchParams.get('centerLat')).not.toBeNull();

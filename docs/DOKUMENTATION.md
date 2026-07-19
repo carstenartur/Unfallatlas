@@ -63,38 +63,44 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
-> Regeneration: `npm run regen:demo` erzeugt bevorzugt ein GIF (`demo.gif`)
-> bis 10 MB und wechselt bei größeren Dateien automatisch auf
-> `demo.webp` (sonst `demo.apng`).
+> Regeneration: `npm run regen:demo` ersetzt ausschließlich das kanonische
+> `demo.gif`, nachdem Format, Zielmaß und 10-MiB-Budget geprüft wurden. Bei
+> einer Überschreitung bricht der Lauf ohne stillen Formatwechsel ab.
 
-> Ergänzend gibt es eine kontextspezifische GIF-Demo
-> (`demo-context.gif`) und drei begleitende PNGs (17–19 unter
-> `screenshots/`) für die Sektion **Kontext (neu)**:
-> [Kontext (neu)](#kontext-neu).
+> Kontextmedien 17–19 sind noch keine kanonischen Doku-Assets. Das zugehörige
+> Skript erzeugt ausschließlich Review-Kandidaten unter
+> `.build/doc-media/context/`; eine spätere Übernahme muss Manifest,
+> Referenzen und fachliche Bildprüfung gemeinsam umfassen.
 
 ---
 
 ## Voraussetzungen
 
 - Moderner Webbrowser (Chrome, Firefox oder Edge empfohlen)
-- Für lokale Nutzung: Python 3 (`python3 -m http.server 8000`) oder ein anderer lokaler Webserver
-- Internetverbindung (für Kartenkacheln und Unfallatlas-Daten)
+- Für lokale Nutzung: Node.js 24 und ein Checkout mit `npm ci`
+- Internetverbindung nur für Grundkarten und optionale externe Dienste; die
+  gelockten Browser-Bibliotheken und gebauten Unfalldaten sind lokal
 
 ---
 
 ## Schnellstart
 
 ```bash
-# Repository klonen
+# Repository klonen und exakt gelockte Abhängigkeiten installieren
 git clone https://github.com/carstenartur/Unfallatlas.git
 cd Unfallatlas
+npm ci
 
-# Lokalen Webserver starten
-python3 -m http.server 8000
+# Kanonischen Site-Build erzeugen und ausliefern
+npm run serve:site
 
 # Anwendung im Browser öffnen
-# http://localhost:8000/werkbank_v2.html
+# http://127.0.0.1:8000/werkbank_v2.html
 ```
+
+Direktes `file://` oder ein Server im Repository-Root wird nicht unterstützt,
+weil die gelockten Browser-Abhängigkeiten erst durch `npm run build:site` nach
+`_site/vendor/` materialisiert werden. Siehe [Site-Build](site-build.md).
 
 ---
 
@@ -174,14 +180,14 @@ Durch geschickte Kombination der Filter lassen sich gezielte Fragestellungen bea
 
 ### Kontext (neu)
 
-> **Live-Screenshots.** Die drei PNGs in `docs/screenshots/` werden
-> deterministisch durch `npm run regen:context-assets` aus demselben
-> Container erzeugt, gegen den der Testcontainers-Integrationstest läuft
-> (siehe [`docs/screenshots/README.md`](screenshots/README.md)):
-> `17-kontext-filter.png` (Filter-Panel),
-> `18-popup-kontextdaten.png` (Popup mit zusätzlichem Block
-> **Kontextdaten**) und
-> `19-kontext-traffic-proxy.png` (aktive Verkehrsproxy-Filter).
+> **Review-Status der Kontextaufnahmen.** `npm run regen:context-assets`
+> erzeugt aus demselben Container wie der Testcontainers-Test drei
+> unveröffentlichte 1280×640-Kandidaten und einen QA-Bericht unter
+> `.build/doc-media/context/run-<Zeitstempel>/`. Fehlende Daten-Readiness,
+> Kontextfilter oder Kontextmarker sind harte Fehler. Die vorgesehenen Motive
+> und der separate Übernahmeprozess stehen in
+> [`docs/screenshots/README.md`](screenshots/README.md); unter `docs/` werden
+> sie bis zu diesem Review nicht als vorhanden ausgegeben.
 
 Im Filter-Panel erscheint – sobald der geladene Datensatz entsprechende
 Felder mitbringt – die zusätzliche Sektion **„Kontext (neu)"**. Sie
@@ -946,7 +952,10 @@ npm run regen:demo
 ```
 
 Damit teilen sich Test und README-Demo eine gemeinsame Quelle
-(*single source of truth*).
+(*single source of truth*). Das vorhandene Asset wird erst ersetzt, wenn das
+neue GIF animiert ist, dem Manifest-Zielmaß entspricht und innerhalb des
+10-MiB-Budgets liegt. Für einen Formatwechsel ist eine gesonderte Änderung an
+Manifest und Doku-Referenzen erforderlich.
 
 ### Technische Details
 

@@ -327,6 +327,22 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     if (handle) await handle.stop();
   });
 
+  it('serves the canonical site artifact without exposing repository metadata', async () => {
+    const manifestResponse = await fetch(`${handle.baseUrl}/build-manifest.json`);
+    expect(manifestResponse.status).toBe(200);
+    const manifest = await manifestResponse.json();
+    expect(manifest).toEqual(expect.objectContaining({
+      schemaVersion: 1,
+      fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+    expect(manifest.data).toEqual(expect.objectContaining({
+      fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+
+    const packageResponse = await fetch(`${handle.baseUrl}/package.json`);
+    expect(packageResponse.status).toBe(404);
+  });
+
   test.each([
     { request: {}, label: 'default', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
     { request: { bodyFormat: 'gif' }, label: 'body:gif', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },

@@ -39,6 +39,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build canonical static site
+        run: npm run build:site
+
+      - name: Validate documentation media
+        id: validate_checked_media
+        run: npm run validate:media -- --report out/qa/documentation-media.json
+
+      - name: Upload checked-in media policy report
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/documentation-media.json') != '' }}
+        with:
+          name: checked-documentation-media-report
+          path: |
+            out/qa/documentation-media.json
+            _site/build-manifest.json
+          if-no-files-found: error
+
       - name: Run unit tests
         run: npm run test:unit -- --runInBand
 
@@ -77,67 +94,10 @@ jobs:
       - name: Validate Playwright Docker coupling
         run: node scripts/check-playwright-docker-version.js
 
-      - name: Decide video export image source
-        id: video_image
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "use_prebuilt=false"
-            echo "reason=push-or-sensitive-checkout"
-          } >> "$GITHUB_OUTPUT"
-
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "Video export image source: local Docker build because this is not a pull request."
-            exit 0
-          fi
-
-          base_ref="${{ github.base_ref }}"
-          git fetch --no-tags origin "$base_ref"
-          if ! changed_files="$(git diff --name-only "origin/$base_ref"...HEAD)"; then
-            echo "Warning: could not compute changed files; defaulting to local Docker build."
-            echo "reason=diff-failed" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Changed files considered for video image decision:"
-          printf '%s\n' "$changed_files"
-
-          sensitive_re='^(Dockerfile|package\.json|package-lock\.json|\.github/workflows/test\.yml|server/(index|video-export)\.js|tests/integration/.+|scripts/(regen-context-assets|check-playwright-docker-version)\.js)$'
-          if printf '%s\n' "$changed_files" | grep -E "$sensitive_re" >/dev/null; then
-            echo "Video export image source: local Docker build because this PR changes Docker/package/video-export-sensitive files."
-            echo "reason=sensitive-files-changed" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          {
-            echo "use_prebuilt=true"
-            echo "reason=pr-without-sensitive-files"
-          } >> "$GITHUB_OUTPUT"
-          echo "Video export image source: pre-built GHCR image is allowed for this PR."
-
       - name: Install dependencies
         run: npm ci
 
-      - name: Try to pull pre-built image
-        if: github.event_name == 'pull_request' && steps.video_image.outputs.use_prebuilt == 'true'
-        id: pull
-        continue-on-error: true
-        run: |
-          expected_playwright="$(node -e "const lock = require('./package-lock.json'); const v = lock.packages?.['node_modules/@playwright/test']?.version || lock.dependencies?.['@playwright/test']?.version; if (!v) { throw new Error('Could not resolve @playwright/test from package-lock.json'); } process.stdout.write(String(v));")"
-          docker pull ghcr.io/carstenartur/unfallatlas:latest
-          actual_playwright="$(docker run --rm --entrypoint node ghcr.io/carstenartur/unfallatlas:latest -e "const v = require('@playwright/test/package.json').version; if (!v) { throw new Error('Could not resolve @playwright/test in image'); } process.stdout.write(String(v));")"
-
-          if [ "$actual_playwright" != "$expected_playwright" ]; then
-            echo "Pre-built image Playwright version mismatch (image=$actual_playwright, checkout=$expected_playwright). Falling back to local Docker build."
-            exit 0
-          fi
-
-          echo "image=ghcr.io/carstenartur/unfallatlas:latest" >> "$GITHUB_OUTPUT"
-
       - name: Run testcontainers integration test
-        env:
-          UNFALLATLAS_IMAGE: ${{ steps.pull.outputs.image }}
         run: npm run test:integration:tc
 
   location-brief-golden-qa:
@@ -238,14 +198,22 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
-
       - name: Prepare clean screenshot candidate directory
-        run: find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+        run: |
+          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+          mkdir -p out/qa/screenshot-readiness
+          find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
 
       - name: Run E2E tests
         run: npm run test:e2e
+
+      - name: Validate generated documentation media
+        id: validate_media
+        run: npm run validate:media -- --report out/qa/generated-documentation-media.json
+
+      - name: Validate one-to-one screenshot evidence
+        id: validate_evidence
+        run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
 
       - name: Run accessibility tests
         run: npx playwright test tests/e2e/accessibility.spec.js --project=chromium --reporter=line
@@ -266,10 +234,26 @@ jobs:
 
       - name: Upload documentation screenshots
         uses: actions/upload-artifact@v7
-        if: success()
+        if: ${{ steps.validate_media.outcome == 'success' && steps.validate_evidence.outcome == 'success' }}
         with:
           name: documentation-screenshots
-          path: docs/screenshots/*.png
+          path: |
+            docs/screenshots/*.png
+            out/qa/screenshot-readiness/*.json
+            out/qa/screenshot-evidence.json
+            _site/build-manifest.json
+          if-no-files-found: error
+
+      - name: Upload generated media QA report
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/generated-documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/screenshot-readiness/*.json') != '' }}
+        with:
+          name: documentation-media-report
+          path: |
+            out/qa/generated-documentation-media.json
+            out/qa/screenshot-evidence.json
+            out/qa/screenshot-readiness/
+            _site/build-manifest.json
           if-no-files-found: error
 
   firefox-smoke:
@@ -291,9 +275,6 @@ jobs:
 
       - name: Install Playwright Firefox
         run: npx playwright install --with-deps firefox
-
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
 
       - name: Run Firefox smoke tests
         run: npx playwright test --project=firefox-smoke
@@ -324,9 +305,6 @@ jobs:
 
       - name: Install Playwright WebKit
         run: npx playwright install --with-deps webkit
-
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
 
       - name: Run WebKit smoke tests
         run: npx playwright test --project=webkit-smoke

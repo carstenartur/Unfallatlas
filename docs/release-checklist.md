@@ -6,12 +6,23 @@ manuell und kurz – sie ergänzen die automatisierte Test-Suite (`npm test`,
 `npm run test:e2e`) und stellen sicher, dass jede unterstützte Variante real
 funktioniert.
 
+> **Aktueller Release-Blocker:**
+> `npm run validate:vendor-provenance -- --require-complete` muss grün sein.
+> Bis [#406](https://github.com/carstenartur/Unfallatlas/issues/406) ist die
+> Komponenten-/Lizenzprovenienz der opaken Exportbundles und Roboto-Fonts
+> ausdrücklich unvollständig; Pages und Release brechen deshalb fail-closed ab.
+
 > Übersicht der Betriebsmodi: siehe README → *Betriebsmodi – Browser-only ·
 > Node-Standalone · Node + Analysis Service*.
 
 ---
 
-## 1. Browser-only (GitHub Pages oder lokal über `file://`)
+## 1. Browser-only (GitHub Pages oder lokaler kanonischer Site-Build)
+
+```bash
+npm ci
+npm run serve:site
+```
 
 - [ ] `werkbank_v2.html` öffnet, Karte und Stadtauswahl erscheinen
 - [ ] Stadt wechseln (z. B. Bonn → Hannover) funktioniert
@@ -22,6 +33,9 @@ funktioniert.
 - [ ] CSV-, GeoJSON- und KML-Download liefern eine valide Datei
 - [ ] Geteilte URL reproduziert den exakt gleichen Zustand
 - [ ] Tour-Player startet (`?tour=demo`)
+- [ ] `_site/build-manifest.json` enthält gelockte Dependency- und Datenfingerprints
+- [ ] `npm run validate:media` besteht (Abmessungen, Budget, Referenzen)
+- [ ] `npm run validate:vendor-provenance -- --require-complete` besteht
 - [ ] **Erwartet nicht verfügbar:** Video-Export-Button, KI-Bewertung,
       Button „Politische Vorgänge recherchieren" (graceful degradation)
 
@@ -193,7 +207,7 @@ cd analysis-service && SPRING_PROFILES_ACTIVE=prod \
 ## 7. Stabilisierungs-Checks (vor Release)
 
 - [ ] README-Linkprüfung: kein `¢erLat`/`¢erLon`, keine isolierten kaputten Symbolzeichen (`grep -nP "¢er(Lat|Lon)" README.md` muss leer sein).
-- [ ] README-Demo-Asset aktuell — `npm run regen:demo` neu ausgeführt (GIF-Budget 10 MB, sonst Auto-Fallback auf WebP/APNG), Datum/Commit im PR notiert.
+- [ ] README-Demo-Asset aktuell — `npm run regen:demo` neu ausgeführt (kanonisches GIF, hartes 10-MiB-Budget ohne stillen Formatwechsel), Datum/Commit im PR notiert.
 - [ ] Live-Demo-Hydration: Playwright-Test gegen GitHub Pages mit Bonn-URL grün.
 - [ ] Steigungslayer bleibt nach Filterwechsel/Stadtreload/Exportdialog sichtbar.
 - [ ] PDF-Render-Gate in CI grün (`npm run generate:sample-pdf && npm run test:render-gate -- --pdf out/ci-render-gate.pdf`).

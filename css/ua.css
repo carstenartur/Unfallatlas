@@ -1,4 +1,6 @@
 html, body { height: 100%; margin: 0; }
+*, *::before, *::after { box-sizing: border-box; }
+body { overflow: hidden; }
 #map { height: 100%; }
 
 .panel {
@@ -64,6 +66,13 @@ select, input {
 }
 .panelBody > div:not(.toggles) > button.btn { width: 100%; }
 .btn.active { background: rgba(233,242,255,.92); border-color: rgba(183,212,255,.95); }
+.primaryTaskBtn {
+  background: #1d5fd0;
+  border-color: #174ca4;
+  color: #fff;
+}
+.primaryTaskBtn:hover { background: #174fae; }
+.taskActionsHeading { margin-top: 10px; font-weight: 900; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .chip {
   display: inline-flex;
@@ -160,6 +169,7 @@ code { background: rgba(243,243,243,.92); padding: 1px 4px; border-radius: 6px; 
   padding: 14px 14px 10px;
   font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
+.modal > * { max-width: 100%; }
 .modalHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; position: sticky; top: 0; background: rgba(255,255,255,.98); padding-bottom: 10px; }
 .modalTitle{ font-weight: 950; font-size: 16px; }
 .modalBtns{ display:flex; gap:8px; flex-wrap: wrap; }
@@ -481,4 +491,164 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
   font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   background: rgba(250,250,250,.9);
   box-sizing: border-box;
+}
+
+/* ============================================================
+   Responsive task surface (phone portrait / touch)
+   ============================================================ */
+@media (max-width: 640px) {
+  .panel {
+    position: fixed;
+    inset: auto 0 0 0;
+    width: 100%;
+    max-height: 62dvh;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    background: rgba(255,255,255,.97);
+    box-shadow: 0 -8px 28px rgba(0,0,0,.22);
+    overscroll-behavior: contain;
+  }
+  .panelHeader {
+    z-index: 4;
+    background: rgba(255,255,255,.98);
+  }
+  .panel.collapsed {
+    inset: auto auto max(8px, env(safe-area-inset-bottom)) 8px;
+    width: min(280px, calc(100vw - 16px));
+    max-height: none;
+    border-radius: 14px;
+  }
+  .panelTitle { font-size: 15px; }
+  .panelSub { font-size: 11px; }
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+  .row > label { align-self: end; }
+  .btn,
+  .smallBtn,
+  .collapseBtn,
+  .legendBtn,
+  .tourBtn,
+  select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+    min-height: 44px;
+  }
+  .chip { min-height: 44px; }
+  .chip input[type="checkbox"],
+  .chip input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+  .taskActions {
+    position: sticky;
+    bottom: -1px;
+    z-index: 5;
+    margin: 8px -4px 0;
+    padding: 8px 4px;
+    background: rgba(255,255,255,.98);
+    border-top: 1px solid rgba(0,0,0,.1);
+  }
+  .taskActionsHeading {
+    margin-top: 8px;
+  }
+  .taskActions .primaryTaskBtn {
+    flex: 1 0 100%;
+    min-height: 48px;
+    font-size: 15px;
+  }
+  input[type="range"] {
+    min-height: 44px;
+  }
+  .dualRange {
+    height: 44px;
+  }
+  .dualRange input[type="range"] {
+    height: 44px;
+  }
+  .dualRange input[type="range"]::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  .dualRange input[type="range"]::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  .modalOverlay {
+    align-items: flex-end;
+    justify-content: stretch;
+    padding: 0;
+    background: rgba(0,0,0,.38);
+  }
+  .modal {
+    width: 100%;
+    max-height: 94dvh;
+    padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+  .modalHeader {
+    z-index: 3;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .modalTitle { flex: 1 1 180px; }
+  .modalBtns {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+  .modal button,
+  .modal input[type="range"] {
+    min-height: 44px;
+  }
+  .modal label:has(input[type="checkbox"]),
+  .modal label:has(input[type="radio"]) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .modal input[type="checkbox"],
+  .modal input[type="radio"] {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+  }
+  table.report {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .recorderModal { width: 100%; }
+  .recorderStepList { max-height: 40dvh; }
+  .recStepRow {
+    grid-template-columns: minmax(72px, 1fr) repeat(3, 44px);
+    gap: 6px;
+  }
+  .recStepLabel { grid-column: 1 / -1; }
+  .recStepDesc { grid-column: 1 / -1; min-width: 0; }
+  .recStepPause { grid-column: 1; }
+  .recStepMoveBtn, .recStepDelBtn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .tourBanner { padding-inline: 10px; }
+  .tourControls { width: 100%; }
+  .tourControls .tourBtn { flex: 1; }
+}
+
+@media (max-width: 360px) {
+  .panel { max-height: 66dvh; }
+  .modal { max-height: 96dvh; }
+  .toggles { gap: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

@@ -62,44 +62,24 @@
 
   function bindExport(ctx){
     const ui = ctx.ui;
-    let focusBeforeModal = null;
-
-    function focusWithoutScrolling(element) {
-      if (!element || typeof element.focus !== "function") return;
-      try { element.focus({ preventScroll: true }); }
-      catch (_) { element.focus(); }
-    }
+    const modalController = UA.createModalController(ui.modalOverlay, {
+      initialFocus: () => ui.btnCloseModal,
+      returnFocus: () => ui.btnOpenExport,
+      fallbackFocus: () => ui.collapseBtn,
+    });
 
     function openModal(){
-      const active = document.activeElement;
-      focusBeforeModal = active && active !== document.body && typeof active.focus === "function"
-        ? active
-        : ui.btnOpenExport;
-      ui.modalOverlay.style.display = "flex";
+      modalController.open();
       // QA-Härtung „Export-Dialog": Hinweis „kein Bereich markiert"
       // dynamisch ein-/ausblenden, abhängig vom aktuellen ctx-Zustand.
       const hint = document.getElementById("noSelectionHint");
       if (hint) hint.hidden = !!ctx.selectionBounds;
-      focusWithoutScrolling(ui.btnCloseModal);
     }
     function closeModal(){
-      if (ui.modalOverlay.style.display !== "flex") return;
-      ui.modalOverlay.style.display = "none";
-      const returnTarget = focusBeforeModal && focusBeforeModal.isConnected
-        ? focusBeforeModal
-        : ui.btnOpenExport;
-      focusBeforeModal = null;
-      focusWithoutScrolling(returnTarget);
+      modalController.close();
     }
 
     ui.btnCloseModal.addEventListener('click', closeModal);
-    ui.modalOverlay.addEventListener('click', (e)=>{ if (e.target === ui.modalOverlay) closeModal(); });
-    document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape' || ui.modalOverlay.style.display !== "flex") return;
-      e.preventDefault();
-      e.stopPropagation();
-      closeModal();
-    });
 
     // Returns true on a successful render, false if report generation failed.
     // Callers use the return value to decide whether to persist export-related

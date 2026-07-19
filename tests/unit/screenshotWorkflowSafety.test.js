@@ -44,19 +44,43 @@ describe('documentation screenshot publication safety', () => {
   });
 
   test('never uploads checked-in screenshots after a failed generation', () => {
+    const dispatchUpload = workflow.slice(
+      workflow.indexOf('- name: Upload reviewed screenshot candidate'),
+      workflow.indexOf('- name: Upload media QA report')
+    );
     const visualUpload = visualCheckWorkflow.slice(
       visualCheckWorkflow.indexOf('- name: Upload PR screenshots as artifact'),
-      visualCheckWorkflow.indexOf('- name: Write PR summary')
+      visualCheckWorkflow.indexOf('- name: Upload media QA report')
     );
     const testUpload = testWorkflow.slice(
       testWorkflow.indexOf('- name: Upload documentation screenshots'),
-      testWorkflow.indexOf('firefox-smoke:')
+      testWorkflow.indexOf('- name: Upload generated media QA report')
     );
-    expect(visualUpload).not.toMatch(/if:\s*always\(\)/);
-    expect(visualUpload).toMatch(/path:\s*docs\/screenshots\/\*\.png/);
-    expect(visualUpload).toMatch(/if-no-files-found:\s*error/);
-    expect(testUpload).toMatch(/if:\s*success\(\)/);
-    expect(testUpload).toMatch(/path:\s*docs\/screenshots\/\*\.png/);
-    expect(testUpload).toMatch(/if-no-files-found:\s*error/);
+    for (const upload of [dispatchUpload, visualUpload, testUpload]) {
+      expect(upload).toMatch(
+        /if:\s*\$\{\{\s*steps\.validate_media\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_evidence\.outcome\s*==\s*'success'\s*\}\}/
+      );
+      expect(upload).toContain('docs/screenshots/*.png');
+      expect(upload).toContain('out/qa/screenshot-readiness/*.json');
+      expect(upload).toContain('out/qa/screenshot-evidence.json');
+      expect(upload).toContain('_site/build-manifest.json');
+      expect(upload).toMatch(/if-no-files-found:\s*error/);
+    }
+  });
+
+  test('publishes fail-closed readiness and build provenance even for rejected candidates', () => {
+    for (const candidate of [workflow, visualCheckWorkflow, testWorkflow]) {
+      expect(candidate).toContain('out/qa/screenshot-readiness/');
+      expect(candidate).toContain('out/qa/screenshot-evidence.json');
+      expect(candidate).toContain('_site/build-manifest.json');
+      expect(candidate).toMatch(/always\(\)[\s\S]*hashFiles\(/);
+      expect(candidate).toContain('npm run validate:screenshot-evidence');
+    }
+    expect(workflow).toMatch(/id:\s*validate_media/);
+    expect(workflow).toMatch(/id:\s*validate_evidence/);
+    expect(visualCheckWorkflow).toMatch(/id:\s*validate_media/);
+    expect(visualCheckWorkflow).toMatch(/id:\s*validate_evidence/);
+    expect(testWorkflow).toMatch(/id:\s*validate_media/);
+    expect(testWorkflow).toMatch(/id:\s*validate_evidence/);
   });
 });

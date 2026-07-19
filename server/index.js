@@ -46,10 +46,14 @@ const analysisServiceClient              = require('./analysis-service/analysisS
 const priorities                         = require('./priorities');
 const { createPrioritiesHandlers }       = require('./priorities/handlers.js');
 const { correlationIdMiddleware, HEADER_NAME: CORRELATION_HEADER } = require('./lib/correlationId.js');
+const { createStaticDataOverlay, resolveDataRoot } = require('./lib/staticDataOverlay.js');
+const { createStaticSiteGuard } = require('./lib/safeStaticPath.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 const ROOT = path.resolve(__dirname, '..');
+const SITE_ROOT = path.join(ROOT, '_site');
+const DATA_ROOT = resolveDataRoot(ROOT, process.env.UNFALLATLAS_DATA_ROOT);
 
 // Parse JSON request bodies
 app.use(express.json());
@@ -130,8 +134,17 @@ function validateVideoExportFormat(req, res, next) {
   next();
 }
 
-// Statische Werkbank-Dateien aus dem Repository-Root ausliefern
-app.use(express.static(ROOT, {
+// Runtime-generierte Kontextdaten sind ein bewusst veränderliches Overlay vor
+// dem unveränderlichen Build-Snapshot. Alle übrigen Dateien kommen exklusiv
+// aus `_site`, sodass Repository- und Serverquellen nicht per HTTP erreichbar
+// sind. Die Context-Generation schreibt standardmäßig nach ROOT/out; ein
+// Betreiber kann dafür UNFALLATLAS_DATA_ROOT setzen.
+app.use('/out', createStaticDataOverlay(express, DATA_ROOT));
+
+// Pages, Playwright, Screenshots und die API-/Docker-Distribution liefern
+// für Anwendungscode und gelockte Browserbibliotheken dasselbe Site-Artefakt.
+app.use(createStaticSiteGuard(SITE_ROOT, { index: 'werkbank_v2.html', extensions: ['html'] }));
+app.use(express.static(SITE_ROOT, {
   index: 'werkbank_v2.html',
   extensions: ['html']
 }));

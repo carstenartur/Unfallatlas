@@ -18,7 +18,7 @@ Die ursprüngliche `werkbank.html` bleibt unverändert und voll funktionsfähig.
 
 Beide Versionen teilen sich die gleichen Basis-Module:
 - `ua.core.js`
-- `ua.util.js`
+- `ua.utils.js`
 - `ua.state.js`
 - `ua.ui.js`
 - `ua.data.js`
@@ -420,12 +420,14 @@ Im Export-Dialog können folgende Optionen ausgewählt werden:
 
 #### Verwendete Bibliotheken
 
-- **docx.js** (v9.6.1): Word-Dokument-Erstellung
-- **pdfMake** (v0.3.7): PDF-Dokument-Erstellung
+- **docx.js** (v9.7.1): Word-Dokument-Erstellung
+- **pdfMake** (v0.3.11): PDF-Dokument-Erstellung
 - **leaflet-image** (v0.4.0): Programmatische Kartenerstellung
 - **FileSaver.js** (v2.0.5): Download-Funktionalität
 
-Alle Bibliotheken werden von CDN geladen (unpkg.com).
+Alle Browser-Bibliotheken werden aus den exakt gelockten npm-Versionen durch
+`npm run build:site` nach `_site/vendor/` kopiert. Laufzeit-CDN-Fallbacks sind
+bewusst ausgeschlossen; siehe [`docs/site-build.md`](docs/site-build.md).
 
 #### Kartenexport
 
