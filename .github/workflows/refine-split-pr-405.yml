@@ -2,7 +2,7 @@ name: One-shot refine PR 405 split
 
 on:
   pull_request_target:
-    types: [opened]
+    types: [opened, reopened]
 
 permissions:
   contents: write
