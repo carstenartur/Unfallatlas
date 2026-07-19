@@ -529,7 +529,7 @@ async function exportVideo(params, opts = {}) {
     // ── 12. Export / Analyse öffnen ────────────────────────────────────────
     const beforeExportFingerprint = await page.evaluate(() => {
       const root = document.querySelector('#exportHtml');
-      if (!root) return '';
+      if (!root) throw new Error('Export preview container is unavailable before rendering');
       const html = String(root.innerHTML || '');
       let hash = 2166136261;
       for (let i = 0; i < html.length; i++) {
@@ -537,7 +537,7 @@ async function exportVideo(params, opts = {}) {
         hash = Math.imul(hash, 16777619);
       }
       return `${html.length}:${(hash >>> 0).toString(16)}`;
-    }).catch(() => '');
+    });
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 10000 });
     await waitForFreshExportPreview(page, {

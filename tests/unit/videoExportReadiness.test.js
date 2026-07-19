@@ -168,5 +168,10 @@ describe('video export semantic readiness', () => {
     expect(source).toContain('map.fire(window.L.Draw.Event.CREATED');
     expect(source).not.toContain('cx - 90');
     expect(source).not.toMatch(/waitForFreshExportPreview\([\s\S]{0,220}\.catch/);
+    const fingerprintBlock = source.slice(
+      source.indexOf('const beforeExportFingerprint'),
+      source.indexOf("await page.locator('#btnOpenExport').click()")
+    );
+    expect(fingerprintBlock).not.toContain('.catch');
   });
 });
