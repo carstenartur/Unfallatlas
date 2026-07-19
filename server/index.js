@@ -203,12 +203,18 @@ app.get('/api/video-export-available', (_req, res) => {
 /**
  * POST /api/export-video
  *
- * Body (JSON): aktuelle URL-Parameter der Werkbank (alle optional):
+ * Body (JSON): aktuelle URL-Parameter der Werkbank (alle optional, mit
+ * Ausnahme der unten beschriebenen atomaren Parametergruppen):
  *   city, severity, includeCyclist, includePedestrian, includeCar,
  *   includeMotorcycle, involvementMode, hourFrom, hourTo, dayType,
  *   roadCondition, showCluster, showHeatmap, showOnlyAboveAverage,
  *   centerLat, centerLon, zoom, selSouth, selWest, selNorth, selEast,
  *   maxPoints, viewportPaddingPct, heatRadius
+ *
+ *   Kartenansicht: centerLat, centerLon und zoom entweder gemeinsam oder gar
+ *   nicht angeben. Auswahl: selSouth, selWest, selNorth und selEast ebenfalls
+ *   nur gemeinsam angeben. Unvollständige oder ungültige Gruppen werden
+ *   fail-closed abgewiesen.
  *
  * Zusätzlicher Parameter:
  *   format (optional, body oder query) – gif | webp | apng (Default: gif)

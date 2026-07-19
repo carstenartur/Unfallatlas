@@ -66,8 +66,19 @@ describe('video export semantic readiness', () => {
     expect(() => expectedVideoState({
       selSouth: '50.74', selWest: '7.09', selNorth: '50.73', selEast: '7.10',
     }, 'Bonn')).toThrow('invalid_selection');
-    expect(() => expectedVideoState({ centerLat: '50.73', centerLon: '7.09' }, 'Bonn'))
-      .toThrow('incomplete_view');
+    for (const partialView of [
+      { centerLat: '50.73' },
+      { centerLon: '7.09' },
+      { zoom: '13' },
+      { centerLat: '50.73', centerLon: '7.09' },
+      { centerLat: '50.73', zoom: '13' },
+      { centerLon: '7.09', zoom: '13' },
+    ]) {
+      expect(() => expectedVideoState(partialView, 'Bonn')).toThrow('incomplete_view');
+    }
+    expect(expectedVideoState({
+      centerLat: '50.730000', centerLon: '7.090000', zoom: '13',
+    }, 'Bonn').view).toEqual({ lat: 50.73, lon: 7.09, zoom: 13 });
   });
 
   test('rejects a lifecycle/UI snapshot for the wrong city or filters', async () => {

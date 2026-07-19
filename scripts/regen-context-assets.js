@@ -40,6 +40,8 @@ const CONTEXT_BODY = Object.freeze({
   ctxOnlyMatched: '1',
   showCluster: '1',
   showHeatmap: '0',
+  centerLat: '52.375900',
+  centerLon: '9.732000',
   zoom: '13'
 });
 

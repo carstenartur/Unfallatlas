@@ -933,9 +933,14 @@ API-Beispiel (WebP):
 ```bash
 curl -X POST "http://localhost:8000/api/export-video?format=webp" \
   -H "Content-Type: application/json" \
-  -d '{"city":"Hannover","zoom":"13"}' \
+  -d '{"city":"Hannover","centerLat":"52.375900","centerLon":"9.732000","zoom":"13"}' \
   --output unfallatlas-analyse.webp
 ```
+
+`centerLat`, `centerLon` und `zoom` bilden gemeinsam einen Karten-Viewport.
+Sobald einer dieser Werte angegeben ist, müssen alle drei vorhanden und gültig
+sein; unvollständige Ansichten werden abgewiesen, statt stillschweigend einen
+anderen Kartenausschnitt zu exportieren.
 
 ### README-Demo-GIF regenerieren
 

@@ -24,6 +24,8 @@ const CONTEXT_BODY = Object.freeze({
   ctxSlope: 'steep,very_steep',
   ctxTraffic: 'high,very_high',
   ctxOnlyMatched: '1',
+  centerLat: '52.375900',
+  centerLon: '9.732000',
   zoom: '13',
 });
 
