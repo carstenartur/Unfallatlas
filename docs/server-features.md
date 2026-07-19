@@ -304,8 +304,13 @@ der Aufrufer eine konsistente, leere Liste verarbeiten kann.
 
 Erzeugt ein animiertes Export-Bild des aktuellen Werkbank-Zustands.
 
-- Body: aktuelle URL-Parameter der Werkbank (Stadt, Filter, Karten­position
-  …).  Siehe Inline-Doku in [`server/index.js`](../server/index.js).
+- Kanonischer Body: `{ "format": "webp", "state": { … } }` nach dem
+  vollständigen, fail-closed Schema v1 unten. Der Browser-Client und der
+  Server verwenden dieselbe Implementierung in
+  [`js/ua.video-export-contract.js`](../js/ua.video-export-contract.js).
+- Ein flacher Body mit URL-Parametern bleibt ausschließlich als
+  **Legacy-Kompatibilitätspfad** erhalten. Neue Integrationen dürfen ihn nicht
+  mehr verwenden.
 - Optionaler Parameter `format` (Body **oder** Query): `gif` | `webp` | `apng`.
 - Default ohne `format`: `gif` (abwärtskompatibel).
 - Unbekannter `format`-Wert: `400` mit `{ "error": "unsupported_format", "supportedFormats": ["gif","webp","apng"] }`.
@@ -319,6 +324,85 @@ Erzeugt ein animiertes Export-Bild des aktuellen Werkbank-Zustands.
   (sonst `429`).
 - Voraussetzung: Playwright + Chromium + ffmpeg vorhanden (im
   Docker-Image enthalten).
+
+### Kanonischer Request v1
+
+Alle aufgeführten Felder sind Pflichtfelder; nur `viewport` und `selection`
+dürfen explizit `null` sein. Unbekannte, fehlende, leere oder typfalsche Felder
+werden nicht ignoriert.
+
+```json
+{
+  "format": "webp",
+  "state": {
+    "schemaVersion": 1,
+    "city": "Bonn",
+    "filters": {
+      "severity": "all",
+      "involvementMode": "or",
+      "hourFrom": 0,
+      "hourTo": 23,
+      "dayType": "all",
+      "roadCondition": "all",
+      "maxPoints": 100000,
+      "viewportPaddingPct": 20,
+      "heatRadius": 25,
+      "involvement": {
+        "cyclist": true,
+        "pedestrian": true,
+        "car": true,
+        "motorcycle": false,
+        "gkfz": false,
+        "sonstig": false
+      }
+    },
+    "context": {
+      "slopeClasses": ["steep"],
+      "trafficClasses": ["high", "very_high"],
+      "onlyMatchedWays": true
+    },
+    "layers": {
+      "cluster": true,
+      "heatmap": false,
+      "onlyAboveAverage": false,
+      "slope": true,
+      "traffic": true
+    },
+    "viewport": {
+      "center": { "lat": 50.7300, "lon": 7.1000 },
+      "zoom": 14
+    },
+    "selection": null
+  }
+}
+```
+
+Mindestens einer der Unfall-Layer `cluster`/`heatmap` muss aktiv sein. In den
+Modi `or` und `solo` muss mindestens eine Beteiligungsklasse gewählt sein.
+Viewport und Auswahl sind atomar; ein unvollständiges Objekt führt bereits vor
+dem Start von Chromium zu `400`.
+
+Stabile Vertragsfehler antworten als
+`{ "error": "<code>", "category": "invalid_request", "path": "…", "message": "…" }`.
+Relevante Codes sind unter anderem `invalid_schema_version`,
+`incomplete_state`, `unknown_parameter`, `incomplete_view`,
+`invalid_selection`, `invalid_layers` und `invalid_involvement`.
+
+### Semantische Artefakt-Evidenz
+
+Ein erfolgreicher Download wird nur ausgeliefert, wenn positive
+Lifecycle-Unfallzahlen, der angeforderte Filter-/Kontext-/Layerzustand, ein
+vollständig heruntergeladenes PDF und aus dem final encodierten Bild dekodierte
+Unfall-/Kontextpixel nachgewiesen wurden. Die Antwort bindet diese Prüfung an
+Artefakt, State und Build:
+
+- `Content-Digest: sha-256=:<base64>:` (RFC-9530-Syntax) und Legacy-`Digest`
+- `X-Unfallatlas-Artifact-SHA256`, `X-Unfallatlas-Video-State-SHA256`
+- `X-Unfallatlas-Build-Fingerprint`, `X-Unfallatlas-Data-Fingerprint`
+- `X-Unfallatlas-Evidence-SHA256`
+- positive Zähler in `X-Unfallatlas-*-Accidents`,
+  `X-Unfallatlas-Encoded-Frames` und `X-Unfallatlas-Encoded-*-Pixels`
+- `X-Unfallatlas-PDF-Completed: true`
 
 ---
 

@@ -31,6 +31,7 @@ const fs = require('fs');
 const path = require('path');
 const { exportVideo }   = require('./video-export.js');
 const { SUPPORTED_VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
+const { validateVideoExportState } = require('./video-export-request.js');
 const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
 const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAssessmentServiceV2.js');
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
@@ -46,10 +47,14 @@ const analysisServiceClient              = require('./analysis-service/analysisS
 const priorities                         = require('./priorities');
 const { createPrioritiesHandlers }       = require('./priorities/handlers.js');
 const { correlationIdMiddleware, HEADER_NAME: CORRELATION_HEADER } = require('./lib/correlationId.js');
+const { createStaticDataOverlay, resolveDataRoot } = require('./lib/staticDataOverlay.js');
+const { createStaticSiteGuard } = require('./lib/safeStaticPath.js');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 const ROOT = path.resolve(__dirname, '..');
+const SITE_ROOT = path.join(ROOT, '_site');
+const DATA_ROOT = resolveDataRoot(ROOT, process.env.UNFALLATLAS_DATA_ROOT);
 
 // Parse JSON request bodies
 app.use(express.json());
@@ -130,8 +135,17 @@ function validateVideoExportFormat(req, res, next) {
   next();
 }
 
-// Statische Werkbank-Dateien aus dem Repository-Root ausliefern
-app.use(express.static(ROOT, {
+// Runtime-generierte Kontextdaten sind ein bewusst veränderliches Overlay vor
+// dem unveränderlichen Build-Snapshot. Alle übrigen Dateien kommen exklusiv
+// aus `_site`, sodass Repository- und Serverquellen nicht per HTTP erreichbar
+// sind. Die Context-Generation schreibt standardmäßig nach ROOT/out; ein
+// Betreiber kann dafür UNFALLATLAS_DATA_ROOT setzen.
+app.use('/out', createStaticDataOverlay(express, DATA_ROOT));
+
+// Pages, Playwright, Screenshots und die API-/Docker-Distribution liefern
+// für Anwendungscode und gelockte Browserbibliotheken dasselbe Site-Artefakt.
+app.use(createStaticSiteGuard(SITE_ROOT, { index: 'werkbank_v2.html', extensions: ['html'] }));
+app.use(express.static(SITE_ROOT, {
   index: 'werkbank_v2.html',
   extensions: ['html']
 }));
@@ -190,31 +204,61 @@ app.get('/api/video-export-available', (_req, res) => {
 /**
  * POST /api/export-video
  *
- * Body (JSON): aktuelle URL-Parameter der Werkbank (alle optional):
+ * Body (JSON): `{ format, state }`, wobei `state` dem kanonischen
+ * Video-Export-Vertrag aus `js/ua.video-export-contract.js` entspricht:
+ *   schemaVersion, city, filters, context, layers, viewport, selection.
+ *
+ * Alte flache URL-Parameter bleiben als Übergangspfad unterstützt (alle
+ * optional, mit Ausnahme der unten beschriebenen atomaren Parametergruppen):
  *   city, severity, includeCyclist, includePedestrian, includeCar,
  *   includeMotorcycle, involvementMode, hourFrom, hourTo, dayType,
  *   roadCondition, showCluster, showHeatmap, showOnlyAboveAverage,
  *   centerLat, centerLon, zoom, selSouth, selWest, selNorth, selEast,
  *   maxPoints, viewportPaddingPct, heatRadius
  *
+ *   Kartenansicht: centerLat, centerLon und zoom entweder gemeinsam oder gar
+ *   nicht angeben. Auswahl: selSouth, selWest, selNorth und selEast ebenfalls
+ *   nur gemeinsam angeben. Unvollständige oder ungültige Gruppen werden
+ *   fail-closed abgewiesen.
+ *
  * Zusätzlicher Parameter:
  *   format (optional, body oder query) – gif | webp | apng (Default: gif)
  *
  * Antwort: Bilddatei als Download (image/gif | image/webp | image/apng)
  */
-app.post('/api/export-video', videoExportRateLimit, validateVideoExportFormat, concurrencyGuard, async (req, res) => {
-  const rawBody = req.body || {};
-  const params = { ...rawBody };
-  delete params.format;
+app.post('/api/export-video', videoExportRateLimit, validateVideoExportFormat, validateVideoExportState, concurrencyGuard, async (req, res) => {
+  const state = req.videoExportState;
   const requestedFormat = req.videoExportFormat || parseRequestedVideoExportFormat(req);
 
   // Note: activeExports is incremented in concurrencyGuard (before next())
   let exportResult = null;
   try {
-    exportResult = await exportVideo(params, { format: requestedFormat });
+    exportResult = await exportVideo(state, { format: requestedFormat });
 
     res.setHeader('Content-Type', exportResult.contentType);
     res.setHeader('Content-Disposition', `attachment; filename="unfallatlas-analyse.${exportResult.extension}"`);
+    if (exportResult.evidence) {
+      const evidence = exportResult.evidence;
+      res.setHeader('Content-Digest', `sha-256=:${evidence.artifact.sha256Base64}:`);
+      res.setHeader('Digest', `SHA-256=${evidence.artifact.sha256Base64}`);
+      res.setHeader('X-Unfallatlas-Artifact-SHA256', evidence.artifact.sha256);
+      res.setHeader('X-Unfallatlas-Video-State-SHA256', evidence.state.sha256);
+      res.setHeader('X-Unfallatlas-Build-Fingerprint', evidence.build.fingerprint);
+      res.setHeader('X-Unfallatlas-Data-Fingerprint', evidence.data.fingerprint);
+      res.setHeader('X-Unfallatlas-Evidence-SHA256', evidence.sha256);
+      const semantic = evidence.semantic || {};
+      const counts = semantic.lifecycle && semantic.lifecycle.counts || {};
+      const frames = semantic.framesAfterEncoding || {};
+      res.setHeader('X-Unfallatlas-Loaded-Accidents', String(counts.loaded || 0));
+      res.setHeader('X-Unfallatlas-Filtered-Accidents', String(counts.filtered || 0));
+      res.setHeader('X-Unfallatlas-Viewport-Accidents', String(counts.viewport || 0));
+      res.setHeader('X-Unfallatlas-Preview-Accidents', String(semantic.preview && semantic.preview.localAccidents || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Frames', String(frames.frameCount || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Accident-Pixels', String(frames.maxAccidentPixels || frames.maxHeatmapPixels || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Slope-Pixels', String(frames.maxSlopePixels || 0));
+      res.setHeader('X-Unfallatlas-Encoded-Traffic-Pixels', String(frames.maxTrafficPixels || 0));
+      res.setHeader('X-Unfallatlas-PDF-Completed', String(Boolean(semantic.pdf && semantic.pdf.completed)));
+    }
     res.sendFile(exportResult.path, (err) => {
       activeExports--;
       if (err && !res.headersSent) {
@@ -231,7 +275,12 @@ app.post('/api/export-video', videoExportRateLimit, validateVideoExportFormat, c
       try { fs.unlinkSync(exportResult.path); } catch (_) { /* ignore */ }
     }
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'Interner Fehler beim Video-Export' });
+      const status = Number(err && err.status) || 500;
+      res.status(status).json({
+        error: err && err.code || err.message || 'Interner Fehler beim Video-Export',
+        category: status >= 500 ? 'internal_error' : 'invalid_request',
+        message: err && err.message || 'Interner Fehler beim Video-Export',
+      });
     }
   }
 });

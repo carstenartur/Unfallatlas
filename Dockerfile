@@ -36,6 +36,26 @@ RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 # Gesamten Anwendungscode kopieren (nach npm ci, damit node_modules gecacht bleibt)
 COPY . .
 
+# Materialisiert die exakt gelockten Browser-Abhängigkeiten und dasselbe
+# Site-Artefakt, das Pages, Playwright und die Screenshot-QA verwenden.
+# Lokale Entwicklungs-Images dürfen solange #406 offen ist weiterhin mit der
+# diagnostischen (unvollständigen) Provenienz gebaut werden. Öffentliche
+# Images setzen den Build-Arg zwingend auf 1; dann wird genau das gerade im
+# Image erzeugte _site-Artefakt vor dem nächsten Layer fail-closed geprüft.
+ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0
+ARG VIDEO_EXPORT_INTEGRATION_FIXTURE=0
+RUN case "$VIDEO_EXPORT_INTEGRATION_FIXTURE" in \
+      0) ;; \
+      1) VIDEO_EXPORT_INTEGRATION_FIXTURE=1 node scripts/install-video-export-fixture.js ;; \
+      *) echo "VIDEO_EXPORT_INTEGRATION_FIXTURE must be 0 or 1" >&2; exit 2 ;; \
+    esac \
+    && npm run build:site \
+    && case "$REQUIRE_COMPLETE_VENDOR_PROVENANCE" in \
+         0) ;; \
+         1) npm run validate:vendor-provenance -- --require-complete ;; \
+         *) echo "REQUIRE_COMPLETE_VENDOR_PROVENANCE must be 0 or 1" >&2; exit 2 ;; \
+       esac
+
 EXPOSE 8000
 
 ENV PORT=8000
