@@ -28,4 +28,18 @@ jobs:
           git fetch origin automation/refine-split-405
           git show origin/automation/refine-split-405:scripts/refine-split-pr-405.sh > /tmp/refine-split-pr-405.sh
           bash -n /tmp/refine-split-pr-405.sh
-          bash /tmp/refine-split-pr-405.sh
+          set +e
+          bash -x /tmp/refine-split-pr-405.sh 2>&1 | tee /tmp/refine-split-pr-405.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [[ $status -ne 0 ]]; then
+            {
+              echo '## Refinement diagnostic'
+              echo
+              echo '```text'
+              tail -n 120 /tmp/refine-split-pr-405.log
+              echo '```'
+            } > /tmp/refine-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/refine-comment.md
+            exit "$status"
+          fi
