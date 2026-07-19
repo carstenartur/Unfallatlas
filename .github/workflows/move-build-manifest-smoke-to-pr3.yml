@@ -1,0 +1,31 @@
+name: One-shot build-manifest smoke boundary repair
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  repair:
+    if: startsWith(github.head_ref, 'automation/move-build-manifest-smoke-to-pr3-trigger')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Load and execute reviewed smoke boundary repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin automation/move-build-manifest-smoke-to-pr3
+          git show origin/automation/move-build-manifest-smoke-to-pr3:scripts/move-build-manifest-smoke-to-pr3.sh > /tmp/move-build-manifest-smoke-to-pr3.sh
+          bash -n /tmp/move-build-manifest-smoke-to-pr3.sh
+          bash /tmp/move-build-manifest-smoke-to-pr3.sh
