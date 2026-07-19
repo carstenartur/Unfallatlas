@@ -1,0 +1,16 @@
+{
+  "place_id": 2001,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0",
+  "display_name": "Friedrichswall, Mitte, Hannover, Niedersachsen, Deutschland",
+  "lat": "52.37020",
+  "lon": "9.73940",
+  "address": {
+    "road": "Friedrichswall",
+    "suburb": "Mitte",
+    "city_district": "Mitte",
+    "city": "Hannover",
+    "postcode": "30159",
+    "country": "Deutschland",
+    "country_code": "de"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "place_id": 1001,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0",
+  "display_name": "Adenauerallee, Südstadt, Bonn, Nordrhein-Westfalen, Deutschland",
+  "lat": "50.73300",
+  "lon": "7.09500",
+  "address": {
+    "road": "Adenauerallee",
+    "suburb": "Südstadt",
+    "city_district": "Bonn",
+    "city": "Bonn",
+    "postcode": "53113",
+    "country": "Deutschland",
+    "country_code": "de"
+  }
+}

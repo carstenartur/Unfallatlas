@@ -203,6 +203,31 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     expect(headingHits).toHaveLength(1);
   });
 
+  test('Kurzbewertung bleibt als vollständiger Leseblock auf einer PDF-Seite', async () => {
+    const data = makeFixtureReportData();
+    data.structured.mapReferences = [
+      'Die Karte dokumentiert die räumliche Verteilung der Unfälle.',
+      'Die Häufung folgt dem Verlauf einer Verkehrsverbindung.',
+      'Schwerpunkt der Häufung: Deisterstraße, Hannover.'
+    ];
+
+    const { definition } = await runPdfExport(makeFixtureCtx(), data, { includeMap: false });
+    const block = definition.content.find(node =>
+      node && node.unbreakable === true && Array.isArray(node.stack) &&
+      node.stack.some(child => child && child.text === 'KURZBEWERTUNG')
+    );
+
+    expect(block).toBeDefined();
+    expect(block.stack.map(child => child.text)).toEqual([
+      'BEGRÜNDUNG',
+      'KURZBEWERTUNG',
+      data.structured.executiveSummary.classification,
+      ...data.structured.executiveSummary.bullets.map(line => '• ' + line),
+      data.structured.executiveSummary.urgency,
+      ...data.structured.mapReferences
+    ]);
+  });
+
   test('ANLAGEN-Heading erzwingt Seitenumbruch (pageBreak vor Anlagen)', async () => {
     const { definition } = await runPdfExport(makeFixtureCtx(), makeFixtureReportData(), { includeMap: false });
     const anlagenIdx = definition.content.findIndex(n =>
@@ -341,6 +366,15 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     expect(allTexts.some(t => /^Auswertungsbereich: /.test(t))).toBe(true);
     expect(allTexts.some(t => /^Analyse auffälliger Unfallmuster: /.test(t))).toBe(true);
     expect(allTexts.some(t => /^Vergleich mit dem Stadtgebiet: /.test(t))).toBe(true);
+    const methodikBlock = definition.content.find(node =>
+      node && node.unbreakable === true && Array.isArray(node.stack) &&
+      node.stack.some(child => child && child.text === 'Methodik – Auswertungsbereich')
+    );
+    expect(methodikBlock).toBeDefined();
+    expect(methodikBlock.stack.map(child => child.text)).toEqual([
+      'Methodik – Auswertungsbereich',
+      ...data.structured.methodikScope.lines,
+    ]);
   });
 
   // ------------------------------------------------------------------

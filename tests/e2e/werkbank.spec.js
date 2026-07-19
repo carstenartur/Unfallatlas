@@ -355,7 +355,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     await page.waitForFunction(() => {
       const stat = document.querySelector('#stat');
       return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
   });
 
   // Helper: wait for #stat text to change from a previously captured value
@@ -484,7 +484,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     await page.waitForFunction(() => {
       const url = window.location.href;
       return url.includes('severity=2') && url.includes('dayType=weekday');
-    }, { timeout: 10000 });
+    }, null, { timeout: 10000 });
 
     // Read the current URL
     const url = page.url();
@@ -518,7 +518,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     await page.waitForFunction(() => {
       const stat = document.querySelector('#stat');
       return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
-    }, { timeout: 15000 });
+    }, null, { timeout: 15000 });
 
     // Schools button should still not be active after reload
     const schoolsBtnAfter = page.locator('.layer-legend-control button[data-layer="schools"]');

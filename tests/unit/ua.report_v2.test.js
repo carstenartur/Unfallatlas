@@ -112,6 +112,35 @@ describe('UA.report_v2 - Export Functions', () => {
       await expect(UA.captureMapImage(ctx)).rejects.toThrow('Invalid map image data URL generated');
     });
 
+    test('should preserve a map-render readiness rejection and skip leaflet-image', async () => {
+      const readinessError = new Error('context tile failed');
+      UA.waitForMapFullyRendered = jest.fn().mockRejectedValue(readinessError);
+      const ctx = { map: {} };
+
+      await expect(UA.captureMapImage(ctx)).rejects.toBe(readinessError);
+
+      expect(UA.waitForMapFullyRendered).toHaveBeenCalledWith(
+        ctx.map,
+        { ctx, timeoutMs: UA.MAP_CAPTURE_TIMEOUT_MS }
+      );
+      expect(mockLeafletImage).not.toHaveBeenCalled();
+    });
+
+    test('should reject when map-render readiness resolves false and skip leaflet-image', async () => {
+      UA.waitForMapFullyRendered = jest.fn().mockResolvedValue(false);
+      const ctx = { map: {} };
+
+      await expect(UA.captureMapImage(ctx)).rejects.toThrow(
+        'Kartenaufnahme abgebrochen: Die Karte wurde nicht vollständig gerendert.'
+      );
+
+      expect(UA.waitForMapFullyRendered).toHaveBeenCalledWith(
+        ctx.map,
+        { ctx, timeoutMs: UA.MAP_CAPTURE_TIMEOUT_MS }
+      );
+      expect(mockLeafletImage).not.toHaveBeenCalled();
+    });
+
     test('should bake heatmap opacity into canvas before capture and restore afterward', async () => {
       const pixelData = new Uint8ClampedArray([255, 0, 0, 200, 0, 255, 0, 100]);
       const heatCanvas = {
@@ -189,6 +218,25 @@ describe('UA.report_v2 - Export Functions', () => {
       const reportData = { text: 'Test report' };
 
       await expect(UA.exportToWord(ctx, reportData, {})).rejects.toThrow('docx.js library not loaded');
+    });
+
+    test('should abort the Word export when map-render readiness rejects', async () => {
+      const readinessError = new Error('context tile failed');
+      UA.waitForMapFullyRendered = jest.fn().mockRejectedValue(readinessError);
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        map: {
+          getCenter: jest.fn(() => ({ lat: 52.3759, lng: 9.7320 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+      const reportData = { text: 'Sachverhalt:\nTest' };
+
+      await expect(UA.exportToWord(ctx, reportData, { includeMap: true }))
+        .rejects.toBe(readinessError);
+
+      expect(mockLeafletImage).not.toHaveBeenCalled();
+      expect(window.saveAs).not.toHaveBeenCalled();
     });
 
     test('should create Word document with valid blob', async () => {
@@ -391,9 +439,9 @@ describe('UA.report_v2 - Export Functions', () => {
   });
 
   describe('ensureExportLibraries', () => {
-    test('should detect pre-loaded real libraries and skip CDN loading', async () => {
+    test('should detect pre-loaded real libraries and skip local script injection', async () => {
       // Real libraries are already set on window in beforeEach.
-      // The function should detect them and return without injecting any CDN script tags.
+      // The function should detect them and return without injecting script tags.
       UA._exportLibrariesLoaded = false;
 
       const appendChildSpy = jest.spyOn(document.head, 'appendChild');
@@ -401,11 +449,11 @@ describe('UA.report_v2 - Export Functions', () => {
       await UA.ensureExportLibraries();
 
       expect(UA._exportLibrariesLoaded).toBe(true);
-      // No <script> elements should have been injected (CDN loading was skipped)
+      // No <script> elements should have been injected.
       expect(appendChildSpy).not.toHaveBeenCalled();
     });
 
-    test('should not invoke onProgress when window libraries are pre-loaded (CDN load skipped)', async () => {
+    test('should not invoke onProgress when window libraries are pre-loaded', async () => {
       // Real libraries are already set on window in beforeEach.
       // With _exportLibrariesLoaded = false, the function still returns early
       // via the "pre-loaded on window" guard — onProgress should not be called.
@@ -458,6 +506,27 @@ describe('UA.report_v2 - Export Functions', () => {
       const reportData = { text: 'Test report' };
 
       await expect(UA.exportToPDF(ctx, reportData, {})).rejects.toThrow('pdfMake library not loaded');
+    });
+
+    test('should abort the PDF export when map-render readiness resolves false', async () => {
+      UA.waitForMapFullyRendered = jest.fn().mockResolvedValue(false);
+      const createPdfSpy = jest.spyOn(window.pdfMake, 'createPdf');
+      const ctx = {
+        CITY_RAW: 'Hannover',
+        map: {
+          getCenter: jest.fn(() => ({ lat: 52.3759, lng: 9.7320 })),
+          getZoom: jest.fn(() => 12)
+        }
+      };
+      const reportData = { text: 'Sachverhalt:\nTest' };
+
+      await expect(UA.exportToPDF(ctx, reportData, { includeMap: true }))
+        .rejects.toThrow(
+          'Kartenaufnahme abgebrochen: Die Karte wurde nicht vollständig gerendert.'
+        );
+
+      expect(mockLeafletImage).not.toHaveBeenCalled();
+      expect(createPdfSpy).not.toHaveBeenCalled();
     });
 
     test('should create PDF with real pdfmake and valid content', async () => {
