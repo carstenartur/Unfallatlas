@@ -6,6 +6,13 @@ on:
       - fix/screenshot-map-context
     paths:
       - .github/workflows/apply-authentic-publication-fix.yml
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
