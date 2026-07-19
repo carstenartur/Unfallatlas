@@ -12,6 +12,7 @@ const {
   countPalettePixels,
   expectedVideoState,
   selectRequiredCity,
+  setContextOverlayState,
   waitForFreshExportPreview,
   waitForTiles,
 } = require('../../server/video-export');
@@ -49,6 +50,57 @@ describe('video export semantic readiness', () => {
     const page = { locator: jest.fn().mockReturnValue(cityLocator) };
     await expect(selectRequiredCity(page, 'Atlantis')).rejects.toThrow(/unknown_city.*Atlantis/);
     expect(cityLocator.selectOption).not.toHaveBeenCalled();
+  });
+
+  test('sets a context overlay through the checkbox event contract despite intercepted pointer geometry', async () => {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    const inputEvent = jest.fn();
+    const changeEvent = jest.fn();
+    input.addEventListener('input', inputEvent);
+    input.addEventListener('change', changeEvent);
+    const overlay = {
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      isVisible: jest.fn().mockResolvedValue(true),
+      isEnabled: jest.fn().mockResolvedValue(true),
+      isChecked: jest.fn(async () => input.checked),
+      evaluate: jest.fn(async (callback, nextState) => callback(input, nextState)),
+    };
+
+    await expect(setContextOverlayState(overlay, {
+      kind: 'slope', wanted: true, targetCity: 'Bonn',
+    })).resolves.toBe(true);
+
+    expect(overlay.waitFor).toHaveBeenCalledWith({ state: 'attached', timeout: 10000 });
+    expect(overlay.evaluate).toHaveBeenCalledWith(expect.any(Function), true);
+    expect(inputEvent).toHaveBeenCalledTimes(1);
+    expect(changeEvent).toHaveBeenCalledTimes(1);
+    expect(overlay.isChecked).toHaveBeenCalledTimes(2);
+  });
+
+  test('context overlay state application is idempotent and fails closed on a lost mutation', async () => {
+    const alreadyActive = {
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      isVisible: jest.fn().mockResolvedValue(true),
+      isEnabled: jest.fn().mockResolvedValue(true),
+      isChecked: jest.fn().mockResolvedValue(true),
+      evaluate: jest.fn(),
+    };
+    await expect(setContextOverlayState(alreadyActive, {
+      kind: 'traffic', wanted: true, targetCity: 'Bonn',
+    })).resolves.toBe(false);
+    expect(alreadyActive.evaluate).not.toHaveBeenCalled();
+
+    const lostMutation = {
+      waitFor: jest.fn().mockResolvedValue(undefined),
+      isVisible: jest.fn().mockResolvedValue(true),
+      isEnabled: jest.fn().mockResolvedValue(true),
+      isChecked: jest.fn().mockResolvedValue(false),
+      evaluate: jest.fn().mockResolvedValue(undefined),
+    };
+    await expect(setContextOverlayState(lostMutation, {
+      kind: 'slope', wanted: true, targetCity: 'Bonn',
+    })).rejects.toThrow(/context_layer_state_mismatch.*slope/);
   });
 
   test('validates requested hours and the complete expected filter state', () => {

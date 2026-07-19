@@ -139,6 +139,42 @@ async function selectRequiredCity(page, targetCity) {
   return option;
 }
 
+/**
+ * Applies a context-overlay checkbox state without depending on the input's
+ * clickable geometry.  Leaflet renders these inputs inside a label, which can
+ * legitimately receive the pointer hit instead of the input itself.  Apply the
+ * native checkbox state and emit its input/change contract directly, so the
+ * product handler remains the source of the layer mutation without relying on
+ * hit testing.
+ */
+async function setContextOverlayState(overlay, { kind, wanted, targetCity }) {
+  await overlay.waitFor({ state: 'attached', timeout: 10000 });
+  if (!(await overlay.isVisible()) || !(await overlay.isEnabled())) {
+    throw new VideoExportSemanticError(
+      'context_layer_unavailable',
+      `${kind} context layer is unavailable for ${targetCity}`
+    );
+  }
+
+  const required = Boolean(wanted);
+  if ((await overlay.isChecked()) === required) return false;
+
+  await overlay.evaluate((input, nextState) => {
+    input.checked = nextState;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, required);
+  const applied = await overlay.isChecked();
+  if (applied !== required) {
+    throw new VideoExportSemanticError(
+      'context_layer_state_mismatch',
+      `${kind} context layer could not be set to ${required ? 'active' : 'inactive'}`,
+      { kind, required, applied }
+    );
+  }
+  return true;
+}
+
 function expectedVideoState(params, city) {
   if (params && typeof params === 'object' &&
       (params.schemaVersion != null || params.filters || params.context || params.layers)) {
@@ -1430,17 +1466,12 @@ async function exportVideo(params, opts = {}) {
     ]) {
       if (!wanted) continue; // fresh workbench defaults to both overlays off
       const overlay = page.locator(`input[data-context-overlay="${kind}"]`);
-      await overlay.waitFor({ state: 'attached', timeout: 10000 });
-      if (!(await overlay.isVisible()) || !(await overlay.isEnabled())) {
-        throw new VideoExportSemanticError(
-          'context_layer_unavailable',
-          `${kind} context layer is unavailable for ${targetCity}`
-        );
-      }
-      const current = await overlay.isChecked();
-      if (current !== wanted) {
-        if (wanted) await overlay.check();
-        else await overlay.uncheck();
+      const changed = await setContextOverlayState(overlay, {
+        kind,
+        wanted,
+        targetCity,
+      });
+      if (changed) {
         await page.waitForTimeout(800);
       }
     }
@@ -1686,6 +1717,7 @@ module.exports = {
   installSemanticEvidenceBadge,
   readBuildEvidence,
   selectRequiredCity,
+  setContextOverlayState,
   waitForFreshExportPreview,
   waitForTiles,
 };

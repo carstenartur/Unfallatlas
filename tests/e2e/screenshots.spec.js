@@ -142,6 +142,39 @@ function assertNoUnexpectedExternalRequests(page) {
   }
 }
 
+/**
+ * Frame the fixed-height panel so the core filters end with a complete,
+ * collapsed context-filter affordance instead of a heading clipped by the
+ * lower screenshot edge. The sticky panel header remains visible and the
+ * context controls are still available through the real disclosure widget.
+ */
+async function prepareCoreFilterPanelCapture(page) {
+  const section = page.locator('#ctxFilterSection');
+  await section.waitFor({ state: 'visible', timeout: 30000 });
+  const geometry = await page.locator('#panel').evaluate(panel => {
+    const contextSection = panel.querySelector('#ctxFilterSection');
+    if (!contextSection) throw new Error('Context filter section is missing');
+    const disclosure = contextSection.querySelector('details');
+    if (disclosure) disclosure.open = false;
+
+    panel.scrollTop = Math.max(
+      0,
+      contextSection.offsetTop + contextSection.offsetHeight - panel.clientHeight + 10
+    );
+    const panelRect = panel.getBoundingClientRect();
+    const sectionRect = contextSection.getBoundingClientRect();
+    return {
+      panelBottom: panelRect.bottom,
+      sectionTop: sectionRect.top,
+      sectionBottom: sectionRect.bottom,
+      disclosureOpen: disclosure ? disclosure.open : null
+    };
+  });
+  expect(geometry.disclosureOpen).toBe(false);
+  expect(geometry.sectionTop).toBeGreaterThan(0);
+  expect(geometry.sectionBottom).toBeLessThanOrEqual(geometry.panelBottom - 2);
+}
+
 test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   // Dokumentationsstandard aus docs/media-manifest.json: 1280×640. Panel-
   // Ausschnitte ergeben durch das 20px-Viewport-Inset exakt 440×620.
@@ -168,6 +201,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
   test('02 Stadtauswahl', async ({ page }) => {
     await loadPage(page);
     await waitForCities(page);
+    await prepareCoreFilterPanelCapture(page);
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/02-stadtauswahl.png',
       selector: '#panel',
@@ -191,6 +225,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     if (!(await gkfz.isChecked())) await gkfz.click();
     const son = page.locator('#incSon');
     if (!(await son.isChecked())) await son.click();
+    await prepareCoreFilterPanelCapture(page);
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/03-filter.png',
       selector: '#panel',

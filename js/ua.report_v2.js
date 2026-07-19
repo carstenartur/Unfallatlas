@@ -3829,28 +3829,41 @@
       sectionGuard("BESCHLUSSVORSCHLAG");
     }
 
-    // ---- BEGRÜNDUNG (Sammelüberschrift) ----
-    docDefinition.content.push({
-      text: "BEGRÜNDUNG",
-      style: "subheader"
-    });
-
-    // ---- KURZBEWERTUNG (Task 2) ----
+    // ---- BEGRÜNDUNG / KURZBEWERTUNG (Task 2) ----
+    // The executive summary is short enough to fit on a page and functions
+    // as one semantic reading unit. Keep its heading, classification,
+    // bullets, urgency and map references together. Otherwise pdfMake can
+    // leave only the final map-reference sentence (for example
+    // "Schwerpunkt der Häufung: …") at the top of the following page.
+    // That continuation has no local heading and is as misleading as the
+    // formerly orphaned final Methodik line.
     if (sd && sd.executiveSummary) {
       const es = sd.executiveSummary;
-      docDefinition.content.push({ text: "KURZBEWERTUNG", style: "subheader" });
-      docDefinition.content.push({ text: es.classification, bold: true, margin: [0, 0, 0, 6] });
+      const executiveSummaryStack = [
+        { text: "BEGRÜNDUNG", style: "subheader" },
+        { text: "KURZBEWERTUNG", style: "subheader" },
+        { text: es.classification, bold: true, margin: [0, 0, 0, 6] }
+      ];
       for (const b of (es.bullets || [])) {
-        docDefinition.content.push({ text: "• " + b, margin: [0, 0, 0, 3] });
+        executiveSummaryStack.push({ text: "• " + b, margin: [0, 0, 0, 3] });
       }
       if (es.urgency) {
-        docDefinition.content.push({ text: es.urgency, italics: true, margin: [0, 4, 0, 8] });
+        executiveSummaryStack.push({ text: es.urgency, italics: true, margin: [0, 4, 0, 8] });
       }
       if (Array.isArray(sd.mapReferences) && sd.mapReferences.length > 0) {
         for (const s of sd.mapReferences) {
-          docDefinition.content.push({ text: s, margin: [0, 0, 0, 4] });
+          executiveSummaryStack.push({ text: s, margin: [0, 0, 0, 4] });
         }
       }
+      docDefinition.content.push({
+        unbreakable: true,
+        stack: executiveSummaryStack
+      });
+    } else {
+      docDefinition.content.push({
+        text: "BEGRÜNDUNG",
+        style: "subheader"
+      });
     }
 
     // ---- SACHVERHALT section ----
