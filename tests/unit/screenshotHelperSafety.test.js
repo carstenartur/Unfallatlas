@@ -141,6 +141,16 @@ describe('screenshot map-readiness helper', () => {
     })).toThrow('lifecycle changed while pixels were captured');
   });
 
+  test('publishes pixels atomically only after repeated lifecycle quiescence', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers.js'), 'utf8');
+    expect(source).toContain('stableObservations < 2');
+    expect(source).toContain('for (let attempt = 1; attempt <= 3; attempt += 1)');
+    expect(source).toContain('capture-${process.pid}-${Date.now()}');
+    expect(source).toContain('await fs.rename(temporaryPath, options.path)');
+    expect(source.indexOf('assertStableScreenshotSnapshot(beforeCapture, afterCapture'))
+      .toBeLessThan(source.indexOf('await fs.rename(temporaryPath, options.path)'));
+  });
+
   test('routes every canonical map screenshot through repository-owned SVG tiles', () => {
     const source = fs.readFileSync(path.resolve(__dirname, '../e2e/screenshots.spec.js'), 'utf8');
     const beforeEachBindings = source.match(/test\.beforeEach\([\s\S]*?setupDeterministicBasemapTiles\([\s\S]*?\n\s*\}\);/g) || [];
@@ -155,7 +165,7 @@ describe('screenshot map-readiness helper', () => {
     expect(source).toContain('tests/e2e/fixtures/network/overpass-bonn.json');
     expect(source).toContain('tests/e2e/fixtures/network/overpass-hannover.json');
     expect(source).toContain('classifyNominatimFixture(request.url())');
-    expect(source).toContain('classifyOverpassFixture(request.url(), request.postData())');
+    expect(source).toContain('request.postDataBuffer() || request.postData()');
     expect(source).not.toContain('route.continue()');
     expect(source).toContain("route.abort('blockedbyclient')");
     expect(source.match(/test\.afterEach\([\s\S]*?assertNoUnexpectedExternalRequests\(page\)/g)).toHaveLength(2);

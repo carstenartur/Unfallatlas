@@ -27,5 +27,11 @@ describe('canonical screenshot network fixture routing', () => {
       data: '[out:json];way["highway"](52.3600,9.7200,52.3900,9.7600);out tags;'
     }).toString())).toBe('hannover');
     expect(classifyOverpassFixture(endpoint, 'data=[out:json];out;')).toBeNull();
+    expect(classifyOverpassFixture(endpoint, Buffer.from(new URLSearchParams({
+      data: '[out:json];way["highway"](5.236e1,9.72,52.39,9.76);out tags;'
+    }).toString()))).toBe('hannover');
+    expect(classifyOverpassFixture(endpoint, new URLSearchParams({
+      data: '[out:json];way["highway"](50.73,7.09,50.74,7.10);way["highway"](52.36,9.72,52.39,9.76);out tags;'
+    }).toString())).toBeNull();
   });
 });

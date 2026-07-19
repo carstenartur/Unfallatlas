@@ -293,18 +293,56 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
  */
 export async function captureDataScreenshot(page, options) {
   if (!options || !options.path) throw new Error('captureDataScreenshot requires a path');
-  const initialSnapshot = await waitForScreenshotReady(page, options);
+  await waitForScreenshotReady(page, options);
   await waitForMapTiles(page, Math.min(Math.max(1000, Number(options.timeout) || 15000), 30000));
   await waitForFonts(page);
-  const beforeCapture = await waitForScreenshotReady(page, options);
-  assertStableScreenshotSnapshot(initialSnapshot, beforeCapture, options, options.path);
-  if (options.selector) {
-    await page.locator(options.selector).screenshot({ path: options.path });
-  } else {
-    await page.screenshot({ path: options.path, fullPage: options.fullPage === true });
+  const [{ default: fs }, { default: path }] = await Promise.all([
+    import('fs/promises'),
+    import('path')
+  ]);
+  const parsed = path.parse(options.path);
+  const temporaryPath = path.join(
+    parsed.dir,
+    `.${parsed.name}.capture-${process.pid}-${Date.now()}${parsed.ext || '.png'}`
+  );
+  let lastTransition = null;
+  try {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      let beforeCapture = await waitForScreenshotReady(page, options);
+      let stableObservations = 0;
+      for (let observation = 0; observation < 10 && stableObservations < 2; observation += 1) {
+        await page.waitForTimeout(200);
+        const next = await waitForScreenshotReady(page, options);
+        try {
+          assertStableScreenshotSnapshot(beforeCapture, next, options, options.path);
+          stableObservations += 1;
+        } catch (error) {
+          stableObservations = 0;
+          lastTransition = error;
+        }
+        beforeCapture = next;
+      }
+      if (stableObservations < 2) continue;
+
+      if (options.selector) {
+        await page.locator(options.selector).screenshot({ path: temporaryPath });
+      } else {
+        await page.screenshot({ path: temporaryPath, fullPage: options.fullPage === true });
+      }
+      const afterCapture = await waitForScreenshotReady(page, options);
+      try {
+        assertStableScreenshotSnapshot(beforeCapture, afterCapture, options, options.path);
+      } catch (error) {
+        lastTransition = error;
+        await fs.rm(temporaryPath, { force: true });
+        continue;
+      }
+      await fs.rename(temporaryPath, options.path);
+      await recordScreenshotEvidence(options.path, afterCapture, options);
+      return afterCapture;
+    }
+  } finally {
+    await fs.rm(temporaryPath, { force: true });
   }
-  const afterCapture = await waitForScreenshotReady(page, options);
-  assertStableScreenshotSnapshot(beforeCapture, afterCapture, options, options.path);
-  await recordScreenshotEvidence(options.path, afterCapture, options);
-  return afterCapture;
+  throw lastTransition || new Error(`Screenshot lifecycle did not become quiescent: ${options.path}`);
 }

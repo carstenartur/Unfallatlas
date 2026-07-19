@@ -83,7 +83,10 @@ async function setupDeterministicBasemapTiles(page, options = {}) {
         url.pathname.startsWith('/ArcGIS/rest/services/World_Imagery/MapServer/tile/'))
     );
     const nominatimFixture = classifyNominatimFixture(request.url());
-    const overpassFixture = classifyOverpassFixture(request.url(), request.postData());
+    const overpassFixture = classifyOverpassFixture(
+      request.url(),
+      request.postDataBuffer() || request.postData()
+    );
 
     if (isStandard || isLabels) {
       const body = isLabels ? DETERMINISTIC_MAP_TILES.labels : DETERMINISTIC_MAP_TILES.standard;
@@ -123,7 +126,11 @@ async function setupDeterministicBasemapTiles(page, options = {}) {
     // Canonical artifacts are network-hermetic: every new external request,
     // independent of resource type, is evidence failure rather than a live
     // provider-dependent input.
-    unexpectedExternalRequests.push(`${request.method()} ${request.resourceType()} ${request.url()}`);
+    const postData = request.postDataBuffer();
+    const diagnosticBody = postData ? ` body=${postData.toString('utf8').slice(0, 240)}` : '';
+    unexpectedExternalRequests.push(
+      `${request.method()} ${request.resourceType()} ${request.url()}${diagnosticBody}`
+    );
     await route.abort('blockedbyclient');
   });
 }
