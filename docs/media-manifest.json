@@ -28,15 +28,15 @@
     {
       "path": "docs/screenshots/02-stadtauswahl.png",
       "kind": "screenshot",
-      "purpose": "Stadtauswahl im Bedienpanel.",
-      "target": { "width": 440, "height": 620 },
+      "purpose": "Stadtauswahl im Bedienpanel mit sichtbarem Karten- und Unfallkontext.",
+      "target": { "width": 1280, "height": 640 },
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/03-filter.png",
       "kind": "screenshot",
-      "purpose": "Beteiligungs-, Schwere- und Zeitfilter.",
-      "target": { "width": 440, "height": 620 },
+      "purpose": "Beteiligungs-, Schwere- und Zeitfilter mit sichtbarer Ergebnis-Karte.",
+      "target": { "width": 1280, "height": 640 },
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
@@ -70,8 +70,8 @@
     {
       "path": "docs/screenshots/08-stundenfilter.png",
       "kind": "screenshot",
-      "purpose": "Bedienpanel mit aktivem Stundenfilter.",
-      "target": { "width": 440, "height": 620 },
+      "purpose": "Aktiver Stundenfilter mit sichtbarer räumlicher Ergebnisänderung.",
+      "target": { "width": 1280, "height": 640 },
       "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
