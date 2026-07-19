@@ -18,22 +18,11 @@ jobs:
         run: |
           git config user.name "Unfallwerkbank QA"
           git config user.email "3164220+carstenartur@users.noreply.github.com"
-          if [[ -f qa/apply-authentic-error.txt ]]; then
-            cat qa/apply-authentic-error.txt
-            exit 1
-          fi
           set +e
-          node scripts/apply-authentic-screenshot-fix.cjs > /tmp/apply-authentic.log 2>&1
-          status=$?
+          node scripts/apply-authentic-screenshot-fix.cjs 2>&1 | tee /tmp/apply-authentic.log
+          status=${PIPESTATUS[0]}
           set -e
           if [[ $status -ne 0 ]]; then
-            git restore .
-            mkdir -p qa
-            cp /tmp/apply-authentic.log qa/apply-authentic-error.txt
-            git add qa/apply-authentic-error.txt
-            git commit -m "chore: record authentic screenshot patch failure"
-            git push origin HEAD:fix/screenshot-map-context
-            cat /tmp/apply-authentic.log
             exit $status
           fi
           rm .github/workflows/apply-authentic-publication-fix.yml scripts/apply-authentic-screenshot-fix.cjs
@@ -41,6 +30,13 @@ jobs:
           git commit -m "test: separate regression and publication screenshot contracts"
           git push origin HEAD:fix/screenshot-map-context
           echo "SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Upload patch diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: authentic-screenshot-patch-diagnostics-${{ github.run_id }}
+          path: /tmp/apply-authentic.log
+          if-no-files-found: error
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
