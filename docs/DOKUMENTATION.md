@@ -817,6 +817,13 @@ unterstützten Parameter auf:
 | `debugSlope` | Debug-Labels mit Straßensteigung anzeigen | `0` / `1` | `0` |
 | `debugSlopeSamples` | Debug-Samples der Hangneigung anzeigen | `0` / `1` | `0` |
 
+Sind `slope` und `traffic` gleichzeitig aktiv, werden die Werte nicht als
+zwei deckungsgleiche Vollflächen gezeichnet: Die Steigung bildet eine breite,
+durchgezogene Grundlinie; die Verkehrsbelastung liegt als schmale,
+gestrichelte Innenlinie darüber. Damit bleiben beide Signale auch auf
+demselben OSM-Weg sowie ohne reine Farbdifferenz unterscheidbar. Die Legende
+benennt dieselbe Linienkodierung ausdrücklich.
+
 ### Kontext (neu)
 
 Diese Parameter steuern die Sektion **Kontext (neu)** im Filter-Panel
@@ -905,16 +912,18 @@ Alle drei Formate lassen sich in README/HTML ohne Play-Button einbetten. MP4/Web
 
 Unabhängig vom Ausgabeformat wird derselbe Ablauf aufgezeichnet:
 
-1. Standardansicht (Default-Einstellungen, Hannover)
-2. Stadt aus der aktuellen Auswahl wird im Dropdown gesetzt
-3. Alle Filter werden nacheinander sichtbar gesetzt (Schwere, Beteiligung, Modus, Uhrzeit, Wochentag, Fahrbahnzustand)
+1. Stadt, Kontextfilter und Straßen-Layer werden über denselben URL-Vertrag
+   rehydriert, den auch geteilte Werkbank-Links verwenden
+2. Die angeforderte Stadt wird im Dropdown verifiziert
+3. Die übrigen Filter werden nacheinander sichtbar gesetzt (Schwere,
+   Beteiligung, Modus, Uhrzeit, Wochentag, Fahrbahnzustand)
 4. Darstellungsoptionen werden aktiviert (Heatmap, Cluster, Hotspots)
 5. Karte fliegt zur gewünschten Position
 6. Bereich wird markiert (falls vorhanden)
 7. Export-Modal öffnet – durch den Bezirksratsantrag wird gescrollt
 8. PDF-Export wird demonstriert
 
-> **Hinweis:** Der Video-Export berücksichtigt alle 6 Beteiligungsfilter – einschließlich Gkfz (Güter-Kfz) und Sonstig.
+> **Hinweis:** Der Video-Export berücksichtigt alle 6 Beteiligungsfilter – einschließlich Gkfz (Güter-Kfz) und Sonstig. Vor der Beweisaufnahme wartet er zusätzlich auf den exakten Kontextfilterzustand sowie aktive, angehängte und nicht leere Steigungs-/Verkehrslayer.
 
 ### Nutzung
 

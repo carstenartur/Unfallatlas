@@ -79,6 +79,7 @@ async function isDockerAvailable() {
  *
  * @param {object} [opts]
  * @param {number} [opts.startupTimeoutMs] override startup timeout
+ * @param {Record<string,string>} [opts.buildArgs] Docker build arguments for a local image
  * @returns {Promise<{baseUrl: string, container: object, stop: () => Promise<void>, getLogs: () => Promise<string>}>}
  */
 async function startUnfallatlasContainer(opts = {}) {
@@ -88,9 +89,16 @@ async function startUnfallatlasContainer(opts = {}) {
   const imageTag = process.env.UNFALLATLAS_IMAGE;
   let builder;
   if (imageTag) {
+    if (opts.buildArgs && Object.keys(opts.buildArgs).length) {
+      throw new Error('Docker build arguments cannot be applied to UNFALLATLAS_IMAGE');
+    }
     builder = new GenericContainer(imageTag);
   } else {
-    builder = await GenericContainer.fromDockerfile(REPO_ROOT).build(
+    let dockerfileBuilder = GenericContainer.fromDockerfile(REPO_ROOT);
+    if (opts.buildArgs && Object.keys(opts.buildArgs).length) {
+      dockerfileBuilder = dockerfileBuilder.withBuildArgs(opts.buildArgs);
+    }
+    builder = await dockerfileBuilder.build(
       'unfallatlas:integration-test',
       { deleteOnExit: false }
     );

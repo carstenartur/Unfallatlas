@@ -1132,6 +1132,18 @@
     if (!ctx.contextOverlays.pending) {
       ctx.contextOverlays.pending = { slope: false, traffic: false };
     }
+    if (!ctx.contextOverlays.active) {
+      ctx.contextOverlays.active = { slope: false, traffic: false };
+    }
+    if (!ctx.contextOverlays.layers) {
+      ctx.contextOverlays.layers = { slope: null, traffic: null };
+    }
+    // Both semantic road layers must share one renderer. Otherwise separate
+    // canvases make DOM/toggle order decide which signal occludes the other
+    // and leave renderer layers behind after repeated viewport rebuilds.
+    if (!ctx.contextOverlays.renderer && window.L && typeof window.L.canvas === 'function') {
+      ctx.contextOverlays.renderer = window.L.canvas({ padding: 0.2 });
+    }
     return ctx.contextOverlays;
   }
 
@@ -1150,6 +1162,7 @@
       const opts = (state.tileIndex && ctx.map && typeof ctx.map.getBounds === 'function')
         ? { bounds: ctx.map.getBounds() }
         : {};
+      if (reg.renderer) opts.renderer = reg.renderer;
       // PR-berlin-slope-qa: optional debug overlay. Read once from
       // the URL — the toggle is hidden behind a query param so it
       // never affects production rendering. `?debugSlope=1` shows the
@@ -1187,10 +1200,11 @@
   // the v3 tile data that arrives lazily as the user pans.
   async function _rebuildActiveOverlays(ctx) {
     const reg = _ensureOverlayRegistry(ctx);
-    if (!ctx.map || !UA.contextRoadLayer) return;
+    if (!ctx.map) return;
     if (reg._overlayRebuildInFlight) return reg._overlayRebuildInFlight;
     reg._overlayRebuildInFlight = Promise.resolve().then(async () => {
       const tileDiag = await _ensureViewportTilesLoaded(ctx, { skipOverlayRebuild: true });
+      if (!UA.contextRoadLayer) return tileDiag;
       for (const kind of CONTEXT_OVERLAY_KINDS) {
         if (!reg.active[kind]) continue;
         const prevLayer = reg.layers[kind];
@@ -1218,6 +1232,7 @@
       if (typeof UA.refreshContextOverlayZOrder === 'function') {
         try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
       }
+      return tileDiag;
     }).finally(() => {
       reg._overlayRebuildInFlight = null;
     });
@@ -1238,6 +1253,12 @@
         c.appendChild(UA.contextRoadLayer.buildLegend(kind));
         added++;
       } catch (_) { /* ignore */ }
+    }
+    if (added === 2) {
+      const note = document.createElement('div');
+      note.className = 'context-road-legend__combined-note';
+      note.textContent = 'Kombiniert: Steigung außen, Verkehr gestrichelt innen.';
+      c.appendChild(note);
     }
     c.style.display = added > 0 ? '' : 'none';
   }
@@ -1368,6 +1389,21 @@
     ctx.map.on('moveend', handler);
     reg._moveEndHandler = handler;
   }
+
+  // Public awaited boundary used by capture/export callers after a viewport
+  // transition. It resolves only after current v3 tiles have been loaded and
+  // every active registry layer has been rebuilt for the current bounds.
+  UA.ensureContextOverlaysReady = async function ensureContextOverlaysReady(ctx) {
+    if (!ctx || !ctx.map) throw new Error('Context overlay readiness requires a map context');
+    _ensureMoveEndHandler(ctx);
+    const tileDiagnostics = await _rebuildActiveOverlays(ctx);
+    const reg = _ensureOverlayRegistry(ctx);
+    const features = {};
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      features[kind] = reg.active[kind] ? _countOverlayFeatures(reg.layers[kind]) : 0;
+    }
+    return { tileDiagnostics: tileDiagnostics || _viewportTileDiagnostics(ctx), features };
+  };
 
   // Internal: mirror `reg.active[kind]` onto the layer-control
   // checkbox without re-triggering its `change` handler. No-op when
@@ -1543,6 +1579,9 @@
       let bounds = null;
       try { bounds = map && typeof map.getBounds === 'function' ? map.getBounds() : null; } catch (_) { bounds = null; }
       if (!bounds) return Promise.resolve(true);
+      if (typeof UA.ensureContextOverlaysReady === 'function') {
+        return UA.ensureContextOverlaysReady(ctx).then(() => true).catch(() => false);
+      }
       return cl.loadTilesForBbox(ctx.contextLayerState, bounds).then(() => true).catch(() => false);
     };
 
@@ -1784,6 +1823,7 @@
       }
     }
     _refreshContextLegend(ctx);
+    _ensureMoveEndHandler(ctx);
     if (hasV3Tiles && CONTEXT_OVERLAY_KINDS.some(kind => reg.active[kind])) {
       _ensureViewportTilesLoaded(ctx).then(() => {
         _refreshContextLegend(ctx);

@@ -43,7 +43,13 @@ COPY . .
 # Images setzen den Build-Arg zwingend auf 1; dann wird genau das gerade im
 # Image erzeugte _site-Artefakt vor dem nächsten Layer fail-closed geprüft.
 ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0
-RUN npm run build:site \
+ARG VIDEO_EXPORT_INTEGRATION_FIXTURE=0
+RUN case "$VIDEO_EXPORT_INTEGRATION_FIXTURE" in \
+      0) ;; \
+      1) VIDEO_EXPORT_INTEGRATION_FIXTURE=1 node scripts/install-video-export-fixture.js ;; \
+      *) echo "VIDEO_EXPORT_INTEGRATION_FIXTURE must be 0 or 1" >&2; exit 2 ;; \
+    esac \
+    && npm run build:site \
     && case "$REQUIRE_COMPLETE_VENDOR_PROVENANCE" in \
          0) ;; \
          1) npm run validate:vendor-provenance -- --require-complete ;; \

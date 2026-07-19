@@ -30,7 +30,7 @@ async function waitForCities(page) {
     if (!select) return false;
     const opts = select.querySelectorAll('option');
     return opts.length > 1 && ![...opts].some(o => o.textContent.includes('Lade'));
-  }, { timeout: 30000 });
+  }, null, { timeout: 30000 });
 }
 
 const MAP_MODE_BASE_QUERY = '?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0' +
@@ -163,15 +163,27 @@ async function prepareCoreFilterPanelCapture(page) {
     );
     const panelRect = panel.getBoundingClientRect();
     const sectionRect = contextSection.getBoundingClientRect();
+    const header = panel.querySelector('.panelHeader');
+    const headerRect = header && header.getBoundingClientRect();
+    const city = panel.querySelector('#citySel');
+    const cityRect = city && city.getBoundingClientRect();
     return {
+      panelTop: panelRect.top,
       panelBottom: panelRect.bottom,
+      headerBottom: headerRect && headerRect.bottom,
+      headerBackground: header && getComputedStyle(header).backgroundColor,
+      cityTop: cityRect && cityRect.top,
+      cityBottom: cityRect && cityRect.bottom,
       sectionTop: sectionRect.top,
       sectionBottom: sectionRect.bottom,
       disclosureOpen: disclosure ? disclosure.open : null
     };
   });
   expect(geometry.disclosureOpen).toBe(false);
-  expect(geometry.sectionTop).toBeGreaterThan(0);
+  expect(geometry.headerBackground).toBe('rgb(255, 255, 255)');
+  expect(geometry.cityTop).toBeGreaterThanOrEqual(geometry.headerBottom);
+  expect(geometry.cityBottom).toBeLessThanOrEqual(geometry.panelBottom);
+  expect(geometry.sectionTop).toBeGreaterThanOrEqual(geometry.headerBottom);
   expect(geometry.sectionBottom).toBeLessThanOrEqual(geometry.panelBottom - 2);
 }
 
@@ -289,7 +301,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await page.waitForFunction(() => {
       const prog = document.querySelector('#exportProgress');
       return prog && prog.textContent.includes('Fertig');
-    }, { timeout: 30000 });
+    }, null, { timeout: 30000 });
     await page.waitForTimeout(1000);
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/07-export-modal.png',
@@ -415,7 +427,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await page.waitForFunction(() => {
       const prog = document.querySelector('#exportProgress');
       return prog && prog.textContent.includes('Fertig');
-    }, { timeout: 30000 });
+    }, null, { timeout: 30000 });
     await page.waitForTimeout(1000);
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/14-export-filterkontext.png',
@@ -440,7 +452,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     await page.waitForFunction(() => {
       const prog = document.querySelector('#exportProgress');
       return prog && prog.textContent.includes('Fertig');
-    }, { timeout: 30000 });
+    }, null, { timeout: 30000 });
     const exportHtml = page.locator('#exportHtml');
     const summary = exportHtml.locator('div').filter({ hasText: 'Auswertung:' }).first();
     await expect(summary).toBeVisible();
@@ -653,6 +665,7 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       window.__pdfText = pageTexts.join('\\n');
       window.__pdfPageCount = pdfDoc.numPages;
       window.__pdfRenderedPage = renderedPageNumber;
+      window.__pdfRenderedPageText = pageTexts[renderedPageNumber - 1] || '';
       window.__pdfRendered = true;
     } catch (err) {
       window.__pdfError = String(err);
@@ -664,6 +677,7 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     // Warten bis PDF gerendert ist – event-driven über window.__pdfRendered
     await page.waitForFunction(
       () => window.__pdfRendered === true || typeof window.__pdfError === 'string',
+      null,
       { timeout: 30000 }
     );
 
@@ -676,7 +690,8 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     const pdfDiagnostics = await page.evaluate(() => ({
       text: window.__pdfText || '',
       pageCount: window.__pdfPageCount || 0,
-      renderedPage: window.__pdfRenderedPage || 0
+      renderedPage: window.__pdfRenderedPage || 0,
+      renderedPageText: window.__pdfRenderedPageText || ''
     }));
     expect(pdfDiagnostics.pageCount).toBeGreaterThan(0);
     expect(pdfDiagnostics.renderedPage).toBeGreaterThan(0);
@@ -684,6 +699,11 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     expect(pdfDiagnostics.text).toMatch(
       new RegExp(`(?:^|\\D)${expectedLocalAccidents}\\s+Unfälle`, 'i')
     );
+    // The evidence page must begin with the complete executive-summary
+    // reading block. This catches real pdfMake pagination, not only the
+    // docDefinition's `unbreakable` declaration.
+    expect(pdfDiagnostics.renderedPageText).toMatch(/^(?:BEGRÜNDUNG\s+)?KURZBEWERTUNG\b/);
+    expect(pdfDiagnostics.renderedPageText).not.toMatch(/^(?:Wochentag\)\.|Schwerpunkt der Häufung:)/);
 
     // Screenshot der ersten PDF-Seite, auf der die zuvor aus dem Exportmodell
     // verifizierte lokale Unfallzahl tatsächlich genannt wird.

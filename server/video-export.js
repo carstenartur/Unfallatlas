@@ -7,7 +7,7 @@
  * ffmpeg zu einem GIF.
  *
  * Ablauf:
- *  1. Standardansicht laden (Hannover, Zoom 12)
+ *  1. Werkbank mit dem kanonischen Kontextzustand laden
  *  2. Stadt aus Parametern auswählen
  *  3. Filter nacheinander setzen (Schwere, Beteiligung, Modus, Uhrzeit, etc.)
  *  4. Darstellungsoptionen togglen (Heatmap / Cluster / Hotspot)
@@ -56,7 +56,7 @@ async function waitForCities(page) {
     if (!select) return false;
     const opts = select.querySelectorAll('option');
     return opts.length > 1 && ![...opts].some(o => o.textContent.includes('Lade'));
-  }, { timeout: 60000 });
+  }, null, { timeout: 60000 });
 }
 
 /** Wartet bis Unfalldaten geladen wurden */
@@ -64,7 +64,7 @@ async function waitForData(page) {
   await page.waitForFunction(() => {
     const stat = document.querySelector('#stat');
     return stat && stat.textContent.includes('geladen:');
-  }, { timeout: 30000 });
+  }, null, { timeout: 30000 });
 }
 
 /** Wartet bis Kartenkacheln geladen sind */
@@ -75,11 +75,14 @@ async function waitForTiles(page) {
     if (!window.UA || typeof window.UA.waitForMapFullyRendered !== 'function') {
       return { supported: false, ok: false };
     }
-    const map = window._uaMap || (window.UA.ctx && window.UA.ctx.map);
+    const ctx = window.UA && typeof window.UA.getRuntimeContext === 'function'
+      ? window.UA.getRuntimeContext()
+      : null;
+    const map = window._uaMap || (ctx && ctx.map);
     if (!map) return { supported: false, ok: false };
     const timeoutMs = Number(window.UA.MAP_CAPTURE_TIMEOUT_MS) || 30000;
     const ok = await window.UA.waitForMapFullyRendered(map, {
-      ctx: window.UA.ctx || null,
+      ctx,
       timeoutMs,
       minTileImages: 4,
       tileStableMs: stableMs
@@ -105,7 +108,7 @@ async function waitForTiles(page) {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4
       && [...imgs].every(i => i.complete && i.naturalWidth > 0 && i.naturalHeight > 0 && !/\bleaflet-tile-loading\b/.test(String(i.className || '')));
-  }, { timeout: 30000 });
+  }, null, { timeout: 30000 });
   await page.waitForTimeout(VIDEO_TILE_STABLE_MS);
 }
 
@@ -139,48 +142,143 @@ async function selectRequiredCity(page, targetCity) {
   return option;
 }
 
-/**
- * Applies a context-overlay checkbox state without depending on the input's
- * clickable geometry.  Leaflet renders these inputs inside a label, which can
- * legitimately receive the pointer hit instead of the input itself.  Apply the
- * native checkbox state and emit its input/change contract directly, so the
- * product handler remains the source of the layer mutation without relying on
- * hit testing.
- */
-async function setContextOverlayState(overlay, { kind, wanted, targetCity }) {
-  await overlay.waitFor({ state: 'attached', timeout: 10000 });
-  if (!(await overlay.isVisible()) || !(await overlay.isEnabled())) {
-    throw new VideoExportSemanticError(
-      'context_layer_unavailable',
-      `${kind} context layer is unavailable for ${targetCity}`
-    );
-  }
-
-  const required = Boolean(wanted);
-  if ((await overlay.isChecked()) === required) return false;
-
-  await overlay.evaluate((input, nextState) => {
-    input.checked = nextState;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, required);
-  const applied = await overlay.isChecked();
-  if (applied !== required) {
-    throw new VideoExportSemanticError(
-      'context_layer_state_mismatch',
-      `${kind} context layer could not be set to ${required ? 'active' : 'inactive'}`,
-      { kind, required, applied }
-    );
-  }
-  return true;
-}
-
 function expectedVideoState(params, city) {
   if (params && typeof params === 'object' &&
       (params.schemaVersion != null || params.filters || params.context || params.layers)) {
     return videoExportContract.normalizeState({ ...params, city: city || params.city });
   }
   return videoExportContract.fromLegacyParams({ ...(params || {}), city: city || params && params.city });
+}
+
+/**
+ * Hydrate context filters and road layers through the application's public URL
+ * contract. This is the same product path used by shared links and the context
+ * media generator, and avoids coordinate-based clicks on Leaflet controls that
+ * can legitimately sit underneath the analysis panel.
+ */
+function buildVideoWorkbenchUrl(requiredState) {
+  const url = new URL('/werkbank_v2.html', SERVER_URL);
+  url.searchParams.set('city', requiredState.city);
+  if (requiredState.context.slopeClasses.length) {
+    url.searchParams.set('ctxSlope', requiredState.context.slopeClasses.join(','));
+  }
+  if (requiredState.context.trafficClasses.length) {
+    url.searchParams.set('ctxTraffic', requiredState.context.trafficClasses.join(','));
+  }
+  if (requiredState.context.onlyMatchedWays) url.searchParams.set('ctxOnlyMatched', '1');
+  const contextLayers = ['slope', 'traffic'].filter(kind => requiredState.layers[kind]);
+  if (contextLayers.length) url.searchParams.set('mapLayer', contextLayers.join(','));
+  return url.toString();
+}
+
+async function assertRuntimeContextAvailable(page) {
+  const observed = await page.evaluate(() => {
+    const accessorDefined = Boolean(
+      window.UA && typeof window.UA.getRuntimeContext === 'function'
+    );
+    const ctx = accessorDefined ? window.UA.getRuntimeContext() : null;
+    return {
+      accessorDefined,
+      contextObject: Boolean(ctx && typeof ctx === 'object'),
+      mapAvailable: Boolean(ctx && ctx.map),
+      mapIdentity: Boolean(ctx && ctx.map && window._uaMap && ctx.map === window._uaMap),
+    };
+  });
+  if (!observed || !observed.accessorDefined || !observed.contextObject ||
+      !observed.mapAvailable || !observed.mapIdentity) {
+    throw new VideoExportSemanticError(
+      'runtime_context_unavailable',
+      'The workbench runtime-context integration contract is unavailable',
+      { observed: observed || null }
+    );
+  }
+  return observed;
+}
+
+async function waitForRequestedContextState(page, requiredState) {
+  await assertRuntimeContextAvailable(page);
+  const requested = {
+    context: requiredState.context,
+    layers: {
+      slope: requiredState.layers.slope,
+      traffic: requiredState.layers.traffic,
+    },
+  };
+  try {
+    await page.waitForFunction(required => {
+      const ctx = window.UA && typeof window.UA.getRuntimeContext === 'function'
+        ? window.UA.getRuntimeContext()
+        : null;
+      if (!ctx) return false;
+      const sorted = value => Array.from(value || []).map(String).sort();
+      const same = (left, right) => JSON.stringify(sorted(left)) === JSON.stringify(sorted(right));
+      const filters = ctx.contextFilters || {};
+      if (!same(filters.slopeClasses, required.context.slopeClasses) ||
+          !same(filters.trafficClasses, required.context.trafficClasses) ||
+          Boolean(filters.onlyMatchedWays) !== Boolean(required.context.onlyMatchedWays)) {
+        return false;
+      }
+
+      const map = ctx.map || window._uaMap;
+      const registry = ctx.contextOverlays || {};
+      const active = registry.active || {};
+      const layers = registry.layers || {};
+      for (const kind of ['slope', 'traffic']) {
+        const expected = Boolean(required.layers[kind]);
+        if (Boolean(active[kind]) !== expected) return false;
+        const control = document.querySelector(`input[data-context-overlay="${kind}"]`);
+        if (expected && (!control || control.disabled || !control.checked)) return false;
+        if (!expected) continue;
+        const layer = layers[kind];
+        const attached = Boolean(layer && map && (
+          (typeof map.hasLayer === 'function' && map.hasLayer(layer)) || layer._map === map
+        ));
+        const children = layer && typeof layer.getLayers === 'function' ? layer.getLayers() : [];
+        if (!attached || !Array.isArray(children) || children.length < 1) return false;
+      }
+      return true;
+    }, requested, { timeout: 60000 });
+  } catch (error) {
+    let observed;
+    try {
+      observed = await page.evaluate(() => {
+        const ctx = window.UA && typeof window.UA.getRuntimeContext === 'function'
+          ? (window.UA.getRuntimeContext() || {})
+          : {};
+        const registry = ctx.contextOverlays || {};
+        const values = value => Array.from(value || []).map(String).sort();
+        const layer = kind => {
+          const candidate = registry.layers && registry.layers[kind];
+          const map = ctx.map || window._uaMap;
+          return {
+            active: Boolean(registry.active && registry.active[kind]),
+            checked: Boolean(document.querySelector(`input[data-context-overlay="${kind}"]`)?.checked),
+            attached: Boolean(candidate && map && (
+              (typeof map.hasLayer === 'function' && map.hasLayer(candidate)) || candidate._map === map
+            )),
+            children: candidate && typeof candidate.getLayers === 'function' ? candidate.getLayers().length : 0,
+          };
+        };
+        return {
+          context: {
+            slopeClasses: values(ctx.contextFilters && ctx.contextFilters.slopeClasses),
+            trafficClasses: values(ctx.contextFilters && ctx.contextFilters.trafficClasses),
+            onlyMatchedWays: Boolean(ctx.contextFilters && ctx.contextFilters.onlyMatchedWays),
+          },
+          layers: { slope: layer('slope'), traffic: layer('traffic') },
+        };
+      });
+    } catch (diagnosticError) {
+      observed = {
+        diagnosticError: String(diagnosticError && diagnosticError.message || diagnosticError),
+      };
+    }
+    throw new VideoExportSemanticError(
+      'context_state_unavailable',
+      `Requested context state did not become render-ready for ${requiredState.city}`,
+      { requested, observed, cause: String(error && error.message || error) }
+    );
+  }
 }
 
 async function assertVideoAnalysisState(page, expected) {
@@ -208,8 +306,11 @@ async function assertVideoAnalysisState(page, expected) {
     const citySelect = document.getElementById('citySel');
     const map = window._uaMap;
     const center = map && typeof map.getCenter === 'function' ? map.getCenter() : null;
-    const contextFilters = window.UA.ctx && window.UA.ctx.contextFilters || {};
-    const selectionBounds = window.UA.ctx && window.UA.ctx.selectionBounds;
+    const ctx = window.UA && typeof window.UA.getRuntimeContext === 'function'
+      ? (window.UA.getRuntimeContext() || {})
+      : {};
+    const contextFilters = ctx.contextFilters || {};
+    const selectionBounds = ctx.selectionBounds;
     const selection = selectionBounds && typeof selectionBounds.getSouth === 'function'
       ? {
           south: Number(selectionBounds.getSouth()),
@@ -218,7 +319,7 @@ async function assertVideoAnalysisState(page, expected) {
           east: Number(selectionBounds.getEast()),
         }
       : null;
-    const contextRegistry = window.UA.ctx && window.UA.ctx.contextOverlays || {};
+    const contextRegistry = ctx.contextOverlays || {};
     const contextOverlays = contextRegistry.active || {};
     const visibleLegendText = [...document.querySelectorAll('.context-road-legend')]
       .filter(element => {
@@ -545,7 +646,9 @@ async function installSemanticEvidenceBadge(page, state, stateSha256, analysis) 
       const style = getComputedStyle(element);
       return style.display !== 'none' && style.visibility !== 'hidden' && insideMap(rect);
     };
-    const ctx = window.UA && window.UA.ctx;
+    const ctx = window.UA && typeof window.UA.getRuntimeContext === 'function'
+      ? window.UA.getRuntimeContext()
+      : null;
     const map = window._uaMap || ctx && ctx.map;
     const attached = layer => Boolean(layer && map && (
       (typeof map.hasLayer === 'function' && map.hasLayer(layer)) || layer._map === map
@@ -690,6 +793,8 @@ async function installSemanticEvidenceBadge(page, state, stateSha256, analysis) 
               layer,
               latLngs,
               expectedColor: layer.options && layer.options.color || null,
+              lineWeight: Number(layer.options && layer.options.weight) || 0,
+              dashArray: String(layer.options && layer.options.dashArray || ''),
               wayId: String(layer.feature && layer.feature.properties &&
                 layer.feature.properties.way_id || ''),
             });
@@ -761,33 +866,70 @@ async function installSemanticEvidenceBadge(page, state, stateSha256, analysis) 
     const selectedGeometry = {};
     if (requiredLayers.slope && requiredLayers.traffic && features.slope && features.traffic) {
       const slopeByWay = new Map(features.slope.map(feature => [feature.wayId, feature]));
-      const trafficWayIds = new Set(features.traffic.map(feature => feature.wayId));
-      // Slope must use a road not painted by the traffic overlay. Traffic may
-      // use a shared road only when its expected color cannot be confused with
-      // the underlying slope color under the decoder tolerance.
-      const slopeCandidates = buildGeometryCandidates(
-        features.slope,
-        feature => feature.wayId && !trafficWayIds.has(feature.wayId)
-      );
+      const trafficByWay = new Map(features.traffic.map(feature => [feature.wayId, feature]));
+
+      // Prefer one shared road corridor. The product deliberately renders
+      // slope as an 8 px solid casing and traffic as a 3 px dashed centreline,
+      // so both real colors must survive in the same composite corridor.
+      for (const slope of features.slope) {
+        const traffic = trafficByWay.get(slope.wayId);
+        if (!traffic || !slope.wayId) continue;
+        if (slope.lineWeight < traffic.lineWeight + 3 || !traffic.dashArray) continue;
+        if (colorBoxesOverlap(slope.expectedColor, traffic.expectedColor, 45)) continue;
+        const candidate = buildGeometryCandidates([slope])[0];
+        if (!candidate) continue;
+        selectedGeometry.slope = {
+          ...candidate,
+          counterpartExpectedColor: traffic.expectedColor,
+          counterpartWayPresent: true,
+          counterpartLineWeight: traffic.lineWeight,
+          sharedCompositeWay: true,
+        };
+        selectedGeometry.traffic = {
+          ...traffic,
+          x: candidate.x,
+          y: candidate.y,
+          counterpartExpectedColor: slope.expectedColor,
+          counterpartWayPresent: true,
+          counterpartLineWeight: slope.lineWeight,
+          sharedCompositeWay: true,
+        };
+        break;
+      }
+
+      // Some partial datasets genuinely have disjoint slope- and traffic-only
+      // roads. Keep that honest fallback, but never accept an occluded shared
+      // road that lacks the dual-stroke encoding above.
+      const slopeCandidates = buildGeometryCandidates(features.slope, feature => {
+        const counterpart = trafficByWay.get(feature.wayId);
+        return !counterpart;
+      });
       const trafficCandidates = buildGeometryCandidates(features.traffic, feature => {
         const counterpart = slopeByWay.get(feature.wayId);
         return !counterpart || !colorBoxesOverlap(feature.expectedColor, counterpart.expectedColor, 45);
       });
-      pairSearch:
-      for (const traffic of trafficCandidates) {
-        for (const slope of slopeCandidates) {
-          if (Math.hypot(traffic.x - slope.x, traffic.y - slope.y) < 90) continue;
-          selectedGeometry.traffic = {
-            ...traffic,
-            counterpartExpectedColor: (slopeByWay.get(traffic.wayId) || {}).expectedColor || null,
-            counterpartWayPresent: slopeByWay.has(traffic.wayId),
-          };
-          selectedGeometry.slope = {
-            ...slope,
-            counterpartExpectedColor: null,
-            counterpartWayPresent: false,
-          };
-          break pairSearch;
+      if (!selectedGeometry.slope || !selectedGeometry.traffic) {
+        pairSearch:
+        for (const traffic of trafficCandidates) {
+          for (const slope of slopeCandidates) {
+            if (Math.hypot(traffic.x - slope.x, traffic.y - slope.y) < 90) continue;
+            const counterpart = slopeByWay.get(traffic.wayId);
+            selectedGeometry.traffic = {
+              ...traffic,
+              counterpartExpectedColor: counterpart && counterpart.expectedColor || null,
+              counterpartWayPresent: Boolean(counterpart),
+              counterpartLineWeight: counterpart && counterpart.lineWeight || 0,
+              sharedCompositeWay: false,
+            };
+            selectedGeometry.slope = {
+              ...slope,
+              counterpartExpectedColor: null,
+              counterpartWayPresent: false,
+              counterpartLineWeight: 0,
+              sharedCompositeWay: false,
+            };
+            break pairSearch;
+          }
         }
       }
     } else {
@@ -816,6 +958,10 @@ async function installSemanticEvidenceBadge(page, state, stateSha256, analysis) 
         wayId: geometry.wayId,
         counterpartExpectedColor: geometry.counterpartExpectedColor || null,
         counterpartWayPresent: Boolean(geometry.counterpartWayPresent),
+        counterpartLineWeight: Number(geometry.counterpartLineWeight) || 0,
+        lineWeight: Number(geometry.lineWeight) || 0,
+        dashArray: String(geometry.dashArray || ''),
+        sharedCompositeWay: Boolean(geometry.sharedCompositeWay),
         ownershipVerified: true,
         geometryVerified: true,
       };
@@ -993,25 +1139,39 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
   const atRegion = (x, y, region) => region &&
     Math.abs(x - region.x) <= region.radiusX && Math.abs(y - region.y) <= region.radiusY;
 
+  let sharedCompositeContext = false;
   if (requiredState.layers.slope && requiredState.layers.traffic) {
     const slopeRoad = contextRoadRegions.slope;
     const trafficRoad = contextRoadRegions.traffic;
     const regionsOverlap = Math.abs(slopeRoad.x - trafficRoad.x) <=
         slopeRoad.radiusX + trafficRoad.radiusX &&
       Math.abs(slopeRoad.y - trafficRoad.y) <= slopeRoad.radiusY + trafficRoad.radiusY;
-    if (regionsOverlap) {
-      throw new VideoExportSemanticError(
-        'encoded_context_witness_regions_overlap',
-        'Slope and traffic road-pixel witness regions must be spatially disjoint'
-      );
-    }
-    if (contextWitnesses.slope.counterpartWayPresent) {
-      throw new VideoExportSemanticError(
-        'encoded_slope_witness_occluded',
-        'Slope witness must use owned geometry without a traffic-layer counterpart'
-      );
-    }
-    if (contextWitnesses.traffic.counterpartWayPresent) {
+    const sameCompositeWay = Boolean(
+      contextWitnesses.slope.sharedCompositeWay &&
+      contextWitnesses.traffic.sharedCompositeWay &&
+      contextWitnesses.slope.wayId &&
+      contextWitnesses.slope.wayId === contextWitnesses.traffic.wayId
+    );
+    sharedCompositeContext = sameCompositeWay;
+    if (sameCompositeWay) {
+      if (!regionsOverlap) {
+        throw new VideoExportSemanticError(
+          'encoded_context_composite_regions_disjoint',
+          'Dual-stroke slope and traffic witnesses must inspect the same road corridor'
+        );
+      }
+      if (Number(contextWitnesses.slope.lineWeight) < Number(contextWitnesses.traffic.lineWeight) + 3) {
+        throw new VideoExportSemanticError(
+          'encoded_context_casing_invalid',
+          'Slope casing must be at least three pixels wider than the traffic centreline'
+        );
+      }
+      if (!String(contextWitnesses.traffic.dashArray || '')) {
+        throw new VideoExportSemanticError(
+          'encoded_context_dash_missing',
+          'Traffic centreline must use a dash pattern in the combined context view'
+        );
+      }
       const underlyingSlopeColor = parseRgb(contextWitnesses.traffic.counterpartExpectedColor);
       if (!underlyingSlopeColor || colorBoxesOverlap(
         contextExpectedColors.traffic,
@@ -1024,6 +1184,19 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
           'Traffic road color overlaps the underlying slope-layer color tolerance'
         );
       }
+    } else {
+      if (regionsOverlap) {
+        throw new VideoExportSemanticError(
+          'encoded_context_witness_regions_overlap',
+          'Disjoint slope and traffic witnesses must use separate screen regions'
+        );
+      }
+      if (contextWitnesses.slope.counterpartWayPresent) {
+        throw new VideoExportSemanticError(
+          'encoded_slope_witness_occluded',
+          'A non-composite slope witness must not be covered by a traffic counterpart'
+        );
+      }
     }
   }
 
@@ -1031,6 +1204,7 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
   const maxAccidentWitnessPixels = { cluster: 0, heatmap: 0 };
   const maxContextWitnessPixels = { slope: 0, traffic: 0 };
   const maxContextLayerPixels = { slope: 0, traffic: 0 };
+  let maxCompositeContextPairPixels = 0;
   let maxClusterPairPixels = 0;
   let maxAccidentPixels = 0;
   let maxHeatmapPixels = 0;
@@ -1041,6 +1215,7 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
     const accidentWitnessPixels = { cluster: 0, heatmap: 0 };
     const contextWitnessPixels = { slope: 0, traffic: 0 };
     const contextLayerPixels = { slope: 0, traffic: 0 };
+    const compositeContextLayerPixels = { slope: 0, traffic: 0 };
     let clusterOuterPixels = 0;
     let clusterInnerPixels = 0;
     let accidentPixels = 0;
@@ -1085,6 +1260,17 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
             closeTo(r, g, b, [contextExpectedColors[kind]], CONTEXT_ROAD_TOLERANCE)) {
           contextLayerPixels[kind] += 1;
         }
+        // A combined slope/traffic export is only proven when both real
+        // layer colours survive in one and the same decoded frame and in
+        // the geometric intersection of both owned road-witness regions.
+        // Independent maxima across frames would falsely accept an
+        // animation that alternates between the two context layers.
+        if (sharedCompositeContext &&
+            atRegion(x, y, contextRoadRegions.slope) &&
+            atRegion(x, y, contextRoadRegions.traffic) &&
+            closeTo(r, g, b, [contextExpectedColors[kind]], CONTEXT_ROAD_TOLERANCE)) {
+          compositeContextLayerPixels[kind] += 1;
+        }
       }
     }
     maxMarkerPixels = Math.max(maxMarkerPixels, markerPixels);
@@ -1099,6 +1285,12 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
       );
       maxContextLayerPixels[kind] = Math.max(
         maxContextLayerPixels[kind], contextLayerPixels[kind]
+      );
+    }
+    if (sharedCompositeContext) {
+      maxCompositeContextPairPixels = Math.max(
+        maxCompositeContextPairPixels,
+        Math.min(compositeContextLayerPixels.slope, compositeContextLayerPixels.traffic)
       );
     }
     maxClusterPairPixels = Math.max(
@@ -1165,6 +1357,18 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
       );
     }
   }
+  if (sharedCompositeContext && maxCompositeContextPairPixels < 2) {
+    throw new VideoExportSemanticError(
+      'encoded_context_composite_pixels_missing',
+      'Decoded final animation does not contain both real context-layer colours in the same frame and road corridor',
+      {
+        frameCount,
+        maxCompositeContextPairPixels,
+        slopeWitness: contextWitnesses.slope,
+        trafficWitness: contextWitnesses.traffic,
+      }
+    );
+  }
   const requestedAccidentWitnessCounts = ['cluster', 'heatmap']
     .filter(kind => requiredState.layers[kind])
     .map(kind => maxAccidentWitnessPixels[kind]);
@@ -1187,6 +1391,7 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
     maxHeatmapPixels,
     maxSlopePixels,
     maxTrafficPixels,
+    maxCompositeContextPairPixels,
     maxSlopeWitnessPixels: maxContextWitnessPixels.slope,
     maxTrafficWitnessPixels: maxContextWitnessPixels.traffic,
   };
@@ -1265,8 +1470,10 @@ async function exportVideo(params, opts = {}) {
     });
     const page = await context.newPage();
 
-    // ── 1. Standardansicht laden ────────────────────────────────────────────
-    await page.goto(`${SERVER_URL}/werkbank_v2.html`);
+    // ── 1. Werkbankzustand laden ────────────────────────────────────────────
+    // Context filters and road layers use the application's own, tested URL
+    // hydration contract. Other controls remain visible interactions below.
+    await page.goto(buildVideoWorkbenchUrl(requiredState));
     await page.waitForLoadState('domcontentloaded');
     const buildEvidence = await readBuildEvidence(page);
     await waitForCities(page);
@@ -1381,46 +1588,6 @@ async function exportVideo(params, opts = {}) {
       }
     }
 
-    // Context filters are a first-class part of the request.  Unsupported
-    // city/context combinations fail during the later semantic assertion;
-    // they are never silently ignored.
-    for (const slopeClass of requiredState.context.slopeClasses) {
-      const chip = page.locator(`input[data-ctx-slope="${slopeClass}"]`);
-      await chip.waitFor({ state: 'attached', timeout: 10000 });
-      if (!(await chip.isVisible()) || !(await chip.isEnabled())) {
-        throw new VideoExportSemanticError(
-          'context_filter_unavailable',
-          `Slope context filter ${slopeClass} is unavailable for ${targetCity}`
-        );
-      }
-      if (!(await chip.isChecked())) await chip.check();
-      await page.waitForTimeout(300);
-    }
-    for (const trafficClass of requiredState.context.trafficClasses) {
-      const chip = page.locator(`input[data-ctx-traffic="${trafficClass}"]`);
-      await chip.waitFor({ state: 'attached', timeout: 10000 });
-      if (!(await chip.isVisible()) || !(await chip.isEnabled())) {
-        throw new VideoExportSemanticError(
-          'context_filter_unavailable',
-          `Traffic context filter ${trafficClass} is unavailable for ${targetCity}`
-        );
-      }
-      if (!(await chip.isChecked())) await chip.check();
-      await page.waitForTimeout(300);
-    }
-    if (requiredState.context.onlyMatchedWays) {
-      const onlyMatched = page.locator('#ctxOnlyMatched');
-      await onlyMatched.waitFor({ state: 'attached', timeout: 10000 });
-      if (!(await onlyMatched.isVisible()) || !(await onlyMatched.isEnabled())) {
-        throw new VideoExportSemanticError(
-          'context_filter_unavailable',
-          `Matched-way context filter is unavailable for ${targetCity}`
-        );
-      }
-      if (!(await onlyMatched.isChecked())) await onlyMatched.check();
-      await page.waitForTimeout(300);
-    }
-
     await waitForTiles(page);
     await page.waitForTimeout(1000);
 
@@ -1458,24 +1625,6 @@ async function exportVideo(params, opts = {}) {
       await waitForTiles(page);
       await page.waitForTimeout(600);
     }
-
-
-    for (const [kind, wanted] of [
-      ['slope', requiredState.layers.slope],
-      ['traffic', requiredState.layers.traffic],
-    ]) {
-      if (!wanted) continue; // fresh workbench defaults to both overlays off
-      const overlay = page.locator(`input[data-context-overlay="${kind}"]`);
-      const changed = await setContextOverlayState(overlay, {
-        kind,
-        wanted,
-        targetCity,
-      });
-      if (changed) {
-        await page.waitForTimeout(800);
-      }
-    }
-
     await page.waitForTimeout(1500);
 
     // ── 10. Zur Kartenposition fliegen ─────────────────────────────────────
@@ -1505,6 +1654,11 @@ async function exportVideo(params, opts = {}) {
       await waitForTiles(page);
       await page.waitForTimeout(2000);
     }
+
+    // The URL-hydrated context state may finish lazy geometry work after the
+    // accident layer. Wait for exact filters, controls, registry ownership and
+    // non-empty attached road layers before accepting any frame evidence.
+    await waitForRequestedContextState(page, requiredState);
 
     const analysisEvidence = await assertVideoAnalysisState(page, requiredState);
     const semanticFrame = await installSemanticEvidenceBadge(
@@ -1708,7 +1862,9 @@ module.exports = {
   ANIMATED_IMAGE_FILTER,
   VideoExportSemanticError,
   assertFreshExportContent,
+  assertRuntimeContextAvailable,
   assertVideoAnalysisState,
+  buildVideoWorkbenchUrl,
   clickAndWaitForDownload,
   countPalettePixels,
   expectedVideoState,
@@ -1717,7 +1873,7 @@ module.exports = {
   installSemanticEvidenceBadge,
   readBuildEvidence,
   selectRequiredCity,
-  setContextOverlayState,
   waitForFreshExportPreview,
+  waitForRequestedContextState,
   waitForTiles,
 };

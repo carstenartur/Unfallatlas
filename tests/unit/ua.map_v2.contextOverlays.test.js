@@ -23,6 +23,7 @@ function makeLayer(name, getCount) {
 
 function makeLeafletStub() {
   return {
+    canvas: jest.fn(() => ({ kind: 'shared-context-renderer' })),
     DomUtil: {
       create(tag, className) {
         const el = document.createElement(tag);
@@ -131,6 +132,47 @@ describe('ua.map_v2 context overlays', () => {
     expect(ctx.contextOverlays.layers.slope).toBeTruthy();
     expect(ctx.map._layers).toContain(ctx.contextOverlays.layers.slope);
     expect(ctx.contextOverlays.layers.slope.getLayers().length).toBeGreaterThan(0);
+  });
+
+  test('both URL-hydrated layers share one renderer and expose the combined encoding note', () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextCapabilities.hasTrafficProxy = true;
+    ctx.contextOverlays.active.traffic = true;
+    ctx.contextLayerState = {
+      ways: { W1: { road_slope_class: 'steep', traffic_volume_value: 12000 } },
+      geometries: { W1: [50.0, 7.0, 50.001, 7.001] },
+    };
+    const slope = jest.spyOn(UA.contextRoadLayer, 'buildSlopeLayer');
+    const traffic = jest.spyOn(UA.contextRoadLayer, 'buildTrafficLayer');
+
+    UA.refreshContextOverlays(ctx);
+
+    expect(slope).toHaveBeenCalledWith(ctx.contextLayerState, expect.objectContaining({
+      renderer: ctx.contextOverlays.renderer,
+    }));
+    expect(traffic).toHaveBeenCalledWith(ctx.contextLayerState, expect.objectContaining({
+      renderer: ctx.contextOverlays.renderer,
+    }));
+    expect(ctx.contextOverlays.legendControl._container
+      .querySelector('.context-road-legend__combined-note').textContent)
+      .toMatch(/Steigung außen.*Verkehr.*innen/);
+  });
+
+  test('URL-hydrated v3 overlays install the viewport moveend rebuild handler', () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextLayerState = {
+      ways: { W1: { road_slope_class: 'steep' } },
+      geometries: { W1: [50.0, 7.0, 50.001, 7.001] },
+      tileIndex: { z: 13, tiles: [], tileKeySet: new Set() },
+      _tileCache: new Map(),
+    };
+    UA.contextLayers = { loadTilesForBbox: jest.fn().mockResolvedValue({}) };
+
+    UA.refreshContextOverlays(ctx);
+
+    expect(typeof ctx.map._events.moveend).toBe('function');
   });
 
   test('setContextOverlayActive rebuilds when already active but layer is missing', async () => {

@@ -74,7 +74,7 @@ export async function waitForMapTiles(page, timeout = 15000) {
       const loadingTiles = map.querySelectorAll('img.leaflet-tile-loading').length;
       const loadedTiles = map.querySelectorAll('img.leaflet-tile-loaded').length;
       return loadingTiles === 0 && loadedTiles > 0;
-    }, { timeout });
+    }, null, { timeout });
   } catch (err) {
     throw new Error(
       `Leaflet tiles did not reach a stable loaded state within ${timeout}ms: ${err && err.message ? err.message : err}`

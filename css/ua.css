@@ -15,7 +15,13 @@ body { overflow: hidden; }
   max-height: calc(100vh - 20px);
   overflow: auto;
 }
-.panelHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; position: sticky; top: 0; background: rgba(255,255,255,.78); padding-bottom: 8px; }
+.panelHeader{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  position: sticky; top: 0; z-index: 4;
+  /* Sticky content must fully mask controls scrolling underneath it. */
+  background: #fff;
+  padding-bottom: 8px;
+}
 .panelTitle { font-weight: 900; }
 .panelSub { color:#666; font-weight:650; }
 .headerBtns { display:flex; gap:8px; align-items:center; }
@@ -271,7 +277,18 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
 }
 .context-road-legend__title {
   font-weight: 600;
+}
+.context-road-legend__encoding {
+  color: #555;
+  font-size: 10px;
   margin-bottom: 4px;
+}
+.context-road-legend__combined-note {
+  border-top: 1px solid rgba(0,0,0,.16);
+  color: #333;
+  font-size: 10px;
+  margin-top: 5px;
+  padding-top: 4px;
 }
 .context-road-legend__row,
 .context-road-legend__nosignal,

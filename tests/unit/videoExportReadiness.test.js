@@ -7,17 +7,25 @@ jest.mock('@playwright/test', () => ({ chromium: { launch: jest.fn() } }));
 
 const {
   assertFreshExportContent,
+  assertRuntimeContextAvailable,
   assertVideoAnalysisState,
+  buildVideoWorkbenchUrl,
   clickAndWaitForDownload,
   countPalettePixels,
   expectedVideoState,
   selectRequiredCity,
-  setContextOverlayState,
   waitForFreshExportPreview,
+  waitForRequestedContextState,
   waitForTiles,
 } = require('../../server/video-export');
 
 describe('video export semantic readiness', () => {
+  afterEach(() => {
+    delete window.UA;
+    delete window._uaMap;
+    document.body.innerHTML = '';
+  });
+
   test('fails closed when the application map helper returns false', async () => {
     const page = {
       evaluate: jest.fn().mockResolvedValue({
@@ -52,55 +60,78 @@ describe('video export semantic readiness', () => {
     expect(cityLocator.selectOption).not.toHaveBeenCalled();
   });
 
-  test('sets a context overlay through the checkbox event contract despite intercepted pointer geometry', async () => {
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    const inputEvent = jest.fn();
-    const changeEvent = jest.fn();
-    input.addEventListener('input', inputEvent);
-    input.addEventListener('change', changeEvent);
-    const overlay = {
-      waitFor: jest.fn().mockResolvedValue(undefined),
-      isVisible: jest.fn().mockResolvedValue(true),
-      isEnabled: jest.fn().mockResolvedValue(true),
-      isChecked: jest.fn(async () => input.checked),
-      evaluate: jest.fn(async (callback, nextState) => callback(input, nextState)),
-    };
+  test('hydrates the canonical context state through the public workbench URL', () => {
+    const state = expectedVideoState({
+      ctxSlope: 'steep,very_steep',
+      ctxTraffic: 'high,very_high',
+      ctxOnlyMatched: '1',
+      mapLayer: 'slope,traffic',
+    }, 'Bonn');
+    const url = new URL(buildVideoWorkbenchUrl(state));
 
-    await expect(setContextOverlayState(overlay, {
-      kind: 'slope', wanted: true, targetCity: 'Bonn',
-    })).resolves.toBe(true);
-
-    expect(overlay.waitFor).toHaveBeenCalledWith({ state: 'attached', timeout: 10000 });
-    expect(overlay.evaluate).toHaveBeenCalledWith(expect.any(Function), true);
-    expect(inputEvent).toHaveBeenCalledTimes(1);
-    expect(changeEvent).toHaveBeenCalledTimes(1);
-    expect(overlay.isChecked).toHaveBeenCalledTimes(2);
+    expect(url.pathname).toBe('/werkbank_v2.html');
+    expect(url.searchParams.get('city')).toBe('Bonn');
+    expect(url.searchParams.get('ctxSlope')).toBe('steep,very_steep');
+    expect(url.searchParams.get('ctxTraffic')).toBe('high,very_high');
+    expect(url.searchParams.get('ctxOnlyMatched')).toBe('1');
+    expect(url.searchParams.get('mapLayer')).toBe('slope,traffic');
   });
 
-  test('context overlay state application is idempotent and fails closed on a lost mutation', async () => {
-    const alreadyActive = {
-      waitFor: jest.fn().mockResolvedValue(undefined),
-      isVisible: jest.fn().mockResolvedValue(true),
-      isEnabled: jest.fn().mockResolvedValue(true),
-      isChecked: jest.fn().mockResolvedValue(true),
-      evaluate: jest.fn(),
+  test('accepts only an exact, attached and non-empty URL-hydrated context state', async () => {
+    const state = expectedVideoState({
+      ctxSlope: 'steep', ctxTraffic: 'high', ctxOnlyMatched: '1',
+      mapLayer: 'slope,traffic',
+    }, 'Bonn');
+    document.body.innerHTML = `
+      <input data-context-overlay="slope" type="checkbox" checked>
+      <input data-context-overlay="traffic" type="checkbox" checked>`;
+    const map = { hasLayer: jest.fn().mockReturnValue(true) };
+    window._uaMap = map;
+    const runtimeContext = {
+        map,
+        contextFilters: {
+          slopeClasses: new Set(['steep']),
+          trafficClasses: new Set(['high']),
+          onlyMatchedWays: true,
+        },
+        contextOverlays: {
+          active: { slope: true, traffic: true },
+          layers: {
+            slope: { getLayers: () => [{}] },
+            traffic: { getLayers: () => [{}, {}] },
+          },
+        },
+      };
+    window.UA = {
+      getRuntimeContext: () => runtimeContext,
     };
-    await expect(setContextOverlayState(alreadyActive, {
-      kind: 'traffic', wanted: true, targetCity: 'Bonn',
-    })).resolves.toBe(false);
-    expect(alreadyActive.evaluate).not.toHaveBeenCalled();
+    const page = {
+      waitForFunction: jest.fn(async (callback, argument) => {
+        if (!callback(argument)) throw new Error('not ready');
+      }),
+      evaluate: jest.fn(async callback => callback()),
+    };
 
-    const lostMutation = {
-      waitFor: jest.fn().mockResolvedValue(undefined),
-      isVisible: jest.fn().mockResolvedValue(true),
-      isEnabled: jest.fn().mockResolvedValue(true),
-      isChecked: jest.fn().mockResolvedValue(false),
-      evaluate: jest.fn().mockResolvedValue(undefined),
-    };
-    await expect(setContextOverlayState(lostMutation, {
-      kind: 'slope', wanted: true, targetCity: 'Bonn',
-    })).rejects.toThrow(/context_layer_state_mismatch.*slope/);
+    await expect(waitForRequestedContextState(page, state)).resolves.toBeUndefined();
+    expect(page.waitForFunction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        context: state.context,
+        layers: { slope: true, traffic: true },
+      }),
+      { timeout: 60000 }
+    );
+    expect(page.evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  test('fails immediately when the canonical runtime-context port is missing', async () => {
+    window.UA = {};
+    window._uaMap = {};
+    const page = { evaluate: jest.fn(async callback => callback()) };
+
+    await expect(assertRuntimeContextAvailable(page)).rejects.toThrow(
+      /runtime_context_unavailable.*integration contract is unavailable/
+    );
   });
 
   test('validates requested hours and the complete expected filter state', () => {
@@ -274,14 +305,18 @@ describe('video export semantic readiness', () => {
       },
       contextWitnesses: {
         slope: {
-          kind: 'slope', x: 25, y: 19, radius: 2, ringRadius: 2,
+          kind: 'slope', x: 32, y: 19, radius: 4, ringRadius: 4,
           roadRadius: 2, witnessColor: [0, 96, 255], expectedColor: '#f03b20',
-          counterpartWayPresent: false, counterpartExpectedColor: null,
+          wayId: 'W1', lineWeight: 8, dashArray: '', sharedCompositeWay: true,
+          counterpartWayPresent: true, counterpartExpectedColor: '#3a5a98',
+          counterpartLineWeight: 3,
         },
         traffic: {
-          kind: 'traffic', x: 40, y: 19, radius: 2, ringRadius: 2,
-          roadRadius: 2, witnessColor: [255, 0, 128], expectedColor: '#225ea8',
-          counterpartWayPresent: true, counterpartExpectedColor: '#ffffb2',
+          kind: 'traffic', x: 32, y: 19, radius: 7, ringRadius: 7,
+          roadRadius: 2, witnessColor: [255, 0, 128], expectedColor: '#3a5a98',
+          wayId: 'W1', lineWeight: 3, dashArray: '10 6', sharedCompositeWay: true,
+          counterpartWayPresent: true, counterpartExpectedColor: '#f03b20',
+          counterpartLineWeight: 8,
         },
       },
     };
@@ -297,19 +332,31 @@ describe('video export semantic readiness', () => {
     for (const point of [[8, 12], [9, 12]]) setPixel(frame, ...point, [255, 0, 255]);
     for (const point of [[7, 14], [8, 14]]) setPixel(frame, ...point, [181, 226, 140]);
     for (const point of [[10, 14], [11, 14]]) setPixel(frame, ...point, [110, 204, 57]);
-    for (const point of [[24, 19], [25, 19]]) setPixel(frame, ...point, [0, 96, 255]);
-    for (const point of [[39, 19], [40, 19]]) setPixel(frame, ...point, [255, 0, 128]);
-    for (const point of [[25, 18], [25, 20]]) setPixel(frame, ...point, [240, 59, 32]);
-    for (const point of [[40, 18], [40, 20]]) setPixel(frame, ...point, [34, 94, 168]);
+    for (const point of [[29, 16], [30, 16]]) setPixel(frame, ...point, [0, 96, 255]);
+    for (const point of [[35, 16], [36, 16]]) setPixel(frame, ...point, [255, 0, 128]);
+    for (const point of [[30, 19], [34, 19]]) setPixel(frame, ...point, [240, 59, 32]);
+    for (const point of [[32, 18], [32, 20]]) setPixel(frame, ...point, [58, 90, 152]);
     const decoded = Buffer.concat([frame, frame]);
     expect(countPalettePixels(decoded, width, height, state, frameEvidence)).toEqual(expect.objectContaining({
       frameCount: 2,
       maxMarkerPixels: expect.any(Number),
       maxSlopePixels: 2,
       maxTrafficPixels: 2,
+      maxCompositeContextPairPixels: 2,
       maxSlopeWitnessPixels: 2,
       maxTrafficWitnessPixels: 2,
     }));
+
+    // Mutation: both real context colours exist in the animation, but never
+    // in the same decoded frame. Per-layer maxima therefore pass while the
+    // composite road view is absent throughout the animation.
+    const slopeFrame = Buffer.from(frame);
+    const trafficFrame = Buffer.from(frame);
+    for (const point of [[32, 18], [32, 20]]) setPixel(slopeFrame, ...point, [255, 255, 255]);
+    for (const point of [[30, 19], [34, 19]]) setPixel(trafficFrame, ...point, [255, 255, 255]);
+    expect(() => countPalettePixels(
+      Buffer.concat([slopeFrame, trafficFrame]), width, height, state, frameEvidence
+    )).toThrow('both real context-layer colours in the same frame and road corridor');
     const badgeOnlyFrame = Buffer.alloc(width * height * 4, 255);
     for (let pixel = 0; pixel < 24; pixel++) {
       const offset = pixel * 4;
@@ -325,8 +372,8 @@ describe('video export semantic readiness', () => {
     for (const point of [[8, 12], [9, 12]]) setPixel(ringsOnlyFrame, ...point, [255, 0, 255]);
     for (const point of [[7, 14], [8, 14]]) setPixel(ringsOnlyFrame, ...point, [181, 226, 140]);
     for (const point of [[10, 14], [11, 14]]) setPixel(ringsOnlyFrame, ...point, [110, 204, 57]);
-    for (const point of [[24, 19], [25, 19]]) setPixel(ringsOnlyFrame, ...point, [0, 96, 255]);
-    for (const point of [[39, 19], [40, 19]]) setPixel(ringsOnlyFrame, ...point, [255, 0, 128]);
+    for (const point of [[29, 16], [30, 16]]) setPixel(ringsOnlyFrame, ...point, [0, 96, 255]);
+    for (const point of [[35, 16], [36, 16]]) setPixel(ringsOnlyFrame, ...point, [255, 0, 128]);
     expect(() => countPalettePixels(
       Buffer.concat([ringsOnlyFrame, ringsOnlyFrame]), width, height, state, frameEvidence
     )).toThrow('real slope road pixels from the owned geometry layer');
@@ -339,11 +386,10 @@ describe('video export semantic readiness', () => {
     for (const point of [[8, 12], [9, 12]]) setPixel(slopeOnlyFrame, ...point, [255, 0, 255]);
     for (const point of [[7, 14], [8, 14]]) setPixel(slopeOnlyFrame, ...point, [181, 226, 140]);
     for (const point of [[10, 14], [11, 14]]) setPixel(slopeOnlyFrame, ...point, [110, 204, 57]);
-    for (const point of [[24, 19], [25, 19]]) setPixel(slopeOnlyFrame, ...point, [0, 96, 255]);
-    for (const point of [[25, 18], [25, 20]]) setPixel(slopeOnlyFrame, ...point, [240, 59, 32]);
-    for (const point of [[39, 19], [40, 19]]) setPixel(slopeOnlyFrame, ...point, [255, 0, 128]);
-    for (const point of [[38, 18], [39, 18], [40, 18], [41, 18], [42, 18]]) {
-      setPixel(slopeOnlyFrame, ...point, [255, 255, 178]);
+    for (const point of [[29, 16], [30, 16]]) setPixel(slopeOnlyFrame, ...point, [0, 96, 255]);
+    for (const point of [[35, 16], [36, 16]]) setPixel(slopeOnlyFrame, ...point, [255, 0, 128]);
+    for (const point of [[30, 18], [31, 18], [32, 18], [33, 18], [34, 18]]) {
+      setPixel(slopeOnlyFrame, ...point, [240, 59, 32]);
     }
     expect(() => countPalettePixels(
       Buffer.concat([slopeOnlyFrame, slopeOnlyFrame]), width, height, state, frameEvidence
@@ -362,6 +408,26 @@ describe('video export semantic readiness', () => {
     };
     expect(() => countPalettePixels(decoded, width, height, state, collidingEvidence))
       .toThrow('Traffic road color overlaps the underlying slope-layer color tolerance');
+
+    const noDashEvidence = {
+      ...frameEvidence,
+      contextWitnesses: {
+        ...frameEvidence.contextWitnesses,
+        traffic: { ...frameEvidence.contextWitnesses.traffic, dashArray: '' },
+      },
+    };
+    expect(() => countPalettePixels(decoded, width, height, state, noDashEvidence))
+      .toThrow('Traffic centreline must use a dash pattern');
+
+    const narrowCasingEvidence = {
+      ...frameEvidence,
+      contextWitnesses: {
+        ...frameEvidence.contextWitnesses,
+        slope: { ...frameEvidence.contextWitnesses.slope, lineWeight: 5 },
+      },
+    };
+    expect(() => countPalettePixels(decoded, width, height, state, narrowCasingEvidence))
+      .toThrow('Slope casing must be at least three pixels wider');
   });
 
   test('requires a separate encoded heatmap witness when cluster and heatmap are requested', () => {

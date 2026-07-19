@@ -26,7 +26,7 @@ async function waitForCities(page) {
     if (!select) return false;
     const opts = select.querySelectorAll('option');
     return opts.length > 1 && ![...opts].some(o => o.textContent.includes('Lade'));
-  }, { timeout: 60000 });
+  }, null, { timeout: 60000 });
 }
 
 /** Hilfsfunktion: Warten bis Daten geladen sind (stat-Element zeigt nicht 0) */
@@ -34,7 +34,7 @@ async function waitForData(page) {
   await page.waitForFunction(() => {
     const stat = document.querySelector('#stat');
     return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
-  }, { timeout: 30000 });
+  }, null, { timeout: 30000 });
 }
 
 /** Hilfsfunktion: Warten bis ALLE Kachel-Bilder im Tile-Pane vollständig geladen sind */
@@ -43,7 +43,7 @@ async function waitForTiles(page) {
     const imgs = document.querySelectorAll('.leaflet-tile-pane img');
     return imgs.length >= 4
       && [...imgs].every(i => i.complete && i.naturalWidth > 0);
-  }, { timeout: 30000 });
+  }, null, { timeout: 30000 });
 }
 
 /**
@@ -148,7 +148,7 @@ test.describe('Werkbank V2 – Demo-Ablauf', () => {
     await page.waitForFunction(() => {
       const prog = document.querySelector('#exportProgress');
       return prog && prog.textContent.includes('Fertig');
-    }, { timeout: 30000 });
+    }, null, { timeout: 30000 });
     await page.waitForTimeout(4000);
 
     // ── 9b. Durch den generierten Antrag scrollen ──────────────────────

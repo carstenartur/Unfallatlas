@@ -127,9 +127,7 @@ describe('video export browser request contract', () => {
       <button id="toggleOnlyHot" aria-pressed="false"></button>
       <input id="ctxOverlay_slope" data-context-overlay="slope" type="checkbox" checked>
       <input id="ctxOverlay_traffic" data-context-overlay="traffic" type="checkbox">`;
-    window.UA = {
-      videoExportContract: contract,
-      ctx: {
+    const runtimeContext = {
         CITY_RAW: 'Hannover', involvementMode: 'or', showCluster: true,
         showHeatmap: false, showOnlyAboveAverage: true,
         contextFilters: {
@@ -141,7 +139,10 @@ describe('video export browser request contract', () => {
           getSouth: () => 50.72, getWest: () => 7.08,
           getNorth: () => 50.74, getEast: () => 7.12,
         },
-      },
+      };
+    window.UA = {
+      videoExportContract: contract,
+      getRuntimeContext: () => runtimeContext,
     };
     Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: jest.fn(() => 'blob:test') });
     Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: jest.fn() });

@@ -73,6 +73,30 @@ test.describe('URL-State-Hydration – Bonn', () => {
     // Export-Dialog-Verhalten weiter unten.
     await expect(page.locator('#stat')).toContainText(/Markierung:\s*aktiv/);
 
+    // Runtime integrations (video client/headless verifier) consume the same
+    // closure-owned context through a single immutable port. Prove this in a
+    // real browser instead of relying only on server mocks.
+    const runtime = await page.evaluate(() => {
+      const descriptor = Object.getOwnPropertyDescriptor(window.UA || {}, 'getRuntimeContext');
+      const ctx = window.UA && typeof window.UA.getRuntimeContext === 'function'
+        ? window.UA.getRuntimeContext()
+        : null;
+      return {
+        contextAvailable: Boolean(ctx),
+        mapIdentity: Boolean(ctx && ctx.map === window._uaMap),
+        selectionAvailable: Boolean(ctx && ctx.selectionBounds),
+        writable: descriptor && descriptor.writable,
+        configurable: descriptor && descriptor.configurable,
+      };
+    });
+    expect(runtime).toEqual({
+      contextAvailable: true,
+      mapIdentity: true,
+      selectionAvailable: true,
+      writable: false,
+      configurable: false,
+    });
+
     // Export-Dialog öffnen → "Kein Bereich markiert"-Hinweis muss
     // ausgeblendet sein, weil sel*-Parameter eine Markierung ergeben.
     await page.locator('#btnOpenExport').click();

@@ -149,6 +149,15 @@ Wichtige Eigenschaften:
   [`docs/enrichment.md` → „Datenausschnitt der Karten-Layer (Straßennetz vs. matched-only Signal)"](enrichment.md#matched-only-disclaimer).
   Ältere v1/v2-Caches bleiben kompatibel und zeichnen weiterhin nur die
   gematchten Wege, bis CI sie nach dem Producer-Bump ersetzt. Die
+  gemeinsame Canvas-Pipeline kodiert gleichzeitig aktive Layer redundant:
+  Steigung als breite, durchgezogene Grundlinie und Verkehr als schmale,
+  gestrichelte Innenlinie. Ein geteilter Renderer hält die Zeichenreihenfolge
+  bei URL-Hydration, Toggle und Viewport-Rebuild deterministisch. Der
+  awaitbare Port `UA.ensureContextOverlaysReady(ctx)` lädt v3-Tiles und baut
+  aktive Layer für den aktuellen Kartenausschnitt neu.
+  Der closure-eigene App-Kontext wird für Exportintegrationen ausschließlich
+  über den nicht überschreibbaren Getter `UA.getRuntimeContext()` bereitgestellt;
+  ein paralleler, veränderlicher `UA.ctx`-Alias existiert bewusst nicht. Die
   Chip-Filter (`#ctxFilterSection`)
   bleiben erhalten als „Detailanalyse"-Sekundärwerkzeug; URL-Keys
   (`ctxSlope`, `ctxTraffic`, `ctxOnlyMatched`) sind unverändert. Neuer
@@ -711,23 +720,29 @@ Vollständige Liste aller Endpunkte, Request-/Response-Beispiele,
 Fehlerfälle und Env-Variablen: [`docs/server-features.md`](server-features.md).
 
 > **Testabdeckung Video-Export.** Da `server/video-export.js` zur
-> Laufzeit das `ffmpeg`-Binary aus dem Dockerfile aufruft, würde ein
-> in-process Unit-Test diese Abhängigkeit nie erfassen. Die volle
-> Pipeline (Express → Playwright → ffmpeg → GIF) wird stattdessen über
+> Laufzeit Chromium und das `ffmpeg`-Binary aus dem Dockerfile aufruft,
+> würde ein in-process Unit-Test diese Abhängigkeiten nie erfassen. Die volle
+> Pipeline (Express → Playwright → PDF → ffmpeg → GIF/WebP/APNG) wird stattdessen über
 > den Testcontainers-Test
 > [`tests/integration/videoExport.testcontainers.test.js`](../tests/integration/videoExport.testcontainers.test.js)
-> verifiziert. Er startet das produktive Image (bevorzugt
-> `ghcr.io/carstenartur/unfallatlas:latest` aus
-> [`docker-publish.yml`](../.github/workflows/docker-publish.yml),
-> sonst lokaler `docker build`), POSTet die im Testbody dokumentierte
-> Kontext-URL und prüft, dass die Antwort eine echte GIF-Datei
-> (`GIF89a`-Magic, `0x3B`-Trailer, 50 KB ≤ Größe ≤ 8 MB) und der
-> Container-Log frei von `[export-video] Fehler` ist. Lokal: per
+> verifiziert. Im normalen lokalen/CI-Modus baut er das produktive Dockerfile
+> mit einer deterministischen Test-Fixture; ist `UNFALLATLAS_IMAGE` gesetzt
+> oder `CONTEXT_E2E_REQUIRE_SHIPPED=1`, prüft er stattdessen bewusst das
+> angegebene ausgelieferte Image. Danach POSTet er die im Testbody dokumentierte
+> Kontext-URL und prüft Signatur, Formatbudget, Zustands-/Build-/Datenhash,
+> positive Unfallzahlen, PDF-Abschluss sowie decodierte Unfall-, Steigungs-
+> und Verkehrspixel. Der Container-Log muss frei von
+> `[export-video] Fehler` bleiben. Lokal: per
 > `npm run test:integration:tc`; in CI als eigener Job
 > `video-export-integration` in
 > [`.github/workflows/test.yml`](../.github/workflows/test.yml). Der
 > Test wird automatisch übersprungen, wenn kein Docker-Socket
-> erreichbar ist.
+> erreichbar ist. Der normale lokale/CI-Test setzt die deterministische
+> Bonn-Fixture bereits **vor** `npm run build:site` per Docker-Build-Arg ein;
+> dadurch belegen `_site/build-manifest.json` und die Exportheader exakt die
+> tatsächlich gerenderten Fixture-Bytes. Mit
+> `CONTEXT_E2E_REQUIRE_SHIPPED=1` entfällt diese Fixture und derselbe Vertrag
+> wird bewusst gegen die ausgelieferten Kontextdaten geprüft.
 
 ---
 

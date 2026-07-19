@@ -80,7 +80,13 @@
     if (!contract || typeof contract.normalizeState !== 'function') {
       throw new Error('Video-Export-Vertrag ist nicht geladen.');
     }
-    const ctx = UA.ctx || {};
+    if (typeof UA.getRuntimeContext !== 'function') {
+      throw new Error('Werkbank-Laufzeitkontext ist nicht verfügbar.');
+    }
+    const ctx = UA.getRuntimeContext();
+    if (!ctx || typeof ctx !== 'object') {
+      throw new Error('Werkbank-Laufzeitkontext ist ungültig.');
+    }
     const map = ctx.map || window._uaMap;
     const center = map && typeof map.getCenter === 'function' ? map.getCenter() : null;
     const selectionBounds = ctx.selectionBounds || null;
