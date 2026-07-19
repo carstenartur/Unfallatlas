@@ -1,0 +1,317 @@
+name: Split oversized QA PR 405
+
+on:
+  push:
+    branches:
+      - automation/split-pr-405
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create focused stacked branches and pull requests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "Unfallwerkbank QA"
+          git config user.email "3164220+carstenartur@users.noreply.github.com"
+          git fetch origin main fix/professional-qa-hardening fix/screenshot-map-context --prune
+
+          MAIN=origin/main
+          SOURCE405=origin/fix/professional-qa-hardening
+          SOURCE409=origin/fix/screenshot-map-context
+          BASE405=$(git merge-base "$MAIN" "$SOURCE405")
+          BASE409=$(git merge-base "$MAIN" "$SOURCE409")
+
+          apply_changed_paths() {
+            local source=$1
+            local compare_base=$2
+            shift 2
+            local status path new_path
+            while IFS= read -r -d '' status; do
+              IFS= read -r -d '' path
+              case "$status" in
+                D*)
+                  git rm -f --ignore-unmatch -- "$path"
+                  ;;
+                R*|C*)
+                  IFS= read -r -d '' new_path
+                  git rm -f --ignore-unmatch -- "$path"
+                  git checkout "$source" -- "$new_path"
+                  ;;
+                *)
+                  git checkout "$source" -- "$path"
+                  ;;
+              esac
+            done < <(git diff --name-status -z "$compare_base" "$source" -- "$@")
+          }
+
+          commit_stage() {
+            local base_ref=$1
+            local branch=$2
+            local message=$3
+            local source=$4
+            local compare_base=$5
+            shift 5
+            git checkout -B "$branch" "$base_ref"
+            apply_changed_paths "$source" "$compare_base" "$@"
+            git add -A
+            if git diff --cached --quiet; then
+              echo "No changes selected for $branch" >&2
+              exit 1
+            fi
+            git commit -m "$message"
+            git push --force-with-lease origin "$branch"
+          }
+
+          BRANCH1=split/405-1-lifecycle-accessibility
+          BRANCH2=split/405-2-canonical-build-provenance
+          BRANCH3=split/405-3-video-export-contract
+          BRANCH4=split/405-4-reviewed-media-evidence
+
+          # 1/4: runtime lifecycle, UI semantics, accessibility and direct export readiness.
+          commit_stage "$MAIN" "$BRANCH1" \
+            "qa: isolate lifecycle accessibility and export readiness" \
+            "$SOURCE405" "$BASE405" \
+            css/ua.css \
+            combi.html index.html unfallwerkbank.html werkbank.html werkbank_v2.html \
+            js/ua.app_v2.js js/ua.context_road_layer.js js/ua.core.js \
+            js/ua.export_v2.js js/ua.lifecycle.js js/ua.map_v2.js \
+            js/ua.osm_context.js js/ua.political-context.js js/ua.popup_context.js \
+            js/ua.priorities.js js/ua.report_v2.js js/ua.tour.js js/ua.ui.js js/ua.utils.js \
+            playwright.config.js \
+            tests/e2e/accessibility.spec.js tests/e2e/context-data-render.spec.js \
+            tests/e2e/fixtures tests/e2e/helpers.js tests/e2e/popup-context.spec.js \
+            tests/e2e/smoke.spec.js tests/e2e/task-surface.spec.js \
+            tests/e2e/url-hydration-berlin-slope.spec.js tests/e2e/url-hydration-bonn.spec.js \
+            tests/e2e/werkbank.spec.js \
+            tests/unit/ua.accessibilityBaseline.test.js tests/unit/ua.lifecycle.test.js \
+            tests/unit/ua.map_v2.contextOverlays.test.js tests/unit/ua.map_v2.lazyPopup.test.js \
+            tests/unit/ua.modalController.test.js tests/unit/ua.osm_context.test.js \
+            tests/unit/ua.political-context.buildSearchTerms.test.js \
+            tests/unit/ua.popup_context.test.js tests/unit/ua.priorities.test.js \
+            tests/unit/ua.report_v2.pdfQA.test.js tests/unit/ua.report_v2.test.js \
+            tests/unit/ua.tour.dialogA11y.test.js tests/unit/uaContextRoadLayer.test.js \
+            README.md TESTING.md WERKBANK_V2.md docs/architecture.md docs/qa.md
+
+          # 2/4: deterministic site artifact, safe paths and distributable dependency provenance.
+          commit_stage "origin/$BRANCH1" "$BRANCH2" \
+            "build: isolate canonical site and vendor provenance" \
+            "$SOURCE405" "$BASE405" \
+            .dockerignore .gitignore \
+            .github/workflows/deploy-release.yml \
+            .github/workflows/docker-publish.yml \
+            .github/workflows/generate-data-deploy-pages.yml \
+            package.json package-lock.json \
+            scripts/build-site.js scripts/build-static-data.js scripts/serve-site.js \
+            scripts/validate-vendor-provenance.js scripts/vendor-provenance.js \
+            server/lib/safeStaticPath.js server/lib/staticDataOverlay.js \
+            vendor/provenance-policy.json \
+            tests/unit/assetVersioning.test.js tests/unit/buildStaticData.test.js \
+            tests/unit/safeStaticPath.test.js tests/unit/siteBuildContract.test.js \
+            tests/unit/staticDataOverlay.test.js tests/unit/vendorProvenance.test.js \
+            docs/RELEASING.md docs/THIRD_PARTY_NOTICES.md docs/docker.md \
+            docs/release-checklist.md docs/site-build.md
+
+          # 3/4: server/browser video contract and the real testcontainers integration only.
+          commit_stage "origin/$BRANCH2" "$BRANCH3" \
+            "export: isolate video request and evidence contract" \
+            "$SOURCE405" "$BASE405" \
+            Dockerfile server/index.js server/video-export-request.js server/video-export.js \
+            js/ua.video-export-contract.js js/ua.video-export.js \
+            scripts/install-video-export-fixture.js \
+            tests/fixtures/videoExportContextFixture.js \
+            tests/integration/export.test.js tests/integration/lib/startUnfallatlasContainer.js \
+            tests/integration/videoExport.testcontainers.test.js \
+            tests/unit/videoExportContract.test.js tests/unit/videoExportFixture.test.js \
+            tests/unit/videoExportReadiness.test.js \
+            docs/server-features.md
+
+          # 4/4 starts with every still-unassigned final #405 path, then overlays the
+          # reviewed #409 media/tooling versions. This is also the losslessness gate.
+          git checkout -B "$BRANCH4" "origin/$BRANCH3"
+          mapfile -d '' changed405 < <(git diff --name-only -z "$BASE405" "$SOURCE405")
+          for path in "${changed405[@]}"; do
+            if ! git diff --quiet "$SOURCE405" -- "$path"; then
+              if git cat-file -e "$SOURCE405:$path" 2>/dev/null; then
+                git checkout "$SOURCE405" -- "$path"
+              else
+                git rm -f --ignore-unmatch -- "$path"
+              fi
+            fi
+          done
+
+          media_patterns=(
+            .github/workflows/generate-screenshots.yml
+            .github/workflows/test.yml
+            .github/workflows/visual-check.yml
+            docs/demo.gif
+            docs/media-manifest.json
+            docs/media-qa-2026-07-19.md
+            docs/screenshots
+            qa/screenshot-evidence
+            scripts/gif-timeline.js
+            scripts/regen-context-assets.js
+            scripts/regen-readme-demo.js
+            scripts/validate-doc-media.js
+            scripts/validate-screenshot-evidence.js
+            tests/e2e/demo.spec.js
+            tests/e2e/helpers.js
+            tests/e2e/screenshots.spec.js
+            tests/unit/docMediaPolicy.test.js
+            tests/unit/regen-readme-demo.test.js
+            tests/unit/screenshotEvidencePolicy.test.js
+            tests/unit/screenshotHelperSafety.test.js
+            tests/unit/screenshotNetworkFixtureRouting.test.js
+            tests/unit/screenshotPdfEmbeddedScript.test.js
+            tests/unit/screenshotWorkflowSafety.test.js
+          )
+          apply_changed_paths "$SOURCE409" "$BASE409" "${media_patterns[@]}"
+          git add -A
+          git commit -m "docs: isolate reviewed media and fail-closed evidence"
+          git push --force-with-lease origin "$BRANCH4"
+
+          is_media_path() {
+            case "$1" in
+              .github/workflows/generate-screenshots.yml|.github/workflows/test.yml|.github/workflows/visual-check.yml|\
+              docs/demo.gif|docs/media-manifest.json|docs/media-qa-2026-07-19.md|docs/screenshots/*|\
+              qa/screenshot-evidence/*|scripts/gif-timeline.js|scripts/regen-context-assets.js|\
+              scripts/regen-readme-demo.js|scripts/validate-doc-media.js|scripts/validate-screenshot-evidence.js|\
+              tests/e2e/demo.spec.js|tests/e2e/helpers.js|tests/e2e/screenshots.spec.js|\
+              tests/unit/docMediaPolicy.test.js|tests/unit/regen-readme-demo.test.js|tests/unit/screenshotEvidencePolicy.test.js|\
+              tests/unit/screenshotHelperSafety.test.js|tests/unit/screenshotNetworkFixtureRouting.test.js|\
+              tests/unit/screenshotPdfEmbeddedScript.test.js|tests/unit/screenshotWorkflowSafety.test.js)
+                return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          mismatches=0
+          for path in "${changed405[@]}"; do
+            expected="$SOURCE405"
+            if is_media_path "$path" && git diff --quiet "$BASE409" "$SOURCE409" -- "$path"; then
+              expected="$SOURCE405"
+            elif is_media_path "$path"; then
+              expected="$SOURCE409"
+            fi
+            if ! git diff --quiet "$expected" -- "$path"; then
+              echo "Final split mismatch: $path (expected $expected)" >&2
+              mismatches=$((mismatches + 1))
+            fi
+          done
+          if (( mismatches > 0 )); then
+            exit 1
+          fi
+
+          create_or_update_pr() {
+            local head=$1 base=$2 title=$3 body_file=$4
+            local number
+            number=$(gh pr list --state open --head "$head" --json number --jq '.[0].number // empty')
+            if [[ -z "$number" ]]; then
+              gh pr create --draft --head "$head" --base "$base" --title "$title" --body-file "$body_file"
+            else
+              gh pr edit "$number" --base "$base" --title "$title" --body-file "$body_file"
+              gh pr view "$number" --json url --jq .url
+            fi
+          }
+
+          cat > /tmp/pr1.md <<'EOF'
+          ## Scope
+          First part of the reviewed replacement for oversized PR #405.
+
+          This PR contains only the runtime lifecycle contract, fail-closed map/export readiness, native modal and control semantics, responsive task surface, accessibility behavior and their focused tests.
+
+          It deliberately excludes build/release provenance, video export, screenshot tooling and checked-in media.
+
+          ## Review order
+          1 of 4. Merge this PR first.
+
+          Relates to #397, #400, #402 and #407. Supersedes the corresponding subset of #405.
+          EOF
+
+          cat > /tmp/pr2.md <<EOF
+          ## Scope
+          Second part of the reviewed replacement for oversized PR #405.
+
+          This PR introduces the canonical deterministic site build, safe static paths, reproducible distribution inputs and vendor/license provenance gates. It excludes video-export behavior and documentation-media adoption.
+
+          ## Stack
+          Base: \`$BRANCH1\`
+
+          Merge after the first split PR and then retarget to \`main\` if GitHub does not do so automatically.
+
+          Relates to #403 and #406. Supersedes the corresponding subset of #405.
+          EOF
+
+          cat > /tmp/pr3.md <<EOF
+          ## Scope
+          Third part of the reviewed replacement for oversized PR #405.
+
+          This PR contains only the canonical video-export request contract, browser/server state verification, fail-closed validation and the real testcontainers integration.
+
+          ## Stack
+          Base: \`$BRANCH2\`
+
+          Relates to #407 and #408. Supersedes the corresponding subset of #405.
+          EOF
+
+          cat > /tmp/pr4.md <<EOF
+          ## Scope
+          Final part of the reviewed replacement for oversized PRs #405 and #409.
+
+          This PR contains the documentation-media manifest, screenshot/evidence validators, deterministic regeneration tooling, reviewed screenshots, evidence sidecars and documentation updates. Control-focused screenshots use complete map-and-panel workbench views from #409.
+
+          A workflow losslessness gate verified that every final path from #405 is present in the stack, with the reviewed #409 version used for media-related paths.
+
+          ## Stack
+          Base: \`$BRANCH3\`
+
+          Relates to #397, #400, #404 and #407. Supersedes #409 and the remaining media subset of #405.
+          EOF
+
+          PR1=$(create_or_update_pr "$BRANCH1" main \
+            "QA split 1/4: lifecycle, accessibility and export readiness" /tmp/pr1.md)
+          PR2=$(create_or_update_pr "$BRANCH2" "$BRANCH1" \
+            "QA split 2/4: canonical site build and vendor provenance" /tmp/pr2.md)
+          PR3=$(create_or_update_pr "$BRANCH3" "$BRANCH2" \
+            "QA split 3/4: video export request and evidence contract" /tmp/pr3.md)
+          PR4=$(create_or_update_pr "$BRANCH4" "$BRANCH3" \
+            "QA split 4/4: reviewed documentation media and evidence" /tmp/pr4.md)
+
+          SUMMARY=$(cat <<EOF
+          #405 has been replaced by a reviewable stacked series:
+
+          1. $PR1
+          2. $PR2
+          3. $PR3
+          4. $PR4
+
+          The final branch passed an automated path-by-path losslessness check against #405, with the newer reviewed media from #409 overlaid for the screenshot/evidence scope. No new work should be added to this PR.
+          EOF
+          )
+          gh pr comment 405 --body "$SUMMARY"
+          gh pr close 405
+
+          gh pr comment 409 --body "This PR is superseded by the final media/evidence split PR: $PR4. Its reviewed full-workbench screenshots and evidence were preserved there."
+          gh pr close 409
+
+          gh issue comment 397 --body "$SUMMARY"
+
+          {
+            echo "## Split complete"
+            echo
+            echo "$SUMMARY"
+          } >> "$GITHUB_STEP_SUMMARY"
