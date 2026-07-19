@@ -59,14 +59,14 @@ function accidentFeature(id, x, y, tileZoom, category) {
 
 function tilePayload(city, zoom, x, y, id, category) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     city,
     z: zoom,
     x,
     y,
     type: 'FeatureCollection',
     features: [accidentFeature(id, x, y, zoom, category)],
-    featureIdentities: [`id:${id}`],
+    featureIdentities: [`id:2024:${id}`],
   };
 }
 
@@ -118,7 +118,7 @@ test('pan and zoom lifecycle caches tiles and suppresses delayed stale responses
   const bX = aX + 2;
   const cX = aX + 4;
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     producerVersion: 'e2e-fixture',
     city: 'bonn',
     z: tileZoom,
@@ -241,7 +241,7 @@ test('rejects mismatched tile metadata without retaining accidents from the old 
   const y = tileY(50.73, tileZoom);
   const bX = aX + 2;
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     producerVersion: 'e2e-fixture',
     city: 'bonn',
     z: tileZoom,

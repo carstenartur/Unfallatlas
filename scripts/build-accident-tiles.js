@@ -9,12 +9,16 @@ const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { writeJsonArtifact } = require('./lib/static-data-compression');
 const { readCitiesFile, slugify } = require('./lib/static-data-validation');
 
-const PRODUCER_VERSION = '1.1.0';
-const SCHEMA_VERSION = 1;
+const PRODUCER_VERSION = '1.2.0';
+const SCHEMA_VERSION = 2;
 const DEFAULT_ZOOM = 13;
 const EXPLICIT_ID_KEYS = Object.freeze([
   'id', 'ID', 'objectid', 'OBJECTID', 'uid', 'UID',
   'unfall_id', 'UNFALL_ID', 'uidentstlae', 'UIDENTSTLAE',
+]);
+const YEAR_KEYS = Object.freeze([
+  'year', 'YEAR', 'ujahr', 'UJAHR', 'jahr', 'JAHR',
+  'sourceYear', 'source_year',
 ]);
 
 function parseArgs(argv) {
@@ -77,16 +81,41 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function canonicalFeatureIdentity(feature) {
-  if (feature && feature.id !== undefined && feature.id !== null && String(feature.id).trim()) {
-    return { key: `feature.id:${String(feature.id)}`, explicit: true };
+function canonicalFeatureYear(properties) {
+  for (const key of YEAR_KEYS) {
+    const raw = properties[key];
+    if (raw === undefined || raw === null) continue;
+    const value = String(raw).trim();
+    if (/^(?:18|19|20|21)\d{2}$/.test(value)) return value;
   }
+  return null;
+}
+
+function explicitFeatureIdentity(key, value, properties) {
+  const normalized = String(value).trim();
+  const year = canonicalFeatureYear(properties);
+  // IDs in the all-years accident exports are only unique within one source
+  // year. Keep the legacy representation for sources without a trustworthy
+  // year, so duplicates still fail closed instead of being guessed apart.
+  return year ? `${key}:${year}:${normalized}` : `${key}:${normalized}`;
+}
+
+function canonicalFeatureIdentity(feature) {
   const properties = feature && feature.properties && typeof feature.properties === 'object'
     ? feature.properties
     : {};
+  if (feature && feature.id !== undefined && feature.id !== null && String(feature.id).trim()) {
+    return {
+      key: explicitFeatureIdentity('feature.id', feature.id, properties),
+      explicit: true,
+    };
+  }
   for (const key of EXPLICIT_ID_KEYS) {
     if (properties[key] !== undefined && properties[key] !== null && String(properties[key]).trim()) {
-      return { key: `${key}:${String(properties[key])}`, explicit: true };
+      return {
+        key: explicitFeatureIdentity(key, properties[key], properties),
+        explicit: true,
+      };
     }
   }
   const canonical = JSON.stringify({

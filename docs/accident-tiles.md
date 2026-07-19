@@ -25,7 +25,7 @@ out/accidenttiles/<stadt>/index.json.gz
 out/accidenttiles/<stadt>/<z>/<x>/<y>.json.gz
 ```
 
-Das Manifest enthält mindestens:
+Das Manifest verwendet Schema `2` (Producer `1.2.0`) und enthält mindestens:
 
 - Schema- und Producer-Version,
 - normalisierten Stadtschlüssel,
@@ -36,6 +36,8 @@ Das Manifest enthält mindestens:
 - sortierte Tile-Liste mit Featurezahl je Tile.
 
 Jedes Tile ist eine eigenständige GeoJSON-`FeatureCollection`. Top-Level-Eigenschaften der Stadtdatei, etwa Enrichment-Dictionaries, werden in die Tile-Payloads übernommen. Zusätzlich enthält jedes Tile ein positionsgleiches Array `featureIdentities`. Diese vom Producer erzeugten stabilen Identitäten ermöglichen deterministische Deduplizierung, ohne im Browser fachliche Felder erraten oder komplette Features erneut hashen zu müssen.
+
+Die normalisierten `id`-/`OBJECTID`-Werte der All-Years-Quellen sind nur innerhalb eines Erhebungsjahres eindeutig. Sobald ein strukturiertes vierstelliges Jahr (`year`, `UJAHR` oder eine dokumentierte Variante) vorhanden ist, enthält die kanonische Identität deshalb sowohl Jahr als auch ID, beispielsweise `id:2019:102806`. Producer und Browser berechnen denselben Schlüssel. Fehlt ein belastbares Jahr, bleibt die ID unscoped und ein tatsächliches Duplikat beendet den Build weiterhin fail-closed; ein Jahr wird nicht aus Freitext oder Namen geraten. Features ohne explizite ID verwenden unverändert den SHA-256-Schlüssel aus Geometrie und Properties.
 
 ## Erzeugung aus einem normalen Checkout
 

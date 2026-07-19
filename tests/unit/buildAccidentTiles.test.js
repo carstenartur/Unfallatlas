@@ -80,8 +80,8 @@ describe('build-accident-tiles', () => {
 
     const manifest = readGzipJson(path.join(cityDir, 'index.json.gz'));
     expect(manifest).toEqual(expect.objectContaining({
-      schemaVersion: 1,
-      producerVersion: '1.1.0',
+      schemaVersion: 2,
+      producerVersion: '1.2.0',
       city: 'bonn',
       z: 13,
       totalCount: 3,
@@ -133,6 +133,27 @@ describe('build-accident-tiles', () => {
     expect(() => buildCity({ city: 'Bonn', inputDir, outputDir, zoom: 13 }))
       .toThrow(/duplicate feature identity/);
     expect(fs.readFileSync(path.join(existing, 'sentinel.txt'), 'utf8')).toBe('keep');
+  });
+
+  test('namespaces year-local IDs and still rejects duplicates within one year', () => {
+    const acrossYears = {
+      type: 'FeatureCollection',
+      features: [
+        point('102806', 7.10375565, 50.737345586, { year: 2019 }),
+        point('102806', 7.093429771, 50.730693542, { year: 2020 }),
+      ],
+    };
+
+    const plan = buildTilePlan(acrossYears, 'Bonn', 13);
+    expect(plan.tiles.flatMap(tile => tile.featureIdentities).sort()).toEqual([
+      'id:2019:102806',
+      'id:2020:102806',
+    ]);
+
+    const sameYear = JSON.parse(JSON.stringify(acrossYears));
+    sameYear.features[1].properties.year = 2019;
+    expect(() => buildTilePlan(sameYear, 'Bonn', 13))
+      .toThrow(/duplicate feature identity id:2019:102806/);
   });
 
   test('rolls back the previous city tree when installation fails', () => {

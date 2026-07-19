@@ -29,7 +29,7 @@ function point(id, lon, lat) {
 
 function payload(city, x, y, feature) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     city,
     z: 13,
     x,
@@ -54,7 +54,7 @@ describe('TiledAccidentProvider live viewport contract', () => {
     const UA = makeUA();
     const [a] = UA.AccidentProvider._tilesForBounds(A, 13);
     const manifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       city: 'bonn',
       z: 13,
       totalCount: 1,
@@ -88,7 +88,7 @@ describe('TiledAccidentProvider live viewport contract', () => {
     const [b] = UA.AccidentProvider._tilesForBounds(B, 13);
     expect(b).not.toEqual(a);
     const manifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       city: 'bonn',
       z: 13,
       totalCount: 2,
@@ -121,7 +121,7 @@ describe('TiledAccidentProvider live viewport contract', () => {
     const [a] = UA.AccidentProvider._tilesForBounds(A, 13);
     const [b] = UA.AccidentProvider._tilesForBounds(B, 13);
     const manifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       city: 'bonn',
       z: 13,
       totalCount: 2,
@@ -158,7 +158,7 @@ describe('TiledAccidentProvider live viewport contract', () => {
     const keyA = `${a[0]}/${a[1]}`;
     const keyB = `${b[0]}/${b[1]}`;
     const manifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       city: 'bonn',
       z: 13,
       totalCount: 2,
@@ -202,7 +202,7 @@ describe('TiledAccidentProvider live viewport contract', () => {
       const city = url.includes('/hannover/') ? 'hannover' : 'bonn';
       if (url.endsWith('/index.json.gz')) {
         return {
-          schemaVersion: 1,
+          schemaVersion: 2,
           city,
           z: 13,
           totalCount: 1,

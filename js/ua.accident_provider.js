@@ -17,10 +17,14 @@
   });
   const ACCIDENT_TILE_DEFAULT_ZOOM = 13;
   const ACCIDENT_TILE_DEFAULT_CACHE_SIZE = 96;
-  const SUPPORTED_TILE_SCHEMA_VERSIONS = Object.freeze([1]);
+  const SUPPORTED_TILE_SCHEMA_VERSIONS = Object.freeze([2]);
   const EXPLICIT_ID_KEYS = Object.freeze([
     'id', 'ID', 'objectid', 'OBJECTID', 'uid', 'UID',
     'unfall_id', 'UNFALL_ID', 'uidentstlae', 'UIDENTSTLAE',
+  ]);
+  const YEAR_KEYS = Object.freeze([
+    'year', 'YEAR', 'ujahr', 'UJAHR', 'jahr', 'JAHR',
+    'sourceYear', 'source_year',
   ]);
   const SHA256_INITIAL = Object.freeze([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
@@ -177,17 +181,33 @@
     return state.map(word => word.toString(16).padStart(8, '0')).join('');
   }
 
-  function canonicalFeatureIdentity(feature) {
-    if (feature && feature.id !== undefined && feature.id !== null && String(feature.id).trim()) {
-      return `feature.id:${String(feature.id)}`;
+  function canonicalFeatureYear(properties) {
+    for (const key of YEAR_KEYS) {
+      const raw = properties[key];
+      if (raw === undefined || raw === null) continue;
+      const value = String(raw).trim();
+      if (/^(?:18|19|20|21)\d{2}$/.test(value)) return value;
     }
+    return null;
+  }
+
+  function explicitFeatureIdentity(key, value, properties) {
+    const normalized = String(value).trim();
+    const year = canonicalFeatureYear(properties);
+    return year ? `${key}:${year}:${normalized}` : `${key}:${normalized}`;
+  }
+
+  function canonicalFeatureIdentity(feature) {
     const properties = feature && feature.properties && typeof feature.properties === 'object'
       ? feature.properties
       : {};
+    if (feature && feature.id !== undefined && feature.id !== null && String(feature.id).trim()) {
+      return explicitFeatureIdentity('feature.id', feature.id, properties);
+    }
     for (const key of EXPLICIT_ID_KEYS) {
       if (properties[key] !== undefined && properties[key] !== null
           && String(properties[key]).trim()) {
-        return `${key}:${String(properties[key])}`;
+        return explicitFeatureIdentity(key, properties[key], properties);
       }
     }
     return `derived:${sha256(JSON.stringify({

@@ -3,6 +3,9 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const {
+  canonicalFeatureIdentity: producerCanonicalFeatureIdentity,
+} = require('../../scripts/build-accident-tiles');
 
 function loadModule(filePath, win) {
   (function (window) {
@@ -62,7 +65,7 @@ function point(id, lat, lon) {
 
 function manifest(city = 'bonn', tiles = []) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     city,
     z: 13,
     totalCount: tiles.reduce((sum, tile) => sum + (tile.count || 0), 0),
@@ -73,7 +76,7 @@ function manifest(city = 'bonn', tiles = []) {
 
 function tilePayload(city, z, x, y, features, properties) {
   const payload = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     city,
     z,
     x,
@@ -252,7 +255,7 @@ describe('UA.AccidentProvider', () => {
     });
 
     test.each([
-      ['schemaVersion', payload => ({ ...payload, schemaVersion: 2 })],
+      ['schemaVersion', payload => ({ ...payload, schemaVersion: 1 })],
       ['city', payload => ({ ...payload, city: 'hannover' })],
       ['z', payload => ({ ...payload, z: 12 })],
       ['x', payload => ({ ...payload, x: payload.x + 1 })],
@@ -296,6 +299,51 @@ describe('UA.AccidentProvider', () => {
       const expected = `derived:${crypto.createHash('sha256').update(canonical).digest('hex')}`;
 
       expect(UA.AccidentProvider._canonicalFeatureIdentity(feature)).toBe(expected);
+    });
+
+    test('matches the producer contract for year-scoped local accident IDs', () => {
+      const cases = [
+        {
+          feature: point('102806', 50.737345586, 7.10375565),
+          yearKey: 'year',
+          year: 2019,
+          expected: 'id:2019:102806',
+        },
+        {
+          feature: point('102806', 50.730693542, 7.093429771),
+          yearKey: 'year',
+          year: 2020,
+          expected: 'id:2020:102806',
+        },
+        {
+          feature: {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [7.093429771, 50.730693542] },
+            properties: { OBJECTID: '102806', UJAHR: '2020' },
+          },
+          expected: 'OBJECTID:2020:102806',
+        },
+        {
+          feature: {
+            type: 'Feature',
+            id: 'local-7',
+            geometry: { type: 'Point', coordinates: [7.1, 50.73] },
+            properties: { source_year: 2021 },
+          },
+          expected: 'feature.id:2021:local-7',
+        },
+      ];
+      for (const entry of cases) {
+        if (entry.yearKey) entry.feature.properties[entry.yearKey] = entry.year;
+      }
+
+      for (const { feature, expected } of cases) {
+        expect(UA.AccidentProvider._canonicalFeatureIdentity(feature)).toBe(expected);
+        expect(producerCanonicalFeatureIdentity(feature).key).toBe(expected);
+      }
+      expect(new Set(cases.map(({ feature }) => (
+        UA.AccidentProvider._canonicalFeatureIdentity(feature)
+      ))).size).toBe(cases.length);
     });
 
     test('never returns a partial full-city data set when one declared tile is unavailable', async () => {

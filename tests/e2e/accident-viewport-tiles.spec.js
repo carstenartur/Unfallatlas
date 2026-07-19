@@ -50,7 +50,7 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
   const x = tileX(7.1, zoom);
   const y = tileY(50.73, zoom);
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     producerVersion: 'e2e-fixture',
     city: 'bonn',
     z: zoom,
@@ -61,14 +61,14 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
     tiles: [{ x, y, count: 1 }],
   };
   const tile = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     city: 'bonn',
     z: zoom,
     x,
     y,
     type: 'FeatureCollection',
     features: [accidentFeature()],
-    featureIdentities: ['id:viewport-accident-1'],
+    featureIdentities: ['id:2024:viewport-accident-1'],
   };
 
   const requested = [];
