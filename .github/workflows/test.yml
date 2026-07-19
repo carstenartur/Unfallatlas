@@ -1,381 +1,208 @@
-name: Tests
+name: One-shot QA split refinement
 
 on:
-  push:
-    branches:
-      - main
-      - develop
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  issues: write
 
 concurrency:
-  group: tests-${{ github.event.pull_request.number || github.ref }}
-  # During active PR development, obsolete matrices consume seven runners each
-  # and delay the only result that matters: the current head commit.
+  group: refine-split-405
   cancel-in-progress: true
 
 jobs:
-  unit-and-integration-tests:
+  refine:
+    if: github.head_ref == 'automation/refine-split-405'
     runs-on: ubuntu-latest
-    
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CONTROL_PR: ${{ github.event.pull_request.number }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
         with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Validate Playwright Docker coupling
-        run: node scripts/check-playwright-docker-version.js
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: npm run test:unit -- --runInBand
-
-      - name: Run integration tests
-        run: npm run test:integration
-
-      - name: Run performance tests
-        run: npm run test:performance
-
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage/
-
-  video-export-integration:
-    # Testcontainers-based end-to-end test for POST /api/export-video.
-    # Verifies the full Express + Playwright + ffmpeg pipeline that lives
-    # inside the Dockerfile — a coverage gap the in-process unit tests
-    # cannot fill (they never invoke the ffmpeg binary).
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
+          ref: main
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Validate Playwright Docker coupling
-        run: node scripts/check-playwright-docker-version.js
-
-      - name: Decide video export image source
-        id: video_image
+      - name: Split runtime/accessibility and build/provenance
         shell: bash
         run: |
           set -euo pipefail
-          {
-            echo "use_prebuilt=false"
-            echo "reason=push-or-sensitive-checkout"
-          } >> "$GITHUB_OUTPUT"
+          git config user.name "Unfallwerkbank QA"
+          git config user.email "3164220+carstenartur@users.noreply.github.com"
+          git fetch origin \
+            main \
+            split/405-1-lifecycle-accessibility \
+            split/405-2-canonical-build-provenance \
+            split/405-3-video-export-contract \
+            split/405-4-media-validation \
+            split/405-5-reviewed-media-evidence \
+            --prune
 
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "Video export image source: local Docker build because this is not a pull request."
-            exit 0
-          fi
+          SOURCE_RUNTIME=origin/split/405-1-lifecycle-accessibility
+          SOURCE_BUILD=origin/split/405-2-canonical-build-provenance
+          BASE_RUNTIME=$(git merge-base origin/main "$SOURCE_RUNTIME")
+          BASE_BUILD="$SOURCE_RUNTIME"
+          CORE_BRANCH=split/405-1-lifecycle-export-readiness
+          BUILD_BRANCH=split/405-3-canonical-build
 
-          base_ref="${{ github.base_ref }}"
-          git fetch --no-tags origin "$base_ref"
-          if ! changed_files="$(git diff --name-only "origin/$base_ref"...HEAD)"; then
-            echo "Warning: could not compute changed files; defaulting to local Docker build."
-            echo "reason=diff-failed" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          apply_changed_paths() {
+            local source=$1 compare_base=$2
+            shift 2
+            local status path new_path
+            while IFS= read -r -d '' status; do
+              IFS= read -r -d '' path
+              case "$status" in
+                D*) git rm -f --ignore-unmatch -- "$path" ;;
+                R*|C*)
+                  IFS= read -r -d '' new_path
+                  git rm -f --ignore-unmatch -- "$path"
+                  git checkout "$source" -- "$new_path"
+                  ;;
+                *) git checkout "$source" -- "$path" ;;
+              esac
+            done < <(git diff --name-status -z "$compare_base" "$source" -- "$@")
+          }
 
-          echo "Changed files considered for video image decision:"
-          printf '%s\n' "$changed_files"
+          git checkout -B "$CORE_BRANCH" origin/main
+          apply_changed_paths "$SOURCE_RUNTIME" "$BASE_RUNTIME" \
+            README.md TESTING.md WERKBANK_V2.md \
+            docs/architecture.md docs/qa.md \
+            js/ua.app_v2.js js/ua.context_road_layer.js js/ua.core.js \
+            js/ua.export_v2.js js/ua.lifecycle.js js/ua.map_v2.js \
+            js/ua.osm_context.js js/ua.political-context.js js/ua.popup_context.js \
+            js/ua.priorities.js js/ua.report_v2.js js/ua.utils.js \
+            playwright.config.js \
+            tests/e2e/context-data-render.spec.js tests/e2e/fixtures \
+            tests/e2e/helpers.js tests/e2e/popup-context.spec.js \
+            tests/e2e/smoke.spec.js tests/e2e/url-hydration-berlin-slope.spec.js \
+            tests/e2e/url-hydration-bonn.spec.js tests/e2e/werkbank.spec.js \
+            tests/unit/ua.lifecycle.test.js tests/unit/ua.map_v2.contextOverlays.test.js \
+            tests/unit/ua.map_v2.lazyPopup.test.js tests/unit/ua.modalController.test.js \
+            tests/unit/ua.osm_context.test.js \
+            tests/unit/ua.political-context.buildSearchTerms.test.js \
+            tests/unit/ua.popup_context.test.js tests/unit/ua.priorities.test.js \
+            tests/unit/ua.report_v2.pdfQA.test.js tests/unit/ua.report_v2.test.js \
+            tests/unit/uaContextRoadLayer.test.js
+          git add -A
+          git commit -m "qa: isolate lifecycle and fail-closed export readiness"
+          git push --force-with-lease origin "$CORE_BRANCH"
 
-          sensitive_re='^(Dockerfile|package\.json|package-lock\.json|\.github/workflows/test\.yml|server/(index|video-export)\.js|tests/integration/.+|scripts/(regen-context-assets|check-playwright-docker-version)\.js)$'
-          if printf '%s\n' "$changed_files" | grep -E "$sensitive_re" >/dev/null; then
-            echo "Video export image source: local Docker build because this PR changes Docker/package/video-export-sensitive files."
-            echo "reason=sensitive-files-changed" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          git checkout -B "$BUILD_BRANCH" "$SOURCE_RUNTIME"
+          apply_changed_paths "$SOURCE_BUILD" "$BASE_BUILD" \
+            .dockerignore .gitignore package.json package-lock.json \
+            scripts/build-site.js scripts/build-static-data.js scripts/serve-site.js \
+            server/lib/safeStaticPath.js server/lib/staticDataOverlay.js \
+            tests/unit/assetVersioning.test.js tests/unit/buildStaticData.test.js \
+            tests/unit/safeStaticPath.test.js tests/unit/siteBuildContract.test.js \
+            tests/unit/staticDataOverlay.test.js \
+            docs/site-build.md docs/docker.md
+          git add -A
+          git commit -m "build: isolate canonical deterministic site artifact"
+          git push --force-with-lease origin "$BUILD_BRANCH"
 
-          {
-            echo "use_prebuilt=true"
-            echo "reason=pr-without-sensitive-files"
-          } >> "$GITHUB_OUTPUT"
-          echo "Video export image source: pre-built GHCR image is allowed for this PR."
+          cat > /tmp/core.md <<'EOF'
+          ## Scope
+          First part of the reviewed replacement for oversized PR #405.
 
-      - name: Install dependencies
-        run: npm ci
+          This PR contains the runtime lifecycle contract, deterministic state/readiness reporting, fail-closed map and document-export behavior, context-layer correctness and their focused tests.
 
-      - name: Try to pull pre-built image
-        if: github.event_name == 'pull_request' && steps.video_image.outputs.use_prebuilt == 'true'
-        id: pull
-        continue-on-error: true
-        run: |
-          expected_playwright="$(node -e "const lock = require('./package-lock.json'); const v = lock.packages?.['node_modules/@playwright/test']?.version || lock.dependencies?.['@playwright/test']?.version; if (!v) { throw new Error('Could not resolve @playwright/test from package-lock.json'); } process.stdout.write(String(v));")"
-          docker pull ghcr.io/carstenartur/unfallatlas:latest
-          actual_playwright="$(docker run --rm --entrypoint node ghcr.io/carstenartur/unfallatlas:latest -e "const v = require('@playwright/test/package.json').version; if (!v) { throw new Error('Could not resolve @playwright/test in image'); } process.stdout.write(String(v));")"
+          It deliberately excludes responsive/accessibility presentation, build/release infrastructure, dependency provenance, video export and documentation media.
 
-          if [ "$actual_playwright" != "$expected_playwright" ]; then
-            echo "Pre-built image Playwright version mismatch (image=$actual_playwright, checkout=$expected_playwright). Falling back to local Docker build."
-            exit 0
-          fi
+          ## Review order
+          1 of 7. Merge this PR first.
 
-          echo "image=ghcr.io/carstenartur/unfallatlas:latest" >> "$GITHUB_OUTPUT"
+          Relates to #397, #400 and #407. Supersedes the corresponding subset of #405.
+          EOF
 
-      - name: Run testcontainers integration test
-        env:
-          UNFALLATLAS_IMAGE: ${{ steps.pull.outputs.image }}
-        run: npm run test:integration:tc
+          cat > /tmp/accessibility.md <<EOF
+          ## Scope
+          Second part of the reviewed replacement for oversized PR #405.
 
-  location-brief-golden-qa:
-    # Issue #296: real Bonn/Hannover data must pass through the deterministic
-    # Node analysis, the Analysis Service persistence API and the Spring Batch
-    # city ranking.  The npm command is the canonical entry point and can be
-    # run from any checkout with Docker; this job only supplies a CI runtime.
-    runs-on: ubuntu-latest
+          This PR contains the responsive task surface, native control semantics, focus behavior, touch targets, accessibility-specific UI changes and their browser/unit tests.
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+          ## Stack
+          Base: \`$CORE_BRANCH\`
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
+          Merge after the first split PR and then retarget to \`main\`.
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          java-version: '21'
-          distribution: 'temurin'
+          Relates to #402. Supersedes the accessibility subset of #405.
+          EOF
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-maven-
+          cat > /tmp/build.md <<EOF
+          ## Scope
+          Third part of the reviewed replacement for oversized PR #405.
 
-      - name: Install dependencies
-        run: npm ci
+          This PR introduces the canonical deterministic site artifact, safe static paths, reproducible static-data assembly and focused build tests.
 
-      - name: Build Analysis Service test JAR
-        run: mvn -q -f analysis-service/pom.xml -DskipTests package
+          It deliberately excludes publication workflows and vendor/license policy, which are reviewed in the following PR.
 
-      - name: Run Docker-free golden-case preflight
-        run: npm run qa:location-brief-golden
+          ## Stack
+          Base: \`split/405-1-lifecycle-accessibility\`
 
-      - name: Run Bonn/Hannover golden-case QA
-        env:
-          GOLDEN_CASE_QA_ARTIFACT_PATH: out/qa/location-brief-golden-cases.json
-        run: npm run test:location-brief-golden:tc
+          Relates to #403. Supersedes the canonical-build subset of #405.
+          EOF
 
-      - name: Upload golden-case quality report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: location-brief-golden-case-qa
-          path: out/qa/
-          if-no-files-found: warn
+          cat > /tmp/provenance.md <<EOF
+          ## Scope
+          Fourth part of the reviewed replacement for oversized PR #405.
 
-  pdf-render-gate:
-    runs-on: ubuntu-latest
+          This PR contains vendor/license provenance collection, policy validation, publication gates, release documentation and focused provenance tests.
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+          ## Stack
+          Base: \`$BUILD_BRANCH\`
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
+          Merge after the canonical-build PR and then retarget to \`main\`.
 
-      - name: Install dependencies
-        run: npm ci
+          Relates to #406. Supersedes the provenance subset of #405.
+          EOF
 
-      - name: Install Poppler and Ghostscript
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y poppler-utils ghostscript
+          create_or_update_pr() {
+            local head=$1 base=$2 title=$3 body=$4
+            local number
+            number=$(gh pr list --state open --head "$head" --json number --jq '.[0].number // empty')
+            if [[ -z "$number" ]]; then
+              gh pr create --draft --head "$head" --base "$base" --title "$title" --body-file "$body"
+            else
+              gh pr edit "$number" --base "$base" --title "$title" --body-file "$body"
+              gh pr view "$number" --json url --jq .url
+            fi
+          }
 
-      - name: Generate sample PDF
-        run: npm run generate:sample-pdf
+          CORE_PR=$(create_or_update_pr "$CORE_BRANCH" main \
+            "QA split 1/7: lifecycle and fail-closed export readiness" /tmp/core.md)
+          BUILD_PR=$(create_or_update_pr "$BUILD_BRANCH" split/405-1-lifecycle-accessibility \
+            "QA split 3/7: canonical deterministic site build" /tmp/build.md)
 
-      - name: Run PDF render gate
-        run: npm run test:render-gate -- --pdf out/ci-render-gate.pdf --timeout-per-page 30
+          gh pr edit 416 --base "$CORE_BRANCH" \
+            --title "QA split 2/7: accessibility and responsive task surface" \
+            --body-file /tmp/accessibility.md
+          gh pr edit 417 --base "$BUILD_BRANCH" \
+            --title "QA split 4/7: vendor and license provenance gates" \
+            --body-file /tmp/provenance.md
+          gh pr edit 418 --title "QA split 5/7: video export request and evidence contract"
+          gh pr edit 425 --title "QA split 6/7: documentation media validation tooling"
+          gh pr edit 426 --title "QA split 7/7: reviewed media assets and durable evidence"
 
-  e2e-tests:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+          SUMMARY=$(cat <<EOF
+          The replacement for #405 is now a seven-part review chain:
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
+          1. $CORE_PR
+          2. https://github.com/carstenartur/Unfallatlas/pull/416
+          3. $BUILD_PR
+          4. https://github.com/carstenartur/Unfallatlas/pull/417
+          5. https://github.com/carstenartur/Unfallatlas/pull/418
+          6. https://github.com/carstenartur/Unfallatlas/pull/425
+          7. https://github.com/carstenartur/Unfallatlas/pull/426
 
-      - name: Install dependencies
-        run: npm ci
+          The existing combined branch heads remain unchanged, so the previously completed path-by-path losslessness checks against #405/#409 still apply. Only their review bases were narrowed.
+          EOF
+          )
+          gh pr comment 405 --body "$SUMMARY"
+          gh issue comment 397 --body "$SUMMARY"
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
-
-      - name: Run E2E tests
-        run: npm run test:e2e
-
-      - name: Run accessibility tests
-        run: npx playwright test tests/e2e/accessibility.spec.js --project=chromium --reporter=line
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: playwright-report
-          path: playwright-report/
-
-      - name: Upload test videos
-        uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: test-videos
-          path: test-results/
-
-      - name: Upload documentation screenshots
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: documentation-screenshots
-          path: docs/screenshots/
-
-  firefox-smoke:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright Firefox
-        run: npx playwright install --with-deps firefox
-
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
-
-      - name: Run Firefox smoke tests
-        run: npx playwright test --project=firefox-smoke
-
-      - name: Upload Firefox smoke report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: playwright-report-firefox-smoke
-          path: playwright-report/
-
-  webkit-smoke:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright WebKit
-        run: npx playwright install --with-deps webkit
-
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
-
-      - name: Run WebKit smoke tests
-        run: npx playwright test --project=webkit-smoke
-
-      - name: Upload WebKit smoke report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: playwright-report-webkit-smoke
-          path: playwright-report/
-
-  analysis-service-maven-verify:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-maven-
-
-      - name: Run Maven clean verify
-        id: mvn
-        run: mvn -f analysis-service/pom.xml clean verify
-
-      - name: Upload Surefire / Failsafe reports on failure
-        uses: actions/upload-artifact@v7
-        if: failure() && steps.mvn.conclusion == 'failure'
-        with:
-          name: analysis-service-test-reports
-          path: |
-            analysis-service/target/surefire-reports/
-            analysis-service/target/failsafe-reports/
-          if-no-files-found: ignore
-
-      - name: Summarise Maven failure
-        if: failure() && steps.mvn.conclusion == 'failure'
-        run: |
-          echo "## ❌ analysis-service Maven build failed" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [ -d analysis-service/target/surefire-reports ] || [ -d analysis-service/target/failsafe-reports ]; then
-            echo "Test reports have been uploaded as the **analysis-service-test-reports** artifact." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Maven failed **before any test reports were generated** (e.g. compile error or dependency resolution failure)." >> "$GITHUB_STEP_SUMMARY"
-            echo "Check the **Run Maven clean verify** step log above for details." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          gh pr close "$CONTROL_PR" || true
+          git push origin --delete automation/refine-split-405 || true
