@@ -1,0 +1,46 @@
+name: PR 437 final unit diagnostic
+
+on:
+  pull_request:
+    branches:
+      - split/405-1-runtime-readiness
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Run unit tests with complete log
+        shell: bash
+        run: |
+          set +e
+          npm run test:unit -- --runInBand 2>&1 | tee unit-test.log
+          status=${PIPESTATUS[0]}
+          {
+            echo '## Exact unit failure'
+            echo
+            echo '```text'
+            tail -n 220 unit-test.log
+            echo '```'
+          } > unit-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file unit-comment.md
+          exit "$status"
+      - name: Upload unit log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-437-unit-final-diagnostic
+          path: unit-test.log
+          if-no-files-found: error
+          retention-days: 14
