@@ -1,7 +1,11 @@
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const {
+  canonicalFeatureIdentity: producerCanonicalFeatureIdentity,
+} = require('../../scripts/build-accident-tiles');
 
 function loadModule(filePath, win) {
   (function (window) {
@@ -61,13 +65,28 @@ function point(id, lat, lon) {
 
 function manifest(city = 'bonn', tiles = []) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     city,
     z: 13,
     totalCount: tiles.reduce((sum, tile) => sum + (tile.count || 0), 0),
     sourceFingerprint: 'abc123',
     tiles,
   };
+}
+
+function tilePayload(city, z, x, y, features, properties) {
+  const payload = {
+    schemaVersion: 2,
+    city,
+    z,
+    x,
+    y,
+    type: 'FeatureCollection',
+    features,
+    featureIdentities: features.map(feature => `id:${feature.properties.id}`),
+  };
+  if (properties) payload.properties = properties;
+  return payload;
 }
 
 describe('UA.AccidentProvider', () => {
@@ -154,7 +173,11 @@ describe('UA.AccidentProvider', () => {
         if (url.endsWith('/index.json.gz')) {
           return manifest('bonn', [{ x: 4256, y: 2754, count: 1 }]);
         }
-        return fc([point('a', 50.73, 7.1)], { source: 'tile' });
+        return tilePayload(
+          'bonn', 13, 4256, 2754,
+          [point('a', 50.73, 7.1)],
+          { source: 'tile' }
+        );
       });
       const provider = UA.AccidentProvider.createTiledProvider();
       const result = await provider.fetchForCity('Bonn');
@@ -180,7 +203,10 @@ describe('UA.AccidentProvider', () => {
             { x: far[0], y: far[1], count: 1 },
           ]);
         }
-        return fc([point('near', 50.73, 7.1)]);
+        return tilePayload(
+          'bonn', 13, wanted[0], wanted[1],
+          [point('near', 50.73, 7.1)]
+        );
       });
       const provider = UA.AccidentProvider.createTiledProvider();
       const result = await provider.fetchForBbox('Bonn', {
@@ -200,7 +226,7 @@ describe('UA.AccidentProvider', () => {
       }));
     });
 
-    test('rejects unsupported schema and ignores mismatched manifest city for URLs', async () => {
+    test('rejects an unsupported manifest schema', async () => {
       UA.fetchJsonGz = jest.fn(async (url) => {
         if (url.endsWith('/index.json.gz')) return { schemaVersion: 99, city: 'other', z: 13, tiles: [] };
         return null;
@@ -216,7 +242,9 @@ describe('UA.AccidentProvider', () => {
         tileRoot: 'custom/tiles',
         fetch: makeFetch({
           'custom/tiles/bonn/index.json': { body: wantedManifest },
-          'custom/tiles/bonn/13/1/2.json': { body: fc([point('a', 50.7, 7.1)]) },
+          'custom/tiles/bonn/13/1/2.json': {
+            body: tilePayload('bonn', 13, 1, 2, [point('a', 50.7, 7.1)]),
+          },
         }, calls),
       });
       expect((await provider.fetchForCity('Bonn')).features).toHaveLength(1);
@@ -224,6 +252,117 @@ describe('UA.AccidentProvider', () => {
         'custom/tiles/bonn/index.json',
         'custom/tiles/bonn/13/1/2.json',
       ]);
+    });
+
+    test.each([
+      ['schemaVersion', payload => ({ ...payload, schemaVersion: 1 })],
+      ['city', payload => ({ ...payload, city: 'hannover' })],
+      ['z', payload => ({ ...payload, z: 12 })],
+      ['x', payload => ({ ...payload, x: payload.x + 1 })],
+      ['y', payload => ({ ...payload, y: payload.y + 1 })],
+      ['expectedCount', payload => ({ ...payload, features: [] })],
+      ['featureIdentities', payload => ({ ...payload, featureIdentities: [] })],
+      ['feature identity value', payload => ({ ...payload, featureIdentities: ['id:wrong'] })],
+    ])('rejects tile payloads with invalid %s metadata', async (_label, mutate) => {
+      const bounds = {
+        south: 50.729, north: 50.731, west: 7.099, east: 7.101,
+      };
+      const [wanted] = UA.AccidentProvider._tilesForBounds(bounds, 13);
+      const key = `${wanted[0]}/${wanted[1]}`;
+      const valid = tilePayload(
+        'bonn', 13, wanted[0], wanted[1],
+        [point('near', 50.73, 7.1)]
+      );
+      UA.fetchJsonGz = jest.fn(async url => url.endsWith('/index.json.gz')
+        ? manifest('bonn', [{ x: wanted[0], y: wanted[1], count: 1 }])
+        : mutate(valid));
+
+      const provider = UA.AccidentProvider.createTiledProvider();
+      const viewport = await provider.fetchTileSetForBbox('Bonn', bounds);
+
+      expect(viewport.loadedTileKeys).toEqual([]);
+      expect(viewport.missingTileKeys).toEqual([key]);
+      await expect(provider.fetchForCity('Bonn'))
+        .rejects.toThrow(/incomplete full-city tile set/);
+    });
+
+    test('validates producer-compatible derived identities against feature content', () => {
+      const feature = {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [7.1, 50.73] },
+        properties: { category: 'derived-only', label: 'Straße' },
+      };
+      const canonical = JSON.stringify({
+        geometry: feature.geometry,
+        properties: feature.properties,
+      });
+      const expected = `derived:${crypto.createHash('sha256').update(canonical).digest('hex')}`;
+
+      expect(UA.AccidentProvider._canonicalFeatureIdentity(feature)).toBe(expected);
+    });
+
+    test('matches the producer contract for year-scoped local accident IDs', () => {
+      const cases = [
+        {
+          feature: point('102806', 50.737345586, 7.10375565),
+          yearKey: 'year',
+          year: 2019,
+          expected: 'id:2019:102806',
+        },
+        {
+          feature: point('102806', 50.730693542, 7.093429771),
+          yearKey: 'year',
+          year: 2020,
+          expected: 'id:2020:102806',
+        },
+        {
+          feature: {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [7.093429771, 50.730693542] },
+            properties: { OBJECTID: '102806', UJAHR: '2020' },
+          },
+          expected: 'OBJECTID:2020:102806',
+        },
+        {
+          feature: {
+            type: 'Feature',
+            id: 'local-7',
+            geometry: { type: 'Point', coordinates: [7.1, 50.73] },
+            properties: { source_year: 2021 },
+          },
+          expected: 'feature.id:2021:local-7',
+        },
+      ];
+      for (const entry of cases) {
+        if (entry.yearKey) entry.feature.properties[entry.yearKey] = entry.year;
+      }
+
+      for (const { feature, expected } of cases) {
+        expect(UA.AccidentProvider._canonicalFeatureIdentity(feature)).toBe(expected);
+        expect(producerCanonicalFeatureIdentity(feature).key).toBe(expected);
+      }
+      expect(new Set(cases.map(({ feature }) => (
+        UA.AccidentProvider._canonicalFeatureIdentity(feature)
+      ))).size).toBe(cases.length);
+    });
+
+    test('never returns a partial full-city data set when one declared tile is unavailable', async () => {
+      const tiles = [
+        { x: 4256, y: 2754, count: 1 },
+        { x: 4257, y: 2754, count: 1 },
+      ];
+      UA.fetchJsonGz = jest.fn(async url => {
+        if (url.endsWith('/index.json.gz')) return manifest('bonn', tiles);
+        if (url.endsWith('/4256/2754.json.gz')) {
+          return tilePayload('bonn', 13, 4256, 2754, [point('a', 50.73, 7.1)]);
+        }
+        return null;
+      });
+
+      const provider = UA.AccidentProvider.createTiledProvider();
+
+      await expect(provider.fetchForCity('Bonn'))
+        .rejects.toThrow(/incomplete full-city tile set.*4257\/2754/);
     });
   });
 

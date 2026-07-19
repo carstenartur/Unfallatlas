@@ -189,27 +189,49 @@
   UA.DataPaths = DataPaths;
 
   function injectOptionalModule(src, marker) {
-    if (typeof document === 'undefined'
-        || typeof document.querySelector !== 'function'
-        || typeof document.createElement !== 'function'
-        || !document.head
-        || typeof document.head.appendChild !== 'function'
-        || document.querySelector(`script[${marker}]`)) return;
-    const script = document.createElement('script');
+    // Use the module's explicit window, not the test runner's ambient global
+    // document. Isolated Unit-test windows intentionally omit `document` and
+    // must receive an already-resolved optional-module promise.
+    const doc = window && window.document;
+    if (!doc
+        || typeof doc.querySelector !== 'function'
+        || typeof doc.createElement !== 'function'
+        || !doc.head
+        || typeof doc.head.appendChild !== 'function') {
+      return Promise.resolve(false);
+    }
+
+    const existing = doc.querySelector(`script[${marker}]`);
+    if (existing) return existing.__uaLoadPromise || Promise.resolve(true);
+
+    const script = doc.createElement('script');
     script.src = src;
-    // The modules are load-order independent, but preserving insertion order
-    // avoids a needless race in static deployments.
     script.async = false;
     script.setAttribute(marker, '1');
-    document.head.appendChild(script);
+    script.__uaLoadPromise = new Promise(resolve => {
+      script.addEventListener('load', () => resolve(true), { once: true });
+      // Optional modules must never make the static application fail to start.
+      // Consumers can await the promise and fall back to their legacy path.
+      script.addEventListener('error', () => resolve(false), { once: true });
+    });
+    doc.head.appendChild(script);
+    return script.__uaLoadPromise;
   }
 
-  injectOptionalModule(
-    'js/ua.accident_coverage.js?v=2026-07-18',
-    'data-ua-accident-coverage'
-  );
-  injectOptionalModule(
-    'js/ua.context_generation.js?v=2026-07-18',
-    'data-ua-context-generation'
-  );
+  const existingPromises = UA.optionalModulePromises || {};
+  UA.optionalModulePromises = Object.freeze({
+    ...existingPromises,
+    accidentViewportController: injectOptionalModule(
+      'js/ua.accident_viewport_controller.js?v=2026-07-18',
+      'data-ua-accident-viewport-controller'
+    ),
+    accidentCoverage: injectOptionalModule(
+      'js/ua.accident_coverage.js?v=2026-07-18',
+      'data-ua-accident-coverage'
+    ),
+    contextGeneration: injectOptionalModule(
+      'js/ua.context_generation.js?v=2026-07-18',
+      'data-ua-context-generation'
+    ),
+  });
 })();

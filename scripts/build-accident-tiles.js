@@ -9,12 +9,16 @@ const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { writeJsonArtifact } = require('./lib/static-data-compression');
 const { readCitiesFile, slugify } = require('./lib/static-data-validation');
 
-const PRODUCER_VERSION = '1.0.0';
-const SCHEMA_VERSION = 1;
+const PRODUCER_VERSION = '1.2.0';
+const SCHEMA_VERSION = 2;
 const DEFAULT_ZOOM = 13;
 const EXPLICIT_ID_KEYS = Object.freeze([
   'id', 'ID', 'objectid', 'OBJECTID', 'uid', 'UID',
   'unfall_id', 'UNFALL_ID', 'uidentstlae', 'UIDENTSTLAE',
+]);
+const YEAR_KEYS = Object.freeze([
+  'year', 'YEAR', 'ujahr', 'UJAHR', 'jahr', 'JAHR',
+  'sourceYear', 'source_year',
 ]);
 
 function parseArgs(argv) {
@@ -77,16 +81,41 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function canonicalFeatureIdentity(feature) {
-  if (feature && feature.id !== undefined && feature.id !== null && String(feature.id).trim()) {
-    return { key: `feature.id:${String(feature.id)}`, explicit: true };
+function canonicalFeatureYear(properties) {
+  for (const key of YEAR_KEYS) {
+    const raw = properties[key];
+    if (raw === undefined || raw === null) continue;
+    const value = String(raw).trim();
+    if (/^(?:18|19|20|21)\d{2}$/.test(value)) return value;
   }
+  return null;
+}
+
+function explicitFeatureIdentity(key, value, properties) {
+  const normalized = String(value).trim();
+  const year = canonicalFeatureYear(properties);
+  // IDs in the all-years accident exports are only unique within one source
+  // year. Keep the legacy representation for sources without a trustworthy
+  // year, so duplicates still fail closed instead of being guessed apart.
+  return year ? `${key}:${year}:${normalized}` : `${key}:${normalized}`;
+}
+
+function canonicalFeatureIdentity(feature) {
   const properties = feature && feature.properties && typeof feature.properties === 'object'
     ? feature.properties
     : {};
+  if (feature && feature.id !== undefined && feature.id !== null && String(feature.id).trim()) {
+    return {
+      key: explicitFeatureIdentity('feature.id', feature.id, properties),
+      explicit: true,
+    };
+  }
   for (const key of EXPLICIT_ID_KEYS) {
     if (properties[key] !== undefined && properties[key] !== null && String(properties[key]).trim()) {
-      return { key: `${key}:${String(properties[key])}`, explicit: true };
+      return {
+        key: explicitFeatureIdentity(key, properties[key], properties),
+        explicit: true,
+      };
     }
   }
   const canonical = JSON.stringify({
@@ -138,8 +167,11 @@ function buildTilePlan(geojson, city, zoom) {
     const x = lonToTileX(lon, zoom);
     const y = latToTileY(lat, zoom);
     const key = `${x}/${y}`;
-    if (!byTile.has(key)) byTile.set(key, { x, y, features: [] });
+    if (!byTile.has(key)) {
+      byTile.set(key, { x, y, features: [], featureIdentities: [] });
+    }
     byTile.get(key).features.push(feature);
+    byTile.get(key).featureIdentities.push(identity.key);
   });
 
   const tiles = Array.from(byTile.values())
@@ -166,6 +198,9 @@ function tilePayload(slug, zoom, tile, sourceProperties) {
     y: tile.y,
     type: 'FeatureCollection',
     features: tile.features,
+    // Stable producer identities let the runtime deduplicate across repeated
+    // and overlapping viewport tile requests without re-hashing application data.
+    featureIdentities: tile.featureIdentities,
   };
   if (sourceProperties) payload.properties = sourceProperties;
   return payload;
@@ -228,19 +263,33 @@ function validateStagedCity(cityDir, manifest, expectedCount) {
   }
 
   let count = 0;
+  const persistedIdentities = new Set();
   for (const tile of manifest.tiles) {
     const tilePath = path.join(cityDir, String(manifest.z), String(tile.x), `${tile.y}.json.gz`);
     if (!fs.existsSync(tilePath)) throw new Error(`missing tile ${tile.x}/${tile.y}`);
     const payload = readGzipJson(tilePath);
     if (payload.type !== 'FeatureCollection' || payload.city !== manifest.city
         || payload.z !== manifest.z || payload.x !== tile.x || payload.y !== tile.y
-        || !Array.isArray(payload.features) || payload.features.length !== tile.count) {
+        || !Array.isArray(payload.features) || payload.features.length !== tile.count
+        || !Array.isArray(payload.featureIdentities)
+        || payload.featureIdentities.length !== payload.features.length) {
       throw new Error(`invalid tile payload ${tile.x}/${tile.y}`);
+    }
+    for (const identity of payload.featureIdentities) {
+      if (typeof identity !== 'string' || !identity) {
+        throw new Error(`invalid feature identity in tile ${tile.x}/${tile.y}`);
+      }
+      if (persistedIdentities.has(identity)) {
+        throw new Error(`duplicate persisted feature identity ${identity}`);
+      }
+      persistedIdentities.add(identity);
     }
     count += payload.features.length;
   }
-  if (count !== expectedCount) {
-    throw new Error(`tile feature total ${count} does not equal source total ${expectedCount}`);
+  if (count !== expectedCount || persistedIdentities.size !== expectedCount) {
+    throw new Error(
+      `tile identity/feature total ${persistedIdentities.size}/${count} does not equal source total ${expectedCount}`
+    );
   }
   if (gzipFiles.length !== manifest.tiles.length + 1) {
     throw new Error('unexpected gzip artefact count in staged tree');

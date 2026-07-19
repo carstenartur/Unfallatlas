@@ -71,7 +71,7 @@ describe('UA.DataResources — central static resource contract', () => {
   });
 
   test('accident manifest and payload are unconditionally gzip-only', async () => {
-    const manifest = { schemaVersion: 1, city: 'bonn', z: 13, tiles: [] };
+    const manifest = { schemaVersion: 2, city: 'bonn', z: 13, tiles: [] };
     const tile = { type: 'FeatureCollection', features: [] };
     UA.fetchJsonGz = jest.fn(async url => url.endsWith('/index.json.gz') ? manifest : tile);
     const rawFetch = jest.fn();

@@ -50,24 +50,25 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
   const x = tileX(7.1, zoom);
   const y = tileY(50.73, zoom);
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     producerVersion: 'e2e-fixture',
     city: 'bonn',
     z: zoom,
     sourceFingerprint: 'e2e-sha256',
-    totalCount: 100,
-    explicitIdCount: 100,
+    totalCount: 1,
+    explicitIdCount: 1,
     derivedIdCount: 0,
     tiles: [{ x, y, count: 1 }],
   };
   const tile = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     city: 'bonn',
     z: zoom,
     x,
     y,
     type: 'FeatureCollection',
     features: [accidentFeature()],
+    featureIdentities: ['id:2024:viewport-accident-1'],
   };
 
   const requested = [];
@@ -96,8 +97,9 @@ test('viewport mode renders accidents from gzip tiles without loading full city 
   expect(response?.ok()).toBe(true);
 
   await expect(page.locator('#dataSourceCode')).toContainText('out/accidenttiles/bonn/index.json');
-  await expect(page.locator('#dataSourceCode')).toContainText('nur aktueller Kartenausschnitt');
-  await expect(page.locator('#stat')).toContainText('1');
+  await expect(page.locator('#dataSourceCode'))
+    .toContainText('Kartenausschnitt vollständig; Stadt unvollständig');
+  await expect(page.locator('#stat')).toContainText('geladen: 1');
 
   // Keep the normal marker layer enabled: disabling both cluster and heatmap
   // intentionally renders no accidents, which would make a pixel assertion
