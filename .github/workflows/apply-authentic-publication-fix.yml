@@ -18,7 +18,24 @@ jobs:
         run: |
           git config user.name "Unfallwerkbank QA"
           git config user.email "3164220+carstenartur@users.noreply.github.com"
-          node scripts/apply-authentic-screenshot-fix.cjs
+          if [[ -f qa/apply-authentic-error.txt ]]; then
+            cat qa/apply-authentic-error.txt
+            exit 1
+          fi
+          set +e
+          node scripts/apply-authentic-screenshot-fix.cjs > /tmp/apply-authentic.log 2>&1
+          status=$?
+          set -e
+          if [[ $status -ne 0 ]]; then
+            git restore .
+            mkdir -p qa
+            cp /tmp/apply-authentic.log qa/apply-authentic-error.txt
+            git add qa/apply-authentic-error.txt
+            git commit -m "chore: record authentic screenshot patch failure"
+            git push origin HEAD:fix/screenshot-map-context
+            cat /tmp/apply-authentic.log
+            exit $status
+          fi
           rm .github/workflows/apply-authentic-publication-fix.yml scripts/apply-authentic-screenshot-fix.cjs
           git add -A
           git commit -m "test: separate regression and publication screenshot contracts"
@@ -51,7 +68,8 @@ jobs:
           SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
           RUN_ID: ${{ github.run_id }}
         run: node scripts/adopt-authentic-screenshot-evidence.cjs
-      - run: |
+      - name: Commit authentic media
+        run: |
           git add docs/screenshots qa/screenshot-evidence docs/media-qa-2026-07-19.md
           git commit -m "docs: replace synthetic maps with authentic publication screenshots"
           git push origin HEAD:fix/screenshot-map-context
