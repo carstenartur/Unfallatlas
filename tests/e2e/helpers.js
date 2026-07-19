@@ -3,15 +3,37 @@
  */
 
 /**
- * Legacy-named guard retained for existing callers. Browser dependencies now
- * come from the canonical `_site/vendor` build. Any CDN request is therefore
- * an architecture regression and is blocked instead of being replaced with
- * potentially different local bytes.
+ * Richtet CDN-Routen auf lokale node_modules um, damit Export-Bibliotheken
+ * offline verfügbar sind. PRs vor dem kanonischen Site-Build dürfen die noch
+ * extern geladenen Leaflet-Ressourcen nicht pauschal blockieren.
  *
  * @param {import('@playwright/test').Page} page
  */
 export async function setupCDNRoutes(page) {
-  await page.route(/https:\/\/(?:cdn\.jsdelivr\.net|unpkg\.com)\//, route => route.abort('blockedbyclient'));
+  const path = await import('path');
+  const fs = await import('fs');
+  const root = path.resolve(process.cwd());
+
+  const routes = [
+    { url: 'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js', file: path.join(root, 'node_modules/docx/dist/index.iife.js') },
+    { url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/pdfmake.min.js', file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js') },
+    { url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/vfs_fonts.js', file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js') },
+    { url: 'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js', file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js') },
+    { url: 'https://unpkg.com/docx@9.6.1/dist/index.iife.js', file: path.join(root, 'node_modules/docx/dist/index.iife.js') },
+    { url: 'https://unpkg.com/pdfmake@0.3.8/build/pdfmake.min.js', file: path.join(root, 'node_modules/pdfmake/build/pdfmake.min.js') },
+    { url: 'https://unpkg.com/pdfmake@0.3.8/build/vfs_fonts.js', file: path.join(root, 'node_modules/pdfmake/build/vfs_fonts.js') },
+    { url: 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js', file: path.join(root, 'node_modules/file-saver/dist/FileSaver.min.js') }
+  ];
+
+  const missing = routes.filter(route => !fs.existsSync(route.file));
+  if (missing.length) {
+    throw new Error('Missing local CDN test assets:\n' + missing.map(route => `- ${route.url} -> ${route.file}`).join('\n'));
+  }
+  for (const route of routes) {
+    await page.route(route.url, async request => {
+      await request.fulfill({ status: 200, contentType: 'application/javascript', body: fs.readFileSync(route.file) });
+    });
+  }
 }
 
 /**
