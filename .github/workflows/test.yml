@@ -1,47 +1,37 @@
-name: One-shot media PR split
+name: One-shot PR split cleanup
 
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened]
 
 permissions:
   contents: write
-  pull-requests: write
-  issues: write
 
 jobs:
-  split:
-    if: startsWith(github.head_ref, 'automation/split-pr-405-media')
+  cleanup:
+    if: startsWith(github.head_ref, 'automation/split-pr-405-cleanup')
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
 
-      - name: Execute focused media split
+      - name: Delete temporary and superseded branches
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin automation/split-pr-405
-          git show origin/automation/split-pr-405:scripts/split-pr-419.sh > /tmp/split-pr-419.sh
-          chmod +x /tmp/split-pr-419.sh
-          bash -n /tmp/split-pr-419.sh
-          set +e
-          bash -x /tmp/split-pr-419.sh 2>&1 | tee /tmp/split-pr-419.log
-          status=${PIPESTATUS[0]}
-          set -e
-          if [[ $status -ne 0 ]]; then
-            {
-              echo '## Media split workflow failure'
-              echo
-              echo '```text'
-              tail -n 180 /tmp/split-pr-419.log
-              echo '```'
-            } > /tmp/media-split-failure.md
-            gh issue comment 420 --body-file /tmp/media-split-failure.md
-            exit "$status"
-          fi
+          branches=(
+            automation/split-pr-405
+            automation/split-pr-405-trigger-2
+            automation/split-pr-405-trigger-3
+            automation/split-pr-405-media-trigger
+            automation/split-pr-405-cleanup-trigger
+            split/405-4-reviewed-media-evidence
+            fix/professional-qa-hardening
+            fix/screenshot-map-context
+          )
+          for branch in "${branches[@]}"; do
+            git push origin --delete "$branch" || true
+          done
