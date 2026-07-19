@@ -63,38 +63,45 @@ Der folgende Demo-Film zeigt den typischen Workflow: Stadt wählen → Filter se
 
 ![Demo-Ablauf der Unfallwerkbank V2](demo.gif)
 
-> Regeneration: `npm run regen:demo` erzeugt bevorzugt ein GIF (`demo.gif`)
-> bis 10 MB und wechselt bei größeren Dateien automatisch auf
-> `demo.webp` (sonst `demo.apng`).
+> Regeneration: `npm run regen:demo` ersetzt ausschließlich das kanonische
+> `demo.gif`, nachdem Format, Zielmaß, 60-Sekunden-Dauergrenze und
+> 9-MiB-Budget geprüft wurden. Bei
+> einer Überschreitung bricht der Lauf ohne stillen Formatwechsel ab.
 
-> Ergänzend gibt es eine kontextspezifische GIF-Demo
-> (`demo-context.gif`) und drei begleitende PNGs (17–19 unter
-> `screenshots/`) für die Sektion **Kontext (neu)**:
-> [Kontext (neu)](#kontext-neu).
+> Kontextmedien 17–19 sind noch keine kanonischen Doku-Assets. Das zugehörige
+> Skript erzeugt ausschließlich Review-Kandidaten unter
+> `.build/doc-media/context/`; eine spätere Übernahme muss Manifest,
+> Referenzen und fachliche Bildprüfung gemeinsam umfassen.
 
 ---
 
 ## Voraussetzungen
 
 - Moderner Webbrowser (Chrome, Firefox oder Edge empfohlen)
-- Für lokale Nutzung: Python 3 (`python3 -m http.server 8000`) oder ein anderer lokaler Webserver
-- Internetverbindung (für Kartenkacheln und Unfallatlas-Daten)
+- Für lokale Nutzung: Node.js 24 und ein Checkout mit `npm ci`
+- Internetverbindung nur für Grundkarten und optionale externe Dienste; die
+  gelockten Browser-Bibliotheken und gebauten Unfalldaten sind lokal
 
 ---
 
 ## Schnellstart
 
 ```bash
-# Repository klonen
+# Repository klonen und exakt gelockte Abhängigkeiten installieren
 git clone https://github.com/carstenartur/Unfallatlas.git
 cd Unfallatlas
+npm ci
 
-# Lokalen Webserver starten
-python3 -m http.server 8000
+# Kanonischen Site-Build erzeugen und ausliefern
+npm run serve:site
 
 # Anwendung im Browser öffnen
-# http://localhost:8000/werkbank_v2.html
+# http://127.0.0.1:8000/werkbank_v2.html
 ```
+
+Direktes `file://` oder ein Server im Repository-Root wird nicht unterstützt,
+weil die gelockten Browser-Abhängigkeiten erst durch `npm run build:site` nach
+`_site/vendor/` materialisiert werden. Siehe [Site-Build](site-build.md).
 
 ---
 
@@ -174,14 +181,14 @@ Durch geschickte Kombination der Filter lassen sich gezielte Fragestellungen bea
 
 ### Kontext (neu)
 
-> **Live-Screenshots.** Die drei PNGs in `docs/screenshots/` werden
-> deterministisch durch `npm run regen:context-assets` aus demselben
-> Container erzeugt, gegen den der Testcontainers-Integrationstest läuft
-> (siehe [`docs/screenshots/README.md`](screenshots/README.md)):
-> `17-kontext-filter.png` (Filter-Panel),
-> `18-popup-kontextdaten.png` (Popup mit zusätzlichem Block
-> **Kontextdaten**) und
-> `19-kontext-traffic-proxy.png` (aktive Verkehrsproxy-Filter).
+> **Review-Status der Kontextaufnahmen.** `npm run regen:context-assets`
+> erzeugt aus demselben Container wie der Testcontainers-Test drei
+> unveröffentlichte 1280×640-Kandidaten und einen QA-Bericht unter
+> `.build/doc-media/context/run-<Zeitstempel>/`. Fehlende Daten-Readiness,
+> Kontextfilter oder Kontextmarker sind harte Fehler. Die vorgesehenen Motive
+> und der separate Übernahmeprozess stehen in
+> [`docs/screenshots/README.md`](screenshots/README.md); unter `docs/` werden
+> sie bis zu diesem Review nicht als vorhanden ausgegeben.
 
 Im Filter-Panel erscheint – sobald der geladene Datensatz entsprechende
 Felder mitbringt – die zusätzliche Sektion **„Kontext (neu)"**. Sie
@@ -810,6 +817,13 @@ unterstützten Parameter auf:
 | `debugSlope` | Debug-Labels mit Straßensteigung anzeigen | `0` / `1` | `0` |
 | `debugSlopeSamples` | Debug-Samples der Hangneigung anzeigen | `0` / `1` | `0` |
 
+Sind `slope` und `traffic` gleichzeitig aktiv, werden die Werte nicht als
+zwei deckungsgleiche Vollflächen gezeichnet: Die Steigung bildet eine breite,
+durchgezogene Grundlinie; die Verkehrsbelastung liegt als schmale,
+gestrichelte Innenlinie darüber. Damit bleiben beide Signale auch auf
+demselben OSM-Weg sowie ohne reine Farbdifferenz unterscheidbar. Die Legende
+benennt dieselbe Linienkodierung ausdrücklich.
+
 ### Kontext (neu)
 
 Diese Parameter steuern die Sektion **Kontext (neu)** im Filter-Panel
@@ -898,16 +912,18 @@ Alle drei Formate lassen sich in README/HTML ohne Play-Button einbetten. MP4/Web
 
 Unabhängig vom Ausgabeformat wird derselbe Ablauf aufgezeichnet:
 
-1. Standardansicht (Default-Einstellungen, Hannover)
-2. Stadt aus der aktuellen Auswahl wird im Dropdown gesetzt
-3. Alle Filter werden nacheinander sichtbar gesetzt (Schwere, Beteiligung, Modus, Uhrzeit, Wochentag, Fahrbahnzustand)
+1. Stadt, Kontextfilter und Straßen-Layer werden über denselben URL-Vertrag
+   rehydriert, den auch geteilte Werkbank-Links verwenden
+2. Die angeforderte Stadt wird im Dropdown verifiziert
+3. Die übrigen Filter werden nacheinander sichtbar gesetzt (Schwere,
+   Beteiligung, Modus, Uhrzeit, Wochentag, Fahrbahnzustand)
 4. Darstellungsoptionen werden aktiviert (Heatmap, Cluster, Hotspots)
 5. Karte fliegt zur gewünschten Position
 6. Bereich wird markiert (falls vorhanden)
 7. Export-Modal öffnet – durch den Bezirksratsantrag wird gescrollt
 8. PDF-Export wird demonstriert
 
-> **Hinweis:** Der Video-Export berücksichtigt alle 6 Beteiligungsfilter – einschließlich Gkfz (Güter-Kfz) und Sonstig.
+> **Hinweis:** Der Video-Export berücksichtigt alle 6 Beteiligungsfilter – einschließlich Gkfz (Güter-Kfz) und Sonstig. Vor der Beweisaufnahme wartet er zusätzlich auf den exakten Kontextfilterzustand sowie aktive, angehängte und nicht leere Steigungs-/Verkehrslayer.
 
 ### Nutzung
 
@@ -927,9 +943,41 @@ API-Beispiel (WebP):
 ```bash
 curl -X POST "http://localhost:8000/api/export-video?format=webp" \
   -H "Content-Type: application/json" \
-  -d '{"city":"Hannover","zoom":"13"}' \
+  -d '{
+    "state": {
+      "schemaVersion": 1,
+      "city": "Hannover",
+      "filters": {
+        "severity": "all", "involvementMode": "or", "hourFrom": 0, "hourTo": 23,
+        "dayType": "all", "roadCondition": "all", "maxPoints": 100000,
+        "viewportPaddingPct": 20, "heatRadius": 25,
+        "involvement": {
+          "cyclist": true, "pedestrian": true, "car": true,
+          "motorcycle": false, "gkfz": false, "sonstig": false
+        }
+      },
+      "context": { "slopeClasses": [], "trafficClasses": [], "onlyMatchedWays": false },
+      "layers": {
+        "cluster": true, "heatmap": false, "onlyAboveAverage": false,
+        "slope": false, "traffic": false
+      },
+      "viewport": { "center": { "lat": 52.3759, "lon": 9.732 }, "zoom": 13 },
+      "selection": null
+    }
+  }' \
   --output unfallatlas-analyse.webp
 ```
+
+`centerLat`, `centerLon` und `zoom` bilden gemeinsam einen Karten-Viewport.
+Sobald einer dieser Werte angegeben ist, müssen alle drei vorhanden und gültig
+sein; unvollständige Ansichten werden abgewiesen, statt stillschweigend einen
+anderen Kartenausschnitt zu exportieren.
+
+Das vollständige, streng validierte State-v1-Schema, stabile `400`-Fehlercodes
+und die Integritäts-/Evidenz-Header beschreibt die
+[Server-API-Dokumentation](server-features.md#6-post-apiexport-video-docker-distribution).
+Flache URL-Parameter im JSON-Body werden nur noch als Legacy-Kompatibilität
+akzeptiert.
 
 ### README-Demo-GIF regenerieren
 
@@ -946,7 +994,10 @@ npm run regen:demo
 ```
 
 Damit teilen sich Test und README-Demo eine gemeinsame Quelle
-(*single source of truth*).
+(*single source of truth*). Das vorhandene Asset wird erst ersetzt, wenn das
+neue GIF animiert ist, dem Manifest-Zielmaß entspricht und innerhalb des
+9-MiB- und 60-Sekunden-Budgets liegt. Für einen Formatwechsel ist eine gesonderte Änderung an
+Manifest und Doku-Referenzen erforderlich.
 
 ### Technische Details
 
