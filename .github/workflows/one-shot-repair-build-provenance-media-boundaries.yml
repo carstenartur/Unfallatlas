@@ -1,0 +1,25 @@
+name: One-shot repair build/provenance/media boundaries
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  repair:
+    if: github.head_ref == 'automation/repair-build-provenance-media-boundaries'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch with full history
+        uses: actions/checkout@v7
+        with:
+          ref: automation/repair-build-provenance-media-boundaries
+          fetch-depth: 0
+
+      - name: Rebuild and prove executable PR boundaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/repair-build-provenance-media-boundaries.sh
