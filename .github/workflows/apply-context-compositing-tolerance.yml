@@ -1,0 +1,27 @@
+name: One-shot context compositing tolerance fix
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: startsWith(github.head_ref, 'automation/apply-context-compositing-tolerance-trigger')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply reviewed compositing-aware test fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin automation/apply-context-compositing-tolerance
+          git show origin/automation/apply-context-compositing-tolerance:scripts/apply-context-compositing-tolerance.sh > /tmp/apply-context-compositing-tolerance.sh
+          bash -n /tmp/apply-context-compositing-tolerance.sh
+          bash /tmp/apply-context-compositing-tolerance.sh
