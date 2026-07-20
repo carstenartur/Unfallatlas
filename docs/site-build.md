@@ -64,3 +64,14 @@ Offline-Vertrags.
 Die HTML-Quelldateien referenzieren bewusst `vendor/…`. Direktes Öffnen per
 `file://` oder ein Webserver im Repository-Root umgeht den Buildvertrag und wird
 nicht unterstützt.
+
+## Dokumentationsmedien
+
+`npm run validate:media` prüft `docs/media-manifest.json`: Existenz,
+Soll-Abmessungen, das ausnahmslose 1-MiB-Budget statischer Medien, das
+15-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
+sowie lokale Markdown-Referenzen. Neue Vollbild-Screenshots werden mit
+1280×640 erzeugt und müssen höchstens 1 MiB groß sein. Die
+Screenshot-Workflows veröffentlichen nur
+Review-Artefakte samt JSON-Größenbericht; eine Übernahme erfolgt über einen
+normalen Pull Request.
