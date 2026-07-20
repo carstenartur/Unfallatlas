@@ -7,7 +7,7 @@ B6=split/405-6-media-validation
 B7=split/405-7-reviewed-media-evidence
 MERGED_439=c5d86b2b81fc6b756e3e30a5d2cd9d089e8b8f59
 OLD5=feab6357e40c74ba75ad70b550c2e5a6df09e73b
-FIXED5=6c90f7c7006396e88a240bf6535fe43e01ba697a
+FIXED5=6b32932200735fdd8dbb56841a714a16e5302f1d
 OLD6=cd465ab3d47c95019ee1eee9e721475e94471db0
 OLD7=e398c630a2ea360cfb8ce65ed1baf5d58bbf4539
 EXPECTED_OLD_FINAL_TREE=0e3994ccc9ec84970b5343fcd76804229a03eda3
@@ -48,7 +48,7 @@ done < <(git diff --name-only "$MERGED_439" "$NEW_BASE")
 # #440: squash the complete fixed video boundary onto current main.
 git checkout -B "$B5" "$NEW_BASE"
 apply_changed_paths "$MERGED_439" "$FIXED5"
-NEW5=$(commit_local "export: close codec-safe video evidence contract")
+NEW5=$(commit_local "export: close recorded-source video evidence contract")
 
 # #441: reapply only its reviewed media-tooling delta.
 git checkout -B "$B6" "$NEW5"
@@ -73,7 +73,8 @@ ACTUAL_TREE=$(git rev-parse "$NEW7^{tree}")
   exit 1
 }
 
-# Ensure final-tree drift is exactly the six independently reviewed codec files.
+# Ensure final-tree drift is exactly the eight independently reviewed codec and
+# recorded-source evidence files.
 mapfile -t final_drift < <(git diff --name-only "$OLD7" "$NEW7")
 printf '%s\n' "${final_drift[@]}" | sort > /tmp/actual-drift
 printf '%s\n' \
@@ -81,8 +82,10 @@ printf '%s\n' \
   bin/ffmpeg \
   server/video-export-filters.js \
   server/video-export.js \
+  server/video-source-evidence.js \
   tests/unit/videoExportCodecWrapper.test.js \
   tests/unit/videoExportEncodingContract.test.js \
+  tests/unit/videoSourceEvidence.test.js \
   | sort > /tmp/expected-drift
 diff -u /tmp/expected-drift /tmp/actual-drift
 
