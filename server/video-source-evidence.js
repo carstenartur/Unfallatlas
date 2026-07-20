@@ -4,7 +4,8 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
-const SOURCE_INSPECTION_FPS = 2;
+// Whole-second samples are shared by the 2fps GIF/APNG inspection and the 3fps WebP encoding.
+const SOURCE_INSPECTION_FPS = 1;
 const SOURCE_TARGET_WIDTH = 720;
 const SOURCE_MARKER_TOLERANCE = 38;
 const SOURCE_MARKER_MIN_PIXELS = 20;

@@ -60,7 +60,7 @@ describe('recorded source-frame evidence', () => {
     expect(buildSourceFrameInspectionArgs('/tmp/source.webm')).toEqual([
       '-v', 'error',
       '-i', '/tmp/source.webm',
-      '-vf', 'fps=2,scale=720:-1:flags=lanczos',
+      '-vf', 'fps=1,scale=720:-1:flags=lanczos',
       '-f', 'rawvideo',
       '-pix_fmt', 'rgba',
       'pipe:1',
