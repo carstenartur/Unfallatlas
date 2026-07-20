@@ -36,6 +36,8 @@ const execFileAsync = promisify(execFile);
 const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
 const WEBP_QUALITY = 60;
 const VIDEO_TILE_STABLE_MS = 800;
+const ENCODED_INSPECTION_FPS = 2;
+const MAX_DECODE_BUFFER_BYTES = 256 * 1024 * 1024;
 
 const SERVER_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 8000}`;
 
@@ -1397,21 +1399,78 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
   };
 }
 
-async function inspectEncodedFrames(outputPath, requiredState, frameEvidence) {
-  const width = 360;
-  const height = 202;
-  const { stdout } = await execFileAsync('ffmpeg', [
+function buildEncodedInspectionArgs(outputPath) {
+  return [
     '-v', 'error',
     '-i', outputPath,
-    '-vf', `fps=1,scale=${width}:${height}:flags=lanczos`,
+    '-vf', `fps=${ENCODED_INSPECTION_FPS}`,
     '-f', 'rawvideo',
     '-pix_fmt', 'rgba',
     'pipe:1',
+  ];
+}
+
+function buildWebpEncodingArgs(webmPath, outputPath) {
+  return [
+    '-y',
+    '-i', webmPath,
+    '-vf', ANIMATED_IMAGE_FILTER,
+    '-loop', '0',
+    '-c:v', 'libwebp_anim',
+    '-lossless', '0',
+    '-q:v', String(WEBP_QUALITY),
+    '-compression_level', '6',
+    '-an',
+    '-f', 'webp',
+    outputPath,
+  ];
+}
+
+async function probeEncodedDimensions(outputPath) {
+  const { stdout } = await execFileAsync('ffprobe', [
+    '-v', 'error',
+    '-select_streams', 'v:0',
+    '-show_entries', 'stream=width,height',
+    '-of', 'json',
+    outputPath,
   ], {
     timeout: FFMPEG_TIMEOUT_MS,
-    encoding: 'buffer',
-    maxBuffer: 64 * 1024 * 1024,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024,
   });
+  let parsed;
+  try {
+    parsed = JSON.parse(String(stdout || ''));
+  } catch (error) {
+    throw new VideoExportSemanticError(
+      'encoded_frame_probe_invalid',
+      `Could not parse encoded-frame dimensions: ${error.message}`
+    );
+  }
+  const stream = parsed && Array.isArray(parsed.streams) ? parsed.streams[0] : null;
+  const width = Number(stream && stream.width);
+  const height = Number(stream && stream.height);
+  if (!Number.isInteger(width) || !Number.isInteger(height) ||
+      width <= 0 || height <= 0 || width > 4096 || height > 4096) {
+    throw new VideoExportSemanticError(
+      'encoded_frame_probe_invalid',
+      `Encoded animation has invalid dimensions ${width}x${height}`
+    );
+  }
+  return { width, height };
+}
+
+async function inspectEncodedFrames(outputPath, requiredState, frameEvidence) {
+  const { width, height } = await probeEncodedDimensions(outputPath);
+  const { stdout } = await execFileAsync(
+    'ffmpeg',
+    buildEncodedInspectionArgs(outputPath),
+    {
+      timeout: FFMPEG_TIMEOUT_MS,
+      encoding: 'buffer',
+      maxBuffer: MAX_DECODE_BUFFER_BYTES,
+    }
+  );
   return countPalettePixels(Buffer.from(stdout), width, height, requiredState, frameEvidence);
 }
 
@@ -1784,20 +1843,11 @@ async function exportVideo(params, opts = {}) {
         outputPath
       ], { timeout: FFMPEG_TIMEOUT_MS });
     } else if (format === 'webp') {
-      await execFileAsync('ffmpeg', [
-        '-y',
-        '-i', webmPath,
-        '-vf', ANIMATED_IMAGE_FILTER,
-        '-loop', '0',
-        '-vcodec', 'libwebp',
-        '-lossless', '0',
-        '-q:v', String(WEBP_QUALITY),
-        '-compression_level', '6',
-        '-preset', 'picture',
-        '-an',
-        '-vsync', '0',
-        outputPath
-      ], { timeout: FFMPEG_TIMEOUT_MS });
+      await execFileAsync(
+        'ffmpeg',
+        buildWebpEncodingArgs(webmPath, outputPath),
+        { timeout: FFMPEG_TIMEOUT_MS }
+      );
     } else if (format === 'apng') {
       await execFileAsync('ffmpeg', [
         '-y',
@@ -1861,6 +1911,8 @@ async function exportVideo(params, opts = {}) {
 module.exports = {
   ANIMATED_IMAGE_FILTER,
   VideoExportSemanticError,
+  buildEncodedInspectionArgs,
+  buildWebpEncodingArgs,
   assertFreshExportContent,
   assertRuntimeContextAvailable,
   assertVideoAnalysisState,
@@ -1871,6 +1923,7 @@ module.exports = {
   exportVideo,
   inspectEncodedFrames,
   installSemanticEvidenceBadge,
+  probeEncodedDimensions,
   readBuildEvidence,
   selectRequiredCity,
   waitForFreshExportPreview,
