@@ -1,0 +1,31 @@
+name: One-shot context palette contract fix
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  apply:
+    if: startsWith(github.head_ref, 'automation/apply-context-palette-test-fix-trigger')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply reviewed palette contract fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin automation/apply-context-palette-test-fix
+          git show origin/automation/apply-context-palette-test-fix:scripts/apply-context-palette-test-fix.sh > /tmp/apply-context-palette-test-fix.sh
+          bash -n /tmp/apply-context-palette-test-fix.sh
+          bash /tmp/apply-context-palette-test-fix.sh
