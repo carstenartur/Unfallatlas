@@ -15,9 +15,12 @@
 
 FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
-# ffmpeg für WebM → GIF-Konvertierung
+# ffmpeg erzeugt GIF, WebP und APNG. ImageMagick/libwebp übernimmt ausschließlich
+# die formatgerechte Nachprüfung animierter WebP-Dateien und das Reservieren der
+# festen QA-Nachweisfarben in der adaptiven GIF-Palette.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ffmpeg \
+      imagemagick \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,6 +38,7 @@ RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 
 # Gesamten Anwendungscode kopieren (nach npm ci, damit node_modules gecacht bleibt)
 COPY . .
+RUN chmod 0755 /app/bin/ffmpeg
 
 # Materialisiert die exakt gelockten Browser-Abhängigkeiten und dasselbe
 # Site-Artefakt, das Pages, Playwright und die Screenshot-QA verwenden.
