@@ -3,7 +3,14 @@
   "version": "2.1.4",
   "description": "Unfallatlas data converter and analysis tool with interactive visualization",
   "main": "index.js",
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": "24.x",
+    "npm": ">=11 <12"
+  },
   "scripts": {
+    "build:site": "node scripts/build-site.js",
+    "serve:site": "node scripts/serve-site.js",
     "test": "jest",
     "test:unit": "jest --testPathPatterns=tests/unit",
     "test:integration": "jest --testPathPatterns=tests/integration",
@@ -24,12 +31,15 @@
     "validate:context-datasets": "node scripts/check-context-datasets.js",
     "validate:slope-plausibility": "node scripts/check-slope-plausibility.js",
     "validate:playwright-docker": "node scripts/check-playwright-docker-version.js",
+    "validate:vendor-provenance": "node scripts/validate-vendor-provenance.js",
     "qa:slope": "node scripts/qa-slope-report.js",
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "demo": "playwright test --project=demo",
+    "prestart": "npm run build:site",
     "start": "node server/start.js",
+    "prestart:server": "npm run build:site",
     "start:server": "node server/start.js",
     "start:docker": "docker compose up --build",
     "smoke": "bash scripts/smoke.sh"
@@ -83,6 +93,11 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.1",
     "file-saver": "2.0.5",
+    "leaflet": "1.9.4",
+    "leaflet-draw": "1.0.4",
+    "leaflet-image": "0.4.0",
+    "leaflet.heat": "0.2.0",
+    "leaflet.markercluster": "1.5.3",
     "pdfmake": "0.3.11"
   }
 }
