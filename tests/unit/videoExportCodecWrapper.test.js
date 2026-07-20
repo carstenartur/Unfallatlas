@@ -95,6 +95,27 @@ testUnix('ordinary ffmpeg calls are delegated without rewriting arguments', () =
   expect(fs.existsSync(magickLog)).toBe(false);
 });
 
+testUnix('lossless animated WebP uses deterministic compression effort', () => {
+  const directory = makeTempDirectory();
+  const { result, ffmpegLog, magickLog } = runWrapper([
+    '-y', '-i', 'input.webm',
+    '-c:v', 'libwebp_anim',
+    '-lossless', '1',
+    '-q:v', '60',
+    '-compression_level', '6',
+    '-f', 'webp',
+    'output.webp',
+  ], directory);
+
+  expect(result.status).toBe(0);
+  const argumentsSeen = fs.readFileSync(ffmpegLog, 'utf8').trim().split('\n');
+  const qualityIndex = argumentsSeen.indexOf('-q:v');
+  expect(qualityIndex).toBeGreaterThanOrEqual(0);
+  expect(argumentsSeen[qualityIndex + 1]).toBe('80');
+  expect(argumentsSeen).not.toContain('60');
+  expect(fs.existsSync(magickLog)).toBe(false);
+});
+
 testUnix('GIF palette generation reserves every fixed semantic-evidence colour', () => {
   const directory = makeTempDirectory();
   const palettePath = path.join(directory, 'palette.png');
