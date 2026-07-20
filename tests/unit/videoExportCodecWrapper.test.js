@@ -26,22 +26,26 @@ function runWrapper(args, directory) {
   const ffmpegLog = path.join(directory, 'ffmpeg.log');
   const magickLog = path.join(directory, 'magick.log');
 
-  writeExecutable(fakeFfmpeg, `#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\\n' "$@" >> "$FAKE_FFMPEG_LOG"
-if [[ "$*" == *'palettegen='* ]]; then
-  printf 'synthetic-palette' > "${!#}"
-fi
-`);
-  writeExecutable(fakeMagick, `#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\\n' "$@" >> "$FAKE_MAGICK_LOG"
-if [[ "${!#}" == 'rgba:-' ]]; then
-  printf 'rgba-frame'
-else
-  cp -- "$1" "${!#}"
-fi
-`);
+  writeExecutable(fakeFfmpeg, [
+    '#!/usr/bin/env bash',
+    'set -euo pipefail',
+    'printf \'%s\\n\' "$@" >> "$FAKE_FFMPEG_LOG"',
+    'if [[ "$*" == *\'palettegen=\'* ]]; then',
+    '  printf \'synthetic-palette\' > "${!#}"',
+    'fi',
+    '',
+  ].join('\n'));
+  writeExecutable(fakeMagick, [
+    '#!/usr/bin/env bash',
+    'set -euo pipefail',
+    'printf \'%s\\n\' "$@" >> "$FAKE_MAGICK_LOG"',
+    'if [[ "${!#}" == \'rgba:-\' ]]; then',
+    '  printf \'rgba-frame\'',
+    'else',
+    '  cp -- "$1" "${!#}"',
+    'fi',
+    '',
+  ].join('\n'));
 
   const result = spawnSync('bash', [WRAPPER, ...args], {
     cwd: directory,
