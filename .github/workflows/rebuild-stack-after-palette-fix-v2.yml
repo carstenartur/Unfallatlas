@@ -1,0 +1,54 @@
+name: One-shot rebuild QA stack after palette fix v2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  rebuild:
+    if: startsWith(github.head_ref, 'automation/rebuild-stack-after-palette-fix-v2-trigger')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Load, correct and execute reviewed stack rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin automation/rebuild-stack-after-palette-fix
+          git show origin/automation/rebuild-stack-after-palette-fix:scripts/rebuild-stack-after-palette-fix.sh > /tmp/rebuild-stack.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/rebuild-stack.sh')
+          s = p.read_text()
+          old = '    [255,255,204], [161,218,180], [65,182,196], [34,94,168],'
+          new = '    [42,157,143], [39,125,161], [58,90,152], [27,27,94],'
+          if s.count(old) != 1:
+              raise SystemExit(f'expected exactly one obsolete PR 440 palette baseline, found {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          bash -n /tmp/rebuild-stack.sh
+          set +e
+          bash /tmp/rebuild-stack.sh 2>&1 | tee /tmp/rebuild-stack.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '## Exact QA stack rebuild v2 failure'
+              echo
+              echo '```text'
+              tail -n 240 /tmp/rebuild-stack.log
+              echo '```'
+            } > /tmp/rebuild-stack-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/rebuild-stack-comment.md
+          fi
+          exit "$status"
