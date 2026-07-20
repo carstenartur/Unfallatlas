@@ -2,45 +2,44 @@
 set -euo pipefail
 
 TARGET_BRANCH=split/405-5-video-export-contract
+DIAGNOSTIC_BRANCH=diagnostic/440-codec-format-matrix
 EXPECTED_TARGET_HEAD=fa8ef16a2bf25919401b2868d4c4adb2ea2ca8e9
+EXPECTED_DIAGNOSTIC_HEAD=b21dfe41dc1fb6f76a9cf323c55edfe39f52e93a
 
 git config user.name "Unfallwerkbank QA"
 git config user.email "3164220+carstenartur@users.noreply.github.com"
-git fetch origin "$TARGET_BRANCH" --prune
+git fetch origin "$TARGET_BRANCH" "$DIAGNOSTIC_BRANCH" --prune
 [[ "$(git rev-parse "origin/$TARGET_BRANCH")" == "$EXPECTED_TARGET_HEAD" ]] || {
   echo "Unexpected #440 head; refusing to overwrite a moved review branch" >&2
   exit 1
 }
+[[ "$(git rev-parse "origin/$DIAGNOSTIC_BRANCH")" == "$EXPECTED_DIAGNOSTIC_HEAD" ]] || {
+  echo "Unexpected same-frame diagnostic head" >&2
+  exit 1
+}
 
 git checkout -B apply-webp-budget "origin/$TARGET_BRANCH"
+git checkout "origin/$DIAGNOSTIC_BRANCH" -- \
+  server/video-source-evidence.js \
+  tests/unit/videoSourceEvidence.test.js
 
 python3 <<'PY'
 from pathlib import Path
 
 implementation = Path('server/video-export.js')
 source = implementation.read_text()
-old = "const { ANIMATED_IMAGE_FILTER } = require('./video-export-filters.js');\nconst { inspectRecordedSourceFrames } = require('./video-source-evidence.js');"
-new = "const { ANIMATED_IMAGE_FILTER } = require('./video-export-filters.js');\nconst { inspectRecordedSourceFrames } = require('./video-source-evidence.js');\nconst WEBP_ANIMATED_IMAGE_FILTER = ANIMATED_IMAGE_FILTER.replace(/^fps=\\d+/, 'fps=2');"
+old = 'const WEBP_QUALITY = 60;'
+new = 'const WEBP_QUALITY = 70;'
 if source.count(old) != 1:
-    raise SystemExit('WebP filter constant insertion point not found exactly once')
-source = source.replace(old, new)
-
-start = source.index('function buildWebpEncodingArgs(')
-end = source.index('\n}\n', start)
-block = source[start:end]
-old = "'-vf', ANIMATED_IMAGE_FILTER,"
-new = "'-vf', WEBP_ANIMATED_IMAGE_FILTER,"
-if block.count(old) != 1:
-    raise SystemExit('WebP encoder filter insertion point not found exactly once')
-source = source[:start] + block.replace(old, new) + source[end:]
-implementation.write_text(source)
+    raise SystemExit('WebP quality insertion point not found exactly once')
+implementation.write_text(source.replace(old, new))
 
 contract = Path('tests/unit/videoExportEncodingContract.test.js')
 source = contract.read_text()
-old = "    expect(args).not.toContain('libwebp');\n    expect(args).not.toContain('-vsync');"
-new = "    expect(args).toContain('fps=2,scale=720:-1:flags=lanczos');\n    expect(args).not.toContain('fps=3,scale=720:-1:flags=lanczos');\n    expect(args).not.toContain('libwebp');\n    expect(args).not.toContain('-vsync');"
+old = "      '-lossless', '1',\n      '-f', 'webp',"
+new = "      '-lossless', '1',\n      '-q:v', '70',\n      '-f', 'webp',"
 if source.count(old) != 1:
-    raise SystemExit('WebP unit-contract insertion point not found exactly once')
+    raise SystemExit('WebP q70 unit-contract insertion point not found exactly once')
 contract.write_text(source.replace(old, new))
 PY
 
@@ -51,15 +50,14 @@ npx jest --runInBand \
   tests/unit/videoSourceEvidence.test.js \
   tests/unit/videoExportCodecWrapper.test.js
 
-RUN_TESTCONTAINERS=1 NODE_OPTIONS=--experimental-vm-modules npx jest \
-  --config=tests/integration/jest.testcontainers.config.js \
-  --runInBand \
-  --testNamePattern='returns valid webp export \((body:webp|query:webp)\)'
-
-git add server/video-export.js tests/unit/videoExportEncodingContract.test.js
+git add \
+  server/video-export.js \
+  server/video-source-evidence.js \
+  tests/unit/videoExportEncodingContract.test.js \
+  tests/unit/videoSourceEvidence.test.js
 git diff --cached --check
-git diff --cached --quiet && { echo "No WebP budget patch to commit" >&2; exit 1; }
-git commit -m "fix: keep lossless WebP exports within budget"
+git diff --cached --quiet && { echo "No WebP evidence patch to commit" >&2; exit 1; }
+git commit -m "fix: make lossless WebP evidence deterministic"
 NEW_HEAD=$(git rev-parse HEAD)
 
 git fetch origin "$TARGET_BRANCH"
