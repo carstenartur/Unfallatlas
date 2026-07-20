@@ -15,9 +15,11 @@ if (!pathEntries.includes(CODEC_BIN_DIR)) {
   process.env.PATH = [CODEC_BIN_DIR, currentPath].filter(Boolean).join(path.delimiter);
 }
 
-const ANIMATED_IMAGE_FILTER = 'fps=3,scale=720:-1:flags=lanczos';
+const ANIMATED_IMAGE_FPS = 3;
+const ANIMATED_IMAGE_FILTER = `fps=${ANIMATED_IMAGE_FPS},scale=720:-1:flags=lanczos`;
 
 module.exports = {
   ANIMATED_IMAGE_FILTER,
+  ANIMATED_IMAGE_FPS,
   CODEC_BIN_DIR
 };
