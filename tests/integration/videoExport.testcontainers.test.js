@@ -8,24 +8,29 @@
 'use strict';
 
 const fs = require('fs');
+const crypto = require('crypto');
 const {
   isDockerAvailable,
   startUnfallatlasContainer,
 } = require('./lib/startUnfallatlasContainer');
+const videoExportContract = require('../../js/ua.video-export-contract.js');
+const {
+  VIDEO_EXPORT_CONTEXT_PARAMS,
+} = require('../fixtures/videoExportContextFixture');
 
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 const GIF_BUDGET_BYTES = 10 * 1024 * 1024;
 const WEBP_BUDGET_BYTES = 18 * 1024 * 1024;
 const APNG_BUDGET_BYTES = 30 * 1024 * 1024;
 const CONTEXT_BROWSER_TIMEOUT_MS = 120_000;
+const REQUIRE_SHIPPED_CONTEXT = process.env.CONTEXT_E2E_REQUIRE_SHIPPED === '1' ||
+  Boolean(process.env.UNFALLATLAS_IMAGE);
 
-const CONTEXT_BODY = Object.freeze({
-  city: 'Hannover',
-  ctxSlope: 'steep,very_steep',
-  ctxTraffic: 'high,very_high',
-  ctxOnlyMatched: '1',
-  zoom: '13',
-});
+const CONTEXT_BODY = VIDEO_EXPORT_CONTEXT_PARAMS;
+const EXPECTED_STATE = videoExportContract.fromLegacyParams(CONTEXT_BODY);
+const EXPECTED_STATE_SHA256 = crypto.createHash('sha256')
+  .update(videoExportContract.stableStringify(EXPECTED_STATE), 'utf8')
+  .digest('hex');
 
 function dockerLikelyAvailable() {
   if (process.env.RUN_TESTCONTAINERS === '1') return true;
@@ -44,7 +49,7 @@ if (SUITE_DESCRIBE === describe.skip) {
 async function postExportVideo(baseUrl, opts = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const body = { ...CONTEXT_BODY };
+  const body = opts.body || { state: videoExportContract.fromLegacyParams(CONTEXT_BODY) };
   if (opts.bodyFormat !== undefined) body.format = opts.bodyFormat;
   const url = new URL(`${baseUrl}/api/export-video`);
   if (opts.queryFormat !== undefined) url.searchParams.set('format', opts.queryFormat);
@@ -58,122 +63,11 @@ async function postExportVideo(baseUrl, opts = {}) {
     return {
       status: response.status,
       contentType: response.headers.get('content-type') || '',
+      headers: Object.fromEntries(response.headers.entries()),
       body: Buffer.from(await response.arrayBuffer()),
     };
   } finally {
     clearTimeout(timer);
-  }
-}
-
-function deterministicContextFixture() {
-  const common = {
-    uart: '1', utyp1: '1', ulichtverh: '0', ustrzustand: '0',
-    uwochentag: '2', umonat: '6', ujahr: '2024',
-    istfuss: '0', istkrad: '0', istgkfz: '0', istsonstig: '0',
-  };
-  const feature = (id, lon, lat, properties) => ({
-    type: 'Feature',
-    geometry: { type: 'Point', coordinates: [lon, lat] },
-    properties: { id, ...common, ...properties },
-  });
-
-  return {
-    geojson: {
-      type: 'FeatureCollection',
-      properties: {
-        enrichmentDicts: {
-          highway: ['residential', 'primary'],
-          surface: ['asphalt'],
-          cycleway: ['lane'],
-        },
-      },
-      features: [
-        feature('bonn-context-e2e-1', 7.1000, 50.7300, {
-          ukategorie: '2', ustunde: '8', istrad: '1', istpkw: '1',
-          matched_way_id: 'W1', road_context_source: 'osm',
-          elevation_m: 104.2, slope_percent: 5.1, slope_abs_percent: 5.1,
-          slope_class: 'moderate', slope_source: 'SRTM Local Tiles',
-          slope_confidence: 'high', traffic_proxy_class: 'low',
-        }),
-        feature('bonn-context-e2e-2', 7.1040, 50.7320, {
-          ukategorie: '3', ustunde: '17', istrad: '1', istpkw: '0',
-          matched_way_id: 'W2', road_context_source: 'osm',
-          elevation_m: 101.0, slope_percent: 1.2, slope_abs_percent: 1.2,
-          slope_class: 'flat', slope_source: 'SRTM Local Tiles',
-          slope_confidence: 'high', traffic_proxy_class: 'very_high',
-        }),
-      ],
-    },
-    ways: {
-      schemaVersion: 2,
-      ways: {
-        W1: {
-          highway: 0, maxspeed: 30, lanes: 2, surface: 0, cycleway: 0,
-          road_slope_percent: 5.0, road_slope_class: 'moderate',
-          road_slope_method: 'median_segments', road_slope_sample_count: 6,
-          road_slope_confidence: 'high', traffic_volume_value: 800,
-          traffic_volume_unit: 'DTV', traffic_volume_year: 2026,
-          traffic_volume_source: 'OSM-highway-proxy', traffic_volume_confidence: 'low',
-        },
-        W2: {
-          highway: 1, maxspeed: 50, lanes: 4, surface: 0,
-          road_slope_percent: 1.2, road_slope_class: 'flat',
-          road_slope_method: 'median_segments', road_slope_sample_count: 8,
-          road_slope_confidence: 'high', traffic_volume_value: 18000,
-          traffic_volume_unit: 'DTV', traffic_volume_year: 2026,
-          traffic_volume_source: 'OSM-highway-proxy', traffic_volume_confidence: 'low',
-        },
-      },
-      geometries: {
-        W1: [50.7288, 7.0988, 50.7300, 7.1000, 50.7310, 7.1012],
-        W2: [50.7310, 7.1025, 50.7320, 7.1040, 50.7330, 7.1055],
-      },
-    },
-    meta: {
-      schemaVersion: 2,
-      enrichmentScriptVersion: 'integration-fixture',
-      citySlug: 'bonn',
-      generatedAt: '2026-07-18T00:00:00.000Z',
-      sources: {
-        osm: { source: 'OpenStreetMap integration fixture', producerVersion: '1.2.0', coverage: 'full' },
-        dem: { source: 'SRTM Local Tiles', producerVersion: '1.1.0', resolutionM: 30 },
-        traffic: { source: 'OSM-highway-proxy', producerVersion: '1.0.0', datasetVersion: '1.0.0' },
-      },
-      counts: {
-        features: 2, matchedToWay: 2, withElevation: 2,
-        withTrafficProxy: 2, ways: 2, wayGeometries: 2, fullWays: 0,
-      },
-    },
-  };
-}
-
-async function installDeterministicContextFixture(container) {
-  const fixture = deterministicContextFixture();
-  const script = `
-    const fs = require('fs');
-    const path = require('path');
-    const zlib = require('zlib');
-    const fixture = ${JSON.stringify(fixture)};
-    const out = '/app/out';
-    fs.mkdirSync(out, { recursive: true });
-    const write = (logicalName, value) => {
-      const raw = path.join(out, logicalName);
-      fs.rmSync(raw, { force: true });
-      fs.rmSync(raw + '.gz', { force: true });
-      fs.writeFileSync(
-        raw + '.gz',
-        zlib.gzipSync(Buffer.from(JSON.stringify(value), 'utf8'), { level: 9, mtime: 0 })
-      );
-    };
-    write('output_all_years_bonn.geojson', fixture.geojson);
-    write('ways_bonn.json', fixture.ways);
-    write('output_all_years_bonn.enrichment.meta.json', fixture.meta);
-    fs.rmSync(path.join(out, 'ctxtiles', 'bonn'), { recursive: true, force: true });
-    console.log(JSON.stringify({ installed: true, city: 'Bonn' }));
-  `;
-  const result = await container.exec(['node', '-e', script]);
-  if (result.exitCode !== 0) {
-    throw new Error(`Could not install context fixture: ${result.output}`);
   }
 }
 
@@ -342,6 +236,7 @@ function parseBrowserResult(output) {
 
 SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
   let handle = null;
+  let buildManifest = null;
 
   beforeAll(async () => {
     const probe = await isDockerAvailable();
@@ -351,11 +246,34 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
         'Either start Docker or unset RUN_TESTCONTAINERS / DOCKER_HOST.'
       );
     }
-    handle = await startUnfallatlasContainer();
+    handle = await startUnfallatlasContainer({
+      buildArgs: REQUIRE_SHIPPED_CONTEXT ? {} : { VIDEO_EXPORT_INTEGRATION_FIXTURE: '1' },
+    });
+    const manifestResponse = await fetch(`${handle.baseUrl}/build-manifest.json`);
+    if (!manifestResponse.ok) {
+      throw new Error(`Could not read container build manifest: HTTP ${manifestResponse.status}`);
+    }
+    buildManifest = await manifestResponse.json();
   }, 10 * 60 * 1000);
 
   afterAll(async () => {
     if (handle) await handle.stop();
+  });
+
+  it('serves the canonical site artifact without exposing repository metadata', async () => {
+    expect(buildManifest).toEqual(expect.objectContaining({
+      schemaVersion: 1,
+      fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+    expect(buildManifest.data).toEqual(expect.objectContaining({
+      fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+    if (!REQUIRE_SHIPPED_CONTEXT) {
+      expect(buildManifest.data.cities.bonn.accidents.features).toBe(12);
+    }
+
+    const packageResponse = await fetch(`${handle.baseUrl}/package.json`);
+    expect(packageResponse.status).toBe(404);
   });
 
   test.each([
@@ -365,11 +283,38 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     { request: { bodyFormat: 'apng' }, label: 'body:apng', expectedContentType: /^image\/apng/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES },
     { request: { queryFormat: 'webp' }, label: 'query:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
   ])('returns valid $expectedExt export ($label)', async ({ request, expectedContentType, expectedExt, budget }) => {
-    const { status, contentType, body } = await postExportVideo(handle.baseUrl, request);
+    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);
     expect(status).toBe(200);
     expect(contentType).toMatch(expectedContentType);
     expect(body.length).toBeGreaterThanOrEqual(50 * 1024);
     expect(body.length).toBeLessThanOrEqual(budget);
+    expect(headers['x-unfallatlas-artifact-sha256']).toBe(
+      crypto.createHash('sha256').update(body).digest('hex')
+    );
+    expect(headers['x-unfallatlas-video-state-sha256']).toBe(EXPECTED_STATE_SHA256);
+    expect(headers['x-unfallatlas-build-fingerprint']).toBe(buildManifest.fingerprint);
+    expect(headers['x-unfallatlas-data-fingerprint']).toBe(buildManifest.data.fingerprint);
+    expect(headers['x-unfallatlas-evidence-sha256']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['content-digest']).toMatch(/^sha-256=:[A-Za-z0-9+/]+=*:\s*$/);
+    expect(headers.digest).toMatch(/^SHA-256=[A-Za-z0-9+/]+=*$/);
+    for (const name of [
+      'x-unfallatlas-encoded-frames',
+      'x-unfallatlas-encoded-accident-pixels',
+      'x-unfallatlas-encoded-slope-pixels',
+      'x-unfallatlas-encoded-traffic-pixels',
+    ]) {
+      expect(Number(headers[name])).toBeGreaterThan(0);
+    }
+    for (const name of [
+      'x-unfallatlas-loaded-accidents',
+      'x-unfallatlas-filtered-accidents',
+      'x-unfallatlas-viewport-accidents',
+      'x-unfallatlas-preview-accidents',
+    ]) {
+      if (REQUIRE_SHIPPED_CONTEXT) expect(Number(headers[name])).toBeGreaterThan(0);
+      else expect(Number(headers[name])).toBe(12);
+    }
+    expect(headers['x-unfallatlas-pdf-completed']).toBe('true');
 
     if (expectedExt === 'gif') {
       expect(['GIF87a', 'GIF89a']).toContain(body.slice(0, 6).toString('ascii'));
@@ -394,16 +339,29 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     expect(json.supportedFormats).toEqual(['gif', 'webp', 'apng']);
   }, 60 * 1000);
 
-  it('renders slope and traffic context visibly in the production container', async () => {
-    const requireShipped = process.env.CONTEXT_E2E_REQUIRE_SHIPPED === '1';
-    const city = String(process.env.CONTEXT_E2E_CITY || 'Bonn').trim();
-    if (!requireShipped) await installDeterministicContextFixture(handle.container);
+  it('rejects a partial canonical viewport with stable 400 before browser work', async () => {
+    const state = videoExportContract.fromLegacyParams(CONTEXT_BODY);
+    state.viewport = { center: { lat: 52.3759 }, zoom: 13 };
+    const startedAt = Date.now();
+    const { status, body } = await postExportVideo(handle.baseUrl, { body: { state } });
+    const elapsedMs = Date.now() - startedAt;
+    const json = JSON.parse(body.toString('utf8'));
+    expect(status).toBe(400);
+    expect(json).toEqual(expect.objectContaining({
+      error: 'incomplete_view',
+      category: 'invalid_request',
+      path: 'state.viewport',
+    }));
+    expect(elapsedMs).toBeLessThan(5000);
+  }, 30 * 1000);
 
+  it('renders slope and traffic context visibly in the production container', async () => {
+    const city = String(process.env.CONTEXT_E2E_CITY || 'Bonn').trim();
     const execution = await handle.container.exec(['node', '-e', browserAssertionScript(city)]);
     const result = parseBrowserResult(execution.output);
     if (execution.exitCode !== 0) {
       throw new Error(
-        `Context browser assertion failed (exit=${execution.exitCode}, shipped=${requireShipped}, city=${city}).\n` +
+        `Context browser assertion failed (exit=${execution.exitCode}, shipped=${REQUIRE_SHIPPED_CONTEXT}, city=${city}).\n` +
         execution.output
       );
     }
