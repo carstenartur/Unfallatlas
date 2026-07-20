@@ -55,6 +55,13 @@ describe('recorded source-frame evidence', () => {
   test('binds rendered context colours only in a frame carrying the semantic badge', () => {
     const width = 16, height = 16;
     const buffer = frameBuffer(width, height, 2);
+
+    // Perfect pre-render style matches in an earlier frame must not become
+    // evidence: only frames that also contain the fixed semantic badge prove
+    // that the requested state had already been installed before recording.
+    setPixel(buffer, width, height, 0, 8, 8, [240, 59, 32]);
+    setPixel(buffer, width, height, 0, 8, 9, [39, 125, 161]);
+
     for (let index = 0; index < SOURCE_MARKER_MIN_PIXELS + 2; index++) {
       setPixel(buffer, width, height, 1, index % width, Math.floor(index / width), [0, 191, 165]);
     }
