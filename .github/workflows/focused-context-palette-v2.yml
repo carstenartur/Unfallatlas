@@ -1,0 +1,43 @@
+name: Focused context palette v2
+
+on:
+  pull_request:
+    branches:
+      - fix/context-canvas-palette-contract
+
+permissions:
+  contents: read
+
+jobs:
+  focused-context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUN_TESTCONTAINERS: '1'
+      UNFALLATLAS_IMAGE: ghcr.io/carstenartur/unfallatlas:latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Run focused integration assertion
+        shell: bash
+        run: |
+          set +e
+          NODE_OPTIONS=--experimental-vm-modules npx jest \
+            --config=tests/integration/jest.testcontainers.config.js \
+            tests/integration/videoExport.testcontainers.test.js \
+            --runInBand -t 'renders slope and traffic context visibly' \
+            2>&1 | tee focused-context-v2.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+      - name: Upload focused log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: focused-context-palette-v2-log
+          path: focused-context-v2.log
+          if-no-files-found: error
+          retention-days: 14
