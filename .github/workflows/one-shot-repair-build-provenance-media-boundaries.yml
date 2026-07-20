@@ -24,8 +24,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/export-boundary-repair-plan-v2.sh 2>&1 | tee boundary-repair.log
-          git rev-parse 'origin/main^{tree}' > boundary-repair-plan/new-base-tree.txt
+          bash scripts/export-runtime-boundary-repair-v3.sh 2>&1 | tee boundary-repair.log
 
       - name: Stage proven commit objects without changing production refs
         if: steps.repair.outcome == 'success'
