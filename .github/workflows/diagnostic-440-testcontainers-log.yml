@@ -1,0 +1,42 @@
+name: Diagnostic full Testcontainers log for 440
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  testcontainers-log:
+    if: github.head_ref == 'diagnostic/440-testcontainers-log'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate Playwright Docker coupling
+        run: node scripts/check-playwright-docker-version.js
+      - name: Install dependencies
+        run: npm ci
+      - name: Run real Testcontainers suite with complete log
+        id: tc
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:integration:tc 2>&1 | tee testcontainers-440.log
+      - name: Upload complete Testcontainers diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: testcontainers-log-440
+          path: testcontainers-440.log
+          if-no-files-found: error
+      - name: Enforce Testcontainers result
+        if: steps.tc.outcome != 'success'
+        run: exit 1
