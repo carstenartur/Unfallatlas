@@ -9,12 +9,14 @@ Legende: ✅ getestet · ⚠️ teilweise · ❌ offen
 
 | Browser      | Desktop   | Mobile      |
 |-------------|-----------|-------------|
-| Chromium    | ✅        | ❌ offen    |
+| Chromium    | ✅        | ✅ 320/390 px, Keyboard + Touch |
 | Firefox     | ⚠️ Smoke  | ❌ offen    |
 | WebKit      | ⚠️ Smoke  | ❌ offen    |
 
 > Smoke-Tests via `tests/e2e/smoke.spec.js`, Projekte `firefox-smoke` / `webkit-smoke` in `playwright.config.js`.  
-> Mobile/Responsive: noch keine Playwright-`devices`-Projekte vorhanden (nächster Schritt: `iPhone 13`, `Pixel 5`).
+> Responsive Task-Fläche: `tests/e2e/task-surface.spec.js` prüft 320/390 px,
+> horizontales Overflow, 44-px-Touchziele, Dialog-Bottom-Sheet und einen
+> vollständigen Keyboard-/Touch-Weg bis zum Exportdialog.
 
 ---
 
@@ -46,8 +48,9 @@ Legende: ✅ getestet · ⚠️ teilweise · ❌ offen
 
 | Szenario                              | Status    |
 |---------------------------------------|-----------|
-| CDN-Routen auf lokale `node_modules` umgeleitet (Export-Libs) | ✅ `tests/e2e/helpers.js` |
-| Leaflet-CDN-Ausfall                   | ❌ offen  |
+| Gelockte Browser-Libs lokal in `_site/vendor` | ✅ `npm run build:site` |
+| Laufzeit-CDN-Zugriff                  | ✅ ausgeschlossen / im E2E blockiert |
+| Build-/Datenfingerprints              | ✅ `_site/build-manifest.json` |
 | Service-Worker / Offline-Fallback     | ❌ nicht implementiert |
 
 ---
@@ -57,8 +60,8 @@ Legende: ✅ getestet · ⚠️ teilweise · ❌ offen
 | Seite / Komponente    | Tool        | Schweregradschwelle     | Status    |
 |-----------------------|-------------|-------------------------|-----------|
 | Hauptseite            | axe-core    | serious/critical        | ✅ `tests/e2e/accessibility.spec.js` |
-| Export-Modal          | axe-core    | serious/critical        | ✅ `tests/e2e/accessibility.spec.js` |
-| ARIA-Attribute Modal  | Playwright  | manuell                 | ✅ `tests/e2e/werkbank.spec.js` |
+| Vier Arbeitsdialoge (Export, Recherche, Prioritäten, Recorder) | axe-core | serious/critical | ✅ `tests/e2e/accessibility.spec.js` |
+| Fokusfalle / `inert` / Fokus-Rückgabe | Playwright + Jest | Tastaturvertrag | ✅ `task-surface.spec.js`, `ua.modalController.test.js` |
 | Mobile-Screen-Reader  | –           | –                       | ❌ offen  |
 
 ---

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
+  "screenshot": {
+    "path": "docs/screenshots/08-stundenfilter.png",
+    "bytes": 160105,
+    "sha256": "5012e2c9482690a4e6daeb1ffbf962eda0749ab9aeeb6a5ce37ed91c33f2468e"
+  },
+  "build": {
+    "path": "_site/build-manifest.json",
+    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
+    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
+    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
+    "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
+  },
+  "criteria": {
+    "city": "Hannover",
+    "layers": [
+      "cluster",
+      "heatmap"
+    ],
+    "requireCompleteCoverage": true
+  },
+  "lifecycle": {
+    "status": "ready",
+    "city": "Hannover",
+    "counts": {
+      "loaded": 19248,
+      "filtered": 15010,
+      "viewport": 15010
+    },
+    "coverage": {
+      "mode": "full-city",
+      "complete": true,
+      "provider": "static",
+      "city": "Hannover",
+      "loadedFeatureCount": 19248
+    },
+    "render": {
+      "revision": 4,
+      "completedRevision": 4,
+      "submitted": true,
+      "layers": {
+        "cluster": {
+          "requested": true,
+          "expected": 15010,
+          "processed": 15010,
+          "visible": 15010,
+          "painted": false,
+          "complete": true
+        },
+        "heatmap": {
+          "requested": true,
+          "expected": 15010,
+          "processed": 15010,
+          "visible": 15010,
+          "painted": true,
+          "complete": true
+        },
+        "poi": {
+          "requested": false,
+          "expected": 755,
+          "processed": 0,
+          "visible": 0,
+          "painted": false,
+          "complete": true
+        },
+        "argumentation": {
+          "requested": true,
+          "expected": 15010,
+          "processed": 6,
+          "visible": 6,
+          "painted": false,
+          "complete": true
+        }
+      }
+    },
+    "error": null
+  }
+}
