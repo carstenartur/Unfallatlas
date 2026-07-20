@@ -3,10 +3,10 @@
   "version": "2.1.4",
   "description": "Unfallatlas data converter and analysis tool with interactive visualization",
   "main": "index.js",
-  "packageManager": "npm@11.9.0",
+  "packageManager": "npm@12.0.1",
   "engines": {
     "node": "24.x",
-    "npm": ">=11 <12"
+    "npm": ">=11 <13"
   },
   "scripts": {
     "build:site": "node scripts/build-site.js",
