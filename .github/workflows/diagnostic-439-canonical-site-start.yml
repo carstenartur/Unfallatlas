@@ -1,0 +1,60 @@
+name: Diagnostic canonical site startup for 439
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-site:
+    if: github.head_ref == 'diagnostic/439-canonical-site-start'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build canonical site with complete diagnostics
+        id: build
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build:site 2>&1 | tee canonical-site.log
+      - name: Probe built assets and server
+        if: steps.build.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s _site/vendor/leaflet/leaflet.js
+          test -s _site/vendor/leaflet/leaflet.css
+          test -s _site/vendor/third-party-notices.json
+          node scripts/serve-site.js > serve-site.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:8000/vendor/leaflet/leaflet.js >/dev/null; then
+              exit 0
+            fi
+            sleep 0.2
+          done
+          cat serve-site.log
+          exit 1
+      - name: Upload complete diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: canonical-site-startup-439
+          path: |
+            canonical-site.log
+            serve-site.log
+            _site/build-manifest.json
+          if-no-files-found: warn
+      - name: Enforce successful build
+        if: steps.build.outcome != 'success'
+        run: exit 1
