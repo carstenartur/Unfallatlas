@@ -21,7 +21,7 @@ tests/
 │   ├── accessibility.spec.js  # axe-core accessibility tests (main page + export modal)
 │   ├── screenshots.spec.js    # Automated screenshot generation (16 screenshots + PDF render)
 │   ├── demo.spec.js           # Demo GIF video generation
-│   └── helpers.js             # CDN route interception for offline tests (pdfmake, docx)
+│   └── helpers.js             # Readiness helpers + guard against runtime dependency CDNs
 ├── performance/               # Performance and load tests
 │   └── performance.test.js    # Data processing performance tests
 └── fixtures/                  # Test data and fixtures
