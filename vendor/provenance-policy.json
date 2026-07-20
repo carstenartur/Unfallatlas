@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "policyId": "unfallatlas-browser-vendor-provenance-v1",
+  "trackingIssue": "https://github.com/carstenartur/Unfallatlas/issues/406",
+  "completeInventoryScope": "delivered-assets-component-level",
+  "trustedVendorBuilders": [],
+  "unresolvedAssets": [
+    {
+      "id": "docx-opaque-upstream-bundle",
+      "paths": [
+        "vendor/export/docx.js"
+      ],
+      "kind": "opaque-supplier-bundle",
+      "missingEvidence": [
+        "integrity-pinned build-tool lock",
+        "byte-for-byte reproduction from component sources",
+        "complete component contains relation",
+        "full license and copyright evidence for every embedded component"
+      ],
+      "migrationOptions": [
+        "Build a browser entry from a checked-in, integrity-pinned vendor workspace and retain the bundler metafile and source map.",
+        "Replace the browser bundle with a separately maintained export service while preserving the current DOCX export contract."
+      ]
+    },
+    {
+      "id": "pdfmake-opaque-upstream-bundle",
+      "paths": [
+        "vendor/export/pdfmake.js"
+      ],
+      "kind": "opaque-supplier-bundle",
+      "missingEvidence": [
+        "integrity-pinned build-tool lock including svg-to-pdfkit",
+        "byte-for-byte reproduction from component sources",
+        "complete component contains relation for the webpack source-map inventory",
+        "full license and copyright evidence for every embedded component"
+      ],
+      "migrationOptions": [
+        "Rebuild pdfmake from its browser source with a checked-in npm lock, exact webpack configuration, source map and metafile-derived SBOM.",
+        "Replace PDF generation with a maintained source-buildable renderer that satisfies the existing PDF render gate."
+      ]
+    },
+    {
+      "id": "pdfmake-roboto-font-provenance",
+      "paths": [
+        "vendor/export/pdfmake-fonts.js"
+      ],
+      "kind": "embedded-font-container",
+      "missingEvidence": [
+        "integrity-pinned upstream font source",
+        "full OFL-1.1 text and font copyright notice",
+        "deterministic VFS generator attestation"
+      ],
+      "migrationOptions": [
+        "Pin a redistributable Roboto source archive, verify all four TTF name tables and hashes, and generate vfs_fonts.js in the site build.",
+        "Use a checked-in OFL font family with deterministic subsetting and VFS generation."
+      ]
+    },
+    {
+      "id": "leaflet-heat-embedded-simpleheat",
+      "paths": [
+        "vendor/leaflet.heat/leaflet-heat.js"
+      ],
+      "kind": "embedded-component-without-project-lock",
+      "missingEvidence": [
+        "simpleheat@0.2.0 package integrity in the project lock",
+        "source-build attestation and contains relation",
+        "full simpleheat license and copyright evidence"
+      ],
+      "migrationOptions": [
+        "Pin simpleheat@0.2.0 and rebuild Leaflet.heat from source with a deterministic minifier.",
+        "Replace the prebundle with separately loaded, integrity-pinned source-built modules."
+      ]
+    },
+    {
+      "id": "leaflet-image-embedded-d3-queue",
+      "paths": [
+        "vendor/leaflet-image/leaflet-image.js"
+      ],
+      "kind": "opaque-supplier-bundle",
+      "missingEvidence": [
+        "source-build attestation for leaflet-image plus d3-queue@2.0.3",
+        "full leaflet-image license and copyright evidence"
+      ],
+      "migrationOptions": [
+        "Rebuild leaflet-image from its source and locked d3-queue@2.0.3 using a pinned browser bundler.",
+        "Replace leaflet-image with a maintained map-capture implementation whose dependencies expose complete license files."
+      ]
+    },
+    {
+      "id": "leaflet-draw-license-text",
+      "paths": [
+        "vendor/leaflet-draw/leaflet.draw.css",
+        "vendor/leaflet-draw/leaflet.draw.js",
+        "vendor/leaflet-draw/images/spritesheet.png",
+        "vendor/leaflet-draw/images/spritesheet-2x.png",
+        "vendor/leaflet-draw/images/spritesheet.svg"
+      ],
+      "kind": "missing-redistribution-evidence",
+      "missingEvidence": [
+        "full upstream MIT license text and copyright notice tied to leaflet-draw@1.0.4"
+      ],
+      "migrationOptions": [
+        "Vendor the exact upstream license and copyright file with a provenance hash.",
+        "Upgrade to a package archive that contains complete redistribution evidence and revalidate the UI contract."
+      ]
+    }
+  ]
+}

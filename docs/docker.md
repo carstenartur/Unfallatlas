@@ -31,6 +31,18 @@ docker build -t unfallatlas .
 docker run -p 8000:8000 unfallatlas
 ```
 
+Lokale Builds verwenden die diagnostische Vendor-Provenienz. Ein öffentliches
+Image muss zusätzlich mit
+`--build-arg REQUIRE_COMPLETE_VENDOR_PROVENANCE=1` gebaut werden. Dadurch wird
+das im Image selbst erzeugte `_site`-Artefakt fail-closed geprüft; solange die
+in Issue #406 dokumentierten Herkunftslücken bestehen, bricht dieser Build
+absichtlich ab.
+
+Ein optionales `UNFALLATLAS_DATA_ROOT` muss auf ein dediziertes
+Datenverzeichnis zeigen. Unter `/out` werden nur die dokumentierten
+Unfall-/Kontextartefakte ausgeliefert; Dotfiles, QA-Berichte und temporäre
+Dateien sind nicht öffentlich erreichbar.
+
 ## Video-Export-Funktion (Server-Betrieb: Node oder Docker)
 
 Sobald die Werkbank mit Backend läuft (lokaler Node-Server oder Docker),
@@ -59,9 +71,12 @@ export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
 npm run regen:demo
 ```
 
-Damit werden Test und Doku-Asset (`docs/demo.gif`, bei >10 MB automatisch
-`docs/demo.webp` oder `docs/demo.apng`) aus derselben Video-Export-Pipeline
-erzeugt.
+Damit werden Test und das kanonische Doku-Asset `docs/demo.gif` aus derselben
+Video-Export-Pipeline erzeugt. Der Generator prüft vor dem Ersetzen Format,
+Zielmaß, 60-Sekunden-Dauergrenze und Manifest-Budget. Bei mehr als 9 MiB
+bricht er ohne Änderung ab;
+ein Wechsel auf WebP/APNG ist eine eigene, gemeinsam mit Manifest und
+Markdown-Referenzen zu prüfende Migration.
 
 ## Verwandte Doku
 

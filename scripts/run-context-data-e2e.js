@@ -20,10 +20,12 @@ const net = require('net');
 const path = require('path');
 const zlib = require('zlib');
 const { spawn } = require('child_process');
+const { buildSite } = require('./build-site');
 
 const ROOT = path.resolve(__dirname, '..');
 const BUILD_ROOT = path.resolve(ROOT, process.env.CONTEXT_E2E_BUILD_DIR || '.build/context-e2e');
 const SITE_ROOT = path.join(BUILD_ROOT, 'site');
+const GENERATED_ROOT = path.join(BUILD_ROOT, 'generated');
 const CACHE_ROOT = path.resolve(ROOT, process.env.CONTEXT_E2E_CACHE_DIR || '.build/context-e2e/cache');
 const WORK_ROOT = path.join(BUILD_ROOT, 'work');
 const CITY = String(process.env.CONTEXT_E2E_CITY || 'Bonn').trim();
@@ -44,39 +46,16 @@ function run(command, args, options) {
   });
 }
 
-function copyStaticApplication() {
-  fs.rmSync(SITE_ROOT, { recursive: true, force: true });
-  fs.mkdirSync(SITE_ROOT, { recursive: true });
-  const excludedTopLevel = new Set([
-    '.git',
-    '.build',
-    'node_modules',
-    'out',
-    'analysis-service',
-    'coverage',
-    'playwright-report',
-    'test-results',
-  ]);
-
-  // Copy top-level entries individually. Node correctly rejects `cpSync(ROOT,
-  // ROOT/.build/...)` as copying a directory into its own descendant before a
-  // filter callback can exclude `.build`.
-  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
-    if (excludedTopLevel.has(entry.name)) continue;
-    const source = path.join(ROOT, entry.name);
-    const destination = path.join(SITE_ROOT, entry.name);
-    if (entry.isDirectory()) fs.cpSync(source, destination, { recursive: true });
-    else if (entry.isFile()) fs.copyFileSync(source, destination);
-  }
-  fs.mkdirSync(path.join(SITE_ROOT, 'out'), { recursive: true });
-}
-
-function copyOptionalCityArtifact(logicalName) {
-  const sourceRaw = path.join(ROOT, 'out', logicalName);
-  const sourceGz = `${sourceRaw}.gz`;
-  const targetDir = path.join(SITE_ROOT, 'out');
-  if (fs.existsSync(sourceGz)) fs.copyFileSync(sourceGz, path.join(targetDir, `${logicalName}.gz`));
-  else if (fs.existsSync(sourceRaw)) fs.copyFileSync(sourceRaw, path.join(targetDir, logicalName));
+function buildStaticApplication() {
+  buildSite({
+    root: ROOT,
+    inputDir: path.relative(ROOT, GENERATED_ROOT),
+    poiDir: 'out',
+    outputDir: path.relative(ROOT, SITE_ROOT),
+    requiredCitiesFile: null,
+    requiredCities: [CITY],
+    minFeatures: 1,
+  });
 }
 
 function readGzipJson(file) {
@@ -169,25 +148,27 @@ function stopChild(child) {
 
 async function main() {
   if (!CITY) throw new Error('CONTEXT_E2E_CITY must not be empty');
-  copyStaticApplication();
+  fs.rmSync(GENERATED_ROOT, { recursive: true, force: true });
 
   console.log(`[context-e2e] Generating real context data for ${CITY}`);
   await run(process.execPath, [
     path.join(ROOT, 'scripts', 'generate-context-city.js'),
     '--city', CITY,
     '--input-dir', path.join(ROOT, 'out'),
-    '--output-dir', path.join(SITE_ROOT, 'out'),
+    '--output-dir', GENERATED_ROOT,
     '--cache-dir', CACHE_ROOT,
     '--work-dir', WORK_ROOT,
     '--force',
   ]);
 
-  // POIs are not part of the context contract but copying them when available
-  // keeps the browser console quiet and makes the test site closer to production.
+  // Build only after producer output is final. The build/data manifests then
+  // fingerprint the exact bytes served to the browser instead of a stale
+  // pre-generation snapshot.
+  buildStaticApplication();
+
   const slug = CITY.toLowerCase()
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
     .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  copyOptionalCityArtifact(`poi_${slug}.geojson`);
   const tileData = validateGeneratedContextTiles(slug);
 
   const port = await choosePort();

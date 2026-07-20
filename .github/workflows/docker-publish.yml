@@ -15,6 +15,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # GHCR is a public distribution channel, so it must enforce the same
+      # complete-provenance gate as the release ZIP and Pages deployment.  In
+      # particular, a tag or manual dispatch must not bypass issue #406.
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install locked Node dependencies
+        run: npm ci
+
+      - name: Build and require complete vendor provenance
+        run: |
+          npm run build:site
+          npm run validate:vendor-provenance -- --require-complete
+
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -36,5 +53,11 @@ jobs:
         with:
           context: .
           push: true
+          # Re-run the complete-provenance gate inside the image build after
+          # `_site` has been materialized. The host preflight above is useful
+          # diagnostics, but `_site` is deliberately excluded from the Docker
+          # context and therefore cannot attest the bytes that are published.
+          build-args: |
+            REQUIRE_COMPLETE_VENDOR_PROVENANCE=1
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

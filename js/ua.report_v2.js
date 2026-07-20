@@ -110,26 +110,6 @@
   }
 
   /**
-   * Try loading a script from a list of CDN URLs in order, stopping at first success.
-   * @param {string[]} urls - CDN URLs to try (primary first, then fallbacks)
-   * @param {string|null} globalCheck - Global variable name to check if already loaded
-   * @returns {Promise<void>}
-   */
-  async function loadScriptWithFallback(urls, globalCheck) {
-    let lastError;
-    for (const src of urls) {
-      try {
-        await loadScript(src, globalCheck);
-        return;
-      } catch (e) {
-        lastError = e;
-        console.warn(`Failed to load ${src}, trying fallback...`);
-      }
-    }
-    throw lastError;
-  }
-
-  /**
    * Ensure export libraries are loaded.
    * Concurrent calls share the same in-flight Promise so scripts are only
    * injected once even if Word and PDF buttons are clicked simultaneously.
@@ -163,35 +143,22 @@
 
     UA._exportLibrariesLoading = (async function doLoad() {
       try {
-        // NOTE: Keep CDN versions in sync with package.json and tests/e2e/helpers.js setupCDNRoutes().
-        // Primary CDN: jsDelivr. Fallback CDN: unpkg.
-        // docx@9.x uses dist/index.iife.js (IIFE format).
-        // pdfmake@0.3.x: vfs_fonts.js registers fonts via pdfMake.addVirtualFileSystem() side-effect.
+        // These files are materialised from the exact package-lock versions by
+        // `npm run build:site`. Runtime CDN fallbacks are deliberately absent:
+        // production, E2E and screenshot QA must execute identical bytes.
         progress('Lade Bibliothek 1/3: docx…');
-        await loadScriptWithFallback([
-          'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js',
-          'https://unpkg.com/docx@9.6.1/dist/index.iife.js'
-        ], 'docx');
+        await loadScript('vendor/export/docx.js', 'docx');
 
         progress('Lade Bibliothek 2/3: pdfMake…');
-        await loadScriptWithFallback([
-          'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/pdfmake.min.js',
-          'https://unpkg.com/pdfmake@0.3.8/build/pdfmake.min.js'
-        ], 'pdfMake');
+        await loadScript('vendor/export/pdfmake.js', 'pdfMake');
 
         progress('Lade Bibliothek 3/3: FileSaver…');
-        await loadScriptWithFallback([
-          'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js',
-          'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js'
-        ], 'saveAs');
+        await loadScript('vendor/export/file-saver.js', 'saveAs');
         
         // Load vfs_fonts after pdfMake so it can register fonts via side-effect
         if (window.pdfMake) {
           progress('Lade Schriftarten…');
-          await loadScriptWithFallback([
-            'https://cdn.jsdelivr.net/npm/pdfmake@0.3.8/build/vfs_fonts.js',
-            'https://unpkg.com/pdfmake@0.3.8/build/vfs_fonts.js'
-          ], null);
+          await loadScript('vendor/export/pdfmake-fonts.js', null);
         }
         
         UA._exportLibrariesLoaded = true;
