@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# The production image deliberately puts this wrapper before the system ffmpeg.
+# Ordinary calls are delegated byte-for-byte. Three format-specific operations
+# are handled here: the Playwright ffmpeg build cannot reliably decode animated
+# WebP, an adaptive GIF palette may drop fixed semantic-evidence colours, and
+# lossless libwebp_anim needs deterministic compression effort to stay inside
+# the public artifact budget without dropping frames or evidence pixels.
+
+SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+REAL_FFMPEG="${UNFALLATLAS_REAL_FFMPEG:-/usr/bin/ffmpeg}"
+
+if [[ ! -x "$REAL_FFMPEG" ]]; then
+  IFS=':' read -r -a path_parts <<< "${PATH:-}"
+  for part in "${path_parts[@]}"; do
+    [[ -n "$part" ]] || part='.'
+    candidate="$part/ffmpeg"
+    if [[ "$part" != "$SELF_DIR" && -x "$candidate" ]]; then
+      REAL_FFMPEG="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ ! -x "$REAL_FFMPEG" ]]; then
+  echo "unfallatlas ffmpeg wrapper: real ffmpeg not found" >&2
+  exit 127
+fi
+
+find_magick() {
+  if [[ -n "${UNFALLATLAS_MAGICK:-}" && -x "${UNFALLATLAS_MAGICK}" ]]; then
+    printf '%s\n' "$UNFALLATLAS_MAGICK"
+    return 0
+  fi
+
+  local command_name candidate
+  for command_name in magick convert; do
+    candidate="$(command -v "$command_name" 2>/dev/null || true)"
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+arguments=("$@")
+webp_anim=0
+lossless_webp=0
+for ((index = 0; index < ${#arguments[@]}; index++)); do
+  if [[ "${arguments[index]}" == '-c:v' && "${arguments[index + 1]:-}" == 'libwebp_anim' ]]; then
+    webp_anim=1
+  elif [[ "${arguments[index]}" == '-lossless' && "${arguments[index + 1]:-}" == '1' ]]; then
+    lossless_webp=1
+  fi
+done
+
+if [[ "$webp_anim" == 1 && "$lossless_webp" == 1 ]]; then
+  webp_quality="${UNFALLATLAS_WEBP_QUALITY:-80}"
+  if [[ ! "$webp_quality" =~ ^[0-9]+$ ]] || (( webp_quality < 0 || webp_quality > 100 )); then
+    echo "unfallatlas ffmpeg wrapper: invalid UNFALLATLAS_WEBP_QUALITY=$webp_quality" >&2
+    exit 64
+  fi
+
+  quality_found=0
+  for ((index = 0; index < ${#arguments[@]}; index++)); do
+    if [[ "${arguments[index]}" == '-q:v' ]]; then
+      if (( index + 1 >= ${#arguments[@]} )); then
+        echo 'unfallatlas ffmpeg wrapper: -q:v is missing its value' >&2
+        exit 64
+      fi
+      arguments[index + 1]="$webp_quality"
+      quality_found=1
+    fi
+  done
+  if [[ "$quality_found" == 0 ]]; then
+    arguments+=('-q:v' "$webp_quality")
+  fi
+  set -- "${arguments[@]}"
+fi
+
+is_palettegen=0
+input_path=''
+rawvideo=0
+stdout_pipe=0
+previous=''
+for argument in "$@"; do
+  if [[ "$previous" == '-i' && -z "$input_path" ]]; then
+    input_path="$argument"
+  elif [[ "$previous" == '-f' && "$argument" == 'rawvideo' ]]; then
+    rawvideo=1
+  fi
+  [[ "$argument" == *'palettegen='* ]] && is_palettegen=1
+  [[ "$argument" == 'pipe:1' ]] && stdout_pipe=1
+  previous="$argument"
+done
+
+if [[ "$is_palettegen" == 1 ]]; then
+  "$REAL_FFMPEG" "$@"
+  palette_path="${!#}"
+  magick_bin="$(find_magick || true)"
+  if [[ -z "$magick_bin" ]]; then
+    echo "unfallatlas ffmpeg wrapper: ImageMagick is required to reserve evidence colours" >&2
+    exit 69
+  fi
+
+  # palettegen always emits a 16x16 image for a 256-colour palette. Reserve
+  # five cells for the fixed evidence colours. paletteuse=dither=none then
+  # preserves the marker and layer rings exactly in the final GIF.
+  temp_palette="${palette_path}.unfallatlas.tmp.png"
+  "$magick_bin" "$palette_path" \
+    -alpha off \
+    -fill 'rgb(0,191,165)' -draw 'point 15,15' \
+    -fill 'rgb(255,0,255)' -draw 'point 14,15' \
+    -fill 'rgb(128,0,128)' -draw 'point 13,15' \
+    -fill 'rgb(0,96,255)' -draw 'point 12,15' \
+    -fill 'rgb(255,0,128)' -draw 'point 11,15' \
+    "$temp_palette"
+  mv -f -- "$temp_palette" "$palette_path"
+  exit 0
+fi
+
+if [[ "$rawvideo" == 1 && "$stdout_pipe" == 1 && "${input_path,,}" == *.webp ]]; then
+  magick_bin="$(find_magick || true)"
+  if [[ -z "$magick_bin" ]]; then
+    echo "unfallatlas ffmpeg wrapper: ImageMagick is required to inspect animated WebP" >&2
+    exit 69
+  fi
+
+  # ImageMagick/libwebp expands every ANMF frame to the full VP8X canvas and
+  # writes contiguous RGBA frames. This is the same byte contract consumed by
+  # countPalettePixels, without relying on ffmpeg's incomplete ANIM decoder.
+  exec "$magick_bin" "$input_path" -coalesce -alpha on -depth 8 rgba:-
+fi
+
+exec "$REAL_FFMPEG" "$@"

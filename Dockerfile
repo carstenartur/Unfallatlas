@@ -15,9 +15,12 @@
 
 FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
-# ffmpeg für WebM → GIF-Konvertierung
+# ffmpeg erzeugt GIF, WebP und APNG. ImageMagick/libwebp übernimmt ausschließlich
+# die formatgerechte Nachprüfung animierter WebP-Dateien und das Reservieren der
+# festen QA-Nachweisfarben in der adaptiven GIF-Palette.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ffmpeg \
+      imagemagick \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,6 +38,7 @@ RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 
 # Gesamten Anwendungscode kopieren (nach npm ci, damit node_modules gecacht bleibt)
 COPY . .
+RUN chmod 0755 /app/bin/ffmpeg
 
 # Materialisiert die exakt gelockten Browser-Abhängigkeiten und dasselbe
 # Site-Artefakt, das Pages, Playwright und die Screenshot-QA verwenden.
@@ -43,7 +47,13 @@ COPY . .
 # Images setzen den Build-Arg zwingend auf 1; dann wird genau das gerade im
 # Image erzeugte _site-Artefakt vor dem nächsten Layer fail-closed geprüft.
 ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0
-RUN npm run build:site \
+ARG VIDEO_EXPORT_INTEGRATION_FIXTURE=0
+RUN case "$VIDEO_EXPORT_INTEGRATION_FIXTURE" in \
+      0) ;; \
+      1) VIDEO_EXPORT_INTEGRATION_FIXTURE=1 node scripts/install-video-export-fixture.js ;; \
+      *) echo "VIDEO_EXPORT_INTEGRATION_FIXTURE must be 0 or 1" >&2; exit 2 ;; \
+    esac \
+    && npm run build:site \
     && case "$REQUIRE_COMPLETE_VENDOR_PROVENANCE" in \
          0) ;; \
          1) npm run validate:vendor-provenance -- --require-complete ;; \

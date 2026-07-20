@@ -413,4 +413,12 @@ describe('canonical site build contract', () => {
       .toContain("path.join(outputRoot, 'out')");
   });
 
+  test('container integration always builds the exact checked-out Docker context', () => {
+    const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/test.yml'), 'utf8');
+    expect(workflow).toContain('npm run test:integration:tc');
+    expect(workflow).not.toContain('use_prebuilt');
+    expect(workflow).not.toContain('ghcr.io/carstenartur/unfallatlas:latest');
+    expect(workflow).not.toContain('UNFALLATLAS_IMAGE:');
+  });
+
 });

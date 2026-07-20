@@ -1935,5 +1935,30 @@ describe('Data Export - CSV / GeoJSON / KML', () => {
       expect(result).toBeDefined();
       expect(result.label).toBeDefined();
     });
+
+    test('bounds the complete Nominatim response body for export readiness', async () => {
+      jest.useFakeTimers();
+      try {
+        UA.REVERSE_GEOCODE_TIMEOUT_MS = 25;
+        global.fetch = jest.fn(() => Promise.resolve({
+          ok: true,
+          json: () => new Promise(() => {}),
+        }));
+
+        const pending = UA.reverseGeocode(49.12345, 8.54321);
+        await Promise.resolve();
+        jest.advanceTimersByTime(26);
+        const result = await pending;
+
+        expect(result.label).toBe('49.12345, 8.54321');
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('nominatim.openstreetmap.org/reverse'),
+          expect.objectContaining({ signal: expect.anything() })
+        );
+      } finally {
+        delete UA.REVERSE_GEOCODE_TIMEOUT_MS;
+        jest.useRealTimers();
+      }
+    });
   });
 });
