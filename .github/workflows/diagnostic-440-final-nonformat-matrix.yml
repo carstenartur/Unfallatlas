@@ -1,0 +1,59 @@
+name: Diagnostic final non-format contracts for 440
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    if: github.head_ref == 'diagnostic/440-final-nonformat-matrix'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: canonical-site
+            pattern: 'serves the canonical site artifact without exposing repository metadata'
+          - id: unsupported-format
+            pattern: 'rejects unsupported export format'
+          - id: partial-viewport
+            pattern: 'rejects a partial canonical viewport with stable 400 before browser work'
+          - id: context-visible
+            pattern: 'renders slope and traffic context visibly in the production container'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: node scripts/check-playwright-docker-version.js
+      - run: npm ci
+      - name: Run focused real-container contract
+        id: contract
+        continue-on-error: true
+        shell: bash
+        env:
+          RUN_TESTCONTAINERS: '1'
+          TEST_PATTERN: ${{ matrix.pattern }}
+        run: |
+          set -o pipefail
+          NODE_OPTIONS=--experimental-vm-modules npx jest \
+            --config=tests/integration/jest.testcontainers.config.js \
+            --runInBand \
+            --testNamePattern="$TEST_PATTERN" \
+            2>&1 | tee "contract-${{ matrix.id }}.log"
+      - name: Upload contract output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: final-contract-${{ matrix.id }}-log
+          path: contract-${{ matrix.id }}.log
+          if-no-files-found: error
+      - name: Enforce result
+        if: steps.contract.outcome != 'success'
+        run: exit 1
