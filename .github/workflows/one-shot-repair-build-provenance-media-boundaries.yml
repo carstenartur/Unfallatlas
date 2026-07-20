@@ -18,13 +18,13 @@ jobs:
           ref: automation/repair-build-provenance-media-boundaries
           fetch-depth: 0
 
-      - name: Rebuild and prove executable PR boundaries locally
+      - name: Rebuild and prove static server boundary locally
         id: repair
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/export-runtime-boundary-repair-v3.sh 2>&1 | tee boundary-repair.log
+          bash scripts/export-static-server-boundary-repair-v4.sh 2>&1 | tee boundary-repair.log
 
       - name: Stage proven commit objects without changing production refs
         if: steps.repair.outcome == 'success'
