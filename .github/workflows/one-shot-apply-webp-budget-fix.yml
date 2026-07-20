@@ -1,0 +1,39 @@
+name: One-shot apply WebP budget fix
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'automation/rechain-codec-media-stack'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: automation/rechain-codec-media-stack
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate and apply deterministic WebP budget repair
+        id: apply
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/apply-webp-budget-fix.sh 2>&1 | tee webp-budget-apply.log
+      - name: Upload validation and application log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: webp-budget-apply-log
+          path: webp-budget-apply.log
+          if-no-files-found: error
+      - name: Enforce successful validated application
+        if: steps.apply.outcome != 'success'
+        run: exit 1
