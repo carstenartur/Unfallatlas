@@ -56,7 +56,10 @@ function roadPoints(centerX, centerY) {
 }
 
 describe('recorded source-frame evidence', () => {
-  test('decodes the source at the same scale and sampling rate as final evidence inspection', () => {
+  test('decodes source evidence on the time grid shared by every final format', () => {
+    // Whole-second samples are present both in the 2fps GIF/APNG inspection
+    // and in the 3fps WebP encoding. The explicit 2.2-second pre-dialog hold
+    // guarantees at least one real context frame on this common grid.
     expect(buildSourceFrameInspectionArgs('/tmp/source.webm')).toEqual([
       '-v', 'error',
       '-i', '/tmp/source.webm',
