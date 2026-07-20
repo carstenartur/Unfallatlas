@@ -25,10 +25,13 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install locked dependencies
+        run: npm ci
+
       - name: Prepare build dirs
         run: |
           rm -rf .build _site
-          mkdir -p .build/raw .build/enriched _site/out
+          mkdir -p .build/raw .build/enriched
 
       - name: Generate raw accident data
         shell: bash
@@ -82,25 +85,8 @@ jobs:
             --input-dir .build/enriched \
             --output-dir .build/enriched
 
-      - name: Build gzip-only site data
-        run: |
-          node scripts/build-static-data.js \
-            --input-dir .build/enriched \
-            --poi-dir out \
-            --output-dir _site/out \
-            --gzip-only \
-            --manifest _site/out/data-manifest.json
-
-      - name: Copy static app
-        run: |
-          rsync -a \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude '.build' \
-            --exclude '_site' \
-            --exclude 'out' \
-            --exclude 'node_modules' \
-            ./ _site/
+      - name: Build canonical static site
+        run: npm run build:site -- --input-dir .build/enriched --poi-dir out --output-dir _site
 
       - name: Validate generated site
         run: |
@@ -110,6 +96,10 @@ jobs:
             --require-cities-file cities.txt \
             --min-features 10
           node scripts/check-context-datasets.js _site
+
+
+      - name: Require complete vendor provenance before deployment
+        run: npm run validate:vendor-provenance -- --require-complete
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
