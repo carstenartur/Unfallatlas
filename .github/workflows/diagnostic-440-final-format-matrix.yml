@@ -1,0 +1,74 @@
+name: Diagnostic final video format matrix for 440
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    if: github.head_ref == 'diagnostic/440-final-format-matrix'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: gif-default
+            pattern: 'returns valid gif export \(default\)'
+          - id: gif-body
+            pattern: 'returns valid gif export \(body:gif\)'
+          - id: webp-body
+            pattern: 'returns valid webp export \(body:webp\)'
+          - id: apng-body
+            pattern: 'returns valid apng export \(body:apng\)'
+          - id: webp-query
+            pattern: 'returns valid webp export \(query:webp\)'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: node scripts/check-playwright-docker-version.js
+      - run: npm ci
+      - name: Expose structured response
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('tests/integration/videoExport.testcontainers.test.js')
+          s = p.read_text()
+          old = "    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);\n    expect(status).toBe(200);"
+          new = "    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);\n    if (status !== 200) console.error('FINAL_FORMAT_DIAGNOSTIC_BODY=' + body.toString('utf8'));\n    else console.error('FINAL_FORMAT_DIAGNOSTIC_BYTES=' + body.length);\n    expect(status).toBe(200);"
+          if s.count(old) != 1:
+              raise SystemExit(f'diagnostic insertion point found {s.count(old)} times')
+          p.write_text(s.replace(old, new))
+          PY
+      - name: Run focused real-container format test
+        id: format
+        continue-on-error: true
+        shell: bash
+        env:
+          RUN_TESTCONTAINERS: '1'
+          TEST_PATTERN: ${{ matrix.pattern }}
+        run: |
+          set -o pipefail
+          NODE_OPTIONS=--experimental-vm-modules npx jest \
+            --config=tests/integration/jest.testcontainers.config.js \
+            --runInBand \
+            --testNamePattern="$TEST_PATTERN" \
+            2>&1 | tee "format-${{ matrix.id }}.log"
+      - name: Upload format output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: final-format-${{ matrix.id }}-log
+          path: format-${{ matrix.id }}.log
+          if-no-files-found: error
+      - name: Enforce result
+        if: steps.format.outcome != 'success'
+        run: exit 1
