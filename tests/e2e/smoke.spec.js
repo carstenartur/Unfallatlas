@@ -61,6 +61,33 @@ test.describe('Smoke – Werkbank V2', () => {
     ).toHaveLength(0);
   });
 
+  test('Build-Manifest dokumentiert Daten, lokale Abhängigkeiten und Lizenzprovenienz', async ({ page }) => {
+    await page.goto('werkbank_v2.html');
+    const baseUrl = new URL(page.url());
+    const manifestUrl = new URL('build-manifest.json', baseUrl).toString();
+    const response = await page.request.get(manifestUrl);
+    expect(response.status()).toBe(200);
+
+    const manifest = await response.json();
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.networkPolicy?.runtimeLibraries).toBe('local-only');
+    expect(Object.keys(manifest.dependencies || {}).length).toBeGreaterThan(0);
+    expect(manifest.vendorAssets?.length).toBeGreaterThan(0);
+    expect(manifest.data?.artifacts?.length).toBeGreaterThan(0);
+    expect(Object.keys(manifest.data?.cities || {}).length).toBeGreaterThan(0);
+    expect(manifest.thirdPartyNotices?.path).toBe('vendor/third-party-notices.json');
+    expect(manifest.thirdPartyNotices?.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.thirdPartyNotices?.dependencies?.length)
+      .toBe(Object.keys(manifest.dependencies).length);
+
+    const noticesUrl = new URL(manifest.thirdPartyNotices.path, baseUrl).toString();
+    const noticesResponse = await page.request.get(noticesUrl);
+    expect(noticesResponse.status()).toBe(200);
+    const notices = await noticesResponse.json();
+    expect(notices.dependencies).toHaveLength(Object.keys(manifest.dependencies).length);
+  });
+
   test('Stadt-Dropdown ist sichtbar und hat auswählbare Optionen', async ({ page }) => {
     await page.goto('werkbank_v2.html');
     await page.waitForLoadState('networkidle');
