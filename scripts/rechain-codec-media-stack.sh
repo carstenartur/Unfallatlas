@@ -7,7 +7,7 @@ B6=split/405-6-media-validation
 B7=split/405-7-reviewed-media-evidence
 MERGED_439=c5d86b2b81fc6b756e3e30a5d2cd9d089e8b8f59
 OLD5=feab6357e40c74ba75ad70b550c2e5a6df09e73b
-FIXED5=52b1ea214b29ce9069155f1b385013d5bdf353e2
+FIXED5=315b1e1181d32eb682fe753764bcaa07d6611c28
 OLD6=cd465ab3d47c95019ee1eee9e721475e94471db0
 OLD7=e398c630a2ea360cfb8ce65ed1baf5d58bbf4539
 EXPECTED_OLD_FINAL_TREE=0e3994ccc9ec84970b5343fcd76804229a03eda3
@@ -45,22 +45,18 @@ while IFS= read -r path; do
   [[ "$path" == docs/screenshots/*.png ]] || { echo "Unexpected main drift: $path" >&2; exit 1; }
 done < <(git diff --name-only "$MERGED_439" "$NEW_BASE")
 
-# #440: squash the complete fixed video boundary onto current main.
 git checkout -B "$B5" "$NEW_BASE"
 apply_changed_paths "$MERGED_439" "$FIXED5"
 NEW5=$(commit_local "export: close deterministic video evidence contract")
 
-# #441: reapply only its reviewed media-tooling delta.
 git checkout -B "$B6" "$NEW5"
 apply_changed_paths "$OLD5" "$OLD6"
 NEW6=$(commit_local "docs: close media tooling and workflow boundary")
 
-# #442: reapply only reviewed media/evidence.
 git checkout -B "$B7" "$NEW6"
 apply_changed_paths "$OLD6" "$OLD7"
 NEW7=$(commit_local "docs: restore reviewed media and durable evidence")
 
-# Expected final content = old reviewed final + the exact complete #440 repair.
 git checkout -B expected-final "$OLD7"
 apply_changed_paths "$OLD5" "$FIXED5"
 git add -A
@@ -73,8 +69,6 @@ ACTUAL_TREE=$(git rev-parse "$NEW7^{tree}")
   exit 1
 }
 
-# Ensure final-tree drift is exactly the eight independently reviewed codec and
-# recorded-source evidence files.
 mapfile -t final_drift < <(git diff --name-only "$OLD7" "$NEW7")
 printf '%s\n' "${final_drift[@]}" | sort > /tmp/actual-drift
 printf '%s\n' \
