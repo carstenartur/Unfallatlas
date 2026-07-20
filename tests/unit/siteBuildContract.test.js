@@ -39,6 +39,10 @@ describe('canonical site build contract', () => {
     for (const workflowPath of workflows) {
       const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
       expect(workflow).toContain('npm run validate:vendor-provenance -- --require-complete');
+      if (workflowPath !== '.github/workflows/docker-publish.yml') {
+        expect(workflow.indexOf('npm run validate:media'))
+          .toBeLessThan(workflow.indexOf('npm run validate:vendor-provenance -- --require-complete'));
+      }
     }
 
     const dockerPublish = fs.readFileSync(
@@ -392,7 +396,9 @@ describe('canonical site build contract', () => {
     const pages = fs.readFileSync(path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'), 'utf8');
     const playwright = fs.readFileSync(path.join(ROOT, 'playwright.config.js'), 'utf8');
     expect(pages).toContain('npm run build:site');
+    expect(pages).toContain('npm run validate:media -- --report out/qa/pages-documentation-media.json');
     expect(pages).toContain('npm run validate:vendor-provenance -- --require-complete');
+    expect(pages).toContain('pages-documentation-media-report');
     expect(playwright).toContain("command: 'npm run serve:site'");
   });
 
@@ -420,5 +426,4 @@ describe('canonical site build contract', () => {
     expect(workflow).not.toContain('ghcr.io/carstenartur/unfallatlas:latest');
     expect(workflow).not.toContain('UNFALLATLAS_IMAGE:');
   });
-
 });

@@ -31,6 +31,8 @@
     "validate:context-datasets": "node scripts/check-context-datasets.js",
     "validate:slope-plausibility": "node scripts/check-slope-plausibility.js",
     "validate:playwright-docker": "node scripts/check-playwright-docker-version.js",
+    "validate:media": "node scripts/validate-doc-media.js",
+    "validate:screenshot-evidence": "node scripts/validate-screenshot-evidence.js",
     "validate:vendor-provenance": "node scripts/validate-vendor-provenance.js",
     "qa:slope": "node scripts/qa-slope-report.js",
     "test:all": "npm run test && npm run test:e2e",
