@@ -1,0 +1,39 @@
+name: Diagnostic unit failure for 440
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-log:
+    if: github.head_ref == 'diagnostic/440-codec-v2-matrix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Run complete unit suite with retained output
+        id: unit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npx jest --runInBand 2>&1 | tee unit.log
+      - name: Upload complete unit output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-440-log
+          path: unit.log
+          if-no-files-found: error
+      - name: Enforce unit result
+        if: steps.unit.outcome != 'success'
+        run: exit 1
