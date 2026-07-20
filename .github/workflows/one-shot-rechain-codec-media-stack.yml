@@ -1,0 +1,44 @@
+name: One-shot rechain codec and media stack
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  rechain:
+    if: github.head_ref == 'automation/rechain-codec-media-stack'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: automation/rechain-codec-media-stack
+          fetch-depth: 0
+      - name: Reconstruct and prove stack locally
+        id: rebuild
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/rechain-codec-media-stack.sh 2>&1 | tee rechain.log
+      - name: Stage proven commit objects
+        if: steps.rebuild.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_commit="$(node -e "const p=require('./rechain-plan/plan.json'); process.stdout.write(p.heads['442'])")"
+          git push --force origin "$final_commit:refs/heads/automation/object-staging-codec-media-stack" 2>&1 | tee -a rechain.log
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: codec-media-stack-rechain-plan
+          path: |
+            rechain.log
+            rechain-plan/
+          if-no-files-found: error
+      - name: Enforce successful reconstruction
+        if: steps.rebuild.outcome != 'success'
+        run: exit 1
