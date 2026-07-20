@@ -5,35 +5,14 @@ on:
     types: [opened, reopened, synchronize]
 
 permissions:
-  contents: write
+  contents: read
 
+# Completed successfully against #440. Kept temporarily as an auditable record
+# until the QA stack is merged; the job is deliberately disabled and this PR is
+# never a product merge candidate.
 jobs:
   apply:
-    if: github.head_ref == 'automation/rechain-codec-media-stack'
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: automation/rechain-codec-media-stack
-          fetch-depth: 0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: npm
-      - name: Validate and apply the recorded-source evidence repair
-        id: apply
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          bash scripts/apply-recorded-source-evidence-fix.sh 2>&1 | tee recorded-source-apply.log
-      - name: Upload validation and application log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: recorded-source-evidence-apply-log
-          path: recorded-source-apply.log
-          if-no-files-found: error
-      - name: Enforce successful validated application
-        if: steps.apply.outcome != 'success'
-        run: exit 1
+      - run: echo 'Recorded-source evidence repair already applied to #440.'
