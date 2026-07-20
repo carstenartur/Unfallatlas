@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TARGET_BRANCH=split/405-5-video-export-contract
-EXPECTED_TARGET_HEAD=315b1e1181d32eb682fe753764bcaa07d6611c28
+EXPECTED_TARGET_HEAD=79796dfb91fc77497c309d593ca8928000741c23
 
 export PATH="$(pwd)/node_modules/.bin:$PATH"
 git config user.name "Unfallwerkbank QA"
