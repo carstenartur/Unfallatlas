@@ -118,19 +118,19 @@ test.describe('Smoke – Werkbank V2', () => {
     // is true, so unenriched data means "no overlays expected".
     const baseUrl = new URL(page.url());
     const dataUrl = new URL('out/output_all_years_bonn.geojson.gz', baseUrl).toString();
-    const dataRes = await page.request.fetch(dataUrl).catch(() => null);
-    let hasOverlayCapability = false;
-    if (dataRes && dataRes.ok()) {
-      try {
-        const geojson = await dataRes.json();
-        const firstFeature = geojson?.features?.[0];
-        const props = firstFeature?.properties || {};
-        // Check for slope or traffic fields (same as CAPABILITY_FIELDS in ua.context_layers.js)
-        hasOverlayCapability = 
-          'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
-          'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
-      } catch (_) {}
-    }
+    const geojson = await page.evaluate(async (url) => {
+      if (typeof window.UA === 'undefined' || typeof window.UA.fetchJsonCompressed !== 'function') {
+        throw new Error('UA.fetchJsonCompressed not available');
+      }
+      return window.UA.fetchJsonCompressed(url, { gzipOnly: true });
+    }, dataUrl);
+    expect(Array.isArray(geojson?.features), 'Bonn GeoJSON has no features array').toBe(true);
+    expect(geojson.features.length, 'Bonn GeoJSON unexpectedly contains no accident data').toBeGreaterThan(0);
+    const props = geojson.features[0]?.properties || {};
+    // Check for slope or traffic fields (same as CAPABILITY_FIELDS in ua.context_layers.js)
+    const hasOverlayCapability =
+      'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
+      'slope_source' in props || 'slope_confidence' in props || 'traffic_proxy_class' in props;
     test.skip(!hasOverlayCapability, 'Bonn GeoJSON not enriched with slope/traffic fields — overlay control not expected');
 
     const overlayCtrl = page.locator('.context-overlay-control');
