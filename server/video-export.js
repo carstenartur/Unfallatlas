@@ -35,6 +35,7 @@ const videoExportContract = require('../js/ua.video-export-contract.js');
 const execFileAsync = promisify(execFile);
 const FFMPEG_TIMEOUT_MS = 120_000; // 2 minutes max for each ffmpeg step
 const WEBP_QUALITY = 60;
+const GIF_MAX_COLORS = 256;
 const VIDEO_TILE_STABLE_MS = 800;
 const ENCODED_INSPECTION_FPS = 2;
 const MAX_DECODE_BUFFER_BYTES = 256 * 1024 * 1024;
@@ -1410,6 +1411,27 @@ function buildEncodedInspectionArgs(outputPath) {
   ];
 }
 
+function buildGifPaletteArgs(webmPath, palettePath) {
+  return [
+    '-y',
+    '-ss', '1',
+    '-i', webmPath,
+    '-vf', `${ANIMATED_IMAGE_FILTER},palettegen=max_colors=${GIF_MAX_COLORS}:reserve_transparent=0:stats_mode=full`,
+    palettePath,
+  ];
+}
+
+function buildGifEncodingArgs(webmPath, palettePath, outputPath) {
+  return [
+    '-y',
+    '-ss', '1',
+    '-i', webmPath,
+    '-i', palettePath,
+    '-lavfi', `${ANIMATED_IMAGE_FILTER}[x];[x][1:v]paletteuse=dither=none`,
+    outputPath,
+  ];
+}
+
 function buildWebpEncodingArgs(webmPath, outputPath) {
   return [
     '-y',
@@ -1424,6 +1446,52 @@ function buildWebpEncodingArgs(webmPath, outputPath) {
     '-f', 'webp',
     outputPath,
   ];
+}
+
+function parseWebpDimensions(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 20 ||
+      buffer.subarray(0, 4).toString('ascii') !== 'RIFF' ||
+      buffer.subarray(8, 12).toString('ascii') !== 'WEBP') return null;
+  const declaredLength = buffer.readUInt32LE(4) + 8;
+  if (declaredLength > buffer.length) return null;
+  let offset = 12;
+  while (offset + 8 <= declaredLength) {
+    const type = buffer.subarray(offset, offset + 4).toString('ascii');
+    const length = buffer.readUInt32LE(offset + 4);
+    const dataStart = offset + 8;
+    const end = dataStart + length;
+    if (end > declaredLength) return null;
+    const data = buffer.subarray(dataStart, end);
+    if (type === 'VP8X' && length >= 10) {
+      return {
+        width: 1 + data.readUIntLE(4, 3),
+        height: 1 + data.readUIntLE(7, 3),
+      };
+    }
+    if (type === 'VP8 ' && length >= 10 &&
+        data[3] === 0x9d && data[4] === 0x01 && data[5] === 0x2a) {
+      return {
+        width: data.readUInt16LE(6) & 0x3fff,
+        height: data.readUInt16LE(8) & 0x3fff,
+      };
+    }
+    if (type === 'VP8L' && length >= 5 && data[0] === 0x2f) {
+      const bits = data.readUInt32LE(1);
+      return {
+        width: 1 + (bits & 0x3fff),
+        height: 1 + ((bits >>> 14) & 0x3fff),
+      };
+    }
+    offset = end + (length % 2);
+  }
+  return null;
+}
+
+function validEncodedDimensions(dimensions) {
+  const width = Number(dimensions && dimensions.width);
+  const height = Number(dimensions && dimensions.height);
+  return Number.isInteger(width) && Number.isInteger(height) &&
+    width > 0 && height > 0 && width <= 4096 && height <= 4096;
 }
 
 async function probeEncodedDimensions(outputPath) {
@@ -1448,16 +1516,16 @@ async function probeEncodedDimensions(outputPath) {
     );
   }
   const stream = parsed && Array.isArray(parsed.streams) ? parsed.streams[0] : null;
-  const width = Number(stream && stream.width);
-  const height = Number(stream && stream.height);
-  if (!Number.isInteger(width) || !Number.isInteger(height) ||
-      width <= 0 || height <= 0 || width > 4096 || height > 4096) {
-    throw new VideoExportSemanticError(
-      'encoded_frame_probe_invalid',
-      `Encoded animation has invalid dimensions ${width}x${height}`
-    );
-  }
-  return { width, height };
+  const probed = { width: Number(stream && stream.width), height: Number(stream && stream.height) };
+  if (validEncodedDimensions(probed)) return probed;
+
+  const containerDimensions = parseWebpDimensions(fs.readFileSync(outputPath));
+  if (validEncodedDimensions(containerDimensions)) return containerDimensions;
+
+  throw new VideoExportSemanticError(
+    'encoded_frame_probe_invalid',
+    `Encoded animation has invalid dimensions ${probed.width}x${probed.height}`
+  );
 }
 
 async function inspectEncodedFrames(outputPath, requiredState, frameEvidence) {
@@ -1824,24 +1892,19 @@ async function exportVideo(params, opts = {}) {
 
     if (format === 'gif') {
       const palettePath = path.join(tmpDir, 'palette.png');
-      // Schritt 1: Palette erzeugen (async, damit der Event-Loop nicht blockiert)
-      await execFileAsync('ffmpeg', [
-        '-y',
-        '-ss', '1',
-        '-i', webmPath,
-        '-vf', `${ANIMATED_IMAGE_FILTER},palettegen=max_colors=96:stats_mode=diff`,
-        palettePath
-      ], { timeout: FFMPEG_TIMEOUT_MS });
-
-      // Schritt 2: GIF mit Palette erzeugen (async)
-      await execFileAsync('ffmpeg', [
-        '-y',
-        '-ss', '1',
-        '-i', webmPath,
-        '-i', palettePath,
-        '-lavfi', `${ANIMATED_IMAGE_FILTER}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4`,
-        outputPath
-      ], { timeout: FFMPEG_TIMEOUT_MS });
+      // A full 256-colour palette and non-dithered lookup keep the small,
+      // coordinate-bound semantic witness colours stable enough for strict
+      // post-encoding verification.
+      await execFileAsync(
+        'ffmpeg',
+        buildGifPaletteArgs(webmPath, palettePath),
+        { timeout: FFMPEG_TIMEOUT_MS }
+      );
+      await execFileAsync(
+        'ffmpeg',
+        buildGifEncodingArgs(webmPath, palettePath, outputPath),
+        { timeout: FFMPEG_TIMEOUT_MS }
+      );
     } else if (format === 'webp') {
       await execFileAsync(
         'ffmpeg',
@@ -1912,6 +1975,8 @@ module.exports = {
   ANIMATED_IMAGE_FILTER,
   VideoExportSemanticError,
   buildEncodedInspectionArgs,
+  buildGifEncodingArgs,
+  buildGifPaletteArgs,
   buildWebpEncodingArgs,
   assertFreshExportContent,
   assertRuntimeContextAvailable,
@@ -1923,6 +1988,7 @@ module.exports = {
   exportVideo,
   inspectEncodedFrames,
   installSemanticEvidenceBadge,
+  parseWebpDimensions,
   probeEncodedDimensions,
   readBuildEvidence,
   selectRequiredCity,
