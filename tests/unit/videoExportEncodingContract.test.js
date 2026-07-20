@@ -28,6 +28,7 @@ describe('video export encoding contract', () => {
     const args = buildWebpEncodingArgs('/tmp/input.webm', '/tmp/output.webp');
     expect(args).toEqual(expect.arrayContaining([
       '-c:v', 'libwebp_anim',
+      '-lossless', '1',
       '-f', 'webp',
       '-loop', '0',
       '/tmp/output.webp',

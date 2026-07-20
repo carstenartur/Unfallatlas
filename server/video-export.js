@@ -30,6 +30,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { VIDEO_EXPORT_FORMATS } = require('./video-export-formats.js');
 const { ANIMATED_IMAGE_FILTER } = require('./video-export-filters.js');
+const { inspectRecordedSourceFrames } = require('./video-source-evidence.js');
 const videoExportContract = require('../js/ua.video-export-contract.js');
 
 const execFileAsync = promisify(execFile);
@@ -1117,7 +1118,7 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
   for (const kind of ['slope', 'traffic']) {
     if (!requiredState.layers[kind]) continue;
     const witness = contextWitnesses[kind];
-    const expectedColor = parseRgb(witness.expectedColor);
+    const expectedColor = parseRgb(witness.renderedColor || witness.expectedColor);
     const witnessColor = parseRgb(witness.witnessColor);
     if (!expectedColor) {
       throw new VideoExportSemanticError(
@@ -1439,7 +1440,7 @@ function buildWebpEncodingArgs(webmPath, outputPath) {
     '-vf', ANIMATED_IMAGE_FILTER,
     '-loop', '0',
     '-c:v', 'libwebp_anim',
-    '-lossless', '0',
+    '-lossless', '1',
     '-q:v', String(WEBP_QUALITY),
     '-compression_level', '6',
     '-an',
@@ -1883,6 +1884,15 @@ async function exportVideo(params, opts = {}) {
       throw new Error('Keine Video-Datei erzeugt');
     }
     webmPath = videoPath;
+    let recordedFrameEvidence;
+    try {
+      recordedFrameEvidence = await inspectRecordedSourceFrames(
+        webmPath, requiredState, semanticFrame
+      );
+    } catch (error) {
+      if (error && error.code && !error.status) error.status = 422;
+      throw error;
+    }
 
     // ── 16. WebM → Zielformat konvertieren ─────────────────────────────────
     outputPath = path.join(
@@ -1923,7 +1933,7 @@ async function exportVideo(params, opts = {}) {
       ], { timeout: FFMPEG_TIMEOUT_MS });
     }
 
-    const encodedFrames = await inspectEncodedFrames(outputPath, requiredState, semanticFrame);
+    const encodedFrames = await inspectEncodedFrames(outputPath, requiredState, recordedFrameEvidence);
     const artifactBuffer = fs.readFileSync(outputPath);
     const artifactDigest = sha256Buffer(artifactBuffer);
     const evidenceCore = {
@@ -1940,6 +1950,7 @@ async function exportVideo(params, opts = {}) {
       semantic: {
         lifecycle: analysisEvidence.lifecycle,
         frameBeforeEncoding: semanticFrame,
+        recordedSourceFrames: recordedFrameEvidence,
         framesAfterEncoding: encodedFrames,
         preview: previewEvidence,
         pdf: pdfEvidence,
