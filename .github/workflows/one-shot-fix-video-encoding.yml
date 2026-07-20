@@ -22,5 +22,5 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Apply and test codec-safe video export fix
-        run: bash scripts/apply-video-encoding-fix.sh
+      - name: Apply and test GIF palette and animated WebP probe fix
+        run: bash scripts/apply-video-codec-fix-v2.sh
