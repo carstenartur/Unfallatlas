@@ -1,4 +1,4 @@
-name: Diagnostic complete serial video suite for 440
+name: Diagnostic common-grid serial video suite for 440
 
 on:
   pull_request:
@@ -21,6 +21,29 @@ jobs:
           cache: npm
       - run: node scripts/check-playwright-docker-version.js
       - run: npm ci
+      - name: Apply diagnostic-only common 1fps evidence grid
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          source_file = Path('server/video-source-evidence.js')
+          source = source_file.read_text()
+          old = 'const SOURCE_INSPECTION_FPS = 2;'
+          new = "// Whole-second samples are shared by the 2fps GIF/APNG inspection and the 3fps WebP encoding.\nconst SOURCE_INSPECTION_FPS = 1;"
+          if source.count(old) != 1:
+              raise SystemExit('source fps insertion point not found exactly once')
+          source_file.write_text(source.replace(old, new))
+
+          test_file = Path('tests/unit/videoSourceEvidence.test.js')
+          source = test_file.read_text()
+          old = "'-vf', 'fps=2,scale=720:-1:flags=lanczos',"
+          new = "'-vf', 'fps=1,scale=720:-1:flags=lanczos',"
+          if source.count(old) != 1:
+              raise SystemExit('source fps test insertion point not found exactly once')
+          test_file.write_text(source.replace(old, new))
+          PY
+      - name: Verify source-evidence unit contract
+        run: npx jest --runInBand tests/unit/videoSourceEvidence.test.js tests/unit/videoExportEncodingContract.test.js tests/unit/videoExportCodecWrapper.test.js
       - name: Expose structured media response
         shell: bash
         run: |
@@ -50,7 +73,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: final-serial-video-suite-log
+          name: common-grid-serial-video-suite-log
           path: serial-suite.log
           if-no-files-found: error
       - name: Enforce suite result
