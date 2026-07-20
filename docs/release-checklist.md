@@ -34,6 +34,7 @@ npm run serve:site
 - [ ] Geteilte URL reproduziert den exakt gleichen Zustand
 - [ ] Tour-Player startet (`?tour=demo`)
 - [ ] `_site/build-manifest.json` enthält gelockte Dependency- und Datenfingerprints
+- [ ] `npm run validate:media` besteht (Abmessungen, Budget, Referenzen)
 - [ ] `npm run validate:vendor-provenance -- --require-complete` besteht
 - [ ] **Erwartet nicht verfügbar:** Video-Export-Button, KI-Bewertung,
       Button „Politische Vorgänge recherchieren" (graceful degradation)

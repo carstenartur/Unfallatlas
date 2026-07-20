@@ -239,6 +239,18 @@ jobs:
       - name: Build canonical website artifact
         run: npm run build:site
 
+      - name: Validate release documentation media
+        run: npm run validate:media -- --report out/qa/release-documentation-media.json
+
+      - name: Upload release media QA evidence
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/release-documentation-media.json') != '' }}
+        with:
+          name: release-documentation-media-report
+          path: |
+            out/qa/release-documentation-media.json
+            _site/build-manifest.json
+          if-no-files-found: error
 
       - name: Require complete vendor provenance before publication
         run: npm run validate:vendor-provenance -- --require-complete
