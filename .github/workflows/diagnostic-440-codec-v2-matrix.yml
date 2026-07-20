@@ -1,0 +1,81 @@
+name: Diagnostic efficient WebP compression for 440
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  webp-format:
+    if: github.head_ref == 'diagnostic/440-codec-v2-matrix'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: webp-body
+            pattern: 'returns valid webp export \(body:webp\)'
+          - id: webp-query
+            pattern: 'returns valid webp export \(query:webp\)'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: node scripts/check-playwright-docker-version.js
+      - run: npm ci
+      - name: Apply diagnostic-only q70 lossless compression
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('server/video-export.js')
+          s = p.read_text()
+          old = 'const WEBP_QUALITY = 60;'
+          new = 'const WEBP_QUALITY = 70;'
+          if s.count(old) != 1:
+              raise SystemExit('WebP quality insertion point not found exactly once')
+          p.write_text(s.replace(old, new))
+          PY
+      - name: Expose structured codec response in diagnostic log
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('tests/integration/videoExport.testcontainers.test.js')
+          s = p.read_text()
+          old = "    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);\n    expect(status).toBe(200);"
+          new = "    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);\n    if (status !== 200) console.error('WEBP_Q70_DIAGNOSTIC_BODY=' + body.toString('utf8'));\n    else console.error('WEBP_Q70_BYTES=' + body.length);\n    expect(status).toBe(200);"
+          if s.count(old) != 1:
+              raise SystemExit('diagnostic insertion point not found exactly once')
+          p.write_text(s.replace(old, new))
+          PY
+      - name: Run focused real-container WebP test
+        id: codec
+        continue-on-error: true
+        shell: bash
+        env:
+          RUN_TESTCONTAINERS: '1'
+          TEST_PATTERN: ${{ matrix.pattern }}
+        run: |
+          set -o pipefail
+          NODE_OPTIONS=--experimental-vm-modules npx jest \
+            --config=tests/integration/jest.testcontainers.config.js \
+            --runInBand \
+            --testNamePattern="$TEST_PATTERN" \
+            2>&1 | tee "webp-${{ matrix.id }}.log"
+      - name: Upload focused WebP log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: webp-q70-${{ matrix.id }}-log
+          path: webp-${{ matrix.id }}.log
+          if-no-files-found: error
+      - name: Enforce WebP result
+        if: steps.codec.outcome != 'success'
+        run: exit 1
