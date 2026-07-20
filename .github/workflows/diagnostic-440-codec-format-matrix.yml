@@ -1,4 +1,4 @@
-name: Diagnostic same-frame WebP evidence for 440
+name: Diagnostic aligned WebP evidence for 440
 
 on:
   pull_request:
@@ -41,18 +41,27 @@ jobs:
           cache: npm
       - run: node scripts/check-playwright-docker-version.js
       - run: npm ci
-      - name: Apply diagnostic-only q70 lossless compression
+      - name: Apply diagnostic-only q70 and aligned 3fps source sampling
         shell: bash
         run: |
           python3 <<'PY'
           from pathlib import Path
-          p = Path('server/video-export.js')
-          s = p.read_text()
+
+          implementation = Path('server/video-export.js')
+          source = implementation.read_text()
           old = 'const WEBP_QUALITY = 60;'
           new = 'const WEBP_QUALITY = 70;'
-          if s.count(old) != 1:
+          if source.count(old) != 1:
               raise SystemExit('WebP quality insertion point not found exactly once')
-          p.write_text(s.replace(old, new))
+          implementation.write_text(source.replace(old, new))
+
+          evidence = Path('server/video-source-evidence.js')
+          source = evidence.read_text()
+          old = 'const SOURCE_INSPECTION_FPS = 2;'
+          new = 'const SOURCE_INSPECTION_FPS = 3;'
+          if source.count(old) != 1:
+              raise SystemExit('source inspection fps insertion point not found exactly once')
+          evidence.write_text(source.replace(old, new))
           PY
       - name: Expose structured codec response in diagnostic log
         shell: bash
@@ -62,7 +71,7 @@ jobs:
           p = Path('tests/integration/videoExport.testcontainers.test.js')
           s = p.read_text()
           old = "    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);\n    expect(status).toBe(200);"
-          new = "    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);\n    if (status !== 200) console.error('SAME_FRAME_WEBP_DIAGNOSTIC_BODY=' + body.toString('utf8'));\n    else console.error('SAME_FRAME_WEBP_BYTES=' + body.length);\n    expect(status).toBe(200);"
+          new = "    const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);\n    if (status !== 200) console.error('ALIGNED_WEBP_DIAGNOSTIC_BODY=' + body.toString('utf8'));\n    else console.error('ALIGNED_WEBP_BYTES=' + body.length);\n    expect(status).toBe(200);"
           if s.count(old) != 1:
               raise SystemExit('diagnostic insertion point not found exactly once')
           p.write_text(s.replace(old, new))
@@ -85,7 +94,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: same-frame-webp-${{ matrix.id }}-log
+          name: aligned-webp-${{ matrix.id }}-log
           path: webp-${{ matrix.id }}.log
           if-no-files-found: error
       - name: Enforce WebP result
