@@ -20,6 +20,23 @@ jobs:
           fetch-depth: 0
 
       - name: Rebuild and prove executable PR boundaries
+        id: repair
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash scripts/repair-build-provenance-media-boundaries.sh
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/repair-build-provenance-media-boundaries.sh 2>&1 | tee boundary-repair.log
+
+      - name: Upload complete repair diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: executable-boundary-repair-log
+          path: boundary-repair.log
+          if-no-files-found: error
+
+      - name: Enforce successful protected rebuild
+        if: steps.repair.outcome != 'success'
+        run: exit 1
