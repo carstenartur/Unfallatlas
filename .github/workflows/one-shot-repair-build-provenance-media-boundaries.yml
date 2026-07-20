@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/export-boundary-repair-plan.sh 2>&1 | tee boundary-repair.log
+          bash scripts/export-boundary-repair-plan-v2.sh 2>&1 | tee boundary-repair.log
           git rev-parse 'origin/main^{tree}' > boundary-repair-plan/new-base-tree.txt
 
       - name: Stage proven commit objects without changing production refs
@@ -33,13 +33,9 @@ jobs:
         run: |
           set -euo pipefail
           final_commit="$(node -e "const p=require('./boundary-repair-plan/plan.json'); process.stdout.write(p.branches.find(b=>b.pr===442).localCommit)")"
-          printf 'Attempting object transport for final proven commit %s\n' "$final_commit" | tee -a boundary-repair.log
-          if git push origin "$final_commit:refs/heads/automation/object-staging-qa-stack" 2>&1 | tee -a boundary-repair.log; then
-            echo 'OBJECT_STAGING_REF_CREATED=1' | tee -a boundary-repair.log
-          else
-            echo 'OBJECT_STAGING_REF_CREATED=0' | tee -a boundary-repair.log
-            echo 'The protected workflow ref update was rejected as expected; uploaded Git objects remain addressable.' | tee -a boundary-repair.log
-          fi
+          printf 'Transporting final proven commit %s to temporary staging ref\n' "$final_commit" | tee -a boundary-repair.log
+          git push --force origin "$final_commit:refs/heads/automation/object-staging-qa-stack" 2>&1 | tee -a boundary-repair.log
+          echo 'OBJECT_STAGING_REF_UPDATED=1' | tee -a boundary-repair.log
 
       - name: Upload complete repair plan and diagnostics
         if: always()
