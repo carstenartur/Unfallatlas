@@ -14,6 +14,24 @@ import sys
 p = Path(sys.argv[1])
 s = p.read_text()
 
+# The first protected reconstruction has already been applied to the remote
+# branches. Keep the historic OLD* commits as delta sources, but guard this
+# second reconstruction against the exact currently published heads.
+current_heads = {
+    '[[ "$(git rev-parse origin/$B3)" == "$OLD3" ]]':
+        '[[ "$(git rev-parse origin/$B3)" == "cacd04dac0af8cb273aea36f337604d01161b45c" ]]',
+    '[[ "$(git rev-parse origin/$B5)" == "$OLD5" ]]':
+        '[[ "$(git rev-parse origin/$B5)" == "107dfd3a588f0b2be2347495e922c5c46198f10f" ]]',
+    '[[ "$(git rev-parse origin/$B6)" == "$OLD6" ]]':
+        '[[ "$(git rev-parse origin/$B6)" == "61c5cf06c9fa0b1a28a27c97381313077fd5b51b" ]]',
+    '[[ "$(git rev-parse origin/$B7)" == "$OLD7" ]]':
+        '[[ "$(git rev-parse origin/$B7)" == "0305edd65501a0df19dbc0d6000ef07cf86db30d" ]]',
+}
+for old, new in current_heads.items():
+    if s.count(old) != 1:
+        raise SystemExit(f'current-head guard not found exactly once: {old}')
+    s = s.replace(old, new)
+
 commit_pattern = re.compile(
     r"commit_and_push\(\) \{\n.*?\n\}\n\nstrip_media_from_combined_build\(\)",
     re.S,
@@ -31,6 +49,70 @@ s, count = commit_pattern.subn(commit_only, s)
 if count != 1:
     raise SystemExit('could not replace push function with commit-only function')
 
+# #439 owns every path needed to execute the canonical site and its dedicated
+# context-data E2E. The video-specific state contract remains owned by #440.
+old = """make_provenance_only_dockerfile
+
+# Closed boundary checks before publishing the branch.
+"""
+new = """make_provenance_only_dockerfile
+git checkout \"$OLD7\" -- scripts/run-context-data-e2e.js
+python3 <<'PYVIDEOREF'
+from pathlib import Path
+p = Path('werkbank_v2.html')
+s = p.read_text()
+line = '  <script src=\"js/ua.video-export-contract.js?v=2026-07-19\"></script>\\n'
+if s.count(line) != 1:
+    raise SystemExit('video export contract script reference not found exactly once')
+p.write_text(s.replace(line, ''))
+PYVIDEOREF
+
+# Closed boundary checks before publishing the branch.
+"""
+if s.count(old) != 1:
+    raise SystemExit('PR 439 ownership insertion point not found exactly once')
+s = s.replace(old, new)
+
+old = """grep -F 'ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0' Dockerfile >/dev/null
+commit_and_push \"$B3\" \"$OLD3\" \"build: close canonical site and vendor provenance boundary\"
+"""
+new = """grep -F 'ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0' Dockerfile >/dev/null
+grep -F \"const { buildSite } = require('./build-site');\" scripts/run-context-data-e2e.js >/dev/null
+! grep -F 'ua.video-export-contract.js' werkbank_v2.html >/dev/null
+commit_and_push \"$B3\" \"$OLD3\" \"build: close canonical site and runtime boundary\"
+"""
+if s.count(old) != 1:
+    raise SystemExit('PR 439 closed-boundary check block not found exactly once')
+s = s.replace(old, new)
+
+# #440 introduces both the video contract implementation and its browser load
+# point. Restoring the former #439 HTML blob is a deliberate one-line ownership
+# change because that blob contains the exact reviewed script order.
+old = """make_hermetic_video_workflow
+add_video_workflow_contract_test
+
+grep -F 'ARG VIDEO_EXPORT_INTEGRATION_FIXTURE=0' Dockerfile >/dev/null
+"""
+new = """make_hermetic_video_workflow
+add_video_workflow_contract_test
+git checkout \"$OLD3\" -- werkbank_v2.html
+
+grep -F 'ARG VIDEO_EXPORT_INTEGRATION_FIXTURE=0' Dockerfile >/dev/null
+grep -F 'ua.video-export-contract.js?v=2026-07-19' werkbank_v2.html >/dev/null
+"""
+if s.count(old) != 1:
+    raise SystemExit('PR 440 ownership insertion point not found exactly once')
+s = s.replace(old, new)
+
+# Moving the canonical context runner from the media-evidence PR into #439 is
+# the only additional intentional pre-#442 tree drift besides the automatic
+# screenshots inherited from main.
+old = '  [[ "$path" == docs/screenshots/*.png ]] || {'
+new = '  [[ "$path" == docs/screenshots/*.png || "$path" == scripts/run-context-data-e2e.js ]] || {'
+if s.count(old) != 1:
+    raise SystemExit('pre-media drift allowlist not found exactly once')
+s = s.replace(old, new)
+
 marker = '# Retarget the shortened stack only after all tree proofs succeeded.\n'
 if marker not in s:
     raise SystemExit('repair tail marker not found')
@@ -43,7 +125,6 @@ mkdir -p "$PLAN_DIR/custom"
 python3 - "$PLAN_DIR" "$NEW_BASE" "$NEW3" "$NEW5" "$NEW6" "$NEW7" <<'PYPLAN'
 from pathlib import Path
 import json
-import os
 import subprocess
 import sys
 
@@ -83,10 +164,10 @@ branches = [
     {
         'pr': 439,
         'branch': 'split/405-3-canonical-build',
-        'expectedRemote': '903244b7d5a91347c7f4795183b1388195559cc0',
+        'expectedRemote': 'cacd04dac0af8cb273aea36f337604d01161b45c',
         'parent': {'kind': 'main', 'sha': new_base},
         'localCommit': new3,
-        'message': 'build: close canonical site and vendor provenance boundary',
+        'message': 'build: close canonical site and runtime boundary',
         'customPaths': [
             'Dockerfile',
             'package.json',
@@ -95,12 +176,13 @@ branches = [
             'tests/unit/siteBuildContract.test.js',
             '.github/workflows/deploy-release.yml',
             '.github/workflows/generate-data-deploy-pages.yml',
+            'werkbank_v2.html',
         ],
     },
     {
         'pr': 440,
         'branch': 'split/405-5-video-export-contract',
-        'expectedRemote': '73c8781fcdff9d65bd4459933171ef47d414d6be',
+        'expectedRemote': '107dfd3a588f0b2be2347495e922c5c46198f10f',
         'parent': {'kind': 'previous', 'pr': 439},
         'localCommit': new5,
         'message': 'export: own video contract and hermetic container evidence',
@@ -112,7 +194,7 @@ branches = [
     {
         'pr': 441,
         'branch': 'split/405-6-media-validation',
-        'expectedRemote': '4baeda2e8775ddb07e33c6edba5a3962865cb49e',
+        'expectedRemote': '61c5cf06c9fa0b1a28a27c97381313077fd5b51b',
         'parent': {'kind': 'previous', 'pr': 440},
         'localCommit': new6,
         'message': 'docs: close media tooling and workflow boundary',
@@ -121,7 +203,7 @@ branches = [
     {
         'pr': 442,
         'branch': 'split/405-7-reviewed-media-evidence',
-        'expectedRemote': '582d92ed33354da148a2abf1c251c3013e6243b7',
+        'expectedRemote': '0305edd65501a0df19dbc0d6000ef07cf86db30d',
         'parent': {'kind': 'previous', 'pr': 441},
         'localCommit': new7,
         'message': 'docs: restore reviewed media and durable evidence',
@@ -145,7 +227,7 @@ for branch in branches:
     previous_local = commit
 
 plan = {
-    'schemaVersion': 1,
+    'schemaVersion': 2,
     'verifiedOldFinalTree': tree_sha('582d92ed33354da148a2abf1c251c3013e6243b7'),
     'newBase': new_base,
     'branches': branches,
