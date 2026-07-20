@@ -201,8 +201,17 @@ function browserPaletteCounter() {
     if (parsed) slopePalette.push(parsed);
   }
   const trafficPalette = paletteFrom(roadLayer && roadLayer.TRAFFIC_COLORS);
+  // Traffic is intentionally rendered at 95% opacity over the wide slope
+  // casing on the shared canvas. The resulting core pixel may therefore differ
+  // from the traffic legend colour by ceil((1 - 0.95) * 255) = 13 channel
+  // values. Allow one additional value for integer rounding; the traffic and
+  // slope palettes remain far enough apart that this cannot count slope-only
+  // pixels as traffic.
+  const channelTolerance = 14;
   const closeTo = (r, g, b, palette) => palette.some(([pr, pg, pb]) =>
-    Math.abs(r - pr) <= 8 && Math.abs(g - pg) <= 8 && Math.abs(b - pb) <= 8
+    Math.abs(r - pr) <= channelTolerance
+      && Math.abs(g - pg) <= channelTolerance
+      && Math.abs(b - pb) <= channelTolerance
   );
   const counts = {
     canvases: 0,
@@ -306,6 +315,8 @@ function browserAssertionScript(city) {
       await browser.close();
 
       const ok = result.canvases > 0
+        && result.slopePaletteSize >= 5
+        && result.trafficPaletteSize === 4
         && result.slopePixels >= 20
         && result.trafficPixels >= 20
         && result.legendCount === 2
@@ -400,6 +411,8 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     expect(result).not.toBeNull();
     expect(result.city).toBe(city);
     expect(result.canvases).toBeGreaterThan(0);
+    expect(result.slopePaletteSize).toBeGreaterThanOrEqual(5);
+    expect(result.trafficPaletteSize).toBe(4);
     expect(result.slopePixels).toBeGreaterThanOrEqual(20);
     expect(result.trafficPixels).toBeGreaterThanOrEqual(20);
     expect(result.legendCount).toBe(2);
