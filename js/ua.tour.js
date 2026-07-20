@@ -31,6 +31,7 @@
   let _recFilterTimer = null;
   let _recMapHandler = null;
   let _recFilterHandlers = [];
+  let _recorderModalController = null;
 
   // ---------------------------------------------------------------------------
   // Utility: Haversine distance in metres
@@ -56,6 +57,18 @@
   // ---------------------------------------------------------------------------
   function el(id) {
     return document.getElementById(id);
+  }
+
+  function recorderModalController() {
+    const modal = el("recorderModal");
+    if (!_recorderModalController && modal) {
+      _recorderModalController = UA.createModalController(modal, {
+        initialFocus: '#recorderBtnClose',
+        returnFocus: () => el('tourBtnRecord'),
+        fallbackFocus: () => el('collapseBtn'),
+      });
+    }
+    return _recorderModalController;
   }
 
   // ---------------------------------------------------------------------------
@@ -645,7 +658,12 @@
     // Render step list
     renderStepList(tour.steps);
 
-    modal.style.display = "flex";
+    recorderModalController().open();
+  }
+
+  function closeRecorderEditor() {
+    const controller = recorderModalController();
+    if (controller) controller.close();
   }
 
   function renderStepList(steps) {
@@ -657,6 +675,8 @@
       const row = document.createElement("div");
       row.className = "recStepRow";
       row.dataset.index = i;
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', `Schritt ${i + 1}: ${step.action}`);
 
       const label = document.createElement("span");
       label.className = "recStepLabel";
@@ -665,6 +685,7 @@
       const descInput = document.createElement("input");
       descInput.type = "text";
       descInput.className = "recStepDesc";
+      descInput.setAttribute('aria-label', `Beschreibung für Schritt ${i + 1}: ${step.action}`);
       descInput.placeholder = "Beschreibung…";
       descInput.value = step.description || "";
       descInput.addEventListener("input", () => {
@@ -679,6 +700,7 @@
       pauseInput.max = "30000";
       pauseInput.step = "500";
       pauseInput.title = "Pause (ms)";
+      pauseInput.setAttribute('aria-label', `Pause in Millisekunden für Schritt ${i + 1}: ${step.action}`);
       pauseInput.value = String(step.pause || 2000);
       pauseInput.addEventListener("change", () => {
         steps[i].pause = clamp(Number(pauseInput.value), 500, 30000);
@@ -686,39 +708,54 @@
       });
 
       const upBtn = document.createElement("button");
+      upBtn.type = "button";
       upBtn.className = "recStepMoveBtn";
       upBtn.textContent = "▲";
       upBtn.title = "Nach oben";
+      upBtn.setAttribute('aria-label', `Schritt ${i + 1} nach oben verschieben`);
+      upBtn.dataset.direction = 'up';
       upBtn.disabled = i === 0;
       upBtn.addEventListener("click", () => {
         if (i > 0) {
           [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]];
           renderStepList(steps);
           syncRecorderJson(steps);
+          list.querySelector(`.recStepRow[data-index="${i - 1}"] .recStepDesc`)?.focus();
         }
       });
 
       const downBtn = document.createElement("button");
+      downBtn.type = "button";
       downBtn.className = "recStepMoveBtn";
       downBtn.textContent = "▼";
       downBtn.title = "Nach unten";
+      downBtn.setAttribute('aria-label', `Schritt ${i + 1} nach unten verschieben`);
+      downBtn.dataset.direction = 'down';
       downBtn.disabled = i === steps.length - 1;
       downBtn.addEventListener("click", () => {
         if (i < steps.length - 1) {
           [steps[i], steps[i + 1]] = [steps[i + 1], steps[i]];
           renderStepList(steps);
           syncRecorderJson(steps);
+          list.querySelector(`.recStepRow[data-index="${i + 1}"] .recStepDesc`)?.focus();
         }
       });
 
       const delBtn = document.createElement("button");
+      delBtn.type = "button";
       delBtn.className = "recStepDelBtn";
       delBtn.textContent = "✕";
       delBtn.title = "Schritt löschen";
+      delBtn.setAttribute('aria-label', `Schritt ${i + 1} löschen: ${step.action}`);
       delBtn.addEventListener("click", () => {
         steps.splice(i, 1);
         renderStepList(steps);
         syncRecorderJson(steps);
+        const nextIndex = Math.min(i, steps.length - 1);
+        const nextTarget = nextIndex >= 0
+          ? list.querySelector(`.recStepRow[data-index="${nextIndex}"] .recStepDelBtn`)
+          : el('recorderBtnClose');
+        if (nextTarget) nextTarget.focus();
       });
 
       row.appendChild(label);
@@ -777,8 +814,7 @@
       alert("Ungültiges JSON – bitte korrigieren.");
       return;
     }
-    const modal = el("recorderModal");
-    if (modal) modal.style.display = "none";
+    closeRecorderEditor();
     startTourFromObject(tour);
   }
 
@@ -822,10 +858,7 @@
     const closeBtn = el("recorderBtnClose");
     const downloadBtn = el("recorderBtnDownload");
     const playBtn = el("recorderBtnPlay");
-    const modal = el("recorderModal");
-
-    if (closeBtn) closeBtn.addEventListener("click", () => { if (modal) modal.style.display = "none"; });
-    if (modal) modal.addEventListener("click", (e) => { if (e.target === modal) modal.style.display = "none"; });
+    if (closeBtn) closeBtn.addEventListener("click", closeRecorderEditor);
     if (downloadBtn) downloadBtn.addEventListener("click", downloadTourJson);
     if (playBtn) playBtn.addEventListener("click", playRecordedTour);
   }

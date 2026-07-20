@@ -20,6 +20,29 @@
 
   UA.PoliticalContext = UA.PoliticalContext || {};
 
+  let panelController = null;
+
+  function getPanelController(panel) {
+    if (!panelController) {
+      panelController = UA.createModalController(panel, {
+        initialFocus: '#polCtxBtnClose',
+        returnFocus: () => document.getElementById('btnPolCtxOpen'),
+        fallbackFocus: () => document.getElementById('collapseBtn'),
+      });
+    }
+    return panelController;
+  }
+
+  function showPanel(panel) {
+    if (!panel) return;
+    getPanelController(panel).open();
+  }
+
+  function closePanel(panel) {
+    if (!panel) return;
+    getPanelController(panel).close();
+  }
+
   // ── API-Zugriff ──────────────────────────────────────────────────────────────
 
   /**
@@ -251,7 +274,7 @@
     const panel = document.getElementById('polCtxPanel');
     if (!panel) return;
 
-    panel.style.display = 'flex';
+    showPanel(panel);
 
     // Issue 3: Vor dem Vorbelegen / Auto-Suche sicherstellen, dass
     // ctx.locationHint mit Straße/Stadtbezirk gefüllt ist (on-demand
@@ -345,9 +368,7 @@
 
     // Panel schließen
     if (btnClose) {
-      btnClose.addEventListener('click', () => {
-        if (panel) panel.style.display = 'none';
-      });
+      btnClose.addEventListener('click', () => closePanel(panel));
     }
 
     // Suche starten
@@ -367,7 +388,7 @@
         }
         // In ctx speichern, damit computeExportReport() sie einbeziehen kann
         ctx.politicalReferences = selected;
-        if (panel) panel.style.display = 'none';
+        closePanel(panel);
         const count = selected.length;
         const btnOpenExport = document.getElementById('btnOpenExport');
         if (btnOpenExport) {

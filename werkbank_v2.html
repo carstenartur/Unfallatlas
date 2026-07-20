@@ -34,7 +34,7 @@
   <!-- These are loaded via script injection when export dialog opens -->
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/ua.css?v=2026-01-01" />
+  <link rel="stylesheet" href="css/ua.css?v=2026-07-19" />
 </head>
 <body>
   <div id="map"></div>
@@ -46,12 +46,16 @@
         <div class="panelSub" id="panelSub">(Viewport + Analyse/Export + POI)</div>
       </div>
       <div class="headerBtns">
-        <div class="legendBtn" id="legendBtn" title="Legende ein-/ausblenden">i</div>
-        <div class="collapseBtn" id="collapseBtn" title="Ein-/Ausklappen">v</div>
+        <button type="button" class="legendBtn" id="legendBtn"
+                title="Legende ein-/ausblenden" aria-label="Legende einblenden"
+                aria-controls="legendBox" aria-expanded="false">i</button>
+        <button type="button" class="collapseBtn" id="collapseBtn"
+                title="Ein-/Ausklappen" aria-label="Bedienfeld einklappen"
+                aria-controls="panelBody" aria-expanded="true">v</button>
       </div>
     </div>
 
-    <div class="panelBody">
+    <div class="panelBody" id="panelBody">
       <!--
         QA-Härtung „Nutzerführung": Kommunale Anwender:innen sollen sofort
         sehen, wie sie zu einem Antrag kommen. Die drei Schritte spiegeln
@@ -81,6 +85,13 @@
         </select>
       </div>
 
+      <div class="taskActionsHeading">Ausschnitt &amp; Export</div>
+      <div class="toggles taskActions" role="group" aria-label="Ausschnitt und Export">
+        <button type="button" id="btnOpenExport" class="btn primaryTaskBtn">Analyse/Export öffnen</button>
+        <button type="button" id="btnDraw" class="btn">Bereich markieren</button>
+        <button type="button" id="btnClearDraw" class="btn">Markierung löschen</button>
+      </div>
+
       <div class="row">
         <label for="severity">Unfallschwere</label>
         <select id="severity">
@@ -102,9 +113,9 @@
       </div>
 
       <div class="toggles">
-        <div id="modeOr" class="btn active">ODER</div>
-        <div id="modeAnd" class="btn">UND</div>
-        <div id="modeSolo" class="btn">Alleinunfall</div>
+        <button type="button" id="modeOr" class="btn active" aria-pressed="true">ODER</button>
+        <button type="button" id="modeAnd" class="btn" aria-pressed="false">UND</button>
+        <button type="button" id="modeSolo" class="btn" aria-pressed="false">Alleinunfall</button>
       </div>
 
       <div style="margin-top:10px; font-weight:900;">Zeit & Bedingungen</div>
@@ -246,10 +257,10 @@
 
       <div style="margin-top:10px; font-weight:900;">Kartenmodus</div>
       <div class="toggles">
-        <div id="mapModeStandard" class="btn active">Standardkarte</div>
-        <div id="mapModeOrthophoto" class="btn">Orthofoto</div>
-        <div id="mapModeHybrid" class="btn">Hybrid</div>
-        <div id="mapModeAnalysis" class="btn">Analyseansicht</div>
+        <button type="button" id="mapModeStandard" class="btn active" aria-pressed="true">Standardkarte</button>
+        <button type="button" id="mapModeOrthophoto" class="btn" aria-pressed="false">Orthofoto</button>
+        <button type="button" id="mapModeHybrid" class="btn" aria-pressed="false">Hybrid</button>
+        <button type="button" id="mapModeAnalysis" class="btn" aria-pressed="false">Analyseansicht</button>
       </div>
 
       <div class="row">
@@ -268,33 +279,26 @@
       </div>
 
       <div class="toggles">
-        <div id="toggleCluster" class="btn active">Cluster</div>
-        <div id="toggleHeat" class="btn active">Heatmap</div>
-        <div id="toggleOnlyHot" class="btn">Nur „auffällig"</div>
-      </div>
-
-      <div style="margin-top:10px; font-weight:900;">Ausschnitt & Export</div>
-      <div class="toggles">
-        <div id="btnDraw" class="btn">Bereich markieren</div>
-        <div id="btnClearDraw" class="btn">Markierung löschen</div>
-        <div id="btnOpenExport" class="btn">Analyse/Export öffnen</div>
+        <button type="button" id="toggleCluster" class="btn active" aria-pressed="true">Cluster</button>
+        <button type="button" id="toggleHeat" class="btn active" aria-pressed="true">Heatmap</button>
+        <button type="button" id="toggleOnlyHot" class="btn" aria-pressed="false">Nur „auffällig"</button>
       </div>
 
       <div style="margin-top:8px;">
-        <div id="btnPolCtxOpen" class="btn" style="background:rgba(233,248,240,.92);border-color:rgba(100,200,140,.6);"
-             title="Findet frühere Anträge, Beschlüsse und Verwaltungsantworten zum markierten Bereich – damit Sie auf bestehende politische Vorgänge Bezug nehmen können statt sie zu doppeln.">🔍 Politische Vorgänge recherchieren</div>
+        <button type="button" id="btnPolCtxOpen" class="btn" style="background:rgba(233,248,240,.92);border-color:rgba(100,200,140,.6);"
+                title="Findet frühere Anträge, Beschlüsse und Verwaltungsantworten zum markierten Bereich – damit Sie auf bestehende politische Vorgänge Bezug nehmen können statt sie zu doppeln.">🔍 Politische Vorgänge recherchieren</button>
       </div>
 
       <div style="margin-top:8px;">
-        <div id="btnPrioritiesOpen" class="btn" style="background:rgba(240,233,250,.92);border-color:rgba(140,100,200,.6);" title="Top-N und gespeicherte Steckbriefe ansehen (Entscheidungsunterstützung)">📊 Prioritäten & gespeicherte Briefs</div>
+        <button type="button" id="btnPrioritiesOpen" class="btn" style="background:rgba(240,233,250,.92);border-color:rgba(140,100,200,.6);" title="Top-N und gespeicherte Steckbriefe ansehen (Entscheidungsunterstützung)">📊 Prioritäten & gespeicherte Briefs</button>
       </div>
 
       <div style="margin-top:10px; font-weight:900;">Geführte Tour</div>
       <div class="toggles">
-        <div id="tourBtnStart" class="btn" title="Demo-Tour starten">▶ Tour starten</div>
-        <div id="tourBtnRecord" class="btn" title="Aufnahme starten">⏺ Aufzeichnen
+        <button type="button" id="tourBtnStart" class="btn" title="Demo-Tour starten">▶ Tour starten</button>
+        <button type="button" id="tourBtnRecord" class="btn" title="Aufnahme starten">⏺ Aufzeichnen
           <span id="recBadge" class="recBadge" style="display:none">REC <span id="recStepCount">0</span></span>
-        </div>
+        </button>
       </div>
 
       <div class="legendBox" id="legendBox">
@@ -307,7 +311,7 @@
         </ul>
       </div>
 
-      <div class="stat" id="stat">Lade Daten…</div>
+      <div class="stat" id="stat" role="status" aria-live="polite" aria-atomic="true">Lade Daten…</div>
       <!--
         QA-Härtung „Ladezustand": Quelle/Build erst sichtbar, wenn echte
         Werte vorhanden sind (siehe ua.ui.js UA.maybeRevealMetaInfo und
@@ -333,17 +337,17 @@
     </div>
   </div>
 
-  <div class="modalOverlay" id="modalOverlay" role="dialog" aria-modal="true">
+  <div class="modalOverlay" id="modalOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="exportModalTitle">
     <div class="modal">
       <div class="modalHeader">
-        <div class="modalTitle">Analyse / Export (Entwurf)</div>
+        <div class="modalTitle" id="exportModalTitle">Analyse / Export (Entwurf)</div>
         <div class="modalBtns">
-          <div class="smallBtn" id="btnCopyText">Text kopieren</div>
-          <div class="smallBtn" id="btnCopyLink">Link kopieren</div>
-          <div class="smallBtn" id="btnCloseModal">Schließen</div>
+          <button type="button" class="smallBtn" id="btnCopyText">Text kopieren</button>
+          <button type="button" class="smallBtn" id="btnCopyLink">Link kopieren</button>
+          <button type="button" class="smallBtn" id="btnCloseModal">Schließen</button>
         </div>
       </div>
-      <div class="progressLine" id="exportProgress">-</div>
+      <div class="progressLine" id="exportProgress" role="status" aria-live="polite">-</div>
 
       <!--
         QA-Härtung „Export-Dialog": Hinweisbanner, wenn keine Markierung
@@ -429,10 +433,10 @@
                 style="margin-top:15px; padding:10px 12px; border:1px solid rgba(44,90,160,.35); border-radius:12px; background:rgba(44,90,160,.04);">
         <legend style="font-weight:900; padding:0 6px; color:#2c5aa0;">📝 Antrag (primär)</legend>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button id="btnExportWord" aria-label="Antrag als Word-Dokument erzeugen" style="flex:1; min-width:150px; padding:12px 20px; background:#2c5aa0; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <button type="button" id="btnExportWord" aria-label="Antrag als Word-Dokument erzeugen" style="flex:1; min-width:150px; padding:12px 20px; background:#2c5aa0; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
             <span aria-hidden="true">📄</span> Antrag als Word (.docx)
           </button>
-          <button id="btnExportPDF" aria-label="Antrag als PDF-Dokument erzeugen" style="flex:1; min-width:150px; padding:12px 20px; background:#c41e3a; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <button type="button" id="btnExportPDF" aria-label="Antrag als PDF-Dokument erzeugen" style="flex:1; min-width:150px; padding:12px 20px; background:#c41e3a; color:white; border:none; border-radius:12px; font-weight:800; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
             <span aria-hidden="true">📑</span> Antrag als PDF
           </button>
         </div>
@@ -442,13 +446,13 @@
                 style="margin-top:10px; padding:8px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px;">
         <legend style="font-weight:700; padding:0 6px; color:#555;">📊 Datenexport (sekundär)</legend>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button id="btnExportCSV" aria-label="Export als CSV-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#2a7a4b; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <button type="button" id="btnExportCSV" aria-label="Export als CSV-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#2a7a4b; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
             <span aria-hidden="true">📊</span> CSV
           </button>
-          <button id="btnExportGeoJSON" aria-label="Export als GeoJSON-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#6a3f9e; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <button type="button" id="btnExportGeoJSON" aria-label="Export als GeoJSON-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#6a3f9e; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
             <span aria-hidden="true">🗺️</span> GeoJSON
           </button>
-          <button id="btnExportKML" aria-label="Export als KML-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#b06020; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <button type="button" id="btnExportKML" aria-label="Export als KML-Datei" style="flex:1; min-width:110px; padding:8px 14px; background:#b06020; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px;">
             <span aria-hidden="true">📍</span> KML
           </button>
         </div>
@@ -458,7 +462,7 @@
       <fieldset id="videoExportContainer" data-export-group="visualization"
                 style="display:none; margin-top:10px; padding:8px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px;">
         <legend style="font-weight:700; padding:0 6px; color:#555;">🎬 Visualisierung</legend>
-        <button id="btnExportVideo" aria-label="Analyse als Video exportieren" style="width:100%; padding:10px 16px; background:#1a7a5a; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
+        <button type="button" id="btnExportVideo" aria-label="Analyse als Video exportieren" style="width:100%; padding:10px 16px; background:#1a7a5a; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
           <span aria-hidden="true">🎬</span> Als Video exportieren
         </button>
         <div id="videoExportFormatGroup" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; font-size:12px; color:#444;">
@@ -488,7 +492,7 @@
                 style="margin-top:14px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(0,0,0,.02);">
         <legend style="font-weight:700; padding:0 6px; color:#555;">✨ Zusatzanalysen</legend>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <button id="btnAiProposal" aria-label="Antragsentwurf KI-gestützt erstellen"
+          <button type="button" id="btnAiProposal" aria-label="Antragsentwurf KI-gestützt erstellen"
                   title="Erstellt einen Antragsentwurf KI-gestützt aus den aktuellen Filtern und Kennzahlen. Beta – bitte Inhalt vor Einreichung redaktionell prüfen."
                   style="padding:9px 14px; background:#5a3fa0; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
             <span aria-hidden="true">✨</span> Antragsentwurf erstellen <span style="font-size:10px; opacity:.85; padding:1px 4px; border:1px solid currentColor; border-radius:4px; margin-left:4px;">KI · Beta</span>
@@ -517,41 +521,42 @@
       </div>
       <div class="tourProgressBar"><div class="tourProgressFill" id="tourProgressFill"></div></div>
       <div class="tourControls">
-        <button class="tourBtn" id="tourBtnPrev" title="Vorheriger Schritt">◀</button>
-        <button class="tourBtn" id="tourBtnPlayPause" title="Play / Pause">⏸</button>
-        <button class="tourBtn" id="tourBtnNext" title="Nächster Schritt">▶</button>
-        <button class="tourBtn tourBtnStop" id="tourBtnStop" title="Tour beenden">✕</button>
+        <button type="button" class="tourBtn" id="tourBtnPrev" title="Vorheriger Schritt">◀</button>
+        <button type="button" class="tourBtn" id="tourBtnPlayPause" title="Play / Pause">⏸</button>
+        <button type="button" class="tourBtn" id="tourBtnNext" title="Nächster Schritt">▶</button>
+        <button type="button" class="tourBtn tourBtnStop" id="tourBtnStop" title="Tour beenden">✕</button>
       </div>
     </div>
   </div>
 
   <!-- Recorder Editor Modal -->
-  <div class="modalOverlay" id="recorderModal" role="dialog" aria-modal="true" style="display:none">
+  <div class="modalOverlay" id="recorderModal" role="dialog" aria-modal="true" aria-hidden="true"
+       aria-labelledby="recorderModalTitle" style="display:none">
     <div class="modal recorderModal">
       <div class="modalHeader">
-        <div class="modalTitle">Aufgezeichnete Tour bearbeiten</div>
+        <div class="modalTitle" id="recorderModalTitle">Aufgezeichnete Tour bearbeiten</div>
         <div class="modalBtns">
-          <div class="smallBtn" id="recorderBtnPlay">▶ Vorschau abspielen</div>
-          <div class="smallBtn" id="recorderBtnDownload">⬇ Als JSON herunterladen</div>
-          <div class="smallBtn" id="recorderBtnClose">Schließen</div>
+          <button type="button" class="smallBtn" id="recorderBtnPlay">▶ Vorschau abspielen</button>
+          <button type="button" class="smallBtn" id="recorderBtnDownload">⬇ Als JSON herunterladen</button>
+          <button type="button" class="smallBtn" id="recorderBtnClose">Schließen</button>
         </div>
       </div>
       <p style="font-size:12px; color:#666; margin:4px 0 10px;">
         Beschreibungen und Pausen (ms) bearbeiten, Schritte sortieren oder löschen, dann herunterladen und in <code>tours/</code> ablegen.
       </p>
       <div id="recorderStepList" class="recorderStepList"></div>
-      <div style="margin-top:12px; font-weight:800; font-size:12px;">JSON (direkt editierbar):</div>
+      <label for="recorderJson" style="display:block; margin-top:12px; font-weight:800; font-size:12px;">JSON (direkt editierbar):</label>
       <textarea id="recorderJson" class="recorderJsonArea"></textarea>
     </div>
   </div>
 
   <!-- Politische Kontextrecherche Panel -->
-  <div id="polCtxPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-label="Politische Vorgänge recherchieren" style="display:none;">
+  <div id="polCtxPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Politische Vorgänge recherchieren" style="display:none;">
     <div class="modal" style="max-width:680px;">
       <div class="modalHeader">
         <div class="modalTitle">🔍 Frühere politische Vorgänge recherchieren</div>
         <div class="modalBtns">
-          <div class="smallBtn" id="polCtxBtnClose">Schließen</div>
+          <button type="button" class="smallBtn" id="polCtxBtnClose">Schließen</button>
         </div>
       </div>
       <p style="font-size:13px; color:#555; margin:4px 0 12px; line-height:1.5;">
@@ -561,20 +566,21 @@
       </p>
 
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+        <label for="polCtxSearchInput" style="flex:1 0 100%;font-size:13px;font-weight:700;">Suchbegriffe</label>
         <input id="polCtxSearchInput" type="text" placeholder="Suchbegriffe (z. B. Straßenname, Kreuzung, Bezirk) …"
           style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font:14px system-ui,sans-serif;" />
-        <button id="polCtxBtnSearch"
+        <button type="button" id="polCtxBtnSearch"
           style="padding:8px 18px;background:#2c5aa0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">
           Suche starten
         </button>
       </div>
 
       <div id="polCtxBasis" style="font-size:11px;color:#666;margin-bottom:4px;min-height:14px;"></div>
-      <div id="polCtxStatus" style="font-size:12px;color:#888;min-height:18px;margin-bottom:6px;"></div>
+      <div id="polCtxStatus" role="status" aria-live="polite" style="font-size:12px;color:#888;min-height:18px;margin-bottom:6px;"></div>
       <div id="polCtxResults" style="max-height:380px;overflow-y:auto;"></div>
 
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-        <button id="polCtxBtnAdopt"
+        <button type="button" id="polCtxBtnAdopt"
           style="padding:10px 20px;background:#2a7a4b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">
           ✓ Ausgewählte Vorgänge in Export übernehmen
         </button>
@@ -586,12 +592,12 @@
   </div>
 
   <!-- Prioritätenansicht: Top-N und gespeicherte Briefs -->
-  <div id="prioPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-label="Prioritäten und gespeicherte Steckbriefe" style="display:none;">
+  <div id="prioPanel" class="modalOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Prioritäten und gespeicherte Steckbriefe" style="display:none;">
     <div class="modal" style="max-width:780px;">
       <div class="modalHeader">
         <div class="modalTitle">📊 Prioritäten &amp; gespeicherte Briefs</div>
         <div class="modalBtns">
-          <div class="smallBtn" id="prioBtnClose">Schließen</div>
+          <button type="button" class="smallBtn" id="prioBtnClose">Schließen</button>
         </div>
       </div>
       <p style="font-size:13px; color:#555; margin:4px 0 12px; line-height:1.5;">
@@ -622,12 +628,12 @@
       </div>
 
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-        <button id="prioBtnLoad"
+        <button type="button" id="prioBtnLoad"
           style="padding:8px 18px;background:#6a3f9e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">
           Laden
         </button>
         <span id="prioStatusBadge" style="display:none;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;"></span>
-        <span id="prioStatus" style="font-size:12px;color:#888;"></span>
+        <span id="prioStatus" role="status" aria-live="polite" style="font-size:12px;color:#888;"></span>
       </div>
 
       <div id="prioResults" style="max-height:480px;overflow-y:auto;"></div>
@@ -640,7 +646,7 @@
   <script src="js/ua.utils.js?v=2026-07-19"></script>
   <script src="js/ua.state.js?v=2026-01-01"></script>
   <script src="js/ua.map_layer_registry.js?v=2026-06-28"></script>
-  <script src="js/ua.ui.js?v=2026-06-28"></script>
+  <script src="js/ua.ui.js?v=2026-07-19"></script>
   <!-- gzip fetch utility — must load before context_layers, accident_provider and data_v2 -->
   <script src="js/ua.fetch_gz.js?v=2026-07-06"></script>
   <script src="js/ua.data_paths.js?v=2026-07-11"></script>
@@ -681,9 +687,10 @@
   <script src="js/ua.export_v2.js?v=2026-01-01"></script>
   <script src="js/ua.ai_proposal.js?v=2026-01-01"></script>
   <script src="js/ua.report_v2.js?v=2026-07-19"></script>
-  <script src="js/ua.tour.js?v=2026-01-01"></script>
+  <script src="js/ua.tour.js?v=2026-07-19"></script>
   <script src="js/ua.app_v2.js?v=2026-07-19"></script>
-  <script src="js/ua.video-export.js?v=2026-01-01"></script>
+  <script src="js/ua.video-export-contract.js?v=2026-07-19"></script>
+  <script src="js/ua.video-export.js?v=2026-07-19"></script>
   <script src="js/ua.political-context.js?v=2026-07-19"></script>
   <script src="js/ua.priorities.js?v=2026-07-19"></script>
 </body>

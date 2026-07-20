@@ -62,18 +62,24 @@
 
   function bindExport(ctx){
     const ui = ctx.ui;
+    const modalController = UA.createModalController(ui.modalOverlay, {
+      initialFocus: () => ui.btnCloseModal,
+      returnFocus: () => ui.btnOpenExport,
+      fallbackFocus: () => ui.collapseBtn,
+    });
 
     function openModal(){
-      ui.modalOverlay.style.display = "flex";
+      modalController.open();
       // QA-Härtung „Export-Dialog": Hinweis „kein Bereich markiert"
       // dynamisch ein-/ausblenden, abhängig vom aktuellen ctx-Zustand.
       const hint = document.getElementById("noSelectionHint");
       if (hint) hint.hidden = !!ctx.selectionBounds;
     }
-    function closeModal(){ ui.modalOverlay.style.display = "none"; }
+    function closeModal(){
+      modalController.close();
+    }
 
     ui.btnCloseModal.addEventListener('click', closeModal);
-    ui.modalOverlay.addEventListener('click', (e)=>{ if (e.target === ui.modalOverlay) closeModal(); });
 
     // Returns true on a successful render, false if report generation failed.
     // Callers use the return value to decide whether to persist export-related
