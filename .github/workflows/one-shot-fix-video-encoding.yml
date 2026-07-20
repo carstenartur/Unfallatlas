@@ -1,0 +1,26 @@
+name: One-shot fix video encoding contract
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'automation/repair-build-provenance-media-boundaries'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: automation/repair-build-provenance-media-boundaries
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Apply and test codec-safe video export fix
+        run: bash scripts/apply-video-encoding-fix.sh
