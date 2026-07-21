@@ -15,14 +15,16 @@ if (!pathEntries.includes(CODEC_BIN_DIR)) {
   process.env.PATH = [CODEC_BIN_DIR, currentPath].filter(Boolean).join(path.delimiter);
 }
 
-const ANIMATED_IMAGE_FPS = 3;
+// Encoded semantic inspection also samples at 2 fps. Using the same cadence
+// avoids a 3→2 fps phase conversion that could select frames between the
+// stable dual-context states recorded by the browser.
+const ANIMATED_IMAGE_FPS = 2;
 // Context overlays use an 8 px slope casing and a 3 px dashed traffic
-// centreline at the browser's 1280 px capture width. Scaling to 720 px reduced
-// the traffic stroke to about 1.7 px, so a valid shared road corridor could
-// leave only one unambiguous centreline pixel after temporal sampling. Keep at
-// least 960 px horizontally: the narrowest owned context stroke then projects
-// to 2.25 px while GIF/WebP/APNG continue to share one deterministic filter.
-const ANIMATED_IMAGE_WIDTH = 960;
+// centreline at the browser's 1280 px capture width. 864 px retains just over
+// two pixels for the narrow owned line (3 * 864 / 1280 = 2.025) while keeping
+// GIF/WebP/APNG below their existing artifact-size budgets. A previous 960 px
+// attempt proved the semantics but inflated lossless WebP to ~28 MiB.
+const ANIMATED_IMAGE_WIDTH = 864;
 const ANIMATED_IMAGE_FILTER =
   `fps=${ANIMATED_IMAGE_FPS},scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`;
 
