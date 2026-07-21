@@ -147,7 +147,11 @@ jobs:
 
       - name: Build Analysis Service test JAR
         working-directory: analysis-service
-        run: ./mvnw -B -ntp -DskipTests package
+        run: |
+          mkdir -p ../out/qa/location-brief-golden
+          set -o pipefail
+          ./mvnw -B -ntp -DskipTests package 2>&1 \
+            | tee ../out/qa/location-brief-golden/maven-package.log
 
       - name: Run Docker-free golden-case preflight
         run: npm run qa:location-brief-golden -- --preflight
@@ -333,24 +337,30 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Run Maven clean verify
-        run: ./mvnw -B -ntp clean verify
+        run: |
+          mkdir -p ../out/qa/analysis-service
+          set -o pipefail
+          ./mvnw -B -ntp clean verify 2>&1 \
+            | tee ../out/qa/analysis-service/maven-verify.log
 
-      - name: Upload Surefire / Failsafe reports on failure
+      - name: Upload Maven diagnostics
         uses: actions/upload-artifact@v7
-        if: failure()
+        if: always()
         with:
-          name: analysis-service-test-reports
+          name: analysis-service-maven-diagnostics
           path: |
+            out/qa/analysis-service/maven-verify.log
             analysis-service/target/surefire-reports/
             analysis-service/target/failsafe-reports/
-          if-no-files-found: ignore
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Summarise Maven failure
         if: failure()
         run: |
           echo '## Analysis Service Maven verify failed' >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
-          find target/surefire-reports target/failsafe-reports -type f \( -name '*.txt' -o -name '*.xml' \) -print -exec tail -n 80 {} \; 2>/dev/null || true
+          tail -n 120 ../out/qa/analysis-service/maven-verify.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
 
   pdf-render-gate:
     runs-on: ubuntu-latest
@@ -375,4 +385,18 @@ jobs:
         run: npm run generate:sample-pdf
 
       - name: Run PDF render gate
-        run: npm run test:render-gate
+        run: |
+          mkdir -p out/qa
+          set -o pipefail
+          npm run test:render-gate 2>&1 | tee out/qa/pdf-render-gate.log
+
+      - name: Upload PDF render diagnostics
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: pdf-render-gate-diagnostics
+          path: |
+            out/qa/pdf-render-gate.log
+            out/qa/pdf-render/
+          if-no-files-found: error
+          retention-days: 14
