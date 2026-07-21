@@ -22,18 +22,29 @@ describe('documentation screenshot publication safety', () => {
     expect(workflow).toMatch(/persist-credentials:\s*false\b/);
   });
 
-  test('uses the canonical Chromium project and uploads a review artifact', () => {
-    expect(workflow).toContain(
-      'playwright test tests/e2e/screenshots.spec.js --project=chromium'
-    );
-    expect(workflow).toMatch(/uses:\s*actions\/upload-artifact@/);
-    expect(workflow).toMatch(/if-no-files-found:\s*error\b/);
+  test('uses the fail-closed live-map runner for every reviewable candidate', () => {
+    for (const candidate of [workflow, visualCheckWorkflow]) {
+      expect(candidate).toContain('node scripts/run-live-documentation-screenshots.cjs');
+      expect(candidate).not.toContain(
+        'playwright test tests/e2e/screenshots.spec.js --project=chromium'
+      );
+      expect(candidate).toMatch(/uses:\s*actions\/upload-artifact@/);
+      expect(candidate).toMatch(/if-no-files-found:\s*error\b/);
+      expect(candidate).toMatch(/real cartographic basemaps|echten Karten/i);
+    }
+    expect(workflow).toContain('documentation-screenshots-live-map-${{ github.sha }}');
+    expect(visualCheckWorkflow).toContain('pr-live-map-screenshots-${{ github.event.pull_request.number }}');
+  });
+
+  test('keeps the hermetic E2E suite separate from publication candidates', () => {
+    expect(testWorkflow).toContain('npm run test:e2e');
+    expect(testWorkflow).not.toContain('node scripts/run-live-documentation-screenshots.cjs');
   });
 
   test('starts from a clean PNG directory so stale media cannot pass through', () => {
     for (const [candidate, command] of [
-      [workflow, 'playwright test tests/e2e/screenshots.spec.js'],
-      [visualCheckWorkflow, 'playwright test tests/e2e/screenshots.spec.js'],
+      [workflow, 'node scripts/run-live-documentation-screenshots.cjs'],
+      [visualCheckWorkflow, 'node scripts/run-live-documentation-screenshots.cjs'],
       [testWorkflow, 'npm run test:e2e'],
     ]) {
       const cleanup = candidate.indexOf("find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete");
