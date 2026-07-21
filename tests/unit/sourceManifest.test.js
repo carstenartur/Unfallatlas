@@ -250,4 +250,53 @@ describe('renderer-independent source manifest', () => {
     }));
     expect(summaries.every(item => item.label && item.licenseLabel)).toBe(true);
   });
+
+  test('omits an empty optional distribution URL from canonical output', () => {
+    const normalized = sourceManifest.normalizeManifest(validManifest({
+      sources: [accidentSource({ distributionUrl: '' }), osmSource()],
+    }));
+    expect(normalized.sources[0]).not.toHaveProperty('distributionUrl');
+    expect(sourceManifest.stableStringify(normalized)).not.toContain('distributionUrl');
+  });
+
+  test.each([
+    ['impossible retrieval date', validManifest({
+      sources: [accidentSource({ retrievedAt: '2026-02-31' }), osmSource()],
+    })],
+    ['impossible publication date', validManifest({
+      sources: [accidentSource({ versionOrPublicationDate: '2026-02-31' }), osmSource()],
+    })],
+    ['invalid generated timestamp', validManifest({ generatedAt: '2026-07-21T25:00:00Z' })],
+    ['invalid timezone offset', validManifest({ generatedAt: '2026-07-21T12:00:00+14:30' })],
+  ])('rejects %s without Date.parse normalization', (_label, manifest) => {
+    expect(() => sourceManifest.normalizeManifest(manifest)).toThrow(/invalid_date/);
+  });
+
+  test.each([
+    ['scenario years', validManifest({
+      scenario: { ...validManifest().scenario, years: '2024' },
+    }), 'manifest.scenario.years'],
+    ['transformations', validManifest({ transformations: {} }), 'manifest.transformations'],
+  ])('reports invalid array types for %s through SourceManifestError', (_label, manifest, path) => {
+    try {
+      sourceManifest.normalizeManifest(manifest);
+      throw new Error('expected normalization to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(sourceManifest.SourceManifestError);
+      expect(error.code).toBe('invalid_array');
+      expect(error.path).toBe(path);
+    }
+  });
+
+  test.each([
+    ['empty', []],
+    ['missing', undefined],
+  ])('requires every transformation to reference at least one source (%s)', (_label, sourceIds) => {
+    const manifest = validManifest();
+    if (sourceIds === undefined) delete manifest.transformations[0].sourceIds;
+    else manifest.transformations[0].sourceIds = sourceIds;
+    expect(() => sourceManifest.normalizeManifest(manifest))
+      .toThrow(/(?:empty_array|missing_required_value)/);
+  });
+
 });

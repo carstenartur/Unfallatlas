@@ -152,12 +152,40 @@
   }
 
   function validDate(value, path) {
-    const text = requiredString(value, path);
-    if (!/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(text) || !Number.isFinite(Date.parse(text))) {
-      fail('invalid_date', path, value, `${path} must be an ISO-8601 date or timestamp`);
-    }
-    return text;
+  const text = requiredString(value, path);
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:\d{2}))?$/.exec(text);
+  if (!match) {
+    fail('invalid_date', path, value, `${path} must be an ISO-8601 date or timestamp with timezone`);
   }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const calendarDate = new Date(Date.UTC(year, month - 1, day));
+  if (calendarDate.getUTCFullYear() !== year ||
+      calendarDate.getUTCMonth() !== month - 1 ||
+      calendarDate.getUTCDate() !== day) {
+    fail('invalid_date', path, value, `${path} contains an impossible calendar date`);
+  }
+  if (match[4] != null) {
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const second = match[6] == null ? 0 : Number(match[6]);
+    if (hour > 23 || minute > 59 || second > 59) {
+      fail('invalid_date', path, value, `${path} contains an invalid time`);
+    }
+    if (match[8] !== 'Z') {
+      const offsetHour = Number(match[8].slice(1, 3));
+      const offsetMinute = Number(match[8].slice(4, 6));
+      if (offsetHour > 14 || offsetMinute > 59 || (offsetHour === 14 && offsetMinute !== 0)) {
+        fail('invalid_date', path, value, `${path} contains an invalid timezone offset`);
+      }
+    }
+    if (!Number.isFinite(Date.parse(text))) {
+      fail('invalid_date', path, value, `${path} must be an ISO-8601 timestamp`);
+    }
+  }
+  return text;
+}
 
   function httpsUrl(value, path, optional) {
     if ((value == null || value === '') && optional) return undefined;
@@ -192,7 +220,10 @@
 
   function stringArray(value, path, options) {
     const opts = options || {};
-    if (value == null) return [];
+    if (value == null) {
+    if (opts.allowEmpty) return [];
+    fail('missing_required_value', path, value, `${path} must be a non-empty array`);
+  }
     if (!Array.isArray(value)) fail('invalid_array', path, value, `${path} must be an array`);
     const values = value.map((item, index) => requiredString(item, `${path}[${index}]`));
     const unique = [...new Set(values)];
@@ -233,13 +264,20 @@
   function normalizeScenario(value) {
     const scenario = objectValue(value, 'manifest.scenario');
     assertKnownKeys(scenario, SCENARIO_KEYS, 'manifest.scenario');
-    const years = scenario.years == null ? [] : scenario.years.map((year, index) => {
+    let years = [];
+  if (scenario.years != null) {
+    if (!Array.isArray(scenario.years)) {
+      fail('invalid_array', 'manifest.scenario.years', scenario.years,
+        'manifest.scenario.years must be an array');
+    }
+    years = scenario.years.map((year, index) => {
       const number = Number(year);
       if (!Number.isInteger(number) || number < 1900 || number > 2100) {
         fail('invalid_year', `manifest.scenario.years[${index}]`, year);
       }
       return number;
     });
+  }
     return {
       city: requiredString(scenario.city, 'manifest.scenario.city'),
       ...(scenario.bounds == null ? {} : { bounds: normalizeBounds(scenario.bounds, 'manifest.scenario.bounds') }),
@@ -295,24 +333,24 @@
       fail('license_name_mismatch', `${path}.licenseName`, declaredLicenseName,
         `${path}.licenseName must equal the canonical name for ${policy.id}`);
     }
-    return {
-      sourceId: identifier(source.sourceId, `${path}.sourceId`),
+    const distributionUrl = httpsUrl(source.distributionUrl, `${path}.distributionUrl`, true);
+  const versionOrPublicationDate = source.versionOrPublicationDate == null || source.versionOrPublicationDate === ''
+    ? undefined
+    : validDate(source.versionOrPublicationDate, `${path}.versionOrPublicationDate`);
+  return {
+    sourceId: identifier(source.sourceId, `${path}.sourceId`),
       role,
       publisher: requiredString(source.publisher, `${path}.publisher`),
       datasetTitle: requiredString(source.datasetTitle, `${path}.datasetTitle`),
       datasetUrl: httpsUrl(source.datasetUrl, `${path}.datasetUrl`),
-      ...(source.distributionUrl == null ? {} : {
-        distributionUrl: httpsUrl(source.distributionUrl, `${path}.distributionUrl`, true),
-      }),
+      ...(distributionUrl ? { distributionUrl } : {}),
       licenseId: policy.id,
       licenseName: policy.name,
       licenseUrl: httpsUrl(source.licenseUrl, `${path}.licenseUrl`),
       ...(requiredAttribution ? { requiredAttribution } : {}),
       ...(source.temporalCoverage ? { temporalCoverage: requiredString(source.temporalCoverage, `${path}.temporalCoverage`) } : {}),
       ...(source.spatialCoverage ? { spatialCoverage: requiredString(source.spatialCoverage, `${path}.spatialCoverage`) } : {}),
-      ...(source.versionOrPublicationDate ? {
-        versionOrPublicationDate: requiredString(source.versionOrPublicationDate, `${path}.versionOrPublicationDate`),
-      } : {}),
+      ...(versionOrPublicationDate ? { versionOrPublicationDate } : {}),
       retrievedAt: validDate(source.retrievedAt, `${path}.retrievedAt`),
       ...(source.contentHash ? { contentHash: sha256(source.contentHash, `${path}.contentHash`) } : {}),
       changedOrDerived,
@@ -385,9 +423,17 @@
       }
       sourceIds.add(source.sourceId);
     }
-    const transformations = (manifest.transformations || [])
-      .map((item, index) => normalizeTransformation(item, index, sourceIds))
-      .sort((a, b) => a.transformationId.localeCompare(b.transformationId));
+    let transformationValues = [];
+  if (manifest.transformations != null) {
+    if (!Array.isArray(manifest.transformations)) {
+      fail('invalid_array', 'manifest.transformations', manifest.transformations,
+        'manifest.transformations must be an array');
+    }
+    transformationValues = manifest.transformations;
+  }
+  const transformations = transformationValues
+    .map((item, index) => normalizeTransformation(item, index, sourceIds))
+    .sort((a, b) => a.transformationId.localeCompare(b.transformationId));
     const transformationIds = new Set();
     for (const transformation of transformations) {
       if (transformationIds.has(transformation.transformationId)) {
