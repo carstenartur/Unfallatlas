@@ -1,0 +1,171 @@
+name: Promote PR 486 live screenshots once
+
+on:
+  push:
+    branches:
+      - fix/live-cartographic-documentation-screenshots
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: promote-pr486-live-screenshots
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: ${{ github.event.head_commit.message == 'chore: stage one-shot live screenshot promotion' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v7
+        with:
+          ref: fix/live-cartographic-documentation-screenshots
+          fetch-depth: 1
+
+      - name: Download and verify the reviewed artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: '8487210469'
+          ARTIFACT_SHA256: 'fc341d5896342679416437bfd5814129a5419ab59205621ccd446a6bf5784e6a'
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'fix/live-cartographic-documentation-screenshots'
+          mkdir -p .build/promote-pr486
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > .build/promote-pr486/artifact.zip
+          echo "${ARTIFACT_SHA256}  .build/promote-pr486/artifact.zip" | sha256sum --check --strict
+          mkdir .build/promote-pr486/candidate
+          unzip -q .build/promote-pr486/artifact.zip -d .build/promote-pr486/candidate
+
+      - name: Verify complete real-cartography evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('.build/promote-pr486/candidate')
+          summary = json.loads((root / 'out/qa/screenshot-evidence.json').read_text())
+          live = json.loads((root / 'out/qa/live-cartography-evidence.json').read_text())
+          pngs = sorted((root / 'docs/screenshots').glob('*.png'))
+          sidecars = sorted((root / 'out/qa/screenshot-readiness').glob('*.json'))
+
+          assert summary['valid'] is True and summary['errors'] == []
+          assert summary['revision'] == '2f972eab7a594d990ec99cbb34b0762918693356'
+          assert summary['totals'] == {'screenshots': 21, 'evidence': 21}
+          assert live['schemaVersion'] == 2 and live['valid'] is True and live['errors'] == []
+          assert live['totals'] == {'screenshots': 21, 'validCartographic': 20, 'exempt': 1}
+          assert len(pngs) == 21 and len(sidecars) == 21
+          for row in live['screenshots']:
+              if row['status'] == 'exempt':
+                  assert row['path'] == 'docs/screenshots/15-export-pdf-rendered.png'
+              else:
+                  assert row['status'] == 'valid'
+                  assert row['requiredKinds']
+                  assert row['visibleTiles']
+                  assert row['responses']
+          PY
+
+      - name: Promote screenshots and durable evidence
+        env:
+          ARTIFACT_ID: '8487210469'
+          ARTIFACT_NAME: 'pr-live-map-screenshots-486'
+          ARTIFACT_SHA256: 'fc341d5896342679416437bfd5814129a5419ab59205621ccd446a6bf5784e6a'
+        run: |
+          set -euo pipefail
+          candidate=.build/promote-pr486/candidate
+          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+          cp "$candidate"/docs/screenshots/*.png docs/screenshots/
+          mkdir -p qa/screenshot-evidence/readiness
+          find qa/screenshot-evidence/readiness -maxdepth 1 -type f -name '*.json' -delete
+          cp "$candidate"/out/qa/screenshot-readiness/*.json qa/screenshot-evidence/readiness/
+          cp "$candidate"/out/qa/screenshot-evidence.json qa/screenshot-evidence/summary.json
+          cp "$candidate"/out/qa/live-cartography-evidence.json qa/screenshot-evidence/live-cartography.json
+
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def sha256(path):
+              return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+          summary_path = Path('qa/screenshot-evidence/summary.json')
+          live_path = Path('qa/screenshot-evidence/live-cartography.json')
+          readiness_dir = Path('qa/screenshot-evidence/readiness')
+          summary = json.loads(summary_path.read_text())
+          live = json.loads(live_path.read_text())
+
+          entries_canonical = ''.join(
+              f"{entry['path']}\t{entry['sha256']}\t{entry['bytes']}\n"
+              for entry in summary['screenshots']
+          )
+          readiness = [
+              (path.name, sha256(path), path.stat().st_size)
+              for path in sorted(readiness_dir.glob('*.json'))
+          ]
+          readiness_canonical = ''.join(
+              f'{name}\t{digest}\t{size}\n' for name, digest, size in readiness
+          )
+
+          provenance = {
+              'schemaVersion': 1,
+              'purpose': 'Durable, checked-in binding for the reviewed real-cartography screenshot artifact adopted on 2026-07-21.',
+              'source': {
+                  'artifactName': os.environ['ARTIFACT_NAME'],
+                  'artifactId': int(os.environ['ARTIFACT_ID']),
+                  'artifactZipSha256': os.environ['ARTIFACT_SHA256'],
+                  'evidenceRevision': summary['revision'],
+                  'evidenceStatus': 'valid',
+                  'evidenceCount': len(summary['screenshots']),
+              },
+              'build': {
+                  'manifestSha256': summary['build']['sha256'],
+                  'fingerprint': summary['build']['fingerprint'],
+                  'applicationFingerprint': summary['build']['applicationFingerprint'],
+                  'dataFingerprint': summary['build']['dataFingerprint'],
+              },
+              'summary': {
+                  'path': 'qa/screenshot-evidence/summary.json',
+                  'sha256': sha256(summary_path),
+                  'entriesSha256': hashlib.sha256(entries_canonical.encode()).hexdigest(),
+              },
+              'cartography': {
+                  'path': 'qa/screenshot-evidence/live-cartography.json',
+                  'sha256': sha256(live_path),
+                  'schemaVersion': live['schemaVersion'],
+                  'validCartographic': live['totals']['validCartographic'],
+                  'exempt': live['totals']['exempt'],
+              },
+              'readiness': {
+                  'directory': 'qa/screenshot-evidence/readiness',
+                  'files': len(readiness),
+                  'bytes': sum(size for _, _, size in readiness),
+                  'entriesSha256': hashlib.sha256(readiness_canonical.encode()).hexdigest(),
+              },
+          }
+          Path('qa/screenshot-evidence/provenance.json').write_text(
+              json.dumps(provenance, ensure_ascii=False, indent=2) + '\n'
+          )
+          PY
+
+      - name: Validate promoted media before committing
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build:site
+          npm run validate:media
+
+      - name: Commit once and remove this workflow
+        run: |
+          set -euo pipefail
+          rm .github/workflows/promote-pr486-live-screenshots.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/screenshots qa/screenshot-evidence .github/workflows/promote-pr486-live-screenshots.yml
+          git diff --cached --stat
+          git commit -m 'docs: promote validated real-map screenshots'
+          git push origin HEAD:fix/live-cartographic-documentation-screenshots
