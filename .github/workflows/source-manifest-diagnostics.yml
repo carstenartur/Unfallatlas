@@ -1,0 +1,45 @@
+name: Source-manifest diagnostics
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/source-manifest-diagnostics.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/source-manifest-core
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run focused test and preserve output
+        shell: bash
+        run: |
+          mkdir -p out/source-manifest-diagnostics
+          set +e
+          npx jest --runInBand tests/unit/sourceManifest.test.js \
+            --json --outputFile=out/source-manifest-diagnostics/jest-results.json \
+            2>&1 | tee out/source-manifest-diagnostics/jest-output.txt
+          status=${PIPESTATUS[0]}
+          echo "$status" > out/source-manifest-diagnostics/exit-code.txt
+          exit 0
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v7
+        with:
+          name: source-manifest-diagnostics
+          path: out/source-manifest-diagnostics
+          if-no-files-found: error
