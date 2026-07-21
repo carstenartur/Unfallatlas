@@ -47,19 +47,45 @@ function requiredLiveBasemapKinds(testTitle) {
   return ['standard'];
 }
 
-function assertLiveBasemapProvenance(page) {
+async function readVisibleLiveBasemapTiles(page) {
+  const urls = await page.locator('.leaflet-tile-pane img.leaflet-tile-loaded').evaluateAll(images => images
+    .filter(image => {
+      const rect = image.getBoundingClientRect();
+      const style = getComputedStyle(image);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' &&
+        style.visibility !== 'hidden' && Number(style.opacity || '1') > 0;
+    })
+    .map(image => image.currentSrc || image.src)
+    .filter(Boolean));
+  const seen = new Set();
+  const tiles = [];
+  for (const rawUrl of urls) {
+    const url = new URL(rawUrl).href;
+    const kind = classifyLiveBasemapUrl(url);
+    if (!kind || seen.has(url)) continue;
+    seen.add(url);
+    tiles.push({ kind, url });
+  }
+  return tiles;
+}
+
+async function assertLiveBasemapProvenance(page) {
   const live = LIVE_BASEMAP_PROVENANCE.get(page);
   if (!live) throw new Error('Documentation screenshot has no live basemap provenance context');
-  const missingKinds = live.requiredKinds.filter(
-    kind => !live.successfulResponses.some(response => response.kind === kind)
-  );
+  const visibleTiles = await readVisibleLiveBasemapTiles(page);
+  const successfulUrls = new Set(live.successfulResponses.map(response => new URL(response.url).href));
+  const missingKinds = live.requiredKinds.filter(kind => !visibleTiles.some(tile =>
+    tile.kind === kind && successfulUrls.has(tile.url)
+  ));
   if (missingKinds.length > 0) {
     throw new Error(
-      'Documentation screenshot lacks successful real basemap responses for: ' +
+      'Documentation screenshot lacks visible successful real basemap tiles for: ' +
       missingKinds.join(', ') + String.fromCharCode(10) +
-      'Observed real basemap responses: ' + JSON.stringify(live.successfulResponses, null, 2)
+      'Visible real basemap tiles: ' + JSON.stringify(visibleTiles, null, 2) + String.fromCharCode(10) +
+      'Observed successful real basemap responses: ' + JSON.stringify(live.successfulResponses, null, 2)
     );
   }
+  live.visibleTiles = visibleTiles;
   return live;
 }
 
@@ -68,7 +94,7 @@ async function setupLiveBasemapTiles(page, options = {}) {
   const unexpectedExternalRequests = [];
   const successfulResponses = [];
   UNEXPECTED_EXTERNAL_REQUESTS.set(page, unexpectedExternalRequests);
-  LIVE_BASEMAP_PROVENANCE.set(page, { requiredKinds, successfulResponses });
+  LIVE_BASEMAP_PROVENANCE.set(page, { requiredKinds, successfulResponses, visibleTiles: [] });
 
   page.on('response', response => {
     const kind = classifyLiveBasemapUrl(response.url());
@@ -134,13 +160,14 @@ async function setupLiveBasemapTiles(page, options = {}) {
 
 async function captureDataScreenshot(page, options) {
   const snapshot = await baseCaptureDataScreenshot(page, options);
-  const live = assertLiveBasemapProvenance(page);
+  const live = await assertLiveBasemapProvenance(page);
   const basename = options.path.split('/').pop().replace(/\.png$/i, '');
   const evidencePath = resolve(process.cwd(), 'out/qa/screenshot-readiness', basename + '.json');
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
   evidence.cartography = {
     source: 'live',
     requiredKinds: live.requiredKinds.slice(),
+    visibleTiles: live.visibleTiles.map(tile => ({ ...tile })),
     successfulResponses: live.successfulResponses.map(response => ({ ...response }))
   };
   writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + String.fromCharCode(10));
@@ -175,7 +202,7 @@ async function captureDataScreenshot(page, options) {
   transformed = replaceOnce(
     transformed,
     'function assertNoUnexpectedExternalRequests(page) {\n',
-    'function assertNoUnexpectedExternalRequests(page) {\n  if (LIVE_BASEMAP_PROVENANCE.has(page)) assertLiveBasemapProvenance(page);\n',
+    'async function assertNoUnexpectedExternalRequests(page) {\n  if (LIVE_BASEMAP_PROVENANCE.has(page)) await assertLiveBasemapProvenance(page);\n',
     'live provenance assertion'
   );
 
