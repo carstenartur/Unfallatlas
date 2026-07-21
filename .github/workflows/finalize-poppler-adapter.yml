@@ -1,0 +1,169 @@
+name: Finalize Poppler adapter
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-poppler-adapter.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Poppler branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/poppler-rendered-document-adapter
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies and Poppler
+        run: |
+          npm ci
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+      - name: Apply reviewed fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          script_path = Path('scripts/poppler-rendered-document.js')
+          script = script_path.read_text(encoding='utf-8')
+          old_main = "function main(argv) {\n  const options = parseArgs(argv);"
+          new_main = "function main(argv, runtimeOptions = {}) {\n  const options = { ...parseArgs(argv), ...runtimeOptions };"
+          if script.count(old_main) != 1:
+              raise SystemExit('Poppler main injection marker not found exactly once')
+          script_path.write_text(script.replace(old_main, new_main), encoding='utf-8')
+
+          test_path = Path('tests/unit/popplerRenderedDocument.test.js')
+          tests = test_path.read_text(encoding='utf-8')
+          old_scale = '''    const bboxPages = parseBboxPages(BBOX_XML);
+              const htmlPages = parsePdfToHtmlPages(HTML_XML.replace(/width="595"/g, 'width="1190"').replace(/height="842"/g, 'height="1684"'));
+              const pages = combinePopplerModels(bboxPages, htmlPages);
+
+              expect(pages[0].width).toBe(595);
+              expect(pages[0].words.find(word => word.text === 'Kurzbewertung').fontSize).toBe(8);
+              expect(pages[0].headings).toEqual(expect.arrayContaining([
+                expect.objectContaining({ text: 'Kurzbewertung', level: 2, xMin: 24, yMin: 24 }),
+              ]));
+              expect(pages[1].links[0]).toEqual(expect.objectContaining({
+                xMin: 24,
+                yMin: 44,
+                xMax: 124,
+                yMax: 49.5,
+              }));'''
+          new_scale = '''    const bboxPages = parseBboxPages(BBOX_XML);
+              const doubledHtmlXml = HTML_XML.replace(
+                /\\b(top|left|width|height)="(\\d+(?:\\.\\d+)?)"/g,
+                (_match, attribute, rawValue) => `${attribute}="${Number(rawValue) * 2}"`
+              );
+              const htmlPages = parsePdfToHtmlPages(doubledHtmlXml);
+              const pages = combinePopplerModels(bboxPages, htmlPages);
+
+              expect(pages[0].width).toBe(595);
+              expect(pages[0].words.find(word => word.text === 'Kurzbewertung').fontSize).toBe(8);
+              expect(pages[0].headings).toEqual(expect.arrayContaining([
+                expect.objectContaining({ text: 'Kurzbewertung', level: 2, xMin: 48, yMin: 48 }),
+              ]));
+              expect(pages[1].links[0]).toEqual(expect.objectContaining({
+                xMin: 48,
+                yMin: 88,
+                xMax: 248,
+                yMax: 99,
+              }));'''
+          if tests.count(old_scale) != 1:
+              raise SystemExit('coordinate-normalization test block not found exactly once')
+          tests = tests.replace(old_scale, new_scale)
+
+          old_cli = '''    const oldPath = process.env.PATH;
+              try {
+                const pdf = path.join(directory, 'fixture.pdf');
+                const output = path.join(directory, 'out');
+                fs.writeFileSync(pdf, '%PDF-1.7\\nfixture\\n');
+                fakeExecutables(directory);
+                process.env.PATH = `${directory}${path.delimiter}${oldPath || ''}`;
+                const result = main([
+                  '--pdf', pdf,
+                  '--out-dir', output,
+                  '--document-id', 'cli-fixture',
+                  '--no-audit',
+                ]);'''
+          new_cli = '''    try {
+                const pdf = path.join(directory, 'fixture.pdf');
+                const output = path.join(directory, 'out');
+                fs.writeFileSync(pdf, '%PDF-1.7\\nfixture\\n');
+                const executables = fakeExecutables(directory);
+                const result = main([
+                  '--pdf', pdf,
+                  '--out-dir', output,
+                  '--document-id', 'cli-fixture',
+                  '--no-audit',
+                ], executables);'''
+          if tests.count(old_cli) != 1:
+              raise SystemExit('CLI test setup block not found exactly once')
+          tests = tests.replace(old_cli, new_cli)
+          old_finally = '''    } finally {
+                process.env.PATH = oldPath;
+                fs.rmSync(directory, { recursive: true, force: true });
+              }
+            });'''
+          new_finally = '''    } finally {
+                fs.rmSync(directory, { recursive: true, force: true });
+              }
+            });'''
+          if tests.count(old_finally) != 1:
+              raise SystemExit('CLI test cleanup block not found exactly once')
+          test_path.write_text(tests.replace(old_finally, new_finally), encoding='utf-8')
+
+          generator_path = Path('scripts/generate-sample-pdf.js')
+          generator = generator_path.read_text(encoding='utf-8')
+          replacements = {
+              "href: 'http://localhost/'": "href: 'https://carstenartur.github.io/Unfallatlas/werkbank_v2.html'",
+              "pathname: '/werkbank_v2.html'": "pathname: '/Unfallatlas/werkbank_v2.html'",
+              "origin: 'http://localhost'": "origin: 'https://carstenartur.github.io'",
+              "protocol: 'http:'": "protocol: 'https:'",
+              "host: 'localhost'": "host: 'carstenartur.github.io'",
+          }
+          for old, new in replacements.items():
+              if generator.count(old) != 1:
+                  raise SystemExit(f'sample-PDF URL marker not found exactly once: {old}')
+              generator = generator.replace(old, new)
+          generator_path.write_text(generator, encoding='utf-8')
+      - name: Synchronize reviewed audit core
+        run: |
+          git fetch origin feat/rendered-document-audit-core
+          git show origin/feat/rendered-document-audit-core:scripts/rendered-document-audit.js > scripts/rendered-document-audit.js
+          git show origin/feat/rendered-document-audit-core:tests/unit/renderedDocumentAudit.test.js > tests/unit/renderedDocumentAudit.test.js
+      - name: Verify focused tests and real rendered PDF
+        run: |
+          node --check scripts/poppler-rendered-document.js
+          node --check scripts/generate-sample-pdf.js
+          npx jest --runInBand \
+            tests/unit/renderedDocumentAudit.test.js \
+            tests/unit/popplerRenderedDocument.test.js \
+            tests/unit/popplerRenderedDocument.security.test.js
+          npm run generate:sample-pdf
+          node scripts/poppler-rendered-document.js \
+            --pdf out/ci-render-gate.pdf \
+            --out-dir out/poppler-final \
+            --document-id ci-native-sample-pdf
+      - name: Commit final adapter fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            scripts/poppler-rendered-document.js \
+            scripts/rendered-document-audit.js \
+            scripts/generate-sample-pdf.js \
+            tests/unit/popplerRenderedDocument.test.js \
+            tests/unit/renderedDocumentAudit.test.js
+          git commit -m 'fix: finalize Poppler rendered-document audit'
+          git push origin HEAD:feat/poppler-rendered-document-adapter
