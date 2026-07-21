@@ -9,6 +9,11 @@ const {
   buildWebpEncodingArgs,
   parseWebpDimensions,
 } = require('../../server/video-export');
+const {
+  ANIMATED_IMAGE_FILTER,
+  ANIMATED_IMAGE_FPS,
+  ANIMATED_IMAGE_WIDTH,
+} = require('../../server/video-export-filters');
 
 describe('video export encoding contract', () => {
   test('inspects encoded frames at their probed native dimensions without another scale pass', () => {
@@ -24,7 +29,7 @@ describe('video export encoding contract', () => {
     expect(args.join(' ')).not.toMatch(/scale=/);
   });
 
-  test('uses the dedicated animated WebP encoder and an explicit WebP muxer', () => {
+  test('uses the dedicated lossless animated WebP encoder and an explicit WebP muxer', () => {
     const args = buildWebpEncodingArgs('/tmp/input.webm', '/tmp/output.webp');
     expect(args).toEqual(expect.arrayContaining([
       '-c:v', 'libwebp_anim',
@@ -37,11 +42,31 @@ describe('video export encoding contract', () => {
     expect(args).not.toContain('-vsync');
   });
 
+  test('preserves the narrow owned context stroke within the worst measured WebP budget', () => {
+    const browserCaptureWidth = 1280;
+    const measuredCadence = 1.1;
+    const observedWorstWebpBytes = 19367532;
+    const webpBudgetBytes = 18 * 1024 * 1024;
+    const trafficStrokeWidth = 3;
+    const projectedStrokeWidth = trafficStrokeWidth * ANIMATED_IMAGE_WIDTH / browserCaptureWidth;
+    const cadenceRatio = ANIMATED_IMAGE_FPS / measuredCadence;
+    const projectedWebpBytes = observedWorstWebpBytes * cadenceRatio;
+
+    expect(ANIMATED_IMAGE_FPS).toBe(1);
+    expect(ANIMATED_IMAGE_WIDTH).toBe(960);
+    expect(projectedStrokeWidth).toBeGreaterThanOrEqual(2.25);
+    expect(cadenceRatio).toBeCloseTo(10 / 11, 12);
+    expect(projectedWebpBytes).toBeLessThan(webpBudgetBytes * 0.94);
+    expect(ANIMATED_IMAGE_FILTER)
+      .toBe(`fps=1,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
+    expect(buildEncodedInspectionArgs('/tmp/output.webp')).toContain('fps=2');
+  });
+
   test('uses the full GIF palette without dithering so owned witness colours survive', () => {
     const palette = buildGifPaletteArgs('/tmp/input.webm', '/tmp/palette.png');
     const encoding = buildGifEncodingArgs('/tmp/input.webm', '/tmp/palette.png', '/tmp/output.gif');
-    expect(palette).toContain('fps=3,scale=720:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
-    expect(encoding).toContain('fps=3,scale=720:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
+    expect(palette).toContain('fps=1,scale=960:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
+    expect(encoding).toContain('fps=1,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
   });
 
   test('reads animated WebP canvas dimensions from the RIFF VP8X chunk', () => {
@@ -57,5 +82,4 @@ describe('video export encoding contract', () => {
     expect(parseWebpDimensions(buffer)).toEqual({ width: 720, height: 405 });
     expect(parseWebpDimensions(Buffer.from('not-webp'))).toBeNull();
   });
-
 });
