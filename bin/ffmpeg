@@ -2,12 +2,9 @@
 set -euo pipefail
 
 # The production image deliberately puts this wrapper before the system ffmpeg.
-# Ordinary calls are delegated byte-for-byte. Three format-specific operations
-# are handled here: the Playwright ffmpeg build cannot reliably decode animated
-# WebP, an adaptive GIF palette may drop fixed semantic-evidence colours, and
-# animated WebP uses a deterministic high-quality lossy mode so the artifact
-# stays inside its public budget. The decoded final artifact is still subjected
-# to the full coordinate-bound semantic evidence gate.
+# Ordinary calls are delegated byte-for-byte. Two format-specific operations are
+# handled here: the Playwright ffmpeg build cannot reliably decode animated
+# WebP, and an adaptive GIF palette may drop fixed semantic-evidence colours.
 
 SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REAL_FFMPEG="${UNFALLATLAS_REAL_FFMPEG:-/usr/bin/ffmpeg}"
@@ -55,14 +52,13 @@ for ((index = 0; index < ${#arguments[@]}; index++)); do
 done
 
 if [[ "$webp_anim" == 1 ]]; then
-  webp_quality="${UNFALLATLAS_WEBP_QUALITY:-82}"
+  webp_quality="${UNFALLATLAS_WEBP_QUALITY:-80}"
   if [[ ! "$webp_quality" =~ ^[0-9]+$ ]] || (( webp_quality < 0 || webp_quality > 100 )); then
     echo "unfallatlas ffmpeg wrapper: invalid UNFALLATLAS_WEBP_QUALITY=$webp_quality" >&2
     exit 64
   fi
 
   quality_found=0
-  lossless_found=0
   for ((index = 0; index < ${#arguments[@]}; index++)); do
     if [[ "${arguments[index]}" == '-q:v' ]]; then
       if (( index + 1 >= ${#arguments[@]} )); then
@@ -71,20 +67,10 @@ if [[ "$webp_anim" == 1 ]]; then
       fi
       arguments[index + 1]="$webp_quality"
       quality_found=1
-    elif [[ "${arguments[index]}" == '-lossless' ]]; then
-      if (( index + 1 >= ${#arguments[@]} )); then
-        echo 'unfallatlas ffmpeg wrapper: -lossless is missing its value' >&2
-        exit 64
-      fi
-      arguments[index + 1]='0'
-      lossless_found=1
     fi
   done
   if [[ "$quality_found" == 0 ]]; then
     arguments+=('-q:v' "$webp_quality")
-  fi
-  if [[ "$lossless_found" == 0 ]]; then
-    arguments+=('-lossless' '0')
   fi
   set -- "${arguments[@]}"
 fi
