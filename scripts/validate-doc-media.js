@@ -552,6 +552,7 @@ function failureReport(repoRoot, manifestPath, error, options = {}) {
 
 function validate(options = {}) {
   const policyOnly = options.policyOnly === true;
+  const candidateScreenshots = options.candidateScreenshots === true;
   const repoRoot = path.resolve(options.root || ROOT);
   const manifestPath = path.resolve(repoRoot, options.manifest || 'docs/media-manifest.json');
   const errors = [];
@@ -590,7 +591,10 @@ function validate(options = {}) {
     }
     entries.set(asset.path, asset);
     const allowedFormats = ALLOWED_FORMATS[asset.kind];
+    const extension = path.extname(String(asset.path || '')).toLowerCase();
+    const declaredFormat = extension === '.jpg' ? 'jpeg' : extension.slice(1);
     if (!allowedFormats) violations.push(`${asset.path}: unsupported kind ${asset.kind || '(empty)'}`);
+    else if (!allowedFormats.has(declaredFormat)) violations.push(`${asset.path}: ${declaredFormat || '(no extension)'} is not allowed for kind ${asset.kind}`);
     if (!asset.purpose || typeof asset.purpose !== 'string') violations.push(`${asset.path}: purpose is required`);
     if (!Array.isArray(asset.references) || asset.references.length === 0) violations.push(`${asset.path}: at least one reference is required`);
     if (!asset.target || !isPositiveInteger(asset.target.width) || !isPositiveInteger(asset.target.height)) {
@@ -636,15 +640,13 @@ function validate(options = {}) {
       }
     }
 
+    const deferredCandidateAsset = candidateScreenshots && !EVIDENCE_KINDS.has(asset.kind);
     let inspected = null;
     let targetMatch = false;
     let bytes = null;
-    if (!policyOnly && assetPathSafe && fs.existsSync(absolute) && fs.statSync(absolute).isFile()) {
+    if (!policyOnly && !deferredCandidateAsset && assetPathSafe && fs.existsSync(absolute) && fs.statSync(absolute).isFile()) {
       try {
         inspected = inspectMedia(absolute);
-        if (allowedFormats && !allowedFormats.has(inspected.format)) {
-          violations.push(`${asset.path}: ${inspected.format} is not allowed for kind ${asset.kind}`);
-        }
         if (asset.kind === 'animation' && inspected.animated !== true) {
           violations.push(`${asset.path}: animation asset contains fewer than two frames`);
         }
@@ -690,7 +692,13 @@ function validate(options = {}) {
         requiredChangedPixels: inspected.visualEvidence.requiredChangedPixels,
       } : null,
       target: asset.target || null,
-      status: violations.length ? 'error' : (needsException ? 'policy-exception' : 'valid'),
+      deferred: deferredCandidateAsset,
+      validationScope: deferredCandidateAsset
+        ? 'strict-checked-in-media'
+        : (policyOnly ? 'manifest-policy' : (candidateScreenshots ? 'generated-candidate' : 'strict-checked-in-media')),
+      status: violations.length
+        ? 'error'
+        : (deferredCandidateAsset ? 'deferred' : (needsException ? 'policy-exception' : 'valid')),
     });
     errors.push(...violations);
     rows.push(row);
@@ -705,11 +713,11 @@ function validate(options = {}) {
         },
         errors: [],
       }
-    : options.candidateScreenshots
+    : candidateScreenshots
       ? {
           report: {
             mode: 'candidate-screenshots',
-            note: 'accepted screenshot ledger binding is deferred to reviewed promotion',
+            note: 'accepted screenshot ledger and non-generated media are deferred to the strict checked-in-media gate',
           },
           errors: [],
         }
@@ -759,9 +767,11 @@ function validate(options = {}) {
   }
   return {
     schemaVersion: 2,
-    mode: policyOnly ? 'policy-only' : (options.candidateScreenshots ? 'candidate-screenshots' : 'strict'),
-    mediaValidated: !policyOnly,
-    evidenceValidated: !policyOnly && !options.candidateScreenshots,
+    mode: policyOnly ? 'policy-only' : (candidateScreenshots ? 'candidate-screenshots' : 'strict'),
+    mediaValidated: !policyOnly && !candidateScreenshots,
+    candidateMediaValidated: candidateScreenshots,
+    evidenceValidated: !policyOnly && !candidateScreenshots,
+    deferredAssets: rows.filter(row => row.deferred).map(row => row.path),
     valid: errors.length === 0,
     revision: resolveRevision(repoRoot),
     manifest: { path: path.relative(repoRoot, manifestPath).replace(/\\/g, '/'), sha256: sha256(manifestPath) },
@@ -777,7 +787,9 @@ function main(argv) {
   const args = parseArgs(argv);
   const report = validate(args);
   for (const row of report.assets) {
-    const prefix = row.status === 'valid' ? 'OK' : (row.status === 'policy-exception' ? 'EXCEPTION' : 'ERROR');
+    const prefix = row.status === 'valid'
+      ? 'OK'
+      : (row.status === 'policy-exception' ? 'EXCEPTION' : (row.status === 'deferred' ? 'DEFERRED' : 'ERROR'));
     const dimensionsText = row.dimensions ? `${row.dimensions.width}x${row.dimensions.height}` : 'unknown';
     process.stdout.write(`${prefix}\t${row.path}\t${dimensionsText}\t${row.bytes ?? '? '}/${row.budget ?? '?'} bytes\n`);
   }

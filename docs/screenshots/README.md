@@ -16,11 +16,14 @@ Datenfingerprint erneut vor dem Upload.
 
 Für neu erzeugte, noch nicht übernommene Bilder rufen diese Workflows erst
 `validate:screenshot-evidence` und danach `validate:media
--- --candidate-screenshots` auf. Dieser explizite Kandidatenmodus überspringt
-nur die Bindung an die bereits akzeptierte Evidence; Maße, Formate, Budgets,
-Referenzen und die vorgelagerte aktuelle Lifecycle-Evidence bleiben zwingend.
-Der normale `validate:media`-Lauf bindet dagegen stets die eingecheckten Bilder
-an die dauerhaft archivierte Evidence.
+-- --candidate-screenshots` auf. Dieser explizite Kandidatenmodus prüft die in
+diesem Lauf erzeugten Screenshot- und Dokumentvorschau-Dateien vollständig
+auf Maße, Format, Budget, Referenzen und aktuelle Lifecycle-Evidence. Nicht
+neu erzeugte Medien – insbesondere die separat regenerierte Demo-Animation –
+werden im Report ausdrücklich als `deferred` ausgewiesen und erst im normalen
+`validate:media`-Lauf zusammen mit der dauerhaft archivierten Evidence streng
+gebunden. Format-, Pfad-, Referenz- und Budgetregeln des Manifests gelten auch
+für zurückgestellte Einträge unverändert.
 
 Für die separat prüfbare Tooling-Grenze steht zusätzlich `npm run
 validate:media:policy` zur Verfügung. Dieser Modus validiert ausschließlich

@@ -270,11 +270,7 @@ describe('documentation media policy', () => {
       references: ['README.md'],
     };
     writeJson(fixture.manifestPath, fixture.manifest);
-    const report = validate({
-      root: fixture.root,
-      manifest: 'docs/media-manifest.json',
-      candidateScreenshots: true,
-    });
+    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json' });
     expect(report.valid).toBe(false);
     expect(report.errors.join('\n')).toMatch(/visual canvas coverage/i);
   });
@@ -339,7 +335,7 @@ describe('documentation media policy', () => {
     expect(report.errors.join('\n')).toMatch(expected);
   });
 
-  test('candidate mode skips only the accepted-ledger binding', () => {
+  test('candidate mode validates generated screenshots but defers the accepted ledger', () => {
     const fixture = createIsolatedRepository();
     fs.writeFileSync(path.join(fixture.root, fixture.manifest.evidenceLedger), '{ broken ledger');
     expect(validate({ root: fixture.root, manifest: 'docs/media-manifest.json' }).valid).toBe(false);
@@ -349,7 +345,60 @@ describe('documentation media policy', () => {
       candidateScreenshots: true,
     });
     expect(candidate.valid).toBe(true);
+    expect(candidate.mode).toBe('candidate-screenshots');
+    expect(candidate.mediaValidated).toBe(false);
+    expect(candidate.candidateMediaValidated).toBe(true);
+    expect(candidate.evidenceValidated).toBe(false);
+    expect(candidate.deferredAssets).toEqual([]);
     expect(candidate.evidence.mode).toBe('candidate-screenshots');
+    expect(candidate.assets[0]).toEqual(expect.objectContaining({
+      status: 'valid', deferred: false, validationScope: 'generated-candidate',
+    }));
+  });
+
+  test('candidate mode explicitly defers non-generated animation bytes while strict mode rejects them', () => {
+    const fixture = createIsolatedRepository();
+    const animationPath = path.join(fixture.root, 'docs', 'deferred.gif');
+    fs.writeFileSync(animationPath, tinyFalseGreenGif());
+    fs.writeFileSync(
+      path.join(fixture.root, 'README.md'),
+      '![Kandidat](docs/candidate.png)\n![Animation](docs/deferred.gif)\n'
+    );
+    fixture.manifest.assets.push({
+      path: 'docs/deferred.gif',
+      kind: 'animation',
+      purpose: 'Nicht in diesem Screenshot-Lauf erzeugtes, absichtlich ungültiges Altmedium.',
+      target: { width: 720, height: 405 },
+      maxBytes: 4096,
+      maxDurationMs: 1000,
+      exception: 'The animation is deliberately invalid so strict validation must still reject it.',
+      references: ['README.md'],
+    });
+    writeJson(fixture.manifestPath, fixture.manifest);
+
+    const strict = validate({ root: fixture.root, manifest: 'docs/media-manifest.json' });
+    expect(strict.valid).toBe(false);
+    expect(strict.errors.join('\n')).toMatch(/visual canvas coverage/i);
+
+    const candidate = validate({
+      root: fixture.root,
+      manifest: 'docs/media-manifest.json',
+      candidateScreenshots: true,
+    });
+    expect(candidate.valid).toBe(true);
+    expect(candidate.deferredAssets).toEqual(['docs/deferred.gif']);
+    expect(candidate.assets.find(asset => asset.path === 'docs/deferred.gif')).toEqual(expect.objectContaining({
+      status: 'deferred',
+      deferred: true,
+      validationScope: 'strict-checked-in-media',
+      bytes: null,
+      dimensions: null,
+    }));
+    expect(candidate.assets.find(asset => asset.path === 'docs/candidate.png')).toEqual(expect.objectContaining({
+      status: 'valid',
+      deferred: false,
+      validationScope: 'generated-candidate',
+    }));
   });
 
   test('rejects reintroduced legacy dimensions and static budget overrides', () => {
