@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages-data
@@ -18,8 +16,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -130,10 +132,7 @@ jobs:
         if: ${{ false }}
         run: npm run validate:vendor-provenance -- --require-complete
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload Pages artifact
+      - name: Upload immutable Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site
@@ -145,9 +144,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     permissions:
+      contents: read
       pages: write
       id-token: write
     steps:
-      - name: Deploy Pages
+      - name: Configure Pages deployment
+        uses: actions/configure-pages@v6
+
+      - name: Deploy the previously validated artifact
         id: deployment
         uses: actions/deploy-pages@v5
