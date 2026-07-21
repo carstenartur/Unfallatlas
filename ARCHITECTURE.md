@@ -319,7 +319,7 @@ Längere Erklärung falls nötig.
 
 ## Verwendete Technologien
 
-### Frontend-Bibliotheken (CDN)
+### Frontend-Bibliotheken (lokal aus dem gelockten Site-Build)
 
 - **Leaflet** (v1.9.4) - Interaktive Karten
 - **Leaflet.markercluster** (v1.5.3) - Marker-Clustering
@@ -329,8 +329,8 @@ Längere Erklärung falls nötig.
 
 ### Dokument-Export
 
-- **docx.js** (v9.6.1) - Word-Dokument-Erstellung
-- **pdfMake** (v0.3.7) - PDF-Generierung
+- **docx.js** (v9.7.1) - Word-Dokument-Erstellung
+- **pdfMake** (v0.3.11) - PDF-Generierung
 - **FileSaver.js** (v2.0.5) - Download-Funktionalität
 
 ### Kartenkacheln

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
+  "screenshot": {
+    "path": "docs/screenshots/21-mapmode-standard.png",
+    "bytes": 353488,
+    "sha256": "27e1420d6f147997472a5c3969b3955e1f0eb2145f9c00c555b4e859efc483e2"
+  },
+  "build": {
+    "path": "_site/build-manifest.json",
+    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
+    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
+    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
+    "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
+  },
+  "criteria": {
+    "city": "Bonn",
+    "layers": [
+      "cluster"
+    ],
+    "requireCompleteCoverage": true
+  },
+  "lifecycle": {
+    "status": "ready",
+    "city": "Bonn",
+    "counts": {
+      "loaded": 7387,
+      "filtered": 6821,
+      "viewport": 2418
+    },
+    "coverage": {
+      "mode": "full-city",
+      "complete": true,
+      "provider": "static",
+      "city": "Bonn",
+      "loadedFeatureCount": 7387
+    },
+    "render": {
+      "revision": 2,
+      "completedRevision": 2,
+      "submitted": true,
+      "layers": {
+        "cluster": {
+          "requested": true,
+          "expected": 2418,
+          "processed": 2418,
+          "visible": 2418,
+          "painted": false,
+          "complete": true
+        },
+        "heatmap": {
+          "requested": false,
+          "expected": 0,
+          "processed": 0,
+          "visible": 0,
+          "painted": false,
+          "complete": true
+        },
+        "poi": {
+          "requested": true,
+          "expected": 488,
+          "processed": 45,
+          "visible": 45,
+          "painted": false,
+          "complete": true
+        },
+        "argumentation": {
+          "requested": true,
+          "expected": 2418,
+          "processed": 0,
+          "visible": 0,
+          "painted": false,
+          "complete": true
+        }
+      }
+    },
+    "error": null
+  }
+}
