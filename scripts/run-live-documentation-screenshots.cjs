@@ -49,44 +49,58 @@ function requiredLiveBasemapKinds(testTitle) {
 }
 
 async function readVisibleLiveBasemapTiles(page) {
-  const urls = await page.locator('.leaflet-tile-pane img.leaflet-tile-loaded').evaluateAll(images => images
-    .filter(image => {
-      const rect = image.getBoundingClientRect();
-      const style = getComputedStyle(image);
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' &&
-        style.visibility !== 'hidden' && Number(style.opacity || '1') > 0;
-    })
-    .map(image => image.currentSrc || image.src)
-    .filter(Boolean));
+  const observedTiles = await page.locator('.leaflet-tile-pane img').evaluateAll(images => images.map(image => {
+    const rect = image.getBoundingClientRect();
+    const style = getComputedStyle(image);
+    return {
+      url: image.currentSrc || image.src || '',
+      complete: image.complete === true,
+      naturalWidth: Number(image.naturalWidth) || 0,
+      naturalHeight: Number(image.naturalHeight) || 0,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+      display: style.display,
+      visibility: style.visibility,
+      opacity: Number(style.opacity || '1'),
+      className: image.className || ''
+    };
+  }));
   const seen = new Set();
-  const tiles = [];
-  for (const rawUrl of urls) {
-    const url = new URL(rawUrl).href;
+  const visibleTiles = [];
+  for (const observation of observedTiles) {
+    if (!observation.url || observation.complete !== true ||
+        observation.naturalWidth <= 0 || observation.naturalHeight <= 0 ||
+        observation.rectWidth <= 0 || observation.rectHeight <= 0 ||
+        observation.display === 'none' || observation.visibility === 'hidden' ||
+        observation.opacity <= 0) continue;
+    const url = new URL(observation.url).href;
     const kind = classifyLiveBasemapUrl(url);
     if (!kind || seen.has(url)) continue;
     seen.add(url);
-    tiles.push({ kind, url });
+    visibleTiles.push({ kind, url });
   }
-  return tiles;
+  return { visibleTiles, observedTiles };
 }
 
 async function assertLiveBasemapProvenance(page) {
   const live = LIVE_BASEMAP_PROVENANCE.get(page);
   if (!live) throw new Error('Documentation screenshot has no live basemap provenance context');
-  const visibleTiles = await readVisibleLiveBasemapTiles(page);
+  const observed = await readVisibleLiveBasemapTiles(page);
+  live.visibleTiles = observed.visibleTiles;
+  live.observedTiles = observed.observedTiles;
   const successfulUrls = new Set(live.successfulResponses.map(response => new URL(response.url).href));
-  const missingKinds = live.requiredKinds.filter(kind => !visibleTiles.some(tile =>
+  const missingKinds = live.requiredKinds.filter(kind => !live.visibleTiles.some(tile =>
     tile.kind === kind && successfulUrls.has(tile.url)
   ));
   if (missingKinds.length > 0) {
     throw new Error(
       'Documentation screenshot lacks visible successful real basemap tiles for: ' +
       missingKinds.join(', ') + String.fromCharCode(10) +
-      'Visible real basemap tiles: ' + JSON.stringify(visibleTiles, null, 2) + String.fromCharCode(10) +
+      'Visible real basemap tiles: ' + JSON.stringify(live.visibleTiles, null, 2) + String.fromCharCode(10) +
+      'Observed Leaflet tile images: ' + JSON.stringify(live.observedTiles, null, 2) + String.fromCharCode(10) +
       'Observed successful real basemap responses: ' + JSON.stringify(live.successfulResponses, null, 2)
     );
   }
-  live.visibleTiles = visibleTiles;
   return live;
 }
 
@@ -95,7 +109,12 @@ async function setupLiveBasemapTiles(page, options = {}) {
   const unexpectedExternalRequests = [];
   const successfulResponses = [];
   UNEXPECTED_EXTERNAL_REQUESTS.set(page, unexpectedExternalRequests);
-  LIVE_BASEMAP_PROVENANCE.set(page, { requiredKinds, successfulResponses, visibleTiles: [] });
+  LIVE_BASEMAP_PROVENANCE.set(page, {
+    requiredKinds,
+    successfulResponses,
+    visibleTiles: [],
+    observedTiles: []
+  });
 
   page.on('response', response => {
     const kind = classifyLiveBasemapUrl(response.url());
@@ -166,17 +185,30 @@ async function setupLiveBasemapTiles(page, options = {}) {
 
 async function captureDataScreenshot(page, options) {
   const snapshot = await baseCaptureDataScreenshot(page, options);
-  const live = await assertLiveBasemapProvenance(page);
+  let assertionError = null;
+  let live;
+  try {
+    live = await assertLiveBasemapProvenance(page);
+  } catch (error) {
+    assertionError = error;
+    live = LIVE_BASEMAP_PROVENANCE.get(page);
+  }
   const basename = options.path.split('/').pop().replace(/\.png$/i, '');
   const evidencePath = resolve(process.cwd(), 'out/qa/screenshot-readiness', basename + '.json');
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
   evidence.cartography = {
     source: 'live',
-    requiredKinds: live.requiredKinds.slice(),
-    visibleTiles: live.visibleTiles.map(tile => ({ ...tile })),
-    successfulResponses: live.successfulResponses.map(response => ({ ...response }))
+    requiredKinds: live && live.requiredKinds ? live.requiredKinds.slice() : [],
+    visibleTiles: live && live.visibleTiles ? live.visibleTiles.map(tile => ({ ...tile })) : [],
+    observedTiles: live && live.observedTiles ? live.observedTiles.map(tile => ({ ...tile })) : [],
+    successfulResponses: live && live.successfulResponses
+      ? live.successfulResponses.map(response => ({ ...response }))
+      : [],
+    valid: assertionError == null,
+    error: assertionError && assertionError.message || null
   };
   writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + String.fromCharCode(10));
+  if (assertionError) throw assertionError;
   return snapshot;
 }
 `;
