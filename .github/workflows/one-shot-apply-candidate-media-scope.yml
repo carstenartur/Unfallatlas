@@ -1,0 +1,43 @@
+name: One-shot apply candidate media scope fix
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-candidate-media-scope
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.head_ref == 'automation/rechain-codec-media-stack'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: automation/rechain-codec-media-stack
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate and apply candidate media scope
+        id: apply
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/apply-candidate-media-scope-fix.sh 2>&1 | tee "$RUNNER_TEMP/candidate-media-scope.log"
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-media-scope-log
+          path: ${{ runner.temp }}/candidate-media-scope.log
+          if-no-files-found: error
+      - name: Enforce successful application
+        if: steps.apply.outcome != 'success'
+        run: exit 1
