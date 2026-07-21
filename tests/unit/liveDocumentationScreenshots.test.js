@@ -7,6 +7,8 @@ const { buildLiveSpec, replaceOnce } = require('../../scripts/run-live-documenta
 
 const ROOT = path.resolve(__dirname, '../..');
 const SCREENSHOT_SPEC = path.join(ROOT, 'tests/e2e/screenshots.spec.js');
+const PLAYWRIGHT_CONFIG = path.join(ROOT, 'playwright.config.js');
+const LIVE_RUNNER = path.join(ROOT, 'scripts/run-live-documentation-screenshots.cjs');
 
 describe('live documentation screenshot boundary', () => {
   test('uses real cartographic responses for publishable screenshots only', () => {
@@ -39,6 +41,16 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('DETERMINISTIC_EXTERNAL_DATA.nominatim[nominatimFixture]');
     expect(transformed).toContain('DETERMINISTIC_EXTERNAL_DATA.overpass[overpassFixture]');
     expect(transformed).toContain("await route.abort('blockedbyclient');");
+  });
+
+  test('isolates generated live specs from the hermetic Chromium project', () => {
+    const config = fs.readFileSync(PLAYWRIGHT_CONFIG, 'utf8');
+    const runner = fs.readFileSync(LIVE_RUNNER, 'utf8');
+
+    expect(config).toMatch(/name:\s*'chromium'[\s\S]*testIgnore:[\s\S]*screenshots\\\.live\\\.generated\\\.spec/);
+    expect(config).toMatch(/name:\s*'documentation-live'[\s\S]*testMatch:\s*\/screenshots\\\.live\\\.generated\\\.spec\//);
+    expect(runner).toContain("'--project=documentation-live'");
+    expect(runner).not.toContain("'--project=chromium'");
   });
 
   test('fails closed when the canonical screenshot spec drifts', () => {
