@@ -1,29 +1,36 @@
 {
   "schemaVersion": 1,
-  "purpose": "Durable, checked-in binding for the reviewed screenshot artifact adopted on 2026-07-19.",
+  "purpose": "Durable, checked-in binding for the reviewed real-cartography screenshot artifact adopted on 2026-07-21.",
   "source": {
-    "artifactName": "pr-screenshots-409",
-    "artifactId": 8443620798,
-    "artifactZipSha256": "0ee8f4d10e3e5974b36d8f0e85092b231a0d0261bff401a2fc84ecddc1d61e7c",
-    "evidenceRevision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
+    "artifactName": "pr-live-map-screenshots-486",
+    "artifactId": 8488563581,
+    "artifactZipSha256": "92b2bb73767cd3657ffffc6be1c1d988b23e88634a1d6a6110bb448cef5c340e",
+    "evidenceRevision": "4943cd8cd3181527b236502f1332989afccd7e6b",
     "evidenceStatus": "valid",
     "evidenceCount": 21
   },
   "build": {
-    "manifestSha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
-    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
-    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
+    "manifestSha256": "d998c0ec1045be606c222f3175970db32d36a27609a36fc566579cb76238f776",
+    "fingerprint": "987f943ab020f89f10d15abf1406bfa59f0610ddacb59273a31cf76067b3f056",
+    "applicationFingerprint": "d27acc8969fdccf9031da0c9b87ddf2c68025e5bbf326ef70c0ccd746b3db207",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "summary": {
     "path": "qa/screenshot-evidence/summary.json",
-    "sha256": "9340eb997b83cef91d2a5ba700af90bb4218a7defb4a75ed3746f96e76c18171",
-    "entriesSha256": "cfbee600c873feb43abb38de69146341105b3e98571908078007920f5b34887d"
+    "sha256": "07414802c7f5ac2abe8941985309e77ab15956fe3c3633833d98b608131e54a5",
+    "entriesSha256": "3d98a4d895efde3c54ddbb7c202d4554e98b7db954ddb81232cace778b198585"
+  },
+  "cartography": {
+    "path": "qa/screenshot-evidence/live-cartography.json",
+    "sha256": "8c8fff50b392be6d7820dcfa8925443914e15701838f9fbb827cc3c60b1ee498",
+    "schemaVersion": 2,
+    "validCartographic": 20,
+    "exempt": 1
   },
   "readiness": {
     "directory": "qa/screenshot-evidence/readiness",
     "files": 21,
-    "bytes": 43018,
-    "entriesSha256": "4537e557cf09a95094cafd425bf27a6b78aa7f30ddc89ef8db78855234837eac"
+    "bytes": 403299,
+    "entriesSha256": "4b624a1a7c1f052d054f24c6bf646840a20f51de8b28d39effd605004a4cdf9f"
   }
 }

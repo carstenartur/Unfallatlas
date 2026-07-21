@@ -1,123 +1,123 @@
 {
   "schemaVersion": 1,
   "valid": true,
-  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
+  "revision": "4943cd8cd3181527b236502f1332989afccd7e6b",
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
-    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
-    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
+    "sha256": "d998c0ec1045be606c222f3175970db32d36a27609a36fc566579cb76238f776",
+    "fingerprint": "987f943ab020f89f10d15abf1406bfa59f0610ddacb59273a31cf76067b3f056",
+    "applicationFingerprint": "d27acc8969fdccf9031da0c9b87ddf2c68025e5bbf326ef70c0ccd746b3db207",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "screenshots": [
     {
       "path": "docs/screenshots/01-startansicht.png",
-      "bytes": 160527,
-      "sha256": "1d8f7c2b3b1f8ccdec77ea3e03c91ec928ac1c716e227dd29ceaa4623ddd1fa4",
+      "bytes": 1136530,
+      "sha256": "3a2e0d68bfbdd3c3f457c1e96c6573ea81e316ad0467528ed639cc9556f37cdb",
       "evidence": "out/qa/screenshot-readiness/01-startansicht.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/02-stadtauswahl.png",
-      "bytes": 163810,
-      "sha256": "b9316c57a8ef8d42438d87a2ead8972d376e2882b7eb7bfe91e9ffd31bbf2b56",
+      "bytes": 1144455,
+      "sha256": "793fd1b90e17b5737f088797b5f19a83509cafa0fbc0d5c2282c76355c99ead5",
       "evidence": "out/qa/screenshot-readiness/02-stadtauswahl.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/03-filter.png",
-      "bytes": 150511,
-      "sha256": "b57d9c75c7aa6601dd6b7057611e45e140692ce14e809dc023cee6efbd0708d1",
+      "bytes": 1144582,
+      "sha256": "838768944b427f00022ac512852c4750b222413746b8d085d352a7e225735fc2",
       "evidence": "out/qa/screenshot-readiness/03-filter.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/04-cluster-ansicht.png",
-      "bytes": 151798,
-      "sha256": "eda65156c4350ecce78d911fc5b75cd1d0518386cb6c249f395b341c1f002c5f",
+      "bytes": 1133913,
+      "sha256": "3b80c2d171c5dae0e6040d0ff9b5ab394dc1b494937d007166b7715c3e888562",
       "evidence": "out/qa/screenshot-readiness/04-cluster-ansicht.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/05-heatmap-ansicht.png",
-      "bytes": 210890,
-      "sha256": "932ca5a38975faf8b8f1dd420db5b263e3ef628a5ef3c89b728a7068b9d9dd5b",
+      "bytes": 983535,
+      "sha256": "e1af3813eb0cb4e17967ad20355ff636cb9fd38a681fe70aa411ba8547273af6",
       "evidence": "out/qa/screenshot-readiness/05-heatmap-ansicht.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/06-legende.png",
-      "bytes": 182907,
-      "sha256": "ae6aaf888f87f82d4f475f9f9762b3499b5860c6b2c61ff2e10189e6de359977",
+      "bytes": 1155570,
+      "sha256": "9da1b13180ff39870e536571bcabae6d51a881a5d5e87857b0126d76e9b4d084",
       "evidence": "out/qa/screenshot-readiness/06-legende.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/07-export-modal.png",
-      "bytes": 187373,
-      "sha256": "9312b22ae5cb653beff3bcbbafc31fe8a2542aff8c4ace8244ced361979571d0",
+      "bytes": 418737,
+      "sha256": "f46d55d4f9e59542e38d3d22d4653888e394608ee9e949fba906aac86f573c51",
       "evidence": "out/qa/screenshot-readiness/07-export-modal.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/08-stundenfilter.png",
-      "bytes": 160105,
-      "sha256": "5012e2c9482690a4e6daeb1ffbf962eda0749ab9aeeb6a5ce37ed91c33f2468e",
+      "bytes": 1136449,
+      "sha256": "4d9f05ac7ff48124b8b9ed532694b50e6b5046064d790f25fd5dbdaffd07abfd",
       "evidence": "out/qa/screenshot-readiness/08-stundenfilter.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/09-bereich-markieren.png",
-      "bytes": 361338,
-      "sha256": "73c37c1344a2069f66230b85f7756c6be4d1d2c3a98b03b624874e53da09d51b",
+      "bytes": 1012673,
+      "sha256": "729687890607bbb5603e4f9c2dfa9476a724fad602186379623c61672acc51ad",
       "evidence": "out/qa/screenshot-readiness/09-bereich-markieren.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/10-auto-fahrrad-und.png",
-      "bytes": 400954,
-      "sha256": "193cc30fd9d77094ca02f8d35b3c91957a1a93f6eeafb5748263986923a7e5ac",
+      "bytes": 1041849,
+      "sha256": "dcec8287138fe23634b889a8146de7cd8a567f56f2d0a226a581ef8c65212aaf",
       "evidence": "out/qa/screenshot-readiness/10-auto-fahrrad-und.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/11-fahrrad-alleinunfaelle.png",
-      "bytes": 286795,
-      "sha256": "0c712d3b77c422b640b1e727c049e47162c0b83b458a37ccc8190b7be65020fc",
+      "bytes": 926098,
+      "sha256": "f4e149d9f84b0c366a0b4eeed63e7301c4eab8cc2ad797a8a2433058700f6753",
       "evidence": "out/qa/screenshot-readiness/11-fahrrad-alleinunfaelle.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/12-poi-schulen-kitas.png",
-      "bytes": 245713,
-      "sha256": "27c417db81ecd49e85de1a277ad13f38f8fb3482854603ce1b69f6c7f92dfb66",
+      "bytes": 952603,
+      "sha256": "45067174cf8e7426001dfaf1cc4d57f4ded04ae1594df5da52df2b29a595f938",
       "evidence": "out/qa/screenshot-readiness/12-poi-schulen-kitas.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/13-bonn-hbf-radunfaelle.png",
-      "bytes": 258055,
-      "sha256": "8ab0790b19e1b8e3dc9e97e6d2c45a8cd4a52267e2e93e2697a71556c63ed15f",
+      "bytes": 987220,
+      "sha256": "2ce4f9919241a9668018958466dd5875c5679e593344ccfa23e5b81ca827b855",
       "evidence": "out/qa/screenshot-readiness/13-bonn-hbf-radunfaelle.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/14-export-filterkontext.png",
-      "bytes": 221965,
-      "sha256": "4727f8c2cea9d80a361c61f5cee2cb1c15a9f5e05df98b764e884a2e8916267a",
+      "bytes": 366735,
+      "sha256": "5ac738994247db93cc52292078598bafe3fae7028b012d89cb5d59a8cebd8145",
       "evidence": "out/qa/screenshot-readiness/14-export-filterkontext.json",
       "status": "valid",
       "errors": []
@@ -132,48 +132,48 @@
     },
     {
       "path": "docs/screenshots/16-antrag-inhalt.png",
-      "bytes": 181605,
-      "sha256": "bb6109de4f8cb28d12ee826f53d2598b5bfa63bdfbfa60ce7fd3de1db87f1802",
+      "bytes": 315383,
+      "sha256": "cc81ef6a6d7bf6434d3f93e7a49749a45e357c667a2469b56f6b8d167d5f05ae",
       "evidence": "out/qa/screenshot-readiness/16-antrag-inhalt.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/21-mapmode-standard.png",
-      "bytes": 353488,
-      "sha256": "27e1420d6f147997472a5c3969b3955e1f0eb2145f9c00c555b4e859efc483e2",
+      "bytes": 1016178,
+      "sha256": "94755f0cf948801e2cb94455413dfe60d1243e2972a1c7ae25805f4f87ce005e",
       "evidence": "out/qa/screenshot-readiness/21-mapmode-standard.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/22-mapmode-orthophoto.png",
-      "bytes": 474108,
-      "sha256": "7118b50611e2318866a64b72c012f989d5ef60c40195faaeced31112de4cbf8e",
+      "bytes": 1231965,
+      "sha256": "55cecf53546d1593db7ac0ebd53046c49f1d8e1048a16090514978fde0e6b3c8",
       "evidence": "out/qa/screenshot-readiness/22-mapmode-orthophoto.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/23-mapmode-hybrid.png",
-      "bytes": 503884,
-      "sha256": "fcc873d835ce24f8b26af647d23eb0a31fbd28acd197cdca30b6270a9044971e",
+      "bytes": 1243478,
+      "sha256": "d586bdbe0a96fe018bf3d166972e5cc72348120eee7f8c16ff45e501c3effe17",
       "evidence": "out/qa/screenshot-readiness/23-mapmode-hybrid.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/24-mapmode-analysis.png",
-      "bytes": 691200,
-      "sha256": "0b7798031bb534b3a1cc002c953ea09ee00d101f565fa6e7f63bc1c782faf93a",
+      "bytes": 1197443,
+      "sha256": "8f83cd5e5828f6986ace514c9a798aec4fb8013288191081a8225423650304e8",
       "evidence": "out/qa/screenshot-readiness/24-mapmode-analysis.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/25-mapmode-orthophoto-fallback.png",
-      "bytes": 353563,
-      "sha256": "cf7ec45225a935d32d69e8d12c59c3bdb3ea1258b1982800cb7625771405856f",
+      "bytes": 1016356,
+      "sha256": "1f6785657949fc70ccd29a12bea7fff21bb4f8f45255256fbb8c193dfd5812a9",
       "evidence": "out/qa/screenshot-readiness/25-mapmode-orthophoto-fallback.json",
       "status": "valid",
       "errors": []

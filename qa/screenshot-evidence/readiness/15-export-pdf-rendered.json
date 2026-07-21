@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
+  "revision": "4943cd8cd3181527b236502f1332989afccd7e6b",
   "screenshot": {
     "path": "docs/screenshots/15-export-pdf-rendered.png",
     "bytes": 128838,
@@ -8,9 +8,9 @@
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
-    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
-    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
+    "sha256": "d998c0ec1045be606c222f3175970db32d36a27609a36fc566579cb76238f776",
+    "fingerprint": "987f943ab020f89f10d15abf1406bfa59f0610ddacb59273a31cf76067b3f056",
+    "applicationFingerprint": "d27acc8969fdccf9031da0c9b87ddf2c68025e5bbf326ef70c0ccd746b3db207",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "criteria": {
