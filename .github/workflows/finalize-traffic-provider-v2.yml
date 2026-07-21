@@ -1,0 +1,301 @@
+name: Finalize traffic provider QA v2
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-traffic-provider-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout traffic-provider branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/traffic-provider-core
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply reviewed traffic-evidence fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_between(text, start_marker, end_marker, replacement):
+              start = text.index(start_marker)
+              end = text.index(end_marker, start)
+              return text[:start] + replacement.rstrip() + text[end:]
+
+          target = Path('js/ua.traffic_provider.js')
+          source = target.read_text(encoding='utf-8')
+
+          source = replace_between(
+              source,
+              '  function uniqueStrings(value, path, allowed) {',
+              '\n\n  function validateSourceRecord(',
+              '''  function compareStrings(left, right) {
+            return left < right ? -1 : left > right ? 1 : 0;
+          }
+
+          function uniqueStrings(value, path, allowed) {
+            if (!Array.isArray(value) || value.length === 0) {
+              fail('invalid_value', `${path} must be a non-empty array`);
+            }
+            const result = [...new Set(value.map((item, index) => requiredString(item, `${path}[${index}]`)))];
+            const invalid = allowed ? result.filter(item => !allowed.includes(item)) : [];
+            if (invalid.length) fail('invalid_value', `${path} contains unsupported values: ${invalid.join(', ')}`);
+            return result.sort(compareStrings);
+          }'''
+          )
+          source = source.replace(
+              'left.descriptor.priority - right.descriptor.priority || left.id.localeCompare(right.id)',
+              'left.descriptor.priority - right.descriptor.priority || compareStrings(left.id, right.id)'
+          )
+
+          source = replace_between(
+              source,
+              '  function matchObservationToRoads(observation, roads, options) {',
+              '\n\n  function evidenceRank(',
+              '''  function matchObservationToRoads(observation, roads, options) {
+            if (!observation || !observation.source) {
+              fail('invalid_observation', 'normalized observation required');
+            }
+            if (!Array.isArray(roads) || roads.length === 0) return null;
+            const maxDistanceMeters = Math.max(1, Number(options && options.maxDistanceMeters) || 250);
+            if (observation.wayId) {
+              const exactIndex = roads.findIndex(road => String(road.wayId) === observation.wayId);
+              if (exactIndex >= 0) {
+                const exact = roads[exactIndex];
+                if (!observation.coordinate) {
+                  return Object.freeze({
+                    observation,
+                    road: exact,
+                    wayId: String(exact.wayId),
+                    distanceMeters: null,
+                    matchQuality: 'medium',
+                    matchMethod: 'explicit-way-id-without-geometry',
+                  });
+                }
+                const distanceMeters = pointToRoadDistance(
+                  observation.coordinate,
+                  exact,
+                  `roads[${exactIndex}]`
+                );
+                if (distanceMeters > maxDistanceMeters) return null;
+                return Object.freeze({
+                  observation,
+                  road: exact,
+                  wayId: String(exact.wayId),
+                  distanceMeters: Math.round(distanceMeters * 10) / 10,
+                  matchQuality: matchQuality(distanceMeters),
+                  matchMethod: 'explicit-way-id-with-geometry',
+                });
+              }
+            }
+            if (!observation.coordinate) return null;
+            let best = null;
+            roads.forEach((road, index) => {
+              const distanceMeters = pointToRoadDistance(observation.coordinate, road, `roads[${index}]`);
+              if (!best || distanceMeters < best.distanceMeters) best = { road, distanceMeters };
+            });
+            if (!best || best.distanceMeters > maxDistanceMeters) return null;
+            return Object.freeze({
+              observation,
+              road: best.road,
+              wayId: String(best.road.wayId),
+              distanceMeters: Math.round(best.distanceMeters * 10) / 10,
+              matchQuality: matchQuality(best.distanceMeters),
+              matchMethod: 'nearest-road-segment',
+            });
+          }'''
+          )
+
+          source = replace_between(
+              source,
+              '  function evidenceRank(match, referenceYear, maxFreshAgeYears) {',
+              '\n\n  function selectTrafficEvidence(',
+              '''  function evidenceRank(match, referenceYear, maxFreshAgeYears) {
+            const type = match.observation.measurementType;
+            const ageYears = referenceYear - match.observation.year;
+            if (ageYears < 0) return 99;
+            if (type === 'count' && ageYears <= maxFreshAgeYears) return 1;
+            if (type === 'model') return 2;
+            if (type === 'count') return 3;
+            if (type === 'proxy') return 4;
+            return 99;
+          }'''
+          )
+
+          source = replace_between(
+              source,
+              '  function selectTrafficEvidence(matches, options) {',
+              '\n\n  function formatInteger(',
+              '''  function selectTrafficEvidence(matches, options) {
+            const opts = options || {};
+            const referenceYear = Number(opts.referenceYear);
+            if (!Number.isInteger(referenceYear)) {
+              fail('invalid_reference_year', 'referenceYear must be an integer');
+            }
+            const maxFreshAgeYears = opts.maxFreshAgeYears == null
+              ? 5 : Number(opts.maxFreshAgeYears);
+            if (!Number.isFinite(maxFreshAgeYears) || maxFreshAgeYears < 0) {
+              fail('invalid_fresh_age', 'maxFreshAgeYears must be a finite non-negative number');
+            }
+            const mode = opts.mode == null ? null : enumValue(opts.mode, 'mode', MODES, 'invalid_mode');
+            const candidates = (Array.isArray(matches) ? matches : [])
+              .filter(Boolean)
+              .filter(match => !mode || match.observation.mode === mode)
+              .filter(match => match.observation.year <= referenceYear)
+              .map(match => ({
+                ...match,
+                ageYears: referenceYear - match.observation.year,
+                rank: evidenceRank(match, referenceYear, maxFreshAgeYears),
+              }))
+              .sort((left, right) =>
+                left.rank - right.rank ||
+                right.observation.year - left.observation.year ||
+                (Number.isFinite(left.distanceMeters) ? left.distanceMeters : Infinity) -
+                  (Number.isFinite(right.distanceMeters) ? right.distanceMeters : Infinity) ||
+                compareStrings(left.observation.observationId, right.observation.observationId)
+              );
+
+            if (!candidates.length) {
+              return Object.freeze({
+                evidenceType: 'none',
+                observation: null,
+                statement: 'Keine belastbare Verkehrsangabe verfügbar.',
+              });
+            }
+            const selected = candidates[0];
+            const evidenceType = selected.rank === 1 ? 'measured'
+              : selected.rank === 2 ? 'model'
+                : selected.rank === 3 ? 'stale-measured' : 'proxy';
+            const result = {
+              evidenceType,
+              observation: selected.observation,
+              source: selected.observation.source,
+              wayId: selected.wayId,
+              distanceMeters: selected.distanceMeters,
+              matchQuality: selected.matchQuality,
+              matchMethod: selected.matchMethod,
+              ageYears: selected.ageYears,
+              warning: evidenceType === 'stale-measured'
+                ? 'Messwert ist älter als die Frischegrenze.' : null,
+            };
+            result.statement = formatTrafficStatement(result);
+            return Object.freeze(result);
+          }'''
+          )
+          target.write_text(source, encoding='utf-8')
+
+          test_path = Path('tests/unit/trafficProvider.test.js')
+          tests = test_path.read_text(encoding='utf-8')
+          tests = replace_between(
+              tests,
+              "  test('matches an explicit way ID without inventing spatial uncertainty', async () => {",
+              "\n\n  test('matches point counts to the nearest road and reports distance quality',",
+              '''  test('keeps an explicit way ID without geometry but does not invent a distance', async () => {
+            const [observation] = await createProvider('count', [rawObservation({
+              wayId: '42', geometry: undefined,
+            })]).loadObservations();
+            const match = traffic.matchObservationToRoads(observation, [road('7'), road('42')]);
+            expect(match).toEqual(expect.objectContaining({
+              wayId: '42',
+              distanceMeters: null,
+              matchQuality: 'medium',
+              matchMethod: 'explicit-way-id-without-geometry',
+            }));
+          });
+
+          test('spatially verifies an explicit way ID when geometry is available', async () => {
+            const [observation] = await createProvider('count', [rawObservation({ wayId: '42' })])
+              .loadObservations();
+            const match = traffic.matchObservationToRoads(observation, [road('7'), road('42')]);
+            expect(match).toEqual(expect.objectContaining({
+              wayId: '42',
+              distanceMeters: 0,
+              matchQuality: 'high',
+              matchMethod: 'explicit-way-id-with-geometry',
+            }));
+          });
+
+          test('rejects an explicit way ID whose geometry is spatially inconsistent', async () => {
+            const [observation] = await createProvider('count', [rawObservation({
+              wayId: '42', geometry: pointGeometry(BONN.lat + 0.01, BONN.lon),
+            })]).loadObservations();
+            expect(traffic.matchObservationToRoads(observation, [road('42')], {
+              maxDistanceMeters: 100,
+            })).toBeNull();
+          });'''
+          )
+          insert = tests.rfind('\n});')
+          additions = '''
+
+            test('does not use observations from after the selected reference year', async () => {
+              const futureProvider = createProvider('count', [rawObservation({
+                observationId: 'future-count', year: 2028, wayId: '1', geometry: undefined,
+              })]);
+              const currentModel = createProvider('model', [rawObservation({
+                observationId: 'current-model', measurementType: 'model', year: 2026,
+                wayId: '1', geometry: undefined,
+              })]);
+              const observations = [
+                ...(await futureProvider.loadObservations()),
+                ...(await currentModel.loadObservations()),
+              ];
+              const result = traffic.selectTrafficEvidence(
+                observations.map(observation => traffic.matchObservationToRoads(observation, [road('1')])),
+                { referenceYear: 2026, maxFreshAgeYears: 5 }
+              );
+              expect(result.evidenceType).toBe('model');
+              expect(result.observation.observationId).toBe('current-model');
+              expect(result.ageYears).toBe(0);
+            });
+
+            test('returns no evidence when every observation is from the future', async () => {
+              const provider = createProvider('count', [rawObservation({
+                observationId: 'future-only', year: 2027, wayId: '1', geometry: undefined,
+              })]);
+              const [observation] = await provider.loadObservations();
+              const result = traffic.selectTrafficEvidence([
+                traffic.matchObservationToRoads(observation, [road('1')]),
+              ], { referenceYear: 2026 });
+              expect(result.evidenceType).toBe('none');
+              expect(result.observation).toBeNull();
+            });
+
+            test('honours an explicit freshness threshold of zero years', async () => {
+              const provider = createProvider('count', [rawObservation({
+                observationId: 'previous-year', year: 2025, wayId: '1', geometry: undefined,
+              })]);
+              const [observation] = await provider.loadObservations();
+              const result = traffic.selectTrafficEvidence([
+                traffic.matchObservationToRoads(observation, [road('1')]),
+              ], { referenceYear: 2026, maxFreshAgeYears: 0 });
+              expect(result.evidenceType).toBe('stale-measured');
+            });
+          '''
+          test_path.write_text(tests[:insert] + additions + tests[insert:], encoding='utf-8')
+      - name: Format and test
+        run: |
+          npx --yes prettier@3.6.2 --write js/ua.traffic_provider.js tests/unit/trafficProvider.test.js
+          node --check js/ua.traffic_provider.js
+          npx jest --runInBand tests/unit/sourceManifest.test.js tests/unit/trafficProvider.test.js
+      - name: Commit traffic-provider QA fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/ua.traffic_provider.js tests/unit/trafficProvider.test.js
+          git commit -m 'fix: harden traffic evidence time and road matching'
+          git push origin HEAD:feat/traffic-provider-core
