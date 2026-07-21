@@ -3898,24 +3898,24 @@
     // ---- STATISTIK section with real tables (from structured data) ----
     if (sd && !sectionGuard("STATISTIK")) {
       // Keep the section heading, its explanatory line and the first table
-// together. Otherwise pdfMake can leave “STATISTIK” alone at the
-// bottom of a page while moving the complete severity table to the
-// next page, which is an orphan heading in the final rendered PDF.
-const sev = sd.severity;
-const sevTotal = sev ? sev.total : 0;
-const severityRows = [
-  ["1 – Getötete",       String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
-  ["2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
-  ["3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
-];
-docDefinition.content.push({
-  unbreakable: true,
-  stack: [
-    { text: "STATISTIK", style: "subheader" },
-    { text: "Verletzungsschwere im Ausschnitt:", style: "normal" },
-    makePdfTable(["Kategorie", "Anzahl", "Anteil"], severityRows)
-  ]
-});
+      // together. Otherwise pdfMake can leave “STATISTIK” alone at the
+      // bottom of a page while moving the complete severity table to the
+      // next page, which is an orphan heading in the final rendered PDF.
+      const sev = sd.severity;
+      const sevTotal = sev ? sev.total : 0;
+      const severityRows = [
+        ["1 – Getötete",       String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
+        ["2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
+        ["3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
+      ];
+      docDefinition.content.push({
+        unbreakable: true,
+        stack: [
+          { text: "STATISTIK", style: "subheader" },
+          { text: "Verletzungsschwere im Ausschnitt:", style: "normal" },
+          makePdfTable(["Kategorie", "Anzahl", "Anteil"], severityRows)
+        ]
+      });
 
       // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis (or political simplification).
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
