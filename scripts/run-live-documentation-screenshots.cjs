@@ -52,8 +52,11 @@ function assertLiveBasemapProvenance(page) {
     kind => !live.successfulResponses.some(response => response.kind === kind)
   );
   if (missingKinds.length > 0) {
-    throw new Error(\`Documentation screenshot lacks successful real basemap responses for: \${missingKinds.join(', ')}\n\` +
-      \`Observed real basemap responses: \${JSON.stringify(live.successfulResponses, null, 2)}\`);
+    throw new Error(
+      'Documentation screenshot lacks successful real basemap responses for: ' +
+      missingKinds.join(', ') + String.fromCharCode(10) +
+      'Observed real basemap responses: ' + JSON.stringify(live.successfulResponses, null, 2)
+    );
   }
   return live;
 }
@@ -138,7 +141,7 @@ async function captureDataScreenshot(page, options) {
     requiredKinds: live.requiredKinds.slice(),
     successfulResponses: live.successfulResponses.map(response => ({ ...response }))
   };
-  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + '\n');
+  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + String.fromCharCode(10));
   return snapshot;
 }
 `;
