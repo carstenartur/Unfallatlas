@@ -11,6 +11,7 @@ const {
 } = require('../../server/video-export');
 const {
   ANIMATED_IMAGE_FILTER,
+  ANIMATED_IMAGE_FPS,
   ANIMATED_IMAGE_WIDTH,
 } = require('../../server/video-export-filters');
 
@@ -41,22 +42,24 @@ describe('video export encoding contract', () => {
     expect(args).not.toContain('-vsync');
   });
 
-  test('preserves at least two encoded pixels for the narrow owned context stroke', () => {
+  test('aligns output cadence with semantic inspection and preserves the narrow owned context stroke', () => {
     const browserCaptureWidth = 1280;
     const trafficStrokeWidth = 3;
     const projectedStrokeWidth = trafficStrokeWidth * ANIMATED_IMAGE_WIDTH / browserCaptureWidth;
 
-    expect(ANIMATED_IMAGE_WIDTH).toBeGreaterThanOrEqual(960);
-    expect(projectedStrokeWidth).toBeGreaterThanOrEqual(2.25);
+    expect(ANIMATED_IMAGE_FPS).toBe(2);
+    expect(ANIMATED_IMAGE_WIDTH).toBe(864);
+    expect(projectedStrokeWidth).toBeGreaterThanOrEqual(2);
     expect(ANIMATED_IMAGE_FILTER)
-      .toBe(`fps=3,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
+      .toBe(`fps=2,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
+    expect(buildEncodedInspectionArgs('/tmp/output.webp')).toContain(`fps=${ANIMATED_IMAGE_FPS}`);
   });
 
   test('uses the full GIF palette without dithering so owned witness colours survive', () => {
     const palette = buildGifPaletteArgs('/tmp/input.webm', '/tmp/palette.png');
     const encoding = buildGifEncodingArgs('/tmp/input.webm', '/tmp/palette.png', '/tmp/output.gif');
-    expect(palette).toContain('fps=3,scale=960:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
-    expect(encoding).toContain('fps=3,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
+    expect(palette).toContain('fps=2,scale=864:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
+    expect(encoding).toContain('fps=2,scale=864:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
   });
 
   test('reads animated WebP canvas dimensions from the RIFF VP8X chunk', () => {
