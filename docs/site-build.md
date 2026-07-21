@@ -71,7 +71,18 @@ nicht unterstützt.
 Soll-Abmessungen, das ausnahmslose 1-MiB-Budget statischer Medien, das
 15-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
 sowie lokale Markdown-Referenzen. Neue Vollbild-Screenshots werden mit
-1280×640 erzeugt und müssen höchstens 1 MiB groß sein. Die
-Screenshot-Workflows veröffentlichen nur
-Review-Artefakte samt JSON-Größenbericht; eine Übernahme erfolgt über einen
-normalen Pull Request.
+1280×640 erzeugt und müssen höchstens 1 MiB groß sein.
+
+Die Media-QA besitzt bewusst getrennte Stufen:
+
+- `npm run validate:media:policy` prüft die ausführbare Manifest-, Pfad-,
+  Referenz- und Budgetpolitik, ohne geprüfte Mediendateien oder einen
+  Provenienz-Ledger vorzutäuschen;
+- `validate:media -- --candidate-screenshots` prüft die im aktuellen Lauf
+  erzeugten Screenshot- und Dokumentvorschau-Kandidaten vollständig und weist
+  nicht neu erzeugte Medien im Report als `deferred` aus;
+- der normale `npm run validate:media`-Lauf ist das strikte Promotion-Gate und
+  bindet sämtliche eingecheckten Medien an die dauerhaft archivierte Evidence.
+
+Die Screenshot-Workflows veröffentlichen nur Review-Artefakte samt
+JSON-Größenbericht; eine Übernahme erfolgt über einen normalen Pull Request.
