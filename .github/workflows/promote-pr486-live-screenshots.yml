@@ -34,8 +34,8 @@ jobs:
       - name: Download and verify the reviewed artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_ID: '8487210469'
-          ARTIFACT_SHA256: 'fc341d5896342679416437bfd5814129a5419ab59205621ccd446a6bf5784e6a'
+          ARTIFACT_ID: '8488563581'
+          ARTIFACT_SHA256: '92b2bb73767cd3657ffffc6be1c1d988b23e88634a1d6a6110bb448cef5c340e'
         run: |
           set -euo pipefail
           test "${{ github.event.pull_request.head.ref }}" = 'fix/live-cartographic-documentation-screenshots'
@@ -59,7 +59,7 @@ jobs:
           sidecars = sorted((root / 'out/qa/screenshot-readiness').glob('*.json'))
 
           assert summary['valid'] is True and summary['errors'] == []
-          assert summary['revision'] == '2f972eab7a594d990ec99cbb34b0762918693356'
+          assert summary['revision'] == '4943cd8cd3181527b236502f1332989afccd7e6b'
           assert summary['totals'] == {'screenshots': 21, 'evidence': 21}
           assert live['schemaVersion'] == 2 and live['valid'] is True and live['errors'] == []
           assert live['totals'] == {'screenshots': 21, 'validCartographic': 20, 'exempt': 1}
@@ -76,9 +76,9 @@ jobs:
 
       - name: Promote screenshots and durable evidence
         env:
-          ARTIFACT_ID: '8487210469'
+          ARTIFACT_ID: '8488563581'
           ARTIFACT_NAME: 'pr-live-map-screenshots-486'
-          ARTIFACT_SHA256: 'fc341d5896342679416437bfd5814129a5419ab59205621ccd446a6bf5784e6a'
+          ARTIFACT_SHA256: '92b2bb73767cd3657ffffc6be1c1d988b23e88634a1d6a6110bb448cef5c340e'
         run: |
           set -euo pipefail
           candidate=.build/promote-pr486/candidate
