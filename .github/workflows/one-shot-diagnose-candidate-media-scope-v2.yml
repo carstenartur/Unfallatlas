@@ -53,6 +53,15 @@ jobs:
           if block_start <= 0:
               raise SystemExit('candidate output summary block start not found')
           runner = runner[:block_start] + runner[block_end:]
+          replacements = {
+              r"'![Kandidat](docs/candidate.png)\n![Animation](docs/deferred.gif)\n'":
+                  r"'![Kandidat](docs/candidate.png)\\n![Animation](docs/deferred.gif)\\n'",
+              r"strict.errors.join('\n')": r"strict.errors.join('\\n')",
+          }
+          for old, new in replacements.items():
+              if runner.count(old) != 1:
+                  raise SystemExit(f'escaped fixture marker found {runner.count(old)} times: {old}')
+              runner = runner.replace(old, new)
           Path('/tmp/candidate-media-scope-v2.sh').write_text(runner)
           PY
           bash -n /tmp/candidate-media-scope-v2.sh
