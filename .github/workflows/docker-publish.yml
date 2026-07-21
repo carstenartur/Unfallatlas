@@ -4,10 +4,51 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/docker-publish.yml'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/build-site.js'
+      - 'scripts/validate-doc-media.js'
+      - 'scripts/validate-vendor-provenance.js'
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  main-smoke:
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install locked Node dependencies
+        run: npm ci
+
+      - name: Build canonical site and validate checked-in media
+        run: |
+          npm run build:site
+          npm run validate:media
+
+      - name: Build container without publishing
+        run: >-
+          docker build
+          --build-arg REQUIRE_COMPLETE_VENDOR_PROVENANCE=0
+          --tag unfallatlas:main-smoke
+          .
+
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -15,9 +56,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # GHCR is a public distribution channel, so it must enforce the same
-      # complete-provenance gate as the release ZIP and Pages deployment.  In
-      # particular, a tag or manual dispatch must not bypass issue #406.
+      # GHCR is a public distribution channel, so tags and explicit manual
+      # publication retain the complete-provenance gate from issue #406.
+      # Normal main pushes and relevant pull requests run the non-publishing
+      # smoke job above instead of creating an intentionally red branch status
+      # while publication is blocked.
       - name: Set up Node.js 24
         uses: actions/setup-node@v7
         with:
@@ -30,6 +73,7 @@ jobs:
       - name: Build and require complete vendor provenance
         run: |
           npm run build:site
+          npm run validate:media
           npm run validate:vendor-provenance -- --require-complete
 
       - uses: docker/login-action@v4
@@ -43,11 +87,9 @@ jobs:
         with:
           images: ghcr.io/carstenartur/unfallatlas
           tags: |
-            type=ref,event=branch
-            type=sha
+            type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v7
         with:
