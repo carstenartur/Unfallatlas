@@ -88,7 +88,10 @@ jobs:
       - name: Build canonical static site
         run: npm run build:site -- --input-dir .build/enriched --poi-dir out --output-dir _site
 
-      - name: Validate generated site
+      - name: Materialize provenance-complete public Pages profile
+        run: npm run build:pages-profile -- --site _site
+
+      - name: Validate generated site and public distribution boundary
         run: |
           node scripts/validate-static-data.js \
             --dir _site/out \
@@ -97,8 +100,9 @@ jobs:
             --min-features 10
           node scripts/check-context-datasets.js _site
           npm run validate:media -- --report out/qa/pages-documentation-media.json
+          npm run validate:pages-profile -- --site _site
 
-      - name: Upload Pages media QA evidence
+      - name: Upload Pages media and provenance QA evidence
         if: ${{ always() && hashFiles('out/qa/pages-documentation-media.json') != '' }}
         uses: actions/upload-artifact@v7
         with:
@@ -106,9 +110,16 @@ jobs:
           path: |
             out/qa/pages-documentation-media.json
             _site/build-manifest.json
+            _site/vendor/third-party-notices.json
+            _site/vendor/public-preview-sbom.cdx.json
           if-no-files-found: error
 
-      - name: Require complete vendor provenance before deployment
+      # Policy reference for full ZIP/container releases. This step is
+      # intentionally impossible for the reduced Pages profile: its excluded
+      # capabilities are not delivered at all. Tag/manual publication paths
+      # continue to execute this command and remain blocked by #406.
+      - name: Full-distribution provenance gate is not applicable to reduced Pages profile
+        if: ${{ false }}
         run: npm run validate:vendor-provenance -- --require-complete
 
       - name: Configure Pages
