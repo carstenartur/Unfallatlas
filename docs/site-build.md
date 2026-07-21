@@ -69,11 +69,12 @@ nicht unterstützt.
 
 `npm run validate:media` prüft `docs/media-manifest.json`: Existenz,
 Soll-Abmessungen, das 1,5-MiB-Einzelbudget statischer Kartenmedien, das
-24-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
-sowie lokale Markdown-Referenzen. Neue Vollbild-Screenshots werden mit
-1280×640 erzeugt. Die Grenzen sind auf reale OSM-/WMS-/Orthofoto-Rasterdaten
-kalibriert; flächige synthetische SVG-Testkacheln sind kein gültiger Weg, um ein
-Medienbudget einzuhalten.
+30-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
+sowie lokale Markdown-Referenzen. Das Gesamtbudget umfasst ausdrücklich auch
+das kanonische Demo-GIF und die gerenderte PDF-Vorschau. Neue
+Vollbild-Screenshots werden mit 1280×640 erzeugt. Die Grenzen sind auf reale
+OSM-/WMS-/Orthofoto-Rasterdaten kalibriert; flächige synthetische
+SVG-Testkacheln sind kein gültiger Weg, um ein Medienbudget einzuhalten.
 
 Reviewbare Dokumentations-Screenshots entstehen ausschließlich über den
 Live-Kartografie-Runner. Er lässt nur die im Layer-Register deklarierten
