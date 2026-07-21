@@ -29,22 +29,28 @@ describe('live cartography evidence validator', () => {
     expect(classifyProviderUrl(url)).toBeNull();
   });
 
-  test('accepts complete live raster evidence', () => {
+  test('accepts visible tiles with matching successful raster responses', () => {
+    const orthophotoUrl = 'https://www.wms.nrw.de/geobasis/wms_nw_dop?REQUEST=GetMap';
+    const labelsUrl = 'https://a.basemaps.cartocdn.com/light_only_labels/15/17030/10954.png';
     expect(validateCartographyRecord({
       source: 'live',
       requiredKinds: ['orthophoto', 'labels'],
+      visibleTiles: [
+        { kind: 'orthophoto', url: orthophotoUrl },
+        { kind: 'labels', url: labelsUrl }
+      ],
       successfulResponses: [
         {
           kind: 'orthophoto',
           status: 200,
           contentType: 'image/png',
-          url: 'https://www.wms.nrw.de/geobasis/wms_nw_dop?REQUEST=GetMap'
+          url: orthophotoUrl
         },
         {
           kind: 'labels',
           status: 200,
           contentType: 'image/png; charset=binary',
-          url: 'https://a.basemaps.cartocdn.com/light_only_labels/15/17030/10954.png'
+          url: labelsUrl
         }
       ]
     }, 'docs/screenshots/23-mapmode-hybrid.png')).toEqual([]);
@@ -52,13 +58,16 @@ describe('live cartography evidence validator', () => {
 
   test.each([
     [
-      { source: 'fixture', requiredKinds: ['standard'], successfulResponses: [] },
+      { source: 'fixture', requiredKinds: ['standard'], visibleTiles: [], successfulResponses: [] },
       'cartography source is not live'
     ],
     [
       {
         source: 'live',
         requiredKinds: ['standard'],
+        visibleTiles: [{
+          kind: 'standard', url: 'https://a.tile.openstreetmap.org/15/17030/10954.png'
+        }],
         successfulResponses: [{
           kind: 'standard', status: 200, contentType: 'image/svg+xml',
           url: 'https://a.tile.openstreetmap.org/15/17030/10954.png'
@@ -70,25 +79,54 @@ describe('live cartography evidence validator', () => {
       {
         source: 'live',
         requiredKinds: ['standard'],
+        visibleTiles: [{
+          kind: 'standard', url: 'http://a.tile.openstreetmap.org/15/17030/10954.png'
+        }],
         successfulResponses: [{
           kind: 'standard', status: 200, contentType: 'image/png',
           url: 'http://a.tile.openstreetmap.org/15/17030/10954.png'
         }]
       },
-      'no successful real standard response is recorded'
+      'no visible successful real standard tile is recorded'
     ],
     [
       {
         source: 'live',
         requiredKinds: ['standard'],
+        visibleTiles: [{
+          kind: 'standard', url: 'https://a.tile.openstreetmap.org/15/17030/10954.png'
+        }],
+        successfulResponses: []
+      },
+      'no visible successful real standard tile is recorded'
+    ],
+    [
+      {
+        source: 'live',
+        requiredKinds: ['standard'],
+        visibleTiles: [],
+        successfulResponses: [{
+          kind: 'standard', status: 200, contentType: 'image/png',
+          url: 'https://a.tile.openstreetmap.org/15/17030/10954.png'
+        }]
+      },
+      'no visible successful real standard tile is recorded'
+    ],
+    [
+      {
+        source: 'live',
+        requiredKinds: ['standard'],
+        visibleTiles: [{
+          kind: 'standard', url: 'https://example.invalid/fake.png'
+        }],
         successfulResponses: [{
           kind: 'standard', status: 200, contentType: 'image/png',
           url: 'https://example.invalid/fake.png'
         }]
       },
-      'no successful real standard response is recorded'
+      'no visible successful real standard tile is recorded'
     ]
-  ])('rejects non-live or counterfeit cartography', (record, expected) => {
+  ])('rejects non-live, invisible or counterfeit cartography', (record, expected) => {
     expect(validateCartographyRecord(record, 'docs/screenshots/01-startansicht.png').join('\n')).toContain(expected);
   });
 
