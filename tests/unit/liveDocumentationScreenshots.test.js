@@ -39,6 +39,17 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('successfulResponses: live.successfulResponses.map');
   });
 
+  test('intercepts HTTP and HTTPS while allowing exact HTTPS tile paths only', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+
+    expect(transformed).toContain("if (url.protocol !== 'https:') return null;");
+    expect(transformed).toContain('await page.route(/^https?:\\/\\//');
+    expect(transformed).toContain('/^\\/\\d+\\/\\d+\\/\\d+\\.png$/');
+    expect(transformed).toContain('/^\\/light_only_labels\\/\\d+\\/\\d+\\/\\d+(?:@2x)?\\.png$/');
+    expect(transformed).not.toContain("url.pathname.startsWith('/light_only_labels/')");
+    expect(transformed).not.toContain("if (/(^|\\.)tile\\.openstreetmap\\.org$/i.test(url.hostname)) return 'standard';");
+  });
+
   test('emits syntactically valid ESM', () => {
     const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'unfallatlas-live-spec-'));
     const generatedFile = path.join(temporaryRoot, 'screenshots.live.generated.spec.mjs');
