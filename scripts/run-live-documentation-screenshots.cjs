@@ -20,6 +20,7 @@ function replaceOnce(source, search, replacement, label) {
 function buildLiveSpec(source) {
   const provenanceSupport = String.raw`
 const LIVE_BASEMAP_PROVENANCE = new WeakMap();
+const LIVE_APPLICATION_ORIGIN = new URL(process.env.BASE_URL || 'http://localhost:8000').origin;
 
 function classifyLiveBasemapUrl(rawUrl) {
   const url = new URL(rawUrl);
@@ -113,6 +114,11 @@ async function setupLiveBasemapTiles(page, options = {}) {
 
   await page.route(/^https?:\/\//, async route => {
     const request = route.request();
+    const requestUrl = new URL(request.url());
+    if (requestUrl.origin === LIVE_APPLICATION_ORIGIN) {
+      await route.continue();
+      return;
+    }
     const basemapKind = classifyLiveBasemapUrl(request.url());
     const nominatimFixture = classifyNominatimFixture(request.url());
     const overpassFixture = classifyOverpassFixture(
