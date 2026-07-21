@@ -22,17 +22,19 @@ function classifyProviderUrl(rawUrl) {
   let url;
   try { url = new URL(rawUrl); }
   catch (_) { return null; }
-  if (/(^|\.)tile\.openstreetmap\.org$/i.test(url.hostname)) return 'standard';
+  if (url.protocol !== 'https:') return null;
+  if (/(^|\.)tile\.openstreetmap\.org$/i.test(url.hostname) &&
+      /^\/\d+\/\d+\/\d+\.png$/.test(url.pathname)) return 'standard';
   if (/(^|\.)basemaps\.cartocdn\.com$/i.test(url.hostname) &&
-      url.pathname.startsWith('/light_only_labels/')) return 'labels';
+      /^\/light_only_labels\/\d+\/\d+\/\d+(?:@2x)?\.png$/.test(url.pathname)) return 'labels';
   if ((url.hostname === 'www.bonn.de' &&
-       url.pathname.startsWith('/stadtplan-wms/services/orthofoto/MapServer/WMSServer')) ||
-      (url.hostname === 'www.wms.nrw.de' && url.pathname.startsWith('/geobasis/wms_nw_dop')) ||
+       url.pathname === '/stadtplan-wms/services/orthofoto/MapServer/WMSServer') ||
+      (url.hostname === 'www.wms.nrw.de' && url.pathname === '/geobasis/wms_nw_dop') ||
       (url.hostname === 'opendata.lgln.niedersachsen.de' &&
-       url.pathname.startsWith('/doorman/noauth/dop_wms')) ||
-      (url.hostname === 'sg.geodatenzentrum.de' && url.pathname.startsWith('/wms_dop20')) ||
+       url.pathname === '/doorman/noauth/dop_wms') ||
+      (url.hostname === 'sg.geodatenzentrum.de' && url.pathname === '/wms_dop20') ||
       (url.hostname === 'server.arcgisonline.com' &&
-       url.pathname.startsWith('/ArcGIS/rest/services/World_Imagery/MapServer/tile/'))) {
+       /^\/ArcGIS\/rest\/services\/World_Imagery\/MapServer\/tile\/\d+\/\d+\/\d+$/.test(url.pathname))) {
     return 'orthophoto';
   }
   return null;
