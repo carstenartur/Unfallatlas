@@ -111,7 +111,7 @@ jobs:
         run: npx playwright test tests/e2e/smoke.spec.js --project=chromium
 
       - name: Upload Pages media, browser and provenance QA evidence
-        if: ${{ always() && hashFiles('out/qa/pages-documentation-media.json') != '' }}
+        if: ${{ always() && hashFiles('_site/build-manifest.json') != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: pages-documentation-media-report
