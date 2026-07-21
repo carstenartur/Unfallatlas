@@ -1,6 +1,8 @@
 name: Promote PR 486 live screenshots once
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
   push:
     branches:
       - fix/live-cartographic-documentation-screenshots
@@ -15,7 +17,11 @@ concurrency:
 
 jobs:
   promote:
-    if: ${{ github.event.head_commit.message == 'chore: stage one-shot live screenshot promotion' }}
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.number == 486 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/live-cartographic-documentation-screenshots'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -32,7 +38,7 @@ jobs:
           ARTIFACT_SHA256: 'fc341d5896342679416437bfd5814129a5419ab59205621ccd446a6bf5784e6a'
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = 'fix/live-cartographic-documentation-screenshots'
+          test "${{ github.event.pull_request.head.ref }}" = 'fix/live-cartographic-documentation-screenshots'
           mkdir -p .build/promote-pr486
           gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > .build/promote-pr486/artifact.zip
           echo "${ARTIFACT_SHA256}  .build/promote-pr486/artifact.zip" | sha256sum --check --strict
@@ -159,13 +165,13 @@ jobs:
           npm run build:site
           npm run validate:media
 
-      - name: Commit once and remove this workflow
+      - name: Commit promoted evidence to the PR branch
         run: |
           set -euo pipefail
-          rm .github/workflows/promote-pr486-live-screenshots.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs/screenshots qa/screenshot-evidence .github/workflows/promote-pr486-live-screenshots.yml
+          git add docs/screenshots qa/screenshot-evidence
+          git diff --cached --quiet && exit 0
           git diff --cached --stat
           git commit -m 'docs: promote validated real-map screenshots'
           git push origin HEAD:fix/live-cartographic-documentation-screenshots
