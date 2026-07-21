@@ -26,6 +26,12 @@
   const MODES = Object.freeze(['motor_vehicle', 'heavy_vehicle', 'bicycle', 'pedestrian', 'other']);
   const PROXY_CLASSES = Object.freeze(['low', 'medium', 'high', 'very_high']);
   const MATCH_QUALITIES = Object.freeze(['high', 'medium', 'low']);
+  const PROXY_LABELS_DE = Object.freeze({
+    low: 'niedrige',
+    medium: 'mittlere',
+    high: 'hohe',
+    very_high: 'sehr hohe',
+  });
   const ZERO_HASH = '0'.repeat(64);
 
   class TrafficProviderError extends Error {
@@ -42,41 +48,36 @@
   }
 
   function requiredString(value, path) {
-    if (typeof value !== 'string' || !value.trim()) fail('invalid_value', `${path} must be a non-empty string`);
+    if (typeof value !== 'string' || !value.trim()) {
+      fail('invalid_value', `${path} must be a non-empty string`);
+    }
     return value.trim();
   }
 
-  function finiteNumber(value, path, options) {
+  function finiteNumber(value, path) {
     const number = Number(value);
-    const opts = options || {};
-    if (!Number.isFinite(number) || (!opts.allowNegative && number < 0)) {
-      fail('invalid_value', `${path} must be a finite${opts.allowNegative ? '' : ' non-negative'} number`);
+    if (!Number.isFinite(number) || number < 0) {
+      fail('invalid_value', `${path} must be a finite non-negative number`);
     }
     return number;
   }
 
-  function normalizeMode(value, path) {
-    const mode = requiredString(value, path);
-    if (!MODES.includes(mode)) fail('invalid_mode', `${path} has unsupported mode ${mode}`);
-    return mode;
-  }
-
-  function normalizeMeasurementType(value, path) {
-    const type = requiredString(value, path);
-    if (!MEASUREMENT_TYPES.includes(type)) {
-      fail('invalid_measurement_type', `${path} has unsupported type ${type}`);
+  function enumValue(value, path, allowed, code) {
+    const normalized = requiredString(value, path);
+    if (!allowed.includes(normalized)) {
+      fail(code, `${path} has unsupported value ${normalized}`);
     }
-    return type;
+    return normalized;
   }
 
   function uniqueStrings(value, path, allowed) {
-    if (!Array.isArray(value) || value.length === 0) fail('invalid_value', `${path} must be a non-empty array`);
-    const result = [...new Set(value.map((item, index) => requiredString(item, `${path}[${index}]`)))];
-    if (allowed) {
-      const invalid = result.filter(item => !allowed.includes(item));
-      if (invalid.length) fail('invalid_value', `${path} contains unsupported values: ${invalid.join(', ')}`);
+    if (!Array.isArray(value) || value.length === 0) {
+      fail('invalid_value', `${path} must be a non-empty array`);
     }
-    return result.sort((a, b) => a.localeCompare(b));
+    const result = [...new Set(value.map((item, index) => requiredString(item, `${path}[${index}]`)))];
+    const invalid = allowed ? result.filter(item => !allowed.includes(item)) : [];
+    if (invalid.length) fail('invalid_value', `${path} contains unsupported values: ${invalid.join(', ')}`);
+    return result.sort((left, right) => left.localeCompare(right));
   }
 
   function validateSourceRecord(value) {
@@ -101,7 +102,7 @@
       qualityNotes: value.qualityNotes,
       permissions: value.permissions,
     };
-    const compact = Object.fromEntries(Object.entries(record).filter(([, item]) => item !== undefined));
+    const source = Object.fromEntries(Object.entries(record).filter(([, item]) => item !== undefined));
     return sourceManifest.normalizeManifest({
       schemaVersion: 1,
       artifactId: 'traffic-source-contract',
@@ -110,7 +111,7 @@
       buildFingerprint: ZERO_HASH,
       dataFingerprint: ZERO_HASH,
       scenario: { city: requiredString(value.spatialCoverage, 'spatialCoverage'), filters: {} },
-      sources: [compact],
+      sources: [source],
       transformations: [],
     }).sources[0];
   }
@@ -119,7 +120,9 @@
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       fail('invalid_descriptor', 'traffic source descriptor must be an object');
     }
-    const measurementType = normalizeMeasurementType(value.measurementType, 'measurementType');
+    const measurementType = enumValue(
+      value.measurementType, 'measurementType', MEASUREMENT_TYPES, 'invalid_measurement_type'
+    );
     const modes = uniqueStrings(value.modes, 'modes', MODES);
     const unit = value.unit == null ? null : requiredString(value.unit, 'unit');
     if (measurementType === 'proxy' && unit) {
@@ -144,69 +147,87 @@
   }
 
   function normalizeCoordinate(value, path) {
-    let lat, lon;
+    let lat;
+    let lon;
     if (Array.isArray(value)) {
       if (value.length !== 2) fail('invalid_coordinate', `${path} must contain two values`);
       [lon, lat] = value;
     } else if (value && typeof value === 'object') {
       ({ lat, lon } = value);
     }
-    lat = Number(lat); lon = Number(lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    lat = Number(lat);
+    lon = Number(lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
+        lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       fail('invalid_coordinate', `${path} is not a valid coordinate`);
     }
     return Object.freeze({ lat, lon });
   }
 
   function representativeCoordinate(geometry, path) {
-    if (!geometry || typeof geometry !== 'object') fail('invalid_geometry', `${path} must be GeoJSON geometry`);
-    if (geometry.type === 'Point') return normalizeCoordinate(geometry.coordinates, `${path}.coordinates`);
-    if (geometry.type === 'LineString') {
-      if (!Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) {
-        fail('invalid_geometry', `${path}.coordinates requires at least two points`);
-      }
-      const coordinates = geometry.coordinates.map((item, index) =>
-        normalizeCoordinate(item, `${path}.coordinates[${index}]`)
-      );
-      const middle = (coordinates.length - 1) / 2;
-      const lower = coordinates[Math.floor(middle)];
-      const upper = coordinates[Math.ceil(middle)];
-      return Object.freeze({ lat: (lower.lat + upper.lat) / 2, lon: (lower.lon + upper.lon) / 2 });
+    if (!geometry || typeof geometry !== 'object') {
+      fail('invalid_geometry', `${path} must be GeoJSON geometry`);
     }
-    fail('invalid_geometry', `${path}.type ${geometry.type} is unsupported`);
+    if (geometry.type === 'Point') {
+      return normalizeCoordinate(geometry.coordinates, `${path}.coordinates`);
+    }
+    if (geometry.type !== 'LineString' ||
+        !Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) {
+      fail('invalid_geometry', `${path} must be Point or a LineString with at least two points`);
+    }
+    const coordinates = geometry.coordinates.map((item, index) =>
+      normalizeCoordinate(item, `${path}.coordinates[${index}]`)
+    );
+    const middle = (coordinates.length - 1) / 2;
+    const lower = coordinates[Math.floor(middle)];
+    const upper = coordinates[Math.ceil(middle)];
+    return Object.freeze({
+      lat: (lower.lat + upper.lat) / 2,
+      lon: (lower.lon + upper.lon) / 2,
+    });
   }
 
   function normalizeObservation(value, descriptor, index) {
     const path = `observations[${index}]`;
-    if (!value || typeof value !== 'object' || Array.isArray(value)) fail('invalid_observation', `${path} must be an object`);
-    const measurementType = normalizeMeasurementType(
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      fail('invalid_observation', `${path} must be an object`);
+    }
+    const measurementType = enumValue(
       value.measurementType == null ? descriptor.measurementType : value.measurementType,
-      `${path}.measurementType`
+      `${path}.measurementType`, MEASUREMENT_TYPES, 'invalid_measurement_type'
     );
     if (measurementType !== descriptor.measurementType) {
       fail('observation_type_mismatch', `${path} type does not match provider descriptor`);
     }
-    const mode = normalizeMode(value.mode, `${path}.mode`);
-    if (!descriptor.modes.includes(mode)) fail('observation_mode_mismatch', `${path} mode is not declared by provider`);
+    const mode = enumValue(value.mode, `${path}.mode`, MODES, 'invalid_mode');
+    if (!descriptor.modes.includes(mode)) {
+      fail('observation_mode_mismatch', `${path} mode is not declared by provider`);
+    }
     const year = Number(value.year);
-    if (!Number.isInteger(year) || year < 1900 || year > 2100) fail('invalid_year', `${path}.year is invalid`);
+    if (!Number.isInteger(year) || year < 1900 || year > 2100) {
+      fail('invalid_year', `${path}.year is invalid`);
+    }
+
     let numericValue = null;
     let proxyClass = null;
     if (measurementType === 'proxy') {
       if (value.value != null || value.unit != null) {
         fail('proxy_numeric_value_forbidden', `${path} proxy must not carry a numeric value or unit`);
       }
-      proxyClass = requiredString(value.proxyClass, `${path}.proxyClass`);
-      if (!PROXY_CLASSES.includes(proxyClass)) fail('invalid_proxy_class', `${path}.proxyClass is unsupported`);
+      proxyClass = enumValue(value.proxyClass, `${path}.proxyClass`, PROXY_CLASSES, 'invalid_proxy_class');
     } else {
       numericValue = finiteNumber(value.value, `${path}.value`);
       const unit = requiredString(value.unit, `${path}.unit`);
-      if (unit !== descriptor.unit) fail('observation_unit_mismatch', `${path}.unit does not match provider descriptor`);
+      if (unit !== descriptor.unit) {
+        fail('observation_unit_mismatch', `${path}.unit does not match provider descriptor`);
+      }
     }
+
     const geometry = value.geometry || null;
     const coordinate = geometry ? representativeCoordinate(geometry, `${path}.geometry`) : null;
     const wayId = value.wayId == null ? null : requiredString(String(value.wayId), `${path}.wayId`);
     if (!coordinate && !wayId) fail('missing_location', `${path} requires geometry or wayId`);
+
     return Object.freeze({
       observationId: requiredString(value.observationId, `${path}.observationId`),
       sourceId: descriptor.sourceId,
@@ -238,11 +259,15 @@
     return Object.freeze({
       id: descriptor.id,
       descriptor,
-      async canProvide(context) { return Boolean(await canProvide(context || {})); },
+      async canProvide(context) {
+        return Boolean(await canProvide(context || {}));
+      },
       async loadObservations(context) {
         const raw = await opts.loadObservations(context || {});
         if (!Array.isArray(raw)) fail('invalid_observations', `${descriptor.id} did not return an array`);
-        const observations = raw.map((item, index) => normalizeObservation(item, descriptor, index));
+        const observations = raw.map((item, observationIndex) =>
+          normalizeObservation(item, descriptor, observationIndex)
+        );
         const ids = new Set();
         for (const observation of observations) {
           if (ids.has(observation.observationId)) {
@@ -257,6 +282,9 @@
 
   function createRegistry() {
     const entries = new Map();
+    const list = () => [...entries.values()].sort((left, right) =>
+      left.descriptor.priority - right.descriptor.priority || left.id.localeCompare(right.id)
+    );
     return Object.freeze({
       register(provider) {
         if (!provider || !provider.descriptor || typeof provider.canProvide !== 'function' ||
@@ -267,15 +295,13 @@
         entries.set(provider.id, provider);
         return provider;
       },
-      get(id) { return entries.get(id) || null; },
-      list() {
-        return [...entries.values()].sort((left, right) =>
-          left.descriptor.priority - right.descriptor.priority || left.id.localeCompare(right.id)
-        );
+      get(id) {
+        return entries.get(id) || null;
       },
+      list,
       async collect(context) {
         const result = [];
-        for (const provider of this.list()) {
+        for (const provider of list()) {
           try {
             if (!(await provider.canProvide(context || {}))) continue;
             result.push(...await provider.loadObservations(context || {}));
@@ -285,7 +311,9 @@
         }
         return Object.freeze(result);
       },
-      clear() { entries.clear(); },
+      clear() {
+        entries.clear();
+      },
     });
   }
 
@@ -298,11 +326,13 @@
   }
 
   function roadCoordinates(road, path) {
-    if (!road || typeof road !== 'object') fail('invalid_road', `${path} must be an object`);
-    if (!Array.isArray(road.coordinates) || road.coordinates.length < 2) {
+    if (!road || typeof road !== 'object' ||
+        !Array.isArray(road.coordinates) || road.coordinates.length < 2) {
       fail('invalid_road', `${path}.coordinates requires at least two points`);
     }
-    return road.coordinates.map((item, index) => normalizeCoordinate(item, `${path}.coordinates[${index}]`));
+    return road.coordinates.map((item, index) =>
+      normalizeCoordinate(item, `${path}.coordinates[${index}]`)
+    );
   }
 
   function pointToRoadDistance(coordinate, road, path) {
@@ -316,7 +346,9 @@
       const dx = end.x - start.x;
       const dy = end.y - start.y;
       const denominator = dx * dx + dy * dy;
-      const t = denominator ? Math.max(0, Math.min(1, -(start.x * dx + start.y * dy) / denominator)) : 0;
+      const t = denominator
+        ? Math.max(0, Math.min(1, -(start.x * dx + start.y * dy) / denominator))
+        : 0;
       best = Math.min(best, Math.hypot(start.x + t * dx, start.y + t * dy));
     }
     return best;
@@ -329,7 +361,9 @@
   }
 
   function matchObservationToRoads(observation, roads, options) {
-    if (!observation || !observation.source) fail('invalid_observation', 'normalized observation required');
+    if (!observation || !observation.source) {
+      fail('invalid_observation', 'normalized observation required');
+    }
     if (!Array.isArray(roads) || roads.length === 0) return null;
     const maxDistanceMeters = Math.max(1, Number(options && options.maxDistanceMeters) || 250);
     if (observation.wayId) {
@@ -375,9 +409,11 @@
   function selectTrafficEvidence(matches, options) {
     const opts = options || {};
     const referenceYear = Number(opts.referenceYear);
-    if (!Number.isInteger(referenceYear)) fail('invalid_reference_year', 'referenceYear must be an integer');
+    if (!Number.isInteger(referenceYear)) {
+      fail('invalid_reference_year', 'referenceYear must be an integer');
+    }
     const maxFreshAgeYears = Math.max(0, Number(opts.maxFreshAgeYears) || 5);
-    const mode = opts.mode == null ? null : normalizeMode(opts.mode, 'mode');
+    const mode = opts.mode == null ? null : enumValue(opts.mode, 'mode', MODES, 'invalid_mode');
     const candidates = (Array.isArray(matches) ? matches : [])
       .filter(Boolean)
       .filter(match => !mode || match.observation.mode === mode)
@@ -392,12 +428,18 @@
         left.distanceMeters - right.distanceMeters ||
         left.observation.observationId.localeCompare(right.observation.observationId)
       );
+
     if (!candidates.length) {
-      return Object.freeze({ evidenceType: 'none', observation: null, statement: 'Keine belastbare Verkehrsangabe verfügbar.' });
+      return Object.freeze({
+        evidenceType: 'none',
+        observation: null,
+        statement: 'Keine belastbare Verkehrsangabe verfügbar.',
+      });
     }
     const selected = candidates[0];
-    const evidenceType = selected.rank === 1 ? 'measured' :
-      selected.rank === 2 ? 'model' : selected.rank === 3 ? 'stale-measured' : 'proxy';
+    const evidenceType = selected.rank === 1 ? 'measured'
+      : selected.rank === 2 ? 'model'
+        : selected.rank === 3 ? 'stale-measured' : 'proxy';
     const result = {
       evidenceType,
       observation: selected.observation,
@@ -407,7 +449,8 @@
       matchQuality: selected.matchQuality,
       matchMethod: selected.matchMethod,
       ageYears: selected.ageYears,
-      warning: evidenceType === 'stale-measured' ? 'Messwert ist älter als die Frischegrenze.' : null,
+      warning: evidenceType === 'stale-measured'
+        ? 'Messwert ist älter als die Frischegrenze.' : null,
     };
     result.statement = formatTrafficStatement(result);
     return Object.freeze(result);
@@ -422,13 +465,16 @@
       return 'Keine belastbare Verkehrsangabe verfügbar.';
     }
     const observation = result.observation;
-    const distance = Number.isFinite(result.distanceMeters) ? `, ${Math.round(result.distanceMeters)} m entfernt` : '';
     if (result.evidenceType === 'proxy') {
-      return `Verkehrsproxy: ${observation.proxyClass}e Exposition aus OSM-Straßenklasse; ` +
+      const label = PROXY_LABELS_DE[observation.proxyClass] || observation.proxyClass;
+      return `Verkehrsproxy: ${label} Exposition aus OSM-Straßenklasse; ` +
         `keine Verkehrszählung (${observation.source.publisher}).`;
     }
-    const label = result.evidenceType === 'model' ? 'Verkehrsmodell' :
-      result.evidenceType === 'stale-measured' ? 'Älterer gemessener Verkehrswert' : 'Gemessene Verkehrsbelastung';
+    const distance = Number.isFinite(result.distanceMeters)
+      ? `, ${Math.round(result.distanceMeters)} m entfernt` : '';
+    const label = result.evidenceType === 'model' ? 'Verkehrsmodell'
+      : result.evidenceType === 'stale-measured' ? 'Älterer gemessener Verkehrswert'
+        : 'Gemessene Verkehrsbelastung';
     const stale = result.evidenceType === 'stale-measured' ? '; veralteter Messstand' : '';
     return `${label}: ${formatInteger(observation.value)} ${observation.unit} ` +
       `(${observation.period} ${observation.year}${distance}, ${observation.source.publisher}${stale}).`;
@@ -438,11 +484,20 @@
     const value = input || {};
     const highway = requiredString(value.highway, 'highway');
     const classByHighway = {
-      motorway: 'very_high', trunk: 'very_high', primary: 'high', secondary: 'high',
-      tertiary: 'medium', unclassified: 'medium', residential: 'low', living_street: 'low', service: 'low',
+      motorway: 'very_high',
+      trunk: 'very_high',
+      primary: 'high',
+      secondary: 'high',
+      tertiary: 'medium',
+      unclassified: 'medium',
+      residential: 'low',
+      living_street: 'low',
+      service: 'low',
     };
     const proxyClass = classByHighway[highway];
-    if (!proxyClass) fail('unsupported_highway_proxy', `no proxy mapping for highway=${highway}`);
+    if (!proxyClass) {
+      fail('unsupported_highway_proxy', `no proxy mapping for highway=${highway}`);
+    }
     return {
       observationId: requiredString(value.observationId, 'observationId'),
       measurementType: 'proxy',
@@ -461,6 +516,7 @@
     MODES,
     PROXY_CLASSES,
     MATCH_QUALITIES,
+    PROXY_LABELS_DE,
     TrafficProviderError,
     normalizeDescriptor,
     normalizeObservation,
