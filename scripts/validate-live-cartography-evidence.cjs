@@ -40,6 +40,11 @@ function classifyProviderUrl(rawUrl) {
   return null;
 }
 
+function canonicalUrl(rawUrl) {
+  try { return new URL(rawUrl).href; }
+  catch (_) { return null; }
+}
+
 function validateCartographyRecord(record, screenshotPath) {
   const errors = [];
   if (!record || record.source !== 'live') {
@@ -47,6 +52,7 @@ function validateCartographyRecord(record, screenshotPath) {
     return errors;
   }
   const requiredKinds = Array.isArray(record.requiredKinds) ? record.requiredKinds : [];
+  const visibleTiles = Array.isArray(record.visibleTiles) ? record.visibleTiles : [];
   const successfulResponses = Array.isArray(record.successfulResponses) ? record.successfulResponses : [];
   if (requiredKinds.length === 0 || requiredKinds.some(kind => !['standard', 'orthophoto', 'labels'].includes(kind))) {
     errors.push(`${screenshotPath}: cartography requiredKinds is empty or invalid`);
@@ -59,11 +65,21 @@ function validateCartographyRecord(record, screenshotPath) {
       errors.push(`${screenshotPath}: cartography response ${index} is not an allowed successful raster provider response`);
     }
   }
+  for (const [index, tile] of visibleTiles.entries()) {
+    const classified = tile && classifyProviderUrl(tile.url);
+    if (!tile || classified !== tile.kind) {
+      errors.push(`${screenshotPath}: visible cartography tile ${index} is not an allowed provider tile`);
+    }
+  }
+  const successfulUrls = new Set(successfulResponses
+    .filter(response => response && response.status >= 200 && response.status < 300 &&
+      RASTER_CONTENT_TYPE.test(String(response.contentType || '')))
+    .map(response => canonicalUrl(response.url))
+    .filter(Boolean));
   for (const kind of requiredKinds) {
-    if (!successfulResponses.some(response => response && response.kind === kind &&
-        classifyProviderUrl(response.url) === kind && response.status >= 200 && response.status < 300 &&
-        RASTER_CONTENT_TYPE.test(String(response.contentType || '')))) {
-      errors.push(`${screenshotPath}: no successful real ${kind} response is recorded`);
+    if (!visibleTiles.some(tile => tile && tile.kind === kind &&
+        classifyProviderUrl(tile.url) === kind && successfulUrls.has(canonicalUrl(tile.url)))) {
+      errors.push(`${screenshotPath}: no visible successful real ${kind} tile is recorded`);
     }
   }
   return errors;
@@ -106,13 +122,14 @@ function validate(options = {}) {
       path: screenshotPath,
       status: rowErrors.length === 0 ? 'valid' : 'error',
       requiredKinds: evidence.cartography && evidence.cartography.requiredKinds || [],
+      visibleTiles: evidence.cartography && evidence.cartography.visibleTiles || [],
       responses: evidence.cartography && evidence.cartography.successfulResponses || [],
       errors: rowErrors
     });
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     valid: screenshotPaths.length > 0 && errors.length === 0,
     revision: process.env.GITHUB_SHA || null,
     screenshots: rows,
