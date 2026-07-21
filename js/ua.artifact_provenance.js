@@ -139,7 +139,7 @@
     const maxCharacters = Math.max(80, Number(options.maxCharacters) || 500);
     const prefix = requiredString(options.prefix || 'Quellen', 'prefix');
     const summaries = sourceManifest.visibleSourceSummary(manifestValue);
-    const labels = summaries.map(source => `${source.label} (${source.licenseId})`);
+    const labels = summaries.map(source => `${source.label} – ${source.licenseLabel}`);
     let text = `${prefix}: ${labels.join('; ')}`;
     if (text.length <= maxCharacters) return text;
     const kept = [];
