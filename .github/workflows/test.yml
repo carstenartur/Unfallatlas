@@ -39,6 +39,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build canonical static site
+        run: npm run build:site
+
+      - name: Validate documentation media policy boundary
+        id: validate_checked_media
+        run: npm run validate:media:policy -- --report out/qa/documentation-media.json
+
+      - name: Upload checked-in media policy report
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/documentation-media.json') != '' }}
+        with:
+          name: checked-documentation-media-report
+          path: |
+            out/qa/documentation-media.json
+            _site/build-manifest.json
+          if-no-files-found: error
+
       - name: Run unit tests
         run: npm run test:unit -- --runInBand
 
@@ -77,10 +94,8 @@ jobs:
       - name: Validate Playwright Docker coupling
         run: node scripts/check-playwright-docker-version.js
 
-
       - name: Install dependencies
         run: npm ci
-
 
       - name: Run testcontainers integration test
         run: npm run test:integration:tc
@@ -183,11 +198,22 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
+      - name: Prepare clean screenshot candidate directory
+        run: |
+          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+          mkdir -p out/qa/screenshot-readiness
+          find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
 
       - name: Run E2E tests
         run: npm run test:e2e
+
+      - name: Validate one-to-one screenshot evidence
+        id: validate_evidence
+        run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
+
+      - name: Validate generated documentation media candidate
+        id: validate_media
+        run: npm run validate:media -- --candidate-screenshots --report out/qa/generated-documentation-media.json
 
       - name: Run accessibility tests
         run: npx playwright test tests/e2e/accessibility.spec.js --project=chromium --reporter=line
@@ -208,10 +234,27 @@ jobs:
 
       - name: Upload documentation screenshots
         uses: actions/upload-artifact@v7
-        if: always()
+        if: ${{ steps.validate_media.outcome == 'success' && steps.validate_evidence.outcome == 'success' }}
         with:
           name: documentation-screenshots
-          path: docs/screenshots/
+          path: |
+            docs/screenshots/*.png
+            out/qa/screenshot-readiness/*.json
+            out/qa/screenshot-evidence.json
+            _site/build-manifest.json
+          if-no-files-found: error
+
+      - name: Upload generated media QA report
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/generated-documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/screenshot-readiness/*.json') != '' }}
+        with:
+          name: documentation-media-report
+          path: |
+            out/qa/generated-documentation-media.json
+            out/qa/screenshot-evidence.json
+            out/qa/screenshot-readiness/
+            _site/build-manifest.json
+          if-no-files-found: error
 
   firefox-smoke:
     runs-on: ubuntu-latest
@@ -232,9 +275,6 @@ jobs:
 
       - name: Install Playwright Firefox
         run: npx playwright install --with-deps firefox
-
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
 
       - name: Run Firefox smoke tests
         run: npx playwright test --project=firefox-smoke
@@ -265,9 +305,6 @@ jobs:
 
       - name: Install Playwright WebKit
         run: npx playwright install --with-deps webkit
-
-      - name: Normalize data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw
 
       - name: Run WebKit smoke tests
         run: npx playwright test --project=webkit-smoke

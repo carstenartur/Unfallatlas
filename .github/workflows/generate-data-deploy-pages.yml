@@ -96,7 +96,17 @@ jobs:
             --require-cities-file cities.txt \
             --min-features 10
           node scripts/check-context-datasets.js _site
+          npm run validate:media -- --report out/qa/pages-documentation-media.json
 
+      - name: Upload Pages media QA evidence
+        if: ${{ always() && hashFiles('out/qa/pages-documentation-media.json') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: pages-documentation-media-report
+          path: |
+            out/qa/pages-documentation-media.json
+            _site/build-manifest.json
+          if-no-files-found: error
 
       - name: Require complete vendor provenance before deployment
         run: npm run validate:vendor-provenance -- --require-complete
