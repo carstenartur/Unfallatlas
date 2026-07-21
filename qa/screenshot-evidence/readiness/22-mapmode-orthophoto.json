@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "4943cd8cd3181527b236502f1332989afccd7e6b",
+  "revision": "b65dca7455e2763284dee64e10fe2792afd20cc2",
   "screenshot": {
     "path": "docs/screenshots/22-mapmode-orthophoto.png",
     "bytes": 1231965,
@@ -8,9 +8,9 @@
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "d998c0ec1045be606c222f3175970db32d36a27609a36fc566579cb76238f776",
-    "fingerprint": "987f943ab020f89f10d15abf1406bfa59f0610ddacb59273a31cf76067b3f056",
-    "applicationFingerprint": "d27acc8969fdccf9031da0c9b87ddf2c68025e5bbf326ef70c0ccd746b3db207",
+    "sha256": "f54b516316153a11616ff863202a4320d72ab005b606e669f46e5f7e363be306",
+    "fingerprint": "acadf447f8ef8f4282eb797ec0695502207aa2d5c394a64b062e2d782aba5d4c",
+    "applicationFingerprint": "e22fbb563775711cf01f8e903b614ab5d045de6f1fe3495597160afbb6e7ae4b",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "criteria": {
@@ -378,73 +378,7 @@
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17032"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17027"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17032"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17027"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17032"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17029"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17030"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
         "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17030"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17031"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17029"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17030"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17027"
       },
       {
         "kind": "orthophoto",
@@ -456,19 +390,31 @@
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17029"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
         "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17029"
       },
       {
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17031"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17030"
       },
       {
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17028"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17030"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17029"
       },
       {
         "kind": "orthophoto",
@@ -481,6 +427,60 @@
         "status": 200,
         "contentType": "image/jpeg",
         "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17027"
       }
     ],
     "valid": true,
