@@ -52,11 +52,16 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('async function assertNoUnexpectedExternalRequests(page)');
   });
 
-  test('intercepts HTTP and HTTPS while allowing exact HTTPS tile paths only', () => {
+  test('intercepts HTTP and HTTPS while allowing only the exact first-party origin and HTTPS tile paths', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
 
-    expect(transformed).toContain("if (url.protocol !== 'https:') return null;");
+    expect(transformed).toContain(
+      "const LIVE_APPLICATION_ORIGIN = new URL(process.env.BASE_URL || 'http://localhost:8000').origin;"
+    );
     expect(transformed).toContain('await page.route(/^https?:\\/\\//');
+    expect(transformed).toContain('const requestUrl = new URL(request.url());');
+    expect(transformed).toContain('if (requestUrl.origin === LIVE_APPLICATION_ORIGIN) {');
+    expect(transformed).toContain("if (url.protocol !== 'https:') return null;");
     expect(transformed).toContain('/^\\/\\d+\\/\\d+\\/\\d+\\.png$/');
     expect(transformed).toContain('/^\\/light_only_labels\\/\\d+\\/\\d+\\/\\d+(?:@2x)?\\.png$/');
     expect(transformed).not.toContain("url.pathname.startsWith('/light_only_labels/')");
