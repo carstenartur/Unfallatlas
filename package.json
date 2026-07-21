@@ -32,6 +32,7 @@
     "validate:slope-plausibility": "node scripts/check-slope-plausibility.js",
     "validate:playwright-docker": "node scripts/check-playwright-docker-version.js",
     "validate:media": "node scripts/validate-doc-media.js",
+    "validate:media:policy": "node scripts/validate-doc-media.js --policy-only",
     "validate:screenshot-evidence": "node scripts/validate-screenshot-evidence.js",
     "validate:vendor-provenance": "node scripts/validate-vendor-provenance.js",
     "qa:slope": "node scripts/qa-slope-report.js",

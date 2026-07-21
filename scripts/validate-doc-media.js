@@ -24,11 +24,12 @@ const IGNORED_DIRECTORIES = new Set([
 const IGNORED_DIRECTORY_PREFIXES = Object.freeze(['_site.tmp-']);
 
 function parseArgs(argv) {
-  const args = { manifest: 'docs/media-manifest.json', report: null, candidateScreenshots: false };
+  const args = { manifest: 'docs/media-manifest.json', report: null, candidateScreenshots: false, policyOnly: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--manifest') args.manifest = argv[++i] || args.manifest;
     else if (argv[i] === '--report') args.report = argv[++i] || null;
     else if (argv[i] === '--candidate-screenshots') args.candidateScreenshots = true;
+    else if (argv[i] === '--policy-only') args.policyOnly = true;
     else throw new Error(`[validate-doc-media] Unknown argument: ${argv[i]}`);
   }
   return args;
@@ -550,6 +551,7 @@ function failureReport(repoRoot, manifestPath, error, options = {}) {
 }
 
 function validate(options = {}) {
+  const policyOnly = options.policyOnly === true;
   const repoRoot = path.resolve(options.root || ROOT);
   const manifestPath = path.resolve(repoRoot, options.manifest || 'docs/media-manifest.json');
   const errors = [];
@@ -637,7 +639,7 @@ function validate(options = {}) {
     let inspected = null;
     let targetMatch = false;
     let bytes = null;
-    if (assetPathSafe && fs.existsSync(absolute) && fs.statSync(absolute).isFile()) {
+    if (!policyOnly && assetPathSafe && fs.existsSync(absolute) && fs.statSync(absolute).isFile()) {
       try {
         inspected = inspectMedia(absolute);
         if (allowedFormats && !allowedFormats.has(inspected.format)) {
@@ -694,23 +696,34 @@ function validate(options = {}) {
     rows.push(row);
   }
 
-  const evidenceResult = options.candidateScreenshots
+  const evidenceResult = policyOnly
     ? {
         report: {
-          mode: 'candidate-screenshots',
-          note: 'accepted screenshot ledger binding is deferred to reviewed promotion',
+          mode: 'policy-only',
+          validated: false,
+          note: 'checked-in bytes and durable evidence are intentionally deferred to the successor evidence boundary',
         },
         errors: [],
       }
-    : validateScreenshotEvidenceLedger(
-        repoRoot,
-        manifest,
-        Array.isArray(manifest.assets) ? manifest.assets : []
-      );
+    : options.candidateScreenshots
+      ? {
+          report: {
+            mode: 'candidate-screenshots',
+            note: 'accepted screenshot ledger binding is deferred to reviewed promotion',
+          },
+          errors: [],
+        }
+      : validateScreenshotEvidenceLedger(
+          repoRoot,
+          manifest,
+          Array.isArray(manifest.assets) ? manifest.assets : []
+        );
   errors.push(...evidenceResult.errors);
 
-  const committedMedia = listFiles(path.join(repoRoot, 'docs'), file => MEDIA_EXTENSIONS.has(path.extname(file).toLowerCase()), { ignoreDirectories: new Set() })
-    .map(file => path.relative(repoRoot, file).replace(/\\/g, '/'));
+  const committedMedia = policyOnly
+    ? []
+    : listFiles(path.join(repoRoot, 'docs'), file => MEDIA_EXTENSIONS.has(path.extname(file).toLowerCase()), { ignoreDirectories: new Set() })
+      .map(file => path.relative(repoRoot, file).replace(/\\/g, '/'));
   for (const mediaPath of committedMedia) if (!entries.has(mediaPath)) errors.push(`${mediaPath}: committed media is not declared in the manifest`);
 
   for (const reference of markdownMediaReferences(repoRoot)) {
@@ -746,6 +759,9 @@ function validate(options = {}) {
   }
   return {
     schemaVersion: 2,
+    mode: policyOnly ? 'policy-only' : (options.candidateScreenshots ? 'candidate-screenshots' : 'strict'),
+    mediaValidated: !policyOnly,
+    evidenceValidated: !policyOnly && !options.candidateScreenshots,
     valid: errors.length === 0,
     revision: resolveRevision(repoRoot),
     manifest: { path: path.relative(repoRoot, manifestPath).replace(/\\/g, '/'), sha256: sha256(manifestPath) },
@@ -765,7 +781,7 @@ function main(argv) {
     const dimensionsText = row.dimensions ? `${row.dimensions.width}x${row.dimensions.height}` : 'unknown';
     process.stdout.write(`${prefix}\t${row.path}\t${dimensionsText}\t${row.bytes ?? '? '}/${row.budget ?? '?'} bytes\n`);
   }
-  process.stdout.write(`[validate-doc-media] ${report.totals.assets} assets, ${report.totals.bytes} bytes\n`);
+  process.stdout.write(`[validate-doc-media] mode=${report.mode || 'strict'}, mediaValidated=${report.mediaValidated !== false}, evidenceValidated=${report.evidenceValidated !== false}, ${report.totals.assets} assets, ${report.totals.bytes} bytes\n`);
   if (args.report) {
     const reportPath = path.resolve(ROOT, args.report);
     ensureInsideRoot(ROOT, reportPath, 'report path');
