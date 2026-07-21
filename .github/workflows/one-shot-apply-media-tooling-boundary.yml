@@ -30,14 +30,13 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python3 scripts/patch-media-tooling-boundary-runner.py
-          bash scripts/apply-media-tooling-boundary-fix.sh 2>&1 | tee media-tooling-boundary-apply.log
+          bash scripts/apply-media-tooling-boundary-fix.sh 2>&1 | tee "$RUNNER_TEMP/media-tooling-boundary-apply.log"
       - name: Upload validation and application log
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: media-tooling-boundary-apply-log
-          path: media-tooling-boundary-apply.log
+          path: ${{ runner.temp }}/media-tooling-boundary-apply.log
           if-no-files-found: error
       - name: Enforce successful validated application
         if: steps.apply.outcome != 'success'
