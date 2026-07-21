@@ -29,7 +29,7 @@ describe('video export encoding contract', () => {
     expect(args.join(' ')).not.toMatch(/scale=/);
   });
 
-  test('uses the dedicated animated WebP encoder and an explicit WebP muxer', () => {
+  test('uses the dedicated lossless animated WebP encoder and an explicit WebP muxer', () => {
     const args = buildWebpEncodingArgs('/tmp/input.webm', '/tmp/output.webp');
     expect(args).toEqual(expect.arrayContaining([
       '-c:v', 'libwebp_anim',
@@ -42,24 +42,24 @@ describe('video export encoding contract', () => {
     expect(args).not.toContain('-vsync');
   });
 
-  test('aligns output cadence with semantic inspection and preserves the narrow owned context stroke', () => {
+  test('reduces lossless frame count while preserving the narrow owned context stroke', () => {
     const browserCaptureWidth = 1280;
     const trafficStrokeWidth = 3;
     const projectedStrokeWidth = trafficStrokeWidth * ANIMATED_IMAGE_WIDTH / browserCaptureWidth;
 
-    expect(ANIMATED_IMAGE_FPS).toBe(2);
+    expect(ANIMATED_IMAGE_FPS).toBe(1.5);
     expect(ANIMATED_IMAGE_WIDTH).toBe(864);
     expect(projectedStrokeWidth).toBeGreaterThanOrEqual(2);
     expect(ANIMATED_IMAGE_FILTER)
-      .toBe(`fps=2,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
-    expect(buildEncodedInspectionArgs('/tmp/output.webp')).toContain(`fps=${ANIMATED_IMAGE_FPS}`);
+      .toBe(`fps=1.5,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
+    expect(buildEncodedInspectionArgs('/tmp/output.webp')).toContain('fps=2');
   });
 
   test('uses the full GIF palette without dithering so owned witness colours survive', () => {
     const palette = buildGifPaletteArgs('/tmp/input.webm', '/tmp/palette.png');
     const encoding = buildGifEncodingArgs('/tmp/input.webm', '/tmp/palette.png', '/tmp/output.gif');
-    expect(palette).toContain('fps=2,scale=864:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
-    expect(encoding).toContain('fps=2,scale=864:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
+    expect(palette).toContain('fps=1.5,scale=864:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
+    expect(encoding).toContain('fps=1.5,scale=864:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
   });
 
   test('reads animated WebP canvas dimensions from the RIFF VP8X chunk', () => {
