@@ -62,6 +62,27 @@ jobs:
               if runner.count(old) != 1:
                   raise SystemExit(f'escaped fixture marker found {runner.count(old)} times: {old}')
               runner = runner.replace(old, new)
+
+          insertion = r'''python3 <<'PY2'
+          from pathlib import Path
+          path = Path('tests/unit/docMediaPolicy.test.js')
+          source = path.read_text()
+          test_start = source.index("  test('validate:media rejects tiny visually false-green GIF animation frames'")
+          call_start = source.index("    const report = validate({", test_start)
+          call_end = source.index("    });", call_start) + len("    });")
+          source = source[:call_start] + "    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json' });" + source[call_end:]
+          old = "    expect(strict.errors.join('\\n')).toMatch(/visual evidence/i);"
+          new = "    expect(strict.errors.join('\\n')).toMatch(/visual canvas coverage/i);"
+          if source.count(old) != 1:
+              raise SystemExit(f'candidate strict error expectation found {source.count(old)} times')
+          path.write_text(source.replace(old, new))
+          PY2
+
+          '''
+          marker = "PY\n\ngit diff --check\n"
+          if runner.count(marker) != 1:
+              raise SystemExit(f'post-patch insertion marker found {runner.count(marker)} times')
+          runner = runner.replace(marker, "PY\n\n" + insertion + "git diff --check\n")
           Path('/tmp/candidate-media-scope-v2.sh').write_text(runner)
           PY
           bash -n /tmp/candidate-media-scope-v2.sh
