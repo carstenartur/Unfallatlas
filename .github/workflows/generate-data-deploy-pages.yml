@@ -102,7 +102,13 @@ jobs:
           npm run validate:media -- --report out/qa/pages-documentation-media.json
           npm run validate:pages-profile -- --site _site
 
-      - name: Upload Pages media and provenance QA evidence
+      - name: Install Chromium for public-profile smoke test
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke-test the exact regenerated Pages artifact
+        run: npx playwright test tests/e2e/smoke.spec.js --project=chromium
+
+      - name: Upload Pages media, browser and provenance QA evidence
         if: ${{ always() && hashFiles('out/qa/pages-documentation-media.json') != '' }}
         uses: actions/upload-artifact@v7
         with:
@@ -112,6 +118,8 @@ jobs:
             _site/build-manifest.json
             _site/vendor/third-party-notices.json
             _site/vendor/public-preview-sbom.cdx.json
+            playwright-report
+            test-results
           if-no-files-found: error
 
       # Policy reference for full ZIP/container releases. This step is
