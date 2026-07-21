@@ -2,6 +2,7 @@
 set -euo pipefail
 
 TARGET_BRANCH=split/405-6-media-validation
+VALIDATED_BRANCH=automation/validated-media-tooling-boundary
 EXPECTED_TARGET_HEAD=505326c49b6d7170823d949032dde067517527ff
 CONTROL_ROOT=$(pwd)
 WORKTREE_ROOT=$(mktemp -d)
@@ -252,5 +253,7 @@ git fetch origin "$TARGET_BRANCH"
   echo "#441 moved while validation ran; refusing non-fast-forward push" >&2
   exit 1
 }
+git push --force origin "$NEW_HEAD:refs/heads/$VALIDATED_BRANCH"
 git push origin "$NEW_HEAD:refs/heads/$TARGET_BRANCH"
+echo "VALIDATED_HEAD=$NEW_HEAD"
 echo "Updated #441 to $NEW_HEAD"
