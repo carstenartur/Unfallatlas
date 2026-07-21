@@ -15,15 +15,14 @@ if (!pathEntries.includes(CODEC_BIN_DIR)) {
   process.env.PATH = [CODEC_BIN_DIR, currentPath].filter(Boolean).join(path.delimiter);
 }
 
-// Encoded semantic inspection also samples at 2 fps. Using the same cadence
-// avoids a 3→2 fps phase conversion that could select frames between the
-// stable dual-context states recorded by the browser.
-const ANIMATED_IMAGE_FPS = 2;
+// 1.5 fps keeps the deliberately staged analysis steps readable while reducing
+// lossless animated-image frame count by 25 percent versus the already almost
+// budget-compliant 2 fps run. Encoded semantic inspection remains at 2 fps and
+// may duplicate frames, but it never invents colours or layer combinations.
+const ANIMATED_IMAGE_FPS = 1.5;
 // Context overlays use an 8 px slope casing and a 3 px dashed traffic
 // centreline at the browser's 1280 px capture width. 864 px retains just over
-// two pixels for the narrow owned line (3 * 864 / 1280 = 2.025) while keeping
-// GIF/WebP/APNG below their existing artifact-size budgets. A previous 960 px
-// attempt proved the semantics but inflated lossless WebP to ~28 MiB.
+// two pixels for the narrow owned line (3 * 864 / 1280 = 2.025).
 const ANIMATED_IMAGE_WIDTH = 864;
 const ANIMATED_IMAGE_FILTER =
   `fps=${ANIMATED_IMAGE_FPS},scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`;
