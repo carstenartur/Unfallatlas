@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "unfallatlas-leaflet-plugin-license-evidence-v1",
+  "trackingIssue": "https://github.com/carstenartur/Unfallatlas/issues/406",
+  "records": [
+    {
+      "package": "leaflet-draw",
+      "version": "1.0.4",
+      "spdx": "MIT",
+      "licenseTextPath": "vendor/license-sources/leaflet-draw-1.0.4.txt",
+      "licenseTextSha256": "320f2c68ac27b7f7f2a78c490470a273d297e753ab37ba026944616bf0a62f47",
+      "sourceRepository": "https://github.com/Leaflet/Leaflet.draw",
+      "sourceRef": "v1.0.4",
+      "sourceFile": "MIT-LICENSE.md",
+      "sourceBlobSha": "ed05bfca1daf201a066129b43472fdc1d3186b3b",
+      "releaseBinding": "exact-release-file",
+      "lockRequired": true,
+      "coversAssets": [
+        "vendor/leaflet-draw/leaflet.draw.css",
+        "vendor/leaflet-draw/leaflet.draw.js",
+        "vendor/leaflet-draw/images/spritesheet.png",
+        "vendor/leaflet-draw/images/spritesheet-2x.png",
+        "vendor/leaflet-draw/images/spritesheet.svg"
+      ]
+    },
+    {
+      "package": "leaflet.heat",
+      "version": "0.2.0",
+      "spdx": "BSD-2-Clause",
+      "licenseTextPath": "vendor/license-sources/leaflet-heat-0.2.0.txt",
+      "licenseTextSha256": "9010b843aad8e450890fc18dae2dfec00e68c10da775515801c42878afbb0da1",
+      "sourceRepository": "https://github.com/Leaflet/Leaflet.heat",
+      "sourceRef": "v0.2.0",
+      "sourceFile": "LICENSE",
+      "sourceBlobSha": "91a7b5edf909f17451e93d11fc15025f7d7a84ba",
+      "releaseBinding": "exact-release-file",
+      "lockRequired": true,
+      "coversAssets": [
+        "vendor/leaflet.heat/leaflet-heat.js"
+      ]
+    },
+    {
+      "package": "simpleheat",
+      "version": "0.2.0",
+      "spdx": "BSD-2-Clause",
+      "licenseTextPath": "vendor/license-sources/simpleheat-0.2.0.txt",
+      "licenseTextSha256": "756d6c334c9289a7b8e563cad0be32ab425cd35303d491789ab1adb9fbcef847",
+      "sourceRepository": "https://github.com/mourner/simpleheat",
+      "sourceRef": "project-default-branch",
+      "sourceFile": "LICENSE",
+      "sourceBlobSha": "4730ad727d0190a3a126da480b10fb0cbe844982",
+      "releaseBinding": "project-license-with-package-metadata",
+      "lockRequired": false,
+      "unresolvedGapId": "leaflet-heat-embedded-simpleheat",
+      "coversAssets": [
+        "vendor/leaflet.heat/leaflet-heat.js"
+      ]
+    },
+    {
+      "package": "leaflet-image",
+      "version": "0.4.0",
+      "spdx": "BSD-2-Clause",
+      "licenseTextPath": "vendor/license-sources/leaflet-image-0.4.0.txt",
+      "licenseTextSha256": "526822d5f1f066de0bbc04942bd603d64b1c18563df88f9ed907f868d50913d9",
+      "sourceRepository": "https://github.com/mapbox/leaflet-image",
+      "sourceRef": "285edd3bf4d28135b8db011ffd129b3187b78de7",
+      "sourceFile": "LICENSE.txt",
+      "sourceBlobSha": "94c097f680db4ce50d6012fc38a70446b25b22be",
+      "releaseBinding": "project-license-with-package-metadata",
+      "lockRequired": true,
+      "coversAssets": [
+        "vendor/leaflet-image/leaflet-image.js"
+      ]
+    },
+    {
+      "package": "d3-queue",
+      "version": "2.0.3",
+      "spdx": "BSD-3-Clause",
+      "licenseTextPath": "vendor/license-sources/d3-queue-2.0.3.txt",
+      "licenseTextSha256": "7a8cd354da2ad349ce5c99d29f8da02218f202c637e79de01f3c17c71c6757f8",
+      "sourceRepository": "https://github.com/d3/d3-queue",
+      "sourceRef": "v2.0.3",
+      "sourceFile": "LICENSE",
+      "sourceBlobSha": "171a5fce1049f7b2334480130ce1d9eb12a67536",
+      "releaseBinding": "exact-release-file",
+      "lockRequired": true,
+      "coversAssets": [
+        "vendor/leaflet-image/leaflet-image.js"
+      ]
+    }
+  ]
+}
