@@ -3,8 +3,15 @@ set -euo pipefail
 
 TARGET_BRANCH=split/405-6-media-validation
 EXPECTED_TARGET_HEAD=505326c49b6d7170823d949032dde067517527ff
+CONTROL_ROOT=$(pwd)
+WORKTREE_ROOT=$(mktemp -d)
 
-export PATH="$(pwd)/node_modules/.bin:$PATH"
+cleanup() {
+  cd "$CONTROL_ROOT"
+  git worktree remove --force "$WORKTREE_ROOT" >/dev/null 2>&1 || rm -rf "$WORKTREE_ROOT"
+}
+trap cleanup EXIT
+
 git config user.name "Unfallwerkbank QA"
 git config user.email "3164220+carstenartur@users.noreply.github.com"
 git fetch origin "$TARGET_BRANCH" --prune
@@ -13,7 +20,10 @@ git fetch origin "$TARGET_BRANCH" --prune
   exit 1
 }
 
-git checkout -B apply-media-tooling-boundary "origin/$TARGET_BRANCH"
+git worktree add --detach "$WORKTREE_ROOT" "origin/$TARGET_BRANCH"
+cd "$WORKTREE_ROOT"
+git config user.name "Unfallwerkbank QA"
+git config user.email "3164220+carstenartur@users.noreply.github.com"
 
 python3 <<'PY'
 from pathlib import Path
@@ -178,6 +188,35 @@ replace_once(
     "    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json' });\n\n    expect(report.valid).toBe(false);\n    expect(report.errors).toEqual(expect.arrayContaining([\n      'manifest.schemaVersion must equal 1',",
     "    const report = validate({ root: fixture.root, manifest: 'docs/media-manifest.json', policyOnly: true });\n\n    expect(report.valid).toBe(false);\n    expect(report.mode).toBe('policy-only');\n    expect(report.mediaValidated).toBe(false);\n    expect(report.errors).toEqual(expect.arrayContaining([\n      'manifest.schemaVersion must equal 1',",
     'policy-only fail-closed metadata test',
+)
+
+legacy_viewport_test = """  test('new full-screen screenshot candidates target 1280x640', () => {
+    const panelAssets = new Set([
+      'docs/screenshots/02-stadtauswahl.png',
+      'docs/screenshots/03-filter.png',
+      'docs/screenshots/08-stundenfilter.png',
+    ]);
+    const documentPreview = 'docs/screenshots/15-export-pdf-rendered.png';
+    for (const asset of manifest.assets.filter(entry => entry.kind === 'screenshot')) {
+      if (panelAssets.has(asset.path)) expect(asset.target).toEqual({ width: 440, height: 620 });
+      else if (asset.path !== documentPreview) expect(asset.target).toEqual({ width: 1280, height: 640 });
+    }
+    const screenshotSpec = fs.readFileSync(path.join(ROOT, 'tests/e2e/screenshots.spec.js'), 'utf8');
+    expect(screenshotSpec).toMatch(/viewport:\\s*\\{\\s*width:\\s*1280,\\s*height:\\s*640\\s*\\}/);
+  });"""
+full_viewport_test = """  test('new full-screen screenshot candidates target 1280x640', () => {
+    const documentPreview = 'docs/screenshots/15-export-pdf-rendered.png';
+    for (const asset of manifest.assets.filter(entry => entry.kind === 'screenshot')) {
+      if (asset.path !== documentPreview) expect(asset.target).toEqual({ width: 1280, height: 640 });
+    }
+    const screenshotSpec = fs.readFileSync(path.join(ROOT, 'tests/e2e/screenshots.spec.js'), 'utf8');
+    expect(screenshotSpec).toMatch(/viewport:\\s*\\{\\s*width:\\s*1280,\\s*height:\\s*640\\s*\\}/);
+  });"""
+replace_once(
+    'tests/unit/docMediaPolicy.test.js',
+    legacy_viewport_test,
+    full_viewport_test,
+    'full-frame screenshot dimensions test',
 )
 PY
 
