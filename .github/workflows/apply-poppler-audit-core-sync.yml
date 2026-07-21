@@ -1,0 +1,44 @@
+name: Sync rendered-audit core into Poppler stack
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-poppler-audit-core-sync.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Poppler branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/poppler-rendered-document-adapter
+          fetch-depth: 0
+
+      - name: Copy reviewed audit core
+        run: |
+          git fetch origin feat/rendered-document-audit-core
+          git show origin/feat/rendered-document-audit-core:scripts/rendered-document-audit.js > scripts/rendered-document-audit.js
+          git show origin/feat/rendered-document-audit-core:tests/unit/renderedDocumentAudit.test.js > tests/unit/renderedDocumentAudit.test.js
+
+      - name: Run audit and Poppler unit tests
+        run: npx jest --runInBand tests/unit/renderedDocumentAudit.test.js tests/unit/popplerRenderedDocument.test.js tests/unit/popplerRenderedDocument.security.test.js
+
+      - name: Commit synchronized audit core
+        run: |
+          if git diff --quiet -- scripts/rendered-document-audit.js tests/unit/renderedDocumentAudit.test.js; then
+            echo 'Audit core is already synchronized.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/rendered-document-audit.js tests/unit/renderedDocumentAudit.test.js
+          git commit -m 'fix: synchronize rendered-audit structural-page checks'
+          git push origin HEAD:feat/poppler-rendered-document-adapter
