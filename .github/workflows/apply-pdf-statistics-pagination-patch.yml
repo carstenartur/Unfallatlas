@@ -1,0 +1,73 @@
+name: Apply PDF statistics pagination patch
+
+on:
+  push:
+    branches:
+      - feat/poppler-rendered-document-adapter
+    paths:
+      - .github/workflows/apply-pdf-statistics-pagination-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/poppler-rendered-document-adapter
+          fetch-depth: 0
+
+      - name: Keep statistics heading with its first table
+        shell: python
+        run: |
+          from pathlib import Path
+
+          target = Path('js/ua.report_v2.js')
+          source = target.read_text(encoding='utf-8')
+          start_marker = '      docDefinition.content.push({ text: "STATISTIK", style: "subheader" });'
+          end_marker = '      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis (or political simplification).'
+          start = source.find(start_marker)
+          end = source.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('statistics block markers not found')
+          old = source[start:end]
+          if old.count('makePdfTable(') != 1 or 'Verletzungsschwere im Ausschnitt:' not in old:
+              raise SystemExit('statistics block shape changed; refusing broad replacement')
+
+          replacement = '''      // Keep the section heading, its explanatory line and the first table
+          // together. Otherwise pdfMake can leave “STATISTIK” alone at the
+          // bottom of a page while moving the complete severity table to the
+          // next page, which is an orphan heading in the final rendered PDF.
+          const sev = sd.severity;
+          const sevTotal = sev ? sev.total : 0;
+          const severityRows = [
+            ["1 – Getötete",       String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
+            ["2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
+            ["3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
+          ];
+          docDefinition.content.push({
+            unbreakable: true,
+            stack: [
+              { text: "STATISTIK", style: "subheader" },
+              { text: "Verletzungsschwere im Ausschnitt:", style: "normal" },
+              makePdfTable(["Kategorie", "Anzahl", "Anteil"], severityRows)
+            ]
+          });
+
+          '''
+          target.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
+
+      - name: Commit focused change
+        run: |
+          if git diff --quiet -- js/ua.report_v2.js; then
+            echo 'No change required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/ua.report_v2.js
+          git commit -m 'fix: keep PDF statistics heading with severity table'
+          git push origin HEAD:feat/poppler-rendered-document-adapter
