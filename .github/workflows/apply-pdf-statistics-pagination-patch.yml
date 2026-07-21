@@ -29,14 +29,14 @@ jobs:
 
           target = Path('js/ua.report_v2.js')
           source = target.read_text(encoding='utf-8')
-          start_marker = '      docDefinition.content.push({ text: "STATISTIK", style: "subheader" });'
-          end_marker = '      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis (or political simplification).'
-          start = source.find(start_marker)
-          end = source.find(end_marker, start)
-          if start < 0 or end < 0:
-              raise SystemExit('statistics block markers not found')
+          section = source.index('// ---- STATISTIK section with real tables')
+          heading = source.index('docDefinition.content.push({ text: "STATISTIK", style: "subheader" });', section)
+          start = source.rfind('\n', 0, heading) + 1
+          end_marker = '// Deviations table — parity with DOCX/HTML:'
+          end_comment = source.index(end_marker, start)
+          end = source.rfind('\n', 0, end_comment) + 1
           old = source[start:end]
-          if old.count('makePdfTable(') != 1 or 'Verletzungsschwere im Ausschnitt:' not in old:
+          if 'Verletzungsschwere im Ausschnitt:' not in old or old.count('makePdfTable(') != 1:
               raise SystemExit('statistics block shape changed; refusing broad replacement')
 
           replacement = '''      // Keep the section heading, its explanatory line and the first table
