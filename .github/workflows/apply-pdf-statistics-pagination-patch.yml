@@ -1,17 +1,19 @@
 name: Apply PDF statistics pagination patch
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/poppler-rendered-document-adapter
+      - main
     paths:
       - .github/workflows/apply-pdf-statistics-pagination-patch.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   patch:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -63,7 +65,7 @@ jobs:
       - name: Commit focused change
         run: |
           if git diff --quiet -- js/ua.report_v2.js; then
-            echo 'No change required.'
+            echo 'Patch is already present.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
