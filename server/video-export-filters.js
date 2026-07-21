@@ -15,11 +15,21 @@ if (!pathEntries.includes(CODEC_BIN_DIR)) {
   process.env.PATH = [CODEC_BIN_DIR, currentPath].filter(Boolean).join(path.delimiter);
 }
 
-const ANIMATED_IMAGE_FPS = 3;
-const ANIMATED_IMAGE_FILTER = `fps=${ANIMATED_IMAGE_FPS},scale=720:-1:flags=lanczos`;
+// The traffic centreline is only 3 px wide in the 1280 px browser capture.
+// 960 px retains 2.25 px instead of the marginal 2.025 px at 864 px, which can
+// collapse to one unambiguous colour pixel after raster resampling. Real
+// Testcontainers exports proved that this width preserves the two-pixel
+// semantic evidence. Lossless WebP size varied from below the 18 MiB budget to
+// 19.37 MB at 1.1 fps, so the final 1 fps cadence keeps the safer stroke width
+// while adding a measured size margin without weakening any semantic gate.
+const ANIMATED_IMAGE_FPS = 1;
+const ANIMATED_IMAGE_WIDTH = 960;
+const ANIMATED_IMAGE_FILTER =
+  `fps=${ANIMATED_IMAGE_FPS},scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`;
 
 module.exports = {
   ANIMATED_IMAGE_FILTER,
   ANIMATED_IMAGE_FPS,
+  ANIMATED_IMAGE_WIDTH,
   CODEC_BIN_DIR
 };
