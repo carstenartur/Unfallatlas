@@ -1,0 +1,59 @@
+name: Synchronize Poppler stack
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/rebase-poppler-stack.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Poppler branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/poppler-rendered-document-adapter
+          fetch-depth: 0
+      - name: Merge current main with bounded conflict handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          set +e
+          git merge --no-edit origin/main
+          merge_status=$?
+          set -e
+          if [[ $merge_status -ne 0 ]]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            printf 'Conflicts:\n%s\n' "${conflicts[*]}"
+            allowed=(
+              scripts/rendered-document-audit.js
+              tests/unit/renderedDocumentAudit.test.js
+            )
+            for conflict in "${conflicts[@]}"; do
+              permitted=false
+              for expected in "${allowed[@]}"; do
+                [[ "$conflict" == "$expected" ]] && permitted=true
+              done
+              if [[ "$permitted" != true ]]; then
+                echo "Unexpected merge conflict: $conflict" >&2
+                exit 1
+              fi
+              git checkout --ours -- "$conflict"
+              git add "$conflict"
+            done
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo 'Unresolved conflicts remain.' >&2
+              exit 1
+            fi
+            git commit --no-edit
+          fi
+          git push origin HEAD:feat/poppler-rendered-document-adapter
