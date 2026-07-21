@@ -1,0 +1,85 @@
+name: Apply rendered-audit empty-page patch
+
+on:
+  push:
+    branches:
+      - feat/rendered-document-audit-core
+    paths:
+      - .github/workflows/apply-rendered-audit-empty-page-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/rendered-document-audit-core
+          fetch-depth: 0
+
+      - name: Patch audit and regression tests
+        shell: python
+        run: |
+          from pathlib import Path
+
+          audit_path = Path('scripts/rendered-document-audit.js')
+          audit = audit_path.read_text(encoding='utf-8')
+          old = '''function auditEmptyPage(page, options, issues) {
+            const significantWords = page.words.filter(word => /[\\p{L}\\p{N}]/u.test(word.text));
+            if (significantWords.length < options.emptyPageMinWords && page.images.length === 0) {
+              issues.push(issue(
+                'empty_page', 'error', page.number, `pages[${page.number - 1}]`,
+                `page ${page.number} has only ${significantWords.length} significant words and no images`
+              ));
+            }
+          }'''
+          new = '''function auditEmptyPage(page, options, issues) {
+            const significantWords = page.words.filter(word => /[\\p{L}\\p{N}]/u.test(word.text));
+            const structuralElements = page.images.length + page.links.length +
+              page.headings.length + page.tableRows.length;
+            if (significantWords.length < options.emptyPageMinWords && structuralElements === 0) {
+              issues.push(issue(
+                'empty_page', 'error', page.number, `pages[${page.number - 1}]`,
+                `page ${page.number} has only ${significantWords.length} significant words and no structural content`
+              ));
+            }
+          }'''
+          if audit.count(old) != 1:
+              raise SystemExit('auditEmptyPage block not found exactly once')
+          audit_path.write_text(audit.replace(old, new), encoding='utf-8')
+
+          test_path = Path('tests/unit/renderedDocumentAudit.test.js')
+          tests = test_path.read_text(encoding='utf-8')
+          marker = '''  test.each([
+            ['word', document => { document.pages[0].words[0].xMin = -2; }],'''
+          addition = '''  test.each([
+            ['heading', page => { page.headings.push(heading('Anhang', 2, 48, 100, 70, 14)); }],
+            ['link annotation', page => { page.links.push(link('https://example.org/source', 'Quelle', 48, 100)); }],
+            ['table row', page => { page.tableRows.push(tableRow('appendix', 'row-1', 100, ['A', 'B'])); }],
+          ])('does not classify a sparse page with a %s as empty', (_label, addStructure) => {
+            const document = clone(validDocument());
+            const page = {
+              number: 3, width: 595, height: 842,
+              words: [word('3', 290, 810, 8)], images: [], links: [], headings: [], tableRows: [],
+            };
+            addStructure(page);
+            document.pages.push(page);
+            expect(issueCodes(auditRenderedDocument(document))).not.toContain('empty_page');
+          });
+
+          test.each([
+            ['word', document => { document.pages[0].words[0].xMin = -2; }],'''
+          if tests.count(marker) != 1:
+              raise SystemExit('test insertion marker not found exactly once')
+          test_path.write_text(tests.replace(marker, addition), encoding='utf-8')
+
+      - name: Commit focused change
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/rendered-document-audit.js tests/unit/renderedDocumentAudit.test.js
+          git commit -m 'fix: count rendered structural elements on sparse pages'
+          git push origin HEAD:feat/rendered-document-audit-core
