@@ -45,6 +45,19 @@ function requiredLiveBasemapKinds(testTitle) {
   return ['standard'];
 }
 
+function assertLiveBasemapProvenance(page) {
+  const live = LIVE_BASEMAP_PROVENANCE.get(page);
+  if (!live) throw new Error('Documentation screenshot has no live basemap provenance context');
+  const missingKinds = live.requiredKinds.filter(
+    kind => !live.successfulResponses.some(response => response.kind === kind)
+  );
+  if (missingKinds.length > 0) {
+    throw new Error(\`Documentation screenshot lacks successful real basemap responses for: \${missingKinds.join(', ')}\n\` +
+      \`Observed real basemap responses: \${JSON.stringify(live.successfulResponses, null, 2)}\`);
+  }
+  return live;
+}
+
 async function setupLiveBasemapTiles(page, options = {}) {
   const { orthophotoAvailable = true, requiredKinds = ['standard'] } = options;
   const unexpectedExternalRequests = [];
@@ -113,26 +126,51 @@ async function setupLiveBasemapTiles(page, options = {}) {
     await route.abort('blockedbyclient');
   });
 }
+
+async function captureDataScreenshot(page, options) {
+  const snapshot = await baseCaptureDataScreenshot(page, options);
+  const live = assertLiveBasemapProvenance(page);
+  const basename = options.path.split('/').pop().replace(/\.png$/i, '');
+  const evidencePath = resolve(process.cwd(), 'out/qa/screenshot-readiness', basename + '.json');
+  const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
+  evidence.cartography = {
+    source: 'live',
+    requiredKinds: live.requiredKinds.slice(),
+    successfulResponses: live.successfulResponses.map(response => ({ ...response }))
+  };
+  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + '\n');
+  return snapshot;
+}
 `;
 
   let transformed = replaceOnce(
     source,
+    "import { readFileSync } from 'node:fs';",
+    "import { readFileSync, writeFileSync } from 'node:fs';",
+    'filesystem import'
+  );
+  transformed = replaceOnce(
+    transformed,
+    '  captureDataScreenshot,\n',
+    '  captureDataScreenshot as baseCaptureDataScreenshot,\n',
+    'capture helper alias'
+  );
+  transformed = replaceOnce(
+    transformed,
     'const UNEXPECTED_EXTERNAL_REQUESTS = new WeakMap();\n',
     `const UNEXPECTED_EXTERNAL_REQUESTS = new WeakMap();\n${provenanceSupport}`,
     'network provenance insertion'
   );
-
   transformed = replaceOnce(
     transformed,
     "    await setupDeterministicBasemapTiles(page, {\n      orthophotoAvailable: !testInfo.title.startsWith('25 ')\n    });",
     "    await setupLiveBasemapTiles(page, {\n      orthophotoAvailable: !testInfo.title.startsWith('25 '),\n      requiredKinds: requiredLiveBasemapKinds(testInfo.title)\n    });",
     'documentation beforeEach'
   );
-
   transformed = replaceOnce(
     transformed,
     'function assertNoUnexpectedExternalRequests(page) {\n',
-    `function assertNoUnexpectedExternalRequests(page) {\n  const live = LIVE_BASEMAP_PROVENANCE.get(page);\n  if (live) {\n    const missingKinds = live.requiredKinds.filter(\n      kind => !live.successfulResponses.some(response => response.kind === kind)\n    );\n    if (missingKinds.length > 0) {\n      throw new Error(\`Documentation screenshot lacks successful real basemap responses for: \${missingKinds.join(', ')}\\n\` +\n        \`Observed real basemap responses: \${JSON.stringify(live.successfulResponses, null, 2)}\`);\n    }\n  }\n`,
+    'function assertNoUnexpectedExternalRequests(page) {\n  if (LIVE_BASEMAP_PROVENANCE.has(page)) assertLiveBasemapProvenance(page);\n',
     'live provenance assertion'
   );
 
