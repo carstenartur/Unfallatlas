@@ -17,11 +17,13 @@ if (!pathEntries.includes(CODEC_BIN_DIR)) {
 
 // The traffic centreline is only 3 px wide in the 1280 px browser capture.
 // 960 px retains 2.25 px instead of the marginal 2.025 px at 864 px, which can
-// collapse to one unambiguous colour pixel after raster resampling. Reducing the
-// cadence to 1.25 fps keeps the total encoded pixel volume almost unchanged:
-// (960 / 864)^2 * (1.25 / 1.5) ~= 1.03. The staged analysis remains readable,
-// while lossless animated WebP stays within the established size budget.
-const ANIMATED_IMAGE_FPS = 1.25;
+// collapse to one unambiguous colour pixel after raster resampling. A real
+// Testcontainers export proved that 1.25 fps retained the semantic evidence but
+// produced a 20.33 MB lossless WebP against the 18 MB artifact budget. Reducing
+// only the cadence to 1.1 fps preserves the safer stroke width while lowering
+// the expected encoded frame volume by 12 percent; the staged analysis remains
+// readable and the two-pixel semantic threshold is unchanged.
+const ANIMATED_IMAGE_FPS = 1.1;
 const ANIMATED_IMAGE_WIDTH = 960;
 const ANIMATED_IMAGE_FILTER =
   `fps=${ANIMATED_IMAGE_FPS},scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`;
