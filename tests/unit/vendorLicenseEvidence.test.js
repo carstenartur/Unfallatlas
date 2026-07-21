@@ -140,12 +140,12 @@ describe('vendor plugin licence evidence', () => {
       const evidence = readJson(root, 'vendor/license-evidence.json');
       evidence.records[0].licenseTextPath = '../outside.txt';
       writeJson(root, 'vendor/license-evidence.json', evidence);
-      expect(() => validateVendorLicenseEvidence({ root })).toThrow(/must be under vendor/);
+      expect(() => validateVendorLicenseEvidence({ root })).toThrow(/canonical path under vendor/);
 
       const evidence2 = JSON.parse(fs.readFileSync(path.join(ROOT, 'vendor/license-evidence.json'), 'utf8'));
       evidence2.records[0].coversAssets = ['../outside.js'];
       writeJson(root, 'vendor/license-evidence.json', evidence2);
-      expect(() => validateVendorLicenseEvidence({ root })).toThrow(/Invalid covered asset/);
+      expect(() => validateVendorLicenseEvidence({ root })).toThrow(/canonical path under vendor/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -164,6 +164,24 @@ describe('vendor plugin licence evidence', () => {
       evidence2.records[1].licenseTextSha256 = evidence2.records[0].licenseTextSha256;
       writeJson(root, 'vendor/license-evidence.json', evidence2);
       expect(() => validateVendorLicenseEvidence({ root })).toThrow(/Duplicate license text path/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('normalizes path separators before duplicate checks', () => {
+    const root = createFixture();
+    try {
+      const evidence = readJson(root, 'vendor/license-evidence.json');
+      evidence.records[1].licenseTextPath = evidence.records[0].licenseTextPath.replace(/\//g, '\\');
+      evidence.records[1].licenseTextSha256 = evidence.records[0].licenseTextSha256;
+      writeJson(root, 'vendor/license-evidence.json', evidence);
+      expect(() => validateVendorLicenseEvidence({ root })).toThrow(/Duplicate license text path/);
+
+      const evidence2 = JSON.parse(fs.readFileSync(path.join(ROOT, 'vendor/license-evidence.json'), 'utf8'));
+      evidence2.records[0].coversAssets = ['vendor/assets/example.js', 'vendor\\assets\\example.js'];
+      writeJson(root, 'vendor/license-evidence.json', evidence2);
+      expect(() => validateVendorLicenseEvidence({ root })).toThrow(/Invalid covered asset/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
