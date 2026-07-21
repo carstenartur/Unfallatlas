@@ -41,10 +41,11 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('successfulResponses: live && live.successfulResponses');
   });
 
-  test('binds successful responses to currently visible decoded Leaflet images', () => {
+  test('binds successful responses to currently visible decoded Leaflet images in all map panes', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
 
-    expect(transformed).toContain("page.locator('.leaflet-tile-pane img')");
+    expect(transformed).toContain("page.locator('.leaflet-map-pane img.leaflet-tile')");
+    expect(transformed).not.toContain("page.locator('.leaflet-tile-pane img')");
     expect(transformed).not.toContain("page.locator('.leaflet-tile-pane img.leaflet-tile-loaded')");
     expect(transformed).toContain('image.complete === true');
     expect(transformed).toContain('naturalWidth: Number(image.naturalWidth) || 0');
