@@ -55,7 +55,7 @@ describe('video export encoding contract', () => {
     expect(ANIMATED_IMAGE_FPS).toBe(1.1);
     expect(ANIMATED_IMAGE_WIDTH).toBe(960);
     expect(projectedStrokeWidth).toBeGreaterThanOrEqual(2.25);
-    expect(cadenceRatio).toBeLessThanOrEqual(0.88);
+    expect(cadenceRatio).toBeCloseTo(0.88, 12);
     expect(projectedWebpBytes).toBeLessThan(webpBudgetBytes * 0.96);
     expect(ANIMATED_IMAGE_FILTER)
       .toBe(`fps=1.1,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
