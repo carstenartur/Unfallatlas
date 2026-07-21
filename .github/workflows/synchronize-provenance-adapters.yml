@@ -1,0 +1,239 @@
+name: Synchronize provenance adapters
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/synchronize-provenance-adapters.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout adapter branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/artifact-provenance-adapters
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Merge current main with bounded conflict handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          set +e
+          git merge --no-edit origin/main
+          merge_status=$?
+          set -e
+          if [[ $merge_status -ne 0 ]]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            allowed=(js/ua.source_manifest.js tests/unit/sourceManifest.test.js)
+            for conflict in "${conflicts[@]}"; do
+              permitted=false
+              for expected in "${allowed[@]}"; do
+                [[ "$conflict" == "$expected" ]] && permitted=true
+              done
+              if [[ "$permitted" != true ]]; then
+                echo "Unexpected merge conflict: $conflict" >&2
+                exit 1
+              fi
+              git checkout --theirs -- "$conflict"
+              git add "$conflict"
+            done
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo 'Unresolved conflicts remain.' >&2
+              exit 1
+            fi
+            git commit --no-edit
+          fi
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply adapter QA fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          manifest_path = Path('js/ua.source_manifest.js')
+          manifest = manifest_path.read_text(encoding='utf-8')
+          aliases_marker = '    const LICENSE_ALIASES = Object.freeze({'
+          if manifest.count(aliases_marker) != 1:
+              raise SystemExit('license alias marker not found exactly once')
+          by_id = '''    const LICENSE_POLICIES_BY_ID = Object.freeze(
+              Object.fromEntries(
+                Object.values(LICENSE_POLICIES).map((policy) => [policy.id, policy]),
+              ),
+            );
+
+          '''
+          manifest = manifest.replace(aliases_marker, by_id + aliases_marker)
+          export_marker = '      LICENSE_POLICIES,\n      SourceManifestError,'
+          if manifest.count(export_marker) != 1:
+              raise SystemExit('license export marker not found exactly once')
+          manifest = manifest.replace(
+              export_marker,
+              '      LICENSE_POLICIES,\n      LICENSE_POLICIES_BY_ID,\n      SourceManifestError,'
+          )
+          manifest_path.write_text(manifest, encoding='utf-8')
+
+          adapter_path = Path('js/ua.artifact_provenance.js')
+          adapter = adapter_path.read_text(encoding='utf-8')
+          old_filename = "    if (!name || name === '.' || name === '..') fail('invalid_filename', 'baseName is unsafe');"
+          new_filename = """    if (!name || name === '.' || name === '..' || name.startsWith('.') || name.endsWith('.')) {
+              fail('invalid_filename', 'baseName is unsafe');
+            }"""
+          if adapter.count(old_filename) != 1:
+              raise SystemExit('safeBaseName marker not found exactly once')
+          adapter = adapter.replace(old_filename, new_filename)
+
+          clone_end = '''  function cloneJson(value, path) {
+            try { return JSON.parse(JSON.stringify(value)); }
+            catch (error) { fail('invalid_json', `${path} is not JSON-serializable`, { message: error.message }); }
+          }'''
+          plain_helper = clone_end + '''
+
+          function isPlainObject(value) {
+            return value !== null && typeof value === 'object' && !Array.isArray(value);
+          }'''
+          if adapter.count(clone_end) != 1:
+              raise SystemExit('cloneJson marker not found exactly once')
+          adapter = adapter.replace(clone_end, plain_helper)
+
+          start = adapter.index('  async function attachGeoJsonProvenance(')
+          end = adapter.index('\n\n  function escapeXml(', start)
+          replacement = '''  async function attachGeoJsonProvenance(featureCollectionValue, manifestValue, options = {}) {
+            const collection = cloneJson(featureCollectionValue, 'featureCollection');
+            if (!collection || collection.type !== 'FeatureCollection' || !Array.isArray(collection.features)) {
+              fail('invalid_geojson', 'GeoJSON must be a FeatureCollection');
+            }
+            const normalized = await normalizeAndHash(manifestValue);
+            const defaultIds = normalizeSourceIds(options.defaultSourceIds, normalized.manifest,
+              'defaultSourceIds', { defaultAll: true });
+            collection.features.forEach((feature, index) => {
+              if (!feature || feature.type !== 'Feature') {
+                fail('invalid_geojson', `features[${index}] is not a Feature`);
+              }
+              if (feature.properties == null) {
+                feature.properties = {};
+              } else if (!isPlainObject(feature.properties)) {
+                fail('invalid_geojson', `features[${index}].properties must be an object or null`);
+              }
+              const existing = feature.properties[SOURCE_IDS_PROPERTY];
+              feature.properties[SOURCE_IDS_PROPERTY] = normalizeSourceIds(
+                existing == null ? defaultIds : existing,
+                normalized.manifest,
+                `features[${index}].properties.${SOURCE_IDS_PROPERTY}`,
+                { allowEmpty: false }
+              );
+            });
+            if (collection.metadata == null) {
+              collection.metadata = {};
+            } else if (!isPlainObject(collection.metadata)) {
+              fail('invalid_geojson', 'metadata must be an object or null');
+            }
+            if (collection.metadata.sourceManifest || collection.metadata[MANIFEST_HASH_PROPERTY]) {
+              fail('existing_provenance', 'GeoJSON already contains provenance metadata');
+            }
+            collection.metadata.sourceManifest = normalized.manifest;
+            collection.metadata[MANIFEST_HASH_PROPERTY] = normalized.sha256;
+            collection.metadata.visibleSourceNotice = compactSourceNotice(
+              normalized.manifest,
+              options.noticeOptions
+            );
+            return Object.freeze({
+              geojson: collection,
+              json: `${JSON.stringify(collection, null, 2)}\n`,
+              sourceManifestSha256: normalized.sha256,
+            });
+          }'''
+          adapter = adapter[:start] + replacement + adapter[end:]
+          adapter_path.write_text(adapter, encoding='utf-8')
+
+          test_path = Path('tests/unit/artifactProvenance.test.js')
+          tests = test_path.read_text(encoding='utf-8')
+          old_names = '''    await expect(provenance.buildCsvPackageEntries({
+                baseName: '..', csv: 'x\\n', manifest: manifest(),
+              })).rejects.toThrow(/invalid_filename/);'''
+          new_names = old_names + '''
+              for (const baseName of ['.geojson', 'trailing.']) {
+                await expect(provenance.buildCsvPackageEntries({
+                  baseName, csv: 'x\\n', manifest: manifest(),
+                })).rejects.toThrow(/invalid_filename/);
+              }'''
+          if tests.count(old_names) != 1:
+              raise SystemExit('unsafe-name test marker not found exactly once')
+          tests = tests.replace(old_names, new_names)
+
+          insert = tests.rfind('\n});')
+          if insert < 0:
+              raise SystemExit('artifact test suite terminator not found')
+          additions = '''
+
+            test('exposes licence policies by the canonical IDs emitted in manifests', () => {
+              const normalized = sourceManifest.normalizeManifest(manifest());
+              for (const source of normalized.sources) {
+                expect(sourceManifest.LICENSE_POLICIES_BY_ID[source.licenseId])
+                  .toEqual(expect.objectContaining({ id: source.licenseId }));
+              }
+            });
+
+            test.each([
+              ['array properties', {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: [], geometry: null }],
+              }],
+              ['scalar properties', {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: 'invalid', geometry: null }],
+              }],
+              ['array metadata', {
+                type: 'FeatureCollection', metadata: [], features: [],
+              }],
+              ['scalar metadata', {
+                type: 'FeatureCollection', metadata: 'invalid', features: [],
+              }],
+            ])('rejects non-object GeoJSON %s', async (_label, input) => {
+              await expect(provenance.attachGeoJsonProvenance(input, manifest()))
+                .rejects.toThrow(/invalid_geojson/);
+            });
+
+            test('accepts null GeoJSON properties and metadata as empty objects', async () => {
+              const result = await provenance.attachGeoJsonProvenance({
+                type: 'FeatureCollection',
+                metadata: null,
+                features: [{ type: 'Feature', properties: null, geometry: null }],
+              }, manifest());
+              expect(result.geojson.metadata.sourceManifest).toBeDefined();
+              expect(result.geojson.features[0].properties['unfallatlas:sourceIds']).toHaveLength(2);
+            });
+          '''
+          test_path.write_text(tests[:insert] + additions + tests[insert:], encoding='utf-8')
+      - name: Format and test
+        run: |
+          npx --yes prettier@3.6.2 --write \
+            js/ua.source_manifest.js \
+            js/ua.artifact_provenance.js \
+            tests/unit/artifactProvenance.test.js
+          node --check js/ua.source_manifest.js
+          node --check js/ua.artifact_provenance.js
+          npx jest --runInBand tests/unit/sourceManifest.test.js tests/unit/artifactProvenance.test.js
+      - name: Commit and push synchronized adapters
+        run: |
+          git add \
+            js/ua.source_manifest.js \
+            js/ua.artifact_provenance.js \
+            tests/unit/artifactProvenance.test.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: harden artifact provenance adapters'
+          fi
+          git push origin HEAD:feat/artifact-provenance-adapters
