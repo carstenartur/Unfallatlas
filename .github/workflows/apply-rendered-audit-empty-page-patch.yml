@@ -29,16 +29,9 @@ jobs:
 
           audit_path = Path('scripts/rendered-document-audit.js')
           audit = audit_path.read_text(encoding='utf-8')
-          old = '''function auditEmptyPage(page, options, issues) {
-            const significantWords = page.words.filter(word => /[\\p{L}\\p{N}]/u.test(word.text));
-            if (significantWords.length < options.emptyPageMinWords && page.images.length === 0) {
-              issues.push(issue(
-                'empty_page', 'error', page.number, `pages[${page.number - 1}]`,
-                `page ${page.number} has only ${significantWords.length} significant words and no images`
-              ));
-            }
-          }'''
-          new = '''function auditEmptyPage(page, options, issues) {
+          start = audit.index('function auditEmptyPage(page, options, issues) {')
+          end = audit.index('\n\nfunction effectiveTextHeight', start)
+          replacement = '''function auditEmptyPage(page, options, issues) {
             const significantWords = page.words.filter(word => /[\\p{L}\\p{N}]/u.test(word.text));
             const structuralElements = page.images.length + page.links.length +
               page.headings.length + page.tableRows.length;
@@ -49,14 +42,13 @@ jobs:
               ));
             }
           }'''
-          if audit.count(old) != 1:
-              raise SystemExit('auditEmptyPage block not found exactly once')
-          audit_path.write_text(audit.replace(old, new), encoding='utf-8')
+          audit_path.write_text(audit[:start] + replacement + audit[end:], encoding='utf-8')
 
           test_path = Path('tests/unit/renderedDocumentAudit.test.js')
           tests = test_path.read_text(encoding='utf-8')
-          marker = '''  test.each([
-            ['word', document => { document.pages[0].words[0].xMin = -2; }],'''
+          marker = "  test.each([\n    ['word', document => { document.pages[0].words[0].xMin = -2; }],"
+          if tests.count(marker) != 1:
+              raise SystemExit(f'test insertion marker count is {tests.count(marker)}, expected 1')
           addition = '''  test.each([
             ['heading', page => { page.headings.push(heading('Anhang', 2, 48, 100, 70, 14)); }],
             ['link annotation', page => { page.links.push(link('https://example.org/source', 'Quelle', 48, 100)); }],
@@ -74,8 +66,6 @@ jobs:
 
           test.each([
             ['word', document => { document.pages[0].words[0].xMin = -2; }],'''
-          if tests.count(marker) != 1:
-              raise SystemExit('test insertion marker not found exactly once')
           test_path.write_text(tests.replace(marker, addition), encoding='utf-8')
 
       - name: Commit focused change
