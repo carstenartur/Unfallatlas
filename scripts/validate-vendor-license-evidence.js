@@ -43,11 +43,18 @@ function assertHttps(value, label) {
   }
 }
 
-function resolveInside(repoRoot, relative, label) {
-  const text = requiredString(relative, label).replace(/\\/g, '/');
-  if (!text.startsWith('vendor/') || text.includes('\0')) {
-    throw new Error(`[vendor-license-evidence] ${label} must be under vendor/: ${text}`);
+function normalizeVendorRelativePath(value, label) {
+  const text = requiredString(value, label).replace(/\\/g, '/');
+  const normalized = path.posix.normalize(text);
+  if (!text.startsWith('vendor/') || text.includes('\0') ||
+      normalized !== text || normalized === 'vendor' || path.posix.isAbsolute(normalized)) {
+    throw new Error(`[vendor-license-evidence] ${label} must be a canonical path under vendor/: ${text}`);
   }
+  return normalized;
+}
+
+function resolveInside(repoRoot, relative, label) {
+  const text = normalizeVendorRelativePath(relative, label);
   const absolute = path.resolve(repoRoot, text);
   const relation = path.relative(repoRoot, absolute);
   if (!relation || relation.startsWith('..') || path.isAbsolute(relation)) {
@@ -104,7 +111,7 @@ function validateRecord(record, index, context) {
   context.keys.add(key);
 
   const spdx = requiredString(record.spdx, `${label}.spdx`);
-  const evidencePath = requiredString(record.licenseTextPath, `${label}.licenseTextPath`);
+  const evidencePath = normalizeVendorRelativePath(record.licenseTextPath, `${label}.licenseTextPath`);
   if (context.paths.has(evidencePath)) {
     throw new Error(`[vendor-license-evidence] Duplicate license text path: ${evidencePath}`);
   }
@@ -135,10 +142,11 @@ function validateRecord(record, index, context) {
   }
   const uniqueAssets = new Set();
   for (const asset of record.coversAssets) {
-    const assetPath = requiredString(asset, `${label}.coversAssets`);
-    if (!assetPath.startsWith('vendor/') || assetPath.includes('..') || uniqueAssets.has(assetPath)) {
+    const assetPath = normalizeVendorRelativePath(asset, `${label}.coversAssets`);
+    if (uniqueAssets.has(assetPath)) {
       throw new Error(`[vendor-license-evidence] Invalid covered asset for ${key}: ${assetPath}`);
     }
+    resolveInside(context.repoRoot, assetPath, `${label}.coversAssets`);
     uniqueAssets.add(assetPath);
   }
 
