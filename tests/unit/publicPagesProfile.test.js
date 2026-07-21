@@ -1,6 +1,5 @@
 'use strict';
 
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -21,16 +20,23 @@ const OUTPUT_RELATIVE = path.join(
 );
 const OUTPUT = path.join(ROOT, OUTPUT_RELATIVE);
 
-function sha256(value) {
-  return crypto.createHash('sha256').update(value).digest('hex');
-}
-
 function readJson(relative) {
   return JSON.parse(fs.readFileSync(path.join(OUTPUT, relative), 'utf8'));
 }
 
 function writeJson(relative, value) {
   fs.writeFileSync(path.join(OUTPUT, relative), `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function workflowJobs(source) {
+  const buildStart = source.indexOf('  build:');
+  const deployStart = source.indexOf('  deploy:');
+  expect(buildStart).toBeGreaterThan(-1);
+  expect(deployStart).toBeGreaterThan(buildStart);
+  return {
+    build: source.slice(buildStart, deployStart),
+    deploy: source.slice(deployStart)
+  };
 }
 
 jest.setTimeout(180000);
@@ -134,7 +140,7 @@ describe('public Pages distribution profile', () => {
     }
   });
 
-  test('keeps full releases blocked while Pages executes only the reduced-profile gate', () => {
+  test('keeps build jobs read-only and full releases blocked', () => {
     const generatedPages = fs.readFileSync(
       path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'),
       'utf8'
@@ -147,9 +153,25 @@ describe('public Pages distribution profile', () => {
     const docker = fs.readFileSync(path.join(ROOT, '.github/workflows/docker-publish.yml'), 'utf8');
 
     for (const pages of [generatedPages, currentPages]) {
+      const jobs = workflowJobs(pages);
       expect(pages).toContain('npm run build:pages-profile -- --site _site');
       expect(pages).toContain('npm run validate:pages-profile -- --site _site');
+      expect(pages).toContain('npx playwright test tests/e2e/smoke.spec.js --project=chromium');
+      expect(jobs.build).toMatch(/permissions:\s*\n\s*contents: read/);
+      expect(jobs.build).toContain('persist-credentials: false');
+      expect(jobs.build).not.toContain('pages: write');
+      expect(jobs.build).not.toContain('id-token: write');
+      expect(jobs.build).not.toContain('actions/configure-pages');
+      expect(jobs.build.indexOf('validate:pages-profile'))
+        .toBeLessThan(jobs.build.indexOf('Smoke-test the exact'));
+      expect(jobs.build.indexOf('Smoke-test the exact'))
+        .toBeLessThan(jobs.build.indexOf('actions/upload-pages-artifact'));
+      expect(jobs.deploy).toContain('pages: write');
+      expect(jobs.deploy).toContain('id-token: write');
+      expect(jobs.deploy.indexOf('actions/configure-pages'))
+        .toBeLessThan(jobs.deploy.indexOf('actions/deploy-pages'));
     }
+
     expect(currentPages).toMatch(/pull_request:\s*\n\s*branches: \[main\]/);
     expect(currentPages).toMatch(/push:\s*\n\s*branches: \[main\]/);
     expect(currentPages).not.toContain('validate:vendor-provenance -- --require-complete');
