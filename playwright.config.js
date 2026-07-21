@@ -25,7 +25,18 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       // The context-data browser contract has its own project because its
       // runner first creates a fresh, isolated Bonn dataset from real sources.
-      testIgnore: [/demo\.spec/, /context-data-render\.spec/],
+      // The generated live-documentation spec is deliberately excluded: it may
+      // only run through the publication-specific project below.
+      testIgnore: [
+        /demo\.spec/,
+        /context-data-render\.spec/,
+        /screenshots\.live\.generated\.spec/
+      ],
+    },
+    {
+      name: 'documentation-live',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /screenshots\.live\.generated\.spec/,
     },
     {
       name: 'context-data-e2e',
