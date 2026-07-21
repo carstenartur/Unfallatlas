@@ -1,0 +1,64 @@
+name: One-shot diagnose candidate media scope v2
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-candidate-media-scope-v2-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'automation/rechain-codec-media-stack'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: automation/rechain-codec-media-stack
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Extract checked-in v2 run block
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/one-shot-apply-candidate-media-scope-v2.yml').read_text().splitlines()
+          step = '      - name: Patch, validate and apply candidate media scope'
+          start = source.index(step)
+          run_line = next(i for i in range(start, len(source)) if source[i] == '        run: |')
+          body = []
+          for line in source[run_line + 1:]:
+              if line.startswith('      - name:'):
+                  break
+              if not line.startswith('          '):
+                  raise SystemExit(f'unexpected run-block indentation: {line!r}')
+              body.append(line[10:])
+          if not body:
+              raise SystemExit('v2 run block is empty')
+          Path('/tmp/candidate-media-scope-v2.sh').write_text('\n'.join(body) + '\n')
+          PY
+          bash -n /tmp/candidate-media-scope-v2.sh
+      - name: Execute and capture v2 run block
+        id: diagnose
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          bash /tmp/candidate-media-scope-v2.sh 2>&1 | tee "$RUNNER_TEMP/candidate-media-scope-v2.log"
+      - name: Upload diagnostic output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-media-scope-v2-diagnostic-log
+          path: ${{ runner.temp }}/candidate-media-scope-v2.log
+          if-no-files-found: error
+      - name: Enforce result
+        if: steps.diagnose.outcome != 'success'
+        run: exit 1
