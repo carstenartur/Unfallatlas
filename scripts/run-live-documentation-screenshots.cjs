@@ -49,7 +49,7 @@ function requiredLiveBasemapKinds(testTitle) {
 }
 
 async function readVisibleLiveBasemapTiles(page) {
-  const observedTiles = await page.locator('.leaflet-tile-pane img').evaluateAll(images => images.map(image => {
+  const observedTiles = await page.locator('.leaflet-map-pane img.leaflet-tile').evaluateAll(images => images.map(image => {
     const rect = image.getBoundingClientRect();
     const style = getComputedStyle(image);
     return {
