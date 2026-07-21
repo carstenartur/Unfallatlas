@@ -1,0 +1,276 @@
+name: Finalize traffic provider QA
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-traffic-provider.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout traffic-provider branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/traffic-provider-core
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply reviewed traffic-evidence fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          target = Path('js/ua.traffic_provider.js')
+          source = target.read_text(encoding='utf-8')
+
+          helper_marker = "  function uniqueStrings(value, path, allowed) {"
+          if source.count(helper_marker) != 1:
+              raise SystemExit('uniqueStrings marker not found')
+          source = source.replace(helper_marker, '''  function compareStrings(left, right) {
+            return left < right ? -1 : left > right ? 1 : 0;
+          }
+
+          function uniqueStrings(value, path, allowed) {''')
+          source = source.replace(
+              '    return result.sort((left, right) => left.localeCompare(right));',
+              '    return result.sort(compareStrings);'
+          )
+          source = source.replace(
+              '      left.descriptor.priority - right.descriptor.priority || left.id.localeCompare(right.id)',
+              '      left.descriptor.priority - right.descriptor.priority || compareStrings(left.id, right.id)'
+          )
+          source = source.replace(
+              '        left.observation.observationId.localeCompare(right.observation.observationId)',
+              '        compareStrings(left.observation.observationId, right.observation.observationId)'
+          )
+
+          start = source.index('  function matchObservationToRoads(observation, roads, options) {')
+          end = source.index('\n\n  function evidenceRank(', start)
+          matching = '''  function matchObservationToRoads(observation, roads, options) {
+            if (!observation || !observation.source) {
+              fail('invalid_observation', 'normalized observation required');
+            }
+            if (!Array.isArray(roads) || roads.length === 0) return null;
+            const maxDistanceMeters = Math.max(1, Number(options && options.maxDistanceMeters) || 250);
+            if (observation.wayId) {
+              const exactIndex = roads.findIndex(road => String(road.wayId) === observation.wayId);
+              if (exactIndex >= 0) {
+                const exact = roads[exactIndex];
+                if (!observation.coordinate) {
+                  return Object.freeze({
+                    observation,
+                    road: exact,
+                    wayId: String(exact.wayId),
+                    distanceMeters: null,
+                    matchQuality: 'medium',
+                    matchMethod: 'explicit-way-id-without-geometry',
+                  });
+                }
+                const distanceMeters = pointToRoadDistance(
+                  observation.coordinate,
+                  exact,
+                  `roads[${exactIndex}]`
+                );
+                if (distanceMeters > maxDistanceMeters) return null;
+                return Object.freeze({
+                  observation,
+                  road: exact,
+                  wayId: String(exact.wayId),
+                  distanceMeters: Math.round(distanceMeters * 10) / 10,
+                  matchQuality: matchQuality(distanceMeters),
+                  matchMethod: 'explicit-way-id-with-geometry',
+                });
+              }
+            }
+            if (!observation.coordinate) return null;
+            let best = null;
+            roads.forEach((road, index) => {
+              const distanceMeters = pointToRoadDistance(observation.coordinate, road, `roads[${index}]`);
+              if (!best || distanceMeters < best.distanceMeters) best = { road, distanceMeters };
+            });
+            if (!best || best.distanceMeters > maxDistanceMeters) return null;
+            return Object.freeze({
+              observation,
+              road: best.road,
+              wayId: String(best.road.wayId),
+              distanceMeters: Math.round(best.distanceMeters * 10) / 10,
+              matchQuality: matchQuality(best.distanceMeters),
+              matchMethod: 'nearest-road-segment',
+            });
+          }'''
+          source = source[:start] + matching + source[end:]
+
+          age_rank = '''  function evidenceRank(match, referenceYear, maxFreshAgeYears) {
+            const type = match.observation.measurementType;
+            const ageYears = referenceYear - match.observation.year;
+            if (ageYears < 0) return 99;
+            if (type === 'count' && ageYears <= maxFreshAgeYears) return 1;
+            if (type === 'model') return 2;
+            if (type === 'count') return 3;
+            if (type === 'proxy') return 4;
+            return 99;
+          }'''
+          rank_start = source.index('  function evidenceRank(match, referenceYear, maxFreshAgeYears) {')
+          rank_end = source.index('\n\n  function selectTrafficEvidence(', rank_start)
+          source = source[:rank_start] + age_rank + source[rank_end:]
+
+          old_fresh = "    const maxFreshAgeYears = Math.max(0, Number(opts.maxFreshAgeYears) || 5);"
+          new_fresh = '''    const maxFreshAgeYears = opts.maxFreshAgeYears == null
+              ? 5 : Number(opts.maxFreshAgeYears);
+            if (!Number.isFinite(maxFreshAgeYears) || maxFreshAgeYears < 0) {
+              fail('invalid_fresh_age', 'maxFreshAgeYears must be a finite non-negative number');
+            }'''
+          if source.count(old_fresh) != 1:
+              raise SystemExit('fresh-age marker not found')
+          source = source.replace(old_fresh, new_fresh)
+
+          old_candidates = '''      .filter(Boolean)
+                .filter(match => !mode || match.observation.mode === mode)
+                .map(match => ({
+                  ...match,
+                  ageYears: Math.max(0, referenceYear - match.observation.year),
+                  rank: evidenceRank(match, referenceYear, maxFreshAgeYears),
+                }))'''
+          new_candidates = '''      .filter(Boolean)
+                .filter(match => !mode || match.observation.mode === mode)
+                .filter(match => match.observation.year <= referenceYear)
+                .map(match => ({
+                  ...match,
+                  ageYears: referenceYear - match.observation.year,
+                  rank: evidenceRank(match, referenceYear, maxFreshAgeYears),
+                }))'''
+          if source.count(old_candidates) != 1:
+              raise SystemExit('candidate-age marker not found')
+          source = source.replace(old_candidates, new_candidates)
+          target.write_text(source, encoding='utf-8')
+
+          test_path = Path('tests/unit/trafficProvider.test.js')
+          tests = test_path.read_text(encoding='utf-8')
+          old_explicit = '''  test('matches an explicit way ID without inventing spatial uncertainty', async () => {
+            const [observation] = await createProvider('count', [rawObservation({
+              wayId: '42', geometry: undefined,
+            })]).loadObservations();
+            const match = traffic.matchObservationToRoads(observation, [road('7'), road('42')]);
+
+            expect(match).toEqual(expect.objectContaining({
+              wayId: '42',
+              distanceMeters: 0,
+              matchQuality: 'high',
+              matchMethod: 'explicit-way-id',
+            }));
+          });'''
+          new_explicit = '''  test('keeps an explicit way ID without geometry but does not invent a distance', async () => {
+            const [observation] = await createProvider('count', [rawObservation({
+              wayId: '42', geometry: undefined,
+            })]).loadObservations();
+            const match = traffic.matchObservationToRoads(observation, [road('7'), road('42')]);
+
+            expect(match).toEqual(expect.objectContaining({
+              wayId: '42',
+              distanceMeters: null,
+              matchQuality: 'medium',
+              matchMethod: 'explicit-way-id-without-geometry',
+            }));
+          });
+
+          test('spatially verifies an explicit way ID when geometry is available', async () => {
+            const [observation] = await createProvider('count', [rawObservation({ wayId: '42' })])
+              .loadObservations();
+            const match = traffic.matchObservationToRoads(observation, [road('7'), road('42')]);
+
+            expect(match).toEqual(expect.objectContaining({
+              wayId: '42',
+              distanceMeters: 0,
+              matchQuality: 'high',
+              matchMethod: 'explicit-way-id-with-geometry',
+            }));
+          });
+
+          test('rejects an explicit way ID whose supplied geometry is spatially inconsistent', async () => {
+            const [observation] = await createProvider('count', [rawObservation({
+              wayId: '42',
+              geometry: pointGeometry(BONN.lat + 0.01, BONN.lon),
+            })]).loadObservations();
+
+            expect(traffic.matchObservationToRoads(observation, [road('42')], {
+              maxDistanceMeters: 100,
+            })).toBeNull();
+          });'''
+          if tests.count(old_explicit) != 1:
+              raise SystemExit('explicit-way test marker not found')
+          tests = tests.replace(old_explicit, new_explicit)
+
+          insert = tests.rfind('\n});')
+          if insert < 0:
+              raise SystemExit('traffic test suite terminator not found')
+          additions = '''
+
+            test('does not use observations from after the selected reference year', async () => {
+              const futureProvider = createProvider('count', [rawObservation({
+                observationId: 'future-count', year: 2028, wayId: '1', geometry: undefined,
+              })]);
+              const currentModel = createProvider('model', [rawObservation({
+                observationId: 'current-model', measurementType: 'model', year: 2026,
+                wayId: '1', geometry: undefined,
+              })]);
+              const observations = [
+                ...(await futureProvider.loadObservations()),
+                ...(await currentModel.loadObservations()),
+              ];
+              const result = traffic.selectTrafficEvidence(
+                observations.map(observation => traffic.matchObservationToRoads(observation, [road('1')])),
+                { referenceYear: 2026, maxFreshAgeYears: 5 }
+              );
+              expect(result.evidenceType).toBe('model');
+              expect(result.observation.observationId).toBe('current-model');
+              expect(result.ageYears).toBe(0);
+            });
+
+            test('returns no evidence when every observation is from the future', async () => {
+              const provider = createProvider('count', [rawObservation({
+                observationId: 'future-only', year: 2027, wayId: '1', geometry: undefined,
+              })]);
+              const [observation] = await provider.loadObservations();
+              const result = traffic.selectTrafficEvidence([
+                traffic.matchObservationToRoads(observation, [road('1')]),
+              ], { referenceYear: 2026 });
+              expect(result.evidenceType).toBe('none');
+              expect(result.observation).toBeNull();
+            });
+
+            test('honours an explicit freshness threshold of zero years', async () => {
+              const provider = createProvider('count', [rawObservation({
+                observationId: 'previous-year', year: 2025, wayId: '1', geometry: undefined,
+              })]);
+              const [observation] = await provider.loadObservations();
+              const result = traffic.selectTrafficEvidence([
+                traffic.matchObservationToRoads(observation, [road('1')]),
+              ], { referenceYear: 2026, maxFreshAgeYears: 0 });
+              expect(result.evidenceType).toBe('stale-measured');
+            });
+          '''
+          test_path.write_text(tests[:insert] + additions + tests[insert:], encoding='utf-8')
+      - name: Format and test
+        run: |
+          npx --yes prettier@3.6.2 --write js/ua.traffic_provider.js tests/unit/trafficProvider.test.js
+          node --check js/ua.traffic_provider.js
+          npx jest --runInBand tests/unit/sourceManifest.test.js tests/unit/trafficProvider.test.js
+      - name: Commit traffic-provider QA fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/ua.traffic_provider.js tests/unit/trafficProvider.test.js
+          git commit -m 'fix: harden traffic evidence time and road matching'
+          git push origin HEAD:feat/traffic-provider-core
