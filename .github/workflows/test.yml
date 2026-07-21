@@ -109,7 +109,22 @@ jobs:
         run: npm ci
 
       - name: Run testcontainers integration test
-        run: npm run test:integration:tc
+        run: |
+          mkdir -p out/qa/video-export
+          set -o pipefail
+          npm run test:integration:tc 2>&1 \
+            | tee out/qa/video-export/testcontainers.log
+
+      - name: Upload video export diagnostics
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: video-export-testcontainers-diagnostics
+          path: |
+            out/qa/video-export/testcontainers.log
+            test-results/
+          if-no-files-found: error
+          retention-days: 14
 
   location-brief-golden-qa:
     # Issue #296: real Bonn/Hannover data must pass through the deterministic
