@@ -35,12 +35,16 @@ jobs:
           target = Path('js/ua.elevation_provider.js')
           source = target.read_text(encoding='utf-8')
 
-          def replace_function(text, name, next_name, replacement):
-              start = text.index(f'  function {name}(')
-              end = text.index(f'\n\n  function {next_name}(', start)
+          def replace_between(text, start_marker, end_marker, replacement):
+              start = text.index(start_marker)
+              end = text.index(end_marker, start)
               return text[:start] + replacement.rstrip() + text[end:]
 
-          source = replace_function(source, 'isoDate', 'normalizeDescriptor', r'''  function isoDate(value, path) {
+          source = replace_between(
+              source,
+              '  function isoDate(value, path) {',
+              '\n\n  function normalizeDescriptor(',
+              r'''  function isoDate(value, path) {
             const text = requiredString(value, path);
             const match = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2}))?$/.exec(text);
             if (!match) fail('invalid_descriptor', `${path} must be ISO-8601 with an explicit timezone`);
@@ -70,26 +74,30 @@ jobs:
               }
             }
             return text;
-          }''')
-
-          old_compare = '''  function compareProviders(left, right) {
-            return left.descriptor.priority - right.descriptor.priority ||
-              left.descriptor.resolutionMeters - right.descriptor.resolutionMeters ||
-              left.id.localeCompare(right.id);
           }'''
-          new_compare = '''  function compareProviders(left, right) {
+          )
+
+          source = replace_between(
+              source,
+              '  function compareProviders(left, right) {',
+              '\n\n  function normalizeCoordinate(',
+              '''  function compareProviders(left, right) {
             const priority = left.descriptor.priority - right.descriptor.priority;
             if (priority) return priority;
             const resolution = left.descriptor.resolutionMeters - right.descriptor.resolutionMeters;
             if (resolution) return resolution;
             return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
           }'''
-          if source.count(old_compare) != 1:
-              raise SystemExit('provider comparator marker not found exactly once')
-          source = source.replace(old_compare, new_compare)
+          )
 
-          source = replace_function(source, 'riskReasons', 'qualityFor', r'''  function affirmativeTag(value) {
-            return ['yes', 'true', '1'].includes(String(value == null ? '' : value).trim().toLowerCase());
+          source = replace_between(
+              source,
+              '  function riskReasons(tags) {',
+              '\n\n  function qualityFor(',
+              '''  function affirmativeTag(value) {
+            return ['yes', 'true', '1'].includes(
+              String(value == null ? '' : value).trim().toLowerCase()
+            );
           }
 
           function riskReasons(tags) {
@@ -101,11 +109,14 @@ jobs:
             if (affirmativeTag(value.embankment)) reasons.push('embankment_may_differ_from_terrain');
             if (affirmativeTag(value.cutting)) reasons.push('cutting_may_differ_from_terrain');
             return reasons;
-          }''')
+          }'''
+          )
 
-          statement_start = source.index('  function displayStatement(result) {')
-          statement_end = source.index('\n\n  async function computeRoadGradient', statement_start)
-          statement_replacement = r'''  const REASON_LABELS_DE = Object.freeze({
+          source = replace_between(
+              source,
+              '  function displayStatement(result) {',
+              '\n\n  async function computeRoadGradient(',
+              '''  const REASON_LABELS_DE = Object.freeze({
             bridge_surface_not_represented_by_dtm: 'Brückenoberfläche ist im Geländemodell nicht abgebildet',
             tunnel_surface_not_represented_by_dtm: 'Tunneloberfläche ist im Geländemodell nicht abgebildet',
             non_ground_osm_layer: 'Straßengeometrie liegt nicht auf der Geländeebene',
@@ -138,51 +149,52 @@ jobs:
             return `Straßenlängsneigung: ${value} % ${direction} über ${profileLength} m, ` +
               `${result.source.datasetTitle} (${result.source.resolutionMeters} m), Qualität ${result.quality}.`;
           }'''
-          source = source[:statement_start] + statement_replacement + source[statement_end:]
+          )
 
-          old_samples = '''    if (samples.length < 3) fail('insufficient_samples', `only ${samples.length} valid elevation samples`);
-              const fit = theilSen(samples);'''
-          new_samples = '''    if (samples.length < 3) fail('insufficient_samples', `only ${samples.length} valid elevation samples`);
-              const profileLengthMeters = Math.round(
-                Math.abs(samples[samples.length - 1].alongMeters - samples[0].alongMeters) * 10
-              ) / 10;
-              if (profileLengthMeters < Math.max(5, spacingMeters * 2)) {
-                fail('insufficient_samples', 'valid elevation samples cover too little of the road profile');
-              }
-              const fit = theilSen(samples);'''
-          if source.count(old_samples) != 1:
-              raise SystemExit('sample-span marker not found exactly once')
-          source = source.replace(old_samples, new_samples)
+          sample_marker = "    if (samples.length < 3) fail('insufficient_samples', `only ${samples.length} valid elevation samples`);"
+          if source.count(sample_marker) != 1:
+              raise SystemExit('sample marker not found exactly once')
+          source = source.replace(sample_marker, sample_marker + '''
+            const profileLengthMeters = Math.round(
+              Math.abs(samples[samples.length - 1].alongMeters - samples[0].alongMeters) * 10
+            ) / 10;
+            if (profileLengthMeters < Math.max(5, spacingMeters * 2)) {
+              fail('insufficient_samples', 'valid elevation samples cover too little of the road profile');
+            }''')
 
-          old_uncertainty = '      100 * 1.4826 * fit.residualMadMeters / Math.max(windowMeters, 1)'
-          new_uncertainty = '      100 * 1.4826 * fit.residualMadMeters / Math.max(profileLengthMeters / 2, 1)'
-          if source.count(old_uncertainty) != 1:
-              raise SystemExit('uncertainty denominator marker not found exactly once')
-          source = source.replace(old_uncertainty, new_uncertainty)
+          uncertainty_marker = '      100 * 1.4826 * fit.residualMadMeters / Math.max(windowMeters, 1)'
+          if source.count(uncertainty_marker) != 1:
+              raise SystemExit('uncertainty denominator not found exactly once')
+          source = source.replace(
+              uncertainty_marker,
+              '      100 * 1.4826 * fit.residualMadMeters / Math.max(profileLengthMeters / 2, 1)'
+          )
 
-          old_result = '''      windowMeters,
-                spacingMeters,'''
-          new_result = '''      windowMeters,
-                profileLengthMeters,
-                spacingMeters,'''
-          if source.count(old_result) != 1:
-              raise SystemExit('result profile-length marker not found exactly once')
-          source = source.replace(old_result, new_result)
+          result_marker = '      windowMeters,\n      spacingMeters,'
+          if source.count(result_marker) != 1:
+              raise SystemExit('result profile marker not found exactly once')
+          source = source.replace(
+              result_marker,
+              '      windowMeters,\n      profileLengthMeters,\n      spacingMeters,'
+          )
 
-          descriptor_marker = '''      horizontalCrs: 'EPSG:25832',
-                retrievedAt,'''
-          descriptor_replacement = '''      horizontalCrs: 'EPSG:25832',
-                acquisitionPeriod: 'Laserscannerbefliegung 2010',
-                publicationDate: '2024-01-15',
-                retrievedAt,'''
+          descriptor_marker = "      horizontalCrs: 'EPSG:25832',\n      retrievedAt,"
           if source.count(descriptor_marker) != 1:
-              raise SystemExit('Hannover descriptor metadata marker not found exactly once')
-          source = source.replace(descriptor_marker, descriptor_replacement)
+              raise SystemExit('Hannover metadata marker not found exactly once')
+          source = source.replace(
+              descriptor_marker,
+              "      horizontalCrs: 'EPSG:25832',\n" +
+              "      acquisitionPeriod: 'Laserscannerbefliegung 2010',\n" +
+              "      publicationDate: '2024-01-15',\n" +
+              "      retrievedAt,"
+          )
           target.write_text(source, encoding='utf-8')
 
           test_path = Path('tests/unit/elevationProvider.test.js')
           tests = test_path.read_text(encoding='utf-8')
           insert = tests.rfind('\n});')
+          if insert < 0:
+              raise SystemExit('test suite terminator not found')
           additions = r'''
 
             test('uses locale-independent code-point ordering for tied providers', () => {
