@@ -113,6 +113,7 @@ describe('artifact provenance format adapters', () => {
     expect(result.entries[2].content).toContain('https://unfallatlas.statistikportal.de/');
     expect(result.entries[2].content).toContain('https://www.govdata.de/dl-de/by-2-0');
     expect(result.entries[2].content).toContain('sources.json');
+    expect(result.entries[2].content).not.toContain('undefined');
   });
 
   test('rejects empty CSV content and unsafe/empty package names', async () => {
@@ -190,7 +191,8 @@ describe('artifact provenance format adapters', () => {
     expect(result.xml).toContain('accidents.de.unfallatlas,roads.openstreetmap');
     expect(result.xml).toContain('https://unfallatlas.statistikportal.de/');
     expect(result.xml).toContain('https://opendatacommons.org/licenses/odbl/1-0/');
-    expect(result.xml).toContain('&amp;');
+    expect(result.xml).toContain('&quot;applicationVersion&quot;');
+    expect(result.xml).not.toContain('undefined');
     expect(result.sourceManifestSha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
@@ -224,6 +226,8 @@ describe('artifact provenance format adapters', () => {
     expect(result.sidecar.sourceManifestSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.sidecar.sourceManifest.sources).toHaveLength(2);
     expect(result.sidecar.visibleSourceNotice).toContain('Unfallatlas');
+    expect(result.sidecar.visibleSourceNotice).toContain('DL-DE-BY-2.0');
+    expect(result.sidecar.visibleSourceNotice).not.toContain('undefined');
     expect(result.sha256).toBe(sha256(result.json));
   });
 
@@ -257,6 +261,7 @@ describe('artifact provenance format adapters', () => {
     expect(result.sidecarFileName).toBe('analysis.webp.sources.json');
     expect(result.visibleNotice.length).toBeLessThanOrEqual(180);
     expect(result.visibleNotice).toMatch(/^Quellen:/);
+    expect(result.visibleNotice).not.toContain('undefined');
     expect(JSON.parse(result.sidecarJson).artifact.name).toBe('analysis.webp');
     expect(result.sidecarSha256).toMatch(/^[a-f0-9]{64}$/);
   });
@@ -265,6 +270,7 @@ describe('artifact provenance format adapters', () => {
     const notice = provenance.compactSourceNotice(manifest(), { maxCharacters: 100 });
     expect(notice.length).toBeLessThanOrEqual(100);
     expect(notice).toContain('Sidecar');
+    expect(notice).not.toContain('undefined');
     const lines = provenance.visibleSourceLines(manifest(), { maxSources: 1 });
     expect(lines).toHaveLength(2);
     expect(lines[1]).toMatch(/Weitere 1 Quelle/);
