@@ -34,9 +34,22 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('await route.continue();');
     expect(transformed).toContain('response.status() >= 200');
     expect(transformed).toContain('/^image\\/(?:png|jpe?g|webp)(?:;|$)/');
-    expect(transformed).toContain('Documentation screenshot lacks successful real basemap responses for:');
+    expect(transformed).toContain('Documentation screenshot lacks visible successful real basemap tiles for:');
     expect(transformed).toContain("source: 'live'");
+    expect(transformed).toContain('visibleTiles: live.visibleTiles.map');
     expect(transformed).toContain('successfulResponses: live.successfulResponses.map');
+  });
+
+  test('binds successful responses to currently visible Leaflet tiles', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+
+    expect(transformed).toContain("page.locator('.leaflet-tile-pane img.leaflet-tile-loaded')");
+    expect(transformed).toContain('image.getBoundingClientRect()');
+    expect(transformed).toContain('style.visibility');
+    expect(transformed).toContain('successfulUrls.has(tile.url)');
+    expect(transformed).toContain('live.visibleTiles = visibleTiles;');
+    expect(transformed).toContain('await assertLiveBasemapProvenance(page)');
+    expect(transformed).toContain('async function assertNoUnexpectedExternalRequests(page)');
   });
 
   test('intercepts HTTP and HTTPS while allowing exact HTTPS tile paths only', () => {
