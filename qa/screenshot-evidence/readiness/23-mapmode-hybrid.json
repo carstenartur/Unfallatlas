@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
+  "revision": "b65dca7455e2763284dee64e10fe2792afd20cc2",
   "screenshot": {
     "path": "docs/screenshots/23-mapmode-hybrid.png",
-    "bytes": 503884,
-    "sha256": "fcc873d835ce24f8b26af647d23eb0a31fbd28acd197cdca30b6270a9044971e"
+    "bytes": 1243478,
+    "sha256": "d586bdbe0a96fe018bf3d166972e5cc72348120eee7f8c16ff45e501c3effe17"
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
-    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
-    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
+    "sha256": "f54b516316153a11616ff863202a4320d72ab005b606e669f46e5f7e363be306",
+    "fingerprint": "acadf447f8ef8f4282eb797ec0695502207aa2d5c394a64b062e2d782aba5d4c",
+    "applicationFingerprint": "e22fbb563775711cf01f8e903b614ab5d045de6f1fe3495597160afbb6e7ae4b",
     "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
   },
   "criteria": {
@@ -74,6 +74,957 @@
         }
       }
     },
+    "error": null
+  },
+  "cartography": {
+    "source": "live",
+    "requiredKinds": [
+      "orthophoto",
+      "labels"
+    ],
+    "visibleTiles": [
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17029"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17030"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17029"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17030"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17029"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17030"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17032"
+      },
+      {
+        "kind": "labels",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17029/11008.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17030/11008.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17029/11007.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17030/11007.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17029/11009.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17030/11009.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17028/11008.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17031/11008.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17028/11007.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17031/11007.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17028/11009.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17031/11009.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17027/11008.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17032/11008.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17027/11007.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17032/11007.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17027/11009.png"
+      },
+      {
+        "kind": "labels",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17032/11009.png"
+      }
+    ],
+    "observedTiles": [
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17029",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17030",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17029",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17030",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17029",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17030",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17028",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17031",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17028",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17031",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17028",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17031",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17027",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17032",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17027",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17032",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17027",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17032",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17029/11008.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17030/11008.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17029/11007.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17030/11007.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17029/11009.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17030/11009.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17028/11008.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17031/11008.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17028/11007.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17031/11007.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17028/11009.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17031/11009.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17027/11008.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17032/11008.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17027/11007.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17032/11007.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17027/11009.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      },
+      {
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17032/11009.png",
+        "complete": true,
+        "naturalWidth": 256,
+        "naturalHeight": 256,
+        "rectWidth": 256,
+        "rectHeight": 256,
+        "display": "block",
+        "visibility": "visible",
+        "opacity": 1,
+        "className": "leaflet-tile leaflet-tile-loaded"
+      }
+    ],
+    "successfulResponses": [
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2160/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2159/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2158/1347.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2156/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2161/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2157/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2161/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2156/1347.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2159/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2157/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2160/1347.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2158/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2160/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2161/1347.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2158/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2157/1347.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2159/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2156/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2158/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2160/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2159/1347.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2156/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2161/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2157/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17030/11007.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17029/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17027/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17031/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17029/11007.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17028/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17031/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17030/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17032/11007.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17027/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17030/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17031/11007.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17032/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17029/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17028/11007.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17028/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17032/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17027/11007.png"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17029"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17030"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17029"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17030"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17029"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17030"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17028"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17032"
+      }
+    ],
+    "valid": true,
     "error": null
   }
 }

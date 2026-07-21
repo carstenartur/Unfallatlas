@@ -4,26 +4,31 @@ Dieses Verzeichnis enthält die in `README.md` und `docs/DOKUMENTATION.md`
 referenzierten PNG-Screenshots der Unfallwerkbank V2.
 
 Der maschinenlesbare Vertrag liegt in [`../media-manifest.json`](../media-manifest.json).
-`npm run validate:media` prüft Soll-Abmessungen, das ausnahmslose
-1-MiB-Standardbudget für statische Medien, das 15-MiB-Gesamtbudget und alle
-lokalen Markdown-Referenzen. Neue
-Vollbild-Kandidaten werden mit 1280×640 erzeugt; Workflows veröffentlichen sie
-zusammen mit ihrem Evidence-Sidecar, Evidence-Gesamtbericht und dem exakten
-Buildmanifest ausschließlich als Review-Artefakt. `npm run
+`npm run validate:media` prüft Soll-Abmessungen, das 1,5-MiB-Einzelbudget für
+statische Kartenmedien, das 30-MiB-Gesamtbudget und alle lokalen
+Markdown-Referenzen. Das Gesamtbudget umfasst neben den realen Karten auch das
+kanonische Demo-GIF und die gerenderte PDF-Vorschau. Neue Vollbild-Kandidaten
+werden mit 1280×640 erzeugt; Workflows veröffentlichen sie zusammen mit ihrem
+Evidence-Sidecar, Evidence-Gesamtbericht, Live-Kartografie-Bericht und dem
+exakten Buildmanifest ausschließlich als Review-Artefakt. `npm run
 validate:screenshot-evidence` verlangt dabei eine 1:1-Zuordnung und verifiziert
 Bild-SHA-256, Buildmanifest-SHA-256 sowie Build-, Anwendungs- und
-Datenfingerprint erneut vor dem Upload.
+Datenfingerprint erneut vor dem Upload. Der zusätzliche
+Live-Kartografie-Validator verlangt für jedes kartenhaltige Bild mindestens
+eine zum Szenario passende, erfolgreiche HTTPS-Rasterantwort eines explizit
+erlaubten Grundkartenanbieters.
 
-Für neu erzeugte, noch nicht übernommene Bilder rufen diese Workflows erst
-`validate:screenshot-evidence` und danach `validate:media
--- --candidate-screenshots` auf. Dieser explizite Kandidatenmodus prüft die in
-diesem Lauf erzeugten Screenshot- und Dokumentvorschau-Dateien vollständig
-auf Maße, Format, Budget, Referenzen und aktuelle Lifecycle-Evidence. Nicht
-neu erzeugte Medien – insbesondere die separat regenerierte Demo-Animation –
-werden im Report ausdrücklich als `deferred` ausgewiesen und erst im normalen
-`validate:media`-Lauf zusammen mit der dauerhaft archivierten Evidence streng
-gebunden. Format-, Pfad-, Referenz- und Budgetregeln des Manifests gelten auch
-für zurückgestellte Einträge unverändert.
+Für neu erzeugte, noch nicht übernommene Bilder rufen die
+Dokumentationsmedien-Workflows `validate:screenshot-evidence`,
+`validate-live-cartography-evidence` und danach `validate:media --
+--candidate-screenshots` auf. Dieser explizite Kandidatenmodus prüft die in
+diesem Lauf erzeugten Screenshot- und Dokumentvorschau-Dateien vollständig auf
+Maße, Format, Budget, Referenzen, aktuelle Lifecycle-Evidence und reale
+Kartografie. Nicht neu erzeugte Medien – insbesondere die separat regenerierte
+Demo-Animation – werden im Report ausdrücklich als `deferred` ausgewiesen und
+erst im normalen `validate:media`-Lauf zusammen mit der dauerhaft archivierten
+Evidence streng gebunden. Format-, Pfad-, Referenz- und Budgetregeln des
+Manifests gelten auch für zurückgestellte Einträge unverändert.
 
 Für die separat prüfbare Tooling-Grenze steht zusätzlich `npm run
 validate:media:policy` zur Verfügung. Dieser Modus validiert ausschließlich
@@ -33,12 +38,13 @@ kennzeichnet seinen Report ausdrücklich mit `mediaValidated: false` und
 reviewten Bilddateien und der Provenienz-Ledger gemeinsam übernommen werden,
 muss der CI-Workflow wieder `npm run validate:media` ausführen.
 
-Die am 19. Juli 2026 übernommenen, semantisch belegten Kandidaten und ihre
-Vorher-/Nachher-Größen sind im
-[`Medien-QA-Bericht`](../media-qa-2026-07-19.md) dokumentiert. Statische
-Legacy-Ausnahmen sind seit dieser Übernahme nicht mehr zulässig. Die dauerhaft
-gebundene Original-Evidence liegt unter
-[`qa/screenshot-evidence`](../../qa/screenshot-evidence/).
+Die am 19. Juli 2026 übernommene, semantische Unfall- und Render-Evidence sowie
+ihre damaligen Vorher-/Nachher-Größen sind im
+[`Medien-QA-Bericht`](../media-qa-2026-07-19.md) dokumentiert. Diese erste
+Promotion belegte jedoch noch keine realen Grundkartenantworten. Die
+Live-Kartografie-Evidence und der dazugehörige neue Bildsatz werden deshalb in
+einem eigenen Review-Schritt ersetzt und dauerhaft unter
+[`qa/screenshot-evidence`](../../qa/screenshot-evidence/) gebunden.
 
 ## Konvention
 
@@ -65,11 +71,11 @@ die räumliche Wirkung der gezeigten Auswahl oder Filterung ausblenden.
 | 14 | `14-export-filterkontext.png` | Export mit Filterkontext |
 | 15 | `15-export-pdf-rendered.png` | Gerenderter PDF-Export |
 | 16 | `16-antrag-inhalt.png` | Antrag-Inhalt |
-| 21 | `21-mapmode-standard.png` | Kartenmodus `standard` (deterministische Tile-Mocks) |
-| 22 | `22-mapmode-orthophoto.png` | Kartenmodus `orthophoto` (deterministische Orthofoto-Tiles) |
-| 23 | `23-mapmode-hybrid.png` | Kartenmodus `hybrid` (Orthofoto + Label-Overlay) |
-| 24 | `24-mapmode-analysis.png` | Kartenmodus `analysis` (Heatmap/Analyse-Overlay auf Orthofoto) |
-| 25 | `25-mapmode-orthophoto-fallback.png` | Orthofoto-Ausfall: erwarteter Fallback auf Standardkarte inkl. Hinweistext |
+| 21 | `21-mapmode-standard.png` | Kartenmodus `standard` mit real geladener OSM-Grundkarte |
+| 22 | `22-mapmode-orthophoto.png` | Kartenmodus `orthophoto` mit realer WMS-/Rasterantwort |
+| 23 | `23-mapmode-hybrid.png` | Kartenmodus `hybrid` mit realem Orthofoto und Label-Overlay |
+| 24 | `24-mapmode-analysis.png` | Kartenmodus `analysis` mit Unfall-Heatmap auf realem Orthofoto |
+| 25 | `25-mapmode-orthophoto-fallback.png` | Erzwungener Orthofoto-Ausfall mit real geladener Standardkarte als Fallback |
 
 ## Ausgesetzte Slope-Diagnose (QA #400)
 
@@ -86,24 +92,30 @@ Legende, tatsächlich gezeichnete Overlay-Pixel und in der Debug-Variante
 numerische Slope-Tooltips nachweisen. Tracking:
 [QA #400](https://github.com/carstenartur/Unfallatlas/issues/400).
 
+Alle kartenhaltigen Screenshots werden erst nach einem öffentlichen
+Lifecycle-Vertrag und einem fail-closed Leaflet-Tile-Stabilitäts-Check erstellt
+(`waitForMapTiles`: Helper-Erfolg, keine ladenden Tiles, mindestens ein
+decodiertes Tile), plus defensivem `document.fonts.ready`. Der
+Lifecycle-Snapshot wird unmittelbar vor und nach dem Pixel-Capture verglichen;
+eine dazwischenliegende Daten- oder Renderrevision verwirft den Kandidaten.
 
+## Getrennte Kartenstrategien für Test und Dokumentation
 
-Alle map-haltigen Screenshots werden in den E2E-Tests erst nach einem
-öffentlichen Lifecycle-Vertrag und einem fail-closed
-Leaflet-Tile-Stabilitäts-Check erstellt (`waitForMapTiles`: Helper-Erfolg,
-keine ladenden Tiles, mindestens ein decodiertes Tile), plus defensivem
-`document.fonts.ready`. Der Lifecycle-Snapshot wird unmittelbar vor und nach
-dem Pixel-Capture verglichen; eine dazwischenliegende Daten- oder
-Renderrevision verwirft den Kandidaten.
+Die normale E2E- und PDF-Regression bleibt vollständig hermetisch: OSM-,
+Orthofoto- und Hybrid-Label-Anfragen werden dort auf die versionierten
+SVG-Fixtures unter `tests/e2e/fixtures/map-tiles/` geroutet. Diese Tests prüfen
+reproduzierbar UI-Zustand, Layer-Lifecycle, Unfallzahlen und Fehlerpfade. Ihre
+Bilder sind **keine** veröffentlichbaren Dokumentationsmedien.
 
-## Deterministische Grundkarte
-
-Für sämtliche kanonischen Screenshots (`01`–`16` und `21`–`25`) werden OSM-,
-Orthofoto- und Hybrid-Label-Anfragen vor dem ersten Seitenaufruf auf die
-versionierten SVG-Fixtures unter `tests/e2e/fixtures/map-tiles/` geroutet.
-Damit hängen die Review-Artefakte nicht von Live-Tiles, Provider-Verfügbarkeit,
-Farbbalance oder Kacheländerungen ab. Screenshot `25` verwendet dieselbe lokale
-Fixture-Schicht und dokumentiert den Orthofoto-Fehlerpfad explizit.
+Reviewbare und kanonische Dokumentations-Screenshots entstehen ausschließlich
+über `node scripts/run-live-documentation-screenshots.cjs`. Dieser Runner
+fängt sämtliche externen HTTP-/HTTPS-Anfragen ab, erlaubt nur exakte
+HTTPS-Tile-/WMS-Pfade aus dem Karten-Layer-Register und verlangt je Szenario
+erfolgreiche 2xx-Antworten mit PNG-, JPEG- oder WebP-MIME-Typ. Nominatim- und
+Overpass-Antworten bleiben deterministisch; unbekannte externe Anfragen werden
+abgebrochen und als Fehler ausgegeben. Screenshot `25` erzwingt den
+Orthofoto-Ausfall, akzeptiert den Kandidaten aber erst nach einer erfolgreichen
+realen Standardkartenantwort.
 
 ## Review-Kandidaten für Kontextdaten-Screenshots (QA #408)
 

@@ -68,10 +68,20 @@ nicht unterstützt.
 ## Dokumentationsmedien
 
 `npm run validate:media` prüft `docs/media-manifest.json`: Existenz,
-Soll-Abmessungen, das ausnahmslose 1-MiB-Budget statischer Medien, das
-15-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
-sowie lokale Markdown-Referenzen. Neue Vollbild-Screenshots werden mit
-1280×640 erzeugt und müssen höchstens 1 MiB groß sein.
+Soll-Abmessungen, das 1,5-MiB-Einzelbudget statischer Kartenmedien, das
+30-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
+sowie lokale Markdown-Referenzen. Das Gesamtbudget umfasst ausdrücklich auch
+das kanonische Demo-GIF und die gerenderte PDF-Vorschau. Neue
+Vollbild-Screenshots werden mit 1280×640 erzeugt. Die Grenzen sind auf reale
+OSM-/WMS-/Orthofoto-Rasterdaten kalibriert; flächige synthetische
+SVG-Testkacheln sind kein gültiger Weg, um ein Medienbudget einzuhalten.
+
+Reviewbare Dokumentations-Screenshots entstehen ausschließlich über den
+Live-Kartografie-Runner. Er lässt nur die im Layer-Register deklarierten
+Grundkartenanbieter zu, verlangt erfolgreiche 2xx-Rasterantworten und schreibt
+pro Bild eine Sidecar-Evidenz mit Provider-URL, HTTP-Status und MIME-Typ. Die
+normale E2E-Suite bleibt davon getrennt und verwendet weiterhin hermetische
+Fixtures für reproduzierbare Funktionsregressionen.
 
 Die Media-QA besitzt bewusst getrennte Stufen:
 
