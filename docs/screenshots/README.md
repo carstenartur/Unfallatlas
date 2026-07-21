@@ -22,6 +22,14 @@ Referenzen und die vorgelagerte aktuelle Lifecycle-Evidence bleiben zwingend.
 Der normale `validate:media`-Lauf bindet dagegen stets die eingecheckten Bilder
 an die dauerhaft archivierte Evidence.
 
+Für die separat prüfbare Tooling-Grenze steht zusätzlich `npm run
+validate:media:policy` zur Verfügung. Dieser Modus validiert ausschließlich
+Manifeststruktur, Pfadsicherheit, Referenzen, Budgets und Ausnahmeregeln und
+kennzeichnet seinen Report ausdrücklich mit `mediaValidated: false` und
+`evidenceValidated: false`. Er ersetzt niemals die strikte Prüfung: Sobald die
+reviewten Bilddateien und der Provenienz-Ledger gemeinsam übernommen werden,
+muss der CI-Workflow wieder `npm run validate:media` ausführen.
+
 Die am 19. Juli 2026 übernommenen, semantisch belegten Kandidaten und ihre
 Vorher-/Nachher-Größen sind im
 [`Medien-QA-Bericht`](../media-qa-2026-07-19.md) dokumentiert. Statische
