@@ -159,13 +159,30 @@ jobs:
           PY
 
       - name: Validate promoted media before committing
+        id: validate_promoted_media
         run: |
           set -euo pipefail
+          mkdir -p out/qa
           npm ci
           npm run build:site
-          npm run validate:media
+          npm run validate:media -- --report out/qa/promoted-documentation-media.json \
+            2>&1 | tee out/qa/promoted-documentation-media.log
+
+      - name: Upload promotion diagnostics
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/promoted-documentation-media.json', 'out/qa/promoted-documentation-media.log') != '' }}
+        with:
+          name: pr486-promotion-diagnostics
+          path: |
+            out/qa/promoted-documentation-media.json
+            out/qa/promoted-documentation-media.log
+            qa/screenshot-evidence/provenance.json
+            qa/screenshot-evidence/live-cartography.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Commit promoted evidence to the PR branch
+        if: ${{ steps.validate_promoted_media.outcome == 'success' }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
