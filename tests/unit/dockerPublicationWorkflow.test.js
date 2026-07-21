@@ -7,7 +7,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const WORKFLOW = path.join(ROOT, '.github/workflows/docker-publish.yml');
 
 describe('Docker publication workflow boundary', () => {
-  test('main pushes smoke-build without publishing while releases retain the provenance gate', () => {
+  test('main and relevant PRs smoke-build without publishing while releases retain the provenance gate', () => {
     const workflow = fs.readFileSync(WORKFLOW, 'utf8');
     const smokeStart = workflow.indexOf('  main-smoke:');
     const publishStart = workflow.indexOf('  publish:');
@@ -19,7 +19,14 @@ describe('Docker publication workflow boundary', () => {
     const publish = workflow.slice(publishStart);
 
     expect(workflow).toMatch(/push:\s*\n\s*branches: \[main\]/);
-    expect(smoke).toContain("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(workflow).toMatch(/pull_request:\s*\n\s*branches: \[main\]/);
+    expect(workflow).toContain("- '.github/workflows/docker-publish.yml'");
+    expect(workflow).toContain("- 'Dockerfile'");
+    expect(workflow).toContain("- 'package-lock.json'");
+
+    expect(smoke).toContain(
+      "github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')"
+    );
     expect(smoke).toContain('npm run validate:media');
     expect(smoke).toContain('docker build');
     expect(smoke).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=0');
