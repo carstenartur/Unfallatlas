@@ -5,16 +5,18 @@ referenzierten PNG-Screenshots der Unfallwerkbank V2.
 
 Der maschinenlesbare Vertrag liegt in [`../media-manifest.json`](../media-manifest.json).
 `npm run validate:media` prüft Soll-Abmessungen, das 1,5-MiB-Einzelbudget für
-statische Kartenmedien, das 24-MiB-Gesamtbudget und alle lokalen
-Markdown-Referenzen. Neue Vollbild-Kandidaten werden mit 1280×640 erzeugt;
-Workflows veröffentlichen sie zusammen mit ihrem Evidence-Sidecar,
-Evidence-Gesamtbericht, Live-Kartografie-Bericht und dem exakten Buildmanifest
-ausschließlich als Review-Artefakt. `npm run validate:screenshot-evidence`
-verlangt dabei eine 1:1-Zuordnung und verifiziert Bild-SHA-256,
-Buildmanifest-SHA-256 sowie Build-, Anwendungs- und Datenfingerprint erneut vor
-dem Upload. Der zusätzliche Live-Kartografie-Validator verlangt für jedes
-kartenhaltige Bild mindestens eine zum Szenario passende, erfolgreiche
-HTTPS-Rasterantwort eines explizit erlaubten Grundkartenanbieters.
+statische Kartenmedien, das 30-MiB-Gesamtbudget und alle lokalen
+Markdown-Referenzen. Das Gesamtbudget umfasst neben den realen Karten auch das
+kanonische Demo-GIF und die gerenderte PDF-Vorschau. Neue Vollbild-Kandidaten
+werden mit 1280×640 erzeugt; Workflows veröffentlichen sie zusammen mit ihrem
+Evidence-Sidecar, Evidence-Gesamtbericht, Live-Kartografie-Bericht und dem
+exakten Buildmanifest ausschließlich als Review-Artefakt. `npm run
+validate:screenshot-evidence` verlangt dabei eine 1:1-Zuordnung und verifiziert
+Bild-SHA-256, Buildmanifest-SHA-256 sowie Build-, Anwendungs- und
+Datenfingerprint erneut vor dem Upload. Der zusätzliche
+Live-Kartografie-Validator verlangt für jedes kartenhaltige Bild mindestens
+eine zum Szenario passende, erfolgreiche HTTPS-Rasterantwort eines explizit
+erlaubten Grundkartenanbieters.
 
 Für neu erzeugte, noch nicht übernommene Bilder rufen die
 Dokumentationsmedien-Workflows `validate:screenshot-evidence`,
