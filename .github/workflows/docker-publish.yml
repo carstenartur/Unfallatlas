@@ -4,11 +4,22 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/docker-publish.yml'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/build-site.js'
+      - 'scripts/validate-doc-media.js'
+      - 'scripts/validate-vendor-provenance.js'
   workflow_dispatch:
 
 jobs:
   main-smoke:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,8 +58,9 @@ jobs:
 
       # GHCR is a public distribution channel, so tags and explicit manual
       # publication retain the complete-provenance gate from issue #406.
-      # Normal main pushes run the non-publishing smoke job above instead of
-      # creating an intentionally red branch status while publication is blocked.
+      # Normal main pushes and relevant pull requests run the non-publishing
+      # smoke job above instead of creating an intentionally red branch status
+      # while publication is blocked.
       - name: Set up Node.js 24
         uses: actions/setup-node@v7
         with:
