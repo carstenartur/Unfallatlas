@@ -150,7 +150,7 @@ jobs:
         run: |
           mkdir -p ../out/qa/location-brief-golden
           set -o pipefail
-          ./mvnw -B -ntp -DskipTests package 2>&1 \
+          mvn -B -ntp -DskipTests package 2>&1 \
             | tee ../out/qa/location-brief-golden/maven-package.log
 
       - name: Run Docker-free golden-case preflight
@@ -340,7 +340,7 @@ jobs:
         run: |
           mkdir -p ../out/qa/analysis-service
           set -o pipefail
-          ./mvnw -B -ntp clean verify 2>&1 \
+          mvn -B -ntp clean verify 2>&1 \
             | tee ../out/qa/analysis-service/maven-verify.log
 
       - name: Upload Maven diagnostics
