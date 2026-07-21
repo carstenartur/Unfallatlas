@@ -42,29 +42,31 @@ describe('video export encoding contract', () => {
     expect(args).not.toContain('-vsync');
   });
 
-  test('balances encoded pixel volume while preserving the narrow owned context stroke', () => {
+  test('preserves the narrow owned context stroke within the measured WebP budget', () => {
     const browserCaptureWidth = 1280;
-    const previousWidth = 864;
-    const previousFps = 1.5;
+    const failedCadence = 1.25;
+    const observedFailedWebpBytes = 20331118;
+    const webpBudgetBytes = 18 * 1024 * 1024;
     const trafficStrokeWidth = 3;
     const projectedStrokeWidth = trafficStrokeWidth * ANIMATED_IMAGE_WIDTH / browserCaptureWidth;
-    const pixelVolumeRatio = Math.pow(ANIMATED_IMAGE_WIDTH / previousWidth, 2)
-      * ANIMATED_IMAGE_FPS / previousFps;
+    const cadenceRatio = ANIMATED_IMAGE_FPS / failedCadence;
+    const projectedWebpBytes = observedFailedWebpBytes * cadenceRatio;
 
-    expect(ANIMATED_IMAGE_FPS).toBe(1.25);
+    expect(ANIMATED_IMAGE_FPS).toBe(1.1);
     expect(ANIMATED_IMAGE_WIDTH).toBe(960);
     expect(projectedStrokeWidth).toBeGreaterThanOrEqual(2.25);
-    expect(pixelVolumeRatio).toBeLessThan(1.04);
+    expect(cadenceRatio).toBeLessThanOrEqual(0.88);
+    expect(projectedWebpBytes).toBeLessThan(webpBudgetBytes * 0.96);
     expect(ANIMATED_IMAGE_FILTER)
-      .toBe(`fps=1.25,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
+      .toBe(`fps=1.1,scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`);
     expect(buildEncodedInspectionArgs('/tmp/output.webp')).toContain('fps=2');
   });
 
   test('uses the full GIF palette without dithering so owned witness colours survive', () => {
     const palette = buildGifPaletteArgs('/tmp/input.webm', '/tmp/palette.png');
     const encoding = buildGifEncodingArgs('/tmp/input.webm', '/tmp/palette.png', '/tmp/output.gif');
-    expect(palette).toContain('fps=1.25,scale=960:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
-    expect(encoding).toContain('fps=1.25,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
+    expect(palette).toContain('fps=1.1,scale=960:-1:flags=lanczos,palettegen=max_colors=256:reserve_transparent=0:stats_mode=full');
+    expect(encoding).toContain('fps=1.1,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=none');
   });
 
   test('reads animated WebP canvas dimensions from the RIFF VP8X chunk', () => {
