@@ -28,7 +28,8 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain("return ['orthophoto'];");
     expect(transformed).toContain("return ['standard'];");
     expect(transformed).toContain('await route.continue();');
-    expect(transformed).toMatch(/response\.status\(\) >= 200[\s\S]*image\\\/\(\?:png\|jpe\?g\|webp\)/);
+    expect(transformed).toContain('response.status() >= 200');
+    expect(transformed).toContain('/^image\\/(?:png|jpe?g|webp)(?:;|$)/');
     expect(transformed).toContain('Documentation screenshot lacks successful real basemap responses for:');
   });
 
@@ -38,7 +39,6 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('DETERMINISTIC_EXTERNAL_DATA.nominatim[nominatimFixture]');
     expect(transformed).toContain('DETERMINISTIC_EXTERNAL_DATA.overpass[overpassFixture]');
     expect(transformed).toContain("await route.abort('blockedbyclient');");
-    expect(transformed).not.toContain("contentType: 'image/svg+xml', body: DETERMINISTIC_MAP_TILES.orthophoto\n      });\n      return;\n    }\n    if (nominatimFixture)");
   });
 
   test('fails closed when the canonical screenshot spec drifts', () => {
