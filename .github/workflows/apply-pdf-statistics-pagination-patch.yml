@@ -26,20 +26,20 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import textwrap
 
           target = Path('js/ua.report_v2.js')
           source = target.read_text(encoding='utf-8')
           section = source.index('// ---- STATISTIK section with real tables')
-          heading = source.index('docDefinition.content.push({ text: "STATISTIK", style: "subheader" });', section)
-          start = source.rfind('\n', 0, heading) + 1
-          end_marker = '// Deviations table — parity with DOCX/HTML:'
-          end_comment = source.index(end_marker, start)
-          end = source.rfind('\n', 0, end_comment) + 1
-          old = source[start:end]
-          if 'Verletzungsschwere im Ausschnitt:' not in old or old.count('makePdfTable(') != 1:
+          section_if = source.index('if (sd && !sectionGuard("STATISTIK")) {', section)
+          start = source.index('\n', section_if) + 1
+          end = source.rfind('\n', 0, source.index('// Deviations table — parity with DOCX/HTML:', start)) + 1
+          current = source[start:end]
+          if 'Verletzungsschwere im Ausschnitt:' not in current or current.count('makePdfTable(') != 1:
               raise SystemExit('statistics block shape changed; refusing broad replacement')
 
-          replacement = '''      // Keep the section heading, its explanatory line and the first table
+          block = textwrap.dedent('''\
+          // Keep the section heading, its explanatory line and the first table
           // together. Otherwise pdfMake can leave “STATISTIK” alone at the
           // bottom of a page while moving the complete severity table to the
           // next page, which is an orphan heading in the final rendered PDF.
@@ -59,13 +59,17 @@ jobs:
             ]
           });
 
-          '''
+          ''')
+          replacement = textwrap.indent(block, '      ')
           target.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
+
+      - name: Verify JavaScript syntax
+        run: node --check js/ua.report_v2.js
 
       - name: Commit focused change
         run: |
           if git diff --quiet -- js/ua.report_v2.js; then
-            echo 'Patch is already present.'
+            echo 'Patch is already normalized.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
