@@ -71,6 +71,10 @@ describe('live documentation screenshot boundary', () => {
 
   test('intercepts HTTP and HTTPS while allowing only the exact first-party origin and HTTPS tile paths', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+    const liveClassifier = transformed.slice(
+      transformed.indexOf('function classifyLiveBasemapUrl(rawUrl) {'),
+      transformed.indexOf('function requiredLiveBasemapKinds(testTitle) {')
+    );
 
     expect(transformed).toContain(
       "const LIVE_APPLICATION_ORIGIN = new URL(process.env.BASE_URL || 'http://localhost:8000').origin;"
@@ -78,11 +82,11 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('await page.route(/^https?:\\/\\//');
     expect(transformed).toContain('const requestUrl = new URL(request.url());');
     expect(transformed).toContain('if (requestUrl.origin === LIVE_APPLICATION_ORIGIN) {');
-    expect(transformed).toContain("if (url.protocol !== 'https:') return null;");
-    expect(transformed).toContain('/^\\/\\d+\\/\\d+\\/\\d+\\.png$/');
-    expect(transformed).toContain('/^\\/light_only_labels\\/\\d+\\/\\d+\\/\\d+(?:@2x)?\\.png$/');
-    expect(transformed).not.toContain("url.pathname.startsWith('/light_only_labels/')");
-    expect(transformed).not.toContain("if (/(^|\\.)tile\\.openstreetmap\\.org$/i.test(url.hostname)) return 'standard';");
+    expect(liveClassifier).toContain("if (url.protocol !== 'https:') return null;");
+    expect(liveClassifier).toContain('/^\\/\\d+\\/\\d+\\/\\d+\\.png$/');
+    expect(liveClassifier).toContain('/^\\/light_only_labels\\/\\d+\\/\\d+\\/\\d+(?:@2x)?\\.png$/');
+    expect(liveClassifier).not.toContain("url.pathname.startsWith('/light_only_labels/')");
+    expect(liveClassifier).not.toContain("if (/(^|\\.)tile\\.openstreetmap\\.org$/i.test(url.hostname)) return 'standard';");
   });
 
   test('emits syntactically valid ESM', () => {
