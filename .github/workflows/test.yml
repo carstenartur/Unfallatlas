@@ -154,7 +154,10 @@ jobs:
             | tee ../out/qa/location-brief-golden/maven-package.log
 
       - name: Run Docker-free golden-case preflight
-        run: npm run qa:location-brief-golden -- --preflight
+        run: |
+          set -o pipefail
+          npm run qa:location-brief-golden 2>&1 \
+            | tee out/qa/location-brief-golden/preflight.log
 
       - name: Run Bonn/Hannover golden-case QA
         run: npm run test:location-brief-golden:tc
