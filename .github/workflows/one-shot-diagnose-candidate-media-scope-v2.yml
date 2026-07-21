@@ -45,7 +45,15 @@ jobs:
               body.append(line[10:])
           if not body:
               raise SystemExit('v2 run block is empty')
-          Path('/tmp/candidate-media-scope-v2.sh').write_text('\n'.join(body) + '\n')
+          runner = '\n'.join(body) + '\n'
+          label = "'candidate output summary'"
+          label_pos = runner.index(label)
+          block_start = runner.rfind('\nreplace_once(', 0, label_pos) + 1
+          block_end = runner.index('\n)\n', label_pos) + 3
+          if block_start <= 0:
+              raise SystemExit('candidate output summary block start not found')
+          runner = runner[:block_start] + runner[block_end:]
+          Path('/tmp/candidate-media-scope-v2.sh').write_text(runner)
           PY
           bash -n /tmp/candidate-media-scope-v2.sh
       - name: Execute and capture v2 run block
