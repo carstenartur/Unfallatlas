@@ -13,6 +13,7 @@ concurrency:
 jobs:
   generate-screenshots:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,8 +37,8 @@ jobs:
           mkdir -p out/qa/screenshot-readiness
           find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
 
-      - name: Generate screenshots
-        run: npx playwright test tests/e2e/screenshots.spec.js --project=chromium
+      - name: Generate screenshots with real cartographic basemaps
+        run: node scripts/run-live-documentation-screenshots.cjs
 
       - name: Validate one-to-one screenshot evidence
         id: validate_evidence
@@ -51,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: ${{ steps.validate_media.outcome == 'success' && steps.validate_evidence.outcome == 'success' }}
         with:
-          name: documentation-screenshots-${{ github.sha }}
+          name: documentation-screenshots-live-map-${{ github.sha }}
           path: |
             docs/screenshots/*.png
             out/qa/screenshot-readiness/*.json
@@ -77,6 +78,9 @@ jobs:
         run: |
           {
             echo "## Dokumentations-Screenshots"
+            echo
+            echo "Die Kandidaten wurden ausschließlich nach erfolgreichen echten OSM/WMS-/Orthofoto-Antworten erzeugt."
+            echo "Abstrakte SVG-Testkacheln sind in diesem Workflow nicht als Grundkarte zulässig."
             echo
             echo "Die validierten Kandidaten wurden als Artifact hochgeladen."
             echo "Sie werden bewusst nicht direkt nach \`main\` geschrieben."
