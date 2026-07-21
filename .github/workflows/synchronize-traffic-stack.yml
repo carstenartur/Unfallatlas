@@ -1,0 +1,83 @@
+name: Synchronize traffic provider stack
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/synchronize-traffic-stack.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout traffic-provider branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/traffic-provider-core
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Merge current main with bounded conflict handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          set +e
+          git merge --no-edit origin/main
+          merge_status=$?
+          set -e
+          if [[ $merge_status -ne 0 ]]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            allowed=(js/ua.source_manifest.js tests/unit/sourceManifest.test.js)
+            for conflict in "${conflicts[@]}"; do
+              permitted=false
+              for expected in "${allowed[@]}"; do
+                [[ "$conflict" == "$expected" ]] && permitted=true
+              done
+              if [[ "$permitted" != true ]]; then
+                echo "Unexpected merge conflict: $conflict" >&2
+                exit 1
+              fi
+              git checkout --theirs -- "$conflict"
+              git add "$conflict"
+            done
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo 'Unresolved conflicts remain.' >&2
+              exit 1
+            fi
+            git commit --no-edit
+          fi
+      - name: Install dependencies
+        run: npm ci
+      - name: Execute deterministic traffic patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk '
+            /^          from pathlib import Path$/ { capture=1 }
+            /^      - name: Format and test$/ { capture=0 }
+            capture { sub(/^          /, ""); print }
+          ' .github/workflows/finalize-traffic-provider-v2.yml > /tmp/traffic-provider-patch.py
+          python /tmp/traffic-provider-patch.py
+      - name: Format and test
+        run: |
+          npx --yes prettier@3.6.2 --write js/ua.traffic_provider.js tests/unit/trafficProvider.test.js
+          node --check js/ua.traffic_provider.js
+          npx jest --runInBand tests/unit/sourceManifest.test.js tests/unit/trafficProvider.test.js
+      - name: Commit and push synchronized stack
+        run: |
+          git add js/ua.traffic_provider.js tests/unit/trafficProvider.test.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: harden traffic evidence time and road matching'
+          fi
+          git push origin HEAD:feat/traffic-provider-core
