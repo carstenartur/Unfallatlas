@@ -1,0 +1,43 @@
+name: One-shot prepare reviewed media evidence boundary
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-reviewed-media-evidence
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    if: github.head_ref == 'automation/rechain-codec-media-stack'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: automation/rechain-codec-media-stack
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Reconstruct and validate reviewed media boundary
+        id: prepare
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/prepare-reviewed-media-evidence-boundary.sh 2>&1 | tee "$RUNNER_TEMP/reviewed-media-evidence.log"
+      - name: Upload reconstruction proof
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reviewed-media-evidence-boundary-log
+          path: ${{ runner.temp }}/reviewed-media-evidence.log
+          if-no-files-found: error
+      - name: Enforce successful validation
+        if: steps.prepare.outcome != 'success'
+        run: exit 1
