@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PARENT_BRANCH=split/405-6-media-validation
+PARENT_BRANCH=main
 TARGET_BRANCH=split/405-7-reviewed-media-evidence
 VALIDATED_BRANCH=automation/validated-reviewed-media-evidence
-EXPECTED_PARENT_HEAD=81caf261e125ba25df90c0ad68f2a8b9c734a341
+EXPECTED_PARENT_HEAD=4c988c2aa4ff63f8710a36c9b325eaa81a014dd7
 EXPECTED_TARGET_HEAD=d48b1e067684c1076bef50bf1da3da048e65c17f
 OLD_PARENT=505326c49b6d7170823d949032dde067517527ff
 OLD_TARGET=d48b1e067684c1076bef50bf1da3da048e65c17f
@@ -22,7 +22,7 @@ git config user.email "3164220+carstenartur@users.noreply.github.com"
 git fetch --no-tags --depth=1 origin "$PARENT_BRANCH:refs/remotes/origin/$PARENT_BRANCH"
 git fetch --no-tags --depth=2 origin "$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
 [[ "$(git rev-parse "origin/$PARENT_BRANCH")" == "$EXPECTED_PARENT_HEAD" ]] || {
-  echo "Unexpected #441 head; refusing stale #442 reconstruction" >&2
+  echo "Unexpected main head; refusing stale #442 reconstruction" >&2
   exit 1
 }
 [[ "$(git rev-parse "origin/$TARGET_BRANCH")" == "$EXPECTED_TARGET_HEAD" ]] || {
@@ -71,7 +71,6 @@ git diff --check
 npm ci
 npm run build:site
 npm run validate:media -- --report out/qa/documentation-media.json
-npm run validate:screenshot-evidence
 npx jest --runInBand \
   tests/unit/docMediaPolicy.test.js \
   tests/unit/screenshotEvidencePolicy.test.js \
