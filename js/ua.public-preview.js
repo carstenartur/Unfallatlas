@@ -100,14 +100,15 @@
   function applyPublicUi(ctx) {
     if (!ctx || !ctx.ui) return;
     ctx.showHeatmap = false;
-    if (typeof UA.setBtnState === 'function') UA.setBtnState(ctx.ui.btnHeat, false);
+    const heatToggle = ctx.ui.btnHeat || document.getElementById('toggleHeat');
+    if (typeof UA.setBtnState === 'function') UA.setBtnState(heatToggle, false);
     if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx);
 
     const explanation =
       'In der öffentlichen Kernvorschau bis zum Abschluss der Vendor-Provenienzprüfung deaktiviert.';
 
-    disableButton(ctx.ui.btnHeat, explanation);
-    hideElement(ctx.ui.btnHeat);
+    disableButton(heatToggle, explanation);
+    hideElement(heatToggle);
     disableButton(ctx.ui.btnDraw, explanation);
     hideElement(ctx.ui.btnDraw);
 
