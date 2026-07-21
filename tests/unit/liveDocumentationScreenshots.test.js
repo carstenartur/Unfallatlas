@@ -36,20 +36,36 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('/^image\\/(?:png|jpe?g|webp)(?:;|$)/');
     expect(transformed).toContain('Documentation screenshot lacks visible successful real basemap tiles for:');
     expect(transformed).toContain("source: 'live'");
-    expect(transformed).toContain('visibleTiles: live.visibleTiles.map');
-    expect(transformed).toContain('successfulResponses: live.successfulResponses.map');
+    expect(transformed).toContain('visibleTiles: live && live.visibleTiles');
+    expect(transformed).toContain('observedTiles: live && live.observedTiles');
+    expect(transformed).toContain('successfulResponses: live && live.successfulResponses');
   });
 
-  test('binds successful responses to currently visible Leaflet tiles', () => {
+  test('binds successful responses to currently visible decoded Leaflet images', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
 
-    expect(transformed).toContain("page.locator('.leaflet-tile-pane img.leaflet-tile-loaded')");
+    expect(transformed).toContain("page.locator('.leaflet-tile-pane img')");
+    expect(transformed).not.toContain("page.locator('.leaflet-tile-pane img.leaflet-tile-loaded')");
+    expect(transformed).toContain('image.complete === true');
+    expect(transformed).toContain('naturalWidth: Number(image.naturalWidth) || 0');
+    expect(transformed).toContain('naturalHeight: Number(image.naturalHeight) || 0');
     expect(transformed).toContain('image.getBoundingClientRect()');
     expect(transformed).toContain('style.visibility');
     expect(transformed).toContain('successfulUrls.has(tile.url)');
-    expect(transformed).toContain('live.visibleTiles = visibleTiles;');
+    expect(transformed).toContain('live.visibleTiles = observed.visibleTiles;');
+    expect(transformed).toContain('live.observedTiles = observed.observedTiles;');
     expect(transformed).toContain('await assertLiveBasemapProvenance(page)');
     expect(transformed).toContain('async function assertNoUnexpectedExternalRequests(page)');
+  });
+
+  test('retains cartography diagnostics before rejecting an invalid candidate', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+
+    expect(transformed).toContain('let assertionError = null;');
+    expect(transformed).toContain('assertionError = error;');
+    expect(transformed).toContain('valid: assertionError == null');
+    expect(transformed).toContain('error: assertionError && assertionError.message || null');
+    expect(transformed).toContain('if (assertionError) throw assertionError;');
   });
 
   test('intercepts HTTP and HTTPS while allowing only the exact first-party origin and HTTPS tile paths', () => {
