@@ -152,7 +152,7 @@ function run() {
     const cli = path.join(path.dirname(packageEntry), 'cli.js');
     const result = spawnSync(
       process.execPath,
-      [cli, 'test', path.relative(ROOT, GENERATED).replace(/\\/g, '/'), '--project=chromium'],
+      [cli, 'test', path.relative(ROOT, GENERATED).replace(/\\/g, '/'), '--project=documentation-live'],
       { cwd: ROOT, stdio: 'inherit', env: process.env }
     );
     if (result.error) throw result.error;
