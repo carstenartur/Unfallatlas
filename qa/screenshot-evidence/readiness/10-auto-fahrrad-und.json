@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "revision": "c51bee7d74c5b0af10e1900c7aa4b8c0c867b560",
+  "screenshot": {
+    "path": "docs/screenshots/10-auto-fahrrad-und.png",
+    "bytes": 400954,
+    "sha256": "193cc30fd9d77094ca02f8d35b3c91957a1a93f6eeafb5748263986923a7e5ac"
+  },
+  "build": {
+    "path": "_site/build-manifest.json",
+    "sha256": "e9dc9f7a5862ef31fc3154f8cb6b7c020e36f1aef435955922104c8d77d71c58",
+    "fingerprint": "6cee4c965d0a8b5627c49e71ad000f6dbc1237d0db97aa01572acc459e67c651",
+    "applicationFingerprint": "db6c4a65d416318613683f89aa5f84ebfa7e47e13ad6bd1f66741608a2cc866c",
+    "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
+  },
+  "criteria": {
+    "city": "Bonn",
+    "layers": [
+      "cluster"
+    ],
+    "requireCompleteCoverage": true
+  },
+  "lifecycle": {
+    "status": "ready",
+    "city": "Bonn",
+    "counts": {
+      "loaded": 7387,
+      "filtered": 1700,
+      "viewport": 1112
+    },
+    "coverage": {
+      "mode": "full-city",
+      "complete": true,
+      "provider": "static",
+      "city": "Bonn",
+      "loadedFeatureCount": 7387
+    },
+    "render": {
+      "revision": 2,
+      "completedRevision": 2,
+      "submitted": true,
+      "layers": {
+        "cluster": {
+          "requested": true,
+          "expected": 1112,
+          "processed": 1112,
+          "visible": 1112,
+          "painted": false,
+          "complete": true
+        },
+        "heatmap": {
+          "requested": false,
+          "expected": 0,
+          "processed": 0,
+          "visible": 0,
+          "painted": false,
+          "complete": true
+        },
+        "poi": {
+          "requested": true,
+          "expected": 488,
+          "processed": 144,
+          "visible": 144,
+          "painted": false,
+          "complete": true
+        },
+        "argumentation": {
+          "requested": true,
+          "expected": 1112,
+          "processed": 0,
+          "visible": 0,
+          "painted": false,
+          "complete": true
+        }
+      }
+    },
+    "error": null
+  }
+}

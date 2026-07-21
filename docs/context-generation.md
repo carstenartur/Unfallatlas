@@ -84,6 +84,14 @@ docker run --rm -p 8000:8000 \
 
 Der Producer-Cache spart insbesondere erneute OSM-Abfragen und SRTM-Downloads. Die ausgelieferten Dateien in `out/` überleben mit dem Volume einen Container-Neustart.
 
+Der Server veröffentlicht aus diesem veränderlichen Overlay ausschließlich die
+deklarierten Unfall-, POI-, Ways-, Enrichment- und Tile-Dateimuster. Versteckte
+Dateien, QA-Berichte, temporäre Dateien, CSV-Archive und Pfadtraversalen werden
+mit 404 abgewiesen. `UNFALLATLAS_DATA_ROOT` darf auf ein eigenes Daten-Volume,
+aber weder auf das Dateisystem- noch auf ein übergeordnetes Repository-Verzeichnis
+zeigen. Anwendung und Build-Snapshot werden weiterhin ausschließlich aus
+`_site/` ausgeliefert.
+
 ### Öffentliche Installationen absichern
 
 Die lokale Generierung ist im Docker-Image standardmäßig aktiviert. Öffentlich erreichbare Installationen sollten sie entweder deaktivieren oder mit einem Token schützen:
