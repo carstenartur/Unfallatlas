@@ -3,9 +3,9 @@
   "evidenceLedger": "qa/screenshot-evidence/provenance.json",
   "defaults": {
     "maxBytes": 1572864,
-    "maxTotalBytes": 25165824,
+    "maxTotalBytes": 31457280,
     "screenshotTarget": { "width": 1280, "height": 640 },
-    "reviewPolicy": "Statische Kartenmedien müssen das Zielmaß und 1,5-MiB-Einzelbudget einhalten; das 24-MiB-Gesamtbudget umfasst reale hochentropische Grundkarten und die explizit budgetierte Animation."
+    "reviewPolicy": "Statische Kartenmedien müssen das Zielmaß und 1,5-MiB-Einzelbudget einhalten; das 30-MiB-Gesamtbudget umfasst reale hochentropische Grundkarten, die gerenderte Dokumentvorschau und die explizit budgetierte Animation."
   },
   "assets": [
     {
