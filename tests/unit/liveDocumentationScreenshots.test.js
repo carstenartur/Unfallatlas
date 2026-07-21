@@ -1,6 +1,8 @@
 'use strict';
 
+const { spawnSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const { buildLiveSpec, replaceOnce } = require('../../scripts/run-live-documentation-screenshots.cjs');
@@ -33,6 +35,21 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('response.status() >= 200');
     expect(transformed).toContain('/^image\\/(?:png|jpe?g|webp)(?:;|$)/');
     expect(transformed).toContain('Documentation screenshot lacks successful real basemap responses for:');
+    expect(transformed).toContain("source: 'live'");
+    expect(transformed).toContain('successfulResponses: live.successfulResponses.map');
+  });
+
+  test('emits syntactically valid ESM', () => {
+    const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'unfallatlas-live-spec-'));
+    const generatedFile = path.join(temporaryRoot, 'screenshots.live.generated.spec.mjs');
+    try {
+      fs.writeFileSync(generatedFile, buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8')));
+      const result = spawnSync(process.execPath, ['--check', generatedFile], { encoding: 'utf8' });
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+    } finally {
+      fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    }
   });
 
   test('keeps deterministic accident-service fixtures while refusing unknown external input', () => {
