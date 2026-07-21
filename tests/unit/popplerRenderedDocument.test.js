@@ -114,19 +114,23 @@ describe('Poppler rendered-document adapter', () => {
 
   test('normalizes Poppler coordinate systems and infers headings/font sizes', () => {
     const bboxPages = parseBboxPages(BBOX_XML);
-    const htmlPages = parsePdfToHtmlPages(HTML_XML.replace(/width="595"/g, 'width="1190"').replace(/height="842"/g, 'height="1684"'));
+    const doubledHtmlXml = HTML_XML.replace(
+      /\b(top|left|width|height)="(\d+(?:\.\d+)?)"/g,
+      (_match, attribute, rawValue) => `${attribute}="${Number(rawValue) * 2}"`
+    );
+    const htmlPages = parsePdfToHtmlPages(doubledHtmlXml);
     const pages = combinePopplerModels(bboxPages, htmlPages);
 
     expect(pages[0].width).toBe(595);
     expect(pages[0].words.find(word => word.text === 'Kurzbewertung').fontSize).toBe(8);
     expect(pages[0].headings).toEqual(expect.arrayContaining([
-      expect.objectContaining({ text: 'Kurzbewertung', level: 2, xMin: 24, yMin: 24 }),
+      expect.objectContaining({ text: 'Kurzbewertung', level: 2, xMin: 48, yMin: 48 }),
     ]));
     expect(pages[1].links[0]).toEqual(expect.objectContaining({
-      xMin: 24,
-      yMin: 44,
-      xMax: 124,
-      yMax: 49.5,
+      xMin: 48,
+      yMin: 88,
+      xMax: 248,
+      yMax: 99,
     }));
   });
 
@@ -188,19 +192,17 @@ describe('Poppler rendered-document adapter', () => {
 
   test('CLI writes the normalized model and audit report', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-poppler-cli-'));
-    const oldPath = process.env.PATH;
     try {
       const pdf = path.join(directory, 'fixture.pdf');
       const output = path.join(directory, 'out');
       fs.writeFileSync(pdf, '%PDF-1.7\nfixture\n');
-      fakeExecutables(directory);
-      process.env.PATH = `${directory}${path.delimiter}${oldPath || ''}`;
+      const executables = fakeExecutables(directory);
       const result = main([
         '--pdf', pdf,
         '--out-dir', output,
         '--document-id', 'cli-fixture',
         '--no-audit',
-      ]);
+      ], executables);
 
       expect(result.model.documentId).toBe('cli-fixture');
       expect(fs.existsSync(path.join(output, 'rendered-document.json'))).toBe(true);
@@ -208,7 +210,6 @@ describe('Poppler rendered-document adapter', () => {
       expect(written.pages).toHaveLength(2);
       expect(result.report.summary.wordCount).toBeGreaterThan(0);
     } finally {
-      process.env.PATH = oldPath;
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });

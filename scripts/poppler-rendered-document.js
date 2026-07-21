@@ -327,8 +327,8 @@ function parseArgs(argv) {
   return options;
 }
 
-function main(argv) {
-  const options = parseArgs(argv);
+function main(argv, runtimeOptions = {}) {
+  const options = { ...parseArgs(argv), ...runtimeOptions };
   const outDir = path.resolve(options.outDir);
   fs.mkdirSync(outDir, { recursive: true });
   const contract = options.contractPath

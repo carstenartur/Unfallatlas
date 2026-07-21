@@ -299,10 +299,12 @@ function auditPageBounds(page, options, issues) {
 
 function auditEmptyPage(page, options, issues) {
   const significantWords = page.words.filter(word => /[\p{L}\p{N}]/u.test(word.text));
-  if (significantWords.length < options.emptyPageMinWords && page.images.length === 0) {
+  const structuralElements = page.images.length + page.links.length +
+    page.headings.length + page.tableRows.length;
+  if (significantWords.length < options.emptyPageMinWords && structuralElements === 0) {
     issues.push(issue(
       'empty_page', 'error', page.number, `pages[${page.number - 1}]`,
-      `page ${page.number} has only ${significantWords.length} significant words and no images`
+      `page ${page.number} has only ${significantWords.length} significant words and no structural content`
     ));
   }
 }
