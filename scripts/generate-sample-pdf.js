@@ -47,13 +47,13 @@ if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
 const mockWindow = {
   UA: {},
   location: {
-    href: 'http://localhost/',
-    pathname: '/werkbank_v2.html',
+    href: 'https://carstenartur.github.io/Unfallatlas/werkbank_v2.html',
+    pathname: '/Unfallatlas/werkbank_v2.html',
     search: '',
     hash: '',
-    origin: 'http://localhost',
-    protocol: 'http:',
-    host: 'localhost',
+    origin: 'https://carstenartur.github.io',
+    protocol: 'https:',
+    host: 'carstenartur.github.io',
   },
   pdfMake: pdfMakeLib,
   docx: require('docx'),
