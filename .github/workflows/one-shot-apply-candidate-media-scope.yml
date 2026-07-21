@@ -24,6 +24,19 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Repair temporary runner escaping
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-candidate-media-scope-fix.sh')
+          source = path.read_text()
+          old = "      status: violations.length ? 'error' : (deferredCandidateAsset ? 'deferred' : (needsException ? 'policy-exception' : 'valid')),\n \""
+          new = "      status: violations.length ? 'error' : (deferredCandidateAsset ? 'deferred' : (needsException ? 'policy-exception' : 'valid')),\\n\""
+          if source.count(old) != 1:
+              raise SystemExit(f'candidate runner escape marker found {source.count(old)} times')
+          path.write_text(source.replace(old, new))
+          PY
       - name: Validate and apply candidate media scope
         id: apply
         continue-on-error: true
