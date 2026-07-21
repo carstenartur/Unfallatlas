@@ -106,9 +106,9 @@ async function setupLiveBasemapTiles(page, options = {}) {
     }
 
     const postData = request.postDataBuffer();
-    const diagnosticBody = postData ? \` body=\${postData.toString('utf8').slice(0, 240)}\` : '';
+    const diagnosticBody = postData ? ' body=' + postData.toString('utf8').slice(0, 240) : '';
     unexpectedExternalRequests.push(
-      \`\${request.method()} \${request.resourceType()} \${request.url()}\${diagnosticBody}\`
+      request.method() + ' ' + request.resourceType() + ' ' + request.url() + diagnosticBody
     );
     await route.abort('blockedbyclient');
   });
