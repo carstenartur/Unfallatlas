@@ -1,0 +1,64 @@
+name: Rendered Document Poppler Audit
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/rendered-document-poppler.yml'
+      - 'scripts/generate-sample-pdf.js'
+      - 'scripts/rendered-document-audit.js'
+      - 'scripts/poppler-rendered-document.js'
+      - 'tests/unit/renderedDocumentAudit.test.js'
+      - 'tests/unit/popplerRenderedDocument.test.js'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rendered-document-poppler-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-pdf-poppler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install Poppler
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Generate native sample PDF
+        run: npm run generate:sample-pdf
+
+      - name: Extract and audit final Poppler pages
+        run: |
+          node scripts/poppler-rendered-document.js \
+            --pdf out/ci-render-gate.pdf \
+            --out-dir out/qa/rendered-document/poppler \
+            --document-id ci-native-sample-pdf \
+            --renderer native-pdf-poppler
+
+      - name: Upload rendered-document evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rendered-document-poppler-evidence
+          path: out/qa/rendered-document/poppler/
+          if-no-files-found: error
+          retention-days: 14
