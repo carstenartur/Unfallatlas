@@ -34,7 +34,12 @@ function decodeXml(value) {
 }
 
 function stripTags(value) {
-  return decodeXml(String(value || '').replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+  const decoded = decodeXml(String(value || ''));
+  return decoded
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function parseAttributes(value) {
@@ -241,7 +246,7 @@ function combinePopplerModels(bboxPages, htmlPages, options = {}) {
       .filter(item => item.text.length <= 180)
       .map(item => ({
         text: item.text,
-        level: item.fontSize >= bodyFont * 1.7 ? 1 : item.fontSize >= bodyFont * 1.4 ? 2 : 3,
+        level: item.fontSize >= bodyFont * 1.7 ? 1 : 2,
         xMin: item.xMin,
         yMin: item.yMin,
         xMax: item.xMax,
