@@ -196,7 +196,22 @@ describe('renderer-neutral final document audit', () => {
   });
 
   test.each([
-    ['word', document => { document.pages[0].words[0].xMin = -2; }],
+  ['heading', page => { page.headings.push(heading('Anhang', 2, 48, 100, 70, 14)); }],
+  ['link annotation', page => { page.links.push(link('https://example.org/source', 'Quelle', 48, 100)); }],
+  ['table row', page => { page.tableRows.push(tableRow('appendix', 'row-1', 100, ['A', 'B'])); }],
+])('does not classify a sparse page with a %s as empty', (_label, addStructure) => {
+  const document = clone(validDocument());
+  const page = {
+    number: 3, width: 595, height: 842,
+    words: [word('3', 290, 810, 8)], images: [], links: [], headings: [], tableRows: [],
+  };
+  addStructure(page);
+  document.pages.push(page);
+  expect(issueCodes(auditRenderedDocument(document))).not.toContain('empty_page');
+});
+
+test.each([
+  ['word', document => { document.pages[0].words[0].xMin = -2; }],
     ['image', document => { document.pages[0].images[0].xMax = 594; }],
     ['link', document => { document.pages[0].links[0].yMax = 840; }],
     ['table row', document => { document.pages[1].tableRows[0].xMax = 590; }],
