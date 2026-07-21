@@ -15,15 +15,14 @@ if (!pathEntries.includes(CODEC_BIN_DIR)) {
   process.env.PATH = [CODEC_BIN_DIR, currentPath].filter(Boolean).join(path.delimiter);
 }
 
-// 1.5 fps keeps the deliberately staged analysis steps readable while reducing
-// lossless animated-image frame count by 25 percent versus the already almost
-// budget-compliant 2 fps run. Encoded semantic inspection remains at 2 fps and
-// may duplicate frames, but it never invents colours or layer combinations.
-const ANIMATED_IMAGE_FPS = 1.5;
-// Context overlays use an 8 px slope casing and a 3 px dashed traffic
-// centreline at the browser's 1280 px capture width. 864 px retains just over
-// two pixels for the narrow owned line (3 * 864 / 1280 = 2.025).
-const ANIMATED_IMAGE_WIDTH = 864;
+// The traffic centreline is only 3 px wide in the 1280 px browser capture.
+// 960 px retains 2.25 px instead of the marginal 2.025 px at 864 px, which can
+// collapse to one unambiguous colour pixel after raster resampling. Reducing the
+// cadence to 1.25 fps keeps the total encoded pixel volume almost unchanged:
+// (960 / 864)^2 * (1.25 / 1.5) ~= 1.03. The staged analysis remains readable,
+// while lossless animated WebP stays within the established size budget.
+const ANIMATED_IMAGE_FPS = 1.25;
+const ANIMATED_IMAGE_WIDTH = 960;
 const ANIMATED_IMAGE_FILTER =
   `fps=${ANIMATED_IMAGE_FPS},scale=${ANIMATED_IMAGE_WIDTH}:-1:flags=lanczos`;
 
