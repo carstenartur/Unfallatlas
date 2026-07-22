@@ -3,6 +3,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import JSZip from 'jszip';
 import { setupCDNRoutes } from './helpers.js';
 
 test.describe('Werkbank V2 - User Workflows', () => {
@@ -376,7 +377,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     // (e.g. ",", ".", space, NBSP, narrow NBSP), so extract the value
     // after each label and strip all non-digit characters.
     const extractCount = (label) => {
-      const match = statText.match(new RegExp(`${label}:\\s*([^|\\n\\r]+)`));
+      const match = statText.match(new RegExp(`${label}:\s*([^|\n\r]+)`));
       const digitsOnly = ((match && match[1]) || '0').replace(/\D/g, '');
       return parseInt(digitsOnly || '0', 10);
     };
@@ -641,12 +642,21 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
 test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
 
-    // Wait for page initialization and data load
+    // Wait for page initialization, data load and the fail-closed provenance
+    // runtime. The application may keep optional background requests active,
+    // so global networkidle is not a valid readiness contract here.
     await page.waitForFunction(() => {
       const select = document.querySelector('#citySel');
       return select && select.querySelectorAll('option').length > 1;
+    });
+    await page.waitForFunction(() => Boolean(window.UA?.exportProvenanceReady));
+    await page.evaluate(async () => {
+      await window.UA.exportProvenanceReady;
+      if (window.UA.exportProvenanceError) throw window.UA.exportProvenanceError;
+      if (window.UA.__liveExportProvenanceInstalled !== true) {
+        throw new Error('Live export provenance was not installed');
+      }
     });
 
     // Open the export modal
@@ -675,7 +685,7 @@ test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () =>
     await expect(page.locator('#btnExportKML')).toHaveAttribute('aria-label', 'Export als KML-Datei');
   });
 
-  test('should download CSV file when clicking CSV button', async ({ page }) => {
+  test('should download a complete CSV provenance package', async ({ page }) => {
     const csvBtn = page.locator('#btnExportCSV');
     await expect(csvBtn).toBeVisible();
 
@@ -686,12 +696,31 @@ test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () =>
 
     expect(download).toBeTruthy();
     const filename = download.suggestedFilename();
-    expect(filename).toMatch(/^Unfallatlas_.*\.csv$/);
+    expect(filename).toMatch(/^Unfallatlas_.*\.zip$/);
 
     const filePath = await download.path();
     expect(filePath).toBeTruthy();
-    const { statSync } = await import('fs');
+    const { statSync, readFileSync } = await import('fs');
     expect(statSync(filePath).size).toBeGreaterThan(0);
+
+    const archive = await JSZip.loadAsync(readFileSync(filePath));
+    const names = Object.keys(archive.files).sort();
+    const csvName = names.find(name => name.endsWith('.csv'));
+    expect(csvName).toBeTruthy();
+    expect(names).toContain('sources.json');
+    expect(names).toContain('README.txt');
+
+    const manifest = JSON.parse(await archive.file('sources.json').async('string'));
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.sources[0].sourceId).toBe('accidents.de.unfallatlas');
+    expect(manifest.sources[0].datasetUrl).toMatch(/^https:\/\//);
+    expect(manifest.sources[0].licenseUrl).toMatch(/^https:\/\//);
+    expect(manifest.buildFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.dataFingerprint).toMatch(/^[a-f0-9]{64}$/);
+
+    const readme = await archive.file('README.txt').async('string');
+    expect(readme).toContain(manifest.sources[0].datasetUrl);
+    expect(readme).toContain(manifest.sources[0].licenseUrl);
   });
 
   test('should download GeoJSON file when clicking GeoJSON button', async ({ page }) => {
@@ -712,11 +741,19 @@ test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () =>
     const { statSync, readFileSync } = await import('fs');
     expect(statSync(filePath).size).toBeGreaterThan(0);
 
-    // Verify it is valid JSON with FeatureCollection structure
+    // Verify valid GeoJSON plus complete linked provenance.
     const content = readFileSync(filePath, 'utf8');
     const parsed = JSON.parse(content);
     expect(parsed.type).toBe('FeatureCollection');
     expect(Array.isArray(parsed.features)).toBe(true);
+    expect(parsed.metadata.sourceManifest.sources[0].sourceId)
+      .toBe('accidents.de.unfallatlas');
+    expect(parsed.metadata['unfallatlas:sourceManifestSha256'])
+      .toMatch(/^[a-f0-9]{64}$/);
+    for (const feature of parsed.features) {
+      expect(feature.properties['unfallatlas:sourceIds'])
+        .toContain('accidents.de.unfallatlas');
+    }
   });
 
   test('should download KML file when clicking KML button', async ({ page }) => {
@@ -737,14 +774,17 @@ test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () =>
     const { statSync, readFileSync } = await import('fs');
     expect(statSync(filePath).size).toBeGreaterThan(0);
 
-    // Verify it is valid KML
+    // Verify valid KML plus the complete manifest binding.
     const content = readFileSync(filePath, 'utf8');
     expect(content).toContain('<?xml');
     expect(content).toContain('<kml');
     expect(content).toContain('<Document>');
+    expect(content).toContain('unfallatlas:sourceManifestSha256');
+    expect(content).toContain('unfallatlas:sourceManifestJson');
+    expect(content).toContain('accidents.de.unfallatlas');
   });
 
-  test('CSV download should contain header row', async ({ page }) => {
+  test('CSV package should contain the original header row', async ({ page }) => {
     const csvBtn = page.locator('#btnExportCSV');
 
     const [download] = await Promise.all([
@@ -754,7 +794,10 @@ test.describe('Werkbank V2 - Data Export Downloads (CSV / GeoJSON / KML)', () =>
 
     const filePath = await download.path();
     const { readFileSync } = await import('fs');
-    const content = readFileSync(filePath, 'utf8');
+    const archive = await JSZip.loadAsync(readFileSync(filePath));
+    const csvName = Object.keys(archive.files).find(name => name.endsWith('.csv'));
+    expect(csvName).toBeTruthy();
+    const content = await archive.file(csvName).async('string');
     const firstLine = content.split('\n')[0];
 
     expect(firstLine).toContain('lat');
