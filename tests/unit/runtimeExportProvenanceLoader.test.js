@@ -6,12 +6,13 @@ const path = require('path');
 const source = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
 
 describe('runtime export provenance bootstrap', () => {
-  test('loads the strict manifest, adapters, ZIP writer and live integration in order', () => {
+  test('loads the strict manifest, adapters, ZIP writer and live integrations in order', () => {
     const modules = [
       'ua.source_manifest.js',
       'ua.artifact_provenance.js',
       'ua.zip.js',
       'ua.export_provenance.js',
+      'ua.kml_export_provenance.js',
     ];
     const offsets = modules.map(moduleName => source.indexOf(moduleName));
     expect(offsets.every(offset => offset >= 0)).toBe(true);
