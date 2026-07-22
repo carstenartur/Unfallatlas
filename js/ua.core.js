@@ -98,19 +98,18 @@
   if (ownScript && ownScript.src) {
     const moduleUrl = (name) => new URL(name, ownScript.src).toString();
     const startExportProvenance = () => {
-      const exportNames = [
-        "exportToCSV",
-        "exportToGeoJSON",
-        "exportToKML",
-        "exportToWord",
-        "exportToPDF",
-      ];
-      const originals = Object.fromEntries(
-        exportNames
+      const dataExportNames = ["exportToCSV", "exportToGeoJSON", "exportToKML"];
+      const documentExportNames = ["exportToWord", "exportToPDF"];
+      const originalsFor = (names) => Object.fromEntries(
+        names
           .filter((name) => typeof UA[name] === "function")
           .map((name) => [name, UA[name]]),
       );
-      UA.__exportProvenanceOriginals = originals;
+      // The data integration consumes and deletes its staging object before the
+      // document integration is loaded. Keep the two ownership boundaries
+      // separate so neither module can accidentally erase the other's originals.
+      UA.__exportProvenanceOriginals = originalsFor(dataExportNames);
+      UA.__documentProvenanceOriginals = originalsFor(documentExportNames);
       const blockedExport = () => {
         const error = UA.exportProvenanceError ||
           new Error("Export ist gesperrt, bis die Quellenprovenienz geladen wurde.");
@@ -119,7 +118,7 @@
         }
         return Promise.reject(error);
       };
-      for (const name of exportNames) UA[name] = blockedExport;
+      for (const name of [...dataExportNames, ...documentExportNames]) UA[name] = blockedExport;
 
       UA.exportProvenanceReady = UA.loadRuntimeScripts([
         moduleUrl("ua.source_manifest.js?v=2026-07-22"),
