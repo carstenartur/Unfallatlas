@@ -31,7 +31,9 @@ describe('runtime export provenance bootstrap', () => {
       '"exportToPDF"',
     ];
     expected.forEach(name => expect(source).toContain(name));
-    expect(source).toContain('UA.__exportProvenanceOriginals = originals');
+    expect(source).toContain('UA.__exportProvenanceOriginals = originalsFor(dataExportNames)');
+    expect(source).toContain('UA.__documentProvenanceOriginals = originalsFor(documentExportNames)');
+    expect(source).toContain('for (const name of [...dataExportNames, ...documentExportNames])');
     expect(source).toContain('Export ist gesperrt, bis die Quellenprovenienz geladen wurde.');
     expect(source).not.toMatch(/catch\(\(error\) =>[\s\S]{0,300}throw error/);
   });
