@@ -6,11 +6,11 @@ on:
       - main
     paths:
       - .github/workflows/generate-and-commit.yml
+      - .maintenance-trigger
 
 permissions:
   contents: write
 
-# This second commit activates the push trigger after its initial registration.
 jobs:
   patch-pr:
     if: ${{ github.actor != 'github-actions[bot]' }}
@@ -97,12 +97,14 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: main
-          fetch-depth: 3
-      - name: Restore original workflow definition
+          fetch-depth: 5
+      - name: Restore original workflow and remove trigger marker
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git show 1caa6f278b87f07ee8feee4f64cf89e1a23a38d6:.github/workflows/generate-and-commit.yml > .github/workflows/generate-and-commit.yml
+          rm -f .maintenance-trigger
           git add .github/workflows/generate-and-commit.yml
+          git add -u .maintenance-trigger || true
           git commit -m 'ci: restore Generate & Commit workflow'
           git push origin HEAD:main
