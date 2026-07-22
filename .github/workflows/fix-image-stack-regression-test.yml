@@ -1,0 +1,74 @@
+name: Fix image-stack regression test scope
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-image-stack-regression-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/traffic-provider-core
+          fetch-depth: 0
+      - name: Scope assertion to image blocks
+        shell: python
+        run: |
+          from pathlib import Path
+
+          target = Path('tests/unit/ua.report_v2.imageAspectRatio.test.js')
+          source = target.read_text(encoding='utf-8')
+          old = '''    const unbreakableStacks = captured.content.filter(
+              n => n && typeof n === 'object' && n.unbreakable === true && Array.isArray(n.stack)
+            );
+            // Mindestens 2 — Übersicht + Detail; Cluster wäre zusätzlich, ist hier leer.
+            expect(unbreakableStacks.length).toBeGreaterThanOrEqual(2);
+            // Jeder Stack enthält Bild UND Caption.
+            for (const s of unbreakableStacks) {
+              const hasImage   = s.stack.some(n => n && typeof n.image === 'string');
+              const hasCaption = s.stack.some(n => n && typeof n.text === 'string' && /Abbildung\\s*\\d+:/.test(n.text));
+              expect(hasImage).toBe(true);
+              expect(hasCaption).toBe(true);
+            }'''
+          new = '''    const unbreakableImageStacks = captured.content.filter(
+              n => n && typeof n === 'object' && n.unbreakable === true && Array.isArray(n.stack) &&
+                n.stack.some(child => child && typeof child.image === 'string')
+            );
+            // Mindestens 2 — Übersicht + Detail; Cluster wäre zusätzlich, ist hier leer.
+            expect(unbreakableImageStacks.length).toBeGreaterThanOrEqual(2);
+            // Jeder untrennbare Bildblock enthält Bild UND Caption. Andere zulässige
+            // unbreakable-Stacks, etwa Überschrift plus erste Tabelle, sind nicht Bildblöcke.
+            for (const s of unbreakableImageStacks) {
+              const hasImage = s.stack.some(n => n && typeof n.image === 'string');
+              const hasCaption = s.stack.some(
+                n => n && typeof n.text === 'string' && /Abbildung\\s*\\d+:/.test(n.text)
+              );
+              expect(hasImage).toBe(true);
+              expect(hasCaption).toBe(true);
+            }'''
+          if source.count(old) != 1:
+              raise SystemExit('image-stack assertion block not found exactly once')
+          target.write_text(source.replace(old, new), encoding='utf-8')
+      - name: Install, format and test affected suites
+        run: |
+          npm ci
+          npx --yes prettier@3.6.2 --write tests/unit/ua.report_v2.imageAspectRatio.test.js
+          npx jest --runInBand \
+            tests/unit/ua.report_v2.imageAspectRatio.test.js \
+            tests/unit/trafficProvider.test.js
+      - name: Commit corrected regression test
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/unit/ua.report_v2.imageAspectRatio.test.js
+          git commit -m 'test: scope unbreakable image assertions to image blocks'
+          git push origin HEAD:feat/traffic-provider-core
