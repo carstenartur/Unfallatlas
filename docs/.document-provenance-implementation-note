@@ -1,0 +1,1 @@
+PDF and DOCX provenance is injected at the final document-library boundary so the legacy report renderer does not maintain a second source model.
