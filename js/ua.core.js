@@ -120,6 +120,7 @@
         moduleUrl("ua.artifact_provenance.js?v=2026-07-22"),
         moduleUrl("ua.zip.js?v=2026-07-22"),
         moduleUrl("ua.export_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.kml_export_provenance.js?v=2026-07-22"),
       ]).catch((error) => {
         UA.exportProvenanceError = error;
         console.error("Export-Provenienz konnte nicht initialisiert werden", error);
