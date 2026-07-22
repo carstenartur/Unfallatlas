@@ -37,6 +37,9 @@ async function waitForWorkbench(page) {
     if (window.UA.__documentExportProvenanceInstalled !== true) {
       throw new Error('Document export provenance was not installed');
     }
+    if (window.UA.__documentExportPrewarmInstalled !== true) {
+      throw new Error('Document export provenance prewarm was not installed');
+    }
   });
 }
 
@@ -79,30 +82,25 @@ test.describe('document provenance with context-filtered state', () => {
     await page.goto(CONTEXT_URL, { waitUntil: 'domcontentloaded' });
     await waitForWorkbench(page);
 
-    const snapshot = await page.evaluate(async () => {
+    const runtime = await page.evaluate(() => {
       const ctx = window.UA.getRuntimeContext();
-      const result = await window.UA.documentExportProvenanceRuntime.createSnapshot(ctx);
       const query = new URL(window.location.href).searchParams;
       return {
-        artifactId: result.manifest.artifactId,
-        hash: result.sourceManifestSha256,
-        filters: result.manifest.scenario.filters,
-        runtime: {
-          showCluster: ctx.showCluster,
-          showHeatmap: ctx.showHeatmap,
-          showOnlyAboveAverage: ctx.showOnlyAboveAverage,
-          maxPoints: Number(query.get('maxPoints')),
-          viewportPaddingPct: Number(query.get('viewportPaddingPct')),
-          heatRadius: Number(query.get('heatRadius')),
-        },
+        contextSlopeClasses: Array.from(ctx.contextFilters?.slopeClasses || []).sort(),
+        contextTrafficClasses: Array.from(ctx.contextFilters?.trafficClasses || []).sort(),
+        onlyMatchedWays: ctx.contextFilters?.onlyMatchedWays === true,
+        showCluster: ctx.showCluster,
+        showHeatmap: ctx.showHeatmap,
+        showOnlyAboveAverage: ctx.showOnlyAboveAverage,
+        maxPoints: Number(query.get('maxPoints')),
+        viewportPaddingPct: Number(query.get('viewportPaddingPct')),
+        heatRadius: Number(query.get('heatRadius')),
       };
     });
-    expect(snapshot.artifactId).toMatch(/^unfallwerkbank-bonn-/);
-    expect(snapshot.hash).toMatch(/^[a-f0-9]{64}$/);
-    expect(snapshot.filters.contextSlopeClasses).toEqual(['steep', 'very_steep']);
-    expect(snapshot.filters.contextTrafficClasses).toEqual(['high', 'very_high']);
-    expect(snapshot.filters.onlyMatchedWays).toBe(true);
-    expect(snapshot.runtime).toEqual({
+    expect(runtime).toEqual({
+      contextSlopeClasses: ['steep', 'very_steep'],
+      contextTrafficClasses: ['high', 'very_high'],
+      onlyMatchedWays: true,
       showCluster: true,
       showHeatmap: false,
       showOnlyAboveAverage: false,
@@ -111,8 +109,26 @@ test.describe('document provenance with context-filtered state', () => {
       heatRadius: 25,
     });
 
+    // The capture-phase listener on this button starts manifest construction in
+    // parallel with the existing report-preview computation.
     await page.locator('#btnOpenExport').click();
     await expect(page.locator('#modalOverlay .modal')).toBeVisible();
+
+    const snapshot = await page.evaluate(async () => {
+      const ctx = window.UA.getRuntimeContext();
+      const result = await window.UA.documentExportPrewarmRuntime.prewarm(ctx);
+      return {
+        artifactId: result.manifest.artifactId,
+        hash: result.sourceManifestSha256,
+        filters: result.manifest.scenario.filters,
+      };
+    });
+    expect(snapshot.artifactId).toMatch(/^unfallwerkbank-bonn-/);
+    expect(snapshot.hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(snapshot.filters.contextSlopeClasses).toEqual(['steep', 'very_steep']);
+    expect(snapshot.filters.contextTrafficClasses).toEqual(['high', 'very_high']);
+    expect(snapshot.filters.onlyMatchedWays).toBe(true);
+
     await page.waitForFunction(() => {
       const text = String(document.querySelector('#exportProgress')?.textContent || '');
       return text === 'Fertig.' || /^Fehler/i.test(text);
