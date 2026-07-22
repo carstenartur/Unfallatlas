@@ -1,6 +1,6 @@
-# Quellenprovenienz der Datenexporte
+# Quellenprovenienz der Exporte
 
-CSV-, GeoJSON- und KML-Downloads verwenden denselben versionierten
+CSV-, GeoJSON-, KML-, PDF- und DOCX-Downloads verwenden denselben versionierten
 `SourceManifest`-Snapshot. Das Manifest wird aus dem tatsächlichen Exportbereich,
 den angewendeten Schwere-, Zeit-, Zustands- und Kontextfiltern sowie den
 exportierten Unfallstellen gebildet. Beteiligungsfilter werden als
@@ -9,7 +9,9 @@ alle Beteiligungskombinationen im übrigen Filterumfang.
 
 Der Export bricht ab, wenn die Quellen- oder Lizenzangaben nicht vollständig
 validiert werden können. In diesem Fall wird auch die vom älteren Exportmodul
-bereits erzeugte Zwischendatei nicht an den Browser weitergegeben.
+bereits erzeugte Zwischendatei nicht an den Browser weitergegeben. Das gilt
+auch für PDF und DOCX: Die Dokument-Renderer werden erst aufgerufen, nachdem
+der Manifest-Snapshot validiert und mit SHA-256 gebunden wurde.
 
 ## CSV
 
@@ -36,6 +38,27 @@ Das `Document` erhält ein `ExtendedData`-Element mit Manifest-Hash, Source-IDs,
 Kurzvermerk, verlinkbaren Quelldetails und dem kanonischen Manifest-JSON. Eine
 zweite oder bereits vorhandene Unfallwerkbank-Provenienz wird nicht
 überschrieben.
+
+## PDF und DOCX
+
+Beide Dokumentformate erhalten einen eigenen Abschnitt
+„Datenquellen, Methodik und Nachvollziehbarkeit“. Er enthält:
+
+- Dokument-ID sowie Manifest-, Build- und Daten-Fingerprint,
+- Stadt, Jahrgänge, räumlichen Ausschnitt und aktive Filter,
+- jede verwendete Quelle mit Source-ID, Herausgeber, Datensatz, Lizenz,
+  Abrufzeitpunkt, Abdeckung und vorgeschriebenem Quellenvermerk,
+- Änderungsvermerke, Qualitätshinweise und dokumentierte Transformationen.
+
+Datensatz-, Distributions- und Lizenzadressen erscheinen nicht als lange rohe
+URLs. DOCX verwendet echte externe OOXML-Hyperlink-Beziehungen; PDF verwendet
+Linkannotationen. Die CI öffnet die erzeugte DOCX-Datei als OOXML-Paket und
+liest die erzeugte PDF-Datei mit pdf.js, um sichtbaren Inhalt, Linkziele und
+Manifest-Hash direkt aus den Binärartefakten zu prüfen.
+
+Gleichzeitige PDF- und DOCX-Exporte werden serialisiert. Dadurch kann der nur
+für die Dauer eines Exports aktive Manifest-Snapshot nicht in ein anderes
+Dokument geraten.
 
 ## Build- und Datenbindung
 
