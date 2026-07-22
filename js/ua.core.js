@@ -98,7 +98,13 @@
   if (ownScript && ownScript.src) {
     const moduleUrl = (name) => new URL(name, ownScript.src).toString();
     const startExportProvenance = () => {
-      const exportNames = ["exportToCSV", "exportToGeoJSON", "exportToKML"];
+      const exportNames = [
+        "exportToCSV",
+        "exportToGeoJSON",
+        "exportToKML",
+        "exportToWord",
+        "exportToPDF",
+      ];
       const originals = Object.fromEntries(
         exportNames
           .filter((name) => typeof UA[name] === "function")
@@ -121,6 +127,7 @@
         moduleUrl("ua.zip.js?v=2026-07-22"),
         moduleUrl("ua.export_provenance.js?v=2026-07-22"),
         moduleUrl("ua.kml_export_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.document_export_provenance.js?v=2026-07-22"),
       ]).catch((error) => {
         UA.exportProvenanceError = error;
         console.error("Export-Provenienz konnte nicht initialisiert werden", error);
