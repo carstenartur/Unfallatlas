@@ -1,11 +1,11 @@
 /**
- * Live PDF/DOCX integration for the shared SourceManifest contract.
+ * Binds the existing PDF and DOCX renderers to the shared SourceManifest.
  *
- * The existing report renderer remains responsible for the document body.
- * This module scopes one validated manifest snapshot around that renderer and
- * decorates the document-library boundary. As a result, PDF and DOCX receive
- * the same source appendix without maintaining a second source model inside
- * the large report renderer.
+ * The legacy report renderer remains responsible for layout and document
+ * construction. This module intercepts the final document-library boundary,
+ * replaces the old generic source sentence and injects source records,
+ * transformations, fingerprints and real external hyperlinks derived from one
+ * normalized manifest snapshot.
  */
 (function initDocumentExportProvenance(root, factory) {
   const api = factory();
@@ -18,90 +18,161 @@
 })(typeof window !== "undefined" ? window : null, function createDocumentExportProvenanceApi() {
   "use strict";
 
-  const HEADING = "DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT";
-  const INSTALL_MARKER = "__documentExportProvenanceInstalled";
-  const PDF_MARKER = "__unfallatlasSourceManifestSha256";
+  const LEGACY_SOURCE_HEADING = "DATENQUELLE";
+  const SOURCE_HEADING = "DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT";
+  const LEGACY_SOURCE_TEXT =
+    "Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).";
+  const SOURCE_INTRO =
+    "Die folgenden Angaben stammen aus dem für diesen Export eingefrorenen Quellenmanifest. Datensatz, Lizenz, Zeitstand und Verarbeitung sind dadurch gemeinsam mit den exportierten Fallzahlen nachvollziehbar.";
+
+  class DocumentExportProvenanceError extends Error {
+    constructor(code, message, details) {
+      super(`${code}: ${message}`);
+      this.name = "DocumentExportProvenanceError";
+      this.code = code;
+      this.details = details || null;
+    }
+  }
+
+  function fail(code, message, details) {
+    throw new DocumentExportProvenanceError(code, message, details);
+  }
 
   function requiredFunction(value, name) {
-    if (typeof value !== "function") {
-      throw new Error(`missing_dependency: ${name} is unavailable`);
-    }
+    if (typeof value !== "function") fail("missing_dependency", `${name} is unavailable`);
     return value;
   }
 
-  function text(value, fallback = "—") {
+  function requireRuntime(UA) {
+    requiredFunction(
+      UA?.exportProvenanceRuntime?.createManifest,
+      "UA.exportProvenanceRuntime.createManifest",
+    );
+    requiredFunction(
+      UA?.artifactProvenance?.normalizeAndHash,
+      "UA.artifactProvenance.normalizeAndHash",
+    );
+  }
+
+  function nonEmpty(value, fallback = "—") {
     const normalized = String(value == null ? "" : value).trim();
     return normalized || fallback;
   }
 
-  function formatScenario(scenario) {
-    const value = scenario || {};
-    const years = Array.isArray(value.years) && value.years.length
-      ? value.years.join(", ")
-      : "nicht angegeben";
-    return Object.freeze({
-      city: text(value.city),
-      years,
-      bounds: value.bounds ? JSON.stringify(value.bounds) : "nicht angegeben",
-      filters: value.filters && Object.keys(value.filters).length
-        ? JSON.stringify(value.filters)
-        : "keine dokumentierten Filter",
-    });
+  function safeLink(value, path) {
+    if (typeof value !== "string" || !value.trim()) {
+      fail("missing_link", `${path} must be a non-empty URL`);
+    }
+    let parsed;
+    try {
+      parsed = new URL(value);
+    } catch (_) {
+      fail("invalid_link", `${path} is not a valid URL`);
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      fail("invalid_link_scheme", `${path} must use http or https`);
+    }
+    return parsed.toString();
   }
 
-  function sourceView(source) {
+  function compactObject(value, emptyLabel) {
+    if (!value || typeof value !== "object" || !Object.keys(value).length) return emptyLabel;
+    return Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => {
+        if (Array.isArray(item)) return `${key}=${item.join(",")}`;
+        if (item && typeof item === "object") return `${key}=${JSON.stringify(item)}`;
+        return `${key}=${String(item)}`;
+      })
+      .join(" · ");
+  }
+
+  function sourceView(source, index) {
     const value = source || {};
     return Object.freeze({
-      sourceId: text(value.sourceId),
-      role: text(value.role),
-      publisher: text(value.publisher),
-      datasetTitle: text(value.datasetTitle),
-      datasetUrl: text(value.datasetUrl),
-      distributionUrl: value.distributionUrl ? text(value.distributionUrl) : null,
-      licenseId: text(value.licenseId),
-      licenseName: text(value.licenseName),
-      licenseUrl: text(value.licenseUrl),
-      requiredAttribution: value.requiredAttribution ? text(value.requiredAttribution) : null,
-      temporalCoverage: value.temporalCoverage ? text(value.temporalCoverage) : null,
-      spatialCoverage: value.spatialCoverage ? text(value.spatialCoverage) : null,
-      versionOrPublicationDate: value.versionOrPublicationDate
-        ? text(value.versionOrPublicationDate)
+      sourceId: nonEmpty(value.sourceId),
+      role: nonEmpty(value.role),
+      publisher: nonEmpty(value.publisher),
+      datasetTitle: nonEmpty(value.datasetTitle),
+      datasetUrl: safeLink(value.datasetUrl, `sources[${index}].datasetUrl`),
+      distributionUrl: value.distributionUrl
+        ? safeLink(value.distributionUrl, `sources[${index}].distributionUrl`)
         : null,
-      retrievedAt: text(value.retrievedAt),
-      contentHash: value.contentHash ? text(value.contentHash) : null,
+      licenseId: nonEmpty(value.licenseId),
+      licenseName: nonEmpty(value.licenseName),
+      licenseUrl: safeLink(value.licenseUrl, `sources[${index}].licenseUrl`),
+      requiredAttribution: value.requiredAttribution ? nonEmpty(value.requiredAttribution) : null,
+      temporalCoverage: value.temporalCoverage ? nonEmpty(value.temporalCoverage) : null,
+      spatialCoverage: value.spatialCoverage ? nonEmpty(value.spatialCoverage) : null,
+      versionOrPublicationDate: value.versionOrPublicationDate
+        ? nonEmpty(value.versionOrPublicationDate)
+        : null,
+      retrievedAt: nonEmpty(value.retrievedAt),
+      contentHash: value.contentHash ? nonEmpty(value.contentHash) : null,
       changedOrDerived: value.changedOrDerived === true,
-      changeNotice: value.changeNotice ? text(value.changeNotice) : null,
-      qualityNotes: Array.isArray(value.qualityNotes)
-        ? Object.freeze(value.qualityNotes.map(note => text(note)).filter(Boolean))
-        : Object.freeze([]),
+      changeNotice: value.changeNotice ? nonEmpty(value.changeNotice) : null,
+      qualityNotes: Object.freeze(
+        Array.isArray(value.qualityNotes)
+          ? value.qualityNotes.map((note) => nonEmpty(note)).filter((note) => note !== "—")
+          : [],
+      ),
     });
   }
 
   function transformationView(transformation) {
     const value = transformation || {};
-    const entries = Object.entries(value)
-      .filter(([, item]) => item != null && item !== "")
-      .map(([key, item]) => `${key}: ${typeof item === "object" ? JSON.stringify(item) : String(item)}`);
-    return text(entries.join("; "));
+    const sourceIds = Array.isArray(value.sourceIds) ? value.sourceIds.join(", ") : "keine";
+    const outputFields = Array.isArray(value.outputFields) && value.outputFields.length
+      ? value.outputFields.join(", ")
+      : "nicht angegeben";
+    const parameters = compactObject(value.parameters, "keine dokumentierten Parameter");
+    return Object.freeze({
+      transformationId: nonEmpty(value.transformationId),
+      label: nonEmpty(value.label),
+      description: nonEmpty(value.description),
+      sourceIds,
+      outputFields,
+      softwareVersion: value.softwareVersion ? nonEmpty(value.softwareVersion) : null,
+      parameters,
+    });
   }
 
   function buildSourceView(normalized) {
-    const manifest = normalized && normalized.manifest;
+    const manifest = normalized?.manifest;
     if (!manifest || !Array.isArray(manifest.sources) || !manifest.sources.length) {
-      throw new Error("missing_sources: document provenance requires at least one source");
+      fail("missing_sources", "document provenance requires at least one source");
     }
     return Object.freeze({
-      heading: HEADING,
-      artifactId: text(manifest.artifactId),
-      generatedAt: text(manifest.generatedAt),
-      applicationVersion: text(manifest.applicationVersion),
-      buildFingerprint: text(manifest.buildFingerprint),
-      dataFingerprint: text(manifest.dataFingerprint),
-      sourceManifestSha256: text(normalized.sha256),
-      canonicalJson: text(normalized.canonicalJson),
-      scenario: formatScenario(manifest.scenario),
+      heading: SOURCE_HEADING,
+      artifactId: nonEmpty(manifest.artifactId),
+      generatedAt: nonEmpty(manifest.generatedAt),
+      applicationVersion: nonEmpty(manifest.applicationVersion),
+      buildFingerprint: nonEmpty(manifest.buildFingerprint),
+      dataFingerprint: nonEmpty(manifest.dataFingerprint),
+      sourceManifestSha256: nonEmpty(normalized.sha256),
+      scenario: Object.freeze({
+        city: nonEmpty(manifest.scenario?.city),
+        years: Array.isArray(manifest.scenario?.years) && manifest.scenario.years.length
+          ? manifest.scenario.years.join(", ")
+          : "nicht angegeben",
+        bounds: compactObject(manifest.scenario?.bounds, "nicht angegeben"),
+        filters: compactObject(manifest.scenario?.filters, "keine dokumentierten Filter"),
+      }),
       sources: Object.freeze(manifest.sources.map(sourceView)),
-      transformations: Object.freeze((manifest.transformations || []).map(transformationView)),
+      transformations: Object.freeze(
+        (manifest.transformations || []).map(transformationView),
+      ),
+    });
+  }
+
+  async function createSnapshot(ctx, UA, root) {
+    requireRuntime(UA);
+    const manifest = await UA.exportProvenanceRuntime.createManifest(ctx, { UA, root });
+    const normalized = await UA.artifactProvenance.normalizeAndHash(manifest);
+    return Object.freeze({
+      manifest: normalized.manifest,
+      sourceManifestSha256: normalized.sha256,
+      view: buildSourceView(normalized),
     });
   }
 
@@ -110,41 +181,31 @@
   }
 
   function docxLink(docx, label, url) {
-    requiredFunction(docx.ExternalHyperlink, "docx.ExternalHyperlink");
     return new docx.ExternalHyperlink({
       link: url,
       children: [docxTextRun(docx, label, { style: "Hyperlink" })],
     });
   }
 
-  function buildDocxNodes(docx, view) {
+  function buildDocxBodyNodes(docx, view) {
     requiredFunction(docx.Paragraph, "docx.Paragraph");
     requiredFunction(docx.TextRun, "docx.TextRun");
-    const headingLevel = docx.HeadingLevel && docx.HeadingLevel.HEADING_2;
+    requiredFunction(docx.ExternalHyperlink, "docx.ExternalHyperlink");
+
     const nodes = [
-      new docx.Paragraph({
-        text: view.heading,
-        ...(headingLevel ? { heading: headingLevel } : {}),
-        pageBreakBefore: true,
-        spacing: { before: 400, after: 200 },
-      }),
+      new docx.Paragraph({ text: SOURCE_INTRO, spacing: { after: 120 } }),
       new docx.Paragraph({
         children: [
           docxTextRun(docx, "Dokument-ID: ", { bold: true }),
           docxTextRun(docx, view.artifactId),
-        ],
-        spacing: { after: 60 },
-      }),
-      new docx.Paragraph({
-        children: [
-          docxTextRun(docx, "SourceManifest SHA-256: ", { bold: true }),
+          docxTextRun(docx, " · SourceManifest SHA-256: ", { bold: true }),
           docxTextRun(docx, view.sourceManifestSha256),
         ],
-        spacing: { after: 60 },
+        spacing: { after: 80 },
       }),
       new docx.Paragraph({
         text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`,
-        spacing: { after: 60 },
+        spacing: { after: 40 },
       }),
       new docx.Paragraph({
         text: `Build-Fingerprint: ${view.buildFingerprint}`,
@@ -156,7 +217,7 @@
       }),
       new docx.Paragraph({
         children: [docxTextRun(docx, "Auswertungsszenario", { bold: true })],
-        spacing: { before: 100, after: 40 },
+        spacing: { before: 80, after: 40 },
       }),
       new docx.Paragraph({
         text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`,
@@ -168,38 +229,40 @@
       }),
       new docx.Paragraph({
         text: `Aktive Filter: ${view.scenario.filters}`,
-        spacing: { after: 140 },
+        spacing: { after: 120 },
       }),
     ];
 
     view.sources.forEach((source, index) => {
       nodes.push(new docx.Paragraph({
-        children: [docxTextRun(docx, `${index + 1}. ${source.datasetTitle}`, { bold: true })],
-        spacing: { before: index ? 120 : 40, after: 40 },
-      }));
-      nodes.push(new docx.Paragraph({
-        text: `Herausgeber: ${source.publisher} · Source-ID: ${source.sourceId} · Rolle: ${source.role}`,
-        spacing: { after: 40 },
-      }));
-      nodes.push(new docx.Paragraph({
         children: [
-          docxLink(docx, "Datensatzseite öffnen", source.datasetUrl),
-          docxTextRun(docx, " · "),
-          docxLink(docx, `Lizenztext öffnen (${source.licenseId})`, source.licenseUrl),
-          ...(source.distributionUrl
-            ? [docxTextRun(docx, " · "), docxLink(docx, "Verwendete Distribution öffnen", source.distributionUrl)]
-            : []),
+          docxTextRun(docx, `${index + 1}. ${source.datasetTitle}`, { bold: true }),
+          docxTextRun(docx, ` — ${source.publisher} [${source.sourceId}]`),
         ],
-        spacing: { after: 40 },
+        spacing: { before: index ? 100 : 40, after: 40 },
       }));
+      const links = [docxLink(docx, "Datensatzseite öffnen", source.datasetUrl)];
+      if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {
+        links.push(docxTextRun(docx, " · "));
+        links.push(docxLink(docx, "Datenzugang öffnen", source.distributionUrl));
+      }
+      links.push(docxTextRun(docx, " · "));
+      links.push(docxLink(
+        docx,
+        `Lizenz: ${source.licenseName} (${source.licenseId})`,
+        source.licenseUrl,
+      ));
+      nodes.push(new docx.Paragraph({ children: links, spacing: { after: 40 } }));
       nodes.push(new docx.Paragraph({
-        text: `Lizenz: ${source.licenseName} · Abruf: ${source.retrievedAt}`,
+        text: `Rolle: ${source.role} · Abruf/Erzeugung: ${source.retrievedAt}`,
         spacing: { after: 40 },
       }));
       const coverage = [
         source.temporalCoverage ? `zeitlich ${source.temporalCoverage}` : null,
         source.spatialCoverage ? `räumlich ${source.spatialCoverage}` : null,
-        source.versionOrPublicationDate ? `Version/Veröffentlichung ${source.versionOrPublicationDate}` : null,
+        source.versionOrPublicationDate
+          ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
+          : null,
       ].filter(Boolean);
       if (coverage.length) {
         nodes.push(new docx.Paragraph({
@@ -225,19 +288,23 @@
           : "Gefiltert/transformiert: nein",
         spacing: { after: source.qualityNotes.length ? 40 : 100 },
       }));
-      source.qualityNotes.forEach(note => nodes.push(new docx.Paragraph({
-        text: `Qualitätshinweis: ${note}`,
+      source.qualityNotes.forEach((note) => nodes.push(new docx.Paragraph({
+        text: `Qualität/Grenzen: ${note}`,
         spacing: { after: 40 },
       })));
     });
 
     nodes.push(new docx.Paragraph({
       children: [docxTextRun(docx, "Transformationen", { bold: true })],
-      spacing: { before: 120, after: 40 },
+      spacing: { before: 100, after: 40 },
     }));
     if (view.transformations.length) {
-      view.transformations.forEach(item => nodes.push(new docx.Paragraph({
-        text: `– ${item}`,
+      view.transformations.forEach((item) => nodes.push(new docx.Paragraph({
+        text:
+          `• ${item.label} [${item.transformationId}]: ${item.description} ` +
+          `Quellen: ${item.sourceIds}. Ausgabefelder: ${item.outputFields}. ` +
+          `${item.softwareVersion ? `Software: ${item.softwareVersion}. ` : ""}` +
+          `Parameter: ${item.parameters}.`,
         spacing: { after: 40 },
       })));
     } else {
@@ -246,245 +313,294 @@
         spacing: { after: 80 },
       }));
     }
-    nodes.push(new docx.Paragraph({
-      text: "Der oben angegebene SHA-256-Wert bindet diese Darstellung an das kanonische SourceManifest des Exports.",
-      spacing: { before: 80, after: 160 },
-    }));
     return nodes;
-  }
-
-  function appendDocxProvenance(options, docx, view) {
-    const source = options || {};
-    const sections = Array.isArray(source.sections) ? source.sections.slice() : [];
-    if (!sections.length) {
-      throw new Error("invalid_docx_definition: Document requires at least one section");
-    }
-    const lastIndex = sections.length - 1;
-    const last = sections[lastIndex] || {};
-    sections[lastIndex] = {
-      ...last,
-      children: [...(Array.isArray(last.children) ? last.children : []), ...buildDocxNodes(docx, view)],
-    };
-    return { ...source, sections };
   }
 
   function pdfLink(label, url) {
     return { text: label, link: url, color: "blue", decoration: "underline" };
   }
 
-  function buildPdfNodes(view) {
+  function buildPdfBodyNodes(view) {
     const nodes = [
+      { text: SOURCE_INTRO, margin: [0, 0, 0, 6] },
       {
-        text: view.heading,
-        fontSize: 16,
-        bold: true,
-        pageBreak: "before",
-        margin: [0, 0, 0, 12],
+        text: [
+          { text: "Dokument-ID: ", bold: true },
+          view.artifactId,
+          { text: " · SourceManifest SHA-256: ", bold: true },
+          view.sourceManifestSha256,
+        ],
+        margin: [0, 0, 0, 6],
       },
-      { text: [{ text: "Dokument-ID: ", bold: true }, view.artifactId], margin: [0, 0, 0, 4] },
-      { text: [{ text: "SourceManifest SHA-256: ", bold: true }, view.sourceManifestSha256], margin: [0, 0, 0, 4] },
-      { text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`, margin: [0, 0, 0, 4] },
+      {
+        text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`,
+        margin: [0, 0, 0, 3],
+      },
       { text: `Build-Fingerprint: ${view.buildFingerprint}`, margin: [0, 0, 0, 2] },
       { text: `Daten-Fingerprint: ${view.dataFingerprint}`, margin: [0, 0, 0, 8] },
-      { text: "Auswertungsszenario", bold: true, margin: [0, 4, 0, 4] },
-      { text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`, margin: [0, 0, 0, 2] },
+      { text: "Auswertungsszenario", bold: true, margin: [0, 4, 0, 3] },
+      {
+        text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`,
+        margin: [0, 0, 0, 2],
+      },
       { text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`, margin: [0, 0, 0, 2] },
-      { text: `Aktive Filter: ${view.scenario.filters}`, margin: [0, 0, 0, 10] },
+      { text: `Aktive Filter: ${view.scenario.filters}`, margin: [0, 0, 0, 8] },
     ];
 
     view.sources.forEach((source, index) => {
       nodes.push({
-        text: `${index + 1}. ${source.datasetTitle}`,
-        bold: true,
-        margin: [0, index ? 8 : 2, 0, 3],
+        text: [
+          { text: `${index + 1}. ${source.datasetTitle}`, bold: true },
+          ` — ${source.publisher} [${source.sourceId}]`,
+        ],
+        margin: [0, index ? 6 : 2, 0, 2],
       });
-      nodes.push({
-        text: `Herausgeber: ${source.publisher} · Source-ID: ${source.sourceId} · Rolle: ${source.role}`,
-        margin: [0, 0, 0, 3],
-      });
-      const links = [
-        pdfLink("Datensatzseite öffnen", source.datasetUrl),
-        { text: " · " },
-        pdfLink(`Lizenztext öffnen (${source.licenseId})`, source.licenseUrl),
-      ];
-      if (source.distributionUrl) {
-        links.push({ text: " · " }, pdfLink("Verwendete Distribution öffnen", source.distributionUrl));
+      const links = [pdfLink("Datensatzseite öffnen", source.datasetUrl)];
+      if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {
+        links.push(" · ", pdfLink("Datenzugang öffnen", source.distributionUrl));
       }
-      nodes.push({ text: links, margin: [0, 0, 0, 3] });
+      links.push(
+        " · ",
+        pdfLink(`Lizenz: ${source.licenseName} (${source.licenseId})`, source.licenseUrl),
+      );
+      nodes.push({ text: links, margin: [0, 0, 0, 2] });
       nodes.push({
-        text: `Lizenz: ${source.licenseName} · Abruf: ${source.retrievedAt}`,
-        margin: [0, 0, 0, 3],
+        text: `Rolle: ${source.role} · Abruf/Erzeugung: ${source.retrievedAt}`,
+        margin: [0, 0, 0, 2],
       });
       const coverage = [
         source.temporalCoverage ? `zeitlich ${source.temporalCoverage}` : null,
         source.spatialCoverage ? `räumlich ${source.spatialCoverage}` : null,
-        source.versionOrPublicationDate ? `Version/Veröffentlichung ${source.versionOrPublicationDate}` : null,
+        source.versionOrPublicationDate
+          ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
+          : null,
       ].filter(Boolean);
-      if (coverage.length) nodes.push({ text: `Abdeckung: ${coverage.join(" · ")}`, margin: [0, 0, 0, 3] });
+      if (coverage.length) nodes.push({
+        text: `Abdeckung: ${coverage.join(" · ")}`,
+        margin: [0, 0, 0, 2],
+      });
       if (source.requiredAttribution) nodes.push({
         text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
-        margin: [0, 0, 0, 3],
+        margin: [0, 0, 0, 2],
       });
-      if (source.contentHash) nodes.push({ text: `Quellbestand-Hash: ${source.contentHash}`, margin: [0, 0, 0, 3] });
+      if (source.contentHash) nodes.push({
+        text: `Quellbestand-Hash: ${source.contentHash}`,
+        margin: [0, 0, 0, 2],
+      });
       nodes.push({
         text: source.changedOrDerived
           ? `Gefiltert/transformiert: ja${source.changeNotice ? ` · ${source.changeNotice}` : ""}`
           : "Gefiltert/transformiert: nein",
-        margin: [0, 0, 0, source.qualityNotes.length ? 3 : 6],
+        margin: [0, 0, 0, source.qualityNotes.length ? 2 : 5],
       });
-      source.qualityNotes.forEach(note => nodes.push({ text: `Qualitätshinweis: ${note}`, margin: [0, 0, 0, 3] }));
+      source.qualityNotes.forEach((note) => nodes.push({
+        text: `Qualität/Grenzen: ${note}`,
+        margin: [0, 0, 0, 2],
+      }));
     });
 
-    nodes.push({ text: "Transformationen", bold: true, margin: [0, 8, 0, 3] });
+    nodes.push({ text: "Transformationen", bold: true, margin: [0, 6, 0, 3] });
     if (view.transformations.length) {
-      view.transformations.forEach(item => nodes.push({ text: `– ${item}`, margin: [0, 0, 0, 3] }));
+      view.transformations.forEach((item) => nodes.push({
+        text:
+          `• ${item.label} [${item.transformationId}]: ${item.description} ` +
+          `Quellen: ${item.sourceIds}. Ausgabefelder: ${item.outputFields}. ` +
+          `${item.softwareVersion ? `Software: ${item.softwareVersion}. ` : ""}` +
+          `Parameter: ${item.parameters}.`,
+        margin: [0, 0, 0, 2],
+      }));
     } else {
-      nodes.push({ text: "Keine zusätzlichen Transformationen dokumentiert.", margin: [0, 0, 0, 6] });
+      nodes.push({
+        text: "Keine zusätzlichen Transformationen dokumentiert.",
+        margin: [0, 0, 0, 4],
+      });
     }
-    nodes.push({
-      text: "Der oben angegebene SHA-256-Wert bindet diese Darstellung an das kanonische SourceManifest des Exports.",
-      italics: true,
-      margin: [0, 6, 0, 0],
-    });
     return nodes;
   }
 
-  function appendPdfProvenance(definition, view) {
-    const source = definition || {};
-    if (source[PDF_MARKER] === view.sourceManifestSha256) return source;
-    const originalContent = Array.isArray(source.content)
-      ? source.content.slice()
-      : source.content == null
-        ? []
-        : [source.content];
-    const result = { ...source, content: [...originalContent, ...buildPdfNodes(view)] };
-    Object.defineProperty(result, PDF_MARKER, {
-      configurable: false,
-      enumerable: false,
-      writable: false,
-      value: view.sourceManifestSha256,
-    });
-    return result;
+  function textOfPdfNode(node) {
+    if (typeof node === "string") return node;
+    if (!node || typeof node !== "object") return "";
+    if (typeof node.text === "string") return node.text;
+    if (Array.isArray(node.text)) {
+      return node.text
+        .map((part) => typeof part === "string" ? part : String(part?.text || ""))
+        .join("");
+    }
+    return "";
+  }
+
+  function injectPdfDefinition(definition, view) {
+    if (!definition || !Array.isArray(definition.content)) {
+      fail("invalid_pdf_definition", "pdfMake document definition requires a content array");
+    }
+    const content = [...definition.content];
+    const headingIndex = content.findIndex(
+      (node) => textOfPdfNode(node).trim() === LEGACY_SOURCE_HEADING,
+    );
+    const legacyIndex = content.findIndex(
+      (node) => textOfPdfNode(node).trim() === LEGACY_SOURCE_TEXT,
+    );
+    const body = buildPdfBodyNodes(view);
+    if (headingIndex >= 0) {
+      content[headingIndex] = { ...content[headingIndex], text: SOURCE_HEADING };
+    }
+    if (legacyIndex >= 0) {
+      content.splice(legacyIndex, 1, ...body);
+    } else if (headingIndex >= 0) {
+      content.splice(headingIndex + 1, 0, ...body);
+    } else {
+      content.push(
+        { text: SOURCE_HEADING, style: "subheader", pageBreak: "before" },
+        ...body,
+      );
+    }
+    return { ...definition, content };
+  }
+
+  function withDocxBoundary(root, view, task) {
+    const docx = root?.docx;
+    if (!docx) fail("missing_docx_api", "DOCX renderer is unavailable");
+    const OriginalDocument = requiredFunction(docx.Document, "docx.Document");
+    const OriginalParagraph = requiredFunction(docx.Paragraph, "docx.Paragraph");
+    requiredFunction(docx.TextRun, "docx.TextRun");
+    requiredFunction(docx.ExternalHyperlink, "docx.ExternalHyperlink");
+    const markers = new WeakMap();
+
+    function WrappedParagraph(options) {
+      let next = options;
+      let marker = null;
+      if (options?.text === LEGACY_SOURCE_HEADING) {
+        next = { ...options, text: SOURCE_HEADING };
+        marker = "heading";
+      } else if (options?.text === LEGACY_SOURCE_TEXT) {
+        next = { ...options, text: SOURCE_INTRO };
+        marker = "intro";
+      }
+      const paragraph = new OriginalParagraph(next);
+      if (marker) markers.set(paragraph, marker);
+      return paragraph;
+    }
+    WrappedParagraph.prototype = OriginalParagraph.prototype;
+
+    function WrappedDocument(options) {
+      const sections = (options?.sections || []).map((section) => {
+        const children = [...(section.children || [])];
+        const headingIndex = children.findIndex((item) => markers.get(item) === "heading");
+        const introIndex = children.findIndex((item) => markers.get(item) === "intro");
+        const body = buildDocxBodyNodes({
+          Paragraph: OriginalParagraph,
+          TextRun: docx.TextRun,
+          ExternalHyperlink: docx.ExternalHyperlink,
+        }, view);
+        if (introIndex >= 0) {
+          children.splice(introIndex, 1, ...body);
+        } else if (headingIndex >= 0) {
+          children.splice(headingIndex + 1, 0, ...body);
+        } else {
+          children.push(
+            new OriginalParagraph({
+              text: SOURCE_HEADING,
+              heading: docx.HeadingLevel?.HEADING_2,
+              pageBreakBefore: true,
+              spacing: { before: 400, after: 200 },
+            }),
+            ...body,
+          );
+        }
+        return { ...section, children };
+      });
+      return new OriginalDocument({ ...options, sections });
+    }
+    WrappedDocument.prototype = OriginalDocument.prototype;
+
+    docx.Paragraph = WrappedParagraph;
+    docx.Document = WrappedDocument;
+    return Promise.resolve()
+      .then(task)
+      .finally(() => {
+        docx.Paragraph = OriginalParagraph;
+        docx.Document = OriginalDocument;
+      });
+  }
+
+  function withPdfBoundary(root, view, task) {
+    const pdfMake = root?.pdfMake;
+    if (!pdfMake) fail("missing_pdf_api", "pdfMake renderer is unavailable");
+    const originalCreatePdf = requiredFunction(pdfMake.createPdf, "pdfMake.createPdf");
+    pdfMake.createPdf = function createPdfWithSourceManifest(definition, ...args) {
+      return originalCreatePdf.call(this, injectPdfDefinition(definition, view), ...args);
+    };
+    return Promise.resolve()
+      .then(task)
+      .finally(() => {
+        pdfMake.createPdf = originalCreatePdf;
+      });
   }
 
   function install(UA, root) {
-    if (!UA || !root) throw new Error("missing_dependency: UA runtime is unavailable");
-    if (UA[INSTALL_MARKER]) return UA.documentExportProvenanceRuntime;
-
-    const createManifest = requiredFunction(
-      UA.exportProvenanceRuntime && UA.exportProvenanceRuntime.createManifest,
-      "UA.exportProvenanceRuntime.createManifest",
-    );
-    const normalizeAndHash = requiredFunction(
-      UA.artifactProvenance && UA.artifactProvenance.normalizeAndHash,
-      "UA.artifactProvenance.normalizeAndHash",
-    );
-    const originals = UA.__exportProvenanceOriginals || {};
-    const originalWord = requiredFunction(originals.exportToWord, "original exportToWord");
-    const originalPdf = requiredFunction(originals.exportToPDF, "original exportToPDF");
+    if (!UA || !root) fail("invalid_environment", "Browser UA and window are required");
+    if (UA.__documentExportProvenanceInstalled) return UA.documentExportProvenanceRuntime;
+    requireRuntime(UA);
     const ensureLibraries = requiredFunction(UA.ensureExportLibraries, "UA.ensureExportLibraries");
-
-    const state = {
-      active: null,
-      queue: Promise.resolve(),
-      docxOriginalDocument: null,
-      pdfOriginalCreatePdf: null,
-      docxLibrary: null,
-      pdfLibrary: null,
+    const staged = UA.__documentProvenanceOriginals || {};
+    const originals = {
+      word: requiredFunction(staged.exportToWord, "original exportToWord"),
+      pdf: requiredFunction(staged.exportToPDF, "original exportToPDF"),
     };
 
-    function patchDocumentLibraries() {
-      const docx = root.docx;
-      const pdfMake = root.pdfMake;
-      if (!docx || !pdfMake) {
-        throw new Error("missing_dependency: PDF/DOCX libraries are unavailable after loading");
-      }
-
-      if (state.docxLibrary !== docx) {
-        const OriginalDocument = requiredFunction(docx.Document, "docx.Document");
-        class ProvenancedDocument extends OriginalDocument {
-          constructor(options) {
-            const active = state.active;
-            super(active && active.format === "docx"
-              ? appendDocxProvenance(options, docx, active.view)
-              : options);
-          }
-        }
-        Object.setPrototypeOf(ProvenancedDocument, OriginalDocument);
-        state.docxOriginalDocument = OriginalDocument;
-        state.docxLibrary = docx;
-        docx.Document = ProvenancedDocument;
-        if (docx.Document !== ProvenancedDocument) {
-          throw new Error("patch_failed: docx.Document is not replaceable");
-        }
-      }
-
-      if (state.pdfLibrary !== pdfMake) {
-        const originalCreatePdf = requiredFunction(pdfMake.createPdf, "pdfMake.createPdf").bind(pdfMake);
-        state.pdfOriginalCreatePdf = originalCreatePdf;
-        state.pdfLibrary = pdfMake;
-        pdfMake.createPdf = function createProvenancedPdf(definition, ...rest) {
-          const active = state.active;
-          return originalCreatePdf(
-            active && active.format === "pdf"
-              ? appendPdfProvenance(definition, active.view)
-              : definition,
-            ...rest,
-          );
-        };
-      }
-    }
-
-    function serialize(operation) {
-      const run = state.queue.then(operation, operation);
-      state.queue = run.catch(() => undefined);
+    let queue = Promise.resolve();
+    const serialize = (task) => {
+      const run = queue.then(task, task);
+      queue = run.catch(() => undefined);
       return run;
-    }
+    };
 
-    async function runWithManifest(format, original, ctx, args) {
-      return serialize(async () => {
-        const manifest = await createManifest(ctx, { UA, root });
-        const normalized = await normalizeAndHash(manifest);
-        const view = buildSourceView(normalized);
-        await ensureLibraries();
-        patchDocumentLibraries();
-        state.active = Object.freeze({ format, manifest: normalized.manifest, view });
-        try {
-          const result = await original.call(UA, ctx, ...args);
-          return Object.freeze({
-            format,
-            manifest: normalized.manifest,
-            sourceManifestSha256: normalized.sha256,
-            result,
-          });
-        } finally {
-          state.active = null;
-        }
+    const run = (format, ctx, original, args) => serialize(async () => {
+      const snapshot = await createSnapshot(ctx, UA, root);
+      await ensureLibraries();
+      const result = format === "docx"
+        ? await withDocxBoundary(root, snapshot.view, () => original.call(UA, ctx, ...args))
+        : await withPdfBoundary(root, snapshot.view, () => original.call(UA, ctx, ...args));
+      return Object.freeze({
+        format,
+        manifest: snapshot.manifest,
+        sourceManifestSha256: snapshot.sourceManifestSha256,
+        result,
       });
-    }
+    });
 
-    UA.exportToWord = function exportWordWithProvenance(ctx, ...args) {
-      return runWithManifest("docx", originalWord, ctx, args);
+    UA.exportToWord = function exportWordWithSourceManifest(ctx, ...args) {
+      return run("docx", ctx, originals.word, args);
     };
-    UA.exportToPDF = function exportPdfWithProvenance(ctx, ...args) {
-      return runWithManifest("pdf", originalPdf, ctx, args);
+    UA.exportToPDF = function exportPdfWithSourceManifest(ctx, ...args) {
+      return run("pdf", ctx, originals.pdf, args);
     };
 
-    UA[INSTALL_MARKER] = true;
+    delete UA.__documentProvenanceOriginals;
+    UA.__documentExportProvenanceInstalled = true;
     UA.documentExportProvenanceRuntime = Object.freeze({
+      originals,
+      createSnapshot: (ctx) => createSnapshot(ctx, UA, root),
       buildSourceView,
-      appendDocxProvenance,
-      appendPdfProvenance,
-      patchDocumentLibraries,
+      buildDocxBodyNodes,
+      buildPdfBodyNodes,
+      injectPdfDefinition,
     });
     return UA.documentExportProvenanceRuntime;
   }
 
   return Object.freeze({
-    HEADING,
+    LEGACY_SOURCE_HEADING,
+    SOURCE_HEADING,
+    LEGACY_SOURCE_TEXT,
+    SOURCE_INTRO,
+    DocumentExportProvenanceError,
     buildSourceView,
-    appendDocxProvenance,
-    appendPdfProvenance,
+    buildDocxBodyNodes,
+    buildPdfBodyNodes,
+    injectPdfDefinition,
+    createSnapshot,
     install,
   });
 });
