@@ -1,0 +1,29 @@
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const source = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
+
+describe('runtime export provenance bootstrap', () => {
+  test('loads the strict manifest, adapters, ZIP writer and live integration in order', () => {
+    const modules = [
+      'ua.source_manifest.js',
+      'ua.artifact_provenance.js',
+      'ua.zip.js',
+      'ua.export_provenance.js',
+    ];
+    const offsets = modules.map(moduleName => source.indexOf(moduleName));
+    expect(offsets.every(offset => offset >= 0)).toBe(true);
+    expect(offsets).toEqual([...offsets].sort((left, right) => left - right));
+    expect(source).toContain('document.currentScript');
+    expect(source).toContain('DOMContentLoaded');
+  });
+
+  test('blocks all legacy data exporters before asynchronous modules are loaded', () => {
+    expect(source).toContain('["exportToCSV", "exportToGeoJSON", "exportToKML"]');
+    expect(source).toContain('UA.__exportProvenanceOriginals = originals');
+    expect(source).toContain('Export ist gesperrt, bis die Quellenprovenienz geladen wurde.');
+    expect(source).not.toMatch(/catch\(\(error\) =>[\s\S]{0,300}throw error/);
+  });
+});

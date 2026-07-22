@@ -64,4 +64,72 @@
       .replace(/^_/, "")
       .replace(/_$/, "");
   };
+
+  // ---- optional runtime module chains ----
+  // Parser-loaded modules remain explicit in werkbank_v2.html. Small optional
+  // stacks may register here so tests that eval the source do not trigger
+  // network requests, while the built browser app loads them deterministically.
+  UA.loadRuntimeScripts = function loadRuntimeScripts(urls) {
+    return (urls || []).reduce((promise, url) => promise.then(() => new Promise((resolve, reject) => {
+      const existing = Array.from(document.querySelectorAll("script[data-ua-runtime-module]"))
+        .find((candidate) => candidate.dataset.uaRuntimeModule === url);
+      if (existing) {
+        if (existing.dataset.loaded === "true") resolve();
+        else {
+          existing.addEventListener("load", resolve, { once: true });
+          existing.addEventListener("error", () => reject(new Error(`Runtime module failed: ${url}`)), { once: true });
+        }
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = url;
+      script.async = false;
+      script.dataset.uaRuntimeModule = url;
+      script.addEventListener("load", () => {
+        script.dataset.loaded = "true";
+        resolve();
+      }, { once: true });
+      script.addEventListener("error", () => reject(new Error(`Runtime module failed: ${url}`)), { once: true });
+      document.head.appendChild(script);
+    })), Promise.resolve());
+  };
+
+  const ownScript = typeof document !== "undefined" ? document.currentScript : null;
+  if (ownScript && ownScript.src) {
+    const moduleUrl = (name) => new URL(name, ownScript.src).toString();
+    const startExportProvenance = () => {
+      const exportNames = ["exportToCSV", "exportToGeoJSON", "exportToKML"];
+      const originals = Object.fromEntries(
+        exportNames
+          .filter((name) => typeof UA[name] === "function")
+          .map((name) => [name, UA[name]]),
+      );
+      UA.__exportProvenanceOriginals = originals;
+      const blockedExport = () => {
+        const error = UA.exportProvenanceError ||
+          new Error("Export ist gesperrt, bis die Quellenprovenienz geladen wurde.");
+        if (typeof UA.showToast === "function") {
+          UA.showToast("Export abgebrochen: Quellenprovenienz ist nicht verfügbar.");
+        }
+        return Promise.reject(error);
+      };
+      for (const name of exportNames) UA[name] = blockedExport;
+
+      UA.exportProvenanceReady = UA.loadRuntimeScripts([
+        moduleUrl("ua.source_manifest.js?v=2026-07-22"),
+        moduleUrl("ua.artifact_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.zip.js?v=2026-07-22"),
+        moduleUrl("ua.export_provenance.js?v=2026-07-22"),
+      ]).catch((error) => {
+        UA.exportProvenanceError = error;
+        console.error("Export-Provenienz konnte nicht initialisiert werden", error);
+        return null;
+      });
+    };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", startExportProvenance, { once: true });
+    } else {
+      startExportProvenance();
+    }
+  }
 })();
