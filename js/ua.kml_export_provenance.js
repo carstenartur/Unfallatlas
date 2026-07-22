@@ -4,8 +4,8 @@
  * The legacy adapter first materialised a large KML Blob, read that Blob back
  * into a string and then materialised the final provenanced Blob. For a city
  * viewport with tens of thousands of points that doubled memory and delayed
- * the browser download. This module keeps the same KML fields but produces the
- * base string once and injects SourceManifest provenance before the first Blob.
+ * the browser download. This module builds a single array of Blob parts and
+ * inserts the SourceManifest metadata before the first Blob is created.
  */
 (function initLiveKmlExport(root, factory) {
   const api = factory();
@@ -68,24 +68,39 @@
       `</ExtendedData><Point><coordinates>${escapeXml(point.lon)},${escapeXml(point.lat)},0</coordinates></Point></Placemark>`;
   }
 
-  function buildBaseKml(UA, ctx, generatedDate = new Date().toISOString().slice(0, 10)) {
+  function buildKmlParts(
+    UA,
+    ctx,
+    generatedDate = new Date().toISOString().slice(0, 10),
+    documentExtendedData = "",
+  ) {
     if (!UA?.exportProvenance?.exportPoints) {
       throw new Error("missing_dependency: live export point selector is unavailable");
     }
     const city = String(ctx?.CITY_RAW || "");
     const points = UA.exportProvenance.exportPoints(UA, ctx);
-    const chunks = new Array(points.length);
+    const parts = new Array(points.length + 2);
+    parts[0] = `<?xml version="1.0" encoding="UTF-8"?>` +
+      `<kml xmlns="http://www.opengis.net/kml/2.2"><Document>` +
+      `<name>${escapeXml(`Unfallatlas ${city} ${generatedDate}`)}</name>` +
+      `<description>Exportierte Unfalldaten</description>${documentExtendedData}`;
     for (let index = 0; index < points.length; index += 1) {
-      chunks[index] = placemark(points[index]);
+      parts[index + 1] = placemark(points[index]);
     }
+    parts[parts.length - 1] = `</Document></kml>`;
     return Object.freeze({
-      kml: `<?xml version="1.0" encoding="UTF-8"?>` +
-        `<kml xmlns="http://www.opengis.net/kml/2.2"><Document>` +
-        `<name>${escapeXml(`Unfallatlas ${city} ${generatedDate}`)}</name>` +
-        `<description>Exportierte Unfalldaten</description>${chunks.join("")}` +
-        `</Document></kml>`,
+      parts: Object.freeze(parts),
       filename: `Unfallatlas_${safeCity(UA, city)}_${generatedDate}.kml`,
       pointCount: points.length,
+    });
+  }
+
+  function buildBaseKml(UA, ctx, generatedDate = new Date().toISOString().slice(0, 10)) {
+    const built = buildKmlParts(UA, ctx, generatedDate);
+    return Object.freeze({
+      kml: built.parts.join(""),
+      filename: built.filename,
+      pointCount: built.pointCount,
     });
   }
 
@@ -93,7 +108,8 @@
     if (!root?.URL?.createObjectURL || !root?.document?.createElement) {
       throw new Error("download_unavailable: browser Blob download APIs are unavailable");
     }
-    const blob = new root.Blob([content], {
+    const parts = Array.isArray(content) ? content : [content];
+    const blob = new root.Blob(parts, {
       type: "application/vnd.google-earth.kml+xml;charset=utf-8",
     });
     const url = root.URL.createObjectURL(blob);
@@ -124,8 +140,8 @@
 
   function install(UA, root) {
     const createManifest = UA?.exportProvenanceRuntime?.createManifest;
-    const injectProvenance = UA?.artifactProvenance?.injectKmlProvenance;
-    if (typeof createManifest !== "function" || typeof injectProvenance !== "function") {
+    const buildKmlExtendedData = UA?.artifactProvenance?.buildKmlExtendedData;
+    if (typeof createManifest !== "function" || typeof buildKmlExtendedData !== "function") {
       throw new Error("missing_dependency: live SourceManifest KML dependencies are unavailable");
     }
     if (UA.__directKmlProvenanceInstalled) return UA.directKmlProvenanceRuntime;
@@ -133,15 +149,14 @@
     UA.exportToKML = async function exportKmlDirectlyWithProvenance(ctx) {
       try {
         const manifest = await createManifest(ctx, { UA, root });
-        const base = buildBaseKml(UA, ctx);
-        const enriched = await injectProvenance(base.kml, manifest);
-        directDownload(root, enriched.kml, base.filename);
+        const extended = await buildKmlExtendedData(manifest);
+        const built = buildKmlParts(UA, ctx, undefined, extended.xml);
+        directDownload(root, built.parts, built.filename);
         return Object.freeze({
-          filename: base.filename,
-          pointCount: base.pointCount,
+          filename: built.filename,
+          pointCount: built.pointCount,
           manifest,
-          kml: enriched.kml,
-          sourceManifestSha256: enriched.sourceManifestSha256,
+          sourceManifestSha256: extended.sourceManifestSha256,
         });
       } catch (error) {
         reportFailure(UA, root, error);
@@ -150,7 +165,7 @@
     };
 
     UA.__directKmlProvenanceInstalled = true;
-    UA.directKmlProvenanceRuntime = Object.freeze({ buildBaseKml, directDownload });
+    UA.directKmlProvenanceRuntime = Object.freeze({ buildBaseKml, buildKmlParts, directDownload });
     return UA.directKmlProvenanceRuntime;
   }
 
@@ -158,6 +173,7 @@
     escapeXml,
     involvementLabels,
     placemark,
+    buildKmlParts,
     buildBaseKml,
     directDownload,
     install,
