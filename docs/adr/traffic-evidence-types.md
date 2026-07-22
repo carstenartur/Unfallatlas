@@ -36,15 +36,24 @@ For one road, mode and reference year the selection order is:
 5. no traffic evidence.
 
 A stale measurement does not silently override a newer model. The freshness
-window is explicit input to the selection function.
+window is explicit input to the selection function. Observations from after the
+selected reference year are not eligible evidence for that scenario and are
+excluded rather than treated as age zero.
 
 ## Matching
 
-An explicit source `wayId` is preferred. Otherwise observations are matched to
-the nearest road segment with a configured maximum distance. The result keeps:
+An explicit source `wayId` is preferred. When the observation also contains a
+coordinate, the referenced current road geometry is checked against the same
+maximum-distance rule as a nearest-segment match. A spatially inconsistent ID
+fails closed.
+
+An explicit `wayId` without observation geometry remains a traceable ID
+association, but it does not invent a distance of zero metres or automatically
+claim high match quality. Otherwise observations are matched to the nearest
+road segment with a configured maximum distance. The result keeps:
 
 - match method;
-- distance in metres;
+- distance in metres, or an explicit unknown value when no geometry exists;
 - match quality (`high`, `medium`, `low`).
 
 Unmatched observations do not become city-wide defaults.
