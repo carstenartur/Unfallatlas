@@ -55,10 +55,12 @@ describe('document export provenance content QA', () => {
 
     expect(snapshot.view.artifactId).toBe('qa-document-export');
     expect(gate).toHaveBeenCalledTimes(1);
-    expect(gate.mock.calls[0][0]).toEqual(expect.arrayContaining([
+    const qaTree = gate.mock.calls[0][0];
+    expect(qaTree).toEqual(expect.arrayContaining([
       expect.objectContaining({ text: api.SOURCE_HEADING }),
-      expect.objectContaining({ text: expect.stringContaining('Dokument-ID') }),
     ]));
+    expect(JSON.stringify(qaTree)).toContain('Dokument-ID');
+    expect(JSON.stringify(qaTree)).toContain('qa-document-export');
   });
 
   test('aborts before rendering when provenance text violates the publication gate', async () => {
