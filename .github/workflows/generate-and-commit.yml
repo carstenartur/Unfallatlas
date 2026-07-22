@@ -1,110 +1,65 @@
-name: Apply bounded PR 493 maintenance patch
+name: Generate & Commit
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/generate-and-commit.yml
-      - .maintenance-trigger
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  patch-pr:
-    if: ${{ github.actor != 'github-actions[bot]' }}
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout traffic-provider branch
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
-          ref: feat/traffic-provider-core
-          fetch-depth: 0
-      - name: Setup Node.js
+          persist-credentials: true
+
+      - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: '24'
-          cache: npm
-      - name: Patch nested PDF text inspection and integration diagnostics
-        shell: python
+
+      - name: Set up Git
         run: |
-          from pathlib import Path
-          import json
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
 
-          target = Path('tests/integration/export.test.js')
-          source = target.read_text(encoding='utf-8')
-          start_marker = '      // Gather all text content including table bodies\n'
-          end_marker = "      const allText = pdfDefinition.content.map(collectText).join(' ');\n"
-          if source.count(start_marker) != 1 or source.count(end_marker) != 1:
-              raise SystemExit('expected legacy PDF text collector markers exactly once')
-          start = source.index(start_marker)
-          end = source.index(end_marker, start) + len(end_marker)
-          replacement = '''      // Gather all visible text recursively. Relevant pdfMake nodes may be
-          // nested in unbreakable stacks, columns or table bodies after final-page
-          // layout hardening; the semantic assertions below must inspect them all.
-          function collectText(item) {
-            if (item == null) return '';
-            if (typeof item === 'string') return item;
-            if (Array.isArray(item)) return item.map(collectText).filter(Boolean).join(' ');
-            if (typeof item !== 'object') return '';
-
-            const fragments = [];
-            if (typeof item.text === 'string') fragments.push(item.text);
-            else if (Array.isArray(item.text)) fragments.push(collectText(item.text));
-            if (Array.isArray(item.stack)) fragments.push(collectText(item.stack));
-            if (Array.isArray(item.columns)) fragments.push(collectText(item.columns));
-            if (item.table && Array.isArray(item.table.body)) {
-              fragments.push(collectText(item.table.body));
-            }
-            return fragments.filter(Boolean).join(' ');
-          }
-          const allText = collectText(pdfDefinition.content);
-'''
-          target.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
-
-          package_path = Path('package.json')
-          package = json.loads(package_path.read_text(encoding='utf-8'))
-          package['scripts']['test:integration'] = (
-              "node -e \"require('fs').mkdirSync('coverage',{recursive:true})\" && "
-              "jest --testPathPatterns=tests/integration --runInBand --json "
-              "--outputFile=coverage/integration-results.json"
-          )
-          package_path.write_text(json.dumps(package, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-
-          Path('.github/workflows/fix-integration-pdf-text.yml').unlink(missing_ok=True)
-      - name: Install, format and verify
+      - name: Prepare build directories
         run: |
-          npm ci
-          npx --yes prettier@3.6.2 --write tests/integration/export.test.js package.json
-          npm run test:integration
-          npm run test:unit -- --runInBand tests/unit/ua.report_v2.imageAspectRatio.test.js tests/unit/trafficProvider.test.js
-      - name: Commit durable fix
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests/integration/export.test.js package.json
-          git add -u .github/workflows/fix-integration-pdf-text.yml || true
-          git commit -m 'test: inspect nested PDF content in integration assertions'
-          git push origin HEAD:feat/traffic-provider-core
+          set -euo pipefail
+          rm -rf .build/raw
+          mkdir -p .build/raw out
 
-  restore-workflow:
-    if: ${{ always() && github.actor != 'github-actions[bot]' }}
-    needs: patch-pr
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v7
-        with:
-          ref: main
-          fetch-depth: 5
-      - name: Restore original workflow and remove trigger marker
+      - name: Generate accident data from cities.txt (restartable)
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git show 1caa6f278b87f07ee8feee4f64cf89e1a23a38d6:.github/workflows/generate-and-commit.yml > .github/workflows/generate-and-commit.yml
-          rm -f .maintenance-trigger
-          git add .github/workflows/generate-and-commit.yml
-          git add -u .maintenance-trigger || true
-          git commit -m 'ci: restore Generate & Commit workflow'
-          git push origin HEAD:main
+          chmod +x ./convertAmt2gmaps.sh
+          node scripts/generate-accident-data.js \
+            --cities-file cities.txt \
+            --out-dir out \
+            --temp-root .build/raw \
+            --min-features 10
+
+      - name: Normalize static data artifacts to gzip-only
+        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
+
+      - name: Verify gzip-only artifact invariants
+        run: node scripts/gzip-static-data.js --check --gzip-only
+
+      - name: Validate all expected city GeoJSON files are present and complete
+        run: node scripts/check-data-paths.js --gzip-only --min-features 10
+
+      - name: Sync City-Registry (auto-fix Drift)
+        run: node scripts/check-city-rollout.js --fix
+
+      - name: Commit & Push changes
+        run: |
+          set -euo pipefail
+
+          # niemals tmp-Dateien committen
+          find out -type f -name '*.tmp' -print -delete || true
+          rm -rf .build
+
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Automatisch erzeugte Dateien durch convertAmt2gmaps.sh (cities.txt)"
+          git push origin HEAD:${{ github.ref_name }}
