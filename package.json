@@ -13,7 +13,7 @@
     "serve:site": "node scripts/serve-site.js",
     "test": "jest",
     "test:unit": "jest --testPathPatterns=tests/unit",
-    "test:integration": "jest --testPathPatterns=tests/integration",
+    "test:integration": "mkdir -p coverage && jest --testPathPatterns=tests/integration --runInBand --json --outputFile=coverage/integration-results.json",
     "test:integration:tc": "NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
     "test:location-brief-golden:tc": "RUN_LOCATION_BRIEF_GOLDEN=1 NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
     "qa:location-brief-golden": "node scripts/qa-location-brief-golden-cases.js",
