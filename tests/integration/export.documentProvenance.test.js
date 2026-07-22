@@ -2,6 +2,9 @@
 
 const JSZip = require('jszip');
 
+const LEGACY_SOURCE =
+  'Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).';
+
 function validManifest(artifactId = 'document-hannover-export') {
   return {
     schemaVersion: 1,
@@ -95,17 +98,29 @@ function setupRuntime() {
     artifactProvenance: require('../../js/ua.artifact_provenance'),
   };
 
-  window.UA.__exportProvenanceOriginals = {
+  window.UA.__documentProvenanceOriginals = {
     exportToWord: async () => {
-      const { Document, Packer, Paragraph } = window.docx;
+      const { Document, Packer, Paragraph, HeadingLevel } = window.docx;
       const document = new Document({
-        sections: [{ children: [new Paragraph({ text: 'Base DOCX document' })] }],
+        sections: [{
+          children: [
+            new Paragraph({ text: 'Base DOCX document' }),
+            new Paragraph({ text: 'DATENQUELLE', heading: HeadingLevel.HEADING_2 }),
+            new Paragraph({ text: LEGACY_SOURCE }),
+          ],
+        }],
       });
       produced.word = await Packer.toBlob(document);
       return 'word-result';
     },
     exportToPDF: async () => {
-      const pdf = window.pdfMake.createPdf({ content: [{ text: 'Base PDF document' }] });
+      const pdf = window.pdfMake.createPdf({
+        content: [
+          { text: 'Base PDF document' },
+          { text: 'DATENQUELLE', style: 'subheader' },
+          { text: LEGACY_SOURCE, style: 'normal' },
+        ],
+      });
       produced.pdf = await pdfBuffer(pdf);
       return 'pdf-result';
     },
@@ -139,10 +154,12 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     const relationshipsXml = await archive.file('word/_rels/document.xml.rels').async('string');
 
     expect(documentXml).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
+    expect(documentXml).not.toContain('>DATENQUELLE<');
+    expect(documentXml).not.toContain('Unfallatlas / Open-Data-Downloads');
     expect(documentXml).toContain('docx-hannover-export');
     expect(documentXml).toContain(result.sourceManifestSha256);
     expect(documentXml).toContain('Datensatzseite öffnen');
-    expect(documentXml).toContain('Lizenztext öffnen (CC0-1.0)');
+    expect(documentXml).toContain('Lizenz: Creative Commons CC0 1.0 Universal (CC0-1.0)');
     expect(documentXml).not.toContain('https://example.com/dataset');
     expect(documentXml).not.toContain('https://creativecommons.org/publicdomain/zero/1.0/');
 
@@ -184,10 +201,11 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
 
     const visible = visibleText.join('\n');
     expect(visible).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
+    expect(visible).not.toContain('Unfallatlas / Open-Data-Downloads');
     expect(visible).toContain('pdf-hannover-export');
     expect(visible).toContain(result.sourceManifestSha256);
     expect(visible).toContain('Datensatzseite öffnen');
-    expect(visible).toContain('Lizenztext öffnen (CC0-1.0)');
+    expect(visible).toContain('Creative Commons CC0 1.0 Universal');
     expect(urls).toContain('https://example.com/dataset');
     expect(urls).toContain('https://example.com/dataset/2024.geojson');
     expect(urls).toContain('https://creativecommons.org/publicdomain/zero/1.0/');
