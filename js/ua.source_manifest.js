@@ -71,6 +71,12 @@
       }),
     });
 
+    const LICENSE_POLICIES_BY_ID = Object.freeze(
+      Object.fromEntries(
+        Object.values(LICENSE_POLICIES).map((policy) => [policy.id, policy]),
+      ),
+    );
+
     const LICENSE_ALIASES = Object.freeze({
       "DL-DE/ZERO-2-0": "DL-DE-ZERO-2.0",
       "DL-DE/ZERO/2.0": "DL-DE-ZERO-2.0",
@@ -780,6 +786,7 @@
       SCHEMA_VERSION,
       SOURCE_ROLES,
       LICENSE_POLICIES,
+      LICENSE_POLICIES_BY_ID,
       SourceManifestError,
       normalizeManifest,
       sourceIdsForFields,
