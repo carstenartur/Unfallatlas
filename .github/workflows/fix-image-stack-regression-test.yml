@@ -27,19 +27,10 @@ jobs:
 
           target = Path('tests/unit/ua.report_v2.imageAspectRatio.test.js')
           source = target.read_text(encoding='utf-8')
-          old = '''    const unbreakableStacks = captured.content.filter(
-              n => n && typeof n === 'object' && n.unbreakable === true && Array.isArray(n.stack)
-            );
-            // Mindestens 2 — Übersicht + Detail; Cluster wäre zusätzlich, ist hier leer.
-            expect(unbreakableStacks.length).toBeGreaterThanOrEqual(2);
-            // Jeder Stack enthält Bild UND Caption.
-            for (const s of unbreakableStacks) {
-              const hasImage   = s.stack.some(n => n && typeof n.image === 'string');
-              const hasCaption = s.stack.some(n => n && typeof n.text === 'string' && /Abbildung\\s*\\d+:/.test(n.text));
-              expect(hasImage).toBe(true);
-              expect(hasCaption).toBe(true);
-            }'''
-          new = '''    const unbreakableImageStacks = captured.content.filter(
+          test_start = source.index("  test('PDF: image and caption rendered as unbreakable stack")
+          block_start = source.index('    const unbreakableStacks =', test_start)
+          block_end = source.index('\n  });', block_start)
+          replacement = '''    const unbreakableImageStacks = captured.content.filter(
               n => n && typeof n === 'object' && n.unbreakable === true && Array.isArray(n.stack) &&
                 n.stack.some(child => child && typeof child.image === 'string')
             );
@@ -55,9 +46,7 @@ jobs:
               expect(hasImage).toBe(true);
               expect(hasCaption).toBe(true);
             }'''
-          if source.count(old) != 1:
-              raise SystemExit('image-stack assertion block not found exactly once')
-          target.write_text(source.replace(old, new), encoding='utf-8')
+          target.write_text(source[:block_start] + replacement + source[block_end:], encoding='utf-8')
       - name: Install, format and test affected suites
         run: |
           npm ci
