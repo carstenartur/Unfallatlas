@@ -40,8 +40,11 @@ function validManifest(artifactId = 'document-hannover-export') {
     ],
     transformations: [
       {
-        id: 'filter.viewport',
+        transformationId: 'filter.viewport',
+        label: 'Räumliche Auswahl',
         description: 'Auswahl auf den dokumentierten Kartenausschnitt.',
+        sourceIds: ['custom.accidents'],
+        outputFields: ['geometry', 'properties'],
       },
     ],
   };
@@ -114,9 +117,6 @@ function setupRuntime() {
 
 describe('live PDF/DOCX exports use the shared SourceManifest', () => {
   afterEach(() => {
-    if (window.UA && window.UA.documentExportProvenanceRuntime) {
-      window.UA.documentExportProvenanceRuntime.restoreDocumentLibraries?.();
-    }
     delete window.docx;
     delete window.pdfMake;
     delete window.UA;
@@ -182,12 +182,12 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
       });
     }
 
-    const text = visibleText.join('\n');
-    expect(text).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
-    expect(text).toContain('pdf-hannover-export');
-    expect(text).toContain(result.sourceManifestSha256);
-    expect(text).toContain('Datensatzseite öffnen');
-    expect(text).toContain('Lizenztext öffnen (CC0-1.0)');
+    const visible = visibleText.join('\n');
+    expect(visible).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
+    expect(visible).toContain('pdf-hannover-export');
+    expect(visible).toContain(result.sourceManifestSha256);
+    expect(visible).toContain('Datensatzseite öffnen');
+    expect(visible).toContain('Lizenztext öffnen (CC0-1.0)');
     expect(urls).toContain('https://example.com/dataset');
     expect(urls).toContain('https://example.com/dataset/2024.geojson');
     expect(urls).toContain('https://creativecommons.org/publicdomain/zero/1.0/');
