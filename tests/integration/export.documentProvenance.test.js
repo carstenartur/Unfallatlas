@@ -1,5 +1,7 @@
 'use strict';
 
+const { spawnSync } = require('child_process');
+const path = require('path');
 const JSZip = require('jszip');
 
 const LEGACY_SOURCE =
@@ -76,6 +78,40 @@ async function pdfBuffer(pdfDocument) {
       reject(error);
     }
   });
+}
+
+function inspectPdf(buffer) {
+  const script = String.raw`
+    import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+    const chunks = [];
+    for await (const chunk of process.stdin) chunks.push(chunk);
+    const encoded = Buffer.concat(chunks).toString('utf8');
+    const bytes = new Uint8Array(Buffer.from(encoded, 'base64'));
+    const pdf = await pdfjs.getDocument({ data: bytes, disableWorker: true }).promise;
+    const visibleText = [];
+    const urls = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      visibleText.push(content.items.map(item => item.str).join(' '));
+      const annotations = await page.getAnnotations();
+      for (const annotation of annotations) {
+        if (annotation.url) urls.push(annotation.url);
+        if (annotation.unsafeUrl) urls.push(annotation.unsafeUrl);
+      }
+    }
+    process.stdout.write(JSON.stringify({ visible: visibleText.join('\n'), urls }));
+  `;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: path.resolve(__dirname, '../..'),
+    input: buffer.toString('base64'),
+    encoding: 'utf8',
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    throw new Error(`PDF inspection failed: ${result.stderr || result.stdout}`);
+  }
+  return JSON.parse(result.stdout);
 }
 
 function setupRuntime() {
@@ -181,25 +217,7 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     expect(result.result).toBe('pdf-result');
     expect(produced.pdf.length).toBeGreaterThan(500);
 
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const pdf = await pdfjs.getDocument({
-      data: new Uint8Array(produced.pdf),
-      disableWorker: true,
-    }).promise;
-    const visibleText = [];
-    const urls = [];
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber);
-      const content = await page.getTextContent();
-      visibleText.push(content.items.map(item => item.str).join(' '));
-      const annotations = await page.getAnnotations();
-      annotations.forEach(annotation => {
-        if (annotation.url) urls.push(annotation.url);
-        if (annotation.unsafeUrl) urls.push(annotation.unsafeUrl);
-      });
-    }
-
-    const visible = visibleText.join('\n');
+    const { visible, urls } = inspectPdf(produced.pdf);
     expect(visible).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
     expect(visible).not.toContain('Unfallatlas / Open-Data-Downloads');
     expect(visible).toContain('pdf-hannover-export');
