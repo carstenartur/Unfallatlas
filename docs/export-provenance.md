@@ -66,12 +66,22 @@ liest die erzeugte PDF-Datei mit pdf.js in einem ESM-fähigen Node-Prozess, um
 sichtbaren Inhalt, Linkziele und Manifest-Hash direkt aus den Binärartefakten zu
 prüfen.
 
+Die deterministische Sortierung und Fingerabdruckbildung über alle exportierten
+Unfallpunkte beginnt bereits beim Öffnen des Exportdialogs parallel zur
+Berichtsvorschau. Der spätere PDF- oder DOCX-Klick übernimmt genau dieses
+validierte Manifest; er erzeugt nicht erneut einen zweiten Datenfingerabdruck.
+Der Cache ist an Stadt, Datenbestand, Datenzeitpunkt, Grenzen und sämtliche
+fachlichen Filter gebunden. Ändert sich dieser Zustand während der Berechnung,
+wird das veraltete Ergebnis verworfen und neu erstellt. Fehlerhafte Versuche
+werden nicht gecacht. Ein bereits ausdrücklich vom Aufrufer gesetztes Manifest
+bleibt unverändert und hat Vorrang.
+
 Ein zusätzlicher Chromium-Regressionsfall erzeugt einen realen PDF-Download mit
 kombinierten Steigungs- und Verkehrsfiltern, aktivem „nur gematchte Straßen“-Modus
 sowie den für den Videoexport verwendeten Karten- und Darstellungsparametern. Er
-prüft sowohl den gebundenen Manifestzustand als auch den tatsächlichen
-Browser-Download und meldet einen sichtbaren Exportfehler unmittelbar statt erst
-nach einem unspezifischen Download-Timeout.
+prüft sowohl den beim Dialogöffnen vorab erzeugten Manifestzustand als auch den
+tatsächlichen Browser-Download und meldet einen sichtbaren Exportfehler
+unmittelbar statt erst nach einem unspezifischen Download-Timeout.
 
 Gleichzeitige PDF- und DOCX-Exporte werden serialisiert. Die Dokumentbibliotheken
 werden nur innerhalb des jeweiligen Exports durch lokale Proxies ergänzt; ihre
