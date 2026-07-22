@@ -123,16 +123,18 @@
   }
 
   function exportPoints(UA, ctx) {
+    const hasFilterFunction = typeof UA?.matchesNonInvolvementFilters === "function";
+    if (hasFilterFunction && !ctx?.ui) {
+      fail(
+        "missing_filter_state",
+        "Default export provenance requires the bound UI filter state",
+      );
+    }
     const bounds = ctx?.selectionBounds || ctx?.map?.getBounds?.() || null;
     const points = [];
     for (const point of ctx?.allPts || []) {
       if (!point || !point.props) continue;
-      if (
-        typeof UA?.matchesNonInvolvementFilters === "function" &&
-        !UA.matchesNonInvolvementFilters(ctx, point.props)
-      ) {
-        continue;
-      }
+      if (hasFilterFunction && !UA.matchesNonInvolvementFilters(ctx, point.props)) continue;
       if (!pointInside(point, bounds)) continue;
       points.push(point);
     }
@@ -245,10 +247,12 @@
     const filters = scenarioFilters(ctx);
     const bounds = boundsObject(ctx);
     const normalizedPoints = points
-      .map(canonicalPoint)
-      .sort((left, right) =>
-        sourceManifest.stableStringify(left).localeCompare(sourceManifest.stableStringify(right)),
-      );
+      .map((point) => {
+        const value = canonicalPoint(point);
+        return { value, key: sourceManifest.stableStringify(value) };
+      })
+      .sort((left, right) => left.key.localeCompare(right.key))
+      .map((entry) => entry.value);
     const years = [
       ...new Set(
         normalizedPoints
