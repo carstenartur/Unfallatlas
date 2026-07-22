@@ -121,19 +121,18 @@
 
   function transformationView(transformation) {
     const value = transformation || {};
-    const sourceIds = Array.isArray(value.sourceIds) ? value.sourceIds.join(", ") : "keine";
-    const outputFields = Array.isArray(value.outputFields) && value.outputFields.length
-      ? value.outputFields.join(", ")
-      : "nicht angegeben";
-    const parameters = compactObject(value.parameters, "keine dokumentierten Parameter");
     return Object.freeze({
       transformationId: nonEmpty(value.transformationId),
       label: nonEmpty(value.label),
       description: nonEmpty(value.description),
-      sourceIds,
-      outputFields,
+      sourceIds: Array.isArray(value.sourceIds) && value.sourceIds.length
+        ? value.sourceIds.join(", ")
+        : "keine",
+      outputFields: Array.isArray(value.outputFields) && value.outputFields.length
+        ? value.outputFields.join(", ")
+        : "nicht angegeben",
       softwareVersion: value.softwareVersion ? nonEmpty(value.softwareVersion) : null,
-      parameters,
+      parameters: compactObject(value.parameters, "keine dokumentierten Parameter"),
     });
   }
 
@@ -159,9 +158,7 @@
         filters: compactObject(manifest.scenario?.filters, "keine dokumentierten Filter"),
       }),
       sources: Object.freeze(manifest.sources.map(sourceView)),
-      transformations: Object.freeze(
-        (manifest.transformations || []).map(transformationView),
-      ),
+      transformations: Object.freeze((manifest.transformations || []).map(transformationView)),
     });
   }
 
@@ -207,14 +204,8 @@
         text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`,
         spacing: { after: 40 },
       }),
-      new docx.Paragraph({
-        text: `Build-Fingerprint: ${view.buildFingerprint}`,
-        spacing: { after: 40 },
-      }),
-      new docx.Paragraph({
-        text: `Daten-Fingerprint: ${view.dataFingerprint}`,
-        spacing: { after: 100 },
-      }),
+      new docx.Paragraph({ text: `Build-Fingerprint: ${view.buildFingerprint}`, spacing: { after: 40 } }),
+      new docx.Paragraph({ text: `Daten-Fingerprint: ${view.dataFingerprint}`, spacing: { after: 100 } }),
       new docx.Paragraph({
         children: [docxTextRun(docx, "Auswertungsszenario", { bold: true })],
         spacing: { before: 80, after: 40 },
@@ -223,14 +214,8 @@
         text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`,
         spacing: { after: 40 },
       }),
-      new docx.Paragraph({
-        text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`,
-        spacing: { after: 40 },
-      }),
-      new docx.Paragraph({
-        text: `Aktive Filter: ${view.scenario.filters}`,
-        spacing: { after: 120 },
-      }),
+      new docx.Paragraph({ text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`, spacing: { after: 40 } }),
+      new docx.Paragraph({ text: `Aktive Filter: ${view.scenario.filters}`, spacing: { after: 120 } }),
     ];
 
     view.sources.forEach((source, index) => {
@@ -264,24 +249,18 @@
           ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
           : null,
       ].filter(Boolean);
-      if (coverage.length) {
-        nodes.push(new docx.Paragraph({
-          text: `Abdeckung: ${coverage.join(" · ")}`,
-          spacing: { after: 40 },
-        }));
-      }
-      if (source.requiredAttribution) {
-        nodes.push(new docx.Paragraph({
-          text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
-          spacing: { after: 40 },
-        }));
-      }
-      if (source.contentHash) {
-        nodes.push(new docx.Paragraph({
-          text: `Quellbestand-Hash: ${source.contentHash}`,
-          spacing: { after: 40 },
-        }));
-      }
+      if (coverage.length) nodes.push(new docx.Paragraph({
+        text: `Abdeckung: ${coverage.join(" · ")}`,
+        spacing: { after: 40 },
+      }));
+      if (source.requiredAttribution) nodes.push(new docx.Paragraph({
+        text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
+        spacing: { after: 40 },
+      }));
+      if (source.contentHash) nodes.push(new docx.Paragraph({
+        text: `Quellbestand-Hash: ${source.contentHash}`,
+        spacing: { after: 40 },
+      }));
       nodes.push(new docx.Paragraph({
         text: source.changedOrDerived
           ? `Gefiltert/transformiert: ja${source.changeNotice ? ` · ${source.changeNotice}` : ""}`
@@ -332,17 +311,11 @@
         ],
         margin: [0, 0, 0, 6],
       },
-      {
-        text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`,
-        margin: [0, 0, 0, 3],
-      },
+      { text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`, margin: [0, 0, 0, 3] },
       { text: `Build-Fingerprint: ${view.buildFingerprint}`, margin: [0, 0, 0, 2] },
       { text: `Daten-Fingerprint: ${view.dataFingerprint}`, margin: [0, 0, 0, 8] },
       { text: "Auswertungsszenario", bold: true, margin: [0, 4, 0, 3] },
-      {
-        text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`,
-        margin: [0, 0, 0, 2],
-      },
+      { text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`, margin: [0, 0, 0, 2] },
       { text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`, margin: [0, 0, 0, 2] },
       { text: `Aktive Filter: ${view.scenario.filters}`, margin: [0, 0, 0, 8] },
     ];
@@ -375,18 +348,12 @@
           ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
           : null,
       ].filter(Boolean);
-      if (coverage.length) nodes.push({
-        text: `Abdeckung: ${coverage.join(" · ")}`,
-        margin: [0, 0, 0, 2],
-      });
+      if (coverage.length) nodes.push({ text: `Abdeckung: ${coverage.join(" · ")}`, margin: [0, 0, 0, 2] });
       if (source.requiredAttribution) nodes.push({
         text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
         margin: [0, 0, 0, 2],
       });
-      if (source.contentHash) nodes.push({
-        text: `Quellbestand-Hash: ${source.contentHash}`,
-        margin: [0, 0, 0, 2],
-      });
+      if (source.contentHash) nodes.push({ text: `Quellbestand-Hash: ${source.contentHash}`, margin: [0, 0, 0, 2] });
       nodes.push({
         text: source.changedOrDerived
           ? `Gefiltert/transformiert: ja${source.changeNotice ? ` · ${source.changeNotice}` : ""}`
@@ -410,10 +377,7 @@
         margin: [0, 0, 0, 2],
       }));
     } else {
-      nodes.push({
-        text: "Keine zusätzlichen Transformationen dokumentiert.",
-        margin: [0, 0, 0, 4],
-      });
+      nodes.push({ text: "Keine zusätzlichen Transformationen dokumentiert.", margin: [0, 0, 0, 4] });
     }
     return nodes;
   }
@@ -442,9 +406,7 @@
       (node) => textOfPdfNode(node).trim() === LEGACY_SOURCE_TEXT,
     );
     const body = buildPdfBodyNodes(view);
-    if (headingIndex >= 0) {
-      content[headingIndex] = { ...content[headingIndex], text: SOURCE_HEADING };
-    }
+    if (headingIndex >= 0) content[headingIndex] = { ...content[headingIndex], text: SOURCE_HEADING };
     if (legacyIndex >= 0) {
       content.splice(legacyIndex, 1, ...body);
     } else if (headingIndex >= 0) {
@@ -458,9 +420,7 @@
     return { ...definition, content };
   }
 
-  function withDocxBoundary(root, view, task) {
-    const docx = root?.docx;
-    if (!docx) fail("missing_docx_api", "DOCX renderer is unavailable");
+  function createDocxProxy(docx, view) {
     const OriginalDocument = requiredFunction(docx.Document, "docx.Document");
     const OriginalParagraph = requiredFunction(docx.Paragraph, "docx.Paragraph");
     requiredFunction(docx.TextRun, "docx.TextRun");
@@ -514,27 +474,60 @@
     }
     WrappedDocument.prototype = OriginalDocument.prototype;
 
-    docx.Paragraph = WrappedParagraph;
-    docx.Document = WrappedDocument;
+    return new Proxy(docx, {
+      get(target, property, receiver) {
+        if (property === "Paragraph") return WrappedParagraph;
+        if (property === "Document") return WrappedDocument;
+        return Reflect.get(target, property, receiver);
+      },
+    });
+  }
+
+  function withDocxBoundary(root, view, task) {
+    const originalDocx = root?.docx;
+    if (!originalDocx) fail("missing_docx_api", "DOCX renderer is unavailable");
+    const proxiedDocx = createDocxProxy(originalDocx, view);
+    try {
+      root.docx = proxiedDocx;
+    } catch (error) {
+      fail("docx_boundary_unavailable", "window.docx cannot be scoped for provenance", error);
+    }
+    if (root.docx !== proxiedDocx) {
+      fail("docx_boundary_unavailable", "window.docx cannot be scoped for provenance");
+    }
     return Promise.resolve()
       .then(task)
       .finally(() => {
-        docx.Paragraph = OriginalParagraph;
-        docx.Document = OriginalDocument;
+        root.docx = originalDocx;
       });
   }
 
   function withPdfBoundary(root, view, task) {
-    const pdfMake = root?.pdfMake;
-    if (!pdfMake) fail("missing_pdf_api", "pdfMake renderer is unavailable");
-    const originalCreatePdf = requiredFunction(pdfMake.createPdf, "pdfMake.createPdf");
-    pdfMake.createPdf = function createPdfWithSourceManifest(definition, ...args) {
-      return originalCreatePdf.call(this, injectPdfDefinition(definition, view), ...args);
-    };
+    const originalPdfMake = root?.pdfMake;
+    if (!originalPdfMake) fail("missing_pdf_api", "pdfMake renderer is unavailable");
+    const originalCreatePdf = requiredFunction(originalPdfMake.createPdf, "pdfMake.createPdf");
+    const proxiedPdfMake = new Proxy(originalPdfMake, {
+      get(target, property, receiver) {
+        if (property === "createPdf") {
+          return function createPdfWithSourceManifest(definition, ...args) {
+            return originalCreatePdf.call(target, injectPdfDefinition(definition, view), ...args);
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    try {
+      root.pdfMake = proxiedPdfMake;
+    } catch (error) {
+      fail("pdf_boundary_unavailable", "window.pdfMake cannot be scoped for provenance", error);
+    }
+    if (root.pdfMake !== proxiedPdfMake) {
+      fail("pdf_boundary_unavailable", "window.pdfMake cannot be scoped for provenance");
+    }
     return Promise.resolve()
       .then(task)
       .finally(() => {
-        pdfMake.createPdf = originalCreatePdf;
+        root.pdfMake = originalPdfMake;
       });
   }
 
