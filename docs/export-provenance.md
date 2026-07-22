@@ -66,6 +66,13 @@ liest die erzeugte PDF-Datei mit pdf.js in einem ESM-fähigen Node-Prozess, um
 sichtbaren Inhalt, Linkziele und Manifest-Hash direkt aus den Binärartefakten zu
 prüfen.
 
+Ein zusätzlicher Chromium-Regressionsfall erzeugt einen realen PDF-Download mit
+kombinierten Steigungs- und Verkehrsfiltern, aktivem „nur gematchte Straßen“-Modus
+sowie den für den Videoexport verwendeten Karten- und Darstellungsparametern. Er
+prüft sowohl den gebundenen Manifestzustand als auch den tatsächlichen
+Browser-Download und meldet einen sichtbaren Exportfehler unmittelbar statt erst
+nach einem unspezifischen Download-Timeout.
+
 Gleichzeitige PDF- und DOCX-Exporte werden serialisiert. Die Dokumentbibliotheken
 werden nur innerhalb des jeweiligen Exports durch lokale Proxies ergänzt; ihre
 Modul-Exporte werden nicht dauerhaft verändert. Dadurch kann der aktive
