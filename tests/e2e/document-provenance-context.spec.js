@@ -82,10 +82,19 @@ test.describe('document provenance with context-filtered state', () => {
     const snapshot = await page.evaluate(async () => {
       const ctx = window.UA.getRuntimeContext();
       const result = await window.UA.documentExportProvenanceRuntime.createSnapshot(ctx);
+      const query = new URL(window.location.href).searchParams;
       return {
         artifactId: result.manifest.artifactId,
         hash: result.sourceManifestSha256,
         filters: result.manifest.scenario.filters,
+        runtime: {
+          showCluster: ctx.showCluster,
+          showHeatmap: ctx.showHeatmap,
+          showOnlyAboveAverage: ctx.showOnlyAboveAverage,
+          maxPoints: Number(query.get('maxPoints')),
+          viewportPaddingPct: Number(query.get('viewportPaddingPct')),
+          heatRadius: Number(query.get('heatRadius')),
+        },
       };
     });
     expect(snapshot.artifactId).toMatch(/^unfallwerkbank-bonn-/);
@@ -93,9 +102,14 @@ test.describe('document provenance with context-filtered state', () => {
     expect(snapshot.filters.contextSlopeClasses).toEqual(['steep', 'very_steep']);
     expect(snapshot.filters.contextTrafficClasses).toEqual(['high', 'very_high']);
     expect(snapshot.filters.onlyMatchedWays).toBe(true);
-    expect(snapshot.filters.maxPoints).toBe(100000);
-    expect(snapshot.filters.showCluster).toBe(true);
-    expect(snapshot.filters.showHeatmap).toBe(false);
+    expect(snapshot.runtime).toEqual({
+      showCluster: true,
+      showHeatmap: false,
+      showOnlyAboveAverage: false,
+      maxPoints: 100000,
+      viewportPaddingPct: 20,
+      heatRadius: 25,
+    });
 
     await page.locator('#btnOpenExport').click();
     await expect(page.locator('#modalOverlay .modal')).toBeVisible();
