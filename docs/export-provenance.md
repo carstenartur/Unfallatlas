@@ -11,7 +11,14 @@ Der Export bricht ab, wenn die Quellen- oder Lizenzangaben nicht vollständig
 validiert werden können. In diesem Fall wird auch die vom älteren Exportmodul
 bereits erzeugte Zwischendatei nicht an den Browser weitergegeben. Das gilt
 auch für PDF und DOCX: Die Dokument-Renderer werden erst aufgerufen, nachdem
-der Manifest-Snapshot validiert und mit SHA-256 gebunden wurde.
+der Manifest-Snapshot validiert, mit SHA-256 gebunden und durch das gemeinsame
+Veröffentlichungs-QA-Gate geprüft wurde.
+
+Während die optionalen Provenienzmodule geladen werden, sind alle Exportwege
+gesperrt. Bereits früh gebundene Word-/PDF-Schaltflächen warten auf diesen
+Bereitschaftszustand und delegieren danach an den installierten Exporter. Ein
+Ladefehler führt weiterhin zum kontrollierten Exportabbruch und nicht zum
+Rückfall auf eine Datei ohne Quellenangaben.
 
 ## CSV
 
@@ -50,15 +57,19 @@ Beide Dokumentformate erhalten einen eigenen Abschnitt
   Abrufzeitpunkt, Abdeckung und vorgeschriebenem Quellenvermerk,
 - Änderungsvermerke, Qualitätshinweise und dokumentierte Transformationen.
 
+Der frühere pauschale Abschnitt „Unfallatlas / Open-Data-Downloads“ wird ersetzt
+und nicht als zweite, unabhängig gepflegte Quellenangabe beibehalten.
 Datensatz-, Distributions- und Lizenzadressen erscheinen nicht als lange rohe
 URLs. DOCX verwendet echte externe OOXML-Hyperlink-Beziehungen; PDF verwendet
 Linkannotationen. Die CI öffnet die erzeugte DOCX-Datei als OOXML-Paket und
-liest die erzeugte PDF-Datei mit pdf.js, um sichtbaren Inhalt, Linkziele und
-Manifest-Hash direkt aus den Binärartefakten zu prüfen.
+liest die erzeugte PDF-Datei mit pdf.js in einem ESM-fähigen Node-Prozess, um
+sichtbaren Inhalt, Linkziele und Manifest-Hash direkt aus den Binärartefakten zu
+prüfen.
 
-Gleichzeitige PDF- und DOCX-Exporte werden serialisiert. Dadurch kann der nur
-für die Dauer eines Exports aktive Manifest-Snapshot nicht in ein anderes
-Dokument geraten.
+Gleichzeitige PDF- und DOCX-Exporte werden serialisiert. Die Dokumentbibliotheken
+werden nur innerhalb des jeweiligen Exports durch lokale Proxies ergänzt; ihre
+Modul-Exporte werden nicht dauerhaft verändert. Dadurch kann der aktive
+Manifest-Snapshot nicht in ein anderes Dokument geraten.
 
 ## Build- und Datenbindung
 
