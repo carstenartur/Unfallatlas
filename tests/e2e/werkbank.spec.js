@@ -377,7 +377,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
     // (e.g. ",", ".", space, NBSP, narrow NBSP), so extract the value
     // after each label and strip all non-digit characters.
     const extractCount = (label) => {
-      const match = statText.match(new RegExp(`${label}:\s*([^|\n\r]+)`));
+      const match = statText.match(new RegExp(String.raw`${label}:\s*([^|\n\r]+)`));
       const digitsOnly = ((match && match[1]) || '0').replace(/\D/g, '');
       return parseInt(digitsOnly || '0', 10);
     };
