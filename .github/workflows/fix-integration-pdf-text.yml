@@ -1,0 +1,68 @@
+name: Fix integration PDF text regression
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-integration-pdf-text.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/traffic-provider-core
+          fetch-depth: 0
+      - name: Replace flat PDF text collector
+        shell: python
+        run: |
+          from pathlib import Path
+
+          target = Path('tests/integration/export.test.js')
+          source = target.read_text(encoding='utf-8')
+          start_marker = '      // Gather all text content including table bodies\n'
+          end_marker = "      const allText = pdfDefinition.content.map(collectText).join(' ');\n"
+          start = source.index(start_marker)
+          end = source.index(end_marker, start) + len(end_marker)
+          replacement = '''      // Gather all visible text recursively. Relevant pdfMake nodes may be
+          // nested in unbreakable stacks, columns or table bodies after final-page
+          // layout hardening; the semantic assertions below must inspect them all.
+          function collectText(item) {
+            if (item == null) return '';
+            if (typeof item === 'string') return item;
+            if (Array.isArray(item)) return item.map(collectText).filter(Boolean).join(' ');
+            if (typeof item !== 'object') return '';
+
+            const fragments = [];
+            if (typeof item.text === 'string') fragments.push(item.text);
+            else if (Array.isArray(item.text)) fragments.push(collectText(item.text));
+            if (Array.isArray(item.stack)) fragments.push(collectText(item.stack));
+            if (Array.isArray(item.columns)) fragments.push(collectText(item.columns));
+            if (item.table && Array.isArray(item.table.body)) {
+              fragments.push(collectText(item.table.body));
+            }
+            return fragments.filter(Boolean).join(' ');
+          }
+          const allText = collectText(pdfDefinition.content);
+'''
+          target.write_text(source[:start] + replacement + source[end:], encoding='utf-8')
+      - name: Install, format and verify affected suites
+        run: |
+          npm ci
+          npx --yes prettier@3.6.2 --write tests/integration/export.test.js
+          npm run test:integration
+          npm run test:unit -- --runInBand tests/unit/ua.report_v2.imageAspectRatio.test.js tests/unit/trafficProvider.test.js
+      - name: Commit corrected integration test
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/integration/export.test.js
+          git commit -m 'test: inspect nested PDF content in integration assertions'
+          git push origin HEAD:feat/traffic-provider-core
