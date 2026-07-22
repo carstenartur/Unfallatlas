@@ -46,6 +46,24 @@ function attachErrorCollectors(page) {
   return { jsErrors, consoleErrors };
 }
 
+async function waitForCityOptions(page) {
+  const citySelect = page.locator('#citySel');
+  await expect(citySelect).toBeVisible();
+  await expect.poll(async () => citySelect.locator('option').count()).toBeGreaterThan(1);
+  return citySelect;
+}
+
+async function waitForProvenanceRuntime(page) {
+  await page.waitForFunction(() => Boolean(window.UA?.exportProvenanceReady));
+  await page.evaluate(async () => {
+    await window.UA.exportProvenanceReady;
+    if (window.UA.exportProvenanceError) throw window.UA.exportProvenanceError;
+    if (window.UA.__liveExportProvenanceInstalled !== true) {
+      throw new Error('Live export provenance was not installed');
+    }
+  });
+}
+
 test.describe('Smoke – Werkbank V2', () => {
   test('Seite lädt ohne JS-Fehler (HTTP 200)', async ({ page }) => {
     const { jsErrors, consoleErrors } = attachErrorCollectors(page);
@@ -53,7 +71,11 @@ test.describe('Smoke – Werkbank V2', () => {
     const response = await page.goto('werkbank_v2.html');
     expect(response.status()).toBe(200);
 
-    await page.waitForLoadState('networkidle');
+    // Die Anwendung führt zulässige Hintergrundabfragen aus; globales
+    // `networkidle` ist deshalb kein stabiler Bereitschaftsvertrag. Stattdessen
+    // warten wir auf die sichtbare Haupt-UI und die komplette Runtime-Kette.
+    await waitForCityOptions(page);
+    await waitForProvenanceRuntime(page);
     expect(jsErrors, `pageerror events:\n${jsErrors.join('\n')}`).toHaveLength(0);
     expect(
       consoleErrors,
@@ -90,16 +112,7 @@ test.describe('Smoke – Werkbank V2', () => {
 
   test('Stadt-Dropdown ist sichtbar und hat auswählbare Optionen', async ({ page }) => {
     await page.goto('werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
-
-    const citySelect = page.locator('#citySel');
-    await expect(citySelect).toBeVisible();
-
-    await page.waitForFunction(() => {
-      const select = document.querySelector('#citySel');
-      return select && select.querySelectorAll('option').length > 1;
-    });
-
+    const citySelect = await waitForCityOptions(page);
     const optionCount = await citySelect.locator('option').count();
     expect(optionCount).toBeGreaterThan(1);
   });
@@ -107,9 +120,8 @@ test.describe('Smoke – Werkbank V2', () => {
   test('Schweregrad-Filter lässt sich ändern', async ({ page }) => {
     await page.goto('werkbank_v2.html');
 
-    // Dieser Test benötigt nur das statisch gebundene Filterelement. Globales
-    // `networkidle` ist hier falsch: optionale Daten-/Capability-Abfragen dürfen
-    // weiterlaufen und können insbesondere WebKit unnötig am Idle-State hindern.
+    // Dieser Test benötigt nur das statisch gebundene Filterelement. Optionale
+    // Daten-/Capability-Abfragen dürfen parallel weiterlaufen.
     const severitySelect = page.locator('#severity');
     await expect(severitySelect).toBeVisible();
     await expect(severitySelect.locator('option')).toHaveCount(4);
@@ -120,7 +132,6 @@ test.describe('Smoke – Werkbank V2', () => {
 
   test('Export-Modal lässt sich öffnen', async ({ page }) => {
     await page.goto('werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
 
     // Export-Button (`#btnOpenExport`) ist immer sichtbar – kein Vorab-Klick auf
     // Zeichnen/Löschen nötig, vgl. werkbank_v2.html:148.
@@ -140,7 +151,7 @@ test.describe('Smoke – Werkbank V2', () => {
   // capability-detection regression that hides it visible in CI.
   test('Karten-Layer-Control ist für Stadt mit OSM-Kontext sichtbar', async ({ page }) => {
     await page.goto('werkbank_v2.html?city=Bonn');
-    await page.waitForLoadState('networkidle');
+    await page.waitForFunction(() => typeof window.UA?.fetchJsonCompressed === 'function');
 
     // Gate: only enforce the assertion when the deployment actually
     // has enriched data with slope or traffic fields. The overlay
@@ -149,9 +160,6 @@ test.describe('Smoke – Werkbank V2', () => {
     const baseUrl = new URL(page.url());
     const dataUrl = new URL('out/output_all_years_bonn.geojson.gz', baseUrl).toString();
     const geojson = await page.evaluate(async (url) => {
-      if (typeof window.UA === 'undefined' || typeof window.UA.fetchJsonCompressed !== 'function') {
-        throw new Error('UA.fetchJsonCompressed not available');
-      }
       return window.UA.fetchJsonCompressed(url, { gzipOnly: true });
     }, dataUrl);
     expect(Array.isArray(geojson?.features), 'Bonn GeoJSON has no features array').toBe(true);
@@ -188,12 +196,10 @@ test.describe('Smoke – Werkbank V2', () => {
     const waysHead = await page.request.fetch(waysUrlGz, { method: 'HEAD' }).catch(() => null);
     test.skip(!waysHead || !waysHead.ok(), 'ways_bonn.json.gz not deployed — schema-version check skipped');
 
+    await page.waitForFunction(() => typeof window.UA?.fetchJsonCompressed === 'function');
     // Decompress via the UA helper already present on the page so we don't
     // need to pipe raw gzip bytes through Node.js zlib in the test runner.
     const payload = await page.evaluate(async (url) => {
-      if (typeof window.UA === 'undefined' || typeof window.UA.fetchJsonCompressed !== 'function') {
-        throw new Error('UA.fetchJsonCompressed not available');
-      }
       return window.UA.fetchJsonCompressed(url, { gzipOnly: true });
     }, waysUrlGz);
     expect(payload && typeof payload === 'object', 'ways_bonn.json.gz is not a JSON object').toBe(true);
@@ -206,7 +212,6 @@ test.describe('Smoke – Werkbank V2', () => {
   test('Pan + Screenshot enthält keine grauen Tile-Lücken', async ({ page, browserName }) => {
     test.setTimeout(60000);
     await page.goto('werkbank_v2.html?city=Berlin&mapLayer=slope&zoom=16&centerLat=52.521463&centerLon=13.379320');
-    await page.waitForLoadState('networkidle');
     await waitForMapTiles(page);
 
     const mapBounds = await page.locator('#map').boundingBox();
