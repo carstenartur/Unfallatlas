@@ -43,10 +43,37 @@ describe('direct live KML provenance exporter', () => {
     expect(result.filename).toBe('Unfallatlas_koeln_test_2026-07-22.kml');
     expect(result.pointCount).toBe(1);
     expect(result.kml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
-    expect(result.kml).toContain('<name>Köln &amp; Test');
+    expect(result.kml).toContain('<name>Unfallatlas Köln &amp; Test 2026-07-22</name>');
     expect(result.kml).toContain('2024 Schwerverletzt (Rad+PKW)');
     expect(result.kml).toContain('<Data name="ustunde"><value>8</value></Data>');
     expect(result.kml).toContain('<coordinates>9.732,52.376,0</coordinates>');
+  });
+
+  test('keeps manifest metadata and placemarks in separate Blob parts', () => {
+    const api = loadApi();
+    const UA = {
+      normKey: () => 'hannover',
+      exportProvenance: {
+        exportPoints: jest.fn(() => [
+          { lat: 52.376, lon: 9.732, props: { year: '2024', ukategorie: '3' } },
+          { lat: 52.38, lon: 9.74, props: { year: '2023', ukategorie: '2' } },
+        ]),
+      },
+    };
+
+    const result = api.buildKmlParts(
+      UA,
+      { CITY_RAW: 'Hannover' },
+      '2026-07-22',
+      '<ExtendedData><Data name="manifest"/></ExtendedData>',
+    );
+
+    expect(result.parts).toHaveLength(4);
+    expect(result.parts[0]).toContain('<Data name="manifest"/>');
+    expect(result.parts[1]).toContain('2024 Leichtverletzt');
+    expect(result.parts[2]).toContain('2023 Schwerverletzt');
+    expect(result.parts[3]).toBe('</Document></kml>');
+    expect(result.pointCount).toBe(2);
   });
 
   test('installs a provenanced exporter without invoking the legacy Blob exporter', async () => {
@@ -87,8 +114,8 @@ describe('direct live KML provenance exporter', () => {
         createManifest: jest.fn(async () => manifest),
       },
       artifactProvenance: {
-        injectKmlProvenance: jest.fn(async (kml, suppliedManifest) => ({
-          kml: kml.replace('<Document>', '<Document><ExtendedData><Data name="manifest"/></ExtendedData>'),
+        buildKmlExtendedData: jest.fn(async suppliedManifest => ({
+          xml: '<ExtendedData><Data name="manifest"/></ExtendedData>',
           sourceManifestSha256: 'a'.repeat(64),
           suppliedManifest,
         })),
@@ -100,13 +127,14 @@ describe('direct live KML provenance exporter', () => {
 
     expect(legacyExporter).not.toHaveBeenCalled();
     expect(UA.exportProvenanceRuntime.createManifest).toHaveBeenCalledTimes(1);
-    expect(UA.artifactProvenance.injectKmlProvenance).toHaveBeenCalledTimes(1);
+    expect(UA.artifactProvenance.buildKmlExtendedData).toHaveBeenCalledWith(manifest);
     expect(root.URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(anchor.click).toHaveBeenCalledTimes(1);
     expect(anchor.download).toMatch(/^Unfallatlas_hannover_.*\.kml$/);
     expect(result.pointCount).toBe(1);
     expect(result.manifest).toBe(manifest);
     expect(result.sourceManifestSha256).toBe('a'.repeat(64));
+    expect(result).not.toHaveProperty('kml');
   });
 
   test('does not contain the legacy Blob capture and readback helpers', () => {
@@ -117,5 +145,6 @@ describe('direct live KML provenance exporter', () => {
     expect(source).not.toContain('captureOriginalExport');
     expect(source).not.toContain('readBlobText');
     expect(source).not.toContain('saveAs');
+    expect(source).not.toContain('injectKmlProvenance');
   });
 });
