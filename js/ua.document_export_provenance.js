@@ -1,11 +1,10 @@
 /**
  * Binds the existing PDF and DOCX renderers to the shared SourceManifest.
  *
- * The legacy report renderer remains responsible for layout and document
- * construction. This module intercepts the final document-library boundary,
- * replaces the old generic source sentence and injects source records,
- * transformations, fingerprints and real external hyperlinks derived from one
- * normalized manifest snapshot.
+ * The report renderer keeps ownership of layout and document construction.
+ * This module scopes small proxies around the final document-library boundary,
+ * replaces the legacy generic source paragraph and injects a validated,
+ * renderer-neutral source view with real external hyperlinks.
  */
 (function initDocumentExportProvenance(root, factory) {
   const api = factory();
@@ -162,14 +161,130 @@
     });
   }
 
+  function pdfLink(label, url) {
+    return { text: label, link: url, color: "blue", decoration: "underline" };
+  }
+
+  function buildPdfBodyNodes(view) {
+    const nodes = [
+      { text: SOURCE_INTRO, margin: [0, 0, 0, 6] },
+      {
+        text: [
+          { text: "Dokument-ID: ", bold: true },
+          view.artifactId,
+          { text: " · SourceManifest SHA-256: ", bold: true },
+          view.sourceManifestSha256,
+        ],
+        margin: [0, 0, 0, 6],
+      },
+      {
+        text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`,
+        margin: [0, 0, 0, 3],
+      },
+      { text: `Build-Fingerprint: ${view.buildFingerprint}`, margin: [0, 0, 0, 2] },
+      { text: `Daten-Fingerprint: ${view.dataFingerprint}`, margin: [0, 0, 0, 8] },
+      { text: "Auswertungsszenario", bold: true, margin: [0, 4, 0, 3] },
+      {
+        text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`,
+        margin: [0, 0, 0, 2],
+      },
+      { text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`, margin: [0, 0, 0, 2] },
+      { text: `Aktive Filter: ${view.scenario.filters}`, margin: [0, 0, 0, 8] },
+    ];
+
+    view.sources.forEach((source, index) => {
+      nodes.push({
+        text: [
+          { text: `${index + 1}. ${source.datasetTitle}`, bold: true },
+          ` — ${source.publisher} [${source.sourceId}]`,
+        ],
+        margin: [0, index ? 6 : 2, 0, 2],
+      });
+      const links = [pdfLink("Datensatzseite öffnen", source.datasetUrl)];
+      if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {
+        links.push(" · ", pdfLink("Datenzugang öffnen", source.distributionUrl));
+      }
+      links.push(
+        " · ",
+        pdfLink(`Lizenz: ${source.licenseName} (${source.licenseId})`, source.licenseUrl),
+      );
+      nodes.push({ text: links, margin: [0, 0, 0, 2] });
+      nodes.push({
+        text: `Rolle: ${source.role} · Abruf/Erzeugung: ${source.retrievedAt}`,
+        margin: [0, 0, 0, 2],
+      });
+      const coverage = [
+        source.temporalCoverage ? `zeitlich ${source.temporalCoverage}` : null,
+        source.spatialCoverage ? `räumlich ${source.spatialCoverage}` : null,
+        source.versionOrPublicationDate
+          ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
+          : null,
+      ].filter(Boolean);
+      if (coverage.length) nodes.push({
+        text: `Abdeckung: ${coverage.join(" · ")}`,
+        margin: [0, 0, 0, 2],
+      });
+      if (source.requiredAttribution) nodes.push({
+        text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
+        margin: [0, 0, 0, 2],
+      });
+      if (source.contentHash) nodes.push({
+        text: `Quellbestand-Hash: ${source.contentHash}`,
+        margin: [0, 0, 0, 2],
+      });
+      nodes.push({
+        text: source.changedOrDerived
+          ? `Gefiltert/transformiert: ja${source.changeNotice ? ` · ${source.changeNotice}` : ""}`
+          : "Gefiltert/transformiert: nein",
+        margin: [0, 0, 0, source.qualityNotes.length ? 2 : 5],
+      });
+      source.qualityNotes.forEach((note) => nodes.push({
+        text: `Qualität/Grenzen: ${note}`,
+        margin: [0, 0, 0, 2],
+      }));
+    });
+
+    nodes.push({ text: "Transformationen", bold: true, margin: [0, 6, 0, 3] });
+    if (view.transformations.length) {
+      view.transformations.forEach((item) => nodes.push({
+        text:
+          `• ${item.label} [${item.transformationId}]: ${item.description} ` +
+          `Quellen: ${item.sourceIds}. Ausgabefelder: ${item.outputFields}. ` +
+          `${item.softwareVersion ? `Software: ${item.softwareVersion}. ` : ""}` +
+          `Parameter: ${item.parameters}.`,
+        margin: [0, 0, 0, 2],
+      }));
+    } else {
+      nodes.push({
+        text: "Keine zusätzlichen Transformationen dokumentiert.",
+        margin: [0, 0, 0, 4],
+      });
+    }
+    return nodes;
+  }
+
+  function validateSourceView(UA, view) {
+    if (typeof UA?.runExportQAGate !== "function") return;
+    const gate = UA.runExportQAGate([{ text: view.heading }, ...buildPdfBodyNodes(view)]);
+    if (gate?.ok === false) {
+      fail(
+        "document_content_qa_failed",
+        "manifest-driven document provenance contains non-publication-ready content",
+        { violations: gate.violations || [] },
+      );
+    }
+  }
+
   async function createSnapshot(ctx, UA, root) {
     requireRuntime(UA);
     const manifest = await UA.exportProvenanceRuntime.createManifest(ctx, { UA, root });
     const normalized = await UA.artifactProvenance.normalizeAndHash(manifest);
+    const view = buildSourceView(normalized);
+    validateSourceView(UA, view);
     return Object.freeze({
       manifest: normalized.manifest,
       sourceManifestSha256: normalized.sha256,
-      view: buildSourceView(normalized),
+      view,
     });
   }
 
@@ -295,93 +410,6 @@
     return nodes;
   }
 
-  function pdfLink(label, url) {
-    return { text: label, link: url, color: "blue", decoration: "underline" };
-  }
-
-  function buildPdfBodyNodes(view) {
-    const nodes = [
-      { text: SOURCE_INTRO, margin: [0, 0, 0, 6] },
-      {
-        text: [
-          { text: "Dokument-ID: ", bold: true },
-          view.artifactId,
-          { text: " · SourceManifest SHA-256: ", bold: true },
-          view.sourceManifestSha256,
-        ],
-        margin: [0, 0, 0, 6],
-      },
-      { text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`, margin: [0, 0, 0, 3] },
-      { text: `Build-Fingerprint: ${view.buildFingerprint}`, margin: [0, 0, 0, 2] },
-      { text: `Daten-Fingerprint: ${view.dataFingerprint}`, margin: [0, 0, 0, 8] },
-      { text: "Auswertungsszenario", bold: true, margin: [0, 4, 0, 3] },
-      { text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`, margin: [0, 0, 0, 2] },
-      { text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`, margin: [0, 0, 0, 2] },
-      { text: `Aktive Filter: ${view.scenario.filters}`, margin: [0, 0, 0, 8] },
-    ];
-
-    view.sources.forEach((source, index) => {
-      nodes.push({
-        text: [
-          { text: `${index + 1}. ${source.datasetTitle}`, bold: true },
-          ` — ${source.publisher} [${source.sourceId}]`,
-        ],
-        margin: [0, index ? 6 : 2, 0, 2],
-      });
-      const links = [pdfLink("Datensatzseite öffnen", source.datasetUrl)];
-      if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {
-        links.push(" · ", pdfLink("Datenzugang öffnen", source.distributionUrl));
-      }
-      links.push(
-        " · ",
-        pdfLink(`Lizenz: ${source.licenseName} (${source.licenseId})`, source.licenseUrl),
-      );
-      nodes.push({ text: links, margin: [0, 0, 0, 2] });
-      nodes.push({
-        text: `Rolle: ${source.role} · Abruf/Erzeugung: ${source.retrievedAt}`,
-        margin: [0, 0, 0, 2],
-      });
-      const coverage = [
-        source.temporalCoverage ? `zeitlich ${source.temporalCoverage}` : null,
-        source.spatialCoverage ? `räumlich ${source.spatialCoverage}` : null,
-        source.versionOrPublicationDate
-          ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
-          : null,
-      ].filter(Boolean);
-      if (coverage.length) nodes.push({ text: `Abdeckung: ${coverage.join(" · ")}`, margin: [0, 0, 0, 2] });
-      if (source.requiredAttribution) nodes.push({
-        text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
-        margin: [0, 0, 0, 2],
-      });
-      if (source.contentHash) nodes.push({ text: `Quellbestand-Hash: ${source.contentHash}`, margin: [0, 0, 0, 2] });
-      nodes.push({
-        text: source.changedOrDerived
-          ? `Gefiltert/transformiert: ja${source.changeNotice ? ` · ${source.changeNotice}` : ""}`
-          : "Gefiltert/transformiert: nein",
-        margin: [0, 0, 0, source.qualityNotes.length ? 2 : 5],
-      });
-      source.qualityNotes.forEach((note) => nodes.push({
-        text: `Qualität/Grenzen: ${note}`,
-        margin: [0, 0, 0, 2],
-      }));
-    });
-
-    nodes.push({ text: "Transformationen", bold: true, margin: [0, 6, 0, 3] });
-    if (view.transformations.length) {
-      view.transformations.forEach((item) => nodes.push({
-        text:
-          `• ${item.label} [${item.transformationId}]: ${item.description} ` +
-          `Quellen: ${item.sourceIds}. Ausgabefelder: ${item.outputFields}. ` +
-          `${item.softwareVersion ? `Software: ${item.softwareVersion}. ` : ""}` +
-          `Parameter: ${item.parameters}.`,
-        margin: [0, 0, 0, 2],
-      }));
-    } else {
-      nodes.push({ text: "Keine zusätzlichen Transformationen dokumentiert.", margin: [0, 0, 0, 4] });
-    }
-    return nodes;
-  }
-
   function textOfPdfNode(node) {
     if (typeof node === "string") return node;
     if (!node || typeof node !== "object") return "";
@@ -407,16 +435,9 @@
     );
     const body = buildPdfBodyNodes(view);
     if (headingIndex >= 0) content[headingIndex] = { ...content[headingIndex], text: SOURCE_HEADING };
-    if (legacyIndex >= 0) {
-      content.splice(legacyIndex, 1, ...body);
-    } else if (headingIndex >= 0) {
-      content.splice(headingIndex + 1, 0, ...body);
-    } else {
-      content.push(
-        { text: SOURCE_HEADING, style: "subheader", pageBreak: "before" },
-        ...body,
-      );
-    }
+    if (legacyIndex >= 0) content.splice(legacyIndex, 1, ...body);
+    else if (headingIndex >= 0) content.splice(headingIndex + 1, 0, ...body);
+    else content.push({ text: SOURCE_HEADING, style: "subheader", pageBreak: "before" }, ...body);
     return { ...definition, content };
   }
 
@@ -453,11 +474,9 @@
           TextRun: docx.TextRun,
           ExternalHyperlink: docx.ExternalHyperlink,
         }, view);
-        if (introIndex >= 0) {
-          children.splice(introIndex, 1, ...body);
-        } else if (headingIndex >= 0) {
-          children.splice(headingIndex + 1, 0, ...body);
-        } else {
+        if (introIndex >= 0) children.splice(introIndex, 1, ...body);
+        else if (headingIndex >= 0) children.splice(headingIndex + 1, 0, ...body);
+        else {
           children.push(
             new OriginalParagraph({
               text: SOURCE_HEADING,
@@ -495,11 +514,7 @@
     if (root.docx !== proxiedDocx) {
       fail("docx_boundary_unavailable", "window.docx cannot be scoped for provenance");
     }
-    return Promise.resolve()
-      .then(task)
-      .finally(() => {
-        root.docx = originalDocx;
-      });
+    return Promise.resolve().then(task).finally(() => { root.docx = originalDocx; });
   }
 
   function withPdfBoundary(root, view, task) {
@@ -524,11 +539,7 @@
     if (root.pdfMake !== proxiedPdfMake) {
       fail("pdf_boundary_unavailable", "window.pdfMake cannot be scoped for provenance");
     }
-    return Promise.resolve()
-      .then(task)
-      .finally(() => {
-        root.pdfMake = originalPdfMake;
-      });
+    return Promise.resolve().then(task).finally(() => { root.pdfMake = originalPdfMake; });
   }
 
   function install(UA, root) {
@@ -579,6 +590,7 @@
       buildDocxBodyNodes,
       buildPdfBodyNodes,
       injectPdfDefinition,
+      validateSourceView: (view) => validateSourceView(UA, view),
     });
     return UA.documentExportProvenanceRuntime;
   }
@@ -593,6 +605,7 @@
     buildDocxBodyNodes,
     buildPdfBodyNodes,
     injectPdfDefinition,
+    validateSourceView,
     createSnapshot,
     install,
   });
