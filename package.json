@@ -10,7 +10,10 @@
   },
   "scripts": {
     "build:site": "node scripts/build-site.js",
+    "build:pages-profile": "node scripts/build-public-pages-profile.js",
     "serve:site": "node scripts/serve-site.js",
+    "serve:site:existing": "node scripts/serve-site.js --no-build --site _site",
+    "fingerprint:site": "node scripts/fingerprint-static-tree.js",
     "test": "jest",
     "test:unit": "jest --testPathPatterns=tests/unit",
     "test:integration": "node -e \"require('fs').mkdirSync('coverage',{recursive:true})\" && jest --testPathPatterns=tests/integration --runInBand --json --outputFile=coverage/integration-results.json",
@@ -35,6 +38,7 @@
     "validate:media:policy": "node scripts/validate-doc-media.js --policy-only",
     "validate:screenshot-evidence": "node scripts/validate-screenshot-evidence.js",
     "validate:vendor-provenance": "node scripts/validate-vendor-provenance.js",
+    "validate:pages-profile": "node scripts/validate-public-pages-profile.js",
     "qa:slope": "node scripts/qa-slope-report.js",
     "test:all": "npm run test && npm run test:e2e",
     "test:watch": "jest --watch",
