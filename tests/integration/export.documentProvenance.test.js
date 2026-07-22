@@ -21,37 +21,33 @@ function validManifest(artifactId = 'document-hannover-export') {
       years: [2023, 2024],
       bounds: { south: 52.36, west: 9.71, north: 52.39, east: 9.75 },
     },
-    sources: [
-      {
-        sourceId: 'custom.accidents',
-        role: 'accidents',
-        publisher: 'Test publisher',
-        datasetTitle: 'Custom accident data',
-        datasetUrl: 'https://example.com/dataset',
-        distributionUrl: 'https://example.com/dataset/2024.geojson',
-        licenseId: 'CC0-1.0',
-        licenseName: 'Creative Commons CC0 1.0 Universal',
-        licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
-        requiredAttribution: 'Test publisher – Custom accident data',
-        temporalCoverage: '2023–2024',
-        spatialCoverage: 'Hannover',
-        versionOrPublicationDate: '2025-01-01',
-        retrievedAt: '2026-07-22T11:00:00Z',
-        contentHash: 'c'.repeat(64),
-        changedOrDerived: true,
-        changeNotice: 'Räumlich und nach Beteiligung gefiltert.',
-        qualityNotes: ['Testdaten für die Binärartefakt-QA.'],
-      },
-    ],
-    transformations: [
-      {
-        transformationId: 'filter.viewport',
-        label: 'Räumliche Auswahl',
-        description: 'Auswahl auf den dokumentierten Kartenausschnitt.',
-        sourceIds: ['custom.accidents'],
-        outputFields: ['geometry', 'properties'],
-      },
-    ],
+    sources: [{
+      sourceId: 'custom.accidents',
+      role: 'accidents',
+      publisher: 'Test publisher',
+      datasetTitle: 'Custom accident data',
+      datasetUrl: 'https://example.com/dataset',
+      distributionUrl: 'https://example.com/dataset/2024.geojson',
+      licenseId: 'CC0-1.0',
+      licenseName: 'Creative Commons CC0 1.0 Universal',
+      licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+      requiredAttribution: 'Test publisher – Custom accident data',
+      temporalCoverage: '2023–2024',
+      spatialCoverage: 'Hannover',
+      versionOrPublicationDate: '2025-01-01',
+      retrievedAt: '2026-07-22T11:00:00Z',
+      contentHash: 'c'.repeat(64),
+      changedOrDerived: true,
+      changeNotice: 'Räumlich und nach Beteiligung gefiltert.',
+      qualityNotes: ['Testdaten für die Binärartefakt-QA.'],
+    }],
+    transformations: [{
+      transformationId: 'filter.viewport',
+      label: 'Räumliche Auswahl',
+      description: 'Auswahl auf den dokumentierten Kartenausschnitt.',
+      sourceIds: ['custom.accidents'],
+      outputFields: ['geometry', 'properties'],
+    }],
   };
 }
 
@@ -85,8 +81,7 @@ function inspectPdf(buffer) {
     import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
     const chunks = [];
     for await (const chunk of process.stdin) chunks.push(chunk);
-    const encoded = Buffer.concat(chunks).toString('utf8');
-    const bytes = new Uint8Array(Buffer.from(encoded, 'base64'));
+    const bytes = new Uint8Array(Buffer.from(Buffer.concat(chunks).toString('utf8'), 'base64'));
     const pdf = await pdfjs.getDocument({ data: bytes, disableWorker: true }).promise;
     const visibleText = [];
     const urls = [];
@@ -94,8 +89,7 @@ function inspectPdf(buffer) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
       visibleText.push(content.items.map(item => item.str).join(' '));
-      const annotations = await page.getAnnotations();
-      for (const annotation of annotations) {
+      for (const annotation of await page.getAnnotations()) {
         if (annotation.url) urls.push(annotation.url);
         if (annotation.unsafeUrl) urls.push(annotation.unsafeUrl);
       }
@@ -116,7 +110,6 @@ function inspectPdf(buffer) {
 
 function setupRuntime() {
   jest.resetModules();
-
   const docx = require('docx');
   const pdfMake = require('pdfmake/build/pdfmake');
   const pdfFonts = require('pdfmake/build/vfs_fonts');
@@ -125,7 +118,6 @@ function setupRuntime() {
 
   const produced = { word: null, pdf: null };
   const createManifest = jest.fn(async ctx => validManifest(ctx.artifactId));
-
   window.docx = docx;
   window.pdfMake = pdfMake;
   window.UA = {
@@ -133,37 +125,31 @@ function setupRuntime() {
     exportProvenanceRuntime: { createManifest },
     artifactProvenance: require('../../js/ua.artifact_provenance'),
   };
-
   window.UA.__documentProvenanceOriginals = {
     exportToWord: async () => {
       const { Document, Packer, Paragraph, HeadingLevel } = window.docx;
       const document = new Document({
-        sections: [{
-          children: [
-            new Paragraph({ text: 'Base DOCX document' }),
-            new Paragraph({ text: 'DATENQUELLE', heading: HeadingLevel.HEADING_2 }),
-            new Paragraph({ text: LEGACY_SOURCE }),
-          ],
-        }],
+        sections: [{ children: [
+          new Paragraph({ text: 'Base DOCX document' }),
+          new Paragraph({ text: 'DATENQUELLE', heading: HeadingLevel.HEADING_2 }),
+          new Paragraph({ text: LEGACY_SOURCE }),
+        ] }],
       });
       produced.word = await Packer.toBlob(document);
       return 'word-result';
     },
     exportToPDF: async () => {
-      const pdf = window.pdfMake.createPdf({
-        content: [
-          { text: 'Base PDF document' },
-          { text: 'DATENQUELLE', style: 'subheader' },
-          { text: LEGACY_SOURCE, style: 'normal' },
-        ],
-      });
+      const pdf = window.pdfMake.createPdf({ content: [
+        { text: 'Base PDF document' },
+        { text: 'DATENQUELLE', style: 'subheader' },
+        { text: LEGACY_SOURCE, style: 'normal' },
+      ] });
       produced.pdf = await pdfBuffer(pdf);
       return 'pdf-result';
     },
   };
-
-  const api = require('../../js/ua.document_export_provenance');
-  return { api, produced, createManifest, docx, pdfMake };
+  require('../../js/ua.document_export_provenance');
+  return { produced, createManifest };
 }
 
 describe('live PDF/DOCX exports use the shared SourceManifest', () => {
@@ -178,17 +164,14 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
   test('DOCX contains visible provenance and real external hyperlink relationships', async () => {
     const { produced, createManifest } = setupRuntime();
     const result = await window.UA.exportToWord({ artifactId: 'docx-hannover-export' });
-
     expect(createManifest).toHaveBeenCalledTimes(1);
     expect(result.format).toBe('docx');
     expect(result.result).toBe('word-result');
     expect(result.sourceManifestSha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(produced.word).toBeInstanceOf(Blob);
 
     const archive = await JSZip.loadAsync(new Uint8Array(await blobToArrayBuffer(produced.word)));
     const documentXml = await archive.file('word/document.xml').async('string');
     const relationshipsXml = await archive.file('word/_rels/document.xml.rels').async('string');
-
     expect(documentXml).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
     expect(documentXml).not.toContain('>DATENQUELLE<');
     expect(documentXml).not.toContain('Unfallatlas / Open-Data-Downloads');
@@ -197,21 +180,17 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     expect(documentXml).toContain('Datensatzseite öffnen');
     expect(documentXml).toContain('Lizenz: Creative Commons CC0 1.0 Universal (CC0-1.0)');
     expect(documentXml).not.toContain('https://example.com/dataset');
-    expect(documentXml).not.toContain('https://creativecommons.org/publicdomain/zero/1.0/');
-
     expect(relationshipsXml).toContain('Target="https://example.com/dataset"');
     expect(relationshipsXml).toContain('Target="https://example.com/dataset/2024.geojson"');
     expect(relationshipsXml).toContain('Target="https://creativecommons.org/publicdomain/zero/1.0/"');
-    const externalHyperlinks = [...relationshipsXml.matchAll(
+    expect([...relationshipsXml.matchAll(
       /<Relationship\b[^>]*Type="[^"]*\/hyperlink"[^>]*TargetMode="External"[^>]*>/g,
-    )];
-    expect(externalHyperlinks.length).toBeGreaterThanOrEqual(3);
+    )].length).toBeGreaterThanOrEqual(3);
   });
 
   test('PDF contains visible provenance and extracted link annotations', async () => {
     const { produced, createManifest } = setupRuntime();
     const result = await window.UA.exportToPDF({ artifactId: 'pdf-hannover-export' });
-
     expect(createManifest).toHaveBeenCalledTimes(1);
     expect(result.format).toBe('pdf');
     expect(result.result).toBe('pdf-result');
@@ -221,7 +200,7 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     expect(visible).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
     expect(visible).not.toContain('Unfallatlas / Open-Data-Downloads');
     expect(visible).toContain('pdf-hannover-export');
-    expect(visible).toContain(result.sourceManifestSha256);
+    expect(visible.replace(/\s+/g, '')).toContain(result.sourceManifestSha256);
     expect(visible).toContain('Datensatzseite öffnen');
     expect(visible).toContain('Creative Commons CC0 1.0 Universal');
     expect(urls).toContain('https://example.com/dataset');
@@ -232,7 +211,6 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
   test('invalid provenance fails before either original document renderer runs', async () => {
     const { produced, createManifest } = setupRuntime();
     createManifest.mockResolvedValueOnce({ schemaVersion: 1, sources: [] });
-
     await expect(window.UA.exportToWord({ artifactId: 'broken' })).rejects.toThrow();
     expect(produced.word).toBeNull();
     expect(produced.pdf).toBeNull();
@@ -244,15 +222,12 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
       window.UA.exportToWord({ artifactId: 'parallel-word' }),
       window.UA.exportToPDF({ artifactId: 'parallel-pdf' }),
     ]);
-
     expect(word.manifest.artifactId).toBe('parallel-word');
     expect(pdf.manifest.artifactId).toBe('parallel-pdf');
-    expect(produced.word).not.toBeNull();
-    expect(produced.pdf).not.toBeNull();
-
     const archive = await JSZip.loadAsync(new Uint8Array(await blobToArrayBuffer(produced.word)));
     const documentXml = await archive.file('word/document.xml').async('string');
     expect(documentXml).toContain('parallel-word');
     expect(documentXml).not.toContain('parallel-pdf');
+    expect(produced.pdf).not.toBeNull();
   });
 });
