@@ -106,10 +106,13 @@ test.describe('Smoke – Werkbank V2', () => {
 
   test('Schweregrad-Filter lässt sich ändern', async ({ page }) => {
     await page.goto('werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
 
+    // Dieser Test benötigt nur das statisch gebundene Filterelement. Globales
+    // `networkidle` ist hier falsch: optionale Daten-/Capability-Abfragen dürfen
+    // weiterlaufen und können insbesondere WebKit unnötig am Idle-State hindern.
     const severitySelect = page.locator('#severity');
     await expect(severitySelect).toBeVisible();
+    await expect(severitySelect.locator('option')).toHaveCount(4);
 
     await severitySelect.selectOption('1');
     await expect(severitySelect).toHaveValue('1');
