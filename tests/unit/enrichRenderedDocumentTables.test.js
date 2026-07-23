@@ -56,6 +56,17 @@ function model() {
   };
 }
 
+function twoPageModel() {
+  const input = model();
+  input.pages.push({
+    ...input.pages[0],
+    number: 2,
+    words: input.pages[0].words.map((item) => ({ ...item })),
+    tableRows: [],
+  });
+  return input;
+}
+
 function contract() {
   return {
     expectedTableRowCount: 4,
@@ -136,6 +147,94 @@ describe('rendered table contract enrichment', () => {
     const finalAudit = JSON.parse(fs.readFileSync(auditPath, 'utf8'));
     expect(finalAudit.summary.tableRowCount).toBe(4);
     expect(finalAudit.stale).toBeUndefined();
+  });
+
+  test('counts initial and repeated headers across continuation pages', () => {
+    const input = twoPageModel();
+    const baseHint = contract().tableHints[0];
+
+    const result = enrichment.enrichModel(input, {
+      expectedTableRowCount: 5,
+      tableHints: [
+        { ...baseHint, rows: baseHint.rows.slice(0, 2) },
+        {
+          ...baseHint,
+          page: 2,
+          repeatedHeader: true,
+          rows: baseHint.rows.slice(2),
+        },
+      ],
+    });
+
+    expect(result.actual).toBe(5);
+    expect(result.model.pages[0].tableRows.map((row) => row.rowId)).toEqual([
+      'severity.header',
+      'severity.fatal',
+      'severity.serious',
+    ]);
+    expect(result.model.pages[1].tableRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        rowId: 'severity.header.page2',
+        repeatedHeader: true,
+      }),
+      expect.objectContaining({
+        rowId: 'severity.light',
+        repeatedHeader: false,
+      }),
+    ]));
+  });
+
+  test('rejects a continuation page without an explicit repeated header', () => {
+    const input = twoPageModel();
+    const baseHint = contract().tableHints[0];
+
+    expect(() => enrichment.enrichModel(input, {
+      expectedTableRowCount: 4,
+      tableHints: [
+        { ...baseHint, rows: baseHint.rows.slice(0, 1) },
+        { ...baseHint, page: 2, rows: baseHint.rows.slice(1, 2) },
+      ],
+    })).toThrow(/table_continuation_header_missing/);
+  });
+
+  test('rejects a repeated header whose final visible cells differ', () => {
+    const input = twoPageModel();
+    input.pages[1].words = input.pages[1].words.map((item) =>
+      item.text === 'Anteil' ? { ...item, text: 'Quote' } : item
+    );
+    const baseHint = contract().tableHints[0];
+
+    expect(() => enrichment.enrichModel(input, {
+      expectedTableRowCount: 4,
+      tableHints: [
+        { ...baseHint, rows: baseHint.rows.slice(0, 1) },
+        {
+          ...baseHint,
+          page: 2,
+          headers: ['Kategorie', 'Anzahl', 'Quote'],
+          repeatedHeader: true,
+          rows: baseHint.rows.slice(1, 2),
+        },
+      ],
+    })).toThrow(/repeated_table_header_mismatch/);
+  });
+
+  test('rejects duplicate semantic row IDs across table pages', () => {
+    const input = twoPageModel();
+    const baseHint = contract().tableHints[0];
+
+    expect(() => enrichment.enrichModel(input, {
+      expectedTableRowCount: 4,
+      tableHints: [
+        { ...baseHint, rows: baseHint.rows.slice(0, 1) },
+        {
+          ...baseHint,
+          page: 2,
+          repeatedHeader: true,
+          rows: baseHint.rows.slice(0, 1),
+        },
+      ],
+    })).toThrow(/duplicate_table_row_id/);
   });
 
   test('removes the stale pre-table audit when final reconstruction fails', () => {

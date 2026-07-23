@@ -63,6 +63,104 @@ function expectedRowCount(contract) {
   return value;
 }
 
+function sameCells(left, right) {
+  return Array.isArray(left) && Array.isArray(right) &&
+    left.length === right.length && left.every((cell, index) => cell === right[index]);
+}
+
+/**
+ * Validates semantic continuity after all rows have been reconstructed from
+ * final Poppler coordinates. The checks deliberately operate on the enriched
+ * page model rather than on the hint source alone: only headers and rows that
+ * actually survived LibreOffice layout may satisfy the contract.
+ */
+function validateTableContinuity(pages) {
+  const tableState = new Map();
+  const rowIds = new Set();
+
+  for (const page of pages) {
+    const rowsByTable = new Map();
+    for (const row of page.tableRows || []) {
+      if (!rowsByTable.has(row.tableId)) rowsByTable.set(row.tableId, []);
+      rowsByTable.get(row.tableId).push(row);
+    }
+
+    for (const [tableId, pageRows] of rowsByTable.entries()) {
+      const rows = [...pageRows].sort((left, right) =>
+        Number(left.yMin) - Number(right.yMin) || Number(left.xMin) - Number(right.xMin)
+      );
+      const header = rows[0];
+      const repeatedRows = rows.filter((row) => row.repeatedHeader);
+      const state = tableState.get(tableId);
+
+      if (!state) {
+        if (header.repeatedHeader) {
+          fail(
+            'initial_table_header_repeated',
+            `The first rendered header of table ${tableId} must not be marked as repeated`,
+            { tableId, page: page.number, rowId: header.rowId },
+          );
+        }
+        if (repeatedRows.length) {
+          fail(
+            'repeated_table_header_position',
+            `Table ${tableId} marks a non-initial row as a repeated header on page ${page.number}`,
+            { tableId, page: page.number, rowIds: repeatedRows.map((row) => row.rowId) },
+          );
+        }
+        tableState.set(tableId, {
+          headerCells: [...header.cells],
+          firstPage: page.number,
+          lastPage: page.number,
+        });
+      } else {
+        if (!header.repeatedHeader) {
+          fail(
+            'table_continuation_header_missing',
+            `Table ${tableId} continues on page ${page.number} without an explicit repeated header`,
+            { tableId, firstPage: state.firstPage, page: page.number, rowId: header.rowId },
+          );
+        }
+        if (repeatedRows.length !== 1 || repeatedRows[0] !== header) {
+          fail(
+            'repeated_table_header_position',
+            `Table ${tableId} must have exactly one repeated header as its first row on page ${page.number}`,
+            { tableId, page: page.number, rowIds: repeatedRows.map((row) => row.rowId) },
+          );
+        }
+        if (!sameCells(header.cells, state.headerCells)) {
+          fail(
+            'repeated_table_header_mismatch',
+            `The repeated header of table ${tableId} differs from its initial rendered header`,
+            {
+              tableId,
+              firstPage: state.firstPage,
+              page: page.number,
+              expected: state.headerCells,
+              actual: header.cells,
+            },
+          );
+        }
+        state.lastPage = page.number;
+      }
+
+      for (const row of rows) {
+        const key = `${tableId}\u0000${row.rowId}`;
+        if (rowIds.has(key)) {
+          fail(
+            'duplicate_table_row_id',
+            `Table ${tableId} contains duplicate rendered row ID ${row.rowId}`,
+            { tableId, page: page.number, rowId: row.rowId },
+          );
+        }
+        rowIds.add(key);
+      }
+    }
+  }
+
+  return pages;
+}
+
 function enrichModel(model, contract) {
   if (!model || typeof model !== 'object' || !Array.isArray(model.pages)) {
     fail('invalid_rendered_model', 'rendered document model requires pages');
@@ -74,6 +172,7 @@ function enrichModel(model, contract) {
     ...page,
     tableRows: applyTableHints(page.words || [], contract.tableHints, page.number),
   }));
+  validateTableContinuity(pages);
   const enriched = { ...model, pages };
   const actual = pages.reduce((sum, page) => sum + page.tableRows.length, 0);
   const expected = expectedRowCount(contract);
@@ -156,6 +255,8 @@ module.exports = {
   parseArgs,
   readJson,
   expectedRowCount,
+  sameCells,
+  validateTableContinuity,
   enrichModel,
   enrichMetadata,
   main,
