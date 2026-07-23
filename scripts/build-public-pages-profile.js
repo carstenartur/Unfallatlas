@@ -39,7 +39,8 @@ const DISABLED_CAPABILITIES = Object.freeze([
   'interactive-rectangle-drawing',
   'heatmap',
   'word-export',
-  'pdf-export'
+  'pdf-export',
+  'video-export'
 ]);
 const NOTICE_PATH = 'vendor/third-party-notices.json';
 const SBOM_PATH = 'vendor/public-preview-sbom.cdx.json';
