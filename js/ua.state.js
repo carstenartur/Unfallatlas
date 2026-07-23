@@ -68,6 +68,78 @@
     onlyHot: "showOnlyAboveAverage"
   };
 
+  // A city-only URL intentionally restores the user's last state for that city.
+  // `export=1` and `tour=...` are navigation actions and may do the same. Every
+  // other canonical parameter is an explicit shared analysis state and must win
+  // over localStorage, even when no centre/zoom was supplied.
+  const EXPLICIT_ANALYSIS_PARAMS = Object.freeze(
+    Object.keys(CANON).filter(key => !["city", "export", "tour"].includes(key))
+  );
+
+  /**
+   * Leaflet.markercluster processes large addLayers() batches asynchronously.
+   * Its pending timeout keeps using `this._map`; removing the group in a
+   * concurrent render sets that field to null and Firefox reports an uncaught
+   * getMinZoom error.  Defer only the physical remove() call until the current
+   * chunk sequence reports completion.  The application may already replace
+   * its ctx reference, but the stale group remains internally valid and removes
+   * itself immediately after the last pending chunk.
+   */
+  UA.installMarkerClusterChunkGuard = function installMarkerClusterChunkGuard() {
+    const ClusterGroup = window.L && window.L.MarkerClusterGroup;
+    const proto = ClusterGroup && ClusterGroup.prototype;
+    if (!proto || proto.__uaChunkGuardInstalled) return !!proto;
+    if (typeof proto.addLayers !== "function" || typeof proto.remove !== "function") return false;
+
+    const originalAddLayers = proto.addLayers;
+    const originalRemove = proto.remove;
+
+    proto.addLayers = function guardedAddLayers(layers, skipLayerAddEvent) {
+      if (this.options && this.options.chunkedLoading && this._map) {
+        if (!this.__uaChunkProgressWrapped) {
+          const configuredProgress = this.options.chunkProgress;
+          this.options.chunkProgress = (processed, total, elapsed) => {
+            if (typeof configuredProgress === "function") {
+              configuredProgress.call(this, processed, total, elapsed);
+            }
+            const complete = Number(processed) >= Number(total);
+            this.__uaChunkInProgress = !complete;
+            if (complete && this.__uaRemoveAfterChunk) {
+              this.__uaRemoveAfterChunk = false;
+              setTimeout(() => {
+                if (this._map) originalRemove.call(this);
+              }, 0);
+            }
+          };
+          this.__uaChunkProgressWrapped = true;
+        }
+        this.__uaChunkInProgress = true;
+      }
+      return originalAddLayers.call(this, layers, skipLayerAddEvent);
+    };
+
+    proto.remove = function guardedRemove() {
+      if (this.__uaChunkInProgress && this._map) {
+        this.__uaRemoveAfterChunk = true;
+        return this;
+      }
+      return originalRemove.apply(this, arguments);
+    };
+
+    Object.defineProperty(proto, "__uaChunkGuardInstalled", {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false
+    });
+    return true;
+  };
+
+  // MarkerCluster is loaded before the application modules in werkbank_v2.html.
+  // The public function remains available for isolated tests or alternative
+  // bundles that install the plugin later.
+  UA.installMarkerClusterChunkGuard();
+
   function parseSearchKeepLast(search) {
     const raw = search.replace(/^\?/, "");
     const pairs = raw ? raw.split("&") : [];
@@ -106,9 +178,6 @@
 
   UA.cleanUrlIfNeeded = function cleanUrlIfNeeded() {
     const parsed = parseSearchKeepLast(window.location.search);
-    // Only reload for actual content changes (duplicates, legacy param names, unknown params).
-    // Do NOT reload for pure parameter-ordering differences to avoid unexpected reloads
-    // that can cause the map to jump to a saved state from a different city.
     if (parsed.hadDup || parsed.hadLegacy || parsed.hadUnknown) {
       const cleanedSearch = buildSearch(parsed.map);
       const u = new URL(window.location.href);
@@ -121,11 +190,14 @@
 
   UA.viewParamsPresent = () => UA.qs().has("centerLat") && UA.qs().has("centerLon") && UA.qs().has("zoom");
   UA.selectionParamsPresent = () => UA.qs().has("selSouth") && UA.qs().has("selWest") && UA.qs().has("selNorth") && UA.qs().has("selEast");
+  UA.explicitAnalysisParamsPresent = () => {
+    const search = UA.qs();
+    return EXPLICIT_ANALYSIS_PARAMS.some(key => search.has(key));
+  };
 
   const CITY_STATE_KEY = (city) => `ua_state_${UA.normKey(city)}`;
 
   UA.saveCityState = function saveCityState(ctx){
-    // ctx liefert UI + map + selection
     try {
       const { CITY_RAW, map, ui, selectionBounds } = ctx;
       const c = map.getCenter();
@@ -164,7 +236,7 @@
   };
 
   UA.restoreCityStateIfNoUrlView = function restoreCityStateIfNoUrlView(ctx){
-    if (UA.viewParamsPresent()) return false;
+    if (UA.viewParamsPresent() || UA.explicitAnalysisParamsPresent()) return false;
     try {
       const raw = localStorage.getItem(CITY_STATE_KEY(ctx.CITY_RAW));
       if (!raw) return false;
@@ -172,24 +244,20 @@
       if (!st) return false;
 
       const ui = ctx.ui;
-
       ui.severityEl.value = st.severity ?? ui.severityEl.value;
       ui.roadConditionEl.value = st.roadCondition ?? ui.roadConditionEl.value;
       ui.dayTypeEl.value = st.dayType ?? ui.dayTypeEl.value;
-
       ui.hFromEl.value = String(st.hourFrom ?? 0);
       ui.hToEl.value = String(st.hourTo ?? 23);
       ui.maxPointsEl.value = String(st.maxPoints ?? 100000);
       ui.viewportPaddingEl.value = String(st.viewportPaddingPct ?? 20);
       ui.heatRadiusEl.value = String(st.heatRadius ?? 25);
-
       ui.incBikeEl.checked = !!st.includeCyclist;
       ui.incPedEl.checked  = !!st.includePedestrian;
       ui.incCarEl.checked  = !!st.includeCar;
       ui.incMotoEl.checked = !!st.includeMotorcycle;
       if (ui.incGkfzEl) ui.incGkfzEl.checked = !!st.includeGkfz;
       if (ui.incSonEl)  ui.incSonEl.checked  = !!st.includeSonstig;
-
       ctx.involvementMode = st.involvementMode ?? ctx.involvementMode;
       ctx.showCluster = !!st.showCluster;
       ctx.showHeatmap = !!st.showHeatmap;
