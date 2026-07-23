@@ -112,6 +112,7 @@
         "Faktor",
         "95%-KI"
       ],
+      "headerLines": 2,
       "rows": [
         {
           "rowId": "deviations.rad-car",
