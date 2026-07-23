@@ -73,9 +73,10 @@ describe('documentation screenshot deep-link contract', () => {
         'readme-poi-school-route',
         'readme-bonn-hbf',
       ]));
-      expect(new Set(result.liveScenarios.map((scenario) => scenario.url)).size).toBe(4);
-      expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-cluster'))
-        .toMatchObject({ knownMismatch: { issue: 509 } });
+      expect(new Set(result.liveScenarios.map((scenario) => scenario.url)).size).toBe(5);
+      expect(result.liveScenarios.every((scenario) => scenario.knownMismatch == null)).toBe(true);
+      expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-export'))
+        .toMatchObject({ expected: { verifyDownloads: true } });
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
