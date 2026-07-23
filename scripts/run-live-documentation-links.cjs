@@ -3,10 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { LIVE_ORIGIN, LIVE_PATH } = require('./documentation-deeplink-contract.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUTPUT = path.join(ROOT, 'out', 'qa', 'documentation-live-links');
-const LIVE_BASE_URL = 'https://carstenartur.github.io/Unfallatlas';
+const LIVE_BASE_URL = new URL('.', `${LIVE_ORIGIN}${LIVE_PATH}`).href.replace(/\/$/, '');
 
 function run(options = {}) {
   const spawn = options.spawnSync || spawnSync;
@@ -30,8 +31,9 @@ function run(options = {}) {
     },
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) process.exitCode = result.status == null ? 1 : result.status;
-  return result.status;
+  const status = result.status == null ? 1 : result.status;
+  if (status !== 0) process.exitCode = status;
+  return status;
 }
 
 if (require.main === module) {
