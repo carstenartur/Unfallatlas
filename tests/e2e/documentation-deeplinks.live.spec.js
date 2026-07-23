@@ -125,12 +125,20 @@ async function readLiveState(page) {
   });
 }
 
-function assertState(scenario, state) {
+function assertLoadedScenario(scenario, state) {
   const expected = scenario.expected;
   expect(state.city).toBe(expected.city);
   expect(state.controls.city).toBe(expected.city);
   expect(state.allPoints).toBeGreaterThanOrEqual(expected.minimumAllPoints || 0);
   expect(state.localCount || parseLocalCount(state.stat)).toBeGreaterThan(0);
+  if (expected.minimumViewportPoints) {
+    expect(state.viewportPoints).toBeGreaterThanOrEqual(expected.minimumViewportPoints);
+  }
+}
+
+function assertState(scenario, state) {
+  const expected = scenario.expected;
+  assertLoadedScenario(scenario, state);
 
   for (const key of [
     'involvementMode', 'showCluster', 'showHeatmap',
@@ -150,9 +158,6 @@ function assertState(scenario, state) {
   }
   if (expected.hourFrom !== undefined) expect(state.controls.hourFrom).toBe(expected.hourFrom);
   if (expected.hourTo !== undefined) expect(state.controls.hourTo).toBe(expected.hourTo);
-  if (expected.minimumViewportPoints) {
-    expect(state.viewportPoints).toBeGreaterThanOrEqual(expected.minimumViewportPoints);
-  }
   if (expected.center) {
     approximately(state.center.lat, expected.center.lat, expected.center.tolerance, 'map latitude');
     approximately(state.center.lon, expected.center.lon, expected.center.tolerance, 'map longitude');
@@ -181,18 +186,31 @@ function assertState(scenario, state) {
   }
 }
 
+function assertExactKnownMismatch(scenario, state) {
+  assertLoadedScenario(scenario, state);
+  const known = scenario.knownMismatch;
+  expect(known).toBeTruthy();
+  const differingFields = [];
+  for (const [key, actual] of Object.entries(known.actual || {})) {
+    expect(state[key], `known #${known.issue} actual ${key}`).toBe(actual);
+    if (scenario.expected[key] !== actual) differingFields.push(key);
+  }
+  expect(differingFields.sort()).toEqual([
+    'showArgumentation',
+    'showHeatmap',
+    'showKindergartens',
+    'showSchools',
+  ]);
+  expect(state.clusterLayerVisible).toBe(true);
+  expect(state.heatLayerVisible).toBe(true);
+}
+
 test.describe.serial('README screenshot deep links – published application', () => {
   test.use({ viewport: { width: 1280, height: 720 } });
 
   for (const scenario of contract.liveScenarios) {
     test(`${scenario.id}: ${scenario.description}`, async ({ page }, testInfo) => {
       test.setTimeout(120000);
-      if (scenario.knownMismatch) {
-        test.fail(
-          true,
-          `Known issue #${scenario.knownMismatch.issue}: ${scenario.knownMismatch.reason}`,
-        );
-      }
       const diagnostics = {
         scenario: scenario.id,
         imagePath: scenario.imagePath,
@@ -261,7 +279,8 @@ test.describe.serial('README screenshot deep links – published application', (
       expect(diagnostics.pageErrors, 'uncaught page errors').toEqual([]);
       expect(diagnostics.consoleErrors, 'console errors').toEqual([]);
       expect(diagnostics.sameOriginHttpErrors, 'live application HTTP/resource errors').toEqual([]);
-      assertState(scenario, diagnostics.state);
+      if (scenario.knownMismatch) assertExactKnownMismatch(scenario, diagnostics.state);
+      else assertState(scenario, diagnostics.state);
     });
   }
 });
