@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -176,23 +176,88 @@ function assertState(scenario, state) {
   }
 }
 
-function assertExactKnownMismatch(scenario, state) {
-  assertLoadedScenario(scenario, state);
-  const known = scenario.knownMismatch;
-  expect(known).toBeTruthy();
-  const differingFields = [];
-  for (const [key, actual] of Object.entries(known.actual || {})) {
-    expect(state[key], `known #${known.issue} actual ${key}`).toBe(actual);
-    if (scenario.expected[key] !== actual) differingFields.push(key);
+const DOWNLOAD_CONTRACTS = Object.freeze([
+  Object.freeze({
+    id: 'word', selector: '#btnExportWord', extension: '.docx', minimumBytes: 10000,
+    validate(bytes) {
+      expect(bytes[0]).toBe(0x50);
+      expect(bytes[1]).toBe(0x4b);
+    },
+  }),
+  Object.freeze({
+    id: 'pdf', selector: '#btnExportPDF', extension: '.pdf', minimumBytes: 5000,
+    validate(bytes) {
+      expect(bytes.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+    },
+  }),
+  Object.freeze({
+    id: 'csv', selector: '#btnExportCSV', extension: '.csv', minimumBytes: 30,
+    validate(bytes) {
+      const text = bytes.toString('utf8').replace(/^\uFEFF/, '');
+      expect(text.split(/\r?\n/).filter(Boolean).length).toBeGreaterThan(1);
+      expect(/[;,]/.test(text.split(/\r?\n/, 1)[0])).toBe(true);
+    },
+  }),
+  Object.freeze({
+    id: 'geojson', selector: '#btnExportGeoJSON', extension: '.geojson', minimumBytes: 50,
+    validate(bytes) {
+      const value = JSON.parse(bytes.toString('utf8'));
+      expect(value.type).toBe('FeatureCollection');
+      expect(Array.isArray(value.features)).toBe(true);
+      expect(value.features.length).toBeGreaterThan(0);
+    },
+  }),
+  Object.freeze({
+    id: 'kml', selector: '#btnExportKML', extension: '.kml', minimumBytes: 50,
+    validate(bytes) {
+      const text = bytes.toString('utf8');
+      expect(text).toMatch(/<kml\b/i);
+      expect(text).toMatch(/<Placemark\b/i);
+    },
+  }),
+]);
+
+async function exerciseExportDownloads(page, scenario, diagnostics, testInfo) {
+  diagnostics.downloads = [];
+  const osmToggle = page.locator('#cbIncludeOsmContext');
+  if (await osmToggle.isChecked()) {
+    await osmToggle.uncheck();
+    await page.waitForFunction(() =>
+      String(document.getElementById('exportProgress')?.textContent || '').includes('Fertig'),
+    null, { timeout: 60000 });
   }
-  expect(differingFields.sort()).toEqual([
-    'showArgumentation',
-    'showHeatmap',
-    'showKindergartens',
-    'showSchools',
-  ]);
-  expect(state.clusterLayerVisible).toBe(true);
-  expect(state.heatLayerVisible).toBe(true);
+
+  for (const contract of DOWNLOAD_CONTRACTS) {
+    const button = page.locator(contract.selector);
+    await expect(button).toBeVisible();
+    await expect(button).toBeEnabled();
+    const downloadPromise = page.waitForEvent('download', { timeout: 180000 });
+    await button.click();
+    const download = await downloadPromise;
+    const failure = await download.failure();
+    expect(failure, `${contract.id} download failure`).toBeNull();
+    const filename = download.suggestedFilename();
+    expect(filename.toLowerCase()).toEndWith(contract.extension);
+    const target = resolve(outputDir, `${scenario.id}-${contract.id}${contract.extension}`);
+    await download.saveAs(target);
+    const bytes = readFileSync(target);
+    expect(bytes.length, `${contract.id} byte size`).toBeGreaterThanOrEqual(contract.minimumBytes);
+    contract.validate(bytes);
+    const evidence = { id: contract.id, selector: contract.selector, filename, bytes: bytes.length };
+    diagnostics.downloads.push(evidence);
+    await testInfo.attach(`${scenario.id}-${contract.id}`, {
+      path: target,
+      contentType: contract.id === 'pdf'
+        ? 'application/pdf'
+        : contract.id === 'word'
+          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          : contract.id === 'geojson'
+            ? 'application/geo+json'
+            : contract.id === 'kml'
+              ? 'application/vnd.google-earth.kml+xml'
+              : 'text/csv',
+    });
+  }
 }
 
 async function persistEvidence(page, scenario, diagnostics, testInfo) {
@@ -223,21 +288,21 @@ async function persistEvidence(page, scenario, diagnostics, testInfo) {
 }
 
 test.describe.serial('README screenshot deep links – published application', () => {
-  test.use({ viewport: { width: 1280, height: 720 } });
+  test.use({ viewport: { width: 1280, height: 720 }, acceptDownloads: true });
 
   for (const scenario of contract.liveScenarios) {
     test(`${scenario.id}: ${scenario.description}`, async ({ page }, testInfo) => {
-      test.setTimeout(120000);
+      test.setTimeout(scenario.expected.verifyDownloads ? 600000 : 120000);
       const diagnostics = {
         scenario: scenario.id,
         imagePath: scenario.imagePath,
         url: scenario.url,
         references: scenario.references,
-        knownMismatch: scenario.knownMismatch || null,
         pageErrors: [],
         consoleErrors: [],
         sameOriginHttpErrors: [],
         externalRequestFailures: [],
+        downloads: [],
         state: null,
         failure: null,
       };
@@ -286,12 +351,15 @@ test.describe.serial('README screenshot deep links – published application', (
         }
         await page.waitForTimeout(750);
         diagnostics.state = await readLiveState(page);
+        assertState(scenario, diagnostics.state);
+
+        if (scenario.expected.verifyDownloads) {
+          await exerciseExportDownloads(page, scenario, diagnostics, testInfo);
+        }
 
         expect(diagnostics.pageErrors, 'uncaught page errors').toEqual([]);
         expect(diagnostics.consoleErrors, 'console errors').toEqual([]);
         expect(diagnostics.sameOriginHttpErrors, 'live application HTTP/resource errors').toEqual([]);
-        if (scenario.knownMismatch) assertExactKnownMismatch(scenario, diagnostics.state);
-        else assertState(scenario, diagnostics.state);
       } catch (error) {
         diagnostics.failure = {
           name: error?.name || 'Error',
