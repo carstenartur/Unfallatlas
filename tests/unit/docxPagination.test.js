@@ -100,6 +100,27 @@ describe('DOCX pagination integrity adapter', () => {
     expect(root.docx).toBe(provenanceProxy);
   });
 
+  test('loads the lazy DOCX API before applying the pagination boundary', async () => {
+    const root = {};
+    const ensureExportLibraries = jest.fn(async () => {
+      root.docx = docxApi();
+    });
+    const originalExporter = jest.fn(async () => {
+      const paragraph = new root.docx.Paragraph({
+        text: 'Top-Abweichungen (Ausschnitt vs. Stadt):',
+      });
+      return paragraph.options;
+    });
+    const UA = { ensureExportLibraries, exportToWord: originalExporter };
+    const runtime = pagination.install(UA, root);
+
+    await expect(UA.exportToWord()).resolves.toMatchObject({ keepNext: true });
+    expect(ensureExportLibraries).toHaveBeenCalledTimes(1);
+    expect(originalExporter).toHaveBeenCalledTimes(1);
+    expect(root.docx.Paragraph).toBe(Paragraph);
+    expect(runtime.ensureLibraries).toBe(ensureExportLibraries);
+  });
+
   test('serializes simultaneous Word exports so scoped libraries cannot cross', async () => {
     const root = { docx: docxApi() };
     const events = [];
@@ -134,9 +155,28 @@ describe('DOCX pagination integrity adapter', () => {
     expect(events).toEqual(['start-1', 'end-1', 'start-2', 'end-2']);
   });
 
+  test('fails closed when lazy loading cannot provide the DOCX API', async () => {
+    const originalExporter = jest.fn();
+    const UA = { exportToWord: originalExporter };
+    pagination.install(UA, {});
+
+    await expect(UA.exportToWord()).rejects.toThrow(/missing_export_library_loader/);
+    expect(originalExporter).not.toHaveBeenCalled();
+
+    const root = {};
+    const ensureExportLibraries = jest.fn(async () => undefined);
+    const lazyUA = { ensureExportLibraries, exportToWord: originalExporter };
+    pagination.install(lazyUA, root);
+    await expect(lazyUA.exportToWord()).rejects.toThrow(/missing_docx_api/);
+    expect(ensureExportLibraries).toHaveBeenCalledTimes(1);
+    expect(originalExporter).not.toHaveBeenCalled();
+  });
+
   test('fails closed for an invalid callback or missing Paragraph API', async () => {
     await expect(pagination.withPaginationParagraph({ docx: docxApi() }, null))
       .rejects.toThrow(/invalid_callback/);
+    await expect(pagination.withPaginationParagraph({}, async () => undefined))
+      .rejects.toThrow(/missing_docx_api/);
     expect(() => pagination.createPaginationParagraphConstructor({}))
       .toThrow(/missing_docx_paragraph/);
   });
