@@ -59,6 +59,8 @@ The reconstruction groups final PDF words into visual lines, locates the complet
 
 The first enforced table is the injury-severity table. It must contain one header plus the fatal, serious-injury and slight-injury rows with the rendered counts and percentages. Missing headers, missing rows, changed cell values, overlapping row boxes or an unexpected total row count fail closed. `conversion-metadata.json`, the normalized document model and the final audit all record `tableRowCount: 4`.
 
+The initial header is identified by `rowId=severity.header`; it is not marked as a repeated header. The `repeatedHeader` flag remains reserved for actual continuation-page headers once multi-page tables are audited.
+
 This focused first table establishes the reconstruction mechanism without pretending that wrapped and multi-page tables are already solved. The year and deviation tables, repeated headers and large individual-accident tables remain explicit follow-ups.
 
 ## Evidence package
@@ -84,7 +86,7 @@ The CI contract requires:
 - the selected accident count of 24 in the final page text;
 - exactly four final rendered maps;
 - alt text, caption, source IDs and source dimensions for each map;
-- exactly four final severity-table rows, including the repeated-header marker.
+- exactly four final severity-table rows, including one explicitly identified header row.
 
 Generic final-page checks additionally reject empty pages, content outside printable page bounds, unreadably small text, orphaned headings and overlapping table rows.
 
