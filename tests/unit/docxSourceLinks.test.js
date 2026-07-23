@@ -123,6 +123,53 @@ describe("DOCX source-link integrity adapter", () => {
     expect(root.docx.Paragraph).toBe(FakeParagraph);
   });
 
+  test("does not allow concurrent exports to share the temporary docx namespace", async () => {
+    const root = { docx: fakeDocx() };
+    const order = [];
+    let active = 0;
+    let maxActive = 0;
+    let releaseFirst;
+    let markFirstStarted;
+    const firstGate = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    const firstStarted = new Promise((resolve) => {
+      markFirstStarted = resolve;
+    });
+    const UA = {
+      exportToWord: async (label) => {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        order.push(`start:${label}`);
+        if (label === "first") {
+          markFirstStarted();
+          await firstGate;
+        }
+        order.push(`end:${label}`);
+        active -= 1;
+        return label;
+      },
+    };
+    sourceLinks.install(UA, root);
+
+    const first = UA.exportToWord("first");
+    const second = UA.exportToWord("second");
+    await firstStarted;
+    await Promise.resolve();
+    expect(order).toEqual(["start:first"]);
+
+    releaseFirst();
+    await expect(Promise.all([first, second])).resolves.toEqual(["first", "second"]);
+    expect(maxActive).toBe(1);
+    expect(order).toEqual([
+      "start:first",
+      "end:first",
+      "start:second",
+      "end:second",
+    ]);
+    expect(root.docx.Paragraph).toBe(FakeParagraph);
+  });
+
   test("fails clearly when the required docx link API is absent", () => {
     expect(() =>
       sourceLinks.linkedSourceParagraphOptions(
