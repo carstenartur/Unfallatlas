@@ -11,17 +11,23 @@ on:
       - 'js/ua.report_v2.js'
       - 'js/ua.utils.js'
       - 'scripts/deterministic-map-fixture.js'
+      - 'scripts/enrich-rendered-document-tables.js'
       - 'scripts/generate-sample-docx.js'
       - 'scripts/generate-sample-pdf.js'
       - 'scripts/libreoffice-rendered-document.js'
-      - 'scripts/rendered-document-audit.js'
       - 'scripts/poppler-rendered-document.js'
+      - 'scripts/qa-sample-docx-rendered.js'
+      - 'scripts/rendered-document-audit.js'
+      - 'scripts/rendered-table-hints.js'
       - 'tests/fixtures/rendered-document/ci-docx-contract.json'
       - 'tests/unit/deterministicMapFixture.test.js'
       - 'tests/unit/docxSourceLinks.test.js'
+      - 'tests/unit/enrichRenderedDocumentTables.test.js'
       - 'tests/unit/libreOfficeRenderedDocument.test.js'
       - 'tests/unit/libreOfficeRenderedMapSemantics.test.js'
+      - 'tests/unit/qaSampleDocxRendered.test.js'
       - 'tests/unit/renderedDocumentAudit.test.js'
+      - 'tests/unit/renderedTableHints.test.js'
       - 'tests/unit/popplerRenderedDocument.test.js'
       - 'tests/unit/runtimeExportProvenanceLoader.test.js'
       - 'package.json'
@@ -112,8 +118,11 @@ jobs:
           npx jest --runInBand \
             tests/unit/deterministicMapFixture.test.js \
             tests/unit/docxSourceLinks.test.js \
+            tests/unit/enrichRenderedDocumentTables.test.js \
             tests/unit/libreOfficeRenderedDocument.test.js \
             tests/unit/libreOfficeRenderedMapSemantics.test.js \
+            tests/unit/qaSampleDocxRendered.test.js \
+            tests/unit/renderedTableHints.test.js \
             tests/unit/runtimeExportProvenanceLoader.test.js
 
       - name: Generate real DOCX through the workbench renderer
@@ -124,12 +133,7 @@ jobs:
           evidence_dir=out/qa/rendered-document/docx
           mkdir -p "$evidence_dir"
           set +e
-          node scripts/libreoffice-rendered-document.js \
-            --docx out/ci-render-gate.docx \
-            --out-dir "$evidence_dir" \
-            --document-id ci-docx-sample \
-            --contract tests/fixtures/rendered-document/ci-docx-contract.json \
-            >"$evidence_dir/audit-command.log" 2>&1
+          npm run qa:sample-docx-rendered >"$evidence_dir/audit-command.log" 2>&1
           status=$?
           cat "$evidence_dir/audit-command.log"
           exit "$status"
@@ -144,6 +148,9 @@ jobs:
           find out/qa/rendered-document/docx/pages -name 'page-*.png' -type f -size +10k | grep -q .
           grep -q '"mapCount": 4' out/qa/rendered-document/docx/conversion-metadata.json
           grep -q '"expectedMapCount": 4' out/qa/rendered-document/docx/conversion-metadata.json
+          grep -q '"tableRowCount": 4' out/qa/rendered-document/docx/conversion-metadata.json
+          grep -q '"expectedTableRowCount": 4' out/qa/rendered-document/docx/conversion-metadata.json
+          grep -q '"tableRowCount": 4' out/qa/rendered-document/docx/poppler/rendered-document-audit.json
 
       - name: Upload DOCX rendered-document evidence
         if: always()
