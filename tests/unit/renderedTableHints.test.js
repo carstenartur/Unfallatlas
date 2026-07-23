@@ -63,7 +63,7 @@ describe('rendered table hints', () => {
     expect(rows[0]).toMatchObject({
       rowId: 'severity.header',
       tableId: 'severity',
-      repeatedHeader: true,
+      repeatedHeader: false,
       cells: ['Kategorie', 'Anzahl', 'Anteil'],
     });
     expect(rows.slice(1).map((row) => row.cells)).toEqual([
