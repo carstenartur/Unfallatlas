@@ -13,7 +13,8 @@ describe('README live deep-link repository contract', () => {
       'readme-bonn-hbf',
     ]));
     expect(result.liveScenarios).toHaveLength(Object.keys(contract.SCENARIOS).length);
-    expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-cluster'))
-      .toMatchObject({ knownMismatch: { issue: 509 } });
+    expect(result.liveScenarios.every((scenario) => scenario.knownMismatch == null)).toBe(true);
+    expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-export'))
+      .toMatchObject({ expected: { verifyDownloads: true } });
   });
 });
