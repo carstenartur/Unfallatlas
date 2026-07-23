@@ -1,0 +1,64 @@
+name: Microsoft Word Compatibility Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_path:
+        description: 'Committed JSON evidence file to validate'
+        required: true
+        default: 'docs/release-evidence/word-compatibility.json'
+        type: string
+      max_age_days:
+        description: 'Maximum permitted age of the manual Word check'
+        required: true
+        default: '30'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: word-compatibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-word-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Validate hash-bound Microsoft Word receipt
+        run: |
+          node scripts/validate-word-compatibility-evidence.js \
+            --evidence '${{ inputs.evidence_path }}' \
+            --max-age-days '${{ inputs.max_age_days }}' \
+            --report out/qa/word-compatibility-report.json
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: word-compatibility-evidence-${{ github.run_id }}
+          path: out/qa/word-compatibility-report.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summarise release evidence
+        if: success()
+        run: |
+          echo '## Microsoft Word compatibility evidence' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo "Evidence: \`${{ inputs.evidence_path }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Maximum age: \`${{ inputs.max_age_days }} days\`" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The receipt is bound to the current renderer/input fingerprint and all required manual checks passed.' >> "$GITHUB_STEP_SUMMARY"
