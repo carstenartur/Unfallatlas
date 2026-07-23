@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/docx-libreoffice-rendered.yml'
+      - 'js/ua.core.js'
+      - 'js/ua.docx_source_links.js'
       - 'scripts/deterministic-map-fixture.js'
       - 'scripts/generate-sample-docx.js'
       - 'scripts/libreoffice-rendered-document.js'
@@ -13,7 +15,9 @@ on:
       - 'scripts/rendered-document-audit.js'
       - 'tests/fixtures/rendered-document/ci-docx-contract.json'
       - 'tests/unit/deterministicMapFixture.test.js'
+      - 'tests/unit/docxSourceLinks.test.js'
       - 'tests/unit/libreOfficeRenderedDocument.test.js'
+      - 'tests/unit/runtimeExportProvenanceLoader.test.js'
       - 'package.json'
       - 'package-lock.json'
 
@@ -56,7 +60,9 @@ jobs:
         run: |
           npx jest --runInBand \
             tests/unit/deterministicMapFixture.test.js \
-            tests/unit/libreOfficeRenderedDocument.test.js
+            tests/unit/docxSourceLinks.test.js \
+            tests/unit/libreOfficeRenderedDocument.test.js \
+            tests/unit/runtimeExportProvenanceLoader.test.js
 
       - name: Generate real DOCX through the workbench renderer
         run: npm run generate:sample-docx
