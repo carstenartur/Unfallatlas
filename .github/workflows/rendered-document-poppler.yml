@@ -23,6 +23,7 @@ on:
       - 'tests/unit/deterministicMapFixture.test.js'
       - 'tests/unit/docxSourceLinks.test.js'
       - 'tests/unit/enrichRenderedDocumentTables.test.js'
+      - 'tests/unit/generateSampleDocx.test.js'
       - 'tests/unit/libreOfficeRenderedDocument.test.js'
       - 'tests/unit/libreOfficeRenderedMapSemantics.test.js'
       - 'tests/unit/qaSampleDocxRendered.test.js'
@@ -119,6 +120,7 @@ jobs:
             tests/unit/deterministicMapFixture.test.js \
             tests/unit/docxSourceLinks.test.js \
             tests/unit/enrichRenderedDocumentTables.test.js \
+            tests/unit/generateSampleDocx.test.js \
             tests/unit/libreOfficeRenderedDocument.test.js \
             tests/unit/libreOfficeRenderedMapSemantics.test.js \
             tests/unit/qaSampleDocxRendered.test.js \
@@ -188,6 +190,32 @@ jobs:
               throw new Error(`Missing or changed final row ${rowId}: ${JSON.stringify(row || null)}`);
             }
           }
+
+          const pageText = new Map(model.pages.map((page) => [
+            page.number,
+            [...(page.words || [])]
+              .sort((left, right) => left.yMin - right.yMin || left.xMin - right.xMin)
+              .map((word) => word.text)
+              .join(' ')
+              .replace(/\s+/g, ' '),
+          ]));
+          const requirePagePattern = (pageNumber, expression, label) => {
+            const text = pageText.get(pageNumber) || '';
+            if (!expression.test(text)) {
+              throw new Error(`Final page ${pageNumber} lacks ${label}: ${text}`);
+            }
+          };
+          for (const [pageNumber, text] of pageText.entries()) {
+            if (/\(n\s*=\s*0\)/u.test(text) || /Teilmenge der\s+0\s+Unfälle/u.test(text)) {
+              throw new Error(`Final page ${pageNumber} contains a zero-count map contradiction: ${text}`);
+            }
+          }
+          requirePagePattern(2, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'overview-map count n=24');
+          requirePagePattern(3, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'selection-map count n=24');
+          requirePagePattern(4, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'detail-map parent count 24');
+          requirePagePattern(4, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'detail-map count n=24');
+          requirePagePattern(5, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'cluster-map parent count 24');
+          requirePagePattern(5, /Punkte entsprechen exakt[^.]*\(n\s*=\s*11\)/u, 'cluster-map count n=11');
           NODE
 
       - name: Upload DOCX rendered-document evidence
