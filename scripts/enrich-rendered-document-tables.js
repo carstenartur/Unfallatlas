@@ -87,9 +87,12 @@ function enrichModel(model, contract) {
   return { model: enriched, expected, actual };
 }
 
-function enrichMetadata(metadata, expected, actual, hintCount) {
+function enrichMetadata(metadata, expected, actual, hintCount, report) {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
     fail('invalid_conversion_metadata', 'conversion metadata must be an object');
+  }
+  if (!report || typeof report !== 'object' || Array.isArray(report)) {
+    fail('invalid_final_audit', 'final rendered-document audit report must be an object');
   }
   return {
     ...metadata,
@@ -98,6 +101,11 @@ function enrichMetadata(metadata, expected, actual, hintCount) {
       expectedTableRowCount: expected,
       tableRowCount: actual,
       tableHints: hintCount,
+    },
+    audit: {
+      ...(metadata.audit || {}),
+      issues: Array.isArray(report.issues) ? report.issues.length : 0,
+      passed: Boolean(report.passed),
     },
   };
 }
@@ -120,6 +128,7 @@ function main(argv) {
     enriched.expected,
     enriched.actual,
     contractInput.value.tableHints.length,
+    report,
   );
 
   fs.writeFileSync(modelInput.absolute, `${JSON.stringify(enriched.model, null, 2)}\n`);
