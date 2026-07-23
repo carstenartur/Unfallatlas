@@ -11,6 +11,14 @@
 
 const path = require('path');
 const { registerContextGenerationRoutes } = require('./context-generation/routes');
+const {
+  installVideoExportPlaywrightRuntime,
+} = require('./video-export-playwright-runtime');
+
+// Install before index.js imports video-export.js. The latter captures
+// Playwright's chromium launcher during module evaluation, so the production
+// boundary must already be active at that point.
+installVideoExportPlaywrightRuntime();
 
 const expressModulePath = require.resolve('express');
 const originalExpress = require(expressModulePath);
