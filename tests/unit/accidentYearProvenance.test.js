@@ -1,7 +1,18 @@
 'use strict';
 
+// Both modules are browser-capable UMD integrations and therefore install
+// themselves when Jest provides JSDOM's window. Reproduce the application's
+// dependency order instead of loading ua.export_provenance without the legacy
+// exporters it deliberately requires.
+const previousUA = window.UA;
+window.UA = {
+  exportToCSV: jest.fn(),
+  exportToGeoJSON: jest.fn(),
+  exportToKML: jest.fn(),
+};
 const baseProvenance = require('../../js/ua.export_provenance');
 const adapter = require('../../js/ua.accident_year_provenance');
+window.UA = previousUA || {};
 
 function context(properties = {}) {
   return {
