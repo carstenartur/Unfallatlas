@@ -9,8 +9,14 @@ what artefacts are produced for downstream consumers.
 
 - You must have write access to the `carstenartur/Unfallatlas` repository.
 - `analysis-service/pom.xml` must carry a `-SNAPSHOT` version (e.g.
-  `0.1.0-SNAPSHOT`).  The release workflow enforces this and fails with a clear
+  `0.1.0-SNAPSHOT`). The release workflow enforces this and fails with a clear
   error message if the version is not a SNAPSHOT.
+- The automated LibreOffice/Poppler rendered-document audit must be green for
+  the release candidate.
+- A recent Microsoft Word compatibility receipt must match the current
+  renderer/input fingerprint and pass the **Microsoft Word Compatibility
+  Evidence** workflow. See
+  [`word-compatibility-release-check.md`](word-compatibility-release-check.md).
 
 ---
 
@@ -29,8 +35,42 @@ what artefacts are produced for downstream consumers.
    publishing. While #406 is open, the run is expected to stop at the final
    complete-provenance gate after producing those diagnostics; no release is
    currently publishable.
-4. Once #406 is resolved, require a green dry run, then re-run with
-   `dry_run: false` to publish the actual release.
+4. Generate the current DOCX Golden candidate and complete the manual Microsoft
+   Word check. Commit the receipt as
+   `docs/release-evidence/word-compatibility.json`, then run **Microsoft Word
+   Compatibility Evidence** on the exact candidate branch. The receipt is
+   accepted only when it is recent and its fingerprint still matches all
+   renderer, adapter, Golden-contract and locked `docx` inputs.
+5. Once #406 is resolved, require a green dry run **and** a green Word evidence
+   run, then re-run with `dry_run: false` to publish the actual release.
+
+The incomplete example receipt is documentation only. Copying its fields or a
+previous fingerprint without opening the exact new DOCX in Word is not a valid
+release check.
+
+---
+
+## Microsoft Word release evidence
+
+LibreOffice is the automated renderer used in CI, but Microsoft Word remains a
+separate release environment. The Word evidence contract deliberately records
+manual observations while making them reproducible and invalidatable:
+
+- `config/word-compatibility-inputs.json` declares compatibility-sensitive
+  source files and locked packages;
+- `npm run validate:word-compatibility -- --print-fingerprint` computes the
+  current deterministic fingerprint;
+- `npm run validate:word-compatibility -- --write-template ...` creates a
+  receipt template carrying that fingerprint;
+- the completed receipt records the exact tested DOCX hash, Word version,
+  platform, reviewer, page count and every required manual check;
+- the validator rejects stale evidence, changed inputs, failed checks, malformed
+  metadata and undeclared fields;
+- the dedicated workflow uploads a machine-readable validation report retained
+  with the release review evidence.
+
+The normal maximum age is 30 days. Any compatibility-input change invalidates
+the receipt immediately, even when the 30-day period has not elapsed.
 
 ---
 
@@ -53,7 +93,9 @@ what artefacts are produced for downstream consumers.
    temp-branch + GitHub API fast-forward so branch-protection rules are
    respected).
 3. **Build & Verify** – runs `mvn clean verify` (and `npm test` unless
-   `skip_tests` is set).
+   `skip_tests` is set). The release operator must already have a green,
+   fingerprint-matching Word evidence workflow for this candidate; setting
+   `skip_tests` does not waive that prerequisite.
 4. **Website bundle** – runs the canonical `npm run build:site` command and
    zips that complete `_site/` artifact into
    `unfallatlas-website-<version>.zip`. It includes the exact locked browser
@@ -71,8 +113,8 @@ what artefacts are produced for downstream consumers.
    npm packages are copied to `vendor/licenses/` and fingerprinted in the build
    manifest. The diagnostic inventory records delivered-asset hashes,
    component purls and four decoded font name tables, but its CycloneDX
-   composition remains explicitly incomplete. The release workflow additionally requires
-   `complete: true`. It therefore remains deliberately blocked by
+   composition remains explicitly incomplete. The release workflow additionally
+   requires `complete: true`. It therefore remains deliberately blocked by
    [#406](https://github.com/carstenartur/Unfallatlas/issues/406) until the
    opaque Docx/Pdfmake bundles and embedded Roboto fonts have reproducible,
    component-level provenance. The validator rejects `complete: true` unless
@@ -113,6 +155,7 @@ After a successful release with version `X.Y.Z`:
 | Static website bundle | GitHub Release asset `unfallatlas-website-X.Y.Z.zip` |
 | Git tag | `vX.Y.Z` on `main` |
 | Maintenance branch | `maintenance/X.Y.x` |
+| Word compatibility report | Artifact of the green **Microsoft Word Compatibility Evidence** run |
 
 ---
 
@@ -142,7 +185,7 @@ docker run -p 8081:8081 \
 ## Maintenance Branches
 
 Each release creates a `maintenance/<major>.<minor>.x` branch at the release
-commit.  Bug fixes for a published minor version should be applied (or
+commit. Bug fixes for a published minor version should be applied (or
 cherry-picked) onto that branch.
 
 To release a patch from a maintenance branch:
@@ -151,6 +194,9 @@ To release a patch from a maintenance branch:
 2. In the **"Use workflow from"** dropdown, select
    `maintenance/<major>.<minor>.x`.
 3. Enter the patch version (e.g. `0.1.1`) in `release_version`.
+4. Regenerate and revalidate Word evidence on that maintenance branch. Evidence
+   from `main` is accepted only when the computed compatibility fingerprint is
+   identical and the receipt remains within the configured age limit.
 
 The workflow detects the triggering branch automatically and pushes the release
 commit, tag, and next-SNAPSHOT PR back to that same branch — not to `main`.
@@ -160,8 +206,13 @@ commit, tag, and next-SNAPSHOT PR back to that same branch — not to `main`.
 ## After the Release
 
 The release workflow automatically opens a pull request titled
-**"Prepare for next development iteration X.Y.Z-SNAPSHOT"**.  Review and merge
+**"Prepare for next development iteration X.Y.Z-SNAPSHOT"**. Review and merge
 this PR to resume normal development on the next patch version.
+
+Retain the Word evidence workflow report with the release review records. The
+committed receipt may be replaced for the next candidate, but the report for a
+published release must remain attributable to its exact tag/commit and input
+fingerprint.
 
 ---
 
@@ -175,6 +226,11 @@ Running with `dry_run: true` performs all validation and build steps but skips:
 - Uploading release assets
 - Creating the maintenance branch
 - Pushing the next-SNAPSHOT branch / opening the PR
+
+A dry run does not waive Microsoft Word compatibility evidence. It may be used
+before the manual Word check to diagnose unrelated build problems, but a
+non-dry release still requires a green evidence workflow for the final
+candidate.
 
 Each skipped step emits a `::notice::` annotation in the workflow log so you
 can verify what *would* happen.
