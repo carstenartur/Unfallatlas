@@ -72,6 +72,20 @@ function contract() {
   };
 }
 
+function writeInputs(directory, contractValue = contract()) {
+  const modelPath = path.join(directory, 'rendered-document.json');
+  const contractPath = path.join(directory, 'contract.json');
+  const auditPath = path.join(directory, 'rendered-document-audit.json');
+  const metadataPath = path.join(directory, 'conversion-metadata.json');
+  fs.writeFileSync(modelPath, JSON.stringify(model()));
+  fs.writeFileSync(contractPath, JSON.stringify(contractValue));
+  fs.writeFileSync(auditPath, '{"passed":true,"stale":true}');
+  fs.writeFileSync(metadataPath, JSON.stringify({
+    semanticEvidence: { expectedMapCount: 4, mapCount: 4, imageHints: 4 },
+  }));
+  return { modelPath, contractPath, auditPath, metadataPath };
+}
+
 describe('rendered table contract enrichment', () => {
   let directory;
 
@@ -84,16 +98,7 @@ describe('rendered table contract enrichment', () => {
   });
 
   test('enriches the persisted model, reruns the audit and updates metadata', () => {
-    const modelPath = path.join(directory, 'rendered-document.json');
-    const contractPath = path.join(directory, 'contract.json');
-    const auditPath = path.join(directory, 'rendered-document-audit.json');
-    const metadataPath = path.join(directory, 'conversion-metadata.json');
-    fs.writeFileSync(modelPath, JSON.stringify(model()));
-    fs.writeFileSync(contractPath, JSON.stringify(contract()));
-    fs.writeFileSync(auditPath, '{}');
-    fs.writeFileSync(metadataPath, JSON.stringify({
-      semanticEvidence: { expectedMapCount: 4, mapCount: 4, imageHints: 4 },
-    }));
+    const { modelPath, contractPath, auditPath, metadataPath } = writeInputs(directory);
 
     const result = enrichment.main([
       '--model', modelPath,
@@ -113,7 +118,35 @@ describe('rendered table contract enrichment', () => {
       tableRowCount: 4,
       tableHints: 1,
     });
-    expect(JSON.parse(fs.readFileSync(auditPath, 'utf8')).summary.tableRowCount).toBe(4);
+    const finalAudit = JSON.parse(fs.readFileSync(auditPath, 'utf8'));
+    expect(finalAudit.summary.tableRowCount).toBe(4);
+    expect(finalAudit.stale).toBeUndefined();
+  });
+
+  test('removes the stale pre-table audit when final reconstruction fails', () => {
+    const invalidContract = {
+      ...contract(),
+      tableHints: [{
+        ...contract().tableHints[0],
+        rows: contract().tableHints[0].rows.map((row) =>
+          row.rowId === 'severity.light'
+            ? { ...row, cellPatterns: ['^3\\s*–\\s*Leichtverletzte$', '^16$', '^70,8%$'] }
+            : row
+        ),
+      }],
+    };
+    const { modelPath, contractPath, auditPath, metadataPath } = writeInputs(
+      directory,
+      invalidContract,
+    );
+
+    expect(() => enrichment.main([
+      '--model', modelPath,
+      '--contract', contractPath,
+      '--audit', auditPath,
+      '--metadata', metadataPath,
+    ])).toThrow(/table_cell_mismatch/);
+    expect(fs.existsSync(auditPath)).toBe(false);
   });
 
   test('fails closed when the reconstructed count does not match the contract', () => {
