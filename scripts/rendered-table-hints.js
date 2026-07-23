@@ -130,17 +130,49 @@ function columnBoundaries(centres) {
   return boundaries;
 }
 
-function cellsForLine(line, boundaries) {
-  const columns = Array.from({ length: boundaries.length - 1 }, () => []);
-  for (const word of line.words) {
-    const centerX = (Number(word.xMin) + Number(word.xMax)) / 2;
-    const column = boundaries.findIndex((right, index) =>
-      index > 0 && centerX < right
-    ) - 1;
-    const safeColumn = Math.max(0, Math.min(columns.length - 1, column));
-    columns[safeColumn].push(word);
+function columnForWord(word, boundaries) {
+  const centerX = (Number(word.xMin) + Number(word.xMax)) / 2;
+  const column = boundaries.findIndex((right, index) => index > 0 && centerX < right) - 1;
+  return Math.max(0, Math.min(boundaries.length - 2, column));
+}
+
+function cellsForLines(lines, boundaries) {
+  if (!Array.isArray(lines) || !lines.length) {
+    fail('invalid_table_hint', 'at least one rendered line is required for a table row');
   }
-  return columns.map((words) => normalizeText(words.map((word) => word.text).join(' ')));
+  const columns = Array.from({ length: boundaries.length - 1 }, () => []);
+  for (const line of lines) {
+    for (const word of line.words) {
+      columns[columnForWord(word, boundaries)].push(word);
+    }
+  }
+  return columns.map((words) => normalizeText(
+    words
+      .sort((left, right) => wordCenterY(left) - wordCenterY(right) || Number(left.xMin) - Number(right.xMin))
+      .map((word) => word.text)
+      .join(' '),
+  ));
+}
+
+function cellsForLine(line, boundaries) {
+  return cellsForLines([line], boundaries);
+}
+
+function boxForLines(lines) {
+  return {
+    xMin: Math.min(...lines.map((line) => line.xMin)),
+    yMin: Math.min(...lines.map((line) => line.yMin)),
+    xMax: Math.max(...lines.map((line) => line.xMax)),
+    yMax: Math.max(...lines.map((line) => line.yMax)),
+  };
+}
+
+function positiveInteger(value, path, fallback) {
+  const candidate = value == null ? fallback : Number(value);
+  if (!Number.isInteger(candidate) || candidate < 1) {
+    fail('invalid_table_hint', `${path} must be a positive integer`, { value });
+  }
+  return candidate;
 }
 
 function pattern(value, path) {
@@ -157,24 +189,47 @@ function pattern(value, path) {
   }
 }
 
-function assertCellPatterns(cells, rowHint, path) {
+function rowMatchers(rowHint, columnCount, path) {
   const patterns = rowHint.cellPatterns;
-  if (!Array.isArray(patterns) || patterns.length !== cells.length) {
+  if (!Array.isArray(patterns) || patterns.length !== columnCount) {
     fail('invalid_table_hint', `${path}.cellPatterns must match the header column count`, {
-      expected: cells.length,
+      expected: columnCount,
       actual: Array.isArray(patterns) ? patterns.length : null,
     });
   }
-  patterns.forEach((expression, index) => {
-    const matcher = pattern(expression, `${path}.cellPatterns[${index}]`);
-    if (!matcher.test(cells[index])) {
-      fail('table_cell_mismatch', `${path} column ${index + 1} does not match final text`, {
-        expression,
+  return patterns.map((expression, index) => ({
+    expression,
+    matcher: pattern(expression, `${path}.cellPatterns[${index}]`),
+  }));
+}
+
+function firstCellMismatch(cells, matchers) {
+  for (let index = 0; index < matchers.length; index += 1) {
+    if (!matchers[index].matcher.test(cells[index])) {
+      return {
+        column: index,
+        expression: matchers[index].expression,
         actual: cells[index],
         cells,
-      });
+      };
     }
-  });
+  }
+  return null;
+}
+
+function assertCellPatterns(cells, rowHint, path) {
+  const mismatch = firstCellMismatch(cells, rowMatchers(rowHint, cells.length, path));
+  if (mismatch) {
+    fail('table_cell_mismatch', `${path} column ${mismatch.column + 1} does not match final text`, mismatch);
+  }
+}
+
+function headerRowId(tableId, hint) {
+  const explicit = normalizeText(hint.headerRowId);
+  if (explicit) return explicit;
+  return hint.repeatedHeader
+    ? `${tableId}.header.page${positiveInteger(hint.page, `${tableId}.page`)}`
+    : `${tableId}.header`;
 }
 
 function reconstructTable(words, hint) {
@@ -188,51 +243,69 @@ function reconstructTable(words, hint) {
   const header = locateHeader(lines, hint.headers, tableId);
   const boundaries = columnBoundaries(header.centres);
   const rows = [{
-    rowId: `${tableId}.header`,
+    rowId: headerRowId(tableId, hint),
     tableId,
     xMin: header.line.xMin,
     yMin: header.line.yMin,
     xMax: header.line.xMax,
     yMax: header.line.yMax,
-    repeatedHeader: false,
+    repeatedHeader: Boolean(hint.repeatedHeader),
     cells: cellsForLine(header.line, boundaries),
   }];
 
   if (!Array.isArray(hint.rows) || !hint.rows.length) {
     fail('invalid_table_hint', `${tableId}.rows must not be empty`);
   }
+  const tableMaxLines = positiveInteger(
+    hint.maxLinesPerRow,
+    `${tableId}.maxLinesPerRow`,
+    1,
+  );
   let searchIndex = header.lineIndex + 1;
   hint.rows.forEach((rowHint, rowIndex) => {
     const path = `${tableId}.rows[${rowIndex}]`;
     const rowId = normalizeText(rowHint?.rowId);
     if (!rowId) fail('invalid_table_hint', `${path}.rowId must not be empty`);
-    const firstCellMatcher = pattern(rowHint.cellPatterns?.[0], `${path}.cellPatterns[0]`);
+    const matchers = rowMatchers(rowHint, hint.headers.length, path);
+    const maxLines = positiveInteger(rowHint.maxLines, `${path}.maxLines`, tableMaxLines);
     let found = null;
+    let closestMismatch = null;
     for (let lineIndex = searchIndex; lineIndex < lines.length; lineIndex += 1) {
-      const line = lines[lineIndex];
-      const cells = cellsForLine(line, boundaries);
-      if (firstCellMatcher.test(cells[0])) {
-        found = { lineIndex, line, cells };
-        break;
+      for (let lineCount = 1; lineCount <= maxLines && lineIndex + lineCount <= lines.length; lineCount += 1) {
+        const selectedLines = lines.slice(lineIndex, lineIndex + lineCount);
+        const cells = cellsForLines(selectedLines, boundaries);
+        if (!matchers[0].matcher.test(cells[0])) continue;
+        const mismatch = firstCellMismatch(cells, matchers);
+        if (!mismatch) {
+          found = { lineIndex, lineCount, lines: selectedLines, cells };
+          break;
+        }
+        closestMismatch = mismatch;
       }
+      if (found) break;
+    }
+    if (!found && closestMismatch) {
+      fail(
+        'table_cell_mismatch',
+        `${path} column ${closestMismatch.column + 1} does not match final text`,
+        closestMismatch,
+      );
     }
     if (!found) {
       fail('table_row_missing', `Cannot locate ${rowId} in final table ${tableId}`, {
         firstCellPattern: rowHint.cellPatterns?.[0],
+        maxLines,
       });
     }
-    assertCellPatterns(found.cells, rowHint, path);
+    const box = boxForLines(found.lines);
     rows.push({
       rowId,
       tableId,
-      xMin: found.line.xMin,
-      yMin: found.line.yMin,
-      xMax: found.line.xMax,
-      yMax: found.line.yMax,
+      ...box,
       repeatedHeader: false,
       cells: found.cells,
     });
-    searchIndex = found.lineIndex + 1;
+    searchIndex = found.lineIndex + found.lineCount;
   });
   return Object.freeze(rows.map(Object.freeze));
 }
@@ -251,6 +324,7 @@ module.exports = {
   phraseBox,
   locateHeader,
   cellsForLine,
+  cellsForLines,
   reconstructTable,
   applyTableHints,
 };
