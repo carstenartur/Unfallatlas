@@ -10,6 +10,7 @@
     "map"
   ],
   "expectedMapCount": 4,
+  "expectedTableRowCount": 4,
   "imageHints": [
     {
       "page": 2,
@@ -62,6 +63,43 @@
       ],
       "sourceWidth": 960,
       "sourceHeight": 640
+    }
+  ],
+  "tableHints": [
+    {
+      "page": 1,
+      "tableId": "severity",
+      "headers": [
+        "Kategorie",
+        "Anzahl",
+        "Anteil"
+      ],
+      "rows": [
+        {
+          "rowId": "severity.fatal",
+          "cellPatterns": [
+            "^1\\s*–\\s*Getötete$",
+            "^1$",
+            "^4,2%$"
+          ]
+        },
+        {
+          "rowId": "severity.serious",
+          "cellPatterns": [
+            "^2\\s*–\\s*Schwerverletzte$",
+            "^6$",
+            "^25,0%$"
+          ]
+        },
+        {
+          "rowId": "severity.light",
+          "cellPatterns": [
+            "^3\\s*–\\s*Leichtverletzte$",
+            "^17$",
+            "^70,8%$"
+          ]
+        }
+      ]
     }
   ],
   "expectedCounts": [
