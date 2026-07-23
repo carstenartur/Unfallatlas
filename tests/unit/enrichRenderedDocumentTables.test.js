@@ -138,6 +138,46 @@ describe('rendered table contract enrichment', () => {
     expect(finalAudit.stale).toBeUndefined();
   });
 
+  test('counts initial and repeated headers across continuation pages', () => {
+    const input = model();
+    input.pages.push({
+      ...input.pages[0],
+      number: 2,
+      tableRows: [],
+    });
+    const baseHint = contract().tableHints[0];
+
+    const result = enrichment.enrichModel(input, {
+      expectedTableRowCount: 5,
+      tableHints: [
+        { ...baseHint, rows: baseHint.rows.slice(0, 2) },
+        {
+          ...baseHint,
+          page: 2,
+          repeatedHeader: true,
+          rows: baseHint.rows.slice(2),
+        },
+      ],
+    });
+
+    expect(result.actual).toBe(5);
+    expect(result.model.pages[0].tableRows.map((row) => row.rowId)).toEqual([
+      'severity.header',
+      'severity.fatal',
+      'severity.serious',
+    ]);
+    expect(result.model.pages[1].tableRows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        rowId: 'severity.header.page2',
+        repeatedHeader: true,
+      }),
+      expect.objectContaining({
+        rowId: 'severity.light',
+        repeatedHeader: false,
+      }),
+    ]));
+  });
+
   test('removes the stale pre-table audit when final reconstruction fails', () => {
     const invalidContract = {
       ...contract(),
