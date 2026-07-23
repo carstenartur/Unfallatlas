@@ -251,15 +251,22 @@ function reconstructTable(words, hint) {
   const lines = clusterWordsIntoLines(words, tolerance);
   const header = locateHeader(lines, hint.headers, tableId);
   const boundaries = columnBoundaries(header.centres);
+  const headerLineCount = positiveInteger(hint.headerLines, `${tableId}.headerLines`, 1);
+  const headerLines = lines.slice(header.lineIndex, header.lineIndex + headerLineCount);
+  if (headerLines.length !== headerLineCount) {
+    fail('table_header_incomplete', `Table ${tableId} requires ${headerLineCount} rendered header line(s)`, {
+      tableId,
+      headerLineCount,
+      available: headerLines.length,
+    });
+  }
+  const headerBox = boxForLines(headerLines);
   const rows = [{
     rowId: headerRowId(tableId, hint, repeatedHeader),
     tableId,
-    xMin: header.line.xMin,
-    yMin: header.line.yMin,
-    xMax: header.line.xMax,
-    yMax: header.line.yMax,
+    ...headerBox,
     repeatedHeader,
-    cells: cellsForLine(header.line, boundaries),
+    cells: cellsForLines(headerLines, boundaries),
   }];
 
   if (!Array.isArray(hint.rows) || !hint.rows.length) {
@@ -270,7 +277,7 @@ function reconstructTable(words, hint) {
     `${tableId}.maxLinesPerRow`,
     1,
   );
-  let searchIndex = header.lineIndex + 1;
+  let searchIndex = header.lineIndex + headerLineCount;
   hint.rows.forEach((rowHint, rowIndex) => {
     const path = `${tableId}.rows[${rowIndex}]`;
     const rowId = normalizeText(rowHint?.rowId);
