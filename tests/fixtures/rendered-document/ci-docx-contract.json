@@ -6,7 +6,64 @@
   "requiredLinks": [
     "https://www.statistikportal.de/de/karten/unfallatlas"
   ],
-  "requiredImageKinds": [],
+  "requiredImageKinds": [
+    "map"
+  ],
+  "expectedMapCount": 4,
+  "imageHints": [
+    {
+      "page": 2,
+      "imageIndex": 0,
+      "kind": "map",
+      "altText": "Übersichtskarte des markierten Bonner Untersuchungsbereichs mit 24 Unfallpunkten.",
+      "caption": "Abbildung 1: Übersichtskarte aller Beteiligungs-Kombinationen im markierten Bereich.",
+      "sourceIds": [
+        "accidents.de.unfallatlas",
+        "basemap.synthetic.qa"
+      ],
+      "sourceWidth": 960,
+      "sourceHeight": 640
+    },
+    {
+      "page": 3,
+      "imageIndex": 0,
+      "kind": "map",
+      "altText": "Auswahlkarte des markierten Bonner Bereichs mit 24 Unfallpunkten für Rad- und Pkw-Beteiligung.",
+      "caption": "Abbildung 2: Auswahlkarte mit 24 Unfällen im markierten Bereich.",
+      "sourceIds": [
+        "accidents.de.unfallatlas",
+        "basemap.synthetic.qa"
+      ],
+      "sourceWidth": 960,
+      "sourceHeight": 640
+    },
+    {
+      "page": 4,
+      "imageIndex": 0,
+      "kind": "map",
+      "altText": "Detailkarte des markierten Bonner Auswertungsbereichs mit 24 Unfallpunkten.",
+      "caption": "Abbildung 3: Detailkarte des markierten Auswertungsbereichs.",
+      "sourceIds": [
+        "accidents.de.unfallatlas",
+        "basemap.synthetic.qa"
+      ],
+      "sourceWidth": 960,
+      "sourceHeight": 640
+    },
+    {
+      "page": 5,
+      "imageIndex": 0,
+      "kind": "map",
+      "altText": "Clusterkarte Bonn-Zentrum mit 11 Unfallpunkten als Teilmenge des markierten Bereichs.",
+      "caption": "Abbildung 4: Clusterkarte Bonn-Zentrum mit 11 Unfällen.",
+      "sourceIds": [
+        "accidents.de.unfallatlas",
+        "basemap.synthetic.qa"
+      ],
+      "sourceWidth": 960,
+      "sourceHeight": 640
+    }
+  ],
   "expectedCounts": [
     {
       "countId": "selected-accidents",
