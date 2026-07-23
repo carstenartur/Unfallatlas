@@ -7,14 +7,15 @@
  * Beim Klick werden die aktuellen URL-Parameter gesammelt, an das Backend
  * gesendet und das erzeugte GIF automatisch heruntergeladen.
  *
- * Graceful degradation: Wenn kein Backend vorhanden ist (z. B. bei der
- * GitHub-Pages-Distribution), passiert nichts – kein Button, keine Fehler.
+ * Graceful degradation: Wenn kein Backend vorhanden ist (z. B. bei einer
+ * statischen Distribution), passiert nichts – kein Button, kein Probe-404.
  */
 (() => {
   'use strict';
   const VIDEO_EXPORT_FORMAT_KEY = 'ua:videoExportFormat';
   const DEFAULT_VIDEO_EXPORT_FORMAT = 'webp';
   const SUPPORTED_VIDEO_EXPORT_FORMATS = new Set(['gif', 'webp', 'apng']);
+  const VIDEO_EXPORT_CAPABILITY = 'video-export';
 
   function readPreferredFormat() {
     try {
@@ -67,6 +68,15 @@
     const element = document.getElementById(id);
     if (!element) return fallback;
     return element.classList.contains('active') || element.getAttribute('aria-pressed') === 'true';
+  }
+
+  function backendProbeDisabled() {
+    const profile = window.UA && window.UA.PUBLIC_DISTRIBUTION_PROFILE;
+    return Boolean(
+      profile &&
+      Array.isArray(profile.disabledCapabilities) &&
+      profile.disabledCapabilities.includes(VIDEO_EXPORT_CAPABILITY)
+    );
   }
 
   /**
@@ -242,11 +252,14 @@
 
   /** Initialisierung: Backend-Verfügbarkeit prüfen */
   async function init() {
+    // A distribution profile is authoritative about unavailable capabilities.
+    // Static Pages must not generate a predictable 404 merely to discover that
+    // the server-only video endpoint is absent.
+    if (backendProbeDisabled()) return;
     try {
       const res = await fetch('/api/video-export-available', {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
-        // Kurzes Timeout – bei GitHub Pages antwortet kein Backend
         signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined
       });
       if (!res.ok) return;
@@ -260,9 +273,9 @@
   }
 
   // Small test/debug surface: callers can inspect the exact canonical payload
-  // without duplicating the state collection logic.
+  // and capability decision without duplicating client logic.
   window.UA = window.UA || {};
-  window.UA.videoExportClient = Object.freeze({ collectState });
+  window.UA.videoExportClient = Object.freeze({ collectState, backendProbeDisabled, init });
 
   // Nach DOM-Bereitschaft initialisieren
   if (document.readyState === 'loading') {
