@@ -104,6 +104,12 @@ function enrichMetadata(metadata, expected, actual, hintCount) {
 
 function main(argv) {
   const options = parseArgs(argv);
+  const auditPath = path.resolve(options.auditPath);
+  // The pre-table Poppler audit is only an intermediate result. Remove it
+  // before reconstruction so a failed table contract cannot leave a stale,
+  // apparently final passed report in the evidence package.
+  fs.rmSync(auditPath, { force: true });
+
   const modelInput = readJson(options.modelPath, 'rendered document model');
   const contractInput = readJson(options.contractPath, 'rendered document contract');
   const metadataInput = readJson(options.metadataPath, 'conversion metadata');
@@ -116,7 +122,6 @@ function main(argv) {
     contractInput.value.tableHints.length,
   );
 
-  const auditPath = path.resolve(options.auditPath);
   fs.writeFileSync(modelInput.absolute, `${JSON.stringify(enriched.model, null, 2)}\n`);
   fs.writeFileSync(auditPath, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(metadataInput.absolute, `${JSON.stringify(metadata, null, 2)}\n`);
