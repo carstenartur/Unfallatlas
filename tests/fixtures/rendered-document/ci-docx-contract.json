@@ -1,0 +1,19 @@
+{
+  "requiredHeadings": [
+    "SACHVERHALT",
+    "BESCHLUSSVORSCHLAG"
+  ],
+  "requiredLinks": [
+    "https://www.statistikportal.de/de/karten/unfallatlas"
+  ],
+  "requiredImageKinds": [],
+  "expectedCounts": [
+    {
+      "countId": "selected-accidents",
+      "value": 24,
+      "requiredTextPatterns": [
+        "\\b{value}\\s+Unfälle\\b"
+      ]
+    }
+  ]
+}
