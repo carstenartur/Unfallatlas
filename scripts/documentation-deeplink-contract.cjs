@@ -69,12 +69,19 @@ const SCENARIOS = Object.freeze({
     id: 'readme-cluster',
     description: 'Reine Clusteransicht Hannover ohne Heatmap und POI-Overlays',
     // The current README points to the generic URL. Keep the literal link under
-    // test and declare the known semantic defect instead of silently weakening
-    // the expected screenshot state. Issue #509 removes this waiver.
+    // test and declare only the exact known state discrepancy. Page/runtime/data
+    // errors still fail hard. Issue #509 removes this waiver.
     query: query({}),
     knownMismatch: Object.freeze({
       issue: 509,
       reason: 'README cluster screenshot currently links to the generic cluster+heatmap start state',
+      actual: Object.freeze({
+        showCluster: true,
+        showHeatmap: true,
+        showSchools: true,
+        showKindergartens: true,
+        showArgumentation: true,
+      }),
     }),
     expected: Object.freeze({
       city: 'Hannover', involvementMode: 'or', showCluster: true, showHeatmap: false,
