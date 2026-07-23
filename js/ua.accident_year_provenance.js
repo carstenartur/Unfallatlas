@@ -64,8 +64,10 @@
       return point;
     }
     const year = accidentYear(point.props);
-    const current = normalizedYear(point.props.year);
-    if (year != null && current === year) return point;
+    // Retain the original point only when the canonical field already contains
+    // the canonical numeric value. String years such as "2024" must still be
+    // rewritten to 2024 so hashes and renderer inputs cannot diverge by type.
+    if (year != null && point.props.year === year) return point;
     const nextYear = year == null ? UNKNOWN_YEAR_SENTINEL : year;
     return {
       ...point,
