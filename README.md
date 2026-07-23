@@ -171,7 +171,7 @@ Rad + Fuß im **ODER-Modus**, ganztägig (0–23 Uhr), Zoom 16:
 |---|---|
 | ![Start](docs/screenshots/01-startansicht.png) | [![Cluster](docs/screenshots/04-cluster-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&showCluster=1&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0) |
 
-[→ Öffentliche Exportansicht öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?export=1)
+[→ Öffentliche Exportansicht öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12&export=1)
 – dort stehen CSV, GeoJSON und KML zur Verfügung. Der Voll-Build-Screenshot mit
 Word/PDF ist in der [Nutzerdokumentation](docs/DOKUMENTATION.md#export-und-bezirksratsantrag)
 erklärt und wird nicht als identische Pages-Ansicht ausgegeben.
