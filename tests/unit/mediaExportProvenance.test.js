@@ -113,8 +113,8 @@ describe('media export provenance sidecars', () => {
     expect(first.sourceManifest.scenario.years).toEqual([2024]);
     expect(first.visibleSourceBadge.encodedEvidence.verified).toBe(true);
     expect(first.sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(sha256Buffer(Buffer.from(stableJson({ ...first, sha256: undefined }), 'utf8')).hex)
-      .not.toBe(first.sha256);
+    const { sha256, ...core } = first;
+    expect(sha256Buffer(Buffer.from(stableJson(core), 'utf8')).hex).toBe(sha256);
   });
 
   test('creates a portable ZIP with exact media bytes, sidecar and README', async () => {
