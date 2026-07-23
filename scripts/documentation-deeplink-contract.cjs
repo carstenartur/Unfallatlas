@@ -118,6 +118,15 @@ const PUBLIC_START_QUERY = query({
   showArgumentation: 1, mapMode: 'standard', orthophotoOpacity: 92,
   centerLat: '52.3759', centerLon: '9.7320', zoom: 12,
 });
+const PUBLIC_EXPORT_QUERY = query({ ...PUBLIC_START_QUERY, export: 1 });
+const PUBLIC_START_EXPECTED = Object.freeze({
+  city: 'Hannover', involvementMode: 'or', showCluster: true, showHeatmap: false,
+  showSchools: true, showKindergartens: true, showArgumentation: true,
+  filters: Object.freeze({ bike: true, pedestrian: true, car: true, motorcycle: false }),
+  hourFrom: 0, hourTo: 23,
+  center: Object.freeze({ lat: 52.3759, lon: 9.7320, tolerance: 0.0025 }),
+  zoom: 12, minimumAllPoints: 1, minimumViewportPoints: 1, publicPreview: true,
+});
 
 const ACTION_SCENARIOS = Object.freeze([
   Object.freeze({
@@ -125,23 +134,16 @@ const ACTION_SCENARIOS = Object.freeze([
     label: '→ Öffentliche Kernvorschau öffnen',
     description: 'Explizite öffentliche Startansicht Hannover im reduzierten Pages-Profil',
     query: PUBLIC_START_QUERY,
-    expected: Object.freeze({
-      city: 'Hannover', involvementMode: 'or', showCluster: true, showHeatmap: false,
-      showSchools: true, showKindergartens: true, showArgumentation: true,
-      filters: Object.freeze({ bike: true, pedestrian: true, car: true, motorcycle: false }),
-      hourFrom: 0, hourTo: 23,
-      center: Object.freeze({ lat: 52.3759, lon: 9.7320, tolerance: 0.0025 }),
-      zoom: 12, minimumAllPoints: 1, minimumViewportPoints: 1, publicPreview: true,
-    }),
+    expected: PUBLIC_START_EXPECTED,
   }),
   Object.freeze({
     id: 'readme-export',
     label: '→ Öffentliche Exportansicht öffnen',
-    description: 'Öffentlicher Exportdialog mit drei Datenexporten und erklärter Voll-Build-Grenze',
-    query: query({ export: 1 }),
+    description: 'Expliziter öffentlicher Exportdialog mit drei Datenexporten',
+    query: PUBLIC_EXPORT_QUERY,
     expected: Object.freeze({
-      city: 'Hannover', exportOpen: true, exportReady: true, minimumAllPoints: 1,
-      publicPreview: true, verifyDownloads: true,
+      ...PUBLIC_START_EXPECTED,
+      exportOpen: true, exportReady: true, verifyDownloads: true,
     }),
   }),
   Object.freeze({
@@ -248,7 +250,7 @@ function validateDocumentationLinks(rootDir = process.cwd()) {
 }
 
 module.exports = Object.freeze({
-  LIVE_ORIGIN, LIVE_PATH, PUBLIC_START_QUERY,
+  LIVE_ORIGIN, LIVE_PATH, PUBLIC_START_QUERY, PUBLIC_EXPORT_QUERY,
   SCREENSHOT_SCENARIOS, ACTION_SCENARIOS, SCENARIOS,
   DocumentationDeepLinkError, normalizeImagePath, extractLinkedScreenshots,
   extractNamedAction, assertCanonicalUrl, validateDocumentationLinks,
