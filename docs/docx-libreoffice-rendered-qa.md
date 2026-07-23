@@ -53,15 +53,19 @@ Poppler exposes words and coordinates but not semantic table rows. The Golden co
 - page number and table ID;
 - visible header labels in column order;
 - ordered row IDs;
-- regular expressions for the visible cell values.
+- regular expressions for the visible cell values;
+- an optional maximum number of visual lines per row;
+- whether a page header is an actual continuation-page repetition.
 
 The reconstruction groups final PDF words into visual lines, locates the complete header, derives column boundaries from header centres, and assigns every row word to a column by its final horizontal position. Cell strings, row bounds and order therefore come from the LibreOffice-rendered PDF rather than from DOCX tables or expected source objects.
 
-The first enforced table is the injury-severity table. It must contain one header plus the fatal, serious-injury and slight-injury rows with the rendered counts and percentages. Missing headers, missing rows, changed cell values, overlapping row boxes or an unexpected total row count fail closed. `conversion-metadata.json`, the normalized document model and the final audit all record `tableRowCount: 4`.
+Wrapped rows are reconstructed only when the contract explicitly permits them with `maxLinesPerRow` or a narrower row-level `maxLines`. The implementation combines consecutive rendered lines column by column, expands the final row box across all participating lines and still requires every complete visible cell to match its declared expression. A layout change cannot silently absorb text from an unlimited number of following lines.
 
-The initial header is identified by `rowId=severity.header`; it is not marked as a repeated header. The `repeatedHeader` flag remains reserved for actual continuation-page headers once multi-page tables are audited.
+Continuation pages use a separate hint for the actual final page. `repeatedHeader: true` marks only the header reconstructed on that page and gives it a page-specific row ID such as `severity.header.page2`; normal data rows remain `repeatedHeader: false`. This avoids labelling the initial header as repeated and makes continuation evidence unambiguous in the normalized model.
 
-This focused first table establishes the reconstruction mechanism without pretending that wrapped and multi-page tables are already solved. The year and deviation tables, repeated headers and large individual-accident tables remain explicit follow-ups.
+The current Bonn Golden artifact still enforces the one-page injury-severity table: one initial header plus the fatal, serious-injury and slight-injury rows with rendered counts and percentages. Missing headers, missing rows, changed cell values, overlapping row boxes or an unexpected total row count fail closed. `conversion-metadata.json`, the normalized document model and the final audit all record `tableRowCount: 4`.
+
+The contract engine now has focused regression coverage for wrapped cells, explicit line budgets and true continuation-page headers. Adding the year/deviation tables and a real large individual-accident table to the versioned Bonn/Hannover artifact matrix remains separate work; the mechanism no longer needs to be redesigned for those cases.
 
 ## Evidence package
 
