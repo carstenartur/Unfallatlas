@@ -2,8 +2,10 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import documentationContract from '../../scripts/documentation-deeplink-contract.cjs';
+import localizedCount from '../../scripts/parse-localized-count.cjs';
 
 const { validateDocumentationLinks } = documentationContract;
+const { visibleCountFromStatus } = localizedCount;
 const scenarios = validateDocumentationLinks(process.cwd()).liveScenarios;
 const outputDir = resolve(process.cwd(), 'out/qa/documentation-live-links');
 mkdirSync(outputDir, { recursive: true });
@@ -11,11 +13,6 @@ mkdirSync(outputDir, { recursive: true });
 function approximately(actual, expected, tolerance, label) {
   expect(Math.abs(Number(actual) - Number(expected)), label)
     .toBeLessThanOrEqual(Number(tolerance));
-}
-
-function visibleCountFromText(text) {
-  const match = String(text || '').match(/(?:lokal\s+|im\s+Viewport:\s*)([\d.\s]+)(?:\s+Unfälle)?/i);
-  return match ? Number(match[1].replace(/\D/g, '')) || 0 : 0;
 }
 
 async function readLiveState(page) {
@@ -103,7 +100,7 @@ function assertState(scenario, state) {
   expect(state.controls.city).toBe(expected.city);
   expect(state.allPoints).toBeGreaterThanOrEqual(expected.minimumAllPoints || 0);
   expect(state.viewportPoints, 'accidents in the visible map viewport').toBeGreaterThan(0);
-  expect(visibleCountFromText(state.stat), 'visible viewport accident count').toBe(state.viewportPoints);
+  expect(visibleCountFromStatus(state.stat), 'visible viewport accident count').toBe(state.viewportPoints);
   for (const key of ['involvementMode', 'showCluster', 'showHeatmap', 'showSchools', 'showKindergartens', 'showArgumentation']) {
     if (expected[key] !== undefined) expect(state[key], key).toBe(expected[key]);
   }
