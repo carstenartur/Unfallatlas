@@ -10,7 +10,10 @@
 [![License](https://img.shields.io/github/license/carstenartur/Unfallatlas)](LICENSE)
 [![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-informational?logo=owasp)](https://github.com/carstenartur/Unfallatlas/dependency-graph/sbom)
 https://doi.org/10.5281/zenodo.20936471
-[![Startansicht der Unfallwerkbank V2](docs/screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
+
+![Startansicht des vollständigen Unfallwerkbank-Builds](docs/screenshots/01-startansicht.png)
+
+[→ Öffentliche Kernvorschau öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)
 
 ---
 
@@ -116,18 +119,17 @@ in [`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md) dokumentiert.
 
 ### Beispiel 1: Auto-Fahrrad-Kollisionen am Bonner Hauptbahnhof
 
-Rad + PKW im **UND-Modus**, Heatmap im vollständigen Build:
+Rad + PKW im **UND-Modus**:
 
 - zeigt räumliche Häufungen von Rad-PKW-Kollisionen,
 - eignet sich für die Priorisierung von Kreuzungen/Knoten.
 
-[→ Live in der Werkbank öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
+[→ Bonn-Hbf-Analyse in der öffentlichen Vorschau öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=0&showKindergartens=0&showArgumentation=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
 
-> Die öffentliche Kernvorschau normalisiert diesen geteilten Zustand auf die
-> dort verfügbare Clusterdarstellung; die vollständige Heatmap bleibt Teil des
-> lokalen/Docker-Builds.
+Der folgende Screenshot dokumentiert die zusätzliche **Heatmap des vollständigen
+Builds** und ist deshalb bewusst nicht als identische Pages-Ansicht verlinkt:
 
-[![Bonn Hbf – Rad+Auto-Unfälle](docs/screenshots/13-bonn-hbf-radunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
+![Bonn Hbf – Rad+Auto-Heatmap im vollständigen Build](docs/screenshots/13-bonn-hbf-radunfaelle.png)
 
 ### Beispiel 2: Fahrrad-Alleinunfälle (Infrastrukturmängel erkennen)
 
@@ -165,9 +167,9 @@ Rad + Fuß im **ODER-Modus**, ganztägig (0–23 Uhr), Zoom 16:
 
 ## 📸 Screenshots
 
-| Startansicht | Cluster |
+| Startansicht (Voll-Build) | Cluster (öffentliche Vorschau) |
 |---|---|
-| [![Start](docs/screenshots/01-startansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html) | [![Cluster](docs/screenshots/04-cluster-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&showCluster=1&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0) |
+| ![Start](docs/screenshots/01-startansicht.png) | [![Cluster](docs/screenshots/04-cluster-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&showCluster=1&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0) |
 
 [→ Öffentliche Exportansicht öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?export=1)
 – dort stehen CSV, GeoJSON und KML zur Verfügung. Der Voll-Build-Screenshot mit
