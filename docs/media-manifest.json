@@ -63,9 +63,9 @@
     {
       "path": "docs/screenshots/07-export-modal.png",
       "kind": "screenshot",
-      "purpose": "Analyse-/Exportdialog und primäre Dokumentaktionen.",
+      "purpose": "Analyse-/Exportdialog und primäre Dokumentaktionen im vollständigen Build.",
       "target": { "width": 1280, "height": 640 },
-      "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/08-stundenfilter.png",
@@ -105,7 +105,7 @@
     {
       "path": "docs/screenshots/13-bonn-hbf-radunfaelle.png",
       "kind": "screenshot",
-      "purpose": "Bonn-Hbf-Szenario Rad/Pkw mit Heatmap und Auswahlbereich.",
+      "purpose": "Bonn-Hbf-Szenario Rad/Pkw mit Heatmap und Auswahlbereich im vollständigen Build.",
       "target": { "width": 1280, "height": 640 },
       "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
