@@ -34,6 +34,7 @@
     "generate:sample-pdf": "node scripts/generate-sample-pdf.js --out out/ci-render-gate.pdf",
     "generate:sample-docx": "node scripts/generate-sample-docx.js --out out/ci-render-gate.docx",
     "qa:sample-docx-rendered": "node scripts/qa-sample-docx-rendered.js",
+    "validate:word-compatibility": "node scripts/validate-word-compatibility-evidence.js",
     "validate:context-datasets": "node scripts/check-context-datasets.js",
     "validate:slope-plausibility": "node scripts/check-slope-plausibility.js",
     "validate:playwright-docker": "node scripts/check-playwright-docker-version.js",
