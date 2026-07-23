@@ -41,6 +41,8 @@ function runWrapper(args, directory) {
     'printf \'%s\\n\' "$@" >> "$FAKE_MAGICK_LOG"',
     'if [[ "${!#}" == \'rgba:-\' ]]; then',
     '  printf \'rgba-frame\'',
+    'elif [[ "${!#}" == \'rgb:-\' ]]; then',
+    '  printf \'rgb-frame\'',
     'else',
     '  cp -- "$1" "${!#}"',
     'fi',
@@ -157,4 +159,36 @@ testUnix('animated WebP inspection uses ImageMagick RGBA frames instead of ffmpe
   expect(magickArguments).toContain(inputPath);
   expect(magickArguments).toContain('-coalesce');
   expect(magickArguments).toContain('rgba:-');
+});
+
+testUnix('bounded animated WebP badge inspection preserves crop, tail-frame limit and rgb24 output', () => {
+  const directory = makeTempDirectory();
+  const inputPath = path.join(directory, 'animation.webp');
+  fs.writeFileSync(inputPath, 'RIFF synthetic WEBP', 'utf8');
+
+  const { result, ffmpegLog, magickLog } = runWrapper([
+    '-v', 'error',
+    '-ss', '14',
+    '-i', inputPath,
+    '-vf', 'fps=1,crop=942:27:9:507',
+    '-frames:v', '8',
+    '-pix_fmt', 'rgb24',
+    '-f', 'rawvideo',
+    'pipe:1',
+  ], directory);
+
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe('rgb-frame');
+  expect(fs.existsSync(ffmpegLog)).toBe(false);
+  const magickArguments = fs.readFileSync(magickLog, 'utf8').trim().split('\n');
+  expect(magickArguments).toContain(inputPath);
+  expect(magickArguments).toContain('-coalesce');
+  expect(magickArguments).toContain('-reverse');
+  expect(magickArguments).toContain('-delete');
+  expect(magickArguments).toContain('8--1');
+  expect(magickArguments).toContain('-crop');
+  expect(magickArguments).toContain('942x27+9+507');
+  expect(magickArguments).toContain('-alpha');
+  expect(magickArguments).toContain('off');
+  expect(magickArguments).toContain('rgb:-');
 });
