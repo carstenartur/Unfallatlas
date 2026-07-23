@@ -4,7 +4,10 @@
 const fs = require('fs');
 const path = require('path');
 const { assertRenderedDocument } = require('./rendered-document-audit');
-const { applyTableHints } = require('./rendered-table-hints');
+const {
+  applyTableHints,
+  clusterWordsIntoLines,
+} = require('./rendered-table-hints');
 
 class RenderedTableContractError extends Error {
   constructor(code, message, details) {
@@ -61,6 +64,36 @@ function expectedRowCount(contract) {
     );
   }
   return value;
+}
+
+function positiveInteger(value, path, fallback) {
+  const candidate = value == null ? fallback : Number(value);
+  if (!Number.isInteger(candidate) || candidate < 1) {
+    fail('invalid_table_section_binding', `${path} must be a positive integer`, { value });
+  }
+  return candidate;
+}
+
+function nonNegativeNumber(value, path, fallback) {
+  const candidate = value == null ? fallback : Number(value);
+  if (!Number.isFinite(candidate) || candidate < 0) {
+    fail('invalid_table_section_binding', `${path} must be a finite non-negative number`, { value });
+  }
+  return candidate;
+}
+
+function expression(value, path) {
+  if (typeof value !== 'string' || !value.trim()) {
+    fail('invalid_table_section_binding', `${path} must be a non-empty regular expression`);
+  }
+  try {
+    return new RegExp(value, 'u');
+  } catch (error) {
+    fail('invalid_table_section_binding', `${path} is not a valid regular expression`, {
+      value,
+      cause: error.message,
+    });
+  }
 }
 
 function sameCells(left, right) {
@@ -161,6 +194,94 @@ function validateTableContinuity(pages) {
   return pages;
 }
 
+function renderedLines(pages, tolerance = 3) {
+  return pages.flatMap((page) => clusterWordsIntoLines(page.words || [], tolerance)
+    .map((line) => ({ ...line, page: page.number })));
+}
+
+/**
+ * Binds a visible subsection heading to the actual first page of its table.
+ * This catches a common office-layout failure where a short heading survives at
+ * the bottom of one page while the header and first row move to the next page.
+ */
+function validateTableSectionBindings(pages, bindings) {
+  if (bindings == null) return 0;
+  if (!Array.isArray(bindings)) {
+    fail('invalid_table_section_binding', 'tableSectionBindings must be an array');
+  }
+  if (!bindings.length) return 0;
+
+  const lines = renderedLines(pages);
+  bindings.forEach((binding, index) => {
+    const path = `tableSectionBindings[${index}]`;
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)) {
+      fail('invalid_table_section_binding', `${path} must be an object`);
+    }
+    const tableId = String(binding.tableId || '').trim();
+    if (!tableId) fail('invalid_table_section_binding', `${path}.tableId must not be empty`);
+    const matcher = expression(binding.headingPattern, `${path}.headingPattern`);
+    const maximumGap = nonNegativeNumber(binding.maximumGap, `${path}.maximumGap`, 80);
+    const minimumDataRows = positiveInteger(binding.minimumDataRows, `${path}.minimumDataRows`, 1);
+
+    const headings = lines.filter((line) => matcher.test(line.text));
+    if (headings.length !== 1) {
+      fail(
+        headings.length ? 'table_section_heading_ambiguous' : 'table_section_heading_missing',
+        `Expected exactly one rendered heading for table ${tableId}, found ${headings.length}`,
+        { tableId, headingPattern: binding.headingPattern, matches: headings },
+      );
+    }
+    const heading = headings[0];
+    const tableRows = pages.flatMap((page) => (page.tableRows || [])
+      .filter((row) => row.tableId === tableId)
+      .map((row) => ({ ...row, page: page.number })))
+      .sort((left, right) => left.page - right.page || left.yMin - right.yMin);
+    if (!tableRows.length) {
+      fail('table_section_table_missing', `No final rows were reconstructed for table ${tableId}`, { tableId });
+    }
+    const header = tableRows[0];
+    const dataRowsOnFirstPage = tableRows.filter((row, rowIndex) =>
+      rowIndex > 0 && row.page === header.page && !row.repeatedHeader
+    );
+
+    if (heading.page !== header.page) {
+      fail(
+        'table_section_orphaned',
+        `Heading for table ${tableId} is on page ${heading.page}, table starts on page ${header.page}`,
+        { tableId, heading, header },
+      );
+    }
+    if (heading.yMax > header.yMin) {
+      fail(
+        'table_section_order_invalid',
+        `Heading for table ${tableId} does not precede its table header`,
+        { tableId, heading, header },
+      );
+    }
+    const gap = header.yMin - heading.yMax;
+    if (gap > maximumGap) {
+      fail(
+        'table_section_gap_exceeded',
+        `Heading for table ${tableId} is ${gap.toFixed(2)} pt away from its header`,
+        { tableId, gap, maximumGap, heading, header },
+      );
+    }
+    if (dataRowsOnFirstPage.length < minimumDataRows) {
+      fail(
+        'table_section_first_row_missing',
+        `Table ${tableId} needs ${minimumDataRows} data row(s) with its heading and header`,
+        {
+          tableId,
+          page: header.page,
+          minimumDataRows,
+          actual: dataRowsOnFirstPage.length,
+        },
+      );
+    }
+  });
+  return bindings.length;
+}
+
 function enrichModel(model, contract) {
   if (!model || typeof model !== 'object' || !Array.isArray(model.pages)) {
     fail('invalid_rendered_model', 'rendered document model requires pages');
@@ -173,6 +294,7 @@ function enrichModel(model, contract) {
     tableRows: applyTableHints(page.words || [], contract.tableHints, page.number),
   }));
   validateTableContinuity(pages);
+  const bindingCount = validateTableSectionBindings(pages, contract.tableSectionBindings);
   const enriched = { ...model, pages };
   const actual = pages.reduce((sum, page) => sum + page.tableRows.length, 0);
   const expected = expectedRowCount(contract);
@@ -183,10 +305,10 @@ function enrichModel(model, contract) {
       { expected, actual },
     );
   }
-  return { model: enriched, expected, actual };
+  return { model: enriched, expected, actual, bindingCount };
 }
 
-function enrichMetadata(metadata, expected, actual, hintCount, report) {
+function enrichMetadata(metadata, expected, actual, hintCount, bindingCount, report) {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
     fail('invalid_conversion_metadata', 'conversion metadata must be an object');
   }
@@ -200,6 +322,7 @@ function enrichMetadata(metadata, expected, actual, hintCount, report) {
       expectedTableRowCount: expected,
       tableRowCount: actual,
       tableHints: hintCount,
+      tableSectionBindings: bindingCount,
     },
     audit: {
       ...(metadata.audit || {}),
@@ -227,6 +350,7 @@ function main(argv) {
     enriched.expected,
     enriched.actual,
     contractInput.value.tableHints.length,
+    enriched.bindingCount,
     report,
   );
 
@@ -235,7 +359,8 @@ function main(argv) {
   fs.writeFileSync(metadataInput.absolute, `${JSON.stringify(metadata, null, 2)}\n`);
   process.stdout.write(
     `[rendered-table-contract] ${enriched.actual} final row(s) across ` +
-      `${contractInput.value.tableHints.length} table hint(s); audit passed.\n`,
+      `${contractInput.value.tableHints.length} table hint(s) and ` +
+      `${enriched.bindingCount} section binding(s); audit passed.\n`,
   );
   return { model: enriched.model, report, metadata };
 }
@@ -255,8 +380,13 @@ module.exports = {
   parseArgs,
   readJson,
   expectedRowCount,
+  positiveInteger,
+  nonNegativeNumber,
+  expression,
   sameCells,
   validateTableContinuity,
+  renderedLines,
+  validateTableSectionBindings,
   enrichModel,
   enrichMetadata,
   main,
