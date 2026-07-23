@@ -81,7 +81,7 @@ jobs:
     env:
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
-      SAL_USE_VCLPLUGIN: gen
+      SAL_USE_VCLPLUGIN: svp
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
