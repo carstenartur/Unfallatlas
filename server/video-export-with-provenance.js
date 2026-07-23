@@ -17,9 +17,12 @@ async function exportVideo(params, opts = {}) {
   }, () => baseVideoExport.exportVideo(params, opts));
 
   try {
+    const encodedFrameEvidence = result && result.evidence &&
+      result.evidence.semantic && result.evidence.semantic.framesAfterEncoding;
     const encodedBadgeEvidence = await verifyEncodedSourceBadge(
       result.path,
       capture.visibleBadge,
+      encodedFrameEvidence,
     );
     const mediaProvenance = createVideoMediaSidecar(
       result,
