@@ -13,6 +13,19 @@ function word(text, xMin, yMin, xMax, yMax) {
   return { text, xMin, yMin, xMax, yMax, fontSize: 9 };
 }
 
+function tableRow(tableId, rowId, yMin, cells, repeatedHeader = false) {
+  return {
+    tableId,
+    rowId,
+    xMin: 78,
+    yMin,
+    xMax: 500,
+    yMax: yMin + 10,
+    cells,
+    repeatedHeader,
+  };
+}
+
 function model() {
   return {
     documentId: 'golden',
@@ -65,6 +78,51 @@ function twoPageModel() {
     tableRows: [],
   });
   return input;
+}
+
+function sectionBinding() {
+  return {
+    tableId: 'deviations',
+    headingPattern: '^Top-Abweichungen \\(Ausschnitt vs\\. Stadt\\):$',
+    maximumGap: 30,
+    minimumDataRows: 1,
+  };
+}
+
+function sectionPage(options = {}) {
+  const headingY = Number(options.headingY ?? 100);
+  const tableY = Number(options.tableY ?? 130);
+  const dataY = Number(options.dataY ?? 150);
+  const pageNumber = Number(options.pageNumber ?? 1);
+  const includeHeading = options.includeHeading !== false;
+  const includeData = options.includeData !== false;
+  return {
+    number: pageNumber,
+    width: 595,
+    height: 842,
+    words: [
+      ...(includeHeading ? [word(
+        'Top-Abweichungen (Ausschnitt vs. Stadt):',
+        78,
+        headingY,
+        260,
+        headingY + 10,
+      )] : []),
+      word('Muster', 78, tableY, 120, tableY + 10),
+      word('Lokal', 228, tableY, 258, tableY + 10),
+      ...(includeData ? [
+        word('5', 78, dataY, 83, dataY + 10),
+        word('11', 228, dataY, 238, dataY + 10),
+      ] : []),
+    ],
+    images: [],
+    links: [],
+    headings: [],
+    tableRows: [
+      tableRow('deviations', 'deviations.header', tableY, ['Muster', 'Lokal']),
+      ...(includeData ? [tableRow('deviations', 'deviations.rad-car', dataY, ['5', '11'])] : []),
+    ],
+  };
 }
 
 function contract() {
@@ -136,6 +194,7 @@ describe('rendered table contract enrichment', () => {
       expectedTableRowCount: 4,
       tableRowCount: 4,
       tableHints: 1,
+      tableSectionBindings: 0,
     });
     expect(metadata.audit).toEqual({
       model: 'poppler/rendered-document.json',
@@ -147,6 +206,59 @@ describe('rendered table contract enrichment', () => {
     const finalAudit = JSON.parse(fs.readFileSync(auditPath, 'utf8'));
     expect(finalAudit.summary.tableRowCount).toBe(4);
     expect(finalAudit.stale).toBeUndefined();
+  });
+
+  test('accepts a heading, table header and first row on the same final page', () => {
+    expect(enrichment.validateTableSectionBindings(
+      [sectionPage()],
+      [sectionBinding()],
+    )).toBe(1);
+  });
+
+  test('rejects a subsection heading orphaned on the preceding rendered page', () => {
+    const headingPage = sectionPage({ includeData: false });
+    headingPage.tableRows = [];
+    headingPage.words = headingPage.words.slice(0, 1);
+    const tablePage = sectionPage({ pageNumber: 2, includeHeading: false });
+
+    expect(() => enrichment.validateTableSectionBindings(
+      [headingPage, tablePage],
+      [sectionBinding()],
+    )).toThrow(/table_section_orphaned/);
+  });
+
+  test('rejects an excessive final-page gap between heading and table', () => {
+    expect(() => enrichment.validateTableSectionBindings(
+      [sectionPage({ headingY: 80, tableY: 180, dataY: 200 })],
+      [sectionBinding()],
+    )).toThrow(/table_section_gap_exceeded/);
+  });
+
+  test('requires at least one data row with the subsection heading and header', () => {
+    expect(() => enrichment.validateTableSectionBindings(
+      [sectionPage({ includeData: false })],
+      [sectionBinding()],
+    )).toThrow(/table_section_first_row_missing/);
+  });
+
+  test('rejects ambiguous or malformed subsection bindings', () => {
+    const duplicate = sectionPage();
+    duplicate.words.push(word(
+      'Top-Abweichungen (Ausschnitt vs. Stadt):',
+      78,
+      60,
+      260,
+      70,
+    ));
+    expect(() => enrichment.validateTableSectionBindings(
+      [duplicate],
+      [sectionBinding()],
+    )).toThrow(/table_section_heading_ambiguous/);
+
+    expect(() => enrichment.validateTableSectionBindings(
+      [sectionPage()],
+      [{ ...sectionBinding(), headingPattern: '([' }],
+    )).toThrow(/invalid_table_section_binding/);
   });
 
   test('counts initial and repeated headers across continuation pages', () => {
@@ -167,6 +279,7 @@ describe('rendered table contract enrichment', () => {
     });
 
     expect(result.actual).toBe(5);
+    expect(result.bindingCount).toBe(0);
     expect(result.model.pages[0].tableRows.map((row) => row.rowId)).toEqual([
       'severity.header',
       'severity.fatal',
@@ -275,5 +388,9 @@ describe('rendered table contract enrichment', () => {
       .toThrow(/invalid_table_contract/);
     expect(() => enrichment.enrichModel(model(), { expectedTableRowCount: 4, tableHints: [] }))
       .toThrow(/invalid_table_contract/);
+    expect(() => enrichment.validateTableSectionBindings(
+      [sectionPage()],
+      { tableId: 'deviations' },
+    )).toThrow(/invalid_table_section_binding/);
   });
 });
