@@ -5,17 +5,27 @@ import { resolve } from 'node:path';
 const outputDir = resolve(process.cwd(), 'out/qa/report-button-downloads');
 const standardTile = readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/standard.svg'));
 const bonnReverse = readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/network/nominatim-reverse-bonn.json'));
+const corsHeaders = { 'access-control-allow-origin': '*' };
 
 async function routeDeterministicExportInputs(page) {
   await page.route(/^https:\/\//, async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
+    const url = new URL(route.request().url());
     if (/(^|\.)tile\.openstreetmap\.org$/i.test(url.hostname)) {
-      await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: standardTile });
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        headers: corsHeaders,
+        body: standardTile,
+      });
       return;
     }
     if (url.hostname === 'nominatim.openstreetmap.org') {
-      await route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: bonnReverse });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        headers: corsHeaders,
+        body: bonnReverse,
+      });
       return;
     }
     await route.continue();
