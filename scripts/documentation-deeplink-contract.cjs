@@ -31,12 +31,9 @@ function extractLinkedScreenshots(markdown, sourceFile) {
   let match;
   while ((match = pattern.exec(String(markdown || '')))) {
     links.push(Object.freeze({
-      kind: 'screenshot',
-      sourceFile,
-      altText: match[1],
+      kind: 'screenshot', sourceFile, altText: match[1],
       imagePath: normalizeImagePath(sourceFile, match[2]),
-      url: parseUrl(match[3], sourceFile),
-      index: match.index,
+      url: parseUrl(match[3], sourceFile), index: match.index,
     }));
   }
   return Object.freeze(links);
@@ -55,12 +52,8 @@ function extractNamedAction(markdown, sourceFile, label) {
     });
   }
   return Object.freeze({
-    kind: 'action',
-    sourceFile,
-    label,
-    imagePath: null,
-    url: parseUrl(matches[0][1], sourceFile),
-    index: matches[0].index,
+    kind: 'action', sourceFile, label, imagePath: null,
+    url: parseUrl(matches[0][1], sourceFile), index: matches[0].index,
   });
 }
 
@@ -115,15 +108,30 @@ const SCREENSHOT_SCENARIOS = Object.freeze({
   }),
 });
 
+const PUBLIC_START_QUERY = query({
+  city: 'Hannover', severity: 'all', dayType: 'all', roadCondition: 'all',
+  hourFrom: 0, hourTo: 23, maxPoints: 100000, viewportPaddingPct: 20,
+  heatRadius: 25, includeCyclist: 1, includePedestrian: 1, includeCar: 1,
+  includeMotorcycle: 0, includeGkfz: 0, includeSonstig: 0,
+  involvementMode: 'or', showCluster: 1, showHeatmap: 0,
+  showOnlyAboveAverage: 0, showSchools: 1, showKindergartens: 1,
+  showArgumentation: 1, mapMode: 'standard', orthophotoOpacity: 92,
+  centerLat: '52.3759', centerLon: '9.7320', zoom: 12,
+});
+
 const ACTION_SCENARIOS = Object.freeze([
   Object.freeze({
     id: 'readme-start',
     label: '→ Öffentliche Kernvorschau öffnen',
-    description: 'Öffentliche Startansicht Hannover im reduzierten Pages-Profil',
-    query: query({}),
+    description: 'Explizite öffentliche Startansicht Hannover im reduzierten Pages-Profil',
+    query: PUBLIC_START_QUERY,
     expected: Object.freeze({
       city: 'Hannover', involvementMode: 'or', showCluster: true, showHeatmap: false,
-      minimumAllPoints: 1, publicPreview: true,
+      showSchools: true, showKindergartens: true, showArgumentation: true,
+      filters: Object.freeze({ bike: true, pedestrian: true, car: true, motorcycle: false }),
+      hourFrom: 0, hourTo: 23,
+      center: Object.freeze({ lat: 52.3759, lon: 9.7320, tolerance: 0.0025 }),
+      zoom: 12, minimumAllPoints: 1, minimumViewportPoints: 1, publicPreview: true,
     }),
   }),
   Object.freeze({
@@ -240,15 +248,8 @@ function validateDocumentationLinks(rootDir = process.cwd()) {
 }
 
 module.exports = Object.freeze({
-  LIVE_ORIGIN,
-  LIVE_PATH,
-  SCREENSHOT_SCENARIOS,
-  ACTION_SCENARIOS,
-  SCENARIOS,
-  DocumentationDeepLinkError,
-  normalizeImagePath,
-  extractLinkedScreenshots,
-  extractNamedAction,
-  assertCanonicalUrl,
-  validateDocumentationLinks,
+  LIVE_ORIGIN, LIVE_PATH, PUBLIC_START_QUERY,
+  SCREENSHOT_SCENARIOS, ACTION_SCENARIOS, SCENARIOS,
+  DocumentationDeepLinkError, normalizeImagePath, extractLinkedScreenshots,
+  extractNamedAction, assertCanonicalUrl, validateDocumentationLinks,
 });
