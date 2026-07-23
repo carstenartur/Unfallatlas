@@ -162,11 +162,15 @@ describe('LibreOffice DOCX rendered-artifact adapter', () => {
       fs.writeFileSync(modelPath, '{"pages":1}\n');
       fs.writeFileSync(
         path.join(popplerOut, 'rendered-document-audit.json'),
-        '{"findings":[]}\n',
+        '{"issues":[],"passed":true}\n',
       );
       return {
         model: { pages: [{}] },
-        report: { findings: [], summary: { wordCount: 120, imageCount: 1, linkCount: 1 } },
+        report: {
+          issues: [],
+          passed: true,
+          summary: { wordCount: 120, imageCount: 1, linkCount: 1 },
+        },
         modelPath,
       };
     });
@@ -185,7 +189,7 @@ describe('LibreOffice DOCX rendered-artifact adapter', () => {
       documentId: 'bonn-docx-golden',
       renderer: 'docx-libreoffice-poppler',
       convertedPdf: { pages: 1 },
-      audit: { findings: 0 },
+      audit: { issues: 0, passed: true },
     });
     expect(fs.existsSync(path.join(outDir, 'source.docx'))).toBe(true);
     expect(fs.existsSync(path.join(outDir, 'converted.pdf'))).toBe(true);
