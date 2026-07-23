@@ -20,6 +20,17 @@ Bereitschaftszustand und delegieren danach an den installierten Exporter. Ein
 Ladefehler führt weiterhin zum kontrollierten Exportabbruch und nicht zum
 Rückfall auf eine Datei ohne Quellenangaben.
 
+## Datenfeld-Kompatibilität
+
+Der Provenienzpfad normalisiert die in Unfallatlas-Dateien vorkommenden
+Jahresfelder `year`, `ujahr`, `UJAHR`, `uJahr`, `jahr` und `Jahr` an einer
+gemeinsamen Schema-Grenze. Nur ganzzahlige Jahre von 1900 bis 2100 werden in
+`scenario.years` übernommen. Fehlende, leere oder ungültige Werte werden nicht
+über `Number(null)` zum Jahr `0` umgedeutet und führen daher auch nicht zu einer
+falschen zeitlichen Abdeckung. Dieselbe normalisierte Sicht wird für CSV,
+GeoJSON, KML, PDF und DOCX verwendet; die ursprünglichen Unfalldatensätze werden
+dabei nicht verändert.
+
 ## CSV
 
 CSV wird als deterministisches ZIP-Paket ausgeliefert:
