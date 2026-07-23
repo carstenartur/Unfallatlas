@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const {
   PNG_SIGNATURE,
+  createAccidentMarkers,
   createDeterministicMapPng,
   toDataUrl,
 } = require('../../scripts/deterministic-map-fixture');
@@ -22,6 +23,20 @@ describe('deterministic cartographic document fixture', () => {
     expect(first.length).toBeGreaterThan(10_000);
     expect(sha256(first)).toBe(sha256(second));
     expect(first.equals(second)).toBe(true);
+  });
+
+  test('draws the 24 selected accidents required by the golden contract', () => {
+    const markers = createAccidentMarkers();
+
+    expect(markers).toHaveLength(24);
+    for (const [x, y, colour] of markers) {
+      expect(x).toBeGreaterThan(0.24);
+      expect(x).toBeLessThan(0.68);
+      expect(y).toBeGreaterThan(0.28);
+      expect(y).toBeLessThan(0.74);
+      expect(colour).toHaveLength(4);
+    }
+    expect(() => createAccidentMarkers(0)).toThrow(/between 1 and 100/);
   });
 
   test('changes deterministically when scenario metadata changes', () => {
