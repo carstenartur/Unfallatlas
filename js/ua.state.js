@@ -76,6 +76,70 @@
     Object.keys(CANON).filter(key => !["city", "export", "tour"].includes(key))
   );
 
+  /**
+   * Leaflet.markercluster processes large addLayers() batches asynchronously.
+   * Its pending timeout keeps using `this._map`; removing the group in a
+   * concurrent render sets that field to null and Firefox reports an uncaught
+   * getMinZoom error.  Defer only the physical remove() call until the current
+   * chunk sequence reports completion.  The application may already replace
+   * its ctx reference, but the stale group remains internally valid and removes
+   * itself immediately after the last pending chunk.
+   */
+  UA.installMarkerClusterChunkGuard = function installMarkerClusterChunkGuard() {
+    const ClusterGroup = window.L && window.L.MarkerClusterGroup;
+    const proto = ClusterGroup && ClusterGroup.prototype;
+    if (!proto || proto.__uaChunkGuardInstalled) return !!proto;
+    if (typeof proto.addLayers !== "function" || typeof proto.remove !== "function") return false;
+
+    const originalAddLayers = proto.addLayers;
+    const originalRemove = proto.remove;
+
+    proto.addLayers = function guardedAddLayers(layers, skipLayerAddEvent) {
+      if (this.options && this.options.chunkedLoading && this._map) {
+        if (!this.__uaChunkProgressWrapped) {
+          const configuredProgress = this.options.chunkProgress;
+          this.options.chunkProgress = (processed, total, elapsed) => {
+            if (typeof configuredProgress === "function") {
+              configuredProgress.call(this, processed, total, elapsed);
+            }
+            const complete = Number(processed) >= Number(total);
+            this.__uaChunkInProgress = !complete;
+            if (complete && this.__uaRemoveAfterChunk) {
+              this.__uaRemoveAfterChunk = false;
+              setTimeout(() => {
+                if (this._map) originalRemove.call(this);
+              }, 0);
+            }
+          };
+          this.__uaChunkProgressWrapped = true;
+        }
+        this.__uaChunkInProgress = true;
+      }
+      return originalAddLayers.call(this, layers, skipLayerAddEvent);
+    };
+
+    proto.remove = function guardedRemove() {
+      if (this.__uaChunkInProgress && this._map) {
+        this.__uaRemoveAfterChunk = true;
+        return this;
+      }
+      return originalRemove.apply(this, arguments);
+    };
+
+    Object.defineProperty(proto, "__uaChunkGuardInstalled", {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false
+    });
+    return true;
+  };
+
+  // MarkerCluster is loaded before the application modules in werkbank_v2.html.
+  // The public function remains available for isolated tests or alternative
+  // bundles that install the plugin later.
+  UA.installMarkerClusterChunkGuard();
+
   function parseSearchKeepLast(search) {
     const raw = search.replace(/^\?/, "");
     const pairs = raw ? raw.split("&") : [];
