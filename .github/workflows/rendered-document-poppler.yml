@@ -25,6 +25,7 @@ on:
       - 'tests/unit/enrichRenderedDocumentTables.test.js'
       - 'tests/unit/libreOfficeRenderedDocument.test.js'
       - 'tests/unit/libreOfficeRenderedMapSemantics.test.js'
+      - 'tests/unit/qaSampleDocxRendered.test.js'
       - 'tests/unit/renderedDocumentAudit.test.js'
       - 'tests/unit/renderedTableHints.test.js'
       - 'tests/unit/popplerRenderedDocument.test.js'
@@ -120,6 +121,7 @@ jobs:
             tests/unit/enrichRenderedDocumentTables.test.js \
             tests/unit/libreOfficeRenderedDocument.test.js \
             tests/unit/libreOfficeRenderedMapSemantics.test.js \
+            tests/unit/qaSampleDocxRendered.test.js \
             tests/unit/renderedTableHints.test.js \
             tests/unit/runtimeExportProvenanceLoader.test.js
 
