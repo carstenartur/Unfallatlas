@@ -58,7 +58,7 @@ describe('documentation screenshot publication safety', () => {
     }
   });
 
-  test('never uploads checked-in screenshots after a failed generation', () => {
+  test('never uploads checked-in screenshots after a failed generation or QA gate', () => {
     const dispatchUpload = workflow.slice(
       workflow.indexOf('- name: Upload reviewed screenshot candidate'),
       workflow.indexOf('- name: Upload media QA report')
@@ -71,10 +71,15 @@ describe('documentation screenshot publication safety', () => {
       testWorkflow.indexOf('- name: Upload documentation screenshots'),
       testWorkflow.indexOf('- name: Upload generated media QA report')
     );
+
+    expect(dispatchUpload).toMatch(
+      /if:\s*\$\{\{\s*steps\.validate_media\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_evidence\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_cartography\.outcome\s*==\s*'success'\s*\}\}/
+    );
+    expect(visualUpload).toMatch(
+      /if:\s*\$\{\{\s*steps\.validate_media\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_evidence\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_cartography\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_live_links\.outcome\s*==\s*'success'\s*\}\}/
+    );
+
     for (const upload of [dispatchUpload, visualUpload]) {
-      expect(upload).toMatch(
-        /if:\s*\$\{\{\s*steps\.validate_media\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_evidence\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_cartography\.outcome\s*==\s*'success'\s*\}\}/
-      );
       expect(upload).toContain('docs/screenshots/*.png');
       expect(upload).toContain('out/qa/screenshot-readiness/*.json');
       expect(upload).toContain('out/qa/screenshot-evidence.json');
@@ -82,6 +87,7 @@ describe('documentation screenshot publication safety', () => {
       expect(upload).toContain('_site/build-manifest.json');
       expect(upload).toMatch(/if-no-files-found:\s*error/);
     }
+    expect(visualUpload).toContain('out/qa/documentation-live-links/');
     expect(testUpload).toMatch(
       /if:\s*\$\{\{\s*steps\.validate_media\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_evidence\.outcome\s*==\s*'success'\s*\}\}/
     );
@@ -99,6 +105,8 @@ describe('documentation screenshot publication safety', () => {
       expect(candidate).toContain('out/qa/live-cartography-evidence.json');
       expect(candidate).toMatch(/id:\s*validate_cartography/);
     }
+    expect(visualCheckWorkflow).toMatch(/id:\s*validate_live_links/);
+    expect(visualCheckWorkflow).toContain('out/qa/documentation-live-links/');
     expect(workflow).toMatch(/id:\s*validate_media/);
     expect(workflow).toMatch(/id:\s*validate_evidence/);
     expect(visualCheckWorkflow).toMatch(/id:\s*validate_media/);
