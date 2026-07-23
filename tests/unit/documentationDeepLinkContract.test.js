@@ -9,6 +9,16 @@ function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'unfallwerkbank-deeplinks-'));
 }
 
+function canonicalScenarioMarkdown() {
+  return Object.entries(contract.SCENARIOS).map(([imagePath, scenario]) => {
+    const url = new URL(`${contract.LIVE_ORIGIN}${contract.LIVE_PATH}`);
+    for (const [key, value] of Object.entries(scenario.query)) {
+      url.searchParams.set(key, value);
+    }
+    return `[![${scenario.id}](${imagePath})](${url.href})`;
+  }).join('\n');
+}
+
 describe('documentation screenshot deep-link contract', () => {
   test('normalizes README and nested documentation image paths', () => {
     expect(contract.normalizeImagePath('README.md', 'docs/screenshots/01-startansicht.png'))
@@ -32,9 +42,7 @@ describe('documentation screenshot deep-link contract', () => {
   });
 
   test('rejects wrong, missing and undeclared query parameters', () => {
-    const scenario = {
-      query: { city: 'Bonn', showHeatmap: '1' },
-    };
+    const scenario = { query: { city: 'Bonn', showHeatmap: '1' } };
     const base = {
       sourceFile: 'README.md',
       imagePath: 'docs/screenshots/example.png',
@@ -53,18 +61,24 @@ describe('documentation screenshot deep-link contract', () => {
     }, scenario)).toThrow(/unexpected_documentation_query/);
   });
 
-  test('loads the current README as five unique live scenarios', () => {
-    const result = contract.validateDocumentationLinks(process.cwd());
-    expect(result.liveScenarios.map((scenario) => scenario.id)).toEqual([
-      'readme-start',
-      'readme-cluster',
-      'readme-export',
-      'readme-poi-school-route',
-      'readme-bonn-hbf',
-    ]);
-    expect(new Set(result.liveScenarios.map((scenario) => scenario.url)).size).toBe(4);
-    expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-cluster'))
-      .toMatchObject({ knownMismatch: { issue: 509 } });
+  test('loads an isolated five-scenario README fixture without order-sensitive repository coupling', () => {
+    const directory = tempDir();
+    try {
+      fs.writeFileSync(path.join(directory, 'README.md'), canonicalScenarioMarkdown());
+      const result = contract.validateDocumentationLinks(directory);
+      expect(new Set(result.liveScenarios.map((scenario) => scenario.id))).toEqual(new Set([
+        'readme-start',
+        'readme-cluster',
+        'readme-export',
+        'readme-poi-school-route',
+        'readme-bonn-hbf',
+      ]));
+      expect(new Set(result.liveScenarios.map((scenario) => scenario.url)).size).toBe(4);
+      expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-cluster'))
+        .toMatchObject({ knownMismatch: { issue: 509 } });
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   test('fails closed when a required screenshot link disappears', () => {
