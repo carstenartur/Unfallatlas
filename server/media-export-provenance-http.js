@@ -1,6 +1,5 @@
 'use strict';
 
-const fs = require('fs');
 const {
   sharedMediaProvenanceStore,
   stableJson,
@@ -10,6 +9,12 @@ const {
 
 const PACKAGING_VALUES = Object.freeze(['binary', 'zip']);
 const PROVENANCE_PATH_PREFIX = '/api/export-video/provenance/';
+const VIDEO_RESPONSE_HEADERS = Object.freeze([
+  'Content-Disposition',
+  'Content-Length',
+  'Content-Digest',
+  'Digest',
+]);
 
 function requestedPackaging(req) {
   const value = req && req.query && req.query.packaging;
@@ -29,6 +34,14 @@ function setProvenanceHeaders(res, sidecar) {
   res.setHeader('Link', `<${path}>; rel="describedby"; type="application/json"`);
 }
 
+function sendJsonError(res, status, payload) {
+  if (typeof res.removeHeader === 'function') {
+    for (const name of VIDEO_RESPONSE_HEADERS) res.removeHeader(name);
+  }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return res.status(status).json(payload);
+}
+
 function installMediaExportProvenanceHttp(app) {
   if (!app || typeof app.use !== 'function' || typeof app.get !== 'function') {
     throw new TypeError('Express app is required for media provenance HTTP integration');
@@ -38,7 +51,7 @@ function installMediaExportProvenanceHttp(app) {
     const artifactSha = String(req.params && req.params.artifactSha || '').toLowerCase();
     const sidecar = sharedMediaProvenanceStore.get(artifactSha);
     if (!sidecar) {
-      return res.status(404).json({
+      return sendJsonError(res, 404, {
         error: 'media_provenance_not_found',
         message: 'Der Provenienz-Sidecar ist nicht vorhanden oder bereits abgelaufen.',
       });
@@ -60,7 +73,7 @@ function installMediaExportProvenanceHttp(app) {
     if (req.method !== 'POST' || req.path !== '/api/export-video') return next();
     const packaging = requestedPackaging(req);
     if (!PACKAGING_VALUES.includes(packaging)) {
-      return res.status(400).json({
+      return sendJsonError(res, 400, {
         error: 'unsupported_packaging',
         supportedPackaging: PACKAGING_VALUES,
       });
@@ -74,7 +87,7 @@ function installMediaExportProvenanceHttp(app) {
         const error = new Error('Media provenance sidecar is unavailable');
         error.code = 'media_provenance_unavailable';
         if (!res.headersSent) {
-          res.status(500).json({
+          sendJsonError(res, 500, {
             error: error.code,
             message: 'Der Medienexport wurde ohne vollständige Provenienz abgebrochen.',
           });
@@ -104,7 +117,7 @@ function installMediaExportProvenanceHttp(app) {
         if (typeof callback === 'function') queueMicrotask(() => callback(null));
       } catch (error) {
         if (!res.headersSent) {
-          res.status(500).json({
+          sendJsonError(res, 500, {
             error: error.code || 'media_bundle_failed',
             message: error.message || 'Medienpaket konnte nicht erzeugt werden.',
           });
@@ -128,5 +141,6 @@ module.exports = {
   requestedPackaging,
   provenancePath,
   setProvenanceHeaders,
+  sendJsonError,
   installMediaExportProvenanceHttp,
 };
