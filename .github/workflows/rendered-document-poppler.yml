@@ -119,11 +119,18 @@ jobs:
 
       - name: Convert, render and audit final DOCX pages
         run: |
+          evidence_dir=out/qa/rendered-document/docx
+          mkdir -p "$evidence_dir"
+          set +e
           node scripts/libreoffice-rendered-document.js \
             --docx out/ci-render-gate.docx \
-            --out-dir out/qa/rendered-document/docx \
+            --out-dir "$evidence_dir" \
             --document-id ci-docx-sample \
-            --contract tests/fixtures/rendered-document/ci-docx-contract.json
+            --contract tests/fixtures/rendered-document/ci-docx-contract.json \
+            >"$evidence_dir/audit-command.log" 2>&1
+          status=$?
+          cat "$evidence_dir/audit-command.log"
+          exit "$status"
 
       - name: Verify review evidence inventory
         run: |
