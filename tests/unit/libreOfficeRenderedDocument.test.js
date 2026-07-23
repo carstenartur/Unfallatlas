@@ -61,6 +61,30 @@ function fakeSpawnFactory(options = {}) {
   });
 }
 
+function fakePopplerMain({ writeAuditFile = true } = {}) {
+  return jest.fn((args) => {
+    const popplerOut = args[args.indexOf('--out-dir') + 1];
+    fs.mkdirSync(popplerOut, { recursive: true });
+    const modelPath = path.join(popplerOut, 'rendered-document.json');
+    fs.writeFileSync(modelPath, '{"pages":1}\n');
+    if (writeAuditFile) {
+      fs.writeFileSync(
+        path.join(popplerOut, 'rendered-document-audit.json'),
+        '{"issues":[],"passed":true}\n',
+      );
+    }
+    return {
+      model: { pages: [{}] },
+      report: {
+        issues: [],
+        passed: true,
+        summary: { wordCount: 120, imageCount: 1, linkCount: 1 },
+      },
+      modelPath,
+    };
+  });
+}
+
 describe('LibreOffice DOCX rendered-artifact adapter', () => {
   let directory;
 
@@ -155,25 +179,7 @@ describe('LibreOffice DOCX rendered-artifact adapter', () => {
   test('writes linked source, PDF, page and audit evidence metadata', () => {
     const docx = writeDocx(directory, 'source.docx');
     const outDir = path.join(directory, 'qa');
-    const popplerMain = jest.fn((args) => {
-      const popplerOut = args[args.indexOf('--out-dir') + 1];
-      fs.mkdirSync(popplerOut, { recursive: true });
-      const modelPath = path.join(popplerOut, 'rendered-document.json');
-      fs.writeFileSync(modelPath, '{"pages":1}\n');
-      fs.writeFileSync(
-        path.join(popplerOut, 'rendered-document-audit.json'),
-        '{"issues":[],"passed":true}\n',
-      );
-      return {
-        model: { pages: [{}] },
-        report: {
-          issues: [],
-          passed: true,
-          summary: { wordCount: 120, imageCount: 1, linkCount: 1 },
-        },
-        modelPath,
-      };
-    });
+    const popplerMain = fakePopplerMain();
 
     const result = adapter.main([
       '--docx', docx,
@@ -189,7 +195,12 @@ describe('LibreOffice DOCX rendered-artifact adapter', () => {
       documentId: 'bonn-docx-golden',
       renderer: 'docx-libreoffice-poppler',
       convertedPdf: { pages: 1 },
-      audit: { issues: 0, passed: true },
+      audit: {
+        report: 'poppler/rendered-document-audit.json',
+        asserted: true,
+        issues: 0,
+        passed: true,
+      },
     });
     expect(fs.existsSync(path.join(outDir, 'source.docx'))).toBe(true);
     expect(fs.existsSync(path.join(outDir, 'converted.pdf'))).toBe(true);
@@ -199,5 +210,30 @@ describe('LibreOffice DOCX rendered-artifact adapter', () => {
     expect(popplerMain.mock.calls[0][0]).toEqual(expect.arrayContaining([
       '--renderer', 'docx-libreoffice-poppler',
     ]));
+  });
+
+  test('does not inventory a nonexistent audit report in no-audit mode', () => {
+    const docx = writeDocx(directory, 'source.docx');
+    const outDir = path.join(directory, 'qa-no-audit');
+    const popplerMain = fakePopplerMain({ writeAuditFile: false });
+
+    const result = adapter.main([
+      '--docx', docx,
+      '--out-dir', outDir,
+      '--no-audit',
+    ], {
+      spawnSync: fakeSpawnFactory(),
+      popplerMain,
+    });
+
+    expect(result.metadata.audit).toMatchObject({
+      report: null,
+      asserted: false,
+      issues: 0,
+      passed: true,
+    });
+    expect(fs.existsSync(path.join(outDir, 'poppler', 'rendered-document-audit.json')))
+      .toBe(false);
+    expect(popplerMain.mock.calls[0][0]).toContain('--no-audit');
   });
 });
