@@ -14,8 +14,11 @@ const PROVENANCE_MAX_ENTRIES = 64;
 const BADGE_COLOR_TOLERANCE = 55;
 const BADGE_MIN_BORDER_PIXELS = 60;
 const BADGE_MIN_BACKGROUND_PIXELS = 300;
+const BADGE_SAMPLE_FPS = 1;
+const BADGE_SAMPLE_FRAMES = 8;
+const BASE_ENCODED_INSPECTION_FPS = 2;
 const FFMPEG_TIMEOUT_MS = 120_000;
-const MAX_BADGE_BUFFER_BYTES = 64 * 1024 * 1024;
+const MAX_BADGE_BUFFER_BYTES = 16 * 1024 * 1024;
 
 class MediaExportProvenanceError extends Error {
   constructor(code, message, details) {
@@ -50,7 +53,20 @@ function safeBaseName(value) {
   return name || 'unfallatlas-analyse';
 }
 
-function finiteRect(rect) {
+function positiveDimensions(value, code, message) {
+  const dimensions = {
+    width: Math.round(Number(value && value.width)),
+    height: Math.round(Number(value && value.height)),
+  };
+  if (!Number.isInteger(dimensions.width) || !Number.isInteger(dimensions.height) ||
+      dimensions.width <= 0 || dimensions.height <= 0 ||
+      dimensions.width > 8192 || dimensions.height > 8192) {
+    fail(code, message, { dimensions: value || null });
+  }
+  return dimensions;
+}
+
+function finiteRect(rect, dimensions) {
   const candidate = {
     x: Math.round(Number(rect && rect.x)),
     y: Math.round(Number(rect && rect.y)),
@@ -60,12 +76,49 @@ function finiteRect(rect) {
   if (!Number.isInteger(candidate.x) || !Number.isInteger(candidate.y) ||
       !Number.isInteger(candidate.width) || !Number.isInteger(candidate.height) ||
       candidate.x < 0 || candidate.y < 0 || candidate.width < 20 || candidate.height < 12 ||
-      candidate.x + candidate.width > 1280 || candidate.y + candidate.height > 720) {
-    fail('invalid_source_badge_rect', 'Visible source badge has invalid encoded-frame coordinates', {
+      candidate.x + candidate.width > dimensions.width ||
+      candidate.y + candidate.height > dimensions.height) {
+    fail('invalid_source_badge_rect', 'Visible source badge has invalid browser-frame coordinates', {
       rect: rect || null,
+      dimensions,
     });
   }
   return candidate;
+}
+
+function projectBadgeRect(visibleBadge, encodedFrameEvidence) {
+  const sourceDimensions = positiveDimensions({
+    width: visibleBadge && visibleBadge.sourceWidth,
+    height: visibleBadge && visibleBadge.sourceHeight,
+  }, 'invalid_source_badge_dimensions', 'Visible source badge is missing browser dimensions');
+  const encodedDimensions = positiveDimensions(encodedFrameEvidence,
+    'invalid_encoded_dimensions', 'Encoded media evidence is missing frame dimensions');
+  const sourceRect = finiteRect(visibleBadge && visibleBadge.rect, sourceDimensions);
+  const scaleX = encodedDimensions.width / sourceDimensions.width;
+  const scaleY = encodedDimensions.height / sourceDimensions.height;
+  const left = Math.max(0, Math.floor(sourceRect.x * scaleX));
+  const top = Math.max(0, Math.floor(sourceRect.y * scaleY));
+  const right = Math.min(encodedDimensions.width,
+    Math.ceil((sourceRect.x + sourceRect.width) * scaleX));
+  const bottom = Math.min(encodedDimensions.height,
+    Math.ceil((sourceRect.y + sourceRect.height) * scaleY));
+  const rect = {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  };
+  if (rect.width < 8 || rect.height < 6 ||
+      rect.x + rect.width > encodedDimensions.width ||
+      rect.y + rect.height > encodedDimensions.height) {
+    fail('invalid_projected_source_badge_rect', 'Source badge cannot be projected into encoded-frame space', {
+      sourceRect,
+      sourceDimensions,
+      encodedDimensions,
+      rect,
+    });
+  }
+  return Object.freeze({ sourceRect, sourceDimensions, encodedDimensions, rect, scaleX, scaleY });
 }
 
 function closeColor(r, g, b, expected, tolerance = BADGE_COLOR_TOLERANCE) {
@@ -74,11 +127,23 @@ function closeColor(r, g, b, expected, tolerance = BADGE_COLOR_TOLERANCE) {
     Math.abs(b - expected[2]) <= tolerance;
 }
 
-async function verifyEncodedSourceBadge(artifactPath, visibleBadge) {
+function badgeSampleStartSeconds(encodedFrameEvidence) {
+  const inspectedFrames = Number(encodedFrameEvidence && encodedFrameEvidence.frameCount);
+  const durationSeconds = Number.isFinite(inspectedFrames) && inspectedFrames > 0
+    ? inspectedFrames / BASE_ENCODED_INSPECTION_FPS
+    : 0;
+  // The source strip is installed after the semantic analysis gate and remains
+  // fixed until the recorded context closes. Inspecting the tail avoids earlier
+  // frames that correctly predate provenance capture and bounds raw output.
+  return Math.max(0, Math.floor(durationSeconds - BADGE_SAMPLE_FRAMES));
+}
+
+async function verifyEncodedSourceBadge(artifactPath, visibleBadge, encodedFrameEvidence) {
   if (!artifactPath || !fs.existsSync(artifactPath)) {
     fail('missing_media_artifact', 'Encoded media artifact is unavailable for source-badge verification');
   }
-  const rect = finiteRect(visibleBadge && visibleBadge.rect);
+  const projection = projectBadgeRect(visibleBadge, encodedFrameEvidence);
+  const { rect } = projection;
   const border = visibleBadge && visibleBadge.borderColor;
   const background = visibleBadge && visibleBadge.backgroundColor;
   if (!Array.isArray(border) || border.length !== 3 ||
@@ -86,17 +151,14 @@ async function verifyEncodedSourceBadge(artifactPath, visibleBadge) {
     fail('invalid_source_badge_palette', 'Visible source badge is missing its verification palette');
   }
 
-  // Crop only the fixed source strip. This keeps the post-encode proof compact
-  // even for long animations and makes the check independent of map colours.
-  const filter = [
-    'fps=1',
-    `crop=${rect.width}:${rect.height}:${rect.x}:${rect.y}`,
-    'format=rgb24',
-  ].join(',');
+  const sampleStartSeconds = badgeSampleStartSeconds(encodedFrameEvidence);
   const { stdout } = await execFileAsync('ffmpeg', [
     '-v', 'error',
+    '-ss', String(sampleStartSeconds),
     '-i', artifactPath,
-    '-vf', filter,
+    '-vf', `fps=${BADGE_SAMPLE_FPS},crop=${rect.width}:${rect.height}:${rect.x}:${rect.y}`,
+    '-frames:v', String(BADGE_SAMPLE_FRAMES),
+    '-pix_fmt', 'rgb24',
     '-f', 'rawvideo',
     'pipe:1',
   ], {
@@ -106,7 +168,14 @@ async function verifyEncodedSourceBadge(artifactPath, visibleBadge) {
   });
   const bytes = Buffer.from(stdout || []);
   const frameBytes = rect.width * rect.height * 3;
-  const frameCount = frameBytes > 0 ? Math.floor(bytes.length / frameBytes) : 0;
+  if (!frameBytes || bytes.length % frameBytes !== 0) {
+    fail('source_badge_frame_decode_invalid', 'Decoded source-badge frames have an invalid byte length', {
+      bytes: bytes.length,
+      frameBytes,
+      rect,
+    });
+  }
+  const frameCount = bytes.length / frameBytes;
   if (!(frameCount > 0)) {
     fail('source_badge_frames_missing', 'No encoded frame was available for source-badge verification');
   }
@@ -127,16 +196,25 @@ async function verifyEncodedSourceBadge(artifactPath, visibleBadge) {
     maxBackgroundPixels = Math.max(maxBackgroundPixels, backgroundPixels);
   }
 
-  const verified = maxBorderPixels >= BADGE_MIN_BORDER_PIXELS &&
-    maxBackgroundPixels >= BADGE_MIN_BACKGROUND_PIXELS;
+  const requiredBorderPixels = Math.max(20, Math.min(
+    BADGE_MIN_BORDER_PIXELS,
+    Math.round((rect.width + rect.height) * 0.1),
+  ));
+  const requiredBackgroundPixels = Math.max(100, Math.min(
+    BADGE_MIN_BACKGROUND_PIXELS,
+    Math.round(rect.width * rect.height * 0.02),
+  ));
+  const verified = maxBorderPixels >= requiredBorderPixels &&
+    maxBackgroundPixels >= requiredBackgroundPixels;
   if (!verified) {
     fail('source_badge_not_encoded', 'Visible SourceManifest badge was not found in the encoded animation', {
       frameCount,
       maxBorderPixels,
       maxBackgroundPixels,
-      requiredBorderPixels: BADGE_MIN_BORDER_PIXELS,
-      requiredBackgroundPixels: BADGE_MIN_BACKGROUND_PIXELS,
-      rect,
+      requiredBorderPixels,
+      requiredBackgroundPixels,
+      sampleStartSeconds,
+      projection,
     });
   }
   return Object.freeze({
@@ -144,8 +222,11 @@ async function verifyEncodedSourceBadge(artifactPath, visibleBadge) {
     frameCount,
     maxBorderPixels,
     maxBackgroundPixels,
+    requiredBorderPixels,
+    requiredBackgroundPixels,
     tolerance: BADGE_COLOR_TOLERANCE,
-    rect,
+    sampleStartSeconds,
+    ...projection,
   });
 }
 
@@ -297,6 +378,9 @@ module.exports = {
   sha256Buffer,
   stableJson,
   safeBaseName,
+  positiveDimensions,
+  projectBadgeRect,
+  badgeSampleStartSeconds,
   verifyEncodedSourceBadge,
   createVideoMediaSidecar,
   createVideoMediaBundle,
