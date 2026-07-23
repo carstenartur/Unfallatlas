@@ -46,7 +46,7 @@ describe('real DOCX Golden snapshot generator', () => {
     expect(report.structured.deviations.local.total).toBe(24);
   });
 
-  test('creates deterministic points inside the requested bounds', () => {
+  test('creates deterministic points in the live normalized Unfallatlas shape', () => {
     const points = createAccidentPoints(11, {
       south: 50.73,
       west: 7.091,
@@ -60,5 +60,9 @@ describe('real DOCX Golden snapshot generator', () => {
       point.lon > 7.091 && point.lon < 7.101
     )).toBe(true);
     expect(points.every((point) => point.IstRad === 1 && point.IstPKW === 1)).toBe(true);
+    expect(points.every((point) => point.props.istrad === '1' && point.props.istpkw === '1')).toBe(true);
+    expect(points.every((point) => point.props.istfuss === '0' && point.props.istkrad === '0')).toBe(true);
+    expect(points.every((point) => Number(point.props.ukategorie) === point.severity)).toBe(true);
+    expect(points.every((point) => Number(point.props.ujahr) === point.year)).toBe(true);
   });
 });
