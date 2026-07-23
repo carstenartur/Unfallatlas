@@ -20,7 +20,7 @@
     "test:integration:tc": "NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
     "test:location-brief-golden:tc": "RUN_LOCATION_BRIEF_GOLDEN=1 NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
     "qa:location-brief-golden": "node scripts/qa-location-brief-golden-cases.js",
-    "qa:live-documentation-links": "playwright test tests/e2e/documentation-deeplinks.live.spec.js --project=documentation-deeplinks-live",
+    "qa:live-documentation-links": "node scripts/run-live-documentation-links.cjs",
     "regen:demo": "node scripts/regen-readme-demo.js",
     "regen:context-assets": "node scripts/regen-context-assets.js",
     "generate:context-city": "node scripts/generate-context-city.js",
