@@ -154,6 +154,8 @@
         moduleUrl("ua.kml_export_provenance.js?v=2026-07-22"),
         moduleUrl("ua.document_export_provenance.js?v=2026-07-22"),
         moduleUrl("ua.document_export_prewarm.js?v=2026-07-22"),
+        moduleUrl("ua.docx_source_links.js?v=2026-07-23"),
+        moduleUrl("ua.static_map_export_provenance.js?v=2026-07-23"),
       ]).catch((error) => {
         UA.exportProvenanceError = error;
         console.error("Export-Provenienz konnte nicht initialisiert werden", error);
