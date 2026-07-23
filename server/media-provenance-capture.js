@@ -120,6 +120,8 @@ async function captureFromPage(page, context) {
       visibleBadge: {
         id: badgeId,
         text: label,
+        sourceWidth: Number(window.innerWidth),
+        sourceHeight: Number(window.innerHeight),
         rect: {
           x: Number(rect.x),
           y: Number(rect.y),
