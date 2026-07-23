@@ -123,6 +123,14 @@ describe('rendered table hints', () => {
     expect(rows[1].rowId).toBe('severity.light');
   });
 
+  test('requires repeatedHeader to be an actual boolean', () => {
+    expect(() => tableHints.applyTableHints(
+      severityWords(),
+      [hint({ repeatedHeader: 'false' })],
+      1,
+    )).toThrow(/invalid_table_hint/);
+  });
+
   test('ignores hints declared for another page', () => {
     expect(tableHints.applyTableHints(severityWords(), [hint()], 2)).toEqual([]);
   });
