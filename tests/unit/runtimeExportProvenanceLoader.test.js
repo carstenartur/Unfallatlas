@@ -44,12 +44,13 @@ function executeBootstrap() {
 }
 
 describe('runtime export provenance bootstrap', () => {
-  test('loads the strict manifest, adapters and live integrations in order', () => {
+  test('loads the strict manifest, schema adapters and live integrations in order', () => {
     const modules = [
       'ua.source_manifest.js',
       'ua.artifact_provenance.js',
       'ua.zip.js',
       'ua.export_provenance.js',
+      'ua.accident_year_provenance.js',
       'ua.kml_export_provenance.js',
       'ua.document_export_provenance.js',
       'ua.document_export_prewarm.js',
