@@ -168,10 +168,9 @@ function convertDocxToPdf(docxPath, outDir, options = {}) {
     });
   }
 
-  const pdfPath = resolveConvertedPdf(conversionDir, source, diagnostics);
   return {
     source,
-    pdfPath,
+    pdfPath: resolveConvertedPdf(conversionDir, source, diagnostics),
     binary,
     version,
     args,
@@ -256,6 +255,7 @@ function main(argv, runtimeOptions = {}) {
   }
 
   const auditIssues = Array.isArray(audit.report?.issues) ? audit.report.issues : [];
+  const auditReportPath = path.join(popplerOut, 'rendered-document-audit.json');
   const metadata = {
     schemaVersion: 'unfallwerkbank.docx-rendered-evidence/v1',
     documentId: options.documentId || path.basename(evidenceDocx),
@@ -279,7 +279,8 @@ function main(argv, runtimeOptions = {}) {
     renderedPages: pages,
     audit: {
       model: path.relative(outDir, audit.modelPath),
-      report: path.relative(outDir, path.join(popplerOut, 'rendered-document-audit.json')),
+      report: options.audit ? path.relative(outDir, auditReportPath) : null,
+      asserted: Boolean(options.audit),
       issues: auditIssues.length,
       passed: Boolean(audit.report?.passed),
     },
@@ -298,9 +299,7 @@ if (require.main === module) {
     main(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${error && error.stack ? error.stack : error}\n`);
-    if (error?.details) {
-      process.stderr.write(`${JSON.stringify(error.details, null, 2)}\n`);
-    }
+    if (error?.details) process.stderr.write(`${JSON.stringify(error.details, null, 2)}\n`);
     process.exitCode = 1;
   }
 }
