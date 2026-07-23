@@ -68,20 +68,13 @@ const SCENARIOS = Object.freeze({
   'docs/screenshots/04-cluster-ansicht.png': Object.freeze({
     id: 'readme-cluster',
     description: 'Reine Clusteransicht Hannover ohne Heatmap und POI-Overlays',
-    // The current README points to the generic URL. Keep the literal link under
-    // test and declare only the exact known state discrepancy. Page/runtime/data
-    // errors still fail hard. Issue #509 removes this waiver.
-    query: query({}),
-    knownMismatch: Object.freeze({
-      issue: 509,
-      reason: 'README cluster screenshot currently links to the generic cluster+heatmap start state',
-      actual: Object.freeze({
-        showCluster: true,
-        showHeatmap: true,
-        showSchools: true,
-        showKindergartens: true,
-        showArgumentation: true,
-      }),
+    query: query({
+      city: 'Hannover',
+      showCluster: 1,
+      showHeatmap: 0,
+      showSchools: 0,
+      showKindergartens: 0,
+      showArgumentation: 0,
     }),
     expected: Object.freeze({
       city: 'Hannover', involvementMode: 'or', showCluster: true, showHeatmap: false,
@@ -95,22 +88,23 @@ const SCENARIOS = Object.freeze({
     query: query({ export: 1 }),
     expected: Object.freeze({
       city: 'Hannover', exportOpen: true, exportReady: true, minimumAllPoints: 1,
+      verifyDownloads: true,
     }),
   }),
   'docs/screenshots/12-poi-schulen-kitas.png': Object.freeze({
     id: 'readme-poi-school-route',
-    description: 'Bonn Rad/Fuß 6–18 Uhr mit sichtbaren Schul-/Kita-POIs',
+    description: 'Bonn Rad/Fuß ganztägig mit sichtbaren Schul-/Kita-POIs',
     query: query({
       city: 'Bonn', includeCyclist: 1, includePedestrian: 1, includeCar: 0,
       includeMotorcycle: 0, involvementMode: 'or', showCluster: 1,
       showHeatmap: 0, showOnlyAboveAverage: 0, severity: 'all', dayType: 'all',
-      roadCondition: 'all', hourFrom: 6, hourTo: 18, centerLat: '50.7350',
+      roadCondition: 'all', hourFrom: 0, hourTo: 23, centerLat: '50.7350',
       centerLon: '7.0950', zoom: 16,
     }),
     expected: Object.freeze({
       city: 'Bonn', involvementMode: 'or',
       filters: Object.freeze({ bike: true, pedestrian: true, car: false, motorcycle: false }),
-      hourFrom: 6, hourTo: 18, showCluster: true, showHeatmap: false,
+      hourFrom: 0, hourTo: 23, showCluster: true, showHeatmap: false,
       center: Object.freeze({ lat: 50.7350, lon: 7.0950, tolerance: 0.0025 }),
       zoom: 16, minimumAllPoints: 1, minimumViewportPoints: 1,
       minimumPoiFeatures: 1, minimumVisiblePoiLayers: 1,
