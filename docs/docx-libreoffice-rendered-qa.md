@@ -16,19 +16,34 @@ The CI workflow performs one deterministic end-to-end pass:
 8. fail if LibreOffice reports corruption, repair or format errors;
 9. validate the converted PDF signature and minimum size;
 10. extract final page boxes, text, links, images and headings through the existing Poppler adapter;
-11. apply the same renderer-neutral page-boundary, text-size, orphan-heading and artifact contract audit as native PDFs;
-12. render every converted PDF page to a reviewable 144-DPI PNG;
-13. require Poppler's page count and the rendered PNG count to agree;
-14. write SHA-256-linked conversion metadata and upload all evidence.
+11. apply explicit map semantics from the Golden contract to the extracted final-page images;
+12. apply the same renderer-neutral page-boundary, text-size, orphan-heading, map and artifact contract audit as native PDFs;
+13. render every converted PDF page to a reviewable 144-DPI PNG;
+14. require Poppler's page count and the rendered PNG count to agree;
+15. write SHA-256-linked conversion metadata and upload all evidence.
 
 ## Clickable source integrity
 
-The legacy DOCX renderer emitted the correct Unfallatlas and licence wording as plain text. That looked acceptable on the page but produced no hyperlink annotation in Word, LibreOffice or the converted PDF. The runtime adapter `ua.docx_source_links.js` now decorates only this canonical source paragraph during Word export and creates two explicit links:
+The legacy DOCX renderer emitted the correct Unfallatlas and licence wording as plain text. That looked acceptable on the page but produced no hyperlink annotation in Word, LibreOffice or the converted PDF. The runtime adapter `ua.docx_source_links.js` decorates only this canonical source paragraph during Word export and creates two explicit links:
 
 - the Unfallatlas dataset page;
 - the applicable Datenlizenz Deutschland page.
 
 The original `docx` namespace is restored in a `finally` block after every export, exports are serialized to avoid constructor races, and unrelated paragraphs remain untouched. The final Poppler audit checks the actual link annotation rather than searching the visible text for URL-like characters.
+
+## Semantic map evidence
+
+Poppler can prove that image objects exist on a final page, but it cannot infer reliably whether an image is a map, chart, logo or photograph. The Golden contract therefore declares the expected page and image index for each map and supplies the semantic evidence that cannot be reconstructed safely from pixels alone:
+
+- map kind;
+- accessible alt text;
+- visible caption;
+- source IDs;
+- original width and height.
+
+The current Bonn contract requires exactly four source-bound maps: overview, filtered selection, detail and cluster. The final audit rejects a map that is missing, too small, unlabelled, unprovenanced or distorted. `conversion-metadata.json` records both `expectedMapCount` and the map count actually extracted from the LibreOffice-rendered pages. A single surviving map can therefore no longer satisfy the document contract when the other three disappear.
+
+The source dimensions are the deterministic fixture dimensions, while the final coordinates come independently from Poppler. Their ratio is compared after LibreOffice layout, so a structurally correct DOCX cannot hide a stretched map in the final PDF.
 
 ## Evidence package
 
@@ -36,8 +51,8 @@ The original `docx` namespace is restored in a `finally` block after every expor
 
 - `source.docx` – exact generated document;
 - `converted.pdf` – exact LibreOffice rendering used by the audit;
-- `conversion-metadata.json` – LibreOffice version, hashes, byte sizes, page inventory and audit result;
-- `poppler/rendered-document.json` – normalized final-page model;
+- `conversion-metadata.json` – LibreOffice version, hashes, byte sizes, page inventory, semantic map evidence and audit result;
+- `poppler/rendered-document.json` – normalized final-page model including classified maps;
 - `poppler/rendered-document-audit.json` – fail-closed audit report;
 - `pages/page-N.png` – one large review image for every final page.
 
@@ -45,12 +60,14 @@ The source DOCX, converted PDF and every page PNG have SHA-256 values. The adapt
 
 ## Artifact contract
 
-The initial CI contract requires:
+The CI contract requires:
 
 - the rendered `SACHVERHALT` section;
 - the rendered `BESCHLUSSVORSCHLAG` section;
 - a clickable Unfallatlas source link;
-- the selected accident count of 24 in the final page text.
+- the selected accident count of 24 in the final page text;
+- exactly four final rendered maps;
+- alt text, caption, source IDs and source dimensions for each map.
 
 Generic final-page checks additionally reject empty pages, content outside printable page bounds, unreadably small text and orphaned headings.
 
@@ -60,11 +77,9 @@ Generic final-page checks additionally reject empty pages, content outside print
 npm ci
 npm run generate:sample-docx
 sudo apt-get install libreoffice-writer poppler-utils
-node scripts/libreoffice-rendered-document.js \
-  --docx out/ci-render-gate.docx \
-  --out-dir out/qa/rendered-document/docx \
-  --document-id ci-docx-sample \
-  --contract tests/fixtures/rendered-document/ci-docx-contract.json
+npm run qa:sample-docx-rendered
 ```
 
-This is the LibreOffice/DOCX slice of issue #415. Microsoft Word compatibility, map-image semantic classification from renderer evidence, table reconstruction and the wider Bonn/Hannover/few-row/many-row Golden matrix remain separate follow-ups.
+The local command uses the same Golden contract as CI.
+
+This is the LibreOffice/DOCX slice of issue #415. Microsoft Word compatibility, final-page table reconstruction and the wider Bonn/Hannover/few-row/many-row Golden matrix remain separate follow-ups.
