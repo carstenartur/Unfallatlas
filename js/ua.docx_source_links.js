@@ -6,6 +6,12 @@
  * clickable links even though the visible text is correct. This narrowly
  * scoped adapter decorates the docx Paragraph constructor only for the duration
  * of a Word export and only for the canonical source paragraph.
+ *
+ * The full document-provenance runtime already replaces the whole legacy source
+ * section with manifest-driven paragraphs and real hyperlinks. When that
+ * runtime is installed this adapter deliberately becomes a no-op; stacking two
+ * constructor proxies would be redundant and can violate JavaScript Proxy
+ * invariants in browsers.
  */
 (function initDocxSourceLinks(root, factory) {
   const api = factory();
@@ -115,7 +121,10 @@
     }
     const decoratedDocx = Object.create(originalDocx);
     Object.defineProperty(decoratedDocx, "Paragraph", {
-      configurable: false,
+      // Keep the temporary namespace composable with other legitimate library
+      // boundaries. A non-configurable own property would prevent an outer
+      // Proxy from returning its own Paragraph constructor.
+      configurable: true,
       enumerable: true,
       writable: false,
       value: createLinkedParagraphConstructor(originalDocx),
@@ -131,6 +140,19 @@
   function install(UA, rootValue) {
     if (!UA || !rootValue) return Object.freeze({ available: false });
     if (UA.__docxSourceLinksInstalled) return UA.docxSourceLinksRuntime;
+
+    if (UA.__documentExportProvenanceInstalled === true) {
+      UA.__docxSourceLinksInstalled = true;
+      UA.docxSourceLinksRuntime = Object.freeze({
+        available: true,
+        delegated: true,
+        reason: "document_provenance_owns_source_links",
+        originalExporter: UA.exportToWord,
+        wrappedExporter: null,
+      });
+      return UA.docxSourceLinksRuntime;
+    }
+
     const originalExporter = UA.exportToWord;
     if (typeof originalExporter !== "function") {
       return Object.freeze({ available: false, reason: "word_export_unavailable" });
@@ -155,6 +177,7 @@
     UA.__docxSourceLinksInstalled = true;
     UA.docxSourceLinksRuntime = Object.freeze({
       available: true,
+      delegated: false,
       originalExporter,
       wrappedExporter,
     });

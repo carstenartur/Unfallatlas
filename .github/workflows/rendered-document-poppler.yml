@@ -20,6 +20,7 @@ on:
       - 'tests/unit/deterministicMapFixture.test.js'
       - 'tests/unit/docxSourceLinks.test.js'
       - 'tests/unit/libreOfficeRenderedDocument.test.js'
+      - 'tests/unit/libreOfficeRenderedMapSemantics.test.js'
       - 'tests/unit/renderedDocumentAudit.test.js'
       - 'tests/unit/popplerRenderedDocument.test.js'
       - 'tests/unit/runtimeExportProvenanceLoader.test.js'
@@ -112,6 +113,7 @@ jobs:
             tests/unit/deterministicMapFixture.test.js \
             tests/unit/docxSourceLinks.test.js \
             tests/unit/libreOfficeRenderedDocument.test.js \
+            tests/unit/libreOfficeRenderedMapSemantics.test.js \
             tests/unit/runtimeExportProvenanceLoader.test.js
 
       - name: Generate real DOCX through the workbench renderer
@@ -140,6 +142,8 @@ jobs:
           test -s out/qa/rendered-document/docx/poppler/rendered-document.json
           test -s out/qa/rendered-document/docx/poppler/rendered-document-audit.json
           find out/qa/rendered-document/docx/pages -name 'page-*.png' -type f -size +10k | grep -q .
+          grep -q '"mapCount": 4' out/qa/rendered-document/docx/conversion-metadata.json
+          grep -q '"expectedMapCount": 4' out/qa/rendered-document/docx/conversion-metadata.json
 
       - name: Upload DOCX rendered-document evidence
         if: always()

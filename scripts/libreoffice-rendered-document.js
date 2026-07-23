@@ -227,10 +227,47 @@ function copyEvidence(source, destination) {
   return destination;
 }
 
+function loadContract(contractPath) {
+  if (!contractPath) return {};
+  const absolute = path.resolve(contractPath);
+  let contract;
+  try {
+    contract = JSON.parse(fs.readFileSync(absolute, 'utf8'));
+  } catch (error) {
+    fail('invalid_rendered_contract', `Cannot read rendered-document contract: ${absolute}`, {
+      cause: error.message,
+    });
+  }
+  if (!contract || typeof contract !== 'object' || Array.isArray(contract)) {
+    fail('invalid_rendered_contract', 'Rendered-document contract must be an object');
+  }
+  return contract;
+}
+
+function assertExpectedMapCount(report, contract) {
+  if (contract.expectedMapCount == null) return null;
+  const expected = Number(contract.expectedMapCount);
+  if (!Number.isInteger(expected) || expected < 0) {
+    fail('invalid_rendered_contract', 'expectedMapCount must be a non-negative integer', {
+      value: contract.expectedMapCount,
+    });
+  }
+  const actual = Number(report?.summary?.mapCount || 0);
+  if (actual !== expected) {
+    fail(
+      'rendered_map_count_mismatch',
+      `Expected ${expected} source-bound map(s), but final pages contain ${actual}`,
+      { expected, actual },
+    );
+  }
+  return expected;
+}
+
 function main(argv, runtimeOptions = {}) {
   const options = { ...parseArgs(argv), ...runtimeOptions };
   const outDir = path.resolve(options.outDir);
   fs.mkdirSync(outDir, { recursive: true });
+  const contract = loadContract(options.contractPath);
   const conversion = convertDocxToPdf(options.docx, outDir, options);
 
   const evidenceDocx = copyEvidence(conversion.source, path.join(outDir, 'source.docx'));
@@ -245,7 +282,12 @@ function main(argv, runtimeOptions = {}) {
     ...(!options.audit ? ['--no-audit'] : []),
   ];
   const popplerMain = options.popplerMain || poppler.main;
-  const audit = popplerMain(popplerArgs, options.popplerRuntimeOptions || {});
+  const popplerRuntimeOptions = {
+    ...(options.popplerRuntimeOptions || {}),
+    ...(Array.isArray(contract.imageHints) ? { imageHints: contract.imageHints } : {}),
+  };
+  const audit = popplerMain(popplerArgs, popplerRuntimeOptions);
+  const expectedMapCount = assertExpectedMapCount(audit.report, contract);
   const pages = renderPdfPages(evidencePdf, path.join(outDir, 'pages'), options);
   if (audit.model.pages.length !== pages.length) {
     fail(
@@ -277,6 +319,11 @@ function main(argv, runtimeOptions = {}) {
       pages: pages.length,
     },
     renderedPages: pages,
+    semanticEvidence: {
+      expectedMapCount,
+      mapCount: Number(audit.report?.summary?.mapCount || 0),
+      imageHints: Array.isArray(contract.imageHints) ? contract.imageHints.length : 0,
+    },
     audit: {
       model: path.relative(outDir, audit.modelPath),
       report: options.audit ? path.relative(outDir, auditReportPath) : null,
@@ -289,7 +336,8 @@ function main(argv, runtimeOptions = {}) {
   fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
   process.stdout.write(
     `[libreoffice-rendered-document] ${metadata.convertedPdf.pages} page(s), ` +
-      `${metadata.audit.issues} audit issue(s), LibreOffice ${conversion.version}.\n`,
+      `${metadata.semanticEvidence.mapCount} map(s), ${metadata.audit.issues} audit issue(s), ` +
+      `LibreOffice ${conversion.version}.\n`,
   );
   return { conversion, audit, pages, metadata, metadataPath };
 }
@@ -316,5 +364,7 @@ module.exports = {
   convertDocxToPdf,
   pngDimensions,
   renderPdfPages,
+  loadContract,
+  assertExpectedMapCount,
   main,
 };
