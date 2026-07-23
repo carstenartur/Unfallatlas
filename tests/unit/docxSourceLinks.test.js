@@ -74,7 +74,7 @@ describe("DOCX source-link integrity adapter", () => {
     expect(ordinary.options).toEqual({ text: "Ordinary paragraph" });
   });
 
-  test("restores the original docx namespace after success and failure", async () => {
+  test("restores a composable temporary docx namespace after success and failure", async () => {
     const original = fakeDocx();
     const root = { docx: original };
     let decorated;
@@ -83,6 +83,17 @@ describe("DOCX source-link integrity adapter", () => {
       expect(decorated).not.toBe(original);
       expect(decorated.Document).toBe(original.Document);
       expect(decorated.Paragraph).not.toBe(original.Paragraph);
+      expect(Object.getOwnPropertyDescriptor(decorated, "Paragraph")).toMatchObject({
+        configurable: true,
+        writable: false,
+      });
+      const outerProxy = new Proxy(decorated, {
+        get(target, property, receiver) {
+          if (property === "Paragraph") return class OuterParagraph extends target.Paragraph {};
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      expect(() => outerProxy.Paragraph).not.toThrow();
     });
     expect(root.docx).toBe(original);
 
@@ -112,6 +123,7 @@ describe("DOCX source-link integrity adapter", () => {
     const runtime = sourceLinks.install(UA, root);
     const firstWrapper = UA.exportToWord;
     expect(runtime.available).toBe(true);
+    expect(runtime.delegated).toBe(false);
     expect(sourceLinks.install(UA, root)).toBe(runtime);
     expect(UA.exportToWord).toBe(firstWrapper);
 
@@ -120,6 +132,29 @@ describe("DOCX source-link integrity adapter", () => {
     expect(observations[0].receiver).toBe(UA);
     expect(observations[0].args).toEqual(["a", "b"]);
     expect(observations[0].paragraph).not.toBe(FakeParagraph);
+    expect(root.docx.Paragraph).toBe(FakeParagraph);
+  });
+
+  test("delegates to the full document-provenance runtime instead of stacking proxies", async () => {
+    const originalExporter = jest.fn(async () => "document-provenance-result");
+    const root = { docx: fakeDocx() };
+    const UA = {
+      __documentExportProvenanceInstalled: true,
+      exportToWord: originalExporter,
+    };
+
+    const runtime = sourceLinks.install(UA, root);
+
+    expect(runtime).toMatchObject({
+      available: true,
+      delegated: true,
+      reason: "document_provenance_owns_source_links",
+      originalExporter,
+      wrappedExporter: null,
+    });
+    expect(UA.exportToWord).toBe(originalExporter);
+    await expect(UA.exportToWord("ctx")).resolves.toBe("document-provenance-result");
+    expect(originalExporter).toHaveBeenCalledWith("ctx");
     expect(root.docx.Paragraph).toBe(FakeParagraph);
   });
 
