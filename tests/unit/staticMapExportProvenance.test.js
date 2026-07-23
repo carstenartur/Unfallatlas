@@ -84,6 +84,7 @@ describe("provenance-bound static PNG export", () => {
     expect(window.UA.staticMapExportProvenance).toBe(staticMap);
     expect(staticMap.PNG_MEDIA_TYPE).toBe("image/png");
     expect(staticMap.PACKAGE_MEDIA_TYPE).toBe("application/zip");
+    expect(staticMap.OSM_SOURCE_ID).toBe("basemap.openstreetmap.standard");
   });
 
   test("packages only the final PNG, its exact sidecar and a linked README", async () => {
@@ -150,6 +151,80 @@ describe("provenance-bound static PNG export", () => {
     ).rejects.toMatchObject({ code: "notice_mismatch" });
   });
 
+  test("rejects a renderer whose manifest hash differs from the sidecar", async () => {
+    await expect(
+      staticMap.buildPngPackage({
+        manifest: manifest(),
+        sourceDataUrl: PNG_DATA_URL,
+        renderPng: async ({ visibleNotice }) => ({
+          bytes: PNG_BYTES,
+          visibleNotice,
+          sourceManifestSha256: HASH_A,
+        }),
+      }),
+    ).rejects.toMatchObject({ code: "manifest_hash_mismatch" });
+  });
+
+  test("adds the rendered OpenStreetMap basemap to the shared snapshot", async () => {
+    const result = await staticMap.buildStaticMapManifest(
+      manifest(),
+      {},
+      { mapMode: "standard" },
+    );
+
+    expect(result.manifest.sources.map((source) => source.sourceId)).toEqual([
+      "accidents.de.unfallatlas",
+      "basemap.openstreetmap.standard",
+    ]);
+    const osm = result.manifest.sources.find(
+      (source) => source.sourceId === "basemap.openstreetmap.standard",
+    );
+    expect(osm).toMatchObject({
+      role: "basemap",
+      licenseId: "ODbL-1.0",
+      retrievedAt: manifest().generatedAt,
+      changedOrDerived: true,
+    });
+    expect(osm.requiredAttribution).toContain("OpenStreetMap");
+    expect(result.manifest.transformations.at(-1)).toMatchObject({
+      transformationId: "render-static-map-png",
+      sourceIds: [
+        "accidents.de.unfallatlas",
+        "basemap.openstreetmap.standard",
+      ],
+    });
+  });
+
+  test("fails closed for unmodelled orthophoto, hybrid and context sources", async () => {
+    await expect(
+      staticMap.buildStaticMapManifest(manifest(), {}, { mapMode: "hybrid" }),
+    ).rejects.toMatchObject({ code: "unsupported_map_source_provenance" });
+
+    await expect(
+      staticMap.buildStaticMapManifest(
+        manifest(),
+        {
+          getActiveMapLayerInfo: () => ({
+            mode: "orthophoto",
+            orthophoto: { id: "bonn-orthophoto" },
+          }),
+        },
+        { mapMode: "orthophoto" },
+      ),
+    ).rejects.toMatchObject({ code: "unsupported_map_source_provenance" });
+
+    await expect(
+      staticMap.buildStaticMapManifest(
+        manifest(),
+        {},
+        { contextOverlays: { active: { slope: true } } },
+      ),
+    ).rejects.toMatchObject({
+      code: "unsupported_context_source_provenance",
+      details: { overlays: ["slope"] },
+    });
+  });
+
   test("renders a source strip below the map and verifies its witness pixels", async () => {
     const calls = [];
     const context = {
@@ -198,11 +273,11 @@ describe("provenance-bound static PNG export", () => {
     expect(Buffer.from(result.bytes)).toEqual(PNG_BYTES);
   });
 
-  test("captures one stable manifest snapshot before packaging", async () => {
+  test("captures one stable, map-complete manifest snapshot before packaging", async () => {
     const currentManifest = manifest();
     const createManifest = jest.fn(async () => currentManifest);
     const captureExportMapImage = jest.fn(async () => PNG_DATA_URL);
-    const ctx = { CITY_RAW: "Bonn" };
+    const ctx = { CITY_RAW: "Bonn", mapMode: "standard" };
     const UA = {
       captureExportMapImage,
       exportProvenanceRuntime: { createManifest },
@@ -219,7 +294,12 @@ describe("provenance-bound static PNG export", () => {
     expect(captureExportMapImage).toHaveBeenCalledWith(ctx, {
       heatmapExportOpacity: 0.4,
     });
-    expect(result.manifest).toEqual(sourceManifest.normalizeManifest(currentManifest));
+    expect(result.manifest.sources.map((source) => source.sourceId)).toEqual([
+      "accidents.de.unfallatlas",
+      "basemap.openstreetmap.standard",
+    ]);
+    expect(result.manifest.transformations.map((item) => item.transformationId))
+      .toContain("render-static-map-png");
     expect(result.artifactName).toBe("bonn-rad-pkw-karte-karte.png");
   });
 
@@ -244,7 +324,7 @@ describe("provenance-bound static PNG export", () => {
       staticMap.exportCurrentMap(
         UA,
         { document: { getElementById: () => null } },
-        { CITY_RAW: "Bonn" },
+        { CITY_RAW: "Bonn", mapMode: "standard" },
         { download: false, renderPng: fakeRenderedPng },
       ),
     ).rejects.toMatchObject({ code: "state_changed_during_capture" });
