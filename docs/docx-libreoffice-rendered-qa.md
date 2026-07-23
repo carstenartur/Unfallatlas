@@ -17,19 +17,20 @@ The CI workflow performs one deterministic end-to-end pass:
 9. validate the converted PDF signature and minimum size;
 10. extract final page boxes, text, links, images and headings through the existing Poppler adapter;
 11. apply explicit map semantics from the Golden contract to the extracted final-page images;
-12. apply the same renderer-neutral page-boundary, text-size, orphan-heading, map and artifact contract audit as native PDFs;
-13. render every converted PDF page to a reviewable 144-DPI PNG;
-14. require Poppler's page count and the rendered PNG count to agree;
-15. write SHA-256-linked conversion metadata and upload all evidence.
+12. reconstruct declared table rows from final Poppler words and column positions;
+13. apply the renderer-neutral page-boundary, text-size, orphan-heading, map, table-row and artifact contract audit;
+14. render every converted PDF page to a reviewable 144-DPI PNG;
+15. require Poppler's page count and the rendered PNG count to agree;
+16. write SHA-256-linked conversion metadata and upload all evidence.
 
 ## Clickable source integrity
 
-The legacy DOCX renderer emitted the correct Unfallatlas and licence wording as plain text. That looked acceptable on the page but produced no hyperlink annotation in Word, LibreOffice or the converted PDF. The runtime adapter `ua.docx_source_links.js` decorates only this canonical source paragraph during Word export and creates two explicit links:
+The legacy DOCX renderer emitted the correct Unfallatlas and licence wording as plain text. That looked acceptable on the page but produced no hyperlink annotation in Word, LibreOffice or the converted PDF. The fallback runtime adapter `ua.docx_source_links.js` decorates only this canonical source paragraph during standalone Word export and creates two explicit links:
 
 - the Unfallatlas dataset page;
 - the applicable Datenlizenz Deutschland page.
 
-The original `docx` namespace is restored in a `finally` block after every export, exports are serialized to avoid constructor races, and unrelated paragraphs remain untouched. The final Poppler audit checks the actual link annotation rather than searching the visible text for URL-like characters.
+When full document provenance is active, that runtime owns the complete source section and the fallback deliberately does not add a second constructor proxy. This prevents proxy-invariant failures while preserving the richer manifest-driven links. The final Poppler audit checks actual link annotations rather than searching visible text for URL-like characters.
 
 ## Semantic map evidence
 
@@ -45,15 +46,32 @@ The current Bonn contract requires exactly four source-bound maps: overview, fil
 
 The source dimensions are the deterministic fixture dimensions, while the final coordinates come independently from Poppler. Their ratio is compared after LibreOffice layout, so a structurally correct DOCX cannot hide a stretched map in the final PDF.
 
+## Final-page table reconstruction
+
+Poppler exposes words and coordinates but not semantic table rows. The Golden contract therefore declares only the stable anchors for each audited table:
+
+- page number and table ID;
+- visible header labels in column order;
+- ordered row IDs;
+- regular expressions for the visible cell values.
+
+The reconstruction groups final PDF words into visual lines, locates the complete header, derives column boundaries from header centres, and assigns every row word to a column by its final horizontal position. Cell strings, row bounds and order therefore come from the LibreOffice-rendered PDF rather than from DOCX tables or expected source objects.
+
+The first enforced table is the injury-severity table. It must contain one header plus the fatal, serious-injury and slight-injury rows with the rendered counts and percentages. Missing headers, missing rows, changed cell values, overlapping row boxes or an unexpected total row count fail closed. `conversion-metadata.json`, the normalized document model and the final audit all record `tableRowCount: 4`.
+
+The initial header is identified by `rowId=severity.header`; it is not marked as a repeated header. The `repeatedHeader` flag remains reserved for actual continuation-page headers once multi-page tables are audited.
+
+This focused first table establishes the reconstruction mechanism without pretending that wrapped and multi-page tables are already solved. The year and deviation tables, repeated headers and large individual-accident tables remain explicit follow-ups.
+
 ## Evidence package
 
 `out/qa/rendered-document/docx/` contains:
 
 - `source.docx` – exact generated document;
 - `converted.pdf` – exact LibreOffice rendering used by the audit;
-- `conversion-metadata.json` – LibreOffice version, hashes, byte sizes, page inventory, semantic map evidence and audit result;
-- `poppler/rendered-document.json` – normalized final-page model including classified maps;
-- `poppler/rendered-document-audit.json` – fail-closed audit report;
+- `conversion-metadata.json` – LibreOffice version, hashes, byte sizes, page inventory, semantic map/table evidence and audit result;
+- `poppler/rendered-document.json` – normalized final-page model including classified maps and reconstructed table rows;
+- `poppler/rendered-document-audit.json` – fail-closed audit report after map and table enrichment;
 - `pages/page-N.png` – one large review image for every final page.
 
 The source DOCX, converted PDF and every page PNG have SHA-256 values. The adapter also verifies that the independent Poppler model and page renderer produce the same page count.
@@ -67,9 +85,10 @@ The CI contract requires:
 - a clickable Unfallatlas source link;
 - the selected accident count of 24 in the final page text;
 - exactly four final rendered maps;
-- alt text, caption, source IDs and source dimensions for each map.
+- alt text, caption, source IDs and source dimensions for each map;
+- exactly four final severity-table rows, including one explicitly identified header row.
 
-Generic final-page checks additionally reject empty pages, content outside printable page bounds, unreadably small text and orphaned headings.
+Generic final-page checks additionally reject empty pages, content outside printable page bounds, unreadably small text, orphaned headings and overlapping table rows.
 
 ## Local execution
 
@@ -80,6 +99,6 @@ sudo apt-get install libreoffice-writer poppler-utils
 npm run qa:sample-docx-rendered
 ```
 
-The local command uses the same Golden contract as CI.
+The local command executes the same map and table contract as CI.
 
-This is the LibreOffice/DOCX slice of issue #415. Microsoft Word compatibility, final-page table reconstruction and the wider Bonn/Hannover/few-row/many-row Golden matrix remain separate follow-ups.
+This is the LibreOffice/DOCX slice of issue #415. Microsoft Word compatibility, additional final-page tables and the wider Bonn/Hannover/few-row/many-row/missing-context Golden matrix remain separate follow-ups.
