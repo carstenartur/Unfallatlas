@@ -82,6 +82,13 @@ function writeInputs(directory, contractValue = contract()) {
   fs.writeFileSync(auditPath, '{"passed":true,"stale":true}');
   fs.writeFileSync(metadataPath, JSON.stringify({
     semanticEvidence: { expectedMapCount: 4, mapCount: 4, imageHints: 4 },
+    audit: {
+      model: 'poppler/rendered-document.json',
+      report: 'poppler/rendered-document-audit.json',
+      asserted: true,
+      issues: 9,
+      passed: false,
+    },
   }));
   return { modelPath, contractPath, auditPath, metadataPath };
 }
@@ -110,13 +117,21 @@ describe('rendered table contract enrichment', () => {
     expect(result.report.passed).toBe(true);
     expect(result.report.summary.tableRowCount).toBe(4);
     expect(result.model.pages[0].tableRows).toHaveLength(4);
-    expect(JSON.parse(fs.readFileSync(metadataPath, 'utf8')).semanticEvidence).toEqual({
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    expect(metadata.semanticEvidence).toEqual({
       expectedMapCount: 4,
       mapCount: 4,
       imageHints: 4,
       expectedTableRowCount: 4,
       tableRowCount: 4,
       tableHints: 1,
+    });
+    expect(metadata.audit).toEqual({
+      model: 'poppler/rendered-document.json',
+      report: 'poppler/rendered-document-audit.json',
+      asserted: true,
+      issues: 0,
+      passed: true,
     });
     const finalAudit = JSON.parse(fs.readFileSync(auditPath, 'utf8'));
     expect(finalAudit.summary.tableRowCount).toBe(4);
