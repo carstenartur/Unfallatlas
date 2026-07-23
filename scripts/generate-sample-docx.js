@@ -47,15 +47,35 @@ function createAccidentPoints(count, bounds = {}) {
     const row = Math.floor(index / 6);
     const latitude = south + ((row + 1) / 6) * (north - south);
     const longitude = west + ((column + 1) / 7) * (east - west);
+    const severity = index % 12 === 0 ? 1 : index % 4 === 0 ? 2 : 3;
+    const year = 2022 + (index % 3);
     return {
       lat: latitude,
       lon: longitude,
       latitude,
       longitude,
-      severity: index % 12 === 0 ? 1 : index % 4 === 0 ? 2 : 3,
-      year: 2022 + (index % 3),
+      severity,
+      year,
       IstRad: 1,
       IstPKW: 1,
+      // The live application carries the original normalized Unfallatlas
+      // fields under props. Keep the convenience top-level fields above for
+      // render helpers, but also provide the real filter/mask input shape so
+      // unrestricted and involvement-filtered map populations are computed
+      // through the same code paths as browser data.
+      props: {
+        ukategorie: String(severity),
+        ujahr: String(year),
+        strzustand: '0',
+        uwochentag: String((index % 5) + 1),
+        ustunde: String(7 + (index % 12)),
+        istrad: '1',
+        istpkw: '1',
+        istfuss: '0',
+        istkrad: '0',
+        istgkfz: '0',
+        istsonstig: '0',
+      },
     };
   });
 }
