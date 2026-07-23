@@ -93,7 +93,8 @@ function run(command, args, options = {}) {
 }
 
 function libreOfficeVersion(binary, options = {}) {
-  return run(binary, ['--version'], options).stdout.trim() || 'unknown';
+  const result = run(binary, ['--version'], options);
+  return (result.stdout || result.stderr).trim() || 'unknown';
 }
 
 function convertDocxToPdf(docxPath, outDir, options = {}) {
@@ -220,6 +221,7 @@ function main(argv, runtimeOptions = {}) {
     );
   }
 
+  const auditIssues = Array.isArray(audit.report?.issues) ? audit.report.issues : [];
   const metadata = {
     schemaVersion: 'unfallwerkbank.docx-rendered-evidence/v1',
     documentId: options.documentId || path.basename(evidenceDocx),
@@ -244,14 +246,15 @@ function main(argv, runtimeOptions = {}) {
     audit: {
       model: path.relative(outDir, audit.modelPath),
       report: path.relative(outDir, path.join(popplerOut, 'rendered-document-audit.json')),
-      findings: audit.report.findings.length,
+      issues: auditIssues.length,
+      passed: Boolean(audit.report?.passed),
     },
   };
   const metadataPath = path.join(outDir, 'conversion-metadata.json');
   fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
   process.stdout.write(
     `[libreoffice-rendered-document] ${metadata.convertedPdf.pages} page(s), ` +
-      `${metadata.audit.findings} audit finding(s), LibreOffice ${conversion.version}.\n`,
+      `${metadata.audit.issues} audit issue(s), LibreOffice ${conversion.version}.\n`,
   );
   return { conversion, audit, pages, metadata, metadataPath };
 }
