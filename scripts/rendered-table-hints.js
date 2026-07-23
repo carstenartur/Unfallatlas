@@ -188,7 +188,7 @@ function reconstructTable(words, hint) {
     yMin: header.line.yMin,
     xMax: header.line.xMax,
     yMax: header.line.yMax,
-    repeatedHeader: true,
+    repeatedHeader: false,
     cells: cellsForLine(header.line, boundaries),
   }];
 
