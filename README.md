@@ -215,5 +215,5 @@ hier bewusst getrennt verlinkt.
 |---|---|
 | **Unfallatlas** | [unfallatlas.statistikportal.de](https://unfallatlas.statistikportal.de/) |
 | **Open-Data-Downloads** | [opengeodata.nrw.de/…/unfallatlas](https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/) |
-| **Datenlizenz** | [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) |
+| **Datenlizenz** | [Datenlizenz Deutschland – Namensnennung – Version 2.0](http://web.archive.org/web/20260719222923/https://www.govdata.de/dl-de/by-2-0) |
 | **Koordinatensystem** | WGS84 (EPSG:4326, exportiert aus EPSG:25832) |
