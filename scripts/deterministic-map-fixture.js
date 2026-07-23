@@ -4,6 +4,11 @@
 const zlib = require('zlib');
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const ACCIDENT_COLOURS = Object.freeze([
+  Object.freeze([215, 38, 56, 255]),
+  Object.freeze([226, 112, 32, 255]),
+  Object.freeze([127, 63, 152, 255]),
+]);
 
 let crcTable = null;
 
@@ -140,9 +145,6 @@ function encodePng(surface, metadata = {}) {
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8;
   ihdr[9] = 6;
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
 
   const stride = width * 4;
   const scanlines = Buffer.alloc((stride + 1) * height);
@@ -163,12 +165,33 @@ function encodePng(surface, metadata = {}) {
   ]);
 }
 
+function createAccidentMarkers(count = 24) {
+  const markerCount = Number(count);
+  if (!Number.isInteger(markerCount) || markerCount < 1 || markerCount > 100) {
+    throw new Error('Accident marker count must be an integer between 1 and 100');
+  }
+  const columns = 6;
+  const rows = Math.ceil(markerCount / columns);
+  return Array.from({ length: markerCount }, (_, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const xStep = columns === 1 ? 0 : 0.35 / (columns - 1);
+    const yStep = rows === 1 ? 0 : 0.35 / (rows - 1);
+    const jitterX = (((row * 3 + column * 5) % 5) - 2) * 0.003;
+    const jitterY = (((row * 7 + column * 2) % 5) - 2) * 0.003;
+    return [
+      0.285 + column * xStep + jitterX,
+      0.325 + row * yStep + jitterY,
+      ACCIDENT_COLOURS[index % ACCIDENT_COLOURS.length],
+    ];
+  });
+}
+
 function createDeterministicMapPng(options = {}) {
   const width = Number(options.width || 960);
   const height = Number(options.height || 640);
   const surface = createSurface(width, height, [232, 238, 229, 255]);
 
-  // Water, parks and blocks provide a stable cartographic background.
   fillRect(surface, width * 0.72, 0, width * 0.16, height, [180, 216, 233, 255]);
   fillRect(surface, width * 0.08, height * 0.08, width * 0.22, height * 0.18, [190, 218, 181, 255]);
   fillRect(surface, width * 0.43, height * 0.68, width * 0.18, height * 0.22, [196, 222, 184, 255]);
@@ -180,37 +203,25 @@ function createDeterministicMapPng(options = {}) {
     }
   }
 
-  // Main and secondary roads with center lines.
   drawRoad(surface, [[-20, height * 0.56], [width * 0.28, height * 0.49], [width * 0.55, height * 0.54], [width + 20, height * 0.43]], 18);
   drawRoad(surface, [[width * 0.48, -20], [width * 0.51, height * 0.34], [width * 0.55, height * 0.54], [width * 0.62, height + 20]], 16);
   drawRoad(surface, [[width * 0.12, -20], [width * 0.2, height * 0.3], [width * 0.28, height * 0.49], [width * 0.33, height + 20]], 10);
   drawRoad(surface, [[-20, height * 0.22], [width * 0.34, height * 0.27], [width * 0.7, height * 0.2]], 8);
   drawRoad(surface, [[width * 0.08, height + 20], [width * 0.18, height * 0.74], [width * 0.55, height * 0.54], [width * 0.78, height * 0.78]], 8);
 
-  // Selected analysis area and accident markers.
   drawDashedRect(surface, width * 0.24, height * 0.28, width * 0.44, height * 0.46, [177, 36, 36, 255], 4, 16);
-  const accidents = [
-    [0.29, 0.49, [215, 38, 56, 255]],
-    [0.37, 0.47, [226, 112, 32, 255]],
-    [0.47, 0.52, [215, 38, 56, 255]],
-    [0.54, 0.55, [127, 63, 152, 255]],
-    [0.58, 0.61, [226, 112, 32, 255]],
-    [0.42, 0.32, [226, 112, 32, 255]],
-    [0.31, 0.65, [127, 63, 152, 255]],
-    [0.63, 0.4, [215, 38, 56, 255]],
-  ];
+  const accidents = createAccidentMarkers(options.accidentCount == null ? 24 : options.accidentCount);
   for (const [x, y, colour] of accidents) {
-    drawCircle(surface, width * x, height * y, 9, colour, [255, 255, 255, 255], 3);
+    drawCircle(surface, width * x, height * y, 7, colour, [255, 255, 255, 255], 2);
   }
 
-  // North arrow and compact legend without relying on fonts.
   fillRect(surface, 18, 18, 198, 82, [255, 255, 255, 238]);
   drawLine(surface, 48, 78, 48, 35, [31, 41, 55, 255], 4);
   drawLine(surface, 48, 35, 38, 50, [31, 41, 55, 255], 4);
   drawLine(surface, 48, 35, 58, 50, [31, 41, 55, 255], 4);
-  drawCircle(surface, 90, 42, 7, [215, 38, 56, 255], [255, 255, 255, 255], 2);
-  drawCircle(surface, 90, 62, 7, [226, 112, 32, 255], [255, 255, 255, 255], 2);
-  drawCircle(surface, 90, 82, 7, [127, 63, 152, 255], [255, 255, 255, 255], 2);
+  drawCircle(surface, 90, 42, 7, ACCIDENT_COLOURS[0], [255, 255, 255, 255], 2);
+  drawCircle(surface, 90, 62, 7, ACCIDENT_COLOURS[1], [255, 255, 255, 255], 2);
+  drawCircle(surface, 90, 82, 7, ACCIDENT_COLOURS[2], [255, 255, 255, 255], 2);
   fillRect(surface, 108, 36, 82, 8, [80, 80, 80, 255]);
   fillRect(surface, 108, 56, 62, 8, [110, 110, 110, 255]);
   fillRect(surface, 108, 76, 72, 8, [95, 95, 95, 255]);
@@ -219,6 +230,7 @@ function createDeterministicMapPng(options = {}) {
     Title: options.title || 'Deterministic Unfallwerkbank map fixture',
     Source: 'Synthetic QA fixture; no external map tiles',
     Scenario: options.scenario || 'Bonn urban junction',
+    AccidentMarkers: accidents.length,
   });
 }
 
@@ -230,6 +242,7 @@ function toDataUrl(buffer) {
 module.exports = {
   PNG_SIGNATURE,
   crc32,
+  createAccidentMarkers,
   createDeterministicMapPng,
   toDataUrl,
 };
