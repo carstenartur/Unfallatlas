@@ -53,6 +53,10 @@ async function readLiveState(page) {
     const center = ctx.map.getCenter();
     const stat = String(document.getElementById('stat')?.textContent || '').replace(/\s+/g, ' ').trim();
     const modal = document.getElementById('modalOverlay');
+    const previewNotice = document.getElementById('publicPreviewNotice');
+    const wordButton = document.getElementById('btnExportWord');
+    const pdfButton = document.getElementById('btnExportPDF');
+    const antragGroup = document.getElementById('exportGroupAntrag');
     return {
       city: ctx.CITY_RAW,
       allPoints: ctx.allPts?.length ?? -1,
@@ -82,6 +86,12 @@ async function readLiveState(page) {
         open: Boolean(modal && getComputedStyle(modal).display !== 'none' && !modal.hidden),
         progress: String(document.getElementById('exportProgress')?.textContent || '').trim(),
         textLength: String(document.getElementById('exportHtml')?.textContent || '').trim().length,
+        publicPreview: document.documentElement.dataset.distributionProfile || null,
+        noticeVisible: Boolean(previewNotice && !previewNotice.hidden && getComputedStyle(previewNotice).display !== 'none'),
+        noticeText: String(previewNotice?.textContent || '').replace(/\s+/g, ' ').trim(),
+        antragGroupHidden: Boolean(antragGroup && (antragGroup.hidden || getComputedStyle(antragGroup).display === 'none')),
+        wordDisabled: Boolean(wordButton?.disabled),
+        pdfDisabled: Boolean(pdfButton?.disabled),
       },
       stat,
     };
@@ -127,17 +137,7 @@ function assertState(scenario, state) {
   }
 }
 
-const downloadContracts = [
-  {
-    id: 'word', selector: '#btnExportWord', extension: '.docx', minimumBytes: 10000,
-    validate: (bytes) => expect([...bytes.subarray(0, 2)]).toEqual([0x50, 0x4b]),
-    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  },
-  {
-    id: 'pdf', selector: '#btnExportPDF', extension: '.pdf', minimumBytes: 5000,
-    validate: (bytes) => expect(bytes.subarray(0, 5).toString('ascii')).toBe('%PDF-'),
-    contentType: 'application/pdf',
-  },
+const publicDownloadContracts = [
   {
     id: 'csv', selector: '#btnExportCSV', extension: '.csv', minimumBytes: 30,
     validate(bytes) {
@@ -167,17 +167,19 @@ const downloadContracts = [
   },
 ];
 
-async function exerciseDownloads(page, scenario, diagnostics, testInfo) {
-  const osmToggle = page.locator('#cbIncludeOsmContext');
-  if (await osmToggle.isChecked()) {
-    await osmToggle.uncheck();
-    await page.waitForFunction(() => String(document.getElementById('exportProgress')?.textContent || '').includes('Fertig'), null, { timeout: 60000 });
-  }
-  for (const contract of downloadContracts) {
+async function exercisePublicDownloads(page, scenario, diagnostics, testInfo) {
+  expect(diagnostics.state.export.publicPreview).toBe('public-preview-core-v1');
+  expect(diagnostics.state.export.noticeVisible).toBe(true);
+  expect(diagnostics.state.export.noticeText).toMatch(/Word\/PDF.*deaktiviert/i);
+  expect(diagnostics.state.export.antragGroupHidden).toBe(true);
+  expect(diagnostics.state.export.wordDisabled).toBe(true);
+  expect(diagnostics.state.export.pdfDisabled).toBe(true);
+
+  for (const contract of publicDownloadContracts) {
     const button = page.locator(contract.selector);
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
-    const pending = page.waitForEvent('download', { timeout: 180000 });
+    const pending = page.waitForEvent('download', { timeout: 60000 });
     await button.click();
     const download = await pending;
     expect(await download.failure(), `${contract.id} download failure`).toBeNull();
@@ -211,7 +213,7 @@ test.describe.serial('README screenshot deep links – published application', (
   test.use({ viewport: { width: 1280, height: 720 }, acceptDownloads: true });
   for (const scenario of scenarios) {
     test(`${scenario.id}: ${scenario.description}`, async ({ page }, testInfo) => {
-      test.setTimeout(scenario.expected.verifyDownloads ? 600000 : 120000);
+      test.setTimeout(scenario.expected.verifyDownloads ? 240000 : 120000);
       const diagnostics = {
         scenario: scenario.id, imagePath: scenario.imagePath, url: scenario.url,
         references: scenario.references, pageErrors: [], consoleErrors: [],
@@ -247,7 +249,7 @@ test.describe.serial('README screenshot deep links – published application', (
         await page.waitForTimeout(750);
         diagnostics.state = await readLiveState(page);
         assertState(scenario, diagnostics.state);
-        if (scenario.expected.verifyDownloads) await exerciseDownloads(page, scenario, diagnostics, testInfo);
+        if (scenario.expected.verifyDownloads) await exercisePublicDownloads(page, scenario, diagnostics, testInfo);
         expect(diagnostics.pageErrors, 'uncaught page errors').toEqual([]);
         expect(diagnostics.consoleErrors, 'console errors').toEqual([]);
         expect(diagnostics.sameOriginHttpErrors, 'live application HTTP/resource errors').toEqual([]);
