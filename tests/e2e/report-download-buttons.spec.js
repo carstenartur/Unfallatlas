@@ -68,7 +68,15 @@ test('full site report buttons produce valid Word and PDF downloads', async ({ p
     return Boolean(ctx?.allPts?.length > 0 && ctx.viewportPts?.length > 0 && ctx.selectionBounds);
   }, null, { timeout: 90000 });
 
-  await page.locator('#cbIncludeOsmContext').uncheck({ force: true });
+  // This is deterministic test setup rather than a user interaction: the
+  // control intentionally lives inside the still-closed export modal. Set the
+  // precondition in the DOM before opening so the first report render cannot
+  // start an external Overpass request. The production click path still reads
+  // the real checkbox state through rerenderExportReport().
+  await page.locator('#cbIncludeOsmContext').evaluate((checkbox) => {
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.locator('#btnOpenExport').click();
   await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 60000 });
   await page.waitForFunction(() =>
