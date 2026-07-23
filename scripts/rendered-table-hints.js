@@ -38,6 +38,11 @@ function wordCenterY(word) {
 
 function clusterWordsIntoLines(words, tolerance = 3) {
   if (!Array.isArray(words)) fail('invalid_words', 'words must be an array');
+  if (!Number.isFinite(tolerance) || tolerance < 0) {
+    fail('invalid_table_hint', 'lineTolerance must be a finite non-negative number', {
+      value: tolerance,
+    });
+  }
   const sorted = [...words].sort((left, right) =>
     wordCenterY(left) - wordCenterY(right) || Number(left.xMin) - Number(right.xMin)
   );
@@ -178,7 +183,8 @@ function reconstructTable(words, hint) {
   }
   const tableId = normalizeText(hint.tableId);
   if (!tableId) fail('invalid_table_hint', 'tableId must not be empty');
-  const lines = clusterWordsIntoLines(words, Number(hint.lineTolerance || 3));
+  const tolerance = Number(hint.lineTolerance ?? 3);
+  const lines = clusterWordsIntoLines(words, tolerance);
   const header = locateHeader(lines, hint.headers, tableId);
   const boundaries = columnBoundaries(header.centres);
   const rows = [{
