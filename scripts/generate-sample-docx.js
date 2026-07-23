@@ -70,8 +70,12 @@ function createContext() {
     getWest: () => 7.087,
     getNorth: () => 50.739,
     getEast: () => 7.105,
+    getSouthWest: () => ({ lat: 50.728, lng: 7.087 }),
+    getNorthEast: () => ({ lat: 50.739, lng: 7.105 }),
+    getCenter: () => ({ lat: 50.7335, lng: 7.096 }),
     contains: () => true,
   };
+  const points = createAccidentPoints(24, bounds);
   return {
     CITY_RAW: 'Bonn',
     mapMode: 'standard',
@@ -84,7 +88,28 @@ function createContext() {
       setView: () => {},
     },
     selectionBounds: bounds,
-    viewportPts: createAccidentPoints(24, bounds),
+    // Mirror the real runtime snapshot instead of providing only viewportPts.
+    // The report renderer deliberately derives different map populations from
+    // allPts, filteredAll/filteredCapped and viewportPts. Leaving the first
+    // three arrays absent produced a visually plausible Golden DOCX whose
+    // captions claimed n=0 while the narrative and tables contained 24 cases.
+    allPts: points,
+    filteredAll: points,
+    filteredCapped: points,
+    viewportPts: points,
+    ui: {
+      severityEl: { value: 'all' },
+      roadConditionEl: { value: 'all' },
+      dayTypeEl: { value: 'all' },
+      hFromEl: { value: '0' },
+      hToEl: { value: '23' },
+      incBikeEl: { checked: true },
+      incPedEl: { checked: false },
+      incCarEl: { checked: true },
+      incMotoEl: { checked: false },
+      incGkfzEl: { checked: false },
+      incSonEl: { checked: false },
+    },
   };
 }
 
