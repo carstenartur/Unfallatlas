@@ -71,9 +71,14 @@ describe('public Pages distribution profile', () => {
       publicPreview: true,
       vendorInventoryComplete: true
     });
+    expect(DISABLED_CAPABILITIES).toContain('video-export');
     expect(manifest.distribution.disabledCapabilities.sort()).toEqual([...DISABLED_CAPABILITIES].sort());
+    expect(manifest.networkPolicy.disabledCapabilities.sort()).toEqual([...DISABLED_CAPABILITIES].sort());
     expect(Object.keys(manifest.dependencies).sort()).toEqual(['leaflet', 'leaflet.markercluster']);
     expect(manifest.vendorAssets.map(asset => asset.path).sort()).toEqual([...PUBLIC_ASSET_PATHS].sort());
+
+    const notice = readJson('vendor/third-party-notices.json');
+    expect(notice.disabledCapabilities.sort()).toEqual([...DISABLED_CAPABILITIES].sort());
 
     for (const excluded of EXCLUDED_VENDOR_ROOTS) {
       expect(fs.existsSync(path.join(OUTPUT, excluded))).toBe(false);
@@ -82,6 +87,8 @@ describe('public Pages distribution profile', () => {
     expect(canonical).toContain(`content="${PROFILE_ID}"`);
     expect(canonical).toContain('js/ua.public-preview.js');
     expect(canonical).not.toMatch(/vendor\/(?:export|leaflet\.heat|leaflet-draw|leaflet-image)\//);
+    const publicRuntime = fs.readFileSync(path.join(OUTPUT, 'js', 'ua.public-preview.js'), 'utf8');
+    expect(publicRuntime).toContain("'video-export'");
     const index = fs.readFileSync(path.join(OUTPUT, 'index.html'), 'utf8');
     expect(index).toContain('werkbank_v2.html');
     expect(index).not.toContain('vendor/');
