@@ -97,6 +97,44 @@ function libreOfficeVersion(binary, options = {}) {
   return (result.stdout || result.stderr).trim() || 'unknown';
 }
 
+function conversionDirectoryEntries(conversionDir) {
+  if (!fs.existsSync(conversionDir)) return [];
+  return fs.readdirSync(conversionDir, { withFileTypes: true })
+    .map((entry) => ({
+      name: entry.name,
+      type: entry.isFile() ? 'file' : entry.isDirectory() ? 'directory' : 'other',
+      bytes: entry.isFile() ? fs.statSync(path.join(conversionDir, entry.name)).size : null,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function resolveConvertedPdf(conversionDir, source, diagnostics = '') {
+  const expected = path.join(
+    conversionDir,
+    `${path.basename(source, path.extname(source))}.pdf`,
+  );
+  if (fs.existsSync(expected)) return assertPdf(expected);
+
+  const entries = conversionDirectoryEntries(conversionDir);
+  const candidates = entries
+    .filter((entry) => entry.type === 'file' && /\.pdf$/i.test(entry.name))
+    .map((entry) => path.join(conversionDir, entry.name));
+  if (candidates.length === 1) return assertPdf(candidates[0]);
+
+  fail(
+    'missing_converted_pdf',
+    candidates.length > 1
+      ? `LibreOffice created multiple ambiguous PDF files in ${conversionDir}`
+      : `LibreOffice did not create a PDF in ${conversionDir}`,
+    {
+      expected,
+      candidates,
+      entries,
+      diagnostics: String(diagnostics || '').slice(-4000),
+    },
+  );
+}
+
 function convertDocxToPdf(docxPath, outDir, options = {}) {
   const source = assertDocx(docxPath);
   const absoluteOutDir = path.resolve(outDir);
@@ -130,11 +168,7 @@ function convertDocxToPdf(docxPath, outDir, options = {}) {
     });
   }
 
-  const expected = path.join(
-    conversionDir,
-    `${path.basename(source, path.extname(source))}.pdf`,
-  );
-  const pdfPath = assertPdf(expected);
+  const pdfPath = resolveConvertedPdf(conversionDir, source, diagnostics);
   return {
     source,
     pdfPath,
@@ -264,6 +298,9 @@ if (require.main === module) {
     main(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${error && error.stack ? error.stack : error}\n`);
+    if (error?.details) {
+      process.stderr.write(`${JSON.stringify(error.details, null, 2)}\n`);
+    }
     process.exitCode = 1;
   }
 }
@@ -275,6 +312,8 @@ module.exports = {
   assertDocx,
   assertPdf,
   run,
+  conversionDirectoryEntries,
+  resolveConvertedPdf,
   convertDocxToPdf,
   pngDimensions,
   renderPdfPages,
