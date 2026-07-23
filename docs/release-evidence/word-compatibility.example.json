@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "unfallwerkbank.word-compatibility-evidence/v1",
+  "inputFingerprint": "<generate with npm run validate:word-compatibility -- --print-fingerprint>",
+  "testedAt": "<ISO-8601 timestamp after completing the Word check>",
+  "sourceCommit": "<40-character-git-commit-sha>",
+  "artifact": {
+    "filename": "source.docx",
+    "bytes": 0,
+    "sha256": "<sha256-of-the-exact-docx-opened-in-word>",
+    "documentId": "ci-docx-sample",
+    "generator": "npm run generate:sample-docx"
+  },
+  "environment": {
+    "product": "Microsoft Word",
+    "version": "<Microsoft Word version and build>",
+    "platform": "<Windows or macOS version>"
+  },
+  "reviewer": {
+    "githubLogin": "<reviewer-github-login>"
+  },
+  "observedPageCount": 0,
+  "checks": {
+    "openedWithoutRepairWarning": false,
+    "savedAndReopenedWithoutRepairWarning": false,
+    "pageCountMatchesGolden": false,
+    "mapsUndistorted": false,
+    "tablesReadableAndNotClipped": false,
+    "topDeviationsHeadingKeptWithTable": false,
+    "hyperlinksClickable": false,
+    "noMissingGlyphs": false
+  },
+  "notes": ""
+}
