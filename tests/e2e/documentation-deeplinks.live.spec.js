@@ -1,10 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import documentationContract from '../../scripts/documentation-deeplink-contract.cjs';
 
-const require = createRequire(import.meta.url);
-const { validateDocumentationLinks } = require('../../scripts/documentation-deeplink-contract.cjs');
+const { validateDocumentationLinks } = documentationContract;
 const scenarios = validateDocumentationLinks(process.cwd()).liveScenarios;
 const outputDir = resolve(process.cwd(), 'out/qa/documentation-live-links');
 mkdirSync(outputDir, { recursive: true });
