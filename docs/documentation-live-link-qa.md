@@ -17,6 +17,8 @@ For each scenario it verifies both the visible controls and `UA.getRuntimeContex
 - selection bounds, visible selection rectangle and accidents inside the selection;
 - loaded and visible school/kindergarten POIs;
 - automatic `?export=1` modal opening and completed report rendering;
+- successful Word, PDF, CSV, GeoJSON and KML downloads from the visible buttons;
+- plausible filenames, minimum byte sizes and format signatures/content for every download;
 - uncaught page errors, console errors and failed same-origin application resources.
 
 The test writes one full-page PNG and one JSON runtime snapshot per README scenario to:
@@ -25,7 +27,7 @@ The test writes one full-page PNG and one JSON runtime snapshot per README scena
 out/qa/documentation-live-links/
 ```
 
-These files are review evidence. They are uploaded by the existing Visual Check workflow and are not copied automatically into `docs/screenshots/`.
+For the export scenario it additionally stores the downloaded `.docx`, `.pdf`, `.csv`, `.geojson` and `.kml` files. These files are review evidence. They are uploaded by the existing Visual Check workflow and are not copied automatically into `docs/screenshots/`.
 
 ## Contract boundary
 
@@ -36,11 +38,17 @@ These files are review evidence. They are uploaded by the existing Visual Check 
 
 The contract accepts no undeclared query parameters. A link therefore cannot accumulate stale flags while still passing because the important subset happens to match.
 
-## Known mismatch handling
+## Resolved documentation mismatches
 
-A known documentation defect may be represented only as an exact state discrepancy tied to an open issue. Page errors, HTTP failures, missing data or unrelated state changes remain hard failures.
+The cluster screenshot now links to the exact cluster-only state with heatmap, school, kindergarten and argumentation overlays disabled. No known-mismatch waiver remains.
 
-Issue #509 currently records the generic README target behind `04-cluster-ansicht.png`: the image documents a cluster-only state, while the link opens the default cluster-and-heatmap state with POI and argumentation overlays enabled. The waiver lists those exact four state differences. Any additional deviation fails the QA.
+The POI screenshot, its link and its README description now consistently use the existing ganztägig scenario from 0–23 hours. A later 6–18-hour school-route screenshot must be introduced as its own deliberately generated and reviewed scenario rather than reusing a different image.
+
+## Export trust boundary
+
+The public-app QA clicks the actual controls `#btnExportWord`, `#btnExportPDF`, `#btnExportCSV`, `#btnExportGeoJSON` and `#btnExportKML`. A button is accepted only when Chromium receives a completed download and the resulting bytes match the expected format. Merely exposing an enabled button or invoking an internal renderer function is not sufficient.
+
+The optional live Overpass/OSM-context checkbox is disabled before the five download checks. This keeps the document-generation gate focused on the workbench and its packaged export libraries rather than making all five file formats depend on an unrelated external API. Maps, POIs, statistics, measures and the other report sections remain enabled.
 
 ## Local execution
 
