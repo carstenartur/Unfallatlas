@@ -205,6 +205,29 @@ function assertExactKnownMismatch(scenario, state) {
   expect(state.heatLayerVisible).toBe(true);
 }
 
+async function persistEvidence(page, scenario, diagnostics, testInfo) {
+  diagnostics.evidenceErrors = diagnostics.evidenceErrors || [];
+  if (!diagnostics.state) {
+    try {
+      diagnostics.state = await readLiveState(page);
+    } catch (error) {
+      diagnostics.evidenceErrors.push(`state: ${error && error.message ? error.message : error}`);
+    }
+  }
+  const screenshotPath = resolve(outputDir, `${scenario.id}.png`);
+  try {
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+  } catch (error) {
+    diagnostics.evidenceErrors.push(`screenshot: ${error && error.message ? error.message : error}`);
+  }
+  const reportPath = resolve(outputDir, `${scenario.id}.json`);
+  writeFileSync(reportPath, `${JSON.stringify(diagnostics, null, 2)}\n`);
+  await testInfo.attach(`${scenario.id}-state`, {
+    body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
+    contentType: 'application/json',
+  });
+}
+
 test.describe.serial('README screenshot deep links – published application', () => {
   test.use({ viewport: { width: 1280, height: 720 } });
 
@@ -222,6 +245,7 @@ test.describe.serial('README screenshot deep links – published application', (
         sameOriginHttpErrors: [],
         externalRequestFailures: [],
         state: null,
+        failure: null,
       };
       const liveOrigin = new URL(scenario.url).origin;
       page.on('pageerror', (error) => diagnostics.pageErrors.push(String(error?.stack || error)));
@@ -235,52 +259,55 @@ test.describe.serial('README screenshot deep links – published application', (
         }
       });
       page.on('requestfailed', (request) => {
-        const url = new URL(request.url());
+        let origin = null;
+        try { origin = new URL(request.url()).origin; } catch (_) {}
         const item = { url: request.url(), failure: request.failure()?.errorText || 'unknown' };
-        if (url.origin === liveOrigin) diagnostics.sameOriginHttpErrors.push(item);
+        if (origin === liveOrigin) diagnostics.sameOriginHttpErrors.push(item);
         else diagnostics.externalRequestFailures.push(item);
       });
 
-      await page.goto(scenario.url, { waitUntil: 'domcontentloaded', timeout: 90000 });
-      await page.waitForFunction((city) => {
-        const UA = window.UA;
-        const ctx = UA && typeof UA.getRuntimeContext === 'function'
-          ? UA.getRuntimeContext()
-          : null;
-        const citySelect = document.getElementById('citySel');
-        const stat = String(document.getElementById('stat')?.textContent || '');
-        return Boolean(
-          ctx && ctx.map && ctx.ui && ctx.CITY_RAW === city &&
-          Array.isArray(ctx.allPts) && ctx.allPts.length > 0 &&
-          Array.isArray(ctx.filteredAll) && Array.isArray(ctx.viewportPts) &&
-          citySelect && citySelect.value === city &&
-          !/Daten werden geladen|wird geladen/i.test(stat)
-        );
-      }, scenario.expected.city, { timeout: 90000 });
+      try {
+        await page.goto(scenario.url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.waitForFunction((city) => {
+          const UA = window.UA;
+          const ctx = UA && typeof UA.getRuntimeContext === 'function'
+            ? UA.getRuntimeContext()
+            : null;
+          const citySelect = document.getElementById('citySel');
+          const stat = String(document.getElementById('stat')?.textContent || '');
+          return Boolean(
+            ctx && ctx.map && ctx.ui && ctx.CITY_RAW === city &&
+            Array.isArray(ctx.allPts) && ctx.allPts.length > 0 &&
+            Array.isArray(ctx.filteredAll) && Array.isArray(ctx.viewportPts) &&
+            citySelect && citySelect.value === city &&
+            !/Daten werden geladen|wird geladen/i.test(stat)
+          );
+        }, scenario.expected.city, { timeout: 90000 });
 
-      if (scenario.expected.exportReady) {
-        await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 60000 });
-        await page.waitForFunction(() =>
-          String(document.getElementById('exportProgress')?.textContent || '').includes('Fertig'),
-        null, { timeout: 60000 });
+        if (scenario.expected.exportReady) {
+          await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 60000 });
+          await page.waitForFunction(() =>
+            String(document.getElementById('exportProgress')?.textContent || '').includes('Fertig'),
+          null, { timeout: 60000 });
+        }
+        await page.waitForTimeout(750);
+        diagnostics.state = await readLiveState(page);
+
+        expect(diagnostics.pageErrors, 'uncaught page errors').toEqual([]);
+        expect(diagnostics.consoleErrors, 'console errors').toEqual([]);
+        expect(diagnostics.sameOriginHttpErrors, 'live application HTTP/resource errors').toEqual([]);
+        if (scenario.knownMismatch) assertExactKnownMismatch(scenario, diagnostics.state);
+        else assertState(scenario, diagnostics.state);
+      } catch (error) {
+        diagnostics.failure = {
+          name: error?.name || 'Error',
+          message: error?.message || String(error),
+          stack: error?.stack || null,
+        };
+        throw error;
+      } finally {
+        await persistEvidence(page, scenario, diagnostics, testInfo);
       }
-      await page.waitForTimeout(750);
-      diagnostics.state = await readLiveState(page);
-
-      const screenshotPath = resolve(outputDir, `${scenario.id}.png`);
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      const reportPath = resolve(outputDir, `${scenario.id}.json`);
-      writeFileSync(reportPath, `${JSON.stringify(diagnostics, null, 2)}\n`);
-      await testInfo.attach(`${scenario.id}-state`, {
-        body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
-        contentType: 'application/json',
-      });
-
-      expect(diagnostics.pageErrors, 'uncaught page errors').toEqual([]);
-      expect(diagnostics.consoleErrors, 'console errors').toEqual([]);
-      expect(diagnostics.sameOriginHttpErrors, 'live application HTTP/resource errors').toEqual([]);
-      if (scenario.knownMismatch) assertExactKnownMismatch(scenario, diagnostics.state);
-      else assertState(scenario, diagnostics.state);
     });
   }
 });
