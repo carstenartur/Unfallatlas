@@ -187,11 +187,18 @@ test.describe.serial('README screenshot deep links – published application', (
   for (const scenario of contract.liveScenarios) {
     test(`${scenario.id}: ${scenario.description}`, async ({ page }, testInfo) => {
       test.setTimeout(120000);
+      if (scenario.knownMismatch) {
+        test.fail(
+          true,
+          `Known issue #${scenario.knownMismatch.issue}: ${scenario.knownMismatch.reason}`,
+        );
+      }
       const diagnostics = {
         scenario: scenario.id,
         imagePath: scenario.imagePath,
         url: scenario.url,
         references: scenario.references,
+        knownMismatch: scenario.knownMismatch || null,
         pageErrors: [],
         consoleErrors: [],
         sameOriginHttpErrors: [],
