@@ -14,8 +14,9 @@ function approximately(actual, expected, tolerance, label) {
     .toBeLessThanOrEqual(Number(tolerance));
 }
 
-function parseLocalCount(text) {
-  const match = String(text || '').match(/lokal\s+([\d.\s]+)\s+Unfälle/i);
+function visibleCountFromText(text) {
+  const value = String(text || '');
+  const match = value.match(/(?:lokal\s+|im\s+Viewport:\s*)([\d.\s]+)(?:\s+Unfälle)?/i);
   return match ? Number(match[1].replace(/\D/g, '')) || 0 : 0;
 }
 
@@ -27,15 +28,14 @@ async function readLiveState(page) {
       : null;
     if (!ctx || !ctx.map || !ctx.ui) throw new Error('Live runtime context is unavailable');
 
-    const plainBounds = (bounds) => bounds && typeof bounds.getSouth === 'function'
+    const selection = ctx.selectionBounds && typeof ctx.selectionBounds.getSouth === 'function'
       ? {
-          south: bounds.getSouth(),
-          west: bounds.getWest(),
-          north: bounds.getNorth(),
-          east: bounds.getEast(),
+          south: ctx.selectionBounds.getSouth(),
+          west: ctx.selectionBounds.getWest(),
+          north: ctx.selectionBounds.getNorth(),
+          east: ctx.selectionBounds.getEast(),
         }
       : null;
-    const selection = plainBounds(ctx.selectionBounds);
     const selectionCount = selection && Array.isArray(ctx.filteredAll)
       ? ctx.filteredAll.filter((point) =>
           point && Number(point.lat) >= selection.south && Number(point.lat) <= selection.north &&
@@ -45,25 +45,22 @@ async function readLiveState(page) {
 
     const visited = new Set();
     let visiblePoiLayers = 0;
-    function looksLikePoi(layer) {
-      const props = layer && (
-        layer.feature?.properties || layer.options?.__uaProps || layer._uaProps || layer.__uaProps
-      ) || {};
-      const amenity = String(props.amenity || props.type || props.kind || '').toLowerCase();
-      const name = String(props.name || props.title || '').toLowerCase();
-      const iconHtml = String(layer?.options?.icon?.options?.html || '').toLowerCase();
-      let popup = '';
-      try {
-        const content = layer?.getPopup?.()?.getContent?.();
-        popup = typeof content === 'string' ? content.toLowerCase() : '';
-      } catch (_) {}
-      return /school|kindergarten|childcare|kita|college/.test(`${amenity} ${name} ${iconHtml} ${popup}`) ||
-        /🏫|🧒/.test(iconHtml);
-    }
     function visit(layer) {
       if (!layer || visited.has(layer)) return;
       visited.add(layer);
-      if (looksLikePoi(layer) && (!ctx.map.hasLayer || ctx.map.hasLayer(layer))) visiblePoiLayers += 1;
+      const iconHtml = String(layer?.options?.icon?.options?.html || '');
+      const popup = (() => {
+        try {
+          const content = layer?.getPopup?.()?.getContent?.();
+          return typeof content === 'string' ? content : '';
+        } catch (_) {
+          return '';
+        }
+      })();
+      if ((/🏫|🧒/.test(iconHtml) || /Schule|Kindergarten/i.test(popup)) &&
+          (!ctx.map.hasLayer || ctx.map.hasLayer(layer))) {
+        visiblePoiLayers += 1;
+      }
       if (typeof layer.getLayers === 'function') {
         for (const child of layer.getLayers()) visit(child);
       }
@@ -74,7 +71,9 @@ async function readLiveState(page) {
     const modal = document.getElementById('modalOverlay');
     const exportProgress = document.getElementById('exportProgress');
     const exportHtml = document.getElementById('exportHtml');
-    const stat = document.getElementById('stat');
+    const stat = String(document.getElementById('stat')?.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim();
     return {
       url: location.href,
       build: String(UA.BUILD || ''),
@@ -101,9 +100,6 @@ async function readLiveState(page) {
       visiblePoiLayers,
       controls: {
         city: document.getElementById('citySel')?.value || null,
-        severity: document.getElementById('severity')?.value || null,
-        dayType: document.getElementById('dayType')?.value || null,
-        roadCondition: document.getElementById('roadCondition')?.value || null,
         hourFrom: Number(document.getElementById('hFrom')?.value),
         hourTo: Number(document.getElementById('hTo')?.value),
         bike: Boolean(document.getElementById('incBike')?.checked),
@@ -116,11 +112,7 @@ async function readLiveState(page) {
         progress: String(exportProgress?.textContent || '').trim(),
         textLength: String(exportHtml?.textContent || '').trim().length,
       },
-      stat: String(stat?.textContent || '').replace(/\s+/g, ' ').trim(),
-      localCount: (() => {
-        const match = String(stat?.textContent || '').match(/lokal\s+([\d.\s]+)\s+Unfälle/i);
-        return match ? Number(match[1].replace(/\D/g, '')) || 0 : 0;
-      })(),
+      stat,
     };
   });
 }
@@ -130,27 +122,25 @@ function assertLoadedScenario(scenario, state) {
   expect(state.city).toBe(expected.city);
   expect(state.controls.city).toBe(expected.city);
   expect(state.allPoints).toBeGreaterThanOrEqual(expected.minimumAllPoints || 0);
-  expect(state.localCount || parseLocalCount(state.stat)).toBeGreaterThan(0);
-  if (expected.minimumViewportPoints) {
-    expect(state.viewportPoints).toBeGreaterThanOrEqual(expected.minimumViewportPoints);
-  }
+  expect(state.viewportPoints, 'accidents in the visible map viewport').toBeGreaterThan(0);
+  expect(visibleCountFromText(state.stat), 'visible viewport/local accident count').toBe(state.viewportPoints);
 }
 
 function assertState(scenario, state) {
   const expected = scenario.expected;
   assertLoadedScenario(scenario, state);
-
   for (const key of [
     'involvementMode', 'showCluster', 'showHeatmap',
     'showSchools', 'showKindergartens', 'showArgumentation',
   ]) {
     if (expected[key] !== undefined) expect(state[key], key).toBe(expected[key]);
   }
-  if (expected.showCluster === true) expect(state.clusterLayerVisible).toBe(true);
-  if (expected.showCluster === false) expect(state.clusterLayerVisible).toBe(false);
-  if (expected.showHeatmap === true) expect(state.heatLayerVisible).toBe(true);
-  if (expected.showHeatmap === false) expect(state.heatLayerVisible).toBe(false);
-
+  if (expected.showCluster !== undefined) {
+    expect(state.clusterLayerVisible).toBe(expected.showCluster);
+  }
+  if (expected.showHeatmap !== undefined) {
+    expect(state.heatLayerVisible).toBe(expected.showHeatmap);
+  }
   if (expected.filters) {
     for (const [key, value] of Object.entries(expected.filters)) {
       expect(state.controls[key], `filter ${key}`).toBe(value);
@@ -211,17 +201,21 @@ async function persistEvidence(page, scenario, diagnostics, testInfo) {
     try {
       diagnostics.state = await readLiveState(page);
     } catch (error) {
-      diagnostics.evidenceErrors.push(`state: ${error && error.message ? error.message : error}`);
+      diagnostics.evidenceErrors.push(`state: ${error?.message || error}`);
     }
   }
-  const screenshotPath = resolve(outputDir, `${scenario.id}.png`);
   try {
-    await page.screenshot({ path: screenshotPath, fullPage: true });
+    await page.screenshot({
+      path: resolve(outputDir, `${scenario.id}.png`),
+      fullPage: true,
+    });
   } catch (error) {
-    diagnostics.evidenceErrors.push(`screenshot: ${error && error.message ? error.message : error}`);
+    diagnostics.evidenceErrors.push(`screenshot: ${error?.message || error}`);
   }
-  const reportPath = resolve(outputDir, `${scenario.id}.json`);
-  writeFileSync(reportPath, `${JSON.stringify(diagnostics, null, 2)}\n`);
+  writeFileSync(
+    resolve(outputDir, `${scenario.id}.json`),
+    `${JSON.stringify(diagnostics, null, 2)}\n`,
+  );
   await testInfo.attach(`${scenario.id}-state`, {
     body: Buffer.from(JSON.stringify(diagnostics, null, 2)),
     contentType: 'application/json',
@@ -253,8 +247,9 @@ test.describe.serial('README screenshot deep links – published application', (
         if (message.type() === 'error') diagnostics.consoleErrors.push(message.text());
       });
       page.on('response', (response) => {
-        const url = new URL(response.url());
-        if (url.origin === liveOrigin && response.status() >= 400) {
+        let origin = null;
+        try { origin = new URL(response.url()).origin; } catch (_) {}
+        if (origin === liveOrigin && response.status() >= 400) {
           diagnostics.sameOriginHttpErrors.push({ status: response.status(), url: response.url() });
         }
       });
@@ -273,13 +268,12 @@ test.describe.serial('README screenshot deep links – published application', (
           const ctx = UA && typeof UA.getRuntimeContext === 'function'
             ? UA.getRuntimeContext()
             : null;
-          const citySelect = document.getElementById('citySel');
           const stat = String(document.getElementById('stat')?.textContent || '');
           return Boolean(
             ctx && ctx.map && ctx.ui && ctx.CITY_RAW === city &&
             Array.isArray(ctx.allPts) && ctx.allPts.length > 0 &&
             Array.isArray(ctx.filteredAll) && Array.isArray(ctx.viewportPts) &&
-            citySelect && citySelect.value === city &&
+            document.getElementById('citySel')?.value === city &&
             !/Daten werden geladen|wird geladen/i.test(stat)
           );
         }, scenario.expected.city, { timeout: 90000 });
