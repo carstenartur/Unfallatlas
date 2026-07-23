@@ -1,12 +1,13 @@
 'use strict';
 
 const { AsyncLocalStorage } = require('async_hooks');
+const mediaProvenanceBadge = require('../js/ua.media_provenance_badge');
 
 const captureStorage = new AsyncLocalStorage();
 const PAGE_MARKER = Symbol.for('unfallatlas.mediaProvenanceCapturePage');
 const SOURCE_BADGE_ID = 'ua-video-source-provenance';
-const SOURCE_BADGE_BORDER = Object.freeze([255, 193, 7]);
-const SOURCE_BADGE_BACKGROUND = Object.freeze([0, 77, 64]);
+const SOURCE_BADGE_BORDER = mediaProvenanceBadge.BORDER_COLOR;
+const SOURCE_BADGE_BACKGROUND = mediaProvenanceBadge.BACKGROUND_COLOR;
 const DEFAULT_CAPTURE_TIMEOUT_MS = 180_000;
 
 class MediaProvenanceCaptureError extends Error {
@@ -31,21 +32,11 @@ function timeoutValue(value) {
 }
 
 function sourceLabel(manifest, hash) {
-  const source = Array.isArray(manifest && manifest.sources)
-    ? manifest.sources.find(item => item && item.role === 'accidents') || manifest.sources[0]
-    : null;
-  if (!source) fail('missing_media_source', 'Media provenance requires at least one source');
-  const publisher = String(source.publisher || '').trim();
-  const dataset = String(source.datasetTitle || '').trim();
-  const license = String(source.licenseId || source.licenseName || '').trim();
-  if (!publisher || !dataset || !license) {
-    fail('incomplete_media_source', 'Publisher, dataset and licence are required for the visible media badge');
+  try {
+    return mediaProvenanceBadge.sourceLabel(manifest, hash);
+  } catch (error) {
+    fail(error.code || 'invalid_media_source', error.message || String(error), error.details || null);
   }
-  return [
-    `Quelle: ${publisher} – ${dataset}`,
-    `Lizenz: ${license}`,
-    `Manifest: ${String(hash).slice(0, 12)}`,
-  ].join(' · ');
 }
 
 async function captureFromPage(page, context) {
@@ -58,11 +49,7 @@ async function captureFromPage(page, context) {
     timeout: timeoutMs,
   });
 
-  const result = await page.evaluate(async ({
-    badgeId,
-    border,
-    background,
-  }) => {
+  const result = await page.evaluate(async ({ badgeId }) => {
     const UA = window.UA;
     await UA.exportProvenanceReady;
     if (UA.exportProvenanceError) throw UA.exportProvenanceError;
@@ -70,73 +57,32 @@ async function captureFromPage(page, context) {
         typeof UA.documentExportProvenanceRuntime.createSnapshot !== 'function') {
       throw new Error('Document SourceManifest runtime is unavailable for media capture');
     }
+    if (!UA.mediaProvenanceBadge || typeof UA.mediaProvenanceBadge.install !== 'function') {
+      throw new Error('Shared media provenance badge runtime is unavailable');
+    }
     const ctx = typeof UA.getRuntimeContext === 'function' ? UA.getRuntimeContext() : null;
     if (!ctx) throw new Error('Runtime context is unavailable for media capture');
     const snapshot = await UA.documentExportProvenanceRuntime.createSnapshot(ctx);
-    const manifest = snapshot && snapshot.manifest;
-    const source = Array.isArray(manifest && manifest.sources)
-      ? manifest.sources.find(item => item && item.role === 'accidents') || manifest.sources[0]
-      : null;
-    if (!source) throw new Error('SourceManifest contains no media source');
-    const publisher = String(source.publisher || '').trim();
-    const dataset = String(source.datasetTitle || '').trim();
-    const license = String(source.licenseId || source.licenseName || '').trim();
-    if (!publisher || !dataset || !license) {
-      throw new Error('SourceManifest media source is incomplete');
-    }
-    const label = [
-      `Quelle: ${publisher} – ${dataset}`,
-      `Lizenz: ${license}`,
-      `Manifest: ${String(snapshot.sourceManifestSha256 || '').slice(0, 12)}`,
-    ].join(' · ');
-
-    document.getElementById(badgeId)?.remove();
-    const badge = document.createElement('div');
-    badge.id = badgeId;
-    badge.dataset.sourceManifestSha256 = String(snapshot.sourceManifestSha256 || '');
-    badge.textContent = label;
-    Object.assign(badge.style, {
-      position: 'fixed',
-      left: '12px',
-      right: '12px',
-      bottom: '8px',
-      zIndex: '2147483647',
-      boxSizing: 'border-box',
-      padding: '7px 10px',
-      border: `3px solid rgb(${border.join(', ')})`,
-      borderRadius: '5px',
-      background: `rgb(${background.join(', ')})`,
-      color: 'white',
-      font: '700 13px/1.25 system-ui, sans-serif',
-      letterSpacing: '0.01em',
-      pointerEvents: 'none',
-      whiteSpace: 'normal',
+    const installed = UA.mediaProvenanceBadge.install(snapshot, {
+      id: badgeId,
+      mode: 'viewport',
+      inset: 8,
     });
-    document.body.appendChild(badge);
-    const rect = badge.getBoundingClientRect();
     return {
-      manifest,
+      manifest: snapshot.manifest,
       sourceManifestSha256: snapshot.sourceManifestSha256,
       visibleBadge: {
-        id: badgeId,
-        text: label,
-        sourceWidth: Number(window.innerWidth),
-        sourceHeight: Number(window.innerHeight),
-        rect: {
-          x: Number(rect.x),
-          y: Number(rect.y),
-          width: Number(rect.width),
-          height: Number(rect.height),
-        },
-        borderColor: border,
-        backgroundColor: background,
+        id: installed.id,
+        text: installed.text,
+        sourceId: installed.sourceId,
+        sourceWidth: installed.sourceWidth,
+        sourceHeight: installed.sourceHeight,
+        rect: installed.image.rect,
+        borderColor: installed.borderColor,
+        backgroundColor: installed.backgroundColor,
       },
     };
-  }, {
-    badgeId: SOURCE_BADGE_ID,
-    border: SOURCE_BADGE_BORDER,
-    background: SOURCE_BADGE_BACKGROUND,
-  });
+  }, { badgeId: SOURCE_BADGE_ID });
 
   if (!result || !result.manifest ||
       !/^[a-f0-9]{64}$/.test(String(result.sourceManifestSha256 || ''))) {
