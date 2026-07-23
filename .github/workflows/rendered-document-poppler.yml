@@ -6,11 +6,23 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/rendered-document-poppler.yml'
+      - 'js/ua.core.js'
+      - 'js/ua.docx_source_links.js'
+      - 'js/ua.report_v2.js'
+      - 'js/ua.utils.js'
+      - 'scripts/deterministic-map-fixture.js'
+      - 'scripts/generate-sample-docx.js'
       - 'scripts/generate-sample-pdf.js'
+      - 'scripts/libreoffice-rendered-document.js'
       - 'scripts/rendered-document-audit.js'
       - 'scripts/poppler-rendered-document.js'
+      - 'tests/fixtures/rendered-document/ci-docx-contract.json'
+      - 'tests/unit/deterministicMapFixture.test.js'
+      - 'tests/unit/docxSourceLinks.test.js'
+      - 'tests/unit/libreOfficeRenderedDocument.test.js'
       - 'tests/unit/renderedDocumentAudit.test.js'
       - 'tests/unit/popplerRenderedDocument.test.js'
+      - 'tests/unit/runtimeExportProvenanceLoader.test.js'
       - 'package.json'
       - 'package-lock.json'
 
@@ -60,5 +72,69 @@ jobs:
         with:
           name: rendered-document-poppler-evidence
           path: out/qa/rendered-document/poppler/
+          if-no-files-found: error
+          retention-days: 14
+
+  docx-libreoffice-poppler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install LibreOffice Writer and Poppler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libreoffice-writer \
+            poppler-utils \
+            fonts-dejavu-core \
+            fonts-liberation
+
+      - name: Run focused DOCX adapter tests
+        run: |
+          npx jest --runInBand \
+            tests/unit/deterministicMapFixture.test.js \
+            tests/unit/docxSourceLinks.test.js \
+            tests/unit/libreOfficeRenderedDocument.test.js \
+            tests/unit/runtimeExportProvenanceLoader.test.js
+
+      - name: Generate real DOCX through the workbench renderer
+        run: npm run generate:sample-docx
+
+      - name: Convert, render and audit final DOCX pages
+        run: |
+          node scripts/libreoffice-rendered-document.js \
+            --docx out/ci-render-gate.docx \
+            --out-dir out/qa/rendered-document/docx \
+            --document-id ci-docx-sample \
+            --contract tests/fixtures/rendered-document/ci-docx-contract.json
+
+      - name: Verify review evidence inventory
+        run: |
+          test -s out/qa/rendered-document/docx/source.docx
+          test -s out/qa/rendered-document/docx/converted.pdf
+          test -s out/qa/rendered-document/docx/conversion-metadata.json
+          test -s out/qa/rendered-document/docx/poppler/rendered-document.json
+          test -s out/qa/rendered-document/docx/poppler/rendered-document-audit.json
+          find out/qa/rendered-document/docx/pages -name 'page-*.png' -type f -size +10k | grep -q .
+
+      - name: Upload DOCX rendered-document evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docx-libreoffice-rendered-evidence
+          path: out/qa/rendered-document/docx/
           if-no-files-found: error
           retention-days: 14
