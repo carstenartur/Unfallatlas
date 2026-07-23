@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createDeterministicMapPng, toDataUrl } = require('./deterministic-map-fixture');
+const docxSourceLinks = require('../js/ua.docx_source_links');
 
 class SampleDocxError extends Error {
   constructor(code, message, details) {
@@ -36,6 +37,29 @@ function configurePdfMake() {
   return pdfMake;
 }
 
+function createAccidentPoints(count, bounds = {}) {
+  const south = Number(bounds.south ?? 50.728);
+  const west = Number(bounds.west ?? 7.087);
+  const north = Number(bounds.north ?? 50.739);
+  const east = Number(bounds.east ?? 7.105);
+  return Array.from({ length: count }, (_, index) => {
+    const column = index % 6;
+    const row = Math.floor(index / 6);
+    const latitude = south + ((row + 1) / 6) * (north - south);
+    const longitude = west + ((column + 1) / 7) * (east - west);
+    return {
+      lat: latitude,
+      lon: longitude,
+      latitude,
+      longitude,
+      severity: index % 12 === 0 ? 1 : index % 4 === 0 ? 2 : 3,
+      year: 2022 + (index % 3),
+      IstRad: 1,
+      IstPKW: 1,
+    };
+  });
+}
+
 function createContext() {
   const bounds = {
     south: 50.728,
@@ -60,7 +84,7 @@ function createContext() {
       setView: () => {},
     },
     selectionBounds: bounds,
-    viewportPts: [],
+    viewportPts: createAccidentPoints(24, bounds),
   };
 }
 
@@ -192,13 +216,22 @@ async function generateSampleDocx(options = {}) {
       image: mapDataUrl,
       bounds: { south: 50.73, west: 7.091, north: 50.736, east: 7.101 },
       total: 11,
-      points: [],
+      points: createAccidentPoints(11, {
+        south: 50.73,
+        west: 7.091,
+        north: 50.736,
+        east: 7.101,
+      }),
       label: 'Detailkarte Bonn-Zentrum',
       zoom: 16,
       lat: 50.7335,
       lon: 7.096,
     },
   ];
+  const linkRuntime = docxSourceLinks.install(UA, mockWindow);
+  if (!linkRuntime.available) {
+    fail('docx_source_links_unavailable', 'DOCX source-link runtime could not be installed');
+  }
 
   await UA.exportToWord(createContext(), createReportData(), {
     includeMap: true,
@@ -249,6 +282,7 @@ if (require.main === module) {
 module.exports = {
   SampleDocxError,
   parseArgs,
+  createAccidentPoints,
   createContext,
   createReportData,
   assertDocxBytes,
