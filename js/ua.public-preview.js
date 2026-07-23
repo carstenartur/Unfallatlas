@@ -7,7 +7,8 @@
     'interactive-rectangle-drawing',
     'heatmap',
     'word-export',
-    'pdf-export'
+    'pdf-export',
+    'video-export'
   ]);
 
   UA.PUBLIC_DISTRIBUTION_PROFILE = Object.freeze({
@@ -91,9 +92,9 @@
     ].join(';');
     notice.innerHTML =
       '<strong>Öffentliche Kernvorschau:</strong> Kartenanalyse, Filter, Cluster, ' +
-      'Kontextlayer und Datenexport sind verfügbar. Heatmap, freie Rechteckzeichnung ' +
-      'sowie Word/PDF sind hier vorübergehend deaktiviert, bis die vollständige ' +
-      'Lizenz- und Build-Provenienz der dafür benötigten Browser-Bundles nachgewiesen ist.';
+      'Kontextlayer und Datenexport sind verfügbar. Heatmap, freie Rechteckzeichnung, ' +
+      'Video sowie Word/PDF sind hier deaktiviert, weil diese Funktionen ein Server-Backend ' +
+      'oder zusätzliche Browser-Bundles mit vollständiger Lizenz- und Build-Provenienz benötigen.';
     panelBody.prepend(notice);
   }
 
@@ -131,6 +132,7 @@
     for (const id of ['btnExportWord', 'btnExportPDF']) {
       disableButton(document.getElementById(id), explanation);
     }
+    hideElement(document.getElementById('videoExportContainer'));
 
     const quickStart = document.getElementById('quickStartHint');
     if (quickStart) {
@@ -148,7 +150,7 @@
     }
     if (ctx.ui.exportMapModeHintEl) {
       ctx.ui.exportMapModeHintEl.textContent =
-        'Der Kartenmodus gilt für die Vorschau und Datenexporte. Word/PDF sind in dieser öffentlichen Kernvorschau deaktiviert.';
+        'Der Kartenmodus gilt für die Vorschau und Datenexporte. Video sowie Word/PDF sind in dieser öffentlichen Kernvorschau deaktiviert.';
     }
     installProfileNotice();
     document.documentElement.dataset.distributionProfile = PROFILE_ID;
