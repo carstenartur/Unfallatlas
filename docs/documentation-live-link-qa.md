@@ -1,54 +1,46 @@
 # Published documentation deep-link QA
 
-The README screenshots are navigation controls, not decorative images. Clicking a screenshot is intended to open the published Unfallwerkbank in the same analysis state that the screenshot documents.
+README screenshots may link to GitHub Pages only when the public distribution can reproduce the depicted state. Full-build-only screenshots remain visible as documentation images but are not presented as identical public-app links.
 
-## What is tested
+## Public application contract
 
-The live QA reads the canonical screenshot links directly from `README.md` and opens their absolute GitHub Pages URLs in Chromium. It does not reconstruct URLs from a second test-only source.
-
-For each scenario it verifies both the visible controls and `UA.getRuntimeContext()`:
+The live QA reads two linked screenshot states and three explicitly named action links directly from `README.md`, then opens their literal GitHub Pages URLs in Chromium. It verifies visible controls and `UA.getRuntimeContext()` together:
 
 - city and successful accident-data loading;
-- positive local accident count;
+- the visible viewport count equals the runtime count;
 - involvement filters and OR/AND mode;
 - hour range;
-- cluster and heatmap state plus actual Leaflet layer presence;
-- map centre and zoom with a documented tolerance;
-- selection bounds, visible selection rectangle and accidents inside the selection;
+- cluster/heatmap state and actual Leaflet layer presence;
+- map centre, zoom and selection bounds;
 - loaded and visible school/kindergarten POIs;
-- automatic `?export=1` modal opening and completed report rendering;
-- successful Word, PDF, CSV, GeoJSON and KML downloads from the visible buttons;
-- plausible filenames, minimum byte sizes and format signatures/content for every download;
-- uncaught page errors, console errors and failed same-origin application resources.
+- automatic `?export=1` modal opening and completed preview rendering;
+- the visible `public-preview-core-v1` explanation;
+- Word/PDF are disabled and the full-build report group is hidden;
+- CSV, GeoJSON and KML buttons produce completed, non-empty, structurally valid downloads;
+- uncaught page errors, console errors and failed same-origin resources remain hard failures.
 
-The test writes one full-page PNG and one JSON runtime snapshot per README scenario to:
+Evidence is written to `out/qa/documentation-live-links/` and uploaded by the Visual Check workflow. The public export scenario includes the actual `.csv`, `.geojson` and `.kml` downloads.
 
-```text
-out/qa/documentation-live-links/
-```
+## Full-build report-button contract
 
-For the export scenario it additionally stores the downloaded `.docx`, `.pdf`, `.csv`, `.geojson` and `.kml` files. These files are review evidence. They are uploaded by the existing Visual Check workflow and are not copied automatically into `docs/screenshots/`.
+`tests/e2e/report-download-buttons.spec.js` runs against the normal canonical `_site` build, not the reduced Pages profile. It opens the report modal through `#btnOpenExport`, clicks the actual `#btnExportWord` and `#btnExportPDF` controls and validates:
 
-## Contract boundary
+- both controls are visible and enabled;
+- Chromium receives completed downloads;
+- filenames end in `.docx` and `.pdf`;
+- DOCX begins with the ZIP/OOXML signature and exceeds the minimum size;
+- PDF begins with `%PDF-` and exceeds the minimum size.
 
-`scripts/documentation-deeplink-contract.cjs` owns the expected semantic state. The URL is still taken from the README. This separation detects both failure directions:
+The resulting files and JSON evidence are attached to the ordinary Playwright CI report. This supplements the existing final-page LibreOffice/Poppler audit: one gate proves the browser buttons and download wiring, the other proves the final document layout and semantic content.
 
-1. the Markdown link changes without an intentional contract update;
-2. the published application loads the URL but hydrates a different UI/runtime state.
+## Documentation rules enforced
 
-The contract accepts no undeclared query parameters. A link therefore cannot accumulate stale flags while still passing because the important subset happens to match.
-
-## Resolved documentation mismatches
-
-The cluster screenshot now links to the exact cluster-only state with heatmap, school, kindergarten and argumentation overlays disabled. No known-mismatch waiver remains.
-
-The POI screenshot, its link and its README description now consistently use the existing ganztägig scenario from 0–23 hours. A later 6–18-hour school-route screenshot must be introduced as its own deliberately generated and reviewed scenario rather than reusing a different image.
-
-## Export trust boundary
-
-The public-app QA clicks the actual controls `#btnExportWord`, `#btnExportPDF`, `#btnExportCSV`, `#btnExportGeoJSON` and `#btnExportKML`. A button is accepted only when Chromium receives a completed download and the resulting bytes match the expected format. Merely exposing an enabled button or invoking an internal renderer function is not sufficient.
-
-The optional live Overpass/OSM-context checkbox is disabled before the five download checks. This keeps the document-generation gate focused on the workbench and its packaged export libraries rather than making all five file formats depend on an unrelated external API. Maps, POIs, statistics, measures and the other report sections remain enabled.
+- The cluster screenshot links to the exact cluster-only state.
+- The POI screenshot, text and URL consistently use 0–23 hours.
+- Start and Bonn-Hbf heatmap images are explicitly marked as full-build screenshots and are not linked as identical Pages views.
+- The public start, export and Bonn-Hbf cluster states use separately named action links.
+- No known-mismatch waiver remains.
+- Undeclared query parameters fail closed.
 
 ## Local execution
 
@@ -56,12 +48,11 @@ The optional live Overpass/OSM-context checkbox is disabled before the five down
 npm ci
 npx playwright install chromium
 npm run qa:live-documentation-links
+npm run test:e2e -- --grep "full site report buttons"
 ```
 
-The runner is cross-platform and sets the published GitHub Pages base URL explicitly, so Playwright does not start the local development server for this check.
+The first command targets the published GitHub Pages application and never starts a local server. The second uses the full local site build.
 
 ## Relationship to screenshot QA
 
-The existing documentation screenshot pipeline proves that generated screenshots contain ready accident data and successful real basemap responses. The deep-link QA proves the reverse path: the link attached to the accepted screenshot still reconstructs the documented analysis in the application that readers actually open.
-
-Both gates run in `.github/workflows/visual-check.yml`. A screenshot artifact is accepted only when screenshot evidence, cartography evidence, media validation and live deep-link validation all succeed.
+The screenshot pipeline proves that generated documentation images contain ready accident data and successful real basemap responses. The public deep-link QA proves only publicly reproducible screenshot states plus the named public actions. Full-build report controls are covered separately rather than weakening the distribution/provenance boundary.
