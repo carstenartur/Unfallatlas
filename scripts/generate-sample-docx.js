@@ -47,15 +47,35 @@ function createAccidentPoints(count, bounds = {}) {
     const row = Math.floor(index / 6);
     const latitude = south + ((row + 1) / 6) * (north - south);
     const longitude = west + ((column + 1) / 7) * (east - west);
+    const severity = index % 12 === 0 ? 1 : index % 4 === 0 ? 2 : 3;
+    const year = 2022 + (index % 3);
     return {
       lat: latitude,
       lon: longitude,
       latitude,
       longitude,
-      severity: index % 12 === 0 ? 1 : index % 4 === 0 ? 2 : 3,
-      year: 2022 + (index % 3),
+      severity,
+      year,
       IstRad: 1,
       IstPKW: 1,
+      // The live application carries the original normalized Unfallatlas
+      // fields under props. Keep the convenience top-level fields above for
+      // render helpers, but also provide the real filter/mask input shape so
+      // unrestricted and involvement-filtered map populations are computed
+      // through the same code paths as browser data.
+      props: {
+        ukategorie: String(severity),
+        ujahr: String(year),
+        strzustand: '0',
+        uwochentag: String((index % 5) + 1),
+        ustunde: String(7 + (index % 12)),
+        istrad: '1',
+        istpkw: '1',
+        istfuss: '0',
+        istkrad: '0',
+        istgkfz: '0',
+        istsonstig: '0',
+      },
     };
   });
 }
@@ -70,8 +90,12 @@ function createContext() {
     getWest: () => 7.087,
     getNorth: () => 50.739,
     getEast: () => 7.105,
+    getSouthWest: () => ({ lat: 50.728, lng: 7.087 }),
+    getNorthEast: () => ({ lat: 50.739, lng: 7.105 }),
+    getCenter: () => ({ lat: 50.7335, lng: 7.096 }),
     contains: () => true,
   };
+  const points = createAccidentPoints(24, bounds);
   return {
     CITY_RAW: 'Bonn',
     mapMode: 'standard',
@@ -84,7 +108,28 @@ function createContext() {
       setView: () => {},
     },
     selectionBounds: bounds,
-    viewportPts: createAccidentPoints(24, bounds),
+    // Mirror the real runtime snapshot instead of providing only viewportPts.
+    // The report renderer deliberately derives different map populations from
+    // allPts, filteredAll/filteredCapped and viewportPts. Leaving the first
+    // three arrays absent produced a visually plausible Golden DOCX whose
+    // captions claimed n=0 while the narrative and tables contained 24 cases.
+    allPts: points,
+    filteredAll: points,
+    filteredCapped: points,
+    viewportPts: points,
+    ui: {
+      severityEl: { value: 'all' },
+      roadConditionEl: { value: 'all' },
+      dayTypeEl: { value: 'all' },
+      hFromEl: { value: '0' },
+      hToEl: { value: '23' },
+      incBikeEl: { checked: true },
+      incPedEl: { checked: false },
+      incCarEl: { checked: true },
+      incMotoEl: { checked: false },
+      incGkfzEl: { checked: false },
+      incSonEl: { checked: false },
+    },
   };
 }
 

@@ -46,6 +46,17 @@ The current Bonn contract requires exactly four source-bound maps: overview, fil
 
 The source dimensions are the deterministic fixture dimensions, while the final coordinates come independently from Poppler. Their ratio is compared after LibreOffice layout, so a structurally correct DOCX cannot hide a stretched map in the final PDF.
 
+The Golden generator now supplies the same 24 normalized accident objects through `allPts`, `filteredAll`, `filteredCapped` and `viewportPts`, including the live `props` field shape used by involvement and non-involvement filters. This closes a previously hidden fixture defect where the narrative and tables contained 24 cases but overview and selection captions rendered `n = 0` because the report received only a partial runtime context.
+
+The final-page inventory rejects every zero-count map contradiction and checks the exact relationship between maps:
+
+- overview map: `n = 24`;
+- selection map: `n = 24`;
+- detail map: `n = 24`, explicitly a subset of the 24 selection-map cases;
+- cluster map: `n = 11`, explicitly a subset of the same 24 selection-map cases.
+
+These assertions are extracted from the LibreOffice-rendered pages, not from the fixture objects or DOCX source model.
+
 ## Final-page table reconstruction
 
 Poppler exposes words and coordinates but not semantic table rows. The Golden contract therefore declares only the stable anchors for each audited table:
@@ -65,9 +76,20 @@ Continuation pages use a separate hint for the actual final page. `repeatedHeade
 
 After reconstruction, the enriched final-page model is validated across page boundaries. The first header of a table must not be marked as repeated. Every later page containing the same table must start with exactly one repeated header, and its complete visible cells must match the initial header. Semantic row IDs must remain unique across all pages of a table. Missing, displaced or changed continuation headers therefore cannot pass through a correct total row count alone.
 
-The current Bonn Golden artifact still enforces the one-page injury-severity table: one initial header plus the fatal, serious-injury and slight-injury rows with rendered counts and percentages. Missing headers, missing rows, changed cell values, overlapping row boxes or an unexpected total row count fail closed. `conversion-metadata.json`, the normalized document model and the final audit all record `tableRowCount: 4`.
+The Bonn Golden artifact now enforces two real tables and eight final rows:
 
-The contract engine now has focused regression coverage for wrapped cells, explicit line budgets and true continuation-page headers. Adding the year/deviation tables and a real large individual-accident table to the versioned Bonn/Hannover artifact matrix remains separate work; the mechanism no longer needs to be redesigned for those cases.
+1. the injury-severity table with header plus fatal, serious-injury and slight-injury rows;
+2. the yearly accident table with header plus the rendered 2022, 2023 and 2024 rows.
+
+The yearly rows are deliberately multi-line in the third column. The final contract reconstructs and verifies the visible combinations:
+
+- 2022: total 7; Radverkehr + PKW = 3, Radverkehr = 2, PKW = 2;
+- 2023: total 8; Radverkehr + PKW = 4, Radverkehr = 2, PKW = 2;
+- 2024: total 9; Radverkehr + PKW = 4, Radverkehr = 3, PKW = 2.
+
+The three yearly totals sum to the same 24 cases used by the narrative, severity table and map captions. `conversion-metadata.json`, the normalized document model and the final audit must all record two table hints and `tableRowCount: 8`.
+
+Adding the deviation table and a real large individual-accident table to the versioned Bonn/Hannover artifact matrix remains separate work; the wrapped-row and continuation mechanisms no longer need to be redesigned for those cases.
 
 ## Evidence package
 
@@ -89,10 +111,13 @@ The CI contract requires:
 - the rendered `SACHVERHALT` section;
 - the rendered `BESCHLUSSVORSCHLAG` section;
 - a clickable Unfallatlas source link;
-- the selected accident count of 24 in the final page text;
+- the selected accident count of 24 in final narrative, tables and relevant map captions;
 - exactly four final rendered maps;
 - alt text, caption, source IDs and source dimensions for each map;
-- exactly four final severity-table rows, including one explicitly identified header row.
+- no `n = 0` or `Teilmenge der 0 Unfälle` contradiction;
+- exactly four final severity-table rows;
+- exactly four final yearly-table rows, including three wrapped data rows;
+- exact visible cells and stable semantic row IDs for all eight table rows.
 
 Generic final-page checks additionally reject empty pages, content outside printable page bounds, unreadably small text, orphaned headings and overlapping table rows.
 
@@ -107,4 +132,4 @@ npm run qa:sample-docx-rendered
 
 The local command executes the same map and table contract as CI.
 
-This is the LibreOffice/DOCX slice of issue #415. Microsoft Word compatibility, additional final-page tables and the wider Bonn/Hannover/few-row/many-row/missing-context Golden matrix remain separate follow-ups.
+This is the LibreOffice/DOCX slice of issue #415. Microsoft Word compatibility, the deviation/large-individual-accident tables and the wider Bonn/Hannover/few-row/many-row/missing-context Golden matrix remain separate follow-ups.

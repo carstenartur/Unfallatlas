@@ -10,7 +10,7 @@
     "map"
   ],
   "expectedMapCount": 4,
-  "expectedTableRowCount": 4,
+  "expectedTableRowCount": 8,
   "imageHints": [
     {
       "page": 2,
@@ -97,6 +97,42 @@
             "^3\\s*–\\s*Leichtverletzte$",
             "^17$",
             "^70,8%$"
+          ]
+        }
+      ]
+    },
+    {
+      "page": 2,
+      "tableId": "yearly-accidents",
+      "headers": [
+        "Jahr",
+        "Summe",
+        "Kombinationen"
+      ],
+      "maxLinesPerRow": 2,
+      "rows": [
+        {
+          "rowId": "yearly-accidents.2022",
+          "cellPatterns": [
+            "^2022$",
+            "^7$",
+            "^Radverkehr \\+ PKW=3, Radverkehr=2, PKW=2$"
+          ]
+        },
+        {
+          "rowId": "yearly-accidents.2023",
+          "cellPatterns": [
+            "^2023$",
+            "^8$",
+            "^Radverkehr \\+ PKW=4, Radverkehr=2, PKW=2$"
+          ]
+        },
+        {
+          "rowId": "yearly-accidents.2024",
+          "cellPatterns": [
+            "^2024$",
+            "^9$",
+            "^Radverkehr \\+ PKW=4, Radverkehr=3, PKW=2$"
           ]
         }
       ]
