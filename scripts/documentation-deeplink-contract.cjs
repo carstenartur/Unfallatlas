@@ -200,5 +200,6 @@ module.exports = Object.freeze({
   DocumentationDeepLinkError,
   normalizeImagePath,
   extractLinkedScreenshots,
+  assertCanonicalUrl,
   validateDocumentationLinks,
 });
