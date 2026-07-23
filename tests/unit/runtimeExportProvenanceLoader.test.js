@@ -54,6 +54,7 @@ describe('runtime export provenance bootstrap', () => {
       'ua.kml_export_provenance.js',
       'ua.document_export_provenance.js',
       'ua.document_export_prewarm.js',
+      'ua.static_map_export_provenance.js',
     ];
     const offsets = modules.map(moduleName => source.indexOf(moduleName));
     expect(offsets.every(offset => offset >= 0)).toBe(true);
