@@ -46,7 +46,9 @@ function validCapture() {
     visibleBadge: {
       id: SOURCE_BADGE_ID,
       text: sourceLabel(manifest, hash),
-      rect: { x: 12, y: 670, width: 1256, height: 42 },
+      sourceWidth: 1280,
+      sourceHeight: 720,
+      rect: { x: 12, y: 676, width: 1256, height: 36 },
       borderColor: [255, 193, 7],
       backgroundColor: [0, 77, 64],
     },
@@ -94,6 +96,7 @@ describe('media SourceManifest browser capture', () => {
   test('binds one asynchronous page capture to the surrounding video export', async () => {
     const capture = validCapture();
     const page = fakePage(capture);
+    const originalGoto = page.goto;
     const result = { path: '/tmp/media.gif', format: 'gif' };
 
     const wrapped = await runWithMediaProvenanceCapture({}, async () => {
@@ -103,12 +106,13 @@ describe('media SourceManifest browser capture', () => {
     });
 
     expect(wrapped).toEqual({ result, capture });
-    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(originalGoto).toHaveBeenCalledTimes(1);
     expect(page.evaluate).toHaveBeenCalledTimes(1);
   });
 
   test('is idempotent when the runtime sees the same page twice', async () => {
     const page = fakePage();
+    const originalGoto = page.goto;
     await runWithMediaProvenanceCapture({}, async () => {
       const first = attachPageToMediaProvenanceCapture(page);
       const second = attachPageToMediaProvenanceCapture(page);
@@ -116,7 +120,7 @@ describe('media SourceManifest browser capture', () => {
       await page.goto('http://localhost:8000/werkbank_v2.html');
       return { path: '/tmp/media.webp' };
     });
-    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(originalGoto).toHaveBeenCalledTimes(1);
     expect(page.evaluate).toHaveBeenCalledTimes(1);
   });
 
