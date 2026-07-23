@@ -79,6 +79,34 @@ describe('rendered table hints', () => {
     expect(tableHints.applyTableHints(severityWords(), [hint()], 2)).toEqual([]);
   });
 
+  test('honours an explicit zero line tolerance', () => {
+    const shiftedHeader = severityWords().map((item) =>
+      item.text === 'Anteil'
+        ? { ...item, yMin: item.yMin + 1, yMax: item.yMax + 1 }
+        : item
+    );
+
+    expect(tableHints.applyTableHints(shiftedHeader, [hint()], 1)).toHaveLength(4);
+    expect(() => tableHints.applyTableHints(
+      shiftedHeader,
+      [hint({ lineTolerance: 0 })],
+      1,
+    )).toThrow(/table_header_missing/);
+  });
+
+  test('rejects invalid line tolerances', () => {
+    expect(() => tableHints.applyTableHints(
+      severityWords(),
+      [hint({ lineTolerance: -1 })],
+      1,
+    )).toThrow(/invalid_table_hint/);
+    expect(() => tableHints.applyTableHints(
+      severityWords(),
+      [hint({ lineTolerance: 'not-a-number' })],
+      1,
+    )).toThrow(/invalid_table_hint/);
+  });
+
   test('fails when the final cell text no longer matches the Golden contract', () => {
     const changed = severityWords().map((item) =>
       item.text === '17' ? { ...item, text: '16' } : item
