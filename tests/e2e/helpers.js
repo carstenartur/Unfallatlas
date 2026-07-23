@@ -2,6 +2,20 @@
  * Gemeinsame Hilfsfunktionen für E2E-Tests
  */
 
+import {
+  captureSourceManifestSnapshot,
+  captureScreenshotWithProvenance,
+  installScreenshotProvenance,
+  removeScreenshotProvenance,
+} from './screenshot-provenance.js';
+
+export {
+  captureSourceManifestSnapshot,
+  captureScreenshotWithProvenance,
+  installScreenshotProvenance,
+  removeScreenshotProvenance,
+};
+
 /**
  * Legacy-named guard retained for existing callers. Browser dependencies now
  * come from the canonical `_site/vendor` build. Any CDN request is therefore
@@ -95,15 +109,10 @@ export async function waitForFonts(page) {
 
 /**
  * Wait for the public application lifecycle rather than inferring readiness
- * from network-idle or a translated status string.  Defaults are deliberately
+ * from network-idle or a translated status string. Defaults are deliberately
  * fail-closed for documentation screenshots: a complete full-city data source,
  * non-empty loaded/filtered/viewport sets, and every requested render layer
  * must be complete.
- *
- * @param {import('@playwright/test').Page} page
- * @param {{city?: string, layers?: string[], minLoaded?: number, minFiltered?: number,
- *   minViewport?: number, afterRevision?: number, requireCompleteCoverage?: boolean,
- *   timeout?: number}} options
  */
 export async function waitForScreenshotReady(page, options = {}) {
   const timeout = Math.max(1000, Number(options.timeout) || 30000);
@@ -143,10 +152,6 @@ export async function waitForScreenshotReady(page, options = {}) {
  * Validate the semantic part of screenshot evidence without filesystem or
  * browser dependencies. Kept separate so the fail-closed contract is directly
  * unit-testable in Jest.
- *
- * @param {object} snapshot
- * @param {{city?: string, layers?: string[]}} criteria
- * @param {string} label
  */
 export function assertScreenshotSnapshot(snapshot, criteria = {}, label = 'screenshot') {
   if (!snapshot || snapshot.status !== 'ready') {
@@ -195,23 +200,78 @@ export function assertStableScreenshotSnapshot(before, after, criteria = {}, lab
   return after;
 }
 
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.keys(value).sort().filter(key => value[key] !== undefined)
+      .map(key => [key, canonicalValue(value[key])])
+  );
+}
+
+function stableStringify(value) {
+  return JSON.stringify(canonicalValue(value));
+}
+
+function validateScreenshotProvenance(provenance, criteria, label) {
+  const sourceSnapshot = provenance && provenance.sourceSnapshot;
+  const manifest = sourceSnapshot && sourceSnapshot.manifest;
+  const sourceManifestSha256 = sourceSnapshot && sourceSnapshot.sourceManifestSha256;
+  const visibleBadge = provenance && provenance.visibleBadge;
+  if (!manifest || !/^[a-f0-9]{64}$/i.test(String(sourceManifestSha256 || ''))) {
+    throw new Error(`Screenshot provenance has no valid SourceManifest: ${label}`);
+  }
+  if (!manifest.scenario || manifest.scenario.city !== criteria.city) {
+    throw new Error(`Screenshot SourceManifest city does not match lifecycle criteria: ${label}`);
+  }
+  const sources = Array.isArray(manifest.sources) ? manifest.sources : [];
+  const accidentSource = sources.find(source => source && source.role === 'accidents') || sources[0];
+  if (!accidentSource || !String(accidentSource.publisher || '').trim() ||
+      !String(accidentSource.datasetTitle || '').trim() ||
+      !String(accidentSource.datasetUrl || '').trim() ||
+      !String(accidentSource.licenseUrl || '').trim()) {
+    throw new Error(`Screenshot SourceManifest accident source is incomplete: ${label}`);
+  }
+  const image = visibleBadge && visibleBadge.image;
+  const rect = image && image.rect;
+  if (!visibleBadge || visibleBadge.sourceManifestSha256 !== sourceManifestSha256 ||
+      !String(visibleBadge.text || '').includes(String(sourceManifestSha256).slice(0, 12)) ||
+      !image || !(Number(image.width) > 0) || !(Number(image.height) > 0) ||
+      !rect || !(Number(rect.width) >= 180) || !(Number(rect.height) >= 20) ||
+      Number(rect.x) < 0 || Number(rect.y) < 0 ||
+      Number(rect.x) + Number(rect.width) > Number(image.width) + 1 ||
+      Number(rect.y) + Number(rect.height) > Number(image.height) + 1) {
+    throw new Error(`Screenshot visible source badge is invalid or outside the image: ${label}`);
+  }
+  return { sourceSnapshot, visibleBadge };
+}
+
+function atomicWrite(fs, destination, content) {
+  fs.mkdirSync(requirePath().dirname(destination), { recursive: true });
+  const temporary = `${destination}.tmp-${process.pid}-${Math.random().toString(16).slice(2)}`;
+  fs.writeFileSync(temporary, content, { flag: 'wx' });
+  fs.renameSync(temporary, destination);
+}
+
+let cachedPathModule = null;
+function requirePath() {
+  if (!cachedPathModule) throw new Error('Path module is unavailable before screenshot evidence initialization');
+  return cachedPathModule;
+}
+
 /**
  * Persist machine-readable evidence for a generated documentation screenshot.
- * Each screenshot gets its own sidecar file so parallel Playwright workers
- * cannot overwrite a shared report.  The sidecar binds the image bytes to the
- * exact application/data build and the lifecycle snapshot that passed the
- * semantic readiness gate.
- *
- * @param {string} screenshotPath
- * @param {object} snapshot
- * @param {{city?: string, layers?: string[]}} criteria
+ * The adjacent `*.sources.json` is the portable artifact sidecar; the copy under
+ * `out/qa/screenshot-readiness` remains the CI audit input. Both are written from
+ * exactly the same object and bind image bytes, SourceManifest and lifecycle.
  */
-export async function recordScreenshotEvidence(screenshotPath, snapshot, criteria = {}) {
+export async function recordScreenshotEvidence(screenshotPath, snapshot, criteria = {}, provenance = {}) {
   const [{ default: crypto }, { default: fs }, { default: path }] = await Promise.all([
     import('crypto'),
     import('fs'),
     import('path')
   ]);
+  cachedPathModule = path;
   const repoRoot = path.resolve(process.cwd());
   const absoluteScreenshot = path.resolve(repoRoot, screenshotPath);
   const relativeScreenshot = path.relative(repoRoot, absoluteScreenshot).replace(/\\/g, '/');
@@ -235,6 +295,11 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
     throw new Error(`Canonical screenshot evidence requires city, render layers and complete coverage: ${relativeScreenshot}`);
   }
   assertScreenshotSnapshot(snapshot, criteria, relativeScreenshot);
+  const { sourceSnapshot, visibleBadge } = validateScreenshotProvenance(
+    provenance,
+    criteria,
+    relativeScreenshot
+  );
 
   const buildManifestPath = path.join(repoRoot, '_site', 'build-manifest.json');
   if (!fs.existsSync(buildManifestPath) || !fs.statSync(buildManifestPath).isFile()) {
@@ -250,14 +315,24 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
   if (!fingerprints.every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))) {
     throw new Error('Canonical build manifest lacks application/data fingerprints');
   }
+  if (sourceSnapshot.manifest.buildFingerprint !== buildManifest.fingerprint ||
+      sourceSnapshot.manifest.dataFingerprint !== buildManifest.data.fingerprint) {
+    throw new Error(`Screenshot SourceManifest fingerprints do not match the canonical build: ${relativeScreenshot}`);
+  }
+
   const imageBytes = fs.readFileSync(absoluteScreenshot);
-  const evidence = {
+  const screenshotSha256 = crypto.createHash('sha256').update(imageBytes).digest('hex');
+  const basename = path.basename(relativeScreenshot, path.extname(relativeScreenshot));
+  const relativeSourceSidecar = `docs/screenshots/${basename}.sources.json`;
+  const core = {
     schemaVersion: 1,
+    kind: 'unfallatlas-screenshot-provenance',
     revision: process.env.GITHUB_SHA || null,
     screenshot: {
       path: relativeScreenshot,
+      sources: relativeSourceSidecar,
       bytes: imageBytes.length,
-      sha256: crypto.createHash('sha256').update(imageBytes).digest('hex')
+      sha256: screenshotSha256
     },
     build: {
       path: '_site/build-manifest.json',
@@ -266,6 +341,9 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
       applicationFingerprint: buildManifest.application && buildManifest.application.fingerprint,
       dataFingerprint: buildManifest.data.fingerprint
     },
+    sourceManifestSha256: sourceSnapshot.sourceManifestSha256,
+    sourceManifest: sourceSnapshot.manifest,
+    visibleSourceBadge: visibleBadge,
     criteria: {
       city: criteria.city || null,
       layers: Array.isArray(criteria.layers) ? criteria.layers.slice() : [],
@@ -273,23 +351,21 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
     },
     lifecycle: snapshot
   };
-  const basename = path.basename(relativeScreenshot, path.extname(relativeScreenshot));
+  const evidence = {
+    ...core,
+    sha256: crypto.createHash('sha256').update(stableStringify(core), 'utf8').digest('hex')
+  };
+  const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+  const sourceSidecarPath = path.join(repoRoot, relativeSourceSidecar);
   const reportPath = path.join(repoRoot, 'out', 'qa', 'screenshot-readiness', `${basename}.json`);
-  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-  const temporaryPath = `${reportPath}.tmp-${process.pid}-${Math.random().toString(16).slice(2)}`;
-  fs.writeFileSync(temporaryPath, `${JSON.stringify(evidence, null, 2)}\n`);
-  fs.renameSync(temporaryPath, reportPath);
+  atomicWrite(fs, sourceSidecarPath, serialized);
+  atomicWrite(fs, reportPath, serialized);
   return evidence;
 }
 
 /**
  * Capture a documentation screenshot only after semantic application,
  * Leaflet-tile and font readiness have all been established.
- *
- * @param {import('@playwright/test').Page} page
- * @param {{path: string, selector?: string, fullPage?: boolean, city?: string,
- *   layers?: string[], minLoaded?: number, minFiltered?: number, minViewport?: number,
- *   afterRevision?: number, requireCompleteCoverage?: boolean, timeout?: number}} options
  */
 export async function captureDataScreenshot(page, options) {
   if (!options || !options.path) throw new Error('captureDataScreenshot requires a path');
@@ -324,11 +400,14 @@ export async function captureDataScreenshot(page, options) {
       }
       if (stableObservations < 2) continue;
 
-      if (options.selector) {
-        await page.locator(options.selector).screenshot({ path: temporaryPath });
-      } else {
-        await page.screenshot({ path: temporaryPath, fullPage: options.fullPage === true });
-      }
+      const sourceSnapshot = await captureSourceManifestSnapshot(page, options);
+      const provenance = await captureScreenshotWithProvenance(page, {
+        path: temporaryPath,
+        selector: options.selector,
+        fullPage: options.fullPage === true,
+        timeout: options.timeout,
+        sourceSnapshot,
+      });
       const afterCapture = await waitForScreenshotReady(page, options);
       try {
         assertStableScreenshotSnapshot(beforeCapture, afterCapture, options, options.path);
@@ -338,7 +417,7 @@ export async function captureDataScreenshot(page, options) {
         continue;
       }
       await fs.rename(temporaryPath, options.path);
-      await recordScreenshotEvidence(options.path, afterCapture, options);
+      await recordScreenshotEvidence(options.path, afterCapture, options, provenance);
       return afterCapture;
     }
   } finally {
