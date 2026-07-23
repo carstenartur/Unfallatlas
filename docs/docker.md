@@ -49,14 +49,50 @@ Sobald die Werkbank mit Backend läuft (lokaler Node-Server oder Docker),
 erscheint im Export-Bereich ein
 **„🎬 Als Video exportieren"-Button**. Dieser:
 
-1. Sammelt alle aktuellen Einstellungen (Stadt, Filter, Kartenposition, markierter Bereich)
-2. Schickt sie an den integrierten Backend-Service
-3. Playwright spielt den kompletten Ablauf animiert durch – von der Standardansicht über die Filterauswahl bis zum Bezirksratsantrag
-4. Das fertige GIF wird automatisch heruntergeladen
+1. sammelt alle aktuellen Einstellungen (Stadt, Filter, Kartenposition, markierter Bereich),
+2. schickt sie an den integrierten Backend-Service,
+3. lässt Playwright den vollständigen Ablauf bis zum Bezirksratsantrag durchspielen,
+4. blendet aus dem tatsächlich verwendeten `SourceManifest` eine sichtbare Quellenleiste ein,
+5. prüft diese Leiste nach der GIF-/WebP-/APNG-Codierung nochmals in den fertigen Frames,
+6. lädt nur ein erfolgreich geprüftes Medienartefakt herunter.
 
 > **Hinweis:** Auf GitHub Pages (ohne Backend) ist der Button nicht
 > vorhanden (graceful degradation). In servergestützten Varianten
 > (Node/Docker) ist er verfügbar.
+
+### API und Provenienzpaket
+
+Der bestehende API-Aufruf bleibt kompatibel:
+
+```bash
+curl -X POST http://localhost:8000/api/export-video \
+  -H 'Content-Type: application/json' \
+  --data @video-state.json \
+  --output unfallatlas-analyse.gif
+```
+
+Die Antwort enthält neben den vorhandenen Artefakt-, Build-, Daten- und
+Zustandshashes einen `Link` mit `rel="describedby"` und den Header
+`X-Unfallatlas-Provenance-URL`. Unter dieser Adresse steht für einen begrenzten
+Zeitraum der vollständige JSON-Sidecar bereit. Er enthält das
+`SourceManifest`, Lizenz- und Datensatzadressen, Szenario und Filter,
+Transformationen, Medienhash und den Nachweis der sichtbaren Quellenleiste.
+
+Für Archivierung oder Weitergabe sollte das persistierbare Paket angefordert
+werden:
+
+```bash
+curl -X POST 'http://localhost:8000/api/export-video?packaging=zip' \
+  -H 'Content-Type: application/json' \
+  --data @video-state.json \
+  --output unfallatlas-analyse.zip
+```
+
+Das ZIP enthält die Animation, `unfallatlas-analyse.sources.json` und eine
+menschenlesbare `README.txt`. Der Sidecar bindet den SHA-256 der eingebetteten
+Animation; der Antwortheader `X-Unfallatlas-Package-SHA256` bindet das gesamte
+ZIP. Zulässige Medienformate bleiben `gif`, `webp` und `apng`; zulässige
+Verpackungen sind `binary` und `zip`.
 
 ## README-Demo-GIF reproduzieren
 
@@ -74,11 +110,11 @@ npm run regen:demo
 Damit werden Test und das kanonische Doku-Asset `docs/demo.gif` aus derselben
 Video-Export-Pipeline erzeugt. Der Generator prüft vor dem Ersetzen Format,
 Zielmaß, 60-Sekunden-Dauergrenze und Manifest-Budget. Bei mehr als 9 MiB
-bricht er ohne Änderung ab;
-ein Wechsel auf WebP/APNG ist eine eigene, gemeinsam mit Manifest und
-Markdown-Referenzen zu prüfende Migration.
+bricht er ohne Änderung ab; ein Wechsel auf WebP/APNG ist eine eigene,
+gemeinsam mit Manifest und Markdown-Referenzen zu prüfende Migration.
 
 ## Verwandte Doku
 
 - [Nutzerdoku: Video-Export](DOKUMENTATION.md#video-export-docker)
+- [Quellenprovenienz](export-provenance.md#gif-webp-und-apng)
 - [Release-Checklist](release-checklist.md)

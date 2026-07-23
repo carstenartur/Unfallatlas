@@ -79,12 +79,21 @@ is_palettegen=0
 input_path=''
 rawvideo=0
 stdout_pipe=0
+filter_chain=''
+frame_limit=''
+pixel_format=''
 previous=''
 for argument in "$@"; do
   if [[ "$previous" == '-i' && -z "$input_path" ]]; then
     input_path="$argument"
   elif [[ "$previous" == '-f' && "$argument" == 'rawvideo' ]]; then
     rawvideo=1
+  elif [[ "$previous" == '-vf' ]]; then
+    filter_chain="$argument"
+  elif [[ "$previous" == '-frames:v' ]]; then
+    frame_limit="$argument"
+  elif [[ "$previous" == '-pix_fmt' ]]; then
+    pixel_format="$argument"
   fi
   [[ "$argument" == *'palettegen='* ]] && is_palettegen=1
   [[ "$argument" == 'pipe:1' ]] && stdout_pipe=1
@@ -123,9 +132,58 @@ if [[ "$rawvideo" == 1 && "$stdout_pipe" == 1 && "${input_path,,}" == *.webp ]];
     exit 69
   fi
 
-  # ImageMagick/libwebp expands every ANMF frame to the full VP8X canvas and
-  # writes contiguous RGBA frames. This is the same byte contract consumed by
-  # countPalettePixels, without relying on ffmpeg's incomplete ANIM decoder.
+  # ImageMagick/libwebp expands every ANMF frame to the full VP8X canvas. The
+  # long-standing full-frame path below provides contiguous RGBA frames for the
+  # semantic layer audit. A bounded provenance-badge request additionally asks
+  # for an integer crop and a final-frame limit. Preserve that contract here
+  # instead of silently discarding ffmpeg's crop, frame limit and pixel format.
+  if [[ "$filter_chain" == *'crop='* ]]; then
+    if [[ ! "$filter_chain" =~ (^|,)crop=([0-9]+):([0-9]+):([0-9]+):([0-9]+)($|,) ]]; then
+      echo "unfallatlas ffmpeg wrapper: unsupported WebP crop filter: $filter_chain" >&2
+      exit 64
+    fi
+    crop_width="${BASH_REMATCH[2]}"
+    crop_height="${BASH_REMATCH[3]}"
+    crop_x="${BASH_REMATCH[4]}"
+    crop_y="${BASH_REMATCH[5]}"
+    if [[ ! "$frame_limit" =~ ^[1-9][0-9]*$ ]]; then
+      echo "unfallatlas ffmpeg wrapper: bounded WebP crop requires -frames:v" >&2
+      exit 64
+    fi
+    case "$pixel_format" in
+      rgb24)
+        output_format='rgb:-'
+        alpha_args=(-alpha off)
+        ;;
+      rgba)
+        output_format='rgba:-'
+        alpha_args=(-alpha on)
+        ;;
+      *)
+        echo "unfallatlas ffmpeg wrapper: unsupported WebP raw pixel format: $pixel_format" >&2
+        exit 64
+        ;;
+    esac
+
+    # Keep the final N encoded frames without first knowing the animation's
+    # frame count. Reversing, deleting indices N..last and reversing again works
+    # for both shorter and longer animations. Cropping after coalescing keeps
+    # delta-frame disposal semantics correct while bounding stdout tightly.
+    exec "$magick_bin" "$input_path" \
+      -coalesce \
+      -reverse \
+      -delete "${frame_limit}--1" \
+      -reverse \
+      -crop "${crop_width}x${crop_height}+${crop_x}+${crop_y}" \
+      +repage \
+      "${alpha_args[@]}" \
+      -depth 8 \
+      "$output_format"
+  fi
+
+  # Full-frame compatibility path used by countPalettePixels. This is the same
+  # byte contract consumed by that audit, without relying on ffmpeg's incomplete
+  # animated-WebP decoder.
   exec "$magick_bin" "$input_path" -coalesce -alpha on -depth 8 rgba:-
 fi
 

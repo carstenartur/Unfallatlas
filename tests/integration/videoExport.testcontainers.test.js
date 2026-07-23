@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const crypto = require('crypto');
+const JSZip = require('jszip');
 const {
   isDockerAvailable,
   startUnfallatlasContainer,
@@ -22,6 +23,7 @@ const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 const GIF_BUDGET_BYTES = 10 * 1024 * 1024;
 const WEBP_BUDGET_BYTES = 18 * 1024 * 1024;
 const APNG_BUDGET_BYTES = 30 * 1024 * 1024;
+const MEDIA_PACKAGE_OVERHEAD_BYTES = 5 * 1024 * 1024;
 const CONTEXT_BROWSER_TIMEOUT_MS = 120_000;
 const REQUIRE_SHIPPED_CONTEXT = process.env.CONTEXT_E2E_REQUIRE_SHIPPED === '1' ||
   Boolean(process.env.UNFALLATLAS_IMAGE);
@@ -53,6 +55,7 @@ async function postExportVideo(baseUrl, opts = {}) {
   if (opts.bodyFormat !== undefined) body.format = opts.bodyFormat;
   const url = new URL(`${baseUrl}/api/export-video`);
   if (opts.queryFormat !== undefined) url.searchParams.set('format', opts.queryFormat);
+  if (opts.queryPackaging !== undefined) url.searchParams.set('packaging', opts.queryPackaging);
   try {
     const response = await fetch(url.toString(), {
       method: 'POST',
@@ -69,6 +72,34 @@ async function postExportVideo(baseUrl, opts = {}) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function assertEncodedMedia(body, expectedExt) {
+  if (expectedExt === 'gif') {
+    expect(['GIF87a', 'GIF89a']).toContain(body.slice(0, 6).toString('ascii'));
+    expect(body[body.length - 1]).toBe(0x3b);
+  } else if (expectedExt === 'webp') {
+    expect(body.slice(0, 4).toString('ascii')).toBe('RIFF');
+    expect(body.slice(8, 12).toString('ascii')).toBe('WEBP');
+    expect(body.includes(Buffer.from('VP8X', 'ascii'))).toBe(true);
+    expect(body.includes(Buffer.from('ANIM', 'ascii'))).toBe(true);
+  } else if (expectedExt === 'apng') {
+    const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(body.subarray(0, 8).equals(pngSignature)).toBe(true);
+    expect(body.includes(Buffer.from('acTL', 'ascii'))).toBe(true);
+  }
+}
+
+async function fetchMediaSidecar(baseUrl, headers) {
+  expect(headers['x-unfallatlas-provenance-url']).toMatch(
+    /^\/api\/export-video\/provenance\/[a-f0-9]{64}\.json$/
+  );
+  expect(headers.link).toContain('rel="describedby"');
+  const response = await fetch(new URL(headers['x-unfallatlas-provenance-url'], baseUrl));
+  expect(response.status).toBe(200);
+  expect(response.headers.get('content-type')).toMatch(/^application\/json/i);
+  expect(response.headers.get('content-digest')).toMatch(/^sha-256=:/);
+  return response.json();
 }
 
 // Playwright serializes this function into the browser context. Keep it closed
@@ -277,20 +308,24 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
   });
 
   test.each([
-    { request: {}, label: 'default', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
-    { request: { bodyFormat: 'gif' }, label: 'body:gif', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES },
-    { request: { bodyFormat: 'webp' }, label: 'body:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
-    { request: { bodyFormat: 'apng' }, label: 'body:apng', expectedContentType: /^image\/apng/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES },
-    { request: { queryFormat: 'webp' }, label: 'query:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES },
-  ])('returns valid $expectedExt export ($label)', async ({ request, expectedContentType, expectedExt, budget }) => {
+    { request: {}, label: 'default', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES, packaging: 'binary' },
+    { request: { bodyFormat: 'gif' }, label: 'body:gif', expectedContentType: /^image\/gif/i, expectedExt: 'gif', budget: GIF_BUDGET_BYTES, packaging: 'binary' },
+    { request: { bodyFormat: 'webp' }, label: 'body:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES, packaging: 'binary' },
+    { request: { bodyFormat: 'apng', queryPackaging: 'zip' }, label: 'body:apng+zip', expectedContentType: /^application\/zip/i, expectedExt: 'apng', budget: APNG_BUDGET_BYTES + MEDIA_PACKAGE_OVERHEAD_BYTES, packaging: 'zip' },
+    { request: { queryFormat: 'webp' }, label: 'query:webp', expectedContentType: /^image\/webp/i, expectedExt: 'webp', budget: WEBP_BUDGET_BYTES, packaging: 'binary' },
+  ])('returns valid $expectedExt export ($label)', async ({ request, label, expectedContentType, expectedExt, budget, packaging }) => {
     const { status, contentType, headers, body } = await postExportVideo(handle.baseUrl, request);
     expect(status).toBe(200);
     expect(contentType).toMatch(expectedContentType);
     expect(body.length).toBeGreaterThanOrEqual(50 * 1024);
     expect(body.length).toBeLessThanOrEqual(budget);
-    expect(headers['x-unfallatlas-artifact-sha256']).toBe(
-      crypto.createHash('sha256').update(body).digest('hex')
+    expect(headers['x-unfallatlas-artifact-sha256']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['x-unfallatlas-source-manifest-sha256']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['x-unfallatlas-media-provenance-sha256']).toMatch(/^[a-f0-9]{64}$/);
+    expect(headers['x-unfallatlas-provenance-url']).toContain(
+      headers['x-unfallatlas-artifact-sha256']
     );
+    expect(headers.link).toContain('rel="describedby"');
     expect(headers['x-unfallatlas-video-state-sha256']).toBe(EXPECTED_STATE_SHA256);
     expect(headers['x-unfallatlas-build-fingerprint']).toBe(buildManifest.fingerprint);
     expect(headers['x-unfallatlas-data-fingerprint']).toBe(buildManifest.data.fingerprint);
@@ -316,18 +351,64 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     }
     expect(headers['x-unfallatlas-pdf-completed']).toBe('true');
 
-    if (expectedExt === 'gif') {
-      expect(['GIF87a', 'GIF89a']).toContain(body.slice(0, 6).toString('ascii'));
-      expect(body[body.length - 1]).toBe(0x3b);
-    } else if (expectedExt === 'webp') {
-      expect(body.slice(0, 4).toString('ascii')).toBe('RIFF');
-      expect(body.slice(8, 12).toString('ascii')).toBe('WEBP');
-      expect(body.includes(Buffer.from('VP8X', 'ascii'))).toBe(true);
-      expect(body.includes(Buffer.from('ANIM', 'ascii'))).toBe(true);
-    } else if (expectedExt === 'apng') {
-      const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-      expect(body.subarray(0, 8).equals(pngSignature)).toBe(true);
-      expect(body.includes(Buffer.from('acTL', 'ascii'))).toBe(true);
+    let mediaBody = body;
+    let sidecar = null;
+    if (packaging === 'zip') {
+      expect(headers['x-unfallatlas-package-sha256']).toBe(
+        crypto.createHash('sha256').update(body).digest('hex')
+      );
+      const archive = await JSZip.loadAsync(body);
+      const mediaName = `unfallatlas-analyse.${expectedExt}`;
+      expect(archive.file(mediaName)).not.toBeNull();
+      expect(archive.file('unfallatlas-analyse.sources.json')).not.toBeNull();
+      expect(archive.file('README.txt')).not.toBeNull();
+      mediaBody = await archive.file(mediaName).async('nodebuffer');
+      sidecar = JSON.parse(
+        await archive.file('unfallatlas-analyse.sources.json').async('string')
+      );
+      const readme = await archive.file('README.txt').async('string');
+      expect(readme).toContain(sidecar.sourceManifestSha256);
+      expect(readme).toContain('Statistische Ämter des Bundes und der Länder');
+    } else {
+      expect(headers['x-unfallatlas-artifact-sha256']).toBe(
+        crypto.createHash('sha256').update(body).digest('hex')
+      );
+    }
+
+    assertEncodedMedia(mediaBody, expectedExt);
+    expect(headers['x-unfallatlas-artifact-sha256']).toBe(
+      crypto.createHash('sha256').update(mediaBody).digest('hex')
+    );
+
+    if (label === 'default') sidecar = await fetchMediaSidecar(handle.baseUrl, headers);
+    if (sidecar) {
+      expect(sidecar.artifact.sha256).toBe(headers['x-unfallatlas-artifact-sha256']);
+      expect(sidecar.sourceManifestSha256).toBe(
+        headers['x-unfallatlas-source-manifest-sha256']
+      );
+      expect(sidecar.sha256).toBe(headers['x-unfallatlas-media-provenance-sha256']);
+      expect(sidecar.sourceManifest.scenario.city).toBe('Bonn');
+      expect(sidecar.sourceManifest.scenario.years).toEqual([2024]);
+      expect(sidecar.sourceManifest.sources).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          role: 'accidents',
+          publisher: 'Statistische Ämter des Bundes und der Länder',
+          licenseId: 'DL-DE-BY-2.0',
+          datasetUrl: expect.stringMatching(/^https:\/\//),
+          licenseUrl: expect.stringMatching(/^https:\/\//),
+        }),
+      ]));
+      expect(sidecar.visibleSourceBadge.text).toMatch(/Quelle:/);
+      expect(sidecar.visibleSourceBadge.text).toMatch(/Lizenz: DL-DE-BY-2\.0/);
+      expect(sidecar.visibleSourceBadge.encodedEvidence).toEqual(expect.objectContaining({
+        verified: true,
+        frameCount: expect.any(Number),
+        maxBorderPixels: expect.any(Number),
+        maxBackgroundPixels: expect.any(Number),
+      }));
+      expect(sidecar.visibleSourceBadge.encodedEvidence.frameCount).toBeGreaterThan(0);
+      expect(sidecar.visibleSourceBadge.encodedEvidence.maxBorderPixels).toBeGreaterThan(0);
+      expect(sidecar.visibleSourceBadge.encodedEvidence.maxBackgroundPixels).toBeGreaterThan(0);
     }
   }, 6 * 60 * 1000);
 
@@ -338,6 +419,22 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     expect(json).toEqual(expect.objectContaining({ error: 'unsupported_format' }));
     expect(json.supportedFormats).toEqual(['gif', 'webp', 'apng']);
   }, 60 * 1000);
+
+  it('rejects unsupported packaging before browser work', async () => {
+    const startedAt = Date.now();
+    const { status, body } = await postExportVideo(handle.baseUrl, {
+      bodyFormat: 'gif',
+      queryPackaging: 'tar',
+    });
+    const elapsedMs = Date.now() - startedAt;
+    const json = JSON.parse(body.toString('utf8'));
+    expect(status).toBe(400);
+    expect(json).toEqual({
+      error: 'unsupported_packaging',
+      supportedPackaging: ['binary', 'zip'],
+    });
+    expect(elapsedMs).toBeLessThan(5000);
+  }, 30 * 1000);
 
   it('rejects a partial canonical viewport with stable 400 before browser work', async () => {
     const state = videoExportContract.fromLegacyParams(CONTEXT_BODY);

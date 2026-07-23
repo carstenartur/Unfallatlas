@@ -1,5 +1,9 @@
 'use strict';
 
+const {
+  attachPageToMediaProvenanceCapture,
+} = require('./media-provenance-capture');
+
 const DEFAULT_DOWNLOAD_TIMEOUT_MS = 180_000;
 const MIN_DOWNLOAD_TIMEOUT_MS = 30_000;
 const MAX_DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
@@ -47,6 +51,7 @@ async function readVisibleExportState(page, dialogs) {
           (window.UA.exportProvenanceError.message || window.UA.exportProvenanceError) || ''),
         documentProvenanceInstalled: Boolean(window.UA && window.UA.__documentExportProvenanceInstalled),
         documentPrewarmInstalled: Boolean(window.UA && window.UA.__documentExportPrewarmInstalled),
+        mediaSourceBadgeVisible: Boolean(document.getElementById('ua-video-source-provenance')),
         prewarmSignature: ctx && window.UA && window.UA.documentExportPrewarmRuntime &&
           typeof window.UA.documentExportPrewarmRuntime.stateSignature === 'function'
           ? window.UA.documentExportPrewarmRuntime.stateSignature(ctx)
@@ -72,6 +77,8 @@ function patchPage(page, options = {}) {
   const logger = options.logger || console;
   const dialogs = [];
   const originalWaitForEvent = page.waitForEvent.bind(page);
+
+  attachPageToMediaProvenanceCapture(page, logger);
 
   if (typeof page.on === 'function') {
     page.on('dialog', dialog => {

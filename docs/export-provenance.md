@@ -1,11 +1,12 @@
 # Quellenprovenienz der Exporte
 
-CSV-, GeoJSON-, KML-, PDF- und DOCX-Downloads verwenden denselben versionierten
-`SourceManifest`-Snapshot. Das Manifest wird aus dem tatsächlichen Exportbereich,
-den angewendeten Schwere-, Zeit-, Zustands- und Kontextfiltern sowie den
-exportierten Unfallstellen gebildet. Beteiligungsfilter werden als
-Szenariokontext dokumentiert; der tabellarische Datenexport bewahrt weiterhin
-alle Beteiligungskombinationen im übrigen Filterumfang.
+CSV-, GeoJSON-, KML-, PDF-, DOCX- sowie GIF-, WebP- und APNG-Downloads
+verwenden denselben versionierten `SourceManifest`-Snapshot. Das Manifest wird
+aus dem tatsächlichen Exportbereich, den angewendeten Schwere-, Zeit-, Zustands-
+und Kontextfiltern sowie den exportierten Unfallstellen gebildet.
+Beteiligungsfilter werden als Szenariokontext dokumentiert; der tabellarische
+Datenexport bewahrt weiterhin alle Beteiligungskombinationen im übrigen
+Filterumfang.
 
 Der Export bricht ab, wenn die Quellen- oder Lizenzangaben nicht vollständig
 validiert werden können. In diesem Fall wird auch die vom älteren Exportmodul
@@ -27,9 +28,9 @@ Jahresfelder `year`, `ujahr`, `UJAHR`, `uJahr`, `jahr` und `Jahr` an einer
 gemeinsamen Schema-Grenze. Nur ganzzahlige Jahre von 1900 bis 2100 werden in
 `scenario.years` übernommen. Fehlende, leere oder ungültige Werte werden nicht
 über `Number(null)` zum Jahr `0` umgedeutet und führen daher auch nicht zu einer
-falschen zeitlichen Abdeckung. Dieselbe normalisierte Sicht wird für CSV,
-GeoJSON, KML, PDF und DOCX verwendet; die ursprünglichen Unfalldatensätze werden
-dabei nicht verändert.
+falschen zeitlichen Abdeckung. Dieselbe normalisierte Sicht wird für alle
+Provenienzexporte verwendet; die ursprünglichen Unfalldatensätze werden dabei
+nicht verändert.
 
 ## CSV
 
@@ -39,9 +40,9 @@ CSV wird als deterministisches ZIP-Paket ausgeliefert:
 - `sources.json`
 - `README.txt`
 
-`sources.json` enthält das vollständige Manifest. Die README nennt
-Datensatz- und Lizenzadressen, Änderungsvermerk und den SHA-256-Hash des
-kanonischen Manifests.
+`sources.json` enthält das vollständige Manifest. Die README nennt Datensatz-
+und Lizenzadressen, Änderungsvermerk und den SHA-256-Hash des kanonischen
+Manifests.
 
 ## GeoJSON
 
@@ -98,6 +99,59 @@ Gleichzeitige PDF- und DOCX-Exporte werden serialisiert. Die Dokumentbibliotheke
 werden nur innerhalb des jeweiligen Exports durch lokale Proxies ergänzt; ihre
 Modul-Exporte werden nicht dauerhaft verändert. Dadurch kann der aktive
 Manifest-Snapshot nicht in ein anderes Dokument geraten.
+
+## GIF, WebP und APNG
+
+Der serverseitige Medienexport wartet zunächst auf den vollständig verifizierten
+Analysezustand. Danach erzeugt er über denselben Browser-Lauf einen
+`SourceManifest`-Snapshot und blendet am unteren Bildrand dauerhaft eine
+Quellenleiste ein. Sie enthält mindestens Herausgeber, Datensatz, Lizenzkennung
+und den gekürzten Manifest-Hash. Die Leiste wird nicht aus einem gesonderten
+Freitext aufgebaut, sondern unmittelbar aus dem erfassten Manifest.
+
+Nach der GIF-/WebP-/APNG-Encodingstufe prüft der Server die charakteristische
+Rahmen- und Hintergrundfarbe der Quellenleiste erneut in den fertig codierten
+Frames. Fehlt die Leiste, ist sie außerhalb des Bildes oder kann sie nach der
+verlustbehafteten Codierung nicht mehr nachgewiesen werden, wird das Artefakt
+gelöscht und der Export bricht fail-closed ab.
+
+Der bestehende Aufruf
+
+```text
+POST /api/export-video
+```
+
+liefert weiterhin direkt das angeforderte Bildformat. Die Antwort enthält
+zusätzlich:
+
+- `X-Unfallatlas-Source-Manifest-SHA256`,
+- `X-Unfallatlas-Media-Provenance-SHA256`,
+- `X-Unfallatlas-Provenance-URL`,
+- einen HTTP-`Link` mit `rel="describedby"` auf den JSON-Sidecar.
+
+Der Sidecar kann für einen begrenzten Zeitraum über
+`GET /api/export-video/provenance/<artefakt-sha256>.json` abgerufen werden. Er
+enthält das vollständige `SourceManifest`, Szenario und Filter, Build- und
+Datenfingerprint, Transformationen, den SHA-256 des Medienartefakts, die
+Video-Evidenz sowie den Nachweis der im codierten Medium sichtbaren
+Quellenleiste.
+
+Für dauerhaftes Weitergeben sollte der Export direkt als Paket angefordert
+werden:
+
+```text
+POST /api/export-video?packaging=zip
+```
+
+Das deterministische ZIP enthält:
+
+- `unfallatlas-analyse.<gif|webp|apng>`,
+- `unfallatlas-analyse.sources.json`,
+- `README.txt`.
+
+Der Sidecar bindet den Hash der eingebetteten Mediendatei; die HTTP-Antwort
+liefert zusätzlich den Hash des gesamten ZIP-Pakets. Ein nicht unterstützter
+`packaging`-Wert wird vor dem Start von Chromium abgewiesen.
 
 ## Build- und Datenbindung
 
