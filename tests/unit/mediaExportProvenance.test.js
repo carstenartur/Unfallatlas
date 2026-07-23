@@ -10,6 +10,8 @@ const {
   sha256Buffer,
   stableJson,
   safeBaseName,
+  projectBadgeRect,
+  badgeSampleStartSeconds,
   verifyEncodedSourceBadge,
   createVideoMediaSidecar,
   createVideoMediaBundle,
@@ -45,7 +47,7 @@ function manifest() {
 
 function fixture(format = 'gif', bytes = Buffer.from('GIF89a-provenance-fixture')) {
   const digest = sha256Buffer(bytes);
-  const extension = format === 'apng' ? 'png' : format;
+  const extension = format;
   const contentType = format === 'apng' ? 'image/apng' : `image/${format}`;
   const evidence = {
     schemaVersion: 1,
@@ -61,7 +63,7 @@ function fixture(format = 'gif', bytes = Buffer.from('GIF89a-provenance-fixture'
     },
     semantic: {
       lifecycle: { counts: { loaded: 12, filtered: 12, viewport: 12 } },
-      framesAfterEncoding: { frameCount: 20 },
+      framesAfterEncoding: { frameCount: 40, width: 960, height: 540 },
       preview: { localAccidents: 12 },
       pdf: { completed: true },
     },
@@ -73,24 +75,42 @@ function fixture(format = 'gif', bytes = Buffer.from('GIF89a-provenance-fixture'
       id: 'ua-video-source-provenance',
       text: 'Quelle: Statistische Ämter des Bundes und der Länder – Unfallatlas Deutschland · ' +
         'Lizenz: DL-DE-BY-2.0 · Manifest: dddddddddddd',
-      rect: { x: 12, y: 670, width: 1256, height: 42 },
+      sourceWidth: 1280,
+      sourceHeight: 720,
+      rect: { x: 12, y: 676, width: 1256, height: 36 },
       borderColor: [255, 193, 7],
       backgroundColor: [0, 77, 64],
     },
   };
+  const projection = projectBadgeRect(capture.visibleBadge, evidence.semantic.framesAfterEncoding);
   const encoded = {
     verified: true,
-    frameCount: 20,
+    frameCount: 8,
     maxBorderPixels: 800,
     maxBackgroundPixels: 15_000,
     tolerance: 55,
-    rect: capture.visibleBadge.rect,
+    sampleStartSeconds: 12,
+    ...projection,
   };
   const exportResult = { format, extension, contentType, evidence };
   return { bytes, digest, evidence, capture, encoded, exportResult };
 }
 
 describe('media export provenance sidecars', () => {
+  test('projects the browser badge into the scaled encoded frame', () => {
+    const value = fixture();
+    const projected = projectBadgeRect(
+      value.capture.visibleBadge,
+      value.evidence.semantic.framesAfterEncoding,
+    );
+    expect(projected.sourceDimensions).toEqual({ width: 1280, height: 720 });
+    expect(projected.encodedDimensions).toEqual({ width: 960, height: 540 });
+    expect(projected.rect).toEqual({ x: 9, y: 507, width: 942, height: 27 });
+    expect(projected.scaleX).toBe(0.75);
+    expect(projected.scaleY).toBe(0.75);
+    expect(badgeSampleStartSeconds(value.evidence.semantic.framesAfterEncoding)).toBe(12);
+  });
+
   test('builds a deterministic sidecar bound to artifact and SourceManifest hashes', () => {
     const value = fixture();
     const first = createVideoMediaSidecar(
@@ -112,6 +132,8 @@ describe('media export provenance sidecars', () => {
     expect(first.sourceManifestSha256).toBe('d'.repeat(64));
     expect(first.sourceManifest.scenario.years).toEqual([2024]);
     expect(first.visibleSourceBadge.encodedEvidence.verified).toBe(true);
+    expect(first.visibleSourceBadge.encodedEvidence.rect)
+      .toEqual({ x: 9, y: 507, width: 942, height: 27 });
     expect(first.sha256).toMatch(/^[a-f0-9]{64}$/);
     const { sha256, ...core } = first;
     expect(sha256Buffer(Buffer.from(stableJson(core), 'utf8')).hex).toBe(sha256);
@@ -166,10 +188,12 @@ describe('media export provenance sidecars', () => {
 
   test('rejects encoded-badge verification when the artifact is absent', async () => {
     await expect(verifyEncodedSourceBadge('/does/not/exist.gif', {
-      rect: { x: 12, y: 670, width: 1256, height: 42 },
+      sourceWidth: 1280,
+      sourceHeight: 720,
+      rect: { x: 12, y: 676, width: 1256, height: 36 },
       borderColor: [255, 193, 7],
       backgroundColor: [0, 77, 64],
-    })).rejects.toThrow(MediaExportProvenanceError);
+    }, { width: 960, height: 540, frameCount: 40 })).rejects.toThrow(MediaExportProvenanceError);
   });
 
   test('retains sidecars for a bounded TTL and evicts oldest entries', () => {
