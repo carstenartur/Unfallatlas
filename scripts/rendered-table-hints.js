@@ -175,6 +175,14 @@ function positiveInteger(value, path, fallback) {
   return candidate;
 }
 
+function booleanFlag(value, path) {
+  if (value == null) return false;
+  if (typeof value !== 'boolean') {
+    fail('invalid_table_hint', `${path} must be a boolean`, { value });
+  }
+  return value;
+}
+
 function pattern(value, path) {
   if (typeof value !== 'string' || !value.trim()) {
     fail('invalid_table_hint', `${path} must be a non-empty regular expression`);
@@ -224,10 +232,10 @@ function assertCellPatterns(cells, rowHint, path) {
   }
 }
 
-function headerRowId(tableId, hint) {
+function headerRowId(tableId, hint, repeatedHeader) {
   const explicit = normalizeText(hint.headerRowId);
   if (explicit) return explicit;
-  return hint.repeatedHeader
+  return repeatedHeader
     ? `${tableId}.header.page${positiveInteger(hint.page, `${tableId}.page`)}`
     : `${tableId}.header`;
 }
@@ -238,18 +246,19 @@ function reconstructTable(words, hint) {
   }
   const tableId = normalizeText(hint.tableId);
   if (!tableId) fail('invalid_table_hint', 'tableId must not be empty');
+  const repeatedHeader = booleanFlag(hint.repeatedHeader, `${tableId}.repeatedHeader`);
   const tolerance = Number(hint.lineTolerance ?? 3);
   const lines = clusterWordsIntoLines(words, tolerance);
   const header = locateHeader(lines, hint.headers, tableId);
   const boundaries = columnBoundaries(header.centres);
   const rows = [{
-    rowId: headerRowId(tableId, hint),
+    rowId: headerRowId(tableId, hint, repeatedHeader),
     tableId,
     xMin: header.line.xMin,
     yMin: header.line.yMin,
     xMax: header.line.xMax,
     yMax: header.line.yMax,
-    repeatedHeader: Boolean(hint.repeatedHeader),
+    repeatedHeader,
     cells: cellsForLine(header.line, boundaries),
   }];
 
