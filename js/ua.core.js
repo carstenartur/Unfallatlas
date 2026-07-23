@@ -98,29 +98,62 @@
   if (ownScript && ownScript.src) {
     const moduleUrl = (name) => new URL(name, ownScript.src).toString();
     const startExportProvenance = () => {
-      const exportNames = ["exportToCSV", "exportToGeoJSON", "exportToKML"];
-      const originals = Object.fromEntries(
-        exportNames
+      const dataExportNames = ["exportToCSV", "exportToGeoJSON", "exportToKML"];
+      const documentExportNames = ["exportToWord", "exportToPDF"];
+      const originalsFor = (names) => Object.fromEntries(
+        names
           .filter((name) => typeof UA[name] === "function")
           .map((name) => [name, UA[name]]),
       );
-      UA.__exportProvenanceOriginals = originals;
-      const blockedExport = () => {
-        const error = UA.exportProvenanceError ||
-          new Error("Export ist gesperrt, bis die Quellenprovenienz geladen wurde.");
-        if (typeof UA.showToast === "function") {
-          UA.showToast("Export abgebrochen: Quellenprovenienz ist nicht verfügbar.");
-        }
-        return Promise.reject(error);
+      // The data integration consumes and deletes its staging object before the
+      // document integration is loaded. Keep the two ownership boundaries
+      // separate so neither module can accidentally erase the other's originals.
+      UA.__exportProvenanceOriginals = originalsFor(dataExportNames);
+      UA.__documentProvenanceOriginals = originalsFor(documentExportNames);
+
+      // Report-button handlers may capture an exporter while the optional
+      // provenance stack is still loading. A plain rejecting placeholder would
+      // remain captured forever even after UA.exportToWord/UA.exportToPDF had
+      // been replaced. This proxy waits for readiness and then delegates to the
+      // current provenanced function. If initialization fails or no replacement
+      // is installed, it still fails closed.
+      const blockedExportFor = (name) => {
+        const proxy = function exportAfterProvenanceReady(...args) {
+          const ready = UA.exportProvenanceReady;
+          const failure = () => {
+            const error = UA.exportProvenanceError ||
+              new Error("Export ist gesperrt, bis die Quellenprovenienz geladen wurde.");
+            if (typeof UA.showToast === "function") {
+              UA.showToast("Export abgebrochen: Quellenprovenienz ist nicht verfügbar.");
+            }
+            throw error;
+          };
+          if (!ready || typeof ready.then !== "function") {
+            return Promise.resolve().then(failure);
+          }
+          return ready.then(() => {
+            const current = UA[name];
+            if (typeof current === "function" && current !== proxy) {
+              return current.apply(UA, args);
+            }
+            return failure();
+          });
+        };
+        return proxy;
       };
-      for (const name of exportNames) UA[name] = blockedExport;
+      for (const name of [...dataExportNames, ...documentExportNames]) {
+        UA[name] = blockedExportFor(name);
+      }
 
       UA.exportProvenanceReady = UA.loadRuntimeScripts([
         moduleUrl("ua.source_manifest.js?v=2026-07-22"),
         moduleUrl("ua.artifact_provenance.js?v=2026-07-22"),
         moduleUrl("ua.zip.js?v=2026-07-22"),
         moduleUrl("ua.export_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.accident_year_provenance.js?v=2026-07-23"),
         moduleUrl("ua.kml_export_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.document_export_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.document_export_prewarm.js?v=2026-07-22"),
       ]).catch((error) => {
         UA.exportProvenanceError = error;
         console.error("Export-Provenienz konnte nicht initialisiert werden", error);
