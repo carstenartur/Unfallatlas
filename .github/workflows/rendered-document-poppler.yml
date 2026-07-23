@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/rendered-document-poppler.yml'
       - 'js/ua.core.js'
+      - 'js/ua.docx_pagination.js'
       - 'js/ua.docx_source_links.js'
       - 'js/ua.report_v2.js'
       - 'js/ua.utils.js'
@@ -21,6 +22,7 @@ on:
       - 'scripts/rendered-table-hints.js'
       - 'tests/fixtures/rendered-document/ci-docx-contract.json'
       - 'tests/unit/deterministicMapFixture.test.js'
+      - 'tests/unit/docxPagination.test.js'
       - 'tests/unit/docxSourceLinks.test.js'
       - 'tests/unit/enrichRenderedDocumentTables.test.js'
       - 'tests/unit/generateSampleDocx.test.js'
@@ -118,6 +120,7 @@ jobs:
         run: |
           npx jest --runInBand \
             tests/unit/deterministicMapFixture.test.js \
+            tests/unit/docxPagination.test.js \
             tests/unit/docxSourceLinks.test.js \
             tests/unit/enrichRenderedDocumentTables.test.js \
             tests/unit/generateSampleDocx.test.js \
@@ -166,11 +169,12 @@ jobs:
           if (semantic.mapCount !== 4 || semantic.expectedMapCount !== 4) {
             throw new Error(`Expected four final maps, got ${JSON.stringify(semantic)}`);
           }
-          if (semantic.tableRowCount !== 8 || semantic.expectedTableRowCount !== 8 || semantic.tableHints !== 2) {
-            throw new Error(`Expected two final table contracts and eight rows, got ${JSON.stringify(semantic)}`);
+          if (semantic.tableRowCount !== 10 || semantic.expectedTableRowCount !== 10 ||
+              semantic.tableHints !== 3 || semantic.tableSectionBindings !== 1) {
+            throw new Error(`Expected three final table contracts, ten rows and one section binding, got ${JSON.stringify(semantic)}`);
           }
-          if (audit.summary?.tableRowCount !== 8 || audit.passed !== true) {
-            throw new Error(`Final rendered-document audit does not prove eight table rows: ${JSON.stringify(audit.summary)}`);
+          if (audit.summary?.tableRowCount !== 10 || audit.passed !== true) {
+            throw new Error(`Final rendered-document audit does not prove ten table rows: ${JSON.stringify(audit.summary)}`);
           }
           const rows = model.pages.flatMap((page) => page.tableRows || []);
           const byId = new Map(rows.map((row) => [row.rowId, row]));
@@ -179,6 +183,8 @@ jobs:
             'severity.fatal': ['1 – Getötete', '1', '4,2%'],
             'severity.serious': ['2 – Schwerverletzte', '6', '25,0%'],
             'severity.light': ['3 – Leichtverletzte', '17', '70,8%'],
+            'deviations.header': ['Muster', 'Lokal', 'Lokal%', 'Stadt%', 'Faktor', '95%-KI (lokaler Anteil)'],
+            'deviations.rad-car': ['5', '11', '45,8%', '14,6%', '3,13×', '[– – –]'],
             'yearly-accidents.header': ['Jahr', 'Summe', 'Kombinationen'],
             'yearly-accidents.2022': ['2022', '7', 'Radverkehr + PKW=3, Radverkehr=2, PKW=2'],
             'yearly-accidents.2023': ['2023', '8', 'Radverkehr + PKW=4, Radverkehr=2, PKW=2'],
@@ -210,6 +216,9 @@ jobs:
               throw new Error(`Final page ${pageNumber} contains a zero-count map contradiction: ${text}`);
             }
           }
+          requirePagePattern(2, /Top-Abweichungen \(Ausschnitt vs\. Stadt\):/u, 'deviation-table subsection heading');
+          requirePagePattern(2, /Muster\s+Lokal\s+Lokal\s+%\s+Stadt\s+%\s+Faktor\s+95%-KI/u, 'deviation-table header');
+          requirePagePattern(2, /5\s+11\s+45,8\s*%\s+14,6\s*%\s+3,13×/u, 'deviation-table first row');
           requirePagePattern(2, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'overview-map count n=24');
           requirePagePattern(3, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'selection-map count n=24');
           requirePagePattern(4, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'detail-map parent count 24');

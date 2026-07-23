@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { createDeterministicMapPng, toDataUrl } = require('./deterministic-map-fixture');
 const docxSourceLinks = require('../js/ua.docx_source_links');
+const docxPagination = require('../js/ua.docx_pagination');
 
 class SampleDocxError extends Error {
   constructor(code, message, details) {
@@ -276,6 +277,10 @@ async function generateSampleDocx(options = {}) {
   const linkRuntime = docxSourceLinks.install(UA, mockWindow);
   if (!linkRuntime.available) {
     fail('docx_source_links_unavailable', 'DOCX source-link runtime could not be installed');
+  }
+  const paginationRuntime = docxPagination.install(UA, mockWindow);
+  if (!paginationRuntime.available) {
+    fail('docx_pagination_unavailable', 'DOCX pagination runtime could not be installed');
   }
 
   await UA.exportToWord(createContext(), createReportData(), {

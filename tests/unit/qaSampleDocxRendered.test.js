@@ -14,7 +14,13 @@ describe('sample DOCX rendered QA orchestrator', () => {
     const tableMain = jest.fn((args) => {
       order.push('tables');
       return {
-        report: { summary: { mapCount: 4, tableRowCount: 8 } },
+        report: { summary: { mapCount: 4, tableRowCount: 10 } },
+        metadata: {
+          semanticEvidence: {
+            tableHints: 3,
+            tableSectionBindings: 1,
+          },
+        },
         args,
       };
     });
@@ -34,6 +40,10 @@ describe('sample DOCX rendered QA orchestrator', () => {
       '--audit', path.join(root, 'out', 'qa', 'rendered-document', 'docx', 'poppler', 'rendered-document-audit.json'),
       '--metadata', path.join(root, 'out', 'qa', 'rendered-document', 'docx', 'conversion-metadata.json'),
     ]);
-    expect(result.tableEvidence.report.summary).toEqual({ mapCount: 4, tableRowCount: 8 });
+    expect(result.tableEvidence.report.summary).toEqual({ mapCount: 4, tableRowCount: 10 });
+    expect(result.tableEvidence.metadata.semanticEvidence).toEqual({
+      tableHints: 3,
+      tableSectionBindings: 1,
+    });
   });
 });

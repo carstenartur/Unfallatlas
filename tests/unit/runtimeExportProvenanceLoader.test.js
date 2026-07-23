@@ -55,6 +55,7 @@ describe('runtime export provenance bootstrap', () => {
       'ua.document_export_provenance.js',
       'ua.document_export_prewarm.js',
       'ua.docx_source_links.js',
+      'ua.docx_pagination.js',
       'ua.static_map_export_provenance.js',
     ];
     const offsets = modules.map(moduleName => source.indexOf(moduleName));
@@ -62,6 +63,13 @@ describe('runtime export provenance bootstrap', () => {
     expect(offsets).toEqual([...offsets].sort((left, right) => left - right));
     expect(source).toContain('document.currentScript');
     expect(source).toContain('DOMContentLoaded');
+  });
+
+  test('loads pagination only after document provenance and source-link ownership are established', () => {
+    expect(source.indexOf('ua.document_export_provenance.js'))
+      .toBeLessThan(source.indexOf('ua.docx_source_links.js'));
+    expect(source.indexOf('ua.docx_source_links.js'))
+      .toBeLessThan(source.indexOf('ua.docx_pagination.js'));
   });
 
   test('blocks data and document exporters before asynchronous modules are loaded', () => {

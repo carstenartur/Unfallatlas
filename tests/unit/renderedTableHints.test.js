@@ -47,6 +47,21 @@ function wrappedSeverityWords() {
   ];
 }
 
+function wrappedHeaderWords() {
+  return [
+    word('Muster', 78, 100, 120, 109),
+    word('Lokal', 228, 100, 258, 109),
+    word('95%-KI', 378, 100, 420, 109),
+    word('(lokaler', 378, 112, 416, 121),
+    word('Anteil)', 418, 112, 454, 121),
+    word('5', 78, 124, 83, 133),
+    word('11', 228, 124, 238, 133),
+    word('[–', 378, 124, 390, 133),
+    word('–', 392, 124, 397, 133),
+    word('–]', 399, 124, 411, 133),
+  ];
+}
+
 function hint(overrides = {}) {
   return {
     page: 1,
@@ -88,6 +103,32 @@ describe('rendered table hints', () => {
     ]);
     expect(rows.every((row) => row.xMin < row.xMax && row.yMin < row.yMax)).toBe(true);
     expect(rows[1].yMin).toBeGreaterThan(rows[0].yMax);
+  });
+
+  test('reconstructs an explicitly wrapped final header across consecutive lines', () => {
+    const rows = tableHints.applyTableHints(wrappedHeaderWords(), [hint({
+      tableId: 'deviations',
+      headers: ['Muster', 'Lokal', '95%-KI'],
+      headerLines: 2,
+      rows: [{
+        rowId: 'deviations.rad-car',
+        cellPatterns: ['^5$', '^11$', '^\\[– – –\\]$'],
+      }],
+    })], 1);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      rowId: 'deviations.header',
+      cells: ['Muster', 'Lokal', '95%-KI (lokaler Anteil)'],
+      yMin: 100,
+      yMax: 121,
+    });
+    expect(rows[1]).toMatchObject({
+      rowId: 'deviations.rad-car',
+      cells: ['5', '11', '[– – –]'],
+      yMin: 124,
+      yMax: 133,
+    });
   });
 
   test('reconstructs wrapped cells from consecutive final-page lines', () => {
@@ -150,7 +191,7 @@ describe('rendered table hints', () => {
     )).toThrow(/table_header_missing/);
   });
 
-  test('rejects invalid line tolerances and row wrapping budgets', () => {
+  test('rejects invalid line tolerances and wrapping budgets', () => {
     expect(() => tableHints.applyTableHints(
       severityWords(),
       [hint({ lineTolerance: -1 })],
@@ -161,6 +202,21 @@ describe('rendered table hints', () => {
       [hint({ lineTolerance: 'not-a-number' })],
       1,
     )).toThrow(/invalid_table_hint/);
+    expect(() => tableHints.applyTableHints(
+      severityWords(),
+      [hint({ headerLines: 0 })],
+      1,
+    )).toThrow(/invalid_table_hint/);
+    expect(() => tableHints.applyTableHints(
+      wrappedHeaderWords(),
+      [hint({
+        tableId: 'deviations',
+        headers: ['Muster', 'Lokal', '95%-KI'],
+        headerLines: 10,
+        rows: [{ rowId: 'deviations.rad-car', cellPatterns: ['^5$', '^11$', '^\\[– – –\\]$'] }],
+      })],
+      1,
+    )).toThrow(/table_header_incomplete/);
     expect(() => tableHints.applyTableHints(
       wrappedSeverityWords(),
       [hint({ maxLinesPerRow: 0, rows: [hint().rows[1]] })],

@@ -10,7 +10,7 @@
     "map"
   ],
   "expectedMapCount": 4,
-  "expectedTableRowCount": 8,
+  "expectedTableRowCount": 10,
   "imageHints": [
     {
       "page": 2,
@@ -103,6 +103,32 @@
     },
     {
       "page": 2,
+      "tableId": "deviations",
+      "headers": [
+        "Muster",
+        "Lokal",
+        "Lokal %",
+        "Stadt %",
+        "Faktor",
+        "95%-KI"
+      ],
+      "headerLines": 2,
+      "rows": [
+        {
+          "rowId": "deviations.rad-car",
+          "cellPatterns": [
+            "^5$",
+            "^11$",
+            "^45,8%$",
+            "^14,6%$",
+            "^3,13×$",
+            "^\\[– – –\\]$"
+          ]
+        }
+      ]
+    },
+    {
+      "page": 2,
       "tableId": "yearly-accidents",
       "headers": [
         "Jahr",
@@ -136,6 +162,14 @@
           ]
         }
       ]
+    }
+  ],
+  "tableSectionBindings": [
+    {
+      "tableId": "deviations",
+      "headingPattern": "^Top-Abweichungen \\(Ausschnitt vs\\. Stadt\\):$",
+      "maximumGap": 45,
+      "minimumDataRows": 1
     }
   ],
   "expectedCounts": [
