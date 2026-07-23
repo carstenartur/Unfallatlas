@@ -2,10 +2,10 @@
  * DOCX pagination integrity adapter.
  *
  * Keeps short subsection headings with the table/content that follows them.
- * The adapter wraps the already serialized Word-export boundary and scopes a
- * configurable Paragraph constructor only for the duration of one export. It
- * therefore composes with the document-provenance proxy without adding a
- * permanent or non-configurable library mutation.
+ * The adapter wraps the already serialized Word-export boundary, loads the
+ * lazy DOCX library before decoration and scopes a configurable Paragraph
+ * constructor only for the duration of one export. It therefore composes with
+ * the document-provenance proxy without adding a permanent library mutation.
  */
 (function initDocxPagination(root, factory) {
   const api = factory();
@@ -76,7 +76,9 @@
       fail('invalid_callback', 'Word export callback is required');
     }
     const originalDocx = rootValue?.docx;
-    if (!originalDocx) return callback();
+    if (!originalDocx) {
+      fail('missing_docx_api', 'DOCX library is unavailable after export-library initialization');
+    }
 
     const decoratedDocx = Object.create(originalDocx);
     Object.defineProperty(decoratedDocx, 'Paragraph', {
@@ -101,14 +103,25 @@
     if (typeof originalExporter !== 'function') {
       return Object.freeze({ available: false, reason: 'word_export_unavailable' });
     }
+    const ensureLibraries = typeof UA.ensureExportLibraries === 'function'
+      ? UA.ensureExportLibraries
+      : null;
 
     let queue = Promise.resolve();
     const wrappedExporter = function exportWordWithPaginationIntegrity(...args) {
       const receiver = this;
-      const run = () => withPaginationParagraph(
-        rootValue,
-        () => originalExporter.apply(receiver, args),
-      );
+      const run = async () => {
+        if (!rootValue.docx) {
+          if (!ensureLibraries) {
+            fail('missing_export_library_loader', 'UA.ensureExportLibraries is required for lazy DOCX loading');
+          }
+          await ensureLibraries.call(UA);
+        }
+        return withPaginationParagraph(
+          rootValue,
+          () => originalExporter.apply(receiver, args),
+        );
+      };
       const result = queue.then(run, run);
       queue = result.then(() => undefined, () => undefined);
       return result;
@@ -120,6 +133,7 @@
       available: true,
       originalExporter,
       wrappedExporter,
+      ensureLibraries,
       keepWithNextTexts: KEEP_WITH_NEXT_TEXTS,
     });
     return UA.docxPaginationRuntime;
