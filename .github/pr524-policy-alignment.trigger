@@ -1,1 +1,1 @@
-Run the reviewed public-browser policy alignment and remove this trigger afterwards.
+Run the reviewed public-browser policy alignment through the pull-request workflow.
