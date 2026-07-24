@@ -3,6 +3,12 @@
   "policyId": "unfallatlas-browser-vendor-provenance-v1",
   "trackingIssue": "https://github.com/carstenartur/Unfallatlas/issues/406",
   "completeInventoryScope": "delivered-assets-component-level",
+  "capabilityPolicy": {
+    "knownLicenseConflictBlocksPublication": true,
+    "missingRequiredLicenseTextBlocksPublication": true,
+    "declaredReproducibilityGapBlocksBrowserCapability": false,
+    "completeBuildProvenanceRemainsReleaseHardeningGoal": true
+  },
   "trustedVendorBuilders": [],
   "unresolvedAssets": [
     {
@@ -47,7 +53,6 @@
       "kind": "embedded-font-container",
       "missingEvidence": [
         "integrity-pinned upstream font source",
-        "full OFL-1.1 text and font copyright notice",
         "deterministic VFS generator attestation"
       ],
       "migrationOptions": [
@@ -63,8 +68,7 @@
       "kind": "embedded-component-without-project-lock",
       "missingEvidence": [
         "simpleheat@0.2.0 package integrity in the project lock",
-        "source-build attestation and contains relation",
-        "full simpleheat license and copyright evidence"
+        "source-build attestation and contains relation"
       ],
       "migrationOptions": [
         "Pin simpleheat@0.2.0 and rebuild Leaflet.heat from source with a deterministic minifier.",
@@ -78,30 +82,11 @@
       ],
       "kind": "opaque-supplier-bundle",
       "missingEvidence": [
-        "source-build attestation for leaflet-image plus d3-queue@2.0.3",
-        "full leaflet-image license and copyright evidence"
+        "source-build attestation for leaflet-image plus d3-queue@2.0.3"
       ],
       "migrationOptions": [
         "Rebuild leaflet-image from its source and locked d3-queue@2.0.3 using a pinned browser bundler.",
         "Replace leaflet-image with a maintained map-capture implementation whose dependencies expose complete license files."
-      ]
-    },
-    {
-      "id": "leaflet-draw-license-text",
-      "paths": [
-        "vendor/leaflet-draw/leaflet.draw.css",
-        "vendor/leaflet-draw/leaflet.draw.js",
-        "vendor/leaflet-draw/images/spritesheet.png",
-        "vendor/leaflet-draw/images/spritesheet-2x.png",
-        "vendor/leaflet-draw/images/spritesheet.svg"
-      ],
-      "kind": "missing-redistribution-evidence",
-      "missingEvidence": [
-        "full upstream MIT license text and copyright notice tied to leaflet-draw@1.0.4"
-      ],
-      "migrationOptions": [
-        "Vendor the exact upstream license and copyright file with a provenance hash.",
-        "Upgrade to a package archive that contains complete redistribution evidence and revalidate the UI contract."
       ]
     }
   ]
