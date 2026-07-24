@@ -147,7 +147,7 @@ describe('public Pages distribution profile', () => {
     }
   });
 
-  test('keeps build jobs read-only and full releases blocked', () => {
+  test('keeps build jobs read-only, pins workflow deployment and blocks full releases', () => {
     const generatedPages = fs.readFileSync(
       path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'),
       'utf8'
@@ -175,8 +175,20 @@ describe('public Pages distribution profile', () => {
         .toBeLessThan(jobs.build.indexOf('actions/upload-pages-artifact'));
       expect(jobs.deploy).toContain('pages: write');
       expect(jobs.deploy).toContain('id-token: write');
+      expect(jobs.deploy).toContain('Pin Pages source to GitHub Actions');
+      expect(jobs.deploy).toContain('gh api --method PUT');
+      expect(jobs.deploy).toContain('build_type=workflow');
+      expect(jobs.deploy.indexOf('Pin Pages source to GitHub Actions'))
+        .toBeLessThan(jobs.deploy.indexOf('actions/configure-pages'));
       expect(jobs.deploy.indexOf('actions/configure-pages'))
         .toBeLessThan(jobs.deploy.indexOf('actions/deploy-pages'));
+      expect(jobs.deploy).toContain('Verify published public profile and vendor assets');
+      expect(jobs.deploy).toContain('unfallwerkbank:distribution-profile');
+      expect(jobs.deploy).toContain('vendor/leaflet/leaflet.js');
+      expect(jobs.deploy).toContain('vendor/leaflet.markercluster/leaflet.markercluster.js');
+      expect(jobs.deploy).toContain('js/ua.public-preview.js');
+      expect(jobs.deploy.indexOf('actions/deploy-pages'))
+        .toBeLessThan(jobs.deploy.indexOf('Verify published public profile and vendor assets'));
     }
 
     expect(currentPages).toMatch(/pull_request:\s*\n\s*branches: \[main\]/);
