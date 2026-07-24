@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "unfallwerkbank.word-compatibility-inputs/v1",
+  "files": [
+    "js/ua.report_v2.js",
+    "js/ua.document_export_provenance.js",
+    "js/ua.document_export_prewarm.js",
+    "js/ua.docx_source_links.js",
+    "js/ua.docx_pagination.js",
+    "js/ua.accident_year_provenance.js",
+    "js/ua.source_manifest.js",
+    "scripts/generate-sample-docx.js",
+    "tests/fixtures/rendered-document/ci-docx-contract.json"
+  ],
+  "lockedPackages": [
+    "docx"
+  ]
+}

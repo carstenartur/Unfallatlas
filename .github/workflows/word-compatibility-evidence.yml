@@ -1,0 +1,67 @@
+name: Microsoft Word Compatibility Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_path:
+        description: 'Committed JSON evidence file to validate'
+        required: true
+        default: 'docs/release-evidence/word-compatibility.json'
+        type: string
+      max_age_days:
+        description: 'Maximum permitted age of the manual Word check'
+        required: true
+        default: '30'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: word-compatibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-word-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WORD_EVIDENCE_PATH: ${{ inputs.evidence_path }}
+      WORD_EVIDENCE_MAX_AGE_DAYS: ${{ inputs.max_age_days }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Validate hash-bound Microsoft Word receipt
+        run: |
+          node scripts/validate-word-compatibility-evidence.js \
+            --evidence "$WORD_EVIDENCE_PATH" \
+            --max-age-days "$WORD_EVIDENCE_MAX_AGE_DAYS" \
+            --report out/qa/word-compatibility-report.json
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: word-compatibility-evidence-${{ github.run_id }}
+          path: out/qa/word-compatibility-report.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summarise release evidence
+        if: success()
+        run: |
+          echo '## Microsoft Word compatibility evidence' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          printf 'Evidence: `%s`\n' "$WORD_EVIDENCE_PATH" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Commit: `%s`\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Maximum age: `%s days`\n' "$WORD_EVIDENCE_MAX_AGE_DAYS" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The receipt is bound to the current renderer/input fingerprint and all required manual checks passed.' >> "$GITHUB_STEP_SUMMARY"
