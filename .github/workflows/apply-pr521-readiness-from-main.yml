@@ -1,0 +1,70 @@
+name: Apply PR 521 semantic readiness from main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-pr521-readiness-from-main.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-pr521-semantic-readiness
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: fix/selection-viewport-count-scope
+          fetch-depth: 0
+
+      - name: Replace network-idle with semantic application readiness
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/e2e/werkbank.spec.js')
+          source = path.read_text(encoding='utf-8')
+          old_import = "import { setupCDNRoutes } from './helpers.js';"
+          new_import = "import { setupCDNRoutes, waitForScreenshotReady } from './helpers.js';"
+          if source.count(old_import) != 1:
+              raise SystemExit(f'unexpected helper import count: {source.count(old_import)}')
+          source = source.replace(old_import, new_import, 1)
+          old_wait = "await page.waitForLoadState('networkidle');"
+          count = source.count(old_wait)
+          if count != 10:
+              raise SystemExit(f'expected ten networkidle waits, found {count}')
+          source = source.replace(old_wait, "await waitForScreenshotReady(page, { timeout: 45000 });")
+          path.write_text(source, encoding='utf-8')
+          print(f'replaced {count} networkidle waits')
+          PY
+          node --check tests/e2e/werkbank.spec.js
+
+      - name: Commit PR branch patch
+        run: |
+          rm -f .github/workflows/apply-pr521-semantic-readiness.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'test: replace network-idle waits with semantic readiness'
+          git push origin HEAD:fix/selection-viewport-count-scope
+
+      - name: Remove this temporary main workflow
+        if: ${{ always() }}
+        run: |
+          git reset --hard
+          git clean -fd
+          git fetch origin main
+          git checkout -B cleanup-main origin/main
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/apply-pr521-readiness-from-main.yml
+          git commit -m 'ci: remove PR 521 readiness applicator'
+          git push origin HEAD:main
