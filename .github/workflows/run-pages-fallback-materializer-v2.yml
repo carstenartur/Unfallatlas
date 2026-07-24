@@ -1,5 +1,6 @@
 name: Run corrected Pages fallback materializer
 
+# Rerun marker: static asset auditor fix.
 on:
   push:
     branches: [fix/canonical-bast-cost-source]
