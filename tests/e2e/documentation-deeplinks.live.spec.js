@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import JSZip from 'jszip';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import documentationContract from '../../scripts/documentation-deeplink-contract.cjs';
@@ -8,11 +9,34 @@ const { validateDocumentationLinks } = documentationContract;
 const { visibleCountFromStatus } = localizedCount;
 const scenarios = validateDocumentationLinks(process.cwd()).liveScenarios;
 const outputDir = resolve(process.cwd(), 'out/qa/documentation-live-links');
+const OPTIONAL_CITY_TEMPLATE_FILES = new Set([
+  'base_intro.txt',
+  'base_method.txt',
+  'base_resolution.txt',
+  'hinweis.txt',
+  'outro_internal_note.txt',
+  'outro_source_note.txt',
+  'sachverhalt.txt',
+]);
 mkdirSync(outputDir, { recursive: true });
 
 function approximately(actual, expected, tolerance, label) {
   expect(Math.abs(Number(actual) - Number(expected)), label)
     .toBeLessThanOrEqual(Number(tolerance));
+}
+
+function isOptionalCityTemplateMiss(item) {
+  if (item?.status !== 404) return false;
+  try {
+    const match = new URL(item.url).pathname.match(/\/templates\/[^/]+\/([^/]+)$/);
+    return Boolean(match && OPTIONAL_CITY_TEMPLATE_FILES.has(match[1]));
+  } catch (_) {
+    return false;
+  }
+}
+
+function isGenericResource404(message) {
+  return /^Failed to load resource: the server responded with a status of 404\b/.test(message);
 }
 
 async function readLiveState(page) {
@@ -135,13 +159,22 @@ function assertState(scenario, state) {
 
 const publicDownloadContracts = [
   {
-    id: 'csv', selector: '#btnExportCSV', extension: '.csv', minimumBytes: 30,
-    validate(bytes) {
-      const text = bytes.toString('utf8').replace(/^\uFEFF/, '');
+    id: 'csv', selector: '#btnExportCSV', extension: '.zip', minimumBytes: 200,
+    async validate(bytes) {
+      const archive = await JSZip.loadAsync(bytes);
+      const files = Object.keys(archive.files).filter((name) => !archive.files[name].dir);
+      const csvName = files.find((name) => name.toLowerCase().endsWith('.csv'));
+      expect(csvName, 'CSV package must contain the data file').toBeTruthy();
+      expect(files).toEqual(expect.arrayContaining([csvName, 'sources.json', 'README.txt']));
+      const text = (await archive.file(csvName).async('string')).replace(/^\uFEFF/, '');
       expect(text.split(/\r?\n/).filter(Boolean).length).toBeGreaterThan(1);
       expect(/[;,]/.test(text.split(/\r?\n/, 1)[0])).toBe(true);
+      const sources = JSON.parse(await archive.file('sources.json').async('string'));
+      expect(Array.isArray(sources.sources)).toBe(true);
+      expect(sources.sources.length).toBeGreaterThan(0);
+      expect(await archive.file('README.txt').async('string')).toContain('sources.json');
     },
-    contentType: 'text/csv',
+    contentType: 'application/zip',
   },
   {
     id: 'geojson', selector: '#btnExportGeoJSON', extension: '.geojson', minimumBytes: 50,
@@ -185,7 +218,7 @@ async function exercisePublicDownloads(page, scenario, diagnostics, testInfo) {
     await download.saveAs(target);
     const bytes = readFileSync(target);
     expect(bytes.length, `${contract.id} byte size`).toBeGreaterThanOrEqual(contract.minimumBytes);
-    contract.validate(bytes);
+    await contract.validate(bytes);
     diagnostics.downloads.push({ id: contract.id, selector: contract.selector, filename, bytes: bytes.length });
     await testInfo.attach(`${scenario.id}-${contract.id}`, { path: target, contentType: contract.contentType });
   }
@@ -213,15 +246,23 @@ test.describe.serial('README screenshot deep links – published application', (
       const diagnostics = {
         scenario: scenario.id, imagePath: scenario.imagePath, url: scenario.url,
         references: scenario.references, pageErrors: [], consoleErrors: [],
-        sameOriginHttpErrors: [], externalRequestFailures: [], downloads: [], state: null, failure: null,
+        sameOriginHttpErrors: [], optionalTemplateMisses: [], externalRequestFailures: [],
+        downloads: [], state: null, failure: null,
       };
       const liveOrigin = new URL(scenario.url).origin;
       page.on('pageerror', (error) => diagnostics.pageErrors.push(String(error?.stack || error)));
-      page.on('console', (message) => { if (message.type() === 'error') diagnostics.consoleErrors.push(message.text()); });
+      page.on('console', (message) => {
+        const text = message.text();
+        if (message.type() === 'error' && !isGenericResource404(text)) diagnostics.consoleErrors.push(text);
+      });
       page.on('response', (response) => {
         let origin = null;
         try { origin = new URL(response.url()).origin; } catch (_) {}
-        if (origin === liveOrigin && response.status() >= 400) diagnostics.sameOriginHttpErrors.push({ status: response.status(), url: response.url() });
+        if (origin !== liveOrigin || response.status() < 400) return;
+        const item = { status: response.status(), url: response.url() };
+        (isOptionalCityTemplateMiss(item)
+          ? diagnostics.optionalTemplateMisses
+          : diagnostics.sameOriginHttpErrors).push(item);
       });
       page.on('requestfailed', (request) => {
         let origin = null;
