@@ -1,6 +1,1 @@
-Traceback (most recent call last):
-  File "<stdin>", line 15, in <module>
-  File ".github/workflows/apply-pr524-policy-alignment.yml", line 1
-    name: Apply PR 524 policy alignment
-             ^
-IndentationError: unexpected indent
+.github/workflows/deploy-pages-current-data.yml capability asset probes: expected one match, found 0
