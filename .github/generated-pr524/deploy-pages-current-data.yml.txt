@@ -1,0 +1,260 @@
+name: Build and Deploy Current Pages Data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-pages-current-data.yml'
+      - '.github/workflows/generate-data-deploy-pages.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'cities.txt'
+      - '*.html'
+      - 'css/**'
+      - 'js/**'
+      - 'scripts/build-site.js'
+      - 'scripts/serve-site.js'
+      - 'scripts/fingerprint-static-tree.js'
+      - 'scripts/build-static-data.js'
+      - 'scripts/validate-static-data.js'
+      - 'scripts/build-public-pages-profile.js'
+      - 'scripts/validate-public-pages-profile.js'
+      - 'tests/e2e/smoke.spec.js'
+      - 'playwright.config.js'
+      - 'out/**'
+      - 'data/**'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-pages-current-data.yml'
+      - '.github/workflows/generate-data-deploy-pages.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'cities.txt'
+      - '*.html'
+      - 'css/**'
+      - 'js/**'
+      - 'scripts/build-site.js'
+      - 'scripts/serve-site.js'
+      - 'scripts/fingerprint-static-tree.js'
+      - 'scripts/build-static-data.js'
+      - 'scripts/validate-static-data.js'
+      - 'scripts/build-public-pages-profile.js'
+      - 'scripts/validate-public-pages-profile.js'
+      - 'tests/e2e/smoke.spec.js'
+      - 'playwright.config.js'
+      - 'out/**'
+      - 'data/**'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-profile-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build canonical site from checked-in verified data
+        run: npm run build:site -- --input-dir out --poi-dir out --output-dir _site
+
+      - name: Materialize public browser profile with declared provenance gaps
+        run: npm run build:pages-profile -- --site _site
+
+      - name: Validate public Pages artifact
+        run: |
+          node scripts/validate-static-data.js \
+            --dir _site/out \
+            --gzip-only \
+            --require-cities-file cities.txt \
+            --min-features 10
+          node scripts/check-context-datasets.js _site
+          npm run validate:media -- --report out/qa/pages-current-documentation-media.json
+          npm run validate:pages-profile -- --site _site
+
+      - name: Record exact public browser artifact fingerprint
+        run: npm run fingerprint:site -- --site _site --write out/qa/pages-current-profile.sha256
+
+      - name: Install Chromium for public-profile smoke test
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke-test the exact public browser Pages artifact without rebuilding
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/qa
+          npm run serve:site:existing > out/qa/pages-current-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/werkbank_v2.html >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != true ]]; then
+            cat out/qa/pages-current-server.log >&2
+            exit 1
+          fi
+          BASE_URL=http://127.0.0.1:8000 \
+            npx playwright test tests/e2e/smoke.spec.js --project=chromium
+
+      - name: Prove browser smoke left the deployable artifact unchanged
+        run: |
+          npm run fingerprint:site -- --site _site --verify out/qa/pages-current-profile.sha256
+          npm run validate:pages-profile -- --site _site
+
+      - name: Upload public-profile QA evidence
+        if: ${{ always() && hashFiles('_site/build-manifest.json') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: pages-current-profile-evidence
+          path: |
+            out/qa/pages-current-documentation-media.json
+            out/qa/pages-current-profile.sha256
+            out/qa/pages-current-server.log
+            _site/build-manifest.json
+            _site/vendor/third-party-notices.json
+            _site/vendor/sbom.cdx.json
+            playwright-report
+            test-results
+          if-no-files-found: error
+
+      - name: Upload immutable Pages artifact
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Pin Pages source to GitHub Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null
+          build_type="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type')"
+          test "$build_type" = workflow
+
+      - name: Configure Pages deployment
+        uses: actions/configure-pages@v6
+
+      - name: Deploy the previously validated artifact
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Verify published public profile and vendor assets
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}"
+          query="deployment=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
+          for _ in $(seq 1 60); do
+            html_file="$(mktemp)"
+            profile_ok=false
+            capabilities_ok=false
+            assets_ok=false
+            if curl --fail --silent --show-error --location \
+                --connect-timeout 10 --max-time 30 \
+                "${base}/werkbank_v2.html?${query}" > "$html_file"; then
+              if grep -Fq 'name="unfallwerkbank:distribution-profile" content="public-preview-core-v1"' "$html_file"; then
+                profile_ok=true
+              fi
+              if grep -Fq 'vendor/leaflet.heat/leaflet-heat.js' "$html_file" && \
+                 grep -Fq 'vendor/leaflet-draw/leaflet.draw.js' "$html_file" && \
+                 grep -Fq 'vendor/leaflet-image/leaflet-image.js' "$html_file" && \
+                 grep -Fq 'vendor/export/docx.js' "$html_file" && \
+                 grep -Fq 'vendor/export/pdfmake.js' "$html_file"; then
+                capabilities_ok=true
+              fi
+              if curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet/leaflet.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet.markercluster/leaflet.markercluster.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet.heat/leaflet-heat.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet-draw/leaflet.draw.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet-image/leaflet-image.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/export/docx.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/export/pdfmake.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/export/pdfmake-fonts.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/export/file-saver.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/js/ua.public-preview.js?${query}" >/dev/null; then
+                assets_ok=true
+              fi
+            fi
+            rm -f "$html_file"
+            if [[ "$profile_ok" == true && "$capabilities_ok" == true && "$assets_ok" == true ]]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Published Pages site did not expose the validated public profile at ${base}" >&2
+          curl --silent --show-error --location --dump-header - \
+            "${base}/werkbank_v2.html?${query}" | head -n 80 >&2 || true
+          for asset in \
+            vendor/leaflet/leaflet.js \
+            vendor/leaflet.markercluster/leaflet.markercluster.js \
+            vendor/leaflet.heat/leaflet-heat.js \
+            vendor/leaflet-draw/leaflet.draw.js \
+            vendor/leaflet-image/leaflet-image.js \
+            vendor/export/docx.js \
+            vendor/export/pdfmake.js \
+            vendor/export/pdfmake-fonts.js \
+            vendor/export/file-saver.js \
+            js/ua.public-preview.js; do
+            curl --silent --show-error --location --head \
+              "${base}/${asset}?${query}" >&2 || true
+          done
+          exit 1

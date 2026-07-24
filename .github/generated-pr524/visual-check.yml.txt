@@ -1,0 +1,149 @@
+name: Visual Check (PR Screenshots)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build exact public Pages candidate
+        run: |
+          npm run build:site -- --input-dir out --poi-dir out --output-dir _site
+          npm run build:pages-profile -- --site _site
+          npm run validate:pages-profile -- --site _site
+
+      - name: Start exact public Pages candidate
+        run: |
+          npm run serve:site:existing > /tmp/pr-pages-server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:8000/werkbank_v2.html >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/pr-pages-server.log >&2
+          exit 1
+
+      - name: Prepare clean candidate directory
+        run: |
+          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
+          mkdir -p out/qa/screenshot-readiness
+          find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
+          rm -rf out/qa/documentation-live-links
+
+      - name: Generate review screenshots with real cartographic basemaps
+        run: node scripts/run-live-documentation-screenshots.cjs
+
+      - name: Audit README screenshot links against exact PR Pages candidate
+        id: validate_live_links
+        env:
+          DOCUMENTATION_APP_BASE_URL: http://127.0.0.1:8000/
+        run: npm run qa:live-documentation-links
+
+      - name: Validate one-to-one screenshot evidence
+        id: validate_evidence
+        run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
+
+      - name: Validate durable live cartography evidence
+        id: validate_cartography
+        run: node scripts/validate-live-cartography-evidence.cjs --report out/qa/live-cartography-evidence.json
+
+      - name: Validate candidate dimensions, budgets and references
+        id: validate_media
+        run: npm run validate:media -- --candidate-screenshots --report out/qa/documentation-media.json
+
+      - name: Upload published-application deep-link evidence
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/documentation-live-links/*') != '' }}
+        with:
+          name: pr-live-documentation-links-${{ github.event.pull_request.number }}
+          path: out/qa/documentation-live-links/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload PR screenshots as artifact
+        uses: actions/upload-artifact@v7
+        if: ${{ steps.validate_media.outcome == 'success' && steps.validate_evidence.outcome == 'success' && steps.validate_cartography.outcome == 'success' && steps.validate_live_links.outcome == 'success' }}
+        with:
+          name: pr-live-map-screenshots-${{ github.event.pull_request.number }}
+          path: |
+            docs/screenshots/*.png
+            out/qa/screenshot-readiness/*.json
+            out/qa/screenshot-evidence.json
+            out/qa/live-cartography-evidence.json
+            out/qa/documentation-live-links/
+            _site/build-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload media QA report
+        uses: actions/upload-artifact@v7
+        if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/live-cartography-evidence.json', 'out/qa/screenshot-readiness/*.json', 'out/qa/documentation-live-links/*') != '' }}
+        with:
+          name: pr-media-report-${{ github.event.pull_request.number }}
+          path: |
+            out/qa/documentation-media.json
+            out/qa/screenshot-evidence.json
+            out/qa/live-cartography-evidence.json
+            out/qa/screenshot-readiness/
+            out/qa/documentation-live-links/
+            _site/build-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Write PR summary
+        run: |
+          echo "## 📸 Visual Check – Screenshots und README-Deep-Links" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Der Lauf akzeptiert nur erfolgreich geladene reale OSM-/WMS-/Orthofoto-Bildantworten." >> "$GITHUB_STEP_SUMMARY"
+          echo "Synthetische SVG-Kacheln bleiben ausschließlich in der hermetischen E2E-Testsuite." >> "$GITHUB_STEP_SUMMARY"
+          echo "Die Sidecars binden jeden Karten-Screenshot an Provider-URL, HTTP-Status und Raster-MIME-Typ." >> "$GITHUB_STEP_SUMMARY"
+          echo "Zusätzlich werden die anklickbaren README-Screenshots gegen das exakt im PR gebaute Pages-Artefakt geprüft; die Produktionsseite wird erst nach dem Merge auditiert." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Screenshots wurden als Artefakt hochgeladen:" >> "$GITHUB_STEP_SUMMARY"
+          echo "**pr-live-map-screenshots-${{ github.event.pull_request.number }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live-Deep-Link-Evidenz:" >> "$GITHUB_STEP_SUMMARY"
+          echo "**pr-live-documentation-links-${{ github.event.pull_request.number }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Enthaltene Map-Mode-Szenarien:" >> "$GITHUB_STEP_SUMMARY"
+          echo '- 21-mapmode-standard.png (`standard`, echte OSM-Kacheln)' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 22-mapmode-orthophoto.png (`orthophoto`, echte WMS-/Rasterantwort)' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 23-mapmode-hybrid.png (`hybrid`, echtes Orthofoto plus echte Beschriftungskacheln)' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 24-mapmode-analysis.png (`analysis`, echtes Orthofoto)' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 25-mapmode-orthophoto-fallback.png (erzwungener Orthofoto-Ausfall → echte Standardkarte)' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Bitte die Screenshots und JSON-Zustände unter *Actions → dieser Workflow-Run → Artifacts* prüfen." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report rejected candidate
+        if: failure()
+        run: |
+          echo "## 📸 Visual Check fehlgeschlagen" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "Es wurde bewusst kein Screenshot-Kandidat veröffentlicht. Fehlende echte Kartenantworten oder nicht reproduzierbare README-Deep-Links sind harte Fehler." >> "$GITHUB_STEP_SUMMARY"
