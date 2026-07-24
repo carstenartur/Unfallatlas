@@ -4,7 +4,7 @@
 
 import { test, expect } from '@playwright/test';
 import JSZip from 'jszip';
-import { setupCDNRoutes } from './helpers.js';
+import { setupCDNRoutes, waitForScreenshotReady } from './helpers.js';
 
 test.describe('Werkbank V2 - User Workflows', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,7 +12,7 @@ test.describe('Werkbank V2 - User Workflows', () => {
     await page.goto('/werkbank_v2.html');
     
     // Wait for the page to load
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
   });
 
   test('should load the page successfully', async ({ page }) => {
@@ -171,7 +171,7 @@ test.describe('Werkbank V2 - User Workflows', () => {
 test.describe('Werkbank V2 - Drawing and Export', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
     
     // Wait for map initialization by checking if draw button is enabled
     await page.waitForFunction(() => {
@@ -226,7 +226,7 @@ test.describe('Werkbank V2 - Drawing and Export', () => {
 test.describe('Werkbank V2 - Export Modal Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
     
     // Wait for page initialization
     await page.waitForFunction(() => {
@@ -351,7 +351,7 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
 test.describe('Werkbank V2 - Filter Data Effects', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
     // Wait until data is loaded (stat element shows non-zero count)
     await page.waitForFunction(() => {
       const stat = document.querySelector('#stat');
@@ -494,7 +494,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
 
     // Navigate to the same URL
     await page.goto(url);
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
 
     // Verify filters are restored
     await expect(page.locator('#severity')).toHaveValue('2');
@@ -515,7 +515,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
 
     // Navigate to the same URL
     await page.goto(url);
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
     await page.waitForFunction(() => {
       const stat = document.querySelector('#stat');
       return stat && stat.textContent.includes('geladen:') && !stat.textContent.includes('geladen: 0');
@@ -530,7 +530,7 @@ test.describe('Werkbank V2 - Filter Data Effects', () => {
 test.describe('Werkbank V2 - Accessibility', () => {
   test('should have proper ARIA attributes on modal', async ({ page }) => {
     await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
     
     const modal = page.locator('#modalOverlay');
     
@@ -541,7 +541,7 @@ test.describe('Werkbank V2 - Accessibility', () => {
 
   test('should have proper labels on export buttons', async ({ page }) => {
     await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
     
     // Wait for page initialization
     await page.waitForFunction(() => {
@@ -573,7 +573,7 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
   test.beforeEach(async ({ page }) => {
     await setupCDNRoutes(page);
     await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
 
     // Wait for page initialization
     await page.waitForFunction(() => {
@@ -815,7 +815,7 @@ test.describe('Werkbank V2 - Cross Table and Accident Details in Export Modal', 
       '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
       '&centerLat=50.7330&centerLon=7.0950&zoom=15' +
       '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
-    await page.waitForLoadState('networkidle');
+    await waitForScreenshotReady(page, { timeout: 45000 });
 
     // Wait for data to load
     await page.waitForFunction(() => {
