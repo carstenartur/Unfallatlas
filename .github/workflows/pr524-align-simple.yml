@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: pr524-deterministic-alignment
@@ -29,26 +29,11 @@ jobs:
 
       - name: Apply deterministic policy alignment
         run: |
-          set +e
-          python scripts/pr524_align_public_profile.py > /tmp/pr524-align-simple.log 2>&1
-          status=$?
-          cat /tmp/pr524-align-simple.log
-          if [[ "$status" -ne 0 ]]; then exit "$status"; fi
-          set -e
+          python scripts/pr524_align_public_profile.py
           node --check scripts/documentation-deeplink-contract.cjs
           node --check tests/e2e/documentation-deeplinks.live.spec.js
           node --check tests/e2e/smoke.spec.js
           node --check scripts/validate-public-pages-profile.js
-
-      - name: Persist deterministic alignment failure
-        if: failure()
-        run: |
-          cp /tmp/pr524-align-simple.log .github/pr524-alignment-error.txt
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/pr524-alignment-error.txt
-          git commit -m 'ci: persist deterministic PR 524 alignment failure' || true
-          git push origin HEAD:fix/pragmatic-public-browser-profile
 
       - name: Verify focused policy, build and browser contracts
         run: |
@@ -63,11 +48,25 @@ jobs:
           npm run build:pages-profile -- --site _site
           npm run validate:pages-profile -- --site _site
 
-      - name: Commit verified alignment
+      - name: Package the exact verified working-tree result
         run: |
-          rm -f .github/workflows/pr524-align-simple.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'docs: align public browser scope and provenance policy'
-          git push origin HEAD:fix/pragmatic-public-browser-profile
+          set -euo pipefail
+          result=/tmp/pr524-verified-alignment
+          rm -rf "$result"
+          mkdir -p "$result/files"
+          while IFS= read -r -d '' file; do
+            mkdir -p "$result/files/$(dirname "$file")"
+            cp "$file" "$result/files/$file"
+          done < <(git diff --name-only --diff-filter=ACMRT -z)
+          git diff --name-only --diff-filter=D > "$result/deleted-paths.txt"
+          git diff --binary > "$result/verified.patch"
+          git status --short > "$result/status.txt"
+          test -s "$result/verified.patch"
+
+      - name: Upload verified alignment result
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr524-verified-alignment
+          path: /tmp/pr524-verified-alignment
+          if-no-files-found: error
+          retention-days: 7
