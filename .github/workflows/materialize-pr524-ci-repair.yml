@@ -1,0 +1,61 @@
+name: Materialize PR 524 CI repair
+
+on:
+  push:
+    branches: [fix/pragmatic-public-browser-profile]
+    paths:
+      - '.github/workflows/materialize-pr524-ci-repair.yml'
+      - '.github/pr524-ci-repair.trigger'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: materialize-pr524-ci-repair
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/pragmatic-public-browser-profile
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Apply deterministic CI contract repair
+        run: |
+          python scripts/fix-pr524-ci-contracts.py
+          node --check tests/e2e/documentation-deeplinks.live.spec.js
+
+      - name: Verify focused policy and build contracts
+        run: |
+          npm ci
+          npx jest \
+            tests/unit/publicPagesProfile.test.js \
+            tests/unit/videoExportPublicProfile.test.js \
+            tests/unit/vendorLicenseEvidence.test.js \
+            tests/unit/siteBuildContract.test.js \
+            --runInBand
+          npm run build:site -- --input-dir out --poi-dir out --output-dir _site
+          npm run build:pages-profile -- --site _site
+          npm run validate:pages-profile -- --site _site
+
+      - name: Upload verified replacement files
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr524-verified-ci-repair
+          path: |
+            .github/workflows/deploy-pages-current-data.yml
+            .github/workflows/generate-data-deploy-pages.yml
+            .github/workflows/visual-check.yml
+            tests/unit/siteBuildContract.test.js
+            tests/e2e/documentation-deeplinks.live.spec.js
+          if-no-files-found: error
+          retention-days: 7
