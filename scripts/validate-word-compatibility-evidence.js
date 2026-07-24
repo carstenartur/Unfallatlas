@@ -7,6 +7,7 @@ const path = require('path');
 
 const INPUT_SCHEMA = 'unfallwerkbank.word-compatibility-inputs/v1';
 const EVIDENCE_SCHEMA = 'unfallwerkbank.word-compatibility-evidence/v1';
+const REPORT_SCHEMA = 'unfallwerkbank.word-compatibility-report/v1';
 const DEFAULT_CONFIG = 'config/word-compatibility-inputs.json';
 const DEFAULT_MAX_AGE_DAYS = 30;
 const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
@@ -88,6 +89,50 @@ function exactKeys(value, expected, label) {
   }
 }
 
+function isInsideRoot(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`));
+}
+
+function nearestExistingAncestor(candidate) {
+  let current = candidate;
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+  return current;
+}
+
+function resolveInsideRoot(root, candidate, label) {
+  const absoluteRoot = path.resolve(nonEmptyString(String(root || ''), 'repository root'));
+  const raw = nonEmptyString(candidate, label);
+  if (raw.includes('\0')) {
+    fail('unsafe_path', `${label} must stay inside the repository`, { value: candidate });
+  }
+  const normalized = raw.replace(/\\/g, '/');
+  if (path.posix.isAbsolute(normalized) || path.win32.isAbsolute(raw) ||
+      /^[A-Za-z]:\//.test(normalized) || normalized.startsWith('//')) {
+    fail('unsafe_path', `${label} must stay inside the repository`, { value: candidate });
+  }
+  const absolute = path.resolve(absoluteRoot, raw);
+  if (!isInsideRoot(absoluteRoot, absolute)) {
+    fail('unsafe_path', `${label} must stay inside the repository`, { value: candidate });
+  }
+
+  const rootAncestor = nearestExistingAncestor(absoluteRoot);
+  const targetAncestor = nearestExistingAncestor(absolute);
+  if (rootAncestor && targetAncestor) {
+    const realRoot = fs.realpathSync(rootAncestor);
+    const realTargetAncestor = fs.realpathSync(targetAncestor);
+    if (!isInsideRoot(realRoot, realTargetAncestor)) {
+      fail('unsafe_path', `${label} resolves outside the repository`, { value: candidate });
+    }
+  }
+  return absolute;
+}
+
 function readJson(filePath, label) {
   let value;
   try {
@@ -100,7 +145,9 @@ function readJson(filePath, label) {
 
 function safeRelativePath(value, label) {
   const relative = nonEmptyString(value, label).replace(/\\/g, '/');
-  if (path.posix.isAbsolute(relative) || relative.startsWith('../') || relative.includes('/../') ||
+  if (path.posix.isAbsolute(relative) || path.win32.isAbsolute(value) ||
+      /^[A-Za-z]:\//.test(relative) || relative.startsWith('//') ||
+      relative.startsWith('../') || relative.includes('/../') ||
       relative === '..' || relative.includes('\0')) {
     fail('unsafe_path', `${label} must stay inside the repository`, { value });
   }
@@ -167,18 +214,18 @@ function lockedPackageEvidence(lock, packageName) {
 
 function computeInputEvidence(root, configPath = DEFAULT_CONFIG) {
   const absoluteRoot = path.resolve(root);
-  const absoluteConfig = path.resolve(absoluteRoot, configPath);
+  const absoluteConfig = resolveInsideRoot(
+    absoluteRoot,
+    configPath,
+    'Word compatibility input config path',
+  );
   const config = normalizeInputConfig(readJson(absoluteConfig, 'Word compatibility input config'));
   const digest = crypto.createHash('sha256');
   digest.update(canonicalJson(config));
   digest.update('\n');
 
   const files = config.files.map((relative) => {
-    const absolute = path.resolve(absoluteRoot, relative);
-    const rel = path.relative(absoluteRoot, absolute).replace(/\\/g, '/');
-    if (rel !== relative || rel.startsWith('../') || path.isAbsolute(rel)) {
-      fail('unsafe_path', `Resolved input escapes repository: ${relative}`);
-    }
+    const absolute = resolveInsideRoot(absoluteRoot, relative, `compatibility input ${relative}`);
     let bytes;
     try {
       bytes = fs.readFileSync(absolute);
@@ -192,7 +239,7 @@ function computeInputEvidence(root, configPath = DEFAULT_CONFIG) {
     return Object.freeze({ path: relative, bytes: bytes.length, sha256: fileHash });
   });
 
-  const lockPath = path.join(absoluteRoot, 'package-lock.json');
+  const lockPath = resolveInsideRoot(absoluteRoot, 'package-lock.json', 'package-lock.json path');
   const lock = readJson(lockPath, 'package-lock.json');
   const packages = config.lockedPackages.map((name) => lockedPackageEvidence(lock, name));
   for (const item of packages) digest.update(`package\0${canonicalJson(item)}\n`);
@@ -366,39 +413,78 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function displayPath(value) {
+  return typeof value === 'string' ? value.replace(/\\/g, '/') : value;
+}
+
+function errorRecord(error) {
+  return {
+    name: error?.name || 'Error',
+    code: error?.code || 'validation_failed',
+    message: error?.message || String(error),
+    details: error?.details || null,
+  };
+}
+
 function main(argv) {
   const options = parseArgs(argv);
-  const inputEvidence = computeInputEvidence(options.root, options.config);
-  if (options.printFingerprint) process.stdout.write(`${inputEvidence.fingerprint}\n`);
-  if (options.writeTemplate) {
-    const destination = path.resolve(options.root, options.writeTemplate);
-    writeJson(destination, templateFor(inputEvidence));
-    process.stdout.write(`[word-compatibility] wrote template ${destination}\n`);
-    return { inputEvidence, template: destination };
+  const absoluteRoot = path.resolve(options.root);
+  const reportPath = options.report
+    ? resolveInsideRoot(absoluteRoot, options.report, '--report')
+    : null;
+  const templatePath = options.writeTemplate
+    ? resolveInsideRoot(absoluteRoot, options.writeTemplate, '--write-template')
+    : null;
+  const evidenceLabel = displayPath(options.evidence);
+  let inputEvidence = null;
+
+  try {
+    inputEvidence = computeInputEvidence(absoluteRoot, options.config);
+    if (options.printFingerprint) process.stdout.write(`${inputEvidence.fingerprint}\n`);
+    if (templatePath) {
+      writeJson(templatePath, templateFor(inputEvidence));
+      process.stdout.write(`[word-compatibility] wrote template ${templatePath}\n`);
+      return { inputEvidence, template: templatePath };
+    }
+    if (!options.evidence) {
+      if (options.printFingerprint) return { inputEvidence };
+      fail('missing_evidence', '--evidence is required unless --write-template or --print-fingerprint is used');
+    }
+    const evidencePath = resolveInsideRoot(absoluteRoot, options.evidence, '--evidence');
+    const validated = validateReceipt(
+      readJson(evidencePath, 'Microsoft Word compatibility evidence'),
+      inputEvidence,
+      { maxAgeDays: options.maxAgeDays },
+    );
+    const report = {
+      schemaVersion: REPORT_SCHEMA,
+      generatedAt: new Date().toISOString(),
+      passed: true,
+      inputEvidence,
+      evidencePath: path.relative(absoluteRoot, evidencePath).replace(/\\/g, '/'),
+      validation: validated,
+      error: null,
+    };
+    if (reportPath) writeJson(reportPath, report);
+    process.stdout.write(
+      `[word-compatibility] passed for ${validated.environment.version} on ` +
+      `${validated.environment.platform}; fingerprint ${inputEvidence.fingerprint}.\n`,
+    );
+    return report;
+  } catch (error) {
+    if (reportPath) {
+      writeJson(reportPath, {
+        schemaVersion: REPORT_SCHEMA,
+        generatedAt: new Date().toISOString(),
+        passed: false,
+        inputEvidence,
+        evidencePath: evidenceLabel,
+        validation: null,
+        error: errorRecord(error),
+      });
+    }
+    throw error;
   }
-  if (!options.evidence) {
-    if (options.printFingerprint) return { inputEvidence };
-    fail('missing_evidence', '--evidence is required unless --write-template or --print-fingerprint is used');
-  }
-  const evidencePath = path.resolve(options.root, options.evidence);
-  const validated = validateReceipt(
-    readJson(evidencePath, 'Microsoft Word compatibility evidence'),
-    inputEvidence,
-    { maxAgeDays: options.maxAgeDays },
-  );
-  const report = {
-    schemaVersion: 'unfallwerkbank.word-compatibility-report/v1',
-    generatedAt: new Date().toISOString(),
-    inputEvidence,
-    evidencePath: path.relative(options.root, evidencePath).replace(/\\/g, '/'),
-    validation: validated,
-  };
-  if (options.report) writeJson(path.resolve(options.root, options.report), report);
-  process.stdout.write(
-    `[word-compatibility] passed for ${validated.environment.version} on ` +
-    `${validated.environment.platform}; fingerprint ${inputEvidence.fingerprint}.\n`,
-  );
-  return report;
 }
 
 if (require.main === module) {
@@ -414,12 +500,14 @@ if (require.main === module) {
 module.exports = {
   INPUT_SCHEMA,
   EVIDENCE_SCHEMA,
+  REPORT_SCHEMA,
   DEFAULT_CONFIG,
   DEFAULT_MAX_AGE_DAYS,
   FUTURE_TOLERANCE_MS,
   REQUIRED_CHECKS,
   WordCompatibilityEvidenceError,
   parseArgs,
+  resolveInsideRoot,
   normalizeInputConfig,
   canonicalJson,
   computeInputEvidence,
