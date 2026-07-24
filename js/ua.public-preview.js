@@ -14,6 +14,13 @@
     provenanceGapsBlockCapabilities: false,
     disabledCapabilities: DISABLED_CAPABILITIES,
   });
+  document.documentElement.dataset.distributionProfile = PROFILE_ID;
+  if (!document.querySelector(`meta[name="unfallwerkbank:distribution-profile"][content="${PROFILE_ID}"]`)) {
+    const meta = document.createElement('meta');
+    meta.name = 'unfallwerkbank:distribution-profile';
+    meta.content = PROFILE_ID;
+    document.head.appendChild(meta);
+  }
 
   function hideElement(element) {
     if (!element) return;
