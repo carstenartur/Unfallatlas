@@ -100,11 +100,11 @@
     title: "Datenerfassung – Dunkelziffer und Erfassungsgrenzen",
     body: "Erfasst sind ausschließlich polizeilich aufgenommene Verkehrsunfälle mit Personenschaden. Reine Sachschäden, Beinaheunfälle und nicht gemeldete Unfälle (Dunkelziffer) sind nicht enthalten. Studien schätzen, dass insbesondere bei Radunfällen ohne Fremdverschulden sowie bei leichten Verletzungen ein erheblicher Anteil der Vorfälle nicht in der amtlichen Statistik landet — die tatsächliche Belastung kann je nach Verkehrsart um den Faktor 2–10 höher liegen.",
     sourceLabel: "Quelle: BASt – Bundesanstalt für Straßenwesen; Unfallforschung der Versicherer (UDV).",
-    sourceUrl: "https://www.bast.de/DE/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
+    sourceUrl: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
     sources: Object.freeze([
       Object.freeze({
         label: "BASt – Volkswirtschaftliche Kosten von Straßenverkehrsunfällen",
-        url: "https://www.bast.de/DE/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
+        url: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
       }),
       Object.freeze({
         label: "UDV – Unfallforschung der Versicherer",
