@@ -25,6 +25,9 @@ jobs:
   validate-word-evidence:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      WORD_EVIDENCE_PATH: ${{ inputs.evidence_path }}
+      WORD_EVIDENCE_MAX_AGE_DAYS: ${{ inputs.max_age_days }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v7
@@ -39,8 +42,8 @@ jobs:
       - name: Validate hash-bound Microsoft Word receipt
         run: |
           node scripts/validate-word-compatibility-evidence.js \
-            --evidence '${{ inputs.evidence_path }}' \
-            --max-age-days '${{ inputs.max_age_days }}' \
+            --evidence "$WORD_EVIDENCE_PATH" \
+            --max-age-days "$WORD_EVIDENCE_MAX_AGE_DAYS" \
             --report out/qa/word-compatibility-report.json
 
       - name: Upload validation report
@@ -57,8 +60,8 @@ jobs:
         run: |
           echo '## Microsoft Word compatibility evidence' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
-          echo "Evidence: \`${{ inputs.evidence_path }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "Commit: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "Maximum age: \`${{ inputs.max_age_days }} days\`" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Evidence: `%s`\n' "$WORD_EVIDENCE_PATH" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Commit: `%s`\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Maximum age: `%s days`\n' "$WORD_EVIDENCE_MAX_AGE_DAYS" >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo 'The receipt is bound to the current renderer/input fingerprint and all required manual checks passed.' >> "$GITHUB_STEP_SUMMARY"
