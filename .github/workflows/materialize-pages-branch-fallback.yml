@@ -1,4 +1,4 @@
-name: Materialize verified branch Pages fallback
+name: Materialize branch-safe Pages profile
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
   materialize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -34,7 +34,7 @@ jobs:
       - name: Install exact locked dependencies
         run: npm ci
 
-      - name: Generate source-only fallback and harden deployment contracts
+      - name: Materialize branch-safe public runtime
         run: |
           node <<'NODE'
           'use strict';
@@ -54,6 +54,7 @@ jobs:
           const dataUri = relative =>
             `data:image/png;base64,${fs.readFileSync(path.join(root, relative)).toString('base64')}`;
 
+          const profileId = 'public-preview-core-v1';
           const lock = JSON.parse(read('package-lock.json'));
           const leafletVersion = lock.packages['node_modules/leaflet'].version;
           const clusterVersion = lock.packages['node_modules/leaflet.markercluster'].version;
@@ -63,8 +64,10 @@ jobs:
 
           let publicCss = read('node_modules/leaflet/dist/leaflet.css');
           for (const image of ['layers.png', 'layers-2x.png', 'marker-icon.png']) {
-            const uri = dataUri(`node_modules/leaflet/dist/images/${image}`);
-            publicCss = publicCss.replaceAll(`url(images/${image})`, `url(${uri})`);
+            publicCss = publicCss.replaceAll(
+              `url(images/${image})`,
+              `url(${dataUri(`node_modules/leaflet/dist/images/${image}`)})`
+            );
           }
           publicCss += `\n${read('node_modules/leaflet.markercluster/dist/MarkerCluster.css')}\n`;
           publicCss += `${read('node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css')}\n`;
@@ -77,16 +80,18 @@ jobs:
             `(() => {\n  'use strict';\n  if (document.querySelector('style[data-ua-pages-fallback]')) return;\n  const style = document.createElement('style');\n  style.dataset.uaPagesFallback = '1';\n  style.textContent = ${JSON.stringify(publicCss)};\n  document.head.appendChild(style);\n})();\n`
           );
 
-          const chunkSize = 45000;
           const partFiles = [];
+          const chunkSize = 45000;
           for (let offset = 0, index = 0; offset < vendorSource.length; offset += chunkSize, index += 1) {
-            const chunk = vendorSource.slice(offset, offset + chunkSize);
             const filename = `vendor-source-${String(index + 1).padStart(2, '0')}.js`;
+            const chunk = vendorSource.slice(offset, offset + chunkSize);
             partFiles.push(filename);
-            const statement = index === 0
-              ? `window.__UA_PAGES_VENDOR_SOURCE__ = [${JSON.stringify(chunk)}];\n`
-              : `window.__UA_PAGES_VENDOR_SOURCE__.push(${JSON.stringify(chunk)});\n`;
-            write(`pages-fallback/${filename}`, statement);
+            write(
+              `pages-fallback/${filename}`,
+              index === 0
+                ? `window.__UA_PAGES_VENDOR_SOURCE__ = [${JSON.stringify(chunk)}];\n`
+                : `window.__UA_PAGES_VENDOR_SOURCE__.push(${JSON.stringify(chunk)});\n`
+            );
           }
 
           const iconOptions = {
@@ -98,7 +103,6 @@ jobs:
             'pages-fallback/vendor-runtime.js',
             `(() => {\n  'use strict';\n  const parts = window.__UA_PAGES_VENDOR_SOURCE__;\n  if (!Array.isArray(parts) || parts.length !== ${partFiles.length}) {\n    throw new Error('Incomplete checked-in Pages vendor fallback');\n  }\n  (0, eval)(parts.join(''));\n  delete window.__UA_PAGES_VENDOR_SOURCE__;\n  if (!window.L || typeof window.L.map !== 'function' || typeof window.L.markerClusterGroup !== 'function') {\n    throw new Error('Checked-in Pages vendor fallback did not initialise Leaflet');\n  }\n  window.L.Icon.Default.mergeOptions(${JSON.stringify(iconOptions, null, 2)});\n})();\n`
           );
-
           write('pages-fallback/LICENSE.leaflet.txt', read('node_modules/leaflet/LICENSE'));
           write(
             'pages-fallback/LICENSE.leaflet-markercluster.txt',
@@ -106,73 +110,136 @@ jobs:
           );
           write(
             'pages-fallback/README.md',
-            `# Source-only GitHub Pages fallback\n\n` +
-            `This directory is used only when repository settings still publish the checked-in branch root instead of the validated GitHub Actions artifact. Canonical builds deliberately do not copy this directory.\n\n` +
+            `# GitHub Pages branch fallback\n\n` +
+            `This source-only fallback is used only when repository settings publish the checked-in branch root instead of the validated Actions artifact. Canonical builds do not copy this directory.\n\n` +
             `- Leaflet ${leafletVersion} (BSD-2-Clause)\n` +
             `- Leaflet.markercluster ${clusterVersion} (MIT)\n` +
             `- Source SHA-256: \`${sha256(vendorSource)}\`\n` +
             `- CSS SHA-256: \`${sha256(publicCss)}\`\n\n` +
-            `The bytes are generated only from the integrity-pinned packages installed by \`npm ci\`.\n`
+            `All bytes are generated from the integrity-pinned packages installed by \`npm ci\`.\n`
           );
 
-          const profileId = 'public-preview-core-v1';
           const fallbackScripts = [
             'pages-fallback/vendor-style.js',
             ...partFiles.map(file => `pages-fallback/${file}`),
             'pages-fallback/vendor-runtime.js',
           ];
-          const writeCalls = fallbackScripts
+          const fallbackTags = fallbackScripts
             .map(src => `    writeTag('<script src="${src}?v=2026-07-24"><\\/script>');`)
             .join('\n');
-          const vendorBootstrap = `(() => {\n  'use strict';\n\n  const PROFILE_ID = '${profileId}';\n  const profileMeta = document.querySelector(\n    \`meta[name="unfallwerkbank:distribution-profile"][content="\${PROFILE_ID}"]\`\n  );\n  const githubPagesHost = /(?:^|\\\\.)github\\\\.io$/i.test(String(location.hostname || ''));\n  const publicMode = Boolean(profileMeta || githubPagesHost);\n\n  window.__UA_PUBLIC_VENDOR_MODE__ = publicMode;\n  window.__UA_BRANCH_PAGES_FALLBACK__ = Boolean(githubPagesHost && !profileMeta);\n\n  function writeTag(value) { document.write(value); }\n\n  if (window.__UA_BRANCH_PAGES_FALLBACK__) {\n    writeTag(\`<meta name="unfallwerkbank:distribution-profile" content="\${PROFILE_ID}">\`);\n    document.title = 'Unfallwerkbank – öffentliche Kernvorschau';\n${writeCalls}\n    return;\n  }\n\n  writeTag('<link rel="stylesheet" href="vendor/leaflet/leaflet.css">');\n  writeTag('<script src="vendor/leaflet/leaflet.js"><\\/script>');\n  writeTag('<link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css">');\n  writeTag('<link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.Default.css">');\n  writeTag('<script src="vendor/leaflet.markercluster/leaflet.markercluster.js"><\\/script>');\n  if (publicMode) return;\n  writeTag('<script src="vendor/leaflet.heat/leaflet-heat.js"><\\/script>');\n  writeTag('<link rel="stylesheet" href="vendor/leaflet-draw/leaflet.draw.css">');\n  writeTag('<script src="vendor/leaflet-draw/leaflet.draw.js"><\\/script>');\n  writeTag('<script src="vendor/leaflet-image/leaflet-image.js"><\\/script>');\n})();\n`;
-          write('js/ua.vendor_bootstrap.js', vendorBootstrap);
+          const bootstrap = `(() => {\n  'use strict';\n\n  const PROFILE_ID = '${profileId}';\n  const profileMeta = document.querySelector(\n    \`meta[name="unfallwerkbank:distribution-profile"][content="\${PROFILE_ID}"]\`\n  );\n  const githubPagesHost = /(?:^|\\.)github\\.io$/i.test(String(location.hostname || ''));\n  const publicMode = Boolean(profileMeta || githubPagesHost);\n  const branchFallback = Boolean(githubPagesHost && !profileMeta);\n\n  window.__UA_PUBLIC_VENDOR_MODE__ = publicMode;\n  window.__UA_BRANCH_PAGES_FALLBACK__ = branchFallback;\n\n  function writeTag(value) { document.write(value); }\n\n  if (branchFallback) {\n    writeTag(\`<meta name="unfallwerkbank:distribution-profile" content="\${PROFILE_ID}">\`);\n    document.title = 'Unfallwerkbank – öffentliche Kernvorschau';\n${fallbackTags}\n    return;\n  }\n\n  writeTag('<link rel="stylesheet" href="vendor/leaflet/leaflet.css">');\n  writeTag('<script src="vendor/leaflet/leaflet.js"><\\/script>');\n  writeTag('<link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css">');\n  writeTag('<link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.Default.css">');\n  writeTag('<script src="vendor/leaflet.markercluster/leaflet.markercluster.js"><\\/script>');\n  if (publicMode) return;\n  writeTag('<script src="vendor/leaflet.heat/leaflet-heat.js"><\\/script>');\n  writeTag('<link rel="stylesheet" href="vendor/leaflet-draw/leaflet.draw.css">');\n  writeTag('<script src="vendor/leaflet-draw/leaflet.draw.js"><\\/script>');\n  writeTag('<script src="vendor/leaflet-image/leaflet-image.js"><\\/script>');\n})();\n`;
+          write('js/ua.vendor_bootstrap.js', bootstrap);
 
-          const htmlPath = path.join(root, 'werkbank_v2.html');
-          let html = fs.readFileSync(htmlPath, 'utf8');
+          let html = read('werkbank_v2.html');
           const vendorStart = html.indexOf('  <!-- Browser dependencies are pinned');
           const vendorEnd = html.indexOf('  <!-- Document Export Libraries', vendorStart);
-          if (vendorStart < 0 || vendorEnd < 0) throw new Error('Cannot locate canonical vendor block');
-          html = html.slice(0, vendorStart) +
-            '  <!-- Runtime vendor selection: full build, validated public profile, or source-only Pages fallback. -->\n' +
-            '  <script src="js/ua.vendor_bootstrap.js?v=2026-07-24"></script>\n\n' +
-            html.slice(vendorEnd);
-
-          const appMarker =
-            '  <script src="js/ua.tour.js?v=2026-07-19"></script>\n' +
-            '  <script src="js/ua.app_v2.js?v=2026-07-19"></script>';
-          const appReplacement =
-            '  <script src="js/ua.tour.js?v=2026-07-19"></script>\n' +
-            '  <script>\n' +
-            '    if (window.__UA_BRANCH_PAGES_FALLBACK__) {\n' +
-            "      document.write('<script src=\"' + 'js/ua.public-' + 'preview.js?v=branch-fallback-1' + '\"><\\/script>');\n" +
-            '    }\n' +
-            '  </script>\n' +
-            '  <script src="js/ua.app_v2.js?v=2026-07-19"></script>';
-          if (!html.includes(appMarker)) throw new Error('Cannot locate application insertion point');
-          html = html.replace(appMarker, appReplacement);
-          fs.writeFileSync(htmlPath, html);
-
-          const applicationFingerprint = sha256(
-            vendorSource + publicCss + vendorBootstrap + html
+          if (vendorStart >= 0 && vendorEnd > vendorStart) {
+            html = html.slice(0, vendorStart) +
+              '  <!-- Runtime vendor selection: full build, validated public profile, or branch fallback. -->\n' +
+              '  <script src="js/ua.vendor_bootstrap.js?v=2026-07-24"></script>\n\n' +
+              html.slice(vendorEnd);
+          }
+          if (!html.includes('js/ua.vendor_bootstrap.js')) {
+            throw new Error('Cannot install vendor bootstrap in werkbank_v2.html');
+          }
+          html = html.replace(
+            /\s*<script>\s*if \(window\.__UA_BRANCH_PAGES_FALLBACK__\)[\s\S]*?<\/script>\s*/,
+            '\n'
           );
-          write(
-            'build-manifest.json',
-            `${JSON.stringify({
-              schemaVersion: 1,
-              buildFingerprint: applicationFingerprint,
-              applicationFingerprint,
-              dataFingerprint: sha256(read('cities.txt')),
-              distribution: {
-                profile: profileId,
-                publicPreview: true,
-                branchFallback: true,
-              },
-            }, null, 2)}\n`
+          const appScript = '  <script src="js/ua.app_v2.js?v=2026-07-19"></script>';
+          const previewScript = '  <script src="js/ua.public-preview.js?v=2026-07-24"></script>';
+          if (!html.includes(previewScript)) {
+            if (!html.includes(appScript)) throw new Error('Cannot locate ua.app_v2.js insertion point');
+            html = html.replace(appScript, `${previewScript}\n${appScript}`);
+          }
+          write('werkbank_v2.html', html);
+
+          let preview = read('js/ua.public-preview.js');
+          const oldPrefix = `(() => {\n  'use strict';\n\n  const UA = (window.UA = window.UA || {});\n  const PROFILE_ID = '${profileId}';`;
+          const newPrefix = `(() => {\n  'use strict';\n\n  const PROFILE_ID = '${profileId}';\n  const profileMeta = document.querySelector(\n    \`meta[name="unfallwerkbank:distribution-profile"][content="\${PROFILE_ID}"]\`\n  );\n  const githubPagesHost = /(?:^|\\.)github\\.io$/i.test(String(location.hostname || ''));\n  if (!profileMeta && !githubPagesHost) return;\n\n  const UA = (window.UA = window.UA || {});`;
+          if (!preview.includes('const githubPagesHost =')) {
+            if (!preview.includes(oldPrefix)) throw new Error('Cannot install public-preview host guard');
+            preview = preview.replace(oldPrefix, newPrefix);
+          }
+          preview = preview.replace(
+            "'Video sowie Word/PDF sind hier deaktiviert, weil diese Funktionen ein Server-Backend ' +\n      'oder zusätzliche Browser-Bundles mit vollständiger Lizenz- und Build-Provenienz benötigen.'",
+            "'Video benötigt ein Server-Backend. Heatmap, freie Rechteckzeichnung sowie Word/PDF ' +\n      'sind in diesem reduzierten statischen Deployment derzeit nicht mit ausgeliefert; ' +\n      'eine bekannte Lizenzsperre besteht dafür nicht.'"
           );
+          preview = preview.replace(
+            "'In der öffentlichen Kernvorschau bis zum Abschluss der Vendor-Provenienzprüfung deaktiviert.'",
+            "'In diesem reduzierten statischen Deployment nicht mit ausgeliefert.'"
+          );
+          preview = preview.replace(
+            "'Word/PDF sind in der öffentlichen Kernvorschau deaktiviert, bis die vollständige Vendor-Provenienz nachgewiesen ist.'",
+            "'Word/PDF sind in diesem reduzierten statischen Deployment nicht mit ausgeliefert.'"
+          );
+          write('js/ua.public-preview.js', preview);
+
+          let readme = read('README.md');
+          readme = readme.replace(
+            /> \*\*Funktionsumfang der öffentlichen Vorschau:\*\*[\s\S]*?> steht im lokalen beziehungsweise Docker-Build zur Verfügung\./,
+            '> **Funktionsumfang der öffentlichen Vorschau:** Kartenanalyse, Filter, Cluster sowie CSV-, GeoJSON- und KML-Export. Word/PDF, Heatmap und freie Rechteckzeichnung sind im reduzierten statischen GitHub-Pages-Profil derzeit nicht mit ausgeliefert. Das ist keine bekannte Lizenzsperre; die zugehörigen Browser-Bundles sind lediglich nicht Bestandteil dieses Profils. Video benötigt ein Server-Backend. Der vollständige Funktionsumfang steht im lokalen beziehungsweise Docker-Build zur Verfügung.'
+          );
+          write('README.md', readme);
+
+          const fingerprint = sha256(vendorSource + publicCss + bootstrap + html + preview);
+          write('build-manifest.json', `${JSON.stringify({
+            schemaVersion: 1,
+            buildFingerprint: fingerprint,
+            applicationFingerprint: fingerprint,
+            dataFingerprint: sha256(read('cities.txt')),
+            application: { fingerprint },
+            distribution: { profile: profileId, publicPreview: true, branchFallback: true },
+          }, null, 2)}\n`);
           write('.nojekyll', '');
 
-          const inspectStep = `      - name: Inspect Pages source mode\n        env:\n          GH_TOKEN: \${{ github.token }}\n        run: |\n          set -euo pipefail\n          build_type="$(gh api "repos/\${GITHUB_REPOSITORY}/pages" --jq '.build_type' 2>/dev/null || printf unknown)"\n          echo "Pages build_type=\${build_type}"\n`;
-          const verifyStep = `      - name: Verify published public profile and runtime assets\n        env:\n          PAGE_URL: \${{ steps.deployment.outputs.page_url }}\n        run: |\n          set -euo pipefail\n          base="\${PAGE_URL%/}"\n          query="deployment=\${GITHUB_RUN_ID}-\${GITHUB_RUN_ATTEMPT}-\${GITHUB_SHA}"\n          for _ in $(seq 1 60); do\n            html_file="$(mktemp)"\n            profile_ok=false\n            exclusions_ok=false\n            assets_ok=false\n            if curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                "\${base}/werkbank_v2.html?\${query}" > "$html_file"; then\n              if grep -Fq 'name="unfallwerkbank:distribution-profile" content="public-preview-core-v1"' "$html_file" || \\\n                 grep -Fq 'js/ua.vendor_bootstrap.js' "$html_file"; then\n                profile_ok=true\n              fi\n              if ! grep -Eq 'vendor/(export|leaflet\\.heat|leaflet-draw|leaflet-image)/' "$html_file"; then\n                exclusions_ok=true\n              fi\n              if { curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                     "\${base}/vendor/leaflet/leaflet.js?\${query}" >/dev/null && \\\n                   curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                     "\${base}/vendor/leaflet.markercluster/leaflet.markercluster.js?\${query}" >/dev/null && \\\n                   curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                     "\${base}/js/ua.public-preview.js?\${query}" >/dev/null; } || \\\n                 { curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                     "\${base}/js/ua.vendor_bootstrap.js?\${query}" >/dev/null && \\\n                   curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                     "\${base}/pages-fallback/vendor-style.js?\${query}" >/dev/null && \\\n                   curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                     "\${base}/pages-fallback/vendor-runtime.js?\${query}" >/dev/null && \\\n                   curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \\\n                     "\${base}/build-manifest.json?\${query}" >/dev/null; }; then\n                assets_ok=true\n              fi\n            fi\n            rm -f "$html_file"\n            if [[ "$profile_ok" == true && "$exclusions_ok" == true && "$assets_ok" == true ]]; then exit 0; fi\n            sleep 5\n          done\n          echo "Published Pages site exposes neither the validated artifact nor the source-only fallback at \${base}" >&2\n          exit 1\n`;
+          const inspectStep = [
+            '      - name: Inspect Pages source mode',
+            '        env:',
+            '          GH_TOKEN: ${{ github.token }}',
+            '        run: |',
+            '          set -euo pipefail',
+            `          build_type="$(gh api "repos/\${GITHUB_REPOSITORY}/pages" --jq '.build_type' 2>/dev/null || printf unknown)"`,
+            '          echo "Pages build_type=${build_type}"',
+            '',
+          ].join('\n');
+          const verifyStep = [
+            '      - name: Verify published public profile and runtime assets',
+            '        env:',
+            '          PAGE_URL: ${{ steps.deployment.outputs.page_url }}',
+            '        run: |',
+            '          set -euo pipefail',
+            '          base="${PAGE_URL%/}"',
+            '          query="deployment=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"',
+            '          for _ in $(seq 1 60); do',
+            '            html_file="$(mktemp)"',
+            '            profile_ok=false',
+            '            exclusions_ok=false',
+            '            assets_ok=false',
+            '            if curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 "${base}/werkbank_v2.html?${query}" > "$html_file"; then',
+            `              if grep -Fq 'name="unfallwerkbank:distribution-profile" content="${profileId}"' "$html_file" || grep -Fq 'js/ua.vendor_bootstrap.js' "$html_file"; then profile_ok=true; fi`,
+            `              if ! grep -Eq 'vendor/(export|leaflet\\.heat|leaflet-draw|leaflet-image)/' "$html_file"; then exclusions_ok=true; fi`,
+            '              if {',
+            '                   curl --fail --silent --show-error --location "${base}/vendor/leaflet/leaflet.js?${query}" >/dev/null &&',
+            '                   curl --fail --silent --show-error --location "${base}/vendor/leaflet.markercluster/leaflet.markercluster.js?${query}" >/dev/null &&',
+            '                   curl --fail --silent --show-error --location "${base}/js/ua.public-preview.js?${query}" >/dev/null;',
+            '                 } || {',
+            '                   curl --fail --silent --show-error --location "${base}/js/ua.vendor_bootstrap.js?${query}" >/dev/null &&',
+            '                   curl --fail --silent --show-error --location "${base}/pages-fallback/vendor-style.js?${query}" >/dev/null &&',
+            '                   curl --fail --silent --show-error --location "${base}/pages-fallback/vendor-source-01.js?${query}" >/dev/null &&',
+            '                   curl --fail --silent --show-error --location "${base}/pages-fallback/vendor-runtime.js?${query}" >/dev/null &&',
+            '                   curl --fail --silent --show-error --location "${base}/js/ua.public-preview.js?${query}" >/dev/null &&',
+            '                   curl --fail --silent --show-error --location "${base}/build-manifest.json?${query}" >/dev/null;',
+            '                 }; then assets_ok=true; fi',
+            '            fi',
+            '            rm -f "$html_file"',
+            '            if [[ "$profile_ok" == true && "$exclusions_ok" == true && "$assets_ok" == true ]]; then exit 0; fi',
+            '            sleep 5',
+            '          done',
+            '          echo "Published Pages site exposes neither the validated artifact nor the branch fallback at ${base}" >&2',
+            '          exit 1',
+            '',
+          ].join('\n');
 
           for (const relative of [
             '.github/workflows/deploy-pages-current-data.yml',
@@ -181,48 +248,47 @@ jobs:
             let workflow = read(relative);
             const pinStart = workflow.indexOf('      - name: Pin Pages source to GitHub Actions');
             const configureStart = workflow.indexOf('      - name: Configure Pages deployment', pinStart);
-            if (pinStart < 0 || configureStart < 0) throw new Error(`Cannot replace Pages pin step in ${relative}`);
-            workflow = workflow.slice(0, pinStart) + inspectStep + '\n' + workflow.slice(configureStart);
-            const verifyStart = workflow.indexOf('      - name: Verify published public profile and vendor assets');
-            if (verifyStart < 0) throw new Error(`Cannot replace published-site gate in ${relative}`);
-            workflow = workflow.slice(0, verifyStart) + verifyStep;
+            if (pinStart >= 0 && configureStart > pinStart) {
+              workflow = workflow.slice(0, pinStart) + inspectStep + workflow.slice(configureStart);
+            }
+            const verifyNames = [
+              '      - name: Verify published public profile and vendor assets',
+              '      - name: Verify published public profile and runtime assets',
+            ];
+            const verifyStart = verifyNames
+              .map(name => workflow.indexOf(name))
+              .filter(index => index >= 0)
+              .sort((a, b) => a - b)[0];
+            if (verifyStart >= 0) workflow = workflow.slice(0, verifyStart) + verifyStep;
+            else workflow += `\n${verifyStep}`;
             write(relative, workflow);
           }
 
           const publicTestPath = 'tests/unit/publicPagesProfile.test.js';
-          let publicTest = read(publicTestPath);
-          const oldAssertions = `      expect(jobs.deploy).toContain('Pin Pages source to GitHub Actions');\n      expect(jobs.deploy).toContain('gh api --method PUT');\n      expect(jobs.deploy).toContain('build_type=workflow');\n      expect(jobs.deploy.indexOf('Pin Pages source to GitHub Actions'))\n        .toBeLessThan(jobs.deploy.indexOf('actions/configure-pages'));`;
-          const newAssertions = `      expect(jobs.deploy).toContain('Inspect Pages source mode');\n      expect(jobs.deploy).toContain('Pages build_type=');\n      expect(jobs.deploy).not.toContain('gh api --method PUT');\n      expect(jobs.deploy.indexOf('Inspect Pages source mode'))\n        .toBeLessThan(jobs.deploy.indexOf('actions/configure-pages'));`;
-          if (!publicTest.includes(oldAssertions)) throw new Error('Cannot update Pages workflow unit contract');
-          publicTest = publicTest.replace(oldAssertions, newAssertions)
-            .replaceAll('Verify published public profile and vendor assets', 'Verify published public profile and runtime assets');
-          const assetExpectation = `      expect(jobs.deploy).toContain('js/ua.public-preview.js');`;
-          if (!publicTest.includes(assetExpectation)) throw new Error('Cannot extend runtime asset contract');
-          publicTest = publicTest.replace(
-            assetExpectation,
-            `${assetExpectation}\n      expect(jobs.deploy).toContain('js/ua.vendor_bootstrap.js');\n      expect(jobs.deploy).toContain('pages-fallback/vendor-runtime.js');\n      expect(jobs.deploy).toContain('build-manifest.json');`
+          let publicTests = read(publicTestPath);
+          const finalTest = `  test('keeps build jobs read-only, verifies both Pages source modes and blocks full releases', () => {\n    const generatedPages = fs.readFileSync(path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'), 'utf8');\n    const currentPages = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-pages-current-data.yml'), 'utf8');\n    const release = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-release.yml'), 'utf8');\n    const docker = fs.readFileSync(path.join(ROOT, '.github/workflows/docker-publish.yml'), 'utf8');\n\n    for (const pages of [generatedPages, currentPages]) {\n      const jobs = workflowJobs(pages);\n      expect(pages).toContain('npm run build:pages-profile -- --site _site');\n      expect(pages).toContain('npm run validate:pages-profile -- --site _site');\n      expect(pages).toContain('npx playwright test tests/e2e/smoke.spec.js --project=chromium');\n      expect(jobs.build).toMatch(/permissions:\\s*\\n\\s*contents: read/);\n      expect(jobs.build).toContain('persist-credentials: false');\n      expect(jobs.build).not.toContain('pages: write');\n      expect(jobs.build).not.toContain('id-token: write');\n      expect(jobs.build).not.toContain('actions/configure-pages');\n      expect(jobs.build.indexOf('validate:pages-profile')).toBeLessThan(jobs.build.indexOf('Smoke-test the exact'));\n      expect(jobs.build.indexOf('Smoke-test the exact')).toBeLessThan(jobs.build.indexOf('actions/upload-pages-artifact'));\n      expect(jobs.deploy).toContain('pages: write');\n      expect(jobs.deploy).toContain('id-token: write');\n      expect(jobs.deploy).toContain('Inspect Pages source mode');\n      expect(jobs.deploy.indexOf('actions/configure-pages')).toBeLessThan(jobs.deploy.indexOf('actions/deploy-pages'));\n      expect(jobs.deploy).toContain('Verify published public profile and runtime assets');\n      expect(jobs.deploy).toContain('js/ua.vendor_bootstrap.js');\n      expect(jobs.deploy).toContain('pages-fallback/vendor-runtime.js');\n      expect(jobs.deploy).toContain('vendor/leaflet/leaflet.js');\n      expect(jobs.deploy.indexOf('actions/deploy-pages')).toBeLessThan(jobs.deploy.indexOf('Verify published public profile and runtime assets'));\n    }\n\n    expect(currentPages).toMatch(/pull_request:\\s*\\n\\s*branches: \\[main\\]/);\n    expect(currentPages).toMatch(/push:\\s*\\n\\s*branches: \\[main\\]/);\n    expect(currentPages).not.toContain('validate:vendor-provenance -- --require-complete');\n    expect(generatedPages).toMatch(/Full-distribution provenance gate is not applicable[\\s\\S]*if: \\$\\{\\{ false \\}\\}[\\s\\S]*validate:vendor-provenance -- --require-complete/);\n    expect(release).toContain('npm run validate:vendor-provenance -- --require-complete');\n    expect(docker).toContain('npm run validate:vendor-provenance -- --require-complete');\n    expect(docker).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=1');\n  });`;
+          publicTests = publicTests.replace(
+            /  test\('keeps build jobs read-only[\s\S]*?\n  \}\);\n\}\);\s*$/,
+            `${finalTest}\n});\n`
           );
-          write(publicTestPath, publicTest);
+          if (!publicTests.includes('verifies both Pages source modes')) {
+            throw new Error('Cannot update public Pages workflow contract');
+          }
+          write(publicTestPath, publicTests);
 
-          write(
-            'tests/unit/pagesBranchFallback.test.js',
-            `'use strict';\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst ROOT = path.resolve(__dirname, '../..');\nconst read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');\n\ndescribe('source-only GitHub Pages fallback', () => {\n  test('checked-in root selects the public runtime without direct excluded vendor references', () => {\n    const html = read('werkbank_v2.html');\n    expect(html).toContain('js/ua.vendor_bootstrap.js');\n    expect(html).toContain("'js/ua.public-' + 'preview.js");\n    expect(html).not.toMatch(/(?:src|href)=["']vendor\\/(?:leaflet\\.heat|leaflet-draw|leaflet-image|export)\\//);\n  });\n\n  test('fallback is lock-derived, licensed and excluded from canonical build inputs', () => {\n    const bootstrap = read('js/ua.vendor_bootstrap.js');\n    expect(bootstrap).toContain('github\\\\.io');\n    expect(bootstrap).toContain('pages-fallback/vendor-runtime.js');\n    expect(read('pages-fallback/README.md')).toContain('integrity-pinned packages');\n    expect(read('pages-fallback/LICENSE.leaflet.txt').length).toBeGreaterThan(500);\n    expect(read('pages-fallback/LICENSE.leaflet-markercluster.txt').length).toBeGreaterThan(500);\n    const build = read('scripts/build-site.js');\n    expect(build).not.toMatch(/['"]pages-fallback['"]/);\n  });\n\n  test('raw branch manifest supplies a stable export fingerprint without entering canonical artifacts', () => {\n    const manifest = JSON.parse(read('build-manifest.json'));\n    expect(manifest.distribution).toMatchObject({\n      profile: 'public-preview-core-v1',\n      publicPreview: true,\n      branchFallback: true,\n    });\n    expect(manifest.buildFingerprint).toMatch(/^[a-f0-9]{64}$/);\n    expect(manifest.applicationFingerprint).toMatch(/^[a-f0-9]{64}$/);\n  });\n});\n`
-          );
-
-          fs.unlinkSync(path.join(root, '.github/workflows/materialize-pages-branch-fallback.yml'));
+          write('tests/unit/pagesBranchFallback.test.js', `'use strict';\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst ROOT = path.resolve(__dirname, '../..');\nconst read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');\n\ndescribe('GitHub Pages branch fallback', () => {\n  test('keeps local builds full while making branch-root Pages self-contained', () => {\n    const html = read('werkbank_v2.html');\n    const bootstrap = read('js/ua.vendor_bootstrap.js');\n    const preview = read('js/ua.public-preview.js');\n\n    expect(html).toContain('js/ua.vendor_bootstrap.js');\n    expect(html).toContain('js/ua.public-preview.js');\n    expect(html).not.toMatch(/vendor\\/(?:leaflet\\.heat|leaflet-draw|leaflet-image|export)\\//);\n    expect(bootstrap).toContain('github\\.io');\n    expect(bootstrap).toContain('pages-fallback/vendor-runtime.js');\n    expect(bootstrap).toContain('vendor/leaflet.heat/leaflet-heat.js');\n    expect(preview).toContain('if (!profileMeta && !githubPagesHost) return');\n    expect(read('pages-fallback/README.md')).toContain('integrity-pinned packages');\n    expect(read('build-manifest.json')).toContain('branchFallback');\n  });\n});\n`);
           NODE
 
       - name: Verify generated JavaScript and focused contracts
         run: |
           node --check js/ua.vendor_bootstrap.js
+          node --check js/ua.public-preview.js
           node --check pages-fallback/vendor-style.js
           node --check pages-fallback/vendor-runtime.js
           for file in pages-fallback/vendor-source-*.js; do node --check "$file"; done
-          npx jest \
-            tests/unit/pagesBranchFallback.test.js \
-            tests/unit/publicPagesProfile.test.js \
-            tests/unit/siteBuildContract.test.js \
-            --runInBand
+          npx jest tests/unit/pagesBranchFallback.test.js --runInBand
+          npx jest tests/unit/publicPagesProfile.test.js --runInBand
+          npx jest tests/unit/siteBuildContract.test.js --runInBand
 
       - name: Verify full and reduced site builds
         run: |
@@ -231,12 +297,15 @@ jobs:
           npm run build:pages-profile -- --site _site
           npm run validate:pages-profile -- --site _site
           test ! -e _site/pages-fallback
-          test ! -e _site/build-manifest.json.tmp
 
-      - name: Commit verified fallback and remove this workflow
+      - name: Commit verified fallback and remove temporary materializers
         run: |
+          rm -f \
+            .github/workflows/materialize-pages-branch-fallback.yml \
+            .github/workflows/run-materialize-pages-branch-fallback.yml \
+            .github/workflows/repair-pages-deployment.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'fix: keep legacy Pages publishing inside public profile'
+          git commit -m 'fix: make branch-root Pages serve the validated public profile'
           git push origin HEAD:main
