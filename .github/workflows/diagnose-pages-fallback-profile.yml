@@ -1,5 +1,6 @@
 name: Diagnose Pages fallback profile contract
 
+# Rerun marker: structured Jest diagnostics.
 on:
   push:
     branches: [fix/canonical-bast-cost-source]
