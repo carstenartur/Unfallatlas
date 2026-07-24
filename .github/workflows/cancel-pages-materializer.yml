@@ -1,0 +1,20 @@
+name: Cancel stale Pages materializer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cancel-pages-materializer.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: materialize-pages-branch-fallback
+  cancel-in-progress: true
+
+jobs:
+  cancel-stale-run:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Superseded materializer cancelled."
