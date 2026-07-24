@@ -91,7 +91,7 @@
   }
 
   function applyPublicUi(ctx) {
-    if (!ctx || !ctx.ui) return;
+    if (!ctx || !ctx.ui) return false;
     ctx.showHeatmap = false;
     const heatToggle = ctx.ui.btnHeat || document.getElementById('toggleHeat');
     if (typeof UA.setBtnState === 'function') UA.setBtnState(heatToggle, false);
@@ -144,27 +144,27 @@
     }
     installProfileNotice();
     document.documentElement.dataset.distributionProfile = PROFILE_ID;
+    return true;
   }
 
   function installHooks() {
-    if (UA.__publicPreviewHooksInstalled) return;
-    UA.__publicPreviewHooksInstalled = true;
-
-    const originalInitLeaflet = UA.initLeaflet;
-    if (typeof originalInitLeaflet === 'function') {
+    if (!UA.__publicPreviewInitLeafletWrapped && typeof UA.initLeaflet === 'function') {
+      const originalInitLeaflet = UA.initLeaflet;
       UA.initLeaflet = function initLeafletForPublicPreview(ctx) {
         ctx.showHeatmap = false;
         return originalInitLeaflet(ctx);
       };
+      UA.__publicPreviewInitLeafletWrapped = true;
     }
 
-    const originalBindUi = UA.bindUi;
-    if (typeof originalBindUi === 'function') {
+    if (!UA.__publicPreviewBindUiWrapped && typeof UA.bindUi === 'function') {
+      const originalBindUi = UA.bindUi;
       UA.bindUi = function bindUiForPublicPreview(ctx) {
         const result = originalBindUi(ctx);
         applyPublicUi(ctx);
         return result;
       };
+      UA.__publicPreviewBindUiWrapped = true;
     }
 
     UA.ensureExportLibraries = async function unavailablePublicPreviewExportLibraries() {
@@ -172,15 +172,22 @@
     };
 
     const current = typeof UA.getRuntimeContext === 'function' ? UA.getRuntimeContext() : null;
-    if (current && current.ui) applyPublicUi(current);
+    const uiApplied = current && current.ui ? applyPublicUi(current) : false;
+    return Boolean(UA.__publicPreviewBindUiWrapped && uiApplied);
   }
 
-  // In the branch fallback this file is loaded in <head>; in the validated
-  // Pages artifact it is loaded immediately before the app module. Registering
-  // first guarantees the hooks precede the app's DOMContentLoaded initializer.
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', installHooks, { once: true });
-  } else {
+  // ua.app_v2.js starts immediately while the document is still loading. Its
+  // first asynchronous city-list fetch gives this short poll a deterministic
+  // window to wrap bindUi before bindUi is called. The same code also remains
+  // correct when the validated Pages profile loads this file directly before
+  // the app module.
+  installHooks();
+  const hookDeadline = Date.now() + 30000;
+  const hookTimer = window.setInterval(() => {
+    if (installHooks() || Date.now() >= hookDeadline) window.clearInterval(hookTimer);
+  }, 25);
+  document.addEventListener('DOMContentLoaded', () => {
     installHooks();
-  }
+    window.setTimeout(installHooks, 0);
+  }, { once: true });
 })();
