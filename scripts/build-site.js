@@ -75,8 +75,16 @@ const VENDOR_LICENSES = Object.freeze({
   leaflet: Object.freeze({ spdx: 'BSD-2-Clause', sourcePath: 'LICENSE' }),
   'leaflet.markercluster': Object.freeze({ spdx: 'MIT', sourcePath: 'MIT-LICENCE.txt' }),
   'leaflet.heat': Object.freeze({ spdx: 'BSD-2-Clause', sourcePath: 'LICENSE' }),
-  'leaflet-draw': Object.freeze({ spdx: 'MIT', sourcePath: null }),
-  'leaflet-image': Object.freeze({ spdx: 'BSD-2-Clause', sourcePath: null }),
+  'leaflet-draw': Object.freeze({
+    spdx: 'MIT',
+    sourcePath: null,
+    repositorySourcePath: 'licenses/vendor/leaflet-draw-MIT.txt',
+  }),
+  'leaflet-image': Object.freeze({
+    spdx: 'BSD-2-Clause',
+    sourcePath: null,
+    repositorySourcePath: 'licenses/vendor/leaflet-image-BSD-2-Clause.txt',
+  }),
   docx: Object.freeze({ spdx: 'MIT', sourcePath: 'LICENSE' }),
   pdfmake: Object.freeze({ spdx: 'MIT', sourcePath: 'LICENSE' }),
   'file-saver': Object.freeze({ spdx: 'MIT', sourcePath: 'LICENSE.md' }),
@@ -374,14 +382,16 @@ function copyVendorLicenses(
 
     let licenseTextPath = null;
     let licenseTextSha256 = null;
-    if (policy.sourcePath) {
-      const source = path.join(packageRoot, policy.sourcePath);
-      if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
-        throw new Error(`[build-site] Missing license text for ${packageName}: ${source}`);
+    const licenseSource = policy.repositorySourcePath
+      ? path.join(repoRoot, policy.repositorySourcePath)
+      : (policy.sourcePath ? path.join(packageRoot, policy.sourcePath) : null);
+    if (licenseSource) {
+      if (!fs.existsSync(licenseSource) || !fs.statSync(licenseSource).isFile()) {
+        throw new Error(`[build-site] Missing license text for ${packageName}: ${licenseSource}`);
       }
       licenseTextPath = `vendor/licenses/${packageName.replace(/[^a-z0-9._-]/gi, '_')}.txt`;
       const destination = path.join(outputRoot, licenseTextPath);
-      copyEntry(source, destination);
+      copyEntry(licenseSource, destination);
       licenseTextSha256 = sha256File(destination);
     }
 
@@ -423,6 +433,7 @@ function copyVendorLicenses(
     components: diagnostic.components,
     assetAssessments: diagnostic.assets,
     fontEvidence: diagnostic.fontEvidence,
+    supplementalLicenses: diagnostic.supplementalLicenses,
     provenancePolicy: diagnostic.policy,
     vendorBuildLock: null,
     sbom: diagnostic.sbom,
@@ -588,8 +599,8 @@ function buildSite(options = {}) {
   const thirdPartyNotices = copyVendorLicenses(repoRoot, outputRoot, undefined, vendorAssets);
   if (thirdPartyNotices.complete !== true) {
     process.stderr.write(
-      `[build-site] WARNING: vendor provenance is incomplete; Pages/release remain blocked by ` +
-      `${thirdPartyNotices.trackingIssue}.\n`
+      `[build-site] NOTICE: component-level build provenance remains incomplete and is tracked as hardening work at ` +
+      `${thirdPartyNotices.trackingIssue}; browser capabilities remain available unless a concrete license conflict exists.\n`
     );
   }
 

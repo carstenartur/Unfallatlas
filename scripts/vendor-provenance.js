@@ -224,7 +224,7 @@ function parseTrueTypeNameTable(buffer) {
   };
 }
 
-function collectFontEvidence(repoRoot) {
+function collectFontEvidence(repoRoot, outputRoot) {
   const pdfmakeMetadata = JSON.parse(fs.readFileSync(
     path.join(repoRoot, 'node_modules/pdfmake/package.json'),
     'utf8'
@@ -236,6 +236,20 @@ function collectFontEvidence(repoRoot) {
   if (names.length !== 4 || names.some(name => !/^Roboto-(?:Regular|Medium|Italic|MediumItalic)\.ttf$/.test(name))) {
     throw new Error(`[vendor-provenance] Unexpected pdfmake font set: ${names.join(', ')}`);
   }
+  const licenseSource = path.join(repoRoot, 'licenses/vendor/Roboto-OFL-1.1.txt');
+  const licensePath = 'vendor/licenses/fonts/Roboto-OFL-1.1.txt';
+  const licenseDestination = path.join(outputRoot, licensePath);
+  if (!fs.existsSync(licenseSource)) {
+    throw new Error(`[vendor-provenance] Missing Roboto OFL text: ${licenseSource}`);
+  }
+  fs.mkdirSync(path.dirname(licenseDestination), { recursive: true });
+  fs.copyFileSync(licenseSource, licenseDestination);
+  const fontLicense = {
+    path: licensePath,
+    sha256: sha256File(licenseDestination),
+    copyrightIncluded: true,
+  };
+
   return names.map(name => {
     const decoded = Buffer.from(vfs[name], 'base64');
     const sourcePath = path.join(repoRoot, 'node_modules/pdfmake/fonts/Roboto', name);
@@ -255,7 +269,7 @@ function collectFontEvidence(repoRoot) {
       suppliedBy: pdfmakePurl,
       nameTable: parseTrueTypeNameTable(decoded),
       licenseExpression: 'OFL-1.1',
-      licenseTexts: [],
+      licenseTexts: [fontLicense],
       attestation: null,
     };
   });
@@ -420,7 +434,22 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets) {
   const components = [...new Map(selected.map(component => [component.purl, component])).values()]
     .sort((left, right) => left.purl.localeCompare(right.purl))
     .map(component => copyComponentLicenseEvidence(repoRoot, outputRoot, component));
-  const fontEvidence = collectFontEvidence(repoRoot);
+  const fontEvidence = collectFontEvidence(repoRoot, outputRoot);
+  const simpleheatLicenseSource = path.join(repoRoot, 'licenses/vendor/simpleheat-BSD-2-Clause.txt');
+  const simpleheatLicensePath = 'vendor/licenses/simpleheat-BSD-2-Clause.txt';
+  const simpleheatLicenseDestination = path.join(outputRoot, simpleheatLicensePath);
+  if (!fs.existsSync(simpleheatLicenseSource)) {
+    throw new Error(`[vendor-provenance] Missing simpleheat license text: ${simpleheatLicenseSource}`);
+  }
+  fs.mkdirSync(path.dirname(simpleheatLicenseDestination), { recursive: true });
+  fs.copyFileSync(simpleheatLicenseSource, simpleheatLicenseDestination);
+  const supplementalLicenses = [{
+    component: 'simpleheat@0.2.0',
+    spdx: 'BSD-2-Clause',
+    path: simpleheatLicensePath,
+    sha256: sha256File(simpleheatLicenseDestination),
+    copyrightIncluded: true,
+  }];
   const fontContainer = assets.find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
   if (!fontContainer) throw new Error('[vendor-provenance] Missing delivered pdfmake font container');
   fontContainer.containsFiles = fontEvidence
@@ -443,6 +472,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets) {
     assets,
     components,
     fontEvidence,
+    supplementalLicenses,
     sbom,
   };
 }
