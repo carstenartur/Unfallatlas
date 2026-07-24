@@ -29,7 +29,8 @@ jobs:
 
       - name: Apply the reviewed alignment program
         run: |
-          python - <<'PY'
+          set +e
+          python - <<'PY' > /tmp/pr524-alignment.log 2>&1
           from pathlib import Path
           import re
           import textwrap
@@ -48,10 +49,24 @@ jobs:
               {'__name__': '__main__'},
           )
           PY
+          status=$?
+          cat /tmp/pr524-alignment.log
+          if [[ "$status" -ne 0 ]]; then exit "$status"; fi
+          set -e
 
           node --check scripts/documentation-deeplink-contract.cjs
           node --check tests/e2e/documentation-deeplinks.live.spec.js
           node --check tests/e2e/smoke.spec.js
+
+      - name: Persist alignment failure diagnostics
+        if: failure()
+        run: |
+          cp /tmp/pr524-alignment.log .github/pr524-alignment-error.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/pr524-alignment-error.txt
+          git commit -m 'ci: persist PR 524 alignment failure' || true
+          git push origin HEAD:fix/pragmatic-public-browser-profile
 
       - name: Verify focused contracts
         run: |
@@ -71,7 +86,8 @@ jobs:
           rm -f \
             .github/workflows/pr524-align-on-pr.yml \
             .github/workflows/run-pr524-alignment.yml \
-            .github/pr524-policy-alignment.trigger
+            .github/pr524-policy-alignment.trigger \
+            .github/pr524-alignment-error.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
