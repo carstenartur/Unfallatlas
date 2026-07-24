@@ -56,17 +56,40 @@ jobs:
           node /tmp/materialize-pages-branch-fallback.js
           rm -f .github/workflows/run-materialize-pages-branch-fallback.yml
 
-      - name: Verify generated JavaScript and focused contracts
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('js/ua.vendor_bootstrap.js')
+          source = path.read_text(encoding='utf-8')
+          old = r'/(?:^|\\.)github\\.io$/i'
+          new = r'/(?:^|\.)github\.io$/i'
+          if source.count(old) != 1:
+              raise SystemExit(f'expected one over-escaped GitHub Pages host regex, found {source.count(old)}')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Verify generated JavaScript syntax and host boundary
         run: |
           node --check js/ua.vendor_bootstrap.js
           node --check pages-fallback/vendor-style.js
           node --check pages-fallback/vendor-runtime.js
           for file in pages-fallback/vendor-source-*.js; do node --check "$file"; done
-          npx jest \
-            tests/unit/pagesBranchFallback.test.js \
-            tests/unit/publicPagesProfile.test.js \
-            tests/unit/siteBuildContract.test.js \
-            --runInBand
+          node - <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('js/ua.vendor_bootstrap.js', 'utf8');
+          if (!source.includes('/(?:^|\\.)github\\.io$/i')) {
+            throw new Error('GitHub Pages host regex is not correctly escaped');
+          }
+          NODE
+
+      - name: Verify source-only fallback contract
+        run: npx jest tests/unit/pagesBranchFallback.test.js --runInBand
+
+      - name: Verify public profile workflow contract
+        run: npx jest tests/unit/publicPagesProfile.test.js --runInBand
+
+      - name: Verify canonical site build contract
+        run: npx jest tests/unit/siteBuildContract.test.js --runInBand
 
       - name: Verify full and reduced site builds
         run: |
@@ -87,6 +110,8 @@ jobs:
       - name: Remove this temporary feature-branch workflow
         if: ${{ always() }}
         run: |
+          git reset --hard
+          git clean -fd
           git fetch origin fix/canonical-bast-cost-source
           git checkout -B cleanup-pages-runner origin/fix/canonical-bast-cost-source
           git config user.name 'github-actions[bot]'
