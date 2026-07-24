@@ -21,21 +21,19 @@ jobs:
         with:
           ref: fix/pragmatic-public-browser-profile
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
 
-      - name: Apply deterministic policy alignment
+      - name: Apply deterministic CI contract repair
         run: |
-          python scripts/pr524_align_public_profile.py
-          node --check scripts/documentation-deeplink-contract.cjs
+          python scripts/fix-pr524-ci-contracts.py
           node --check tests/e2e/documentation-deeplinks.live.spec.js
-          node --check tests/e2e/smoke.spec.js
-          node --check scripts/validate-public-pages-profile.js
 
-      - name: Verify focused policy, build and browser contracts
+      - name: Verify focused policy and build contracts
         run: |
           npm ci
           npx jest \
@@ -48,25 +46,15 @@ jobs:
           npm run build:pages-profile -- --site _site
           npm run validate:pages-profile -- --site _site
 
-      - name: Package the exact verified working-tree result
-        run: |
-          set -euo pipefail
-          result=/tmp/pr524-verified-alignment
-          rm -rf "$result"
-          mkdir -p "$result/files"
-          while IFS= read -r -d '' file; do
-            mkdir -p "$result/files/$(dirname "$file")"
-            cp "$file" "$result/files/$file"
-          done < <(git diff --name-only --diff-filter=ACMRT -z)
-          git diff --name-only --diff-filter=D > "$result/deleted-paths.txt"
-          git diff --binary > "$result/verified.patch"
-          git status --short > "$result/status.txt"
-          test -s "$result/verified.patch"
-
-      - name: Upload verified alignment result
+      - name: Upload verified replacement files
         uses: actions/upload-artifact@v7
         with:
-          name: pr524-verified-alignment
-          path: /tmp/pr524-verified-alignment
+          name: pr524-verified-ci-repair
+          path: |
+            .github/workflows/deploy-pages-current-data.yml
+            .github/workflows/generate-data-deploy-pages.yml
+            .github/workflows/visual-check.yml
+            tests/unit/siteBuildContract.test.js
+            tests/e2e/documentation-deeplinks.live.spec.js
           if-no-files-found: error
           retention-days: 7
