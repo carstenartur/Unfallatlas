@@ -19,6 +19,9 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+    outputs:
+      site_bytes: ${{ steps.site_stats.outputs.site_bytes }}
+      site_files: ${{ steps.site_stats.outputs.site_files }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -55,6 +58,13 @@ jobs:
           ! grep -q 'vendor/leaflet.heat/' _site/werkbank_v2.html
           ! grep -q 'vendor/leaflet-draw/' _site/werkbank_v2.html
           ! grep -q 'vendor/leaflet-image/' _site/werkbank_v2.html
+
+      - name: Record deployable artifact size
+        id: site_stats
+        shell: bash
+        run: |
+          echo "site_bytes=$(du -sb _site | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "site_files=$(find _site -type f | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Upload immutable Pages artifact
         uses: actions/upload-pages-artifact@v5
@@ -130,8 +140,9 @@ jobs:
           fi
 
   record-and-clean:
+    if: ${{ always() }}
     runs-on: ubuntu-latest
-    needs: [deploy, verify-deployed]
+    needs: [build, deploy, verify-deployed]
     permissions:
       contents: write
     steps:
@@ -140,20 +151,39 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Record successful repair and remove one-shot workflow
+      - name: Record repair result and remove one-shot workflow
         env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          VERIFY_RESULT: ${{ needs.verify-deployed.result }}
+          SITE_BYTES: ${{ needs.build.outputs.site_bytes }}
+          SITE_FILES: ${{ needs.build.outputs.site_files }}
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
         run: |
           set -euo pipefail
           git pull --ff-only origin main
           mkdir -p .github
-          cat > .github/pages-deploy-repair-complete.json <<JSON
+          overall=false
+          if [[ "$BUILD_RESULT" == success && "$DEPLOY_RESULT" == success && "$VERIFY_RESULT" == success ]]; then
+            overall=true
+          fi
+          cat > .github/pages-deploy-repair-result.json <<JSON
           {
             "schemaVersion": 1,
+            "success": ${overall},
             "workflowRunId": "${GITHUB_RUN_ID}",
             "workflowRunAttempt": "${GITHUB_RUN_ATTEMPT}",
             "sourceSha": "${GITHUB_SHA}",
             "pageUrl": "${PAGE_URL}",
+            "results": {
+              "build": "${BUILD_RESULT}",
+              "deploy": "${DEPLOY_RESULT}",
+              "verifyDeployed": "${VERIFY_RESULT}"
+            },
+            "site": {
+              "bytes": "${SITE_BYTES}",
+              "files": "${SITE_FILES}"
+            },
             "verifiedAssets": [
               "werkbank_v2.html",
               "build-manifest.json",
@@ -167,6 +197,6 @@ jobs:
           git rm -f .github/workflows/repair-pages-deployment.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/pages-deploy-repair-complete.json
-          git commit -m 'ci: complete one-shot Pages deployment repair'
+          git add .github/pages-deploy-repair-result.json
+          git commit -m 'ci: record one-shot Pages deployment repair result'
           git push origin HEAD:main
