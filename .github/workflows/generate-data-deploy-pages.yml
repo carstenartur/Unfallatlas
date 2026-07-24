@@ -204,7 +204,7 @@ jobs:
           for _ in $(seq 1 60); do
             html_file="$(mktemp)"
             profile_ok=false
-            exclusions_ok=false
+            capabilities_ok=false
             assets_ok=false
             if curl --fail --silent --show-error --location \
                 --connect-timeout 10 --max-time 30 \
@@ -212,8 +212,11 @@ jobs:
               if grep -Fq 'name="unfallwerkbank:distribution-profile" content="public-preview-core-v1"' "$html_file"; then
                 profile_ok=true
               fi
-              if ! grep -Eq 'vendor/(export|leaflet\.heat|leaflet-draw|leaflet-image)/' "$html_file"; then
-                exclusions_ok=true
+              if grep -Fq 'vendor/leaflet.heat/leaflet-heat.js' "$html_file" && \
+                 grep -Fq 'vendor/leaflet-draw/leaflet.draw.js' "$html_file" && \
+                 grep -Fq 'vendor/export/docx.js' "$html_file" && \
+                 grep -Fq 'vendor/export/pdfmake.js' "$html_file"; then
+                capabilities_ok=true
               fi
               if curl --fail --silent --show-error --location \
                    --connect-timeout 10 --max-time 30 \
@@ -223,12 +226,24 @@ jobs:
                    "${base}/vendor/leaflet.markercluster/leaflet.markercluster.js?${query}" >/dev/null && \
                  curl --fail --silent --show-error --location \
                    --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet.heat/leaflet-heat.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet-draw/leaflet.draw.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/export/docx.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/export/pdfmake.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
                    "${base}/js/ua.public-preview.js?${query}" >/dev/null; then
                 assets_ok=true
               fi
             fi
             rm -f "$html_file"
-            if [[ "$profile_ok" == true && "$exclusions_ok" == true && "$assets_ok" == true ]]; then
+            if [[ "$profile_ok" == true && "$capabilities_ok" == true && "$assets_ok" == true ]]; then
               exit 0
             fi
             sleep 5
@@ -239,6 +254,10 @@ jobs:
           for asset in \
             vendor/leaflet/leaflet.js \
             vendor/leaflet.markercluster/leaflet.markercluster.js \
+            vendor/leaflet.heat/leaflet-heat.js \
+            vendor/leaflet-draw/leaflet.draw.js \
+            vendor/export/docx.js \
+            vendor/export/pdfmake.js \
             js/ua.public-preview.js; do
             curl --silent --show-error --location --head \
               "${base}/${asset}?${query}" >&2 || true
