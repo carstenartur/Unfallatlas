@@ -71,6 +71,8 @@
   }
 
   function backendProbeDisabled() {
+    const hostname = String(window.location && window.location.hostname || '');
+    if (/(?:^|\.)github\.io$/i.test(hostname)) return true;
     const profile = window.UA && window.UA.PUBLIC_DISTRIBUTION_PROFILE;
     return Boolean(
       profile &&
@@ -252,9 +254,8 @@
 
   /** Initialisierung: Backend-Verfügbarkeit prüfen */
   async function init() {
-    // A distribution profile is authoritative about unavailable capabilities.
-    // Static Pages must not generate a predictable 404 merely to discover that
-    // the server-only video endpoint is absent.
+    // A distribution profile or the known static GitHub Pages host is
+    // authoritative about the unavailable server-only capability.
     if (backendProbeDisabled()) return;
     try {
       const res = await fetch('/api/video-export-available', {
