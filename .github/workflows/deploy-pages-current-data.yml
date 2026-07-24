@@ -160,9 +160,69 @@ jobs:
       pages: write
       id-token: write
     steps:
+      - name: Pin Pages source to GitHub Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null
+          build_type="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type')"
+          test "$build_type" = workflow
+
       - name: Configure Pages deployment
         uses: actions/configure-pages@v6
 
       - name: Deploy the previously validated artifact
         id: deployment
         uses: actions/deploy-pages@v5
+
+      - name: Verify published public profile and vendor assets
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}"
+          query="deployment=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
+          for _ in $(seq 1 60); do
+            html_file="$(mktemp)"
+            profile_ok=false
+            exclusions_ok=false
+            assets_ok=false
+            if curl --fail --silent --show-error --location \
+                --connect-timeout 10 --max-time 30 \
+                "${base}/werkbank_v2.html?${query}" > "$html_file"; then
+              if grep -Fq 'name="unfallwerkbank:distribution-profile" content="public-preview-core-v1"' "$html_file"; then
+                profile_ok=true
+              fi
+              if ! grep -Eq 'vendor/(export|leaflet\.heat|leaflet-draw|leaflet-image)/' "$html_file"; then
+                exclusions_ok=true
+              fi
+              if curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet/leaflet.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/vendor/leaflet.markercluster/leaflet.markercluster.js?${query}" >/dev/null && \
+                 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 30 \
+                   "${base}/js/ua.public-preview.js?${query}" >/dev/null; then
+                assets_ok=true
+              fi
+            fi
+            rm -f "$html_file"
+            if [[ "$profile_ok" == true && "$exclusions_ok" == true && "$assets_ok" == true ]]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Published Pages site did not expose the validated public profile at ${base}" >&2
+          curl --silent --show-error --location --dump-header - \
+            "${base}/werkbank_v2.html?${query}" | head -n 80 >&2 || true
+          for asset in \
+            vendor/leaflet/leaflet.js \
+            vendor/leaflet.markercluster/leaflet.markercluster.js \
+            js/ua.public-preview.js; do
+            curl --silent --show-error --location --head \
+              "${base}/${asset}?${query}" >&2 || true
+          done
+          exit 1
