@@ -19,8 +19,8 @@ function seriousOrCritical(violations) {
 
 test.describe('Accessibility – Werkbank V2', () => {
   test('Hauptseite hat keine critical/serious axe-Violations', async ({ page }) => {
-    await page.goto('werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForScreenshotReady(page, { city: 'Hannover' });
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])
@@ -95,8 +95,8 @@ test.describe('Accessibility – Werkbank V2', () => {
   });
 
   test('Export-Dialog unterstützt Tastaturfokus, Escape und Fokus-Rückgabe', async ({ page }) => {
-    await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForScreenshotReady(page, { city: 'Hannover' });
 
     const openButton = page.locator('#btnOpenExport');
     const closeButton = page.locator('#btnCloseModal');
@@ -117,8 +117,8 @@ test.describe('Accessibility – Werkbank V2', () => {
   });
 
   test('Legende und Bedienfeld geben ihren Offen-Zustand für Tastaturbedienung aus', async ({ page }) => {
-    await page.goto('/werkbank_v2.html');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForScreenshotReady(page, { city: 'Hannover' });
 
     const legendButton = page.locator('#legendBtn');
     const legend = page.locator('#legendBox');

@@ -17,10 +17,23 @@ import { test, expect } from '@playwright/test';
 
 const APP = 'werkbank_v2.html';
 
+async function openApp(page) {
+  await page.goto(APP, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => {
+    const ctx = window.UA?.getRuntimeContext?.();
+    const select = document.querySelector('#citySel');
+    const stat = String(document.querySelector('#stat')?.textContent || '');
+    if (!ctx?.map || !ctx.ui || !select) return false;
+    const options = [...select.querySelectorAll('option')];
+    const hasLoadingOption = options.some((option) => /Lade/i.test(option.textContent || ''));
+    const dataStillLoading = /Daten werden geladen|wird geladen|Stadt Lade/i.test(stat);
+    return select.getAttribute('aria-busy') !== 'true' && !hasLoadingOption && !dataStillLoading;
+  }, null, { timeout: 60000 });
+}
+
 test.describe('QA-Härtung – Ladezustand', () => {
   test('keine Dauer-Platzhalter („Quelle: -", „Build: -", „Stadt Lade…") nach Load sichtbar', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     // Die Meta-Info-Box ist hidden, solange kein echter Build/Quelle
     // gesetzt ist. Im statischen Test-Mode ohne UA.BUILD bleibt sie
@@ -45,8 +58,7 @@ test.describe('QA-Härtung – Ladezustand', () => {
   });
 
   test('Stadt-Dropdown wird befüllt ODER zeigt erkennbaren Fehlerzustand', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     const citySelect = page.locator('#citySel');
     await expect(citySelect).toBeVisible();
@@ -66,8 +78,7 @@ test.describe('QA-Härtung – Ladezustand', () => {
 
 test.describe('QA-Härtung – Nutzerführung', () => {
   test('3-Schritte-Einstieg ist prominent sichtbar', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     const hint = page.locator('#quickStartHint');
     await expect(hint).toBeVisible();
@@ -78,8 +89,7 @@ test.describe('QA-Härtung – Nutzerführung', () => {
   });
 
   test('Erweiterte Einstellungen (Viewport-Puffer, Heat-Radius) sind einklappbar', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     const adv = page.locator('#advancedSettings');
     await expect(adv).toBeVisible();
@@ -99,8 +109,7 @@ test.describe('QA-Härtung – Nutzerführung', () => {
 
 test.describe('QA-Härtung – Filter sind bedienbar', () => {
   test('Schweregrad, Beteiligung, Zeit und Fahrbahnzustand reagieren auf Eingaben', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     // Schweregrad
     await page.locator('#severity').selectOption('1');
@@ -124,8 +133,7 @@ test.describe('QA-Härtung – Filter sind bedienbar', () => {
 
 test.describe('QA-Härtung – Export-Dialog', () => {
   test('Export-Dialog öffnet, Optionen sind gruppiert, primäre Word/PDF-Aktion ist sichtbar', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     await page.locator('#btnOpenExport').click();
     await expect(page.locator('#modalOverlay')).toBeVisible();
@@ -153,8 +161,7 @@ test.describe('QA-Härtung – Export-Dialog', () => {
   });
 
   test('Hinweisbanner „kein Bereich markiert" erscheint bei Default-Zustand', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     await page.locator('#btnOpenExport').click();
     const hint = page.locator('#noSelectionHint');
@@ -167,8 +174,7 @@ test.describe('QA-Härtung – Export-Dialog', () => {
 
 test.describe('QA-Härtung – Politische Recherche', () => {
   test('Dialog öffnet und zeigt klaren Mehrwert + Lade/Leer/Fehler-Slot', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     await page.locator('#btnPolCtxOpen').click();
     const panel = page.locator('#polCtxPanel');
@@ -186,8 +192,7 @@ test.describe('QA-Härtung – Politische Recherche', () => {
 
 test.describe('QA-Härtung – Geführte Tour', () => {
   test('„Tour starten" öffnet das Tour-Banner mit verständlichen Bedienelementen', async ({ page }) => {
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     const startBtn = page.locator('#tourBtnStart');
     if (!(await startBtn.isVisible())) {
@@ -214,8 +219,7 @@ test.describe('QA-Härtung – Mobile Smoke', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
 
-    await page.goto(APP);
-    await page.waitForLoadState('networkidle');
+    await openApp(page);
 
     // Panel-Header sichtbar.
     await expect(page.locator('.panelTitle')).toBeVisible();

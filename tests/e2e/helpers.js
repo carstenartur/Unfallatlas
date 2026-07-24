@@ -183,11 +183,16 @@ export function assertScreenshotSnapshot(snapshot, criteria = {}, label = 'scree
 export function assertStableScreenshotSnapshot(before, after, criteria = {}, label = 'screenshot') {
   assertScreenshotSnapshot(before, criteria, label);
   assertScreenshotSnapshot(after, criteria, label);
+  // The canonical PDF evidence image is rendered from an already downloaded,
+  // immutable PDF. A later live-map render revision cannot change those canvas
+  // pixels, so only data/coverage state must remain stable for that detached
+  // artifact. Every ordinary application screenshot remains render-strict.
+  const detachedRenderedArtifact = /(?:^|\/)15-export-pdf-rendered\.png$/.test(String(label));
   const projection = snapshot => ({
     city: snapshot.city,
     counts: snapshot.counts,
     coverage: snapshot.coverage,
-    render: snapshot.render
+    ...(detachedRenderedArtifact ? {} : { render: snapshot.render })
   });
   if (JSON.stringify(projection(before)) !== JSON.stringify(projection(after))) {
     throw new Error(`Screenshot lifecycle changed while pixels were captured: ${label}`);
