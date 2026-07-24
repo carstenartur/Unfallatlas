@@ -16,29 +16,24 @@
     completeVendorInventory: true,
     disabledCapabilities: DISABLED_CAPABILITIES
   });
+  document.documentElement.dataset.distributionProfile = PROFILE_ID;
+  if (!document.querySelector(`meta[name="unfallwerkbank:distribution-profile"][content="${PROFILE_ID}"]`)) {
+    const meta = document.createElement('meta');
+    meta.name = 'unfallwerkbank:distribution-profile';
+    meta.content = PROFILE_ID;
+    document.head.appendChild(meta);
+  }
 
   const L = window.L;
   if (L) {
-    // The public Pages profile deliberately excludes Leaflet.draw until its
-    // redistribution evidence is complete. The application still initialises
-    // one draw control, so provide a non-interactive compatibility control and
-    // hide the corresponding task action below. URL-provided selection bounds
-    // continue to use Leaflet core's rectangle geometry.
+    // Compatibility stubs for libraries deliberately omitted from the static preview.
     L.Draw = L.Draw || {};
     L.Draw.Event = L.Draw.Event || {};
     L.Draw.Event.CREATED = L.Draw.Event.CREATED || 'draw:created';
     if (!L.Control.Draw && L.Control && typeof L.Control.extend === 'function') {
       L.Control.Draw = L.Control.extend({
         initialize() {
-          this._toolbars = {
-            draw: {
-              _modes: {
-                rectangle: {
-                  handler: { enable() {} }
-                }
-              }
-            }
-          };
+          this._toolbars = { draw: { _modes: { rectangle: { handler: { enable() {} } } } } };
         },
         onAdd() {
           const container = L.DomUtil.create('div', 'ua-public-preview-draw-disabled');
@@ -48,10 +43,6 @@
         }
       });
     }
-
-    // Defensive compatibility only. The profile forces showHeatmap=false before
-    // every render and removes all heatmap controls. Keeping a no-op factory
-    // prevents a stale shared URL from crashing before URL state is normalised.
     if (typeof L.heatLayer !== 'function') {
       L.heatLayer = function publicPreviewHeatLayer() {
         const layer = L.layerGroup();
@@ -92,9 +83,10 @@
     ].join(';');
     notice.innerHTML =
       '<strong>Öffentliche Kernvorschau:</strong> Kartenanalyse, Filter, Cluster, ' +
-      'Kontextlayer und Datenexport sind verfügbar. Heatmap, freie Rechteckzeichnung, ' +
-      'Video sowie Word/PDF sind hier deaktiviert, weil diese Funktionen ein Server-Backend ' +
-      'oder zusätzliche Browser-Bundles mit vollständiger Lizenz- und Build-Provenienz benötigen.';
+      'Kontextlayer und Datenexport sind verfügbar. Video benötigt ein Server-Backend. ' +
+      'Heatmap und freie Rechteckzeichnung sind in diesem statischen Profil nicht enthalten. ' +
+      'Word/PDF sind hier deaktiviert, weil die zugehörigen Browser-Bundles nicht mit ' +
+      'ausgeliefert werden; eine bekannte Lizenzsperre besteht dafür nicht.';
     panelBody.prepend(notice);
   }
 
@@ -105,9 +97,7 @@
     if (typeof UA.setBtnState === 'function') UA.setBtnState(heatToggle, false);
     if (typeof UA.syncLegendButtons === 'function') UA.syncLegendButtons(ctx);
 
-    const explanation =
-      'In der öffentlichen Kernvorschau bis zum Abschluss der Vendor-Provenienzprüfung deaktiviert.';
-
+    const explanation = 'In diesem reduzierten statischen Deployment nicht mit ausgeliefert.';
     disableButton(heatToggle, explanation);
     hideElement(heatToggle);
     disableButton(ctx.ui.btnDraw, explanation);
@@ -150,32 +140,47 @@
     }
     if (ctx.ui.exportMapModeHintEl) {
       ctx.ui.exportMapModeHintEl.textContent =
-        'Der Kartenmodus gilt für die Vorschau und Datenexporte. Video sowie Word/PDF sind in dieser öffentlichen Kernvorschau deaktiviert.';
+        'Der Kartenmodus gilt für Vorschau und Datenexporte. Video benötigt ein Server-Backend; Word/PDF sind in diesem statischen Profil deaktiviert.';
     }
     installProfileNotice();
     document.documentElement.dataset.distributionProfile = PROFILE_ID;
   }
 
-  const originalInitLeaflet = UA.initLeaflet;
-  if (typeof originalInitLeaflet === 'function') {
-    UA.initLeaflet = function initLeafletForPublicPreview(ctx) {
-      ctx.showHeatmap = false;
-      return originalInitLeaflet(ctx);
+  function installHooks() {
+    if (UA.__publicPreviewHooksInstalled) return;
+    UA.__publicPreviewHooksInstalled = true;
+
+    const originalInitLeaflet = UA.initLeaflet;
+    if (typeof originalInitLeaflet === 'function') {
+      UA.initLeaflet = function initLeafletForPublicPreview(ctx) {
+        ctx.showHeatmap = false;
+        return originalInitLeaflet(ctx);
+      };
+    }
+
+    const originalBindUi = UA.bindUi;
+    if (typeof originalBindUi === 'function') {
+      UA.bindUi = function bindUiForPublicPreview(ctx) {
+        const result = originalBindUi(ctx);
+        applyPublicUi(ctx);
+        return result;
+      };
+    }
+
+    UA.ensureExportLibraries = async function unavailablePublicPreviewExportLibraries() {
+      throw new Error('Word/PDF sind in diesem statischen Profil deaktiviert; eine bekannte Lizenzsperre besteht nicht.');
     };
+
+    const current = typeof UA.getRuntimeContext === 'function' ? UA.getRuntimeContext() : null;
+    if (current && current.ui) applyPublicUi(current);
   }
 
-  const originalBindUi = UA.bindUi;
-  if (typeof originalBindUi === 'function') {
-    UA.bindUi = function bindUiForPublicPreview(ctx) {
-      const result = originalBindUi(ctx);
-      applyPublicUi(ctx);
-      return result;
-    };
+  // In the branch fallback this file is loaded in <head>; in the validated
+  // Pages artifact it is loaded immediately before the app module. Registering
+  // first guarantees the hooks precede the app's DOMContentLoaded initializer.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installHooks, { once: true });
+  } else {
+    installHooks();
   }
-
-  UA.ensureExportLibraries = async function unavailablePublicPreviewExportLibraries() {
-    throw new Error(
-      'Word/PDF sind in der öffentlichen Kernvorschau deaktiviert, bis die vollständige Vendor-Provenienz nachgewiesen ist.'
-    );
-  };
 })();
