@@ -33,7 +33,6 @@ jobs:
           python - <<'PY' > /tmp/pr524-alignment.log 2>&1
           from pathlib import Path
           import re
-          import textwrap
 
           workflow = Path('.github/workflows/apply-pr524-policy-alignment.yml')
           source = workflow.read_text(encoding='utf-8')
@@ -44,10 +43,11 @@ jobs:
           )
           if not match:
               raise SystemExit('alignment program not found')
-          exec(
-              compile(textwrap.dedent(match.group('body')), str(workflow), 'exec'),
-              {'__name__': '__main__'},
+          program = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in match.group('body').splitlines()
           )
+          exec(compile(program, str(workflow), 'exec'), {'__name__': '__main__'})
           PY
           status=$?
           cat /tmp/pr524-alignment.log
