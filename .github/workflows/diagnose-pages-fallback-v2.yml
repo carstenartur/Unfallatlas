@@ -1,0 +1,77 @@
+name: Diagnose corrected Pages fallback contract
+
+on:
+  push:
+    branches: [fix/canonical-bast-cost-source]
+    paths:
+      - '.github/workflows/diagnose-pages-fallback-v2.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose-pages-fallback-v2
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout main source
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fetch diagnostic runner source
+        run: |
+          git fetch origin fix/canonical-bast-cost-source
+          git show origin/fix/canonical-bast-cost-source:.github/workflows/run-pages-fallback-materializer-v2.yml > /tmp/runner.yml
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install exact locked dependencies
+        run: npm ci
+
+      - name: Reproduce corrected fallback candidate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          lines = Path('/tmp/runner.yml').read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(lines) if line.strip() == '- name: Generate and correct fallback candidate')
+          run_line = next(i for i in range(start + 1, len(lines)) if lines[i].strip() == 'run: |')
+          end = next(i for i in range(run_line + 1, len(lines)) if lines[i].startswith('      - name:'))
+          script_lines = [line[10:] if line.startswith('          ') else line for line in lines[run_line + 1:end]]
+          Path('/tmp/generate-fallback.sh').write_text('\n'.join(script_lines) + '\n', encoding='utf-8')
+          PY
+          bash -n /tmp/generate-fallback.sh
+          bash /tmp/generate-fallback.sh
+
+      - name: Run public profile contract with structured diagnostics
+        id: contract
+        continue-on-error: true
+        run: |
+          mkdir -p out/qa
+          npx jest tests/unit/publicPagesProfile.test.js \
+            --runInBand \
+            --json \
+            --outputFile=out/qa/public-pages-profile-v2.json
+
+      - name: Upload diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: pages-fallback-v2-diagnostics
+          path: out/qa/public-pages-profile-v2.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce diagnostic result
+        if: ${{ steps.contract.outcome != 'success' }}
+        run: exit 1
