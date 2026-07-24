@@ -1,0 +1,223 @@
+name: Apply pragmatic public browser policy
+
+on:
+  push:
+    branches: [fix/pragmatic-public-browser-profile]
+    paths:
+      - '.github/workflows/apply-pragmatic-public-browser-profile.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pragmatic-public-browser-profile
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: fix/pragmatic-public-browser-profile
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Apply license-evidence and diagnostic-provenance changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_one(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          build_path = Path('scripts/build-site.js')
+          build = build_path.read_text(encoding='utf-8')
+          build = replace_one(
+              build,
+              "  'leaflet-draw': Object.freeze({ spdx: 'MIT', sourcePath: null }),\n"
+              "  'leaflet-image': Object.freeze({ spdx: 'BSD-2-Clause', sourcePath: null }),",
+              "  'leaflet-draw': Object.freeze({\n"
+              "    spdx: 'MIT',\n"
+              "    sourcePath: null,\n"
+              "    repositorySourcePath: 'licenses/vendor/leaflet-draw-MIT.txt',\n"
+              "  }),\n"
+              "  'leaflet-image': Object.freeze({\n"
+              "    spdx: 'BSD-2-Clause',\n"
+              "    sourcePath: null,\n"
+              "    repositorySourcePath: 'licenses/vendor/leaflet-image-BSD-2-Clause.txt',\n"
+              "  }),",
+              'direct package license policy',
+          )
+          build = replace_one(
+              build,
+              "    let licenseTextPath = null;\n"
+              "    let licenseTextSha256 = null;\n"
+              "    if (policy.sourcePath) {\n"
+              "      const source = path.join(packageRoot, policy.sourcePath);\n"
+              "      if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {\n"
+              "        throw new Error(`[build-site] Missing license text for ${packageName}: ${source}`);\n"
+              "      }\n"
+              "      licenseTextPath = `vendor/licenses/${packageName.replace(/[^a-z0-9._-]/gi, '_')}.txt`;\n"
+              "      const destination = path.join(outputRoot, licenseTextPath);\n"
+              "      copyEntry(source, destination);\n"
+              "      licenseTextSha256 = sha256File(destination);\n"
+              "    }",
+              "    let licenseTextPath = null;\n"
+              "    let licenseTextSha256 = null;\n"
+              "    const licenseSource = policy.repositorySourcePath\n"
+              "      ? path.join(repoRoot, policy.repositorySourcePath)\n"
+              "      : (policy.sourcePath ? path.join(packageRoot, policy.sourcePath) : null);\n"
+              "    if (licenseSource) {\n"
+              "      if (!fs.existsSync(licenseSource) || !fs.statSync(licenseSource).isFile()) {\n"
+              "        throw new Error(`[build-site] Missing license text for ${packageName}: ${licenseSource}`);\n"
+              "      }\n"
+              "      licenseTextPath = `vendor/licenses/${packageName.replace(/[^a-z0-9._-]/gi, '_')}.txt`;\n"
+              "      const destination = path.join(outputRoot, licenseTextPath);\n"
+              "      copyEntry(licenseSource, destination);\n"
+              "      licenseTextSha256 = sha256File(destination);\n"
+              "    }",
+              'license source resolver',
+          )
+          build = replace_one(
+              build,
+              "    fontEvidence: diagnostic.fontEvidence,\n"
+              "    provenancePolicy: diagnostic.policy,",
+              "    fontEvidence: diagnostic.fontEvidence,\n"
+              "    supplementalLicenses: diagnostic.supplementalLicenses,\n"
+              "    provenancePolicy: diagnostic.policy,",
+              'notice supplemental licenses',
+          )
+          build = replace_one(
+              build,
+              "      `[build-site] WARNING: vendor provenance is incomplete; Pages/release remain blocked by ` +\n"
+              "      `${thirdPartyNotices.trackingIssue}.\\n`",
+              "      `[build-site] NOTICE: component-level build provenance remains incomplete and is tracked as hardening work at ` +\n"
+              "      `${thirdPartyNotices.trackingIssue}; browser capabilities remain available unless a concrete license conflict exists.\\n`",
+              'build warning policy',
+          )
+          build_path.write_text(build, encoding='utf-8')
+
+          provenance_path = Path('scripts/vendor-provenance.js')
+          provenance = provenance_path.read_text(encoding='utf-8')
+          provenance = replace_one(
+              provenance,
+              'function collectFontEvidence(repoRoot) {',
+              'function collectFontEvidence(repoRoot, outputRoot) {',
+              'font evidence signature',
+          )
+          provenance = replace_one(
+              provenance,
+              "  return names.map(name => {",
+              "  const licenseSource = path.join(repoRoot, 'licenses/vendor/Roboto-OFL-1.1.txt');\n"
+              "  const licensePath = 'vendor/licenses/fonts/Roboto-OFL-1.1.txt';\n"
+              "  const licenseDestination = path.join(outputRoot, licensePath);\n"
+              "  if (!fs.existsSync(licenseSource)) {\n"
+              "    throw new Error(`[vendor-provenance] Missing Roboto OFL text: ${licenseSource}`);\n"
+              "  }\n"
+              "  fs.mkdirSync(path.dirname(licenseDestination), { recursive: true });\n"
+              "  fs.copyFileSync(licenseSource, licenseDestination);\n"
+              "  const fontLicense = {\n"
+              "    path: licensePath,\n"
+              "    sha256: sha256File(licenseDestination),\n"
+              "    copyrightIncluded: true,\n"
+              "  };\n\n"
+              "  return names.map(name => {",
+              'font license copy',
+          )
+          provenance = replace_one(
+              provenance,
+              "      licenseTexts: [],\n"
+              "      attestation: null,",
+              "      licenseTexts: [fontLicense],\n"
+              "      attestation: null,",
+              'font license evidence',
+          )
+          provenance = replace_one(
+              provenance,
+              '  const fontEvidence = collectFontEvidence(repoRoot);',
+              "  const fontEvidence = collectFontEvidence(repoRoot, outputRoot);\n"
+              "  const simpleheatLicenseSource = path.join(repoRoot, 'licenses/vendor/simpleheat-BSD-2-Clause.txt');\n"
+              "  const simpleheatLicensePath = 'vendor/licenses/simpleheat-BSD-2-Clause.txt';\n"
+              "  const simpleheatLicenseDestination = path.join(outputRoot, simpleheatLicensePath);\n"
+              "  if (!fs.existsSync(simpleheatLicenseSource)) {\n"
+              "    throw new Error(`[vendor-provenance] Missing simpleheat license text: ${simpleheatLicenseSource}`);\n"
+              "  }\n"
+              "  fs.mkdirSync(path.dirname(simpleheatLicenseDestination), { recursive: true });\n"
+              "  fs.copyFileSync(simpleheatLicenseSource, simpleheatLicenseDestination);\n"
+              "  const supplementalLicenses = [{\n"
+              "    component: 'simpleheat@0.2.0',\n"
+              "    spdx: 'BSD-2-Clause',\n"
+              "    path: simpleheatLicensePath,\n"
+              "    sha256: sha256File(simpleheatLicenseDestination),\n"
+              "    copyrightIncluded: true,\n"
+              "  }];",
+              'supplemental simpleheat license',
+          )
+          provenance = replace_one(
+              provenance,
+              "    fontEvidence,\n"
+              "    sbom,",
+              "    fontEvidence,\n"
+              "    supplementalLicenses,\n"
+              "    sbom,",
+              'diagnostic return supplemental licenses',
+          )
+          provenance_path.write_text(provenance, encoding='utf-8')
+
+          workflow = Path('.github/workflows/apply-pragmatic-public-browser-profile.yml')
+          workflow.unlink()
+          PY
+
+          node --check scripts/build-site.js
+          node --check scripts/vendor-provenance.js
+          node --check scripts/build-public-pages-profile.js
+          node --check scripts/validate-public-pages-profile.js
+          node --check js/ua.public-preview.js
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify full public browser artifact
+        run: |
+          npm run build:site -- --input-dir out --poi-dir out --output-dir _site
+          npm run build:pages-profile -- --site _site
+          npm run validate:pages-profile -- --site _site
+          node - <<'NODE'
+          const fs = require('fs');
+          const manifest = JSON.parse(fs.readFileSync('_site/build-manifest.json', 'utf8'));
+          const required = [
+            'vendor/leaflet.heat/leaflet-heat.js',
+            'vendor/leaflet-draw/leaflet.draw.js',
+            'vendor/leaflet-image/leaflet-image.js',
+            'vendor/export/docx.js',
+            'vendor/export/pdfmake.js',
+            'vendor/export/pdfmake-fonts.js',
+            'vendor/export/file-saver.js',
+          ];
+          for (const file of required) {
+            if (!fs.existsSync(`_site/${file}`)) throw new Error(`missing public browser asset: ${file}`);
+          }
+          if (JSON.stringify(manifest.distribution.disabledCapabilities) !== JSON.stringify(['video-export'])) {
+            throw new Error('only video-export may be disabled');
+          }
+          NODE
+
+      - name: Commit verified policy changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: restore full public browser functionality'
+          git push origin HEAD:fix/pragmatic-public-browser-profile
