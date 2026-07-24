@@ -43,22 +43,34 @@ describe('video export public distribution boundary', () => {
     delete global.fetch;
   });
 
-  test('public preview declares video unavailable and performs no backend probe', async () => {
+  test('public browser profile disables only backend video and does not probe it', async () => {
     evaluate(publicPreviewSource);
     evaluate(videoSource);
 
     expect(window.UA.PUBLIC_DISTRIBUTION_PROFILE).toMatchObject({
       id: 'public-preview-core-v1',
-      completeVendorInventory: true,
+      completeVendorInventory: false,
+      complianceMode: 'declared-known-provenance-gaps',
+      provenanceGapsBlockCapabilities: false,
+      knownLicenseRestrictions: [],
+      disabledCapabilities: ['video-export'],
     });
-    expect(window.UA.PUBLIC_DISTRIBUTION_PROFILE.disabledCapabilities)
-      .toContain('video-export');
     expect(window.UA.videoExportClient.backendProbeDisabled()).toBe(true);
 
     await window.UA.videoExportClient.init();
 
     expect(global.fetch).not.toHaveBeenCalled();
     expect(document.getElementById('videoExportContainer').style.display).toBe('none');
+  });
+
+  test('public runtime does not disable client-side analysis or document exports', () => {
+    evaluate(publicPreviewSource);
+
+    expect(window.UA.PUBLIC_DISTRIBUTION_PROFILE.disabledCapabilities).not.toEqual(
+      expect.arrayContaining(['heatmap', 'interactive-rectangle-drawing', 'word-export', 'pdf-export'])
+    );
+    expect(publicPreviewSource).not.toContain('UA.ensureExportLibraries =');
+    expect(publicPreviewSource).not.toContain("hideElement(document.getElementById('exportGroupAntrag'))");
   });
 
   test('a server distribution still probes the canonical availability endpoint', async () => {
