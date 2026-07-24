@@ -1,0 +1,89 @@
+name: Run branch-safe Pages materializer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-branch-safe-pages-materializer.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-pages-branch-fallback
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install exact locked dependencies
+        run: npm ci
+
+      - name: Extract and execute materializer
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('.github/workflows/materialize-pages-branch-fallback.yml').read_text(encoding='utf-8')
+          start_marker = "          node <<'NODE'\n"
+          end_marker = "          NODE\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          lines = source[start:end].splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/materialize-pages.js').write_text(script, encoding='utf-8')
+          PY
+          node --check /tmp/materialize-pages.js
+          node /tmp/materialize-pages.js
+
+      - name: Verify generated JavaScript and fallback contract
+        run: |
+          node --check js/ua.vendor_bootstrap.js
+          node --check js/ua.public-preview.js
+          node --check pages-fallback/vendor-style.js
+          node --check pages-fallback/vendor-runtime.js
+          for file in pages-fallback/vendor-source-*.js; do node --check "$file"; done
+          npx jest tests/unit/pagesBranchFallback.test.js --runInBand
+
+      - name: Verify public Pages profile contract
+        run: npx jest tests/unit/publicPagesProfile.test.js --runInBand
+
+      - name: Verify canonical site build contract
+        run: npx jest tests/unit/siteBuildContract.test.js --runInBand
+
+      - name: Verify full and reduced site builds
+        run: |
+          npm run build:site -- --input-dir out --poi-dir out --output-dir _site
+          npm run validate:media
+          npm run build:pages-profile -- --site _site
+          npm run validate:pages-profile -- --site _site
+          test ! -e _site/pages-fallback
+
+      - name: Commit verified fallback and remove temporary workflows
+        run: |
+          rm -f \
+            .github/workflows/materialize-pages-branch-fallback.yml \
+            .github/workflows/run-materialize-pages-branch-fallback.yml \
+            .github/workflows/cancel-pages-materializer.yml \
+            .github/workflows/run-branch-safe-pages-materializer.yml \
+            .github/workflows/repair-pages-deployment.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: make branch-root Pages serve the validated public profile'
+          git push origin HEAD:main
