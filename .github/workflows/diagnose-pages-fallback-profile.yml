@@ -1,0 +1,106 @@
+name: Diagnose Pages fallback profile contract
+
+on:
+  push:
+    branches: [fix/canonical-bast-cost-source]
+    paths:
+      - '.github/workflows/diagnose-pages-fallback-profile.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-pages-fallback-profile.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: diagnose-pages-fallback-profile
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main source
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install exact locked dependencies
+        run: npm ci
+
+      - name: Generate fallback candidate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/materialize-pages-branch-fallback.yml').read_text(encoding='utf-8')
+          start_marker = "          node <<'NODE'\n"
+          end_marker = "          NODE\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          lines = source[start:end].splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/materialize-pages-branch-fallback.js').write_text(script, encoding='utf-8')
+          PY
+          node /tmp/materialize-pages-branch-fallback.js
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('js/ua.vendor_bootstrap.js')
+          source = path.read_text(encoding='utf-8')
+          source = source.replace(r'/(?:^|\\.)github\\.io$/i', r'/(?:^|\.)github\.io$/i')
+          path.write_text(source, encoding='utf-8')
+          PY
+          rm -f .github/workflows/run-materialize-pages-branch-fallback.yml
+
+      - name: Run public profile contract with structured diagnostics
+        id: profile_contract
+        continue-on-error: true
+        run: |
+          mkdir -p out/qa
+          npx jest tests/unit/publicPagesProfile.test.js \
+            --runInBand \
+            --json \
+            --outputFile=out/qa/public-pages-profile-jest.json
+
+      - name: Upload public profile diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: pages-fallback-profile-diagnostics
+          path: out/qa/public-pages-profile-jest.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce public profile result
+        if: ${{ steps.profile_contract.outcome != 'success' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('out/qa/public-pages-profile-jest.json', 'utf8'));
+          for (const suite of result.testResults || []) {
+            console.error(suite.message || suite.failureMessage || JSON.stringify(suite, null, 2));
+          }
+          process.exit(1);
+          NODE
+
+      - name: Remove this diagnostic workflow
+        if: ${{ always() }}
+        run: |
+          git reset --hard
+          git clean -fd
+          git fetch origin fix/canonical-bast-cost-source
+          git checkout -B cleanup-profile-diagnostic origin/fix/canonical-bast-cost-source
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/diagnose-pages-fallback-profile.yml
+          git commit -m 'ci: remove Pages fallback profile diagnostic'
+          git push origin HEAD:fix/canonical-bast-cost-source
