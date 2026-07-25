@@ -10,7 +10,11 @@
     <packaging>pom</packaging>
 
     <name>Unfallatlas Build</name>
-    <description>Lokaler, Maven-zentrierter Buildvertrag für Anwendung, Pages-Artefakt und Analysis Service.</description>
+    <description>
+        Kanonischer Maven-Reaktor für Browseranwendung, Pages-Artefakt und
+        Analysis Service. GitHub Actions darf diesen Build nur aufrufen und
+        keine parallele Build- oder Testlogik definieren.
+    </description>
 
     <modules>
         <module>analysis-service</module>
@@ -20,41 +24,123 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
         <frontend-maven-plugin.version>2.0.0</frontend-maven-plugin.version>
+        <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
         <node.version>v24.17.0</node.version>
         <npm.version>11.9.0</npm.version>
+        <skipTests>false</skipTests>
         <pages.inputDir>out</pages.inputDir>
         <pages.poiDir>out</pages.poiDir>
-        <pages.mediaReport>out/qa/pages-current-documentation-media.json</pages.mediaReport>
-        <pages.fingerprint>out/qa/pages-current-profile.sha256</pages.fingerprint>
-        <pages.serverLog>out/qa/pages-current-server.log</pages.serverLog>
-        <pages.baseUrl></pages.baseUrl>
+        <pages.outputDir>_site</pages.outputDir>
+        <skip.playwright.install>false</skip.playwright.install>
     </properties>
 
     <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>com.github.eirslett</groupId>
-                    <artifactId>frontend-maven-plugin</artifactId>
-                    <version>${frontend-maven-plugin.version}</version>
-                    <configuration>
-                        <workingDirectory>${project.basedir}</workingDirectory>
-                        <installDirectory>${project.build.directory}/frontend</installDirectory>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>${maven-enforcer-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>enforce-build-environment</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>[3.9.6,)</version>
+                                </requireMavenVersion>
+                                <requireJavaVersion>
+                                    <version>[21,)</version>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${frontend-maven-plugin.version}</version>
+                <configuration>
+                    <workingDirectory>${project.basedir}</workingDirectory>
+                    <installDirectory>${project.build.directory}/frontend</installDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>install-pinned-node-and-npm</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                        <configuration>
+                            <nodeVersion>${node.version}</nodeVersion>
+                            <npmVersion>${npm.version}</npmVersion>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-ci</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>ci</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>frontend-unit-tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run test:unit -- --runInBand</arguments>
+                            <skip>${skipTests}</skip>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>frontend-integration-tests</id>
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run test:integration</arguments>
+                            <skip>${skipTests}</skip>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>frontend-performance-tests</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run test:performance</arguments>
+                            <skip>${skipTests}</skip>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 
     <profiles>
         <!--
-          Vollständiger, lokal reproduzierbarer Pages-Vertrag:
+          Vollständiger Pages-Vertrag gegen die Daten des Checkouts:
 
-            mvn -N -Ppages verify
+              mvn clean verify -Ppages
 
-          Für einen aus anderen Eingabedaten gebauten Kandidaten können die
-          pages.*-Properties überschrieben werden. GitHub Actions ruft exakt
-          diesen Vertrag auf und enthält keine eigene Build-/Testlogik.
+          Derselbe Befehl wird in CI verwendet. Abweichende Datenquellen werden
+          ausschließlich als Maven-Properties übergeben, zum Beispiel:
+
+              mvn clean verify -Ppages \
+                  -Dpages.inputDir=.build/enriched \
+                  -Dpages.poiDir=out
         -->
         <profile>
             <id>pages</id>
@@ -63,145 +149,22 @@
                     <plugin>
                         <groupId>com.github.eirslett</groupId>
                         <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
                         <executions>
                             <execution>
-                                <id>install-node-and-npm</id>
-                                <phase>initialize</phase>
-                                <goals><goal>install-node-and-npm</goal></goals>
-                                <configuration>
-                                    <nodeVersion>${node.version}</nodeVersion>
-                                    <npmVersion>${npm.version}</npmVersion>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>npm-ci</id>
-                                <phase>generate-resources</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>ci</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>build-site</id>
-                                <phase>process-resources</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration>
-                                    <arguments>run build:site -- --input-dir ${pages.inputDir} --poi-dir ${pages.poiDir} --output-dir _site</arguments>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>build-public-pages-profile</id>
-                                <phase>prepare-package</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run build:pages-profile -- --site _site</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>validate-pages-data</id>
-                                <phase>package</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run validate:pages-data</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>validate-pages-context</id>
-                                <phase>package</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run validate:pages-context</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>validate-pages-media</id>
-                                <phase>package</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run validate:media -- --report ${pages.mediaReport}</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>validate-pages-profile</id>
-                                <phase>package</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run validate:pages-profile -- --site _site</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>record-pages-fingerprint</id>
-                                <phase>package</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run fingerprint:site -- --site _site --write ${pages.fingerprint}</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>install-playwright-chromium</id>
-                                <phase>pre-integration-test</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run install:playwright:chromium</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>pages-browser-smoke</id>
-                                <phase>integration-test</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration>
-                                    <arguments>run qa:pages-smoke -- --existing-site</arguments>
-                                    <environmentVariables>
-                                        <PAGES_SMOKE_SERVER_LOG>${pages.serverLog}</PAGES_SMOKE_SERVER_LOG>
-                                        <PLAYWRIGHT_HTML_OPEN>never</PLAYWRIGHT_HTML_OPEN>
-                                    </environmentVariables>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>verify-pages-fingerprint</id>
+                                <id>pages-quality-gate</id>
                                 <phase>verify</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run fingerprint:site -- --site _site --verify ${pages.fingerprint}</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>verify-pages-profile-after-browser</id>
-                                <phase>verify</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run validate:pages-profile -- --site _site</arguments></configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <!--
-          Derselbe Browservertrag gegen eine bereits veröffentlichte Instanz:
-
-            mvn -N -Ppages-smoke -Dpages.baseUrl=https://example/ verify
-        -->
-        <profile>
-            <id>pages-smoke</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.github.eirslett</groupId>
-                        <artifactId>frontend-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>install-node-and-npm</id>
-                                <phase>initialize</phase>
-                                <goals><goal>install-node-and-npm</goal></goals>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
                                 <configuration>
-                                    <nodeVersion>${node.version}</nodeVersion>
-                                    <npmVersion>${npm.version}</npmVersion>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>npm-ci</id>
-                                <phase>generate-resources</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>ci</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>install-playwright-chromium</id>
-                                <phase>pre-integration-test</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration><arguments>run install:playwright:chromium</arguments></configuration>
-                            </execution>
-                            <execution>
-                                <id>published-pages-browser-smoke</id>
-                                <phase>integration-test</phase>
-                                <goals><goal>npm</goal></goals>
-                                <configuration>
-                                    <arguments>run qa:pages-smoke</arguments>
+                                    <arguments>run qa:pages:artifact</arguments>
+                                    <skip>${skipTests}</skip>
                                     <environmentVariables>
-                                        <BASE_URL>${pages.baseUrl}</BASE_URL>
-                                        <PLAYWRIGHT_HTML_OPEN>never</PLAYWRIGHT_HTML_OPEN>
+                                        <PAGES_INPUT_DIR>${pages.inputDir}</PAGES_INPUT_DIR>
+                                        <PAGES_POI_DIR>${pages.poiDir}</PAGES_POI_DIR>
+                                        <PAGES_OUTPUT_DIR>${pages.outputDir}</PAGES_OUTPUT_DIR>
+                                        <SKIP_PLAYWRIGHT_INSTALL>${skip.playwright.install}</SKIP_PLAYWRIGHT_INSTALL>
                                     </environmentVariables>
                                 </configuration>
                             </execution>
