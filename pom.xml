@@ -66,6 +66,7 @@
                 <groupId>com.github.eirslett</groupId>
                 <artifactId>frontend-maven-plugin</artifactId>
                 <version>${frontend-maven-plugin.version}</version>
+                <inherited>false</inherited>
                 <configuration>
                     <workingDirectory>${project.basedir}</workingDirectory>
                     <installDirectory>${project.build.directory}/frontend</installDirectory>
@@ -178,6 +179,7 @@
                         <groupId>com.github.eirslett</groupId>
                         <artifactId>frontend-maven-plugin</artifactId>
                         <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
                         <executions>
                             <execution>
                                 <id>generate-pages-data</id>
