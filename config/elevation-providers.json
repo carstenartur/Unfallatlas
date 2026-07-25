@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "schemaVersion": 1,
+      "id": "hannover-dgm1",
+      "status": "active",
+      "priority": 1,
+      "publisher": "Landeshauptstadt Hannover, Fachbereich Planen und Stadtentwicklung – Geoinformation",
+      "datasetTitle": "Digitales Geländemodell DGM1",
+      "datasetUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Verwaltungen-Kommunen/Die-Verwaltung-der-Landeshauptstadt-Hannover/Dezernate-und-Fachbereiche-der-LHH/Stadtentwicklung-und-Bauen/Fachbereich-Planen-und-Stadtentwicklung/Geoinformation/Open-GeoData/3D-Stadtmodell-und-Gel%C3%A4ndemodell/Digitales-Gel%C3%A4ndemodell-DGM1",
+      "distributionUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Verwaltungen-Kommunen/Die-Verwaltung-der-Landeshauptstadt-Hannover/Dezernate-und-Fachbereiche-der-LHH/Stadtentwicklung-und-Bauen/Fachbereich-Planen-und-Stadtentwicklung/Geoinformation/Open-GeoData/3D-Stadtmodell-und-Gel%C3%A4ndemodell/Digitales-Gel%C3%A4ndemodell-DGM1",
+      "licenseId": "CC-BY-4.0",
+      "licenseName": "Creative Commons Namensnennung 4.0 International",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "requiredAttribution": "Landeshauptstadt Hannover, Fachbereich Planen und Stadtentwicklung – Geoinformation; Digitales Geländemodell DGM1; CC BY 4.0",
+      "resolutionMeters": 1,
+      "modelType": "DTM",
+      "horizontalCrs": "EPSG:25832",
+      "verticalDatum": null,
+      "acquisitionPeriod": null,
+      "publicationDate": null,
+      "retrievedAtPolicy": "generation-time",
+      "modifiedDataNotice": "Aus dem DGM abgeleitete Straßenprofile und Neigungswerte sind bearbeitete Daten und keine amtlichen Fahrbahnvermessungen.",
+      "coverage": {
+        "type": "city-list",
+        "cities": ["Hannover"]
+      }
+    }
+  ]
+}
