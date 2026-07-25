@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 6 * * *'   # täglich um 06:00 UTC
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Build and Deploy Current Pages Data
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -15,12 +20,16 @@ concurrency:
 
 jobs:
   pages-smoke:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-      - name: Checkout code
+      - name: Checkout deployed revision
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -42,6 +51,18 @@ jobs:
           echo "url=$URL" >> "$GITHUB_OUTPUT"
         env:
           PAGES_URL: ${{ vars.PAGES_URL }}
+
+      - name: Determine tested revision
+        id: revision
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "source_run=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "source_run=" >> "$GITHUB_OUTPUT"
+          fi
 
       # Capture the real Playwright exit code while keeping the job alive long
       # enough to upload diagnostics and update the alert issue. The final step
@@ -79,6 +100,8 @@ jobs:
         env:
           PAGES_URL: ${{ steps.pages_url.outputs.url }}
           SMOKE_EXIT_CODE: ${{ steps.smoke.outputs.exit_code }}
+          TESTED_SHA: ${{ steps.revision.outputs.sha }}
+          SOURCE_DEPLOY_RUN: ${{ steps.revision.outputs.source_run }}
         with:
           script: |
             const fs = require('node:fs');
@@ -96,8 +119,8 @@ jobs:
               '',
               `**URL:** ${process.env.PAGES_URL}`,
               `**Workflow-Run:** ${runUrl}`,
-              `**Commit:** \`${context.sha}\``,
-              `**Ref:** \`${context.ref}\``,
+              process.env.SOURCE_DEPLOY_RUN ? `**Pages-Deployment:** ${process.env.SOURCE_DEPLOY_RUN}` : null,
+              `**Getesteter Commit:** \`${process.env.TESTED_SHA}\``,
               `**Exit-Code:** \`${process.env.SMOKE_EXIT_CODE}\``,
               `**Diagnose-Artefakt:** \`${artifactName}\``,
               '',
@@ -108,7 +131,7 @@ jobs:
               '```',
               '',
               'Der vollständige Playwright-Report und die Testartefakte sind am Workflow-Run hinterlegt.',
-            ].join('\n');
+            ].filter(Boolean).join('\n');
 
             const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
@@ -149,6 +172,8 @@ jobs:
         uses: actions/github-script@v9
         env:
           PAGES_URL: ${{ steps.pages_url.outputs.url }}
+          TESTED_SHA: ${{ steps.revision.outputs.sha }}
+          SOURCE_DEPLOY_RUN: ${{ steps.revision.outputs.source_run }}
         with:
           script: |
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -169,8 +194,9 @@ jobs:
                   '',
                   `Der vollständige Smoke-Test gegen ${process.env.PAGES_URL} ist erfolgreich.`,
                   `Workflow-Run: ${runUrl}`,
-                  `Commit: \`${context.sha}\``,
-                ].join('\n'),
+                  process.env.SOURCE_DEPLOY_RUN ? `Pages-Deployment: ${process.env.SOURCE_DEPLOY_RUN}` : null,
+                  `Getesteter Commit: \`${process.env.TESTED_SHA}\``,
+                ].filter(Boolean).join('\n'),
               });
               await github.rest.issues.update({
                 owner: context.repo.owner,
