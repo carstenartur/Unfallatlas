@@ -20,30 +20,12 @@ on:
       - 'out/**'
       - 'data/**'
       - 'docs/**'
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/deploy-pages-current-data.yml'
-      - 'pom.xml'
-      - 'analysis-service/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'cities.txt'
-      - '*.html'
-      - 'css/**'
-      - 'js/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'playwright.config.js'
-      - 'out/**'
-      - 'data/**'
-      - 'docs/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: pages-profile-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}
+  group: pages-current-deploy
   cancel-in-progress: true
 
 jobs:
@@ -88,13 +70,11 @@ jobs:
           retention-days: 14
 
       - name: Upload immutable Pages artifact
-        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
   deploy:
-    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     needs: build
     environment:
