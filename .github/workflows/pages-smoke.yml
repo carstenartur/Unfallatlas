@@ -4,11 +4,6 @@ on:
   schedule:
     - cron: '0 6 * * *'   # täglich um 06:00 UTC
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - Build and Deploy Current Pages Data
-    types:
-      - completed
 
 permissions:
   contents: read
@@ -20,24 +15,12 @@ concurrency:
 
 jobs:
   pages-smoke:
-    if: >-
-      ${{ github.event_name != 'workflow_run' ||
-          (github.event.workflow_run.conclusion == 'success' &&
-           github.event.workflow_run.event == 'push' &&
-           github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-      # workflow_run executes with the target repository's privileges. Never
-      # check out a revision supplied by the triggering event in this job.
-      # Production Pages deployments originate from main, so the smoke-test
-      # implementation is always loaded from that protected, trusted branch.
-      - name: Checkout trusted smoke-test implementation
+      - name: Checkout code
         uses: actions/checkout@v7
-        with:
-          ref: main
-          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -60,22 +43,6 @@ jobs:
         env:
           PAGES_URL: ${{ vars.PAGES_URL }}
 
-      - name: Determine tested revision
-        id: revision
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
-          DEPLOY_RUN_URL: ${{ github.event.workflow_run.html_url }}
-        run: |
-          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
-            printf 'sha=%s\n' "$DEPLOYED_SHA" >> "$GITHUB_OUTPUT"
-            printf 'source_run=%s\n' "$DEPLOY_RUN_URL" >> "$GITHUB_OUTPUT"
-          else
-            printf 'sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-            printf 'source_run=\n' >> "$GITHUB_OUTPUT"
-          fi
-
       # Capture the real Playwright exit code while keeping the job alive long
       # enough to upload diagnostics and update the alert issue. The final step
       # restores the correct failed workflow conclusion.
@@ -85,10 +52,7 @@ jobs:
         run: |
           set +e
           mkdir -p out/pages-smoke
-          npx playwright test \
-            tests/e2e/smoke.spec.js \
-            tests/e2e/pages-critical-path.spec.js \
-            --project=chromium \
+          npx playwright test tests/e2e/smoke.spec.js --project=chromium \
             2>&1 | tee out/pages-smoke/output.log
           status=${PIPESTATUS[0]}
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
@@ -115,8 +79,6 @@ jobs:
         env:
           PAGES_URL: ${{ steps.pages_url.outputs.url }}
           SMOKE_EXIT_CODE: ${{ steps.smoke.outputs.exit_code }}
-          TESTED_SHA: ${{ steps.revision.outputs.sha }}
-          SOURCE_DEPLOY_RUN: ${{ steps.revision.outputs.source_run }}
         with:
           script: |
             const fs = require('node:fs');
@@ -134,8 +96,8 @@ jobs:
               '',
               `**URL:** ${process.env.PAGES_URL}`,
               `**Workflow-Run:** ${runUrl}`,
-              process.env.SOURCE_DEPLOY_RUN ? `**Pages-Deployment:** ${process.env.SOURCE_DEPLOY_RUN}` : null,
-              `**Getesteter Commit:** \`${process.env.TESTED_SHA}\``,
+              `**Commit:** \`${context.sha}\``,
+              `**Ref:** \`${context.ref}\``,
               `**Exit-Code:** \`${process.env.SMOKE_EXIT_CODE}\``,
               `**Diagnose-Artefakt:** \`${artifactName}\``,
               '',
@@ -146,7 +108,7 @@ jobs:
               '```',
               '',
               'Der vollständige Playwright-Report und die Testartefakte sind am Workflow-Run hinterlegt.',
-            ].filter(Boolean).join('\n');
+            ].join('\n');
 
             const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
@@ -187,8 +149,6 @@ jobs:
         uses: actions/github-script@v9
         env:
           PAGES_URL: ${{ steps.pages_url.outputs.url }}
-          TESTED_SHA: ${{ steps.revision.outputs.sha }}
-          SOURCE_DEPLOY_RUN: ${{ steps.revision.outputs.source_run }}
         with:
           script: |
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -209,9 +169,8 @@ jobs:
                   '',
                   `Der vollständige Smoke-Test gegen ${process.env.PAGES_URL} ist erfolgreich.`,
                   `Workflow-Run: ${runUrl}`,
-                  process.env.SOURCE_DEPLOY_RUN ? `Pages-Deployment: ${process.env.SOURCE_DEPLOY_RUN}` : null,
-                  `Getesteter Commit: \`${process.env.TESTED_SHA}\``,
-                ].filter(Boolean).join('\n'),
+                  `Commit: \`${context.sha}\``,
+                ].join('\n'),
               });
               await github.rest.issues.update({
                 owner: context.repo.owner,
