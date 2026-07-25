@@ -35,7 +35,8 @@ describe('documentation live-link contract', () => {
     const markdown = [
       '[![Bonn](docs/screenshots/12-poi-schulen-kitas.png)]' +
         '(https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn)',
-      '![Voll-Build](docs/screenshots/13-bonn-hbf-radunfaelle.png)',
+      '[![Voll-Build](docs/screenshots/13-bonn-hbf-radunfaelle.png)]' +
+        '(docs/screenshots/13-bonn-hbf-radunfaelle.png)',
       '[![Static](docs/screenshots/static.png)](docs/screenshots/static.png)',
     ].join('\n');
     const links = contract.extractLinkedScreenshots(markdown, 'README.md');
@@ -44,6 +45,18 @@ describe('documentation live-link contract', () => {
       altText: 'Bonn',
       imagePath: 'docs/screenshots/12-poi-schulen-kitas.png',
     });
+  });
+
+  test('requires every README PNG or GIF to be clickable', () => {
+    expect(() => contract.assertAllReadmeMediaLinked(
+      '![Nicht verlinkt](docs/screenshots/example.png)',
+      'README.md',
+    )).toThrow(/unlinked_documentation_media/);
+
+    expect(() => contract.assertAllReadmeMediaLinked(
+      '[![Vollbild](docs/screenshots/example.png)](docs/screenshots/example.png)',
+      'README.md',
+    )).not.toThrow();
   });
 
   test('extracts one explicitly named public action link', () => {
@@ -73,6 +86,34 @@ describe('documentation live-link contract', () => {
     }, scenario)).toThrow(/unexpected_documentation_query/);
   });
 
+  test('rejects a Hannover center combined with a Bonn selection', () => {
+    const contradictory = new URL(`${contract.LIVE_ORIGIN}${contract.LIVE_PATH}`);
+    contradictory.searchParams.set('city', 'Bonn');
+    contradictory.searchParams.set('centerLat', '52.3759');
+    contradictory.searchParams.set('centerLon', '9.7320');
+    contradictory.searchParams.set('selSouth', '50.7300');
+    contradictory.searchParams.set('selWest', '7.0910');
+    contradictory.searchParams.set('selNorth', '50.7355');
+    contradictory.searchParams.set('selEast', '7.1010');
+
+    expect(() => contract.assertSpatiallyConsistent(contradictory.href, 'README.md'))
+      .toThrow(/spatially_inconsistent_documentation_url/);
+  });
+
+  test('accepts a center inside its selected area', () => {
+    const consistent = new URL(`${contract.LIVE_ORIGIN}${contract.LIVE_PATH}`);
+    consistent.searchParams.set('city', 'Bonn');
+    consistent.searchParams.set('centerLat', '50.7326');
+    consistent.searchParams.set('centerLon', '7.0963');
+    consistent.searchParams.set('selSouth', '50.7300');
+    consistent.searchParams.set('selWest', '7.0910');
+    consistent.searchParams.set('selNorth', '50.7355');
+    consistent.searchParams.set('selEast', '7.1010');
+
+    expect(() => contract.assertSpatiallyConsistent(consistent.href, 'README.md'))
+      .not.toThrow();
+  });
+
   test('loads an isolated two-screenshot plus three-action README fixture', () => {
     const directory = tempDir();
     try {
@@ -85,10 +126,12 @@ describe('documentation live-link contract', () => {
         'readme-poi-school-route',
         'readme-bonn-hbf',
       ]));
-      expect(new Set(result.liveScenarios.map((scenario) => scenario.url)).size).toBe(5);
+      expect(new Set(result.liveScenarios.map((scenario) => scenario.url)).size).toBe(4);
       expect(result.liveScenarios.filter((scenario) => scenario.imagePath)).toHaveLength(2);
       expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-export'))
-        .toMatchObject({ expected: { publicPreview: true, verifyDownloads: true } });
+        .toMatchObject({ expected: { publicPreview: true } });
+      expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-export').expected.verifyDownloads)
+        .toBeUndefined();
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
