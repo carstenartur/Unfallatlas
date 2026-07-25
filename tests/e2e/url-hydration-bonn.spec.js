@@ -31,10 +31,31 @@ const BONN_URL =
   + `&centerLat=${CENTER.lat}&centerLon=${CENTER.lon}&zoom=${CENTER.zoom}`
   + `&selSouth=${SEL.south}&selWest=${SEL.west}&selNorth=${SEL.north}&selEast=${SEL.east}`;
 
+async function waitForHydratedCity(page, city = 'Bonn') {
+  await page.waitForFunction((expectedCity) => {
+    const ctx = window.UA?.getRuntimeContext?.();
+    const select = document.querySelector('#citySel');
+    const stat = String(document.querySelector('#stat')?.textContent || '');
+    return Boolean(
+      ctx?.map && ctx.ui && ctx.CITY_RAW === expectedCity && ctx.allPts?.length > 0 &&
+      select?.value === expectedCity && select.getAttribute('aria-busy') !== 'true' &&
+      !/Daten werden geladen|wird geladen|Stadt Lade/i.test(stat)
+    );
+  }, city, { timeout: 60000 });
+}
+
+async function markedAccidentCount(page) {
+  const stat = String(await page.locator('#stat').textContent() || '');
+  const match = stat.match(/markierter Bereich:\s*([\d.\u00a0\s]+)/i);
+  if (!match) return 0;
+  const digits = match[1].replace(/[^0-9]/g, '');
+  return digits ? Number(digits) : 0;
+}
+
 test.describe('URL-State-Hydration – Bonn', () => {
   test('Stadt, Filter, Modus, Layer, Markierung werden vollständig aus URL übernommen', async ({ page }) => {
     await page.goto(BONN_URL);
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
 
     // Stadt = Bonn (das Dropdown wird asynchron befüllt; erst warten,
     // bis der aria-busy-Zustand abgeräumt ist).
@@ -71,7 +92,7 @@ test.describe('URL-State-Hydration – Bonn', () => {
     // funktional über die Statuszeile (sie wird von updateStats
     // aus ctx.selectionBounds gespeist) und über das
     // Export-Dialog-Verhalten weiter unten.
-    await expect(page.locator('#stat')).toContainText(/Markierung:\s*aktiv/);
+    await expect.poll(() => markedAccidentCount(page)).toBeGreaterThan(0);
 
     // Runtime integrations (video client/headless verifier) consume the same
     // closure-owned context through a single immutable port. Prove this in a
@@ -116,10 +137,10 @@ test.describe('URL-State-Hydration – Bonn', () => {
 
   test('"Markierung löschen" entfernt sel*-Parameter aus der URL', async ({ page }) => {
     await page.goto(BONN_URL);
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
 
     // Sicherstellen, dass die Markierung initial aktiv ist.
-    await expect(page.locator('#stat')).toContainText(/Markierung:\s*aktiv/);
+    await expect.poll(() => markedAccidentCount(page)).toBeGreaterThan(0);
 
     await page.locator('#btnClearDraw').click();
 
@@ -135,8 +156,8 @@ test.describe('URL-State-Hydration – Bonn', () => {
       })
       .toBe(false);
 
-    // Stat-Zeile zeigt "Markierung: aktiv" nicht mehr.
-    await expect(page.locator('#stat')).not.toContainText(/Markierung:\s*aktiv/);
+    // Stat-Zeile weist nach dem Löschen keine Unfälle im markierten Bereich mehr aus.
+    await expect.poll(() => markedAccidentCount(page)).toBe(0);
 
     // Export-Dialog jetzt: Hinweis sichtbar.
     await page.locator('#btnOpenExport').click();
@@ -167,7 +188,7 @@ test.describe('URL-State-Hydration – Determinismus', () => {
   test('mapLayer + ctxSlope bleiben beim ersten Load und nach Reload stabil (idempotent)', async ({ page }) => {
     const url = 'werkbank_v2.html?city=Bonn&mapLayer=slope,traffic&ctxSlope=steep,very_steep';
     await page.goto(url);
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
 
     // Gate: only test overlay features when Bonn data has slope/traffic fields
@@ -207,7 +228,7 @@ test.describe('URL-State-Hydration – Determinismus', () => {
     expect(page.url()).toBe(stableA);
 
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
 
     await expect(page.locator('#ctxOverlay_slope')).toBeChecked();
@@ -226,7 +247,7 @@ test.describe('URL-State-Hydration – Determinismus', () => {
 
   test('zwei aufeinanderfolgende Reloads ergeben denselben URL- und UI-Zustand', async ({ page }) => {
     await page.goto(BONN_URL);
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     // Stabilisieren: warten, bis das Stadt-Dropdown hydratisiert ist.
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
 
@@ -248,7 +269,7 @@ test.describe('URL-State-Hydration – Determinismus', () => {
 
     // 1. Reload
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
     const urlB = await paramsOf(page);
     const checkedB = await page.evaluate(() => ({
@@ -267,7 +288,7 @@ test.describe('URL-State-Hydration – Determinismus', () => {
 
     // 2. Reload
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
     const urlC = await paramsOf(page);
     const checkedC = await page.evaluate(() => ({
@@ -304,7 +325,7 @@ test.describe('URL-State-Hydration – Determinismus', () => {
 
   test('UI-Änderung wird zurück in die URL geschrieben (bidirektionale Synchronisation)', async ({ page }) => {
     await page.goto(BONN_URL);
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
 
     // Ausgangszustand: severity=all (laut URL), Cluster off, Heat on.
@@ -334,7 +355,7 @@ test.describe('URL-State-Hydration – Determinismus', () => {
     // Reload → die zurückgeschriebenen Werte werden korrekt
     // re-hydratisiert (URL = Source of Truth).
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
     await expect(page.locator('#severity')).toHaveValue('2');
     await expect(page.locator('#toggleCluster')).toHaveClass(/active/);
@@ -350,11 +371,11 @@ test.describe('URL-State-Hydration – Determinismus', () => {
     const INVERTED_BOUNDS_URL =
       'werkbank_v2.html?city=Bonn&selSouth=50.74&selWest=7.13&selNorth=50.71&selEast=7.08';
     await page.goto(INVERTED_BOUNDS_URL);
-    await page.waitForLoadState('networkidle');
+    await waitForHydratedCity(page);
     await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
 
-    // Stat-Zeile darf NICHT „Markierung: aktiv" zeigen.
-    await expect(page.locator('#stat')).not.toContainText(/Markierung:\s*aktiv/);
+    // Stat-Zeile darf für invertierte Grenzen keinen markierten Bereich ausweisen.
+    await expect.poll(() => markedAccidentCount(page)).toBe(0);
 
     // Export-Dialog zeigt erwartet den Hinweis „Kein Bereich markiert".
     await page.locator('#btnOpenExport').click();

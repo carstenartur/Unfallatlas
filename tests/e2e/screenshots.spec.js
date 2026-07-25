@@ -19,8 +19,10 @@ const { classifyNominatimFixture, classifyOverpassFixture } = networkFixtureRout
 
 /** Hilfsfunktion: Seite mit URL-Parametern laden und auf Datenladen warten */
 async function loadPage(page, params = '') {
-  await page.goto('/werkbank_v2.html' + params);
-  await page.waitForLoadState('networkidle');
+  // Live map providers and optional application requests may remain active.
+  // Pixel capture is gated later by waitForScreenshotReady(), so navigation
+  // only needs the deterministic DOM boundary here.
+  await page.goto('/werkbank_v2.html' + params, { waitUntil: 'domcontentloaded' });
 }
 
 /** Hilfsfunktion: Warten bis Städte geladen sind (prüft auch ob Lade-Placeholder verschwunden) */
@@ -587,13 +589,14 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       '&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0' +
       '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
       '&centerLat=50.7330&centerLon=7.0950&zoom=15' +
-      '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000');
-    await page.waitForLoadState('networkidle');
+      '&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000', {
+      waitUntil: 'domcontentloaded'
+    });
     await waitForCities(page);
     // Semantische Daten- und Layer-Readiness, damit der PDF-Export nicht nur
     // einen bereits aktualisierten Statustext, sondern vollständig gerenderte
     // und vollständige Stadtdaten verwendet.
-    const readinessSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
+    await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
 
     await page.locator('#btnOpenExport').click();
     await page.locator('#modalOverlay .modal').waitFor({ state: 'visible' });
@@ -658,17 +661,22 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       const pdfDoc = await loadingTask.promise;
       const expectedLocalAccidents = ${expectedLocalAccidents};
       const pageTexts = [];
-      let renderedPageNumber = 1;
+      const countPattern = new RegExp('(?:^|\\\\D)' + expectedLocalAccidents + '\\\\s+Unfälle', 'i');
+      const summaryStartPattern = /^(?:BEGRÜNDUNG\\s+)?KURZBEWERTUNG\\b/i;
+      let renderedPageNumber = 0;
+      let countFallbackPageNumber = 0;
       for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
         const candidate = await pdfDoc.getPage(pageNumber);
         const textContent = await candidate.getTextContent();
         const text = textContent.items.map((item) => item.str || '').join(' ').replace(/\\s+/g, ' ').trim();
         pageTexts.push(text);
-        if (renderedPageNumber === 1) {
-          const countPattern = new RegExp('(?:^|\\\\D)' + expectedLocalAccidents + '\\\\s+Unfälle', 'i');
-          if (countPattern.test(text)) renderedPageNumber = pageNumber;
+        if (!countPattern.test(text)) continue;
+        if (countFallbackPageNumber === 0) countFallbackPageNumber = pageNumber;
+        if (renderedPageNumber === 0 && summaryStartPattern.test(text)) {
+          renderedPageNumber = pageNumber;
         }
       }
+      renderedPageNumber = renderedPageNumber || countFallbackPageNumber || 1;
       const pdfPage = await pdfDoc.getPage(renderedPageNumber);
       const viewport = pdfPage.getViewport({ scale: 1.5 });
 
@@ -725,10 +733,14 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     // Screenshot der ersten PDF-Seite, auf der die zuvor aus dem Exportmodell
     // verifizierte lokale Unfallzahl tatsächlich genannt wird.
     const screenshotPath = 'docs/screenshots/15-export-pdf-rendered.png';
+    // The application may legitimately complete a later render while the export
+    // modal and PDF generator are running. Bind stability only to the actual
+    // pixel-capture window, as required by assertStableScreenshotSnapshot().
+    const beforeCaptureSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
     await page.locator('#pdf-canvas').screenshot({ path: screenshotPath });
     const afterCaptureSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
     assertStableScreenshotSnapshot(
-      readinessSnapshot,
+      beforeCaptureSnapshot,
       afterCaptureSnapshot,
       { city: 'Bonn', layers: ['cluster'] },
       screenshotPath

@@ -42,7 +42,11 @@ jobs:
           rm -rf out/qa/documentation-live-links
 
       - name: Generate review screenshots with real cartographic basemaps
-        run: node scripts/run-live-documentation-screenshots.cjs
+        run: |
+          mkdir -p out/qa
+          set -o pipefail
+          node scripts/run-live-documentation-screenshots.cjs 2>&1 \
+            | tee out/qa/live-documentation-screenshots.log
 
       - name: Audit README screenshot links against published application
         id: validate_live_links
@@ -95,6 +99,7 @@ jobs:
             out/qa/live-cartography-evidence.json
             out/qa/screenshot-readiness/
             out/qa/documentation-live-links/
+            out/qa/live-documentation-screenshots.log
             _site/build-manifest.json
           if-no-files-found: error
           retention-days: 30

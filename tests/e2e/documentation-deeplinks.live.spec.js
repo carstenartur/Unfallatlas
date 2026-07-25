@@ -43,8 +43,8 @@ function isOptionalCityTemplateMiss(item) {
   }
 }
 
-function isGenericResource404(message) {
-  return /^Failed to load resource: the server responded with a status of 404\b/.test(message);
+function isGenericResourceHttpError(message) {
+  return /^Failed to load resource: the server responded with a status of [45]\d{2}\b/.test(message);
 }
 
 async function readLiveState(page) {
@@ -255,20 +255,29 @@ test.describe.serial('README screenshot deep links – published application', (
       const diagnostics = {
         scenario: scenario.id, imagePath: scenario.imagePath, url: scenario.url, targetUrl,
         references: scenario.references, pageErrors: [], consoleErrors: [],
-        sameOriginHttpErrors: [], optionalTemplateMisses: [], externalRequestFailures: [],
+        sameOriginHttpErrors: [], optionalTemplateMisses: [],
+        externalHttpErrors: [], externalRequestFailures: [],
         downloads: [], state: null, failure: null,
       };
       const liveOrigin = new URL(targetUrl).origin;
       page.on('pageerror', (error) => diagnostics.pageErrors.push(String(error?.stack || error)));
       page.on('console', (message) => {
         const text = message.text();
-        if (message.type() === 'error' && !isGenericResource404(text)) diagnostics.consoleErrors.push(text);
+        // Chromium omits the request URL from generic resource messages. The
+        // response/request listeners below classify the event with URL and origin.
+        if (message.type() === 'error' && !isGenericResourceHttpError(text)) {
+          diagnostics.consoleErrors.push(text);
+        }
       });
       page.on('response', (response) => {
         let origin = null;
         try { origin = new URL(response.url()).origin; } catch (_) {}
-        if (origin !== liveOrigin || response.status() < 400) return;
+        if (response.status() < 400) return;
         const item = { status: response.status(), url: response.url() };
+        if (origin !== liveOrigin) {
+          diagnostics.externalHttpErrors.push(item);
+          return;
+        }
         (isOptionalCityTemplateMiss(item)
           ? diagnostics.optionalTemplateMisses
           : diagnostics.sameOriginHttpErrors).push(item);

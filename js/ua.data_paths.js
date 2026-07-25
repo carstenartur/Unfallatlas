@@ -218,9 +218,32 @@
     return script.__uaLoadPromise;
   }
 
+  function injectOptionalModuleAfterDomReady(src, marker) {
+    const doc = window && window.document;
+    if (!doc || doc.readyState !== 'loading') return injectOptionalModule(src, marker);
+    return new Promise(resolve => {
+      doc.addEventListener('DOMContentLoaded', () => {
+        Promise.resolve(injectOptionalModule(src, marker)).then(resolve, () => resolve(false));
+      }, { once: true });
+    });
+  }
+
   const existingPromises = UA.optionalModulePromises || {};
   UA.optionalModulePromises = Object.freeze({
     ...existingPromises,
+    // Begin loading during parser execution; the adapter polls until map_v2 has
+    // published its readiness function, then wraps it before screenshot capture.
+    visibleTileReadiness: injectOptionalModule(
+      'js/ua.visible_tile_readiness.js?v=2026-07-24',
+      'data-ua-visible-tile-readiness'
+    ),
+    // This adapter wraps filters, map statistics and export functions. Loading
+    // after parser-executed modules avoids replacing their pre-definition hooks
+    // and composes deterministically with the partial-coverage export guard.
+    analysisScope: injectOptionalModuleAfterDomReady(
+      'js/ua.analysis_scope.js?v=2026-07-23',
+      'data-ua-analysis-scope'
+    ),
     accidentViewportController: injectOptionalModule(
       'js/ua.accident_viewport_controller.js?v=2026-07-18',
       'data-ua-accident-viewport-controller'
