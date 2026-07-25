@@ -53,7 +53,7 @@ function buildAuditSpec(source) {
       throw new Error(`[documentation-links] Incomplete public-profile assertion block: ${expected}`);
     }
   }
-  let transformed = source.slice(0, start) + startAnchor + '\n' + source.slice(end);
+  let transformed = source.slice(0, start) + source.slice(end);
 
   const viewportAnchor = '      viewportPoints: ctx.viewportPts?.length ?? -1,';
   const viewportReplacement =
