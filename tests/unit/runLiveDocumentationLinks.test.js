@@ -63,7 +63,7 @@ describe('documentation deep-link runner', () => {
       .toMatchObject({ status: 0, signal: null });
   });
 
-  test('generated audit keeps data downloads but removes profile-specific Word/PDF assertions', () => {
+  test('generated audit keeps data downloads while adapting candidate-only capabilities', () => {
     const source = fs.readFileSync(runner.SOURCE, 'utf8');
     const transformed = runner.buildAuditSpec(source);
     expect(transformed).toContain("expect(diagnostics.state.export.publicPreview).toBe('public-preview-core-v1')");
@@ -71,6 +71,8 @@ describe('documentation deep-link runner', () => {
     expect(transformed).not.toContain('expect(diagnostics.state.export.noticeVisible)');
     expect(transformed).not.toContain('expect(diagnostics.state.export.wordDisabled)');
     expect(transformed).not.toContain('expect(diagnostics.state.export.pdfDisabled)');
+    expect(transformed).toContain('ctx.visibleViewportPts?.length ?? ctx.viewportPts?.length');
+    expect(transformed).toContain("pathname.endsWith('/api/video-export-available')");
   });
 
   test('retains an explicit audit mode for the published application', () => {
