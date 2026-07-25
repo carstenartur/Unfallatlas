@@ -36,8 +36,13 @@ const CONTRADICTORY_BONN_URL = [
 ].join('&');
 
 async function requirePublicProfile(page) {
-  const profile = await page.locator('meta[name="unfallwerkbank:distribution-profile"]')
-    .getAttribute('content');
+  // This spec is also discovered by the ordinary full-build E2E suite. Do not
+  // use a locator assertion here: the meta element is intentionally absent in
+  // that profile, and locator auto-waiting would turn a deliberate skip into a
+  // test-wide timeout.
+  const profile = await page.evaluate(() => document
+    .querySelector('meta[name="unfallwerkbank:distribution-profile"]')
+    ?.getAttribute('content') || null);
   test.skip(profile !== 'public-preview-core-v1', 'Test applies to the published Pages profile');
 }
 
@@ -81,8 +86,6 @@ test.describe('Public Pages critical path', () => {
       }, null, { timeout: 30000 });
     } finally {
       releaseCities();
-      // Let the route handler settle before Playwright disposes the page.
-      await page.waitForTimeout(0);
     }
   });
 
