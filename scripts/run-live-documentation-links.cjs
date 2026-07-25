@@ -11,6 +11,8 @@ const {
 
 const ROOT = path.resolve(__dirname, '..');
 const OUTPUT = path.join(ROOT, 'out', 'qa', 'documentation-live-links');
+const SOURCE = path.join(ROOT, 'tests', 'e2e', 'documentation-deeplinks.live.spec.js');
+const GENERATED = path.join(ROOT, 'tests', 'e2e', 'documentation-deeplinks.live.spec.generated.js');
 const LIVE_BASE_URL = new URL('.', `${LIVE_ORIGIN}${LIVE_PATH}`).href.replace(/\/$/, '');
 const CANDIDATE_BASE_URL = 'http://localhost:8000';
 
@@ -22,12 +24,28 @@ function resolveAuditTarget(options = {}) {
   const published = options.published !== undefined
     ? Boolean(options.published)
     : process.env.DOCUMENTATION_AUDIT_PUBLISHED === '1';
-  if (published) {
-    return Object.freeze({ mode: 'published', baseUrl: LIVE_BASE_URL });
-  }
+  if (published) return Object.freeze({ mode: 'published', baseUrl: LIVE_BASE_URL });
   const baseUrl = options.applicationBaseUrl ||
     process.env.DOCUMENTATION_APP_BASE_URL || CANDIDATE_BASE_URL;
   return Object.freeze({ mode: 'candidate', baseUrl });
+}
+
+function buildAuditSpec(source) {
+  const startAnchor = "  expect(diagnostics.state.export.publicPreview).toBe('public-preview-core-v1');";
+  const loopAnchor = '\n  for (const contract of publicDownloadContracts) {';
+  const start = source.indexOf(startAnchor);
+  if (start < 0 || source.indexOf(startAnchor, start + startAnchor.length) >= 0) {
+    throw new Error('[documentation-links] Expected exactly one public-profile assertion block');
+  }
+  const end = source.indexOf(loopAnchor, start);
+  if (end < 0) throw new Error('[documentation-links] Cannot locate data-download contract loop');
+  const removed = source.slice(start, end);
+  for (const expected of ['noticeVisible', 'antragGroupHidden', 'wordDisabled', 'pdfDisabled']) {
+    if (!removed.includes(expected)) {
+      throw new Error(`[documentation-links] Incomplete public-profile assertion block: ${expected}`);
+    }
+  }
+  return source.slice(0, start) + startAnchor + '\n' + source.slice(end);
 }
 
 function run(options = {}) {
@@ -48,6 +66,7 @@ function run(options = {}) {
         imagePath: scenario.imagePath,
         description: scenario.description,
         url: scenario.url,
+        canonicalUrl: scenario.canonicalUrl || scenario.url,
         expected: scenario.expected,
         references: scenario.references,
       })),
@@ -63,14 +82,14 @@ function run(options = {}) {
     throw error;
   }
 
+  const transformed = buildAuditSpec(fs.readFileSync(SOURCE, 'utf8'));
+  fs.rmSync(GENERATED, { force: true });
+  fs.writeFileSync(GENERATED, transformed, { flag: 'wx' });
+
   const packageEntry = require.resolve('@playwright/test');
   const cli = path.join(path.dirname(packageEntry), 'cli.js');
-  const args = [
-    cli,
-    'test',
-    'tests/e2e/documentation-deeplinks.live.spec.js',
-    '--project=documentation-deeplinks-live',
-  ];
+  const generatedRelative = path.relative(ROOT, GENERATED).replace(/\\/g, '/');
+  const args = [cli, 'test', generatedRelative, '--project=documentation-deeplinks-live'];
   const childEnv = { ...process.env };
   if (target.mode === 'published') {
     childEnv.BASE_URL = target.baseUrl;
@@ -79,34 +98,36 @@ function run(options = {}) {
     delete childEnv.BASE_URL;
     childEnv.DOCUMENTATION_APP_BASE_URL = target.baseUrl;
   }
-  const result = spawn(process.execPath, args, {
-    cwd: ROOT,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    encoding: 'utf8',
-    maxBuffer: 32 * 1024 * 1024,
-    env: childEnv,
-  });
+
+  let result;
+  try {
+    result = spawn(process.execPath, args, {
+      cwd: ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+      env: childEnv,
+    });
+  } finally {
+    fs.rmSync(GENERATED, { force: true });
+  }
+
   const stdout = String(result.stdout || '');
   const stderr = String(result.stderr || '');
   if (stdout) process.stdout.write(stdout);
   if (stderr) process.stderr.write(stderr);
-  fs.writeFileSync(
-    path.join(OUTPUT, 'command.log'),
-    [
-      `$ ${process.execPath} ${args.join(' ')}`,
-      '',
-      `auditMode=${target.mode}`,
-      `targetBaseUrl=${target.baseUrl}`,
-      '',
-      '--- stdout ---',
-      stdout,
-      '--- stderr ---',
-      stderr,
-      '',
-      `signal=${result.signal || ''}`,
-      `status=${result.status == null ? '' : result.status}`,
-    ].join('\n'),
-  );
+  fs.writeFileSync(path.join(OUTPUT, 'command.log'), [
+    `$ ${process.execPath} ${args.join(' ')}`,
+    '',
+    `auditMode=${target.mode}`,
+    `targetBaseUrl=${target.baseUrl}`,
+    '',
+    '--- stdout ---', stdout,
+    '--- stderr ---', stderr,
+    '',
+    `signal=${result.signal || ''}`,
+    `status=${result.status == null ? '' : result.status}`,
+  ].join('\n'));
 
   if (result.error) {
     writeJson('spawn-error.json', {
@@ -137,10 +158,6 @@ if (require.main === module) {
 }
 
 module.exports = Object.freeze({
-  ROOT,
-  OUTPUT,
-  LIVE_BASE_URL,
-  CANDIDATE_BASE_URL,
-  resolveAuditTarget,
-  run,
+  ROOT, OUTPUT, SOURCE, GENERATED, LIVE_BASE_URL, CANDIDATE_BASE_URL,
+  resolveAuditTarget, buildAuditSpec, run,
 });
