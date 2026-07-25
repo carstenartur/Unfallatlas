@@ -28,6 +28,7 @@
         <node.version>v24.17.0</node.version>
         <npm.version>11.9.0</npm.version>
         <skipTests>false</skipTests>
+        <skip.pages.qa>true</skip.pages.qa>
         <pages.inputDir>out</pages.inputDir>
         <pages.poiDir>out</pages.poiDir>
         <pages.outputDir>_site</pages.outputDir>
@@ -124,6 +125,23 @@
                             <skip>${skipTests}</skip>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>pages-quality-gate</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run qa:pages:artifact</arguments>
+                            <skip>${skip.pages.qa}</skip>
+                            <environmentVariables>
+                                <PAGES_INPUT_DIR>${pages.inputDir}</PAGES_INPUT_DIR>
+                                <PAGES_POI_DIR>${pages.poiDir}</PAGES_POI_DIR>
+                                <PAGES_OUTPUT_DIR>${pages.outputDir}</PAGES_OUTPUT_DIR>
+                                <SKIP_PLAYWRIGHT_INSTALL>${skip.playwright.install}</SKIP_PLAYWRIGHT_INSTALL>
+                            </environmentVariables>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>
@@ -131,19 +149,29 @@
 
     <profiles>
         <!--
-          Vollständiger Pages-Vertrag gegen die Daten des Checkouts:
+          Vollständiger Pages-Vertrag gegen die eingecheckten Daten:
 
               mvn clean verify -Ppages
-
-          Derselbe Befehl wird in CI verwendet. Abweichende Datenquellen werden
-          ausschließlich als Maven-Properties übergeben, zum Beispiel:
-
-              mvn clean verify -Ppages \
-                  -Dpages.inputDir=.build/enriched \
-                  -Dpages.poiDir=out
         -->
         <profile>
             <id>pages</id>
+            <properties>
+                <skip.pages.qa>false</skip.pages.qa>
+            </properties>
+        </profile>
+
+        <!--
+          Erzeugt alle konfigurierten Städte aus den Rohquellen neu und führt
+          anschließend exakt denselben Pages-Vertrag aus:
+
+              mvn clean verify -Ppages-regenerated
+        -->
+        <profile>
+            <id>pages-regenerated</id>
+            <properties>
+                <skip.pages.qa>false</skip.pages.qa>
+                <pages.inputDir>.build/enriched</pages.inputDir>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -152,20 +180,13 @@
                         <version>${frontend-maven-plugin.version}</version>
                         <executions>
                             <execution>
-                                <id>pages-quality-gate</id>
-                                <phase>verify</phase>
+                                <id>generate-pages-data</id>
+                                <phase>process-resources</phase>
                                 <goals>
                                     <goal>npm</goal>
                                 </goals>
                                 <configuration>
-                                    <arguments>run qa:pages:artifact</arguments>
-                                    <skip>${skipTests}</skip>
-                                    <environmentVariables>
-                                        <PAGES_INPUT_DIR>${pages.inputDir}</PAGES_INPUT_DIR>
-                                        <PAGES_POI_DIR>${pages.poiDir}</PAGES_POI_DIR>
-                                        <PAGES_OUTPUT_DIR>${pages.outputDir}</PAGES_OUTPUT_DIR>
-                                        <SKIP_PLAYWRIGHT_INSTALL>${skip.playwright.install}</SKIP_PLAYWRIGHT_INSTALL>
-                                    </environmentVariables>
+                                    <arguments>run generate:pages-data</arguments>
                                 </configuration>
                             </execution>
                         </executions>
