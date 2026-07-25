@@ -69,6 +69,12 @@ function validateHtml(siteRoot) {
     assert(canonical.includes(reference), `canonical page lacks browser capability asset ${reference}`);
   }
 
+  const allowedVendorPaths = new Set(PUBLIC_ASSET_PATHS);
+  for (const match of canonical.matchAll(/(?:src|href)=["'](vendor\/[^"'?#]+)["']/g)) {
+    assert(allowedVendorPaths.has(match[1]),
+      `canonical page references undeclared vendor asset ${match[1]}`);
+  }
+
   const publicRuntime = fs.readFileSync(path.join(siteRoot, 'js', 'ua.public-preview.js'), 'utf8');
   assert(publicRuntime.includes(PROFILE_ID), 'public runtime does not declare the expected profile');
   exactSorted(DISABLED_CAPABILITIES, ['video-export'], 'disabled capabilities policy');
@@ -169,6 +175,29 @@ function validatePublicPagesProfile(options = {}) {
     assert(sha256File(licenseAbsolute) === dependency.licenseTextSha256,
       `license hash drift for ${packageName}`);
   }
+
+  assert(Array.isArray(notice.supplementalLicenses), 'notice lacks supplemental license inventory');
+  const supplementalComponents = new Set();
+  for (const license of notice.supplementalLicenses) {
+    assert(license && typeof license.component === 'string' && license.component.trim(),
+      'supplemental license lacks component identity');
+    assert(!supplementalComponents.has(license.component),
+      `duplicate supplemental license for ${license.component}`);
+    supplementalComponents.add(license.component);
+    assert(typeof license.spdx === 'string' && license.spdx.trim(),
+      `supplemental license lacks SPDX expression for ${license.component}`);
+    assert(typeof license.path === 'string' && license.path.trim(),
+      `supplemental license lacks file path for ${license.component}`);
+    assert(license.copyrightIncluded === true,
+      `supplemental license lacks copyright evidence for ${license.component}`);
+    const absolute = path.join(siteRoot, license.path);
+    assert(fs.existsSync(absolute), `missing supplemental license text ${license.path}`);
+    assertHash(license.sha256, `supplemental license hash ${license.path}`);
+    assert(sha256File(absolute) === license.sha256,
+      `supplemental license hash drift ${license.path}`);
+  }
+  assert(supplementalComponents.has('simpleheat@0.2.0'),
+    'notice lacks supplemental simpleheat license evidence');
 
   const componentByNameVersion = new Map((notice.components || []).map(component => [
     `${component.name}\0${component.version}`,
