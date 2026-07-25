@@ -77,7 +77,8 @@
     notice.innerHTML =
       '<summary style="cursor:pointer;font-weight:700">Öffentliche Browser-Version · nur Videoexport nicht verfügbar</summary>' +
       '<p style="margin:6px 0 2px">Karte, Filter, Bereichsauswahl sowie CSV-, GeoJSON-, KML-, Word- und PDF-Export sind verfügbar. ' +
-      'Der Videoexport benötigt ein Server-Backend. Technische Provenienz-Härtung wird transparent in ' +
+      'Der Videoexport benötigt ein Server-Backend. Nach aktuellem Stand gilt: eine bekannte Lizenzbeschränkung für diese Browserfunktionen besteht nicht. ' +
+      'Technische Provenienz-Härtung wird transparent in ' +
       '<a href="https://github.com/carstenartur/Unfallatlas/issues/406" target="_blank" rel="noopener">Issue #406</a> dokumentiert.</p>';
     panelBody.prepend(notice);
   }
