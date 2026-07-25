@@ -48,6 +48,7 @@ describe('documentation deep-link runner', () => {
     ]));
     expect(calls[0].options.env.BASE_URL).toBeUndefined();
     expect(calls[0].options.env.DOCUMENTATION_APP_BASE_URL).toBe(runner.CANDIDATE_BASE_URL);
+    expect(calls[0].options.env.PLAYWRIGHT_SERVE_EXISTING_SITE).toBe('1');
     expect(calls[0].options.cwd).toBe(runner.ROOT);
     expect(calls[0].options.stdio).toEqual(['ignore', 'pipe', 'pipe']);
     expect(fs.existsSync(runner.GENERATED)).toBe(false);
@@ -84,6 +85,7 @@ describe('documentation deep-link runner', () => {
     expect(runner.LIVE_BASE_URL).toBe(expectedBase);
     expect(calls[0].options.env.BASE_URL).toBe(expectedBase);
     expect(calls[0].options.env.DOCUMENTATION_APP_BASE_URL).toBeUndefined();
+    expect(calls[0].options.env.PLAYWRIGHT_SERVE_EXISTING_SITE).toBeUndefined();
     expect(readResolvedContract()).toMatchObject({
       liveBaseUrl: expectedBase,
       auditMode: 'published',
