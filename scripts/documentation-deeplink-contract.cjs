@@ -67,6 +67,13 @@ function parseUrl(raw, sourceFile) {
   }
 }
 
+function resolveApplicationUrl(canonicalUrl, applicationBaseUrl = process.env.DOCUMENTATION_APP_BASE_URL) {
+  if (!applicationBaseUrl) return canonicalUrl;
+  const canonical = new URL(canonicalUrl);
+  const base = new URL(applicationBaseUrl.endsWith('/') ? applicationBaseUrl : `${applicationBaseUrl}/`);
+  return new URL(`werkbank_v2.html${canonical.search}`, base).href;
+}
+
 function query(values) {
   return Object.freeze(Object.fromEntries(
     Object.entries(values).map(([key, value]) => [key, String(value)]),
@@ -226,7 +233,8 @@ function validateDocumentationLinks(rootDir = process.cwd()) {
       });
     }
     liveScenarios.push(Object.freeze({
-      imagePath, ...scenario, url: links[0].url,
+      imagePath, ...scenario, url: resolveApplicationUrl(links[0].url),
+      canonicalUrl: links[0].url,
       references: Object.freeze([Object.freeze({
         sourceFile, altText: links[0].altText, url: links[0].url,
       })]),
@@ -237,7 +245,8 @@ function validateDocumentationLinks(rootDir = process.cwd()) {
     const link = extractNamedAction(markdown, sourceFile, scenario.label);
     assertCanonicalUrl(link, scenario);
     liveScenarios.push(Object.freeze({
-      imagePath: null, ...scenario, url: link.url,
+      imagePath: null, ...scenario, url: resolveApplicationUrl(link.url),
+      canonicalUrl: link.url,
       references: Object.freeze([Object.freeze({ sourceFile, label: scenario.label, url: link.url })]),
     }));
   }
@@ -253,5 +262,5 @@ module.exports = Object.freeze({
   LIVE_ORIGIN, LIVE_PATH, PUBLIC_START_QUERY, PUBLIC_EXPORT_QUERY,
   SCREENSHOT_SCENARIOS, ACTION_SCENARIOS, SCENARIOS,
   DocumentationDeepLinkError, normalizeImagePath, extractLinkedScreenshots,
-  extractNamedAction, assertCanonicalUrl, validateDocumentationLinks,
+  extractNamedAction, assertCanonicalUrl, resolveApplicationUrl, validateDocumentationLinks,
 });

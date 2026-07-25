@@ -21,6 +21,8 @@ function buildLiveSpec(source) {
   const provenanceSupport = String.raw`
 const LIVE_BASEMAP_PROVENANCE = new WeakMap();
 const LIVE_APPLICATION_ORIGIN = new URL(process.env.BASE_URL || 'http://localhost:8000').origin;
+const LIVE_TILE_REQUEST_TIMEOUT_MS = 8000;
+const LIVE_TILE_PROVENANCE_TIMEOUT_MS = 30000;
 
 function classifyLiveBasemapUrl(rawUrl) {
   const url = new URL(rawUrl);
@@ -82,26 +84,67 @@ async function readVisibleLiveBasemapTiles(page) {
   return { visibleTiles, observedTiles };
 }
 
-async function assertLiveBasemapProvenance(page) {
-  const live = LIVE_BASEMAP_PROVENANCE.get(page);
-  if (!live) throw new Error('Documentation screenshot has no live basemap provenance context');
-  const observed = await readVisibleLiveBasemapTiles(page);
-  live.visibleTiles = observed.visibleTiles;
-  live.observedTiles = observed.observedTiles;
+function missingLiveBasemapKinds(live) {
   const successfulUrls = new Set(live.successfulResponses.map(response => new URL(response.url).href));
-  const missingKinds = live.requiredKinds.filter(kind => !live.visibleTiles.some(tile =>
+  return live.requiredKinds.filter(kind => !live.visibleTiles.some(tile =>
     tile.kind === kind && successfulUrls.has(tile.url)
   ));
-  if (missingKinds.length > 0) {
-    throw new Error(
-      'Documentation screenshot lacks visible successful real basemap tiles for: ' +
-      missingKinds.join(', ') + String.fromCharCode(10) +
-      'Visible real basemap tiles: ' + JSON.stringify(live.visibleTiles, null, 2) + String.fromCharCode(10) +
-      'Observed Leaflet tile images: ' + JSON.stringify(live.observedTiles, null, 2) + String.fromCharCode(10) +
-      'Observed successful real basemap responses: ' + JSON.stringify(live.successfulResponses, null, 2)
-    );
+}
+
+async function assertLiveBasemapProvenance(page, options = {}) {
+  const live = LIVE_BASEMAP_PROVENANCE.get(page);
+  if (!live) throw new Error('Documentation screenshot has no live basemap provenance context');
+  const timeoutMs = Number.isFinite(options.timeoutMs)
+    ? Math.max(0, Number(options.timeoutMs))
+    : LIVE_TILE_PROVENANCE_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  let missingKinds = live.requiredKinds.slice();
+
+  do {
+    const observed = await readVisibleLiveBasemapTiles(page);
+    live.visibleTiles = observed.visibleTiles;
+    live.observedTiles = observed.observedTiles;
+    missingKinds = missingLiveBasemapKinds(live);
+    if (missingKinds.length === 0) return live;
+    if (Date.now() >= deadline) break;
+    await page.waitForTimeout(250);
+  } while (true);
+
+  throw new Error(
+    'Documentation screenshot lacks visible successful real basemap tiles for: ' +
+    missingKinds.join(', ') + String.fromCharCode(10) +
+    'Visible real basemap tiles: ' + JSON.stringify(live.visibleTiles, null, 2) + String.fromCharCode(10) +
+    'Observed Leaflet tile images: ' + JSON.stringify(live.observedTiles, null, 2) + String.fromCharCode(10) +
+    'Observed successful real basemap responses: ' + JSON.stringify(live.successfulResponses, null, 2)
+  );
+}
+
+async function proxyLiveBasemapRequest(route, kind) {
+  try {
+    const response = await route.fetch({
+      timeout: LIVE_TILE_REQUEST_TIMEOUT_MS,
+      maxRetries: 1
+    });
+    const contentType = String(response.headers()['content-type'] || '').toLowerCase();
+    if (response.ok() && /^image\/(?:png|jpe?g|webp)(?:;|$)/.test(contentType)) {
+      await route.fulfill({ response });
+      return;
+    }
+    const responseStatus = Number(response.status()) || 502;
+    await route.fulfill({
+      status: responseStatus >= 400 ? responseStatus : 502,
+      contentType: 'text/plain; charset=utf-8',
+      body: 'Invalid live ' + kind + ' tile response: status=' + responseStatus +
+        ', content-type=' + (contentType || 'missing')
+    });
+  } catch (error) {
+    await route.fulfill({
+      status: 504,
+      contentType: 'text/plain; charset=utf-8',
+      body: 'Timed out while loading live ' + kind + ' tile: ' +
+        String(error && error.message || error)
+    });
   }
-  return live;
 }
 
 async function setupLiveBasemapTiles(page, options = {}) {
@@ -154,7 +197,7 @@ async function setupLiveBasemapTiles(page, options = {}) {
       return;
     }
     if (basemapKind) {
-      await route.continue();
+      await proxyLiveBasemapRequest(route, basemapKind);
       return;
     }
     if (nominatimFixture) {
@@ -184,7 +227,6 @@ async function setupLiveBasemapTiles(page, options = {}) {
 }
 
 async function captureDataScreenshot(page, options) {
-  const snapshot = await baseCaptureDataScreenshot(page, options);
   let assertionError = null;
   let live;
   try {
@@ -193,6 +235,17 @@ async function captureDataScreenshot(page, options) {
     assertionError = error;
     live = LIVE_BASEMAP_PROVENANCE.get(page);
   }
+
+  const snapshot = await baseCaptureDataScreenshot(page, options);
+  if (!assertionError) {
+    try {
+      live = await assertLiveBasemapProvenance(page, { timeoutMs: 1000 });
+    } catch (error) {
+      assertionError = error;
+      live = LIVE_BASEMAP_PROVENANCE.get(page);
+    }
+  }
+
   const basename = options.path.split('/').pop().replace(/\.png$/i, '');
   const evidencePath = resolve(process.cwd(), 'out/qa/screenshot-readiness', basename + '.json');
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
@@ -230,6 +283,12 @@ async function captureDataScreenshot(page, options) {
     'const UNEXPECTED_EXTERNAL_REQUESTS = new WeakMap();\n',
     `const UNEXPECTED_EXTERNAL_REQUESTS = new WeakMap();\n${provenanceSupport}`,
     'network provenance insertion'
+  );
+  transformed = replaceOnce(
+    transformed,
+    "  await page.goto('/werkbank_v2.html' + params);\n  await page.waitForLoadState('networkidle');",
+    "  await page.goto('/werkbank_v2.html' + params, { waitUntil: 'domcontentloaded' });",
+    'live page readiness'
   );
   transformed = replaceOnce(
     transformed,

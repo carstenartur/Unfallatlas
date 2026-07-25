@@ -5,45 +5,33 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const {
+  VENDOR_ASSETS,
+  VENDOR_LICENSES,
+} = require('./build-site');
+
+// The identifier is retained for URL/test compatibility. The profile is no
+// longer a reduced feature set: it is the complete browser application with
+// explicitly documented (non-blocking) provenance-hardening gaps.
 const PROFILE_ID = 'public-preview-core-v1';
+const PROFILE_LABEL = 'Öffentliche Browser-Version';
 const TRACKING_ISSUE = 'https://github.com/carstenartur/Unfallatlas/issues/406';
-const PUBLIC_PACKAGES = Object.freeze({
-  leaflet: Object.freeze({ spdx: 'BSD-2-Clause', licensePath: 'vendor/licenses/leaflet.txt' }),
-  'leaflet.markercluster': Object.freeze({ spdx: 'MIT', licensePath: 'vendor/licenses/leaflet.markercluster.txt' })
-});
-const PUBLIC_ASSET_PATHS = Object.freeze([
-  'vendor/leaflet/leaflet.js',
-  'vendor/leaflet/leaflet.css',
-  'vendor/leaflet/images/layers.png',
-  'vendor/leaflet/images/layers-2x.png',
-  'vendor/leaflet/images/marker-icon.png',
-  'vendor/leaflet/images/marker-icon-2x.png',
-  'vendor/leaflet/images/marker-shadow.png',
-  'vendor/leaflet.markercluster/MarkerCluster.css',
-  'vendor/leaflet.markercluster/MarkerCluster.Default.css',
-  'vendor/leaflet.markercluster/leaflet.markercluster.js'
-]);
-const EXCLUDED_VENDOR_ROOTS = Object.freeze([
-  'vendor/export',
-  'vendor/leaflet.heat',
-  'vendor/leaflet-draw',
-  'vendor/leaflet-image'
-]);
-const EXCLUDED_PACKAGE_NAMES = Object.freeze([
-  'docx', 'file-saver', 'leaflet-draw', 'leaflet-image', 'leaflet.heat', 'pdfmake'
-]);
+const NOTICE_PATH = 'vendor/third-party-notices.json';
+const SBOM_PATH = 'vendor/sbom.cdx.json';
+const POLICY_PATH = 'vendor/provenance-policy.json';
+const DISABLED_CAPABILITIES = Object.freeze(['video-export']);
+const EXCLUDED_VENDOR_ROOTS = Object.freeze([]);
+const EXCLUDED_PACKAGE_NAMES = Object.freeze([]);
 const LEGACY_HTML = Object.freeze([
   'index.html', 'combi.html', 'showcase.html', 'unfallwerkbank.html', 'werkbank.html'
 ]);
-const DISABLED_CAPABILITIES = Object.freeze([
-  'interactive-rectangle-drawing',
-  'heatmap',
-  'word-export',
-  'pdf-export',
-  'video-export'
-]);
-const NOTICE_PATH = 'vendor/third-party-notices.json';
-const SBOM_PATH = 'vendor/public-preview-sbom.cdx.json';
+const PUBLIC_PACKAGES = Object.freeze(Object.fromEntries(
+  Object.entries(VENDOR_LICENSES).map(([packageName, policy]) => [packageName, Object.freeze({
+    spdx: policy.spdx,
+    licensePath: `vendor/licenses/${packageName.replace(/[^a-z0-9._-]/gi, '_')}.txt`,
+  })])
+));
+const PUBLIC_ASSET_PATHS = Object.freeze(VENDOR_ASSETS.map(([, , outputPath]) => outputPath));
 
 function sha256Buffer(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
@@ -102,10 +90,6 @@ function assertInsideRoot(root, target, label) {
   }
 }
 
-function npmPurl(name, version) {
-  return `pkg:npm/${encodeURIComponent(name).replace(/%2F/gi, '/')}@${version}`;
-}
-
 function redirectDocument() {
   return `<!doctype html>
 <html lang="de">
@@ -115,10 +99,10 @@ function redirectDocument() {
   <meta name="robots" content="noindex">
   <meta http-equiv="refresh" content="0; url=werkbank_v2.html">
   <link rel="canonical" href="werkbank_v2.html">
-  <title>Unfallwerkbank – öffentliche Kernvorschau</title>
+  <title>Unfallwerkbank – öffentliche Browser-Version</title>
 </head>
 <body>
-  <p>Weiter zur <a href="werkbank_v2.html">öffentlichen Kernvorschau der Unfallwerkbank</a>.</p>
+  <p>Weiter zur <a href="werkbank_v2.html">öffentlichen Browser-Version der Unfallwerkbank</a>.</p>
   <script>location.replace('werkbank_v2.html' + location.search + location.hash);</script>
 </body>
 </html>
@@ -129,16 +113,6 @@ function patchCanonicalHtml(siteRoot) {
   const htmlPath = path.join(siteRoot, 'werkbank_v2.html');
   if (!fs.existsSync(htmlPath)) throw new Error('[public-pages-profile] Missing werkbank_v2.html');
   let html = fs.readFileSync(htmlPath, 'utf8');
-  const forbiddenReferences = [
-    'vendor/leaflet.heat/',
-    'vendor/leaflet-draw/',
-    'vendor/leaflet-image/',
-    'vendor/export/'
-  ];
-  html = html
-    .split(/\r?\n/)
-    .filter(line => !forbiddenReferences.some(reference => line.includes(reference)))
-    .join('\n');
 
   if (!html.includes('name="unfallwerkbank:distribution-profile"')) {
     html = html.replace(
@@ -146,10 +120,8 @@ function patchCanonicalHtml(siteRoot) {
       `$1\n  <meta name="unfallwerkbank:distribution-profile" content="${PROFILE_ID}" />`
     );
   }
-  html = html.replace(
-    /<title>([^<]*)<\/title>/,
-    '<title>Unfallwerkbank – öffentliche Kernvorschau</title>'
-  );
+  html = html.replace(/<title>([^<]*)<\/title>/, `<title>${PROFILE_LABEL}</title>`);
+
   if (!html.includes('js/ua.public-preview.js')) {
     const appScript = /(<script src="js\/ua\.app_v2\.js[^>]*><\/script>)/;
     if (!appScript.test(html)) {
@@ -157,204 +129,134 @@ function patchCanonicalHtml(siteRoot) {
     }
     html = html.replace(
       appScript,
-      `<script src="js/ua.public-preview.js?v=1"></script>\n  $1`
+      `<script src="js/ua.public-preview.js?v=2"></script>\n  $1`
     );
   }
+
   fs.writeFileSync(htmlPath, `${html.trimEnd()}\n`);
 }
 
-function removeExcludedVendorFiles(siteRoot, oldManifest) {
-  for (const relative of EXCLUDED_VENDOR_ROOTS) {
-    fs.rmSync(path.join(siteRoot, relative), { recursive: true, force: true });
-  }
-
-  const licensesRoot = path.join(siteRoot, 'vendor', 'licenses');
-  if (fs.existsSync(licensesRoot)) {
-    const allowed = new Set(Object.values(PUBLIC_PACKAGES).map(value => path.basename(value.licensePath)));
-    for (const entry of fs.readdirSync(licensesRoot)) {
-      if (!allowed.has(entry)) fs.rmSync(path.join(licensesRoot, entry), { recursive: true, force: true });
-    }
-  }
-
-  const oldNotice = oldManifest && oldManifest.thirdPartyNotices;
-  for (const relative of [
-    oldNotice && oldNotice.sbom && oldNotice.sbom.path,
-    oldNotice && oldNotice.provenancePolicy && oldNotice.provenancePolicy.path,
-    'vendor/sbom.cdx.json',
-    'vendor/provenance-policy.json'
-  ].filter(Boolean)) {
-    if (relative !== NOTICE_PATH && relative !== SBOM_PATH) {
-      fs.rmSync(path.join(siteRoot, relative), { recursive: true, force: true });
-    }
+function readJson(file, label) {
+  if (!fs.existsSync(file)) throw new Error(`[public-pages-profile] Missing ${label}: ${file}`);
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    throw new Error(`[public-pages-profile] Invalid ${label}: ${error.message}`);
   }
 }
 
-function buildPublicInventory(repoRoot, siteRoot, manifest) {
-  const lock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
-  const expectedAssetPaths = new Set(PUBLIC_ASSET_PATHS);
-  const publicAssets = (manifest.vendorAssets || [])
-    .filter(asset => Object.prototype.hasOwnProperty.call(PUBLIC_PACKAGES, asset.package))
-    .sort((left, right) => left.path.localeCompare(right.path));
-
-  const actualAssetPaths = new Set(publicAssets.map(asset => asset.path));
-  if (actualAssetPaths.size !== expectedAssetPaths.size ||
-      [...expectedAssetPaths].some(assetPath => !actualAssetPaths.has(assetPath))) {
-    throw new Error('[public-pages-profile] Canonical build does not contain the exact public vendor asset set');
+function exactSet(actual, expected, label) {
+  const left = [...actual].sort();
+  const right = [...expected].sort();
+  if (JSON.stringify(left) !== JSON.stringify(right)) {
+    throw new Error(`[public-pages-profile] ${label} mismatch. Expected ${right.join(', ')}, got ${left.join(', ')}`);
   }
+}
 
-  const components = Object.keys(PUBLIC_PACKAGES).sort().map(packageName => {
-    const packageRecord = lock.packages && lock.packages[`node_modules/${packageName}`];
-    if (!packageRecord || !packageRecord.version || !packageRecord.integrity || !packageRecord.resolved) {
+function buildPublicInventory(repoRoot, siteRoot, manifest, notice) {
+  const lock = readJson(path.join(repoRoot, 'package-lock.json'), 'package lock');
+  const packageNames = Object.keys(PUBLIC_PACKAGES).sort();
+  exactSet(Object.keys(manifest.dependencies || {}), packageNames, 'dependency set');
+  exactSet((manifest.vendorAssets || []).map(asset => asset.path), PUBLIC_ASSET_PATHS, 'vendor asset set');
+  exactSet((notice.dependencies || []).map(item => item.package), packageNames, 'notice dependency set');
+
+  const dependencyByName = new Map((notice.dependencies || []).map(item => [item.package, item]));
+  for (const packageName of packageNames) {
+    const locked = lock.packages && lock.packages[`node_modules/${packageName}`];
+    if (!locked || !locked.version || !locked.integrity || !locked.resolved) {
       throw new Error(`[public-pages-profile] Missing locked package evidence for ${packageName}`);
     }
+    if (manifest.dependencies[packageName] !== locked.version) {
+      throw new Error(`[public-pages-profile] Manifest version drift for ${packageName}`);
+    }
+    const dependency = dependencyByName.get(packageName);
     const policy = PUBLIC_PACKAGES[packageName];
-    const licenseAbsolute = path.join(siteRoot, policy.licensePath);
-    if (!fs.existsSync(licenseAbsolute)) {
-      throw new Error(`[public-pages-profile] Missing complete license text for ${packageName}`);
+    if (!dependency || dependency.version !== locked.version || dependency.spdx !== policy.spdx) {
+      throw new Error(`[public-pages-profile] Notice evidence drift for ${packageName}`);
     }
-    const ownedAssets = publicAssets.filter(asset => asset.package === packageName).map(asset => asset.path).sort();
-    return {
-      type: 'library',
-      name: packageName,
-      version: packageRecord.version,
-      purl: npmPurl(packageName, packageRecord.version),
-      integrity: packageRecord.integrity,
-      resolved: packageRecord.resolved,
-      licenseExpression: policy.spdx,
-      licenseTexts: [{
-        path: policy.licensePath,
-        sha256: sha256File(licenseAbsolute),
-        copyrightIncluded: true
-      }],
-      deliveredAssets: ownedAssets
-    };
-  });
+    if (!dependency.licenseTextPath) {
+      throw new Error(`[public-pages-profile] Missing bundled license text for ${packageName}`);
+    }
+    const licenseAbsolute = path.join(siteRoot, dependency.licenseTextPath);
+    if (!fs.existsSync(licenseAbsolute) || sha256File(licenseAbsolute) !== dependency.licenseTextSha256) {
+      throw new Error(`[public-pages-profile] License evidence drift for ${packageName}`);
+    }
+  }
 
-  const componentByPackage = new Map(components.map(component => [component.name, component]));
-  const assetAssessments = publicAssets.map(asset => {
+  for (const asset of manifest.vendorAssets || []) {
     const absolute = path.join(siteRoot, asset.path);
-    if (!fs.existsSync(absolute) || sha256File(absolute) !== asset.sha256) {
-      throw new Error(`[public-pages-profile] Canonical vendor asset hash drift: ${asset.path}`);
+    if (!fs.existsSync(absolute) || sha256File(absolute) !== asset.sha256 || fs.statSync(absolute).size !== asset.bytes) {
+      throw new Error(`[public-pages-profile] Canonical vendor asset drift: ${asset.path}`);
     }
-    return {
-      path: asset.path,
-      bytes: fs.statSync(absolute).size,
-      sha256: asset.sha256,
-      reproducible: true,
-      provenanceComplete: true,
-      source: 'exact file copied from the integrity-pinned npm package installed by npm ci',
-      contains: [componentByPackage.get(asset.package).purl],
-      gaps: []
-    };
-  });
+  }
 
-  const sbom = {
-    bomFormat: 'CycloneDX',
-    specVersion: '1.6',
-    version: 1,
-    metadata: {
-      properties: [
-        { name: 'unfallatlas:distribution-profile', value: PROFILE_ID },
-        { name: 'unfallatlas:inventory-completeness', value: 'complete' }
-      ]
-    },
-    components: [
-      ...components.map(component => ({
-        type: 'library',
-        'bom-ref': component.purl,
-        name: component.name,
-        version: component.version,
-        purl: component.purl,
-        licenses: [{ expression: component.licenseExpression }],
-        properties: [
-          { name: 'unfallatlas:npm-integrity', value: component.integrity },
-          { name: 'unfallatlas:resolved', value: component.resolved }
-        ]
-      })),
-      ...assetAssessments.map(asset => ({
-        type: 'file',
-        'bom-ref': `urn:unfallatlas:public-vendor-asset:${asset.path}`,
-        name: asset.path,
-        hashes: [{ alg: 'SHA-256', content: asset.sha256 }]
-      }))
-    ],
-    dependencies: assetAssessments.map(asset => ({
-      ref: `urn:unfallatlas:public-vendor-asset:${asset.path}`,
-      dependsOn: asset.contains
-    })),
-    compositions: [{
-      aggregate: 'complete',
-      assemblies: assetAssessments.map(asset => `urn:unfallatlas:public-vendor-asset:${asset.path}`)
-    }]
-  };
-  const sbomAbsolute = path.join(siteRoot, SBOM_PATH);
-  fs.mkdirSync(path.dirname(sbomAbsolute), { recursive: true });
-  fs.writeFileSync(sbomAbsolute, `${JSON.stringify(sbom, null, 2)}\n`);
-
-  const notice = {
-    schemaVersion: 1,
-    distributionProfile: PROFILE_ID,
-    source: 'exact locked npm package files retained by the public Pages profile',
-    inventoryScope: 'public-preview-core-delivered-assets',
-    complete: true,
-    trackingIssue: TRACKING_ISSUE,
-    knownGaps: [],
-    excludedPackages: EXCLUDED_PACKAGE_NAMES,
-    disabledCapabilities: DISABLED_CAPABILITIES,
-    dependencies: components.map(component => ({
-      package: component.name,
-      version: component.version,
-      purl: component.purl,
-      spdx: component.licenseExpression,
-      integrity: component.integrity,
-      resolved: component.resolved,
-      evidence: 'bundled-license-text',
-      licenseTextPath: component.licenseTexts[0].path,
-      licenseTextSha256: component.licenseTexts[0].sha256
-    })),
-    components,
-    assetAssessments,
-    fontEvidence: [],
-    sbom: {
-      path: SBOM_PATH,
-      sha256: sha256File(sbomAbsolute),
-      specVersion: '1.6',
-      complete: true
-    }
-  };
-  const noticeAbsolute = path.join(siteRoot, NOTICE_PATH);
-  fs.writeFileSync(noticeAbsolute, `${JSON.stringify(notice, null, 2)}\n`);
-  return { publicAssets, notice, noticeAbsolute };
+  return { packageNames, assetPaths: [...PUBLIC_ASSET_PATHS] };
 }
 
-function updateBuildManifest(siteRoot, manifest, inventory) {
-  manifest.dependencies = Object.fromEntries(
-    inventory.notice.dependencies.map(dependency => [dependency.package, dependency.version])
-  );
-  manifest.vendorAssets = inventory.publicAssets;
+function annotateNotice(siteRoot, notice) {
+  if (notice.schemaVersion !== 2 || notice.complete !== false) {
+    throw new Error('[public-pages-profile] Expected the canonical diagnostic notice with declared gaps');
+  }
+  if (!Array.isArray(notice.knownGaps)) {
+    throw new Error('[public-pages-profile] Canonical notice lacks known-gaps inventory');
+  }
+  const annotated = {
+    ...notice,
+    distributionProfile: PROFILE_ID,
+    distributionLabel: PROFILE_LABEL,
+    complianceMode: 'declared-known-provenance-gaps',
+    knownLicenseRestrictions: [],
+    knownLicenseConflicts: [],
+    provenanceGapsBlockCapabilities: false,
+    disabledCapabilities: [...DISABLED_CAPABILITIES],
+    excludedPackages: [],
+    policyStatement:
+      'Known reproducibility and component-level provenance gaps are documented as hardening work; ' +
+      'they are not treated as a license-based prohibition on the browser features.',
+  };
+  const noticeAbsolute = path.join(siteRoot, NOTICE_PATH);
+  fs.writeFileSync(noticeAbsolute, `${JSON.stringify(annotated, null, 2)}\n`);
+  return { notice: annotated, noticeAbsolute };
+}
+
+function updateBuildManifest(siteRoot, manifest, annotated, inventory) {
+  const notice = annotated.notice;
+  const sbomPath = notice.sbom && notice.sbom.path || SBOM_PATH;
+  const sbomAbsolute = path.join(siteRoot, sbomPath);
+  const policyAbsolute = path.join(siteRoot, POLICY_PATH);
+  if (!fs.existsSync(sbomAbsolute) || !fs.existsSync(policyAbsolute)) {
+    throw new Error('[public-pages-profile] Missing diagnostic SBOM or provenance policy');
+  }
+
   manifest.thirdPartyNotices = {
     path: NOTICE_PATH,
-    sha256: sha256File(inventory.noticeAbsolute),
-    complete: true,
-    inventoryScope: inventory.notice.inventoryScope,
+    sha256: sha256File(annotated.noticeAbsolute),
+    complete: false,
+    inventoryScope: notice.inventoryScope,
     trackingIssue: TRACKING_ISSUE,
-    dependencies: inventory.notice.dependencies,
-    sbom: inventory.notice.sbom,
-    knownGapIds: [],
-    componentCount: inventory.notice.components.length,
-    assetCount: inventory.notice.assetAssessments.length,
-    fontCount: 0
+    dependencies: notice.dependencies,
+    sbom: notice.sbom,
+    provenancePolicy: notice.provenancePolicy,
+    knownGapIds: notice.knownGaps.map(gap => gap.id).sort(),
+    componentCount: notice.components.length,
+    assetCount: notice.assetAssessments.length,
+    fontCount: notice.fontEvidence.length,
   };
   manifest.distribution = {
     profile: PROFILE_ID,
+    label: PROFILE_LABEL,
     publicPreview: true,
-    vendorInventoryComplete: true,
-    disabledCapabilities: DISABLED_CAPABILITIES,
-    fullDistributionTrackingIssue: TRACKING_ISSUE
+    vendorInventoryComplete: false,
+    complianceMode: notice.complianceMode,
+    knownLicenseRestrictions: [],
+    knownLicenseConflicts: [],
+    provenanceGapsBlockCapabilities: false,
+    disabledCapabilities: [...DISABLED_CAPABILITIES],
+    provenanceHardeningIssue: TRACKING_ISSUE,
   };
   manifest.networkPolicy = Object.assign({}, manifest.networkPolicy, {
     distributionProfile: PROFILE_ID,
-    disabledCapabilities: DISABLED_CAPABILITIES
+    disabledCapabilities: [...DISABLED_CAPABILITIES],
   });
 
   const appFiles = listFiles(siteRoot).filter(file => {
@@ -368,9 +270,18 @@ function updateBuildManifest(siteRoot, manifest, inventory) {
     thirdPartyNotices: manifest.thirdPartyNotices.sha256,
     data: manifest.data.fingerprint,
     networkPolicy: manifest.networkPolicy,
-    distribution: manifest.distribution
+    distribution: manifest.distribution,
   })).digest('hex');
   fs.writeFileSync(path.join(siteRoot, 'build-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+
+  return {
+    profile: PROFILE_ID,
+    siteRoot,
+    assetCount: inventory.assetPaths.length,
+    packageCount: inventory.packageNames.length,
+    disabledCapabilities: [...DISABLED_CAPABILITIES],
+    knownGapCount: notice.knownGaps.length,
+  };
 }
 
 function applyPublicPagesProfile(options = {}) {
@@ -385,25 +296,22 @@ function applyPublicPagesProfile(options = {}) {
     throw new Error('[public-pages-profile] Public preview runtime was not copied into the site');
   }
 
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  removeExcludedVendorFiles(siteRoot, manifest);
   patchCanonicalHtml(siteRoot);
   for (const legacy of LEGACY_HTML) {
     fs.writeFileSync(path.join(siteRoot, legacy), redirectDocument());
   }
-  const inventory = buildPublicInventory(repoRoot, siteRoot, manifest);
-  updateBuildManifest(siteRoot, manifest, inventory);
+
+  const manifest = readJson(manifestPath, 'build manifest');
+  const notice = readJson(path.join(siteRoot, NOTICE_PATH), 'third-party notice');
+  const inventory = buildPublicInventory(repoRoot, siteRoot, manifest, notice);
+  const annotated = annotateNotice(siteRoot, notice);
+  const result = updateBuildManifest(siteRoot, manifest, annotated, inventory);
 
   process.stdout.write(
-    `[public-pages-profile] Materialized ${PROFILE_ID} with ${inventory.publicAssets.length} fully inventoried vendor assets; ` +
-    `${DISABLED_CAPABILITIES.join(', ')} disabled.\n`
+    `[public-pages-profile] Materialized ${PROFILE_LABEL} with ${result.assetCount} locked browser assets; ` +
+    `only ${DISABLED_CAPABILITIES.join(', ')} disabled; ${result.knownGapCount} provenance-hardening gaps declared.\n`
   );
-  return {
-    profile: PROFILE_ID,
-    siteRoot,
-    assetCount: inventory.publicAssets.length,
-    disabledCapabilities: [...DISABLED_CAPABILITIES]
-  };
+  return result;
 }
 
 function main(argv) {
@@ -426,13 +334,16 @@ module.exports = {
   EXCLUDED_VENDOR_ROOTS,
   LEGACY_HTML,
   NOTICE_PATH,
+  POLICY_PATH,
   PROFILE_ID,
+  PROFILE_LABEL,
   PUBLIC_ASSET_PATHS,
   PUBLIC_PACKAGES,
   SBOM_PATH,
+  TRACKING_ISSUE,
   applyPublicPagesProfile,
   fingerprintFiles,
   listFiles,
   parseArgs,
-  sha256File
+  sha256File,
 };

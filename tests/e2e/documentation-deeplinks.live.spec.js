@@ -9,6 +9,14 @@ const { validateDocumentationLinks } = documentationContract;
 const { visibleCountFromStatus } = localizedCount;
 const scenarios = validateDocumentationLinks(process.cwd()).liveScenarios;
 const outputDir = resolve(process.cwd(), 'out/qa/documentation-live-links');
+const applicationBaseUrl = process.env.DOCUMENTATION_APP_BASE_URL || null;
+
+function applicationUrl(canonicalUrl) {
+  if (!applicationBaseUrl) return canonicalUrl;
+  const canonical = new URL(canonicalUrl);
+  const base = new URL(applicationBaseUrl.endsWith('/') ? applicationBaseUrl : `${applicationBaseUrl}/`);
+  return new URL(`werkbank_v2.html${canonical.search}`, base).href;
+}
 const OPTIONAL_CITY_TEMPLATE_FILES = new Set([
   'base_intro.txt',
   'base_method.txt',
@@ -199,10 +207,10 @@ const publicDownloadContracts = [
 async function exercisePublicDownloads(page, scenario, diagnostics, testInfo) {
   expect(diagnostics.state.export.publicPreview).toBe('public-preview-core-v1');
   expect(diagnostics.state.export.noticeVisible).toBe(true);
-  expect(diagnostics.state.export.noticeText).toMatch(/Word\/PDF.*deaktiviert/i);
-  expect(diagnostics.state.export.antragGroupHidden).toBe(true);
-  expect(diagnostics.state.export.wordDisabled).toBe(true);
-  expect(diagnostics.state.export.pdfDisabled).toBe(true);
+  expect(diagnostics.state.export.noticeText).toMatch(/Word.*PDF.*verfügbar/i);
+  expect(diagnostics.state.export.antragGroupHidden).toBe(false);
+  expect(diagnostics.state.export.wordDisabled).toBe(false);
+  expect(diagnostics.state.export.pdfDisabled).toBe(false);
 
   for (const contract of publicDownloadContracts) {
     const button = page.locator(contract.selector);
@@ -243,13 +251,14 @@ test.describe.serial('README screenshot deep links – published application', (
   for (const scenario of scenarios) {
     test(`${scenario.id}: ${scenario.description}`, async ({ page }, testInfo) => {
       test.setTimeout(scenario.expected.verifyDownloads ? 240000 : 120000);
+      const targetUrl = applicationUrl(scenario.url);
       const diagnostics = {
-        scenario: scenario.id, imagePath: scenario.imagePath, url: scenario.url,
+        scenario: scenario.id, imagePath: scenario.imagePath, url: scenario.url, targetUrl,
         references: scenario.references, pageErrors: [], consoleErrors: [],
         sameOriginHttpErrors: [], optionalTemplateMisses: [], externalRequestFailures: [],
         downloads: [], state: null, failure: null,
       };
-      const liveOrigin = new URL(scenario.url).origin;
+      const liveOrigin = new URL(targetUrl).origin;
       page.on('pageerror', (error) => diagnostics.pageErrors.push(String(error?.stack || error)));
       page.on('console', (message) => {
         const text = message.text();
@@ -271,7 +280,7 @@ test.describe.serial('README screenshot deep links – published application', (
         (origin === liveOrigin ? diagnostics.sameOriginHttpErrors : diagnostics.externalRequestFailures).push(item);
       });
       try {
-        await page.goto(scenario.url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
         await page.waitForFunction((city) => {
           const ctx = window.UA?.getRuntimeContext?.();
           const stat = String(document.getElementById('stat')?.textContent || '');

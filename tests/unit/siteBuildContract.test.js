@@ -231,7 +231,7 @@ describe('canonical site build contract', () => {
     }
   });
 
-  test('vendor notice inventories delivered assets and blocks release while component evidence is incomplete', () => {
+  test('vendor notice inventories assets and declares component-level hardening gaps honestly', () => {
     expect(Object.keys(VENDOR_LICENSES).sort()).toEqual(browserPackages.sort());
     const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-licenses-'));
     try {
@@ -255,7 +255,6 @@ describe('canonical site build contract', () => {
         'pdfmake-roboto-font-provenance',
         'leaflet-heat-embedded-simpleheat',
         'leaflet-image-embedded-d3-queue',
-        'leaflet-draw-license-text',
       ]));
       const notice = JSON.parse(fs.readFileSync(path.join(fixture, notices.path), 'utf8'));
       const fontContainer = notice.assetAssessments

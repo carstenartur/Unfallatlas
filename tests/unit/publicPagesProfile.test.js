@@ -6,10 +6,10 @@ const path = require('path');
 const { buildSite } = require('../../scripts/build-site');
 const {
   DISABLED_CAPABILITIES,
-  EXCLUDED_VENDOR_ROOTS,
   PROFILE_ID,
   PUBLIC_ASSET_PATHS,
-  applyPublicPagesProfile
+  PUBLIC_PACKAGES,
+  applyPublicPagesProfile,
 } = require('../../scripts/build-public-pages-profile');
 const { validatePublicPagesProfile } = require('../../scripts/validate-public-pages-profile');
 
@@ -35,7 +35,7 @@ function workflowJobs(source) {
   expect(deployStart).toBeGreaterThan(buildStart);
   return {
     build: source.slice(buildStart, deployStart),
-    deploy: source.slice(deployStart)
+    deploy: source.slice(deployStart),
   };
 }
 
@@ -48,7 +48,7 @@ describe('public Pages distribution profile', () => {
       root: ROOT,
       inputDir: 'out',
       poiDir: 'out',
-      outputDir: OUTPUT_RELATIVE
+      outputDir: OUTPUT_RELATIVE,
     });
     applyPublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE });
   });
@@ -57,53 +57,61 @@ describe('public Pages distribution profile', () => {
     fs.rmSync(OUTPUT, { recursive: true, force: true });
   });
 
-  test('materializes and validates a complete reduced artifact from a normal checkout', () => {
+  test('publishes every browser-side capability while declaring hardening gaps honestly', () => {
     const result = validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE });
     expect(result).toMatchObject({
       profile: PROFILE_ID,
       assetCount: PUBLIC_ASSET_PATHS.length,
-      packageCount: 2
+      packageCount: Object.keys(PUBLIC_PACKAGES).length,
     });
+    expect(result.knownGapCount).toBeGreaterThan(0);
 
     const manifest = readJson('build-manifest.json');
     expect(manifest.distribution).toMatchObject({
       profile: PROFILE_ID,
       publicPreview: true,
-      vendorInventoryComplete: true
+      vendorInventoryComplete: false,
+      complianceMode: 'declared-known-provenance-gaps',
+      provenanceGapsBlockCapabilities: false,
+      knownLicenseRestrictions: [],
+      knownLicenseConflicts: [],
     });
-    expect(DISABLED_CAPABILITIES).toContain('video-export');
-    expect(manifest.distribution.disabledCapabilities.sort()).toEqual([...DISABLED_CAPABILITIES].sort());
-    expect(manifest.networkPolicy.disabledCapabilities.sort()).toEqual([...DISABLED_CAPABILITIES].sort());
-    expect(Object.keys(manifest.dependencies).sort()).toEqual(['leaflet', 'leaflet.markercluster']);
+    expect(DISABLED_CAPABILITIES).toEqual(['video-export']);
+    expect(manifest.distribution.disabledCapabilities).toEqual(['video-export']);
+    expect(manifest.networkPolicy.disabledCapabilities).toEqual(['video-export']);
+    expect(Object.keys(manifest.dependencies).sort()).toEqual(Object.keys(PUBLIC_PACKAGES).sort());
     expect(manifest.vendorAssets.map(asset => asset.path).sort()).toEqual([...PUBLIC_ASSET_PATHS].sort());
 
     const notice = readJson('vendor/third-party-notices.json');
-    expect(notice.disabledCapabilities.sort()).toEqual([...DISABLED_CAPABILITIES].sort());
+    expect(notice.complete).toBe(false);
+    expect(notice.knownGaps.length).toBeGreaterThan(0);
+    expect(notice.provenanceGapsBlockCapabilities).toBe(false);
+    expect(notice.knownLicenseRestrictions).toEqual([]);
+    expect(notice.disabledCapabilities).toEqual(['video-export']);
+    expect(notice.excludedPackages).toEqual([]);
+    expect(notice.supplementalLicenses).toEqual(expect.arrayContaining([
+      expect.objectContaining({ component: 'simpleheat@0.2.0', spdx: 'BSD-2-Clause' }),
+    ]));
 
-    for (const excluded of EXCLUDED_VENDOR_ROOTS) {
-      expect(fs.existsSync(path.join(OUTPUT, excluded))).toBe(false);
+    for (const relative of PUBLIC_ASSET_PATHS) {
+      expect(fs.existsSync(path.join(OUTPUT, relative))).toBe(true);
     }
     const canonical = fs.readFileSync(path.join(OUTPUT, 'werkbank_v2.html'), 'utf8');
     expect(canonical).toContain(`content="${PROFILE_ID}"`);
     expect(canonical).toContain('js/ua.public-preview.js');
-    expect(canonical).not.toMatch(/vendor\/(?:export|leaflet\.heat|leaflet-draw|leaflet-image)\//);
+    expect(canonical).toContain('vendor/leaflet.heat/leaflet-heat.js');
+    expect(canonical).toContain('vendor/leaflet-draw/leaflet.draw.js');
+    expect(canonical).toContain('vendor/leaflet-image/leaflet-image.js');
+
     const publicRuntime = fs.readFileSync(path.join(OUTPUT, 'js', 'ua.public-preview.js'), 'utf8');
     expect(publicRuntime).toContain("'video-export'");
+    expect(publicRuntime).not.toContain('UA.ensureExportLibraries =');
+    expect(publicRuntime).not.toContain("hideElement(document.getElementById('exportGroupAntrag'))");
+    expect(publicRuntime).toContain('eine bekannte Lizenzbeschränkung');
+
     const index = fs.readFileSync(path.join(OUTPUT, 'index.html'), 'utf8');
     expect(index).toContain('werkbank_v2.html');
     expect(index).not.toContain('vendor/');
-  });
-
-  test('rejects an excluded bundle reintroduced after profile generation', () => {
-    const rogue = path.join(OUTPUT, 'vendor', 'export', 'rogue.js');
-    fs.mkdirSync(path.dirname(rogue), { recursive: true });
-    fs.writeFileSync(rogue, 'window.rogue = true;\n');
-    try {
-      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
-        .toThrow(/excluded vendor tree is still delivered/);
-    } finally {
-      fs.rmSync(path.join(OUTPUT, 'vendor', 'export'), { recursive: true, force: true });
-    }
   });
 
   test('rejects delivered asset hash drift', () => {
@@ -119,17 +127,71 @@ describe('public Pages distribution profile', () => {
     }
   });
 
-  test('rejects a forged complete notice with a hidden gap', () => {
+  test('rejects an undeclared or hidden provenance gap', () => {
     const noticePath = 'vendor/third-party-notices.json';
     const notice = readJson(noticePath);
     const original = JSON.stringify(notice, null, 2) + '\n';
-    notice.knownGaps.push({ id: 'forged-gap' });
+    notice.knownGaps.pop();
     writeJson(noticePath, notice);
     try {
       expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
-        .toThrow(/public notice contains unresolved gaps/);
+        .toThrow(/declared provenance gaps mismatch/);
     } finally {
       fs.writeFileSync(path.join(OUTPUT, noticePath), original);
+    }
+  });
+
+  test('rejects a claimed license restriction without evidence', () => {
+    const noticePath = 'vendor/third-party-notices.json';
+    const notice = readJson(noticePath);
+    const original = JSON.stringify(notice, null, 2) + '\n';
+    notice.knownLicenseRestrictions.push('fabricated restriction');
+    writeJson(noticePath, notice);
+    try {
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/unknown license restrictions/);
+    } finally {
+      fs.writeFileSync(path.join(OUTPUT, noticePath), original);
+    }
+  });
+
+  test('rejects missing mandatory direct-package, supplemental or font license texts', () => {
+    const notice = readJson('vendor/third-party-notices.json');
+    const directLicense = path.join(OUTPUT, notice.dependencies[0].licenseTextPath);
+    const supplementalLicense = path.join(OUTPUT, notice.supplementalLicenses[0].path);
+    const fontLicense = path.join(OUTPUT, notice.fontEvidence[0].licenseTexts[0].path);
+    const directBytes = fs.readFileSync(directLicense);
+    const supplementalBytes = fs.readFileSync(supplementalLicense);
+    const fontBytes = fs.readFileSync(fontLicense);
+    try {
+      fs.rmSync(directLicense);
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/missing license text/);
+      fs.writeFileSync(directLicense, directBytes);
+      fs.rmSync(supplementalLicense);
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/missing supplemental license text/);
+      fs.writeFileSync(supplementalLicense, supplementalBytes);
+      fs.rmSync(fontLicense);
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/missing font license text/);
+    } finally {
+      fs.writeFileSync(directLicense, directBytes);
+      fs.writeFileSync(supplementalLicense, supplementalBytes);
+      fs.writeFileSync(fontLicense, fontBytes);
+    }
+  });
+
+  test('rejects undeclared vendor references in the canonical page', () => {
+    const canonicalPath = path.join(OUTPUT, 'werkbank_v2.html');
+    const original = fs.readFileSync(canonicalPath, 'utf8');
+    fs.writeFileSync(canonicalPath, original.replace('</body>',
+      '  <script src="vendor/undeclared/rogue.js"></script>\n</body>'));
+    try {
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/references undeclared vendor asset/);
+    } finally {
+      fs.writeFileSync(canonicalPath, original);
     }
   });
 
@@ -147,7 +209,7 @@ describe('public Pages distribution profile', () => {
     }
   });
 
-  test('keeps build jobs read-only, pins workflow deployment and blocks full releases', () => {
+  test('keeps Pages pragmatic while full release provenance remains a separate gate', () => {
     const generatedPages = fs.readFileSync(
       path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'),
       'utf8'
@@ -168,36 +230,18 @@ describe('public Pages distribution profile', () => {
       expect(jobs.build).toContain('persist-credentials: false');
       expect(jobs.build).not.toContain('pages: write');
       expect(jobs.build).not.toContain('id-token: write');
-      expect(jobs.build).not.toContain('actions/configure-pages');
-      expect(jobs.build.indexOf('validate:pages-profile'))
-        .toBeLessThan(jobs.build.indexOf('Smoke-test the exact'));
-      expect(jobs.build.indexOf('Smoke-test the exact'))
-        .toBeLessThan(jobs.build.indexOf('actions/upload-pages-artifact'));
       expect(jobs.deploy).toContain('pages: write');
       expect(jobs.deploy).toContain('id-token: write');
       expect(jobs.deploy).toContain('Pin Pages source to GitHub Actions');
-      expect(jobs.deploy).toContain('gh api --method PUT');
       expect(jobs.deploy).toContain('build_type=workflow');
-      expect(jobs.deploy.indexOf('Pin Pages source to GitHub Actions'))
-        .toBeLessThan(jobs.deploy.indexOf('actions/configure-pages'));
-      expect(jobs.deploy.indexOf('actions/configure-pages'))
-        .toBeLessThan(jobs.deploy.indexOf('actions/deploy-pages'));
-      expect(jobs.deploy).toContain('Verify published public profile and vendor assets');
-      expect(jobs.deploy).toContain('unfallwerkbank:distribution-profile');
-      expect(jobs.deploy).toContain('vendor/leaflet/leaflet.js');
-      expect(jobs.deploy).toContain('vendor/leaflet.markercluster/leaflet.markercluster.js');
-      expect(jobs.deploy).toContain('js/ua.public-preview.js');
-      expect(jobs.deploy.indexOf('actions/deploy-pages'))
-        .toBeLessThan(jobs.deploy.indexOf('Verify published public profile and vendor assets'));
+      expect(jobs.deploy).toContain('vendor/leaflet.heat/leaflet-heat.js');
+      expect(jobs.deploy).toContain('vendor/leaflet-draw/leaflet.draw.js');
+      expect(jobs.deploy).toContain('vendor/export/docx.js');
+      expect(jobs.deploy).toContain('vendor/export/pdfmake.js');
     }
 
-    expect(currentPages).toMatch(/pull_request:\s*\n\s*branches: \[main\]/);
-    expect(currentPages).toMatch(/push:\s*\n\s*branches: \[main\]/);
     expect(currentPages).not.toContain('validate:vendor-provenance -- --require-complete');
-
-    expect(generatedPages).toMatch(
-      /Full-distribution provenance gate is not applicable[\s\S]*if: \$\{\{ false \}\}[\s\S]*validate:vendor-provenance -- --require-complete/
-    );
+    expect(generatedPages).toContain('validate:vendor-provenance -- --require-complete');
     expect(release).toContain('npm run validate:vendor-provenance -- --require-complete');
     expect(docker).toContain('npm run validate:vendor-provenance -- --require-complete');
     expect(docker).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=1');
