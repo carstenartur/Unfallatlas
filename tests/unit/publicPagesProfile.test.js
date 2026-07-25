@@ -209,7 +209,8 @@ describe('public Pages distribution profile', () => {
     }
   });
 
-  test('keeps Pages pragmatic while full release provenance remains a separate gate', () => {
+  test('keeps all Pages build and QA logic in Maven instead of Actions', () => {
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
     const generatedPages = fs.readFileSync(
       path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'),
       'utf8'
@@ -221,11 +222,20 @@ describe('public Pages distribution profile', () => {
     const release = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-release.yml'), 'utf8');
     const docker = fs.readFileSync(path.join(ROOT, '.github/workflows/docker-publish.yml'), 'utf8');
 
-    for (const pages of [generatedPages, currentPages]) {
+    expect(pom).toContain('<id>pages</id>');
+    expect(pom).toContain('<id>pages-regenerated</id>');
+    expect(pom).toContain('run qa:pages:artifact');
+    expect(pom).toContain('run generate:pages-data');
+    expect(pom).toContain('<module>analysis-service</module>');
+
+    const workflows = [currentPages, generatedPages];
+    for (const pages of workflows) {
       const jobs = workflowJobs(pages);
-      expect(pages).toContain('npm run build:pages-profile -- --site _site');
-      expect(pages).toContain('npm run validate:pages-profile -- --site _site');
-      expect(pages).toContain('npx playwright test tests/e2e/smoke.spec.js --project=chromium');
+      expect(pages).toMatch(/mvn -B -ntp clean verify -Ppages(?:-regenerated)?/);
+      expect(pages).not.toContain('npm ci');
+      expect(pages).not.toContain('npm run build:site');
+      expect(pages).not.toContain('npx playwright');
+      expect(pages).not.toContain('node scripts/');
       expect(jobs.build).toMatch(/permissions:\s*\n\s*contents: read/);
       expect(jobs.build).toContain('persist-credentials: false');
       expect(jobs.build).not.toContain('pages: write');
@@ -234,14 +244,10 @@ describe('public Pages distribution profile', () => {
       expect(jobs.deploy).toContain('id-token: write');
       expect(jobs.deploy).toContain('Pin Pages source to GitHub Actions');
       expect(jobs.deploy).toContain('build_type=workflow');
-      expect(jobs.deploy).toContain('vendor/leaflet.heat/leaflet-heat.js');
-      expect(jobs.deploy).toContain('vendor/leaflet-draw/leaflet.draw.js');
-      expect(jobs.deploy).toContain('vendor/export/docx.js');
-      expect(jobs.deploy).toContain('vendor/export/pdfmake.js');
+      expect(jobs.deploy).toContain('Deploy Maven-verified artifact');
     }
 
     expect(currentPages).not.toContain('validate:vendor-provenance -- --require-complete');
-    expect(generatedPages).toContain('validate:vendor-provenance -- --require-complete');
     expect(release).toContain('npm run validate:vendor-provenance -- --require-complete');
     expect(docker).toContain('npm run validate:vendor-provenance -- --require-complete');
     expect(docker).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=1');
