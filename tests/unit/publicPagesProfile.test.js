@@ -89,6 +89,9 @@ describe('public Pages distribution profile', () => {
     expect(notice.knownLicenseRestrictions).toEqual([]);
     expect(notice.disabledCapabilities).toEqual(['video-export']);
     expect(notice.excludedPackages).toEqual([]);
+    expect(notice.supplementalLicenses).toEqual(expect.arrayContaining([
+      expect.objectContaining({ component: 'simpleheat@0.2.0', spdx: 'BSD-2-Clause' }),
+    ]));
 
     for (const relative of PUBLIC_ASSET_PATHS) {
       expect(fs.existsSync(path.join(OUTPUT, relative))).toBe(true);
@@ -152,23 +155,43 @@ describe('public Pages distribution profile', () => {
     }
   });
 
-  test('rejects missing mandatory direct-package or font license texts', () => {
+  test('rejects missing mandatory direct-package, supplemental or font license texts', () => {
     const notice = readJson('vendor/third-party-notices.json');
     const directLicense = path.join(OUTPUT, notice.dependencies[0].licenseTextPath);
+    const supplementalLicense = path.join(OUTPUT, notice.supplementalLicenses[0].path);
     const fontLicense = path.join(OUTPUT, notice.fontEvidence[0].licenseTexts[0].path);
     const directBytes = fs.readFileSync(directLicense);
+    const supplementalBytes = fs.readFileSync(supplementalLicense);
     const fontBytes = fs.readFileSync(fontLicense);
     try {
       fs.rmSync(directLicense);
       expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
         .toThrow(/missing license text/);
       fs.writeFileSync(directLicense, directBytes);
+      fs.rmSync(supplementalLicense);
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/missing supplemental license text/);
+      fs.writeFileSync(supplementalLicense, supplementalBytes);
       fs.rmSync(fontLicense);
       expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
         .toThrow(/missing font license text/);
     } finally {
       fs.writeFileSync(directLicense, directBytes);
+      fs.writeFileSync(supplementalLicense, supplementalBytes);
       fs.writeFileSync(fontLicense, fontBytes);
+    }
+  });
+
+  test('rejects undeclared vendor references in the canonical page', () => {
+    const canonicalPath = path.join(OUTPUT, 'werkbank_v2.html');
+    const original = fs.readFileSync(canonicalPath, 'utf8');
+    fs.writeFileSync(canonicalPath, original.replace('</body>',
+      '  <script src="vendor/undeclared/rogue.js"></script>\n</body>'));
+    try {
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/references undeclared vendor asset/);
+    } finally {
+      fs.writeFileSync(canonicalPath, original);
     }
   });
 
