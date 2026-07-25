@@ -21,6 +21,7 @@ on:
       - 'scripts/build-public-pages-profile.js'
       - 'scripts/validate-public-pages-profile.js'
       - 'tests/e2e/smoke.spec.js'
+      - 'tests/e2e/pages-critical-path.spec.js'
       - 'playwright.config.js'
       - 'out/**'
       - 'data/**'
@@ -44,6 +45,7 @@ on:
       - 'scripts/build-public-pages-profile.js'
       - 'scripts/validate-public-pages-profile.js'
       - 'tests/e2e/smoke.spec.js'
+      - 'tests/e2e/pages-critical-path.spec.js'
       - 'playwright.config.js'
       - 'out/**'
       - 'data/**'
@@ -119,7 +121,10 @@ jobs:
             exit 1
           fi
           BASE_URL=http://127.0.0.1:8000 \
-            npx playwright test tests/e2e/smoke.spec.js --project=chromium
+            npx playwright test \
+              tests/e2e/smoke.spec.js \
+              tests/e2e/pages-critical-path.spec.js \
+              --project=chromium
 
       - name: Prove browser smoke left the deployable artifact unchanged
         run: |
