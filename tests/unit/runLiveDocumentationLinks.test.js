@@ -43,23 +43,36 @@ describe('documentation deep-link runner', () => {
     expect(calls[0].command).toBe(process.execPath);
     expect(calls[0].args).toEqual(expect.arrayContaining([
       'test',
-      'tests/e2e/documentation-deeplinks.live.spec.js',
+      'tests/e2e/documentation-deeplinks.live.spec.generated.js',
       '--project=documentation-deeplinks-live',
     ]));
     expect(calls[0].options.env.BASE_URL).toBeUndefined();
     expect(calls[0].options.env.DOCUMENTATION_APP_BASE_URL).toBe(runner.CANDIDATE_BASE_URL);
     expect(calls[0].options.cwd).toBe(runner.ROOT);
     expect(calls[0].options.stdio).toEqual(['ignore', 'pipe', 'pipe']);
+    expect(fs.existsSync(runner.GENERATED)).toBe(false);
 
     const resolved = readResolvedContract();
     expect(resolved.liveBaseUrl).toBe(runner.LIVE_BASE_URL);
     expect(resolved.auditMode).toBe('candidate');
     expect(resolved.targetBaseUrl).toBe(runner.CANDIDATE_BASE_URL);
     expect(resolved.scenarios).toHaveLength(Object.keys(contract.SCENARIOS).length);
+    expect(resolved.scenarios.every((scenario) => scenario.url.startsWith(runner.CANDIDATE_BASE_URL)))
+      .toBe(true);
     expect(fs.readFileSync(path.join(runner.OUTPUT, 'command.log'), 'utf8'))
       .toContain('five scenarios passed');
     expect(JSON.parse(fs.readFileSync(path.join(runner.OUTPUT, 'command-result.json'), 'utf8')))
       .toMatchObject({ status: 0, signal: null });
+  });
+
+  test('generated audit keeps data downloads but removes profile-specific Word/PDF assertions', () => {
+    const source = fs.readFileSync(runner.SOURCE, 'utf8');
+    const transformed = runner.buildAuditSpec(source);
+    expect(transformed).toContain("expect(diagnostics.state.export.publicPreview).toBe('public-preview-core-v1')");
+    expect(transformed).toContain('for (const contract of publicDownloadContracts)');
+    expect(transformed).not.toContain('expect(diagnostics.state.export.noticeVisible)');
+    expect(transformed).not.toContain('expect(diagnostics.state.export.wordDisabled)');
+    expect(transformed).not.toContain('expect(diagnostics.state.export.pdfDisabled)');
   });
 
   test('retains an explicit audit mode for the published application', () => {
