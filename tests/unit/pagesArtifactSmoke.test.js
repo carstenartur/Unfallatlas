@@ -89,17 +89,28 @@ describe('immutable Pages artifact smoke contract', () => {
     expect(pom).toContain('<id>pages-regenerated</id>');
     expect(pom).toContain('run qa:pages:artifact');
 
-    const build = gate.indexOf("runNode('scripts/build-site.js'");
-    const write = gate.indexOf("'--write'");
-    const browser = gate.indexOf('await runBrowserGate();');
-    const verify = gate.indexOf("'--verify'");
-    const revalidate = gate.lastIndexOf("runNode('scripts/validate-public-pages-profile.js'");
+    const buildFunction = gate.slice(
+      gate.indexOf('function buildAndValidateSite()'),
+      gate.indexOf('function installChromium()')
+    );
+    const verifyFunction = gate.slice(
+      gate.indexOf('function verifyArtifactUnchanged()'),
+      gate.indexOf('async function main()')
+    );
+    const mainFunction = gate.slice(gate.indexOf('async function main()'));
 
+    expect(buildFunction).toContain("runNode('scripts/build-site.js'");
+    expect(buildFunction).toContain("'--write'");
+    expect(verifyFunction).toContain("'--verify'");
+    expect(verifyFunction).toContain("runNode('scripts/validate-public-pages-profile.js'");
+
+    const build = mainFunction.indexOf('buildAndValidateSite();');
+    const browser = mainFunction.indexOf('await runBrowserGate();');
+    const verify = mainFunction.indexOf('verifyArtifactUnchanged();');
     expect(build).toBeGreaterThan(-1);
-    expect(write).toBeGreaterThan(build);
-    expect(browser).toBeGreaterThan(write);
+    expect(browser).toBeGreaterThan(build);
     expect(verify).toBeGreaterThan(browser);
-    expect(revalidate).toBeGreaterThan(verify);
+
     expect(gate).toContain('tests/e2e/smoke.spec.js');
     expect(gate).toContain('tests/e2e/pages-critical-path.spec.js');
     expect(gate).toContain("'--no-build'");
