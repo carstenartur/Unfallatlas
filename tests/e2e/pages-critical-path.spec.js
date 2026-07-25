@@ -41,6 +41,10 @@ async function requirePublicProfile(page) {
   test.skip(profile !== 'public-preview-core-v1', 'Test applies to the published Pages profile');
 }
 
+function isExpectedRouteTeardown(error) {
+  return /Route is already handled|Target page, context or browser has been closed/.test(String(error));
+}
+
 test.describe('Public Pages critical path', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -53,7 +57,13 @@ test.describe('Public Pages critical path', () => {
 
     await page.route('**/cities.txt', async (route) => {
       await cityRequestReleased;
-      await route.continue();
+      try {
+        await route.continue();
+      } catch (error) {
+        // Releasing the deliberately stalled request races with page teardown.
+        // The user-visible assertions have already completed at this point.
+        if (!isExpectedRouteTeardown(error)) throw error;
+      }
     });
 
     try {
