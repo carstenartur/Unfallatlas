@@ -30,25 +30,21 @@ describe('canonical site build contract', () => {
     'docx', 'pdfmake', 'file-saver',
   ];
 
-  test('every public site and container publication path requires complete vendor provenance', () => {
-    const workflows = [
-      '.github/workflows/deploy-release.yml',
-      '.github/workflows/generate-data-deploy-pages.yml',
-      '.github/workflows/docker-publish.yml',
-    ];
-    for (const workflowPath of workflows) {
-      const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
-      expect(workflow).toContain('npm run validate:vendor-provenance -- --require-complete');
-      if (workflowPath !== '.github/workflows/docker-publish.yml') {
-        expect(workflow.indexOf('npm run validate:media'))
-          .toBeLessThan(workflow.indexOf('npm run validate:vendor-provenance -- --require-complete'));
-      }
-    }
-
+  test('full releases stay fail-closed while the reduced Pages profile declares gaps through Maven', () => {
+    const release = fs.readFileSync(
+      path.join(ROOT, '.github/workflows/deploy-release.yml'),
+      'utf8'
+    );
     const dockerPublish = fs.readFileSync(
       path.join(ROOT, '.github/workflows/docker-publish.yml'),
       'utf8'
     );
+
+    for (const workflow of [release, dockerPublish]) {
+      expect(workflow).toContain('npm run validate:vendor-provenance -- --require-complete');
+    }
+    expect(release.indexOf('npm run validate:media'))
+      .toBeLessThan(release.indexOf('npm run validate:vendor-provenance -- --require-complete'));
     expect(dockerPublish.indexOf('npm run validate:vendor-provenance -- --require-complete'))
       .toBeLessThan(dockerPublish.indexOf('docker/login-action'));
     expect(dockerPublish.indexOf('npm run validate:vendor-provenance -- --require-complete'))
@@ -63,6 +59,14 @@ describe('canonical site build contract', () => {
     expect(dockerfile.indexOf('npm run build:site')).toBeLessThan(
       dockerfile.indexOf('npm run validate:vendor-provenance -- --require-complete')
     );
+
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const pagesGate = fs.readFileSync(path.join(ROOT, 'scripts/run-pages-quality-gate.cjs'), 'utf8');
+    expect(pom).toContain('<id>pages</id>');
+    expect(pom).toContain('<id>pages-regenerated</id>');
+    expect(pom).toContain('run qa:pages:artifact');
+    expect(pagesGate).toContain('validate-public-pages-profile.js');
+    expect(pagesGate).not.toContain('--require-complete');
   });
 
   test('interrupted atomic site-build staging trees cannot enter Git or Docker contexts', () => {
@@ -391,13 +395,35 @@ describe('canonical site build contract', () => {
     expect(source).not.toMatch(/(?:unpkg\.com|cdn\.jsdelivr\.net)\//);
   });
 
-  test('Pages and Playwright execute the same build command', () => {
-    const pages = fs.readFileSync(path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'), 'utf8');
+  test('Pages and Playwright are owned by the same Maven quality gate', () => {
+    const currentPages = fs.readFileSync(
+      path.join(ROOT, '.github/workflows/deploy-pages-current-data.yml'),
+      'utf8'
+    );
+    const generatedPages = fs.readFileSync(
+      path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'),
+      'utf8'
+    );
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const gate = fs.readFileSync(path.join(ROOT, 'scripts/run-pages-quality-gate.cjs'), 'utf8');
     const playwright = fs.readFileSync(path.join(ROOT, 'playwright.config.js'), 'utf8');
-    expect(pages).toContain('npm run build:site');
-    expect(pages).toContain('npm run validate:media -- --report out/qa/pages-documentation-media.json');
-    expect(pages).toContain('npm run validate:vendor-provenance -- --require-complete');
-    expect(pages).toContain('pages-documentation-media-report');
+
+    expect(currentPages).toContain('mvn -B -ntp clean verify -Ppages');
+    expect(generatedPages).toContain('mvn -B -ntp clean verify -Ppages-regenerated');
+    for (const workflow of [currentPages, generatedPages]) {
+      expect(workflow).not.toContain('npm run build:site');
+      expect(workflow).not.toContain('npx playwright');
+      expect(workflow).not.toContain('node scripts/');
+    }
+    expect(pom).toContain('run qa:pages:artifact');
+    expect(gate).toContain('scripts/build-site.js');
+    expect(gate).toContain('scripts/validate-doc-media.js');
+    expect(gate).toContain('scripts/validate-public-pages-profile.js');
+    expect(gate).toContain('scripts/fingerprint-static-tree.js');
+    expect(gate).toContain('tests/e2e/smoke.spec.js');
+    expect(gate).toContain('tests/e2e/pages-critical-path.spec.js');
+    expect(gate.indexOf('buildAndValidateSite();')).toBeLessThan(gate.indexOf('await runBrowserGate();'));
+    expect(gate.indexOf('await runBrowserGate();')).toBeLessThan(gate.indexOf('verifyArtifactUnchanged();'));
     expect(playwright).toContain("command: 'npm run serve:site'");
   });
 

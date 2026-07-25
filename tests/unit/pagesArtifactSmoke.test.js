@@ -79,17 +79,50 @@ describe('immutable Pages artifact smoke contract', () => {
     ])).toThrow(/exactly one/);
   });
 
-  test.each([
-    '.github/workflows/deploy-pages-current-data.yml',
-    '.github/workflows/generate-data-deploy-pages.yml',
-  ])('%s smokes and revalidates the immutable reduced tree', workflowPath => {
-    const workflow = read(workflowPath);
-    expect(workflow).toContain('npm run serve:site:existing');
-    expect(workflow).toContain('BASE_URL=http://127.0.0.1:8000');
-    expect(workflow).toContain('npm run fingerprint:site -- --site _site --write');
-    expect(workflow).toContain('npm run fingerprint:site -- --site _site --verify');
-    expect(workflow.match(/npm run validate:pages-profile -- --site _site/g)).toHaveLength(2);
-    expect(workflow.indexOf('--write')).toBeLessThan(workflow.indexOf('npx playwright test'));
-    expect(workflow.indexOf('npx playwright test')).toBeLessThan(workflow.indexOf('--verify'));
+  test('Maven smokes and revalidates the same immutable reduced tree', () => {
+    const pom = read('pom.xml');
+    const gate = read('scripts/run-pages-quality-gate.cjs');
+    const currentWorkflow = read('.github/workflows/deploy-pages-current-data.yml');
+    const generatedWorkflow = read('.github/workflows/generate-data-deploy-pages.yml');
+
+    expect(pom).toContain('<id>pages</id>');
+    expect(pom).toContain('<id>pages-regenerated</id>');
+    expect(pom).toContain('run qa:pages:artifact');
+
+    const buildFunction = gate.slice(
+      gate.indexOf('function buildAndValidateSite()'),
+      gate.indexOf('function installChromium()')
+    );
+    const verifyFunction = gate.slice(
+      gate.indexOf('function verifyArtifactUnchanged()'),
+      gate.indexOf('async function main()')
+    );
+    const mainFunction = gate.slice(gate.indexOf('async function main()'));
+
+    expect(buildFunction).toContain("runNode('scripts/build-site.js'");
+    expect(buildFunction).toContain("'--write'");
+    expect(verifyFunction).toContain("'--verify'");
+    expect(verifyFunction).toContain("runNode('scripts/validate-public-pages-profile.js'");
+
+    const build = mainFunction.indexOf('buildAndValidateSite();');
+    const browser = mainFunction.indexOf('await runBrowserGate();');
+    const verify = mainFunction.indexOf('verifyArtifactUnchanged();');
+    expect(build).toBeGreaterThan(-1);
+    expect(browser).toBeGreaterThan(build);
+    expect(verify).toBeGreaterThan(browser);
+
+    expect(gate).toContain('tests/e2e/smoke.spec.js');
+    expect(gate).toContain('tests/e2e/pages-critical-path.spec.js');
+    expect(gate).toContain("'--no-build'");
+    expect(gate).toContain("'--site'");
+
+    expect(currentWorkflow).toContain('mvn -B -ntp clean verify -Ppages');
+    expect(generatedWorkflow).toContain('mvn -B -ntp clean verify -Ppages-regenerated');
+    for (const workflow of [currentWorkflow, generatedWorkflow]) {
+      expect(workflow).not.toContain('npm run serve:site:existing');
+      expect(workflow).not.toContain('npx playwright test');
+      expect(workflow).not.toContain('npm run fingerprint:site');
+      expect(workflow).not.toContain('npm run validate:pages-profile');
+    }
   });
 });

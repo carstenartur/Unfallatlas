@@ -39,6 +39,34 @@ function extractLinkedScreenshots(markdown, sourceFile) {
   return Object.freeze(links);
 }
 
+function extractAllLiveLinks(markdown, sourceFile) {
+  const links = [];
+  const pattern = /\]\((https:\/\/carstenartur\.github\.io\/Unfallatlas\/werkbank_v2\.html[^)]*)\)/g;
+  let match;
+  while ((match = pattern.exec(String(markdown || '')))) {
+    links.push(Object.freeze({ sourceFile, url: parseUrl(match[1], sourceFile), index: match.index }));
+  }
+  return Object.freeze(links);
+}
+
+function assertAllReadmeMediaLinked(markdown, sourceFile = 'README.md') {
+  const text = String(markdown || '');
+  const pattern = /!\[([^\]]*)\]\(([^)]+\.(?:png|gif))\)/gi;
+  let match;
+  while ((match = pattern.exec(text))) {
+    const before = match.index > 0 ? text[match.index - 1] : '';
+    const after = text.slice(match.index + match[0].length, match.index + match[0].length + 2);
+    if (before !== '[' || after !== '](') {
+      fail('unlinked_documentation_media', `README media must be clickable: ${match[2]}`, {
+        sourceFile,
+        altText: match[1],
+        imagePath: normalizeImagePath(sourceFile, match[2]),
+        index: match.index,
+      });
+    }
+  }
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -78,6 +106,32 @@ function query(values) {
   return Object.freeze(Object.fromEntries(
     Object.entries(values).map(([key, value]) => [key, String(value)]),
   ));
+}
+
+function assertSpatiallyConsistent(canonicalUrl, sourceFile = 'README.md') {
+  const url = new URL(canonicalUrl);
+  const centerLat = Number(url.searchParams.get('centerLat'));
+  const centerLon = Number(url.searchParams.get('centerLon'));
+  const south = Number(url.searchParams.get('selSouth'));
+  const west = Number(url.searchParams.get('selWest'));
+  const north = Number(url.searchParams.get('selNorth'));
+  const east = Number(url.searchParams.get('selEast'));
+  const hasCenter = url.searchParams.has('centerLat') && url.searchParams.has('centerLon') &&
+    Number.isFinite(centerLat) && Number.isFinite(centerLon);
+  const hasSelection = ['selSouth', 'selWest', 'selNorth', 'selEast']
+    .every((key) => url.searchParams.has(key)) &&
+    [south, west, north, east].every(Number.isFinite) && south < north && west < east;
+
+  if (hasCenter && hasSelection &&
+      (centerLat < south || centerLat > north || centerLon < west || centerLon > east)) {
+    fail('spatially_inconsistent_documentation_url',
+      'Map center lies outside the documented selection bounds', {
+        sourceFile,
+        url: canonicalUrl,
+        center: { lat: centerLat, lon: centerLon },
+        selection: { south, west, north, east },
+      });
+  }
 }
 
 const SCREENSHOT_SCENARIOS = Object.freeze({
@@ -125,7 +179,7 @@ const PUBLIC_START_QUERY = query({
   showArgumentation: 1, mapMode: 'standard', orthophotoOpacity: 92,
   centerLat: '52.3759', centerLon: '9.7320', zoom: 12,
 });
-const PUBLIC_EXPORT_QUERY = query({ ...PUBLIC_START_QUERY, export: 1 });
+const PUBLIC_EXPORT_QUERY = PUBLIC_START_QUERY;
 const PUBLIC_START_EXPECTED = Object.freeze({
   city: 'Hannover', involvementMode: 'or', showCluster: true, showHeatmap: false,
   showSchools: true, showKindergartens: true, showArgumentation: true,
@@ -138,24 +192,21 @@ const PUBLIC_START_EXPECTED = Object.freeze({
 const ACTION_SCENARIOS = Object.freeze([
   Object.freeze({
     id: 'readme-start',
-    label: '→ Öffentliche Kernvorschau öffnen',
-    description: 'Explizite öffentliche Startansicht Hannover im reduzierten Pages-Profil',
+    label: '→ Öffentliche Browser-Version öffnen',
+    description: 'Explizite öffentliche Startansicht Hannover',
     query: PUBLIC_START_QUERY,
     expected: PUBLIC_START_EXPECTED,
   }),
   Object.freeze({
     id: 'readme-export',
-    label: '→ Öffentliche Exportansicht öffnen',
-    description: 'Expliziter öffentlicher Exportdialog mit drei Datenexporten',
+    label: '→ Öffentliche Werkbank für Export öffnen',
+    description: 'Öffentliche Werkbank ohne ungekennzeichnet automatisch geöffneten Vollbilddialog',
     query: PUBLIC_EXPORT_QUERY,
-    expected: Object.freeze({
-      ...PUBLIC_START_EXPECTED,
-      exportOpen: true, exportReady: true, verifyDownloads: true,
-    }),
+    expected: PUBLIC_START_EXPECTED,
   }),
   Object.freeze({
     id: 'readme-bonn-hbf',
-    label: '→ Bonn-Hbf-Analyse in der öffentlichen Vorschau öffnen',
+    label: '→ Bonn-Hbf-Analyse in der öffentlichen Browser-Version öffnen',
     description: 'Bonn Hbf Rad/Pkw UND, Cluster und markierter Bereich',
     query: query({
       city: 'Bonn', includeCyclist: 1, includePedestrian: 0, includeCar: 1,
@@ -209,11 +260,17 @@ function assertCanonicalUrl(link, scenario) {
       sourceFile: link.sourceFile, unexpected, url: link.url,
     });
   }
+  assertSpatiallyConsistent(link.url, link.sourceFile);
 }
 
 function validateDocumentationLinks(rootDir = process.cwd()) {
   const sourceFile = 'README.md';
   const markdown = fs.readFileSync(path.join(rootDir, sourceFile), 'utf8');
+  assertAllReadmeMediaLinked(markdown, sourceFile);
+  for (const link of extractAllLiveLinks(markdown, sourceFile)) {
+    assertSpatiallyConsistent(link.url, sourceFile);
+  }
+
   const screenshotLinks = extractLinkedScreenshots(markdown, sourceFile);
   const byImage = new Map();
   for (const link of screenshotLinks) {
@@ -262,5 +319,6 @@ module.exports = Object.freeze({
   LIVE_ORIGIN, LIVE_PATH, PUBLIC_START_QUERY, PUBLIC_EXPORT_QUERY,
   SCREENSHOT_SCENARIOS, ACTION_SCENARIOS, SCENARIOS,
   DocumentationDeepLinkError, normalizeImagePath, extractLinkedScreenshots,
+  extractAllLiveLinks, assertAllReadmeMediaLinked, assertSpatiallyConsistent,
   extractNamedAction, assertCanonicalUrl, resolveApplicationUrl, validateDocumentationLinks,
 });
