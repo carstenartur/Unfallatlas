@@ -15,7 +15,7 @@ function parseLocalizedInteger(value) {
 
 function visibleCountFromStatus(text) {
   const match = String(text || '').match(
-    /(?:lokal\s+|im\s+Viewport:\s*)(\d(?:[\d.,\u00A0\u202F\s]*\d)?)(?:\s+Unfälle)?/iu,
+    /(?:lokal\s+|im\s+Viewport:\s*|sichtbar:\s*)(\d(?:[\d.,\u00A0\u202F\s]*\d)?)(?:\s+Unfälle)?/iu,
   );
   return match ? (parseLocalizedInteger(match[1]) ?? 0) : 0;
 }
