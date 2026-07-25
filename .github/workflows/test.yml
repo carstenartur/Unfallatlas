@@ -9,188 +9,77 @@ on:
     branches:
       - main
       - develop
+  workflow_dispatch:
+    inputs:
+      extended_qa:
+        description: 'Also run expensive browser, screenshot and Testcontainers QA'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
   group: tests-${{ github.event.pull_request.number || github.ref }}
-  # During active PR development, obsolete matrices consume seven runners each
-  # and delay the only result that matters: the current head commit.
   cancel-in-progress: true
 
 jobs:
+  # This is the only default PR/push build. All build and test orchestration is
+  # repository-owned and can be reproduced from a checkout with the same Maven
+  # command. frontend-maven-plugin installs the pinned Node/npm toolchain.
   unit-and-integration-tests:
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Validate Playwright Docker coupling
-        run: node scripts/check-playwright-docker-version.js
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build canonical static site
-        run: npm run build:site
-
-      - name: Validate documentation media and durable evidence
-        id: validate_checked_media
-        run: npm run validate:media -- --report out/qa/documentation-media.json
-
-      - name: Upload checked-in media policy report
-        uses: actions/upload-artifact@v7
-        if: ${{ always() && hashFiles('out/qa/documentation-media.json') != '' }}
-        with:
-          name: checked-documentation-media-report
-          path: |
-            out/qa/documentation-media.json
-            _site/build-manifest.json
-          if-no-files-found: error
-
-      - name: Run unit tests
-        run: |
-          mkdir -p out/qa
-          npm run test:unit -- --runInBand --json --outputFile=out/qa/jest-unit-results.json
-
-      - name: Upload unit test diagnostics
-        uses: actions/upload-artifact@v7
-        if: ${{ always() && hashFiles('out/qa/jest-unit-results.json') != '' }}
-        with:
-          name: unit-test-diagnostics
-          path: out/qa/jest-unit-results.json
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Run integration tests
-        run: npm run test:integration
-
-      - name: Run performance tests
-        run: npm run test:performance
-
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage/
-
-  video-export-integration:
-    # Testcontainers-based end-to-end test for POST /api/export-video.
-    # Verifies the full Express + Playwright + ffmpeg pipeline that lives
-    # inside the Dockerfile — a coverage gap the in-process unit tests
-    # cannot fill (they never invoke the ffmpeg binary).
-    runs-on: ubuntu-latest
-
+    timeout-minutes: 180
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Validate Playwright Docker coupling
-        run: node scripts/check-playwright-docker-version.js
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run testcontainers integration test
-        run: |
-          mkdir -p out/qa/video-export
-          set -o pipefail
-          npm run test:integration:tc 2>&1 \
-            | tee out/qa/video-export/testcontainers.log
-
-      - name: Upload video export diagnostics
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: video-export-testcontainers-diagnostics
-          path: |
-            out/qa/video-export/testcontainers.log
-            test-results/
-          if-no-files-found: error
-          retention-days: 14
-
-  location-brief-golden-qa:
-    # Issue #296: real Bonn/Hannover data must pass through the deterministic
-    # Node analysis, the Analysis Service persistence API and the Spring Batch
-    # city ranking.  The npm command is the canonical entry point and can be
-    # run from any checkout with Docker; this job only supplies a CI runtime.
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Set up JDK 21
+      - name: Set up JDK and Maven cache
         uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'maven'
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Analysis Service test JAR
-        working-directory: analysis-service
+      - name: Run canonical default build
         run: |
-          mkdir -p ../out/qa/location-brief-golden
+          mkdir -p out/qa/default-build
           set -o pipefail
-          mvn -B -ntp -DskipTests package 2>&1 \
-            | tee ../out/qa/location-brief-golden/maven-package.log
+          mvn -B -ntp clean verify -Ppages 2>&1 \
+            | tee out/qa/default-build/maven-verify.log
 
-      - name: Run Docker-free golden-case preflight
-        run: |
-          set -o pipefail
-          npm run qa:location-brief-golden 2>&1 \
-            | tee out/qa/location-brief-golden/preflight.log
-
-      - name: Run Bonn/Hannover golden-case QA
-        run: npm run test:location-brief-golden:tc
-
-      - name: Upload golden-case quality report
-        uses: actions/upload-artifact@v7
+      - name: Upload default-build diagnostics
         if: always()
+        uses: actions/upload-artifact@v7
         with:
-          name: location-brief-golden-report
-          path: out/qa/location-brief-golden/
-          if-no-files-found: error
+          name: default-build-diagnostics
+          path: |
+            out/qa/default-build/maven-verify.log
+            out/qa/pages-maven-documentation-media.json
+            out/qa/pages-maven-profile.sha256
+            out/qa/pages-maven-server.log
+            _site/build-manifest.json
+            playwright-report/
+            test-results/
+            coverage/
+            analysis-service/target/surefire-reports/
+            analysis-service/target/failsafe-reports/
+          if-no-files-found: warn
+          retention-days: 14
 
+  # Expensive, externally coupled checks remain available, but they no longer
+  # create a matrix of mandatory checks for every commit.
   e2e-tests:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.extended_qa }}
     runs-on: ubuntu-latest
-
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -202,7 +91,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Prepare clean screenshot candidate directory
         run: |
@@ -224,22 +113,22 @@ jobs:
       - name: Run accessibility tests
         run: npx playwright test tests/e2e/accessibility.spec.js --project=chromium
 
+      - name: Run Firefox smoke tests
+        run: npx playwright test --project=firefox-smoke
+
+      - name: Run WebKit smoke tests
+        run: npx playwright test --project=webkit-smoke
+
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: playwright-report
+          name: extended-playwright-report
           path: |
             playwright-report/
             test-results/
-
-      - name: Upload test videos
-        uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: test-videos
-          path: test-results/**/*.webm
-          if-no-files-found: ignore
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload documentation screenshots
         uses: actions/upload-artifact@v7
@@ -267,154 +156,54 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  firefox-smoke:
+  video-export-integration:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.extended_qa }}
     runs-on: ubuntu-latest
-
+    timeout-minutes: 180
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright Firefox
-        run: npx playwright install --with-deps firefox
-
-      - name: Run Firefox smoke tests
-        run: npx playwright test --project=firefox-smoke
-
-      - name: Upload Firefox smoke report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: firefox-smoke-report
-          path: |
-            playwright-report/
-            test-results/
-
-  webkit-smoke:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright WebKit
-        run: npx playwright install --with-deps webkit
-
-      - name: Run WebKit smoke tests
-        run: npx playwright test --project=webkit-smoke
-
-      - name: Upload WebKit smoke report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: webkit-smoke-report
-          path: |
-            playwright-report/
-            test-results/
-
-  analysis-service-maven-verify:
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: analysis-service
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('analysis-service/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Run Maven clean verify
-        run: |
-          mkdir -p ../out/qa/analysis-service
-          set -o pipefail
-          mvn -B -ntp clean verify 2>&1 \
-            | tee ../out/qa/analysis-service/maven-verify.log
-
-      - name: Upload Maven diagnostics
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: analysis-service-maven-diagnostics
-          path: |
-            out/qa/analysis-service/maven-verify.log
-            analysis-service/target/surefire-reports/
-            analysis-service/target/failsafe-reports/
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Summarise Maven failure
-        if: failure()
-        run: |
-          echo '## Analysis Service Maven verify failed' >> "$GITHUB_STEP_SUMMARY"
-          echo >> "$GITHUB_STEP_SUMMARY"
-          tail -n 120 ../out/qa/analysis-service/maven-verify.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
-
-  pdf-render-gate:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
+          cache: 'maven'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Poppler and Ghostscript
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils ghostscript
+      - name: Build Analysis Service test JAR
+        run: mvn -B -ntp -f analysis-service/pom.xml -DskipTests package
 
-      - name: Generate sample PDF
-        run: npm run generate:sample-pdf
+      - name: Run Testcontainers integration tests
+        run: npm run test:integration:tc
 
-      - name: Run PDF render gate
-        run: |
-          mkdir -p out/qa
-          set -o pipefail
-          npm run test:render-gate 2>&1 | tee out/qa/pdf-render-gate.log
+      - name: Run golden-case preflight
+        run: npm run qa:location-brief-golden
 
-      - name: Upload PDF render diagnostics
-        uses: actions/upload-artifact@v7
+      - name: Run Bonn/Hannover golden-case QA
+        run: npm run test:location-brief-golden:tc
+
+      - name: Upload Testcontainers diagnostics
         if: always()
+        uses: actions/upload-artifact@v7
         with:
-          name: pdf-render-gate-diagnostics
+          name: extended-testcontainers-diagnostics
           path: |
-            out/qa/pdf-render-gate.log
-            out/qa/pdf-render/
-          if-no-files-found: error
+            out/qa/
+            test-results/
+            analysis-service/target/surefire-reports/
+            analysis-service/target/failsafe-reports/
+          if-no-files-found: warn
           retention-days: 14

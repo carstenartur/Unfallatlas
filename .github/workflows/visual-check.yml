@@ -1,10 +1,25 @@
 name: Visual Check (PR Screenshots)
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
       - develop
+    paths:
+      - 'README.md'
+      - 'docs/media-manifest.json'
+      - 'docs/screenshots/**'
+      - 'werkbank_v2.html'
+      - 'css/**'
+      - 'js/**'
+      - 'scripts/run-live-documentation-screenshots.cjs'
+      - 'scripts/run-live-documentation-links.cjs'
+      - 'scripts/validate-live-cartography-evidence.cjs'
+      - 'scripts/validate-doc-media.js'
+      - 'scripts/validate-screenshot-evidence.js'
+      - 'tests/e2e/screenshots*.spec.js'
+      - '.github/workflows/visual-check.yml'
 
 permissions:
   contents: read
@@ -17,10 +32,11 @@ jobs:
   pr-screenshots:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -106,31 +122,7 @@ jobs:
 
       - name: Write PR summary
         run: |
-          echo "## 📸 Visual Check – Screenshots und README-Deep-Links" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Der Lauf akzeptiert nur erfolgreich geladene reale OSM-/WMS-/Orthofoto-Bildantworten." >> "$GITHUB_STEP_SUMMARY"
-          echo "Synthetische SVG-Kacheln bleiben ausschließlich in der hermetischen E2E-Testsuite." >> "$GITHUB_STEP_SUMMARY"
-          echo "Die Sidecars binden jeden Karten-Screenshot an Provider-URL, HTTP-Status und Raster-MIME-Typ." >> "$GITHUB_STEP_SUMMARY"
-          echo "Zusätzlich werden die anklickbaren README-Screenshots in der veröffentlichten GitHub-Pages-Anwendung geöffnet und gegen ihren UI-/Kartenvertrag geprüft." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Screenshots wurden als Artefakt hochgeladen:" >> "$GITHUB_STEP_SUMMARY"
-          echo "**pr-live-map-screenshots-${{ github.event.pull_request.number }}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Live-Deep-Link-Evidenz:" >> "$GITHUB_STEP_SUMMARY"
-          echo "**pr-live-documentation-links-${{ github.event.pull_request.number }}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Enthaltene Map-Mode-Szenarien:" >> "$GITHUB_STEP_SUMMARY"
-          echo '- 21-mapmode-standard.png (`standard`, echte OSM-Kacheln)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 22-mapmode-orthophoto.png (`orthophoto`, echte WMS-/Rasterantwort)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 23-mapmode-hybrid.png (`hybrid`, echtes Orthofoto plus echte Beschriftungskacheln)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 24-mapmode-analysis.png (`analysis`, echtes Orthofoto)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 25-mapmode-orthophoto-fallback.png (erzwungener Orthofoto-Ausfall → echte Standardkarte)' >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Bitte die Screenshots und JSON-Zustände unter *Actions → dieser Workflow-Run → Artifacts* prüfen." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Report rejected candidate
-        if: failure()
-        run: |
-          echo "## 📸 Visual Check fehlgeschlagen" >> "$GITHUB_STEP_SUMMARY"
+          echo '## Visual Check – Screenshots und README-Deep-Links' >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
-          echo "Es wurde bewusst kein Screenshot-Kandidat veröffentlicht. Fehlende echte Kartenantworten oder nicht reproduzierbare README-Deep-Links sind harte Fehler." >> "$GITHUB_STEP_SUMMARY"
+          echo 'Der Lauf akzeptiert nur erfolgreich geladene reale OSM-/WMS-/Orthofoto-Bildantworten.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Jeder Karten-Screenshot bleibt an Provider-URL, HTTP-Status und Raster-MIME-Typ gebunden.' >> "$GITHUB_STEP_SUMMARY"
