@@ -28,6 +28,7 @@
     "regen:context-assets": "node scripts/regen-context-assets.js",
     "generate:context-city": "node scripts/generate-context-city.js",
     "generate:accident-tiles": "node scripts/build-accident-tiles.js",
+    "generate:pages-data": "node scripts/generate-pages-data.cjs",
     "validate:enrichment-inputs": "node scripts/check-enrichment-inputs.js",
     "validate:pages-data": "node scripts/validate-static-data.js --dir _site/out --gzip-only --require-cities-file cities.txt --min-features 10",
     "validate:pages-context": "node scripts/check-context-datasets.js _site",
