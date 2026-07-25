@@ -6,6 +6,7 @@ const {
   createRegistry,
   materializeSourceDescriptor,
   classifyGradientSemantics,
+  normalizeCity,
   validateStaticDescriptor,
 } = require('../../scripts/lib/elevation-provider-registry');
 
@@ -20,6 +21,14 @@ function clone(value) {
 }
 
 describe('ElevationProvider registry', () => {
+  test('normalizes German city names without losing ae/oe/ue semantics', () => {
+    expect(normalizeCity('Düsseldorf')).toBe('duesseldorf');
+    expect(normalizeCity('Köln')).toBe('koeln');
+    expect(normalizeCity('München')).toBe('muenchen');
+    expect(normalizeCity('Gießen')).toBe('giessen');
+    expect(normalizeCity('Bad  Dürkheim')).toBe('bad-duerkheim');
+  });
+
   test('selects the official Hannover DGM1 and no undocumented fallback', () => {
     const registry = createRegistry(CONFIG);
     const provider = registry.select('Hannover');
@@ -34,6 +43,18 @@ describe('ElevationProvider registry', () => {
     expect(registry.select('Bonn')).toBeNull();
     expect(registry.coversCity('hannover-dgm1', 'Hannover')).toBe(true);
     expect(registry.coversCity('hannover-dgm1', 'Bonn')).toBe(false);
+  });
+
+  test('matches umlaut city coverage against the repository slug convention', () => {
+    const provider = {
+      ...clone(CONFIG.providers[0]),
+      id: 'duesseldorf-dgm1',
+      coverage: { type: 'city-list', cities: ['Düsseldorf'] },
+    };
+    const registry = createRegistry([provider]);
+    expect(registry.select('Düsseldorf').id).toBe('duesseldorf-dgm1');
+    expect(registry.select('Duesseldorf').id).toBe('duesseldorf-dgm1');
+    expect(registry.select('Dusseldorf')).toBeNull();
   });
 
   test('ranks active providers deterministically by tier, resolution and id', () => {
