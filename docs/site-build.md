@@ -1,17 +1,63 @@
 # Reproduzierbarer Site-Build
 
-`npm run build:site` ist der einzige unterstützte Einstieg zum Erzeugen der
-statischen Anwendung. Der Befehl funktioniert in einem normalen Checkout nach
-`npm ci` und schreibt das auslieferbare Ergebnis nach `_site/`.
+Der kanonische Einstieg für Build und QA ist der Maven-Reaktor im
+Repository-Root:
 
 ```bash
-npm ci
-npm run build:site
-npm run serve:site
-# http://127.0.0.1:8000/werkbank_v2.html
+mvn clean verify
 ```
 
-Der Build:
+Für das auslieferbare öffentliche Pages-Artefakt einschließlich Browser-QA:
+
+```bash
+mvn clean verify -Ppages
+```
+
+Für eine vollständige Neugenerierung der konfigurierten Städte aus den
+Rohquellen mit anschließend identischem Pages-Gate:
+
+```bash
+mvn clean verify -Ppages-regenerated
+```
+
+Maven installiert über `frontend-maven-plugin` die im Root-`pom.xml`
+festgelegten Node- und npm-Versionen, führt `npm ci` gegen das eingecheckte
+`package-lock.json` aus und startet anschließend die JavaScript-Werkzeuge als
+Bestandteile des Maven-Lifecycles. npm und Playwright sind damit
+Implementierungswerkzeuge innerhalb des Maven-Builds, keine konkurrierenden
+Build-Einstiege.
+
+Die beiden Pages-Workflows rufen ausschließlich den jeweils passenden
+Maven-Befehl auf. Schleifen zur Datengenerierung, Site-Build, Browserstart,
+Playwright-Aufrufe, Fingerprinting und Validierung liegen im Checkout und sind
+daher ohne GitHub Actions ausführbar.
+
+## Pages-Gate
+
+Das Profil `pages` erzeugt `_site/` aus den eingecheckten Daten und prüft in
+einem zusammenhängenden Vertrag:
+
+- den statischen Site-Build und die explizite Datei-Allowlist;
+- gzip-only Unfalldaten, Stadtbestand und Mindestanzahl an Features;
+- Kontextdatensätze und Dokumentationsmedien;
+- das öffentliche Distributionsprofil samt Vendor-, Lizenz- und
+  SBOM-Metadaten;
+- einen Fingerprint des vollständigen auslieferbaren Dateibaums;
+- die Browser-Smoke-Tests und den mobilen kritischen Pfad gegen exakt dieses
+  bereits gebaute Artefakt;
+- dass die Browser-QA keine ausgelieferten Bytes verändert hat;
+- die erneute Profilvalidierung nach dem Browserlauf.
+
+Der kritische Pfad enthält ausdrücklich den gemeldeten widersprüchlichen
+Bonn/Hannover-Deeplink und eine künstlich blockierte `cities.txt`-Anfrage. Der
+Build schlägt fehl, wenn die aktive Stadt oder deren Unfalldaten auf den
+Städtekatalog warten, die Bonner Auswahl außerhalb des sichtbaren Ausschnitts
+bleibt oder der Hinweis der öffentlichen Version den mobilen Arbeitsbereich
+belegt.
+
+## Site-Artefakt
+
+Der interne Site-Builder:
 
 - übernimmt die statischen HTML-, CSS-, JS-, Daten-, Dokumentations- und
   Template-Dateien über eine explizite Allowlist;
@@ -21,36 +67,34 @@ Der Build:
   `_site/vendor/`;
 - bricht ab, wenn `unpkg`- oder `jsDelivr`-Laufzeitreferenzen in der Anwendung
   verbleiben;
-- schreibt `_site/build-manifest.json` mit App-Fingerprint, Dependency-Versionen,
-  Vendor-Datei-Hashes, Datenmanifest-Hash, Stadt-/Feature-Metadaten, tatsächlich
-  ausgeführter Node-/npm-/zlib-Version und der Netzwerk-Policy. Die deklarierte
-  `packageManager`-Version wird getrennt von der tatsächlich laufenden
-  npm-Version ausgewiesen;
+- schreibt `_site/build-manifest.json` mit App-Fingerprint,
+  Dependency-Versionen, Vendor-Datei-Hashes, Datenmanifest-Hash,
+  Stadt-/Feature-Metadaten, tatsächlich ausgeführter Node-/npm-/zlib-Version
+  und Netzwerk-Policy;
 - schreibt ein CycloneDX-1.6-Diagnoseinventar, assetgenaue `contains`-Kanten,
   entschlüsselte Roboto-TTF-Hashes samt Name-Tabellen und die geprüfte
   Restlücken-Policy nach `_site/vendor/`.
 
-GitHub Pages, Playwright-E2E, Dokumentations-Screenshots und der isolierte
-Kontextdaten-E2E verwenden denselben Build. GitHub Actions enthält damit nur
-Orchestrierung; der vollständige Buildvertrag liegt im Repository.
+## Provenienzgrenzen
 
-Der Site-Build darf für Test und Review ein ausdrücklich als unvollständig
-markiertes Top-Level-Vendorinventar erzeugen. Veröffentlichung und Release
-rufen zusätzlich `validate:vendor-provenance -- --require-complete` auf und
-brechen derzeit bewusst ab. [Issue #406](https://github.com/carstenartur/Unfallatlas/issues/406)
-verlangt einen reproduzierbaren Eigenbuild der opaken Exportbundles samt
-Komponenten-SBOM, vollständigen Lizenztexten und Fontprovenienz.
-`validate:vendor-provenance` bindet Notice, Policy und SBOM kryptographisch
-aneinander. `complete: true` allein kann die Veröffentlichung nicht freigeben:
-fehlende Build-Locks, Komponenten, Lizenz-/Copyrighttexte, Fontattestierungen
-oder SBOM-Kanten werden unabhängig davon abgelehnt.
+Der Pages-Build darf ein ausdrücklich als unvollständig markiertes
+Top-Level-Vendorinventar erzeugen, sofern alle bekannten Lücken transparent im
+öffentlichen Profil, Notice, SBOM und in der Policy dokumentiert sind. Die
+bekannten Provenienz-Härtungspunkte blockieren die browserseitigen Funktionen
+nicht pauschal.
+
+Vollständige ZIP-/Container-Releases bleiben davon getrennt und rufen
+`validate:vendor-provenance -- --require-complete` auf. Sie brechen fail-closed
+ab, wenn Build-Locks, Komponenten, Lizenz-/Copyrighttexte,
+Fontattestierungen oder SBOM-Kanten fehlen. [Issue #406](https://github.com/carstenartur/Unfallatlas/issues/406)
+verfolgt diese Restarbeiten.
+
 Ein vollständiger Build-Lock benötigt außerdem für jedes ausgelieferte Asset
 zwei DSSE-signierte in-toto/SLSA-Provenienzen unterschiedlicher, in der
 separaten Policy gepinnter Ed25519-Builder. Die Signaturen binden Output-Hash,
 Lock-ID, direkten `argv`-Befehl, sämtliche Input-Hashes und die konkrete
-Toolchain. Die aktuelle Policy enthält bewusst keine vertrauenswürdigen
-Builder; selbstdeklarierte oder im Lock eingeschleuste Schlüssel können das
-Gate daher nicht öffnen.
+Toolchain. Selbstdeklarierte oder im Lock eingeschleuste Schlüssel können das
+Gate nicht öffnen.
 
 ## Netzwerk- und Offline-Verhalten
 
@@ -67,32 +111,21 @@ nicht unterstützt.
 
 ## Dokumentationsmedien
 
-`npm run validate:media` prüft `docs/media-manifest.json`: Existenz,
-Soll-Abmessungen, das 1,5-MiB-Einzelbudget statischer Kartenmedien, das
-30-MiB-Gesamtbudget, Dauer-/Größenbudget der explizit ausgenommenen Animation
-sowie lokale Markdown-Referenzen. Das Gesamtbudget umfasst ausdrücklich auch
-das kanonische Demo-GIF und die gerenderte PDF-Vorschau. Neue
-Vollbild-Screenshots werden mit 1280×640 erzeugt. Die Grenzen sind auf reale
-OSM-/WMS-/Orthofoto-Rasterdaten kalibriert; flächige synthetische
-SVG-Testkacheln sind kein gültiger Weg, um ein Medienbudget einzuhalten.
+Die Media-QA wird im Maven-Lifecycle ausgeführt und prüft
+`docs/media-manifest.json`: Existenz, Soll-Abmessungen, das
+1,5-MiB-Einzelbudget statischer Kartenmedien, das 30-MiB-Gesamtbudget,
+Dauer-/Größenbudget der explizit ausgenommenen Animation sowie lokale
+Markdown-Referenzen. Das Gesamtbudget umfasst auch das kanonische Demo-GIF und
+die gerenderte PDF-Vorschau. Neue Vollbild-Screenshots werden mit 1280×640
+erzeugt.
 
 Reviewbare Dokumentations-Screenshots entstehen ausschließlich über den
 Live-Kartografie-Runner. Er lässt nur die im Layer-Register deklarierten
 Grundkartenanbieter zu, verlangt erfolgreiche 2xx-Rasterantworten und schreibt
 pro Bild eine Sidecar-Evidenz mit Provider-URL, HTTP-Status und MIME-Typ. Die
-normale E2E-Suite bleibt davon getrennt und verwendet weiterhin hermetische
-Fixtures für reproduzierbare Funktionsregressionen.
+hermetische E2E-Suite bleibt davon getrennt und verwendet reproduzierbare
+Fixtures.
 
-Die Media-QA besitzt bewusst getrennte Stufen:
-
-- `npm run validate:media:policy` prüft die ausführbare Manifest-, Pfad-,
-  Referenz- und Budgetpolitik, ohne geprüfte Mediendateien oder einen
-  Provenienz-Ledger vorzutäuschen;
-- `validate:media -- --candidate-screenshots` prüft die im aktuellen Lauf
-  erzeugten Screenshot- und Dokumentvorschau-Kandidaten vollständig und weist
-  nicht neu erzeugte Medien im Report als `deferred` aus;
-- der normale `npm run validate:media`-Lauf ist das strikte Promotion-Gate und
-  bindet sämtliche eingecheckten Medien an die dauerhaft archivierte Evidence.
-
-Die Screenshot-Workflows veröffentlichen nur Review-Artefakte samt
-JSON-Größenbericht; eine Übernahme erfolgt über einen normalen Pull Request.
+Die darunterliegenden npm-Kommandos bleiben für gezielte Diagnose verfügbar,
+sind aber nicht der veröffentlichte Buildvertrag. CI und lokale Vollprüfung
+verwenden Maven.
