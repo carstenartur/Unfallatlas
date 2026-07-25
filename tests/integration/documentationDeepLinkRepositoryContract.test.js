@@ -16,7 +16,11 @@ describe('README live deep-link repository contract', () => {
     expect(result.liveScenarios.filter((scenario) => scenario.imagePath)).toHaveLength(2);
     expect(result.liveScenarios.every((scenario) => scenario.knownMismatch == null)).toBe(true);
     expect(result.liveScenarios.filter((scenario) => scenario.expected.publicPreview)).toHaveLength(3);
-    expect(result.liveScenarios.find((scenario) => scenario.id === 'readme-export'))
-      .toMatchObject({ expected: { publicPreview: true, verifyDownloads: true } });
+
+    const exportScenario = result.liveScenarios.find((scenario) => scenario.id === 'readme-export');
+    expect(exportScenario).toMatchObject({ expected: { publicPreview: true } });
+    expect(exportScenario.expected.exportOpen).toBeUndefined();
+    expect(exportScenario.expected.verifyDownloads).toBeUndefined();
+    expect(new URL(exportScenario.canonicalUrl).searchParams.has('export')).toBe(false);
   });
 });
