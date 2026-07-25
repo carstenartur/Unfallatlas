@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const serveExistingSite = process.env.PLAYWRIGHT_SERVE_EXISTING_SITE === '1';
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -72,9 +74,10 @@ export default defineConfig({
   ],
 
   // Only start a local web server when not targeting a live/remote BASE_URL.
-  // The generated-context runner supplies BASE_URL and owns its isolated server.
+  // Documentation evidence can request the already-built _site tree so a
+  // later audit cannot invalidate screenshot fingerprints by rebuilding it.
   webServer: process.env.BASE_URL ? undefined : {
-    command: 'npm run serve:site',
+    command: serveExistingSite ? 'npm run serve:site:existing' : 'npm run serve:site',
     url: 'http://localhost:8000',
     // A foreign/stale server on port 8000 must never satisfy screenshot or
     // E2E checks for the current checkout.
