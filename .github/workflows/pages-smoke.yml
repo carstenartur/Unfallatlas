@@ -73,7 +73,10 @@ jobs:
         run: |
           set +e
           mkdir -p out/pages-smoke
-          npx playwright test tests/e2e/smoke.spec.js --project=chromium \
+          npx playwright test \
+            tests/e2e/smoke.spec.js \
+            tests/e2e/pages-critical-path.spec.js \
+            --project=chromium \
             2>&1 | tee out/pages-smoke/output.log
           status=${PIPESTATUS[0]}
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
