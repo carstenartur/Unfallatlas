@@ -22,6 +22,7 @@
     "qa:location-brief-golden": "node scripts/qa-location-brief-golden-cases.js",
     "qa:live-documentation-links": "node scripts/run-live-documentation-links.cjs",
     "qa:pages": "jest tests/unit/publicPreviewQa.test.js tests/unit/documentationDeepLinkContract.test.js tests/unit/publicPagesProfile.test.js --runInBand && npm run test:pages-critical",
+    "qa:pages:artifact": "node scripts/run-pages-quality-gate.cjs",
     "qa:pages-smoke": "node scripts/run-pages-smoke.cjs",
     "regen:demo": "node scripts/regen-readme-demo.js",
     "regen:context-assets": "node scripts/regen-context-assets.js",
