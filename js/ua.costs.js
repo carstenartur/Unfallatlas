@@ -24,7 +24,7 @@
       publisher: "BASt – Bundesanstalt für Straßenwesen",
       title: "Volkswirtschaftliche Kosten von Straßenverkehrsunfällen (Fallback-Größenordnungen)",
       year: 2023,
-      url: "https://www.bast.de/DE/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
+      url: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
     },
     perAccident: {
       fatal:  { value: 1300000, unit: "EUR", key: "ukategorie=1", label: "Getöteter" },
