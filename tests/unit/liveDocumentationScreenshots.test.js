@@ -43,13 +43,14 @@ describe('live documentation screenshot boundary', () => {
 
   test('does not use network-idle as the readiness contract for live map pages', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
-    const documentationSection = transformed.slice(
-      transformed.indexOf("test.describe('Werkbank V2 – Dokumentations-Screenshots'"),
-      transformed.indexOf("test.describe('Werkbank V2 – PDF-Export Rendering'")
-    );
+    const loadPageStart = transformed.indexOf("async function loadPage(page, params = '') {");
+    const loadPageEnd = transformed.indexOf('\n}\n\n/** Hilfsfunktion: Warten bis Städte geladen sind', loadPageStart) + 2;
+    const liveLoadPage = transformed.slice(loadPageStart, loadPageEnd);
 
-    expect(documentationSection).toContain("waitUntil: 'domcontentloaded'");
-    expect(documentationSection).not.toContain("waitForLoadState('networkidle')");
+    expect(loadPageStart).toBeGreaterThanOrEqual(0);
+    expect(loadPageEnd).toBeGreaterThan(loadPageStart);
+    expect(liveLoadPage).toContain("waitUntil: 'domcontentloaded'");
+    expect(liveLoadPage).not.toContain("waitForLoadState('networkidle')");
   });
 
   test('bounds live tile requests and advances the application fallback chain on provider stalls', () => {
