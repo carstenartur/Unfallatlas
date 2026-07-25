@@ -4,7 +4,7 @@
   const UA = (window.UA = window.UA || {});
   const PROFILE_ID = 'public-preview-core-v1';
   const DISABLED_CAPABILITIES = Object.freeze(['video-export']);
-  const DEFAULT_CITY_LIST_TIMEOUT_MS = 1500;
+  const DEFAULT_CITY_LIST_WARNING_MS = 1500;
 
   UA.PUBLIC_DISTRIBUTION_PROFILE = Object.freeze({
     id: PROFILE_ID,
@@ -112,36 +112,36 @@
 
   const originalLoadCitiesList = UA.loadCitiesList;
   if (typeof originalLoadCitiesList === 'function') {
-    UA.loadCitiesList = async function loadCitiesListWithDeadline(ctx) {
-      const configured = Number(UA.PUBLIC_CITY_LIST_TIMEOUT_MS);
-      const timeoutMs = Number.isFinite(configured) && configured >= 0
+    UA.loadCitiesList = function loadCitiesListInBackground(ctx) {
+      const configured = Number(UA.PUBLIC_CITY_LIST_WARNING_MS);
+      const warningMs = Number.isFinite(configured) && configured >= 0
         ? configured
-        : DEFAULT_CITY_LIST_TIMEOUT_MS;
+        : DEFAULT_CITY_LIST_WARNING_MS;
+      let settled = false;
 
-      const cityPromise = Promise.resolve().then(() => originalLoadCitiesList(ctx));
-      let timeoutId;
-      let timedOut = false;
-      const timeoutPromise = new Promise((resolve) => {
-        timeoutId = window.setTimeout(() => {
-          timedOut = true;
-          resolve([ctx.CITY_RAW]);
-        }, timeoutMs);
-      });
+      const warningId = window.setTimeout(() => {
+        if (!settled) {
+          console.warn(`Städte-Liste lädt länger als ${warningMs} ms; aktive Stadt bleibt nutzbar.`);
+        }
+      }, warningMs);
 
-      const cities = await Promise.race([cityPromise, timeoutPromise]);
-      window.clearTimeout(timeoutId);
-
-      if (timedOut) {
-        cityPromise.then((lateCities) => {
-          if (ctx && ctx.ui && Array.isArray(lateCities) && lateCities.length > 0) {
-            UA.setCityDropdown(ctx, lateCities);
-          }
-        }).catch((error) => {
-          console.warn('Verspätete Städte-Liste konnte nicht übernommen werden:', error);
+      Promise.resolve()
+        .then(() => originalLoadCitiesList(ctx))
+        .then((cities) => {
+          settled = true;
+          window.clearTimeout(warningId);
+          if (!ctx || !ctx.ui || !Array.isArray(cities) || cities.length === 0) return;
+          // Schedule after the app's immediate fallback dropdown commit so a
+          // fast cities.txt response cannot be overwritten by that fallback.
+          window.setTimeout(() => UA.setCityDropdown(ctx, cities), 0);
+        })
+        .catch((error) => {
+          settled = true;
+          window.clearTimeout(warningId);
+          console.warn('Städte-Liste konnte nicht im Hintergrund übernommen werden:', error);
         });
-      }
 
-      return Array.isArray(cities) && cities.length > 0 ? cities : [ctx.CITY_RAW];
+      return Promise.resolve([ctx.CITY_RAW]);
     };
   }
 
