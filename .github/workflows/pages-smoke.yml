@@ -29,10 +29,14 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout deployed revision
+      # workflow_run executes with the target repository's privileges. Never
+      # check out a revision supplied by the triggering event in this job.
+      # Production Pages deployments originate from main, so the smoke-test
+      # implementation is always loaded from that protected, trusted branch.
+      - name: Checkout trusted smoke-test implementation
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: main
           persist-credentials: false
 
       - name: Setup Node.js
@@ -59,13 +63,17 @@ jobs:
       - name: Determine tested revision
         id: revision
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEPLOY_RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            echo "source_run=${{ github.event.workflow_run.html_url }}" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            printf 'sha=%s\n' "$DEPLOYED_SHA" >> "$GITHUB_OUTPUT"
+            printf 'source_run=%s\n' "$DEPLOY_RUN_URL" >> "$GITHUB_OUTPUT"
           else
-            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-            echo "source_run=" >> "$GITHUB_OUTPUT"
+            printf 'sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            printf 'source_run=\n' >> "$GITHUB_OUTPUT"
           fi
 
       # Capture the real Playwright exit code while keeping the job alive long
