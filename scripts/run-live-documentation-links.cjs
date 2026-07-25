@@ -30,6 +30,14 @@ function resolveAuditTarget(options = {}) {
   return Object.freeze({ mode: 'candidate', baseUrl });
 }
 
+function replaceExactlyOnce(source, search, replacement, label) {
+  const first = source.indexOf(search);
+  if (first < 0 || source.indexOf(search, first + search.length) >= 0) {
+    throw new Error(`[documentation-links] Expected exactly one ${label}`);
+  }
+  return source.slice(0, first) + replacement + source.slice(first + search.length);
+}
+
 function buildAuditSpec(source) {
   const startAnchor = "  expect(diagnostics.state.export.publicPreview).toBe('public-preview-core-v1');";
   const loopAnchor = '\n  for (const contract of publicDownloadContracts) {';
@@ -45,7 +53,31 @@ function buildAuditSpec(source) {
       throw new Error(`[documentation-links] Incomplete public-profile assertion block: ${expected}`);
     }
   }
-  return source.slice(0, start) + startAnchor + '\n' + source.slice(end);
+  let transformed = source.slice(0, start) + startAnchor + '\n' + source.slice(end);
+
+  const viewportAnchor = '      viewportPoints: ctx.viewportPts?.length ?? -1,';
+  const viewportReplacement =
+    '      viewportPoints: ctx.visibleViewportPts?.length ?? ctx.viewportPts?.length ?? -1,';
+  transformed = replaceExactlyOnce(
+    transformed,
+    viewportAnchor,
+    viewportReplacement,
+    'viewport-count source',
+  );
+
+  if (!transformed.includes("pathname.endsWith('/api/video-export-available')")) {
+    const optionalAnchor = "  if (item?.status !== 404) return false;\n  try {";
+    const optionalReplacement =
+      "  if (item?.status !== 404) return false;\n  try {\n" +
+      "    if (new URL(item.url).pathname.endsWith('/api/video-export-available')) return true;";
+    transformed = replaceExactlyOnce(
+      transformed,
+      optionalAnchor,
+      optionalReplacement,
+      'optional HTTP-miss classifier',
+    );
+  }
+  return transformed;
 }
 
 function run(options = {}) {
@@ -159,5 +191,5 @@ if (require.main === module) {
 
 module.exports = Object.freeze({
   ROOT, OUTPUT, SOURCE, GENERATED, LIVE_BASE_URL, CANDIDATE_BASE_URL,
-  resolveAuditTarget, buildAuditSpec, run,
+  resolveAuditTarget, replaceExactlyOnce, buildAuditSpec, run,
 });
