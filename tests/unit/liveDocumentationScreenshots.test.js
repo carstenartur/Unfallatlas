@@ -41,6 +41,47 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('successfulResponses: live && live.successfulResponses');
   });
 
+  test('does not use network-idle as the readiness contract for live map pages', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+    const documentationSection = transformed.slice(
+      transformed.indexOf("test.describe('Werkbank V2 – Dokumentations-Screenshots'"),
+      transformed.indexOf("test.describe('Werkbank V2 – PDF-Export Rendering'")
+    );
+
+    expect(documentationSection).toContain("waitUntil: 'domcontentloaded'");
+    expect(documentationSection).not.toContain("waitForLoadState('networkidle')");
+  });
+
+  test('bounds live tile requests and advances the application fallback chain on provider stalls', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+
+    expect(transformed).toContain('const LIVE_TILE_REQUEST_TIMEOUT_MS = 8000;');
+    expect(transformed).toContain('const LIVE_TILE_PROVENANCE_TIMEOUT_MS = 30000;');
+    expect(transformed).toContain('const response = await route.fetch({');
+    expect(transformed).toContain('timeout: LIVE_TILE_REQUEST_TIMEOUT_MS');
+    expect(transformed).toContain('maxRetries: 1');
+    expect(transformed).toContain('await route.fulfill({ response });');
+    expect(transformed).toContain('status: 504');
+    expect(transformed).toContain('await proxyLiveBasemapRequest(route, basemapKind);');
+  });
+
+  test('waits for decoded live tiles before and after taking the screenshot', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+    const captureStart = transformed.indexOf('async function captureDataScreenshot(page, options) {');
+    const captureEnd = transformed.indexOf('\n}\n', captureStart) + 3;
+    const captureFunction = transformed.slice(captureStart, captureEnd);
+    const firstProvenanceCheck = captureFunction.indexOf('live = await assertLiveBasemapProvenance(page);');
+    const baseCapture = captureFunction.indexOf('const snapshot = await baseCaptureDataScreenshot(page, options);');
+    const secondProvenanceCheck = captureFunction.indexOf(
+      'live = await assertLiveBasemapProvenance(page, { timeoutMs: 1000 });'
+    );
+
+    expect(firstProvenanceCheck).toBeGreaterThanOrEqual(0);
+    expect(baseCapture).toBeGreaterThan(firstProvenanceCheck);
+    expect(secondProvenanceCheck).toBeGreaterThan(baseCapture);
+    expect(transformed).toContain('await page.waitForTimeout(250);');
+  });
+
   test('binds successful responses to currently visible decoded Leaflet images in all map panes', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
 

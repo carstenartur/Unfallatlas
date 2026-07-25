@@ -42,6 +42,7 @@ jobs:
           rm -rf out/qa/documentation-live-links
 
       - name: Generate review screenshots with real cartographic basemaps
+        id: generate_screenshots
         run: node scripts/run-live-documentation-screenshots.cjs
 
       - name: Audit README screenshot links against published application
@@ -86,7 +87,7 @@ jobs:
 
       - name: Upload media QA report
         uses: actions/upload-artifact@v7
-        if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/live-cartography-evidence.json', 'out/qa/screenshot-readiness/*.json', 'out/qa/documentation-live-links/*') != '' }}
+        if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/live-cartography-evidence.json', 'out/qa/screenshot-readiness/*.json', 'out/qa/documentation-live-links/*', 'test-results/**', 'playwright-report/**') != '' }}
         with:
           name: pr-media-report-${{ github.event.pull_request.number }}
           path: |
@@ -96,6 +97,8 @@ jobs:
             out/qa/screenshot-readiness/
             out/qa/documentation-live-links/
             _site/build-manifest.json
+            test-results/
+            playwright-report/
           if-no-files-found: error
           retention-days: 30
 
@@ -103,29 +106,17 @@ jobs:
         run: |
           echo "## рџ“ё Visual Check вЂ“ Screenshots und README-Deep-Links" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Der Lauf akzeptiert nur erfolgreich geladene reale OSM-/WMS-/Orthofoto-Bildantworten." >> "$GITHUB_STEP_SUMMARY"
+          echo "Der Lauf akzeptiert nur erfolgreich geladen reale OSM-/WMS-/Orthofoto-Bildantworten." >> "$GITHUB_STEP_SUMMARY"
           echo "Synthetische SVG-Kacheln bleiben ausschlieГџlich in der hermetischen E2E-Testsuite." >> "$GITHUB_STEP_SUMMARY"
           echo "Die Sidecars binden jeden Karten-Screenshot an Provider-URL, HTTP-Status und Raster-MIME-Typ." >> "$GITHUB_STEP_SUMMARY"
           echo "ZusГ¤tzlich werden die anklickbaren README-Screenshots in der verГ¶ffentlichten GitHub-Pages-Anwendung geГ¶ffnet und gegen ihren UI-/Kartenvertrag geprГјft." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Screenshots wurden als Artefakt hochgeladen:" >> "$GITHUB_STEP_SUMMARY"
-          echo "**pr-live-map-screenshots-${{ github.event.pull_request.number }}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Live-Deep-Link-Evidenz:" >> "$GITHUB_STEP_SUMMARY"
-          echo "**pr-live-documentation-links-${{ github.event.pull_request.number }}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Enthaltene Map-Mode-Szenarien:" >> "$GITHUB_STEP_SUMMARY"
-          echo '- 21-mapmode-standard.png (`standard`, echte OSM-Kacheln)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 22-mapmode-orthophoto.png (`orthophoto`, echte WMS-/Rasterantwort)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 23-mapmode-hybrid.png (`hybrid`, echtes Orthofoto plus echte Beschriftungskacheln)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 24-mapmode-analysis.png (`analysis`, echtes Orthofoto)' >> "$GITHUB_STEP_SUMMARY"
-          echo '- 25-mapmode-orthophoto-fallback.png (erzwungener Orthofoto-Ausfall в†’ echte Standardkarte)' >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Bitte die Screenshots und JSON-ZustГ¤nde unter *Actions в†’ dieser Workflow-Run в†’ Artifacts* prГјfen." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Report rejected candidate
-        if: failure()
-        run: |
-          echo "## рџ“ё Visual Check fehlgeschlagen" >> "$GITHUB_STEP_SUMMARY"
-          echo >> "$GITHUB_STEP_SUMMARY"
-          echo "Es wurde bewusst kein Screenshot-Kandidat verГ¶ffentlicht. Fehlende echte Kartenantworten oder nicht reproduzierbare README-Deep-Links sind harte Fehler." >> "$GITHUB_STEP_SUMMARY"
+          echo "Screenshots wurden als Artefakt hochgeladen:€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИЉЉњ‹[]™K[X\\ШЬ™Y[њЪЭЛIЮИЪ]X‹™]™[ќњ[Ь™\]Y\Э›ќ[X™\€_JЉ€€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИ€€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИ“]™KQY\S[љЛQ]љY[ћЋ€€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИЉЉњ‹[]™KYШЭ[Y[ќ][Ы‹[[љЬЛIЮИЪ]X‹™]™[ќњ[Ь™\]Y\Э›ќ[X™\€_JЉ€€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИ€€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИ‘[ќ[[™HX\S[ЩKTЮ™[\љY[Ћ€€Џ€‰ТUP—ФХTФХSSSPT–H‚€XЪИ	ЛHЊK[X\[ЩK\Э[™\™њ™И
+Э[™\™XЪHФУKRШXЪ[ЉIИЏ€‰ТUP—ФХTФХSSSPT–H‚€XЪИ	ЛHЊ‹[X\[ЩK[ЬќЬЭЛњ™И
+ЬќЬЭШXЪHУTЛKФ\Э\[ќЫЬќ
+IИЏ€‰ТUP—ФХTФХSSPT–H‚€XЪИ	ЛHЊЛ[X\[ЩKZXњљYњ™И
+XњљYXЪ\ИЬќЩ›ЭИ\ИXЪH™\ШЪљYќ[™ЬЪШXЪ[ЉIИЏ€‰ТUP—ФХTФХSSPT–H‚€XЪИ	ЛHЌ[X\[ЩKX[[\Ъ\Лњ™И
+[[\Ъ\ШXЪ\ИЬќЩ›ЭКIИЏ€‰ТUP—ФХTФХSSPT–H‚€XЪИ	ЛHЌK[X\[ЩK[ЬќЬЭЛY[XЪЛњ™И
+\ћќЭ[™Щ[™\€ЬќЬЭЛP]\Щ[8Ў¤€XЪHЭ[™\™Ш\ќJIИЏ€‰ТUP—ФХTФХSSPT–H‚€XЪИ€€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИђљ]HYHШЬ™Y[њЪЭИ[™”УУ‹Vќ\Э0й™H[ќ\€
+ђXЭ[ЫњИ8Ў¤€Y\Щ\€ЫЬљЩ›ЭЛTќ[€8Ў¤€\ќYXЭК€°п™[‹€€Џ€‰ТUP—ФХTФХSSPT–H‚‚€H[YN€™\Ьќ™Z™XЭYШ[™Y]B€YЋ€Z[\™J
+B€ќ[Ћ€€XЪИ€ИИ<'дољ\ЭX[ЪXЪИ™ZЩ\ШЪYЩ[€€Џ€‰ТUP—ФХTФХSSPT–H‚€XЪИЏ€‰ТUP—ФХTФХSSSPT–H‚€XЪИ‘\ИЭ\™H™]Э\ЬЭЩZ[€ШЬ™Y[њЪЭRШ[™Y]™\°н™™™[ќXЪ€™Z[™HXЪHШ\ќ[[ќЫЬќ[€Щ\€љXЪ™\›Щ^љY\\™H‘PQQKQY\S[љЬИЪ[™\ќH™Z\‹€€Џ€‰ТUP—ФХTФХSSSPT–H‚€XЪИ”^]ЬљYЪT™\Ьќ[™\Э\ќYZЭHЩ\™[€°п€YHЫЫљЬ™]H™Z\[[\ЩH[HYYXKTPKP\ќYZЭZ]Щ\ЪXЪ\ќ€€Џ€‰ТUP—ФХTФХSSPT–H‚
