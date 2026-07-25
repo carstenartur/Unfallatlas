@@ -126,9 +126,11 @@ function run(options = {}) {
   if (target.mode === 'published') {
     childEnv.BASE_URL = target.baseUrl;
     delete childEnv.DOCUMENTATION_APP_BASE_URL;
+    delete childEnv.PLAYWRIGHT_SERVE_EXISTING_SITE;
   } else {
     delete childEnv.BASE_URL;
     childEnv.DOCUMENTATION_APP_BASE_URL = target.baseUrl;
+    childEnv.PLAYWRIGHT_SERVE_EXISTING_SITE = '1';
   }
 
   let result;
