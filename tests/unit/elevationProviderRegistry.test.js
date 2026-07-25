@@ -39,6 +39,7 @@ describe('ElevationProvider registry', () => {
       modelType: 'DTM',
       horizontalCrs: 'EPSG:25832',
       licenseId: 'CC-BY-4.0',
+      retrievedAtPolicy: 'generation-time',
     });
     expect(registry.select('Bonn')).toBeNull();
     expect(registry.coversCity('hannover-dgm1', 'Hannover')).toBe(true);
@@ -70,7 +71,7 @@ describe('ElevationProvider registry', () => {
     expect(registry.select('Hannover', { modelTypes: ['DSM'] })).toBeNull();
   });
 
-  test('fails closed on incomplete source and license metadata', () => {
+  test('fails closed on incomplete source, license and retrieval metadata', () => {
     const broken = clone(CONFIG.providers[0]);
     delete broken.licenseUrl;
     expect(() => validateStaticDescriptor(broken)).toThrow(/licenseUrl/);
@@ -82,6 +83,10 @@ describe('ElevationProvider registry', () => {
     const uncovered = clone(CONFIG.providers[0]);
     uncovered.coverage = { type: 'city-list', cities: [] };
     expect(() => validateStaticDescriptor(uncovered)).toThrow(/requires cities/);
+
+    const typoPolicy = clone(CONFIG.providers[0]);
+    typoPolicy.retrievedAtPolicy = 'generationtime';
+    expect(() => validateStaticDescriptor(typoPolicy)).toThrow(/unsupported retrievedAtPolicy/);
   });
 
   test('materializes retrieval time only for a covered city', () => {
@@ -92,6 +97,7 @@ describe('ElevationProvider registry', () => {
       retrievedAt: '2026-07-25T06:00:00+02:00',
     });
     expect(source.retrievedAt).toBe('2026-07-25T04:00:00.000Z');
+    expect(source.retrievedAtPolicy).toBe('generation-time');
     expect(source.requiredAttribution).toContain('Landeshauptstadt Hannover');
     expect(Object.isFrozen(source)).toBe(true);
     expect(() => materializeSourceDescriptor(provider, {
@@ -132,6 +138,26 @@ describe('ElevationProvider registry', () => {
       quality: 'limited',
     });
     expect(bridge.uncertaintyReasons).toContain('bridge');
+  });
+
+  test('explains every unmet road-profile threshold explicitly', () => {
+    const provider = createRegistry(CONFIG).get('hannover-dgm1');
+    const semantics = classifyGradientSemantics(provider, {
+      roadMatched: true,
+      method: 'robust-linear-regression',
+      windowMeters: 12,
+      sampleCount: 3,
+      risks: [],
+    });
+    expect(semantics).toMatchObject({
+      label: 'Geländeneigung im Umfeld',
+      reliableForRoad: false,
+      quality: 'low',
+    });
+    expect(semantics.uncertaintyReasons).toEqual(expect.arrayContaining([
+      'profile-window-below-20m',
+      'insufficient-profile-samples',
+    ]));
   });
 
   test('coarse terrain sources can never be presented as precise road grades', () => {
