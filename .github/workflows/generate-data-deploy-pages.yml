@@ -131,7 +131,10 @@ jobs:
             exit 1
           fi
           BASE_URL=http://127.0.0.1:8000 \
-            npx playwright test tests/e2e/smoke.spec.js --project=chromium
+            npx playwright test \
+              tests/e2e/smoke.spec.js \
+              tests/e2e/pages-critical-path.spec.js \
+              --project=chromium
 
       - name: Prove browser smoke left the deployable artifact unchanged
         run: |
