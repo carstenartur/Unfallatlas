@@ -31,42 +31,8 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      # Data producers are existing checkout tools. The final artifact build,
-      # all frontend tests and the browser gate are owned by Maven below.
-      - name: Set up Node.js for data producers
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install locked producer dependencies
-        run: npm ci
-
-      - name: Prepare build dirs
-        run: |
-          rm -rf .build _site
-          mkdir -p .build/raw .build/enriched
-
-      - name: Generate raw accident data
-        shell: bash
-        run: |
-          set -euo pipefail
-          CITY_ARGS=()
-          while IFS= read -r city; do
-            city="$(echo "$city" | sed 's/#.*$//' | xargs)"
-            [[ -z "$city" ]] && continue
-            CITY_ARGS+=(--city "$city")
-          done < cities.txt
-          chmod +x ./convertAmt2gmaps.sh
-          ./convertAmt2gmaps.sh \
-            --outdir .build/raw \
-            --limit 0 \
-            "${CITY_ARGS[@]}" \
-            --rad "" --pkw "" --fuss "" --krad ""
-
-      - name: Validate raw accident data for all cities
-        run: node scripts/check-data-paths.js --dir .build/raw --min-features 10
-
+      # Optional CI acceleration only. The producer and QA logic live in the
+      # Maven profiles and are executable from every checkout.
       - name: Restore context producer cache
         uses: actions/cache@v6
         with:
@@ -77,30 +43,8 @@ jobs:
             pages-context-${{ runner.os }}-
           save-always: true
 
-      - name: Generate verified context data from scratch inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          while IFS= read -r city; do
-            city="$(echo "$city" | sed 's/#.*$//' | xargs)"
-            [[ -z "$city" ]] && continue
-            node scripts/generate-context-city.js \
-              --city "$city" \
-              --input-dir .build/raw \
-              --output-dir .build/enriched
-          done < cities.txt
-
-      - name: Build verified gzip-only accident tiles
-        run: |
-          node scripts/build-accident-tiles.js \
-            --input-dir .build/enriched \
-            --output-dir .build/enriched
-
-      - name: Run the checkout-reproducible Maven Pages build
-        run: >-
-          mvn -B -ntp clean verify -Ppages
-          -Dpages.inputDir=.build/enriched
-          -Dpages.poiDir=out
+      - name: Generate data and verify Pages through Maven
+        run: mvn -B -ntp clean verify -Ppages-regenerated
 
       - name: Upload Maven Pages QA evidence
         if: ${{ always() && hashFiles('_site/build-manifest.json') != '' }}
