@@ -11,9 +11,9 @@
 [![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-informational?logo=owasp)](https://github.com/carstenartur/Unfallatlas/dependency-graph/sbom)
 https://doi.org/10.5281/zenodo.20936471
 
-![Startansicht des vollständigen Unfallwerkbank-Builds](docs/screenshots/01-startansicht.png)
+[![Startansicht des vollständigen Unfallwerkbank-Builds](docs/screenshots/01-startansicht.png)](docs/screenshots/01-startansicht.png)
 
-[→ Öffentliche Kernvorschau öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12)
+[→ Öffentliche Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12)
 
 ---
 
@@ -24,27 +24,27 @@ Sicherheitsanalysen mit Unfallatlas-Open-Data.
 Nutzer:innen wählen eine Stadt, setzen Filter und sehen sofort, wo sich
 Unfälle räumlich und zeitlich häufen.
 Die Ergebnisse lassen sich als reproduzierbarer Link teilen und als CSV,
-GeoJSON oder KML exportieren. Der vollständige lokale beziehungsweise
-Docker-Build erzeugt zusätzlich PDF- und Word-Antragsentwürfe mit Karten-
-und Tabellenkontext.
+GeoJSON oder KML exportieren. Die öffentliche Browser-Version und der lokale
+Build erzeugen außerdem PDF- und Word-Antragsentwürfe mit Karten- und
+Tabellenkontext.
 Die Oberfläche ist auf schnelle Exploration ausgelegt:
 wenige Klicks von der Stadtwahl bis zur exportierbaren Auswertung.
 So lassen sich Analysen im Team transparent diskutieren und reproduzieren.
-Die gleiche URL liefert dabei immer denselben Startzustand der Analyse
+Die gleiche konsistente URL liefert dabei denselben Startzustand der Analyse
 und reduziert Missverständnisse bei Übergaben oder Präsentationen.
 
 ---
 
 ## 🚀 Live-Demo
 
-- **Öffentliche Kernvorschau:** https://carstenartur.github.io/Unfallatlas/werkbank_v2.html
+- **Öffentliche Browser-Version:** https://carstenartur.github.io/Unfallatlas/werkbank_v2.html
 - **Showcase:** https://carstenartur.github.io/Unfallatlas/showcase.html
 
-> **Funktionsumfang der öffentlichen Vorschau:** Kartenanalyse, Filter, Cluster
-> sowie CSV-, GeoJSON- und KML-Export. Word/PDF, Heatmap und freie
-> Rechteckzeichnung sind dort aus Gründen der sicheren Vendor- und
-> Lizenzprovenienz vorübergehend deaktiviert. Der vollständige Funktionsumfang
-> steht im lokalen beziehungsweise Docker-Build zur Verfügung.
+> **Funktionsumfang der öffentlichen Browser-Version:** Kartenanalyse, Filter,
+> Cluster, Heatmap, freie Rechteckauswahl sowie CSV-, GeoJSON-, KML-, Word- und
+> PDF-Export. Nur der Videoexport ist dort deaktiviert, weil GitHub Pages kein
+> Server-Backend bereitstellt. Bekannte Provenienz-Härtungspunkte sind
+> transparent dokumentiert und blockieren diese Browserfunktionen nicht.
 
 Lokale, vollständige Ausführung:
 
@@ -62,19 +62,20 @@ CDN. Details zu Dependency-Versionen, Build-Manifest und Offline-Grenzen:
 
 ## ⏱️ In 60 Sekunden zur ersten Analyse
 
-1. **[Öffentliche Vorschau öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)** – läuft direkt im Browser.
+1. **[Öffentliche Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)** – läuft direkt im Browser.
 2. **Stadt wählen** – z. B. Bonn, Hannover, Berlin oder Hamburg.
 3. **Filtern** – Unfallschwere, Beteiligung (Rad, Fuß, PKW, Motorrad, Lkw, Sonstige), Uhrzeit.
-4. **Analysieren** – Cluster und verfügbare Kontextansichten prüfen.
-5. **Exportieren** – öffentlich als CSV/GeoJSON/KML; im vollständigen Build zusätzlich als PDF/Word.
+4. **Analysieren** – Cluster, Heatmap und verfügbare Kontextansichten prüfen.
+5. **Exportieren** – CSV/GeoJSON/KML oder einen PDF-/Word-Antragsentwurf erzeugen.
 
-> Alle Filter werden in der URL gespeichert: gleiche URL → gleiche Analyse.
+> Alle Filter werden in der URL gespeichert. Auswahl und Kartenmittelpunkt
+> werden beim Laden auf einen räumlich konsistenten Zustand normalisiert.
 
 ---
 
 ## 🎬 Demo-Video
 
-![Demo-Ablauf der Unfallwerkbank V2](docs/demo.gif)
+[![Demo-Ablauf der Unfallwerkbank V2](docs/demo.gif)](docs/demo.gif)
 
 Kontextdaten-Medien (17–19) werden derzeit bewusst nur als Review-Kandidaten
 unter `.build/doc-media/context/` erzeugt. Erst ein gesonderter Review darf sie
@@ -90,11 +91,11 @@ Die Regeneration des README-GIFs ist in `docs/docker.md` beschrieben.
 | Funktion | Beschreibung |
 |---|---|
 | **Filterkombinationen** | Schwere, Beteiligung (ODER / UND / Alleinunfall), Uhrzeit, Wochentag, Fahrbahnzustand |
-| **Cluster, Heatmap, Hotspots** | Mehrere Perspektiven auf Unfallschwerpunkte; Heatmap im vollständigen Build |
+| **Cluster, Heatmap, Hotspots** | Mehrere Perspektiven auf Unfallschwerpunkte |
 | **Kontextfilter (neu)** | Hangneigung, Verkehrsklasse-DTV-Proxy und „nur auf gematchten Straßen" (bei vorhandenen Kontextdaten) |
-| **Bereichsauswahl** | Geteilte Auswahlgrenzen in der URL; freie Rechteckzeichnung im vollständigen Build |
+| **Bereichsauswahl** | Geteilte Auswahlgrenzen in der URL und freie Rechteckzeichnung |
 | **POI-Overlay** | Schulen und Kitas (ab Zoom 15) zur Schulwegsicherheitsbewertung |
-| **Export & Datenexport** | Öffentlich CSV, GeoJSON und KML; vollständig zusätzlich PDF und Word |
+| **Export & Datenexport** | CSV, GeoJSON, KML, PDF und Word; Video im Server-/Docker-Build |
 
 Typische Fragestellungen, die sich damit schnell beantworten lassen:
 
@@ -124,12 +125,13 @@ Rad + PKW im **UND-Modus**:
 - zeigt räumliche Häufungen von Rad-PKW-Kollisionen,
 - eignet sich für die Priorisierung von Kreuzungen/Knoten.
 
-[→ Bonn-Hbf-Analyse in der öffentlichen Vorschau öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=0&showKindergartens=0&showArgumentation=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
+[→ Bonn-Hbf-Analyse in der öffentlichen Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=0&showKindergartens=0&showArgumentation=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
 
-Der folgende Screenshot dokumentiert die zusätzliche **Heatmap des vollständigen
-Builds** und ist deshalb bewusst nicht als identische Pages-Ansicht verlinkt:
+Der folgende Screenshot dokumentiert die zusätzliche **Heatmap**. Der Klick
+öffnet bewusst die Bilddatei in voller Auflösung; der getrennte Link darüber
+öffnet den dazugehörigen interaktiven Kartenzustand.
 
-![Bonn Hbf – Rad+Auto-Heatmap im vollständigen Build](docs/screenshots/13-bonn-hbf-radunfaelle.png)
+[![Bonn Hbf – Rad+Auto-Heatmap](docs/screenshots/13-bonn-hbf-radunfaelle.png)](docs/screenshots/13-bonn-hbf-radunfaelle.png)
 
 ### Beispiel 2: Fahrrad-Alleinunfälle (Infrastrukturmängel erkennen)
 
@@ -167,14 +169,14 @@ Rad + Fuß im **ODER-Modus**, ganztägig (0–23 Uhr), Zoom 16:
 
 ## 📸 Screenshots
 
-| Startansicht (Voll-Build) | Cluster (öffentliche Vorschau) |
+| Startansicht (Voll-Build) | Cluster (öffentliche Browser-Version) |
 |---|---|
-| ![Start](docs/screenshots/01-startansicht.png) | [![Cluster](docs/screenshots/04-cluster-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&showCluster=1&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0) |
+| [![Start](docs/screenshots/01-startansicht.png)](docs/screenshots/01-startansicht.png) | [![Cluster](docs/screenshots/04-cluster-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&showCluster=1&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0) |
 
-[→ Öffentliche Exportansicht öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12&export=1)
-– dort stehen CSV, GeoJSON und KML zur Verfügung. Der Voll-Build-Screenshot mit
-Word/PDF ist in der [Nutzerdokumentation](docs/DOKUMENTATION.md#export-und-bezirksratsantrag)
-erklärt und wird nicht als identische Pages-Ansicht ausgegeben.
+[→ Öffentliche Werkbank für Export öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12)
+– anschließend **Analyse/Export öffnen** wählen. Der Link öffnet bewusst keinen
+ungekennzeichneten Vollbilddialog. PDF, Word, CSV, GeoJSON und KML stehen im
+Exportdialog zur Verfügung.
 
 Weitere Screenshots und Erklärungen:
 [`docs/DOKUMENTATION.md`](docs/DOKUMENTATION.md).
