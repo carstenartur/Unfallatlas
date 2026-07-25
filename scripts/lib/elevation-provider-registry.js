@@ -4,6 +4,7 @@ const PROVIDER_SCHEMA_VERSION = 1;
 const MODEL_TYPES = new Set(['DTM', 'DSM', 'mixed']);
 const COVERAGE_TYPES = new Set(['city-list', 'global']);
 const STATUS_VALUES = new Set(['active', 'disabled']);
+const RETRIEVAL_POLICIES = new Set(['generation-time', 'source-metadata']);
 const PRIORITY_MIN = 1;
 const PRIORITY_MAX = 5;
 
@@ -67,6 +68,8 @@ function validateStaticDescriptor(raw) {
   invariant(Number.isFinite(raw.resolutionMeters) && raw.resolutionMeters > 0,
     `provider ${raw.id} resolutionMeters must be positive`);
   invariant(MODEL_TYPES.has(raw.modelType), `provider ${raw.id} has invalid modelType`);
+  invariant(RETRIEVAL_POLICIES.has(raw.retrievedAtPolicy),
+    `provider ${raw.id} has unsupported retrievedAtPolicy ${JSON.stringify(raw.retrievedAtPolicy)}`);
   if (raw.status === 'disabled') invariant(isNonEmptyString(raw.disabledReason), `disabled provider ${raw.id} lacks disabledReason`);
   if (raw.verticalDatum != null) invariant(isNonEmptyString(raw.verticalDatum), `provider ${raw.id} has invalid verticalDatum`);
   if (raw.acquisitionPeriod != null) invariant(isNonEmptyString(raw.acquisitionPeriod), `provider ${raw.id} has invalid acquisitionPeriod`);
@@ -173,6 +176,7 @@ function materializeSourceDescriptor(provider, runtime) {
     verticalDatum: p.verticalDatum,
     acquisitionPeriod: p.acquisitionPeriod,
     publicationDate: p.publicationDate,
+    retrievedAtPolicy: p.retrievedAtPolicy,
     retrievedAt: new Date(retrievedAt).toISOString(),
     modifiedDataNotice: p.modifiedDataNotice,
   });
@@ -182,10 +186,11 @@ function classifyGradientSemantics(provider, analysis) {
   const p = validateStaticDescriptor(provider);
   const a = analysis || {};
   const risks = Array.isArray(a.risks) ? a.risks.filter(Boolean) : [];
-  const robustRoadProfile = a.roadMatched === true
-    && a.method === 'robust-linear-regression'
-    && Number.isFinite(a.windowMeters) && a.windowMeters >= 20
-    && Number.isInteger(a.sampleCount) && a.sampleCount >= 5;
+  const roadMatched = a.roadMatched === true;
+  const robustMethod = a.method === 'robust-linear-regression';
+  const validWindow = Number.isFinite(a.windowMeters) && a.windowMeters >= 20;
+  const sufficientSamples = Number.isInteger(a.sampleCount) && a.sampleCount >= 5;
+  const robustRoadProfile = roadMatched && robustMethod && validWindow && sufficientSamples;
   const highResolutionTerrain = p.modelType === 'DTM' && p.resolutionMeters <= 5;
   const reliableForRoad = robustRoadProfile && highResolutionTerrain && risks.length === 0;
   return deepFreeze({
@@ -196,8 +201,10 @@ function classifyGradientSemantics(provider, analysis) {
     uncertaintyReasons: Object.freeze([
       ...risks,
       ...(highResolutionTerrain ? [] : [`source-resolution-${p.resolutionMeters}m`]),
-      ...(a.roadMatched === true ? [] : ['road-not-matched']),
-      ...(a.method === 'robust-linear-regression' ? [] : ['non-robust-profile-method']),
+      ...(roadMatched ? [] : ['road-not-matched']),
+      ...(robustMethod ? [] : ['non-robust-profile-method']),
+      ...(validWindow ? [] : ['profile-window-below-20m']),
+      ...(sufficientSamples ? [] : ['insufficient-profile-samples']),
     ]),
   });
 }
@@ -206,6 +213,8 @@ module.exports = Object.freeze({
   PROVIDER_SCHEMA_VERSION,
   MODEL_TYPES,
   COVERAGE_TYPES,
+  STATUS_VALUES,
+  RETRIEVAL_POLICIES,
   normalizeCity,
   validateStaticDescriptor,
   createRegistry,
