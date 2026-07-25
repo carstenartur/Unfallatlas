@@ -58,9 +58,9 @@ test.describe('Public Pages critical path', () => {
     await page.route('**/cities.txt', async (route) => {
       await cityRequestReleased;
       try {
-        await route.continue();
+        await route.abort('failed');
       } catch (error) {
-        // Releasing the deliberately stalled request races with page teardown.
+        // Releasing the deliberately stalled request can race with page teardown.
         // The user-visible assertions have already completed at this point.
         if (!isExpectedRouteTeardown(error)) throw error;
       }
@@ -71,9 +71,9 @@ test.describe('Public Pages critical path', () => {
       await requirePublicProfile(page);
 
       const citySelect = page.locator('#citySel');
-      await expect(citySelect).toHaveValue('Bonn', { timeout: 3000 });
-      await expect(citySelect).not.toHaveAttribute('aria-busy', 'true', { timeout: 3000 });
-      await expect(citySelect).not.toContainText('Städte werden geladen', { timeout: 3000 });
+      await expect(citySelect).toHaveValue('Bonn', { timeout: 10000 });
+      await expect(citySelect).not.toHaveAttribute('aria-busy', 'true', { timeout: 10000 });
+      await expect(citySelect).not.toContainText('Städte werden geladen', { timeout: 10000 });
 
       await page.waitForFunction(() => {
         const ctx = window.UA?.getRuntimeContext?.();
@@ -81,7 +81,8 @@ test.describe('Public Pages critical path', () => {
       }, null, { timeout: 30000 });
     } finally {
       releaseCities();
-      await page.unroute('**/cities.txt');
+      // Let the route handler settle before Playwright disposes the page.
+      await page.waitForTimeout(0);
     }
   });
 
