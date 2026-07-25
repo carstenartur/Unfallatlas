@@ -10,7 +10,13 @@ const GENERATED = path.join(ROOT, 'tests/e2e/screenshots.live.generated.spec.js'
 
 function replaceOnce(source, search, replacement, label) {
   const first = source.indexOf(search);
-  if (first < 0) throw new Error(`[live-screenshots] Missing transform anchor: ${label}`);
+  if (first < 0) {
+    if (
+      label === 'live page readiness' &&
+      source.includes("  await page.goto('/werkbank_v2.html' + params, { waitUntil: 'domcontentloaded' });")
+    ) return source;
+    throw new Error(`[live-screenshots] Missing transform anchor: ${label}`);
+  }
   if (source.indexOf(search, first + search.length) >= 0) {
     throw new Error(`[live-screenshots] Ambiguous transform anchor: ${label}`);
   }
