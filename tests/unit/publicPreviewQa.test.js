@@ -44,7 +44,7 @@ describe('public Pages QA hardening', () => {
     expect(select.getAttribute('aria-label')).toContain('Bonn ausgewählt');
   });
 
-  test('continues with the active city when cities.txt exceeds its deadline and adopts a late list', async () => {
+  test('returns the active city immediately and adopts a late cities.txt result in the background', async () => {
     jest.useFakeTimers();
     let resolveCities;
     const originalLoad = jest.fn(() => new Promise((resolve) => {
@@ -54,17 +54,19 @@ describe('public Pages QA hardening', () => {
     const UA = loadPublicPreview({
       loadCitiesList: originalLoad,
       setCityDropdown,
-      ua: { PUBLIC_CITY_LIST_TIMEOUT_MS: 25 },
+      ua: { PUBLIC_CITY_LIST_WARNING_MS: 25 },
     });
     const ctx = { CITY_RAW: 'Bonn', ui: { citySel: document.getElementById('citySel') } };
 
     const resultPromise = UA.loadCitiesList(ctx);
-    await jest.advanceTimersByTimeAsync(25);
     await expect(resultPromise).resolves.toEqual(['Bonn']);
+    await Promise.resolve();
+    expect(originalLoad).toHaveBeenCalledWith(ctx);
 
     resolveCities(['Berlin', 'Bonn', 'Hannover']);
     await Promise.resolve();
     await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
     expect(setCityDropdown).toHaveBeenCalledWith(ctx, ['Berlin', 'Bonn', 'Hannover']);
   });
 
