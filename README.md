@@ -46,13 +46,17 @@ und reduziert Missverständnisse bei Übergaben oder Präsentationen.
 > Server-Backend bereitstellt. Bekannte Provenienz-Härtungspunkte sind
 > transparent dokumentiert und blockieren diese Browserfunktionen nicht.
 
-Lokale, vollständige Ausführung:
+Kanonischer lokaler Build einschließlich Browser-, Dokumentations- und
+Analysis-Service-QA:
 
 ```bash
-npm ci
-npm run serve:site
-# http://127.0.0.1:8000/werkbank_v2.html
+mvn clean verify -Ppages
 ```
+
+Maven lädt die im Root-`pom.xml` festgelegten Node-/npm-Versionen selbst,
+installiert die gelockten JavaScript-Abhängigkeiten und erzeugt anschließend
+das exakt geprüfte Pages-Artefakt unter `_site/`. GitHub Actions führt denselben
+Maven-Befehl aus und enthält keine parallele npm-/Playwright-Buildlogik.
 
 Der kanonische Build lädt keine Browser-Bibliotheken zur Laufzeit von einem
 CDN. Details zu Dependency-Versionen, Build-Manifest und Offline-Grenzen:
