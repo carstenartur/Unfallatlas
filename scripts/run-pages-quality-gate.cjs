@@ -65,6 +65,19 @@ async function waitForServer(url, timeoutMs = 120000) {
   throw new Error(`[pages-qa] Site server did not become ready at ${url}`);
 }
 
+async function stopChild(child) {
+  if (child.exitCode !== null) return;
+  child.kill('SIGTERM');
+  await Promise.race([
+    new Promise((resolve) => child.once('exit', resolve)),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
+  if (child.exitCode === null) {
+    child.kill('SIGKILL');
+    await new Promise((resolve) => child.once('exit', resolve));
+  }
+}
+
 async function withSiteServer(callback) {
   fs.mkdirSync(QA_DIR, { recursive: true });
   const log = fs.openSync(SERVER_LOG, 'w');
@@ -84,12 +97,7 @@ async function withSiteServer(callback) {
     await waitForServer(`${BASE_URL}/werkbank_v2.html`);
     await callback();
   } finally {
-    if (!child.killed) child.kill('SIGTERM');
-    await Promise.race([
-      new Promise((resolve) => child.once('exit', resolve)),
-      new Promise((resolve) => setTimeout(resolve, 3000)),
-    ]);
-    if (child.exitCode === null && !child.killed) child.kill('SIGKILL');
+    await stopChild(child);
     fs.closeSync(log);
   }
 }
@@ -127,7 +135,10 @@ function installChromium() {
     process.stdout.write('[pages-qa] Chromium installation skipped by SKIP_PLAYWRIGHT_INSTALL.\n');
     return;
   }
-  run(process.execPath, [playwrightCli(), 'install', 'chromium']);
+  const args = [playwrightCli(), 'install'];
+  if (process.platform === 'linux') args.push('--with-deps');
+  args.push('chromium');
+  run(process.execPath, args);
 }
 
 async function runBrowserGate() {
