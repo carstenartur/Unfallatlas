@@ -2,20 +2,35 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Security fixes are provided for the latest published `2.1.x` release and for
+the current `main` branch while it is being prepared for the next release.
+Users should upgrade to the newest available release before reporting or
+verifying a vulnerability.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| --- | --- |
+| Latest `2.1.x` release | ✅ |
+| `main` | ✅ (development branch) |
+| Older releases | ❌ |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Please do **not** open a public issue for a suspected vulnerability or publish
+proof-of-concept details before a fix is available.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Use GitHub's private vulnerability reporting for this repository:
+
+1. Open the repository's **Security** tab.
+2. Choose **Advisories** and **Report a vulnerability**.
+3. Include the affected release or commit, deployment mode, reproduction steps,
+   expected impact and any known mitigation.
+
+If the private-reporting option is unavailable, contact
+[@carstenartur](https://github.com/carstenartur) through the GitHub profile
+without including sensitive technical details and request a private channel.
+
+The report will be assessed against the browser application, Node/Docker
+server, Analysis Service, build and release pipeline, and bundled dependencies.
+The maintainer will coordinate validation, remediation and responsible public
+disclosure with the reporter. Non-sensitive defects and hardening proposals can
+continue to use normal public issues.
