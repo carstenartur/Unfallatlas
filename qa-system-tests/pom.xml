@@ -23,6 +23,7 @@
     <properties>
         <junit.version>5.14.2</junit.version>
         <testcontainers.version>2.0.5</testcontainers.version>
+        <jackson.version>2.20.1</jackson.version>
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
         <maven.failsafe.plugin.version>3.5.5</maven.failsafe.plugin.version>
     </properties>
@@ -73,6 +74,12 @@
             <version>42.7.7</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -93,9 +100,17 @@
                     <failIfNoTests>true</failIfNoTests>
                     <forkCount>1</forkCount>
                     <reuseForks>true</reuseForks>
+                    <includes>
+                        <include>${failsafe.includes}</include>
+                    </includes>
                     <systemPropertyVariables>
                         <unfallatlas.repositoryRoot>${maven.multiModuleProjectDirectory}</unfallatlas.repositoryRoot>
                         <unfallatlas.qaOutputDir>${project.build.directory}/testcontainers-logs</unfallatlas.qaOutputDir>
+                        <unfallatlas.contextData>${unfallatlas.contextData}</unfallatlas.contextData>
+                        <unfallatlas.contextCitiesFile>${maven.multiModuleProjectDirectory}/.build/context-selected-cities.txt</unfallatlas.contextCitiesFile>
+                        <unfallatlas.locationBriefGolden>${unfallatlas.locationBriefGolden}</unfallatlas.locationBriefGolden>
+                        <unfallatlas.locationBriefGoldenIndex>${maven.multiModuleProjectDirectory}/.build/location-brief-golden/index.json</unfallatlas.locationBriefGoldenIndex>
+                        <unfallatlas.locationBriefGoldenArtifact>${maven.multiModuleProjectDirectory}/out/qa/location-brief-golden-testcontainers.json</unfallatlas.locationBriefGoldenArtifact>
                     </systemPropertyVariables>
                 </configuration>
                 <executions>
