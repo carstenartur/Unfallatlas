@@ -11,15 +11,15 @@ on:
         description: 'Rebuild OSM, slope and traffic producer data'
         type: boolean
         default: false
-  # A merge that changes the producer/generator contract must rebuild the
-  # checked-in context artifacts. The generated commit only changes out/ and
-  # therefore does not trigger this workflow again.
   push:
     branches: [main]
     paths:
       - 'cities.txt'
+      - 'pom.xml'
+      - 'qa-system-tests/**'
       - 'scripts/generate-context-city.js'
       - 'scripts/check-enrichment-inputs.js'
+      - 'scripts/run-context-enrichment.js'
       - 'scripts/producers/**'
   workflow_run:
     workflows: ["Generate & Commit"]
@@ -50,101 +50,49 @@ jobs:
           persist-credentials: true
           ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}
 
-      - uses: actions/setup-node@v7
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@v5
         with:
-          node-version: '24'
-          cache: 'npm'
+          distribution: temurin
+          java-version: '21'
+          cache: maven
 
       - name: Set up Git
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      - name: Compute producer cache key
-        id: cache-key
-        shell: bash
-        run: |
-          set -euo pipefail
-          OSM_VER=$(node -e "console.log(require('./scripts/producers/osm_producer').PRODUCER_VERSION)")
-          DEM_VER=$(node -e "console.log(require('./scripts/producers/dem_producer').PRODUCER_VERSION)")
-          TILE_VER=$(node -e "console.log(require('./scripts/producers/dem_tile_producer').PRODUCER_VERSION)")
-          TRAFFIC_VER=$(node -e "console.log(require('./scripts/producers/traffic_producer').PRODUCER_VERSION)")
-          ISO_WEEK=$(date -u +%G-W%V)
-          echo "key=context-${OSM_VER}-${DEM_VER}-${TILE_VER}-${TRAFFIC_VER}-${ISO_WEEK}-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-          echo "restore=context-${OSM_VER}-${DEM_VER}-${TILE_VER}-${TRAFFIC_VER}-${ISO_WEEK}-" >> "$GITHUB_OUTPUT"
-
       - name: Restore producer cache
         uses: actions/cache@v6
         with:
           path: .enrichment-cache
-          key: ${{ steps.cache-key.outputs.key }}
+          key: context-${{ runner.os }}-${{ hashFiles('scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/check-enrichment-inputs.js') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ steps.cache-key.outputs.restore }}
-            context-
+            context-${{ runner.os }}-${{ hashFiles('scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/check-enrichment-inputs.js') }}-
+            context-${{ runner.os }}-
           save-always: true
 
-      - name: Select cities
-        id: cities
-        shell: bash
+      - name: Generate, validate and render selected context data
         env:
           REQUESTED_CITY: ${{ inputs.city }}
-        run: |
-          set -euo pipefail
-          if [[ -n "${REQUESTED_CITY:-}" ]]; then
-            printf '%s\n' "$REQUESTED_CITY" > .build-context-cities.txt
-          else
-            sed -E 's/#.*$//' cities.txt | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | awk 'NF' > .build-context-cities.txt
-          fi
-          test -s .build-context-cities.txt
-          SMOKE_CITY=$(head -n 1 .build-context-cities.txt)
-          echo "smoke_city=$SMOKE_CITY" >> "$GITHUB_OUTPUT"
-          echo "Selected cities:"
-          sed 's/^/ - /' .build-context-cities.txt
-          echo "Browser smoke city: $SMOKE_CITY"
-
-      - name: Generate context data atomically
-        shell: bash
-        env:
-          # Producer-contract changes, freshly generated accident datasets and
-          # the weekly refresh must fetch current source data. Only an explicit
-          # manual run with force=false may reuse fingerprint-validated caches.
           FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
-        run: |
-          set -euo pipefail
-          while IFS= read -r city; do
-            ARGS=(--city "$city")
-            if [[ "${FORCE_CONTEXT:-false}" == "true" ]]; then ARGS+=(--force); fi
-            node scripts/generate-context-city.js "${ARGS[@]}"
-          done < .build-context-cities.txt
-
-      - name: Verify producer inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          ARGS=()
-          while IFS= read -r city; do ARGS+=(--city "$city"); done < .build-context-cities.txt
-          node scripts/check-enrichment-inputs.js "${ARGS[@]}"
-
-      - name: Verify generated data structures
-        env:
-          UNFALLATLAS_DATA_MODE: gzip-only
-        run: |
-          node scripts/gzip-static-data.js --check --gzip-only
-          node scripts/check-context-datasets.js
-          node scripts/check-slope-plausibility.js
-          node scripts/check-data-paths.js --gzip-only --min-features 10
-
-      - name: Install integration-test dependencies
-        run: npm ci
-
-      - name: Verify generated context in the real web page
-        env:
-          RUN_TESTCONTAINERS: '1'
-          CONTEXT_E2E_REQUIRE_SHIPPED: '1'
-          CONTEXT_E2E_CITY: ${{ steps.cities.outputs.smoke_city }}
         run: >-
-          npm run test:integration:tc -- --runInBand
-          -t "renders slope and traffic context for a real city in the browser"
+          mvn -B -ntp verify -Pcontext-data-e2e
+          -Dcontext.city="${REQUESTED_CITY:-}"
+          -Dcontext.force="${FORCE_CONTEXT:-false}"
+
+      - name: Upload context QA evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: context-data-maven-qa-${{ github.run_id }}
+          path: |
+            out/qa/
+            qa-system-tests/target/failsafe-reports/
+            qa-system-tests/target/testcontainers-logs/
+            .build/context-selected-cities.txt
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Commit and push
         shell: bash
