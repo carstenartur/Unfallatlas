@@ -9,17 +9,18 @@ import de.unfallatlas.analysis.persistence.BatchRankingArtifactRepository;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.JobInstance;
 import org.springframework.batch.core.job.parameters.InvalidJobParametersException;
 import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
-import org.springframework.batch.core.repository.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException;
-import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.launch.JobRestartException;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -35,7 +36,7 @@ import java.util.Optional;
 
 /**
  * REST-API zur manuellen Auslösung und Beobachtung von
- * Spring-Batch-Läufen.  Aktuell ist nur der
+ * Spring-Batch-Läufen. Aktuell ist nur der
  * {@code city-prioritization-job} angebunden, das Routing ist aber so
  * geschnitten, dass weitere Jobs später als zusätzliche Pfade ergänzt
  * werden können (z. B. {@code /api/batch/jobs/search-reindex}).
@@ -51,8 +52,8 @@ import java.util.Optional;
  *
  * <p>Die Endpunkte sind dünn: sie validieren Eingaben, übersetzen sie in
  * {@link JobParameters} und lesen den fachlichen Lauf-Status aus
- * {@link AnalysisJobRepository} bzw. die technische Sicht aus
- * {@link JobExplorer}.</p>
+ * {@link AnalysisJobRepository} bzw. die technische Sicht aus dem
+ * {@link JobRepository}.</p>
  */
 @RestController
 @RequestMapping("/api/batch/jobs")
@@ -60,22 +61,19 @@ public class BatchJobController {
 
     private static final Logger LOG = LoggerFactory.getLogger(BatchJobController.class);
 
-    private final JobLauncher jobLauncher;
-    private final JobExplorer jobExplorer;
-    private final org.springframework.batch.core.launch.JobOperator jobOperator;
+    private final JobOperator jobOperator;
+    private final JobRepository jobRepository;
     private final Job cityPrioritizationJob;
     private final AnalysisJobRepository analysisJobs;
     private final BatchRankingArtifactRepository rankingArtifacts;
 
-    public BatchJobController(JobLauncher jobLauncher,
-                              JobExplorer jobExplorer,
-                              org.springframework.batch.core.launch.JobOperator jobOperator,
+    public BatchJobController(JobOperator jobOperator,
+                              JobRepository jobRepository,
                               Job cityPrioritizationJob,
                               AnalysisJobRepository analysisJobs,
                               BatchRankingArtifactRepository rankingArtifacts) {
-        this.jobLauncher = jobLauncher;
-        this.jobExplorer = jobExplorer;
         this.jobOperator = jobOperator;
+        this.jobRepository = jobRepository;
         this.cityPrioritizationJob = cityPrioritizationJob;
         this.analysisJobs = analysisJobs;
         this.rankingArtifacts = rankingArtifacts;
@@ -87,7 +85,7 @@ public class BatchJobController {
 
         // Identifizierende Parameter (city/profile/recomputeExisting)
         // sorgen dafür, dass jede sinnvoll unterschiedliche Anfrage eine
-        // eigene JobInstance bekommt.  `runTimestamp` ist zusätzlich
+        // eigene JobInstance bekommt. `runTimestamp` ist zusätzlich
         // identifizierend und macht Wieder-Auslösungen mit denselben
         // fachlichen Parametern eindeutig (Spring Batch verbietet sonst
         // einen erneuten Lauf einer bereits abgeschlossenen JobInstance).
@@ -104,7 +102,7 @@ public class BatchJobController {
             .toJobParameters();
 
         try {
-            JobExecution execution = jobLauncher.run(cityPrioritizationJob, params);
+            JobExecution execution = jobOperator.run(cityPrioritizationJob, params);
             LOG.info("[batch][rest] city-prioritization gestartet: executionId={}, city={}, profile={}",
                 execution.getId(), req.city, req.profile);
             Map<String, Object> body = new LinkedHashMap<>();
@@ -174,30 +172,30 @@ public class BatchJobController {
     /**
      * Restartet eine zuvor abgebrochene oder gescheiterte Execution.
      *
-     * <p>Spring Batch stellt dafür den {@code JobOperator} bereit; er
-     * baut die Job-Parameter aus der vorigen Execution wieder auf und
-     * startet eine neue Execution derselben JobInstance.  Erfolgreich
-     * abgeschlossene Executions können nicht restartet werden – wir
-     * geben in dem Fall HTTP 409 mit einem strukturierten Fehler
-     * zurück, statt 5xx zu werfen.</p>
+     * <p>Spring Batch 6 arbeitet dafür direkt mit der vorherigen
+     * {@link JobExecution}. Erfolgreich abgeschlossene Executions können
+     * nicht restartet werden – wir geben in dem Fall HTTP 409 mit einem
+     * strukturierten Fehler zurück, statt 5xx zu werfen.</p>
      */
     @PostMapping("/{executionId}/restart")
     public ResponseEntity<Map<String, Object>> restart(@PathVariable Long executionId) {
+        JobExecution previous = findExecutionOrNull(executionId);
+        if (previous == null) {
+            return error(HttpStatus.NOT_FOUND, "NO_SUCH_JOB_EXECUTION",
+                "Keine Job-Ausführung mit ID " + executionId + " gefunden");
+        }
+        if (previous.getStatus() == BatchStatus.COMPLETED) {
+            return error(HttpStatus.CONFLICT, "JOB_INSTANCE_ALREADY_COMPLETE",
+                "Eine erfolgreich abgeschlossene Job-Ausführung kann nicht neu gestartet werden");
+        }
+
         try {
-            Long newId = jobOperator.restart(executionId);
+            JobExecution restarted = jobOperator.restart(previous);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("originalExecutionId", executionId);
-            body.put("executionId", newId);
+            body.put("executionId", restarted.getId());
             body.put("status", "RESTARTED");
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(body);
-        } catch (org.springframework.batch.core.launch.NoSuchJobExecutionException e) {
-            return error(HttpStatus.NOT_FOUND, "NO_SUCH_JOB_EXECUTION", e.getMessage());
-        } catch (org.springframework.batch.core.launch.NoSuchJobException e) {
-            return error(HttpStatus.NOT_FOUND, "NO_SUCH_JOB", e.getMessage());
-        } catch (JobInstanceAlreadyCompleteException e) {
-            return error(HttpStatus.CONFLICT, "JOB_INSTANCE_ALREADY_COMPLETE", e.getMessage());
-        } catch (InvalidJobParametersException e) {
-            return error(HttpStatus.BAD_REQUEST, "INVALID_JOB_PARAMETERS", e.getMessage());
         } catch (JobRestartException e) {
             return error(HttpStatus.CONFLICT, "JOB_RESTART_FAILED", e.getMessage());
         }
@@ -243,14 +241,14 @@ public class BatchJobController {
 
     /**
      * Liest eine {@link JobExecution} defensiv und liefert {@code null},
-     * wenn die ID nicht existiert.  Spring Batch 6 wirft in diesem Fall
+     * wenn die ID nicht existiert. Spring Batch 6 wirft in diesem Fall
      * {@link org.springframework.dao.EmptyResultDataAccessException}; wir
      * fangen sie hier ab, damit der Controller saubere 404-Responses
      * zurückgeben kann anstatt 500er.
      */
     private JobExecution findExecutionOrNull(Long executionId) {
         try {
-            return jobExplorer.getJobExecution(executionId);
+            return jobRepository.getJobExecution(executionId);
         } catch (org.springframework.dao.EmptyResultDataAccessException e) {
             return null;
         }
