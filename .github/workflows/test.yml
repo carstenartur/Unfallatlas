@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     name: Maven verify (Java 21, Node 24)
@@ -24,7 +28,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@v5
@@ -38,7 +44,7 @@ jobs:
 
       - name: Upload Maven and frontend test reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: canonical-test-reports
           path: |
@@ -48,7 +54,6 @@ jobs:
             test-results/
             out/qa/
             _site/build-manifest.json
-            tests/unit/docMediaPolicy.test.js
           if-no-files-found: ignore
           retention-days: 14
 
@@ -60,7 +65,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@v5
@@ -75,11 +82,12 @@ jobs:
           set -o pipefail
           mkdir -p out/qa
           mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden \
+            '-Dfailsafe.includes=**/*IT.java' \
             | tee out/qa/maven-extended-qa.log
 
       - name: Upload extended QA evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: extended-maven-qa-evidence
           path: |
@@ -92,6 +100,5 @@ jobs:
             analysis-service/target/surefire-reports/
             qa-system-tests/target/failsafe-reports/
             qa-system-tests/target/testcontainers-logs/
-            tests/unit/docMediaPolicy.test.js
           if-no-files-found: ignore
           retention-days: 14
