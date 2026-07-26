@@ -18,6 +18,7 @@ function parseArgs(argv) {
     outDir: 'out',
     tempRoot: '.build/raw',
     minFeatures: 0,
+    force: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -27,6 +28,8 @@ function parseArgs(argv) {
     else if (arg === '--out-dir') args.outDir = argv[++i] || args.outDir;
     else if (arg === '--temp-root') args.tempRoot = argv[++i] || args.tempRoot;
     else if (arg === '--min-features') args.minFeatures = Number.parseInt(argv[++i] || '0', 10);
+    else if (arg === '--force') args.force = true;
+    else throw new Error(`[generate-accident-data] Unknown argument: ${arg}`);
   }
 
   if (!Number.isFinite(args.minFeatures) || args.minFeatures < 0) {
@@ -47,6 +50,10 @@ function isExistingArtifactValid(outDir, city, minFeatures) {
     minFeatures,
   });
   return validation.ok;
+}
+
+function shouldRegenerateCity(outDir, city, minFeatures, force) {
+  return force || !isExistingArtifactValid(outDir, city, minFeatures);
 }
 
 function syncZipCache(sourceDir, targetDir) {
@@ -125,11 +132,19 @@ function main(argv) {
   let regenerated = 0;
   let skipped = 0;
 
+  process.stdout.write(
+    `[generate-accident-data] Mode: ${args.force ? 'FORCED REFRESH (download and regenerate every city)' : 'REPAIR (skip valid existing artefacts)'}\n`
+  );
+
   for (const city of cities) {
-    if (isExistingArtifactValid(args.outDir, city, args.minFeatures)) {
+    if (!shouldRegenerateCity(args.outDir, city, args.minFeatures, args.force)) {
       skipped += 1;
-      process.stdout.write(`[generate-accident-data] SKIP ${city} (existing artefact is valid)\n`);
+      process.stdout.write(`[generate-accident-data] SKIP ${city} (existing artefact is valid; use --force to refresh)\n`);
       continue;
+    }
+
+    if (args.force && isExistingArtifactValid(args.outDir, city, args.minFeatures)) {
+      process.stdout.write(`[generate-accident-data] FORCE ${city} (ignoring valid existing artefact)\n`);
     }
 
     const staged = stageCityOutputs(args.root, city, args.tempRoot, args.minFeatures);
@@ -141,7 +156,7 @@ function main(argv) {
   }
 
   process.stdout.write(
-    `[generate-accident-data] Done: ${cities.length} cities (${skipped} skipped, ${regenerated} regenerated)\n`
+    `[generate-accident-data] Done: ${cities.length} cities (${skipped} skipped, ${regenerated} regenerated, force=${args.force})\n`
   );
 }
 
@@ -152,6 +167,7 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   isExistingArtifactValid,
+  shouldRegenerateCity,
   stageCityOutputs,
   installCityOutputs,
   main,
