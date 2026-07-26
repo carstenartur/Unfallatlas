@@ -52,7 +52,7 @@ jobs:
 
   extended-qa:
     name: Extended Maven QA (JUnit, Testcontainers, Playwright)
-    if: github.event_name == 'workflow_dispatch' && inputs.run_extended_qa
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_extended_qa)
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
