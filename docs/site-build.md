@@ -97,8 +97,9 @@ Test.
 mvn clean verify -Pe2e,system-it,location-brief-golden
 ```
 
-Dies ist derselbe einzelne Maven-Befehl, den der manuell aktivierbare
-`extended-qa`-Job verwendet.
+Dies ist derselbe einzelne Maven-Befehl, den der `extended-qa`-Job bei jedem
+Pull Request automatisch ausführt. Über `workflow_dispatch` kann derselbe Job
+zusätzlich manuell gestartet werden.
 
 ## Pages-Gate
 
