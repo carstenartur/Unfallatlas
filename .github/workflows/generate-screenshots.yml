@@ -26,6 +26,9 @@ jobs:
           java-version: '21'
           cache: maven
 
+      # These former workflow gates now run, in this order, inside documentation-live:
+      # npm run validate:screenshot-evidence
+      # npm run validate:media -- --candidate-screenshots
       - name: Generate and validate live documentation candidates
         run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=false
 
