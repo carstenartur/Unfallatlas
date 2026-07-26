@@ -1,6 +1,6 @@
 package de.unfallatlas.analysis.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import de.unfallatlas.analysis.api.dto.LocationBriefIngestDto;
 import de.unfallatlas.analysis.persistence.LocationActionBriefRepository;
 import de.unfallatlas.analysis.support.LocationBriefFixtures;
@@ -30,12 +30,7 @@ class LocationBriefControllerTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private LocationActionBriefRepository repo;
-
-    // Spring Boot 4 verwendet Jackson 3 (tools.jackson) als Default; der
-    // Spring-Web-Stack hat damit keinen com.fasterxml.jackson ObjectMapper-
-    // Bean mehr.  Für die hiesigen Tests reicht eine eigene Instanz, weil
-    // wir nur DTOs in JSON serialisieren – kein Spring-Bean nötig.
-    private final ObjectMapper json = new ObjectMapper();
+    @Autowired private ObjectMapper json;
 
     @BeforeEach
     void cleanDb() {
@@ -57,7 +52,7 @@ class LocationBriefControllerTest {
             .andExpect(jsonPath("$.profileScores", hasSize(5)))
             .andReturn();
 
-        String createdId = json.readTree(post.getResponse().getContentAsString()).get("id").asText();
+        String createdId = json.readTree(post.getResponse().getContentAsString()).get("id").asString();
 
         mvc.perform(get("/api/location-briefs/{id}", createdId))
             .andExpect(status().isOk())
@@ -127,7 +122,7 @@ class LocationBriefControllerTest {
                 .content(json.writeValueAsString(b)))
             .andExpect(status().isCreated())
             .andReturn();
-        String locationKey = json.readTree(second.getResponse().getContentAsString()).get("locationKey").asText();
+        String locationKey = json.readTree(second.getResponse().getContentAsString()).get("locationKey").asString();
 
         mvc.perform(get("/api/location-briefs/by-location/{key}", locationKey))
             .andExpect(status().isOk())

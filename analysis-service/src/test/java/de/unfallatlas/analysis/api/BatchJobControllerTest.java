@@ -1,6 +1,6 @@
 package de.unfallatlas.analysis.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import de.unfallatlas.analysis.persistence.LocationActionBriefRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>{@code GET /api/batch/jobs} listet die jüngsten Ausführungen,</li>
  *   <li>{@code GET /api/batch/jobs/{id}/summary} liefert die fachliche
  *       Zusammenfassung,</li>
+ *   <li>{@code POST /api/batch/jobs/{id}/restart} behandelt unbekannte und
+ *       bereits abgeschlossene Ausführungen mit strukturierten Fehlern,</li>
  *   <li>fehlende Pflichtparameter führen zum einheitlichen Error-Envelope
  *       mit Code {@code VALIDATION_FAILED} (400).</li>
  * </ul>
@@ -40,8 +42,7 @@ class BatchJobControllerTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private LocationActionBriefRepository briefRepo;
-
-    private final ObjectMapper json = new ObjectMapper();
+    @Autowired private ObjectMapper json;
 
     @BeforeEach
     void clean() {
@@ -91,6 +92,11 @@ class BatchJobControllerTest {
             .andExpect(jsonPath("$.executionId").value(executionId.longValue()))
             .andExpect(jsonPath("$.runLabel").value("smoke-1"))
             .andExpect(jsonPath("$.summary").exists());
+
+        // Eine erfolgreich abgeschlossene Execution darf nicht restartet werden.
+        mvc.perform(post("/api/batch/jobs/{id}/restart", executionId.longValue()))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("JOB_INSTANCE_ALREADY_COMPLETE"));
     }
 
     @Test
@@ -107,8 +113,14 @@ class BatchJobControllerTest {
     }
 
     @Test
-    void getMitUnbekannterIdGibt404() throws Exception {
-        mvc.perform(get("/api/batch/jobs/{id}", 999_999_999L))
+    void unbekannteIdGibtBeiStatusUndRestart404() throws Exception {
+        long unknownId = 999_999_999L;
+
+        mvc.perform(get("/api/batch/jobs/{id}", unknownId))
             .andExpect(status().isNotFound());
+
+        mvc.perform(post("/api/batch/jobs/{id}/restart", unknownId))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NO_SUCH_JOB_EXECUTION"));
     }
 }
