@@ -1,4 +1,4 @@
-name: Generate & Commit
+name: "01 · Unfalldaten aktualisieren"
 
 on:
   workflow_dispatch:
