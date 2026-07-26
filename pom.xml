@@ -11,9 +11,9 @@
 
     <name>Unfallatlas Build</name>
     <description>
-        Kanonischer Maven-Reaktor für Browseranwendung, Pages-Artefakt und
-        Analysis Service. GitHub Actions darf diesen Build nur aufrufen und
-        keine parallele Build- oder Testlogik definieren.
+        Kanonischer Maven-Reaktor für Browseranwendung, Pages-Artefakt,
+        Analysis Service und systemweite QA. GitHub Actions darf diesen Build
+        nur aufrufen und keine parallele Build- oder Testlogik definieren.
     </description>
 
     <modules>
@@ -189,6 +189,122 @@
                                 </goals>
                                 <configuration>
                                     <arguments>run generate:pages-data</arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+          Vollständige Chromium-, Accessibility-, Firefox- und WebKit-QA samt
+          reproduzierbarer Screenshot-Evidenz:
+
+              mvn verify -Pe2e
+        -->
+        <profile>
+            <id>e2e</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>prepare-extended-browser-qa</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>run qa:e2e:prepare</arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>extended-browser-qa</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>run qa:e2e:extended</arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>validate-extended-browser-evidence</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>run qa:e2e:evidence</arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+          JUnit-5-/Failsafe-Systemtests mit Java Testcontainers. Das Profil
+          baut den exakten Checkout als Produktionscontainer und prüft außerdem
+          den Analysis Service mit einem echten PostgreSQL-Container:
+
+              mvn verify -Psystem-it
+        -->
+        <profile>
+            <id>system-it</id>
+            <modules>
+                <module>qa-system-tests</module>
+            </modules>
+        </profile>
+
+        <!--
+          Fachliche Bonn-/Hannover-Golden-Cases. Die bestehende JavaScript-
+          Fachlogik bleibt die Quelle der Brief-Berechnung; Maven besitzt aber
+          Prozess, Containerlauf und Artefaktpfade:
+
+              mvn verify -Plocation-brief-golden
+        -->
+        <profile>
+            <id>location-brief-golden</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>location-brief-golden-preflight</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>run qa:location-brief-golden</arguments>
+                                    <environmentVariables>
+                                        <GOLDEN_CASE_QA_ARTIFACT_PATH>out/qa/location-brief-golden-preflight.json</GOLDEN_CASE_QA_ARTIFACT_PATH>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>location-brief-golden-testcontainers</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>run test:location-brief-golden:tc</arguments>
+                                    <environmentVariables>
+                                        <RUN_TESTCONTAINERS>1</RUN_TESTCONTAINERS>
+                                        <GOLDEN_CASE_QA_ARTIFACT_PATH>out/qa/location-brief-golden-testcontainers.json</GOLDEN_CASE_QA_ARTIFACT_PATH>
+                                    </environmentVariables>
                                 </configuration>
                             </execution>
                         </executions>
