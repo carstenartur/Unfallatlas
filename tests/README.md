@@ -2,23 +2,21 @@
 
 Der veröffentlichte Build- und Testvertrag beginnt immer im Repository-Root mit
 Maven. GitHub Actions verwendet dieselben Befehle wie ein lokaler Checkout und
-enthält keine eigene npm-, Playwright- oder Testcontainers-Orchestrierung.
+enthält keine eigene npm-, Playwright-, Jest- oder Testcontainers-Orchestrierung.
 
 ## Voraussetzungen
 
-Für den normalen Build werden benötigt:
+Für den normalen Build werden JDK 21 oder neuer und Maven 3.9.6 oder neuer
+benötigt. Node.js und npm werden vom `frontend-maven-plugin` in den
+Build-Ausgabeordner geladen; eine globale Node-Installation ist nicht nötig.
 
-- JDK 21 oder neuer;
-- Maven 3.9.6 oder neuer.
+Profile mit `*-it`, Kontextdaten oder Golden Cases benötigen zusätzlich einen
+erreichbaren Docker-Daemon. PostgreSQL, Browser, ffmpeg, ImageMagick und die zu
+prüfenden Anwendungen werden als Container gestartet.
 
-Node.js und npm werden vom `frontend-maven-plugin` in den Build-Ausgabeordner
-geladen. Eine globale Node-Installation ist für den kanonischen Build daher
-nicht erforderlich.
-
-Für `system-it` und den persistierenden Golden-Case-Lauf wird zusätzlich ein
-erreichbarer Docker-Daemon benötigt. PostgreSQL, Browser, ffmpeg,
-ImageMagick und die zu prüfenden Anwendungen werden als Container gestartet;
-sie müssen nicht separat installiert werden.
+Das Profil `document-render` benötigt LibreOffice Writer, Poppler und die in der
+CI installierten Dokumentfonts. Das Profil `documentation-live` benötigt
+Netzzugang zu den explizit erlaubten realen Kartenanbietern.
 
 ## Kanonische Befehle
 
@@ -28,74 +26,73 @@ sie müssen nicht separat installiert werden.
 | Öffentliches Pages-Artefakt einschließlich Browser-Gate | `mvn clean verify -Ppages` |
 | Pages-Artefakt nach vollständiger Datengenerierung | `mvn clean verify -Ppages-regenerated` |
 | Chromium-, Accessibility-, Firefox- und WebKit-QA | `mvn verify -Pe2e` |
-| JUnit-/Testcontainers-Systemtests | `mvn verify -Psystem-it` |
-| Bonn-/Hannover-Golden-Cases einschließlich Persistenz | `mvn verify -Plocation-brief-golden` |
-| Gesamte erweiterte QA | `mvn clean verify -Pe2e,system-it,location-brief-golden` |
+| alle grundlegenden JUnit-/Testcontainers-Systemtests | `mvn verify -Psystem-it` |
+| Produktionscontainer und Videoexport | `mvn verify -Pvideo-export-it` |
+| Bonn-/Hannover-Golden-Cases mit PostgreSQL | `mvn verify -Plocation-brief-golden` |
+| Kontextdaten erzeugen und im Produktionscontainer rendern | `mvn verify -Pcontext-data-e2e` |
+| natives PDF und DOCX über LibreOffice/Poppler prüfen | `mvn verify -Pdocument-render` |
+| echte Dokumentationskarten ohne Linkprüfung | `mvn verify -Pdocumentation-live -Ddocumentation.liveLinks=false` |
+| echte Dokumentationskarten mit veröffentlichten Links | `mvn verify -Pdocumentation-live -Ddocumentation.liveLinks=true` |
+| Release-Site mit vollständiger Vendor-Provenienz | `mvn clean verify -Prelease-site` |
+| gesamte erweiterte PR-QA | `mvn clean verify -Pe2e,system-it,location-brief-golden '-Dfailsafe.includes=**/*IT.java'` |
 
-Die npm-Skripte bleiben als Implementierungsbausteine und für gezielte
-Fehlerdiagnosen vorhanden. Sie sind keine zweite Build-Schnittstelle.
+Die npm-Skripte bleiben interne Implementierungsbausteine und können bei einer
+gezielten Diagnose einzeln verwendet werden. Sie sind keine zweite
+Build-Schnittstelle.
 
 ## Verantwortlichkeiten
 
 ### Maven
 
-Maven besitzt:
+Maven besitzt Toolchain, Testauswahl, Reihenfolge, Integrationsphasen,
+Containerprofile, Reportpfade und abschließende Erfolgskriterien. Ein Workflow
+stellt nur Checkout, JDK, Docker oder Betriebssystempakete bereit und ruft pro
+Job höchstens einen dokumentierten Maven-Befehl auf.
 
-- Toolchain und gelockte Installation von Node/npm;
-- Auswahl und Reihenfolge aller Tests;
-- Start und Abschluss der Integrationsphasen;
-- stabile Report- und Evidenzpfade;
-- die lokal und in CI identischen Profile.
+### Jest und Playwright
 
-### Jest
+Jest prüft JavaScript-nahe Unit- und Integrationslogik. Playwright prüft die
+reale Browseroberfläche. Beide werden im kanonischen Ablauf vom Maven-Lifecycle
+gestartet. Das Profil `e2e` baut `_site` genau einmal und verwendet dieses
+unveränderte Artefakt für Chromium, Accessibility, Firefox, WebKit und die
+abschließende Screenshot-Evidenz.
 
-Jest prüft JavaScript-nahe Unit- und Integrationslogik, etwa Filter,
-URL-Zustände, Exportfunktionen und Datenverarbeitung. Maven startet diese Tests
-im normalen Lifecycle über das `frontend-maven-plugin`.
-
-### Playwright
-
-Playwright prüft die reale Browseroberfläche. Das Profil `e2e` installiert die
-gelockten Browser, bereitet deterministische Screenshot-Verzeichnisse vor,
-führt Chromium-, Accessibility-, Firefox- und WebKit-Szenarien aus und
-validiert anschließend die erzeugte Evidenz.
-
-### JUnit 5 und Maven Failsafe
+### JUnit 5, Failsafe und Testcontainers
 
 Systemweite Verträge liegen im Modul [`qa-system-tests`](../qa-system-tests/).
-Sie heißen `*IT.java` und werden von Maven Failsafe in den Phasen
-`integration-test` und `verify` ausgeführt. Ein fehlender Systemtest lässt den
-Build bewusst fehlschlagen.
+Sie heißen `*IT.java` und werden von Maven Failsafe in `integration-test` und
+`verify` ausgeführt. Java Testcontainers besitzt den Lebenszyklus aller
+externen Laufzeitkomponenten; feste Host-Ports, Sleeps und vorab gestartete
+lokale Dienste sind nicht zulässig.
 
-### Testcontainers
-
-Java Testcontainers besitzt den Lebenszyklus externer Laufzeitkomponenten. Die
-Tests verwenden keine fest belegten Host-Ports und keine vorab gestarteten
-lokalen Dienste.
-
-Derzeit werden nativ geprüft:
+Nativ geprüft werden:
 
 1. **Produktionscontainer der Unfallwerkbank**
-   - Build aus dem exakten Checkout und dessen `.dockerignore`;
+   - Build aus dem exakten Checkout;
    - Health- und Build-Manifest-Vertrag;
-   - kein Zugriff auf Repository-Metadaten wie `package.json`;
-   - frühe Ablehnung ungültiger Videoanfragen;
-   - echter GIF-Export einschließlich Hash-, Provenienz- und Pixel-Evidenz;
-   - sichtbare Steigungs- und Verkehrslayer in Chromium innerhalb des
-     ausgelieferten Containers;
-   - persistierte Containerlogs.
+   - kein Zugriff auf Repository-Metadaten;
+   - früher Abbruch ungültiger Videoanfragen;
+   - echter GIF-Export mit Hash-, Provenienz- und Pixel-Evidenz;
+   - sichtbare Steigungs- und Verkehrslayer in Container-Chromium.
 
-2. **Analysis Service mit PostgreSQL**
+2. **Analysis Service mit PostgreSQL 17**
    - Produktionsprofil statt H2-Fallback;
-   - eigener PostgreSQL-17-Container in einem isolierten Netzwerk;
-   - erfolgreicher Actuator-Health-Check;
-   - ausgeführte Flyway-Migrationen und vorhandenes Anwendungsschema;
-   - persistierte Service- und Datenbanklogs.
+   - isoliertes Container-Netzwerk;
+   - Actuator-Health, Flyway-Migrationen und Anwendungsschema.
 
-Die fachliche Berechnung der Location Briefs bleibt JavaScript-Produktlogik.
-Das Profil `location-brief-golden` führt ihre deterministische Vorprüfung und
-den persistierenden Bonn-/Hannover-Lauf unter Maven aus. Damit wird keine
-zweite Implementierung der fachlichen Regeln in Java erzeugt.
+3. **Bonn-/Hannover-Golden-Cases**
+   - JavaScript-Produktlogik erzeugt die fachlich autoritativen Brief-Payloads;
+   - JUnit speichert sie über den realen Analysis Service in PostgreSQL;
+   - Spring Batch priorisiert die Orte;
+   - positive Fälle müssen vor negativen Fällen rangieren.
+
+4. **Kontextdaten-End-to-End**
+   - Maven erzeugt und validiert OSM-, Steigungs- und Verkehrsdatensätze;
+   - JUnit baut danach den Produktionscontainer;
+   - Chromium weist echte Canvas-Pixel und beide sichtbaren Legenden nach.
+
+Damit existiert keine zweite Java-Implementierung der fachlichen
+Location-Brief-Regeln.
 
 ## Report- und Evidenzpfade
 
@@ -107,32 +104,21 @@ zweite Implementierung der fachlichen Regeln in Java erzeugt.
 | Jest Coverage und Integrationsreport | `coverage/` |
 | Playwright HTML-Report | `playwright-report/` |
 | Playwright Testartefakte | `test-results/` |
-| fachliche QA-Berichte | `out/qa/` |
+| fachliche und Dokument-QA | `out/qa/` |
 | erzeugte Dokumentationsscreenshots | `docs/screenshots/` |
-
-Diese Pfade werden auch von GitHub Actions als Artefakte hochgeladen. Die
-Workflow-Datei entscheidet nicht selbst, wie die Inhalte erzeugt werden.
 
 ## Gezielte Diagnose
 
-Ein einzelner nativer Systemtest lässt sich weiterhin über Maven ausführen:
+Ein einzelner Systemtest kann weiterhin über Maven ausgewählt werden:
 
 ```bash
 mvn -pl qa-system-tests -am verify -Psystem-it \
-  -Dit.test=ProductionContainerIT
+  -Dfailsafe.includes='**/ProductionContainerIT.java'
 ```
 
-Für den PostgreSQL-Vertrag:
-
-```bash
-mvn -pl qa-system-tests -am verify -Psystem-it \
-  -Dit.test=AnalysisServicePostgresIT
-```
-
-JavaScript- oder Playwright-Befehle dürfen zur interaktiven Fehlersuche direkt
-ausgeführt werden. Vor einem Commit ist jedoch mindestens der dazugehörige
-Maven-Befehl maßgeblich, weil nur er den vollständigen Lifecycle und die
-abschließende Failsafe-Auswertung umfasst.
+Für den PostgreSQL-Vertrag wird entsprechend
+`**/AnalysisServicePostgresIT.java` verwendet. Vor einem Commit ist mindestens
+der zugehörige vollständige Maven-Profilbefehl maßgeblich.
 
 ## Neue Tests hinzufügen
 
@@ -140,7 +126,6 @@ abschließende Failsafe-Auswertung umfasst.
 - Browserabläufe und Accessibility-Verträge gehören nach `tests/e2e/`.
 - Black-Box-Verträge über mehrere Prozesse oder Infrastrukturkomponenten
   gehören als JUnit-`*IT.java` nach `qa-system-tests/src/test/java/`.
-- Datenbanken und Dienste werden dort mit Testcontainers bereitgestellt; feste
-  Ports, Sleeps und workfloweigene Startskripte sind nicht zulässig.
-- Neue Profile und Artefaktpfade werden in `pom.xml`, dieser Datei und
+- Neue Dienste und Datenbanken werden dort mit Testcontainers bereitgestellt.
+- Neue Profile und Evidenzpfade werden in `pom.xml`, dieser Datei und
   `docs/site-build.md` dokumentiert.
