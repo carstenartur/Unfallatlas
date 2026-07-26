@@ -47,6 +47,8 @@ jobs:
             playwright-report/
             test-results/
             out/qa/
+            _site/build-manifest.json
+            tests/unit/docMediaPolicy.test.js
           if-no-files-found: ignore
           retention-days: 14
 
@@ -86,8 +88,10 @@ jobs:
             playwright-report/
             test-results/
             docs/screenshots/
+            _site/build-manifest.json
             analysis-service/target/surefire-reports/
             qa-system-tests/target/failsafe-reports/
             qa-system-tests/target/testcontainers-logs/
+            tests/unit/docMediaPolicy.test.js
           if-no-files-found: ignore
           retention-days: 14
