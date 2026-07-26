@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Release version without leading v, for example 2.1.1. Must match the current analysis-service SNAPSHOT base.'
+        description: 'Release version without leading v, for example 2.1.4. Must match the current SNAPSHOT base.'
         required: true
         type: string
       next_development_version:
-        description: 'Next development version, for example 2.1.2-SNAPSHOT. Leave empty to increment patch.'
+        description: 'Next development version, for example 2.1.5-SNAPSHOT. Leave empty to increment patch.'
         required: false
         type: string
         default: ''
       skip_tests:
-        description: 'Skip tests during release build, including Maven test compilation'
+        description: 'Skip test execution during the release build'
         required: false
         type: boolean
         default: false
@@ -40,6 +40,7 @@ jobs:
   release:
     name: Build, publish and prepare next development version
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -51,27 +52,16 @@ jobs:
       - name: Fetch tags
         run: git fetch --tags --force --prune origin
 
-      - name: Set up JDK 21
+      - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@v5
         with:
           java-version: '21'
-          distribution: 'temurin'
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-maven-
+          distribution: temurin
+          cache: maven
 
       - name: Determine release versions
         id: versions
+        shell: bash
         run: |
           set -euo pipefail
           RELEASE_VERSION='${{ inputs.release_version }}'
@@ -82,10 +72,9 @@ jobs:
             exit 1
           fi
 
-          CURRENT_VERSION=$(mvn -f analysis-service/pom.xml help:evaluate \
-            -Dexpression=project.version -q -DforceStdout)
+          CURRENT_VERSION=$(python3 .github/scripts/project-version.py get)
           if [[ "$CURRENT_VERSION" != *-SNAPSHOT ]]; then
-            echo "::error::Current analysis-service version must be a SNAPSHOT, but was $CURRENT_VERSION"
+            echo "::error::Current project version must be a SNAPSHOT, but was $CURRENT_VERSION"
             exit 1
           fi
 
@@ -120,18 +109,17 @@ jobs:
           echo "next=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           echo "base_branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
 
-          echo "## Release version plan" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Current analysis-service version | \`$CURRENT_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Release version | \`$RELEASE_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Next development version | \`$NEXT_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dry run | \`${{ inputs.dry_run }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Skip tests | \`${{ inputs.skip_tests }}\` |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Validate Maven configuration
-        run: mvn -f analysis-service/pom.xml validate -q
+          {
+            echo "## Release version plan"
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Current project version | \`$CURRENT_VERSION\` |"
+            echo "| Release version | \`$RELEASE_VERSION\` |"
+            echo "| Next development version | \`$NEXT_VERSION\` |"
+            echo "| Dry run | \`${{ inputs.dry_run }}\` |"
+            echo "| Skip tests | \`${{ inputs.skip_tests }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Configure git identity
         run: |
@@ -142,22 +130,10 @@ jobs:
         run: |
           set -euo pipefail
           RELEASE_VERSION='${{ steps.versions.outputs.release }}'
-
-          echo "Setting analysis-service version to $RELEASE_VERSION"
-          mvn -f analysis-service/pom.xml versions:set \
-            -DnewVersion="$RELEASE_VERSION" \
-            -DgenerateBackupPoms=false
-
-          if node -e "const p=require('./package.json'); process.exit(p.version ? 0 : 1)" 2>/dev/null; then
-            echo "Syncing package.json version to $RELEASE_VERSION"
-            npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
-          else
-            echo "No version field in package.json – skipping."
-          fi
-
+          python3 .github/scripts/project-version.py set "$RELEASE_VERSION"
           python3 .github/scripts/update-release-metadata.py "$RELEASE_VERSION" --release
 
-      - name: Verify release metadata
+      - name: Verify release metadata and POM state
         env:
           EXPECTED_VERSION: ${{ steps.versions.outputs.release }}
         run: |
@@ -168,7 +144,6 @@ jobs:
           from pathlib import Path
 
           expected = os.environ['EXPECTED_VERSION']
-
           citation = Path('CITATION.cff').read_text(encoding='utf-8')
           version_match = re.search(r'^version: "([^"]+)"$', citation, flags=re.MULTILINE)
           if not version_match or version_match.group(1) != expected:
@@ -176,31 +151,23 @@ jobs:
           if not re.search(r'^date-released: ', citation, flags=re.MULTILINE):
               raise SystemExit('CITATION.cff date-released is missing')
 
-          with open('.zenodo.json', encoding='utf-8') as handle:
-              zenodo = json.load(handle)
-          if zenodo.get('version') != expected:
-              raise SystemExit(f'.zenodo.json version {zenodo.get("version")!r} != {expected!r}')
-          if 'publication_date' not in zenodo:
-              raise SystemExit('.zenodo.json publication_date is missing')
+          for filename, version_key, date_key in [
+              ('.zenodo.json', 'version', 'publication_date'),
+              ('codemeta.json', 'version', 'datePublished'),
+          ]:
+              data = json.loads(Path(filename).read_text(encoding='utf-8'))
+              if data.get(version_key) != expected:
+                  raise SystemExit(f'{filename} version does not match {expected!r}')
+              if date_key not in data:
+                  raise SystemExit(f'{filename} lacks {date_key}')
 
-          with open('codemeta.json', encoding='utf-8') as handle:
-              codemeta = json.load(handle)
-          if codemeta.get('version') != expected:
-              raise SystemExit(f'codemeta.json version {codemeta.get("version")!r} != {expected!r}')
-          if 'datePublished' not in codemeta:
-              raise SystemExit('codemeta.json datePublished is missing')
+          for pom in Path('.').rglob('pom.xml'):
+              if 'target' in pom.parts:
+                  continue
+              text = pom.read_text(encoding='utf-8')
+              if 'SNAPSHOT' in text:
+                  raise SystemExit(f'SNAPSHOT reference remains in {pom}')
           PY
-
-      - name: Verify no SNAPSHOT references remain in release POMs
-        run: |
-          REMAINING=$(grep -r "SNAPSHOT" --include="pom.xml" analysis-service/ \
-            | grep -v "target/" \
-            || true)
-          if [[ -n "$REMAINING" ]]; then
-            echo "::error::SNAPSHOT references still found in analysis-service/pom.xml after version update:"
-            echo "$REMAINING"
-            exit 1
-          fi
 
       - name: Commit release version changes
         run: |
@@ -208,39 +175,28 @@ jobs:
           git commit -m "Release version ${{ steps.versions.outputs.release }}" || \
             echo "Nothing to commit (version was already set)."
 
-      - name: Build analysis service release artifact
+      - name: Run the canonical release build and publication gates
+        shell: bash
         run: |
           set -euo pipefail
+          MAVEN_ARGS=()
           if [[ '${{ inputs.skip_tests }}' == 'true' ]]; then
-            echo "skip_tests=true: using -Dmaven.test.skip=true so Maven also skips test compilation."
-            MAVEN_ARGS=(-Dmaven.test.skip=true)
-          else
-            MAVEN_ARGS=()
+            MAVEN_ARGS+=("-DskipTests=true" "-Dmaven.test.skip=true")
           fi
-          mvn -f analysis-service/pom.xml clean verify "${MAVEN_ARGS[@]}"
+          mvn -B -ntp clean verify -Prelease-site "${MAVEN_ARGS[@]}"
 
       - name: Upload Maven test reports on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: analysis-service-test-reports
+          name: release-maven-test-reports
           path: |
             analysis-service/target/surefire-reports/
             analysis-service/target/failsafe-reports/
+            coverage/
+            out/qa/
           if-no-files-found: ignore
-
-      - name: Install locked Node dependencies
-        run: npm ci
-
-      - name: Run Node tests
-        if: ${{ !inputs.skip_tests }}
-        run: npm test
-
-      - name: Build canonical website artifact
-        run: npm run build:site
-
-      - name: Validate release documentation media
-        run: npm run validate:media -- --report out/qa/release-documentation-media.json
+          retention-days: 14
 
       - name: Upload release media QA evidence
         uses: actions/upload-artifact@v7
@@ -250,18 +206,17 @@ jobs:
           path: |
             out/qa/release-documentation-media.json
             _site/build-manifest.json
+            _site/vendor/THIRD_PARTY_NOTICES.json
+            _site/vendor/sbom.cdx.json
           if-no-files-found: error
+          retention-days: 30
 
-      - name: Require complete vendor provenance before publication
-        run: npm run validate:vendor-provenance -- --require-complete
-
-      - name: Create website bundle ZIP
+      - name: Create deterministic website bundle ZIP
         run: |
           set -euo pipefail
           VERSION='${{ steps.versions.outputs.release }}'
           ZIP_NAME="unfallatlas-website-${VERSION}.zip"
           rm -f -- "$ZIP_NAME"
-
           (
             cd _site
             export TZ=UTC
@@ -278,20 +233,16 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           TEMP_BRANCH="release-temp-${{ steps.versions.outputs.release }}"
           TEMP_PUSHED=false
-
           trap '[[ $TEMP_PUSHED == true ]] && git push origin ":refs/heads/${TEMP_BRANCH}" || true' EXIT
-
           git push origin ":refs/heads/${TEMP_BRANCH}" || true
           git push origin "HEAD:refs/heads/${TEMP_BRANCH}"
           TEMP_PUSHED=true
-
           gh api "repos/${{ github.repository }}/git/refs/heads/${BASE_BRANCH}" \
-            --method PATCH \
-            -f sha="$COMMIT_SHA"
+            --method PATCH -f sha="$COMMIT_SHA"
 
       - name: Dry run – skip pushing release commit
         if: ${{ inputs.dry_run }}
-        run: echo "::notice::Dry run – would push release commit $(git rev-parse HEAD) to ${{ steps.versions.outputs.base_branch }}"
+        run: echo "::notice::Dry run – would push release commit $(git rev-parse HEAD)"
 
       - name: Create annotated Git tag
         if: ${{ !inputs.dry_run }}
@@ -299,7 +250,6 @@ jobs:
           set -euo pipefail
           RELEASE_VERSION='${{ steps.versions.outputs.release }}'
           COMMIT_SHA=$(git rev-parse HEAD)
-
           TAG_SHA=$(gh api "repos/${{ github.repository }}/git/tags" \
             --method POST \
             -f tag="v${RELEASE_VERSION}" \
@@ -307,15 +257,10 @@ jobs:
             -f object="$COMMIT_SHA" \
             -f type="commit" \
             --jq '.sha')
-
           gh api "repos/${{ github.repository }}/git/refs" \
             --method POST \
             -f ref="refs/tags/v${RELEASE_VERSION}" \
             -f sha="$TAG_SHA"
-
-      - name: Dry run – skip tag creation
-        if: ${{ inputs.dry_run }}
-        run: echo "::notice::Dry run – would create annotated tag v${{ steps.versions.outputs.release }}"
 
       - name: Create maintenance branch
         if: ${{ !inputs.dry_run }}
@@ -324,21 +269,12 @@ jobs:
           RELEASE_VERSION='${{ steps.versions.outputs.release }}'
           MAJOR_MINOR=$(echo "$RELEASE_VERSION" | sed 's/\.[^.]*$//')
           BRANCH_NAME="maintenance/${MAJOR_MINOR}.x"
-
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            echo "Branch $BRANCH_NAME already exists – skipping."
-          else
+          if ! git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
             gh api "repos/${{ github.repository }}/git/refs" \
               --method POST \
               -f ref="refs/heads/${BRANCH_NAME}" \
               -f sha="$(git rev-parse HEAD)"
           fi
-
-      - name: Dry run – skip maintenance branch creation
-        if: ${{ inputs.dry_run }}
-        run: |
-          MAJOR_MINOR=$(echo '${{ steps.versions.outputs.release }}' | sed 's/\.[^.]*$//')
-          echo "::notice::Dry run – would create maintenance branch maintenance/${MAJOR_MINOR}.x"
 
       - name: Create draft GitHub Release
         if: ${{ !inputs.dry_run }}
@@ -348,11 +284,7 @@ jobs:
             --title "Release ${{ steps.versions.outputs.release }}" \
             --generate-notes
 
-      - name: Dry run – skip draft GitHub Release creation
-        if: ${{ inputs.dry_run }}
-        run: echo "::notice::Dry run – would create draft GitHub release v${{ steps.versions.outputs.release }}"
-
-      - name: Upload JAR to draft release
+      - name: Upload JAR and website bundle to draft release
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
@@ -361,33 +293,20 @@ jobs:
             -not -name "*sources*" \
             | head -1)
           if [[ -z "$JAR_FILE" || ! -f "$JAR_FILE" ]]; then
-            echo "::error::No unfallatlas-analysis-service-*.jar found in analysis-service/target"
+            echo "::error::No analysis-service release JAR found"
             exit 1
           fi
-          gh release upload "v${{ steps.versions.outputs.release }}" "$JAR_FILE" --clobber
-
-      - name: Upload website bundle to draft release
-        if: ${{ !inputs.dry_run }}
-        run: |
           ZIP_NAME="unfallatlas-website-${{ steps.versions.outputs.release }}.zip"
-          if [[ -f "$ZIP_NAME" ]]; then
-            gh release upload "v${{ steps.versions.outputs.release }}" "$ZIP_NAME" --clobber
-          else
-            echo "::warning::Website bundle $ZIP_NAME not found"
-          fi
+          gh release upload "v${{ steps.versions.outputs.release }}" "$JAR_FILE" "$ZIP_NAME" --clobber
 
       - name: Publish GitHub Release
         if: ${{ !inputs.dry_run }}
         run: |
-          gh release edit "v${{ steps.versions.outputs.release }}" \
-            --draft=false \
-            --latest
-          echo "Published release v${{ steps.versions.outputs.release }}. Zenodo can now archive the final release metadata."
+          gh release edit "v${{ steps.versions.outputs.release }}" --draft=false --latest
 
       - name: Dry run – show assets that would be uploaded
         if: ${{ inputs.dry_run }}
         run: |
-          echo "::notice::Dry run – release assets that would be uploaded:"
           find analysis-service/target -name "unfallatlas-analysis-service-*.jar" -not -name "*sources*" -print || true
           ls -lh "unfallatlas-website-${{ steps.versions.outputs.release }}.zip" || true
 
@@ -395,16 +314,7 @@ jobs:
         run: |
           set -euo pipefail
           NEXT_VERSION='${{ steps.versions.outputs.next }}'
-          NEXT_RELEASE_VERSION="${NEXT_VERSION%-SNAPSHOT}"
-
-          mvn -f analysis-service/pom.xml versions:set \
-            -DnewVersion="$NEXT_VERSION" \
-            -DgenerateBackupPoms=false
-
-          if node -e "const p=require('./package.json'); process.exit(p.version ? 0 : 1)" 2>/dev/null; then
-            npm version "$NEXT_RELEASE_VERSION" --no-git-tag-version --allow-same-version
-          fi
-
+          python3 .github/scripts/project-version.py set "$NEXT_VERSION"
           python3 .github/scripts/update-release-metadata.py "$NEXT_VERSION"
 
       - name: Commit next development version
@@ -413,8 +323,7 @@ jobs:
           NEXT_VERSION_BRANCH="release/prepare-next-${NEXT_VERSION}"
           git switch -C "$NEXT_VERSION_BRANCH"
           git add -A -- ':!.github/workflows/'
-          git commit -m "Prepare next development version $NEXT_VERSION" || \
-            echo "Nothing to commit."
+          git commit -m "Prepare next development version $NEXT_VERSION" || echo "Nothing to commit."
           echo "NEXT_VERSION_BRANCH=$NEXT_VERSION_BRANCH" >> "$GITHUB_ENV"
 
       - name: Push next development branch and open PR
@@ -422,33 +331,25 @@ jobs:
         run: |
           set -euo pipefail
           NEXT_VERSION='${{ steps.versions.outputs.next }}'
-          NEXT_VERSION_BRANCH="$NEXT_VERSION_BRANCH"
           BASE_BRANCH='${{ steps.versions.outputs.base_branch }}'
           RELEASE_VERSION='${{ steps.versions.outputs.release }}'
-          NEXT_RELEASE_VERSION="${NEXT_VERSION%-SNAPSHOT}"
-
           REMOTE_SHA=$(git ls-remote --heads origin "refs/heads/${NEXT_VERSION_BRANCH}" | awk '{print $1}')
           if [[ -n "$REMOTE_SHA" ]]; then
             git push --force-with-lease="refs/heads/${NEXT_VERSION_BRANCH}:${REMOTE_SHA}" origin "HEAD:refs/heads/${NEXT_VERSION_BRANCH}"
           else
             git push origin "HEAD:refs/heads/${NEXT_VERSION_BRANCH}"
           fi
-
           cat > /tmp/next-development-pr.md <<EOF
           Automated follow-up after release ${RELEASE_VERSION}.
 
           ## Changes
-          - Bump analysis-service Maven version to ${NEXT_VERSION}
-          - Sync package.json/package-lock.json to ${NEXT_RELEASE_VERSION} (npm uses plain semver)
-          - Update CITATION.cff to ${NEXT_VERSION}
-          - Update .zenodo.json to ${NEXT_VERSION}
-          - Update codemeta.json to ${NEXT_VERSION}
-          - Remove release-only date metadata from the development snapshot
+          - Synchronize root, Analysis Service and QA Maven versions to ${NEXT_VERSION}
+          - Synchronize package.json/package-lock.json to ${NEXT_VERSION%-SNAPSHOT}
+          - Update citation and archive metadata
 
           ## Release
           https://github.com/${{ github.repository }}/releases/tag/v${RELEASE_VERSION}
           EOF
-
           EXISTING_PR=$(gh pr list --base "$BASE_BRANCH" --head "$NEXT_VERSION_BRANCH" \
             --state open --json number --jq '.[0].number // empty')
           if [[ -n "$EXISTING_PR" ]]; then
@@ -463,10 +364,6 @@ jobs:
               --head "$NEXT_VERSION_BRANCH"
           fi
 
-      - name: Dry run – skip next development PR
-        if: ${{ inputs.dry_run }}
-        run: echo "::notice::Dry run – would push $NEXT_VERSION_BRANCH and open/update a next-development PR"
-
       - name: Release status summary
         if: always()
         env:
@@ -476,119 +373,16 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_TESTS: ${{ inputs.skip_tests }}
         run: |
-          set +e
-
-          RV="${RELEASE_VERSION:-unknown}"
-          NV="${NEXT_VERSION:-unknown}"
-          BB="${BASE_BRANCH:-unknown}"
-          LOCAL_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-          RELEASE_COMMIT_SHA=$(git rev-list -n 1 --all --grep "^Release version ${RV}$" 2>/dev/null || true)
-
           {
             echo "## Release Status Summary"
-            echo ""
-            echo "### Parameters"
-            echo ""
+            echo
             echo "| Parameter | Value |"
-            echo "|-----------|-------|"
-            echo "| Release version | \`${RV}\` |"
-            echo "| Next development version | \`${NV}\` |"
-            echo "| Base branch | \`${BB}\` |"
+            echo "|---|---|"
+            echo "| Release version | \`${RELEASE_VERSION:-unknown}\` |"
+            echo "| Next development version | \`${NEXT_VERSION:-unknown}\` |"
+            echo "| Base branch | \`${BASE_BRANCH:-unknown}\` |"
             echo "| Dry run | \`${DRY_RUN}\` |"
             echo "| Skip tests | \`${SKIP_TESTS}\` |"
-            echo ""
-            echo "### Local State"
-            echo ""
-            echo "| Item | Value |"
-            echo "|------|-------|"
-            echo "| Local HEAD SHA | \`${LOCAL_HEAD}\` |"
-            if [[ -n "$RELEASE_COMMIT_SHA" ]]; then
-              echo "| Release commit SHA | \`${RELEASE_COMMIT_SHA}\` |"
-            else
-              echo "| Release commit SHA | ❓ not found locally |"
-            fi
-            echo ""
-
-            if [[ "$RV" == "unknown" ]]; then
-              echo "> ⚠️ Release version could not be determined – the version/preflight step likely failed before any remote mutations occurred."
-            else
-              echo "### Remote Mutation Status"
-              echo ""
-              echo "| Remote object | Status |"
-              echo "|---------------|--------|"
-
-              REMOTE_BASE_SHA=$(git ls-remote origin "refs/heads/${BB}" 2>/dev/null | awk '{print $1}')
-              if [[ -n "$REMOTE_BASE_SHA" ]]; then
-                echo "| Remote \`${BB}\` HEAD | \`${REMOTE_BASE_SHA}\` |"
-              else
-                echo "| Remote \`${BB}\` HEAD | ❌ not found |"
-              fi
-
-              if [[ -n "$REMOTE_BASE_SHA" && -n "$RELEASE_COMMIT_SHA" && "$RELEASE_COMMIT_SHA" == "$REMOTE_BASE_SHA" ]]; then
-                echo "| Release commit pushed to \`${BB}\` | ✅ Yes |"
-              elif [[ -z "$RELEASE_COMMIT_SHA" ]]; then
-                echo "| Release commit pushed to \`${BB}\` | ❓ Unknown (release commit not found locally) |"
-              else
-                echo "| Release commit pushed to \`${BB}\` | ❌ No |"
-              fi
-
-              TAG_SHA=$(git ls-remote origin "refs/tags/v${RV}" 2>/dev/null | awk '{print $1}')
-              if [[ -n "$TAG_SHA" ]]; then
-                echo "| Tag \`v${RV}\` | ✅ Exists |"
-              else
-                echo "| Tag \`v${RV}\` | ❌ Not found |"
-              fi
-
-              IS_DRAFT=$(gh release view "v${RV}" --json isDraft --jq '.isDraft' 2>/dev/null || true)
-              if [[ "$IS_DRAFT" == "false" ]]; then
-                echo "| GitHub Release \`v${RV}\` | ✅ Published |"
-              elif [[ "$IS_DRAFT" == "true" ]]; then
-                echo "| GitHub Release \`v${RV}\` | ⚠️ Draft (not yet published) |"
-              else
-                echo "| GitHub Release \`v${RV}\` | ❌ Not found |"
-              fi
-
-              MAJOR_MINOR=$(echo "$RV" | sed 's/\.[^.]*$//')
-              MAINT_BRANCH="maintenance/${MAJOR_MINOR}.x"
-              MAINT_SHA=$(git ls-remote origin "refs/heads/${MAINT_BRANCH}" 2>/dev/null | awk '{print $1}')
-              if [[ -n "$MAINT_SHA" ]]; then
-                echo "| Maintenance branch \`${MAINT_BRANCH}\` | ✅ Exists |"
-              else
-                echo "| Maintenance branch \`${MAINT_BRANCH}\` | ❌ Not found |"
-              fi
-
-              if [[ "$NV" != "unknown" ]]; then
-                NEXT_BRANCH="release/prepare-next-${NV}"
-                NEXT_SHA=$(git ls-remote origin "refs/heads/${NEXT_BRANCH}" 2>/dev/null | awk '{print $1}')
-                if [[ -n "$NEXT_SHA" ]]; then
-                  echo "| Next-dev branch \`${NEXT_BRANCH}\` | ✅ Exists |"
-                else
-                  echo "| Next-dev branch \`${NEXT_BRANCH}\` | ❌ Not found |"
-                fi
-
-                PR_NUM=$(gh pr list --base "$BB" --head "$NEXT_BRANCH" \
-                  --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
-                if [[ -n "$PR_NUM" ]]; then
-                  echo "| Next-dev PR | ✅ Open (#${PR_NUM}) |"
-                else
-                  echo "| Next-dev PR | ❌ Not found |"
-                fi
-              else
-                echo "| Next-dev branch | ❓ Unknown (version step failed) |"
-                echo "| Next-dev PR | ❓ Unknown (version step failed) |"
-              fi
-
-              echo ""
-
-              if [[ "$DRY_RUN" == "true" ]]; then
-                echo "> ℹ️ **Dry run mode** – remote mutations (commit push, tag, release, maintenance branch, next-dev PR) were intentionally skipped."
-              fi
-            fi
-
-            echo ""
-            echo "### Diagnostic Artifacts"
-            echo ""
-            echo "Maven test reports are uploaded as \`analysis-service-test-reports\` on build failure (see **Artifacts** in this workflow run)."
+            echo
+            echo "The release build used the single repository command \`mvn clean verify -Prelease-site\`."
           } >> "$GITHUB_STEP_SUMMARY"
-
-          exit 0
