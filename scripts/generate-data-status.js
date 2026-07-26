@@ -255,6 +255,12 @@ async function buildCityRows(siteRoot, manifest, configuredCities) {
     const slug = slugify(name);
     const city = (manifest.cities || {})[slug] || {};
     const accidentPath = city.accidents && resolveManifestPath(siteRoot, city.accidents.gzipPath || city.accidents.logicalPath);
+    const manifestYears = city.accidents && Array.isArray(city.accidents.years)
+      ? [...new Set(city.accidents.years.filter(Number.isInteger))].sort((a, b) => a - b)
+      : [];
+    const accidentYears = manifestYears.length > 0
+      ? manifestYears
+      : (city.accidents ? await scanAccidentYears(accidentPath) : []);
     const poiPath = city.poi && resolveManifestPath(siteRoot, city.poi.gzipPath);
     const metaPath = city.enrichment && resolveManifestPath(siteRoot, city.enrichment.metaPath);
     const poi = readOptionalJson(poiPath);
@@ -271,7 +277,7 @@ async function buildCityRows(siteRoot, manifest, configuredCities) {
       accidents: {
         present: !!city.accidents,
         features: Number(city.accidents && city.accidents.features || 0),
-        years: city.accidents ? await scanAccidentYears(accidentPath) : [],
+        years: accidentYears,
       },
       poi: {
         present: !!city.poi,
