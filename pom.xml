@@ -33,6 +33,13 @@
         <pages.poiDir>out</pages.poiDir>
         <pages.outputDir>_site</pages.outputDir>
         <skip.playwright.install>false</skip.playwright.install>
+        <document.render.mode>all</document.render.mode>
+        <documentation.liveLinks>false</documentation.liveLinks>
+        <context.city></context.city>
+        <context.force>false</context.force>
+        <unfallatlas.contextData>false</unfallatlas.contextData>
+        <unfallatlas.locationBriefGolden>false</unfallatlas.locationBriefGolden>
+        <failsafe.includes>**/*IT.java</failsafe.includes>
     </properties>
 
     <build>
@@ -149,11 +156,6 @@
     </build>
 
     <profiles>
-        <!--
-          Vollständiger Pages-Vertrag gegen die eingecheckten Daten:
-
-              mvn clean verify -Ppages
-        -->
         <profile>
             <id>pages</id>
             <properties>
@@ -161,12 +163,6 @@
             </properties>
         </profile>
 
-        <!--
-          Erzeugt alle konfigurierten Städte aus den Rohquellen neu und führt
-          anschließend exakt denselben Pages-Vertrag aus:
-
-              mvn clean verify -Ppages-regenerated
-        -->
         <profile>
             <id>pages-regenerated</id>
             <properties>
@@ -184,9 +180,7 @@
                             <execution>
                                 <id>generate-pages-data</id>
                                 <phase>process-resources</phase>
-                                <goals>
-                                    <goal>npm</goal>
-                                </goals>
+                                <goals><goal>npm</goal></goals>
                                 <configuration>
                                     <arguments>run generate:pages-data</arguments>
                                 </configuration>
@@ -197,12 +191,6 @@
             </build>
         </profile>
 
-        <!--
-          Vollständige Chromium-, Accessibility-, Firefox- und WebKit-QA samt
-          reproduzierbarer Screenshot-Evidenz:
-
-              mvn verify -Pe2e
-        -->
         <profile>
             <id>e2e</id>
             <build>
@@ -216,32 +204,20 @@
                             <execution>
                                 <id>prepare-extended-browser-qa</id>
                                 <phase>pre-integration-test</phase>
-                                <goals>
-                                    <goal>npm</goal>
-                                </goals>
-                                <configuration>
-                                    <arguments>run qa:e2e:prepare</arguments>
-                                </configuration>
+                                <goals><goal>npm</goal></goals>
+                                <configuration><arguments>run qa:e2e:prepare</arguments></configuration>
                             </execution>
                             <execution>
                                 <id>extended-browser-qa</id>
                                 <phase>integration-test</phase>
-                                <goals>
-                                    <goal>npm</goal>
-                                </goals>
-                                <configuration>
-                                    <arguments>run qa:e2e:extended</arguments>
-                                </configuration>
+                                <goals><goal>npm</goal></goals>
+                                <configuration><arguments>run qa:e2e:extended</arguments></configuration>
                             </execution>
                             <execution>
                                 <id>validate-extended-browser-evidence</id>
                                 <phase>verify</phase>
-                                <goals>
-                                    <goal>npm</goal>
-                                </goals>
-                                <configuration>
-                                    <arguments>run qa:e2e:evidence</arguments>
-                                </configuration>
+                                <goals><goal>npm</goal></goals>
+                                <configuration><arguments>run qa:e2e:evidence</arguments></configuration>
                             </execution>
                         </executions>
                     </plugin>
@@ -249,29 +225,26 @@
             </build>
         </profile>
 
-        <!--
-          JUnit-5-/Failsafe-Systemtests mit Java Testcontainers. Das Profil
-          baut den exakten Checkout als Produktionscontainer und prüft außerdem
-          den Analysis Service mit einem echten PostgreSQL-Container:
-
-              mvn verify -Psystem-it
-        -->
         <profile>
             <id>system-it</id>
-            <modules>
-                <module>qa-system-tests</module>
-            </modules>
+            <modules><module>qa-system-tests</module></modules>
         </profile>
 
-        <!--
-          Fachliche Bonn-/Hannover-Golden-Cases. Die bestehende JavaScript-
-          Fachlogik bleibt die Quelle der Brief-Berechnung; Maven besitzt aber
-          Prozess, Containerlauf und Artefaktpfade:
+        <profile>
+            <id>video-export-it</id>
+            <properties>
+                <failsafe.includes>**/ProductionContainerIT.java</failsafe.includes>
+            </properties>
+            <modules><module>qa-system-tests</module></modules>
+        </profile>
 
-              mvn verify -Plocation-brief-golden
-        -->
         <profile>
             <id>location-brief-golden</id>
+            <properties>
+                <unfallatlas.locationBriefGolden>true</unfallatlas.locationBriefGolden>
+                <failsafe.includes>**/LocationBriefGoldenIT.java</failsafe.includes>
+            </properties>
+            <modules><module>qa-system-tests</module></modules>
             <build>
                 <plugins>
                     <plugin>
@@ -283,9 +256,7 @@
                             <execution>
                                 <id>location-brief-golden-preflight</id>
                                 <phase>pre-integration-test</phase>
-                                <goals>
-                                    <goal>npm</goal>
-                                </goals>
+                                <goals><goal>npm</goal></goals>
                                 <configuration>
                                     <arguments>run qa:location-brief-golden</arguments>
                                     <environmentVariables>
@@ -294,18 +265,121 @@
                                 </configuration>
                             </execution>
                             <execution>
-                                <id>location-brief-golden-testcontainers</id>
-                                <phase>integration-test</phase>
-                                <goals>
-                                    <goal>npm</goal>
-                                </goals>
+                                <id>prepare-location-brief-golden-fixtures</id>
+                                <phase>pre-integration-test</phase>
+                                <goals><goal>npm</goal></goals>
                                 <configuration>
-                                    <arguments>run test:location-brief-golden:tc</arguments>
+                                    <arguments>run qa:location-brief-golden:prepare</arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>document-render</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>render-and-audit-documents</id>
+                                <phase>integration-test</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration>
+                                    <arguments>run qa:document-render</arguments>
                                     <environmentVariables>
-                                        <RUN_TESTCONTAINERS>1</RUN_TESTCONTAINERS>
-                                        <GOLDEN_CASE_QA_ARTIFACT_PATH>out/qa/location-brief-golden-testcontainers.json</GOLDEN_CASE_QA_ARTIFACT_PATH>
+                                        <DOCUMENT_RENDER_MODE>${document.render.mode}</DOCUMENT_RENDER_MODE>
                                     </environmentVariables>
                                 </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>context-data-e2e</id>
+            <properties>
+                <unfallatlas.contextData>true</unfallatlas.contextData>
+                <failsafe.includes>**/ContextDataContainerIT.java</failsafe.includes>
+            </properties>
+            <modules><module>qa-system-tests</module></modules>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>generate-and-validate-context-data</id>
+                                <phase>pre-integration-test</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration>
+                                    <arguments>run qa:context-enrichment</arguments>
+                                    <environmentVariables>
+                                        <CONTEXT_CITY>${context.city}</CONTEXT_CITY>
+                                        <FORCE_CONTEXT>${context.force}</FORCE_CONTEXT>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>documentation-live</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>generate-and-validate-live-documentation</id>
+                                <phase>integration-test</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration>
+                                    <arguments>run qa:documentation-live</arguments>
+                                    <environmentVariables>
+                                        <DOCUMENTATION_LIVE_LINKS>${documentation.liveLinks}</DOCUMENTATION_LIVE_LINKS>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>release-site</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>build-and-validate-release-site</id>
+                                <phase>verify</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration><arguments>run qa:release-site</arguments></configuration>
                             </execution>
                         </executions>
                     </plugin>
