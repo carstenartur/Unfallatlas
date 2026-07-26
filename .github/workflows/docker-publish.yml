@@ -48,17 +48,38 @@ jobs:
       - name: Install locked Node dependencies
         run: npm ci
 
+      - name: Validate Playwright Docker contract
+        run: npm run validate:playwright-docker
+
       - name: Build canonical site and validate checked-in media
         run: |
           npm run build:site
           npm run validate:media
 
       - name: Build container without publishing
-        run: >-
-          docker build
-          --build-arg REQUIRE_COMPLETE_VENDOR_PROVENANCE=0
-          --tag unfallatlas:main-smoke
-          .
+        id: docker-smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/unfallatlas-docker-build.log"
+          if ! docker build \
+            --progress=plain \
+            --build-arg REQUIRE_COMPLETE_VENDOR_PROVENANCE=0 \
+            --tag unfallatlas:main-smoke \
+            . >"$log" 2>&1; then
+            echo "::error::Docker smoke build failed; see the uploaded docker-smoke-build-log artifact."
+            tail -n 160 "$log"
+            exit 1
+          fi
+
+      - name: Upload Docker smoke diagnostics
+        if: ${{ failure() && steps.docker-smoke.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-smoke-build-log
+          path: ${{ runner.temp }}/unfallatlas-docker-build.log
+          if-no-files-found: error
+          retention-days: 7
 
   publish:
     if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
