@@ -10,7 +10,6 @@ const environment = {
 
 const suites = [
   ['test', '--project=chromium'],
-  ['test', 'tests/e2e/accessibility.spec.js', '--project=chromium'],
   ['test', '--project=firefox-smoke'],
   ['test', '--project=webkit-smoke'],
 ];
