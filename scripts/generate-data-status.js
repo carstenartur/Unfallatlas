@@ -260,6 +260,7 @@ async function buildCityRows(siteRoot, manifest, configuredCities) {
     const osm = meta && meta.sources && meta.sources.osm;
     const dem = meta && meta.sources && meta.sources.dem;
     const traffic = meta && meta.sources && meta.sources.traffic;
+    const slopeCoveragePercent = Number(meta && meta.slope && meta.slope.coveragePercent);
     rows.push({
       name,
       slug,
@@ -282,8 +283,7 @@ async function buildCityRows(siteRoot, manifest, configuredCities) {
         present: !!(city.enrichment && city.enrichment.hasSlope),
         observedAt: generatedAt,
         source: dem && dem.source || null,
-        coveragePercent: Number.isFinite(Number(meta && meta.slope && meta.slope.coveragePercent))
-          ? Number(meta.slope.coveragePercent) : null,
+        coveragePercent: Number.isFinite(slopeCoveragePercent) ? slopeCoveragePercent : null,
       },
       traffic: {
         present: !!(city.enrichment && city.enrichment.hasTrafficProxy),
