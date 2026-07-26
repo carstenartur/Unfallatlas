@@ -1,6 +1,6 @@
 package de.unfallatlas.analysis.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import de.unfallatlas.analysis.persistence.LocationActionBriefRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,8 +40,7 @@ class BatchJobControllerTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private LocationActionBriefRepository briefRepo;
-
-    private final ObjectMapper json = new ObjectMapper();
+    @Autowired private ObjectMapper json;
 
     @BeforeEach
     void clean() {
