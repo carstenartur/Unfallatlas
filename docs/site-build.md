@@ -1,4 +1,4 @@
-# Reproduzierbarer Site-Build
+# Reproduzierbarer Build und QA-Lifecycle
 
 Der kanonische Einstieg für Build und QA ist der Maven-Reaktor im
 Repository-Root:
@@ -27,10 +27,79 @@ Bestandteile des Maven-Lifecycles. npm und Playwright sind damit
 Implementierungswerkzeuge innerhalb des Maven-Builds, keine konkurrierenden
 Build-Einstiege.
 
-Die beiden Pages-Workflows rufen ausschließlich den jeweils passenden
-Maven-Befehl auf. Schleifen zur Datengenerierung, Site-Build, Browserstart,
-Playwright-Aufrufe, Fingerprinting und Validierung liegen im Checkout und sind
+GitHub Actions ruft ausschließlich den passenden Maven-Befehl auf. Schleifen
+zur Datengenerierung, Site-Build, Browserstart, Playwright-Aufrufe,
+Fingerprinting, Containerstart und Validierung liegen im Checkout und sind
 daher ohne GitHub Actions ausführbar.
+
+## QA-Profile
+
+### Browser- und Accessibility-QA
+
+```bash
+mvn verify -Pe2e
+```
+
+Das Profil besitzt die vollständige Reihenfolge:
+
+1. deterministische Vorbereitung der Screenshot-Verzeichnisse;
+2. Installation der gelockten Chromium-, Firefox- und WebKit-Browser;
+3. Chromium-E2E- und Accessibility-Tests;
+4. Firefox- und WebKit-Smoke-Tests;
+5. Validierung der Screenshot-Evidenz und Dokumentationsmedien.
+
+Die Vorbereitung steht in `scripts/prepare-extended-e2e.js`, die ausführbaren
+Schritte stehen als gelockte Paketkommandos im Checkout. Workflow-YAML enthält
+keinen eigenen Playwright-Aufruf.
+
+### JUnit-/Testcontainers-Systemtests
+
+```bash
+mvn verify -Psystem-it
+```
+
+Dieses Profil erweitert den Reaktor um `qa-system-tests`. Maven Failsafe führt
+dort JUnit-5-Klassen mit dem Namensmuster `*IT.java` in den Phasen
+`integration-test` und `verify` aus.
+
+Java Testcontainers baut und startet:
+
+- den exakten Unfallwerkbank-Docker-Kontext einschließlich der deterministischen
+  Videoexport-Fixdaten;
+- einen echten PostgreSQL-17-Container;
+- den Analysis-Service-Produktionscontainer in einem isolierten
+  Container-Netzwerk.
+
+Die Tests prüfen nicht nur Health-Endpunkte, sondern auch Medienbytes,
+Hash-/Provenienzheader, sichtbare Kontextlayer im ausgelieferten Chromium,
+Flyway-Migrationen und das Fehlen eines H2-Fallbacks. Dynamisch zugewiesene
+Ports und Wait-Strategien ersetzen feste Ports und Sleeps.
+
+Failsafe-Reports entstehen unter
+`qa-system-tests/target/failsafe-reports/`; Containerlogs unter
+`qa-system-tests/target/testcontainers-logs/`.
+
+### Fachliche Location-Brief-Golden-Cases
+
+```bash
+mvn verify -Plocation-brief-golden
+```
+
+Die Berechnung der Location Briefs bleibt bewusst in der JavaScript-
+Produktlogik. Maven besitzt jedoch den vollständigen Ablauf aus
+Determinismus-Preflight, Containerlauf, Persistenz-/Rankingprüfung und
+QA-Artefakten. So entsteht keine zweite fachliche Implementierung nur für den
+Test.
+
+### Gesamte erweiterte QA
+
+```bash
+mvn clean verify -Pe2e,system-it,location-brief-golden
+```
+
+Dies ist derselbe einzelne Maven-Befehl, den der `extended-qa`-Job bei jedem
+Pull Request automatisch ausführt. Über `workflow_dispatch` kann derselbe Job
+zusätzlich manuell gestartet werden.
 
 ## Pages-Gate
 

@@ -27,20 +27,27 @@ describe('Docker publication workflow boundary', () => {
     expect(smoke).toContain(
       "github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')"
     );
-    expect(smoke).toContain('npm run validate:media');
-    expect(smoke).toContain('docker build');
-    expect(smoke).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=0');
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+
+    expect(smoke).toContain('-Pvideo-export-it');
+    expect(smoke).not.toContain('npm run');
+    expect(smoke).not.toContain('docker build');
     expect(smoke).not.toContain('validate:vendor-provenance -- --require-complete');
     expect(smoke).not.toContain('docker/login-action');
     expect(smoke).not.toContain('packages: write');
 
     expect(publish).toContain("github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')");
     expect(publish).toContain('packages: write');
-    expect(publish).toContain('npm run validate:media');
-    expect(publish).toContain('npm run validate:vendor-provenance -- --require-complete');
+    expect(publish).toContain('-Prelease-site');
+    expect(publish).not.toContain('npm run');
+    expect(packageJson.scripts['qa:release-site'])
+      .toContain('validate:vendor-provenance -- --require-complete');
+    expect(pom).toContain('<id>video-export-it</id>');
+    expect(pom).toContain('<id>release-site</id>');
     expect(publish).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=1');
     expect(publish).toContain('push: true');
-    expect(publish.indexOf('validate:vendor-provenance -- --require-complete'))
+    expect(publish.indexOf('-Prelease-site'))
       .toBeLessThan(publish.indexOf('docker/login-action'));
     expect(publish.indexOf('docker/login-action'))
       .toBeLessThan(publish.indexOf('docker/build-push-action'));

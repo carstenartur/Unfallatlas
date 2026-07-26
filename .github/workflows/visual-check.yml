@@ -8,6 +8,9 @@ on:
       - develop
     paths:
       - 'README.md'
+      - 'pom.xml'
+      - 'package.json'
+      - 'package-lock.json'
       - 'docs/media-manifest.json'
       - 'docs/screenshots/**'
       - 'werkbank_v2.html'
@@ -15,6 +18,7 @@ on:
       - 'js/**'
       - 'scripts/run-live-documentation-screenshots.cjs'
       - 'scripts/run-live-documentation-links.cjs'
+      - 'scripts/run-live-documentation-qa.js'
       - 'scripts/validate-live-cartography-evidence.cjs'
       - 'scripts/validate-doc-media.js'
       - 'scripts/validate-screenshot-evidence.js'
@@ -31,54 +35,22 @@ concurrency:
 jobs:
   pr-screenshots:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@v5
         with:
-          node-version: '24'
-          cache: 'npm'
+          distribution: temurin
+          java-version: '21'
+          cache: maven
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Prepare clean candidate directory
-        run: |
-          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
-          mkdir -p out/qa/screenshot-readiness
-          find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
-          rm -rf out/qa/documentation-live-links
-
-      - name: Generate review screenshots with real cartographic basemaps
-        run: |
-          mkdir -p out/qa
-          set -o pipefail
-          node scripts/run-live-documentation-screenshots.cjs 2>&1 \
-            | tee out/qa/live-documentation-screenshots.log
-
-      - name: Audit README screenshot links against published application
-        id: validate_live_links
-        run: npm run qa:live-documentation-links
-
-      - name: Validate one-to-one screenshot evidence
-        id: validate_evidence
-        run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
-
-      - name: Validate durable live cartography evidence
-        id: validate_cartography
-        run: node scripts/validate-live-cartography-evidence.cjs --report out/qa/live-cartography-evidence.json
-
-      - name: Validate candidate dimensions, budgets and references
-        id: validate_media
-        run: npm run validate:media -- --candidate-screenshots --report out/qa/documentation-media.json
+      - name: Generate and validate live documentation and published links
+        run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true
 
       - name: Upload published-application deep-link evidence
         uses: actions/upload-artifact@v7
@@ -91,7 +63,6 @@ jobs:
 
       - name: Upload PR screenshots as artifact
         uses: actions/upload-artifact@v7
-        if: ${{ steps.validate_media.outcome == 'success' && steps.validate_evidence.outcome == 'success' && steps.validate_cartography.outcome == 'success' && steps.validate_live_links.outcome == 'success' }}
         with:
           name: pr-live-map-screenshots-${{ github.event.pull_request.number }}
           path: |
