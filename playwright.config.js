@@ -1,10 +1,8 @@
 import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 const serveExistingSite = process.env.PLAYWRIGHT_SERVE_EXISTING_SITE === '1';
-const existingSiteEntry = fileURLToPath(new URL('./_site/index.html', import.meta.url));
-const existingSiteReady = serveExistingSite && existsSync(existingSiteEntry);
+const existingSiteReady = serveExistingSite && existsSync('_site/index.html');
 const canonicalWebServer = Object.freeze({ command: 'npm run serve:site' });
 
 export default defineConfig({
