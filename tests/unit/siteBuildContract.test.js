@@ -444,11 +444,39 @@ describe('canonical site build contract', () => {
       .toContain("path.join(outputRoot, 'out')");
   });
 
-  test('container integration always builds the exact checked-out Docker context', () => {
+  test('extended QA is Maven-owned and system contracts use JUnit 5 with Java Testcontainers', () => {
     const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/test.yml'), 'utf8');
-    expect(workflow).toContain('npm run test:integration:tc');
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const systemPom = fs.readFileSync(path.join(ROOT, 'qa-system-tests/pom.xml'), 'utf8');
+    const productionIT = fs.readFileSync(
+      path.join(ROOT, 'qa-system-tests/src/test/java/de/unfallatlas/qa/ProductionContainerIT.java'),
+      'utf8'
+    );
+    const postgresIT = fs.readFileSync(
+      path.join(ROOT, 'qa-system-tests/src/test/java/de/unfallatlas/qa/AnalysisServicePostgresIT.java'),
+      'utf8'
+    );
+
+    expect(workflow).toContain('mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden');
+    for (const forbidden of ['npm ', 'npx ', 'node scripts/', 'playwright test', 'test:integration:tc']) {
+      expect(workflow).not.toContain(forbidden);
+    }
     expect(workflow).not.toContain('use_prebuilt');
     expect(workflow).not.toContain('ghcr.io/carstenartur/unfallatlas:latest');
     expect(workflow).not.toContain('UNFALLATLAS_IMAGE:');
+
+    for (const profile of ['e2e', 'system-it', 'location-brief-golden']) {
+      expect(pom).toContain(`<id>${profile}</id>`);
+    }
+    expect(pom).toContain('<module>qa-system-tests</module>');
+    expect(systemPom).toContain('<artifactId>maven-failsafe-plugin</artifactId>');
+    expect(systemPom).toContain('<artifactId>testcontainers-junit-jupiter</artifactId>');
+    expect(systemPom).toContain('<artifactId>testcontainers-postgresql</artifactId>');
+    expect(productionIT).toContain('@Testcontainers');
+    expect(productionIT).toContain('@Container');
+    expect(productionIT).toContain('ImageFromDockerfile');
+    expect(productionIT).toContain('VIDEO_EXPORT_INTEGRATION_FIXTURE');
+    expect(postgresIT).toContain('PostgreSQLContainer');
+    expect(postgresIT).toContain('SPRING_PROFILES_ACTIVE');
   });
 });
