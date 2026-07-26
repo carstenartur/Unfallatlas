@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/rendered-document-poppler.yml'
+      - 'pom.xml'
+      - 'package.json'
+      - 'package-lock.json'
       - 'js/ua.core.js'
       - 'js/ua.docx_pagination.js'
       - 'js/ua.docx_source_links.js'
@@ -20,6 +23,8 @@ on:
       - 'scripts/qa-sample-docx-rendered.js'
       - 'scripts/rendered-document-audit.js'
       - 'scripts/rendered-table-hints.js'
+      - 'scripts/run-document-render-qa.js'
+      - 'scripts/verify-rendered-document-evidence.js'
       - 'tests/fixtures/rendered-document/ci-docx-contract.json'
       - 'tests/unit/deterministicMapFixture.test.js'
       - 'tests/unit/docxPagination.test.js'
@@ -33,8 +38,6 @@ on:
       - 'tests/unit/renderedTableHints.test.js'
       - 'tests/unit/popplerRenderedDocument.test.js'
       - 'tests/unit/runtimeExportProvenanceLoader.test.js'
-      - 'package.json'
-      - 'package-lock.json'
 
 permissions:
   contents: read
@@ -44,70 +47,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  native-pdf-poppler:
+  rendered-document:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Install Poppler
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
-
-      - name: Generate native sample PDF
-        run: npm run generate:sample-pdf
-
-      - name: Extract and audit final Poppler pages
-        run: |
-          node scripts/poppler-rendered-document.js \
-            --pdf out/ci-render-gate.pdf \
-            --out-dir out/qa/rendered-document/poppler \
-            --document-id ci-native-sample-pdf \
-            --renderer native-pdf-poppler
-
-      - name: Upload rendered-document evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: rendered-document-poppler-evidence
-          path: out/qa/rendered-document/poppler/
-          if-no-files-found: error
-          retention-days: 14
-
-  docx-libreoffice-poppler:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
       SAL_USE_VCLPLUGIN: svp
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@v5
         with:
-          node-version: '24'
-          cache: 'npm'
+          distribution: temurin
+          java-version: '21'
+          cache: maven
 
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Install LibreOffice Writer and Poppler
+      - name: Install LibreOffice Writer, Poppler and document fonts
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -116,122 +77,17 @@ jobs:
             fonts-dejavu-core \
             fonts-liberation
 
-      - name: Run focused DOCX adapter tests
-        run: |
-          npx jest --runInBand \
-            tests/unit/deterministicMapFixture.test.js \
-            tests/unit/docxPagination.test.js \
-            tests/unit/docxSourceLinks.test.js \
-            tests/unit/enrichRenderedDocumentTables.test.js \
-            tests/unit/generateSampleDocx.test.js \
-            tests/unit/libreOfficeRenderedDocument.test.js \
-            tests/unit/libreOfficeRenderedMapSemantics.test.js \
-            tests/unit/qaSampleDocxRendered.test.js \
-            tests/unit/renderedTableHints.test.js \
-            tests/unit/runtimeExportProvenanceLoader.test.js
+      - name: Run repository-owned rendered-document QA
+        run: mvn -B -ntp verify -Pdocument-render
 
-      - name: Generate real DOCX through the workbench renderer
-        run: npm run generate:sample-docx
-
-      - name: Convert, render and audit final DOCX pages
-        run: |
-          evidence_dir=out/qa/rendered-document/docx
-          mkdir -p "$evidence_dir"
-          set +e
-          npm run qa:sample-docx-rendered >"$evidence_dir/audit-command.log" 2>&1
-          status=$?
-          cat "$evidence_dir/audit-command.log"
-          exit "$status"
-
-      - name: Verify review evidence inventory
-        run: |
-          test -s out/qa/rendered-document/docx/source.docx
-          test -s out/qa/rendered-document/docx/converted.pdf
-          test -s out/qa/rendered-document/docx/conversion-metadata.json
-          test -s out/qa/rendered-document/docx/poppler/rendered-document.json
-          test -s out/qa/rendered-document/docx/poppler/rendered-document-audit.json
-          find out/qa/rendered-document/docx/pages -name 'page-*.png' -type f -size +10k | grep -q .
-          node - <<'NODE'
-          const fs = require('fs');
-          const metadata = JSON.parse(fs.readFileSync(
-            'out/qa/rendered-document/docx/conversion-metadata.json',
-            'utf8',
-          ));
-          const model = JSON.parse(fs.readFileSync(
-            'out/qa/rendered-document/docx/poppler/rendered-document.json',
-            'utf8',
-          ));
-          const audit = JSON.parse(fs.readFileSync(
-            'out/qa/rendered-document/docx/poppler/rendered-document-audit.json',
-            'utf8',
-          ));
-          const semantic = metadata.semanticEvidence || {};
-          if (semantic.mapCount !== 4 || semantic.expectedMapCount !== 4) {
-            throw new Error(`Expected four final maps, got ${JSON.stringify(semantic)}`);
-          }
-          if (semantic.tableRowCount !== 10 || semantic.expectedTableRowCount !== 10 ||
-              semantic.tableHints !== 3 || semantic.tableSectionBindings !== 1) {
-            throw new Error(`Expected three final table contracts, ten rows and one section binding, got ${JSON.stringify(semantic)}`);
-          }
-          if (audit.summary?.tableRowCount !== 10 || audit.passed !== true) {
-            throw new Error(`Final rendered-document audit does not prove ten table rows: ${JSON.stringify(audit.summary)}`);
-          }
-          const rows = model.pages.flatMap((page) => page.tableRows || []);
-          const byId = new Map(rows.map((row) => [row.rowId, row]));
-          const expectedRows = {
-            'severity.header': ['Kategorie', 'Anzahl', 'Anteil'],
-            'severity.fatal': ['1 – Getötete', '1', '4,2%'],
-            'severity.serious': ['2 – Schwerverletzte', '6', '25,0%'],
-            'severity.light': ['3 – Leichtverletzte', '17', '70,8%'],
-            'deviations.header': ['Muster', 'Lokal', 'Lokal%', 'Stadt%', 'Faktor', '95%-KI (lokaler Anteil)'],
-            'deviations.rad-car': ['5', '11', '45,8%', '14,6%', '3,13×', '[– – –]'],
-            'yearly-accidents.header': ['Jahr', 'Summe', 'Kombinationen'],
-            'yearly-accidents.2022': ['2022', '7', 'Radverkehr + PKW=3, Radverkehr=2, PKW=2'],
-            'yearly-accidents.2023': ['2023', '8', 'Radverkehr + PKW=4, Radverkehr=2, PKW=2'],
-            'yearly-accidents.2024': ['2024', '9', 'Radverkehr + PKW=4, Radverkehr=3, PKW=2'],
-          };
-          for (const [rowId, expectedCells] of Object.entries(expectedRows)) {
-            const row = byId.get(rowId);
-            if (!row || JSON.stringify(row.cells) !== JSON.stringify(expectedCells)) {
-              throw new Error(`Missing or changed final row ${rowId}: ${JSON.stringify(row || null)}`);
-            }
-          }
-
-          const pageText = new Map(model.pages.map((page) => [
-            page.number,
-            [...(page.words || [])]
-              .sort((left, right) => left.yMin - right.yMin || left.xMin - right.xMin)
-              .map((word) => word.text)
-              .join(' ')
-              .replace(/\s+/g, ' '),
-          ]));
-          const requirePagePattern = (pageNumber, expression, label) => {
-            const text = pageText.get(pageNumber) || '';
-            if (!expression.test(text)) {
-              throw new Error(`Final page ${pageNumber} lacks ${label}: ${text}`);
-            }
-          };
-          for (const [pageNumber, text] of pageText.entries()) {
-            if (/\(n\s*=\s*0\)/u.test(text) || /Teilmenge der\s+0\s+Unfälle/u.test(text)) {
-              throw new Error(`Final page ${pageNumber} contains a zero-count map contradiction: ${text}`);
-            }
-          }
-          requirePagePattern(2, /Top-Abweichungen \(Ausschnitt vs\. Stadt\):/u, 'deviation-table subsection heading');
-          requirePagePattern(2, /Muster\s+Lokal\s+Lokal\s+%\s+Stadt\s+%\s+Faktor\s+95%-KI/u, 'deviation-table header');
-          requirePagePattern(2, /5\s+11\s+45,8\s*%\s+14,6\s*%\s+3,13×/u, 'deviation-table first row');
-          requirePagePattern(2, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'overview-map count n=24');
-          requirePagePattern(3, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'selection-map count n=24');
-          requirePagePattern(4, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'detail-map parent count 24');
-          requirePagePattern(4, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'detail-map count n=24');
-          requirePagePattern(5, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'cluster-map parent count 24');
-          requirePagePattern(5, /Punkte entsprechen exakt[^.]*\(n\s*=\s*11\)/u, 'cluster-map count n=11');
-          NODE
-
-      - name: Upload DOCX rendered-document evidence
+      - name: Upload rendered-document evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: docx-libreoffice-rendered-evidence
-          path: out/qa/rendered-document/docx/
+          name: rendered-document-evidence
+          path: |
+            out/qa/rendered-document/poppler/
+            out/qa/rendered-document/docx/
+            analysis-service/target/surefire-reports/
           if-no-files-found: error
           retention-days: 14
