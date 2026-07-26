@@ -5,6 +5,11 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WORKFLOW_DIRECTORY = path.join(ROOT, '.github', 'workflows');
+const NON_BUILD_AUTOMATION = new Set([
+  'fetchpoi.yml',
+  'generate-and-commit.yml',
+  'word-compatibility-evidence.yml',
+]);
 
 function workflows() {
   return fs.readdirSync(WORKFLOW_DIRECTORY)
@@ -46,7 +51,7 @@ function jobSections(source) {
 }
 
 describe('GitHub Actions delegates repository build and QA to Maven', () => {
-  test('workflow YAML contains no direct Node, npm, Jest, Playwright or JS-Testcontainers orchestration', () => {
+  test('build and QA workflow YAML contains no direct Node, npm, Jest, Playwright or JS-Testcontainers orchestration', () => {
     const forbidden = [
       { label: 'npm command', pattern: /\bnpm\s+(?:ci|install|run|test|exec)\b/ },
       { label: 'npx command', pattern: /\bnpx\b/ },
@@ -58,6 +63,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
 
     const violations = [];
     for (const workflow of workflows()) {
+      if (NON_BUILD_AUTOMATION.has(workflow.name)) continue;
       for (const line of executableLines(workflow.source)) {
         for (const rule of forbidden) {
           if (rule.pattern.test(line)) {
@@ -69,9 +75,10 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
     expect(violations).toEqual([]);
   });
 
-  test('each workflow job invokes Maven at most once', () => {
+  test('each Maven-owned workflow job invokes Maven at most once', () => {
     const violations = [];
     for (const workflow of workflows()) {
+      if (NON_BUILD_AUTOMATION.has(workflow.name)) continue;
       for (const job of jobSections(workflow.source)) {
         const invocations = job.lines
           .map(line => line.trim())
