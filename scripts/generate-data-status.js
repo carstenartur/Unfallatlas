@@ -145,7 +145,10 @@ function aggregateStatus(cities) {
   const slopePresent = count((row) => row.slope.present);
   const slopeDates = dateExtent(cities.map((row) => row.slope.observedAt));
   const slopeUnknown = count((row) => row.slope.present && !row.slope.observedAt);
-  const slopeCoverage = cities.map((row) => row.slope.coveragePercent).filter(Number.isFinite);
+  const slopeCoverage = cities
+    .filter((row) => row.slope.present)
+    .map((row) => row.slope.coveragePercent)
+    .filter(Number.isFinite);
   const minimumSlopeCoverage = slopeCoverage.length ? Math.min(...slopeCoverage) : null;
 
   const trafficPresent = count((row) => row.traffic.present);
@@ -260,7 +263,8 @@ async function buildCityRows(siteRoot, manifest, configuredCities) {
     const osm = meta && meta.sources && meta.sources.osm;
     const dem = meta && meta.sources && meta.sources.dem;
     const traffic = meta && meta.sources && meta.sources.traffic;
-    const slopeCoveragePercent = Number(meta && meta.slope && meta.slope.coveragePercent);
+    const rawSlopeCoveragePercent = meta && meta.slope && meta.slope.coveragePercent;
+    const slopeCoveragePercent = rawSlopeCoveragePercent == null ? null : Number(rawSlopeCoveragePercent);
     rows.push({
       name,
       slug,
