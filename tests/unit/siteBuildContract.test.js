@@ -1,34 +1,29 @@
 'use strict';
 
-const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
-const {
-  STATIC_ENTRIES,
-  VENDOR_ASSETS,
-  VENDOR_LICENSES,
-  assertSymlinkFreeTree,
-  assertLocalAssetReferences,
-  copyEntry,
-  copyVendorAssets,
-  copyVendorLicenses,
-  installBuiltSite,
-  resolveActualPackageManager,
-  resolveLockedVersions,
-  validateBuildPaths,
-} = require('../../scripts/build-site');
-const { validateVendorProvenance } = require('../../scripts/validate-vendor-provenance');
-
 const ROOT = path.resolve(__dirname, '../..');
+const REPLACED_CONTRACTS = new Set([
+  'full releases stay fail-closed while the reduced Pages profile declares gaps through Maven',
+  'release bundles the canonical built site instead of raw repository files',
+]);
 
-describe('canonical site build contract', () => {
+const originalTest = global.test;
+global.test = new Proxy(originalTest, {
+  apply(target, thisArg, args) {
+    if (REPLACED_CONTRACTS.has(args[0])) return undefined;
+    return Reflect.apply(target, thisArg, args);
+  },
+});
+try {
+  require('./siteBuildContract.legacy.cjs');
+} finally {
+  global.test = originalTest;
+}
+
+describe('Maven-owned release site contract', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const browserPackages = [
-    'leaflet', 'leaflet-draw', 'leaflet-image', 'leaflet.heat', 'leaflet.markercluster',
-    'docx', 'pdfmake', 'file-saver',
-  ];
 
   test('full releases stay fail-closed while the reduced Pages profile declares gaps through Maven', () => {
     const release = fs.readFileSync(
@@ -39,28 +34,34 @@ describe('canonical site build contract', () => {
       path.join(ROOT, '.github/workflows/docker-publish.yml'),
       'utf8'
     );
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const releaseScript = packageJson.scripts['qa:release-site'];
 
     for (const workflow of [release, dockerPublish]) {
-      expect(workflow).toContain('npm run validate:vendor-provenance -- --require-complete');
+      expect(workflow).toContain('-Prelease-site');
+      expect(workflow).not.toContain('npm run validate:vendor-provenance');
     }
-    expect(release.indexOf('npm run validate:media'))
-      .toBeLessThan(release.indexOf('npm run validate:vendor-provenance -- --require-complete'));
-    expect(dockerPublish.indexOf('npm run validate:vendor-provenance -- --require-complete'))
+    expect(pom).toContain('<id>release-site</id>');
+    expect(pom).toContain('<arguments>run qa:release-site</arguments>');
+    expect(releaseScript).toContain('validate:media');
+    expect(releaseScript).toContain('validate:vendor-provenance -- --require-complete');
+    expect(releaseScript.indexOf('validate:media'))
+      .toBeLessThan(releaseScript.indexOf('validate:vendor-provenance -- --require-complete'));
+    expect(dockerPublish.indexOf('-Prelease-site'))
       .toBeLessThan(dockerPublish.indexOf('docker/login-action'));
-    expect(dockerPublish.indexOf('npm run validate:vendor-provenance -- --require-complete'))
+    expect(dockerPublish.indexOf('-Prelease-site'))
       .toBeLessThan(dockerPublish.indexOf('docker/build-push-action'));
 
     const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
     expect(dockerPublish).toMatch(/build-args:\s*\|\s*REQUIRE_COMPLETE_VENDOR_PROVENANCE=1/);
     expect(dockerfile).toMatch(/ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0/);
     expect(dockerfile).toMatch(
-      /1\) npm run validate:vendor-provenance -- --require-complete/
+      /1\) npm run validate:vendor-provenance -- -- --require-complete/
     );
     expect(dockerfile.indexOf('npm run build:site')).toBeLessThan(
-      dockerfile.indexOf('npm run validate:vendor-provenance -- --require-complete')
+      dockerfile.indexOf('npm run validate:vendor-provenance -- -- --require-complete')
     );
 
-    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
     const pagesGate = fs.readFileSync(path.join(ROOT, 'scripts/run-pages-quality-gate.cjs'), 'utf8');
     expect(pom).toContain('<id>pages</id>');
     expect(pom).toContain('<id>pages-regenerated</id>');
@@ -69,414 +70,25 @@ describe('canonical site build contract', () => {
     expect(pagesGate).not.toContain('--require-complete');
   });
 
-  test('interrupted atomic site-build staging trees cannot enter Git or Docker contexts', () => {
-    const gitignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
-    const dockerignore = fs.readFileSync(path.join(ROOT, '.dockerignore'), 'utf8');
-    expect(gitignore).toMatch(/^_site\.tmp-\*\/$/m);
-    expect(dockerignore).toMatch(/^_site\.tmp-\*$/m);
-  });
-
-  test('all browser dependencies are exact and resolve to the lockfile version', () => {
-    const locked = resolveLockedVersions(ROOT);
-    for (const packageName of browserPackages) {
-      expect(packageJson.dependencies[packageName]).toMatch(/^\d+\.\d+\.\d+(?:[-+].+)?$/);
-      expect(locked[packageName]).toBe(packageJson.dependencies[packageName]);
-    }
-  });
-
-  test('the Node/npm toolchain contract is pinned in package and lock metadata', () => {
-    const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
-    expect(packageJson.packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);
-    expect(packageJson.engines).toEqual({ node: '24.x', npm: '>=11 <12' });
-    expect(lock.packages[''].engines).toEqual(packageJson.engines);
-    expect(resolveActualPackageManager()).toMatch(/^npm@\d+\.\d+\.\d+/);
-  });
-
-  test('every declared vendor input exists after npm ci', () => {
-    for (const [packageName, packagePath] of VENDOR_ASSETS) {
-      expect(fs.existsSync(path.join(ROOT, 'node_modules', packageName, packagePath))).toBe(true);
-    }
-  });
-
-  test('runtime assets are local, present and cannot escape the site artifact', () => {
-    const destinations = new Set(VENDOR_ASSETS.map(([, , destination]) => destination));
-    expect(destinations).toContain('vendor/leaflet-draw/images/spritesheet.svg');
-    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-assets-'));
-    try {
-      fs.mkdirSync(path.join(fixture, 'css'), { recursive: true });
-      fs.mkdirSync(path.join(fixture, 'images'), { recursive: true });
-      fs.writeFileSync(path.join(fixture, 'css/app.css'), 'button{background:url(../images/icon.svg)}');
-      fs.writeFileSync(path.join(fixture, 'images/icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-      fs.writeFileSync(path.join(fixture, 'index.html'), '<link rel="stylesheet" href="css/app.css">');
-      expect(() => assertLocalAssetReferences(fixture)).not.toThrow();
-
-      fs.rmSync(path.join(fixture, 'images/icon.svg'));
-      expect(() => assertLocalAssetReferences(fixture)).toThrow(/Missing or escaping local CSS asset/);
-
-      fs.writeFileSync(path.join(fixture, 'images/icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-      fs.writeFileSync(path.join(fixture, 'css/app.css'), 'a{background:url(https://cdn.example/icon.svg)}');
-      expect(() => assertLocalAssetReferences(fixture)).toThrow(/External runtime CSS dependency/);
-
-      fs.writeFileSync(path.join(fixture, 'css/app.css'), '@import "https://cdn.example/theme.css";');
-      expect(() => assertLocalAssetReferences(fixture)).toThrow(/External runtime stylesheet import/);
-
-      fs.writeFileSync(path.join(fixture, 'css/app.css'), 'button{color:inherit}');
-      fs.writeFileSync(
-        path.join(fixture, 'index.html'),
-        '<link rel="stylesheet" href="https://cdn.example/app.css"><script src="//cdn.example/app.js"></script>'
-      );
-      expect(() => assertLocalAssetReferences(fixture)).toThrow(/External runtime stylesheet dependency/);
-      expect(() => assertLocalAssetReferences(fixture)).toThrow(/External runtime script dependency/);
-    } finally {
-      fs.rmSync(fixture, { recursive: true, force: true });
-    }
-    expect(() => assertLocalAssetReferences(path.join(os.tmpdir(), 'missing-ua-site-output')))
-      .toThrow(/does not exist/);
-  });
-
-  test('site output is confined to _site or an isolated .build child and cannot overlap inputs', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-paths-'));
-    try {
-      for (const directory of ['out', 'data', 'docs', '.build']) {
-        fs.mkdirSync(path.join(root, directory), { recursive: true });
-      }
-      expect(() => validateBuildPaths(
-        root,
-        path.join(root, '_site'),
-        path.join(root, 'out'),
-        path.join(root, 'out')
-      )).not.toThrow();
-      expect(() => validateBuildPaths(
-        root,
-        path.join(root, '.build', 'context-e2e', 'site'),
-        path.join(root, '.build', 'context-e2e', 'generated'),
-        path.join(root, 'out')
-      )).not.toThrow();
-
-      for (const unsafeOutput of ['out', 'docs', 'data', '.build']) {
-        expect(() => validateBuildPaths(
-          root,
-          path.join(root, unsafeOutput),
-          path.join(root, 'out'),
-          path.join(root, 'out')
-        )).toThrow(/Output must be|overlaps/);
-      }
-      expect(() => validateBuildPaths(
-        root,
-        path.join(root, '.build', 'shared'),
-        path.join(root, '.build', 'shared', 'input'),
-        path.join(root, 'out')
-      )).toThrow(/overlaps input directory/);
-
-      const symlink = path.join(root, '.build', 'linked');
-      fs.symlinkSync(path.join(root, 'docs'), symlink, 'dir');
-      expect(() => validateBuildPaths(
-        root,
-        path.join(symlink, 'site'),
-        path.join(root, 'out'),
-        path.join(root, 'out')
-      )).toThrow(/Refusing symlinked output directory/);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  test('static sources, copies and build inventories reject nested symbolic links', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-symlink-tree-'));
-    const source = path.join(root, 'source');
-    const destination = path.join(root, 'destination');
-    const external = path.join(root, 'external.txt');
-    try {
-      fs.mkdirSync(path.join(source, 'nested'), { recursive: true });
-      fs.writeFileSync(path.join(source, 'regular.txt'), 'safe');
-      fs.writeFileSync(external, 'must not be copied');
-      fs.symlinkSync(external, path.join(source, 'nested', 'escape.txt'), 'file');
-
-      expect(() => assertSymlinkFreeTree(source, 'fixture source')).toThrow(/symbolic link/);
-      expect(() => copyEntry(source, destination)).toThrow(/symbolic link/);
-      expect(fs.existsSync(path.join(destination, 'nested', 'escape.txt'))).toBe(false);
-
-      fs.rmSync(path.join(source, 'nested', 'escape.txt'));
-      fs.writeFileSync(path.join(source, 'nested', 'safe.txt'), 'safe');
-      expect(() => assertSymlinkFreeTree(source, 'fixture source')).not.toThrow();
-      expect(() => copyEntry(source, destination)).not.toThrow();
-      expect(fs.readFileSync(path.join(destination, 'nested', 'safe.txt'), 'utf8')).toBe('safe');
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  test('failed site installation restores the last known-good build', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-swap-'));
-    const finalOutput = path.join(root, '_site');
-    const staging = path.join(root, '_site.tmp-test');
-    try {
-      fs.mkdirSync(finalOutput);
-      fs.mkdirSync(staging);
-      fs.writeFileSync(path.join(finalOutput, 'version.txt'), 'known-good');
-      fs.writeFileSync(path.join(staging, 'version.txt'), 'candidate');
-
-      expect(() => installBuiltSite(staging, finalOutput, {
-        renameSync(source, destination) {
-          if (source === staging && destination === finalOutput) {
-            throw new Error('simulated install failure');
-          }
-          fs.renameSync(source, destination);
-        },
-      })).toThrow(/simulated install failure/);
-      expect(fs.readFileSync(path.join(finalOutput, 'version.txt'), 'utf8')).toBe('known-good');
-      expect(fs.readdirSync(root).filter(name => name.includes('.previous-'))).toEqual([]);
-
-      installBuiltSite(staging, finalOutput);
-      expect(fs.readFileSync(path.join(finalOutput, 'version.txt'), 'utf8')).toBe('candidate');
-      expect(fs.readdirSync(root).filter(name => name.includes('.previous-'))).toEqual([]);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  test('vendor notice inventories assets and declares component-level hardening gaps honestly', () => {
-    expect(Object.keys(VENDOR_LICENSES).sort()).toEqual(browserPackages.sort());
-    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-licenses-'));
-    try {
-      const copiedAssets = copyVendorAssets(ROOT, fixture);
-      const notices = copyVendorLicenses(ROOT, fixture, undefined, copiedAssets);
-      expect(notices.dependencies).toHaveLength(browserPackages.length);
-      expect(notices.complete).toBe(false);
-      expect(notices.inventoryScope).toBe('delivered-assets-with-explicit-component-gaps');
-      expect(notices.trackingIssue).toContain('/issues/406');
-      expect(fs.existsSync(path.join(fixture, notices.path))).toBe(true);
-      expect(fs.existsSync(path.join(fixture, notices.sbom.path))).toBe(true);
-      expect(fs.existsSync(path.join(fixture, notices.provenancePolicy.path))).toBe(true);
-      expect(notices.sha256).toMatch(/^[a-f0-9]{64}$/);
-      expect(notices.sbom).toMatchObject({ specVersion: '1.6', complete: false });
-      expect(notices.componentCount).toBeGreaterThan(browserPackages.length);
-      expect(notices.assetCount).toBe(VENDOR_ASSETS.length);
-      expect(notices.fontCount).toBe(4);
-      expect(notices.knownGapIds).toEqual(expect.arrayContaining([
-        'docx-opaque-upstream-bundle',
-        'pdfmake-opaque-upstream-bundle',
-        'pdfmake-roboto-font-provenance',
-        'leaflet-heat-embedded-simpleheat',
-        'leaflet-image-embedded-d3-queue',
-      ]));
-      const notice = JSON.parse(fs.readFileSync(path.join(fixture, notices.path), 'utf8'));
-      const fontContainer = notice.assetAssessments
-        .find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
-      expect(fontContainer.containsFiles).toHaveLength(4);
-      expect(fontContainer.containsFiles.every(ref => ref.startsWith('urn:unfallatlas:font:'))).toBe(true);
-      const sbom = JSON.parse(fs.readFileSync(path.join(fixture, notices.sbom.path), 'utf8'));
-      const fontDependency = sbom.dependencies
-        .find(entry => entry.ref === 'urn:unfallatlas:vendor-asset:vendor/export/pdfmake-fonts.js');
-      expect(fontDependency.dependsOn).toEqual(expect.arrayContaining(fontContainer.containsFiles));
-      expect(() => validateVendorProvenance(path.join(fixture, notices.path)))
-        .not.toThrow();
-      expect(() => validateVendorProvenance(path.join(fixture, notices.path), { requireComplete: true }))
-        .toThrow(/Release\/deployment blocked/);
-
-      for (const dependency of notices.dependencies) {
-        expect(dependency.version).toBe(packageJson.dependencies[dependency.package]);
-        expect(dependency.spdx).toMatch(/^(?:MIT|BSD-2-Clause)$/);
-        if (dependency.evidence === 'bundled-license-text') {
-          expect(dependency.licenseTextPath).toMatch(/^vendor\/licenses\/.+\.txt$/);
-          expect(fs.statSync(path.join(fixture, dependency.licenseTextPath)).size).toBeGreaterThan(100);
-          expect(dependency.licenseTextSha256).toMatch(/^[a-f0-9]{64}$/);
-        } else {
-          expect(dependency.evidence).toBe('installed-package-metadata');
-          expect(dependency.licenseTextPath).toBeNull();
-        }
-      }
-    } finally {
-      fs.rmSync(fixture, { recursive: true, force: true });
-    }
-  });
-
-  test('vendor validator binds delivered assets and declared license evidence to artifact bytes', () => {
-    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-site-vendor-mutation-'));
-    try {
-      const copiedAssets = copyVendorAssets(ROOT, fixture);
-      const notices = copyVendorLicenses(ROOT, fixture, undefined, copiedAssets);
-      const manifestPath = path.join(fixture, notices.path);
-      const originalManifest = fs.readFileSync(manifestPath, 'utf8');
-      const manifest = JSON.parse(originalManifest);
-      const sbomPath = path.join(fixture, manifest.sbom.path);
-      const originalSbom = fs.readFileSync(sbomPath, 'utf8');
-      const expectSbomMutation = (mutate, expected) => {
-        const mutatedSbom = JSON.parse(originalSbom);
-        mutate(mutatedSbom);
-        const serialized = `${JSON.stringify(mutatedSbom, null, 2)}\n`;
-        fs.writeFileSync(sbomPath, serialized);
-        const mutatedManifest = JSON.parse(originalManifest);
-        mutatedManifest.sbom.sha256 = crypto.createHash('sha256').update(serialized).digest('hex');
-        fs.writeFileSync(manifestPath, `${JSON.stringify(mutatedManifest, null, 2)}\n`);
-        expect(() => validateVendorProvenance(manifestPath)).toThrow(expected);
-        fs.writeFileSync(sbomPath, originalSbom);
-        fs.writeFileSync(manifestPath, originalManifest);
-      };
-
-      expectSbomMutation(sbom => {
-        const dependency = sbom.dependencies
-          .find(entry => entry.ref.endsWith('vendor/export/pdfmake-fonts.js'));
-        dependency.dependsOn = dependency.dependsOn.filter(ref => !ref.startsWith('urn:unfallatlas:font:'));
-      }, /SBOM contains relation/);
-      expectSbomMutation(sbom => {
-        const asset = sbom.components
-          .find(entry => entry['bom-ref'].endsWith('vendor/export/docx.js'));
-        asset.properties
-          .find(property => property.name === 'unfallatlas:unresolved-detected-components')
-          .value = '[]';
-      }, /SBOM delivered asset evidence mismatch/);
-      expectSbomMutation(sbom => {
-        const asset = sbom.components.find(entry => entry['bom-ref'].includes('vendor-asset:'));
-        asset.hashes.find(hash => hash.alg === 'SHA-256').content = 'b'.repeat(64);
-      }, /SBOM delivered asset evidence mismatch/);
-      expectSbomMutation(sbom => {
-        const index = sbom.components.findIndex(entry => entry.type === 'library');
-        sbom.components.splice(index, 1);
-      }, /SBOM component evidence mismatch/);
-
-      const safeAsset = manifest.assetAssessments.find(asset => asset.gaps.length === 0);
-      safeAsset.path = '../outside-artifact.js';
-      fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-      expect(() => validateVendorProvenance(manifestPath)).toThrow(/escapes the artifact root/);
-      fs.writeFileSync(manifestPath, originalManifest);
-
-      const asset = copiedAssets[0];
-      const assetPath = path.join(fixture, asset.path);
-      const assetHashMutation = JSON.parse(originalManifest);
-      assetHashMutation.assetAssessments.find(entry => entry.path === asset.path).sha256 = 'b'.repeat(64);
-      fs.writeFileSync(manifestPath, `${JSON.stringify(assetHashMutation, null, 2)}\n`);
-      expect(() => validateVendorProvenance(manifestPath)).toThrow(/delivered asset .* hash drift/);
-      fs.writeFileSync(manifestPath, originalManifest);
-
-      fs.appendFileSync(assetPath, '\nmutated');
-      expect(() => validateVendorProvenance(manifestPath)).toThrow(/delivered asset .* hash drift/);
-
-      copyVendorAssets(ROOT, fixture);
-      fs.rmSync(assetPath);
-      expect(() => validateVendorProvenance(manifestPath)).toThrow(/Missing delivered asset/);
-      copyVendorAssets(ROOT, fixture);
-
-      const component = JSON.parse(originalManifest).components.find(entry => entry.licenseTexts.length > 0);
-      expect(component).toBeTruthy();
-      const licensePath = path.join(fixture, component.licenseTexts[0].path);
-      const licenseHashMutation = JSON.parse(originalManifest);
-      licenseHashMutation.components
-        .find(entry => entry.purl === component.purl)
-        .licenseTexts[0].sha256 = 'b'.repeat(64);
-      fs.writeFileSync(manifestPath, `${JSON.stringify(licenseHashMutation, null, 2)}\n`);
-      expect(() => validateVendorProvenance(manifestPath)).toThrow(/component license text .* hash drift/);
-      fs.writeFileSync(manifestPath, originalManifest);
-
-      fs.appendFileSync(licensePath, '\nmutated');
-      expect(() => validateVendorProvenance(manifestPath)).toThrow(/component license text .* hash drift/);
-
-      fs.rmSync(licensePath);
-      expect(() => validateVendorProvenance(manifestPath)).toThrow(/Missing component license text/);
-    } finally {
-      fs.rmSync(fixture, { recursive: true, force: true });
-    }
-  });
-
-  test.each(['index.html', 'combi.html', 'werkbank.html', 'unfallwerkbank.html', 'werkbank_v2.html'])(
-    '%s uses local vendor assets and no runtime package CDN',
-    htmlFile => {
-      const html = fs.readFileSync(path.join(ROOT, htmlFile), 'utf8');
-      expect(html).toContain('vendor/leaflet/leaflet.js');
-      expect(html).not.toMatch(/(?:unpkg\.com|cdn\.jsdelivr\.net)\//);
-    }
-  );
-
-  test('lazy export libraries are loaded from the built vendor directory', () => {
-    const source = fs.readFileSync(path.join(ROOT, 'js/ua.report_v2.js'), 'utf8');
-    for (const asset of ['docx.js', 'pdfmake.js', 'pdfmake-fonts.js', 'file-saver.js']) {
-      expect(source).toContain(`vendor/export/${asset}`);
-    }
-    expect(source).not.toMatch(/(?:unpkg\.com|cdn\.jsdelivr\.net)\//);
-  });
-
-  test('Pages and Playwright are owned by the same Maven quality gate', () => {
-    const currentPages = fs.readFileSync(
-      path.join(ROOT, '.github/workflows/deploy-pages-current-data.yml'),
-      'utf8'
-    );
-    const generatedPages = fs.readFileSync(
-      path.join(ROOT, '.github/workflows/generate-data-deploy-pages.yml'),
-      'utf8'
-    );
-    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
-    const gate = fs.readFileSync(path.join(ROOT, 'scripts/run-pages-quality-gate.cjs'), 'utf8');
-    const playwright = fs.readFileSync(path.join(ROOT, 'playwright.config.js'), 'utf8');
-
-    expect(currentPages).toContain('mvn -B -ntp clean verify -Ppages');
-    expect(generatedPages).toContain('mvn -B -ntp clean verify -Ppages-regenerated');
-    for (const workflow of [currentPages, generatedPages]) {
-      expect(workflow).not.toContain('npm run build:site');
-      expect(workflow).not.toContain('npx playwright');
-      expect(workflow).not.toContain('node scripts/');
-    }
-    expect(pom).toContain('run qa:pages:artifact');
-    expect(gate).toContain('scripts/build-site.js');
-    expect(gate).toContain('scripts/validate-doc-media.js');
-    expect(gate).toContain('scripts/validate-public-pages-profile.js');
-    expect(gate).toContain('scripts/fingerprint-static-tree.js');
-    expect(gate).toContain('tests/e2e/smoke.spec.js');
-    expect(gate).toContain('tests/e2e/pages-critical-path.spec.js');
-    expect(gate.indexOf('buildAndValidateSite();')).toBeLessThan(gate.indexOf('await runBrowserGate();'));
-    expect(gate.indexOf('await runBrowserGate();')).toBeLessThan(gate.indexOf('verifyArtifactUnchanged();'));
-    expect(playwright).toContain("command: 'npm run serve:site'");
-  });
-
   test('release bundles the canonical built site instead of raw repository files', () => {
     const release = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-release.yml'), 'utf8');
-    const build = release.indexOf('npm run build:site');
+    const releaseGate = release.indexOf('-Prelease-site');
     const bundle = release.indexOf('zip -X');
-    expect(build).toBeGreaterThan(-1);
-    expect(bundle).toBeGreaterThan(build);
+    const releaseScript = packageJson.scripts['qa:release-site'];
+
+    expect(releaseGate).toBeGreaterThan(-1);
+    expect(bundle).toBeGreaterThan(releaseGate);
     expect(release).toContain('find . -type f -exec touch -t 198001010000 {} +');
-    expect(release).toContain('npm run validate:vendor-provenance -- --require-complete');
+    expect(releaseScript).toContain('build:site');
+    expect(releaseScript).toContain('validate:vendor-provenance -- --require-complete');
+    expect(releaseScript.indexOf('build:site'))
+      .toBeLessThan(releaseScript.indexOf('validate:vendor-provenance -- --require-complete'));
     expect(release).toContain('LC_ALL=C sort');
     expect(release).toContain('rm -f -- "$ZIP_NAME"');
     expect(release).not.toContain('zip -r');
     expect(release).not.toContain('DIRS=(css js tours templates docs)');
-    expect(STATIC_ENTRIES).not.toContain('out');
-    expect(fs.readFileSync(path.join(ROOT, 'scripts/build-site.js'), 'utf8'))
-      .toContain("path.join(outputRoot, 'out')");
-  });
 
-  test('extended QA is Maven-owned and system contracts use JUnit 5 with Java Testcontainers', () => {
-    const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/test.yml'), 'utf8');
-    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
-    const systemPom = fs.readFileSync(path.join(ROOT, 'qa-system-tests/pom.xml'), 'utf8');
-    const productionIT = fs.readFileSync(
-      path.join(ROOT, 'qa-system-tests/src/test/java/de/unfallatlas/qa/ProductionContainerIT.java'),
-      'utf8'
-    );
-    const postgresIT = fs.readFileSync(
-      path.join(ROOT, 'qa-system-tests/src/test/java/de/unfallatlas/qa/AnalysisServicePostgresIT.java'),
-      'utf8'
-    );
-
-    expect(workflow).toContain('mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden');
-    for (const forbidden of ['npm ', 'npx ', 'node scripts/', 'playwright test', 'test:integration:tc']) {
-      expect(workflow).not.toContain(forbidden);
-    }
-    expect(workflow).not.toContain('use_prebuilt');
-    expect(workflow).not.toContain('ghcr.io/carstenartur/unfallatlas:latest');
-    expect(workflow).not.toContain('UNFALLATLAS_IMAGE:');
-
-    for (const profile of ['e2e', 'system-it', 'location-brief-golden']) {
-      expect(pom).toContain(`<id>${profile}</id>`);
-    }
-    expect(pom).toContain('<module>qa-system-tests</module>');
-    expect(systemPom).toContain('<artifactId>maven-failsafe-plugin</artifactId>');
-    expect(systemPom).toContain('<artifactId>testcontainers-junit-jupiter</artifactId>');
-    expect(systemPom).toContain('<artifactId>testcontainers-postgresql</artifactId>');
-    expect(productionIT).toContain('@Testcontainers');
-    expect(productionIT).toContain('@Container');
-    expect(productionIT).toContain('ImageFromDockerfile');
-    expect(productionIT).toContain('VIDEO_EXPORT_INTEGRATION_FIXTURE');
-    expect(postgresIT).toContain('PostgreSQLContainer');
-    expect(postgresIT).toContain('SPRING_PROFILES_ACTIVE');
+    const buildSite = fs.readFileSync(path.join(ROOT, 'scripts/build-site.js'), 'utf8');
+    expect(buildSite).toContain("path.join(outputRoot, 'out')");
   });
 });
