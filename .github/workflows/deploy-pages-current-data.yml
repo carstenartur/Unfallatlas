@@ -85,15 +85,9 @@ jobs:
       pages: write
       id-token: write
     steps:
-      - name: Pin Pages source to GitHub Actions
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh api --method PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow >/dev/null
-          build_type="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type')"
-          test "$build_type" = workflow
-
+      # The repository-level Pages source is configuration, not deployment
+      # state. It must be set to "GitHub Actions" once in repository settings;
+      # deployment jobs deliberately do not mutate repository administration.
       - name: Configure Pages deployment
         uses: actions/configure-pages@v6
 

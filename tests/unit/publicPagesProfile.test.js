@@ -242,8 +242,8 @@ describe('public Pages distribution profile', () => {
       expect(jobs.build).not.toContain('id-token: write');
       expect(jobs.deploy).toContain('pages: write');
       expect(jobs.deploy).toContain('id-token: write');
-      expect(jobs.deploy).toContain('Pin Pages source to GitHub Actions');
-      expect(jobs.deploy).toContain('build_type=workflow');
+      expect(jobs.deploy).not.toContain('Pin Pages source to GitHub Actions');
+      expect(jobs.deploy).not.toContain('build_type=workflow');
       expect(jobs.deploy).toContain('Deploy Maven-verified artifact');
     }
 
