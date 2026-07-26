@@ -182,14 +182,14 @@ function aggregateStatus(cities) {
       FAMILY_LABELS.slope,
       slopePresent,
       slopeUnknown,
-      `${slopePresent}/${total} Städte · ${Number.isFinite(minimumSlopeCoverage) ? `min. ${formatDecimal(minimumSlopeCoverage)} % Wege` : oldestDateMessage(slopeDates)}`,
+      `${slopePresent}/${total} Städte · ${Number.isFinite(minimumSlopeCoverage) ? `min. ${formatDecimal(minimumSlopeCoverage)} % Wege` : 'Abdeckung unbekannt'} · ${oldestDateMessage(slopeDates)}`,
       { dates: slopeDates, minimumCoveragePercent: minimumSlopeCoverage }
     ),
     traffic: family(
       FAMILY_LABELS.traffic,
       trafficPresent,
       trafficUnknown,
-      `${trafficPresent}/${total} Städte · ${sourceKind}`,
+      `${trafficPresent}/${total} Städte · ${sourceKind} · ${oldestDateMessage(trafficDates)}`,
       { dates: trafficDates, sourceKind }
     ),
   };
