@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
 
+const { extractAccidentYears } = require('../../scripts/build-static-data');
 const {
   generateDataStatus,
   metadataDate,
@@ -30,7 +31,19 @@ describe('dataset status report', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  test('streams accident years without loading the full GeoJSON into memory', async () => {
+  test('extracts accident years while the canonical manifest already has the GeoJSON in memory', () => {
+    expect(extractAccidentYears({
+      type: 'FeatureCollection',
+      features: [
+        { properties: { UJAHR: 2024 } },
+        { properties: { jahr: '2022' } },
+        { properties: { year: 2024 } },
+        { properties: { somethingElse: 2023 } },
+      ],
+    })).toEqual([2022, 2024]);
+  });
+
+  test('streams accident years as a backward-compatible fallback', async () => {
     const file = path.join(root, 'accidents.geojson.gz');
     writeGzipJson(file, {
       type: 'FeatureCollection',
@@ -74,7 +87,11 @@ describe('dataset status report', () => {
       dataMode: 'gzip-only',
       cities: {
         alpha: {
-          accidents: { gzipPath: 'out/output_all_years_alpha.geojson.gz', features: 2 },
+          accidents: {
+            gzipPath: 'out/output_all_years_alpha.geojson.gz',
+            features: 2,
+            years: [2023, 2024],
+          },
           poi: { gzipPath: 'out/poi_alpha.geojson.gz', features: 1 },
           enrichment: {
             metaPath: 'out/output_all_years_alpha.enrichment.meta.json.gz',
@@ -84,7 +101,11 @@ describe('dataset status report', () => {
           },
         },
         beta: {
-          accidents: { gzipPath: 'out/output_all_years_beta.geojson.gz', features: 1 },
+          accidents: {
+            gzipPath: 'out/output_all_years_beta.geojson.gz',
+            features: 1,
+            years: [2024],
+          },
         },
       },
     }, null, 2));
