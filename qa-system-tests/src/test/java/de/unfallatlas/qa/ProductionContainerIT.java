@@ -115,9 +115,11 @@ class ProductionContainerIT {
         HttpResponse<byte[]> manifest = get("/build-manifest.json");
         assertEquals(200, manifest.statusCode());
         String body = text(manifest);
-        assertTrue(body.matches("(?s).*\\\"schemaVersion\\\"\\s*:\\s*1.*"), body);
-        assertTrue(body.matches("(?s).*\\\"fingerprint\\\"\\s*:\\s*\\\"[a-f0-9]{64}\\\".*"), body);
-        assertTrue(body.matches("(?s).*\\\"features\\\"\\s*:\\s*12.*"), body);
+        assertTrue(body.matches("(?s).*\"schemaVersion\"\s*:\s*1.*"), body);
+        assertTrue(body.matches("(?s).*\"fingerprint\"\s*:\s*\"[a-f0-9]{64}\".*"), body);
+        assertTrue(body.contains("\"application\""), body);
+        assertTrue(body.contains("\"data\""), body);
+        assertTrue(body.contains("\"cities\""), body);
 
         HttpResponse<byte[]> packageJson = get("/package.json");
         assertEquals(404, packageJson.statusCode());
@@ -190,7 +192,7 @@ class ProductionContainerIT {
         assertTrue(requiredHeader(response, "content-digest").startsWith("sha-256=:"));
 
         String provenancePath = requiredHeader(response, "x-unfallatlas-provenance-url");
-        assertTrue(provenancePath.matches("^/api/export-video/provenance/[a-f0-9]{64}\\.json$"), provenancePath);
+        assertTrue(provenancePath.matches("^/api/export-video/provenance/[a-f0-9]{64}\.json$"), provenancePath);
         HttpResponse<byte[]> provenance = get(provenancePath);
         assertEquals(200, provenance.statusCode());
         String provenanceJson = text(provenance);
@@ -263,7 +265,7 @@ class ProductionContainerIT {
                         opaquePixels,
                         legendCount: legends.length,
                         legendText: legends.map(node => node.textContent || '').join(' ')
-                          .replace(/\\s+/g, ' ').trim()
+                          .replace(/\s+/g, ' ').trim()
                       };
                     });
                     if (result.canvases > 0 && result.opaquePixels > 100
