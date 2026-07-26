@@ -56,7 +56,7 @@ class AnalysisServicePostgresIT {
 
     private static final GenericContainer<?> SERVICE = new GenericContainer<>(SERVICE_IMAGE)
             .withNetwork(NETWORK)
-            .withEnvironment(java.util.Map.of(
+            .withEnv(java.util.Map.of(
                     "SPRING_PROFILES_ACTIVE", "prod",
                     "ANALYSIS_DB_URL", "jdbc:postgresql://analysis-db:5432/" + DATABASE_NAME,
                     "ANALYSIS_DB_USER", DATABASE_USER,
