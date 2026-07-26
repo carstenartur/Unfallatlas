@@ -14,8 +14,8 @@ import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.JobParameters;
 import org.springframework.batch.core.job.parameters.JobParametersBuilder;
-import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.repository.explore.JobExplorer;
+import org.springframework.batch.core.launch.JobOperator;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Deckt die in der Aufgabenstellung geforderten Szenarien ab:</p>
  * <ul>
- *   <li>Job-Konfiguration und Step-Reihenfolge (alle 5 Steps in
+ *   <li>Job-Konfiguration und Step-Reihenfolge (alle 6 Steps in
  *       erwarteter Folge),</li>
  *   <li>erfolgreicher Lauf mit zwei seedeten Stellen,</li>
  *   <li>Lauf mit leerer Eingabe (Stadt ohne Briefs) → COMPLETED mit
@@ -46,9 +46,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("CityPrioritizationJob – End-to-End")
 class CityPrioritizationJobIntegrationTest {
 
-    @Autowired private JobLauncher jobLauncher;
+    @Autowired private JobOperator jobOperator;
     @Autowired private Job cityPrioritizationJob;
-    @Autowired private JobExplorer jobExplorer;
+    @Autowired private JobRepository jobRepository;
     @Autowired private LocationBriefService briefs;
     @Autowired private LocationActionBriefRepository briefRepo;
     @Autowired private AnalysisJobRepository jobRepo;
@@ -91,7 +91,7 @@ class CityPrioritizationJobIntegrationTest {
         String city = saved1.getCity();
         assertThat(saved2.getProfileKey()).isEqualTo(profile);
 
-        JobExecution exec = jobLauncher.run(cityPrioritizationJob, params(city, profile, false, 50, "test-run"));
+        JobExecution exec = jobOperator.run(cityPrioritizationJob, params(city, profile, false, 50, "test-run"));
 
         assertThat(exec.getStatus()).isEqualTo(BatchStatus.COMPLETED);
         assertThat(exec.getExitStatus().getExitCode()).isEqualTo(ExitStatus.COMPLETED.getExitCode());
@@ -106,8 +106,8 @@ class CityPrioritizationJobIntegrationTest {
             "buildRankingArtifactsStep"
         );
 
-        // Persistenz der Batch-Metadaten: über JobExplorer wieder lesbar
-        JobExecution reloaded = jobExplorer.getJobExecution(exec.getId());
+        // Persistenz der Batch-Metadaten: über JobRepository wieder lesbar
+        JobExecution reloaded = jobRepository.getJobExecution(exec.getId());
         assertThat(reloaded).isNotNull();
         assertThat(reloaded.getStatus()).isEqualTo(BatchStatus.COMPLETED);
 
@@ -131,7 +131,7 @@ class CityPrioritizationJobIntegrationTest {
     @Test
     @DisplayName("Lauf mit leerer Eingabe schließt sauber ab (processed=0)")
     void runsCleanlyOnEmptyCity() throws Exception {
-        JobExecution exec = jobLauncher.run(cityPrioritizationJob,
+        JobExecution exec = jobOperator.run(cityPrioritizationJob,
             params("StadtOhneDaten", "low_hanging_fruit", false, 10, null));
 
         assertThat(exec.getStatus()).isEqualTo(BatchStatus.COMPLETED);
@@ -146,16 +146,16 @@ class CityPrioritizationJobIntegrationTest {
     @Test
     @DisplayName("Ein zweiter Lauf mit denselben fachlichen Parametern erzeugt eine neue JobInstance (runTimestamp)")
     void rerunCreatesNewJobInstance() throws Exception {
-        long instancesBefore = jobExplorer.getJobInstanceCount(CityPrioritizationJobConfig.JOB_NAME);
+        long instancesBefore = jobRepository.getJobInstanceCount(CityPrioritizationJobConfig.JOB_NAME);
 
-        JobExecution e1 = jobLauncher.run(cityPrioritizationJob,
+        JobExecution e1 = jobOperator.run(cityPrioritizationJob,
             params("Hannover", "low_hanging_fruit", false, 10, "lauf-1"));
         // runTimestamp macht den Lauf eindeutig – ein zweiter Lauf darf
         // nicht an JobInstanceAlreadyComplete scheitern.
-        JobExecution e2 = jobLauncher.run(cityPrioritizationJob,
+        JobExecution e2 = jobOperator.run(cityPrioritizationJob,
             params("Hannover", "low_hanging_fruit", false, 10, "lauf-2"));
 
-        long instancesAfter = jobExplorer.getJobInstanceCount(CityPrioritizationJobConfig.JOB_NAME);
+        long instancesAfter = jobRepository.getJobInstanceCount(CityPrioritizationJobConfig.JOB_NAME);
         assertThat(instancesAfter - instancesBefore).isEqualTo(2);
         assertThat(e1.getStatus()).isEqualTo(BatchStatus.COMPLETED);
         assertThat(e2.getStatus()).isEqualTo(BatchStatus.COMPLETED);
@@ -166,7 +166,7 @@ class CityPrioritizationJobIntegrationTest {
     private static final java.util.concurrent.atomic.AtomicLong RUN_SEQ = new java.util.concurrent.atomic.AtomicLong();
 
     private static JobParameters params(String city, String profile, boolean recompute,
-                                        int limit, String runLabel) {
+                                         int limit, String runLabel) {
         return new JobParametersBuilder()
             .addString("city", city, true)
             .addString("profile", profile, true)
