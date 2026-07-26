@@ -25,7 +25,7 @@
         <testcontainers.version>2.0.5</testcontainers.version>
         <jackson.version>2.21.5</jackson.version>
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
-        <maven.failsafe.plugin.version>3.5.5</maven.failsafe.plugin.version>
+        <maven.failsafe.plugin.version>3.5.6</maven.failsafe.plugin.version>
     </properties>
 
     <dependencyManagement>
