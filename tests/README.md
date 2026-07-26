@@ -1,333 +1,146 @@
-# Unfallatlas Test Suite
+# Unfallwerkbank-Testarchitektur
 
-This directory contains comprehensive tests for the Unfallatlas application, covering unit tests, integration tests, end-to-end tests, and performance tests.
+Der veröffentlichte Build- und Testvertrag beginnt immer im Repository-Root mit
+Maven. GitHub Actions verwendet dieselben Befehle wie ein lokaler Checkout und
+enthält keine eigene npm-, Playwright- oder Testcontainers-Orchestrierung.
 
-## Test Structure
+## Voraussetzungen
 
-```
-tests/
-├── unit/                      # Unit tests for individual functions
-│   ├── ua.utils.test.js       # Utility function tests (escHtml, normKey, qBool, qFloat)
-│   ├── ua.filters.test.js     # Filter logic tests (matchesInvolvementFilter, matchesNonInvolvementFilters)
-│   ├── ua.ui.test.js          # UI initialization and state tests
-│   └── ua.report_v2.test.js   # Report/export function tests (Word, PDF, crossTable, accidentDetails, deriveDocTitle, buildWerkbankUrl)
-├── integration/               # Integration tests for complete workflows
-│   ├── export.test.js         # Document export integration tests
-│   ├── videoExport.testcontainers.test.js
-│   └── locationBriefGoldenCases.testcontainers.test.js
-├── e2e/                       # End-to-end tests using Playwright
-│   ├── werkbank.spec.js       # User workflow tests
-│   ├── smoke.spec.js          # Cross-browser smoke tests (chromium, firefox-smoke, webkit-smoke)
-│   ├── accessibility.spec.js  # axe-core accessibility tests (main page + export modal)
-│   ├── screenshots.spec.js    # Automated screenshot generation (16 screenshots + PDF render)
-│   ├── demo.spec.js           # Demo GIF video generation
-│   └── helpers.js             # Readiness helpers + guard against runtime dependency CDNs
-├── performance/               # Performance and load tests
-│   └── performance.test.js    # Data processing performance tests
-└── fixtures/                  # Test data and fixtures
-    ├── test_accidents.geojson
-    ├── test_pois.geojson
-    └── test_references.json
-```
+Für den normalen Build werden benötigt:
 
-## Running Tests
+- JDK 21 oder neuer;
+- Maven 3.9.6 oder neuer.
 
-### Prerequisites
+Node.js und npm werden vom `frontend-maven-plugin` in den Build-Ausgabeordner
+geladen. Eine globale Node-Installation ist für den kanonischen Build daher
+nicht erforderlich.
 
-Install dependencies:
+Für `system-it` und den persistierenden Golden-Case-Lauf wird zusätzlich ein
+erreichbarer Docker-Daemon benötigt. PostgreSQL, Browser, ffmpeg,
+ImageMagick und die zu prüfenden Anwendungen werden als Container gestartet;
+sie müssen nicht separat installiert werden.
 
-```bash
-npm install
-npx playwright install --with-deps
-```
+## Kanonische Befehle
 
-### Unit Tests
+| Zweck | Befehl |
+|---|---|
+| Unit-, Integrations- und Performance-Tests sowie Analysis Service | `mvn clean verify` |
+| Öffentliches Pages-Artefakt einschließlich Browser-Gate | `mvn clean verify -Ppages` |
+| Pages-Artefakt nach vollständiger Datengenerierung | `mvn clean verify -Ppages-regenerated` |
+| Chromium-, Accessibility-, Firefox- und WebKit-QA | `mvn verify -Pe2e` |
+| JUnit-/Testcontainers-Systemtests | `mvn verify -Psystem-it` |
+| Bonn-/Hannover-Golden-Cases einschließlich Persistenz | `mvn verify -Plocation-brief-golden` |
+| Gesamte erweiterte QA | `mvn clean verify -Pe2e,system-it,location-brief-golden` |
 
-Run all unit tests:
+Die npm-Skripte bleiben als Implementierungsbausteine und für gezielte
+Fehlerdiagnosen vorhanden. Sie sind keine zweite Build-Schnittstelle.
 
-```bash
-npm run test:unit
-```
+## Verantwortlichkeiten
 
-### Integration Tests
+### Maven
 
-Run integration tests:
+Maven besitzt:
 
-```bash
-npm run test:integration
-```
+- Toolchain und gelockte Installation von Node/npm;
+- Auswahl und Reihenfolge aller Tests;
+- Start und Abschluss der Integrationsphasen;
+- stabile Report- und Evidenzpfade;
+- die lokal und in CI identischen Profile.
 
-Run the real-data Location Action Brief preflight (Bonn and Hannover,
-Docker-free):
+### Jest
 
-```bash
-npm run qa:location-brief-golden
-```
+Jest prüft JavaScript-nahe Unit- und Integrationslogik, etwa Filter,
+URL-Zustände, Exportfunktionen und Datenverarbeitung. Maven startet diese Tests
+im normalen Lifecycle über das `frontend-maven-plugin`.
 
-Run the full persistence and Spring Batch ranking path with Testcontainers:
+### Playwright
 
-```bash
-npm run test:location-brief-golden:tc
-```
+Playwright prüft die reale Browseroberfläche. Das Profil `e2e` installiert die
+gelockten Browser, bereitet deterministische Screenshot-Verzeichnisse vor,
+führt Chromium-, Accessibility-, Firefox- und WebKit-Szenarien aus und
+validiert anschließend die erzeugte Evidenz.
 
-See [`docs/location-brief-golden-qa.md`](../docs/location-brief-golden-qa.md)
-for the case definitions, interpretation boundary and current reviewed result.
+### JUnit 5 und Maven Failsafe
 
-### Performance Tests
+Systemweite Verträge liegen im Modul [`qa-system-tests`](../qa-system-tests/).
+Sie heißen `*IT.java` und werden von Maven Failsafe in den Phasen
+`integration-test` und `verify` ausgeführt. Ein fehlender Systemtest lässt den
+Build bewusst fehlschlagen.
 
-Run performance tests:
+### Testcontainers
 
-```bash
-npm run test:performance
-```
+Java Testcontainers besitzt den Lebenszyklus externer Laufzeitkomponenten. Die
+Tests verwenden keine fest belegten Host-Ports und keine vorab gestarteten
+lokalen Dienste.
 
-### End-to-End Tests
+Derzeit werden nativ geprüft:
 
-Run E2E tests with Playwright:
+1. **Produktionscontainer der Unfallwerkbank**
+   - Build aus dem exakten Checkout und dessen `.dockerignore`;
+   - Health- und Build-Manifest-Vertrag;
+   - kein Zugriff auf Repository-Metadaten wie `package.json`;
+   - frühe Ablehnung ungültiger Videoanfragen;
+   - echter GIF-Export einschließlich Hash-, Provenienz- und Pixel-Evidenz;
+   - sichtbare Steigungs- und Verkehrslayer in Chromium innerhalb des
+     ausgelieferten Containers;
+   - persistierte Containerlogs.
 
-```bash
-npm run test:e2e
-```
+2. **Analysis Service mit PostgreSQL**
+   - Produktionsprofil statt H2-Fallback;
+   - eigener PostgreSQL-17-Container in einem isolierten Netzwerk;
+   - erfolgreicher Actuator-Health-Check;
+   - ausgeführte Flyway-Migrationen und vorhandenes Anwendungsschema;
+   - persistierte Service- und Datenbanklogs.
 
-Run E2E tests in headed mode (visible browser):
+Die fachliche Berechnung der Location Briefs bleibt JavaScript-Produktlogik.
+Das Profil `location-brief-golden` führt ihre deterministische Vorprüfung und
+den persistierenden Bonn-/Hannover-Lauf unter Maven aus. Damit wird keine
+zweite Implementierung der fachlichen Regeln in Java erzeugt.
 
-```bash
-npm run test:e2e:headed
-```
+## Report- und Evidenzpfade
 
-### Screenshot Generation
+| Inhalt | Pfad |
+|---|---|
+| JUnit/Failsafe XML und Textreports | `qa-system-tests/target/failsafe-reports/` |
+| Testcontainers-Logs | `qa-system-tests/target/testcontainers-logs/` |
+| Analysis-Service-Unit-Tests | `analysis-service/target/surefire-reports/` |
+| Jest Coverage und Integrationsreport | `coverage/` |
+| Playwright HTML-Report | `playwright-report/` |
+| Playwright Testartefakte | `test-results/` |
+| fachliche QA-Berichte | `out/qa/` |
+| erzeugte Dokumentationsscreenshots | `docs/screenshots/` |
 
-The E2E screenshots test (`screenshots.spec.js`) generates all 16 documentation screenshots automatically:
+Diese Pfade werden auch von GitHub Actions als Artefakte hochgeladen. Die
+Workflow-Datei entscheidet nicht selbst, wie die Inhalte erzeugt werden.
 
-```bash
-npx playwright test tests/e2e/screenshots.spec.js --project=chromium
-```
+## Gezielte Diagnose
 
-Screenshots are saved to `docs/screenshots/`. The GitHub Actions workflow `generate-screenshots.yml` runs this automatically.
-
-### Demo GIF Generation
-
-Generate the demo video for documentation:
-
-```bash
-npm run demo
-```
-
-This runs the Playwright demo spec which captures a video of the typical analysis workflow.
-
-### All Tests
-
-Run all tests (unit, integration, performance, and E2E):
+Ein einzelner nativer Systemtest lässt sich weiterhin über Maven ausführen:
 
 ```bash
-npm run test:all
+mvn -pl qa-system-tests -am verify -Psystem-it \
+  -Dit.test=ProductionContainerIT
 ```
 
-### Watch Mode
-
-Run tests in watch mode (automatically re-run on file changes):
+Für den PostgreSQL-Vertrag:
 
 ```bash
-npm run test:watch
+mvn -pl qa-system-tests -am verify -Psystem-it \
+  -Dit.test=AnalysisServicePostgresIT
 ```
 
-### Coverage Report
+JavaScript- oder Playwright-Befehle dürfen zur interaktiven Fehlersuche direkt
+ausgeführt werden. Vor einem Commit ist jedoch mindestens der dazugehörige
+Maven-Befehl maßgeblich, weil nur er den vollständigen Lifecycle und die
+abschließende Failsafe-Auswertung umfasst.
 
-Generate a test coverage report:
+## Neue Tests hinzufügen
 
-```bash
-npm run test:coverage
-```
-
-Coverage reports will be available in the `coverage/` directory. Open `coverage/lcov-report/index.html` in a browser to view detailed coverage information.
-
-## Test Focus Areas
-
-### Unit Tests
-
-- **Utility Functions** (`ua.utils.test.js`)
-  - HTML escaping (XSS prevention)
-  - String normalization for city names
-  - Query parameter parsing
-  - URL manipulation
-
-- **Filter Functions** (`ua.filters.test.js`)
-  - 6-bit involvement mask (Rad, Fuß, PKW, Krad, Gkfz, Sonstig)
-  - Involvement modes (or, and, solo)
-  - Non-involvement filters (severity, time, road condition)
-
-- **UI Functions** (`ua.ui.test.js`)
-  - UI element initialization
-  - State persistence
-
-- **Report Functions** (`ua.report_v2.test.js`)
-  - Map image capture (`captureMapImage`)
-  - PDF generation with dynamic title (`deriveDocTitle`)
-  - Word document generation with Rahmendaten/Aktive Filter
-  - Cross-table (Beteiligungskombination × Schweregrad) in Word + PDF
-  - Accident details table in Word + PDF
-  - Emoji-to-text replacement for PDF (Gkfz, Sonstig)
-  - `buildWerkbankUrl` with all 6 involvement filters
-  - Detail map capture with `fitBounds`
-
-### Integration Tests
-
-- **Document Export** (`export.test.js`)
-  - Complete PDF generation with test data
-  - Complete Word document generation
-  - Map image integration
-  - POI data integration
-  - Reference document integration
-  - Error handling and graceful degradation
-
-### End-to-End Tests
-
-- **User Workflows** (`werkbank.spec.js`)
-  - Page loading and initialization
-  - City selection
-  - Filter interactions (severity, participation, time)
-  - Display mode toggles (cluster, heatmap)
-  - Drawing and area selection
-  - Export modal opening and interaction
-  - Export option selection
-  - Word/PDF document download
-  - Accessibility features
-
-- **Screenshots** (`screenshots.spec.js`)
-  - All 16 documentation screenshots (Startansicht, Stadtauswahl, Filter, Cluster, Heatmap, Legende, Export-Modal, Stundenfilter, Bereich markieren, Auto-Fahrrad-UND, Fahrrad-Alleinunfälle, POI-Schulen, Bonn Hbf, Export-Filterkontext, PDF-Rendered, Antrag-Inhalt)
-  - PDF rendering and validation (pdfjs-dist 4.10.38)
-
-- **Demo** (`demo.spec.js`)
-  - Automated demo workflow video capture
-  - Tile rendering with mock or real OSM tiles
-
-### Performance Tests
-
-- **Data Processing** (`performance.test.js`)
-  - Large dataset processing (5000+ points)
-  - Filtering performance
-  - POI analysis with multiple locations
-  - Map marker preparation
-  - Report generation speed
-  - Memory usage during repeated operations
-
-## Test Data
-
-The `fixtures/` directory contains sample data for testing:
-
-- **test_accidents.geojson**: Sample accident data with various severities and participation types
-- **test_pois.geojson**: Sample POI data (schools, kindergartens, childcare facilities)
-- **test_references.json**: Sample reference documents
-
-## Continuous Integration
-
-Tests are automatically run via GitHub Actions on:
-
-- Push to `main` or `develop` branches
-- Pull requests to `main` or `develop` branches
-
-Workflows:
-- `test.yml` – Runs unit, integration, performance, and E2E tests. Also generates documentation screenshots.
-- `generate-screenshots.yml` – Dedicated screenshot generation workflow.
-
-See `.github/workflows/test.yml` for the CI configuration.
-
-## Writing New Tests
-
-### Unit Test Example
-
-```javascript
-describe('MyFunction', () => {
-  test('should do something', () => {
-    const result = myFunction(input);
-    expect(result).toBe(expected);
-  });
-});
-```
-
-### E2E Test Example
-
-```javascript
-test('should interact with element', async ({ page }) => {
-  await page.goto('/werkbank_v2.html');
-  const button = page.locator('#myButton');
-  await button.click();
-  await expect(button).toHaveClass(/active/);
-});
-```
-
-## Best Practices
-
-1. **Keep tests isolated**: Each test should be independent and not rely on other tests
-2. **Use descriptive names**: Test names should clearly describe what is being tested
-3. **Mock external dependencies**: Use mocks for browser APIs and external libraries
-4. **Test error cases**: Include tests for error handling and edge cases
-5. **Maintain test data**: Keep fixture data up-to-date and representative
-6. **Run tests before commits**: Ensure all tests pass before committing changes
-7. **Use `jest.restoreAllMocks()`**: In `afterEach` when using `jest.spyOn().mockImplementation()`
-
-## Debugging Tests
-
-### Jest Tests
-
-Run a specific test file:
-
-```bash
-npm test -- tests/unit/ua.utils.test.js
-```
-
-Run tests matching a pattern:
-
-```bash
-npm test -- --testNamePattern="normKey"
-```
-
-### Playwright Tests
-
-Run with UI mode for debugging:
-
-```bash
-npx playwright test --ui
-```
-
-Run a specific test:
-
-```bash
-npx playwright test tests/e2e/werkbank.spec.js
-```
-
-Debug a failing test:
-
-```bash
-npx playwright test --debug
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Module not found errors**: Run `npm install` to ensure all dependencies are installed
-
-2. **Playwright browsers not installed**: Run `npx playwright install --with-deps`
-
-3. **Port already in use**: The test server runs on port 8000. Make sure no other process is using this port
-
-4. **Tests timing out**: Increase timeout in test configuration or check for network issues
-
-5. **Screenshot changes after E2E**: Running E2E tests may regenerate `docs/screenshots/` with different sizes from headless rendering. Revert if not intentionally updated.
-
-## Contributing
-
-When adding new features:
-
-1. Write tests first (TDD approach recommended)
-2. Ensure all existing tests still pass
-3. Add integration tests for new workflows
-4. Update E2E tests if UI changes are made
-5. Run the full test suite before submitting PR
-
-## Resources
-
-- [Jest Documentation](https://jestjs.io/docs/getting-started)
-- [Playwright Documentation](https://playwright.dev/docs/intro)
-- [Testing Best Practices](https://github.com/goldbergyoni/javascript-testing-best-practices)
+- Reine JavaScript-Funktionen gehören nach `tests/unit/`.
+- Browserabläufe und Accessibility-Verträge gehören nach `tests/e2e/`.
+- Black-Box-Verträge über mehrere Prozesse oder Infrastrukturkomponenten
+  gehören als JUnit-`*IT.java` nach `qa-system-tests/src/test/java/`.
+- Datenbanken und Dienste werden dort mit Testcontainers bereitgestellt; feste
+  Ports, Sleeps und workfloweigene Startskripte sind nicht zulässig.
+- Neue Profile und Artefaktpfade werden in `pom.xml`, dieser Datei und
+  `docs/site-build.md` dokumentiert.
