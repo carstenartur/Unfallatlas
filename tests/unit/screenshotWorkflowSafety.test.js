@@ -15,6 +15,10 @@ describe('documentation screenshot publication safety', () => {
     'utf8'
   );
   const pom = fs.readFileSync(path.resolve(__dirname, '../../pom.xml'), 'utf8');
+  const liveRunner = fs.readFileSync(
+    path.resolve(__dirname, '../../scripts/run-live-documentation-qa.js'),
+    'utf8'
+  );
   const prepareExtendedE2e = fs.readFileSync(
     path.resolve(__dirname, '../../scripts/prepare-extended-e2e.js'),
     'utf8'
@@ -25,33 +29,58 @@ describe('documentation screenshot publication safety', () => {
   ));
 
   test('never grants write permission or pushes generated media directly', () => {
-    expect(workflow).toMatch(/permissions:\s*\n\s+contents:\s*read\b/);
-    expect(workflow).not.toMatch(/contents:\s*write\b/);
-    expect(workflow).not.toMatch(/\bgit\s+push\b/);
-    expect(workflow).toMatch(/persist-credentials:\s*false\b/);
+    for (const candidate of [workflow, visualCheckWorkflow]) {
+      expect(candidate).toMatch(/permissions:\s*\n\s+contents:\s*read\b/);
+      expect(candidate).not.toMatch(/contents:\s*write\b/);
+      expect(candidate).not.toMatch(/\bgit\s+push\b/);
+      expect(candidate).toMatch(/persist-credentials:\s*false\b/);
+    }
   });
 
-  test('uses the fail-closed live-map runner for every reviewable candidate', () => {
+  test('uses one Maven profile for every reviewable live-map candidate', () => {
+    expect(workflow).toContain(
+      'mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=false'
+    );
+    expect(visualCheckWorkflow).toContain(
+      'mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true'
+    );
     for (const candidate of [workflow, visualCheckWorkflow]) {
-      expect(candidate).toContain('node scripts/run-live-documentation-screenshots.cjs');
-      expect(candidate).not.toContain(
-        'playwright test tests/e2e/screenshots.spec.js --project=chromium'
-      );
-      expect(candidate).toContain('node scripts/validate-live-cartography-evidence.cjs');
+      expect(candidate).not.toContain('node scripts/');
+      expect(candidate).not.toContain('npm run');
+      expect(candidate).not.toContain('playwright test');
       expect(candidate).toContain('out/qa/live-cartography-evidence.json');
       expect(candidate).toMatch(/uses:\s*actions\/upload-artifact@/);
       expect(candidate).toMatch(/if-no-files-found:\s*error\b/);
-      expect(candidate).toMatch(/real cartographic basemaps|echten Karten/i);
       expect(candidate).toMatch(/Provider-URL/);
     }
     expect(workflow).toContain('documentation-screenshots-live-map-${{ github.sha }}');
     expect(visualCheckWorkflow).toContain('pr-live-map-screenshots-${{ github.event.pull_request.number }}');
   });
 
+  test('Maven profile delegates the fail-closed sequence to the repository runner', () => {
+    expect(pom).toContain('<id>documentation-live</id>');
+    expect(pom).toContain('<arguments>run qa:documentation-live</arguments>');
+    expect(packageJson.scripts['qa:documentation-live']).toBe(
+      'node scripts/run-live-documentation-qa.js'
+    );
+    const cleanup = liveRunner.indexOf('cleanCandidates();');
+    const generation = liveRunner.indexOf('run-live-documentation-screenshots.cjs');
+    const evidence = liveRunner.indexOf('validate-screenshot-evidence.js');
+    const cartography = liveRunner.indexOf('validate-live-cartography-evidence.cjs');
+    const media = liveRunner.indexOf('validate-doc-media.js');
+    expect(cleanup).toBeGreaterThan(-1);
+    expect(generation).toBeGreaterThan(cleanup);
+    expect(evidence).toBeGreaterThan(generation);
+    expect(cartography).toBeGreaterThan(evidence);
+    expect(media).toBeGreaterThan(cartography);
+    expect(liveRunner).toContain('DOCUMENTATION_LIVE_LINKS');
+    expect(liveRunner).toContain('run-live-documentation-links.cjs');
+  });
+
   test('keeps hermetic E2E separate from publication candidates and behind Maven', () => {
     expect(testWorkflow).toContain('mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden');
-    expect(testWorkflow).not.toContain('node scripts/run-live-documentation-screenshots.cjs');
-    expect(testWorkflow).not.toContain('node scripts/validate-live-cartography-evidence.cjs');
+    expect(testWorkflow).not.toContain('run-live-documentation-screenshots.cjs');
+    expect(testWorkflow).not.toContain('validate-live-cartography-evidence.cjs');
     expect(testWorkflow).not.toContain('playwright test');
     expect(pom).toContain('<id>e2e</id>');
     expect(pom).toContain('<arguments>run qa:e2e:prepare</arguments>');
@@ -59,13 +88,11 @@ describe('documentation screenshot publication safety', () => {
     expect(pom).toContain('<arguments>run qa:e2e:evidence</arguments>');
   });
 
-  test('starts from clean candidate directories so stale media cannot pass through', () => {
-    for (const candidate of [workflow, visualCheckWorkflow]) {
-      const cleanup = candidate.indexOf("find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete");
-      const generation = candidate.indexOf('node scripts/run-live-documentation-screenshots.cjs');
-      expect(cleanup).toBeGreaterThan(-1);
-      expect(generation).toBeGreaterThan(cleanup);
-    }
+  test('starts every candidate run from clean media and readiness directories', () => {
+    expect(liveRunner).toContain("path.join(ROOT, 'docs', 'screenshots')");
+    expect(liveRunner).toContain("path.join(ROOT, 'out', 'qa', 'screenshot-readiness')");
+    expect(liveRunner).toContain("entry.toLowerCase().endsWith('.png')");
+    expect(liveRunner).toContain("entry.toLowerCase().endsWith('.json')");
 
     expect(prepareExtendedE2e).toContain("path.join(ROOT, 'docs', 'screenshots')");
     expect(prepareExtendedE2e).toContain("name.toLowerCase().endsWith('.png')");
@@ -73,7 +100,7 @@ describe('documentation screenshot publication safety', () => {
     expect(packageJson.scripts['qa:e2e:prepare']).toContain('prepare-extended-e2e.js');
   });
 
-  test('never uploads checked-in publication candidates after a failed live generation or QA gate', () => {
+  test('candidate artifacts are uploaded only after the Maven gate succeeds', () => {
     const dispatchUpload = workflow.slice(
       workflow.indexOf('- name: Upload reviewed screenshot candidate'),
       workflow.indexOf('- name: Upload media QA report')
@@ -83,14 +110,8 @@ describe('documentation screenshot publication safety', () => {
       visualCheckWorkflow.indexOf('- name: Upload media QA report')
     );
 
-    expect(dispatchUpload).toMatch(
-      /if:\s*\$\{\{\s*steps\.validate_media\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_evidence\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_cartography\.outcome\s*==\s*'success'\s*\}\}/
-    );
-    expect(visualUpload).toMatch(
-      /if:\s*\$\{\{\s*steps\.validate_media\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_evidence\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_cartography\.outcome\s*==\s*'success'\s*&&\s*steps\.validate_live_links\.outcome\s*==\s*'success'\s*\}\}/
-    );
-
     for (const upload of [dispatchUpload, visualUpload]) {
+      expect(upload).not.toMatch(/if:\s*always\(\)/);
       expect(upload).toContain('docs/screenshots/*.png');
       expect(upload).toContain('out/qa/screenshot-readiness/*.json');
       expect(upload).toContain('out/qa/screenshot-evidence.json');
@@ -101,7 +122,7 @@ describe('documentation screenshot publication safety', () => {
     expect(visualUpload).toContain('out/qa/documentation-live-links/');
   });
 
-  test('Maven validates evidence before candidate media and CI retains rejected evidence', () => {
+  test('Maven validates evidence before candidate media and CI retains diagnostics', () => {
     const prepare = pom.indexOf('<id>prepare-extended-browser-qa</id>');
     const browser = pom.indexOf('<id>extended-browser-qa</id>');
     const evidence = pom.indexOf('<id>validate-extended-browser-evidence</id>');
@@ -122,19 +143,15 @@ describe('documentation screenshot publication safety', () => {
     expect(upload).toContain('test-results/');
   });
 
-  test('live publication workflows retain fail-closed readiness and provenance', () => {
+  test('live publication workflows retain durable readiness and provenance artifacts', () => {
     for (const candidate of [workflow, visualCheckWorkflow]) {
       expect(candidate).toContain('out/qa/screenshot-readiness/');
       expect(candidate).toContain('out/qa/screenshot-evidence.json');
+      expect(candidate).toContain('out/qa/live-cartography-evidence.json');
       expect(candidate).toContain('_site/build-manifest.json');
       expect(candidate).toMatch(/always\(\)[\s\S]*hashFiles\(/);
-      expect(candidate).toContain('npm run validate:screenshot-evidence');
-      expect(candidate).toContain('out/qa/live-cartography-evidence.json');
-      expect(candidate).toMatch(/id:\s*validate_cartography/);
-      expect(candidate).toMatch(/id:\s*validate_media/);
-      expect(candidate).toMatch(/id:\s*validate_evidence/);
+      expect(candidate).toContain('out/qa/live-documentation-screenshots.log');
     }
-    expect(visualCheckWorkflow).toMatch(/id:\s*validate_live_links/);
     expect(visualCheckWorkflow).toContain('out/qa/documentation-live-links/');
   });
 });
