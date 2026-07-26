@@ -2,208 +2,92 @@ name: Tests
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
-      extended_qa:
-        description: 'Also run expensive browser, screenshot and Testcontainers QA'
+      run_extended_qa:
+        description: 'Run cross-browser, JUnit/Testcontainers and Bonn/Hannover golden QA'
+        required: false
         type: boolean
         default: false
 
 permissions:
   contents: read
 
-concurrency:
-  group: tests-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  # This is the only default PR/push build. All build and test orchestration is
-  # repository-owned and can be reproduced from a checkout with the same Maven
-  # command. frontend-maven-plugin installs the pinned Node/npm toolchain.
-  unit-and-integration-tests:
+  tests:
+    name: Maven verify (Java 21, Node 24)
     runs-on: ubuntu-latest
-    timeout-minutes: 180
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+    timeout-minutes: 30
 
-      - name: Set up JDK and Maven cache
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@v5
         with:
+          distribution: temurin
           java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
+          cache: maven
 
-      - name: Run canonical default build
-        run: |
-          mkdir -p out/qa/default-build
-          set -o pipefail
-          mvn -B -ntp clean verify -Ppages 2>&1 \
-            | tee out/qa/default-build/maven-verify.log
+      - name: Run the canonical repository build
+        run: mvn -B -ntp clean verify -Ppages
 
-      - name: Upload default-build diagnostics
+      - name: Upload Maven and frontend test reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
-          name: default-build-diagnostics
+          name: canonical-test-reports
           path: |
-            out/qa/default-build/maven-verify.log
-            out/qa/pages-maven-documentation-media.json
-            out/qa/pages-maven-profile.sha256
-            out/qa/pages-maven-server.log
-            _site/build-manifest.json
-            playwright-report/
-            test-results/
-            coverage/
             analysis-service/target/surefire-reports/
-            analysis-service/target/failsafe-reports/
-          if-no-files-found: warn
-          retention-days: 14
-
-  # Expensive, externally coupled checks remain available, but they no longer
-  # create a matrix of mandatory checks for every commit.
-  e2e-tests:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.extended_qa }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium firefox webkit
-
-      - name: Prepare clean screenshot candidate directory
-        run: |
-          find docs/screenshots -maxdepth 1 -type f -name '*.png' -delete
-          mkdir -p out/qa/screenshot-readiness
-          find out/qa/screenshot-readiness -maxdepth 1 -type f -name '*.json' -delete
-
-      - name: Run E2E tests
-        run: npm run test:e2e
-
-      - name: Validate one-to-one screenshot evidence
-        id: validate_evidence
-        run: npm run validate:screenshot-evidence -- --report out/qa/screenshot-evidence.json
-
-      - name: Validate generated documentation media candidate
-        id: validate_media
-        run: npm run validate:media -- --candidate-screenshots --report out/qa/documentation-media.json
-
-      - name: Run accessibility tests
-        run: npx playwright test tests/e2e/accessibility.spec.js --project=chromium
-
-      - name: Run Firefox smoke tests
-        run: npx playwright test --project=firefox-smoke
-
-      - name: Run WebKit smoke tests
-        run: npx playwright test --project=webkit-smoke
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: extended-playwright-report
-          path: |
+            coverage/
             playwright-report/
             test-results/
-          if-no-files-found: warn
+            out/qa/
+          if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload documentation screenshots
-        uses: actions/upload-artifact@v7
-        if: ${{ steps.validate_media.outcome == 'success' && steps.validate_evidence.outcome == 'success' }}
-        with:
-          name: documentation-screenshots
-          path: |
-            docs/screenshots/*.png
-            out/qa/screenshot-readiness/*.json
-            out/qa/screenshot-evidence.json
-            _site/build-manifest.json
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload generated media QA report
-        uses: actions/upload-artifact@v7
-        if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/screenshot-readiness/*.json') != '' }}
-        with:
-          name: generated-documentation-media-report
-          path: |
-            out/qa/documentation-media.json
-            out/qa/screenshot-evidence.json
-            out/qa/screenshot-readiness/
-            _site/build-manifest.json
-          if-no-files-found: error
-          retention-days: 14
-
-  video-export-integration:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.extended_qa }}
+  extended-qa:
+    name: Extended Maven QA (JUnit, Testcontainers, Playwright)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_extended_qa
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 90
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Set up JDK 21
+      - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@v5
         with:
+          distribution: temurin
           java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
+          cache: maven
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Run the canonical extended QA profiles
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p out/qa
+          mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden \
+            | tee out/qa/maven-extended-qa.log
 
-      - name: Build Analysis Service test JAR
-        run: mvn -B -ntp -f analysis-service/pom.xml -DskipTests package
-
-      - name: Run Testcontainers integration tests
-        run: npm run test:integration:tc
-
-      - name: Run golden-case preflight
-        run: npm run qa:location-brief-golden
-
-      - name: Run Bonn/Hannover golden-case QA
-        run: npm run test:location-brief-golden:tc
-
-      - name: Upload Testcontainers diagnostics
+      - name: Upload extended QA evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
-          name: extended-testcontainers-diagnostics
+          name: extended-maven-qa-evidence
           path: |
             out/qa/
+            coverage/
+            playwright-report/
             test-results/
+            docs/screenshots/
             analysis-service/target/surefire-reports/
-            analysis-service/target/failsafe-reports/
-          if-no-files-found: warn
+            qa-system-tests/target/failsafe-reports/
+            qa-system-tests/target/testcontainers-logs/
+          if-no-files-found: ignore
           retention-days: 14
