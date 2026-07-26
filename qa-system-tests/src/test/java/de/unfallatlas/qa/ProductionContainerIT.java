@@ -192,7 +192,7 @@ class ProductionContainerIT {
         assertTrue(requiredHeader(response, "content-digest").startsWith("sha-256=:"));
 
         String provenancePath = requiredHeader(response, "x-unfallatlas-provenance-url");
-        assertTrue(provenancePath.matches("^/api/export-video/provenance/[a-f0-9]{64}\.json$"), provenancePath);
+        assertTrue(provenancePath.matches("^/api/export-video/provenance/[a-f0-9]{64}\\.json$"), provenancePath);
         HttpResponse<byte[]> provenance = get(provenancePath);
         assertEquals(200, provenance.statusCode());
         String provenanceJson = text(provenance);
@@ -265,7 +265,7 @@ class ProductionContainerIT {
                         opaquePixels,
                         legendCount: legends.length,
                         legendText: legends.map(node => node.textContent || '').join(' ')
-                          .replace(/\s+/g, ' ').trim()
+                          .replace(/\\s+/g, ' ').trim()
                       };
                     });
                     if (result.canvases > 0 && result.opaquePixels > 100
