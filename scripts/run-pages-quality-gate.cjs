@@ -111,6 +111,10 @@ function buildAndValidateSite() {
     '--poi-dir', POI_DIR,
     '--output-dir', SITE_DIR,
   ]);
+  runNode('scripts/generate-data-status.js', [
+    '--site', SITE_DIR,
+    '--cities', 'cities.txt',
+  ]);
   runNode('scripts/build-public-pages-profile.js', ['--site', SITE_DIR]);
   runNode('scripts/validate-static-data.js', [
     '--dir', `${SITE_DIR}/out`,

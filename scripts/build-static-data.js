@@ -79,6 +79,20 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
+function extractAccidentYears(json) {
+  const years = new Set();
+  for (const feature of (json && Array.isArray(json.features) ? json.features : [])) {
+    const properties = feature && feature.properties;
+    if (!properties || typeof properties !== 'object') continue;
+    for (const [key, raw] of Object.entries(properties)) {
+      if (!['ujahr', 'jahr', 'year'].includes(String(key).toLowerCase())) continue;
+      const match = String(raw == null ? '' : raw).match(/^(19\d{2}|20\d{2}|21\d{2})$/);
+      if (match) years.add(Number(match[1]));
+    }
+  }
+  return [...years].sort((a, b) => a - b);
+}
+
 function copyJsonTree(files, sourceDir, outputDir, repoRoot, processed) {
   for (const abs of files) {
     const rel = path.relative(sourceDir, abs).replace(/\\/g, '/').replace(/\.gz$/i, '');
@@ -144,6 +158,7 @@ function main(argv) {
       logicalPath,
       gzipPath: `${logicalPath}.gz`,
       features: Array.isArray(json.features) ? json.features.length : 0,
+      years: extractAccidentYears(json),
       sha256: sha256File(gzAbs),
     };
     processed.add(logicalPath);
@@ -229,5 +244,6 @@ module.exports = {
   main,
   cityFromFile,
   logicalFromAbsolute,
+  extractAccidentYears,
   copyJsonTree,
 };

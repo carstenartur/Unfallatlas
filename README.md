@@ -9,6 +9,17 @@
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Funfallatlas-blue?logo=docker)](https://github.com/carstenartur/Unfallatlas/pkgs/container/unfallatlas)
 [![License](https://img.shields.io/github/license/carstenartur/Unfallatlas)](LICENSE)
 [![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-informational?logo=owasp)](https://github.com/carstenartur/Unfallatlas/dependency-graph/sbom)
+
+**Datenabdeckung und Zeitstände**
+
+[![Unfalldaten](https://carstenartur.github.io/Unfallatlas/status/accidents.svg)](https://carstenartur.github.io/Unfallatlas/data-status/)  
+[![Schulen und Kitas](https://carstenartur.github.io/Unfallatlas/status/poi.svg)](https://carstenartur.github.io/Unfallatlas/data-status/)  
+[![Straßenkontext](https://carstenartur.github.io/Unfallatlas/status/roads.svg)](https://carstenartur.github.io/Unfallatlas/data-status/)  
+[![Steigung](https://carstenartur.github.io/Unfallatlas/status/slope.svg)](https://carstenartur.github.io/Unfallatlas/data-status/)  
+[![Verkehr](https://carstenartur.github.io/Unfallatlas/status/traffic.svg)](https://carstenartur.github.io/Unfallatlas/data-status/)
+
+[Methodik und Farbbedeutung](DATA_STATUS.md)
+
 https://doi.org/10.5281/zenodo.20936471
 
 [![Startansicht des vollständigen Unfallwerkbank-Builds](docs/screenshots/01-startansicht.png)](docs/screenshots/01-startansicht.png)
