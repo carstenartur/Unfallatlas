@@ -56,7 +56,12 @@ jobs:
           cache: maven
 
       - name: Build and verify the exact production container
-        run: mvn -B -ntp verify -Pvideo-export-it
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p out/qa
+          mvn -B -ntp verify -Pvideo-export-it \
+            | tee out/qa/maven-video-export-it.log
 
       - name: Upload Docker system-test diagnostics
         if: always()
@@ -64,6 +69,7 @@ jobs:
         with:
           name: docker-system-test-evidence
           path: |
+            out/qa/maven-video-export-it.log
             qa-system-tests/target/failsafe-reports/
             qa-system-tests/target/testcontainers-logs/
             analysis-service/target/surefire-reports/
