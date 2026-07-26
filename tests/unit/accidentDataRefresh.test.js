@@ -12,7 +12,17 @@ const {
 
 const ROOT = path.resolve(__dirname, '../..');
 
-describe('manual accident data refresh', () => {
+function readWorkflow(name) {
+  return fs.readFileSync(path.join(ROOT, '.github', 'workflows', name), 'utf8');
+}
+
+function expectManualForceDefault(workflow) {
+  expect(workflow).toMatch(
+    /workflow_dispatch:\s*\n\s+inputs:[\s\S]*?force:\s*\n[\s\S]*?type:\s*boolean[\s\S]*?default:\s*true/
+  );
+}
+
+describe('manual data refresh semantics', () => {
   let tempRoot;
 
   beforeEach(() => {
@@ -23,7 +33,7 @@ describe('manual accident data refresh', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  test('parses an explicit forced refresh', () => {
+  test('parses an explicit forced accident refresh', () => {
     const args = parseArgs([
       '--root', tempRoot,
       '--cities-file', 'cities.txt',
@@ -38,7 +48,7 @@ describe('manual accident data refresh', () => {
     expect(args.outDir).toBe(path.join(tempRoot, 'out'));
   });
 
-  test('repair mode skips a valid existing artifact but force mode never does', () => {
+  test('accident repair mode skips a valid artifact but force mode never does', () => {
     const outDir = path.join(tempRoot, 'out');
     fs.mkdirSync(outDir, { recursive: true });
     const fixture = {
@@ -58,16 +68,26 @@ describe('manual accident data refresh', () => {
     expect(shouldRegenerateCity(outDir, 'Bonn', 10, true)).toBe(true);
   });
 
-  test('the Actions form defaults to a real forced download', () => {
-    const workflow = fs.readFileSync(
-      path.join(ROOT, '.github', 'workflows', 'generate-and-commit.yml'),
-      'utf8'
-    );
-
-    expect(workflow).toMatch(/force:\s*\n\s+description:/);
-    expect(workflow).toMatch(/type:\s*boolean/);
-    expect(workflow).toMatch(/default:\s*true/);
+  test('the accident Actions form defaults to a real forced download', () => {
+    const workflow = readWorkflow('generate-and-commit.yml');
+    expectManualForceDefault(workflow);
     expect(workflow).toContain('ARGS+=(--force)');
     expect(workflow).toContain('all configured cities will be downloaded and regenerated');
+  });
+
+  test('the POI Actions form defaults to fresh OSM downloads', () => {
+    const workflow = readWorkflow('fetchpoi.yml');
+    expectManualForceDefault(workflow);
+    expect(workflow).toContain('FORCED REFRESH: every configured city will be downloaded from OSM again.');
+    expect(workflow).toContain('rm -f "$OUTFILE" "${OUTFILE}.gz"');
+    expect(workflow).toContain('"$POI_SCRIPT" "$CITY"');
+  });
+
+  test('the context Actions form defaults to rebuilding source data', () => {
+    const workflow = readWorkflow('enrich.yml');
+    expectManualForceDefault(workflow);
+    expect(workflow).toContain("description: 'Vorhandene OSM-, Steigungs- und Verkehrsdaten neu abrufen und ersetzen'");
+    expect(workflow).toContain("FORCE_CONTEXT: ${{ inputs.force == true");
+    expect(workflow).toContain('-Dcontext.force="${FORCE_CONTEXT:-false}"');
   });
 });
