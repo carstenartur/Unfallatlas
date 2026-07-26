@@ -32,19 +32,17 @@
              (Patched in 42.7.7). -->
         <postgresql.version>42.7.7</postgresql.version>
         <!-- Keep Hibernate Search aligned with the Spring Boot-managed
-             Hibernate ORM stack used by this service.  Spring Boot 4.0.6
-             manages the Hibernate ORM 7.2.x line; Hibernate Search 8.2.x is
-             the matching tested line for that ORM generation.  Renovate/Mend
-             bumps to Spring Boot 4.1.x / Hibernate Search 8.4.x must only be
-             merged together with a green analysis-service `mvn clean verify`. -->
+             Hibernate ORM stack used by this service. Spring Boot 4.1.x and
+             Hibernate Search 8.4.x are upgraded together and must only be
+             merged with a green analysis-service `mvn clean verify`. -->
         <hibernate-search.version>8.4.0.Final</hibernate-search.version>
     </properties>
 
     <dependencies>
-        <!-- Web + JSON -->
+        <!-- Web MVC + Jackson 3 JSON support -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
         <!-- JPA / Hibernate ORM -->
@@ -103,20 +101,19 @@
              LocationActionBriefEntity + PoliticalReferenceSummaryEntity +
              CandidateMeasureAssessmentEntity (siehe @Indexed-Annotationen).
              Backend: Lokales Lucene-Filesystem (kein zusätzlicher
-             Infra-Bedarf).  Bootstrap und automatisches Indexing werden
+             Infra-Bedarf). Bootstrap und automatisches Indexing werden
              über `application.properties` gesteuert.
 
-             Spring Boot 4.0.6 manages Hibernate ORM 7.2.x.  Hibernate Search
-             8.2.2.Final is the matching 8.x line for ORM 7.2; newer 8.3/8.4
-             lines target newer ORM minor versions and can fail during build,
-             bootstrap or auto-indexing unless the whole stack is migrated. -->
+             Hibernate Search remains versioned explicitly so that mapper and
+             Lucene backend always move as one tested unit. Hibernate ORM is
+             supplied by Spring Boot's dependency management. -->
         <dependency>
             <groupId>org.hibernate.search</groupId>
             <artifactId>hibernate-search-mapper-orm</artifactId>
             <version>${hibernate-search.version}</version>
             <exclusions>
                 <!-- Wir ziehen hibernate-core über Spring Boot, damit wir
-                     bei der gemanagten Version (7.2.x) bleiben. -->
+                     bei der gemanagten Version bleiben. -->
                 <exclusion>
                     <groupId>org.hibernate.orm</groupId>
                     <artifactId>hibernate-core</artifactId>
