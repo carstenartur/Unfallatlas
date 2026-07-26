@@ -599,20 +599,42 @@ describe('documentation media policy', () => {
     '.github/workflows/deploy-release.yml',
     '.github/workflows/generate-screenshots.yml',
     '.github/workflows/visual-check.yml',
-    '.github/workflows/test.yml',
   ])('%s validates media with the repository-owned command', workflowPath => {
     const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
     expect(workflow).toContain('npm run validate:media');
   });
 
+  test('the test workflow delegates media and evidence validation to Maven', () => {
+    const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/test.yml'), 'utf8');
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+
+    expect(workflow).toContain('mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden');
+    expect(workflow).not.toContain('npm run validate:media');
+    expect(workflow).not.toContain('npm run validate:screenshot-evidence');
+    expect(pom).toContain('<arguments>run qa:e2e:evidence</arguments>');
+    expect(packageJson.scripts['qa:e2e:evidence']).toContain('validate-screenshot-evidence.js');
+    expect(packageJson.scripts['qa:e2e:evidence']).toContain(
+      'validate-doc-media.js --candidate-screenshots'
+    );
+  });
+
   test.each([
     '.github/workflows/generate-screenshots.yml',
     '.github/workflows/visual-check.yml',
-    '.github/workflows/test.yml',
   ])('%s validates semantic evidence before candidate media policy', workflowPath => {
     const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
     const evidenceGate = workflow.indexOf('npm run validate:screenshot-evidence');
     const candidateGate = workflow.indexOf('npm run validate:media -- --candidate-screenshots');
+    expect(evidenceGate).toBeGreaterThan(-1);
+    expect(candidateGate).toBeGreaterThan(evidenceGate);
+  });
+
+  test('Maven-owned E2E validates semantic evidence before candidate media policy', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    const command = packageJson.scripts['qa:e2e:evidence'];
+    const evidenceGate = command.indexOf('validate-screenshot-evidence.js');
+    const candidateGate = command.indexOf('validate-doc-media.js --candidate-screenshots');
     expect(evidenceGate).toBeGreaterThan(-1);
     expect(candidateGate).toBeGreaterThan(evidenceGate);
   });
