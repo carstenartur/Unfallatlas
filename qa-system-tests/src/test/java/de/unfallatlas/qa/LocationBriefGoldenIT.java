@@ -75,7 +75,7 @@ class LocationBriefGoldenIT {
             .withDockerfile(REPOSITORY_ROOT.resolve("analysis-service/Dockerfile"));
     private static final GenericContainer<?> SERVICE = new GenericContainer<>(SERVICE_IMAGE)
             .withNetwork(NETWORK)
-            .withEnvironment(Map.of(
+            .withEnv(Map.of(
                     "SPRING_PROFILES_ACTIVE", "prod",
                     "ANALYSIS_DB_URL", "jdbc:postgresql://golden-db:5432/" + DATABASE_NAME,
                     "ANALYSIS_DB_USER", DATABASE_USER,
