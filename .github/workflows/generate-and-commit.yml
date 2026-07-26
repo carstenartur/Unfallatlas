@@ -2,13 +2,24 @@ name: "01 · Unfalldaten aktualisieren"
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Vorhandene Unfalldaten neu herunterladen und ersetzen'
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
+concurrency:
+  group: accident-data-refresh-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,14 +41,26 @@ jobs:
           rm -rf .build/raw
           mkdir -p .build/raw out
 
-      - name: Generate accident data from cities.txt (restartable)
+      - name: Download and generate accident data from cities.txt
+        shell: bash
+        env:
+          FORCE_REFRESH: ${{ inputs.force }}
         run: |
+          set -euo pipefail
           chmod +x ./convertAmt2gmaps.sh
-          node scripts/generate-accident-data.js \
-            --cities-file cities.txt \
-            --out-dir out \
-            --temp-root .build/raw \
+          ARGS=(
+            --cities-file cities.txt
+            --out-dir out
+            --temp-root .build/raw
             --min-features 10
+          )
+          if [[ "$FORCE_REFRESH" == "true" ]]; then
+            ARGS+=(--force)
+            echo "Forced refresh enabled: all configured cities will be downloaded and regenerated."
+          else
+            echo "Repair mode enabled: valid existing city artefacts may be skipped."
+          fi
+          node scripts/generate-accident-data.js "${ARGS[@]}"
 
       - name: Normalize static data artifacts to gzip-only
         run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
@@ -60,6 +83,9 @@ jobs:
           rm -rf .build
 
           git add -A
-          git diff --cached --quiet && exit 0
-          git commit -m "Automatisch erzeugte Dateien durch convertAmt2gmaps.sh (cities.txt)"
+          if git diff --cached --quiet; then
+            echo "The forced download completed successfully, but the source data is byte-for-byte unchanged."
+            exit 0
+          fi
+          git commit -m "Refresh official accident datasets"
           git push origin HEAD:${{ github.ref_name }}

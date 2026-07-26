@@ -8,9 +8,10 @@ on:
         type: string
         required: false
       force:
-        description: 'Rebuild OSM, slope and traffic producer data'
+        description: 'Vorhandene OSM-, Steigungs- und Verkehrsdaten neu abrufen und ersetzen'
+        required: true
         type: boolean
-        default: false
+        default: true
   push:
     branches: [main]
     paths:
@@ -100,7 +101,7 @@ jobs:
           set -euo pipefail
           git add -A -- out/
           if git diff --cached --quiet; then
-            echo "No context-data changes."
+            echo "The forced context refresh completed successfully, but the resulting data is unchanged."
             exit 0
           fi
           git commit -m "Regenerate verified context data"

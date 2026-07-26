@@ -2,13 +2,24 @@ name: "02 · Schulen und Kitas aktualisieren"
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Vorhandene Schulen-/Kita-Daten neu von OSM herunterladen und ersetzen'
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
+concurrency:
+  group: poi-data-refresh-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   fetch-pois:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v7
         with:
@@ -19,8 +30,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
-      - name: Fetch POIs for all cities (skip if already present)
+      - name: Download POIs for all configured cities
         shell: bash
+        env:
+          FORCE_REFRESH: ${{ inputs.force }}
         run: |
           set -euo pipefail
 
@@ -29,58 +42,62 @@ jobs:
             exit 2
           fi
 
-          # === HIER anpassen: Pfad zu deinem Script ===
           POI_SCRIPT="./fetch_poi_osm.sh"
-          # z.B. wenn es woanders liegt:
-          # POI_SCRIPT="./scripts/fetch_poi_osm.sh"
-
           if [[ ! -f "$POI_SCRIPT" ]]; then
             echo "POI script not found: $POI_SCRIPT"
             exit 2
           fi
           chmod +x "$POI_SCRIPT"
-
           mkdir -p out
 
           slug() {
-            # exakt wie in deinem Script
             echo "$1" | tr '[:upper:]' '[:lower:]' \
               | sed -E 's/ä/ae/g; s/ö/oe/g; s/ü/ue/g; s/ß/ss/g' \
               | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g'
           }
 
-          # Read cities (1 per line), ignore blanks and comments
           mapfile -t CITIES < <(
             sed -e 's/\r$//' -e 's/#.*$//' -e 's/^[[:space:]]*//;s/[[:space:]]*$//' cities.txt \
             | awk 'NF'
           )
-
           if (( ${#CITIES[@]} == 0 )); then
             echo "No cities found in cities.txt"
             exit 2
           fi
 
-          echo "Cities (${#CITIES[@]}):"
-          printf ' - %s\n' "${CITIES[@]}"
+          if [[ "$FORCE_REFRESH" == "true" ]]; then
+            echo "FORCED REFRESH: every configured city will be downloaded from OSM again."
+          else
+            echo "REPAIR MODE: existing POI artifacts may be skipped."
+          fi
 
+          regenerated=0
+          skipped=0
           for CITY in "${CITIES[@]}"; do
             CITY_SLUG="$(slug "$CITY")"
             OUTFILE="out/poi_${CITY_SLUG}.geojson"
 
-            # Skip if either the raw or the already-normalized .gz file exists
-            if [[ -f "$OUTFILE" || -f "${OUTFILE}.gz" ]]; then
-              echo "SKIP (exists): $CITY -> $OUTFILE[.gz]"
+            if [[ "$FORCE_REFRESH" != "true" && ( -f "$OUTFILE" || -f "${OUTFILE}.gz" ) ]]; then
+              echo "SKIP $CITY (existing artifact; enable forced refresh to replace it)"
+              skipped=$((skipped + 1))
               continue
             fi
 
-            echo "RUN: $CITY -> $OUTFILE"
-            "$POI_SCRIPT" "$CITY"
+            if [[ "$FORCE_REFRESH" == "true" ]]; then
+              echo "FORCE $CITY -> fresh OSM download"
+              rm -f "$OUTFILE" "${OUTFILE}.gz"
+            else
+              echo "RUN $CITY -> missing artifact"
+            fi
 
-            # optional: etwas schonender ggü. Nominatim/Overpass
+            "$POI_SCRIPT" "$CITY"
+            test -s "$OUTFILE"
+            regenerated=$((regenerated + 1))
             sleep 1
           done
+          echo "POI refresh done: ${#CITIES[@]} cities (${skipped} skipped, ${regenerated} regenerated, force=${FORCE_REFRESH})."
 
-      - name: Validate POI GeoJSON outputs (basic)
+      - name: Validate POI GeoJSON outputs
         shell: bash
         run: |
           set -euo pipefail
@@ -90,26 +107,26 @@ jobs:
           gz_files  = sorted(glob.glob("out/poi_*.geojson.gz"))
           files = raw_files + gz_files
           if not files:
-            print("No POI geojson files found (out/poi_*.geojson[.gz])")
-            sys.exit(2)
+              print("No POI geojson files found (out/poi_*.geojson[.gz])")
+              sys.exit(2)
           bad = []
           for f in files:
-            try:
-              opener = gzip.open if f.endswith('.gz') else open
-              with opener(f, "rt", encoding="utf-8") as fp:
-                j = json.load(fp)
-              if j.get("type") != "FeatureCollection":
-                raise ValueError("Not a FeatureCollection")
-              if "features" not in j:
-                raise ValueError("Missing features")
-            except Exception as e:
-              bad.append((f, str(e)))
+              try:
+                  opener = gzip.open if f.endswith('.gz') else open
+                  with opener(f, 'rt', encoding='utf-8') as fp:
+                      data = json.load(fp)
+                  if data.get('type') != 'FeatureCollection':
+                      raise ValueError('Not a FeatureCollection')
+                  if not isinstance(data.get('features'), list):
+                      raise ValueError('Missing features array')
+              except Exception as exc:
+                  bad.append((f, str(exc)))
           if bad:
-            print("Invalid GeoJSON:")
-            for f,e in bad:
-              print(" -", f, "->", e)
-            sys.exit(2)
-          print("POI GeoJSON OK:", len(files))
+              print('Invalid GeoJSON:')
+              for filename, error in bad:
+                  print(' -', filename, '->', error)
+              sys.exit(2)
+          print('POI GeoJSON OK:', len(files))
           PY
 
       - name: Set up Node.js
@@ -127,7 +144,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add out/poi_*.geojson.gz out/gzip-summary.json 2>/dev/null || true
-          git diff --cached --quiet && exit 0
-          git commit -m "Update POI GeoJSONs (schools/kindergartens) for cities.txt"
+          git add -A -- out/poi_*.geojson.gz out/gzip-summary.json
+          if git diff --cached --quiet; then
+            echo "The forced OSM downloads completed successfully, but the resulting POI data is unchanged."
+            exit 0
+          fi
+          git commit -m "Refresh schools and kindergartens from OSM"
           git push origin HEAD:${{ github.ref_name }}
