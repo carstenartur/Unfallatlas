@@ -49,22 +49,22 @@ fetch_overpass() {
   local query="$1"
   local max_retries=5
   local retry_delay=5
-  
+
   for ((i=1; i<=max_retries; i++)); do
     echo "==> Overpass API request (attempt $i/$max_retries)" >&2
-    
+
     local response
     response="$(curl -s \
       -A "Unfallatlas/1.0 (https://github.com/carstenartur/Unfallatlas)" \
       --data-urlencode "data=$query" \
       "https://overpass-api.de/api/interpreter")"
-    
+
     # Check if response is valid JSON with "elements" array (robust validation)
     if echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); sys.exit(0 if 'elements' in data else 1)" 2>/dev/null; then
       echo "$response"
       return 0
     fi
-    
+
     # Rate limiting or error - wait and retry
     if [[ $i -lt $max_retries ]]; then
       echo "==> Rate limited or error (invalid JSON or missing 'elements'), waiting ${retry_delay}s before retry..." >&2
@@ -82,7 +82,7 @@ fetch_overpass() {
       echo "$response" | head -n 10 >&2
     fi
   done
-  
+
   echo "ERROR: Overpass API failed after $max_retries attempts" >&2
   return 1
 }
@@ -113,14 +113,16 @@ OV_JSON="$(fetch_overpass "$QL")" || {
 }
 
 # Convert Overpass JSON -> GeoJSON (minimal, jq-less):
-# We'll write a simple FeatureCollection with Point features using lat/lon or center.
-# This is intentionally minimal so you can consume it easily.
-
+# Point features use lat/lon or the centre of ways/relations. The top-level
+# metadata is the authoritative source for data-age badges and export provenance.
 OUTFILE="${OUTDIR}/poi_${CITY_SLUG}.geojson"
+RETRIEVED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export CITY SOUTH NORTH WEST EAST RETRIEVED_AT
+
 echo "==> Write $OUTFILE"
 
 echo "$OV_JSON" | python3 -c "
-import json, sys
+import json, os, sys
 
 try:
     data = json.loads(sys.stdin.read())
@@ -161,7 +163,32 @@ for el in data.get('elements', []):
         }
     })
 
-out = {'type': 'FeatureCollection', 'features': features}
+out = {
+    'type': 'FeatureCollection',
+    'properties': {
+        'schemaVersion': 1,
+        'city': os.environ['CITY'],
+        'retrievedAt': os.environ['RETRIEVED_AT'],
+        'bbox': [
+            float(os.environ['SOUTH']),
+            float(os.environ['WEST']),
+            float(os.environ['NORTH']),
+            float(os.environ['EAST']),
+        ],
+        'source': {
+            'id': 'openstreetmap-overpass',
+            'publisher': 'OpenStreetMap contributors',
+            'datasetTitle': 'OpenStreetMap schools, kindergartens and childcare facilities',
+            'datasetUrl': 'https://www.openstreetmap.org/',
+            'distributionUrl': 'https://overpass-api.de/api/interpreter',
+            'licenseId': 'ODbL-1.0',
+            'licenseName': 'Open Data Commons Open Database License 1.0',
+            'licenseUrl': 'https://opendatacommons.org/licenses/odbl/1-0/',
+            'requiredAttribution': '© OpenStreetMap contributors',
+        },
+    },
+    'features': features,
+}
 print(json.dumps(out, ensure_ascii=False))
 " > "$OUTFILE"
 
