@@ -10,15 +10,17 @@
 [![License](https://img.shields.io/github/license/carstenartur/Unfallatlas)](LICENSE)
 [![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-informational?logo=owasp)](https://github.com/carstenartur/Unfallatlas/dependency-graph/sbom)
 
-**Datenabdeckung und Aktualisierung**
+## Datenstatus und Aktualisierung
 
-**1.** [![Unfalldaten](https://carstenartur.github.io/Unfallatlas/status/accidents.svg)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Unfalldaten aktualisieren](https://img.shields.io/badge/%E2%96%B6-Aktualisieren-2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/generate-and-commit.yml)  
-**2.** [![Schulen und Kitas](https://carstenartur.github.io/Unfallatlas/status/poi.svg)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Schulen und Kitas aktualisieren](https://img.shields.io/badge/%E2%96%B6-Aktualisieren-2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/fetchpoi.yml)  
-**3.** [![Straßenkontext](https://carstenartur.github.io/Unfallatlas/status/roads.svg)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6-Aktualisieren-2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml)  
-**3.** [![Steigung](https://carstenartur.github.io/Unfallatlas/status/slope.svg)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6-Aktualisieren-2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml)  
-**3.** [![Verkehr](https://carstenartur.github.io/Unfallatlas/status/traffic.svg)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6-Aktualisieren-2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml)
+| Datenbestand | Status und Aktualisierung |
+|---|---|
+| **1 · Unfalldaten** | [![Unfalldaten](https://carstenartur.github.io/Unfallatlas/status/accidents.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Unfalldaten aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/generate-and-commit.yml) |
+| **2 · Schulen und Kitas** | [![Schulen und Kitas](https://carstenartur.github.io/Unfallatlas/status/poi.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Schulen und Kitas aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/fetchpoi.yml) |
+| **3a · Straßenkontext** | [![Straßenkontext](https://carstenartur.github.io/Unfallatlas/status/roads.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
+| **3b · Steigung** | [![Steigung](https://carstenartur.github.io/Unfallatlas/status/slope.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
+| **3c · Verkehr** | [![Verkehr](https://carstenartur.github.io/Unfallatlas/status/traffic.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
 
-Die grünen Schaltflächen öffnen den jeweils zuständigen GitHub-Actions-Workflow. Dort oben rechts **Run workflow** und anschließend nochmals **Run workflow** wählen. Für eine vollständige Aktualisierung normalerweise zuerst Schritt 1 und danach Schritt 2 starten; Schritt 3 folgt nach Schritt 1 auf `main` automatisch.
+Der kompakte grüne **▶-Knopf** steht in derselben Tabellenzelle wie der zugehörige Status. Er öffnet den zuständigen GitHub-Actions-Workflow; dort **Run workflow** und anschließend nochmals **Run workflow** wählen. Für eine vollständige Aktualisierung normalerweise zuerst Schritt 1 und danach Schritt 2 starten. Die Schritte 3a–3c gehören zu demselben Kontext-Workflow und folgen nach Schritt 1 auf `main` automatisch.
 
 [Reihenfolge, Veröffentlichung, Methodik und Farbbedeutung](DATA_STATUS.md)
 
