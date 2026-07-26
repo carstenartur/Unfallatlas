@@ -54,12 +54,6 @@ jobs:
             test-results/
             out/qa/
             _site/build-manifest.json
-            tests/unit/docMediaPolicy.test.js
-            tests/unit/siteBuildContract.test.js
-            tests/unit/publicPagesProfile.test.js
-            tests/unit/screenshotWorkflowSafety.test.js
-            tests/unit/workflowMavenOwnership.test.js
-            tests/unit/dockerPublicationWorkflow.test.js
           if-no-files-found: ignore
           retention-days: 14
 
