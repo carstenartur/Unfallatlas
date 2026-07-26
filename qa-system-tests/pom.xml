@@ -23,7 +23,7 @@
     <properties>
         <junit.version>5.14.2</junit.version>
         <testcontainers.version>2.0.5</testcontainers.version>
-        <jackson.version>2.20.1</jackson.version>
+        <jackson.version>2.21.5</jackson.version>
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
         <maven.failsafe.plugin.version>3.5.5</maven.failsafe.plugin.version>
     </properties>
@@ -71,7 +71,7 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.7</version>
+            <version>42.7.12</version>
             <scope>test</scope>
         </dependency>
         <dependency>
