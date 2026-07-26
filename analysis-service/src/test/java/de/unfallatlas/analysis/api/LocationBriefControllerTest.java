@@ -52,7 +52,7 @@ class LocationBriefControllerTest {
             .andExpect(jsonPath("$.profileScores", hasSize(5)))
             .andReturn();
 
-        String createdId = json.readTree(post.getResponse().getContentAsString()).get("id").asText();
+        String createdId = json.readTree(post.getResponse().getContentAsString()).get("id").asString();
 
         mvc.perform(get("/api/location-briefs/{id}", createdId))
             .andExpect(status().isOk())
@@ -122,7 +122,7 @@ class LocationBriefControllerTest {
                 .content(json.writeValueAsString(b)))
             .andExpect(status().isCreated())
             .andReturn();
-        String locationKey = json.readTree(second.getResponse().getContentAsString()).get("locationKey").asText();
+        String locationKey = json.readTree(second.getResponse().getContentAsString()).get("locationKey").asString();
 
         mvc.perform(get("/api/location-briefs/by-location/{key}", locationKey))
             .andExpect(status().isOk())
