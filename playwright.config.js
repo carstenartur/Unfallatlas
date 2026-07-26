@@ -1,6 +1,10 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 const serveExistingSite = process.env.PLAYWRIGHT_SERVE_EXISTING_SITE === '1';
+const existingSiteEntry = fileURLToPath(new URL('./_site/index.html', import.meta.url));
+const existingSiteReady = serveExistingSite && existsSync(existingSiteEntry);
 const canonicalWebServer = Object.freeze({ command: 'npm run serve:site' });
 
 export default defineConfig({
@@ -75,10 +79,12 @@ export default defineConfig({
   ],
 
   // Only start a local web server when not targeting a live/remote BASE_URL.
-  // Documentation evidence can request the already-built _site tree so a
-  // later audit cannot invalidate screenshot fingerprints by rebuilding it.
+  // Documentation evidence prefers an already-built _site tree, but a plain
+  // Maven checkout may not have produced it yet. In that case the canonical
+  // server performs the identical site build instead of waiting for a missing
+  // artifact until Playwright terminates the process with SIGTERM.
   webServer: process.env.BASE_URL ? undefined : {
-    command: serveExistingSite ? 'npm run serve:site:existing' : canonicalWebServer.command,
+    command: existingSiteReady ? 'npm run serve:site:existing' : canonicalWebServer.command,
     url: 'http://localhost:8000',
     // A foreign/stale server on port 8000 must never satisfy screenshot or
     // E2E checks for the current checkout.
