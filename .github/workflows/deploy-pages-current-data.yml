@@ -1,4 +1,4 @@
-name: Build and Deploy Current Pages Data
+name: "04 · Aktuelle Daten veröffentlichen"
 
 on:
   workflow_dispatch:

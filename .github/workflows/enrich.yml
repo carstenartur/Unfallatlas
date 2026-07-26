@@ -1,4 +1,4 @@
-name: Enrich GeoJSONs
+name: "03 · Straßen, Steigung und Verkehr aktualisieren"
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ on:
       - 'scripts/check-enrichment-inputs.js'
       - 'scripts/producers/**'
   workflow_run:
-    workflows: ["Generate & Commit"]
+    workflows: ["01 · Unfalldaten aktualisieren"]
     types: [completed]
   schedule:
     - cron: '0 4 * * 0'
