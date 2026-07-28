@@ -19,7 +19,8 @@ node scripts/render-document-golden-matrix.js
 
 Der zweite Schritt prüft fail-closed:
 
-- DOCX-Dateigröße und SHA-256 gegen `matrix.json`;
+- alle DOCX-Dateigrößen und SHA-256 gegen `matrix.json`, bevor LibreOffice für
+  das erste Szenario gestartet wird;
 - Konvertierung ohne LibreOffice-Reparaturwarnung;
 - plausibles finales PDF;
 - vollständige Poppler-Endseitenanalyse ohne Auditbefund;
@@ -27,16 +28,20 @@ Der zweite Schritt prüft fail-closed:
 - mindestens die im Szenariovertrag angegebene Seitenzahl;
 - Hash und Größe von PDF, Metadaten, Auditmodell, Auditbericht und jeder
   gerenderten PNG-Seite;
-- atomare Veröffentlichung: Schlägt ein Szenario fehl, entsteht kein
-  `rendered-matrix.json` und kein teilweise bestandenes `rendered/`-Verzeichnis.
+- Realpath- und Symlink-Grenzen für Matrixeingaben sowie sämtliche
+  Renderer-Ausgaben;
+- atomare Veröffentlichung als **ein** Verzeichnis: Szenarioartefakte und
+  `rendered-matrix.json` werden gemeinsam ausgetauscht. Schlägt Erzeugung,
+  Manifest-Schreiben oder Installation fehl, bleibt ein vorheriger grüner
+  Evidenzstand erhalten und es entsteht kein teilweise bestandenes Paket.
 
 Das Ergebnis liegt unter:
 
 ```text
 out/qa/document-golden-matrix/
 ├── matrix.json
-├── rendered-matrix.json
 └── rendered/
+    ├── rendered-matrix.json
     ├── bonn-urban-junction/
     ├── few-cases/
     ├── hannover-arterial/
@@ -46,8 +51,8 @@ out/qa/document-golden-matrix/
 
 ## Wahrheitsgrenze
 
-`rendered-matrix.json` unterscheidet ausdrücklich zwischen bereits geprüften
-und noch offenen Aussagen:
+`rendered/rendered-matrix.json` unterscheidet ausdrücklich zwischen bereits
+geprüften und noch offenen Aussagen:
 
 - `renderedPageCountsVerified: true`
 - `genericFinalPageAuditVerified: true`
