@@ -1,13 +1,27 @@
-# Vendor-Build-Lock für Browser-Exportbibliotheken
+# Exact-Copy-Lock für Browser-Exportbibliotheken
 
 Die statische Unfallwerkbank kopiert Browserbibliotheken ausschließlich aus dem
 mit `npm ci` installierten, durch `package-lock.json` festgelegten Bestand. Für
 die exportkritischen Pakete `docx` und `pdfmake` erzeugt der kanonische
-Site-Build zusätzlich eine maschinenlesbare Attestation:
+Site-Build zusätzlich eine maschinenlesbare Exact-Copy-Attestation:
 
 ```text
-_site/vendor/build-lock.json
+_site/vendor/exact-copy-lock.json
 ```
+
+## Abgrenzung zum vollständigen Vendor-Build-Lock
+
+Der Typ dieses Piloten lautet ausdrücklich
+`unfallatlas-vendor-exact-copy-lock`. Er ist **nicht** identisch mit dem bereits
+vorhandenen vollständigen `unfallatlas-vendor-build-lock`, dessen Validator
+zusätzlich Toolchain, Befehle, Eingaben, Quellen, Ausgaben und signierte
+Rebuilds verlangt. Beide Schemata verwenden deshalb weder denselben Typnamen
+noch denselben Referenztyp.
+
+Der Exact-Copy-Lock kann später als Eingabe des vollständigen
+Provenienzmodells verwendet werden. Er darf aber nicht als Ersatz für dessen
+strengeren Vertrag oder als Nachweis eines vollständigen reproduzierbaren
+Upstream-Builds behandelt werden.
 
 ## Was der Pilot beweist
 
@@ -20,8 +34,8 @@ abgedeckte Artefakt:
 - optionale Hilfseingaben wie Source Map und Roboto-TTF-Dateien,
 - den exakten Zielpfad im ausgelieferten Site-Artefakt,
 - Eingabe- und Ausgabegröße sowie SHA-256,
-- eine stabile `lockRef` zur Verwendung in Komponenten-, Lizenz- und
-  Asset-Attestationen.
+- eine stabile `lockRef` mit dem separaten Referenztyp
+  `vendor-exact-copy-lock-reference`.
 
 Die derzeit abgedeckten Ausgaben sind:
 
@@ -33,8 +47,10 @@ Die derzeit abgedeckten Ausgaben sind:
 
 Alle drei Operationen sind bewusst als `byte-for-byte-copy` modelliert. Der
 Build bricht ab, wenn Version, Lockfile-Metadaten, Eingabepfad oder gelieferte
-Bytes nicht mehr zur Recipe passen. Pfadflucht, Symlinks, doppelte Ziele und
-unbekannte Recipe-Felder werden ebenfalls abgewiesen.
+Bytes nicht mehr zur Recipe passen. Pfadflucht, Symlinks, doppelte Ziele,
+fehlende Hilfseingaben und unbekannte Recipe-Felder werden ebenfalls
+abgewiesen. Änderungen an einer der vier Roboto-TTF-Dateien ändern die
+Lock-ID deterministisch.
 
 ## Lokale Reproduktion
 
@@ -46,9 +62,12 @@ npm run validate:vendor-build-lock
 
 `npm run build:site` verwendet
 `scripts/build-site-with-vendor-lock.js`: Zuerst läuft der bisherige kanonische
-Site-Build, anschließend wird der Lock ausschließlich über die fertig erzeugten
-Vendor-Ausgaben geschrieben. `validate:vendor-build-lock` berechnet denselben
-Lock erneut und gibt seine `lockId` aus; bei Drift endet der Aufruf mit Fehler.
+Site-Build, anschließend wird die Exact-Copy-Attestation ausschließlich über
+die fertig erzeugten Vendor-Ausgaben geschrieben.
+`validate:vendor-build-lock` berechnet dieselbe Attestation erneut und gibt ihre
+`lockId` aus; bei Drift endet der Aufruf mit Fehler. Fehlt das Repository- oder
+Site-Root, wird ein verständlicher `missing_root`-Fehler statt eines rohen
+`ENOENT` ausgegeben.
 
 Die `lockId` ist deterministisch aus Recipe, Package-Lock, Paketarchivdaten,
 Eingabehashes, Hilfseingaben und Ausgabehashes abgeleitet. Zeitstempel oder
@@ -66,11 +85,13 @@ Build-Provenienz. Insbesondere bleiben als Arbeit in #406:
   diesen Komponenten;
 - unabhängige Reproduktion des upstream Bundling-Schritts statt ausschließlicher
   Verifikation der veröffentlichten npm-Archivbytes;
-- direkte Einbindung der Lock-Referenzen in
-  `vendor/third-party-notices.json`, Komponentenlizenzen und Font-Attestationen;
+- Einbindung der Exact-Copy-Referenzen als nachgewiesene Eingaben in den
+  bestehenden vollständigen Vendor-Build-Lock;
+- direkte Bindung an `vendor/third-party-notices.json`, Komponentenlizenzen und
+  Font-Attestationen;
 - Ausweitung auf die übrigen ausgelieferten Browserbibliotheken.
 
 Bis diese Punkte abgeschlossen sind, bleibt
-`third-party-notices.json.complete` korrekt `false`. Der neue Build-Lock darf
+`third-party-notices.json.complete` korrekt `false`. Die neue Attestation darf
 nicht benutzt werden, um die bestehenden bekannten Lücken zu verbergen oder
 einen vollständigen SBOM-Status vorzutäuschen.
