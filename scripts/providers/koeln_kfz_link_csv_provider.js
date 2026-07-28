@@ -83,7 +83,7 @@ function sha256Buffer(value) {
 }
 
 function normalizeHash(value, label) {
-  const hash = requiredString(value, label).toLowerCase();
+  const hash = requiredString(value, label);
   if (!HASH_PATTERN.test(hash)) {
     fail("invalid_hash", `${label} must be a lowercase SHA-256 digest`);
   }
@@ -206,7 +206,7 @@ function parseCsv(textValue) {
       if (char === "\r" && text[index + 1] === "\n") index += 1;
       row.push(field);
       field = "";
-      if (row.some((value) => String(value).trim() !== "")) rows.push(row);
+      if (row.some((item) => String(item).trim() !== "")) rows.push(row);
       row = [];
     } else {
       field += char;
@@ -215,7 +215,7 @@ function parseCsv(textValue) {
   if (quoted) fail("invalid_csv", "CSV ends inside a quoted field");
   if (field.length || row.length) {
     row.push(field);
-    if (row.some((value) => String(value).trim() !== "")) rows.push(row);
+    if (row.some((item) => String(item).trim() !== "")) rows.push(row);
   }
   if (rows.length < 2) {
     fail("empty_distribution", "CSV must contain a header and at least one data row");
@@ -298,10 +298,10 @@ function directionRecord(row, binding, rowNumber, reverse) {
   const toField = reverse ? "reverseToNode" : "toNode";
   const streetField = reverse ? "reverseStreet" : "street";
   const counts = YEARS.map((year) => {
-    const field = `${prefix || "forward"}${year}`;
+    const fieldName = `${prefix || "forward"}${year}`;
     return Object.freeze({
       year,
-      value: parseCount(rowValue(row, binding[field]), `row ${rowNumber} ${field}`),
+      value: parseCount(rowValue(row, binding[fieldName]), `row ${rowNumber} ${fieldName}`),
     });
   });
   if (!counts.some((item) => item.value != null)) return null;
