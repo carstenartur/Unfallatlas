@@ -9,6 +9,8 @@ const docxSourceLinks = require('../js/ua.docx_source_links');
 const docxPagination = require('../js/ua.docx_pagination');
 
 const DEFAULT_SCENARIO_ID = 'bonn-urban-junction';
+const BASELINE_MAP_DESCRIPTION =
+  '24 synthetic accidents, severity table, year trend and two report maps.';
 
 class SampleDocxError extends Error {
   constructor(code, message, details) {
@@ -46,6 +48,10 @@ function resolveScenario(value) {
   if (value == null) return scenarios.getScenario(DEFAULT_SCENARIO_ID);
   if (typeof value === 'string') return scenarios.getScenario(value);
   return scenarios.normalizeScenario(value);
+}
+
+function isBaselineScenario(scenario) {
+  return Boolean(scenario && scenario.id === DEFAULT_SCENARIO_ID);
 }
 
 function involvementFlags(involvement = {}) {
@@ -287,17 +293,31 @@ function createBaselineReportData() {
 
 function createReportData(scenarioValue) {
   const scenario = resolveScenario(scenarioValue);
-  if (scenario.id === DEFAULT_SCENARIO_ID) return createBaselineReportData();
+  if (isBaselineScenario(scenario)) return createBaselineReportData();
 
   const points = createAccidentPoints(
     scenario.accidentCount,
     scenario.bounds,
     scenario.involvement,
   );
+  const mask = scenarioMask(scenario.involvement);
   const label = involvementLabel(scenario.involvement);
   const localFocus = Math.max(1, Math.min(scenario.accidentCount, scenario.clusterCount));
   const baseTotal = Math.max(820, scenario.accidentCount * 20);
   const baseFocus = Math.max(localFocus + 1, Math.round(baseTotal * 0.15));
+  const focus = scenario.accidentCount < 5
+    ? []
+    : [
+        {
+          mask,
+          label,
+          locCnt: localFocus,
+          baseCnt: baseFocus,
+          locR: localFocus / scenario.accidentCount,
+          baseR: baseFocus / baseTotal,
+          factor: (localFocus / scenario.accidentCount) / (baseFocus / baseTotal),
+        },
+      ];
   const contextLine = scenario.context.status === 'available'
     ? `Kontextstatus: verfügbar. ${scenario.context.summary}`
     : scenario.context.status === 'uncertain'
@@ -341,25 +361,15 @@ function createReportData(scenarioValue) {
       },
       severity: severitySummary(points),
       deviations: {
-        focus: [
-          {
-            mask: scenarioMask(scenario.involvement),
-            label,
-            locCnt: localFocus,
-            baseCnt: baseFocus,
-            locR: localFocus / scenario.accidentCount,
-            baseR: baseFocus / baseTotal,
-            factor: (localFocus / scenario.accidentCount) / (baseFocus / baseTotal),
-          },
-        ],
+        focus,
         rows: [],
         local: {
           total: scenario.accidentCount,
-          byMask: { [scenarioMask(scenario.involvement)]: localFocus },
+          byMask: { [mask]: localFocus },
         },
         baseline: {
           total: baseTotal,
-          byMask: { [scenarioMask(scenario.involvement)]: baseFocus },
+          byMask: { [mask]: baseFocus },
         },
       },
       yearTable: yearSummary(points, label),
@@ -389,6 +399,9 @@ function assertDocxBytes(buffer, minimumBytes = 1024) {
 }
 
 function clusterBounds(scenario) {
+  if (isBaselineScenario(scenario)) {
+    return { south: 50.73, west: 7.091, north: 50.735, east: 7.101 };
+  }
   const latInset = (scenario.bounds.north - scenario.bounds.south) * 0.2;
   const lonInset = (scenario.bounds.east - scenario.bounds.west) * 0.2;
   return {
@@ -399,17 +412,32 @@ function clusterBounds(scenario) {
   };
 }
 
+function mapFixtureMetadata(scenario) {
+  return Object.freeze({
+    title: `${scenario.city} road-safety golden fixture`,
+    scenario: isBaselineScenario(scenario)
+      ? BASELINE_MAP_DESCRIPTION
+      : scenario.description,
+  });
+}
+
+function clusterLabel(scenario) {
+  return isBaselineScenario(scenario)
+    ? 'Detailkarte Bonn-Zentrum'
+    : `Detailkarte ${scenario.areaName}`;
+}
+
 async function generateSampleDocx(options = {}) {
   const scenario = resolveScenario(options.scenario);
   const outPath = path.resolve(
     options.outPath || path.join(__dirname, '..', 'out', 'ci-render-gate.docx'),
   );
+  const mapMetadata = mapFixtureMetadata(scenario);
   const mapDataUrl = toDataUrl(
     createDeterministicMapPng({
       width: 960,
       height: 640,
-      title: `${scenario.city} road-safety golden fixture`,
-      scenario: scenario.description,
+      ...mapMetadata,
     }),
   );
   const capturedDownloads = [];
@@ -460,7 +488,7 @@ async function generateSampleDocx(options = {}) {
         detailBounds,
         scenario.involvement,
       ),
-      label: `Detailkarte ${scenario.areaName}`,
+      label: clusterLabel(scenario),
       zoom: scenario.zoom + 1,
       lat: scenario.center.lat,
       lon: scenario.center.lon,
@@ -529,9 +557,11 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_SCENARIO_ID,
+  BASELINE_MAP_DESCRIPTION,
   SampleDocxError,
   parseArgs,
   resolveScenario,
+  isBaselineScenario,
   involvementFlags,
   createAccidentPoints,
   createBounds,
@@ -542,6 +572,8 @@ module.exports = {
   createReportData,
   assertDocxBytes,
   clusterBounds,
+  mapFixtureMetadata,
+  clusterLabel,
   generateSampleDocx,
   main,
 };
