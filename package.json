@@ -9,8 +9,8 @@
     "npm": ">=11 <12"
   },
   "scripts": {
-    "build:site": "node scripts/build-site.js",
-    "build:pages-profile": "node scripts/build-public-pages-profile.js",
+    "build:site": "node scripts/build-site-with-vendor-lock.js",
+    "build:site:core": "node scripts/build-site.js",
     "serve:site": "node scripts/serve-site.js",
     "serve:site:existing": "node scripts/serve-site.js --no-build --site _site",
     "fingerprint:site": "node scripts/fingerprint-static-tree.js",
@@ -26,6 +26,7 @@
     "qa:e2e:extended": "node scripts/run-extended-e2e.js",
     "qa:e2e:evidence": "node scripts/validate-screenshot-evidence.js --report out/qa/screenshot-evidence.json && node scripts/validate-doc-media.js --candidate-screenshots --report out/qa/documentation-media.json",
     "qa:document-render": "node scripts/run-document-render-qa.js",
+    "qa:document-golden-matrix": "node scripts/generate-document-golden-matrix.js",
     "qa:documentation-live": "node scripts/run-live-documentation-qa.js",
     "qa:context-enrichment": "node scripts/run-context-enrichment.js",
     "qa:release-site": "npm run build:site && npm run validate:media -- --report out/qa/release-documentation-media.json && npm run validate:vendor-provenance -- --require-complete",
@@ -35,6 +36,7 @@
     "generate:accident-tiles": "node scripts/build-accident-tiles.js",
     "generate:pages-data": "node scripts/generate-pages-data.cjs",
     "validate:enrichment-inputs": "node scripts/check-enrichment-inputs.js",
+    "validate:vendor-build-lock": "node scripts/vendor-build-lock.js --check",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:headed": "playwright test --project=chromium --headed",
     "test:context-data-e2e": "node scripts/run-context-data-e2e.js",
