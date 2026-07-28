@@ -44,7 +44,7 @@ function descriptor(contentHash = "a".repeat(64)) {
     requiredAttribution: "Stadt Köln",
     temporalCoverage: "2016–2019",
     spatialCoverage: "Köln",
-    versionOrPublicationDate: "2019",
+    versionOrPublicationDate: "2019-12-31",
     retrievedAt: "2026-07-28T20:00:00.000Z",
     contentHash,
     changedOrDerived: true,
