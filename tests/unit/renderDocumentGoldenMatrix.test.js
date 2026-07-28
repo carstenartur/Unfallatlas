@@ -69,6 +69,15 @@ async function createMatrix(root) {
   });
 }
 
+function manifestFixture(artifact) {
+  return {
+    schemaVersion: generator.MATRIX_SCHEMA,
+    scenarioContractSha256: 'a'.repeat(64),
+    matrixFingerprint: 'b'.repeat(64),
+    artifacts: [artifact],
+  };
+}
+
 describe('rendered document Golden matrix', () => {
   const roots = [];
 
@@ -86,6 +95,7 @@ describe('rendered document Golden matrix', () => {
     expect(result.matrix.artifacts).toHaveLength(5);
     expect(result.matrix.sourceMatrix.matrixFingerprint).toBe(input.matrix.matrixFingerprint);
     expect(result.matrix.matrixFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.manifestPath).toBe(path.join(result.renderedDir, 'rendered-matrix.json'));
     expect(result.matrix.truthBoundary).toEqual({
       renderedPageCountsVerified: true,
       genericFinalPageAuditVerified: true,
@@ -128,7 +138,7 @@ describe('rendered document Golden matrix', () => {
     await expect(renderer.renderGoldenMatrix({ root, renderer: render }))
       .rejects.toThrow(/docx_drift/);
     expect(render).not.toHaveBeenCalled();
-    expect(fs.existsSync(path.join(input.outDir, 'rendered-matrix.json'))).toBe(false);
+    expect(fs.existsSync(path.join(input.outDir, 'rendered'))).toBe(false);
   });
 
   test('fails atomically when one scenario renders fewer than its declared minimum pages', async () => {
@@ -139,7 +149,6 @@ describe('rendered document Golden matrix', () => {
     await expect(renderer.renderGoldenMatrix({ root, renderer: fakeRender({ pages: 1 }) }))
       .rejects.toThrow(/minimum_page_count_not_met/);
     expect(fs.existsSync(path.join(input.outDir, 'rendered'))).toBe(false);
-    expect(fs.existsSync(path.join(input.outDir, 'rendered-matrix.json'))).toBe(false);
   });
 
   test('rejects an audit with findings instead of recording a false-green matrix', async () => {
@@ -151,7 +160,7 @@ describe('rendered document Golden matrix', () => {
       root,
       renderer: fakeRender({ auditPassed: false }),
     })).rejects.toThrow(/rendered_audit_failed/);
-    expect(fs.existsSync(path.join(input.outDir, 'rendered-matrix.json'))).toBe(false);
+    expect(fs.existsSync(path.join(input.outDir, 'rendered'))).toBe(false);
   });
 
   test('produces deterministic evidence fingerprints for identical rendered bytes', async () => {
@@ -168,18 +177,68 @@ describe('rendered document Golden matrix', () => {
     expect(results[0].matrix.matrixFingerprint).toBe(results[1].matrix.matrixFingerprint);
   });
 
+  test('reports an incomplete artifact envelope as an invalid matrix instead of TypeError', () => {
+    expect(() => renderer.normalizeInputMatrix(manifestFixture({
+      scenarioId: 'few-cases',
+      artifact: null,
+    }))).toThrow(/invalid_matrix/);
+  });
+
+  test('rejects evidence symlinks even when their string path looks confined', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-rendered-symlink-'));
+    roots.push(root);
+    const renderRoot = path.join(root, 'rendered.tmp');
+    const scenarioRoot = path.join(renderRoot, 'few-cases');
+    fs.mkdirSync(scenarioRoot, { recursive: true });
+    const outside = writeFile(root, 'outside.pdf', '%PDF-outside');
+    fs.symlinkSync(outside, path.join(scenarioRoot, 'converted.pdf'));
+
+    expect(() => renderer.evidenceFile(
+      renderRoot,
+      scenarioRoot,
+      'converted.pdf',
+      'fixture PDF',
+    )).toThrow(/unsafe_renderer_output/);
+  });
+
+  test('rejects a matrix directory whose realpath escapes the repository root', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-matrix-root-'));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-matrix-outside-'));
+    roots.push(root, outside);
+    fs.mkdirSync(path.join(root, 'out', 'qa'), { recursive: true });
+    const link = path.join(root, 'out', 'qa', 'document-golden-matrix');
+    fs.symlinkSync(outside, link, 'dir');
+
+    expect(() => renderer.resolveMatrixDirectory(root, link))
+      .toThrow(/unsafe_matrix_directory/);
+  });
+
+  test('keeps a previous rendered package when writing the staged manifest fails', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-rendered-publish-'));
+    roots.push(root);
+    const stage = path.join(root, 'rendered.tmp');
+    const final = path.join(root, 'rendered');
+    writeFile(stage, 'few-cases/converted.pdf', '%PDF-new');
+    writeFile(final, 'previous-marker.txt', 'previous');
+
+    expect(() => renderer.publishRenderedDirectory(
+      stage,
+      final,
+      'rendered-matrix.json',
+      { schemaVersion: renderer.RENDERED_MATRIX_SCHEMA },
+      { writeFileSync: () => { throw new Error('disk full'); } },
+    )).toThrow(/manifest_write_failed/);
+    expect(fs.readFileSync(path.join(final, 'previous-marker.txt'), 'utf8')).toBe('previous');
+    expect(fs.existsSync(stage)).toBe(true);
+  });
+
   test('rejects unsafe artifact and CLI paths', () => {
     expect(() => renderer.parseArgs(['--matrix-dir', '../outside'])).not.toThrow();
     expect(() => renderer.safeChild('/tmp/root', '../outside', 'fixture'))
       .toThrow(/unsafe_path/);
-    expect(() => renderer.normalizeInputMatrix({
-      schemaVersion: generator.MATRIX_SCHEMA,
-      scenarioContractSha256: 'a'.repeat(64),
-      matrixFingerprint: 'b'.repeat(64),
-      artifacts: [{
-        scenarioId: 'few-cases',
-        artifact: { filename: '../few.docx', bytes: 2048, sha256: 'c'.repeat(64) },
-      }],
-    })).toThrow(/unsafe_path/);
+    expect(() => renderer.normalizeInputMatrix(manifestFixture({
+      scenarioId: 'few-cases',
+      artifact: { filename: '../few.docx', bytes: 2048, sha256: 'c'.repeat(64) },
+    }))).toThrow(/unsafe_path/);
   });
 });
