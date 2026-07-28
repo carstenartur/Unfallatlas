@@ -38,6 +38,8 @@ function runFocusedDocxTests() {
   if (!fs.existsSync(jest)) throw new Error(`Locked Jest CLI is missing: ${jest}`);
   const tests = [
     'tests/unit/deterministicMapFixture.test.js',
+    'tests/unit/documentGoldenMatrix.test.js',
+    'tests/unit/documentGoldenMatrixRegression.test.js',
     'tests/unit/docxPagination.test.js',
     'tests/unit/docxSourceLinks.test.js',
     'tests/unit/enrichRenderedDocumentTables.test.js',
@@ -45,6 +47,7 @@ function runFocusedDocxTests() {
     'tests/unit/libreOfficeRenderedDocument.test.js',
     'tests/unit/libreOfficeRenderedMapSemantics.test.js',
     'tests/unit/qaSampleDocxRendered.test.js',
+    'tests/unit/renderDocumentGoldenMatrix.test.js',
     'tests/unit/renderedTableHints.test.js',
     'tests/unit/runtimeExportProvenanceLoader.test.js',
   ];
@@ -76,6 +79,8 @@ function runDocx() {
   if (audit.status !== 0) throw new Error(`Rendered DOCX audit exited with status ${audit.status}`);
 
   runNode('scripts/verify-rendered-document-evidence.js');
+  runNode('scripts/generate-document-golden-matrix.js');
+  runNode('scripts/render-document-golden-matrix.js');
 }
 
 if (MODE === 'all' || MODE === 'native-pdf') runNativePdf();
