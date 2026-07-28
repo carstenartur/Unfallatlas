@@ -147,7 +147,11 @@ describe('qualitative traffic proxy final-artifact adapter', () => {
     }
   });
 
-  test('fails closed when a proxy provider contains a numeric value', () => {
+  test.each([
+    ['value', 18000],
+    ['unit', 'vehicles/day'],
+    ['year', 2026],
+  ])('fails closed when a proxy provider contains forbidden field %s', (field, value) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-invalid-traffic-'));
     try {
       writeGzipJson(path.join(root, '.enrichment-cache/traffic/traffic_bonn.json.gz'), {
@@ -157,12 +161,12 @@ describe('qualitative traffic proxy final-artifact adapter', () => {
             measurementType: 'proxy',
             proxyClass: 'high',
             highwayClass: 'primary',
-            value: 18000,
+            [field]: value,
           },
         },
       });
       expect(() => applyQualitativeTrafficProxy({ root, city: 'Bonn' }))
-        .toThrow(/forbidden numeric field value/);
+        .toThrow(new RegExp(`forbidden field ${field}$`));
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
