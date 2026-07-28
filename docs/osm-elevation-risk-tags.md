@@ -57,9 +57,13 @@ Der abgeleitete Vertrag kann unverändert an
 
 - Brücke oder Tunnel: DGM beschreibt nicht die Fahrbahnoberfläche; Ergebnis
   `usable: false`, keine numerische Straßenlängsneigung.
-- Nichtnull-`layer`: zusätzliche Unsicherheit außerhalb der Geländeebene.
-- Damm oder Einschnitt: Profil bleibt gegebenenfalls nutzbar, Qualität wird
-  sichtbar reduziert und der Grund ausgegeben.
+- Nichtnull-`layer`: zusätzlicher Unsicherheitsgrund außerhalb der Geländeebene.
+- Damm oder Einschnitt: Profil bleibt gegebenenfalls nutzbar und der Grund wird
+  im strukturierten Ergebnis ausgegeben. Die vorhandene scorebasierte
+  Qualitätsbewertung berücksichtigt den Grund zusammen mit Auflösung,
+  Stichprobengröße, Residuen und Matchingqualität; ein einzelner Grund erzwingt
+  daher bei ansonsten sehr starken Daten nicht künstlich eine feste niedrigere
+  Qualitätsklasse.
 
 Die Tests verwenden den realen gemeinsamen Theil-Sen-Profilalgorithmus und
 belegen diese Wirkung auch für `bridge=viaduct`, `tunnel=culvert` und
