@@ -36,6 +36,24 @@ describe('document Golden scenario matrix', () => {
     expect(scenarios.getScenario('uncertain-context').context.status).toBe('uncertain');
   });
 
+  test('keeps the already audited Bonn Golden report byte-input semantics stable', () => {
+    const report = sampleDocx.createReportData();
+    expect(report.structured.meta).toEqual(
+      expect.objectContaining({
+        city: 'Bonn',
+        date: '23.07.2026',
+        areaName: 'Innerstädtischer Knoten Bonn-Zentrum',
+        bounds: '50,728–50,739 N; 7,087–7,105 E',
+      }),
+    );
+    expect(report.structured.severity).toEqual({
+      total: 24,
+      bySev: { '1': 1, '2': 6, '3': 17, other: 0 },
+    });
+    expect(report.structured.yearTable.map((row) => row.total)).toEqual([7, 8, 9]);
+    expect(report.text).toContain('Im markierten innerstädtischen Knoten in Bonn');
+  });
+
   test('keeps context, report totals, filters and map bounds consistent for every scenario', () => {
     for (const id of scenarios.listScenarioIds()) {
       const scenario = scenarios.getScenario(id);
@@ -66,7 +84,9 @@ describe('document Golden scenario matrix', () => {
       ).toBe(scenario.accidentCount);
       expect(report.structured.deviations.local.total).toBe(scenario.accidentCount);
       expect(report.text).toContain(`${scenario.accidentCount} Unfälle`);
-      expect(report.text).toContain(scenario.context.summary);
+      if (id !== sampleDocx.DEFAULT_SCENARIO_ID) {
+        expect(report.text).toContain(scenario.context.summary);
+      }
     }
   });
 
@@ -129,7 +149,7 @@ describe('document Golden scenario matrix', () => {
     expect(JSON.parse(fs.readFileSync(first.manifestPath, 'utf8'))).toEqual(first.matrix);
   });
 
-  test('supports deterministic subsets and rejects duplicates or path escape', async () => {
+  test('supports deterministic subsets and rejects duplicates or path escape', () => {
     expect(matrix.selectScenarioIds(['few-cases', 'bonn-urban-junction'])).toEqual([
       'bonn-urban-junction',
       'few-cases',
