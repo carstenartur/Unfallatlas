@@ -20,7 +20,7 @@ function writeExecutable(filePath, content) {
   fs.chmodSync(filePath, 0o755);
 }
 
-function runWrapper(args, directory) {
+function runWrapper(args, directory, extraEnv = {}) {
   const fakeFfmpeg = path.join(directory, 'real-ffmpeg');
   const fakeMagick = path.join(directory, 'magick');
   const ffmpegLog = path.join(directory, 'ffmpeg.log');
@@ -57,6 +57,7 @@ function runWrapper(args, directory) {
       UNFALLATLAS_MAGICK: fakeMagick,
       FAKE_FFMPEG_LOG: ffmpegLog,
       FAKE_MAGICK_LOG: magickLog,
+      ...extraEnv,
     },
     encoding: 'utf8',
   });
@@ -95,6 +96,50 @@ testUnix('ordinary ffmpeg calls are delegated without rewriting arguments', () =
   expect(result.status).toBe(0);
   expect(fs.readFileSync(ffmpegLog, 'utf8')).toBe('-version\n');
   expect(fs.existsSync(magickLog)).toBe(false);
+});
+
+testUnix('full-frame encoded inspection is sampled at one frame per second', () => {
+  const directory = makeTempDirectory();
+  const { result, ffmpegLog, magickLog } = runWrapper([
+    '-v', 'error', '-i', 'animation.gif',
+    '-vf', 'fps=2', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1',
+  ], directory);
+
+  expect(result.status).toBe(0);
+  const argumentsSeen = fs.readFileSync(ffmpegLog, 'utf8').trim().split('\n');
+  const filterIndex = argumentsSeen.indexOf('-vf');
+  expect(filterIndex).toBeGreaterThanOrEqual(0);
+  expect(argumentsSeen[filterIndex + 1]).toBe('fps=1');
+  expect(argumentsSeen).not.toContain('fps=2');
+  expect(fs.existsSync(magickLog)).toBe(false);
+});
+
+testUnix('bounded crop inspection retains the caller sampling rate', () => {
+  const directory = makeTempDirectory();
+  const { result, ffmpegLog, magickLog } = runWrapper([
+    '-v', 'error', '-i', 'animation.gif',
+    '-vf', 'fps=2,crop=40:20:5:7',
+    '-frames:v', '8',
+    '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1',
+  ], directory);
+
+  expect(result.status).toBe(0);
+  const argumentsSeen = fs.readFileSync(ffmpegLog, 'utf8').trim().split('\n');
+  const filterIndex = argumentsSeen.indexOf('-vf');
+  expect(argumentsSeen[filterIndex + 1]).toBe('fps=2,crop=40:20:5:7');
+  expect(fs.existsSync(magickLog)).toBe(false);
+});
+
+testUnix('invalid full-frame inspection limit fails closed', () => {
+  const directory = makeTempDirectory();
+  const { result, ffmpegLog } = runWrapper([
+    '-v', 'error', '-i', 'animation.gif',
+    '-vf', 'fps=2', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1',
+  ], directory, { UNFALLATLAS_FULL_FRAME_INSPECTION_FPS: '0' });
+
+  expect(result.status).toBe(64);
+  expect(result.stderr).toContain('invalid UNFALLATLAS_FULL_FRAME_INSPECTION_FPS=0');
+  expect(fs.existsSync(ffmpegLog)).toBe(false);
 });
 
 testUnix('lossless animated WebP uses deterministic compression effort', () => {

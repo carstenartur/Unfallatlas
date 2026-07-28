@@ -2,9 +2,10 @@
 set -euo pipefail
 
 # The production image deliberately puts this wrapper before the system ffmpeg.
-# Ordinary calls are delegated byte-for-byte. Two format-specific operations are
-# handled here: the Playwright ffmpeg build cannot reliably decode animated
-# WebP, and an adaptive GIF palette may drop fixed semantic-evidence colours.
+# Ordinary calls are delegated byte-for-byte. Three format-specific operations
+# are handled here: the Playwright ffmpeg build cannot reliably decode animated
+# WebP, an adaptive GIF palette may drop fixed semantic-evidence colours, and
+# unbounded full-frame RGBA inspection can exceed Node's child-process buffer.
 
 SELF_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REAL_FFMPEG="${UNFALLATLAS_REAL_FFMPEG:-/usr/bin/ffmpeg}"
@@ -99,6 +100,30 @@ for argument in "$@"; do
   [[ "$argument" == 'pipe:1' ]] && stdout_pipe=1
   previous="$argument"
 done
+
+# The final animation audit decodes complete 1280x720 RGBA frames. At two
+# frames per second a normal export can exceed 256 MiB and make execFile fail
+# before the semantic pixel audit runs. The workbench deliberately holds every
+# owned evidence region stable for more than two seconds, so one frame per
+# second preserves the fail-closed witness contract while halving the bounded
+# byte stream. Crop/tail inspections already have their own strict bounds and
+# must retain the caller's requested sampling rate.
+if [[ "$rawvideo" == 1 && "$stdout_pipe" == 1 && -z "$frame_limit" &&
+      "$filter_chain" != *'crop='* && "${input_path,,}" != *.webp &&
+      "$filter_chain" =~ (^|,)fps=([0-9]+([.][0-9]+)?)(,|$) ]]; then
+  inspection_fps="${UNFALLATLAS_FULL_FRAME_INSPECTION_FPS:-1}"
+  if [[ ! "$inspection_fps" =~ ^[1-9][0-9]*$ ]]; then
+    echo "unfallatlas ffmpeg wrapper: invalid UNFALLATLAS_FULL_FRAME_INSPECTION_FPS=$inspection_fps" >&2
+    exit 64
+  fi
+  for ((index = 0; index < ${#arguments[@]}; index++)); do
+    if [[ "${arguments[index]}" == '-vf' && $((index + 1)) -lt ${#arguments[@]} ]]; then
+      arguments[index + 1]="$(printf '%s' "${arguments[index + 1]}" | sed -E "s/(^|,)fps=[0-9]+([.][0-9]+)?(,|$)/\\1fps=${inspection_fps}\\3/")"
+      break
+    fi
+  done
+  set -- "${arguments[@]}"
+fi
 
 if [[ "$is_palettegen" == 1 ]]; then
   "$REAL_FFMPEG" "$@"
