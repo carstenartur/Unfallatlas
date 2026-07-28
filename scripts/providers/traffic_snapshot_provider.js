@@ -20,45 +20,22 @@ const SNAPSHOT_SCHEMA_VERSION = 1;
 const REGISTRY_SCHEMA_VERSION = 1;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 
-const OPEN_DATA_SOURCE_CATALOG = Object.freeze({
+const RETIRED_SOURCE_CATALOG = Object.freeze({
   "traffic.count.koeln-kfz-2010-2019": Object.freeze({
-    descriptor: Object.freeze({
-      id: "traffic.count.koeln-kfz-2010-2019",
-      publisher: "Stadt Köln",
-      datasetTitle: "KFZ Zählstellen und Werte Köln",
-      datasetUrl:
-        "https://open.nrw/dataset/kfz-zaehlstellen-und-werte-koeln-k",
-      distributionUrl:
-        "https://offenedaten-koeln.de/sites/default/files/KFZ_Zaheldaten_2016-2019_node.csv",
-      licenseId: "DL-DE-Zero-2.0",
-      licenseName: "Datenlizenz Deutschland – Zero – Version 2.0",
-      licenseUrl: "https://www.govdata.de/dl-de/zero-2-0",
-      temporalCoverage: "2010–2019",
-      spatialCoverage: "Köln",
-      changedOrDerived: true,
-      changeNotice:
-        "Quelldaten werden in das typisierte Unfallwerkbank-Beobachtungsschema überführt und räumlich auf Straßen gematcht.",
-      permissions: Object.freeze({
-        permitsRedistribution: true,
-        permitsDerivatives: true,
-        commercialUseAllowed: true,
-      }),
-      qualityNotes: Object.freeze([
-        "Kommunale Kfz-Zählwerte; Jahr, Zählart und räumliche Zuordnung bleiben je Beobachtung erhalten.",
-      ]),
-      measurementType: "count",
-      modes: Object.freeze(["motor_vehicle"]),
-      unit: "Kfz/24 h",
-      priority: 1,
-    }),
-    coverage: Object.freeze({
-      city: "Köln",
-      aliases: Object.freeze(["Köln", "Koeln"]),
-      fromYear: 2010,
-      toYear: 2019,
-      modes: Object.freeze(["motor_vehicle"]),
-    }),
+    reasonCode: "coordinate_only_distribution",
+    publisher: "Stadt Köln",
+    datasetTitle: "KFZ Zählstellen und Werte Köln",
+    retiredDistributionUrl:
+      "https://offenedaten-koeln.de/sites/default/files/KFZ_Zaheldaten_2016-2019_node.csv",
+    replacementSourceId: "traffic.count.koeln-kfz-links-2016-2019",
+    replacementDistributionUrl:
+      "https://offenedaten-koeln.de/sites/default/files/KFZ_Zaehldaten_2016-2019_link.csv",
+    explanation:
+      "Die bisher katalogisierte Knotendatei enthält Kennungen und Koordinaten, aber keine richtungsbezogenen Kfz-Zählwerte. Numerische Beobachtungen müssen mit dem geprüften Link-CSV-Parser erzeugt werden.",
   }),
+});
+
+const OPEN_DATA_SOURCE_CATALOG = Object.freeze({
   "traffic.model.berlin-dtvw-2023": Object.freeze({
     descriptor: Object.freeze({
       id: "traffic.model.berlin-dtvw-2023",
@@ -228,6 +205,14 @@ function resolveConfinedFile(allowedRoot, candidate) {
 
 function sourceEntry(sourceId) {
   const id = requiredString(sourceId, "sourceId");
+  const retired = RETIRED_SOURCE_CATALOG[id];
+  if (retired) {
+    fail(
+      "retired_source",
+      `source ${id} was retired because its distribution contains no numeric traffic counts`,
+      retired,
+    );
+  }
   const entry = OPEN_DATA_SOURCE_CATALOG[id];
   if (!entry) fail("unknown_source", `source ${id} is not in the reviewed catalog`);
   return entry;
@@ -558,6 +543,7 @@ function registerSnapshotManifest(registry, options) {
 module.exports = Object.freeze({
   SNAPSHOT_SCHEMA_VERSION,
   REGISTRY_SCHEMA_VERSION,
+  RETIRED_SOURCE_CATALOG,
   OPEN_DATA_SOURCE_CATALOG,
   TrafficSnapshotError,
   sha256Buffer,
