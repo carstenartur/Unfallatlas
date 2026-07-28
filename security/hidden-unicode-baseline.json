@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "allowances": [
+    {
+      "path": "analysis-service/README.md",
+      "codePoint": "U+00AD",
+      "count": 4
+    },
+    {
+      "path": "docs/DOKUMENTATION.md",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "docs/architecture.md",
+      "codePoint": "U+00AD",
+      "count": 10
+    },
+    {
+      "path": "docs/release-checklist.md",
+      "codePoint": "U+00AD",
+      "count": 2
+    },
+    {
+      "path": "docs/server-features.md",
+      "codePoint": "U+00AD",
+      "count": 13
+    },
+    {
+      "path": "js/ua.map_v2.js",
+      "codePoint": "U+00AD",
+      "count": 2
+    },
+    {
+      "path": "js/ua.measures.js",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "server/index.js",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "server/lib/capabilities.js",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "server/lib/correlationId.js",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "server/lib/errors.js",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "server/political-context/README.md",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/analysisServiceClient.test.js",
+      "codePoint": "U+00AD",
+      "count": 1
+    },
+    {
+      "path": "tests/unit/locationBrief/locationBrief.test.js",
+      "codePoint": "U+00AD",
+      "count": 2
+    },
+    {
+      "path": "werkbank_v2.html",
+      "codePoint": "U+00AD",
+      "count": 1
+    }
+  ]
+}
