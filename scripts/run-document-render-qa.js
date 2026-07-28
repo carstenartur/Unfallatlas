@@ -39,6 +39,7 @@ function runFocusedDocxTests() {
   const tests = [
     'tests/unit/deterministicMapFixture.test.js',
     'tests/unit/documentGoldenMatrix.test.js',
+    'tests/unit/documentGoldenMatrixLongReport.test.js',
     'tests/unit/documentGoldenMatrixRegression.test.js',
     'tests/unit/docxPagination.test.js',
     'tests/unit/docxSourceLinks.test.js',
