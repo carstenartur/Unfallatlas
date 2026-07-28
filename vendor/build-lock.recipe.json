@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "type": "unfallatlas-vendor-build-recipe",
+  "recipeId": "browser-export-exact-copy-pilot-v1",
+  "packageLock": "package-lock.json",
+  "packageManager": "npm@11.9.0",
+  "operations": [
+    {
+      "lockRef": "export.docx.iife",
+      "package": "docx",
+      "expectedVersion": "9.7.1",
+      "sourcePath": "dist/index.iife.js",
+      "outputPath": "vendor/export/docx.js",
+      "method": "byte-for-byte-copy"
+    },
+    {
+      "lockRef": "export.pdfmake.min",
+      "package": "pdfmake",
+      "expectedVersion": "0.3.11",
+      "sourcePath": "build/pdfmake.min.js",
+      "outputPath": "vendor/export/pdfmake.js",
+      "method": "byte-for-byte-copy",
+      "auxiliaryInputs": [
+        "build/pdfmake.min.js.map"
+      ]
+    },
+    {
+      "lockRef": "export.pdfmake.font-container",
+      "package": "pdfmake",
+      "expectedVersion": "0.3.11",
+      "sourcePath": "build/vfs_fonts.js",
+      "outputPath": "vendor/export/pdfmake-fonts.js",
+      "method": "byte-for-byte-copy",
+      "auxiliaryInputs": [
+        "build/fonts/Roboto/Roboto-Italic.ttf",
+        "build/fonts/Roboto/Roboto-Medium.ttf",
+        "build/fonts/Roboto/Roboto-MediumItalic.ttf",
+        "build/fonts/Roboto/Roboto-Regular.ttf"
+      ]
+    }
+  ],
+  "knownGaps": [
+    "The exact-copy pilot proves package archive, source path and delivered bytes but does not yet enumerate every transitive module bundled upstream into docx or pdfmake.",
+    "The pdfmake source map is retained as build evidence but a complete source-to-module CycloneDX contains graph remains follow-up work.",
+    "The four Roboto TTF inputs are bound to the delivered VFS container; upstream font build tooling is not yet independently reproduced."
+  ]
+}
