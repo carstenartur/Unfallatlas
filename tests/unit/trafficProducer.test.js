@@ -36,6 +36,7 @@ describe('traffic_producer qualitative OSM fallback', () => {
       schemaVersion: 2,
       measurementType: 'proxy',
       source: 'OSM-highway-class-proxy',
+      datasetVersion: traffic.PRODUCER_VERSION,
       producerVersion: traffic.PRODUCER_VERSION,
       extractDate: '2026-05-07',
     }));
@@ -64,6 +65,8 @@ describe('traffic_producer qualitative OSM fallback', () => {
       confidence: 'medium',
     });
     expect(dataset.source).toBe('Fixture qualitative road exposure');
+    expect(dataset.datasetVersion).toBe('fixture-1');
+    expect(dataset.producerVersion).toBe(traffic.PRODUCER_VERSION);
     expect(dataset.ways['1']).toEqual(expect.objectContaining({
       measurementType: 'proxy',
       proxyClass: 'medium',
