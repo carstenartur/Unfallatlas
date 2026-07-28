@@ -473,7 +473,7 @@ function createKoelnKfzLinkCsvProvider(options) {
     requiredAttribution: "Stadt Köln",
     temporalCoverage: "2016–2019",
     spatialCoverage: "Köln",
-    versionOrPublicationDate: "2019",
+    versionOrPublicationDate: "2019-12-31",
     retrievedAt,
     contentHash: loaded.sha256,
     changedOrDerived: true,
