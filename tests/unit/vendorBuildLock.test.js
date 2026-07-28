@@ -41,6 +41,21 @@ function recipe() {
         method: "byte-for-byte-copy",
         auxiliaryInputs: ["build/pdfmake.min.js.map"],
       },
+      {
+        lockRef: "export.pdfmake.font-container",
+        package: "pdfmake",
+        expectedVersion: "0.3.11",
+        sourcePath: "build/vfs_fonts.js",
+        outputPath: "vendor/export/pdfmake-fonts.js",
+        method: "byte-for-byte-copy",
+        auxiliaryInputs: [
+          "build/fonts/Roboto/Roboto-Regular.ttf",
+          "build/fonts/Roboto/Roboto-MediumItalic.ttf",
+          "build/fonts/Roboto/Roboto-Italic.ttf",
+          "build/fonts/Roboto/Roboto-Medium.ttf",
+          "build/fonts/Roboto/Roboto-Regular.ttf"
+        ],
+      },
     ],
     knownGaps: [
       "Upstream bundles are not yet decomposed into every transitive module.",
@@ -79,26 +94,25 @@ function createFixture() {
     version: "0.3.11",
   });
   writeFile(root, "node_modules/docx/dist/index.iife.js", "docx-browser-bytes\n");
-  writeFile(
-    root,
-    "node_modules/pdfmake/build/pdfmake.min.js",
-    "pdfmake-browser-bytes\n",
-  );
-  writeFile(
-    root,
-    "node_modules/pdfmake/build/pdfmake.min.js.map",
-    '{"version":3}\n',
-  );
+  writeFile(root, "node_modules/pdfmake/build/pdfmake.min.js", "pdfmake-browser-bytes\n");
+  writeFile(root, "node_modules/pdfmake/build/pdfmake.min.js.map", '{"version":3}\n');
+  writeFile(root, "node_modules/pdfmake/build/vfs_fonts.js", "font-container-bytes\n");
+  const fonts = [
+    "Roboto-Italic.ttf",
+    "Roboto-Medium.ttf",
+    "Roboto-MediumItalic.ttf",
+    "Roboto-Regular.ttf",
+  ];
+  for (const font of fonts) {
+    writeFile(root, `node_modules/pdfmake/build/fonts/Roboto/${font}`, `${font}-bytes\n`);
+  }
   writeFile(outputRoot, "vendor/export/docx.js", "docx-browser-bytes\n");
-  writeFile(
-    outputRoot,
-    "vendor/export/pdfmake.js",
-    "pdfmake-browser-bytes\n",
-  );
+  writeFile(outputRoot, "vendor/export/pdfmake.js", "pdfmake-browser-bytes\n");
+  writeFile(outputRoot, "vendor/export/pdfmake-fonts.js", "font-container-bytes\n");
   return { root, outputRoot };
 }
 
-describe("vendor build lock pilot", () => {
+describe("vendor exact-copy lock pilot", () => {
   let fixture;
 
   beforeEach(() => {
@@ -126,7 +140,19 @@ describe("vendor build lock pilot", () => {
     expect(normalized.knownGaps).toHaveLength(3);
   });
 
-  test("binds package-lock metadata, package inputs and delivered bytes deterministically", () => {
+  test("uses an identity distinct from the full signed vendor build-lock schema", () => {
+    expect(buildLock.EXACT_COPY_LOCK_TYPE).toBe(
+      "unfallatlas-vendor-exact-copy-lock",
+    );
+    expect(buildLock.REFERENCE_TYPE).toBe(
+      "vendor-exact-copy-lock-reference",
+    );
+    expect(buildLock.EXACT_COPY_LOCK_TYPE).not.toBe(
+      "unfallatlas-vendor-build-lock",
+    );
+  });
+
+  test("binds package-lock metadata, all inputs and delivered bytes deterministically", () => {
     const first = buildLock.createBuildLock({
       repoRoot: fixture.root,
       outputRoot: fixture.outputRoot,
@@ -137,9 +163,9 @@ describe("vendor build lock pilot", () => {
     });
 
     expect(second).toEqual(first);
-    expect(first.type).toBe("unfallatlas-vendor-build-lock");
+    expect(first.type).toBe("unfallatlas-vendor-exact-copy-lock");
     expect(first.lockId).toMatch(/^[a-f0-9]{64}$/);
-    expect(first.operations).toHaveLength(2);
+    expect(first.operations).toHaveLength(3);
     expect(first.operations[0]).toEqual(
       expect.objectContaining({
         lockRef: "export.docx.iife",
@@ -163,21 +189,69 @@ describe("vendor build lock pilot", () => {
     expect(first.operations[0].input.sha256).toBe(
       first.operations[0].output.sha256,
     );
-    expect(first.operations[1].auxiliaryInputs).toEqual([
-      expect.objectContaining({
-        path: "build/pdfmake.min.js.map",
-        sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-      }),
+    expect(first.operations[2].auxiliaryInputs.map((input) => input.path)).toEqual([
+      "build/fonts/Roboto/Roboto-Italic.ttf",
+      "build/fonts/Roboto/Roboto-Medium.ttf",
+      "build/fonts/Roboto/Roboto-MediumItalic.ttf",
+      "build/fonts/Roboto/Roboto-Regular.ttf",
     ]);
+    expect(first.operations[2].auxiliaryInputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "build/fonts/Roboto/Roboto-Regular.ttf",
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
+      ]),
+    );
   });
 
-  test("creates strict references for delivered assets", () => {
+  test("changes the lock identity when any font auxiliary input changes", () => {
+    const before = buildLock.createBuildLock({
+      repoRoot: fixture.root,
+      outputRoot: fixture.outputRoot,
+    });
+    writeFile(
+      fixture.root,
+      "node_modules/pdfmake/build/fonts/Roboto/Roboto-MediumItalic.ttf",
+      "changed-font-bytes\n",
+    );
+    const after = buildLock.createBuildLock({
+      repoRoot: fixture.root,
+      outputRoot: fixture.outputRoot,
+    });
+    expect(after.lockId).not.toBe(before.lockId);
+    const changed = after.operations[2].auxiliaryInputs.find(
+      (input) => input.path.endsWith("Roboto-MediumItalic.ttf"),
+    );
+    expect(changed.sha256).not.toBe(
+      before.operations[2].auxiliaryInputs.find(
+        (input) => input.path.endsWith("Roboto-MediumItalic.ttf"),
+      ).sha256,
+    );
+  });
+
+  test("fails when a declared font auxiliary input is missing", () => {
+    fs.rmSync(
+      path.join(
+        fixture.root,
+        "node_modules/pdfmake/build/fonts/Roboto/Roboto-Regular.ttf",
+      ),
+    );
+    expect(() =>
+      buildLock.createBuildLock({
+        repoRoot: fixture.root,
+        outputRoot: fixture.outputRoot,
+      }),
+    ).toThrow(/missing_input/);
+  });
+
+  test("creates strict references for exact-copy attestations", () => {
     const lock = buildLock.createBuildLock({
       repoRoot: fixture.root,
       outputRoot: fixture.outputRoot,
     });
     expect(buildLock.buildLockReference(lock, "export.pdfmake.min")).toEqual({
-      type: "vendor-build-lock-reference",
+      type: "vendor-exact-copy-lock-reference",
       schemaVersion: 1,
       lockId: lock.lockId,
       lockRef: "export.pdfmake.min",
@@ -192,12 +266,29 @@ describe("vendor build lock pilot", () => {
       repoRoot: fixture.root,
       outputRoot: fixture.outputRoot,
     });
+    expect(result.path).toBe("vendor/exact-copy-lock.json");
     const written = path.join(fixture.outputRoot, result.path);
     expect(fs.existsSync(written)).toBe(true);
     expect(result.sha256).toBe(buildLock.sha256Buffer(fs.readFileSync(written)));
     expect(JSON.parse(fs.readFileSync(written, "utf8")).lockId).toBe(
       result.lock.lockId,
     );
+  });
+
+  test("reports missing roots as domain errors instead of raw ENOENT", () => {
+    const missing = path.join(fixture.root, "does-not-exist");
+    expect(() =>
+      buildLock.createBuildLock({
+        repoRoot: missing,
+        outputRoot: fixture.outputRoot,
+      }),
+    ).toThrow(/missing_root: repoRoot does not exist/);
+    expect(() =>
+      buildLock.createBuildLock({
+        repoRoot: fixture.root,
+        outputRoot: missing,
+      }),
+    ).toThrow(/missing_root: outputRoot does not exist/);
   });
 
   test("fails when delivered bytes drift from the exact locked package input", () => {
