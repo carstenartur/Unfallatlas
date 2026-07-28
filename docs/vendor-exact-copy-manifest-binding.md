@@ -15,7 +15,7 @@ Site-Dateibaum erneut vollständig und deterministisch fingerprinted. Dabei gilt
   eigenen Anwendungsfingerprint ausgeschlossen;
 - Pfad, SHA-256, Lock-ID und Anzahl der Exact-Copy-Operationen werden im Abschnitt
   `vendorExactCopyLock` des Build-Manifests festgehalten;
-- der übergeordnete `overallFingerprint` bindet Anwendungsdateien,
+- der `fingerprint` bindet Anwendungsdateien,
   Abhängigkeiten, Third-Party-Notices, Daten, Netzwerkpolicy und den
   Exact-Copy-Lock gemeinsam;
 - Byte-Drift oder eine andere Lock-ID zwischen Writer-Ergebnis und Datei führen
@@ -42,7 +42,7 @@ Beispielauszug:
     "lockId": "<deterministische-lock-id>",
     "operationCount": 3
   },
-  "overallFingerprint": "<sha256-aller-buildnachweise>"
+  "fingerprint": "<sha256-aller-buildnachweise>"
 }
 ```
 

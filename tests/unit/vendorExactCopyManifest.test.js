@@ -3,9 +3,12 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const siteBuild = require("../../scripts/build-site");
 const vendorBuildLock = require("../../scripts/vendor-build-lock");
 const binding = require("../../scripts/vendor-exact-copy-manifest");
+
+function sha256File(file) {
+  return vendorBuildLock.sha256Buffer(fs.readFileSync(file));
+}
 
 function write(root, relative, value) {
   const file = path.join(root, relative);
@@ -36,16 +39,16 @@ function fixture() {
   const buildLockResult = {
     lock,
     path: "vendor/exact-copy-lock.json",
-    sha256: siteBuild.hashFile(lockFile),
+    sha256: sha256File(lockFile),
   };
   const manifest = {
-    manifestSchemaVersion: 1,
+    schemaVersion: 1,
     application: { files: ["index.html", "js/app.js"], fingerprint: digest("b") },
-    dependencies: { fingerprint: digest("c") },
+    dependencies: { docx: "9.4.2", pdfmake: "0.2.20" },
     thirdPartyNotices: { path: "vendor/third-party-notices.json", sha256: digest("d") },
     data: { files: [], fingerprint: digest("e") },
-    networkPolicy: { path: "network-policy.json", fingerprint: digest("f") },
-    overallFingerprint: digest("0"),
+    networkPolicy: { runtimeLibraries: "local-only", offlineCore: ".", optionalRemoteServices: [] },
+    fingerprint: digest("0"),
   };
   write(outputRoot, "build-manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
   return { outputRoot, lock, lockFile, buildLockResult, manifest };
@@ -83,13 +86,13 @@ describe("vendor exact-copy build-manifest binding", () => {
       lockId: value.lock.lockId,
       operationCount: 2,
     });
-    expect(result.manifest.overallFingerprint).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.manifest.overallFingerprint).not.toBe(
-      value.manifest.overallFingerprint,
+    expect(result.manifest.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.manifest.fingerprint).not.toBe(
+      value.manifest.fingerprint,
     );
     expect(result.manifest.application.files).not.toContain("build-manifest.json");
     expect(result.manifestSha256).toBe(
-      siteBuild.hashFile(result.manifestPath),
+      sha256File(result.manifestPath),
     );
   });
 
@@ -108,8 +111,8 @@ describe("vendor exact-copy build-manifest binding", () => {
     expect(secondResult.manifest.application.fingerprint).toBe(
       firstResult.manifest.application.fingerprint,
     );
-    expect(secondResult.manifest.overallFingerprint).toBe(
-      firstResult.manifest.overallFingerprint,
+    expect(secondResult.manifest.fingerprint).toBe(
+      firstResult.manifest.fingerprint,
     );
   });
 
@@ -133,15 +136,15 @@ describe("vendor exact-copy build-manifest binding", () => {
       buildLockResult: {
         lock: changedLock,
         path: first.buildLockResult.path,
-        sha256: siteBuild.hashFile(first.lockFile),
+        sha256: sha256File(first.lockFile),
       },
     });
 
     expect(after.manifest.application.fingerprint).not.toBe(
       before.manifest.application.fingerprint,
     );
-    expect(after.manifest.overallFingerprint).not.toBe(
-      before.manifest.overallFingerprint,
+    expect(after.manifest.fingerprint).not.toBe(
+      before.manifest.fingerprint,
     );
     expect(after.manifest.vendorExactCopyLock.operationCount).toBe(3);
   });
@@ -166,7 +169,7 @@ describe("vendor exact-copy build-manifest binding", () => {
       lockId: digest("8"),
     };
     fs.writeFileSync(value.lockFile, `${JSON.stringify(altered, null, 2)}\n`);
-    const sha256 = siteBuild.hashFile(value.lockFile);
+    const sha256 = sha256File(value.lockFile);
     expect(() =>
       binding.bindExactCopyLockToBuildManifest({
         outputRoot: value.outputRoot,
@@ -183,14 +186,14 @@ describe("vendor exact-copy build-manifest binding", () => {
     roots.push(value.outputRoot);
     const manifestFile = path.join(value.outputRoot, "build-manifest.json");
     const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
-    delete manifest.dependencies.fingerprint;
+    delete manifest.dependencies;
     fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
     expect(() =>
       binding.bindExactCopyLockToBuildManifest({
         outputRoot: value.outputRoot,
         buildLockResult: value.buildLockResult,
       }),
-    ).toThrow(/manifest\.dependencies\.fingerprint/);
+    ).toThrow(/manifest\.dependencies/);
   });
 
   test("reports missing site roots and manifests as domain errors", () => {

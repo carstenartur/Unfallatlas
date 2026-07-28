@@ -27,6 +27,10 @@ function sha256Buffer(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function sha256File(file) {
+  return sha256Buffer(fs.readFileSync(file));
+}
+
 function stableJson(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
@@ -85,7 +89,7 @@ function validateLockResult(outputRoot, buildLockResult) {
   ) {
     fail("invalid_exact_copy_lock", "a written vendor exact-copy lock is required");
   }
-  const relative = siteBuild.normalizeRelativePath(buildLockResult.path);
+  const relative = String(buildLockResult.path).replace(/\\/g, "/");
   const file = path.resolve(outputRoot, relative);
   const rel = path.relative(outputRoot, file);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
@@ -98,7 +102,7 @@ function validateLockResult(outputRoot, buildLockResult) {
       file,
     });
   }
-  const actualSha256 = siteBuild.hashFile(file);
+  const actualSha256 = sha256File(file);
   if (actualSha256 !== buildLockResult.sha256) {
     fail("exact_copy_lock_drift", "exact-copy lock bytes differ from the writer result", {
       expected: buildLockResult.sha256,
@@ -126,7 +130,7 @@ function fingerprintApplicationFiles(outputRoot) {
     .filter(
       (relative) =>
         relative !== "build-manifest.json" &&
-        !siteBuild.isExcludedOutputPath(relative),
+        !relative.startsWith("out/"),
     )
     .sort();
   const fingerprint = sha256Buffer(
@@ -134,7 +138,7 @@ function fingerprintApplicationFiles(outputRoot) {
       files
         .map((relative) => {
           const absolute = path.join(outputRoot, relative);
-          return `${relative}\0${siteBuild.hashFile(absolute)}`;
+          return `${relative}\0${sha256File(absolute)}`;
         })
         .join("\n"),
     ),
@@ -162,25 +166,29 @@ function requireSha256(value, label) {
   return value.sha256;
 }
 
+function requireObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("invalid_manifest", `${label} must be an object`);
+  }
+  return value;
+}
+
 function recomputeOverallFingerprint(manifest) {
   return sha256Buffer(
     Buffer.from(
-      stableJson({
+      JSON.stringify({
         application: requireFingerprint(manifest.application, "manifest.application"),
-        dependencies: requireFingerprint(manifest.dependencies, "manifest.dependencies"),
+        dependencies: requireObject(manifest.dependencies, "manifest.dependencies"),
         thirdPartyNotices: requireSha256(
           manifest.thirdPartyNotices,
           "manifest.thirdPartyNotices",
         ),
+        data: requireFingerprint(manifest.data, "manifest.data"),
+        networkPolicy: requireObject(manifest.networkPolicy, "manifest.networkPolicy"),
         vendorExactCopyLock: {
           lockId: manifest.vendorExactCopyLock.lockId,
           sha256: manifest.vendorExactCopyLock.sha256,
         },
-        data: requireFingerprint(manifest.data, "manifest.data"),
-        networkPolicy: requireFingerprint(
-          manifest.networkPolicy,
-          "manifest.networkPolicy",
-        ),
       }),
     ),
   );
@@ -218,12 +226,12 @@ function bindExactCopyLockToBuildManifest(options) {
       ? lock.value.operations.length
       : 0,
   };
-  manifest.overallFingerprint = recomputeOverallFingerprint(manifest);
+  manifest.fingerprint = recomputeOverallFingerprint(manifest);
   fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
   return Object.freeze({
     manifest: Object.freeze(manifest),
     manifestPath: manifestFile,
-    manifestSha256: siteBuild.hashFile(manifestFile),
+    manifestSha256: sha256File(manifestFile),
   });
 }
 
@@ -232,6 +240,7 @@ module.exports = Object.freeze({
   MANIFEST_BINDING_TYPE,
   VendorExactCopyManifestError,
   sha256Buffer,
+  sha256File,
   stableJson,
   readJson,
   resolveOutputRoot,
@@ -239,6 +248,7 @@ module.exports = Object.freeze({
   fingerprintApplicationFiles,
   requireFingerprint,
   requireSha256,
+  requireObject,
   recomputeOverallFingerprint,
   bindExactCopyLockToBuildManifest,
 });
