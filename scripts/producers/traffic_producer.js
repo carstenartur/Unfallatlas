@@ -16,6 +16,7 @@
  *     measurementType: "proxy",
  *     source: "OSM-highway-class-proxy",
  *     datasetVersion: "2.0.0",
+ *     producerVersion: "2.0.0",
  *     extractDate: "YYYY-MM-DD",
  *     ways: {
  *       "<wayId>": {
@@ -88,7 +89,7 @@ function buildTrafficDataset(osmWays, options) {
     measurementType: 'proxy',
     source,
     datasetVersion: opts.datasetVersion || PRODUCER_VERSION,
-    producerVersion: opts.datasetVersion || PRODUCER_VERSION,
+    producerVersion: PRODUCER_VERSION,
     extractDate: opts.extractDate || new Date().toISOString().slice(0, 10),
     provenance: {
       sourceId: 'traffic.proxy.osm-highway-class',
