@@ -106,6 +106,48 @@ function inspectDocx(file, scenario) {
   return Object.freeze({ bytes: buffer.length, sha256: sha256(buffer) });
 }
 
+function buildScenarioReportData(scenarioValue) {
+  const scenario = scenarios.getScenario(scenarioValue && scenarioValue.id
+    ? scenarioValue.id
+    : scenarioValue);
+  const reportData = sampleDocx.createReportData(scenario);
+  if (!reportData || !reportData.structured) {
+    fail('invalid_report_data', `Scenario ${scenario.id} lacks structured report data`);
+  }
+  const paragraphs = Array.isArray(scenario.narrativeParagraphs)
+    ? scenario.narrativeParagraphs
+    : [];
+  if (paragraphs.length === 0) return reportData;
+
+  // The DOCX renderer intentionally cuts the unstructured Sachverhalt at the
+  // first Methodik heading to avoid raw-text/table duplication. Matrix stress
+  // sections must therefore enter through a renderer-owned structured field.
+  // `patterns` produces one bold title and one content paragraph per item,
+  // creating real pagination/heading boundaries without inventing facts.
+  const patterns = paragraphs.map((paragraph, index) => Object.freeze({
+    title: `Prüfabschnitt ${index + 1}`,
+    content:
+      `${String(paragraph).replace(/^Prüfabschnitt\s+\d+\s*:\s*/i, '').trim()} ` +
+      'Dieser Abschnitt ist ausschließlich ein deterministischer Layout- und Umbruchfall; ' +
+      'er enthält keine zusätzliche fachliche Tatsachenbehauptung.',
+  }));
+  return {
+    ...reportData,
+    structured: {
+      ...reportData.structured,
+      patterns,
+    },
+  };
+}
+
+async function generateScenarioDocx({ scenario, outPath }) {
+  return sampleDocx.generateSampleDocx({
+    scenario,
+    outPath,
+    reportData: buildScenarioReportData(scenario),
+  });
+}
+
 async function generateGoldenMatrix(options = {}) {
   const root = fs.realpathSync(path.resolve(options.root || path.join(__dirname, '..')));
   const out = resolveInside(
@@ -118,7 +160,7 @@ async function generateGoldenMatrix(options = {}) {
     fail('invalid_manifest_path', 'matrix manifest must be a file directly inside the matrix directory');
   }
   const scenarioIds = selectScenarioIds(options.scenarioIds);
-  const generator = options.generator || sampleDocx.generateSampleDocx;
+  const generator = options.generator || generateScenarioDocx;
   if (typeof generator !== 'function') fail('invalid_generator', 'DOCX generator must be a function');
 
   const tempDirectory = `${out.candidate}.tmp-${process.pid}-${Date.now()}`;
@@ -215,6 +257,8 @@ module.exports = Object.freeze({
   parseArgs,
   selectScenarioIds,
   inspectDocx,
+  buildScenarioReportData,
+  generateScenarioDocx,
   generateGoldenMatrix,
   main,
 });

@@ -15,18 +15,24 @@ on:
       - 'js/ua.report_v2.js'
       - 'js/ua.utils.js'
       - 'scripts/deterministic-map-fixture.js'
+      - 'scripts/document-golden-scenarios.js'
       - 'scripts/enrich-rendered-document-tables.js'
+      - 'scripts/generate-document-golden-matrix.js'
       - 'scripts/generate-sample-docx.js'
       - 'scripts/generate-sample-pdf.js'
       - 'scripts/libreoffice-rendered-document.js'
       - 'scripts/poppler-rendered-document.js'
       - 'scripts/qa-sample-docx-rendered.js'
+      - 'scripts/render-document-golden-matrix.js'
       - 'scripts/rendered-document-audit.js'
       - 'scripts/rendered-table-hints.js'
       - 'scripts/run-document-render-qa.js'
       - 'scripts/verify-rendered-document-evidence.js'
       - 'tests/fixtures/rendered-document/ci-docx-contract.json'
       - 'tests/unit/deterministicMapFixture.test.js'
+      - 'tests/unit/documentGoldenMatrix.test.js'
+      - 'tests/unit/documentGoldenMatrixLongReport.test.js'
+      - 'tests/unit/documentGoldenMatrixRegression.test.js'
       - 'tests/unit/docxPagination.test.js'
       - 'tests/unit/docxSourceLinks.test.js'
       - 'tests/unit/enrichRenderedDocumentTables.test.js'
@@ -34,6 +40,7 @@ on:
       - 'tests/unit/libreOfficeRenderedDocument.test.js'
       - 'tests/unit/libreOfficeRenderedMapSemantics.test.js'
       - 'tests/unit/qaSampleDocxRendered.test.js'
+      - 'tests/unit/renderDocumentGoldenMatrix.test.js'
       - 'tests/unit/renderedDocumentAudit.test.js'
       - 'tests/unit/renderedTableHints.test.js'
       - 'tests/unit/popplerRenderedDocument.test.js'
@@ -49,7 +56,7 @@ concurrency:
 jobs:
   rendered-document:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     env:
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
@@ -88,6 +95,7 @@ jobs:
           path: |
             out/qa/rendered-document/poppler/
             out/qa/rendered-document/docx/
+            out/qa/document-golden-matrix/
             analysis-service/target/surefire-reports/
           if-no-files-found: error
           retention-days: 14
