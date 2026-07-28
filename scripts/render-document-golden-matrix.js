@@ -262,14 +262,22 @@ async function renderGoldenMatrix(options = {}) {
   const renderer = options.renderer || libreOffice.main;
   if (typeof renderer !== 'function') fail('invalid_renderer', 'renderer must be a function');
 
+  // Preflight every source artifact before invoking LibreOffice. This prevents a
+  // late hash mismatch from wasting renderer work or producing temporary
+  // evidence for earlier scenarios.
+  const verifiedArtifacts = input.artifacts.map((entry) => Object.freeze({
+    entry,
+    docx: verifyDocx(matrixDir, entry),
+  }));
+
   const finalRenderRoot = path.join(matrixDir, renderedName);
   const stageRoot = `${finalRenderRoot}.tmp-${process.pid}-${Date.now()}`;
   fs.rmSync(stageRoot, { recursive: true, force: true });
   fs.mkdirSync(stageRoot, { recursive: true });
   const renderedArtifacts = [];
   try {
-    for (const entry of input.artifacts) {
-      const docx = verifyDocx(matrixDir, entry);
+    for (const verified of verifiedArtifacts) {
+      const { entry, docx } = verified;
       const scenarioRoot = path.join(stageRoot, entry.scenario.id);
       fs.mkdirSync(scenarioRoot, { recursive: true });
       const result = await renderer([
