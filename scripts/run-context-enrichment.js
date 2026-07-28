@@ -37,6 +37,7 @@ for (const city of cities) {
   const args = ['--city', city];
   if (FORCE) args.push('--force');
   run('scripts/generate-context-city.js', args);
+  run('scripts/apply-qualitative-traffic-proxy.js', ['--city', city]);
 }
 
 run('scripts/check-enrichment-inputs.js', cities.flatMap(city => ['--city', city]));
