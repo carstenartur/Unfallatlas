@@ -5,6 +5,9 @@ const fs = require("fs");
 const path = require("path");
 const { TextDecoder } = require("util");
 
+const BASELINE_SCHEMA_VERSION = 1;
+const BASELINE_RELATIVE_PATH = "security/hidden-unicode-baseline.json";
+
 const SKIPPED_DIRECTORIES = new Set([
   ".git",
   ".build",
@@ -51,7 +54,6 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const NAMED_DANGEROUS_CODE_POINTS = new Map([
-  [0x00ad, "SOFT HYPHEN"],
   [0x034f, "COMBINING GRAPHEME JOINER"],
   [0x061c, "ARABIC LETTER MARK"],
   [0x180e, "MONGOLIAN VOWEL SEPARATOR"],
@@ -77,6 +79,21 @@ const NAMED_DANGEROUS_CODE_POINTS = new Map([
   [0xfeff, "ZERO WIDTH NO-BREAK SPACE/BOM"],
 ]);
 
+const REVIEWABLE_CODE_POINTS = new Map([[0x00ad, "SOFT HYPHEN"]]);
+
+class HiddenUnicodePolicyError extends Error {
+  constructor(code, message, details) {
+    super(`${code}: ${message}`);
+    this.name = "HiddenUnicodePolicyError";
+    this.code = code;
+    this.details = details || null;
+  }
+}
+
+function fail(code, message, details) {
+  throw new HiddenUnicodePolicyError(code, message, details);
+}
+
 function codePointLabel(codePoint) {
   return `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")}`;
 }
@@ -101,25 +118,42 @@ function dangerousCodePoint(codePoint, options = {}) {
   return null;
 }
 
+function classifyCodePoint(codePoint, options = {}) {
+  const forbidden = dangerousCodePoint(codePoint, options);
+  if (forbidden) return { category: "forbidden", reason: forbidden };
+  if (REVIEWABLE_CODE_POINTS.has(codePoint)) {
+    return {
+      category: options.pathScan ? "forbidden" : "reviewable",
+      reason: options.pathScan
+        ? `${REVIEWABLE_CODE_POINTS.get(codePoint)} IN PATH`
+        : REVIEWABLE_CODE_POINTS.get(codePoint),
+    };
+  }
+  return null;
+}
+
 function scanText(text, relativePath, options = {}) {
   const findings = [];
   const allowLeadingBom = options.allowLeadingBom !== false;
+  const pathScan = options.pathScan === true;
   let line = 1;
   let column = 1;
   for (let index = 0; index < text.length; ) {
     const codePoint = text.codePointAt(index);
     const width = codePoint > 0xffff ? 2 : 1;
-    const reason = dangerousCodePoint(codePoint, {
+    const classification = classifyCodePoint(codePoint, {
       allowBomAtStart: allowLeadingBom && index === 0,
+      pathScan,
     });
-    if (reason) {
+    if (classification) {
       findings.push({
         path: relativePath,
         index,
         line,
         column,
         codePoint: codePointLabel(codePoint),
-        reason,
+        category: classification.category,
+        reason: classification.reason,
       });
     }
     if (codePoint === 0x0a) {
@@ -170,13 +204,137 @@ function decodeUtf8(buffer, relativePath) {
   }
 }
 
-function scanRepository(rootValue) {
+function normalizeBaseline(value) {
+  const actual = value && typeof value === "object" && !Array.isArray(value)
+    ? Object.keys(value).sort()
+    : [];
+  const expected = ["allowances", "schemaVersion"].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    fail("invalid_baseline_fields", "hidden Unicode baseline has invalid fields", {
+      actual,
+      expected,
+    });
+  }
+  if (Number(value.schemaVersion) !== BASELINE_SCHEMA_VERSION) {
+    fail(
+      "unsupported_baseline_schema",
+      `baseline.schemaVersion must be ${BASELINE_SCHEMA_VERSION}`,
+    );
+  }
+  if (!Array.isArray(value.allowances)) {
+    fail("invalid_baseline", "baseline.allowances must be an array");
+  }
+  const seen = new Set();
+  const allowances = value.allowances.map((entry, index) => {
+    const label = `baseline.allowances[${index}]`;
+    const fields = entry && typeof entry === "object" && !Array.isArray(entry)
+      ? Object.keys(entry).sort()
+      : [];
+    const required = ["codePoint", "count", "path"].sort();
+    if (JSON.stringify(fields) !== JSON.stringify(required)) {
+      fail("invalid_baseline_fields", `${label} has invalid fields`, {
+        fields,
+        required,
+      });
+    }
+    const filePath = String(entry.path || "").replace(/\\/g, "/");
+    if (!filePath || filePath.startsWith("/") || filePath.includes("../")) {
+      fail("invalid_baseline_path", `${label}.path must be repository-relative`);
+    }
+    if (entry.codePoint !== "U+00AD") {
+      fail("unsupported_baseline_code_point", `${label}.codePoint must be U+00AD`);
+    }
+    const count = Number(entry.count);
+    if (!Number.isInteger(count) || count <= 0) {
+      fail("invalid_baseline_count", `${label}.count must be a positive integer`);
+    }
+    const key = `${filePath}\0${entry.codePoint}`;
+    if (seen.has(key)) fail("duplicate_baseline_entry", `${label} duplicates ${key}`);
+    seen.add(key);
+    return Object.freeze({ path: filePath, codePoint: entry.codePoint, count });
+  });
+  return Object.freeze({
+    schemaVersion: BASELINE_SCHEMA_VERSION,
+    allowances: Object.freeze(allowances.sort((left, right) =>
+      left.path.localeCompare(right.path) || left.codePoint.localeCompare(right.codePoint))),
+  });
+}
+
+function loadBaseline(root, baselineRelativePath = BASELINE_RELATIVE_PATH) {
+  const file = path.resolve(root, baselineRelativePath);
+  if (!fs.existsSync(file)) {
+    return Object.freeze({ schemaVersion: BASELINE_SCHEMA_VERSION, allowances: Object.freeze([]) });
+  }
+  let value;
+  try {
+    value = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    fail("invalid_baseline_json", "hidden Unicode baseline is not valid JSON", {
+      file,
+      message: error.message,
+    });
+  }
+  return normalizeBaseline(value);
+}
+
+function applyReviewBaseline(findings, baseline) {
+  const violations = findings.filter((finding) => finding.category === "forbidden");
+  const reviewable = findings.filter((finding) => finding.category === "reviewable");
+  const actualByKey = new Map();
+  for (const finding of reviewable) {
+    const key = `${finding.path}\0${finding.codePoint}`;
+    if (!actualByKey.has(key)) actualByKey.set(key, []);
+    actualByKey.get(key).push(finding);
+  }
+  const expectedByKey = new Map(
+    baseline.allowances.map((entry) => [`${entry.path}\0${entry.codePoint}`, entry]),
+  );
+  const keys = new Set([...actualByKey.keys(), ...expectedByKey.keys()]);
+  for (const key of [...keys].sort()) {
+    const actual = actualByKey.get(key) || [];
+    const expected = expectedByKey.get(key);
+    const expectedCount = expected ? expected.count : 0;
+    if (actual.length === expectedCount) continue;
+    if (actual.length > expectedCount) {
+      for (const finding of actual.slice(expectedCount)) {
+        violations.push({
+          ...finding,
+          category: "baseline-excess",
+          reason: `${finding.reason} exceeds baseline (${actual.length} present, ${expectedCount} allowed)`,
+          baselineExpected: expectedCount,
+          baselineActual: actual.length,
+        });
+      }
+    } else {
+      const [filePath, codePoint] = key.split("\0");
+      violations.push({
+        path: filePath,
+        index: 0,
+        line: 1,
+        column: 1,
+        codePoint,
+        category: "stale-baseline",
+        reason: `baseline expects ${expectedCount} occurrences but repository contains ${actual.length}`,
+        baselineExpected: expectedCount,
+        baselineActual: actual.length,
+      });
+    }
+  }
+  return violations.sort((left, right) =>
+    left.path.localeCompare(right.path) ||
+    left.line - right.line ||
+    left.column - right.column ||
+    left.codePoint.localeCompare(right.codePoint));
+}
+
+function scanRepository(rootValue, options = {}) {
   const root = fs.realpathSync(path.resolve(rootValue));
   const findings = [];
   for (const segment of path.relative(path.parse(root).root, root).split(path.sep)) {
     findings.push(
       ...scanText(segment, `<repository-path>/${segment}`, {
         allowLeadingBom: false,
+        pathScan: true,
       }),
     );
   }
@@ -184,14 +342,26 @@ function scanRepository(rootValue) {
     findings.push(
       ...scanText(file.relative, `<file-name>/${file.relative}`, {
         allowLeadingBom: false,
+        pathScan: true,
       }),
     );
     const buffer = fs.readFileSync(file.absolute);
     if (buffer.includes(0)) continue;
     const text = decodeUtf8(buffer, file.relative);
-    findings.push(...scanText(text, file.relative, { allowLeadingBom: true }));
+    findings.push(
+      ...scanText(text, file.relative, {
+        allowLeadingBom: true,
+        pathScan: false,
+      }),
+    );
   }
-  return Object.freeze(findings.map((finding) => Object.freeze(finding)));
+  const baseline = options.baseline || loadBaseline(
+    root,
+    options.baselineRelativePath || BASELINE_RELATIVE_PATH,
+  );
+  return Object.freeze(
+    applyReviewBaseline(findings, baseline).map((finding) => Object.freeze(finding)),
+  );
 }
 
 function formatFindings(findings) {
@@ -231,7 +401,11 @@ function main(argv) {
   const findings = scanRepository(options.root);
   if (options.json) process.stdout.write(`${JSON.stringify({ findings }, null, 2)}\n`);
   else if (findings.length) process.stderr.write(`${formatFindings(findings)}\n`);
-  else process.stdout.write("[hidden-unicode] PASS: no dangerous invisible controls found.\n");
+  else {
+    process.stdout.write(
+      "[hidden-unicode] PASS: no forbidden controls or unbaselined soft hyphens found.\n",
+    );
+  }
   return findings.length ? 1 : 0;
 }
 
@@ -245,15 +419,23 @@ if (require.main === module) {
 }
 
 module.exports = Object.freeze({
+  BASELINE_SCHEMA_VERSION,
+  BASELINE_RELATIVE_PATH,
   SKIPPED_DIRECTORIES,
   TEXT_EXTENSIONS,
   NAMED_DANGEROUS_CODE_POINTS,
+  REVIEWABLE_CODE_POINTS,
+  HiddenUnicodePolicyError,
   codePointLabel,
   dangerousCodePoint,
+  classifyCodePoint,
   scanText,
   shouldScan,
   listTextFiles,
   decodeUtf8,
+  normalizeBaseline,
+  loadBaseline,
+  applyReviewBaseline,
   scanRepository,
   formatFindings,
   parseArgs,
