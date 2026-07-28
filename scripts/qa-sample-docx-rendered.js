@@ -2,6 +2,7 @@
 'use strict';
 
 const path = require('path');
+const matrix = require('./generate-docx-golden-matrix');
 const libreOffice = require('./libreoffice-rendered-document');
 const tables = require('./enrich-rendered-document-tables');
 
@@ -11,6 +12,7 @@ function paths(root = path.resolve(__dirname, '..')) {
     root,
     docx: path.join(root, 'out', 'ci-render-gate.docx'),
     contract: path.join(root, 'tests', 'fixtures', 'rendered-document', 'ci-docx-contract.json'),
+    matrixDir: path.join(root, 'out', 'qa', 'rendered-document', 'matrix'),
     outDir,
     model: path.join(outDir, 'poppler', 'rendered-document.json'),
     audit: path.join(outDir, 'poppler', 'rendered-document-audit.json'),
@@ -18,8 +20,13 @@ function paths(root = path.resolve(__dirname, '..')) {
   };
 }
 
-function main(runtimeOptions = {}) {
+async function main(runtimeOptions = {}) {
   const resolved = paths(runtimeOptions.root);
+  const matrixEvidence = await (runtimeOptions.matrixMain || matrix.generateDocxGoldenMatrix)({
+    root: resolved.root,
+    outDir: resolved.matrixDir,
+    generateSampleDocx: runtimeOptions.generateSampleDocx,
+  });
   const conversion = (runtimeOptions.libreOfficeMain || libreOffice.main)([
     '--docx', resolved.docx,
     '--out-dir', resolved.outDir,
@@ -33,21 +40,20 @@ function main(runtimeOptions = {}) {
     '--metadata', resolved.metadata,
   ]);
   process.stdout.write(
-    `[qa-sample-docx-rendered] ${conversion.pages.length} page(s), ` +
+    `[qa-sample-docx-rendered] ${matrixEvidence.manifest.cases.length} source scenario(s), ` +
+      `${conversion.pages.length} rendered Bonn page(s), ` +
       `${tableEvidence.report.summary.mapCount} map(s), ` +
       `${tableEvidence.report.summary.tableRowCount} table row(s).\n`,
   );
-  return { paths: resolved, conversion, tableEvidence };
+  return { paths: resolved, matrixEvidence, conversion, tableEvidence };
 }
 
 if (require.main === module) {
-  try {
-    main();
-  } catch (error) {
+  main().catch(error => {
     process.stderr.write(`${error && error.stack ? error.stack : error}\n`);
     if (error?.details) process.stderr.write(`${JSON.stringify(error.details, null, 2)}\n`);
     process.exitCode = 1;
-  }
+  });
 }
 
 module.exports = { paths, main };
