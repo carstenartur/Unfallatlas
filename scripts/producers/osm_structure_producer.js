@@ -260,6 +260,7 @@ function writeJsonAtomic(file, value) {
 async function enrichOsmStructureFile(options = {}) {
   const inputFile = resolveRegularInput(options.inputFile);
   const outputFile = resolveOutputFile(options.outputFile || inputFile);
+  const inputSha256 = sha256File(inputFile);
   const osm = plainObject(JSON.parse(fs.readFileSync(inputFile, 'utf8')), 'OSM dataset');
   if (!options.force && outputFile === inputFile &&
       osm.structureTags?.producerVersion === PRODUCER_VERSION &&
@@ -269,6 +270,8 @@ async function enrichOsmStructureFile(options = {}) {
       reason: 'already complete',
       inputFile,
       outputFile,
+      inputSha256,
+      outputSha256: inputSha256,
       wayCount: normalizeWayIds(osm).length,
     });
   }
@@ -300,7 +303,7 @@ async function enrichOsmStructureFile(options = {}) {
     skipped: false,
     inputFile,
     outputFile: written,
-    inputSha256: sha256File(inputFile),
+    inputSha256,
     outputSha256: sha256File(written),
     wayCount: wayIds.length,
     batchCount: groups.length,
