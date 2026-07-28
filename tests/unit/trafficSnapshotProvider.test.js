@@ -7,6 +7,8 @@ const traffic = require("../../js/ua.traffic_provider");
 const snapshots = require("../../scripts/providers/traffic_snapshot_provider");
 
 const DISTRIBUTION_HASH = "b".repeat(64);
+const BERLIN_MODEL_SOURCE = "traffic.model.berlin-dtvw-2023";
+const RETIRED_KOELN_SOURCE = "traffic.count.koeln-kfz-2010-2019";
 
 function source(sourceId) {
   return snapshots.OPEN_DATA_SOURCE_CATALOG[sourceId];
@@ -25,7 +27,7 @@ function observationFor(sourceId, overrides = {}) {
         : "DTVw",
     value: 18500,
     unit: entry.descriptor.unit,
-    geometry: { type: "Point", coordinates: [7.095, 50.735] },
+    geometry: { type: "Point", coordinates: [13.405, 52.52] },
     direction: "Querschnitt, beide Richtungen",
     qualityNotes: ["Deterministische Testbeobachtung."],
     ...overrides,
@@ -46,9 +48,7 @@ function snapshotValue(sourceId, overrides = {}) {
       mediaType:
         sourceId === "traffic.count.berlin-bicycle-hourly-2012-2025"
           ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          : sourceId === "traffic.model.berlin-dtvw-2023"
-            ? "application/gml+xml"
-            : "text/csv",
+          : "application/gml+xml",
       ...(entry.descriptor.versionOrPublicationDate
         ? {
             versionOrPublicationDate:
@@ -106,12 +106,12 @@ describe("licensed traffic snapshot provider", () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  test("ships three reviewed open-data source contracts without a numeric proxy", () => {
+  test("ships only the two valid generic snapshot contracts without a numeric proxy", () => {
     const entries = Object.values(snapshots.OPEN_DATA_SOURCE_CATALOG);
-    expect(entries).toHaveLength(3);
+    expect(entries).toHaveLength(2);
     expect(
       entries.map((entry) => entry.descriptor.measurementType).sort(),
-    ).toEqual(["count", "count", "model"]);
+    ).toEqual(["count", "model"]);
     for (const entry of entries) {
       expect(entry.descriptor.licenseId).toBe("DL-DE-Zero-2.0");
       expect(entry.descriptor.distributionUrl).toMatch(/^https:\/\//);
@@ -125,8 +125,28 @@ describe("licensed traffic snapshot provider", () => {
     }
   });
 
-  test("creates a measured provider only after snapshot and distribution pins validate", async () => {
-    const sourceId = "traffic.count.koeln-kfz-2010-2019";
+  test("retires the coordinate-only Cologne node CSV with an explicit replacement", () => {
+    expect(snapshots.OPEN_DATA_SOURCE_CATALOG[RETIRED_KOELN_SOURCE]).toBeUndefined();
+    expect(snapshots.RETIRED_SOURCE_CATALOG[RETIRED_KOELN_SOURCE]).toEqual(
+      expect.objectContaining({
+        reasonCode: "coordinate_only_distribution",
+        replacementSourceId: "traffic.count.koeln-kfz-links-2016-2019",
+        retiredDistributionUrl: expect.stringMatching(/_node\.csv$/),
+        replacementDistributionUrl: expect.stringMatching(/_link\.csv$/),
+      }),
+    );
+    expect(() => snapshots.normalizeRegistryManifest({
+      schemaVersion: 1,
+      snapshots: [{
+        sourceId: RETIRED_KOELN_SOURCE,
+        path: "old-koeln.json",
+        sha256: "a".repeat(64),
+      }],
+    })).toThrow(/retired_source/);
+  });
+
+  test("creates a model provider only after snapshot and distribution pins validate", async () => {
+    const sourceId = BERLIN_MODEL_SOURCE;
     const provider = snapshots.createSnapshotProvider(
       providerOptions(root, sourceId),
     );
@@ -134,7 +154,7 @@ describe("licensed traffic snapshot provider", () => {
     expect(provider.id).toBe(sourceId);
     expect(provider.descriptor).toEqual(
       expect.objectContaining({
-        measurementType: "count",
+        measurementType: "model",
         licenseId: "DL-DE-Zero-2.0",
         contentHash: DISTRIBUTION_HASH,
         retrievedAt: "2026-07-28T12:00:00Z",
@@ -146,22 +166,19 @@ describe("licensed traffic snapshot provider", () => {
         distributionBytes: 12345,
       }),
     );
-    expect(await provider.canProvide({ city: "Koeln" })).toBe(true);
+    expect(await provider.canProvide({ city: "Berlin" })).toBe(true);
     expect(await provider.canProvide({ city: "Bonn" })).toBe(false);
 
-    const observations = await provider.loadObservations({ city: "Köln" });
+    const observations = await provider.loadObservations({ city: "Berlin" });
     expect(observations).toHaveLength(1);
     expect(observations[0]).toEqual(
       expect.objectContaining({
         sourceId,
-        measurementType: "count",
+        measurementType: "model",
         value: 18500,
         unit: "Kfz/24 h",
-        year: 2019,
+        year: 2023,
       }),
-    );
-    expect(observations[0].source.datasetUrl).toBe(
-      "https://open.nrw/dataset/kfz-zaehlstellen-und-werte-koeln-k",
     );
   });
 
@@ -189,7 +206,7 @@ describe("licensed traffic snapshot provider", () => {
       registryPath: "registry.json",
     });
 
-    expect(providers).toHaveLength(3);
+    expect(providers).toHaveLength(2);
     const berlin = await registry.collect({
       city: "Berlin",
       failOnProviderError: true,
@@ -202,16 +219,11 @@ describe("licensed traffic snapshot provider", () => {
       city: "Köln",
       failOnProviderError: true,
     });
-    expect(koeln.map((item) => item.sourceId)).toEqual([
-      "traffic.count.koeln-kfz-2010-2019",
-    ]);
+    expect(koeln).toEqual([]);
   });
 
   test("fails closed when the normalized snapshot hash drifts", () => {
-    const options = providerOptions(
-      root,
-      "traffic.count.koeln-kfz-2010-2019",
-    );
+    const options = providerOptions(root, BERLIN_MODEL_SOURCE);
     options.expectedSnapshotSha256 = "c".repeat(64);
     expect(() => snapshots.createSnapshotProvider(options)).toThrow(
       /snapshot_hash_mismatch/,
@@ -219,7 +231,7 @@ describe("licensed traffic snapshot provider", () => {
   });
 
   test("fails closed when a snapshot points at another distribution", () => {
-    const sourceId = "traffic.model.berlin-dtvw-2023";
+    const sourceId = BERLIN_MODEL_SOURCE;
     const options = providerOptions(root, sourceId, {
       snapshot: {
         distribution: {
@@ -264,7 +276,7 @@ describe("licensed traffic snapshot provider", () => {
   });
 
   test("rejects source coverage expansion and unknown envelope fields", () => {
-    const sourceId = "traffic.model.berlin-dtvw-2023";
+    const sourceId = BERLIN_MODEL_SOURCE;
     const expanded = providerOptions(root, sourceId, {
       snapshot: {
         coverage: {
@@ -302,11 +314,11 @@ describe("licensed traffic snapshot provider", () => {
       const outside = writeJson(
         outsideRoot,
         "outside.json",
-        snapshotValue("traffic.count.koeln-kfz-2010-2019"),
+        snapshotValue(BERLIN_MODEL_SOURCE),
       );
       expect(() =>
         snapshots.createSnapshotProvider({
-          sourceId: "traffic.count.koeln-kfz-2010-2019",
+          sourceId: BERLIN_MODEL_SOURCE,
           allowedRoot: root,
           snapshotPath: outside.file,
           expectedSnapshotSha256: outside.sha256,
@@ -317,18 +329,18 @@ describe("licensed traffic snapshot provider", () => {
     }
   });
 
-  test("requires unique catalog sources in a registry manifest", () => {
+  test("requires unique active catalog sources in a registry manifest", () => {
     expect(() =>
       snapshots.normalizeRegistryManifest({
         schemaVersion: 1,
         snapshots: [
           {
-            sourceId: "traffic.count.koeln-kfz-2010-2019",
+            sourceId: BERLIN_MODEL_SOURCE,
             path: "one.json",
             sha256: "a".repeat(64),
           },
           {
-            sourceId: "traffic.count.koeln-kfz-2010-2019",
+            sourceId: BERLIN_MODEL_SOURCE,
             path: "two.json",
             sha256: "b".repeat(64),
           },
