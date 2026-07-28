@@ -114,7 +114,7 @@ function createAccidentPoints(count, bounds = {}, involvement = {
 
 function createBounds(scenario) {
   const source = scenario.bounds;
-  const bounds = {
+  return {
     south: source.south,
     west: source.west,
     north: source.north,
@@ -132,7 +132,6 @@ function createBounds(scenario) {
       Number(point.lon ?? point.lng) >= source.west && Number(point.lon ?? point.lng) <= source.east
     ),
   };
-  return bounds;
 }
 
 function createContext(scenarioValue) {
@@ -222,8 +221,74 @@ function yearSummary(points, label) {
     .map(([year, total]) => ({ year, total, classes: [`${label}=${total}`] }));
 }
 
+function createBaselineReportData() {
+  return {
+    text: [
+      'Sachverhalt:',
+      'Im markierten innerstädtischen Knoten in Bonn wurden 24 Unfälle mit Personenschaden aus den Jahren 2022 bis 2024 ausgewertet.',
+      'Die räumliche Auswahl, die Unfallpunkte und die Verletzungsschwere sind in der Übersichtskarte gemeinsam dargestellt.',
+      '',
+      'Methodik',
+      'Die Auswertung umfasst ausschließlich den markierten Kartenausschnitt und die aktiven Filter. Kontextinformationen werden nicht als Kausalnachweis interpretiert.',
+      '',
+      'Beschlussvorschlag:',
+      'Die zuständige Verwaltung wird gebeten, den Knoten innerhalb von sechs Monaten auf kurzfristige Sicht-, Markierungs- und Führungsmaßnahmen zu prüfen und dem zuständigen Gremium schriftlich über Ergebnis und Umsetzungszeitraum zu berichten.',
+      '',
+      'Datenquelle',
+      'Unfallatlas der Statistischen Ämter des Bundes und der Länder: https://www.statistikportal.de/de/karten/unfallatlas',
+    ].join('\n'),
+    structured: {
+      meta: {
+        city: 'Bonn',
+        date: '23.07.2026',
+        areaName: 'Innerstädtischer Knoten Bonn-Zentrum',
+        bounds: '50,728–50,739 N; 7,087–7,105 E',
+        link: 'https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn',
+        filters: {
+          involvementMode: 'and',
+          includeCyclist: true,
+          includeCar: true,
+        },
+        gremium: { typ: 'Bezirksvertretung' },
+      },
+      severity: { total: 24, bySev: { '1': 1, '2': 6, '3': 17, other: 0 } },
+      deviations: {
+        focus: [
+          {
+            mask: 5,
+            label: '[Rad]+[PKW]',
+            locCnt: 11,
+            baseCnt: 120,
+            locR: 11 / 24,
+            baseR: 120 / 820,
+            factor: 3.13,
+          },
+        ],
+        rows: [],
+        local: { total: 24, byMask: { 5: 11 } },
+        baseline: { total: 820, byMask: { 5: 120 } },
+      },
+      yearTable: [
+        { year: 2022, total: 7, classes: ['[Rad]+[PKW]=3', '[Rad]=2', '[PKW]=2'] },
+        { year: 2023, total: 8, classes: ['[Rad]+[PKW]=4', '[Rad]=2', '[PKW]=2'] },
+        { year: 2024, total: 9, classes: ['[Rad]+[PKW]=4', '[Rad]=3', '[PKW]=2'] },
+      ],
+      patterns: [],
+      poi: null,
+      references: [
+        {
+          title: 'Unfallatlas – Straßenverkehrsunfälle mit Personenschaden',
+          url: 'https://www.statistikportal.de/de/karten/unfallatlas',
+        },
+      ],
+    },
+  };
+}
+
 function createReportData(scenarioValue) {
   const scenario = resolveScenario(scenarioValue);
+  if (scenario.id === DEFAULT_SCENARIO_ID) return createBaselineReportData();
+
   const points = createAccidentPoints(
     scenario.accidentCount,
     scenario.bounds,
@@ -473,6 +538,7 @@ module.exports = {
   createContext,
   severitySummary,
   yearSummary,
+  createBaselineReportData,
   createReportData,
   assertDocxBytes,
   clusterBounds,
