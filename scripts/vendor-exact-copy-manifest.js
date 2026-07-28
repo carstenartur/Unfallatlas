@@ -173,7 +173,176 @@ function requireObject(value, label) {
   return value;
 }
 
+function requiredString(value, label) {
+  if (typeof value !== "string" || !value.trim()) {
+    fail("invalid_asset_binding", `${label} must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function requiredHash(value, label) {
+  const hash = requiredString(value, label);
+  if (!/^[a-f0-9]{64}$/.test(hash)) {
+    fail("invalid_asset_binding", `${label} must be a lowercase SHA-256 digest`);
+  }
+  return hash;
+}
+
+function requiredBytes(value, label) {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number <= 0) {
+    fail("invalid_asset_binding", `${label} must be a positive safe integer`, {
+      value,
+    });
+  }
+  return number;
+}
+
+function bindOperationsToVendorAssets(manifest, lockValue) {
+  if (manifest.vendorAssets == null) {
+    return Object.freeze({ vendorAssets: null, bindings: Object.freeze([]), fingerprint: null });
+  }
+  if (!Array.isArray(manifest.vendorAssets)) {
+    fail("invalid_vendor_assets", "manifest.vendorAssets must be an array");
+  }
+  if (!Array.isArray(lockValue.operations) || lockValue.operations.length === 0) {
+    fail("invalid_exact_copy_lock", "exact-copy lock operations must be non-empty");
+  }
+
+  const assets = manifest.vendorAssets.map((asset, index) => {
+    const value = requireObject(asset, `manifest.vendorAssets[${index}]`);
+    return {
+      index,
+      value,
+      path: requiredString(value.path, `manifest.vendorAssets[${index}].path`).replace(/\\/g, "/"),
+    };
+  });
+  const assetsByPath = new Map();
+  for (const asset of assets) {
+    if (assetsByPath.has(asset.path)) {
+      fail("duplicate_vendor_asset", "manifest contains a duplicate vendor asset path", {
+        path: asset.path,
+      });
+    }
+    assetsByPath.set(asset.path, asset);
+  }
+
+  const seenRefs = new Set();
+  const seenOutputs = new Set();
+  const replacements = new Map();
+  const bindings = [];
+  for (let index = 0; index < lockValue.operations.length; index += 1) {
+    const operation = requireObject(lockValue.operations[index], `lock.operations[${index}]`);
+    const lockRef = requiredString(operation.lockRef, `lock.operations[${index}].lockRef`);
+    if (seenRefs.has(lockRef)) {
+      fail("duplicate_lock_ref", "exact-copy lock contains a duplicate lockRef", { lockRef });
+    }
+    seenRefs.add(lockRef);
+    if (operation.method !== "byte-for-byte-copy") {
+      fail("invalid_asset_binding", "only byte-for-byte-copy operations can bind vendor assets", {
+        lockRef,
+        method: operation.method,
+      });
+    }
+    const component = requireObject(operation.component, `${lockRef}.component`);
+    const input = requireObject(operation.input, `${lockRef}.input`);
+    const output = requireObject(operation.output, `${lockRef}.output`);
+    const outputPath = requiredString(output.path, `${lockRef}.output.path`).replace(/\\/g, "/");
+    if (seenOutputs.has(outputPath)) {
+      fail("duplicate_lock_output", "exact-copy lock contains a duplicate output path", {
+        outputPath,
+      });
+    }
+    seenOutputs.add(outputPath);
+    const asset = assetsByPath.get(outputPath);
+    if (!asset) {
+      fail("missing_vendor_asset", "exact-copy output is not present in manifest.vendorAssets", {
+        lockRef,
+        outputPath,
+      });
+    }
+
+    const packageName = requiredString(component.name, `${lockRef}.component.name`);
+    const componentVersion = requiredString(component.version, `${lockRef}.component.version`);
+    const componentPurl = requiredString(component.purl, `${lockRef}.component.purl`);
+    const outputBytes = requiredBytes(output.bytes, `${lockRef}.output.bytes`);
+    const outputSha256 = requiredHash(output.sha256, `${lockRef}.output.sha256`);
+    const assetPackage = requiredString(asset.value.package, `vendor asset ${outputPath}.package`);
+    const assetVersion = requiredString(asset.value.version, `vendor asset ${outputPath}.version`);
+    const assetPurl = requiredString(asset.value.purl, `vendor asset ${outputPath}.purl`);
+    const assetSourcePath = requiredString(asset.value.sourcePath, `vendor asset ${outputPath}.sourcePath`);
+    const assetBytes = requiredBytes(asset.value.bytes, `vendor asset ${outputPath}.bytes`);
+    const assetSha256 = requiredHash(asset.value.sha256, `vendor asset ${outputPath}.sha256`);
+    const inputPath = requiredString(input.path, `${lockRef}.input.path`);
+    const inputBytes = requiredBytes(input.bytes, `${lockRef}.input.bytes`);
+    const inputSha256 = requiredHash(input.sha256, `${lockRef}.input.sha256`);
+
+    const mismatches = {};
+    if (assetPackage !== packageName) mismatches.package = { expected: packageName, actual: assetPackage };
+    if (assetVersion !== componentVersion) mismatches.version = { expected: componentVersion, actual: assetVersion };
+    if (assetPurl !== componentPurl) mismatches.purl = { expected: componentPurl, actual: assetPurl };
+    if (assetSourcePath !== inputPath) mismatches.sourcePath = { expected: inputPath, actual: assetSourcePath };
+    if (assetBytes !== outputBytes) mismatches.bytes = { expected: outputBytes, actual: assetBytes };
+    if (assetSha256 !== outputSha256) mismatches.sha256 = { expected: outputSha256, actual: assetSha256 };
+    if (Object.keys(mismatches).length) {
+      fail("vendor_asset_drift", "vendor asset differs from its exact-copy operation", {
+        lockRef,
+        outputPath,
+        mismatches,
+      });
+    }
+
+    const reference = vendorBuildLock.buildLockReference(lockValue, lockRef);
+    const exactCopy = Object.freeze({
+      ...reference,
+      method: operation.method,
+      componentPurl,
+      input: Object.freeze({
+        path: inputPath,
+        bytes: inputBytes,
+        sha256: inputSha256,
+      }),
+      auxiliaryInputs: Object.freeze(
+        Array.isArray(operation.auxiliaryInputs)
+          ? operation.auxiliaryInputs.map((item, auxiliaryIndex) => {
+              const auxiliary = requireObject(item, `${lockRef}.auxiliaryInputs[${auxiliaryIndex}]`);
+              return Object.freeze({
+                path: requiredString(auxiliary.path, `${lockRef}.auxiliaryInputs[${auxiliaryIndex}].path`),
+                bytes: requiredBytes(auxiliary.bytes, `${lockRef}.auxiliaryInputs[${auxiliaryIndex}].bytes`),
+                sha256: requiredHash(auxiliary.sha256, `${lockRef}.auxiliaryInputs[${auxiliaryIndex}].sha256`),
+              });
+            })
+          : [],
+      ),
+      output: Object.freeze({
+        path: outputPath,
+        bytes: outputBytes,
+        sha256: outputSha256,
+      }),
+    });
+    replacements.set(asset.index, Object.freeze({ ...asset.value, exactCopy }));
+    bindings.push(Object.freeze({
+      lockRef,
+      path: outputPath,
+      componentPurl,
+      inputSha256,
+      outputSha256,
+    }));
+  }
+
+  const normalizedBindings = bindings.slice().sort((left, right) =>
+    left.lockRef.localeCompare(right.lockRef));
+  return Object.freeze({
+    vendorAssets: Object.freeze(
+      manifest.vendorAssets.map((asset, index) => replacements.get(index) || Object.freeze({ ...asset })),
+    ),
+    bindings: Object.freeze(normalizedBindings),
+    fingerprint: sha256Buffer(Buffer.from(stableJson(normalizedBindings))),
+  });
+}
+
 function recomputeOverallFingerprint(manifest) {
+  const exactCopyFingerprint = manifest.vendorExactCopyLock.assetBindingFingerprint;
   return sha256Buffer(
     Buffer.from(
       JSON.stringify({
@@ -188,6 +357,9 @@ function recomputeOverallFingerprint(manifest) {
         vendorExactCopyLock: {
           lockId: manifest.vendorExactCopyLock.lockId,
           sha256: manifest.vendorExactCopyLock.sha256,
+          ...(exactCopyFingerprint
+            ? { assetBindingFingerprint: exactCopyFingerprint }
+            : {}),
         },
       }),
     ),
@@ -211,6 +383,8 @@ function bindExactCopyLockToBuildManifest(options) {
       path: lock.relative,
     });
   }
+  const assetBinding = bindOperationsToVendorAssets(manifest, lock.value);
+  if (assetBinding.vendorAssets) manifest.vendorAssets = assetBinding.vendorAssets;
   manifest.application = {
     ...(manifest.application || {}),
     files: application.files,
@@ -225,6 +399,13 @@ function bindExactCopyLockToBuildManifest(options) {
     operationCount: Array.isArray(lock.value.operations)
       ? lock.value.operations.length
       : 0,
+    ...(assetBinding.fingerprint
+      ? {
+          coveredAssetCount: assetBinding.bindings.length,
+          assetBindingFingerprint: assetBinding.fingerprint,
+          assetBindings: assetBinding.bindings,
+        }
+      : {}),
   };
   manifest.fingerprint = recomputeOverallFingerprint(manifest);
   fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -249,6 +430,10 @@ module.exports = Object.freeze({
   requireFingerprint,
   requireSha256,
   requireObject,
+  requiredString,
+  requiredHash,
+  requiredBytes,
+  bindOperationsToVendorAssets,
   recomputeOverallFingerprint,
   bindExactCopyLockToBuildManifest,
 });
