@@ -4,21 +4,37 @@
 const path = require("path");
 const siteBuild = require("./build-site");
 const vendorBuildLock = require("./vendor-build-lock");
+const vendorExactCopyManifest = require("./vendor-exact-copy-manifest");
 
-function main(argv) {
-  const args = siteBuild.parseArgs(argv);
-  const manifest = siteBuild.buildSite(args);
+function main(argv, runtime = {}) {
+  const site = runtime.siteBuild || siteBuild;
+  const lockWriter = runtime.vendorBuildLock || vendorBuildLock;
+  const manifestBinder = runtime.vendorExactCopyManifest || vendorExactCopyManifest;
+  const write = runtime.write || ((text) => process.stdout.write(text));
+
+  const args = site.parseArgs(argv);
+  const initialManifest = site.buildSite(args);
   const repoRoot = path.resolve(args.root || path.join(__dirname, ".."));
   const outputRoot = path.resolve(repoRoot, args.outputDir || "_site");
-  const buildLock = vendorBuildLock.writeBuildLock({
+  const buildLock = lockWriter.writeBuildLock({
     repoRoot,
     outputRoot,
   });
-  process.stdout.write(
+  const binding = manifestBinder.bindExactCopyLockToBuildManifest({
+    outputRoot,
+    buildLockResult: buildLock,
+  });
+  write(
     `[build-site] Bound ${buildLock.lock.operations.length} browser-export assets ` +
-      `to vendor build lock ${buildLock.lock.lockId}.\n`,
+      `to exact-copy lock ${buildLock.lock.lockId} and build manifest ` +
+      `${binding.manifest.fingerprint}.\n`,
   );
-  return Object.freeze({ manifest, buildLock });
+  return Object.freeze({
+    initialManifest,
+    manifest: binding.manifest,
+    buildLock,
+    binding,
+  });
 }
 
 if (require.main === module) {
