@@ -12,8 +12,25 @@ function writeFile(root, relative, contents) {
   return file;
 }
 
-function createFixture(contents = "549000 5803000 100\n549001 5803000 100\n549000 5803001 100\n549001 5803001 100\n") {
+function regularGrid(bounds, elevation = 100) {
+  const lines = [];
+  for (let y = bounds.minNorthing; y <= bounds.maxNorthing; y += 1) {
+    for (let x = bounds.minEasting; x <= bounds.maxEasting; x += 1) {
+      lines.push(`${x} ${y} ${elevation}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function createFixture(options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ua-dgm1-safety-"));
+  const bounds = options.bounds || {
+    minEasting: 549000,
+    maxEasting: 549001,
+    minNorthing: 5803000,
+    maxNorthing: 5803001,
+  };
+  const contents = options.contents || regularGrid(bounds);
   const dataFile = writeFile(root, "data/dgm1.xyz", contents);
   const manifest = {
     schemaVersion: 1,
@@ -28,10 +45,7 @@ function createFixture(contents = "549000 5803000 100\n549001 5803000 100\n54900
     grid: {
       crs: "EPSG:25832",
       resolutionMeters: 1,
-      minEasting: 549000,
-      maxEasting: 549001,
-      minNorthing: 5803000,
-      maxNorthing: 5803001,
+      ...bounds,
       maxCells: 100,
     },
   };
@@ -77,17 +91,23 @@ describe("Hannover DGM1 operational safety", () => {
     ).toThrow(/invalid_root: allowedRoot must be a directory/);
   });
 
-  test("returns null for one unsupported UTM coordinate without failing valid samples", async () => {
-    const fixture = createFixture();
+  test("returns null for one unsupported UTM coordinate without failing a valid sample", async () => {
+    const valid = { lon: 9.732, lat: 52.375 };
+    const projected = dgm1.wgs84ToUtm32(valid);
+    const bounds = {
+      minEasting: Math.floor(projected.easting),
+      maxEasting: Math.floor(projected.easting) + 1,
+      minNorthing: Math.floor(projected.northing),
+      maxNorthing: Math.floor(projected.northing) + 1,
+    };
+    const fixture = createFixture({ bounds });
     roots.push(fixture.root);
     const provider = dgm1.createHannoverDgm1XyzProvider(fixture.options);
-    const valid = { lon: 9.732, lat: 52.375 };
     const values = await provider.sampleElevations([
       { lon: 13.4, lat: 52.5 },
       valid,
     ]);
-    expect(values[0]).toBeNull();
-    expect(values[1] == null || Number.isFinite(values[1])).toBe(true);
+    expect(values).toEqual([null, 100]);
   });
 
   test("caps the parser allocation at an explicit 256 MiB byte budget", () => {
@@ -119,9 +139,9 @@ describe("Hannover DGM1 operational safety", () => {
   });
 
   test("destroys the XYZ stream after a parser exception", async () => {
-    const fixture = createFixture(
-      "549000 5803000 100\n549000 5803000 101\n",
-    );
+    const fixture = createFixture({
+      contents: "549000 5803000 100\n549000 5803000 101\n",
+    });
     roots.push(fixture.root);
     const originalCreateReadStream = fs.createReadStream.bind(fs);
     let stream;
