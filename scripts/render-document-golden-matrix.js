@@ -40,11 +40,16 @@ function readJson(file, label) {
   return value;
 }
 
+function isStrictChild(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return Boolean(relative) && relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
 function safeChild(root, relative, label) {
   const normalized = generatedMatrix.safeRelativePath(relative, label);
   const candidate = path.resolve(root, normalized);
-  const rel = path.relative(root, candidate);
-  if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+  if (!isStrictChild(root, candidate)) {
     fail('unsafe_path', `${label} escapes the matrix directory`, { relative });
   }
   return Object.freeze({ normalized, candidate });
@@ -52,20 +57,53 @@ function safeChild(root, relative, label) {
 
 function assertRegularFile(root, relative, label) {
   const resolved = safeChild(root, relative, label);
-  if (!fs.existsSync(resolved.candidate) || !fs.statSync(resolved.candidate).isFile()) {
-    fail('missing_file', `${label} is missing or not a regular file`, {
+  if (!fs.existsSync(resolved.candidate)) {
+    fail('missing_file', `${label} is missing`, { file: resolved.candidate });
+  }
+  const lstat = fs.lstatSync(resolved.candidate);
+  if (lstat.isSymbolicLink() || !lstat.isFile()) {
+    fail('unsafe_file', `${label} must be a non-symlink regular file`, {
       file: resolved.candidate,
     });
   }
   const realRoot = fs.realpathSync(root);
   const realFile = fs.realpathSync(resolved.candidate);
-  const rel = path.relative(realRoot, realFile);
-  if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+  if (!isStrictChild(realRoot, realFile)) {
     fail('unsafe_path', `${label} resolves outside the matrix directory`, {
       file: resolved.candidate,
+      resolved: realFile,
     });
   }
   return Object.freeze({ ...resolved, file: realFile });
+}
+
+function resolveMatrixDirectory(root, candidate) {
+  if (!fs.existsSync(candidate)) {
+    fail('missing_matrix_directory', 'Matrix directory does not exist', { matrixDir: candidate });
+  }
+  const realRoot = fs.realpathSync(root);
+  let realMatrixDir;
+  try {
+    realMatrixDir = fs.realpathSync(candidate);
+  } catch (error) {
+    fail('invalid_matrix_directory', 'Matrix directory cannot be resolved', {
+      matrixDir: candidate,
+      cause: error.message,
+    });
+  }
+  if (!fs.statSync(realMatrixDir).isDirectory()) {
+    fail('invalid_matrix_directory', 'Matrix directory is not a directory', {
+      matrixDir: candidate,
+    });
+  }
+  if (!isStrictChild(realRoot, realMatrixDir)) {
+    fail('unsafe_matrix_directory', 'Matrix directory resolves outside repository root', {
+      repositoryRoot: realRoot,
+      requested: candidate,
+      resolved: realMatrixDir,
+    });
+  }
+  return realMatrixDir;
 }
 
 function parseArgs(argv) {
@@ -113,8 +151,12 @@ function normalizeInputMatrix(value) {
     const scenario = scenarios.getScenario(artifact.scenarioId);
     if (ids.has(scenario.id)) fail('duplicate_scenario', `Duplicate ${scenario.id}`);
     ids.add(scenario.id);
+    const artifactRecord = artifact.artifact;
+    if (!artifactRecord || typeof artifactRecord !== 'object' || Array.isArray(artifactRecord)) {
+      fail('invalid_matrix', `${scenario.id} artifact record must be an object`);
+    }
     const filename = generatedMatrix.safeRelativePath(
-      artifact.artifact && artifact.artifact.filename,
+      artifactRecord.filename,
       `artifact ${scenario.id} filename`,
     );
     if (filename.includes('/')) {
@@ -123,11 +165,11 @@ function normalizeInputMatrix(value) {
         filename,
       });
     }
-    const expectedBytes = Number(artifact.artifact.bytes);
+    const expectedBytes = Number(artifactRecord.bytes);
     if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) {
       fail('invalid_matrix', `${scenario.id} artifact bytes are invalid`);
     }
-    const expectedHash = String(artifact.artifact.sha256 || '');
+    const expectedHash = String(artifactRecord.sha256 || '');
     if (!/^[a-f0-9]{64}$/.test(expectedHash)) {
       fail('invalid_matrix', `${scenario.id} artifact sha256 is invalid`);
     }
@@ -154,17 +196,29 @@ function verifyDocx(matrixDir, entry) {
 function evidenceFile(renderRoot, scenarioRoot, relative, label) {
   const normalized = generatedMatrix.safeRelativePath(relative, label);
   const file = path.resolve(scenarioRoot, normalized);
-  const rel = path.relative(scenarioRoot, file);
-  if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+  if (!isStrictChild(scenarioRoot, file)) {
     fail('unsafe_renderer_output', `${label} escapes its scenario directory`, { relative });
   }
-  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+  if (!fs.existsSync(file)) {
     fail('missing_renderer_output', `${label} is missing`, { file });
   }
+  const lstat = fs.lstatSync(file);
+  if (lstat.isSymbolicLink() || !lstat.isFile()) {
+    fail('unsafe_renderer_output', `${label} must be a non-symlink regular file`, { file });
+  }
+  const realRenderRoot = fs.realpathSync(renderRoot);
+  const realScenarioRoot = fs.realpathSync(scenarioRoot);
+  const realFile = fs.realpathSync(file);
+  if (!isStrictChild(realScenarioRoot, realFile) || !isStrictChild(realRenderRoot, realFile)) {
+    fail('unsafe_renderer_output', `${label} resolves outside the staged render tree`, {
+      file,
+      resolved: realFile,
+    });
+  }
   return Object.freeze({
-    path: path.relative(renderRoot, file).replace(/\\/g, '/'),
-    bytes: fs.statSync(file).size,
-    sha256: sha256File(file),
+    path: path.relative(realRenderRoot, realFile).replace(/\\/g, '/'),
+    bytes: fs.statSync(realFile).size,
+    sha256: sha256File(realFile),
   });
 }
 
@@ -236,6 +290,52 @@ function normalizeRenderResult(result, scenario, renderRoot, scenarioRoot) {
   });
 }
 
+function publishRenderedDirectory(stageRoot, finalRenderRoot, outputName, output, options = {}) {
+  const writeFileSync = options.writeFileSync || fs.writeFileSync;
+  const renameSync = options.renameSync || fs.renameSync;
+  const manifestStage = path.join(stageRoot, outputName);
+  try {
+    writeFileSync(manifestStage, `${JSON.stringify(output, null, 2)}\n`);
+  } catch (error) {
+    fail('manifest_write_failed', 'Cannot write staged rendered matrix manifest', {
+      file: manifestStage,
+      cause: error.message,
+    });
+  }
+  if (!fs.existsSync(manifestStage) || fs.lstatSync(manifestStage).isSymbolicLink() ||
+      !fs.lstatSync(manifestStage).isFile()) {
+    fail('manifest_write_failed', 'Staged rendered matrix manifest is not a regular file', {
+      file: manifestStage,
+    });
+  }
+
+  const backup = `${finalRenderRoot}.backup-${process.pid}-${Date.now()}`;
+  let hadPrevious = false;
+  if (fs.existsSync(finalRenderRoot)) {
+    if (fs.lstatSync(finalRenderRoot).isSymbolicLink() || !fs.lstatSync(finalRenderRoot).isDirectory()) {
+      fail('unsafe_publish_target', 'Existing rendered output must be a non-symlink directory', {
+        path: finalRenderRoot,
+      });
+    }
+    renameSync(finalRenderRoot, backup);
+    hadPrevious = true;
+  }
+  try {
+    renameSync(stageRoot, finalRenderRoot);
+  } catch (error) {
+    if (hadPrevious && fs.existsSync(backup) && !fs.existsSync(finalRenderRoot)) {
+      renameSync(backup, finalRenderRoot);
+    }
+    fail('publish_failed', 'Cannot atomically install rendered matrix evidence', {
+      stageRoot,
+      finalRenderRoot,
+      cause: error.message,
+    });
+  }
+  if (hadPrevious) fs.rmSync(backup, { recursive: true, force: true });
+  return path.join(finalRenderRoot, outputName);
+}
+
 async function renderGoldenMatrix(options = {}) {
   const root = fs.realpathSync(path.resolve(options.root || path.join(__dirname, '..')));
   const matrixDirResolved = generatedMatrix.resolveInside(
@@ -243,10 +343,7 @@ async function renderGoldenMatrix(options = {}) {
     options.matrixDir || 'out/qa/document-golden-matrix',
     'matrix directory',
   );
-  const matrixDir = matrixDirResolved.candidate;
-  if (!fs.existsSync(matrixDir) || !fs.statSync(matrixDir).isDirectory()) {
-    fail('missing_matrix_directory', 'Matrix directory does not exist', { matrixDir });
-  }
+  const matrixDir = resolveMatrixDirectory(root, matrixDirResolved.candidate);
   const inputName = generatedMatrix.safeRelativePath(options.inputManifest || 'matrix.json', 'input manifest');
   const outputName = generatedMatrix.safeRelativePath(
     options.outputManifest || 'rendered-matrix.json',
@@ -256,15 +353,11 @@ async function renderGoldenMatrix(options = {}) {
   if (inputName.includes('/') || outputName.includes('/') || renderedName.includes('/')) {
     fail('invalid_path', 'Matrix manifests and rendered directory must be direct children');
   }
-  if (inputName === outputName) fail('invalid_path', 'Input and output manifests must differ');
   const inputFile = assertRegularFile(matrixDir, inputName, 'input matrix manifest').file;
   const input = normalizeInputMatrix(readJson(inputFile, 'input matrix'));
   const renderer = options.renderer || libreOffice.main;
   if (typeof renderer !== 'function') fail('invalid_renderer', 'renderer must be a function');
 
-  // Preflight every source artifact before invoking LibreOffice. This prevents a
-  // late hash mismatch from wasting renderer work or producing temporary
-  // evidence for earlier scenarios.
   const verifiedArtifacts = input.artifacts.map((entry) => Object.freeze({
     entry,
     docx: verifyDocx(matrixDir, entry),
@@ -298,8 +391,6 @@ async function renderGoldenMatrix(options = {}) {
       }));
     }
 
-    fs.rmSync(finalRenderRoot, { recursive: true, force: true });
-    fs.renameSync(stageRoot, finalRenderRoot);
     const output = {
       schemaVersion: RENDERED_MATRIX_SCHEMA,
       sourceMatrix: Object.freeze({
@@ -320,12 +411,17 @@ async function renderGoldenMatrix(options = {}) {
     output.matrixFingerprint = generatedMatrix.sha256(
       Buffer.from(generatedMatrix.canonicalJson(output)),
     );
-    const outputFile = path.join(matrixDir, outputName);
-    fs.writeFileSync(outputFile, `${JSON.stringify(output, null, 2)}\n`);
+    const manifestPath = publishRenderedDirectory(
+      stageRoot,
+      finalRenderRoot,
+      outputName,
+      output,
+      options.publishOptions,
+    );
     return Object.freeze({
       matrixDir,
       renderedDir: finalRenderRoot,
-      manifestPath: outputFile,
+      manifestPath,
       matrix: Object.freeze(output),
     });
   } catch (error) {
@@ -356,13 +452,16 @@ module.exports = Object.freeze({
   RenderDocumentGoldenMatrixError,
   sha256File,
   readJson,
+  isStrictChild,
   safeChild,
   assertRegularFile,
+  resolveMatrixDirectory,
   parseArgs,
   normalizeInputMatrix,
   verifyDocx,
   evidenceFile,
   normalizeRenderResult,
+  publishRenderedDirectory,
   renderGoldenMatrix,
   main,
 });
