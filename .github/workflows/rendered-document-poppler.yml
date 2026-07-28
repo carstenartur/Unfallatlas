@@ -86,11 +86,6 @@ jobs:
       - name: Run repository-owned rendered-document QA
         run: mvn -B -ntp verify -Pdocument-render
 
-      - name: Render all document Golden scenarios
-        run: |
-          node scripts/generate-document-golden-matrix.js
-          node scripts/render-document-golden-matrix.js
-
       - name: Upload rendered-document evidence
         if: always()
         uses: actions/upload-artifact@v7
