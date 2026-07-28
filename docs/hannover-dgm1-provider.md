@@ -17,15 +17,23 @@ gepinntes Manifest ab. Der Provider prüft vor der ersten Abtastung:
 - Manifest-SHA-256 gegen einen außerhalb des Manifests übergebenen Pin,
 - HTTPS-Distribution, Dateigröße und SHA-256 der tatsächlichen XYZ-Datei,
 - `sourceId: "hannover.dgm1"`, `EPSG:25832` und genau 1 m Rasterweite,
-- ganzzahlige Rastergrenzen und eine explizite Obergrenze für die Allokation,
+- ganzzahlige Rastergrenzen und eine harte Speicherobergrenze,
 - ausschließlich reguläre Dateien innerhalb des freigegebenen Importroots,
 - keine Symlinks, Pfadflucht, doppelten Rasterzellen oder fehlorientierten
   Koordinaten.
 
 Erst danach wird die Datei zeilenweise eingelesen. Die Höhen liegen kompakt in
-einem `Float32Array`; Abfragen werden bilinear zwischen den vier umgebenden
-Rasterpunkten interpoliert. Fehlt einer dieser Punkte oder ist er als NoData
-markiert, liefert der Provider `null` statt eine Höhe zu erfinden.
+einem `Float32Array`; ein zusätzliches `Uint8Array` erkennt doppelte
+Rasterzellen. Der Standardvertrag budgetiert deshalb fünf Byte je Rasterzelle
+und höchstens 256 MiB für beide Strukturen zusammen. Größere Teilarchive müssen
+vor dem Import räumlich gekachelt werden; ein Manifest darf das Sicherheitslimit
+nicht nach oben überschreiben.
+
+Abfragen werden bilinear zwischen den vier umgebenden Rasterpunkten
+interpoliert. Fehlt einer dieser Punkte, ist er als NoData markiert oder liegt
+eine einzelne Koordinate außerhalb der unterstützten UTM-Zone, liefert der
+Provider für diese Koordinate `null` statt eine Höhe zu erfinden oder die
+vollständige Profilberechnung abzubrechen.
 
 ## Manifest
 
@@ -36,7 +44,7 @@ markiert, liefert der Provider `null` statt eine Höhe zu erfinden.
   "retrievedAt": "2026-07-28T12:00:00Z",
   "distribution": {
     "url": "https://www.hannover.de/<exakter-download-der-verwendeten-xyz-verteilung>",
-    "path": "xyz/DGM1_Teil_Mitte.xyz",
+    "path": "xyz/DGM1_Teil_Mitte_Ausschnitt.xyz",
     "sha256": "<sha256-der-entpackten-xyz-datei>",
     "bytes": 123456789,
     "publicationDate": "2024-01-15"
@@ -45,17 +53,18 @@ markiert, liefert der Provider `null` statt eine Höhe zu erfinden.
     "crs": "EPSG:25832",
     "resolutionMeters": 1,
     "minEasting": 545000,
-    "maxEasting": 555000,
+    "maxEasting": 550000,
     "minNorthing": 5798000,
-    "maxNorthing": 5808000,
+    "maxNorthing": 5803000,
     "noDataValue": -9999,
-    "maxCells": 100020001
+    "maxCells": 25010001
   }
 }
 ```
 
 Die Bounds und das NoData-Kennzeichen müssen aus genau der verwendeten Datei
-bestimmt werden. Die Beispielwerte sind keine Produktionsmetadaten.
+bestimmt werden. `maxCells` darf kleiner als das globale Sicherheitslimit sein,
+aber nicht größer. Die Beispielwerte sind keine Produktionsmetadaten.
 
 ## Registrierung und robuste Straßenneigung
 
@@ -99,14 +108,17 @@ Damit wird der bereits vorhandene gemeinsame Algorithmus genutzt:
 
 ## Goldfälle
 
-`tests/unit/hannoverDgm1XyzProvider.test.js` prüft:
+`tests/unit/hannoverDgm1XyzProvider.test.js` und
+`tests/unit/hannoverDgm1XyzProviderSafety.test.js` prüfen:
 
 - drei unabhängig erzeugte WGS84→EPSG:25832-Referenzkoordinaten auf
   Zentimeterniveau,
 - bilineare Interpolation in einem bekannten 1‑m-Raster,
 - einen synthetischen 10‑%-Hang über dem gemeinsamen robusten Profilalgorithmus,
 - NoData, Hash- und Größenabweichung, doppelte Zellen, Rasterfehlausrichtung,
-  Pfadflucht und Allokationsgrenzen.
+  Pfadflucht und Speichergrenzen,
+- verständliche Root-Fehler, punktweises `null` außerhalb UTM32 und sicheres
+  Schließen des Datenstreams auch nach einem Parserfehler.
 
 Diese synthetischen Fälle sichern Mathematik und Datenvertrag. Für den
 vollständigen Abschluss von #412 fehlen weiterhin manuell gegen reale
