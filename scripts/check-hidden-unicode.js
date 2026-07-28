@@ -81,8 +81,8 @@ function codePointLabel(codePoint) {
   return `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
-function dangerousCodePoint(codePoint, index) {
-  if (codePoint === 0xfeff && index === 0) return null;
+function dangerousCodePoint(codePoint, options = {}) {
+  if (codePoint === 0xfeff && options.allowBomAtStart === true) return null;
   if (NAMED_DANGEROUS_CODE_POINTS.has(codePoint)) {
     return NAMED_DANGEROUS_CODE_POINTS.get(codePoint);
   }
@@ -101,37 +101,32 @@ function dangerousCodePoint(codePoint, index) {
   return null;
 }
 
-function positionAt(text, index) {
+function scanText(text, relativePath, options = {}) {
+  const findings = [];
+  const allowLeadingBom = options.allowLeadingBom !== false;
   let line = 1;
   let column = 1;
-  for (let offset = 0; offset < index; ) {
-    const codePoint = text.codePointAt(offset);
+  for (let index = 0; index < text.length; ) {
+    const codePoint = text.codePointAt(index);
     const width = codePoint > 0xffff ? 2 : 1;
+    const reason = dangerousCodePoint(codePoint, {
+      allowBomAtStart: allowLeadingBom && index === 0,
+    });
+    if (reason) {
+      findings.push({
+        path: relativePath,
+        index,
+        line,
+        column,
+        codePoint: codePointLabel(codePoint),
+        reason,
+      });
+    }
     if (codePoint === 0x0a) {
       line += 1;
       column = 1;
     } else {
       column += 1;
-    }
-    offset += width;
-  }
-  return { line, column };
-}
-
-function scanText(text, relativePath) {
-  const findings = [];
-  for (let index = 0; index < text.length; ) {
-    const codePoint = text.codePointAt(index);
-    const width = codePoint > 0xffff ? 2 : 1;
-    const reason = dangerousCodePoint(codePoint, index);
-    if (reason) {
-      findings.push({
-        path: relativePath,
-        index,
-        ...positionAt(text, index),
-        codePoint: codePointLabel(codePoint),
-        reason,
-      });
     }
     index += width;
   }
@@ -143,7 +138,9 @@ function shouldScan(relativePath) {
   if (["Dockerfile", "Jenkinsfile", "LICENSE", "NOTICE"].includes(base)) {
     return true;
   }
-  return TEXT_EXTENSIONS.has(path.extname(base).toLowerCase());
+  const lowerBase = base.toLowerCase();
+  if (TEXT_EXTENSIONS.has(lowerBase)) return true;
+  return TEXT_EXTENSIONS.has(path.extname(lowerBase));
 }
 
 function listTextFiles(root) {
@@ -177,14 +174,22 @@ function scanRepository(rootValue) {
   const root = fs.realpathSync(path.resolve(rootValue));
   const findings = [];
   for (const segment of path.relative(path.parse(root).root, root).split(path.sep)) {
-    findings.push(...scanText(segment, `<repository-path>/${segment}`));
+    findings.push(
+      ...scanText(segment, `<repository-path>/${segment}`, {
+        allowLeadingBom: false,
+      }),
+    );
   }
   for (const file of listTextFiles(root)) {
-    findings.push(...scanText(file.relative, `<file-name>/${file.relative}`));
+    findings.push(
+      ...scanText(file.relative, `<file-name>/${file.relative}`, {
+        allowLeadingBom: false,
+      }),
+    );
     const buffer = fs.readFileSync(file.absolute);
     if (buffer.includes(0)) continue;
     const text = decodeUtf8(buffer, file.relative);
-    findings.push(...scanText(text, file.relative));
+    findings.push(...scanText(text, file.relative, { allowLeadingBom: true }));
   }
   return Object.freeze(findings.map((finding) => Object.freeze(finding)));
 }
