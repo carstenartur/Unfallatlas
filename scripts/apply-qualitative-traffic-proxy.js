@@ -112,7 +112,7 @@ function applyQualitativeTrafficProxy(options) {
     }
     for (const forbidden of ['value', 'unit', 'year']) {
       if (observation[forbidden] != null) {
-        throw new Error(`Proxy observation ${wayId} contains forbidden numeric field ${forbidden}`);
+        throw new Error(`Proxy observation ${wayId} contains forbidden field ${forbidden}`);
       }
     }
   }
