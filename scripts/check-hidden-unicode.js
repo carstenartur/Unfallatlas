@@ -204,6 +204,24 @@ function decodeUtf8(buffer, relativePath) {
   }
 }
 
+function normalizeRepositoryRelativePath(value, label) {
+  const original = String(value || "");
+  const normalized = original.replace(/\\/g, "/");
+  const segments = normalized.split("/");
+  if (
+    !normalized ||
+    normalized.includes("\0") ||
+    path.posix.isAbsolute(normalized) ||
+    path.win32.isAbsolute(original) ||
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    fail("invalid_baseline_path", `${label} must be a normalized repository-relative path`, {
+      value,
+    });
+  }
+  return normalized;
+}
+
 function normalizeBaseline(value) {
   const actual = value && typeof value === "object" && !Array.isArray(value)
     ? Object.keys(value).sort()
@@ -237,10 +255,7 @@ function normalizeBaseline(value) {
         required,
       });
     }
-    const filePath = String(entry.path || "").replace(/\\/g, "/");
-    if (!filePath || filePath.startsWith("/") || filePath.includes("../")) {
-      fail("invalid_baseline_path", `${label}.path must be repository-relative`);
-    }
+    const filePath = normalizeRepositoryRelativePath(entry.path, `${label}.path`);
     if (entry.codePoint !== "U+00AD") {
       fail("unsupported_baseline_code_point", `${label}.codePoint must be U+00AD`);
     }
@@ -433,6 +448,7 @@ module.exports = Object.freeze({
   shouldScan,
   listTextFiles,
   decodeUtf8,
+  normalizeRepositoryRelativePath,
   normalizeBaseline,
   loadBaseline,
   applyReviewBaseline,
