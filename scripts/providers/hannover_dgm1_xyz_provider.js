@@ -10,7 +10,9 @@ const elevation = require("../../js/ua.elevation_provider");
 const MANIFEST_SCHEMA_VERSION = 1;
 const SOURCE_ID = "hannover.dgm1";
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
-const DEFAULT_MAX_CELLS = 250_000_000;
+const GRID_BYTES_PER_CELL = 5;
+const DEFAULT_MAX_GRID_BYTES = 256 * 1024 * 1024;
+const DEFAULT_MAX_CELLS = Math.floor(DEFAULT_MAX_GRID_BYTES / GRID_BYTES_PER_CELL);
 
 class Dgm1XyzError extends Error {
   constructor(code, message, details) {
@@ -74,15 +76,16 @@ function sha256Buffer(value) {
 
 function sha256File(file) {
   const hash = crypto.createHash("sha256");
-  const fd = fs.openSync(file, "r");
-  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  let descriptor;
   try {
+    descriptor = fs.openSync(file, "r");
+    const buffer = Buffer.allocUnsafe(1024 * 1024);
     let bytesRead;
-    while ((bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
+    while ((bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null)) > 0) {
       hash.update(buffer.subarray(0, bytesRead));
     }
   } finally {
-    fs.closeSync(fd);
+    if (descriptor != null) fs.closeSync(descriptor);
   }
   return hash.digest("hex");
 }
@@ -99,8 +102,25 @@ function normalizeRelativePath(value, label) {
   return text;
 }
 
+function resolveImportRoot(value) {
+  const requested = path.resolve(requiredString(value, "allowedRoot"));
+  let root;
+  try {
+    root = fs.realpathSync(requested);
+  } catch (error) {
+    fail("missing_root", "allowedRoot does not exist", {
+      requested,
+      systemCode: error && error.code ? error.code : null,
+    });
+  }
+  if (!fs.statSync(root).isDirectory()) {
+    fail("invalid_root", "allowedRoot must be a directory", { root });
+  }
+  return root;
+}
+
 function resolveConfinedFile(rootValue, relativeValue, label) {
-  const root = fs.realpathSync(requiredString(rootValue, "allowedRoot"));
+  const root = resolveImportRoot(rootValue);
   const relative = normalizeRelativePath(relativeValue, label);
   const candidate = path.resolve(root, relative);
   const rel = path.relative(root, candidate);
@@ -154,24 +174,14 @@ function normalizeManifest(value) {
   );
   assertExactKeys(
     value.grid,
-    [
-      "crs",
-      "resolutionMeters",
-      "minEasting",
-      "maxEasting",
-      "minNorthing",
-      "maxNorthing",
-    ],
+    ["crs", "resolutionMeters", "minEasting", "maxEasting", "minNorthing", "maxNorthing"],
     ["noDataValue", "maxCells"],
     "manifest.grid",
   );
   if (requiredString(value.grid.crs, "manifest.grid.crs") !== "EPSG:25832") {
     fail("unsupported_crs", "Hannover DGM1 XYZ must use EPSG:25832");
   }
-  const resolutionMeters = finiteNumber(
-    value.grid.resolutionMeters,
-    "manifest.grid.resolutionMeters",
-  );
+  const resolutionMeters = finiteNumber(value.grid.resolutionMeters, "manifest.grid.resolutionMeters");
   if (resolutionMeters !== 1) {
     fail("unsupported_resolution", "Hannover DGM1 must use the published 1 m grid");
   }
@@ -193,11 +203,17 @@ function normalizeManifest(value) {
   const width = Math.round(widthSpan) + 1;
   const height = Math.round(heightSpan) + 1;
   const cells = width * height;
-  const maxCells = value.grid.maxCells == null
+  const requestedMaxCells = value.grid.maxCells == null
     ? DEFAULT_MAX_CELLS
     : positiveInteger(value.grid.maxCells, "manifest.grid.maxCells");
-  if (!Number.isSafeInteger(cells) || cells > maxCells) {
-    fail("grid_too_large", `declared grid contains ${cells} cells, limit is ${maxCells}`);
+  if (requestedMaxCells > DEFAULT_MAX_CELLS) {
+    fail(
+      "unsafe_grid_limit",
+      `manifest.grid.maxCells exceeds the ${DEFAULT_MAX_GRID_BYTES}-byte in-memory safety budget`,
+    );
+  }
+  if (!Number.isSafeInteger(cells) || cells > requestedMaxCells) {
+    fail("grid_too_large", `declared grid contains ${cells} cells, limit is ${requestedMaxCells}`);
   }
   return Object.freeze({
     schemaVersion: MANIFEST_SCHEMA_VERSION,
@@ -209,12 +225,7 @@ function normalizeManifest(value) {
       sha256: assertHash(value.distribution.sha256, "manifest.distribution.sha256"),
       bytes: positiveInteger(value.distribution.bytes, "manifest.distribution.bytes"),
       ...(value.distribution.publicationDate
-        ? {
-            publicationDate: requiredString(
-              value.distribution.publicationDate,
-              "manifest.distribution.publicationDate",
-            ),
-          }
+        ? { publicationDate: requiredString(value.distribution.publicationDate, "manifest.distribution.publicationDate") }
         : {}),
     }),
     grid: Object.freeze({
@@ -227,15 +238,11 @@ function normalizeManifest(value) {
       width,
       height,
       cells,
-      maxCells,
+      maxCells: requestedMaxCells,
+      estimatedMemoryBytes: cells * GRID_BYTES_PER_CELL,
       ...(value.grid.noDataValue == null
         ? {}
-        : {
-            noDataValue: finiteNumber(
-              value.grid.noDataValue,
-              "manifest.grid.noDataValue",
-            ),
-          }),
+        : { noDataValue: finiteNumber(value.grid.noDataValue, "manifest.grid.noDataValue") }),
     }),
   });
 }
@@ -247,8 +254,7 @@ function wgs84ToUtm32(coordinate) {
     fail("coordinate_outside_utm32", "coordinate is outside UTM zone 32N coverage");
   }
   const a = 6378137;
-  const inverseFlattening = 298.257223563;
-  const flattening = 1 / inverseFlattening;
+  const flattening = 1 / 298.257223563;
   const eccentricitySquared = flattening * (2 - flattening);
   const secondEccentricitySquared = eccentricitySquared / (1 - eccentricitySquared);
   const k0 = 0.9996;
@@ -262,34 +268,22 @@ function wgs84ToUtm32(coordinate) {
   const t = tanLatitude * tanLatitude;
   const c = secondEccentricitySquared * cosLatitude * cosLatitude;
   const A = cosLatitude * (longitude - centralMeridian);
-  const e4 = eccentricitySquared * eccentricitySquared;
-  const e6 = e4 * eccentricitySquared;
-  const meridionalArc =
-    a *
-    ((1 - eccentricitySquared / 4 - (3 * e4) / 64 - (5 * e6) / 256) * latitude -
-      ((3 * eccentricitySquared) / 8 + (3 * e4) / 32 + (45 * e6) / 1024) *
-        Math.sin(2 * latitude) +
-      ((15 * e4) / 256 + (45 * e6) / 1024) * Math.sin(4 * latitude) -
-      ((35 * e6) / 3072) * Math.sin(6 * latitude));
-  const easting =
-    500000 +
-    k0 *
-      n *
-      (A +
-        ((1 - t + c) * A ** 3) / 6 +
-        ((5 - 18 * t + t * t + 72 * c - 58 * secondEccentricitySquared) *
-          A ** 5) /
-          120);
-  const northing =
-    k0 *
-    (meridionalArc +
-      n *
-        tanLatitude *
-        (A ** 2 / 2 +
-          ((5 - t + 9 * c + 4 * c * c) * A ** 4) / 24 +
-          ((61 - 58 * t + t * t + 600 * c - 330 * secondEccentricitySquared) *
-            A ** 6) /
-            720));
+  const e4 = eccentricitySquared ** 2;
+  const e6 = eccentricitySquared ** 3;
+  const meridionalArc = a * (
+    (1 - eccentricitySquared / 4 - (3 * e4) / 64 - (5 * e6) / 256) * latitude -
+    ((3 * eccentricitySquared) / 8 + (3 * e4) / 32 + (45 * e6) / 1024) * Math.sin(2 * latitude) +
+    ((15 * e4) / 256 + (45 * e6) / 1024) * Math.sin(4 * latitude) -
+    ((35 * e6) / 3072) * Math.sin(6 * latitude)
+  );
+  const easting = 500000 + k0 * n * (
+    A + ((1 - t + c) * A ** 3) / 6 +
+    ((5 - 18 * t + t * t + 72 * c - 58 * secondEccentricitySquared) * A ** 5) / 120
+  );
+  const northing = k0 * (meridionalArc + n * tanLatitude * (
+    A ** 2 / 2 + ((5 - t + 9 * c + 4 * c * c) * A ** 4) / 24 +
+    ((61 - 58 * t + t * t + 600 * c - 330 * secondEccentricitySquared) * A ** 6) / 720
+  ));
   return Object.freeze({ easting, northing });
 }
 
@@ -316,44 +310,44 @@ async function loadGrid(file, manifest) {
   const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
   let lineNumber = 0;
   let pointCount = 0;
-  for await (const rawLine of lines) {
-    lineNumber += 1;
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const fields = line.split(/[\s;,]+/);
-    if (fields.length !== 3) {
-      fail("invalid_xyz", `line ${lineNumber} must contain exactly x y z`);
+  try {
+    for await (const rawLine of lines) {
+      lineNumber += 1;
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const fields = line.split(/[\s;,]+/);
+      if (fields.length !== 3) {
+        fail("invalid_xyz", `line ${lineNumber} must contain exactly x y z`);
+      }
+      const x = Number(fields[0]);
+      const y = Number(fields[1]);
+      const z = Number(fields[2]);
+      if (![x, y, z].every(Number.isFinite)) {
+        fail("invalid_xyz", `line ${lineNumber} contains a non-finite coordinate`);
+      }
+      const columnFloat = (x - grid.minEasting) / grid.resolutionMeters;
+      const rowFloat = (y - grid.minNorthing) / grid.resolutionMeters;
+      const column = Math.round(columnFloat);
+      const row = Math.round(rowFloat);
+      if (
+        Math.abs(columnFloat - column) > 1e-6 ||
+        Math.abs(rowFloat - row) > 1e-6 ||
+        column < 0 || column >= grid.width || row < 0 || row >= grid.height
+      ) {
+        fail("xyz_outside_grid", `line ${lineNumber} is outside or misaligned with the declared grid`);
+      }
+      const index = row * grid.width + column;
+      if (seen[index]) {
+        fail("duplicate_xyz", `line ${lineNumber} duplicates grid cell ${column},${row}`);
+      }
+      seen[index] = 1;
+      if (manifest.grid.noDataValue != null && z === manifest.grid.noDataValue) continue;
+      values[index] = z;
+      pointCount += 1;
     }
-    const x = Number(fields[0]);
-    const y = Number(fields[1]);
-    const z = Number(fields[2]);
-    if (![x, y, z].every(Number.isFinite)) {
-      fail("invalid_xyz", `line ${lineNumber} contains a non-finite coordinate`);
-    }
-    const columnFloat = (x - grid.minEasting) / grid.resolutionMeters;
-    const rowFloat = (y - grid.minNorthing) / grid.resolutionMeters;
-    const column = Math.round(columnFloat);
-    const row = Math.round(rowFloat);
-    if (
-      Math.abs(columnFloat - column) > 1e-6 ||
-      Math.abs(rowFloat - row) > 1e-6 ||
-      column < 0 ||
-      column >= grid.width ||
-      row < 0 ||
-      row >= grid.height
-    ) {
-      fail("xyz_outside_grid", `line ${lineNumber} is outside or misaligned with the declared grid`);
-    }
-    const index = row * grid.width + column;
-    if (seen[index]) {
-      fail("duplicate_xyz", `line ${lineNumber} duplicates grid cell ${column},${row}`);
-    }
-    seen[index] = 1;
-    if (manifest.grid.noDataValue != null && z === manifest.grid.noDataValue) {
-      continue;
-    }
-    values[index] = z;
-    pointCount += 1;
+  } finally {
+    lines.close();
+    stream.destroy();
   }
   if (pointCount === 0) fail("empty_grid", "DGM1 XYZ contains no usable elevations");
   return Object.freeze({
@@ -375,12 +369,8 @@ async function loadGrid(file, manifest) {
       if (![q00, q10, q01, q11].every(Number.isFinite)) return null;
       const tx = x - x0;
       const ty = y - y0;
-      return (
-        q00 * (1 - tx) * (1 - ty) +
-        q10 * tx * (1 - ty) +
-        q01 * (1 - tx) * ty +
-        q11 * tx * ty
-      );
+      return q00 * (1 - tx) * (1 - ty) + q10 * tx * (1 - ty) +
+        q01 * (1 - tx) * ty + q11 * tx * ty;
     },
   });
 }
@@ -430,16 +420,22 @@ function createHannoverDgm1XyzProvider(options) {
     descriptor,
     canProvide(context) {
       return Boolean(
-        context &&
-          typeof context.city === "string" &&
-          ["hannover", "hanover"].includes(context.city.trim().toLowerCase()),
+        context && typeof context.city === "string" &&
+        ["hannover", "hanover"].includes(context.city.trim().toLowerCase()),
       );
     },
     async sampleElevations(coordinates) {
       const grid = await getGrid();
       return coordinates.map((coordinate) => {
-        const projected = wgs84ToUtm32(coordinate);
-        return grid.sampleProjected(projected.easting, projected.northing);
+        try {
+          const projected = wgs84ToUtm32(coordinate);
+          return grid.sampleProjected(projected.easting, projected.northing);
+        } catch (error) {
+          if (error instanceof Dgm1XyzError && error.code === "coordinate_outside_utm32") {
+            return null;
+          }
+          throw error;
+        }
       });
     },
   });
@@ -462,6 +458,8 @@ function createHannoverDgm1XyzProvider(options) {
 module.exports = Object.freeze({
   MANIFEST_SCHEMA_VERSION,
   SOURCE_ID,
+  GRID_BYTES_PER_CELL,
+  DEFAULT_MAX_GRID_BYTES,
   DEFAULT_MAX_CELLS,
   Dgm1XyzError,
   sha256Buffer,
