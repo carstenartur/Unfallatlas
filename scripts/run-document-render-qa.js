@@ -41,6 +41,7 @@ function runFocusedDocxTests() {
     'tests/unit/documentGoldenMatrix.test.js',
     'tests/unit/documentGoldenMatrixLongReport.test.js',
     'tests/unit/documentGoldenMatrixRegression.test.js',
+    'tests/unit/documentGoldenRenderedSemantics.test.js',
     'tests/unit/docxPagination.test.js',
     'tests/unit/docxSourceLinks.test.js',
     'tests/unit/enrichRenderedDocumentTables.test.js',
@@ -82,6 +83,7 @@ function runDocx() {
   runNode('scripts/verify-rendered-document-evidence.js');
   runNode('scripts/generate-document-golden-matrix.js');
   runNode('scripts/render-document-golden-matrix.js');
+  runNode('scripts/verify-document-golden-rendered-semantics.js');
 }
 
 if (MODE === 'all' || MODE === 'native-pdf') runNativePdf();
