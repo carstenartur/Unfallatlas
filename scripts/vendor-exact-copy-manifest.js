@@ -289,28 +289,28 @@ function bindOperationsToVendorAssets(manifest, lockValue) {
     const mismatches = {};
     if (assetPackage !== packageName) mismatches.package = { expected: packageName, actual: assetPackage };
     if (lockedDependencyVersion !== componentVersion) {
-      mismatches.version = { expected: componentVersion, actual: lockedDependencyVersion };
+      mismatches.dependencyVersion = { expected: componentVersion, actual: lockedDependencyVersion };
     }
     optionalMatchingString(
       asset.value.version,
       componentVersion,
       `vendor asset ${outputPath}.version`,
       mismatches,
-      "version",
+      "assetVersion",
     );
     optionalMatchingString(
       asset.value.purl,
       componentPurl,
       `vendor asset ${outputPath}.purl`,
       mismatches,
-      "purl",
+      "assetPurl",
     );
     optionalMatchingString(
       asset.value.sourcePath,
       inputPath,
       `vendor asset ${outputPath}.sourcePath`,
       mismatches,
-      "sourcePath",
+      "assetSourcePath",
     );
     if (assetBytes !== outputBytes) mismatches.bytes = { expected: outputBytes, actual: assetBytes };
     if (assetSha256 !== outputSha256) mismatches.sha256 = { expected: outputSha256, actual: assetSha256 };
