@@ -62,6 +62,11 @@ Platzhalterwerte im lokalen Header und zusätzliche Trailerdaten erlauben. Der
 Evidenzreader verlangt stattdessen vollständige, in beiden Verzeichnissen
 übereinstimmende Headerangaben vor dem Lesen der Nutzdaten.
 
+Die Review-Goldfälle verändern lokale CRC-32, komprimierte Größe und
+unkomprimierte Größe jeweils unabhängig vom zentralen Verzeichnis. Jede dieser
+Abweichungen muss bereits am lokalen Header als `local_central_mismatch`
+scheitern; erst danach dürfen Nutzdaten dekomprimiert oder gehasht werden.
+
 Unbekannte Dateitypen im Kölner Geometriearchiv werden abgewiesen. Zugelassen
 sind nur Shapefile-Komponenten und eng verwandte Metadatenformate.
 
