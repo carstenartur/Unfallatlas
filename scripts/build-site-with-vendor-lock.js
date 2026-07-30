@@ -5,11 +5,13 @@ const path = require("path");
 const siteBuild = require("./build-site");
 const vendorBuildLock = require("./vendor-build-lock");
 const vendorExactCopyManifest = require("./vendor-exact-copy-manifest");
+const vendorExactCopyProvenance = require("./vendor-exact-copy-provenance");
 
 function main(argv, runtime = {}) {
   const site = runtime.siteBuild || siteBuild;
   const lockWriter = runtime.vendorBuildLock || vendorBuildLock;
   const manifestBinder = runtime.vendorExactCopyManifest || vendorExactCopyManifest;
+  const provenanceBinder = runtime.vendorExactCopyProvenance || vendorExactCopyProvenance;
   const write = runtime.write || ((text) => process.stdout.write(text));
 
   const args = site.parseArgs(argv);
@@ -20,20 +22,24 @@ function main(argv, runtime = {}) {
     repoRoot,
     outputRoot,
   });
-  const binding = manifestBinder.bindExactCopyLockToBuildManifest({
+  const manifestBinding = manifestBinder.bindExactCopyLockToBuildManifest({
     outputRoot,
     buildLockResult: buildLock,
   });
+  const provenanceBinding = provenanceBinder.bindExactCopyProvenance({
+    outputRoot,
+  });
   write(
     `[build-site] Bound ${buildLock.lock.operations.length} browser-export assets ` +
-      `to exact-copy lock ${buildLock.lock.lockId} and build manifest ` +
-      `${binding.manifest.fingerprint}.\n`,
+      `to exact-copy lock ${buildLock.lock.lockId}, build manifest, notices and CycloneDX ` +
+      `${provenanceBinding.manifest.fingerprint}.\n`,
   );
   return Object.freeze({
     initialManifest,
-    manifest: binding.manifest,
+    manifest: provenanceBinding.manifest,
     buildLock,
-    binding,
+    binding: manifestBinding,
+    provenanceBinding,
   });
 }
 
