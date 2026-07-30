@@ -74,6 +74,7 @@ function publishStage(stageFile, targetFile, hooks = {}) {
   const backupFile = siblingPath(targetFile, 'backup');
   let movedOriginal = false;
   let installed = false;
+  let preserveBackup = false;
 
   if (existsSync(backupFile)) {
     fail('occupied_backup', 'refusing occupied publication backup path', { backupFile });
@@ -100,10 +101,12 @@ function publishStage(stageFile, targetFile, hooks = {}) {
       if (installed && existsSync(targetFile)) rmSync(targetFile, { force: true });
       if (movedOriginal && existsSync(backupFile)) renameSync(backupFile, targetFile);
     } catch (rollbackError) {
+      preserveBackup = movedOriginal && existsSync(backupFile);
       fail('rollback_failed', 'cannot restore previous OSM elevation context after publish failure', {
         targetFile,
         stageFile,
         backupFile,
+        backupPreserved: preserveBackup,
         publishCause: error.message,
         rollbackCause: rollbackError.message,
       });
@@ -114,7 +117,7 @@ function publishStage(stageFile, targetFile, hooks = {}) {
       cause: error.message,
     });
   } finally {
-    if (existsSync(backupFile)) rmSync(backupFile, { force: true });
+    if (!preserveBackup && existsSync(backupFile)) rmSync(backupFile, { force: true });
   }
   return targetFile;
 }
