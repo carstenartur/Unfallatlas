@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "available": false,
+  "execution": "github-actions",
+  "requiresToken": false,
+  "city": null,
+  "slug": null,
+  "reason": "static_site",
+  "reasonDetail": "Die statische Browser-Version kann keine lokalen Producer starten.",
+  "activeJob": null,
+  "latestJob": null,
+  "workflowUrl": "https://github.com/carstenartur/Unfallatlas/actions/workflows/generate-context-city.yml"
+}
