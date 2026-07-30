@@ -61,6 +61,11 @@ Sicherungsdatei ausdrücklich erhalten und der Fehler enthält ihren exakten
 Pfad. Sie wird in diesem Extremfall nicht durch einen allgemeinen
 Aufräumblock gelöscht.
 
+Die Stage-Datei besitzt genau einen Aufräumpfad im `finally`-Block. Dadurch
+entsteht weder bei einem regulären Fehler noch nach erfolgreicher Installation
+eine doppelte Löschoperation; die davon getrennte Originalsicherung folgt
+weiterhin ausschließlich dem oben beschriebenen Rollbackvertrag.
+
 ## Wiederaufnahme und Manipulationsschutz
 
 Ein Lauf wird nur dann als `already current` übersprungen, wenn:
@@ -72,6 +77,10 @@ Ein Lauf wird nur dann als `already current` übersprungen, wenn:
 - jeder Way genau die fünf erwarteten Risikofelder besitzt,
 - jeder abgeleitete Wert erneut aus dem unveränderten OSM-Rohwert berechnet
   werden kann.
+
+Die einmal vollständig validierte Vertragsausgabe wird für Way-Anzahl und
+Rohstruktur-Fingerprint wiederverwendet. Der Resume-Pfad berechnet denselben
+Fingerabdruck daher nicht ein zweites Mal.
 
 Wurde beispielsweise nur `elevationRiskTags.bridge` manipuliert, wird der
 Risikovertrag lokal repariert. Der vollständige Strukturabruf muss dafür nicht
