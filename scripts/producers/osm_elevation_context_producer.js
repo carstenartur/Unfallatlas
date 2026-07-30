@@ -205,9 +205,6 @@ async function prepareOsmElevationContext(options = {}) {
           riskResult.sourceStructureFingerprint || validated.sourceStructureFingerprint,
       }),
     });
-  } catch (error) {
-    fs.rmSync(stageFile, { force: true });
-    throw error;
   } finally {
     fs.rmSync(stageFile, { force: true });
   }
