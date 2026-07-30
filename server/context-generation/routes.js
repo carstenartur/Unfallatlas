@@ -35,26 +35,27 @@ const jobStatusRateLimit = rateLimit({
   message: { error: 'context_generation_status_rate_limited' },
 });
 
+const CAPABILITY_DOCUMENT_PATH = '/data/context-generation-status.json';
+
 function requestToken(req) {
   return req.get('authorization') || req.get('x-context-generation-token') || '';
 }
 
 /**
- * Install the JSON-named capability alias before static middleware.
+ * Install the shared capability-document alias before static middleware.
  *
- * The public static site contains `/api/context-generation/status.json` with a
+ * The public site contains `/data/context-generation-status.json` with a
  * deterministic `github-actions` fallback. The production Express wrapper
- * registers this alias immediately after app creation, before the static site,
- * and redirects it to the dynamic local-Docker status route. Thus both hosting
- * modes return successful JSON without hostname/port heuristics or expected
- * 404 probes.
+ * registers this same path immediately after app creation and redirects it to
+ * the dynamic local-Docker status route. Thus both hosting modes return
+ * successful JSON without hostname/port heuristics or expected 404 probes.
  */
 function installContextGenerationCapabilityAlias(app) {
   if (!app || typeof app.get !== 'function') throw new TypeError('Express app required');
   app.locals = app.locals || {};
   if (app.locals.contextGenerationCapabilityAliasInstalled) return false;
   app.locals.contextGenerationCapabilityAliasInstalled = true;
-  app.get('/api/context-generation/status.json', (req, res) => {
+  app.get(CAPABILITY_DOCUMENT_PATH, (req, res) => {
     const city = String(req.query && req.query.city || '').trim();
     const query = city ? `?city=${encodeURIComponent(city)}` : '';
     return res.redirect(307, `/api/context-generation/status${query}`);
@@ -120,6 +121,7 @@ function registerContextGenerationRoutes(app, options) {
 }
 
 module.exports = {
+  CAPABILITY_DOCUMENT_PATH,
   installContextGenerationCapabilityAlias,
   registerContextGenerationRoutes,
 };
