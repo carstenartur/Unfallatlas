@@ -138,9 +138,13 @@ function findEocd(buffer, limits) {
 }
 
 function validateFlags(flags, label) {
-  const forbidden = 0x0001 | 0x0020 | 0x0040 | 0x2000;
+  // Bit 3 denotes a trailing data descriptor and permits zero/placeholder
+  // CRC/size fields in the local header. This strict reader deliberately does
+  // not accept that ambiguity: all local evidence must be complete and match
+  // the central directory byte-for-byte.
+  const forbidden = 0x0001 | 0x0008 | 0x0020 | 0x0040 | 0x2000;
   if ((flags & forbidden) !== 0) {
-    fail('unsupported_zip_flags', `${label} uses encryption or masked metadata`, { flags });
+    fail('unsupported_zip_flags', `${label} uses encryption, a data descriptor or masked metadata`, { flags });
   }
 }
 
@@ -316,16 +320,28 @@ function readEntry(buffer, entry, centralOffset) {
   assertRange(buffer, offset, 30, `${entry.name} local header`);
   const flags = readU16(buffer, offset + 6, `${entry.name} local flags`);
   const method = readU16(buffer, offset + 8, `${entry.name} local method`);
+  const localCrc32 = readU32(buffer, offset + 14, `${entry.name} local crc32`);
+  const localCompressedSize = readU32(buffer, offset + 18, `${entry.name} local compressed size`);
+  const localUncompressedSize = readU32(buffer, offset + 22, `${entry.name} local uncompressed size`);
   const nameLength = readU16(buffer, offset + 26, `${entry.name} local name length`);
   const extraLength = readU16(buffer, offset + 28, `${entry.name} local extra length`);
   validateFlags(flags, `${entry.name} local header`);
-  if (flags !== entry.flags || method !== entry.method) {
-    fail('local_central_mismatch', 'local and central flags or compression method differ', {
+  if (flags !== entry.flags || method !== entry.method ||
+      localCrc32 !== entry.crc32 ||
+      localCompressedSize !== entry.compressedSize ||
+      localUncompressedSize !== entry.uncompressedSize) {
+    fail('local_central_mismatch', 'local and central flags, method, CRC or sizes differ', {
       name: entry.name,
       centralFlags: entry.flags,
       localFlags: flags,
       centralMethod: entry.method,
       localMethod: method,
+      centralCrc32: entry.crc32,
+      localCrc32,
+      centralCompressedSize: entry.compressedSize,
+      localCompressedSize,
+      centralUncompressedSize: entry.uncompressedSize,
+      localUncompressedSize,
     });
   }
   assertRange(buffer, offset + 30, nameLength + extraLength, `${entry.name} local variable data`);
