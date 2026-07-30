@@ -10,7 +10,10 @@
  */
 
 const path = require('path');
-const { registerContextGenerationRoutes } = require('./context-generation/routes');
+const {
+  installContextGenerationCapabilityAlias,
+  registerContextGenerationRoutes,
+} = require('./context-generation/routes');
 const {
   installVideoExportPlaywrightRuntime,
 } = require('./video-export-playwright-runtime');
@@ -42,8 +45,12 @@ function expressWithRuntimeIntegrations(...args) {
   // the legacy /api/export-video handler and the static-site middleware.
   installMediaExportProvenanceHttp(app);
 
-  // Context-generation routes intentionally remain deferred because that module
-  // appends optional API endpoints after the main application has been created.
+  // The JSON-named status alias must also precede static middleware. The static
+  // distribution contains a same-path fallback document, while Docker redirects
+  // this request to the dynamic API. Full job routes stay deferred until the
+  // legacy application has installed JSON body parsing.
+  installContextGenerationCapabilityAlias(app);
+
   setImmediate(() => {
     try {
       registerContextGenerationRoutes(app, { root: path.resolve(__dirname, '..') });
