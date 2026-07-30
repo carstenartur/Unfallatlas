@@ -187,4 +187,49 @@
       });
     }
   };
+
+  // A context-filter query is part of the requested analysis state and of the
+  // export/video provenance, even when the currently loaded city cannot apply
+  // that constraint. The UI capability projection may hide unavailable rows,
+  // but it must not erase the URL request. ua.filters.js already treats such
+  // filters as a no-op while the corresponding capability is absent.
+  //
+  // Keep the low-level UI helper's defensive reset behaviour available to
+  // isolated callers, but wrap the production load order here (this codec is
+  // loaded immediately after ua.ui.js) so shared links round-trip losslessly.
+  if (typeof UA.refreshContextFilterVisibility === 'function' &&
+      UA.__contextFilterUrlPreservationInstalled !== true) {
+    const projectContextFilterVisibility = UA.refreshContextFilterVisibility;
+    UA.refreshContextFilterVisibility = function preserveRequestedContextFilters(ctx) {
+      const current = ctx && ctx.contextFilters;
+      if (!current) return projectContextFilterVisibility(ctx);
+      const requested = {
+        slopeClasses: new Set(current.slopeClasses || []),
+        trafficClasses: new Set(current.trafficClasses || []),
+        onlyMatchedWays: current.onlyMatchedWays === true,
+      };
+      const syncAllToUrl = UA.syncAllToUrl;
+      if (typeof syncAllToUrl === 'function') UA.syncAllToUrl = function suppressCapabilityCleanup() {};
+      try {
+        projectContextFilterVisibility(ctx);
+      } finally {
+        if (typeof syncAllToUrl === 'function') UA.syncAllToUrl = syncAllToUrl;
+        ctx.contextFilters = requested;
+        const ui = ctx.ui || {};
+        for (const el of ui.ctxSlopeChipEls || []) {
+          el.checked = requested.slopeClasses.has(el.dataset.ctxSlope);
+        }
+        for (const el of ui.ctxTrafficChipEls || []) {
+          el.checked = requested.trafficClasses.has(el.dataset.ctxTraffic);
+        }
+        if (ui.ctxOnlyMatchedEl) ui.ctxOnlyMatchedEl.checked = requested.onlyMatchedWays;
+      }
+    };
+    Object.defineProperty(UA, '__contextFilterUrlPreservationInstalled', {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false,
+    });
+  }
 })();
