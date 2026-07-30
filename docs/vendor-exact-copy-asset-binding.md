@@ -10,25 +10,35 @@ bestimmten Lock-Operation gehört.
 
 ## Prüfvertrag
 
-Für jede Operation müssen exakt übereinstimmen:
+Das ursprüngliche Assetinventar des Site-Builds ist bewusst schlank und enthält
+pro Datei nur Paketname, Zielpfad, Bytezahl und SHA-256. Die Bindestufe führt
+diese Felder mit zwei weiteren bereits verifizierten Quellen zusammen:
 
-- Zielpfad,
+- `manifest.dependencies` liefert die package-lock-gepinnte Paketversion;
+- die Exact-Copy-Operation liefert PURL und Quellpfad im installierten Paket.
+
+Für jede Operation müssen damit exakt übereinstimmen:
+
+- Zielpfad der Operation und Assetpfad,
 - npm-Paketname,
-- Paketversion,
-- Package URL (PURL),
-- Quellpfad im installierten Paket,
-- ausgelieferte Bytezahl,
-- ausgelieferter SHA-256.
+- Paketversion aus `manifest.dependencies` und Lock-Komponente,
+- Eingabe- und Ausgabebytezahl bei der Byte-für-Byte-Kopie,
+- Eingabe-, Ausgabe- und ausgelieferter SHA-256.
 
-Fehlt das Asset oder weicht eines dieser Felder ab, bricht der Build ab. Doppelte
-Assetpfade, `lockRef`-Werte und Ausgabeziele werden ebenfalls abgewiesen.
+Enthält ein bereits angereicherter Asseteintrag zusätzlich `version`, `purl`
+oder `sourcePath`, müssen auch diese Werte exakt zur Operation passen. Fehlt das
+Asset oder weicht ein Feld ab, bricht der Build ab. Doppelte Assetpfade,
+`lockRef`-Werte und Ausgabeziele werden ebenfalls abgewiesen.
 
-Ein erfolgreich gebundener Asset-Eintrag enthält beispielsweise:
+Ein erfolgreich gebundener Asset-Eintrag wird um die aus den geprüften Quellen
+abgeleiteten Felder ergänzt:
 
 ```json
 {
   "package": "docx",
   "version": "9.7.1",
+  "purl": "pkg:npm/docx@9.7.1",
+  "sourcePath": "dist/index.iife.js",
   "path": "vendor/export/docx.js",
   "sha256": "...",
   "exactCopy": {
