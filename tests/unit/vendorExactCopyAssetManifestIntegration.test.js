@@ -18,7 +18,7 @@ function write(root, relative, contents) {
 }
 
 describe("exact-copy asset references in final build manifest", () => {
-  test("writes covered asset references and binds their fingerprint into the overall build", () => {
+  test("enriches the real minimal asset inventory and binds its fingerprint into the build", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "ua-exact-copy-asset-manifest-"));
     try {
       write(root, "index.html", "<!doctype html><title>fixture</title>\n");
@@ -66,9 +66,6 @@ describe("exact-copy asset references in final build manifest", () => {
         dependencies: { docx: "9.7.1" },
         vendorAssets: [{
           package: "docx",
-          version: "9.7.1",
-          purl: "pkg:npm/docx@9.7.1",
-          sourcePath: "dist/index.iife.js",
           path: "vendor/export/docx.js",
           bytes: outputBytes,
           sha256: outputSha256,
@@ -104,9 +101,16 @@ describe("exact-copy asset references in final build manifest", () => {
           outputSha256,
         }],
       }));
-      expect(result.manifest.vendorAssets[0].exactCopy.lockRef)
-        .toBe("export.docx.iife");
-      expect(result.manifest.vendorAssets[0].exactCopy.lockId).toBe(lock.lockId);
+      expect(result.manifest.vendorAssets[0]).toEqual(expect.objectContaining({
+        package: "docx",
+        version: "9.7.1",
+        purl: "pkg:npm/docx@9.7.1",
+        sourcePath: "dist/index.iife.js",
+        exactCopy: expect.objectContaining({
+          lockRef: "export.docx.iife",
+          lockId: lock.lockId,
+        }),
+      }));
       expect(result.manifest.fingerprint).toMatch(/^[a-f0-9]{64}$/);
       expect(result.manifest.fingerprint).not.toBe(manifest.fingerprint);
       expect(JSON.parse(fs.readFileSync(result.manifestPath, "utf8")))
