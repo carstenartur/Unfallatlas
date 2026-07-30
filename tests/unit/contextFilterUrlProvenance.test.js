@@ -47,6 +47,12 @@ describe('context-filter URL state and provenance', () => {
   const href = 'http://localhost/werkbank_v2.html?city=Bonn' +
     '&ctxSlope=steep,very_steep&ctxTraffic=high,very_high&ctxOnlyMatched=1';
 
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    document.documentElement.removeAttribute('data-ua-sticky-city-installed');
+    document.getElementById('ua-sticky-city-selector-style')?.remove();
+  });
+
   test('capability projection hides unavailable rows without erasing requested state', () => {
     const UA = loadRuntime(href);
     const ui = uiFixture();
@@ -114,5 +120,28 @@ describe('context-filter URL state and provenance', () => {
     (function evaluate(window) { eval(fs.readFileSync(file, 'utf8')); })(win);
 
     expect(UA.refreshContextFilterVisibility).toBe(installed);
+  });
+
+  test('installs a responsive sticky city row exactly once', () => {
+    document.body.innerHTML = `
+      <div id="panel">
+        <div class="panelHeader">Header</div>
+        <div class="panelBody">
+          <div class="row"><label>Stadt</label><select id="citySel"></select></div>
+        </div>
+      </div>`;
+    const header = document.querySelector('.panelHeader');
+    header.getBoundingClientRect = () => ({ height: 47.5 });
+    const UA = loadRuntime(href);
+    const panel = document.getElementById('panel');
+    const row = document.getElementById('citySel').closest('.row');
+
+    expect(row.classList.contains('ua-sticky-city-row')).toBe(true);
+    expect(panel.style.getPropertyValue('--ua-panel-header-height')).toBe('47.5px');
+    expect(document.getElementById('ua-sticky-city-selector-style').textContent)
+      .toContain('position: sticky');
+    expect(document.documentElement.dataset.uaStickyCityInstalled).toBe('1');
+    expect(UA.installStickyCitySelector(document)).toBe(false);
+    expect(document.querySelectorAll('#ua-sticky-city-selector-style')).toHaveLength(1);
   });
 });
