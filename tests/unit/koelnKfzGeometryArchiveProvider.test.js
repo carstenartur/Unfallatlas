@@ -252,7 +252,10 @@ describe('Cologne Kfz geometry archive provider', () => {
       .toThrow(/invalid file code/);
 
     const invalidDbf = dbf();
-    invalidDbf[64] = 0;
+    // Preserve the real terminator at byte 64 but claim a 66-byte header. This
+    // targets the header-length/terminator contract without creating a second,
+    // accidentally truncated field descriptor.
+    invalidDbf.writeUInt16LE(66, 8);
     expect(() => provider.parseDbfHeader(invalidDbf, 'fixture.dbf'))
       .toThrow(/terminator/);
   });
