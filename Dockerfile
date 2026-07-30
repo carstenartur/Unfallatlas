@@ -13,7 +13,7 @@
 # Start:  docker run -p 8000:8000 unfallatlas
 # Image:  ghcr.io/carstenartur/unfallatlas
 
-FROM mcr.microsoft.com/playwright:v1.62.0-noble
+FROM mcr.microsoft.com/playwright:v1.62.1-noble
 
 # ffmpeg erzeugt GIF, WebP und APNG. ImageMagick/libwebp übernimmt ausschließlich
 # die formatgerechte Nachprüfung animierter WebP-Dateien und das Reservieren der
