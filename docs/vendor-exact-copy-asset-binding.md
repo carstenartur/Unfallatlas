@@ -75,6 +75,19 @@ Dieser Fingerprint geht in den Gesamtfingerprint des Site-Builds ein. Änderunge
 an der Operation-zu-Asset-Zuordnung können dadurch nicht neben einem ansonsten
 gleich aussehenden Buildmanifest unbemerkt bleiben.
 
+## Fehlerdiagnose
+
+Abweichungen werden nach ihrer Herkunft getrennt berichtet. Insbesondere sind
+
+- `dependencyVersion`: Version aus dem package-lock-gebundenen
+  `manifest.dependencies`, und
+- `assetVersion`: optional bereits im Assetinventar gespeicherte Version
+
+zwei unabhängige Befunde. Liegen beide gleichzeitig vor, bleiben beide im
+strukturierten Fehler erhalten. Dasselbe gilt für optionale Asset-PURL und
+Quellpfadangaben. Dadurch verdeckt eine spätere Vergleichsstufe keine bereits
+erkannte Abweichung einer anderen Evidenzquelle.
+
 ## Rückwärtskompatibilität
 
 Historische Minimal-Fixtures ohne `vendorAssets` bleiben für isolierte
