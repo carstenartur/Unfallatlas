@@ -318,8 +318,6 @@ function processFile(options = {}) {
       cause: error.message,
     });
   }
-  const validated = validateStructureCoverage(input);
-  const currentFingerprint = sourceStructureFingerprint(input, validated.wayIds);
   let currentContract = null;
   try {
     currentContract = validateElevationRiskContract(input);
@@ -327,28 +325,29 @@ function processFile(options = {}) {
     if (!(error instanceof OsmElevationRiskError)) throw error;
   }
   if (!options.force && outputFile === inputFile && currentContract) {
+    const inputSha256 = sha256(inputBytes);
     return Object.freeze({
       skipped: true,
       reason: 'already current',
       inputFile,
       outputFile,
-      wayCount: validated.wayIds.length,
-      inputSha256: sha256(inputBytes),
-      outputSha256: sha256(inputBytes),
-      sourceStructureFingerprint: currentFingerprint,
+      wayCount: currentContract.wayIds.length,
+      inputSha256,
+      outputSha256: inputSha256,
+      sourceStructureFingerprint: currentContract.sourceStructureFingerprint,
     });
   }
   const output = applyElevationRiskTags(input, { derivedAt: options.derivedAt });
-  validateElevationRiskContract(output);
+  const outputContract = validateElevationRiskContract(output);
   const written = writeAtomic(outputFile, output);
   return Object.freeze({
     skipped: false,
     inputFile,
     outputFile: written,
-    wayCount: validated.wayIds.length,
+    wayCount: outputContract.wayIds.length,
     inputSha256: sha256(inputBytes),
     outputSha256: sha256(fs.readFileSync(written)),
-    sourceStructureFingerprint: output.elevationRiskTags.sourceStructureFingerprint,
+    sourceStructureFingerprint: outputContract.sourceStructureFingerprint,
   });
 }
 
