@@ -87,7 +87,9 @@ function resolveOutputRoot(value) {
   } catch (error) {
     fail('missing_root', 'outputRoot does not exist', { requested, cause: error.message });
   }
-  if (!fs.statSync(root).isDirectory()) fail('invalid_root', 'outputRoot must be a directory', { root });
+  if (!fs.statSync(root).isDirectory()) {
+    fail('invalid_root', 'outputRoot must be a directory', { root });
+  }
   return root;
 }
 
@@ -122,7 +124,9 @@ function collectBindings(manifestValue) {
   const lockId = requiredHash(lock.lockId, 'vendorExactCopyLock.lockId');
   requiredString(lock.path, 'vendorExactCopyLock.path');
   requiredHash(lock.sha256, 'vendorExactCopyLock.sha256');
-  if (!Array.isArray(manifest.vendorAssets)) fail('invalid_assets', 'build manifest vendorAssets must be an array');
+  if (!Array.isArray(manifest.vendorAssets)) {
+    fail('invalid_assets', 'build manifest vendorAssets must be an array');
+  }
 
   const bindings = [];
   const paths = new Set();
@@ -153,7 +157,10 @@ function collectBindings(manifestValue) {
     if (exactCopy.lockId !== lockId || exactCopy.method !== 'byte-for-byte-copy' ||
         outputPath !== assetPath || outputBytes !== assetBytes || outputSha256 !== assetSha256 ||
         inputBytes !== outputBytes || inputSha256 !== outputSha256) {
-      fail('binding_drift', 'exact-copy binding differs from delivered asset bytes', { assetPath, lockRef });
+      fail('binding_drift', 'exact-copy binding differs from delivered asset bytes', {
+        assetPath,
+        lockRef,
+      });
     }
     bindings.push(Object.freeze({
       path: assetPath,
@@ -192,7 +199,12 @@ function collectBindings(manifestValue) {
   if (fingerprint !== requiredHash(lock.assetBindingFingerprint, 'vendorExactCopyLock.assetBindingFingerprint')) {
     fail('binding_fingerprint_mismatch', 'vendorExactCopyLock fingerprint differs from delivered assets');
   }
-  return Object.freeze({ lock, lockId, bindings: Object.freeze(bindings), summaries: Object.freeze(summaries) });
+  return Object.freeze({
+    lock,
+    lockId,
+    bindings: Object.freeze(bindings),
+    summaries: Object.freeze(summaries),
+  });
 }
 
 function componentRefs(components, label, key) {
@@ -200,9 +212,12 @@ function componentRefs(components, label, key) {
   const refs = new Set();
   for (let index = 0; index < components.length; index += 1) {
     const component = plainObject(components[index], `${label}[${index}]`);
-    const ref = component[key];
-    if (typeof ref !== 'string' || !ref.trim()) continue;
-    if (refs.has(ref)) fail('duplicate_component_ref', `${label} contains duplicate component reference`, { ref });
+    const rawRef = component[key];
+    if (typeof rawRef !== 'string' || !rawRef.trim()) continue;
+    const ref = rawRef.trim();
+    if (refs.has(ref)) {
+      fail('duplicate_component_ref', `${label} contains duplicate component reference`, { ref });
+    }
     refs.add(ref);
   }
   return refs;
@@ -210,13 +225,17 @@ function componentRefs(components, label, key) {
 
 function bindNotice(noticeValue, binding) {
   const notice = plainObject(noticeValue, 'third-party notices');
-  if (!Array.isArray(notice.assetAssessments)) fail('invalid_notice', 'third-party notices require assetAssessments');
+  if (!Array.isArray(notice.assetAssessments)) {
+    fail('invalid_notice', 'third-party notices require assetAssessments');
+  }
   const knownComponents = componentRefs(notice.components, 'third-party notice components', 'purl');
   const assessmentsByPath = new Map();
   for (let index = 0; index < notice.assetAssessments.length; index += 1) {
     const assessment = plainObject(notice.assetAssessments[index], `assetAssessments[${index}]`);
     const assetPath = requiredString(assessment.path, `assetAssessments[${index}].path`).replace(/\\/g, '/');
-    if (assessmentsByPath.has(assetPath)) fail('duplicate_notice_asset', 'duplicate notice asset path', { assetPath });
+    if (assessmentsByPath.has(assetPath)) {
+      fail('duplicate_notice_asset', 'duplicate notice asset path', { assetPath });
+    }
     assessmentsByPath.set(assetPath, { index, assessment });
   }
   const replacements = new Map();
@@ -228,11 +247,17 @@ function bindNotice(noticeValue, binding) {
       });
     }
     const found = assessmentsByPath.get(item.path);
-    if (!found) fail('missing_notice_asset', 'exact-copy asset is absent from third-party notices', { path: item.path });
+    if (!found) {
+      fail('missing_notice_asset', 'exact-copy asset is absent from third-party notices', {
+        path: item.path,
+      });
+    }
     const assessment = found.assessment;
     if (assessment.package !== item.package || Number(assessment.bytes) !== item.bytes ||
         assessment.sha256 !== item.sha256) {
-      fail('notice_asset_drift', 'notice asset differs from delivered exact-copy asset', { path: item.path });
+      fail('notice_asset_drift', 'notice asset differs from delivered exact-copy asset', {
+        path: item.path,
+      });
     }
     const contains = new Set(Array.isArray(assessment.contains) ? assessment.contains : []);
     contains.add(item.componentPurl);
@@ -265,6 +290,26 @@ function setProperty(component, name, value) {
     .sort((left, right) => String(left.name).localeCompare(String(right.name)));
 }
 
+function cycloneDxFileSha256(component, label) {
+  if (!Array.isArray(component.hashes)) {
+    fail('missing_sbom_asset_hash', `${label} requires a SHA-256 hash`);
+  }
+  const matches = component.hashes.filter((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    const algorithm = String(entry.alg || '').trim().toUpperCase().replace(/_/g, '-');
+    return algorithm === 'SHA-256' || algorithm === 'SHA256';
+  });
+  if (matches.length !== 1) {
+    fail('ambiguous_sbom_asset_hash', `${label} must contain exactly one SHA-256 hash`, {
+      count: matches.length,
+    });
+  }
+  return requiredHash(
+    String(matches[0].content || '').trim().toLowerCase(),
+    `${label} SHA-256`,
+  );
+}
+
 function bindSbom(sbomValue, binding) {
   const sbom = plainObject(sbomValue, 'CycloneDX SBOM');
   if (sbom.bomFormat !== 'CycloneDX' || sbom.specVersion !== '1.6' ||
@@ -273,16 +318,20 @@ function bindSbom(sbomValue, binding) {
   }
   const components = new Map();
   for (const component of sbom.components) {
-    const ref = component && component['bom-ref'];
-    if (typeof ref !== 'string') continue;
+    const rawRef = component && component['bom-ref'];
+    if (typeof rawRef !== 'string' || !rawRef.trim()) continue;
+    const ref = rawRef.trim();
     if (components.has(ref)) fail('duplicate_sbom_ref', 'duplicate CycloneDX bom-ref', { ref });
     components.set(ref, component);
   }
   const dependencies = new Map();
   for (const dependency of sbom.dependencies) {
-    const ref = dependency && dependency.ref;
-    if (typeof ref !== 'string') continue;
-    if (dependencies.has(ref)) fail('duplicate_sbom_dependency', 'duplicate CycloneDX dependency ref', { ref });
+    const rawRef = dependency && dependency.ref;
+    if (typeof rawRef !== 'string' || !rawRef.trim()) continue;
+    const ref = rawRef.trim();
+    if (dependencies.has(ref)) {
+      fail('duplicate_sbom_dependency', 'duplicate CycloneDX dependency ref', { ref });
+    }
     dependencies.set(ref, dependency);
   }
   for (const item of binding.bindings) {
@@ -290,13 +339,31 @@ function bindSbom(sbomValue, binding) {
     const assetComponent = components.get(assetRef);
     const dependency = dependencies.get(assetRef);
     if (!components.has(item.componentPurl)) {
-      fail('missing_sbom_component', 'CycloneDX package component is missing', { ref: item.componentPurl });
+      fail('missing_sbom_component', 'CycloneDX package component is missing', {
+        ref: item.componentPurl,
+      });
     }
     if (!assetComponent || assetComponent.type !== 'file') {
       fail('missing_sbom_asset', 'CycloneDX vendor file component is missing', { ref: assetRef });
     }
-    if (!dependency) fail('missing_sbom_dependency', 'CycloneDX vendor dependency edge is missing', { ref: assetRef });
-    const dependsOn = new Set(Array.isArray(dependency.dependsOn) ? dependency.dependsOn : []);
+    const componentSha256 = cycloneDxFileSha256(assetComponent, `CycloneDX component ${assetRef}`);
+    if (componentSha256 !== item.sha256) {
+      fail('sbom_asset_hash_drift', 'CycloneDX file hash differs from delivered exact-copy asset', {
+        ref: assetRef,
+        expected: item.sha256,
+        actual: componentSha256,
+      });
+    }
+    if (!dependency) {
+      fail('missing_sbom_dependency', 'CycloneDX vendor dependency edge is missing', {
+        ref: assetRef,
+      });
+    }
+    const dependsOn = new Set(
+      (Array.isArray(dependency.dependsOn) ? dependency.dependsOn : [])
+        .map(value => typeof value === 'string' ? value.trim() : '')
+        .filter(Boolean),
+    );
     dependsOn.add(item.componentPurl);
     dependency.dependsOn = [...dependsOn].sort();
     setProperty(assetComponent, 'unfallatlas:exact-copy-lock-id', binding.lockId);
@@ -332,12 +399,18 @@ function replaceFilesAtomically(replacements, hooks = {}) {
   const seen = new Set();
   const records = replacements.map(({ file, value }) => {
     const target = path.resolve(file);
-    if (seen.has(target)) fail('duplicate_transaction_target', 'atomic transaction contains duplicate file', { target });
+    if (seen.has(target)) {
+      fail('duplicate_transaction_target', 'atomic transaction contains duplicate file', { target });
+    }
     seen.add(target);
-    if (!existsSync(target)) fail('missing_transaction_target', 'atomic transaction target is missing', { target });
+    if (!existsSync(target)) {
+      fail('missing_transaction_target', 'atomic transaction target is missing', { target });
+    }
     const stat = lstatSync(target);
     if (stat.isSymbolicLink() || !stat.isFile()) {
-      fail('unsafe_transaction_target', 'atomic transaction target must be a non-symlink regular file', { target });
+      fail('unsafe_transaction_target', 'atomic transaction target must be a non-symlink regular file', {
+        target,
+      });
     }
     return {
       file: target,
@@ -349,7 +422,9 @@ function replaceFilesAtomically(replacements, hooks = {}) {
     };
   });
   try {
-    for (const record of records) writeFileSync(record.temporary, record.bytes, { flag: 'wx' });
+    for (const record of records) {
+      writeFileSync(record.temporary, record.bytes, { flag: 'wx' });
+    }
     for (const record of records) {
       renameSync(record.file, record.backup);
       record.backedUp = true;
@@ -365,7 +440,11 @@ function replaceFilesAtomically(replacements, hooks = {}) {
       } catch (rollbackError) {
         rollbackErrors.push({ file: record.file, message: rollbackError.message });
       }
-      try { rmSync(record.temporary, { force: true }); } catch (_) { /* preserve primary failure */ }
+      try {
+        rmSync(record.temporary, { force: true });
+      } catch (_) {
+        // Preserve the primary installation failure.
+      }
     }
     if (rollbackErrors.length) {
       fail('atomic_rollback_failed', 'cannot restore provenance artifacts after installation failure', {
@@ -376,8 +455,16 @@ function replaceFilesAtomically(replacements, hooks = {}) {
     throw error;
   }
   for (const record of records) {
-    try { rmSync(record.temporary, { force: true }); } catch (_) { /* already installed */ }
-    try { rmSync(record.backup, { force: true }); } catch (_) { /* valid output remains installed */ }
+    try {
+      rmSync(record.temporary, { force: true });
+    } catch (_) {
+      // Already installed.
+    }
+    try {
+      rmSync(record.backup, { force: true });
+    } catch (_) {
+      // Valid output remains installed.
+    }
   }
 }
 
@@ -459,6 +546,7 @@ module.exports = Object.freeze({
   componentRefs,
   bindNotice,
   setProperty,
+  cycloneDxFileSha256,
   bindSbom,
   fingerprintApplicationFilesWithOverrides,
   replaceFilesAtomically,
