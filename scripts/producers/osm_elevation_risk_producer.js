@@ -23,7 +23,13 @@ const REQUIRED_STRUCTURE_FIELDS = Object.freeze([
   'embankment',
   'cutting',
 ]);
+const REQUIRED_RISK_FIELDS = REQUIRED_STRUCTURE_FIELDS;
 const NEGATIVE_VALUES = Object.freeze(new Set(['no', 'false', '0', 'none']));
+const RISK_CONTRACT = Object.freeze({
+  presenceValues: Object.freeze(['yes', 'no']),
+  layer: 'canonical-integer-string',
+  consumer: 'js/ua.elevation_provider.js#computeRoadGradient.osmTags',
+});
 
 class OsmElevationRiskError extends Error {
   constructor(code, message, details) {
@@ -47,6 +53,19 @@ function plainObject(value, label) {
     fail('invalid_object', `${label} must be an object`);
   }
   return value;
+}
+
+function assertExactKeys(value, required, label) {
+  const object = plainObject(value, label);
+  const actual = Object.keys(object).sort();
+  const expected = [...required].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    fail('invalid_risk_contract', `${label} has unexpected or missing fields`, {
+      expected,
+      actual,
+    });
+  }
+  return object;
 }
 
 function normalizePresence(value) {
@@ -133,6 +152,88 @@ function sourceStructureFingerprint(osm, wayIds) {
   return sha256(Buffer.from(JSON.stringify(rows)));
 }
 
+function validateElevationRiskContract(osmValue) {
+  const validated = validateStructureCoverage(osmValue);
+  const metadata = plainObject(
+    validated.osm.elevationRiskTags,
+    'OSM dataset.elevationRiskTags',
+  );
+  if (Number(metadata.schemaVersion) !== RISK_SCHEMA_VERSION) {
+    fail('invalid_risk_contract', `elevationRiskTags.schemaVersion must be ${RISK_SCHEMA_VERSION}`);
+  }
+  if (metadata.producerVersion !== PRODUCER_VERSION) {
+    fail('invalid_risk_contract', 'elevationRiskTags.producerVersion is stale', {
+      expected: PRODUCER_VERSION,
+      actual: metadata.producerVersion,
+    });
+  }
+  if (metadata.coverage !== 'full') {
+    fail('invalid_risk_contract', 'elevationRiskTags.coverage must be full');
+  }
+  if (Number(metadata.wayCount) !== validated.wayIds.length) {
+    fail('invalid_risk_contract', 'elevationRiskTags.wayCount differs from ways', {
+      expected: validated.wayIds.length,
+      actual: metadata.wayCount,
+    });
+  }
+  if (typeof metadata.derivedAt !== 'string' ||
+      !metadata.derivedAt.trim() ||
+      !Number.isFinite(Date.parse(metadata.derivedAt))) {
+    fail('invalid_risk_contract', 'elevationRiskTags.derivedAt must be an ISO timestamp');
+  }
+  const currentFingerprint = sourceStructureFingerprint(
+    validated.osm,
+    validated.wayIds,
+  );
+  if (metadata.sourceStructureQueryFingerprint !== validated.metadata.queryFingerprint) {
+    fail('invalid_risk_contract', 'risk contract is bound to another structure query', {
+      expected: validated.metadata.queryFingerprint,
+      actual: metadata.sourceStructureQueryFingerprint,
+    });
+  }
+  if (metadata.sourceStructureFingerprint !== currentFingerprint) {
+    fail('invalid_risk_contract', 'risk contract is stale for the current raw structure tags', {
+      expected: currentFingerprint,
+      actual: metadata.sourceStructureFingerprint,
+    });
+  }
+  const contract = assertExactKeys(
+    metadata.contract,
+    ['presenceValues', 'layer', 'consumer'],
+    'elevationRiskTags.contract',
+  );
+  if (!Array.isArray(contract.presenceValues) ||
+      JSON.stringify(contract.presenceValues) !== JSON.stringify(RISK_CONTRACT.presenceValues) ||
+      contract.layer !== RISK_CONTRACT.layer ||
+      contract.consumer !== RISK_CONTRACT.consumer) {
+    fail('invalid_risk_contract', 'elevationRiskTags.contract differs from the supported consumer contract');
+  }
+
+  for (const id of validated.wayIds) {
+    const way = plainObject(validated.osm.ways[id], `OSM dataset.ways.${id}`);
+    const actual = assertExactKeys(
+      way.elevationRiskTags,
+      REQUIRED_RISK_FIELDS,
+      `OSM dataset.ways.${id}.elevationRiskTags`,
+    );
+    const expected = riskTagsForWay(way, `OSM dataset.ways.${id}`);
+    for (const field of REQUIRED_RISK_FIELDS) {
+      if (actual[field] !== expected[field]) {
+        fail('invalid_risk_contract', `way ${id} has stale or tampered ${field} risk`, {
+          expected: expected[field],
+          actual: actual[field],
+        });
+      }
+    }
+  }
+
+  return Object.freeze({
+    ...validated,
+    riskMetadata: metadata,
+    sourceStructureFingerprint: currentFingerprint,
+  });
+}
+
 function applyElevationRiskTags(osmValue, options = {}) {
   const validated = validateStructureCoverage(osmValue);
   const sourceFingerprint = sourceStructureFingerprint(
@@ -162,9 +263,9 @@ function applyElevationRiskTags(osmValue, options = {}) {
     sourceStructureQueryFingerprint: validated.metadata.queryFingerprint,
     sourceStructureFingerprint: sourceFingerprint,
     contract: {
-      presenceValues: ['yes', 'no'],
-      layer: 'canonical-integer-string',
-      consumer: 'js/ua.elevation_provider.js#computeRoadGradient.osmTags',
+      presenceValues: [...RISK_CONTRACT.presenceValues],
+      layer: RISK_CONTRACT.layer,
+      consumer: RISK_CONTRACT.consumer,
     },
   };
   return cloned;
@@ -217,33 +318,36 @@ function processFile(options = {}) {
       cause: error.message,
     });
   }
-  const validated = validateStructureCoverage(input);
-  const currentFingerprint = sourceStructureFingerprint(input, validated.wayIds);
-  if (!options.force && outputFile === inputFile &&
-      input.elevationRiskTags?.producerVersion === PRODUCER_VERSION &&
-      input.elevationRiskTags?.coverage === 'full' &&
-      input.elevationRiskTags?.sourceStructureFingerprint === currentFingerprint) {
+  let currentContract = null;
+  try {
+    currentContract = validateElevationRiskContract(input);
+  } catch (error) {
+    if (!(error instanceof OsmElevationRiskError)) throw error;
+  }
+  if (!options.force && outputFile === inputFile && currentContract) {
+    const inputSha256 = sha256(inputBytes);
     return Object.freeze({
       skipped: true,
       reason: 'already current',
       inputFile,
       outputFile,
-      wayCount: validated.wayIds.length,
-      inputSha256: sha256(inputBytes),
-      outputSha256: sha256(inputBytes),
-      sourceStructureFingerprint: currentFingerprint,
+      wayCount: currentContract.wayIds.length,
+      inputSha256,
+      outputSha256: inputSha256,
+      sourceStructureFingerprint: currentContract.sourceStructureFingerprint,
     });
   }
   const output = applyElevationRiskTags(input, { derivedAt: options.derivedAt });
+  const outputContract = validateElevationRiskContract(output);
   const written = writeAtomic(outputFile, output);
   return Object.freeze({
     skipped: false,
     inputFile,
     outputFile: written,
-    wayCount: validated.wayIds.length,
+    wayCount: outputContract.wayIds.length,
     inputSha256: sha256(inputBytes),
     outputSha256: sha256(fs.readFileSync(written)),
-    sourceStructureFingerprint: output.elevationRiskTags.sourceStructureFingerprint,
+    sourceStructureFingerprint: outputContract.sourceStructureFingerprint,
   });
 }
 
@@ -302,15 +406,20 @@ module.exports = Object.freeze({
   PRODUCER_VERSION,
   RISK_SCHEMA_VERSION,
   REQUIRED_STRUCTURE_FIELDS,
+  REQUIRED_RISK_FIELDS,
   NEGATIVE_VALUES,
+  RISK_CONTRACT,
   OsmElevationRiskError,
   sha256,
+  plainObject,
+  assertExactKeys,
   normalizePresence,
   normalizeLayer,
   riskTagsForWay,
   sortedWayIds,
   validateStructureCoverage,
   sourceStructureFingerprint,
+  validateElevationRiskContract,
   applyElevationRiskTags,
   resolveRegularFile,
   resolveOutput,

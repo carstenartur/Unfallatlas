@@ -114,7 +114,7 @@ describe('OSM elevation risk normalization', () => {
     }))).toThrow(/invalid_structure_contract/);
   });
 
-  test('preserves raw OSM values and adds a normalized per-way consumer contract', () => {
+  test('preserves raw OSM values and adds a fully validated per-way consumer contract', () => {
     const input = dataset();
     const output = producer.applyElevationRiskTags(input, {
       derivedAt: '2026-07-28T23:00:00Z',
@@ -153,8 +153,45 @@ describe('OSM elevation risk normalization', () => {
       derivedAt: '2026-07-28T23:00:00.000Z',
       sourceStructureQueryFingerprint: 'a'.repeat(64),
       sourceStructureFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      contract: {
+        presenceValues: ['yes', 'no'],
+        layer: 'canonical-integer-string',
+        consumer: 'js/ua.elevation_provider.js#computeRoadGradient.osmTags',
+      },
     }));
+    expect(producer.validateElevationRiskContract(output)).toEqual(
+      expect.objectContaining({
+        wayIds: ['3', '11', '20'],
+        sourceStructureFingerprint: output.elevationRiskTags.sourceStructureFingerprint,
+      }),
+    );
     expect(input.ways['3'].elevationRiskTags).toBeUndefined();
+  });
+
+  test('rejects stale, tampered or structurally widened derived risk tags', () => {
+    const correct = producer.applyElevationRiskTags(dataset(), {
+      derivedAt: '2026-07-28T23:00:00Z',
+    });
+
+    const tamperedWay = JSON.parse(JSON.stringify(correct));
+    tamperedWay.ways['3'].elevationRiskTags.bridge = 'no';
+    expect(() => producer.validateElevationRiskContract(tamperedWay))
+      .toThrow(/stale or tampered bridge risk/);
+
+    const extraField = JSON.parse(JSON.stringify(correct));
+    extraField.ways['3'].elevationRiskTags.trustMe = 'yes';
+    expect(() => producer.validateElevationRiskContract(extraField))
+      .toThrow(/unexpected or missing fields/);
+
+    const staleQuery = JSON.parse(JSON.stringify(correct));
+    staleQuery.elevationRiskTags.sourceStructureQueryFingerprint = 'b'.repeat(64);
+    expect(() => producer.validateElevationRiskContract(staleQuery))
+      .toThrow(/another structure query/);
+
+    const staleRaw = JSON.parse(JSON.stringify(correct));
+    staleRaw.ways['20'].embankment = 'no';
+    expect(() => producer.validateElevationRiskContract(staleRaw))
+      .toThrow(/stale for the current raw structure tags/);
   });
 
   test.each([
@@ -205,7 +242,7 @@ describe('OSM elevation risk normalization', () => {
     );
   });
 
-  test('writes atomically, reports hashes and skips only when the source fingerprint is current', () => {
+  test('writes atomically, skips only a fully valid contract and repairs derived or raw drift', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-osm-risk-'));
     roots.push(root);
     const file = path.join(root, 'osm_hannover.json');
@@ -233,16 +270,28 @@ describe('OSM elevation risk normalization', () => {
       outputSha256: first.outputSha256,
     }));
 
+    const tampered = JSON.parse(fs.readFileSync(file, 'utf8'));
+    tampered.ways['3'].elevationRiskTags.bridge = 'no';
+    fs.writeFileSync(file, JSON.stringify(tampered));
+    const repairedDerived = producer.processFile({
+      inputFile: file,
+      derivedAt: '2026-07-28T23:03:00Z',
+    });
+    expect(repairedDerived.skipped).toBe(false);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).ways['3'].elevationRiskTags.bridge)
+      .toBe('yes');
+
     const changed = JSON.parse(fs.readFileSync(file, 'utf8'));
     changed.ways['20'].embankment = 'no';
     fs.writeFileSync(file, JSON.stringify(changed));
-    const third = producer.processFile({
+    const repairedRaw = producer.processFile({
       inputFile: file,
       derivedAt: '2026-07-28T23:05:00Z',
     });
-    expect(third.skipped).toBe(false);
-    expect(JSON.parse(fs.readFileSync(file, 'utf8')).ways['20'].elevationRiskTags.embankment)
-      .toBe('no');
+    expect(repairedRaw.skipped).toBe(false);
+    const finalValue = JSON.parse(fs.readFileSync(file, 'utf8'));
+    expect(finalValue.ways['20'].elevationRiskTags.embankment).toBe('no');
+    expect(() => producer.validateElevationRiskContract(finalValue)).not.toThrow();
   });
 
   test('rejects symlink inputs and outputs', () => {

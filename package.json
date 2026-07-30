@@ -33,6 +33,7 @@
     "regen:demo": "node scripts/regen-readme-demo.js",
     "regen:context-assets": "node scripts/regen-context-assets.js",
     "generate:context-city": "node scripts/generate-context-city.js",
+    "generate:osm-elevation-context": "node scripts/producers/osm_elevation_context_producer.js",
     "generate:accident-tiles": "node scripts/build-accident-tiles.js",
     "generate:pages-data": "node scripts/generate-pages-data.cjs",
     "validate:enrichment-inputs": "node scripts/check-enrichment-inputs.js",
