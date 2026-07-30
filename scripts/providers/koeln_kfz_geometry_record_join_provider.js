@@ -42,20 +42,35 @@ function plainObject(value, label) {
 }
 
 function requiredString(value, label) {
-  if (typeof value !== 'string' || !value.trim()) fail('invalid_value', `${label} must be a non-empty string`);
+  if (typeof value !== 'string' || !value.trim()) {
+    fail('invalid_value', `${label} must be a non-empty string`);
+  }
   return value.trim();
 }
 
 function requiredHash(value, label) {
   const text = requiredString(value, label);
-  if (!/^[a-f0-9]{64}$/.test(text)) fail('invalid_hash', `${label} must be a lowercase SHA-256 digest`);
+  if (!/^[a-f0-9]{64}$/.test(text)) {
+    fail('invalid_hash', `${label} must be a lowercase SHA-256 digest`);
+  }
   return text;
 }
 
 function requiredPositiveNumber(value, label) {
   const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) fail('invalid_number', `${label} must be positive`);
+  if (!Number.isFinite(number) || number <= 0) {
+    fail('invalid_number', `${label} must be positive`);
+  }
   return number;
+}
+
+function normalizeTimestamp(value, label) {
+  const text = requiredString(value, label);
+  const milliseconds = Date.parse(text);
+  if (!Number.isFinite(milliseconds)) {
+    fail('invalid_timestamp', `${label} must be an ISO timestamp`, { value });
+  }
+  return new Date(milliseconds).toISOString();
 }
 
 function exactKeys(value, expected, label) {
@@ -76,10 +91,11 @@ function resolveConfinedRegularFile(rootValue, relativeValue, label) {
   }
   const candidate = path.resolve(root, relative);
   const rel = path.relative(root, candidate);
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) fail('unsafe_path', `${label} escapes its root`, { relative });
-  const parts = rel.split(path.sep);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+    fail('unsafe_path', `${label} escapes its root`, { relative });
+  }
   let current = root;
-  for (const part of parts) {
+  for (const part of rel.split(path.sep)) {
     current = path.join(current, part);
     const stat = fs.lstatSync(current);
     if (stat.isSymbolicLink()) fail('unsafe_file', `${label} path contains a symbolic link`, { current });
@@ -94,7 +110,9 @@ function loadPinnedSchema(options = {}) {
   const bytes = fs.readFileSync(resolved.file);
   const expected = requiredHash(options.expectedSchemaSha256, 'expectedSchemaSha256');
   const actual = sha256(bytes);
-  if (actual !== expected) fail('schema_hash_mismatch', 'geometry schema differs from its external pin', { expected, actual });
+  if (actual !== expected) {
+    fail('schema_hash_mismatch', 'geometry schema differs from its external pin', { expected, actual });
+  }
   let parsed;
   try {
     parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
@@ -205,9 +223,17 @@ function componentBytes(files, set, extension) {
 }
 
 function parseShx(buffer, expectedShapeType, label) {
-  archiveProvider.parseShapefileHeader(buffer, label);
+  const header = archiveProvider.parseShapefileHeader(buffer, label);
+  if (header.shapeType !== expectedShapeType) {
+    fail('invalid_shx', `${label} declares another shape type`, {
+      expectedShapeType,
+      actualShapeType: header.shapeType,
+    });
+  }
   const bodyBytes = buffer.length - 100;
-  if (bodyBytes < 8 || bodyBytes % 8 !== 0) fail('invalid_shx', `${label} has invalid record index length`);
+  if (bodyBytes < 8 || bodyBytes % 8 !== 0) {
+    fail('invalid_shx', `${label} has invalid record index length`);
+  }
   const records = [];
   let previousEnd = 100;
   for (let offset = 100, index = 0; offset < buffer.length; offset += 8, index += 1) {
@@ -225,13 +251,14 @@ function parseShx(buffer, expectedShapeType, label) {
     records.push(Object.freeze({ recordOffset, contentBytes }));
     previousEnd = recordOffset + 8 + contentBytes;
   }
-  if (expectedShapeType == null) fail('invalid_shx', `${label} requires an expected shape type`);
   return Object.freeze(records);
 }
 
 function readShapeRecord(shp, indexEntry, expectedNumber, expectedShapeType, label) {
   const { recordOffset, contentBytes } = indexEntry;
-  if (recordOffset + 8 + contentBytes > shp.length) fail('truncated_shp', `${label} record exceeds SHP bytes`);
+  if (recordOffset + 8 + contentBytes > shp.length) {
+    fail('truncated_shp', `${label} record exceeds SHP bytes`);
+  }
   const recordNumber = shp.readInt32BE(recordOffset);
   const headerContentBytes = shp.readInt32BE(recordOffset + 4) * 2;
   if (recordNumber !== expectedNumber || headerContentBytes !== contentBytes) {
@@ -254,10 +281,14 @@ function readShapeRecord(shp, indexEntry, expectedNumber, expectedShapeType, lab
 }
 
 function parsePointRecord(content, label) {
-  if (content.length !== 20) fail('invalid_point_record', `${label} point record must contain exactly one XY point`);
+  if (content.length !== 20) {
+    fail('invalid_point_record', `${label} point record must contain exactly one XY point`);
+  }
   const x = content.readDoubleLE(4);
   const y = content.readDoubleLE(12);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) fail('invalid_point_record', `${label} contains non-finite XY`);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    fail('invalid_point_record', `${label} contains non-finite XY`);
+  }
   return Object.freeze({ x, y });
 }
 
@@ -265,8 +296,12 @@ function parsePolylineRecord(content, label) {
   if (content.length < 48) fail('invalid_polyline_record', `${label} is too short`);
   const partCount = content.readInt32LE(36);
   const pointCount = content.readInt32LE(40);
-  if (!Number.isSafeInteger(partCount) || !Number.isSafeInteger(pointCount) || partCount < 1 || pointCount < 2) {
-    fail('invalid_polyline_record', `${label} contains invalid part/point counts`, { partCount, pointCount });
+  if (!Number.isSafeInteger(partCount) || !Number.isSafeInteger(pointCount) ||
+      partCount < 1 || pointCount < 2) {
+    fail('invalid_polyline_record', `${label} contains invalid part/point counts`, {
+      partCount,
+      pointCount,
+    });
   }
   const expected = 44 + partCount * 4 + pointCount * 16;
   if (content.length !== expected) {
@@ -276,7 +311,9 @@ function parsePolylineRecord(content, label) {
     });
   }
   const starts = [];
-  for (let index = 0; index < partCount; index += 1) starts.push(content.readInt32LE(44 + index * 4));
+  for (let index = 0; index < partCount; index += 1) {
+    starts.push(content.readInt32LE(44 + index * 4));
+  }
   if (starts[0] !== 0 || starts.some((value, index) => value < 0 || value >= pointCount ||
       (index > 0 && value <= starts[index - 1]))) {
     fail('invalid_polyline_record', `${label} contains invalid part offsets`, { starts, pointCount });
@@ -286,19 +323,36 @@ function parsePolylineRecord(content, label) {
   for (let index = 0; index < pointCount; index += 1) {
     const x = content.readDoubleLE(pointOffset + index * 16);
     const y = content.readDoubleLE(pointOffset + index * 16 + 8);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) fail('invalid_polyline_record', `${label} contains non-finite XY`);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      fail('invalid_polyline_record', `${label} contains non-finite XY`);
+    }
     points.push(Object.freeze({ x, y }));
   }
-  const parts = starts.map((start, index) => Object.freeze(points.slice(start, starts[index + 1] ?? pointCount)));
-  if (parts.some(part => part.length < 2)) fail('invalid_polyline_record', `${label} contains a part with fewer than two points`);
+  const parts = starts.map((start, index) =>
+    Object.freeze(points.slice(start, starts[index + 1] ?? pointCount)));
+  if (parts.some(part => part.length < 2)) {
+    fail('invalid_polyline_record', `${label} contains a part with fewer than two points`);
+  }
   return Object.freeze(parts);
+}
+
+function decodeDbfField(bytes, encoding, label) {
+  if (encoding === 'ascii') {
+    if ([...bytes].some(byte => byte !== 0 && (byte < 0x20 || byte > 0x7e))) {
+      fail('invalid_dbf_text', `${label} contains non-ASCII bytes`);
+    }
+    return bytes.toString('ascii').trim();
+  }
+  const decoderName = encoding === 'latin1' ? 'windows-1252' : encoding;
+  try {
+    return new TextDecoder(decoderName, { fatal: encoding === 'utf-8' }).decode(bytes).trim();
+  } catch (error) {
+    fail('invalid_dbf_text', `${label} cannot be decoded`, { cause: error.message });
+  }
 }
 
 function decodeDbfRows(buffer, schemaFields, encoding, label) {
   const header = archiveProvider.parseDbfHeader(buffer, label);
-  const decoder = new TextDecoder(encoding === 'latin1' ? 'windows-1252' : encoding, {
-    fatal: encoding === 'utf-8',
-  });
   const offsets = new Map();
   let cursor = 1;
   for (const field of header.fields) {
@@ -312,7 +366,9 @@ function decodeDbfRows(buffer, schemaFields, encoding, label) {
     });
   }
   for (const fieldName of schemaFields) {
-    if (!offsets.has(fieldName)) fail('missing_dbf_field', `${label} lacks schema field ${fieldName}`);
+    if (!offsets.has(fieldName)) {
+      fail('missing_dbf_field', `${label} lacks schema field ${fieldName}`);
+    }
   }
   const rows = [];
   for (let index = 0; index < header.recordCount; index += 1) {
@@ -326,15 +382,14 @@ function decodeDbfRows(buffer, schemaFields, encoding, label) {
     const row = {};
     for (const fieldName of schemaFields) {
       const field = offsets.get(fieldName);
-      let value;
-      try {
-        value = decoder.decode(record.subarray(field.offset, field.offset + field.length)).trim();
-      } catch (error) {
-        fail('invalid_dbf_text', `${label} record ${index + 1} field ${fieldName} cannot be decoded`, {
-          cause: error.message,
-        });
+      const value = decodeDbfField(
+        record.subarray(field.offset, field.offset + field.length),
+        encoding,
+        `${label} record ${index + 1} field ${fieldName}`,
+      );
+      if (!value) {
+        fail('empty_dbf_value', `${label} record ${index + 1} field ${fieldName} is empty`);
       }
-      if (!value) fail('empty_dbf_value', `${label} record ${index + 1} field ${fieldName} is empty`);
       row[fieldName] = value;
     }
     rows.push(Object.freeze(row));
@@ -344,7 +399,12 @@ function decodeDbfRows(buffer, schemaFields, encoding, label) {
 
 function readPointRecords(shp, shx, dbf, schema, set) {
   const index = parseShx(shx, 1, `${set.id}.shx`);
-  const decoded = decodeDbfRows(dbf, [schema.pointSet.nodeIdField], schema.encoding, `${set.id}.dbf`);
+  const decoded = decodeDbfRows(
+    dbf,
+    [schema.pointSet.nodeIdField],
+    schema.encoding,
+    `${set.id}.dbf`,
+  );
   if (index.length !== decoded.rows.length || index.length !== set.recordCount) {
     fail('record_count_mismatch', 'point SHX/SHP/DBF record counts differ', {
       shx: index.length,
@@ -354,7 +414,10 @@ function readPointRecords(shp, shx, dbf, schema, set) {
   }
   return Object.freeze(index.map((entry, offset) => Object.freeze({
     row: decoded.rows[offset],
-    point: parsePointRecord(readShapeRecord(shp, entry, offset + 1, 1, set.id), `${set.id} record ${offset + 1}`),
+    point: parsePointRecord(
+      readShapeRecord(shp, entry, offset + 1, 1, set.id),
+      `${set.id} record ${offset + 1}`,
+    ),
   })));
 }
 
@@ -375,7 +438,10 @@ function readLineRecords(shp, shx, dbf, schema, set) {
   }
   return Object.freeze(index.map((entry, offset) => Object.freeze({
     row: decoded.rows[offset],
-    parts: parsePolylineRecord(readShapeRecord(shp, entry, offset + 1, 3, set.id), `${set.id} record ${offset + 1}`),
+    parts: parsePolylineRecord(
+      readShapeRecord(shp, entry, offset + 1, 3, set.id),
+      `${set.id} record ${offset + 1}`,
+    ),
   })));
 }
 
@@ -410,8 +476,14 @@ function stableSegment(value) {
 
 function validateNodeId(value, label) {
   const text = requiredString(value, label);
-  if (!/^[A-Za-z0-9._-]+$/.test(text)) fail('invalid_node_id', `${label} contains unsupported characters`, { value });
+  if (!/^[A-Za-z0-9._-]+$/.test(text)) {
+    fail('invalid_node_id', `${label} contains unsupported characters`, { value });
+  }
   return text;
+}
+
+function directedGeometryKey(segment, fromNode, toNode) {
+  return `${stableSegment(segment)}:${validateNodeId(fromNode, 'from-node ID')}->${validateNodeId(toNode, 'to-node ID')}`;
 }
 
 function buildOfficialGeometryIndex(pointRecords, lineRecords, schema) {
@@ -427,10 +499,18 @@ function buildOfficialGeometryIndex(pointRecords, lineRecords, schema) {
     const segment = stableSegment(record.row[schema.lineSet.segmentIdField]);
     const fromNode = validateNodeId(record.row[schema.lineSet.fromNodeIdField], 'line from-node ID');
     const toNode = validateNodeId(record.row[schema.lineSet.toNodeIdField], 'line to-node ID');
-    if (fromNode === toNode) fail('invalid_line_nodes', 'line from/to node IDs must differ', { segment, fromNode });
+    if (fromNode === toNode) {
+      fail('invalid_line_nodes', 'line from/to node IDs must differ', { segment, fromNode });
+    }
     const fromPoint = nodes.get(fromNode);
     const toPoint = nodes.get(toNode);
-    if (!fromPoint || !toPoint) fail('missing_line_node', 'line references a node absent from point set', { segment, fromNode, toNode });
+    if (!fromPoint || !toPoint) {
+      fail('missing_line_node', 'line references a node absent from point set', {
+        segment,
+        fromNode,
+        toNode,
+      });
+    }
     const connected = connectParts(record.parts, schema.maxEndpointDistanceMeters, `segment ${segment}`);
     const first = connected[0];
     const last = connected[connected.length - 1];
@@ -438,11 +518,14 @@ function buildOfficialGeometryIndex(pointRecords, lineRecords, schema) {
     const directEnd = distanceMeters(last, toPoint);
     const reverseStart = distanceMeters(last, fromPoint);
     const reverseEnd = distanceMeters(first, toPoint);
-    const reverse = reverseStart + reverseEnd < directStart + directEnd;
-    const oriented = reverse ? Object.freeze([...connected].reverse()) : connected;
-    const startDistance = reverse ? reverseStart : directStart;
-    const endDistance = reverse ? reverseEnd : directEnd;
-    if (startDistance > schema.maxEndpointDistanceMeters || endDistance > schema.maxEndpointDistanceMeters) {
+    const sourceOrientationReversed = reverseStart + reverseEnd < directStart + directEnd;
+    const oriented = sourceOrientationReversed
+      ? Object.freeze([...connected].reverse())
+      : connected;
+    const startDistance = sourceOrientationReversed ? reverseStart : directStart;
+    const endDistance = sourceOrientationReversed ? reverseEnd : directEnd;
+    if (startDistance > schema.maxEndpointDistanceMeters ||
+        endDistance > schema.maxEndpointDistanceMeters) {
       fail('line_endpoint_mismatch', 'line endpoints do not match referenced official nodes', {
         segment,
         fromNode,
@@ -452,23 +535,27 @@ function buildOfficialGeometryIndex(pointRecords, lineRecords, schema) {
         tolerance: schema.maxEndpointDistanceMeters,
       });
     }
-    const directKey = `${segment}:forward:${fromNode}->${toNode}`;
-    const reverseKey = `${segment}:reverse:${toNode}->${fromNode}`;
+    const directKey = directedGeometryKey(segment, fromNode, toNode);
+    const reverseKey = directedGeometryKey(segment, toNode, fromNode);
     for (const key of [directKey, reverseKey]) {
-      if (lines.has(key)) fail('duplicate_direction_geometry', 'official geometry produces a duplicate direction key', { key });
+      if (lines.has(key)) {
+        fail('duplicate_direction_geometry', 'official geometry produces a duplicate directed key', { key });
+      }
     }
-    const base = Object.freeze({
+    const common = Object.freeze({
       segment,
+      recordNumber: index + 1,
+      sourceOrientationReversed,
+    });
+    lines.set(directKey, Object.freeze({
+      ...common,
       fromNode,
       toNode,
-      recordNumber: index + 1,
-      sourceOrientationReversed: reverse,
+      points: oriented,
       endpointDistanceMeters: Object.freeze({ start: startDistance, end: endDistance }),
-    });
-    lines.set(directKey, Object.freeze({ ...base, directionCode: 'forward', points: oriented }));
+    }));
     lines.set(reverseKey, Object.freeze({
-      ...base,
-      directionCode: 'reverse',
+      ...common,
       fromNode: toNode,
       toNode: fromNode,
       points: Object.freeze([...oriented].reverse()),
@@ -513,7 +600,8 @@ function utm32ToWgs84(point, crs) {
   ) / cosPhi;
   const lat = latitude * 180 / Math.PI;
   const lon = longitude * 180 / Math.PI;
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < 45 || lat > 60 || lon < 4 || lon > 16) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
+      lat < 45 || lat > 60 || lon < 4 || lon > 16) {
     fail('coordinate_transform_out_of_range', 'UTM coordinate does not transform into the supported Germany extent', {
       point,
       crs,
@@ -527,18 +615,27 @@ function utm32ToWgs84(point, crs) {
 function parseSyntheticWayId(value) {
   const text = requiredString(value, 'observation wayId');
   const match = /^koeln-segment:([^:]+):(forward|reverse):([A-Za-z0-9._-]+)->([A-Za-z0-9._-]+)$/.exec(text);
-  if (!match) fail('invalid_observation_way_id', 'observation does not carry the reviewed Cologne synthetic segment identity', { value });
+  if (!match) {
+    fail('invalid_observation_way_id', 'observation does not carry the reviewed Cologne synthetic segment identity', {
+      value,
+    });
+  }
+  const segment = stableSegment(match[1]);
+  const fromNode = validateNodeId(match[3], 'observation from-node ID');
+  const toNode = validateNodeId(match[4], 'observation to-node ID');
   return Object.freeze({
-    segment: stableSegment(match[1]),
+    segment,
     directionCode: match[2],
-    fromNode: match[3],
-    toNode: match[4],
-    key: `${stableSegment(match[1])}:${match[2]}:${match[3]}->${match[4]}`,
+    fromNode,
+    toNode,
+    key: directedGeometryKey(segment, fromNode, toNode),
   });
 }
 
 function joinObservations(observations, geometryIndex, schema) {
-  if (!Array.isArray(observations) || observations.length === 0) fail('empty_observations', 'traffic observations are required');
+  if (!Array.isArray(observations) || observations.length === 0) {
+    fail('empty_observations', 'traffic observations are required');
+  }
   const joined = [];
   const missing = [];
   for (const observation of observations) {
@@ -558,9 +655,9 @@ function joinObservations(observations, geometryIndex, schema) {
       officialGeometry: Object.freeze({
         sourceId: archiveProvider.SOURCE_ID,
         segment: geometry.segment,
-        directionCode: geometry.directionCode,
-        fromNode: geometry.fromNode,
-        toNode: geometry.toNode,
+        directionCode: identity.directionCode,
+        fromNode: identity.fromNode,
+        toNode: identity.toNode,
         recordNumber: geometry.recordNumber,
         sourceOrientationReversed: geometry.sourceOrientationReversed,
         endpointDistanceMeters: geometry.endpointDistanceMeters,
@@ -593,7 +690,9 @@ async function buildJoinedArtifact(options = {}) {
     expectedBytes: options.expectedArchiveBytes,
     retrievedAt: options.archiveRetrievedAt,
   });
-  if (loadedArchive.sha256 !== schema.archiveSha256) fail('schema_archive_mismatch', 'verified archive differs from schema pin');
+  if (loadedArchive.sha256 !== schema.archiveSha256) {
+    fail('schema_archive_mismatch', 'verified archive differs from schema pin');
+  }
   const archiveBytes = fs.readFileSync(loadedArchive.file);
   const zipped = zipFiles(archiveBytes);
   const pointSet = shapeSetById(loadedArchive.inspected, schema, 'pointSet');
@@ -626,7 +725,7 @@ async function buildJoinedArtifact(options = {}) {
     schemaVersion: OUTPUT_SCHEMA_VERSION,
     type: OUTPUT_TYPE,
     producerVersion: PRODUCER_VERSION,
-    generatedAt: new Date(Date.parse(requiredString(options.generatedAt, 'generatedAt'))).toISOString(),
+    generatedAt: normalizeTimestamp(options.generatedAt, 'generatedAt'),
     source: Object.freeze({
       traffic: traffic.descriptor,
       trafficDistribution: traffic.distribution,
@@ -637,7 +736,11 @@ async function buildJoinedArtifact(options = {}) {
         licenseId: loadedArchive.licenseId,
         licenseName: loadedArchive.licenseName,
         retrievedAt: loadedArchive.retrievedAt,
-        archive: Object.freeze({ path: loadedArchive.relativePath, sha256: loadedArchive.sha256, bytes: loadedArchive.bytes }),
+        archive: Object.freeze({
+          path: loadedArchive.relativePath,
+          sha256: loadedArchive.sha256,
+          bytes: loadedArchive.bytes,
+        }),
         schema: Object.freeze({ path: schema.path, sha256: schema.sha256 }),
       }),
     }),
@@ -667,7 +770,9 @@ function writeAtomic(fileValue, value) {
   const output = path.join(parent, path.basename(target));
   if (fs.existsSync(output)) {
     const stat = fs.lstatSync(output);
-    if (stat.isSymbolicLink() || !stat.isFile()) fail('unsafe_output', 'outputFile must be a regular non-symlink file');
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      fail('unsafe_output', 'outputFile must be a regular non-symlink file');
+    }
   }
   const temporary = `${output}.tmp-${process.pid}-${crypto.randomBytes(5).toString('hex')}`;
   try {
@@ -683,12 +788,21 @@ function writeAtomic(fileValue, value) {
 function parseArgs(argv) {
   const options = { json: false };
   const names = new Map([
-    ['--schema-root', 'schemaRoot'], ['--schema', 'schemaPath'], ['--schema-sha256', 'expectedSchemaSha256'],
-    ['--archive-root', 'archiveRoot'], ['--archive', 'archivePath'], ['--archive-sha256', 'expectedArchiveSha256'],
-    ['--archive-bytes', 'expectedArchiveBytes'], ['--archive-retrieved-at', 'archiveRetrievedAt'],
-    ['--csv-root', 'csvRoot'], ['--csv', 'csvPath'], ['--csv-sha256', 'expectedCsvSha256'],
-    ['--csv-bytes', 'expectedCsvBytes'], ['--csv-retrieved-at', 'csvRetrievedAt'],
-    ['--generated-at', 'generatedAt'], ['--output', 'outputFile'],
+    ['--schema-root', 'schemaRoot'],
+    ['--schema', 'schemaPath'],
+    ['--schema-sha256', 'expectedSchemaSha256'],
+    ['--archive-root', 'archiveRoot'],
+    ['--archive', 'archivePath'],
+    ['--archive-sha256', 'expectedArchiveSha256'],
+    ['--archive-bytes', 'expectedArchiveBytes'],
+    ['--archive-retrieved-at', 'archiveRetrievedAt'],
+    ['--csv-root', 'csvRoot'],
+    ['--csv', 'csvPath'],
+    ['--csv-sha256', 'expectedCsvSha256'],
+    ['--csv-bytes', 'expectedCsvBytes'],
+    ['--csv-retrieved-at', 'csvRetrievedAt'],
+    ['--generated-at', 'generatedAt'],
+    ['--output', 'outputFile'],
   ]);
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -706,15 +820,26 @@ function parseArgs(argv) {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) {
-    process.stdout.write('Usage: node scripts/providers/koeln_kfz_geometry_record_join_provider.js --schema-root <root> --schema <json> --schema-sha256 <sha> --archive-root <root> --archive <zip> --archive-sha256 <sha> --archive-bytes <n> --archive-retrieved-at <ISO> --csv-root <root> --csv <file> --csv-sha256 <sha> --csv-bytes <n> --csv-retrieved-at <ISO> --generated-at <ISO> --output <json> [--json]\n');
+    process.stdout.write(
+      'Usage: node scripts/providers/koeln_kfz_geometry_record_join_provider.js ' +
+      '--schema-root <root> --schema <json> --schema-sha256 <sha> ' +
+      '--archive-root <root> --archive <zip> --archive-sha256 <sha> --archive-bytes <n> ' +
+      '--archive-retrieved-at <ISO> --csv-root <root> --csv <file> --csv-sha256 <sha> ' +
+      '--csv-bytes <n> --csv-retrieved-at <ISO> --generated-at <ISO> --output <json> [--json]\n',
+    );
     return 0;
   }
   const required = [
     'schemaRoot', 'schemaPath', 'expectedSchemaSha256', 'archiveRoot', 'archivePath',
     'expectedArchiveSha256', 'expectedArchiveBytes', 'archiveRetrievedAt', 'csvRoot',
-    'csvPath', 'expectedCsvSha256', 'expectedCsvBytes', 'csvRetrievedAt', 'generatedAt', 'outputFile',
+    'csvPath', 'expectedCsvSha256', 'expectedCsvBytes', 'csvRetrievedAt', 'generatedAt',
+    'outputFile',
   ];
-  for (const field of required) if (options[field] == null || options[field] === '') fail('missing_argument', `${field} is required`);
+  for (const field of required) {
+    if (options[field] == null || options[field] === '') {
+      fail('missing_argument', `${field} is required`);
+    }
+  }
   const artifact = await buildJoinedArtifact(options);
   const outputFile = writeAtomic(options.outputFile, artifact);
   const result = Object.freeze({
@@ -751,6 +876,7 @@ module.exports = Object.freeze({
   requiredString,
   requiredHash,
   requiredPositiveNumber,
+  normalizeTimestamp,
   exactKeys,
   resolveConfinedRegularFile,
   loadPinnedSchema,
@@ -761,6 +887,7 @@ module.exports = Object.freeze({
   readShapeRecord,
   parsePointRecord,
   parsePolylineRecord,
+  decodeDbfField,
   decodeDbfRows,
   readPointRecords,
   readLineRecords,
@@ -768,6 +895,7 @@ module.exports = Object.freeze({
   connectParts,
   stableSegment,
   validateNodeId,
+  directedGeometryKey,
   buildOfficialGeometryIndex,
   utm32ToWgs84,
   parseSyntheticWayId,
