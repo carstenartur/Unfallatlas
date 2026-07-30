@@ -44,16 +44,23 @@ Der gemeinsame Reader `scripts/lib/strict-zip.js` unterstützt bewusst nur einen
 engen Archivvertrag:
 
 - genau ein Datenträger, kein ZIP64;
-- keine Verschlüsselung oder maskierten Metadaten;
+- keine Verschlüsselung, maskierten Metadaten oder Bit-3-Daten-Descriptoren;
 - nur gespeicherte oder raw-deflate-komprimierte Einträge;
 - keine absoluten Pfade, `..`, leeren Pfadsegmente oder Laufwerkspräfixe;
 - keine exakten oder nur in Groß-/Kleinschreibung abweichenden Duplikate;
 - keine Unix-Symlinks;
 - identische lokale und zentrale Dateinamen, Flags und Methoden;
-- CRC-32- und Größenprüfung nach der Dekompression;
+- identische lokale und zentrale CRC-32-, komprimierte und unkomprimierte
+  Größenangaben;
+- CRC-32- und Größenprüfung der tatsächlich dekomprimierten Bytes;
 - konfigurierbare Grenzen für Archivgröße, Einträge, Einzeldateien,
   Gesamtausgabe und Expansionsverhältnis;
 - keine sich überlappenden lokalen Eintragsbereiche.
+
+Daten-Descriptoren sind ausdrücklich ausgeschlossen, weil sie Null- oder
+Platzhalterwerte im lokalen Header und zusätzliche Trailerdaten erlauben. Der
+Evidenzreader verlangt stattdessen vollständige, in beiden Verzeichnissen
+übereinstimmende Headerangaben vor dem Lesen der Nutzdaten.
 
 Unbekannte Dateitypen im Kölner Geometriearchiv werden abgewiesen. Zugelassen
 sind nur Shapefile-Komponenten und eng verwandte Metadatenformate.
