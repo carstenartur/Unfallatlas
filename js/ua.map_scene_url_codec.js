@@ -187,4 +187,102 @@
       });
     }
   };
+
+  // A context-filter query is part of the requested analysis state and of the
+  // export/video provenance, even when the currently loaded city cannot apply
+  // that constraint. The UI capability projection may hide unavailable rows,
+  // but it must not erase the URL request. ua.filters.js already treats such
+  // filters as a no-op while the corresponding capability is absent.
+  //
+  // Keep the low-level UI helper's defensive reset behaviour available to
+  // isolated callers, but wrap the production load order here (this codec is
+  // loaded immediately after ua.ui.js) so shared links round-trip losslessly.
+  if (typeof UA.refreshContextFilterVisibility === 'function' &&
+      UA.__contextFilterUrlPreservationInstalled !== true) {
+    const projectContextFilterVisibility = UA.refreshContextFilterVisibility;
+    UA.refreshContextFilterVisibility = function preserveRequestedContextFilters(ctx) {
+      const current = ctx && ctx.contextFilters;
+      if (!current) return projectContextFilterVisibility(ctx);
+      const requested = {
+        slopeClasses: new Set(current.slopeClasses || []),
+        trafficClasses: new Set(current.trafficClasses || []),
+        onlyMatchedWays: current.onlyMatchedWays === true,
+      };
+      const syncAllToUrl = UA.syncAllToUrl;
+      if (typeof syncAllToUrl === 'function') UA.syncAllToUrl = function suppressCapabilityCleanup() {};
+      try {
+        projectContextFilterVisibility(ctx);
+      } finally {
+        if (typeof syncAllToUrl === 'function') UA.syncAllToUrl = syncAllToUrl;
+        ctx.contextFilters = requested;
+        const ui = ctx.ui || {};
+        for (const el of ui.ctxSlopeChipEls || []) {
+          el.checked = requested.slopeClasses.has(el.dataset.ctxSlope);
+        }
+        for (const el of ui.ctxTrafficChipEls || []) {
+          el.checked = requested.trafficClasses.has(el.dataset.ctxTraffic);
+        }
+        if (ui.ctxOnlyMatchedEl) ui.ctxOnlyMatchedEl.checked = requested.onlyMatchedWays;
+      }
+    };
+    Object.defineProperty(UA, '__contextFilterUrlPreservationInstalled', {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false,
+    });
+  }
+
+  // Keep primary city navigation usable while the long filter panel scrolls.
+  // The sticky top is tied to the measured header height so responsive header
+  // wrapping cannot place the selector underneath the opaque header. This also
+  // gives the documentation captures a truthful geometry: screenshot 02 can
+  // prove the city selector while screenshot 03 frames lower filters.
+  UA.installStickyCitySelector = function installStickyCitySelector(doc) {
+    const documentRef = doc || (typeof document !== 'undefined' ? document : null);
+    if (!documentRef || documentRef.documentElement?.dataset.uaStickyCityInstalled === '1') return false;
+    const panel = documentRef.getElementById('panel');
+    const header = panel && panel.querySelector('.panelHeader');
+    const citySelect = panel && panel.querySelector('#citySel');
+    const cityRow = citySelect && citySelect.closest('.row');
+    if (!panel || !header || !cityRow || !documentRef.head) return false;
+
+    const style = documentRef.createElement('style');
+    style.id = 'ua-sticky-city-selector-style';
+    style.textContent = [
+      '.panel .ua-sticky-city-row {',
+      '  position: sticky;',
+      '  top: var(--ua-panel-header-height, 42px);',
+      '  z-index: 3;',
+      '  margin-left: -12px;',
+      '  margin-right: -12px;',
+      '  padding: 6px 12px 8px;',
+      '  background: #fff;',
+      '  box-shadow: 0 1px 0 rgba(0,0,0,.08);',
+      '}',
+    ].join('\n');
+    documentRef.head.appendChild(style);
+    cityRow.classList.add('ua-sticky-city-row');
+
+    const updateHeaderHeight = () => {
+      const height = header.getBoundingClientRect().height;
+      if (Number.isFinite(height) && height > 0) {
+        panel.style.setProperty('--ua-panel-header-height', `${height}px`);
+      }
+    };
+    updateHeaderHeight();
+    const ViewResizeObserver = documentRef.defaultView && documentRef.defaultView.ResizeObserver;
+    if (typeof ViewResizeObserver === 'function') {
+      const observer = new ViewResizeObserver(updateHeaderHeight);
+      observer.observe(header);
+      Object.defineProperty(panel, '__uaStickyCityResizeObserver', {
+        value: observer,
+        configurable: true,
+      });
+    }
+    documentRef.documentElement.dataset.uaStickyCityInstalled = '1';
+    return true;
+  };
+
+  if (typeof document !== 'undefined') UA.installStickyCitySelector(document);
 })();

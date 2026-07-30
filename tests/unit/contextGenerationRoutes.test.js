@@ -2,7 +2,10 @@
 'use strict';
 
 const express = require('express');
-const { registerContextGenerationRoutes } = require('../../server/context-generation/routes');
+const {
+  CAPABILITY_DOCUMENT_PATH,
+  registerContextGenerationRoutes,
+} = require('../../server/context-generation/routes');
 
 async function withServer(env, fn) {
   const previous = {
@@ -40,6 +43,26 @@ describe('context generation routes', () => {
       const body = await response.json();
       expect(body.available).toBe(false);
       expect(body.reason).toBe('context_generation_disabled');
+    });
+  });
+
+  test('JSON capability document alias follows to the dynamic Docker contract', async () => {
+    await withServer({ enabled: 'true' }, async baseUrl => {
+      const manual = await fetch(`${baseUrl}${CAPABILITY_DOCUMENT_PATH}?city=Bonn`, {
+        redirect: 'manual',
+      });
+      expect(manual.status).toBe(307);
+      expect(manual.headers.get('location')).toBe('/api/context-generation/status?city=Bonn');
+
+      const followed = await fetch(`${baseUrl}${CAPABILITY_DOCUMENT_PATH}?city=Bonn`);
+      expect(followed.status).toBe(200);
+      expect(followed.url).toBe(`${baseUrl}/api/context-generation/status?city=Bonn`);
+      const body = await followed.json();
+      expect(body).toEqual(expect.objectContaining({
+        available: true,
+        execution: 'local-docker',
+        city: 'Bonn',
+      }));
     });
   });
 

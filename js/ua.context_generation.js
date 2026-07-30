@@ -3,6 +3,7 @@
 
   const UA = (window.UA = window.UA || {});
   const WORKFLOW_URL = 'https://github.com/carstenartur/Unfallatlas/actions/workflows/generate-context-city.yml';
+  const CAPABILITY_URL = '/data/context-generation-status.json';
   const POLL_INTERVAL_MS = 2000;
   const TERMINAL = new Set(['succeeded', 'failed']);
 
@@ -34,7 +35,7 @@
 
   async function detectLocalCapability(city) {
     try {
-      const response = await fetch(`/api/context-generation/status?city=${encodeURIComponent(city)}`, {
+      const response = await fetch(`${CAPABILITY_URL}?city=${encodeURIComponent(city)}`, {
         cache: 'no-store',
         headers: { Accept: 'application/json' },
       });
@@ -253,6 +254,7 @@
   }
 
   UA.ContextGeneration = {
+    CAPABILITY_URL,
     init,
     configure,
     detectLocalCapability,
