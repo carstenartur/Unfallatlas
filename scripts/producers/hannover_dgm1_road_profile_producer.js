@@ -18,6 +18,7 @@ const UNAVAILABLE_CODES = Object.freeze(new Set([
   'insufficient_geometry',
   'insufficient_samples',
 ]));
+const METERS_PER_DEGREE_LAT = 110540;
 
 class HannoverDgm1RoadProfileError extends Error {
   constructor(code, message, details) {
@@ -48,14 +49,18 @@ function plainObject(value, label) {
 }
 
 function requiredString(value, label) {
-  if (typeof value !== 'string' || !value.trim()) fail('invalid_value', `${label} must be a non-empty string`);
+  if (typeof value !== 'string' || !value.trim()) {
+    fail('invalid_value', `${label} must be a non-empty string`);
+  }
   return value.trim();
 }
 
 function isoTimestamp(value, label) {
   const text = requiredString(value, label);
   const milliseconds = Date.parse(text);
-  if (!Number.isFinite(milliseconds)) fail('invalid_timestamp', `${label} must be an ISO timestamp`, { value });
+  if (!Number.isFinite(milliseconds)) {
+    fail('invalid_timestamp', `${label} must be an ISO timestamp`, { value });
+  }
   return new Date(milliseconds).toISOString();
 }
 
@@ -90,7 +95,8 @@ function normalizeCoordinate(value, label) {
   const point = plainObject(value, label);
   const lat = Number(point.lat);
   const lon = Number(point.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) ||
+      lat < -90 || lat > 90 || lon < -180 || lon > 180) {
     fail('invalid_geometry', `${label} must contain finite lat/lon coordinates`);
   }
   return Object.freeze({ lat, lon });
@@ -117,8 +123,44 @@ function validateWayGeometries(osm, wayIds) {
   return Object.freeze(normalized);
 }
 
+function segmentLengthMeters(left, right) {
+  const meanLatitudeRadians = ((left.lat + right.lat) / 2) * Math.PI / 180;
+  const metersPerDegreeLon = 111320 * Math.max(0.01, Math.abs(Math.cos(meanLatitudeRadians)));
+  const dx = (right.lon - left.lon) * metersPerDegreeLon;
+  const dy = (right.lat - left.lat) * METERS_PER_DEGREE_LAT;
+  return Math.hypot(dx, dy);
+}
+
 function profileAnchor(geometry) {
-  return geometry[Math.floor((geometry.length - 1) / 2)];
+  if (!Array.isArray(geometry) || geometry.length < 2) {
+    fail('invalid_geometry', 'profile geometry requires at least two points');
+  }
+  const lengths = [];
+  let total = 0;
+  for (let index = 0; index < geometry.length - 1; index += 1) {
+    const length = segmentLengthMeters(geometry[index], geometry[index + 1]);
+    lengths.push(length);
+    total += length;
+  }
+  if (!Number.isFinite(total) || total <= 0) {
+    fail('invalid_geometry', 'profile geometry has no positive-length segment');
+  }
+  const half = total / 2;
+  let traversed = 0;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const length = lengths[index];
+    if (traversed + length >= half) {
+      const ratio = length ? (half - traversed) / length : 0;
+      const left = geometry[index];
+      const right = geometry[index + 1];
+      return Object.freeze({
+        lat: left.lat + (right.lat - left.lat) * ratio,
+        lon: left.lon + (right.lon - left.lon) * ratio,
+      });
+    }
+    traversed += length;
+  }
+  return Object.freeze({ ...geometry[geometry.length - 1] });
 }
 
 function unavailableWindow(windowMeters, error) {
@@ -237,6 +279,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
   };
   for (const id of validated.wayIds) {
     const geometry = geometries[id];
+    const anchor = profileAnchor(geometry);
     const riskTags = Object.freeze({ ...validated.osm.ways[id].elevationRiskTags });
     const windows = {};
     for (const windowMeters of WINDOWS_METERS) {
@@ -244,7 +287,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
         compute,
         provider,
         geometry,
-        profileAnchor(geometry),
+        anchor,
         riskTags,
         windowMeters,
       );
@@ -261,7 +304,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
       wayId: id,
       highway: validated.osm.ways[id].highway == null ? null : String(validated.osm.ways[id].highway),
       geometryPointCount: geometry.length,
-      anchor: profileAnchor(geometry),
+      anchor,
       elevationRiskTags: riskTags,
       windows: Object.freeze(windows),
     });
@@ -385,6 +428,7 @@ module.exports = Object.freeze({
   PRODUCER_VERSION,
   WINDOWS_METERS,
   UNAVAILABLE_CODES,
+  METERS_PER_DEGREE_LAT,
   HannoverDgm1RoadProfileError,
   sha256Buffer,
   sha256File,
@@ -395,6 +439,7 @@ module.exports = Object.freeze({
   writeAtomic,
   normalizeCoordinate,
   validateWayGeometries,
+  segmentLengthMeters,
   profileAnchor,
   unavailableWindow,
   computeWindow,
