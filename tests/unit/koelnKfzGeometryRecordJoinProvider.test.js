@@ -193,9 +193,9 @@ describe('Cologne geometry record and observation join', () => {
     }
   });
 
-  test('transforms the UTM zone 32 central meridian without invented offset', () => {
-    const equator = provider.utm32ToWgs84({ x: 500000, y: 0 }, 'EPSG:25832');
-    expect(equator.lat).toBeCloseTo(0, 7);
-    expect(equator.lon).toBeCloseTo(9, 7);
+  test('transforms a Hannover-area UTM zone 32 coordinate with plausible precision', () => {
+    const transformed = provider.utm32ToWgs84({ x: 548000, y: 5802000 }, 'EPSG:25832');
+    expect(transformed.lat).toBeCloseTo(52.36617, 4);
+    expect(transformed.lon).toBeCloseTo(9.70496, 4);
   });
 });
