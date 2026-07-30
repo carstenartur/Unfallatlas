@@ -106,6 +106,24 @@ function inspectDocx(file, scenario) {
   return Object.freeze({ bytes: buffer.length, sha256: sha256(buffer) });
 }
 
+function contextStatusText(scenarioValue) {
+  const scenario = scenarios.getScenario(scenarioValue && scenarioValue.id
+    ? scenarioValue.id
+    : scenarioValue);
+  const labels = Object.freeze({
+    available: 'verfügbar',
+    uncertain: 'unsicher',
+    missing: 'nicht verfügbar',
+  });
+  const label = labels[scenario.context.status];
+  if (!label) {
+    fail('unsupported_context_status', `Scenario ${scenario.id} has unsupported context status`, {
+      status: scenario.context.status,
+    });
+  }
+  return `Kontextstatus: ${label}. ${scenario.context.summary}`;
+}
+
 function buildScenarioReportData(scenarioValue) {
   const scenario = scenarios.getScenario(scenarioValue && scenarioValue.id
     ? scenarioValue.id
@@ -117,25 +135,30 @@ function buildScenarioReportData(scenarioValue) {
   const paragraphs = Array.isArray(scenario.narrativeParagraphs)
     ? scenario.narrativeParagraphs
     : [];
-  if (paragraphs.length === 0) return reportData;
 
   // The DOCX renderer intentionally cuts the unstructured Sachverhalt at the
-  // first Methodik heading to avoid raw-text/table duplication. Matrix stress
-  // sections must therefore enter through a renderer-owned structured field.
-  // `patterns` produces one bold title and one content paragraph per item,
-  // creating real pagination/heading boundaries without inventing facts.
-  const patterns = paragraphs.map((paragraph, index) => Object.freeze({
+  // first Methodik heading to avoid raw-text/table duplication. Scenario
+  // semantics and matrix stress sections must therefore enter through
+  // renderer-owned structured fields.
+  const contextPattern = Object.freeze({
+    title: 'Kontextstatus',
+    content: contextStatusText(scenario),
+  });
+  const stressPatterns = paragraphs.map((paragraph, index) => Object.freeze({
     title: `Prüfabschnitt ${index + 1}`,
     content:
       `${String(paragraph).replace(/^Prüfabschnitt\s+\d+\s*:\s*/i, '').trim()} ` +
       'Dieser Abschnitt ist ausschließlich ein deterministischer Layout- und Umbruchfall; ' +
       'er enthält keine zusätzliche fachliche Tatsachenbehauptung.',
   }));
+  const existingPatterns = Array.isArray(reportData.structured.patterns)
+    ? reportData.structured.patterns
+    : [];
   return {
     ...reportData,
     structured: {
       ...reportData.structured,
-      patterns,
+      patterns: [contextPattern, ...existingPatterns, ...stressPatterns],
     },
   };
 }
@@ -257,6 +280,7 @@ module.exports = Object.freeze({
   parseArgs,
   selectScenarioIds,
   inspectDocx,
+  contextStatusText,
   buildScenarioReportData,
   generateScenarioDocx,
   generateGoldenMatrix,
