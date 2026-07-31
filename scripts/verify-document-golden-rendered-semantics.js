@@ -13,9 +13,9 @@ const { clusterWordsIntoLines } = require('./rendered-table-hints');
 const SEMANTIC_MATRIX_SCHEMA = 'unfallwerkbank.document-golden-semantic-matrix/v1';
 const MAP_ROLE_PATTERNS = Object.freeze({
   overview: /\bAbbildung\s+\d+\s*:\s*Übersichtskarte\b/iu,
-  selection: /\bAbbildung\s+\d+\s*:\s*Auswahlkarte\b/iu,
-  detail: /\bAbbildung\s+\d+\s*:\s*Detailkarte\b/iu,
-  cluster: /\bAbbildung\s+\d+\s*:\s*Clusterkarte\b/iu,
+  selection: /\bAbbildung\s+\d+\s*:\s*Auswahl[- ]?Karte\b/iu,
+  detail: /\bAbbildung\s+\d+\s*:\s*Detail(?:karte|ausschnitt)\b/iu,
+  cluster: /\bAbbildung\s+\d+\s*:\s*Cluster[- ]?Karte\b/iu,
 });
 const TABLE_ROLE_PATTERNS = Object.freeze({
   severity: /\bVerletzungsschwere\b/iu,
