@@ -392,8 +392,20 @@ function printHelp() {
   process.stdout.write(
     'Usage: node scripts/producers/hannover_dgm1_road_profile_producer.js ' +
     '--osm <osm_hannover.json> --dgm-root <root> --dgm-manifest <relative.json> ' +
-    '--dgm-manifest-sha256 <sha256> --output <profiles.json> [--generated-at <ISO>] ' +
-    '[--force-context] [--json]\n',
+    '--dgm-manifest-sha256 <sha256> --output <profiles.json>\n' +
+    'Options:\n' +
+    '  --generated-at <ISO>             deterministic artifact timestamp\n' +
+    '  --structure-retrieved-at <ISO>   deterministic OSM structure timestamp\n' +
+    '  --risk-derived-at <ISO>          deterministic risk derivation timestamp\n' +
+    '  --batch-size <n>                 Overpass way-ID batch size\n' +
+    '  --delay <ms>                     delay between Overpass batches\n' +
+    '  --endpoint <URL>                 Overpass endpoint\n' +
+    '  --retries <n>                    Overpass retry count\n' +
+    '  --backoff <ms>                   initial retry backoff\n' +
+    '  --timeout <ms>                   Overpass request timeout\n' +
+    '  --force-context                  rebuild OSM structure/risk context\n' +
+    '  --json                           print machine-readable result\n' +
+    '  --help, -h                       show this help\n',
   );
 }
 
