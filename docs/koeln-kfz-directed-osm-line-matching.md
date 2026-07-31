@@ -47,6 +47,27 @@ Optionale Schwellen:
 
 Die verwendeten Parameter werden kanonisch gehasht. Das Ergebnis enthält Abdeckungszähler, gerichtete Gruppenmatches, unveränderte Beobachtungen mit zusätzlichem `osmMatch`, Konflikte zwischen Richtungsgegenpaaren und gemeinsam verwendete OSM-Ways.
 
+## Einbindung in das gemeinsame Traffic-Modell
+
+`scripts/providers/koeln_kfz_osm_matched_provider.js` liest ausschließlich ein extern SHA-256-gepinntes Matcher-Artefakt und prüft zusätzlich dessen internen kanonischen Artefaktfingerabdruck. Der Provider:
+
+- veröffentlicht nur Beobachtungen mit `osmMatch.status="matched"`;
+- setzt deren gemeinsamen `wayId` auf den eindeutig ermittelten OSM-Way;
+- bewahrt amtlichen Wert, Jahr, Zeitraum, Richtung und Liniengeometrie;
+- übernimmt Richtungslage, Qualitätsklasse, Mittel-/P95-/Maximaldistanz, Winkel und Abdeckung in die Qualitätsangaben;
+- weist mehrdeutige und nicht gematchte Beobachtungen in Abdeckungszählern aus, veröffentlicht sie aber nicht als Way-Messwert;
+- kann für kontrollierte Produktionsläufe mit `requireFullCoverage:true` bei jeder Restlücke fail-closed abbrechen.
+
+Dadurch verwendet die Kölner Quelle ohne Sonderpfad dieselbe bestehende Hierarchie wie andere Traffic-Provider:
+
+1. frischer Messwert,
+2. amtlicher Modellwert,
+3. älterer Messwert mit sichtbarer Warnung,
+4. qualitativer OSM-Proxy ohne erfundenen DTV-Wert,
+5. keine Angabe.
+
+Die Quellbeschreibung bindet den Originaldatensatz, seine Lizenz und das abgeleitete Matcher-Artefakt. Die Messwerte von 2016–2019 werden bei einem späteren Bezugsjahr weiterhin als alt bewertet und nicht künstlich aktualisiert.
+
 ## Wahrheitsgrenze
 
-Der Producer behauptet ausdrücklich keine Fahrspurzuordnung und kein Unfallpunkt→Way-Matching. Amtliche Zählwerte, Zeitbezüge und synthetische Quellkennungen werden nicht verändert. Mehrdeutige Zuordnungen bleiben sichtbar mehrdeutig.
+Der Producer behauptet ausdrücklich keine Fahrspurzuordnung und kein Unfallpunkt→Way-Matching. Amtliche Zählwerte, Zeitbezüge und synthetische Quellkennungen werden nicht verändert. Mehrdeutige Zuordnungen bleiben sichtbar mehrdeutig. Der Provider macht nur eindeutige Matches für die vorhandene Messwert-/Modell-/Proxy-Auswahl nutzbar; er verwandelt Restlücken nicht in Messwerte.
