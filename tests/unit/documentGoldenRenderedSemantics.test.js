@@ -27,8 +27,8 @@ function baselineModel() {
         word('Innerstädtischer Knoten Bonn-Zentrum', 80),
         word('24 Unfälle', 100),
         word('Kontextinformationen werden nicht als Kausalnachweis interpretiert', 120),
-        word('Verletzungsschwere im Ausschnitt', 180),
-        word('Mehrjahres-Trend', 260),
+        word('Verletzungsschwere im Ausschnitt:', 180),
+        word('Unfälle pro Jahr im Ausschnitt:', 260),
       ]),
       page(2, [word('Abbildung 1: Übersichtskarte aller Beteiligungs-Kombinationen', 330)], [
         { imageId: 'overview', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
@@ -61,6 +61,34 @@ describe('document Golden rendered semantics', () => {
     expect(new Set(maps.bindings.map(binding => binding.imageId)).size).toBe(4);
     expect(tables.bindings.map(binding => binding.role)).toEqual(['severity', 'year-trend']);
     expect(tables.evidenceMode).toBe('rendered-headings');
+  });
+
+  test('table roles match exact headings rather than narrative mentions', () => {
+    const lines = [
+      { page: 1, text: 'Die Verletzungsschwere ist in der Übersichtskarte dargestellt.' },
+      { page: 1, text: 'Verletzungsschwere im Ausschnitt:' },
+      { page: 1, text: 'Unfälle pro Jahr im Ausschnitt:' },
+      { page: 2, text: 'Vergleichswerte erscheinen in den Top-Abweichungen.' },
+      { page: 2, text: 'Top-Abweichungen (Ausschnitt vs. Stadt):' },
+    ];
+    expect(semantics.findUniqueLine(
+      lines,
+      semantics.TABLE_ROLE_PATTERNS.severity,
+      'severity table heading',
+      'fixture',
+    ).text).toBe('Verletzungsschwere im Ausschnitt:');
+    expect(semantics.findUniqueLine(
+      lines,
+      semantics.TABLE_ROLE_PATTERNS['year-trend'],
+      'year-trend table heading',
+      'fixture',
+    ).text).toBe('Unfälle pro Jahr im Ausschnitt:');
+    expect(semantics.findUniqueLine(
+      lines,
+      semantics.TABLE_ROLE_PATTERNS.deviations,
+      'deviations table heading',
+      'fixture',
+    ).text).toBe('Top-Abweichungen (Ausschnitt vs. Stadt):');
   });
 
   test('rejects a visible map caption without a unique preceding image', () => {
