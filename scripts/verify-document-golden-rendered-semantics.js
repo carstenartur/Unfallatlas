@@ -18,9 +18,9 @@ const MAP_ROLE_PATTERNS = Object.freeze({
   cluster: /\bAbbildung\s+\d+\s*:\s*Cluster[- ]?Karte\b/iu,
 });
 const TABLE_ROLE_PATTERNS = Object.freeze({
-  severity: /\bVerletzungsschwere\b/iu,
-  'year-trend': /\bMehrjahres[- ]?Trend\b/iu,
-  deviations: /\bTop-Abweichungen\b/iu,
+  severity: /^\s*Verletzungsschwere\s+im\s+Ausschnitt\s*:?\s*$/iu,
+  'year-trend': /^\s*Unfälle\s+pro\s+Jahr\s+im\s+Ausschnitt\s*:?\s*$/iu,
+  deviations: /^\s*Top-Abweichungen\s*\(Ausschnitt\s+vs\.\s+Stadt\)\s*:?\s*$/iu,
 });
 
 class DocumentGoldenSemanticError extends Error {
