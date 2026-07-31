@@ -38,9 +38,18 @@ function readCitiesFile(filePath) {
   return cities;
 }
 
+function normalizeRequiredYears(value) {
+  if (value == null) return [];
+  const values = Array.isArray(value) ? value : [value];
+  return [...new Set(values.map((year) => Number.parseInt(String(year), 10)))].filter(
+    Number.isInteger
+  );
+}
+
 function validateFeatureCollection(json, options) {
   const opts = options || {};
   const minFeatures = Number.isFinite(opts.minFeatures) ? opts.minFeatures : 0;
+  const requiredYears = normalizeRequiredYears(opts.requiredYears);
   const errors = [];
 
   if (!json || json.type !== 'FeatureCollection') {
@@ -56,6 +65,18 @@ function validateFeatureCollection(json, options) {
   const featureCount = json.features.length;
   if (featureCount < minFeatures) {
     errors.push(`GeoJSON features.length ${featureCount} is below required minimum ${minFeatures}`);
+  }
+
+  if (requiredYears.length > 0) {
+    const availableYears = new Set(
+      json.features
+        .map((feature) => Number.parseInt(String(feature?.properties?.year), 10))
+        .filter(Number.isInteger)
+    );
+    const missingYears = requiredYears.filter((year) => !availableYears.has(year));
+    if (missingYears.length > 0) {
+      errors.push(`GeoJSON is missing required accident years: ${missingYears.join(', ')}`);
+    }
   }
 
   return {
@@ -80,12 +101,16 @@ function validateGeoJsonArtifact(logicalPath, options) {
     };
   }
 
-  return validateFeatureCollection(json, { minFeatures: opts.minFeatures });
+  return validateFeatureCollection(json, {
+    minFeatures: opts.minFeatures,
+    requiredYears: opts.requiredYears,
+  });
 }
 
 module.exports = {
   slugify,
   readCitiesFile,
+  normalizeRequiredYears,
   validateFeatureCollection,
   validateGeoJsonArtifact,
 };
