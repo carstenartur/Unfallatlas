@@ -10,6 +10,11 @@ const {
   readCitiesFile,
   validateGeoJsonArtifact,
 } = require('./lib/static-data-validation');
+const {
+  OFFICIAL_INDEX_URL,
+  parseYearOverride,
+  discoverAccidentYears,
+} = require('./lib/accident-year-discovery');
 
 function parseArgs(argv) {
   const args = {
@@ -19,6 +24,8 @@ function parseArgs(argv) {
     tempRoot: '.build/raw',
     minFeatures: 0,
     force: false,
+    years: null,
+    yearIndexUrl: OFFICIAL_INDEX_URL,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -29,6 +36,8 @@ function parseArgs(argv) {
     else if (arg === '--temp-root') args.tempRoot = argv[++i] || args.tempRoot;
     else if (arg === '--min-features') args.minFeatures = Number.parseInt(argv[++i] || '0', 10);
     else if (arg === '--force') args.force = true;
+    else if (arg === '--years') args.years = parseYearOverride(argv[++i]);
+    else if (arg === '--year-index-url') args.yearIndexUrl = argv[++i] || args.yearIndexUrl;
     else throw new Error(`[generate-accident-data] Unknown argument: ${arg}`);
   }
 
@@ -42,18 +51,19 @@ function parseArgs(argv) {
   return args;
 }
 
-function isExistingArtifactValid(outDir, city, minFeatures) {
+function isExistingArtifactValid(outDir, city, minFeatures, requiredYear) {
   const slug = slugify(city);
   const logicalPath = path.join(outDir, `output_all_years_${slug}.geojson`);
   const validation = validateGeoJsonArtifact(logicalPath, {
     gzipOnly: false,
     minFeatures,
+    requiredYears: requiredYear == null ? [] : [requiredYear],
   });
   return validation.ok;
 }
 
-function shouldRegenerateCity(outDir, city, minFeatures, force) {
-  return force || !isExistingArtifactValid(outDir, city, minFeatures);
+function shouldRegenerateCity(outDir, city, minFeatures, force, requiredYear) {
+  return force || !isExistingArtifactValid(outDir, city, minFeatures, requiredYear);
 }
 
 function syncZipCache(sourceDir, targetDir) {
@@ -65,7 +75,16 @@ function syncZipCache(sourceDir, targetDir) {
   }
 }
 
-function stageCityOutputs(repoRoot, city, tempRoot, minFeatures) {
+async function resolveYears(args, discover = discoverAccidentYears) {
+  if (args.years) return args.years;
+  return discover({ indexUrl: args.yearIndexUrl });
+}
+
+function stageCityOutputs(repoRoot, city, tempRoot, minFeatures, years) {
+  if (!Array.isArray(years) || years.length === 0) {
+    throw new Error('[generate-accident-data] At least one accident year is required');
+  }
+
   const slug = slugify(city);
   const cityTempDir = path.join(tempRoot, slug);
   const downloadCacheDir = path.join(tempRoot, 'download-cache');
@@ -75,7 +94,24 @@ function stageCityOutputs(repoRoot, city, tempRoot, minFeatures) {
 
   const result = spawnSync(
     path.join(repoRoot, 'convertAmt2gmaps.sh'),
-    ['--outdir', cityTempDir, '--limit', '0', '--city', city, '--rad', '', '--pkw', '', '--fuss', '', '--krad', ''],
+    [
+      '--outdir',
+      cityTempDir,
+      '--limit',
+      '0',
+      '--years',
+      years.join(' '),
+      '--city',
+      city,
+      '--rad',
+      '',
+      '--pkw',
+      '',
+      '--fuss',
+      '',
+      '--krad',
+      '',
+    ],
     {
       cwd: repoRoot,
       stdio: 'inherit',
@@ -98,6 +134,7 @@ function stageCityOutputs(repoRoot, city, tempRoot, minFeatures) {
   const validation = validateGeoJsonArtifact(geojsonPath, {
     gzipOnly: false,
     minFeatures,
+    requiredYears: [years.at(-1)],
   });
   if (!validation.ok) {
     throw new Error(
@@ -123,8 +160,10 @@ function installCityOutputs(outDir, staged) {
   }
 }
 
-function main(argv) {
+async function main(argv) {
   const args = parseArgs(argv);
+  const years = await resolveYears(args);
+  const highestYear = years.at(-1);
   const cities = readCitiesFile(args.citiesFile);
   fs.mkdirSync(args.tempRoot, { recursive: true });
   fs.mkdirSync(args.outDir, { recursive: true });
@@ -133,21 +172,24 @@ function main(argv) {
   let skipped = 0;
 
   process.stdout.write(
+    `[generate-accident-data] Years: ${years.join(', ')} (highest=${highestYear}, source=${args.years ? 'explicit override' : args.yearIndexUrl})\n`
+  );
+  process.stdout.write(
     `[generate-accident-data] Mode: ${args.force ? 'FORCED REFRESH (download and regenerate every city)' : 'REPAIR (skip valid existing artefacts)'}\n`
   );
 
   for (const city of cities) {
-    if (!shouldRegenerateCity(args.outDir, city, args.minFeatures, args.force)) {
+    if (!shouldRegenerateCity(args.outDir, city, args.minFeatures, args.force, highestYear)) {
       skipped += 1;
       process.stdout.write(`[generate-accident-data] SKIP ${city} (existing artefact is valid; use --force to refresh)\n`);
       continue;
     }
 
-    if (args.force && isExistingArtifactValid(args.outDir, city, args.minFeatures)) {
+    if (args.force && isExistingArtifactValid(args.outDir, city, args.minFeatures, highestYear)) {
       process.stdout.write(`[generate-accident-data] FORCE ${city} (ignoring valid existing artefact)\n`);
     }
 
-    const staged = stageCityOutputs(args.root, city, args.tempRoot, args.minFeatures);
+    const staged = stageCityOutputs(args.root, city, args.tempRoot, args.minFeatures, years);
     installCityOutputs(args.outDir, staged);
     regenerated += 1;
     process.stdout.write(
@@ -156,18 +198,23 @@ function main(argv) {
   }
 
   process.stdout.write(
-    `[generate-accident-data] Done: ${cities.length} cities (${skipped} skipped, ${regenerated} regenerated, force=${args.force})\n`
+    `[generate-accident-data] Done: ${cities.length} cities (${skipped} skipped, ${regenerated} regenerated, force=${args.force}, highestYear=${highestYear})\n`
   );
 }
 
 if (require.main === module) {
-  main(process.argv.slice(2));
+  main(process.argv.slice(2)).catch((error) => {
+    process.stderr.write(`${error.stack || error.message || error}\n`);
+    process.exitCode = 1;
+  });
 }
 
 module.exports = {
   parseArgs,
   isExistingArtifactValid,
   shouldRegenerateCity,
+  syncZipCache,
+  resolveYears,
   stageCityOutputs,
   installCityOutputs,
   main,
