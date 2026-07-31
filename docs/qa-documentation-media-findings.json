@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-07-31",
+  "status": "in-progress",
+  "findings": [
+    {
+      "id": "ambiguous-info-button",
+      "severity": "medium",
+      "summary": "Bare i button actually toggles the legend/help box"
+    },
+    {
+      "id": "stale-screenshot-deeplink-boundary",
+      "severity": "high",
+      "summary": "Bonn heatmap screenshot is separated from a cluster-only live URL although Pages supports heatmap again"
+    },
+    {
+      "id": "heatmap-not-perceptible",
+      "severity": "high",
+      "summary": "Screenshot 13 has a painted heatmap but selection fill and unrelated overlays obscure it"
+    },
+    {
+      "id": "demo-not-source-bound",
+      "severity": "high",
+      "summary": "Demo GIF policy validates media shape but not freshness against current UI sources"
+    }
+  ]
+}
