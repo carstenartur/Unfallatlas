@@ -33,13 +33,13 @@ function baselineModel() {
       page(2, [word('Abbildung 1: Übersichtskarte aller Beteiligungs-Kombinationen', 330)], [
         { imageId: 'overview', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
       ]),
-      page(3, [word('Abbildung 2: Auswahlkarte mit 24 Unfällen', 330)], [
+      page(3, [word('Abbildung 2: Auswahl-Karte mit 24 Unfällen', 330)], [
         { imageId: 'selection', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
       ]),
-      page(4, [word('Abbildung 3: Detailkarte des markierten Auswertungsbereichs', 330)], [
+      page(4, [word('Abbildung 3: Detailausschnitt des markierten Auswertungsbereichs', 330)], [
         { imageId: 'detail', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
       ]),
-      page(5, [word('Abbildung 4: Clusterkarte Bonn-Zentrum mit 11 Unfällen', 330)], [
+      page(5, [word('Abbildung 4: Cluster-Karte Bonn-Zentrum mit 11 Unfällen', 330)], [
         { imageId: 'cluster', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
       ]),
       page(6, [word('Datenquelle Unfallatlas', 60)]),
