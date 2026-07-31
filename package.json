@@ -34,6 +34,7 @@
     "regen:context-assets": "node scripts/regen-context-assets.js",
     "generate:context-city": "node scripts/generate-context-city.js",
     "generate:osm-elevation-context": "node scripts/producers/osm_elevation_context_producer.js",
+    "generate:hannover-dgm1-road-profiles": "node scripts/producers/hannover_dgm1_road_profile_producer.js",
     "generate:accident-tiles": "node scripts/build-accident-tiles.js",
     "generate:pages-data": "node scripts/generate-pages-data.cjs",
     "validate:enrichment-inputs": "node scripts/check-enrichment-inputs.js",
