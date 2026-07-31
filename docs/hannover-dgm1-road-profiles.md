@@ -39,6 +39,10 @@ Für reproduzierbare kontrollierte Läufe stehen zusätzlich zur Verfügung:
 --json
 ```
 
+`--help` und `-h` geben denselben vollständigen Optionsvertrag aus. Ein
+Regressionstest vergleicht Parser und Hilfetext, damit künftig kein akzeptierter
+Produktionsparameter undokumentiert bleibt.
+
 ## Verbindliche Reihenfolge
 
 Vor dem ersten DGM-Zugriff ruft der Producer die atomische
