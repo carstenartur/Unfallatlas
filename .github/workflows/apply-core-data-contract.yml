@@ -1,0 +1,258 @@
+name: Apply core data contract repair
+
+on:
+  push:
+    branches: [fix/restore-core-data-media-contracts]
+    paths:
+      - '.github/workflows/apply-core-data-contract.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+          ref: fix/restore-core-data-media-contracts
+          fetch-depth: 0
+
+      - name: Apply exact source patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one exact match, found {count}')
+              file.write_text(text.replace(old, new, 1))
+
+          # The old converter explicitly swallowed every failed year. Make each
+          # download, archive, schema and empty-result failure fatal.
+          replace_once('convertAmt2gmaps.sh',
+              '      echo "WARN: Download fehlgeschlagen: $url" >&2\n      return 0',
+              '      echo "ERROR: Download fehlgeschlagen: $url" >&2\n      return 1')
+          replace_once('convertAmt2gmaps.sh',
+              '    echo "WARN: Zip kaputt/unlesbar: $zip" >&2\n    return 0',
+              '    echo "ERROR: Zip kaputt/unlesbar: $zip" >&2\n    return 1')
+          replace_once('convertAmt2gmaps.sh',
+              '    echo "WARN: Keine passende Datendatei im Zip gefunden ($zip)" >&2',
+              '    echo "ERROR: Keine passende Datendatei im Zip gefunden ($zip)" >&2')
+          replace_once('convertAmt2gmaps.sh',
+              '    return 0\n  fi\n\n  echo "DEBUG: Selected datafile',
+              '    return 1\n  fi\n\n  echo "DEBUG: Selected datafile')
+          replace_once('convertAmt2gmaps.sh',
+              '        if (i_lon==0 || i_lat==0) { skip=1 }\n        next\n      }',
+              '''        missing=""
+                  if (i_lon==0)     missing=missing " XGCSWGS84"
+                  if (i_lat==0)     missing=missing " YGCSWGS84"
+                  if (i_kat==0)     missing=missing " UKATEGORIE"
+                  if (i_monat==0)   missing=missing " UMONAT"
+                  if (i_stunde==0)  missing=missing " USTUNDE"
+                  if (i_wtag==0)    missing=missing " UWOCHENTAG"
+                  if (i_istrad==0)  missing=missing " IstRad"
+                  if (i_ispkw==0)   missing=missing " IstPKW"
+                  if (i_isfuss==0)  missing=missing " IstFuss"
+                  if (i_iskrad==0)  missing=missing " IstKrad"
+                  if (missing != "") {
+                    print "ERROR: Required browser fields missing for " year ":" missing > "/dev/stderr"
+                    exit 42
+                  }
+                  next
+                }''')
+          replace_once('convertAmt2gmaps.sh',
+              '''    echo "WARN: Verarbeitung fehlgeschlagen für Jahr $year (ignoriert, Combined bleibt sauber)." >&2
+              rm -f "$y_csv_tmp" "$y_feat_tmp" 2>/dev/null || true
+              return 0
+            fi
+
+            if [ -s "$y_csv_tmp" ]; then''',
+              '''    echo "ERROR: Verarbeitung fehlgeschlagen für Jahr $year; kein unvollständiger Mehrjahresdatensatz wird veröffentlicht." >&2
+              rm -f "$y_csv_tmp" "$y_feat_tmp" 2>/dev/null || true
+              return 1
+            fi
+
+            if [ ! -s "$y_csv_tmp" ] || [ ! -s "$y_feat_tmp" ]; then
+              echo "ERROR: Jahr $year lieferte für $CITY_DISPLAY keine verwertbaren Unfallzeilen." >&2
+              rm -f "$y_csv_tmp" "$y_feat_tmp" 2>/dev/null || true
+              return 1
+            fi
+
+            if [ -s "$y_csv_tmp" ]; then''')
+          replace_once('convertAmt2gmaps.sh',
+              '  for y in $YEARS; do\n    process_year_to_buffers "$y" || true\n  done',
+              '  for y in $YEARS; do\n    process_year_to_buffers "$y"\n  done')
+
+          # Expose the validator as a stable checkout command.
+          package = json.loads(Path('package.json').read_text())
+          scripts = package['scripts']
+          if 'validate:accident-runtime' in scripts:
+              raise SystemExit('package.json already contains validate:accident-runtime')
+          ordered = {}
+          for key, value in scripts.items():
+              ordered[key] = value
+              if key == 'validate:enrichment-inputs':
+                  ordered['validate:accident-runtime'] = (
+                      'node --max-old-space-size=4096 scripts/validate-accident-runtime-contract.js '
+                      '--report out/qa/accident-runtime-contract.json')
+          package['scripts'] = ordered
+          Path('package.json').write_text(json.dumps(package, ensure_ascii=False, indent=2) + '\n')
+
+          # Add a non-Docker JUnit profile that data refreshes can run before push.
+          replace_once('pom.xml',
+              '''        <profile>
+                  <id>system-it</id>
+                  <modules><module>qa-system-tests</module></modules>
+              </profile>
+
+          ''',
+              '''        <profile>
+                  <id>system-it</id>
+                  <modules><module>qa-system-tests</module></modules>
+              </profile>
+
+              <profile>
+                  <id>data-contract-it</id>
+                  <properties>
+                      <failsafe.includes>**/CheckedInAccidentDataIT.java</failsafe.includes>
+                  </properties>
+                  <modules><module>qa-system-tests</module></modules>
+              </profile>
+
+          ''')
+
+          # The data workflow must prove browser/JUnit compatibility before it
+          # obtains a commit SHA or pushes anything.
+          replace_once('.github/workflows/generate-and-commit.yml',
+              '''      - uses: actions/checkout@v7
+                  with:
+                    persist-credentials: true
+
+          ''',
+              '''      - uses: actions/checkout@v7
+                  with:
+                    persist-credentials: true
+
+                - name: Set up Java 21 with Maven cache
+                  uses: actions/setup-java@v5
+                  with:
+                    distribution: temurin
+                    java-version: '21'
+                    cache: maven
+
+          ''')
+          replace_once('.github/workflows/generate-and-commit.yml',
+              '''      - name: Validate all expected city GeoJSON files are present and complete
+                  run: node scripts/check-data-paths.js --gzip-only --min-features 10
+
+          ''',
+              '''      - name: Validate all expected city GeoJSON files are present and complete
+                  run: node scripts/check-data-paths.js --gzip-only --min-features 10
+
+                - name: Validate accident data against the real browser runtime contract
+                  run: npm run validate:accident-runtime
+
+                - name: Run JUnit, browser and exact Pages compatibility before publishing data
+                  run: mvn -B -ntp clean verify -Ppages,data-contract-it
+
+                - name: Upload accident-data compatibility evidence
+                  if: always()
+                  uses: actions/upload-artifact@v7
+                  with:
+                    name: accident-data-runtime-contract-${{ github.run_id }}
+                    path: |
+                      out/qa/accident-runtime-contract.json
+                      qa-system-tests/target/failsafe-reports/
+                      qa-system-tests/target/testcontainers-logs/
+                      test-results/
+                      playwright-report/
+                    if-no-files-found: ignore
+                    retention-days: 30
+
+          ''')
+          replace_once('.github/workflows/generate-and-commit.yml',
+              '''          # niemals tmp-Dateien committen
+                        find out -type f -name '*.tmp' -print -delete || true
+                        rm -rf .build
+
+                        git add -A''',
+              '''          # QA-/Build-Artefakte und temporäre Dateien dürfen niemals in den Datencommit geraten.
+                        find out -type f -name '*.tmp' -print -delete || true
+                        rm -rf .build _site target qa-system-tests/target analysis-service/target \\
+                          node_modules test-results playwright-report coverage out/qa
+
+                        git add -A''')
+
+          # Repair mode must consider every discovered year, not only the last.
+          refresh = Path('tests/unit/accidentDataRefresh.test.js')
+          marker = "  test('the accident Actions form defaults to a real forced download', () => {\n"
+          addition = '''  test('repair mode regenerates a city when any requested official year is absent', () => {
+              const outDir = path.join(tempRoot, 'out');
+              fs.mkdirSync(outDir, { recursive: true });
+              const fixture = {
+                type: 'FeatureCollection',
+                features: Array.from({ length: 10 }, (_, index) => ({
+                  type: 'Feature',
+                  properties: { year: 2024, index },
+                  geometry: null,
+                })),
+              };
+              fs.writeFileSync(
+                path.join(outDir, 'output_all_years_bonn.geojson.gz'),
+                zlib.gzipSync(Buffer.from(JSON.stringify(fixture)))
+              );
+
+              expect(shouldRegenerateCity(outDir, 'Bonn', 10, false, [2024])).toBe(false);
+              expect(shouldRegenerateCity(outDir, 'Bonn', 10, false, [2024, 2025])).toBe(true);
+            });
+
+          '''
+          text = refresh.read_text()
+          if text.count(marker) != 1:
+              raise SystemExit('accidentDataRefresh marker changed')
+          refresh.write_text(text.replace(marker, addition + marker, 1))
+
+          # Parse all changed structured files now; the full repository QA runs
+          # on the resulting source commit.
+          json.loads(Path('package.json').read_text())
+          ET.parse('pom.xml')
+          PY
+
+          sh -n convertAmt2gmaps.sh
+          node --check scripts/generate-accident-data.js
+          node --check scripts/validate-accident-runtime-contract.js
+          node --check tests/integration/checkedInAccidentDataRuntimeContract.test.js
+          node --check tests/unit/accidentDataPublicationGate.test.js
+          node --check tests/unit/accidentDataRefresh.test.js
+          git diff --check
+
+      - name: Commit product repair and remove this bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git rm .github/workflows/apply-core-data-contract.yml
+          git add \
+            .github/workflows/generate-and-commit.yml \
+            convertAmt2gmaps.sh \
+            package.json \
+            pom.xml \
+            scripts/generate-accident-data.js \
+            scripts/validate-accident-runtime-contract.js \
+            tests/integration/checkedInAccidentDataRuntimeContract.test.js \
+            tests/unit/accidentDataPublicationGate.test.js \
+            tests/unit/accidentDataRefresh.test.js \
+            qa-system-tests/src/test/java/de/unfallatlas/qa/CheckedInAccidentDataIT.java
+          git commit -m "fix(data): restore fail-closed runtime publication gates"
+          git push origin HEAD:fix/restore-core-data-media-contracts
