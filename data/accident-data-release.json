@@ -1,0 +1,1190 @@
+{
+  "schemaVersion": 1,
+  "contract": "unfallwerkbank-accident-data-release/v1",
+  "releaseId": "unfallatlas-2016-2025-2026-07-07",
+  "source": {
+    "publisher": "Statistische Ämter des Bundes und der Länder",
+    "datasetTitle": "Unfallatlas Deutschland",
+    "officialIndexUrl": "https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/",
+    "officialStatusUrl": "https://unfallatlas.statistikportal.de/",
+    "licenseId": "DL-DE-BY-2.0",
+    "licenseUrl": "https://www.govdata.de/dl-de/by-2-0"
+  },
+  "officialReleaseDate": "2026-07-07",
+  "firstYear": 2016,
+  "latestYear": 2025,
+  "checkedCities": 26,
+  "policySha256": "0f9d9b15a90ad82239b252a06de6d774d7cadad6b8af38591f8133954ff30618",
+  "canonicalScenarios": [
+    {
+      "id": "bonn-bike-car-and",
+      "city": "Bonn",
+      "matches": 1963
+    },
+    {
+      "id": "bonn-bike-solo",
+      "city": "Bonn",
+      "matches": 1403
+    },
+    {
+      "id": "hannover-default-or",
+      "city": "Hannover",
+      "matches": 20379
+    }
+  ],
+  "cities": [
+    {
+      "city": "Augsburg",
+      "slug": "augsburg",
+      "featureCount": 12607,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 1356,
+        "2017": 1338,
+        "2018": 1366,
+        "2019": 1384,
+        "2020": 1144,
+        "2021": 1075,
+        "2022": 1224,
+        "2023": 1238,
+        "2024": 1229,
+        "2025": 1253
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_augsburg.csv.gz",
+          "bytes": 324686,
+          "uncompressedBytes": 1524233,
+          "sha256": "897d903682bd36ba3dcdd93869285a6c047dd4a1e90f73332de124a8f0dad9ba",
+          "contentSha256": "3bd1ee2407a9fa17370ac8e55376beefa6e204b4ae279243683eeecec4f1b601"
+        },
+        "geojson": {
+          "path": "out/output_all_years_augsburg.geojson.gz",
+          "bytes": 387128,
+          "uncompressedBytes": 7978934,
+          "sha256": "a2cdd577d2de33966455ed247152583ffe1f5255ff8124afbe6f998072627f73",
+          "contentSha256": "dfe3dcc1e652a2be16ec56a382a5504ee844d84151d1c04a576aa66e47825437"
+        }
+      }
+    },
+    {
+      "city": "Berlin",
+      "slug": "berlin",
+      "featureCount": 100546,
+      "minimumYear": 2018,
+      "latestYear": 2025,
+      "years": [
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2018": 13652,
+        "2019": 13390,
+        "2020": 11810,
+        "2021": 11309,
+        "2022": 12348,
+        "2023": 12329,
+        "2024": 12428,
+        "2025": 13280
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_berlin.csv.gz",
+          "bytes": 2521978,
+          "uncompressedBytes": 12207731,
+          "sha256": "5973899a940f0ed5ba523454964a2fac1e4bfa5110ded20a762b782d9163ca09",
+          "contentSha256": "f9866dba601ff829a0f03903dfab6a0b6289b6fe6188231a1bdb7b06f1886532"
+        },
+        "geojson": {
+          "path": "out/output_all_years_berlin.geojson.gz",
+          "bytes": 3041588,
+          "uncompressedBytes": 63687200,
+          "sha256": "cabb19a5353a62816667939331618956f3fb6f9fca148b13f5395192104c5215",
+          "contentSha256": "a8cf00ce8fbc98d8cc1314b592c05dcf9066ece3ee1a57528bb83f537611933a"
+        }
+      }
+    },
+    {
+      "city": "Bielefeld",
+      "slug": "bielefeld",
+      "featureCount": 6967,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 1054,
+        "2020": 914,
+        "2021": 872,
+        "2022": 925,
+        "2023": 1042,
+        "2024": 1085,
+        "2025": 1075
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_bielefeld.csv.gz",
+          "bytes": 183942,
+          "uncompressedBytes": 829980,
+          "sha256": "60908721c8c781ca3aaeb95a6ac1da87396ac6eacc0d11c18fce99d96f7ec615",
+          "contentSha256": "1ffef7e9b3307e0632e310b5dcb5a5739cac0b00a95728b2d43bc385f585674c"
+        },
+        "geojson": {
+          "path": "out/output_all_years_bielefeld.geojson.gz",
+          "bytes": 222531,
+          "uncompressedBytes": 4397001,
+          "sha256": "97d9551a13982a1f23c89e70bd6122d515513efe23133d0a1066bc68be57c5a1",
+          "contentSha256": "c0e81395c4175eb2f6f4ccd28f7bbbcba3978d0703462ed8b8c46bd7b509319a"
+        }
+      }
+    },
+    {
+      "city": "Bochum",
+      "slug": "bochum",
+      "featureCount": 6587,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 959,
+        "2020": 879,
+        "2021": 785,
+        "2022": 874,
+        "2023": 1077,
+        "2024": 1022,
+        "2025": 991
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_bochum.csv.gz",
+          "bytes": 173876,
+          "uncompressedBytes": 783847,
+          "sha256": "0ace8699e9b06a00ff33f47b13943424446aca25d1d4ac1e720c8145171043ac",
+          "contentSha256": "6b075e51b57c2ef9e2f9b15686a874ee69629bc35b76f413941fb2b8dbad98d9"
+        },
+        "geojson": {
+          "path": "out/output_all_years_bochum.geojson.gz",
+          "bytes": 208565,
+          "uncompressedBytes": 4156308,
+          "sha256": "20f2f672de3f6633948523634c7981abc96f131fbf82f8dfab76e9d7b1ae83a3",
+          "contentSha256": "f9e64ad54a98739db3ff7b1f87bf2f36c67b5c95cdbbccbfb95e1194a40e60c7"
+        }
+      }
+    },
+    {
+      "city": "Bonn",
+      "slug": "bonn",
+      "featureCount": 8720,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 1297,
+        "2020": 1095,
+        "2021": 1156,
+        "2022": 1209,
+        "2023": 1373,
+        "2024": 1257,
+        "2025": 1333
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_bonn.csv.gz",
+          "bytes": 227924,
+          "uncompressedBytes": 1041401,
+          "sha256": "c1c6244a90ba47f5b560b9acad446c76760217de7bc3c3fdc497dfb3e6cb737f",
+          "contentSha256": "27238caf4379eb2ca26433961314e879531d40e0c248ddfb5f8f21ea97f74de4"
+        },
+        "geojson": {
+          "path": "out/output_all_years_bonn.geojson.gz",
+          "bytes": 273422,
+          "uncompressedBytes": 5505958,
+          "sha256": "5f5c61ce1332e7afadace9ae328b89410b5b8b3968bbf459dd6bf6a22a6cdc07",
+          "contentSha256": "fe7b406f276a4ef865f39fa96f909b260be885f36adc265cc0d3bdb78de6646c"
+        }
+      }
+    },
+    {
+      "city": "Braunschweig",
+      "slug": "braunschweig",
+      "featureCount": 5283,
+      "minimumYear": 2017,
+      "latestYear": 2025,
+      "years": [
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2017": 657,
+        "2018": 620,
+        "2019": 646,
+        "2020": 530,
+        "2021": 519,
+        "2022": 648,
+        "2023": 597,
+        "2024": 582,
+        "2025": 484
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_braunschweig.csv.gz",
+          "bytes": 138572,
+          "uncompressedBytes": 638856,
+          "sha256": "9c28f24157e3e4bc8de71aa31fa42829a55d415c7edf1f9fe3d9411700fbd382",
+          "contentSha256": "0391ca04b99c3657d392e89a055613a6ef1e80255cc83d86d1acf28057017a09"
+        },
+        "geojson": {
+          "path": "out/output_all_years_braunschweig.geojson.gz",
+          "bytes": 166840,
+          "uncompressedBytes": 3343669,
+          "sha256": "81005ddc1c81962c90daea7c71aa1ffcaba1b9a01f4e662232b60e5272af8947",
+          "contentSha256": "2fe74ae4983a9afa9cd5073f492479be59615b847833a58e841c58f7d3d26826"
+        }
+      }
+    },
+    {
+      "city": "Bremen",
+      "slug": "bremen",
+      "featureCount": 22098,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 2410,
+        "2017": 2453,
+        "2018": 2547,
+        "2019": 2459,
+        "2020": 1974,
+        "2021": 1858,
+        "2022": 1999,
+        "2023": 2199,
+        "2024": 2093,
+        "2025": 2106
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_bremen.csv.gz",
+          "bytes": 557274,
+          "uncompressedBytes": 2654012,
+          "sha256": "3cdb1454fc6bc9b513bf35179536d60bb36e3cfad5953834833c782e4ae50b35",
+          "contentSha256": "4306a767509ebb51b4b7bfb2ac32c9c519c4c6ebda53858e2f3eaf6ba0f78e1b"
+        },
+        "geojson": {
+          "path": "out/output_all_years_bremen.geojson.gz",
+          "bytes": 672221,
+          "uncompressedBytes": 13968105,
+          "sha256": "598230abaee0f13583df00e12ccf6ed8b8abf0862b3ae6d778fb9784275dc99b",
+          "contentSha256": "864195f1ffae4962811e39f6a1a63213288e9d67a38d27fc399f9629e585a890"
+        }
+      }
+    },
+    {
+      "city": "Dortmund",
+      "slug": "dortmund",
+      "featureCount": 12182,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 1805,
+        "2020": 1459,
+        "2021": 1546,
+        "2022": 1764,
+        "2023": 1870,
+        "2024": 1823,
+        "2025": 1915
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_dortmund.csv.gz",
+          "bytes": 317913,
+          "uncompressedBytes": 1452550,
+          "sha256": "1ab5444c783c5e85b3d3274d56a851c3b5dd4ded42c1f162800d9704c3c37c1e",
+          "contentSha256": "850b61b4757849403dcf8522dca3dad645dfc9410421a647c435f4c1275eb460"
+        },
+        "geojson": {
+          "path": "out/output_all_years_dortmund.geojson.gz",
+          "bytes": 382134,
+          "uncompressedBytes": 7689651,
+          "sha256": "4c7790b989668cb44674d1be74f1feaaef4b7113236f73d7adc9b4d4faeaa1f8",
+          "contentSha256": "74c1cd504c93da49470bcee2d727e8e471c130a843ce6a998d5bde50769e6830"
+        }
+      }
+    },
+    {
+      "city": "Dresden",
+      "slug": "dresden",
+      "featureCount": 21089,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 2092,
+        "2017": 2075,
+        "2018": 2218,
+        "2019": 2115,
+        "2020": 2036,
+        "2021": 1861,
+        "2022": 2180,
+        "2023": 2154,
+        "2024": 2204,
+        "2025": 2154
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_dresden.csv.gz",
+          "bytes": 538153,
+          "uncompressedBytes": 2553155,
+          "sha256": "2251cdb04d2109f29bfe376621858e278da89f1be1560aeea275a3ed41d4593f",
+          "contentSha256": "e33d7b6db0ac97189c733f9f19c0e2415c4cc66d9859c53f977ae441410e1787"
+        },
+        "geojson": {
+          "path": "out/output_all_years_dresden.geojson.gz",
+          "bytes": 646545,
+          "uncompressedBytes": 13350640,
+          "sha256": "ef88937c2045cf54951c9d1ea1dc5357cf54131c8a63caf0f794c6b84c848780",
+          "contentSha256": "63c8664a5a3740b5fa1c7ad4c65d7b491f394eca8316743e4cbcbdf429a1b5fb"
+        }
+      }
+    },
+    {
+      "city": "Duesseldorf",
+      "slug": "duesseldorf",
+      "featureCount": 15897,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 2390,
+        "2020": 2224,
+        "2021": 2019,
+        "2022": 2087,
+        "2023": 2427,
+        "2024": 2343,
+        "2025": 2407
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_duesseldorf.csv.gz",
+          "bytes": 410476,
+          "uncompressedBytes": 1899516,
+          "sha256": "2b092b6ea9cb89be5436445b406045ac797fa6581a466aa78b08c2a67f4af186",
+          "contentSha256": "582597369e5fa27995efe29714cb8a24521fd3d82df9de5167dd7218590be622"
+        },
+        "geojson": {
+          "path": "out/output_all_years_duesseldorf.geojson.gz",
+          "bytes": 494058,
+          "uncompressedBytes": 10038697,
+          "sha256": "fbdf36ce6190fdc0d8eebf465d75c8a9afce6ad7968ef692ad7c252c555b5313",
+          "contentSha256": "0d12b8f9b1144f92060696b782f52ad6f8b1c793a29969d4be9ce4865f8a495f"
+        }
+      }
+    },
+    {
+      "city": "Duisburg",
+      "slug": "duisburg",
+      "featureCount": 10586,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 1449,
+        "2020": 1266,
+        "2021": 1347,
+        "2022": 1532,
+        "2023": 1631,
+        "2024": 1626,
+        "2025": 1735
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_duisburg.csv.gz",
+          "bytes": 274198,
+          "uncompressedBytes": 1261315,
+          "sha256": "843e03ef1f8f74b03d51a79784a8de5cca48ca84a347cee9aaaa28445718206e",
+          "contentSha256": "45c569b8c3b8747928afe3f45601451b9f5441e2a7574995466ef44f6c6e937b"
+        },
+        "geojson": {
+          "path": "out/output_all_years_duisburg.geojson.gz",
+          "bytes": 331724,
+          "uncompressedBytes": 6681264,
+          "sha256": "e93e769b8f0903e17a8d64a5902805ab630746598d0f3e67ee7e8dc005b5fc9a",
+          "contentSha256": "f334e8efcdd35ccb4fd89d095fbe4f5041d4253f180ef2c7b22bf3e328c28011"
+        }
+      }
+    },
+    {
+      "city": "Essen",
+      "slug": "essen",
+      "featureCount": 11634,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 1712,
+        "2020": 1408,
+        "2021": 1480,
+        "2022": 1577,
+        "2023": 1836,
+        "2024": 1802,
+        "2025": 1819
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_essen.csv.gz",
+          "bytes": 300133,
+          "uncompressedBytes": 1386420,
+          "sha256": "64a7e9489ab1a25eb94d2e934eb0811d2b49bd2e1b1229f88af7122faecbd105",
+          "contentSha256": "6f5e4c81b456cc2f831e7d6275be74d81ef1d7e98b1ad0fecb80aa7c4a70a33d"
+        },
+        "geojson": {
+          "path": "out/output_all_years_essen.geojson.gz",
+          "bytes": 362625,
+          "uncompressedBytes": 7342945,
+          "sha256": "87e7b59318498ea80a96bb36086d6d5669c9db361f1f25b5a15530d388a1a376",
+          "contentSha256": "697935357f973f8c7f61dda8ac73fb742219f761d36bbd0e0cfe4457f0f898ee"
+        }
+      }
+    },
+    {
+      "city": "Frankfurt am Main",
+      "slug": "frankfurt_am_main",
+      "featureCount": 25385,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 2733,
+        "2017": 2452,
+        "2018": 2622,
+        "2019": 2639,
+        "2020": 2166,
+        "2021": 2151,
+        "2022": 2498,
+        "2023": 2556,
+        "2024": 2683,
+        "2025": 2885
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_frankfurt_am_main.csv.gz",
+          "bytes": 648632,
+          "uncompressedBytes": 3030635,
+          "sha256": "5f25bf4c9dfead142935e6ad7ecde182b74662000edd24d7dae3896c58289494",
+          "contentSha256": "3ceaa3a4b07dfb53a7e24388bcd780232f5684596a3c50e4e440ab03eb8dec18"
+        },
+        "geojson": {
+          "path": "out/output_all_years_frankfurt_am_main.geojson.gz",
+          "bytes": 780153,
+          "uncompressedBytes": 16027672,
+          "sha256": "ad63fd2f370c011767b70f352081272c50ec366ee1ff01edd6d22d92c19ceadb",
+          "contentSha256": "2abeea38a34b386a5069ee92752348d0b833b19e863cb3769a5bdf9edc650761"
+        }
+      }
+    },
+    {
+      "city": "Hamburg",
+      "slug": "hamburg",
+      "featureCount": 69384,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 7215,
+        "2017": 7079,
+        "2018": 7176,
+        "2019": 6827,
+        "2020": 6096,
+        "2021": 6397,
+        "2022": 7174,
+        "2023": 7332,
+        "2024": 7031,
+        "2025": 7057
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_hamburg.csv.gz",
+          "bytes": 1749339,
+          "uncompressedBytes": 8335973,
+          "sha256": "221e95a2d7d00b110a12dfe465059e91634a074ce3e737d11eebb5f60788a95d",
+          "contentSha256": "ade871c995c7ee33047b2bbab5463366d770b73acc8f3e1018692409f2966324"
+        },
+        "geojson": {
+          "path": "out/output_all_years_hamburg.geojson.gz",
+          "bytes": 2108625,
+          "uncompressedBytes": 43860498,
+          "sha256": "92672740cc58d40c39203aaaef57ca79a4362daef373a578639eab917650d871",
+          "contentSha256": "6f0b603d3077ac3516eecbf22fd631fd11c45495e6f5aed984030ea167983298"
+        }
+      }
+    },
+    {
+      "city": "Hannover",
+      "slug": "hannover",
+      "featureCount": 21539,
+      "minimumYear": 2017,
+      "latestYear": 2025,
+      "years": [
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2017": 2339,
+        "2018": 2480,
+        "2019": 2308,
+        "2020": 2266,
+        "2021": 2352,
+        "2022": 2398,
+        "2023": 2560,
+        "2024": 2545,
+        "2025": 2291
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_hannover.csv.gz",
+          "bytes": 552319,
+          "uncompressedBytes": 2576605,
+          "sha256": "520bf2bdb714dfd5ac908423d01f81ee89f6cdb7e4708f3be4511836977edc1b",
+          "contentSha256": "ecbe648a5ee16e2c1af3aa55ee8a3458e5ab6d527c689026fd35efa5f64f784f"
+        },
+        "geojson": {
+          "path": "out/output_all_years_hannover.geojson.gz",
+          "bytes": 664089,
+          "uncompressedBytes": 13604490,
+          "sha256": "f7a13118a0dcce56ecb2a2b204ef3af69eac63ef9bbc913cc31a4d4dfb4ad01b",
+          "contentSha256": "292183a7f7d4f66b373d3bfae992f26c9aaf908557b266da0b1e188b633478f9"
+        }
+      }
+    },
+    {
+      "city": "Heilbronn",
+      "slug": "heilbronn",
+      "featureCount": 4664,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 497,
+        "2017": 498,
+        "2018": 508,
+        "2019": 425,
+        "2020": 365,
+        "2021": 428,
+        "2022": 507,
+        "2023": 511,
+        "2024": 513,
+        "2025": 412
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_heilbronn.csv.gz",
+          "bytes": 122811,
+          "uncompressedBytes": 556252,
+          "sha256": "8fc806d58def125ff65c6cb115b67cfd50501615f8a3d59eaaf486622154ed5b",
+          "contentSha256": "76ea8aa2fd94e3e5e0b7871dc9780585060a5e2d1dd6fd17f366d31aa436948e"
+        },
+        "geojson": {
+          "path": "out/output_all_years_heilbronn.geojson.gz",
+          "bytes": 148308,
+          "uncompressedBytes": 2944137,
+          "sha256": "cc77efbfb7f01b48ebc0445c85bb796bc8a5776ad11593005ccb3b592bf32cba",
+          "contentSha256": "85109b8ede2d49992d5494c706e9cf9d986c81d9db3a37fffdc0890143124741"
+        }
+      }
+    },
+    {
+      "city": "Karlsruhe",
+      "slug": "karlsruhe",
+      "featureCount": 11206,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 1253,
+        "2017": 1187,
+        "2018": 1221,
+        "2019": 1156,
+        "2020": 1008,
+        "2021": 1005,
+        "2022": 1090,
+        "2023": 1150,
+        "2024": 1068,
+        "2025": 1068
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_karlsruhe.csv.gz",
+          "bytes": 291055,
+          "uncompressedBytes": 1339355,
+          "sha256": "c62713c051508d0240fa2bcbfc820fe04952626b478750ce2a5c6b40246ae72c",
+          "contentSha256": "c9d6c5875ffc40b8e92827aa9ba566e70943b89b72e68aef602a327139469b8f"
+        },
+        "geojson": {
+          "path": "out/output_all_years_karlsruhe.geojson.gz",
+          "bytes": 347686,
+          "uncompressedBytes": 7076744,
+          "sha256": "27a9f82e993f536683d07744dae693189f1db1e44d9e229b48e5978e52df9143",
+          "contentSha256": "1943323828c34b286acc729b712ca46e89b1a304389e6639cb6893641a22c99f"
+        }
+      }
+    },
+    {
+      "city": "Koeln",
+      "slug": "koeln",
+      "featureCount": 31120,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 4562,
+        "2020": 3966,
+        "2021": 4029,
+        "2022": 4175,
+        "2023": 4805,
+        "2024": 4661,
+        "2025": 4922
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_koeln.csv.gz",
+          "bytes": 798667,
+          "uncompressedBytes": 3717282,
+          "sha256": "b101c936bc562f17c040a9d302d038ec43c81b16cfb10963cb460163372152ec",
+          "contentSha256": "d3f5a3a10aba98a17187c924549782b7b1d95904a2e41063a14b0f1de96dfac4"
+        },
+        "geojson": {
+          "path": "out/output_all_years_koeln.geojson.gz",
+          "bytes": 964215,
+          "uncompressedBytes": 19650639,
+          "sha256": "907a1135d7cc8dbfd1173e096adc4b450c50614cf25ade0dd404fa0ad619a7a0",
+          "contentSha256": "2baeec8fe39a2bcf3ad7f52c052cc6f6e7ef8977774d3ca886b21cd161753487"
+        }
+      }
+    },
+    {
+      "city": "Leipzig",
+      "slug": "leipzig",
+      "featureCount": 18939,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 2011,
+        "2017": 1987,
+        "2018": 1985,
+        "2019": 1920,
+        "2020": 1672,
+        "2021": 1634,
+        "2022": 1939,
+        "2023": 1904,
+        "2024": 1879,
+        "2025": 2008
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_leipzig.csv.gz",
+          "bytes": 481202,
+          "uncompressedBytes": 2293787,
+          "sha256": "99482fb263ba8de716ee64f2e197362687bf36ac3edd590553c9be6baffe5107",
+          "contentSha256": "d2f4cb8cfe879f3fec6087b6d9a97986e9be22718d3c386f64e21d5cae18cbea"
+        },
+        "geojson": {
+          "path": "out/output_all_years_leipzig.geojson.gz",
+          "bytes": 579172,
+          "uncompressedBytes": 11990472,
+          "sha256": "6cb26ca7245584a447840e7e861edb96724a9b0a70bcc94f19734b43a96fd9e9",
+          "contentSha256": "e7e78fed24f32434a7d996e861db30953a1dbac1bab5899429cd59dae6f2e91a"
+        }
+      }
+    },
+    {
+      "city": "Mannheim",
+      "slug": "mannheim",
+      "featureCount": 9013,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 1063,
+        "2017": 973,
+        "2018": 970,
+        "2019": 949,
+        "2020": 735,
+        "2021": 770,
+        "2022": 891,
+        "2023": 851,
+        "2024": 862,
+        "2025": 949
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_mannheim.csv.gz",
+          "bytes": 235711,
+          "uncompressedBytes": 1077472,
+          "sha256": "24678dfb53a37bb60fe876a0df6a2aba3b11249be08403bf2488ab05d491bd4d",
+          "contentSha256": "57b2eacbd231b3d810e5d1a3ad66f61bbdca78128e73bd090837e68aabd39a4c"
+        },
+        "geojson": {
+          "path": "out/output_all_years_mannheim.geojson.gz",
+          "bytes": 281178,
+          "uncompressedBytes": 5692045,
+          "sha256": "44471f3fd89fa8d2fc163b8af4afc26591e3ca9b6d3ed720469b68c9fe2d3422",
+          "contentSha256": "aa972d56eebe857c30cf3a3da844055e92b3b1a27c2a706af3da5d7f7355838e"
+        }
+      }
+    },
+    {
+      "city": "Muenchen",
+      "slug": "muenchen",
+      "featureCount": 49252,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 4987,
+        "2017": 4831,
+        "2018": 5198,
+        "2019": 4979,
+        "2020": 4504,
+        "2021": 4548,
+        "2022": 4899,
+        "2023": 4998,
+        "2024": 5044,
+        "2025": 5264
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_muenchen.csv.gz",
+          "bytes": 1241865,
+          "uncompressedBytes": 5964557,
+          "sha256": "e0abbcdef3770dac13ce5930cd331b0027b646e9467a0c06b3967677e862e304",
+          "contentSha256": "f2d5cbbcdf6641536d364b271338e45180b4306dcaf87daf817f78f8092be641"
+        },
+        "geojson": {
+          "path": "out/output_all_years_muenchen.geojson.gz",
+          "bytes": 1493502,
+          "uncompressedBytes": 31181498,
+          "sha256": "3831740df03e09b5955498a6aec890afe373a185b437d2654685e500b07f9720",
+          "contentSha256": "baf6f9c669f31778dfe64e6ddda58c16a18740658261b1361991ee9cd7142708"
+        }
+      }
+    },
+    {
+      "city": "Muenster",
+      "slug": "muenster",
+      "featureCount": 8472,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 1287,
+        "2020": 952,
+        "2021": 1084,
+        "2022": 1148,
+        "2023": 1253,
+        "2024": 1336,
+        "2025": 1412
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_muenster.csv.gz",
+          "bytes": 219538,
+          "uncompressedBytes": 1009282,
+          "sha256": "b6dfd5e9b0e872d8247e2d9104eeb49d77fdb359c09d84a8c4c841ca17af9a65",
+          "contentSha256": "6d5f07bdb01c3215f3ad49419cea1ef2c5aa55164057227a3039613e5abe133c"
+        },
+        "geojson": {
+          "path": "out/output_all_years_muenster.geojson.gz",
+          "bytes": 265250,
+          "uncompressedBytes": 5346863,
+          "sha256": "b1d3d44bb1db0e8ba0492b6c4d0a4d780a2cc0b30c5be01bf84bf98f87579cc7",
+          "contentSha256": "6d56b00e13b9467a1e630c05cd4cbad047695859ca9a972b24305c02beca0a36"
+        }
+      }
+    },
+    {
+      "city": "Nuernberg",
+      "slug": "nuernberg",
+      "featureCount": 19422,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 2216,
+        "2017": 2057,
+        "2018": 2184,
+        "2019": 1963,
+        "2020": 1755,
+        "2021": 1792,
+        "2022": 1926,
+        "2023": 1868,
+        "2024": 1915,
+        "2025": 1746
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_nuernberg.csv.gz",
+          "bytes": 497635,
+          "uncompressedBytes": 2348062,
+          "sha256": "9394aaeebd1df9398e746479b627776452a8c2e199a5c86ec7ef44cfbaa17df1",
+          "contentSha256": "6e6130753bfa2b09be75289397e6d6002544761800556971563c75c6353ce07f"
+        },
+        "geojson": {
+          "path": "out/output_all_years_nuernberg.geojson.gz",
+          "bytes": 592271,
+          "uncompressedBytes": 12292043,
+          "sha256": "51528a7c5937c68eee4ada0d40fbfdaa999995e7ae2eb3da1377fb187de55e55",
+          "contentSha256": "c163b7cd6019a7f56316c790369fe99ee37fe59d3652a120007dbbedfb0a2557"
+        }
+      }
+    },
+    {
+      "city": "Stuttgart",
+      "slug": "stuttgart",
+      "featureCount": 17681,
+      "minimumYear": 2016,
+      "latestYear": 2025,
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2016": 1951,
+        "2017": 1994,
+        "2018": 2018,
+        "2019": 1912,
+        "2020": 1595,
+        "2021": 1537,
+        "2022": 1615,
+        "2023": 1698,
+        "2024": 1726,
+        "2025": 1635
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_stuttgart.csv.gz",
+          "bytes": 456257,
+          "uncompressedBytes": 2111161,
+          "sha256": "d7f9dd74371621f4dc0bf6d72152957ce7295900c78e15d37bb73f1fcd6ef62d",
+          "contentSha256": "7784f0ffba8787a8938832480e1a20115139ca6d12f01bb15d39fac7a07f1a79"
+        },
+        "geojson": {
+          "path": "out/output_all_years_stuttgart.geojson.gz",
+          "bytes": 544420,
+          "uncompressedBytes": 11163750,
+          "sha256": "295b51da703045694f1e95e871ca72c40c0b2791f2a850807769bcdc3d973613",
+          "contentSha256": "3f373fb8981d8ca38932c00fb50f34bea2ca18d85cb40cdf319600a9f4592b33"
+        }
+      }
+    },
+    {
+      "city": "Wolfsburg",
+      "slug": "wolfsburg",
+      "featureCount": 2483,
+      "minimumYear": 2017,
+      "latestYear": 2025,
+      "years": [
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2017": 294,
+        "2018": 313,
+        "2019": 311,
+        "2020": 250,
+        "2021": 215,
+        "2022": 250,
+        "2023": 280,
+        "2024": 298,
+        "2025": 272
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_wolfsburg.csv.gz",
+          "bytes": 66771,
+          "uncompressedBytes": 299363,
+          "sha256": "344d775845aaaa9b9fb080926b113da2fa44c2b05154af639490da9062f5a4b3",
+          "contentSha256": "8a3537ab7b85f465ff1d9cf507e09fd4c72cfbc8d6956d8ee3a8b53bdb4ae522"
+        },
+        "geojson": {
+          "path": "out/output_all_years_wolfsburg.geojson.gz",
+          "bytes": 80707,
+          "uncompressedBytes": 1570576,
+          "sha256": "de3e70585f4eb93ce2ee4d05c1461fdbe9ec84341777f46f185e695977ab414a",
+          "contentSha256": "97e14bbc3d836d67e45e5a67feacc452fcf2426ab8c56415e9f067e035fc8166"
+        }
+      }
+    },
+    {
+      "city": "Wuppertal",
+      "slug": "wuppertal",
+      "featureCount": 6601,
+      "minimumYear": 2019,
+      "latestYear": 2025,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "byYear": {
+        "2019": 910,
+        "2020": 770,
+        "2021": 832,
+        "2022": 902,
+        "2023": 975,
+        "2024": 1102,
+        "2025": 1110
+      },
+      "artifacts": {
+        "csv": {
+          "path": "out/output_all_years_wuppertal.csv.gz",
+          "bytes": 174496,
+          "uncompressedBytes": 785426,
+          "sha256": "93c1cd937aee4b40015bfddbe7754e99e128567d09b6a643d60eae9ee161cccc",
+          "contentSha256": "670bf5a117d2f1a411403c68af341e9331d7af8029bd812672a06497fa85a95d"
+        },
+        "geojson": {
+          "path": "out/output_all_years_wuppertal.geojson.gz",
+          "bytes": 209570,
+          "uncompressedBytes": 4165055,
+          "sha256": "3e0baf1911cd9fd15ea2a128fe733103bd577638c1b9cdd47d9539565df418f9",
+          "contentSha256": "68a21542276662f35be13eb065ebfa128fb315b7798c52eb2778a3e995134ea0"
+        }
+      }
+    }
+  ],
+  "fingerprint": "d00cc7cdb7986f705c943e156d645aa19583ea5bbcfc66a237e8f3288cb18c78"
+}
