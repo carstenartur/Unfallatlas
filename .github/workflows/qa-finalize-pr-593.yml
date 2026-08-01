@@ -1,5 +1,5 @@
 name: Finalize PR 593 QA fixes
-# Produce a byte-exact handoff because the workflow token cannot update workflow files.
+# Produce a byte-exact detached commit; the workflow token never updates a branch ref.
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
       - '.github/workflows/qa-finalize-pr-593.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: qa-finalize-pr-593
@@ -130,6 +130,99 @@ jobs:
           )
           PY
           (cd .build/qa-handoff && sha256sum --check --strict SHA256SUMS)
+
+      - name: Create detached Git objects from the verified handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import pathlib
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          root = pathlib.Path('.').resolve()
+          handoff = root / '.build' / 'qa-handoff'
+          manifest = json.loads((handoff / 'manifest.json').read_text(encoding='utf-8'))
+          parent = manifest['targetParent']
+
+          def request(method, path, payload=None):
+              data = None if payload is None else json.dumps(payload).encode('utf-8')
+              req = urllib.request.Request(
+                  f'https://api.github.com/repos/{repo}{path}',
+                  data=data,
+                  method=method,
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f'Bearer {token}',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'Unfallwerkbank-QA-finalizer',
+                  },
+              )
+              with urllib.request.urlopen(req) as response:
+                  return json.load(response)
+
+          parent_commit = request('GET', f'/git/commits/{parent}')
+          tree_entries = []
+          for entry in manifest['files']:
+              path = root / entry['path']
+              data = path.read_bytes()
+              blob = request('POST', '/git/blobs', {
+                  'content': base64.b64encode(data).decode('ascii'),
+                  'encoding': 'base64',
+              })
+              tree_entries.append({
+                  'path': entry['path'],
+                  'mode': entry['mode'],
+                  'type': 'blob',
+                  'sha': blob['sha'],
+              })
+
+          for relative in manifest['deleted']:
+              encoded = urllib.parse.quote(relative, safe='')
+              try:
+                  request('GET', f'/contents/{encoded}?ref={parent}')
+              except urllib.error.HTTPError as error:
+                  if error.code == 404:
+                      continue
+                  raise
+              tree_entries.append({
+                  'path': relative,
+                  'mode': '100644',
+                  'type': 'blob',
+                  'sha': None,
+              })
+
+          tree = request('POST', '/git/trees', {
+              'base_tree': parent_commit['tree']['sha'],
+              'tree': tree_entries,
+          })
+          commit = request('POST', '/git/commits', {
+              'message': 'fix(qa): close publication, export and accessibility gaps',
+              'tree': tree['sha'],
+              'parents': [parent],
+          })
+          result = {
+              'schemaVersion': 1,
+              'contract': 'unfallwerkbank-detached-git-commit/v1',
+              'commitSha': commit['sha'],
+              'treeSha': tree['sha'],
+              'parentSha': parent,
+              'fileCount': len(manifest['files']),
+              'deletedCount': len(tree_entries) - len(manifest['files']),
+          }
+          (handoff / 'git-object.json').write_text(
+              json.dumps(result, indent=2) + '\n', encoding='utf-8'
+          )
+          print(json.dumps(result, indent=2))
+          PY
 
       - name: Upload the clean-tree handoff
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
