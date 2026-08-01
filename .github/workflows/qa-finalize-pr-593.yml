@@ -1,5 +1,5 @@
 name: Finalize PR 593 QA fixes
-# Produce a byte-exact detached commit; the workflow token never updates a branch ref.
+# Produce byte-exact detached blobs; the workflow token never creates a tree or updates a ref.
 
 on:
   pull_request:
@@ -131,7 +131,7 @@ jobs:
           PY
           (cd .build/qa-handoff && sha256sum --check --strict SHA256SUMS)
 
-      - name: Create detached Git objects from the verified handoff
+      - name: Upload detached Git blobs from the verified handoff
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -142,8 +142,6 @@ jobs:
           import json
           import os
           import pathlib
-          import urllib.error
-          import urllib.parse
           import urllib.request
 
           repo = os.environ['GITHUB_REPOSITORY']
@@ -170,7 +168,7 @@ jobs:
                   return json.load(response)
 
           parent_commit = request('GET', f'/git/commits/{parent}')
-          tree_entries = []
+          blobs = []
           for entry in manifest['files']:
               path = root / entry['path']
               data = path.read_bytes()
@@ -178,50 +176,32 @@ jobs:
                   'content': base64.b64encode(data).decode('ascii'),
                   'encoding': 'base64',
               })
-              tree_entries.append({
+              blobs.append({
                   'path': entry['path'],
                   'mode': entry['mode'],
                   'type': 'blob',
                   'sha': blob['sha'],
+                  'sha256': entry['sha256'],
+                  'bytes': entry['bytes'],
               })
 
-          for relative in manifest['deleted']:
-              encoded = urllib.parse.quote(relative, safe='')
-              try:
-                  request('GET', f'/contents/{encoded}?ref={parent}')
-              except urllib.error.HTTPError as error:
-                  if error.code == 404:
-                      continue
-                  raise
-              tree_entries.append({
-                  'path': relative,
-                  'mode': '100644',
-                  'type': 'blob',
-                  'sha': None,
-              })
-
-          tree = request('POST', '/git/trees', {
-              'base_tree': parent_commit['tree']['sha'],
-              'tree': tree_entries,
-          })
-          commit = request('POST', '/git/commits', {
-              'message': 'fix(qa): close publication, export and accessibility gaps',
-              'tree': tree['sha'],
-              'parents': [parent],
-          })
           result = {
               'schemaVersion': 1,
-              'contract': 'unfallwerkbank-detached-git-commit/v1',
-              'commitSha': commit['sha'],
-              'treeSha': tree['sha'],
+              'contract': 'unfallwerkbank-detached-git-blobs/v1',
               'parentSha': parent,
-              'fileCount': len(manifest['files']),
-              'deletedCount': len(tree_entries) - len(manifest['files']),
+              'baseTreeSha': parent_commit['tree']['sha'],
+              'blobs': blobs,
+              'deleteIfPresent': ['.github/workflows/qa-source-snapshot.yml'],
           }
-          (handoff / 'git-object.json').write_text(
+          (handoff / 'git-blobs.json').write_text(
               json.dumps(result, indent=2) + '\n', encoding='utf-8'
           )
-          print(json.dumps(result, indent=2))
+          print(json.dumps({
+              'contract': result['contract'],
+              'parentSha': parent,
+              'baseTreeSha': result['baseTreeSha'],
+              'blobCount': len(blobs),
+          }, indent=2))
           PY
 
       - name: Upload the clean-tree handoff
