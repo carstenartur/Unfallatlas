@@ -17,16 +17,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * JUnit-owned release contract for the actual checked-in accident data.
+ * JUnit-owned release contract for the actual checked-in accident publication.
  *
- * The test intentionally executes the browser-owned JavaScript helpers through
- * the repository validator instead of reimplementing their semantics in Java.
- * This makes the contract fail when either the generated data schema or the web
- * application's extraction/filter semantics drift.
+ * The Node audit executes the browser-owned extraction/filter helpers and then
+ * binds the complete aggregate publication: reviewed official year, CSV ↔
+ * GeoJSON row parity, hashes, city/year counts and quantitative user scenarios.
  */
 class CheckedInAccidentDataIT {
 
-    private static final Duration TIMEOUT = Duration.ofMinutes(8);
+    private static final Duration TIMEOUT = Duration.ofMinutes(12);
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Path REPOSITORY_ROOT = Path.of(
             System.getProperty("unfallatlas.repositoryRoot", ".."))
@@ -38,13 +37,13 @@ class CheckedInAccidentDataIT {
             .normalize();
 
     @Test
-    void checkedInDataLoadsThroughTheRealBrowserRuntimeContract() throws Exception {
+    void checkedInPublicationMatchesTheReviewedOfficialRelease() throws Exception {
         Files.createDirectories(OUTPUT_DIRECTORY);
-        Path report = OUTPUT_DIRECTORY.resolve("checked-in-accident-runtime-contract.json");
+        Path report = OUTPUT_DIRECTORY.resolve("checked-in-accident-publication.json");
         Process process = new ProcessBuilder(List.of(
                 "node",
                 "--max-old-space-size=4096",
-                REPOSITORY_ROOT.resolve("scripts/validate-accident-runtime-contract.js").toString(),
+                REPOSITORY_ROOT.resolve("scripts/validate-accident-publication.js").toString(),
                 "--root",
                 REPOSITORY_ROOT.toString(),
                 "--report",
@@ -56,27 +55,41 @@ class CheckedInAccidentDataIT {
         boolean finished = process.waitFor(TIMEOUT.toSeconds(), TimeUnit.SECONDS);
         if (!finished) {
             process.destroyForcibly();
-            throw new AssertionError("Accident runtime contract timed out after " + TIMEOUT);
+            throw new AssertionError("Accident publication audit timed out after " + TIMEOUT);
         }
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertEquals(0, process.exitValue(), output);
-        assertTrue(Files.isRegularFile(report), "Validator did not produce its evidence report\n" + output);
+        assertTrue(Files.isRegularFile(report), "Audit did not produce its evidence report\n" + output);
 
         JsonNode evidence = readJson(report);
-        assertEquals("unfallwerkbank-checked-in-accident-runtime/v1",
-                evidence.path("contract").asText(), evidence.toPrettyString());
-        assertTrue(evidence.path("checkedCities").asInt() > 0, evidence.toPrettyString());
-        assertTrue(evidence.path("latestYear").asInt() >= 2024, evidence.toPrettyString());
-        assertTrue(evidence.path("canonicalScenarios").isArray(), evidence.toPrettyString());
-        assertEquals(3, evidence.path("canonicalScenarios").size(), evidence.toPrettyString());
-        for (JsonNode scenario : evidence.path("canonicalScenarios")) {
-            assertTrue(scenario.path("matches").asInt() > 0, scenario.toPrettyString());
-        }
+        JsonNode policy = readJson(REPOSITORY_ROOT.resolve("config/accident-data-policy.json"));
+        JsonNode release = readJson(REPOSITORY_ROOT.resolve("data/accident-data-release.json"));
 
+        assertEquals("unfallwerkbank-accident-publication-audit/v1",
+                evidence.path("contract").asText(), evidence.toPrettyString());
+        assertTrue(evidence.path("passed").asBoolean(), evidence.toPrettyString());
+        assertEquals(policy.path("expectedLatestYear").asInt(),
+                evidence.path("latestYear").asInt(), evidence.toPrettyString());
+        assertTrue(evidence.path("checkedCities").asInt()
+                >= policy.path("minimumConfiguredCities").asInt(), evidence.toPrettyString());
+        assertEquals(evidence.path("checkedCities").asInt() * 2,
+                evidence.path("artifactCount").asInt(), evidence.toPrettyString());
+        assertEquals(3, evidence.path("canonicalScenarios").size(), evidence.toPrettyString());
+
+        assertEquals("unfallwerkbank-accident-data-release/v1",
+                release.path("contract").asText(), release.toPrettyString());
+        assertEquals(evidence.path("releaseFingerprint").asText(),
+                release.path("fingerprint").asText(), release.toPrettyString());
+        assertEquals(evidence.path("latestYear").asInt(),
+                release.path("latestYear").asInt(), release.toPrettyString());
+
+        int firstYear = policy.path("firstYear").asInt();
+        int latestYear = policy.path("expectedLatestYear").asInt();
         String readme = Files.readString(REPOSITORY_ROOT.resolve("README.md"), StandardCharsets.UTF_8);
-        int latestYear = evidence.path("latestYear").asInt();
-        assertTrue(readme.contains("2016–" + latestYear),
-                "README data-year claim is stale; expected 2016–" + latestYear);
+        assertTrue(readme.contains(firstYear + "–" + latestYear),
+                "README data-year claim is stale; expected " + firstYear + "–" + latestYear);
+        assertTrue(readme.contains("Pull Request"),
+                "README must explain that generated data is reviewed through a pull request");
     }
 
     private static JsonNode readJson(Path file) throws IOException {
