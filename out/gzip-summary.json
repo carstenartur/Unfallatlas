@@ -1,132 +1,132 @@
 {
-  "generatedAt": "2026-07-30T04:21:12.404Z",
+  "generatedAt": "2026-08-01T03:39:38.263Z",
   "mode": "replace-raw",
   "dryRun": false,
-  "totalRaw": 350986092,
-  "totalGz": 26195839,
-  "totalSaving": 324790253,
+  "totalRaw": 398385082,
+  "totalGz": 29753950,
+  "totalSaving": 368631132,
   "savingPct": 92.5,
   "filesProcessed": 52,
   "staleRemoved": [],
   "top20": [
     {
       "path": "out/output_all_years_berlin.geojson.gz",
-      "rawBytes": 55316452,
-      "gzBytes": 2632515,
+      "rawBytes": 63687200,
+      "gzBytes": 3041588,
       "savingPct": 95.2
     },
     {
       "path": "out/output_all_years_berlin.csv.gz",
-      "rawBytes": 10636343,
-      "gzBytes": 2185390,
-      "savingPct": 79.5
+      "rawBytes": 12207731,
+      "gzBytes": 2521978,
+      "savingPct": 79.3
     },
     {
       "path": "out/output_all_years_hamburg.geojson.gz",
-      "rawBytes": 39420056,
-      "gzBytes": 1889535,
+      "rawBytes": 43860498,
+      "gzBytes": 2108625,
       "savingPct": 95.2
     },
     {
       "path": "out/output_all_years_hamburg.csv.gz",
-      "rawBytes": 7508715,
-      "gzBytes": 1568386,
-      "savingPct": 79.1
+      "rawBytes": 8335973,
+      "gzBytes": 1749339,
+      "savingPct": 79
     },
     {
       "path": "out/output_all_years_muenchen.geojson.gz",
-      "rawBytes": 27867392,
-      "gzBytes": 1333935,
+      "rawBytes": 31181498,
+      "gzBytes": 1493502,
       "savingPct": 95.2
     },
     {
       "path": "out/output_all_years_muenchen.csv.gz",
-      "rawBytes": 5345619,
-      "gzBytes": 1109632,
+      "rawBytes": 5964557,
+      "gzBytes": 1241865,
       "savingPct": 79.2
     },
     {
       "path": "out/output_all_years_koeln.geojson.gz",
-      "rawBytes": 16556915,
-      "gzBytes": 814301,
-      "savingPct": 95.1
-    },
-    {
-      "path": "out/output_all_years_frankfurt_am_main.geojson.gz",
-      "rawBytes": 14215221,
-      "gzBytes": 691782,
+      "rawBytes": 19650639,
+      "gzBytes": 964215,
       "savingPct": 95.1
     },
     {
       "path": "out/output_all_years_koeln.csv.gz",
-      "rawBytes": 3143622,
-      "gzBytes": 674448,
+      "rawBytes": 3717282,
+      "gzBytes": 798667,
       "savingPct": 78.5
     },
     {
+      "path": "out/output_all_years_frankfurt_am_main.geojson.gz",
+      "rawBytes": 16027672,
+      "gzBytes": 780153,
+      "savingPct": 95.1
+    },
+    {
       "path": "out/output_all_years_bremen.geojson.gz",
-      "rawBytes": 12645645,
-      "gzBytes": 607022,
+      "rawBytes": 13968105,
+      "gzBytes": 672221,
       "savingPct": 95.2
     },
     {
       "path": "out/output_all_years_hannover.geojson.gz",
-      "rawBytes": 12165665,
-      "gzBytes": 594355,
+      "rawBytes": 13604490,
+      "gzBytes": 664089,
       "savingPct": 95.1
     },
     {
-      "path": "out/output_all_years_dresden.geojson.gz",
-      "rawBytes": 11995834,
-      "gzBytes": 580234,
-      "savingPct": 95.2
-    },
-    {
       "path": "out/output_all_years_frankfurt_am_main.csv.gz",
-      "rawBytes": 2695304,
-      "gzBytes": 575570,
+      "rawBytes": 3030635,
+      "gzBytes": 648632,
       "savingPct": 78.6
     },
     {
+      "path": "out/output_all_years_dresden.geojson.gz",
+      "rawBytes": 13350640,
+      "gzBytes": 646545,
+      "savingPct": 95.2
+    },
+    {
       "path": "out/output_all_years_nuernberg.geojson.gz",
-      "rawBytes": 11194277,
-      "gzBytes": 539567,
+      "rawBytes": 12292043,
+      "gzBytes": 592271,
       "savingPct": 95.2
     },
     {
       "path": "out/output_all_years_leipzig.geojson.gz",
-      "rawBytes": 10727646,
-      "gzBytes": 517676,
+      "rawBytes": 11990472,
+      "gzBytes": 579172,
       "savingPct": 95.2
     },
     {
       "path": "out/output_all_years_bremen.csv.gz",
-      "rawBytes": 2409824,
-      "gzBytes": 503654,
-      "savingPct": 79.1
+      "rawBytes": 2654012,
+      "gzBytes": 557274,
+      "savingPct": 79
     },
     {
       "path": "out/output_all_years_hannover.csv.gz",
-      "rawBytes": 2310772,
-      "gzBytes": 494707,
+      "rawBytes": 2576605,
+      "gzBytes": 552319,
       "savingPct": 78.6
     },
     {
       "path": "out/output_all_years_stuttgart.geojson.gz",
-      "rawBytes": 10137549,
-      "gzBytes": 494173,
+      "rawBytes": 11163750,
+      "gzBytes": 544420,
       "savingPct": 95.1
     },
     {
       "path": "out/output_all_years_dresden.csv.gz",
-      "rawBytes": 2301197,
-      "gzBytes": 483389,
-      "savingPct": 79
+      "rawBytes": 2553155,
+      "gzBytes": 538153,
+      "savingPct": 78.9
     },
     {
       "path": "out/output_all_years_nuernberg.csv.gz",
-      "rawBytes": 2144248,
-      "gzBytes": 453666,
+      "rawBytes": 2348062,
+      "gzBytes": 497635,
       "savingPct": 78.8
     }
   ]
