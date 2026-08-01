@@ -20,14 +20,19 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Create source-only archive
+      - name: Create source and publication-data archive
         shell: bash
         run: |
           set -euo pipefail
+          mapfile -t accident_files < <(git ls-files \
+            'out/output_all_years_*.csv.gz' \
+            'out/output_all_years_*.geojson.gz')
+          test "${#accident_files[@]}" -gt 0
           git archive --format=zip --output=qa-source-snapshot.zip HEAD -- \
             README.md package.json pom.xml SECURITY.md TESTING.md ARCHITECTURE.md \
             .github/workflows scripts tests js css werkbank_v2.html \
-            qa-system-tests server/cities data docs
+            qa-system-tests server/cities data docs \
+            "${accident_files[@]}"
 
       - name: Upload source snapshot
         uses: actions/upload-artifact@v7
