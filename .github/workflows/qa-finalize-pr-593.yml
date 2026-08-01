@@ -1,4 +1,5 @@
 name: Finalize PR 593 QA fixes
+# Retry after byte-for-byte transfer blob verification.
 
 on:
   pull_request:
