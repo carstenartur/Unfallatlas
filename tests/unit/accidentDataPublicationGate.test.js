@@ -10,20 +10,17 @@ function read(relative) {
 }
 
 describe('accident data publication is fail-closed', () => {
-  test('the converter may not ignore a failed or empty official year', () => {
-    const source = read('convertAmt2gmaps.sh');
-    expect(source).not.toMatch(/process_year_to_buffers\s+"\$y"\s*\|\|\s*true/);
-    expect(source).toContain('process_year_to_buffers "$y"');
-    expect(source).toContain('Required browser fields missing for');
-    expect(source).toContain('kein unvollständiger Mehrjahresdatensatz wird veröffentlicht');
-    expect(source).toContain('keine verwertbaren Unfallzeilen');
-    expect(source).not.toContain('Verarbeitung fehlgeschlagen für Jahr $year (ignoriert');
+  test('repair and staged installation require every discovered official year', () => {
+    const generator = read('scripts/generate-accident-data.js');
+    expect(generator).toContain('requiredYears: requiredYears == null ? [] : requiredYears');
+    expect(generator).toContain('requiredYears: years');
+    expect(generator).not.toContain('requiredYears: highestYear == null ? [] : [highestYear]');
   });
 
   test('the refresh workflow runs runtime, JUnit and browser gates before git commit', () => {
     const workflow = read('.github/workflows/generate-and-commit.yml');
     const runtime = workflow.indexOf('npm run validate:accident-runtime');
-    const maven = workflow.indexOf('mvn -B -ntp clean verify -Ppages,data-contract-it');
+    const maven = workflow.indexOf("mvn -B -ntp clean verify -Ppages,system-it '-Dfailsafe.includes=**/CheckedInAccidentDataIT.java'");
     const commit = workflow.indexOf('git commit -m "Refresh official accident datasets"');
 
     expect(runtime).toBeGreaterThan(0);
@@ -34,9 +31,7 @@ describe('accident data publication is fail-closed', () => {
     expect(workflow).toContain('rm -rf .build _site target qa-system-tests/target analysis-service/target');
   });
 
-  test('Maven exposes a lightweight JUnit profile for checked-in data compatibility', () => {
-    const pom = read('pom.xml');
-    expect(pom).toMatch(/<id>data-contract-it<\/id>[\s\S]*?<failsafe\.includes>\*\*\/CheckedInAccidentDataIT\.java<\/failsafe\.includes>/);
+  test('JUnit executes the same browser-owned runtime validator', () => {
     expect(read('qa-system-tests/src/test/java/de/unfallatlas/qa/CheckedInAccidentDataIT.java'))
       .toContain('validate-accident-runtime-contract.js');
   });

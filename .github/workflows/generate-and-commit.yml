@@ -25,6 +25,13 @@ jobs:
         with:
           persist-credentials: true
 
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
@@ -71,6 +78,26 @@ jobs:
       - name: Validate all expected city GeoJSON files are present and complete
         run: node scripts/check-data-paths.js --gzip-only --min-features 10
 
+      - name: Validate accident data against the real browser runtime contract
+        run: npm run validate:accident-runtime
+
+      - name: Run JUnit, browser and exact Pages compatibility before publishing data
+        run: mvn -B -ntp clean verify -Ppages,system-it '-Dfailsafe.includes=**/CheckedInAccidentDataIT.java'
+
+      - name: Upload accident-data compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: accident-data-runtime-contract-${{ github.run_id }}
+          path: |
+            out/qa/accident-runtime-contract.json
+            qa-system-tests/target/failsafe-reports/
+            qa-system-tests/target/testcontainers-logs/
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Sync City-Registry (auto-fix Drift)
         run: node scripts/check-city-rollout.js --fix
 
@@ -78,9 +105,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # niemals tmp-Dateien committen
+          # QA-/Build-Artefakte und temporäre Dateien dürfen niemals in den Datencommit geraten.
           find out -type f -name '*.tmp' -print -delete || true
-          rm -rf .build
+          rm -rf .build _site target qa-system-tests/target analysis-service/target             node_modules test-results playwright-report coverage out/qa
 
           git add -A
           if git diff --cached --quiet; then
