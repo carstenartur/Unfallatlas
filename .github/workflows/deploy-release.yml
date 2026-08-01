@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       next_development_version:
-        description: 'Next development version, for example 2.1.5-SNAPSHOT. Leave empty to increment patch.'
+        description: 'Exact next development version, for example 3.0.0-SNAPSHOT. Leave empty to increment patch.'
         required: false
         type: string
         default: ''
@@ -59,18 +59,27 @@ jobs:
           distribution: temurin
           cache: maven
 
+      - name: Test release version planner
+        run: python3 .github/scripts/test-release-version-plan.py
+
       - name: Determine release versions
         id: versions
         shell: bash
+        env:
+          RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
+          NEXT_VERSION_INPUT: ${{ inputs.next_development_version }}
         run: |
           set -euo pipefail
-          RELEASE_VERSION='${{ inputs.release_version }}'
-          NEXT_VERSION_INPUT='${{ inputs.next_development_version }}'
-
-          if ! [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::release_version must use X.Y.Z without a leading v"
-            exit 1
-          fi
+          plan_file="$RUNNER_TEMP/unfallatlas-release-version-plan"
+          : > "$plan_file"
+          python3 .github/scripts/release-version-plan.py \
+            --release "$RELEASE_VERSION_INPUT" \
+            --next-development-version "$NEXT_VERSION_INPUT" \
+            --github-output "$plan_file"
+          # Planner outputs are strict semantic versions and a derived branch name.
+          source "$plan_file"
+          RELEASE_VERSION=$release
+          NEXT_VERSION=$next
 
           CURRENT_VERSION=$(python3 .github/scripts/project-version.py get)
           if [[ "$CURRENT_VERSION" != *-SNAPSHOT ]]; then
@@ -86,17 +95,6 @@ jobs:
               echo "::error::Release $RELEASE_VERSION does not match current SNAPSHOT base $CURRENT_BASE"
               exit 1
             fi
-          fi
-
-          if [[ -n "$NEXT_VERSION_INPUT" ]]; then
-            NEXT_VERSION="$NEXT_VERSION_INPUT"
-          else
-            IFS='.' read -r major minor patch <<< "$RELEASE_VERSION"
-            NEXT_VERSION="${major}.${minor}.$((patch + 1))-SNAPSHOT"
-          fi
-          if ! [[ "$NEXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
-            echo "::error::next_development_version must use X.Y.Z-SNAPSHOT"
-            exit 1
           fi
 
           if git ls-remote --tags origin | grep -q "refs/tags/v${RELEASE_VERSION}$"; then
