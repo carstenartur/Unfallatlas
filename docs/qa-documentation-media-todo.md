@@ -1,0 +1,5 @@
+- UI label
+- exact deep links
+- heatmap visibility
+- demo freshness binding
+- regression tests

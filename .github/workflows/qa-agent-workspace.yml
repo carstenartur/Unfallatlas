@@ -1,0 +1,38 @@
+name: Temporary documentation QA workspace
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/qa-agent-workspace.yml
+
+permissions:
+  contents: read
+
+jobs:
+  source-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Package source workspace
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=target \
+            --exclude=.build \
+            --exclude=_site \
+            -czf /tmp/unfallatlas-source-workspace.tar.gz .
+
+      - name: Upload source workspace
+        uses: actions/upload-artifact@v7
+        with:
+          name: temporary-documentation-qa-workspace
+          path: /tmp/unfallatlas-source-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
