@@ -3,15 +3,15 @@ name: Release Workflow
 on:
   workflow_dispatch:
     inputs:
-      release_version:
-        description: 'Release version without leading v, for example 2.1.4. Must match the current SNAPSHOT base.'
+      next_version_increment:
+        description: 'Select how the development version advances after this release'
         required: true
-        type: string
-      next_development_version:
-        description: 'Next development version, for example 2.1.5-SNAPSHOT. Leave empty to increment patch.'
-        required: false
-        type: string
-        default: ''
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
       skip_tests:
         description: 'Skip test execution during the release build'
         required: false
@@ -33,7 +33,7 @@ env:
   GH_TOKEN: ${{ github.token }}
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-main
   cancel-in-progress: false
 
 jobs:
@@ -43,11 +43,11 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - name: Checkout repository
+      - name: Checkout authoritative main
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.ref_name }}
+          ref: main
 
       - name: Fetch tags
         run: git fetch --tags --force --prune origin
@@ -59,45 +59,31 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Determine release versions
+      - name: Determine release versions from repository state
         id: versions
+        env:
+          NEXT_VERSION_INCREMENT: ${{ inputs.next_version_increment }}
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_VERSION='${{ inputs.release_version }}'
-          NEXT_VERSION_INPUT='${{ inputs.next_development_version }}'
-
-          if ! [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::release_version must use X.Y.Z without a leading v"
-            exit 1
-          fi
 
           CURRENT_VERSION=$(python3 .github/scripts/project-version.py get)
-          if [[ "$CURRENT_VERSION" != *-SNAPSHOT ]]; then
-            echo "::error::Current project version must be a SNAPSHOT, but was $CURRENT_VERSION"
+          if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
+            echo "::error::Current project version must use X.Y.Z-SNAPSHOT, but was $CURRENT_VERSION"
             exit 1
           fi
 
-          CURRENT_BASE="${CURRENT_VERSION%-SNAPSHOT}"
-          if [[ "$CURRENT_BASE" != "$RELEASE_VERSION" ]]; then
-            if [[ '${{ inputs.dry_run }}' == 'true' ]]; then
-              echo "::warning::Release $RELEASE_VERSION does not match current SNAPSHOT base $CURRENT_BASE"
-            else
-              echo "::error::Release $RELEASE_VERSION does not match current SNAPSHOT base $CURRENT_BASE"
+          RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+          IFS='.' read -r major minor patch <<< "$RELEASE_VERSION"
+          case "$NEXT_VERSION_INCREMENT" in
+            patch) NEXT_VERSION="${major}.${minor}.$((patch + 1))-SNAPSHOT" ;;
+            minor) NEXT_VERSION="${major}.$((minor + 1)).0-SNAPSHOT" ;;
+            major) NEXT_VERSION="$((major + 1)).0.0-SNAPSHOT" ;;
+            *)
+              echo "::error::Unsupported next_version_increment '$NEXT_VERSION_INCREMENT'"
               exit 1
-            fi
-          fi
-
-          if [[ -n "$NEXT_VERSION_INPUT" ]]; then
-            NEXT_VERSION="$NEXT_VERSION_INPUT"
-          else
-            IFS='.' read -r major minor patch <<< "$RELEASE_VERSION"
-            NEXT_VERSION="${major}.${minor}.$((patch + 1))-SNAPSHOT"
-          fi
-          if ! [[ "$NEXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
-            echo "::error::next_development_version must use X.Y.Z-SNAPSHOT"
-            exit 1
-          fi
+              ;;
+          esac
 
           if git ls-remote --tags origin | grep -q "refs/tags/v${RELEASE_VERSION}$"; then
             echo "::error::Tag v${RELEASE_VERSION} already exists on remote"
@@ -107,7 +93,7 @@ jobs:
           echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "release=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           echo "next=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "base_branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          echo "base_branch=main" >> "$GITHUB_OUTPUT"
 
           {
             echo "## Release version plan"
@@ -117,6 +103,7 @@ jobs:
             echo "| Current project version | \`$CURRENT_VERSION\` |"
             echo "| Release version | \`$RELEASE_VERSION\` |"
             echo "| Next development version | \`$NEXT_VERSION\` |"
+            echo "| Increment | \`$NEXT_VERSION_INCREMENT\` |"
             echo "| Dry run | \`${{ inputs.dry_run }}\` |"
             echo "| Skip tests | \`${{ inputs.skip_tests }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -367,9 +354,9 @@ jobs:
       - name: Release status summary
         if: always()
         env:
-          RELEASE_VERSION: ${{ steps.versions.outputs.release || inputs.release_version }}
+          RELEASE_VERSION: ${{ steps.versions.outputs.release }}
           NEXT_VERSION: ${{ steps.versions.outputs.next }}
-          BASE_BRANCH: ${{ steps.versions.outputs.base_branch || github.ref_name }}
+          BASE_BRANCH: ${{ steps.versions.outputs.base_branch }}
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_TESTS: ${{ inputs.skip_tests }}
         run: |
