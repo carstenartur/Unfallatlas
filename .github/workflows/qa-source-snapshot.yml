@@ -1,14 +1,15 @@
 name: QA source snapshot
 
 on:
-  push:
-    branches: [fix/restore-core-data-media-contracts]
+  pull_request:
+    branches: [main]
     paths:
       - '.github/workflows/qa-source-snapshot.yml'
 
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 jobs:
   snapshot:
@@ -49,4 +50,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
         run: |
-          gh pr comment 593 --body "Temporary QA source snapshot artifact: ${ARTIFACT_ID} (commit ${{ github.sha }})."
+          gh pr comment 593 --body "Temporary QA source snapshot artifact: ${ARTIFACT_ID} (commit ${{ github.event.pull_request.head.sha }})."
