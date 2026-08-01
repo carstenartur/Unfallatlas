@@ -1,0 +1,127 @@
+name: Apply release version contract migration
+
+on:
+  push:
+    branches: [ fix/derive-release-versions ]
+    paths:
+      - '.github/workflows/apply-release-contract-migration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/derive-release-versions
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Replace free-form release inputs with repository-derived versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/deploy-release.yml')
+          text = path.read_text(encoding='utf-8')
+
+          old_inputs = """      release_version:
+                description: 'Release version without leading v, for example 2.1.4. Must match the current SNAPSHOT base.'
+                required: true
+                type: string
+              next_development_version:
+                description: 'Next development version, for example 2.1.5-SNAPSHOT. Leave empty to increment patch.'
+                required: false
+                type: string
+                default: ''
+          """
+          new_inputs = """      next_version_increment:
+                description: 'Select how the development version advances after this release'
+                required: true
+                type: choice
+                default: patch
+                options:
+                  - patch
+                  - minor
+                  - major
+          """
+          if text.count(old_inputs) != 1:
+              raise SystemExit('Expected exactly one free-form release input block')
+          text = text.replace(old_inputs, new_inputs)
+
+          old_checkout = "          ref: ${{ github.ref_name }}\n"
+          if text.count(old_checkout) != 1:
+              raise SystemExit('Expected exactly one release checkout ref')
+          text = text.replace(old_checkout, "          ref: main\n")
+
+          start_marker = "      - name: Determine release versions\n"
+          end_marker = "      - name: Configure git identity\n"
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          replacement = """      - name: Determine release versions from repository state
+                id: versions
+                env:
+                  NEXT_VERSION_INCREMENT: ${{ inputs.next_version_increment }}
+                shell: bash
+                run: |
+                  set -euo pipefail
+
+                  CURRENT_VERSION=$(python3 .github/scripts/project-version.py get)
+                  if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
+                    echo "::error::Current project version must use X.Y.Z-SNAPSHOT, but was $CURRENT_VERSION"
+                    exit 1
+                  fi
+
+                  RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+                  IFS='.' read -r major minor patch <<< "$RELEASE_VERSION"
+                  case "$NEXT_VERSION_INCREMENT" in
+                    patch) NEXT_VERSION="${major}.${minor}.$((patch + 1))-SNAPSHOT" ;;
+                    minor) NEXT_VERSION="${major}.$((minor + 1)).0-SNAPSHOT" ;;
+                    major) NEXT_VERSION="$((major + 1)).0.0-SNAPSHOT" ;;
+                    *)
+                      echo "::error::Unsupported next_version_increment '$NEXT_VERSION_INCREMENT'"
+                      exit 1
+                      ;;
+                  esac
+
+                  if git ls-remote --tags origin | grep -q "refs/tags/v${RELEASE_VERSION}$"; then
+                    echo "::error::Tag v${RELEASE_VERSION} already exists on remote"
+                    exit 1
+                  fi
+
+                  echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+                  echo "release=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+                  echo "next=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+                  echo "base_branch=main" >> "$GITHUB_OUTPUT"
+
+                  {
+                    echo "## Release version plan"
+                    echo
+                    echo "| Field | Value |"
+                    echo "|---|---|"
+                    echo "| Current project version | \`$CURRENT_VERSION\` |"
+                    echo "| Release version | \`$RELEASE_VERSION\` |"
+                    echo "| Next development version | \`$NEXT_VERSION\` |"
+                    echo "| Increment | \`$NEXT_VERSION_INCREMENT\` |"
+                    echo "| Dry run | \`${{ inputs.dry_run }}\` |"
+                    echo "| Skip tests | \`${{ inputs.skip_tests }}\` |"
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+          """
+          text = text[:start] + replacement + text[end:]
+
+          if 'inputs.release_version' in text or 'inputs.next_development_version' in text:
+              raise SystemExit('Free-form release version reference remains')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          rm .github/workflows/apply-release-contract-migration.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-release.yml .github/workflows/apply-release-contract-migration.yml
+          git commit -m 'Derive release versions from repository state'
+          git push origin HEAD:fix/derive-release-versions
