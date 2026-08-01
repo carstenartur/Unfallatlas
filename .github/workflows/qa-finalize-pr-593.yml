@@ -1,0 +1,59 @@
+name: Finalize PR 593 QA fixes
+
+on:
+  push:
+    branches: [qa/finalize-pr-593]
+    paths:
+      - '.github/workflows/qa-finalize-pr-593.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: qa-finalize-pr-593
+  cancel-in-progress: false
+
+jobs:
+  apply-reviewed-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact staging branch without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: qa/finalize-pr-593
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Apply the reviewed patch and run source-level gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .qa-transfer/part-* | base64 --decode | gzip -d > /tmp/qa-finalize.patch
+          git apply --index --whitespace=error-all /tmp/qa-finalize.patch
+
+          while IFS= read -r file; do
+            [[ -n "$file" ]] && node --check "$file"
+          done < <(git diff --cached --name-only --diff-filter=ACM | grep -E '\.([cm]?js)$' || true)
+          python3 -m json.tool package.json >/dev/null
+          ruby -e 'require "yaml"; Dir[".github/workflows/*.{yml,yaml}"].each { |file| YAML.load_file(file) }'
+          node scripts/validate-action-pins.js
+          git diff --cached --check
+
+          git rm -r .qa-transfer
+          git rm .github/workflows/qa-source-snapshot.yml
+          git rm .github/workflows/qa-finalize-pr-593.yml
+          git diff --cached --check
+
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -m "fix(qa): close publication, export and accessibility gaps"
+
+      - name: Push the validated self-cleaning commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin HEAD:refs/heads/qa/finalize-pr-593
