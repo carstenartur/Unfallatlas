@@ -1,0 +1,38 @@
+name: QA source snapshot
+
+on:
+  push:
+    branches: [fix/restore-core-data-media-contracts]
+    paths:
+      - '.github/workflows/qa-source-snapshot.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch without credentials
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Create source-only archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=zip --output=qa-source-snapshot.zip HEAD -- \
+            README.md package.json pom.xml SECURITY.md TESTING.md ARCHITECTURE.md \
+            .github/workflows scripts tests js css werkbank_v2.html \
+            qa-system-tests server/cities data docs
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: qa-source-snapshot-${{ github.sha }}
+          path: qa-source-snapshot.zip
+          if-no-files-found: error
+          retention-days: 1
