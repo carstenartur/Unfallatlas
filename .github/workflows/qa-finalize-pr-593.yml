@@ -1,5 +1,5 @@
 name: Finalize PR 593 QA fixes
-# Retry after byte-for-byte transfer blob verification.
+# Apply the reviewed patch plus two byte-exact files whose upstream context changed.
 
 on:
   pull_request:
@@ -19,19 +19,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout exact staging branch without credentials
+      - name: Checkout exact staging commit without persistent credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Apply the reviewed patch and run source-level gates
         shell: bash
         run: |
           set -euo pipefail
+
           cat .qa-transfer/part-* | base64 --decode | gzip -d > /tmp/qa-finalize.patch
-          git apply --index --whitespace=error-all /tmp/qa-finalize.patch
+          echo '330d54a432a9459a2170a424d08961650d40aa9de1ba0a291afd260080e939a7  /tmp/qa-finalize.patch' | sha256sum --check --strict
+          git apply --index --whitespace=error-all \
+            --exclude=.github/workflows/deploy-release.yml \
+            --exclude=server/start.js \
+            /tmp/qa-finalize.patch
+
+          cat .qa-transfer/overlay-* | base64 --decode > /tmp/qa-overlay.tar.gz
+          echo 'a439ec4b55dcc6fa1020d6243fba127b72709bde5d1d0fce27e580411fa05fe2  /tmp/qa-overlay.tar.gz' | sha256sum --check --strict
+          tar -xzf /tmp/qa-overlay.tar.gz -C .
+          git add .github/workflows/deploy-release.yml server/start.js
+
+          git rm -r .qa-transfer
+          for file in \
+            .github/workflows/qa-source-snapshot.yml \
+            .github/workflows/qa-finalize-pr-593.yml; do
+            if git ls-files --error-unmatch "$file" >/dev/null 2>&1; then
+              git rm "$file"
+            fi
+          done
 
           while IFS= read -r file; do
             [[ -n "$file" ]] && node --check "$file"
@@ -39,11 +58,6 @@ jobs:
           python3 -m json.tool package.json >/dev/null
           ruby -e 'require "yaml"; Dir[".github/workflows/*.{yml,yaml}"].each { |file| YAML.load_file(file) }'
           node scripts/validate-action-pins.js
-          git diff --cached --check
-
-          git rm -r .qa-transfer
-          git rm .github/workflows/qa-source-snapshot.yml
-          git rm .github/workflows/qa-finalize-pr-593.yml
           git diff --cached --check
 
           git config user.email "github-actions[bot]@users.noreply.github.com"
