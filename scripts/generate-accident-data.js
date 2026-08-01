@@ -51,19 +51,19 @@ function parseArgs(argv) {
   return args;
 }
 
-function isExistingArtifactValid(outDir, city, minFeatures, requiredYear) {
+function isExistingArtifactValid(outDir, city, minFeatures, requiredYears) {
   const slug = slugify(city);
   const logicalPath = path.join(outDir, `output_all_years_${slug}.geojson`);
   const validation = validateGeoJsonArtifact(logicalPath, {
     gzipOnly: false,
     minFeatures,
-    requiredYears: requiredYear == null ? [] : [requiredYear],
+    requiredYears: requiredYears == null ? [] : requiredYears,
   });
   return validation.ok;
 }
 
-function shouldRegenerateCity(outDir, city, minFeatures, force, requiredYear) {
-  return force || !isExistingArtifactValid(outDir, city, minFeatures, requiredYear);
+function shouldRegenerateCity(outDir, city, minFeatures, force, requiredYears) {
+  return force || !isExistingArtifactValid(outDir, city, minFeatures, requiredYears);
 }
 
 function syncZipCache(sourceDir, targetDir) {
@@ -134,7 +134,7 @@ function stageCityOutputs(repoRoot, city, tempRoot, minFeatures, years) {
   const validation = validateGeoJsonArtifact(geojsonPath, {
     gzipOnly: false,
     minFeatures,
-    requiredYears: [years.at(-1)],
+    requiredYears: years,
   });
   if (!validation.ok) {
     throw new Error(
@@ -179,13 +179,13 @@ async function main(argv) {
   );
 
   for (const city of cities) {
-    if (!shouldRegenerateCity(args.outDir, city, args.minFeatures, args.force, highestYear)) {
+    if (!shouldRegenerateCity(args.outDir, city, args.minFeatures, args.force, years)) {
       skipped += 1;
       process.stdout.write(`[generate-accident-data] SKIP ${city} (existing artefact is valid; use --force to refresh)\n`);
       continue;
     }
 
-    if (args.force && isExistingArtifactValid(args.outDir, city, args.minFeatures, highestYear)) {
+    if (args.force && isExistingArtifactValid(args.outDir, city, args.minFeatures, years)) {
       process.stdout.write(`[generate-accident-data] FORCE ${city} (ignoring valid existing artefact)\n`);
     }
 
