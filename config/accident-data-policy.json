@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "contract": "unfallwerkbank-accident-data-policy/v1",
+  "source": {
+    "publisher": "Statistische Ämter des Bundes und der Länder",
+    "datasetTitle": "Unfallatlas Deutschland",
+    "officialIndexUrl": "https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/",
+    "officialStatusUrl": "https://unfallatlas.statistikportal.de/",
+    "licenseId": "DL-DE-BY-2.0",
+    "licenseUrl": "https://www.govdata.de/dl-de/by-2-0"
+  },
+  "firstYear": 2016,
+  "expectedLatestYear": 2025,
+  "officialReleaseDate": "2026-07-07",
+  "minimumConfiguredCities": 26,
+  "regressionPolicy": {
+    "minimumRetainedCityFeatureFraction": 0.8,
+    "minimumRetainedScenarioFraction": 0.8
+  },
+  "canonicalScenarioMinimums": {
+    "hannover-default-or": 10000,
+    "bonn-bike-car-and": 1000,
+    "bonn-bike-solo": 700
+  }
+}
