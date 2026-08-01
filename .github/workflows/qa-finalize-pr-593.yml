@@ -1,5 +1,5 @@
 name: Finalize PR 593 QA fixes
-# Apply the reviewed patch plus two byte-exact files whose upstream context changed.
+# Produce a byte-exact handoff because the workflow token cannot update workflow files.
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
       - '.github/workflows/qa-finalize-pr-593.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: qa-finalize-pr-593
@@ -64,11 +64,77 @@ jobs:
           git config user.name "github-actions[bot]"
           git commit -m "fix(qa): close publication, export and accessibility gaps"
 
-      - name: Push the validated self-cleaning commit
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Create a verified clean-tree handoff
         shell: bash
         run: |
           set -euo pipefail
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin HEAD:refs/heads/qa/finalize-pr-593
+          mkdir -p .build/qa-handoff
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import tarfile
+
+          ROOT = pathlib.Path('.').resolve()
+          OUT = ROOT / '.build' / 'qa-handoff'
+
+          def changed(filter_code):
+              raw = subprocess.check_output([
+                  'git', 'diff', '--name-only', '-z', f'--diff-filter={filter_code}', 'HEAD^', 'HEAD'
+              ])
+              return [item.decode('utf-8') for item in raw.split(b'\0') if item]
+
+          files = changed('ACM')
+          deleted = changed('D')
+          entries = []
+          archive = OUT / 'clean-files.tar.gz'
+          with tarfile.open(archive, 'w:gz', format=tarfile.PAX_FORMAT) as tar:
+              for relative in files:
+                  path = ROOT / relative
+                  data = path.read_bytes()
+                  mode = subprocess.check_output([
+                      'git', 'ls-tree', 'HEAD', '--', relative
+                  ], text=True).split()[0]
+                  entries.append({
+                      'path': relative,
+                      'mode': mode,
+                      'bytes': len(data),
+                      'sha256': hashlib.sha256(data).hexdigest(),
+                  })
+                  info = tar.gettarinfo(str(path), arcname=relative)
+                  info.uid = 0
+                  info.gid = 0
+                  info.uname = ''
+                  info.gname = ''
+                  with path.open('rb') as stream:
+                      tar.addfile(info, stream)
+
+          manifest = {
+              'schemaVersion': 1,
+              'contract': 'unfallwerkbank-clean-tree-handoff/v1',
+              'targetParent': '1c98efe89a4eba863c572ba655112b492718b85c',
+              'validatedCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'files': entries,
+              'deleted': deleted,
+          }
+          manifest_path = OUT / 'manifest.json'
+          manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          checksums = {
+              name: hashlib.sha256((OUT / name).read_bytes()).hexdigest()
+              for name in ['clean-files.tar.gz', 'manifest.json']
+          }
+          (OUT / 'SHA256SUMS').write_text(
+              ''.join(f"{digest}  {name}\n" for name, digest in checksums.items()),
+              encoding='ascii',
+          )
+          PY
+          (cd .build/qa-handoff && sha256sum --check --strict SHA256SUMS)
+
+      - name: Upload the clean-tree handoff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qa-clean-tree-handoff-${{ github.event.pull_request.head.sha }}
+          path: .build/qa-handoff/
+          if-no-files-found: error
+          retention-days: 1
