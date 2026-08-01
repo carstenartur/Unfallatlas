@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   snapshot:
@@ -35,9 +36,17 @@ jobs:
             "${accident_files[@]}"
 
       - name: Upload source snapshot
+        id: upload
         uses: actions/upload-artifact@v7
         with:
           name: qa-source-snapshot-${{ github.sha }}
           path: qa-source-snapshot.zip
           if-no-files-found: error
           retention-days: 1
+
+      - name: Publish artifact identifier for the active QA repair
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+        run: |
+          gh pr comment 593 --body "Temporary QA source snapshot artifact: ${ARTIFACT_ID} (commit ${{ github.sha }})."
