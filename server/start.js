@@ -1,12 +1,8 @@
 'use strict';
 
 /**
- * Production entry point.
- *
- * server/index.js predates the optional runtime integrations and creates the
- * Express app internally. This small preload wrapper attaches those boundaries
- * without duplicating the large server file. A later server refactor can replace
- * this with an exported createApp() factory without changing the public API.
+ * Production entry point. It installs security and optional runtime
+ * integrations before the legacy Express application is evaluated.
  */
 
 const path = require('path');
@@ -21,15 +17,39 @@ const {
   installMediaExportProvenanceHttp,
 } = require('./media-export-provenance-http');
 
-// Install before index.js imports video-export.js. The latter captures
-// Playwright's chromium launcher during module evaluation, so the production
-// boundary must already be active at that point.
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https:",
+  "worker-src 'self' blob:",
+  "media-src 'self' blob:",
+  "form-action 'self'",
+  'upgrade-insecure-requests',
+].join('; ');
+
+function installSecurityHeaders(app) {
+  app.disable('x-powered-by');
+  app.use((_request, response, next) => {
+    response.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    response.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(self), payment=(), usb=()'
+    );
+    response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    next();
+  });
+}
+
 installVideoExportPlaywrightRuntime();
 
-// Keep the large, independently tested video implementation unchanged. The
-// wrapper consumes it, binds the final animation to the browser SourceManifest
-// and verifies the visible source strip after encoding. Redirect only the module
-// cache entry that server/index.js imports.
 const videoExportModulePath = require.resolve('./video-export.js');
 require(videoExportModulePath);
 const videoExportWithProvenance = require('./video-export-with-provenance.js');
@@ -40,15 +60,8 @@ const originalExpress = require(expressModulePath);
 
 function expressWithRuntimeIntegrations(...args) {
   const app = originalExpress(...args);
-
-  // Register synchronously so the sidecar route and sendFile boundary precede
-  // the legacy /api/export-video handler and the static-site middleware.
+  installSecurityHeaders(app);
   installMediaExportProvenanceHttp(app);
-
-  // The JSON-named status alias must also precede static middleware. The static
-  // distribution contains a same-path fallback document, while Docker redirects
-  // this request to the dynamic API. Full job routes stay deferred until the
-  // legacy application has installed JSON body parsing.
   installContextGenerationCapabilityAlias(app);
 
   setImmediate(() => {
@@ -62,8 +75,6 @@ function expressWithRuntimeIntegrations(...args) {
   return app;
 }
 
-// Preserve Express' static helpers (`express.json`, `express.static`, Router,
-// …), but never redefine intrinsic Function properties on the wrapper.
 const intrinsicFunctionKeys = new Set(['length', 'name', 'prototype', 'arguments', 'caller']);
 for (const key of Reflect.ownKeys(originalExpress)) {
   if (intrinsicFunctionKeys.has(key)) continue;
@@ -74,3 +85,5 @@ Object.setPrototypeOf(expressWithRuntimeIntegrations, Object.getPrototypeOf(orig
 require.cache[expressModulePath].exports = expressWithRuntimeIntegrations;
 
 require('./index.js');
+
+module.exports = { CONTENT_SECURITY_POLICY, installSecurityHeaders };

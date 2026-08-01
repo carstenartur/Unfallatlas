@@ -23,6 +23,9 @@ async function loadPage(page, params = '') {
   // Pixel capture is gated later by waitForScreenshotReady(), so navigation
   // only needs the deterministic DOM boundary here.
   await page.goto('/werkbank_v2.html' + params, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    document.documentElement.dataset.mapSourceMode = 'fixture';
+  });
 }
 
 /** Hilfsfunktion: Warten bis Städte geladen sind (prüft auch ob Lade-Placeholder verschwunden) */

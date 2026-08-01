@@ -67,7 +67,7 @@ describe('canonical screenshot evidence policy', () => {
         applicationFingerprint: buildManifest.application.fingerprint,
         dataFingerprint: buildManifest.data.fingerprint,
       },
-      criteria: { city: 'Hannover', layers: ['cluster'], requireCompleteCoverage: true },
+      criteria: { city: 'Hannover', layers: ['cluster'], requireCompleteCoverage: true, mapSourceMode: 'fixture' },
       lifecycle,
     });
     return { root, screenshotFile, buildFile, evidenceFile };

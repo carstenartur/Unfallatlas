@@ -65,6 +65,17 @@ describe('accident data publication is fail-closed and atomic', () => {
     expect(workflow).toContain('automation/accident-data-refresh');
   });
 
+  test('the write job resets its branch before applying the verified payload', () => {
+    const workflow = read('.github/workflows/generate-and-commit.yml');
+    const publishJob = workflow.indexOf('publish-pull-request:');
+    const reset = workflow.indexOf('git switch -C "$PUBLISH_BRANCH" "$GITHUB_SHA"', publishJob);
+    const apply = workflow.indexOf('Verify and apply package without executing repository code', publishJob);
+    const stage = workflow.indexOf('Stage exactly the verified allowlist', publishJob);
+    expect(reset).toBeGreaterThan(publishJob);
+    expect(apply).toBeGreaterThan(reset);
+    expect(stage).toBeGreaterThan(apply);
+  });
+
   test('mandatory evidence and immutable payload fail when absent', () => {
     const workflow = read('.github/workflows/generate-and-commit.yml');
     expect(workflow).toContain('accident-data-publication-${{ github.run_id }}');

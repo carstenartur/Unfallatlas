@@ -22,7 +22,7 @@
   const LEGACY_SOURCE_TEXT =
     "Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).";
   const SOURCE_INTRO =
-    "Die folgenden Angaben stammen aus dem für diesen Export eingefrorenen Quellenmanifest. Datensatz, Lizenz, Zeitstand und Verarbeitung sind dadurch gemeinsam mit den exportierten Fallzahlen nachvollziehbar.";
+    "Dieser Abschnitt nennt Datenquellen, Zeitstände, Lizenzen und wesentliche Verarbeitungsschritte in verständlicher Form. Der vollständige maschinenlesbare Nachweis ist in den Dokumentmetadaten eingebettet.";
 
   class DocumentExportProvenanceError extends Error {
     constructor(code, message, details) {
@@ -56,6 +56,72 @@
   function nonEmpty(value, fallback = "—") {
     const normalized = String(value == null ? "" : value).trim();
     return normalized || fallback;
+  }
+
+  function shortHash(value) {
+    const normalized = nonEmpty(value, "");
+    return normalized ? `${normalized.slice(0, 12)}…` : "—";
+  }
+
+  function readableTimestamp(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return nonEmpty(value);
+    return new Intl.DateTimeFormat("de-DE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Europe/Berlin",
+    }).format(date);
+  }
+
+  const FILTER_LABELS = Object.freeze({
+    severity: "Unfallschwere",
+    dayType: "Wochentage",
+    roadCondition: "Fahrbahnzustand",
+    hourFrom: "Uhrzeit von",
+    hourTo: "Uhrzeit bis",
+    involvementMode: "Beteiligungsmodus",
+    includeCyclist: "Radverkehr",
+    includePedestrian: "Fußverkehr",
+    includeCar: "Pkw",
+    includeMotorcycle: "Motorrad",
+    includeGkfz: "Lkw",
+    includeSonstig: "Sonstige",
+  });
+
+  function readableFilterValue(key, value) {
+    if (typeof value === "boolean") return value ? "einbezogen" : "nicht einbezogen";
+    const text = String(value == null ? "" : value);
+    const mappings = {
+      all: "alle",
+      and: "UND – alle gewählten Beteiligungen",
+      or: "ODER – mindestens eine gewählte Beteiligung",
+      solo: "Alleinunfall",
+      weekday: "Montag bis Freitag",
+      weekend: "Samstag und Sonntag",
+    };
+    if (Object.prototype.hasOwnProperty.call(mappings, text)) return mappings[text];
+    if (key === "hourFrom" || key === "hourTo") return `${text}:00 Uhr`;
+    return text || "nicht gesetzt";
+  }
+
+  function readableFilters(value) {
+    if (!value || typeof value !== "object") return "keine zusätzlichen Filter";
+    const hidden = new Set(["dataExportInvolvementPolicy"]);
+    const entries = Object.entries(value)
+      .filter(([key]) => !hidden.has(key))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${FILTER_LABELS[key] || key}: ${readableFilterValue(key, item)}`);
+    return entries.length ? entries.join(" · ") : "keine zusätzlichen Filter";
+  }
+
+  function readableBounds(value) {
+    if (!value || typeof value !== "object") return "nicht angegeben";
+    const south = Number(value.south);
+    const west = Number(value.west);
+    const north = Number(value.north);
+    const east = Number(value.east);
+    if (![south, west, north, east].every(Number.isFinite)) return "nicht angegeben";
+    return `${south.toFixed(5)}–${north.toFixed(5)}° N, ${west.toFixed(5)}–${east.toFixed(5)}° E`;
   }
 
   function safeLink(value, path) {
@@ -148,13 +214,15 @@
       buildFingerprint: nonEmpty(manifest.buildFingerprint),
       dataFingerprint: nonEmpty(manifest.dataFingerprint),
       sourceManifestSha256: nonEmpty(normalized.sha256),
+      sourceManifestJson: JSON.stringify(manifest),
+      proofCode: shortHash(normalized.sha256),
       scenario: Object.freeze({
         city: nonEmpty(manifest.scenario?.city),
         years: Array.isArray(manifest.scenario?.years) && manifest.scenario.years.length
           ? manifest.scenario.years.join(", ")
           : "nicht angegeben",
-        bounds: compactObject(manifest.scenario?.bounds, "nicht angegeben"),
-        filters: compactObject(manifest.scenario?.filters, "keine dokumentierten Filter"),
+        bounds: readableBounds(manifest.scenario?.bounds),
+        filters: readableFilters(manifest.scenario?.filters),
       }),
       sources: Object.freeze(manifest.sources.map(sourceView)),
       transformations: Object.freeze((manifest.transformations || []).map(transformationView)),
@@ -172,93 +240,64 @@
         text: [
           { text: "Dokument-ID: ", bold: true },
           view.artifactId,
-          { text: " · SourceManifest SHA-256: ", bold: true },
-          view.sourceManifestSha256,
+          { text: " · Nachweis: ", bold: true },
+          view.proofCode,
         ],
-        margin: [0, 0, 0, 6],
+        margin: [0, 0, 0, 4],
       },
       {
-        text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`,
-        margin: [0, 0, 0, 3],
+        text: `Erstellt: ${readableTimestamp(view.generatedAt)} · Anwendung: ${view.applicationVersion}`,
+        margin: [0, 0, 0, 7],
       },
-      { text: `Build-Fingerprint: ${view.buildFingerprint}`, margin: [0, 0, 0, 2] },
-      { text: `Daten-Fingerprint: ${view.dataFingerprint}`, margin: [0, 0, 0, 8] },
-      { text: "Auswertungsszenario", bold: true, margin: [0, 4, 0, 3] },
+      { text: "Auswertung", bold: true, margin: [0, 4, 0, 3] },
       {
         text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`,
         margin: [0, 0, 0, 2],
       },
-      { text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`, margin: [0, 0, 0, 2] },
-      { text: `Aktive Filter: ${view.scenario.filters}`, margin: [0, 0, 0, 8] },
+      { text: `Untersuchungsbereich: ${view.scenario.bounds}`, margin: [0, 0, 0, 2] },
+      { text: `Filter: ${view.scenario.filters}`, margin: [0, 0, 0, 8] },
     ];
 
     view.sources.forEach((source, index) => {
       nodes.push({
         text: [
           { text: `${index + 1}. ${source.datasetTitle}`, bold: true },
-          ` — ${source.publisher} [${source.sourceId}]`,
+          ` — ${source.publisher}`,
         ],
         margin: [0, index ? 6 : 2, 0, 2],
       });
-      const links = [pdfLink("Datensatzseite öffnen", source.datasetUrl)];
+      const links = [pdfLink("Datensatz", source.datasetUrl)];
       if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {
-        links.push(" · ", pdfLink("Datenzugang öffnen", source.distributionUrl));
+        links.push(" · ", pdfLink("Datenzugang", source.distributionUrl));
       }
-      links.push(
-        " · ",
-        pdfLink(`Lizenz: ${source.licenseName} (${source.licenseId})`, source.licenseUrl),
-      );
+      links.push(" · ", pdfLink(`Lizenz ${source.licenseId}`, source.licenseUrl));
       nodes.push({ text: links, margin: [0, 0, 0, 2] });
-      nodes.push({
-        text: `Rolle: ${source.role} · Abruf/Erzeugung: ${source.retrievedAt}`,
-        margin: [0, 0, 0, 2],
-      });
       const coverage = [
-        source.temporalCoverage ? `zeitlich ${source.temporalCoverage}` : null,
-        source.spatialCoverage ? `räumlich ${source.spatialCoverage}` : null,
-        source.versionOrPublicationDate
-          ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
-          : null,
+        source.temporalCoverage ? `Zeitraum ${source.temporalCoverage}` : null,
+        source.spatialCoverage ? `Gebiet ${source.spatialCoverage}` : null,
+        source.versionOrPublicationDate ? `Stand ${source.versionOrPublicationDate}` : null,
       ].filter(Boolean);
-      if (coverage.length) nodes.push({
-        text: `Abdeckung: ${coverage.join(" · ")}`,
-        margin: [0, 0, 0, 2],
-      });
+      if (coverage.length) nodes.push({ text: coverage.join(" · "), margin: [0, 0, 0, 2] });
       if (source.requiredAttribution) nodes.push({
-        text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
+        text: `Quellenvermerk: ${source.requiredAttribution}`,
         margin: [0, 0, 0, 2],
       });
-      if (source.contentHash) nodes.push({
-        text: `Quellbestand-Hash: ${source.contentHash}`,
-        margin: [0, 0, 0, 2],
-      });
-      nodes.push({
-        text: source.changedOrDerived
-          ? `Gefiltert/transformiert: ja${source.changeNotice ? ` · ${source.changeNotice}` : ""}`
-          : "Gefiltert/transformiert: nein",
+      if (source.changedOrDerived && source.changeNotice) nodes.push({
+        text: `Verarbeitung: ${source.changeNotice}`,
         margin: [0, 0, 0, source.qualityNotes.length ? 2 : 5],
       });
       source.qualityNotes.forEach((note) => nodes.push({
-        text: `Qualität/Grenzen: ${note}`,
+        text: `Grenzen: ${note}`,
         margin: [0, 0, 0, 2],
       }));
     });
 
-    nodes.push({ text: "Transformationen", bold: true, margin: [0, 6, 0, 3] });
     if (view.transformations.length) {
+      nodes.push({ text: "Verarbeitungsschritte", bold: true, margin: [0, 6, 0, 3] });
       view.transformations.forEach((item) => nodes.push({
-        text:
-          `• ${item.label} [${item.transformationId}]: ${item.description} ` +
-          `Quellen: ${item.sourceIds}. Ausgabefelder: ${item.outputFields}. ` +
-          `${item.softwareVersion ? `Software: ${item.softwareVersion}. ` : ""}` +
-          `Parameter: ${item.parameters}.`,
+        text: `• ${item.label}: ${item.description}`,
         margin: [0, 0, 0, 2],
       }));
-    } else {
-      nodes.push({
-        text: "Keine zusätzlichen Transformationen dokumentiert.",
-        margin: [0, 0, 0, 4],
-      });
     }
     return nodes;
   }
@@ -310,102 +349,75 @@
         children: [
           docxTextRun(docx, "Dokument-ID: ", { bold: true }),
           docxTextRun(docx, view.artifactId),
-          docxTextRun(docx, " · SourceManifest SHA-256: ", { bold: true }),
-          docxTextRun(docx, view.sourceManifestSha256),
+          docxTextRun(docx, " · Nachweis: ", { bold: true }),
+          docxTextRun(docx, view.proofCode),
         ],
         spacing: { after: 80 },
       }),
       new docx.Paragraph({
-        text: `Erzeugt: ${view.generatedAt} · Anwendung: ${view.applicationVersion}`,
-        spacing: { after: 40 },
+        text: `Erstellt: ${readableTimestamp(view.generatedAt)} · Anwendung: ${view.applicationVersion}`,
+        spacing: { after: 100 },
       }),
-      new docx.Paragraph({ text: `Build-Fingerprint: ${view.buildFingerprint}`, spacing: { after: 40 } }),
-      new docx.Paragraph({ text: `Daten-Fingerprint: ${view.dataFingerprint}`, spacing: { after: 100 } }),
       new docx.Paragraph({
-        children: [docxTextRun(docx, "Auswertungsszenario", { bold: true })],
+        children: [docxTextRun(docx, "Auswertung", { bold: true })],
         spacing: { before: 80, after: 40 },
       }),
       new docx.Paragraph({
         text: `Stadt: ${view.scenario.city} · Jahrgänge: ${view.scenario.years}`,
         spacing: { after: 40 },
       }),
-      new docx.Paragraph({ text: `Räumlicher Ausschnitt: ${view.scenario.bounds}`, spacing: { after: 40 } }),
-      new docx.Paragraph({ text: `Aktive Filter: ${view.scenario.filters}`, spacing: { after: 120 } }),
+      new docx.Paragraph({ text: `Untersuchungsbereich: ${view.scenario.bounds}`, spacing: { after: 40 } }),
+      new docx.Paragraph({ text: `Filter: ${view.scenario.filters}`, spacing: { after: 120 } }),
     ];
 
     view.sources.forEach((source, index) => {
       nodes.push(new docx.Paragraph({
         children: [
           docxTextRun(docx, `${index + 1}. ${source.datasetTitle}`, { bold: true }),
-          docxTextRun(docx, ` — ${source.publisher} [${source.sourceId}]`),
+          docxTextRun(docx, ` — ${source.publisher}`),
         ],
         spacing: { before: index ? 100 : 40, after: 40 },
       }));
-      const links = [docxLink(docx, "Datensatzseite öffnen", source.datasetUrl)];
+      const links = [docxLink(docx, "Datensatz", source.datasetUrl)];
       if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {
         links.push(docxTextRun(docx, " · "));
-        links.push(docxLink(docx, "Datenzugang öffnen", source.distributionUrl));
+        links.push(docxLink(docx, "Datenzugang", source.distributionUrl));
       }
       links.push(docxTextRun(docx, " · "));
-      links.push(docxLink(
-        docx,
-        `Lizenz: ${source.licenseName} (${source.licenseId})`,
-        source.licenseUrl,
-      ));
+      links.push(docxLink(docx, `Lizenz ${source.licenseId}`, source.licenseUrl));
       nodes.push(new docx.Paragraph({ children: links, spacing: { after: 40 } }));
-      nodes.push(new docx.Paragraph({
-        text: `Rolle: ${source.role} · Abruf/Erzeugung: ${source.retrievedAt}`,
-        spacing: { after: 40 },
-      }));
       const coverage = [
-        source.temporalCoverage ? `zeitlich ${source.temporalCoverage}` : null,
-        source.spatialCoverage ? `räumlich ${source.spatialCoverage}` : null,
-        source.versionOrPublicationDate
-          ? `Version/Veröffentlichung ${source.versionOrPublicationDate}`
-          : null,
+        source.temporalCoverage ? `Zeitraum ${source.temporalCoverage}` : null,
+        source.spatialCoverage ? `Gebiet ${source.spatialCoverage}` : null,
+        source.versionOrPublicationDate ? `Stand ${source.versionOrPublicationDate}` : null,
       ].filter(Boolean);
       if (coverage.length) nodes.push(new docx.Paragraph({
-        text: `Abdeckung: ${coverage.join(" · ")}`,
+        text: coverage.join(" · "),
         spacing: { after: 40 },
       }));
       if (source.requiredAttribution) nodes.push(new docx.Paragraph({
-        text: `Vorgeschriebener Quellenvermerk: ${source.requiredAttribution}`,
+        text: `Quellenvermerk: ${source.requiredAttribution}`,
         spacing: { after: 40 },
       }));
-      if (source.contentHash) nodes.push(new docx.Paragraph({
-        text: `Quellbestand-Hash: ${source.contentHash}`,
-        spacing: { after: 40 },
-      }));
-      nodes.push(new docx.Paragraph({
-        text: source.changedOrDerived
-          ? `Gefiltert/transformiert: ja${source.changeNotice ? ` · ${source.changeNotice}` : ""}`
-          : "Gefiltert/transformiert: nein",
+      if (source.changedOrDerived && source.changeNotice) nodes.push(new docx.Paragraph({
+        text: `Verarbeitung: ${source.changeNotice}`,
         spacing: { after: source.qualityNotes.length ? 40 : 100 },
       }));
       source.qualityNotes.forEach((note) => nodes.push(new docx.Paragraph({
-        text: `Qualität/Grenzen: ${note}`,
+        text: `Grenzen: ${note}`,
         spacing: { after: 40 },
       })));
     });
 
-    nodes.push(new docx.Paragraph({
-      children: [docxTextRun(docx, "Transformationen", { bold: true })],
-      spacing: { before: 100, after: 40 },
-    }));
     if (view.transformations.length) {
+      nodes.push(new docx.Paragraph({
+        children: [docxTextRun(docx, "Verarbeitungsschritte", { bold: true })],
+        spacing: { before: 100, after: 40 },
+      }));
       view.transformations.forEach((item) => nodes.push(new docx.Paragraph({
-        text:
-          `• ${item.label} [${item.transformationId}]: ${item.description} ` +
-          `Quellen: ${item.sourceIds}. Ausgabefelder: ${item.outputFields}. ` +
-          `${item.softwareVersion ? `Software: ${item.softwareVersion}. ` : ""}` +
-          `Parameter: ${item.parameters}.`,
+        text: `• ${item.label}: ${item.description}`,
         spacing: { after: 40 },
       })));
-    } else {
-      nodes.push(new docx.Paragraph({
-        text: "Keine zusätzlichen Transformationen dokumentiert.",
-        spacing: { after: 80 },
-      }));
     }
     return nodes;
   }
@@ -438,7 +450,24 @@
     if (legacyIndex >= 0) content.splice(legacyIndex, 1, ...body);
     else if (headingIndex >= 0) content.splice(headingIndex + 1, 0, ...body);
     else content.push({ text: SOURCE_HEADING, style: "subheader", pageBreak: "before" }, ...body);
-    return { ...definition, content };
+    const info = {
+      ...(definition.info || {}),
+      title: definition.info?.title || `Unfallwerkbank – ${view.scenario.city}`,
+      subject: definition.info?.subject || "Verkehrssicherheitsanalyse",
+      creator: "Unfallwerkbank",
+      keywords: "Verkehrssicherheit, Unfallatlas, kommunale Planung",
+      UnfallwerkbankSourceManifestSha256: view.sourceManifestSha256,
+      UnfallwerkbankSourceManifest: view.sourceManifestJson,
+    };
+    return {
+      ...definition,
+      content,
+      info,
+      tagged: true,
+      displayTitle: true,
+      language: "de-DE",
+      version: definition.version || "1.7",
+    };
   }
 
   function createDocxProxy(docx, view) {
@@ -489,7 +518,20 @@
         }
         return { ...section, children };
       });
-      return new OriginalDocument({ ...options, sections });
+      const customProperties = [
+        ...(Array.isArray(options?.customProperties) ? options.customProperties : []),
+        { name: "UnfallwerkbankSourceManifestSha256", value: view.sourceManifestSha256 },
+        { name: "UnfallwerkbankSourceManifest", value: view.sourceManifestJson },
+      ];
+      return new OriginalDocument({
+        ...options,
+        title: options?.title || `Unfallwerkbank – ${view.scenario.city}`,
+        subject: options?.subject || "Verkehrssicherheitsanalyse",
+        creator: options?.creator || "Unfallwerkbank",
+        description: options?.description || SOURCE_INTRO,
+        customProperties,
+        sections,
+      });
     }
     WrappedDocument.prototype = OriginalDocument.prototype;
 

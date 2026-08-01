@@ -3,15 +3,20 @@ name: Release Workflow
 on:
   workflow_dispatch:
     inputs:
-      release_version:
-        description: 'Release version without leading v, for example 2.1.4. Must match the current SNAPSHOT base.'
-        required: true
-        type: string
       next_development_version:
-        description: 'Next development version, for example 2.1.5-SNAPSHOT. Leave empty to increment patch.'
+        description: 'Optional exact next version (X.Y.Z-SNAPSHOT); leave empty to use the increment choice'
         required: false
         type: string
         default: ''
+      next_version_increment:
+        description: 'Select the conventional next version when no exact version is supplied'
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
       skip_tests:
         description: 'Skip test execution during the release build'
         required: false
@@ -33,7 +38,7 @@ env:
   GH_TOKEN: ${{ github.token }}
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-main
   cancel-in-progress: false
 
 jobs:
@@ -43,61 +48,76 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - name: Checkout authoritative main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ github.ref_name }}
+          ref: main
 
       - name: Fetch tags
         run: git fetch --tags --force --prune origin
 
       - name: Set up Java 21 with Maven cache
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           java-version: '21'
           distribution: temurin
           cache: maven
 
-      - name: Determine release versions
+      - name: Determine release versions from repository state
         id: versions
+        env:
+          EXACT_NEXT_VERSION: ${{ inputs.next_development_version }}
+          NEXT_VERSION_INCREMENT: ${{ inputs.next_version_increment }}
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_VERSION='${{ inputs.release_version }}'
-          NEXT_VERSION_INPUT='${{ inputs.next_development_version }}'
-
-          if ! [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::release_version must use X.Y.Z without a leading v"
-            exit 1
-          fi
 
           CURRENT_VERSION=$(python3 .github/scripts/project-version.py get)
-          if [[ "$CURRENT_VERSION" != *-SNAPSHOT ]]; then
-            echo "::error::Current project version must be a SNAPSHOT, but was $CURRENT_VERSION"
+          if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
+            echo "::error::Current project version must use X.Y.Z-SNAPSHOT, but was $CURRENT_VERSION"
             exit 1
           fi
 
-          CURRENT_BASE="${CURRENT_VERSION%-SNAPSHOT}"
-          if [[ "$CURRENT_BASE" != "$RELEASE_VERSION" ]]; then
-            if [[ '${{ inputs.dry_run }}' == 'true' ]]; then
-              echo "::warning::Release $RELEASE_VERSION does not match current SNAPSHOT base $CURRENT_BASE"
-            else
-              echo "::error::Release $RELEASE_VERSION does not match current SNAPSHOT base $CURRENT_BASE"
+          RELEASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+          EXACT_NEXT_VERSION=$(python3 - <<'PY'
+          import os
+          print(os.environ.get('EXACT_NEXT_VERSION', '').strip())
+          PY
+          )
+          if [[ -n "$EXACT_NEXT_VERSION" ]]; then
+            if ! [[ "$EXACT_NEXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
+              echo "::error::next_development_version must use X.Y.Z-SNAPSHOT"
               exit 1
             fi
-          fi
-
-          if [[ -n "$NEXT_VERSION_INPUT" ]]; then
-            NEXT_VERSION="$NEXT_VERSION_INPUT"
+            NEXT_VERSION="$EXACT_NEXT_VERSION"
+            NEXT_VERSION_SOURCE=exact
           else
             IFS='.' read -r major minor patch <<< "$RELEASE_VERSION"
-            NEXT_VERSION="${major}.${minor}.$((patch + 1))-SNAPSHOT"
+            case "$NEXT_VERSION_INCREMENT" in
+              patch) NEXT_VERSION="${major}.${minor}.$((patch + 1))-SNAPSHOT" ;;
+              minor) NEXT_VERSION="${major}.$((minor + 1)).0-SNAPSHOT" ;;
+              major) NEXT_VERSION="$((major + 1)).0.0-SNAPSHOT" ;;
+              *)
+                echo "::error::Unsupported next_version_increment '$NEXT_VERSION_INCREMENT'"
+                exit 1
+                ;;
+            esac
+            NEXT_VERSION_SOURCE="$NEXT_VERSION_INCREMENT"
           fi
-          if ! [[ "$NEXT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT$ ]]; then
-            echo "::error::next_development_version must use X.Y.Z-SNAPSHOT"
-            exit 1
-          fi
+
+          RELEASE_VERSION="$RELEASE_VERSION" NEXT_VERSION="$NEXT_VERSION" python3 - <<'PY'
+          import os
+          release = tuple(map(int, os.environ['RELEASE_VERSION'].split('.')))
+          next_version = tuple(
+              map(int, os.environ['NEXT_VERSION'].removesuffix('-SNAPSHOT').split('.'))
+          )
+          if next_version <= release:
+              raise SystemExit(
+                  f"::error::Next development version {os.environ['NEXT_VERSION']} "
+                  f"must be newer than release {os.environ['RELEASE_VERSION']}"
+              )
+          PY
 
           if git ls-remote --tags origin | grep -q "refs/tags/v${RELEASE_VERSION}$"; then
             echo "::error::Tag v${RELEASE_VERSION} already exists on remote"
@@ -107,7 +127,7 @@ jobs:
           echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "release=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           echo "next=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "base_branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          echo "base_branch=main" >> "$GITHUB_OUTPUT"
 
           {
             echo "## Release version plan"
@@ -117,6 +137,7 @@ jobs:
             echo "| Current project version | \`$CURRENT_VERSION\` |"
             echo "| Release version | \`$RELEASE_VERSION\` |"
             echo "| Next development version | \`$NEXT_VERSION\` |"
+            echo "| Next-version source | \`$NEXT_VERSION_SOURCE\` |"
             echo "| Dry run | \`${{ inputs.dry_run }}\` |"
             echo "| Skip tests | \`${{ inputs.skip_tests }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -187,7 +208,7 @@ jobs:
 
       - name: Upload Maven test reports on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: release-maven-test-reports
           path: |
@@ -199,7 +220,7 @@ jobs:
           retention-days: 14
 
       - name: Upload release media QA evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ always() && hashFiles('out/qa/release-documentation-media.json') != '' }}
         with:
           name: release-documentation-media-report
@@ -367,9 +388,9 @@ jobs:
       - name: Release status summary
         if: always()
         env:
-          RELEASE_VERSION: ${{ steps.versions.outputs.release || inputs.release_version }}
+          RELEASE_VERSION: ${{ steps.versions.outputs.release }}
           NEXT_VERSION: ${{ steps.versions.outputs.next }}
-          BASE_BRANCH: ${{ steps.versions.outputs.base_branch || github.ref_name }}
+          BASE_BRANCH: ${{ steps.versions.outputs.base_branch }}
           DRY_RUN: ${{ inputs.dry_run }}
           SKIP_TESTS: ${{ inputs.skip_tests }}
         run: |

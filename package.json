@@ -40,6 +40,7 @@
     "validate:enrichment-inputs": "node scripts/check-enrichment-inputs.js",
     "validate:accident-runtime": "node --max-old-space-size=4096 scripts/validate-accident-runtime-contract.js --report out/qa/accident-runtime-contract.json",
     "validate:accident-publication": "node --max-old-space-size=4096 scripts/validate-accident-publication.js --report out/qa/accident-publication.json",
+    "validate:action-pins": "node scripts/validate-action-pins.js",
     "prepare:accident-publication": "node scripts/accident-publication-package.js prepare",
     "verify:accident-publication": "node scripts/accident-publication-package.js verify",
     "validate:vendor-build-lock": "node scripts/vendor-build-lock.js --check",

@@ -18,7 +18,7 @@ function seriousOrCritical(violations) {
 }
 
 test.describe('Accessibility – Werkbank V2', () => {
-  test('Hauptseite hat keine critical/serious axe-Violations', async ({ page }) => {
+  test('Hauptseite hat keine critical/serious axe-Violations', async ({ page }, testInfo) => {
     await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
     await waitForScreenshotReady(page, { city: 'Hannover' });
 
@@ -29,6 +29,10 @@ test.describe('Accessibility – Werkbank V2', () => {
     const blocking = results.violations.filter(
       (v) => v.impact === 'critical' || v.impact === 'serious'
     );
+    await testInfo.attach('axe-main-all-violations', {
+      body: Buffer.from(JSON.stringify(results.violations, null, 2)),
+      contentType: 'application/json',
+    });
 
     expect(
       blocking,
@@ -37,7 +41,7 @@ test.describe('Accessibility – Werkbank V2', () => {
     ).toHaveLength(0);
   });
 
-  test('alle vier Arbeitsdialoge haben keine critical/serious axe-Violations', async ({ page }) => {
+  test('alle vier Arbeitsdialoge haben keine critical/serious axe-Violations', async ({ page }, testInfo) => {
     await page.goto('werkbank_v2.html', { waitUntil: 'domcontentloaded' });
     await waitForScreenshotReady(page, { city: 'Hannover' });
 
@@ -80,6 +84,10 @@ test.describe('Accessibility – Werkbank V2', () => {
         .withTags(['wcag2a', 'wcag2aa'])
         .analyze();
       const blocking = seriousOrCritical(results.violations);
+      await testInfo.attach(`axe-${dialog.name}-all-violations`, {
+        body: Buffer.from(JSON.stringify(results.violations, null, 2)),
+        contentType: 'application/json',
+      });
 
       expect(
         blocking,
@@ -91,6 +99,58 @@ test.describe('Accessibility – Werkbank V2', () => {
 
       await dialog.close();
       await expect(page.locator(dialog.selector)).toBeHidden();
+    }
+  });
+
+  test('alle Arbeitsdialoge schließen per Escape und geben den Fokus zurück', async ({ page }) => {
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForScreenshotReady(page, { city: 'Hannover' });
+
+    const dialogs = [
+      {
+        name: 'Export',
+        opener: '#btnOpenExport',
+        dialog: '#modalOverlay',
+        open: async () => page.locator('#btnOpenExport').press('Enter'),
+      },
+      {
+        name: 'Politische Kontextrecherche',
+        opener: '#btnPolCtxOpen',
+        dialog: '#polCtxPanel',
+        open: async () => page.locator('#btnPolCtxOpen').press('Enter'),
+      },
+      {
+        name: 'Prioritäten',
+        opener: '#btnPrioritiesOpen',
+        dialog: '#prioPanel',
+        open: async () => page.locator('#btnPrioritiesOpen').press('Enter'),
+      },
+      {
+        name: 'Tour-Rekorder',
+        opener: '#tourBtnRecord',
+        dialog: '#recorderModal',
+        open: async () => {
+          await page.locator('#tourBtnRecord').press('Enter');
+          await page.locator('#tourBtnRecord').press('Enter');
+        },
+      },
+    ];
+
+    for (const item of dialogs) {
+      const opener = page.locator(item.opener);
+      const dialog = page.locator(item.dialog);
+      await opener.scrollIntoViewIfNeeded();
+      await opener.focus();
+      await item.open();
+      await expect(dialog, item.name).toBeVisible();
+      expect(await page.evaluate(selector => {
+        const element = document.querySelector(selector);
+        return Boolean(element && element.contains(document.activeElement));
+      }, item.dialog), `${item.name}: initial focus`).toBe(true);
+
+      await page.keyboard.press('Escape');
+      await expect(dialog, item.name).toBeHidden();
+      await expect(opener, `${item.name}: focus return`).toBeFocused();
     }
   });
 
@@ -114,6 +174,48 @@ test.describe('Accessibility – Werkbank V2', () => {
 
     await expect(dialog).toBeHidden();
     await expect(openButton).toBeFocused();
+  });
+
+  test('Forced-Colors-Modus bewahrt sichtbare Zustände und Tastaturfokus', async ({ page }) => {
+    await page.emulateMedia({ forcedColors: 'active' });
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForScreenshotReady(page, { city: 'Hannover' });
+
+    const button = page.locator('#btnOpenExport');
+    await button.focus();
+    const styles = await button.evaluate(element => {
+      const style = getComputedStyle(element);
+      return {
+        borderStyle: style.borderStyle,
+        borderWidth: style.borderWidth,
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+      };
+    });
+    expect(styles.borderStyle).not.toBe('none');
+    expect(Number.parseFloat(styles.borderWidth)).toBeGreaterThan(0);
+    expect(styles.outlineStyle).not.toBe('none');
+    expect(Number.parseFloat(styles.outlineWidth)).toBeGreaterThanOrEqual(2);
+  });
+
+  test('Reduced-Motion-Modus entfernt wahrnehmbare Animationen', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForScreenshotReady(page, { city: 'Hannover' });
+
+    const timings = await page.locator('#btnOpenExport').evaluate(element => {
+      const style = getComputedStyle(element);
+      const seconds = value => value.split(',').map(part => {
+        const item = part.trim();
+        return item.endsWith('ms') ? Number.parseFloat(item) / 1000 : Number.parseFloat(item);
+      });
+      return {
+        transitions: seconds(style.transitionDuration),
+        animations: seconds(style.animationDuration),
+      };
+    });
+    expect(Math.max(...timings.transitions, 0)).toBeLessThanOrEqual(0.001);
+    expect(Math.max(...timings.animations, 0)).toBeLessThanOrEqual(0.001);
   });
 
   test('Legende und Bedienfeld geben ihren Offen-Zustand für Tastaturbedienung aus', async ({ page }) => {

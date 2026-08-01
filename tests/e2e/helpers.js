@@ -209,7 +209,7 @@ export function assertStableScreenshotSnapshot(before, after, criteria = {}, lab
  *
  * @param {string} screenshotPath
  * @param {object} snapshot
- * @param {{city?: string, layers?: string[]}} criteria
+ * @param {{city?: string, layers?: string[], mapSourceMode?: 'fixture'|'live'}} criteria
  */
 export async function recordScreenshotEvidence(screenshotPath, snapshot, criteria = {}) {
   const [{ default: crypto }, { default: fs }, { default: path }] = await Promise.all([
@@ -274,7 +274,8 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
     criteria: {
       city: criteria.city || null,
       layers: Array.isArray(criteria.layers) ? criteria.layers.slice() : [],
-      requireCompleteCoverage: criteria.requireCompleteCoverage !== false
+      requireCompleteCoverage: criteria.requireCompleteCoverage !== false,
+      mapSourceMode: criteria.mapSourceMode || null
     },
     lifecycle: snapshot
   };
@@ -343,7 +344,10 @@ export async function captureDataScreenshot(page, options) {
         continue;
       }
       await fs.rename(temporaryPath, options.path);
-      await recordScreenshotEvidence(options.path, afterCapture, options);
+      const mapSourceMode = await page.evaluate(() =>
+        document.documentElement.dataset.mapSourceMode || 'live'
+      );
+      await recordScreenshotEvidence(options.path, afterCapture, { ...options, mapSourceMode });
       return afterCapture;
     }
   } finally {

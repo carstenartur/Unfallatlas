@@ -169,6 +169,24 @@ describe('UA.report_v2 – map/table consistency helpers', () => {
       expect(lines.join(' ')).toContain('NRW-Fallback aktiv.');
     });
 
+    test('labels deterministic QA tiles as synthetic instead of claiming a real provider', () => {
+      document.documentElement.dataset.mapSourceMode = 'fixture';
+      UA.getActiveMapLayerInfo = jest.fn(() => ({
+        mode: 'standard',
+        modeLabel: 'Standardkarte',
+        requestedMode: 'standard',
+        requestedModeLabel: 'Standardkarte',
+        orthophoto: null,
+      }));
+      try {
+        const text = UA._buildMapSourceNoteLines({}).join(' ');
+        expect(text).toContain('synthetische QA-Kartenfixture');
+        expect(text).not.toContain('Basiskarte: OpenStreetMap');
+      } finally {
+        delete document.documentElement.dataset.mapSourceMode;
+      }
+    });
+
     test('states requested mode and explicit standard fallback when orthophoto is unavailable', () => {
       UA.getActiveMapLayerInfo = jest.fn(() => ({
         mode: 'standard',

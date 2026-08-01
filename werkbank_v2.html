@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob:; form-action 'self'; upgrade-insecure-requests" />
   <meta name="unfallatlas:data-mode" content="gzip-only" />
   <title>Unfallwerkbank V2 – Analyse + Export (mit POI & Referenzdokumenten)</title>
 
@@ -639,7 +640,7 @@
   </div>
 
   <!-- App JS (V2 with POI support) -->
-  <script>window.UA = { BUILD: "2026-07-19 00:00 UTC" };</script>
+  <script src="js/ua.bootstrap.js?v=2026-08-01"></script>
   <script src="js/ua.core.js?v=2026-07-19"></script>
   <script src="js/ua.utils.js?v=2026-07-19"></script>
   <script src="js/ua.state.js?v=2026-01-01"></script>

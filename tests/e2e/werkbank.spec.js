@@ -180,25 +180,54 @@ test.describe('Werkbank V2 - Drawing and Export', () => {
     });
   });
 
-  test('should enable drawing mode', async ({ page }) => {
+  test('draws a real rectangle and clears every selection representation', async ({ page }) => {
     const drawBtn = page.locator('#btnDraw');
-    await expect(drawBtn).toBeVisible();
-    
-    await drawBtn.click();
-    
-    // Check if draw mode is activated (button should change state)
-    const classes = await drawBtn.getAttribute('class');
-    expect(classes).toBeTruthy();
-  });
-
-  test('should clear drawing', async ({ page }) => {
     const clearDrawBtn = page.locator('#btnClearDraw');
+    const map = page.locator('#map');
+    await expect(drawBtn).toBeVisible();
     await expect(clearDrawBtn).toBeVisible();
-    
+
+    await drawBtn.click();
+    const box = await map.boundingBox();
+    expect(box).toBeTruthy();
+    const start = { x: box.x + box.width * 0.55, y: box.y + box.height * 0.35 };
+    const end = { x: box.x + box.width * 0.76, y: box.y + box.height * 0.58 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await page.mouse.up();
+
+    await page.waitForFunction(() => {
+      const ctx = window.UA?.getRuntimeContext?.();
+      return Boolean(ctx?.selectionBounds && ctx?.drawnItems?.getLayers?.().length === 1);
+    });
+    const selectedUrl = new URL(page.url());
+    for (const key of ['selSouth', 'selWest', 'selNorth', 'selEast']) {
+      expect(selectedUrl.searchParams.has(key), `${key} after drawing`).toBe(true);
+      expect(Number.isFinite(Number(selectedUrl.searchParams.get(key)))).toBe(true);
+    }
+
+    await page.locator('#btnOpenExport').click();
+    await expect(page.locator('#modalOverlay')).toBeVisible();
+    await expect(page.locator('#noSelectionHint')).toBeHidden();
+    await page.locator('#btnCloseModal').click();
+
     await clearDrawBtn.click();
-    
-    // Should complete without error
-    expect(true).toBe(true);
+    await expect.poll(async () => page.evaluate(() => {
+      const ctx = window.UA?.getRuntimeContext?.();
+      return {
+        hasBounds: Boolean(ctx?.selectionBounds),
+        layers: ctx?.drawnItems?.getLayers?.().length ?? -1,
+      };
+    })).toEqual({ hasBounds: false, layers: 0 });
+
+    const clearedUrl = new URL(page.url());
+    for (const key of ['selSouth', 'selWest', 'selNorth', 'selEast']) {
+      expect(clearedUrl.searchParams.has(key), `${key} after clearing`).toBe(false);
+    }
+
+    await page.locator('#btnOpenExport').click();
+    await expect(page.locator('#noSelectionHint')).toBeVisible();
   });
 
   test('should open export modal', async ({ page }) => {

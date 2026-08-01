@@ -825,6 +825,14 @@
     const lines = [requestedDiffers
       ? `Kartenmodus: ${activeModeLabel} (angefordert: ${requestedModeLabel}).`
       : `Kartenmodus: ${activeModeLabel}.`];
+    const mapSourceMode = (typeof document !== 'undefined' && document.documentElement)
+      ? document.documentElement.dataset.mapSourceMode
+      : null;
+    if (mapSourceMode === 'fixture') {
+      lines.push('Kartenhintergrund: synthetische QA-Kartenfixture – keine reale Basiskarte oder Luftbildaufnahme.');
+      if (info.warning) lines.push(info.warning);
+      return lines;
+    }
     if (info.orthophoto) {
       lines.push(`Orthofoto: ${info.orthophoto.displayName} (${info.orthophoto.provider}).`);
       if (info.orthophotoFallbackFrom) {
@@ -1279,7 +1287,7 @@
   function trendQualifierTextDocx(classification) {
     switch (classification) {
       case "steigend":     return "im Mittel der letzten Jahre steigend";
-      case "stagnierend":  return "stagnierend hoch (kein erkennbarer Rückgang)";
+      case "stagnierend":  return "im Mehrjahresvergleich ohne deutlichen Rückgang";
       case "rückläufig":   return "rückläufig im Mehrjahresvergleich";
       case "unbestimmt":   return "Trend statistisch unbestimmt (zu wenig Datenjahre)";
       default:             return null;
@@ -1412,6 +1420,7 @@
       const makeRow = (cells, bold, highlight, isHeader) =>
         new TableRow({
           tableHeader: !!isHeader,
+          cantSplit: true,
           children: cells.map((text, ci) => {
             return new TableCell({
               borders: cellBorder,
@@ -1444,10 +1453,28 @@
     // viel Platz frisst.
     function makeKVTable(rows) {
       const colWidths = [2200, 6800];
+      const headerRow = new TableRow({
+        tableHeader: true,
+        cantSplit: true,
+        children: [
+          new TableCell({
+            borders: cellBorder,
+            width: { size: colWidths[0], type: WidthType.DXA },
+            shading: { fill: "EEEEEE" },
+            children: [new Paragraph({ children: [new TextRun({ text: "Merkmal", bold: true })] })]
+          }),
+          new TableCell({
+            borders: cellBorder,
+            width: { size: colWidths[1], type: WidthType.DXA },
+            shading: { fill: "EEEEEE" },
+            children: [new Paragraph({ children: [new TextRun({ text: "Angabe", bold: true })] })]
+          })
+        ]
+      });
       return new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         columnWidths: colWidths,
-        rows: rows.map(([key, value, isLink, hrefOverride]) => {
+        rows: [headerRow, ...rows.map(([key, value, isLink, hrefOverride]) => {
           const keyCell = new TableCell({
             borders: cellBorder,
             width: { size: colWidths[0], type: WidthType.DXA },
@@ -1474,8 +1501,8 @@
               children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(value), bold: false })] })]
             });
           }
-          return new TableRow({ children: [keyCell, valueCell] });
-        })
+          return new TableRow({ cantSplit: true, children: [keyCell, valueCell] });
+        })]
       });
     }
 
@@ -2124,9 +2151,9 @@
               const urlLink = ExternalHyperlink
                 ? new ExternalHyperlink({
                     link: s.url,
-                    children: [new TextRun({ text: `  ${s.url}`, style: "Hyperlink" })]
+                    children: [new TextRun({ text: "Quelle öffnen", style: "Hyperlink" })]
                   })
-                : new TextRun({ text: `  ${s.url}` });
+                : new TextRun({ text: "Quelle verfügbar", italics: true });
               children.push(new Paragraph({ children: [urlLink], spacing: { after: 40 } }));
             }
           }
@@ -2680,10 +2707,17 @@
         }));
         if (note.sources && note.sources.length > 0) {
           for (const src of note.sources) {
-            children.push(new Paragraph({
-              children: [new TextRun({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, size: 18 })],
-              spacing: { after: 50 }
-            }));
+            const sourceChildren = [new TextRun({ text: "– " + src.label, italics: true, size: 18 })];
+            if (src.url) {
+              sourceChildren.push(new TextRun({ text: " – ", italics: true, size: 18 }));
+              sourceChildren.push(ExternalHyperlink
+                ? new ExternalHyperlink({
+                    link: src.url,
+                    children: [new TextRun({ text: "Quelle öffnen", style: "Hyperlink", size: 18 })]
+                  })
+                : new TextRun({ text: "Quelle verfügbar", italics: true, size: 18 }));
+            }
+            children.push(new Paragraph({ children: sourceChildren, spacing: { after: 50 } }));
           }
           children.push(new Paragraph({ text: "", spacing: { after: 150 } }));
         }
@@ -2704,10 +2738,17 @@
         }));
         children.push(new Paragraph({ text: enrichNote.body, spacing: { after: 100 } }));
         for (const src of enrichNote.sources) {
-          children.push(new Paragraph({
-            children: [new TextRun({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, size: 18 })],
-            spacing: { after: 50 }
-          }));
+          const sourceChildren = [new TextRun({ text: "– " + src.label, italics: true, size: 18 })];
+          if (src.url) {
+            sourceChildren.push(new TextRun({ text: " – ", italics: true, size: 18 }));
+            sourceChildren.push(ExternalHyperlink
+              ? new ExternalHyperlink({
+                  link: src.url,
+                  children: [new TextRun({ text: "Quelle öffnen", style: "Hyperlink", size: 18 })]
+                })
+              : new TextRun({ text: "Quelle verfügbar", italics: true, size: 18 }));
+          }
+          children.push(new Paragraph({ children: sourceChildren, spacing: { after: 50 } }));
         }
         children.push(new Paragraph({ text: "", spacing: { after: 150 } }));
       }
@@ -2755,6 +2796,8 @@
       // mirrors the SVG in HTML so DOCX/PDF readers see the same hot/cold
       // pattern even when they can't render inline SVG.
       const headerRow = new TableRow({
+        tableHeader: true,
+        cantSplit: true,
         children: ["Stunde", "Mo–Fr", "Sa/So"].map(t => new TableCell({
           borders: cellBorder,
           shading: { fill: "EEEEEE" },
@@ -2784,7 +2827,7 @@
             })]
           }));
         }
-        rows.push(new TableRow({ children: cells }));
+        rows.push(new TableRow({ cantSplit: true, children: cells }));
       }
       children.push(new Table({
         width: { size: 60, type: WidthType.PERCENTAGE },
@@ -2919,9 +2962,9 @@
               const urlLink = ExternalHyperlink
                 ? new ExternalHyperlink({
                     link: doc.url,
-                    children: [new TextRun({ text: `  ${doc.url}`, style: "Hyperlink" })]
+                    children: [new TextRun({ text: "Quelle öffnen", style: "Hyperlink" })]
                   })
-                : new TextRun({ text: `  ${doc.url}` });
+                : new TextRun({ text: "Quelle verfügbar", italics: true });
               children.push(new Paragraph({ children: [urlLink], spacing: { after: 40 } }));
             }
           }
@@ -2975,9 +3018,9 @@
             const urlLink = ExternalHyperlink
               ? new ExternalHyperlink({
                   link: ref.url,
-                  children: [new TextRun({ text: `  ${ref.url}`, style: "Hyperlink" })]
+                  children: [new TextRun({ text: "Vorgang öffnen", style: "Hyperlink" })]
                 })
-              : new TextRun({ text: `  ${ref.url}` });
+              : new TextRun({ text: "Vorgang verfügbar", italics: true });
             children.push(new Paragraph({ children: [urlLink], spacing: { after: 20 } }));
           }
           if (ref.source) {
@@ -3024,21 +3067,9 @@
       }));
     }
 
-    // ---- 13. Anlagen block ----
-    // Layout-PR „Vor Anlagen Seitenumbruch": Anlagen sind im
-    // Verwaltungsdokument ein eigener Abschnitt und beginnen daher auf
-    // einer neuen Seite. `pageBreakBefore: true` erzwingt das in DOCX,
-    // unabhängig davon, ob die vorausgehende Sektion knapp am
-    // Seitenende endet.
-    children.push(new Paragraph({
-      text: "ANLAGEN",
-      heading: HeadingLevel.HEADING_2,
-      pageBreakBefore: true,
-      spacing: { before: 400, after: 200 }
-    }));
-    children.push(new Paragraph({ text: "Anlage 1: Kartenansicht", spacing: { after: 80 } }));
-    children.push(new Paragraph({ text: "Anlage 2: Statistische Übersicht", spacing: { after: 80 } }));
-    children.push(new Paragraph({ text: "Anlage 3: Fachliche Bezüge", spacing: { after: 80 } }));
+    // Karten, Tabellen und fachliche Bezüge sind bereits an ihrer fachlich
+    // passenden Stelle enthalten. Ein leerer Platzhalter-Anhang würde nur eine
+    // nahezu leere Seite erzeugen und wird deshalb nicht angelegt.
 
     // Create document
     const doc = new Document({
@@ -4176,7 +4207,7 @@
               docDefinition.content.push({
                 text: [
                   { text: `– ${head} ` },
-                  { text: s.url, link: s.url, color: "blue", decoration: "underline" }
+                  { text: "Quelle öffnen", link: s.url, color: "blue", decoration: "underline" }
                 ],
                 style: "normal",
                 margin: [10, 0, 0, 2]
@@ -4710,7 +4741,9 @@
         docDefinition.content.push({ text: note.sourceLabel, italics: true, fontSize: 9, margin: [0, 4, 0, note.sources && note.sources.length > 0 ? 2 : 8] });
         if (note.sources && note.sources.length > 0) {
           for (const src of note.sources) {
-            docDefinition.content.push({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, fontSize: 8, margin: [8, 0, 0, 2] });
+            const line = [{ text: "– " + src.label }];
+            if (src.url) line.push({ text: " – Quelle öffnen", link: src.url, color: "blue", decoration: "underline" });
+            docDefinition.content.push({ text: line, italics: true, fontSize: 8, margin: [8, 0, 0, 2] });
           }
           docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
         }
@@ -4725,7 +4758,9 @@
         docDefinition.content.push({ text: enrichNote.title, style: "subheader" });
         docDefinition.content.push({ text: enrichNote.body, style: "normal" });
         for (const src of enrichNote.sources) {
-          docDefinition.content.push({ text: "– " + src.label + (src.url ? " (" + src.url + ")" : ""), italics: true, fontSize: 8, margin: [8, 0, 0, 2] });
+          const line = [{ text: "– " + src.label }];
+          if (src.url) line.push({ text: " – Quelle öffnen", link: src.url, color: "blue", decoration: "underline" });
+          docDefinition.content.push({ text: line, italics: true, fontSize: 8, margin: [8, 0, 0, 2] });
         }
         docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
       }
@@ -4915,9 +4950,13 @@
               style: "normal"
             });
             if (doc.url) {
-              docDefinition.content.push(textWithLinks(doc.url) !== doc.url
-                ? { text: textWithLinks(`  ${doc.url}`), style: "normal" }
-                : { text: `  ${doc.url}`, style: "normal" });
+              docDefinition.content.push({
+                text: "Quelle öffnen",
+                link: doc.url,
+                color: "blue",
+                decoration: "underline",
+                style: "normal"
+              });
             }
           }
         } else {
@@ -4971,8 +5010,7 @@
           if (ref.url) {
             docDefinition.content.push({
               text: [
-                { text: "  " },
-                { text: ref.url, link: ref.url, color: "blue", decoration: "underline" }
+                { text: "Vorgang öffnen", link: ref.url, color: "blue", decoration: "underline" }
               ],
               style: "normal", margin: [10, 0, 0, 2]
             });
@@ -4987,18 +5025,9 @@
       }
     }
 
-    // ---- ANLAGEN block (feature parity with Word export) ----
-    // Layout-PR „Vor Anlagen Seitenumbruch": Anlagen beginnen auf
-    // einer neuen Seite — sonst klebt der Anhang optisch am Fließtext
-    // der Begründung.
-    docDefinition.content.push({
-      text: "ANLAGEN",
-      style: "subheader",
-      pageBreak: "before"
-    });
-    docDefinition.content.push({ text: "Anlage 1: Kartenansicht", style: "normal" });
-    docDefinition.content.push({ text: "Anlage 2: Statistische Übersicht", style: "normal" });
-    docDefinition.content.push({ text: "Anlage 3: Fachliche Bezüge", style: "normal" });
+    // Kein Platzhalter-Anhang: Karten, Tabellen und fachliche Bezüge sind
+    // bereits im Hauptdokument enthalten. So entstehen keine isolierten,
+    // inhaltsarmen Seiten am Dokumentende.
 
     // ---- DATENQUELLE section ----
     docDefinition.content.push({

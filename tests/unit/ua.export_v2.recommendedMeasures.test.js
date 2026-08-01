@@ -234,7 +234,7 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
     try { (function (window) { eval(fs.readFileSync(p, 'utf8')); })(mockWindow); } catch (_) { /* tolerate missing libs */ }
     expect(typeof UA.trendQualifierTextDocx).toBe('function');
     expect(UA.trendQualifierTextDocx('steigend')).toMatch(/steigend/);
-    expect(UA.trendQualifierTextDocx('stagnierend')).toMatch(/stagnierend hoch/);
+    expect(UA.trendQualifierTextDocx('stagnierend')).toMatch(/ohne deutlichen Rückgang/);
     expect(UA.trendQualifierTextDocx('rückläufig')).toMatch(/rückläufig/);
     expect(UA.trendQualifierTextDocx('unbestimmt')).toMatch(/unbestimmt/);
     expect(UA.trendQualifierTextDocx(null)).toBeNull();

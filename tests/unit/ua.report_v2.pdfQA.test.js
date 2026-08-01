@@ -191,8 +191,8 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     expect(joined).toMatch(/SACHVERHALT|UNFALLLAGE/);
     // (5) Maßnahmen-Block
     expect(joined).toMatch(/MASSNAHMEN|MAßNAHMEN|MASSNAHMENVORSCHL/i);
-    // (6) Anlagen
-    expect(joined).toContain('ANLAGEN');
+    // (6) Kein leerer Platzhalter-Anhang
+    expect(joined).not.toContain('ANLAGEN');
 
     // (7) keine doppelte Antragssektion: BESCHLUSSVORSCHLAG-Heading
     // erscheint genau einmal — entweder am Anfang als ANTRAG /
@@ -228,13 +228,11 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     ]);
   });
 
-  test('ANLAGEN-Heading erzwingt Seitenumbruch (pageBreak vor Anlagen)', async () => {
+  test('PDF erzeugt keinen fast leeren Platzhalter-Anhang', async () => {
     const { definition } = await runPdfExport(makeFixtureCtx(), makeFixtureReportData(), { includeMap: false });
-    const anlagenIdx = definition.content.findIndex(n =>
-      n && typeof n.text === 'string' && n.text === 'ANLAGEN'
-    );
-    expect(anlagenIdx).toBeGreaterThan(-1);
-    expect(definition.content[anlagenIdx].pageBreak).toBe('before');
+    const visible = collectTexts(definition.content).join(' ');
+    expect(visible).not.toContain('ANLAGEN');
+    expect(visible).not.toMatch(/Anlage [1-3]:/);
   });
 
   test('keine rohen Debug-Werte als sichtbare Inhalte ("all", "Build: -", "Quelle: -")', async () => {
