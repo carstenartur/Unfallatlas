@@ -71,7 +71,8 @@ describe('accident publication contract', () => {
     expect(policy().expectedLatestYear).toBe(2025);
     expect(() => validatePolicy({
       ...policy(),
-      expectedLatestYear: 2015,
+      firstYear: 2026,
+      expectedLatestYear: 2025,
     })).toThrow(/expectedLatestYear is before firstYear/);
   });
 
