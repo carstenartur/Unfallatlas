@@ -256,6 +256,11 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
     throw new Error('Canonical build manifest lacks application/data fingerprints');
   }
   const imageBytes = fs.readFileSync(absoluteScreenshot);
+  const detachedPdfArtifact = /(?:^|\/)15-export-pdf-rendered\.png$/.test(relativeScreenshot);
+  const mapSourceMode = criteria.mapSourceMode || (detachedPdfArtifact ? 'fixture' : null);
+  if (!['fixture', 'live'].includes(mapSourceMode)) {
+    throw new Error(`Canonical screenshot evidence requires an explicit map source mode: ${relativeScreenshot}`);
+  }
   const evidence = {
     schemaVersion: 1,
     revision: process.env.GITHUB_SHA || null,
@@ -275,7 +280,7 @@ export async function recordScreenshotEvidence(screenshotPath, snapshot, criteri
       city: criteria.city || null,
       layers: Array.isArray(criteria.layers) ? criteria.layers.slice() : [],
       requireCompleteCoverage: criteria.requireCompleteCoverage !== false,
-      mapSourceMode: criteria.mapSourceMode || null
+      mapSourceMode
     },
     lifecycle: snapshot
   };
