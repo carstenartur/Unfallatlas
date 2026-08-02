@@ -115,6 +115,17 @@ function inspectPdf(buffer) {
   return JSON.parse(result.stdout);
 }
 
+function pdfInfoEntry(info, name) {
+  const containers = [info, info?.Custom]
+    .filter(value => value && typeof value === 'object');
+  for (const container of containers) {
+    const match = Object.entries(container)
+      .find(([key]) => key.toLowerCase() === name.toLowerCase());
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
 function setupRuntime() {
   jest.resetModules();
   const docx = require('docx');
@@ -217,10 +228,11 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     expect(visible).toContain(result.sourceManifestSha256.slice(0, 12));
     expect(visible).toContain('Datensatz');
     expect(visible).toContain('Lizenz CC0-1.0');
-    const metadataEntry = (name) => Object.entries(info)
-      .find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
-    expect(metadataEntry('UnfallwerkbankSourceManifestSha256')).toBe(result.sourceManifestSha256);
-    const embeddedManifest = JSON.parse(metadataEntry('UnfallwerkbankSourceManifest'));
+    expect(pdfInfoEntry(info, 'UnfallwerkbankSourceManifestSha256'))
+      .toBe(result.sourceManifestSha256);
+    const embeddedManifest = JSON.parse(
+      pdfInfoEntry(info, 'UnfallwerkbankSourceManifest'),
+    );
     expect(embeddedManifest.artifactId).toBe('pdf-hannover-export');
     expect(embeddedManifest.sources).toHaveLength(1);
     if (markInfo) expect(markInfo.Marked).toBe(true);
