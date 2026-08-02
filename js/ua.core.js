@@ -7,7 +7,10 @@
   // therefore remain hermetic.
   const parserCoreScript = typeof document !== "undefined" ? document.currentScript : null;
   if (parserCoreScript && parserCoreScript.src && !window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__) {
-    document.write('<script src="js/ua.critical-runtime-recovery.js?v=1"><\/script>');
+    const recoveryUrl = new URL("ua.critical-runtime-recovery.js?v=1", parserCoreScript.src).href
+      .replaceAll("&", "&amp;")
+      .replaceAll('"', "&quot;");
+    document.write(`<script src="${recoveryUrl}"><\/script>`);
   }
 
   // ---- Core build info (optional) ----
