@@ -8,6 +8,9 @@ on:
       - '.github/workflows/live-pages-runtime-health.yml'
       - '.github/workflows/deploy-pages-current-data.yml'
       - '.github/workflows/generate-data-deploy-pages.yml'
+      - 'pom.xml'
+      - 'package.json'
+      - 'package-lock.json'
       - 'werkbank_v2.html'
       - 'vendor/**'
       - 'css/**'
@@ -15,6 +18,7 @@ on:
       - 'scripts/diagnose-published-werkbank.cjs'
       - 'scripts/documentation-deeplink-contract.cjs'
       - 'scripts/run-live-documentation-links.cjs'
+      - 'scripts/run-live-documentation-qa.js'
       - 'tests/e2e/documentation-deeplinks.live.spec.js'
       - 'tests/unit/criticalRuntimeRecovery.test.js'
       - 'out/**'
@@ -38,54 +42,49 @@ jobs:
   recovery-contract:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout recovery contract
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up Node.js 24
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - name: Set up JDK and Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
-          node-version: '24'
-          cache: npm
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
 
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Verify parser-blocking critical-script recovery
-        run: npx jest tests/unit/criticalRuntimeRecovery.test.js --runInBand
+      - name: Verify parser-blocking critical-script recovery through Maven
+        run: mvn -B -ntp test
 
   published-runtime:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout health-check contract
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up Node.js 24
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - name: Set up JDK and Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
-          node-version: '24'
-          cache: npm
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
 
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Install Chromium runtime
-        run: npx playwright install --with-deps chromium
-
-      - name: Diagnose the reported Hannover deep link
-        run: node scripts/diagnose-published-werkbank.cjs
-
-      - name: Exercise the complete published application contract
+      - name: Diagnose the published application through the documented Maven profile
         env:
           DOCUMENTATION_AUDIT_PUBLISHED: '1'
-        run: node scripts/run-live-documentation-links.cjs
+          PUBLISHED_RUNTIME_DIAGNOSTIC: '1'
+        run: >-
+          mvn -B -ntp integration-test
+          -Pdocumentation-live
+          -Ddocumentation.liveLinks=true
+          -DskipTests=true
 
       - name: Upload live runtime diagnostics
         if: always()
@@ -95,6 +94,9 @@ jobs:
           path: |
             out/qa/published-runtime-diagnostic/
             out/qa/documentation-live-links/
+            out/qa/screenshot-readiness/
+            out/qa/live-cartography-evidence.json
+            out/qa/documentation-media.json
             playwright-report/
             test-results/
           if-no-files-found: warn
