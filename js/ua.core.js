@@ -9,12 +9,14 @@
   if (
     parserCoreScript
     && parserCoreScript.src
+    && document.readyState === "loading"
     && typeof document.write === "function"
     && !window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__
   ) {
     const recoveryUrl = new URL("ua.critical-runtime-recovery.js?v=1", parserCoreScript.src).href
       .replaceAll("&", "&amp;")
-      .replaceAll('"', "&quot;");
+      .replaceAll('"', "&quot;")
+      .replaceAll("<", "%3C");
     document.write(`<script src="${recoveryUrl}"><\/script>`);
   }
 
