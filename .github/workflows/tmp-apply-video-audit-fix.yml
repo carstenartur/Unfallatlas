@@ -1,0 +1,149 @@
+name: Apply PR 593 video audit fix
+
+on:
+  push:
+    branches:
+      - fix/restore-core-data-media-contracts
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/restore-core-data-media-contracts
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply encoded road evidence fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one replacement, found {count}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'server/video-export.js',
+              "  const projectRoadWitness = witness => ({\n"
+              "    witness,\n"
+              "    x: Number(witness.x) * width / sourceWidth,\n"
+              "    y: Number(witness.y) * height / sourceHeight,\n"
+              "    radiusX: Math.max(1, Number(witness.roadRadius || 7) * width / sourceWidth),\n"
+              "    radiusY: Math.max(1, Number(witness.roadRadius || 7) * height / sourceHeight),\n"
+              "  });",
+              "  const sourceFrameInspection = frameEvidence && frameEvidence.sourceFrameInspection || {};\n"
+              "  const inspectedWidth = Number(sourceFrameInspection.width);\n"
+              "  const inspectedHeight = Number(sourceFrameInspection.height);\n"
+              "  const projectRoadWitness = witness => {\n"
+              "    const sourceRadius = Math.max(\n"
+              "      Number(witness.roadRadius || 7),\n"
+              "      Number(witness.lineWeight || 0) +\n"
+              "        Number(witness.counterpartLineWeight || 0) + 3\n"
+              "    );\n"
+              "    const renderedPoint = witness && witness.renderedSourcePoint;\n"
+              "    const hasRenderedPoint = Boolean(\n"
+              "      renderedPoint &&\n"
+              "      Number.isFinite(Number(renderedPoint.x)) &&\n"
+              "      Number.isFinite(Number(renderedPoint.y)) &&\n"
+              "      inspectedWidth > 0 && inspectedHeight > 0\n"
+              "    );\n"
+              "    return {\n"
+              "      witness,\n"
+              "      x: hasRenderedPoint\n"
+              "        ? Number(renderedPoint.x) * width / inspectedWidth\n"
+              "        : Number(witness.x) * width / sourceWidth,\n"
+              "      y: hasRenderedPoint\n"
+              "        ? Number(renderedPoint.y) * height / inspectedHeight\n"
+              "        : Number(witness.y) * height / sourceHeight,\n"
+              "      radiusX: Math.max(3, Math.ceil(sourceRadius * width / sourceWidth)),\n"
+              "      radiusY: Math.max(3, Math.ceil(sourceRadius * height / sourceHeight)),\n"
+              "      projectedFromRenderedSourcePoint: hasRenderedPoint,\n"
+              "    };\n"
+              "  };",
+          )
+          replace_once(
+              'server/video-export.js',
+              "        { frameCount, maxLayerPixels: maxContextLayerPixels[kind], witness: contextWitnesses[kind] }",
+              "        {\n"
+              "          frameCount,\n"
+              "          maxLayerPixels: maxContextLayerPixels[kind],\n"
+              "          witness: contextWitnesses[kind],\n"
+              "          roadRegion: contextRoadRegions[kind],\n"
+              "        }",
+          )
+
+          test_anchor = """    expect(() => countPalettePixels(
+              Buffer.concat([ringsOnlyFrame, ringsOnlyFrame]), width, height, state, frameEvidence
+            )).toThrow('real slope road pixels from the owned geometry layer');
+
+            // Mutation: the old tolerance treated slope [255,255,178] as traffic
+          """
+          test_insert = """    expect(() => countPalettePixels(
+              Buffer.concat([ringsOnlyFrame, ringsOnlyFrame]), width, height, state, frameEvidence
+            )).toThrow('real slope road pixels from the owned geometry layer');
+
+            // The source audit can locate actual dual-stroke pixels away from
+            // the nominal geometry point after rasterisation. The encoded audit
+            // must project that measured point while helper rings remain bound
+            // to the original owned geometry coordinates.
+            const shiftedFrame = Buffer.from(ringsOnlyFrame);
+            for (const point of [[40, 22], [44, 22]]) {
+              setPixel(shiftedFrame, ...point, [240, 59, 32]);
+            }
+            for (const point of [[42, 21], [42, 23]]) {
+              setPixel(shiftedFrame, ...point, [58, 90, 152]);
+            }
+            const shiftedEvidence = {
+              ...frameEvidence,
+              sourceFrameInspection: { width, height, fps: 1 },
+              contextWitnesses: {
+                slope: {
+                  ...frameEvidence.contextWitnesses.slope,
+                  renderedColor: [240, 59, 32],
+                  renderedSourcePoint: { x: 42, y: 22 },
+                },
+                traffic: {
+                  ...frameEvidence.contextWitnesses.traffic,
+                  renderedColor: [58, 90, 152],
+                  renderedSourcePoint: { x: 42, y: 22 },
+                },
+              },
+            };
+            expect(countPalettePixels(
+              Buffer.concat([shiftedFrame, shiftedFrame]), width, height, state, shiftedEvidence
+            )).toEqual(expect.objectContaining({
+              maxSlopePixels: 2,
+              maxTrafficPixels: 2,
+              maxCompositeContextPairPixels: 2,
+            }));
+
+            // Mutation: the old tolerance treated slope [255,255,178] as traffic
+          """
+          replace_once('tests/unit/videoExportReadiness.test.js', test_anchor, test_insert)
+          PY
+
+          node --check server/video-export.js
+          node --check tests/unit/videoExportReadiness.test.js
+          git diff --check
+
+      - name: Commit focused fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add server/video-export.js tests/unit/videoExportReadiness.test.js
+          git commit -m "fix(video): audit encoded roads at measured raster position"
+          git push origin HEAD:fix/restore-core-data-media-contracts
