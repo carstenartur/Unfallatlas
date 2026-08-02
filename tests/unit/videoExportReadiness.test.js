@@ -378,6 +378,40 @@ describe('video export semantic readiness', () => {
       Buffer.concat([ringsOnlyFrame, ringsOnlyFrame]), width, height, state, frameEvidence
     )).toThrow('real slope road pixels from the owned geometry layer');
 
+    // Source inspection records the actual raster point of the owned
+    // dual-stroke road. The encoded audit must use that measured point,
+    // while the independent helper rings remain at nominal geometry.
+    const shiftedFrame = Buffer.from(ringsOnlyFrame);
+    for (const point of [[44, 25], [47, 25]]) {
+      setPixel(shiftedFrame, ...point, [240, 59, 32]);
+    }
+    for (const point of [[46, 24], [46, 26]]) {
+      setPixel(shiftedFrame, ...point, [58, 90, 152]);
+    }
+    const shiftedEvidence = {
+      ...frameEvidence,
+      sourceFrameInspection: { width, height, fps: 1 },
+      contextWitnesses: {
+        slope: {
+          ...frameEvidence.contextWitnesses.slope,
+          renderedColor: [240, 59, 32],
+          renderedSourcePoint: { x: 46, y: 25 },
+        },
+        traffic: {
+          ...frameEvidence.contextWitnesses.traffic,
+          renderedColor: [58, 90, 152],
+          renderedSourcePoint: { x: 46, y: 25 },
+        },
+      },
+    };
+    expect(countPalettePixels(
+      Buffer.concat([shiftedFrame, shiftedFrame]), width, height, state, shiftedEvidence
+    )).toEqual(expect.objectContaining({
+      maxSlopePixels: 2,
+      maxTrafficPixels: 2,
+      maxCompositeContextPairPixels: 2,
+    }));
+
     // Mutation: the old tolerance treated slope [255,255,178] as traffic
     // [255,255,204].  Keep valid accident + slope witnesses, paint that slope
     // color inside the traffic region. Both helper rings remain present, but
