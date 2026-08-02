@@ -55,7 +55,14 @@
     parserBlockingRetry(script.src, attempt);
   }
 
-  // Resource load errors do not bubble. Capture phase is required.
+  // Resource load errors do not bubble. Capture phase is required. The branch
+  // fallback may be injected more than once, so replace an older listener
+  // instead of accumulating duplicate retry handlers.
+  const previousHandler = window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__;
+  if (typeof previousHandler === 'function') {
+    window.removeEventListener('error', previousHandler, true);
+  }
+  window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__ = handleScriptFailure;
   window.addEventListener('error', handleScriptFailure, true);
 
   UA.criticalRuntimeRecovery = Object.freeze({
