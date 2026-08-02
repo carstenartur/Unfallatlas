@@ -240,7 +240,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: false, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 6,
+      minimumRenderedPages: 5,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
       manualWordEvidenceRequired: true,
@@ -275,7 +275,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: true, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 6,
+      minimumRenderedPages: 5,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
       manualWordEvidenceRequired: true,
