@@ -57,6 +57,7 @@ function compactError(error) {
     checkedAt: new Date().toISOString(),
     targetUrl: TARGET_URL,
     navigation: null,
+    deploymentManifest: null,
     pageErrors: [],
     console: [],
     httpErrors: [],
@@ -102,6 +103,38 @@ function compactError(error) {
       contentType: response?.headers()['content-type'] || null,
     };
 
+    const manifestUrl = new URL('build-manifest.json', TARGET_URL).href;
+    try {
+      const manifestResponse = await context.request.get(manifestUrl, { timeout: 30000 });
+      const manifestContentType = manifestResponse.headers()['content-type'] || null;
+      diagnostics.deploymentManifest = {
+        url: manifestUrl,
+        status: manifestResponse.status(),
+        contentType: manifestContentType,
+        profile: null,
+        fingerprint: null,
+        parseError: null,
+      };
+      if (manifestResponse.ok()) {
+        try {
+          const manifest = await manifestResponse.json();
+          diagnostics.deploymentManifest.profile = manifest?.distribution?.profile || null;
+          diagnostics.deploymentManifest.fingerprint = manifest?.fingerprint || null;
+        } catch (error) {
+          diagnostics.deploymentManifest.parseError = error?.message || String(error);
+        }
+      }
+    } catch (error) {
+      diagnostics.deploymentManifest = {
+        url: manifestUrl,
+        status: null,
+        contentType: null,
+        profile: null,
+        fingerprint: null,
+        requestError: error?.message || String(error),
+      };
+    }
+
     try {
       await page.waitForFunction(() => {
         const ctx = window.UA?.getRuntimeContext?.();
@@ -119,11 +152,15 @@ function compactError(error) {
       catch (error) { contextError = error?.message || String(error); }
       const city = document.getElementById('citySel');
       const stat = document.getElementById('stat');
+      const scriptSources = Array.from(document.scripts, (script) => script.src || '[inline]');
+      const legacyBranchFallback = scriptSources.some((source) =>
+        /branch-fallback/i.test(source) || /\/\/unpkg\.com\//i.test(source));
       return {
         readyState: document.readyState,
         title: document.title,
         distributionProfile: document.querySelector('meta[name="unfallwerkbank:distribution-profile"]')?.content || null,
         build: document.querySelector('meta[name="unfallwerkbank-build"]')?.content || null,
+        legacyBranchFallback,
         uaExists: Boolean(window.UA),
         uaKeys: window.UA ? Object.keys(window.UA).sort() : [],
         getRuntimeContextType: typeof window.UA?.getRuntimeContext,
@@ -143,13 +180,17 @@ function compactError(error) {
           text: city.textContent.replace(/\s+/g, ' ').trim(),
         } : null,
         statusText: stat?.textContent?.replace(/\s+/g, ' ').trim() || null,
-        scriptSources: Array.from(document.scripts, (script) => script.src || '[inline]'),
+        scriptSources,
         bodyTextPrefix: document.body?.innerText?.replace(/\s+/g, ' ').trim().slice(0, 500) || null,
       };
     });
 
     diagnostics.healthy = Boolean(
       diagnostics.navigation?.status === 200 &&
+      diagnostics.deploymentManifest?.status === 200 &&
+      diagnostics.deploymentManifest?.profile === 'public-preview-core-v1' &&
+      diagnostics.state?.distributionProfile === 'public-preview-core-v1' &&
+      diagnostics.state?.legacyBranchFallback === false &&
       diagnostics.state?.mapExists &&
       diagnostics.state?.uiExists &&
       diagnostics.state?.city === 'Hannover' &&
