@@ -10,6 +10,7 @@ const bonnReverse = readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/netw
 const corsHeaders = { 'access-control-allow-origin': '*' };
 const FULL_SHA256 = /\b[a-f0-9]{64}\b/i;
 const RAW_URL = /https?:\/\/\S+/i;
+const XML_TEXT_ENTITIES = Object.freeze({ amp: '&', lt: '<', gt: '>' });
 
 async function routeDeterministicExportInputs(page) {
   await page.route(/^https:\/\//, async (route) => {
@@ -36,12 +37,16 @@ async function routeDeterministicExportInputs(page) {
   });
 }
 
+function decodeXmlText(value) {
+  return String(value).replace(
+    /&(amp|lt|gt);/g,
+    (_match, entity) => XML_TEXT_ENTITIES[entity],
+  );
+}
+
 function wordVisibleText(documentXml) {
   return [...documentXml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)]
-    .map((match) => match[1]
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>'))
+    .map((match) => decodeXmlText(match[1]))
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -86,8 +91,14 @@ async function auditDocx(bytes) {
 }
 
 function metadataValue(info, name) {
-  return Object.entries(info || {})
-    .find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1] || null;
+  const containers = [info, info?.Custom]
+    .filter((value) => value && typeof value === 'object');
+  for (const container of containers) {
+    const match = Object.entries(container)
+      .find(([key]) => key.toLowerCase() === name.toLowerCase());
+    if (match) return match[1];
+  }
+  return null;
 }
 
 async function auditPdf(bytes) {
