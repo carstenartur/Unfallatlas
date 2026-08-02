@@ -9,7 +9,7 @@ describe('long document Golden scenario layout input', () => {
     const report = matrix.buildScenarioReportData(scenario);
 
     expect(report.structured.patterns).toHaveLength(scenario.narrativeParagraphs.length + 1);
-    expect(report.structured.patterns).toHaveLength(25);
+    expect(report.structured.patterns).toHaveLength(33);
     expect(report.structured.patterns[0]).toEqual({
       title: 'Kontextstatus',
       content: expect.stringContaining('Kontextstatus: verfügbar.'),
@@ -18,7 +18,7 @@ describe('long document Golden scenario layout input', () => {
       title: 'Prüfabschnitt 1',
       content: expect.stringContaining('deterministischer Layout- und Umbruchfall'),
     });
-    expect(report.structured.patterns[24].title).toBe('Prüfabschnitt 24');
+    expect(report.structured.patterns[32].title).toBe('Prüfabschnitt 32');
     expect(report.structured.patterns.slice(1).every((item) =>
       item.content.includes('keine zusätzliche fachliche Tatsachenbehauptung')
     )).toBe(true);
