@@ -43,7 +43,7 @@ describe('ua.core critical runtime recovery bootstrap', () => {
   test('injects the recovery guard while the parser is still loading', () => {
     installDocumentState(
       'loading',
-      'https://example.test/Unfallatlas/js/ua.core.js?first=1&second=2',
+      'https://example.test/Unfallatlas/a&b/ua.core.js',
     );
 
     window.eval(SOURCE);
@@ -51,7 +51,7 @@ describe('ua.core critical runtime recovery bootstrap', () => {
     expect(document.write).toHaveBeenCalledTimes(1);
     const markup = document.write.mock.calls[0][0];
     expect(markup).toContain('ua.critical-runtime-recovery.js?v=1');
-    expect(markup).toContain('&amp;');
+    expect(markup).toContain('a&amp;b');
     expect(markup).not.toMatch(/src="[^"]*</);
   });
 
