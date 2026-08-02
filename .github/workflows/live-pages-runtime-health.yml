@@ -1,0 +1,66 @@
+name: Live Pages Runtime Health
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/live-pages-runtime-health.yml'
+      - '.github/workflows/deploy-pages-current-data.yml'
+      - '.github/workflows/generate-data-deploy-pages.yml'
+      - 'werkbank_v2.html'
+      - 'css/**'
+      - 'js/**'
+      - 'scripts/documentation-deeplink-contract.cjs'
+      - 'scripts/run-live-documentation-links.cjs'
+      - 'tests/e2e/documentation-deeplinks.live.spec.js'
+      - 'out/**'
+      - 'data/**'
+  schedule:
+    - cron: '17 5 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-pages-runtime-health
+  cancel-in-progress: true
+
+jobs:
+  published-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout health-check contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install Chromium runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Exercise the actually published application
+        env:
+          DOCUMENTATION_AUDIT_PUBLISHED: '1'
+        run: node scripts/run-live-documentation-links.cjs
+
+      - name: Upload live runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: live-pages-runtime-health
+          path: |
+            out/qa/documentation-live-links/
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 30
