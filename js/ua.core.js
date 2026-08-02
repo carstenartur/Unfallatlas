@@ -145,7 +145,11 @@
         UA[name] = blockedExportFor(name);
       }
 
-      UA.exportProvenanceReady = UA.loadRuntimeScripts([
+      // Load the core manifest stack first. The document adapter must own the
+      // Word/PDF boundary before pagination and link adapters install; relying
+      // only on script side effects made that ordering timing-dependent in real
+      // browsers even though every script returned HTTP 200.
+      const coreModules = [
         moduleUrl("ua.source_manifest.js?v=2026-07-22"),
         moduleUrl("ua.artifact_provenance.js?v=2026-07-22"),
         moduleUrl("ua.zip.js?v=2026-07-22"),
@@ -153,16 +157,32 @@
         moduleUrl("ua.accident_year_provenance.js?v=2026-07-23"),
         moduleUrl("ua.kml_export_provenance.js?v=2026-07-22"),
         moduleUrl("ua.document_export_provenance.js?v=2026-07-22"),
+      ];
+      const documentAdapters = [
         moduleUrl("ua.document_export_prewarm.js?v=2026-07-22"),
         moduleUrl("ua.docx_source_links.js?v=2026-07-23"),
         moduleUrl("ua.docx_pagination.js?v=2026-07-23"),
         moduleUrl("ua.static_map_export_provenance.js?v=2026-07-23"),
         moduleUrl("ua.filtered_export_provenance.js?v=2026-07-23"),
-      ]).catch((error) => {
-        UA.exportProvenanceError = error;
-        console.error("Export-Provenienz konnte nicht initialisiert werden", error);
-        return null;
-      });
+      ];
+
+      UA.exportProvenanceReady = UA.loadRuntimeScripts(coreModules)
+        .then(() => {
+          if (!UA.documentExportProvenance ||
+              typeof UA.documentExportProvenance.install !== "function") {
+            throw new Error("Document export provenance integration is unavailable");
+          }
+          // install() is idempotent. Calling it explicitly closes the race in
+          // which its script executed before the data-export runtime published
+          // the dependency that the module's optional auto-install checks.
+          UA.documentExportProvenance.install(UA, window);
+          return UA.loadRuntimeScripts(documentAdapters);
+        })
+        .catch((error) => {
+          UA.exportProvenanceError = error;
+          console.error("Export-Provenienz konnte nicht initialisiert werden", error);
+          return null;
+        });
     };
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", startExportProvenance, { once: true });
