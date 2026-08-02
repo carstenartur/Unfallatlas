@@ -1,173 +1,104 @@
 name: Tests
 
 on:
+  push:
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      run_extended_qa:
+        description: 'Run cross-browser, JUnit/Testcontainers and Bonn/Hannover golden QA'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  apply-pr593-product-fix:
-    name: Apply PR 593 product fixes
-    if: github.event.pull_request.number == 593
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  tests:
+    name: Maven verify (Java 21, Node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout PR branch
+      - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 1
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Patch and validate product files
-        id: patch
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run the canonical repository build
+        run: mvn -B -ntp clean verify -Ppages
+
+      - name: Upload Maven and frontend test reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: canonical-test-reports
+          path: |
+            analysis-service/target/surefire-reports/
+            coverage/
+            playwright-report/
+            test-results/
+            out/qa/
+            _site/build-manifest.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  extended-qa:
+    name: Extended Maven QA (JUnit, Testcontainers, Playwright)
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_extended_qa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run the canonical extended QA profiles
         shell: bash
         run: |
-          set -euo pipefail
-          if ! grep -q "upgrade-insecure-requests" werkbank_v2.html server/start.js \
-              && grep -q "function sourceRoadRadius" server/video-source-evidence.js; then
-            echo "already_applied=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          set -o pipefail
+          mkdir -p out/qa
+          mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden \
+            '-Dfailsafe.includes=**/*IT.java' \
+            | tee out/qa/maven-extended-qa.log
 
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path, old, new):
-              file = Path(path)
-              text = file.read_text(encoding='utf-8')
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one replacement, found {count}')
-              file.write_text(text.replace(old, new, 1), encoding='utf-8')
-
-          replace_once(
-              'werkbank_v2.html',
-              "; form-action 'self'; upgrade-insecure-requests\" />",
-              "; form-action 'self'\" />",
-          )
-          replace_once(
-              'server/start.js',
-              "  'upgrade-insecure-requests',\n",
-              "  // Do not rewrite local/container HTTP assets to HTTPS here.\n"
-              "  // TLS and HSTS are enforced by the terminating deployment proxy.\n",
-          )
-          replace_once(
-              'tests/unit/securityHeaders.test.js',
-              "    expect(html).toContain(\"object-src 'none'\");\n"
-              "    expect(html).toContain('src=\"js/ua.bootstrap.js');",
-              "    expect(html).toContain(\"object-src 'none'\");\n"
-              "    expect(html).not.toContain('upgrade-insecure-requests');\n"
-              "    expect(html).toContain('src=\"js/ua.bootstrap.js');",
-          )
-          replace_once(
-              'tests/unit/securityHeaders.test.js',
-              "    expect(source).toContain(\"response.setHeader('Content-Security-Policy'\");\n"
-              "    expect(source).toContain(\"response.setHeader('X-Content-Type-Options', 'nosniff')\");",
-              "    expect(source).toContain(\"response.setHeader('Content-Security-Policy'\");\n"
-              "    expect(source).not.toContain(\"'upgrade-insecure-requests'\");\n"
-              "    expect(source).toContain(\"response.setHeader('X-Content-Type-Options', 'nosniff')\");",
-          )
-          replace_once(
-              'server/video-source-evidence.js',
-              "function projectedRegion(witness, width, height, sourceWidth, sourceHeight) {\n"
-              "  const scaleX = width / sourceWidth;\n"
-              "  const scaleY = height / sourceHeight;\n"
-              "  const sourceRadius = Math.max(\n"
-              "    Number(witness.roadRadius || 7),\n"
-              "    Number(witness.lineWeight || 0) + Number(witness.counterpartLineWeight || 0) + 3\n"
-              "  );",
-              "function sourceRoadRadius(witness) {\n"
-              "  return Math.max(\n"
-              "    Number(witness && witness.roadRadius || 7),\n"
-              "    Number(witness && witness.lineWeight || 0) +\n"
-              "      Number(witness && witness.counterpartLineWeight || 0) + 3\n"
-              "  );\n"
-              "}\n\n"
-              "function projectedRegion(witness, width, height, sourceWidth, sourceHeight) {\n"
-              "  const scaleX = width / sourceWidth;\n"
-              "  const scaleY = height / sourceHeight;\n"
-              "  const sourceRadius = sourceRoadRadius(witness);",
-          )
-          replace_once(
-              'server/video-source-evidence.js',
-              "    enriched.contextWitnesses[kind] = {\n"
-              "      ...candidate.witness,\n"
-              "      renderedColor: selected.best.color,",
-              "    enriched.contextWitnesses[kind] = {\n"
-              "      ...candidate.witness,\n"
-              "      // Carry the exact owned-road corridor proven in the source recording\n"
-              "      // into the post-encoding audit. The final decoder still requires the\n"
-              "      // independent geometry-bound helper ring, so this enlarges only the\n"
-              "      // real-road colour search and cannot be satisfied by the ring itself.\n"
-              "      roadRadius: sourceRoadRadius(candidate.witness),\n"
-              "      renderedColor: selected.best.color,",
-          )
-          replace_once(
-              'tests/unit/videoSourceEvidence.test.js',
-              "    expect(result.contextWitnesses.slope.renderedSourceFrame).toBe(1);\n"
-              "    expect(result.contextWitnesses.traffic.renderedSourceFrame).toBe(1);",
-              "    expect(result.contextWitnesses.slope.renderedSourceFrame).toBe(1);\n"
-              "    expect(result.contextWitnesses.traffic.renderedSourceFrame).toBe(1);\n"
-              "    expect(result.contextWitnesses.slope.roadRadius).toBe(14);\n"
-              "    expect(result.contextWitnesses.traffic.roadRadius).toBe(14);",
-          )
-          PY
-
-          node --check server/start.js
-          node --check server/video-source-evidence.js
-          node --check tests/unit/securityHeaders.test.js
-          node --check tests/unit/videoSourceEvidence.test.js
-          ! grep -R "upgrade-insecure-requests" werkbank_v2.html server/start.js
-          git diff --check
-
-          node - <<'NODE'
-          const { bindRecordedContextColors, SOURCE_MARKER_MIN_PIXELS } = require('./server/video-source-evidence');
-          const width = 64, height = 64;
-          const buffer = Buffer.alloc(width * height * 4, 0);
-          for (let index = 3; index < buffer.length; index += 4) buffer[index] = 255;
-          const setPixel = (x, y, color) => {
-            const offset = (y * width + x) * 4;
-            buffer[offset] = color[0];
-            buffer[offset + 1] = color[1];
-            buffer[offset + 2] = color[2];
-            buffer[offset + 3] = 255;
-          };
-          for (let index = 0; index < SOURCE_MARKER_MIN_PIXELS + 2; index++) {
-            setPixel(index % width, Math.floor(index / width), [0, 191, 165]);
-          }
-          for (const [x, y] of [[31, 32], [32, 32], [33, 32]]) setPixel(x, y, [220, 45, 35]);
-          for (const [x, y] of [[32, 31], [32, 33], [33, 33]]) setPixel(x, y, [45, 115, 145]);
-          const evidence = {
-            sourceWidth: width,
-            sourceHeight: height,
-            accidentWitnesses: {},
-            contextWitnesses: {
-              slope: { kind: 'slope', x: 32, y: 32, roadRadius: 3, lineWeight: 8, counterpartLineWeight: 3, expectedColor: '#f03b20', wayId: '42', witnessColor: [0, 96, 255], sharedCompositeWay: true },
-              traffic: { kind: 'traffic', x: 32, y: 32, roadRadius: 3, lineWeight: 3, counterpartLineWeight: 8, expectedColor: '#277da1', wayId: '42', witnessColor: [255, 0, 128], sharedCompositeWay: true },
-            },
-          };
-          const result = bindRecordedContextColors(buffer, width, height, { layers: { slope: true, traffic: true } }, evidence);
-          if (result.contextWitnesses.slope.roadRadius !== 14 || result.contextWitnesses.traffic.roadRadius !== 14) {
-            throw new Error('Recorded road corridor was not propagated');
-          }
-          NODE
-
-      - name: Commit and push product patch
-        if: steps.patch.outputs.already_applied != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add werkbank_v2.html server/start.js server/video-source-evidence.js \
-            tests/unit/securityHeaders.test.js tests/unit/videoSourceEvidence.test.js
-          git commit -m "fix(ci): restore HTTP runtime and encoded road evidence"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - name: Upload extended QA evidence
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: extended-maven-qa-evidence
+          path: |
+            out/qa/
+            coverage/
+            playwright-report/
+            test-results/
+            docs/screenshots/
+            _site/build-manifest.json
+            analysis-service/target/surefire-reports/
+            qa-system-tests/target/failsafe-reports/
+            qa-system-tests/target/testcontainers-logs/
+          if-no-files-found: ignore
+          retention-days: 14
