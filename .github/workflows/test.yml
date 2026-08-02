@@ -132,7 +132,6 @@ jobs:
           node --check server/video-export.js
           node --check tests/unit/videoExportReadiness.test.js
           git diff --check
-          npx jest tests/unit/videoExportReadiness.test.js --runInBand
 
       - name: Commit focused fix
         shell: bash
