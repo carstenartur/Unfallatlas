@@ -10,6 +10,13 @@ const SOURCE = fs.readFileSync(
   'utf8',
 );
 
+function failedScript(source) {
+  const script = document.createElement('script');
+  script.src = source;
+  document.head.appendChild(script);
+  return script;
+}
+
 describe('critical runtime recovery for legacy branch Pages', () => {
   beforeEach(() => {
     document.documentElement.innerHTML = '<head></head><body></body>';
@@ -27,8 +34,7 @@ describe('critical runtime recovery for legacy branch Pages', () => {
   });
 
   test('retries a failed parser-loaded map module before app startup continues', () => {
-    const script = document.createElement('script');
-    script.src = 'https://example.test/Unfallatlas/js/ua.map_v2.js?v=2026-07-19';
+    const script = failedScript('https://example.test/Unfallatlas/js/ua.map_v2.js?v=2026-07-19');
 
     script.dispatchEvent(new Event('error'));
 
@@ -40,8 +46,7 @@ describe('critical runtime recovery for legacy branch Pages', () => {
 
   test('does not retry when the critical module is already available', () => {
     window.UA.initLeaflet = () => {};
-    const script = document.createElement('script');
-    script.src = 'https://example.test/Unfallatlas/js/ua.map_v2.js';
+    const script = failedScript('https://example.test/Unfallatlas/js/ua.map_v2.js');
 
     script.dispatchEvent(new Event('error'));
 
@@ -49,8 +54,7 @@ describe('critical runtime recovery for legacy branch Pages', () => {
   });
 
   test('limits parser-blocking retries', () => {
-    const script = document.createElement('script');
-    script.src = 'https://example.test/Unfallatlas/js/ua.map_v2.js';
+    const script = failedScript('https://example.test/Unfallatlas/js/ua.map_v2.js');
 
     script.dispatchEvent(new Event('error'));
     script.dispatchEvent(new Event('error'));
