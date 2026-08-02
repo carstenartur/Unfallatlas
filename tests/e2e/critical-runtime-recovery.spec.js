@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('a transient 503 for ua.map_v2.js is recovered before the next parser script runs', async ({ page, baseURL }) => {
+test('the real core startup recovers a transient 503 before the next parser script runs', async ({ page, baseURL }) => {
   let mapScriptRequests = 0;
   await page.route('**/js/ua.map_v2.js*', async (route) => {
     mapScriptRequests += 1;
@@ -18,7 +18,7 @@ test('a transient 503 for ua.map_v2.js is recovered before the next parser scrip
   const root = new URL('.', baseURL || 'http://localhost:8000/').href;
   await page.setContent(`<!doctype html>
 <html><head>
-  <script src="${root}js/ua.critical-runtime-recovery.js"></script>
+  <script src="${root}js/ua.core.js?v=test"></script>
   <script src="${root}js/ua.map_v2.js?v=primary"></script>
   <script>
     window.__criticalRuntimeReadyBeforeNextParserScript =
