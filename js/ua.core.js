@@ -1,6 +1,15 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
+  // ua.core.js is the first application module in the parser-ordered stack.
+  // Install the recovery guard here, before later critical modules such as
+  // ua.map_v2.js are requested. Eval-based unit tests have no currentScript and
+  // therefore remain hermetic.
+  const parserCoreScript = typeof document !== "undefined" ? document.currentScript : null;
+  if (parserCoreScript && parserCoreScript.src && !window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__) {
+    document.write('<script src="js/ua.critical-runtime-recovery.js?v=1"><\/script>');
+  }
+
   // ---- Core build info (optional) ----
   UA.BUILD = UA.BUILD || "";
 
