@@ -30,7 +30,7 @@ jobs:
         run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=false
 
       - name: Upload reviewed screenshot candidate
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: documentation-screenshots-live-map-${{ github.sha }}
           path: |
@@ -43,7 +43,7 @@ jobs:
           retention-days: 30
 
       - name: Upload media QA report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/live-cartography-evidence.json', 'out/qa/screenshot-readiness/*.json') != '' }}
         with:
           name: documentation-media-report-${{ github.sha }}
