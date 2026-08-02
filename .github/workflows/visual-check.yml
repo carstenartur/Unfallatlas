@@ -51,7 +51,7 @@ jobs:
 
       - name: Generate and validate candidate documentation and deep links
         env:
-          DOCUMENTATION_AUDIT_CANDIDATE: '1'
+          DOCUMENTATION_APP_BASE_URL: 'http://localhost:8000'
         run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true
 
       - name: Upload candidate deep-link evidence
@@ -97,6 +97,6 @@ jobs:
         run: |
           echo '## Visual Check – Kandidatenartefakt, Screenshots und README-Deep-Links' >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
-          echo 'Dieser PR-Lauf prüft ausschließlich das lokal gebaute Kandidatenartefakt.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Dieser PR-Lauf prüft ausschließlich das lokal gebaute Kandidatenartefakt unter http://localhost:8000.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Die tatsächlich veröffentlichte GitHub-Pages-Anwendung wird getrennt nach jedem Deployment und täglich geprüft.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Karten-Screenshots bleiben an Provider-URL, HTTP-Status und Raster-MIME-Typ gebunden.' >> "$GITHUB_STEP_SUMMARY"
