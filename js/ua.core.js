@@ -94,6 +94,101 @@
     })), Promise.resolve());
   };
 
+  // Parser order must not decide whether optional task dialogs and document
+  // exports are usable. Install assignment slots before their modules load, so
+  // every later init function is idempotent and report buttons wait for the
+  // fail-closed provenance adapter before capturing an exporter.
+  function initOnceWrapper(owner, candidate, markerId) {
+    if (typeof candidate !== "function") return candidate;
+    if (candidate._uaInitOnce === true) return candidate;
+    const wrapped = function initializeOnce(ctx) {
+      const marker = document.getElementById(markerId);
+      if (marker && marker.dataset.uaInitialized === "true") return undefined;
+      if (marker) marker.dataset.uaInitialized = "true";
+      try {
+        return candidate.call(owner, ctx);
+      } catch (error) {
+        if (marker) delete marker.dataset.uaInitialized;
+        throw error;
+      }
+    };
+    wrapped._uaInitOnce = true;
+    return wrapped;
+  }
+
+  function installFeatureInitSlot(namespace, markerId) {
+    const owner = (UA[namespace] = UA[namespace] || {});
+    let value = initOnceWrapper(owner, owner.init, markerId);
+    Object.defineProperty(owner, "init", {
+      configurable: true,
+      enumerable: true,
+      get() { return value; },
+      set(candidate) { value = initOnceWrapper(owner, candidate, markerId); },
+    });
+  }
+
+  installFeatureInitSlot("PoliticalContext", "btnPolCtxOpen");
+  installFeatureInitSlot("Priorities", "btnPrioritiesOpen");
+
+  let reportInitializer = UA.initReportExportUI;
+  function wrapReportInitializer(candidate) {
+    if (typeof candidate !== "function") return candidate;
+    if (candidate._uaProvenanceDeferred === true) return candidate;
+    const wrapped = function initializeReportExportAfterProvenance(ctx) {
+      const marker = document.getElementById("btnExportWord") ||
+        document.getElementById("btnExportPDF");
+      const bind = () => {
+        if (marker && marker.dataset.uaInitialized === "true") return undefined;
+        if (marker) marker.dataset.uaInitialized = "true";
+        try {
+          return candidate.call(UA, ctx);
+        } catch (error) {
+          if (marker) delete marker.dataset.uaInitialized;
+          throw error;
+        }
+      };
+      const waitForReady = () => {
+        const ready = UA.exportProvenanceReady;
+        if (ready && typeof ready.then === "function") {
+          return Promise.resolve(ready).then(bind, bind);
+        }
+        return bind();
+      };
+      if (document.readyState === "loading" && !UA.exportProvenanceReady) {
+        return new Promise((resolve) => {
+          document.addEventListener("DOMContentLoaded", () => resolve(waitForReady()), { once: true });
+        });
+      }
+      return waitForReady();
+    };
+    wrapped._uaProvenanceDeferred = true;
+    return wrapped;
+  }
+  Object.defineProperty(UA, "initReportExportUI", {
+    configurable: true,
+    enumerable: true,
+    get() { return reportInitializer; },
+    set(candidate) { reportInitializer = wrapReportInitializer(candidate); },
+  });
+  if (reportInitializer) UA.initReportExportUI = reportInitializer;
+
+  function initializeDeferredUi(attempt = 0) {
+    const ctx = typeof UA.getRuntimeContext === "function" ? UA.getRuntimeContext() : null;
+    if (!ctx) {
+      if (attempt < 50) setTimeout(() => initializeDeferredUi(attempt + 1), 0);
+      return;
+    }
+    if (UA.PoliticalContext && typeof UA.PoliticalContext.init === "function") {
+      UA.PoliticalContext.init(ctx);
+    }
+    if (UA.Priorities && typeof UA.Priorities.init === "function") {
+      UA.Priorities.init(ctx);
+    }
+    if (typeof UA.initReportExportUI === "function") {
+      UA.initReportExportUI(ctx);
+    }
+  }
+
   const ownScript = typeof document !== "undefined" ? document.currentScript : null;
   if (ownScript && ownScript.src) {
     const moduleUrl = (name) => new URL(name, ownScript.src).toString();
@@ -184,10 +279,14 @@
           return null;
         });
     };
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", startExportProvenance, { once: true });
-    } else {
+    const startRuntime = () => {
       startExportProvenance();
+      initializeDeferredUi();
+    };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", startRuntime, { once: true });
+    } else {
+      startRuntime();
     }
   }
 })();
