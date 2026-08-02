@@ -1,14 +1,6 @@
 (() => {
   'use strict';
 
-  // The public profile is inserted immediately before ua.app_v2.js. Keep the
-  // recovery guard parser-blocking so a failed earlier critical script can be
-  // retried before application startup continues. The guard is idempotent and
-  // therefore also safe when the legacy branch-root fallback loaded it first.
-  if (!window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__) {
-    document.write('<script src="js/ua.critical-runtime-recovery.js?v=1"><\/script>');
-  }
-
   const UA = (window.UA = window.UA || {});
   const PROFILE_ID = 'public-preview-core-v1';
   const DISABLED_CAPABILITIES = Object.freeze(['video-export']);
