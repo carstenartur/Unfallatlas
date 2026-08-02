@@ -38,31 +38,33 @@ jobs:
     timeout-minutes: 55
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
-        uses: actions/setup-java@v5.6.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
 
-      - name: Generate and validate live documentation and published links
+      - name: Generate and validate candidate documentation and deep links
+        env:
+          DOCUMENTATION_APP_BASE_URL: 'http://localhost:8000'
         run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true
 
-      - name: Upload published-application deep-link evidence
-        uses: actions/upload-artifact@v7
+      - name: Upload candidate deep-link evidence
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ always() && hashFiles('out/qa/documentation-live-links/*') != '' }}
         with:
-          name: pr-live-documentation-links-${{ github.event.pull_request.number }}
+          name: pr-candidate-documentation-links-${{ github.event.pull_request.number }}
           path: out/qa/documentation-live-links/
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload PR screenshots as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pr-live-map-screenshots-${{ github.event.pull_request.number }}
           path: |
@@ -76,7 +78,7 @@ jobs:
           retention-days: 30
 
       - name: Upload media QA report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/live-cartography-evidence.json', 'out/qa/screenshot-readiness/*.json', 'out/qa/documentation-live-links/*') != '' }}
         with:
           name: pr-media-report-${{ github.event.pull_request.number }}
@@ -93,7 +95,8 @@ jobs:
 
       - name: Write PR summary
         run: |
-          echo '## Visual Check – Screenshots und README-Deep-Links' >> "$GITHUB_STEP_SUMMARY"
+          echo '## Visual Check – Kandidatenartefakt, Screenshots und README-Deep-Links' >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
-          echo 'Der Lauf akzeptiert nur erfolgreich geladene reale OSM-/WMS-/Orthofoto-Bildantworten.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Jeder Karten-Screenshot bleibt an Provider-URL, HTTP-Status und Raster-MIME-Typ gebunden.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Dieser PR-Lauf prüft ausschließlich das lokal gebaute Kandidatenartefakt unter http://localhost:8000.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Die tatsächlich veröffentlichte GitHub-Pages-Anwendung wird getrennt nach jedem Deployment und täglich geprüft.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Karten-Screenshots bleiben an Provider-URL, HTTP-Status und Raster-MIME-Typ gebunden.' >> "$GITHUB_STEP_SUMMARY"

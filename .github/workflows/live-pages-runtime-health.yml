@@ -1,0 +1,103 @@
+name: Live Pages Runtime Health
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/live-pages-runtime-health.yml'
+      - '.github/workflows/deploy-pages-current-data.yml'
+      - '.github/workflows/generate-data-deploy-pages.yml'
+      - 'pom.xml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'werkbank_v2.html'
+      - 'vendor/**'
+      - 'css/**'
+      - 'js/**'
+      - 'scripts/diagnose-published-werkbank.cjs'
+      - 'scripts/documentation-deeplink-contract.cjs'
+      - 'scripts/run-live-documentation-links.cjs'
+      - 'scripts/run-live-documentation-qa.js'
+      - 'tests/e2e/documentation-deeplinks.live.spec.js'
+      - 'tests/unit/criticalRuntimeRecovery.test.js'
+      - 'out/**'
+      - 'data/**'
+  workflow_run:
+    workflows:
+      - '04 · Aktuelle Daten veröffentlichen'
+      - 'Generate Data and Deploy Pages'
+    types: [completed]
+  schedule:
+    - cron: '17 5 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-pages-runtime-health-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  recovery-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout recovery contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK and Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Verify parser-blocking critical-script recovery through Maven
+        run: mvn -B -ntp test
+
+  published-runtime:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout health-check contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK and Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Diagnose the published application through the documented Maven profile
+        env:
+          DOCUMENTATION_AUDIT_PUBLISHED: '1'
+          PUBLISHED_RUNTIME_DIAGNOSTIC: '1'
+        run: >-
+          mvn -B -ntp integration-test
+          -Pdocumentation-live
+          -Ddocumentation.liveLinks=true
+          -DskipTests=true
+
+      - name: Upload live runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: live-pages-runtime-health
+          path: |
+            out/qa/published-runtime-diagnostic/
+            out/qa/documentation-live-links/
+            out/qa/screenshot-readiness/
+            out/qa/live-cartography-evidence.json
+            out/qa/documentation-media.json
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 30

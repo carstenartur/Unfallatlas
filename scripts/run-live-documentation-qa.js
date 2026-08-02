@@ -8,6 +8,9 @@ const ROOT = path.resolve(__dirname, '..');
 const INCLUDE_LIVE_LINKS = /^(?:1|true|yes)$/i.test(
   String(process.env.DOCUMENTATION_LIVE_LINKS || 'false')
 );
+const INCLUDE_PUBLISHED_RUNTIME_DIAGNOSTIC = /^(?:1|true|yes)$/i.test(
+  String(process.env.PUBLISHED_RUNTIME_DIAGNOSTIC || 'false')
+);
 
 function runNode(relativeScript, args = [], options = {}) {
   const result = spawnSync(process.execPath, [path.join(ROOT, relativeScript), ...args], {
@@ -55,6 +58,10 @@ function installChromium() {
 cleanCandidates();
 installChromium();
 
+if (INCLUDE_PUBLISHED_RUNTIME_DIAGNOSTIC) {
+  runNode('scripts/diagnose-published-werkbank.cjs');
+}
+
 const logPath = path.join(ROOT, 'out', 'qa', 'live-documentation-screenshots.log');
 fs.mkdirSync(path.dirname(logPath), { recursive: true });
 const screenshots = spawnSync(
@@ -82,4 +89,7 @@ runNode('scripts/validate-doc-media.js', [
   '--report', 'out/qa/documentation-media.json',
 ]);
 
-console.log(`[documentation-live] PASS (live links: ${INCLUDE_LIVE_LINKS})`);
+console.log(
+  `[documentation-live] PASS (live links: ${INCLUDE_LIVE_LINKS}; ` +
+  `published runtime diagnostic: ${INCLUDE_PUBLISHED_RUNTIME_DIAGNOSTIC})`
+);
