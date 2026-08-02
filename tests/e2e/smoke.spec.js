@@ -27,11 +27,11 @@ const KNOWN_NON_ACTIONABLE_CONSOLE_ERRORS = [
   // Kein Node-Backend im statischen Test-Server → 404-Probes sind erwartet
   /Failed to load resource.*404/i,
   /\/api\//i,
-  // Chromium reports unsupported frame-ancestors directives from meta CSP as
-  // console errors. The directive has no effect in a meta policy by browser
+  // Browsers use different wording for unsupported frame-ancestors directives
+  // from meta CSP. The directive has no effect in a meta policy by browser
   // definition; the enforceable production contract is the HTTP response
   // header covered by the dedicated security-header tests.
-  /Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element/i,
+  /Content Security Policy directive 'frame-ancestors' is ignored when delivered via (?:a <meta>|an HTML meta) element/i,
 ];
 
 function isKnownNonActionable(message) {
