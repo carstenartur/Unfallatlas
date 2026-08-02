@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -62,7 +61,7 @@ jobs:
               "    expect(source).toContain(\"response.setHeader('X-Content-Type-Options', 'nosniff')\");",
               "    expect(source).toContain(\"response.setHeader('Content-Security-Policy'\");\n"
               "    expect(source).not.toContain(\"'upgrade-insecure-requests'\");\n"
-              "    expect(source).toContain(\"response.setHeader('X-Content-Type-Options', 'nosn')\");",
+              "    expect(source).toContain(\"response.setHeader('X-Content-Type-Options', 'nosniff')\");",
           )
 
           # The source-video audit already records the exact rendered road pixel
