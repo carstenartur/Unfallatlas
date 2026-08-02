@@ -22,6 +22,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     ignoreHTTPSErrors: true,
+    // The PDF evidence test replaces the application document with an isolated
+    // local preview that contains its pdf.js bootstrap module. It must not
+    // inherit and enforce the CSP of the previously visited application page.
+    // CSP contents and production response headers are verified separately by
+    // dedicated security contract tests.
+    bypassCSP: true,
   },
 
   projects: [
