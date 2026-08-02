@@ -20,12 +20,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up JDK and Maven cache
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -34,7 +34,7 @@ jobs:
       # Optional CI acceleration only. The producer and QA logic live in the
       # Maven profiles and are executable from every checkout.
       - name: Restore context producer cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .enrichment-cache
           key: pages-context-${{ runner.os }}-${{ hashFiles('scripts/producers/*.js', 'scripts/generate-context-city.js') }}-${{ github.run_id }}
@@ -48,7 +48,7 @@ jobs:
 
       - name: Upload Maven Pages QA evidence
         if: ${{ always() && hashFiles('_site/build-manifest.json') != '' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pages-documentation-media-report
           path: |
@@ -66,7 +66,7 @@ jobs:
           retention-days: 14
 
       - name: Upload immutable Pages artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: _site
 
@@ -85,8 +85,8 @@ jobs:
       # manual deployments only publish verified artifacts and never require
       # repository-administration permissions.
       - name: Configure Pages deployment
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
 
       - name: Deploy Maven-verified artifact
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
