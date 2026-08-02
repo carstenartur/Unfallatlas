@@ -58,7 +58,7 @@
   function trendQualifierText(classification) {
     switch (classification) {
       case "steigend":     return "im Mittel der letzten Jahre steigend";
-      case "stagnierend":  return "stagnierend hoch (kein erkennbarer Rückgang)";
+      case "stagnierend":  return "im Mehrjahresvergleich ohne deutlichen Rückgang";
       case "rückläufig":   return "rückläufig im Mehrjahresvergleich";
       case "unbestimmt":   return "Trend statistisch unbestimmt (zu wenig Datenjahre)";
       default:             return null;

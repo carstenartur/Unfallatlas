@@ -5,6 +5,7 @@ const path = require('path');
 
 describe('Werkbank deployment asset versions', () => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
+  const bootstrap = fs.readFileSync(path.resolve(__dirname, '../../js/ua.bootstrap.js'), 'utf8');
   const version = '2026-07-19';
 
   test.each([
@@ -27,6 +28,14 @@ describe('Werkbank deployment asset versions', () => {
   test('support metadata and runtime BUILD expose the same release timestamp', () => {
     const timestamp = `${version} 00:00 UTC`;
     expect(html).toContain(`<meta name="unfallwerkbank-build" content="${timestamp}"/>`);
-    expect(html).toContain(`window.UA = { BUILD: "${timestamp}" }`);
+
+    const bootstrapReference = html.indexOf('src="js/ua.bootstrap.js');
+    const coreReference = html.indexOf('src="js/ua.core.js');
+    expect(bootstrapReference).toBeGreaterThanOrEqual(0);
+    expect(coreReference).toBeGreaterThan(bootstrapReference);
+
+    const buildMatch = bootstrap.match(/window\.UA\s*=\s*\{\s*BUILD:\s*['"]([^'"]+)['"]\s*\}/);
+    expect(buildMatch).not.toBeNull();
+    expect(buildMatch[1]).toBe(timestamp);
   });
 });

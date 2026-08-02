@@ -2,7 +2,7 @@
 
 > **Wo passieren Fahrradunfälle? Wo sind Schulwege gefährlich? Wo braucht es bessere Radinfrastruktur?**
 >
-> Die Unfallwerkbank macht amtliche Verkehrsunfalldaten (2016–2024) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
+> Die Unfallwerkbank macht amtliche Verkehrsunfalldaten (2016–2025) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
 
 [![CI](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml)
 [![Release](https://img.shields.io/github/v/release/carstenartur/Unfallatlas?sort=semver&label=Release)](https://github.com/carstenartur/Unfallatlas/releases/latest)
@@ -14,13 +14,15 @@
 
 | Datenbestand | Status und Aktualisierung |
 |---|---|
-| **1 · Unfalldaten** | [![Unfalldaten](https://carstenartur.github.io/Unfallatlas/status/accidents.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Unfalldaten aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/generate-and-commit.yml) |
+| **1 · Unfalldaten** | [![Unfalldaten](https://carstenartur.github.io/Unfallatlas/status/accidents.svg?readme=20260801-1)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Unfalldaten aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/generate-and-commit.yml) |
 | **2 · Schulen und Kitas** | [![Schulen und Kitas](https://carstenartur.github.io/Unfallatlas/status/poi.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Schulen und Kitas aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/fetchpoi.yml) |
 | **3a · Straßenkontext** | [![Straßenkontext](https://carstenartur.github.io/Unfallatlas/status/roads.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
 | **3b · Steigung** | [![Steigung](https://carstenartur.github.io/Unfallatlas/status/slope.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
 | **3c · Verkehr** | [![Verkehr](https://carstenartur.github.io/Unfallatlas/status/traffic.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
 
-Der kompakte grüne **▶-Knopf** steht in derselben Tabellenzelle wie der zugehörige Status. Er öffnet den zuständigen GitHub-Actions-Workflow; dort **Run workflow** und anschließend nochmals **Run workflow** wählen. Für eine vollständige Aktualisierung normalerweise zuerst Schritt 1 und danach Schritt 2 starten. Die Schritte 3a–3c gehören zu demselben Kontext-Workflow und folgen nach Schritt 1 auf `main` automatisch.
+Der kompakte grüne **▶-Knopf** steht in derselben Tabellenzelle wie der zugehörige Status. Er öffnet den zuständigen GitHub-Actions-Workflow; dort **Run workflow** und anschließend nochmals **Run workflow** wählen.
+
+Der Unfalldatenworkflow schreibt **niemals direkt nach `main`**. Er erzeugt und prüft zunächst alle Daten ohne Schreibberechtigung, bindet Stadt-, Jahres-, Fallzahl-, CSV-/GeoJSON- und Dateihashverträge in [`data/accident-data-release.json`](data/accident-data-release.json) und veröffentlicht anschließend ausschließlich das unveränderte, gehashte Ergebnispaket in einem automatischen **Pull Request**. Erst die regulären Required Checks und eine Review dürfen diesen Pull Request nach `main` übernehmen. Für eine vollständige Aktualisierung normalerweise zuerst Schritt 1 und nach dem Merge Schritt 2 starten. Die Schritte 3a–3c gehören zu demselben Kontext-Workflow und folgen nach dem geprüften Unfalldaten-Merge auf `main` automatisch.
 
 [Reihenfolge, Veröffentlichung, Methodik und Farbbedeutung](DATA_STATUS.md)
 

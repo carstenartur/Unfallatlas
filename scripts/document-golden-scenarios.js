@@ -240,7 +240,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: false, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 6,
+      minimumRenderedPages: 5,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
       manualWordEvidenceRequired: true,
@@ -275,7 +275,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: true, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 6,
+      minimumRenderedPages: 5,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
       manualWordEvidenceRequired: true,
@@ -303,7 +303,7 @@ const RAW_SCENARIOS = [
       status: 'available',
       summary: 'Mehrere Kontextquellen sind vorhanden und müssen über viele Abschnitte konsistent bleiben.',
     },
-    narrativeParagraphs: Array.from({ length: 24 }, (_, index) =>
+    narrativeParagraphs: Array.from({ length: 32 }, (_, index) =>
       `Prüfabschnitt ${index + 1}: Dieser deterministische Langtext belastet Seitenumbrüche, Überschriftenbindung, Tabellenfortsetzungen und die Zuordnung von Kartenunterschriften, ohne neue Tatsachen zu behaupten.`),
     clusterCount: 24,
     exportOptions: { includeMap: true, includePOIs: true, includeReferences: true },

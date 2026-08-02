@@ -51,7 +51,12 @@ function inspectPdf(buffer) {
         if (annotation.unsafeUrl) urls.push(annotation.unsafeUrl);
       }
     }
-    process.stdout.write(JSON.stringify({ visible: visibleText.join('\n'), urls }));
+    const metadata = await pdf.getMetadata();
+    process.stdout.write(JSON.stringify({
+      visible: visibleText.join('\n'),
+      urls,
+      info: metadata.info || {},
+    }));
   `;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
     cwd: path.resolve(__dirname, '../..'),
@@ -63,6 +68,17 @@ function inspectPdf(buffer) {
     throw new Error(`PDF inspection failed: ${result.stderr || result.stdout}`);
   }
   return JSON.parse(result.stdout);
+}
+
+function pdfInfoEntry(info, name) {
+  const containers = [info, info?.Custom]
+    .filter(value => value && typeof value === 'object');
+  for (const container of containers) {
+    const match = Object.entries(container)
+      .find(([key]) => key.toLowerCase() === name.toLowerCase());
+    if (match) return match[1];
+  }
+  return undefined;
 }
 
 function decodeXml(value) {
@@ -265,8 +281,14 @@ describe('renderer-wide SourceManifest golden matrix', () => {
     const wordArchive = await JSZip.loadAsync(new Uint8Array(await readBlob(produced.word, 'arrayBuffer')));
     const documentXml = await wordArchive.file('word/document.xml').async('string');
     const relationshipsXml = await wordArchive.file('word/_rels/document.xml.rels').async('string');
-    expect(documentXml).toContain(normalized.sha256);
+    const customPropertiesXml = await wordArchive.file('docProps/custom.xml').async('string');
+    expect(documentXml).not.toContain(normalized.sha256);
+    expect(documentXml).toContain(normalized.sha256.slice(0, 12));
     expect(documentXml).toContain(normalized.manifest.artifactId);
+    expect(customPropertiesXml).toContain('UnfallwerkbankSourceManifestSha256');
+    expect(customPropertiesXml).toContain(normalized.sha256);
+    expect(customPropertiesXml).toContain('UnfallwerkbankSourceManifest');
+    expect(customPropertiesXml).toContain(normalized.manifest.artifactId);
     for (const source of normalized.manifest.sources) {
       expect(relationshipsXml).toContain(`Target="${source.datasetUrl}"`);
       if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {
@@ -276,8 +298,13 @@ describe('renderer-wide SourceManifest golden matrix', () => {
     }
 
     const pdf = inspectPdf(produced.pdf);
-    expect(pdf.visible.replace(/\s+/g, '')).toContain(normalized.sha256);
+    expect(pdf.visible.replace(/\s+/g, '')).not.toContain(normalized.sha256);
+    expect(pdf.visible).toContain(normalized.sha256.slice(0, 12));
     expect(pdf.visible).toContain(normalized.manifest.artifactId);
+    expect(pdfInfoEntry(pdf.info, 'UnfallwerkbankSourceManifestSha256'))
+      .toBe(normalized.sha256);
+    expect(JSON.parse(pdfInfoEntry(pdf.info, 'UnfallwerkbankSourceManifest')))
+      .toEqual(normalized.manifest);
     for (const source of normalized.manifest.sources) {
       expect(pdf.urls).toContain(source.datasetUrl);
       if (source.distributionUrl && source.distributionUrl !== source.datasetUrl) {

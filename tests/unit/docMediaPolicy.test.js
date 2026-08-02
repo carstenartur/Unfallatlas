@@ -64,7 +64,7 @@ describe('documentation media policy', () => {
       revision,
       screenshot,
       build,
-      criteria: { city: 'Teststadt', layers: ['cluster'], requireCompleteCoverage: true },
+      criteria: { city: 'Teststadt', layers: ['cluster'], requireCompleteCoverage: true, mapSourceMode: 'fixture' },
       lifecycle: {
         status: 'ready',
         city: 'Teststadt',

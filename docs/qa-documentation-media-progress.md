@@ -1,1 +1,0 @@
-Initiale Befunde reproduziert.

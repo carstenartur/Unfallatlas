@@ -124,6 +124,9 @@ function validateLifecycle(evidence, screenshotPath, errors) {
   if (criteria && criteria.requireCompleteCoverage !== true) {
     errors.push(`${screenshotPath}: complete city-data coverage was not required`);
   }
+  if (!criteria || !['fixture', 'live'].includes(criteria.mapSourceMode)) {
+    errors.push(`${screenshotPath}: map source mode is not declared as fixture or live`);
+  }
   if (!lifecycle.counts || !['loaded', 'filtered', 'viewport'].every(key => Number(lifecycle.counts[key]) > 0)) {
     errors.push(`${screenshotPath}: lifecycle does not prove non-empty accident data`);
   }

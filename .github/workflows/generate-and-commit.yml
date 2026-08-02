@@ -1,4 +1,4 @@
-name: "01 · Unfalldaten aktualisieren"
+name: "01 · Unfalldaten aktualisieren – geprüften Pull Request erzeugen"
 
 on:
   workflow_dispatch:
@@ -10,36 +10,47 @@ on:
         default: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: accident-data-refresh-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  build:
+  generate-and-verify:
+    name: Generate and verify immutable publication payload
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    outputs:
+      no_changes: ${{ steps.package.outputs.no_changes }}
+      release_id: ${{ steps.package.outputs.release_id }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout requested base without write credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: true
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
+          cache: npm
 
-      - name: Set up Git
-        run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-
-      - name: Prepare build directories
+      - name: Prepare isolated build directories and retain previous release oracle
+        shell: bash
         run: |
           set -euo pipefail
-          rm -rf .build/raw
-          mkdir -p .build/raw out
+          rm -rf .build/raw .build/accident-publication out/qa
+          mkdir -p .build/raw .build out/qa
+          cp data/accident-data-release.json .build/previous-accident-data-release.json
 
       - name: Download and generate accident data from cities.txt
         shell: bash
@@ -62,30 +73,253 @@ jobs:
           fi
           node scripts/generate-accident-data.js "${ARGS[@]}"
 
-      - name: Normalize static data artifacts to gzip-only
-        run: node scripts/gzip-static-data.js --replace-raw --summary-json out/gzip-summary.json
+      - name: Normalize only static data artifacts to deterministic gzip
+        run: node scripts/gzip-static-data.js --replace-raw --summary-json .build/gzip-summary.json
 
       - name: Verify gzip-only artifact invariants
         run: node scripts/gzip-static-data.js --check --gzip-only
 
-      - name: Validate all expected city GeoJSON files are present and complete
+      - name: Validate all expected city data paths
         run: node scripts/check-data-paths.js --gzip-only --min-features 10
 
-      - name: Sync City-Registry (auto-fix Drift)
+      - name: Synchronize the city registry before the final gates
         run: node scripts/check-city-rollout.js --fix
 
-      - name: Commit & Push changes
+      - name: Generate and verify the complete accident release manifest
+        shell: bash
         run: |
           set -euo pipefail
+          node --max-old-space-size=4096 scripts/validate-accident-publication.js \
+            --write-manifest \
+            --previous-manifest .build/previous-accident-data-release.json \
+            --report out/qa/accident-publication.json
+          npm run validate:accident-publication
 
-          # niemals tmp-Dateien committen
-          find out -type f -name '*.tmp' -print -delete || true
-          rm -rf .build
+      - name: Prepare the only files eligible for publication
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run prepare:accident-publication
+          no_changes="$(jq -r '.noChanges' .build/accident-publication/publication.json)"
+          release_id="$(jq -r '.releaseId' data/accident-data-release.json)"
+          echo "no_changes=${no_changes}" >> "$GITHUB_OUTPUT"
+          echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
 
-          git add -A
+      - name: Run JUnit, browser and exact Pages compatibility against the candidate tree
+        run: >-
+          mvn -B -ntp clean verify -Ppages,system-it
+          '-Dfailsafe.includes=**/CheckedInAccidentDataIT.java'
+
+      - name: Prove that QA did not mutate the prepared product payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify:accident-publication
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -cf accident-publication-package.tar \
+            -C .build accident-publication
+
+      - name: Upload immutable publication package
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: accident-data-publication-${{ github.run_id }}
+          path: accident-publication-package.tar
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload mandatory accident-data compatibility evidence
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: accident-data-evidence-${{ github.run_id }}
+          path: |
+            out/qa/accident-publication.json
+            data/accident-data-release.json
+            .build/accident-publication/publication.json
+            .build/accident-publication/publication.diff
+            qa-system-tests/target/failsafe-reports/
+            qa-system-tests/target/testcontainers-logs/
+            test-results/
+            playwright-report/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-pull-request:
+    name: Publish the exact verified payload as a pull request
+    needs: generate-and-verify
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.generate-and-verify.outputs.no_changes == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PUBLISH_BRANCH: automation/accident-data-refresh
+    steps:
+      - name: Fresh checkout of the exact tested base without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Reset the automation branch to the exact tested base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin \
+            "refs/heads/${PUBLISH_BRANCH}:refs/remotes/origin/${PUBLISH_BRANCH}" || true
+          git switch -C "$PUBLISH_BRANCH" "$GITHUB_SHA"
+
+      - name: Download immutable publication package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: accident-data-publication-${{ github.run_id }}
+          path: verified-publication
+
+      - name: Verify and apply package without executing repository code
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verified-publication/unpacked
+          tar -xf verified-publication/accident-publication-package.tar \
+            -C verified-publication/unpacked
+          python - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import shutil
+          import subprocess
+
+          root = pathlib.Path.cwd().resolve()
+          package = root / "verified-publication" / "unpacked" / "accident-publication"
+          publication = json.loads((package / "publication.json").read_text(encoding="utf-8"))
+          if publication.get("contract") != "unfallwerkbank-accident-publication-package/v1":
+              raise SystemExit("unsupported publication package contract")
+          current = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], cwd=root, text=True
+          ).strip()
+          if current != publication["baseSha"]:
+              raise SystemExit(
+                  f"tested base moved: package={publication['baseSha']} checkout={current}"
+              )
+
+          canonical = {
+              "baseSha": publication["baseSha"],
+              "entries": [
+                  {
+                      "path": entry["path"],
+                      "status": entry["status"],
+                      "deleted": entry["deleted"],
+                      "bytes": entry["bytes"],
+                      "sha256": entry["sha256"],
+                  }
+                  for entry in publication["changedFiles"]
+              ],
+          }
+          fingerprint = hashlib.sha256(
+              json.dumps(canonical, separators=(",", ":")).encode()
+          ).hexdigest()
+          if fingerprint != publication["fingerprint"]:
+              raise SystemExit("publication package fingerprint mismatch")
+
+          paths = []
+          for entry in publication["changedFiles"]:
+              relative = pathlib.PurePosixPath(entry["path"])
+              if relative.is_absolute() or ".." in relative.parts:
+                  raise SystemExit(f"unsafe publication path: {relative}")
+              destination = root.joinpath(*relative.parts)
+              if entry["deleted"]:
+                  raise SystemExit(f"deletions are not permitted: {relative}")
+              source = package / "payload" / relative
+              data = source.read_bytes()
+              if len(data) != entry["bytes"]:
+                  raise SystemExit(f"byte-size mismatch: {relative}")
+              if hashlib.sha256(data).hexdigest() != entry["sha256"]:
+                  raise SystemExit(f"sha256 mismatch: {relative}")
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+              paths.append(str(relative))
+
+          (root / "verified-publication" / "changed-paths.txt").write_text(
+              "".join(f"{item}\n" for item in paths), encoding="utf-8"
+          )
+          PY
+
+      - name: Stage exactly the verified allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            [[ -n "$file" ]] && git add -- "$file"
+          done < verified-publication/changed-paths.txt
+
+          git diff --cached --name-only | LC_ALL=C sort > verified-publication/staged.txt
+          LC_ALL=C sort verified-publication/changed-paths.txt > verified-publication/expected.txt
+          diff -u verified-publication/expected.txt verified-publication/staged.txt
+
           if git diff --cached --quiet; then
-            echo "The forced download completed successfully, but the source data is byte-for-byte unchanged."
+            echo "Verified source bytes are unchanged; no pull request is necessary."
             exit 0
           fi
-          git commit -m "Refresh official accident datasets"
-          git push origin HEAD:${{ github.ref_name }}
+
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -m "Refresh official accident datasets (${{ needs.generate-and-verify.outputs.release_id }})"
+
+      - name: Push automation branch and create or update the review pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.generate-and-verify.outputs.release_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --cached --quiet && \
+             [[ "$(git log -1 --pretty=%B)" != Refresh\ official\ accident\ datasets* ]]; then
+            exit 0
+          fi
+
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force-with-lease origin "HEAD:refs/heads/${PUBLISH_BRANCH}"
+
+          body="$(cat <<EOF
+          ## Automatisch erzeugte, vollständig geprüfte Unfalldaten
+
+          - Datenrelease: \`${RELEASE_ID}\`
+          - geprüfter Basiscommit: \`${GITHUB_SHA}\`
+          - Publikationspaket: \`accident-data-publication-${GITHUB_RUN_ID}\`
+          - Veröffentlichung erfolgt erst nach den regulären Required Checks und Review.
+
+          Der Erzeugungsjob hatte ausschließlich Leserechte. Dieser Schreibjob hat
+          das unveränderliche, gehashte Paket in einem frischen Checkout angewendet,
+          keine Repositoryskripte mit Schreibtoken ausgeführt und ausschließlich die
+          im Paketmanifest genannten Dateien gestaged.
+          EOF
+          )"
+
+          existing="$(gh pr list \
+            --head "$PUBLISH_BRANCH" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+          if [[ -n "$existing" ]]; then
+            gh pr edit "$existing" \
+              --title "Refresh official accident datasets (${RELEASE_ID})" \
+              --body "$body"
+          else
+            gh pr create \
+              --head "$PUBLISH_BRANCH" \
+              --base main \
+              --title "Refresh official accident datasets (${RELEASE_ID})" \
+              --body "$body"
+          fi

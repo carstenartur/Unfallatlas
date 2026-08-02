@@ -221,6 +221,46 @@ test.each([
     expect(issueCodes(auditRenderedDocument(document))).toContain('content_outside_page');
   });
 
+  test('detects a mostly empty standalone page even when it is not technically blank', () => {
+    const document = clone(validDocument());
+    document.pages.push({
+      number: 3, width: 595, height: 842,
+      words: [
+        word('Datenquellen', 48, 60, 90, 14, { fontSize: 12 }),
+        word('Weitere', 48, 90), word('Informationen', 95, 90, 80),
+        word('siehe', 180, 90), word('Link.', 220, 90),
+        word('3', 290, 810, 8),
+      ],
+      images: [], links: [link('https://example.org/source', 'Quelle', 48, 115)],
+      headings: [heading('Datenquellen', 2, 48, 60, 90, 14)], tableRows: [],
+    });
+    expect(issueCodes(auditRenderedDocument(document))).toContain('sparse_page');
+  });
+
+  test('detects an isolated placeholder appendix page', () => {
+    const document = clone(validDocument());
+    document.pages.push({
+      number: 3, width: 595, height: 842,
+      words: [word('ANLAGEN', 48, 60, 80, 14, { fontSize: 12 }), word('3', 290, 810, 8)],
+      images: [], links: [],
+      headings: [heading('ANLAGEN', 2, 48, 60, 80, 14)], tableRows: [],
+    });
+    const codes = issueCodes(auditRenderedDocument(document));
+    expect(codes).toContain('placeholder_appendix');
+    expect(codes).toContain('sparse_page');
+  });
+
+  test.each([
+    ['raw URL', 'https://example.org/very/long/source', 'raw_url_text'],
+    ['full SHA-256', 'a'.repeat(64), 'raw_hash_text'],
+    ['manifest diagnostic', 'buildFingerprint: abc', 'technical_raw_text'],
+    ['raw filter diagnostic', 'selSouth=50.7300', 'technical_raw_text'],
+  ])('detects visible %s text that belongs in metadata', (_label, text, code) => {
+    const document = clone(validDocument());
+    document.pages[1].words.push(word(text, 48, 390, 300, 12));
+    expect(issueCodes(auditRenderedDocument(document))).toContain(code);
+  });
+
   test('detects text below the minimum readable size', () => {
     const document = clone(validDocument());
     document.pages[1].words[1].fontSize = 5.5;

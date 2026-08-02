@@ -68,6 +68,26 @@ describe('manual data refresh semantics', () => {
     expect(shouldRegenerateCity(outDir, 'Bonn', 10, true)).toBe(true);
   });
 
+  test('repair mode regenerates a city when any requested official year is absent', () => {
+    const outDir = path.join(tempRoot, 'out');
+    fs.mkdirSync(outDir, { recursive: true });
+    const fixture = {
+      type: 'FeatureCollection',
+      features: Array.from({ length: 10 }, (_, index) => ({
+        type: 'Feature',
+        properties: { year: 2024, index },
+        geometry: null,
+      })),
+    };
+    fs.writeFileSync(
+      path.join(outDir, 'output_all_years_bonn.geojson.gz'),
+      zlib.gzipSync(Buffer.from(JSON.stringify(fixture)))
+    );
+
+    expect(shouldRegenerateCity(outDir, 'Bonn', 10, false, [2024])).toBe(false);
+    expect(shouldRegenerateCity(outDir, 'Bonn', 10, false, [2024, 2025])).toBe(true);
+  });
+
   test('the accident Actions form defaults to a real forced download', () => {
     const workflow = readWorkflow('generate-and-commit.yml');
     expectManualForceDefault(workflow);

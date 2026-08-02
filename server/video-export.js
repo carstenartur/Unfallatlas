@@ -1106,13 +1106,35 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
   const contextRegions = Object.fromEntries(
     Object.entries(contextWitnesses).map(([kind, witness]) => [kind, projectWitness(witness)])
   );
-  const projectRoadWitness = witness => ({
-    witness,
-    x: Number(witness.x) * width / sourceWidth,
-    y: Number(witness.y) * height / sourceHeight,
-    radiusX: Math.max(1, Number(witness.roadRadius || 7) * width / sourceWidth),
-    radiusY: Math.max(1, Number(witness.roadRadius || 7) * height / sourceHeight),
-  });
+  const sourceFrameInspection = frameEvidence && frameEvidence.sourceFrameInspection || {};
+  const inspectedWidth = Number(sourceFrameInspection.width);
+  const inspectedHeight = Number(sourceFrameInspection.height);
+  const projectRoadWitness = witness => {
+    const sourceRadius = Math.max(
+      Number(witness.roadRadius || 7),
+      Number(witness.lineWeight || 0) +
+        Number(witness.counterpartLineWeight || 0) + 3
+    );
+    const renderedPoint = witness && witness.renderedSourcePoint;
+    const hasRenderedPoint = Boolean(
+      renderedPoint &&
+      Number.isFinite(Number(renderedPoint.x)) &&
+      Number.isFinite(Number(renderedPoint.y)) &&
+      inspectedWidth > 0 && inspectedHeight > 0
+    );
+    return {
+      witness,
+      x: hasRenderedPoint
+        ? Number(renderedPoint.x) * width / inspectedWidth
+        : Number(witness.x) * width / sourceWidth,
+      y: hasRenderedPoint
+        ? Number(renderedPoint.y) * height / inspectedHeight
+        : Number(witness.y) * height / sourceHeight,
+      radiusX: Math.max(3, Math.ceil(sourceRadius * width / sourceWidth)),
+      radiusY: Math.max(3, Math.ceil(sourceRadius * height / sourceHeight)),
+      projectedFromRenderedSourcePoint: hasRenderedPoint,
+    };
+  };
   const contextRoadRegions = {};
   const contextExpectedColors = {};
   for (const kind of ['slope', 'traffic']) {
@@ -1357,7 +1379,12 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
       throw new VideoExportSemanticError(
         `encoded_${kind}_pixels_missing`,
         `Decoded final animation does not contain real ${kind} road pixels from the owned geometry layer`,
-        { frameCount, maxLayerPixels: maxContextLayerPixels[kind], witness: contextWitnesses[kind] }
+        {
+          frameCount,
+          maxLayerPixels: maxContextLayerPixels[kind],
+          witness: contextWitnesses[kind],
+          roadRegion: contextRoadRegions[kind],
+        }
       );
     }
   }

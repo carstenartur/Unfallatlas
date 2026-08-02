@@ -704,7 +704,7 @@ describe('UA.report_v2 - Export Functions', () => {
       expect(allText).toContain('trocken');
     });
 
-    test('should include ANLAGEN block in PDF', async () => {
+    test('does not create a placeholder-only ANLAGEN page in PDF', async () => {
       const getDefinition = (() => {
         let captured;
         const realCreatePdf = window.pdfMake.createPdf.bind(window.pdfMake);
@@ -730,10 +730,8 @@ describe('UA.report_v2 - Export Functions', () => {
         .map(item => (typeof item.text === 'string' ? item.text : ''))
         .join(' ');
 
-      expect(allText).toContain('ANLAGEN');
-      expect(allText).toContain('Anlage 1: Kartenansicht');
-      expect(allText).toContain('Anlage 2: Statistische');
-      expect(allText).toContain('Anlage 3: Fachliche');
+      expect(allText).not.toContain('ANLAGEN');
+      expect(allText).not.toMatch(/Anlage [1-3]:/);
     });
   });
 

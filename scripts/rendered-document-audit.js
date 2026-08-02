@@ -13,6 +13,9 @@
 const DEFAULTS = Object.freeze({
   pageMargin: 12,
   emptyPageMinWords: 3,
+  sparsePageMinWords: 12,
+  sparsePageMaxWords: 40,
+  minimumContentSpanFraction: 0.16,
   minimumTextHeight: 7,
   orphanHeadingBottomFraction: 0.82,
   orphanHeadingMinFollowingWords: 4,
@@ -233,7 +236,8 @@ function normalizeDocument(value) {
 function normalizeOptions(value) {
   const options = { ...DEFAULTS, ...(value || {}) };
   for (const key of [
-    'pageMargin', 'emptyPageMinWords', 'minimumTextHeight',
+    'pageMargin', 'emptyPageMinWords', 'sparsePageMinWords', 'sparsePageMaxWords',
+    'minimumContentSpanFraction', 'minimumTextHeight',
     'orphanHeadingBottomFraction', 'orphanHeadingMinFollowingWords',
     'minimumMapWidth', 'minimumMapHeight', 'mapAspectTolerance',
   ]) {
@@ -241,6 +245,13 @@ function normalizeOptions(value) {
   }
   if (options.orphanHeadingBottomFraction <= 0 || options.orphanHeadingBottomFraction >= 1) {
     fail('invalid_option', 'options.orphanHeadingBottomFraction', options.orphanHeadingBottomFraction);
+  }
+  if (options.minimumContentSpanFraction <= 0 || options.minimumContentSpanFraction >= 1) {
+    fail('invalid_option', 'options.minimumContentSpanFraction', options.minimumContentSpanFraction);
+  }
+  if (options.sparsePageMinWords < options.emptyPageMinWords ||
+      options.sparsePageMaxWords < options.sparsePageMinWords) {
+    fail('invalid_option', 'options.sparsePageMinWords', options.sparsePageMinWords);
   }
   return Object.freeze(options);
 }
@@ -305,6 +316,81 @@ function auditEmptyPage(page, options, issues) {
     issues.push(issue(
       'empty_page', 'error', page.number, `pages[${page.number - 1}]`,
       `page ${page.number} has only ${significantWords.length} significant words and no structural content`
+    ));
+  }
+}
+
+function significantPageWords(page) {
+  return page.words.filter(word =>
+    /[\p{L}\p{N}]/u.test(word.text) && word.yMin < page.height * 0.9
+  );
+}
+
+function auditSparsePage(page, options, issues) {
+  if (page.number === 1 || page.images.length > 0 || page.tableRows.length > 0) return;
+  const words = significantPageWords(page);
+  if (words.length === 0) return;
+  const top = Math.min(...words.map(word => word.yMin));
+  const bottom = Math.max(...words.map(word => word.yMax));
+  const spanFraction = (bottom - top) / page.height;
+  const tooFewWords = words.length < options.sparsePageMinWords;
+  const thinContentBand = words.length <= options.sparsePageMaxWords &&
+    spanFraction < options.minimumContentSpanFraction;
+  if (tooFewWords || thinContentBand) {
+    issues.push(issue(
+      'sparse_page', 'error', page.number, `pages[${page.number - 1}]`,
+      `page ${page.number} contains too little semantic content for a standalone page`,
+      {
+        significantWords: words.length,
+        contentSpanFraction: spanFraction,
+        minimumWords: options.sparsePageMinWords,
+        minimumSpanFraction: options.minimumContentSpanFraction,
+      }
+    ));
+  }
+}
+
+function auditPlaceholderAppendix(page, issues) {
+  const hasAppendixHeading = page.headings.some(item =>
+    item.text.trim().toLocaleUpperCase('de-DE') === 'ANLAGEN'
+  );
+  if (!hasAppendixHeading) return;
+  const words = significantPageWords(page);
+  if (page.images.length === 0 && page.tableRows.length === 0 && words.length < 25) {
+    issues.push(issue(
+      'placeholder_appendix', 'error', page.number, `pages[${page.number - 1}]`,
+      'appendix heading is isolated on an almost empty page',
+      { significantWords: words.length }
+    ));
+  }
+}
+
+function auditHumanReadableText(page, issues) {
+  const text = pageText(page);
+  const rawUrl = text.match(/https?:\/\/\S+/i);
+  if (rawUrl) {
+    issues.push(issue(
+      'raw_url_text', 'error', page.number, `pages[${page.number - 1}].words`,
+      'visible document text contains a raw URL instead of a concise hyperlink label',
+      { value: rawUrl[0] }
+    ));
+  }
+  const fullHash = text.match(/\b[a-f0-9]{64}\b/i);
+  if (fullHash) {
+    issues.push(issue(
+      'raw_hash_text', 'error', page.number, `pages[${page.number - 1}].words`,
+      'visible document text contains a full technical fingerprint',
+      { value: fullHash[0] }
+    ));
+  }
+  const technical = text.match(
+    /(?:buildFingerprint|dataFingerprint|sourceManifestSha256|applicationFingerprint|uiFingerprint|["']filters["']\s*:|sel(?:South|West|North|East))/i
+  );
+  if (technical) {
+    issues.push(issue(
+      'technical_raw_text', 'error', page.number, `pages[${page.number - 1}].words`,
+      'visible document text contains implementation-oriented manifest or filter diagnostics',
+      { value: technical[0] }
     ));
   }
 }
@@ -479,6 +565,9 @@ function auditRenderedDocument(documentValue, optionValue) {
   const issues = [];
   for (const page of document.pages) {
     auditEmptyPage(page, options, issues);
+    auditSparsePage(page, options, issues);
+    auditPlaceholderAppendix(page, issues);
+    auditHumanReadableText(page, issues);
     auditPageBounds(page, options, issues);
     auditTextSize(page, options, issues);
     auditOrphanHeadings(page, options, issues);

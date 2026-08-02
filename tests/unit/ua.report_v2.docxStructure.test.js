@@ -242,39 +242,41 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
   });
 
   /**
-   * Layout-PR „Semantische Dokumentstruktur":
+   * Semantische Dokumentstruktur:
    *   - Antrag/Beschlussvorschlag steht oben am Dokument
-   *   - Begründung ist als Sammel-Heading sichtbar
-   *   - die ANLAGEN-Sektion erzwingt einen Seitenumbruch
+   *   - Begründung und Sachverhalt sind echte Überschriften
    *   - der ausführliche Beschlussvorschlag erscheint nicht doppelt
-   *     (gleiche Heading-Wortkette darf max. 1 Treffer haben).
+   *   - ein inhaltsloser Platzhalter-Anhang wird nicht erzeugt.
    */
-  test('DOCX führt Antrag/Begründung als echte Überschriften und bricht vor ANLAGEN um', async () => {
+  test('DOCX führt die Kernabschnitte ohne leere ANLAGEN-Seite', async () => {
     const zip = await exportAndUnzip(makeFixtureCtx(), makeFixtureReportData(), { includeMap: false });
     const documentXml = await readText(zip, 'word/document.xml');
     const visibleTexts = [...documentXml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(t => t[1]);
 
-    // Pflicht-Sektionen vorhanden
     expect(visibleTexts).toContain('ANTRAG / BESCHLUSSVORSCHLAG');
     expect(visibleTexts).toContain('BEGRÜNDUNG');
     expect(visibleTexts).toContain('SACHVERHALT');
-    expect(visibleTexts).toContain('ANLAGEN');
+    expect(visibleTexts).not.toContain('ANLAGEN');
+    expect(visibleTexts.join(' ')).not.toMatch(/Anlage [1-3]:/);
 
-    // Genau ein Antrags-Heading (kein doppelter Beschlussvorschlag-Block)
     const antragHits = visibleTexts.filter(t =>
       t === 'BESCHLUSSVORSCHLAG' || t === 'ANTRAG / BESCHLUSSVORSCHLAG'
     );
     expect(antragHits).toHaveLength(1);
+  });
 
-    // ANLAGEN steht in einem Paragraph mit pageBreakBefore-Eigenschaft
-    // (docx@9.x serialisiert pageBreakBefore als <w:pageBreakBefore/>
-    // innerhalb der <w:pPr> dieses Absatzes — der Block muss in einem
-    // 5-KB-Fenster vor dem Heading-Text erscheinen).
-    const anlagenIdx = documentXml.indexOf('>ANLAGEN<');
-    expect(anlagenIdx).toBeGreaterThan(-1);
-    const windowStart = Math.max(0, anlagenIdx - 5000);
-    const windowSlice = documentXml.slice(windowStart, anlagenIdx);
-    expect(windowSlice).toMatch(/<w:pageBreakBefore\s*\/?>/);
+  test('DOCX markiert jede Datentabelle mit wiederholbarer Kopfzeile und unteilbaren Zeilen', async () => {
+    const zip = await exportAndUnzip(makeFixtureCtx(), makeFixtureReportData(), { includeMap: false });
+    const documentXml = await readText(zip, 'word/document.xml');
+    const tables = [...documentXml.matchAll(/<w:tbl(?:\s[^>]*)?>[\s\S]*?<\/w:tbl>/g)]
+      .map(match => match[0]);
+    expect(tables.length).toBeGreaterThan(0);
+    for (const table of tables) expect(table).toMatch(/<w:tblHeader\s*\/?>/);
+
+    const rows = [...documentXml.matchAll(/<w:tr(?:\s[^>]*)?>[\s\S]*?<\/w:tr>/g)]
+      .map(match => match[0]);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row).toMatch(/<w:cantSplit\s*\/?>/);
   });
 
   /**

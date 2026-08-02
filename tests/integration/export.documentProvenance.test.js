@@ -94,7 +94,14 @@ function inspectPdf(buffer) {
         if (annotation.unsafeUrl) urls.push(annotation.unsafeUrl);
       }
     }
-    process.stdout.write(JSON.stringify({ visible: visibleText.join('\n'), urls }));
+    const metadata = await pdf.getMetadata();
+    const markInfo = typeof pdf.getMarkInfo === 'function' ? await pdf.getMarkInfo() : null;
+    process.stdout.write(JSON.stringify({
+      visible: visibleText.join('\n'),
+      urls,
+      info: metadata.info || {},
+      markInfo,
+    }));
   `;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
     cwd: path.resolve(__dirname, '../..'),
@@ -106,6 +113,17 @@ function inspectPdf(buffer) {
     throw new Error(`PDF inspection failed: ${result.stderr || result.stdout}`);
   }
   return JSON.parse(result.stdout);
+}
+
+function pdfInfoEntry(info, name) {
+  const containers = [info, info?.Custom]
+    .filter(value => value && typeof value === 'object');
+  for (const container of containers) {
+    const match = Object.entries(container)
+      .find(([key]) => key.toLowerCase() === name.toLowerCase());
+    if (match) return match[1];
+  }
+  return undefined;
 }
 
 function setupRuntime() {
@@ -172,14 +190,20 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     const archive = await JSZip.loadAsync(new Uint8Array(await blobToArrayBuffer(produced.word)));
     const documentXml = await archive.file('word/document.xml').async('string');
     const relationshipsXml = await archive.file('word/_rels/document.xml.rels').async('string');
+    const customPropertiesXml = await archive.file('docProps/custom.xml').async('string');
     expect(documentXml).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
     expect(documentXml).not.toContain('>DATENQUELLE<');
     expect(documentXml).not.toContain('Unfallatlas / Open-Data-Downloads');
     expect(documentXml).toContain('docx-hannover-export');
-    expect(documentXml).toContain(result.sourceManifestSha256);
-    expect(documentXml).toContain('Datensatzseite öffnen');
-    expect(documentXml).toContain('Lizenz: Creative Commons CC0 1.0 Universal (CC0-1.0)');
+    expect(documentXml).not.toContain(result.sourceManifestSha256);
+    expect(documentXml).toContain(result.sourceManifestSha256.slice(0, 12));
+    expect(documentXml).toContain('Datensatz');
+    expect(documentXml).toContain('Lizenz CC0-1.0');
     expect(documentXml).not.toContain('https://example.com/dataset');
+    expect(customPropertiesXml).toContain('UnfallwerkbankSourceManifestSha256');
+    expect(customPropertiesXml).toContain(result.sourceManifestSha256);
+    expect(customPropertiesXml).toContain('UnfallwerkbankSourceManifest');
+    expect(customPropertiesXml).toContain('docx-hannover-export');
     expect(relationshipsXml).toContain('Target="https://example.com/dataset"');
     expect(relationshipsXml).toContain('Target="https://example.com/dataset/2024.geojson"');
     expect(relationshipsXml).toContain('Target="https://creativecommons.org/publicdomain/zero/1.0/"');
@@ -196,13 +220,22 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     expect(result.result).toBe('pdf-result');
     expect(produced.pdf.length).toBeGreaterThan(500);
 
-    const { visible, urls } = inspectPdf(produced.pdf);
+    const { visible, urls, info, markInfo } = inspectPdf(produced.pdf);
     expect(visible).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
     expect(visible).not.toContain('Unfallatlas / Open-Data-Downloads');
     expect(visible).toContain('pdf-hannover-export');
-    expect(visible.replace(/\s+/g, '')).toContain(result.sourceManifestSha256);
-    expect(visible).toContain('Datensatzseite öffnen');
-    expect(visible).toContain('Creative Commons CC0 1.0 Universal');
+    expect(visible.replace(/\s+/g, '')).not.toContain(result.sourceManifestSha256);
+    expect(visible).toContain(result.sourceManifestSha256.slice(0, 12));
+    expect(visible).toContain('Datensatz');
+    expect(visible).toContain('Lizenz CC0-1.0');
+    expect(pdfInfoEntry(info, 'UnfallwerkbankSourceManifestSha256'))
+      .toBe(result.sourceManifestSha256);
+    const embeddedManifest = JSON.parse(
+      pdfInfoEntry(info, 'UnfallwerkbankSourceManifest'),
+    );
+    expect(embeddedManifest.artifactId).toBe('pdf-hannover-export');
+    expect(embeddedManifest.sources).toHaveLength(1);
+    if (markInfo) expect(markInfo.Marked).toBe(true);
     expect(urls).toContain('https://example.com/dataset');
     expect(urls).toContain('https://example.com/dataset/2024.geojson');
     expect(urls).toContain('https://creativecommons.org/publicdomain/zero/1.0/');
