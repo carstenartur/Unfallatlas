@@ -1,8 +1,10 @@
 (() => {
   'use strict';
-  // This file is present only for legacy branch-root Pages publishing. The
-  // canonical build ignores checked-in vendor files and copies exact lockfile
-  // assets instead.
+  // These files exist only for legacy branch-root Pages publishing. The
+  // canonical Actions build replaces this path with the exact locked
+  // leaflet-image asset. Keep the emergency runtime guard parser-blocking so
+  // a transient same-origin 5xx cannot let ua.app_v2.js run before a missing
+  // critical module has been retried.
   const githubPagesHost = /(?:^|\.)github\.io$/i.test(String(location.hostname || ''));
   if (githubPagesHost && typeof window.fetch === 'function' && !window.__UA_STATIC_FETCH_GUARD__) {
     const originalFetch = window.fetch.bind(window);
@@ -20,5 +22,6 @@
     };
     window.__UA_STATIC_FETCH_GUARD__ = true;
   }
-  document.write('<script src="js/ua.public-preview.js?v=branch-fallback-5"><\/script>');
+  document.write('<script src="js/ua.critical-runtime-recovery.js?v=1"><\/script>');
+  document.write('<script src="js/ua.public-preview.js?v=branch-fallback-6"><\/script>');
 })();
