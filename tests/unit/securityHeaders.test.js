@@ -22,6 +22,6 @@ describe('browser and server security headers', () => {
     expect(source).toContain("response.setHeader('Content-Security-Policy'");
     expect(source).toContain("response.setHeader('X-Content-Type-Options', 'nosniff')");
     expect(source).toContain("response.setHeader('Referrer-Policy'");
-    expect(source).toContain("response.setHeader('Permissions-Policy'");
+    expect(source).toMatch(/response\.setHeader\(\s*['"]Permissions-Policy['"]/);
   });
 });
