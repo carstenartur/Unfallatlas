@@ -92,6 +92,8 @@ describe('recorded source-frame evidence', () => {
     expect(result.contextWitnesses.traffic.renderedColor).toEqual([45, 115, 145]);
     expect(result.contextWitnesses.slope.renderedSourceFrame).toBe(1);
     expect(result.contextWitnesses.traffic.renderedSourceFrame).toBe(1);
+    expect(result.contextWitnesses.slope.roadRadius).toBe(14);
+    expect(result.contextWitnesses.traffic.roadRadius).toBe(14);
   });
 
   test('selects the earliest distinguishable same-frame pair before later overlays', () => {

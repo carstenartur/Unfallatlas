@@ -12,6 +12,7 @@ describe('browser and server security headers', () => {
     expect(html).toContain('http-equiv="Content-Security-Policy"');
     expect(html).toContain("script-src 'self'");
     expect(html).toContain("object-src 'none'");
+    expect(html).not.toContain('upgrade-insecure-requests');
     expect(html).toContain('src="js/ua.bootstrap.js');
     expect(html).not.toMatch(/<script(?![^>]+\bsrc=)[^>]*>/i);
   });
@@ -20,6 +21,7 @@ describe('browser and server security headers', () => {
     const source = read('server/start.js');
     expect(source).toContain("app.disable('x-powered-by')");
     expect(source).toContain("response.setHeader('Content-Security-Policy'");
+    expect(source).not.toContain("'upgrade-insecure-requests'");
     expect(source).toContain("response.setHeader('X-Content-Type-Options', 'nosniff')");
     expect(source).toContain("response.setHeader('Referrer-Policy'");
     expect(source).toMatch(/response\.setHeader\(\s*['"]Permissions-Policy['"]/);

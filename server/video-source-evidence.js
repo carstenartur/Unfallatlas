@@ -44,13 +44,18 @@ function closeTo(color, expected, tolerance) {
   return channelDistance(color, expected) <= tolerance;
 }
 
+function sourceRoadRadius(witness) {
+  return Math.max(
+    Number(witness && witness.roadRadius || 7),
+    Number(witness && witness.lineWeight || 0) +
+      Number(witness && witness.counterpartLineWeight || 0) + 3
+  );
+}
+
 function projectedRegion(witness, width, height, sourceWidth, sourceHeight) {
   const scaleX = width / sourceWidth;
   const scaleY = height / sourceHeight;
-  const sourceRadius = Math.max(
-    Number(witness.roadRadius || 7),
-    Number(witness.lineWeight || 0) + Number(witness.counterpartLineWeight || 0) + 3
-  );
+  const sourceRadius = sourceRoadRadius(witness);
   return {
     x: Number(witness.x) * scaleX,
     y: Number(witness.y) * scaleY,
@@ -224,6 +229,11 @@ function bindRecordedContextColors(buffer, width, height, requiredState, frameEv
     }
     enriched.contextWitnesses[kind] = {
       ...candidate.witness,
+      // Carry the exact owned-road corridor proven in the source recording
+      // into the post-encoding audit. The final decoder still requires the
+      // independent geometry-bound helper ring, so this enlarges only the
+      // real-road colour search and cannot be satisfied by the ring itself.
+      roadRadius: sourceRoadRadius(candidate.witness),
       renderedColor: selected.best.color,
       renderedStyleDistance: selected.best.distance,
       renderedQualifyingPixels: selected.qualifyingPixels,

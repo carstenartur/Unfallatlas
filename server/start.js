@@ -30,7 +30,8 @@ const CONTENT_SECURITY_POLICY = [
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
   "form-action 'self'",
-  'upgrade-insecure-requests',
+  // Do not rewrite local/container HTTP assets to HTTPS here.
+  // TLS and HSTS are enforced by the terminating deployment proxy.
 ].join('; ');
 
 function installSecurityHeaders(app) {
