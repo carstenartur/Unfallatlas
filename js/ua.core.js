@@ -6,7 +6,12 @@
   // ua.map_v2.js are requested. Eval-based unit tests have no currentScript and
   // therefore remain hermetic.
   const parserCoreScript = typeof document !== "undefined" ? document.currentScript : null;
-  if (parserCoreScript && parserCoreScript.src && !window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__) {
+  if (
+    parserCoreScript
+    && parserCoreScript.src
+    && typeof document.write === "function"
+    && !window.__UA_CRITICAL_RUNTIME_ERROR_HANDLER__
+  ) {
     const recoveryUrl = new URL("ua.critical-runtime-recovery.js?v=1", parserCoreScript.src).href
       .replaceAll("&", "&amp;")
       .replaceAll('"', "&quot;");
