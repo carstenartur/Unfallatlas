@@ -11,6 +11,7 @@ on:
       - 'werkbank_v2.html'
       - 'css/**'
       - 'js/**'
+      - 'scripts/diagnose-published-werkbank.cjs'
       - 'scripts/documentation-deeplink-contract.cjs'
       - 'scripts/run-live-documentation-links.cjs'
       - 'tests/e2e/documentation-deeplinks.live.spec.js'
@@ -48,7 +49,10 @@ jobs:
       - name: Install Chromium runtime
         run: npx playwright install --with-deps chromium
 
-      - name: Exercise the actually published application
+      - name: Diagnose the reported Hannover deep link
+        run: node scripts/diagnose-published-werkbank.cjs
+
+      - name: Exercise the complete published application contract
         env:
           DOCUMENTATION_AUDIT_PUBLISHED: '1'
         run: node scripts/run-live-documentation-links.cjs
@@ -59,6 +63,7 @@ jobs:
         with:
           name: live-pages-runtime-health
           path: |
+            out/qa/published-runtime-diagnostic/
             out/qa/documentation-live-links/
             playwright-report/
             test-results/
