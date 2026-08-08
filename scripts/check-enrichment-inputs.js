@@ -27,9 +27,53 @@ const CURRENT_PRODUCER_VERSIONS = Object.freeze({
   dem: demProducer.PRODUCER_VERSION,
   traffic: trafficProducer.PRODUCER_VERSION,
 });
+
+/**
+ * Fields added after the core enricher has written its first staged result.
+ *
+ * `apply-qualitative-traffic-proxy.js` and provider-specific adapters run after
+ * `enrich_geojson.js`. They therefore cannot be derived solely from the core
+ * module's historical PER_FEATURE_FIELDS list. All of these values are
+ * context/enrichment output, never part of the immutable official accident
+ * input. Leaving one of them in the fingerprint caused a freshly generated
+ * city to fail its own final preflight after tens of minutes of successful
+ * producer work.
+ */
+const POST_ENRICHMENT_FEATURE_FIELDS = Object.freeze([
+  'traffic_measurement_type',
+  'traffic_proxy_class',
+  'traffic_volume_value',
+  'traffic_volume_unit',
+  'traffic_volume_year',
+  'traffic_volume_source',
+  'traffic_volume_confidence',
+  'traffic_proxy_basis',
+  'traffic_observation_id',
+  'traffic_mode',
+  'traffic_period',
+  'traffic_match_quality',
+  'traffic_match_distance_m',
+  'traffic_source_id',
+  'traffic_dataset_url',
+  'traffic_license_id',
+  'traffic_license_url',
+  'traffic_retrieved_at',
+  'road_slope_source_id',
+  'road_slope_source',
+  'road_slope_resolution_m',
+  'road_slope_profile_window_m',
+  'road_slope_direction',
+  'road_slope_quality',
+  'road_slope_reliable_for_road',
+  'road_slope_residual_mad_m',
+  'road_slope_uncertainty_percent',
+  'road_slope_uncertainty_reasons',
+]);
+
 const ENRICHMENT_FEATURE_FIELDS = new Set([
   ...(PER_FEATURE_FIELDS || []),
   ...(PER_WAY_FIELDS || []),
+  ...POST_ENRICHMENT_FEATURE_FIELDS,
 ]);
 
 function parseArgs(argv) {
@@ -165,6 +209,22 @@ function validateTraffic(data, options) {
   if (!data || typeof data !== 'object') return errors;
   if (!data.ways || typeof data.ways !== 'object' || Object.keys(data.ways).length === 0) errors.push('ways is missing or empty');
   if (!data.source) errors.push('source is missing');
+
+  if (data.measurementType === 'proxy' && data.ways && typeof data.ways === 'object') {
+    for (const [wayId, row] of Object.entries(data.ways)) {
+      if (!row || typeof row !== 'object') {
+        errors.push(`ways.${wayId} is not an object`);
+        continue;
+      }
+      if (row.measurementType !== 'proxy') errors.push(`ways.${wayId}.measurementType must be "proxy"`);
+      if (!['low', 'medium', 'high', 'very_high'].includes(row.proxyClass)) {
+        errors.push(`ways.${wayId}.proxyClass is missing or invalid`);
+      }
+      for (const forbidden of ['value', 'unit', 'year']) {
+        if (row[forbidden] != null) errors.push(`ways.${wayId}.${forbidden} is forbidden for a proxy`);
+      }
+    }
+  }
   return errors;
 }
 
@@ -264,6 +324,7 @@ if (require.main === module) process.exit(main(process.argv.slice(2)));
 
 module.exports = {
   CURRENT_PRODUCER_VERSIONS,
+  POST_ENRICHMENT_FEATURE_FIELDS,
   ENRICHMENT_FEATURE_FIELDS,
   parseArgs,
   readDataset,

@@ -39,10 +39,19 @@ describe('check-enrichment-inputs', () => {
       wayElevations: { W1: { road_slope_percent: 1.2 } },
     });
     writeJson(path.join(dirs.trafficDir, 'traffic_bonn.json'), {
-      source: 'OSM-highway-proxy',
+      source: 'OSM-highway-class-proxy',
+      producerVersion: preflight.CURRENT_PRODUCER_VERSIONS.traffic,
       datasetVersion: preflight.CURRENT_PRODUCER_VERSIONS.traffic,
       inputFingerprint: FINGERPRINT,
-      ways: { W1: { value: 800, unit: 'DTV' } },
+      measurementType: 'proxy',
+      ways: {
+        W1: {
+          measurementType: 'proxy',
+          proxyClass: 'low',
+          highwayClass: 'residential',
+          confidence: 'low',
+        },
+      },
     });
   });
 
@@ -90,7 +99,20 @@ describe('check-enrichment-inputs', () => {
     expect(result.problems.join('\n')).toMatch(/inputFingerprint does not match/);
   });
 
-  test('fingerprint is unchanged when only enrichment fields are added', () => {
+  test('rejects numeric values smuggled into a qualitative traffic proxy', () => {
+    const file = path.join(dirs.trafficDir, 'traffic_bonn.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data.ways.W1.value = 800;
+    data.ways.W1.unit = 'Kfz/24 h';
+    writeJson(file, data);
+
+    const result = preflight.validateCityInputs('Bonn', dirs, { expectedFingerprint: FINGERPRINT });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join('\n')).toMatch(/value is forbidden for a proxy/);
+    expect(result.problems.join('\n')).toMatch(/unit is forbidden for a proxy/);
+  });
+
+  test('fingerprint is unchanged when core and post-enrichment provider fields are added', () => {
     const rawFile = path.join(root, 'raw.geojson');
     const enrichedFile = path.join(root, 'enriched.geojson');
     const baseFeature = {
@@ -116,8 +138,22 @@ describe('check-enrichment-inputs', () => {
           elevation_m: 100.1,
           slope_percent: 2.3,
           slope_class: 'gentle',
-          traffic_proxy_class: 'low',
           highway: 0,
+          traffic_measurement_type: 'proxy',
+          traffic_proxy_class: 'low',
+          traffic_volume_source: 'OSM-highway-class-proxy',
+          traffic_volume_confidence: 'low',
+          traffic_proxy_basis: 'highway=residential',
+          road_slope_source_id: 'hannover.dgm1',
+          road_slope_source: 'Digitales Geländemodell DGM1',
+          road_slope_resolution_m: 1,
+          road_slope_profile_window_m: 50,
+          road_slope_direction: 'uphill_along_geometry',
+          road_slope_quality: 'high',
+          road_slope_reliable_for_road: true,
+          road_slope_residual_mad_m: 0.02,
+          road_slope_uncertainty_percent: 0.2,
+          road_slope_uncertainty_reasons: [],
         },
       }],
     });

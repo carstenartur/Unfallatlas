@@ -12,6 +12,11 @@ on:
         required: true
         type: boolean
         default: true
+      require_hannover_dgm1:
+        description: 'Für Hannover amtliches DGM1 erzwingen; ohne vollständig gepinnte Quelle fehlschlagen'
+        required: true
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -19,8 +24,11 @@ on:
       - 'pom.xml'
       - 'qa-system-tests/**'
       - 'scripts/generate-context-city.js'
+      - 'scripts/apply-hannover-dgm1-road-profiles.js'
+      - 'scripts/apply-qualitative-traffic-proxy.js'
       - 'scripts/check-enrichment-inputs.js'
       - 'scripts/run-context-enrichment.js'
+      - 'scripts/providers/**'
       - 'scripts/producers/**'
   workflow_run:
     workflows: ["01 · Unfalldaten aktualisieren"]
@@ -67,9 +75,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .enrichment-cache
-          key: context-${{ runner.os }}-${{ hashFiles('scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/check-enrichment-inputs.js') }}-${{ github.run_id }}
+          key: context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-${{ github.run_id }}
           restore-keys: |
-            context-${{ runner.os }}-${{ hashFiles('scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/check-enrichment-inputs.js') }}-
+            context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-
             context-${{ runner.os }}-
           save-always: true
 
@@ -77,6 +85,11 @@ jobs:
         env:
           REQUESTED_CITY: ${{ inputs.city }}
           FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
+          CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
+          HANNOVER_DGM1_ROOT: ${{ vars.HANNOVER_DGM1_ROOT }}
+          HANNOVER_DGM1_MANIFEST: ${{ vars.HANNOVER_DGM1_MANIFEST }}
+          HANNOVER_DGM1_MANIFEST_SHA256: ${{ vars.HANNOVER_DGM1_MANIFEST_SHA256 }}
+          HANNOVER_DGM1_PRECOMPUTED_PROFILES: ${{ vars.HANNOVER_DGM1_PRECOMPUTED_PROFILES }}
         run: >-
           mvn -B -ntp verify -Pcontext-data-e2e
           -Dcontext.city="${REQUESTED_CITY:-}"
@@ -92,6 +105,7 @@ jobs:
             qa-system-tests/target/failsafe-reports/
             qa-system-tests/target/testcontainers-logs/
             .build/context-selected-cities.txt
+            .build/context-provider/
           if-no-files-found: ignore
           retention-days: 14
 
