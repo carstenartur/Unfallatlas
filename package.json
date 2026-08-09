@@ -120,7 +120,7 @@
     "@playwright/test": "1.62.1",
     "docx": "9.7.1",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.5.1",
+    "express-rate-limit": "^8.6.2",
     "file-saver": "2.0.5",
     "leaflet": "1.9.4",
     "leaflet-draw": "1.0.4",
