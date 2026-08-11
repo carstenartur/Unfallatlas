@@ -7,6 +7,10 @@ out/ci-render-gate.pdf
 # committed (CI uploads them as workflow artefacts instead).
 out/qa/
 
+# Maven build output (root reactor and the frontend-maven-plugin node/npm install)
+target/
+qa-system-tests/target/
+
 # Testing
 node_modules/
 _site/
