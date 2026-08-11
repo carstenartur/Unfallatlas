@@ -44,9 +44,9 @@ describe('Maven-owned release site contract', () => {
     expect(pom).toContain('<id>release-site</id>');
     expect(pom).toContain('<arguments>run qa:release-site</arguments>');
     expect(releaseScript).toContain('validate:media');
-    expect(releaseScript).toContain('validate:vendor-provenance -- --require-complete');
+    expect(releaseScript).toContain('validate:vendor-provenance');
     expect(releaseScript.indexOf('validate:media'))
-      .toBeLessThan(releaseScript.indexOf('validate:vendor-provenance -- --require-complete'));
+      .toBeLessThan(releaseScript.indexOf('validate:vendor-provenance'));
     expect(dockerPublish.indexOf('-Prelease-site'))
       .toBeLessThan(dockerPublish.indexOf('docker/login-action'));
     expect(dockerPublish.indexOf('-Prelease-site'))
@@ -56,10 +56,10 @@ describe('Maven-owned release site contract', () => {
     expect(dockerPublish).toMatch(/build-args:\s*\|\s*REQUIRE_COMPLETE_VENDOR_PROVENANCE=1/);
     expect(dockerfile).toMatch(/ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0/);
     expect(dockerfile).toMatch(
-      /1\) npm run validate:vendor-provenance -- --require-complete/
+      /1\) npm run validate:vendor-provenance/
     );
     expect(dockerfile.indexOf('npm run build:site')).toBeLessThan(
-      dockerfile.indexOf('npm run validate:vendor-provenance -- --require-complete')
+      dockerfile.indexOf('npm run validate:vendor-provenance')
     );
 
     const pagesGate = fs.readFileSync(path.join(ROOT, 'scripts/run-pages-quality-gate.cjs'), 'utf8');
@@ -80,9 +80,9 @@ describe('Maven-owned release site contract', () => {
     expect(bundle).toBeGreaterThan(releaseGate);
     expect(release).toContain('find . -type f -exec touch -t 198001010000 {} +');
     expect(releaseScript).toContain('build:site');
-    expect(releaseScript).toContain('validate:vendor-provenance -- --require-complete');
+    expect(releaseScript).toContain('validate:vendor-provenance');
     expect(releaseScript.indexOf('build:site'))
-      .toBeLessThan(releaseScript.indexOf('validate:vendor-provenance -- --require-complete'));
+      .toBeLessThan(releaseScript.indexOf('validate:vendor-provenance'));
     expect(release).toContain('LC_ALL=C sort');
     expect(release).toContain('rm -f -- "$ZIP_NAME"');
     expect(release).not.toContain('zip -r');

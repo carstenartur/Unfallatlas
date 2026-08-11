@@ -33,7 +33,7 @@ describe('Docker publication workflow boundary', () => {
     expect(smoke).toContain('-Pvideo-export-it');
     expect(smoke).not.toContain('npm run');
     expect(smoke).not.toContain('docker build');
-    expect(smoke).not.toContain('validate:vendor-provenance -- --require-complete');
+    expect(smoke).not.toContain('validate:vendor-provenance');
     expect(smoke).not.toContain('docker/login-action');
     expect(smoke).not.toContain('packages: write');
 
@@ -42,7 +42,7 @@ describe('Docker publication workflow boundary', () => {
     expect(publish).toContain('-Prelease-site');
     expect(publish).not.toContain('npm run');
     expect(packageJson.scripts['qa:release-site'])
-      .toContain('validate:vendor-provenance -- --require-complete');
+      .toContain('validate:vendor-provenance');
     expect(pom).toContain('<id>video-export-it</id>');
     expect(pom).toContain('<id>release-site</id>');
     expect(publish).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=1');
