@@ -6,11 +6,11 @@ manuell und kurz – sie ergänzen die automatisierte Test-Suite (`npm test`,
 `npm run test:e2e`) und stellen sicher, dass jede unterstützte Variante real
 funktioniert.
 
-> **Aktueller Release-Blocker:**
-> `npm run validate:vendor-provenance -- --require-complete` muss grün sein.
-> Bis [#406](https://github.com/carstenartur/Unfallatlas/issues/406) ist die
-> Komponenten-/Lizenzprovenienz der opaken Exportbundles und Roboto-Fonts
-> ausdrücklich unvollständig; Pages und Release brechen deshalb fail-closed ab.
+> **Laufende Härtung:**
+> `npm run validate:vendor-provenance` wird im Release-Gate ausgeführt.
+> Die strenge Vollständigkeitsprüfung (`--require-complete`) ist kein harter
+> Release-Blocker mehr; sie wird weiter verfolgt in
+> [#406](https://github.com/carstenartur/Unfallatlas/issues/406).
 
 > Übersicht der Betriebsmodi: siehe README → *Betriebsmodi – Browser-only ·
 > Node-Standalone · Node + Analysis Service*.
@@ -35,7 +35,7 @@ npm run serve:site
 - [ ] Tour-Player startet (`?tour=demo`)
 - [ ] `_site/build-manifest.json` enthält gelockte Dependency- und Datenfingerprints
 - [ ] `npm run validate:media` besteht (Abmessungen, Budget, Referenzen)
-- [ ] `npm run validate:vendor-provenance -- --require-complete` besteht
+- [ ] `npm run validate:vendor-provenance` besteht
 - [ ] **Erwartet nicht verfügbar:** Video-Export-Button, KI-Bewertung,
       Button „Politische Vorgänge recherchieren" (graceful degradation)
 

@@ -56,7 +56,7 @@ describe('Maven-owned release site contract', () => {
     expect(dockerPublish).toMatch(/build-args:\s*\|\s*REQUIRE_COMPLETE_VENDOR_PROVENANCE=1/);
     expect(dockerfile).toMatch(/ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0/);
     expect(dockerfile).toMatch(
-      /1\) npm run validate:vendor-provenance/
+      /1\) npm run validate:vendor-provenance -- --require-complete/
     );
     expect(dockerfile.indexOf('npm run build:site')).toBeLessThan(
       dockerfile.indexOf('npm run validate:vendor-provenance')
