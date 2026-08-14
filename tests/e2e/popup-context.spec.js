@@ -72,8 +72,20 @@ test.describe('Popup context data', () => {
   });
 
   test('renders enrichment strings in popup html for Hannover sample feature', async ({ page }) => {
-    await page.goto('/werkbank_v2.html?city=Hannover');
-    await page.waitForLoadState('networkidle');
+    test.setTimeout(60_000);
+    await page.goto('/werkbank_v2.html?city=Hannover', { waitUntil: 'domcontentloaded' });
+
+    // The application keeps legitimate background requests open, so global
+    // `networkidle` is not a valid readiness contract. Wait for the concrete
+    // runtime API this test depends on instead.
+    await page.waitForFunction(() => Boolean(
+      window.UA &&
+      typeof window.UA.buildAccidentContextPopupHtml === 'function' &&
+      typeof window.UA.fetchJsonCompressed === 'function' &&
+      window.UA.contextLayers &&
+      typeof window.UA.contextLayers.detect === 'function' &&
+      typeof window.UA.contextLayers.capabilitiesFromDetection === 'function'
+    ));
 
     const html = await page.evaluate(async () => {
       if (!window.UA || typeof window.UA.buildAccidentContextPopupHtml !== 'function') return '';
