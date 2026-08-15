@@ -50,7 +50,7 @@ Ein Paket wird nicht als vollständig ausgegeben, wenn ein erforderlicher visuel
 - Die Übersichtskarte ist verpflichtend und muss eine gültige PNG-Datei sein.
 - Bei einer markierten Auswahl ist auch die Detailkarte verpflichtend.
 - Eine Clusterkarte wird nur akzeptiert, wenn ihre sichtbare Punktzahl zur angegebenen Cluster-Fallzahl passt.
-- Jede beigefügte Datei erhält einen SHA-256-Eintrag im Manifest.
+- Jede Nutzdatei außer `manifest.json` erhält einen SHA-256-Eintrag. Das Manifest dokumentiert seine eigene Ausnahme ausdrücklich, weil ein finaler Selbsthash rekursiv wäre.
 - Prompt, Fakten, Bericht, Anwendungsstatus und Grafiken werden gemeinsam in genau einem ZIP erzeugt.
 
 Damit kann eine KI fehlende Anlagen oder Widersprüche benennen, statt sie unbemerkt durch Annahmen zu ersetzen.

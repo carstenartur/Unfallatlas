@@ -232,7 +232,7 @@
       ...graphics.map(file => `- \`${file.path}\`: ${file.caption || file.role}`),
       "",
       "## Vollständigkeits- und Konsistenzvertrag",
-      "- `manifest.json` enthält SHA-256, Dateigröße, Rolle und Bildmetadaten.",
+      "- `manifest.json` enthält SHA-256, Dateigröße, Rolle und Bildmetadaten für jede andere Paketdatei; das Manifest selbst ist wegen der unvermeidbaren Selbstreferenz ausdrücklich vom Hashumfang ausgenommen.",
       "- Übersichtskarte und bei vorhandener Auswahl die Detailkarte sind Pflichtbestandteile; ihre Aufnahme scheitert fail-closed.",
       "- Clusterkarten werden nur aufgenommen, wenn ihre sichtbare Punktzahl zur angegebenen Fallzahl passt.",
       "- Trend- und Stunden-Heatmap werden als eigenständige SVG-Dateien beigefügt, sofern der strukturierte Bericht sie enthält.",
@@ -284,8 +284,41 @@
     }
 
     if (typeof UA._captureClusterMaps === "function") {
+      let clusterPoints = (ctx?.viewportPts && ctx.viewportPts.length)
+        ? ctx.viewportPts
+        : (ctx?.allPts || []);
+      if (ctx?.selectionBounds && typeof ctx.selectionBounds.contains === "function") {
+        clusterPoints = clusterPoints.filter(point =>
+          Number.isFinite(point?.lat) &&
+          Number.isFinite(point?.lon) &&
+          ctx.selectionBounds.contains([point.lat, point.lon])
+        );
+      }
+      const expectedTargets = typeof UA.computeClusterMapTargets === "function"
+        ? UA.computeClusterMapTargets(clusterPoints)
+        : null;
       notify("Erzeuge Clusterkarten …");
       const clusters = await UA._captureClusterMaps(ctx, options);
+      if (expectedTargets && expectedTargets.length !== (clusters || []).length) {
+        fail(
+          "missing_cluster_graphics",
+          `Es wurden ${(clusters || []).length} von ${expectedTargets.length} erwarteten Clusterkarten erzeugt`,
+          {
+            expected: expectedTargets.map(target => ({
+              label: target.label,
+              total: target.total,
+              latitude: target.lat,
+              longitude: target.lon,
+            })),
+            captured: (clusters || []).map(cluster => ({
+              label: cluster?.label || null,
+              total: cluster?.total ?? null,
+              latitude: cluster?.lat ?? null,
+              longitude: cluster?.lon ?? null,
+            })),
+          }
+        );
+      }
       let index = 0;
       for (const cluster of clusters || []) {
         const total = Number(cluster?.total);
@@ -295,6 +328,16 @@
             label: cluster?.label || null,
             visible,
             total,
+          });
+        }
+        const expected = expectedTargets ? expectedTargets[index] : null;
+        if (expected && (
+          String(cluster?.label || "") !== String(expected.label || "") ||
+          Number(cluster?.total) !== Number(expected.total)
+        )) {
+          fail("cluster_target_mismatch", `Clusterkarte ${index + 1} gehört nicht zum erwarteten Analyseziel`, {
+            expected: { label: expected.label, total: expected.total },
+            captured: { label: cluster?.label || null, total: cluster?.total ?? null },
           });
         }
         if (!cluster?.image) fail("missing_cluster_image", `Clusterkarte ${cluster?.label || index + 1} enthält kein Bild`);
@@ -447,6 +490,14 @@
       mapUrl,
       completeness: "complete",
       privacyNote: "Lokal erzeugt; Übermittlung erst durch expliziten Upload der Nutzer:innen.",
+      hashScope: {
+        algorithm: "SHA-256",
+        coveredFiles: "all ZIP payload files except manifest.json",
+        excluded: [{
+          path: "manifest.json",
+          reason: "A manifest cannot contain its own final hash without becoming self-referential.",
+        }],
+      },
       uploadContract: {
         requiredFiles: ["prompt.md", "facts.json", "manifest.json", ...graphics.map(graphic => graphic.name)],
         instruction: "ZIP entpacken und alle Pflichtdateien gemeinsam hochladen.",

@@ -66,6 +66,9 @@ describe('UA.aiHandoff', () => {
     UA._captureClusterMaps = jest.fn(async () => [{
       label: 'Cluster A', image: PNG, total: 2, points: [{}, {}], lat: 50.7, lon: 7.1, zoom: 17,
     }]);
+    UA.computeClusterMapTargets = jest.fn(() => [{
+      label: 'Cluster A', total: 2, points: [{}, {}], lat: 50.7, lon: 7.1, zoom: 17,
+    }]);
     UA.trend = { renderTrendSVG: jest.fn(() => '<svg aria-label="Mehrjahres-Trend"></svg>') };
     UA.heatmap = { renderHeatmapSVG: jest.fn(() => '<svg aria-label="Stunden-Heatmap"></svg>') };
     Object.assign(UA, overrides);
@@ -130,12 +133,28 @@ describe('UA.aiHandoff', () => {
     expect(pkg.prompt).toContain('Verbindliche Anlagen dieses Medienpakets');
     expect(pkg.prompt).toContain('graphics/01-uebersichtskarte.png');
     expect(pkg.manifest.uploadContract.requiredFiles).toContain('manifest.json');
+    expect(pkg.manifest.hashScope).toEqual(expect.objectContaining({
+      algorithm: 'SHA-256',
+      coveredFiles: 'all ZIP payload files except manifest.json',
+    }));
+    expect(pkg.manifest.hashScope.excluded).toContainEqual(expect.objectContaining({ path: 'manifest.json' }));
     expect(pkg.manifest.files.every(file => /^[a-f0-9]{64}$/.test(file.sha256))).toBe(true);
     expect(capturedZipEntries.map(entry => entry.name)).toEqual(expect.arrayContaining([
       'README.md', 'prompt.md', 'facts.json', 'report.md', 'report.html',
       'application-state.json', 'map-url.txt', 'manifest.json',
       'graphics/01-uebersichtskarte.png',
     ]));
+  });
+
+  test('fails closed when an expected cluster graphic was silently omitted', async () => {
+    UA.computeClusterMapTargets = jest.fn(() => [
+      { label: 'Cluster A', total: 2, lat: 50.7, lon: 7.1 },
+      { label: 'Cluster B', total: 2, lat: 50.8, lon: 7.2 },
+    ]);
+
+    await expect(UA.aiHandoff.generatePackage(UA, { exportOptions: {} }))
+      .rejects.toMatchObject({ code: 'missing_cluster_graphics' });
+    expect(UA.zip.createStoredZip).not.toHaveBeenCalled();
   });
 
   test('fails closed when a cluster image count disagrees with its stated total', async () => {
