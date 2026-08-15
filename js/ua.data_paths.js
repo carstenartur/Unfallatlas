@@ -271,5 +271,9 @@
       'js/ua.ai_political_evidence.js?v=2026-08-15',
       'data-ua-ai-political-evidence'
     ),
+    aiPoliticalReferenceBridge: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_political_reference_bridge.js?v=2026-08-15',
+      'data-ua-ai-political-reference-bridge'
+    ),
   });
 })();
