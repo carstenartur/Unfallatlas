@@ -14,7 +14,7 @@
  */
 
 /** Versionskennung – Teil des Cache-Keys. */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.6';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.5';
 
 const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
 const OFFICIAL_DESTATIS_URL = 'https://www.destatis.de/DE/Service/Statistik-Visualisiert/unfall-atlas.html';
