@@ -66,22 +66,11 @@ describe('UA.aiLinkHandoff', () => {
         compression: kind.includes('TileIndex') ? 'gzip-only' : 'gzip-preferred',
       })),
     };
-    UA.aiHandoff = {
-      ensureControls: jest.fn((_, ctx) => {
-        const panel = document.getElementById('externalAiPromptPanel');
-        if (!panel || document.getElementById('btnAiHandoffDownload')) return true;
-        const button = document.createElement('button');
-        button.id = 'btnAiHandoffDownload';
-        button.textContent = 'KI-Medienpaket mit Grafiken (.zip)';
-        panel.querySelector("div[style*='display:flex']").appendChild(button);
-        return Boolean(ctx || true);
-      }),
-    };
 
     load('ua.ai_link_handoff.js');
   });
 
-  test('makes the reproducible analysis link primary and the ZIP optional', async () => {
+  test('makes the reproducible analysis link the primary handoff', async () => {
     const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
     UA.aiProposal.wire(ctx);
     await flush();
@@ -89,15 +78,18 @@ describe('UA.aiLinkHandoff', () => {
     expect(document.getElementById('btnAiResearchLinkCopy')).toBeTruthy();
     expect(document.getElementById('btnAiResearchLinkCopy').textContent)
       .toMatch(/Analyse-Link/i);
-    expect(document.getElementById('btnAiHandoffDownload').textContent)
-      .toMatch(/Beleg-\/Offline-Paket/i);
     expect(document.getElementById('btnAiPromptCopy').textContent)
+      .toMatch(/Text-Snapshot/i);
+    expect(document.getElementById('btnAiPromptDownloadMd').textContent)
       .toMatch(/Text-Snapshot/i);
     expect(document.getElementById('aiLinkHandoffNote').textContent)
       .toMatch(/Link zuerst/i);
+    expect(document.getElementById('btnAiHandoffDownload')).toBeNull();
+    expect(document.querySelector('#externalAiPromptPanel > div:first-child').textContent)
+      .toMatch(/PDF-\/Word-Export/i);
   });
 
-  test('copies a link-first research task with direct public data URLs', async () => {
+  test('copies a research task with the exact analysis URL and direct public data URLs', async () => {
     const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
     UA.aiProposal.wire(ctx);
     await flush();
@@ -113,12 +105,13 @@ describe('UA.aiLinkHandoff', () => {
     expect(prompt).toContain('mapMode=hybrid');
     expect(prompt).toContain('selSouth=50.70');
     expect(prompt).toContain('out/accidentGeoJson_bonn.json');
+    expect(prompt).toContain('out/accidentTileIndex_bonn.json.gz');
     expect(prompt).toContain('zusätzliche Untersuchungen');
-    expect(prompt).toContain('Beleg-/Offline-Paket');
+    expect(prompt).toContain('PDF- oder Word-Export');
     expect(window.fetch).not.toHaveBeenCalled();
   });
 
-  test('generates one baseline snapshot but permits separately labelled investigations', async () => {
+  test('binds one baseline snapshot while permitting separately labelled investigations', async () => {
     const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
     const handoff = await UA.aiLinkHandoff.generateResearchHandoff(UA, ctx);
 
@@ -126,6 +119,8 @@ describe('UA.aiLinkHandoff', () => {
     expect(handoff.schemaVersion).toBe('unfallwerkbank.aiResearchHandoff.v1');
     expect(handoff.analysisUrl).toContain('export=1');
     expect(handoff.resources).toHaveLength(6);
+    expect(handoff.resources.find(resource => resource.kind === 'accidentTileIndex').preferredUrl)
+      .toMatch(/\.json\.gz$/);
     expect(handoff.facts.collaborationMode).toBe('link-first');
     expect(handoff.prompt).toMatch(/Verändere den Ausgangszustand nicht stillschweigend/);
   });
