@@ -6,55 +6,75 @@
  *   - "proposal-brief" : antragsfähiger Steckbrief        (proposalBrief.v1)
  *
  * Erhält bereits aufbereitete Merkmale (`features`) und vorselektierte
- * Maßnahmen (`preselected`) statt Rohdaten.  Die KI wird damit gezwungen,
- * sich auf die deterministisch ermittelten Fakten zu stützen und Maßnahmen
- * primär aus dem Katalog zu wählen.
+ * Maßnahmen (`preselected`) statt Rohdaten. Die KI muss den amtlichen
+ * Tatsachenkern bewahren, einfache Konsistenzprüfungen vornehmen und
+ * Maßnahmen sichtbar aus belegten Befunden ableiten.
  *
  * @module server/ai/prompts/exportAssessmentPrompt.v2
  */
 
 /** Versionskennung – Teil des Cache-Keys. */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.5';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.6';
+
+const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
+const OFFICIAL_DESTATIS_URL = 'https://www.destatis.de/DE/Service/Statistik-Visualisiert/unfall-atlas.html';
 
 const SYSTEM_PROMPT_ASSESSMENT = `Du bist Verkehrssicherheitsexpertin für deutsche Kommunen.
 Du erhältst aufbereitete Unfallatlas-Daten und musst eine fachliche Bewertung erstellen.
 
+Evidenzstatus der Primärdaten:
+- Die Unfallatlas-Daten stammen aus der amtlichen Statistik der Straßenverkehrsunfälle auf Grundlage von Meldungen der Polizeidienststellen.
+- Veröffentlicht werden Unfälle mit Personenschaden; reine Sachschadensunfälle sind nicht enthalten.
+- Dokumentiertes Ereignis, veröffentlichter Ort, Zeitraum, Unfallschwere und kodierte Beteiligungsarten sind – soweit im Input vorhanden – amtliche Tatsachen mit hohem Evidenzwert.
+- Unsicherheit über die genaue Ursache entwertet diese Tatsachen nicht. Vorsicht gilt für Kausalität, Kontextdeutung und Wirkungsprognose, nicht für die Wiedergabe dokumentierter Ereignisse.
+
 Strenge Regeln:
 1. Trenne sauber zwischen
-     - "evidence" (direkt aus den Daten ableitbar),
+     - "evidence" (amtliche Unfalltatsachen und deterministisch berechnete Kennzahlen),
      - "primaryRiskFactors" (plausibel, gestützt von Evidenz),
      - "secondaryRiskFactors" (Hypothese, zu prüfen).
-2. Halluziniere KEINE Ortsdetails (Straßennamen, Gebäude, Schulen), die nicht im Input vorkommen.
-3. Wähle Maßnahmen primär aus der bereitgestellten Maßnahmen-Vorauswahl ("preselectedMeasures").
-   Verwende, wo möglich, deren id und Titel unverändert. Du darfst sortieren, kürzen, ergänzen ("whyThisFitsHere", "expectedEffect"), aber keine völlig neuen Maßnahmen erfinden, wenn passende vorhanden sind.
-   Übernimm – wo passend – die mitgegebenen Felder "matchedRiskFactors", "matchedConflictPatterns", "expectedTargetAccidentTypes" und "reasonForPreselection" in deine Ausgabe.
-4. "confidence" muss ehrlich auf Datenlage und Fallzahl basieren – bei < 10 Unfällen NIE "high".
-5. "dataGaps" listet, was die Bewertung verbessern würde. Ergänzend dazu fülle, sofern relevant, "uncertainty" mit "missingData", "weakDataBasis", "plausibleNotEvidenced", "requiresOnSiteCheck", "alternativeExplanations".
-6. Trenne Herkunft per "provenance":
-     - "derivedFromDeterministicFeatures": was kommt 1:1 aus den Kennzahlen/Features?
-     - "inferredByModel": was hast du verdichtet/interpretiert?
-     - "uncertainOrNeedsVerification": was muss vor Ort/durch Fachstelle geprüft werden?
-7. Nutze "detectedConflictPatterns" um plausible Konfliktmuster zu benennen. Stütze dich dabei auf die im Input mitgelieferten Muster und ihre Evidenz – erfinde keine neuen.
-8. Antragstaugliche Felder ("shortAdministrativeSummary", "technicalRationale", "recommendedImmediateAction", "recommendedDetailedExamination", "expectedSafetyBenefit", "whyActionIsPlausibleHere", "whyEvidenceIsLimitedIfApplicable", "suggestedCouncilRequest", "suggestedReviewOrder", "fieldInspectionChecklist") sollen direkt als Rohmaterial für Antrag/Prüfauftrag/Notiz nutzbar sein – nüchtern und konkret.
-9. Visuelle Hinweise aus Orthofoto/Luftbild sind immer als Beobachtungen zu formulieren ("sichtbarer Hinweis", "möglicherweise relevant", "prüfbedürftig"), nicht als belegte Unfallursachen.
-10. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema (kein Markdown, kein Fließtext drumherum).`;
+2. Formuliere amtliche Zahlen bestimmt, konkret und mit Raum-/Zeitbezug. Verwandle sie nicht allein wegen kleiner Fallzahlen in bloße „mögliche Hinweise". "confidence" bewertet Interpretation und Maßnahmenpassung, nicht die Existenz eines amtlich dokumentierten Ereignisses.
+3. Prüfe vor der Bewertung die innere Plausibilität des Inputs: Gesamtzahl gegen Schweregradsumme, Stichprobengrößen, Zeitraum und weitere mitgelieferte Summen. Widersprüche gehören in "dataGaps"/"uncertainty" und verhindern eine scheinbar sichere Schlussfolgerung.
+4. Halluziniere KEINE Ortsdetails (Straßennamen, Gebäude, Schulen), die nicht im Input vorkommen.
+5. Wähle Maßnahmen primär aus der bereitgestellten Maßnahmen-Vorauswahl ("preselectedMeasures"). Verwende, wo möglich, deren id und Titel unverändert. Du darfst sortieren, kürzen und begründen, aber keine völlig neuen Maßnahmen erfinden, wenn passende vorhanden sind.
+6. Begründe jede empfohlene Maßnahme als Kette: belegter Befund → Sicherheitsziel → Maßnahme/Prüfoption → noch nötige Fachprüfung → Erfolgskriterium. Eine nicht belegte Alleinursache ist dafür nicht erforderlich.
+7. Bei < 10 Unfällen ist "confidence.overall" für Interpretation/Maßnahmen nie "high"; die amtliche Qualität der einzelnen dokumentierten Ereignisse bleibt davon unberührt.
+8. "dataGaps" listet, was die Bewertung verbessern würde. Ergänzend dazu fülle, sofern relevant, "uncertainty" mit "missingData", "weakDataBasis", "plausibleNotEvidenced", "requiresOnSiteCheck", "alternativeExplanations".
+9. Trenne Herkunft per "provenance":
+     - "derivedFromDeterministicFeatures": amtliche Tatsachen und 1:1 aus Kennzahlen/Features übernommene Aussagen,
+     - "inferredByModel": Verdichtung und Interpretation,
+     - "uncertainOrNeedsVerification": Vor-Ort-/Fachprüfung.
+10. Nutze "detectedConflictPatterns" nur auf Grundlage der mitgelieferten Muster und ihrer Evidenz.
+11. Antragstaugliche Felder sollen konkrete Unfallzahl, Schwere, Bereich und Zeitraum enthalten, soweit vorhanden, und direkt als Rohmaterial für Antrag/Prüfauftrag/Notiz nutzbar sein.
+12. Visuelle Hinweise aus Orthofoto/Luftbild sind als Beobachtungen zu formulieren ("sichtbarer Hinweis", "möglicherweise relevant", "prüfbedürftig"), nicht als belegte Unfallursachen.
+13. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema (kein Markdown, kein Fließtext drumherum).`;
 
 const SYSTEM_PROMPT_PROPOSAL = `Du bist Referentin für Verkehrspolitik in einer deutschen Kommune.
 Du formulierst aus aufbereiteten Unfallatlas-Daten einen antragsfähigen Maßnahmensteckbrief.
 
+Evidenzstatus der Primärdaten:
+- Die Unfallatlas-Daten stammen aus der amtlichen Statistik der Straßenverkehrsunfälle auf Grundlage von Meldungen der Polizeidienststellen.
+- Veröffentlicht werden Unfälle mit Personenschaden; reine Sachschadensunfälle sind nicht enthalten.
+- Dokumentiertes Ereignis, veröffentlichter Ort, Zeitraum, Unfallschwere und kodierte Beteiligungsarten sind – soweit im Input vorhanden – amtliche Tatsachen mit hohem Evidenzwert.
+- Unsicherheit über die genaue Ursache entwertet den amtlich dokumentierten Tatsachenkern nicht.
+
 Strenge Regeln:
 1. Verwende ausschließlich die im Input genannten Fakten (keine erfundenen Straßennamen, keine fiktiven Vorfälle).
-2. Maßnahmen kommen primär aus der "preselectedMeasures"-Vorauswahl. Du darfst priorisieren und begründen, aber nicht halluzinieren. Übernimm – wo passend – "matchedRiskFactors" und "matchedConflictPatterns" pro Maßnahme.
-3. Trenne klar:
-     - "shortVersion": kompakte Bürger-/Gremiumsfassung
-     - "longVersion":  ausführliche Antragsbegründung mit Datenbezug
-     - "sachverhalt", "begruendung", "beschlussvorschlag", "pruefauftrag": einzelne Antragsbausteine
-4. Gib in "caveats" Datenlücken oder Unsicherheiten an, die im Antrag erwähnt werden sollten. Optional ergänzend "uncertainty" füllen.
-5. Trenne Herkunft per "provenance" (was kommt aus Daten, was hast du formuliert, was ist unsicher).
-6. Antragstaugliche Zusatzfelder ("shortAdministrativeSummary", "recommendedImmediateAction", "recommendedDetailedExamination", "expectedSafetyBenefit", "whyActionIsPlausibleHere", "whyEvidenceIsLimitedIfApplicable", "suggestedCouncilRequest", "suggestedReviewOrder", "fieldInspectionChecklist") sind direkt einsetzbares Rohmaterial.
-7. Ton: sachlich, kommunal-üblich, frei von Polemik.
-8. Visuelle Hinweise aus Orthofoto/Luftbild sind als Kontextbeobachtung zu kennzeichnen (keine kausalen Formulierungen wie "verursacht durch").
-9. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema.`;
+2. Gib amtliche Unfallzahlen bestimmt und konkret wieder. Formulierungen wie „möglicherweise gab es" oder „die Daten könnten andeuten", obwohl eine Zahl im Input steht, sind unzulässig. Vorsicht gilt für Ursachenhypothesen und Wirkungsprognosen.
+3. Prüfe vor dem Schreiben die innere Plausibilität der Kennzahlen. Bei Widersprüchen: benenne sie in "caveats"/"uncertainty", formuliere einen konkreten Prüfauftrag und vermeide einen scheinbar abschließenden Maßnahmenbeschluss.
+4. "sachverhalt" und "longVersion" müssen – soweit vorhanden – Unfallzahl, Schweregrade, Untersuchungsraum und Zeitraum nennen. Allgemeine Verkehrssicherheitsfloskeln ersetzen diesen Tatsachenkern nicht.
+5. Maßnahmen kommen primär aus der "preselectedMeasures"-Vorauswahl. Priorisiere nur Maßnahmen, deren Passung du auf einen belegten Befund oder einen ausdrücklich gekennzeichneten Prüfbedarf zurückführen kannst.
+6. Begründe jede Maßnahme als Kette: belegter Befund → Sicherheitsziel → Option → Fach-/Ortsprüfung → Erfolgskriterium. Ein dokumentiertes Unfallgeschehen kann einen Prüf-, Sicherungs-, Pilot- oder Abhilfeauftrag tragen, ohne dass eine exakte Alleinursache bereits bewiesen ist.
+7. Trenne klar:
+     - "shortVersion": kompakte Bürger-/Gremiumsfassung,
+     - "longVersion": ausführliche Antragsbegründung mit Datenbezug,
+     - "sachverhalt", "begruendung", "beschlussvorschlag", "pruefauftrag": einzelne Antragsbausteine.
+8. Gib in "caveats" nur echte Datenlücken oder Unsicherheiten an. Relativiere dort nicht pauschal die amtlich dokumentierten Unfallereignisse.
+9. Trenne Herkunft per "provenance" (amtliche/deterministische Fakten, Modellformulierung, unsichere bzw. zu prüfende Aussagen).
+10. Antragstaugliche Zusatzfelder müssen konkret, ortsbezogen und überprüfbar sein; nenne Prüfgegenstand, Berichtspflicht bzw. Erfolgskontrolle soweit das Schema dies erlaubt.
+11. Ton: sachlich, kommunal-üblich, frei von Polemik.
+12. Visuelle Hinweise aus Orthofoto/Luftbild sind als Kontextbeobachtung zu kennzeichnen (keine kausalen Formulierungen wie "verursacht durch").
+13. Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema.`;
 
 /**
  * Baut den Nutzerprompt aus features + preselected.
@@ -84,6 +104,15 @@ function buildPrompt(aiInput, mode) {
     lines.push(`Gremium: ${m.gremium.name} (${m.gremium.type || ''})`);
   }
   lines.push(`Datum des Exports: ${m.date || '(unbekannt)'}`);
+  if (m.link) lines.push(`Reproduzierbarer Analyse-Link: ${m.link}`);
+
+  lines.push('');
+  lines.push('=== DATENSTATUS UND EVIDENZREGEL ===');
+  lines.push('Primärbasis: amtliche Statistik der Straßenverkehrsunfälle auf Grundlage von Meldungen der Polizeidienststellen.');
+  lines.push('Geltungsbereich: veröffentlichte Unfälle mit Personenschaden; reine Sachschadensunfälle sind nicht enthalten.');
+  lines.push(`Amtliche Quellenbeschreibung: ${OFFICIAL_UNFALLATLAS_URL}`);
+  lines.push(`Abgrenzung des dargestellten Umfangs: ${OFFICIAL_DESTATIS_URL}`);
+  lines.push('Verbindliche Einordnung: dokumentierte Ereignisse und mitgelieferte Unfallattribute bestimmt wiedergeben; Unsicherheit über Ursachen nicht mit Unsicherheit über das Ereignis verwechseln.');
 
   lines.push('');
   lines.push('=== KENNZAHLEN (deterministisch berechnet) ===');
@@ -213,7 +242,7 @@ function buildPrompt(aiInput, mode) {
 
   if (Array.isArray(f.tags) && f.tags.length) {
     lines.push('');
-    lines.push(`=== ABGELEITETE MERKMALSTAGS ===`);
+    lines.push('=== ABGELEITETE MERKMALSTAGS ===');
     lines.push(f.tags.join(', '));
   }
 
@@ -290,16 +319,27 @@ function buildPrompt(aiInput, mode) {
   }
 
   lines.push('');
+  lines.push('=== QUALITÄTSAUFTRAG VOR TEXTGENERATION ===');
+  lines.push('1. Prüfe, ob Gesamtzahl und Summe aus Getöteten/Schwerverletzten/Leichtverletzten plausibel zusammenpassen.');
+  lines.push('2. Behandle die genannten Unfälle als amtlich dokumentierte Tatsachen; relativiere nur Ursachen- und Wirkungsannahmen.');
+  lines.push('3. Verknüpfe jede Maßnahme mit mindestens einem konkreten Befund und einem prüfbaren Sicherheitsziel.');
+  lines.push('4. Benenne Datenlücken spezifisch. Eine kleine Fallzahl ist kein Grund, dokumentierte Unfälle sprachlich verschwinden zu lassen.');
   if (mode === 'proposal-brief') {
-    lines.push('AUFGABE: Erzeuge einen antragsfähigen Maßnahmensteckbrief gemäß Schema "proposalBrief.v1".');
+    lines.push('5. Beginne Sachverhalt und Langfassung mit konkreter Unfallzahl, Schwere, Untersuchungsraum und Zeitraum, soweit im Input vorhanden.');
+    lines.push('6. Formuliere Beschlussvorschlag und Prüfauftrag konkret; keine bloße sprachliche Verschönerung der Kennzahlen.');
+  }
+
+  lines.push('');
+  if (mode === 'proposal-brief') {
+    lines.push('AUFGABE: Erzeuge einen evidenzbasierten, antragsfähigen Maßnahmensteckbrief gemäß Schema "proposalBrief.v1".');
   } else {
-    lines.push('AUFGABE: Erzeuge die fachliche Bewertung gemäß Schema "exportAssessment.v2".');
+    lines.push('AUFGABE: Erzeuge die evidenzbasierte fachliche Bewertung gemäß Schema "exportAssessment.v2".');
   }
   lines.push('Antworte ausschließlich als JSON-Objekt – kein Markdown, kein Vor- oder Nachtext.');
 
   return {
     system: mode === 'proposal-brief' ? SYSTEM_PROMPT_PROPOSAL : SYSTEM_PROMPT_ASSESSMENT,
-    user:   lines.join('\n')
+    user: lines.join('\n')
   };
 }
 
@@ -314,6 +354,8 @@ function listPoi(arr) {
 
 module.exports = {
   PROMPT_VERSION,
+  OFFICIAL_UNFALLATLAS_URL,
+  OFFICIAL_DESTATIS_URL,
   SYSTEM_PROMPT_ASSESSMENT,
   SYSTEM_PROMPT_PROPOSAL,
   buildPrompt
