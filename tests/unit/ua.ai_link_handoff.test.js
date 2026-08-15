@@ -1,0 +1,132 @@
+/**
+ * Link-first user-owned AI handoff.
+ *
+ * @jest-environment jsdom
+ */
+
+describe('UA.aiLinkHandoff', () => {
+  let UA;
+  let clipboardWrite;
+
+  function load(relativePath) {
+    const fs = require('fs');
+    const path = require('path');
+    const code = fs.readFileSync(path.resolve(__dirname, '../../js/', relativePath), 'utf8');
+    // eslint-disable-next-line no-new-func
+    (new Function('window', 'document', code))(window, document);
+  }
+
+  function flush(n = 5) {
+    let promise = Promise.resolve();
+    for (let index = 0; index < n; index += 1) {
+      promise = promise.then(() => new Promise(resolve => setTimeout(resolve, 0)));
+    }
+    return promise;
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <fieldset id="aiProposalSection">
+        <button id="btnAiProposal"></button>
+        <div id="aiProposalStatus"></div>
+        <div id="aiProposalResult"></div>
+      </fieldset>
+      <textarea id="exportBoxTa"></textarea>
+    `;
+    delete window.UA;
+    window.UA = {};
+    window.history.replaceState(
+      null,
+      '',
+      '/werkbank_v2.html?city=Bonn&includeCyclist=1&showHeatmap=0&mapMode=hybrid&selSouth=50.70&selWest=7.05&selNorth=50.75&selEast=7.15'
+    );
+    clipboardWrite = jest.fn(async () => undefined);
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText: clipboardWrite },
+      configurable: true,
+    });
+
+    load('ua.ai_proposal.js');
+    UA = window.UA;
+    UA.syncAllToUrl = jest.fn();
+    window.fetch = jest.fn();
+    UA.computeExportReport = jest.fn(async () => ({
+      structured: {
+        meta: { city: 'Bonn' },
+        summary: { totalAccidents: 7 },
+      },
+      text: 'Deterministischer Bericht.',
+      html: '<main><h1>Bonn</h1></main>',
+    }));
+    UA.DataResources = {
+      resolve: jest.fn((kind, params) => ({
+        kind,
+        logicalUrl: `out/${kind}_${String(params.city || '').toLowerCase()}.json`,
+        gzipUrl: `out/${kind}_${String(params.city || '').toLowerCase()}.json.gz`,
+        compression: kind.includes('TileIndex') ? 'gzip-only' : 'gzip-preferred',
+      })),
+    };
+    UA.aiHandoff = {
+      ensureControls: jest.fn((_, ctx) => {
+        const panel = document.getElementById('externalAiPromptPanel');
+        if (!panel || document.getElementById('btnAiHandoffDownload')) return true;
+        const button = document.createElement('button');
+        button.id = 'btnAiHandoffDownload';
+        button.textContent = 'KI-Medienpaket mit Grafiken (.zip)';
+        panel.querySelector("div[style*='display:flex']").appendChild(button);
+        return Boolean(ctx || true);
+      }),
+    };
+
+    load('ua.ai_link_handoff.js');
+  });
+
+  test('makes the reproducible analysis link primary and the ZIP optional', async () => {
+    const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
+    UA.aiProposal.wire(ctx);
+    await flush();
+
+    expect(document.getElementById('btnAiResearchLinkCopy')).toBeTruthy();
+    expect(document.getElementById('btnAiResearchLinkCopy').textContent)
+      .toMatch(/Analyse-Link/i);
+    expect(document.getElementById('btnAiHandoffDownload').textContent)
+      .toMatch(/Beleg-\/Offline-Paket/i);
+    expect(document.getElementById('btnAiPromptCopy').textContent)
+      .toMatch(/Text-Snapshot/i);
+    expect(document.getElementById('aiLinkHandoffNote').textContent)
+      .toMatch(/Link zuerst/i);
+  });
+
+  test('copies a link-first research task with direct public data URLs', async () => {
+    const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
+    UA.aiProposal.wire(ctx);
+    await flush();
+
+    document.getElementById('btnAiResearchLinkCopy').click();
+    await flush(8);
+
+    expect(UA.computeExportReport).toHaveBeenCalledTimes(1);
+    expect(clipboardWrite).toHaveBeenCalledTimes(1);
+    const prompt = clipboardWrite.mock.calls[0][0];
+    expect(prompt).toContain('Primärer Einstieg: öffentliche Analyseansicht öffnen');
+    expect(prompt).toContain('export=1');
+    expect(prompt).toContain('mapMode=hybrid');
+    expect(prompt).toContain('selSouth=50.70');
+    expect(prompt).toContain('out/accidentGeoJson_bonn.json');
+    expect(prompt).toContain('zusätzliche Untersuchungen');
+    expect(prompt).toContain('Beleg-/Offline-Paket');
+    expect(window.fetch).not.toHaveBeenCalled();
+  });
+
+  test('generates one baseline snapshot but permits separately labelled investigations', async () => {
+    const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
+    const handoff = await UA.aiLinkHandoff.generateResearchHandoff(UA, ctx);
+
+    expect(UA.computeExportReport).toHaveBeenCalledTimes(1);
+    expect(handoff.schemaVersion).toBe('unfallwerkbank.aiResearchHandoff.v1');
+    expect(handoff.analysisUrl).toContain('export=1');
+    expect(handoff.resources).toHaveLength(6);
+    expect(handoff.facts.collaborationMode).toBe('link-first');
+    expect(handoff.prompt).toMatch(/Verändere den Ausgangszustand nicht stillschweigend/);
+  });
+});
