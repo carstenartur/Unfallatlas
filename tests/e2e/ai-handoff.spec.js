@@ -18,7 +18,7 @@ test.describe('Nutzerseitige KI-Übergabe', () => {
     const packageButton = page.locator('#btnAiHandoffDownload');
     await expect(packageButton).toBeVisible({ timeout: 15_000 });
     await expect(packageButton).toContainText(/KI-Medienpaket mit Grafiken/i);
-    await expect(packageButton).toHaveAttribute('title', /Karten.*Grafiken.*SHA-256/i);
+    await expect(packageButton).toHaveAttribute('title', /Karten.*Trendgrafik.*SHA-256/i);
 
     await expect(page.locator('#btnAiPromptCopy')).toContainText(/ohne Grafiken/i);
     await expect(page.locator('#btnAiPromptDownloadMd')).toContainText(/Text-Prompt/i);
