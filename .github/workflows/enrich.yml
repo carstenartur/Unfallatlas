@@ -113,6 +113,7 @@ jobs:
             .build/context-selected-cities.txt
             .build/context-provider/
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 14
 
       - name: Save producer cache
