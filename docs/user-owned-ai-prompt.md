@@ -16,11 +16,25 @@ Eine browserfähige KI kann dadurch:
 
 Der Link ist deshalb nicht nur eine „Prüfhilfe“, sondern die eigentliche gemeinsame Arbeitsoberfläche.
 
+## Öffentlich erreichbare Adresse
+
+Ist die Unfallwerkbank bereits unter einer öffentlichen HTTP(S)-Adresse geöffnet, wird genau diese Installation verwendet. Läuft sie dagegen unter `localhost`, einer privaten IP-Adresse oder einem `.local`-Namen, werden dieselben Abfrageparameter auf die öffentliche Unfallwerkbank übertragen:
+
+`https://carstenartur.github.io/Unfallatlas/werkbank_v2.html`
+
+Eigeninstallationen können eine andere öffentliche Zieladresse über `UA.PUBLIC_APP_URL`, `UA.publicAppUrl` oder folgendes Meta-Element vorgeben:
+
+```html
+<meta name="unfallwerkbank:public-app-url" content="https://example.org/unfallwerkbank/werkbank_v2.html">
+```
+
+Damit erhält die KI keinen für sie unerreichbaren Docker-/Localhost-Link.
+
 ## Bedienung
 
 Im Exportdialog unter „Zusatzanalysen“ stehen folgende Wege bereit:
 
-- **KI-Auftrag + Analyse-Link kopieren**: bevorzugter Weg. Kopiert einen Arbeitsauftrag mit reproduzierbarem Link, strukturiertem Ausgangssnapshot und direkten öffentlichen Daten-URLs.
+- **KI-Auftrag + Analyse-Link kopieren**: bevorzugter Weg. Kopiert einen Arbeitsauftrag mit öffentlich erreichbarem, reproduzierbarem Link, strukturiertem Ausgangssnapshot und direkten öffentlichen Daten-URLs.
 - **Text-Snapshot kopieren** und **Text-Snapshot .md**: sekundärer, fester Text-/JSON-Stand ohne explorative Webuntersuchung.
 - **Fakten .json**: nur die strukturierte Faktenbasis.
 - **ChatGPT öffnen** / **Gemini öffnen**: öffnet lediglich die jeweilige Oberfläche. Es werden keine Daten automatisch übertragen.
@@ -51,7 +65,9 @@ Soweit die aktuelle Laufzeit sie veröffentlicht, enthält der kopierte KI-Auftr
 - Unfallkachelindex;
 - Kontextkachelindex.
 
-Für ausschließlich komprimiert veröffentlichte Ressourcen wird die `.gz`-Adresse als bevorzugte URL angegeben. Damit kann die KI nicht nur die vorhandene Darstellung ansehen, sondern bei weitergehenden Fragestellungen selbst räumlich oder statistisch nachrechnen.
+Die Anwendung lädt komprimierte Ressourcen selbst zuerst als `.gz`. Deshalb wird auch der KI die tatsächlich veröffentlichte `.gz`-Adresse als bevorzugte URL genannt; die logische Rohdatenadresse bleibt nur als lokaler Entwicklungs-Fallback aufgeführt. Die KI soll die Datei vor der JSON-/GeoJSON-Auswertung dekomprimieren.
+
+Damit kann sie nicht nur die vorhandene Darstellung ansehen, sondern bei weitergehenden Fragestellungen selbst räumlich oder statistisch nachrechnen.
 
 ## Warum die Bilder nicht als einzelne dauerhafte URLs benötigt werden
 
