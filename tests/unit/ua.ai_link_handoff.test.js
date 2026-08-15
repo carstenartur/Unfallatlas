@@ -83,13 +83,13 @@ describe('UA.aiLinkHandoff', () => {
     expect(document.getElementById('btnAiPromptDownloadMd').textContent)
       .toMatch(/Text-Snapshot/i);
     expect(document.getElementById('aiLinkHandoffNote').textContent)
-      .toMatch(/Link zuerst/i);
+      .toMatch(/öffentlich erreichbare.*Link zuerst|Link zuerst.*öffentlich erreichbare/i);
     expect(document.getElementById('btnAiHandoffDownload')).toBeNull();
     expect(document.querySelector('#externalAiPromptPanel > div:first-child').textContent)
-      .toMatch(/PDF-\/Word-Export/i);
+      .toMatch(/Docker-Links.*PDF-\/Word-Export/i);
   });
 
-  test('copies a research task with the exact analysis URL and direct public data URLs', async () => {
+  test('copies a public research task with the exact analysis state and compressed data URLs', async () => {
     const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
     UA.aiProposal.wire(ctx);
     await flush();
@@ -101,11 +101,12 @@ describe('UA.aiLinkHandoff', () => {
     expect(clipboardWrite).toHaveBeenCalledTimes(1);
     const prompt = clipboardWrite.mock.calls[0][0];
     expect(prompt).toContain('Primärer Einstieg: öffentliche Analyseansicht öffnen');
+    expect(prompt).toContain('https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?');
     expect(prompt).toContain('export=1');
     expect(prompt).toContain('mapMode=hybrid');
     expect(prompt).toContain('selSouth=50.70');
-    expect(prompt).toContain('out/accidentGeoJson_bonn.json');
-    expect(prompt).toContain('out/accidentTileIndex_bonn.json.gz');
+    expect(prompt).toContain('https://carstenartur.github.io/Unfallatlas/out/accidentGeoJson_bonn.json.gz');
+    expect(prompt).toContain('https://carstenartur.github.io/Unfallatlas/out/accidentTileIndex_bonn.json.gz');
     expect(prompt).toContain('zusätzliche Untersuchungen');
     expect(prompt).toContain('PDF- oder Word-Export');
     expect(window.fetch).not.toHaveBeenCalled();
@@ -118,10 +119,22 @@ describe('UA.aiLinkHandoff', () => {
     expect(UA.computeExportReport).toHaveBeenCalledTimes(1);
     expect(handoff.schemaVersion).toBe('unfallwerkbank.aiResearchHandoff.v1');
     expect(handoff.analysisUrl).toContain('export=1');
+    expect(handoff.analysisUrl).toMatch(/^https:\/\/carstenartur\.github\.io\/Unfallatlas\/werkbank_v2\.html\?/);
     expect(handoff.resources).toHaveLength(6);
-    expect(handoff.resources.find(resource => resource.kind === 'accidentTileIndex').preferredUrl)
-      .toMatch(/\.json\.gz$/);
+    expect(handoff.resources.every(resource => resource.preferredUrl.endsWith('.gz'))).toBe(true);
     expect(handoff.facts.collaborationMode).toBe('link-first');
     expect(handoff.prompt).toMatch(/Verändere den Ausgangszustand nicht stillschweigend/);
+  });
+
+  test('supports a configured public deployment and preserves already public URLs', () => {
+    UA.PUBLIC_APP_URL = 'https://example.org/unfallwerkbank/app.html';
+    const internal = UA.aiLinkHandoff._internal;
+
+    expect(internal.shareableAnalysisUrl(UA, 'http://localhost:8000/werkbank_v2.html?city=Bonn'))
+      .toBe('https://example.org/unfallwerkbank/app.html?city=Bonn');
+    expect(internal.shareableAnalysisUrl(UA, 'https://stadt.example/werkbank.html?city=Bonn'))
+      .toBe('https://stadt.example/werkbank.html?city=Bonn');
+    expect(internal.isPrivateHostname('192.168.1.8')).toBe(true);
+    expect(internal.isPrivateHostname('stadt.example')).toBe(false);
   });
 });
