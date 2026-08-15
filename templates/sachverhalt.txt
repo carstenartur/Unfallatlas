@@ -1,5 +1,5 @@
 Sachverhalt:
-Im markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.
+Im markierten Kartenausschnitt wurden unter den ausgewiesenen Filtern {{local_total}} amtlich dokumentierte Unfälle mit Personenschaden ausgewertet. Der stadtweite Bestand mit denselben Unfallfiltern umfasst {{baseline_total}} Unfälle und dient als Referenzpopulation. Aus den absoluten Fallzahlen unterschiedlich großer Räume folgt für sich allein noch keine lokale Überrepräsentation; eine tragende Abweichungsbehauptung setzt eine geeignete Bezugsgröße und statistische Einordnung voraus.
 
 Verletzungsschwere (Ausschnitt):
 {{severity_summary}}
