@@ -23,8 +23,9 @@ Im Exportdialog unter „Zusatzanalysen“ stehen folgende Wege bereit:
 - **KI-Auftrag + Analyse-Link kopieren**: bevorzugter Weg. Kopiert einen Arbeitsauftrag mit reproduzierbarem Link, strukturiertem Ausgangssnapshot und direkten öffentlichen Daten-URLs.
 - **Text-Snapshot kopieren** und **Text-Snapshot .md**: sekundärer, fester Text-/JSON-Stand ohne explorative Webuntersuchung.
 - **Fakten .json**: nur die strukturierte Faktenbasis.
-- **Beleg-/Offline-Paket (.zip)**: optionaler unveränderlicher Snapshot mit Karten- und Grafikdateien.
 - **ChatGPT öffnen** / **Gemini öffnen**: öffnet lediglich die jeweilige Oberfläche. Es werden keine Daten automatisch übertragen.
+
+Ein eigenes KI-Medien-ZIP ist nicht erforderlich. Wenn ein KI-Werkzeug die öffentliche Seite nicht öffnen oder die dynamische Karte nicht visuell auswerten kann, können der bereits vorhandene PDF-/Word-Export oder gezielt einzelne Screenshots hochgeladen werden.
 
 ## Was der KI-Auftrag verlangt
 
@@ -50,26 +51,22 @@ Soweit die aktuelle Laufzeit sie veröffentlicht, enthält der kopierte KI-Auftr
 - Unfallkachelindex;
 - Kontextkachelindex.
 
-Damit kann die KI nicht nur vorhandene Bilder ansehen, sondern bei weitergehenden Fragestellungen selbst räumlich oder statistisch nachrechnen.
+Für ausschließlich komprimiert veröffentlichte Ressourcen wird die `.gz`-Adresse als bevorzugte URL angegeben. Damit kann die KI nicht nur die vorhandene Darstellung ansehen, sondern bei weitergehenden Fragestellungen selbst räumlich oder statistisch nachrechnen.
 
-## Warum es das Beleg-/Offline-Paket trotzdem gibt
+## Warum die Bilder nicht als einzelne dauerhafte URLs benötigt werden
 
-Das ZIP ist **nicht** der vorgesehene Normalweg. Es hat nur drei besondere Aufgaben:
+Die Übersicht, Auswahl, Unfallpunkte, Cluster und Kontextlayer werden in der Webanwendung aus Kartenkacheln und strukturierten Daten zusammengesetzt. Sie sind daher keine unveränderlichen, bereits auf dem Server liegenden PNG-Dateien. Eine browserfähige KI kann die verlinkte Seite jedoch selbst rendern und visuell untersuchen.
 
-1. **Fallback**, wenn das verwendete KI-Werkzeug keine Webseiten öffnen oder die dynamische Kartenansicht nicht zuverlässig visuell auswerten kann;
-2. **Archivierung**, wenn der genaue damalige Bildstand unabhängig von später aktualisierten Daten oder Basiskarten festgehalten werden soll;
-3. **Belegführung**, wenn Karten und Grafiken mit Dateinamen, Metadaten und SHA-256-Prüfsummen an einen Vorgang angehängt werden müssen.
-
-Die Übersicht-, Detail- und Clusterkarten werden derzeit im Browser erzeugt. Solche Canvas-/PNG-Aufnahmen besitzen ohne zusätzlichen Renderdienst keine dauerhafte öffentliche Bild-URL. Das ZIP friert diese flüchtigen Aufnahmen ein. Für die normale explorative Zusammenarbeit genügt dagegen der Analyse-Link.
+Ein eigener Screenshot- oder Renderdienst wäre nur erforderlich, wenn jede dynamische Ansicht zusätzlich eine dauerhafte öffentliche PNG-URL erhalten sollte. Für die normale KI-Zusammenarbeit erzeugte das zusätzliche Infrastruktur, Betriebskosten und Synchronisationsrisiken, ohne einen Vorteil gegenüber der interaktiven URL zu bieten.
 
 ## Grenzen des Linkwegs
 
-Ein Link funktioniert nur, wenn das KI-Werkzeug einen öffentlichen Browserzugriff besitzt und die Seite nicht durch Anmeldung, CAPTCHA, Netzwerkrichtlinien oder technische Einschränkungen blockiert wird. In diesem Fall soll die KI den konkreten Abruffehler melden und gezielt das Beleg-/Offline-Paket anfordern.
+Ein Link funktioniert nur, wenn das KI-Werkzeug einen öffentlichen Browserzugriff besitzt und die Seite nicht durch Anmeldung, CAPTCHA, Netzwerkrichtlinien oder technische Einschränkungen blockiert wird. In diesem Fall soll die KI den konkreten Abruffehler melden und gezielt den vorhandenen PDF-/Word-Export oder die tatsächlich benötigten Screenshots anfordern.
 
 ## Datenschutz und Kosten
 
-Weder der Link- noch der Paketweg sendet automatisch Daten an ChatGPT, Gemini oder einen anderen KI-Dienst. Erst wenn Nutzer:innen den Auftrag selbst einfügen, einen Link übergeben oder Dateien hochladen, verlassen die Daten die Unfallwerkbank. Dadurch entstehen dem Betreiber keine nutzerseitigen KI-API-Kosten.
+Weder der Link- noch der Textweg sendet automatisch Daten an ChatGPT, Gemini oder einen anderen KI-Dienst. Erst wenn Nutzer:innen den Auftrag selbst einfügen, einen Link übergeben oder Dateien hochladen, verlassen die Daten die Unfallwerkbank. Dadurch entstehen dem Betreiber keine nutzerseitigen KI-API-Kosten.
 
 ## Abgrenzung zum serverseitigen KI-Modus
 
-Der Button „Antragsentwurf erstellen“ kann weiterhin den optionalen serverseitigen KI-Endpunkt verwenden, sofern dieser konfiguriert ist. Die linkbasierte Zusammenarbeit und das optionale Belegpaket benötigen keinen `GEMINI_API_KEY` im Unfallwerkbank-Backend.
+Der Button „Antragsentwurf erstellen“ kann weiterhin den optionalen serverseitigen KI-Endpunkt verwenden, sofern dieser konfiguriert ist. Die linkbasierte Zusammenarbeit benötigt keinen `GEMINI_API_KEY` im Unfallwerkbank-Backend.
