@@ -29,8 +29,10 @@ describe('enrich workflow checkout pinning and resilience', () => {
     expect(workflow).toContain("if: always() && steps.context-cache.outputs.cache-hit != 'true'");
   });
 
-  test('publishes the QA summary and commits the rebound accident release oracle with context data', () => {
+  test('publishes the hidden QA summary and commits the rebound accident release oracle with context data', () => {
     expect(workflow).toContain('.build/context-provider/');
+    expect(workflow).toContain('.build/context-selected-cities.txt');
+    expect(workflow).toContain('include-hidden-files: true');
     expect(workflow).toContain('out/qa/');
     expect(workflow).toContain('git add -A -- out/ data/accident-data-release.json');
   });
