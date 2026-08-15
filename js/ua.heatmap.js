@@ -167,4 +167,33 @@
     COLS,
     COL_LABELS
   };
+
+  // The complete user-owned AI handoff depends on the heatmap and trend
+  // renderers. Load it as an optional browser module without affecting eval-
+  // based unit tests (which have no parser currentScript). The module may load
+  // before ua.ai_proposal.js; retry the idempotent install until that API exists.
+  const ownScript = typeof document !== "undefined" ? document.currentScript : null;
+  if (ownScript && ownScript.src && typeof document.createElement === "function") {
+    const moduleUrl = new URL("ua.ai_handoff.js?v=2026-08-15", ownScript.src).toString();
+    const existing = Array.from(document.querySelectorAll("script[data-ua-ai-handoff]"))
+      .find(candidate => candidate.src === moduleUrl);
+    if (!existing) {
+      const script = document.createElement("script");
+      script.src = moduleUrl;
+      script.async = false;
+      script.dataset.uaAiHandoff = "true";
+      script.addEventListener("load", () => {
+        let attempt = 0;
+        const bind = () => {
+          if (window.UA?.aiHandoff?.install?.(window.UA)) return;
+          if (attempt++ < 100) window.setTimeout(bind, 0);
+        };
+        bind();
+      }, { once: true });
+      script.addEventListener("error", () => {
+        console.error("KI-Übergabepaket konnte nicht geladen werden", moduleUrl);
+      }, { once: true });
+      document.head.appendChild(script);
+    }
+  }
 })();
