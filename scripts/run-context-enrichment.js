@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { validateAll: validateContextDatasets } = require('./check-context-datasets');
+const { slugify } = require('./lib/static-data-validation');
 
 const ROOT = path.resolve(__dirname, '..');
 const SELECTED_FILE = path.join(ROOT, '.build', 'context-selected-cities.txt');
@@ -84,11 +85,7 @@ function configuredCities(requestedCity = currentOptions().requestedCity) {
 }
 
 function citySlug(value) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  return slugify(value);
 }
 
 function dgm1Configuration() {

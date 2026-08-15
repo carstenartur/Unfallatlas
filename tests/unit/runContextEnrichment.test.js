@@ -80,6 +80,6 @@ describe('context enrichment transient-provider fallback policy', () => {
 
   test('normalizes German city names consistently with public context paths', () => {
     expect(enrichment.citySlug('Düsseldorf')).toBe('duesseldorf');
-    expect(enrichment.citySlug('Frankfurt am Main')).toBe('frankfurt-am-main');
+    expect(enrichment.citySlug('Frankfurt am Main')).toBe('frankfurt_am_main');
   });
 });
