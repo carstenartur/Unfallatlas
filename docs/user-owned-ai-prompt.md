@@ -1,80 +1,75 @@
-# Nutzerseitige KI-Übergabe
+# Nutzerseitige KI-Zusammenarbeit
 
-Die Unfallwerkbank kann Analyseergebnisse für ein eigenes KI-Konto bereitstellen, zum Beispiel für ChatGPT oder Gemini. Dabei werden zwei ausdrücklich getrennte Wege angeboten:
+Die Unfallwerkbank kann einen reproduzierbaren Analysezustand an ChatGPT, Gemini oder ein anderes eigenes KI-Konto übergeben, ohne selbst einen KI-API-Aufruf auszuführen.
 
-1. ein **textbasierter Prompt-Export ohne Bilddateien** für schnelle Aufgaben;
-2. ein **vollständiges KI-Medienpaket als ZIP** mit Fakten, Bericht, Karten und weiteren Grafiken.
+## Grundsatz: Link zuerst
 
-Beide Wege sind bewusst keine automatischen API-Aufrufe. Erst wenn Nutzer:innen Dateien selbst hochladen, kopieren oder einfügen, verlassen Daten die Unfallwerkbank.
+Der **reproduzierbare Analyse-Link ist der primäre Übergabeweg**. Er enthält den aktiven Analysezustand der Unfallwerkbank, insbesondere Stadt, Unfallfilter, Beteiligungsmodus, Kartenmodus, Mittelpunkt, Zoom, Auswahlgrenzen sowie aktivierte Karten- und Kontextansichten. Mit `export=1` öffnet die verlinkte Anwendung zusätzlich den deterministischen Bericht.
 
-## Warum es zwei Exporte gibt
+Eine browserfähige KI kann dadurch:
 
-Ein Markdown-Prompt, ein JSON-Faktenpaket und ein Kartenlink können keine PNG- oder SVG-Dateien transportieren. Der bisherige Text-Export war deshalb für eine fachlich vollständige Übergabe ungeeignet, obwohl die Oberfläche ihn missverständlich als vollständiges Promptpaket bezeichnete.
+- die aktuelle Karte und den Bericht selbst öffnen;
+- sichtbare Karten, Legenden, Tabellen, Trend- und Heatmap-Darstellungen prüfen;
+- bei Bedarf andere Zoomstufen, benachbarte Bereiche, Filter und Kontextlayer untersuchen;
+- die veröffentlichten Unfall-, POI-, Straßenkontext- und Provenienzdateien direkt laden;
+- zusätzliche Untersuchungen nachvollziehbar vom ursprünglichen Analysezustand trennen.
 
-Die Oberfläche kennzeichnet die bisherigen Schaltflächen nun eindeutig als **Text-Prompt ohne Grafiken**. Für Anträge, räumliche Bewertungen und jede Aufgabe, bei der Karten oder Diagramme relevant sind, ist das KI-Medienpaket der vorgesehene Weg.
+Der Link ist deshalb nicht nur eine „Prüfhilfe“, sondern die eigentliche gemeinsame Arbeitsoberfläche.
 
 ## Bedienung
 
-Im Exportdialog unter „Zusatzanalysen“ stehen folgende Optionen bereit:
+Im Exportdialog unter „Zusatzanalysen“ stehen folgende Wege bereit:
 
-- **Text-Prompt kopieren (ohne Grafiken)**: kopiert Markdown mit Fakten-JSON und Kartenlink in die Zwischenablage.
-- **Text-Prompt .md**: lädt denselben textbasierten Prompt herunter.
-- **Fakten .json**: lädt nur die strukturierte Faktenbasis herunter.
-- **KI-Medienpaket mit Grafiken (.zip)**: erzeugt einen gebundenen Analyse-Snapshot mit allen verfügbaren Karten und Grafiken.
-- **ChatGPT öffnen** / **Gemini öffnen**: öffnet lediglich die jeweilige Oberfläche in einem neuen Tab. Es werden keine Daten automatisch übertragen.
+- **KI-Auftrag + Analyse-Link kopieren**: bevorzugter Weg. Kopiert einen Arbeitsauftrag mit reproduzierbarem Link, strukturiertem Ausgangssnapshot und direkten öffentlichen Daten-URLs.
+- **Text-Snapshot kopieren** und **Text-Snapshot .md**: sekundärer, fester Text-/JSON-Stand ohne explorative Webuntersuchung.
+- **Fakten .json**: nur die strukturierte Faktenbasis.
+- **Beleg-/Offline-Paket (.zip)**: optionaler unveränderlicher Snapshot mit Karten- und Grafikdateien.
+- **ChatGPT öffnen** / **Gemini öffnen**: öffnet lediglich die jeweilige Oberfläche. Es werden keine Daten automatisch übertragen.
 
-## Inhalt des KI-Medienpakets
+## Was der KI-Auftrag verlangt
 
-Das ZIP enthält mindestens:
+Die KI soll zuerst den Analyse-Link öffnen und bestätigen, welche Ansicht und welche Datenquellen tatsächlich erreichbar waren. Anschließend soll sie:
 
-- `README.md` mit Upload- und Vollständigkeitsanleitung,
-- `prompt.md` mit dem fachlichen Arbeitsauftrag und einer verbindlichen Anlagenliste,
-- `facts.json` mit der vollständigen strukturierten Faktenbasis aus `UA.computeExportReport(ctx)`,
-- `report.md` mit dem deterministischen Berichtstext,
-- `report.html` mit dem gerenderten Bericht einschließlich eingebetteter SVG-Elemente,
-- `application-state.json` mit Auswahlgrenzen, Kartenansicht und Exportoptionen,
-- `map-url.txt` mit dem prüfbaren Werkbank-Link,
-- `manifest.json` mit Rolle, Medientyp, Dateigröße, SHA-256 und Bildmetadaten,
-- `graphics/01-uebersichtskarte.png`,
-- bei vorhandener Auswahl `graphics/02-detailkarte.png`,
-- vorhandene Clusterkarten als einzelne PNG-Dateien,
-- bei vorhandenen Daten `graphics/mehrjahres-trend.svg`,
-- bei vorhandenen Daten `graphics/stunden-heatmap.svg`.
+1. die Ausgangsansicht objektiv beschreiben;
+2. sichtbare Grafiken und Karten selbst prüfen, statt ihr Fehlen allein aus dem Textprompt abzuleiten;
+3. weitere Untersuchungen nur ausdrücklich als Varianten durchführen;
+4. für jede Variante geänderte Filter, Ausschnitt, Zoomstufe oder Layer nennen;
+5. verwendete URLs und Datenquellen dokumentieren;
+6. amtliche Unfallattribute, GIS-Ableitungen, sichtbare Kontextindizien und Empfehlungen klar trennen;
+7. keine gesicherten Unfallursachen allein aus Karte, Orthofoto, räumlicher Nähe oder Korrelation behaupten;
+8. einen fehlgeschlagenen Web- oder Bildzugriff offen benennen.
 
-Alle Inhalte stammen aus demselben unmittelbar zuvor berechneten Exportbericht. Der Kartenlink ist nur eine zusätzliche Prüfhilfe und kein Ersatz für die mitgelieferten Bilddateien.
+## Direkte Datenquellen
 
-## Fail-closed-Konsistenz
+Soweit die aktuelle Laufzeit sie veröffentlicht, enthält der kopierte KI-Auftrag direkte URLs zu:
 
-Ein Paket wird nicht als vollständig ausgegeben, wenn ein erforderlicher visueller Nachweis nicht zuverlässig erzeugt werden kann:
+- Unfall-GeoJSON der aktiven Stadt;
+- POI-GeoJSON;
+- Straßenkontext einschließlich verfügbarer Steigungs- und Verkehrshinweise;
+- Anreicherungs- und Provenienzmetadaten;
+- Unfallkachelindex;
+- Kontextkachelindex.
 
-- Die Übersichtskarte ist verpflichtend und muss eine gültige PNG-Datei sein.
-- Bei einer markierten Auswahl ist auch die Detailkarte verpflichtend.
-- Eine Clusterkarte wird nur akzeptiert, wenn ihre sichtbare Punktzahl zur angegebenen Cluster-Fallzahl passt.
-- Jede Nutzdatei außer `manifest.json` erhält einen SHA-256-Eintrag. Das Manifest dokumentiert seine eigene Ausnahme ausdrücklich, weil ein finaler Selbsthash rekursiv wäre.
-- Prompt, Fakten, Bericht, Anwendungsstatus und Grafiken werden gemeinsam in genau einem ZIP erzeugt.
+Damit kann die KI nicht nur vorhandene Bilder ansehen, sondern bei weitergehenden Fragestellungen selbst räumlich oder statistisch nachrechnen.
 
-Damit kann eine KI fehlende Anlagen oder Widersprüche benennen, statt sie unbemerkt durch Annahmen zu ersetzen.
+## Warum es das Beleg-/Offline-Paket trotzdem gibt
 
-## Verwendung im eigenen KI-Konto
+Das ZIP ist **nicht** der vorgesehene Normalweg. Es hat nur drei besondere Aufgaben:
 
-1. ZIP lokal entpacken.
-2. `prompt.md`, `facts.json`, `manifest.json` und **alle Dateien aus `graphics/`** gemeinsam hochladen.
-3. `prompt.md` als Auftrag verwenden.
-4. Prüfen, ob die KI alle im Manifest genannten Pflichtdateien erkannt hat.
+1. **Fallback**, wenn das verwendete KI-Werkzeug keine Webseiten öffnen oder die dynamische Kartenansicht nicht zuverlässig visuell auswerten kann;
+2. **Archivierung**, wenn der genaue damalige Bildstand unabhängig von später aktualisierten Daten oder Basiskarten festgehalten werden soll;
+3. **Belegführung**, wenn Karten und Grafiken mit Dateinamen, Metadaten und SHA-256-Prüfsummen an einen Vorgang angehängt werden müssen.
 
-Nur das ZIP-Archiv hochzuladen reicht nicht zuverlässig aus, weil nicht jedes KI-Werkzeug Archive selbst entpackt oder die darin enthaltenen Bilddateien einzeln verarbeitet.
+Die Übersicht-, Detail- und Clusterkarten werden derzeit im Browser erzeugt. Solche Canvas-/PNG-Aufnahmen besitzen ohne zusätzlichen Renderdienst keine dauerhafte öffentliche Bild-URL. Das ZIP friert diese flüchtigen Aufnahmen ein. Für die normale explorative Zusammenarbeit genügt dagegen der Analyse-Link.
 
-## Sicherheits- und Qualitätsregeln im Prompt
+## Grenzen des Linkwegs
 
-Der Auftrag verlangt unter anderem:
+Ein Link funktioniert nur, wenn das KI-Werkzeug einen öffentlichen Browserzugriff besitzt und die Seite nicht durch Anmeldung, CAPTCHA, Netzwerkrichtlinien oder technische Einschränkungen blockiert wird. In diesem Fall soll die KI den konkreten Abruffehler melden und gezielt das Beleg-/Offline-Paket anfordern.
 
-- keine gesicherten Unfallursachen allein aus Unfallatlasdaten, OSM-/GIS-Kontext, Orthofotos oder Kartenbildern abzuleiten;
-- amtliche Unfallattribute, rechnerisch abgeleitete Hinweise, sichtbare Kontextindizien und Empfehlungen zu trennen;
-- jede Grafik zunächst objektiv und unter Nennung ihres Dateinamens zu beschreiben;
-- sichtbare Unfallpunkte und Auswahlgrenzen gegen die Zahlen im Faktenpaket zu prüfen;
-- Unsicherheiten, geringe Fallzahlen und Widersprüche ausdrücklich zu benennen;
-- bei einer fehlenden Pflichtdatei die Bearbeitung zu stoppen und die fehlende Anlage konkret zu nennen.
+## Datenschutz und Kosten
+
+Weder der Link- noch der Paketweg sendet automatisch Daten an ChatGPT, Gemini oder einen anderen KI-Dienst. Erst wenn Nutzer:innen den Auftrag selbst einfügen, einen Link übergeben oder Dateien hochladen, verlassen die Daten die Unfallwerkbank. Dadurch entstehen dem Betreiber keine nutzerseitigen KI-API-Kosten.
 
 ## Abgrenzung zum serverseitigen KI-Modus
 
-Der Button „Antragsentwurf erstellen“ kann weiterhin den serverseitigen KI-Endpunkt nutzen, sofern dieser konfiguriert ist. Das nutzerseitige KI-Medienpaket funktioniert unabhängig davon und benötigt keinen `GEMINI_API_KEY` im Unfallwerkbank-Backend. Es erzeugt lokal lediglich die Unterlagen, die Nutzer:innen anschließend bewusst in ihrem eigenen Konto verwenden.
+Der Button „Antragsentwurf erstellen“ kann weiterhin den optionalen serverseitigen KI-Endpunkt verwenden, sofern dieser konfiguriert ist. Die linkbasierte Zusammenarbeit und das optionale Belegpaket benötigen keinen `GEMINI_API_KEY` im Unfallwerkbank-Backend.
