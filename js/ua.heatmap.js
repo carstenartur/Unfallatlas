@@ -168,32 +168,52 @@
     COL_LABELS
   };
 
-  // The complete user-owned AI handoff depends on the heatmap and trend
-  // renderers. Load it as an optional browser module without affecting eval-
-  // based unit tests (which have no parser currentScript). The module may load
-  // before ua.ai_proposal.js; retry the idempotent install until that API exists.
+  // Link-first AI collaboration and the optional immutable media package both
+  // depend on the report/heatmap runtime. Keep them optional so pure-JS unit
+  // tests and reduced public profiles can still load this module independently.
   const ownScript = typeof document !== "undefined" ? document.currentScript : null;
   if (ownScript && ownScript.src && typeof document.createElement === "function") {
-    const moduleUrl = new URL("ua.ai_handoff.js?v=2026-08-15", ownScript.src).toString();
-    const existing = Array.from(document.querySelectorAll("script[data-ua-ai-handoff]"))
-      .find(candidate => candidate.src === moduleUrl);
-    if (!existing) {
+    function injectOptionalModule(file, marker, onReady, onError) {
+      const moduleUrl = new URL(file, ownScript.src).toString();
+      const existing = Array.from(document.querySelectorAll(`script[${marker}]`))
+        .find(candidate => candidate.src === moduleUrl);
+      if (existing) return existing;
       const script = document.createElement("script");
       script.src = moduleUrl;
       script.async = false;
-      script.dataset.uaAiHandoff = "true";
-      script.addEventListener("load", () => {
+      script.setAttribute(marker, "true");
+      script.addEventListener("load", onReady, { once: true });
+      script.addEventListener("error", () => console.error(onError, moduleUrl), { once: true });
+      document.head.appendChild(script);
+      return script;
+    }
+
+    injectOptionalModule(
+      "ua.ai_handoff.js?v=2026-08-15",
+      "data-ua-ai-handoff",
+      () => {
         let attempt = 0;
         const bind = () => {
           if (window.UA?.aiHandoff?.install?.(window.UA)) return;
           if (attempt++ < 100) window.setTimeout(bind, 0);
         };
         bind();
-      }, { once: true });
-      script.addEventListener("error", () => {
-        console.error("KI-Übergabepaket konnte nicht geladen werden", moduleUrl);
-      }, { once: true });
-      document.head.appendChild(script);
-    }
+      },
+      "KI-Beleg-/Offline-Paket konnte nicht geladen werden"
+    );
+
+    injectOptionalModule(
+      "ua.ai_link_handoff.js?v=2026-08-15",
+      "data-ua-ai-link-handoff",
+      () => {
+        let attempt = 0;
+        const bind = () => {
+          if (window.UA?.aiLinkHandoff?.install?.(window.UA)) return;
+          if (attempt++ < 100) window.setTimeout(bind, 0);
+        };
+        bind();
+      },
+      "KI-Analyse-Link konnte nicht geladen werden"
+    );
   }
 })();
