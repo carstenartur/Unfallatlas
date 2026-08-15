@@ -12,6 +12,11 @@ on:
         required: true
         type: boolean
         default: true
+      allow_stale_on_transient:
+        description: 'Bei eindeutig temporärem Providerfehler den letzten vollständig validierten Stadtstand beibehalten'
+        required: true
+        type: boolean
+        default: false
       require_hannover_dgm1:
         description: 'Für Hannover amtliches DGM1 erzwingen; ohne vollständig gepinnte Quelle fehlschlagen'
         required: true
@@ -72,19 +77,20 @@ jobs:
           git config user.name "github-actions[bot]"
 
       - name: Restore producer cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: context-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .enrichment-cache
           key: context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-${{ github.run_id }}
           restore-keys: |
             context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-
             context-${{ runner.os }}-
-          save-always: true
 
       - name: Generate, validate and render selected context data
         env:
           REQUESTED_CITY: ${{ inputs.city }}
           FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
+          CONTEXT_ALLOW_STALE_ON_TRANSIENT: ${{ inputs.allow_stale_on_transient == true || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
           CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
           HANNOVER_DGM1_ROOT: ${{ vars.HANNOVER_DGM1_ROOT }}
           HANNOVER_DGM1_MANIFEST: ${{ vars.HANNOVER_DGM1_MANIFEST }}
@@ -109,13 +115,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Save producer cache
+        if: always() && steps.context-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .enrichment-cache
+          key: context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-${{ github.run_id }}
+
       - name: Commit and push
         shell: bash
         run: |
           set -euo pipefail
-          git add -A -- out/
+          git add -A -- out/ data/accident-data-release.json
           if git diff --cached --quiet; then
-            echo "The forced context refresh completed successfully, but the resulting data is unchanged."
+            echo "The context refresh completed successfully, but the resulting public data and release oracle are unchanged."
             exit 0
           fi
           git commit -m "Regenerate verified context data"
