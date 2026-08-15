@@ -1,25 +1,36 @@
 /**
  * UA.aiLinkHandoff — link-first handoff to a user-owned AI account.
  *
- * The canonical Unfallwerkbank URL is the primary collaboration surface: it
- * restores the requested analysis state, opens the deterministic export view
- * and still lets a browser-capable AI inspect adjacent areas, switch layers or
- * load the public source data. The ZIP produced by ua.ai_handoff.js remains an
- * optional immutable evidence/offline fallback, not the default handoff path.
+ * The canonical Unfallwerkbank URL is the collaboration surface: it restores
+ * the requested analysis state, opens the deterministic export view and lets a
+ * browser-capable AI inspect adjacent areas, switch layers or load the public
+ * source data. No separate media archive is required for the normal workflow.
  */
 (function initAiLinkHandoff(root, factory) {
   const api = factory(root);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (root) {
-    const UA = (root.UA = root.UA || {});
-    UA.aiLinkHandoff = api;
+  if (!root) return;
+
+  const UA = (root.UA = root.UA || {});
+  UA.aiLinkHandoff = api;
+
+  // This optional module may be loaded before ua.ai_proposal.js. Retry the
+  // idempotent installation for a bounded period instead of coupling the
+  // feature to an unrelated visualization module or script order.
+  let attempt = 0;
+  const installWhenReady = () => {
     try {
-      api.install(UA);
+      if (api.install(UA)) return;
     } catch (error) {
       UA.aiLinkHandoffError = error;
       root.console?.error?.("KI-Analyse-Link konnte nicht initialisiert werden", error);
+      return;
     }
-  }
+    if (attempt++ < 240 && typeof root.setTimeout === "function") {
+      root.setTimeout(installWhenReady, 25);
+    }
+  };
+  installWhenReady();
 })(typeof window !== "undefined" ? window : null, function createAiLinkHandoffApi(root) {
   "use strict";
 
@@ -63,8 +74,8 @@
       if (typeof UA.syncAllToUrl === "function" && ctx?.ui) UA.syncAllToUrl(ctx);
       if (root?.location?.href) {
         const url = new URL(root.location.href);
-        // export=1 opens the deterministic report immediately while retaining
-        // the interactive map behind it for further investigation.
+        // export=1 opens the deterministic report after the interactive map and
+        // its data have loaded. The map remains usable for further research.
         url.searchParams.set("export", "1");
         url.searchParams.delete("tour");
         return url.href;
@@ -77,13 +88,19 @@
     try {
       const descriptor = UA?.DataResources?.resolve?.(kind, params || {});
       if (!descriptor) return null;
+      const url = absoluteUrl(descriptor.logicalUrl);
+      const gzipUrl = descriptor.gzipUrl ? absoluteUrl(descriptor.gzipUrl) : null;
+      const preferredUrl = descriptor.compression === "gzip-only" && gzipUrl
+        ? gzipUrl
+        : url;
       return {
         role,
         kind,
         description,
         compression: descriptor.compression || null,
-        url: absoluteUrl(descriptor.logicalUrl),
-        gzipUrl: descriptor.gzipUrl ? absoluteUrl(descriptor.gzipUrl) : null,
+        preferredUrl,
+        url,
+        gzipUrl,
       };
     } catch (_) {
       return null;
@@ -142,9 +159,14 @@
       return ["- Keine separaten Daten-URLs wurden von dieser Laufzeit veröffentlicht; nutze die Analyseansicht selbst."];
     }
     return resources.flatMap(resource => {
-      const lines = [`- **${resource.description}** (${resource.role}): ${resource.url}`];
-      if (resource.gzipUrl && resource.gzipUrl !== resource.url) {
-        lines.push(`  - GZIP-Variante: ${resource.gzipUrl}`);
+      const lines = [
+        `- **${resource.description}** (${resource.role}): ${resource.preferredUrl}`,
+      ];
+      if (resource.gzipUrl && resource.gzipUrl !== resource.preferredUrl) {
+        lines.push(`  - komprimierte Variante: ${resource.gzipUrl}`);
+      }
+      if (resource.url && resource.url !== resource.preferredUrl) {
+        lines.push(`  - logische Rohdaten-URL: ${resource.url}`);
       }
       return lines;
     });
@@ -168,12 +190,12 @@
       "",
       "## Arbeitsweise",
       "1. Warte, bis Karte, Unfallpunkte und Exportbericht vollständig geladen sind.",
-      "2. Untersuche die sichtbaren Karten, Legenden, Tabellen, Trend- und Heatmap-Darstellungen direkt in der Webanwendung. Behaupte nicht, Grafiken fehlten, bevor du versucht hast, die verlinkte Ansicht zu öffnen.",
+      "2. Untersuche die sichtbaren Karten, Legenden, Tabellen, Trend- und Heatmap-Darstellungen direkt in der Webanwendung. Behaupte nicht, Grafiken fehlten, bevor du versucht hast, die verlinkte Ansicht zu öffnen und visuell auszuwerten.",
       "3. Nutze die interaktive Anwendung für zusätzliche Untersuchungen: benachbarte Ausschnitte, andere Zoomstufen, Beteiligungs- und Zeitfilter, Cluster/Heatmap, POI-, Steigungs- und Verkehrskontext. Verändere den Ausgangszustand nicht stillschweigend; kennzeichne jede Variante als zusätzliche Untersuchung und nenne die geänderten Parameter.",
       "4. Lade bei Bedarf die unten genannten öffentlichen Rohdaten und Kontextdateien selbst herunter. Verwende sie für nachvollziehbare Berechnungen statt Werte aus einem Kartenbild abzuschätzen.",
       "5. Trenne amtliche Unfallattribute, rechnerisch abgeleitete GIS-Hinweise, sichtbare Kontextindizien und Empfehlungen. Leite aus Karte, Orthofoto oder räumlicher Nähe allein keine gesicherte Unfallursache ab.",
       "6. Nenne die tatsächlich verwendeten URLs und dokumentiere Unsicherheiten, fehlgeschlagene Abrufe und Abweichungen vom Ausgangszustand.",
-      "7. Falls dein Werkzeug die öffentliche Seite nicht öffnen oder nicht visuell auswerten kann, sage das ausdrücklich. Bitte dann gezielt um das optionale Beleg-/Offline-Paket; erfinde keine nicht gesehenen Grafikinhalte.",
+      "7. Falls dein Werkzeug die öffentliche Seite nicht öffnen oder nicht visuell auswerten kann, sage das ausdrücklich. Bitte dann gezielt um den vorhandenen PDF- oder Word-Export beziehungsweise einzelne Screenshots; erfinde keine nicht gesehenen Grafikinhalte.",
       "",
       "## Direkte Daten- und Kontext-URLs",
       ...resourceMarkdown(resources),
@@ -280,14 +302,9 @@
     if (intro) {
       intro.innerHTML = [
         "<strong>Eigenes KI-Konto nutzen:</strong> ",
-        "Primär den reproduzierbaren Analyse-Link weitergeben. Eine browserfähige KI kann die verlinkte Karte und den Bericht selbst öffnen, öffentliche Daten laden und weitere Varianten untersuchen. ",
-        "Das lokale ZIP bleibt ein optionaler Beleg- und Offline-Fallback.",
+        "Den reproduzierbaren Analyse-Link weitergeben. Eine browserfähige KI kann die verlinkte Karte und den Bericht selbst öffnen, öffentliche Daten laden und weitere Varianten untersuchen. ",
+        "Nur bei fehlendem Webzugriff ist ein vorhandener PDF-/Word-Export oder ein einzelner Screenshot nötig.",
       ].join("");
-    }
-
-    const oldNote = documentValue.getElementById("aiHandoffCompletenessNote");
-    if (oldNote) {
-      oldNote.textContent = "Der Analyse-Link ist der bevorzugte Weg. Das Beleg-/Offline-Paket friert Karten und Grafiken nur für Archivierung oder für KI-Werkzeuge ohne funktionierenden Webzugriff ein.";
     }
 
     const copy = documentValue.getElementById("btnAiPromptCopy");
@@ -302,12 +319,6 @@
     }
     const facts = documentValue.getElementById("btnAiFactsDownloadJson");
     if (facts) facts.title = "Lädt den strukturierten Ausgangssnapshot ohne explorative Webuntersuchung.";
-
-    const packageButton = documentValue.getElementById("btnAiHandoffDownload");
-    if (packageButton) {
-      packageButton.title = "Optionaler unveränderlicher Beleg-/Offline-Snapshot mit Karten, Grafiken und SHA-256-Manifest. Für normale browserfähige KI-Zusammenarbeit genügt der Analyse-Link.";
-      packageButton.innerHTML = '<span aria-hidden="true">🗂️</span> Beleg-/Offline-Paket (.zip)';
-    }
   }
 
   function ensureControls(UA, ctx) {
@@ -315,8 +326,6 @@
     const panel = documentValue?.getElementById("externalAiPromptPanel");
     if (!panel) return false;
 
-    // Ensure the optional evidence button exists before we relabel it.
-    try { UA?.aiHandoff?.ensureControls?.(UA, ctx); } catch (_) { /* optional */ }
     reframeExistingControls(documentValue);
     if (documentValue.getElementById("btnAiResearchLinkCopy")) return true;
 
