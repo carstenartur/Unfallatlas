@@ -1,5 +1,5 @@
 /**
- * Link-first user-owned AI handoff.
+ * Evidence-first, link-first user-owned AI handoff.
  *
  * @jest-environment jsdom
  */
@@ -24,6 +24,46 @@ describe('UA.aiLinkHandoff', () => {
     return promise;
   }
 
+  function richStructuredReport() {
+    return {
+      meta: {
+        city: 'Bonn',
+        areaName: 'Bonn Hauptbahnhof',
+        date: '15.08.2026',
+        filters: { severity: 'all', roadCondition: 'all' },
+        involvementMode: 'and',
+      },
+      severity: {
+        total: 7,
+        bySev: { '1': 0, '2': 2, '3': 5, other: 0 },
+      },
+      yearTable: [
+        { year: 2019, total: 1 },
+        { year: 2020, total: 1 },
+        { year: 2021, total: 1 },
+        { year: 2022, total: 1 },
+        { year: 2023, total: 1 },
+        { year: 2024, total: 1 },
+        { year: 2025, total: 1 },
+      ],
+      crossTable: {
+        rows: [{ label: 'Rad + Pkw', total: 7, sev1: 0, sev2: 2, sev3: 5 }],
+        totals: { sev1: 0, sev2: 2, sev3: 5, total: 7 },
+      },
+      accidentDetails: {
+        total: 7,
+        truncated: false,
+        rows: Array.from({ length: 7 }, (_, index) => ({
+          year: 2019 + index,
+          sevLabel: index < 2 ? 'schwer' : 'leicht',
+          involved: 'Rad + Pkw',
+          lat: 50.732 + index / 10000,
+          lon: 7.096 + index / 10000,
+        })),
+      },
+    };
+  }
+
   beforeEach(() => {
     document.body.innerHTML = `
       <fieldset id="aiProposalSection">
@@ -38,7 +78,7 @@ describe('UA.aiLinkHandoff', () => {
     window.history.replaceState(
       null,
       '',
-      '/werkbank_v2.html?city=Bonn&includeCyclist=1&showHeatmap=0&mapMode=hybrid&selSouth=50.70&selWest=7.05&selNorth=50.75&selEast=7.15'
+      '/werkbank_v2.html?city=Bonn&includeCyclist=1&includeCar=1&involvementMode=and&showHeatmap=0&mapMode=hybrid&selSouth=50.70&selWest=7.05&selNorth=50.75&selEast=7.15'
     );
     clipboardWrite = jest.fn(async () => undefined);
     Object.defineProperty(window.navigator, 'clipboard', {
@@ -51,12 +91,9 @@ describe('UA.aiLinkHandoff', () => {
     UA.syncAllToUrl = jest.fn();
     window.fetch = jest.fn();
     UA.computeExportReport = jest.fn(async () => ({
-      structured: {
-        meta: { city: 'Bonn' },
-        summary: { totalAccidents: 7 },
-      },
-      text: 'Deterministischer Bericht.',
-      html: '<main><h1>Bonn</h1></main>',
+      structured: richStructuredReport(),
+      text: 'Deterministischer Bericht: Im markierten Bereich wurden sieben Rad-Pkw-Unfälle dokumentiert, darunter zwei mit Schwerverletzten.',
+      html: '<main><h1>Bonn Hauptbahnhof</h1></main>',
     }));
     UA.DataResources = {
       resolve: jest.fn((kind, params) => ({
@@ -70,26 +107,27 @@ describe('UA.aiLinkHandoff', () => {
     load('ua.ai_link_handoff.js');
   });
 
-  test('makes the reproducible analysis link the primary handoff', async () => {
+  test('makes the evidence/QA analysis link the primary and only copy action', async () => {
     const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
     UA.aiProposal.wire(ctx);
     await flush();
 
     expect(document.getElementById('btnAiResearchLinkCopy')).toBeTruthy();
     expect(document.getElementById('btnAiResearchLinkCopy').textContent)
-      .toMatch(/Analyse-Link/i);
-    expect(document.getElementById('btnAiPromptCopy').textContent)
-      .toMatch(/Text-Snapshot/i);
+      .toMatch(/QA.*Antrag.*Analyse-Link/i);
+    expect(document.getElementById('btnAiPromptCopy')).toBeNull();
     expect(document.getElementById('btnAiPromptDownloadMd').textContent)
-      .toMatch(/Text-Snapshot/i);
+      .toMatch(/Evidenz-\/QA-Auftrag/i);
+    expect(document.getElementById('btnAiFactsDownloadJson').textContent)
+      .toMatch(/Evidenzvertrag/i);
     expect(document.getElementById('aiLinkHandoffNote').textContent)
-      .toMatch(/öffentlich erreichbare.*Link zuerst|Link zuerst.*öffentlich erreichbare/i);
+      .toMatch(/Amtliche.*polizeibasierte.*Tatsachenkern.*unabhängig prüfen/i);
     expect(document.getElementById('btnAiHandoffDownload')).toBeNull();
     expect(document.querySelector('#externalAiPromptPanel > div:first-child').textContent)
-      .toMatch(/Docker-Links.*PDF-\/Word-Export/i);
+      .toMatch(/amtlichen.*Tatsachenkern.*Docker-Links.*PDF-\/Word-Export/i);
   });
 
-  test('copies a public research task with the exact analysis state and compressed data URLs', async () => {
+  test('copies a public evidence-based research task with the exact analysis state and compressed data URLs', async () => {
     const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
     UA.aiProposal.wire(ctx);
     await flush();
@@ -107,23 +145,84 @@ describe('UA.aiLinkHandoff', () => {
     expect(prompt).toContain('selSouth=50.70');
     expect(prompt).toContain('https://carstenartur.github.io/Unfallatlas/out/accidentGeoJson_bonn.json.gz');
     expect(prompt).toContain('https://carstenartur.github.io/Unfallatlas/out/accidentTileIndex_bonn.json.gz');
-    expect(prompt).toContain('zusätzliche Untersuchungen');
+    expect(prompt).toContain('Meldungen der Polizeidienststellen');
+    expect(prompt).toContain('Unfälle mit Personenschaden');
+    expect(prompt).toContain('reine Sachschadensunfälle');
+    expect(prompt).toContain('amtlich dokumentierten Tatsachenkern');
+    expect(prompt).toContain('Schreibe den Antrag erst nach');
+    expect(prompt).toContain('keine bloße Umformulierung');
+    expect(prompt).toContain('QA-Urteil');
+    expect(prompt).toContain('Evidenzmatrix');
+    expect(prompt).toContain('Maßnahmenmatrix');
+    expect(prompt).toContain('"totalAccidents": 7');
     expect(prompt).toContain('PDF- oder Word-Export');
     expect(window.fetch).not.toHaveBeenCalled();
   });
 
-  test('binds one baseline snapshot while permitting separately labelled investigations', async () => {
+  test('binds one official-evidence snapshot and an automated preflight before independent visual QA', async () => {
     const ctx = { CITY_RAW: 'Bonn', ui: {}, exportOptions: {} };
     const handoff = await UA.aiLinkHandoff.generateResearchHandoff(UA, ctx);
 
     expect(UA.computeExportReport).toHaveBeenCalledTimes(1);
-    expect(handoff.schemaVersion).toBe('unfallwerkbank.aiResearchHandoff.v1');
+    expect(handoff.schemaVersion).toBe('unfallwerkbank.aiResearchHandoff.v2');
     expect(handoff.analysisUrl).toContain('export=1');
     expect(handoff.analysisUrl).toMatch(/^https:\/\/carstenartur\.github\.io\/Unfallatlas\/werkbank_v2\.html\?/);
     expect(handoff.resources).toHaveLength(6);
     expect(handoff.resources.every(resource => resource.preferredUrl.endsWith('.gz'))).toBe(true);
-    expect(handoff.facts.collaborationMode).toBe('link-first');
-    expect(handoff.prompt).toMatch(/Verändere den Ausgangszustand nicht stillschweigend/);
+    expect(handoff.facts.collaborationMode).toBe('link-first-evidence-first');
+    expect(handoff.evidenceContract.schemaVersion).toBe('unfallwerkbank.accidentEvidenceContract.v1');
+    expect(handoff.evidenceContract.primaryDataset.provenance)
+      .toMatch(/Meldungen der Polizeidienststellen/);
+    expect(handoff.evidenceContract.primaryDataset.scope)
+      .toMatch(/Unfälle mit Personenschaden.*Sachschadensunfälle/);
+    expect(handoff.evidenceContract.snapshotMetrics.totalAccidents).toBe(7);
+    expect(handoff.evidenceContract.snapshotMetrics.severity.serious).toBe(2);
+    expect(handoff.analysisPreflight.status).toBe('ready-for-independent-review');
+    expect(handoff.analysisPreflight.checks.find(check => check.id === 'count-consistency').status)
+      .toBe('pass');
+    expect(handoff.analysisPreflight.checks.find(check => check.id === 'visual-completeness').status)
+      .toBe('pending');
+    expect(handoff.promptAudit.passed).toBe(true);
+    expect(handoff.prompt).toMatch(/Unsicherheit über die Ursache entwertet.*Tatsachenkern/);
+  });
+
+  test('flags contradictory totals before asking the AI to draft an application', () => {
+    const structured = richStructuredReport();
+    structured.accidentDetails.total = 8;
+    const resources = UA.aiLinkHandoff._internal.researchResources(
+      UA,
+      'Bonn',
+      'https://example.org/werkbank?city=Bonn&export=1&selSouth=1&selWest=1&selNorth=2&selEast=2'
+    );
+    const preflight = UA.aiLinkHandoff.buildAnalysisPreflight(
+      structured,
+      'Ein ausreichend langer deterministischer Bericht über die Auswertung und ihre Unfallzahlen.',
+      'https://example.org/werkbank?city=Bonn&export=1&selSouth=1&selWest=1&selNorth=2&selEast=2',
+      resources
+    );
+
+    expect(preflight.status).toBe('blocked');
+    expect(preflight.blockingCheckIds).toContain('count-consistency');
+  });
+
+  test('audits the generated prompt contract instead of relying on attractive wording', () => {
+    const valid = UA.aiLinkHandoff.auditResearchPrompt([
+      'Meldungen der Polizeidienststellen',
+      'Unfälle mit Personenschaden',
+      'amtlich dokumentierten Tatsachenkern',
+      'keine bloße Umformulierung',
+      'QA-Urteil',
+      'Evidenzmatrix',
+      'Schreibe den Antrag erst nach',
+      'Unsicherheit über die Ursache',
+      'reine Sachschadensunfälle',
+    ].join('\n'));
+    const generic = UA.aiLinkHandoff.auditResearchPrompt('Formuliere bitte einen schönen Antrag.');
+
+    expect(valid.passed).toBe(true);
+    expect(generic.passed).toBe(false);
+    expect(generic.missingMarkers).toContain('Meldungen der Polizeidienststellen');
+    expect(generic.missingMarkers).toContain('QA-Urteil');
   });
 
   test('supports a configured public deployment and preserves already public URLs', () => {
