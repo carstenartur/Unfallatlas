@@ -27,6 +27,37 @@
   const POLL_INTERVAL_MS = 25;
   const MAX_INSTALL_ATTEMPTS = 240;
 
+  const OFFICIAL_PORTALS = Object.freeze({
+    bonn: Object.freeze({
+      providerKey: 'bonn-allris',
+      portalUrl: 'https://www.bonn.sitzung-online.de/public/',
+      searchUrl(term) {
+        return `https://www.bonn.sitzung-online.de/public/tr010?q=${encodeURIComponent(term)}`;
+      },
+    }),
+    hannover: Object.freeze({
+      providerKey: 'hannover-sim',
+      portalUrl: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf',
+      searchUrl() {
+        return 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular';
+      },
+    }),
+    berlin: Object.freeze({
+      providerKey: 'berlin-allris',
+      portalUrl: 'https://pardok.parlament-berlin.de/',
+      searchUrl() {
+        return 'https://pardok.parlament-berlin.de/';
+      },
+    }),
+    hamburg: Object.freeze({
+      providerKey: 'hamburg-parldok',
+      portalUrl: 'https://www.buergerschaft-hh.de/parldok/formalkriterien',
+      searchUrl() {
+        return 'https://www.buergerschaft-hh.de/parldok/formalkriterien';
+      },
+    }),
+  });
+
   function runtimeContext(fallback) {
     return fallback
       || (typeof UA.getRuntimeContext === 'function' ? UA.getRuntimeContext() : null)
@@ -35,6 +66,18 @@
 
   function cleanText(value) {
     return String(value == null ? '' : value).trim();
+  }
+
+  function cityKey(value) {
+    if (typeof UA.normKey === 'function') return UA.normKey(value);
+    return cleanText(value)
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
+      .replace(/ß/g, 'ss')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
   }
 
   function currentGremium(ctx) {
@@ -55,6 +98,23 @@
     };
   }
 
+  function portalDescriptor(city, searchTerms) {
+    const definition = OFFICIAL_PORTALS[cityKey(city)] || null;
+    const terms = Array.isArray(searchTerms) ? searchTerms.map(cleanText).filter(Boolean) : [];
+    if (!definition) {
+      return {
+        officialPortalUrl: null,
+        portalSearchUrls: [],
+        expectedProviderKey: null,
+      };
+    }
+    return {
+      officialPortalUrl: definition.portalUrl,
+      portalSearchUrls: [...new Set(terms.map(term => definition.searchUrl(term)).filter(Boolean))],
+      expectedProviderKey: definition.providerKey,
+    };
+  }
+
   function exportReference(ref) {
     return {
       title: cleanText(ref?.title),
@@ -72,6 +132,7 @@
       trafficRelevanceScore: Number.isFinite(Number(ref?.trafficRelevanceScore))
         ? Number(ref.trafficRelevanceScore)
         : null,
+      isTrafficRelevant: ref?.isTrafficRelevant == null ? null : Boolean(ref.isTrafficRelevant),
       aiGating: ref?.aiGating || null,
     };
   }
@@ -85,24 +146,32 @@
   }
 
   function stateForMissingSearch(ctx, status, message, details) {
+    const city = cleanText(details?.city || ctx?.CITY_RAW || ctx?.city);
+    const searchTerms = Array.isArray(details?.searchTerms)
+      ? details.searchTerms.map(cleanText).filter(Boolean)
+      : [];
+    const portal = portalDescriptor(city, searchTerms);
     const state = {
       schemaVersion: SCHEMA_VERSION,
       status,
-      city: cleanText(ctx?.CITY_RAW || ctx?.city),
+      city,
       providerSupported: null,
       providerKey: null,
       searchedAt: null,
-      searchTerms: [],
+      searchTerms,
       totalFound: null,
+      usableReferenceCount: 0,
       references: [],
       selectedReferences: Array.isArray(ctx?.politicalReferences)
         ? ctx.politicalReferences.map(exportReference)
         : [],
       automaticallyAdopted: false,
+      reviewRequired: true,
       readyToFileBlocked: true,
+      ...portal,
       message,
       details: details || null,
-      qaInstruction: 'Nicht als „keine politische Vorbefassung vorhanden“ formulieren. Der Suchstatus ist unvollständig; vor einem einreichungsreifen Antrag ist eine nachvollziehbare Recherche nach Anträgen, Beschlüssen, Anfragen und Verwaltungsantworten erforderlich.',
+      qaInstruction: 'Nicht als „keine politische Vorbefassung vorhanden“ formulieren. Der Suchstatus ist unvollständig; vor einem einreichungsreifen Antrag sind das offizielle Ratsinformationssystem und gegebenenfalls weitere amtliche Quellen nachvollziehbar nach Anträgen, Beschlüssen, Anfragen, Verwaltungsantworten und laufenden Planungen zu durchsuchen.',
     };
     ctx.politicalContextResearch = state;
     UA.lastPoliticalContextResearch = state;
@@ -111,39 +180,50 @@
 
   function stateFromResult(ctx, result, options) {
     const refs = Array.isArray(result?.references) ? result.references.map(exportReference) : [];
+    const usable = refs.filter(isSuitableForAutomaticHandoff);
     const meta = result?.meta || {};
     const supported = meta.supported !== false;
     const status = !supported
       ? 'unsupported'
-      : refs.length > 0
-        ? 'results-found'
-        : 'searched-no-results';
+      : refs.length === 0
+        ? 'searched-no-results'
+        : usable.length === 0
+          ? 'results-found-unusable'
+          : 'results-found';
     const selected = Array.isArray(ctx?.politicalReferences)
       ? ctx.politicalReferences.map(exportReference)
       : [];
+    const city = cleanText(meta.city || ctx?.CITY_RAW || ctx?.city);
+    const searchTerms = Array.isArray(meta.searchTerms)
+      ? meta.searchTerms.map(cleanText).filter(Boolean)
+      : (options?.searchTerms || []);
+    const portal = portalDescriptor(city, searchTerms);
     const state = {
       schemaVersion: SCHEMA_VERSION,
       status,
-      city: cleanText(meta.city || ctx?.CITY_RAW || ctx?.city),
+      city,
       providerSupported: supported,
-      providerKey: meta.providerKey || null,
+      providerKey: meta.providerKey || portal.expectedProviderKey || null,
       searchedAt: meta.searchedAt || new Date().toISOString(),
-      searchTerms: Array.isArray(meta.searchTerms)
-        ? meta.searchTerms.map(cleanText).filter(Boolean)
-        : (options?.searchTerms || []),
+      searchTerms,
       totalFound: Number.isFinite(Number(meta.totalFound)) ? Number(meta.totalFound) : refs.length,
+      usableReferenceCount: usable.length,
       references: refs,
       selectedReferences: selected,
       automaticallyAdopted: Boolean(options?.automaticallyAdopted),
+      reviewRequired: true,
       readyToFileBlocked: status !== 'results-found',
+      ...portal,
       message: status === 'results-found'
-        ? `${refs.length} politische Vorgänge wurden für die KI- und QA-Auswertung gebunden.`
-        : status === 'searched-no-results'
-          ? 'Die konfigurierte Portalsuche lieferte keine Treffer. Das ist kein Beweis dafür, dass keine politische Vorbefassung existiert.'
-          : 'Für die Stadt stand kein unterstützter Portalprovider zur Verfügung.',
+        ? `${usable.length} fachlich vorgefilterte politische Vorgänge wurden für die KI- und QA-Auswertung gebunden; ihre tatsächliche Relevanz ist noch zu prüfen.`
+        : status === 'results-found-unusable'
+          ? `${refs.length} Portaltreffer wurden gefunden, aber keiner erfüllte den deterministischen Verkehrs- und KI-Gating-Vertrag.`
+          : status === 'searched-no-results'
+            ? 'Die konfigurierte Portalsuche lieferte keine Treffer. Das ist kein Beweis dafür, dass keine politische Vorbefassung existiert.'
+            : 'Für die Stadt stand kein unterstützter Portalprovider zur Verfügung.',
       qaInstruction: status === 'results-found'
-        ? 'Prüfe Titel, Datum, Gremium, Vorgangsnummer, Quelle, Ortsbezug und tatsächliche Relevanz jedes Treffers. Übernimm nur belegte Aussagen in den Antrag und stelle Widersprüche zu früheren Beschlüssen oder laufenden Verfahren ausdrücklich dar.'
-        : 'Nicht als „keine politische Vorbefassung vorhanden“ formulieren. Vor einem einreichungsreifen Antrag ist eine zusätzliche manuelle bzw. alternative Recherche erforderlich.',
+        ? 'Prüfe Titel, Datum, Gremium, Vorgangsnummer, Quelle, Ortsbezug und tatsächliche Relevanz jedes Treffers. Übernimm nur belegte Aussagen in den Antrag und stelle Widersprüche zu früheren Beschlüssen, laufenden Verkehrsversuchen oder bereits beauftragten Planungen ausdrücklich dar.'
+        : 'Nicht als „keine politische Vorbefassung vorhanden“ formulieren. Vor einem einreichungsreifen Antrag ist eine zusätzliche manuelle beziehungsweise alternative Recherche erforderlich; nutze dazu insbesondere officialPortalUrl und portalSearchUrls.',
     };
     ctx.politicalContextResearch = state;
     UA.lastPoliticalContextResearch = state;
@@ -157,7 +237,8 @@
       return stateForMissingSearch(
         ctx,
         'unavailable',
-        'Die politische Recherchekomponente ist in dieser Laufzeit nicht verfügbar.'
+        'Die politische Recherchekomponente ist in dieser Laufzeit nicht verfügbar.',
+        { city: cleanText(ctx.CITY_RAW || ctx.city), searchTerms: [] }
       );
     }
 
@@ -213,7 +294,8 @@
     return stateForMissingSearch(
       ctx,
       'not-searched',
-      'Vor Erzeugung dieses Faktenpakets wurde keine politische Portalsuche dokumentiert.'
+      'Vor Erzeugung dieses Faktenpakets wurde keine politische Portalsuche dokumentiert.',
+      { city: cleanText(ctx.CITY_RAW || ctx.city), searchTerms: [] }
     );
   }
 
@@ -273,7 +355,19 @@
         return {
           ...facts,
           politicalContextResearch: state,
-          politicalContextQaRule: 'Ein fehlender politischer Abschnitt darf nie stillschweigend als „keine Vorgänge vorhanden“ interpretiert werden. not-searched, not-searchable, unavailable, failed, unsupported und searched-no-results blockieren einen einreichungsreifen Antrag, bis die Lücke nachvollziehbar geprüft wurde.',
+          politicalContextQaRule: {
+            rule: 'Ein fehlender politischer Abschnitt darf nie stillschweigend als „keine Vorgänge vorhanden“ interpretiert werden.',
+            blockingStatuses: [
+              'not-searched',
+              'not-searchable',
+              'unavailable',
+              'failed',
+              'unsupported',
+              'searched-no-results',
+              'results-found-unusable',
+            ],
+            requiredAction: 'Öffne die angegebenen amtlichen Portal- und Such-URLs, dokumentiere Suchbegriffe und Abrufstatus, prüfe Treffer einzeln und stelle bestehende Anträge, Beschlüsse, Verwaltungsantworten, laufende Versuche und Planungen dem neuen Antrag gegenüber. Bleibt die Recherche unvollständig, darf nur ein Entwurf mit ausdrücklich offener politischer Vorbefassung entstehen.',
+          },
         };
       };
       wrappedFacts._uaPoliticalEvidenceWrapped = true;
@@ -312,13 +406,16 @@
 
   UA.aiPoliticalEvidence = Object.freeze({
     SCHEMA_VERSION,
+    OFFICIAL_PORTALS,
     install,
     ensurePoliticalResearch,
     currentState,
     _internal: Object.freeze({
       cleanText,
+      cityKey,
       currentGremium,
       currentLocationContext,
+      portalDescriptor,
       exportReference,
       isSuitableForAutomaticHandoff,
       stateForMissingSearch,
