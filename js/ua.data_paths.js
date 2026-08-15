@@ -256,5 +256,12 @@
       'js/ua.context_generation.js?v=2026-07-18',
       'data-ua-context-generation'
     ),
+    // User-owned AI collaboration is link-first. Load the small adapter through
+    // the central optional-module registry instead of coupling it to heatmap or
+    // report rendering. The adapter retries until ua.ai_proposal.js is ready.
+    aiLinkHandoff: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_link_handoff.js?v=2026-08-15',
+      'data-ua-ai-link-handoff'
+    ),
   });
 })();
