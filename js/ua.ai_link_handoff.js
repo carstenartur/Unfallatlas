@@ -35,6 +35,7 @@
   "use strict";
 
   const LINK_SCHEMA = "unfallwerkbank.aiResearchHandoff.v1";
+  const DEFAULT_PUBLIC_APP_URL = "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html";
 
   class AiLinkHandoffError extends Error {
     constructor(code, message, details) {
@@ -60,10 +61,46 @@
     return JSON.stringify(sort(value), null, 2);
   }
 
-  function absoluteUrl(value) {
+  function isPrivateHostname(hostnameValue) {
+    const hostname = String(hostnameValue || "").toLowerCase().replace(/^\[|\]$/g, "");
+    if (!hostname || hostname === "localhost" || hostname === "::1" || hostname.endsWith(".local")) {
+      return true;
+    }
+    if (/^127\./.test(hostname) || /^10\./.test(hostname) || /^192\.168\./.test(hostname)) {
+      return true;
+    }
+    const private172 = hostname.match(/^172\.(\d+)\./);
+    return Boolean(private172 && Number(private172[1]) >= 16 && Number(private172[1]) <= 31);
+  }
+
+  function configuredPublicAppUrl(UA) {
+    const configured = UA?.PUBLIC_APP_URL || UA?.publicAppUrl;
+    if (configured) return String(configured);
+    try {
+      const meta = root?.document?.querySelector?.('meta[name="unfallwerkbank:public-app-url"]');
+      const value = meta?.getAttribute?.("content");
+      if (value) return value;
+    } catch (_) { /* headless/test environment */ }
+    return DEFAULT_PUBLIC_APP_URL;
+  }
+
+  function shareableAnalysisUrl(UA, currentUrl) {
+    try {
+      const current = new URL(currentUrl);
+      if (!isPrivateHostname(current.hostname)) return current.href;
+      const target = new URL(configuredPublicAppUrl(UA), current.href);
+      target.search = current.search;
+      target.hash = current.hash;
+      return target.href;
+    } catch (_) {
+      return String(currentUrl || "");
+    }
+  }
+
+  function absoluteUrl(value, baseUrl) {
     if (!value) return "";
     try {
-      return new URL(value, root?.location?.href || "http://localhost/").href;
+      return new URL(value, baseUrl || root?.location?.href || DEFAULT_PUBLIC_APP_URL).href;
     } catch (_) {
       return String(value);
     }
@@ -78,19 +115,23 @@
         // its data have loaded. The map remains usable for further research.
         url.searchParams.set("export", "1");
         url.searchParams.delete("tour");
-        return url.href;
+        return shareableAnalysisUrl(UA, url.href);
       }
     } catch (_) { /* use fallback below */ }
-    return root?.location?.href || "";
+    return shareableAnalysisUrl(UA, root?.location?.href || configuredPublicAppUrl(UA));
   }
 
-  function resourceDescriptor(UA, kind, params, role, description) {
+  function resourceDescriptor(UA, kind, params, role, description, baseUrl) {
     try {
       const descriptor = UA?.DataResources?.resolve?.(kind, params || {});
       if (!descriptor) return null;
-      const url = absoluteUrl(descriptor.logicalUrl);
-      const gzipUrl = descriptor.gzipUrl ? absoluteUrl(descriptor.gzipUrl) : null;
-      const preferredUrl = descriptor.compression === "gzip-only" && gzipUrl
+      const url = absoluteUrl(descriptor.logicalUrl, baseUrl);
+      const gzipUrl = descriptor.gzipUrl ? absoluteUrl(descriptor.gzipUrl, baseUrl) : null;
+      // The application itself attempts the .gz representation first for both
+      // gzip-preferred and gzip-only resources. Expose the actually published
+      // compressed file as the primary AI download URL and retain the logical
+      // raw URL only as a local-development fallback.
+      const preferredUrl = descriptor.compression !== "raw" && gzipUrl
         ? gzipUrl
         : url;
       return {
@@ -107,49 +148,55 @@
     }
   }
 
-  function researchResources(UA, city) {
+  function researchResources(UA, city, analysisUrl) {
     return [
       resourceDescriptor(
         UA,
         "accidentGeoJson",
         { city },
         "data.accidents",
-        "Veröffentlichte Unfallpunkte aller verfügbaren Jahre für die aktive Stadt"
+        "Veröffentlichte Unfallpunkte aller verfügbaren Jahre für die aktive Stadt",
+        analysisUrl
       ),
       resourceDescriptor(
         UA,
         "poiGeoJson",
         { city },
         "data.points-of-interest",
-        "Schulen, Kindertagesstätten und weitere verfügbare POI-Kontexte"
+        "Schulen, Kindertagesstätten und weitere verfügbare POI-Kontexte",
+        analysisUrl
       ),
       resourceDescriptor(
         UA,
         "contextWays",
         { city },
         "data.road-context",
-        "Straßenkontext einschließlich verfügbarer Steigungs- und Verkehrshinweise"
+        "Straßenkontext einschließlich verfügbarer Steigungs- und Verkehrshinweise",
+        analysisUrl
       ),
       resourceDescriptor(
         UA,
         "enrichmentMeta",
         { city },
         "data.enrichment-provenance",
-        "Metadaten und Provenienz der Kontextanreicherung"
+        "Metadaten und Provenienz der Kontextanreicherung",
+        analysisUrl
       ),
       resourceDescriptor(
         UA,
         "accidentTileIndex",
         { city },
         "data.accident-tile-index",
-        "Index der kachelbasierten Unfallansicht für gezielte räumliche Nachuntersuchungen"
+        "Index der kachelbasierten Unfallansicht für gezielte räumliche Nachuntersuchungen",
+        analysisUrl
       ),
       resourceDescriptor(
         UA,
         "contextTileIndex",
         { city },
         "data.context-tile-index",
-        "Index der räumlichen Kontextkacheln"
+        "Index der räumlichen Kontextkacheln",
+        analysisUrl
       ),
     ].filter(Boolean);
   }
@@ -162,11 +209,8 @@
       const lines = [
         `- **${resource.description}** (${resource.role}): ${resource.preferredUrl}`,
       ];
-      if (resource.gzipUrl && resource.gzipUrl !== resource.preferredUrl) {
-        lines.push(`  - komprimierte Variante: ${resource.gzipUrl}`);
-      }
       if (resource.url && resource.url !== resource.preferredUrl) {
-        lines.push(`  - logische Rohdaten-URL: ${resource.url}`);
+        lines.push(`  - logische Rohdaten-URL (lokaler Fallback): ${resource.url}`);
       }
       return lines;
     });
@@ -192,7 +236,7 @@
       "1. Warte, bis Karte, Unfallpunkte und Exportbericht vollständig geladen sind.",
       "2. Untersuche die sichtbaren Karten, Legenden, Tabellen, Trend- und Heatmap-Darstellungen direkt in der Webanwendung. Behaupte nicht, Grafiken fehlten, bevor du versucht hast, die verlinkte Ansicht zu öffnen und visuell auszuwerten.",
       "3. Nutze die interaktive Anwendung für zusätzliche Untersuchungen: benachbarte Ausschnitte, andere Zoomstufen, Beteiligungs- und Zeitfilter, Cluster/Heatmap, POI-, Steigungs- und Verkehrskontext. Verändere den Ausgangszustand nicht stillschweigend; kennzeichne jede Variante als zusätzliche Untersuchung und nenne die geänderten Parameter.",
-      "4. Lade bei Bedarf die unten genannten öffentlichen Rohdaten und Kontextdateien selbst herunter. Verwende sie für nachvollziehbare Berechnungen statt Werte aus einem Kartenbild abzuschätzen.",
+      "4. Lade bei Bedarf die unten genannten öffentlichen Rohdaten und Kontextdateien selbst herunter. Die bevorzugten URLs sind komprimierte `.gz`-Dateien; dekomprimiere sie vor der JSON-/GeoJSON-Auswertung. Verwende die Daten für nachvollziehbare Berechnungen statt Werte aus einem Kartenbild abzuschätzen.",
       "5. Trenne amtliche Unfallattribute, rechnerisch abgeleitete GIS-Hinweise, sichtbare Kontextindizien und Empfehlungen. Leite aus Karte, Orthofoto oder räumlicher Nähe allein keine gesicherte Unfallursache ab.",
       "6. Nenne die tatsächlich verwendeten URLs und dokumentiere Unsicherheiten, fehlgeschlagene Abrufe und Abweichungen vom Ausgangszustand.",
       "7. Falls dein Werkzeug die öffentliche Seite nicht öffnen oder nicht visuell auswerten kann, sage das ausdrücklich. Bitte dann gezielt um den vorhandenen PDF- oder Word-Export beziehungsweise einzelne Screenshots; erfinde keine nicht gesehenen Grafikinhalte.",
@@ -244,7 +288,7 @@
       || normalizedCtx.CITY_RAW
       || normalizedCtx.city
       || "unbekannte-stadt";
-    const resources = researchResources(UA, city);
+    const resources = researchResources(UA, city, analysisUrl);
     const baseFacts = internal.buildExternalAiFactsPackage({
       structured,
       deterministicReportText: report.text || "",
@@ -303,7 +347,7 @@
       intro.innerHTML = [
         "<strong>Eigenes KI-Konto nutzen:</strong> ",
         "Den reproduzierbaren Analyse-Link weitergeben. Eine browserfähige KI kann die verlinkte Karte und den Bericht selbst öffnen, öffentliche Daten laden und weitere Varianten untersuchen. ",
-        "Nur bei fehlendem Webzugriff ist ein vorhandener PDF-/Word-Export oder ein einzelner Screenshot nötig.",
+        "Lokale Docker-Links werden dabei mit denselben Parametern auf die öffentliche Werkbank übertragen. Nur bei fehlendem Webzugriff ist ein vorhandener PDF-/Word-Export oder ein einzelner Screenshot nötig.",
       ].join("");
     }
 
@@ -332,7 +376,7 @@
     const button = documentValue.createElement("button");
     button.id = "btnAiResearchLinkCopy";
     button.type = "button";
-    button.title = "Kopiert einen KI-Arbeitsauftrag mit reproduzierbarem Analyse-Link und direkten öffentlichen Daten-URLs. Die KI kann die Webanwendung selbst untersuchen.";
+    button.title = "Kopiert einen KI-Arbeitsauftrag mit öffentlich erreichbarem, reproduzierbarem Analyse-Link und direkten Daten-URLs. Die KI kann die Webanwendung selbst untersuchen.";
     button.style.cssText = "padding:8px 12px; background:#315f9e; color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-size:12px; display:flex; align-items:center; gap:6px;";
     button.innerHTML = '<span aria-hidden="true">🔗</span> KI-Auftrag + Analyse-Link kopieren';
 
@@ -344,7 +388,7 @@
     const note = documentValue.createElement("div");
     note.id = "aiLinkHandoffNote";
     note.style.cssText = "flex-basis:100%; font-size:12px; color:#355; line-height:1.45; padding:7px 9px; border-left:3px solid #315f9e; background:rgba(49,95,158,.08);";
-    note.textContent = "Link zuerst: Die KI erhält die reproduzierbare Ausgangsansicht, kann Karten und Bericht selbst ansehen und über direkte Daten-URLs weitere räumliche oder fachliche Prüfungen durchführen.";
+    note.textContent = "Link zuerst: Die KI erhält eine öffentlich erreichbare, reproduzierbare Ausgangsansicht, kann Karten und Bericht selbst ansehen und über direkte Daten-URLs weitere räumliche oder fachliche Prüfungen durchführen.";
     actions?.appendChild(note);
 
     button.addEventListener("click", async () => {
@@ -388,6 +432,7 @@
 
   return Object.freeze({
     LINK_SCHEMA,
+    DEFAULT_PUBLIC_APP_URL,
     AiLinkHandoffError,
     install,
     ensureControls,
@@ -395,6 +440,9 @@
     buildResearchPrompt,
     _internal: Object.freeze({
       stableJson,
+      isPrivateHostname,
+      configuredPublicAppUrl,
+      shareableAnalysisUrl,
       absoluteUrl,
       currentAnalysisUrl,
       resourceDescriptor,
