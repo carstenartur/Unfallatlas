@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-const APP = 'werkbank_v2.html?city=Bonn&showCluster=1&showHeatmap=0';
+const APP = 'werkbank_v2.html?city=Bonn&showCluster=1&showHeatmap=0&mapMode=standard';
 
 test.describe('Nutzerseitige KI-Übergabe', () => {
-  test('built application labels text-only export honestly and loads the graphics package action', async ({ page }) => {
+  test('built application makes the analysis URL primary and keeps the graphics package optional', async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto(APP, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(
@@ -15,22 +15,34 @@ test.describe('Nutzerseitige KI-Übergabe', () => {
     await page.locator('#btnOpenExport').click();
     await expect(page.locator('#modalOverlay')).toBeVisible();
 
-    const packageButton = page.locator('#btnAiHandoffDownload');
-    await expect(packageButton).toBeVisible({ timeout: 15_000 });
-    await expect(packageButton).toContainText(/KI-Medienpaket mit Grafiken/i);
-    await expect(packageButton).toHaveAttribute('title', /Karten.*Trendgrafik.*SHA-256/i);
+    const linkButton = page.locator('#btnAiResearchLinkCopy');
+    await expect(linkButton).toBeVisible({ timeout: 15_000 });
+    await expect(linkButton).toContainText(/Analyse-Link/i);
+    await expect(linkButton).toHaveAttribute('title', /reproduzierbarem Analyse-Link.*Daten-URLs/i);
 
-    await expect(page.locator('#btnAiPromptCopy')).toContainText(/ohne Grafiken/i);
-    await expect(page.locator('#btnAiPromptDownloadMd')).toContainText(/Text-Prompt/i);
-    await expect(page.locator('#aiHandoffCompletenessNote')).toContainText(/keine Bilddateien/i);
+    const packageButton = page.locator('#btnAiHandoffDownload');
+    await expect(packageButton).toBeVisible();
+    await expect(packageButton).toContainText(/Beleg-\/Offline-Paket/i);
+    await expect(packageButton).toHaveAttribute('title', /optional.*Snapshot.*Karten.*SHA-256/i);
+
+    await expect(page.locator('#btnAiPromptCopy')).toContainText(/Text-Snapshot/i);
+    await expect(page.locator('#btnAiPromptDownloadMd')).toContainText(/Text-Snapshot/i);
+    await expect(page.locator('#aiLinkHandoffNote')).toContainText(/Link zuerst/i);
+    await expect(page.locator('#externalAiPromptPanel > div:first-child')).toContainText(/primär.*Analyse-Link/i);
 
     const runtime = await page.evaluate(() => ({
-      moduleReady: typeof window.UA?.aiHandoff?.generatePackage === 'function',
-      injectedScripts: [...document.querySelectorAll('script[data-ua-ai-handoff]')]
+      packageReady: typeof window.UA?.aiHandoff?.generatePackage === 'function',
+      linkReady: typeof window.UA?.aiLinkHandoff?.generateResearchHandoff === 'function',
+      packageScripts: [...document.querySelectorAll('script[data-ua-ai-handoff]')]
+        .map(script => script.getAttribute('src')),
+      linkScripts: [...document.querySelectorAll('script[data-ua-ai-link-handoff]')]
         .map(script => script.getAttribute('src')),
     }));
-    expect(runtime.moduleReady).toBe(true);
-    expect(runtime.injectedScripts).toHaveLength(1);
-    expect(runtime.injectedScripts[0]).toMatch(/js\/ua\.ai_handoff\.js\?v=2026-08-15$/);
+    expect(runtime.packageReady).toBe(true);
+    expect(runtime.linkReady).toBe(true);
+    expect(runtime.packageScripts).toHaveLength(1);
+    expect(runtime.linkScripts).toHaveLength(1);
+    expect(runtime.packageScripts[0]).toMatch(/js\/ua\.ai_handoff\.js\?v=2026-08-15$/);
+    expect(runtime.linkScripts[0]).toMatch(/js\/ua\.ai_link_handoff\.js\?v=2026-08-15$/);
   });
 });
