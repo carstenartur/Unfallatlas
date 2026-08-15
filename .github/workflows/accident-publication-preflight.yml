@@ -1,0 +1,90 @@
+name: Accident publication manifest preflight
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/accident-publication-preflight.yml'
+      - 'cities.txt'
+      - 'config/accident-data-policy.json'
+      - 'data/accident-data-release.json'
+      - 'out/output_all_years_*.csv.gz'
+      - 'out/output_all_years_*.geojson.gz'
+      - 'scripts/validate-accident-publication.js'
+      - 'scripts/validate-accident-runtime-contract.js'
+      - 'js/ua.filters.js'
+      - 'js/ua.utils.js'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/accident-publication-preflight.yml'
+      - 'cities.txt'
+      - 'config/accident-data-policy.json'
+      - 'data/accident-data-release.json'
+      - 'out/output_all_years_*.csv.gz'
+      - 'out/output_all_years_*.geojson.gz'
+      - 'scripts/validate-accident-publication.js'
+      - 'scripts/validate-accident-runtime-contract.js'
+      - 'js/ua.filters.js'
+      - 'js/ua.utils.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accident-publication-preflight-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  manifest:
+    name: Recompute and compare release manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Recompute candidate manifest from the published bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/qa
+          node --max-old-space-size=4096 scripts/validate-accident-publication.js \
+            --write-manifest \
+            --manifest out/qa/accident-data-release.candidate.json \
+            --report out/qa/accident-publication-candidate.json
+
+      - name: Compare checked-in release oracle with candidate
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          if cmp -s \
+            data/accident-data-release.json \
+            out/qa/accident-data-release.candidate.json; then
+            echo 'Accident publication manifest matches the current published bytes.'
+            exit 0
+          fi
+
+          expected="$(jq -r '.fingerprint // "missing"' data/accident-data-release.json)"
+          actual="$(jq -r '.fingerprint // "missing"' out/qa/accident-data-release.candidate.json)"
+          echo "::error::Accident publication manifest drift: checked-in=${expected}, candidate=${actual}"
+          echo 'Download the accident-publication-preflight artifact, review the candidate and commit it only together with the responsible data change.'
+          exit 1
+
+      - name: Upload candidate and audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: accident-publication-preflight-${{ github.run_id }}
+          path: |
+            out/qa/accident-data-release.candidate.json
+            out/qa/accident-publication-candidate.json
+          if-no-files-found: error
+          retention-days: 14
