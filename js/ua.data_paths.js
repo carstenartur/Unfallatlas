@@ -263,5 +263,13 @@
       'js/ua.ai_link_handoff.js?v=2026-08-15',
       'data-ua-ai-link-handoff'
     ),
+    // Political-context research must be part of the same AI evidence chain.
+    // The adapter distinguishes missing/failed/no-result searches and binds
+    // suitable, source-linked proceedings into the structured report before
+    // either the server AI or a user-owned AI receives it.
+    aiPoliticalEvidence: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_political_evidence.js?v=2026-08-15',
+      'data-ua-ai-political-evidence'
+    ),
   });
 })();
