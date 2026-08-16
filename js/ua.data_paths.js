@@ -282,5 +282,11 @@
       'js/ua.ai_visual_research.js?v=2026-08-16',
       'data-ua-ai-visual-research'
     ),
+    // The export modal may be opened long after the analysis adapter installed.
+    // Keep its enhanced copy/download actions bound through modal recreation.
+    aiVisualResearchUi: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_visual_research_ui.js?v=2026-08-16',
+      'data-ua-ai-visual-research-ui'
+    ),
   });
 })();
