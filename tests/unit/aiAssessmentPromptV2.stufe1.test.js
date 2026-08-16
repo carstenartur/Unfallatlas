@@ -97,11 +97,12 @@ describe('#E1 — buildPrompt renders new sections', () => {
     expect(user).not.toContain('=== OSM-KONTEXT ===');
   });
 
-  test('does NOT add the canonical regression line when yearlyTrend.classification is "unbestimmt"', () => {
+  test('renders an explicit unbestimmt classification when too few trend years are present', () => {
     const { user } = buildPrompt(aiInput({
       yearlyTrend: { classification: 'unbestimmt', slope: 0, r2: 0, nYears: 1 }
     }), 'assessment');
-    expect(user).not.toMatch(/Kanonische Klassifikation \(lineare Regression im selben Bereich\)/);
+    expect(user).toMatch(/Kanonische Klassifikation \(lineare Regression im selben Bereich\): unbestimmt/);
+    expect(user).toMatch(/R²=0,00; n=1/);
   });
 
   test('renders visual orthophoto hint section with non-causal wording', () => {
