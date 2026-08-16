@@ -8,6 +8,7 @@
   const ENHANCED_HANDOFF_SCHEMA = 'unfallwerkbank.aiResearchHandoff.v3';
   const MARKERS = Object.freeze([
     'SEMANTISCHE KARTENINTERPRETATION', 'Schienen/Gleise',
+    'Fahrradalleinunfälle', 'räumliche Assoziation',
     'Kurven und Verschwenkungen', 'Kopfsteinpflaster',
     'UNFALLHINTERGRUNDRECHERCHE', 'amtlichen Polizeimeldungen',
     'gleicher Ort', 'keine Ursache für die gesamte Häufung',
@@ -68,13 +69,17 @@
       requiredProcedure: [
         'Standard-, Hybrid-, Orthofoto- und Analyseansicht mit identischen Filtern und Grenzen öffnen.',
         'Relevante Stellen in Übersicht und näherer Zoomstufe prüfen.',
-        'Beobachtung, Hypothese und extern bestätigten Kontext trennen.',
+        'Unfallpunkte nach Beteiligungskonstellation trennen; insbesondere Fahrradalleinunfälle gesondert auf Schienen-, Oberflächen- und Kurvenbezug prüfen.',
         'Jeden Bildbefund räumlich auf Unfallpunkte, Teilcluster oder Bewegungsbeziehungen beziehen.',
+        'Räumliche Koinzidenzen ausdrücklich als Befund und Mechanismushypothese benennen; den Kausalstatus davon getrennt ausweisen.',
+        'Beobachtung, Hypothese und extern bestätigten Kontext trennen.',
         'Strukturierte Straßendaten gegenprüfen; unsichtbare Bilddetails nicht schätzen.',
       ],
       requiredFeatureClasses: [
         feature('rails-and-track-interface', 'Schienen/Gleise und Querungswinkel', [
           'Liegt eine befahrbare/zu querende Rillenschiene in einer plausiblen Radfahrlinie?',
+          'Liegen mehrere Fahrradalleinunfälle auf, unmittelbar an oder in der Anfahrts-/Querungszone derselben befahrbaren Schiene?',
+          'Folgen Unfallpunkte derselben Schienenachse oder konzentrieren sie sich an Kurve, Weiche, Querung oder Führungssprung?',
           'Ist der Winkel flach oder durch Kurve/Verschwenkung räumlich erzwungen?',
           'Nur Bahntrasse/Barriere oder tatsächlich befahrbare Schiene?',
         ]),
@@ -105,19 +110,23 @@
         ]),
         feature('surface-and-drainage', 'Oberfläche, Kanten und Entwässerung', [
           'Fugen, Rinnen, Schienen, Kanten, Aufpflasterung oder Materialwechsel eindeutig sichtbar?',
-          'Kopfsteinpflaster nur bei ausreichender Auflösung, aktuellem Bild und zweiter Quelle; sonst „nicht sicher beurteilbar“.',
+          'Kopfsteinpflaster braucht ausreichende Auflösung, ein aktuelles Bild und eine zweite Quelle; andernfalls „nicht sicher beurteilbar“.',
         ]),
       ],
       observationSchema: {
         requiredFields: ['featureClass', 'locationDescription', 'viewIdAndZoom',
-          'visibleEvidence', 'spatialRelationToAccidents', 'confidence', 'evidenceLevel',
-          'alternativeExplanation', 'requiredVerification'],
+          'visibleEvidence', 'accidentSubset', 'spatialRelationToAccidents',
+          'proximityOrOverlap', 'mechanismHypothesis', 'causalStatus',
+          'confidence', 'evidenceLevel', 'alternativeExplanation', 'requiredVerification'],
         confidenceValues: ['high', 'medium', 'low', 'not-assessable'],
         evidenceLevelValues: ['C1-multiple-map-views', 'C2-one-map-view',
           'C3-external-or-structured-corroboration', 'D-needs-field-check'],
+        causalStatusValues: ['spatial-association', 'mechanism-plausible',
+          'externally-corroborated', 'causally-confirmed', 'not-assessable'],
       },
       interpretationRules: [
-        'Bildbefund ist keine Unfallursache; zuerst Sichtbares und Konflikthypothese formulieren.',
+        'Kartensicht und Unfallpunkte dürfen einen Zusammenhang belegen: räumliche Assoziation und mechanistische Plausibilität sind auszugeben; eine bestätigte Ursache braucht zusätzliche Evidenz.',
+        'Mehrere Fahrradalleinunfälle an derselben befahrbaren Schiene sind ein eigenständiger priorisierungsrelevanter Befund und lösen zwingend eine Schienenhypothese aus.',
         'Hauptbahntrasse ist nicht automatisch Schienensturzgefahr; relevant ist eine befahrbare/zu querende Schiene.',
         'Einzelne sichtbare Fahrzeuge sind keine belastbare Verkehrsmenge.',
         'Befliegungsstand prüfen und aktuelle Infrastruktur/Planung gegenhalten.',
@@ -125,11 +134,15 @@
       ],
       minimumOutput: { openedMapModes: 3, zoomLevelsPerMaterialFeature: 2,
         locatedFeatureObservations: 3, observationsLinkedToAccidentPointsOrClusters: 2,
-        explicitNotAssessableFindings: true, prioritisedVisualChecks: 3 },
+        accidentSubsetComparisons: 1, explicitNotAssessableFindings: true,
+        prioritisedVisualChecks: 3,
+        requiredWhenPresent: ['bike-solo-near-rideable-rail'] },
       automaticFailure: [
         'Nur Kartenlesbarkeit geprüft, ohne semantische Szenenanalyse.',
         'Schienen, Oberfläche oder Führung ohne sichtbare Evidenz behauptet.',
         'Kopfsteinpflaster oder Material aus unscharfem Bild abgeleitet.',
+        'Mehrere Fahrradalleinunfälle an oder nahe einer befahrbaren Schiene ohne explizite räumliche und mechanistische Zusammenhangsprüfung.',
+        'Räumliche Koinzidenz verschwiegen, nur weil sie noch kein bestätigter Kausalnachweis ist.',
         'Merkmal ohne räumlichen Unfallbezug als Erklärung der Häufung ausgegeben.',
         'Bildbeobachtung als gesicherte Unfallursache formuliert.',
       ],
@@ -145,8 +158,8 @@
       area: clean(meta.areaName) || null,
       involvement: clean(meta?.filters?.involvement || meta?.involvementMode
         || structured?.meta?.filters?.involvement) || null,
-      featureTerms: ['Unfall', 'Radfahrer', 'Fußgänger', 'Pkw', 'Bus', 'Straßenbahn',
-        'Schiene', 'Kurve', 'Kreuzung', 'Querung', 'Radweg'],
+      featureTerms: ['Unfall', 'Radfahrer', 'Fahrradalleinunfall', 'Fußgänger',
+        'Pkw', 'Bus', 'Straßenbahn', 'Schiene', 'Kurve', 'Kreuzung', 'Querung', 'Radweg'],
     };
   }
 
@@ -167,6 +180,7 @@
       queryPlan: [
         'Exakten Bereich/Straßennamen plus Unfall und beteiligte Verkehrsarten suchen.',
         'Zusätzlich visuelle Merkmale wie Schiene, Kurve, Bussteig, Querung oder Radweg suchen.',
+        'Bei Fahrradalleinunfällen gezielt nach Schienensturz, Rillenschiene, Querungswinkel, Ausweichbewegung und Oberflächenzustand suchen.',
         'Amtliche Unfallmeldungen, politische Vorgänge und laufende Planungen getrennt recherchieren.',
         'Suchbegriffe, Zeitraum, Quellen und Nulltreffer dokumentieren; kein Treffer ist kein Negativbeweis.',
       ],
@@ -206,18 +220,20 @@
     const ids = new Set(required.map(item => clean(item?.id)));
     for (const item of [
       { id: 'semantic-visual-scene-analysis', requirement: 'Mehrere Kartenmodi semantisch auf Schienen, Kurven, Kreuzungen, Führungswechsel und Sicht prüfen.' },
+      { id: 'bike-solo-infrastructure-association', requirement: 'Fahrradalleinunfälle räumlich und mechanistisch mit befahrbaren Schienen, Kurven und Oberflächen abgleichen.' },
       { id: 'accident-background-research', requirement: 'Amtliche Unfall-/Planungsrecherche mit räumlicher Passklasse und Quellenkritik.' },
     ]) if (!ids.has(item.id)) required.push(item);
     return { ...current, requiredAiAddedValue: required,
       prohibitedShortcuts: unique(current.prohibitedShortcuts, [
         'Kartenlesbarkeit als semantische Bildanalyse ausgeben.',
+        'Räumliche Koinzidenz von Fahrradalleinunfällen und befahrbarer Schiene wegen fehlenden Kausalnachweises ignorieren.',
         'Kopfsteinpflaster/Oberfläche aus niedriger Auflösung ableiten.',
         'Ein Presseereignis als Ursache des Gesamtmusters ausgeben.',
         'Exakte und nur analoge Ereignisse ohne räumliche Klasse mischen.',
       ]),
       minimumOutput: { ...(current.minimumOutput || {}), semanticVisualSceneAnalysis: true,
-        accidentBackgroundResearchLog: true, locatedVisualObservations: 3,
-        visualToIncidentCrossChecks: 2 } };
+        bikeSoloInfrastructureAssociation: true, accidentBackgroundResearchLog: true,
+        locatedVisualObservations: 3, visualToIncidentCrossChecks: 2 } };
   }
 
   function enhanceFactsPackage(facts, analysisUrl) {
@@ -239,11 +255,13 @@
     return ['', '## SEMANTISCHE KARTENINTERPRETATION – NICHT NUR SICHTBARKEITS-QA',
       'Lies Standard-, Hybrid- und Orthofotokarte inhaltlich; prüfe relevante Stellen in Übersicht und Detailzoom.',
       '- **Schienen/Gleise:** befahrbare Rillenschiene, Radfahrlinie und Querungswinkel; Hauptbahntrasse nicht verwechseln.',
+      '- **Fahrradalleinunfälle:** Punkte als eigenes Teilkollektiv prüfen. Liegen mehrere auf, unmittelbar an oder in der Anfahrts-/Querungszone derselben Schiene, ist dieser Zusammenhang ausdrücklich zu benennen und zu priorisieren.',
       '- **Kurven und Verschwenkungen:** enge Radien, S-Kurven, Seitenwechsel und verdeckte Annäherungen.',
       '- **Kreuzende Bewegungen:** Kfz-/Bus-/Taxi-/Liefer-, Fuß- und Radverkehr, Wunschlinien, Zu-/Ausfahrten, Abbiegen und Radwegenden.',
       '- **Sicht und Engstellen:** Gebäude, Einbauten, Vegetation, Parken und Kurven.',
       '- **Oberfläche:** Kopfsteinpflaster, Rinnen und Kanten nur mit hoher Auflösung und zweiter Quelle; sonst „nicht sicher beurteilbar“.',
-      'Je Befund: genaue Lage, Ansicht/Zoom, sichtbare Evidenz, Unfallbezug, Konfidenz, Alternative und Verifikation. Keine Bildbeobachtung unmittelbar als Ursache formulieren.',
+      'Trenne drei Stufen: **räumliche Assoziation** (Karte und Punkte), **mechanistische Plausibilität** (Fahrlinie, Winkel, Kurve, Ausweichen) und **bestätigte Ursache** (zusätzliche Unfall-/Vor-Ort-Evidenz).',
+      'Je Befund: genaue Lage, Ansicht/Zoom, sichtbare Evidenz, Unfall-Teilmengenbezug, Nähe/Überlagerung, Mechanismushypothese, Kausalstatus, Konfidenz, Alternative und Verifikation.',
       '', 'Prüfansichten:', ...views.map(view => `- **${view.label}** (${view.id}): ${view.url}\n  ${view.purpose}`),
       '', '## UNFALLHINTERGRUNDRECHERCHE – KURZ, ORTSGENAU UND QUELLENKRITISCH',
       'Suche nach Unfallmeldungen, Kontrollen, Sicherheitsdiskussionen und Planungen; beginne mit amtlichen Polizeimeldungen und Primärquellen.',
@@ -252,7 +270,7 @@
       'Prüfe Filter, Zeitraum, Schwere und Mechanismus. Ein einzelner Bericht ist keine Ursache für die gesamte Häufung.',
       'Dokumentiere Suchbegriffe, Quellen und Nulltreffer; kein Treffer bedeutet nicht keine Vorbefassung.',
       '', '## Zusätzliche Pflichtausgabe',
-      '9. Kartenbeobachtungstabelle mit Konfidenz und Unfallbezug',
+      '9. Kartenbeobachtungstabelle mit Teilkollektiv, Nähe/Überlagerung, Mechanismushypothese, Kausalstatus und Konfidenz',
       '10. Unfall-/Kontexttabelle mit räumlicher Passklasse und Quelle',
       '11. Kreuzvalidierung: gestützt | widerlegt | offen',
       '12. Liste „nicht sicher aus der Karte beurteilbar“',
@@ -338,7 +356,7 @@
     const note = documentValue.getElementById('aiLinkHandoffNote');
     if (note && note.dataset.uaVisualResearch !== '1') {
       note.dataset.uaVisualResearch = '1';
-      note.textContent += ' Zusätzlich muss die KI Hybrid-/Orthofoto-Karten semantisch auf Schienen, Kurven, querende Bewegungen, Radführungswechsel, Haltestellen- und Sichtkonflikte lesen und eine kurze amtliche Unfallhintergrundrecherche durchführen. Unsichere Oberflächenmerkmale dürfen nicht geraten werden.';
+      note.textContent += ' Zusätzlich muss die KI Hybrid-/Orthofoto-Karten semantisch auf Schienen, Kurven, querende Bewegungen, Radführungswechsel, Haltestellen- und Sichtkonflikte lesen, Fahrradalleinunfälle mit der Infrastruktur in Zusammenhang setzen und eine kurze amtliche Unfallhintergrundrecherche durchführen. Unsichere Oberflächenmerkmale dürfen nicht geraten werden.';
     }
     return true;
   }
