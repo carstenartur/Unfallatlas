@@ -7,6 +7,11 @@
  * AI workflows and also injects an explicit status reference when the portal
  * research was incomplete. It prevents the server AI from interpreting an
  * empty references array as proof that no political proceedings exist.
+ *
+ * The same report bridge now also adds the statistical methodology contract
+ * used by both AI paths. This prevents a model from misreading a comparison of
+ * accident-pattern shares as a direct comparison of absolute local and city
+ * accident rates.
  */
 (() => {
   'use strict';
@@ -24,6 +29,15 @@
 
   function clean(value) {
     return String(value == null ? '' : value).trim();
+  }
+
+  function finiteNumber(...values) {
+    for (const value of values) {
+      if (value === null || value === undefined || value === '') continue;
+      const number = Number(value);
+      if (Number.isFinite(number)) return number;
+    }
+    return null;
   }
 
   function normalizeReference(ref) {
@@ -80,6 +94,85 @@
     return typeof predicate === 'function' ? refs.filter(predicate) : refs;
   }
 
+  function buildAnalysisMethodology(structured) {
+    const deviations = structured?.deviations || {};
+    const yearlyTrend = structured?.yearlyTrend || {};
+    const totals = Array.isArray(yearlyTrend?.counts?.total)
+      ? yearlyTrend.counts.total.map(Number).filter(Number.isFinite)
+      : [];
+    const mean = totals.length
+      ? totals.reduce((sum, value) => sum + value, 0) / totals.length
+      : null;
+    const slope = finiteNumber(yearlyTrend?.slope);
+    const relativeSlope = slope !== null && mean !== null && mean > 0
+      ? slope / mean
+      : null;
+
+    return {
+      schemaVersion: 'unfallwerkbank.analysisMethodology.v1',
+      mandatoryInterpretationBeforeQa: [
+        'Der Mustervergleich vergleicht lokale und stadtweite Anteile von Beteiligungskombinationen unter denselben Nicht-Beteiligungsfiltern.',
+        'local.total und baseline.total sind Stichprobenumfänge beziehungsweise Nenner der Anteilsberechnung, nicht direkt verglichene Unfallraten.',
+        'Eine Expositionsnormierung ist für diesen Anteilsvergleich nicht erforderlich; sie ist erst für Aussagen über absolutes Risiko oder Unfallraten je Verkehrsleistung erforderlich.',
+        'Der Mehrjahrestrend beschreibt die relative zeitliche Entwicklung innerhalb desselben Bereichs und wird über relative Steigung und R² klassifiziert.'
+      ],
+      forbiddenMisinterpretation: 'Die lokalen und stadtweiten Gesamtfallzahlen dürfen nicht als unmittelbarer Flächen-, Straßenlängen- oder Verkehrsleistungs-Risikovergleich dargestellt werden.',
+      patternComparison: {
+        comparisonType: 'composition-share-ratio',
+        localPopulation: 'Unfälle innerhalb der Auswahlgeometrie nach denselben Nicht-Beteiligungsfiltern',
+        referencePopulation: 'stadtweite Unfälle nach denselben Nicht-Beteiligungsfiltern',
+        localSampleSize: finiteNumber(deviations?.local?.total),
+        referenceSampleSize: finiteNumber(deviations?.baseline?.total),
+        formulas: {
+          localShare: 'locR = locCnt / local.total',
+          referenceShare: 'baseR = baseCnt / baseline.total',
+          factor: 'factor = locR / baseR',
+          uncertainty: 'Wilson-Score-Konfidenzintervall (95 %) für den lokalen Anteil',
+          significance: 'isSignificant = true, wenn ciLow > baseR'
+        },
+        interpretation: 'Eine Überrepräsentation betrifft die Zusammensetzung des dokumentierten Unfallgeschehens.',
+        exposureRequirement: 'Keine Exposition für den Anteilvergleich; Exposition nur für absolute Risiko-/Unfallratenaussagen.',
+        precisionNote: 'Die Präzision hängt von den Stichprobenumfängen ab.'
+      },
+      yearlyTrend: {
+        comparisonType: 'within-area-relative-linear-trend',
+        formula: 'relativeSlope = slope / mean(yearly totals)',
+        slope,
+        meanAnnualCount: mean,
+        relativeSlope,
+        r2: finiteNumber(yearlyTrend?.r2, yearlyTrend?.rSquared),
+        nYears: finiteNumber(yearlyTrend?.nYears),
+        classification: yearlyTrend?.classification || null,
+        interpretation: 'Relative zeitliche Entwicklung der dokumentierten Jahreswerte im selben gefilterten Bereich.'
+      }
+    };
+  }
+
+  function bridgeFactsPackage() {
+    const internal = UA.aiProposal?._internal;
+    if (!internal || typeof internal.buildExternalAiFactsPackage !== 'function') return false;
+    if (internal.buildExternalAiFactsPackage._uaMethodologyContractWrapped) return true;
+
+    const original = internal.buildExternalAiFactsPackage;
+    const wrapped = function buildFactsWithMethodology(input) {
+      const facts = original.call(this, input);
+      const structured = input?.structured || facts?.structured;
+      const methodology = structured?.analysisMethodology || buildAnalysisMethodology(structured);
+      if (facts && typeof facts === 'object') {
+        facts.analysisMethodology = methodology;
+        facts.methodologyQaGate = {
+          required: 'Vor jeder statistischen Kritik muss die KI den Methodenvertrag korrekt wiedergeben.',
+          rejectIf: 'Die KI behandelt den Musteranteilsvergleich als direkten Vergleich absoluter Unfallraten oder verlangt dafür pauschal einen Expositionsnenner.'
+        };
+      }
+      return facts;
+    };
+    wrapped._uaMethodologyContractWrapped = true;
+    wrapped._uaOriginal = original;
+    internal.buildExternalAiFactsPackage = wrapped;
+    return true;
+  }
+
   function bridgeReport(report, ctxValue) {
     const ctx = runtimeContext(ctxValue);
     // Only touch reports for which an AI workflow explicitly started or
@@ -87,6 +180,8 @@
     if (!ctx.__uaPoliticalResearchPromise && !ctx.politicalContextResearch) return report;
     const structured = report?.structured;
     if (!structured || typeof structured !== 'object') return report;
+
+    structured.analysisMethodology = buildAnalysisMethodology(structured);
 
     const state = UA.aiPoliticalEvidence.currentState(ctx);
     structured.politicalContextResearch = state;
@@ -102,6 +197,7 @@
   }
 
   function install() {
+    bridgeFactsPackage();
     if (!UA.aiPoliticalEvidence || typeof UA.aiPoliticalEvidence.currentState !== 'function') return false;
     if (typeof UA.computeExportReport !== 'function') return false;
     if (UA.computeExportReport._uaPoliticalReferenceBridgeWrapped) return true;
@@ -114,20 +210,24 @@
     wrapped._uaPoliticalReferenceBridgeWrapped = true;
     wrapped._uaOriginal = original;
     UA.computeExportReport = wrapped;
+    bridgeFactsPackage();
     return true;
   }
 
   UA.aiPoliticalReferenceBridge = Object.freeze({
     install,
     bridgeReport,
+    buildAnalysisMethodology,
     _internal: Object.freeze({
       clean,
+      finiteNumber,
       normalizeReference,
       referenceKey,
       mergeReferences,
       statusReference,
       suitableReferences,
       runtimeContext,
+      bridgeFactsPackage,
     }),
   });
 
