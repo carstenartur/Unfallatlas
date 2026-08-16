@@ -1,26 +1,63 @@
-# End-to-End-QA: Unfallwerkbank → KI-Auftrag → kommunaler Antrag
+# Korrigierte End-to-End-QA: Unfallwerkbank → KI-Auftrag → kommunaler Antrag
 
-**Datum:** 15. August 2026  
+**Ursprüngliche Prüfung:** 15. August 2026  
+**Methodische Korrektur:** 16. August 2026  
 **PR:** #620  
 **Prüffall:** Adenauerallee, Bonn-Südstadt  
-**Status:** Einreichungsreifer Antrag **blockiert**, bis die unten genannten P0-/P1-Mängel behoben beziehungsweise nachvollziehbar aufgelöst sind.
+**Status:** Die erste statistische Modellbewertung ist wegen einer falschen Interpretation des Mustervergleichs **zurückgezogen**. Die Einreichungsreife bleibt aus anderen, davon unabhängigen Gründen vorläufig blockiert: ungeklärte politische Recherche, statisch-dynamischer Widerspruch der Antragssprache sowie fehlende reale Ortsgrundlage für konkrete Maßnahmen.
 
-## 1. Was tatsächlich geprüft wurde
+## 1. Korrekturhinweis
 
-Diese QA bewertet nicht nur, ob ein Prompt bestimmte Schlüsselwörter enthält. Geprüft wurden die reale Ausgabekette und ihre fachliche Wirkung:
+Die erste Fassung dieser QA behauptete, die Unfallwerkbank habe 37 lokale und 1.963 stadtweite Fälle ohne geeigneten Nenner beziehungsweise Expositionsbezug als Risikovergleich verwendet. Diese Kritik war sachlich falsch.
 
-1. der von der CI erzeugte PDF-/Word-Antrag aus `extended-maven-qa-evidence`,
-2. die zugehörigen Karten- und Export-Screenshots,
-3. die im Dokument ausgewiesenen Unfallzahlen, Filter, räumlichen Grenzen und Zeitreihen,
-4. die argumentative Kette von den Unfalltatsachen zu den Maßnahmen,
-5. die politische Vorbefassung des untersuchten Bereichs,
-6. der aktuelle KI-Arbeitsauftrag, indem er mit einem Modell auf den realen Prüffall angewandt und das Ergebnis gegen die Ausgangsdaten geprüft wurde.
+Die Unfallwerkbank vergleicht an dieser Stelle **nicht die absoluten Unfallzahlen unterschiedlich großer Räume als Unfallrate**. Sie vergleicht die **Anteile von Beteiligungskombinationen** im ausgewählten Bereich mit den entsprechenden Anteilen in einer stadtweiten Referenzpopulation unter denselben Nicht-Beteiligungsfiltern. Die lokalen und stadtweiten Gesamtzahlen sind dabei die jeweiligen Stichprobenumfänge beziehungsweise Nenner der Anteilsberechnung.
 
-Die bisherigen Unit-Tests des KI-Handovers verwendeten dagegen einen synthetischen, in sich passenden Bonn-Hauptbahnhof-Snapshot und prüften vor allem Marker, URLs und Summengleichheit. Sie waren sinnvoll als Regressionstest, aber **kein Nachweis**, dass ein Modell aus einer realen, möglicherweise widersprüchlichen Unfallwerkbank-Ausgabe einen guten Antrag erzeugt.
+Auch die Trendklassifikation beruht nicht auf einem Vergleich absoluter lokaler und stadtweiter Fallzahlen. Sie beschreibt die zeitliche Entwicklung innerhalb desselben Bereichs und verwendet zur Klassifikation die relative Steigung bezogen auf den Mittelwert sowie das Bestimmtheitsmaß R².
 
-## 2. Gebundener Ausgangsfall
+Alle Schlussfolgerungen der ersten Modellprobe, die auf der vermeintlich fehlenden Flächen-, Längen- oder Verkehrsexpositions-Normierung dieses **Musteranteilsvergleichs** beruhten, sind damit nicht belastbar und werden hier ausdrücklich zurückgenommen.
 
-Der CI-Export weist für den markierten Abschnitt der Adenauerallee folgende Daten aus:
+## 2. Tatsächlich implementierte Statistik
+
+### 2.1 Vergleich der Unfallmuster
+
+`topDeviations()` in `js/ua.export_v2.js` bildet:
+
+- eine stadtweite Referenzpopulation unter denselben Schwere-, Zeit-, Straßen- und weiteren Nicht-Beteiligungsfiltern;
+- eine lokale Population mit denselben Filtern innerhalb der ausgewählten Geometrie;
+- für jede Beteiligungskombination den lokalen Anteil `locCnt / local.total`;
+- den stadtweiten Referenzanteil `baseCnt / baseline.total`;
+- den Faktor `locR / baseR`;
+- ein 95-%-Wilson-Konfidenzintervall für den lokalen Anteil;
+- `isSignificant=true`, wenn die untere Intervallgrenze über dem Referenzanteil liegt.
+
+Die Funktion `focus` berücksichtigt derzeit Kombinationen mit mindestens drei lokalen Fällen und einem Faktor von mindestens 1,35. Die stärkere Klassifikation im Executive Summary verlangt zusätzlich Faktor mindestens 1,5 und `isSignificant=true`.
+
+**Fachliche Bedeutung:** Die Aussage betrifft die **Zusammensetzung des Unfallgeschehens**. Sie beantwortet beispielsweise, ob eine bestimmte Beteiligungskombination im ausgewählten Bereich einen höheren Anteil an allen dort unter denselben Filtern betrachteten Unfällen besitzt als im Stadtgebiet. Dafür ist keine Verkehrsleistungs- oder Flächennormierung erforderlich.
+
+Zusätzliche Expositionsdaten wären erforderlich, wenn aus den Daten eine andere Aussage abgeleitet werden soll, etwa:
+
+- absolutes Unfallrisiko je gefahrenem Kilometer,
+- Unfallrate je Radfahrenden- oder Kfz-Aufkommen,
+- Vergleich der gesamten Unfallhäufigkeit pro Straßenlänge oder Fläche.
+
+Diese Aussagearten sind vom implementierten Musteranteilsvergleich zu trennen.
+
+### 2.2 Mehrjahrestrend
+
+`js/ua.trend.js` berechnet eine lineare Regression über die jährlichen Unfallzahlen im betrachteten, gefilterten Bereich. Die qualitative Klassifikation verwendet:
+
+- `slope / mean` als relative jährliche Steigung;
+- eine Stagnationsschwelle von fünf Prozent pro Jahr;
+- R² mindestens 0,3 für eine steigende oder rückläufige Klassifikation;
+- mindestens drei Datenjahre.
+
+Die Klassifikation ist damit gegenüber einer gemeinsamen Skalierung der gesamten Reihe invariant: Werden alle Jahreswerte mit demselben Faktor multipliziert, ändern sich absolute Steigung und Mittelwert im selben Verhältnis, während `slope / mean` und R² gleich bleiben.
+
+Die Trendanalyse benötigt daher keinen stadtweiten Nenner. Für die Interpretation als **Entwicklung des Risikos je Verkehrsleistung** wären Veränderungen von Verkehrsaufkommen, Modal Split oder Datenerfassung jedoch ergänzend zu betrachten. Das entwertet nicht die deskriptive Aussage über die Entwicklung der dokumentierten Unfallzahlen im festen Analysebereich.
+
+## 3. Gebundener Ausgangsfall
+
+Der CI-Export weist für den markierten Abschnitt der Adenauerallee aus:
 
 - Zeitraum: **2019–2025**
 - Filter: **Radverkehr UND Pkw**, alle Schweregrade, alle Wochentage, 0–23 Uhr
@@ -33,40 +70,49 @@ Der CI-Export weist für den markierten Abschnitt der Adenauerallee folgende Dat
 - räumliche Spannweite der dargestellten Achse: rund **523 m**
 - sensible Einrichtungen innerhalb 200 m: **7 Kindergärten und 3 Schulen**, aber keine innerhalb des Auswahlrechtecks
 
-Die Unfallzahlen sind zwischen Schweregradtabelle, Jahrgangstabelle, Kreuztabelle und Unfall-Detailtabelle konsistent. Die amtlichen Unfallereignisse bilden daher einen belastbaren Tatsachenkern. Die schwerwiegenden Mängel liegen in der Einordnung und Antragserzeugung, nicht in einer pauschalen Entwertung der Primärdaten.
+Die Unfallzahlen sind zwischen Schweregradtabelle, Jahrgangstabelle, Kreuztabelle und Unfall-Detailtabelle konsistent. Die amtlichen Unfallereignisse bilden einen belastbaren Tatsachenkern.
 
-## 3. Ergebnis der tatsächlichen KI-Probe
+Für eine abschließende Beurteilung der Musterauffälligkeit müssen aus dem real erzeugten strukturierten Bericht zusätzlich die konkreten Werte `locR`, `baseR`, `factor`, `ciLow`, `ciHigh` und `isSignificant` übernommen und bewertet werden. Die bloßen Gesamtzahlen 37 und 1.963 erlauben weder eine Bestätigung noch eine Widerlegung der Musterüberrepräsentation.
 
-Der aktuelle Evidenz-/QA-Auftrag wurde als Modellauftrag auf den realen CI-Export angewandt. Das fachlich vertretbare Resultat lautet:
+## 4. Was die erste KI-Probe tatsächlich gezeigt hat
 
-> **QA-Urteil: blockiert für einen einreichungsreifen Antrag.**  
-> Die amtlichen 37 Unfälle sind bestimmt wiederzugeben und begründen eine konkrete verkehrssicherheitsfachliche Prüfung. Der vorliegende Antrag darf jedoch nicht als fertiger Antrag übernommen werden, weil seine zentrale Unfallschwerpunkt-Behauptung dem eigenen Analyseergebnis widerspricht, die politische Vorbefassung fehlt und die vorgeschlagenen Maßnahmen nicht ausreichend aus ortsspezifischen Unfallkonstellationen hergeleitet sind.
+Der erste Modelllauf ist **kein positiver Qualitätsnachweis für den Prompt**. Das Modell interpretierte die beiden Stichprobenumfänge fälschlich als direkten absoluten Risikovergleich und leitete daraus einen nicht vorhandenen methodischen Mangel ab.
 
-Das Modell hat damit nicht bloß „schönere Sätze“ erzeugt, sondern die wesentlichen Produktmängel erkannt. Zugleich zeigt der Test: Ein guter Prompt kann einen widersprüchlichen Ausgangsbericht nicht reparieren, wenn die Anwendung den widersprüchlichen Antrag bereits als scheinbar fertiges Verwaltungsdokument präsentiert oder wichtige Rechercheergebnisse gar nicht übergibt.
+Damit hat der Test vor allem einen Promptmangel offengelegt: Die KI erhielt zwar strukturierte Kennzahlen, aber keinen ausreichend ausdrücklichen Methodenvertrag, der die Bedeutung von Lokalanteil, Referenzanteil, Faktor, Wilson-Intervall, Signifikanz und relativer Trendsteigung erklärt und klar von Unfallraten je Exposition trennt.
 
-## 4. Befunde
+Der Modelltest muss nach Ergänzung dieses Methodenvertrags erneut ausgeführt werden. Eine fachlich korrekte KI-Ausgabe muss:
+
+1. die Musteranteile und ihre Unsicherheit als solche auswerten;
+2. keine Expositionsnormierung für den Anteilsvergleich verlangen;
+3. Expositionsdaten nur bei Aussagen über absolute Unfallraten oder Risiko je Verkehrsleistung einfordern;
+4. den Trend als relative Entwicklung innerhalb desselben Bereichs interpretieren;
+5. die konkrete Auffälligkeitsaussage aus `factor`, Konfidenzintervall und `isSignificant` ableiten.
+
+## 5. Korrigierte Befunde
 
 | Priorität | Befund | Bewertung | Erforderliche Korrektur |
 |---|---|---|---|
-| P0 | Titel und Beschluss sprechen von einem „auffälligen Unfallschwerpunkt“ und einer „auffälligen Abweichung“, während die Kurzbewertung ausdrücklich **„kein eindeutiger Unfallschwerpunkt“** feststellt. | Innerer Widerspruch; die stärkste Antragsbehauptung ist durch die eigene Analyse nicht gedeckt. | Antragstitel und Standardbegründung neutral/evidenzbasiert formulieren. Nur bei nachgewiesener Signifikanz und geeigneter räumlicher Referenz einen Unfallschwerpunkt behaupten. |
-| P0 | Der Export enthält keine politische Vorbefassung, obwohl zur Adenauerallee bereits Verkehrsversuche, Anträge, Beschlüsse, Evaluationsforderungen und laufende Umgestaltungsentscheidungen existieren. | Ein neuer generischer Antrag kann bestehende Beschlüsse wiederholen, ihnen widersprechen oder einen bereits laufenden Prozess ignorieren. | Politische Recherche verpflichtend in die KI-Evidenzkette aufnehmen; Suchstatus, Suchbegriffe, Treffer und direkte Quellenlinks ausweisen. |
-| P1 | Der Vergleich nennt 37 lokale und 1.963 stadtweite Fälle, ohne Exposition, Straßenlänge, Verkehrsleistung oder vergleichbare Referenzflächen als Nenner. | Absolute Fallzahlen unterschiedlicher Räume belegen keine lokale Überrepräsentation. | Vergleich nur mit geeigneter Rate/Referenz und Unsicherheitsmaß als tragende Abweichungsbehauptung verwenden. |
-| P1 | Ein Korridor über rund 523 m und ein Cluster mit 5 von 37 Fällen werden zugleich als „Schwerpunkt“ und als räumlich verteiltes Muster beschrieben. | Unklar, ob ein einzelner Knoten, mehrere Teilbereiche oder ein streckenbezogenes Problem vorliegt. | Unfallkonstellationen und Teilcluster getrennt ausweisen; keine einheitliche Ursache voraussetzen. |
-| P1 | Markierung, Beschilderung, Signalisierung, Tempoanpassung, Querungen und Umbau werden pauschal verlangt. | Maßnahmen sind nicht sichtbar an konkrete Konflikttypen, Fahrbeziehungen oder aktuelle Gestaltung gebunden. | Befund → Sicherheitsziel → Option → Fach-/Ortsprüfung → Erfolgskriterium für jede Maßnahme dokumentieren. |
-| P1 | Die CI-Karte ist eine synthetische QA-Basiskarte und ausdrücklich keine reale Luftbild-/Straßengeometrie. | Sichtbeziehungen, Spurführung, Abbiegekonflikte, Lieferzonen und bauliche Details können daraus nicht bewertet werden. | Reale Kartografie beziehungsweise aktuelle Vor-Ort-/Luftbildprüfung vor konkreten baulichen Aussagen verlangen. |
-| P1 | Evaluation ausschließlich nach 12 Monaten anhand der Unfallentwicklung. | Bei kleinen Jahreszahlen ist eine reine Vorher-Nachher-Unfallzahl statistisch schwach und kann zufällig schwanken. | Ergänzende Konflikt-, Geschwindigkeits-, Verkehrs- und Nutzungsindikatoren sowie geeigneten Beobachtungszeitraum definieren. |
-| P2 | Die pauschale Dunkelziffer-Aussage „Faktor 2–10“ wird ohne unmittelbar nachvollziehbare, modusspezifische Belegstelle verwendet. | Kann den amtlichen Tatsachenkern unnötig mit einer sehr breiten Schätzung vermischen. | Genaue Quelle, Population und Geltungsbereich nennen oder die Zahl weglassen. |
-| P2 | Einzelne Texte sind sprachlich/semantisch unpräzise, beispielsweise „1 Schwerverletzte“. | Qualitätsmangel eines einreichungsreifen Verwaltungsdokuments. | Sprach- und Terminologieprüfung in den Dokument-Golden-Test aufnehmen. |
+| P0 | Der Export enthält keine belastbar dokumentierte politische Vorbefassung, obwohl zur Adenauerallee bereits Verkehrsversuche, Anträge, Beschlüsse, Evaluationsforderungen und laufende Umgestaltungsentscheidungen existieren. | Ein neuer Antrag kann bestehende Beschlüsse wiederholen, ihnen widersprechen oder einen laufenden Prozess ignorieren. | Politische Recherche verpflichtend in die KI-Evidenzkette aufnehmen; Suchstatus, Suchbegriffe, Treffer und direkte Quellenlinks ausweisen. |
+| P0 | Ein statischer Antragstitel behauptete unabhängig vom konkreten Analyseergebnis einen „auffälligen Unfallschwerpunkt“, während die dynamische Kurzbewertung im Prüffall „kein eindeutiger Unfallschwerpunkt“ ausgab. | Tatsächlicher semantischer Widerspruch zwischen statischem Template und dynamischer Analyse. | Titel und Begründung dynamisch aus der Analyseklassifikation ableiten oder neutral formulieren. |
+| P1 | Der KI-Auftrag erklärt die implementierte statistische Methodik nicht ausdrücklich genug. | Der reale Modelllauf missverstand einen Musteranteilsvergleich als Rohfallzahl-/Expositionsvergleich. | Maschinenlesbaren und menschenlesbaren Methodenvertrag in beide KI-Pfade aufnehmen und mit Negativtests absichern. |
+| P1 | `deviations.focus` verlangt Faktor ≥ 1,35 und mindestens drei lokale Fälle, aber nicht zwingend `isSignificant=true`; `buildExecutiveSummary()` kann daraus bereits einen „lokalen Häufungspunkt“ formulieren. | Explorative Abweichung und statistisch abgesicherte Auffälligkeit können sprachlich zu dicht beieinanderliegen. | Entweder Signifikanz für die Häufungspunkt-Klassifikation verlangen oder den nicht signifikanten Status ausdrücklich als explorativ kennzeichnen. |
+| P1 | Die stadtweite Referenzpopulation enthält regelmäßig auch die lokale Teilmenge; das Wilson-Intervall berücksichtigt nur die Unsicherheit des lokalen Anteils, und mehrere Beteiligungsmuster werden parallel geprüft. | Kein Beleg für eine falsche Berechnung, aber ein sinnvoller statistischer Härtungspunkt: Abhängigkeit, Referenzunsicherheit und multiples Testen sollten transparent geprüft werden. | Vergleich „lokal gegen übriges Stadtgebiet“, Zwei-Stichproben-/Resampling-Verfahren und Korrektur beziehungsweise Kennzeichnung multipler explorativer Vergleiche evaluieren. |
+| P1 | Ein Korridor über rund 523 m und ein Cluster mit 5 von 37 Fällen müssen räumlich getrennt von der Musteranteilsanalyse interpretiert werden. | Beteiligungsmuster-Auffälligkeit, räumlicher Cluster und amtlicher Unfallschwerpunkt sind unterschiedliche Konzepte. | Im Datenmodell und Antrag getrennte Klassifikationen und Bezeichnungen verwenden. |
+| P1 | Markierung, Beschilderung, Signalisierung, Tempoanpassung, Querungen und Umbau wurden pauschal verlangt. | Maßnahmen waren nicht sichtbar an konkrete Konflikttypen, Fahrbeziehungen oder aktuelle Gestaltung gebunden. | Befund → Sicherheitsziel → Option → Fach-/Ortsprüfung → Erfolgskriterium für jede Maßnahme dokumentieren. |
+| P1 | Die CI-Karte ist eine synthetische QA-Basiskarte und keine reale Luftbild-/Straßengeometrie. | Sichtbeziehungen, Spurführung, Abbiegekonflikte, Lieferzonen und bauliche Details können daraus nicht abschließend bewertet werden. | Reale Kartografie beziehungsweise aktuelle Vor-Ort-/Luftbildprüfung vor konkreten baulichen Aussagen verlangen. |
+| P2 | Die Trendfunktion bildet nur Jahre ab, die in der übergebenen Punktmenge vorkommen. | Ein tatsächlich unfallfreies Jahr könnte fehlen, sofern die aufrufende Datenkette nicht explizit Nulljahre ergänzt. | Vollständige Datenjahresachse aus dem Analysezeitraum verwenden und Nulljahre explizit eintragen. |
+| P2 | Evaluation ausschließlich nach zwölf Monaten anhand der Unfallentwicklung ist bei kleinen Jahreszahlen schwach. | Das betrifft die Maßnahmenwirkung, nicht die Gültigkeit des bestehenden Mehrjahrestrends. | Ergänzende Konflikt-, Geschwindigkeits-, Verkehrs- und Nutzungsindikatoren sowie geeigneten Beobachtungszeitraum definieren. |
+| P2 | Einzelne Texte sind sprachlich unpräzise, beispielsweise „1 Schwerverletzte“. | Qualitätsmangel eines einreichungsreifen Verwaltungsdokuments. | Sprach- und Terminologieprüfung in den Dokument-Golden-Test aufnehmen. |
 
-## 5. Politische Vorbefassung: Warum ein leerer Abschnitt nicht plausibel ist
+## 6. Politische Vorbefassung
 
-Bereits eine unabhängige Web-/Quellenprüfung findet für die Adenauerallee unter anderem:
+Eine unabhängige Quellenprüfung findet für die Adenauerallee unter anderem:
 
 - die städtische Planung zur Kanalsanierung, Fahrbahnerneuerung und Neuverteilung des Straßenraums aus 2023,
-- eine politische Initiative für einen dreimonatigen Verkehrsversuch,
+- eine politische Initiative für einen Verkehrsversuch,
 - einen Antrag auf schriftliche Evaluation (`DS 240948`) und eine weitere Anfrage (`DS 240614-02`),
 - Beschlüsse beziehungsweise politische Entscheidungen zur künftigen Straßenaufteilung,
-- weitere Forderungen und Beschlüsse zum Zeitpunkt des Baubeginns und zur Auswertung,
+- weitere Forderungen zum Baubeginn und zur Auswertung,
 - laufende beziehungsweise spätere Verkehrsversuche und Umsetzungsarbeiten.
 
 Beispielquellen:
@@ -78,62 +124,35 @@ Beispielquellen:
 - https://www.cdu-ratsfraktion-bonn.de/news/lokal/366/-CDU-fordert-Kein-Baubeginn-auf-der-Adenauerallee-bevor-die-Auswertung-des-Verkehrsversuchs-vorliegt.html
 - https://www.linksfraktion-bonn.de/politik/pressemitteilungen/detaildarstellung-pressemitteilungen/news/dreimonatiger-verkehrsversuch-auf-der-adenauerallee-neugestaltung-der-strassenfuehrung-im-fokus/
 
-Daraus folgt nicht, dass jede dieser politischen Quellen sachlich richtig oder für den konkreten Ausschnitt gleich relevant ist. Es folgt aber eindeutig, dass **„kein politischer Abschnitt“ nicht als „keine politische Vorbefassung“ interpretiert werden darf**.
+Daraus folgt nicht, dass jede politische Quelle sachlich richtig oder für den konkreten Ausschnitt gleich relevant ist. Es folgt aber, dass ein leerer politischer Abschnitt nicht als fehlende politische Vorbefassung interpretiert werden darf.
 
-## 6. Technische Ursache des fehlenden politischen Abschnitts
+## 7. Technische Ursache des fehlenden politischen Abschnitts
 
 Die politische Suche war bisher ein separater UI-Nebenprozess:
 
-1. Das Recherche-Panel musste geöffnet werden.
-2. Die Suche musste erfolgreich gegen `/api/political-context/search` laufen.
-3. Treffer mussten manuell angehakt werden.
-4. Erst der Button „Übernehmen“ schrieb sie nach `ctx.politicalReferences`.
-5. Nur dieser manuell ausgewählte Zustand gelangte in den Export.
+1. Recherche-Panel öffnen,
+2. Suche gegen `/api/political-context/search`,
+3. Treffer manuell auswählen,
+4. Treffer mit „Übernehmen“ nach `ctx.politicalReferences` schreiben,
+5. nur diesen Zustand exportieren.
 
-Bonn ist im Backend als unterstützte Stadt registriert. Trotzdem kann der Export leer bleiben, wenn das Panel nicht geöffnet, die Suche nicht ausgeführt, der API-Endpunkt in einer statischen Pages-Laufzeit nicht vorhanden, der Provider fehlgeschlagen oder kein Treffer manuell übernommen wurde. Der leere Export sagte daher bisher nichts Verlässliches über das Vorhandensein politischer Vorgänge aus.
+Ein leerer Export konnte deshalb „nicht gesucht“, „Endpunkt nicht verfügbar“, „Provider fehlgeschlagen“, „keine Treffer“, „Treffer fachlich verworfen“ oder „Treffer nicht übernommen“ bedeuten.
 
-## 7. Im PR umgesetzte Korrekturen
+## 8. Im PR umgesetzte beziehungsweise korrigierte Arbeiten
 
-- Neuer Adapter `js/ua.ai_political_evidence.js`:
-  - startet die politische Recherche automatisch für beide KI-Wege,
-  - wartet vor der Berichterzeugung auf den Suchstatus,
-  - übernimmt geeignete, verkehrsrelevante und AI-gegatete Treffer in den strukturierten Bericht,
-  - unterscheidet `not-searched`, `not-searchable`, `unavailable`, `failed`, `unsupported`, `searched-no-results`, `results-found-unusable` und `results-found`,
-  - legt offizielle Portal- und Such-URLs als Fallback bei,
-  - verhindert die Gleichsetzung von „keine Treffer“ und „keine Vorbefassung“.
-- Standardantrag neutralisiert:
-  - kein pauschaler Titel „Auffälliger Unfallschwerpunkt“ mehr,
-  - amtliche Unfalltatsachen bleiben tragender Tatsachenkern,
-  - Ursachen, räumliche Typologie und Maßnahmen werden als zu prüfende Ableitung behandelt,
-  - politische Vorbefassung und Quellenlinks werden ausdrücklich verlangt.
-- Regressionstests sichern:
-  - erfolgreich gebundene politische Treffer,
-  - leere, fehlgeschlagene und unbrauchbare Suchergebnisse,
-  - offizielle Fallback-URLs,
-  - Verbot der unbelegten Standard-Unfallschwerpunktbehauptung,
-  - Trennung von Unfalltatsache und Maßnahmenprüfung.
+- Automatische politische Recherche und explizite Suchstatus für beide KI-Wege.
+- Überführung geeigneter politischer Referenzen in den serverseitig gelesenen Referenzpfad.
+- Neutralisierung eines statisch immer behaupteten Unfallschwerpunkt-Titels.
+- Korrigierte Beschreibung des tatsächlichen Musteranteilsvergleichs und des relativen Mehrjahrestrends in `templates/sachverhalt.txt`.
+- Regressionstest, der den Anteilsvergleich ausdrücklich von einer Unfallrate je Exposition trennt.
 
-## 8. Noch erforderlicher Live-Nachweis
+Noch ausstehend ist der explizite Methodenvertrag im tatsächlich kopierten KI-Auftrag sowie dessen erneuter Modell-End-to-End-Test.
 
-Der Bonn-Provider muss zusätzlich in einem serverfähigen End-to-End-Lauf gegen das aktuelle Ratsinformationssystem geprüft werden. Ein Unit-Test des HTML-Parsers oder ein erfolgreicher synthetischer Suchtest beweist noch nicht, dass sich URL, Markup, Pagination oder Schutzmechanismen des Portals nicht geändert haben.
+## 9. Erforderliche erneute Modellprüfung
 
-Der Live-Abnahmetest muss mindestens nachweisen:
+Der nächste Test muss den realen strukturierten Bericht einschließlich sämtlicher Abweichungsfelder verwenden und zwei Kontrollfragen enthalten:
 
-1. Suche mit `Bonn`, `Adenauerallee` und `Südstadt`,
-2. dokumentierter HTTP-/Providerstatus,
-3. direkte, erreichbare Vorgangslinks,
-4. plausible Klassifikation und Deduplizierung,
-5. Übergabe der Treffer an Faktenpaket, KI-QA und Export,
-6. blockierender, ausdrücklich sichtbarer Status bei Ausfall oder unvollständiger Recherche.
+1. **Was wird verglichen?** Erwartete Antwort: lokale und stadtweite Anteile von Beteiligungskombinationen unter konsistenten Filtern, nicht absolute Unfallraten unterschiedlich großer Räume.
+2. **Wie wird der Trend klassifiziert?** Erwartete Antwort: lineare Entwicklung der Jahreszahlen im selben Bereich, klassifiziert über relative Steigung und R².
 
-## 9. Fachlich angemessene Antragsrichtung für diesen Prüffall
-
-Die 37 amtlich dokumentierten Rad-Pkw-Unfälle dürfen nicht relativiert oder in allgemeine Verkehrssicherheitsprosa aufgelöst werden. Die vorliegenden Daten tragen einen konkreten Auftrag. Der gegenwärtig belastbare Antrag sollte aber nicht behaupten, dass bereits ein einzelner Unfallschwerpunkt und seine Ursache bewiesen seien.
-
-Angemessen ist zunächst ein Antrag, der
-
-- die Unfallkonstellationen und Teilräume entlang der Adenauerallee fachlich prüfen lässt,
-- sie mit den laufenden Verkehrsversuchen, Beschlüssen und Umgestaltungsplanungen abgleicht,
-- kurzfristige risikoarme Sicherungen bei fachlich belegter Eignung ermöglicht,
-- dauerhafte Maßnahmen aus konkreten Konfliktbildern ableitet,
-- Berichtspflicht, Quellenbezug und mehrdimensionale Erfolgskontrolle festlegt.
+Erst wenn das Modell diese Methodik korrekt wiedergibt, dürfen seine inhaltliche Kritik und der daraus erzeugte Antrag als aussagekräftiger End-to-End-Test des Prompts gelten.
