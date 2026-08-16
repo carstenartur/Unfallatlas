@@ -275,5 +275,12 @@
       'js/ua.ai_political_reference_bridge.js?v=2026-08-15',
       'data-ua-ai-political-reference-bridge'
     ),
+    // Load last so it can extend the completed evidence chain. This adapter
+    // upgrades the handoff from map-readability QA to semantic scene analysis
+    // and adds a source-critical search for location-specific crash reports.
+    aiVisualResearch: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_visual_research.js?v=2026-08-16',
+      'data-ua-ai-visual-research'
+    ),
   });
 })();
