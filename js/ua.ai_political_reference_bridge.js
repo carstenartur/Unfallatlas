@@ -1,80 +1,52 @@
 /**
- * UA.aiPoliticalReferenceBridge
- *
- * `computeExportReport()` exposes user-selected political material in
- * `structured.politicalReferences`, while the server-side AI feature pipeline
- * reads `structured.references`. This small adapter closes that schema gap for
- * AI workflows and also injects an explicit status reference when the portal
- * research was incomplete. It prevents the server AI from interpreting an
- * empty references array as proof that no political proceedings exist.
- *
- * The same report bridge now also adds the statistical methodology contract
- * used by both AI paths. This prevents a model from misreading a comparison of
- * accident-pattern shares as a direct comparison of absolute local and city
- * accident rates.
+ * Bridges political evidence, statistical semantics and an explicit
+ * deterministic-vs-AI value-add contract into both user-owned AI workflows.
  */
 (() => {
   'use strict';
-
-  const root = (typeof window !== 'undefined') ? window : globalThis;
+  const root = typeof window !== 'undefined' ? window : globalThis;
   const UA = (root.UA = root.UA || {});
-  const POLL_INTERVAL_MS = 25;
-  const MAX_INSTALL_ATTEMPTS = 240;
+  const AI_COMPARISON_SCHEMA = 'unfallwerkbank.aiAnalysisComparisonContract.v1';
+  const DIGEST_SCHEMA = 'unfallwerkbank.deterministicAnalysisDigest.v1';
+  const POLL_MS = 25;
+  const MAX_POLLS = 240;
 
-  function runtimeContext(fallback) {
-    return fallback
-      || (typeof UA.getRuntimeContext === 'function' ? UA.getRuntimeContext() : null)
-      || {};
-  }
-
-  function clean(value) {
-    return String(value == null ? '' : value).trim();
-  }
-
-  function finiteNumber(...values) {
-    for (const value of values) {
-      if (value === null || value === undefined || value === '') continue;
-      const number = Number(value);
-      if (Number.isFinite(number)) return number;
-    }
-    return null;
-  }
+  const clean = value => String(value == null ? '' : value).trim();
+  const finite = value => {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+  const context = fallback => fallback
+    || (typeof UA.getRuntimeContext === 'function' ? UA.getRuntimeContext() : null)
+    || {};
 
   function normalizeReference(ref) {
     return {
-      title: clean(ref?.title),
-      type: clean(ref?.type) || 'Sonstige',
-      date: ref?.date || null,
-      gremium: ref?.gremium || null,
-      number: ref?.number || null,
-      url: clean(ref?.url),
-      source: ref?.source || null,
-      referenceType: ref?.referenceType || null,
+      title: clean(ref?.title), type: clean(ref?.type) || 'Sonstige',
+      date: ref?.date || null, gremium: ref?.gremium || null,
+      number: ref?.number || null, url: clean(ref?.url),
+      source: ref?.source || null, referenceType: ref?.referenceType || null,
       reason: ref?.reason || ref?.trafficReason || ref?.aiGating?.reason || null,
       snippet: ref?.snippet || null,
     };
   }
-
   function referenceKey(ref) {
-    const url = clean(ref?.url).toLowerCase();
-    if (url) return `url:${url}`;
-    return `title:${clean(ref?.title).toLowerCase()}|type:${clean(ref?.type).toLowerCase()}`;
+    return clean(ref?.url)
+      ? `url:${clean(ref.url).toLowerCase()}`
+      : `title:${clean(ref?.title).toLowerCase()}|type:${clean(ref?.type).toLowerCase()}`;
   }
-
   function mergeReferences(existing, additions) {
     const out = [];
     const seen = new Set();
-    for (const raw of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(additions) ? additions : [])]) {
+    for (const raw of [...(existing || []), ...(additions || [])]) {
       const ref = normalizeReference(raw);
-      if (!ref.title) continue;
-      const key = referenceKey(ref);
-      if (seen.has(key)) continue;
-      seen.add(key);
+      if (!ref.title || seen.has(referenceKey(ref))) continue;
+      seen.add(referenceKey(ref));
       out.push(ref);
     }
     return out;
   }
-
   function statusReference(state) {
     const status = clean(state?.status) || 'not-searched';
     return {
@@ -83,129 +55,235 @@
       url: clean(state?.officialPortalUrl || state?.portalSearchUrls?.[0]),
       source: state?.providerKey || state?.expectedProviderKey || 'political-context-status',
       referenceType: 'verwandtes Thema',
-      reason: state?.qaInstruction || state?.message || 'Vor Einreichung ist eine nachvollziehbare Recherche in amtlichen Rats- und Informationssystemen erforderlich.',
+      reason: state?.qaInstruction || state?.message
+        || 'Vor Einreichung ist eine nachvollziehbare amtliche Recherche erforderlich.',
       snippet: state?.message || null,
     };
   }
-
   function suitableReferences(state) {
     const refs = Array.isArray(state?.references) ? state.references : [];
-    const predicate = UA.aiPoliticalEvidence?._internal?.isSuitableForAutomaticHandoff;
-    return typeof predicate === 'function' ? refs.filter(predicate) : refs;
+    const allow = UA.aiPoliticalEvidence?._internal?.isSuitableForAutomaticHandoff;
+    return typeof allow === 'function' ? refs.filter(allow) : refs;
   }
 
-  function buildAnalysisMethodology(structured) {
-    const deviations = structured?.deviations || {};
-    const yearlyTrend = structured?.yearlyTrend || {};
-    const totals = Array.isArray(yearlyTrend?.counts?.total)
-      ? yearlyTrend.counts.total.map(Number).filter(Number.isFinite)
-      : [];
-    const mean = totals.length
-      ? totals.reduce((sum, value) => sum + value, 0) / totals.length
-      : null;
-    const slope = finiteNumber(yearlyTrend?.slope);
-    const relativeSlope = slope !== null && mean !== null && mean > 0
-      ? slope / mean
-      : null;
+  function selection() {
+    try {
+      const p = new URL(root.location.href).searchParams;
+      const s = finite(p.get('selSouth')), w = finite(p.get('selWest'));
+      const n = finite(p.get('selNorth')), e = finite(p.get('selEast'));
+      return [s, w, n, e].some(v => v === null) ? null : { south: s, west: w, north: n, east: e };
+    } catch (_) { return null; }
+  }
+  function explicitAreaName(ctx, structured) {
+    const candidates = [ctx?.areaNameOverride, ctx?.confirmedAreaName,
+      structured?.meta?.confirmedAreaName, structured?.meta?.areaNameOverride];
+    try {
+      const fromUrl = new URL(root.location.href).searchParams.get('areaName');
+      if (fromUrl) candidates.unshift(fromUrl);
+    } catch (_) { /* headless */ }
+    return candidates.map(clean).find(Boolean) || null;
+  }
+  function resolveAreaName(ctx, structured) {
+    const explicit = explicitAreaName(ctx, structured);
+    if (explicit) return { name: explicit, quality: 'confirmed', source: 'explicit' };
+    const city = clean(structured?.meta?.city || structured?.meta?.cityRaw || ctx?.CITY_RAW || ctx?.city)
+      || 'der ausgewählten Kommune';
+    const b = selection();
+    return b ? {
+      name: `Markierter Untersuchungsbereich in ${city} (${b.south.toFixed(5)}–${b.north.toFixed(5)}° N; ${b.west.toFixed(5)}–${b.east.toFixed(5)}° E)`,
+      quality: 'neutral-bounds', source: 'selection-bounds'
+    } : { name: `Markierter Untersuchungsbereich in ${city}`, quality: 'neutral', source: 'city-only' };
+  }
+  function correctAreaName(report, ctx) {
+    const structured = report?.structured;
+    if (!structured || typeof structured !== 'object') return report;
+    structured.meta = structured.meta || {};
+    const previous = clean(structured.meta.areaName);
+    if (!previous && !explicitAreaName(ctx, structured) && !selection()) return report;
+    const resolved = resolveAreaName(ctx, structured);
+    structured.meta.areaNameQuality = resolved;
+    if (previous && !explicitAreaName(ctx, structured)) structured.meta.reverseGeocodedMidpointLabel = previous;
+    structured.meta.areaName = resolved.name;
+    if (previous && previous !== resolved.name) {
+      for (const key of ['text', 'html']) {
+        if (typeof report[key] === 'string') report[key] = report[key].split(previous).join(resolved.name);
+      }
+    }
+    return report;
+  }
 
+  function patternRow(row, localTotal, baselineTotal) {
+    const significant = row?.isSignificant === true;
+    return {
+      mask: finite(row?.mask), label: clean(row?.textLabel || row?.label) || null,
+      locCnt: finite(row?.locCnt ?? row?.localCnt ?? row?.localCount),
+      baseCnt: finite(row?.baseCnt ?? row?.baselineCnt ?? row?.baselineCount),
+      localTotal: finite(localTotal), baselineTotal: finite(baselineTotal),
+      locR: finite(row?.locR ?? row?.localShare), baseR: finite(row?.baseR ?? row?.baselineShare),
+      factor: finite(row?.factor), ciLow: finite(row?.ciLow), ciHigh: finite(row?.ciHigh),
+      isSignificant: significant,
+      interpretation: significant ? 'statistically-supported-pattern-overrepresentation' : 'exploratory-pattern-difference',
+    };
+  }
+  function buildDeterministicAnalysisDigest(structured) {
+    const sev = structured?.severity || {}, by = sev.bySev || {};
+    const dev = structured?.deviations || {}, trend = structured?.yearlyTrend || null;
+    const localN = dev?.local?.total, baseN = dev?.baseline?.total;
+    const totals = Array.isArray(trend?.counts?.total) ? trend.counts.total.map(Number) : [];
+    const mean = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : null;
+    return {
+      schemaVersion: DIGEST_SCHEMA, role: 'verified-reproducible-baseline',
+      meta: { city: structured?.meta?.city || structured?.meta?.cityRaw || null,
+        areaName: structured?.meta?.areaName || null, date: structured?.meta?.date || null,
+        link: structured?.meta?.link || null, filters: structured?.meta?.filters || null,
+        involvementMode: structured?.meta?.involvementMode || null },
+      officialAccidentFacts: { total: finite(sev.total), fatal: finite(by['1']),
+        serious: finite(by['2']), slight: finite(by['3']), other: finite(by.other) },
+      patternCompositionComparison: {
+        method: 'locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR',
+        localSampleSize: finite(localN), baselineSampleSize: finite(baseN),
+        focus: (dev.focus || []).map(r => patternRow(r, localN, baseN)),
+        allRows: (dev.rows || []).map(r => patternRow(r, localN, baseN)),
+        scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure.'
+      },
+      yearlyTrend: trend ? { years: trend.years || [], totals, slopePerYear: finite(trend.slope),
+        meanPerYear: mean, relativeSlope: mean > 0 ? finite(trend.slope) / mean : null,
+        r2: finite(trend.r2 ?? trend.rSquared), nYears: finite(trend.nYears),
+        classification: trend.classification || null,
+        method: 'OLS yearly totals in the same area; classification uses slope/mean, R² and minimum years.' } : null,
+      temporalDistribution: structured?.heatmap ? { total: finite(structured.heatmap.total),
+        weekdayTotal: finite(structured.heatmap?.colTotals?.[0]),
+        weekendTotal: finite(structured.heatmap?.colTotals?.[1]),
+        matrix: structured.heatmap.matrix || null } : null,
+      spatialEvidence: { accidentDetailTotal: finite(structured?.accidentDetails?.total),
+        truncated: structured?.accidentDetails?.truncated === true,
+        clusterMaps: structured?.clusterMaps || null,
+        spatialArgumentation: structured?.spatialArgumentation || null },
+      contextEvidence: { poi: structured?.poi || null, osm: structured?.osmContext || null,
+        visual: structured?.visualContextHints || null },
+      politicalResearch: { status: structured?.politicalContextResearch?.status || 'not-bound-to-analysis',
+        references: (structured?.politicalReferences || []).map(normalizeReference) },
+    };
+  }
+  function buildAnalysisMethodology(structured) {
+    const d = buildDeterministicAnalysisDigest(structured), p = d.patternCompositionComparison;
     return {
       schemaVersion: 'unfallwerkbank.analysisMethodology.v1',
       mandatoryInterpretationBeforeQa: [
-        'Der Mustervergleich vergleicht lokale und stadtweite Anteile von Beteiligungskombinationen unter denselben Nicht-Beteiligungsfiltern.',
-        'local.total und baseline.total sind Stichprobenumfänge beziehungsweise Nenner der Anteilsberechnung, nicht direkt verglichene Unfallraten.',
-        'Eine Expositionsnormierung ist für diesen Anteilsvergleich nicht erforderlich; sie ist erst für Aussagen über absolutes Risiko oder Unfallraten je Verkehrsleistung erforderlich.',
-        'Der Mehrjahrestrend beschreibt die relative zeitliche Entwicklung innerhalb desselben Bereichs und wird über relative Steigung und R² klassifiziert.'
+        'Mustervergleich = lokale gegen stadtweite Anteile von Beteiligungskombinationen.',
+        'local.total und baseline.total sind Stichprobenumfänge, keine direkt verglichenen Unfallraten.',
+        'Exposition ist erst für absolute Risiko-/Unfallratenaussagen erforderlich.',
+        'Mehrjahrestrend = relative Entwicklung im selben Bereich über slope/mean und R².'
       ],
-      forbiddenMisinterpretation: 'Die lokalen und stadtweiten Gesamtfallzahlen dürfen nicht als unmittelbarer Flächen-, Straßenlängen- oder Verkehrsleistungs-Risikovergleich dargestellt werden.',
-      patternComparison: {
-        comparisonType: 'composition-share-ratio',
-        localPopulation: 'Unfälle innerhalb der Auswahlgeometrie nach denselben Nicht-Beteiligungsfiltern',
-        referencePopulation: 'stadtweite Unfälle nach denselben Nicht-Beteiligungsfiltern',
-        localSampleSize: finiteNumber(deviations?.local?.total),
-        referenceSampleSize: finiteNumber(deviations?.baseline?.total),
-        formulas: {
-          localShare: 'locR = locCnt / local.total',
-          referenceShare: 'baseR = baseCnt / baseline.total',
-          factor: 'factor = locR / baseR',
-          uncertainty: 'Wilson-Score-Konfidenzintervall (95 %) für den lokalen Anteil',
-          significance: 'isSignificant = true, wenn ciLow > baseR'
-        },
-        interpretation: 'Eine Überrepräsentation betrifft die Zusammensetzung des dokumentierten Unfallgeschehens.',
-        exposureRequirement: 'Keine Exposition für den Anteilvergleich; Exposition nur für absolute Risiko-/Unfallratenaussagen.',
-        precisionNote: 'Die Präzision hängt von den Stichprobenumfängen ab.'
-      },
-      yearlyTrend: {
-        comparisonType: 'within-area-relative-linear-trend',
-        formula: 'relativeSlope = slope / mean(yearly totals)',
-        slope,
-        meanAnnualCount: mean,
-        relativeSlope,
-        r2: finiteNumber(yearlyTrend?.r2, yearlyTrend?.rSquared),
-        nYears: finiteNumber(yearlyTrend?.nYears),
-        classification: yearlyTrend?.classification || null,
-        interpretation: 'Relative zeitliche Entwicklung der dokumentierten Jahreswerte im selben gefilterten Bereich.'
-      }
+      forbiddenMisinterpretation: 'Kein unmittelbarer Flächen-, Straßenlängen- oder Verkehrsleistungs-Risikovergleich.',
+      patternComparison: { comparisonType: 'composition-share-ratio',
+        localSampleSize: p.localSampleSize, referenceSampleSize: p.baselineSampleSize,
+        formulas: { localShare: 'locR = locCnt / local.total',
+          referenceShare: 'baseR = baseCnt / baseline.total', factor: 'factor = locR / baseR',
+          uncertainty: 'Wilson-Score-Konfidenzintervall (95 %)',
+          significance: 'isSignificant = true, wenn ciLow > baseR' },
+        exposureRequirement: 'Keine Exposition für den Anteilvergleich; nur für absolute Unfallraten.' },
+      yearlyTrend: d.yearlyTrend ? { comparisonType: 'within-area-relative-linear-trend',
+        formula: 'relativeSlope = slope / mean(yearly totals)', slope: d.yearlyTrend.slopePerYear,
+        meanAnnualCount: d.yearlyTrend.meanPerYear, relativeSlope: d.yearlyTrend.relativeSlope,
+        r2: d.yearlyTrend.r2, nYears: d.yearlyTrend.nYears,
+        classification: d.yearlyTrend.classification } : null,
     };
   }
-
+  function buildAiValueAddContract(structured) {
+    return {
+      schemaVersion: AI_COMPARISON_SCHEMA,
+      purpose: 'Both analyses must be correct; AI must add traceable decision value rather than rewrite the baseline.',
+      baselineAuthority: 'Preserve official facts and deterministic calculations unless reproducible recalculation proves a mismatch.',
+      mandatoryComparisonColumns: ['deterministic finding', 'AI verification', 'AI-added synthesis/context', 'evidence/source', 'uncertainty/check'],
+      requiredAiAddedValue: [
+        { id: 'cross-layer-synthesis', requirement: 'At least three insights combining at least two evidence layers.' },
+        { id: 'prioritisation', requirement: 'Rank decision-relevant findings and explain urgency.' },
+        { id: 'competing-explanations', requirement: 'Name alternatives and discriminating checks for causal claims.' },
+        { id: 'political-administrative-fit', requirement: 'Research motions, decisions, responses, projects and implementation windows.' },
+        { id: 'measure-decision-matrix', requirement: 'Link evidence, objective, prerequisites, trade-offs, responsibility, time and success indicators.' },
+        { id: 'application-improvement-delta', requirement: 'List confirmed, clarified, added, rejected and unresolved content.' },
+      ],
+      prohibitedShortcuts: [
+        'Merely rewriting or paraphrasing tables.',
+        'Treating pattern composition as an absolute accident-rate comparison.',
+        'Calling non-significant differences statistically proven.',
+        'Inventing crash causes or political proceedings.',
+        'Returning generic measures without evidence and prerequisites.',
+        'Treating failed/empty political search as no prior activity.'
+      ],
+      minimumOutput: { deterministicVsAiComparison: true, prioritisedFindings: 3,
+        crossLayerInsights: 3, competingHypothesesPerCausalClaim: 1,
+        measureDecisionMatrix: true, politicalResearchLog: true,
+        explicitAiDelta: true, filingReadinessVerdict: true },
+      acceptanceRubric: { methodologicalCorrectness: 30, preservationOfOfficialEvidence: 15,
+        additionalSynthesis: 15, politicalAndAdministrativeContext: 15,
+        measureSpecificityAndTradeoffs: 15, sourceTraceability: 10, passScore: 80,
+        automaticFailure: ['methodology misrepresented',
+          'official facts altered without reproducible evidence',
+          'no substantive added value beyond paraphrase', 'invented source'] },
+      deterministicDigest: buildDeterministicAnalysisDigest(structured),
+    };
+  }
+  function enrichFactsPackage(facts) {
+    if (!facts || typeof facts !== 'object') return facts;
+    const structured = facts.structured || {};
+    const methodology = structured.analysisMethodology || buildAnalysisMethodology(structured);
+    const contract = buildAiValueAddContract(structured);
+    const instruction = [
+      '', 'VERBINDLICHER VERGLEICHS- UND MEHRWERTAUFTRAG:',
+      'Stelle deterministische und KI-Analyse gegenüber; bestätige zuerst Fakten und Methodik.',
+      'Liefere mindestens drei quellengebundene Synthesen aus mehreren Evidenzschichten.',
+      'Priorisiere; nenne Gegenhypothesen, Prüfbedarf, Voraussetzungen, Zielkonflikte und Erfolgskriterien.',
+      'Recherchiere politische/administrative Vorbefassung und vermeide Doppelanträge.',
+      'Schließe mit: bestätigt | präzisiert | ergänzt | verworfen | offen.',
+      `Vertrag: ${AI_COMPARISON_SCHEMA}`
+    ].join('\n');
+    return { ...facts,
+      intendedUse: 'Vergleich mit einer methodentreuen, nachweisbar höherwertigen KI-Aufbereitung',
+      analysisMethodology: methodology,
+      methodologyQaGate: { required: 'Methodenvertrag vor statistischer Kritik korrekt wiedergeben.',
+        rejectIf: 'Musteranteilsvergleich wird als absolute Unfallrate fehlinterpretiert.' },
+      deterministicAnalysisDigest: contract.deterministicDigest,
+      aiAnalysisComparisonContract: contract,
+      deterministicReportText: `${clean(facts.deterministicReportText)}${instruction}` };
+  }
   function bridgeFactsPackage() {
     const internal = UA.aiProposal?._internal;
     if (!internal || typeof internal.buildExternalAiFactsPackage !== 'function') return false;
-    if (internal.buildExternalAiFactsPackage._uaMethodologyContractWrapped) return true;
-
+    if (internal.buildExternalAiFactsPackage._uaAnalysisComparisonWrapped) return true;
     const original = internal.buildExternalAiFactsPackage;
-    const wrapped = function buildFactsWithMethodology(input) {
-      const facts = original.call(this, input);
-      const structured = input?.structured || facts?.structured;
-      const methodology = structured?.analysisMethodology || buildAnalysisMethodology(structured);
-      if (facts && typeof facts === 'object') {
-        facts.analysisMethodology = methodology;
-        facts.methodologyQaGate = {
-          required: 'Vor jeder statistischen Kritik muss die KI den Methodenvertrag korrekt wiedergeben.',
-          rejectIf: 'Die KI behandelt den Musteranteilsvergleich als direkten Vergleich absoluter Unfallraten oder verlangt dafür pauschal einen Expositionsnenner.'
-        };
-      }
-      return facts;
-    };
+    const wrapped = input => enrichFactsPackage(original.call(internal, input));
+    wrapped._uaAnalysisComparisonWrapped = true;
     wrapped._uaMethodologyContractWrapped = true;
     wrapped._uaOriginal = original;
     internal.buildExternalAiFactsPackage = wrapped;
     return true;
   }
-
   function bridgeReport(report, ctxValue) {
-    const ctx = runtimeContext(ctxValue);
-    // Only touch reports for which an AI workflow explicitly started or
-    // recorded political research. Normal technical exports remain unchanged.
-    if (!ctx.__uaPoliticalResearchPromise && !ctx.politicalContextResearch) return report;
-    const structured = report?.structured;
+    const ctx = context(ctxValue), structured = report?.structured;
     if (!structured || typeof structured !== 'object') return report;
-
-    structured.analysisMethodology = buildAnalysisMethodology(structured);
-
+    correctAreaName(report, ctx);
+    if (!ctx.__uaPoliticalResearchPromise && !ctx.politicalContextResearch) return report;
     const state = UA.aiPoliticalEvidence.currentState(ctx);
     structured.politicalContextResearch = state;
-
     if (state.status === 'results-found') {
       const refs = suitableReferences(state);
       structured.politicalReferences = mergeReferences(structured.politicalReferences, refs);
       structured.references = mergeReferences(structured.references, refs);
-    } else {
-      structured.references = mergeReferences(structured.references, [statusReference(state)]);
-    }
+    } else structured.references = mergeReferences(structured.references, [statusReference(state)]);
+    structured.analysisMethodology = buildAnalysisMethodology(structured);
+    structured.deterministicAnalysisDigest = buildDeterministicAnalysisDigest(structured);
+    structured.aiAnalysisComparisonContract = buildAiValueAddContract(structured);
     return report;
   }
-
   function install() {
     bridgeFactsPackage();
-    if (!UA.aiPoliticalEvidence || typeof UA.aiPoliticalEvidence.currentState !== 'function') return false;
-    if (typeof UA.computeExportReport !== 'function') return false;
+    if (!UA.aiPoliticalEvidence?.currentState || typeof UA.computeExportReport !== 'function') return false;
     if (UA.computeExportReport._uaPoliticalReferenceBridgeWrapped) return true;
-
     const original = UA.computeExportReport;
-    const wrapped = async function computeWithPoliticalReferenceBridge(ctxValue, ...args) {
-      const report = await original.call(this, ctxValue, ...args);
-      return bridgeReport(report, ctxValue);
+    const wrapped = async function wrappedCompute(ctx, ...args) {
+      return bridgeReport(await original.call(this, ctx, ...args), ctx);
     };
     wrapped._uaPoliticalReferenceBridgeWrapped = true;
     wrapped._uaOriginal = original;
@@ -215,28 +293,17 @@
   }
 
   UA.aiPoliticalReferenceBridge = Object.freeze({
-    install,
-    bridgeReport,
-    buildAnalysisMethodology,
-    _internal: Object.freeze({
-      clean,
-      finiteNumber,
-      normalizeReference,
-      referenceKey,
-      mergeReferences,
-      statusReference,
-      suitableReferences,
-      runtimeContext,
-      bridgeFactsPackage,
-    }),
+    AI_COMPARISON_SCHEMA, DETERMINISTIC_DIGEST_SCHEMA: DIGEST_SCHEMA,
+    install, bridgeReport, buildAnalysisMethodology,
+    buildDeterministicAnalysisDigest, buildAiValueAddContract, enrichFactsPackage,
+    _internal: Object.freeze({ clean, finite, context, normalizeReference, referenceKey,
+      mergeReferences, statusReference, suitableReferences, selection,
+      explicitAreaName, resolveAreaName, correctAreaName, patternRow, bridgeFactsPackage })
   });
-
-  let attempts = 0;
-  const installWhenReady = () => {
+  let polls = 0;
+  const retry = () => {
     if (install()) return;
-    if (attempts++ < MAX_INSTALL_ATTEMPTS && typeof root.setTimeout === 'function') {
-      root.setTimeout(installWhenReady, POLL_INTERVAL_MS);
-    }
+    if (polls++ < MAX_POLLS && typeof root.setTimeout === 'function') root.setTimeout(retry, POLL_MS);
   };
-  installWhenReady();
+  retry();
 })();
