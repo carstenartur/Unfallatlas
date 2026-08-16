@@ -75,19 +75,19 @@ describe('#E1 — buildPrompt renders new sections', () => {
     expect(user).toContain('Ø Fahrbahnbreite: 7.5 m');
   });
 
-  test('appends the regression-classification line when yearlyTrend is present (real `r2` field)', () => {
+  test('appends the canonical regression-classification line when yearlyTrend is present (real `r2` field)', () => {
     const { user } = buildPrompt(aiInput({
       yearlyTrend: { classification: 'steigend', slope: 1.0, r2: 0.99, nYears: 5, mean: 10, firstYear: 2018, lastYear: 2022 }
     }), 'assessment');
-    expect(user).toMatch(/Klassifikation \(lineare Regression\): steigend/);
-    expect(user).toMatch(/R²=0\.99/);
+    expect(user).toMatch(/Kanonische Klassifikation \(lineare Regression im selben Bereich\): steigend/);
+    expect(user).toMatch(/R²=0,99/);
   });
 
-  test('also accepts the legacy `rSquared` alias', () => {
+  test('also accepts the legacy `rSquared` alias and renders German decimal notation', () => {
     const { user } = buildPrompt(aiInput({
       yearlyTrend: { classification: 'steigend', slope: 1.0, rSquared: 0.42, nYears: 5, mean: 10 }
     }), 'assessment');
-    expect(user).toMatch(/R²=0\.42/);
+    expect(user).toMatch(/R²=0,42/);
   });
 
   test('does NOT add the OSM section when osmContext.summary is missing (e.g. error stub)', () => {
@@ -97,11 +97,11 @@ describe('#E1 — buildPrompt renders new sections', () => {
     expect(user).not.toContain('=== OSM-KONTEXT ===');
   });
 
-  test('does NOT add the regression line when yearlyTrend.classification is "unbestimmt"', () => {
+  test('does NOT add the canonical regression line when yearlyTrend.classification is "unbestimmt"', () => {
     const { user } = buildPrompt(aiInput({
       yearlyTrend: { classification: 'unbestimmt', slope: 0, r2: 0, nYears: 1 }
     }), 'assessment');
-    expect(user).not.toMatch(/Klassifikation \(lineare Regression\)/);
+    expect(user).not.toMatch(/Kanonische Klassifikation \(lineare Regression im selben Bereich\)/);
   });
 
   test('renders visual orthophoto hint section with non-causal wording', () => {
