@@ -19,8 +19,9 @@ Das ist notwendige Darstellungs-QA, aber noch keine fachliche Bildanalyse. Eine 
 2. potenziell relevante Stellen in Übersicht und Detailzoom zu prüfen;
 3. sichtbare Infrastrukturmerkmale genau zu lokalisieren;
 4. ihre räumliche Beziehung zu Unfallpunkten und Teilclustern zu beschreiben;
-5. Beobachtung, Hypothese und extern bestätigten Kontext zu trennen;
-6. nicht sicher erkennbare Details als `nicht beurteilbar` zu kennzeichnen, statt sie zu erraten.
+5. Unfallpunkte nach Beteiligungskonstellation zu trennen, insbesondere Fahrradalleinunfälle als eigenes Teilkollektiv;
+6. räumliche Assoziation, mechanistische Plausibilität und bestätigte Ursache getrennt auszuweisen;
+7. nicht sicher erkennbare Details als `nicht beurteilbar` zu kennzeichnen, statt sie zu erraten.
 
 ## 2. Fachliche Prüfkategorien für die Kartenlektüre
 
@@ -34,6 +35,29 @@ Zu unterscheiden sind:
 - räumliche Zwänge, Kurven oder Verschwenkungen unmittelbar vor der Schienenquerung.
 
 Eine sichtbare Bahntrasse ist nicht automatisch eine Schienensturzgefahr. Die KI muss zeigen, dass die Schiene tatsächlich in einer befahrbaren oder zu querenden Linie liegt.
+
+Umgekehrt darf diese Vorsichtsregel nicht dazu führen, einen sichtbaren Zusammenhang zu unterdrücken. Liegen mehrere eindeutig als Fahrradalleinunfälle identifizierte Punkte auf, unmittelbar an oder in der Anfahrts-/Querungszone derselben befahrbaren Schiene, ist dies ein eigenständiger, priorisierungsrelevanter Befund. Die KI muss dann mindestens prüfen:
+
+- Abstand beziehungsweise Überlagerung jedes relevanten Unfallpunkts zur Schienenachse;
+- Verlauf der plausiblen Radfahrlinie;
+- Parallelfahrt oder Querung und den erkennbaren Querungswinkel;
+- Kurven, Weichen, Verschwenkungen, Führungssprünge und mögliche Ausweichbewegungen;
+- zeitliche Wiederholung und räumliche Konzentration;
+- alternative Erklärungen wie Bordkante, Oberfläche, Sicht, Konflikt mit anderen Verkehrsteilnehmern oder ungenaue Punktkoordinate.
+
+Die zulässige Aussage ist damit nicht nur „Schienen könnten relevant sein“, sondern beispielsweise:
+
+> Mehrere Fahrradalleinunfälle liegen räumlich an derselben befahrbaren Schienenführung. Der Kartenbefund begründet eine starke Schienen-/Querungs- beziehungsweise Ausweichhypothese. Eine abschließende Zuordnung jedes Einzelfalls erfordert ergänzende Unfallbeschreibungen oder Vor-Ort-Evidenz.
+
+Das ist eine belastbare räumliche und mechanistische Zusammenhangsaussage, auch wenn die individuelle Unfallursache noch nicht abschließend bestätigt ist.
+
+#### Hannover-Regressionsfall
+
+Der vom Nutzer benannte Kartenstand für Hannover ist als konkreter Regressionstest zu behandeln:
+
+`https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.390890&centerLon=9.719360&zoom=18&ctxOnlyMatched=0&selSouth=52.391039&selWest=9.719754&selNorth=52.391964&selEast=9.720945&export=1`
+
+Der Kartenstand verwendet einen breiten `OR`-Filter für Rad-, Fuß- und Pkw-Beteiligung. Die KI darf deshalb nicht allein aus der Gesamtansicht schließen, jeder sichtbare Punkt sei ein Fahrradalleinunfall. Sie muss die Einzelpunktattribute beziehungsweise ein daraus gebildetes Teilkollektiv prüfen. Sobald mehrere Punkte tatsächlich als Fahrradalleinunfälle identifiziert sind und räumlich der sichtbaren Schienenführung folgen, muss der Schienenzusammenhang ausdrücklich bewertet und priorisiert werden. Ein Ergebnis, das diese Koinzidenz nur wegen des noch ausstehenden Kausalnachweises verschweigt, ist fachlich unzureichend.
 
 ### 2.2 Kurven, Verschwenkungen und Abbiegeradien
 
@@ -135,6 +159,7 @@ Die KI sollte den Korridor daher mindestens segmentieren in:
 - Ein Bericht darf nur nach räumlichem und sachlichem Abgleich dem Untersuchungsraum zugeordnet werden.
 - Ereignisse mit Bus/Fuß oder Rad/Fuß dürfen nicht in die Zahl der 37 Rad-Pkw-Unfälle eingerechnet werden.
 - Ein möglicher Mechanismus eines Einzelfalls ist keine Ursache für die gesamte statistische Häufung.
+- Eine wiederholte räumliche Koinzidenz darf dennoch als eigenständiger, priorisierungsrelevanter Zusammenhang und Mechanismushypothese ausgegeben werden.
 - Aktuelle Infrastruktur kann vom Zustand zum Unfallzeitpunkt und vom Befliegungsstand des Orthofotos abweichen.
 
 ## 7. Umgesetzter Produktvertrag
@@ -144,12 +169,15 @@ PR #620 erhält zusätzlich:
 - `unfallwerkbank.visualSceneAnalysis.v1`
   - mehrere gebundene Kartenansichten;
   - Pflichtprüfung von Schienen, Kurven, Kreuzungen, Haltestellen, Radführungswechseln, Sicht und Oberfläche;
-  - Beobachtungsschema mit Lage, Ansicht/Zoom, Unfallbezug, Konfidenz, Gegenhypothese und Verifikation;
-  - automatische Ablehnung bei bloßer Karten-Lesbarkeitsprüfung oder geratenen Oberflächenmerkmalen;
+  - gesonderte Teilkollektivprüfung für Fahrradalleinunfälle;
+  - zwingende Schienenhypothese bei mehreren Fahrradalleinunfällen an derselben befahrbaren Schiene;
+  - Beobachtungsschema mit Lage, Ansicht/Zoom, Teilkollektiv, Nähe/Überlagerung, Mechanismushypothese, Kausalstatus, Konfidenz, Gegenhypothese und Verifikation;
+  - Kausalstatus `spatial-association`, `mechanism-plausible`, `externally-corroborated`, `causally-confirmed` oder `not-assessable`;
+  - automatische Ablehnung bei bloßer Karten-Lesbarkeitsprüfung, ignorierter Schienenkoinzidenz oder geratenen Oberflächenmerkmalen;
 
 - `unfallwerkbank.accidentBackgroundResearch.v1`
   - Primärquellen-Priorität;
-  - dokumentierter Suchplan;
+  - dokumentierter Suchplan einschließlich Fahrradalleinunfall-/Schienenmechanismen;
   - räumliche Klassen `inside-selection`, `immediate-adjacency`, `citywide-analogue`, `unknown-or-unrelated`;
   - Ereignistabelle und Nulltrefferprotokoll;
   - Verbot, einen Einzelfall als Erklärung des Gesamtmusters auszugeben.
