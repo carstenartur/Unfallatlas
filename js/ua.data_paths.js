@@ -288,5 +288,13 @@
       'js/ua.ai_visual_research_ui.js?v=2026-08-16',
       'data-ua-ai-visual-research-ui'
     ),
+    // Discovery filters identify high-value patterns, but filing evidence must
+    // cover every published personal-injury accident inside the selected area.
+    // Load after the pattern and AI adapters so it can bind one canonical
+    // numbered A### cohort into report, map, appendix and both AI stages.
+    evidenceCohort: injectOptionalModuleAfterDomReady(
+      'js/ua.evidence_cohort.js?v=2026-08-16',
+      'data-ua-evidence-cohort'
+    ),
   });
 })();
