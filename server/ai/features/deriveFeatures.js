@@ -57,9 +57,18 @@ function deriveFeatures(structured, contextHints) {
   const involvement = computeInvolvementShares(cross, total);
 
   // ── Dominantes Beteiligungsmuster aus deviations + crossTable ───────────────
+  // Wichtig: `topDeviations()` liefert in Produktion locCnt/baseCnt/locR/baseR/
+  // factor/ciLow/ciHigh/isSignificant. Frühere Test-Fixtures verwendeten davon
+  // abweichende Aliasnamen. Die Ableitung akzeptiert beide, bewahrt aber die
+  // tatsächlichen Produktionsfelder vollständig für Prompt und QA.
   const dominantPatterns = pickDominantPatterns(dev, cross);
 
-  // ── Trend über Jahre (linear: simpler change between first/last) ────────────
+  // ── Methodikvertrag für KI-Pfade ─────────────────────────────────────────────
+  const analysisMethodology = buildAnalysisMethodology(dev, structured?.yearlyTrend);
+
+  // ── Trend über Jahre (Fallback: Vergleich erste/zweite Hälfte) ───────────────
+  // Die kanonische Trendanalyse ist `structured.yearlyTrend` aus js/ua.trend.js.
+  // Dieser einfache Fallback bleibt für ältere Inputs erhalten.
   const trend = computeYearTrend(yr);
 
   // ── Räumliche Verdichtung: Hinweis aus accidentDetails (sehr einfach) ───────
@@ -119,6 +128,7 @@ function deriveFeatures(structured, contextHints) {
     ksiShare,
     involvement,
     dominantPatterns,
+    analysisMethodology,
     trend,
     spatialDensity,
     tags: Array.from(tags),
@@ -185,35 +195,135 @@ function computeInvolvementShares(cross, total) {
 
 function pickDominantPatterns(dev, cross) {
   const out = [];
-  // From deviations.focus (positive relative deviation = local overrepresentation)
+  const localSampleSize = finiteNumber(dev?.local?.total);
+  const baselineSampleSize = finiteNumber(dev?.baseline?.total);
+
+  // From deviations.focus (positive share ratio = local overrepresentation).
   const focus = Array.isArray(dev?.focus) ? dev.focus : [];
   const sorted = focus
-    .map(d => ({
-      label:        d.label || String(d.mask || ''),
-      mask:         Number(d.mask || 0),
-      relativeDiff: Number(d.relativeDiff ?? d.relDiff ?? 0),
-      localCount:   Number(d.localCount ?? d.localCnt ?? 0)
-    }))
+    .map(d => {
+      const localCount = finiteNumber(d?.locCnt, d?.localCount, d?.localCnt) ?? 0;
+      const baselineCount = finiteNumber(d?.baseCnt, d?.baselineCount, d?.baseCount);
+      const localShare = finiteNumber(d?.locR, d?.localShare);
+      const baselineShare = finiteNumber(d?.baseR, d?.baselineShare);
+      const factor = finiteNumber(d?.factor);
+      const explicitRelativeDiff = finiteNumber(d?.relativeDiff, d?.relDiff);
+      const relativeDiff = explicitRelativeDiff !== null
+        ? explicitRelativeDiff
+        : (factor !== null ? factor - 1 : null);
+      return {
+        label: d?.textLabel || d?.label || String(d?.mask || ''),
+        mask: Number(d?.mask || 0),
+        localCount,
+        baselineCount,
+        localShare,
+        baselineShare,
+        factor,
+        relativeDiff,
+        ciLow: finiteNumber(d?.ciLow),
+        ciHigh: finiteNumber(d?.ciHigh),
+        isSignificant: d?.isSignificant === true,
+        localSampleSize,
+        baselineSampleSize,
+        comparisonAvailable: localShare !== null && baselineShare !== null,
+        source: 'deviations.focus'
+      };
+    })
     .filter(d => d.localCount > 0)
-    .sort((a, b) => b.relativeDiff - a.relativeDiff);
+    .sort((a, b) => {
+      const af = a.factor ?? (a.relativeDiff !== null ? a.relativeDiff + 1 : -Infinity);
+      const bf = b.factor ?? (b.relativeDiff !== null ? b.relativeDiff + 1 : -Infinity);
+      return bf - af;
+    });
 
   for (const d of sorted.slice(0, 5)) {
     out.push({
-      label: d.label,
-      mask: d.mask,
-      relativeDiff: round2(d.relativeDiff),
-      localCount: d.localCount
+      ...d,
+      relativeDiff: d.relativeDiff === null ? null : round4(d.relativeDiff),
+      localShare: d.localShare === null ? null : round4(d.localShare),
+      baselineShare: d.baselineShare === null ? null : round4(d.baselineShare),
+      factor: d.factor === null ? null : round4(d.factor),
+      ciLow: d.ciLow === null ? null : round4(d.ciLow),
+      ciHigh: d.ciHigh === null ? null : round4(d.ciHigh)
     });
   }
 
-  // Also include top crossTable rows by total (if no deviations available)
+  // Also include top crossTable rows by total (if no deviations available).
+  // Diese Zeilen sind keine Lokal-vs.-Referenz-Auffälligkeiten und werden
+  // ausdrücklich als bloße lokale Häufigkeitsrangfolge markiert.
   if (out.length === 0 && cross && Array.isArray(cross.rows)) {
     const top = [...cross.rows].sort((a, b) => (b.total || 0) - (a.total || 0)).slice(0, 3);
     for (const r of top) {
-      out.push({ label: r.label, mask: Number(r.mask || 0), localCount: Number(r.total || 0) });
+      out.push({
+        label: r.textLabel || r.label,
+        mask: Number(r.mask || 0),
+        localCount: Number(r.total || 0),
+        baselineCount: null,
+        localShare: null,
+        baselineShare: null,
+        factor: null,
+        relativeDiff: null,
+        ciLow: null,
+        ciHigh: null,
+        isSignificant: false,
+        localSampleSize: localSampleSize ?? Number(cross?.totals?.total || 0),
+        baselineSampleSize,
+        comparisonAvailable: false,
+        source: 'crossTable-fallback'
+      });
     }
   }
   return out;
+}
+
+function buildAnalysisMethodology(dev, yearlyTrend) {
+  const localTotal = finiteNumber(dev?.local?.total);
+  const baselineTotal = finiteNumber(dev?.baseline?.total);
+  const totals = Array.isArray(yearlyTrend?.counts?.total)
+    ? yearlyTrend.counts.total.map(Number).filter(Number.isFinite)
+    : [];
+  const mean = totals.length
+    ? totals.reduce((sum, value) => sum + value, 0) / totals.length
+    : null;
+  const slope = finiteNumber(yearlyTrend?.slope);
+  const relativeSlope = slope !== null && mean !== null && mean > 0
+    ? slope / mean
+    : null;
+
+  return {
+    schemaVersion: 'unfallwerkbank.analysisMethodology.v1',
+    patternComparison: {
+      question: 'Ist eine Beteiligungskombination innerhalb der gefilterten lokalen Unfälle anteilig häufiger als in der stadtweiten Referenzpopulation?',
+      comparisonType: 'composition-share-ratio',
+      localPopulation: 'Unfälle innerhalb der Auswahlgeometrie nach denselben Nicht-Beteiligungsfiltern',
+      referencePopulation: 'stadtweite Unfälle nach denselben Nicht-Beteiligungsfiltern',
+      localSampleSize: localTotal,
+      referenceSampleSize: baselineTotal,
+      formulas: {
+        localShare: 'locR = locCnt / local.total',
+        referenceShare: 'baseR = baseCnt / baseline.total',
+        factor: 'factor = locR / baseR',
+        uncertainty: 'Wilson-Score-Konfidenzintervall (95 %) für den lokalen Anteil',
+        significance: 'isSignificant = true, wenn ciLow > baseR'
+      },
+      interpretation: 'Eine Überrepräsentation beschreibt die Zusammensetzung des dokumentierten Unfallgeschehens, nicht eine absolute Unfallrate unterschiedlich großer Räume.',
+      exposureRequirement: 'Für diesen Anteilsvergleich ist keine Normierung nach Fläche, Straßenlänge oder Verkehrsleistung erforderlich. Expositionsdaten sind erst für Aussagen über absolutes Unfallrisiko beziehungsweise Unfallraten je Verkehrsleistung erforderlich.',
+      precisionNote: 'Die statistische Präzision hängt von den lokalen und stadtweiten Stichprobenumfängen ab.'
+    },
+    yearlyTrend: {
+      question: 'Wie entwickeln sich die dokumentierten jährlichen Unfallzahlen innerhalb desselben gefilterten Auswahlbereichs?',
+      comparisonType: 'within-area-relative-linear-trend',
+      formula: 'relativeSlope = slope / mean(yearly totals)',
+      slope,
+      meanAnnualCount: mean === null ? null : round4(mean),
+      relativeSlope: relativeSlope === null ? null : round4(relativeSlope),
+      r2: finiteNumber(yearlyTrend?.r2, yearlyTrend?.rSquared),
+      nYears: finiteNumber(yearlyTrend?.nYears),
+      classification: yearlyTrend?.classification || null,
+      interpretation: 'Die Klassifikation bewertet die relative zeitliche Entwicklung im selben Bereich. Eine gemeinsame Skalierung aller Jahreswerte ändert relative Steigung und R² nicht.',
+      exposureRequirement: 'Verkehrsaufkommen ist für die deskriptive Entwicklung der dokumentierten Fallzahlen kein Nenner; für eine Aussage über die Entwicklung des Risikos je Verkehrsleistung wäre es ergänzend erforderlich.'
+    }
+  };
 }
 
 function computeYearTrend(yearTable) {
@@ -318,23 +428,43 @@ function mergeKeys(a, b) {
   return set;
 }
 
+function finiteNumber(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
 function round2(x) {
   if (!Number.isFinite(x)) return 0;
   return Math.round(x * 100) / 100;
 }
 
-module.exports = { deriveFeatures, normalizeContextHints };
+function round4(x) {
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 10000) / 10000;
+}
+
+module.exports = {
+  deriveFeatures,
+  normalizeContextHints,
+  pickDominantPatterns,
+  buildAnalysisMethodology
+};
 
 /**
  * @typedef {object} DerivedFeatures
  * @property {object} counts
  * @property {number} ksiShare
  * @property {object} involvement
- * @property {Array}  dominantPatterns
+ * @property {Array} dominantPatterns
+ * @property {object} analysisMethodology
  * @property {object} trend
  * @property {object} spatialDensity
  * @property {string[]} tags
  * @property {object} normalizedHints
  * @property {object|null} poiSummary
- * @property {Array}  references
+ * @property {Array} references
  */
