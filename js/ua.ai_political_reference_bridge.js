@@ -147,7 +147,7 @@
         scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure.'
       },
       yearlyTrend: trend ? { years: trend.years || [], totals, slopePerYear: finite(trend.slope),
-        meanPerYear: mean, relativeSlope: mean > 0 ? finite(trend.slope) / mean : null,
+        meanPerYear: mean, relativeSlope: mean > 0 && finite(trend.slope) !== null ? finite(trend.slope) / mean : null,
         r2: finite(trend.r2 ?? trend.rSquared), nYears: finite(trend.nYears),
         classification: trend.classification || null,
         method: 'OLS yearly totals in the same area; classification uses slope/mean, R² and minimum years.' } : null,
@@ -175,7 +175,7 @@
         'Exposition ist erst für absolute Risiko-/Unfallratenaussagen erforderlich.',
         'Mehrjahrestrend = relative Entwicklung im selben Bereich über slope/mean und R².'
       ],
-      forbiddenMisinterpretation: 'Kein unmittelbarer Flächen-, Straßenlängen- oder Verkehrsleistungs-Risikovergleich.',
+      forbiddenMisinterpretation: 'Die Stichprobenumfänge dürfen nicht als direkter Vergleich absoluter Unfallraten, Flächen-, Straßenlängen- oder Verkehrsleistungsrisiken ausgegeben werden.',
       patternComparison: { comparisonType: 'composition-share-ratio',
         localSampleSize: p.localSampleSize, referenceSampleSize: p.baselineSampleSize,
         formulas: { localShare: 'locR = locCnt / local.total',
@@ -242,8 +242,8 @@
     return { ...facts,
       intendedUse: 'Vergleich mit einer methodentreuen, nachweisbar höherwertigen KI-Aufbereitung',
       analysisMethodology: methodology,
-      methodologyQaGate: { required: 'Methodenvertrag vor statistischer Kritik korrekt wiedergeben.',
-        rejectIf: 'Musteranteilsvergleich wird als absolute Unfallrate fehlinterpretiert.' },
+      methodologyQaGate: { required: 'Vor jeder statistischen Kritik muss die KI den Methodenvertrag korrekt wiedergeben.',
+        rejectIf: 'Die KI behandelt den Musteranteilsvergleich als direkten Vergleich absoluter Unfallraten oder verlangt dafür pauschal einen Expositionsnenner.' },
       deterministicAnalysisDigest: contract.deterministicDigest,
       aiAnalysisComparisonContract: contract,
       deterministicReportText: `${clean(facts.deterministicReportText)}${instruction}` };
