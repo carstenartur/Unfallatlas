@@ -39,12 +39,17 @@ describe('kommunalpolitische Antragstemplates – Evidenzsprache', () => {
     expect(resolution).toMatch(/Konflikt-, Geschwindigkeits- und Verkehrsdaten/i);
   });
 
-  test('absolute Lokal- und Stadtfallzahlen werden nicht ohne geeigneten Nenner als Überrepräsentation verkauft', () => {
+  test('Mustervergleich und Mehrjahrestrend werden entsprechend der implementierten Statistik beschrieben', () => {
     const facts = readTemplate('sachverhalt.txt');
 
     expect(facts).toMatch(/amtlich dokumentierte Unfälle mit Personenschaden/i);
-    expect(facts).toMatch(/absoluten Fallzahlen unterschiedlich großer Räume folgt für sich allein noch keine lokale Überrepräsentation/i);
-    expect(facts).toMatch(/geeignete Bezugsgröße und statistische Einordnung/i);
+    expect(facts).toMatch(/nicht die absoluten Fallzahlen.*als Unfallrate/is);
+    expect(facts).toMatch(/Anteile der Beteiligungskombinationen.*stadtweiten Referenzpopulation/is);
+    expect(facts).toMatch(/lokaler Anteil.*Referenzanteil.*Verhältnis.*statistische Unsicherheit/is);
+    expect(facts).toMatch(/Überrepräsentation.*Musterzusammensetzung/is);
+    expect(facts).toMatch(/absoluten Unfallrisiko je Verkehrsleistung.*Expositionsdaten/is);
+    expect(facts).toMatch(/Mehrjahrestrend.*desselben Auswahlbereichs/is);
+    expect(facts).toMatch(/relative Steigung.*Mittelwert.*Güte der linearen Anpassung/is);
   });
 
   test('politische Vorbefassung ist eine ausdrückliche Anlage und kein stiller optionaler Nebenpfad', () => {
