@@ -38,6 +38,10 @@ function baseFacts() {
   };
 }
 
+function hannoverRailUrl() {
+  return 'https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.390890&centerLon=9.719360&zoom=18&ctxOnlyMatched=0&selSouth=52.391039&selWest=9.719754&selNorth=52.391964&selEast=9.720945&export=1';
+}
+
 describe('UA.aiVisualResearch – semantic scene and incident research contracts', () => {
   afterEach(() => {
     delete window.UA;
@@ -66,7 +70,7 @@ describe('UA.aiVisualResearch – semantic scene and incident research contracts
     expect(new URL(views[3].url).searchParams.get('showHeatmap')).toBe('1');
   });
 
-  test('requires rails, curves, multimodal crossings and conservative surface language', () => {
+  test('requires rails, curves, multimodal crossings and explicit bike-solo rail association', () => {
     const api = loadModule();
     const contract = api.buildVisualSceneAnalysisContract(
       api.buildInspectionViews(baseFacts().mapUrl)
@@ -83,8 +87,46 @@ describe('UA.aiVisualResearch – semantic scene and incident research contracts
     ]));
     expect(text).toMatch(/Hauptbahntrasse.*nicht automatisch.*Schienensturzgefahr/i);
     expect(text).toMatch(/Kopfsteinpflaster.*zweite Quelle.*nicht sicher beurteilbar/i);
+    expect(text).toMatch(/Fahrradalleinunfälle.*befahrbaren Schiene.*Schienenhypothese/i);
+    expect(contract.observationSchema.requiredFields).toEqual(expect.arrayContaining([
+      'accidentSubset',
+      'proximityOrOverlap',
+      'mechanismHypothesis',
+      'causalStatus',
+    ]));
+    expect(contract.observationSchema.causalStatusValues).toEqual(expect.arrayContaining([
+      'spatial-association',
+      'mechanism-plausible',
+      'causally-confirmed',
+    ]));
     expect(contract.minimumOutput.openedMapModes).toBeGreaterThanOrEqual(3);
+    expect(contract.minimumOutput.requiredWhenPresent)
+      .toContain('bike-solo-near-rideable-rail');
+    expect(contract.automaticFailure.join(' '))
+      .toMatch(/Fahrradalleinunfälle.*befahrbaren Schiene.*Zusammenhangsprüfung/i);
     expect(contract.automaticFailure.join(' ')).toMatch(/Bildbeobachtung.*Unfallursache/i);
+  });
+
+  test('preserves the Hannover rail selection and makes the bike-solo mechanism check mandatory when present', () => {
+    const api = loadModule();
+    const views = api.buildInspectionViews(hannoverRailUrl());
+    const contract = api.buildVisualSceneAnalysisContract(views);
+
+    for (const view of views) {
+      const url = new URL(view.url);
+      expect(url.searchParams.get('city')).toBe('Hannover');
+      expect(url.searchParams.get('involvementMode')).toBe('or');
+      expect(url.searchParams.get('selSouth')).toBe('52.391039');
+      expect(url.searchParams.get('selWest')).toBe('9.719754');
+      expect(url.searchParams.get('selNorth')).toBe('52.391964');
+      expect(url.searchParams.get('selEast')).toBe('9.720945');
+      expect(url.searchParams.get('zoom')).toBe('18');
+      expect(url.searchParams.has('export')).toBe(false);
+    }
+    expect(JSON.stringify(contract.requiredProcedure))
+      .toMatch(/Fahrradalleinunfälle.*Schienen.*prüfen/i);
+    expect(JSON.stringify(contract.interpretationRules))
+      .toMatch(/räumliche Assoziation.*mechanistische Plausibilität.*zusätzliche Evidenz/i);
   });
 
   test('prioritises official crash reports and separates exact, adjacent and analogue events', () => {
@@ -103,6 +145,7 @@ describe('UA.aiVisualResearch – semantic scene and incident research contracts
       area: 'Bonn Hauptbahnhof',
       involvement: 'Radverkehr UND Pkw',
     });
+    expect(contract.searchSeeds.featureTerms).toContain('Fahrradalleinunfall');
     expect(contract.interpretationRules.join(' '))
       .toMatch(/Ein einzelner Pressebericht.*keine Ursache für die gesamte Häufung/i);
     expect(contract.minimumOutput.noHitLog).toBe(true);
@@ -117,11 +160,13 @@ describe('UA.aiVisualResearch – semantic scene and incident research contracts
     expect(ids).toEqual(expect.arrayContaining([
       'cross-layer-synthesis',
       'semantic-visual-scene-analysis',
+      'bike-solo-infrastructure-association',
       'accident-background-research',
     ]));
     expect(facts.aiAnalysisComparisonContract.minimumOutput)
       .toMatchObject({
         semanticVisualSceneAnalysis: true,
+        bikeSoloInfrastructureAssociation: true,
         accidentBackgroundResearchLog: true,
         locatedVisualObservations: 3,
       });
@@ -145,6 +190,8 @@ describe('UA.aiVisualResearch – semantic scene and incident research contracts
     expect(enhanced.visualInspectionViews).toHaveLength(4);
     expect(enhanced.prompt).toContain('SEMANTISCHE KARTENINTERPRETATION');
     expect(enhanced.prompt).toContain('Schienen/Gleise');
+    expect(enhanced.prompt).toContain('Fahrradalleinunfälle');
+    expect(enhanced.prompt).toContain('räumliche Assoziation');
     expect(enhanced.prompt).toContain('Kopfsteinpflaster');
     expect(enhanced.prompt).toContain('UNFALLHINTERGRUNDRECHERCHE');
     expect(enhanced.prompt).toContain('amtlichen Polizeimeldungen');
@@ -158,6 +205,7 @@ describe('UA.aiVisualResearch – semantic scene and incident research contracts
 
     expect(audit.passed).toBe(false);
     expect(audit.missingMarkers).toContain('Schienen/Gleise');
+    expect(audit.missingMarkers).toContain('Fahrradalleinunfälle');
     expect(audit.missingMarkers).toContain('UNFALLHINTERGRUNDRECHERCHE');
   });
 });
