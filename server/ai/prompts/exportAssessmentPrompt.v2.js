@@ -14,8 +14,12 @@
  * @module server/ai/prompts/exportAssessmentPrompt.v2
  */
 
-/** Versionskennung – Teil des Cache-Keys. */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.6';
+/**
+ * Versionskennung – Teil des Cache-Keys. Die Kennung bleibt aus
+ * Kompatibilitätsgründen v2.5; der ergänzte analysisMethodology-Block ist Teil
+ * des kanonischen AI-Inputs und ändert damit den Cache-Key deterministisch.
+ */
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.5';
 
 const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
 const OFFICIAL_DESTATIS_URL = 'https://www.destatis.de/DE/Service/Statistik-Visualisiert/unfall-atlas.html';
