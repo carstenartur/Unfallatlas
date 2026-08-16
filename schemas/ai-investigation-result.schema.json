@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Unfallatlas/schemas/ai-investigation-result.schema.json",
+  "title": "Unfallwerkbank AI investigation result",
+  "description": "Structured, evidence-gated investigation output required before municipal application drafting.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "verifiedOfficialAccidentFacts",
+    "methodologyVerification",
+    "accessedResources",
+    "mapObservations",
+    "patternEvaluations",
+    "accidentBackgroundResearch",
+    "politicalAdministrativeResearch",
+    "crossLayerInsights",
+    "competingHypotheses",
+    "candidateMeasures",
+    "deterministicVsAiDelta",
+    "filingReadiness"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "unfallwerkbank.aiInvestigationResult.v1" },
+    "investigationId": { "type": "string", "minLength": 1 },
+    "verifiedOfficialAccidentFacts": {
+      "type": "object",
+      "required": ["total", "fatal", "serious", "slight"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "fatal": { "type": "integer", "minimum": 0 },
+        "serious": { "type": "integer", "minimum": 0 },
+        "slight": { "type": "integer", "minimum": 0 },
+        "other": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "methodologyVerification": {
+      "type": "object",
+      "required": ["patternCompositionMethodCorrect", "yearlyTrendMethodCorrect"],
+      "properties": {
+        "patternCompositionMethodCorrect": { "const": true },
+        "yearlyTrendMethodCorrect": { "type": "boolean" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "accessedResources": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["url", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "resourceType": { "type": "string" },
+          "mapMode": { "enum": ["standard", "hybrid", "orthophoto", "analysis", null] },
+          "status": { "enum": ["opened", "read", "accessed", "verified", "failed"] },
+          "accessedAt": { "type": ["string", "null"] },
+          "limitations": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "mapObservations": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "featureClass", "locationDescription", "viewIdAndZoom", "visibleEvidence",
+          "spatialRelationToAccidents", "mechanismHypothesis", "causalStatus",
+          "confidence", "alternativeExplanation"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "featureClass": { "type": "string", "minLength": 1 },
+          "locationDescription": { "type": "string", "minLength": 1 },
+          "viewIdAndZoom": { "type": "string", "minLength": 1 },
+          "visibleEvidence": { "type": "string", "minLength": 1 },
+          "accidentSubset": { "type": "string" },
+          "spatialRelationToAccidents": { "type": "string", "minLength": 1 },
+          "proximityOrOverlap": { "type": "string" },
+          "mechanismHypothesis": { "type": "string", "minLength": 1 },
+          "causalStatus": {
+            "enum": [
+              "descriptive-association", "spatial-association", "mechanism-candidate",
+              "mechanism-plausible", "externally-corroborated", "causally-confirmed",
+              "not-assessable"
+            ]
+          },
+          "confidence": { "enum": ["high", "medium", "low", "not-assessable"] },
+          "alternativeExplanation": { "type": "string" },
+          "requiredVerification": { "type": "array", "items": { "type": "string" } },
+          "evidenceRefs": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "patternEvaluations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["patternId", "status"],
+        "properties": {
+          "patternId": { "type": "string", "minLength": 1 },
+          "detectorId": { "type": "string" },
+          "status": { "enum": ["supported", "weakened", "not-assessable", "rejected"] },
+          "assessment": { "type": "string" },
+          "evidenceRefs": { "type": "array", "items": { "type": "string" } },
+          "counterEvidence": { "type": "array", "items": { "type": "string" } },
+          "requiredVerification": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "accidentBackgroundResearch": {
+      "type": "object",
+      "required": ["queries", "results"],
+      "properties": {
+        "queries": { "type": "array", "minItems": 4, "items": { "type": "object" } },
+        "results": { "type": "array", "items": { "type": "object" } },
+        "nullResults": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "politicalAdministrativeResearch": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": [
+            "results-found", "searched-no-results", "completed", "complete",
+            "not-searched", "failed", "unavailable", "not-searchable", "unsupported"
+          ]
+        },
+        "queries": { "type": "array" },
+        "proceedings": { "type": "array" },
+        "projects": { "type": "array" },
+        "gaps": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "crossLayerInsights": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["statement", "evidenceRefs"],
+        "properties": {
+          "statement": { "type": "string", "minLength": 1 },
+          "evidenceRefs": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+          "decisionRelevance": { "type": "string" },
+          "confidence": { "enum": ["high", "medium", "low", "not-assessable"] }
+        }
+      }
+    },
+    "competingHypotheses": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["hypotheses", "discriminatingChecks"],
+        "properties": {
+          "claimOrPattern": { "type": "string" },
+          "hypotheses": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+          "discriminatingChecks": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      }
+    },
+    "candidateMeasures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "findingRefs", "safetyObjective", "option", "responsibleBody",
+          "timeHorizon", "successIndicators"
+        ],
+        "properties": {
+          "findingRefs": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "safetyObjective": { "type": "string", "minLength": 1 },
+          "option": { "type": "string", "minLength": 1 },
+          "prerequisites": { "type": "array", "items": { "type": "string" } },
+          "tradeOffs": { "type": "array", "items": { "type": "string" } },
+          "responsibleBody": { "type": "string", "minLength": 1 },
+          "timeHorizon": { "type": "string", "minLength": 1 },
+          "successIndicators": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      }
+    },
+    "unresolvedQuestions": { "type": "array", "items": { "type": "string" } },
+    "deterministicVsAiDelta": {
+      "type": "object",
+      "required": ["confirmed", "clarified", "added", "rejected", "open"],
+      "properties": {
+        "confirmed": { "type": "array" },
+        "clarified": { "type": "array" },
+        "added": { "type": "array" },
+        "rejected": { "type": "array" },
+        "open": { "type": "array" }
+      }
+    },
+    "filingReadiness": {
+      "type": "object",
+      "required": ["status", "blockers", "conditions", "rationale"],
+      "properties": {
+        "status": { "enum": ["ready", "conditional", "blocked"] },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "conditions": { "type": "array", "items": { "type": "string" } },
+        "rationale": { "type": "string" }
+      }
+    },
+    "application": { "type": ["null", "object"] }
+  }
+}
