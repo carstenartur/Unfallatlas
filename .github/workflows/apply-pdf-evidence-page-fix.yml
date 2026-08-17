@@ -1,81 +1,14 @@
-name: Apply PDF evidence-page contract fix
+name: Apply PDF evidence page fix
 
 on:
   push:
     branches:
       - agent/fix-pdf-evidence-page-contract
 
-permissions:
-  contents: write
-
 jobs:
-  patch:
-    if: ${{ github.actor != 'github-actions[bot]' }}
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
-      - name: Checkout branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Apply exact regression fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('tests/e2e/screenshots.spec.js')
-          source = path.read_text(encoding='utf-8')
-
-          replacements = [
-              (
-                  r"      const summaryStartPattern = /^(?:BEGRÜNDUNG\\s+)?KURZBEWERTUNG\\b/i;",
-                  r"""      const evidencePageStartPattern =
-                /^(?:Methodik\\b|ANTRAG\\s*\\/\\s*BESCHLUSSVORSCHLAG\\b|BEGRÜNDUNG\\b|KURZBEWERTUNG\\b)/i;""",
-              ),
-              (
-                  "        if (renderedPageNumber === 0 && summaryStartPattern.test(text)) {",
-                  "        if (renderedPageNumber === 0 && evidencePageStartPattern.test(text)) {",
-              ),
-              (
-                  r"""    // The evidence page must begin with the complete executive-summary
-    // reading block. This catches real pdfMake pagination, not only the
-    // docDefinition's `unbreakable` declaration.
-    expect(pdfDiagnostics.renderedPageText).toMatch(/^(?:BEGRÜNDUNG\s+)?KURZBEWERTUNG\b/);
-    expect(pdfDiagnostics.renderedPageText).not.toMatch(/^(?:Wochentag\)\.|Schwerpunkt der Häufung:)/);""",
-                  r"""    // The rendered evidence page must contain the verified local count and
-    // begin at a complete report-section boundary. This rejects continuation
-    // pages while allowing the evidence-first Methodik/Antrag structure.
-    expect(pdfDiagnostics.renderedPageText).toMatch(
-      new RegExp(`(?:^|\\D)${expectedLocalAccidents}\\s+Unfälle`, 'i')
-    );
-    expect(pdfDiagnostics.renderedPageText).toMatch(
-      /^(?:Methodik\b|ANTRAG\s*\/\s*BESCHLUSSVORSCHLAG\b|BEGRÜNDUNG\b|KURZBEWERTUNG\b)/i
-    );
-    expect(pdfDiagnostics.renderedPageText).not.toMatch(/^(?:Wochentag\)\.|Schwerpunkt der Häufung:)/);""",
-              ),
-          ]
-
-          for old, new in replacements:
-              count = source.count(old)
-              if count != 1:
-                  raise SystemExit(f'Expected one replacement anchor, found {count}: {old[:100]!r}')
-              source = source.replace(old, new, 1)
-
-          path.write_text(source, encoding='utf-8')
-          Path('.github/workflows/apply-pdf-evidence-page-fix.yml').unlink()
-          PY
-
-          git diff --check
-          git diff -- tests/e2e/screenshots.spec.js
-
-      - name: Commit focused fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/e2e/screenshots.spec.js .github/workflows/apply-pdf-evidence-page-fix.yml
-          git commit -m "test: align PDF evidence page with report sections"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Validate workflow startup
+        run: echo workflow-started
