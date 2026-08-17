@@ -256,5 +256,45 @@
       'js/ua.context_generation.js?v=2026-07-18',
       'data-ua-context-generation'
     ),
+    // User-owned AI collaboration is link-first. Load the small adapter through
+    // the central optional-module registry instead of coupling it to heatmap or
+    // report rendering. The adapter retries until ua.ai_proposal.js is ready.
+    aiLinkHandoff: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_link_handoff.js?v=2026-08-15',
+      'data-ua-ai-link-handoff'
+    ),
+    // Political-context research must be part of the same AI evidence chain.
+    // The adapter distinguishes missing/failed/no-result searches and binds
+    // suitable, source-linked proceedings into the structured report before
+    // either the server AI or a user-owned AI receives it.
+    aiPoliticalEvidence: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_political_evidence.js?v=2026-08-15',
+      'data-ua-ai-political-evidence'
+    ),
+    aiPoliticalReferenceBridge: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_political_reference_bridge.js?v=2026-08-15',
+      'data-ua-ai-political-reference-bridge'
+    ),
+    // Load last so it can extend the completed evidence chain. This adapter
+    // upgrades the handoff from map-readability QA to semantic scene analysis
+    // and adds a source-critical search for location-specific crash reports.
+    aiVisualResearch: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_visual_research.js?v=2026-08-16',
+      'data-ua-ai-visual-research'
+    ),
+    // The export modal may be opened long after the analysis adapter installed.
+    // Keep its enhanced copy/download actions bound through modal recreation.
+    aiVisualResearchUi: injectOptionalModuleAfterDomReady(
+      'js/ua.ai_visual_research_ui.js?v=2026-08-16',
+      'data-ua-ai-visual-research-ui'
+    ),
+    // Discovery filters identify high-value patterns, but filing evidence must
+    // cover every published personal-injury accident inside the selected area.
+    // Load after the pattern and AI adapters so it can bind one canonical
+    // numbered A### cohort into report, map, appendix and both AI stages.
+    evidenceCohort: injectOptionalModuleAfterDomReady(
+      'js/ua.evidence_cohort.js?v=2026-08-16',
+      'data-ua-evidence-cohort'
+    ),
   });
 })();

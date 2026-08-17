@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Unfallatlas/schemas/evidence-cohorts.schema.json",
+  "title": "Unfallwerkbank discovery and complete evidence cohorts",
+  "type": "object",
+  "required": [
+    "schemaVersion", "status", "bounds", "discoveryCohort",
+    "completeEvidenceCohort", "relationship", "vulnerableUserPriority"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "unfallwerkbank.evidenceCohorts.v1" },
+    "status": { "enum": ["complete", "not-assessable"] },
+    "generatedAt": { "type": "string" },
+    "moduleVersion": { "type": "string" },
+    "bounds": {
+      "type": ["object", "null"],
+      "properties": {
+        "south": { "type": "number" }, "west": { "type": "number" },
+        "north": { "type": "number" }, "east": { "type": "number" }
+      },
+      "required": ["south", "west", "north", "east"]
+    },
+    "reportingPeriod": {
+      "type": ["object", "null"],
+      "properties": { "from": { "type": "integer" }, "to": { "type": "integer" } },
+      "required": ["from", "to"]
+    },
+    "numberedMapUrl": { "type": ["string", "null"] },
+    "discoveryCohort": { "$ref": "#/$defs/cohort" },
+    "completeEvidenceCohort": {
+      "allOf": [
+        { "$ref": "#/$defs/cohort" },
+        {
+          "type": "object",
+          "required": ["rows"],
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/evidenceAccident" }
+            }
+          }
+        }
+      ]
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["discoveryIsSubset", "completeCount", "discoveryCount", "additionallyConsideredCount"],
+      "properties": {
+        "discoveryIsSubset": { "const": true },
+        "completeCount": { "type": "integer", "minimum": 0 },
+        "discoveryCount": { "type": "integer", "minimum": 0 },
+        "additionallyConsideredCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "vulnerableUserPriority": {
+      "type": "object",
+      "required": ["principle", "rule"],
+      "properties": {
+        "principle": { "type": "string", "minLength": 1 },
+        "rule": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "cohort": {
+      "type": "object",
+      "required": ["purpose", "rule", "count", "accidentIds"],
+      "properties": {
+        "purpose": { "type": "string" },
+        "rule": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "accidentIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^A[0-9]{3,}$" }
+        }
+      }
+    },
+    "evidenceAccident": {
+      "type": "object",
+      "required": [
+        "displayId", "sourceFingerprint", "severityLabel", "involvementLabel",
+        "lat", "lon", "discoveryMatch", "mapDeepLink"
+      ],
+      "properties": {
+        "displayId": { "type": "string", "pattern": "^A[0-9]{3,}$" },
+        "sourceFingerprint": { "type": "string", "minLength": 8 },
+        "sourceId": { "type": ["string", "null"] },
+        "year": { "type": ["integer", "null"] },
+        "month": { "type": ["integer", "null"] },
+        "weekday": { "type": ["integer", "null"] },
+        "hour": { "type": ["integer", "null"] },
+        "severity": { "type": ["integer", "null"] },
+        "severityLabel": { "type": "string" },
+        "involvementMask": { "type": "integer", "minimum": 0 },
+        "involvementLabel": { "type": "string" },
+        "roadCondition": { "type": ["integer", "null"] },
+        "roadConditionLabel": { "type": "string" },
+        "accidentType": { "type": ["integer", "null"] },
+        "accidentKind": { "type": ["integer", "null"] },
+        "light": { "type": ["integer", "null"] },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" },
+        "discoveryMatch": { "type": "boolean" },
+        "discoveryRole": { "type": "string" },
+        "mapRef": { "type": ["string", "null"] },
+        "mapDeepLink": { "type": "string" }
+      }
+    }
+  }
+}

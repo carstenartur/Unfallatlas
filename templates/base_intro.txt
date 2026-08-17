@@ -1,4 +1,4 @@
-Bezirksratsantrag (Entwurf) – Verkehrssicherheit / Unfallschwerpunkt
+Kommunalpolitischer Antrag (Entwurf) – Verkehrssicherheitsprüfung auf Grundlage amtlich dokumentierter Unfälle
 
 Stadt: {{CITY}}
 Erstellt am: {{DATE}}
@@ -8,9 +8,13 @@ Gremientyp: {{GREMIUM_TYP}}
 Hinweis: {{GREMIUM_HINWEIS}}
 
 Betreff:
-Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im Bereich {{AREA_NAME}}
+Prüfung und Verbesserung der Verkehrssicherheit im Bereich {{AREA_NAME}}
+
+Datengrundlage und Einordnung:
+Die Unfallwerkbank wertet amtlich veröffentlichte Unfälle mit Personenschaden aus, die auf polizeilichen Meldungen beruhen. Das dokumentierte Unfallgeschehen bildet den Tatsachenkern des Antrags. Ob ein einzelner Unfallschwerpunkt, mehrere räumliche Teilprobleme oder ein streckenbezogenes Sicherheitsdefizit vorliegen und welche Ursachen beziehungsweise Maßnahmen daraus folgen, ist gesondert fachlich zu prüfen.
 
 Anlagen:
 1) Kartenausschnitt(e) aus der Unfallwerkbank (Unfallatlas-Auswertung)
 2) Tabelle: Unfälle pro Jahr und Muster (Ausschnitt)
-3) Tabelle: Auffällige Muster (Ausschnitt vs. Stadtvergleich)
+3) Vergleichende statistische Einordnung (Ausschnitt und geeigneter Referenzraum)
+4) Dokumentierte politische Vorbefassung beziehungsweise Rechercheprotokoll

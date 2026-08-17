@@ -1,5 +1,9 @@
 Sachverhalt:
-Im markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.
+Im markierten Kartenausschnitt wurden unter den ausgewiesenen Filtern {{local_total}} amtlich dokumentierte Unfälle mit Personenschaden ausgewertet. Der stadtweite Bestand mit denselben Schwere-, Zeit- und Zustandsfiltern umfasst {{baseline_total}} Unfälle und dient als Referenzpopulation für die Zusammensetzung der Unfallmuster.
+
+Die Unfallwerkbank vergleicht dabei nicht die absoluten Fallzahlen unterschiedlich großer Räume als Unfallrate. Verglichen werden die Anteile der Beteiligungskombinationen im Ausschnitt mit den entsprechenden Anteilen in der stadtweiten Referenzpopulation. Ausgegeben werden lokaler Anteil, Referenzanteil, ihr Verhältnis sowie die statistische Unsicherheit des lokalen Anteils. Eine festgestellte Überrepräsentation bezieht sich deshalb auf die Musterzusammensetzung. Für Aussagen zum absoluten Unfallrisiko je Verkehrsleistung wären dagegen zusätzliche Expositionsdaten erforderlich.
+
+Der Mehrjahrestrend beschreibt die zeitliche Entwicklung innerhalb desselben Auswahlbereichs. Seine qualitative Klassifikation berücksichtigt die relative Steigung bezogen auf den Mittelwert sowie die Güte der linearen Anpassung.
 
 Verletzungsschwere (Ausschnitt):
 {{severity_summary}}
