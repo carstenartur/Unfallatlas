@@ -665,7 +665,8 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       const expectedLocalAccidents = ${expectedLocalAccidents};
       const pageTexts = [];
       const countPattern = new RegExp('(?:^|\\\\D)' + expectedLocalAccidents + '\\\\s+Unfälle', 'i');
-      const summaryStartPattern = /^(?:BEGRÜNDUNG\\s+)?KURZBEWERTUNG\\b/i;
+      const evidencePageStartPattern =
+        /^(?:Methodik\\b|ANTRAG\\s*\\/\\s*BESCHLUSSVORSCHLAG\\b|BEGRÜNDUNG\\b|KURZBEWERTUNG\\b)/i;
       let renderedPageNumber = 0;
       let countFallbackPageNumber = 0;
       for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
@@ -675,7 +676,7 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
         pageTexts.push(text);
         if (!countPattern.test(text)) continue;
         if (countFallbackPageNumber === 0) countFallbackPageNumber = pageNumber;
-        if (renderedPageNumber === 0 && summaryStartPattern.test(text)) {
+        if (renderedPageNumber === 0 && evidencePageStartPattern.test(text)) {
           renderedPageNumber = pageNumber;
         }
       }
@@ -727,10 +728,15 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     expect(pdfDiagnostics.text).toMatch(
       new RegExp(`(?:^|\\D)${expectedLocalAccidents}\\s+Unfälle`, 'i')
     );
-    // The evidence page must begin with the complete executive-summary
-    // reading block. This catches real pdfMake pagination, not only the
-    // docDefinition's `unbreakable` declaration.
-    expect(pdfDiagnostics.renderedPageText).toMatch(/^(?:BEGRÜNDUNG\s+)?KURZBEWERTUNG\b/);
+    // The rendered evidence page must contain the verified local count and
+    // begin at a complete report-section boundary. This rejects continuation
+    // pages while allowing the evidence-first Methodik/Antrag structure.
+    expect(pdfDiagnostics.renderedPageText).toMatch(
+      new RegExp(`(?:^|\\D)${expectedLocalAccidents}\\s+Unfälle`, 'i')
+    );
+    expect(pdfDiagnostics.renderedPageText).toMatch(
+      /^(?:Methodik\b|ANTRAG\s*\/\s*BESCHLUSSVORSCHLAG\b|BEGRÜNDUNG\b|KURZBEWERTUNG\b)/i
+    );
     expect(pdfDiagnostics.renderedPageText).not.toMatch(/^(?:Wochentag\)\.|Schwerpunkt der Häufung:)/);
 
     // Screenshot der ersten PDF-Seite, auf der die zuvor aus dem Exportmodell
