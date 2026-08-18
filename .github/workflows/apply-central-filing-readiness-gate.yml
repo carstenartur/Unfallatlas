@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/central-filing-readiness-gate
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -17,6 +20,8 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Apply focused readiness hardening
         shell: bash
@@ -473,4 +478,5 @@ jobs:
             schemas/ai-investigation-result.schema.json \
             .github/workflows/apply-central-filing-readiness-gate.yml
           git commit -m "feat: derive filing readiness from local evidence gates"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          TARGET_BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          git push origin "HEAD:${TARGET_BRANCH}"
