@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://carstenartur.github.io/Unfallatlas/schemas/filing-readiness.schema.json",
+  "title": "Unfallwerkbank central filing readiness",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "passed",
+    "readyForApplication",
+    "filingReady",
+    "analysisQaStatus",
+    "politicalResearchStatus",
+    "filingReadinessStatus",
+    "modelFilingReadinessStatus",
+    "score",
+    "expectedPatternIds",
+    "errors",
+    "warnings",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "unfallwerkbank.filingReadiness.v1" },
+    "evaluatedAt": { "type": "string" },
+    "passed": { "type": "boolean" },
+    "readyForApplication": { "type": "boolean" },
+    "filingReady": { "type": "boolean" },
+    "analysisQaStatus": { "enum": ["ready", "conditional", "blocked"] },
+    "politicalResearchStatus": { "enum": ["complete", "conditional", "blocked"] },
+    "filingReadinessStatus": { "enum": ["ready", "conditional", "blocked"] },
+    "modelFilingReadinessStatus": { "enum": ["ready", "conditional", "blocked"] },
+    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "expectedPatternIds": { "type": "array", "items": { "type": "string" } },
+    "errors": { "type": "array", "items": { "$ref": "#/$defs/message" } },
+    "warnings": { "type": "array", "items": { "$ref": "#/$defs/message" } },
+    "checks": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/message" },
+          {
+            "type": "object",
+            "required": ["passed"],
+            "properties": { "passed": { "type": "boolean" } }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "message": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "details": {}
+      }
+    }
+  }
+}
