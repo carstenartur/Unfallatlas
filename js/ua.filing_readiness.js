@@ -95,7 +95,7 @@
   function classifyPoliticalResearch(political) {
     const status = clean(political?.status).toLowerCase();
     const linked = linkedPoliticalEvidence(political);
-    const manualVerificationCompleted = political?.alternativeVerificationCompleted === true
+    const manualVerificationClaimed = political?.alternativeVerificationCompleted === true
       || political?.manualVerificationCompleted === true;
 
     if (status === 'results-found') {
@@ -107,11 +107,17 @@
         };
     }
     if (status === 'completed' || status === 'complete') {
-      return (linked.length || manualVerificationCompleted)
-        ? { status: 'complete', sourceStatus: status, linkedCount: linked.length, manualVerificationCompleted }
+      return linked.length
+        ? {
+          status: 'complete', sourceStatus: status, linkedCount: linked.length,
+          manualVerificationClaimed,
+        }
         : {
           status: 'blocked', sourceStatus: status, linkedCount: 0,
-          reason: 'Die Recherche wurde als vollständig bezeichnet, ohne verlinkte Treffer oder dokumentierte alternative Verifikation.',
+          manualVerificationClaimed,
+          reason: manualVerificationClaimed
+            ? 'Eine manuelle oder alternative Prüfung wurde nur behauptet; ohne direkt verlinkte Evidenz darf sie das Einreichungs-Gate nicht freigeben.'
+            : 'Die Recherche wurde als vollständig bezeichnet, ohne verlinkte Treffer oder dokumentierte alternative Verifikation.',
         };
     }
     if (CONDITIONAL_POLITICAL_STATUSES.has(status)) {
@@ -126,8 +132,9 @@
     };
   }
 
-  function buildEvidenceRegistry(result) {
+  function buildEvidenceRegistry(result, options = {}) {
     const ids = new Set();
+    const includeMapObservationIds = options.includeMapObservationIds !== false;
     const add = value => {
       const id = clean(value);
       if (!id) return;
@@ -136,7 +143,9 @@
       if (normalised) ids.add(normalised);
     };
     list(result?.accessedResources).forEach(item => { add(item?.id); add(item?.url); });
-    list(result?.mapObservations).forEach(item => add(item?.id));
+    if (includeMapObservationIds) {
+      list(result?.mapObservations).forEach(item => add(item?.id));
+    }
     list(result?.patternEvaluations).forEach(item => { add(findingId(item)); add(item?.detectorId); });
     list(result?.accidentBackgroundResearch?.results).forEach(item => {
       add(item?.id); add(item?.sourceUrl); add(item?.url);
@@ -230,18 +239,52 @@
     }
 
     const evidenceRegistry = buildEvidenceRegistry(result);
-    const checkRefs = (items, field, prefix, label) => {
+    const nonObservationEvidenceRegistry = buildEvidenceRegistry(result, {
+      includeMapObservationIds: false,
+    });
+    const checkRefs = (items, field, prefix, label, registry, minimumRefs) => {
       list(items).forEach((item, index) => {
-        const unresolved = unresolvedEvidenceRefs(item?.[field], evidenceRegistry);
+        const refs = unique(item?.[field]);
+        const code = prefix + '-' + (index + 1);
+        if (refs.length < minimumRefs) {
+          fail(code,
+            label + ' ' + (index + 1) + ' benötigt mindestens '
+              + minimumRefs + ' auflösbare Evidenzreferenz'
+              + (minimumRefs === 1 ? '' : 'en') + '.',
+            { required: minimumRefs, actual: refs.length });
+          return;
+        }
+        const unresolved = unresolvedEvidenceRefs(refs, registry);
         if (unresolved.length) {
-          fail(prefix + '-' + (index + 1),
+          fail(code,
             label + ' ' + (index + 1) + ' verweist auf unbekannte Evidenz: ' + unresolved.join(', ') + '.');
         }
       });
     };
-    checkRefs(result.mapObservations, 'evidenceRefs', 'map-observation-evidence', 'Kartenbeobachtung');
-    checkRefs(result.crossLayerInsights, 'evidenceRefs', 'cross-layer-evidence', 'Einsicht');
-    checkRefs(result.candidateMeasures, 'findingRefs', 'measure-evidence', 'Maßnahmenkandidat');
+    checkRefs(
+      result.mapObservations,
+      'evidenceRefs',
+      'map-observation-evidence',
+      'Kartenbeobachtung',
+      nonObservationEvidenceRegistry,
+      1
+    );
+    checkRefs(
+      result.crossLayerInsights,
+      'evidenceRefs',
+      'cross-layer-evidence',
+      'Einsicht',
+      evidenceRegistry,
+      2
+    );
+    checkRefs(
+      result.candidateMeasures,
+      'findingRefs',
+      'measure-evidence',
+      'Maßnahmenkandidat',
+      evidenceRegistry,
+      1
+    );
 
     const politicalGate = classifyPoliticalResearch(object(result.politicalAdministrativeResearch));
     if (politicalGate.status === 'blocked') {
