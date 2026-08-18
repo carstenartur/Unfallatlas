@@ -131,6 +131,29 @@ describe('central filing-readiness gate', () => {
     expect(gate.errors.map(item => item.code)).toContain('political-research-blocked');
   });
 
+  test('does not accept self-declared manual verification without linked political evidence', () => {
+    const api = loadApi();
+    const result = resultFixture();
+    result.politicalAdministrativeResearch = {
+      status: 'completed',
+      proceedings: [],
+      projects: [],
+      manualVerificationCompleted: true,
+      alternativeVerificationCompleted: true,
+    };
+
+    const gate = api.evaluate({ result, facts: factsFixture() });
+    expect(gate).toMatchObject({
+      passed: false,
+      readyForApplication: false,
+      politicalResearchStatus: 'blocked',
+      filingReadinessStatus: 'blocked',
+    });
+    expect(gate.errors.map(item => item.code)).toContain('political-research-blocked');
+    expect(gate.errors.find(item => item.code === 'political-research-blocked')?.message)
+      .toMatch(/nur behauptet/i);
+  });
+
   test('binds each opened map mode to the exact snapshot URL', () => {
     const api = loadApi();
     const result = resultFixture();
@@ -160,6 +183,33 @@ describe('central filing-readiness gate', () => {
     result.mapObservations[0].evidenceRefs = ['map-hybrid', 'invented-map-source'];
     result.crossLayerInsights[0].evidenceRefs = ['bike-rail', 'invented-research-source'];
     result.candidateMeasures[0].findingRefs = ['invented-pattern'];
+
+    const gate = api.evaluate({ result, facts: factsFixture() });
+    expect(gate.errors.map(item => item.code)).toEqual(expect.arrayContaining([
+      'map-observation-evidence-1', 'cross-layer-evidence-1', 'measure-evidence-1',
+    ]));
+  });
+
+  test('rejects self-references and observation-only evidence cycles', () => {
+    const api = loadApi();
+    const result = resultFixture();
+    result.mapObservations = [
+      { id: 'observation-1', evidenceRefs: ['observation-1'] },
+      { id: 'observation-2', evidenceRefs: ['observation-1'] },
+    ];
+
+    const gate = api.evaluate({ result, facts: factsFixture() });
+    expect(gate.errors.map(item => item.code)).toEqual(expect.arrayContaining([
+      'map-observation-evidence-1', 'map-observation-evidence-2',
+    ]));
+  });
+
+  test('enforces minimum evidence cardinality independently of schema validation', () => {
+    const api = loadApi();
+    const result = resultFixture();
+    result.mapObservations[0].evidenceRefs = [];
+    result.crossLayerInsights[0].evidenceRefs = ['bike-rail'];
+    result.candidateMeasures[0].findingRefs = [];
 
     const gate = api.evaluate({ result, facts: factsFixture() });
     expect(gate.errors.map(item => item.code)).toEqual(expect.arrayContaining([
