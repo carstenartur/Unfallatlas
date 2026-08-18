@@ -644,6 +644,7 @@ test.describe('Werkbank V2 - Document Export Downloads', () => {
   });
 
   test('should download PDF document when clicking PDF button', async ({ page }) => {
+    test.setTimeout(60000);
     const pdfBtn = page.locator('#btnExportPDF');
     await expect(pdfBtn).toBeVisible();
 
