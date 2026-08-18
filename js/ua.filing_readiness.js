@@ -92,17 +92,33 @@
       .filter(item => clean(item?.sourceUrl || item?.url || item?.link));
   }
 
+  function documentedPoliticalQueries(political) {
+    return list(political?.queries).filter(item => {
+      if (typeof item === 'string') return clean(item);
+      return clean(item?.query || item?.searchTerm || item?.term || item?.url);
+    });
+  }
+
   function classifyPoliticalResearch(political) {
     const status = clean(political?.status).toLowerCase();
     const linked = linkedPoliticalEvidence(political);
+    const queries = documentedPoliticalQueries(political);
     const manualVerificationClaimed = political?.alternativeVerificationCompleted === true
       || political?.manualVerificationCompleted === true;
 
+    if (!queries.length) {
+      return {
+        status: 'blocked', sourceStatus: status || 'missing', linkedCount: linked.length,
+        queryCount: 0,
+        reason: 'Zur politischen oder administrativen Recherche fehlt ein nachvollziehbares Suchprotokoll.',
+      };
+    }
+
     if (status === 'results-found') {
       return linked.length
-        ? { status: 'complete', sourceStatus: status, linkedCount: linked.length }
+        ? { status: 'complete', sourceStatus: status, linkedCount: linked.length, queryCount: queries.length }
         : {
-          status: 'blocked', sourceStatus: status, linkedCount: 0,
+          status: 'blocked', sourceStatus: status, linkedCount: 0, queryCount: queries.length,
           reason: 'Politische Treffer wurden behauptet, aber kein direkt verlinkter Vorgang oder Verwaltungsprojekt übergeben.',
         };
     }
@@ -110,11 +126,11 @@
       return linked.length
         ? {
           status: 'complete', sourceStatus: status, linkedCount: linked.length,
-          manualVerificationClaimed,
+          queryCount: queries.length, manualVerificationClaimed,
         }
         : {
           status: 'blocked', sourceStatus: status, linkedCount: 0,
-          manualVerificationClaimed,
+          queryCount: queries.length, manualVerificationClaimed,
           reason: manualVerificationClaimed
             ? 'Eine manuelle oder alternative Prüfung wurde nur behauptet; ohne direkt verlinkte Evidenz darf sie das Einreichungs-Gate nicht freigeben.'
             : 'Die Recherche wurde als vollständig bezeichnet, ohne verlinkte Treffer oder dokumentierte alternative Verifikation.',
@@ -123,11 +139,13 @@
     if (CONDITIONAL_POLITICAL_STATUSES.has(status)) {
       return {
         status: 'conditional', sourceStatus: status, linkedCount: linked.length,
+        queryCount: queries.length,
         reason: 'Die politische Vorbefassung ist nicht abschließend belegt; eine alternative Portal- oder manuelle Prüfung bleibt erforderlich.',
       };
     }
     return {
       status: 'blocked', sourceStatus: status || 'missing', linkedCount: linked.length,
+      queryCount: queries.length,
       reason: 'Politische Recherche ist nicht belastbar abgeschlossen (' + (status || 'Status fehlt') + ').',
     };
   }
@@ -348,6 +366,7 @@
     normaliseUrl,
     collectPatternFindings,
     buildEvidenceRegistry,
+    documentedPoliticalQueries,
     unresolvedEvidenceRefs,
   });
 })();
