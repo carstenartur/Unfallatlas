@@ -287,8 +287,16 @@
     } catch (error) {
       fail('invalid-json', error.message);
       return {
-        schemaVersion: VALIDATION_SCHEMA, passed: false, readyForApplication: false,
-        filingReady: false, score: 0, errors, warnings, checks, result: null,
+        schemaVersion: VALIDATION_SCHEMA,
+        filingReadinessSchemaVersion: null,
+        passed: false,
+        readyForApplication: false,
+        filingReady: false,
+        analysisQaStatus: 'blocked',
+        politicalResearchStatus: 'blocked',
+        filingReadinessStatus: 'blocked',
+        modelFilingReadinessStatus: 'blocked',
+        score: 0, errors, warnings, checks, result: null,
       };
     }
 
@@ -428,22 +436,52 @@
       fail('conditional-without-conditions', 'Ein bedingter Status braucht konkrete Bedingungen.');
     }
 
-    const passed = errors.length === 0;
-    const readyForApplication = passed && READY_STATUSES.has(readinessStatus);
-    const filingReady = passed && readinessStatus === 'ready';
-    const possible = Math.max(1, checks.length);
-    const successful = checks.filter(check => check.passed).length;
+    const evaluator = UA.filingReadiness?.evaluate;
+    if (typeof evaluator !== 'function') {
+      fail('filing-readiness-gate-missing',
+        'Das zentrale lokale Einreichungsreife-Gate ist nicht geladen; Antragserzeugung bleibt gesperrt.');
+    }
+    const gate = typeof evaluator === 'function'
+      ? evaluator({
+        result,
+        facts: facts || {},
+        expectedPatterns: collectPatternFindings(facts || {}),
+        requiredMapModes: REQUIRED_MAP_MODES,
+        errors,
+        warnings,
+        checks,
+      })
+      : {
+        schemaVersion: null,
+        passed: false,
+        readyForApplication: false,
+        filingReady: false,
+        analysisQaStatus: 'blocked',
+        politicalResearchStatus: 'blocked',
+        filingReadinessStatus: 'blocked',
+        modelFilingReadinessStatus: readinessStatus || 'blocked',
+        score: 0,
+        expectedPatternIds: expectedPatterns.map(item => item.id),
+        errors, warnings, checks,
+      };
     return {
       schemaVersion: VALIDATION_SCHEMA,
+      filingReadinessSchemaVersion: gate.schemaVersion || null,
       validatedAt: new Date().toISOString(),
-      passed,
-      readyForApplication,
-      filingReady,
-      filingReadinessStatus: readinessStatus || 'blocked',
-      score: Math.round((successful / possible) * 100),
+      passed: gate.passed,
+      readyForApplication: gate.readyForApplication,
+      filingReady: gate.filingReady,
+      analysisQaStatus: gate.analysisQaStatus,
+      politicalResearchStatus: gate.politicalResearchStatus,
+      filingReadinessStatus: gate.filingReadinessStatus,
+      modelFilingReadinessStatus: gate.modelFilingReadinessStatus,
+      score: gate.score,
       deterministicFacts: expectedFacts,
-      expectedPatternIds: expectedPatterns.map(item => item.id),
-      errors, warnings, checks, result,
+      expectedPatternIds: gate.expectedPatternIds || expectedPatterns.map(item => item.id),
+      errors: gate.errors,
+      warnings: gate.warnings,
+      checks: gate.checks,
+      result,
     };
   }
 
@@ -466,7 +504,10 @@
       validatedInvestigation: check.result,
       validation: {
         score: check.score,
+        analysisQaStatus: check.analysisQaStatus,
+        politicalResearchStatus: check.politicalResearchStatus,
         filingReadinessStatus: check.filingReadinessStatus,
+        modelFilingReadinessStatus: check.modelFilingReadinessStatus,
         warnings: check.warnings,
       },
     };
@@ -702,10 +743,25 @@
         const handoff = lastHandoff || await generateHandoff();
         lastInvestigation = parseInvestigationResult(input.value);
         lastValidation = validateInvestigationResult(lastInvestigation, handoff.facts);
+        const structured = handoff?.facts?.structured;
+        if (structured && typeof structured === 'object') {
+          structured.aiInvestigationResult = lastInvestigation;
+          structured.aiInvestigationValidation = lastValidation;
+          structured.filingReadiness = {
+            schemaVersion: lastValidation.filingReadinessSchemaVersion,
+            analysisQaStatus: lastValidation.analysisQaStatus,
+            politicalResearchStatus: lastValidation.politicalResearchStatus,
+            filingReadinessStatus: lastValidation.filingReadinessStatus,
+            modelFilingReadinessStatus: lastValidation.modelFilingReadinessStatus,
+            filingReady: lastValidation.filingReady,
+          };
+        }
         applicationButton.disabled = !lastValidation.readyForApplication;
         const lines = [
           `${lastValidation.passed ? 'VALIDIERT' : 'NICHT VALIDIERT'} · Score ${lastValidation.score}/100`,
-          `Einreichungsstatus: ${lastValidation.filingReadinessStatus}`,
+          `Analyse-QA: ${lastValidation.analysisQaStatus}`,
+          `Politische Recherche: ${lastValidation.politicalResearchStatus}`,
+          `Lokaler Einreichungsstatus: ${lastValidation.filingReadinessStatus}`,
           ...lastValidation.errors.map(error => `FEHLER: ${error.message}`),
           ...lastValidation.warnings.map(warning => `HINWEIS: ${warning.message}`),
         ];

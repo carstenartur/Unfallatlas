@@ -125,14 +125,16 @@
       "properties": {
         "status": {
           "enum": [
-            "results-found", "searched-no-results", "completed", "complete",
+            "results-found", "results-found-unusable", "searched-no-results", "completed", "complete",
             "not-searched", "failed", "unavailable", "not-searchable", "unsupported"
           ]
         },
         "queries": { "type": "array" },
         "proceedings": { "type": "array" },
         "projects": { "type": "array" },
-        "gaps": { "type": "array", "items": { "type": "string" } }
+        "gaps": { "type": "array", "items": { "type": "string" } },
+        "alternativeVerificationCompleted": { "type": "boolean" },
+        "manualVerificationCompleted": { "type": "boolean" }
       }
     },
     "crossLayerInsights": {
