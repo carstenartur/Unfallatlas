@@ -56,6 +56,7 @@ function resultFixture() {
     accidentBackgroundResearch: { results: [] },
     politicalAdministrativeResearch: {
       status: 'results-found',
+      queries: [{ query: 'Hannover Verkehrssicherheit', sourceType: 'official-ris' }],
       proceedings: [{
         id: 'political-1',
         sourceUrl: 'https://example.test/ris/political-1',
@@ -95,7 +96,10 @@ describe('central filing-readiness gate', () => {
     const api = loadApi();
     const result = resultFixture();
     result.politicalAdministrativeResearch = {
-      status: 'searched-no-results', proceedings: [], projects: [],
+      status: 'searched-no-results',
+      queries: [{ query: 'Hannover Verkehrssicherheit', sourceType: 'official-ris' }],
+      proceedings: [],
+      projects: [],
     };
 
     const gate = api.evaluate({ result, facts: factsFixture() });
@@ -115,7 +119,10 @@ describe('central filing-readiness gate', () => {
   test('blocks failed political research and unlinked claimed results', () => {
     const api = loadApi();
     const failed = resultFixture();
-    failed.politicalAdministrativeResearch = { status: 'failed' };
+    failed.politicalAdministrativeResearch = {
+      status: 'failed',
+      queries: [{ query: 'Hannover Verkehrssicherheit', sourceType: 'official-ris' }],
+    };
     expect(api.evaluate({ result: failed, facts: factsFixture() })).toMatchObject({
       passed: false,
       readyForApplication: false,
@@ -125,7 +132,10 @@ describe('central filing-readiness gate', () => {
 
     const unlinked = resultFixture();
     unlinked.politicalAdministrativeResearch = {
-      status: 'results-found', proceedings: [], projects: [],
+      status: 'results-found',
+      queries: [{ query: 'Hannover Verkehrssicherheit', sourceType: 'official-ris' }],
+      proceedings: [],
+      projects: [],
     };
     const gate = api.evaluate({ result: unlinked, facts: factsFixture() });
     expect(gate.errors.map(item => item.code)).toContain('political-research-blocked');
@@ -136,6 +146,7 @@ describe('central filing-readiness gate', () => {
     const result = resultFixture();
     result.politicalAdministrativeResearch = {
       status: 'completed',
+      queries: [{ query: 'Hannover Verkehrssicherheit', sourceType: 'official-ris' }],
       proceedings: [],
       projects: [],
       manualVerificationCompleted: true,
@@ -152,6 +163,22 @@ describe('central filing-readiness gate', () => {
     expect(gate.errors.map(item => item.code)).toContain('political-research-blocked');
     expect(gate.errors.find(item => item.code === 'political-research-blocked')?.message)
       .toMatch(/nur behauptet/i);
+  });
+
+  test('requires a political search trace even when linked results are supplied', () => {
+    const api = loadApi();
+    const result = resultFixture();
+    result.politicalAdministrativeResearch.queries = [];
+
+    const gate = api.evaluate({ result, facts: factsFixture() });
+    expect(gate).toMatchObject({
+      passed: false,
+      readyForApplication: false,
+      politicalResearchStatus: 'blocked',
+      filingReadinessStatus: 'blocked',
+    });
+    expect(gate.errors.find(item => item.code === 'political-research-blocked')?.message)
+      .toMatch(/Suchprotokoll/i);
   });
 
   test('binds each opened map mode to the exact snapshot URL', () => {
