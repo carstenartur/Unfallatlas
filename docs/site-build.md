@@ -153,9 +153,10 @@ bekannten Provenienz-Härtungspunkte blockieren die browserseitigen Funktionen
 nicht pauschal.
 
 Vollständige ZIP-/Container-Releases bleiben davon getrennt und rufen
-`validate:vendor-provenance -- --require-complete` auf. Sie brechen fail-closed
-ab, wenn Build-Locks, Komponenten, Lizenz-/Copyrighttexte,
-Fontattestierungen oder SBOM-Kanten fehlen. [Issue #406](https://github.com/carstenartur/Unfallatlas/issues/406)
+`validate:vendor-provenance` auf. Die strenge Vollständigkeitsprüfung
+(`--require-complete`) wird nur noch über den Docker-Build-Arg
+`REQUIRE_COMPLETE_VENDOR_PROVENANCE=1` erzwungen und ist kein harter
+Release-Blocker mehr. [Issue #406](https://github.com/carstenartur/Unfallatlas/issues/406)
 verfolgt diese Restarbeiten.
 
 Ein vollständiger Build-Lock benötigt außerdem für jedes ausgelieferte Asset

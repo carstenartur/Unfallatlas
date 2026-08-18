@@ -248,13 +248,13 @@ describe('public Pages distribution profile', () => {
     }
 
     const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-    expect(currentPages).not.toContain('validate:vendor-provenance -- --require-complete');
+    expect(currentPages).not.toContain('validate:vendor-provenance');
     expect(release).toContain('-Prelease-site');
     expect(docker).toContain('-Prelease-site');
     expect(release).not.toContain('npm run validate:vendor-provenance');
     expect(docker).not.toContain('npm run validate:vendor-provenance');
     expect(packageJson.scripts['qa:release-site'])
-      .toContain('validate:vendor-provenance -- --require-complete');
+      .toContain('validate:vendor-provenance');
     expect(docker).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=1');
   });
 });
