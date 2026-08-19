@@ -305,6 +305,8 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
   });
 
   test('accident view selector exists with three options and switching changes the report', async ({ page }) => {
+    test.setTimeout(90_000);
+
     const sel = page.locator('#accidentViewSel');
     await expect(sel).toBeVisible();
     // Has the three planned options
@@ -313,9 +315,16 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
     // Default should resolve to bySeverity
     await expect(sel).toHaveValue('bySeverity');
 
-    // Capture HTML before switching
+    // Wait for the report's explicit completion signal. On CI the real
+    // all-city report can contain more than 20,000 accidents and may finish
+    // immediately after a text-only polling timeout.
     const reportEl = page.locator('#exportHtml');
-    await expect(reportEl).toContainText('Einzelunfälle', { timeout: 15000 });
+    await page.waitForFunction(() => {
+      const text = String(document.querySelector('#exportProgress')?.textContent || '');
+      return text === 'Fertig.' || /^Fehler:/i.test(text);
+    }, null, { timeout: 45_000 });
+    await expect(page.locator('#exportProgress')).toHaveText('Fertig.');
+    await expect(reportEl).toContainText('Einzelunfälle');
     const before = await reportEl.innerHTML();
 
     // Switch to byInvolvement and wait for re-render to settle
@@ -325,11 +334,11 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
       const url = new URL(page.url());
       return url.searchParams.get('accidentView');
     }, { timeout: 10000 }).toBe('byInvolvement');
-    // Allow up to 10s for the rerender
+    // The second real report build has the same cold-runner cost as the first.
     await expect.poll(async () => {
       const html = await reportEl.innerHTML();
       return html !== before;
-    }, { timeout: 15000 }).toBe(true);
+    }, { timeout: 45_000 }).toBe(true);
   });
 
   test('should have Word and PDF export buttons', async ({ page }) => {
