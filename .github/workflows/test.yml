@@ -82,6 +82,7 @@ jobs:
           set -o pipefail
           mkdir -p out/qa
           mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden,context-data-e2e \
+            -Dcontext.city=Hannover \
             '-Dfailsafe.includes=**/*IT.java' \
             | tee out/qa/maven-extended-qa.log
 
