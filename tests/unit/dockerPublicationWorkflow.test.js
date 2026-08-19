@@ -5,6 +5,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WORKFLOW = path.join(ROOT, '.github/workflows/docker-publish.yml');
+const DOCKERFILE = path.join(ROOT, 'Dockerfile');
 
 describe('Docker publication workflow boundary', () => {
   test('main and relevant PRs smoke-build without publishing while releases retain the provenance gate', () => {
@@ -51,5 +52,19 @@ describe('Docker publication workflow boundary', () => {
       .toBeLessThan(publish.indexOf('docker/login-action'));
     expect(publish.indexOf('docker/login-action'))
       .toBeLessThan(publish.indexOf('docker/build-push-action'));
+  });
+
+  test('production media packages tolerate transient mirrors and avoid unrelated apt repositories', () => {
+    const dockerfile = fs.readFileSync(DOCKERFILE, 'utf8');
+
+    expect(dockerfile).toContain('ffmpeg');
+    expect(dockerfile).toContain('imagemagick');
+    expect(dockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
+    expect(dockerfile.match(/Dir::Etc::sourcelist=\/etc\/apt\/sources\.list\.d\/ubuntu\.sources/g))
+      .toHaveLength(2);
+    expect(dockerfile.match(/Dir::Etc::sourceparts=-/g)).toHaveLength(2);
+    expect(dockerfile).toContain('DEBIAN_FRONTEND=noninteractive apt-get');
+    expect(dockerfile).toContain('test -x /usr/bin/ffmpeg');
+    expect(dockerfile).toContain('command -v convert >/dev/null');
   });
 });
