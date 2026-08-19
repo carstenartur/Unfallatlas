@@ -60,7 +60,11 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p out/qa
-          mvn -B -ntp verify -Pvideo-export-it \
+          # The repository-wide frontend and Pages gates run in the Tests
+          # workflow. Execute the dedicated Maven module here so Testcontainers
+          # receives a clean runner instead of duplicating node_modules, _site
+          # and thousands of tests before pulling the large Playwright image.
+          mvn -B -ntp -f qa-system-tests/pom.xml verify -Pvideo-export-it \
             | tee out/qa/maven-video-export-it.log
 
       - name: Upload Docker system-test diagnostics
@@ -72,7 +76,6 @@ jobs:
             out/qa/maven-video-export-it.log
             qa-system-tests/target/failsafe-reports/
             qa-system-tests/target/testcontainers-logs/
-            analysis-service/target/surefire-reports/
           if-no-files-found: ignore
           retention-days: 14
 
@@ -97,6 +100,26 @@ jobs:
 
       - name: Build release site and require complete provenance
         run: mvn -B -ntp clean verify -Prelease-site
+
+      - name: Reclaim build-only workspace before container packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Docker rebuilds all runtime dependencies and the site inside the
+          # image. Keeping the host-side Maven/npm outputs would only compete
+          # with the Playwright base image and APT layers for runner storage.
+          rm -rf \
+            node_modules \
+            target \
+            analysis-service/target \
+            qa-system-tests/target \
+            _site \
+            .build \
+            coverage \
+            playwright-report \
+            test-results
+          docker system prune --all --force --volumes
+          df -h /
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
