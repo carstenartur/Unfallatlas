@@ -9,18 +9,27 @@ const childProcess = require('node:child_process');
 const gate = require('../../scripts/run-pages-quality-gate.cjs');
 
 describe('Pages quality-gate browser installation', () => {
-  const originalEnvironment = { ...process.env };
+  const managedEnvironmentKeys = [
+    'SKIP_PLAYWRIGHT_INSTALL',
+    'PLAYWRIGHT_INSTALL_SYSTEM_DEPS',
+    'PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT',
+  ];
+  const originalEnvironment = Object.fromEntries(
+    managedEnvironmentKeys.map((key) => [key, process.env[key]])
+  );
 
   beforeEach(() => {
     childProcess.spawnSync.mockReset();
     childProcess.spawnSync.mockReturnValue({ status: 0, error: null });
-    delete process.env.SKIP_PLAYWRIGHT_INSTALL;
-    delete process.env.PLAYWRIGHT_INSTALL_SYSTEM_DEPS;
-    delete process.env.PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT;
+    managedEnvironmentKeys.forEach((key) => delete process.env[key]);
   });
 
   afterAll(() => {
-    process.env = originalEnvironment;
+    for (const key of managedEnvironmentKeys) {
+      const value = originalEnvironment[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
   test('installs pinned Chromium without invoking APT by default', () => {
