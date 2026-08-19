@@ -10,11 +10,13 @@ function read(relativePath) {
 }
 
 describe('CI package installation reliability', () => {
-  test('all Docker APT layers retry transient mirrors and verify required binaries', () => {
+  test('all Docker APT layers retry transient mirrors, bound connections and verify binaries', () => {
     const applicationDockerfile = read('Dockerfile');
     const analysisDockerfile = read('analysis-service/Dockerfile');
 
     expect(applicationDockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
+    expect(applicationDockerfile.match(/Acquire::http::Timeout=30/g)).toHaveLength(2);
+    expect(applicationDockerfile.match(/Acquire::https::Timeout=30/g)).toHaveLength(2);
     expect(applicationDockerfile).toContain('test -x /usr/bin/ffmpeg');
     expect(applicationDockerfile).toContain('command -v convert >/dev/null');
 
