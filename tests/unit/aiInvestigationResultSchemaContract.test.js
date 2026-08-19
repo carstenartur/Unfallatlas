@@ -18,11 +18,30 @@ describe('AI investigation result schema contract', () => {
     expect(political.required).toEqual(expect.arrayContaining([
       'status', 'queries', 'proceedings', 'projects',
     ]));
-    expect(political.properties.queries.items.$ref).toBe('#/$defs/politicalQuery');
+    expect(political.properties.queries).toMatchObject({
+      type: 'array',
+      minItems: 1,
+      items: { $ref: '#/$defs/politicalQuery' },
+    });
     expect(schema.$defs.politicalQuery.allOf).toHaveLength(2);
     expect(schema.$defs.linkedPoliticalEvidence.required).toContain('sourceUrl');
     expect(schema.$defs.linkedPoliticalEvidence.properties.sourceUrl.pattern)
       .toBe('^https?://');
+
+    const completedResearchRule = political.allOf[0];
+    expect(completedResearchRule.if.properties.status.enum).toEqual([
+      'results-found', 'completed', 'complete',
+    ]);
+    expect(completedResearchRule.then.anyOf).toEqual([
+      {
+        required: ['proceedings'],
+        properties: { proceedings: { minItems: 1 } },
+      },
+      {
+        required: ['projects'],
+        properties: { projects: { minItems: 1 } },
+      },
+    ]);
   });
 
   test('requires non-empty unique references in evidence-bearing result sections', () => {
