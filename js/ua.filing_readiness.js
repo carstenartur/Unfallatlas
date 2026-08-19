@@ -46,6 +46,18 @@
     }
   }
 
+  function absoluteHttpUrl(value) {
+    const raw = clean(value);
+    if (!raw) return '';
+    try {
+      const url = new URL(raw);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+      return normaliseUrl(url.href);
+    } catch (_) {
+      return '';
+    }
+  }
+
   function findingId(finding) {
     return clean(finding?.patternId || finding?.id || finding?.detectorId || finding?.key);
   }
@@ -87,20 +99,31 @@
       .filter(([mode, url]) => mode && url));
   }
 
+  function politicalEvidenceUrl(item) {
+    return absoluteHttpUrl(item?.sourceUrl || item?.url || item?.link);
+  }
+
   function linkedPoliticalEvidence(political) {
     return [...list(political?.proceedings), ...list(political?.projects)]
-      .filter(item => clean(item?.sourceUrl || item?.url || item?.link));
+      .filter(item => politicalEvidenceUrl(item));
   }
 
   function documentedPoliticalQueries(political) {
     return list(political?.queries).filter(item => {
-      if (typeof item === 'string') return clean(item);
-      return clean(item?.query || item?.searchTerm || item?.term || item?.url);
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      const query = clean(item.query || item.searchTerm || item.term);
+      const namedSource = clean(
+        item.sourceType || item.source || item.provider || item.portal || item.system
+      );
+      const sourceUrl = absoluteHttpUrl(item.url || item.endpoint || item.sourceUrl);
+      return Boolean(query && (namedSource || sourceUrl));
     });
   }
 
   function classifyPoliticalResearch(political) {
     const status = clean(political?.status).toLowerCase();
+    const claimedLinkedCount = [...list(political?.proceedings), ...list(political?.projects)]
+      .filter(item => clean(item?.sourceUrl || item?.url || item?.link)).length;
     const linked = linkedPoliticalEvidence(political);
     const queries = documentedPoliticalQueries(political);
     const manualVerificationClaimed = political?.alternativeVerificationCompleted === true
@@ -109,69 +132,158 @@
     if (!queries.length) {
       return {
         status: 'blocked', sourceStatus: status || 'missing', linkedCount: linked.length,
-        queryCount: 0,
-        reason: 'Zur politischen oder administrativen Recherche fehlt ein nachvollziehbares Suchprotokoll.',
+        claimedLinkedCount, queryCount: 0,
+        reason: 'Zur politischen oder administrativen Recherche fehlt ein nachvollziehbares Suchprotokoll mit Suchbegriff und Quelle beziehungsweise Portal.',
       };
     }
 
     if (status === 'results-found') {
       return linked.length
-        ? { status: 'complete', sourceStatus: status, linkedCount: linked.length, queryCount: queries.length }
+        ? {
+          status: 'complete', sourceStatus: status, linkedCount: linked.length,
+          claimedLinkedCount, queryCount: queries.length,
+        }
         : {
-          status: 'blocked', sourceStatus: status, linkedCount: 0, queryCount: queries.length,
-          reason: 'Politische Treffer wurden behauptet, aber kein direkt verlinkter Vorgang oder Verwaltungsprojekt übergeben.',
+          status: 'blocked', sourceStatus: status, linkedCount: 0,
+          claimedLinkedCount, queryCount: queries.length,
+          reason: 'Politische Treffer wurden behauptet, aber kein direkt verifizierbarer HTTP(S)-Link zu einem Vorgang oder Verwaltungsprojekt übergeben.',
         };
     }
     if (status === 'completed' || status === 'complete') {
       return linked.length
         ? {
           status: 'complete', sourceStatus: status, linkedCount: linked.length,
-          queryCount: queries.length, manualVerificationClaimed,
+          claimedLinkedCount, queryCount: queries.length, manualVerificationClaimed,
         }
         : {
           status: 'blocked', sourceStatus: status, linkedCount: 0,
-          queryCount: queries.length, manualVerificationClaimed,
+          claimedLinkedCount, queryCount: queries.length, manualVerificationClaimed,
           reason: manualVerificationClaimed
-            ? 'Eine manuelle oder alternative Prüfung wurde nur behauptet; ohne direkt verlinkte Evidenz darf sie das Einreichungs-Gate nicht freigeben.'
-            : 'Die Recherche wurde als vollständig bezeichnet, ohne verlinkte Treffer oder dokumentierte alternative Verifikation.',
+            ? 'Eine manuelle oder alternative Prüfung wurde nur behauptet; ohne direkt verlinkte HTTP(S)-Evidenz darf sie das Einreichungs-Gate nicht freigeben.'
+            : 'Die Recherche wurde als vollständig bezeichnet, ohne direkt verlinkte HTTP(S)-Treffer.',
         };
     }
     if (CONDITIONAL_POLITICAL_STATUSES.has(status)) {
       return {
         status: 'conditional', sourceStatus: status, linkedCount: linked.length,
-        queryCount: queries.length,
+        claimedLinkedCount, queryCount: queries.length,
         reason: 'Die politische Vorbefassung ist nicht abschließend belegt; eine alternative Portal- oder manuelle Prüfung bleibt erforderlich.',
       };
     }
     return {
       status: 'blocked', sourceStatus: status || 'missing', linkedCount: linked.length,
-      queryCount: queries.length,
+      claimedLinkedCount, queryCount: queries.length,
       reason: 'Politische Recherche ist nicht belastbar abgeschlossen (' + (status || 'Status fehlt') + ').',
     };
+  }
+
+  function addRegistryValue(registry, value) {
+    const id = clean(value);
+    if (!id) return;
+    registry.add(id);
+    const normalised = normaliseUrl(id);
+    if (normalised) registry.add(normalised);
   }
 
   function buildEvidenceRegistry(result, options = {}) {
     const ids = new Set();
     const includeMapObservationIds = options.includeMapObservationIds !== false;
-    const add = value => {
-      const id = clean(value);
-      if (!id) return;
-      ids.add(id);
-      const normalised = normaliseUrl(id);
-      if (normalised) ids.add(normalised);
-    };
-    list(result?.accessedResources).forEach(item => { add(item?.id); add(item?.url); });
+    list(result?.accessedResources).forEach(item => {
+      addRegistryValue(ids, item?.id);
+      addRegistryValue(ids, item?.url);
+    });
     if (includeMapObservationIds) {
-      list(result?.mapObservations).forEach(item => add(item?.id));
+      list(result?.mapObservations).forEach(item => addRegistryValue(ids, item?.id));
     }
-    list(result?.patternEvaluations).forEach(item => { add(findingId(item)); add(item?.detectorId); });
+    list(result?.patternEvaluations).forEach(item => {
+      addRegistryValue(ids, findingId(item));
+      addRegistryValue(ids, item?.detectorId);
+    });
     list(result?.accidentBackgroundResearch?.results).forEach(item => {
-      add(item?.id); add(item?.sourceUrl); add(item?.url);
+      addRegistryValue(ids, item?.id);
+      addRegistryValue(ids, item?.sourceUrl);
+      addRegistryValue(ids, item?.url);
     });
     [...list(result?.politicalAdministrativeResearch?.proceedings),
       ...list(result?.politicalAdministrativeResearch?.projects)]
-      .forEach(item => { add(item?.id); add(item?.sourceUrl || item?.url || item?.link); });
+      .filter(item => politicalEvidenceUrl(item))
+      .forEach(item => {
+        addRegistryValue(ids, item?.id);
+        addRegistryValue(ids, politicalEvidenceUrl(item));
+      });
     return ids;
+  }
+
+  function buildFindingRegistry(result) {
+    const ids = new Set();
+    list(result?.mapObservations).forEach(item => addRegistryValue(ids, item?.id));
+    list(result?.patternEvaluations).forEach(item => {
+      addRegistryValue(ids, findingId(item));
+      addRegistryValue(ids, item?.detectorId);
+    });
+    list(result?.crossLayerInsights).forEach(item => addRegistryValue(ids, item?.id));
+    return ids;
+  }
+
+  function resourceLayer(resource) {
+    if (clean(resource?.mapMode)) return 'map';
+    const type = clean(resource?.resourceType).toLowerCase();
+    if (/ris|oparl|politic|administr/.test(type)) return 'political-administrative';
+    if (/police|official|research|document|article|report|source/.test(type)) {
+      return 'accident-background';
+    }
+    return 'external-resource';
+  }
+
+  function addLayerValue(registry, value, layer) {
+    const id = clean(value);
+    if (!id || !layer) return;
+    const keys = unique([id, normaliseUrl(id)]);
+    for (const key of keys) {
+      if (!registry.has(key)) registry.set(key, new Set());
+      registry.get(key).add(layer);
+    }
+  }
+
+  function buildEvidenceLayerRegistry(result, options = {}) {
+    const layers = new Map();
+    const includeMapObservationIds = options.includeMapObservationIds !== false;
+    list(result?.accessedResources).forEach(item => {
+      const layer = resourceLayer(item);
+      addLayerValue(layers, item?.id, layer);
+      addLayerValue(layers, item?.url, layer);
+    });
+    if (includeMapObservationIds) {
+      list(result?.mapObservations).forEach(item => addLayerValue(layers, item?.id, 'map'));
+    }
+    list(result?.patternEvaluations).forEach(item => {
+      addLayerValue(layers, findingId(item), 'pattern');
+      addLayerValue(layers, item?.detectorId, 'pattern');
+    });
+    list(result?.accidentBackgroundResearch?.results).forEach(item => {
+      addLayerValue(layers, item?.id, 'accident-background');
+      addLayerValue(layers, item?.sourceUrl, 'accident-background');
+      addLayerValue(layers, item?.url, 'accident-background');
+    });
+    [...list(result?.politicalAdministrativeResearch?.proceedings),
+      ...list(result?.politicalAdministrativeResearch?.projects)]
+      .filter(item => politicalEvidenceUrl(item))
+      .forEach(item => {
+        addLayerValue(layers, item?.id, 'political-administrative');
+        addLayerValue(layers, politicalEvidenceUrl(item), 'political-administrative');
+      });
+    return layers;
+  }
+
+  function evidenceLayersForRefs(refs, registry) {
+    const layers = new Set();
+    for (const ref of unique(refs)) {
+      const direct = registry.get(ref);
+      const normalised = registry.get(normaliseUrl(ref));
+      for (const layer of direct || []) layers.add(layer);
+      for (const layer of normalised || []) layers.add(layer);
+    }
+    return layers;
   }
 
   function unresolvedEvidenceRefs(refs, registry) {
@@ -260,7 +372,9 @@
     const nonObservationEvidenceRegistry = buildEvidenceRegistry(result, {
       includeMapObservationIds: false,
     });
-    const checkRefs = (items, field, prefix, label, registry, minimumRefs) => {
+    const evidenceLayerRegistry = buildEvidenceLayerRegistry(result);
+    const findingRegistry = buildFindingRegistry(result);
+    const checkRefs = (items, field, prefix, label, registry, minimumRefs, minimumLayers = 0) => {
       list(items).forEach((item, index) => {
         const refs = unique(item?.[field]);
         const code = prefix + '-' + (index + 1);
@@ -276,6 +390,17 @@
         if (unresolved.length) {
           fail(code,
             label + ' ' + (index + 1) + ' verweist auf unbekannte Evidenz: ' + unresolved.join(', ') + '.');
+          return;
+        }
+        if (minimumLayers) {
+          const layers = evidenceLayersForRefs(refs, evidenceLayerRegistry);
+          if (layers.size < minimumLayers) {
+            fail(code,
+              label + ' ' + (index + 1) + ' benötigt Evidenz aus mindestens '
+                + minimumLayers + ' unabhängigen Schichten; erkannt: '
+                + ([...layers].join(', ') || 'keine') + '.',
+              { requiredLayers: minimumLayers, observedLayers: [...layers] });
+          }
         }
       });
     };
@@ -293,6 +418,7 @@
       'cross-layer-evidence',
       'Einsicht',
       evidenceRegistry,
+      2,
       2
     );
     checkRefs(
@@ -300,7 +426,7 @@
       'findingRefs',
       'measure-evidence',
       'Maßnahmenkandidat',
-      evidenceRegistry,
+      findingRegistry,
       1
     );
 
@@ -364,9 +490,13 @@
     evaluate,
     classifyPoliticalResearch,
     normaliseUrl,
+    absoluteHttpUrl,
     collectPatternFindings,
     buildEvidenceRegistry,
+    buildEvidenceLayerRegistry,
+    buildFindingRegistry,
     documentedPoliticalQueries,
+    evidenceLayersForRefs,
     unresolvedEvidenceRefs,
   });
 })();
