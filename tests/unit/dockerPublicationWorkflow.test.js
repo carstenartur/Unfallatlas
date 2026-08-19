@@ -60,9 +60,11 @@ describe('Docker publication workflow boundary', () => {
     expect(dockerfile).toContain('ffmpeg');
     expect(dockerfile).toContain('imagemagick');
     expect(dockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
-    expect(dockerfile.match(/Dir::Etc::sourcelist=\/etc\/apt\/sources\.list\.d\/ubuntu\.sources/g))
-      .toHaveLength(2);
-    expect(dockerfile.match(/Dir::Etc::sourceparts=-/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::http::Timeout=30/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::https::Timeout=30/g)).toHaveLength(2);
+    expect(dockerfile).toContain('rm -f /etc/apt/sources.list.d/nodesource.list');
+    expect(dockerfile).not.toContain('Dir::Etc::sourcelist');
+    expect(dockerfile).not.toContain('Dir::Etc::sourceparts');
     expect(dockerfile).toContain('DEBIAN_FRONTEND=noninteractive apt-get');
     expect(dockerfile).toContain('test -x /usr/bin/ffmpeg');
     expect(dockerfile).toContain('command -v convert >/dev/null');
