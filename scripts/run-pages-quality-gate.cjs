@@ -4,6 +4,11 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
+const {
+  PLAYWRIGHT_INSTALL_TIMEOUT_MS,
+  installBrowsers,
+  playwrightCli,
+} = require('./install-playwright-browsers.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const INPUT_DIR = process.env.PAGES_INPUT_DIR || 'out';
@@ -14,7 +19,6 @@ const QA_DIR = path.resolve(ROOT, 'out', 'qa');
 const SERVER_LOG = path.join(QA_DIR, 'pages-maven-server.log');
 const FINGERPRINT = path.join(QA_DIR, 'pages-maven-profile.sha256');
 const BASE_URL = 'http://127.0.0.1:8000';
-const PLAYWRIGHT_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 
 function display(command, args) {
   return [command, ...args].map((value) => /\s/.test(value) ? JSON.stringify(value) : value).join(' ');
@@ -50,11 +54,6 @@ function run(command, args, options = {}) {
 
 function runNode(relativeScript, args = [], options = {}) {
   run(process.execPath, [path.resolve(ROOT, relativeScript), ...args], options);
-}
-
-function playwrightCli() {
-  const packageEntry = require.resolve('@playwright/test');
-  return path.join(path.dirname(packageEntry), 'cli.js');
 }
 
 function requestReady(url) {
@@ -149,32 +148,7 @@ function buildAndValidateSite() {
 }
 
 function installChromium() {
-  const skip = /^(1|true)$/i.test(process.env.SKIP_PLAYWRIGHT_INSTALL || '');
-  if (skip) {
-    process.stdout.write('[pages-qa] Chromium installation skipped by SKIP_PLAYWRIGHT_INSTALL.\n');
-    return;
-  }
-
-  const installSystemDeps = process.platform === 'linux'
-    && /^(1|true)$/i.test(process.env.PLAYWRIGHT_INSTALL_SYSTEM_DEPS || '');
-  const args = [playwrightCli(), 'install'];
-  if (installSystemDeps) args.push('--with-deps');
-  args.push('chromium');
-
-  if (process.platform === 'linux' && !installSystemDeps) {
-    process.stdout.write(
-      '[pages-qa] Installing pinned Chromium without mutating APT sources. '
-        + 'Set PLAYWRIGHT_INSTALL_SYSTEM_DEPS=1 only on a deliberately provisioned Linux host.\n'
-    );
-  }
-
-  run(process.execPath, args, {
-    timeoutMs: PLAYWRIGHT_INSTALL_TIMEOUT_MS,
-    env: {
-      PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT:
-        process.env.PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT || '120000',
-    },
-  });
+  return installBrowsers(['chromium']);
 }
 
 async function runBrowserGate() {
