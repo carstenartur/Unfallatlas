@@ -14,6 +14,7 @@ const QA_DIR = path.resolve(ROOT, 'out', 'qa');
 const SERVER_LOG = path.join(QA_DIR, 'pages-maven-server.log');
 const FINGERPRINT = path.join(QA_DIR, 'pages-maven-profile.sha256');
 const BASE_URL = 'http://127.0.0.1:8000';
+const PLAYWRIGHT_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
 
 function display(command, args) {
   return [command, ...args].map((value) => /\s/.test(value) ? JSON.stringify(value) : value).join(' ');
@@ -21,13 +22,27 @@ function display(command, args) {
 
 function run(command, args, options = {}) {
   process.stdout.write(`\n[pages-qa] $ ${display(command, args)}\n`);
-  const result = spawnSync(command, args, {
+  const spawnOptions = {
     cwd: ROOT,
     stdio: 'inherit',
     env: { ...process.env, ...(options.env || {}) },
     shell: false,
-  });
-  if (result.error) throw result.error;
+  };
+  if (Number.isFinite(options.timeoutMs) && options.timeoutMs > 0) {
+    spawnOptions.timeout = options.timeoutMs;
+    spawnOptions.killSignal = 'SIGTERM';
+  }
+
+  const result = spawnSync(command, args, spawnOptions);
+  if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      throw new Error(
+        `[pages-qa] Command exceeded ${options.timeoutMs} ms and was terminated: ${display(command, args)}`,
+        { cause: result.error }
+      );
+    }
+    throw result.error;
+  }
   if (result.status !== 0) {
     throw new Error(`[pages-qa] Command failed with exit code ${result.status}: ${display(command, args)}`);
   }
@@ -139,10 +154,27 @@ function installChromium() {
     process.stdout.write('[pages-qa] Chromium installation skipped by SKIP_PLAYWRIGHT_INSTALL.\n');
     return;
   }
+
+  const installSystemDeps = process.platform === 'linux'
+    && /^(1|true)$/i.test(process.env.PLAYWRIGHT_INSTALL_SYSTEM_DEPS || '');
   const args = [playwrightCli(), 'install'];
-  if (process.platform === 'linux') args.push('--with-deps');
+  if (installSystemDeps) args.push('--with-deps');
   args.push('chromium');
-  run(process.execPath, args);
+
+  if (process.platform === 'linux' && !installSystemDeps) {
+    process.stdout.write(
+      '[pages-qa] Installing pinned Chromium without mutating APT sources. '
+        + 'Set PLAYWRIGHT_INSTALL_SYSTEM_DEPS=1 only on a deliberately provisioned Linux host.\n'
+    );
+  }
+
+  run(process.execPath, args, {
+    timeoutMs: PLAYWRIGHT_INSTALL_TIMEOUT_MS,
+    env: {
+      PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT:
+        process.env.PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT || '120000',
+    },
+  });
 }
 
 async function runBrowserGate() {
@@ -178,7 +210,15 @@ async function main() {
   process.stdout.write('\n[pages-qa] Maven-reproducible Pages quality gate passed.\n');
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error && error.stack ? error.stack : error}\n`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(`${error && error.stack ? error.stack : error}\n`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  PLAYWRIGHT_INSTALL_TIMEOUT_MS,
+  installChromium,
+  run,
+};
