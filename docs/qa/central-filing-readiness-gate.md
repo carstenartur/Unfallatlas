@@ -58,3 +58,7 @@ Die Tests decken insbesondere ab:
 - Maßnahmenverweise auf rohe Ressourcen statt Befunde;
 - Drift zwischen lokalem Gate und veröffentlichtem JSON-Schema;
 - Verbot einer Hochstufung durch das Modell.
+
+## Release-Freigabe
+
+Die Freigabe erfolgt auf dem integrierten Änderungsstand gegen `main`, nicht auf isolierten Teilzweigen. Erforderlich sind mindestens der kanonische Maven-Build und die Extended Maven QA mit JUnit-, Testcontainers- und Playwright-Verträgen. Teil-PRs oder fokussierte Tests dienen der Fehlerlokalisierung, ersetzen aber nicht diesen abschließenden integrierten Lauf.
