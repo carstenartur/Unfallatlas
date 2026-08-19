@@ -105,11 +105,12 @@ jobs:
             bash -lc '
               set -euxo pipefail
               cat /etc/os-release
-              find /etc/apt -maxdepth 2 -type f -print -exec sed -n "1,160p" {} \;
+              sed -n "1,200p" /etc/apt/sources.list.d/ubuntu.sources
+              sed -n "1,80p" /etc/apt/sources.list.d/nodesource.list
               command -v ffmpeg || true
               command -v magick || true
               command -v convert || true
-              dpkg-query -W -f="${binary:Package}\t${Version}\n" ffmpeg imagemagick 2>/dev/null || true
+              dpkg -l ffmpeg imagemagick 2>/dev/null || true
               apt-get -o Acquire::Retries=5 update
               DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends ffmpeg imagemagick
               ffmpeg -version | sed -n "1,4p"
