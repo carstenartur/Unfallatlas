@@ -34,6 +34,10 @@ describe('Docker publication workflow boundary', () => {
 
     expect(smoke).toContain('pushd qa-system-tests');
     expect(smoke).toContain('-Pvideo-export-it');
+    expect(smoke).toContain('-Dunfallatlas.repositoryRoot="${GITHUB_WORKSPACE}"');
+    expect(smoke).toContain(
+      '-Dunfallatlas.qaOutputDir="${GITHUB_WORKSPACE}/qa-system-tests/target/testcontainers-logs"'
+    );
     expect(smoke).toContain('../out/qa/maven-video-export-it.log');
     expect(smoke).not.toContain('-f qa-system-tests/pom.xml');
     expect(smoke).not.toContain('npm run');
