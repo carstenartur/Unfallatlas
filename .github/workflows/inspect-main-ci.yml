@@ -88,3 +88,39 @@ jobs:
                       'failed_steps': failed_steps,
                   }, sort_keys=True))
           PY
+
+  probe-playwright-base:
+    name: Probe Playwright base image APT installation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Pull exact production base image
+        run: docker pull mcr.microsoft.com/playwright:v1.62.1-noble
+
+      - name: Inspect package sources and install required media tools
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm --user root mcr.microsoft.com/playwright:v1.62.1-noble \
+            bash -lc '
+              set -euxo pipefail
+              cat /etc/os-release
+              find /etc/apt -maxdepth 2 -type f -print -exec sed -n "1,160p" {} \;
+              command -v ffmpeg || true
+              command -v magick || true
+              command -v convert || true
+              dpkg-query -W -f="${binary:Package}\t${Version}\n" ffmpeg imagemagick 2>/dev/null || true
+              apt-get -o Acquire::Retries=5 update
+              DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends ffmpeg imagemagick
+              ffmpeg -version | sed -n "1,4p"
+              (magick -version || convert -version) | sed -n "1,6p"
+            ' 2>&1 | tee playwright-base-apt.log
+
+      - name: Upload exact APT diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-base-apt-diagnostics
+          path: playwright-base-apt.log
+          if-no-files-found: error
+          retention-days: 7
