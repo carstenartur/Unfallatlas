@@ -42,7 +42,7 @@ test.describe('Accessibility – Werkbank V2', () => {
   });
 
   test('alle vier Arbeitsdialoge haben keine critical/serious axe-Violations', async ({ page }, testInfo) => {
-    await page.goto('werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
     await waitForScreenshotReady(page, { city: 'Hannover' });
 
     const dialogs = [

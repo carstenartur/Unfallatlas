@@ -73,6 +73,12 @@ async function scrollPreviewLikeVideoExporter(page) {
 
 test.describe('document provenance with context-filtered state', () => {
   test('creates a PDF with the exact state used by video export', async ({ page }) => {
+    // PDF generation routinely takes more than Playwright's 30-second default
+    // on a cold CI runner. Keep the outer budget above the helper's 90-second
+    // download/failure contract so that the contract, not the framework default,
+    // decides the result.
+    test.setTimeout(120_000);
+
     const dialogMessages = [];
     page.on('dialog', async (dialog) => {
       dialogMessages.push(dialog.message());

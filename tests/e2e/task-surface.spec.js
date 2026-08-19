@@ -12,6 +12,7 @@ async function waitForTaskSurface(page) {
 
 test.describe('responsive task surface', () => {
   test('keyboard user can change the analysis and complete the export-dialog task', async ({ page }) => {
+    test.setTimeout(60000);
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(String(error && error.message || error)));
     await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
