@@ -61,11 +61,15 @@ jobs:
           set -o pipefail
           mkdir -p out/qa
           # The repository-wide frontend and Pages gates run in the Tests
-          # workflow. Execute the dedicated Maven module here so Testcontainers
-          # receives a clean runner instead of duplicating node_modules, _site
-          # and thousands of tests before pulling the large Playwright image.
-          mvn -B -ntp -f qa-system-tests/pom.xml verify -Pvideo-export-it \
-            | tee out/qa/maven-video-export-it.log
+          # workflow. Execute Maven from the dedicated QA module so
+          # Testcontainers receives a clean runner instead of duplicating
+          # node_modules, _site and thousands of tests before pulling the
+          # large Playwright image. ProductionContainerIT intentionally
+          # resolves the repository as the module's parent directory.
+          pushd qa-system-tests >/dev/null
+          mvn -B -ntp verify -Pvideo-export-it \
+            | tee ../out/qa/maven-video-export-it.log
+          popd >/dev/null
 
       - name: Upload Docker system-test diagnostics
         if: always()
