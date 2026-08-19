@@ -48,7 +48,7 @@ function resultFixture() {
       evidenceRefs: ['map-hybrid', 'bike-rail'],
     }],
     patternEvaluations: [
-      { patternId: 'bike-rail', status: 'supported' },
+      { patternId: 'bike-rail', detectorId: 'rail-detector', status: 'supported' },
       { patternId: 'surface-gap', status: 'not-assessable' },
       { patternId: 'crossing-observed', status: 'supported' },
       { patternId: 'data-warning', status: 'not-assessable' },
@@ -64,6 +64,7 @@ function resultFixture() {
       projects: [],
     },
     crossLayerInsights: [{
+      id: 'insight-1',
       evidenceRefs: ['map-hybrid', 'bike-rail'],
     }],
     candidateMeasures: [{
@@ -141,6 +142,22 @@ describe('central filing-readiness gate', () => {
     expect(gate.errors.map(item => item.code)).toContain('political-research-blocked');
   });
 
+  test('requires direct HTTP(S) links for claimed political evidence', () => {
+    const api = loadApi();
+    const result = resultFixture();
+    result.politicalAdministrativeResearch.proceedings[0].sourceUrl = 'not-a-url';
+
+    const gate = api.evaluate({ result, facts: factsFixture() });
+    expect(gate).toMatchObject({
+      passed: false,
+      readyForApplication: false,
+      politicalResearchStatus: 'blocked',
+      filingReadinessStatus: 'blocked',
+    });
+    expect(gate.errors.find(item => item.code === 'political-research-blocked')?.message)
+      .toMatch(/HTTP\(S\)/i);
+  });
+
   test('does not accept self-declared manual verification without linked political evidence', () => {
     const api = loadApi();
     const result = resultFixture();
@@ -165,20 +182,24 @@ describe('central filing-readiness gate', () => {
       .toMatch(/nur behauptet/i);
   });
 
-  test('requires a political search trace even when linked results are supplied', () => {
+  test('requires a reproducible political search trace even when linked results are supplied', () => {
     const api = loadApi();
-    const result = resultFixture();
-    result.politicalAdministrativeResearch.queries = [];
-
-    const gate = api.evaluate({ result, facts: factsFixture() });
-    expect(gate).toMatchObject({
-      passed: false,
-      readyForApplication: false,
-      politicalResearchStatus: 'blocked',
-      filingReadinessStatus: 'blocked',
-    });
+    const missing = resultFixture();
+    missing.politicalAdministrativeResearch.queries = [];
+    let gate = api.evaluate({ result: missing, facts: factsFixture() });
+    expect(gate.politicalResearchStatus).toBe('blocked');
     expect(gate.errors.find(item => item.code === 'political-research-blocked')?.message)
       .toMatch(/Suchprotokoll/i);
+
+    const stringOnly = resultFixture();
+    stringOnly.politicalAdministrativeResearch.queries = ['Hannover Verkehrssicherheit'];
+    gate = api.evaluate({ result: stringOnly, facts: factsFixture() });
+    expect(gate.politicalResearchStatus).toBe('blocked');
+
+    const sourceMissing = resultFixture();
+    sourceMissing.politicalAdministrativeResearch.queries = [{ query: 'Hannover Verkehrssicherheit' }];
+    gate = api.evaluate({ result: sourceMissing, facts: factsFixture() });
+    expect(gate.politicalResearchStatus).toBe('blocked');
   });
 
   test('binds each opened map mode to the exact snapshot URL', () => {
@@ -229,6 +250,29 @@ describe('central filing-readiness gate', () => {
     expect(gate.errors.map(item => item.code)).toEqual(expect.arrayContaining([
       'map-observation-evidence-1', 'map-observation-evidence-2',
     ]));
+  });
+
+  test('requires cross-layer insights to use genuinely different evidence layers', () => {
+    const api = loadApi();
+    const mapsOnly = resultFixture();
+    mapsOnly.crossLayerInsights[0].evidenceRefs = ['map-standard', 'map-hybrid'];
+    let gate = api.evaluate({ result: mapsOnly, facts: factsFixture() });
+    expect(gate.errors.find(item => item.code === 'cross-layer-evidence-1')?.message)
+      .toMatch(/unabhängigen Schichten/i);
+
+    const aliasesOfOnePattern = resultFixture();
+    aliasesOfOnePattern.crossLayerInsights[0].evidenceRefs = ['bike-rail', 'rail-detector'];
+    gate = api.evaluate({ result: aliasesOfOnePattern, facts: factsFixture() });
+    expect(gate.errors.map(item => item.code)).toContain('cross-layer-evidence-1');
+  });
+
+  test('restricts measure findingRefs to actual findings rather than raw resources', () => {
+    const api = loadApi();
+    const result = resultFixture();
+    result.candidateMeasures[0].findingRefs = ['map-hybrid'];
+
+    const gate = api.evaluate({ result, facts: factsFixture() });
+    expect(gate.errors.map(item => item.code)).toContain('measure-evidence-1');
   });
 
   test('enforces minimum evidence cardinality independently of schema validation', () => {
