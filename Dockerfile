@@ -18,11 +18,29 @@ FROM mcr.microsoft.com/playwright:v1.62.1-noble
 # ffmpeg erzeugt GIF, WebP und APNG. ImageMagick/libwebp übernimmt ausschließlich
 # die formatgerechte Nachprüfung animierter WebP-Dateien und das Reservieren der
 # festen QA-Nachweisfarben in der adaptiven GIF-Palette.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ffmpeg \
-      imagemagick \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+#
+# Das Playwright-Image enthält zusätzlich eine NodeSource-Paketquelle. Für diese
+# beiden Ubuntu-Pakete wird bewusst ausschließlich ubuntu.sources verwendet:
+# Ein Ausfall des nicht benötigten Drittanbieter-Repositories darf den
+# Produktions-Container nicht blockieren. APT wiederholt vorübergehend
+# fehlgeschlagene Mirror-Abrufe bis zu fünfmal.
+RUN set -eux; \
+    apt-get \
+      -o Acquire::Retries=5 \
+      -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources \
+      -o Dir::Etc::sourceparts=- \
+      update; \
+    DEBIAN_FRONTEND=noninteractive apt-get \
+      -o Acquire::Retries=5 \
+      -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources \
+      -o Dir::Etc::sourceparts=- \
+      install -y --no-install-recommends \
+        ffmpeg \
+        imagemagick; \
+    test -x /usr/bin/ffmpeg; \
+    command -v convert >/dev/null; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
