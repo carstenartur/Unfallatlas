@@ -1,4 +1,4 @@
-name: Inspect current main CI
+name: Inspect cancelled Pages CI
 
 on:
   pull_request:
@@ -11,116 +11,42 @@ permissions:
   contents: read
 
 jobs:
-  inspect-main:
-    name: Inspect current main workflow runs
-    runs-on: ubuntu-latest
-    steps:
-      - name: List workflow runs and failed jobs for current main
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          import os
-          import urllib.request
-
-          repo = os.environ['GITHUB_REPOSITORY']
-          token = os.environ['GH_TOKEN']
-          api = 'https://api.github.com'
-
-          def get(path):
-              request = urllib.request.Request(
-                  api + path,
-                  headers={
-                      'Accept': 'application/vnd.github+json',
-                      'Authorization': f'Bearer {token}',
-                      'X-GitHub-Api-Version': '2022-11-28',
-                      'User-Agent': 'unfallwerkbank-main-ci-inspector',
-                  },
-              )
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  return json.load(response)
-
-          main = get(f'/repos/{repo}/branches/main')
-          main_sha = main['commit']['sha']
-          response = get(f'/repos/{repo}/actions/runs?branch=main&per_page=100')
-          runs = [run for run in response.get('workflow_runs', []) if run.get('head_sha') == main_sha]
-
-          print(f'CURRENT_MAIN_SHA={main_sha}')
-          print(f'MATCHING_RUNS={len(runs)}')
-          if not runs:
-              raise SystemExit('No workflow runs found for current main commit')
-
-          for run in sorted(runs, key=lambda item: item['id']):
-              print('RUN ' + json.dumps({
-                  'id': run['id'],
-                  'name': run['name'],
-                  'event': run['event'],
-                  'status': run['status'],
-                  'conclusion': run['conclusion'],
-                  'run_number': run['run_number'],
-                  'created_at': run['created_at'],
-                  'updated_at': run['updated_at'],
-                  'html_url': run['html_url'],
-              }, sort_keys=True))
-              jobs = get(f'/repos/{repo}/actions/runs/{run["id"]}/jobs?per_page=100').get('jobs', [])
-              for job in jobs:
-                  failed_steps = [
-                      {
-                          'number': step['number'],
-                          'name': step['name'],
-                          'status': step['status'],
-                          'conclusion': step['conclusion'],
-                      }
-                      for step in job.get('steps', [])
-                      if step.get('conclusion') not in (None, 'success', 'skipped')
-                  ]
-                  print('JOB ' + json.dumps({
-                      'id': job['id'],
-                      'run_id': run['id'],
-                      'name': job['name'],
-                      'status': job['status'],
-                      'conclusion': job['conclusion'],
-                      'started_at': job['started_at'],
-                      'completed_at': job['completed_at'],
-                      'failed_steps': failed_steps,
-                  }, sort_keys=True))
-          PY
-
   inspect-pages-timeout:
     name: Inspect cancelled Pages build log
     runs-on: ubuntu-latest
     steps:
-      - name: Download and print the final Pages log section
+      - name: Download the complete Pages job log through GitHub
         env:
           GH_TOKEN: ${{ github.token }}
           PAGES_JOB_ID: '96002218533'
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import os
-          import pathlib
-          import urllib.request
+          curl --fail --location --silent --show-error \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${PAGES_JOB_ID}/logs" \
+            --output pages-main-timeout.raw
 
-          repo = os.environ['GITHUB_REPOSITORY']
-          token = os.environ['GH_TOKEN']
-          job_id = os.environ['PAGES_JOB_ID']
-          request = urllib.request.Request(
-              f'https://api.github.com/repos/{repo}/actions/jobs/{job_id}/logs',
-              headers={
-                  'Accept': 'application/vnd.github+json',
-                  'Authorization': f'Bearer {token}',
-                  'X-GitHub-Api-Version': '2022-11-28',
-                  'User-Agent': 'unfallwerkbank-pages-log-inspector',
-              },
-          )
-          with urllib.request.urlopen(request, timeout=120) as response:
-              raw = response.read()
-          path = pathlib.Path('pages-main-timeout.log')
-          path.write_bytes(raw)
+          python - <<'PY'
+          import io
+          import pathlib
+          import zipfile
+
+          raw_path = pathlib.Path('pages-main-timeout.raw')
+          raw = raw_path.read_bytes()
+          if zipfile.is_zipfile(io.BytesIO(raw)):
+              with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                  chunks = []
+                  for name in sorted(archive.namelist()):
+                      if name.endswith('/'):
+                          continue
+                      chunks.append(archive.read(name))
+                  raw = b'\n'.join(chunks)
+
+          log_path = pathlib.Path('pages-main-timeout.log')
+          log_path.write_bytes(raw)
           text = raw.decode('utf-8', errors='replace')
           lines = text.splitlines()
           print(f'PAGES_LOG_BYTES={len(raw)}')
@@ -135,42 +61,5 @@ jobs:
         with:
           name: pages-main-timeout-log
           path: pages-main-timeout.log
-          if-no-files-found: error
-          retention-days: 7
-
-  probe-playwright-base:
-    name: Probe Playwright base image APT installation
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Pull exact production base image
-        run: docker pull mcr.microsoft.com/playwright:v1.62.1-noble
-
-      - name: Inspect package sources and install required media tools
-        shell: bash
-        run: |
-          set -o pipefail
-          docker run --rm --user root mcr.microsoft.com/playwright:v1.62.1-noble \
-            bash -lc '
-              set -euxo pipefail
-              cat /etc/os-release
-              sed -n "1,200p" /etc/apt/sources.list.d/ubuntu.sources
-              sed -n "1,80p" /etc/apt/sources.list.d/nodesource.list
-              command -v ffmpeg || true
-              command -v magick || true
-              command -v convert || true
-              dpkg -l ffmpeg imagemagick 2>/dev/null || true
-              apt-get -o Acquire::Retries=5 update
-              DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends ffmpeg imagemagick
-              ffmpeg -version | sed -n "1,4p"
-              (magick -version || convert -version) | sed -n "1,6p"
-            ' 2>&1 | tee playwright-base-apt.log
-
-      - name: Upload exact APT diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: playwright-base-apt-diagnostics
-          path: playwright-base-apt.log
           if-no-files-found: error
           retention-days: 7
