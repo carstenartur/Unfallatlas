@@ -1,6 +1,11 @@
 name: Temporary reviewed source export
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/temp-export-werkbank-source.yml
   push:
     branches:
       - agent/filing-readiness-reference-validation
