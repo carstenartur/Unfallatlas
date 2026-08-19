@@ -89,6 +89,55 @@ jobs:
                   }, sort_keys=True))
           PY
 
+  inspect-pages-timeout:
+    name: Inspect cancelled Pages build log
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and print the final Pages log section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_JOB_ID: '96002218533'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import pathlib
+          import urllib.request
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          job_id = os.environ['PAGES_JOB_ID']
+          request = urllib.request.Request(
+              f'https://api.github.com/repos/{repo}/actions/jobs/{job_id}/logs',
+              headers={
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': f'Bearer {token}',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'User-Agent': 'unfallwerkbank-pages-log-inspector',
+              },
+          )
+          with urllib.request.urlopen(request, timeout=120) as response:
+              raw = response.read()
+          path = pathlib.Path('pages-main-timeout.log')
+          path.write_bytes(raw)
+          text = raw.decode('utf-8', errors='replace')
+          lines = text.splitlines()
+          print(f'PAGES_LOG_BYTES={len(raw)}')
+          print(f'PAGES_LOG_LINES={len(lines)}')
+          print('--- FINAL 700 LINES ---')
+          print('\n'.join(lines[-700:]))
+          PY
+
+      - name: Upload complete Pages timeout log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pages-main-timeout-log
+          path: pages-main-timeout.log
+          if-no-files-found: error
+          retention-days: 7
+
   probe-playwright-base:
     name: Probe Playwright base image APT installation
     runs-on: ubuntu-latest
