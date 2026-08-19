@@ -321,7 +321,7 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
     const reportEl = page.locator('#exportHtml');
     await page.waitForFunction(() => {
       const text = String(document.querySelector('#exportProgress')?.textContent || '');
-      return text === 'Fertig.' || /^Fehler:/i.test(text);
+      return text === 'Fertig.' || /^Fehler\b/i.test(text);
     }, null, { timeout: 45_000 });
     await expect(page.locator('#exportProgress')).toHaveText('Fertig.');
     await expect(reportEl).toContainText('Einzelunfälle');
