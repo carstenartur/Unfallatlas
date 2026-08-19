@@ -64,10 +64,12 @@ jobs:
           # workflow. Execute Maven from the dedicated QA module so
           # Testcontainers receives a clean runner instead of duplicating
           # node_modules, _site and thousands of tests before pulling the
-          # large Playwright image. ProductionContainerIT intentionally
-          # resolves the repository as the module's parent directory.
+          # large Playwright image. Surefire may choose its own fork working
+          # directory, therefore repository and evidence roots are absolute.
           pushd qa-system-tests >/dev/null
           mvn -B -ntp verify -Pvideo-export-it \
+            -Dunfallatlas.repositoryRoot="${GITHUB_WORKSPACE}" \
+            -Dunfallatlas.qaOutputDir="${GITHUB_WORKSPACE}/qa-system-tests/target/testcontainers-logs" \
             | tee ../out/qa/maven-video-export-it.log
           popd >/dev/null
 
