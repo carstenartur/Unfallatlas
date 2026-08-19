@@ -94,7 +94,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
 
   test('specialized workflows call documented Maven profiles', () => {
     const expected = {
-      'test.yml': ['-Ppages', '-Pe2e,system-it,location-brief-golden'],
+      'test.yml': ['-Ppages', '-Pe2e,system-it,location-brief-golden,context-data-e2e'],
       'docker-publish.yml': ['-Pvideo-export-it', '-Prelease-site'],
       'rendered-document-poppler.yml': ['-Pdocument-render'],
       'enrich.yml': ['-Pcontext-data-e2e'],
