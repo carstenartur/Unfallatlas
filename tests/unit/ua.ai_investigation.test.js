@@ -4,11 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 function loadModule(windowValue) {
-  const source = fs.readFileSync(
-    path.resolve(__dirname, '../../js/ua.ai_visual_research_ui.js'),
-    'utf8'
-  );
-  (function evaluate(window) { eval(source); })(windowValue);
+  for (const filename of ['ua.filing_readiness.js', 'ua.ai_visual_research_ui.js']) {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../js', filename), 'utf8');
+    (function evaluate(window) { eval(source); })(windowValue);
+  }
   return windowValue.UA.aiInvestigation;
 }
 
@@ -18,6 +17,12 @@ function factsFixture() {
     deterministicAnalysisDigest: {
       officialAccidentFacts: { total: 4, fatal: 0, serious: 1, slight: 3, other: 0 },
       yearlyTrend: { classification: 'stagnierend' },
+    },
+    visualSceneAnalysisContract: {
+      inspectionViews: ['standard', 'hybrid', 'orthophoto', 'analysis'].map(mapMode => ({
+        mapMode,
+        url: `https://example.test/werkbank_v2.html?mapMode=${mapMode}`,
+      })),
     },
     structured: {
       meta: { city: 'Hannover' },
@@ -93,7 +98,14 @@ function validResult(api) {
       nullResults: [],
     },
     politicalAdministrativeResearch: {
-      status: 'results-found', queries: [], proceedings: [], projects: [], gaps: [],
+      status: 'results-found',
+      queries: [{ query: 'Hannover Verkehrssicherheit', sourceType: 'official-ris' }],
+      proceedings: [{
+        id: 'political-1',
+        title: 'Verkehrssicherheit im Untersuchungsbereich',
+        sourceUrl: 'https://example.test/ris/political-1',
+      }],
+      projects: [], gaps: [],
     },
     crossLayerInsights: [1, 2, 3].map(index => ({
       id: `insight-${index}`,

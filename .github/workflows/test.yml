@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       run_extended_qa:
-        description: 'Run cross-browser, JUnit/Testcontainers and Bonn/Hannover golden QA'
+        description: 'Run cross-browser, context-data, JUnit/Testcontainers and Bonn/Hannover golden QA'
         required: false
         type: boolean
         default: false
@@ -81,7 +81,8 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p out/qa
-          mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden \
+          mvn -B -ntp clean verify -Pe2e,system-it,location-brief-golden,context-data-e2e \
+            -Dcontext.city=Hannover \
             '-Dfailsafe.includes=**/*IT.java' \
             | tee out/qa/maven-extended-qa.log
 

@@ -229,6 +229,10 @@
   }
 
   const existingPromises = UA.optionalModulePromises || {};
+  const filingReadinessPromise = injectOptionalModuleAfterDomReady(
+    'js/ua.filing_readiness.js?v=2026-08-18',
+    'data-ua-filing-readiness'
+  );
   UA.optionalModulePromises = Object.freeze({
     ...existingPromises,
     // Begin loading during parser execution; the adapter polls until map_v2 has
@@ -282,12 +286,14 @@
       'js/ua.ai_visual_research.js?v=2026-08-16',
       'data-ua-ai-visual-research'
     ),
+    // Filing readiness is derived locally before the UI may release phase two.
+    filingReadiness: filingReadinessPromise,
     // The export modal may be opened long after the analysis adapter installed.
     // Keep its enhanced copy/download actions bound through modal recreation.
-    aiVisualResearchUi: injectOptionalModuleAfterDomReady(
-      'js/ua.ai_visual_research_ui.js?v=2026-08-16',
+    aiVisualResearchUi: filingReadinessPromise.then(() => injectOptionalModuleAfterDomReady(
+      'js/ua.ai_visual_research_ui.js?v=2026-08-18',
       'data-ua-ai-visual-research-ui'
-    ),
+    )),
     // Discovery filters identify high-value patterns, but filing evidence must
     // cover every published personal-injury accident inside the selected area.
     // Load after the pattern and AI adapters so it can bind one canonical

@@ -118,7 +118,7 @@ describe('Document Export - Integration Tests', () => {
         configurable: true,
       });
     } catch (_) {
-      window.location.pathname = '/werkbank_v2.html';
+      window.history.replaceState({}, '', '/werkbank_v2.html');
     }
 
     const pdfMakeLib = require('pdfmake/build/pdfmake');

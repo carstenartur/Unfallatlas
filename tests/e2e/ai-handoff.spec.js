@@ -17,15 +17,15 @@ test.describe('Nutzerseitige KI-Übergabe', () => {
 
     const linkButton = page.locator('#btnAiResearchLinkCopy');
     await expect(linkButton).toBeVisible({ timeout: 15_000 });
-    await expect(linkButton).toContainText(/QA.*Antrag.*Analyse-Link/i);
+    await expect(linkButton).toContainText(/1\.\s+KI-Untersuchungsauftrag.*kopieren/i);
     await expect(linkButton).toHaveAttribute(
       'title',
-      /evidenzbasierten.*öffentlich erreichbarem.*reproduzierbarem Analyse-Link.*amtlicher Datenprovenienz.*QA.*Daten-URLs/i
+      /Kopiert ausschließlich Phase 1.*Noch kein Antrag/i
     );
 
     await expect(page.locator('#btnAiPromptCopy')).toHaveCount(0);
-    await expect(page.locator('#btnAiPromptDownloadMd')).toContainText(/Evidenz-\/QA-Auftrag/i);
-    await expect(page.locator('#btnAiFactsDownloadJson')).toContainText(/Evidenzvertrag/i);
+    await expect(page.locator('#btnAiPromptDownloadMd')).toContainText(/1\.\s+Untersuchungsauftrag\s+\.md/i);
+    await expect(page.locator('#btnAiFactsDownloadJson')).toContainText(/Untersuchungsdaten \+ Verträge .json/i);
     await expect(page.locator('#aiLinkHandoffNote'))
       .toContainText(/Link zuerst.*Amtliche.*polizeibasierte.*Tatsachenkern.*unabhängig prüfen/i);
     await expect(page.locator('#externalAiPromptPanel > div:first-child'))
