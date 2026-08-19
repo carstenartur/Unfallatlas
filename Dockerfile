@@ -23,15 +23,19 @@ FROM mcr.microsoft.com/playwright:v1.62.1-noble
 # beiden Ubuntu-Pakete wird bewusst ausschließlich ubuntu.sources verwendet:
 # Ein Ausfall des nicht benötigten Drittanbieter-Repositories darf den
 # Produktions-Container nicht blockieren. APT wiederholt vorübergehend
-# fehlgeschlagene Mirror-Abrufe bis zu fünfmal.
+# fehlgeschlagene Mirror-Abrufe bis zu fünfmal und begrenzt jede Verbindung.
 RUN set -eux; \
     apt-get \
       -o Acquire::Retries=5 \
+      -o Acquire::http::Timeout=30 \
+      -o Acquire::https::Timeout=30 \
       -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources \
       -o Dir::Etc::sourceparts=- \
       update; \
     DEBIAN_FRONTEND=noninteractive apt-get \
       -o Acquire::Retries=5 \
+      -o Acquire::http::Timeout=30 \
+      -o Acquire::https::Timeout=30 \
       -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources \
       -o Dir::Etc::sourceparts=- \
       install -y --no-install-recommends \
