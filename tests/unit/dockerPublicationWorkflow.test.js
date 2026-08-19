@@ -32,8 +32,10 @@ describe('Docker publication workflow boundary', () => {
     const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
-    expect(smoke).toContain('-f qa-system-tests/pom.xml');
+    expect(smoke).toContain('pushd qa-system-tests');
     expect(smoke).toContain('-Pvideo-export-it');
+    expect(smoke).toContain('../out/qa/maven-video-export-it.log');
+    expect(smoke).not.toContain('-f qa-system-tests/pom.xml');
     expect(smoke).not.toContain('npm run');
     expect(smoke).not.toContain('docker build');
     expect(smoke).not.toContain('validate:vendor-provenance');
