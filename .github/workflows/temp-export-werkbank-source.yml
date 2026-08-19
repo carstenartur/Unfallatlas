@@ -6,26 +6,28 @@ on:
       - main
     paths:
       - .github/workflows/temp-export-werkbank-source.yml
-  push:
-    branches:
-      - agent/filing-readiness-reference-validation
-    paths:
-      - .github/workflows/temp-export-werkbank-source.yml
 
 permissions:
   contents: write
 
+concurrency:
+  group: temporary-reviewed-source-fix
+  cancel-in-progress: true
+
 jobs:
   apply-review-fix:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout review branch
+      - name: Checkout only reviewed files
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: agent/filing-readiness-reference-validation
           fetch-depth: 1
+          sparse-checkout: |
+            tests/e2e/werkbank.spec.js
+            .github/workflows/temp-export-werkbank-source.yml
+          sparse-checkout-cone-mode: false
 
       - name: Apply exact reviewed change and remove helper workflow
         shell: bash
