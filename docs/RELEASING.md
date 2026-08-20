@@ -1,236 +1,272 @@
-# Unfallatlas – Release Guide
+# Unfallwerkbank – Release Guide
 
-This document describes how to create a versioned release of Unfallatlas and
-what artefacts are produced for downstream consumers.
+This guide describes the authoritative GitHub Actions release path, its
+acceptance gates, and the artefacts produced for downstream consumers.
 
 ---
 
 ## Prerequisites
 
-- You must have write access to the `carstenartur/Unfallatlas` repository.
-- `analysis-service/pom.xml` must carry a `-SNAPSHOT` version (e.g.
-  `0.1.0-SNAPSHOT`). The release workflow enforces this and fails with a clear
-  error message if the version is not a SNAPSHOT.
-- The automated LibreOffice/Poppler rendered-document audit must be green for
-  the release candidate.
-- A recent Microsoft Word compatibility receipt must match the current
-  renderer/input fingerprint and pass the **Microsoft Word Compatibility
-  Evidence** workflow. See
+Before starting a release:
+
+- You must have write access to `carstenartur/Unfallatlas`.
+- The repository version returned by
+  `.github/scripts/project-version.py get` must use
+  `X.Y.Z-SNAPSHOT`. The workflow derives the release version by removing the
+  `-SNAPSHOT` suffix and rejects inconsistent Maven, npm, citation, or archive
+  metadata.
+- The current candidate must have a recent, fingerprint-matching Microsoft Word
+  compatibility receipt. See
   [`word-compatibility-release-check.md`](word-compatibility-release-check.md).
+- Known provenance limitations must be resolved far enough for the
+  `release-site` gate to pass. In particular, issue
+  [#406](https://github.com/carstenartur/Unfallatlas/issues/406) documents the
+  remaining component-level vendor provenance work.
+
+There is deliberately **no test-skipping release input**. A release cannot be
+created with `-DskipTests`, `maven.test.skip`, or an equivalent workflow option.
 
 ---
 
-## Triggering a Release
+## Triggering a release
 
 1. Open **GitHub → Actions → Release Workflow**.
-2. Click **Run workflow** and fill in the inputs:
+2. Select **Run workflow**.
+3. Configure the inputs:
 
-   | Input | Description | Example |
-   |-------|-------------|---------|
-   | `release_version` | Semantic version to release (`X.Y.Z`) | `0.1.0` |
-   | `skip_tests` | Skip the test suite (not recommended) | `false` |
-   | `dry_run` | Validate and build everything without publishing | `true` |
+   | Input | Meaning | Example |
+   |---|---|---|
+   | `next_development_version` | Optional exact version to use after the release; must be `X.Y.Z-SNAPSHOT`. Leave empty to use the increment choice. | `2.1.5-SNAPSHOT` |
+   | `next_version_increment` | `patch`, `minor`, or `major` when no exact next version is supplied. | `patch` |
+   | `dry_run` | Run the complete release acceptance matrix and build candidate artefacts without remote repository or release mutation. | `true` |
 
-3. Start with `dry_run: true` to collect all build and QA diagnostics before
-   publishing. While #406 is open, the run is expected to stop at the final
-   complete-provenance gate after producing those diagnostics; no release is
-   currently publishable.
-4. Generate the current DOCX Golden candidate and complete the manual Microsoft
-   Word check. Commit the receipt as
-   `docs/release-evidence/word-compatibility.json`, then run **Microsoft Word
-   Compatibility Evidence** on the exact candidate branch. The receipt is
-   accepted only when it is recent and its fingerprint still matches all
-   renderer, adapter, Golden-contract and locked `docx` inputs.
-5. Once #406 is resolved, require a green dry run **and** a green Word evidence
-   run, then re-run with `dry_run: false` to publish the actual release.
+4. Start with `dry_run: true`.
+5. Inspect the uploaded acceptance evidence and candidate assets.
+6. Only after the dry run and Word evidence are green, repeat with
+   `dry_run: false`.
 
-The incomplete example receipt is documentation only. Copying its fields or a
-previous fingerprint without opening the exact new DOCX in Word is not a valid
-release check.
+The release version itself is not entered manually. For example,
+`2.1.4-SNAPSHOT` produces release `2.1.4`.
 
 ---
 
-## Microsoft Word release evidence
+## Authoritative acceptance matrix
 
-LibreOffice is the automated renderer used in CI, but Microsoft Word remains a
-separate release environment. The Word evidence contract deliberately records
-manual observations while making them reproducible and invalidatable:
-
-- `config/word-compatibility-inputs.json` declares compatibility-sensitive
-  source files and locked packages;
-- `npm run validate:word-compatibility -- --print-fingerprint` computes the
-  current deterministic fingerprint;
-- `npm run validate:word-compatibility -- --write-template ...` creates a
-  receipt template carrying that fingerprint;
-- the completed receipt records the exact tested DOCX hash, Word version,
-  platform, reviewer, page count and every required manual check;
-- the validator rejects stale evidence, changed inputs, failed checks, malformed
-  metadata and undeclared fields;
-- the dedicated workflow uploads a machine-readable validation report retained
-  with the release review evidence.
-
-The normal maximum age is 30 days. Any compatibility-input change invalidates
-the receipt immediately, even when the 30-day period has not elapsed.
-
----
-
-## What Happens During a Release
-
-### Preflight job
-
-- Checks out the repository with full history.
-- Reads the current SNAPSHOT version from `analysis-service/pom.xml`.
-- Validates that `release_version` follows `X.Y.Z` semver.
-- Confirms that the tag `v<release_version>` does not yet exist.
-- Runs `mvn validate` on the analysis-service POM.
-- Writes a summary table to the GitHub Actions step summary.
-
-### Release job
-
-1. **Version bump** – sets `analysis-service/pom.xml` to `<release_version>`
-   and syncs `package.json` if it carries a `version` field.
-2. **Commit** – commits the version change to `main` (via a protected
-   temp-branch + GitHub API fast-forward so branch-protection rules are
-   respected).
-3. **Build & Verify** – runs `mvn clean verify` (and `npm test` unless
-   `skip_tests` is set). The release operator must already have a green,
-   fingerprint-matching Word evidence workflow for this candidate; setting
-   `skip_tests` does not waive that prerequisite.
-4. **Website bundle** – runs the canonical `npm run build:site` command and
-   zips that complete `_site/` artifact into
-   `unfallatlas-website-<version>.zip`. It includes the exact locked browser
-   assets under `vendor/`, the gzip-only accident/context data under `out/`
-   and `build-manifest.json` with dependency versions plus per-file SHA-256
-   fingerprints. This makes the release ZIP independently deployable and
-   records the precise checked-in data snapshot used for the release; newer
-   Pages data can still be regenerated by the scheduled data workflow. The ZIP
-   input list is bytewise sorted, every file timestamp is normalised to
-   `1980-01-01 00:00 UTC`, and `zip -X` strips host-specific extra fields. The
-   same source tree and toolchain therefore produce a reproducible archive.
-   A third-party diagnostic inventory is included as
-   `vendor/third-party-notices.json`, alongside a CycloneDX 1.6 file and the
-   checked-in machine-readable gap policy; available license texts from locked
-   npm packages are copied to `vendor/licenses/` and fingerprinted in the build
-   manifest. The diagnostic inventory records delivered-asset hashes,
-   component purls and four decoded font name tables, but its CycloneDX
-   composition remains explicitly incomplete. The release workflow additionally
-   requires `complete: true`. It therefore remains deliberately blocked by
-   [#406](https://github.com/carstenartur/Unfallatlas/issues/406) until the
-   opaque Docx/Pdfmake bundles and embedded Roboto fonts have reproducible,
-   component-level provenance. The validator rejects `complete: true` unless
-   build-lock, contains, license/copyright, font and SBOM-composition evidence
-   are all present and mutually consistent. Every delivered asset additionally
-   needs two policy-pinned Ed25519 DSSE/in-toto/SLSA rebuild attestations that
-   bind the exact output, command, inputs and toolchain. Keys declared only by
-   the build lock are not trusted. The incomplete inventory is not a full SBOM.
-5. **Git tag** – creates an annotated tag `v<release_version>` via the GitHub
-   API. This tag triggers `docker-publish.yml`. Before it authenticates to
-   GHCR or builds an image for publication, that workflow independently builds
-   the canonical site and requires complete vendor provenance. The publish
-   build additionally passes `REQUIRE_COMPLETE_VENDOR_PROVENANCE=1` into the
-   Dockerfile, so the gate is repeated against the `_site` bytes produced
-   inside the image instead of attesting only a runner-side preflight build. A
-   tag, a push to `main`, and a manual dispatch therefore cannot bypass the
-   #406 release gate.
-6. **Maintenance branch** – creates `maintenance/<major>.<minor>.x` if it does
-   not yet exist.
-7. **GitHub Release** – creates a GitHub Release with auto-generated release
-   notes and attaches the two release assets.
-8. **Next-SNAPSHOT PR** – bumps the version to
-   `<major>.<minor>.<patch+1>-SNAPSHOT`, pushes a branch
-   `release/prepare-next-…`, and opens a pull request.
-
----
-
-## Release Artefacts
-
-After a successful release with version `X.Y.Z`:
-
-| Artefact | Location |
-|----------|----------|
-| Docker image | `ghcr.io/carstenartur/unfallatlas:X.Y.Z` |
-| Docker image (minor alias) | `ghcr.io/carstenartur/unfallatlas:X.Y` |
-| Docker image (latest) | `ghcr.io/carstenartur/unfallatlas:latest` |
-| Spring Boot JAR | GitHub Release asset `unfallatlas-analysis-service-X.Y.Z.jar` |
-| Static website bundle | GitHub Release asset `unfallatlas-website-X.Y.Z.zip` |
-| Git tag | `vX.Y.Z` on `main` |
-| Maintenance branch | `maintenance/X.Y.x` |
-| Word compatibility report | Artifact of the green **Microsoft Word Compatibility Evidence** run |
-
----
-
-## Consuming the Docker Image
+After setting and locally committing the release version, the workflow executes
+one Maven-owned acceptance command on that exact commit:
 
 ```bash
-# Pull a specific version
-docker pull ghcr.io/carstenartur/unfallatlas:0.1.0
+mvn -B -ntp clean verify \
+  -Prelease-site,pages,e2e,system-it,location-brief-golden,document-render \
+  '-Dfailsafe.includes=**/*IT.java'
+```
 
-# Or always use the latest release
-docker pull ghcr.io/carstenartur/unfallatlas:latest
+The explicit Failsafe override is required because the
+`location-brief-golden` profile otherwise narrows the integration-test include
+pattern to its own Golden test. The release command restores the complete
+`**/*IT.java` matrix.
 
-# Run (in-memory H2, no external DB required)
-docker run -p 8081:8081 ghcr.io/carstenartur/unfallatlas:0.1.0
+The profiles cover:
 
-# Run with external PostgreSQL
+| Profile | Release responsibility |
+|---|---|
+| `pages` | Canonical Pages build, browser runtime checks, offline/vendor and manifest contracts |
+| `e2e` | Chromium, Firefox, and WebKit end-to-end acceptance |
+| `system-it` | Java/Testcontainers system integration tests |
+| `location-brief-golden` | Versioned filing/location-brief Golden cases and evidence |
+| `document-render` | Native PDF and LibreOffice-rendered DOCX auditing with Poppler |
+| `release-site` | Publication bundle, media, licence, SBOM, and vendor-provenance gates |
+
+The runner is prepared for this combined workload before the release version is
+changed:
+
+- unrelated preinstalled SDKs and unused Docker objects are removed to reclaim
+  disk space;
+- Docker availability is verified;
+- the Ubuntu package source is normalised away from a stalled regional mirror;
+- APT retries and connection timeouts are bounded;
+- LibreOffice Writer, Poppler, and required document fonts are installed and
+  verified;
+- Playwright system dependencies are explicitly enabled for the pinned
+  Chromium, Firefox, and WebKit browsers.
+
+The job timeout is 180 minutes because the previously separate browser,
+Testcontainers, and rendered-document gates now execute authoritatively on one
+release commit.
+
+---
+
+## Failure and evidence behaviour
+
+The acceptance command runs before the first remote mutation. A failed command
+therefore prevents:
+
+- pushing the release commit to `main`;
+- creating a tag;
+- creating a maintenance branch;
+- creating or publishing a GitHub Release;
+- uploading assets to a GitHub Release;
+- preparing or pushing the next-development branch.
+
+The **release-acceptance-evidence** workflow artefact is uploaded with
+`if: always()` and retains, where produced:
+
+- the Maven acceptance log and release contract record under `out/qa/`;
+- Unit, Surefire, Failsafe, and Testcontainers reports;
+- Playwright reports and test results;
+- rendered PDF/DOCX and Golden-case evidence;
+- coverage;
+- the site build manifest, third-party notices, and CycloneDX output.
+
+This makes a failed dry run diagnosable without weakening any gate.
+
+---
+
+## Dry run
+
+A dry run performs the same version-setting, metadata validation, local release
+commit, system provisioning, and complete acceptance matrix as a real release.
+It also creates the deterministic website ZIP.
+
+It then uploads:
+
+- `release-acceptance-evidence`;
+- `release-dry-run-candidate-<version>`, containing the candidate Spring Boot
+  JAR and website ZIP.
+
+A dry run does **not**:
+
+- push the release commit;
+- create a tag;
+- create a maintenance branch;
+- create or publish a GitHub Release;
+- upload GitHub Release assets;
+- mutate or push a next-development branch;
+- open the next-development pull request.
+
+The local release commit is necessary so the acceptance matrix tests the exact
+metadata state that would be published. No remote repository state is changed.
+
+---
+
+## Real release sequence
+
+After the acceptance matrix succeeds and `dry_run` is false:
+
+1. **Push release commit** – the locally tested release commit is fast-forwarded
+   to authoritative `main` through a temporary branch and the GitHub API.
+2. **Create annotated tag** – `vX.Y.Z` is attached to that exact commit.
+3. **Create maintenance branch** – `maintenance/X.Y.x` is created when absent.
+4. **Create draft GitHub Release** – release notes are generated.
+5. **Upload assets** – the Spring Boot JAR and deterministic static-site ZIP are
+   attached.
+6. **Publish release** – the draft becomes the latest public release.
+7. **Prepare next development version** – all project and archive metadata is
+   changed to the selected next `-SNAPSHOT` version on a dedicated branch and a
+   pull request is opened.
+
+The tag also triggers `docker-publish.yml`. That workflow repeats the
+publication-specific site and complete vendor-provenance checks before
+authenticating to GHCR and publishing an image.
+
+---
+
+## Deterministic website bundle
+
+The release workflow packages the already verified `_site/` directory as:
+
+```text
+unfallatlas-website-X.Y.Z.zip
+```
+
+To make the archive reproducible:
+
+- file names are sorted bytewise;
+- file timestamps are normalised to `1980-01-01 00:00 UTC`;
+- `zip -X` removes host-specific metadata.
+
+The bundle contains the exact locked browser assets, accident/context data,
+build manifest, notices, licence evidence, and SBOM output accepted by the
+release gates.
+
+---
+
+## Release artefacts
+
+After a successful release `X.Y.Z`:
+
+| Artefact | Location |
+|---|---|
+| Docker image | `ghcr.io/carstenartur/unfallatlas:X.Y.Z` |
+| Docker minor alias | `ghcr.io/carstenartur/unfallatlas:X.Y` |
+| Docker latest alias | `ghcr.io/carstenartur/unfallatlas:latest` |
+| Spring Boot JAR | GitHub Release asset `unfallatlas-analysis-service-X.Y.Z.jar` |
+| Static website bundle | GitHub Release asset `unfallatlas-website-X.Y.Z.zip` |
+| Git tag | `vX.Y.Z` |
+| Maintenance branch | `maintenance/X.Y.x` |
+| Automated acceptance evidence | `release-acceptance-evidence` Actions artefact |
+| Word compatibility report | Artefact of the matching Microsoft Word compatibility run |
+
+---
+
+## Microsoft Word evidence
+
+LibreOffice is the automated DOCX renderer in CI, but Microsoft Word remains a
+separate release environment.
+
+- `config/word-compatibility-inputs.json` defines compatibility-sensitive
+  inputs.
+- `npm run validate:word-compatibility -- --print-fingerprint` computes the
+  current fingerprint.
+- `npm run validate:word-compatibility -- --write-template ...` creates a
+  receipt template.
+- The completed receipt records the tested DOCX hash, Word version, platform,
+  reviewer, page count, and required checks.
+- The validator rejects stale evidence, changed inputs, failed checks,
+  malformed metadata, and undeclared fields.
+
+The normal maximum age is 30 days. Any compatibility-sensitive change
+invalidates the receipt immediately.
+
+---
+
+## Consuming the Docker image
+
+```bash
+docker pull ghcr.io/carstenartur/unfallatlas:X.Y.Z
+
+docker run -p 8081:8081 \
+  ghcr.io/carstenartur/unfallatlas:X.Y.Z
+```
+
+With PostgreSQL:
+
+```bash
 docker run -p 8081:8081 \
   -e SPRING_PROFILES_ACTIVE=prod \
   -e ANALYSIS_DB_URL=jdbc:postgresql://db:5432/unfallatlas \
   -e ANALYSIS_DB_USER=unfallatlas \
   -e ANALYSIS_DB_PASSWORD=secret \
-  ghcr.io/carstenartur/unfallatlas:0.1.0
+  ghcr.io/carstenartur/unfallatlas:X.Y.Z
 ```
 
 ---
 
-## Maintenance Branches
+## Maintenance branches
 
-Each release creates a `maintenance/<major>.<minor>.x` branch at the release
-commit. Bug fixes for a published minor version should be applied (or
-cherry-picked) onto that branch.
+The workflow creates `maintenance/X.Y.x` as an immutable release-line anchor
+when the branch does not already exist.
 
-To release a patch from a maintenance branch:
-
-1. Open **GitHub → Actions → Release Workflow**.
-2. In the **"Use workflow from"** dropdown, select
-   `maintenance/<major>.<minor>.x`.
-3. Enter the patch version (e.g. `0.1.1`) in `release_version`.
-4. Regenerate and revalidate Word evidence on that maintenance branch. Evidence
-   from `main` is accepted only when the computed compatibility fingerprint is
-   identical and the receipt remains within the configured age limit.
-
-The workflow detects the triggering branch automatically and pushes the release
-commit, tag, and next-SNAPSHOT PR back to that same branch — not to `main`.
+The current release workflow intentionally checks out authoritative `main` and
+sets `main` as its release base. Automated patch releases directly from a
+maintenance branch are therefore not yet supported by this workflow and must
+not be inferred from the presence of the maintenance branch alone.
 
 ---
 
-## After the Release
+## After the release
 
-The release workflow automatically opens a pull request titled
-**"Prepare for next development iteration X.Y.Z-SNAPSHOT"**. Review and merge
-this PR to resume normal development on the next patch version.
-
-Retain the Word evidence workflow report with the release review records. The
-committed receipt may be replaced for the next candidate, but the report for a
-published release must remain attributable to its exact tag/commit and input
-fingerprint.
-
----
-
-## Dry Run
-
-Running with `dry_run: true` performs all validation and build steps but skips:
-
-- Pushing the release commit to `main`
-- Creating the Git tag
-- Creating the GitHub Release
-- Uploading release assets
-- Creating the maintenance branch
-- Pushing the next-SNAPSHOT branch / opening the PR
-
-A dry run does not waive Microsoft Word compatibility evidence. It may be used
-before the manual Word check to diagnose unrelated build problems, but a
-non-dry release still requires a green evidence workflow for the final
-candidate.
-
-Each skipped step emits a `::notice::` annotation in the workflow log so you
-can verify what *would* happen.
+Review and merge the automatically opened
+`release/prepare-next-X.Y.Z-SNAPSHOT` pull request. Retain the automated
+acceptance evidence and the matching Word compatibility report with the release
+records.
