@@ -50,6 +50,22 @@ describe('CI package installation reliability', () => {
     expect(workflow).toContain('command -v pdftotext >/dev/null');
   });
 
+  test('extended WebKit QA explicitly provisions system dependencies through the stable mirror', () => {
+    const workflow = read('.github/workflows/test.yml');
+    const extendedQa = workflow.slice(workflow.indexOf('  extended-qa:'));
+    const normalizeSources = extenedQa.indexOf(
+      'Normalize Ubuntu package sources for Playwright system dependencies'
+    );
+    const runQa = extendedQa.indexOf('Run the canonical extended QA profiles');
+
+    expect(normalizeSources).toBeGreaterThan(-1);
+    expect(runQa).toBeGreaterThan(normalizeSources);
+    expect(extendedQa).toContain('/etc/apt/apt-mirrors.txt');
+    expect(extendedQa).toContain('https://archive.ubuntu.com/ubuntu');
+    expect(extendedQa).toContain('PLAYWRIGHT_INSTALL_SYSTEM_DEPS: \'1\'');
+    expect(extendedQa).toContain('set -euo pipefail');
+  });
+
   test('Playwright browser downloads are bounded and do not invoke APT implicitly', () => {
     const packageJson = JSON.parse(read('package.json'));
     const installer = read('scripts/install-playwright-browsers.cjs');

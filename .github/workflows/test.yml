@@ -76,8 +76,32 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Normalize Ubuntu package sources for Playwright system dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Playwright's pinned WebKit runtime needs distribution packages that are not
+          # preinstalled on GitHub's Ubuntu runner. Bypass an unreachable regional Azure
+          # mirror before the explicit --with-deps installation inside the Maven build.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          for apt_source in \
+            /etc/apt/sources.list \
+            /etc/apt/sources.list.d/*.list \
+            /etc/apt/sources.list.d/*.sources; do
+            [[ -f "$apt_source" ]] || continue
+            sudo sed -i \
+              -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              "$apt_source"
+          done
+
       - name: Run the canonical extended QA profiles
         shell: bash
+        env:
+          PLAYWRIGHT_INSTALL_SYSTEM_DEPS: '1'
         run: |
           set -o pipefail
           mkdir -p out/qa
