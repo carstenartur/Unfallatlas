@@ -19,28 +19,98 @@
     "checks"
   ],
   "properties": {
-    "schemaVersion": { "const": "unfallwerkbank.filingReadiness.v1" },
-    "evaluatedAt": { "type": "string" },
-    "passed": { "type": "boolean" },
-    "readyForApplication": { "type": "boolean" },
-    "filingReady": { "type": "boolean" },
-    "analysisQaStatus": { "enum": ["ready", "conditional", "blocked"] },
-    "politicalResearchStatus": { "enum": ["complete", "conditional", "blocked"] },
-    "filingReadinessStatus": { "enum": ["ready", "conditional", "blocked"] },
-    "modelFilingReadinessStatus": { "enum": ["ready", "conditional", "blocked"] },
-    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
-    "expectedPatternIds": { "type": "array", "items": { "type": "string" } },
-    "errors": { "type": "array", "items": { "$ref": "#/$defs/message" } },
-    "warnings": { "type": "array", "items": { "$ref": "#/$defs/message" } },
+    "schemaVersion": {
+      "const": "unfallwerkbank.filingReadiness.v1"
+    },
+    "evaluatedAt": {
+      "type": "string"
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "readyForApplication": {
+      "type": "boolean"
+    },
+    "filingReady": {
+      "type": "boolean"
+    },
+    "analysisQaStatus": {
+      "enum": [
+        "ready",
+        "conditional",
+        "blocked"
+      ]
+    },
+    "politicalResearchStatus": {
+      "enum": [
+        "complete",
+        "conditional",
+        "blocked"
+      ]
+    },
+    "filingReadinessStatus": {
+      "enum": [
+        "ready",
+        "conditional",
+        "blocked"
+      ]
+    },
+    "modelFilingReadinessStatus": {
+      "enum": [
+        "ready",
+        "conditional",
+        "blocked"
+      ]
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "expectedPatternIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "semanticFilingGateSchemaVersion": {
+      "const": "unfallwerkbank.semanticFilingGate.v1"
+    },
+    "semanticAnalysisClassification": {
+      "$ref": "#/$defs/semanticAnalysisClassification"
+    },
+    "semanticPreflight": {
+      "$ref": "#/$defs/semanticPreflight"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/message"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/message"
+      }
+    },
     "checks": {
       "type": "array",
       "items": {
         "allOf": [
-          { "$ref": "#/$defs/message" },
+          {
+            "$ref": "#/$defs/message"
+          },
           {
             "type": "object",
-            "required": ["passed"],
-            "properties": { "passed": { "type": "boolean" } }
+            "required": [
+              "passed"
+            ],
+            "properties": {
+              "passed": {
+                "type": "boolean"
+              }
+            }
           }
         ]
       }
@@ -49,11 +119,137 @@
   "$defs": {
     "message": {
       "type": "object",
-      "required": ["code", "message"],
+      "required": [
+        "code",
+        "message"
+      ],
       "properties": {
-        "code": { "type": "string", "minLength": 1 },
-        "message": { "type": "string", "minLength": 1 },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
         "details": {}
+      }
+    },
+    "semanticAnalysisClassification": {
+      "type": "object",
+      "required": [
+        "patternComposition",
+        "spatialCluster",
+        "corridorProblem",
+        "officialAccidentHotspot",
+        "mapReality",
+        "significantFocusCount",
+        "exploratoryFocusCount",
+        "forcedByFilterCount",
+        "nearOneFocusCount"
+      ],
+      "properties": {
+        "patternComposition": {
+          "enum": [
+            "supported-anomaly",
+            "exploratory",
+            "not-established"
+          ]
+        },
+        "spatialCluster": {
+          "enum": [
+            "supported",
+            "not-established"
+          ]
+        },
+        "corridorProblem": {
+          "enum": [
+            "supported",
+            "not-established"
+          ]
+        },
+        "officialAccidentHotspot": {
+          "enum": [
+            "confirmed",
+            "not-established"
+          ]
+        },
+        "mapReality": {
+          "enum": [
+            "synthetic",
+            "not-explicitly-synthetic"
+          ]
+        },
+        "significantFocusCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exploratoryFocusCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "forcedByFilterCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nearOneFocusCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "semanticPreflight": {
+      "type": "object",
+      "required": [
+        "recommendedExecutiveSummary",
+        "errors",
+        "warnings",
+        "checks"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "unfallwerkbank.semanticFilingGate.v1"
+        },
+        "normalised": {
+          "type": "boolean"
+        },
+        "recommendedExecutiveSummary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/message"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/message"
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/message"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "passed"
+                ],
+                "properties": {
+                  "passed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            ]
+          }
+        }
       }
     }
   }
