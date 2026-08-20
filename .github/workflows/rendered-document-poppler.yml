@@ -82,8 +82,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # GitHub's Ubuntu image normally starts with an Azure mirror followed
+          # by archive.ubuntu.com in apt-mirrors.txt. If the regional mirror is
+          # unreachable, Acquire::Retries keeps retrying it until the outer
+          # timeout expires. Use the canonical Ubuntu archive directly instead.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          for apt_source in \
+            /etc/apt/sources.list \
+            /etc/apt/sources.list.d/*.list \
+            /etc/apt/sources.list.d/*.sources; do
+            [[ -f "$apt_source" ]] || continue
+            sudo sed -i \
+              -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              "$apt_source"
+          done
+
           APT_OPTIONS=(
             -o Acquire::Retries=5
+            -o Acquire::ForceIPv4=true
+            -o Acquire::Languages=none
             -o Acquire::http::Timeout=30
             -o Acquire::https::Timeout=30
           )
@@ -99,6 +120,8 @@ jobs:
           command -v libreoffice >/dev/null
           command -v pdftoppm >/dev/null
           command -v pdftotext >/dev/null
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
 
       - name: Run repository-owned rendered-document QA
         run: mvn -B -ntp verify -Pdocument-render

@@ -24,6 +24,7 @@ describe('Docker publication workflow boundary', () => {
     expect(workflow).toMatch(/pull_request:\s*\n\s*branches: \[main\]/);
     expect(workflow).toContain("- '.github/workflows/docker-publish.yml'");
     expect(workflow).toContain("- 'Dockerfile'");
+    expect(workflow).toContain("- 'bin/ffmpeg'");
     expect(workflow).toContain("- 'package-lock.json'");
 
     expect(smoke).toContain(
@@ -31,6 +32,17 @@ describe('Docker publication workflow boundary', () => {
     );
     const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+
+    expect(smoke).toContain('Reclaim hosted-runner disk before production-container smoke');
+    expect(smoke).toContain('/usr/local/lib/android');
+    expect(smoke).toContain('/usr/share/dotnet');
+    expect(smoke).toContain('/opt/ghc');
+    expect(smoke).toContain('/usr/local/.ghcup');
+    expect(smoke).toContain('/opt/hostedtoolcache/CodeQL');
+    expect(smoke).toContain('docker system prune --all --force --volumes');
+    expect(smoke).toContain('docker system df');
+    expect(smoke.indexOf('Reclaim hosted-runner disk before production-container smoke'))
+      .toBeLessThan(smoke.indexOf('Build and verify the exact production container'));
 
     expect(smoke).toContain('pushd qa-system-tests');
     expect(smoke).toContain('-Pvideo-export-it');
@@ -76,8 +88,12 @@ describe('Docker publication workflow boundary', () => {
     expect(dockerfile).toContain('ffmpeg');
     expect(dockerfile).toContain('imagemagick');
     expect(dockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::ForceIPv4=true/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::Languages=none/g)).toHaveLength(2);
     expect(dockerfile.match(/Acquire::http::Timeout=30/g)).toHaveLength(2);
     expect(dockerfile.match(/Acquire::https::Timeout=30/g)).toHaveLength(2);
+    expect(dockerfile).toContain('/etc/apt/apt-mirrors.txt');
+    expect(dockerfile).toContain('https://archive.ubuntu.com/ubuntu');
     expect(dockerfile).toContain('rm -f /etc/apt/sources.list.d/nodesource.list');
     expect(dockerfile).not.toContain('Dir::Etc::sourcelist');
     expect(dockerfile).not.toContain('Dir::Etc::sourceparts');

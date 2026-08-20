@@ -15,8 +15,12 @@ describe('CI package installation reliability', () => {
     const analysisDockerfile = read('analysis-service/Dockerfile');
 
     expect(applicationDockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
+    expect(applicationDockerfile.match(/Acquire::ForceIPv4=true/g)).toHaveLength(2);
+    expect(applicationDockerfile.match(/Acquire::Languages=none/g)).toHaveLength(2);
     expect(applicationDockerfile.match(/Acquire::http::Timeout=30/g)).toHaveLength(2);
     expect(applicationDockerfile.match(/Acquire::https::Timeout=30/g)).toHaveLength(2);
+    expect(applicationDockerfile).toContain('/etc/apt/apt-mirrors.txt');
+    expect(applicationDockerfile).toContain('https://archive.ubuntu.com/ubuntu');
     expect(applicationDockerfile).toContain('test -x /usr/bin/ffmpeg');
     expect(applicationDockerfile).toContain('command -v convert >/dev/null');
 
@@ -27,11 +31,15 @@ describe('CI package installation reliability', () => {
     expect(analysisDockerfile).toContain('test -x /usr/bin/curl');
   });
 
-  test('rendered-document dependencies have bounded update and installation phases', () => {
+  test('rendered-document dependencies bypass a stalled regional mirror and remain bounded', () => {
     const workflow = read('.github/workflows/rendered-document-poppler.yml');
 
     expect(workflow).toContain('set -euo pipefail');
+    expect(workflow).toContain('/etc/apt/apt-mirrors.txt');
+    expect(workflow).toContain('https://archive.ubuntu.com/ubuntu');
     expect(workflow).toContain('-o Acquire::Retries=5');
+    expect(workflow).toContain('-o Acquire::ForceIPv4=true');
+    expect(workflow).toContain('-o Acquire::Languages=none');
     expect(workflow).toContain('-o Acquire::http::Timeout=30');
     expect(workflow).toContain('-o Acquire::https::Timeout=30');
     expect(workflow).toContain('timeout --signal=TERM 10m');

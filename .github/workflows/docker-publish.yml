@@ -10,6 +10,7 @@ on:
       - 'qa-system-tests/**'
       - 'Dockerfile'
       - '.dockerignore'
+      - 'bin/ffmpeg'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/build-site.js'
@@ -24,6 +25,7 @@ on:
       - 'qa-system-tests/**'
       - 'Dockerfile'
       - '.dockerignore'
+      - 'bin/ffmpeg'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/build-site.js'
@@ -55,10 +57,27 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Reclaim hosted-runner disk before production-container smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The smoke test needs Java/Maven plus Docker only. Removing unrelated
+          # preinstalled SDKs before pulling the large Playwright image avoids
+          # APT archive failures caused by the hosted runner's shared root disk.
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL
+          docker system prune --all --force --volumes
+          df -h /
+          docker system df
+
       - name: Build and verify the exact production container
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           mkdir -p out/qa
           # The repository-wide frontend and Pages gates run in the Tests
           # workflow. Execute Maven from the dedicated QA module so
