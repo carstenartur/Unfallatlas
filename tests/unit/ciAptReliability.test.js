@@ -66,6 +66,41 @@ describe('CI package installation reliability', () => {
     expect(extendedQa).toContain('set -euo pipefail');
   });
 
+  test('release acceptance provisions browser and document dependencies before the full matrix', () => {
+    const workflow = read('.github/workflows/deploy-release.yml');
+    const reclaimDisk = workflow.indexOf(
+      'Reclaim hosted-runner disk for release acceptance matrix'
+    );
+    const installDependencies = workflow.indexOf('Install release QA system dependencies');
+    const runAcceptance = workflow.indexOf('Run the canonical release acceptance matrix');
+    const dependencySection = workflow.slice(installDependencies, runAcceptance);
+    const acceptanceSection = workflow.slice(runAcceptance);
+
+    expect(reclaimDisk).toBeGreaterThan(-1);
+    expect(installDependencies).toBeGreaterThan(reclaimDisk);
+    expect(runAcceptance).toBeGreaterThan(installDependencies);
+    expect(workflow).toContain('timeout-minutes: 180');
+    expect(workflow).toContain('docker info >/dev/null');
+    expect(workflow).toContain('docker system prune --all --force --volumes');
+
+    expect(dependencySection).toContain('/etc/apt/apt-mirrors.txt');
+    expect(dependencySection).toContain('https://archive.ubuntu.com/ubuntu');
+    expect(dependencySection).toContain('-o Acquire::Retries=5');
+    expect(dependencySection).toContain('-o Acquire::ForceIPv4=true');
+    expect(dependencySection).toContain('-o Acquire::Languages=none');
+    expect(dependencySection).toContain('-o Acquire::http::Timeout=30');
+    expect(dependencySection).toContain('-o Acquire::https::Timeout=30');
+    expect(dependencySection).toContain('timeout --signal=TERM 10m');
+    expect(dependencySection).toContain('timeout --signal=TERM 20m');
+    expect(dependencySection).toContain('DEBIAN_FRONTEND=noninteractive');
+    expect(dependencySection).toContain('libreoffice-writer');
+    expect(dependencySection).toContain('poppler-utils');
+    expect(dependencySection).toContain('command -v libreoffice >/dev/null');
+    expect(dependencySection).toContain('command -v pdftoppm >/dev/null');
+    expect(dependencySection).toContain('command -v pdftotext >/dev/null');
+    expect(acceptanceSection).toContain('PLAYWRIGHT_INSTALL_SYSTEM_DEPS: \'1\'');
+  });
+
   test('Playwright browser downloads are bounded and do not invoke APT implicitly', () => {
     const packageJson = JSON.parse(read('package.json'));
     const installer = read('scripts/install-playwright-browsers.cjs');

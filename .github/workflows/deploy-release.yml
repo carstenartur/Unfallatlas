@@ -17,11 +17,6 @@ on:
           - patch
           - minor
           - major
-      skip_tests:
-        description: 'Skip test execution during the release build'
-        required: false
-        type: boolean
-        default: false
       dry_run:
         description: 'Validate and build everything but do not push, tag, publish or open PRs'
         required: false
@@ -36,6 +31,9 @@ permissions:
 
 env:
   GH_TOKEN: ${{ github.token }}
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+  SAL_USE_VCLPLUGIN: svp
 
 concurrency:
   group: release-main
@@ -45,7 +43,7 @@ jobs:
   release:
     name: Build, publish and prepare next development version
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     steps:
       - name: Checkout authoritative main
@@ -63,6 +61,66 @@ jobs:
           java-version: '21'
           distribution: temurin
           cache: maven
+
+      - name: Reclaim hosted-runner disk for release acceptance matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The release matrix combines three browsers, LibreOffice/Poppler and
+          # Testcontainers in one authoritative job. Remove unrelated SDKs before
+          # those tools compete for the hosted runner's shared root filesystem.
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL
+          docker info >/dev/null
+          docker system prune --all --force --volumes
+          df -h /
+
+      - name: Install release QA system dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Use the canonical Ubuntu archive directly. A stalled regional Azure
+          # mirror must not turn the release gate into an unbounded network wait.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          for apt_source in \
+            /etc/apt/sources.list \
+            /etc/apt/sources.list.d/*.list \
+            /etc/apt/sources.list.d/*.sources; do
+            [[ -f "$apt_source" ]] || continue
+            sudo sed -i \
+              -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              "$apt_source"
+          done
+
+          APT_OPTIONS=(
+            -o Acquire::Retries=5
+            -o Acquire::ForceIPv4=true
+            -o Acquire::Languages=none
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
+          )
+          timeout --signal=TERM 10m \
+            sudo apt-get "${APT_OPTIONS[@]}" update
+          timeout --signal=TERM 20m \
+            sudo env DEBIAN_FRONTEND=noninteractive \
+              apt-get "${APT_OPTIONS[@]}" install -y --no-install-recommends \
+                libreoffice-writer \
+                poppler-utils \
+                fonts-dejavu-core \
+                fonts-liberation
+          command -v libreoffice >/dev/null
+          command -v pdftoppm >/dev/null
+          command -v pdftotext >/dev/null
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
 
       - name: Determine release versions from repository state
         id: versions
@@ -139,7 +197,8 @@ jobs:
             echo "| Next development version | \`$NEXT_VERSION\` |"
             echo "| Next-version source | \`$NEXT_VERSION_SOURCE\` |"
             echo "| Dry run | \`${{ inputs.dry_run }}\` |"
-            echo "| Skip tests | \`${{ inputs.skip_tests }}\` |"
+            echo "| Acceptance profiles | \`release-site,pages,e2e,system-it,location-brief-golden,document-render\` |"
+            echo "| Failsafe include | \`**/*IT.java\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Configure git identity
@@ -192,44 +251,65 @@ jobs:
 
       - name: Commit release version changes
         run: |
-          git add -A -- ':!.github/workflows/'
-          git commit -m "Release version ${{ steps.versions.outputs.release }}" || \
-            echo "Nothing to commit (version was already set)."
+          set -euo pipefail
+          git add -- \
+            pom.xml \
+            analysis-service/pom.xml \
+            qa-system-tests/pom.xml \
+            package.json \
+            package-lock.json \
+            CITATION.cff \
+            CITATION.md \
+            .zenodo.json \
+            codemeta.json
+          if git diff --cached --quiet; then
+            echo "::error::Release versioning produced no metadata changes"
+            exit 1
+          fi
+          git commit -m "Release version ${{ steps.versions.outputs.release }}"
 
-      - name: Run the canonical release build and publication gates
+      - name: Run the canonical release acceptance matrix
         shell: bash
+        env:
+          PLAYWRIGHT_INSTALL_SYSTEM_DEPS: '1'
         run: |
           set -euo pipefail
-          MAVEN_ARGS=()
-          if [[ '${{ inputs.skip_tests }}' == 'true' ]]; then
-            MAVEN_ARGS+=("-DskipTests=true" "-Dmaven.test.skip=true")
-          fi
-          mvn -B -ntp clean verify -Prelease-site "${MAVEN_ARGS[@]}"
+          mkdir -p out/qa
+          {
+            echo "release_commit=$(git rev-parse HEAD)"
+            echo "release_version=${{ steps.versions.outputs.release }}"
+            echo "dry_run=${{ inputs.dry_run }}"
+            echo "profiles=release-site,pages,e2e,system-it,location-brief-golden,document-render"
+            echo "failsafe.includes=**/*IT.java"
+          } > out/qa/release-acceptance-contract.txt
+          git status --short > out/qa/release-worktree-before-qa.txt
 
-      - name: Upload Maven test reports on failure
-        if: failure()
+          mvn -B -ntp clean verify \
+            -Prelease-site,pages,e2e,system-it,location-brief-golden,document-render \
+            '-Dfailsafe.includes=**/*IT.java' \
+            | tee out/qa/maven-release-acceptance.log
+
+          git status --short > out/qa/release-worktree-after-qa.txt
+
+      - name: Upload release acceptance evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-maven-test-reports
+          name: release-acceptance-evidence
           path: |
-            analysis-service/target/surefire-reports/
-            analysis-service/target/failsafe-reports/
-            coverage/
             out/qa/
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Upload release media QA evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: ${{ always() && hashFiles('out/qa/release-documentation-media.json') != '' }}
-        with:
-          name: release-documentation-media-report
-          path: |
-            out/qa/release-documentation-media.json
+            coverage/
+            playwright-report/
+            test-results/
             _site/build-manifest.json
             _site/vendor/THIRD_PARTY_NOTICES.json
+            _site/vendor/third-party-notices.json
             _site/vendor/sbom.cdx.json
-          if-no-files-found: error
+            analysis-service/target/surefire-reports/
+            analysis-service/target/failsafe-reports/
+            qa-system-tests/target/failsafe-reports/
+            qa-system-tests/target/testcontainers-logs/
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Create deterministic website bundle ZIP
@@ -245,6 +325,17 @@ jobs:
             find . -type f -print | LC_ALL=C sort | zip -X "../$ZIP_NAME" -@
           )
           echo "Created website bundle: $ZIP_NAME ($(du -sh "$ZIP_NAME" | cut -f1))"
+
+      - name: Upload dry-run release candidate assets
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-dry-run-candidate-${{ steps.versions.outputs.release }}
+          path: |
+            analysis-service/target/unfallatlas-analysis-service-*.jar
+            unfallatlas-website-${{ steps.versions.outputs.release }}.zip
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Push release commit to remote
         if: ${{ !inputs.dry_run }}
@@ -325,13 +416,14 @@ jobs:
         run: |
           gh release edit "v${{ steps.versions.outputs.release }}" --draft=false --latest
 
-      - name: Dry run – show assets that would be uploaded
+      - name: Dry run – inspect candidate assets
         if: ${{ inputs.dry_run }}
         run: |
-          find analysis-service/target -name "unfallatlas-analysis-service-*.jar" -not -name "*sources*" -print || true
-          ls -lh "unfallatlas-website-${{ steps.versions.outputs.release }}.zip" || true
+          find analysis-service/target -name "unfallatlas-analysis-service-*.jar" -not -name "*sources*" -print
+          ls -lh "unfallatlas-website-${{ steps.versions.outputs.release }}.zip"
 
       - name: Bump to next SNAPSHOT version and metadata
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           NEXT_VERSION='${{ steps.versions.outputs.next }}'
@@ -339,12 +431,27 @@ jobs:
           python3 .github/scripts/update-release-metadata.py "$NEXT_VERSION"
 
       - name: Commit next development version
+        if: ${{ !inputs.dry_run }}
         run: |
+          set -euo pipefail
           NEXT_VERSION='${{ steps.versions.outputs.next }}'
           NEXT_VERSION_BRANCH="release/prepare-next-${NEXT_VERSION}"
           git switch -C "$NEXT_VERSION_BRANCH"
-          git add -A -- ':!.github/workflows/'
-          git commit -m "Prepare next development version $NEXT_VERSION" || echo "Nothing to commit."
+          git add -- \
+            pom.xml \
+            analysis-service/pom.xml \
+            qa-system-tests/pom.xml \
+            package.json \
+            package-lock.json \
+            CITATION.cff \
+            CITATION.md \
+            .zenodo.json \
+            codemeta.json
+          if git diff --cached --quiet; then
+            echo "::error::Next-development versioning produced no metadata changes"
+            exit 1
+          fi
+          git commit -m "Prepare next development version $NEXT_VERSION"
           echo "NEXT_VERSION_BRANCH=$NEXT_VERSION_BRANCH" >> "$GITHUB_ENV"
 
       - name: Push next development branch and open PR
@@ -385,6 +492,10 @@ jobs:
               --head "$NEXT_VERSION_BRANCH"
           fi
 
+      - name: Dry run – skip next development branch preparation
+        if: ${{ inputs.dry_run }}
+        run: echo "::notice::Dry run – would prepare and open the next development version PR."
+
       - name: Release status summary
         if: always()
         env:
@@ -392,7 +503,6 @@ jobs:
           NEXT_VERSION: ${{ steps.versions.outputs.next }}
           BASE_BRANCH: ${{ steps.versions.outputs.base_branch }}
           DRY_RUN: ${{ inputs.dry_run }}
-          SKIP_TESTS: ${{ inputs.skip_tests }}
         run: |
           {
             echo "## Release Status Summary"
@@ -403,7 +513,8 @@ jobs:
             echo "| Next development version | \`${NEXT_VERSION:-unknown}\` |"
             echo "| Base branch | \`${BASE_BRANCH:-unknown}\` |"
             echo "| Dry run | \`${DRY_RUN}\` |"
-            echo "| Skip tests | \`${SKIP_TESTS}\` |"
+            echo "| Acceptance profiles | \`release-site,pages,e2e,system-it,location-brief-golden,document-render\` |"
+            echo "| Failsafe include | \`**/*IT.java\` |"
             echo
-            echo "The release build used the single repository command \`mvn clean verify -Prelease-site\`."
+            echo "The release build always executes the full repository acceptance matrix; no test-skipping input exists."
           } >> "$GITHUB_STEP_SUMMARY"

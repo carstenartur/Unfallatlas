@@ -50,6 +50,18 @@ function jobSections(source) {
   return sections;
 }
 
+function workflowSource(name) {
+  return fs.readFileSync(path.join(WORKFLOW_DIRECTORY, name), 'utf8');
+}
+
+function stepSection(source, stepName) {
+  const marker = `      - name: ${stepName}`;
+  const start = source.indexOf(marker);
+  if (start < 0) return '';
+  const next = source.indexOf('\n      - name: ', start + marker.length);
+  return source.slice(start, next < 0 ? source.length : next);
+}
+
 describe('GitHub Actions delegates repository build and QA to Maven', () => {
   test('build and QA workflow YAML contains no direct Node, npm, Jest, Playwright or JS-Testcontainers orchestration', () => {
     const forbidden = [
@@ -104,7 +116,10 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
       'enrich.yml': ['-Pcontext-data-e2e'],
       'generate-screenshots.yml': ['-Pdocumentation-live'],
       'visual-check.yml': ['-Pdocumentation-live'],
-      'deploy-release.yml': ['-Prelease-site'],
+      'deploy-release.yml': [
+        '-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render',
+        "'-Dfailsafe.includes=**/*IT.java'",
+      ],
       'deploy-pages-current-data.yml': ['-Ppages'],
       'generate-data-deploy-pages.yml': ['-Ppages-regenerated'],
     };
@@ -132,4 +147,117 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
       expect(pom).toContain(`<id>${profile}</id>`);
     }
   });
+
+  test('the release workflow has no test-skipping input or Maven bypass', () => {
+    const release = workflowSource('deploy-release.yml');
+
+    expect(release).not.toMatch(/^\s+skip_tests:\s*$/m);
+    expect(release).not.toContain('inputs.skip_tests');
+    expect(release).not.toContain('-DskipTests');
+    expect(release).not.toContain('maven.test.skip');
+    expect(release).not.toContain('Skip tests');
+  });
+
+  test('the release commit runs the complete acceptance matrix before any remote mutation', () => {
+    const release = workflowSource('deploy-release.yml');
+    const commitRelease = release.indexOf('      - name: Commit release version changes');
+    const acceptance = release.indexOf('      - name: Run the canonical release acceptance matrix');
+    const firstRemoteMutation = release.indexOf('      - name: Push release commit to remote');
+    const acceptanceStep = stepSection(
+      release,
+      'Run the canonical release acceptance matrix'
+    );
+
+    expect(commitRelease).toBeGreaterThan(-1);
+    expect(acceptance).toBeGreaterThan(commitRelease);
+    expect(firstRemoteMutation).toBeGreaterThan(acceptance);
+    expect(acceptanceStep).toContain("PLAYWRIGHT_INSTALL_SYSTEM_DEPS: '1'");
+    expect(acceptanceStep).toContain(
+      '-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render'
+    );
+    expect(acceptanceStep).toContain("'-Dfailsafe.includes=**/*IT.java'");
+    expect(acceptanceStep).toContain('| tee out/qa/maven-release-acceptance.log');
+    expect(acceptanceStep).not.toMatch(
+      /\n\s+if:\s*\$\{\{\s*!?inputs\.dry_run\s*\}\}/
+    );
+  });
+
+  test('release diagnostics survive failures and dry runs cannot mutate remote release state', () => {
+    const release = workflowSource('deploy-release.yml');
+    const evidence = stepSection(release, 'Upload release acceptance evidence');
+    const dryRunAssets = stepSection(release, 'Upload dry-run release candidate assets');
+
+    expect(evidence).toContain('if: always()');
+    for (const pathFragment of [
+      'out/qa/',
+      'coverage/',
+      'playwright-report/',
+      'test-results/',
+      '_site/build-manifest.json',
+      'analysis-service/target/surefire-reports/',
+      'qa-system-tests/target/failsafe-reports/',
+      'qa-system-tests/target/testcontainers-logs/',
+    ]) {
+      expect(evidence).toContain(pathFragment);
+    }
+
+    expect(dryRunAssets).toContain('if: ${{ inputs.dry_run }}');
+    expect(dryRunAssets).toContain('unfallatlas-website-${{ steps.versions.outputs.release }}.zip');
+
+    for (const stepName of [
+      'Push release commit to remote',
+      'Create annotated Git tag',
+      'Create maintenance branch',
+      'Create draft GitHub Release',
+      'Upload JAR and website bundle to draft release',
+      'Publish GitHub Release',
+      'Bump to next SNAPSHOT version and metadata',
+      'Commit next development version',
+      'Push next development branch and open PR',
+    ]) {
+      const section = stepSection(release, stepName);
+      expect(section).not.toBe('');
+      expect(section).toContain('if: ${{ !inputs.dry_run }}');
+    }
+  });
+  test('the release guide documents the same non-skippable acceptance contract', () => {
+    const guide = fs.readFileSync(path.join(ROOT, 'docs', 'RELEASING.md'), 'utf8');
+
+    expect(guide).not.toContain('`skip_tests`');
+    expect(guide).toContain(
+      '-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render'
+    );
+    expect(guide).toContain("'-Dfailsafe.includes=**/*IT.java'");
+    expect(guide).toContain('There is deliberately **no test-skipping release input**');
+    expect(guide).toContain('release-acceptance-evidence');
+    expect(guide).toContain('release-dry-run-candidate-<version>');
+  });
+
+  test('release version commits stage only declared metadata paths', () => {
+    const release = workflowSource('deploy-release.yml');
+
+    expect(release).not.toContain('git add -A');
+    for (const stepName of [
+      'Commit release version changes',
+      'Commit next development version',
+    ]) {
+      const section = stepSection(release, stepName);
+      expect(section).toContain('git add --');
+      for (const metadataPath of [
+        'pom.xml',
+        'analysis-service/pom.xml',
+        'qa-system-tests/pom.xml',
+        'package.json',
+        'package-lock.json',
+        'CITATION.cff',
+        'CITATION.md',
+        '.zenodo.json',
+        'codemeta.json',
+      ]) {
+        expect(section).toContain(metadataPath);
+      }
+      expect(section).toContain('git diff --cached --quiet');
+    }
+  });
+
 });
