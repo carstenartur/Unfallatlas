@@ -53,7 +53,7 @@ describe('CI package installation reliability', () => {
   test('extended WebKit QA explicitly provisions system dependencies through the stable mirror', () => {
     const workflow = read('.github/workflows/test.yml');
     const extendedQa = workflow.slice(workflow.indexOf('  extended-qa:'));
-    const normalizeSources = extenedQa.indexOf(
+    const normalizeSources = extendedQa.indexOf(
       'Normalize Ubuntu package sources for Playwright system dependencies'
     );
     const runQa = extendedQa.indexOf('Run the canonical extended QA profiles');
