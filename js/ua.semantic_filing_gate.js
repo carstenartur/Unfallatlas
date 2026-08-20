@@ -19,7 +19,7 @@
   const PATTERN_OVERCLAIM_PATTERN = /\b(?:schwerpunktmuster|statistisch(?:e[rsn]?|er)?\s+(?:abgesichert|signifikant)|signifikante\s+(?:häufung|überrepräsentation)|gesichert(?:e[rsn]?|er)?\s+überrepräsentation)\b/i;
   const SYNTHETIC_PATTERN = /\b(?:synthetic|synthetisch|fixture|mock|placeholder|qa-only|testkarte|deterministic-map-fixture)\b/i;
   const QUALIFIED_MEASURE_PATTERN = /\b(?:prüf(?:en|ung|auftrag)|untersuch(?:en|ung)|vor[- ]ort|fachprüfung|fachplanung|machbarkeit|variantenprüfung|verkehrsversuch|zu\s+klären|bedarf\s+einer\s+prüfung|evaluier)\b/i;
-  const IMPLEMENTATION_ACTION_PATTERN = /\b(?:errichten|bauen|umbauen|anordnen|installieren|einrichten|entfernen|verlegen|markieren|signalisieren|umsetzen|beschließen|festlegen|ausweisen|sperren|aufheben)\b/i;
+  const IMPLEMENTATION_ACTION_PATTERN = /\b(?:errichten|bauen|umbauen|anordnen|installieren|einrichten|entfernen|verlegen|markieren|signalisieren|umsetzen|ausweisen|sperren|aufheben)\b/i;
   const CONCRETE_MEASURE_PATTERN = /\b(?:poller|schutzstreifen|radfahrstreifen|radweg|tempo\s*30|lichtsignalanlage|mittelinsel|zebrastreifen|querungshilfe)\b/i;
 
   const clean = value => String(value == null ? '' : value).trim();
@@ -65,8 +65,13 @@
     const matcher = new RegExp(pattern.source, flags);
     for (const match of text.matchAll(matcher)) {
       const before = text.slice(Math.max(0, match.index - 96), match.index);
+      const after = text.slice(match.index + match[0].length, match.index + match[0].length + 96);
+      const postposedNegation = /^\s+(?:ist|sei|bleibt)\b[^.!?]{0,48}\b(?:nicht\s+(?:belegt|nachgewiesen|bestätigt|festgestellt|gegeben)|unbelegt|ungeklärt)\b/i.test(after)
+        || /^\s+(?:gilt|wird)\b[^.!?]{0,48}\bnicht\s+(?:als\s+)?(?:belegt|nachgewiesen|bestätigt|festgestellt|eingestuft)\b/i.test(after)
+        || /^\s+(?:liegt|lag)\b[^.!?]{0,24}\bnicht\s+vor\b/i.test(after);
       if (/\b(?:kein(?:e[rsn]?|er)?|nicht|ohne|unbelegt|ungeklärt|weder|ob|falls|möglicherweise|potenziell|verdacht)\b(?:\s+\S+){0,9}\s*$/i.test(before)
-          || /\b(?:zu\s+prüfen|zu\s+klären|prüf(?:en|ung)|untersuch(?:en|ung))\b[^.!?]{0,72}$/i.test(before)) {
+          || /\b(?:zu\s+prüfen|zu\s+klären|prüf(?:en|ung)|untersuch(?:en|ung))\b[^.!?]{0,72}$/i.test(before)
+          || postposedNegation) {
         continue;
       }
       return true;
