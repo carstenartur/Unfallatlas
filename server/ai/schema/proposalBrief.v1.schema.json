@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "proposalBrief.v1",
   "title": "ProposalBriefV1Output",
-  "description": "Antragsfähiger Maßnahmensteckbrief mit Kurz-/Langfassung, Prüfauftrag und Formulierungsbausteinen für deutsche kommunale Gremien.",
+  "description": "Antragsfähiger Maßnahmensteckbrief mit strikt geprüftem Deterministik-vs.-KI-Mehrwertnachweis.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -15,7 +15,17 @@
     "pruefauftrag",
     "measureSummary",
     "confidence",
-    "caveats"
+    "caveats",
+    "valueAddContractVersion",
+    "deterministicVsAiComparison",
+    "prioritisedFindings",
+    "crossLayerInsights",
+    "competingHypotheses",
+    "measureDecisionMatrix",
+    "politicalResearchLog",
+    "aiDelta",
+    "valueAddAssessment",
+    "filingReadinessVerdict"
   ],
   "additionalProperties": false,
   "properties": {
@@ -29,23 +39,23 @@
     },
     "shortVersion": {
       "type": "string",
-      "description": "Kompakte Antragsfassung (max. ~120 Wörter), bürger- und gremiumstauglich"
+      "description": "Kompakte Bürger-/Gremiumsfassung"
     },
     "longVersion": {
       "type": "string",
-      "description": "Ausführliche Antragsfassung mit Datenbezug (max. ~400 Wörter)"
+      "description": "Ausführliche Fassung mit Daten- und Evidenzbezug"
     },
     "sachverhalt": {
       "type": "string",
-      "description": "Sachverhaltsabschnitt für die Vorlage"
+      "description": "Amtlicher Tatsachenkern und deterministische Kennzahlen"
     },
     "begruendung": {
       "type": "string",
-      "description": "Begründung mit Evidenzbezug"
+      "description": "Begründung mit nachvollziehbarer Evidenzkette"
     },
     "beschlussvorschlag": {
       "type": "string",
-      "description": "Konkreter Beschlussvorschlag (formal)"
+      "description": "Formal formulierter Beschluss- oder Prüfauftrag"
     },
     "pruefauftrag": {
       "type": "string",
@@ -53,107 +63,614 @@
     },
     "measureSummary": {
       "type": "array",
-      "description": "Kurzliste der vorgeschlagenen Maßnahmen aus der Bibliothek (kein freies Halluzinieren).",
+      "description": "Kurzliste aus der Maßnahmenbibliothek; keine freie Halluzination.",
       "items": {
         "type": "object",
-        "required": ["title", "category", "rationale"],
+        "required": [
+          "title",
+          "category",
+          "rationale"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id":        { "type": "string" },
-          "title":     { "type": "string" },
-          "category":  { "type": "string", "enum": ["quickWin", "infrastructure", "organizational", "monitoring"] },
-          "rationale": { "type": "string" },
-          "matchedRiskFactors":      { "type": "array", "items": { "type": "string" } },
-          "matchedConflictPatterns": { "type": "array", "items": { "type": "string" } }
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "quickWin",
+              "infrastructure",
+              "organizational",
+              "monitoring"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "matchedRiskFactors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "matchedConflictPatterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
     "confidence": {
       "type": "object",
-      "required": ["overall"],
+      "required": [
+        "overall"
+      ],
       "additionalProperties": false,
       "properties": {
-        "overall":   { "type": "string", "enum": ["high", "medium", "low"] },
-        "rationale": { "type": "string" }
+        "overall": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "rationale": {
+          "type": "string"
+        }
       }
     },
     "caveats": {
       "type": "array",
-      "description": "Vorbehalte / Datenlücken / 'Achtung'-Hinweise, die im Antrag mit erwähnt werden sollten.",
-      "items": { "type": "string" }
+      "description": "Reale Datenlücken und Vorbehalte",
+      "items": {
+        "type": "string"
+      }
     },
     "shortAdministrativeSummary": {
       "type": "string",
-      "description": "1–2 Sätze für Verwaltungsnotiz."
+      "description": "1–2 Sätze für die Verwaltungsnotiz"
     },
     "recommendedImmediateAction": {
-      "type": "string",
-      "description": "Was sollte als erstes (≤ 4 Wochen) passieren?"
+      "type": "string"
     },
     "recommendedDetailedExamination": {
-      "type": "string",
-      "description": "Welche tiefere Prüfung ist angezeigt?"
+      "type": "string"
     },
     "expectedSafetyBenefit": {
-      "type": "string",
-      "description": "Realistische Wirkungseinschätzung."
+      "type": "string"
     },
-    "whyActionIsPlausibleHere": { "type": "string" },
-    "whyEvidenceIsLimitedIfApplicable": { "type": "string" },
+    "whyActionIsPlausibleHere": {
+      "type": "string"
+    },
+    "whyEvidenceIsLimitedIfApplicable": {
+      "type": "string"
+    },
     "suggestedCouncilRequest": {
-      "type": "string",
-      "description": "Vorschlag für Antrags-/Anfragetext im Gremium."
+      "type": "string"
     },
     "suggestedReviewOrder": {
-      "type": "string",
-      "description": "Vorschlag für formellen Prüfauftrag an die Verwaltung."
+      "type": "string"
     },
     "fieldInspectionChecklist": {
       "type": "array",
-      "description": "Konkrete Punkte für die Ortsbegehung.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "uncertainty": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "missingData":             { "type": "array", "items": { "type": "string" } },
-        "weakDataBasis":           { "type": "boolean" },
-        "plausibleNotEvidenced":   { "type": "array", "items": { "type": "string" } },
-        "requiresOnSiteCheck":     { "type": "boolean" },
-        "alternativeExplanations": { "type": "array", "items": { "type": "string" } }
+        "missingData": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weakDataBasis": {
+          "type": "boolean"
+        },
+        "plausibleNotEvidenced": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiresOnSiteCheck": {
+          "type": "boolean"
+        },
+        "alternativeExplanations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "provenance": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "derivedFromDeterministicFeatures": { "type": "array", "items": { "type": "string" } },
-        "inferredByModel":                  { "type": "array", "items": { "type": "string" } },
-        "uncertainOrNeedsVerification":     { "type": "array", "items": { "type": "string" } }
+        "derivedFromDeterministicFeatures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "inferredByModel": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uncertainOrNeedsVerification": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "policyContext": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "policyReadiness":                { "type": "string", "enum": ["low", "medium", "high"] },
-        "existingPoliticalSignals":       { "type": "array", "items": { "type": "string" } },
-        "synergyWithKnownRequests":       { "type": "array", "items": { "type": "string" } },
-        "implementationOpportunityLevel": { "type": "string", "enum": ["low", "medium", "high"] }
+        "policyReadiness": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "existingPoliticalSignals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "synergyWithKnownRequests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "implementationOpportunityLevel": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
       }
     },
     "detectedConflictPatterns": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "label", "confidence"],
+        "required": [
+          "id",
+          "label",
+          "confidence"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id":         { "type": "string" },
-          "label":      { "type": "string" },
-          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
-          "rationale":  { "type": "string" }
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "valueAddContractVersion": {
+      "type": "string",
+      "const": "unfallwerkbank.proposalBriefValueAdd.v1"
+    },
+    "deterministicVsAiComparison": {
+      "type": "array",
+      "description": "Expliziter Vergleich zur deterministischen Baseline.",
+      "items": {
+        "type": "object",
+        "required": [
+          "deterministicFinding",
+          "deltaStatus",
+          "aiVerification",
+          "aiAddedValue",
+          "evidenceRefs",
+          "uncertaintyOrCheck"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "deterministicFinding": {
+            "type": "string"
+          },
+          "deltaStatus": {
+            "type": "string",
+            "enum": [
+              "bestaetigt",
+              "praezisiert",
+              "ergaenzt",
+              "verworfen",
+              "offen"
+            ]
+          },
+          "aiVerification": {
+            "type": "string"
+          },
+          "aiAddedValue": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "uncertaintyOrCheck": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "prioritisedFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rank",
+          "finding",
+          "urgency",
+          "evidenceRefs",
+          "decisionRelevance"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "finding": {
+            "type": "string"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decisionRelevance": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "crossLayerInsights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "insight",
+          "evidenceLayers",
+          "evidenceRefs",
+          "decisionValue"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "insight": {
+            "type": "string"
+          },
+          "evidenceLayers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decisionValue": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "competingHypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "claim",
+          "hypotheses",
+          "discriminatingChecks"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "claim": {
+            "type": "string"
+          },
+          "hypotheses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "discriminatingChecks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "measureDecisionMatrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rank",
+          "finding",
+          "safetyObjective",
+          "option",
+          "requiredVerification",
+          "responsibility",
+          "deadline",
+          "successCriteria",
+          "tradeoffs",
+          "evidenceRefs"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "finding": {
+            "type": "string"
+          },
+          "safetyObjective": {
+            "type": "string"
+          },
+          "option": {
+            "type": "string"
+          },
+          "requiredVerification": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "responsibility": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": "string"
+          },
+          "successCriteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tradeoffs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "politicalResearchLog": {
+      "type": "object",
+      "required": [
+        "status",
+        "sourceStatus",
+        "documentedQueries",
+        "evidenceRefs",
+        "comparisonToExistingActivity",
+        "remainingChecks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "conditional",
+            "blocked"
+          ]
+        },
+        "sourceStatus": {
+          "type": "string"
+        },
+        "documentedQueries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "query": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "sourceType": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "comparisonToExistingActivity": {
+          "type": "string"
+        },
+        "remainingChecks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "aiDelta": {
+      "type": "object",
+      "required": [
+        "bestaetigt",
+        "praezisiert",
+        "ergaenzt",
+        "verworfen",
+        "offen"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bestaetigt": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "praezisiert": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ergaenzt": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verworfen": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "offen": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "valueAddAssessment": {
+      "type": "object",
+      "required": [
+        "status",
+        "score",
+        "automaticFailureReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "score": {
+          "type": "integer"
+        },
+        "automaticFailureReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "filingReadinessVerdict": {
+      "type": "object",
+      "required": [
+        "status",
+        "analysisQaStatus",
+        "politicalResearchStatus",
+        "reasoning",
+        "blockingReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "conditional",
+            "blocked"
+          ]
+        },
+        "analysisQaStatus": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "conditional",
+            "blocked"
+          ]
+        },
+        "politicalResearchStatus": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "conditional",
+            "blocked"
+          ]
+        },
+        "reasoning": {
+          "type": "string"
+        },
+        "blockingReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }
