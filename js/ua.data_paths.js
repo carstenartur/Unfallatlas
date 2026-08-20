@@ -233,6 +233,13 @@
     'js/ua.filing_readiness.js?v=2026-08-18',
     'data-ua-filing-readiness'
   );
+  const semanticFilingGatePromise = filingReadinessPromise.then(loaded => {
+    if (!loaded) return false;
+    return injectOptionalModuleAfterDomReady(
+      'js/ua.semantic_filing_gate.js?v=2026-08-20-1',
+      'data-ua-semantic-filing-gate'
+    );
+  });
   UA.optionalModulePromises = Object.freeze({
     ...existingPromises,
     // Begin loading during parser execution; the adapter polls until map_v2 has
@@ -287,13 +294,19 @@
       'data-ua-ai-visual-research'
     ),
     // Filing readiness is derived locally before the UI may release phase two.
-    filingReadiness: filingReadinessPromise,
+    // The semantic adapter must be installed before the UI exposes the
+    // application-drafting action.
+    filingReadiness: semanticFilingGatePromise,
+    semanticFilingGate: semanticFilingGatePromise,
     // The export modal may be opened long after the analysis adapter installed.
     // Keep its enhanced copy/download actions bound through modal recreation.
-    aiVisualResearchUi: filingReadinessPromise.then(() => injectOptionalModuleAfterDomReady(
-      'js/ua.ai_visual_research_ui.js?v=2026-08-18',
-      'data-ua-ai-visual-research-ui'
-    )),
+    aiVisualResearchUi: semanticFilingGatePromise.then(loaded => {
+      if (!loaded) return false;
+      return injectOptionalModuleAfterDomReady(
+        'js/ua.ai_visual_research_ui.js?v=2026-08-18',
+        'data-ua-ai-visual-research-ui'
+      );
+    }),
     // Discovery filters identify high-value patterns, but filing evidence must
     // cover every published personal-injury accident inside the selected area.
     // Load after the pattern and AI adapters so it can bind one canonical
