@@ -10,6 +10,7 @@ on:
       - 'qa-system-tests/**'
       - 'Dockerfile'
       - '.dockerignore'
+      - 'bin/ffmpeg'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/build-site.js'
@@ -24,6 +25,7 @@ on:
       - 'qa-system-tests/**'
       - 'Dockerfile'
       - '.dockerignore'
+      - 'bin/ffmpeg'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/build-site.js'
@@ -55,13 +57,40 @@ jobs:
           java-version: '21'
           cache: maven
 
+      - name: Reclaim hosted-runner disk before production-container smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The smoke test needs Java/Maven plus Docker only. Removing unrelated
+          # preinstalled SDKs before pulling the large Playwright image avoids
+          # APT archive failures caused by the hosted runner's shared root disk.
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL
+          docker system prune --all --force --volumes
+          df -h /
+          docker system df
+
       - name: Build and verify the exact production container
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           mkdir -p out/qa
+          # The repository-wide frontend and Pages gates run in the Tests
+          # workflow. Execute Maven from the dedicated QA module so
+          # Testcontainers receives a clean runner instead of duplicating
+          # node_modules, _site and thousands of tests before pulling the
+          # large Playwright image. Surefire may choose its own fork working
+          # directory, therefore repository and evidence roots are absolute.
+          pushd qa-system-tests >/dev/null
           mvn -B -ntp verify -Pvideo-export-it \
-            | tee out/qa/maven-video-export-it.log
+            -Dunfallatlas.repositoryRoot="${GITHUB_WORKSPACE}" \
+            -Dunfallatlas.qaOutputDir="${GITHUB_WORKSPACE}/qa-system-tests/target/testcontainers-logs" \
+            | tee ../out/qa/maven-video-export-it.log
+          popd >/dev/null
 
       - name: Upload Docker system-test diagnostics
         if: always()
@@ -72,7 +101,6 @@ jobs:
             out/qa/maven-video-export-it.log
             qa-system-tests/target/failsafe-reports/
             qa-system-tests/target/testcontainers-logs/
-            analysis-service/target/surefire-reports/
           if-no-files-found: ignore
           retention-days: 14
 
@@ -97,6 +125,26 @@ jobs:
 
       - name: Build release site and require complete provenance
         run: mvn -B -ntp clean verify -Prelease-site
+
+      - name: Reclaim build-only workspace before container packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Docker rebuilds all runtime dependencies and the site inside the
+          # image. Keeping the host-side Maven/npm outputs would only compete
+          # with the Playwright base image and APT layers for runner storage.
+          rm -rf \
+            node_modules \
+            target \
+            analysis-service/target \
+            qa-system-tests/target \
+            _site \
+            .build \
+            coverage \
+            playwright-report \
+            test-results
+          docker system prune --all --force --volumes
+          df -h /
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:

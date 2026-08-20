@@ -18,11 +18,49 @@ FROM mcr.microsoft.com/playwright:v1.62.1-noble
 # ffmpeg erzeugt GIF, WebP und APNG. ImageMagick/libwebp übernimmt ausschließlich
 # die formatgerechte Nachprüfung animierter WebP-Dateien und das Reservieren der
 # festen QA-Nachweisfarben in der adaptiven GIF-Palette.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ffmpeg \
-      imagemagick \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+#
+# Das Playwright-Image enthält zusätzlich eine NodeSource-Paketquelle. Node.js
+# ist im Basisimage bereits vollständig installiert; diese Drittanbieterquelle
+# wird für ffmpeg und ImageMagick nicht benötigt und vor dem APT-Lauf entfernt.
+# Regional nicht erreichbare Azure-Ubuntu-Mirrors werden auf das kanonische
+# Ubuntu-Archiv normalisiert. APT wiederholt danach nur noch vorübergehend
+# fehlgeschlagene Abrufe und begrenzt jede einzelne Verbindung.
+RUN set -eux; \
+    rm -f /etc/apt/sources.list.d/nodesource.list; \
+    if [ -f /etc/apt/apt-mirrors.txt ]; then \
+      printf '%s\n' 'https://archive.ubuntu.com/ubuntu' > /etc/apt/apt-mirrors.txt; \
+    fi; \
+    for apt_source in \
+      /etc/apt/sources.list \
+      /etc/apt/sources.list.d/*.list \
+      /etc/apt/sources.list.d/*.sources; do \
+      [ -f "$apt_source" ] || continue; \
+      sed -i \
+        -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+        -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+        "$apt_source"; \
+    done; \
+    rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*; \
+    apt-get \
+      -o Acquire::Retries=5 \
+      -o Acquire::ForceIPv4=true \
+      -o Acquire::Languages=none \
+      -o Acquire::http::Timeout=30 \
+      -o Acquire::https::Timeout=30 \
+      update; \
+    DEBIAN_FRONTEND=noninteractive apt-get \
+      -o Acquire::Retries=5 \
+      -o Acquire::ForceIPv4=true \
+      -o Acquire::Languages=none \
+      -o Acquire::http::Timeout=30 \
+      -o Acquire::https::Timeout=30 \
+      install -y --no-install-recommends \
+        ffmpeg \
+        imagemagick; \
+    test -x /usr/bin/ffmpeg; \
+    command -v convert >/dev/null; \
+    apt-get clean; \
+    rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*
 
 WORKDIR /app
 

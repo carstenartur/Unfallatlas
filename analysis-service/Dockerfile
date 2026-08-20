@@ -31,12 +31,23 @@ FROM eclipse-temurin:26.0.1_8-jre
 WORKDIR /app
 COPY --from=build /workspace/app.jar /app/app.jar
 
-# `curl` für den HEALTHCHECK installieren – das `eclipse-temurin:21-jre`
-# Basis-Image bringt weder `curl` noch `wget` mit, ohne diesen Schritt
-# wäre der Container sofort als "unhealthy" markiert.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+# `curl` für den HEALTHCHECK installieren – das Basis-Image bringt weder
+# `curl` noch `wget` mit. Kurzzeitige Paketmirror-Ausfälle werden begrenzt
+# wiederholt; fehlende Mirrors dürfen den Build nicht unbegrenzt blockieren.
+RUN set -eux; \
+    apt-get \
+      -o Acquire::Retries=5 \
+      -o Acquire::http::Timeout=30 \
+      -o Acquire::https::Timeout=30 \
+      update; \
+    DEBIAN_FRONTEND=noninteractive apt-get \
+      -o Acquire::Retries=5 \
+      -o Acquire::http::Timeout=30 \
+      -o Acquire::https::Timeout=30 \
+      install -y --no-install-recommends curl; \
+    test -x /usr/bin/curl; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*
 
 # Standard: Prod-Profil; kann via SPRING_PROFILES_ACTIVE überschrieben werden.
 ENV SPRING_PROFILES_ACTIVE=prod

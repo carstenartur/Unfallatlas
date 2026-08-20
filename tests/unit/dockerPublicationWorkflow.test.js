@@ -5,6 +5,8 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WORKFLOW = path.join(ROOT, '.github/workflows/docker-publish.yml');
+const DOCKERFILE = path.join(ROOT, 'Dockerfile');
+const DOCKERIGNORE = path.join(ROOT, '.dockerignore');
 
 describe('Docker publication workflow boundary', () => {
   test('main and relevant PRs smoke-build without publishing while releases retain the provenance gate', () => {
@@ -22,6 +24,7 @@ describe('Docker publication workflow boundary', () => {
     expect(workflow).toMatch(/pull_request:\s*\n\s*branches: \[main\]/);
     expect(workflow).toContain("- '.github/workflows/docker-publish.yml'");
     expect(workflow).toContain("- 'Dockerfile'");
+    expect(workflow).toContain("- 'bin/ffmpeg'");
     expect(workflow).toContain("- 'package-lock.json'");
 
     expect(smoke).toContain(
@@ -30,7 +33,25 @@ describe('Docker publication workflow boundary', () => {
     const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
+    expect(smoke).toContain('Reclaim hosted-runner disk before production-container smoke');
+    expect(smoke).toContain('/usr/local/lib/android');
+    expect(smoke).toContain('/usr/share/dotnet');
+    expect(smoke).toContain('/opt/ghc');
+    expect(smoke).toContain('/usr/local/.ghcup');
+    expect(smoke).toContain('/opt/hostedtoolcache/CodeQL');
+    expect(smoke).toContain('docker system prune --all --force --volumes');
+    expect(smoke).toContain('docker system df');
+    expect(smoke.indexOf('Reclaim hosted-runner disk before production-container smoke'))
+      .toBeLessThan(smoke.indexOf('Build and verify the exact production container'));
+
+    expect(smoke).toContain('pushd qa-system-tests');
     expect(smoke).toContain('-Pvideo-export-it');
+    expect(smoke).toContain('-Dunfallatlas.repositoryRoot="${GITHUB_WORKSPACE}"');
+    expect(smoke).toContain(
+      '-Dunfallatlas.qaOutputDir="${GITHUB_WORKSPACE}/qa-system-tests/target/testcontainers-logs"'
+    );
+    expect(smoke).toContain('../out/qa/maven-video-export-it.log');
+    expect(smoke).not.toContain('-f qa-system-tests/pom.xml');
     expect(smoke).not.toContain('npm run');
     expect(smoke).not.toContain('docker build');
     expect(smoke).not.toContain('validate:vendor-provenance');
@@ -45,11 +66,62 @@ describe('Docker publication workflow boundary', () => {
       .toContain('validate:vendor-provenance');
     expect(pom).toContain('<id>video-export-it</id>');
     expect(pom).toContain('<id>release-site</id>');
+    expect(publish).toContain('Reclaim build-only workspace before container packaging');
+    expect(publish).toContain('rm -rf');
+    expect(publish).toContain('node_modules');
+    expect(publish).toContain('analysis-service/target');
+    expect(publish).toContain('qa-system-tests/target');
+    expect(publish).toContain('docker system prune --all --force --volumes');
     expect(publish).toContain('REQUIRE_COMPLETE_VENDOR_PROVENANCE=1');
     expect(publish).toContain('push: true');
     expect(publish.indexOf('-Prelease-site'))
+      .toBeLessThan(publish.indexOf('Reclaim build-only workspace'));
+    expect(publish.indexOf('Reclaim build-only workspace'))
       .toBeLessThan(publish.indexOf('docker/login-action'));
     expect(publish.indexOf('docker/login-action'))
       .toBeLessThan(publish.indexOf('docker/build-push-action'));
+  });
+
+  test('production media packages tolerate transient mirrors and avoid unrelated apt repositories', () => {
+    const dockerfile = fs.readFileSync(DOCKERFILE, 'utf8');
+
+    expect(dockerfile).toContain('ffmpeg');
+    expect(dockerfile).toContain('imagemagick');
+    expect(dockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::ForceIPv4=true/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::Languages=none/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::http::Timeout=30/g)).toHaveLength(2);
+    expect(dockerfile.match(/Acquire::https::Timeout=30/g)).toHaveLength(2);
+    expect(dockerfile).toContain('/etc/apt/apt-mirrors.txt');
+    expect(dockerfile).toContain('https://archive.ubuntu.com/ubuntu');
+    expect(dockerfile).toContain('rm -f /etc/apt/sources.list.d/nodesource.list');
+    expect(dockerfile).not.toContain('Dir::Etc::sourcelist');
+    expect(dockerfile).not.toContain('Dir::Etc::sourceparts');
+    expect(dockerfile).toContain('DEBIAN_FRONTEND=noninteractive apt-get');
+    expect(dockerfile).toContain('test -x /usr/bin/ffmpeg');
+    expect(dockerfile).toContain('command -v convert >/dev/null');
+  });
+
+  test('Docker context excludes generated build trees without excluding required source data', () => {
+    const ignored = fs.readFileSync(DOCKERIGNORE, 'utf8')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    expect(ignored).toEqual(expect.arrayContaining([
+      'node_modules',
+      'target',
+      '**/target',
+      '_site',
+      '.build',
+      'test-results',
+      'playwright-report',
+      'coverage',
+      'out/qa',
+      '.git',
+    ]));
+    expect(ignored).not.toContain('out');
+    expect(ignored).not.toContain('scripts');
+    expect(ignored).not.toContain('server');
   });
 });

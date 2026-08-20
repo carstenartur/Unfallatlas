@@ -4,6 +4,11 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
+const {
+  PLAYWRIGHT_INSTALL_TIMEOUT_MS,
+  installBrowsers,
+  playwrightCli,
+} = require('./install-playwright-browsers.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const INPUT_DIR = process.env.PAGES_INPUT_DIR || 'out';
@@ -21,13 +26,27 @@ function display(command, args) {
 
 function run(command, args, options = {}) {
   process.stdout.write(`\n[pages-qa] $ ${display(command, args)}\n`);
-  const result = spawnSync(command, args, {
+  const spawnOptions = {
     cwd: ROOT,
     stdio: 'inherit',
     env: { ...process.env, ...(options.env || {}) },
     shell: false,
-  });
-  if (result.error) throw result.error;
+  };
+  if (Number.isFinite(options.timeoutMs) && options.timeoutMs > 0) {
+    spawnOptions.timeout = options.timeoutMs;
+    spawnOptions.killSignal = 'SIGTERM';
+  }
+
+  const result = spawnSync(command, args, spawnOptions);
+  if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      throw new Error(
+        `[pages-qa] Command exceeded ${options.timeoutMs} ms and was terminated: ${display(command, args)}`,
+        { cause: result.error }
+      );
+    }
+    throw result.error;
+  }
   if (result.status !== 0) {
     throw new Error(`[pages-qa] Command failed with exit code ${result.status}: ${display(command, args)}`);
   }
@@ -35,11 +54,6 @@ function run(command, args, options = {}) {
 
 function runNode(relativeScript, args = [], options = {}) {
   run(process.execPath, [path.resolve(ROOT, relativeScript), ...args], options);
-}
-
-function playwrightCli() {
-  const packageEntry = require.resolve('@playwright/test');
-  return path.join(path.dirname(packageEntry), 'cli.js');
 }
 
 function requestReady(url) {
@@ -134,15 +148,7 @@ function buildAndValidateSite() {
 }
 
 function installChromium() {
-  const skip = /^(1|true)$/i.test(process.env.SKIP_PLAYWRIGHT_INSTALL || '');
-  if (skip) {
-    process.stdout.write('[pages-qa] Chromium installation skipped by SKIP_PLAYWRIGHT_INSTALL.\n');
-    return;
-  }
-  const args = [playwrightCli(), 'install'];
-  if (process.platform === 'linux') args.push('--with-deps');
-  args.push('chromium');
-  run(process.execPath, args);
+  return installBrowsers(['chromium']);
 }
 
 async function runBrowserGate() {
@@ -178,7 +184,15 @@ async function main() {
   process.stdout.write('\n[pages-qa] Maven-reproducible Pages quality gate passed.\n');
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error && error.stack ? error.stack : error}\n`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(`${error && error.stack ? error.stack : error}\n`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  PLAYWRIGHT_INSTALL_TIMEOUT_MS,
+  installChromium,
+  run,
+};
