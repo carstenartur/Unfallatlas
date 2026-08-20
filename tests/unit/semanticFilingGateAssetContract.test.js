@@ -41,7 +41,7 @@ describe('semantic filing-gate asset contract', () => {
     expect(source).toContain("wrappedEvaluate._uaOriginal = originalEvaluate");
     expect(source).toContain('wrapped._uaSemanticReportAdapter = true');
     expect(source).toContain('normaliseReport');
-    expect(source).toContain('readyForApplication');
+    expect(source).toContain('errors: mergeMessages(options.errors, semantic.errors)');
   });
 
   test('publishes the semantic extension in the filing-readiness JSON schema', () => {
