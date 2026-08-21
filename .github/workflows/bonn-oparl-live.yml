@@ -10,9 +10,9 @@ on:
       - 'tests/unit/bonnPoliticalContextLive.test.js'
       - 'tests/unit/bonnGovDataDiscoveryLive.test.js'
       - 'tests/unit/bonnOparlCollectionLive.test.js'
+      - 'tests/unit/bonnPortalSearchDiscoveryLive.test.js'
       - 'server/political-context/providers/bonnAllrisProvider.js'
       - 'server/political-context/providers/bonnOparlClient.js'
-      - 'server/political-context/providers/bonnOparlDirectClient.js'
       - 'server/political-context/providers/bonnOparlHttp.js'
       - 'server/political-context/providers/_portalUtils.js'
       - 'server/political-context/services/portalSearchService.js'
@@ -35,7 +35,7 @@ jobs:
   live:
     name: Official Bonn OParl / RIS evidence path
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -43,12 +43,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Java 21 with Maven cache
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+      - name: Set up Node.js 24 with npm cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
+          node-version: '24'
+          cache: npm
+
+      - name: Install the locked JavaScript dependencies
+        run: npm ci
 
       - name: Exercise the official Bonn structured source and direct links
         env:
@@ -57,7 +59,12 @@ jobs:
           BONN_OPARL_MAX_PAGES: '20'
           BONN_OPARL_PAGE_LIMIT: '100'
           BONN_OPARL_LOOKBACK_YEARS: '12'
-        run: mvn -B -ntp test
+        run: >-
+          npx --no-install jest --runInBand --runTestsByPath
+          tests/unit/bonnGovDataDiscoveryLive.test.js
+          tests/unit/bonnOparlCollectionLive.test.js
+          tests/unit/bonnPortalSearchDiscoveryLive.test.js
+          tests/unit/bonnPoliticalContextLive.test.js
 
       - name: Upload live evidence
         if: always()
@@ -68,5 +75,6 @@ jobs:
             out/qa/bonn-political-context-live.json
             out/qa/bonn-official-catalogue-discovery.json
             out/qa/bonn-oparl-collection-probes.json
+            out/qa/bonn-portal-search-discovery.json
           if-no-files-found: error
           retention-days: 14
