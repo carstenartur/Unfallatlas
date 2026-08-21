@@ -37,7 +37,7 @@ jobs:
   live:
     name: Official Bonn OParl / RIS evidence path
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -45,30 +45,21 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Node.js 24 with npm cache
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
-          node-version: '24'
-          cache: npm
+          distribution: temurin
+          java-version: '21'
+          cache: maven
 
-      - name: Install the locked JavaScript dependencies
-        run: npm ci
-
-      - name: Exercise the official Bonn structured source and direct links
+      - name: Run the Maven-owned Bonn live evidence suite
         env:
           BONN_OPARL_LIVE: '1'
           PORTAL_SEARCH_TIMEOUT_MS: '20000'
-          BONN_OPARL_MAX_PAGES: '20'
+          BONN_OPARL_MAX_PAGES: '300'
           BONN_OPARL_PAGE_LIMIT: '100'
           BONN_OPARL_LOOKBACK_YEARS: '12'
-        run: >-
-          npx --no-install jest --runInBand --runTestsByPath
-          tests/unit/bonnGovDataDiscoveryLive.test.js
-          tests/unit/bonnOparlCollectionLive.test.js
-          tests/unit/bonnPortalGateChallengeLive.test.js
-          tests/unit/bonnPortalGateSolveLive.test.js
-          tests/unit/bonnPortalSearchDiscoveryLive.test.js
-          tests/unit/bonnPoliticalContextLive.test.js
+        run: mvn -B -ntp test
 
       - name: Upload live evidence
         if: always()

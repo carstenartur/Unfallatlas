@@ -8,7 +8,9 @@ const ROOT = path.resolve(__dirname, '../..');
 const OUTPUT = path.join(ROOT, 'out', 'qa', 'bonn-political-context-live.json');
 const liveTest = process.env.BONN_OPARL_LIVE === '1' ? test : test.skip;
 
-jest.setTimeout(180_000);
+// A complete Bonn catalogue traversal currently covers about 243 pages. Keep
+// the process bounded, but allow one retry without a false Jest timeout.
+jest.setTimeout(780_000);
 
 describe('official Bonn political-context live evidence', () => {
   liveTest('traverses OParl first and returns direct official references', () => {
@@ -16,7 +18,7 @@ describe('official Bonn political-context live evidence', () => {
     const result = spawnSync(process.execPath, [
       path.join(ROOT, 'scripts', 'qa-bonn-political-context-live.js'),
       '--terms', 'Adenauerallee,Radverkehr',
-      '--attempts', '3',
+      '--attempts', '2',
       '--retry-delay-ms', '3000',
       '--require-results',
       '--output', OUTPUT,
@@ -24,7 +26,7 @@ describe('official Bonn political-context live evidence', () => {
       cwd: ROOT,
       env: process.env,
       encoding: 'utf8',
-      timeout: 170_000,
+      timeout: 720_000,
     });
 
     const diagnostics = [result.stdout, result.stderr].filter(Boolean).join('\n');

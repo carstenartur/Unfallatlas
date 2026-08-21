@@ -21,16 +21,25 @@ keine politische Vorbefassung gibt.
 Der Bonner Provider verwendet diese Reihenfolge:
 
 1. **OParl 1.1** über das amtliche Systemobjekt
-   `https://www.bonn.sitzung-online.de/public/oparl/system`.
+   `https://www.bonn.sitzung-online.de/oparl/system`; falls dieses Discovery-
+   Dokument vorübergehend nicht nutzbar ist, über die amtliche Paper-Sammlung
+   `https://www.bonn.sitzung-online.de/oparl/bodies/1/papers`.
 2. Moderne amtliche Portalsuche unter
    `https://www.bonn.sitzung-online.de/public/tr010`.
 3. Historischer Bonner Bürgerinfo-Endpunkt als dokumentierter HTML-Fallback.
 
-Die OParl-Implementierung folgt `System → Body → Paper`, unterstützt externe
-Objektlisten und `links.next`, verwendet die standardisierten Filter
-`created_since`, `omit_internal` und `limit` und begrenzt den Lauf bewusst. Ein
-abgeschnittener Listenlauf wird als `partial-results` oder `incomplete`
-gekennzeichnet und niemals als abgeschlossene Nulltreffersuche.
+Die OParl-Implementierung folgt `System → Body → Paper` und unterstützt externe
+Objektlisten. Die reale Bonner Paper-Sammlung ignoriert derzeit `limit`, erkennt
+aber den Spring-kompatiblen Parameter `size` bis maximal 100. Der Client sendet
+deshalb den OParl-Parameter `limit` und den beobachteten Alias `size`, liest den
+amtlichen `last`-Link und durchläuft die Sammlung von den neuesten Seiten über
+`prev` rückwärts. Importierte `created`-Zeitstempel sind für historische
+Vorgänge nicht belastbar; das fachliche Zeitfenster wird daher lokal anhand von
+`Paper.date` beziehungsweise ersatzweise `Paper.modified` geprüft.
+`omit_internal` wird bei Paper-Abfragen bewusst nicht gesetzt, damit Orts- und
+Dateimetadaten für die lokale Evidenzsuche erhalten bleiben. Ein am Seitenlimit
+abgeschnittener Lauf wird als `partial-results` oder `incomplete` gekennzeichnet
+und niemals als abgeschlossene Nulltreffersuche.
 
 ## Sicherheits- und Evidenzregeln
 
@@ -49,7 +58,9 @@ gekennzeichnet und niemals als abgeschlossene Nulltreffersuche.
 ## Live-QA
 
 Der Workflow **Bonn political context live QA** führt die reale Suche gegen den
-amtlichen Bonner Dienst aus. Er verlangt:
+amtlichen Bonner Dienst über den kanonischen Maven-Build aus. Der Workflow
+definiert weder eine eigene npm-/Jest-Installation noch einen parallelen
+Buildpfad. Er verlangt:
 
 - einen erfolgreich nutzbaren OParl-Lauf oder einen dokumentierten partiellen
   OParl-Lauf mit anschließend vollständig abgearbeitetem amtlichen Fallback,
@@ -59,10 +70,13 @@ amtlichen Bonner Dienst aus. Er verlangt:
 - direkte amtliche Bonner Links,
 - ein als Workflow-Artefakt gespeichertes JSON-Protokoll.
 
-Die Netzprüfung wird mehrfach mit begrenztem Backoff versucht. Sie ersetzt
-keine deterministischen Unit-Tests; diese prüfen Paginierung, Deduplizierung,
-Hostbeschränkung, Fallbackreihenfolge und die Unterscheidung zwischen
-Nulltreffer und Providerfehler ohne externes Netz.
+Die vollständige Bonner Sammlung umfasst derzeit 243 Seiten bei der serverseitig
+begrenzten Größe von 100 Vorgängen. Der Live-Lauf erlaubt deshalb bis zu 300
+Seiten und besitzt einen eigenen, weiterhin begrenzten Prozess- und Job-Timeout.
+Die Netzprüfung wird höchstens einmal mit begrenztem Backoff wiederholt. Sie
+ersetzt keine deterministischen Unit-Tests; diese prüfen Paginierung,
+Deduplizierung, Hostbeschränkung, Fallbackreihenfolge und die Unterscheidung
+zwischen Nulltreffer und Providerfehler ohne externes Netz.
 
 ## KI-/Antragsübergabe
 

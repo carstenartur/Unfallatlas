@@ -25,14 +25,19 @@ function attributes(value) {
 }
 
 function stripTags(value) {
-  return String(value || '').replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+test('stripTags removes script and style blocks with whitespace before the closing bracket', () => {
+  expect(stripTags('vor<script data-x="1">evil</script >mitte<style>x</style >nach'))
+    .toBe('vor mitte nach');
+});
 
 function parseForms(html, baseUrl) {
   const forms = [];
