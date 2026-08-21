@@ -77,7 +77,24 @@ describe('bonnOparlClient – official direct collection fallback', () => {
     })).rejects.toBe(error);
   });
 
-  test('retries the direct collection without optional list filters after HTTP 400', async () => {
+  test.each([
+    [
+      'HTTP 400',
+      new client.OParlClientError(
+        client.OParlClientErrorCode.HTTP_ERROR,
+        'Unsupported optional filter.',
+        { status: 400 }
+      ),
+    ],
+    [
+      'an HTML response instead of JSON',
+      new client.OParlClientError(
+        client.OParlClientErrorCode.INVALID_JSON,
+        'The filtered collection returned HTML.',
+        { status: 200, contentType: 'text/html' }
+      ),
+    ],
+  ])('retries the direct collection without optional list filters after %s', async (_label, filterError) => {
     const fetchJsonImpl = jest.fn(async value => {
       const url = new URL(value);
       if (url.pathname.endsWith('/oparl/system')) {
@@ -87,11 +104,7 @@ describe('bonnOparlClient – official direct collection fallback', () => {
         );
       }
       if (url.pathname.endsWith('/oparl/papers') && url.searchParams.has('created_since')) {
-        throw new client.OParlClientError(
-          client.OParlClientErrorCode.HTTP_ERROR,
-          'Unsupported optional filter.',
-          { status: 400 }
-        );
+        throw filterError;
       }
       if (url.pathname.endsWith('/oparl/papers')) {
         expect(url.searchParams.get('body')).toBe('1');
