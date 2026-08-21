@@ -12,8 +12,9 @@ const COLLECTION_URL = 'https://www.bonn.sitzung-online.de/oparl/bodies/1/papers
 const LOOKBACK_Z = '2014-01-01T00:00:00Z';
 const LOOKBACK_UTC_OFFSET = '2014-01-01T00:00:00+00:00';
 const LOOKBACK_BERLIN_OFFSET = '2014-01-01T00:00:00+01:00';
+const LIVE_TERMS = ['adenauerallee', 'radverkehr'];
 
-jest.setTimeout(150_000);
+jest.setTimeout(180_000);
 
 function requestText(urlValue, redirectCount = 0) {
   const url = new URL(urlValue);
@@ -26,7 +27,7 @@ function requestText(urlValue, redirectCount = 0) {
       reject(error);
     };
     const req = transport.get(url, {
-      timeout: 25_000,
+      timeout: 35_000,
       headers: {
         Accept: 'application/json, application/ld+json;q=0.9, */*;q=0.1',
         'User-Agent': 'Unfallwerkbank-Bonn-OParl-Probe/1.0 (+https://github.com/carstenartur/Unfallatlas)',
@@ -48,8 +49,8 @@ function requestText(urlValue, redirectCount = 0) {
       response.on('data', chunk => {
         if (settled) return;
         bytes += Buffer.byteLength(chunk);
-        if (bytes > 16 * 1024 * 1024) {
-          const error = new Error(`Response exceeds 16 MiB: ${url.href}`);
+        if (bytes > 32 * 1024 * 1024) {
+          const error = new Error(`Response exceeds 32 MiB: ${url.href}`);
           response.destroy(error);
           finishReject(error);
           return;
@@ -93,6 +94,34 @@ function summarizePaper(paper) {
   };
 }
 
+function paperSearchText(paper) {
+  const locations = Array.isArray(paper && paper.location)
+    ? paper.location.map(location => location && (
+      location.description || location.streetAddress || location.locality
+    ))
+    : [];
+  return [
+    paper && paper.name,
+    paper && paper.reference,
+    paper && paper.paperType,
+    ...(Array.isArray(paper && paper.keyword) ? paper.keyword : []),
+    ...locations,
+    paper && paper.mainFile && paper.mainFile.name,
+    paper && paper.mainFile && paper.mainFile.fileName,
+  ].filter(Boolean).join(' | ').toLowerCase();
+}
+
+function matchingPapers(data) {
+  const matches = [];
+  for (const paper of data) {
+    const text = paperSearchText(paper);
+    const terms = LIVE_TERMS.filter(term => text.includes(term));
+    if (terms.length) matches.push({ ...summarizePaper(paper), terms });
+    if (matches.length >= 50) break;
+  }
+  return matches;
+}
+
 function collectionSummary(label, response) {
   let json = null;
   try {
@@ -115,6 +144,7 @@ function collectionSummary(label, response) {
     url: response.url,
     status: response.status,
     contentType: response.contentType,
+    responseBytes: Buffer.byteLength(response.text),
     jsonParsed: true,
     topLevelKeys: json && typeof json === 'object' && !Array.isArray(json)
       ? Object.keys(json).slice(0, 30)
@@ -122,19 +152,25 @@ function collectionSummary(label, response) {
     count: data.length,
     pagination: json && json.pagination || null,
     links: json && json.links || null,
+    termMatches: matchingPapers(data),
     first: data.slice(0, 3).map(summarizePaper),
     last: data.slice(-3).map(summarizePaper),
   };
 }
 
 describe('official Bonn OParl Paper collection semantics', () => {
-  liveTest('retains evidence for optional filters, page size and ordering', async () => {
+  liveTest('retains evidence for optional filters, page size and live-term coverage', async () => {
     const variants = [
       ['unfiltered', COLLECTION_URL],
       ['page-1', `${COLLECTION_URL}?page=1`],
       ['page-2', `${COLLECTION_URL}?page=2`],
       ['limit-100', `${COLLECTION_URL}?page=1&limit=100`],
       ['size-100', `${COLLECTION_URL}?page=1&size=100`],
+      ['size-500', `${COLLECTION_URL}?page=1&size=500`],
+      ['size-1000', `${COLLECTION_URL}?page=1&size=1000`],
+      ['size-2000', `${COLLECTION_URL}?page=1&size=2000`],
+      ['size-1000-page-24', `${COLLECTION_URL}?page=24&size=1000`],
+      ['size-1000-page-25', `${COLLECTION_URL}?page=25&size=1000`],
       ['size-100-date-desc', `${COLLECTION_URL}?page=1&size=100&sort=date,desc`],
       ['size-100-id-desc', `${COLLECTION_URL}?page=1&size=100&sort=id,desc`],
       ['size-100-reference-desc', `${COLLECTION_URL}?page=1&size=100&sort=reference,desc`],
