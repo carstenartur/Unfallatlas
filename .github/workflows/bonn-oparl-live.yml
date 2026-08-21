@@ -9,6 +9,7 @@ on:
       - 'scripts/qa-bonn-oparl-catalogue-discovery.js'
       - 'tests/unit/bonnPoliticalContextLive.test.js'
       - 'tests/unit/bonnGovDataDiscoveryLive.test.js'
+      - 'tests/unit/bonnOparlCollectionLive.test.js'
       - 'server/political-context/providers/bonnAllrisProvider.js'
       - 'server/political-context/providers/bonnOparlClient.js'
       - 'server/political-context/providers/bonnOparlDirectClient.js'
@@ -66,5 +67,6 @@ jobs:
           path: |
             out/qa/bonn-political-context-live.json
             out/qa/bonn-official-catalogue-discovery.json
+            out/qa/bonn-oparl-collection-probes.json
           if-no-files-found: error
           retention-days: 14
