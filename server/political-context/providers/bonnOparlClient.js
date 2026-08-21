@@ -27,7 +27,7 @@ const {
 } = require('./bonnOparlHttp.js');
 
 const SYSTEM_URL = 'https://www.bonn.sitzung-online.de/public/oparl/system';
-const DIRECT_PAPER_LIST_URL = 'https://www.bonn.sitzung-online.de/public/oparl/papers?body=1';
+const DIRECT_PAPER_LIST_URL = 'https://www.bonn.sitzung-online.de/public/oparl/papers?body=1&page=1';
 const PROVIDER_KEY = 'bonn-oparl';
 const OParlClientErrorCode = Object.freeze({
   ...HTTP_ERROR_CODE,
