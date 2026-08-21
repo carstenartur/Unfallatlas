@@ -3,24 +3,11 @@
 /**
  * Kernservice v2 für die KI-gestützte Bewertung eines Unfallatlas-Exports.
  *
- * Verbesserungen gegenüber v1 (`aiAssessmentService.js`):
- *   - reichhaltigere Eingabe (deriveFeatures: dominante Typen, Trend, Cluster)
- *   - Maßnahmenvorselektion aus interner Bibliothek (preselectMeasures)
- *   - zwei Modi: "assessment" und "proposal-brief"
- *   - strenge Schema-Validierung (v2-Schema bzw. proposalBrief.v1-Schema)
- *   - einmaliger Reparaturversuch bei ungültiger Antwort
- *   - Cache (sha256 über kanonischem Input) → schont Free-Tier
- *   - Retry/Backoff im Provider
- *   - sauberer Fallback: deterministischer „dry mode" ohne KI-Aufruf
- *
- * Fallback-Verhalten:
- *   1. Kein API-Key → `runAssessmentV2` wirft NotConfiguredError;
- *      Aufrufer kann `buildDeterministicFallback()` nutzen,
- *      um einen gültigen, datengestützten Output (ohne KI-Texte) zu liefern.
- *   2. Provider-Fehler / Schema-Fehler nach Reparaturversuch
- *      → ebenfalls deterministischer Fallback (wenn `withFallback: true`).
- *
- * @module server/ai/aiAssessmentServiceV2
+ * Unterstützt die fachliche Bewertung (exportAssessment.v2) sowie den
+ * kommunalen Maßnahmensteckbrief (proposalBrief.v1). Der Proposal-Pfad bindet
+ * seit v2.6 einen serverseitigen Deterministik-vs.-KI-Mehrwertvertrag ein:
+ * fehlender Mehrwert, unbelegte politische Recherche oder methodische
+ * Überdehnung bleiben sichtbar, dürfen aber nie als einreichungsreif gelten.
  */
 
 const { deriveFeatures }       = require('./features/deriveFeatures.js');
@@ -31,29 +18,37 @@ const { buildPrompt, PROMPT_VERSION } = require('./prompts/exportAssessmentPromp
 const { getProvider, activeProviderName } = require('./providers/index.js');
 const { sharedCache, AiAssessmentCache } = require('./cache/aiAssessmentCache.js');
 const { sharedQueue }          = require('./jobs/aiJobQueue.js');
+const {
+  buildProposalEvidenceContracts,
+  buildProposalValueAddPrompt,
+  buildBlockedFallbackContract,
+  ensureProposalValueAdd,
+  evaluateProposalValueAdd,
+} = require('./proposalBriefValueAdd.js');
 
 const schemaAssessmentV2 = require('./schema/exportAssessment.v2.schema.json');
 const schemaProposalV1   = require('./schema/proposalBrief.v1.schema.json');
 
 class NotConfiguredError extends Error {
-  constructor(msg) { super(msg || 'KI nicht konfiguriert (GEMINI_API_KEY fehlt).'); this.code = 'AI_NOT_CONFIGURED'; }
+  constructor(msg) {
+    super(msg || 'KI nicht konfiguriert (GEMINI_API_KEY fehlt).');
+    this.code = 'AI_NOT_CONFIGURED';
+  }
 }
 
 const VALID_MODES = ['assessment', 'proposal-brief'];
 
-// ── Public API ─────────────────────────────────────────────────────────────────
-
 /**
- * Hauptfunktion: führt eine v2-Bewertung durch.
+ * Führt eine v2-Bewertung aus.
  *
- * @param {object}  args
- * @param {object}  args.structured                  – aus computeExportReport()
- * @param {object}  [args.contextHints]
- * @param {string}  [args.mode='assessment']         – 'assessment' | 'proposal-brief'
- * @param {boolean} [args.withFallback=true]         – bei Fehlern deterministisch antworten?
- * @param {AiAssessmentCache} [args.cache]           – Override für Tests
- * @param {Function} [args.providerCall]             – Override für Tests (callStructuredGemini)
- * @returns {Promise<{ result: object, source: 'cache'|'ai'|'ai-repaired'|'fallback', cacheKey: string }>}
+ * @param {object} args
+ * @param {object} args.structured
+ * @param {object} [args.contextHints]
+ * @param {'assessment'|'proposal-brief'} [args.mode='assessment']
+ * @param {boolean} [args.withFallback=true]
+ * @param {AiAssessmentCache} [args.cache]
+ * @param {Function} [args.providerCall]
+ * @returns {Promise<{result: object, source: string, cacheKey: string, error?: string}>}
  */
 async function runAssessmentV2(args) {
   const {
@@ -62,166 +57,206 @@ async function runAssessmentV2(args) {
     mode = 'assessment',
     withFallback = true,
     cache = sharedCache,
-    providerCall = getProvider()
+    providerCall = getProvider(),
   } = args || {};
 
-  if (!structured || typeof structured !== 'object') {
+  if (!structured || typeof structured !== 'object' || Array.isArray(structured)) {
     throw new Error('structured fehlt oder ist kein Objekt.');
   }
   if (!VALID_MODES.includes(mode)) {
     throw new Error(`Ungültiger mode: ${mode}. Erlaubt: ${VALID_MODES.join(', ')}`);
   }
 
-  // Build deterministic input
-  const features    = deriveFeatures(structured, contextHints);
-  // Resolve city slug from structured (e.g. "Hannover" → "hannover")
-  // Identisch zur Frontend-Normalisierung (UA.normKey, js/ua.core.js:54-62),
-  // damit serverseitig dieselben Stadt-Schlüssel/Template-Dateien greifen.
-  const citySlug    = normalizeCitySlug(structured?.meta?.city);
+  const features = deriveFeatures(structured, contextHints);
+  const citySlug = normalizeCitySlug(structured?.meta?.city);
   const preselected = preselectMeasures(features, { citySlug });
-  const aiInput     = buildAiInputV2(structured, features, preselected, contextHints);
+  const aiInput = buildAiInputV2(structured, features, preselected, contextHints);
 
-  // Cache key
   const model = process.env.AI_ASSESSMENT_MODEL || 'gemini-2.0-flash';
   const cacheKey = AiAssessmentCache.buildKey({
     input: aiInput,
     promptVersion: PROMPT_VERSION,
     model,
-    mode
+    mode,
   });
 
-  // Cache hit?
   const cached = cache.get(cacheKey);
-  if (cached) {
-    return { result: cached, source: 'cache', cacheKey };
-  }
+  if (cached) return { result: cached, source: 'cache', cacheKey };
 
-  // Without API key → fallback or fatal
   if (!isAvailable()) {
     if (withFallback) {
-      const fb = buildDeterministicFallback({ aiInput, mode });
-      return { result: fb, source: 'fallback', cacheKey };
+      return {
+        result: buildDeterministicFallback({ aiInput, mode }),
+        source: 'fallback',
+        cacheKey,
+      };
     }
     throw new NotConfiguredError();
   }
 
-  // Build prompt and call provider via queue
-  const { system, user } = buildPrompt(aiInput, mode);
-  const responseSchema = toGeminiSchema(mode === 'proposal-brief' ? schemaProposalV1 : schemaAssessmentV2);
+  const prompt = buildPrompt(aiInput, mode);
+  let system = prompt.system;
+  let user = prompt.user;
+  if (mode === 'proposal-brief') {
+    const valueAddPrompt = buildProposalValueAddPrompt(aiInput);
+    system += '\n\nDer nachfolgende Mehrwertvertrag ist verbindlich. Fehlende Pflichtteile müssen als blocked ausgewiesen werden.';
+    user += `\n\n${valueAddPrompt}`;
+  }
+
+  const responseSchema = toGeminiSchema(
+    mode === 'proposal-brief' ? schemaProposalV1 : schemaAssessmentV2
+  );
 
   let parsed;
   let source = 'ai';
   try {
     const rawText = await sharedQueue.enqueue(() => providerCall({ system, user, responseSchema }));
     parsed = parseJsonLoose(rawText);
-    const v = validateAgainstMode(parsed, mode);
-    if (!v.valid) {
-      // Repair attempt: ask the model to fix the JSON to match the errors
+    if (mode === 'proposal-brief') {
+      parsed = ensureProposalValueAdd(
+        parsed,
+        aiInput,
+        'Die erste Modellantwort enthielt keinen vollständigen Mehrwertnachweis.'
+      );
+    }
+
+    const validation = validateAgainstMode(parsed, mode, {
+      aiInput,
+      normalizeProposal: false,
+    });
+    if (!validation.valid) {
       const repaired = await sharedQueue.enqueue(() => providerCall({
-        system: system + '\nReparieren: Antworte erneut, valides JSON gemäß Schema.',
-        user: user + `\n\nDie vorige Antwort war ungültig: ${v.errors.join('; ')}\nAntworte erneut, ausschließlich gültiges JSON.`,
-        responseSchema
+        system: `${system}\nReparieren: Antworte erneut, valides JSON gemäß Schema und Mehrwertvertrag.`,
+        user: `${user}\n\nDie vorige Antwort war ungültig: ${validation.errors.join('; ')}\nAntworte erneut, ausschließlich gültiges JSON.`,
+        responseSchema,
       }));
-      const repairedParsed = parseJsonLoose(repaired);
-      const v2 = validateAgainstMode(repairedParsed, mode);
-      if (!v2.valid) {
-        throw new Error(`KI-Antwort ungültig auch nach Reparaturversuch: ${v2.errors.join('; ')}`);
+      let repairedParsed = parseJsonLoose(repaired);
+      if (mode === 'proposal-brief') {
+        repairedParsed = ensureProposalValueAdd(
+          repairedParsed,
+          aiInput,
+          'Auch die Reparaturantwort enthielt keinen vollständigen Mehrwertnachweis.'
+        );
+      }
+      const repairedValidation = validateAgainstMode(repairedParsed, mode, {
+        aiInput,
+        normalizeProposal: false,
+      });
+      if (!repairedValidation.valid) {
+        throw new Error(
+          `KI-Antwort ungültig auch nach Reparaturversuch: ${repairedValidation.errors.join('; ')}`
+        );
       }
       parsed = repairedParsed;
       source = 'ai-repaired';
     }
   } catch (err) {
     if (withFallback) {
-      const fb = buildDeterministicFallback({ aiInput, mode, reason: err.message });
-      return { result: fb, source: 'fallback', cacheKey, error: err.message };
+      return {
+        result: buildDeterministicFallback({ aiInput, mode, reason: err.message }),
+        source: 'fallback',
+        cacheKey,
+        error: err.message,
+      };
     }
     throw err;
   }
 
-  // Post-process: enforce that recommendedMeasures with id resolve to catalog
-  // (use the same city-extended catalog as for preselection, so city-defined
-  //  ids round-trip cleanly).
   const catalogById = buildCatalogIndex(citySlug);
-  if (mode === 'assessment') {
-    parsed = harmonizeAssessment(parsed, catalogById);
-  } else {
-    parsed = harmonizeProposal(parsed, catalogById);
-  }
+  parsed = mode === 'assessment'
+    ? harmonizeAssessment(parsed, catalogById)
+    : harmonizeProposal(parsed, catalogById);
 
   cache.set(cacheKey, parsed);
   return { result: parsed, source, cacheKey };
 }
 
-/** True wenn GEMINI_API_KEY gesetzt. */
 function isAvailable() {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
-// ── Input-Aufbereitung ────────────────────────────────────────────────────────
-
 /**
- * Erzeugt das v2-AI-Input-Objekt aus structured + features + preselected.
- * Wird von Tests separat geprüft.
+ * Erzeugt den kanonischen, cache-relevanten AI-Input. Der deterministische
+ * Digest und der Vergleichsvertrag werden für beide Modi transportiert; im
+ * Proposal-Modus sind sie zusätzlich Bestandteil der strikten Ausgabe.
  */
 function buildAiInputV2(structured, features, preselected, contextHints) {
   const meta = structured?.meta || {};
   const gremium = meta.gremium
     ? { name: meta.gremium.name || '', type: meta.gremium.typ || '' }
     : undefined;
-
   const filters = meta.filters || {};
+  const evidenceContracts = buildProposalEvidenceContracts(structured, features);
 
   return {
     schemaVersion: 'aiInput.v2',
     meta: {
-      city:     meta.city     || '',
+      city: meta.city || '',
       areaName: meta.areaName || '',
-      date:     meta.date     || '',
-      link:     meta.link     || '',
-      gremium
+      date: meta.date || '',
+      link: meta.link || '',
+      gremium,
     },
     filters: {
-      severity:        filters.severity        || '',
-      roadCondition:   filters.roadCondition   || '',
-      involvementMode: meta.involvementMode    || filters.involvementMode || 'or'
+      severity: filters.severity || '',
+      roadCondition: filters.roadCondition || '',
+      involvementMode: meta.involvementMode || filters.involvementMode || 'or',
     },
     features,
-    preselectedMeasures: preselected.map(m => ({
-      id: m.id,
-      title: m.title,
-      category: m.category,
-      targetAccidentTypes: m.targetAccidentTypes,
-      implementationEffort: m.implementationEffort,
-      costBand: m.costBand,
-      description: m.description,
-      // ── Anreicherung gemäß TODO 3 (sharper preselection) ─────────────────
-      matchedRiskFactors:           m.matchedRiskFactors          || [],
-      matchedConflictPatterns:      m.matchedConflictPatterns     || [],
-      expectedTargetAccidentTypes:  m.expectedTargetAccidentTypes || m.targetAccidentTypes || [],
-      reasonForPreselection:        m.reasonForPreselection       || '',
-      implementationDuration:       m.implementationDuration      || undefined,
-      measureClass:                 m.measureClass                || undefined,
-      useCases:                     m.useCases                    || [],
-      cautions:                     m.cautions                    || []
-    }))
+    contextHints: contextHints || undefined,
+    ...evidenceContracts,
+    preselectedMeasures: preselected.map(measure => ({
+      id: measure.id,
+      title: measure.title,
+      category: measure.category,
+      targetAccidentTypes: measure.targetAccidentTypes,
+      implementationEffort: measure.implementationEffort,
+      costBand: measure.costBand,
+      description: measure.description,
+      matchedRiskFactors: measure.matchedRiskFactors || [],
+      matchedConflictPatterns: measure.matchedConflictPatterns || [],
+      expectedTargetAccidentTypes:
+        measure.expectedTargetAccidentTypes || measure.targetAccidentTypes || [],
+      reasonForPreselection: measure.reasonForPreselection || '',
+      implementationDuration: measure.implementationDuration || undefined,
+      measureClass: measure.measureClass || undefined,
+      useCases: measure.useCases || [],
+      cautions: measure.cautions || [],
+    })),
   };
 }
 
-// ── Schema-Validierung (leichtgewichtig) ───────────────────────────────────────
-
-function validateAgainstMode(obj, mode) {
+/**
+ * Validiert gegen das Modusschema. Für bestehende direkte Aufrufer wird ein
+ * unvollständiger Proposal zunächst fail-closed ergänzt. `normalizeProposal:
+ * false` prüft den bereits normalisierten Rohwert strikt.
+ */
+function validateAgainstMode(obj, mode, options = {}) {
   const schema = mode === 'proposal-brief' ? schemaProposalV1 : schemaAssessmentV2;
-  return validateBySchema(obj, schema);
+  let candidate = obj;
+  if (mode === 'proposal-brief' && options.normalizeProposal !== false) {
+    candidate = ensureProposalValueAdd(
+      obj,
+      options.aiInput || {},
+      options.reason || 'Fehlende serverseitige Mehrwertfelder wurden blockierend ergänzt.'
+    );
+  }
+  const schemaValidation = validateBySchema(candidate, schema);
+  if (mode !== 'proposal-brief' || !schemaValidation.valid) return schemaValidation;
+
+  const semanticValidation = evaluateProposalValueAdd(candidate);
+  // Ein bewusst blockierter Fallback ist schema-valide Arbeitsgrundlage. Nur
+  // strukturelle Widersprüche verhindern die Ausgabe; Einreichungsreife wird
+  // über filingReadinessVerdict fail-closed abgebildet.
+  return {
+    valid: true,
+    errors: [],
+    warnings: semanticValidation.valid
+      ? semanticValidation.warnings
+      : semanticValidation.errors.concat(semanticValidation.warnings),
+  };
 }
 
-/**
- * Sehr leichtgewichtige JSON-Schema-Validierung (Draft-7 Subset).
- * Unterstützt: required, type, enum, const, items.type/required, additionalProperties=false.
- *
- * @param {unknown} obj
- * @param {object}  schema
- * @returns {{ valid: boolean, errors: string[] }}
- */
 function validateBySchema(obj, schema) {
   const errors = [];
   walkValidate(obj, schema, '$', errors);
@@ -234,35 +269,63 @@ function walkValidate(value, schema, path, errors) {
   if (schema.const !== undefined && value !== schema.const) {
     errors.push(`${path}: erwartet const "${schema.const}", erhalten "${value}"`);
   }
-
   if (schema.enum && !schema.enum.includes(value)) {
     errors.push(`${path}: Wert "${value}" nicht in enum [${schema.enum.join(', ')}]`);
   }
 
   if (schema.type) {
-    const t = schema.type;
-    if (t === 'object') {
+    const type = schema.type;
+    if (type === 'object') {
       if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-        errors.push(`${path}: erwartet object`); return;
+        errors.push(`${path}: erwartet object`);
+        return;
       }
-    } else if (t === 'array') {
-      if (!Array.isArray(value)) { errors.push(`${path}: erwartet array`); return; }
-    } else if (t === 'string') {
+    } else if (type === 'array') {
+      if (!Array.isArray(value)) {
+        errors.push(`${path}: erwartet array`);
+        return;
+      }
+    } else if (type === 'string') {
       if (typeof value !== 'string') errors.push(`${path}: erwartet string`);
-    } else if (t === 'number' || t === 'integer') {
-      if (typeof value !== 'number') errors.push(`${path}: erwartet number`);
-    } else if (t === 'boolean') {
-      if (typeof value !== 'boolean') errors.push(`${path}: erwartet boolean`);
+    } else if (type === 'integer') {
+      if (typeof value !== 'number' || !Number.isInteger(value)) {
+        errors.push(`${path}: erwartet integer`);
+      }
+    } else if (type === 'number') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        errors.push(`${path}: erwartet number`);
+      }
+    } else if (type === 'boolean' && typeof value !== 'boolean') {
+      errors.push(`${path}: erwartet boolean`);
     }
   }
 
-  if (Array.isArray(schema.required) && value && typeof value === 'object' && !Array.isArray(value)) {
-    for (const req of schema.required) {
-      if (!(req in value)) errors.push(`${path}: Pflichtfeld fehlt: ${req}`);
+  if (typeof value === 'string' && Number.isInteger(schema.minLength)
+      && value.length < schema.minLength) {
+    errors.push(`${path}: erwartet mindestens ${schema.minLength} Zeichen`);
+  }
+  if (Array.isArray(value) && Number.isInteger(schema.minItems)
+      && value.length < schema.minItems) {
+    errors.push(`${path}: erwartet mindestens ${schema.minItems} Einträge`);
+  }
+  if (typeof value === 'number' && Number.isFinite(schema.minimum)
+      && value < schema.minimum) {
+    errors.push(`${path}: Wert kleiner als Minimum ${schema.minimum}`);
+  }
+  if (typeof value === 'number' && Number.isFinite(schema.maximum)
+      && value > schema.maximum) {
+    errors.push(`${path}: Wert größer als Maximum ${schema.maximum}`);
+  }
+
+  if (Array.isArray(schema.required)
+      && value && typeof value === 'object' && !Array.isArray(value)) {
+    for (const required of schema.required) {
+      if (!(required in value)) errors.push(`${path}: Pflichtfeld fehlt: ${required}`);
     }
   }
 
-  if (schema.properties && value && typeof value === 'object' && !Array.isArray(value)) {
+  if (schema.properties
+      && value && typeof value === 'object' && !Array.isArray(value)) {
     for (const key of Object.keys(schema.properties)) {
       if (key in value) {
         walkValidate(value[key], schema.properties[key], `${path}.${key}`, errors);
@@ -278,388 +341,431 @@ function walkValidate(value, schema, path, errors) {
   }
 
   if (schema.items && Array.isArray(value)) {
-    value.forEach((item, i) => walkValidate(item, schema.items, `${path}[${i}]`, errors));
+    value.forEach((item, index) => walkValidate(item, schema.items, `${path}[${index}]`, errors));
   }
 }
 
-// ── Loose JSON parsing (recovery) ──────────────────────────────────────────────
-
-/**
- * Parst rohen Antworttext.  Toleriert leichte Abweichungen wie Markdown-Fences,
- * vor-/nachgestellten Fließtext oder ein einleitendes "json" Wort.
- *
- * @param {string} rawText
- * @returns {unknown}
- */
 function parseJsonLoose(rawText) {
-  if (typeof rawText !== 'string') throw new Error('parseJsonLoose: kein String erhalten.');
+  if (typeof rawText !== 'string') {
+    throw new Error('parseJsonLoose: kein String erhalten.');
+  }
   let text = rawText.trim();
-
-  // Strip markdown code fences
   const fenceMatch = text.match(/^```(?:json)?\s*([\s\S]*?)```\s*$/i);
   if (fenceMatch) text = fenceMatch[1].trim();
 
-  // First straight try
-  try { return JSON.parse(text); } catch { /* fall through */ }
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    // Fallback: erstes vollständig geklammertes JSON-Objekt extrahieren.
+  }
 
-  // Find first { ... matching } – brace counting
-  const startIdx = text.indexOf('{');
-  if (startIdx === -1) throw new Error('Keine JSON-Objektklammer im Antworttext gefunden.');
+  const startIndex = text.indexOf('{');
+  if (startIndex === -1) {
+    throw new Error('Keine JSON-Objektklammer im Antworttext gefunden.');
+  }
   let depth = 0;
   let inString = false;
   let escape = false;
-  for (let i = startIdx; i < text.length; i++) {
-    const c = text[i];
+  for (let index = startIndex; index < text.length; index++) {
+    const character = text[index];
     if (inString) {
-      if (escape) { escape = false; continue; }
-      if (c === '\\') { escape = true; continue; }
-      if (c === '"')  { inString = false; continue; }
-    } else {
-      if (c === '"') { inString = true; continue; }
-      if (c === '{') depth++;
-      else if (c === '}') {
-        depth--;
-        if (depth === 0) {
-          const candidate = text.slice(startIdx, i + 1);
-          return JSON.parse(candidate);
-        }
+      if (escape) {
+        escape = false;
+        continue;
       }
+      if (character === '\\') {
+        escape = true;
+        continue;
+      }
+      if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === '{') depth++;
+    if (character === '}') {
+      depth--;
+      if (depth === 0) return JSON.parse(text.slice(startIndex, index + 1));
     }
   }
   throw new Error('Konnte kein vollständiges JSON-Objekt extrahieren.');
 }
 
-// ── Schema → Gemini-responseSchema ─────────────────────────────────────────────
-
-/**
- * Wandelt unser JSON-Schema in das von Gemini akzeptierte Subset um.
- * Gemini unterstützt keine `$schema`, `$id`, `const`, `additionalProperties`.
- */
 function toGeminiSchema(schema) {
   if (!schema || typeof schema !== 'object') return schema;
   if (Array.isArray(schema)) return schema.map(toGeminiSchema);
 
-  const out = {};
-  for (const [k, v] of Object.entries(schema)) {
-    if (k === '$schema' || k === '$id' || k === 'additionalProperties' || k === 'description') continue;
-    if (k === 'const') {
-      // Express as enum with single value
-      out.enum = [v];
+  const output = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (['$schema', '$id', 'additionalProperties', 'description'].includes(key)) continue;
+    if (key === 'const') {
+      output.enum = [value];
       continue;
     }
-    if (k === 'properties' || k === 'items') {
-      out[k] = toGeminiSchema(v);
-    } else if (typeof v === 'object') {
-      out[k] = toGeminiSchema(v);
-    } else {
-      out[k] = v;
-    }
+    output[key] = typeof value === 'object' ? toGeminiSchema(value) : value;
   }
-  return out;
+  return output;
 }
-
-// ── Harmonization (clean catalog references) ───────────────────────────────────
 
 function harmonizeAssessment(parsed, byId) {
   if (!Array.isArray(parsed.recommendedMeasures)) return parsed;
-  parsed.recommendedMeasures = parsed.recommendedMeasures.map(m => {
-    if (m && typeof m === 'object' && m.id && byId[m.id]) {
-      const cat = byId[m.id];
-      return {
-        ...m,
-        title: m.title || cat.title,
-        category: m.category || cat.category,
-        targetAccidentTypes: Array.isArray(m.targetAccidentTypes) && m.targetAccidentTypes.length
-          ? m.targetAccidentTypes : cat.targetAccidentTypes,
-        implementationEffort: m.implementationEffort || cat.implementationEffort,
-        costBand: m.costBand || cat.costBand
-      };
+  parsed.recommendedMeasures = parsed.recommendedMeasures.map(measure => {
+    if (!measure || typeof measure !== 'object' || !measure.id || !byId[measure.id]) {
+      return measure;
     }
-    return m;
+    const catalog = byId[measure.id];
+    return {
+      ...measure,
+      title: measure.title || catalog.title,
+      category: measure.category || catalog.category,
+      targetAccidentTypes:
+        Array.isArray(measure.targetAccidentTypes) && measure.targetAccidentTypes.length
+          ? measure.targetAccidentTypes
+          : catalog.targetAccidentTypes,
+      implementationEffort:
+        measure.implementationEffort || catalog.implementationEffort,
+      costBand: measure.costBand || catalog.costBand,
+    };
   });
   return parsed;
 }
 
 function harmonizeProposal(parsed, byId) {
   if (!Array.isArray(parsed.measureSummary)) return parsed;
-  parsed.measureSummary = parsed.measureSummary.map(m => {
-    if (m && typeof m === 'object' && m.id && byId[m.id]) {
-      const cat = byId[m.id];
-      return {
-        ...m,
-        title: m.title || cat.title,
-        category: m.category || cat.category
-      };
+  parsed.measureSummary = parsed.measureSummary.map(measure => {
+    if (!measure || typeof measure !== 'object' || !measure.id || !byId[measure.id]) {
+      return measure;
     }
-    return m;
+    const catalog = byId[measure.id];
+    return {
+      ...measure,
+      title: measure.title || catalog.title,
+      category: measure.category || catalog.category,
+    };
   });
   return parsed;
 }
 
-/**
- * Map id → measure for fast lookup, including city-specific overrides.
- * @param {string} [citySlug]
- * @returns {Object<string, object>}
- */
 function buildCatalogIndex(citySlug) {
-  // Start with base catalog (always present)
-  const idx = { ...MEASURE_BY_ID };
+  const index = { ...MEASURE_BY_ID };
   if (citySlug) {
-    for (const m of getCatalogForCity(citySlug)) {
-      idx[m.id] = m;
-    }
+    for (const measure of getCatalogForCity(citySlug)) index[measure.id] = measure;
   }
-  return idx;
+  return index;
 }
 
-// ── Deterministic fallback ─────────────────────────────────────────────────────
-
 /**
- * Erzeugt einen *gültigen*, deterministischen Output ohne KI-Aufruf.
- * Wird genutzt, wenn die KI nicht konfiguriert ist oder Fehler auftreten.
- *
- * @param {object} args
- * @param {object} args.aiInput
- * @param {string} args.mode
- * @param {string} [args.reason]
- * @returns {object}
+ * Erzeugt einen deterministischen, schema-validen Fallback. Im Proposal-Modus
+ * enthält er den vollständigen Mehrwertvertrag, aber mit einem ausdrücklich
+ * blockierten Readiness-Verdikt. Er behauptet weder einen räumlichen noch einen
+ * amtlichen Unfallschwerpunkt und gibt keine Umsetzung ohne Fachprüfung frei.
  */
 function buildDeterministicFallback({ aiInput, mode, reason }) {
-  const f = aiInput?.features || {};
-  const counts = f.counts || {};
-  const inv = f.involvement || {};
-  const tags = f.tags || [];
-  const patterns = Array.isArray(f.conflictPatterns) ? f.conflictPatterns : [];
-  const pre = aiInput?.preselectedMeasures || [];
+  const features = aiInput?.features || {};
+  const counts = features.counts || {};
+  const tags = features.tags || [];
+  const patterns = Array.isArray(features.conflictPatterns)
+    ? features.conflictPatterns
+    : [];
+  const preselected = aiInput?.preselectedMeasures || [];
   const lowDataBasis = (counts.total || 0) < 10;
+  const area = aiInput?.meta?.areaName || aiInput?.meta?.city || 'markierten Bereich';
 
   const evidenceLines = [];
-  if (counts.total != null) evidenceLines.push({
-    statement: `Im Bereich wurden ${counts.total} Unfälle erfasst (${counts.fatal || 0} Getötete, ${counts.serious || 0} Schwerverletzte, ${counts.slight || 0} Leichtverletzte).`,
-    source: 'severity.bySev'
-  });
-  if (Number.isFinite(f.ksiShare) && f.ksiShare > 0) evidenceLines.push({
-    statement: `Anteil schwerer Unfälle (KSI): ${(f.ksiShare * 100).toFixed(0)} %.`,
-    source: 'severity.bySev'
-  });
-  if (Array.isArray(f.dominantPatterns) && f.dominantPatterns.length) {
-    const top = f.dominantPatterns[0];
+  if (counts.total != null) {
     evidenceLines.push({
-      statement: `Auffälligstes Beteiligungsmuster: ${top.label} (${top.localCount} lokal).`,
-      source: 'deviations.focus'
+      statement: `Im Bereich wurden ${counts.total} Unfälle erfasst (${counts.fatal || 0} Getötete, ${counts.serious || 0} Schwerverletzte, ${counts.slight || 0} Leichtverletzte).`,
+      source: 'severity.bySev',
     });
   }
-  if (f.trend && f.trend.direction && f.trend.direction !== 'unknown') {
+  if (Number.isFinite(features.ksiShare) && features.ksiShare > 0) {
     evidenceLines.push({
-      statement: `Trend über ${f.trend.rangeYears} Jahre: ${f.trend.direction}.`,
-      source: 'yearTable'
+      statement: `Anteil schwerer Unfälle (KSI): ${(features.ksiShare * 100).toFixed(0)} %.`,
+      source: 'severity.bySev',
+    });
+  }
+  if (Array.isArray(features.dominantPatterns) && features.dominantPatterns.length) {
+    const top = features.dominantPatterns[0];
+    evidenceLines.push({
+      statement: `Ranghöchstes Beteiligungsmuster im lokalen Vergleich: ${top.label} (${top.localCount} lokal).`,
+      source: 'deviations.focus',
+    });
+  }
+  if (features.trend?.direction && features.trend.direction !== 'unknown') {
+    evidenceLines.push({
+      statement: `Trend über ${features.trend.rangeYears} Jahre: ${features.trend.direction}.`,
+      source: 'yearTable',
     });
   }
 
-  // Structured uncertainty + provenance reused in both modes
   const uncertainty = {
     missingData: [
       'Genaue Unfallhergänge und Erstunfallarten sind nicht im Datensatz enthalten.',
-      ...(counts.total === 0 ? ['Im gewählten Filter/Bereich wurden keine Unfälle erfasst.'] : []),
-      ...(lowDataBasis ? ['Fallzahl im Bereich liegt unter 10 – statistische Aussagen sind unsicher.'] : [])
+      ...(counts.total === 0
+        ? ['Im gewählten Filter/Bereich wurden keine Unfälle erfasst.']
+        : []),
+      ...(lowDataBasis
+        ? ['Fallzahl im Bereich liegt unter 10 – statistische Aussagen sind unsicher.']
+        : []),
     ],
     weakDataBasis: lowDataBasis,
-    plausibleNotEvidenced: patterns.filter(p => p.classification === 'secondary').map(p => p.label),
-    requiresOnSiteCheck: patterns.some(p => Array.isArray(p.requiresOnSiteCheck) && p.requiresOnSiteCheck.length) || lowDataBasis,
+    plausibleNotEvidenced: patterns
+      .filter(pattern => pattern.classification === 'secondary')
+      .map(pattern => pattern.label),
+    requiresOnSiteCheck:
+      patterns.some(pattern => list(pattern.requiresOnSiteCheck).length) || lowDataBasis,
     alternativeExplanations: [
-      'Punktuelle bauliche Mängel (Belag, Markierung, Beschilderung) sind oft nicht aus den Daten ersichtlich.',
-      'Verkehrsstärken und Geschwindigkeiten sind im Unfallatlas nicht enthalten.'
-    ]
+      'Punktuelle bauliche Mängel sind aus den Unfallattributen allein nicht ableitbar.',
+      'Verkehrsstärken und tatsächlich gefahrene Geschwindigkeiten fehlen.',
+    ],
   };
   const provenance = {
     derivedFromDeterministicFeatures: [
       'counts', 'severity.bySev', 'crossTable', 'deviations.focus',
       'yearTable', 'spatialDensity', 'poiSummary', 'features.tags',
-      'features.conflictPatterns'
+      'features.conflictPatterns',
     ],
     inferredByModel: [],
-    uncertainOrNeedsVerification: patterns.flatMap(p => p.requiresOnSiteCheck || []).slice(0, 8)
+    uncertainOrNeedsVerification: patterns
+      .flatMap(pattern => pattern.requiresOnSiteCheck || [])
+      .slice(0, 8),
   };
   const policyContext = {
-    policyReadiness: lowDataBasis ? 'low' : (patterns.some(p => p.classification === 'primary') ? 'medium' : 'low'),
+    policyReadiness: lowDataBasis
+      ? 'low'
+      : (patterns.some(pattern => pattern.classification === 'primary') ? 'medium' : 'low'),
     existingPoliticalSignals: [],
     synergyWithKnownRequests: [],
-    implementationOpportunityLevel: pre.some(p => p.category === 'quickWin') ? 'medium' : 'low'
+    implementationOpportunityLevel:
+      preselected.some(measure => measure.category === 'quickWin') ? 'medium' : 'low',
   };
-  const detectedConflictPatterns = patterns.map(p => ({
-    id: p.id, label: p.label, confidence: p.confidence, rationale: p.rationale
+  const detectedConflictPatterns = patterns.map(pattern => ({
+    id: pattern.id,
+    label: pattern.label,
+    confidence: pattern.confidence,
+    rationale: pattern.rationale,
   }));
-  const fieldInspectionChecklist = uniq(patterns.flatMap(p => p.requiresOnSiteCheck || []))
-    .concat(['Sichtbeziehungen prüfen', 'Belag/Markierung prüfen', 'Querungsangebote prüfen'])
-    .slice(0, 8);
+  const fieldInspectionChecklist = uniq(
+    patterns.flatMap(pattern => pattern.requiresOnSiteCheck || [])
+  ).concat([
+    'Sichtbeziehungen prüfen',
+    'Belag und Markierung prüfen',
+    'Querungsangebote und Führungswechsel prüfen',
+  ]).slice(0, 8);
 
   if (mode === 'proposal-brief') {
+    const valueAdd = buildBlockedFallbackContract(aiInput, reason);
     return {
       schemaVersion: 'proposalBrief.v1',
-      title: `Verkehrssicherheit im Bereich ${aiInput?.meta?.areaName || aiInput?.meta?.city || ''}`.trim(),
-      shortVersion: 'Im markierten Bereich liegt eine auffällige Unfallhäufung vor (siehe Kennzahlen). '
-        + 'Die Verwaltung wird gebeten, den Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen.',
-      longVersion: 'Die statistischen Daten zum markierten Bereich zeigen eine Häufung mit ' + (counts.total || 0) + ' Unfällen, davon ' + (counts.fatal || 0) + ' getötet und ' + (counts.serious || 0) + ' schwerverletzt. '
-        + 'Eine fachliche Bewertung mit konkreten Maßnahmenvorschlägen sollte durch die zuständige Stelle (z. B. Unfallkommission) erfolgen.',
-      sachverhalt: 'Im markierten Bereich wurden im Auswertungszeitraum ' + (counts.total || 0) + ' Unfälle erfasst.',
-      begruendung: 'Die Häufung und die Schwere der Unfälle rechtfertigen eine vertiefte fachliche Prüfung.'
-        + (patterns.length ? ' Erkannte Konfliktmuster: ' + patterns.slice(0, 3).map(p => p.label).join('; ') + '.' : ''),
-      beschlussvorschlag: 'Die Verwaltung wird gebeten, den Bereich verkehrssicherheitsfachlich zu prüfen und Maßnahmen vorzuschlagen bzw. umzusetzen.',
-      pruefauftrag: 'Bitte um Befassung der Unfallkommission und Prüfung kurzfristig umsetzbarer Maßnahmen.',
-      measureSummary: pre.slice(0, 5).map(p => ({
-        id: p.id,
-        title: p.title,
-        category: p.category,
-        rationale: p.reasonForPreselection
-          || ('Ausgewählt anhand der erkannten Merkmale: ' + (tags.slice(0, 4).join(', ') || 'allgemein')),
-        matchedRiskFactors:      p.matchedRiskFactors || [],
-        matchedConflictPatterns: p.matchedConflictPatterns || []
+      title: `Verkehrssicherheitsprüfung im Bereich ${area}`.trim(),
+      shortVersion:
+        `Im markierten Bereich wurden ${counts.total || 0} Unfälle mit Personenschaden dokumentiert. `
+        + 'Die Verwaltung wird gebeten, das Unfallgeschehen, die räumliche Lage und mögliche Konfliktmechanismen fachlich und vor Ort zu prüfen sowie geeignete Optionen mit Erfolgskriterien vorzulegen.',
+      longVersion:
+        `Die amtlichen Daten dokumentieren im markierten Bereich ${counts.total || 0} Unfälle, davon ${counts.fatal || 0} mit Getöteten und ${counts.serious || 0} mit Schwerverletzten. `
+        + 'Aus diesen Zahlen allein folgt weder eine amtliche Einstufung als Unfallschwerpunkt noch der Nachweis eines eigenständigen räumlichen Clusters. '
+        + 'Die zuständige Verwaltung beziehungsweise Unfallkommission soll deshalb Unfalltypen, Lage, Infrastruktur und alternative Erklärungen prüfen, Optionen aus der Maßnahmenbibliothek bewerten und dem Gremium berichten.',
+      sachverhalt:
+        `Im markierten Bereich wurden im Auswertungszeitraum ${counts.total || 0} Unfälle erfasst.`,
+      begruendung:
+        'Das dokumentierte Unfallgeschehen und seine Schwere rechtfertigen einen nachvollziehbaren fachlichen Prüfauftrag.'
+        + (patterns.length
+          ? ` Deterministisch erkannte Konflikt- oder Prüfmuster: ${patterns.slice(0, 3).map(pattern => pattern.label).join('; ')}.`
+          : ''),
+      beschlussvorschlag:
+        'Die Verwaltung wird gebeten, das dokumentierte Unfallgeschehen verkehrssicherheitsfachlich zu untersuchen, geeignete Maßnahmen- und Prüfoptionen einschließlich Voraussetzungen und Erfolgskriterien zu bewerten und dem zuständigen Gremium zu berichten.',
+      pruefauftrag:
+        'Befassung der Unfallkommission beziehungsweise zuständigen Fachstellen; Prüfung von Unfalltypen, räumlicher Lage, Infrastruktur, Gegenhypothesen und kurzfristig prüfbaren Optionen.',
+      measureSummary: preselected.slice(0, 5).map(measure => ({
+        id: measure.id,
+        title: measure.title,
+        category: measure.category,
+        rationale: measure.reasonForPreselection
+          || `Katalogbasierte Vorauswahl anhand der Merkmale: ${tags.slice(0, 4).join(', ') || 'allgemein'}; lokale Passung noch zu prüfen.`,
+        matchedRiskFactors: measure.matchedRiskFactors || [],
+        matchedConflictPatterns: measure.matchedConflictPatterns || [],
       })),
-      confidence: { overall: lowDataBasis ? 'low' : 'medium', rationale: 'Deterministischer Fallback ohne KI-Bewertung.' },
+      confidence: {
+        overall: lowDataBasis ? 'low' : 'medium',
+        rationale: 'Deterministischer Fallback ohne KI-Mehrwertanalyse.',
+      },
       caveats: [
-        'Dieser Steckbrief wurde ohne KI-Analyse rein aus den Kennzahlen erzeugt.' + (reason ? ' Grund: ' + reason : ''),
-        ...(lowDataBasis ? ['Geringe Fallzahl – Aussagen sind mit Vorsicht zu lesen.'] : [])
+        `Dieser Steckbrief wurde ohne KI-Mehrwertanalyse rein aus deterministischen Kennzahlen erzeugt.${reason ? ` Grund: ${reason}` : ''}`,
+        'Der Fallback ist Arbeitsmaterial und nicht einreichungsreif.',
+        ...(lowDataBasis
+          ? ['Geringe Fallzahl – Interpretation und Maßnahmenpassung sind vorsichtig zu prüfen.']
+          : []),
       ],
-      shortAdministrativeSummary: `${counts.total || 0} Unfälle im Bereich, davon ${(counts.fatal || 0) + (counts.serious || 0)} schwer/tödlich. Konfliktmuster: ${patterns.slice(0, 2).map(p => p.label).join('; ') || '—'}.`,
-      recommendedImmediateAction: pre.find(p => p.category === 'quickWin')?.title
-        || 'Verkehrsschau / Ortstermin mit Polizei und Verwaltung zeitnah anberaumen.',
-      recommendedDetailedExamination: 'Befassung der Unfallkommission mit Unfalltypensteckkarte; ggf. Verkehrsschau.',
-      expectedSafetyBenefit: patterns.some(p => p.id === 'lkw_lieferverkehr_kontext' || p.id === 'kfz_rad_abbiegekonflikt')
-        ? 'Schwere Konflikte (insbesondere Abbiegeunfälle) lassen sich erfahrungsgemäß deutlich reduzieren.'
-        : 'Reduktion vor allem leichterer Konflikte realistisch; Wirkung im Monitoring nachvollziehen.',
+      shortAdministrativeSummary:
+        `${counts.total || 0} dokumentierte Unfälle im Bereich, davon ${(counts.fatal || 0) + (counts.serious || 0)} schwer/tödlich; fachliche Orts- und Konfliktprüfung erforderlich.`,
+      recommendedImmediateAction:
+        'Verkehrsschau beziehungsweise Ortstermin mit Polizei, Verwaltung und zuständigen Fachstellen vorbereiten.',
+      recommendedDetailedExamination:
+        'Unfalltypensteckkarte, räumliche Teilbereiche, Infrastruktur, Verkehrsführung und alternative Erklärungen gemeinsam prüfen.',
+      expectedSafetyBenefit:
+        'Eine Wirkung kann erst nach Wahl einer fachlich bestätigten Option und Festlegung eines messbaren Ausgangswerts belastbar bewertet werden.',
       whyActionIsPlausibleHere: patterns.length
-        ? `Die deterministisch erkannten Muster (${patterns.slice(0, 3).map(p => p.id).join(', ')}) stützen den Handlungsbedarf.`
-        : 'Häufung und Schwere der Unfälle rechtfertigen Handeln auch ohne aufwendige Sonderauswertung.',
-      whyEvidenceIsLimitedIfApplicable: lowDataBasis
-        ? 'Geringe Fallzahl im Auswertungszeitraum macht statistische Aussagen unsicher; Vor-Ort-Bestätigung empfohlen.'
-        : '',
-      suggestedCouncilRequest: 'Die Verwaltung wird gebeten, im Bereich '
-        + (aiInput?.meta?.areaName || aiInput?.meta?.city || '')
-        + ' kurzfristig wirksame Maßnahmen zur Verbesserung der Verkehrssicherheit zu prüfen und dem Gremium zu berichten.',
-      suggestedReviewOrder: 'Prüfung der Unfallhäufung durch Verwaltung/Unfallkommission; Bericht im nächsten zuständigen Gremium.',
+        ? `Die deterministisch erkannten Prüfmuster (${patterns.slice(0, 3).map(pattern => pattern.id).join(', ')}) begründen eine gezielte Untersuchung, nicht automatisch eine konkrete Umsetzung.`
+        : 'Das amtlich dokumentierte Unfallgeschehen begründet einen fachlichen Prüfauftrag.',
+      whyEvidenceIsLimitedIfApplicable:
+        'Unfallursachen, reale Geometrie, Verkehrsmenge und politische Vorbefassung sind im deterministischen Fallback nicht abschließend belegt.',
+      suggestedCouncilRequest:
+        `Die Verwaltung wird gebeten, im Bereich ${area} das dokumentierte Unfallgeschehen fachlich zu untersuchen, Optionen zu bewerten und dem Gremium mit Evidenz, Voraussetzungen, Frist und Erfolgskriterien zu berichten.`,
+      suggestedReviewOrder:
+        'Prüfung des dokumentierten Unfallgeschehens durch Verwaltung und Unfallkommission; danach Bericht und Entscheidung im zuständigen Gremium.',
       fieldInspectionChecklist,
       uncertainty,
       provenance,
       policyContext,
-      detectedConflictPatterns
+      detectedConflictPatterns,
+      ...valueAdd,
     };
   }
 
-  // assessment fallback
   return {
     schemaVersion: 'exportAssessment.v2',
     problemProfile: {
-      headline: `Auffällige Unfallhäufung im Bereich ${aiInput?.meta?.areaName || aiInput?.meta?.city || ''}`.trim(),
-      summary: `Im Bereich wurden ${counts.total || 0} Unfälle erfasst. Die fachliche Bewertung erfolgt im Fallback ohne KI-Auswertung.`,
-      dominantPattern: f.dominantPatterns?.[0]?.label || ''
+      headline: `Dokumentiertes Unfallgeschehen im Bereich ${area}`.trim(),
+      summary:
+        `Im Bereich wurden ${counts.total || 0} Unfälle erfasst. Die fachliche Bewertung erfolgt im Fallback ohne KI-Auswertung.`,
+      dominantPattern: features.dominantPatterns?.[0]?.label || '',
     },
     evidence: evidenceLines,
-    primaryRiskFactors: (patterns.filter(p => p.classification === 'primary').slice(0, 4).map(p => ({
-      factor: p.label,
-      rationale: p.rationale,
-      confidence: p.confidence
-    }))).concat(
-      // Falls keine primary patterns → aus Tags ableiten
-      patterns.some(p => p.classification === 'primary') ? [] :
-      tags.slice(0, 3).map(t => ({
-        factor: tagToText(t),
-        rationale: `Ableitung aus Beteiligungsanteilen / POIs (Tag: ${t}).`,
-        confidence: 'medium'
+    primaryRiskFactors: patterns
+      .filter(pattern => pattern.classification === 'primary')
+      .slice(0, 4)
+      .map(pattern => ({
+        factor: pattern.label,
+        rationale: pattern.rationale,
+        confidence: pattern.confidence,
       }))
-    ),
-    secondaryRiskFactors: patterns.filter(p => p.classification === 'secondary').slice(0, 4).map(p => ({
-      factor: p.label,
-      rationale: p.rationale,
-      confidence: p.confidence === 'high' ? 'medium' : p.confidence
-    })),
-    recommendedMeasures: pre.slice(0, 6).map(p => ({
-      id: p.id,
-      title: p.title,
-      category: p.category,
-      whyThisFitsHere: p.reasonForPreselection
-        || `Ausgewählt anhand erkannter Merkmale: ${(p.targetAccidentTypes || []).join(', ') || '—'}`,
-      expectedEffect: p.description,
-      targetAccidentTypes: p.targetAccidentTypes,
-      implementationEffort: p.implementationEffort,
-      costBand: p.costBand,
+      .concat(
+        patterns.some(pattern => pattern.classification === 'primary')
+          ? []
+          : tags.slice(0, 3).map(tag => ({
+            factor: tagToText(tag),
+            rationale: `Ableitung aus Beteiligungsanteilen oder Kontextmerkmalen (Tag: ${tag}); fachlich zu prüfen.`,
+            confidence: 'medium',
+          }))
+      ),
+    secondaryRiskFactors: patterns
+      .filter(pattern => pattern.classification === 'secondary')
+      .slice(0, 4)
+      .map(pattern => ({
+        factor: pattern.label,
+        rationale: pattern.rationale,
+        confidence: pattern.confidence === 'high' ? 'medium' : pattern.confidence,
+      })),
+    recommendedMeasures: preselected.slice(0, 6).map(measure => ({
+      id: measure.id,
+      title: measure.title,
+      category: measure.category,
+      whyThisFitsHere: measure.reasonForPreselection
+        || `Katalogbasierte Vorauswahl anhand erkannter Merkmale: ${(measure.targetAccidentTypes || []).join(', ') || '—'}`,
+      expectedEffect: measure.description,
+      targetAccidentTypes: measure.targetAccidentTypes,
+      implementationEffort: measure.implementationEffort,
+      costBand: measure.costBand,
       confidence: lowDataBasis ? 'low' : 'medium',
-      matchedRiskFactors:           p.matchedRiskFactors          || [],
-      matchedConflictPatterns:      p.matchedConflictPatterns     || [],
-      expectedTargetAccidentTypes:  p.expectedTargetAccidentTypes || p.targetAccidentTypes || [],
-      reasonForPreselection:        p.reasonForPreselection       || '',
-      ...(p.implementationDuration ? { implementationDuration: p.implementationDuration } : {}),
-      ...(p.measureClass           ? { measureClass:           p.measureClass           } : {})
+      matchedRiskFactors: measure.matchedRiskFactors || [],
+      matchedConflictPatterns: measure.matchedConflictPatterns || [],
+      expectedTargetAccidentTypes:
+        measure.expectedTargetAccidentTypes || measure.targetAccidentTypes || [],
+      reasonForPreselection: measure.reasonForPreselection || '',
+      ...(measure.implementationDuration
+        ? { implementationDuration: measure.implementationDuration }
+        : {}),
+      ...(measure.measureClass ? { measureClass: measure.measureClass } : {}),
     })),
-    quickWins: pre.filter(p => p.category === 'quickWin').map(p => p.id),
-    infrastructureMeasures: pre.filter(p => p.category === 'infrastructure').map(p => p.id),
+    quickWins: preselected
+      .filter(measure => measure.category === 'quickWin')
+      .map(measure => measure.id),
+    infrastructureMeasures: preselected
+      .filter(measure => measure.category === 'infrastructure')
+      .map(measure => measure.id),
     openChecks: uniq([
       'Ortsbegehung mit Polizei und Verwaltung',
       'Befassung der Unfallkommission',
-      ...patterns.flatMap(p => p.requiresOnSiteCheck || [])
+      ...patterns.flatMap(pattern => pattern.requiresOnSiteCheck || []),
     ]).slice(0, 8),
-    confidence: { overall: lowDataBasis ? 'low' : 'medium', rationale: 'Deterministischer Fallback ohne KI-Bewertung.' + (reason ? ' Grund: ' + reason : '') },
+    confidence: {
+      overall: lowDataBasis ? 'low' : 'medium',
+      rationale: `Deterministischer Fallback ohne KI-Bewertung.${reason ? ` Grund: ${reason}` : ''}`,
+    },
     dataGaps: [
       'Keine textuelle KI-Bewertung verfügbar',
       'Genaue Unfallhergänge sind nicht in den Daten enthalten',
-      ...(lowDataBasis ? ['Geringe Fallzahl im Auswertungszeitraum – statistische Aussagen unsicher.'] : [])
+      ...(lowDataBasis
+        ? ['Geringe Fallzahl im Auswertungszeitraum – statistische Aussagen unsicher.']
+        : []),
     ],
-    shortAdministrativeSummary: `${counts.total || 0} Unfälle im Bereich, davon ${(counts.fatal || 0) + (counts.serious || 0)} schwer/tödlich. Konfliktmuster: ${patterns.slice(0, 2).map(p => p.label).join('; ') || '—'}.`,
+    shortAdministrativeSummary:
+      `${counts.total || 0} dokumentierte Unfälle im Bereich, davon ${(counts.fatal || 0) + (counts.serious || 0)} schwer/tödlich.`,
     technicalRationale: patterns.length
-      ? `Erkannte Konfliktmuster: ${patterns.map(p => p.id).join(', ')}. Maßnahmen sind aus dem Katalog vorselektiert und auf diese Muster bezogen.`
-      : 'Keine spezifischen Konfliktmuster eindeutig erkannt; Bewertung beschränkt sich auf statistische Häufung und Schwere.',
-    recommendedImmediateAction: pre.find(p => p.category === 'quickWin')?.title
-      || 'Verkehrsschau / Ortstermin mit Polizei und Verwaltung zeitnah anberaumen.',
-    recommendedDetailedExamination: 'Befassung der Unfallkommission mit Unfalltypensteckkarte; ggf. Verkehrsschau.',
-    expectedSafetyBenefit: patterns.some(p => p.id === 'lkw_lieferverkehr_kontext' || p.id === 'kfz_rad_abbiegekonflikt')
-      ? 'Schwere Abbiegekonflikte lassen sich erfahrungsgemäß deutlich reduzieren.'
-      : 'Reduktion leichterer Konflikte realistisch; Wirkung im Monitoring nachvollziehen.',
+      ? `Erkannte Prüfmuster: ${patterns.map(pattern => pattern.id).join(', ')}. Maßnahmen sind katalogbasiert vorselektiert und müssen örtlich bestätigt werden.`
+      : 'Keine spezifischen Konfliktmuster eindeutig erkannt; Bewertung beschränkt sich auf dokumentierte Unfallzahlen und Schwere.',
+    recommendedImmediateAction:
+      'Verkehrsschau beziehungsweise Ortstermin mit Polizei und Verwaltung zeitnah anberaumen.',
+    recommendedDetailedExamination:
+      'Befassung der Unfallkommission mit Unfalltypensteckkarte und realer Ortsprüfung.',
+    expectedSafetyBenefit:
+      'Wirkung erst nach fachlicher Auswahl einer Option und Festlegung messbarer Indikatoren bewerten.',
     whyActionIsPlausibleHere: patterns.length
-      ? `Die deterministisch erkannten Muster (${patterns.slice(0, 3).map(p => p.id).join(', ')}) stützen den Handlungsbedarf.`
-      : 'Häufung und Schwere der Unfälle rechtfertigen Handeln.',
+      ? `Die deterministisch erkannten Prüfmuster (${patterns.slice(0, 3).map(pattern => pattern.id).join(', ')}) stützen eine vertiefte Untersuchung.`
+      : 'Das amtlich dokumentierte Unfallgeschehen rechtfertigt einen fachlichen Prüfauftrag.',
     whyEvidenceIsLimitedIfApplicable: lowDataBasis
-      ? 'Geringe Fallzahl im Auswertungszeitraum macht statistische Aussagen unsicher; Vor-Ort-Bestätigung empfohlen.'
+      ? 'Geringe Fallzahl; Interpretation und Maßnahmenpassung benötigen eine Vor-Ort-Bestätigung.'
       : '',
-    suggestedCouncilRequest: 'Die Verwaltung wird gebeten, im Bereich '
-      + (aiInput?.meta?.areaName || aiInput?.meta?.city || '')
-      + ' kurzfristig wirksame Maßnahmen zur Verbesserung der Verkehrssicherheit zu prüfen.',
-    suggestedReviewOrder: 'Prüfung der Unfallhäufung durch Verwaltung/Unfallkommission; Bericht im zuständigen Gremium.',
+    suggestedCouncilRequest:
+      `Die Verwaltung wird gebeten, im Bereich ${area} geeignete Prüf- und Maßnahmenoptionen zur Verbesserung der Verkehrssicherheit zu bewerten.`,
+    suggestedReviewOrder:
+      'Prüfung des dokumentierten Unfallgeschehens durch Verwaltung und Unfallkommission; Bericht im zuständigen Gremium.',
     fieldInspectionChecklist,
     uncertainty,
     provenance,
     policyContext,
-    detectedConflictPatterns
+    detectedConflictPatterns,
   };
 }
 
-function uniq(arr) {
+function uniq(values) {
   const seen = new Set();
-  const out = [];
-  for (const x of arr) {
-    if (x && !seen.has(x)) { seen.add(x); out.push(x); }
+  const output = [];
+  for (const value of values) {
+    if (value && !seen.has(value)) {
+      seen.add(value);
+      output.push(value);
+    }
   }
-  return out;
+  return output;
 }
 
-function tagToText(t) {
-  const map = {
-    bike_alone: 'Radfahrende ohne Kfz-Beteiligung (Hinweis auf Infrastruktur/Belag)',
-    bike_car:   'Konflikt Rad/PKW',
-    bike_truck: 'Konflikt Rad/Lkw (besonders schwerwiegend)',
-    ped_car:    'Konflikt Fuß/PKW',
-    ped_alone:  'Stürze Fußverkehr',
-    car_car:    'Kfz/Kfz-Konflikte',
+function list(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function tagToText(tag) {
+  const labels = {
+    bike_alone: 'Radfahrende ohne Kfz-Beteiligung (Infrastruktur und Oberfläche prüfen)',
+    bike_car: 'Konflikt Rad/PKW',
+    bike_truck: 'Konflikt Rad/Lkw',
+    ped_car: 'Konflikt Fuß/PKW',
+    ped_alone: 'Stürze im Fußverkehr',
+    car_car: 'Kfz/Kfz-Konflikte',
     motorcycle: 'Motorradunfälle',
-    hgv:        'Hoher Lkw-Anteil',
-    junction:   'Knotenpunkt-Konflikte',
-    crossing:   'Querungsstellen',
-    surface:    'Belag-/Oberflächenprobleme',
-    night:      'Nächtliche Häufung',
-    rush_hour:  'Berufsverkehrszeit',
-    school_zone:'Nähe zu Schule/Kita',
-    transit:    'ÖPNV-Umfeld',
-    rail:       'Schienen-/Gleisbereich'
+    hgv: 'Lkw-Beteiligung',
+    junction: 'Knotenpunkt-Konflikte',
+    crossing: 'Querungsstellen',
+    surface: 'Belag-/Oberflächenprüfung',
+    night: 'Nächtliche Unfallverteilung',
+    rush_hour: 'Berufsverkehrszeit',
+    school_zone: 'Nähe zu Schule oder Kita',
+    transit: 'ÖPNV-Umfeld',
+    rail: 'Schienen-/Gleisbereich',
   };
-  return map[t] || t;
+  return labels[tag] || tag;
 }
 
 module.exports = {
@@ -674,5 +780,5 @@ module.exports = {
   buildCatalogIndex,
   activeProviderName,
   NotConfiguredError,
-  VALID_MODES
+  VALID_MODES,
 };
