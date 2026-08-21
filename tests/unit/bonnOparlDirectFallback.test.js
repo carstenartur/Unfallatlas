@@ -14,6 +14,7 @@ describe('bonnOparlClient – official direct collection fallback', () => {
       }
       if (url.pathname.endsWith('/oparl/papers')) {
         expect(url.searchParams.get('body')).toBe('1');
+        expect(url.searchParams.get('page')).toBe('1');
         expect(url.searchParams.get('created_since')).toBe('2016-01-01T00:00:00Z');
         return {
           data: [{
@@ -108,6 +109,7 @@ describe('bonnOparlClient – official direct collection fallback', () => {
       }
       if (url.pathname.endsWith('/oparl/papers')) {
         expect(url.searchParams.get('body')).toBe('1');
+        expect(url.searchParams.get('page')).toBe('1');
         expect(url.searchParams.has('created_since')).toBe(false);
         return { data: [], links: { next: null } };
       }
