@@ -25,8 +25,8 @@ function attributes(value) {
 }
 
 function stripTags(value) {
-  return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
+  return String(value || '').replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\b[^>]*>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
@@ -34,8 +34,8 @@ function stripTags(value) {
     .trim();
 }
 
-test('stripTags removes script and style blocks with whitespace before the closing bracket', () => {
-  expect(stripTags('vor<script data-x="1">evil</script >mitte<style>x</style >nach'))
+test('stripTags removes script and style blocks with malformed closing-tag tails', () => {
+  expect(stripTags('vor<script data-x="1">evil</script\t\n bar>mitte<style>x</style data-x>nach'))
     .toBe('vor mitte nach');
 });
 
