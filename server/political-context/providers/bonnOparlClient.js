@@ -280,9 +280,11 @@ async function fetchPaperList(source, params, fetchJsonImpl) {
     };
   } catch (error) {
     const status = Number(error && error.details && error.details.status);
-    if (source.discoveryMode !== 'direct-paper-list'
-        || error.code !== OParlClientErrorCode.HTTP_ERROR
-        || status !== 400) {
+    const filterUnsupported = error && (
+      error.code === OParlClientErrorCode.INVALID_JSON
+      || (error.code === OParlClientErrorCode.HTTP_ERROR && status === 400)
+    );
+    if (source.discoveryMode !== 'direct-paper-list' || !filterUnsupported) {
       throw error;
     }
     return {
