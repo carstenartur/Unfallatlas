@@ -13,7 +13,7 @@ const LOOKBACK_Z = '2014-01-01T00:00:00Z';
 const LOOKBACK_UTC_OFFSET = '2014-01-01T00:00:00+00:00';
 const LOOKBACK_BERLIN_OFFSET = '2014-01-01T00:00:00+01:00';
 
-jest.setTimeout(120_000);
+jest.setTimeout(150_000);
 
 function requestText(urlValue, redirectCount = 0) {
   const url = new URL(urlValue);
@@ -128,12 +128,18 @@ function collectionSummary(label, response) {
 }
 
 describe('official Bonn OParl Paper collection semantics', () => {
-  liveTest('retains evidence for optional filters and pagination', async () => {
+  liveTest('retains evidence for optional filters, page size and ordering', async () => {
     const variants = [
       ['unfiltered', COLLECTION_URL],
       ['page-1', `${COLLECTION_URL}?page=1`],
       ['page-2', `${COLLECTION_URL}?page=2`],
       ['limit-100', `${COLLECTION_URL}?page=1&limit=100`],
+      ['size-100', `${COLLECTION_URL}?page=1&size=100`],
+      ['size-100-date-desc', `${COLLECTION_URL}?page=1&size=100&sort=date,desc`],
+      ['size-100-id-desc', `${COLLECTION_URL}?page=1&size=100&sort=id,desc`],
+      ['size-100-reference-desc', `${COLLECTION_URL}?page=1&size=100&sort=reference,desc`],
+      ['size-100-q-adenauerallee', `${COLLECTION_URL}?page=1&size=100&q=Adenauerallee`],
+      ['size-100-search-adenauerallee', `${COLLECTION_URL}?page=1&size=100&search=Adenauerallee`],
       ['omit-internal', `${COLLECTION_URL}?page=1&omit_internal=true&limit=100`],
       ['created-since-z', `${COLLECTION_URL}?page=1&created_since=${encodeURIComponent(LOOKBACK_Z)}&omit_internal=true&limit=100`],
       ['created-since-utc-offset', `${COLLECTION_URL}?page=1&created_since=${encodeURIComponent(LOOKBACK_UTC_OFFSET)}&omit_internal=true&limit=100`],
