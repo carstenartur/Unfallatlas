@@ -9,7 +9,9 @@ const ROOT = path.resolve(__dirname, '../..');
 const OUTPUT = path.join(ROOT, 'out', 'qa', 'bonn-oparl-collection-probes.json');
 const liveTest = process.env.BONN_OPARL_LIVE === '1' ? test : test.skip;
 const COLLECTION_URL = 'https://www.bonn.sitzung-online.de/oparl/bodies/1/papers';
-const LOOKBACK = '2014-01-01T00:00:00Z';
+const LOOKBACK_Z = '2014-01-01T00:00:00Z';
+const LOOKBACK_UTC_OFFSET = '2014-01-01T00:00:00+00:00';
+const LOOKBACK_BERLIN_OFFSET = '2014-01-01T00:00:00+01:00';
 
 jest.setTimeout(120_000);
 
@@ -133,9 +135,11 @@ describe('official Bonn OParl Paper collection semantics', () => {
       ['page-2', `${COLLECTION_URL}?page=2`],
       ['limit-100', `${COLLECTION_URL}?page=1&limit=100`],
       ['omit-internal', `${COLLECTION_URL}?page=1&omit_internal=true&limit=100`],
-      ['created-since-timestamp', `${COLLECTION_URL}?page=1&created_since=${encodeURIComponent(LOOKBACK)}&omit_internal=true&limit=100`],
+      ['created-since-z', `${COLLECTION_URL}?page=1&created_since=${encodeURIComponent(LOOKBACK_Z)}&omit_internal=true&limit=100`],
+      ['created-since-utc-offset', `${COLLECTION_URL}?page=1&created_since=${encodeURIComponent(LOOKBACK_UTC_OFFSET)}&omit_internal=true&limit=100`],
+      ['created-since-berlin-offset', `${COLLECTION_URL}?page=1&created_since=${encodeURIComponent(LOOKBACK_BERLIN_OFFSET)}&omit_internal=true&limit=100`],
       ['created-since-date', `${COLLECTION_URL}?page=1&created_since=2014-01-01&omit_internal=true&limit=100`],
-      ['modified-since-timestamp', `${COLLECTION_URL}?page=1&modified_since=${encodeURIComponent(LOOKBACK)}&omit_internal=true&limit=100`],
+      ['modified-since-utc-offset', `${COLLECTION_URL}?page=1&modified_since=${encodeURIComponent(LOOKBACK_UTC_OFFSET)}&omit_internal=true&limit=100`],
     ];
     const probes = [];
     for (const [label, url] of variants) {
