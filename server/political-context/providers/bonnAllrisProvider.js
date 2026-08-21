@@ -126,6 +126,13 @@ function parseResults(html, options = {}) {
   return results.slice(0, MAX_RESULTS);
 }
 
+function indicatesCompletedSearch(html) {
+  const text = decodeEntities(stripTags(String(html || '')))
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /(?:keine\s+(?:treffer|ergebnisse|vorgänge)|(?:treffer|ergebnisse|vorgänge)\s*:?\s*0\b|\b0\s+(?:treffer|ergebnisse|vorgänge)\b)/i.test(text);
+}
+
 function cleanTerms(values) {
   const seen = new Set();
   const terms = [];
@@ -303,10 +310,21 @@ async function search(params = {}) {
         const html = await fetchHtmlImpl(request.url);
         const results = parseResults(html, request)
           .map(result => enrichWithReferenceModel(result, term));
+        const completed = results.length > 0 || indicatesCompletedSearch(html);
+        logEntry.count = results.length;
+        if (!completed) {
+          logEntry.status = 'incomplete';
+          queryLog.push(logEntry);
+          attempts.push({ ...logEntry });
+          warnings.push(
+            `${request.source} für „${term}“ lieferte nur die Suchmaske ohne `
+            + 'belastbaren Treffer- oder Nulltreffernachweis.'
+          );
+          continue;
+        }
         allResults.push(...results);
         coveredTerms.add(term);
         logEntry.status = results.length ? 'results-found' : 'searched-no-results';
-        logEntry.count = results.length;
         queryLog.push(logEntry);
         attempts.push({ ...logEntry });
         break;
@@ -363,6 +381,7 @@ module.exports = {
   supportsCity,
   search,
   parseResults,
+  indicatesCompletedSearch,
   buildSearchUrl,
   buildLegacySearchUrl,
   buildSitzungOnlineSearchUrl,
