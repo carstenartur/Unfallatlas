@@ -11,6 +11,7 @@ const {
   SYSTEM_URL: OPARL_SYSTEM_URL,
   searchOparl,
 } = require('./bonnOparlClient.js');
+const { officialBonnUrl } = require('./bonnOparlHttp.js');
 
 const PORTAL_BASE = 'https://www.bonn.sitzung-online.de';
 const SEARCH_PATH = '/public/tr010';
@@ -45,13 +46,16 @@ const buildLegacySearchUrl = buildSearchUrl;
 
 function normalizeHref(href, portalBase, detailDir) {
   const decoded = decodeEntities(String(href || '')).trim();
-  if (/^https?:\/\//i.test(decoded)) return decoded;
-  if (decoded.startsWith('/')) return `${portalBase}${decoded}`;
-  const cleaned = decoded.replace(/^\.?\/?/, '');
-  if (/\.asp(?:\?|$)/i.test(cleaned)) {
-    return `${LEGACY_PORTAL_BASE}${LEGACY_DETAIL_DIR}${cleaned}`;
+  let candidate = '';
+  if (/^https?:\/\//i.test(decoded)) candidate = decoded;
+  else if (decoded.startsWith('/')) candidate = `${portalBase}${decoded}`;
+  else {
+    const cleaned = decoded.replace(/^\.?\/?/, '');
+    candidate = /\.asp(?:\?|$)/i.test(cleaned)
+      ? `${LEGACY_PORTAL_BASE}${LEGACY_DETAIL_DIR}${cleaned}`
+      : `${portalBase}${detailDir}${cleaned}`;
   }
-  return `${portalBase}${detailDir}${cleaned}`;
+  return officialBonnUrl(candidate);
 }
 
 function parseResults(html, options = {}) {
@@ -71,6 +75,7 @@ function parseResults(html, options = {}) {
     if (!rawTitle || rawTitle.length < 5) continue;
 
     const url = normalizeHref(href, portalBase, detailDir);
+    if (!url) continue;
 
     const cells = [];
     const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
@@ -229,9 +234,6 @@ async function search(params = {}) {
       count: oparlResults.length,
     });
 
-    // A complete structured hit set is authoritative and avoids redundant
-    // HTML scraping. A complete zero-result or truncated crawl is broadened
-    // through the official portal search below.
     if (oparlComplete && oparlResults.length) {
       return {
         results: deduplicate(oparlResults),
@@ -297,9 +299,6 @@ async function search(params = {}) {
         logEntry.count = results.length;
         queryLog.push(logEntry);
         attempts.push({ ...logEntry });
-
-        // The modern portal is preferred. Only use the legacy endpoint when
-        // the modern request failed, not merely because it returned zero hits.
         break;
       } catch (error) {
         const failure = safeError(error);

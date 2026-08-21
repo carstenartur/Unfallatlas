@@ -72,6 +72,13 @@ async function resolveBonnBody(system, options = {}) {
   }
 
   candidates.sort((a, b) => bodyScore(b) - bodyScore(a));
+  if (bodyScore(candidates[0]) <= 0) {
+    throw new OParlClientError(
+      OParlClientErrorCode.BODY_NOT_FOUND,
+      'In der OParl-Body-Liste wurde kein belastbarer Bonn-Eintrag gefunden.',
+      { bodyListUrl: system.body, candidateCount: candidates.length }
+    );
+  }
   let body = candidates[0];
   if (typeof body === 'string') {
     body = await fetchJsonImpl(body, options.requestOptions || {});

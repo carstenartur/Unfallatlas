@@ -210,6 +210,17 @@ describe('bonnOparlClient – structured OParl traversal', () => {
   });
 });
 
+describe('bonnAllrisProvider – official HTML link boundary', () => {
+  test('drops externally hosted links even when their path resembles a Bonn template', () => {
+    const html = `
+      <table><tr>
+        <td><a href="https://attacker.example/vo020?VOLFDNR=123">Antrag Adenauerallee</a></td>
+        <td>01.08.2026</td>
+      </tr></table>`;
+    expect(provider.parseResults(html)).toEqual([]);
+  });
+});
+
 describe('bonnAllrisProvider – OParl preference and fail-closed fallback', () => {
   test('uses complete OParl results without redundant HTML requests', async () => {
     const fetchHtmlImpl = jest.fn();
