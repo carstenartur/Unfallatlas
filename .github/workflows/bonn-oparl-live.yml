@@ -6,9 +6,12 @@ on:
     paths:
       - '.github/workflows/bonn-oparl-live.yml'
       - 'scripts/qa-bonn-political-context-live.js'
+      - 'scripts/qa-bonn-oparl-catalogue-discovery.js'
       - 'tests/unit/bonnPoliticalContextLive.test.js'
+      - 'tests/unit/bonnGovDataDiscoveryLive.test.js'
       - 'server/political-context/providers/bonnAllrisProvider.js'
       - 'server/political-context/providers/bonnOparlClient.js'
+      - 'server/political-context/providers/bonnOparlDirectClient.js'
       - 'server/political-context/providers/bonnOparlHttp.js'
       - 'server/political-context/providers/_portalUtils.js'
       - 'server/political-context/services/portalSearchService.js'
@@ -60,6 +63,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bonn-political-context-live-evidence
-          path: out/qa/bonn-political-context-live.json
+          path: |
+            out/qa/bonn-political-context-live.json
+            out/qa/bonn-official-catalogue-discovery.json
           if-no-files-found: error
           retention-days: 14
