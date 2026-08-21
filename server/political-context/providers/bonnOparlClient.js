@@ -3,10 +3,11 @@
 /**
  * Structured OParl client for the official Bonn council-information system.
  *
- * OParl has no mandatory free-text search endpoint. We traverse the official
- * System -> Body -> Paper list, use standard list filters and match terms
- * locally. The crawl is bounded; truncation is incomplete evidence and must
- * be supplemented by the official portal fallback.
+ * OParl has no mandatory free-text search endpoint. We normally traverse the
+ * official System -> Body -> Paper list, use standard list filters and match
+ * terms locally. Bonn's ALLRIS deployment also exposes the official Paper
+ * collection directly; that documented collection is used as a bounded,
+ * auditable fallback when the discovery document is temporarily unavailable.
  */
 
 const { enrichWithReferenceModel } = require('./_portalUtils.js');
@@ -26,6 +27,7 @@ const {
 } = require('./bonnOparlHttp.js');
 
 const SYSTEM_URL = 'https://www.bonn.sitzung-online.de/public/oparl/system';
+const DIRECT_PAPER_LIST_URL = 'https://www.bonn.sitzung-online.de/public/oparl/papers?body=1';
 const PROVIDER_KEY = 'bonn-oparl';
 const OParlClientErrorCode = Object.freeze({
   ...HTTP_ERROR_CODE,
@@ -197,6 +199,102 @@ function deduplicateByUrl(results) {
   });
 }
 
+function compactError(error) {
+  return {
+    code: String(error && error.code || 'OPARL_DISCOVERY_ERROR').slice(0, 100),
+    message: String(error && error.message || error || 'Unbekannter OParl-Fehler').slice(0, 240),
+  };
+}
+
+function mayUseDirectPaperList(systemUrl, params, error) {
+  const explicitDirectUrl = normalizeUrl(params.directPaperListUrl);
+  const usesOfficialDiscovery = systemUrl === normalizeUrl(SYSTEM_URL);
+  if (!explicitDirectUrl && !usesOfficialDiscovery) return false;
+  const code = String(error && error.code || '');
+  return ![
+    OParlClientErrorCode.INVALID_URL,
+    OParlClientErrorCode.UNTRUSTED_HOST,
+  ].includes(code);
+}
+
+async function resolvePaperSource(params, fetchJsonImpl, systemUrl) {
+  try {
+    const system = await fetchJsonImpl(systemUrl, params.requestOptions || {});
+    if (!system || typeof system !== 'object' || !isHttpUrl(system.body)) {
+      throw new OParlClientError(
+        OParlClientErrorCode.INVALID_SYSTEM,
+        `Ungültiges OParl-Systemobjekt: ${systemUrl}`,
+        { systemUrl, type: system && system.type, oparlVersion: system && system.oparlVersion }
+      );
+    }
+    const { body, bodyList } = await resolveBonnBody(system, {
+      fetchJsonImpl,
+      systemUrl,
+      requestOptions: params.requestOptions,
+      maxBodyPages: params.maxBodyPages,
+    });
+    return {
+      body,
+      bodyList,
+      paperListUrl: normalizeUrl(body.paper),
+      sourceUrl: systemUrl,
+      discoveryMode: 'system-body',
+      discoveryError: null,
+    };
+  } catch (error) {
+    if (!mayUseDirectPaperList(systemUrl, params, error)) throw error;
+    const paperListUrl = assertAllowedNetworkUrl(
+      params.directPaperListUrl || DIRECT_PAPER_LIST_URL
+    );
+    return {
+      body: {
+        id: '',
+        name: 'Bundesstadt Bonn',
+        shortName: 'Bonn',
+        paper: paperListUrl,
+      },
+      bodyList: { pagesFetched: 0 },
+      paperListUrl,
+      sourceUrl: paperListUrl,
+      discoveryMode: 'direct-paper-list',
+      discoveryError: compactError(error),
+    };
+  }
+}
+
+async function fetchPaperList(source, params, fetchJsonImpl) {
+  const options = {
+    fetchJsonImpl,
+    maxPages: positiveInteger(params.maxPages, DEFAULT_MAX_PAGES),
+    query: {
+      created_since: createdSinceIso(params.now, params.lookbackYears),
+      omit_internal: 'true',
+      limit: positiveInteger(params.pageLimit, DEFAULT_PAGE_LIMIT),
+    },
+    requestOptions: params.requestOptions,
+  };
+  try {
+    return {
+      paperList: await fetchExternalList(source.paperListUrl, options),
+      unfilteredRetry: false,
+    };
+  } catch (error) {
+    const status = Number(error && error.details && error.details.status);
+    if (source.discoveryMode !== 'direct-paper-list'
+        || error.code !== OParlClientErrorCode.HTTP_ERROR
+        || status !== 400) {
+      throw error;
+    }
+    return {
+      paperList: await fetchExternalList(source.paperListUrl, {
+        ...options,
+        query: {},
+      }),
+      unfilteredRetry: true,
+    };
+  }
+}
+
 async function searchOparl(params = {}) {
   const fetchJsonImpl = params.fetchJsonImpl || fetchJson;
   const systemUrl = normalizeUrl(params.systemUrl || SYSTEM_URL);
@@ -226,30 +324,9 @@ async function searchOparl(params = {}) {
     };
   }
 
-  const system = await fetchJsonImpl(systemUrl, params.requestOptions || {});
-  if (!system || typeof system !== 'object' || !isHttpUrl(system.body)) {
-    throw new OParlClientError(
-      OParlClientErrorCode.INVALID_SYSTEM,
-      `Ungültiges OParl-Systemobjekt: ${systemUrl}`,
-      { systemUrl, type: system && system.type, oparlVersion: system && system.oparlVersion }
-    );
-  }
-  const { body, bodyList } = await resolveBonnBody(system, {
-    fetchJsonImpl,
-    systemUrl,
-    requestOptions: params.requestOptions,
-    maxBodyPages: params.maxBodyPages,
-  });
-  const paperList = await fetchExternalList(body.paper, {
-    fetchJsonImpl,
-    maxPages: positiveInteger(params.maxPages, DEFAULT_MAX_PAGES),
-    query: {
-      created_since: createdSinceIso(params.now, params.lookbackYears),
-      omit_internal: 'true',
-      limit: positiveInteger(params.pageLimit, DEFAULT_PAGE_LIMIT),
-    },
-    requestOptions: params.requestOptions,
-  });
+  const source = await resolvePaperSource(params, fetchJsonImpl, systemUrl);
+  queryLog.forEach(entry => { entry.url = source.paperListUrl; });
+  const { paperList, unfilteredRetry } = await fetchPaperList(source, params, fetchJsonImpl);
 
   const matches = [];
   const termCounts = new Map(terms.map(term => [term.normalized, 0]));
@@ -274,29 +351,49 @@ async function searchOparl(params = {}) {
       : (count ? 'results-found' : 'searched-no-results');
   });
 
+  const warnings = [];
+  if (source.discoveryError) {
+    warnings.push(
+      `Das OParl-Systemdokument war nicht nutzbar (${source.discoveryError.code}: `
+      + `${source.discoveryError.message}); die offizielle direkte Paper-Sammlung wurde verwendet.`
+    );
+  }
+  if (unfilteredRetry) {
+    warnings.push(
+      'Die direkte Paper-Sammlung akzeptierte die optionalen OParl-Listenfilter nicht; '
+      + 'der begrenzte Abruf wurde ohne diese Filter wiederholt.'
+    );
+  }
+  if (paperList.truncated) {
+    warnings.push(
+      'Die OParl-Paper-Liste wurde am konfigurierten Seitenlimit abgeschnitten; '
+      + 'ein offizieller Portal-Fallback ist erforderlich.'
+    );
+  }
+
   return {
     results,
     meta: {
       status,
       sourceType: 'oparl-1.1',
-      sourceUrl: systemUrl,
-      bodyId: normalizeUrl(body.id),
-      bodyName: body.name || body.shortName || 'Bonn',
-      paperListUrl: normalizeUrl(body.paper),
+      sourceUrl: source.sourceUrl,
+      bodyId: normalizeUrl(source.body.id),
+      bodyName: source.body.name || source.body.shortName || 'Bonn',
+      paperListUrl: normalizeUrl(source.paperListUrl),
+      discoveryMode: source.discoveryMode,
       queryLog,
-      pagesFetched: bodyList.pagesFetched + paperList.pagesFetched,
+      pagesFetched: Number(source.bodyList.pagesFetched || 0) + paperList.pagesFetched,
       scannedItems: paperList.items.length,
       truncated: paperList.truncated,
       nextUrl: paperList.nextUrl || '',
-      warnings: paperList.truncated
-        ? ['Die OParl-Paper-Liste wurde am konfigurierten Seitenlimit abgeschnitten; ein offizieller Portal-Fallback ist erforderlich.']
-        : [],
+      warnings,
     },
   };
 }
 
 module.exports = {
   SYSTEM_URL,
+  DIRECT_PAPER_LIST_URL,
   PROVIDER_KEY,
   OParlClientError,
   OParlClientErrorCode,
@@ -321,5 +418,9 @@ module.exports = {
     bestPaperUrl,
     paperSnippet,
     bodyScore,
+    compactError,
+    mayUseDirectPaperList,
+    resolvePaperSource,
+    fetchPaperList,
   },
 };
