@@ -253,6 +253,16 @@ async function search(params = {}) {
   } catch (error) {
     const failure = safeError(error);
     warnings.push(`OParl-Abruf fehlgeschlagen: ${failure.code}: ${failure.message}`);
+    for (const term of terms) {
+      queryLog.push({
+        query: term,
+        source: 'bonn-oparl',
+        sourceType: 'oparl-1.1',
+        url: OPARL_SYSTEM_URL,
+        status: 'failed',
+        error: failure,
+      });
+    }
     attempts.push({
       source: 'bonn-oparl',
       sourceType: 'oparl-1.1',
