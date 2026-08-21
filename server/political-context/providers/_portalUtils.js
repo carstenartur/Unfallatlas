@@ -126,7 +126,7 @@ function mapReferenceType(type) {
 }
 
 /** Heuristik: enthält der Suchbegriff einen Straßen-/Wegnamen? */
-const STREET_RE   = /(?:straße|strasse|str\.?\b|\bplatz\b|\ballee\b|\bweg\b|\bgasse\b|\bring\b|\bufer\b|\bdamm\b|\bchaussee\b|\bbrücke\b|\bbruecke\b)/i;
+const STREET_RE = /(?:\b(?:straße|strasse|str\.?|platz|allee|weg|gasse|ring|ufer|damm|chaussee|brücke|bruecke)\b|\b[a-zäöüß-]{2,}(?:straße|strasse|str\.?|platz|allee|weg|gasse|ring|ufer|damm|chaussee|brücke|bruecke)(?=\b|\s|$))/i;
 /** Heuristik: enthält der Suchbegriff einen Stadtbezirks-/Gebietshinweis? */
 const DISTRICT_RE = /\b(stadtbezirk|bezirk|stadtteil|ortsteil|quartier|viertel)\b/i;
 
