@@ -12,6 +12,7 @@ on:
       - 'tests/unit/bonnOparlCollectionLive.test.js'
       - 'tests/unit/bonnPortalSearchDiscoveryLive.test.js'
       - 'tests/unit/bonnPortalGateChallengeLive.test.js'
+      - 'tests/unit/bonnPortalGateSolveLive.test.js'
       - 'server/political-context/providers/bonnAllrisProvider.js'
       - 'server/political-context/providers/bonnOparlClient.js'
       - 'server/political-context/providers/bonnOparlHttp.js'
@@ -65,6 +66,7 @@ jobs:
           tests/unit/bonnGovDataDiscoveryLive.test.js
           tests/unit/bonnOparlCollectionLive.test.js
           tests/unit/bonnPortalGateChallengeLive.test.js
+          tests/unit/bonnPortalGateSolveLive.test.js
           tests/unit/bonnPortalSearchDiscoveryLive.test.js
           tests/unit/bonnPoliticalContextLive.test.js
 
@@ -78,6 +80,7 @@ jobs:
             out/qa/bonn-official-catalogue-discovery.json
             out/qa/bonn-oparl-collection-probes.json
             out/qa/bonn-portal-gate-challenge.json
+            out/qa/bonn-portal-gate-solve.json
             out/qa/bonn-portal-search-discovery.json
           if-no-files-found: error
           retention-days: 14
