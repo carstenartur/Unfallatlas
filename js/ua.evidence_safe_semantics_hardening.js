@@ -6,6 +6,27 @@
   const BASE_MARK = '__uaEvidenceSafe644';
   const list = value => Array.isArray(value) ? value : [];
   const object = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const TEXTUAL_FIELDS = Object.freeze([
+    'executiveSummary',
+    'causesMeasures',
+    'contextualMeasures',
+    'patternDetection',
+    'patterns',
+    'deviations',
+    'crossTable',
+    'timeClusters',
+    'mapReferences',
+    'methodikScope',
+    'osmInsights',
+    'visualContextHints',
+    'darkFigureNote',
+    'enrichmentSourcesNote',
+    'references',
+    'politicalReferences',
+    'evidenceCohortContract',
+  ]);
+  const EVIDENCE_COHORT_METHOD_LINE =
+    'Vollständiger Antragsbeleg: Die nummerierte completeEvidenceCohort umfasst alle Unfälle im Antragsgebiet; Suchfilter begrenzen diese Menge nicht, sondern kennzeichnen ausschließlich die explorative Teilmenge.';
 
   function eventText(value) {
     if (typeof value !== 'string') return value;
@@ -24,12 +45,22 @@
         'Rad- und Kraftrad-Beteiligungsmuster');
   }
 
-  function deep(value, depth = 0) {
+  function deep(value, depth = 0, seen = new WeakMap()) {
     if (depth > 8 || value == null) return value;
     if (typeof value === 'string') return eventText(value);
-    if (Array.isArray(value)) return value.map(item => deep(item, depth + 1));
     if (typeof value !== 'object') return value;
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, deep(item, depth + 1)]));
+    if (seen.has(value)) return seen.get(value);
+
+    const copy = Array.isArray(value) ? [] : {};
+    seen.set(value, copy);
+    if (Array.isArray(value)) {
+      value.forEach(item => copy.push(deep(item, depth + 1, seen)));
+      return copy;
+    }
+    Object.entries(value).forEach(([key, item]) => {
+      copy[key] = deep(item, depth + 1, seen);
+    });
+    return copy;
   }
 
   function qualify(value) {
@@ -60,6 +91,31 @@
     };
   }
 
+  function hardenTextualFields(structured) {
+    const hardened = { ...structured };
+    TEXTUAL_FIELDS.forEach(key => {
+      if (Object.prototype.hasOwnProperty.call(structured, key)) {
+        hardened[key] = deep(structured[key]);
+      }
+    });
+    return hardened;
+  }
+
+  function ensureEvidenceCohortMethodLine(structured) {
+    const hasEvidenceCohort = structured.evidenceCohorts
+      || structured.evidenceCohortContract
+      || structured.accidentEvidenceAppendix;
+    if (!hasEvidenceCohort) return structured;
+
+    const current = object(structured.methodikScope);
+    const lines = list(current.lines).map(eventText);
+    if (!lines.some(line => /Suchfilter begrenzen diese Menge nicht/i.test(String(line)))) {
+      lines.push(EVIDENCE_COHORT_METHOD_LINE);
+    }
+    structured.methodikScope = { ...deep(current), lines };
+    return structured;
+  }
+
   function hardenReport(report) {
     if (!report || typeof report !== 'object') return report;
     if (UA.EvidenceSafeSemantics?.safeReport) {
@@ -69,7 +125,7 @@
     if (structured.recommendedMeasures) {
       structured.recommendedMeasures = hardenRecommendedMeasures(structured.recommendedMeasures);
     }
-    report.structured = deep(structured);
+    report.structured = ensureEvidenceCohortMethodLine(hardenTextualFields(structured));
     if (typeof report.text === 'string') report.text = eventText(report.text);
     if (typeof report.html === 'string') report.html = eventText(report.html);
     return report;
