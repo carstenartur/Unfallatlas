@@ -3,7 +3,7 @@
   "type": "unfallatlas-vendor-build-recipe",
   "recipeId": "browser-export-exact-copy-pilot-v1",
   "packageLock": "package-lock.json",
-  "packageManager": "npm@11.9.0",
+  "packageManager": "npm@11.19.0",
   "operations": [
     {
       "lockRef": "export.docx.iife",
