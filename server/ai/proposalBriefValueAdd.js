@@ -11,10 +11,11 @@
  */
 
 const core = require('./proposalBriefValueAddCore.js');
+const { SYSTEM_URL: BONN_OPARL_SYSTEM_URL } =
+  require('../political-context/providers/bonnOparlClient.js');
 
 const READINESS = new Set(['ready', 'conditional', 'blocked']);
 const POLITICAL = new Set(['complete', 'conditional', 'blocked']);
-const BONN_OPARL_SYSTEM_URL = 'https://www.bonn.sitzung-online.de/public/oparl/system';
 const clean = value => String(value == null ? '' : value).trim();
 const list = value => Array.isArray(value) ? value : [];
 const object = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
