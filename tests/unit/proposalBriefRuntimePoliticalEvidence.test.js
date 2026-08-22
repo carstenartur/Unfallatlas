@@ -1,6 +1,8 @@
 'use strict';
 
 const valueAdd = require('../../server/ai/proposalBriefValueAdd.js');
+const { SYSTEM_URL: BONN_OPARL_SYSTEM_URL } =
+  require('../../server/political-context/providers/bonnOparlClient.js');
 
 function features() {
   return {
@@ -12,6 +14,12 @@ function features() {
 }
 
 describe('proposal brief runtime political evidence bridge', () => {
+  test('uses the same verified Bonn OParl system URL as the live provider', () => {
+    expect(valueAdd.BONN_OPARL_SYSTEM_URL).toBe(BONN_OPARL_SYSTEM_URL);
+    expect(valueAdd.BONN_OPARL_SYSTEM_URL)
+      .toBe('https://www.bonn.sitzung-online.de/oparl/system');
+  });
+
   test('converts the real browser searchTerms state into deterministic documented queries', () => {
     const structured = {
       meta: { city: 'Bonn', areaName: 'Adenauerallee' },
