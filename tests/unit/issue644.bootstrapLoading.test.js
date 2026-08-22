@@ -6,7 +6,7 @@ const path = require('path');
 const SOURCE = fs.readFileSync(path.resolve(__dirname, '../../js/ua.bootstrap.js'), 'utf8');
 
 describe('issue #644 bootstrap loading order', () => {
-  test('loads both semantic guards parser-blocking before the legacy stack', () => {
+  test('loads all semantic guards parser-blocking before the legacy stack', () => {
     const write = jest.fn();
     const fakeWindow = {};
     const fakeDocument = {
@@ -24,8 +24,10 @@ describe('issue #644 bootstrap loading order', () => {
     const markup = write.mock.calls[0][0];
     const semantics = markup.indexOf('ua.evidence_safe_semantics.js');
     const hardening = markup.indexOf('ua.evidence_safe_semantics_hardening.js');
+    const bridge = markup.indexOf('ua.evidence_safe_semantics_bridge.js');
     expect(semantics).toBeGreaterThanOrEqual(0);
     expect(hardening).toBeGreaterThan(semantics);
+    expect(bridge).toBeGreaterThan(hardening);
     expect(markup).toContain('v=2026-08-22');
     expect(fakeWindow.UA.BUILD).toBe('2026-07-19 00:00 UTC');
   });
