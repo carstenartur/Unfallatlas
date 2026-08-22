@@ -114,6 +114,28 @@
     return result;
   }
 
+  function restoreIncompleteBackgroundRender(ctx) {
+    const snapshot = UA.lifecycle?.getSnapshot?.();
+    if (!ctx || !snapshot || snapshot.status !== 'rendering') return false;
+
+    // Report preparation may load optional context and leave a superseded map
+    // render revision behind (most visibly when cluster and heatmap are both
+    // active). The report is already complete at this point; schedule exactly
+    // one ordinary application render so the interactive background returns
+    // to the same fail-closed lifecycle contract used by screenshots and later
+    // exports. Never manufacture lifecycle completion directly.
+    if (ctx.store && typeof ctx.store.dispatch === 'function') {
+      ctx.store.dispatch('filtersChanged');
+      return true;
+    }
+    if (typeof UA.renderLayers === 'function') {
+      ctx._dataChanged = true;
+      UA.renderLayers(ctx);
+      return true;
+    }
+    return false;
+  }
+
   function deactivateReportFunction(current) {
     const control = current?.[CONTROL_MARK];
     if (control) control.active = false;
@@ -131,7 +153,9 @@
       const finalizeThisInvocation = control.active;
       const report = await current.apply(this, args);
       if (!finalizeThisInvocation) return report;
-      return hardenStructuredReport(report);
+      const hardened = hardenStructuredReport(report);
+      restoreIncompleteBackgroundRender(args[0]);
+      return hardened;
     };
     Object.defineProperties(wrapped, {
       [BASE_MARK]: { value: true },
@@ -178,6 +202,7 @@
     transformHtmlOutsideAppendix,
     ensureEvidenceCohortMethodLine,
     hardenStructuredReport,
+    restoreIncompleteBackgroundRender,
     wrapReportFunction,
     install: installDeterministicReportBridge,
   });
