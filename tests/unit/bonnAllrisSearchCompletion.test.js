@@ -1,6 +1,10 @@
 'use strict';
 
 const provider = require('../../server/political-context/providers/bonnAllrisProvider.js');
+const {
+  fallbackSearchStatus,
+  normalizeProviderMeta,
+} = require('../../server/political-context/services/portalSearchService.js');
 
 function unavailableOparl() {
   const error = new Error('OParl returned HTML.');
@@ -9,6 +13,15 @@ function unavailableOparl() {
 }
 
 describe('bonnAllrisProvider – completed-search evidence', () => {
+  test('does not promote an empty legacy array to a completed zero-result search', () => {
+    const fallback = fallbackSearchStatus([]);
+    expect(fallback).toBe('incomplete');
+    expect(normalizeProviderMeta({}, fallback).searchStatus).toBe('incomplete');
+    expect(normalizeProviderMeta({ status: 'searched-no-results' }, fallback).searchStatus)
+      .toBe('searched-no-results');
+    expect(fallbackSearchStatus([{ title: 'Amtlicher Treffer' }])).toBe('results-found');
+  });
+
   test('distinguishes a plain ALLRIS search form from explicit zero-result evidence', () => {
     expect(provider.indicatesCompletedSearch(
       '<html><h1>Volltext</h1><label>eines dieser Wörter enthalten:</label><input></html>'

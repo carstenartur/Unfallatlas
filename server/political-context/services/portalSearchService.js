@@ -142,6 +142,14 @@ function normalizeProviderMeta(metaValue, fallbackStatus) {
   };
 }
 
+function fallbackSearchStatus(results) {
+  // A non-empty legacy result proves that references were found. An empty
+  // array carries no evidence that every intended source completed: several
+  // historical providers deliberately catch endpoint errors and return [].
+  // Only an explicit evidence envelope may therefore claim searched-no-results.
+  return Array.isArray(results) && results.length ? 'results-found' : 'incomplete';
+}
+
 /**
  * Führt eine vollständige Recherche durch.
  *
@@ -224,7 +232,7 @@ async function search(params) {
   const withTraffic = enrichAllWithTrafficRelevance(scored);
   const withGating  = enrichAllWithAiGating(withTraffic, context);
   const trimmed = withGating.slice(0, Math.max(0, maxResults));
-  const fallbackStatus = normalized.length ? 'results-found' : 'searched-no-results';
+  const fallbackStatus = fallbackSearchStatus(normalized);
   const evidenceMeta = normalizeProviderMeta(providerMeta, fallbackStatus);
 
   const result = {
@@ -262,4 +270,5 @@ module.exports = {
   unwrapProviderResult,
   normalizeProviderMeta,
   normalizeQueryLog,
+  fallbackSearchStatus,
 };
