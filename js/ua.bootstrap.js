@@ -5,24 +5,44 @@
 window.UA = { BUILD: '2026-07-19 00:00 UTC' };
 
 // Issue #644: load the central evidence-safe semantics contract and its
-// fail-closed hardening layer. Both modules are idempotent and retry their
-// installation while the legacy analysis/export modules load.
+// fail-closed hardening layer before the legacy analysis/export stack.
 if (typeof document !== 'undefined') {
-  const parent = document.head || document.documentElement;
-  const load = (src) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = false;
-    parent.appendChild(script);
-    return script;
-  };
+  const sources = [
+    'ua.evidence_safe_semantics.js?v=2026-08-22',
+    'ua.evidence_safe_semantics_hardening.js?v=2026-08-22',
+  ];
+  const current = document.currentScript;
 
-  const semantics = load('js/ua.evidence_safe_semantics.js?v=2026-08-22');
-  const loadHardening = () => {
-    if (!document.querySelector('script[src*="ua.evidence_safe_semantics_hardening.js"]')) {
-      load('js/ua.evidence_safe_semantics_hardening.js?v=2026-08-22');
-    }
-  };
-  semantics.addEventListener('load', loadHardening, { once: true });
-  semantics.addEventListener('error', loadHardening, { once: true });
+  if (
+    current
+    && current.src
+    && document.readyState === 'loading'
+    && typeof document.write === 'function'
+  ) {
+    const tags = sources.map(source => {
+      const url = new URL(source, current.src).href
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('<', '%3C');
+      return `<script src="${url}"><\/script>`;
+    }).join('');
+    document.write(tags);
+  } else {
+    const parent = document.head || document.documentElement;
+    sources.reduce((promise, source) => promise.then(() => new Promise((resolve, reject) => {
+      const selector = `script[src*="${source.split('?')[0]}"]`;
+      if (document.querySelector(selector)) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = `js/${source}`;
+      script.async = false;
+      script.addEventListener('load', resolve, { once: true });
+      script.addEventListener('error', reject, { once: true });
+      parent.appendChild(script);
+    })), Promise.resolve()).catch(error => {
+      window.UA.evidenceSafeSemanticsLoadError = String(error && error.message || error);
+    });
+  }
 }
