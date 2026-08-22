@@ -42,10 +42,24 @@ const PROBE_HOSTS = new Set([
 const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 const MAX_RECORDED_BODY_CHARS = 4 * 1024 * 1024;
 const MAX_PROBES = 30;
+const MAX_REDIRECTS = 5;
 
-function requestText(urlValue, options = {}, redirectCount = 0) {
-  const requestedUrl = new URL(urlValue);
-  const transport = requestedUrl.protocol === 'http:' ? http : https;
+function requestText(urlValue, options = {}, redirectState = null) {
+  const currentUrl = new URL(urlValue);
+  const state = redirectState && typeof redirectState === 'object'
+    ? {
+        requestedUrl: String(redirectState.requestedUrl || currentUrl.href),
+        redirectCount: Number(redirectState.redirectCount) || 0,
+        redirectChain: Array.isArray(redirectState.redirectChain)
+          ? redirectState.redirectChain.slice()
+          : [],
+      }
+    : {
+        requestedUrl: currentUrl.href,
+        redirectCount: Number(redirectState) || 0,
+        redirectChain: [],
+      };
+  const transport = currentUrl.protocol === 'http:' ? http : https;
   return new Promise((resolve, reject) => {
     let settled = false;
     const finishReject = error => {
@@ -53,7 +67,7 @@ function requestText(urlValue, options = {}, redirectCount = 0) {
       settled = true;
       reject(error);
     };
-    const req = transport.get(requestedUrl, {
+    const req = transport.get(currentUrl, {
       timeout: options.timeoutMs || 25_000,
       headers: {
         Accept: options.accept || 'application/json, application/ld+json;q=0.9, text/html;q=0.3, */*;q=0.1',
@@ -63,12 +77,20 @@ function requestText(urlValue, options = {}, redirectCount = 0) {
       const status = Number(response.statusCode || 0);
       if (status >= 300 && status < 400 && response.headers.location) {
         response.resume();
-        if (redirectCount >= 5) {
-          finishReject(new Error(`Too many redirects for ${requestedUrl.href}`));
+        if (state.redirectCount >= MAX_REDIRECTS) {
+          finishReject(new Error(`Too many redirects for ${state.requestedUrl}`));
           return;
         }
-        requestText(new URL(response.headers.location, requestedUrl).href, options, redirectCount + 1)
-          .then(resolve, finishReject);
+        const nextUrl = new URL(response.headers.location, currentUrl).href;
+        requestText(nextUrl, options, {
+          requestedUrl: state.requestedUrl,
+          redirectCount: state.redirectCount + 1,
+          redirectChain: [...state.redirectChain, {
+            status,
+            fromUrl: currentUrl.href,
+            toUrl: nextUrl,
+          }],
+        }).then(resolve, finishReject);
         return;
       }
 
@@ -78,7 +100,7 @@ function requestText(urlValue, options = {}, redirectCount = 0) {
         if (settled) return;
         bytes += Buffer.byteLength(chunk);
         if (bytes > (options.maxBytes || MAX_RESPONSE_BYTES)) {
-          const error = new Error(`Response exceeds ${options.maxBytes || MAX_RESPONSE_BYTES} bytes: ${requestedUrl.href}`);
+          const error = new Error(`Response exceeds ${options.maxBytes || MAX_RESPONSE_BYTES} bytes: ${currentUrl.href}`);
           response.destroy(error);
           finishReject(error);
           return;
@@ -89,8 +111,9 @@ function requestText(urlValue, options = {}, redirectCount = 0) {
         if (settled) return;
         settled = true;
         resolve({
-          requestedUrl: requestedUrl.href,
-          finalUrl: requestedUrl.href,
+          requestedUrl: state.requestedUrl,
+          finalUrl: currentUrl.href,
+          redirectChain: state.redirectChain.slice(),
           status,
           headers: {
             contentType: String(response.headers['content-type'] || ''),
@@ -103,7 +126,7 @@ function requestText(urlValue, options = {}, redirectCount = 0) {
       });
       response.on('error', finishReject);
     });
-    req.on('timeout', () => req.destroy(new Error(`Timeout for ${requestedUrl.href}`)));
+    req.on('timeout', () => req.destroy(new Error(`Timeout for ${currentUrl.href}`)));
     req.on('error', finishReject);
   });
 }
@@ -187,6 +210,7 @@ function responseEvidence(kind, response) {
     kind,
     requestedUrl: response.requestedUrl,
     finalUrl: response.finalUrl,
+    redirectChain: Array.isArray(response.redirectChain) ? response.redirectChain : [],
     status: response.status,
     headers: response.headers,
     jsonParsed: Boolean(json),
@@ -233,8 +257,9 @@ async function main() {
       const response = await requestText(url, { maxBytes: 4 * 1024 * 1024 });
       const json = parseJson(response.text);
       evidence.probes.push({
-        requestedUrl: url,
+        requestedUrl: response.requestedUrl,
         finalUrl: response.finalUrl,
+        redirectChain: response.redirectChain,
         status: response.status,
         headers: response.headers,
         jsonParsed: Boolean(json),
@@ -262,13 +287,27 @@ async function main() {
   console.log(`[bonn-oparl-catalogue-discovery] ${JSON.stringify(evidence.summary)}`);
 }
 
-main().catch(error => {
-  fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
-  fs.writeFileSync(OUTPUT, JSON.stringify({
-    schemaVersion: 'unfallwerkbank.bonnOparlCatalogueDiscovery.v1',
-    completedAt: new Date().toISOString(),
-    fatalError: safeError(error),
-  }, null, 2) + '\n', 'utf8');
-  console.error('[bonn-oparl-catalogue-discovery] fatal:', error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
+    fs.writeFileSync(OUTPUT, JSON.stringify({
+      schemaVersion: 'unfallwerkbank.bonnOparlCatalogueDiscovery.v1',
+      completedAt: new Date().toISOString(),
+      fatalError: safeError(error),
+    }, null, 2) + '\n', 'utf8');
+    console.error('[bonn-oparl-catalogue-discovery] fatal:', error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  requestText,
+  parseJson,
+  normalizeUrl,
+  collectJsonUrls,
+  collectHtmlUrls,
+  isProbeCandidate,
+  responseEvidence,
+  safeError,
+  main,
+};
