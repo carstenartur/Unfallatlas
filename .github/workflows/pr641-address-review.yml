@@ -1,0 +1,282 @@
+name: Apply final PR 641 review fixes
+
+on:
+  push:
+    branches:
+      - fix/bonn-oparl-provider-622
+    paths:
+      - '.github/workflows/pr641-address-review.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Preserve redirect provenance and business dates
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/bonn-oparl-provider-622
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Apply deterministic review fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          discovery = Path('scripts/qa-bonn-oparl-catalogue-discovery.js')
+          value = discovery.read_text(encoding='utf-8')
+          start = value.index('function requestText(')
+          end = value.index('\nfunction parseJson', start)
+          request_text = r'''function requestText(urlValue, options = {}, redirectCount = 0, trace = null) {
+            const currentUrl = new URL(urlValue);
+            const transport = currentUrl.protocol === 'http:' ? http : https;
+            const requestTrace = trace || {
+              requestedUrl: currentUrl.href,
+              redirectChain: [],
+            };
+            return new Promise((resolve, reject) => {
+              let settled = false;
+              const finishReject = error => {
+                if (settled) return;
+                settled = true;
+                reject(error);
+              };
+              const req = transport.get(currentUrl, {
+                timeout: options.timeoutMs || 25_000,
+                headers: {
+                  Accept: options.accept || 'application/json, application/ld+json;q=0.9, text/html;q=0.3, */*;q=0.1',
+                  'User-Agent': 'Unfallwerkbank-Bonn-Catalogue-Discovery/1.0 (+https://github.com/carstenartur/Unfallatlas)',
+                },
+              }, response => {
+                const status = Number(response.statusCode || 0);
+                if (status >= 300 && status < 400 && response.headers.location) {
+                  response.resume();
+                  if (redirectCount >= 5) {
+                    finishReject(new Error(`Too many redirects for ${currentUrl.href}`));
+                    return;
+                  }
+                  const nextUrl = new URL(response.headers.location, currentUrl).href;
+                  const nextTrace = {
+                    requestedUrl: requestTrace.requestedUrl,
+                    redirectChain: [
+                      ...requestTrace.redirectChain,
+                      { status, from: currentUrl.href, to: nextUrl },
+                    ],
+                  };
+                  requestText(nextUrl, options, redirectCount + 1, nextTrace)
+                    .then(resolve, finishReject);
+                  return;
+                }
+
+                const chunks = [];
+                let bytes = 0;
+                response.on('data', chunk => {
+                  if (settled) return;
+                  bytes += Buffer.byteLength(chunk);
+                  if (bytes > (options.maxBytes || MAX_RESPONSE_BYTES)) {
+                    const error = new Error(
+                      `Response exceeds ${options.maxBytes || MAX_RESPONSE_BYTES} bytes: ${currentUrl.href}`
+                    );
+                    response.destroy(error);
+                    finishReject(error);
+                    return;
+                  }
+                  chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+                });
+                response.on('end', () => {
+                  if (settled) return;
+                  settled = true;
+                  resolve({
+                    requestedUrl: requestTrace.requestedUrl,
+                    finalUrl: currentUrl.href,
+                    redirectChain: requestTrace.redirectChain,
+                    status,
+                    headers: {
+                      contentType: String(response.headers['content-type'] || ''),
+                      contentLength: String(response.headers['content-length'] || ''),
+                      lastModified: String(response.headers['last-modified'] || ''),
+                      etag: String(response.headers.etag || ''),
+                    },
+                    text: Buffer.concat(chunks).toString('utf8'),
+                  });
+                });
+                response.on('error', finishReject);
+              });
+              req.on('timeout', () => req.destroy(new Error(`Timeout for ${currentUrl.href}`)));
+              req.on('error', finishReject);
+            });
+          }
+          '''
+          discovery.write_text(value[:start] + request_text + value[end:], encoding='utf-8')
+
+          value = discovery.read_text(encoding='utf-8')
+          tail = value.index('main().catch(error => {')
+          guarded_tail = r'''module.exports = {
+            requestText,
+            parseJson,
+            normalizeUrl,
+            collectJsonUrls,
+            collectHtmlUrls,
+            isProbeCandidate,
+            responseEvidence,
+          };
+
+          if (require.main === module) {
+            main().catch(error => {
+              fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
+              fs.writeFileSync(OUTPUT, JSON.stringify({
+                schemaVersion: 'unfallwerkbank.bonnOparlCatalogueDiscovery.v1',
+                completedAt: new Date().toISOString(),
+                fatalError: safeError(error),
+              }, null, 2) + '\n', 'utf8');
+              console.error('[bonn-oparl-catalogue-discovery] fatal:', error);
+              process.exitCode = 1;
+            });
+          }
+          '''
+          discovery.write_text(value[:tail] + guarded_tail, encoding='utf-8')
+
+          client = Path('server/political-context/providers/bonnOparlClient.js')
+          value = client.read_text(encoding='utf-8')
+          old = "    date: paper.date || (paper.created ? String(paper.created).slice(0, 10) : null),"
+          new = "    date: paper.date || (paper.modified ? String(paper.modified).slice(0, 10) : null),"
+          if value.count(old) != 1:
+            raise SystemExit(f'Expected one mapPaper date fallback, found {value.count(old)}')
+          client.write_text(value.replace(old, new, 1), encoding='utf-8')
+
+          provider_test = Path('tests/unit/bonnOparlProvider.test.js')
+          value = provider_test.read_text(encoding='utf-8')
+          anchor = "  test('rejects cyclic pagination instead of silently looping', async () => {"
+          if value.count(anchor) != 1:
+            raise SystemExit(f'Expected one provider-test anchor, found {value.count(anchor)}')
+          regression = r'''  test('uses business date or modified, never Bonn placeholder created timestamps', () => {
+            const matchedTerm = { value: 'Adenauerallee', normalized: 'adenauerallee' };
+            const base = {
+              name: 'Radverkehr in der Adenauerallee',
+              web: 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=77',
+            };
+
+            expect(client.mapPaper({
+              ...base,
+              date: '2026-02-01',
+              modified: '2026-03-04T10:20:30Z',
+              created: '1900-01-01T00:00:00Z',
+            }, matchedTerm).date).toBe('2026-02-01');
+
+            expect(client.mapPaper({
+              ...base,
+              modified: '2026-03-04T10:20:30Z',
+              created: '1900-01-01T00:00:00Z',
+            }, matchedTerm).date).toBe('2026-03-04');
+
+            expect(client.mapPaper({
+              ...base,
+              created: '1900-01-01T00:00:00Z',
+            }, matchedTerm).date).toBeNull();
+          });
+
+          '''
+          provider_test.write_text(value.replace(anchor, regression + anchor, 1), encoding='utf-8')
+
+          redirect_test = Path('tests/unit/bonnOparlCatalogueDiscovery.test.js')
+          redirect_test.write_text(r'''\'use strict\';
+
+          const http = require('http');
+          const {
+            requestText,
+          } = require('../../scripts/qa-bonn-oparl-catalogue-discovery.js');
+
+          describe('Bonn OParl catalogue discovery redirect evidence', () => {
+            test('retains the original request, final URL and every redirect hop', async () => {
+              const server = http.createServer((request, response) => {
+                if (request.url === '/start') {
+                  response.writeHead(302, { Location: '/middle' });
+                  response.end();
+                  return;
+                }
+                if (request.url === '/middle') {
+                  response.writeHead(301, { Location: '/final?ok=1' });
+                  response.end();
+                  return;
+                }
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end('{"ok":true}');
+              });
+              await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+              const { port } = server.address();
+              const origin = `http://127.0.0.1:${port}`;
+
+              try {
+                const result = await requestText(`${origin}/start`, {
+                  timeoutMs: 5_000,
+                  maxBytes: 1_024,
+                });
+                expect(result.requestedUrl).toBe(`${origin}/start`);
+                expect(result.finalUrl).toBe(`${origin}/final?ok=1`);
+                expect(result.redirectChain).toEqual([
+                  { status: 302, from: `${origin}/start`, to: `${origin}/middle` },
+                  { status: 301, from: `${origin}/middle`, to: `${origin}/final?ok=1` },
+                ]);
+                expect(result.status).toBe(200);
+                expect(JSON.parse(result.text)).toEqual({ ok: true });
+              } finally {
+                await new Promise((resolve, reject) => server.close(error =>
+                  error ? reject(error) : resolve()
+                ));
+              }
+            });
+          });
+          '''.replace(/^          /gm, ''), encoding='utf-8')
+          PY
+
+          node --check scripts/qa-bonn-oparl-catalogue-discovery.js
+          node --check server/political-context/providers/bonnOparlClient.js
+          node --check tests/unit/bonnOparlCatalogueDiscovery.test.js
+          node --check tests/unit/bonnOparlProvider.test.js
+          git diff --check
+          mvn -B -ntp test
+
+      - name: Commit verified fixes and remove helper workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Unfallwerkbank CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add \
+            scripts/qa-bonn-oparl-catalogue-discovery.js \
+            server/political-context/providers/bonnOparlClient.js \
+            tests/unit/bonnOparlCatalogueDiscovery.test.js \
+            tests/unit/bonnOparlProvider.test.js
+          git rm .github/workflows/pr641-address-review.yml
+
+          mapfile -t changed < <(git diff --cached --name-only | sort)
+          expected=(
+            .github/workflows/pr641-address-review.yml
+            scripts/qa-bonn-oparl-catalogue-discovery.js
+            server/political-context/providers/bonnOparlClient.js
+            tests/unit/bonnOparlCatalogueDiscovery.test.js
+            tests/unit/bonnOparlProvider.test.js
+          )
+          [[ "${changed[*]}" == "${expected[*]}" ]] || {
+            printf 'Unexpected staged paths:\n%s\n' "${changed[*]}" >&2
+            exit 1
+          }
+
+          git diff --cached --check
+          git commit -m 'fix: preserve Bonn redirect provenance and business dates'
+          git push origin HEAD:fix/bonn-oparl-provider-622
