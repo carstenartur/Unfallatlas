@@ -1137,10 +1137,18 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
   };
   const contextRoadRegions = {};
   const contextExpectedColors = {};
+  const contextRoadPalettes = {};
+  const distinctColors = colors => colors.filter(Boolean).filter((color, index, all) =>
+    all.findIndex(candidate => candidate.every((channel, offset) =>
+      channel === color[offset]
+    )) === index
+  );
   for (const kind of ['slope', 'traffic']) {
     if (!requiredState.layers[kind]) continue;
     const witness = contextWitnesses[kind];
-    const expectedColor = parseRgb(witness.renderedColor || witness.expectedColor);
+    const expectedColor = parseRgb(witness.expectedColor || witness.renderedColor);
+    const renderedColor = parseRgb(witness.renderedColor);
+    const roadPalette = distinctColors([expectedColor, renderedColor]);
     const witnessColor = parseRgb(witness.witnessColor);
     if (!expectedColor) {
       throw new VideoExportSemanticError(
@@ -1148,18 +1156,19 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
         `The owned ${kind} geometry witness has no exact road color`
       );
     }
-    if (colorBoxesOverlap(
-      expectedColor,
+    if (roadPalette.some(color => colorBoxesOverlap(
+      color,
       witnessColor,
       CONTEXT_ROAD_TOLERANCE,
       WITNESS_TOLERANCE
-    )) {
+    ))) {
       throw new VideoExportSemanticError(
         `encoded_${kind}_witness_color_collision`,
         `The ${kind} helper-ring color overlaps its real road-pixel tolerance`
       );
     }
     contextExpectedColors[kind] = expectedColor;
+    contextRoadPalettes[kind] = roadPalette;
     contextRoadRegions[kind] = projectRoadWitness(witness);
   }
   const atRegion = (x, y, region) => region &&
@@ -1283,7 +1292,7 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
           contextWitnessPixels[kind] += 1;
         }
         if (atRegion(x, y, contextRoadRegions[kind]) &&
-            closeTo(r, g, b, [contextExpectedColors[kind]], CONTEXT_ROAD_TOLERANCE)) {
+            closeTo(r, g, b, contextRoadPalettes[kind], CONTEXT_ROAD_TOLERANCE)) {
           contextLayerPixels[kind] += 1;
         }
         // A combined slope/traffic export is only proven when both real
@@ -1294,7 +1303,7 @@ function countPalettePixels(buffer, width, height, requiredState, frameEvidence)
         if (sharedCompositeContext &&
             atRegion(x, y, contextRoadRegions.slope) &&
             atRegion(x, y, contextRoadRegions.traffic) &&
-            closeTo(r, g, b, [contextExpectedColors[kind]], CONTEXT_ROAD_TOLERANCE)) {
+            closeTo(r, g, b, contextRoadPalettes[kind], CONTEXT_ROAD_TOLERANCE)) {
           compositeContextLayerPixels[kind] += 1;
         }
       }

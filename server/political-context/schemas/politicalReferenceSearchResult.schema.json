@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "PoliticalReferenceSearchResult",
-  "description": "Ergebnis einer serverseitigen Recherche nach politischen Vorgängen",
+  "description": "Ergebnis einer serverseitigen Recherche nach politischen Vorgängen einschließlich reproduzierbarer Quellen- und Suchstatus-Evidenz.",
   "type": "object",
   "required": ["references", "meta"],
   "additionalProperties": false,
@@ -13,7 +13,7 @@
     },
     "meta": {
       "type": "object",
-      "description": "Metadaten zur Suche",
+      "description": "Metadaten zur Suche und zum tatsächlich abgearbeiteten Quellenpfad",
       "required": ["city", "searchTerms", "searchedAt", "totalFound"],
       "additionalProperties": false,
       "properties": {
@@ -24,7 +24,7 @@
         "searchTerms": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Verwendete Suchbegriffe"
+          "description": "Vom Aufrufer übergebene Suchbegriffe"
         },
         "searchedAt": {
           "type": "string",
@@ -32,7 +32,8 @@
         },
         "totalFound": {
           "type": "integer",
-          "description": "Gesamtanzahl gefundener Treffer (nach Deduplizierung, vor Relevanz-Begrenzung)"
+          "minimum": 0,
+          "description": "Gesamtanzahl gefundener Treffer nach Deduplizierung, vor Relevanz-Begrenzung"
         },
         "providerKey": {
           "type": ["string", "null"],
@@ -42,14 +43,101 @@
           "type": "boolean",
           "description": "Gibt an, ob die Stadt unterstützt wird"
         },
+        "searchStatus": {
+          "type": "string",
+          "enum": [
+            "results-found",
+            "searched-no-results",
+            "partial-results",
+            "incomplete",
+            "failed",
+            "unsupported"
+          ],
+          "description": "Semantischer Abschlussstatus. Nur searched-no-results bedeutet: mindestens ein vorgesehener Quellenpfad wurde vollständig ohne Treffer abgearbeitet."
+        },
+        "sourceType": {
+          "type": ["string", "null"],
+          "description": "Bevorzugter oder maßgeblicher Quellenweg, z. B. oparl-1.1 oder html-scraping"
+        },
+        "sourceUrl": {
+          "type": ["string", "null"],
+          "description": "Direkte URL der strukturierten bzw. maßgeblichen Ausgangsquelle"
+        },
+        "queryLog": {
+          "type": "array",
+          "description": "Reproduzierbares Protokoll der tatsächlich ausgeführten Suchbegriffe und Quellen",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "query": { "type": "string" },
+              "source": { "type": "string" },
+              "sourceType": { "type": "string" },
+              "url": { "type": "string" },
+              "status": { "type": "string" },
+              "count": { "type": "integer", "minimum": 0 },
+              "error": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": { "type": "string" },
+                  "message": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "pagesFetched": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Anzahl abgearbeiteter strukturierter Listenseiten"
+        },
+        "scannedItems": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Anzahl lokal auf Suchbegriffe geprüfter strukturierter Objekte"
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "Kennzeichnet, dass ein strukturierter Listenlauf vor der letzten Seite beendet wurde"
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "attempts": {
+          "type": "array",
+          "description": "Quellenversuche einschließlich fehlgeschlagener Fallbacks",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "sourceType", "url", "status"],
+            "properties": {
+              "source": { "type": "string" },
+              "sourceType": { "type": "string" },
+              "url": { "type": "string" },
+              "status": { "type": "string" },
+              "query": { "type": "string" },
+              "count": { "type": "integer", "minimum": 0 },
+              "error": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": { "type": "string" },
+                  "message": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
         "cache": {
           "type": "object",
-          "description": "Cache-Status der Anfrage (additiv).  `hit`=true heißt, das Ergebnis kam aus dem in-memory/Disk-Cache; `enabled`=false bedeutet, dass der Aufrufer das Caching pro Anfrage deaktiviert hat.",
+          "description": "Cache-Status der Anfrage",
           "additionalProperties": false,
           "properties": {
             "hit":     { "type": "boolean" },
             "enabled": { "type": "boolean" },
-            "key":     { "type": "string", "description": "Deterministischer sha256-Cache-Key (Hex)." }
+            "key":     { "type": "string", "description": "Deterministischer sha256-Cache-Key (Hex)" }
           }
         }
       }

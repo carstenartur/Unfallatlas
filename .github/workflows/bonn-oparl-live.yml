@@ -1,0 +1,77 @@
+name: Bonn political context live QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/bonn-oparl-live.yml'
+      - 'scripts/qa-bonn-political-context-live.js'
+      - 'scripts/qa-bonn-oparl-catalogue-discovery.js'
+      - 'tests/unit/bonnPoliticalContextLive.test.js'
+      - 'tests/unit/bonnGovDataDiscoveryLive.test.js'
+      - 'tests/unit/bonnOparlCollectionLive.test.js'
+      - 'tests/unit/bonnPortalSearchDiscoveryLive.test.js'
+      - 'tests/unit/bonnPortalGateChallengeLive.test.js'
+      - 'tests/unit/bonnPortalGateSolveLive.test.js'
+      - 'server/political-context/providers/bonnAllrisProvider.js'
+      - 'server/political-context/providers/bonnOparlClient.js'
+      - 'server/political-context/providers/bonnOparlHttp.js'
+      - 'server/political-context/providers/_portalUtils.js'
+      - 'server/political-context/services/portalSearchService.js'
+      - 'server/political-context/services/portalNormalizationService.js'
+      - 'server/political-context/services/searchVariantBuilder.js'
+      - 'server/political-context/schemas/politicalReferenceSearchResult.schema.json'
+      - 'server/ai/proposalBriefValueAdd.js'
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * 2'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bonn-political-context-live-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: Official Bonn OParl / RIS evidence path
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run the Maven-owned Bonn live evidence suite
+        env:
+          BONN_OPARL_LIVE: '1'
+          PORTAL_SEARCH_TIMEOUT_MS: '20000'
+          BONN_OPARL_MAX_PAGES: '300'
+          BONN_OPARL_PAGE_LIMIT: '100'
+          BONN_OPARL_LOOKBACK_YEARS: '12'
+        run: mvn -B -ntp test
+
+      - name: Upload live evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bonn-political-context-live-evidence
+          path: |
+            out/qa/bonn-political-context-live.json
+            out/qa/bonn-official-catalogue-discovery.json
+            out/qa/bonn-oparl-collection-probes.json
+            out/qa/bonn-portal-gate-challenge.json
+            out/qa/bonn-portal-gate-solve.json
+            out/qa/bonn-portal-search-discovery.json
+          if-no-files-found: error
+          retention-days: 14

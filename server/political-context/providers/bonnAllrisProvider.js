@@ -5,8 +5,14 @@ const {
   stripTags,
   decodeEntities,
   enrichWithReferenceModel,
-  normCityKey
+  normCityKey,
 } = require('./_portalUtils.js');
+const {
+  SYSTEM_URL: OPARL_SYSTEM_URL,
+  searchOparl,
+} = require('./bonnOparlClient.js');
+const { officialBonnUrl } = require('./bonnOparlHttp.js');
+const { fetchHtmlWithGate } = require('./bonnPortalGateClient.js');
 
 const PORTAL_BASE = 'https://www.bonn.sitzung-online.de';
 const SEARCH_PATH = '/public/tr010';
@@ -32,7 +38,7 @@ function buildSearchUrl(term) {
   const params = new URLSearchParams({
     SUCH: term,
     SUCH_OBJ: 'V',
-    SUCHMAX: String(MAX_RESULTS)
+    SUCHMAX: String(MAX_RESULTS),
   });
   return `${LEGACY_PORTAL_BASE}${LEGACY_SEARCH_PATH}?${params.toString()}`;
 }
@@ -41,13 +47,16 @@ const buildLegacySearchUrl = buildSearchUrl;
 
 function normalizeHref(href, portalBase, detailDir) {
   const decoded = decodeEntities(String(href || '')).trim();
-  if (/^https?:\/\//i.test(decoded)) return decoded;
-  if (decoded.startsWith('/')) return `${portalBase}${decoded}`;
-  const cleaned = decoded.replace(/^\.?\/?/, '');
-  if (/\.asp(?:\?|$)/i.test(cleaned)) {
-    return `${LEGACY_PORTAL_BASE}${LEGACY_DETAIL_DIR}${cleaned}`;
+  let candidate = '';
+  if (/^https?:\/\//i.test(decoded)) candidate = decoded;
+  else if (decoded.startsWith('/')) candidate = `${portalBase}${decoded}`;
+  else {
+    const cleaned = decoded.replace(/^\.?\/?/, '');
+    candidate = /\.asp(?:\?|$)/i.test(cleaned)
+      ? `${LEGACY_PORTAL_BASE}${LEGACY_DETAIL_DIR}${cleaned}`
+      : `${portalBase}${detailDir}${cleaned}`;
   }
-  return `${portalBase}${detailDir}${cleaned}`;
+  return officialBonnUrl(candidate);
 }
 
 function parseResults(html, options = {}) {
@@ -67,6 +76,7 @@ function parseResults(html, options = {}) {
     if (!rawTitle || rawTitle.length < 5) continue;
 
     const url = normalizeHref(href, portalBase, detailDir);
+    if (!url) continue;
 
     const cells = [];
     const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
@@ -98,7 +108,10 @@ function parseResults(html, options = {}) {
       if (nm) { number = nm[0].trim(); break; }
     }
 
-    const snippet = cells.filter((c) => c && c !== rawTitle && c.length > 10).slice(0, 3).join(' | ') || null;
+    const snippet = cells
+      .filter(cell => cell && cell !== rawTitle && cell.length > 10)
+      .slice(0, 3)
+      .join(' | ') || null;
 
     results.push({
       title: rawTitle,
@@ -107,39 +120,271 @@ function parseResults(html, options = {}) {
       gremium,
       number,
       snippet: snippet ? snippet.substring(0, 300) : null,
-      rawType: cells.find((c) => /antrag|anfrage|beschluss|protokoll|antwort|vorlage|mitteilung/i.test(c)) || ''
+      rawType: cells.find(cell => /antrag|anfrage|beschluss|protokoll|antwort|vorlage|mitteilung/i.test(cell)) || '',
     });
   }
 
   return results.slice(0, MAX_RESULTS);
 }
 
-async function search(params) {
-  const { searchTerms = [] } = params || {};
-  if (!searchTerms.length) return [];
+function indicatesCompletedSearch(html) {
+  const text = decodeEntities(stripTags(String(html || '')))
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /(?:keine\s+(?:treffer|ergebnisse|vorgänge)|(?:treffer|ergebnisse|vorgänge)\s*:?\s*0\b|\b0\s+(?:treffer|ergebnisse|vorgänge)\b)/i.test(text);
+}
 
+function cleanTerms(values) {
+  const seen = new Set();
+  const terms = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const term = String(value == null ? '' : value).trim();
+    const key = normCityKey(term);
+    if (!term || !key || seen.has(key)) continue;
+    seen.add(key);
+    terms.push(term);
+  }
+  return terms;
+}
+
+function providerSearchTerms(values) {
+  const terms = cleanTerms(values);
+  const specific = terms.filter(term => !['bonn', 'stadtbonn', 'bundesstadtbonn'].includes(normCityKey(term)));
+  return specific.length ? specific : terms.slice(0, 1);
+}
+
+function absoluteHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function deduplicate(results) {
+  const seen = new Set();
+  const output = [];
+  for (const result of Array.isArray(results) ? results : []) {
+    const url = absoluteHttpUrl(result && result.url);
+    const fallback = `${String(result && result.title || '').trim()}|${String(result && result.number || '').trim()}`;
+    const key = url || fallback;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(result);
+  }
+  return output;
+}
+
+function safeError(error) {
+  return {
+    code: error && error.code ? String(error.code) : 'PROVIDER_ERROR',
+    message: String(error && error.message || error || 'Unbekannter Providerfehler').slice(0, 300),
+  };
+}
+
+function createProviderError(code, message, attempts) {
+  const error = new Error(message);
+  error.code = code;
+  error.providerKey = PROVIDER_KEY;
+  error.attempts = attempts;
+  return error;
+}
+
+async function search(params = {}) {
+  const terms = providerSearchTerms(params.searchTerms);
+  if (!terms.length) {
+    return {
+      results: [],
+      meta: {
+        status: 'incomplete',
+        sourceType: 'oparl-1.1',
+        sourceUrl: OPARL_SYSTEM_URL,
+        queryLog: [],
+        pagesFetched: 0,
+        scannedItems: 0,
+        warnings: ['Keine belastbaren Suchbegriffe übergeben.'],
+      },
+    };
+  }
+
+  // The modern portal is ALTCHA-protected and therefore needs the published
+  // challenge/session contract. The historical www2.bonn.de fallback remains
+  // a plain HTML request. A single injected fetchHtmlImpl keeps existing tests
+  // and custom callers backward compatible for both paths.
+  const fetchLegacyHtmlImpl = params.fetchHtmlImpl || fetchHtml;
+  const fetchSitzungOnlineHtmlImpl = params.fetchSitzungOnlineHtmlImpl
+    || params.fetchHtmlImpl
+    || fetchHtmlWithGate;
+  const searchOparlImpl = params.searchOparlImpl || searchOparl;
+  const attempts = [];
+  const warnings = [];
+  const queryLog = [];
   const allResults = [];
-  for (const term of searchTerms) {
-    if (!term || typeof term !== 'string' || !term.trim()) continue;
-    const trimmed = term.trim();
+  let oparlMeta = null;
+  let oparlComplete = false;
+
+  try {
+    const oparl = await searchOparlImpl({
+      searchTerms: terms,
+      fetchJsonImpl: params.fetchJsonImpl,
+      maxPages: params.maxOparlPages,
+      pageLimit: params.oparlPageLimit,
+      lookbackYears: params.oparlLookbackYears,
+      now: params.now,
+      requestOptions: params.requestOptions,
+    });
+    oparlMeta = oparl && oparl.meta || {};
+    const oparlResults = Array.isArray(oparl && oparl.results) ? oparl.results : [];
+    allResults.push(...oparlResults);
+    queryLog.push(...(Array.isArray(oparlMeta.queryLog) ? oparlMeta.queryLog : []));
+    warnings.push(...(Array.isArray(oparlMeta.warnings) ? oparlMeta.warnings : []));
+    oparlComplete = oparlMeta.truncated !== true
+      && ['results-found', 'searched-no-results'].includes(oparlMeta.status);
+    attempts.push({
+      source: 'bonn-oparl',
+      sourceType: 'oparl-1.1',
+      url: OPARL_SYSTEM_URL,
+      status: oparlMeta.status || (oparlResults.length ? 'results-found' : 'searched-no-results'),
+      count: oparlResults.length,
+    });
+
+    if (oparlComplete && oparlResults.length) {
+      return {
+        results: deduplicate(oparlResults),
+        meta: {
+          status: 'results-found',
+          sourceType: 'oparl-1.1',
+          sourceUrl: OPARL_SYSTEM_URL,
+          queryLog,
+          pagesFetched: Number(oparlMeta.pagesFetched || 0),
+          scannedItems: Number(oparlMeta.scannedItems || 0),
+          truncated: false,
+          warnings,
+          attempts,
+        },
+      };
+    }
+  } catch (error) {
+    const failure = safeError(error);
+    warnings.push(`OParl-Abruf fehlgeschlagen: ${failure.code}: ${failure.message}`);
+    for (const term of terms) {
+      queryLog.push({
+        query: term,
+        source: 'bonn-oparl',
+        sourceType: 'oparl-1.1',
+        url: OPARL_SYSTEM_URL,
+        status: 'failed',
+        error: failure,
+      });
+    }
+    attempts.push({
+      source: 'bonn-oparl',
+      sourceType: 'oparl-1.1',
+      url: OPARL_SYSTEM_URL,
+      status: 'failed',
+      error: failure,
+    });
+  }
+
+  const coveredTerms = new Set();
+  for (const term of terms) {
     const requests = [
-      { url: buildSitzungOnlineSearchUrl(trimmed), portalBase: PORTAL_BASE, detailDir: DETAIL_DIR, label: 'sitzung-online' },
-      { url: buildLegacySearchUrl(trimmed), portalBase: LEGACY_PORTAL_BASE, detailDir: LEGACY_DETAIL_DIR, label: 'legacy-buergerinfo' }
+      {
+        url: buildSitzungOnlineSearchUrl(term),
+        portalBase: PORTAL_BASE,
+        detailDir: DETAIL_DIR,
+        source: 'bonn-sitzung-online',
+        sourceType: 'html-scraping',
+      },
+      {
+        url: buildLegacySearchUrl(term),
+        portalBase: LEGACY_PORTAL_BASE,
+        detailDir: LEGACY_DETAIL_DIR,
+        source: 'bonn-legacy-buergerinfo',
+        sourceType: 'html-scraping-fallback',
+      },
     ];
 
     for (const request of requests) {
+      const logEntry = {
+        query: term,
+        source: request.source,
+        sourceType: request.sourceType,
+        url: request.url,
+        status: 'started',
+      };
       try {
-        const html = await fetchHtml(request.url);
-        const results = parseResults(html, request).map((r) => enrichWithReferenceModel(r, trimmed));
+        const fetchHtmlImpl = request.source === 'bonn-sitzung-online'
+          ? fetchSitzungOnlineHtmlImpl
+          : fetchLegacyHtmlImpl;
+        const html = await fetchHtmlImpl(request.url);
+        const results = parseResults(html, request)
+          .map(result => enrichWithReferenceModel(result, term));
+        const completed = results.length > 0 || indicatesCompletedSearch(html);
+        logEntry.count = results.length;
+        if (!completed) {
+          logEntry.status = 'incomplete';
+          queryLog.push(logEntry);
+          attempts.push({ ...logEntry });
+          warnings.push(
+            `${request.source} für „${term}“ lieferte nur die Suchmaske ohne `
+            + 'belastbaren Treffer- oder Nulltreffernachweis.'
+          );
+          continue;
+        }
         allResults.push(...results);
-        if (results.length > 0) break;
-      } catch (err) {
-        console.warn(`[${PROVIDER_KEY}] ${request.label} Suche fehlgeschlagen: ${err.message}`);
+        coveredTerms.add(term);
+        logEntry.status = results.length ? 'results-found' : 'searched-no-results';
+        queryLog.push(logEntry);
+        attempts.push({ ...logEntry });
+        break;
+      } catch (error) {
+        const failure = safeError(error);
+        logEntry.status = 'failed';
+        logEntry.error = failure;
+        queryLog.push(logEntry);
+        attempts.push({ ...logEntry });
+        warnings.push(`${request.source} für „${term}“ fehlgeschlagen: ${failure.message}`);
       }
     }
   }
 
-  return allResults;
+  const results = deduplicate(allResults);
+  const htmlComplete = terms.every(term => coveredTerms.has(term));
+  if (!oparlComplete && !htmlComplete) {
+    throw createProviderError(
+      results.length ? 'POLITICAL_PROVIDER_INCOMPLETE' : 'POLITICAL_PROVIDER_UNAVAILABLE',
+      results.length
+        ? 'Die Bonner politische Recherche lieferte nur unvollständige Teilergebnisse.'
+        : 'Alle strukturierten und HTML-basierten Bonner Recherchequellen sind fehlgeschlagen.',
+      attempts
+    );
+  }
+
+  const hasOparlResult = results.some(result => result && result.sourceType === 'oparl-1.1');
+  const hasHtmlResult = results.some(result => !result || result.sourceType !== 'oparl-1.1');
+  const sourceType = hasOparlResult && hasHtmlResult
+    ? 'oparl-1.1+html-fallback'
+    : (hasOparlResult ? 'oparl-1.1' : 'html-scraping');
+  const sourceUrl = hasOparlResult
+    ? (oparlMeta && oparlMeta.sourceUrl || OPARL_SYSTEM_URL)
+    : `${PORTAL_BASE}${DETAIL_DIR}`;
+
+  return {
+    results,
+    meta: {
+      status: results.length ? 'results-found' : 'searched-no-results',
+      sourceType,
+      sourceUrl,
+      queryLog,
+      pagesFetched: Number(oparlMeta && oparlMeta.pagesFetched || 0),
+      scannedItems: Number(oparlMeta && oparlMeta.scannedItems || 0),
+      truncated: Boolean(oparlMeta && oparlMeta.truncated),
+      warnings: [...new Set(warnings.filter(Boolean))],
+      attempts,
+    },
+  };
 }
 
 module.exports = {
@@ -147,7 +392,12 @@ module.exports = {
   supportsCity,
   search,
   parseResults,
+  indicatesCompletedSearch,
   buildSearchUrl,
   buildLegacySearchUrl,
-  buildSitzungOnlineSearchUrl
+  buildSitzungOnlineSearchUrl,
+  normalizeHref,
+  deduplicate,
+  providerSearchTerms,
+  OPARL_SYSTEM_URL,
 };
