@@ -30,6 +30,35 @@ describe('bonnAllrisProvider – completed-search evidence', () => {
     expect(provider.indicatesCompletedSearch('<html><p>Treffer: 0</p></html>')).toBe(true);
   });
 
+  test('uses the session-aware modern portal client before the historical fallback', async () => {
+    const fetchSitzungOnlineHtmlImpl = jest.fn(async () => '<html><p>Keine Treffer</p></html>');
+    const fetchHtmlImpl = jest.fn(async () => {
+      throw new Error('legacy fallback must not be called');
+    });
+
+    const out = await provider.search({
+      searchTerms: ['Adenauerallee'],
+      searchOparlImpl: unavailableOparl,
+      fetchSitzungOnlineHtmlImpl,
+      fetchHtmlImpl,
+    });
+
+    expect(fetchSitzungOnlineHtmlImpl).toHaveBeenCalledTimes(1);
+    expect(fetchSitzungOnlineHtmlImpl).toHaveBeenCalledWith(
+      'https://www.bonn.sitzung-online.de/public/tr010?q=Adenauerallee'
+    );
+    expect(fetchHtmlImpl).not.toHaveBeenCalled();
+    expect(out.results).toEqual([]);
+    expect(out.meta.status).toBe('searched-no-results');
+    expect(out.meta.queryLog).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source: 'bonn-sitzung-online',
+        status: 'searched-no-results',
+        count: 0,
+      }),
+    ]));
+  });
+
   test('continues to the legacy source when the modern URL only returns its search form', async () => {
     const fetchHtmlImpl = jest.fn(async url => {
       if (url.startsWith('https://www.bonn.sitzung-online.de/')) {

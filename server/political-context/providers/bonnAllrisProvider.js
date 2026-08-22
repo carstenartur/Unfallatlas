@@ -12,6 +12,7 @@ const {
   searchOparl,
 } = require('./bonnOparlClient.js');
 const { officialBonnUrl } = require('./bonnOparlHttp.js');
+const { fetchHtmlWithGate } = require('./bonnPortalGateClient.js');
 
 const PORTAL_BASE = 'https://www.bonn.sitzung-online.de';
 const SEARCH_PATH = '/public/tr010';
@@ -207,7 +208,14 @@ async function search(params = {}) {
     };
   }
 
-  const fetchHtmlImpl = params.fetchHtmlImpl || fetchHtml;
+  // The modern portal is ALTCHA-protected and therefore needs the published
+  // challenge/session contract. The historical www2.bonn.de fallback remains
+  // a plain HTML request. A single injected fetchHtmlImpl keeps existing tests
+  // and custom callers backward compatible for both paths.
+  const fetchLegacyHtmlImpl = params.fetchHtmlImpl || fetchHtml;
+  const fetchSitzungOnlineHtmlImpl = params.fetchSitzungOnlineHtmlImpl
+    || params.fetchHtmlImpl
+    || fetchHtmlWithGate;
   const searchOparlImpl = params.searchOparlImpl || searchOparl;
   const attempts = [];
   const warnings = [];
@@ -307,6 +315,9 @@ async function search(params = {}) {
         status: 'started',
       };
       try {
+        const fetchHtmlImpl = request.source === 'bonn-sitzung-online'
+          ? fetchSitzungOnlineHtmlImpl
+          : fetchLegacyHtmlImpl;
         const html = await fetchHtmlImpl(request.url);
         const results = parseResults(html, request)
           .map(result => enrichWithReferenceModel(result, term));
