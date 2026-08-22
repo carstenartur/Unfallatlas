@@ -412,6 +412,30 @@ describe('video export semantic readiness', () => {
       maxCompositeContextPairPixels: 2,
     }));
 
+    // The source decoder can prove an antialiased road pixel whose channel
+    // distance from the exact CSS style is just outside the encoded tolerance.
+    // GIF palette generation may then retain the exact style colour instead.
+    // Accept only the coordinate-bound union of those two proven colours;
+    // do not widen the generic colour tolerance.
+    const quantizedFallbackEvidence = {
+      ...shiftedEvidence,
+      contextWitnesses: {
+        slope: {
+          ...shiftedEvidence.contextWitnesses.slope,
+          renderedColor: [194, 59, 32], // max distance 46 from #f03b20
+        },
+        traffic: shiftedEvidence.contextWitnesses.traffic,
+      },
+    };
+    expect(countPalettePixels(
+      Buffer.concat([shiftedFrame, shiftedFrame]), width, height, state,
+      quantizedFallbackEvidence
+    )).toEqual(expect.objectContaining({
+      maxSlopePixels: 2,
+      maxTrafficPixels: 2,
+      maxCompositeContextPairPixels: 2,
+    }));
+
     // Mutation: the old tolerance treated slope [255,255,178] as traffic
     // [255,255,204].  Keep valid accident + slope witnesses, paint that slope
     // color inside the traffic region. Both helper rings remain present, but
