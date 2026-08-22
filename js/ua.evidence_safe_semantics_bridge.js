@@ -123,13 +123,14 @@
     if (typeof current !== 'function' || current[BRIDGE_MARK]) return current;
     const control = { active: true };
     const wrapped = async function evidenceSafeComputeExportReport(...args) {
+      // Snapshot ownership before awaiting the underlying report. A later
+      // module may replace the public wrapper while this invocation is still
+      // running. In that case the replacement cannot participate in this
+      // already-started call, so this wrapper must still finalize it. Wrappers
+      // that were already superseded when invoked remain pass-through.
+      const finalizeThisInvocation = control.active;
       const report = await current.apply(this, args);
-      // Later modules commonly wrap computeExportReport by capturing the
-      // current function and assigning a new one. Superseded bridge wrappers
-      // therefore remain in the call chain. Only the newest public wrapper may
-      // finalize the report; otherwise evidence added by a downstream wrapper
-      // is missed and the expensive hardening runs repeatedly.
-      if (!control.active) return report;
+      if (!finalizeThisInvocation) return report;
       return hardenStructuredReport(report);
     };
     Object.defineProperties(wrapped, {
@@ -137,6 +138,11 @@
       [HARDENING_MARK]: { value: true },
       [BRIDGE_MARK]: { value: true },
       [CONTROL_MARK]: { value: control },
+      // Existing late-binding modules detect their own hooks by following
+      // these conventional links. Preserve the wrapped chain so observers do
+      // not install the same expensive report decorator repeatedly.
+      _uaOriginal: { value: current },
+      _original: { value: current },
     });
     return wrapped;
   }
