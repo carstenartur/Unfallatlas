@@ -15,11 +15,11 @@
       .replace(/(?<!Unfall mit )(?<!Unfälle mit )\bGetötete\b/g, 'Unfälle mit Getöteten')
       .replace(/(?<!Unfall mit )(?<!Unfälle mit )\bSchwerverletzte\b/g, 'Unfälle mit Schwerverletzten')
       .replace(/(?<!Unfall mit )(?<!Unfälle mit )\bLeichtverletzte\b/g, 'Unfälle mit Leichtverletzten')
-      .replace(/Rad[-/](?:Lkw|Gkfz|Güterkraftfahrzeug)-(?:Konflikt|Kollision)/gi,
+      .replace(/Rad[-/]+(?:Lkw|Gkfz|Güterkraftfahrzeug)-(?:Konflikt|Kollision)/gi,
         'Rad- und Güterkraftfahrzeug-Beteiligungsmuster')
-      .replace(/Fuß[-/](?:Lkw|Gkfz|Güterkraftfahrzeug)-(?:Konflikt|Kollision)/gi,
+      .replace(/Fuß[-/]+(?:Lkw|Gkfz|Güterkraftfahrzeug)-(?:Konflikt|Kollision)/gi,
         'Fuß- und Güterkraftfahrzeug-Beteiligungsmuster')
-      .replace(/Rad[-/]Krad-(?:Konflikt|Kollision)/gi,
+      .replace(/Rad[-/]+Krad-(?:Konflikt|Kollision)/gi,
         'Rad- und Kraftrad-Beteiligungsmuster');
   }
 
