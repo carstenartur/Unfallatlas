@@ -1,1 +1,160 @@
-PLACEHOLDER
+name: Apply browser OParl integration
+
+on:
+  push:
+    branches:
+      - feat/browser-oparl-fallback-643
+    paths:
+      - '.github/workflows/apply-browser-oparl-integration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Integrate and verify browser OParl fallback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/browser-oparl-fallback-643
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Set up Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Materialise reviewed implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import hashlib
+          import io
+          import tarfile
+
+          part_dir = Path('.automation/browser-oparl')
+          parts = [part_dir / f'part-{index:02d}' for index in range(6)]
+          if not all(path.is_file() for path in parts):
+              raise SystemExit('Browser OParl payload is incomplete.')
+          encoded = ''.join(path.read_text(encoding='utf-8').strip() for path in parts)
+          archive = base64.b64decode(encoded, validate=True)
+          digest = hashlib.sha256(archive).hexdigest()
+          if digest != '6303af12bad3c3814b095bab86bfbc89cc96fcaad1cb77038a295ca9a0bf84c8':
+              raise SystemExit(f'Unexpected browser OParl payload digest: {digest}')
+
+          expected = {
+              '.github/workflows/browser-oparl-live.yml',
+              '_automation/apply.py',
+              'docs/qa/browser-oparl-fallback.md',
+              'js/ua.browser_oparl.js',
+              'scripts/qa-browser-oparl-live.js',
+              'tests/unit/ua.ai_political_browser_evidence.test.js',
+              'tests/unit/ua.browser_oparl.test.js',
+              'tests/unit/ua.political_context_browser_fallback.test.js',
+          }
+          with tarfile.open(fileobj=io.BytesIO(archive), mode='r:gz') as bundle:
+              members = bundle.getmembers()
+              names = {member.name for member in members}
+              if names != expected:
+                  raise SystemExit(f'Unexpected archive members: {sorted(names)}')
+              for member in members:
+                  target = Path(member.name)
+                  if (not member.isfile() or target.is_absolute()
+                          or '..' in target.parts or member.issym() or member.islnk()):
+                      raise SystemExit(f'Unsafe archive member: {member.name}')
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  source = bundle.extractfile(member)
+                  if source is None:
+                      raise SystemExit(f'Missing archive payload: {member.name}')
+                  target.write_bytes(source.read())
+                  target.chmod(member.mode & 0o777)
+          PY
+
+          python3 _automation/apply.py
+          rm -rf _automation
+
+          node --check js/ua.browser_oparl.js
+          node --check js/ua.political-context.js
+          node --check js/ua.ai_political_evidence.js
+          node --check scripts/qa-browser-oparl-live.js
+          node --check tests/unit/ua.browser_oparl.test.js
+          node --check tests/unit/ua.political_context_browser_fallback.test.js
+          node --check tests/unit/ua.ai_political_browser_evidence.test.js
+          git diff --check
+
+      - name: Run focused browser fallback tests
+        run: |
+          npm ci --ignore-scripts
+          npx jest --runInBand \
+            tests/unit/ua.browser_oparl.test.js \
+            tests/unit/ua.political_context_browser_fallback.test.js \
+            tests/unit/ua.ai_political_browser_evidence.test.js
+
+      - name: Run canonical Maven tests
+        run: mvn -B -ntp test
+
+      - name: Commit verified integration and remove staging files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Unfallwerkbank CI'
+          git config user.email 'actions@users.noreply.github.com'
+
+          git add \
+            .github/workflows/browser-oparl-live.yml \
+            docs/qa/browser-oparl-fallback.md \
+            js/ua.browser_oparl.js \
+            js/ua.political-context.js \
+            js/ua.ai_political_evidence.js \
+            scripts/qa-browser-oparl-live.js \
+            tests/unit/ua.ai_political_browser_evidence.test.js \
+            tests/unit/ua.browser_oparl.test.js \
+            tests/unit/ua.political_context_browser_fallback.test.js \
+            werkbank_v2.html
+          git rm .github/workflows/apply-browser-oparl-integration.yml
+          git rm -r .automation/browser-oparl
+
+          mapfile -t changed < <(git diff --cached --name-only | sort)
+          expected=(
+            .automation/browser-oparl/part-00
+            .automation/browser-oparl/part-01
+            .automation/browser-oparl/part-02
+            .automation/browser-oparl/part-03
+            .automation/browser-oparl/part-04
+            .automation/browser-oparl/part-05
+            .github/workflows/apply-browser-oparl-integration.yml
+            .github/workflows/browser-oparl-live.yml
+            docs/qa/browser-oparl-fallback.md
+            js/ua.ai_political_evidence.js
+            js/ua.browser_oparl.js
+            js/ua.political-context.js
+            scripts/qa-browser-oparl-live.js
+            tests/unit/ua.ai_political_browser_evidence.test.js
+            tests/unit/ua.browser_oparl.test.js
+            tests/unit/ua.political_context_browser_fallback.test.js
+            werkbank_v2.html
+          )
+          [[ "${changed[*]}" == "${expected[*]}" ]] || {
+            printf 'Unexpected staged paths:\n%s\n' "${changed[*]}" >&2
+            exit 1
+          }
+
+          git diff --cached --check
+          git commit -m 'feat: add fail-closed browser OParl fallback'
+          git push origin HEAD:feat/browser-oparl-fallback-643
