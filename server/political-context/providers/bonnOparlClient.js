@@ -181,7 +181,7 @@ function mapPaper(paper, matchedTerm) {
   return enrichWithReferenceModel({
     title,
     url,
-    date: paper.date || (paper.created ? String(paper.created).slice(0, 10) : null),
+    date: paper.date || (paper.modified ? String(paper.modified).slice(0, 10) : null),
     gremium: paper.gremium || paper.organizationName || null,
     number: paper.reference || null,
     snippet: paperSnippet(paper),
