@@ -99,4 +99,56 @@ describe('issue #644 evidence-safe hardening', () => {
     expect(finding.label).toBe('Rad- und Güterkraftfahrzeug-Beteiligungsmuster');
     expect(finding.rationale).not.toMatch(/Konflikt|Kollision/);
   });
+
+  test('does not recursively traverse or copy bulk accident rows', async () => {
+    const UA = loadModules();
+    let bulkRowWasRead = false;
+    const bulkRow = {};
+    Object.defineProperty(bulkRow, 'legacyLabel', {
+      enumerable: true,
+      get() {
+        bulkRowWasRead = true;
+        throw new Error('bulk accident rows must not be traversed by text hardening');
+      },
+    });
+    const accidentDetails = { rows: [bulkRow], groups: [] };
+
+    UA.computeExportReport = async () => ({
+      structured: {
+        deviations: { focus: [] },
+        accidentDetails,
+        patternDetection: {
+          findings: [{ label: 'Rad-/Lkw-Konflikt' }],
+        },
+      },
+    });
+
+    UA.EvidenceSafeSemanticsHardening.install();
+    const report = await UA.computeExportReport({});
+
+    expect(bulkRowWasRead).toBe(false);
+    expect(report.structured.accidentDetails).toBe(accidentDetails);
+    expect(report.structured.accidentDetails.rows).toBe(accidentDetails.rows);
+    expect(report.structured.patternDetection.findings[0].label)
+      .toBe('Rad- und Güterkraftfahrzeug-Beteiligungsmuster');
+  });
+
+  test('states that discovery filters do not limit the complete evidence cohort', async () => {
+    const UA = loadModules();
+    UA.computeExportReport = async () => ({
+      structured: {
+        deviations: { focus: [] },
+        evidenceCohorts: { status: 'complete' },
+        methodikScope: {
+          title: 'Methodik – eindeutige Zählbereiche',
+          lines: ['Aktive Auswertung: 44 Unfälle im markierten Bereich.'],
+        },
+      },
+    });
+
+    UA.EvidenceSafeSemanticsHardening.install();
+    const report = await UA.computeExportReport({});
+    expect(report.structured.methodikScope.lines.join(' '))
+      .toMatch(/Suchfilter begrenzen diese Menge nicht/i);
+  });
 });
