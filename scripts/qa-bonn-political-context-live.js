@@ -38,7 +38,7 @@ function parseArgs(argv) {
         '  --terms A,B               Comma-separated search terms',
         '  --attempts N              Full-search attempts (default: 3)',
         '  --retry-delay-ms N        Base retry delay (default: 2000)',
-        '  --require-results         Require at least one direct reference (default)',
+        '  --require-results         Require at least one hit for every term (default)',
         '  --allow-no-results        Accept a completed zero-result search',
         '',
       ].join('\n'));
@@ -79,6 +79,10 @@ function serializableError(error) {
   };
 }
 
+function normalizedTerm(value) {
+  return String(value || '').trim().toLocaleLowerCase('de-DE');
+}
+
 function assertLiveResult(result, options) {
   const meta = result && result.meta || {};
   const references = Array.isArray(result && result.references) ? result.references : [];
@@ -89,8 +93,25 @@ function assertLiveResult(result, options) {
   if (!['results-found', 'searched-no-results'].includes(meta.searchStatus)) {
     errors.push(`Search did not complete: ${meta.searchStatus || 'missing status'}`);
   }
-  if (!Array.isArray(meta.queryLog) || meta.queryLog.length === 0) {
+  const queryLog = Array.isArray(meta.queryLog) ? meta.queryLog : [];
+  if (!queryLog.length) {
     errors.push('No reproducible queryLog was returned.');
+  }
+  if (options.requireResults) {
+    for (const term of options.terms) {
+      const matching = queryLog.filter(entry =>
+        normalizedTerm(entry && entry.query) === normalizedTerm(term)
+      );
+      const count = matching.reduce((sum, entry) => {
+        const value = Number(entry && entry.count);
+        return sum + (Number.isInteger(value) && value > 0 ? value : 0);
+      }, 0);
+      if (!matching.length) {
+        errors.push(`No reproducible queryLog entry was returned for term: ${term}`);
+      } else if (count < 1) {
+        errors.push(`The live term returned no documented hit: ${term}`);
+      }
+    }
   }
   const attempts = Array.isArray(meta.attempts) ? meta.attempts : [];
   const structuredAttempt = attempts.find(attempt => attempt && attempt.source === 'bonn-oparl');

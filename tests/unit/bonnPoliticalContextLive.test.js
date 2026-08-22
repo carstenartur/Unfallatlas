@@ -7,6 +7,7 @@ const { spawnSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '../..');
 const OUTPUT = path.join(ROOT, 'out', 'qa', 'bonn-political-context-live.json');
 const liveTest = process.env.BONN_OPARL_LIVE === '1' ? test : test.skip;
+const LIVE_TERMS = ['Adenauerallee', 'Radverkehr'];
 
 // A complete Bonn catalogue traversal currently covers about 243 pages. Keep
 // the process bounded, but allow one retry without a false Jest timeout.
@@ -17,7 +18,7 @@ describe('official Bonn political-context live evidence', () => {
     fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
     const result = spawnSync(process.execPath, [
       path.join(ROOT, 'scripts', 'qa-bonn-political-context-live.js'),
-      '--terms', 'Adenauerallee,Radverkehr',
+      '--terms', LIVE_TERMS.join(','),
       '--attempts', '2',
       '--retry-delay-ms', '3000',
       '--require-results',
@@ -43,6 +44,14 @@ describe('official Bonn political-context live evidence', () => {
     const finalAttempt = evidence.attempts[evidence.attempts.length - 1];
     expect(finalAttempt.validationErrors).toEqual([]);
     expect(finalAttempt.result.references.length).toBeGreaterThan(0);
+    const queryLog = finalAttempt.result.meta.queryLog;
+    for (const term of LIVE_TERMS) {
+      const entry = queryLog.find(item => item.query === term && Number(item.count) > 0);
+      expect(entry).toEqual(expect.objectContaining({
+        query: term,
+        status: 'results-found',
+      }));
+    }
     expect(diagnostics).toContain('[bonn-political-context-live] PASS');
   });
 });
