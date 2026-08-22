@@ -3,6 +3,7 @@
 (function evidenceSafeSemanticsHardening(root) {
   const UA = root.UA = root.UA || {};
   const MARK = '__uaEvidenceSafe644Hardening';
+  const BASE_MARK = '__uaEvidenceSafe644';
   const list = value => Array.isArray(value) ? value : [];
   const object = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 
@@ -74,6 +75,12 @@
     return report;
   }
 
+  function preserveBaseMarker(wrapped, current) {
+    wrapped[MARK] = true;
+    if (current && current[BASE_MARK] === true) wrapped[BASE_MARK] = true;
+    return wrapped;
+  }
+
   function patchViews() {
     const current = UA.applyAccidentView;
     if (typeof current !== 'function' || current[MARK]) return;
@@ -88,8 +95,7 @@
       });
       return result;
     };
-    wrapped[MARK] = true;
-    UA.applyAccidentView = wrapped;
+    UA.applyAccidentView = preserveBaseMarker(wrapped, current);
   }
 
   function patchReport() {
@@ -98,8 +104,7 @@
     const wrapped = async function (...args) {
       return hardenReport(await current.apply(this, args));
     };
-    wrapped[MARK] = true;
-    UA.computeExportReport = wrapped;
+    UA.computeExportReport = preserveBaseMarker(wrapped, current);
   }
 
   function install() {
