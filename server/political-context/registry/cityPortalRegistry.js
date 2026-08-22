@@ -16,7 +16,7 @@
 
 const hannoverSimProvider     = require('../providers/hannoverSimProvider.js');
 const berlinAllrisProvider    = require('../providers/berlinAllrisProvider.js');
-const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
+const bonnAllrisProvider      = require('../providers/bonnCachedAllrisProvider.js');
 const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');
 const { createSessionNetProvider } = require('../providers/sessionNetProvider.js');
 
