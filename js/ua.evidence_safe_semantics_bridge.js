@@ -5,6 +5,7 @@
   const BASE_MARK = '__uaEvidenceSafe644';
   const HARDENING_MARK = '__uaEvidenceSafe644Hardening';
   const BRIDGE_MARK = '__uaEvidenceSafe644Bridge';
+  const CONTROL_MARK = '__uaEvidenceSafe644BridgeControl';
   const REPORT_MARK = '__uaEvidenceSafe644BridgeProcessed';
   const TEXT_APPENDIX_MARKER = 'VOLLSTÄNDIGE NUMMERIERTE UNFALLBEWEISANLAGE';
   const HTML_APPENDIX_MARKER = 'data-ua-evidence-appendix';
@@ -113,17 +114,29 @@
     return result;
   }
 
+  function deactivateReportFunction(current) {
+    const control = current?.[CONTROL_MARK];
+    if (control) control.active = false;
+  }
+
   function wrapReportFunction(current) {
     if (typeof current !== 'function' || current[BRIDGE_MARK]) return current;
+    const control = { active: true };
     const wrapped = async function evidenceSafeComputeExportReport(...args) {
       const report = await current.apply(this, args);
-      if (report && report[REPORT_MARK] === true) return report;
+      // Later modules commonly wrap computeExportReport by capturing the
+      // current function and assigning a new one. Superseded bridge wrappers
+      // therefore remain in the call chain. Only the newest public wrapper may
+      // finalize the report; otherwise evidence added by a downstream wrapper
+      // is missed and the expensive hardening runs repeatedly.
+      if (!control.active) return report;
       return hardenStructuredReport(report);
     };
     Object.defineProperties(wrapped, {
       [BASE_MARK]: { value: true },
       [HARDENING_MARK]: { value: true },
       [BRIDGE_MARK]: { value: true },
+      [CONTROL_MARK]: { value: control },
     });
     return wrapped;
   }
@@ -143,7 +156,11 @@
       enumerable: existing?.enumerable !== false,
       get: getter,
       set(value) {
-        implementation = wrapReportFunction(value);
+        if (value === implementation) return;
+        const next = wrapReportFunction(value);
+        if (next === implementation) return;
+        deactivateReportFunction(implementation);
+        implementation = next;
       },
     });
     return UA;
