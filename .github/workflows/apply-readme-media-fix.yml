@@ -51,9 +51,28 @@ jobs:
           node scripts/apply-readme-media-fix.cjs apply
 
       - name: Generate and validate current documentation media
+        shell: bash
         env:
           DOCUMENTATION_APP_BASE_URL: http://localhost:8000
-        run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true
+        run: |
+          set -o pipefail
+          mkdir -p out/qa
+          mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true \
+            | tee out/qa/bootstrap-documentation-live.log
+
+      - name: Upload bootstrap diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: readme-media-bootstrap-diagnostics-${{ github.run_id }}
+          path: |
+            out/qa/
+            playwright-report/
+            test-results/
+            docs/screenshots/*.png
+            _site/build-manifest.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload the exact reviewed screenshot candidate
         id: candidate
