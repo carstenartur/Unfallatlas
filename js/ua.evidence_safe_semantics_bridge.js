@@ -7,6 +7,7 @@
   const BRIDGE_MARK = '__uaEvidenceSafe644Bridge';
   const CONTROL_MARK = '__uaEvidenceSafe644BridgeControl';
   const REPORT_MARK = '__uaEvidenceSafe644BridgeProcessed';
+  const SEAL_MARK = '__uaEvidenceSafe644BridgeSeal';
   const TEXT_APPENDIX_MARKER = 'VOLLSTÄNDIGE NUMMERIERTE UNFALLBEWEISANLAGE';
   const HTML_APPENDIX_MARKER = 'data-ua-evidence-appendix';
   const METHOD_LINE =
@@ -171,43 +172,91 @@
     return wrapped;
   }
 
-  function installDeterministicReportBridge() {
-    const existing = Object.getOwnPropertyDescriptor(UA, 'computeExportReport');
-    if (existing?.get?.[BRIDGE_MARK] === true) return UA;
-
-    // Another bootstrap guard may temporarily own the property while waiting
-    // for the real export implementation. Replacing that foreign accessor
-    // would silently drop its safety check. Wait until it has resolved to an
-    // ordinary function property, then install this finalizing bridge around
-    // the complete guarded chain.
-    if (existing && (typeof existing.get === 'function' || typeof existing.set === 'function')) {
-      return false;
+  function descriptorValue(descriptor) {
+    if (!descriptor) return undefined;
+    if (Object.prototype.hasOwnProperty.call(descriptor, 'value')) return descriptor.value;
+    try {
+      return typeof descriptor.get === 'function' ? descriptor.get.call(UA) : undefined;
+    } catch (_) {
+      return undefined;
     }
+  }
 
-    let implementation = wrapReportFunction(existing?.value);
+  function installBridgeProperty(existing, initialImplementation) {
+    let implementation = wrapReportFunction(initialImplementation);
+    let sealed = false;
+
     const getter = function getEvidenceSafeComputeExportReport() {
       return implementation;
     };
     getter[BRIDGE_MARK] = true;
 
+    const setter = function setEvidenceSafeComputeExportReport(value) {
+      if (value === implementation) return;
+      const next = wrapReportFunction(value);
+      if (next === implementation) return;
+      deactivateReportFunction(implementation);
+      implementation = next;
+      seal();
+    };
+
+    function seal() {
+      if (sealed || typeof implementation !== 'function') return false;
+      const descriptor = Object.getOwnPropertyDescriptor(UA, 'computeExportReport');
+      if (descriptor?.get !== getter) return false;
+      Object.defineProperty(UA, 'computeExportReport', {
+        configurable: false,
+        enumerable: existing?.enumerable !== false,
+        get: getter,
+        set: setter,
+      });
+      sealed = true;
+      return true;
+    }
+    getter[SEAL_MARK] = seal;
+
     Object.defineProperty(UA, 'computeExportReport', {
       configurable: true,
       enumerable: existing?.enumerable !== false,
       get: getter,
-      set(value) {
-        if (value === implementation) return;
-        const next = wrapReportFunction(value);
-        if (next === implementation) return;
-        deactivateReportFunction(implementation);
-        implementation = next;
-      },
+      set: setter,
     });
+    seal();
     return UA;
+  }
+
+  function installDeterministicReportBridge() {
+    const existing = Object.getOwnPropertyDescriptor(UA, 'computeExportReport');
+    if (existing?.get?.[BRIDGE_MARK] === true) {
+      existing.get[SEAL_MARK]?.();
+      return UA;
+    }
+
+    // Bootstrap guards and persistent compatibility accessors may temporarily
+    // own this property. While they do not expose a real report function, leave
+    // them untouched. Once they do, take the outermost position around their
+    // complete wrapped value. The resulting bridge is sealed: later persistent
+    // hook installers then fall back to ordinary assignment through this
+    // setter instead of replacing the finalizer with another accessor.
+    if (existing?.configurable === false) return false;
+    const current = descriptorValue(existing);
+    if (existing && (typeof existing.get === 'function' || typeof existing.set === 'function')
+        && typeof current !== 'function') {
+      return false;
+    }
+    return installBridgeProperty(existing, current);
   }
 
   function ownsLiveReportBridge() {
     const descriptor = Object.getOwnPropertyDescriptor(UA, 'computeExportReport');
     return descriptor?.get?.[BRIDGE_MARK] === true
+      && typeof UA.computeExportReport === 'function';
+  }
+
+  function ownsSealedLiveReportBridge() {
+    const descriptor = Object.getOwnPropertyDescriptor(UA, 'computeExportReport');
+    return descriptor?.get?.[BRIDGE_MARK] === true
+      && descriptor.configurable === false
       && typeof UA.computeExportReport === 'function';
   }
 
@@ -220,15 +269,16 @@
     restoreIncompleteBackgroundRender,
     wrapReportFunction,
     ownsLiveReportBridge,
+    ownsSealedLiveReportBridge,
     install: installDeterministicReportBridge,
   });
 
   installDeterministicReportBridge();
-  if (typeof root.setTimeout === 'function' && !ownsLiveReportBridge()) {
+  if (typeof root.setTimeout === 'function' && !ownsSealedLiveReportBridge()) {
     let attempts = 0;
     const retry = () => {
       installDeterministicReportBridge();
-      if (!ownsLiveReportBridge() && attempts++ < 400) root.setTimeout(retry, 25);
+      if (!ownsSealedLiveReportBridge() && attempts++ < 800) root.setTimeout(retry, 25);
     };
     root.setTimeout(retry, 25);
   }
