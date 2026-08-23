@@ -30,6 +30,7 @@ describe('issue #644 deterministic report semantics bridge', () => {
       return report;
     });
     const hardenReport = jest.fn(report => {
+      report = safeReport(report);
       report.structured = { ...report.structured, hardeningGuardApplied: true };
       return report;
     });
@@ -58,6 +59,8 @@ describe('issue #644 deterministic report semantics bridge', () => {
 
     const report = await UA.computeExportReport({ city: 'Hannover' });
     expect(raw).toHaveBeenCalledTimes(1);
+    expect(safeReport).toHaveBeenCalledTimes(1);
+    expect(hardenReport).toHaveBeenCalledTimes(1);
     expect(report.structured.baseGuardApplied).toBe(true);
     expect(report.structured.hardeningGuardApplied).toBe(true);
     expect(report.structured.methodikScope.lines.join(' ')).toMatch(

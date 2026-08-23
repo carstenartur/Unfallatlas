@@ -29,19 +29,18 @@
 
   function transformTextOutsideAppendix(value) {
     if (typeof value !== 'string') return value;
-    const markerIndex = value.toLocaleUpperCase('de-DE').indexOf(TEXT_APPENDIX_MARKER);
+    const markerIndex = value.indexOf(TEXT_APPENDIX_MARKER);
     if (markerIndex < 0) return transformNarrative(value);
     return transformNarrative(value.slice(0, markerIndex)) + value.slice(markerIndex);
   }
 
   function transformHtmlOutsideAppendix(value) {
     if (typeof value !== 'string') return value;
-    const lower = value.toLowerCase();
-    const markerIndex = lower.indexOf(HTML_APPENDIX_MARKER);
+    const markerIndex = value.indexOf(HTML_APPENDIX_MARKER);
     if (markerIndex < 0) return transformNarrative(value);
 
-    const sectionStart = Math.max(0, lower.lastIndexOf('<section', markerIndex));
-    const sectionClose = lower.indexOf('</section>', markerIndex);
+    const sectionStart = Math.max(0, value.lastIndexOf('<section', markerIndex));
+    const sectionClose = value.indexOf('</section>', markerIndex);
     if (sectionClose < 0) {
       return transformNarrative(value.slice(0, sectionStart)) + value.slice(sectionStart);
     }
@@ -75,22 +74,23 @@
   }
 
   function hardenStructuredReport(reportValue) {
+    if (reportValue?.[REPORT_MARK] === true) return reportValue;
     const report = object(reportValue);
     const originalText = report.text;
     const originalHtml = report.html;
     let hardened = { ...report, text: null, html: null };
 
-    // The base and hardening contracts are intentionally applied only to the
-    // structured/narrative part here. The full numbered accident appendix can
+    // The hardening contract already delegates to the base semantic contract.
+    // Run that combined path exactly once. If the hardening module is absent,
+    // retain the base-only fallback. The full numbered accident appendix can
     // contain tens of thousands of rows and must not be copied and scanned by
-    // every compatibility replacement rule.
-    if (typeof UA.EvidenceSafeSemantics?.safeReport === 'function') {
-      hardened = UA.EvidenceSafeSemantics.safeReport(hardened) || hardened;
-      hardened.text = null;
-      hardened.html = null;
-    }
+    // multiple compatibility passes.
     if (typeof UA.EvidenceSafeSemanticsHardening?.hardenReport === 'function') {
       hardened = UA.EvidenceSafeSemanticsHardening.hardenReport(hardened) || hardened;
+      hardened.text = null;
+      hardened.html = null;
+    } else if (typeof UA.EvidenceSafeSemantics?.safeReport === 'function') {
+      hardened = UA.EvidenceSafeSemantics.safeReport(hardened) || hardened;
       hardened.text = null;
       hardened.html = null;
     }
@@ -175,6 +175,15 @@
     const existing = Object.getOwnPropertyDescriptor(UA, 'computeExportReport');
     if (existing?.get?.[BRIDGE_MARK] === true) return UA;
 
+    // Another bootstrap guard may temporarily own the property while waiting
+    // for the real export implementation. Replacing that foreign accessor
+    // would silently drop its safety check. Wait until it has resolved to an
+    // ordinary function property, then install this finalizing bridge around
+    // the complete guarded chain.
+    if (existing && (typeof existing.get === 'function' || typeof existing.set === 'function')) {
+      return false;
+    }
+
     let implementation = wrapReportFunction(existing?.value);
     const getter = function getEvidenceSafeComputeExportReport() {
       return implementation;
@@ -196,6 +205,12 @@
     return UA;
   }
 
+  function ownsLiveReportBridge() {
+    const descriptor = Object.getOwnPropertyDescriptor(UA, 'computeExportReport');
+    return descriptor?.get?.[BRIDGE_MARK] === true
+      && typeof UA.computeExportReport === 'function';
+  }
+
   UA.EvidenceSafeSemanticsBridge = Object.freeze({
     METHOD_LINE,
     transformTextOutsideAppendix,
@@ -204,8 +219,17 @@
     hardenStructuredReport,
     restoreIncompleteBackgroundRender,
     wrapReportFunction,
+    ownsLiveReportBridge,
     install: installDeterministicReportBridge,
   });
 
   installDeterministicReportBridge();
+  if (typeof root.setTimeout === 'function' && !ownsLiveReportBridge()) {
+    let attempts = 0;
+    const retry = () => {
+      installDeterministicReportBridge();
+      if (!ownsLiveReportBridge() && attempts++ < 400) root.setTimeout(retry, 25);
+    };
+    root.setTimeout(retry, 25);
+  }
 })(window);

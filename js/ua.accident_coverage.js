@@ -40,9 +40,19 @@
     return wrapped;
   }
 
+  function restoreReportFinalizer(name) {
+    if (name !== 'computeExportReport') return;
+    // The evidence-safe bridge intentionally yields while this bootstrap
+    // accessor owns the property. As soon as the real guarded report function
+    // exists, hand the ordinary data property back synchronously so no export
+    // can observe an unfinalized or multiply wrapped intermediate state.
+    UA.EvidenceSafeSemanticsBridge?.install?.();
+  }
+
   function installFunctionHook(name) {
     if (typeof UA[name] === 'function') {
       UA[name] = guarded(name, UA[name]);
+      restoreReportFinalizer(name);
       return;
     }
 
@@ -60,6 +70,7 @@
             configurable: true,
             enumerable: true,
           });
+          restoreReportFinalizer(name);
         },
       });
     } catch (_) {

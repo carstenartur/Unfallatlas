@@ -10,7 +10,14 @@
 - accident-event labels for `UKATEGORIE` rather than person-count labels;
 - conservative pattern and template wording;
 - explicit interior zero years in trend series, with support for an explicitly supplied full year range;
-- regression tests for the semantic contract and the cross-mask KSI defect.
+- deterministic report finalization after all late report decorators, including
+  synchronous recovery from the bootstrap accessor installed by
+  `ua.accident_coverage.js`;
+- preservation of the accident-coverage guard while avoiding duplicate
+  full-report semantic passes over large complete evidence cohorts;
+- exact appendix-boundary handling without allocating uppercase/lowercase copies
+  of the complete numbered accident appendix;
+- a load-order regression test with a 21,539-row evidence appendix.
 
 ## Deliberately separate follow-up work
 
