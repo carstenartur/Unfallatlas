@@ -1,7 +1,7 @@
 # Release-Checklist – Unfallwerkbank
 
 Vor jedem Release sollten die folgenden Smoke-Tests in **allen fünf
-Betriebsarten** erfolgreich durchlaufen werden.  Die Prüfungen sind bewusst
+Betriebsarten** erfolgreich durchlaufen werden. Die Prüfungen sind bewusst
 manuell und kurz – sie ergänzen die automatisierte Test-Suite (`npm test`,
 `npm run test:e2e`) und stellen sicher, dass jede unterstützte Variante real
 funktioniert.
@@ -12,8 +12,8 @@ funktioniert.
 > Release-Blocker mehr; sie wird weiter verfolgt in
 > [#406](https://github.com/carstenartur/Unfallatlas/issues/406).
 
-> Übersicht der Betriebsmodi: siehe README → *Betriebsmodi – Browser-only ·
-> Node-Standalone · Node + Analysis Service*.
+> Übersicht der Betriebsarten und Systemgrenzen:
+> [`docs/architecture.md` → Schichtenmodell](architecture.md#1-schichtenmodell).
 
 ---
 
@@ -73,12 +73,12 @@ npm run start:server
       `source: "ai"` (oder `"cache"` bei Wiederholung) und
       schemakonformes Ergebnis
 - [ ] `POST /api/ai/export-assessment/v2?mode=proposal-brief` liefert
-      schemakonformen Maßnahmen­steckbrief
+      schemakonformen Maßnahmensteckbrief
 - [ ] Wiederholung derselben Anfrage → `source: "cache"`
 - [ ] Asynchroner Job: `POST /api/ai/jobs` → `202`, anschließend
       `GET /api/ai/jobs/:id` erreicht `status: "done"` mit Ergebnis
 - [ ] Politische Recherche funktioniert wie in Variante 2
-- [ ] **Export mit KI**: PDF/Word enthält die übernommenen KI-Bewertungs­
+- [ ] **Export mit KI**: PDF/Word enthält die übernommenen KI-Bewertungs-
       bausteine zusätzlich zu den deterministischen Tabellen
 - [ ] **Export ohne KI** in derselben Session weiterhin möglich
       (Nutzer entscheidet pro Export, ob KI verwendet wird)
@@ -198,6 +198,7 @@ cd analysis-service && SPRING_PROFILES_ACTIVE=prod \
       Endpunkte und Env-Variablen
 - [ ] Doku ist aktuell:
       [`README.md`](../README.md),
+      [`docs/DOKUMENTATION.md`](DOKUMENTATION.md),
       [`docs/architecture.md`](architecture.md),
       [`docs/server-features.md`](server-features.md),
       [`server/ai/README.md`](../server/ai/README.md),
@@ -208,6 +209,7 @@ cd analysis-service && SPRING_PROFILES_ACTIVE=prod \
 
 - [ ] README-Linkprüfung: kein `¢erLat`/`¢erLon`, keine isolierten kaputten Symbolzeichen (`grep -nP "¢er(Lat|Lon)" README.md` muss leer sein).
 - [ ] README-Demo-Asset aktuell — `npm run regen:demo` neu ausgeführt (kanonisches GIF, harte 9-MiB-/60-Sekunden-Budgets ohne stillen Formatwechsel), Datum/Commit im PR notiert.
+- [ ] Dokumentations-Deep-Links: `npm test -- --runInBand tests/unit/documentationDeepLinkContract.test.js tests/integration/documentationDeepLinkRepositoryContract.test.js` ist grün; jeder gezeigte Anwendungsscreenshot öffnet seinen kanonischen Analysezustand.
 - [ ] Live-Demo-Hydration: Playwright-Test gegen GitHub Pages mit Bonn-URL grün.
 - [ ] Steigungslayer bleibt nach Filterwechsel/Stadtreload/Exportdialog sichtbar.
 - [ ] PDF-Render-Gate in CI grün (`npm run generate:sample-pdf && npm run test:render-gate -- --pdf out/ci-render-gate.pdf`).

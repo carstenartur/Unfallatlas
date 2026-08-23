@@ -7,19 +7,9 @@
       "count": 4
     },
     {
-      "path": "docs/DOKUMENTATION.md",
-      "codePoint": "U+00AD",
-      "count": 1
-    },
-    {
       "path": "docs/architecture.md",
       "codePoint": "U+00AD",
       "count": 10
-    },
-    {
-      "path": "docs/release-checklist.md",
-      "codePoint": "U+00AD",
-      "count": 2
     },
     {
       "path": "docs/server-features.md",

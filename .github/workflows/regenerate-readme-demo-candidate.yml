@@ -1,0 +1,63 @@
+name: Regenerate README demo candidate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/regenerate-readme-demo-candidate.yml'
+      - 'Dockerfile'
+      - 'pom.xml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'docs/demo.gif'
+      - 'docs/media-manifest.json'
+      - 'scripts/regen-readme-demo.js'
+      - 'scripts/gif-timeline.js'
+      - 'security/hidden-unicode-baseline.json'
+      - 'server/**'
+      - 'tests/integration/lib/startUnfallatlasContainer.js'
+      - 'tests/unit/regen-readme-demo.test.js'
+      - 'tests/unit/readme-demo-architecture.test.js'
+      - 'tests/unit/workflowMavenOwnership.test.js'
+      - 'werkbank_v2.html'
+      - 'js/**'
+      - 'css/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-demo-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    name: Regenerate through production server video export
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Regenerate and validate through the canonical Maven profile
+        run: mvn -B -ntp clean verify -Preadme-demo-candidate
+
+      - name: Upload the validated candidate
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: readme-demo-candidate-${{ github.run_id }}
+          path: docs/demo.gif
+          if-no-files-found: error
+          retention-days: 14
