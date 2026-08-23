@@ -70,6 +70,7 @@ function applyPatches() {
   patchFile('README.md', patchReadme);
   patchFile('docs/DOKUMENTATION.md', patchDocumentation);
   patchFile('docs/media-manifest.json', patchManifest);
+  patchFile('tests/unit/docMediaPolicy.test.js', patchDocMediaPolicy);
   patchFile('docs/screenshots/README.md', patchScreenshotGuide);
   patchFile('.github/workflows/visual-check.yml', patchVisualWorkflow);
   patchFile('js/ua.ui.js', (source) => replaceExact(
@@ -94,4 +95,3 @@ function promoteEvidence() {
   for (const required of [summarySource, cartographySource, readinessSource, buildManifestPath]) {
     if (!fs.existsSync(required)) throw new Error(`Missing generated evidence: ${required}`);
   }
-
