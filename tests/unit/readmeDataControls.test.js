@@ -5,25 +5,40 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '../..');
 
-function readDataControlsBlock() {
-  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
-  const start = readme.indexOf('## Datenstatus und Aktualisierung');
-  const end = readme.indexOf('\nhttps://doi.org/', start);
-  if (start < 0 || end < 0) throw new Error('README data controls block is missing');
-  return readme.slice(start, end);
+function read(relativePath) {
+  return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
 }
 
-describe('README data update controls', () => {
-  test('keeps every mobile control in one table row with an unambiguous step', () => {
-    const block = readDataControlsBlock();
-    expect(block).toContain('| Datenbestand | Status und Aktualisierung |');
-    expect(block).toContain('**1 · Unfalldaten**');
-    expect(block).toContain('**2 · Schulen und Kitas**');
-    expect(block).toContain('**3a · Straßenkontext**');
-    expect(block).toContain('**3b · Steigung**');
-    expect(block).toContain('**3c · Verkehr**');
-    expect(block).not.toContain('**3.**');
+function section(markdown, heading) {
+  const start = markdown.indexOf(heading);
+  if (start < 0) throw new Error(`Missing documentation section: ${heading}`);
+  const next = markdown.indexOf('\n## ', start + heading.length);
+  return markdown.slice(start, next < 0 ? markdown.length : next);
+}
+
+describe('user-first README data-status routing', () => {
+  const readme = read('README.md');
+
+  test('keeps availability visible without leading users into operator workflows', () => {
+    const block = section(readme, '## Verfügbarkeit und Aktualität');
+
+    expect(block).toContain('[Datenstatus und Aktualität](https://carstenartur.github.io/Unfallatlas/data-status/)');
+    expect(block).toContain('[Städte- und Regionen-Katalog](docs/CITY_CATALOG.md)');
+    expect(block).toContain('[Datenherkunft und Aktualisierungsverfahren](DATA_STATUS.md)');
+
+    for (const workflow of ['generate-and-commit.yml', 'fetchpoi.yml', 'enrich.yml']) {
+      expect(readme).not.toContain(`/actions/workflows/${workflow}`);
+    }
   });
+
+  test('keeps the precise official open-data licence in the user-facing source section', () => {
+    const block = section(readme, '## Datenquelle und Lizenz');
+    expect(block).toContain('https://www.govdata.de/dl-de/by-2-0');
+  });
+});
+
+describe('operator data-update controls', () => {
+  const status = read('DATA_STATUS.md');
 
   test.each([
     ['accidents', 'generate-and-commit.yml'],
@@ -31,16 +46,19 @@ describe('README data update controls', () => {
     ['roads', 'enrich.yml'],
     ['slope', 'enrich.yml'],
     ['traffic', 'enrich.yml'],
-  ])('places the %s status and compact workflow button in the same row', (family, workflow) => {
-    const block = readDataControlsBlock();
-    const row = block.split('\n').find((line) => line.includes(`/status/${family}.svg?readme=`));
+  ])('keeps the %s status and its workflow action in one operator-table row', (family, workflow) => {
+    const row = status.split(/\r?\n/).find((line) => line.includes(`/status/${family}.svg`));
     expect(row).toBeDefined();
     expect(row).toContain(`/actions/workflows/${workflow}`);
-    expect(row).toContain('img.shields.io/badge/%E2%96%B6--2ea44f');
-    expect(row.split('|')).toHaveLength(4);
+    expect(row).toMatch(/^\|\s*\*\*\d+\*\*\s*\|/);
   });
 
-  test('does not reintroduce the wide mobile button that caused wrapping', () => {
-    expect(readDataControlsBlock()).not.toContain('%E2%96%B6-Aktualisieren-2ea44f');
+  test('documents the shared context workflow instead of presenting three independent jobs', () => {
+    const slopeRow = status.split(/\r?\n/).find((line) => line.includes('/status/slope.svg'));
+    const trafficRow = status.split(/\r?\n/).find((line) => line.includes('/status/traffic.svg'));
+
+    expect(slopeRow).toContain('Bestandteil desselben Kontext-Workflows');
+    expect(trafficRow).toContain('Bestandteil desselben Kontext-Workflows');
+    expect(status).toContain('Schritt 3 folgt nach Schritt 1 automatisch');
   });
 });

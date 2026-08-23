@@ -11,18 +11,24 @@ on:
       - 'pom.xml'
       - 'package.json'
       - 'package-lock.json'
+      - 'docs/DOKUMENTATION.md'
+      - 'docs/documentation-live-link-qa.md'
       - 'docs/media-manifest.json'
       - 'docs/screenshots/**'
       - 'werkbank_v2.html'
       - 'css/**'
       - 'js/**'
+      - 'scripts/documentation-deeplink-contract.cjs'
       - 'scripts/run-live-documentation-screenshots.cjs'
       - 'scripts/run-live-documentation-links.cjs'
       - 'scripts/run-live-documentation-qa.js'
       - 'scripts/validate-live-cartography-evidence.cjs'
       - 'scripts/validate-doc-media.js'
       - 'scripts/validate-screenshot-evidence.js'
+      - 'tests/e2e/documentation-deeplinks.live.spec.js'
       - 'tests/e2e/screenshots*.spec.js'
+      - 'tests/integration/documentationDeepLinkRepositoryContract.test.js'
+      - 'tests/unit/documentationDeepLinkContract.test.js'
       - '.github/workflows/visual-check.yml'
 
 permissions:
@@ -95,7 +101,7 @@ jobs:
 
       - name: Write PR summary
         run: |
-          echo '## Visual Check – Kandidatenartefakt, Screenshots und README-Deep-Links' >> "$GITHUB_STEP_SUMMARY"
+          echo '## Visual Check – Kandidatenartefakt, Screenshots und Dokumentations-Deep-Links' >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
           echo 'Dieser PR-Lauf prüft ausschließlich das lokal gebaute Kandidatenartefakt unter http://localhost:8000.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Die tatsächlich veröffentlichte GitHub-Pages-Anwendung wird getrennt nach jedem Deployment und täglich geprüft.' >> "$GITHUB_STEP_SUMMARY"

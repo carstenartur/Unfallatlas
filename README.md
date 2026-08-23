@@ -128,7 +128,7 @@ Weitere fachliche und technische Dokumente sind unter [`docs/`](docs/) abgelegt.
 
 ## Datenquelle und Lizenz
 
-Die Unfalldaten stammen aus dem [Unfallatlas des Statistikportals der deutschen Bundesländer](https://unfallatlas.statistikportal.de/) und werden unter der jeweils angegebenen offenen Datenlizenz verwendet. Karten- und POI-Inhalte können Daten von OpenStreetMap-Mitwirkenden enthalten.
+Die Unfalldaten stammen aus dem [Unfallatlas des Statistikportals der deutschen Bundesländer](https://unfallatlas.statistikportal.de/) und werden unter der [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) verwendet. Karten- und POI-Inhalte können Daten von OpenStreetMap-Mitwirkenden enthalten.
 
 - Projektlizenz: [Apache License 2.0](LICENSE)
 - Credits und Drittkomponenten: [docs/credits.md](docs/credits.md)
