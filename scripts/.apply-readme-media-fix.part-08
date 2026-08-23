@@ -3,6 +3,12 @@
 }
 
 function applyMediaBudgetCorrections() {
+  patchFile('.gitignore', (source) => replaceExact(
+    source,
+    'playwright-report/\n.playwright/\n*.log\n',
+    'playwright-report/\n.playwright/\n**/target/\n*.log\n',
+    'keep Maven and pinned frontend toolchains out of generated commits'
+  ));
   patchFile('docs/media-manifest.json', (source) => {
     const manifest = JSON.parse(source);
     const hbf = manifest.assets.find(
