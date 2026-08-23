@@ -30,7 +30,6 @@
     "qa:documentation-live": "node scripts/run-live-documentation-qa.js",
     "qa:context-enrichment": "node scripts/run-context-enrichment.js",
     "qa:release-site": "npm run build:site && npm run validate:media -- --report out/qa/release-documentation-media.json && npm run validate:vendor-provenance",
-    "regen:demo": "node scripts/regen-readme-demo.js",
     "regen:context-assets": "node scripts/regen-context-assets.js",
     "generate:context-city": "node scripts/generate-context-city.js",
     "generate:osm-elevation-context": "node scripts/producers/osm_elevation_context_producer.js",

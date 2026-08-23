@@ -1,259 +1,129 @@
-# Unfallwerkbank – Interaktive Unfallanalyse für deutsche Städte
+# Unfallwerkbank – Verkehrsunfälle räumlich untersuchen und nachvollziehbar teilen
 
-> **Wo passieren Fahrradunfälle? Wo sind Schulwege gefährlich? Wo braucht es bessere Radinfrastruktur?**
+> **Wo häufen sich Unfälle? Welche Beteiligten sind betroffen? Liegen auffällige Stellen an Schulen, Kitas oder bestimmten Straßenabschnitten?**
 >
-> Die Unfallwerkbank macht amtliche Verkehrsunfalldaten (2016–2025) für ausgewählte deutsche Großstädte als interaktive Karte zugänglich – direkt im Browser, ohne Installation.
+> Die Unfallwerkbank macht amtliche Unfallatlas-Daten als interaktive Karte nutzbar. Eine Analyse lässt sich direkt im Browser öffnen, als reproduzierbarer Link weitergeben und als Daten- oder Dokumentexport sichern.
 
 [![CI](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml)
 [![Release](https://img.shields.io/github/v/release/carstenartur/Unfallatlas?sort=semver&label=Release)](https://github.com/carstenartur/Unfallatlas/releases/latest)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io%2Fcarstenartur%2Funfallatlas-blue?logo=docker)](https://github.com/carstenartur/Unfallatlas/pkgs/container/unfallatlas)
 [![License](https://img.shields.io/github/license/carstenartur/Unfallatlas)](LICENSE)
-[![SBOM](https://img.shields.io/badge/SBOM-CycloneDX-informational?logo=owasp)](https://github.com/carstenartur/Unfallatlas/dependency-graph/sbom)
 
-## Datenstatus und Aktualisierung
+[![Rad-Pkw-Unfälle am Bonner Hauptbahnhof als Heatmap](docs/screenshots/13-bonn-hbf-radunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
 
-| Datenbestand | Status und Aktualisierung |
+**[Werkbank öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12)** ·
+**[Nutzungsanleitung](docs/DOKUMENTATION.md)** ·
+**[Praxisbeispiele](docs/DOKUMENTATION.md#praxisbeispiele)** ·
+**[Datenstatus](https://carstenartur.github.io/Unfallatlas/data-status/)**
+
+*Klick auf einen Screenshot öffnet die gezeigte Stadt, den Kartenausschnitt und die zugehörigen Filter in der Werkbank.*
+
+---
+
+## Wofür ist die Unfallwerkbank gedacht?
+
+Die Werkbank unterstützt die Vorbereitung und Diskussion konkreter Fragen zur kommunalen Verkehrssicherheit:
+
+- Unfallhäufungen in einer Stadt oder einem markierten Bereich erkennen,
+- Beteiligungskombinationen wie **Rad + Pkw** oder **Fahrrad-Alleinunfälle** untersuchen,
+- Tageszeit, Wochentag, Unfallschwere und Fahrbahnzustand filtern,
+- Schulen, Kitas und verfügbare Straßen- oder Geländekontexte einbeziehen,
+- eine Analyse per URL teilen oder als CSV, GeoJSON, KML, Word beziehungsweise PDF exportieren.
+
+Sie richtet sich unter anderem an Kommunalpolitik, Verkehrsplanung, Verwaltungen, Verbände, Initiativen, Forschung und Journalismus. Die Werkbank liefert eine **Analyse- und Argumentationshilfe**, aber keinen automatischen Kausalitätsnachweis und keine fertige verkehrsrechtliche Bewertung.
+
+## In drei Minuten zur ersten Analyse
+
+1. **[Öffentliche Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12).**
+2. Links eine Stadt wählen und die gewünschten Beteiligten aktivieren.
+3. **ODER**, **UND** oder **Alleinunfall** passend zur Fragestellung einstellen.
+4. Karte verschieben oder mit **Bereich markieren** einen Ausschnitt festlegen.
+5. Zwischen Cluster, Heatmap und den verfügbaren Kartenansichten wechseln.
+6. Über **Analyse/Export öffnen** Ergebnisse prüfen, herunterladen oder den Link kopieren.
+
+Die URL speichert den adressierbaren Analysezustand. Dadurch können andere Personen dieselbe Stadt, Auswahl, Kartenposition und Filterkombination öffnen.
+
+---
+
+## Typische Analysen
+
+### Rad- und Pkw-Beteiligung an einem konkreten Ort
+
+Die markierte Heatmap am Bonner Hauptbahnhof zeigt nur Unfälle, an denen sowohl Rad- als auch Pkw-Verkehr beteiligt waren.
+
+[→ Bonn-Hbf-Analyse in der öffentlichen Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
+
+[![Rad-Pkw-Heatmap mit markiertem Bereich am Bonner Hauptbahnhof](docs/screenshots/13-bonn-hbf-radunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
+
+### Fahrrad-Alleinunfälle
+
+Der Alleinunfall-Modus blendet Unfälle mit anderen erfassten Beteiligungsarten aus. Häufungen können ein Anlass sein, Belag, Führung, Kanten, Gleise oder andere örtliche Bedingungen genauer zu prüfen.
+
+[![Fahrrad-Alleinunfälle in Bonn](docs/screenshots/11-fahrrad-alleinunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=0&includeMotorcycle=0&involvementMode=solo&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.1000&zoom=13)
+
+### Schul- und Kita-Umfeld
+
+Bei ausreichender Zoomstufe lassen sich Schulen und Kitas zusammen mit den gefilterten Unfallstellen betrachten.
+
+[![Rad- und Fußverkehrsunfälle mit Schulen und Kitas in Bonn](docs/screenshots/12-poi-schulen-kitas.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.0950&zoom=16)
+
+### Vom Kartenausschnitt zum Bericht
+
+Die folgende Konfiguration begrenzt Rad-Pkw-Unfälle auf 6–18 Uhr und einen markierten Bereich. Nach dem Öffnen **Analyse/Export öffnen** wählen.
+
+[→ Öffentliche Werkbank für Export öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
+
+[![Exportansicht mit sichtbarem Filter- und Ortskontext](docs/screenshots/14-export-filterkontext.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=6&hourTo=18&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
+
+Der Dokumentexport übernimmt Filter, räumliche Auswahl, Statistik und – soweit verfügbar – Karten- und Kontextinformationen.
+
+[![Gerenderte Vorschau eines PDF-Exports](docs/screenshots/15-export-pdf-rendered.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
+
+Die [Nutzungsanleitung](docs/DOKUMENTATION.md) erklärt die einzelnen Schritte, Darstellungen und Grenzen ausführlich.
+
+---
+
+## Was die Ergebnisse aussagen – und was nicht
+
+Die Werkbank arbeitet mit den veröffentlichten, polizeilich erfassten Unfallorten und den darin enthaltenen Merkmalen. Daraus folgen wichtige Grenzen:
+
+- Nicht gemeldete oder nicht im Datensatz enthaltene Ereignisse bleiben unsichtbar.
+- Eine räumliche Häufung oder ein Kontextmerkmal beweist keine Unfallursache.
+- Kleine Fallzahlen und stark gewählte Filter können zu instabilen Prozentwerten führen.
+- Schulen und Kitas sowie Straßenattribute stammen, soweit verwendet, aus OpenStreetMap.
+- Die angezeigte Verkehrsklasse ist bei entsprechenden Kontextdaten ein **projektinterner OSM-Proxy**, keine gemessene Verkehrsdichte.
+
+Für Entscheidungen sollten Karte und Export mit Ortskenntnis, aktuellen Planungen, Verkehrsbelastungen und einer fachlichen Einzelfallprüfung verbunden werden. Mehr dazu: [Methodik und Grenzen](docs/DOKUMENTATION.md#methodik-und-grenzen).
+
+## Verfügbarkeit und Aktualität
+
+Welche Städte, Jahrgänge und Zusatzdaten verfügbar sind, kann sich unterscheiden:
+
+- [Datenstatus und Aktualität](https://carstenartur.github.io/Unfallatlas/data-status/)
+- [Städte- und Regionen-Katalog](docs/CITY_CATALOG.md)
+- [Datenherkunft und Aktualisierungsverfahren](DATA_STATUS.md)
+
+Die technischen Aktualisierungsabläufe stehen bewusst nicht am Anfang dieser README. Sie sind für Betreiber:innen und Mitwirkende in den verlinkten Betriebs- und Entwicklungsdokumenten beschrieben.
+
+## Dokumentation nach Aufgabe
+
+| Ziel | Einstieg |
 |---|---|
-| **1 · Unfalldaten** | [![Unfalldaten](https://carstenartur.github.io/Unfallatlas/status/accidents.svg?readme=20260801-1)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Unfalldaten aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/generate-and-commit.yml) |
-| **2 · Schulen und Kitas** | [![Schulen und Kitas](https://carstenartur.github.io/Unfallatlas/status/poi.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Schulen und Kitas aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/fetchpoi.yml) |
-| **3a · Straßenkontext** | [![Straßenkontext](https://carstenartur.github.io/Unfallatlas/status/roads.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
-| **3b · Steigung** | [![Steigung](https://carstenartur.github.io/Unfallatlas/status/slope.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
-| **3c · Verkehr** | [![Verkehr](https://carstenartur.github.io/Unfallatlas/status/traffic.svg?readme=20260726-2)](https://carstenartur.github.io/Unfallatlas/data-status/) [![Kontext aktualisieren](https://img.shields.io/badge/%E2%96%B6--2ea44f?logo=githubactions&logoColor=white)](https://github.com/carstenartur/Unfallatlas/actions/workflows/enrich.yml) |
+| Werkbank bedienen und Beispiele nachspielen | [Nutzungsanleitung](docs/DOKUMENTATION.md) |
+| Einen Maßnahmen-Steckbrief verstehen | [Maßnahmen-Steckbriefe](docs/LOCATION_BRIEF.md) |
+| Verfügbarkeit einer Stadt prüfen | [Städte-/Regionen-Katalog](docs/CITY_CATALOG.md) |
+| Daten und Skripte außerhalb der Weboberfläche nutzen | [CLI-Nutzung](usage.md) |
+| Unfallwerkbank selbst betreiben | [Docker und Serverbetrieb](docs/docker.md) |
+| Architektur, Tests oder Code ändern | [Entwicklungs- und Architekturübersicht](ARCHITECTURE.md) |
+| Daten aktualisieren oder veröffentlichen | [Datenstatus und Veröffentlichungsprozess](DATA_STATUS.md) |
 
-Der kompakte grüne **▶-Knopf** steht in derselben Tabellenzelle wie der zugehörige Status. Er öffnet den zuständigen GitHub-Actions-Workflow; dort **Run workflow** und anschließend nochmals **Run workflow** wählen.
-
-Der Unfalldatenworkflow schreibt **niemals direkt nach `main`**. Er erzeugt und prüft zunächst alle Daten ohne Schreibberechtigung, bindet Stadt-, Jahres-, Fallzahl-, CSV-/GeoJSON- und Dateihashverträge in [`data/accident-data-release.json`](data/accident-data-release.json) und veröffentlicht anschließend ausschließlich das unveränderte, gehashte Ergebnispaket in einem automatischen **Pull Request**. Erst die regulären Required Checks und eine Review dürfen diesen Pull Request nach `main` übernehmen. Für eine vollständige Aktualisierung normalerweise zuerst Schritt 1 und nach dem Merge Schritt 2 starten. Die Schritte 3a–3c gehören zu demselben Kontext-Workflow und folgen nach dem geprüften Unfalldaten-Merge auf `main` automatisch.
-
-[Reihenfolge, Veröffentlichung, Methodik und Farbbedeutung](DATA_STATUS.md)
-
-https://doi.org/10.5281/zenodo.20936471
-
-[![Startansicht des vollständigen Unfallwerkbank-Builds](docs/screenshots/01-startansicht.png)](docs/screenshots/01-startansicht.png)
-
-[→ Öffentliche Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12)
+Weitere fachliche und technische Dokumente sind unter [`docs/`](docs/) abgelegt. Die README bleibt absichtlich auf den Nutzen und den schnellsten Einstieg konzentriert.
 
 ---
 
-## Was ist das?
+## Datenquelle und Lizenz
 
-Die Unfallwerkbank ist ein interaktives Kartenwerkzeug für kommunale
-Sicherheitsanalysen mit Unfallatlas-Open-Data.
-Nutzer:innen wählen eine Stadt, setzen Filter und sehen sofort, wo sich
-Unfälle räumlich und zeitlich häufen.
-Die Ergebnisse lassen sich als reproduzierbarer Link teilen und als CSV,
-GeoJSON oder KML exportieren. Die öffentliche Browser-Version und der lokale
-Build erzeugen außerdem PDF- und Word-Antragsentwürfe mit Karten- und
-Tabellenkontext.
-Die Oberfläche ist auf schnelle Exploration ausgelegt:
-wenige Klicks von der Stadtwahl bis zur exportierbaren Auswertung.
-So lassen sich Analysen im Team transparent diskutieren und reproduzieren.
-Die gleiche konsistente URL liefert dabei denselben Startzustand der Analyse
-und reduziert Missverständnisse bei Übergaben oder Präsentationen.
+Die Unfalldaten stammen aus dem [Unfallatlas des Statistikportals der deutschen Bundesländer](https://unfallatlas.statistikportal.de/) und werden unter der jeweils angegebenen offenen Datenlizenz verwendet. Karten- und POI-Inhalte können Daten von OpenStreetMap-Mitwirkenden enthalten.
 
----
-
-## 🚀 Live-Demo
-
-- **Öffentliche Browser-Version:** https://carstenartur.github.io/Unfallatlas/werkbank_v2.html
-- **Showcase:** https://carstenartur.github.io/Unfallatlas/showcase.html
-
-> **Funktionsumfang der öffentlichen Browser-Version:** Kartenanalyse, Filter,
-> Cluster, Heatmap, freie Rechteckauswahl sowie CSV-, GeoJSON-, KML-, Word- und
-> PDF-Export. Nur der Videoexport ist dort deaktiviert, weil GitHub Pages kein
-> Server-Backend bereitstellt. Bekannte Provenienz-Härtungspunkte sind
-> transparent dokumentiert und blockieren diese Browserfunktionen nicht.
-
-Kanonischer lokaler Build einschließlich Browser-, Dokumentations- und
-Analysis-Service-QA:
-
-```bash
-mvn clean verify -Ppages
-```
-
-Maven lädt die im Root-`pom.xml` festgelegten Node-/npm-Versionen selbst,
-installiert die gelockten JavaScript-Abhängigkeiten und erzeugt anschließend
-das exakt geprüfte Pages-Artefakt unter `_site/`. GitHub Actions führt denselben
-Maven-Befehl aus und enthält keine parallele npm-/Playwright-Buildlogik.
-
-Der kanonische Build lädt keine Browser-Bibliotheken zur Laufzeit von einem
-CDN. Details zu Dependency-Versionen, Build-Manifest und Offline-Grenzen:
-[`docs/site-build.md`](docs/site-build.md).
-
----
-
-## ⏱️ In 60 Sekunden zur ersten Analyse
-
-1. **[Öffentliche Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html)** – läuft direkt im Browser.
-2. **Stadt wählen** – z. B. Bonn, Hannover, Berlin oder Hamburg.
-3. **Filtern** – Unfallschwere, Beteiligung (Rad, Fuß, PKW, Motorrad, Lkw, Sonstige), Uhrzeit.
-4. **Analysieren** – Cluster, Heatmap und verfügbare Kontextansichten prüfen.
-5. **Exportieren** – CSV/GeoJSON/KML oder einen PDF-/Word-Antragsentwurf erzeugen.
-
-> Alle Filter werden in der URL gespeichert. Auswahl und Kartenmittelpunkt
-> werden beim Laden auf einen räumlich konsistenten Zustand normalisiert.
-
----
-
-## 🎬 Demo-Video
-
-[![Demo-Ablauf der Unfallwerkbank V2](docs/demo.gif)](docs/demo.gif)
-
-Kontextdaten-Medien (17–19) werden derzeit bewusst nur als Review-Kandidaten
-unter `.build/doc-media/context/` erzeugt. Erst ein gesonderter Review darf sie
-zusammen mit Manifest und Doku-Referenzen nach `docs/` übernehmen; die
-[Nutzerdoku](docs/DOKUMENTATION.md#kontext-neu) behauptet daher keine bereits
-veröffentlichten Kontextaufnahmen.
-Die Regeneration des README-GIFs ist in `docs/docker.md` beschrieben.
-
----
-
-## 🔑 Wichtigste Funktionen
-
-| Funktion | Beschreibung |
-|---|---|
-| **Filterkombinationen** | Schwere, Beteiligung (ODER / UND / Alleinunfall), Uhrzeit, Wochentag, Fahrbahnzustand |
-| **Cluster, Heatmap, Hotspots** | Mehrere Perspektiven auf Unfallschwerpunkte |
-| **Kontextfilter (neu)** | Hangneigung, Verkehrsklasse-DTV-Proxy und „nur auf gematchten Straßen" (bei vorhandenen Kontextdaten) |
-| **Bereichsauswahl** | Geteilte Auswahlgrenzen in der URL und freie Rechteckzeichnung |
-| **POI-Overlay** | Schulen und Kitas (ab Zoom 15) zur Schulwegsicherheitsbewertung |
-| **Export & Datenexport** | CSV, GeoJSON, KML, PDF und Word; Video im Server-/Docker-Build |
-
-Typische Fragestellungen, die sich damit schnell beantworten lassen:
-
-- Wo häufen sich Kollisionen zwischen Rad- und Kfz-Verkehr?
-- Welche Orte fallen in den Spitzenzeiten (z. B. 6–9 Uhr, 15–18 Uhr) auf?
-- Wie verändert sich das Bild zwischen Cluster-Darstellung und Heatmap?
-- Welche Schulen/Kitas liegen im unmittelbaren Umfeld auffälliger Stellen?
-- Welche Beteiligungskombinationen sind im markierten Bereich überrepräsentiert?
-
----
-
-## 🗺️ Städte-/Regionen-Katalog
-
-Der bundesweite Städte-/Regionen-Katalog zeigt transparent, welche
-Funktionen pro Ort bereits verfügbar sind (Stufen A/B/C).
-Die vollständige Capability-Matrix, Rollout-Hinweise und API-Details sind
-in [`docs/CITY_CATALOG.md`](docs/CITY_CATALOG.md) dokumentiert.
-
----
-
-## 📌 Konkrete Anwendungsbeispiele
-
-### Beispiel 1: Auto-Fahrrad-Kollisionen am Bonner Hauptbahnhof
-
-Rad + PKW im **UND-Modus**:
-
-- zeigt räumliche Häufungen von Rad-PKW-Kollisionen,
-- eignet sich für die Priorisierung von Kreuzungen/Knoten.
-
-[→ Bonn-Hbf-Analyse in der öffentlichen Browser-Version öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=0&showKindergartens=0&showArgumentation=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
-
-Der folgende Screenshot dokumentiert die zusätzliche **Heatmap**. Der Klick
-öffnet bewusst die Bilddatei in voller Auflösung; der getrennte Link darüber
-öffnet den dazugehörigen interaktiven Kartenzustand.
-
-[![Bonn Hbf – Rad+Auto-Heatmap](docs/screenshots/13-bonn-hbf-radunfaelle.png)](docs/screenshots/13-bonn-hbf-radunfaelle.png)
-
-### Beispiel 2: Fahrrad-Alleinunfälle (Infrastrukturmängel erkennen)
-
-Nur Rad im **Alleinunfall-Modus**:
-
-- deckt Hinweise auf Belag-, Bordstein- oder Trassierungsprobleme auf,
-- blendet Fremdbeteiligung aus und fokussiert auf lokale Infrastruktur.
-
-[→ Live in der Werkbank öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=0&includeMotorcycle=0&involvementMode=solo&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.1000&zoom=13)
-
-### Beispiel 3: Schulwegsicherheit – Unfälle neben Schulen und Kitas
-
-Rad + Fuß im **ODER-Modus**, ganztägig (0–23 Uhr), Zoom 16:
-
-- macht POIs (Schulen/Kitas) in der Karte sichtbar,
-- hilft bei der Vorbereitung kommunaler Schulweg-Diskussionen.
-
-[→ Live in der Werkbank öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.0950&zoom=16)
-
-[![POI-Ansicht mit Schulen und Kitas](docs/screenshots/12-poi-schulen-kitas.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=1&includeCar=0&includeMotorcycle=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7350&centerLon=7.0950&zoom=16)
-
----
-
-## 🎯 Für wen ist das?
-
-| Zielgruppe | Nutzen |
-|---|---|
-| **Bezirksräte / Kommunalpolitik** | Datenbasierte Anträge zur Verkehrssicherheit erstellen |
-| **Radverkehrsbeauftragte** | Unfallschwerpunkte identifizieren und Maßnahmen priorisieren |
-| **Verkehrsplaner / Ingenieurbüros** | Open-Data-Analyse mit reproduzierbaren, teilbaren Links |
-| **ADFC / Bürgerinitiativen** | Argumentationsgrundlage für Verbesserungen vor Ort |
-| **Forschung / Journalismus** | Explorative Unfallanalyse mit amtlichen Daten |
-
----
-
-## 📸 Screenshots
-
-| Startansicht (Voll-Build) | Cluster (öffentliche Browser-Version) |
-|---|---|
-| [![Start](docs/screenshots/01-startansicht.png)](docs/screenshots/01-startansicht.png) | [![Cluster](docs/screenshots/04-cluster-ansicht.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&showCluster=1&showHeatmap=0&showSchools=0&showKindergartens=0&showArgumentation=0) |
-
-[→ Öffentliche Werkbank für Export öffnen](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeCyclist=1&includePedestrian=1&includeCar=1&includeMotorcycle=0&includeGkfz=0&includeSonstig=0&involvementMode=or&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&showSchools=1&showKindergartens=1&showArgumentation=1&mapMode=standard&orthophotoOpacity=92&centerLat=52.3759&centerLon=9.7320&zoom=12)
-– anschließend **Analyse/Export öffnen** wählen. Der Link öffnet bewusst keinen
-ungekennzeichneten Vollbilddialog. PDF, Word, CSV, GeoJSON und KML stehen im
-Exportdialog zur Verfügung.
-
-Weitere Screenshots und Erklärungen:
-[`docs/DOKUMENTATION.md`](docs/DOKUMENTATION.md).
-
-Kontextdaten-Screenshots (Filter-Panel, Popup, Verkehrsproxy) und die
-kontextspezifische Demo sind dort ebenfalls verlinkt.
-
----
-
-## 📖 Mehr erfahren
-
-### Nutzer:innen
-
-- [Vollständige Nutzerdokumentation](docs/DOKUMENTATION.md)
-- [Bundesweiter Städte-/Regionen-Katalog](docs/CITY_CATALOG.md)
-- [Maßnahmen-Steckbriefe](docs/LOCATION_BRIEF.md)
-- [Tour & Showcase](docs/tour-and-showcase.md)
-
-Diese Links sind auf Bedienung, Beispiele und einordnende Methodik
-ausgerichtet.
-
-### Betreiber:innen / Self-Hoster
-
-- [Docker-Betrieb & Video-Export](docs/docker.md)
-- [Server-Features & API](docs/server-features.md)
-- [Release-Checklist](docs/release-checklist.md)
-- [Analysis Service (Persistenz/Ranking)](analysis-service/README.md)
-
-Dieser Bereich bündelt Betrieb, Konfiguration, Release-Checks und
-optionale Persistenz-/Batch-Bausteine.
-
-### Entwickler:innen
-
-- [Entwickler-Architektur & Conventions](ARCHITECTURE.md)
-- [Architektur (Browser + Server + Analysis Service)](docs/architecture.md)
-- [Werkbank-V2-Feature-Referenz](WERKBANK_V2.md)
-- [Export-QA / Render-Gate](docs/export-qa.md)
-- [Golden-Case-QA für Maßnahmen-Steckbriefe](docs/location-brief-golden-qa.md)
-- [Test-Dokumentation](tests/README.md)
-- [CI-/Videoexport-Guardrails](docs/ci-video-export-hardening.md)
-
-### Weitere Themen
-
-- [CLI-Datenkonvertierung (Shell + PowerShell)](usage.md)
-- [Projekt-Credits, Bibliotheken und weiterführende Links](docs/credits.md)
-
-Für den Pitch reicht die README; die vertiefenden Zielgruppen-Seiten sind
-hier bewusst getrennt verlinkt.
-
----
-
-## Datenquelle & Lizenz
-
-| Thema | Details |
-|---|---|
-| **Unfallatlas** | [unfallatlas.statistikportal.de](https://unfallatlas.statistikportal.de/) |
-| **Open-Data-Downloads** | [opengeodata.nrw.de/…/unfallatlas](https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/) |
-| **Datenlizenz** | [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) |
-| **Koordinatensystem** | WGS84 (EPSG:4326, exportiert aus EPSG:25832) |
+- Projektlizenz: [Apache License 2.0](LICENSE)
+- Credits und Drittkomponenten: [docs/credits.md](docs/credits.md)
+- Zitierfähige Veröffentlichung: https://doi.org/10.5281/zenodo.20936471
