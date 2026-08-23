@@ -1,0 +1,97 @@
+  const end = nextTitle ? source.indexOf(nextTitle, start + title.length) : source.length;
+  if (end < 0) throw new Error('Missing next test block: ' + nextTitle);
+  return source.slice(start, end);
+}
+
+describe('featured README media stays visibly informative', () => {
+  const screenshotSpec = read('tests/e2e/screenshots.spec.js');
+  const readme = read('README.md');
+  const documentation = read('docs/DOKUMENTATION.md');
+  const manifest = JSON.parse(read('docs/media-manifest.json'));
+
+  test('Bonn Hbf combines a painted heatmap with visible numbered accident clusters', () => {
+    const block = testBlock(
+      screenshotSpec,
+      "test('13 Bonn Hauptbahnhof",
+      "test('14 Export mit Filterkontext'"
+    );
+    expect(block).toContain('setViewportSize({ width: 1774, height: 887 })');
+    expect(block).toContain('showCluster=1&showHeatmap=1');
+    expect(block).toContain("layers: ['cluster', 'heatmap']");
+    expect(block).toContain('assertFeaturedAccidentSignal(page, { minimumClusters: 5 })');
+    expect(readme).toContain('showCluster=1&showHeatmap=1');
+    expect(documentation).toContain('showCluster=1&showHeatmap=1');
+  });
+
+  test('the report dialog retains visible map and accident context', () => {
+    const block = testBlock(
+      screenshotSpec,
+      "test('14 Export mit Filterkontext'",
+      "test('16 Antrag-Inhalt"
+    );
+    expect(block).toContain('setViewportSize({ width: 1774, height: 887 })');
+    expect(block).toContain('outsideModal: true');
+    expect(block).toContain('minimumClusters: 3');
+  });
+
+  test('the PDF documentation image is a two-page spread with the map enabled', () => {
+    const block = testBlock(
+      screenshotSpec,
+      "test('15 PDF-Export",
+      null
+    );
+    expect(block).toContain("expect(page.locator('#cbIncludeMap')).toBeChecked()");
+    expect(block).not.toContain("page.locator('#cbIncludeMap').uncheck()");
+    expect(block).toContain('id="pdf-spread"');
+    expect(block).toContain('spreadPageNumbers = [1, 2]');
+    expect(block).toContain("page.locator('#pdf-spread').screenshot");
+  });
+
+  test.each([
+    'docs/screenshots/13-bonn-hbf-radunfaelle.png',
+    'docs/screenshots/14-export-filterkontext.png',
+    'docs/screenshots/15-export-pdf-rendered.png',
+  ])('%s uses the reviewed high-resolution documentation viewport', (assetPath) => {
+    const asset = manifest.assets.find((candidate) => candidate.path === assetPath);
+    expect(asset).toBeDefined();
+    expect(asset.target).toEqual({ width: 1774, height: 887 });
+  });
+
+  test('selection fill remains transparent enough not to hide the heatmap', () => {
+    expect(read('js/ua.ui.js')).toContain('fillOpacity:0.06');
+  });
+});
+`;
+}
+
+function applyPatches() {
+  patchFile('tests/e2e/screenshots.spec.js', patchScreenshotSpec);
+  patchFile('scripts/documentation-deeplink-contract.cjs', patchDeepLinkContract);
+  patchFile('README.md', patchReadme);
+  patchFile('docs/DOKUMENTATION.md', patchDocumentation);
+  patchFile('docs/media-manifest.json', patchManifest);
+  patchFile('docs/screenshots/README.md', patchScreenshotGuide);
+  patchFile('.github/workflows/visual-check.yml', patchVisualWorkflow);
+  patchFile('js/ua.ui.js', (source) => replaceExact(
+    source,
+    'L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2})',
+    'L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2, fillOpacity:0.06})',
+    'make URL-hydrated selection transparent enough for heatmaps'
+  ));
+  write('tests/unit/featuredDocumentationMediaContract.test.js', featuredContractTest());
+  process.stdout.write('[apply-media-fix] wrote featured media regression contract\n');
+}
+
+function sha256(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+function promoteEvidence() {
+  const summarySource = absolute('out/qa/screenshot-evidence.json');
+  const cartographySource = absolute('out/qa/live-cartography-evidence.json');
+  const readinessSource = absolute('out/qa/screenshot-readiness');
+  const buildManifestPath = absolute('_site/build-manifest.json');
+  for (const required of [summarySource, cartographySource, readinessSource, buildManifestPath]) {
+    if (!fs.existsSync(required)) throw new Error(`Missing generated evidence: ${required}`);
+  }
+
