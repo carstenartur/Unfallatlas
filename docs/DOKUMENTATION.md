@@ -9,16 +9,17 @@ Diese Anleitung führt von der ersten Kartenansicht bis zur teilbaren Analyse un
 ## Inhalt
 
 1. [Schnellstart](#schnellstart)
-2. [Der typische Arbeitsablauf](#der-typische-arbeitsablauf)
-3. [Filter und Beteiligungsmodi](#filter-und-beteiligungsmodi)
-4. [Karte, Auswahl und Darstellungen](#karte-auswahl-und-darstellungen)
-5. [Kontext: Schulen, Kitas, Straßen und Gelände](#kontext-neu)
-6. [Analyse teilen](#analyse-teilen)
-7. [Export und Bezirksratsantrag](#export-und-bezirksratsantrag)
-8. [Praxisbeispiele](#praxisbeispiele)
-9. [Methodik und Grenzen](#methodik-und-grenzen)
-10. [Häufige Fragen](#häufige-fragen-faq)
-11. [Betrieb und Entwicklung](#betrieb-und-entwicklung)
+2. [Demo-Ablauf](#demo-ablauf)
+3. [Der typische Arbeitsablauf](#der-typische-arbeitsablauf)
+4. [Filter und Beteiligungsmodi](#filter-und-beteiligungsmodi)
+5. [Karte, Auswahl und Darstellungen](#karte-auswahl-und-darstellungen)
+6. [Kontext: Schulen, Kitas, Straßen und Gelände](#kontext-neu)
+7. [Analyse teilen](#analyse-teilen)
+8. [Export und Bezirksratsantrag](#export-und-bezirksratsantrag)
+9. [Praxisbeispiele](#praxisbeispiele)
+10. [Methodik und Grenzen](#methodik-und-grenzen)
+11. [Häufige Fragen](#häufige-fragen-faq)
+12. [Betrieb und Entwicklung](#betrieb-und-entwicklung)
 
 ---
 
@@ -41,6 +42,14 @@ Die öffentliche Browser-Version benötigt keine Installation:
 - **Analyse/Export:** Zusammenfassung, Tabellen, Datenexport und Dokumententwurf.
 
 Die Werkbank arbeitet interaktiv. Nach einer Änderung sollte die Statusanzeige vollständig aktualisiert sein, bevor Zahlen oder Screenshots übernommen werden.
+
+---
+
+## Demo-Ablauf
+
+[![Demo-Ablauf der Unfallwerkbank: Stadt wählen, filtern, Karte untersuchen und exportieren](demo.gif)](demo.gif)
+
+Die Animation zeigt einen zusammenhängenden Ablauf mit Stadtwahl, Beteiligungsfiltern, Heatmap, räumlicher Auswahl und Exportansicht. Sie wird nicht als zweiter, unabhängiger Video-Workflow gepflegt: `npm run regen:demo` startet den echten Produktionscontainer über den gemeinsamen Testcontainers-Helper und lädt das vom serverseitigen Playwright-Videoexport erzeugte GIF herunter. Format, Bildmaß, sichtbare Frame-Unterschiede, Dauer und Dateigröße werden vor dem atomaren Ersetzen geprüft.
 
 ---
 
@@ -269,7 +278,7 @@ Der Antragstext ist ein **Entwurf**. Er ersetzt weder Ortsbegehung noch Planung,
 
 ### Video-Export (Docker)
 
-Ein servergestützter Betrieb kann eine Animation der Analyse erzeugen. Diese Funktion ist vom früher in README und Nutzerdokumentation eingebetteten Demo-GIF zu unterscheiden: Das veraltete, fest eingebettete Demo-Medium wurde entfernt. Aktuelle Videos werden bei Bedarf aus einem konkreten Analysezustand erzeugt. Bedienung und Provenienz: [Docker und Videoexport](docker.md#video-export-funktion-server-betrieb-node-oder-docker).
+Der servergestützte Betrieb erzeugt GIF, Animated WebP oder APNG über denselben Playwright-Ablauf, den auch das eingebettete Demo-GIF verwendet. Die README-Regeneration implementiert diesen Ablauf nicht noch einmal, sondern lädt lediglich das Ergebnis von `POST /api/export-video` aus einem mit Testcontainers gestarteten Produktionscontainer. Bedienung, Formate und Provenienz: [Docker und Videoexport](docker.md#video-export-funktion-server-betrieb-node-oder-docker).
 
 ---
 

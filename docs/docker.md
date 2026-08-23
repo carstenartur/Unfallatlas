@@ -94,19 +94,24 @@ Animation; der Antwortheader `X-Unfallatlas-Package-SHA256` bindet das gesamte
 ZIP. Zulässige Medienformate bleiben `gif`, `webp` und `apng`; zulässige
 Verpackungen sind `binary` und `zip`.
 
-## Dokumentationsmedien
+## README-Demo-GIF reproduzieren
 
-Der Videoexport bleibt eine Produktfunktion, wird aber nicht mehr als festes
-Demo-GIF in README oder Nutzungsanleitung eingebettet. Das frühere
-`docs/demo.gif` zeigte eine überholte Oberfläche und wurde entfernt.
+`npm run regen:demo` startet denselben Container-Helper wie der
+Testcontainers-Integrationstest
+[`tests/integration/videoExport.testcontainers.test.js`](../tests/integration/videoExport.testcontainers.test.js):
+Image-Quelle ist bevorzugt `UNFALLATLAS_IMAGE` (z. B.
+`ghcr.io/carstenartur/unfallatlas:latest`), sonst lokaler `docker build`.
 
-Nutzerseitige Dokumentation verwendet stattdessen statische Screenshots, die
-auf den jeweils reproduzierbaren Analysezustand verlinken. Regeln und QA dafür:
-[`docs/screenshots/README.md`](screenshots/README.md).
+```bash
+export UNFALLATLAS_IMAGE=ghcr.io/carstenartur/unfallatlas:latest
+npm run regen:demo
+```
 
-Soll künftig erneut eine Animation eingebettet werden, muss sie aus einem
-aktuellen, dokumentierten Szenario erzeugt und zusammen mit Manifest,
-Provenienz, Größen-/Dauerbudget und allen Markdown-Referenzen geprüft werden.
+Damit werden Test und das kanonische Doku-Asset `docs/demo.gif` aus derselben
+Video-Export-Pipeline erzeugt. Der Generator prüft vor dem Ersetzen Format,
+Zielmaß, 60-Sekunden-Dauergrenze und Manifest-Budget. Bei mehr als 9 MiB
+bricht er ohne Änderung ab; ein Wechsel auf WebP/APNG ist eine eigene,
+gemeinsam mit Manifest und Markdown-Referenzen zu prüfende Migration.
 
 ## Verwandte Doku
 

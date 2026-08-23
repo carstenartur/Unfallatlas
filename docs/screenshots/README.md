@@ -20,6 +20,9 @@ werden automatisiert geprüft.
 6. Ein geöffnetes Menü oder ein Dialog wird nicht durch einen wirkungslosen
    URL-Parameter vorgetäuscht. Die Dokumentation verlinkt die zugrunde liegende
    Analyse und nennt den anschließenden Bedienungsschritt.
+7. Die kanonische Animation `docs/demo.gif` wird ausschließlich aus dem
+   serverseitigen Videoexport regeneriert. Ein zweiter, davon abweichender
+   Aufnahmeablauf ist nicht zulässig.
 
 ## Eingecheckter, geprüfter Bestand
 
@@ -53,13 +56,18 @@ Kartenmodi und Fallback:
 - `24-mapmode-analysis.png`
 - `25-mapmode-orthophoto-fallback.png`
 
+Animation:
+
+- `../demo.gif` – zusammenhängender Analyse- und Exportablauf aus dem aktuellen
+  Produktionscontainer.
+
 Nicht jedes Bild muss in der Nutzerführung erscheinen. Diagnosebilder für
 transiente UI-Zustände oder absichtlich erzwungene Fehlerfälle bleiben als
 QA-Belege erhalten, ohne die README zu überladen.
 
 ## Erzeugung
 
-Die kanonischen Szenarien stehen in
+Die kanonischen Screenshot-Szenarien stehen in
 [`tests/e2e/screenshots.spec.js`](../../tests/e2e/screenshots.spec.js). Vor einer
 Übernahme müssen insbesondere folgende Nachweise erfolgreich sein:
 
@@ -100,9 +108,16 @@ Datenprovenienz, Grundkarte und Deep-Link gemeinsam geprüft wurden.
 
 ## Animationen
 
-Das früher eingebettete README-Demo-GIF zeigte nicht mehr die aktuelle
-Oberfläche und wurde entfernt. Die Nutzerführung verwendet statische,
-deep-verlinkte Screenshots. Der serverseitige Videoexport bleibt eine
-eigenständige Produktfunktion; ein künftig erneut eingebettetes Demo müsste aus
-einem aktuellen, dokumentierten Szenario erzeugt und wie jedes andere Medium in
-Manifest und QA aufgenommen werden.
+`npm run regen:demo` implementiert den sichtbaren Ablauf nicht erneut. Das
+Skript startet mit demselben Helper wie die Testcontainers-Integrationstests
+den echten Produktionscontainer und lädt anschließend das vom Server-Endpunkt
+`POST /api/export-video` erzeugte GIF herunter. Die eigentliche Aufnahme und
+Interaktion liegen in `server/video-export.js` und laufen dort mit Playwright.
+
+Vor dem atomaren Ersetzen von `docs/demo.gif` werden die vollständige
+GIF-Struktur, sichtbare Unterschiede zwischen zusammengesetzten Frames,
+720 × 405 px, höchstens 60 Sekunden und das 9-MiB-Budget geprüft. Der fokussierte
+Regressionstest liegt unter
+[`tests/unit/regen-readme-demo.test.js`](../../tests/unit/regen-readme-demo.test.js).
+Der dedizierte GitHub-Actions-Lauf lädt ausschließlich den validierten
+Kandidaten als Review-Artefakt hoch; er schreibt nicht automatisch nach `main`.

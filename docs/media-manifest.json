@@ -4,305 +4,167 @@
   "defaults": {
     "maxBytes": 1572864,
     "maxTotalBytes": 31457280,
-    "screenshotTarget": {
-      "width": 1280,
-      "height": 640
-    },
-    "reviewPolicy": "Statische Kartenmedien müssen das Zielmaß und 1,5-MiB-Einzelbudget einhalten; das 30-MiB-Gesamtbudget umfasst reale hochentropische Grundkarten und die gerenderte Dokumentvorschau. Nutzerseitige Medien benötigen einen reproduzierbaren Analyse-Link."
+    "screenshotTarget": { "width": 1280, "height": 640 },
+    "reviewPolicy": "Statische Kartenmedien müssen das Zielmaß und 1,5-MiB-Einzelbudget einhalten; das 30-MiB-Gesamtbudget umfasst reale hochentropische Grundkarten, die gerenderte Dokumentvorschau und die explizit budgetierte, aus dem Serverexport regenerierte Animation. Nutzerseitige Screenshots benötigen einen reproduzierbaren Analyse-Link."
   },
   "assets": [
+    {
+      "path": "docs/demo.gif",
+      "kind": "animation",
+      "purpose": "Kurzer Überblick über den Analyse- und Exportablauf aus dem aktuellen Produktionscontainer.",
+      "target": { "width": 720, "height": 405 },
+      "maxBytes": 9437184,
+      "maxDurationMs": 60000,
+      "exception": "Animierte Übersicht: GIF bleibt für Markdown-Kompatibilität zulässig; 9 MiB und 60 s sind harte Generator- und CI-Grenzen.",
+      "references": ["README.md", "docs/DOKUMENTATION.md", "scripts/regen-readme-demo.js"]
+    },
     {
       "path": "docs/screenshots/01-startansicht.png",
       "kind": "screenshot",
       "purpose": "Einstieg mit real geladenen Hannover-Unfalldaten.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/02-stadtauswahl.png",
       "kind": "screenshot",
       "purpose": "Stadtauswahl im Bedienpanel mit sichtbarem Karten- und Unfallkontext.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/03-filter.png",
       "kind": "screenshot",
       "purpose": "Beteiligungs-, Schwere- und Zeitfilter mit sichtbarer Ergebnis-Karte.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/04-cluster-ansicht.png",
       "kind": "screenshot",
       "purpose": "Clusterkarte mit nachgewiesenen realen Unfallpunkten.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/05-heatmap-ansicht.png",
       "kind": "screenshot",
       "purpose": "Heatmap mit semantisch fertig gerenderten Unfalldaten.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/06-legende.png",
       "kind": "screenshot",
       "purpose": "Geöffnete Kartenlegende im Datenkontext.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/07-export-modal.png",
       "kind": "screenshot",
       "purpose": "Analyse-/Exportdialog und primäre Dokumentaktionen im vollständigen Build.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/08-stundenfilter.png",
       "kind": "screenshot",
       "purpose": "Aktiver Stundenfilter mit sichtbarer räumlicher Ergebnisänderung.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/09-bereich-markieren.png",
       "kind": "screenshot",
       "purpose": "Markierter Analysebereich auf der Karte.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/10-auto-fahrrad-und.png",
       "kind": "screenshot",
       "purpose": "UND-Szenario Pkw und Fahrrad mit realen Unfalltreffern.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/11-fahrrad-alleinunfaelle.png",
       "kind": "screenshot",
       "purpose": "Alleinunfall-Szenario Fahrrad mit realen Unfalltreffern.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "README.md",
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/12-poi-schulen-kitas.png",
       "kind": "screenshot",
       "purpose": "POI-Kontext für Schulen und Kitas neben Unfallpunkten.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "README.md",
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/13-bonn-hbf-radunfaelle.png",
       "kind": "screenshot",
       "purpose": "Bonn-Hbf-Szenario Rad/Pkw mit Heatmap und Auswahlbereich im vollständigen Build.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "README.md",
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/14-export-filterkontext.png",
       "kind": "screenshot",
       "purpose": "Exportvorschau mit aktivem Filter- und Auswahlkontext.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "README.md",
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/15-export-pdf-rendered.png",
       "kind": "document-preview",
       "purpose": "Gerenderte PDF-Belegseite mit der im Exportmodell verifizierten Unfallzahl.",
-      "target": {
-        "width": 892,
-        "height": 1262
-      },
+      "target": { "width": 892, "height": 1262 },
       "maxBytes": 307200,
-      "references": [
-        "README.md",
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "references": ["README.md", "docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/16-antrag-inhalt.png",
       "kind": "screenshot",
       "purpose": "Antragsinhalt im geöffneten Exportdialog.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/21-mapmode-standard.png",
       "kind": "screenshot",
       "purpose": "Standardkartenmodus mit erfolgreich geladener realer OpenStreetMap-Grundkarte.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/22-mapmode-orthophoto.png",
       "kind": "screenshot",
       "purpose": "Orthofoto-Modus mit erfolgreich geladener realer WMS- oder Raster-Grundkarte.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/23-mapmode-hybrid.png",
       "kind": "screenshot",
       "purpose": "Hybridmodus mit realem Orthofoto und real geladenem Beschriftungs-Overlay.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/24-mapmode-analysis.png",
       "kind": "screenshot",
       "purpose": "Analysemodus mit realem Orthofoto und vollständig gerenderter Unfall-Heatmap.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/DOKUMENTATION.md",
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/DOKUMENTATION.md", "docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     },
     {
       "path": "docs/screenshots/25-mapmode-orthophoto-fallback.png",
       "kind": "screenshot",
       "purpose": "Expliziter Orthofoto-Ausfall mit erfolgreich geladener realer Standardkarten-Grundkarte als Fallback.",
-      "target": {
-        "width": 1280,
-        "height": 640
-      },
-      "references": [
-        "docs/screenshots/README.md",
-        "tests/e2e/screenshots.spec.js"
-      ]
+      "target": { "width": 1280, "height": 640 },
+      "references": ["docs/screenshots/README.md", "tests/e2e/screenshots.spec.js"]
     }
   ]
 }

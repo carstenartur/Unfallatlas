@@ -42,6 +42,12 @@ Sie richtet sich unter anderem an Kommunalpolitik, Verkehrsplanung, Verwaltungen
 
 Die URL speichert den adressierbaren Analysezustand. Dadurch können andere Personen dieselbe Stadt, Auswahl, Kartenposition und Filterkombination öffnen.
 
+## Der Ablauf als kurze Animation
+
+[![Demo-Ablauf der Unfallwerkbank: Stadt wählen, filtern, Karte untersuchen und exportieren](docs/demo.gif)](docs/demo.gif)
+
+Die Animation zeigt einen zusammenhängenden realen Ablauf aus dem aktuellen Server-/Docker-Build: Stadt und Filter setzen, den Kartenausschnitt untersuchen, einen Bereich markieren und die Analyse- und Exportansicht öffnen.
+
 ---
 
 ## Typische Analysen
