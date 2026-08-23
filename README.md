@@ -102,6 +102,8 @@ Für Entscheidungen sollten Karte und Export mit Ortskenntnis, aktuellen Planung
 
 ## Verfügbarkeit und Aktualität
 
+Der derzeit eingecheckte und geprüfte Unfalldatenbestand umfasst die Jahrgänge **2016–2025**. Aktualisierungen werden nicht direkt nach `main` geschrieben, sondern zunächst in einem automatischen **Pull Request** zur Prüfung bereitgestellt.
+
 Welche Städte, Jahrgänge und Zusatzdaten verfügbar sind, kann sich unterscheiden:
 
 - [Datenstatus und Aktualität](https://carstenartur.github.io/Unfallatlas/data-status/)
