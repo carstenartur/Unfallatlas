@@ -57,7 +57,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p out/qa
-          mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true \
+          mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true -DskipTests \
             | tee out/qa/bootstrap-documentation-live.log
 
       - name: Upload bootstrap diagnostics
@@ -97,18 +97,22 @@ jobs:
           SCREENSHOT_ARTIFACT_NAME: readme-media-repair-${{ github.run_id }}
         run: node scripts/apply-readme-media-fix.cjs promote
 
-      - name: Validate the promoted repository state
+      - name: Remove the one-shot bootstrap files
+        run: |
+          node scripts/apply-readme-media-fix.cjs cleanup
+          rm -f scripts/.apply-readme-media-fix.part-*
+
+      - name: Validate the final promoted repository state
         run: |
           npm run validate:media -- --report out/qa/readme-media-strict.json
           npm test -- --runInBand \
             tests/unit/featuredDocumentationMediaContract.test.js \
             tests/unit/documentationDeepLinkContract.test.js \
-            tests/integration/documentationDeepLinkRepositoryContract.test.js
-
-      - name: Remove the one-shot bootstrap files
-        run: |
-          node scripts/apply-readme-media-fix.cjs cleanup
-          rm -f scripts/.apply-readme-media-fix.part-*
+            tests/integration/documentationDeepLinkRepositoryContract.test.js \
+            tests/unit/docMediaPolicy.test.js \
+            tests/unit/screenshotPdfEmbeddedScript.test.js \
+            tests/unit/liveDocumentationScreenshots.test.js \
+            tests/unit/workflowMavenOwnership.test.js
 
       - name: Commit the reviewed media, contracts and durable evidence
         run: |
