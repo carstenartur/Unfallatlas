@@ -33,7 +33,7 @@
     '        const unitViewport = pdfPage.getViewport({ scale: 1 });',
     '        const scale = 862 / unitViewport.height;',
     '        const viewport = pdfPage.getViewport({ scale });',
-    '        const canvas = document.getElementById(`pdf-page-${index + 1}`);',
+    '        const canvas = document.getElementById(\'pdf-page-\' + (index + 1));',
     '        canvas.width = Math.ceil(viewport.width);',
     '        canvas.height = Math.ceil(viewport.height);',
     '        await pdfPage.render({ canvasContext: canvas.getContext(\'2d\'), viewport }).promise;',
@@ -78,4 +78,3 @@
     '    expect(pdfDiagnostics.renderedSpreadText).toMatch(/Report\\s*[–-]\\s*Auffälligkeiten/i);',
     '    expect(pdfDiagnostics.renderedSpreadText).toMatch(/Methodik|ANTRAG\\s*\\/\\s*BESCHLUSSVORSCHLAG/i);',
   ].join('\n');
-
