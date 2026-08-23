@@ -71,6 +71,7 @@ function applyPatches() {
   patchFile('docs/DOKUMENTATION.md', patchDocumentation);
   patchFile('docs/media-manifest.json', patchManifest);
   patchFile('tests/unit/docMediaPolicy.test.js', patchDocMediaPolicy);
+  patchFile('pom.xml', patchPom);
   patchFile('docs/screenshots/README.md', patchScreenshotGuide);
   patchFile('.github/workflows/visual-check.yml', patchVisualWorkflow);
   patchFile('js/ua.ui.js', (source) => replaceExact(
