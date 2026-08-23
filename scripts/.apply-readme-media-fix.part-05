@@ -5,8 +5,7 @@
 
 function patchManifest(source) {
   const manifest = JSON.parse(source);
-  manifest.defaults.maxBytes = 3145728;
-  manifest.defaults.reviewPolicy = 'Statische Kartenmedien müssen ihr deklariertes Zielmaß und das 3-MiB-Einzelbudget einhalten; das 30-MiB-Gesamtbudget umfasst reale hochentropische Grundkarten, die zweiseitige Dokumentvorschau und die explizit budgetierte, aus dem Serverexport regenerierte Animation. Nutzerseitige Screenshots benötigen einen reproduzierbaren Analyse-Link und ein bei README-Skalierung sichtbar bleibendes Unfallsignal.';
+  manifest.defaults.reviewPolicy = 'Statische Kartenmedien müssen ihr deklariertes Zielmaß und das 1,5-MiB-Einzelbudget einhalten; das 30-MiB-Gesamtbudget umfasst reale hochentropische Grundkarten, die zweiseitige Dokumentvorschau und die explizit budgetierte, aus dem Serverexport regenerierte Animation. Nutzerseitige Screenshots benötigen einen reproduzierbaren Analyse-Link und ein bei README-Skalierung sichtbar bleibendes Unfallsignal.';
   const byPath = new Map(manifest.assets.map((asset) => [asset.path, asset]));
   const hbf = byPath.get('docs/screenshots/13-bonn-hbf-radunfaelle.png');
   const report = byPath.get('docs/screenshots/14-export-filterkontext.png');
@@ -18,7 +17,7 @@ function patchManifest(source) {
   report.target = { width: 1774, height: 887 };
   pdf.purpose = 'Zweiseitige PDF-Gesamtvorschau mit Kartenanlage, Statistik, Methodik und Beschlussvorschlag.';
   pdf.target = { width: 1774, height: 887 };
-  pdf.maxBytes = 3145728;
+  delete pdf.maxBytes;
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
@@ -50,6 +49,15 @@ function patchVisualWorkflow(source) {
     `      - 'tests/unit/documentationDeepLinkContract.test.js'\n      - '.github/workflows/visual-check.yml'`,
     `      - 'tests/unit/documentationDeepLinkContract.test.js'\n      - 'tests/unit/featuredDocumentationMediaContract.test.js'\n      - '.github/workflows/visual-check.yml'`,
     'trigger visual QA for featured media contract'
+  );
+}
+
+function patchDocMediaPolicy(source) {
+  return replaceExact(
+    source,
+    `  test('new full-screen screenshot candidates target 1280x640', () => {\n    const documentPreview = 'docs/screenshots/15-export-pdf-rendered.png';\n    for (const asset of manifest.assets.filter(entry => entry.kind === 'screenshot')) {\n      if (asset.path !== documentPreview) expect(asset.target).toEqual({ width: 1280, height: 640 });\n    }\n    const screenshotSpec = fs.readFileSync(path.join(ROOT, 'tests/e2e/screenshots.spec.js'), 'utf8');\n    expect(screenshotSpec).toMatch(/viewport:\\s*\\{\\s*width:\\s*1280,\\s*height:\\s*640\\s*\\}/);\n  });`,
+    `  test('documentation screenshots use their reviewed scenario dimensions', () => {\n    const featured = new Set([\n      'docs/screenshots/13-bonn-hbf-radunfaelle.png',\n      'docs/screenshots/14-export-filterkontext.png',\n    ]);\n    for (const asset of manifest.assets.filter(entry => entry.kind === 'screenshot')) {\n      expect(asset.target).toEqual(featured.has(asset.path)\n        ? { width: 1774, height: 887 }\n        : { width: 1280, height: 640 });\n    }\n    const documentPreview = manifest.assets.find(\n      entry => entry.path === 'docs/screenshots/15-export-pdf-rendered.png'\n    );\n    expect(documentPreview.target).toEqual({ width: 1774, height: 887 });\n    const screenshotSpec = fs.readFileSync(path.join(ROOT, 'tests/e2e/screenshots.spec.js'), 'utf8');\n    expect(screenshotSpec).toMatch(/viewport:\\s*\\{\\s*width:\\s*1280,\\s*height:\\s*640\\s*\\}/);\n    expect(screenshotSpec).toContain('setViewportSize({ width: 1774, height: 887 })');\n  });`,
+    'allow explicitly reviewed featured media dimensions'
   );
 }
 
