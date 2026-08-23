@@ -1,0 +1,64 @@
+    `function parseLocalAccidentCount(text) {\n  const match = String(text || '').match(/lokal\\s+([\\d.\\s]+)\\s+Unfälle/i);\n  if (!match) return 0;\n  return Number(match[1].replace(/\\D/g, '')) || 0;\n}\n${featuredSignalHelper()}`,
+    'insert featured screenshot visibility helper'
+  );
+
+  source = replaceExact(
+    source,
+    `  test('13 Bonn Hauptbahnhof – Radunfälle mit Auswahl', async ({ page }) => {\n    // Bonn Hbf: Fahrrad+Auto UND-Modus, Bereich markiert, Heatmap aktiv\n    await loadPage(page,`,
+    `  test('13 Bonn Hauptbahnhof – Rad/Pkw mit sichtbaren Clustern und Heatmap', async ({ page }) => {\n    await page.setViewportSize({ width: 1774, height: 887 });\n    // Bonn Hbf: Fahrrad+Auto UND-Modus, Bereich markiert, Cluster und Heatmap gemeinsam sichtbar.\n    await loadPage(page,`,
+    'make featured HBF screenshot wide and explicit'
+  );
+  source = replaceExact(
+    source,
+    `      '&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0' +`,
+    `      '&involvementMode=and&showCluster=1&showHeatmap=1&showOnlyAboveAverage=0' +`,
+    'enable HBF clusters beside heatmap',
+    1
+  );
+  source = replaceExact(
+    source,
+    `    await waitForCities(page);\n    await captureDataScreenshot(page, {\n      path: 'docs/screenshots/13-bonn-hbf-radunfaelle.png',\n      fullPage: true,\n      city: 'Bonn',\n      layers: ['heatmap']\n    });`,
+    `    await waitForCities(page);\n    await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster', 'heatmap'] });\n    await assertFeaturedAccidentSignal(page, { minimumClusters: 5 });\n    await captureDataScreenshot(page, {\n      path: 'docs/screenshots/13-bonn-hbf-radunfaelle.png',\n      fullPage: true,\n      city: 'Bonn',\n      layers: ['cluster', 'heatmap']\n    });`,
+    'bind HBF screenshot to visible cluster and heatmap evidence'
+  );
+
+  source = replaceExact(
+    source,
+    `  test('14 Export mit Filterkontext', async ({ page }) => {\n    // Bonn mit Auswahl und spezifischen Filtern, dann Export öffnen`,
+    `  test('14 Export mit Filterkontext', async ({ page }) => {\n    await page.setViewportSize({ width: 1774, height: 887 });\n    // Bonn mit Auswahl und spezifischen Filtern, dann Export öffnen`,
+    'make export screenshot wide enough for map context'
+  );
+  source = replaceExact(
+    source,
+    `    await page.waitForTimeout(1000);\n    await captureDataScreenshot(page, {\n      path: 'docs/screenshots/14-export-filterkontext.png',`,
+    `    await page.waitForTimeout(1000);\n    await assertFeaturedAccidentSignal(page, { minimumClusters: 3, outsideModal: true });\n    await captureDataScreenshot(page, {\n      path: 'docs/screenshots/14-export-filterkontext.png',`,
+    'require visible accident clusters around export modal'
+  );
+
+  source = replaceExact(
+    source,
+    `test.describe('Werkbank V2 – PDF-Export Rendering', () => {\n  test.use({ viewport: { width: 1280, height: 800 } });`,
+    `test.describe('Werkbank V2 – PDF-Export Rendering', () => {\n  test.use({ viewport: { width: 1774, height: 887 } });`,
+    'use reviewed two-page PDF spread dimensions'
+  );
+  source = replaceExact(
+    source,
+    `    // Kartenausschnitt deaktivieren (vermeidet leaflet-image-Abhängigkeit)\n    await page.locator('#cbIncludeMap').uncheck();`,
+    `    // Die veröffentlichte PDF-Vorschau muss die Kartenanlage enthalten.\n    await expect(page.locator('#cbIncludeMap')).toBeChecked();`,
+    'keep map in PDF documentation evidence'
+  );
+
+  const newPdfRenderer = [
+    '    // Die ersten beiden vollständigen PDF-Seiten werden als zusammenhängende',
+    '    // Gesamtvorschau gerendert: Karte/Statistik links, Methodik und',
+    '    // Beschlussvorschlag rechts. So dokumentiert das Bild den tatsächlichen',
+    '    // Export statt einer zufällig ausgewählten textlastigen Folgeseite.',
+    '    await page.setContent(`<!DOCTYPE html>',
+    '<html>',
+    '<head>',
+    '  <meta charset="utf-8">',
+    '  <title>PDF Spread Preview</title>',
+    '  <style>',
+    '    html, body { margin: 0; width: 1774px; height: 887px; overflow: hidden; background: #eef1f5; }',
+    '    #pdf-spread {',
+    '      box-sizing: border-box; width: 1774px; height: 887px; padding: 2px 18px;',
