@@ -1,0 +1,100 @@
+name: Bootstrap README media visibility repair
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-readme-media-fix.yml'
+      - 'scripts/.apply-readme-media-fix.part-*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: readme-media-repair-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    name: Generate, validate and promote readable documentation media
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout the pull-request branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Configure the generated commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          test "$(git branch --show-current)" = '${{ github.event.pull_request.head.ref }}'
+          test -z "$(git status --porcelain)"
+
+      - name: Assemble and apply the fail-closed media repair
+        run: |
+          cat scripts/.apply-readme-media-fix.part-* > scripts/apply-readme-media-fix.cjs
+          node --check scripts/apply-readme-media-fix.cjs
+          node scripts/apply-readme-media-fix.cjs apply
+
+      - name: Generate and validate current documentation media
+        env:
+          DOCUMENTATION_APP_BASE_URL: http://localhost:8000
+        run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true
+
+      - name: Upload the exact reviewed screenshot candidate
+        id: candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: readme-media-repair-${{ github.run_id }}
+          path: |
+            docs/screenshots/*.png
+            out/qa/screenshot-readiness/*.json
+            out/qa/screenshot-evidence.json
+            out/qa/live-cartography-evidence.json
+            out/qa/documentation-media.json
+            out/qa/documentation-live-links/
+            _site/build-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Promote the exact candidate and its evidence
+        env:
+          SCREENSHOT_ARTIFACT_SHA256: ${{ steps.candidate.outputs.artifact-digest }}
+          SCREENSHOT_ARTIFACT_ID: ${{ steps.candidate.outputs.artifact-id }}
+          SCREENSHOT_ARTIFACT_NAME: readme-media-repair-${{ github.run_id }}
+        run: node scripts/apply-readme-media-fix.cjs promote
+
+      - name: Validate the promoted repository state
+        run: |
+          npm run validate:media -- --report out/qa/readme-media-strict.json
+          npm test -- --runInBand \
+            tests/unit/featuredDocumentationMediaContract.test.js \
+            tests/unit/documentationDeepLinkContract.test.js \
+            tests/integration/documentationDeepLinkRepositoryContract.test.js
+
+      - name: Remove the one-shot bootstrap files
+        run: |
+          node scripts/apply-readme-media-fix.cjs cleanup
+          rm -f scripts/.apply-readme-media-fix.part-*
+
+      - name: Commit the reviewed media, contracts and durable evidence
+        run: |
+          git add -A
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'Repair produced no changes'; exit 1; }
+          git commit -m 'fix(docs): make README accident evidence visible'
+          git push origin HEAD:'${{ github.event.pull_request.head.ref }}'
