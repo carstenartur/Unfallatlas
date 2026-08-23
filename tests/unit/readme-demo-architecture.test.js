@@ -2,6 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  ANIMATED_IMAGE_WIDTH,
+} = require('../../server/video-export-filters.js');
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -27,11 +30,31 @@ describe('README demo regeneration architecture', () => {
     expect(source).not.toMatch(/\b(?:spawn|spawnSync|exec|execFile|execFileSync)\s*\(/);
   });
 
+  test('allows an obsolete canonical GIF to be repaired, then retains the strict post-write gate', () => {
+    const source = read('scripts/regen-readme-demo.js');
+
+    expect(source).toMatch(/const before = validate\([\s\S]*?policyOnly:\s*true/);
+    expect(source).toMatch(/const after = validate\(\{ root: REPO_ROOT, manifest: 'docs\/media-manifest\.json' \}\)/);
+    expect(source).toContain('atomicWrite(DEMO_ASSET_PATH, original)');
+  });
+
+  test('the media target is derived from the deliberate server encoding width', () => {
+    const manifest = JSON.parse(read('docs/media-manifest.json'));
+    const demo = manifest.assets.find(asset => asset.path === 'docs/demo.gif');
+
+    expect(demo).toBeDefined();
+    expect(demo.target.width).toBe(ANIMATED_IMAGE_WIDTH);
+    expect(demo.target.height).toBe(Math.round(ANIMATED_IMAGE_WIDTH * 9 / 16));
+    expect(demo.maxBytes).toBe(9 * 1024 * 1024);
+    expect(demo.maxDurationMs).toBe(60_000);
+  });
+
   test('the candidate workflow invokes the canonical command instead of reimplementing it inline', () => {
     const workflow = read('.github/workflows/regenerate-readme-demo-candidate.yml');
 
     expect(workflow).toContain('npm run regen:demo');
     expect(workflow).toContain('RUN_TESTCONTAINERS');
+    expect(workflow).toContain('if: success()');
     expect(workflow).not.toMatch(/startUnfallatlasContainer|chooseDemoAsset|chromium\.launch|ffmpeg/);
   });
 

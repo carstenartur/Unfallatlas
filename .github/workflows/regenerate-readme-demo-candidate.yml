@@ -8,11 +8,13 @@ on:
       - 'Dockerfile'
       - 'package.json'
       - 'package-lock.json'
+      - 'docs/media-manifest.json'
       - 'scripts/regen-readme-demo.js'
       - 'scripts/gif-timeline.js'
       - 'server/**'
       - 'tests/integration/lib/startUnfallatlasContainer.js'
       - 'tests/unit/regen-readme-demo.test.js'
+      - 'tests/unit/readme-demo-architecture.test.js'
       - 'werkbank_v2.html'
       - 'js/**'
       - 'css/**'
@@ -53,11 +55,14 @@ jobs:
 
       - name: Verify the regenerated GIF and regeneration contract
         run: |
-          npx jest --runTestsByPath tests/unit/regen-readme-demo.test.js --runInBand
+          npx jest --runTestsByPath \
+            tests/unit/regen-readme-demo.test.js \
+            tests/unit/readme-demo-architecture.test.js \
+            --runInBand
           npm run validate:media
 
       - name: Upload the validated candidate
-        if: always()
+        if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: readme-demo-candidate-${{ github.run_id }}

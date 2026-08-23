@@ -114,10 +114,17 @@ den echten Produktionscontainer und lädt anschließend das vom Server-Endpunkt
 `POST /api/export-video` erzeugte GIF herunter. Die eigentliche Aufnahme und
 Interaktion liegen in `server/video-export.js` und laufen dort mit Playwright.
 
+Der Server zeichnet mit 1280 × 720 px auf und kodiert die Animation mit dem
+zentralen Filter aus `server/video-export-filters.js` auf **960 × 540 px**. Die
+960-px-Breite ist Teil des semantischen Rendervertrags: Sie erhält auch die
+schmale Verkehrslinie mit genügend realen Bildpunkten für den Testcontainers-
+Nachweis. Der Dokumentationsgenerator skaliert deshalb nicht ein zweites Mal.
+
 Vor dem atomaren Ersetzen von `docs/demo.gif` werden die vollständige
 GIF-Struktur, sichtbare Unterschiede zwischen zusammengesetzten Frames,
-720 × 405 px, höchstens 60 Sekunden und das 9-MiB-Budget geprüft. Der fokussierte
+960 × 540 px, höchstens 60 Sekunden und das 9-MiB-Budget geprüft. Der fokussierte
 Regressionstest liegt unter
 [`tests/unit/regen-readme-demo.test.js`](../../tests/unit/regen-readme-demo.test.js).
-Der dedizierte GitHub-Actions-Lauf lädt ausschließlich den validierten
-Kandidaten als Review-Artefakt hoch; er schreibt nicht automatisch nach `main`.
+Der dedizierte GitHub-Actions-Lauf lädt ausschließlich nach erfolgreicher
+Regeneration und strenger Medienprüfung einen Kandidaten als Review-Artefakt
+hoch; er schreibt nicht automatisch nach `main`.

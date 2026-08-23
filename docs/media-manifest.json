@@ -12,7 +12,7 @@
       "path": "docs/demo.gif",
       "kind": "animation",
       "purpose": "Kurzer Überblick über den Analyse- und Exportablauf aus dem aktuellen Produktionscontainer.",
-      "target": { "width": 720, "height": 405 },
+      "target": { "width": 960, "height": 540 },
       "maxBytes": 9437184,
       "maxDurationMs": 60000,
       "exception": "Animierte Übersicht: GIF bleibt für Markdown-Kompatibilität zulässig; 9 MiB und 60 s sind harte Generator- und CI-Grenzen.",

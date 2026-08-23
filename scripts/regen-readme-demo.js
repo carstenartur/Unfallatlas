@@ -192,7 +192,17 @@ async function chooseDemoAsset(baseUrl, opts = {}) {
 async function main() {
   const policy = loadDemoPolicy();
   assertNoAlternativeDemoAssets();
-  const before = validate({ root: REPO_ROOT, manifest: 'docs/media-manifest.json' });
+
+  // A changed server resolution makes the old canonical asset intentionally
+  // stale. Validate the manifest, paths, references and budgets first, but do
+  // not require the old bytes to satisfy the new target before they can be
+  // regenerated. The strict byte/evidence gate runs after the atomic replace
+  // and restores the original asset on every failure.
+  const before = validate({
+    root: REPO_ROOT,
+    manifest: 'docs/media-manifest.json',
+    policyOnly: true,
+  });
   if (!before.valid) {
     throw new Error(`existing documentation media policy is invalid:\n${before.errors.join('\n')}`);
   }
