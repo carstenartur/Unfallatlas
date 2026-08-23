@@ -9,7 +9,11 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Candidate documentation checks run against the deterministic _site tree.
+  // Retrying every failing scenario twice can consume the complete workflow
+  // budget before the actual error is reported. Published/live checks retain
+  // the normal retry allowance for transient network failures.
+  retries: process.env.CI && !serveExistingSite ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['html'],
