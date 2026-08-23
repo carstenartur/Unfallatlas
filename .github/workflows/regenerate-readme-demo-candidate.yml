@@ -51,7 +51,7 @@ jobs:
           cache: maven
 
       - name: Regenerate and validate through the canonical Maven profile
-        run: mvn -B -ntp clean verify -Preadme-demo-candidate -DskipTests
+        run: mvn -B -ntp clean verify -Preadme-demo-candidate
 
       - name: Upload the validated candidate
         if: success()
