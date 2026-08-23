@@ -64,9 +64,9 @@ function patchDocMediaPolicy(source) {
 function patchPom(source) {
   return replaceExact(
     source,
-    `                                <configuration>\n                                    <arguments>run qa:documentation-live</arguments>\n                                    <environmentVariables>`,
-    `                                <configuration>\n                                    <arguments>run qa:documentation-live</arguments>\n                                    <skip>false</skip>\n                                    <environmentVariables>`,
-    'keep the explicitly selected documentation-live goal active under -DskipTests'
+    `                            <execution>\n                                <id>generate-and-validate-live-documentation</id>`,
+    `                            <execution>\n                                <id>frontend-unit-tests</id>\n                                <configuration><skip>true</skip></configuration>\n                            </execution>\n                            <execution>\n                                <id>frontend-integration-tests</id>\n                                <configuration><skip>true</skip></configuration>\n                            </execution>\n                            <execution>\n                                <id>frontend-performance-tests</id>\n                                <configuration><skip>true</skip></configuration>\n                            </execution>\n                            <execution>\n                                <id>generate-and-validate-live-documentation</id>`,
+    'skip only unrelated frontend suites in the documentation-live profile'
   );
 }
 
