@@ -15,7 +15,7 @@ function patchManifest(source) {
   hbf.target = { width: 1774, height: 887 };
   report.purpose = 'Exportvorschau mit aktivem Filter- und Auswahlkontext sowie außerhalb des Dialogs sichtbaren Unfallclustern.';
   report.target = { width: 1774, height: 887 };
-  pdf.purpose = 'Zweiseitige PDF-Gesamtvorschau mit Kartenanlage, Statistik, Methodik und Beschlussvorschlag.';
+  pdf.purpose = 'Zweiseitige PDF-Gesamtvorschau mit Kartenanlage, Methodik und Beschlussvorschlag.';
   pdf.target = { width: 1774, height: 887 };
   delete pdf.maxBytes;
   return `${JSON.stringify(manifest, null, 2)}\n`;
