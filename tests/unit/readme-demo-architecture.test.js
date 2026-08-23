@@ -54,12 +54,16 @@ describe('README demo regeneration architecture', () => {
     const pom = read('pom.xml');
 
     expect(workflow).toContain('mvn -B -ntp clean verify -Preadme-demo-candidate');
+    expect(workflow).not.toContain('-DskipTests');
     expect(workflow).toContain('if: success()');
     expect(workflow).not.toMatch(/\bnpm\s+(?:ci|install|run|test|exec)\b/);
     expect(workflow).not.toMatch(/\bnpx\b/);
     expect(workflow).not.toMatch(/\bnode\s+(?:\.\/)?(?:scripts|tests)\//);
 
     expect(pom).toContain('<id>readme-demo-candidate</id>');
+    expect(pom).toMatch(/<id>readme-demo-candidate<\/id>[\s\S]*?<id>frontend-unit-tests<\/id>[\s\S]*?<skip>true<\/skip>/);
+    expect(pom).toMatch(/<id>readme-demo-candidate<\/id>[\s\S]*?<id>frontend-integration-tests<\/id>[\s\S]*?<skip>true<\/skip>/);
+    expect(pom).toMatch(/<id>readme-demo-candidate<\/id>[\s\S]*?<id>frontend-performance-tests<\/id>[\s\S]*?<skip>true<\/skip>/);
     expect(pom).toContain('<arguments>run regen:demo</arguments>');
     expect(pom).toContain('<RUN_TESTCONTAINERS>1</RUN_TESTCONTAINERS>');
     expect(pom).toContain('tests/unit/regen-readme-demo.test.js');
