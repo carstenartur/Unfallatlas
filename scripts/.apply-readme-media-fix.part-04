@@ -8,7 +8,7 @@
   source = replaceExact(
     source,
     `    // Screenshot der ersten PDF-Seite, auf der die zuvor aus dem Exportmodell\n    // verifizierte lokale Unfallzahl tatsächlich genannt wird.`,
-    `    // Screenshot der ersten beiden vollständigen PDF-Seiten; die lokale\n    // Unfallzahl, die Kartenanlage und der Beschlussvorschlag bleiben gemeinsam sichtbar.`,
+    `    // Screenshot zweier repräsentativer vollständiger PDF-Seiten: Methodik und\n    // Beschlussvorschlag auf der ersten, Übersicht und Auswahlkarte auf der zweiten.`,
     'update PDF screenshot intent'
   );
   source = replaceExact(
@@ -81,7 +81,7 @@ function patchReadme(source) {
   source = replaceExact(
     source,
     'Gerenderte Vorschau eines PDF-Exports',
-    'Zweiseitige PDF-Gesamtvorschau mit Karte, Statistik und Beschlussvorschlag',
+    'Zweiseitige PDF-Gesamtvorschau mit Kartenanlage, Methodik und Beschlussvorschlag',
     'README PDF spread alt text'
   );
   return source;
@@ -97,4 +97,4 @@ function patchDocumentation(source) {
   source = source.replaceAll('Rad-Pkw-Heatmap mit markiertem Bereich am Bonner Hauptbahnhof',
     'Rad-Pkw-Cluster und Heatmap mit markiertem Bereich am Bonner Hauptbahnhof');
   source = source.replaceAll('Gerenderte Seite eines PDF-Exports',
-    'Zweiseitige PDF-Gesamtvorschau mit Karte, Statistik und Beschlussvorschlag');
+    'Zweiseitige PDF-Gesamtvorschau mit Kartenanlage, Methodik und Beschlussvorschlag');
