@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: read
 
 concurrency:
   group: readme-media-repair-${{ github.event.pull_request.number }}
@@ -90,12 +91,43 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Promote the exact candidate and its evidence
+      - name: Resolve uploaded artifact metadata
+        id: artifact
+        shell: bash
         env:
-          SCREENSHOT_ARTIFACT_SHA256: ${{ steps.candidate.outputs.artifact-digest }}
-          SCREENSHOT_ARTIFACT_ID: ${{ steps.candidate.outputs.artifact-id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          name="readme-media-repair-${GITHUB_RUN_ID}"
+          metadata="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
+            --jq ".artifacts[] | select(.name == \"${name}\") | [.id, .digest] | @tsv")"
+          test -n "$metadata"
+          IFS=$'\t' read -r artifact_id artifact_digest <<< "$metadata"
+          artifact_digest="${artifact_digest#sha256:}"
+          [[ "$artifact_id" =~ ^[1-9][0-9]*$ ]]
+          [[ "$artifact_digest" =~ ^[a-f0-9]{64}$ ]]
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_digest=$artifact_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Promote the exact candidate and its evidence
+        shell: bash
+        env:
+          SCREENSHOT_ARTIFACT_SHA256: ${{ steps.artifact.outputs.artifact_digest }}
+          SCREENSHOT_ARTIFACT_ID: ${{ steps.artifact.outputs.artifact_id }}
           SCREENSHOT_ARTIFACT_NAME: readme-media-repair-${{ github.run_id }}
-        run: node scripts/apply-readme-media-fix.cjs promote
+        run: |
+          set -o pipefail
+          node scripts/apply-readme-media-fix.cjs promote 2>&1 \
+            | tee out/qa/bootstrap-promote.log
+
+      - name: Upload promotion diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: readme-media-promotion-diagnostics-${{ github.run_id }}
+          path: out/qa/bootstrap-promote.log
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Remove the one-shot bootstrap files
         run: |
