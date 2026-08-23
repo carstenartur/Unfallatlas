@@ -24,6 +24,16 @@ function applyMediaBudgetCorrections() {
     `    const featured = new Set([\n      'docs/screenshots/14-export-filterkontext.png',\n    ]);`,
     'apply the standard dimensions to the HBF screenshot'
   ));
+  patchFile('tests/unit/screenshotPdfEmbeddedScript.test.js', (source) => replaceExact(
+    source,
+    String.raw`    expect(script).toContain("new RegExp('(?:^|\\\\D)' + expectedLocalAccidents + '\\\\s+Unfälle'");`,
+    `    expect(script).toContain("text.includes('ANTRAG / BESCHLUSSVORSCHLAG')");
+    expect(script).toContain("text.includes('Abbildung 1: Übersichtskarte')");
+    expect(script).toContain("text.includes('Abbildung 2: Auswahl-Karte')");
+    expect(script).toContain('spreadPageNumbers = [proposalPageNumber, mapPageNumber]');
+    expect(script).not.toContain('spreadPageNumbers = [1, 2]');`,
+    'align embedded PDF renderer test with semantic page selection'
+  ));
 }
 
 const command = process.argv[2];
