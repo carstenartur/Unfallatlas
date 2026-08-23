@@ -34,7 +34,7 @@ describe('featured README media stays visibly informative', () => {
     expect(block).toContain('minimumClusters: 3');
   });
 
-  test('the PDF documentation image is a two-page spread with the map enabled', () => {
+  test('the PDF documentation image selects a proposal page and a map page', () => {
     const block = testBlock(
       screenshotSpec,
       "test('15 PDF-Export",
@@ -43,7 +43,11 @@ describe('featured README media stays visibly informative', () => {
     expect(block).toContain("expect(page.locator('#cbIncludeMap')).toBeChecked()");
     expect(block).not.toContain("page.locator('#cbIncludeMap').uncheck()");
     expect(block).toContain('id="pdf-spread"');
-    expect(block).toContain('spreadPageNumbers = [1, 2]');
+    expect(block).toContain("text.includes('ANTRAG / BESCHLUSSVORSCHLAG')");
+    expect(block).toContain("text.includes('Abbildung 1: Übersichtskarte')");
+    expect(block).toContain("text.includes('Abbildung 2: Auswahl-Karte')");
+    expect(block).toContain('spreadPageNumbers = [proposalPageNumber, mapPageNumber]');
+    expect(block).not.toContain('spreadPageNumbers = [1, 2]');
     expect(block).toContain("page.locator('#pdf-spread').screenshot");
   });
 
