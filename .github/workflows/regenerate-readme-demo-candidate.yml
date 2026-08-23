@@ -4,10 +4,10 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - '.github/workflows/regenerate-readme-demo-candidate.yml'
       - 'Dockerfile'
       - 'package.json'
       - 'package-lock.json'
+      - 'docs/demo.gif'
       - 'docs/media-manifest.json'
       - 'scripts/regen-readme-demo.js'
       - 'scripts/gif-timeline.js'
@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: readme-demo-${{ github.event.pull_request.number || github.ref }}
@@ -30,16 +30,14 @@ concurrency:
 jobs:
   regenerate:
     name: Regenerate through production server video export
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
-      - name: Checkout exact candidate branch
+      - name: Checkout exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Setup Node.js 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -71,23 +69,3 @@ jobs:
           path: docs/demo.gif
           if-no-files-found: error
           retention-days: 14
-
-      - name: Commit the validated demo to this PR branch
-        if: success() && github.event_name == 'pull_request' && github.actor == 'carstenartur'
-        shell: bash
-        run: |
-          set -euo pipefail
-          unexpected="$(git status --porcelain | awk '$2 != "docs/demo.gif" { print }')"
-          if [[ -n "$unexpected" ]]; then
-            printf 'Unexpected working-tree changes after regeneration:\n%s\n' "$unexpected" >&2
-            exit 1
-          fi
-          git add -- docs/demo.gif
-          if git diff --cached --quiet; then
-            echo 'The canonical demo already matches the validated server export.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'docs: regenerate embedded demo from current server [skip ci]'
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
