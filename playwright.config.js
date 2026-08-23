@@ -47,6 +47,11 @@ export default defineConfig({
     },
     {
       name: 'documentation-live',
+      // A live screenshot can legitimately combine full-city report creation,
+      // lifecycle-render recovery and independent live-tile provenance gates.
+      // Keep their fail-closed 30-second phase limits, but do not let the
+      // default 30-second aggregate test budget interrupt a successful phase.
+      timeout: 90 * 1000,
       use: { ...devices['Desktop Chrome'] },
       testMatch: /screenshots\.live\.generated\.spec/,
     },

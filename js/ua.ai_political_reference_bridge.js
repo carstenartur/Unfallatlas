@@ -36,16 +36,29 @@
       ? `url:${clean(ref.url).toLowerCase()}`
       : `title:${clean(ref?.title).toLowerCase()}|type:${clean(ref?.type).toLowerCase()}`;
   }
+  function referenceArray(value) {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object' && Array.isArray(value.documents)) return value.documents;
+    return [];
+  }
   function mergeReferences(existing, additions) {
     const out = [];
     const seen = new Set();
-    for (const raw of [...(existing || []), ...(additions || [])]) {
-      const ref = normalizeReference(raw);
+    for (const raw of [...referenceArray(existing), ...referenceArray(additions)]) {
+      const normalized = normalizeReference(raw);
+      const ref = raw && typeof raw === 'object' ? { ...raw, ...normalized } : normalized;
       if (!ref.title || seen.has(referenceKey(ref))) continue;
       seen.add(referenceKey(ref));
       out.push(ref);
     }
     return out;
+  }
+  function mergeStructuredReferences(existing, additions) {
+    const merged = mergeReferences(existing, additions);
+    if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+      return { ...existing, documents: merged };
+    }
+    return merged;
   }
   function statusReference(state) {
     const status = clean(state?.status) || 'not-searched';
@@ -270,8 +283,8 @@
     if (state.status === 'results-found') {
       const refs = suitableReferences(state);
       structured.politicalReferences = mergeReferences(structured.politicalReferences, refs);
-      structured.references = mergeReferences(structured.references, refs);
-    } else structured.references = mergeReferences(structured.references, [statusReference(state)]);
+      structured.references = mergeStructuredReferences(structured.references, refs);
+    } else structured.references = mergeStructuredReferences(structured.references, [statusReference(state)]);
     structured.analysisMethodology = buildAnalysisMethodology(structured);
     structured.deterministicAnalysisDigest = buildDeterministicAnalysisDigest(structured);
     structured.aiAnalysisComparisonContract = buildAiValueAddContract(structured);
@@ -297,7 +310,8 @@
     install, bridgeReport, buildAnalysisMethodology,
     buildDeterministicAnalysisDigest, buildAiValueAddContract, enrichFactsPackage,
     _internal: Object.freeze({ clean, finite, context, normalizeReference, referenceKey,
-      mergeReferences, statusReference, suitableReferences, selection,
+      referenceArray, mergeReferences, mergeStructuredReferences,
+      statusReference, suitableReferences, selection,
       explicitAreaName, resolveAreaName, correctAreaName, patternRow, bridgeFactsPackage })
   });
   let polls = 0;
