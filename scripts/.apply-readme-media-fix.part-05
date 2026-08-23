@@ -61,6 +61,15 @@ function patchDocMediaPolicy(source) {
   );
 }
 
+function patchPom(source) {
+  return replaceExact(
+    source,
+    `                                <configuration>\n                                    <arguments>run qa:documentation-live</arguments>\n                                    <environmentVariables>`,
+    `                                <configuration>\n                                    <arguments>run qa:documentation-live</arguments>\n                                    <skip>false</skip>\n                                    <environmentVariables>`,
+    'keep the explicitly selected documentation-live goal active under -DskipTests'
+  );
+}
+
 function featuredContractTest() {
   return `'use strict';
 
