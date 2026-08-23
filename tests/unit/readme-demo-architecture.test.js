@@ -18,8 +18,13 @@ describe('README demo regeneration architecture', () => {
     expect(source).toContain("require('../tests/integration/lib/startUnfallatlasContainer')");
 
     // Recording, browser control and encoding belong to server/video-export.js.
-    expect(source).not.toMatch(/@playwright\/test|playwright-core|chromium\.launch/);
-    expect(source).not.toMatch(/\bffmpeg\b|child_process|spawn\s*\(/);
+    // Mentions in documentation comments are harmless; reject actual imports and calls.
+    expect(source).not.toMatch(
+      /require\(\s*['"](?:@playwright\/test|playwright|playwright-core)['"]\s*\)/,
+    );
+    expect(source).not.toMatch(/\bchromium\s*\.\s*launch\s*\(/);
+    expect(source).not.toMatch(/require\(\s*['"]child_process['"]\s*\)/);
+    expect(source).not.toMatch(/\b(?:spawn|spawnSync|exec|execFile|execFileSync)\s*\(/);
   });
 
   test('the candidate workflow invokes the canonical command instead of reimplementing it inline', () => {
