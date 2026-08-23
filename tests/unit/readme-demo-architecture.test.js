@@ -55,7 +55,14 @@ describe('README demo regeneration architecture', () => {
     expect(workflow).toContain('npm run regen:demo');
     expect(workflow).toContain('RUN_TESTCONTAINERS');
     expect(workflow).toContain('if: success()');
-    expect(workflow).not.toMatch(/startUnfallatlasContainer|chooseDemoAsset|chromium\.launch|ffmpeg/);
+
+    // File/path names in the trigger list are expected. Only executable
+    // duplicates of the orchestration or encoder are forbidden.
+    expect(workflow).not.toMatch(/startUnfallatlasContainer\s*\(/);
+    expect(workflow).not.toMatch(/chooseDemoAsset\s*\(/);
+    expect(workflow).not.toMatch(/chromium\s*\.\s*launch\s*\(/);
+    expect(workflow).not.toMatch(/(?:^|\n)\s*(?:run:\s*)?ffmpeg(?:\s|$)/m);
+    expect(workflow).not.toMatch(/node\s+<<[-]?['"]?[A-Z_]+['"]?/);
   });
 
   test('package.json keeps one canonical regeneration entry point', () => {
