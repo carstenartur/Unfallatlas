@@ -49,12 +49,22 @@ describe('README demo regeneration architecture', () => {
     expect(demo.maxDurationMs).toBe(60_000);
   });
 
-  test('the candidate workflow invokes the canonical command instead of reimplementing it inline', () => {
+  test('the candidate workflow delegates the canonical command to its Maven profile', () => {
     const workflow = read('.github/workflows/regenerate-readme-demo-candidate.yml');
+    const pom = read('pom.xml');
 
-    expect(workflow).toContain('npm run regen:demo');
-    expect(workflow).toContain('RUN_TESTCONTAINERS');
+    expect(workflow).toContain('mvn -B -ntp clean verify -Preadme-demo-candidate');
     expect(workflow).toContain('if: success()');
+    expect(workflow).not.toMatch(/\bnpm\s+(?:ci|install|run|test|exec)\b/);
+    expect(workflow).not.toMatch(/\bnpx\b/);
+    expect(workflow).not.toMatch(/\bnode\s+(?:\.\/)?(?:scripts|tests)\//);
+
+    expect(pom).toContain('<id>readme-demo-candidate</id>');
+    expect(pom).toContain('<arguments>run regen:demo</arguments>');
+    expect(pom).toContain('<RUN_TESTCONTAINERS>1</RUN_TESTCONTAINERS>');
+    expect(pom).toContain('tests/unit/regen-readme-demo.test.js');
+    expect(pom).toContain('tests/unit/readme-demo-architecture.test.js');
+    expect(pom).toContain('<arguments>run validate:media</arguments>');
 
     // File/path names in the trigger list are expected. Only executable
     // duplicates of the orchestration or encoder are forbidden.
