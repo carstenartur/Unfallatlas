@@ -1,0 +1,67 @@
+  source = source.replaceAll('Gerenderte PDF-Belegseite',
+    'Zweiseitige PDF-Gesamtvorschau');
+  return source;
+}
+
+function patchManifest(source) {
+  const manifest = JSON.parse(source);
+  manifest.defaults.maxBytes = 3145728;
+  manifest.defaults.reviewPolicy = 'Statische Kartenmedien müssen ihr deklariertes Zielmaß und das 3-MiB-Einzelbudget einhalten; das 30-MiB-Gesamtbudget umfasst reale hochentropische Grundkarten, die zweiseitige Dokumentvorschau und die explizit budgetierte, aus dem Serverexport regenerierte Animation. Nutzerseitige Screenshots benötigen einen reproduzierbaren Analyse-Link und ein bei README-Skalierung sichtbar bleibendes Unfallsignal.';
+  const byPath = new Map(manifest.assets.map((asset) => [asset.path, asset]));
+  const hbf = byPath.get('docs/screenshots/13-bonn-hbf-radunfaelle.png');
+  const report = byPath.get('docs/screenshots/14-export-filterkontext.png');
+  const pdf = byPath.get('docs/screenshots/15-export-pdf-rendered.png');
+  if (!hbf || !report || !pdf) throw new Error('Featured media manifest entries are missing');
+  hbf.purpose = 'Bonn-Hbf-Szenario Rad/Pkw mit sichtbaren nummerierten Clustern, Heatmap und Auswahlbereich.';
+  hbf.target = { width: 1774, height: 887 };
+  report.purpose = 'Exportvorschau mit aktivem Filter- und Auswahlkontext sowie außerhalb des Dialogs sichtbaren Unfallclustern.';
+  report.target = { width: 1774, height: 887 };
+  pdf.purpose = 'Zweiseitige PDF-Gesamtvorschau mit Kartenanlage, Statistik, Methodik und Beschlussvorschlag.';
+  pdf.target = { width: 1774, height: 887 };
+  pdf.maxBytes = 3145728;
+  return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+function patchScreenshotGuide(source) {
+  source = replaceExact(
+    source,
+    '1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**.',
+    '1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Die drei hervorgehobenen README-Medien `13`, `14` und `15` verwenden für lesbare Karten-, Dialog- und Doppelseiteninhalte **1774 × 887 px**.',
+    'document featured media dimensions'
+  );
+  source = replaceExact(
+    source,
+    '7. Die kanonische Animation `docs/demo.gif` wird ausschließlich aus dem\n   serverseitigen Videoexport regeneriert. Ein zweiter, davon abweichender\n   Aufnahmeablauf ist nicht zulässig.',
+    '7. Die kanonische Animation `docs/demo.gif` wird ausschließlich aus dem\n   serverseitigen Videoexport regeneriert. Ein zweiter, davon abweichender\n   Aufnahmeablauf ist nicht zulässig.\n8. Ein im README hervorgehobenes Kartenbild muss bei GitHub-Skalierung ein\n   menschlich erkennbares Unfallsignal behalten. Für die kombinierte Hbf-Ansicht\n   werden deshalb Heatmap **und** mindestens fünf sichtbare nummerierte Cluster\n   geprüft; beim Exportdialog müssen mindestens drei Cluster außerhalb des\n   Dialogs sichtbar bleiben.',
+    'add human-visible accident signal rule'
+  );
+  source = source.replace('- `13-bonn-hbf-radunfaelle.png`',
+    '- `13-bonn-hbf-radunfaelle.png` – kombinierte Cluster-/Heatmapansicht; sichtbares Unfallsignal ist ein hartes Gate');
+  source = source.replace('- `14-export-filterkontext.png`',
+    '- `14-export-filterkontext.png` – Berichtsdialog mit weiterhin sichtbaren Unfallclustern im Kartenrand');
+  source = source.replace('- `15-export-pdf-rendered.png`',
+    '- `15-export-pdf-rendered.png` – vollständige zweiseitige PDF-Gesamtvorschau mit Kartenanlage und Beschlussvorschlag');
+  return source;
+}
+
+function patchVisualWorkflow(source) {
+  return replaceExact(
+    source,
+    `      - 'tests/unit/documentationDeepLinkContract.test.js'\n      - '.github/workflows/visual-check.yml'`,
+    `      - 'tests/unit/documentationDeepLinkContract.test.js'\n      - 'tests/unit/featuredDocumentationMediaContract.test.js'\n      - '.github/workflows/visual-check.yml'`,
+    'trigger visual QA for featured media contract'
+  );
+}
+
+function featuredContractTest() {
+  return `'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '../..');
+const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+
+function testBlock(source, title, nextTitle) {
+  const start = source.indexOf(title);
+  if (start < 0) throw new Error('Missing test block: ' + title);
