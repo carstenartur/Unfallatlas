@@ -5,8 +5,8 @@
   source = replaceExact(
     source,
     `  test('13 Bonn Hauptbahnhof – Radunfälle mit Auswahl', async ({ page }) => {\n    // Bonn Hbf: Fahrrad+Auto UND-Modus, Bereich markiert, Heatmap aktiv\n    await loadPage(page,`,
-    `  test('13 Bonn Hauptbahnhof – Rad/Pkw mit sichtbaren Clustern und Heatmap', async ({ page }) => {\n    await page.setViewportSize({ width: 1774, height: 887 });\n    // Bonn Hbf: Fahrrad+Auto UND-Modus, Bereich markiert, Cluster und Heatmap gemeinsam sichtbar.\n    await loadPage(page,`,
-    'make featured HBF screenshot wide and explicit'
+    `  test('13 Bonn Hauptbahnhof – Rad/Pkw mit sichtbaren Clustern und Heatmap', async ({ page }) => {\n    await page.setViewportSize({ width: 1536, height: 768 });\n    // Bonn Hbf: Fahrrad+Auto UND-Modus, Bereich markiert, Cluster und Heatmap gemeinsam sichtbar.\n    await loadPage(page,`,
+    'make featured HBF screenshot readable within the standard media budget'
   );
   source = replaceExact(
     source,
@@ -49,10 +49,10 @@
   );
 
   const newPdfRenderer = [
-    '    // Die ersten beiden vollständigen PDF-Seiten werden als zusammenhängende',
-    '    // Gesamtvorschau gerendert: Karte/Statistik links, Methodik und',
-    '    // Beschlussvorschlag rechts. So dokumentiert das Bild den tatsächlichen',
-    '    // Export statt einer zufällig ausgewählten textlastigen Folgeseite.',
+    '    // Zwei semantisch ausgewählte vollständige PDF-Seiten werden als',
+    '    // Gesamtvorschau gerendert: Methodik/Beschlussvorschlag links sowie',
+    '    // Übersicht und Auswahlkarte rechts. So dokumentiert das Bild den',
+    '    // tatsächlichen Export statt zufälliger Seitenpositionen.',
     '    await page.setContent(`<!DOCTYPE html>',
     '<html>',
     '<head>',
