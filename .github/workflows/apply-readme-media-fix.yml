@@ -58,7 +58,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p out/qa
-          mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true -DskipTests \
+          mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true \
             | tee out/qa/bootstrap-documentation-live.log
 
       - name: Upload bootstrap diagnostics
