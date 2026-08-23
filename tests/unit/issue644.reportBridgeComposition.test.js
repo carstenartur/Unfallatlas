@@ -18,7 +18,10 @@ function installBridge(UA) {
 describe('issue #644 report-wrapper composition', () => {
   test('only the newest wrapper finalizes a report after downstream evidence was added', async () => {
     const safeReport = jest.fn(report => report);
-    const hardenReport = jest.fn(report => report);
+    // The production hardening contract delegates to the base semantic contract.
+    // Model that composition so the bridge performs one combined pass instead of
+    // traversing a potentially very large accident appendix twice.
+    const hardenReport = jest.fn(report => safeReport(report));
     const UA = installBridge({
       EvidenceSafeSemantics: {
         safeText: value => value,
