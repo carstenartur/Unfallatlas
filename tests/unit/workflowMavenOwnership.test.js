@@ -116,6 +116,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
       'enrich.yml': ['-Pcontext-data-e2e'],
       'generate-screenshots.yml': ['-Pdocumentation-live'],
       'visual-check.yml': ['-Pdocumentation-live'],
+      'regenerate-readme-demo-candidate.yml': ['-Preadme-demo-candidate'],
       'deploy-release.yml': [
         '-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render',
         "'-Dfailsafe.includes=**/*IT.java'",
@@ -138,6 +139,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
       'e2e',
       'system-it',
       'video-export-it',
+      'readme-demo-candidate',
       'location-brief-golden',
       'document-render',
       'context-data-e2e',
