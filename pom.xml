@@ -239,6 +239,49 @@
         </profile>
 
         <profile>
+            <id>readme-demo-candidate</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>regenerate-readme-demo-candidate</id>
+                                <phase>integration-test</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration>
+                                    <arguments>run regen:demo</arguments>
+                                    <environmentVariables>
+                                        <RUN_TESTCONTAINERS>1</RUN_TESTCONTAINERS>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>verify-readme-demo-candidate-contract</id>
+                                <phase>verify</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration>
+                                    <arguments>test -- --runTestsByPath tests/unit/regen-readme-demo.test.js tests/unit/readme-demo-architecture.test.js --runInBand</arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>validate-readme-demo-candidate-media</id>
+                                <phase>verify</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration>
+                                    <arguments>run validate:media</arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
             <id>location-brief-golden</id>
             <properties>
                 <unfallatlas.locationBriefGolden>true</unfallatlas.locationBriefGolden>
