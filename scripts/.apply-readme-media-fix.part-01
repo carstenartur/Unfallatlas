@@ -83,8 +83,9 @@ async function assertFeaturedAccidentSignal(page, options = {}) {
         centerY >= mapRect.top && centerY <= mapRect.bottom;
       const visuallyPresent = style.display !== 'none' && style.visibility !== 'hidden' &&
         Number(style.opacity || '1') > 0;
-      const outsideOverlay = !modalRect || centerX < modalRect.left || centerX > modalRect.right ||
-        centerY < modalRect.top || centerY > modalRect.bottom;
+      const outsideOverlay = !modalRect ||
+        rect.right <= modalRect.left || rect.left >= modalRect.right ||
+        rect.bottom <= modalRect.top || rect.top >= modalRect.bottom;
       return insideMap && visuallyPresent && outsideOverlay;
     }).length;
     return {
