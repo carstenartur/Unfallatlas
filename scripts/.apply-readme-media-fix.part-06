@@ -77,7 +77,6 @@ function applyPatches() {
   patchFile('tests/unit/docMediaPolicy.test.js', patchDocMediaPolicy);
   patchFile('pom.xml', patchPom);
   patchFile('docs/screenshots/README.md', patchScreenshotGuide);
-  patchFile('.github/workflows/visual-check.yml', patchVisualWorkflow);
   patchFile('js/ua.ui.js', (source) => replaceExact(
     source,
     'L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2})',
