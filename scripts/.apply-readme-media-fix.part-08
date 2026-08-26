@@ -1,5 +1,4 @@
-  fs.rmSync(absolute(WORKFLOW), { force: true });
-  process.stdout.write('[apply-media-fix] removed bootstrap files\n');
+  process.stdout.write('[apply-media-fix] removed generated bootstrap script; workflow cleanup remains privileged\n');
 }
 
 function applyMediaBudgetCorrections() {
@@ -23,6 +22,12 @@ function applyMediaBudgetCorrections() {
     '1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Die drei hervorgehobenen README-Medien `13`, `14` und `15` verwenden für lesbare Karten-, Dialog- und Doppelseiteninhalte **1774 × 887 px**.',
     '1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Das Hbf-Kartenbild `13` folgt diesem Standard und wird zusätzlich durch ein Sichtbarkeits-Gate geschützt; die Dialog- und Doppelseitenmedien `14` und `15` verwenden **1774 × 887 px**.',
     'keep HBF screenshot within the standard static-media budget'
+  ));
+  patchFile('docs/screenshots/README.md', (source) => replaceExact(
+    source,
+    '2. Die gerenderte PDF-Belegseite hat **892 × 1262 px**.',
+    '2. Die gerenderte PDF-Gesamtvorschau `15` zeigt eine geprüfte Doppelseite mit **1774 × 887 px**.',
+    'document the reviewed two-page PDF preview dimensions'
   ));
   patchFile('tests/unit/docMediaPolicy.test.js', (source) => replaceExact(
     source,
