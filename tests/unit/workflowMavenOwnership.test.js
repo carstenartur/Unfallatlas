@@ -9,6 +9,8 @@ const NON_BUILD_AUTOMATION = new Set([
   'fetchpoi.yml',
   'generate-and-commit.yml',
   'word-compatibility-evidence.yml',
+  // Transitional one-off automation only; workflow and this exemption are removed atomically before merge.
+  'apply-readme-media-fix.yml',
 ]);
 
 function workflows() {

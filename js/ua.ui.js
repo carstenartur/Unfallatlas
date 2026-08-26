@@ -415,7 +415,7 @@
       if (allFinite && inLatRange && inLonRange) {
         ctx.selectionBounds = L.latLngBounds([s,w],[n,e]);
         ctx.drawnItems.clearLayers();
-        ctx.drawnItems.addLayer(L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2}));
+        ctx.drawnItems.addLayer(L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2, fillOpacity:0.06}));
       } else {
         console.warn("Ungültige sel*-Parameter in URL ignoriert:", { s, w, n, e });
       }

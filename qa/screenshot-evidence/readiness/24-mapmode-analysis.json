@@ -1,39 +1,40 @@
 {
   "schemaVersion": 1,
-  "revision": "b65dca7455e2763284dee64e10fe2792afd20cc2",
+  "revision": "607e10ccd2252cfc8814f21af23b1f557d3b9336",
   "screenshot": {
     "path": "docs/screenshots/24-mapmode-analysis.png",
-    "bytes": 1197443,
-    "sha256": "8f83cd5e5828f6986ace514c9a798aec4fb8013288191081a8225423650304e8"
+    "bytes": 1192475,
+    "sha256": "a87963fe5636dfb0ee42d963555d9a2d1db9a0997c6b392fdc650b9bd5fb5dd8"
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "f54b516316153a11616ff863202a4320d72ab005b606e669f46e5f7e363be306",
-    "fingerprint": "acadf447f8ef8f4282eb797ec0695502207aa2d5c394a64b062e2d782aba5d4c",
-    "applicationFingerprint": "e22fbb563775711cf01f8e903b614ab5d045de6f1fe3495597160afbb6e7ae4b",
-    "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
+    "sha256": "8b80c0f166f04f388fd29c8bc8382d338c24d1653cd2e9573f526c8c9dfe26e0",
+    "fingerprint": "9ff81c82bed22fb6c62d97041fc4c76514a2b4a76557ad9c95576dd91df75d50",
+    "applicationFingerprint": "49e68d30980c2dd81a9c7b4ba3a2c0bfaec62a1ad9971d682ea33073fee128d2",
+    "dataFingerprint": "008c6ed755a973464124d5e9ab32c87124b9291bb266bfded701e0876aaa5be5"
   },
   "criteria": {
     "city": "Bonn",
     "layers": [
       "heatmap"
     ],
-    "requireCompleteCoverage": true
+    "requireCompleteCoverage": true,
+    "mapSourceMode": "fixture"
   },
   "lifecycle": {
     "status": "ready",
     "city": "Bonn",
     "counts": {
-      "loaded": 7387,
-      "filtered": 6821,
-      "viewport": 2418
+      "loaded": 8720,
+      "filtered": 8004,
+      "viewport": 2852
     },
     "coverage": {
       "mode": "full-city",
       "complete": true,
       "provider": "static",
       "city": "Bonn",
-      "loadedFeatureCount": 7387
+      "loadedFeatureCount": 8720
     },
     "render": {
       "revision": 2,
@@ -50,15 +51,15 @@
         },
         "heatmap": {
           "requested": true,
-          "expected": 2418,
-          "processed": 2418,
-          "visible": 2418,
+          "expected": 2852,
+          "processed": 2852,
+          "visible": 2852,
           "painted": true,
           "complete": true
         },
         "poi": {
           "requested": true,
-          "expected": 488,
+          "expected": 489,
           "processed": 45,
           "visible": 45,
           "painted": false,
@@ -66,7 +67,7 @@
         },
         "argumentation": {
           "requested": true,
-          "expected": 2418,
+          "expected": 2852,
           "processed": 0,
           "visible": 0,
           "painted": false,
@@ -666,7 +667,7 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2159/1344.png"
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2159/1346.png"
       },
       {
         "kind": "labels",
@@ -678,31 +679,7 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2157/1346.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2160/1345.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2159/1346.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
         "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2159/1345.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2158/1346.png"
       },
       {
         "kind": "labels",
@@ -714,7 +691,31 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2158/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2159/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
         "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2157/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2160/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2157/1346.png"
       },
       {
         "kind": "labels",
@@ -732,18 +733,6 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2161/1345.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2156/1346.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
         "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2157/1344.png"
       },
       {
@@ -751,12 +740,6 @@
         "status": 200,
         "contentType": "image/png",
         "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2158/1347.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2156/1345.png"
       },
       {
         "kind": "labels",
@@ -774,13 +757,43 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2161/1347.png"
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2160/1347.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/12/2156/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2161/1345.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/12/2156/1346.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2161/1346.png"
       },
       {
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
         "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2156/1344.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/12/2161/1347.png"
       },
       {
         "kind": "labels",
@@ -798,25 +811,7 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2160/1347.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://d.basemaps.cartocdn.com/light_only_labels/12/2161/1346.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17029/11007.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17028/11008.png"
+        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17029/11009.png"
       },
       {
         "kind": "labels",
@@ -828,37 +823,25 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17029/11008.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17028/11009.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
         "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17030/11008.png"
       },
       {
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17029/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17029/11007.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
         "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17031/11007.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17029/11009.png"
-      },
-      {
-        "kind": "labels",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17030/11009.png"
       },
       {
         "kind": "labels",
@@ -882,13 +865,13 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17027/11009.png"
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17028/11008.png"
       },
       {
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17032/11007.png"
+        "url": "https://b.basemaps.cartocdn.com/light_only_labels/15/17028/11009.png"
       },
       {
         "kind": "labels",
@@ -900,13 +883,31 @@
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17032/11008.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
         "url": "https://c.basemaps.cartocdn.com/light_only_labels/15/17027/11007.png"
       },
       {
         "kind": "labels",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17032/11008.png"
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17030/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.basemaps.cartocdn.com/light_only_labels/15/17027/11009.png"
+      },
+      {
+        "kind": "labels",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://d.basemaps.cartocdn.com/light_only_labels/15/17032/11007.png"
       },
       {
         "kind": "labels",
@@ -924,25 +925,13 @@
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17030"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
         "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17029"
       },
       {
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17028"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17030"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17030"
       },
       {
         "kind": "orthophoto",
@@ -960,25 +949,13 @@
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17031"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17028"
       },
       {
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17028"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17031"
-      },
-      {
-        "kind": "orthophoto",
-        "status": 200,
-        "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17031"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17030"
       },
       {
         "kind": "orthophoto",
@@ -990,7 +967,25 @@
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17032"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17031"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
         "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17031"
       },
       {
         "kind": "orthophoto",
@@ -1002,13 +997,13 @@
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17032"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17028"
       },
       {
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17027"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11007/17032"
       },
       {
         "kind": "orthophoto",
@@ -1020,7 +1015,13 @@
         "kind": "orthophoto",
         "status": 200,
         "contentType": "image/jpeg",
-        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17032"
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11009/17027"
+      },
+      {
+        "kind": "orthophoto",
+        "status": 200,
+        "contentType": "image/jpeg",
+        "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11008/17031"
       }
     ],
     "valid": true,

@@ -52,6 +52,47 @@ function parseLocalAccidentCount(text) {
   return Number(match[1].replace(/\D/g, '')) || 0;
 }
 
+/**
+ * README feature images must remain visibly useful after GitHub scales them
+ * down. Semantic lifecycle readiness alone is insufficient: at least a few
+ * numbered accident clusters must actually remain visible in the map area.
+ */
+async function assertFeaturedAccidentSignal(page, options = {}) {
+  const minimumClusters = Math.max(1, Number(options.minimumClusters) || 3);
+  const outsideModal = options.outsideModal === true;
+  const evidence = await page.locator('#map').evaluate((map, expected) => {
+    const mapRect = map.getBoundingClientRect();
+    const modal = expected.outsideModal
+      ? document.querySelector('#modalOverlay .modal')
+      : null;
+    const modalRect = modal && modal.getBoundingClientRect();
+    const visibleClusters = [...map.querySelectorAll('.marker-cluster')].filter((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const insideMap = rect.width > 0 && rect.height > 0 &&
+        centerX >= mapRect.left && centerX <= mapRect.right &&
+        centerY >= mapRect.top && centerY <= mapRect.bottom;
+      const visuallyPresent = style.display !== 'none' && style.visibility !== 'hidden' &&
+        Number(style.opacity || '1') > 0;
+      const outsideOverlay = !modalRect ||
+        rect.right <= modalRect.left || rect.left >= modalRect.right ||
+        rect.bottom <= modalRect.top || rect.top >= modalRect.bottom;
+      return insideMap && visuallyPresent && outsideOverlay;
+    }).length;
+    return {
+      visibleClusters,
+      mapWidth: mapRect.width,
+      mapHeight: mapRect.height,
+      modalWidth: modalRect ? modalRect.width : 0,
+      modalHeight: modalRect ? modalRect.height : 0,
+    };
+  }, { minimumClusters, outsideModal });
+  expect(evidence.visibleClusters).toBeGreaterThanOrEqual(minimumClusters);
+  return evidence;
+}
+
 const DETERMINISTIC_MAP_TILES = Object.freeze({
   standard: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/standard.svg')),
   orthophoto: readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/orthophoto.svg')),
@@ -417,24 +458,28 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     });
   });
 
-  test('13 Bonn Hauptbahnhof – Radunfälle mit Auswahl', async ({ page }) => {
-    // Bonn Hbf: Fahrrad+Auto UND-Modus, Bereich markiert, Heatmap aktiv
+  test('13 Bonn Hauptbahnhof – Rad/Pkw mit sichtbaren Clustern und Heatmap', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 640 });
+    // Bonn Hbf: Fahrrad+Auto UND-Modus, Bereich markiert, Cluster und Heatmap gemeinsam sichtbar.
     await loadPage(page,
       '?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0' +
-      '&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0' +
+      '&involvementMode=and&showCluster=1&showHeatmap=1&showOnlyAboveAverage=0' +
       '&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23' +
       '&centerLat=50.7326&centerLon=7.0963&zoom=16' +
       '&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010');
     await waitForCities(page);
+    await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster', 'heatmap'] });
+    await assertFeaturedAccidentSignal(page, { minimumClusters: 5 });
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/13-bonn-hbf-radunfaelle.png',
       fullPage: true,
       city: 'Bonn',
-      layers: ['heatmap']
+      layers: ['cluster', 'heatmap']
     });
   });
 
   test('14 Export mit Filterkontext', async ({ page }) => {
+    await page.setViewportSize({ width: 1774, height: 887 });
     // Bonn mit Auswahl und spezifischen Filtern, dann Export öffnen
     await loadPage(page,
       '?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0' +
@@ -451,6 +496,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       return prog && prog.textContent.includes('Fertig');
     }, null, { timeout: 30000 });
     await page.waitForTimeout(1000);
+    await assertFeaturedAccidentSignal(page, { minimumClusters: 3, outsideModal: true });
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/14-export-filterkontext.png',
       fullPage: true,
@@ -563,7 +609,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
 });
 
 test.describe('Werkbank V2 – PDF-Export Rendering', () => {
-  test.use({ viewport: { width: 1280, height: 800 } });
+  test.use({ viewport: { width: 1774, height: 887 } });
 
   test.beforeEach(async ({ page }) => {
     await setupDeterministicBasemapTiles(page);
@@ -612,8 +658,8 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     const expectedLocalAccidents = parseLocalAccidentCount(await exportSummary.textContent());
     expect(expectedLocalAccidents).toBeGreaterThan(0);
 
-    // Kartenausschnitt deaktivieren (vermeidet leaflet-image-Abhängigkeit)
-    await page.locator('#cbIncludeMap').uncheck();
+    // Die veröffentlichte PDF-Vorschau muss die Kartenanlage enthalten.
+    await expect(page.locator('#cbIncludeMap')).toBeChecked();
 
     // PDF herunterladen (event-driven: Download-Event und Klick gleichzeitig)
     const [download] = await Promise.all([
@@ -637,18 +683,30 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       await r.fulfill({ status: 200, contentType: 'application/pdf', body: fs.readFileSync(filePath) });
     });
 
-    // HTML-Seite mit pdfjs-Rendering im Browser aufbauen
+    // Zwei semantisch ausgewählte vollständige PDF-Seiten werden als
+    // Gesamtvorschau gerendert: Methodik/Beschlussvorschlag links sowie
+    // Übersicht und Auswahlkarte rechts. So dokumentiert das Bild den
+    // tatsächlichen Export statt zufälliger Seitenpositionen.
     await page.setContent(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>PDF Preview</title>
-  <style>body { margin: 0; background: #fff; }</style>
+  <title>PDF Spread Preview</title>
+  <style>
+    html, body { margin: 0; width: 1774px; height: 887px; overflow: hidden; background: #eef1f5; }
+    #pdf-spread {
+      box-sizing: border-box; width: 1774px; height: 887px; padding: 2px 18px;
+      display: flex; align-items: center; justify-content: center; gap: 24px;
+    }
+    #pdf-spread canvas { display: block; background: #fff; box-shadow: 0 1px 8px rgba(0,0,0,.18); }
+  </style>
 </head>
 <body>
-  <canvas id="pdf-canvas"></canvas>
+  <div id="pdf-spread">
+    <canvas id="pdf-page-1"></canvas>
+    <canvas id="pdf-page-2"></canvas>
+  </div>
   <script type="module">
-    // Globale Fehlerhandler fangen auch Fehler beim Modul-Laden (vor try/catch)
     window.addEventListener('error', (e) => {
       if (!window.__pdfRendered) window.__pdfError = window.__pdfError || String(e.message || e);
     });
@@ -656,45 +714,51 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       if (!window.__pdfRendered) window.__pdfError = window.__pdfError || String(e.reason || e);
     });
     try {
-      // Dynamischer Import, damit Fehler beim Laden innerhalb des try/catch landen
       const { getDocument, GlobalWorkerOptions } = await import('https://pdfjs-test-cdn/pdf.min.mjs');
       GlobalWorkerOptions.workerSrc = 'https://pdfjs-test-cdn/pdf.worker.min.mjs';
-
-      const loadingTask = getDocument({ url: 'https://pdfjs-test-cdn/document.pdf' });
-      const pdfDoc = await loadingTask.promise;
+      const pdfDoc = await getDocument({ url: 'https://pdfjs-test-cdn/document.pdf' }).promise;
       const expectedLocalAccidents = ${expectedLocalAccidents};
       const pageTexts = [];
-      const countPattern = new RegExp('(?:^|\\\\D)' + expectedLocalAccidents + '\\\\s+Unfälle', 'i');
-      const evidencePageStartPattern =
-        /^(?:Methodik\\b|ANTRAG\\s*\\/\\s*BESCHLUSSVORSCHLAG\\b|BEGRÜNDUNG\\b|KURZBEWERTUNG\\b)/i;
-      let renderedPageNumber = 0;
-      let countFallbackPageNumber = 0;
       for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
         const candidate = await pdfDoc.getPage(pageNumber);
         const textContent = await candidate.getTextContent();
-        const text = textContent.items.map((item) => item.str || '').join(' ').replace(/\\s+/g, ' ').trim();
-        pageTexts.push(text);
-        if (!countPattern.test(text)) continue;
-        if (countFallbackPageNumber === 0) countFallbackPageNumber = pageNumber;
-        if (renderedPageNumber === 0 && evidencePageStartPattern.test(text)) {
-          renderedPageNumber = pageNumber;
-        }
+        pageTexts.push(textContent.items.map((item) => item.str || '').join(' ').replace(/\\s+/g, ' ').trim());
       }
-      renderedPageNumber = renderedPageNumber || countFallbackPageNumber || 1;
-      const pdfPage = await pdfDoc.getPage(renderedPageNumber);
-      const viewport = pdfPage.getViewport({ scale: 1.5 });
-
-      const canvas = document.getElementById('pdf-canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      const ctx = canvas.getContext('2d');
-      await pdfPage.render({ canvasContext: ctx, viewport }).promise;
-
+      if (pdfDoc.numPages < 2) throw new Error('Expected at least two PDF pages for the documentation spread');
+      let proposalPageIndex = pageTexts.findIndex((text) =>
+        text.includes('ANTRAG / BESCHLUSSVORSCHLAG')
+      );
+      if (proposalPageIndex < 0) {
+        proposalPageIndex = pageTexts.findIndex((text) =>
+          text.includes('Methodik') && text.includes('eindeutige Zählbereiche')
+        );
+      }
+      const mapPageIndex = pageTexts.findIndex((text) =>
+        text.includes('Abbildung 1: Übersichtskarte') &&
+        text.includes('Abbildung 2: Auswahl-Karte')
+      );
+      if (proposalPageIndex < 0) throw new Error('PDF proposal/methodology page was not found');
+      if (mapPageIndex < 0) throw new Error('PDF overview and selection map page was not found');
+      const proposalPageNumber = proposalPageIndex + 1;
+      const mapPageNumber = mapPageIndex + 1;
+      if (proposalPageNumber === mapPageNumber) throw new Error('PDF preview pages must be distinct');
+      const spreadPageNumbers = [proposalPageNumber, mapPageNumber];
+      for (const [index, pageNumber] of spreadPageNumbers.entries()) {
+        const pdfPage = await pdfDoc.getPage(pageNumber);
+        const unitViewport = pdfPage.getViewport({ scale: 1 });
+        const scale = 862 / unitViewport.height;
+        const viewport = pdfPage.getViewport({ scale });
+        const canvas = document.getElementById('pdf-page-' + (index + 1));
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        await pdfPage.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      }
       window.__pdfText = pageTexts.join('\\n');
       window.__pdfPageCount = pdfDoc.numPages;
-      window.__pdfRenderedPage = renderedPageNumber;
-      window.__pdfRenderedPageText = pageTexts[renderedPageNumber - 1] || '';
+      window.__pdfRenderedPages = spreadPageNumbers;
+      window.__pdfRenderedPageTexts = spreadPageNumbers.map((pageNumber) => pageTexts[pageNumber - 1] || '');
+      window.__pdfRenderedSpreadText = window.__pdfRenderedPageTexts.join('\\n');
+      window.__pdfExpectedLocalAccidents = expectedLocalAccidents;
       window.__pdfRendered = true;
     } catch (err) {
       window.__pdfError = String(err);
@@ -719,34 +783,34 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
     const pdfDiagnostics = await page.evaluate(() => ({
       text: window.__pdfText || '',
       pageCount: window.__pdfPageCount || 0,
-      renderedPage: window.__pdfRenderedPage || 0,
-      renderedPageText: window.__pdfRenderedPageText || ''
+      renderedPages: window.__pdfRenderedPages || [],
+      renderedPageTexts: window.__pdfRenderedPageTexts || [],
+      renderedSpreadText: window.__pdfRenderedSpreadText || '',
     }));
-    expect(pdfDiagnostics.pageCount).toBeGreaterThan(0);
-    expect(pdfDiagnostics.renderedPage).toBeGreaterThan(0);
+    expect(pdfDiagnostics.pageCount).toBeGreaterThanOrEqual(2);
+    expect(pdfDiagnostics.renderedPages).toHaveLength(2);
+    expect(new Set(pdfDiagnostics.renderedPages).size).toBe(2);
+    expect(pdfDiagnostics.renderedPageTexts).toHaveLength(2);
     expect(pdfDiagnostics.text).toContain('Unfälle');
     expect(pdfDiagnostics.text).toMatch(
       new RegExp(`(?:^|\\D)${expectedLocalAccidents}\\s+Unfälle`, 'i')
     );
-    // The rendered evidence page must contain the verified local count and
-    // begin at a complete report-section boundary. This rejects continuation
-    // pages while allowing the evidence-first Methodik/Antrag structure.
-    expect(pdfDiagnostics.renderedPageText).toMatch(
+    const [proposalPageText, mapPageText] = pdfDiagnostics.renderedPageTexts;
+    expect(proposalPageText).toMatch(
       new RegExp(`(?:^|\\D)${expectedLocalAccidents}\\s+Unfälle`, 'i')
     );
-    expect(pdfDiagnostics.renderedPageText).toMatch(
-      /^(?:Methodik\b|ANTRAG\s*\/\s*BESCHLUSSVORSCHLAG\b|BEGRÜNDUNG\b|KURZBEWERTUNG\b)/i
-    );
-    expect(pdfDiagnostics.renderedPageText).not.toMatch(/^(?:Wochentag\)\.|Schwerpunkt der Häufung:)/);
+    expect(proposalPageText).toMatch(/Methodik|ANTRAG\s*\/\s*BESCHLUSSVORSCHLAG/i);
+    expect(mapPageText).toContain('Abbildung 1: Übersichtskarte');
+    expect(mapPageText).toContain('Abbildung 2: Auswahl-Karte');
 
-    // Screenshot der ersten PDF-Seite, auf der die zuvor aus dem Exportmodell
-    // verifizierte lokale Unfallzahl tatsächlich genannt wird.
+    // Screenshot zweier repräsentativer vollständiger PDF-Seiten: Methodik und
+    // Beschlussvorschlag auf der ersten, Übersicht und Auswahlkarte auf der zweiten.
     const screenshotPath = 'docs/screenshots/15-export-pdf-rendered.png';
     // The application may legitimately complete a later render while the export
     // modal and PDF generator are running. Bind stability only to the actual
     // pixel-capture window, as required by assertStableScreenshotSnapshot().
     const beforeCaptureSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
-    await page.locator('#pdf-canvas').screenshot({ path: screenshotPath });
+    await page.locator('#pdf-spread').screenshot({ path: screenshotPath });
     const afterCaptureSnapshot = await waitForScreenshotReady(page, { city: 'Bonn', layers: ['cluster'] });
     assertStableScreenshotSnapshot(
       beforeCaptureSnapshot,

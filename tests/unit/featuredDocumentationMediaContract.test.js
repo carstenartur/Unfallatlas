@@ -1,4 +1,14 @@
-  const end = nextTitle ? source.indexOf(nextTitle, start + title.length) : source.length;
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '../..');
+const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+
+function testBlock(source, title, nextTitle) {
+  const start = source.indexOf(title);
+  if (start < 0) throw new Error('Missing test block: ' + title);  const end = nextTitle ? source.indexOf(nextTitle, start + title.length) : source.length;
   if (end < 0) throw new Error('Missing next test block: ' + nextTitle);
   return source.slice(start, end);
 }
@@ -65,37 +75,3 @@ describe('featured README media stays visibly informative', () => {
     expect(read('js/ua.ui.js')).toContain('fillOpacity:0.06');
   });
 });
-`;
-}
-
-function applyPatches() {
-  patchFile('tests/e2e/screenshots.spec.js', patchScreenshotSpec);
-  patchFile('scripts/documentation-deeplink-contract.cjs', patchDeepLinkContract);
-  patchFile('README.md', patchReadme);
-  patchFile('docs/DOKUMENTATION.md', patchDocumentation);
-  patchFile('docs/media-manifest.json', patchManifest);
-  patchFile('tests/unit/docMediaPolicy.test.js', patchDocMediaPolicy);
-  patchFile('pom.xml', patchPom);
-  patchFile('docs/screenshots/README.md', patchScreenshotGuide);
-  patchFile('js/ua.ui.js', (source) => replaceExact(
-    source,
-    'L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2})',
-    'L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2, fillOpacity:0.06})',
-    'make URL-hydrated selection transparent enough for heatmaps'
-  ));
-  write('tests/unit/featuredDocumentationMediaContract.test.js', featuredContractTest());
-  process.stdout.write('[apply-media-fix] wrote featured media regression contract\n');
-}
-
-function sha256(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-}
-
-function promoteEvidence() {
-  const summarySource = absolute('out/qa/screenshot-evidence.json');
-  const cartographySource = absolute('out/qa/live-cartography-evidence.json');
-  const readinessSource = absolute('out/qa/screenshot-readiness');
-  const buildManifestPath = absolute('_site/build-manifest.json');
-  for (const required of [summarySource, cartographySource, readinessSource, buildManifestPath]) {
-    if (!fs.existsSync(required)) throw new Error(`Missing generated evidence: ${required}`);
-  }

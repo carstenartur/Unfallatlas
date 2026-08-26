@@ -418,13 +418,22 @@ describe('documentation media policy', () => {
     ]));
   });
 
-  test('new full-screen screenshot candidates target 1280x640', () => {
-    const documentPreview = 'docs/screenshots/15-export-pdf-rendered.png';
+  test('documentation screenshots use their reviewed scenario dimensions', () => {
+    const featured = new Set([
+      'docs/screenshots/14-export-filterkontext.png',
+    ]);
     for (const asset of manifest.assets.filter(entry => entry.kind === 'screenshot')) {
-      if (asset.path !== documentPreview) expect(asset.target).toEqual({ width: 1280, height: 640 });
+      expect(asset.target).toEqual(featured.has(asset.path)
+        ? { width: 1774, height: 887 }
+        : { width: 1280, height: 640 });
     }
+    const documentPreview = manifest.assets.find(
+      entry => entry.path === 'docs/screenshots/15-export-pdf-rendered.png'
+    );
+    expect(documentPreview.target).toEqual({ width: 1774, height: 887 });
     const screenshotSpec = fs.readFileSync(path.join(ROOT, 'tests/e2e/screenshots.spec.js'), 'utf8');
     expect(screenshotSpec).toMatch(/viewport:\s*\{\s*width:\s*1280,\s*height:\s*640\s*\}/);
+    expect(screenshotSpec).toContain('setViewportSize({ width: 1774, height: 887 })');
   });
 
   test('fails closed when a PNG has a valid signature but corrupt chunks', () => {

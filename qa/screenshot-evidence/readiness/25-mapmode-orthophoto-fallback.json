@@ -1,39 +1,40 @@
 {
   "schemaVersion": 1,
-  "revision": "b65dca7455e2763284dee64e10fe2792afd20cc2",
+  "revision": "607e10ccd2252cfc8814f21af23b1f557d3b9336",
   "screenshot": {
     "path": "docs/screenshots/25-mapmode-orthophoto-fallback.png",
-    "bytes": 1016561,
-    "sha256": "41b195cf40142e9ac709b19f88a655373fea6f6dd421914e3760cb0fb86602f3"
+    "bytes": 1008121,
+    "sha256": "84fbaaf869b526c02e7f36fb4271c51c472019fed3373249a38871959fcd73ca"
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "f54b516316153a11616ff863202a4320d72ab005b606e669f46e5f7e363be306",
-    "fingerprint": "acadf447f8ef8f4282eb797ec0695502207aa2d5c394a64b062e2d782aba5d4c",
-    "applicationFingerprint": "e22fbb563775711cf01f8e903b614ab5d045de6f1fe3495597160afbb6e7ae4b",
-    "dataFingerprint": "e6c0454efd018e0ea56cca78056a16228ca47ed56f644ed75370462120ae8c37"
+    "sha256": "8b80c0f166f04f388fd29c8bc8382d338c24d1653cd2e9573f526c8c9dfe26e0",
+    "fingerprint": "9ff81c82bed22fb6c62d97041fc4c76514a2b4a76557ad9c95576dd91df75d50",
+    "applicationFingerprint": "49e68d30980c2dd81a9c7b4ba3a2c0bfaec62a1ad9971d682ea33073fee128d2",
+    "dataFingerprint": "008c6ed755a973464124d5e9ab32c87124b9291bb266bfded701e0876aaa5be5"
   },
   "criteria": {
     "city": "Bonn",
     "layers": [
       "cluster"
     ],
-    "requireCompleteCoverage": true
+    "requireCompleteCoverage": true,
+    "mapSourceMode": "fixture"
   },
   "lifecycle": {
     "status": "ready",
     "city": "Bonn",
     "counts": {
-      "loaded": 7387,
-      "filtered": 6821,
-      "viewport": 2418
+      "loaded": 8720,
+      "filtered": 8004,
+      "viewport": 2852
     },
     "coverage": {
       "mode": "full-city",
       "complete": true,
       "provider": "static",
       "city": "Bonn",
-      "loadedFeatureCount": 7387
+      "loadedFeatureCount": 8720
     },
     "render": {
       "revision": 2,
@@ -42,9 +43,9 @@
       "layers": {
         "cluster": {
           "requested": true,
-          "expected": 2418,
-          "processed": 2418,
-          "visible": 2418,
+          "expected": 2852,
+          "processed": 2852,
+          "visible": 2852,
           "painted": false,
           "complete": true
         },
@@ -58,7 +59,7 @@
         },
         "poi": {
           "requested": true,
-          "expected": 488,
+          "expected": 489,
           "processed": 45,
           "visible": 45,
           "painted": false,
@@ -66,7 +67,7 @@
         },
         "argumentation": {
           "requested": true,
-          "expected": 2418,
+          "expected": 2852,
           "processed": 0,
           "visible": 0,
           "painted": false,
@@ -378,7 +379,19 @@
         "kind": "standard",
         "status": 200,
         "contentType": "image/png",
+        "url": "https://c.tile.openstreetmap.org/15/17029/11008.png"
+      },
+      {
+        "kind": "standard",
+        "status": 200,
+        "contentType": "image/png",
         "url": "https://a.tile.openstreetmap.org/15/17030/11008.png"
+      },
+      {
+        "kind": "standard",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.tile.openstreetmap.org/15/17029/11007.png"
       },
       {
         "kind": "standard",
@@ -396,25 +409,7 @@
         "kind": "standard",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://c.tile.openstreetmap.org/15/17029/11008.png"
-      },
-      {
-        "kind": "standard",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://b.tile.openstreetmap.org/15/17029/11007.png"
-      },
-      {
-        "kind": "standard",
-        "status": 200,
-        "contentType": "image/png",
         "url": "https://b.tile.openstreetmap.org/15/17030/11009.png"
-      },
-      {
-        "kind": "standard",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://b.tile.openstreetmap.org/15/17028/11008.png"
       },
       {
         "kind": "standard",
@@ -432,13 +427,7 @@
         "kind": "standard",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://c.tile.openstreetmap.org/15/17031/11009.png"
-      },
-      {
-        "kind": "standard",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://c.tile.openstreetmap.org/15/17032/11008.png"
+        "url": "https://a.tile.openstreetmap.org/15/17031/11007.png"
       },
       {
         "kind": "standard",
@@ -450,25 +439,13 @@
         "kind": "standard",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://a.tile.openstreetmap.org/15/17032/11009.png"
+        "url": "https://c.tile.openstreetmap.org/15/17032/11008.png"
       },
       {
         "kind": "standard",
         "status": 200,
         "contentType": "image/png",
-        "url": "https://c.tile.openstreetmap.org/15/17027/11007.png"
-      },
-      {
-        "kind": "standard",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://a.tile.openstreetmap.org/15/17031/11007.png"
-      },
-      {
-        "kind": "standard",
-        "status": 200,
-        "contentType": "image/png",
-        "url": "https://b.tile.openstreetmap.org/15/17032/11007.png"
+        "url": "https://c.tile.openstreetmap.org/15/17031/11009.png"
       },
       {
         "kind": "standard",
@@ -480,7 +457,31 @@
         "kind": "standard",
         "status": 200,
         "contentType": "image/png",
+        "url": "https://c.tile.openstreetmap.org/15/17027/11007.png"
+      },
+      {
+        "kind": "standard",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.tile.openstreetmap.org/15/17032/11007.png"
+      },
+      {
+        "kind": "standard",
+        "status": 200,
+        "contentType": "image/png",
         "url": "https://b.tile.openstreetmap.org/15/17027/11009.png"
+      },
+      {
+        "kind": "standard",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://a.tile.openstreetmap.org/15/17032/11009.png"
+      },
+      {
+        "kind": "standard",
+        "status": 200,
+        "contentType": "image/png",
+        "url": "https://b.tile.openstreetmap.org/15/17028/11008.png"
       }
     ],
     "valid": true,
