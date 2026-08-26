@@ -7,8 +7,8 @@ werden automatisiert geprüft.
 
 ## Verbindliche Regeln
 
-1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**.
-2. Die gerenderte PDF-Belegseite hat **892 × 1262 px**.
+1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Das Hbf-Kartenbild `13` folgt diesem Standard und wird zusätzlich durch ein Sichtbarkeits-Gate geschützt; die Dialog- und Doppelseitenmedien `14` und `15` verwenden **1774 × 887 px**.
+2. Die gerenderte PDF-Gesamtvorschau `15` zeigt eine geprüfte Doppelseite mit **1774 × 887 px**.
 3. Jedes eingecheckte Medium unter `docs/` ist in
    [`docs/media-manifest.json`](../media-manifest.json) deklariert.
 4. Zu jedem statischen Beleg existieren Provenienz- und Readiness-Nachweise unter
@@ -23,6 +23,11 @@ werden automatisiert geprüft.
 7. Die kanonische Animation `docs/demo.gif` wird ausschließlich aus dem
    serverseitigen Videoexport regeneriert. Ein zweiter, davon abweichender
    Aufnahmeablauf ist nicht zulässig.
+8. Ein im README hervorgehobenes Kartenbild muss bei GitHub-Skalierung ein
+   menschlich erkennbares Unfallsignal behalten. Für die kombinierte Hbf-Ansicht
+   werden deshalb Heatmap **und** mindestens fünf sichtbare nummerierte Cluster
+   geprüft; beim Exportdialog müssen mindestens drei Cluster außerhalb des
+   Dialogs sichtbar bleiben.
 
 ## Eingecheckter, geprüfter Bestand
 
@@ -43,9 +48,9 @@ Praxis- und Exportszenarien:
 - `10-auto-fahrrad-und.png`
 - `11-fahrrad-alleinunfaelle.png`
 - `12-poi-schulen-kitas.png`
-- `13-bonn-hbf-radunfaelle.png`
-- `14-export-filterkontext.png`
-- `15-export-pdf-rendered.png`
+- `13-bonn-hbf-radunfaelle.png` – kombinierte Cluster-/Heatmapansicht; sichtbares Unfallsignal ist ein hartes Gate
+- `14-export-filterkontext.png` – Berichtsdialog mit weiterhin sichtbaren Unfallclustern im Kartenrand
+- `15-export-pdf-rendered.png` – vollständige zweiseitige PDF-Gesamtvorschau mit Kartenanlage und Beschlussvorschlag
 - `16-antrag-inhalt.png`
 
 Kartenmodi und Fallback:

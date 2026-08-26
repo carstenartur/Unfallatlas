@@ -410,6 +410,18 @@
                         <inherited>false</inherited>
                         <executions>
                             <execution>
+                                <id>frontend-unit-tests</id>
+                                <configuration><skip>true</skip></configuration>
+                            </execution>
+                            <execution>
+                                <id>frontend-integration-tests</id>
+                                <configuration><skip>true</skip></configuration>
+                            </execution>
+                            <execution>
+                                <id>frontend-performance-tests</id>
+                                <configuration><skip>true</skip></configuration>
+                            </execution>
+                            <execution>
                                 <id>generate-and-validate-live-documentation</id>
                                 <phase>integration-test</phase>
                                 <goals><goal>npm</goal></goals>

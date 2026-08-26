@@ -263,7 +263,7 @@ Abhängig von Betriebsart, Daten und gewählten Optionen enthält der Export unt
 | GeoJSON | GIS- und Webkartenverarbeitung |
 | KML | Google Earth und kompatible Kartenwerkzeuge |
 
-[![Gerenderte Seite eines PDF-Exports](screenshots/15-export-pdf-rendered.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
+[![Zweiseitige PDF-Gesamtvorschau mit Kartenanlage, Methodik und Beschlussvorschlag](screenshots/15-export-pdf-rendered.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7330&centerLon=7.0950&zoom=15&selSouth=50.7300&selWest=7.0900&selNorth=50.7360&selEast=7.1000)
 
 ### Vor dem Weitergeben prüfen
 
@@ -290,7 +290,7 @@ Der servergestützte Betrieb erzeugt GIF, Animated WebP oder APNG über denselbe
 
 **Konfiguration:** Bonn, Rad + Pkw, UND, Heatmap, markierter Bereich.
 
-[![Rad-Pkw-Heatmap am Bonner Hauptbahnhof](screenshots/13-bonn-hbf-radunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
+[![Rad-Pkw-Cluster und Heatmap am Bonner Hauptbahnhof](screenshots/13-bonn-hbf-radunfaelle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=1&showHeatmap=1&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.7326&centerLon=7.0963&zoom=16&selSouth=50.7300&selWest=7.0910&selNorth=50.7355&selEast=7.1010)
 
 **Sinnvolle nächste Schritte:** Einzelpunkte prüfen, Kreuzungen und Zufahrten vor Ort ansehen, Verkehrsbelastung und Planungsunterlagen ergänzen.
 

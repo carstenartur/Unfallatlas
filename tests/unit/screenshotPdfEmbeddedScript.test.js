@@ -22,7 +22,11 @@ describe('PDF screenshot embedded renderer', () => {
 
     const script = embedded[1];
     expect(script).toContain("replace(/\\s+/g, ' ')");
-    expect(script).toContain("new RegExp('(?:^|\\\\D)' + expectedLocalAccidents + '\\\\s+Unfälle'");
+    expect(script).toContain("text.includes('ANTRAG / BESCHLUSSVORSCHLAG')");
+    expect(script).toContain("text.includes('Abbildung 1: Übersichtskarte')");
+    expect(script).toContain("text.includes('Abbildung 2: Auswahl-Karte')");
+    expect(script).toContain('spreadPageNumbers = [proposalPageNumber, mapPageNumber]');
+    expect(script).not.toContain('spreadPageNumbers = [1, 2]');
     expect(script).toContain("pageTexts.join('\\n')");
     expect(() => new Function(`return async function () {${script}}`)).not.toThrow();
   });
