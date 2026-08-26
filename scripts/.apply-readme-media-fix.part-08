@@ -2,6 +2,12 @@
 }
 
 function applyMediaBudgetCorrections() {
+  patchFile('tests/unit/workflowMavenOwnership.test.js', (source) => replaceExact(
+    source,
+    `  'word-compatibility-evidence.yml',\n]);`,
+    `  'word-compatibility-evidence.yml',\n  // Transitional one-off automation only; workflow and this exemption are removed atomically before merge.\n  'apply-readme-media-fix.yml',\n]);`,
+    'temporarily classify the privileged one-off media bootstrap outside durable Maven-owned workflows'
+  ));
   patchFile('.gitignore', (source) => replaceExact(
     source,
     'playwright-report/\n.playwright/\n*.log\n',
