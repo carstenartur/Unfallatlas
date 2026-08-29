@@ -11,7 +11,7 @@ const {
 const ROOT = path.resolve(__dirname, '..');
 const VALIDATORS = new Map([
   ['validate-screenshot-evidence.js', { mountAtCanonicalPath: true }],
-  ['validate-doc-media.js', { mountAtCanonicalPath: false }],
+  ['validate-doc-media.js', { mountAtCanonicalPath: true }],
 ]);
 
 function assertGeneratedMedia(directory) {
