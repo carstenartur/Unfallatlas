@@ -115,8 +115,7 @@
                         <id>frontend-integration-tests</id>
                         <phase>integration-test</phase>
                         <goals>
-                            <goal>npm</goal>
-                        </goals>
+                            <goal>npm</goal></goals>
                         <configuration>
                             <arguments>run test:integration</arguments>
                             <skip>${skipTests}</skip>
@@ -371,6 +370,7 @@
             <properties>
                 <unfallatlas.contextData>true</unfallatlas.contextData>
                 <failsafe.includes>**/ContextDataContainerIT.java</failsafe.includes>
+                <context.allowStaleOnTransient>true</context.allowStaleOnTransient>
             </properties>
             <modules><module>qa-system-tests</module></modules>
             <build>
@@ -390,6 +390,7 @@
                                     <environmentVariables>
                                         <CONTEXT_CITY>${context.city}</CONTEXT_CITY>
                                         <FORCE_CONTEXT>${context.force}</FORCE_CONTEXT>
+                                        <CONTEXT_ALLOW_STALE_ON_TRANSIENT>${context.allowStaleOnTransient}</CONTEXT_ALLOW_STALE_ON_TRANSIENT>
                                     </environmentVariables>
                                 </configuration>
                             </execution>
