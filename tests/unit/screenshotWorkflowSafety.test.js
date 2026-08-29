@@ -56,9 +56,15 @@ describe('documentation screenshot publication safety', () => {
     expect(visualAcceptanceJob).toContain('ARTIFACT_DIGEST');
     expect(visualAcceptanceJob).toContain("marker.get('accept') is not True");
     expect(visualAcceptanceJob).toContain("summary.get('revision') != os.environ['EVIDENCE_REVISION']");
+    expect(visualAcceptanceJob).toContain("cartography.get('revision') != summary['revision']");
+    expect(visualAcceptanceJob).toContain('candidate build manifest is not internally consistent');
+    expect(visualAcceptanceJob).not.toContain('candidate build manifest differs from the reviewed repository build');
+    expect(visualAcceptanceJob).toContain("sidecar_data.get('build') != build");
+    expect(visualAcceptanceJob).toContain("'pullRequestHeadRevision': os.environ['EXPECTED_HEAD_SHA']");
     expect(visualAcceptanceJob).toContain('candidate screenshot hash/size mismatch');
-    expect(visualAcceptanceJob).toContain('node scripts/validate-doc-media.js');
-    expect(visualAcceptanceJob).toContain('validateCartographyRecord');
+    expect(visualAcceptanceJob).toContain('mvn -B -ntp verify -Prelease-site -DskipTests=true');
+    expect(visualAcceptanceJob).not.toContain('node scripts/');
+    expect(visualAcceptanceJob).not.toContain('validateCartographyRecord');
     expect(visualAcceptanceJob).toContain('git fetch --no-tags origin');
     expect(visualAcceptanceJob).toContain('remote_head" != "$EXPECTED_HEAD_SHA');
     expect(visualAcceptanceJob).toContain('git rm "$ACCEPTANCE_MARKER"');
@@ -66,7 +72,7 @@ describe('documentation screenshot publication safety', () => {
     expect(visualAcceptanceJob).toContain('git push origin "HEAD:${HEAD_REF}"');
   });
 
-  test('uses one Maven profile for every reviewable live-map candidate', () => {
+  test('uses one Maven invocation for every reviewable candidate and accepted-media gate', () => {
     expect(workflow).toContain(
       'mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=false'
     );
@@ -82,6 +88,8 @@ describe('documentation screenshot publication safety', () => {
       expect(candidate).toMatch(/if-no-files-found:\s*error\b/);
       expect(candidate).toMatch(/Provider-URL/);
     }
+    expect(visualAcceptanceJob).toContain('actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c');
+    expect(visualAcceptanceJob.match(/^\s*run:\s*mvn\b/gm) || []).toHaveLength(1);
     expect(workflow).toContain('documentation-screenshots-live-map-${{ github.sha }}');
     expect(visualCandidateJob).toContain('pr-live-map-screenshots-${{ github.event.pull_request.number }}');
   });
