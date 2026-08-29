@@ -34,10 +34,15 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('await route.continue();');
     expect(transformed).toContain('response.status() >= 200');
     expect(transformed).toContain('/^image\\/(?:png|jpe?g|webp)(?:;|$)/');
-    expect(transformed).toContain('Documentation screenshot lacks visible successful real basemap tiles for:');
+    expect(transformed).toContain('Documentation screenshot lacks complete stable real basemap coverage for:');
     expect(transformed).toContain("source: 'live'");
     expect(transformed).toContain('visibleTiles: live && live.visibleTiles');
     expect(transformed).toContain('observedTiles: live && live.observedTiles');
+    expect(transformed).toContain('invalidTiles: live && live.invalidTiles');
+    expect(transformed).toContain('coverageByKind: live && live.coverageByKind');
+    expect(transformed).toContain('tileSignature: live && live.tileSignature || null');
+    expect(transformed).toContain('stableSamples: live && live.stableSamples || 0');
+    expect(transformed).toContain('captureAttempts,');
     expect(transformed).toContain('successfulResponses: live && live.successfulResponses');
   });
 
@@ -66,24 +71,35 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('await proxyLiveBasemapRequest(route, basemapKind);');
   });
 
-  test('waits for decoded live tiles before and after taking the screenshot', () => {
+  test('holds one complete tile set before capture and proves the same set afterwards', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
     const captureStart = transformed.indexOf('async function captureDataScreenshot(page, options) {');
     const captureEnd = transformed.indexOf('\n}\n', captureStart) + 3;
     const captureFunction = transformed.slice(captureStart, captureEnd);
-    const firstProvenanceCheck = captureFunction.indexOf('live = await assertLiveBasemapProvenance(page);');
-    const baseCapture = captureFunction.indexOf('const snapshot = await baseCaptureDataScreenshot(page, options);');
+    const firstProvenanceCheck = captureFunction.indexOf(
+      'beforeLive = await assertLiveBasemapProvenance(page);'
+    );
+    const baseCapture = captureFunction.indexOf(
+      'snapshot = await baseCaptureDataScreenshot(page, options);'
+    );
     const secondProvenanceCheck = captureFunction.indexOf(
-      'live = await assertLiveBasemapProvenance(page, { timeoutMs: 1000 });'
+      'live = await assertLiveBasemapProvenance(page, {'
     );
 
     expect(firstProvenanceCheck).toBeGreaterThanOrEqual(0);
     expect(baseCapture).toBeGreaterThan(firstProvenanceCheck);
     expect(secondProvenanceCheck).toBeGreaterThan(baseCapture);
-    expect(transformed).toContain('await page.waitForTimeout(250);');
+    expect(captureFunction).toContain('expectedSignature: beforeLive.tileSignature');
+    expect(captureFunction).toContain('stableSamples: 1');
+    expect(captureFunction).toContain(
+      'for (let attempt = 1; attempt <= LIVE_SCREENSHOT_CAPTURE_ATTEMPTS; attempt += 1)'
+    );
+    expect(transformed).toContain('const LIVE_SCREENSHOT_CAPTURE_ATTEMPTS = 3;');
+    expect(transformed).toContain('const LIVE_TILE_SAMPLE_INTERVAL_MS = 250;');
+    expect(transformed).toContain('await page.waitForTimeout(LIVE_TILE_SAMPLE_INTERVAL_MS);');
   });
 
-  test('binds successful responses to currently visible decoded Leaflet images in all map panes', () => {
+  test('requires every visible required tile to decode successfully inside the map viewport', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
 
     expect(transformed).toContain("page.locator('.leaflet-map-pane img.leaflet-tile')");
@@ -93,12 +109,44 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('naturalWidth: Number(image.naturalWidth) || 0');
     expect(transformed).toContain('naturalHeight: Number(image.naturalHeight) || 0');
     expect(transformed).toContain('image.getBoundingClientRect()');
-    expect(transformed).toContain('style.visibility');
-    expect(transformed).toContain('successfulUrls.has(tile.url)');
+    expect(transformed).toContain('effectivelyVisible: visual.visible');
+    expect(transformed).toContain('intersectsMap,');
+    expect(transformed).toContain('/\\bleaflet-tile-loading\\b/.test(className)');
+    expect(transformed).toContain('/\\bleaflet-tile-error\\b/.test(className)');
+    expect(transformed).toContain('successfulUrls.has(url)');
+    expect(transformed).toContain('const invalidTiles = visibleRequiredTiles.filter(tile => !tile.ready);');
     expect(transformed).toContain('live.visibleTiles = observed.visibleTiles;');
     expect(transformed).toContain('live.observedTiles = observed.observedTiles;');
     expect(transformed).toContain('await assertLiveBasemapProvenance(page)');
     expect(transformed).toContain('async function assertNoUnexpectedExternalRequests(page)');
+  });
+
+  test('requires full viewport coverage for every requested basemap kind', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+
+    expect(transformed).toContain('const LIVE_TILE_COVERAGE_STEP_PX = 32;');
+    expect(transformed).toContain('function coverageForKind(kind, mapRect, readyTiles, invalidTiles)');
+    expect(transformed).toContain('const xSamples = mapRect ? sampleCoverageAxis(mapRect.left, mapRect.right) : [];');
+    expect(transformed).toContain('const ySamples = mapRect ? sampleCoverageAxis(mapRect.top, mapRect.bottom) : [];');
+    expect(transformed).toContain('uncoveredCount += 1;');
+    expect(transformed).toContain('uncoveredCount === 0');
+    expect(transformed).toContain('invalid.length === 0');
+    expect(transformed).toContain('coverageForKind(kind, observed.mapRect, readyTiles, invalidTiles)');
+    expect(transformed).toContain('missingKinds.length === 0');
+  });
+
+  test('waits out Leaflet movement and requires a stable geometric tile signature', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+
+    expect(transformed).toContain('const LIVE_TILE_STABLE_SAMPLES = 3;');
+    expect(transformed).toContain("mapElement.classList.contains('leaflet-zoom-anim')");
+    expect(transformed).toContain('map && map._animatingZoom');
+    expect(transformed).toContain('map && map._panAnim && map._panAnim._inProgress');
+    expect(transformed).toContain('draggable && draggable._moving');
+    expect(transformed).toContain('animationState.active');
+    expect(transformed).toContain('function liveTileSignature(mapRect, readyTiles)');
+    expect(transformed).toContain('observed.tileSignature === previousSignature');
+    expect(transformed).toContain('stableSamples >= requiredStableSamples');
   });
 
   test('retains cartography diagnostics before rejecting an invalid candidate', () => {
@@ -109,6 +157,8 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('valid: assertionError == null');
     expect(transformed).toContain('error: assertionError && assertionError.message || null');
     expect(transformed).toContain('if (assertionError) throw assertionError;');
+    expect(transformed).toContain('Invalid visible Leaflet tiles:');
+    expect(transformed).toContain('Coverage by kind:');
   });
 
   test('intercepts HTTP and HTTPS while allowing only the exact first-party origin and HTTPS tile paths', () => {
