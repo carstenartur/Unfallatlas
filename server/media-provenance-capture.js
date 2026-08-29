@@ -169,6 +169,24 @@ function attachPageToMediaProvenanceCapture(page, logger = console) {
   return page;
 }
 
+async function waitForMediaProvenanceCapture(page) {
+  const context = captureStorage.getStore();
+  // The base exporter is also usable without the provenance wrapper. In that
+  // mode there is deliberately no browser capture to await.
+  if (!context) return null;
+  if (!page || page[PAGE_MARKER] !== true) {
+    fail('media_capture_page_not_attached', 'The recording page is not attached to media provenance capture');
+  }
+  if (!context.snapshotPromise) {
+    fail('media_capture_not_started', 'Media provenance capture did not start after page navigation');
+  }
+  const capture = await context.snapshotPromise;
+  if (!capture || !capture.visibleBadge || capture.visibleBadge.id !== SOURCE_BADGE_ID) {
+    fail('missing_visible_source_badge', 'Media provenance capture did not install the visible source badge');
+  }
+  return capture;
+}
+
 async function runWithMediaProvenanceCapture(options, task) {
   if (typeof task !== 'function') fail('invalid_capture_task', 'Media provenance capture task is required');
   const context = {
@@ -202,5 +220,6 @@ module.exports = {
   sourceLabel,
   captureFromPage,
   attachPageToMediaProvenanceCapture,
+  waitForMediaProvenanceCapture,
   runWithMediaProvenanceCapture,
 };
