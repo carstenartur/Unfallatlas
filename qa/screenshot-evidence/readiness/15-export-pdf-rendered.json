@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "607e10ccd2252cfc8814f21af23b1f557d3b9336",
+  "revision": "a7d5ebc88ad8819701640966c75c31b481cbbcd3",
   "screenshot": {
     "path": "docs/screenshots/15-export-pdf-rendered.png",
     "bytes": 249170,
@@ -8,7 +8,7 @@
   },
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "8b80c0f166f04f388fd29c8bc8382d338c24d1653cd2e9573f526c8c9dfe26e0",
+    "sha256": "0ca4f7ee4b430afd51364a4920de443e1339d341aca28c6069b3c0d775385af0",
     "fingerprint": "9ff81c82bed22fb6c62d97041fc4c76514a2b4a76557ad9c95576dd91df75d50",
     "applicationFingerprint": "49e68d30980c2dd81a9c7b4ba3a2c0bfaec62a1ad9971d682ea33073fee128d2",
     "dataFingerprint": "008c6ed755a973464124d5e9ab32c87124b9291bb266bfded701e0876aaa5be5"
