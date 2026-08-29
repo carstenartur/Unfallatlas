@@ -305,11 +305,10 @@ async function assertLiveBasemapProvenance(page, options = {}) {
       stableSamples = observed.tileSignature === previousSignature
         ? stableSamples + 1
         : 1;
-      live.stableSamples = stableSamples;
+      live.stableSamples = Math.max(Number(live.stableSamples) || 0, stableSamples);
       if (stableSamples >= requiredStableSamples) return live;
     } else {
       stableSamples = 0;
-      live.stableSamples = 0;
     }
     previousSignature = observed.tileSignature;
     if (Date.now() >= deadline) break;
@@ -492,6 +491,7 @@ async function captureDataScreenshot(page, options) {
   evidence.cartography = {
     source: 'live',
     requiredKinds: live && live.requiredKinds ? live.requiredKinds.slice() : [],
+    requiredStableSamples: LIVE_TILE_STABLE_SAMPLES,
     visibleTiles: live && live.visibleTiles ? live.visibleTiles.map(tile => ({ ...tile })) : [],
     observedTiles: live && live.observedTiles ? live.observedTiles.map(tile => ({ ...tile })) : [],
     invalidTiles: live && live.invalidTiles ? live.invalidTiles.map(tile => ({ ...tile })) : [],
@@ -536,6 +536,12 @@ async function captureDataScreenshot(page, options) {
     "  await page.goto('/werkbank_v2.html' + params);\n  await page.waitForLoadState('networkidle');",
     "  await page.goto('/werkbank_v2.html' + params, { waitUntil: 'domcontentloaded' });",
     'live page readiness'
+  );
+  transformed = replaceOnce(
+    transformed,
+    "    document.documentElement.dataset.mapSourceMode = 'fixture';",
+    "    document.documentElement.dataset.mapSourceMode = 'live';",
+    'live map source mode'
   );
   transformed = replaceOnce(
     transformed,
