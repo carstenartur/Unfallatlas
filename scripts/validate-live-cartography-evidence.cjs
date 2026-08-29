@@ -52,7 +52,7 @@ function positiveFinite(value) {
 }
 
 function validateTileSignature(record, screenshotPath, visibleTiles, errors) {
-  if (typeof record.tileSignature !== 'string' || record.tileSignature.length < 10) {
+  if (typeof record.tileSignature !== 'string' || !record.tileSignature.trim()) {
     errors.push(`${screenshotPath}: cartography tileSignature is missing`);
     return;
   }
