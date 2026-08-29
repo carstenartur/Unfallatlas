@@ -165,7 +165,7 @@ describe('isolated extended-E2E documentation screenshots', () => {
     )).toBe('unexpected bytes');
   });
 
-  test('Maven-owned npm scripts expose semantic evidence before candidate media validation', () => {
+  test('Maven-owned npm scripts mount candidates for both evidence gates in semantic order', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
     expect(packageJson.scripts['qa:e2e:extended'])
       .toBe('node scripts/run-extended-e2e-isolated.js');
@@ -175,5 +175,16 @@ describe('isolated extended-E2E documentation screenshots', () => {
     const candidateGate = evidenceCommand.indexOf('validate-doc-media.js --candidate-screenshots');
     expect(semanticGate).toBeGreaterThan(-1);
     expect(candidateGate).toBeGreaterThan(semanticGate);
+
+    const evidenceWrapper = fs.readFileSync(
+      path.join(ROOT, 'scripts', 'validate-extended-e2e-evidence.js'),
+      'utf8'
+    );
+    expect(evidenceWrapper).toContain(
+      "['validate-screenshot-evidence.js', { mountAtCanonicalPath: true }]"
+    );
+    expect(evidenceWrapper).toContain(
+      "['validate-doc-media.js', { mountAtCanonicalPath: true }]"
+    );
   });
 });
