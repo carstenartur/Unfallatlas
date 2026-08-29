@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, '..');
 const runner = path.join(__dirname, 'run-extended-e2e.js');
 
 try {
-  withCandidateScreenshotWorkspace(({ candidateDirectory }) => {
+  withCandidateScreenshotWorkspace(({ canonicalDirectory, candidateDirectory }) => {
     const child = spawnSync(process.execPath, [runner], {
       cwd: ROOT,
       env: process.env,
@@ -23,7 +23,7 @@ try {
       error.exitCode = child.status ?? 1;
       throw error;
     }
-    const generated = listGeneratedMedia(candidateDirectory);
+    const generated = listGeneratedMedia(canonicalDirectory);
     if (generated.length === 0) {
       throw new Error('Extended browser QA produced no candidate documentation screenshots');
     }
