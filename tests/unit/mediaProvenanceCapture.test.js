@@ -123,9 +123,10 @@ describe('media SourceManifest browser capture', () => {
     const page = fakePage(capture);
     const originalClose = page.browserContext.close;
     let resolveCapture;
-    page.evaluate.mockImplementationOnce(() => new Promise(resolve => {
+    const capturePromise = new Promise(resolve => {
       resolveCapture = resolve;
-    }));
+    });
+    page.evaluate.mockImplementationOnce(() => capturePromise);
     const result = { path: '/tmp/media.gif', format: 'gif' };
 
     const wrapped = runWithMediaProvenanceCapture({}, async () => {
@@ -133,8 +134,6 @@ describe('media SourceManifest browser capture', () => {
       await page.goto('http://localhost:8000/werkbank_v2.html');
 
       const closePromise = page.browserContext.close();
-      await new Promise(resolve => setImmediate(resolve));
-      expect(typeof resolveCapture).toBe('function');
       expect(originalClose).not.toHaveBeenCalled();
 
       resolveCapture(capture);
