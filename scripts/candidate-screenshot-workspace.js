@@ -10,10 +10,10 @@ const DEFAULT_CANDIDATE_DIRECTORY = path.join(ROOT, 'out', 'qa', 'candidate-scre
 const GENERATED_MEDIA_EXTENSION = /\.(?:apng|gif|jpe?g|png|webp)$/i;
 
 function assertDirectory(directory, label) {
-  if (!fs.existsSync(directory)) {
+  const stat = lstatOrNull(directory);
+  if (!stat) {
     throw new Error(`${label} does not exist: ${directory}`);
   }
-  const stat = fs.lstatSync(directory);
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
     throw new Error(`${label} must be a real directory, not a link: ${directory}`);
   }
@@ -113,6 +113,23 @@ function listGeneratedMedia(directory) {
   return files.sort();
 }
 
+function recoveryPath(base, label) {
+  return `${base}.${label}-${process.pid}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+}
+
+function preserveUnexpected(source, base, label) {
+  const recovery = recoveryPath(base, label);
+  fs.mkdirSync(path.dirname(recovery), { recursive: true });
+  fs.renameSync(source, recovery);
+  return recovery;
+}
+
+function aggregateRestoreErrors(errors) {
+  if (errors.length === 0) return null;
+  if (errors.length === 1) return errors[0];
+  return new AggregateError(errors, 'Canonical screenshots could not be restored safely');
+}
+
 function withCandidateScreenshotWorkspace(callback, options = {}) {
   if (typeof callback !== 'function') throw new TypeError('callback must be a function');
 
@@ -136,7 +153,7 @@ function withCandidateScreenshotWorkspace(callback, options = {}) {
   } else {
     prepareCandidateDirectory(canonicalDirectory, candidateDirectory);
   }
-  if (fs.existsSync(backupDirectory)) {
+  if (lstatOrNull(backupDirectory)) {
     throw new Error(`Refusing to overwrite screenshot backup: ${backupDirectory}`);
   }
 
@@ -144,17 +161,17 @@ function withCandidateScreenshotWorkspace(callback, options = {}) {
   fs.mkdirSync(path.dirname(backupDirectory), { recursive: true });
   fs.renameSync(canonicalDirectory, backupDirectory);
 
-  let linked = false;
+  let candidateMounted = false;
   let callbackResult;
   let callbackError;
   try {
-    fs.symlinkSync(
-      candidateDirectory,
+    fs.renameSync(candidateDirectory, canonicalDirectory);
+    candidateMounted = true;
+    callbackResult = callback({
       canonicalDirectory,
-      process.platform === 'win32' ? 'junction' : 'dir'
-    );
-    linked = true;
-    callbackResult = callback({ canonicalDirectory, candidateDirectory });
+      candidateDirectory,
+      mountedCandidateDirectory: canonicalDirectory,
+    });
     if (callbackResult && typeof callbackResult.then === 'function') {
       throw new TypeError('Candidate screenshot callback must be synchronous');
     }
@@ -162,35 +179,71 @@ function withCandidateScreenshotWorkspace(callback, options = {}) {
     callbackError = error;
   }
 
-  let restoreError;
-  try {
-    if (linked) {
-      const redirected = lstatOrNull(canonicalDirectory);
-      if (redirected && !redirected.isSymbolicLink()) {
-        throw new Error(
-          `Refusing unsafe restoration because redirected path is no longer a link: ${canonicalDirectory}`
-        );
+  const restoreErrors = [];
+  if (candidateMounted) {
+    try {
+      if (lstatOrNull(candidateDirectory)) {
+        const recovery = preserveUnexpected(candidateDirectory, candidateDirectory, 'unexpected');
+        restoreErrors.push(new Error(
+          `Candidate screenshot path was recreated while mounted; preserved unexpected content at ${recovery}`
+        ));
       }
-      if (redirected) fs.unlinkSync(canonicalDirectory);
+    } catch (error) {
+      restoreErrors.push(error);
     }
-    const unexpectedCanonical = lstatOrNull(canonicalDirectory);
-    if (unexpectedCanonical) {
-      throw new Error(`Canonical screenshot path unexpectedly exists during restoration: ${canonicalDirectory}`);
+
+    try {
+      const mountedCandidate = lstatOrNull(canonicalDirectory);
+      if (!mountedCandidate) {
+        restoreErrors.push(new Error(
+          `Mounted candidate screenshot directory disappeared: ${canonicalDirectory}`
+        ));
+      } else if (mountedCandidate.isSymbolicLink() || !mountedCandidate.isDirectory()) {
+        const recovery = preserveUnexpected(
+          canonicalDirectory,
+          candidateDirectory,
+          'invalid-mounted'
+        );
+        restoreErrors.push(new Error(
+          `Mounted candidate path was no longer a real directory; preserved it at ${recovery}`
+        ));
+      } else {
+        fs.renameSync(canonicalDirectory, candidateDirectory);
+      }
+    } catch (error) {
+      restoreErrors.push(error);
+    }
+  }
+
+  try {
+    if (lstatOrNull(canonicalDirectory)) {
+      const recovery = preserveUnexpected(canonicalDirectory, canonicalDirectory, 'restore-blocker');
+      restoreErrors.push(new Error(
+        `Canonical screenshot path was occupied during restoration; preserved blocker at ${recovery}`
+      ));
     }
     fs.renameSync(backupDirectory, canonicalDirectory);
+  } catch (error) {
+    restoreErrors.push(error);
+  }
+
+  try {
     const restoredSnapshot = snapshotDirectory(canonicalDirectory);
     if (restoredSnapshot !== canonicalSnapshot) {
       throw new Error('Canonical screenshot directory changed while candidate screenshots were generated');
     }
   } catch (error) {
-    restoreError = error;
+    restoreErrors.push(error);
   }
 
+  const restoreError = aggregateRestoreErrors(restoreErrors);
   if (callbackError && restoreError) {
-    throw new AggregateError(
+    const error = new AggregateError(
       [callbackError, restoreError],
       'Candidate screenshot command failed and canonical screenshots could not be restored'
     );
+    error.exitCode = callbackError.exitCode || 1;
+    throw error;
   }
   if (restoreError) throw restoreError;
   if (callbackError) throw callbackError;
