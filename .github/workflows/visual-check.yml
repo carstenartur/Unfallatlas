@@ -186,6 +186,8 @@ jobs:
           import pathlib
           import shutil
 
+          GENERATED_MEDIA_SUFFIXES = {'.apng', '.gif', '.jpeg', '.jpg', '.png', '.webp'}
+
           root = pathlib.Path.cwd().resolve()
           marker_path = root / os.environ['ACCEPTANCE_MARKER']
           candidate = root / 'accepted-candidate'
@@ -202,7 +204,6 @@ jobs:
           summary_path = candidate / 'out/qa/screenshot-evidence.json'
           cartography_path = candidate / 'out/qa/live-cartography-evidence.json'
           readiness_dir = candidate / 'out/qa/screenshot-readiness'
-          screenshots_dir = candidate / 'docs/screenshots'
           build_path = candidate / '_site/build-manifest.json'
           summary = json.loads(summary_path.read_text(encoding='utf-8'))
           cartography = json.loads(cartography_path.read_text(encoding='utf-8'))
@@ -250,20 +251,25 @@ jobs:
           sidecars = sorted(readiness_dir.glob('*.json'))
           if len(sidecars) != 21:
               raise SystemExit('candidate readiness sidecar set is incomplete')
+          candidate_sources = []
           for entry in summary['screenshots']:
               relative = pathlib.PurePosixPath(entry['path'])
-              if relative.is_absolute() or '..' in relative.parts or relative.parts[:2] != ('docs', 'screenshots'):
+              if (relative.is_absolute() or '..' in relative.parts or
+                      relative.parts[:2] != ('docs', 'screenshots') or
+                      relative.suffix.lower() not in GENERATED_MEDIA_SUFFIXES):
                   raise SystemExit(f'unsafe screenshot path: {relative}')
               source = candidate.joinpath(*relative.parts)
-              if not source.is_file() or source.stat().st_size != entry['bytes'] or sha256(source) != entry['sha256']:
+              if (source.is_symlink() or not source.is_file() or
+                      source.stat().st_size != entry['bytes'] or sha256(source) != entry['sha256']):
                   raise SystemExit(f'candidate screenshot hash/size mismatch: {relative}')
+              candidate_sources.append((relative, source, entry))
               cartography_row = cartography_by_path[entry['path']]
               expected_status = 'exempt' if relative.name == '15-export-pdf-rendered.png' else 'valid'
               if cartography_row.get('status') != expected_status or cartography_row.get('errors'):
                   raise SystemExit(f'candidate cartography status mismatch: {relative}')
               sidecar_name = pathlib.PurePosixPath(entry['evidence']).name
               sidecar = readiness_dir / sidecar_name
-              if not sidecar.is_file():
+              if sidecar.is_symlink() or not sidecar.is_file():
                   raise SystemExit(f'missing candidate sidecar: {sidecar_name}')
               sidecar_data = json.loads(sidecar.read_text(encoding='utf-8'))
               shot = sidecar_data.get('screenshot') or {}
@@ -281,8 +287,27 @@ jobs:
 
           destination_shots = root / 'docs/screenshots'
           destination_readiness = root / 'qa/screenshot-evidence/readiness'
-          shutil.rmtree(destination_shots)
-          shutil.copytree(screenshots_dir, destination_shots)
+          if destination_shots.is_symlink() or not destination_shots.is_dir():
+              raise SystemExit('reviewed screenshot directory must remain a real directory')
+          for existing in sorted(destination_shots.rglob('*'), key=lambda path: path.as_posix()):
+              if existing.is_symlink():
+                  raise SystemExit(f'reviewed screenshot support tree contains a link: {existing}')
+              if existing.is_file():
+                  if existing.suffix.lower() in GENERATED_MEDIA_SUFFIXES:
+                      existing.unlink()
+              elif not existing.is_dir():
+                  raise SystemExit(f'reviewed screenshot support tree contains an unsupported entry: {existing}')
+          for relative, source, entry in candidate_sources:
+              target = root.joinpath(*relative.parts)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              if target.is_symlink():
+                  raise SystemExit(f'refusing to replace a linked screenshot target: {target}')
+              shutil.copyfile(source, target)
+              if target.stat().st_size != entry['bytes'] or sha256(target) != entry['sha256']:
+                  raise SystemExit(f'accepted screenshot copy mismatch: {relative}')
+
+          if destination_readiness.is_symlink():
+              raise SystemExit('reviewed screenshot readiness path must not be a link')
           shutil.rmtree(destination_readiness)
           shutil.copytree(readiness_dir, destination_readiness)
           destination_summary = root / 'qa/screenshot-evidence/summary.json'
