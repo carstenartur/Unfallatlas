@@ -115,7 +115,8 @@
                         <id>frontend-integration-tests</id>
                         <phase>integration-test</phase>
                         <goals>
-                            <goal>npm</goal></goals>
+                            <goal>npm</goal>
+                        </goals>
                         <configuration>
                             <arguments>run test:integration</arguments>
                             <skip>${skipTests}</skip>
