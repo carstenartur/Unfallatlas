@@ -5,10 +5,12 @@ const os = require('os');
 const path = require('path');
 const {
   SOURCE_BADGE_ID,
+  SOURCE_BADGE_RECORDING_HOLD_MS,
   MediaProvenanceCaptureError,
   sourceLabel,
   captureFromPage,
   attachPageToMediaProvenanceCapture,
+  waitForMediaProvenanceCapture,
   runWithMediaProvenanceCapture,
 } = require('../../server/media-provenance-capture');
 
@@ -56,11 +58,17 @@ function validCapture() {
 }
 
 function fakePage(capture = validCapture()) {
+  const browserContext = {
+    close: jest.fn(async () => undefined),
+  };
   return {
     goto: jest.fn(async () => ({ ok: true })),
     waitForSelector: jest.fn(async () => undefined),
     waitForFunction: jest.fn(async () => undefined),
     evaluate: jest.fn(async () => capture),
+    waitForTimeout: jest.fn(async () => undefined),
+    context: jest.fn(() => browserContext),
+    browserContext,
   };
 }
 
@@ -110,18 +118,55 @@ describe('media SourceManifest browser capture', () => {
     expect(page.evaluate).toHaveBeenCalledTimes(1);
   });
 
+  test('waits for the visible source badge and records it before closing the browser context', async () => {
+    const capture = validCapture();
+    const page = fakePage(capture);
+    const originalClose = page.browserContext.close;
+    let resolveCapture;
+    page.evaluate.mockImplementationOnce(() => new Promise(resolve => {
+      resolveCapture = resolve;
+    }));
+    const result = { path: '/tmp/media.gif', format: 'gif' };
+
+    const wrapped = runWithMediaProvenanceCapture({}, async () => {
+      attachPageToMediaProvenanceCapture(page, { error: jest.fn() });
+      await page.goto('http://localhost:8000/werkbank_v2.html');
+
+      const closePromise = page.browserContext.close();
+      await new Promise(resolve => setImmediate(resolve));
+      expect(typeof resolveCapture).toBe('function');
+      expect(originalClose).not.toHaveBeenCalled();
+
+      resolveCapture(capture);
+      await closePromise;
+      expect(page.waitForTimeout).toHaveBeenCalledWith(SOURCE_BADGE_RECORDING_HOLD_MS);
+      expect(originalClose).toHaveBeenCalledTimes(1);
+      return result;
+    });
+
+    await expect(wrapped).resolves.toEqual({ result, capture });
+  });
+
   test('is idempotent when the runtime sees the same page twice', async () => {
     const page = fakePage();
     const originalGoto = page.goto;
+    const wrappedClose = page.browserContext.close;
     await runWithMediaProvenanceCapture({}, async () => {
       const first = attachPageToMediaProvenanceCapture(page);
+      const firstClose = page.browserContext.close;
       const second = attachPageToMediaProvenanceCapture(page);
       expect(second).toBe(first);
+      expect(page.browserContext.close).toBe(firstClose);
+      expect(page.browserContext.close).not.toBe(wrappedClose);
       await page.goto('http://localhost:8000/werkbank_v2.html');
       return { path: '/tmp/media.webp' };
     });
     expect(originalGoto).toHaveBeenCalledTimes(1);
     expect(page.evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not require provenance capture for direct base-export callers', async () => {
+    await expect(waitForMediaProvenanceCapture(fakePage())).resolves.toBeNull();
   });
 
   test('removes a generated artifact when provenance capture fails', async () => {
