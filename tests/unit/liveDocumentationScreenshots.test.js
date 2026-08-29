@@ -36,6 +36,7 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('/^image\\/(?:png|jpe?g|webp)(?:;|$)/');
     expect(transformed).toContain('Documentation screenshot lacks complete stable real basemap coverage for:');
     expect(transformed).toContain("source: 'live'");
+    expect(transformed).toContain('requiredStableSamples: LIVE_TILE_STABLE_SAMPLES');
     expect(transformed).toContain('visibleTiles: live && live.visibleTiles');
     expect(transformed).toContain('observedTiles: live && live.observedTiles');
     expect(transformed).toContain('invalidTiles: live && live.invalidTiles');
@@ -56,6 +57,8 @@ describe('live documentation screenshot boundary', () => {
     expect(loadPageEnd).toBeGreaterThan(loadPageStart);
     expect(liveLoadPage).toContain("waitUntil: 'domcontentloaded'");
     expect(liveLoadPage).not.toContain("waitForLoadState('networkidle')");
+    expect(liveLoadPage).toContain("document.documentElement.dataset.mapSourceMode = 'live';");
+    expect(liveLoadPage).not.toContain("document.documentElement.dataset.mapSourceMode = 'fixture';");
   });
 
   test('bounds live tile requests and advances the application fallback chain on provider stalls', () => {
@@ -147,6 +150,7 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('function liveTileSignature(mapRect, readyTiles)');
     expect(transformed).toContain('observed.tileSignature === previousSignature');
     expect(transformed).toContain('stableSamples >= requiredStableSamples');
+    expect(transformed).toContain('Math.max(Number(live.stableSamples) || 0, stableSamples)');
   });
 
   test('retains cartography diagnostics before rejecting an invalid candidate', () => {
