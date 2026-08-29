@@ -74,10 +74,14 @@ function snapshotDirectory(directory) {
   return JSON.stringify(entries);
 }
 
+function sortedDirectoryEntries(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
 function copySupportFiles(source, target) {
   fs.mkdirSync(target, { recursive: true });
-  const children = fs.readdirSync(source, { withFileTypes: true });
-  for (const child of children) {
+  for (const child of sortedDirectoryEntries(source)) {
     const sourcePath = path.join(source, child.name);
     const targetPath = path.join(target, child.name);
     if (child.isSymbolicLink()) {
@@ -85,32 +89,55 @@ function copySupportFiles(source, target) {
     }
     if (child.isDirectory()) {
       copySupportFiles(sourcePath, targetPath);
-    } else if (child.isFile() && !GENERATED_MEDIA_EXTENSION.test(child.name)) {
-      fs.copyFileSync(sourcePath, targetPath);
-      fs.chmodSync(targetPath, fs.statSync(sourcePath).mode & 0o777);
+    } else if (child.isFile()) {
+      if (!GENERATED_MEDIA_EXTENSION.test(child.name)) {
+        fs.copyFileSync(sourcePath, targetPath);
+        fs.chmodSync(targetPath, fs.statSync(sourcePath).mode & 0o777);
+      }
+    } else {
+      throw new Error(`Unsupported canonical screenshot support entry: ${sourcePath}`);
     }
   }
 }
 
 function prepareCandidateDirectory(canonicalDirectory, candidateDirectory) {
+  assertDirectory(canonicalDirectory, 'Canonical screenshot directory');
+  const existingCandidate = lstatOrNull(candidateDirectory);
+  if (existingCandidate && (existingCandidate.isSymbolicLink() || !existingCandidate.isDirectory())) {
+    throw new Error(
+      `Candidate screenshot path must be missing or a real directory: ${candidateDirectory}`
+    );
+  }
   fs.rmSync(candidateDirectory, { recursive: true, force: true });
   copySupportFiles(canonicalDirectory, candidateDirectory);
 }
 
 function listGeneratedMedia(directory) {
-  if (!fs.existsSync(directory)) return [];
+  const directoryStats = lstatOrNull(directory);
+  if (!directoryStats) return [];
+  if (directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
+    throw new Error(`Candidate screenshot directory must be a real directory: ${directory}`);
+  }
   const files = [];
 
   function visit(current) {
-    for (const child of fs.readdirSync(current, { withFileTypes: true })) {
+    for (const child of sortedDirectoryEntries(current)) {
       const absolute = path.join(current, child.name);
-      if (child.isDirectory()) visit(absolute);
-      else if (child.isFile() && GENERATED_MEDIA_EXTENSION.test(child.name)) files.push(absolute);
+      if (child.isSymbolicLink()) {
+        throw new Error(`Candidate screenshot tree must not contain links: ${absolute}`);
+      }
+      if (child.isDirectory()) {
+        visit(absolute);
+      } else if (child.isFile()) {
+        if (GENERATED_MEDIA_EXTENSION.test(child.name)) files.push(absolute);
+      } else {
+        throw new Error(`Unsupported candidate screenshot entry: ${absolute}`);
+      }
     }
   }
 
   visit(directory);
-  return files.sort();
+  return files;
 }
 
 function recoveryPath(base, label) {
@@ -140,10 +167,7 @@ function withCandidateScreenshotWorkspace(callback, options = {}) {
     options.candidateDirectory || DEFAULT_CANDIDATE_DIRECTORY
   );
   const backupDirectory = path.resolve(
-    options.backupDirectory || path.join(
-      path.dirname(candidateDirectory),
-      `.canonical-screenshots-backup-${process.pid}-${Date.now()}`
-    )
+    options.backupDirectory || recoveryPath(canonicalDirectory, 'backup')
   );
 
   assertDisjointDirectories(canonicalDirectory, candidateDirectory);
@@ -208,6 +232,10 @@ function withCandidateScreenshotWorkspace(callback, options = {}) {
           `Mounted candidate path was no longer a real directory; preserved it at ${recovery}`
         ));
       } else {
+        // The child process may legitimately recreate or remove generated output
+        // directories. Keep the reviewed backup outside that transient tree and
+        // recreate only the candidate parent before moving generated media back.
+        fs.mkdirSync(path.dirname(candidateDirectory), { recursive: true });
         fs.renameSync(canonicalDirectory, candidateDirectory);
       }
     } catch (error) {
