@@ -3,43 +3,55 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 const {
+  DEFAULT_CANDIDATE_DIRECTORY,
   listGeneratedMedia,
   withCandidateScreenshotWorkspace,
 } = require('./candidate-screenshot-workspace');
 
 const ROOT = path.resolve(__dirname, '..');
-const commands = [
-  [
-    path.join(__dirname, 'validate-screenshot-evidence.js'),
-    ['--report', 'out/qa/screenshot-evidence.json'],
-  ],
-  [
-    path.join(__dirname, 'validate-doc-media.js'),
-    ['--candidate-screenshots', '--report', 'out/qa/documentation-media.json'],
-  ],
-];
+const VALIDATORS = new Map([
+  ['validate-screenshot-evidence.js', { mountAtCanonicalPath: true }],
+  ['validate-doc-media.js', { mountAtCanonicalPath: false }],
+]);
+
+function assertGeneratedMedia(directory) {
+  const generated = listGeneratedMedia(directory);
+  if (generated.length === 0) {
+    throw new Error(`Candidate screenshot directory is empty: ${directory}`);
+  }
+}
+
+function runValidator(name, args) {
+  const script = path.join(__dirname, name);
+  const child = spawnSync(process.execPath, [script, ...args], {
+    cwd: ROOT,
+    env: process.env,
+    stdio: 'inherit',
+  });
+  if (child.error) throw child.error;
+  if (child.status !== 0) {
+    const error = new Error(`${name} exited with status ${child.status ?? 1}`);
+    error.exitCode = child.status ?? 1;
+    throw error;
+  }
+}
 
 try {
-  withCandidateScreenshotWorkspace(({ candidateDirectory }) => {
-    const generated = listGeneratedMedia(candidateDirectory);
-    if (generated.length === 0) {
-      throw new Error(`Candidate screenshot directory is empty: ${candidateDirectory}`);
-    }
+  const [validatorName, ...validatorArgs] = process.argv.slice(2);
+  const validator = VALIDATORS.get(validatorName);
+  if (!validator) {
+    throw new Error(`Unsupported candidate screenshot validator: ${validatorName || '<missing>'}`);
+  }
 
-    for (const [script, args] of commands) {
-      const child = spawnSync(process.execPath, [script, ...args], {
-        cwd: ROOT,
-        env: process.env,
-        stdio: 'inherit',
-      });
-      if (child.error) throw child.error;
-      if (child.status !== 0) {
-        const error = new Error(`${path.basename(script)} exited with status ${child.status ?? 1}`);
-        error.exitCode = child.status ?? 1;
-        throw error;
-      }
-    }
-  }, { prepareCandidate: false });
+  if (validator.mountAtCanonicalPath) {
+    withCandidateScreenshotWorkspace(({ canonicalDirectory }) => {
+      assertGeneratedMedia(canonicalDirectory);
+      runValidator(validatorName, validatorArgs);
+    }, { prepareCandidate: false });
+  } else {
+    assertGeneratedMedia(DEFAULT_CANDIDATE_DIRECTORY);
+    runValidator(validatorName, validatorArgs);
+  }
 } catch (error) {
   if (Number.isInteger(error.exitCode)) process.exitCode = error.exitCode;
   else throw error;
