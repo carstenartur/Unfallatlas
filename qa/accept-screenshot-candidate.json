@@ -3,6 +3,7 @@
   "accept": true,
   "pullRequest": 658,
   "artifactName": "pr-live-map-screenshots-658",
+  "workflowContractRevision": "e66907900e95bb3f4b3e24d83c43d873a0a2a19e",
   "review": {
     "scope": "complete canonical screenshot set",
     "result": "accepted",
