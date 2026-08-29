@@ -1,9 +1,12 @@
 'use strict';
 
+const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
+  listGeneratedMedia,
+  prepareCandidateDirectory,
   snapshotDirectory,
   withCandidateScreenshotWorkspace,
 } = require('../../scripts/candidate-screenshot-workspace');
@@ -58,6 +61,86 @@ describe('isolated extended-E2E documentation screenshots', () => {
 
     expect(snapshotDirectory(canonicalDirectory)).toBe(before);
     expect(fs.existsSync(path.join(candidateDirectory, 'partial.png'))).toBe(true);
+  });
+
+  test('refuses a symlinked candidate path without touching its target', () => {
+    const externalDirectory = path.join(temporaryRoot, 'external-candidate-target');
+    fs.mkdirSync(externalDirectory, { recursive: true });
+    fs.writeFileSync(path.join(externalDirectory, 'sentinel.txt'), 'must survive');
+    fs.mkdirSync(path.dirname(candidateDirectory), { recursive: true });
+    fs.symlinkSync(
+      externalDirectory,
+      candidateDirectory,
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+
+    expect(() => prepareCandidateDirectory(canonicalDirectory, candidateDirectory))
+      .toThrow(/Candidate screenshot path must be missing or a real directory/);
+
+    expect(fs.lstatSync(candidateDirectory).isSymbolicLink()).toBe(true);
+    expect(fs.readFileSync(path.join(externalDirectory, 'sentinel.txt'), 'utf8'))
+      .toBe('must survive');
+  });
+
+  test('lists generated media deterministically and rejects links inside the candidate tree', () => {
+    const nested = path.join(candidateDirectory, 'nested');
+    fs.mkdirSync(nested, { recursive: true });
+    const topLevel = path.join(candidateDirectory, 'z-last.png');
+    const nestedFirst = path.join(nested, 'a-first.webp');
+    fs.writeFileSync(topLevel, 'png bytes');
+    fs.writeFileSync(nestedFirst, 'webp bytes');
+    fs.writeFileSync(path.join(candidateDirectory, 'README.md'), 'support file');
+
+    expect(listGeneratedMedia(candidateDirectory)).toEqual([nestedFirst, topLevel]);
+
+    const linkedTarget = path.join(temporaryRoot, 'linked-media-target');
+    fs.mkdirSync(linkedTarget, { recursive: true });
+    fs.writeFileSync(path.join(linkedTarget, 'external.png'), 'external bytes');
+    fs.symlinkSync(
+      linkedTarget,
+      path.join(candidateDirectory, 'linked-directory'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    expect(() => listGeneratedMedia(candidateDirectory))
+      .toThrow(/Candidate screenshot tree must not contain links/);
+  });
+
+  const unsupportedEntryTest = process.platform === 'win32' ? test.skip : test;
+  unsupportedEntryTest('rejects special filesystem entries in support and candidate trees', () => {
+    const supportFifo = path.join(canonicalDirectory, 'unsupported-support.fifo');
+    const supportResult = spawnSync('mkfifo', [supportFifo], { encoding: 'utf8' });
+    expect(supportResult.status).toBe(0);
+    expect(() => prepareCandidateDirectory(canonicalDirectory, candidateDirectory))
+      .toThrow(/Unsupported canonical screenshot support entry/);
+
+    fs.rmSync(supportFifo, { force: true });
+    fs.mkdirSync(candidateDirectory, { recursive: true });
+    const candidateFifo = path.join(candidateDirectory, 'unsupported-candidate.fifo');
+    const candidateResult = spawnSync('mkfifo', [candidateFifo], { encoding: 'utf8' });
+    expect(candidateResult.status).toBe(0);
+    expect(() => listGeneratedMedia(candidateDirectory))
+      .toThrow(/Unsupported candidate screenshot entry/);
+  });
+
+  test('restores reviewed media when the transient QA output tree is removed', () => {
+    const before = snapshotDirectory(canonicalDirectory);
+    const canonicalParent = path.dirname(canonicalDirectory);
+
+    withCandidateScreenshotWorkspace(({ canonicalDirectory: mounted }) => {
+      fs.writeFileSync(path.join(mounted, 'generated.png'), 'candidate bytes');
+      const backups = fs.readdirSync(canonicalParent)
+        .filter(name => name.startsWith('screenshots.backup-'));
+      expect(backups).toHaveLength(1);
+
+      fs.rmSync(path.join(temporaryRoot, 'out'), { recursive: true, force: true });
+      expect(fs.existsSync(path.dirname(candidateDirectory))).toBe(false);
+    }, { canonicalDirectory, candidateDirectory });
+
+    expect(snapshotDirectory(canonicalDirectory)).toBe(before);
+    expect(fs.readFileSync(path.join(candidateDirectory, 'generated.png'), 'utf8'))
+      .toBe('candidate bytes');
+    expect(fs.readdirSync(canonicalParent)
+      .filter(name => name.startsWith('screenshots.backup-'))).toEqual([]);
   });
 
   test('fails closed when a command recreates the candidate path while it is mounted', () => {
