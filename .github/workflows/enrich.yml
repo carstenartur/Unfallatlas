@@ -25,6 +25,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/enrich.yml'
       - 'cities.txt'
       - 'pom.xml'
       - 'qa-system-tests/**'
@@ -101,6 +102,143 @@ jobs:
           -Dcontext.city="${REQUESTED_CITY:-}"
           -Dcontext.force="${FORCE_CONTEXT:-false}"
 
+      - name: Review staged public-data delta before any commit
+        shell: bash
+        env:
+          MAX_CHANGED_FILES: '2000'
+          MAX_ADDED_FILES: '500'
+          MAX_DELETED_FILES: '500'
+          MAX_SINGLE_FILE_BYTES: '16777216'
+          MAX_REWRITTEN_BYTES: '134217728'
+          MAX_POSITIVE_GROWTH_BYTES: '67108864'
+          MAX_NET_GROWTH_BYTES: '33554432'
+        run: |
+          set -euo pipefail
+          mkdir -p out/qa
+          report='out/qa/context-data-git-delta.txt'
+          git add -A -- out/ data/accident-data-release.json
+
+          if git diff --cached --quiet; then
+            {
+              echo 'Context data Git delta: no public-data changes.'
+              echo "head=$(git rev-parse HEAD)"
+            } > "$report"
+            cat "$report"
+            exit 0
+          fi
+
+          git diff --cached --check
+          mapfile -d '' -t changed_paths < <(git diff --cached --name-only -z -- out/ data/accident-data-release.json)
+          mapfile -d '' -t added_paths < <(git diff --cached --diff-filter=A --name-only -z -- out/ data/accident-data-release.json)
+          mapfile -d '' -t deleted_paths < <(git diff --cached --diff-filter=D --name-only -z -- out/ data/accident-data-release.json)
+
+          changed_count=${#changed_paths[@]}
+          added_count=${#added_paths[@]}
+          deleted_count=${#deleted_paths[@]}
+          rewritten_bytes=0
+          positive_growth_bytes=0
+          net_growth_bytes=0
+          largest_file_bytes=0
+          largest_file_path=''
+          errors=()
+          tmp_rows="$(mktemp)"
+          trap 'rm -f "$tmp_rows"' EXIT
+
+          for path in "${changed_paths[@]}"; do
+            case "$path" in
+              out/*|data/accident-data-release.json) ;;
+              *)
+                errors+=("unexpected staged path: $path")
+                continue
+                ;;
+            esac
+
+            old_size=0
+            if git cat-file -e "HEAD:$path" 2>/dev/null; then
+              old_size="$(git cat-file -s "HEAD:$path")"
+            fi
+
+            current_size=0
+            status='deleted'
+            if git cat-file -e ":$path" 2>/dev/null; then
+              status='written'
+              current_size="$(git cat-file -s ":$path")"
+              index_mode="$(git ls-files -s -- "$path" | awk 'NR == 1 { print $1 }')"
+              if [[ "$index_mode" != '100644' ]]; then
+                errors+=("unsupported staged file mode $index_mode: $path")
+              fi
+              rewritten_bytes=$((rewritten_bytes + current_size))
+              if (( current_size > largest_file_bytes )); then
+                largest_file_bytes=$current_size
+                largest_file_path=$path
+              fi
+              if (( current_size > MAX_SINGLE_FILE_BYTES )); then
+                errors+=("single file exceeds ${MAX_SINGLE_FILE_BYTES} bytes: $path ($current_size bytes)")
+              fi
+            fi
+
+            delta=$((current_size - old_size))
+            net_growth_bytes=$((net_growth_bytes + delta))
+            if (( delta > 0 )); then
+              positive_growth_bytes=$((positive_growth_bytes + delta))
+            fi
+            printf '%s\t%s\t%s\t%s\t%s\n' \
+              "$status" "$old_size" "$current_size" "$delta" "$path" >> "$tmp_rows"
+          done
+
+          if (( changed_count > MAX_CHANGED_FILES )); then
+            errors+=("changed file count $changed_count exceeds $MAX_CHANGED_FILES")
+          fi
+          if (( added_count > MAX_ADDED_FILES )); then
+            errors+=("added file count $added_count exceeds $MAX_ADDED_FILES")
+          fi
+          if (( deleted_count > MAX_DELETED_FILES )); then
+            errors+=("deleted file count $deleted_count exceeds $MAX_DELETED_FILES")
+          fi
+          if (( rewritten_bytes > MAX_REWRITTEN_BYTES )); then
+            errors+=("rewritten bytes $rewritten_bytes exceed $MAX_REWRITTEN_BYTES")
+          fi
+          if (( positive_growth_bytes > MAX_POSITIVE_GROWTH_BYTES )); then
+            errors+=("positive growth $positive_growth_bytes exceeds $MAX_POSITIVE_GROWTH_BYTES bytes")
+          fi
+          if (( net_growth_bytes > MAX_NET_GROWTH_BYTES )); then
+            errors+=("net growth $net_growth_bytes exceeds $MAX_NET_GROWTH_BYTES bytes")
+          fi
+
+          {
+            echo 'Context data Git delta review'
+            echo "head=$(git rev-parse HEAD)"
+            echo "changed_files=$changed_count"
+            echo "added_files=$added_count"
+            echo "deleted_files=$deleted_count"
+            echo "rewritten_bytes=$rewritten_bytes"
+            echo "positive_growth_bytes=$positive_growth_bytes"
+            echo "net_growth_bytes=$net_growth_bytes"
+            echo "largest_file_bytes=$largest_file_bytes"
+            echo "largest_file_path=$largest_file_path"
+            echo "max_changed_files=$MAX_CHANGED_FILES"
+            echo "max_added_files=$MAX_ADDED_FILES"
+            echo "max_deleted_files=$MAX_DELETED_FILES"
+            echo "max_single_file_bytes=$MAX_SINGLE_FILE_BYTES"
+            echo "max_rewritten_bytes=$MAX_REWRITTEN_BYTES"
+            echo "max_positive_growth_bytes=$MAX_POSITIVE_GROWTH_BYTES"
+            echo "max_net_growth_bytes=$MAX_NET_GROWTH_BYTES"
+            echo
+            echo -e 'status\told_bytes\tcurrent_bytes\tdelta_bytes\tpath'
+            cat "$tmp_rows"
+            if (( ${#errors[@]} > 0 )); then
+              echo
+              echo 'BLOCKERS'
+              printf '%s\n' "${errors[@]}"
+            fi
+          } > "$report"
+          cat "$report"
+
+          if (( ${#errors[@]} > 0 )); then
+            echo 'Context data delta exceeds the automatic-commit budget; use a reviewed PR.' >&2
+            exit 1
+          fi
+
       - name: Upload context QA evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -127,10 +265,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add -A -- out/ data/accident-data-release.json
           if git diff --cached --quiet; then
             echo "The context refresh completed successfully, but the resulting public data and release oracle are unchanged."
             exit 0
           fi
+          source_head="$(git rev-parse HEAD)"
+          target_branch="${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref_name }}"
+          git fetch --no-tags origin "refs/heads/${target_branch}"
+          remote_head="$(git rev-parse FETCH_HEAD)"
+          if [[ "$remote_head" != "$source_head" ]]; then
+            echo "Refusing stale context-data push: source $source_head, remote $remote_head" >&2
+            exit 1
+          fi
           git commit -m "Regenerate verified context data"
-          git push origin HEAD:${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref_name }}
+          git push origin "HEAD:${target_branch}"
