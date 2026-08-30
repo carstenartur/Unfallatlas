@@ -4,14 +4,16 @@
 // script-src 'self' Content Security Policy. It must load before ua.core.js.
 window.UA = { BUILD: '2026-07-19 00:00 UTC' };
 
-// Issue #644: load the central evidence-safe semantics contract, its
-// fail-closed hardening layer, and the deterministic report bridge before the
-// legacy analysis/export stack.
+// Load fail-closed evidence semantics and the bounded Bonn browser fallback
+// before the legacy analysis/export stack. The political-context module itself
+// is loaded later; its fallback therefore installs through a bounded readiness
+// poll and keeps the normal server route as the primary path.
 if (typeof document !== 'undefined') {
   const sources = [
     'ua.evidence_safe_semantics.js?v=2026-08-22',
     'ua.evidence_safe_semantics_hardening.js?v=2026-08-22',
     'ua.evidence_safe_semantics_bridge.js?v=2026-08-22',
+    'ua.political-context-browser-fallback.js?v=2026-08-30',
   ];
   const current = document.currentScript;
 
