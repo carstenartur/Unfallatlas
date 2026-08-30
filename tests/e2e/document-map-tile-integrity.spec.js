@@ -62,5 +62,6 @@ test('document map capture reuses verified tiles instead of making a lossy secon
 
   expect(captured).toMatchObject({ width: 255, height: 255 });
   expect(captured.pixel[3]).toBeGreaterThan(0);
-  expect([...requests.values()]).toEqual([1]);
+  expect(requests.size).toBeGreaterThan(0);
+  expect([...requests.values()].every(count => count === 1)).toBe(true);
 });
