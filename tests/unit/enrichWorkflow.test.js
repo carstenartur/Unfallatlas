@@ -8,10 +8,15 @@ describe('enrich workflow checkout pinning and resilience', () => {
     path.resolve(__dirname, '../../.github/workflows/enrich.yml'),
     'utf8',
   );
+  const policy = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, '../../config/context-data-git-budget.json'),
+    'utf8',
+  ));
 
-  test('keeps workflow_run auto-enrichment on the trusted default branch', () => {
+  test('keeps every mutating trigger on the trusted default branch', () => {
     expect(workflow).toContain("github.event.workflow_run.head_branch == github.event.repository.default_branch");
-    expect(workflow).toContain("ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}");
+    expect(workflow).toContain('ref: ${{ github.event.repository.default_branch }}');
+    expect(workflow).not.toContain("ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}");
   });
 
   test('keeps manual and push runs strict while tolerating verified stale data for scheduled/provider-chained runs', () => {
@@ -29,11 +34,14 @@ describe('enrich workflow checkout pinning and resilience', () => {
     expect(workflow).toContain("if: always() && steps.context-cache.outputs.cache-hit != 'true'");
   });
 
-  test('publishes the hidden QA summary and commits the rebound accident release oracle with context data', () => {
+  test('publishes hidden QA evidence and includes the release oracle in the reviewed data index', () => {
     expect(workflow).toContain('.build/context-provider/');
     expect(workflow).toContain('.build/context-selected-cities.txt');
     expect(workflow).toContain('include-hidden-files: true');
     expect(workflow).toContain('out/qa/');
-    expect(workflow).toContain('git add -A -- out/ data/accident-data-release.json');
+    expect(workflow).toContain("CONTEXT_REVIEW_GIT_DELTA: 'true'");
+    expect(policy.allowedPathPrefixes).toContain('out/');
+    expect(policy.allowedExactPaths).toContain('data/accident-data-release.json');
+    expect(workflow).not.toContain('git add -A -- out/ data/accident-data-release.json');
   });
 });
