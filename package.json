@@ -28,7 +28,7 @@
     "qa:document-render": "node scripts/run-document-render-qa.js",
     "qa:document-golden-matrix": "node scripts/generate-document-golden-matrix.js",
     "qa:documentation-live": "node scripts/run-live-documentation-qa.js",
-    "qa:context-enrichment": "node scripts/run-context-enrichment.js",
+    "qa:context-enrichment": "node scripts/run-context-enrichment.js && node scripts/run-context-data-git-delta-if-enabled.js",
     "qa:release-site": "npm run build:site && npm run validate:media -- --report out/qa/release-documentation-media.json && npm run validate:vendor-provenance",
     "regen:demo": "node scripts/regen-readme-demo.js",
     "regen:context-assets": "node scripts/regen-context-assets.js",

@@ -28,11 +28,15 @@ on:
       - '.github/workflows/enrich.yml'
       - 'cities.txt'
       - 'pom.xml'
+      - 'package.json'
       - 'qa-system-tests/**'
+      - 'config/context-data-git-budget.json'
       - 'scripts/generate-context-city.js'
       - 'scripts/apply-hannover-dgm1-road-profiles.js'
       - 'scripts/apply-qualitative-traffic-proxy.js'
       - 'scripts/check-enrichment-inputs.js'
+      - 'scripts/review-context-data-git-delta.js'
+      - 'scripts/run-context-data-git-delta-if-enabled.js'
       - 'scripts/run-context-enrichment.js'
       - 'scripts/providers/**'
       - 'scripts/producers/**'
@@ -87,12 +91,13 @@ jobs:
             context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-
             context-${{ runner.os }}-
 
-      - name: Generate, validate and render selected context data
+      - name: Generate, validate and review selected context data
         env:
           REQUESTED_CITY: ${{ inputs.city }}
           FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
           CONTEXT_ALLOW_STALE_ON_TRANSIENT: ${{ inputs.allow_stale_on_transient == true || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
           CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
+          CONTEXT_REVIEW_GIT_DELTA: 'true'
           HANNOVER_DGM1_ROOT: ${{ vars.HANNOVER_DGM1_ROOT }}
           HANNOVER_DGM1_MANIFEST: ${{ vars.HANNOVER_DGM1_MANIFEST }}
           HANNOVER_DGM1_MANIFEST_SHA256: ${{ vars.HANNOVER_DGM1_MANIFEST_SHA256 }}
@@ -101,154 +106,6 @@ jobs:
           mvn -B -ntp verify -Pcontext-data-e2e
           -Dcontext.city="${REQUESTED_CITY:-}"
           -Dcontext.force="${FORCE_CONTEXT:-false}"
-
-      - name: Review staged public-data delta before any commit
-        shell: bash
-        env:
-          MAX_CHANGED_FILES: '2000'
-          MAX_ADDED_FILES: '500'
-          MAX_DELETED_FILES: '500'
-          MAX_SINGLE_FILE_BYTES: '16777216'
-          MAX_REWRITTEN_BYTES: '134217728'
-          MAX_POSITIVE_GROWTH_BYTES: '67108864'
-          MAX_NET_GROWTH_BYTES: '33554432'
-        run: |
-          set -euo pipefail
-          mkdir -p out/qa
-          report='out/qa/context-data-git-delta.txt'
-          git add -A -- out/ data/accident-data-release.json
-
-          if git diff --cached --quiet; then
-            {
-              echo 'Context data Git delta: no public-data changes.'
-              echo "head=$(git rev-parse HEAD)"
-            } > "$report"
-            cat "$report"
-            exit 0
-          fi
-
-          mapfile -d '' -t changed_paths < <(git diff --cached --name-only -z)
-          mapfile -d '' -t added_paths < <(git diff --cached --diff-filter=A --name-only -z)
-          mapfile -d '' -t deleted_paths < <(git diff --cached --diff-filter=D --name-only -z)
-
-          changed_count=${#changed_paths[@]}
-          added_count=${#added_paths[@]}
-          deleted_count=${#deleted_paths[@]}
-          rewritten_bytes=0
-          positive_growth_bytes=0
-          net_growth_bytes=0
-          largest_file_bytes=0
-          largest_file_path=''
-          errors=()
-          tmp_rows="$(mktemp)"
-          check_output="$(mktemp)"
-          trap 'rm -f "$tmp_rows" "$check_output"' EXIT
-
-          if ! git diff --cached --check >"$check_output" 2>&1; then
-            while IFS= read -r line; do
-              [[ -n "$line" ]] && errors+=("git diff --check: $line")
-            done < "$check_output"
-          fi
-
-          for path in "${changed_paths[@]}"; do
-            case "$path" in
-              out/*|data/accident-data-release.json) ;;
-              *)
-                errors+=("unexpected staged path: $path")
-                continue
-                ;;
-            esac
-
-            old_size=0
-            if git cat-file -e "HEAD:$path" 2>/dev/null; then
-              old_size="$(git cat-file -s "HEAD:$path")"
-            fi
-
-            current_size=0
-            status='deleted'
-            if git cat-file -e ":$path" 2>/dev/null; then
-              status='written'
-              current_size="$(git cat-file -s ":$path")"
-              index_mode="$(git ls-files -s -- "$path" | awk 'NR == 1 { print $1 }')"
-              if [[ "$index_mode" != '100644' ]]; then
-                errors+=("unsupported staged file mode $index_mode: $path")
-              fi
-              rewritten_bytes=$((rewritten_bytes + current_size))
-              if (( current_size > largest_file_bytes )); then
-                largest_file_bytes=$current_size
-                largest_file_path=$path
-              fi
-              if (( current_size > MAX_SINGLE_FILE_BYTES )); then
-                errors+=("single file exceeds ${MAX_SINGLE_FILE_BYTES} bytes: $path ($current_size bytes)")
-              fi
-            fi
-
-            delta=$((current_size - old_size))
-            net_growth_bytes=$((net_growth_bytes + delta))
-            if (( delta > 0 )); then
-              positive_growth_bytes=$((positive_growth_bytes + delta))
-            fi
-            printf '%s\t%s\t%s\t%s\t%s\n' \
-              "$status" "$old_size" "$current_size" "$delta" "$path" >> "$tmp_rows"
-          done
-
-          if (( changed_count > MAX_CHANGED_FILES )); then
-            errors+=("changed file count $changed_count exceeds $MAX_CHANGED_FILES")
-          fi
-          if (( added_count > MAX_ADDED_FILES )); then
-            errors+=("added file count $added_count exceeds $MAX_ADDED_FILES")
-          fi
-          if (( deleted_count > MAX_DELETED_FILES )); then
-            errors+=("deleted file count $deleted_count exceeds $MAX_DELETED_FILES")
-          fi
-          if (( rewritten_bytes > MAX_REWRITTEN_BYTES )); then
-            errors+=("rewritten bytes $rewritten_bytes exceed $MAX_REWRITTEN_BYTES")
-          fi
-          if (( positive_growth_bytes > MAX_POSITIVE_GROWTH_BYTES )); then
-            errors+=("positive growth $positive_growth_bytes exceeds $MAX_POSITIVE_GROWTH_BYTES bytes")
-          fi
-          if (( net_growth_bytes > MAX_NET_GROWTH_BYTES )); then
-            errors+=("net growth $net_growth_bytes exceeds $MAX_NET_GROWTH_BYTES bytes")
-          fi
-
-          {
-            echo 'Context data Git delta review'
-            echo "head=$(git rev-parse HEAD)"
-            echo "changed_files=$changed_count"
-            echo "added_files=$added_count"
-            echo "deleted_files=$deleted_count"
-            echo "rewritten_bytes=$rewritten_bytes"
-            echo "positive_growth_bytes=$positive_growth_bytes"
-            echo "net_growth_bytes=$net_growth_bytes"
-            echo "largest_file_bytes=$largest_file_bytes"
-            echo "largest_file_path=$largest_file_path"
-            echo "max_changed_files=$MAX_CHANGED_FILES"
-            echo "max_added_files=$MAX_ADDED_FILES"
-            echo "max_deleted_files=$MAX_DELETED_FILES"
-            echo "max_single_file_bytes=$MAX_SINGLE_FILE_BYTES"
-            echo "max_rewritten_bytes=$MAX_REWRITTEN_BYTES"
-            echo "max_positive_growth_bytes=$MAX_POSITIVE_GROWTH_BYTES"
-            echo "max_net_growth_bytes=$MAX_NET_GROWTH_BYTES"
-            echo
-            echo -e 'status\told_bytes\tcurrent_bytes\tdelta_bytes\tpath'
-            cat "$tmp_rows"
-            if [[ -s "$check_output" ]]; then
-              echo
-              echo 'GIT DIFF CHECK'
-              cat "$check_output"
-            fi
-            if (( ${#errors[@]} > 0 )); then
-              echo
-              echo 'BLOCKERS'
-              printf '%s\n' "${errors[@]}"
-            fi
-          } > "$report"
-          cat "$report"
-
-          if (( ${#errors[@]} > 0 )); then
-            echo 'Context data delta exceeds the automatic-commit budget; use a reviewed PR.' >&2
-            exit 1
-          fi
 
       - name: Upload context QA evidence
         if: always()
