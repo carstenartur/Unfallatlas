@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "contract": "unfallwerkbank-context-data-git-budget/v1",
+  "purpose": "Fail-closed budget for automatically generated context-data pull requests. Larger intentional changes must be prepared and reviewed explicitly; the policy itself may only be raised through a separately justified review.",
+  "allowedPathPrefixes": [
+    "out/"
+  ],
+  "allowedExactPaths": [
+    "data/accident-data-release.json"
+  ],
+  "limits": {
+    "maxChangedFiles": 2000,
+    "maxAddedFiles": 500,
+    "maxDeletedFiles": 500,
+    "maxSingleFileBytes": 16777216,
+    "maxRewrittenBytes": 134217728,
+    "maxPositiveGrowthBytes": 67108864,
+    "maxNetGrowthBytes": 33554432
+  }
+}

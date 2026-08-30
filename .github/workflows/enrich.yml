@@ -25,13 +25,18 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/enrich.yml'
       - 'cities.txt'
       - 'pom.xml'
+      - 'package.json'
       - 'qa-system-tests/**'
+      - 'config/context-data-git-budget.json'
       - 'scripts/generate-context-city.js'
       - 'scripts/apply-hannover-dgm1-road-profiles.js'
       - 'scripts/apply-qualitative-traffic-proxy.js'
       - 'scripts/check-enrichment-inputs.js'
+      - 'scripts/review-context-data-git-delta.js'
+      - 'scripts/run-context-data-git-delta-if-enabled.js'
       - 'scripts/run-context-enrichment.js'
       - 'scripts/providers/**'
       - 'scripts/producers/**'
@@ -43,6 +48,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: enrich-context-${{ github.event.repository.default_branch }}
@@ -62,7 +68,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true
-          ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
@@ -86,12 +92,13 @@ jobs:
             context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-
             context-${{ runner.os }}-
 
-      - name: Generate, validate and render selected context data
+      - name: Generate, validate and review selected context data
         env:
           REQUESTED_CITY: ${{ inputs.city }}
           FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
           CONTEXT_ALLOW_STALE_ON_TRANSIENT: ${{ inputs.allow_stale_on_transient == true || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
           CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
+          CONTEXT_REVIEW_GIT_DELTA: 'true'
           HANNOVER_DGM1_ROOT: ${{ vars.HANNOVER_DGM1_ROOT }}
           HANNOVER_DGM1_MANIFEST: ${{ vars.HANNOVER_DGM1_MANIFEST }}
           HANNOVER_DGM1_MANIFEST_SHA256: ${{ vars.HANNOVER_DGM1_MANIFEST_SHA256 }}
@@ -123,14 +130,70 @@ jobs:
           path: .enrichment-cache
           key: context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-${{ github.run_id }}
 
-      - name: Commit and push
+      - name: Commit reviewed data and open or update pull request
+        env:
+          GH_TOKEN: ${{ secrets.CONTEXT_DATA_PR_TOKEN || github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          TARGET_BRANCH: ${{ github.event.repository.default_branch }}
+          REFRESH_BRANCH: automation/context-data-refresh
         shell: bash
         run: |
           set -euo pipefail
-          git add -A -- out/ data/accident-data-release.json
           if git diff --cached --quiet; then
             echo "The context refresh completed successfully, but the resulting public data and release oracle are unchanged."
             exit 0
           fi
+
+          source_head="$(git rev-parse HEAD)"
+          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}"
+          remote_head="$(git rev-parse FETCH_HEAD)"
+          if [[ "$remote_head" != "$source_head" ]]; then
+            echo "Refusing stale context-data publication: source $source_head, remote $remote_head" >&2
+            exit 1
+          fi
+
           git commit -m "Regenerate verified context data"
-          git push origin HEAD:${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref_name }}
+          expected_refresh_head="$(git ls-remote --heads origin "refs/heads/${REFRESH_BRANCH}" | awk '{print $1}')"
+          if [[ -n "$expected_refresh_head" ]]; then
+            git push \
+              --force-with-lease="refs/heads/${REFRESH_BRANCH}:${expected_refresh_head}" \
+              origin "HEAD:refs/heads/${REFRESH_BRANCH}"
+          else
+            git push origin "HEAD:refs/heads/${REFRESH_BRANCH}"
+          fi
+
+          title="Regenerate verified context data"
+          body="Automatisch erzeugte und vollständig validierte Kontextdaten. Das eingecheckte Delta wurde vor dem Commit gegen config/context-data-git-budget.json geprüft; größere Änderungen bleiben außerhalb dieses Automatikpfads."
+          pr_number="$(gh api --method GET "repos/${REPOSITORY}/pulls" \
+            -f state=open \
+            -f head="${REPOSITORY_OWNER}:${REFRESH_BRANCH}" \
+            -f base="${TARGET_BRANCH}" \
+            --jq '.[0].number // empty')"
+          if [[ -n "$pr_number" ]]; then
+            echo "Updated automation branch for pull request #${pr_number}."
+            exit 0
+          fi
+
+          mkdir -p .build
+          pr_error_file=".build/context-data-pr-error.txt"
+          if pr_url="$(gh api --method POST "repos/${REPOSITORY}/pulls" \
+            -f title="$title" \
+            -f head="${REFRESH_BRANCH}" \
+            -f base="${TARGET_BRANCH}" \
+            -f body="$body" \
+            --jq '.html_url' 2>"$pr_error_file")"; then
+            echo "Opened ${pr_url}."
+          else
+            echo "::warning::The reviewed data commit was pushed to ${REFRESH_BRANCH}, but GitHub did not allow this workflow token to open the pull request."
+            {
+              echo "### Kontextdaten-PR muss geöffnet werden"
+              echo
+              echo "Der geprüfte Commit liegt auf \`${REFRESH_BRANCH}\`, aber der Workflow-Token durfte keinen Pull Request anlegen."
+              echo "Bitte Pull Request von \`${REFRESH_BRANCH}\` nach \`${TARGET_BRANCH}\` öffnen oder \`CONTEXT_DATA_PR_TOKEN\` als GitHub-App-/PAT-Secret konfigurieren."
+              echo
+              echo '```text'
+              cat "$pr_error_file"
+              echo '```'
+            } >>"$GITHUB_STEP_SUMMARY"
+          fi
