@@ -27,9 +27,19 @@ describe('automatic context-data commit budget', () => {
     expect(workflow.indexOf('Upload context QA evidence'))
       .toBeLessThan(workflow.indexOf('Commit and push'));
     expect(review).toContain('git add -A -- out/ data/accident-data-release.json');
-    expect(review).toContain('git diff --cached --check');
     expect(review).toContain("report='out/qa/context-data-git-delta.txt'");
     expect(upload).toContain('out/qa/');
+  });
+
+  test('accounts for every staged path and preserves patch blockers in the report', () => {
+    expect(review).toContain("git diff --cached --name-only -z)");
+    expect(review).toContain("git diff --cached --diff-filter=A --name-only -z)");
+    expect(review).toContain("git diff --cached --diff-filter=D --name-only -z)");
+    expect(review).not.toContain('git diff --cached --name-only -z -- out/');
+    expect(review).toContain('if ! git diff --cached --check >"$check_output" 2>&1; then');
+    expect(review).toContain('errors+=("git diff --check: $line")');
+    expect(review).toContain("echo 'GIT DIFF CHECK'");
+    expect(review).toContain('errors+=("unexpected staged path: $path")');
   });
 
   test('blocks excessive file counts, single blobs and aggregate Git churn', () => {
