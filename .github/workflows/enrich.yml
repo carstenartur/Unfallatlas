@@ -127,10 +127,9 @@ jobs:
             exit 0
           fi
 
-          git diff --cached --check
-          mapfile -d '' -t changed_paths < <(git diff --cached --name-only -z -- out/ data/accident-data-release.json)
-          mapfile -d '' -t added_paths < <(git diff --cached --diff-filter=A --name-only -z -- out/ data/accident-data-release.json)
-          mapfile -d '' -t deleted_paths < <(git diff --cached --diff-filter=D --name-only -z -- out/ data/accident-data-release.json)
+          mapfile -d '' -t changed_paths < <(git diff --cached --name-only -z)
+          mapfile -d '' -t added_paths < <(git diff --cached --diff-filter=A --name-only -z)
+          mapfile -d '' -t deleted_paths < <(git diff --cached --diff-filter=D --name-only -z)
 
           changed_count=${#changed_paths[@]}
           added_count=${#added_paths[@]}
@@ -142,7 +141,14 @@ jobs:
           largest_file_path=''
           errors=()
           tmp_rows="$(mktemp)"
-          trap 'rm -f "$tmp_rows"' EXIT
+          check_output="$(mktemp)"
+          trap 'rm -f "$tmp_rows" "$check_output"' EXIT
+
+          if ! git diff --cached --check >"$check_output" 2>&1; then
+            while IFS= read -r line; do
+              [[ -n "$line" ]] && errors+=("git diff --check: $line")
+            done < "$check_output"
+          fi
 
           for path in "${changed_paths[@]}"; do
             case "$path" in
@@ -226,6 +232,11 @@ jobs:
             echo
             echo -e 'status\told_bytes\tcurrent_bytes\tdelta_bytes\tpath'
             cat "$tmp_rows"
+            if [[ -s "$check_output" ]]; then
+              echo
+              echo 'GIT DIFF CHECK'
+              cat "$check_output"
+            fi
             if (( ${#errors[@]} > 0 )); then
               echo
               echo 'BLOCKERS'
