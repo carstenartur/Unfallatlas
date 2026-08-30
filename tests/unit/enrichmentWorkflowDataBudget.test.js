@@ -3,7 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const {
   ContextDataGitDeltaError,
   loadPolicy,
@@ -210,7 +210,7 @@ describe('context-data Git delta review', () => {
   );
 });
 
-describe('Maven-owned automatic context-data mutation contract', () => {
+describe('Maven-owned automatic context-data pull-request contract', () => {
   test('keeps generation and Git-delta review inside one Maven-owned npm execution', () => {
     const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/enrich.yml'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -225,17 +225,38 @@ describe('Maven-owned automatic context-data mutation contract', () => {
     expect(workflow).not.toMatch(/\bnode\s+scripts\//);
   });
 
-  test('commits only the reviewed index and refuses a stale target branch', () => {
+  test('commits only the reviewed index and publishes through a guarded pull-request branch', () => {
     const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/enrich.yml'), 'utf8');
-    const start = workflow.indexOf('      - name: Commit and push');
-    const commit = workflow.slice(start);
+    const start = workflow.indexOf(
+      '      - name: Commit reviewed data and open or update pull request',
+    );
+    expect(start).toBeGreaterThanOrEqual(0);
+    const publish = workflow.slice(start);
 
-    expect(commit).not.toContain('git add');
-    expect(commit).toContain('source_head="$(git rev-parse HEAD)"');
-    expect(commit).toContain('git fetch --no-tags origin "refs/heads/${target_branch}"');
-    expect(commit).toContain('remote_head="$(git rev-parse FETCH_HEAD)"');
-    expect(commit).toContain('Refusing stale context-data push');
-    expect(commit).toContain('git push origin "HEAD:${target_branch}"');
+    expect(workflow).toContain('pull-requests: write');
+    expect(publish).not.toContain('git add');
+    expect(publish).toContain('source_head="$(git rev-parse HEAD)"');
+    expect(publish).toContain('TARGET_BRANCH: ${{ github.event.repository.default_branch }}');
+    expect(publish).toContain('REFRESH_BRANCH: automation/context-data-refresh');
+    expect(publish).toContain('git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}"');
+    expect(publish).toContain('remote_head="$(git rev-parse FETCH_HEAD)"');
+    expect(publish).toContain('Refusing stale context-data publication');
+    expect(publish).toContain('--force-with-lease="refs/heads/${REFRESH_BRANCH}:${expected_refresh_head}"');
+    expect(publish).toContain('origin "HEAD:refs/heads/${REFRESH_BRANCH}"');
+    expect(publish).toContain('gh api --method POST "repos/${REPOSITORY}/pulls"');
+    expect(publish).not.toContain('origin "HEAD:refs/heads/${TARGET_BRANCH}"');
+    expect(publish).not.toContain('origin "HEAD:${TARGET_BRANCH}"');
+  });
+
+  test('uses an optional bot token without making publication failure destructive', () => {
+    const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/enrich.yml'), 'utf8');
+
+    expect(workflow).toContain(
+      'GH_TOKEN: ${{ secrets.CONTEXT_DATA_PR_TOKEN || github.token }}',
+    );
+    expect(workflow).toContain('The reviewed data commit was pushed to ${REFRESH_BRANCH}');
+    expect(workflow).toContain('CONTEXT_DATA_PR_TOKEN');
+    expect(workflow).toContain('>>"$GITHUB_STEP_SUMMARY"');
   });
 
   test('versioned policy and implementation changes retrigger the guarded workflow', () => {
