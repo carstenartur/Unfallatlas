@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "valid": true,
-  "revision": "607e10ccd2252cfc8814f21af23b1f557d3b9336",
+  "revision": "a7d5ebc88ad8819701640966c75c31b481cbbcd3",
   "build": {
     "path": "_site/build-manifest.json",
-    "sha256": "8b80c0f166f04f388fd29c8bc8382d338c24d1653cd2e9573f526c8c9dfe26e0",
+    "sha256": "0ca4f7ee4b430afd51364a4920de443e1339d341aca28c6069b3c0d775385af0",
     "fingerprint": "9ff81c82bed22fb6c62d97041fc4c76514a2b4a76557ad9c95576dd91df75d50",
     "applicationFingerprint": "49e68d30980c2dd81a9c7b4ba3a2c0bfaec62a1ad9971d682ea33073fee128d2",
     "dataFingerprint": "008c6ed755a973464124d5e9ab32c87124b9291bb266bfded701e0876aaa5be5"
@@ -12,112 +12,112 @@
   "screenshots": [
     {
       "path": "docs/screenshots/01-startansicht.png",
-      "bytes": 1132959,
-      "sha256": "22bd231064df17920539a2134335ab3d6a9d6d1814ac78338d3e5cb931e65e80",
+      "bytes": 1132135,
+      "sha256": "b98897bebfe939b1380b3fd5ff7b0382cba344d06fc67bae42c2bc120138f8a4",
       "evidence": "out/qa/screenshot-readiness/01-startansicht.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/02-stadtauswahl.png",
-      "bytes": 1139963,
-      "sha256": "49358a025e0d500c430df6c71d829b9877583ff978d4557bba188fa2d2e08c35",
+      "bytes": 1139053,
+      "sha256": "fc97b3a1695331bb105a8abb9d10b671405fad9287b825f5691ce23fbd9e07f6",
       "evidence": "out/qa/screenshot-readiness/02-stadtauswahl.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/03-filter.png",
-      "bytes": 1139886,
-      "sha256": "55540e9ef05f6cecb66cdaf6f8e3ebfea405387fcec2dd89749718824f235f87",
+      "bytes": 1139094,
+      "sha256": "14ce334e5917102625390d0109c6219c60f1dbdba3d9ee3992fdce2cb9b7e5ff",
       "evidence": "out/qa/screenshot-readiness/03-filter.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/04-cluster-ansicht.png",
-      "bytes": 1130399,
-      "sha256": "39992624aef6f7f3cad8ddb322ac98fa47d24052358f3b8ada143119516f752f",
+      "bytes": 1129991,
+      "sha256": "e758567166383ea5e93a40cb4f7d7f8e8a93be5c268e770f6eedc71c153d66d8",
       "evidence": "out/qa/screenshot-readiness/04-cluster-ansicht.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/05-heatmap-ansicht.png",
-      "bytes": 977349,
-      "sha256": "d59006b14019f86a852eaaf6340b2828144f4e481db8a4186642fc7518bb8fb2",
+      "bytes": 977528,
+      "sha256": "d5ea621a17368088710e87eeb4f3de335175f999ac885d2e7201b343819f415c",
       "evidence": "out/qa/screenshot-readiness/05-heatmap-ansicht.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/06-legende.png",
-      "bytes": 1147049,
-      "sha256": "d95683a9141c88ca2cf8e5e47ceacb9f962ea4d1280d8ac554ea421a393d8a8c",
+      "bytes": 1146612,
+      "sha256": "ee726a1fd53d7f173c4753490f47c9b32f5008c6d69e8ddcdfa947363d634bc2",
       "evidence": "out/qa/screenshot-readiness/06-legende.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/07-export-modal.png",
-      "bytes": 426589,
-      "sha256": "55552c3b1585035afadd5150238d8dd2f8e52531fa0cf750c94fab3af7575a02",
+      "bytes": 426620,
+      "sha256": "394546bf0d8fdb0017afd56bc29516f64b6d773edec0e2dc78fd8230d7d035f8",
       "evidence": "out/qa/screenshot-readiness/07-export-modal.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/08-stundenfilter.png",
-      "bytes": 1132562,
-      "sha256": "ec176fd272b6108c4e35061ae59a030234af849dabb753a34a172eb1534ec71d",
+      "bytes": 1131767,
+      "sha256": "51c8a12b43280897737200d83c3e1ac4527ae3d3ed88f0eec32937ec3dd87ad8",
       "evidence": "out/qa/screenshot-readiness/08-stundenfilter.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/09-bereich-markieren.png",
-      "bytes": 1005815,
-      "sha256": "3e51e7045b73387eae2efc8632fd2150e6d392194c7e2cc6b2bee9b37cd83138",
+      "bytes": 1005785,
+      "sha256": "0c159bd485790b937c4156316ac6768f8039bb3257ff0f50c19c008f68091de8",
       "evidence": "out/qa/screenshot-readiness/09-bereich-markieren.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/10-auto-fahrrad-und.png",
-      "bytes": 1035651,
-      "sha256": "1aacca7ce36fb5687710398da62d63dc2d2a4fc6677da08404d2598f4823b13e",
+      "bytes": 1036215,
+      "sha256": "4d05ab5e6867b57f1e1c632ac83a50c339439052ba0f60d493e70b435c498346",
       "evidence": "out/qa/screenshot-readiness/10-auto-fahrrad-und.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/11-fahrrad-alleinunfaelle.png",
-      "bytes": 926278,
-      "sha256": "4a3eeaa97c1148608a34791dc84e46a23849f99b37e8895cfea1ca5e619fe0e9",
+      "bytes": 925958,
+      "sha256": "18ebc3cac14051bc6ab97ced1d7b0cc0859f9e911199f7c0406024ba6c171d5c",
       "evidence": "out/qa/screenshot-readiness/11-fahrrad-alleinunfaelle.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/12-poi-schulen-kitas.png",
-      "bytes": 705303,
-      "sha256": "6dd64ec4bf0093de5fe1b4a38e7b0f64ba0461bed04291461a0221e113194c55",
+      "bytes": 947210,
+      "sha256": "485cdffc3017adeda28f329e94c23d2e9c6de7a5e57e4e43cdd751ff3e2ba26b",
       "evidence": "out/qa/screenshot-readiness/12-poi-schulen-kitas.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/13-bonn-hbf-radunfaelle.png",
-      "bytes": 918636,
-      "sha256": "44cf8f7897e8a18b1b8a9dd4690e74c204a750128680406c793e1fb5af675bcd",
+      "bytes": 995395,
+      "sha256": "3da055e72ebce74e132640ac44c3b128164e86357472a37c6beacf09f6052197",
       "evidence": "out/qa/screenshot-readiness/13-bonn-hbf-radunfaelle.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/14-export-filterkontext.png",
-      "bytes": 655259,
-      "sha256": "c9a0b873e9cfd0aceac2ccfbe5fe5b8fc61ed162953cd901d3d2aa878c10d2d9",
+      "bytes": 899844,
+      "sha256": "d7a5fcd4e11527885897cd22ef9a7ed9a08c16eb986f0f9dcb4afd5da2bf154a",
       "evidence": "out/qa/screenshot-readiness/14-export-filterkontext.json",
       "status": "valid",
       "errors": []
@@ -132,16 +132,16 @@
     },
     {
       "path": "docs/screenshots/16-antrag-inhalt.png",
-      "bytes": 246899,
-      "sha256": "c5b6b318d9ff02654876b9f1e76016f5946cd2c8c7346e9dd3a2d808bc010dea",
+      "bytes": 294865,
+      "sha256": "c5f89887db779182f7a68b3667760828989756fdc0a3eb6be0ef60d120d12108",
       "evidence": "out/qa/screenshot-readiness/16-antrag-inhalt.json",
       "status": "valid",
       "errors": []
     },
     {
       "path": "docs/screenshots/21-mapmode-standard.png",
-      "bytes": 931078,
-      "sha256": "d5e847525b55b84ad9968efda7ac956356ddf7ccf21093f9d8af3fc3e49fb1b3",
+      "bytes": 1008021,
+      "sha256": "a2a21f5e535350a03c5aa0974d58543fea9691020be55e28a4b41e59be3c9fd0",
       "evidence": "out/qa/screenshot-readiness/21-mapmode-standard.json",
       "status": "valid",
       "errors": []
@@ -172,8 +172,8 @@
     },
     {
       "path": "docs/screenshots/25-mapmode-orthophoto-fallback.png",
-      "bytes": 1008121,
-      "sha256": "84fbaaf869b526c02e7f36fb4271c51c472019fed3373249a38871959fcd73ca",
+      "bytes": 1008286,
+      "sha256": "595d85feae94ba1fbe049d6e0d1291a0bad54e3db2b93b082988fe426b393d7f",
       "evidence": "out/qa/screenshot-readiness/25-mapmode-orthophoto-fallback.json",
       "status": "valid",
       "errors": []

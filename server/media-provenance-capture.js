@@ -4,9 +4,11 @@ const { AsyncLocalStorage } = require('async_hooks');
 
 const captureStorage = new AsyncLocalStorage();
 const PAGE_MARKER = Symbol.for('unfallatlas.mediaProvenanceCapturePage');
+const CONTEXT_CLOSE_MARKER = Symbol.for('unfallatlas.mediaProvenanceCaptureContextClose');
 const SOURCE_BADGE_ID = 'ua-video-source-provenance';
 const SOURCE_BADGE_BORDER = Object.freeze([255, 193, 7]);
 const SOURCE_BADGE_BACKGROUND = Object.freeze([0, 77, 64]);
+const SOURCE_BADGE_RECORDING_HOLD_MS = 2500;
 const DEFAULT_CAPTURE_TIMEOUT_MS = 180_000;
 
 class MediaProvenanceCaptureError extends Error {
@@ -149,6 +151,24 @@ async function captureFromPage(page, context) {
   return result;
 }
 
+async function waitForMediaProvenanceCapture(page) {
+  const context = captureStorage.getStore();
+  // The base exporter is also usable without the provenance wrapper. In that
+  // mode there is deliberately no browser capture to await.
+  if (!context) return null;
+  if (!page || page[PAGE_MARKER] !== true) {
+    fail('media_capture_page_not_attached', 'The recording page is not attached to media provenance capture');
+  }
+  if (!context.snapshotPromise) {
+    fail('media_capture_not_started', 'Media provenance capture did not start after page navigation');
+  }
+  const capture = await context.snapshotPromise;
+  if (!capture || !capture.visibleBadge || capture.visibleBadge.id !== SOURCE_BADGE_ID) {
+    fail('missing_visible_source_badge', 'Media provenance capture did not install the visible source badge');
+  }
+  return capture;
+}
+
 function attachPageToMediaProvenanceCapture(page, logger = console) {
   const context = captureStorage.getStore();
   if (!context || !page || typeof page.goto !== 'function') return page;
@@ -166,6 +186,27 @@ function attachPageToMediaProvenanceCapture(page, logger = console) {
     return response;
   };
   Object.defineProperty(page, PAGE_MARKER, { value: true });
+
+  const browserContext = typeof page.context === 'function' ? page.context() : null;
+  if (browserContext && typeof browserContext.close === 'function' &&
+      !browserContext[CONTEXT_CLOSE_MARKER]) {
+    const originalClose = browserContext.close.bind(browserContext);
+    browserContext.close = async function closeAfterVisibleProvenance(...args) {
+      if (context.snapshotPromise) {
+        await waitForMediaProvenanceCapture(page);
+        // Playwright finalizes the recorded stream at context.close(). Holding
+        // the already-installed badge first guarantees multiple source frames
+        // for the 1-fps final animation and its independent verifier.
+        if (typeof page.waitForTimeout === 'function') {
+          await page.waitForTimeout(SOURCE_BADGE_RECORDING_HOLD_MS);
+        } else {
+          await new Promise(resolve => setTimeout(resolve, SOURCE_BADGE_RECORDING_HOLD_MS));
+        }
+      }
+      return originalClose(...args);
+    };
+    Object.defineProperty(browserContext, CONTEXT_CLOSE_MARKER, { value: true });
+  }
   return page;
 }
 
@@ -198,9 +239,11 @@ module.exports = {
   SOURCE_BADGE_ID,
   SOURCE_BADGE_BORDER,
   SOURCE_BADGE_BACKGROUND,
+  SOURCE_BADGE_RECORDING_HOLD_MS,
   MediaProvenanceCaptureError,
   sourceLabel,
   captureFromPage,
   attachPageToMediaProvenanceCapture,
+  waitForMediaProvenanceCapture,
   runWithMediaProvenanceCapture,
 };

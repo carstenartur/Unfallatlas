@@ -29,6 +29,10 @@ const LIVE_BASEMAP_PROVENANCE = new WeakMap();
 const LIVE_APPLICATION_ORIGIN = new URL(process.env.BASE_URL || 'http://localhost:8000').origin;
 const LIVE_TILE_REQUEST_TIMEOUT_MS = 8000;
 const LIVE_TILE_PROVENANCE_TIMEOUT_MS = 30000;
+const LIVE_TILE_STABLE_SAMPLES = 3;
+const LIVE_TILE_SAMPLE_INTERVAL_MS = 250;
+const LIVE_TILE_COVERAGE_STEP_PX = 32;
+const LIVE_SCREENSHOT_CAPTURE_ATTEMPTS = 3;
 
 function classifyLiveBasemapUrl(rawUrl) {
   const url = new URL(rawUrl);
@@ -56,45 +60,216 @@ function requiredLiveBasemapKinds(testTitle) {
   return ['standard'];
 }
 
-async function readVisibleLiveBasemapTiles(page) {
-  const observedTiles = await page.locator('.leaflet-map-pane img.leaflet-tile').evaluateAll(images => images.map(image => {
-    const rect = image.getBoundingClientRect();
-    const style = getComputedStyle(image);
-    return {
-      url: image.currentSrc || image.src || '',
-      complete: image.complete === true,
-      naturalWidth: Number(image.naturalWidth) || 0,
-      naturalHeight: Number(image.naturalHeight) || 0,
-      rectWidth: rect.width,
-      rectHeight: rect.height,
-      display: style.display,
-      visibility: style.visibility,
-      opacity: Number(style.opacity || '1'),
-      className: image.className || ''
-    };
-  }));
-  const seen = new Set();
-  const visibleTiles = [];
-  for (const observation of observedTiles) {
-    if (!observation.url || observation.complete !== true ||
-        observation.naturalWidth <= 0 || observation.naturalHeight <= 0 ||
-        observation.rectWidth <= 0 || observation.rectHeight <= 0 ||
-        observation.display === 'none' || observation.visibility === 'hidden' ||
-        observation.opacity <= 0) continue;
-    const url = new URL(observation.url).href;
-    const kind = classifyLiveBasemapUrl(url);
-    if (!kind || seen.has(url)) continue;
-    seen.add(url);
-    visibleTiles.push({ kind, url });
+function roundedTileMetric(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
+}
+
+function sampleCoverageAxis(start, end) {
+  const span = end - start;
+  if (!(span > 0)) return [];
+  const values = [start + Math.min(1, span / 2)];
+  for (let value = start + LIVE_TILE_COVERAGE_STEP_PX / 2;
+       value < end;
+       value += LIVE_TILE_COVERAGE_STEP_PX) {
+    values.push(value);
   }
-  return { visibleTiles, observedTiles };
+  values.push(end - Math.min(1, span / 2));
+  return [...new Set(values.map(roundedTileMetric))].sort((left, right) => left - right);
+}
+
+function coverageForKind(kind, mapRect, readyTiles, invalidTiles) {
+  const candidates = readyTiles.filter(tile => tile.kind === kind);
+  const invalid = invalidTiles.filter(tile => tile.kind === kind);
+  const xSamples = mapRect ? sampleCoverageAxis(mapRect.left, mapRect.right) : [];
+  const ySamples = mapRect ? sampleCoverageAxis(mapRect.top, mapRect.bottom) : [];
+  const uncovered = [];
+  let uncoveredCount = 0;
+  const tolerance = 1.5;
+  for (const y of ySamples) {
+    for (const x of xSamples) {
+      const covered = candidates.some(tile =>
+        x >= tile.left - tolerance && x <= tile.right + tolerance &&
+        y >= tile.top - tolerance && y <= tile.bottom + tolerance
+      );
+      if (covered) continue;
+      uncoveredCount += 1;
+      if (uncovered.length < 24) uncovered.push({ x, y });
+    }
+  }
+  return {
+    kind,
+    complete: candidates.length > 0 && invalid.length === 0 &&
+      xSamples.length > 0 && ySamples.length > 0 && uncoveredCount === 0,
+    readyTiles: candidates.length,
+    invalidTiles: invalid.length,
+    samplePoints: xSamples.length * ySamples.length,
+    uncoveredCount,
+    uncovered
+  };
+}
+
+function liveTileSignature(mapRect, readyTiles) {
+  const tiles = readyTiles.map(tile => ({
+    kind: tile.kind,
+    url: tile.url,
+    layerKey: tile.layerKey,
+    left: roundedTileMetric(tile.left - mapRect.left),
+    top: roundedTileMetric(tile.top - mapRect.top),
+    width: roundedTileMetric(tile.rectWidth),
+    height: roundedTileMetric(tile.rectHeight)
+  })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  return JSON.stringify({
+    mapWidth: roundedTileMetric(mapRect.width),
+    mapHeight: roundedTileMetric(mapRect.height),
+    tiles
+  });
+}
+
+async function readVisibleLiveBasemapTiles(page) {
+  const observed = await page.locator('.leaflet-map-pane img.leaflet-tile').evaluateAll(images => {
+    const mapElement = document.querySelector('.leaflet-container');
+    const rawMapRect = mapElement && mapElement.getBoundingClientRect();
+    const viewportWidth = Number(window.innerWidth) || document.documentElement.clientWidth || 0;
+    const viewportHeight = Number(window.innerHeight) || document.documentElement.clientHeight || 0;
+    const left = rawMapRect ? Math.max(0, rawMapRect.left) : 0;
+    const top = rawMapRect ? Math.max(0, rawMapRect.top) : 0;
+    const right = rawMapRect ? Math.min(viewportWidth, rawMapRect.right) : 0;
+    const bottom = rawMapRect ? Math.min(viewportHeight, rawMapRect.bottom) : 0;
+    const mapRect = rawMapRect && right > left && bottom > top
+      ? { left, top, right, bottom, width: right - left, height: bottom - top }
+      : null;
+    const ctx = window.UA && typeof window.UA.getRuntimeContext === 'function'
+      ? window.UA.getRuntimeContext()
+      : null;
+    const map = window._uaMap || ctx && ctx.map;
+    const draggable = map && map.dragging && map.dragging._draggable;
+    const animationState = {
+      zoom: Boolean(
+        map && map._animatingZoom ||
+        mapElement && mapElement.classList.contains('leaflet-zoom-anim')
+      ),
+      pan: Boolean(map && map._panAnim && map._panAnim._inProgress),
+      drag: Boolean(draggable && draggable._moving)
+    };
+    animationState.active = animationState.zoom || animationState.pan || animationState.drag;
+    const layerElements = [...document.querySelectorAll('.leaflet-map-pane .leaflet-layer')];
+
+    const visualState = element => {
+      let opacity = 1;
+      let current = element;
+      while (current && current.nodeType === 1) {
+        const style = getComputedStyle(current);
+        if (style.display === 'none' || style.visibility === 'hidden') {
+          return { visible: false, opacity: 0 };
+        }
+        const ownOpacity = Number.parseFloat(style.opacity);
+        if (Number.isFinite(ownOpacity)) opacity *= ownOpacity;
+        if (current === mapElement) break;
+        current = current.parentElement;
+      }
+      return { visible: opacity > 0.01, opacity };
+    };
+
+    const observedTiles = images.map(image => {
+      const rect = image.getBoundingClientRect();
+      const visual = visualState(image);
+      const className = String(image.className || '');
+      const layer = image.closest('.leaflet-layer');
+      const pane = image.closest('.leaflet-pane');
+      const intersectsMap = Boolean(mapRect &&
+        rect.right > mapRect.left + 0.5 && rect.left < mapRect.right - 0.5 &&
+        rect.bottom > mapRect.top + 0.5 && rect.top < mapRect.bottom - 0.5);
+      return {
+        url: image.currentSrc || image.src || '',
+        complete: image.complete === true,
+        naturalWidth: Number(image.naturalWidth) || 0,
+        naturalHeight: Number(image.naturalHeight) || 0,
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        rectWidth: rect.width,
+        rectHeight: rect.height,
+        display: getComputedStyle(image).display,
+        visibility: getComputedStyle(image).visibility,
+        opacity: visual.opacity,
+        effectivelyVisible: visual.visible,
+        intersectsMap,
+        loading: /\bleaflet-tile-loading\b/.test(className),
+        error: /\bleaflet-tile-error\b/.test(className),
+        className,
+        layerKey: layer
+          ? 'layer-' + layerElements.indexOf(layer)
+          : 'pane-' + String(pane && pane.className || 'unknown')
+      };
+    });
+    return { mapRect, animationState, observedTiles };
+  });
+
+  const live = LIVE_BASEMAP_PROVENANCE.get(page);
+  const successfulUrls = new Set((live && live.successfulResponses || []).map(response =>
+    new URL(response.url).href
+  ));
+  const requiredKinds = live && Array.isArray(live.requiredKinds) ? live.requiredKinds : [];
+  const normalized = observed.observedTiles.map(tile => {
+    let url = '';
+    let kind = null;
+    try {
+      url = new URL(tile.url).href;
+      kind = classifyLiveBasemapUrl(url);
+    } catch (_) {
+      url = String(tile.url || '');
+    }
+    const required = Boolean(kind && requiredKinds.includes(kind));
+    const visible = required && tile.effectivelyVisible && tile.intersectsMap;
+    const decoded = tile.complete === true && tile.naturalWidth > 0 && tile.naturalHeight > 0;
+    const successful = Boolean(url && successfulUrls.has(url));
+    return {
+      ...tile,
+      kind,
+      url,
+      required,
+      visible,
+      decoded,
+      successful,
+      ready: visible && decoded && successful && !tile.loading && !tile.error &&
+        tile.rectWidth > 0 && tile.rectHeight > 0
+    };
+  });
+  const visibleRequiredTiles = normalized.filter(tile => tile.visible);
+  const readyTiles = visibleRequiredTiles.filter(tile => tile.ready);
+  const invalidTiles = visibleRequiredTiles.filter(tile => !tile.ready);
+  const coverageByKind = Object.fromEntries(requiredKinds.map(kind => [
+    kind,
+    coverageForKind(kind, observed.mapRect, readyTiles, invalidTiles)
+  ]));
+  const missingKinds = requiredKinds.filter(kind => !coverageByKind[kind].complete);
+  const tileSignature = observed.mapRect && readyTiles.length > 0
+    ? liveTileSignature(observed.mapRect, readyTiles)
+    : null;
+  return {
+    mapRect: observed.mapRect,
+    animationState: observed.animationState,
+    visibleTiles: readyTiles,
+    observedTiles: normalized,
+    invalidTiles,
+    coverageByKind,
+    missingKinds,
+    tileSignature,
+    ready: Boolean(
+      observed.mapRect &&
+      !observed.animationState.active &&
+      missingKinds.length === 0 &&
+      tileSignature
+    )
+  };
 }
 
 function missingLiveBasemapKinds(live) {
-  const successfulUrls = new Set(live.successfulResponses.map(response => new URL(response.url).href));
-  return live.requiredKinds.filter(kind => !live.visibleTiles.some(tile =>
-    tile.kind === kind && successfulUrls.has(tile.url)
-  ));
+  return live.requiredKinds.filter(kind =>
+    !live.coverageByKind || !live.coverageByKind[kind] ||
+    live.coverageByKind[kind].complete !== true
+  );
 }
 
 async function assertLiveBasemapProvenance(page, options = {}) {
@@ -103,25 +278,62 @@ async function assertLiveBasemapProvenance(page, options = {}) {
   const timeoutMs = Number.isFinite(options.timeoutMs)
     ? Math.max(0, Number(options.timeoutMs))
     : LIVE_TILE_PROVENANCE_TIMEOUT_MS;
+  const requiredStableSamples = Number.isFinite(options.stableSamples)
+    ? Math.max(1, Math.floor(Number(options.stableSamples)))
+    : LIVE_TILE_STABLE_SAMPLES;
+  const expectedSignature = options.expectedSignature == null
+    ? null
+    : String(options.expectedSignature);
   const deadline = Date.now() + timeoutMs;
   let missingKinds = live.requiredKinds.slice();
+  let previousSignature = null;
+  let stableSamples = 0;
 
   do {
     const observed = await readVisibleLiveBasemapTiles(page);
     live.visibleTiles = observed.visibleTiles;
     live.observedTiles = observed.observedTiles;
+    live.invalidTiles = observed.invalidTiles;
+    live.coverageByKind = observed.coverageByKind;
+    live.animationState = observed.animationState;
+    live.mapRect = observed.mapRect;
+    live.tileSignature = observed.tileSignature;
     missingKinds = missingLiveBasemapKinds(live);
-    if (missingKinds.length === 0) return live;
+    const expectedSignatureMatches = !expectedSignature ||
+      observed.tileSignature === expectedSignature;
+    if (observed.ready && expectedSignatureMatches) {
+      stableSamples = observed.tileSignature === previousSignature
+        ? stableSamples + 1
+        : 1;
+      live.stableSamples = Math.max(Number(live.stableSamples) || 0, stableSamples);
+      if (stableSamples >= requiredStableSamples) return live;
+    } else {
+      stableSamples = 0;
+    }
+    previousSignature = observed.tileSignature;
     if (Date.now() >= deadline) break;
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(LIVE_TILE_SAMPLE_INTERVAL_MS);
   } while (true);
 
   throw new Error(
-    'Documentation screenshot lacks visible successful real basemap tiles for: ' +
+    'Documentation screenshot lacks complete stable real basemap coverage for: ' +
     missingKinds.join(', ') + String.fromCharCode(10) +
-    'Visible real basemap tiles: ' + JSON.stringify(live.visibleTiles, null, 2) + String.fromCharCode(10) +
-    'Observed Leaflet tile images: ' + JSON.stringify(live.observedTiles, null, 2) + String.fromCharCode(10) +
-    'Observed successful real basemap responses: ' + JSON.stringify(live.successfulResponses, null, 2)
+    'Expected tile signature: ' + JSON.stringify(expectedSignature) + String.fromCharCode(10) +
+    'Observed tile signature: ' + JSON.stringify(live.tileSignature || null) + String.fromCharCode(10) +
+    'Stable samples: ' + String(live.stableSamples || 0) + '/' + String(requiredStableSamples) +
+      String.fromCharCode(10) +
+    'Leaflet animation state: ' + JSON.stringify(live.animationState || null, null, 2) +
+      String.fromCharCode(10) +
+    'Coverage by kind: ' + JSON.stringify(live.coverageByKind || null, null, 2) +
+      String.fromCharCode(10) +
+    'Invalid visible Leaflet tiles: ' + JSON.stringify(live.invalidTiles || [], null, 2) +
+      String.fromCharCode(10) +
+    'Visible ready real basemap tiles: ' + JSON.stringify(live.visibleTiles, null, 2) +
+      String.fromCharCode(10) +
+    'Observed Leaflet tile images: ' + JSON.stringify(live.observedTiles, null, 2) +
+      String.fromCharCode(10) +
+    'Observed successful real basemap responses: ' +
+      JSON.stringify(live.successfulResponses, null, 2)
   );
 }
 
@@ -162,7 +374,13 @@ async function setupLiveBasemapTiles(page, options = {}) {
     requiredKinds,
     successfulResponses,
     visibleTiles: [],
-    observedTiles: []
+    observedTiles: [],
+    invalidTiles: [],
+    coverageByKind: {},
+    animationState: null,
+    mapRect: null,
+    tileSignature: null,
+    stableSamples: 0
   });
 
   page.on('response', response => {
@@ -234,21 +452,36 @@ async function setupLiveBasemapTiles(page, options = {}) {
 
 async function captureDataScreenshot(page, options) {
   let assertionError = null;
-  let live;
-  try {
-    live = await assertLiveBasemapProvenance(page);
-  } catch (error) {
-    assertionError = error;
-    live = LIVE_BASEMAP_PROVENANCE.get(page);
-  }
+  let live = null;
+  let snapshot = null;
+  let captureAttempts = 0;
 
-  const snapshot = await baseCaptureDataScreenshot(page, options);
-  if (!assertionError) {
+  for (let attempt = 1; attempt <= LIVE_SCREENSHOT_CAPTURE_ATTEMPTS; attempt += 1) {
+    captureAttempts = attempt;
+    assertionError = null;
+    let beforeLive = null;
     try {
-      live = await assertLiveBasemapProvenance(page, { timeoutMs: 1000 });
+      beforeLive = await assertLiveBasemapProvenance(page);
+      live = beforeLive;
     } catch (error) {
       assertionError = error;
       live = LIVE_BASEMAP_PROVENANCE.get(page);
+      snapshot = await baseCaptureDataScreenshot(page, options);
+      break;
+    }
+
+    snapshot = await baseCaptureDataScreenshot(page, options);
+    try {
+      live = await assertLiveBasemapProvenance(page, {
+        timeoutMs: 1000,
+        stableSamples: 1,
+        expectedSignature: beforeLive.tileSignature
+      });
+      break;
+    } catch (error) {
+      assertionError = error;
+      live = LIVE_BASEMAP_PROVENANCE.get(page);
+      if (attempt === LIVE_SCREENSHOT_CAPTURE_ATTEMPTS) break;
     }
   }
 
@@ -258,8 +491,16 @@ async function captureDataScreenshot(page, options) {
   evidence.cartography = {
     source: 'live',
     requiredKinds: live && live.requiredKinds ? live.requiredKinds.slice() : [],
+    requiredStableSamples: LIVE_TILE_STABLE_SAMPLES,
     visibleTiles: live && live.visibleTiles ? live.visibleTiles.map(tile => ({ ...tile })) : [],
     observedTiles: live && live.observedTiles ? live.observedTiles.map(tile => ({ ...tile })) : [],
+    invalidTiles: live && live.invalidTiles ? live.invalidTiles.map(tile => ({ ...tile })) : [],
+    coverageByKind: live && live.coverageByKind ? JSON.parse(JSON.stringify(live.coverageByKind)) : {},
+    animationState: live && live.animationState ? { ...live.animationState } : null,
+    mapRect: live && live.mapRect ? { ...live.mapRect } : null,
+    tileSignature: live && live.tileSignature || null,
+    stableSamples: live && live.stableSamples || 0,
+    captureAttempts,
     successfulResponses: live && live.successfulResponses
       ? live.successfulResponses.map(response => ({ ...response }))
       : [],
@@ -295,6 +536,12 @@ async function captureDataScreenshot(page, options) {
     "  await page.goto('/werkbank_v2.html' + params);\n  await page.waitForLoadState('networkidle');",
     "  await page.goto('/werkbank_v2.html' + params, { waitUntil: 'domcontentloaded' });",
     'live page readiness'
+  );
+  transformed = replaceOnce(
+    transformed,
+    "    document.documentElement.dataset.mapSourceMode = 'fixture';",
+    "    document.documentElement.dataset.mapSourceMode = 'live';",
+    'live map source mode'
   );
   transformed = replaceOnce(
     transformed,
