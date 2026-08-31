@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 
 const APP = 'werkbank_v2.html?city=Bonn&showCluster=1&showHeatmap=0&mapMode=standard';
 
-test('Bonn political research avoids the static-host 405 and uses the browser OParl fallback', async ({ page }) => {
+test('Bonn political research avoids the static-host 405 and exposes official server-safe links', async ({ page }) => {
   test.setTimeout(60_000);
   const apiMethods = [];
-  const oparlPages = [];
+  const oparlRequests = [];
 
   await page.route('**/api/political-context/search', async route => {
     apiMethods.push(route.request().method());
@@ -15,53 +15,9 @@ test('Bonn political research avoids the static-host 405 and uses the browser OP
       body: JSON.stringify({ error: 'Method Not Allowed' }),
     });
   });
-
-  await page.route('https://www.bonn.sitzung-online.de/oparl/bodies/1/papers**', async route => {
-    const url = new URL(route.request().url());
-    const pageNumber = Number(url.searchParams.get('page') || 1);
-    oparlPages.push(pageNumber);
-    const commonHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-store',
-    };
-
-    if (pageNumber === 1) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        headers: commonHeaders,
-        body: JSON.stringify({
-          data: [],
-          pagination: { currentPage: 1, totalPages: 2 },
-          links: {
-            last: 'https://www.bonn.sitzung-online.de/oparl/bodies/1/papers?page=2&limit=100&size=100',
-          },
-        }),
-      });
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      headers: commonHeaders,
-      body: JSON.stringify({
-        data: [{
-          id: 'https://www.bonn.sitzung-online.de/oparl/papers/42',
-          name: 'Radverkehr in der Adenauerallee verbessern',
-          reference: 'DS 2026-42',
-          date: '2026-06-01',
-          paperType: 'Antrag',
-          web: 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=42',
-          keyword: ['Adenauerallee', 'Radverkehr'],
-        }],
-        pagination: { currentPage: 2, totalPages: 2 },
-        links: {
-          prev: 'https://www.bonn.sitzung-online.de/oparl/bodies/1/papers?page=1&limit=100&size=100',
-          last: 'https://www.bonn.sitzung-online.de/oparl/bodies/1/papers?page=2&limit=100&size=100',
-        },
-      }),
-    });
+  await page.route('https://www.bonn.sitzung-online.de/oparl/**', async route => {
+    oparlRequests.push(route.request().url());
+    await route.abort();
   });
 
   await page.goto(APP, { waitUntil: 'domcontentloaded' });
@@ -70,34 +26,51 @@ test('Bonn political research avoids the static-host 405 and uses the browser OP
       && window.UA?.getRuntimeContext?.()
   ), null, { timeout: 45_000 });
 
-  // Materialise the same public runtime that the Pages build injects. It
-  // installs the transport guard; the CSP bootstrap has already loaded the
-  // local Bonn fallback module.
+  // Materialise the same public runtime that the Pages build injects. The
+  // official Bonn OParl service currently sends no browser CORS permission, so
+  // the public profile must neither POST to Pages nor pretend it can fetch the
+  // cross-origin collection directly.
   await page.addScriptTag({ url: 'js/ua.public-preview.js' });
   await page.waitForFunction(() =>
-    window.UA?.PoliticalContext?.search?._uaBonnBrowserFallbackWrapped === true
+    window.UA?.PoliticalContext?.search?.__publicPagesTransportGuard === true
   );
-  await expect(page.locator('#polCtxBtnSearch')).toBeEnabled();
 
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
     const ctx = window.UA.getRuntimeContext();
     ctx.locationHint = {
       street: 'Adenauerallee',
       district: 'Südstadt',
       label: 'Adenauerallee, Bonn-Südstadt',
     };
-    document.getElementById('polCtxSearchInput').value = 'Adenauerallee';
-    await window.UA.PoliticalContext._runSearch(ctx);
+    window.UA.applyPublicDistributionProfile(ctx);
   });
 
+  await expect(page.locator('#polCtxBtnSearch')).toBeDisabled();
   await expect(page.locator('#polCtxStatus'))
-    .toContainText(/begrenzten.*OParl-Teilsuche/i);
+    .toContainText(/kein fehlerhafter API-Aufruf/i);
   await expect(page.locator('#polCtxResults'))
-    .toContainText('Radverkehr in der Adenauerallee verbessern');
-  await expect(page.locator('#polCtxBrowserFallbackNotice'))
-    .toContainText(/fehlende Treffer sind kein Nullbefund/i);
-  await expect(page.locator('#polCtxStatus')).not.toContainText('HTTP 405');
+    .toContainText('Ratsinformationssystem öffnen');
+  const links = page.locator('#polCtxResults a');
+  await expect(links.first()).toHaveAttribute(
+    'href',
+    /^https:\/\/www\.bonn\.sitzung-online\.de\/public\//
+  );
 
+  const searchFailure = await page.evaluate(async () => {
+    try {
+      await window.UA.PoliticalContext.search({
+        city: 'Bonn',
+        searchTerms: ['Adenauerallee'],
+      });
+      return null;
+    } catch (error) {
+      return { code: error && error.code, message: String(error && error.message || error) };
+    }
+  });
+  expect(searchFailure).toMatchObject({
+    code: 'POLITICAL_CONTEXT_BACKEND_REQUIRED',
+    message: expect.stringMatching(/Server-\/Docker-Version/i),
+  });
   expect(apiMethods).toEqual([]);
-  expect(oparlPages).toEqual(expect.arrayContaining([1, 2]));
+  expect(oparlRequests).toEqual([]);
 });
