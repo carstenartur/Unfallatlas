@@ -241,14 +241,23 @@ function refreshCity(city, options, state) {
   return { refreshed: true, dgm1Applied };
 }
 
-function validatePublishedTree(cities) {
-  run('scripts/check-enrichment-inputs.js', cities.flatMap(city => ['--city', city]));
-  run('scripts/gzip-static-data.js', ['--check', '--gzip-only'], {
+function validatePublishedTree(cities, refreshedCities = cities, runner = run) {
+  const selectedSlugs = new Set(cities.map(citySlug));
+  const refreshTargets = refreshedCities.filter(city => selectedSlugs.has(citySlug(city)));
+  if (refreshTargets.length > 0) {
+    runner('scripts/check-enrichment-inputs.js', refreshTargets.flatMap(city => ['--city', city]));
+  } else {
+    console.log(
+      '[context-enrichment] No city was freshly generated; skipping temporary enrichment-input ' +
+      'cache validation while retaining every public-data validation gate.',
+    );
+  }
+  runner('scripts/gzip-static-data.js', ['--check', '--gzip-only'], {
     UNFALLATLAS_DATA_MODE: 'gzip-only',
   });
-  run('scripts/check-context-datasets.js', [], { UNFALLATLAS_DATA_MODE: 'gzip-only' });
-  run('scripts/check-slope-plausibility.js', [], { UNFALLATLAS_DATA_MODE: 'gzip-only' });
-  run('scripts/check-data-paths.js', ['--gzip-only', '--min-features', '10'], {
+  runner('scripts/check-context-datasets.js', [], { UNFALLATLAS_DATA_MODE: 'gzip-only' });
+  runner('scripts/check-slope-plausibility.js', [], { UNFALLATLAS_DATA_MODE: 'gzip-only' });
+  runner('scripts/check-data-paths.js', ['--gzip-only', '--min-features', '10'], {
     UNFALLATLAS_DATA_MODE: 'gzip-only',
   });
 }
@@ -297,7 +306,10 @@ function main(options = currentOptions()) {
       if (result.dgm1Applied) dgm1Applied = true;
     }
 
-    validatePublishedTree(cities);
+    const refreshedCities = state.cities
+      .filter(city => city.status === 'refreshed')
+      .map(city => city.city);
+    validatePublishedTree(cities, refreshedCities);
     rebindAccidentPublicationManifest();
 
     state.completedAt = new Date().toISOString();

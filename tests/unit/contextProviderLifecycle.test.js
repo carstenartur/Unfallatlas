@@ -22,7 +22,7 @@ describe('context provider production lifecycle', () => {
       generation,
     );
     const traffic = source.indexOf("run('scripts/apply-qualitative-traffic-proxy.js'");
-    const finalPreflight = source.indexOf("run('scripts/check-enrichment-inputs.js'");
+    const finalPreflight = source.indexOf("runner('scripts/check-enrichment-inputs.js'");
 
     expect(configurationBranch).toBeGreaterThanOrEqual(0);
     expect(generation).toBeGreaterThan(configurationBranch);
