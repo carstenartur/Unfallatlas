@@ -53,6 +53,50 @@ function parseLocalAccidentCount(text) {
 }
 
 /**
+ * The report may legitimately replace #exportHtml while late asynchronous
+ * evidence is adopted. Resolve the semantic section on every poll instead of
+ * retaining a DOM node that can become detached during Playwright's action
+ * stability check. A missing or permanently invisible section remains a hard
+ * failure with a precise diagnostic.
+ */
+async function scrollCurrentExportSectionIntoView(page, label) {
+  await expect.poll(async () => page.evaluate((expectedLabel) => {
+    const root = document.querySelector('#exportHtml');
+    if (!root) return { found: false, connected: false, inViewport: false };
+
+    const candidates = [...root.querySelectorAll('*')].filter((element) =>
+      String(element.textContent || '').trim() === expectedLabel
+    );
+    const element = candidates.find((candidate) =>
+      candidate.isConnected && ![...candidate.children].some((child) =>
+        String(child.textContent || '').trim() === expectedLabel
+      )
+    );
+    if (!element) return { found: false, connected: false, inViewport: false };
+
+    element.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const rect = element.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    return {
+      found: true,
+      connected: element.isConnected,
+      inViewport: element.isConnected && rect.width > 0 && rect.height > 0 &&
+        rect.right > 0 && rect.left < viewportWidth &&
+        rect.bottom > 0 && rect.top < viewportHeight,
+    };
+  }, label), {
+    message: `Der Exportabschnitt „${label}“ wurde nicht dauerhaft als verbundener, sichtbarer DOM-Knoten erkannt.`,
+    timeout: 10000,
+    intervals: [50, 100, 250, 500],
+  }).toEqual({ found: true, connected: true, inViewport: true });
+
+  // Re-resolve once more through a Playwright assertion. Assertions retry on
+  // DOM replacement, unlike a previously started scroll action on a stale node.
+  await expect(page.locator('#exportHtml').getByText(label, { exact: true })).toBeInViewport();
+}
+
+/**
  * README feature images must remain visibly useful after GitHub scales them
  * down. Semantic lifecycle readiness alone is insufficient: at least a few
  * numbered accident clusters must actually remain visible in the map area.
@@ -527,12 +571,9 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
     const localAccidents = parseLocalAccidentCount(await summary.textContent());
     expect(localAccidents).toBeGreaterThan(0);
 
-    // Auf einen semantisch stabilen Statistikabschnitt scrollen statt auf eine
-    // fragile Prozentposition im Modal.
-    const statisticsHeading = exportHtml.getByText('Verletzungsschwere im Ausschnitt', { exact: true });
-    await expect(statisticsHeading).toBeVisible();
-    await statisticsHeading.scrollIntoViewIfNeeded();
-    await expect(statisticsHeading).toBeInViewport();
+    // Resolve the currently connected semantic section on every poll. The
+    // report may be atomically replaced while late evidence is adopted.
+    await scrollCurrentExportSectionIntoView(page, 'Verletzungsschwere im Ausschnitt');
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/16-antrag-inhalt.png',
       fullPage: false,
