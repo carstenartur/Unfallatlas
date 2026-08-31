@@ -45,17 +45,21 @@ describe('Maven-owned context-data transient fallback', () => {
     const runner = (script, args = [], env = {}) => calls.push({ script, args, env });
     const log = jest.spyOn(console, 'log').mockImplementation(() => {});
 
-    validatePublishedTree(['Bonn'], [], runner);
+    try {
+      validatePublishedTree(['Bonn'], [], runner);
 
-    expect(calls.map(call => call.script)).toEqual([
-      'scripts/gzip-static-data.js',
-      'scripts/check-context-datasets.js',
-      'scripts/check-slope-plausibility.js',
-      'scripts/check-data-paths.js',
-    ]);
-    expect(calls).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ script: 'scripts/check-enrichment-inputs.js' }),
-    ]));
-    expect(log).toHaveBeenCalledWith(expect.stringMatching(/every public-data validation gate/i));
+      expect(calls.map(call => call.script)).toEqual([
+        'scripts/gzip-static-data.js',
+        'scripts/check-context-datasets.js',
+        'scripts/check-slope-plausibility.js',
+        'scripts/check-data-paths.js',
+      ]);
+      expect(calls).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ script: 'scripts/check-enrichment-inputs.js' }),
+      ]));
+      expect(log).toHaveBeenCalledWith(expect.stringMatching(/every public-data validation gate/i));
+    } finally {
+      log.mockRestore();
+    }
   });
 });
