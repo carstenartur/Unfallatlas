@@ -6,6 +6,7 @@ const {
   buildSummary,
   evaluatePolicy,
   normalizeVia,
+  parseArgs,
   renderMarkdown,
   vulnerabilityCounts,
 } = require('../../scripts/run-npm-security-audit');
@@ -150,6 +151,24 @@ describe('npm security audit evidence', () => {
     });
     expect(vulnerabilityCounts({ metadata: { vulnerabilities: { high: 4, total: 4 } } }))
       .toEqual({ info: 0, low: 0, moderate: 0, high: 4, critical: 0, total: 4 });
+  });
+
+  test('rejects missing option values before output paths are resolved', () => {
+    expect(() => parseArgs(['--out-dir'])).toThrow('--out-dir benötigt einen Wert.');
+    expect(() => parseArgs(['--out-dir', '--enforce-runtime-high-zero']))
+      .toThrow('--out-dir benötigt einen Wert.');
+    expect(() => parseArgs(['--npm-cli'])).toThrow('--npm-cli benötigt einen Wert.');
+    expect(() => parseArgs(['--npm-cli', '-h'])).toThrow('--npm-cli benötigt einen Wert.');
+    expect(parseArgs([
+      '--npm-cli', 'tools/npm-cli.js',
+      '--out-dir', 'out/qa/audit',
+      '--enforce-runtime-high-zero',
+    ])).toMatchObject({
+      npmCli: 'tools/npm-cli.js',
+      outDir: 'out/qa/audit',
+      enforceRuntimeHighZero: true,
+      enforceAllHighZero: false,
+    });
   });
 
   test('keeps the workflow read-only and preserves exact base and candidate evidence', () => {

@@ -16,6 +16,14 @@ const SEVERITY_RANK = Object.freeze({
   critical: 4,
 });
 
+function optionValue(argv, index, optionName) {
+  const value = argv[index + 1];
+  if (value == null || !String(value).trim() || String(value).startsWith('-')) {
+    throw new Error(`${optionName} benötigt einen Wert.`);
+  }
+  return String(value);
+}
+
 function parseArgs(argv) {
   const options = {
     npmCli: process.env.npm_execpath || '',
@@ -27,9 +35,11 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--npm-cli') {
-      options.npmCli = argv[++index] || '';
+      options.npmCli = optionValue(argv, index, argument);
+      index += 1;
     } else if (argument === '--out-dir') {
-      options.outDir = argv[++index] || '';
+      options.outDir = optionValue(argv, index, argument);
+      index += 1;
     } else if (argument === '--enforce-runtime-high-zero') {
       options.enforceRuntimeHighZero = true;
     } else if (argument === '--enforce-all-high-zero') {
@@ -408,6 +418,7 @@ module.exports = {
   maximumSeverity,
   normalizeFix,
   normalizeVia,
+  parseArgs,
   renderMarkdown,
   vulnerabilityCounts,
 };
