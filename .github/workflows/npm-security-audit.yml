@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: npm-security-audit-${{ github.event.pull_request.number || github.ref }}
@@ -21,11 +21,11 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
+      - name: Checkout exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
@@ -34,27 +34,76 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Install the Maven-pinned Node and npm runtime from the lockfile
+      - name: Install the Maven-pinned Node and npm runtime from the candidate lockfile
         run: mvn -B -ntp clean generate-resources -DskipTests -Dskip.pages.qa=true
 
-      - name: Generate production and complete npm audit evidence
+      - name: Reproduce the exact pull-request base audit
+        if: github.event_name == 'pull_request'
         shell: bash
+        env:
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          AUDIT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          node_bin="$GITHUB_WORKSPACE/target/frontend/node/node"
+          npm_cli="$GITHUB_WORKSPACE/target/frontend/node/node_modules/npm/bin/npm-cli.js"
+          base_dir="$GITHUB_WORKSPACE/.build/npm-security-original-base"
+          evidence_dir="$GITHUB_WORKSPACE/out/qa/npm-security/original-base"
+
+          test -x "$node_bin"
+          test -f "$npm_cli"
+          test -n "$AUDIT_BASE_SHA"
+          rm -rf "$base_dir"
+          mkdir -p "$base_dir" "$evidence_dir"
+
+          # Fetch and verify the immutable base commit from the pull-request event.
+          # Auditing a moving branch name would not be reproducible evidence.
+          git fetch --no-tags --depth=1 origin "$AUDIT_BASE_SHA"
+          test "$(git rev-parse FETCH_HEAD)" = "$AUDIT_BASE_SHA"
+          git show "$AUDIT_BASE_SHA:package.json" > "$base_dir/package.json"
+          git show "$AUDIT_BASE_SHA:package-lock.json" > "$base_dir/package-lock.json"
+
+          (
+            cd "$base_dir"
+            "$node_bin" "$npm_cli" ci --ignore-scripts
+            "$node_bin" "$GITHUB_WORKSPACE/scripts/run-npm-security-audit.js" \
+              --npm-cli "$npm_cli" \
+              --out-dir "$evidence_dir"
+          )
+
+          cp "$base_dir/package.json" "$evidence_dir/package.json"
+          cp "$base_dir/package-lock.json" "$evidence_dir/package-lock.json"
+          printf '%s\n' "$AUDIT_BASE_SHA" > "$evidence_dir/source-commit.txt"
+          printf '%s\n' "$AUDIT_BASE_REF" > "$evidence_dir/source-ref.txt"
+
+      - name: Prove the checked-in candidate has no High or Critical findings
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           node_bin='target/frontend/node/node'
           npm_cli='target/frontend/node/node_modules/npm/bin/npm-cli.js'
+          evidence_dir='out/qa/npm-security/candidate'
+
           test -x "$node_bin"
           test -f "$npm_cli"
           "$node_bin" scripts/run-npm-security-audit.js \
             --npm-cli "$npm_cli" \
-            --out-dir out/qa/npm-security/baseline
+            --out-dir "$evidence_dir" \
+            --enforce-runtime-high-zero \
+            --enforce-all-high-zero
+          cp package.json "$evidence_dir/package.json"
+          cp package-lock.json "$evidence_dir/package-lock.json"
+          printf '%s\n' "$AUDIT_HEAD_SHA" > "$evidence_dir/source-commit.txt"
 
-      - name: Generate a minimal patched lockfile candidate and prove the zero-High threshold
+      - name: Regenerate the minimal patched lockfile and prove checked-in idempotence
         shell: bash
         run: |
           set -euo pipefail
           node_bin='target/frontend/node/node'
           npm_cli='target/frontend/node/node_modules/npm/bin/npm-cli.js'
+          evidence_dir='out/qa/npm-security/candidate-regenerated'
 
           "$node_bin" <<'NODE'
           const fs = require('node:fs');
@@ -74,51 +123,38 @@ jobs:
           "$node_bin" "$npm_cli" ci --ignore-scripts
           "$node_bin" scripts/run-npm-security-audit.js \
             --npm-cli "$npm_cli" \
-            --out-dir out/qa/npm-security/remediated \
+            --out-dir "$evidence_dir" \
             --enforce-runtime-high-zero \
             --enforce-all-high-zero
-          cp package.json out/qa/npm-security/candidate-package.json
-          cp package-lock.json out/qa/npm-security/candidate-package-lock.json
+          cp package.json "$evidence_dir/package.json"
+          cp package-lock.json "$evidence_dir/package-lock.json"
 
-      - name: Commit the exact audited package files to this maintenance branch
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          github.event.pull_request.head.ref == 'fix/npm-audit-release-gate'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json package-lock.json
-          if git diff --cached --quiet; then
-            echo 'Exact audited package files are already committed.'
-            exit 0
-          fi
-          git commit -m 'fix(deps): pin patched transitive npm versions'
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          # The workflow is evidence-only and has a read-only token. Any package
+          # drift must fail visibly instead of being silently committed by CI.
+          git diff --exit-code -- package.json package-lock.json
 
       - name: Add normalized audit reports to the workflow summary
         if: always()
         shell: bash
         run: |
           for report in \
-            out/qa/npm-security/baseline/npm-audit-report.md \
-            out/qa/npm-security/remediated/npm-audit-report.md; do
+            out/qa/npm-security/original-base/npm-audit-report.md \
+            out/qa/npm-security/candidate/npm-audit-report.md \
+            out/qa/npm-security/candidate-regenerated/npm-audit-report.md; do
             if [[ -f "$report" ]]; then
               cat "$report" >> "$GITHUB_STEP_SUMMARY"
               printf '\n---\n\n' >> "$GITHUB_STEP_SUMMARY"
             fi
           done
-          if [[ ! -f out/qa/npm-security/baseline/npm-audit-report.md ]]; then
-            printf '%s\n' 'npm audit evidence was not generated.' >> "$GITHUB_STEP_SUMMARY"
+          if [[ ! -f out/qa/npm-security/candidate/npm-audit-report.md ]]; then
+            printf '%s\n' 'Candidate npm audit evidence was not generated.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload immutable npm audit evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: npm-security-audit-${{ github.sha }}
+          name: npm-security-audit-${{ github.event.pull_request.head.sha || github.sha }}
           path: out/qa/npm-security/
           if-no-files-found: error
           retention-days: 30
