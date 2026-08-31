@@ -93,7 +93,7 @@ describe('qualitative traffic proxy runtime contract', () => {
   test('the production context lifecycle applies the adapter before final gates', () => {
     const runner = fs.readFileSync(path.join(ROOT, 'scripts/run-context-enrichment.js'), 'utf8');
     const adapterCall = runner.indexOf("run('scripts/apply-qualitative-traffic-proxy.js'");
-    const preflightCall = runner.indexOf("run('scripts/check-enrichment-inputs.js'");
+    const preflightCall = runner.indexOf("runner('scripts/check-enrichment-inputs.js'");
     expect(adapterCall).toBeGreaterThanOrEqual(0);
     expect(preflightCall).toBeGreaterThan(adapterCall);
   });
