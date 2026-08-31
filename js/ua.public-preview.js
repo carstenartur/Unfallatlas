@@ -8,7 +8,6 @@
     'political-context-search',
     'video-export',
   ]);
-  const POLITICAL_CONTEXT_CAPABILITY = 'political-context-search';
   const DEFAULT_CITY_LIST_WARNING_MS = 1500;
 
   UA.PUBLIC_DISTRIBUTION_PROFILE = Object.freeze({
