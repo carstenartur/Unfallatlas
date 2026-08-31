@@ -1,36 +1,55 @@
 # Bonn: HTTP- und Browservertrag der politischen Recherche
 
-Stand: 30. August 2026
+Stand: 31. August 2026
 
 ## Produktpfade
 
-Die vollständige Unfallwerkbank-Serverinstallation verwendet weiterhin ausschließlich:
+Die vollständige Unfallwerkbank-Serverinstallation verwendet weiterhin:
 
 ```text
 POST /api/political-context/search
 ```
 
-Der Server orchestriert OParl, die amtliche Portalsuche und dokumentierte Fallbacks.
-Dieser Pfad bleibt die maßgebliche Vollrecherche.
+Der Server orchestriert OParl, die amtliche Portalsuche und dokumentierte
+Fallbacks. Dieser Pfad bleibt die maßgebliche Vollrecherche.
 
 GitHub Pages ist dagegen ein statischer Host und kann den POST-Endpunkt nicht
-bereitstellen. Ohne ausdrücklich konfiguriertes Backend wird der bekannte
-aussichtslose POST dort gar nicht erst gesendet. Die öffentliche Browser-Version
-verwendet **nur für Bonn** die amtliche, CORS-fähige OParl-Paper-Sammlung direkt.
-Antwortet ein konfigurierter oder sonstiger Serverpfad mit HTTP 404 oder 405,
-greift dieselbe Bonn-Teilsuche ebenfalls fail-safe.
+bereitstellen. Ohne ausdrücklich konfiguriertes HTTP(S)-Backend wird der
+bekannt aussichtslose POST dort gar nicht erst gesendet. Die automatische
+politische Recherche bleibt sichtbar serverpflichtig und der Suchknopf ist
+gesperrt. Für Bonn zeigt die Oberfläche stattdessen Links zum amtlichen
+Ratsinformationssystem sowie – soweit belastbare Ortsbegriffe vorliegen –
+vorbelegte amtliche Suchlinks.
 
-Die browserdirekte Suche ist absichtlich begrenzt:
+Ein Betreiber kann über `POLITICAL_CONTEXT_ENDPOINT`, eine passende Meta-Angabe
+oder `API_BASE_URL` einen erreichbaren Backend-Endpunkt konfigurieren. Nur dann
+sendet die öffentliche Oberfläche den POST an diesen ausdrücklich bestimmten
+HTTP(S)-Endpunkt. HTTP 405 bleibt ein harter Konfigurationsfehler und wird nicht
+als leerer politischer Suchbefund behandelt.
 
-- neueste OParl-Seiten werden rückwärts durchsucht;
-- URLs bleiben auf die amtlichen Bonner OParl-/Ratsinformations-Hosts begrenzt;
-- Treffer werden als `partial-results` gekennzeichnet;
-- jeder Treffer ist für die automatische KI-Übernahme gesperrt, bis die
-  politische Vorbefassung vollständig geprüft wurde;
-- eine leere begrenzte Suche wird niemals zu `searched-no-results`, sondern
-  bricht mit `POLITICAL_CONTEXT_BROWSER_SEARCH_INCOMPLETE` ab;
-- für andere Städte erklärt die Oberfläche bei 404/405, dass ein
-  Unfallwerkbank-Server erforderlich ist.
+## Warum kein direkter OParl-Abruf im Browser erfolgt
+
+Der Bonn-Live-Lauf vom 30. August 2026 hat die amtliche Paper-Sammlung mit der
+Origin `https://carstenartur.github.io` geprüft. Die Antwort war fachlich
+brauchbar (`HTTP 200`, JSON, ein Datensatz), enthielt aber weder
+`Access-Control-Allow-Origin: https://carstenartur.github.io` noch `*`.
+
+Damit kann ein Browser auf GitHub Pages die Antwort nach dem CORS-Modell nicht
+lesen. Ein Test mit künstlich ergänztem CORS-Header würde lediglich eine
+Funktion vortäuschen, die der amtliche Produktionshost nicht anbietet. Der
+entsprechende Direktabruf wurde deshalb nicht freigeschaltet. Die negative
+Live-Evidenz wird als Architekturentscheidung behandelt, nicht durch ein
+abgeschwächtes Gate verdeckt.
+
+Eine spätere automatische Pages-Suche benötigt entweder:
+
+- ein ausdrücklich betriebenes Backend beziehungsweise einen Reverse-Proxy,
+- oder einen während der Veröffentlichung erzeugten, versionierten und
+  nachweislich vollständigkeitsmarkierten Same-Origin-Snapshot.
+
+Ein begrenzter Snapshot darf weiterhin nie einen leeren Trefferbestand als
+`searched-no-results` oder einreichungsreife politische Evidenz ausgeben. Die
+Katalog-/Snapshot-Architektur wird in #642 weitergeführt.
 
 ## Regressionsevidenz
 
@@ -38,15 +57,15 @@ Vier unabhängige Verträge decken den früheren False-Green-Pfad ab:
 
 1. `politicalContextHttpRoute.test.js` startet den echten Produktionsserver und
    sendet einen realen POST; 404 und 405 sind harte Fehler.
-2. `ua.political-context-browser-fallback.test.js` prüft die
-   POST-Vermeidung im statischen Profil, 404/405→Bonn-OParl-Umschaltung,
-   Hostgrenzen, Teilsuchesemantik und Nullbefundschutz.
-3. `political-context-bonn-pages-fallback.spec.js` führt denselben Ablauf in
-   Chromium im öffentlichen Pages-Profil aus und beweist, dass kein POST an den
-   statischen Host gesendet wird und die amtliche CORS-Antwort genutzt wird.
-4. `bonnOparlBrowserCorsLive.test.js` prüft im geplanten Bonn-Live-Workflow,
-   dass die amtliche Sammlung die öffentliche Unfallwerkbank-Origin tatsächlich
-   per CORS lesen lässt.
+2. `publicPreviewQa.test.js` und
+   `publicPoliticalContextFallbackContract.test.js` prüfen den expliziten
+   Backendvertrag, den gesperrten Pages-Suchpfad und die amtlichen Bonner Links.
+3. `political-context-bonn-pages-fallback.spec.js` führt den öffentlichen Pfad
+   in Chromium aus und beweist, dass weder ein POST an den statischen Host noch
+   ein nicht lesbarer OParl-Direktabruf gesendet wird.
+4. Der bestehende Bonn-Live-Workflow prüft weiterhin den vollständigen
+   serverseitigen OParl-/RIS-Evidenzpfad mit realen amtlichen Antworten.
 
 Damit kann ein grüner Provider-Test nicht mehr verdecken, dass der reale
-HTTP- oder Browserpfad unbenutzbar ist.
+HTTP- oder Browserpfad unbenutzbar ist, und fehlende Browserfähigkeit wird nicht
+zu einem falschen politischen Nullbefund.
