@@ -100,7 +100,10 @@ describe('public Pages QA hardening', () => {
     const notice = document.getElementById('publicPreviewNotice');
     expect(notice).toBeInstanceOf(HTMLDetailsElement);
     expect(notice.open).toBe(false);
-    expect(notice.querySelector('summary').textContent).toContain('nur Videoexport nicht verfügbar');
+    expect(notice.querySelector('summary').textContent)
+      .toContain('Serverfunktionen transparent gekennzeichnet');
+    expect(notice.textContent)
+      .toContain('Politische Recherche und Videoexport benötigen ein Server-Backend');
   });
 
   test('does not recenter when the URL center is already inside the selected area', () => {
