@@ -33,6 +33,7 @@ describe('public Pages QA hardening', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
+    delete global.fetch;
     delete window.UA;
   });
 
@@ -113,7 +114,8 @@ describe('public Pages QA hardening', () => {
 
   test('suppresses the impossible Pages POST and exposes official Bonn links without a backend', async () => {
     const originalSearch = jest.fn();
-    const fetchSpy = jest.spyOn(global, 'fetch');
+    const fetchSpy = jest.fn();
+    global.fetch = fetchSpy;
     const UA = loadPublicPreview({
       ua: {
         PoliticalContext: {
@@ -144,11 +146,12 @@ describe('public Pages QA hardening', () => {
   test('uses only an explicitly configured HTTP backend for political search', async () => {
     const endpoint = 'https://api.example.test/political-context/search';
     const payload = { references: [], meta: { supported: false } };
-    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+    const fetchSpy = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: jest.fn(async () => payload),
     });
+    global.fetch = fetchSpy;
     const originalSearch = jest.fn();
     const UA = loadPublicPreview({
       ua: {
