@@ -32,6 +32,7 @@ function loadPublicPreview(overrides = {}) {
 describe('public Pages QA hardening', () => {
   afterEach(() => {
     jest.useRealTimers();
+    jest.restoreAllMocks();
     delete window.UA;
   });
 
