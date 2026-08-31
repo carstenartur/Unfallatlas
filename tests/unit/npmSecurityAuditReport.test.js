@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   buildSummary,
   evaluatePolicy,
@@ -148,5 +150,25 @@ describe('npm security audit evidence', () => {
     });
     expect(vulnerabilityCounts({ metadata: { vulnerabilities: { high: 4, total: 4 } } }))
       .toEqual({ info: 0, low: 0, moderate: 0, high: 4, critical: 0, total: 4 });
+  });
+
+  test('keeps the workflow read-only and preserves exact base and candidate evidence', () => {
+    const workflow = fs.readFileSync(
+      path.resolve(__dirname, '../../.github/workflows/npm-security-audit.yml'),
+      'utf8'
+    );
+
+    expect(workflow).toMatch(/permissions:\s*\n\s+contents: read/);
+    expect(workflow).not.toContain('contents: write');
+    expect(workflow).toContain('persist-credentials: false');
+    expect(workflow).toContain('github.event.pull_request.base.sha');
+    expect(workflow).toContain('git fetch --no-tags --depth=1 origin "$AUDIT_BASE_SHA"');
+    expect(workflow).toContain('test "$(git rev-parse FETCH_HEAD)" = "$AUDIT_BASE_SHA"');
+    expect(workflow).toContain('out/qa/npm-security/original-base');
+    expect(workflow).toContain('--enforce-runtime-high-zero');
+    expect(workflow).toContain('--enforce-all-high-zero');
+    expect(workflow).toContain('git diff --exit-code -- package.json package-lock.json');
+    expect(workflow).not.toMatch(/\bgit push\b/);
+    expect(workflow).not.toMatch(/\bgit commit\b/);
   });
 });
