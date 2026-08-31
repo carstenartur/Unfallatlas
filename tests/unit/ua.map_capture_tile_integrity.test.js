@@ -63,6 +63,7 @@ describe('map capture tile integrity wrapper', () => {
     delete window.UA;
     delete window.L;
     delete window.leafletImage;
+    delete window.fetch;
     jest.restoreAllMocks();
   });
 
@@ -78,6 +79,30 @@ describe('map capture tile integrity wrapper', () => {
     await expect(capture(mapFor(layer))).resolves.toMatchObject({ width: 256, height: 256 });
     expect(originalLeafletImage).toHaveBeenCalledTimes(1);
     expect(layer.getTileUrl).toBe(originalGetTileUrl);
+  });
+
+  test('rejects an expected visible tile that is absent from the rendered Leaflet state without refetching it', async () => {
+    const layer = new FakeTileLayer({});
+    const originalLeafletImage = jest.fn();
+    const fetchImpl = jest.fn();
+    window.fetch = fetchImpl;
+    loadModule(originalLeafletImage);
+    const map = {
+      eachLayer(callback) { callback(layer); },
+      getZoom() { return 3; },
+      getSize() { return { x: 256, y: 256 }; },
+      getPixelBounds() { return { min: { x: 0, y: 0 }, max: { x: 256, y: 256 } }; },
+    };
+
+    await expect(capture(map)).rejects.toMatchObject({
+      code: 'MAP_CAPTURE_TILE_COVERAGE_INCOMPLETE',
+      details: {
+        coords: '0:0:3',
+        url: 'https://tiles.example/3/0/0.png',
+      },
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(originalLeafletImage).not.toHaveBeenCalled();
   });
 
   test('fails closed when leaflet-image asks for a tile absent from the rendered map', async () => {
