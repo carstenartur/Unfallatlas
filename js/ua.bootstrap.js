@@ -4,14 +4,16 @@
 // script-src 'self' Content Security Policy. It must load before ua.core.js.
 window.UA = { BUILD: '2026-07-19 00:00 UTC' };
 
-// Issue #644: load the central evidence-safe semantics contract, its
-// fail-closed hardening layer, and the deterministic report bridge before the
-// legacy analysis/export stack.
+// Load fail-closed evidence semantics, the deterministic report bridge and
+// the map-capture tile-integrity guard before the legacy analysis/export stack.
+// The map guard wraps the already-loaded leaflet-image library so document
+// exports reuse verified visible tiles instead of silently accepting holes.
 if (typeof document !== 'undefined') {
   const sources = [
     'ua.evidence_safe_semantics.js?v=2026-08-22',
     'ua.evidence_safe_semantics_hardening.js?v=2026-08-22',
     'ua.evidence_safe_semantics_bridge.js?v=2026-08-22',
+    'ua.map_capture_tile_integrity.js?v=2026-08-31',
   ];
   const current = document.currentScript;
 
