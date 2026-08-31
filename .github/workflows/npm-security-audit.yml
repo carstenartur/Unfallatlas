@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: npm-security-audit-${{ github.event.pull_request.number || github.ref }}
@@ -24,7 +24,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: true
 
       - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
@@ -78,6 +79,24 @@ jobs:
             --enforce-all-high-zero
           cp package.json out/qa/npm-security/candidate-package.json
           cp package-lock.json out/qa/npm-security/candidate-package-lock.json
+
+      - name: Commit the exact audited package files to this maintenance branch
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.head.ref == 'fix/npm-audit-release-gate'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Exact audited package files are already committed.'
+            exit 0
+          fi
+          git commit -m 'fix(deps): pin patched transitive npm versions'
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
 
       - name: Add normalized audit reports to the workflow summary
         if: always()
