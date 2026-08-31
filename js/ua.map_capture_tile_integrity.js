@@ -358,6 +358,14 @@
         { layer: clean(layer?.options?.attribution || layer?._url || layer?.constructor?.name) });
     }
     for (const record of records) {
+      if (expected && !record.element) {
+        let url = '';
+        try { url = absoluteUrl(originalGetTileUrl.call(layer, record.coords)); } catch (_) { /* details only */ }
+        throw failure('MAP_CAPTURE_TILE_COVERAGE_INCOMPLETE',
+          'Eine für den Kartenausschnitt benötigte Rasterkachel ist nicht in der vollständig '
+            + 'gerenderten Leaflet-Karte vorhanden. Der Dokumentexport wurde abgebrochen.',
+          { coords: coordKey(record.coords, layer, map), url });
+      }
       const element = record.element;
       if (element && (element.complete === false
           || ('naturalWidth' in element && Number(element.naturalWidth) <= 0))) {
