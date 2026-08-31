@@ -7,20 +7,12 @@ on:
       - '.github/workflows/bonn-oparl-live.yml'
       - 'scripts/qa-bonn-political-context-live.js'
       - 'scripts/qa-bonn-oparl-catalogue-discovery.js'
-      - 'js/ua.political-context-browser-fallback.js'
-      - 'js/ua.public-preview.js'
-      - 'js/ua.bootstrap.js'
       - 'tests/unit/bonnPoliticalContextLive.test.js'
-      - 'tests/unit/bonnOparlBrowserCorsLive.test.js'
       - 'tests/unit/bonnGovDataDiscoveryLive.test.js'
       - 'tests/unit/bonnOparlCollectionLive.test.js'
       - 'tests/unit/bonnPortalSearchDiscoveryLive.test.js'
       - 'tests/unit/bonnPortalGateChallengeLive.test.js'
       - 'tests/unit/bonnPortalGateSolveLive.test.js'
-      - 'tests/unit/ua.political-context-browser-fallback.test.js'
-      - 'tests/unit/publicPoliticalContextFallbackContract.test.js'
-      - 'tests/e2e/political-context-bonn-pages-fallback.spec.js'
-      - 'tests/integration/politicalContextHttpRoute.test.js'
       - 'server/political-context/providers/bonnAllrisProvider.js'
       - 'server/political-context/providers/bonnOparlClient.js'
       - 'server/political-context/providers/bonnOparlHttp.js'
@@ -76,7 +68,6 @@ jobs:
           name: bonn-political-context-live-evidence
           path: |
             out/qa/bonn-political-context-live.json
-            out/qa/bonn-oparl-browser-cors.json
             out/qa/bonn-official-catalogue-discovery.json
             out/qa/bonn-oparl-collection-probes.json
             out/qa/bonn-portal-gate-challenge.json
