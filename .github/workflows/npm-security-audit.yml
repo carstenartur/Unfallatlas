@@ -46,15 +46,52 @@ jobs:
           test -f "$npm_cli"
           "$node_bin" scripts/run-npm-security-audit.js \
             --npm-cli "$npm_cli" \
-            --out-dir out/qa/npm-security
+            --out-dir out/qa/npm-security/baseline
 
-      - name: Add normalized audit report to the workflow summary
+      - name: Generate a minimal patched lockfile candidate and prove the zero-High threshold
+        shell: bash
+        run: |
+          set -euo pipefail
+          node_bin='target/frontend/node/node'
+          npm_cli='target/frontend/node/node_modules/npm/bin/npm-cli.js'
+
+          "$node_bin" <<'NODE'
+          const fs = require('node:fs');
+          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          packageJson.overrides = {
+            ...(packageJson.overrides || {}),
+            '@grpc/grpc-js': '1.14.4',
+            'ip-address': '10.3.1',
+            'nanoid': '5.1.16',
+            'protobufjs': '7.6.5'
+          };
+          fs.writeFileSync('package.json', `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8');
+          NODE
+
+          "$node_bin" "$npm_cli" install --package-lock-only --ignore-scripts
+          rm -rf node_modules
+          "$node_bin" "$npm_cli" ci --ignore-scripts
+          "$node_bin" scripts/run-npm-security-audit.js \
+            --npm-cli "$npm_cli" \
+            --out-dir out/qa/npm-security/remediated \
+            --enforce-runtime-high-zero \
+            --enforce-all-high-zero
+          cp package.json out/qa/npm-security/candidate-package.json
+          cp package-lock.json out/qa/npm-security/candidate-package-lock.json
+
+      - name: Add normalized audit reports to the workflow summary
         if: always()
         shell: bash
         run: |
-          if [[ -f out/qa/npm-security/npm-audit-report.md ]]; then
-            cat out/qa/npm-security/npm-audit-report.md >> "$GITHUB_STEP_SUMMARY"
-          else
+          for report in \
+            out/qa/npm-security/baseline/npm-audit-report.md \
+            out/qa/npm-security/remediated/npm-audit-report.md; do
+            if [[ -f "$report" ]]; then
+              cat "$report" >> "$GITHUB_STEP_SUMMARY"
+              printf '\n---\n\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          if [[ ! -f out/qa/npm-security/baseline/npm-audit-report.md ]]; then
             printf '%s\n' 'npm audit evidence was not generated.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
