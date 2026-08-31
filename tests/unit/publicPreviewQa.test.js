@@ -8,6 +8,10 @@ function installDom() {
     </select>
     <div id="panelBody"></div>
     <div id="videoExportContainer"></div>
+    <button id="polCtxBtnSearch" type="button">Politisch suchen</button>
+    <button id="btnPolCtxOpen" type="button">Politische Recherche öffnen</button>
+    <div id="polCtxStatus"></div>
+    <div id="polCtxResults"></div>
   `;
 }
 
@@ -28,6 +32,8 @@ function loadPublicPreview(overrides = {}) {
 describe('public Pages QA hardening', () => {
   afterEach(() => {
     jest.useRealTimers();
+    jest.restoreAllMocks();
+    delete global.fetch;
     delete window.UA;
   });
 
@@ -100,7 +106,69 @@ describe('public Pages QA hardening', () => {
     const notice = document.getElementById('publicPreviewNotice');
     expect(notice).toBeInstanceOf(HTMLDetailsElement);
     expect(notice.open).toBe(false);
-    expect(notice.querySelector('summary').textContent).toContain('nur Videoexport nicht verfügbar');
+    expect(notice.querySelector('summary').textContent)
+      .toContain('Serverfunktionen transparent gekennzeichnet');
+    expect(notice.textContent)
+      .toContain('Politische Recherche und Videoexport benötigen ein Server-Backend');
+  });
+
+  test('suppresses the impossible Pages POST and exposes official Bonn links without a backend', async () => {
+    const originalSearch = jest.fn();
+    const fetchSpy = jest.fn();
+    global.fetch = fetchSpy;
+    const UA = loadPublicPreview({
+      ua: {
+        PoliticalContext: {
+          search: originalSearch,
+          buildSearchTerms: jest.fn(() => ['Bonn', 'Adenauerallee']),
+        },
+      },
+    });
+
+    expect(document.getElementById('polCtxBtnSearch').disabled).toBe(true);
+    expect(document.getElementById('polCtxStatus').textContent)
+      .toMatch(/kein fehlerhafter API-Aufruf/i);
+    expect(document.getElementById('polCtxResults').textContent)
+      .toContain('Ratsinformationssystem öffnen');
+    expect([...document.querySelectorAll('#polCtxResults a')].map(link => link.href))
+      .toEqual(expect.arrayContaining([
+        'https://www.bonn.sitzung-online.de/public/',
+        expect.stringMatching(/^https:\/\/www\.bonn\.sitzung-online\.de\/public\/tr010\?q=Adenauerallee$/),
+      ]));
+
+    await expect(UA.PoliticalContext.search({ city: 'Bonn' })).rejects.toMatchObject({
+      code: 'POLITICAL_CONTEXT_BACKEND_REQUIRED',
+    });
+    expect(originalSearch).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('uses only an explicitly configured HTTP backend for political search', async () => {
+    const endpoint = 'https://api.example.test/political-context/search';
+    const payload = { references: [], meta: { supported: false } };
+    const fetchSpy = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn(async () => payload),
+    });
+    global.fetch = fetchSpy;
+    const originalSearch = jest.fn();
+    const UA = loadPublicPreview({
+      ua: {
+        POLITICAL_CONTEXT_ENDPOINT: endpoint,
+        PoliticalContext: { search: originalSearch },
+      },
+    });
+
+    expect(document.getElementById('polCtxBtnSearch').disabled).toBe(false);
+    await expect(UA.PoliticalContext.search({ city: 'Bonn', maxResults: 1 }))
+      .resolves.toBe(payload);
+    expect(fetchSpy).toHaveBeenCalledWith(endpoint, expect.objectContaining({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: 'Bonn', maxResults: 1 }),
+    }));
+    expect(originalSearch).not.toHaveBeenCalled();
   });
 
   test('does not recenter when the URL center is already inside the selected area', () => {
