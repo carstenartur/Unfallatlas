@@ -1,0 +1,68 @@
+name: npm Security Audit Evidence
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-security-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Pinned npm audit evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21 with Maven cache
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Install the Maven-pinned Node and npm runtime from the lockfile
+        run: mvn -B -ntp clean generate-resources -DskipTests -Dskip.pages.qa=true
+
+      - name: Generate production and complete npm audit evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node_bin='target/frontend/node/node'
+          npm_cli='target/frontend/node/node_modules/npm/bin/npm-cli.js'
+          test -x "$node_bin"
+          test -f "$npm_cli"
+          "$node_bin" scripts/run-npm-security-audit.js \
+            --npm-cli "$npm_cli" \
+            --out-dir out/qa/npm-security
+
+      - name: Add normalized audit report to the workflow summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f out/qa/npm-security/npm-audit-report.md ]]; then
+            cat out/qa/npm-security/npm-audit-report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '%s\n' 'npm audit evidence was not generated.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload immutable npm audit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-security-audit-${{ github.sha }}
+          path: out/qa/npm-security/
+          if-no-files-found: error
+          retention-days: 30
