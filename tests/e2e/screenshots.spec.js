@@ -86,7 +86,7 @@ async function scrollCurrentExportSectionIntoView(page, label) {
         rect.bottom > 0 && rect.top < viewportHeight,
     };
   }, label), {
-    message: `Der Exportabschnitt „${label}“ wurde nicht als verbundener sichtbarer DOM-Knoten stabil.`,
+    message: `Der Exportabschnitt „${label}“ wurde nicht dauerhaft als verbundener, sichtbarer DOM-Knoten erkannt.`,
     timeout: 10000,
     intervals: [50, 100, 250, 500],
   }).toEqual({ found: true, connected: true, inViewport: true });
