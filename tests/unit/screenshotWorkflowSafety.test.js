@@ -125,16 +125,19 @@ describe('documentation screenshot publication safety', () => {
     expect(pom).toContain('<arguments>run qa:e2e:evidence</arguments>');
   });
 
-  test('starts every candidate run from clean media and readiness directories', () => {
+  test('cleans publication candidates but preserves reviewed media before hermetic E2E', () => {
     expect(liveRunner).toContain("path.join(ROOT, 'docs', 'screenshots')");
     expect(liveRunner).toContain("path.join(ROOT, 'out', 'qa', 'screenshot-readiness')");
     expect(liveRunner).toContain("entry.toLowerCase().endsWith('.png')");
     expect(liveRunner).toContain("entry.toLowerCase().endsWith('.json')");
 
-    expect(prepareExtendedE2e).toContain("path.join(ROOT, 'docs', 'screenshots')");
-    expect(prepareExtendedE2e).toContain("name.toLowerCase().endsWith('.png')");
-    expect(prepareExtendedE2e).toContain("path.join(ROOT, 'out', 'qa', 'screenshot-readiness')");
+    expect(prepareExtendedE2e).not.toContain("path.join(ROOT, 'docs', 'screenshots')");
+    expect(prepareExtendedE2e).not.toContain("name.toLowerCase().endsWith('.png')");
+    expect(prepareExtendedE2e).toContain("path.join(root, 'out', 'qa', 'screenshot-readiness')");
+    expect(prepareExtendedE2e).toContain("name.toLowerCase().endsWith('.json')");
     expect(packageJson.scripts['qa:e2e:prepare']).toContain('prepare-extended-e2e.js');
+    expect(packageJson.scripts['qa:e2e:extended'])
+      .toBe('node scripts/run-extended-e2e-isolated.js');
   });
 
   test('candidate artifacts are uploaded only after the Maven gate succeeds', () => {
