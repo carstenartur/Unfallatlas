@@ -107,7 +107,7 @@ describe('public Pages QA hardening', () => {
     expect(notice).toBeInstanceOf(HTMLDetailsElement);
     expect(notice.open).toBe(false);
     expect(notice.querySelector('summary').textContent)
-      .toContain('Serverfunktionen transparent gekennzeichnet');
+      .toContain('nur Videoexport nicht verfügbar');
     expect(notice.textContent)
       .toContain('Politische Recherche und Videoexport benötigen ein Server-Backend');
   });
