@@ -4,8 +4,6 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const screenshotsDir = path.join(ROOT, 'docs', 'screenshots');
-const readinessDir = path.join(ROOT, 'out', 'qa', 'screenshot-readiness');
 
 function removeMatchingFiles(directory, predicate) {
   if (!fs.existsSync(directory)) return;
@@ -15,10 +13,32 @@ function removeMatchingFiles(directory, predicate) {
   }
 }
 
-fs.mkdirSync(screenshotsDir, { recursive: true });
-removeMatchingFiles(screenshotsDir, name => name.toLowerCase().endsWith('.png'));
+function prepareExtendedE2E(options = {}) {
+  const root = path.resolve(options.root || ROOT);
+  const readinessDirectory = path.join(root, 'out', 'qa', 'screenshot-readiness');
 
-fs.mkdirSync(readinessDir, { recursive: true });
-removeMatchingFiles(readinessDir, name => name.toLowerCase().endsWith('.json'));
+  // Generated screenshots are isolated later by run-extended-e2e-isolated.js.
+  // Never delete the reviewed files in docs/screenshots here: doing so before
+  // withCandidateScreenshotWorkspace() snapshots the canonical directory turns
+  // the empty directory into the state that is faithfully restored afterwards.
+  fs.mkdirSync(readinessDirectory, { recursive: true });
+  removeMatchingFiles(
+    readinessDirectory,
+    name => name.toLowerCase().endsWith('.json')
+  );
 
-console.log('[extended-e2e] Prepared deterministic screenshot candidate directories.');
+  if (options.log !== false) {
+    console.log(
+      '[extended-e2e] Prepared transient screenshot readiness evidence; ' +
+      'canonical documentation media remain untouched.'
+    );
+  }
+  return { readinessDirectory };
+}
+
+if (require.main === module) prepareExtendedE2E();
+
+module.exports = {
+  prepareExtendedE2E,
+  removeMatchingFiles,
+};
