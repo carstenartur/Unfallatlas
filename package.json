@@ -133,6 +133,6 @@
     "@grpc/grpc-js": "1.14.4",
     "ip-address": "10.3.1",
     "nanoid": "5.1.16",
-    "protobufjs": "7.6.5"
+    "protobufjs": "8.8.0"
   }
 }
