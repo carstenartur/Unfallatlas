@@ -128,9 +128,11 @@ describe('isolated extended-E2E documentation screenshots', () => {
 
     withCandidateScreenshotWorkspace(({ canonicalDirectory: mounted }) => {
       fs.writeFileSync(path.join(mounted, 'generated.png'), 'candidate bytes');
-      const backups = fs.readdirSync(canonicalParent)
-        .filter(name => name.startsWith('screenshots.backup-'));
-      expect(backups).toHaveLength(1);
+      const rootBackups = fs.readdirSync(temporaryRoot)
+        .filter(name => name.startsWith('.canonical-screenshots.backup-'));
+      expect(rootBackups).toHaveLength(1);
+      expect(fs.readdirSync(canonicalParent)
+        .filter(name => name.startsWith('screenshots.backup-'))).toEqual([]);
 
       fs.rmSync(path.join(temporaryRoot, 'out'), { recursive: true, force: true });
       expect(fs.existsSync(path.dirname(candidateDirectory))).toBe(false);
@@ -139,6 +141,8 @@ describe('isolated extended-E2E documentation screenshots', () => {
     expect(snapshotDirectory(canonicalDirectory)).toBe(before);
     expect(fs.readFileSync(path.join(candidateDirectory, 'generated.png'), 'utf8'))
       .toBe('candidate bytes');
+    expect(fs.readdirSync(temporaryRoot)
+      .filter(name => name.startsWith('.canonical-screenshots.backup-'))).toEqual([]);
     expect(fs.readdirSync(canonicalParent)
       .filter(name => name.startsWith('screenshots.backup-'))).toEqual([]);
   });
