@@ -2,6 +2,9 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    # Renovate owns routine updates, including the npm/Docker Playwright group.
+    # A zero version-update limit still permits Dependabot security updates.
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
       day: "sunday"
@@ -43,6 +46,8 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/"
+    # The root Playwright image must move with its npm packages via Renovate.
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
       day: "sunday"

@@ -4,6 +4,26 @@
   "dependencyDashboardHeader": "### analysis-service framework stack safety\n- Do not merge framework-stack updates unless `mvn -f analysis-service/pom.xml clean verify` is green.\n- Spring Boot / Hibernate ORM / Hibernate Search version jumps must be reviewed as a coordinated migration (or kept split in separate PRs).",
   "packageRules": [
     {
+      "description": "Update Playwright packages and the production browser image together; the container uses the preinstalled browser.",
+      "matchPackageNames": ["@playwright/test", "playwright", "playwright-core", "mcr.microsoft.com/playwright"],
+      "groupName": "playwright runtime",
+      "groupSlug": "playwright-runtime"
+    },
+    {
+      "description": "The docx 9.x dependency supports nanoid 5.x; migrate the consumer before overriding its major version.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["overrides"],
+      "matchPackageNames": ["nanoid"],
+      "allowedVersions": "<6"
+    },
+    {
+      "description": "dockerode and grpc proto-loader support protobufjs 7.x; migrate those consumers before overriding the major version.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["overrides"],
+      "matchPackageNames": ["protobufjs"],
+      "allowedVersions": "<8"
+    },
+    {
       "matchManagers": ["html"],
       "enabled": true
     },
