@@ -287,7 +287,7 @@
       'line-height:1.35',
     ].join(';');
     notice.innerHTML =
-      '<summary style="cursor:pointer;font-weight:700">Öffentliche Browser-Version · Serverfunktionen transparent gekennzeichnet</summary>' +
+      '<summary style="cursor:pointer;font-weight:700">Öffentliche Browser-Version · nur Videoexport nicht verfügbar</summary>' +
       '<p style="margin:6px 0 2px">Karte, Filter, Bereichsauswahl sowie CSV-, GeoJSON-, KML-, Word- und PDF-Export sind verfügbar. ' +
       'Politische Recherche und Videoexport benötigen ein Server-Backend; die Bonn-Ansicht bietet ersatzweise Links zum offiziellen Ratsinformationssystem. ' +
       'Nach aktuellem Stand gilt: eine bekannte Lizenzbeschränkung für diese Browserfunktionen besteht nicht. ' +
