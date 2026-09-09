@@ -97,7 +97,7 @@ jobs:
           cp package-lock.json "$evidence_dir/package-lock.json"
           printf '%s\n' "$AUDIT_HEAD_SHA" > "$evidence_dir/source-commit.txt"
 
-      - name: Regenerate the minimal patched lockfile and prove checked-in idempotence
+      - name: Regenerate the candidate lockfile and prove checked-in idempotence
         shell: bash
         run: |
           set -euo pipefail
@@ -105,19 +105,9 @@ jobs:
           npm_cli='target/frontend/node/node_modules/npm/bin/npm-cli.js'
           evidence_dir='out/qa/npm-security/candidate-regenerated'
 
-          "$node_bin" <<'NODE'
-          const fs = require('node:fs');
-          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          packageJson.overrides = {
-            ...(packageJson.overrides || {}),
-            '@grpc/grpc-js': '1.14.4',
-            'ip-address': '10.3.1',
-            'nanoid': '5.1.16',
-            'protobufjs': '7.6.5'
-          };
-          fs.writeFileSync('package.json', `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8');
-          NODE
-
+          # package.json is the reviewed source of dependency constraints,
+          # including security overrides. Reapply those exact constraints;
+          # historical pins here would silently undo dependency-update PRs.
           "$node_bin" "$npm_cli" install --package-lock-only --ignore-scripts
           rm -rf node_modules
           "$node_bin" "$npm_cli" ci --ignore-scripts
