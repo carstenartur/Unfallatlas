@@ -1,7 +1,10 @@
 'use strict';
 
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const yaml = require('js-yaml');
 const {
   buildSummary,
   evaluatePolicy,
@@ -189,5 +192,51 @@ describe('npm security audit evidence', () => {
     expect(workflow).toContain('git diff --exit-code -- package.json package-lock.json');
     expect(workflow).not.toMatch(/\bgit push\b/);
     expect(workflow).not.toMatch(/\bgit commit\b/);
+  });
+
+  test.each([false, true])('regenerates reviewed constraints and rejects lockfile drift=%s', (drift) => {
+    const workflow = yaml.load(fs.readFileSync(
+      path.resolve(__dirname, '../../.github/workflows/npm-security-audit.yml'), 'utf8'
+    ));
+    const step = workflow.jobs.audit.steps.find(({ name }) => /^Regenerate .*lockfile/.test(name));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'unfallwerkbank-audit-workflow-'));
+    const manifest = `${JSON.stringify({
+      name: 'reviewed-candidate', version: '1.0.0',
+      overrides: { 'ip-address': '10.7.0', protobufjs: '7.6.6', 'another-package': '2.0.0' },
+    }, null, 2)}\n`;
+    try {
+      fs.mkdirSync(path.join(root, 'target/frontend/node/node_modules/npm/bin'), { recursive: true });
+      fs.symlinkSync(process.execPath, path.join(root, 'target/frontend/node/node'));
+      fs.mkdirSync(path.join(root, 'scripts'));
+      fs.writeFileSync(path.join(root, 'package.json'), manifest);
+      fs.writeFileSync(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n');
+      fs.writeFileSync(path.join(root, 'target/frontend/node/node_modules/npm/bin/npm-cli.js'), `
+        const fs = require('node:fs');
+        fs.appendFileSync('npm-calls.jsonl', JSON.stringify(process.argv.slice(2)) + '\\n');
+        if (process.env.AUDIT_TEST_DRIFT === '1') fs.writeFileSync('package-lock.json', '{}\\n');
+      `);
+      fs.writeFileSync(path.join(root, 'scripts/run-npm-security-audit.js'), `
+        const fs = require('node:fs');
+        fs.mkdirSync(process.argv[process.argv.indexOf('--out-dir') + 1], { recursive: true });
+      `);
+      for (const args of [['init', '-q'], ['add', 'package.json', 'package-lock.json']]) {
+        expect(spawnSync('git', args, { cwd: root, encoding: 'utf8' }).status).toBe(0);
+      }
+      const result = spawnSync('bash', ['-c', step.run], {
+        cwd: root, encoding: 'utf8', env: { ...process.env, AUDIT_TEST_DRIFT: drift ? '1' : '0' },
+      });
+      expect(result.stderr).toBe('');
+      expect(result.status).toBe(drift ? 1 : 0);
+      expect(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).toBe(manifest);
+      expect(fs.readFileSync(path.join(root, 'out/qa/npm-security/candidate-regenerated/package.json'), 'utf8'))
+        .toBe(manifest);
+      expect(fs.readFileSync(path.join(root, 'npm-calls.jsonl'), 'utf8').trim().split('\n').map(JSON.parse))
+        .toEqual([
+          ['install', '--package-lock-only', '--ignore-scripts'],
+          ['ci', '--ignore-scripts'],
+        ]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

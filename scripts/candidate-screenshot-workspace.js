@@ -144,6 +144,14 @@ function recoveryPath(base, label) {
   return `${base}.${label}-${process.pid}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
 }
 
+function defaultBackupDirectory(canonicalDirectory) {
+  // The canonical path is <workspace>/docs/screenshots. Keep the reviewed
+  // backup on the same filesystem for atomic renames, but outside docs so
+  // media validators never interpret the temporary copy as committed media.
+  const workspaceRoot = path.dirname(path.dirname(canonicalDirectory));
+  return recoveryPath(path.join(workspaceRoot, '.canonical-screenshots'), 'backup');
+}
+
 function preserveUnexpected(source, base, label) {
   const recovery = recoveryPath(base, label);
   fs.mkdirSync(path.dirname(recovery), { recursive: true });
@@ -167,7 +175,7 @@ function withCandidateScreenshotWorkspace(callback, options = {}) {
     options.candidateDirectory || DEFAULT_CANDIDATE_DIRECTORY
   );
   const backupDirectory = path.resolve(
-    options.backupDirectory || recoveryPath(canonicalDirectory, 'backup')
+    options.backupDirectory || defaultBackupDirectory(canonicalDirectory)
   );
 
   assertDisjointDirectories(canonicalDirectory, candidateDirectory);

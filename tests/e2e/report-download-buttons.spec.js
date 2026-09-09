@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import JSZip from 'jszip';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { pdfInfoEntry } from '../../scripts/lib/pdfjs-metadata.js';
 
 const outputDir = resolve(process.cwd(), 'out/qa/report-button-downloads');
 const standardTile = readFileSync(resolve(process.cwd(), 'tests/e2e/fixtures/map-tiles/standard.svg'));
@@ -90,17 +91,6 @@ async function auditDocx(bytes) {
   };
 }
 
-function metadataValue(info, name) {
-  const containers = [info, info?.Custom]
-    .filter((value) => value && typeof value === 'object');
-  for (const container of containers) {
-    const match = Object.entries(container)
-      .find(([key]) => key.toLowerCase() === name.toLowerCase());
-    if (match) return match[1];
-  }
-  return null;
-}
-
 async function auditPdf(bytes) {
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(bytes), disableWorker: true }).promise;
   const visiblePages = [];
@@ -117,8 +107,8 @@ async function auditPdf(bytes) {
   const visible = visiblePages.join('\n').replace(/\s+/g, ' ').trim();
   const metadata = await pdf.getMetadata();
   const markInfo = typeof pdf.getMarkInfo === 'function' ? await pdf.getMarkInfo() : null;
-  const manifestHash = metadataValue(metadata.info, 'UnfallwerkbankSourceManifestSha256');
-  const manifestJson = metadataValue(metadata.info, 'UnfallwerkbankSourceManifest');
+  const manifestHash = pdfInfoEntry(metadata.info, 'UnfallwerkbankSourceManifestSha256');
+  const manifestJson = pdfInfoEntry(metadata.info, 'UnfallwerkbankSourceManifest');
 
   expect(visible).toContain('DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
   expect(visible).not.toContain('ANLAGEN');
@@ -130,13 +120,13 @@ async function auditPdf(bytes) {
   expect(() => JSON.parse(manifestJson)).not.toThrow();
   expect(JSON.parse(manifestJson).sources.length).toBeGreaterThan(0);
   expect(urls.length).toBeGreaterThan(0);
-  expect(markInfo?.Marked).toBe(true);
+  expect(pdfInfoEntry(markInfo, 'Marked')).toBe(true);
 
   return {
     format: 'pdf',
     pages: pdf.numPages,
     manifestHash,
-    tagged: markInfo?.Marked === true,
+    tagged: pdfInfoEntry(markInfo, 'Marked') === true,
     hyperlinkCount: urls.length,
   };
 }

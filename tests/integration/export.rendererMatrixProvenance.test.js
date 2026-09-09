@@ -3,6 +3,7 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 const JSZip = require('jszip');
+const { pdfInfoEntry } = require('../../scripts/lib/pdfjs-metadata');
 
 const LEGACY_SOURCE =
   'Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).';
@@ -36,6 +37,7 @@ async function pdfBuffer(pdfDocument) {
 function inspectPdf(buffer) {
   const script = String.raw`
     import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+    import { pdfMetadataJsonReplacer } from './scripts/lib/pdfjs-metadata.js';
     const chunks = [];
     for await (const chunk of process.stdin) chunks.push(chunk);
     const bytes = new Uint8Array(Buffer.from(Buffer.concat(chunks).toString('utf8'), 'base64'));
@@ -56,7 +58,7 @@ function inspectPdf(buffer) {
       visible: visibleText.join('\n'),
       urls,
       info: metadata.info || {},
-    }));
+    }, pdfMetadataJsonReplacer));
   `;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
     cwd: path.resolve(__dirname, '../..'),
@@ -68,17 +70,6 @@ function inspectPdf(buffer) {
     throw new Error(`PDF inspection failed: ${result.stderr || result.stdout}`);
   }
   return JSON.parse(result.stdout);
-}
-
-function pdfInfoEntry(info, name) {
-  const containers = [info, info?.Custom]
-    .filter(value => value && typeof value === 'object');
-  for (const container of containers) {
-    const match = Object.entries(container)
-      .find(([key]) => key.toLowerCase() === name.toLowerCase());
-    if (match) return match[1];
-  }
-  return undefined;
 }
 
 function decodeXml(value) {

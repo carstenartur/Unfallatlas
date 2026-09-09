@@ -87,7 +87,7 @@
     "@types/jest": "^30.0.0",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "pdfjs-dist": "^6.1.200",
+    "pdfjs-dist": "^6.3.289",
     "testcontainers": "^12.0.4"
   },
   "jest": {
@@ -131,8 +131,8 @@
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.4",
-    "ip-address": "10.3.1",
+    "ip-address": "10.7.0",
     "nanoid": "5.1.16",
-    "protobufjs": "7.6.5"
+    "protobufjs": "7.6.6"
   }
 }
