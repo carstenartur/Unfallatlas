@@ -681,10 +681,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_hannover.geojson.gz",
-          "bytes": 944637,
-          "uncompressedBytes": 16260297,
-          "sha256": "4a75e31c129e433965972790345c98609a69ae77ba24fe67554a65566dd85639",
-          "contentSha256": "2d8e56aa8215e45dab3a0c971346a68ee25d404398270116f7d96c5db059f007"
+          "bytes": 944549,
+          "uncompressedBytes": 16263438,
+          "sha256": "7bc35876b707104c56d0bff85b164f22c097fa1f248c98445fc426fd4b4aaa3e",
+          "contentSha256": "604dc33cf2ee9a38cf5f0ceb7377d4efd6880a5f5b520c0c1c7a207087cddc3e"
         }
       }
     },
@@ -1186,5 +1186,5 @@
       }
     }
   ],
-  "fingerprint": "e6c0dbce867897c1b55123da3903fcf171680a79ebb814f152747cd88153e1f2"
+  "fingerprint": "a4265db16c65eb5e758212fb7bbceb9bc45ddc01f418d31597c63d73043ef7de"
 }
