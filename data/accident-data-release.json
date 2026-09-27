@@ -73,10 +73,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_augsburg.geojson.gz",
-          "bytes": 545618,
-          "uncompressedBytes": 9499785,
-          "sha256": "bf7b4d276c74ac6699f85bc60303cd0dbae5f12cc5ba41dd6c8fc16c2049dbc8",
-          "contentSha256": "79a6d17f6c52d396c81a6740f4f01e9bb86f2e542b995f5d9eb864369e575a0f"
+          "bytes": 548804,
+          "uncompressedBytes": 9501496,
+          "sha256": "3116fe341fcb17ad0a665e954ab030a1d76a92f07af38bba778fc9fd7ff3d071",
+          "contentSha256": "732c2868b5400c6ae752571b0debc2a75ae2bfb2b90228807072bb66ad62acc8"
         }
       }
     },
@@ -116,10 +116,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_berlin.geojson.gz",
-          "bytes": 4406994,
-          "uncompressedBytes": 75873134,
-          "sha256": "b6f71f4b0e3a153ad101f2993732149c2978ba5d92820b696221cffc8bf28902",
-          "contentSha256": "d58e1b6d8658da8711a4384288addd558c316a60a5b4f3869150d0bed22a02fe"
+          "bytes": 4407030,
+          "uncompressedBytes": 75873064,
+          "sha256": "8c688a1791595c169baeb1645ae32598f722fba504b3c95b8489b217077efadb",
+          "contentSha256": "4ac155cc037128121f61e6828dcc8309a6f5897c4f94353aff02afa3dbf7095f"
         }
       }
     },
@@ -157,10 +157,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_bielefeld.geojson.gz",
-          "bytes": 317787,
-          "uncompressedBytes": 5310729,
-          "sha256": "ef7ac08d20b4615c3048a70b2fbc1c003731b8e1d567ade5ee0710aaf0d96119",
-          "contentSha256": "e2f6d09c405b1c57f02463db1d13a0a25fc475ebd09fbb4802bccb1278beaf48"
+          "bytes": 317775,
+          "uncompressedBytes": 5310730,
+          "sha256": "22912d3db34a8badc676060a483ad93895b985b54313503d662ad873c961f7b2",
+          "contentSha256": "3c5127418f97241634a7733db413007b2a4fbb2a183e58c9f372a7b04d667dde"
         }
       }
     },
@@ -239,10 +239,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_bonn.geojson.gz",
-          "bytes": 391205,
-          "uncompressedBytes": 6598877,
-          "sha256": "8355d90bac919d2f8574777880796be03157a5dbae16f30f57d1ba4491cb56e1",
-          "contentSha256": "07be4eb4ad6fa1f432d868f9f32ce5b4c330e41064da243b498fceda9cffecf3"
+          "bytes": 391211,
+          "uncompressedBytes": 6598792,
+          "sha256": "b67d189d308d0a908bf1a8ac75fc83c89f354343a8d90735a4feb9ec28f32513",
+          "contentSha256": "2d4da4d8bc83fc179036af817eac4c682ca8911df045a73ce2fe5607390037fe"
         }
       }
     },
@@ -284,10 +284,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_braunschweig.geojson.gz",
-          "bytes": 235265,
-          "uncompressedBytes": 3971149,
-          "sha256": "8cef359663628b2bc015a7dfc275a074f6354f6676623d5c579794839afbeee0",
-          "contentSha256": "f9527c31f2691dae82552dfba9478bdb31970260dfb10714c06be5cca7f4f241"
+          "bytes": 235101,
+          "uncompressedBytes": 3971159,
+          "sha256": "dbdce4da9b70c84514d526a1d9ef6a2194f054e93a97a568b6b720aea3274855",
+          "contentSha256": "d453ff2a395e0440699c3428acd9a1d136ce8d783da5e0e440e8cd7ad15ed4d7"
         }
       }
     },
@@ -331,10 +331,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_bremen.geojson.gz",
-          "bytes": 948027,
-          "uncompressedBytes": 16797074,
-          "sha256": "021470523563a818de5f21b79f3bae331a760664814ff6bdc98b7719baf68b9b",
-          "contentSha256": "cbe94e35f3f894341e3a2fb383c879507259c556440b1c545cf0c434f52786c5"
+          "bytes": 952182,
+          "uncompressedBytes": 16797080,
+          "sha256": "db08744c3098627f88002e444fe31e27fef82ce4808157212c14d7e22725b676",
+          "contentSha256": "55c5b1680d361642de76203782bb3ff760668e1571145dfe31ce1b0fb29e0f7d"
         }
       }
     },
@@ -372,10 +372,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_dortmund.geojson.gz",
-          "bytes": 549004,
-          "uncompressedBytes": 9235124,
-          "sha256": "b1c02e60d2a3a739c9fa4a3122f924b4b385f4d7a7192c3040215f51bede31f1",
-          "contentSha256": "13ddbc1cfb860903f2557ad3495cd5cd48ddff6820866e12ba0f21352c20d34c"
+          "bytes": 550696,
+          "uncompressedBytes": 9235151,
+          "sha256": "c37b0dcf712d8eae56b2a518747bbb36826ccaa52d627d268cd4bbcde9f8b8f4",
+          "contentSha256": "1d4113e2a3200754a7a477b6ac5bd3837d6a07391edeca74983f6bdd9ae907af"
         }
       }
     },
@@ -419,10 +419,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_dresden.geojson.gz",
-          "bytes": 919605,
-          "uncompressedBytes": 16058142,
-          "sha256": "0462379195db2a61390b79fa0607ab48845c1772d1b8fe448d35829f086bd220",
-          "contentSha256": "24d1c6ebfd1ea9310cc60717892a70f43a682612e5a91e5c126e63f1de2882ed"
+          "bytes": 922929,
+          "uncompressedBytes": 16061121,
+          "sha256": "9753c42707ab192545100bdbefdb4a16de4c689d1406aa232944a77b39edf48a",
+          "contentSha256": "6aa777975702aa9fa27a00ec2951b86a54334e8d80a01ebf3444e166fdf5b1ff"
         }
       }
     },
@@ -460,10 +460,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_duesseldorf.geojson.gz",
-          "bytes": 706673,
+          "bytes": 706654,
           "uncompressedBytes": 12082632,
-          "sha256": "d25b646f7a120ee6f21933eca1a956af7bad119315874053a9296c1cacb7b542",
-          "contentSha256": "569d6dd82191608947106f54c7138a01d0fe415b33db7a2ec63e327c19809c79"
+          "sha256": "578b2f0d560e474a74e3202a1372e4836bb9ac49738f7f72908bd59e9bfcc0e7",
+          "contentSha256": "acc9d618a58e41aa1f2c9ec46e2f394169c61a97749c4a6a2d561fc0d7429ad7"
         }
       }
     },
@@ -501,10 +501,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_duisburg.geojson.gz",
-          "bytes": 469499,
-          "uncompressedBytes": 8101247,
-          "sha256": "d6de1c8f6cda293d29200e883f0fff9edf59ab3acb889f21e608548ebcdee693",
-          "contentSha256": "7884728d810ff6a6f721b9046172683afb457f5b603f457297616e99f0441d47"
+          "bytes": 470510,
+          "uncompressedBytes": 8101457,
+          "sha256": "6233f366bb816894966a06281ea89288521f6868e0da63289408faaf02bced2f",
+          "contentSha256": "dad0b3d3c5007626df8869b348a17876fde56888bb1cf90dc25fe69691cb8b3b"
         }
       }
     },
@@ -542,10 +542,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_essen.geojson.gz",
-          "bytes": 523888,
-          "uncompressedBytes": 8888083,
-          "sha256": "517b97b588896537aed1956f591b7f7b1286ad5b70727ca047bec2239f5b3540",
-          "contentSha256": "0cb1fc5dc4c290ed2346c64f91cf4a1d3be6697e9d5f4f7d50b2eaa7adbd5c8d"
+          "bytes": 527937,
+          "uncompressedBytes": 8888676,
+          "sha256": "aea564f00705ac1bcefd8923820af00fc1147f33df923e7e28dc2ef88558d71c",
+          "contentSha256": "5585a9271eb0d51840ff3c44632cf88d65ec7cc588a4a4307d3dd78abb6f9b3e"
         }
       }
     },
@@ -589,10 +589,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_frankfurt_am_main.geojson.gz",
-          "bytes": 1127562,
-          "uncompressedBytes": 19107646,
-          "sha256": "2368f8d24270da48bd4b9ef5e9897c3471899da7e65eec373c2a0495b3711e03",
-          "contentSha256": "9855d573b24e683be683ba267ecbe85a0f6666f615a51659c6137a073b82c8e4"
+          "bytes": 1127611,
+          "uncompressedBytes": 19107733,
+          "sha256": "dd982ba69db18d67f6f1e932c47e644bb902ebbef525ad154c5a5767686a6eba",
+          "contentSha256": "721b72e9b819287d049d578d6876f0341c2bc5f55f160d8f85de0fc22a40321c"
         }
       }
     },
@@ -636,10 +636,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_hamburg.geojson.gz",
-          "bytes": 3069558,
-          "uncompressedBytes": 52071571,
-          "sha256": "2edd571b2a03a65ecc751a801ba7c616c38938ee47929c0a2d902d18ace0bed8",
-          "contentSha256": "9e4e9ee24c4a5d90f0255be44c7c7419a7b4dcfa84aa81ab89ee46a5abd95f4e"
+          "bytes": 3069914,
+          "uncompressedBytes": 52078530,
+          "sha256": "dbbac2c8adced5ac26d1bef2600c202cb9a4d56d0462fa0c144945632ebf41b8",
+          "contentSha256": "f29aa009169869ad85d320b2ede3d0c977d5102de6e0c690168a485b430bea38"
         }
       }
     },
@@ -681,10 +681,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_hannover.geojson.gz",
-          "bytes": 944381,
-          "uncompressedBytes": 16263478,
-          "sha256": "f3525931c16eb211e9a8e7a7ab50ea6ec30f0d46298d653d33d4bb72064813f3",
-          "contentSha256": "eb35976479945cde997b3a2def18f4f9d08a679e1beec5c82712e3dfbb8f106f"
+          "bytes": 944384,
+          "uncompressedBytes": 16263485,
+          "sha256": "8dd94edbffe68f444aa1095fcf9376d02f615e9fb77806c26695ff662bf0822a",
+          "contentSha256": "a08e1e8f2038a7dc638c3e32d4bbab85d07f15e7ac1478f6aac0122a118e0b03"
         }
       }
     },
@@ -775,10 +775,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_karlsruhe.geojson.gz",
-          "bytes": 493024,
-          "uncompressedBytes": 8481506,
-          "sha256": "0caa20ab3d0552e68bfa1f06713d7e9eacd521758633a55b52d476d158cf467d",
-          "contentSha256": "78fea9567d3745c8099ed75dffb865c1096a63e80b6ceef5422ddafae833fce1"
+          "bytes": 495524,
+          "uncompressedBytes": 8481403,
+          "sha256": "eab5667e69a0efc401fd4c2904e40d2fb9ff7789b25326fdfd524656b0037e09",
+          "contentSha256": "b3aa38fdcbc6023e33ff7710b9953ceca179d6b5c49e2a4e8d9ffe2168906751"
         }
       }
     },
@@ -816,10 +816,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_koeln.geojson.gz",
-          "bytes": 1384994,
-          "uncompressedBytes": 23667738,
-          "sha256": "c65b4082163a433a61f0928bd59baff9dab0059e626e2b69627890540eb02bcf",
-          "contentSha256": "2f0b3432d4649123ccf04c8f196676223b1b5d96c91a4cafd6f509eeff218e47"
+          "bytes": 1384990,
+          "uncompressedBytes": 23667838,
+          "sha256": "7a14889bc9b5eaebe6b018229a80112bfef58e55b4a46793b7482aa052ca5615",
+          "contentSha256": "ab33fbb1bb6b32f9163bdf628b73bb3a9f65860896e61a60cc67e491da6f8f46"
         }
       }
     },
@@ -910,10 +910,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_mannheim.geojson.gz",
-          "bytes": 398176,
-          "uncompressedBytes": 6784212,
-          "sha256": "ad5a03ad811b66eb1fd178b295058677a024f7f18ac32f8098480db0e2cf7433",
-          "contentSha256": "39734c8ae791a5fd94271d94ec6a062f9ccdbc79367901f52548cc4b386ce1c8"
+          "bytes": 400661,
+          "uncompressedBytes": 6784382,
+          "sha256": "b88776b308ae634f4ec3ea1c70419acfb1c314f0bbb54252a58795b840799aae",
+          "contentSha256": "0f4dc227bb62ebc774fbfef83f824da301d9a44503524d474b9f3edb9f3104cc"
         }
       }
     },
@@ -957,10 +957,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_muenchen.geojson.gz",
-          "bytes": 2162761,
-          "uncompressedBytes": 36847573,
-          "sha256": "11259a0b2994a1cc75e9f5fe6d8e817320085f549d62a8fb67ef1373ae4c2acf",
-          "contentSha256": "e704a0e5e4dc140c77b9be47f2e8c504452f4825c4c6ef11c3f1d6c3e8b49ab6"
+          "bytes": 2162773,
+          "uncompressedBytes": 36847285,
+          "sha256": "a8dc873cd1dd9119a3355fcfa331f70f70972b05e3f7498bb2f262611e8d1ff7",
+          "contentSha256": "2727e94943dcf8dfadaab6f8e9e441d820678b1d70838d760f1261c9a35e8642"
         }
       }
     },
@@ -998,10 +998,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_muenster.geojson.gz",
-          "bytes": 373667,
-          "uncompressedBytes": 6417603,
-          "sha256": "ed1727a3436bab555ab7a8a6c18c2343c15958881fcaa3c92ab7754726849df7",
-          "contentSha256": "72aa0b36bb6b5033da18bf57b9f62cbb5030504e2976feff19f62fd448a18f28"
+          "bytes": 374200,
+          "uncompressedBytes": 6418070,
+          "sha256": "b08f47929e2d6c1fd9172e9bda2368581ed892fba43abc0c0d7ca25581adf0f0",
+          "contentSha256": "9688a1c176109f2cd490332ccf0fa584904f0443a5b5685dffab3731957ad07b"
         }
       }
     },
@@ -1045,10 +1045,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_nuernberg.geojson.gz",
-          "bytes": 847122,
-          "uncompressedBytes": 14584747,
-          "sha256": "dedd30c000ca46c15186a23730104962e826f45de12a65f5fea044c64d168f43",
-          "contentSha256": "92f9f6397baae626aa2cd3b10d0b67ed9d39cf6a30f8ceb6d43e9080da5dcb05"
+          "bytes": 850637,
+          "uncompressedBytes": 14584653,
+          "sha256": "3a1fba5df0d2917f8104e689bc907ae5ceec230f2f1086f5fbb06277b7f9422c",
+          "contentSha256": "b872e7ed4c548a8e1250fe28cdd8cbadd4226e2679a69004cfc1012ed413e43c"
         }
       }
     },
@@ -1092,10 +1092,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_stuttgart.geojson.gz",
-          "bytes": 798421,
-          "uncompressedBytes": 13412323,
-          "sha256": "f6775e4bb026b724bc832a5e4805e610ab53bbf28eca91f56632974b81d145ef",
-          "contentSha256": "8c16c48ff1a1515b620b374e40ccaeb56cf22e68b1be9f1136b04be52eef619d"
+          "bytes": 802668,
+          "uncompressedBytes": 13415297,
+          "sha256": "8fba4e325f43602eb032635b03af09577c3016455e63e6874a744b983f2309ff",
+          "contentSha256": "c957d54cb0bfecc2fcff28e8e56f88dc9d9b1b6fc9a38a6aa2e4703d8d90afdb"
         }
       }
     },
@@ -1137,10 +1137,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_wolfsburg.geojson.gz",
-          "bytes": 113968,
-          "uncompressedBytes": 1876947,
-          "sha256": "1fe7383d2dd257ba4b69a1479564732b2b395b506640c80f8a7294e828df245d",
-          "contentSha256": "c41637436c704386a001a1f0ce4800b338235fda10283f506e76dccb5731b55c"
+          "bytes": 113935,
+          "uncompressedBytes": 1876952,
+          "sha256": "10cc2a969ae551d3342a9cf764b6404ed7acf166ce7bbc4797208a9935182335",
+          "contentSha256": "a0c0c9fbf015e111e1ff30f02039bd7e852f41f580212ae398b0cd053ab6eabf"
         }
       }
     },
@@ -1178,13 +1178,13 @@
         },
         "geojson": {
           "path": "out/output_all_years_wuppertal.geojson.gz",
-          "bytes": 305033,
-          "uncompressedBytes": 5035231,
-          "sha256": "d39ab0551d8d7c9bd573f97751a0d04f0453af4153d679a91ea6c37bb2451e9e",
-          "contentSha256": "0a4f0e1a73a14ed7269e2c3207d93460f9894f9a45bc4bc9b5a31d321c3d18c8"
+          "bytes": 305971,
+          "uncompressedBytes": 5035210,
+          "sha256": "5ba302c11a9fb26a31c8a40e303d5a18ffd11719ae0bd04abeb9a24230bbb515",
+          "contentSha256": "50610ff267cbe05d1c0d8e4a7d1337b058e93a5de0c892352266921263b0ca24"
         }
       }
     }
   ],
-  "fingerprint": "07704551d11835f34da656937e53cba0e5d5b3de2559dbecc445cb5d216837e9"
+  "fingerprint": "0e1076f93502c227a5662e3b6a34dcb04c7d86a6faded33652ed318af3f43121"
 }
