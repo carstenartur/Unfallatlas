@@ -67,7 +67,7 @@ jobs:
         run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true
 
       - name: Upload candidate deep-link evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() && hashFiles('out/qa/documentation-live-links/*') != '' }}
         with:
           name: pr-candidate-documentation-links-${{ github.event.pull_request.number }}
@@ -82,7 +82,7 @@ jobs:
 
       - name: Upload PR screenshots as artifact
         id: candidate_upload
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.candidate_metadata.outputs.name }}
           path: |
@@ -96,7 +96,7 @@ jobs:
           retention-days: 30
 
       - name: Upload media QA report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() && hashFiles('out/qa/documentation-media.json', 'out/qa/screenshot-evidence.json', 'out/qa/live-cartography-evidence.json', 'out/qa/screenshot-readiness/*.json', 'out/qa/documentation-live-links/*') != '' }}
         with:
           name: pr-media-report-${{ github.event.pull_request.number }}
