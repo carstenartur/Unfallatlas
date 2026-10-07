@@ -126,7 +126,7 @@ jobs:
             -C .build accident-publication
 
       - name: Upload immutable publication package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: accident-data-publication-${{ github.run_id }}
           path: accident-publication-package.tar
@@ -135,7 +135,7 @@ jobs:
           compression-level: 0
 
       - name: Upload mandatory accident-data compatibility evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: accident-data-evidence-${{ github.run_id }}
           path: |
