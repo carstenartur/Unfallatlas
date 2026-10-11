@@ -15,7 +15,7 @@
 #     -e ANALYSIS_DB_PASSWORD=unfallatlas \
 #     unfallatlas/analysis-service
 # ─────────────────────────────────────────────────────────────────────────────
-FROM maven:3-eclipse-temurin-24 AS build
+FROM maven:3-eclipse-temurin-27 AS build
 WORKDIR /workspace
 
 # Maven-Caching: erst nur die POM kopieren, dann Abhängigkeiten ziehen,
