@@ -67,8 +67,6 @@ or container gate.
 
 ---
 
-Initial release
-
 ## Maintainer notes
 
 ### One-time enrichment-size baseline reseed (after PR #261)
