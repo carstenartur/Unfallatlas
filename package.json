@@ -3,7 +3,7 @@
   "version": "2.1.4",
   "description": "Unfallatlas data converter and analysis tool with interactive visualization",
   "main": "index.js",
-  "packageManager": "npm@11.19.1",
+  "packageManager": "npm@11.21.1",
   "engines": {
     "node": "24.x",
     "npm": ">=11 <12"
@@ -88,7 +88,8 @@
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "pdfjs-dist": "^6.3.289",
-    "testcontainers": "^12.0.4"
+    "testcontainers": "^12.0.4",
+    "jszip": "3.10.1"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -117,8 +118,8 @@
     ]
   },
   "dependencies": {
-    "@playwright/test": "1.63.0",
-    "docx": "9.7.1",
+    "@playwright/test": "1.64.1",
+    "docx": "9.15.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "file-saver": "2.0.5",
@@ -131,8 +132,7 @@
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.5",
-    "ip-address": "10.7.2",
-    "nanoid": "5.1.16",
+    "ip-address": "10.7.4",
     "protobufjs": "7.6.6"
   }
 }
