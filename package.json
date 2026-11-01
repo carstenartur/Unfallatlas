@@ -131,7 +131,7 @@
     "pdfmake": "0.3.11"
   },
   "overrides": {
-    "@grpc/grpc-js": "1.14.5",
+    "@grpc/grpc-js": "1.14.7",
     "ip-address": "10.7.4",
     "protobufjs": "7.6.6"
   }
