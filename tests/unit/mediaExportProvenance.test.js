@@ -11,7 +11,6 @@ const {
   stableJson,
   safeBaseName,
   projectBadgeRect,
-  badgeSampleStartSeconds,
   verifyEncodedSourceBadge,
   createVideoMediaSidecar,
   createVideoMediaBundle,
@@ -89,7 +88,7 @@ function fixture(format = 'gif', bytes = Buffer.from('GIF89a-provenance-fixture'
     maxBorderPixels: 800,
     maxBackgroundPixels: 15_000,
     tolerance: 55,
-    sampleStartSeconds: 12,
+    sampling: { mode: 'tail', fps: 1, maxFrames: 8 },
     ...projection,
   };
   const exportResult = { format, extension, contentType, evidence };
@@ -108,7 +107,6 @@ describe('media export provenance sidecars', () => {
     expect(projected.rect).toEqual({ x: 9, y: 507, width: 942, height: 27 });
     expect(projected.scaleX).toBe(0.75);
     expect(projected.scaleY).toBe(0.75);
-    expect(badgeSampleStartSeconds(value.evidence.semantic.framesAfterEncoding)).toBe(12);
   });
 
   test('builds a deterministic sidecar bound to artifact and SourceManifest hashes', () => {

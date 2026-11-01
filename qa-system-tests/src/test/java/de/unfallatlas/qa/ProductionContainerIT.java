@@ -18,6 +18,8 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -300,6 +302,32 @@ class ProductionContainerIT {
     void containerLogsStayFreeOfVideoExportErrors() {
         String logs = APPLICATION.getLogs();
         assertFalse(logs.contains("[export-video] Fehler"), logs);
+    }
+
+    @Test
+    @Order(6)
+    void verifiesLateSourceBadgesWithProductionCodecs() throws Exception {
+        org.testcontainers.containers.Container.ExecResult execution =
+                APPLICATION.execInContainer(
+                        "node", "node_modules/jest/bin/jest.js",
+                        "--config", "tests/integration/jest.media-provenance-tail.config.js",
+                        "--runInBand", "--json");
+        Files.createDirectories(LOG_DIRECTORY);
+        Files.writeString(
+                LOG_DIRECTORY.resolve("media-provenance-tail-jest.json"),
+                execution.getStdout(),
+                StandardCharsets.UTF_8);
+        Files.writeString(
+                LOG_DIRECTORY.resolve("media-provenance-tail-jest.stderr.log"),
+                execution.getStderr(),
+                StandardCharsets.UTF_8);
+
+        assertEquals(0, execution.getExitCode(), execution.getStdout() + execution.getStderr());
+        JsonNode report = new ObjectMapper().readTree(execution.getStdout());
+        assertEquals(6, report.path("numTotalTests").asInt(-1), report.toString());
+        assertEquals(6, report.path("numPassedTests").asInt(-1), report.toString());
+        assertEquals(0, report.path("numPendingTests").asInt(-1), report.toString());
+        assertEquals(0, report.path("numFailedTests").asInt(-1), report.toString());
     }
 
     @AfterAll

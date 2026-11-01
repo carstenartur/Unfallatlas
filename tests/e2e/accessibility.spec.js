@@ -41,42 +41,42 @@ test.describe('Accessibility – Werkbank V2', () => {
     ).toHaveLength(0);
   });
 
-  test('alle vier Arbeitsdialoge haben keine critical/serious axe-Violations', async ({ page }, testInfo) => {
-    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
-    await waitForScreenshotReady(page, { city: 'Hannover' });
+  const dialogs = [
+    {
+      name: 'Export',
+      selector: '#modalOverlay',
+      open: async (page) => page.locator('#btnOpenExport').click(),
+      close: async (page) => page.locator('#btnCloseModal').click(),
+    },
+    {
+      name: 'Politische Kontextrecherche',
+      selector: '#polCtxPanel',
+      open: async (page) => page.locator('#btnPolCtxOpen').click(),
+      close: async (page) => page.locator('#polCtxBtnClose').click(),
+    },
+    {
+      name: 'Prioritäten',
+      selector: '#prioPanel',
+      open: async (page) => page.locator('#btnPrioritiesOpen').click(),
+      close: async (page) => page.locator('#prioBtnClose').click(),
+    },
+    {
+      name: 'Tour-Rekorder',
+      selector: '#recorderModal',
+      open: async (page) => {
+        await page.locator('#tourBtnRecord').click();
+        await page.locator('#tourBtnRecord').click();
+      },
+      close: async (page) => page.locator('#recorderBtnClose').click(),
+    },
+  ];
 
-    const dialogs = [
-      {
-        name: 'Export',
-        selector: '#modalOverlay',
-        open: async () => page.locator('#btnOpenExport').click(),
-        close: async () => page.locator('#btnCloseModal').click(),
-      },
-      {
-        name: 'Politische Kontextrecherche',
-        selector: '#polCtxPanel',
-        open: async () => page.locator('#btnPolCtxOpen').click(),
-        close: async () => page.locator('#polCtxBtnClose').click(),
-      },
-      {
-        name: 'Prioritäten',
-        selector: '#prioPanel',
-        open: async () => page.locator('#btnPrioritiesOpen').click(),
-        close: async () => page.locator('#prioBtnClose').click(),
-      },
-      {
-        name: 'Tour-Rekorder',
-        selector: '#recorderModal',
-        open: async () => {
-          await page.locator('#tourBtnRecord').click();
-          await page.locator('#tourBtnRecord').click();
-        },
-        close: async () => page.locator('#recorderBtnClose').click(),
-      },
-    ];
+  for (const dialog of dialogs) {
+    test(`${dialog.name} hat keine critical/serious axe-Violations`, async ({ page }, testInfo) => {
+      await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+      await waitForScreenshotReady(page, { city: 'Hannover' });
 
-    for (const dialog of dialogs) {
-      await dialog.open();
+      await dialog.open(page);
       await expect(page.locator(dialog.selector)).toBeVisible({ timeout: 5000 });
 
       const results = await new AxeBuilder({ page })
@@ -97,10 +97,10 @@ test.describe('Accessibility – Werkbank V2', () => {
           ).join('\n')
       ).toHaveLength(0);
 
-      await dialog.close();
+      await dialog.close(page);
       await expect(page.locator(dialog.selector)).toBeHidden();
-    }
-  });
+    });
+  }
 
   test('alle Arbeitsdialoge schließen per Escape und geben den Fokus zurück', async ({ page }) => {
     await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
