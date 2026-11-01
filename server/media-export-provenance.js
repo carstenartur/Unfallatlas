@@ -16,7 +16,6 @@ const BADGE_MIN_BORDER_PIXELS = 60;
 const BADGE_MIN_BACKGROUND_PIXELS = 300;
 const BADGE_SAMPLE_FPS = 1;
 const BADGE_SAMPLE_FRAMES = 8;
-const BASE_ENCODED_INSPECTION_FPS = 2;
 const FFMPEG_TIMEOUT_MS = 120_000;
 const MAX_BADGE_BUFFER_BYTES = 16 * 1024 * 1024;
 
@@ -127,17 +126,6 @@ function closeColor(r, g, b, expected, tolerance = BADGE_COLOR_TOLERANCE) {
     Math.abs(b - expected[2]) <= tolerance;
 }
 
-function badgeSampleStartSeconds(encodedFrameEvidence) {
-  const inspectedFrames = Number(encodedFrameEvidence && encodedFrameEvidence.frameCount);
-  const durationSeconds = Number.isFinite(inspectedFrames) && inspectedFrames > 0
-    ? inspectedFrames / BASE_ENCODED_INSPECTION_FPS
-    : 0;
-  // The source strip is installed after the semantic analysis gate and remains
-  // fixed until the recorded context closes. Inspecting the tail avoids earlier
-  // frames that correctly predate provenance capture and bounds raw output.
-  return Math.max(0, Math.floor(durationSeconds - BADGE_SAMPLE_FRAMES));
-}
-
 async function verifyEncodedSourceBadge(artifactPath, visibleBadge, encodedFrameEvidence) {
   if (!artifactPath || !fs.existsSync(artifactPath)) {
     fail('missing_media_artifact', 'Encoded media artifact is unavailable for source-badge verification');
@@ -151,12 +139,14 @@ async function verifyEncodedSourceBadge(artifactPath, visibleBadge, encodedFrame
     fail('invalid_source_badge_palette', 'Visible source badge is missing its verification palette');
   }
 
-  const sampleStartSeconds = badgeSampleStartSeconds(encodedFrameEvidence);
+  const sampling = Object.freeze({ mode: 'tail', fps: BADGE_SAMPLE_FPS, maxFrames: BADGE_SAMPLE_FRAMES });
+  // Another audit may sample full frames at a different cadence. Select the
+  // final cropped samples directly instead of inferring duration from its
+  // frame count. Cropping before reverse bounds the buffered image region.
   const { stdout } = await execFileAsync('ffmpeg', [
     '-v', 'error',
-    '-ss', String(sampleStartSeconds),
     '-i', artifactPath,
-    '-vf', `fps=${BADGE_SAMPLE_FPS},crop=${rect.width}:${rect.height}:${rect.x}:${rect.y}`,
+    '-vf', `fps=${BADGE_SAMPLE_FPS},crop=${rect.width}:${rect.height}:${rect.x}:${rect.y},reverse`,
     '-frames:v', String(BADGE_SAMPLE_FRAMES),
     '-pix_fmt', 'rgb24',
     '-f', 'rawvideo',
@@ -213,7 +203,7 @@ async function verifyEncodedSourceBadge(artifactPath, visibleBadge, encodedFrame
       maxBackgroundPixels,
       requiredBorderPixels,
       requiredBackgroundPixels,
-      sampleStartSeconds,
+      sampling,
       projection,
     });
   }
@@ -225,7 +215,7 @@ async function verifyEncodedSourceBadge(artifactPath, visibleBadge, encodedFrame
     requiredBorderPixels,
     requiredBackgroundPixels,
     tolerance: BADGE_COLOR_TOLERANCE,
-    sampleStartSeconds,
+    sampling,
     ...projection,
   });
 }
@@ -380,7 +370,6 @@ module.exports = {
   safeBaseName,
   positiveDimensions,
   projectBadgeRect,
-  badgeSampleStartSeconds,
   verifyEncodedSourceBadge,
   createVideoMediaSidecar,
   createVideoMediaBundle,

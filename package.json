@@ -89,7 +89,7 @@
     "jest-environment-jsdom": "^30.4.1",
     "pdfjs-dist": "^6.3.289",
     "testcontainers": "^12.0.4",
-    "jszip": "3.10.1"
+    "jszip": "3.10.2"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -132,7 +132,7 @@
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.7",
-    "ip-address": "10.7.4",
+    "ip-address": "10.7.5",
     "protobufjs": "7.6.6"
   }
 }

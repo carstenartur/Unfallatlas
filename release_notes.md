@@ -1,7 +1,7 @@
 # Unfallwerkbank 2.1.4 — prepared release notes
 
 **Status: unpublished candidate.** These notes describe changes already on
-`main` at `4b0ebfdaeb3b0d6dab572a5641c5a920cf561f54`, compared with
+`main` at `c888fb2f5402cf810ae902d08ad19d55351cf2df`, compared with
 [`v2.1.3`](https://github.com/carstenartur/Unfallatlas/releases/tag/v2.1.3).
 Publication remains blocked by the acceptance items in
 [the preparation record](docs/releases/2.1.4-preparation.md).
@@ -28,6 +28,11 @@ Publication remains blocked by the acceptance items in
   reports its server dependency explicitly instead of failing with an opaque
   HTTP 405 response
   ([#664](https://github.com/carstenartur/Unfallatlas/pull/664)).
+- **Correct verification of source badges in video exports.** The encoded-media
+  check now inspects the final cropped frames directly instead of inferring the
+  recording duration from another audit's sampling rate. This keeps provenance
+  validation tied to the actual visible source strip
+  ([source change](https://github.com/carstenartur/Unfallatlas/commit/35a504836419a9089358d8bfe6dd8ac674286b05)).
 
 ## Packaging and quality
 
@@ -59,6 +64,18 @@ Publication remains blocked by the acceptance items in
 - The gRPC patch [#727](https://github.com/carstenartur/Unfallatlas/pull/727)
   updates the Testcontainers/Docker test dependency to 1.14.7; the production
   dependency tree is unaffected by that test-only change.
+- Subsequent merged maintenance includes ip-address 10.7.5, JSZip 3.10.2,
+  the locked Node Testcontainers dependency 12.2.1 and Maven Failsafe 3.6.1.
+  The latest merged lockfile also resolves Express 5.3.0 and
+  @axe-core/playwright / axe-core 4.14.0
+  ([#734](https://github.com/carstenartur/Unfallatlas/pull/734),
+  [#733](https://github.com/carstenartur/Unfallatlas/pull/733)).
+  See [#707](https://github.com/carstenartur/Unfallatlas/pull/707),
+  [#731](https://github.com/carstenartur/Unfallatlas/pull/731) and the
+  [combined source change](https://github.com/carstenartur/Unfallatlas/commit/35a504836419a9089358d8bfe6dd8ac674286b05).
+- Each dialog accessibility audit now has its own Playwright test and normal
+  page fixture. All four axe scans, blocking assertions and the separate
+  Escape/focus checks remain in place, with the existing per-test time limit.
 
 ## Expected release assets
 

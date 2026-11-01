@@ -2,7 +2,7 @@
  * Accessibility-Tests mit axe-core
  *
  * Prüft die Werkbank V2 auf WCAG-Violations vom Schweregrad "serious" und
- * "critical" – sowohl die Hauptseite als auch alle vier Arbeitsdialoge.
+ * "critical" – sowohl die Hauptseite als auch das geöffnete Export-Modal.
  *
  * Abhängigkeit: @axe-core/playwright (devDependency in package.json)
  */
@@ -71,11 +71,11 @@ test.describe('Accessibility – Werkbank V2', () => {
     },
   ];
 
-  // Each independent axe audit gets its own page fixture and default test budget.
   for (const dialog of dialogs) {
-    test(`${dialog.name}: keine critical/serious axe-Violations`, async ({ page }, testInfo) => {
+    test(`${dialog.name} hat keine critical/serious axe-Violations`, async ({ page }, testInfo) => {
       await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
       await waitForScreenshotReady(page, { city: 'Hannover' });
+
       await dialog.open(page);
       await expect(page.locator(dialog.selector)).toBeVisible({ timeout: 5000 });
 
