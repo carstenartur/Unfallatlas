@@ -1,7 +1,7 @@
 # Unfallwerkbank 2.1.4 — prepared release notes
 
 **Status: unpublished candidate.** These notes describe changes already on
-`main` at `cfbfe922917434b768a9eccf6678bc747885f52c`, compared with
+`main` at `4b0ebfdaeb3b0d6dab572a5641c5a920cf561f54`, compared with
 [`v2.1.3`](https://github.com/carstenartur/Unfallatlas/releases/tag/v2.1.3).
 Publication remains blocked by the acceptance items in
 [the preparation record](docs/releases/2.1.4-preparation.md).
@@ -41,9 +41,24 @@ Publication remains blocked by the acceptance items in
 - Maven owns the combined browser, Java/Testcontainers, Golden-case and rendered
   document acceptance. The release workflow builds a deterministic website ZIP
   and the Analysis Service JAR from its tested release commit.
-- The Analysis Service includes the Spring Boot 4.1.1 update
-  ([#663](https://github.com/carstenartur/Unfallatlas/pull/663)) and the merged
-  dependency maintenance present at the recorded source commit.
+- The reviewed npm security group [#722](https://github.com/carstenartur/Unfallatlas/pull/722)
+  updates vulnerable dependency versions while retaining strict audit enforcement.
+  Word/PDF export uses docx 9.15.1 and pdfjs-dist 6.4.299; Playwright packages and
+  the Docker browser runtime are aligned at 1.64.1. The build uses pinned npm
+  11.21.1, and complete audit evidence remains available alongside compact CI
+  summaries.
+- The Analysis Service uses Spring Boot 4.1.2 and Java 27 build/runtime containers.
+  Its packaged PostgreSQL driver is 42.7.14 after removal of an obsolete override.
+  Jackson is aligned on the patched 3.1.8 BOM in production and 2.22.4 in the
+  independent QA module. See the coordinated Java/security update
+  [#725](https://github.com/carstenartur/Unfallatlas/pull/725), including
+  [#728](https://github.com/carstenartur/Unfallatlas/pull/728).
+- The Actions update [#726](https://github.com/carstenartur/Unfallatlas/pull/726)
+  retains immutable action pins and screenshot-publication safeguards. The
+  associated exact-SHA assertions have been updated and verified.
+- The gRPC patch [#727](https://github.com/carstenartur/Unfallatlas/pull/727)
+  updates the Testcontainers/Docker test dependency to 1.14.7; the production
+  dependency tree is unaffected by that test-only change.
 
 ## Expected release assets
 

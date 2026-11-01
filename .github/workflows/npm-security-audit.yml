@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
         with:
           distribution: temurin
           java-version: '25'
@@ -128,21 +128,22 @@ jobs:
         shell: bash
         run: |
           for report in \
-            out/qa/npm-security/original-base/npm-audit-report.md \
-            out/qa/npm-security/candidate/npm-audit-report.md \
-            out/qa/npm-security/candidate-regenerated/npm-audit-report.md; do
+            out/qa/npm-security/original-base/npm-audit-workflow-summary.md \
+            out/qa/npm-security/candidate/npm-audit-workflow-summary.md \
+            out/qa/npm-security/candidate-regenerated/npm-audit-workflow-summary.md; do
             if [[ -f "$report" ]]; then
+              printf '### %s\n\n' "$report" >> "$GITHUB_STEP_SUMMARY"
               cat "$report" >> "$GITHUB_STEP_SUMMARY"
               printf '\n---\n\n' >> "$GITHUB_STEP_SUMMARY"
             fi
           done
-          if [[ ! -f out/qa/npm-security/candidate/npm-audit-report.md ]]; then
+          if [[ ! -f out/qa/npm-security/candidate/npm-audit-workflow-summary.md ]]; then
             printf '%s\n' 'Candidate npm audit evidence was not generated.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload immutable npm audit evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: npm-security-audit-${{ github.event.pull_request.head.sha || github.sha }}
           path: out/qa/npm-security/

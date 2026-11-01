@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.1</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
@@ -26,11 +26,9 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- CVE-Override: Spring-Boot 3.3.5 managed PostgreSQL 42.7.4 ist
-             betroffen von "pgjdbc Client Allows Fallback to Insecure
-             Authentication Despite channelBinding=require Configuration"
-             (Patched in 42.7.7). -->
-        <postgresql.version>42.7.7</postgresql.version>
+        <!-- GHSA-m8xf-2cr7-77ph: align Jackson 3 modules on patched 3.1.8.
+             Remove this override when Spring Boot manages a patched Jackson BOM. -->
+        <jackson-bom.version>3.1.8</jackson-bom.version>
         <!-- Keep Hibernate Search aligned with the Spring Boot-managed
              Hibernate ORM stack used by this service. Spring Boot 4.1.x and
              Hibernate Search 8.4.x are upgraded together and must only be
