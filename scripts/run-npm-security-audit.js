@@ -284,7 +284,7 @@ function markdownCell(value) {
   return String(value == null ? '' : value).replaceAll('|', '\\|').replaceAll('\n', ' ');
 }
 
-function renderMarkdown(summary) {
+function renderMarkdown(summary, { includeDependencyPaths = true } = {}) {
   const lines = [
     '# npm-Sicherheitsaudit',
     '',
@@ -310,6 +310,11 @@ function renderMarkdown(summary) {
         : item.title || item.source || 'Advisory').join(', ')
       : finding.transitiveVia.join(', ');
     lines.push(`| ${markdownCell(finding.package)} | ${markdownCell(finding.severity)} | ${markdownCell(finding.exposure)} | ${finding.isDirect ? 'ja' : 'nein'} | ${markdownCell(finding.affectedRange)} | ${markdownCell(fix)} | ${markdownCell(advisories)} |`);
+  }
+
+  if (!includeDependencyPaths) {
+    lines.push('', 'Die vollständigen Abhängigkeitspfade stehen in `npm-audit-report.md` und `npm-audit-summary.json` im Audit-Artefakt.', '');
+    return `${lines.join('\n')}\n`;
   }
 
   lines.push('', '## Abhängigkeitspfade', '');
@@ -387,6 +392,8 @@ function main() {
   writeJson(path.join(outDir, 'npm-audit-production.json'), productionReport);
   writeJson(path.join(outDir, 'npm-audit-summary.json'), summary);
   fs.writeFileSync(path.join(outDir, 'npm-audit-report.md'), renderMarkdown(summary), 'utf8');
+  fs.writeFileSync(path.join(outDir, 'npm-audit-workflow-summary.md'),
+    renderMarkdown(summary, { includeDependencyPaths: false }), 'utf8');
 
   const allCounts = summary.audits.all.vulnerabilities;
   const productionCounts = summary.audits.production.vulnerabilities;

@@ -51,7 +51,7 @@ describe('documentation screenshot publication safety', () => {
     expect(visualAcceptanceJob).toContain("github.event.pull_request.user.login == 'carstenartur'");
     expect(visualAcceptanceJob).toMatch(/permissions:\s*\n\s+contents:\s*write\b/);
     expect(visualAcceptanceJob).toContain('qa/accept-screenshot-candidate.json');
-    expect(visualAcceptanceJob).toContain('actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c');
+    expect(visualAcceptanceJob).toContain('actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333');
     expect(visualAcceptanceJob).toContain('ARTIFACT_ID');
     expect(visualAcceptanceJob).toContain('ARTIFACT_DIGEST');
     expect(visualAcceptanceJob).toContain("marker.get('accept') is not True");
@@ -88,7 +88,7 @@ describe('documentation screenshot publication safety', () => {
       expect(candidate).toMatch(/if-no-files-found:\s*error\b/);
       expect(candidate).toMatch(/Provider-URL/);
     }
-    expect(visualAcceptanceJob).toContain('actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c');
+    expect(visualAcceptanceJob).toContain('actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad');
     expect(visualAcceptanceJob.match(/^\s*run:\s*mvn\b/gm) || []).toHaveLength(1);
     expect(workflow).toContain('documentation-screenshots-live-map-${{ github.sha }}');
     expect(visualCandidateJob).toContain('pr-live-map-screenshots-${{ github.event.pull_request.number }}');
