@@ -10,13 +10,6 @@
       "groupSlug": "playwright-runtime"
     },
     {
-      "description": "The docx 9.x dependency supports nanoid 5.x; migrate the consumer before overriding its major version.",
-      "matchManagers": ["npm"],
-      "matchDepTypes": ["overrides"],
-      "matchPackageNames": ["nanoid"],
-      "allowedVersions": "<6"
-    },
-    {
       "description": "dockerode and grpc proto-loader support protobufjs 7.x; migrate those consumers before overriding the major version.",
       "matchManagers": ["npm"],
       "matchDepTypes": ["overrides"],

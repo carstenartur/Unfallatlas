@@ -144,6 +144,67 @@ describe('npm security audit evidence', () => {
     })).toHaveLength(1);
   });
 
+  test('keeps workflow summaries small while retaining full dependency-path evidence', () => {
+    const summary = buildSummary({
+      allReport: auditReport({
+        'large-path-package': {
+          severity: 'high', via: ['test-runner'], range: '<2.0.0',
+          nodes: ['node_modules/large-path-package'], fixAvailable: true,
+        },
+      }, { high: 1, total: 1 }),
+      productionReport: auditReport({}, {}),
+      packageJson: { version: '2.1.4' },
+      packageLock: { lockfileVersion: 3 },
+      lockHash: 'reviewed-lock-hash',
+      npmVersion: '11.19.1',
+      explanations: {
+        'large-path-package': { available: true, paths: [{ name: 'deep-path-'.repeat(150000) }] },
+      },
+    });
+    const complete = renderMarkdown(summary);
+    const compact = renderMarkdown(summary, { includeDependencyPaths: false });
+
+    expect(Buffer.byteLength(complete, 'utf8')).toBeGreaterThan(1024 * 1024);
+    expect(complete).toContain('deep-path-deep-path-');
+    expect(Buffer.byteLength(compact, 'utf8')).toBeLessThan(16 * 1024);
+    expect(compact).toContain('large-path-package');
+    expect(compact).toContain('reviewed-lock-hash');
+    expect(compact).toContain('Vollständige Installation: 1 high, 0 critical');
+    expect(compact).not.toContain('deep-path-deep-path-');
+  });
+
+  test('publishes compact summaries for all three audit stages without changing full reports', () => {
+    const workflow = yaml.load(fs.readFileSync(
+      path.resolve(__dirname, '../../.github/workflows/npm-security-audit.yml'), 'utf8'
+    ));
+    const step = workflow.jobs.audit.steps.find(({ name }) => /workflow summary/.test(name));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'unfallwerkbank-audit-summary-'));
+    const complete = '# Full audit\n' + 'Detailed dependency evidence\n'.repeat(50000);
+    const stages = ['original-base', 'candidate', 'candidate-regenerated'];
+    try {
+      for (const stage of stages) {
+        const dir = path.join(root, 'out/qa/npm-security', stage);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'npm-audit-report.md'), complete);
+        fs.writeFileSync(path.join(dir, 'npm-audit-workflow-summary.md'), `# ${stage}\n0 high, 0 critical\n`);
+      }
+      const summaryFile = path.join(root, 'step-summary.md');
+      const result = spawnSync('bash', ['-c', step.run], {
+        cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: summaryFile },
+      });
+      expect(result.status).toBe(0);
+      const displayed = fs.readFileSync(summaryFile, 'utf8');
+      expect(Buffer.byteLength(displayed, 'utf8')).toBeLessThan(1024 * 1024);
+      for (const stage of stages) {
+        expect(displayed).toContain(`# ${stage}`);
+        expect(fs.readFileSync(path.join(root, 'out/qa/npm-security', stage, 'npm-audit-report.md'), 'utf8'))
+          .toBe(complete);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('normalizes transitive and advisory via entries without losing identifiers', () => {
     expect(normalizeVia([
       'parent-package',

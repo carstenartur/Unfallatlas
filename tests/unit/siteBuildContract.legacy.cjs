@@ -322,9 +322,12 @@ describe('canonical site build contract', () => {
       expectSbomMutation(sbom => {
         const asset = sbom.components
           .find(entry => entry['bom-ref'].endsWith('vendor/export/docx.js'));
-        asset.properties
-          .find(property => property.name === 'unfallatlas:unresolved-detected-components')
-          .value = '[]';
+        const unresolved = asset.properties
+          .find(property => property.name === 'unfallatlas:unresolved-detected-components');
+        unresolved.value = JSON.stringify([
+          ...JSON.parse(unresolved.value),
+          'injected-unresolved-component',
+        ]);
       }, /SBOM delivered asset evidence mismatch/);
       expectSbomMutation(sbom => {
         const asset = sbom.components.find(entry => entry['bom-ref'].includes('vendor-asset:'));
