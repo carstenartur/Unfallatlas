@@ -3,12 +3,12 @@
   "type": "unfallatlas-vendor-build-recipe",
   "recipeId": "browser-export-exact-copy-pilot-v1",
   "packageLock": "package-lock.json",
-  "packageManager": "npm@11.9.0",
+  "packageManager": "npm@11.21.1",
   "operations": [
     {
       "lockRef": "export.docx.iife",
       "package": "docx",
-      "expectedVersion": "9.7.1",
+      "expectedVersion": "9.15.1",
       "sourcePath": "dist/index.iife.js",
       "outputPath": "vendor/export/docx.js",
       "method": "byte-for-byte-copy"
