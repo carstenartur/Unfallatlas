@@ -89,7 +89,7 @@
     "jest-environment-jsdom": "^30.4.1",
     "pdfjs-dist": "^6.3.289",
     "testcontainers": "^12.0.4",
-    "jszip": "3.10.1"
+    "jszip": "3.10.2"
   },
   "jest": {
     "testEnvironment": "jsdom",
