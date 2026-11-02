@@ -1,7 +1,7 @@
 # Unfallwerkbank 2.1.4 — prepared release notes
 
 **Status: unpublished candidate.** These notes describe changes already on
-`main` at `c888fb2f5402cf810ae902d08ad19d55351cf2df`, compared with
+`main` at `7a4c077e02cc4683db41ac22f686ac962bf2f642`, compared with
 [`v2.1.3`](https://github.com/carstenartur/Unfallatlas/releases/tag/v2.1.3).
 Publication remains blocked by the acceptance items in
 [the preparation record](docs/releases/2.1.4-preparation.md).
@@ -48,7 +48,7 @@ Publication remains blocked by the acceptance items in
   and the Analysis Service JAR from its tested release commit.
 - The reviewed npm security group [#722](https://github.com/carstenartur/Unfallatlas/pull/722)
   updates vulnerable dependency versions while retaining strict audit enforcement.
-  Word/PDF export uses docx 9.15.1 and pdfjs-dist 6.4.299; Playwright packages and
+  Word/PDF export uses docx 9.15.1 and pdfjs-dist 6.5.438; Playwright packages and
   the Docker browser runtime are aligned at 1.64.1. The build uses pinned npm
   11.21.1, and complete audit evidence remains available alongside compact CI
   summaries.
@@ -73,6 +73,10 @@ Publication remains blocked by the acceptance items in
   See [#707](https://github.com/carstenartur/Unfallatlas/pull/707),
   [#731](https://github.com/carstenartur/Unfallatlas/pull/731) and the
   [combined source change](https://github.com/carstenartur/Unfallatlas/commit/35a504836419a9089358d8bfe6dd8ac674286b05).
+- The 2 November source refresh includes pdfjs-dist 6.5.438
+  ([#708](https://github.com/carstenartur/Unfallatlas/pull/708)) and Maven Enforcer
+  3.7.0 ([#735](https://github.com/carstenartur/Unfallatlas/pull/735)). Their new
+  source must complete the applicable checks before release qualification.
 - Each dialog accessibility audit now has its own Playwright test and normal
   page fixture. All four axe scans, blocking assertions and the separate
   Escape/focus checks remain in place, with the existing per-test time limit.
