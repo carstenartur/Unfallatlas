@@ -6,20 +6,23 @@ test('Berlin URL with mapLayer=slope renders overlay and visible legend swatches
   await page.waitForLoadState('networkidle');
   await expect(page.locator('#citySel')).not.toHaveAttribute('aria-busy', 'true');
 
-  // Gate: only test overlay features when Berlin data has slope fields
+  // Check the fixture in the browser without serializing the full city data.
   const baseUrl = new URL(page.url());
   const dataUrl = new URL('out/output_all_years_berlin.geojson.gz', baseUrl).toString();
-  const geojson = await page.evaluate(async (url) => {
+  const { featureCount, hasSlope } = await page.evaluate(async (url) => {
     if (!window.UA || typeof window.UA.fetchJsonCompressed !== 'function') {
       throw new Error('UA.fetchJsonCompressed not available');
     }
-    return window.UA.fetchJsonCompressed(url, { gzipOnly: true });
+    const geojson = await window.UA.fetchJsonCompressed(url, { gzipOnly: true });
+    const features = Array.isArray(geojson?.features) ? geojson.features : [];
+    const props = features[0]?.properties || {};
+    return {
+      featureCount: features.length,
+      hasSlope: ['slope_percent', 'slope_abs_percent', 'slope_class', 'slope_source', 'slope_confidence']
+        .some((key) => key in props),
+    };
   }, dataUrl);
-  expect(Array.isArray(geojson?.features)).toBe(true);
-  expect(geojson.features.length, 'Berlin GeoJSON unexpectedly contains no accident data').toBeGreaterThan(0);
-  const props = geojson.features[0]?.properties || {};
-  const hasSlope = 'slope_percent' in props || 'slope_abs_percent' in props || 'slope_class' in props ||
-                   'slope_source' in props || 'slope_confidence' in props;
+  expect(featureCount, 'Berlin GeoJSON unexpectedly contains no accident data').toBeGreaterThan(0);
   test.skip(!hasSlope, 'Berlin GeoJSON not enriched with slope fields — overlay features not expected');
 
   await expect(page.locator('#ctxOverlay_slope')).toBeChecked();
