@@ -1,4 +1,6 @@
 /**
+ * @jest-environment node
+ *
  * Layout-PR „Bildverzerrung beheben" — Regression-Tests für
  * aspektrate-erhaltende Bildskalierung im DOCX/PDF-Export.
  *
@@ -22,30 +24,34 @@
 
 const fs = require("fs");
 const path = require("path");
+const { deflateSync } = require("node:zlib");
+const pdfMake = require("../../scripts/pdfmake-node");
 
-// ---------------------------------------------------------------------
-// Synthetic PNG generator: produces a valid PNG with a given (width,
-// height) IHDR header. The pixel data itself is a single transparent
-// pixel — what we test is the header round-trip, not the rendering.
-// ---------------------------------------------------------------------
+// Build a transparent PNG whose pixel data matches its dimensions so the
+// real PDF renderer can decode it as well as reading its header.
 function syntheticPng(width, height) {
-  // Build a real PNG: signature + IHDR + IDAT + IEND. We generate a
-  // tiny 1×1 image and patch the IHDR width/height fields, leaving the
-  // CRC of IHDR re-computed for safety. (The export code only reads
-  // IHDR width/height; IDAT contents don't matter for our test.)
-  const pngOnePixel = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "base64",
-  );
-  const buf = Buffer.from(pngOnePixel);
-  // IHDR width is at byte offset 16-19, height 20-23 (big-endian uint32).
-  buf.writeUInt32BE(width, 16);
-  buf.writeUInt32BE(height, 20);
-  // Re-compute CRC32 over the IHDR chunk (type "IHDR" + 13 data bytes).
-  // CRC location: bytes 29-32 (4 bytes after the 13-byte data + 4-byte type).
-  const crcInput = buf.subarray(12, 29); // type+data
-  buf.writeUInt32BE(crc32(crcInput), 29);
-  return "data:image/png;base64," + buf.toString("base64");
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6; // RGBA
+  const scanlines = Buffer.alloc(height * (1 + width * 4));
+  const png = Buffer.concat([
+    Buffer.from("89504e470d0a1a0a", "hex"),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(scanlines)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+  return "data:image/png;base64," + png.toString("base64");
+}
+
+function pngChunk(type, data) {
+  const chunk = Buffer.alloc(12 + data.length);
+  chunk.writeUInt32BE(data.length, 0);
+  chunk.write(type, 4, "ascii");
+  data.copy(chunk, 8);
+  chunk.writeUInt32BE(crc32(chunk.subarray(4, -4)), chunk.length - 4);
+  return chunk;
 }
 
 function crc32(buf) {
@@ -204,14 +210,15 @@ describe("UA.readPngDimensions / UA.fitWithAspectRatio / UA.fitImageToMax", () =
 // ---------------------------------------------------------------------
 describe("DOCX/PDF export: aspect-ratio regression", () => {
   let UA;
+  let window;
   beforeEach(() => {
-    const pdfMakeLib = require("pdfmake/build/pdfmake");
-    const pdfFonts = require("pdfmake/build/vfs_fonts");
-    pdfMakeLib.vfs = pdfFonts;
-    window.UA = {};
-    window.docx = require("docx");
-    window.pdfMake = pdfMakeLib;
-    window.saveAs = jest.fn();
+    window = {
+      UA: {},
+      docx: require("docx"),
+      pdfMake,
+      saveAs: jest.fn(),
+      location: new URL("http://localhost:8000/"),
+    };
     eval(
       fs.readFileSync(
         path.resolve(__dirname, "../../js/ua.report_v2.js"),
@@ -221,10 +228,6 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
     UA = window.UA;
   });
   afterEach(() => {
-    delete window.UA;
-    delete window.docx;
-    delete window.pdfMake;
-    delete window.saveAs;
     jest.restoreAllMocks();
   });
 

@@ -36,13 +36,7 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 // ---------------------------------------------------------------------------
 // Minimal browser-like globals needed by ua.report_v2's IIFE
 // ---------------------------------------------------------------------------
-const pdfMakeLib = require('pdfmake/build/pdfmake');
-const pdfFonts   = require('pdfmake/build/vfs_fonts');
-if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
-  pdfMakeLib.addVirtualFileSystem(pdfFonts);
-} else {
-  pdfMakeLib.vfs = pdfFonts;
-}
+const pdfMakeLib = require('./pdfmake-node');
 
 const mockWindow = {
   UA: {},
@@ -104,17 +98,14 @@ UA._captureClusterMaps = async () => [{
 }];
 
 // ---------------------------------------------------------------------------
-// Intercept pdfMake.createPdf to capture the docDefinition buffer via
-// getBuffer() rather than triggering a browser download().
+// Capture the real PDF document and skip the browser download.
 // ---------------------------------------------------------------------------
-let capturedDef = null;
+let capturedDoc;
 const origCreatePdf = pdfMakeLib.createPdf.bind(pdfMakeLib);
 mockWindow.pdfMake.createPdf = (def) => {
-  capturedDef = def;
-  const doc = origCreatePdf(def);
-  // Override download() so the export code doesn't crash looking for a DOM.
-  doc.download = () => {};
-  return doc;
+  capturedDoc = origCreatePdf(def);
+  capturedDoc.download = () => {};
+  return capturedDoc;
 };
 
 // ---------------------------------------------------------------------------
@@ -172,53 +163,20 @@ const reportData = {
 // Run the export, then write the PDF buffer to disk.
 // ---------------------------------------------------------------------------
 (async () => {
-  try {
-    await UA.exportToPDF(ctx, reportData, {
-      includeMap: true,
-      includePOIs: false,
-      includeReferences: false,
-      _skipQAGate: true,
-    });
-  } catch (err) {
-    // exportToPDF may throw if download() is intercepted in an unexpected
-    // way — log but continue so we can still write the captured definition.
-    process.stderr.write('generate-sample-pdf: exportToPDF threw: ' + err.message + '\n');
+  await UA.exportToPDF(ctx, reportData, {
+    includeMap: true,
+    includePOIs: false,
+    includeReferences: false,
+    _skipQAGate: true,
+  });
+  if (!capturedDoc) {
+    throw new Error('Export did not call pdfMake.createPdf');
   }
 
-  if (!capturedDef) {
-    process.stderr.write('generate-sample-pdf: no docDefinition captured — export did not call pdfMake.createPdf\n');
-    process.exit(1);
-  }
-
-  // Use getBuffer() (Node.js pdfmake API) to serialise the definition to PDF.
-  // pdfmake 0.3.x returns a Promise; older versions support callback style.
-  let buffer;
-  const pdfDoc = origCreatePdf(capturedDef);
-  try {
-    const maybePromise = pdfDoc.getBuffer();
-    if (maybePromise && typeof maybePromise.then === 'function') {
-      buffer = await maybePromise;
-    }
-  } catch (_) {
-    // Fallback for callback-based pdfmake versions.
-  }
-
-  if (!buffer) {
-    buffer = await new Promise((resolve, reject) => {
-      try {
-        pdfDoc.getBuffer(resolve);
-      } catch (err) {
-        reject(err);
-      }
-    });
-  }
-
-  try {
-    fs.writeFileSync(outPath, buffer);
-    process.stdout.write('generate-sample-pdf: wrote ' + buffer.length + ' bytes to ' + outPath + '\n');
-    process.exit(0);
-  } catch (writeErr) {
-    process.stderr.write('generate-sample-pdf: failed to write ' + outPath + ': ' + writeErr.message + '\n');
-    process.exit(1);
-  }
-})();
+  const buffer = await capturedDoc.getBuffer();
+  fs.writeFileSync(outPath, buffer);
+  process.stdout.write('generate-sample-pdf: wrote ' + buffer.length + ' bytes to ' + outPath + '\n');
+})().catch(err => {
+  process.stderr.write('generate-sample-pdf: ' + err.message + '\n');
+  process.exitCode = 1;
+});
