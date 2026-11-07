@@ -228,7 +228,7 @@ in einer konfigurierbaren Liste innerhalb des jeweiligen Provider-Moduls.
 Bonn und Hannover teilen sich ein versioniertes Format unter `data/ris/`. Es enthält pro Stadt
 einen Suchindex und separat geladene Kartenobjekte. Das Manifest nennt Quellen, Datenstand,
 Zeitraum und erfasste Gremien. Beide Dateien sind per SHA-256 geprüft. Die Recherche in der
-Werkbank sucht nach Titel oder Drucksachennummer und zeigt verknüpfte Anfragen und Antworten.
+Werkbank sucht nach Titel, Drucksachennummer oder Ortsangabe und zeigt verknüpfte Anfragen und Antworten.
 Die amtlichen Dokumente bleiben über ihre Original-URL erreichbar. Ausgewählte Vorgänge
 erscheinen im Bericht.
 
@@ -237,10 +237,12 @@ erscheinen im Bericht.
 | Bonn | Öffentliche OParl-Drucksachen ab 2014. |
 | Hannover | Öffentliches SIM-Sitzungsarchiv der Ratsversammlung und des Stadtbezirksrats Linden-Limmer ab 2026, ergänzt durch die aktuellen SIM-Feeds. |
 
-Der Schalter „Ratsvorgänge“ unter „Karten-Layer“ ist anfangs aus. Der Layer unterscheidet
-amtliche Geometrien und aus eindeutig genannten Straßen abgeleitete Orientierungslinien.
-Die Suche zeigt auch Dokumente ohne Kartenobjekt. In der Recherche und im Bericht bleibt
-der Datenstand als Quelle sichtbar. Die Vollständigkeit einer Live-Recherche wird separat geprüft.
+Der Schalter „Ratsvorgänge“ unter „Karten-Layer“ ist anfangs aus. In Hannover werden benannte
+Kreuzungen, Abschnitte und verkehrsbezogene Hausnummern aus Titel und öffentlichem Maßnahmentext
+mit dem [Ortsverzeichnis](../../config/ris-locations/README.md) abgeglichen. Die Recherche zeigt
+je Ort die Fundstelle und öffnet eine belegte Geometrie mit „Auf Karte zeigen“. Ortsangaben mit
+offener Geometrie bleiben in der Suche sichtbar. Die Karte unterscheidet amtliche Geometrien,
+abgeleitete Lagen und reine Straßenbezüge. Der Datenstand bleibt in Recherche und Bericht sichtbar.
 
 `node scripts/refresh-ris-catalogues.js` ruft die städtischen Quellen ab und schreibt die Kataloge.
 Ein Katalog gilt nach acht Tagen als veraltet und läuft 14 Tage nach seiner ursprünglichen

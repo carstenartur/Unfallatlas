@@ -61,13 +61,21 @@ function fixture(clock = now) {
   return { manifest, index, map, requests, assets, catalogue: createCatalogue({ base, fetch, now: clock }) };
 }
 
+function replaceAsset({ manifest, assets }, kind, payload, count) {
+  const replacement = asset(payload, kind, count);
+  manifest[kind] = replacement.entry;
+  assets.set(replacement.entry.path, replacement.gzip);
+}
+
 test('searches the selected same-origin city and loads its map only on demand', async () => {
   const { catalogue, requests, index, map } = fixture();
   const result = await catalogue.search({ city: 'Hannover', searchTerms: ['Hannover', 'Lindener Stichkanal'] });
   expect(result.references.map(({ number }) => number)).toEqual(['1047/2026', '1047/2026 F1']);
   expect(result.meta).toMatchObject({ searchStatus: 'partial-results', sourceFingerprint: index.entry.sha256 });
   expect(result.references[0]).toMatchObject({
-    snapshot: { city: 'hannover', generatedAt: '2026-11-06T10:00:00Z', sha256: index.entry.sha256 },
+    snapshot: {
+      city: 'hannover', generatedAt: '2026-11-06T10:00:00Z', sha256: index.entry.sha256, mapSha256: map.entry.sha256,
+    },
     aiGating: { allowed: false }
   });
   expect(requests).toEqual([
@@ -76,6 +84,85 @@ test('searches the selected same-origin city and loads its map only on demand', 
   ]);
   expect((await catalogue.loadMap('Hannover')).features).toEqual(geo);
   expect(requests[2]).toBe(`https://example.org/Unfallatlas/data/ris/${map.entry.path}`);
+});
+
+test('reloads the map manifest on request even when the cached manifest is fresh', async () => {
+  const data = fixture();
+  expect((await data.catalogue.loadMap('Hannover')).features).toEqual(geo);
+  const next = { ...geo, features: [{ ...geo.features[0], geometry: {
+    type: 'LineString', coordinates: [[9.70, 52.36], [9.71, 52.37]],
+  } }] };
+  replaceAsset(data, 'map', next, 1);
+  expect((await data.catalogue.loadMap('Hannover')).features).toEqual(geo);
+  const result = await data.catalogue.loadMap('Hannover', { revalidate: true });
+  expect(result.features).toEqual(next);
+  expect(result.records[0].snapshot.mapSha256).toBe(data.manifest.map.sha256);
+  expect(data.requests.filter(url => url.endsWith('/hannover.json'))).toHaveLength(2);
+  expect(data.requests.filter(url => url.endsWith(data.index.entry.path))).toHaveLength(1);
+});
+
+test('rejects a non-string map hash before returning search references', async () => {
+  const data = fixture();
+  data.manifest.map.sha256 = [data.manifest.map.sha256];
+  await expect(data.catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
+test('finds named locations with or without mapped geometry after direct title matches', async () => {
+  const data = fixture();
+  const locations = [
+    { label: 'Schneiderberg', kind: 'street', evidence: { source: 'document', text: 'am Schneiderberg' }, mapped: true },
+    { label: 'Nienburger Straße', kind: 'street', evidence: { source: 'document', text: 'an der Nienburger Straße' }, mapped: false },
+  ];
+  replaceAsset(data, 'records', [
+    { ...records[0], locations },
+    { ...records[1], relatedTo: undefined, title: 'Verkehr am Schneiderberg' },
+  ], 2);
+  const search = searchTerms => data.catalogue.search({ city: 'Hannover', searchTerms });
+  expect((await search(['Schneiderberg'])).references.map(({ id }) => id)).toEqual(['1047-2026F1', '1047-2026']);
+  expect((await search(['Nienburger Strasse'])).references).toMatchObject([{ id: '1047-2026', locations }]);
+  expect(data.requests).toHaveLength(2);
+});
+
+test('loads more than one indexed map feature from a single record', async () => {
+  const data = fixture();
+  const locations = [
+    { label: 'Schneiderberg', kind: 'street', evidence: { source: 'document', text: 'am Schneiderberg' }, mapped: true },
+    { label: 'Nienburger Straße', kind: 'street', evidence: { source: 'document', text: 'an der Nienburger Straße' }, mapped: true },
+  ];
+  replaceAsset(data, 'records', [{ ...records[0], locations }], 1);
+  const features = { type: 'FeatureCollection', features: [
+    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[9.71, 52.38], [9.72, 52.39]] },
+      properties: { recordId: records[0].id, accuracy: 'derived', locationIndex: 0, label: 'Schneiderberg' } },
+    { type: 'Feature', geometry: { type: 'LineString', coordinates: [[9.70, 52.38], [9.71, 52.39]] },
+      properties: { recordId: records[0].id, accuracy: 'derived', locationIndex: 1, label: 'Nienburger Straße' } },
+  ] };
+  replaceAsset(data, 'map', features, 2);
+  const result = await data.catalogue.loadMap('Hannover');
+  expect(result.records).toMatchObject([{ id: records[0].id, locations }]);
+  expect(result.features).toEqual(features);
+});
+
+test('rejects indexed features that refer to the wrong location in a verified records asset', async () => {
+  const data = fixture();
+  replaceAsset(data, 'records', [{ ...records[0], locations: [
+    { label: 'Schneiderberg', kind: 'street', evidence: { source: 'document', text: 'am Schneiderberg' }, mapped: false },
+  ] }, records[1]], 2);
+  const indexed = { ...geo.features[0], properties: {
+    recordId: records[0].id, accuracy: 'derived', locationIndex: 0, label: 'Schneiderberg',
+  } };
+  replaceAsset(data, 'map', { type: 'FeatureCollection', features: [indexed] }, 1);
+  await expect(data.catalogue.loadMap('Hannover')).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
+test('rejects a hashed search asset that includes geometry in its location metadata', async () => {
+  const data = fixture();
+  replaceAsset(data, 'records', [{ ...records[0], locations: [
+    { label: 'Schneiderberg', kind: 'street', evidence: { source: 'title', text: 'am Schneiderberg' },
+      mapped: true, geometry: geo.features[0].geometry },
+  ] }, records[1]], 2);
+  await expect(data.catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
 });
 
 test('cannot turn incomplete or stale coverage into a completed zero result', () => {
@@ -179,6 +266,19 @@ test('checks the current verified catalogue before adopting a reference', async 
   await expect(catalogue.resolveReferences('Hannover', [reference])).rejects.toMatchObject({
     code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH'
   });
+});
+
+test('rejects adoption from a changed map and still accepts a legacy reference without a map hash', async () => {
+  const data = fixture();
+  const { references: [reference] } = await data.catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] });
+  const legacySnapshot = { ...reference.snapshot };
+  delete legacySnapshot.mapSha256;
+  const previous = { ...reference, snapshot: { ...legacySnapshot, mapSha256: data.map.entry.sha256 } };
+  replaceAsset(data, 'map', { type: 'FeatureCollection', features: [] }, 0);
+  await expect(data.catalogue.resolveReferences('Hannover', [previous]))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH' });
+  await expect(data.catalogue.resolveReferences('Hannover', [{ ...reference, snapshot: legacySnapshot }]))
+    .resolves.toMatchObject([{ id: reference.id, snapshot: { mapSha256: data.manifest.map.sha256 } }]);
 });
 
 test('explains why a browser without secure-context hashing cannot load a map', async () => {

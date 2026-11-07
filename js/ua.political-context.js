@@ -21,6 +21,7 @@
   UA.PoliticalContext = UA.PoliticalContext || {};
 
   let panelController = null;
+  let mapRequest = null;
 
   function getPanelController(panel) {
     if (!panelController) {
@@ -35,12 +36,13 @@
 
   function showPanel(panel) {
     if (!panel) return;
+    mapRequest = null;
     getPanelController(panel).open();
   }
 
-  function closePanel(panel) {
+  function closePanel(panel, options) {
     if (!panel) return;
-    getPanelController(panel).close();
+    getPanelController(panel).close(options);
   }
 
   // ── API-Zugriff ──────────────────────────────────────────────────────────────
@@ -119,12 +121,6 @@
 
   // ── Panel-Rendering ───────────────────────────────────────────────────────────
 
-  /**
-   * Rendert eine einzelne Referenz als HTML-Element.
-   *
-   * @param {object} ref  – PoliticalReference
-   * @returns {string}
-   */
   function safeReferenceUrl(value) {
     try {
       const url = new URL(value);
@@ -134,7 +130,84 @@
     }
   }
 
-  function renderRef(ref, related) {
+  const locationKinds = new Map([
+    ['junction', 'Kreuzung'], ['section', 'Abschnitt'], ['street', 'Straßenbezug'],
+    ['address', 'Adresse'], ['place', 'Ort'],
+  ]);
+
+  function renderLocation(location) {
+    if (typeof location?.label !== 'string' || !location.label.trim()) return null;
+    const details = document.createElement('div');
+    const label = document.createElement('strong');
+    label.textContent = location.label;
+    details.append(`${locationKinds.get(location.kind) || 'Ort'} · `, label);
+    if (location.mapped === false) details.append(' · Nicht auf der Karte verortet');
+    const evidence = location.evidence;
+    const source = evidence?.source === 'title' ? 'Titel' : evidence?.source === 'document' ? 'Dokument' : '';
+    if (source && typeof evidence.text === 'string' && evidence.text.trim()) {
+      const quote = document.createElement('div');
+      quote.style.color = '#555';
+      quote.textContent = `Beleg im ${source}: „${evidence.text}“`;
+      details.append(quote);
+    }
+    return details;
+  }
+  UA.PoliticalContext.renderLocation = renderLocation;
+
+  function mapButton(ctx, ref, location, index) {
+    if (location.mapped !== true || !ref.snapshot?.sha256 || !ref.snapshot.mapSha256 || !ref.id || !ctx.map
+        || typeof UA.RisLayer?.showLocation !== 'function') return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'smallBtn';
+    button.textContent = 'Auf Karte zeigen';
+    button.setAttribute('aria-label', `Auf Karte zeigen: ${location.label}`);
+    button.addEventListener('click', async () => {
+      const panel = document.getElementById('polCtxPanel');
+      if (!panel || !getPanelController(panel).isOpen()) return;
+      const request = mapRequest = Symbol('political-map-location');
+      const active = () => mapRequest === request && button.isConnected && getPanelController(panel).isOpen();
+      button.disabled = true;
+      try {
+        const target = await UA.RisLayer.showLocation(ctx, ref, index, active);
+        if (!target || !active()) return;
+        closePanel(panel, { restoreFocus: false });
+        target.focus({ preventScroll: true });
+      } catch (error) {
+        const status = document.getElementById('polCtxStatus');
+        if (active() && status) status.textContent = error?.message || 'Die Lage konnte nicht angezeigt werden.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+    return button;
+  }
+
+  function renderLocations(ref, ctx) {
+    if (!Array.isArray(ref.locations)) return null;
+    const list = document.createElement('ul');
+    list.style.cssText = 'margin:4px 0 0;padding-inline-start:1.3em';
+    ref.locations.forEach((location, index) => {
+      const details = renderLocation(location);
+      if (!details) return;
+      const row = document.createElement('li');
+      row.style.marginBottom = '4px';
+      row.append(details);
+      const button = mapButton(ctx, ref, location, index);
+      if (button) row.append(button);
+      list.append(row);
+    });
+    if (!list.childElementCount) return null;
+    const section = document.createElement('section');
+    section.setAttribute('aria-label', 'Genannte Orte');
+    section.style.cssText = 'margin:8px 0;font-size:13px;line-height:1.4;overflow-wrap:anywhere';
+    const heading = document.createElement('strong');
+    heading.textContent = 'Genannte Orte';
+    section.append(heading, list);
+    return section;
+  }
+
+  function renderRef(ref, related, ctx) {
     const typeColors = {
       'Antrag':            '#2563eb',
       'Änderungsantrag':   '#7c3aed',
@@ -154,10 +227,14 @@
       : '';
 
     const url = safeReferenceUrl(ref.url);
-    return `<div class="polCtxRef" data-url="${UA.escHtml(url)}" data-title="${UA.escHtml(ref.title)}" style="
+    const card = document.createElement('div');
+    card.className = 'polCtxRef';
+    card.dataset.url = url;
+    card.dataset.title = ref.title ?? '';
+    card.style.cssText = `
       border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:10px 12px;
-      margin-bottom:8px;background:rgba(255,255,255,.9);cursor:pointer;
-      transition:background .15s;">
+      margin-bottom:8px;background:rgba(255,255,255,.9);transition:background .15s;`;
+    card.innerHTML = `
       <div style="display:flex;align-items:flex-start;gap:8px;">
         <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;flex:1;">
           <input type="checkbox" class="polCtxCheck" style="margin-top:2px;cursor:pointer;"
@@ -189,8 +266,10 @@
           </div>
         </label>
       </div>
-      ${url ? `<a href="${UA.escHtml(url)}" target="_blank" rel="noopener noreferrer">Amtliches Original öffnen</a>` : ''}
-    </div>`;
+      ${url ? `<a href="${UA.escHtml(url)}" target="_blank" rel="noopener noreferrer">Amtliches Original öffnen</a>` : ''}`;
+    const locations = renderLocations(ref, ctx);
+    if (locations) card.insertBefore(locations, card.querySelector('a'));
+    return card;
   }
 
   /**
@@ -198,8 +277,9 @@
    *
    * @param {HTMLElement} container
    * @param {object}      result   – PoliticalReferenceSearchResult
+   * @param {object}      ctx      – Anwendungskontext
    */
-  function renderResults(container, result) {
+  function renderResults(container, result, ctx) {
     if (!result.meta.supported) {
       container.innerHTML = `<div style="color:#888;font-size:13px;padding:12px 0;">
         Für die Stadt <strong>${UA.escHtml(result.meta.city)}</strong> ist noch kein Portal-Provider verfügbar.
@@ -222,11 +302,8 @@
       return;
     }
     const byId = new Map(result.references.map(ref => [ref.id, ref]));
-    const refsHtml = result.references.map(ref => renderRef(ref, byId.get(ref.relatedTo))).join('');
-    container.innerHTML = `
-      ${note}${limits}
-      ${refsHtml}
-    `;
+    container.innerHTML = `${note}${limits}`;
+    for (const ref of result.references) container.append(renderRef(ref, byId.get(ref.relatedTo), ctx));
   }
 
   // ── Panel öffnen ─────────────────────────────────────────────────────────────
@@ -294,7 +371,7 @@
         : result.meta.searchStatus === 'searched-no-results'
           ? 'Keine Vorgänge im durchsuchten Bestand.'
           : 'Recherche unvollständig.';
-      renderResults(resultsEl, result);
+      renderResults(resultsEl, result, ctx);
     } catch (err) {
       if (ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city) {
         statusEl.textContent = 'Fehler bei der Recherche. ' + String(err.message || err);

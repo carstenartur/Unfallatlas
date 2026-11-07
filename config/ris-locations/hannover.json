@@ -44,6 +44,20 @@
           "out/ctxtiles/hannover/4316/2691.json.gz"
         ]
       }
+    },
+    {
+      "name": "Lindener Stichkanal",
+      "kind": "place",
+      "textOnly": true,
+      "attribution": "Landeshauptstadt Hannover, SIM",
+      "evidence": { "document": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1047-2026" }
+    },
+    {
+      "name": "Mittellandkanal",
+      "kind": "place",
+      "textOnly": true,
+      "attribution": "Landeshauptstadt Hannover, SIM",
+      "evidence": { "document": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1047-2026" }
     }
   ]
 }

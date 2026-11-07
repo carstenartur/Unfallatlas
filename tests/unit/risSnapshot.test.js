@@ -88,6 +88,54 @@ test('retains records with untrusted or malformed geometry and maps only support
   ]);
 });
 
+test('keeps location mentions in the record and publishes each supported geometry at its own index', async () => {
+  const point = { type: 'Point', coordinates: [7.108, 50.727] };
+  const line = { type: 'LineString', coordinates: [[7.108, 50.727], [7.109, 50.728]] };
+  const locations = [
+    { label: 'Adenauerallee / Zweite Fährgasse', kind: 'junction', evidence: { source: 'title', text: 'Kreuzung Adenauerallee / Zweite Fährgasse' } },
+    { label: 'Hausnummer 52', kind: 'address', evidence: { source: 'document', text: 'auf Höhe der Hausnummer 52' } },
+    { label: 'Adenauerallee', kind: 'street', evidence: { source: 'document', text: 'auf der Adenauerallee' } },
+    { label: 'Zweite Fährgasse', kind: 'street', evidence: { source: 'document', text: 'an der Zweiten Fährgasse' } },
+  ];
+  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([{
+    ...original, locations: [
+      { ...locations[0], geometry: point, attribution: '© OpenStreetMap-Mitwirkende' },
+      { ...locations[1], geometry: { type: 'Point', coordinates: [7, 150] } },
+      { ...locations[2], geometry: line },
+      { ...locations[3], geometry: point },
+    ],
+  }]));
+
+  const published = await readRisSnapshot(directory, 'bonn');
+  expect(manifest.map.count).toBe(2);
+  const rawRecords = gunzipSync(await fs.readFile(path.join(directory, manifest.records.path)));
+  const metadata = [{ ...original, locations: [
+    { ...locations[0], mapped: true }, { ...locations[1], mapped: false },
+    { ...locations[2], mapped: true }, { ...locations[3], mapped: false },
+  ] }];
+  expect(JSON.parse(rawRecords)).toEqual(metadata);
+  expect(published.records).toEqual(metadata);
+  expect(published.features.features).toEqual([
+    { type: 'Feature', geometry: point, properties: {
+      recordId: original.id, accuracy: 'derived', locationIndex: 0, label: 'Adenauerallee / Zweite Fährgasse — © OpenStreetMap-Mitwirkende',
+    } },
+    { type: 'Feature', geometry: line, properties: {
+      recordId: original.id, accuracy: 'derived', locationIndex: 2, label: 'Adenauerallee',
+    } },
+  ]);
+});
+
+test('does not publish malformed location lists', async () => {
+  const mention = { label: 'Adenauerallee', kind: 'street', evidence: { source: 'title', text: 'auf der Adenauerallee' } };
+  await expect(writeRisSnapshot(directory, 'bonn', catalogue([{
+    ...original, locations: Array(9).fill(mention),
+  }]))).rejects.toThrow(/location/i);
+  await expect(writeRisSnapshot(directory, 'bonn', catalogue([{
+    ...original, locations: [{ ...mention, evidence: { source: 'inferred', text: 'Adenauerallee' } }],
+  }]))).rejects.toThrow(/location/i);
+  expect(await fs.readdir(directory)).toEqual([]);
+});
+
 test('keeps the original and reply distinct by stable source ID', async () => {
   const answer = { ...original, id: 'bonn-answer-123', number: '260920-01 ST F1', relatedTo: original.id };
   await writeRisSnapshot(directory, 'bonn', catalogue([original, answer]));
@@ -103,9 +151,11 @@ test('publishes Bonn and Hannover independently with the source links for each c
     gremium: 'Rat der Landeshauptstadt Hannover', url: `${hannoverSource}/1047-2026`, source: 'Hannover SIM',
   };
   const hannover = await writeRisSnapshot(directory, 'hannover', {
-    records: [motion], sources: [hannoverSource], coverage: { ...coverage, bodies: [motion.gremium] },
+    records: [motion], sources: [hannoverSource], coverage: { ...coverage, bodies: [motion.gremium] }, locationRevision: 1,
   });
 
+  expect(bonn).not.toHaveProperty('locationRevision');
+  expect(hannover.locationRevision).toBe(1);
   await expect(readRisSnapshot(directory, 'bonn')).resolves.toMatchObject({ manifest: bonn, records: [original] });
   await expect(readRisSnapshot(directory, 'hannover')).resolves.toMatchObject({ manifest: hannover, records: [motion] });
 });
@@ -160,6 +210,7 @@ test.each([
   ['incorrect uncompressed length', manifest => { manifest.records.bytes += 1; }],
   ['incorrect record count', manifest => { manifest.records.count += 1; }],
   ['incorrect map feature count', manifest => { manifest.map.count += 1; }],
+  ['invalid location revision', manifest => { manifest.locationRevision = 0; }],
 ])('rejects a manifest with %s', async (_name, mutate) => {
   const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([original]));
   mutate(manifest);
@@ -211,6 +262,37 @@ test('rejects an otherwise valid map asset that refers to a missing record', asy
   await fs.writeFile(path.join(directory, manifest.map.path), gzipSync(bytes));
   await fs.writeFile(path.join(directory, manifestName), JSON.stringify(manifest));
   await expect(readRisSnapshot(directory, 'bonn')).rejects.toThrow(/record/i);
+});
+
+test.each([
+  ['a repeated index', [0, 0]],
+  ['a missing mapped feature', []],
+  ['an unmapped location', [0, 1]],
+  ['an out-of-range index', [0, 2]],
+  ['a mix with a legacy feature', [0, undefined]],
+  ['a label for a different place', [0], { label: 'Andere Straße — © OpenStreetMap-Mitwirkende' }],
+  ['a geometry incompatible with a street', [0], { geometry: { type: 'Point', coordinates: [7.108, 50.727] } }],
+])('rejects a rehashed map asset with %s', async (_name, indices, {
+  label = 'Adenauerallee', geometry = { type: 'LineString', coordinates: [[7.108, 50.727], [7.109, 50.728]] },
+} = {}) => {
+  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([original]));
+  const rows = [{ ...original, locations: [
+    { label: 'Adenauerallee', kind: 'street', evidence: { source: 'title', text: 'auf der Adenauerallee' }, mapped: true },
+    { label: 'Hausnummer 52', kind: 'address', evidence: { source: 'document', text: 'auf Höhe der Hausnummer 52' }, mapped: false },
+  ] }];
+  const features = indices.map(locationIndex => ({ type: 'Feature', geometry, properties: {
+    recordId: original.id, accuracy: 'derived', locationIndex, label,
+  } }));
+  for (const [kind, payload, count] of [
+    ['records', rows, rows.length], ['map', { type: 'FeatureCollection', features }, features.length],
+  ]) {
+    const bytes = Buffer.from(JSON.stringify(payload));
+    const sha256 = hash(bytes);
+    manifest[kind] = { path: `bonn.${sha256}.${kind}.json.gz`, sha256, bytes: bytes.length, count };
+    await fs.writeFile(path.join(directory, manifest[kind].path), gzipSync(bytes));
+  }
+  await fs.writeFile(path.join(directory, manifestName), JSON.stringify(manifest));
+  await expect(readRisSnapshot(directory, 'bonn')).rejects.toThrow(/location|record/i);
 });
 
 test('rejects a traversal city slug before constructing paths', async () => {

@@ -7,7 +7,9 @@ const os = require('node:os');
 const path = require('node:path');
 const { promisify } = require('node:util');
 const { Worker, isMainThread, parentPort, workerData } = require('node:worker_threads');
-const gzip = promisify(require('node:zlib').gzip);
+const zlib = require('node:zlib');
+const gzip = promisify(zlib.gzip);
+const gunzip = promisify(zlib.gunzip);
 const { readRisSnapshot, writeRisSnapshot, RIS_FALLBACK_MAX_AGE_MS } = require('../server/political-context/services/risSnapshot');
 const { enrichRisLocations } = require('../server/political-context/services/risLocation');
 
@@ -21,6 +23,8 @@ const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 9 * 60_000 };
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
+const HANNOVER_LOCATION_REVISION = 1;
+const LOCATION_UPGRADE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
 const ASSET_BYTES = 16 * 1024 * 1024;
 // Public manifests must not carry raw errors from source responses or local filesystem paths.
@@ -38,6 +42,7 @@ async function collectOfficial(city, now) {
   return collectHannoverCatalogue({
     now, from: '2026-01-01', strict: true, maxMeetings: 60,
     discoverArchives: ['districts'], archiveBodies: [HANNOVER_DISTRICT],
+    includeLocationEvidence: true,
   });
 }
 
@@ -219,6 +224,27 @@ function rejectCoverageDowngrade(next, previous) {
   }
 }
 
+async function loadGazetteer(city) {
+  const folder = path.join(ROOT, 'config', 'ris-locations');
+  let curated;
+  try {
+    curated = JSON.parse(await fs.readFile(path.join(folder, `${city}.json`), 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (city !== 'hannover') return curated;
+  const compressed = await fs.readFile(path.join(folder, 'hannover-atkis.json.gz'));
+  const atkis = JSON.parse((await gunzip(compressed, { maxOutputLength: ASSET_BYTES })).toString('utf8'));
+  if (atkis.city !== city || !atkis.attribution || !Array.isArray(atkis.entries) || !atkis.entries.length) {
+    throw new Error('Invalid Hannover ATKIS gazetteer');
+  }
+  const key = entry => entry.name.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss');
+  const names = new Set(atkis.entries.map(key));
+  const additional = (curated?.entries || []).filter(entry => !names.has(key(entry)))
+    .map(entry => ({ ...entry, attribution: entry.attribution ?? curated.attribution }));
+  return { ...atkis, entries: [...atkis.entries, ...additional] };
+}
+
 async function prepareCandidate(directory, city, now, collect, previous) {
   const catalogue = await collect(city, now);
   const coverage = catalogue?.coverage;
@@ -226,14 +252,10 @@ async function prepareCandidate(directory, city, now, collect, previous) {
       (city === 'bonn' && !coverage.complete)) {
     throw new Error(coverage?.warnings?.join(' ') || 'The official source did not return a usable catalogue');
   }
-  let gazetteer;
-  try {
-    gazetteer = JSON.parse(await fs.readFile(path.join(ROOT, 'config', 'ris-locations', `${city}.json`), 'utf8'));
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
+  const gazetteer = await loadGazetteer(city);
   const records = enrichRisLocations(catalogue.records, { city, gazetteer });
-  await writeRisSnapshot(directory, city, { ...catalogue, records }, { now });
+  const revision = city === 'hannover' ? { locationRevision: HANNOVER_LOCATION_REVISION } : {};
+  await writeRisSnapshot(directory, city, { ...catalogue, records, ...revision }, { now });
   const { manifest } = await readRisSnapshot(directory, city);
   if (previous) rejectCoverageDowngrade(manifest, previous);
   return { directory, manifest };
@@ -257,7 +279,10 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     let selected = previous;
     let status = restoreOnly ? 'restored' : 'current';
     let reason;
-    if (!restoreOnly && (!previous.manifest || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS)) {
+    const lastFailure = previous.manifest?.refreshFailure?.attemptedAt;
+    const upgradeLocations = city === 'hannover' && (previous.manifest?.locationRevision ?? 0) < HANNOVER_LOCATION_REVISION
+      && (!lastFailure || startedAt.getTime() - Date.parse(lastFailure) >= LOCATION_UPGRADE_RETRY_MS);
+    if (!restoreOnly && (!previous.manifest || upgradeLocations || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS)) {
       try {
         selected = await prepareCandidate(path.join(scratch, 'candidate'), city, startedAt, collect, previous.manifest);
         status = 'published';

@@ -62,6 +62,43 @@ function loadScript(name) {
   })(window, L);
 }
 
+function searchableLocations() {
+  const provenance = { city: 'bonn', sha256: 'a'.repeat(64), mapSha256: 'b'.repeat(64) };
+  const entry = { ...records[0], type: 'Antrag', date: null, snapshot: provenance, locations: [{
+    label: 'Endenicher Straße', kind: 'street', mapped: true,
+    evidence: { source: 'title', text: 'Maßnahmen in der Endenicher Straße' },
+  }, {
+    label: 'Beueler Straße / Gartenstraße', kind: 'junction', mapped: true,
+    evidence: { source: 'document', text: 'Kreuzung Beueler Straße / Gartenstraße' },
+  }, {
+    label: 'Spielplatz', kind: 'place', mapped: false,
+    evidence: { source: 'document', text: 'am Spielplatz' },
+  }] };
+  const near = feature('A', 'derived', 'Point', [7.1, 50.7]);
+  near.properties.locationIndex = 0;
+  const far = feature('A', 'derived', 'Point', [7.45, 50.94]);
+  far.properties.locationIndex = 1;
+  const bundle = snapshot([near, far], [entry]);
+  bundle.manifest.city = 'bonn';
+  bundle.manifest.records = { sha256: provenance.sha256 };
+  bundle.manifest.map = { sha256: provenance.mapSha256 };
+  return { entry, bundle };
+}
+
+async function openSearch(ctx, reference) {
+  loadScript('ua.utils.js');
+  document.body.insertAdjacentHTML('beforeend', '<button id="btnPolCtxOpen">Recherche</button>'
+    + '<div id="polCtxPanel" aria-hidden="true" style="display:none">'
+    + '<button id="polCtxBtnClose">Schließen</button><input id="polCtxSearchInput" value="Endenicher Straße">'
+    + '<div id="polCtxStatus" role="status"></div><div id="polCtxResults"></div></div>');
+  window.UA.PoliticalContext.search = async () => ({
+    references: [reference], meta: { supported: true, searchStatus: 'results-found' }
+  });
+  await window.UA.PoliticalContext.openPanel(ctx);
+  await window.UA.PoliticalContext._runSearch(ctx);
+  return document.getElementById('polCtxPanel');
+}
+
 describe('Ratsvorgänge in the V2 map', () => {
   let ctx;
   let UA;
@@ -74,7 +111,9 @@ describe('Ratsvorgänge in the V2 map', () => {
     });
     L.Browser.svg = true; // jsdom provides SVG elements but not the Leaflet capability probe.
     window.L = L;
-    UA = window.UA = { PoliticalContext: { addReferences: jest.fn().mockResolvedValue(1) } };
+    UA = window.UA = {};
+    loadScript('ua.political-context.js');
+    UA.PoliticalContext.addReferences = jest.fn().mockResolvedValue(1);
     loadScript('ua.ris-catalogue.js');
     UA.RisCatalogue.loadMap = jest.fn();
     loadScript('ua.ris-layer.js');
@@ -86,6 +125,7 @@ describe('Ratsvorgänge in the V2 map', () => {
   });
 
   afterEach(() => {
+    UA._activeModalController?.close({ restoreFocus: false });
     ctx.map.remove();
     jest.useRealTimers();
     L.Browser.svg = svg;
@@ -145,6 +185,156 @@ describe('Ratsvorgänge in the V2 map', () => {
     await flush();
     expect(UA.RisCatalogue.loadMap).toHaveBeenCalledTimes(1);
     expect(risFeatures(ctx.map)).toHaveLength(3);
+  });
+
+  test('a popup shows evidence for the location indexed by the clicked geometry', async () => {
+    const entry = { ...records[0], locations: [{
+      label: 'Endenicher Straße', kind: 'street', mapped: true,
+      evidence: { source: 'title', text: 'Maßnahmen in der Endenicher Straße' },
+    }, {
+      label: 'Endenicher Straße / <em>Römerstraße</em>', kind: 'junction', mapped: true,
+      evidence: { source: 'document', text: 'an der Kreuzung mit <em>Römerstraße</em>' },
+    }] };
+    const junction = feature('A', 'derived', 'Point', [7.1, 50.7]);
+    junction.properties.locationIndex = 1;
+    junction.properties.label = 'Endenicher Straße / <em>Römerstraße</em> — © OpenStreetMap-Mitwirkende';
+    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([junction], [entry]));
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+
+    risFeatures(ctx.map)[0].openPopup();
+    const popup = document.querySelector('.leaflet-popup');
+    expect(popup.textContent).toContain('Kreuzung');
+    expect(popup.textContent).toContain('Endenicher Straße / <em>Römerstraße</em>');
+    expect(popup.textContent).toContain('Dokument: „an der Kreuzung mit <em>Römerstraße</em>“');
+    expect(popup.textContent).toContain('© OpenStreetMap-Mitwirkende');
+    expect(popup.textContent).not.toContain('Maßnahmen in der Endenicher Straße');
+    expect(popup.querySelector('em')).toBeNull();
+  });
+
+  test('opens the exact mapped place selected in the search and focuses its map feature', async () => {
+    const { entry, bundle } = searchableLocations();
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    const buttons = panel.querySelectorAll('#polCtxResults button');
+    expect(buttons).toHaveLength(2); // The third place is named but not mapped.
+    expect(buttons[1].getAttribute('aria-label')).toContain('Beueler Straße / Gartenstraße');
+    expect(UA.RisCatalogue.loadMap).not.toHaveBeenCalled();
+    buttons[1].click();
+    await flush();
+
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    expect(checkbox('Ratsvorgänge').checked).toBe(true);
+    const [layer] = risFeatures(ctx.map);
+    expect(layer.getLatLng()).toEqual(L.latLng(50.94, 7.45));
+    expect(document.activeElement).toBe(layer.getElement());
+    expect(document.querySelector('.leaflet-popup').textContent).toContain('Beueler Straße / Gartenstraße');
+  });
+
+  test('refreshes pinned geometry when only its hash changed', async () => {
+    const { entry, bundle } = searchableLocations();
+    const old = searchableLocations().bundle;
+    old.manifest.map.sha256 = 'c'.repeat(64);
+    old.records[0].snapshot.mapSha256 = old.manifest.map.sha256;
+    old.features.features[1].geometry.coordinates = [7.11, 50.7];
+    UA.RisCatalogue.loadMap.mockResolvedValueOnce(old).mockResolvedValueOnce(bundle);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    expect(risFeatures(ctx.map).map(layer => layer.getLatLng())).toContainEqual(L.latLng(50.7, 7.11));
+
+    const panel = await openSearch(ctx, entry);
+    panel.querySelectorAll('#polCtxResults button')[1].click();
+    await flush();
+
+    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn'], ['Bonn', { revalidate: true }]]);
+    const [layer] = risFeatures(ctx.map);
+    expect(layer.getLatLng()).toEqual(L.latLng(50.94, 7.45));
+    expect(layer.isPopupOpen()).toBe(true);
+  });
+
+  test('revalidates a stale manifest even when both hashes match', async () => {
+    const { entry, bundle } = searchableLocations();
+    const old = { ...bundle, manifest: { ...bundle.manifest, generatedAt: new Date(Date.now() - 9 * 86400000).toISOString() } };
+    UA.RisCatalogue.loadMap.mockResolvedValueOnce(old).mockResolvedValueOnce(bundle);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    const status = document.querySelector('.context-overlay-control [role="status"]');
+    expect(status.textContent).toContain('Veralteter Datenstand');
+
+    const panel = await openSearch(ctx, entry);
+    panel.querySelectorAll('#polCtxResults button')[1].click();
+    await flush();
+
+    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn'], ['Bonn', { revalidate: true }]]);
+    expect(status.textContent).not.toContain('Veralteter Datenstand');
+    expect(risFeatures(ctx.map)[0].isPopupOpen()).toBe(true);
+  });
+
+  test('keeps the marked area filter when a searched location is outside it', async () => {
+    const { entry, bundle } = searchableLocations();
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    ctx.selectionBounds = L.latLngBounds([50.69, 7.09], [50.71, 7.11]);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    checkbox('Nur in markierter Fläche').click();
+    const panel = await openSearch(ctx, entry);
+    const buttons = panel.querySelectorAll('#polCtxResults button');
+    expect(buttons).toHaveLength(2);
+    buttons[1].click();
+    await flush();
+
+    expect(panel.getAttribute('aria-hidden')).toBeNull();
+    expect(panel.querySelector('[role="status"]').textContent).toContain('außerhalb der markierten Fläche');
+    expect(checkbox('Nur in markierter Fläche').checked).toBe(true);
+    expect(ctx.map.getCenter()).toEqual(L.latLng(50.7, 7.1));
+    expect(document.querySelector('.leaflet-popup')).toBeNull();
+  });
+
+  test('does not jump when a search result belongs to a different snapshot', async () => {
+    const { entry, bundle } = searchableLocations();
+    bundle.manifest.records.sha256 = 'b'.repeat(64);
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    const buttons = panel.querySelectorAll('#polCtxResults button');
+    expect(buttons).toHaveLength(2);
+    buttons[1].click();
+    await flush();
+
+    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn'], ['Bonn', { revalidate: true }]]);
+    expect(panel.querySelector('[role="status"]').textContent).toMatch(/Datenst.nd/);
+    expect(checkbox('Ratsvorgänge').checked).toBe(false);
+    expect(ctx.map.getCenter()).toEqual(L.latLng(50.7, 7.1));
+    expect(document.querySelector('.leaflet-popup')).toBeNull();
+  });
+
+  test('a late map lookup cannot jump after the user leaves and returns to the city', async () => {
+    const { entry, bundle } = searchableLocations();
+    const pending = deferred();
+    UA.RisCatalogue.loadMap.mockReturnValue(pending.promise);
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    const buttons = panel.querySelectorAll('#polCtxResults button');
+    expect(buttons).toHaveLength(2);
+    buttons[1].click();
+    await flush();
+
+    for (const city of ['Hannover', 'Bonn']) {
+      ctx.CITY_RAW = city;
+      UA.PoliticalContext.resetCity(ctx);
+      UA.RisLayer.refresh(ctx);
+    }
+    pending.resolve(bundle);
+    await flush();
+
+    expect(checkbox('Ratsvorgänge').checked).toBe(false);
+    expect(ctx.map.getCenter()).toEqual(L.latLng(50.7, 7.1));
+    expect(document.querySelector('.leaflet-popup')).toBeNull();
   });
 
   test('reports rejected adoption and reloads the map when reopened after a catalogue change', async () => {
