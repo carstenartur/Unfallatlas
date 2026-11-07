@@ -90,6 +90,7 @@ test('Hannover searches the published index and exports the linked SIM documents
 
 test('Hannover opens the selected junction from a search result with several places', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
+  await page.setViewportSize({ width: 820, height: 1180 });
   const junction = 'Limmerstraße / Kötnerholzweg';
   const evidence = `An der Kreuzung ${junction} wird eine Querungshilfe eingerichtet.`;
   const coordinates = [9.7039, 52.3728];
@@ -118,6 +119,8 @@ test('Hannover opens the selected junction from a search result with several pla
   const popup = page.locator('.leaflet-popup');
   await expect(popup).toContainText(`Kreuzung · ${junction}`);
   await expect(popup).toContainText(`Beleg im Dokument: „${evidence}“`);
+  await popup.getByRole('link', { name: 'Amtliches Dokument: Querungen in Linden verbessern' })
+    .click({ trial: true, timeout: 5_000 });
   const openedPoint = await page.evaluate(() => {
     const { map } = window.UA.getRuntimeContext();
     let coordinates;

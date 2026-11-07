@@ -161,6 +161,7 @@
 
   function popup(ctx, state, data, feature) {
     const root = document.createElement('section');
+    root.style.overflowWrap = 'anywhere';
     const status = document.createElement('div');
     status.setAttribute('role', 'status');
     const { locations } = feature.properties;
@@ -263,13 +264,43 @@
     return L.marker(latlng, { pane: PANE, icon: L.divIcon({ className: 'ua-ris-point', html: swatch, iconSize: size }) });
   }
 
+  function popupLayout(ctx, state) {
+    const container = state.map.getContainer();
+    const view = container.getBoundingClientRect();
+    const options = { maxWidth: 340, maxHeight: 280 };
+    if (!view.width || !view.height) return options;
+
+    const margin = 8;
+    const panel = ctx.ui?.panelEl?.getBoundingClientRect();
+    const layerControl = state.root.closest('.context-overlay-control')?.getBoundingClientRect();
+    const legend = container.querySelector('.layer-legend-control')?.getBoundingClientRect();
+    const left = panel?.width ? Math.max(margin, panel.right - view.left + margin) : margin;
+    const top = layerControl?.height ? Math.max(margin, layerControl.bottom - view.top + margin) : margin;
+    const legendRight = legend?.width ? Math.max(margin, view.right - legend.left + margin) : margin;
+    const legendBottom = legend?.height ? Math.max(margin, view.bottom - legend.top + margin) : margin;
+    const besideLegend = view.height - top - legendBottom < options.maxHeight + 56
+      && view.width - left - legendRight >= 210;
+    const right = besideLegend ? legendRight : margin;
+    const bottom = besideLegend ? margin : legendBottom;
+    return {
+      // Leaflet's maximums apply to the content, leaving room for its frame and tip.
+      maxWidth: Math.max(50, Math.min(options.maxWidth, view.width - left - right - 50)),
+      maxHeight: Math.max(50, Math.min(options.maxHeight, view.height - top - bottom - 56)),
+      autoPanPaddingTopLeft: [left, top],
+      autoPanPaddingBottomRight: [right, bottom],
+    };
+  }
+
   function bindFeature(ctx, state, data, feature, layer) {
     if (typeof layer.eachLayer === 'function') {
       layer.eachLayer(child => bindFeature(ctx, state, data, feature, child));
       return;
     }
     const { locations } = feature.properties;
-    layer.bindPopup(() => popup(ctx, state, data, feature), { maxWidth: 340, maxHeight: 280 });
+    layer.bindPopup(() => {
+      window.L.setOptions(layer.getPopup(), popupLayout(ctx, state));
+      return popup(ctx, state, data, feature);
+    }, { className: 'ua-ris-popup' });
     layer.on('add', () => {
       const el = layer.getElement();
       if (!el) return;

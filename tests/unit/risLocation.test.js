@@ -133,6 +133,42 @@ test('uses the named crossing in the motion text instead of drawing the whole st
   expect(record.geometry).toBeUndefined();
 });
 
+test('keeps a crossing and a separately named address in the same evidence sentence', () => {
+  const evidence = 'An der Kreuzung Davenstedter Straße/Südfeldstraße entsteht eine Ampel und in der Stephanusstraße 12 werden Fahrradbügel aufgestellt.';
+  const [record] = enrichRisLocations([{ title: 'Sicherer Radverkehr', locationEvidence: [evidence] }], {
+    city: 'hannover', gazetteer: {
+      city: 'hannover', entries: [
+        street('Davenstedter Straße', [[9.68, 52.366], [9.69, 52.366], [9.70, 52.366]]),
+        street('Südfeldstraße', [[9.69, 52.365], [9.69, 52.366], [9.69, 52.367]]),
+        { ...street('Stephanusstraße', [[9.71, 52.36], [9.71, 52.37]]), streetKey: '0324100102697' },
+      ], addresses: { '0324100102697': { '12': [9.712, 52.368] } },
+    },
+  });
+  expect(record.locations.map(({ kind, label, geometry }) => [kind, label, geometry?.coordinates])).toEqual([
+    ['junction', 'Davenstedter Straße / Südfeldstraße', [9.69, 52.366]],
+    ['address', 'Stephanusstraße 12', [9.712, 52.368]],
+  ]);
+});
+
+test('retains a street named only in the operative document and excludes a comparison', () => {
+  const evidence = 'Die Fahrbahn in der Limmerstraße wird saniert.';
+  const [record] = enrich([{
+    title: 'Fahrbahnsanierung', locationEvidence: [evidence, 'Wie bereits in der Stephanusstraße soll der Belag erneuert werden.'],
+  }], [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.71, 52.37]])]);
+  expect(record.locations).toEqual([{
+    kind: 'street', label: 'Limmerstraße', geometry: limmerstrasse.geometry, attribution: limmerstrasse.attribution,
+    evidence: { source: 'document', text: evidence },
+  }]);
+});
+
+test('keeps the street of an unspecified stop as text without mapping the whole road', () => {
+  const evidence = 'Die Haltestelle in der Limmerstraße wird barrierefrei ausgebaut.';
+  const [record] = enrich([{ title: 'Barrierefreier Ausbau', locationEvidence: [evidence] }]);
+  expect(record.locations).toEqual([{
+    kind: 'street', label: 'Limmerstraße', evidence: { source: 'document', text: evidence },
+  }]);
+});
+
 test('cuts the named street to the network path between two stated anchors', () => {
   const evidence = 'Tempo 30 auf der Wunstorfer Straße (von der Kreuzung Wunstorfer Straße / Zimmermannstraße bis zur Kanalbrücke über den Stichkanal Hannover-Linden).';
   const [record] = enrich([{ title: 'Tempo 30 auf der Wunstorfer Straße', locationEvidence: [evidence] }], [

@@ -9,7 +9,6 @@ describe('Werkbank deployment asset versions', () => {
   const version = '2026-07-19';
 
   test.each([
-    'css/ua.css',
     'js/ua.core.js',
     'js/ua.utils.js',
     'js/ua.ui.js',
@@ -30,10 +29,15 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'js/ua.data_paths.js',
     'js/ua.ai_proposal.js',
-    'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js', 'js/ua.export_v2.js',
-    'js/ua.report_v2.js', 'js/ua.political-context.js',
+    'js/ua.export_v2.js', 'js/ua.report_v2.js',
   ])('%s uses the verified RIS rollout version', asset => {
     expect(html).toContain(`${asset}?v=2026-11-07-ris`);
+  });
+
+  test.each([
+    'css/ua.css', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js', 'js/ua.political-context.js',
+  ])('%s invalidates the cache for RIS location evidence', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-07-ris-orte"`);
   });
 
   test('support metadata and runtime BUILD expose the same release timestamp', () => {
