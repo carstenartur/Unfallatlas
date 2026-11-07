@@ -41,7 +41,7 @@ Die derzeit abgedeckten Ausgaben sind:
 
 | Lock-Referenz | Paket | Eingabe | ausgelieferte Ausgabe |
 |---|---|---|---|
-| `export.docx.iife` | `docx@9.7.1` | `dist/index.iife.js` | `vendor/export/docx.js` |
+| `export.docx.iife` | `docx@9.15.3` | `dist/index.iife.js` | `vendor/export/docx.js` |
 | `export.pdfmake.min` | `pdfmake@0.3.11` | `build/pdfmake.min.js` | `vendor/export/pdfmake.js` |
 | `export.pdfmake.font-container` | `pdfmake@0.3.11` | `build/vfs_fonts.js` | `vendor/export/pdfmake-fonts.js` |
 
