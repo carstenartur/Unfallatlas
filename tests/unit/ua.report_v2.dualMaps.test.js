@@ -1,4 +1,6 @@
 /**
+ * @jest-environment node
+ *
  * Doppelte Karten + Caption-Transparenz (Antrags-PR).
  *
  * Akzeptanzkriterien:
@@ -20,20 +22,21 @@
 
 const fs = require('fs');
 const path = require('path');
+const pdfMake = require('../../scripts/pdfmake-node');
 
 describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
   let UA;
+  let window;
 
   beforeEach(() => {
-    const pdfMakeLib = require('pdfmake/build/pdfmake');
-    const pdfFonts = require('pdfmake/build/vfs_fonts');
-    pdfMakeLib.vfs = pdfFonts;
-
-    window.UA = {};
-    window.docx = require('docx');
-    window.pdfMake = pdfMakeLib;
-    window.saveAs = jest.fn();
-    window.leafletImage = () => {};
+    window = {
+      UA: {},
+      docx: require('docx'),
+      pdfMake,
+      saveAs: jest.fn(),
+      leafletImage: () => {},
+      location: new URL('http://localhost:8000/'),
+    };
 
     const filePath = path.resolve(__dirname, '../../js/ua.report_v2.js');
     eval(fs.readFileSync(filePath, 'utf8'));
@@ -41,11 +44,6 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
   });
 
   afterEach(() => {
-    delete window.UA;
-    delete window.docx;
-    delete window.pdfMake;
-    delete window.saveAs;
-    delete window.leafletImage;
     jest.restoreAllMocks();
   });
 

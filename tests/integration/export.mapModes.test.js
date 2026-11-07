@@ -1,37 +1,37 @@
+/** @jest-environment node */
+
 const fs = require('fs');
 const path = require('path');
 const JSZip = require('jszip');
+const pdfMake = require('../../scripts/pdfmake-node');
 
 describe('Export QA – map modes and attribution', () => {
   let UA;
-  let realCreatePdf;
-  let capturedPdfDefinitions;
+  let window;
+  let capturedPdf;
 
   const PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
   beforeEach(() => {
-    const pdfMakeLib = require('pdfmake/build/pdfmake');
-    const pdfFonts = require('pdfmake/build/vfs_fonts');
-    pdfMakeLib.vfs = pdfFonts;
-
-    Object.assign(window, {
+    window = {
       UA: {},
       docx: require('docx'),
-      pdfMake: pdfMakeLib,
+      pdfMake,
       saveAs: jest.fn(),
+      location: new URL('http://localhost:8000/'),
       leafletImage: jest.fn((_map, callback) => {
         setTimeout(() => callback(null, {
           toDataURL: () => PNG_DATA_URL
         }), 5);
       })
-    });
+    };
 
-    realCreatePdf = pdfMakeLib.createPdf.bind(pdfMakeLib);
-    capturedPdfDefinitions = [];
-    jest.spyOn(window.pdfMake, 'createPdf').mockImplementation((def) => {
-      capturedPdfDefinitions.push(def);
-      const doc = realCreatePdf(def);
+    capturedPdf = undefined;
+    const realCreatePdf = pdfMake.createPdf.bind(pdfMake);
+    jest.spyOn(window.pdfMake, 'createPdf').mockImplementation((definition) => {
+      const doc = realCreatePdf(definition);
       doc.download = jest.fn();
+      capturedPdf = { definition, doc };
       return doc;
     });
 
@@ -42,11 +42,6 @@ describe('Export QA – map modes and attribution', () => {
   });
 
   afterEach(() => {
-    delete window.UA;
-    delete window.docx;
-    delete window.pdfMake;
-    delete window.saveAs;
-    delete window.leafletImage;
     jest.restoreAllMocks();
   });
 
@@ -135,13 +130,7 @@ describe('Export QA – map modes and attribution', () => {
     expect(window.saveAs).toHaveBeenCalled();
     const [blob] = window.saveAs.mock.calls.at(-1);
     expect(blob.size).toBeGreaterThan(2000);
-    const buffer = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(blob);
-    });
-    return JSZip.loadAsync(buffer);
+    return JSZip.loadAsync(await blob.arrayBuffer());
   }
 
   async function collectDocxText(zip) {
@@ -173,28 +162,6 @@ describe('Export QA – map modes and attribution', () => {
     if (typeof node !== 'object') return false;
     if (typeof node.image === 'string' && node.image.startsWith('data:image/png;base64,')) return true;
     return Object.keys(node).some((key) => hasPdfImage(node[key]));
-  }
-
-  async function getPdfBuffer(doc) {
-    let buffer;
-    try {
-      const maybePromise = doc.getBuffer();
-      if (maybePromise && typeof maybePromise.then === 'function') {
-        buffer = await maybePromise;
-      }
-    } catch (_) {
-      // Fallback for callback-based pdfmake versions.
-    }
-    if (!buffer) {
-      buffer = await new Promise((resolve, reject) => {
-        try {
-          doc.getBuffer(resolve);
-        } catch (err) {
-          reject(err);
-        }
-      });
-    }
-    return buffer;
   }
 
   const scenarios = [
@@ -291,11 +258,11 @@ describe('Export QA – map modes and attribution', () => {
     }
 
     await UA.exportToPDF(ctx, reportData, options);
-    const pdfDefinition = capturedPdfDefinitions.at(-1);
+    const { definition: pdfDefinition, doc } = capturedPdf;
     const pdfText = flattenPdfText(pdfDefinition.content).join(' ');
 
     expect(hasPdfImage(pdfDefinition.content)).toBe(true);
-    const pdfBuffer = await getPdfBuffer(realCreatePdf(pdfDefinition));
+    const pdfBuffer = await doc.getBuffer();
 
     expect(pdfBuffer.length).toBeGreaterThan(1500);
     expect(pdfText).toContain(`Im markierten Kartenausschnitt ${city} wurden 4 Unfälle ausgewertet.`);
@@ -336,7 +303,7 @@ describe('Export QA – map modes and attribution', () => {
     expect(docxText).toContain('Orthofoto nicht verfügbar – Standardkarte aktiv.');
 
     await UA.exportToPDF(ctx, reportData, options);
-    const pdfDefinition = capturedPdfDefinitions.at(-1);
+    const { definition: pdfDefinition } = capturedPdf;
     const pdfText = flattenPdfText(pdfDefinition.content).join(' ');
 
     expect(pdfText).toContain('Kartenmodus: Standardkarte (angefordert: Orthofoto).');
@@ -373,7 +340,7 @@ describe('Export QA – map modes and attribution', () => {
     expect(docxText).toContain('Nicht-amtliche Hintergrundkarte');
 
     await UA.exportToPDF(ctx, reportData, options);
-    const pdfDefinition = capturedPdfDefinitions.at(-1);
+    const { definition: pdfDefinition } = capturedPdf;
     const pdfText = flattenPdfText(pdfDefinition.content).join(' ');
 
     expect(pdfText).toContain('Orthofoto: World Imagery Fallback (Esri).');

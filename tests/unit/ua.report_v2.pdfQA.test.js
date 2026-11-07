@@ -1,4 +1,6 @@
 /**
+ * @jest-environment node
+ *
  * Layout-PR „PDF-/DOCX-QA": Akzeptanztest für den PDF-Export.
  *
  * Ziel des begleitenden PRs ist, dass der PDF-Output ohne HTML-Vergleich
@@ -26,24 +28,20 @@
 
 const fs = require('fs');
 const path = require('path');
+const pdfMake = require('../../scripts/pdfmake-node');
 
 describe('UA.report_v2 – PDF-Export semantische QA', () => {
   let UA;
+  let window;
 
   beforeEach(() => {
-    const pdfMakeLib = require('pdfmake/build/pdfmake');
-    const pdfFonts = require('pdfmake/build/vfs_fonts');
-    if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
-      pdfMakeLib.addVirtualFileSystem(pdfFonts);
-    } else {
-      pdfMakeLib.vfs = pdfFonts;
-    }
-
-    window.UA = {};
-    window.docx = require('docx');
-    window.pdfMake = pdfMakeLib;
-    window.saveAs = jest.fn();
-    // leafletImage nicht benötigt: alle Tests laufen mit includeMap:false.
+    window = {
+      UA: {},
+      docx: require('docx'),
+      pdfMake,
+      saveAs: jest.fn(),
+      location: new URL('http://localhost:8000/'),
+    };
 
     const filePath = path.resolve(__dirname, '../../js/ua.report_v2.js');
     eval(fs.readFileSync(filePath, 'utf8'));
@@ -51,10 +49,6 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
   });
 
   afterEach(() => {
-    delete window.UA;
-    delete window.docx;
-    delete window.pdfMake;
-    delete window.saveAs;
     jest.restoreAllMocks();
   });
 
@@ -76,22 +70,7 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
 
     await UA.exportToPDF(ctx, reportData, options || {});
 
-    let buffer;
-    try {
-      const maybePromise = capturedDoc.getBuffer();
-      if (maybePromise && typeof maybePromise.then === 'function') {
-        buffer = await maybePromise;
-      }
-    } catch (_) {
-      // Fallback for callback-based pdfmake versions.
-    }
-    if (!buffer) {
-      buffer = await new Promise((resolve, reject) => {
-        try { capturedDoc.getBuffer((b) => resolve(b)); }
-        catch (e) { reject(e); }
-      });
-    }
-    return { definition: capturedDef, buffer };
+    return { definition: capturedDef, buffer: await capturedDoc.getBuffer() };
   }
 
   /**
