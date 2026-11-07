@@ -97,11 +97,17 @@ RUN chmod 0755 /app/bin/ffmpeg
 # Image erzeugte _site-Artefakt vor dem nächsten Layer fail-closed geprüft.
 ARG REQUIRE_COMPLETE_VENDOR_PROVENANCE=0
 ARG VIDEO_EXPORT_INTEGRATION_FIXTURE=0
+ARG RESTORE_PUBLISHED_RIS=0
 RUN case "$VIDEO_EXPORT_INTEGRATION_FIXTURE" in \
       0) ;; \
       1) VIDEO_EXPORT_INTEGRATION_FIXTURE=1 node scripts/install-video-export-fixture.js ;; \
       *) echo "VIDEO_EXPORT_INTEGRATION_FIXTURE must be 0 or 1" >&2; exit 2 ;; \
     esac \
+    && case "$RESTORE_PUBLISHED_RIS" in \
+         0) ;; \
+         1) node scripts/refresh-ris-catalogues.js --restore-only ;; \
+         *) echo "RESTORE_PUBLISHED_RIS must be 0 or 1" >&2; exit 2 ;; \
+       esac \
     && npm run build:site \
     && case "$REQUIRE_COMPLETE_VENDOR_PROVENANCE" in \
          0) ;; \

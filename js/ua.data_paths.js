@@ -230,7 +230,7 @@
 
   const existingPromises = UA.optionalModulePromises || {};
   const filingReadinessPromise = injectOptionalModuleAfterDomReady(
-    'js/ua.filing_readiness.js?v=2026-08-18',
+    'js/ua.filing_readiness.js?v=2026-11-07',
     'data-ua-filing-readiness'
   );
   const semanticFilingGatePromise = filingReadinessPromise.then(loaded => {
@@ -279,7 +279,7 @@
     // suitable, source-linked proceedings into the structured report before
     // either the server AI or a user-owned AI receives it.
     aiPoliticalEvidence: injectOptionalModuleAfterDomReady(
-      'js/ua.ai_political_evidence.js?v=2026-08-15',
+      'js/ua.ai_political_evidence.js?v=2026-11-07-ris',
       'data-ua-ai-political-evidence'
     ),
     aiPoliticalReferenceBridge: injectOptionalModuleAfterDomReady(

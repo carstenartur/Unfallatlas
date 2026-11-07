@@ -51,8 +51,13 @@ function normalizeResearchQuery(value) {
   };
 }
 
+function isSnapshotQuery(query) {
+  return query.sourceType.toLowerCase() === 'ris-snapshot' || query.source.toLowerCase() === 'ris-snapshot';
+}
+
 function documentedPoliticalQueries(values) {
   return list(values).map(normalizeResearchQuery).filter(query => {
+    if (isSnapshotQuery(query)) return false;
     const source = query.source.toLowerCase();
     const sourceType = query.sourceType.toLowerCase();
     const namedSource = source
@@ -85,12 +90,14 @@ function cityKey(value) {
 function runtimeResearchQueries(researchValue, metaValue = {}) {
   const research = object(researchValue);
   const meta = object(metaValue);
-  const explicit = documentedPoliticalQueries([
+  const entries = [
     ...list(research.queries),
     ...list(research.documentedQueries),
     ...list(research.queryLog),
-  ]);
-  if (explicit.length) return explicit;
+  ];
+  const explicit = documentedPoliticalQueries(entries);
+  if (explicit.length || clean(research.sourceType).toLowerCase() === 'ris-snapshot'
+      || entries.map(normalizeResearchQuery).some(isSnapshotQuery)) return explicit;
 
   const terms = unique(research.searchTerms);
   if (!terms.length) return [];

@@ -16,6 +16,7 @@ const AI_COMPARISON_CONTRACT_VERSION = 'unfallwerkbank.aiAnalysisComparisonContr
 const DELTA_KEYS = Object.freeze(['bestaetigt', 'praezisiert', 'ergaenzt', 'verworfen', 'offen']);
 const READINESS = new Set(['ready', 'conditional', 'blocked']);
 const POLITICAL = new Set(['complete', 'conditional', 'blocked']);
+const RIS_REFERENCE_LIMIT = 10;
 
 const clean = value => String(value == null ? '' : value).trim();
 const list = value => Array.isArray(value) ? value : [];
@@ -51,6 +52,119 @@ function normalizeResearchQueries(values) {
   return list(values).map(normalizeResearchQuery).filter(query => query.query);
 }
 
+function httpUrl(value) {
+  try {
+    const url = new URL(clean(value));
+    return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function referenceUrl(reference) {
+  return httpUrl(reference?.url || reference?.sourceUrl);
+}
+
+function snapshotSearchDetails(research) {
+  const details = object(research.details);
+  if (details.sourceType !== 'ris-snapshot' && research.sourceType !== 'ris-snapshot') return null;
+  return { ...research, ...details };
+}
+
+function snapshotResearchStatus(research) {
+  return research.searchStatus === 'failed' || research.status === 'failed' ? 'failed' : 'incomplete';
+}
+
+const snapshotText = value => typeof value === 'string' ? value.trim().slice(0, 240) : '';
+const snapshotList = (values, limit = 5) => unique(list(values).map(snapshotText)).slice(0, limit);
+const snapshotFlag = value => typeof value === 'boolean' ? value : null;
+const snapshotUrl = value => {
+  const url = httpUrl(value);
+  return url.length <= 1024 ? url : '';
+};
+
+function buildRisSnapshotContext(structured) {
+  const research = object(structured?.politicalContextResearch);
+  const details = snapshotSearchDetails(research);
+  // An explicit empty selection must not resurrect references from older research state.
+  const selected = (Array.isArray(structured?.politicalReferences)
+    ? structured.politicalReferences : list(research.selectedReferences))
+    .filter(reference => Object.keys(object(reference?.snapshot)).length);
+  if (!details && !selected.length) return null;
+
+  const selectedReferences = [];
+  for (const reference of selected) {
+    if (selectedReferences.length >= RIS_REFERENCE_LIMIT) break;
+    const { snapshot } = reference;
+    const url = snapshotUrl(reference.url || reference.sourceUrl);
+    const title = snapshotText(reference.title);
+    if (!url || !title) continue;
+    selectedReferences.push({
+      title, type: snapshotText(reference.type), date: snapshotText(reference.date),
+      gremium: snapshotText(reference.gremium), number: snapshotText(reference.number),
+      source: snapshotText(reference.source), url,
+      snapshot: {
+        city: snapshotText(snapshot.city), sha256: snapshotText(snapshot.sha256), generatedAt: snapshotText(snapshot.generatedAt),
+        complete: snapshot.complete === true, stale: snapshotFlag(snapshot.stale), warnings: snapshotList(snapshot.warnings),
+      },
+    });
+  }
+  const omittedReferenceCount = selected.length - selectedReferences.length;
+  const context = { selectedReferences, ...(omittedReferenceCount ? { omittedReferenceCount } : {}) };
+  if (!details) return context;
+
+  const coverage = object(details.coverage);
+  const failure = object(details.refreshFailure);
+  return {
+    search: {
+      status: snapshotResearchStatus(details), searchStatus: snapshotText(details.searchStatus), city: snapshotText(details.city),
+      sourceType: 'ris-snapshot', sourceUrl: snapshotUrl(details.sourceUrl), sourceFingerprint: snapshotText(details.sourceFingerprint),
+      generatedAt: snapshotText(details.generatedAt), searchedAt: snapshotText(details.searchedAt),
+      stale: snapshotFlag(details.stale),
+      searchTerms: snapshotList(details.searchTerms || research.searchTerms, 12), warnings: snapshotList(details.warnings),
+      officialPortalUrl: snapshotUrl(research.officialPortalUrl),
+      ...(Object.keys(coverage).length ? { coverage: {
+        from: snapshotText(coverage.from), to: snapshotText(coverage.to), complete: coverage.complete === true,
+        bodies: snapshotList(coverage.bodies, 10), warnings: snapshotList(coverage.warnings),
+      } } : {}),
+      ...(Object.keys(failure).length ? { refreshFailure: {
+        attemptedAt: snapshotText(failure.attemptedAt), expiresAt: snapshotText(failure.expiresAt), reason: snapshotText(failure.reason),
+      } } : {}),
+    },
+    ...context,
+  };
+}
+
+function snapshotAwarePoliticalResearch(structured, features, existing) {
+  const research = object(structured?.politicalContextResearch);
+  const snapshotSearch = snapshotSearchDetails(research);
+  const manualUrls = new Set([...list(structured?.politicalReferences), ...list(research.selectedReferences)]
+    .filter(reference => reference?.snapshot).map(referenceUrl).filter(Boolean));
+  const separateSearch = !snapshotSearch && ['complete', 'results-found'].includes(research.status);
+  const liveReferences = separateSearch && manualUrls.size ? list(research.references).filter(reference =>
+    !reference?.snapshot && referenceUrl(reference) && clean(reference?.title)
+    && reference?.aiGating?.allowed !== false && reference?.trafficCategory !== 'non_traffic'
+    && reference?.isTrafficRelevant !== false
+  ) : [];
+  const direct = existing?.references ?? structured?.politicalReferences ?? features?.references;
+  const withoutSnapshot = list(direct).filter(reference => !reference?.snapshot && !manualUrls.has(referenceUrl(reference)));
+  const directUrls = new Set(withoutSnapshot.map(referenceUrl));
+  const references = [...withoutSnapshot, ...liveReferences.filter(reference => !directUrls.has(referenceUrl(reference)))];
+  return {
+    status: snapshotSearch ? snapshotResearchStatus(snapshotSearch) : research.status || existing?.status || 'not-searched',
+    queries: snapshotSearch ? [] : normalizeResearchQueries(research.queries || existing?.queries),
+    references: references.map(reference => ({
+      title: clean(reference?.title),
+      type: clean(reference?.type || reference?.referenceType) || 'unknown',
+      date: reference?.date || null,
+      gremium: reference?.gremium || null,
+      number: reference?.number || null,
+      url: clean(reference?.url || reference?.sourceUrl),
+      source: reference?.source || null,
+    })).filter(reference => reference.title || reference.url),
+  };
+}
+
 function patternRow(row, localTotal, baselineTotal) {
   const significant = row?.isSignificant === true;
   return {
@@ -77,7 +191,13 @@ function buildDeterministicDigest(structured, features) {
     structured?.deterministicAnalysisDigest
     || structured?.aiResearchHandoff?.deterministicAnalysisDigest
   );
-  if (existing.schemaVersion === DETERMINISTIC_DIGEST_VERSION) return existing;
+  if (existing.schemaVersion === DETERMINISTIC_DIGEST_VERSION) {
+    const research = object(structured?.politicalContextResearch);
+    if (!snapshotSearchDetails(research)
+      && ![...list(structured?.politicalReferences), ...list(research.selectedReferences)]
+        .some(reference => reference?.snapshot)) return existing;
+    return { ...existing, politicalResearch: snapshotAwarePoliticalResearch(structured, features, existing.politicalResearch) };
+  }
 
   const meta = object(structured?.meta);
   const severity = object(structured?.severity);
@@ -87,19 +207,6 @@ function buildDeterministicDigest(structured, features) {
   const baselineTotal = deviations?.baseline?.total;
   const counts = object(features?.counts);
   const yearlyTrend = structured?.yearlyTrend || features?.yearlyTrend || null;
-  const political = object(structured?.politicalContextResearch);
-  const references = list(structured?.politicalReferences || features?.references)
-    .map(reference => ({
-      title: clean(reference?.title),
-      type: clean(reference?.type || reference?.referenceType) || 'unknown',
-      date: reference?.date || null,
-      gremium: reference?.gremium || null,
-      number: reference?.number || null,
-      url: clean(reference?.url || reference?.sourceUrl),
-      source: reference?.source || null,
-    }))
-    .filter(reference => reference.title || reference.url);
-
   return {
     schemaVersion: DETERMINISTIC_DIGEST_VERSION,
     role: 'verified-reproducible-baseline',
@@ -139,11 +246,7 @@ function buildDeterministicDigest(structured, features) {
       osm: structured?.osmContext || features?.osmContext || null,
       visual: structured?.visualContextHints || features?.visualContextHints || null,
     },
-    politicalResearch: {
-      status: political.status || 'not-searched',
-      queries: normalizeResearchQueries(political.queries),
-      references,
-    },
+    politicalResearch: snapshotAwarePoliticalResearch(structured, features),
   };
 }
 
@@ -152,7 +255,11 @@ function buildComparisonContract(structured, features, digest) {
     structured?.aiAnalysisComparisonContract
     || structured?.aiResearchHandoff?.aiAnalysisComparisonContract
   );
-  if (existing.schemaVersion === AI_COMPARISON_CONTRACT_VERSION) return existing;
+  if (existing.schemaVersion === AI_COMPARISON_CONTRACT_VERSION) {
+    const original = structured?.deterministicAnalysisDigest || structured?.aiResearchHandoff?.deterministicAnalysisDigest;
+    return original?.schemaVersion === DETERMINISTIC_DIGEST_VERSION && original !== digest
+      ? { ...existing, deterministicDigest: digest } : existing;
+  }
 
   return {
     schemaVersion: AI_COMPARISON_CONTRACT_VERSION,
@@ -230,6 +337,17 @@ function buildProposalValueAddPrompt(aiInput) {
     `Deterministische Baseline: ${digest.schemaVersion || DETERMINISTIC_DIGEST_VERSION}`,
     `Amtlicher Tatsachenkern: ${facts.total ?? 'unbekannt'} Unfälle; ${facts.fatal ?? 'unbekannt'} Getötete; ${facts.serious ?? 'unbekannt'} Schwerverletzte; ${facts.slight ?? 'unbekannt'} Leichtverletzte.`,
     `Politischer Recherchestatus der Baseline: ${political.status || 'not-searched'}.`,
+    ...(aiInput?.risSnapshotContext && !aiInput.risSnapshotContext.search && political.queries?.length
+      ? ['Vom Snapshot getrennt dokumentierte amtliche Recherche:', JSON.stringify({
+        status: political.status,
+        queries: political.queries.slice(0, 10).map(query => ({
+          query: snapshotText(query.query), source: snapshotText(query.source),
+          sourceType: snapshotText(query.sourceType), url: snapshotUrl(query.url),
+        })),
+        directReferences: list(political.references).slice(0, RIS_REFERENCE_LIMIT).map(reference => ({
+          title: snapshotText(reference.title), url: snapshotUrl(reference.url),
+        })),
+      })] : []),
     'Pflichtausgabe im proposalBrief.v1:',
     '- deterministicVsAiComparison: jede deterministische Aussage bestätigen, präzisieren, ergänzen, verwerfen oder offen lassen; Evidenzreferenzen und Prüfbedarf nennen.',
     '- prioritisedFindings: mindestens drei entscheidungsrelevante Befunde mit Rang und Dringlichkeit.',
@@ -462,6 +580,41 @@ function mergeMissing(target, fallback, keys) {
   return out;
 }
 
+function applyRisSnapshotReadiness(proposal, aiInput, blocked) {
+  const snapshot = aiInput?.risSnapshotContext;
+  if (!snapshot) return;
+
+  const baseline = object(aiInput?.deterministicAnalysisDigest?.politicalResearch);
+  const liveUrls = new Set(list(baseline.references).map(referenceUrl).filter(Boolean));
+  const research = object(proposal.politicalResearchLog);
+  const evidenceRefs = list(research.evidenceRefs).filter(url => liveUrls.has(httpUrl(url)));
+  const separateSearch = !snapshot.search && ['complete', 'results-found'].includes(baseline.status)
+    && list(baseline.queries).length > 0 && liveUrls.size > 0;
+  if (separateSearch && (clean(research.status).toLowerCase() !== 'complete' || evidenceRefs.length)) {
+    proposal.politicalResearchLog = { ...research, evidenceRefs };
+    return;
+  }
+
+  // A model response cannot turn a published catalogue or a selected hint into a live search.
+  const reason = 'Der veröffentlichte RIS-Datenstand und ausgewählte Hinweise ersetzen keine getrennt dokumentierte amtliche Recherche.';
+  const verdict = object(proposal.filingReadinessVerdict);
+  proposal.politicalResearchLog = {
+    ...blocked.politicalResearchLog,
+    status: 'blocked',
+    evidenceRefs: [],
+    comparisonToExistingActivity: 'Die politische/administrative Vorbefassung bleibt offen.',
+    remainingChecks: unique([...blocked.politicalResearchLog.remainingChecks, ...list(research.remainingChecks)]),
+  };
+  proposal.filingReadinessVerdict = {
+    ...blocked.filingReadinessVerdict,
+    ...verdict,
+    status: blocked.filingReadinessVerdict.status,
+    politicalResearchStatus: 'blocked',
+    reasoning: reason,
+    blockingReasons: unique([...list(verdict.blockingReasons), reason]),
+  };
+}
+
 function ensureProposalValueAdd(proposal, aiInput, reason) {
   if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) return proposal;
   const blocked = buildBlockedFallbackContract(aiInput, reason);
@@ -477,6 +630,7 @@ function ensureProposalValueAdd(proposal, aiInput, reason) {
     'valueAddAssessment',
     'filingReadinessVerdict',
   ]);
+  applyRisSnapshotReadiness(out, aiInput, blocked);
 
   const evaluation = evaluateProposalValueAdd(out);
   if (!evaluation.valid) {
@@ -518,6 +672,7 @@ module.exports = Object.freeze({
   VALUE_ADD_CONTRACT_VERSION,
   DETERMINISTIC_DIGEST_VERSION,
   AI_COMPARISON_CONTRACT_VERSION,
+  buildRisSnapshotContext,
   DELTA_KEYS,
   buildDeterministicDigest,
   buildComparisonContract,

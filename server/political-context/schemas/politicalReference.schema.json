@@ -31,6 +31,23 @@
       "type": ["string", "null"],
       "description": "Drucksachen- oder Vorgangsnummer"
     },
+    "relatedTo": {
+      "type": "string",
+      "description": "Quell-ID der Originalvorlage"
+    },
+    "snapshot": {
+      "type": "object",
+      "required": ["city", "generatedAt", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "city": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "complete": { "type": "boolean" },
+        "stale": { "type": "boolean" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "snippet": {
       "type": ["string", "null"],
       "description": "Kurzer Textausschnitt / Auszug aus dem Dokument"

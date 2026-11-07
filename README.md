@@ -135,3 +135,7 @@ Die Unfalldaten stammen aus dem [Unfallatlas des Statistikportals der deutschen 
 - Projektlizenz: [Apache License 2.0](LICENSE)
 - Credits und Drittkomponenten: [docs/credits.md](docs/credits.md)
 - Zitierfähige Veröffentlichung: https://doi.org/10.5281/zenodo.20936471
+
+## Verwandte Projekte
+
+Eine Anregung für die Darstellung von Ratsvorgängen auf der Karte war der [Ratsatlas Bonn](https://github.com/daimpad/ratsatlas-bonn).

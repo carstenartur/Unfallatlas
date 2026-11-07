@@ -139,7 +139,7 @@ Wichtige Eigenschaften:
   `out/ctxtiles/<slug>/<x>/<y>.json` (Slippy-Tiles, Z=13) verweist.
   `js/ua.context_road_layer.js` baut daraus zwei Canvas-gerenderte
   Leaflet-Layer („Straßensteigung" + „Verkehrsbelastung"), die per
-  Karten-Layer-Control (oben links) ein-/ausgeschaltet werden können.
+  Karten-Layer-Control (oben rechts) ein-/ausgeschaltet werden können.
   Die Overlays zeichnen **das vollständige OSM-Straßennetz im
   Stadt-BBox** (viewport-lazy via `loadTilesForBbox`). Mit
   `dem_producer.js` ≥ 1.1.0 trägt **jeder** Weg im v3-Kontextnetz

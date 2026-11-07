@@ -167,5 +167,6 @@ jobs:
           push: true
           build-args: |
             REQUIRE_COMPLETE_VENDOR_PROVENANCE=1
+            RESTORE_PUBLISHED_RIS=1
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

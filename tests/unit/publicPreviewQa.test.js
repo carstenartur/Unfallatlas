@@ -109,7 +109,7 @@ describe('public Pages QA hardening', () => {
     expect(notice.querySelector('summary').textContent)
       .toContain('nur Videoexport nicht verfügbar');
     expect(notice.textContent)
-      .toContain('Politische Recherche und Videoexport benötigen ein Server-Backend');
+      .toContain('Live-Recherche und Videoexport benötigen ein Server-Backend');
   });
 
   test('suppresses the impossible Pages POST and exposes official Bonn links without a backend', async () => {
@@ -169,6 +169,30 @@ describe('public Pages QA hardening', () => {
       body: JSON.stringify({ city: 'Bonn', maxResults: 1 }),
     }));
     expect(originalSearch).not.toHaveBeenCalled();
+  });
+
+  test('enables search for a published city catalogue on opening the panel', async () => {
+    const result = { references: [{ title: 'Radwegeausbau' }], meta: { supported: true } };
+    const originalSearch = jest.fn();
+    const fetchSpy = jest.fn();
+    const search = jest.fn(async () => result);
+    const loadManifest = jest.fn(async () => ({}));
+    global.fetch = fetchSpy;
+    const UA = loadPublicPreview({
+      ua: {
+        RisCatalogue: {
+          loadManifest, search,
+          hasManifest: () => loadManifest.mock.calls.length > 0
+        },
+        PoliticalContext: { search: originalSearch, openPanel: async () => {} },
+      },
+    });
+    await UA.PoliticalContext.openPanel({ CITY_RAW: 'Hannover' });
+    expect(loadManifest).toHaveBeenCalledWith('Hannover');
+    expect(document.getElementById('polCtxBtnSearch').disabled).toBe(false);
+    await expect(UA.PoliticalContext.search({ city: 'Hannover' })).resolves.toBe(result);
+    expect(originalSearch).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   test('does not recenter when the URL center is already inside the selected area', () => {

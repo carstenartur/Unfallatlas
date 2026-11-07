@@ -3,6 +3,8 @@
 const proposalSchema = require('../../server/ai/schema/proposalBrief.v1.schema.json');
 const service = require('../../server/ai/aiAssessmentServiceV2.js');
 const valueAdd = require('../../server/ai/proposalBriefValueAdd.js');
+const { deriveFeatures } = require('../../server/ai/features/deriveFeatures.js');
+const { AiAssessmentCache } = require('../../server/ai/cache/aiAssessmentCache.js');
 
 function structuredFixture(politicalStatus = 'complete') {
   return {
@@ -212,6 +214,63 @@ function completeValueAddProposal() {
   };
 }
 
+const snapshotUrl = 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=456';
+const snapshotHash = 'b'.repeat(64);
+const generatedAt = '2026-10-29T09:00:00Z';
+const searchedAt = '2026-11-07T12:00:00Z';
+
+function snapshotStructured() {
+  const structured = structuredFixture('incomplete');
+  const selection = {
+    title: 'Prüfauftrag zur Adenauerallee', type: 'Antrag', date: '2026-05-08',
+    gremium: 'Verkehrsausschuss', number: '26-0123', url: snapshotUrl, source: 'bonn-allris',
+    snapshot: { city: 'bonn', sha256: snapshotHash, generatedAt,
+      complete: false, stale: true, warnings: ['Warnung zur ausgewählten Quelle.'] },
+  };
+  structured.politicalReferences = [selection];
+  structured.politicalContextResearch = {
+    status: 'incomplete', city: 'Bonn', searchedAt, searchTerms: ['Adenauerallee'],
+    officialPortalUrl: 'https://www.bonn.sitzung-online.de/public/',
+    details: {
+      city: 'Bonn', sourceType: 'ris-snapshot', sourceFingerprint: snapshotHash,
+      sourceUrl: 'https://www.bonn.sitzung-online.de/oparl/system',
+      generatedAt, searchedAt, searchStatus: 'partial-results', stale: true,
+      coverage: { from: '2025-01-01', to: '2026-10-29', complete: false,
+        bodies: ['Verkehrsausschuss'], warnings: ['Räumlich begrenzt.'] },
+      warnings: ['Begrenzter Datenstand.'],
+      refreshFailure: { attemptedAt: '2026-11-06T09:00:00Z', expiresAt: '2026-11-10T09:00:00Z',
+        reason: 'Letzte Aktualisierung fehlgeschlagen.' },
+    },
+    selectedReferences: [selection],
+  };
+  // The browser supplies a prebuilt digest that omits snapshot metadata on its references.
+  const { snapshot, ...referenceWithoutSnapshot } = selection;
+  structured.deterministicAnalysisDigest = {
+    schemaVersion: valueAdd.DETERMINISTIC_DIGEST_VERSION,
+    officialAccidentFacts: { total: 37, fatal: 0, serious: 1, slight: 36 },
+    politicalResearch: { status: 'incomplete', references: [referenceWithoutSnapshot] },
+  };
+  structured.aiAnalysisComparisonContract = {
+    schemaVersion: valueAdd.AI_COMPARISON_CONTRACT_VERSION,
+    deterministicDigest: structured.deterministicAnalysisDigest,
+  };
+  return structured;
+}
+
+async function runWithStubProvider(structured, proposal) {
+  const originalKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'local-stub';
+  try {
+    const providerCall = jest.fn(async () => JSON.stringify(proposal));
+    const output = await service.runAssessmentV2({ structured, providerCall,
+      cache: new AiAssessmentCache(), mode: 'proposal-brief', withFallback: false });
+    return { output, prompt: providerCall.mock.calls[0][0].user };
+  } finally {
+    if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalKey;
+  }
+}
+
 describe('server-side proposalBrief value-add contract', () => {
   test('builds the deterministic digest with significant and exploratory rows separated', () => {
     const contracts = valueAdd.buildProposalEvidenceContracts(
@@ -244,6 +303,81 @@ describe('server-side proposalBrief value-add contract', () => {
     expect(prompt).toContain('measureDecisionMatrix');
     expect(prompt).toContain('politicalResearchLog');
     expect(prompt).toContain('bestätigt | präzisiert | ergänzt | verworfen | offen');
+  });
+
+  test('retains snapshot provenance in the AI input separately from the prebuilt baseline evidence', () => {
+    const structured = snapshotStructured();
+    const input = service.buildAiInputV2(structured, deriveFeatures(structured), []);
+    expect(input.risSnapshotContext).toMatchObject({
+      search: {
+        sourceType: 'ris-snapshot', sourceFingerprint: snapshotHash,
+        sourceUrl: 'https://www.bonn.sitzung-online.de/oparl/system', generatedAt, searchedAt,
+        status: 'incomplete', searchStatus: 'partial-results', stale: true,
+        coverage: { from: '2025-01-01', complete: false, warnings: ['Räumlich begrenzt.'] },
+        warnings: ['Begrenzter Datenstand.'], searchTerms: ['Adenauerallee'],
+        refreshFailure: { attemptedAt: '2026-11-06T09:00:00Z', reason: 'Letzte Aktualisierung fehlgeschlagen.' },
+      },
+      selectedReferences: [{ url: snapshotUrl, number: '26-0123', date: '2026-05-08', snapshot: {
+        sha256: snapshotHash, generatedAt, complete: false, stale: true,
+        warnings: ['Warnung zur ausgewählten Quelle.'],
+      } }],
+    });
+    expect(input.deterministicAnalysisDigest.politicalResearch)
+      .toMatchObject({ status: 'incomplete', queries: [], references: [] });
+    expect(input.aiAnalysisComparisonContract.deterministicDigest.politicalResearch.references).toEqual([]);
+  });
+
+  test('bounds the snapshot selection and warning text sent to the AI provider', () => {
+    const structured = snapshotStructured();
+    const warning = 'Hinweis: ' + 'A'.repeat(300);
+    const warnings = [warning, ...Array.from({ length: 7 }, (_, index) => `Zusatz ${index}`)];
+    const [reference] = structured.politicalReferences;
+    structured.politicalReferences = Array.from({ length: 12 }, (_, index) => ({
+      ...reference, url: `https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=${500 + index}`,
+      snapshot: { ...reference.snapshot, warnings },
+    }));
+    structured.politicalContextResearch.details.warnings = warnings;
+
+    const { risSnapshotContext } = service.buildAiInputV2(structured, deriveFeatures(structured), []);
+    expect(risSnapshotContext.selectedReferences).toHaveLength(10);
+    expect(risSnapshotContext.omittedReferenceCount).toBe(2);
+    for (const included of [risSnapshotContext.search.warnings, risSnapshotContext.selectedReferences[0].snapshot.warnings]) {
+      expect(included).toHaveLength(5);
+      expect(included[0]).toBe(warning.slice(0, 240));
+    }
+  });
+
+  test('the proposal provider receives the snapshot warnings and cannot mark snapshot-only evidence ready', async () => {
+    const proposal = completeValueAddProposal();
+    proposal.politicalResearchLog.evidenceRefs = [snapshotUrl];
+    const { output, prompt } = await runWithStubProvider(snapshotStructured(), proposal);
+
+    expect(prompt).toMatch(/manuell.*prüf/i);
+    for (const value of [snapshotUrl, snapshotHash, generatedAt, searchedAt, 'partial-results',
+      'Adenauerallee', 'Begrenzter Datenstand.', 'Warnung zur ausgewählten Quelle.',
+      'Letzte Aktualisierung fehlgeschlagen.']) expect(prompt).toContain(value);
+    expect(output.source).toBe('ai');
+    expect(output.result.politicalResearchLog)
+      .toMatchObject({ status: 'blocked', sourceStatus: 'incomplete', evidenceRefs: [] });
+    expect(output.result.filingReadinessVerdict)
+      .toMatchObject({ status: 'blocked', politicalResearchStatus: 'blocked' });
+  });
+
+  test('a separate live search can still satisfy the unchanged political gate when the model uses its evidence', async () => {
+    const structured = snapshotStructured();
+    const live = structuredFixture();
+    structured.politicalContextResearch = {
+      status: 'results-found', city: 'Bonn', providerKey: 'bonn-allris',
+      searchTerms: ['Adenauerallee'], references: live.politicalReferences,
+    };
+    const proposal = completeValueAddProposal();
+    proposal.politicalResearchLog.evidenceRefs.push(snapshotUrl);
+    const { output, prompt } = await runWithStubProvider(structured, proposal);
+
+    expect(prompt).toContain(snapshotUrl);
+    expect(output.result.politicalResearchLog.evidenceRefs)
+      .toEqual(['https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=123']);
+    expect(output.result.filingReadinessVerdict.status).toBe('ready');
   });
 
   test('the raw schema rejects a legacy proposal without value-add evidence', () => {

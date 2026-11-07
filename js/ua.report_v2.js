@@ -1308,6 +1308,20 @@
   UA.trendQualifierTextDocx = trendQualifierTextDocx;
   UA.osmCoverageNoteDocx = osmCoverageNoteDocx;
 
+  // Gleicher Wortlaut wie für Text und HTML in ua.export_v2.js.
+  function snapshotCitationLines(snapshot) {
+    if (!snapshot) return [];
+    const { generatedAt, complete, stale, warnings } = snapshot;
+    const lines = [];
+    if (typeof generatedAt === "string" && generatedAt) lines.push(`Katalogstand: ${generatedAt.slice(0, 10)}`);
+    if (complete === false) lines.push("Katalogabdeckung: eingeschränkt");
+    if (stale === true) lines.push("Der Katalogstand ist veraltet.");
+    for (const warning of Array.isArray(warnings) ? warnings : []) {
+      if (typeof warning === "string" && warning.trim()) lines.push(`Kataloghinweis: ${warning.trim()}`);
+    }
+    return lines;
+  }
+
   /**
    * Generate and download Word document
    * @param {Object} ctx - Application context
@@ -3027,6 +3041,12 @@
             children.push(new Paragraph({
               children: [new TextRun({ text: `  Portal: ${ref.source}`, italics: true })],
               spacing: { after: 80 }
+            }));
+          }
+          for (const line of snapshotCitationLines(ref.snapshot)) {
+            children.push(new Paragraph({
+              children: [new TextRun({ text: `  ${line}`, italics: true })],
+              spacing: { after: 40 }
             }));
           }
         }
@@ -5019,6 +5039,12 @@
             docDefinition.content.push({
               text: `  Portal: ${ref.source}`,
               italics: true, style: "normal", margin: [10, 0, 0, 4]
+            });
+          }
+          for (const line of snapshotCitationLines(ref.snapshot)) {
+            docDefinition.content.push({
+              text: `  ${line}`,
+              italics: true, style: "normal", margin: [10, 0, 0, 2]
             });
           }
         }

@@ -252,7 +252,7 @@ async function fetchExternalList(listUrl, options = {}) {
     visited.add(currentUrl);
     const payload = await fetchJsonImpl(currentUrl, options.requestOptions || {});
     const page = parseListPage(payload, currentUrl);
-    items.push(...page.data);
+    for (const item of page.data) items.push(options.mapItem ? options.mapItem(item) : item);
     pages.push({ url: currentUrl, count: page.data.length, pagination: page.pagination });
     currentUrl = page.next;
   }
