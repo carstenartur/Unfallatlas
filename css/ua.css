@@ -537,6 +537,8 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
     box-shadow: 0 -8px 28px rgba(0,0,0,.22);
     overscroll-behavior: contain;
   }
+  /* The bottom sheet would leave too little map space for an open record. */
+  #map:has(.ua-ris-popup) + #panel { display: none; }
   .panelHeader {
     z-index: 4;
     background: rgba(255,255,255,.98);

@@ -88,6 +88,53 @@ test('Hannover searches the published index and exports the linked SIM documents
   expect(external).toEqual([]);
 });
 
+test('Hannover opens the selected junction from a search result with several places', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 820, height: 1180 });
+  const junction = 'Limmerstraße / Kötnerholzweg';
+  const evidence = `An der Kreuzung ${junction} wird eine Querungshilfe eingerichtet.`;
+  const coordinates = [9.7039, 52.3728];
+  await provideSnapshot(page, testInfo, 'hannover', [SIM], [{
+    id: 'hannover-sim:15-1570-2026', number: '15-1570/2026',
+    title: 'Querungen in Linden verbessern', type: 'Antrag', date: null,
+    gremium: 'Bezirksrat Linden-Limmer', source: 'hannover-sim', url: SIM + 'DS/15-1570-2026',
+    locations: [{
+      label: 'Limmerstraße', kind: 'street', evidence: { source: 'document', text: 'Maßnahmen in der Limmerstraße' },
+      geometry: { type: 'LineString', coordinates: [[9.697, 52.374], [9.710, 52.371]] }
+    }, {
+      label: junction, kind: 'junction', evidence: { source: 'document', text: evidence },
+      geometry: { type: 'Point', coordinates }
+    }]
+  }]);
+  await openPublicWerkbank(page, 'city=Hannover&centerLat=52.38&centerLon=9.74&zoom=15');
+  await page.locator('#btnPolCtxOpen').click();
+  await page.locator('#polCtxSearchInput').fill('Kötnerholzweg');
+  await page.locator('#polCtxBtnSearch').click();
+  const results = page.locator('#polCtxResults');
+  await expect(results.getByRole('button', { name: /^Auf Karte zeigen:/ })).toHaveCount(2);
+  await results.getByRole('button', { name: `Auf Karte zeigen: ${junction}`, exact: true }).click();
+
+  await expect(page.locator('#polCtxPanel')).toBeHidden();
+  await expect(page.locator('.ua-ris-point')).toBeFocused();
+  const popup = page.locator('.leaflet-popup');
+  await expect(popup).toContainText(`Kreuzung · ${junction}`);
+  await expect(popup).toContainText(`Beleg im Dokument: „${evidence}“`);
+  await popup.getByRole('link', { name: 'Amtliches Dokument: Querungen in Linden verbessern' })
+    .click({ trial: true, timeout: 5_000 });
+  const openedPoint = await page.evaluate(() => {
+    const { map } = window.UA.getRuntimeContext();
+    let coordinates;
+    map.eachLayer(layer => {
+      if (layer.feature?.geometry.type === 'Point' && layer.isPopupOpen?.()) {
+        const { lng, lat } = layer.getLatLng();
+        coordinates = [lng, lat];
+      }
+    });
+    return coordinates;
+  });
+  expect(openedPoint).toEqual(coordinates);
+});
+
 test('Bonn loads the optional map layer and offers official links in its popup', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const title = 'Bau Straße Am Hauptbahnhof';

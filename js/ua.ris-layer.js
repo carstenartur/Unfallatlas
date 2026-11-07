@@ -161,18 +161,32 @@
 
   function popup(ctx, state, data, feature) {
     const root = document.createElement('section');
+    root.style.overflowWrap = 'anywhere';
     const status = document.createElement('div');
     status.setAttribute('role', 'status');
     const { locations } = feature.properties;
 
     function appendRecord(parent, entry, location) {
+      const place = Number.isInteger(location?.locationIndex) ? entry.locations?.[location.locationIndex] : null;
+      const details = place && UA.PoliticalContext?.renderLocation?.(place);
       if (location) {
-        const label = [styles[location.accuracy].label, location.label].filter(Boolean).join(' · ');
+        let mapLabel = location.label || '';
+        if (details) {
+          // The snapshot appends the geometry attribution to its map label.
+          const prefix = `${place.label} — `;
+          if (mapLabel === place.label) mapLabel = '';
+          else if (mapLabel.startsWith(prefix)) mapLabel = mapLabel.slice(prefix.length);
+        }
+        const label = [styles[location.accuracy].label, mapLabel].filter(Boolean).join(' · ');
         text(parent, 'div', label).style.marginBottom = '6px';
       }
       text(parent, 'strong', entry.title);
       const meta = [entry.type, entry.number, entry.date, entry.gremium || entry.premium].filter(Boolean);
       if (meta.length) text(parent, 'div', meta.join(' · '));
+      if (details) {
+        details.style.cssText = 'margin:4px 0;overflow-wrap:anywhere';
+        parent.append(details);
+      }
       const source = entry.source ? ` · Quelle: ${entry.source}` : '';
       const url = httpsUrl(entry.url);
       if (!url) {
@@ -250,13 +264,43 @@
     return L.marker(latlng, { pane: PANE, icon: L.divIcon({ className: 'ua-ris-point', html: swatch, iconSize: size }) });
   }
 
+  function popupLayout(ctx, state) {
+    const container = state.map.getContainer();
+    const view = container.getBoundingClientRect();
+    const options = { maxWidth: 340, maxHeight: 280 };
+    if (!view.width || !view.height) return options;
+
+    const margin = 8;
+    const panel = ctx.ui?.panelEl?.getBoundingClientRect();
+    const layerControl = state.root.closest('.context-overlay-control')?.getBoundingClientRect();
+    const legend = container.querySelector('.layer-legend-control')?.getBoundingClientRect();
+    const left = panel?.width ? Math.max(margin, panel.right - view.left + margin) : margin;
+    const top = layerControl?.height ? Math.max(margin, layerControl.bottom - view.top + margin) : margin;
+    const legendRight = legend?.width ? Math.max(margin, view.right - legend.left + margin) : margin;
+    const legendBottom = legend?.height ? Math.max(margin, view.bottom - legend.top + margin) : margin;
+    const besideLegend = view.height - top - legendBottom < options.maxHeight + 56
+      && view.width - left - legendRight >= 210;
+    const right = besideLegend ? legendRight : margin;
+    const bottom = besideLegend ? margin : legendBottom;
+    return {
+      // Leaflet's maximums apply to the content, leaving room for its frame and tip.
+      maxWidth: Math.max(50, Math.min(options.maxWidth, view.width - left - right - 50)),
+      maxHeight: Math.max(50, Math.min(options.maxHeight, view.height - top - bottom - 56)),
+      autoPanPaddingTopLeft: [left, top],
+      autoPanPaddingBottomRight: [right, bottom],
+    };
+  }
+
   function bindFeature(ctx, state, data, feature, layer) {
     if (typeof layer.eachLayer === 'function') {
       layer.eachLayer(child => bindFeature(ctx, state, data, feature, child));
       return;
     }
     const { locations } = feature.properties;
-    layer.bindPopup(() => popup(ctx, state, data, feature), { maxWidth: 340, maxHeight: 280 });
+    layer.bindPopup(() => {
+      window.L.setOptions(layer.getPopup(), popupLayout(ctx, state));
+      return popup(ctx, state, data, feature);
+    }, { className: 'ua-ris-popup' });
     layer.on('add', () => {
       const el = layer.getElement();
       if (!el) return;
@@ -434,26 +478,95 @@
     }
   }
 
-  function enable(ctx, state) {
-    if (state.data) {
-      refresh(ctx);
-      return;
-    }
-    state.status.textContent = 'Ratsvorgänge werden geladen …';
-    if (state.pending) return;
+  function loadSnapshot(ctx, state, revalidate = false) {
+    if (state.pending) return state.pending;
+    if (state.data && !revalidate) return Promise.resolve(state.data);
     const city = state.city;
-    const request = Promise.resolve().then(() => UA.RisCatalogue.loadMap(city)).then(indexSnapshot);
+    const request = Promise.resolve().then(() => revalidate
+      ? UA.RisCatalogue.loadMap(city, { revalidate: true })
+      : UA.RisCatalogue.loadMap(city)).then(indexSnapshot);
     state.pending = request;
     request.then(data => {
       if (!current(ctx, state) || state.pending !== request) return;
+      if (state.data) clearLayer(state);
       state.data = data;
       state.pending = null;
-      if (state.toggle.checked) enable(ctx, state);
+      if (state.toggle.checked) refresh(ctx);
     }, error => {
       if (!current(ctx, state) || state.pending !== request) return;
       state.pending = null;
-      if (state.toggle.checked) showError(state, error);
+      if (state.toggle.checked && !state.data) showError(state, error);
     });
+    return request;
+  }
+
+  function enable(ctx, state) {
+    if (state.data) {
+      refresh(ctx);
+    } else {
+      state.status.textContent = 'Ratsvorgänge werden geladen …';
+      loadSnapshot(ctx, state);
+    }
+  }
+
+  function snapshotMatches(manifest, snapshot) {
+    return snapshot?.sha256 && snapshot.mapSha256 && snapshot.city === manifest.city
+      && snapshot.sha256 === manifest.records?.sha256 && snapshot.mapSha256 === manifest.map?.sha256;
+  }
+
+  async function showLocation(ctx, ref, index, isActive) {
+    refresh(ctx);
+    const state = controls.get(ctx);
+    if (!state || !current(ctx, state)) throw new Error('Die Karte ist gerade nicht verfügbar.');
+    const revision = ctx.politicalContextCityRevision;
+    const active = () => current(ctx, state) && ctx.politicalContextCityRevision === revision && isActive();
+    let data;
+    try {
+      data = await loadSnapshot(ctx, state).catch(error => {
+        if (error?.code !== 'RIS_SNAPSHOT_EXPIRED') throw error;
+        return null;
+      });
+      if (!active()) return null;
+      if (!data || !snapshotMatches(data.manifest, ref.snapshot) || UA.RisCatalogue.snapshotStatus(data.manifest).stale) {
+        data = await loadSnapshot(ctx, state, true);
+      }
+    } catch (error) {
+      if (active()) throw error;
+      return null;
+    }
+    if (!active()) return null;
+    if (UA.RisCatalogue.snapshotStatus(data.manifest).expired) {
+      throw new Error('Der Kartenbestand ist abgelaufen.');
+    }
+    if (state.data !== data || !snapshotMatches(data.manifest, ref.snapshot)) {
+      throw new Error('Treffer und Karte stammen aus unterschiedlichen Datenständen. Bitte die Recherche erneut starten.');
+    }
+    const feature = data.features.find(feature => feature.properties.locations.some(location =>
+      location.recordId === ref.id && location.locationIndex === index));
+    if (!feature) throw new Error('Für diesen Ort ist keine Kartenlage verfügbar.');
+    const selection = state.filter.checked && rectOf(ctx.selectionBounds);
+    if (selection && !featureHits(feature, selection)) {
+      throw new Error('Der Ort liegt außerhalb der markierten Fläche.');
+    }
+
+    state.toggle.checked = true;
+    state.body.hidden = false;
+    const [west, south, east, north] = feature.bbox;
+    const bounds = window.L.latLngBounds([south, west], [north, east]);
+    if (!state.map.getBounds().contains(bounds)) {
+      state.map.fitBounds(bounds, { animate: false, maxZoom: Math.max(state.map.getZoom(), 16), padding: [18, 18] });
+    }
+    refresh(ctx);
+    if (!active()) return null;
+    const layer = state.featureLayers.get(feature);
+    const target = layer?.getLayers?.().find(child => {
+      const point = child.getLatLng();
+      return !selection || insideRect([point.lng, point.lat], selection);
+    }) || layer;
+    const element = target?.getElement?.();
+    if (!element) throw new Error('Für diesen Ort ist keine Kartenlage im Kartenausschnitt verfügbar.');
+    target.openPopup();
+    return element;
   }
 
   function controlContent(ctx) {
@@ -514,5 +627,5 @@
     return root;
   }
 
-  UA.RisLayer = { controlContent, refresh };
+  UA.RisLayer = { controlContent, refresh, showLocation };
 })();

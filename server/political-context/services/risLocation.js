@@ -1,14 +1,22 @@
 'use strict';
 
+const { streetJunction, streetSection } = require('./risStreetGeometry');
+const { classifyTrafficRelevance } = require('./trafficRelevanceService');
+
 const WORD = /[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N}'-]*/gu;
 const WORD_CHAR = /^[\p{L}\p{M}\p{N}'-]/u;
-const STREET_CUE = /(?:^|\s)(?:strasse|strassenzug|strassenname|fahrbahn)\s*:?\s*$/u;
+const STREET_CUE = /(?:^|\s)(?:strasse|strassenzug|strassenname|fahrbahn|hochbahnsteig(?:e|en)?|haltestelle(?:n)?)\s*:?\s*$/u;
+const ROADWAY_CUE = /(?:^|\s)(?:fahrbahn|rad(?:fahr)?(?:weg|streifen)|gehweg|strassenbelag|strassendecke)\s+(?:(?:auf|in|an|entlang)\s+(?:der|dem|den|die|des|das)\s+)?$/u;
 const LOCATIVE_CUE = /(?:^|\s)(?:(?:an|auf|in|bei|zu|für|entlang)\s+(?:der|die|dem|des|den|das)|am|im|beim|zum|zur|der|des|für|entlang)\s*$/u;
 const PREPOSITIONAL_NAME = /^(?:am|an|auf|aus|bei|hinter|im|in|neben|über|unter|vor|zum|zur)\s/u;
 const ADJACENT_CUE = /(?:^|\s)(?:neben|vor|hinter|parallel zu[rm])\s+(?:(?:der|dem|den|die|das)\s+)?"?$/u;
 const SPECIFIC_TAIL = /^\s*"?\s*(?:,|(?:nr\.?\s*)?\d|(?:nord|süd|ost|west)\b)/u;
 const MULTIPLE_LOCATIONS = /[\/;&]|\b(?:und|oder|sowie|bzw)\b/u;
 const LIMITED_SCOPE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll|zwischen|bis|bereich|\p{L}*abschnitt(?:e|en|es|s)?|kreuzung(?:en)?|einmündung|abzweig|ecke|höhe|gegenüber|hausnummern?|unterführung(?:en)?|fussgängerzone(?:n)?)\b/u;
+const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispiel|im vergleich zu|als vorbild)\b/u;
+const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
+const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
+const ADDRESS_LIST = new RegExp(`^\\s+(?:(?:nr\\.?|hausnummern?)\\s+)?(${ADDRESS_NUMBER}(?:(?:\\s*,\\s*|\\s+und\\s+)${ADDRESS_NUMBER}){0,7})(?![\\p{L}\\p{N}/-])`, 'u');
 
 function normalize(text) {
   return typeof text === 'string' ? text.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss')
@@ -59,10 +67,11 @@ function indexGazetteer(gazetteer) {
     if (!firstWord || !name.startsWith(firstWord)) continue;
     const attribution = entry.attribution ?? gazetteer.attribution;
     const byName = byFirstWord.get(firstWord) ?? new Map();
+    const textOnly = entry.kind === 'place' && entry.textOnly === true && entry.geometry == null;
     // Same normalized name at several sites stays ambiguous. Segments of a
     // single identified street must already be grouped in the gazetteer.
     if (byName.has(name) || typeof attribution !== 'string' || !attribution.trim()
-      || !validGeometry(entry.geometry, entry.kind)) {
+      || (!textOnly && !validGeometry(entry.geometry, entry.kind))) {
       byName.set(name, null);
     } else {
       byName.set(name, { ...entry, attribution: attribution.trim() });
@@ -72,28 +81,219 @@ function indexGazetteer(gazetteer) {
   return byFirstWord;
 }
 
-function matchTitle(title, byFirstWord) {
-  const subject = normalize(title).replace(/^(?:anfrage|antrag|änderungsantrag|antwort|stellungnahme) (?:der|des) [^:]+:\s*/u, '');
+function matchSingleLocation(text, byFirstWord, fromDocument = false) {
+  const subject = normalize(text).replace(/^(?:anfrage|antrag|änderungsantrag|antwort|stellungnahme) (?:der|des) [^:]+:\s*/u, '');
   if (!subject || LIMITED_SCOPE.test(subject) || MULTIPLE_LOCATIONS.test(subject)) return null;
+  if (fromDocument && COMPARISON_CUE.test(subject)) return null;
 
-  let location = null;
+  let entry = null;
   let explicit = false;
+  let namesRoadway = false;
   for (const word of subject.matchAll(WORD)) {
-    for (const [name, entry] of byFirstWord.get(word[0]) ?? []) {
+    for (const [name, candidate] of byFirstWord.get(word[0]) ?? []) {
       if (!subject.startsWith(name, word.index)) continue;
       const after = subject.slice(word.index + name.length);
       if (WORD_CHAR.test(after)) continue;
-      if (!entry || (location && entry !== location)) return null;
+      if (!candidate || (entry && entry !== candidate)) return null;
       const before = subject.slice(0, word.index);
       if (ADJACENT_CUE.test(before) || SPECIFIC_TAIL.test(after)) return null;
-      location = entry;
+      entry = candidate;
       const quoted = before.endsWith('"') && after.startsWith('"');
       const topic = !before && (!after || after.trimStart().startsWith(':'));
-      explicit ||= quoted || (entry.kind === 'street' && STREET_CUE.test(before))
-        || (!PREPOSITIONAL_NAME.test(name) && (topic || LOCATIVE_CUE.test(before)));
+      const streetCue = entry.kind === 'street' && STREET_CUE.test(before);
+      const locative = !PREPOSITIONAL_NAME.test(name) && LOCATIVE_CUE.test(before);
+      const roadway = entry.kind === 'street' && ROADWAY_CUE.test(before);
+      namesRoadway ||= roadway;
+      explicit ||= streetCue || locative || (fromDocument ? roadway : quoted || (topic && !PREPOSITIONAL_NAME.test(name)));
     }
   }
-  return explicit ? location : null;
+  if (!explicit) return null;
+  // A street in a reply may locate a stop or a building. Its full line is
+  // appropriate only if the roadway itself is the subject of the statement.
+  const geometry = !fromDocument || entry.kind === 'place' || namesRoadway ? entry.geometry : undefined;
+  return { entry, geometry };
+}
+
+function mentions(subject, byFirstWord) {
+  const matches = [];
+  let end = 0;
+  for (const word of subject.matchAll(WORD)) {
+    if (word.index < end) continue;
+    const entries = byFirstWord.get(word[0]);
+    if (!entries) continue;
+    let longest;
+    for (const [name, entry] of entries) {
+      if (subject.startsWith(name, word.index) && !WORD_CHAR.test(subject.slice(word.index + name.length))
+          && (!longest || name.length > longest.name.length)) longest = { name, entry };
+    }
+    if (!longest) continue;
+    end = word.index + longest.name.length;
+    if (longest.entry) matches.push({ entry: longest.entry, index: word.index, end });
+  }
+  return matches;
+}
+
+function location(kind, label, geometry, entries) {
+  return {
+    kind, label,
+    ...(geometry ? { geometry, attribution: [...new Set(entries.map(entry => entry.attribution))].join(' · ') } : {}),
+  };
+}
+
+function endpoint(street, fragment, byFirstWord, stopsOnly) {
+  const hits = mentions(fragment, byFirstWord);
+  const before = hits.length ? fragment.slice(0, hits[0].index) : '';
+  if (!/^(?:(?:der|den|dem|die|zur|zum|kreuzung|einmündung|ecke|knotenpunkt|haltestelle|hochbahnsteig(?:en)?)\s+)*$/u.test(before)) return {};
+  const candidates = hits.map(hit => hit.entry).filter(entry => entry !== street);
+  const place = candidates.filter(entry => entry.kind === 'place' && entry.geometry?.type === 'Point');
+  if (place.length === 1) {
+    return { label: place[0].name, point: place[0].geometry.coordinates, entry: place[0] };
+  }
+  const label = candidates.map(entry => entry.name).join(' / ');
+  if (stopsOnly || place.length) return { label };
+  const crossings = candidates.filter(entry => entry.kind === 'street')
+    .map(entry => [entry, streetJunction(street, entry)]).filter(([, point]) => point);
+  if (!crossings.length || crossings.some(([, point]) => !samePosition(point, crossings[0][1]))) return { label };
+  return { label, point: crossings[0][1], entry: crossings[0][0] };
+}
+
+function measureSections(subject, hits, byFirstWord, used) {
+  const results = [];
+  for (const hit of hits) {
+    const { entry, index, end } = hit;
+    if (used.has(hit) || entry.kind !== 'street') continue;
+    const span = /^\s*[,(:]?\s*(?:(?:im|in dem) (?:abschnitt|bereich)\s+)?(zwischen|von)\s+([^;)]+)/u.exec(subject.slice(end));
+    if (!span) continue;
+    const divider = span[1] === 'von' ? 'bis' : 'und';
+    const bounds = new RegExp(`^(.{1,250}?)\\s+${divider}\\s+(.{1,250})`, 'u').exec(span[2]);
+    if (!bounds) continue;
+    const stopsOnly = /\b(?:hochbahnsteig|haltestell)/u.test(bounds[1]);
+    const from = endpoint(entry, bounds[1], byFirstWord, stopsOnly);
+    const finalBound = bounds[2].split(',', 1)[0];
+    const to = endpoint(entry, finalBound, byFirstWord, stopsOnly);
+    const approach = [from.entry, to.entry].flatMap(anchor => {
+      const link = anchor?.sectionLink;
+      return link?.street === entry.name && link.geometry?.type === 'LineString' && isLine(link.geometry.coordinates)
+        ? [link.geometry.coordinates] : [];
+    });
+    const extraBoundary = /\b(?:bis|zwischen|von)\s+/u.test(bounds[2]);
+    const geometry = !extraBoundary && from.point && to.point ? streetSection(entry, from.point, to.point, approach) : null;
+    const label = !extraBoundary && from.label && to.label ? `${entry.name}, ${from.label} bis ${to.label}` : entry.name;
+    results.push(location('section', label, geometry, [entry, from.entry, to.entry].filter(Boolean)));
+    // Anchor mentions belong to this section and are not separate measures.
+    const sectionEnd = end + span[0].length - bounds[2].length + finalBound.length;
+    for (const mention of hits) {
+      if (mention.index >= index && mention.index < sectionEnd) used.add(mention);
+    }
+  }
+  return results;
+}
+
+function measureJunctions(subject, streets, used) {
+  const results = [];
+  let previousEnd = -1;
+  for (let index = 0; index + 1 < streets.length; index++) {
+    const first = streets[index];
+    const second = streets[index + 1];
+    const continuation = previousEnd >= 0 && /^\s*(?:,|und|sowie)\s*$/u.test(subject.slice(previousEnd, first.index));
+    if (first.entry === second.entry || (!continuation && !JUNCTION_CUE.test(subject.slice(0, first.index)))
+        || !/^(?:\s*\/\s*|\s+(?:mit|und|richtung)\s+(?:der\s+)?)$/u.test(subject.slice(first.end, second.index))) continue;
+    const point = streetJunction(first.entry, second.entry);
+    const label = `${first.entry.name} / ${second.entry.name}`;
+    results.push(location('junction', label, point && { type: 'Point', coordinates: point }, [first.entry, second.entry]));
+    used.add(first);
+    used.add(second);
+    previousEnd = second.end;
+    index++;
+  }
+  return results;
+}
+
+function measureAddresses(subject, streets, gazetteer, used) {
+  const results = [];
+  for (const hit of streets) {
+    const { entry, end } = hit;
+    const numbers = ADDRESS_LIST.exec(subject.slice(end));
+    if (!numbers || /^\s+(?:km|meter|minuten|bis)\b/u.test(subject.slice(end + numbers[0].length))) continue;
+    used.add(hit);
+    for (const number of numbers[1].split(/\s*,\s*|\s+und\s+/u)) {
+      const key = number.replace(/\s+/gu, '').replace(/^0+(?=\d)/u, '');
+      const label = `${entry.name} ${key.replace(/[a-z]+$/u, suffix => ` ${suffix.toUpperCase()}`)}`;
+      const coordinates = gazetteer.addresses?.[entry.streetKey]?.[key];
+      const geometry = isPosition(coordinates) ? { type: 'Point', coordinates } : null;
+      results.push(location('address', label, geometry, [{ attribution: gazetteer.addressAttribution || entry.attribution }]));
+    }
+  }
+  return results;
+}
+
+function measurePlaceList(subject, hits) {
+  const list = new Set();
+  const bounded = [];
+  for (let index = 0; index + 1 < hits.length; index++) {
+    const first = hits[index];
+    const second = hits[index + 1];
+    const before = subject.slice(0, first.index);
+    if (!/^\s+(?:und|sowie|oder)\s+(?:(?:in|im|an|am|auf)\s+)?(?:(?:der|die|den)\s+)?$/u.test(subject.slice(first.end, second.index))) continue;
+    if (/\bzwischen\s+(?:(?:der|den|dem)\s+)?$/u.test(before)) {
+      bounded.push(location('place', `Bereich zwischen ${first.entry.name} und ${second.entry.name}`, null, []));
+    } else if (!LIMITED_SCOPE.test(subject) && !/\([^()]*$/u.test(before)
+        && /\b(?:an|am|im|in|auf|entlang|der|die|den)\s*$/u.test(before)) {
+      list.add(first.entry);
+      list.add(second.entry);
+    }
+  }
+  return [...bounded, ...[...list].map(entry => location(entry.kind, entry.name, entry.geometry, [entry]))];
+}
+
+function parseMeasureLocations(text, byFirstWord, gazetteer) {
+  const subject = normalize(text)
+    .replace(/(\p{L})str(?:\.(?=\s|[/,;)]|$)|(?=\s+\d))/gu, '$1strasse')
+    .replace(/([\p{L}\p{M}-]+)-\s+(und|sowie|oder)\s+((?:(?:die|der|den)\s+)?[\p{L}\p{M}-]+strasse)\b/gu,
+      '$1strasse $2 $3');
+  const hits = mentions(subject, byFirstWord);
+  const used = new Set();
+  const remainingStreets = () => hits.filter(hit => hit.entry.kind === 'street' && !used.has(hit));
+  return [
+    ...measureSections(subject, hits, byFirstWord, used),
+    ...measureJunctions(subject, remainingStreets(), used),
+    ...measureAddresses(subject, remainingStreets(), gazetteer, used),
+    ...measurePlaceList(subject, hits.filter(hit => !used.has(hit))),
+  ];
+}
+
+function measureLocations(record, byFirstWord, gazetteer) {
+  const document = record.locationEvidence.flatMap(paragraph =>
+    paragraph.split(/(?<=[.!?])\s+(?=[\p{Lu}„])/u));
+  const evidence = [...document.map(text => ({ source: 'document', text })), { source: 'title', text: record.title }];
+  const locations = new Map();
+  const general = [];
+  const keep = (found, proof) => {
+    const key = `${found.kind}:${normalize(found.label)}`;
+    const existing = locations.get(key);
+    if (!existing || (!existing.geometry && found.geometry)) locations.set(key, { ...found, evidence: proof });
+  };
+  for (const proof of evidence) {
+    const specific = parseMeasureLocations(proof.text, byFirstWord, gazetteer);
+    for (const found of specific) keep(found, proof);
+    if (!specific.length) {
+      const match = matchSingleLocation(proof.text, byFirstWord, proof.source === 'document');
+      if (match) general.push({ ...match, proof });
+    }
+  }
+  const specified = new Set([...locations.values()].flatMap(found =>
+    mentions(normalize(found.label), byFirstWord).map(hit => hit.entry)));
+  for (const { entry, geometry, proof } of general) {
+    if (!specified.has(entry)) keep(location(entry.kind, entry.name, geometry, [entry]), proof);
+  }
+  const selected = [...locations.values()].slice(0, 8);
+  if (!selected.some(found => found.kind === 'address' && found.geometry)) return selected;
+  const relevance = classifyTrafficRelevance({ title: record.title, snippet: document.join(' '), gremium: record.gremium });
+  if (relevance.isTrafficRelevant) return selected;
+  // Exact residential address markers belong to the traffic analysis only
+  // when the document has a traffic connection. Its text remains searchable.
+  return selected.map(found => found.kind === 'address'
+    ? { kind: found.kind, label: found.label, evidence: found.evidence } : found);
 }
 
 /**
@@ -109,14 +309,19 @@ function enrichRisLocations(records, { city, gazetteer } = {}) {
   const byFirstWord = indexGazetteer(gazetteer);
   return records.map(record => {
     if (record.geometry != null) return record;
-    const entry = matchTitle(record.title, byFirstWord);
-    if (!entry) return record;
+    if (Array.isArray(record.locationEvidence)) {
+      const locations = measureLocations(record, byFirstWord, gazetteer);
+      return locations.length ? { ...record, locations } : record;
+    }
+    const match = matchSingleLocation(record.title, byFirstWord);
+    if (!match?.geometry) return record;
+    const { entry, geometry } = match;
     const scope = entry.kind === 'street'
       ? `${entry.extent === 'part' ? 'kartierter Teil des Straßenverlaufs' : 'Straßenverlauf'} als Orientierung`
       : 'benannter Ort';
     return {
       ...record,
-      geometry: entry.geometry,
+      geometry,
       locationSource: 'derived',
       locationLabel: `${entry.name} – Namensabgleich im Titel, ${scope} · ${entry.attribution}`,
     };

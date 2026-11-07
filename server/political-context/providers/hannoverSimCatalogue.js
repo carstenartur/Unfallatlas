@@ -13,7 +13,7 @@ const DAY_MS = 86_400_000;
 const RSS_DAYS = 14;
 const MONTHS = 'jan feb mar apr may jun jul aug sep oct nov dec'.split(' ');
 const ATTRS = String.raw`((?:[^"'<>]|"[^"]*"|'[^']*')*)`;
-const NUMBER = /^((?:(?:[A-Z]{1,3}|\d{1,2})-)?\d{1,6})[-/](\d{4})(?:[ -]?([A-Z]{1,3}\d{1,3}))?$/i;
+const NUMBER = /^((?:(?:[A-Z]{1,3}|\d{1,2})-)?\d{1,6})[-/](\d{4})((?:[ -]?[A-Z]{1,3}\d{1,3}){0,3})$/i;
 const ENTITIES = {
   nbsp: ' ', auml: 'ä', Auml: 'Ä', ouml: 'ö', Ouml: 'Ö', uuml: 'ü', Uuml: 'Ü', szlig: 'ß',
   apos: "'", ndash: '–', mdash: '—', hellip: '…', bdquo: '„', ldquo: '“', rdquo: '”',
@@ -90,9 +90,10 @@ function documentNumber(value) {
   const parts = value.match(NUMBER);
   if (!parts) return null;
   const [, prefix, year, ending] = parts;
-  const suffix = (ending || '').toUpperCase();
+  const suffixes = ending.toUpperCase().match(/[A-Z]{1,3}\d{1,3}/g) || [];
+  const suffix = suffixes.join('');
   const baseKey = `${prefix.toUpperCase()}-${year}`;
-  return { key: baseKey + suffix, baseKey, suffix, number: `${prefix.toUpperCase()}/${year}${suffix ? ` ${suffix}` : ''}` };
+  return { key: baseKey + suffix, baseKey, suffix, number: [ `${prefix.toUpperCase()}/${year}`, ...suffixes ].join(' ') };
 }
 
 function sourceLink(href, bases, kind) {
@@ -197,7 +198,56 @@ function parseAgenda(text, { url, date, label }) {
   return { documents, date, gremium };
 }
 
-function parseDocument(text, doc) {
+function visibleMeasureMarkup(markup) {
+  const tags = new RegExp(`<(/?)([a-z][\\w:-]*)\\b${ATTRS}>`, 'gi');
+  const ignored = [];
+  let cursor = 0;
+  let visible = '';
+  for (const token of markup.matchAll(tags)) {
+    const [tag, close, rawName, rawAttributes] = token;
+    const name = rawName.toLowerCase();
+    const end = token.index + tag.length;
+    const voidElement = /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/.test(name)
+      || /\/\s*>$/.test(tag);
+    if (ignored.length) {
+      if (close && ignored.at(-1) === name) ignored.pop();
+      else if (!close && !voidElement) ignored.push(name);
+      cursor = end;
+      continue;
+    }
+    if (close) continue;
+    const attrs = attributes(rawAttributes);
+    const style = attrs.style || '';
+    if (/^(?:del|s|strike|blockquote)$/.test(name) || privateRow(attrs)
+        || /(?:display\s*:\s*none|visibility\s*:\s*hidden|text-decoration[^:;]*:[^;]*line-through)/i.test(style)) {
+      visible += `${markup.slice(cursor, token.index)} `;
+      cursor = end;
+      if (!voidElement) ignored.push(name);
+    }
+  }
+  return visible + (ignored.length ? '' : markup.slice(cursor));
+}
+
+function measureText(markup) {
+  const visible = visibleMeasureMarkup(markup);
+  const heading = elements(visible, 'h3').find(match => /^Inhalt der Drucksache/i.test(plain(match[2])));
+  if (!heading) return [];
+  const body = visible.slice(heading.index + heading[0].length);
+  const answer = headingSection(body, /^(?:text der antwort|antwort(?: der verwaltung)?)\s*:?$/i);
+  const motion = headingSection(body, /^(?:antrag|anfrage|beschluss(?:vorschlag)?|entscheidung)\s*:?$/i);
+  // The portal uses an empty h4 for unlabelled request text. In a reply the
+  // same section may reproduce the original question above the actual answer.
+  const content = answer || motion || headingSection(body, /^$/);
+  return content
+    .replace(/<(b|strong)\b[^>]*>\s*(?:<u>\s*)?frage\s+\d+\s*:\s*(?:<\/u>\s*)?<\/\1>\s*<(b|strong)\b[^>]*>[\s\S]*?<\/\2>/gi, '\n')
+    .replace(/<(b|strong)\b[^>]*>\s*(?:<u>\s*)?frage\s+\d+\s*:[\s\S]*?<\/\1>/gi, '\n')
+    .split(/<(?:br\b[^>]*|\/(?:p|li|div|tr)\s*)>/i)
+    .map(plain)
+    .filter(value => value && value.length <= 4000)
+    .slice(0, 40);
+}
+
+function parseDocument(text, doc, includeLocationEvidence) {
   const { main, bases } = htmlPage(text, doc.url);
   const h2 = elements(main, 'h2')[0];
   const heading = plain(h2?.[2]).match(/^(.{1,100}?)\s+Nr\.?\s*(.+?):\s*(.+)$/i);
@@ -206,7 +256,8 @@ function parseDocument(text, doc) {
     throw new Error('Keine öffentliche Drucksache mit der erwarteten Drucksachennummer');
   }
   const title = heading[3];
-  const metadata = main.slice(0, elements(main, 'h3').find(match => /^Inhalt der Drucksache/i.test(plain(match[2])))?.index);
+  const contentHeading = elements(main, 'h3').find(match => /^Inhalt der Drucksache/i.test(plain(match[2])));
+  const metadata = main.slice(0, contentHeading?.index);
   const relatedSection = headingSection(metadata, /^verwandte Drucksachen\s*:?$/i);
   const relatedRows = elements(relatedSection, 'tr');
   const related = (relatedRows.length ? rowLinks(relatedRows, bases) : links(relatedSection, bases, 'document'))
@@ -222,6 +273,7 @@ function parseDocument(text, doc) {
     date: isoDate(dateText) || germanDate(dateText),
     gremium: meetingLabel?.replace(/^\d{1,2}\.\d{1,2}\.\d{4}\s*:\s*/, '') || plain(notified) || null,
     related,
+    ...(includeLocationEvidence ? { locationEvidence: measureText(main) } : {}),
   };
 }
 
@@ -283,6 +335,7 @@ function boundedOption(value, fallback, maximum) {
  * `discoverArchives: ['districts', 'committees']` follows the optional official archive selectors.
  * `archiveBodies` optionally limits discovery to the exact official link labels, in addition to Rat.
  * `strict` rejects technical failures or truncation so a publisher can retain its previous snapshot.
+ * `includeLocationEvidence` retains the public measure text for build-time geocoding.
  * `requestText(url, { timeoutMs, maxBytes })` may supply { url, status, contentType, text }.
  */
 async function collectHannoverCatalogue(options = {}) {
@@ -432,7 +485,7 @@ async function collectHannoverCatalogue(options = {}) {
     const next = pending.splice(0, Math.min(concurrency, maxDocuments - attempted));
     attempted += next.length;
     const related = [];
-    const results = await Promise.all(next.map(doc => load(doc.url, 'Drucksachen', text => parseDocument(text, doc))));
+    const results = await Promise.all(next.map(doc => load(doc.url, 'Drucksachen', text => parseDocument(text, doc, options.includeLocationEvidence))));
     for (const [index, result] of results.entries()) {
       if (!result) continue;
       const doc = next[index];
@@ -466,6 +519,7 @@ async function collectHannoverCatalogue(options = {}) {
       type: type === 'Sonstige' ? inferType(result.title, '') : type,
       date: result.date || doc.feedDate || null, gremium: doc.agendaBody || doc.feedBodies?.join(', ') || result.gremium,
       url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
+      ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
     };
   });
   records.sort((a, b) => a.id.localeCompare(b.id));

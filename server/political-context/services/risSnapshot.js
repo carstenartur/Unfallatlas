@@ -7,6 +7,12 @@ const path = require('node:path');
 const { URL } = require('node:url');
 const { promisify, TextDecoder } = require('node:util');
 const zlib = require('node:zlib');
+const { snapshotFormat } = require('../../../js/ua.ris-catalogue.js');
+
+// Publication and the browser apply the same location and feature contract.
+const {
+  MAX_LOCATIONS_PER_RECORD, validLocations, validGeometry, validLocationGeometry, validAccuracy, validMap, validLocationRevision,
+} = snapshotFormat;
 
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
@@ -140,16 +146,15 @@ function normalizeCoverage(value) {
   };
 }
 
-function normalizeRecords(values, hosts, count) {
+function normalizeRecords(values, hosts, count, collectLocations = value => value.locations) {
   if (!Array.isArray(values) || !values.length || values.length > MAX_RECORDS || (count !== undefined && values.length !== count)) {
     throw new Error('Invalid RIS record count');
   }
-  const ids = new Set();
+  const byId = new Map();
   const records = Array.from(values, value => {
     if (!isObject(value)) throw new Error('Invalid RIS record');
     const id = sourceId(value.id);
-    if (ids.has(id)) throw new Error('Duplicate RIS record ID');
-    ids.add(id);
+    if (byId.has(id)) throw new Error('Duplicate RIS record ID');
     if (!hosts.has(safeUrlHost(value.url))) throw new Error('RIS citation must use a declared official HTTPS source host');
     const record = {
       id,
@@ -162,65 +167,53 @@ function normalizeRecords(values, hosts, count) {
       source: requiredText(value.source, 'record source'),
     };
     if (value.relatedTo != null) record.relatedTo = sourceId(value.relatedTo);
+    const locations = collectLocations(value, id);
+    if (!validLocations(locations)) throw new Error('Invalid RIS record locations');
+    if (locations !== undefined) record.locations = locations;
+    byId.set(id, record);
     return record;
   });
-  return { records, ids };
+  return { records, byId };
 }
 
-function listOf(values, minimum, validItem) {
-  if (!Array.isArray(values) || values.length < minimum) return false;
-  for (const value of values) if (!validItem(value)) return false;
-  return true;
-}
-
-function position(value) {
-  return Array.isArray(value) && (value.length === 2 || value.length === 3) &&
-    listOf(value, 2, Number.isFinite) && Math.abs(value[0]) <= 180 && Math.abs(value[1]) <= 90;
-}
-
-const line = value => listOf(value, 2, position);
-function ring(value) {
-  if (!listOf(value, 4, position)) return false;
-  const first = value[0];
-  const last = value[value.length - 1];
-  return first.length === last.length && first.every((coordinate, i) => coordinate === last[i]);
-}
-const polygon = value => listOf(value, 1, ring);
-const geometryValidators = new Map([
-  ['Point', position],
-  ['MultiPoint', value => listOf(value, 1, position)],
-  ['LineString', line],
-  ['MultiLineString', value => listOf(value, 1, line)],
-  ['Polygon', polygon],
-  ['MultiPolygon', value => listOf(value, 1, polygon)],
-]);
-
-function mapFeature(recordId, geometry, accuracy, label) {
-  const valid = isObject(geometry) && !Object.hasOwn(geometry, 'crs') && geometryValidators.get(geometry.type);
-  if (!valid || !valid(geometry.coordinates) || (accuracy !== 'official' && accuracy !== 'derived')) return null;
+function mapFeature(recordId, geometry, accuracy, label, locationIndex) {
   const properties = { recordId, accuracy };
   const location = normalizedText(label);
   if (location) properties.label = location;
+  if (locationIndex !== undefined) properties.locationIndex = locationIndex;
   return { type: 'Feature', geometry: { type: geometry.type, coordinates: geometry.coordinates }, properties };
 }
 
-function normalizeMap(value, recordIds, count) {
-  if (!isObject(value) || value.type !== 'FeatureCollection' || Object.hasOwn(value, 'crs') ||
-      !Array.isArray(value.features) || value.features.length !== count) {
-    throw new Error('Invalid RIS map feature count or collection');
+function collectSourceLocations(record, id, features) {
+  const { locations, geometry, locationSource, locationLabel } = record;
+  if (locations !== undefined && (!Array.isArray(locations) || locations.length > MAX_LOCATIONS_PER_RECORD)) {
+    throw new Error('Invalid RIS record locations');
   }
-  const seen = new Set();
-  const features = value.features.map(feature => {
-    if (!isObject(feature) || feature.type !== 'Feature' || Object.hasOwn(feature, 'crs') || !isObject(feature.properties)) {
-      throw new Error('Invalid RIS map feature');
+  if (!locations?.length) {
+    if (validGeometry(geometry) && validAccuracy(locationSource)) {
+      features.push(mapFeature(id, geometry, locationSource, locationLabel));
     }
-    const { recordId, accuracy, label } = feature.properties;
-    if (!recordIds.has(recordId) || seen.has(recordId)) throw new Error('RIS map feature must refer to a unique record');
-    seen.add(recordId);
-    const normalized = mapFeature(recordId, feature.geometry, accuracy, label);
-    if (!normalized) throw new Error('Invalid RIS map geometry or accuracy');
-    return normalized;
+    return locations;
+  }
+  // Use the same location positions in both assets, including unmapped mentions.
+  return Array.from(locations, (value, locationIndex) => {
+    if (!isObject(value) || !isObject(value.evidence)) throw new Error('Invalid RIS record location');
+    const label = requiredText(value.label, 'location label');
+    const evidence = { source: value.evidence.source, text: requiredText(value.evidence.text, 'location evidence') };
+    const attribution = value.attribution === undefined ? '' : requiredText(value.attribution, 'location attribution');
+    const mapped = validLocationGeometry(value.geometry, value.kind);
+    if (mapped) {
+      const mapLabel = attribution ? requiredText(`${label} — ${attribution}`, 'location map label') : label;
+      features.push(mapFeature(id, value.geometry, 'derived', mapLabel, locationIndex));
+    }
+    return { label, kind: value.kind, evidence, mapped };
   });
+}
+
+function normalizeMap(value, recordsById, count) {
+  if (!validMap(value, recordsById, count)) throw new Error('Invalid RIS map features, record IDs or location indices');
+  const features = value.features.map(({ geometry, properties: { recordId, accuracy, label, locationIndex } }) =>
+    mapFeature(recordId, geometry, accuracy, label, locationIndex));
   return { type: 'FeatureCollection', features };
 }
 
@@ -336,14 +329,13 @@ async function installAsset(directory, { bytes, reference }, kind) {
 async function writeRisSnapshot(directory, city, catalogue, { now = Date.now } = {}) {
   assertCity(city);
   if (!isObject(catalogue)) throw new Error('Invalid RIS catalogue');
+  const { locationRevision } = catalogue;
+  if (!validLocationRevision(locationRevision)) throw new Error('Invalid RIS location revision');
   const { sources, hosts } = normalizeSources(catalogue.sources, city);
   const coverage = normalizeCoverage(catalogue.coverage);
-  const { records } = normalizeRecords(catalogue.records, hosts);
-  const features = records.flatMap(({ id }, index) => {
-    const { geometry, locationSource, locationLabel } = catalogue.records[index];
-    const feature = mapFeature(id, geometry, locationSource, locationLabel);
-    return feature ? [feature] : [];
-  });
+  const features = [];
+  const { records } = normalizeRecords(catalogue.records, hosts, undefined,
+    (record, id) => collectSourceLocations(record, id, features));
   const date = new Date(typeof now === 'function' ? now() : now);
   if (!Number.isFinite(date.getTime())) throw new Error('Invalid RIS generation timestamp');
   const generatedAt = timestamp(date.toISOString());
@@ -355,6 +347,7 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now } =
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
     records: recordsAsset.reference, map: mapAsset.reference,
+    ...(locationRevision === undefined ? {} : { locationRevision }),
   };
   const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
   if (bytes.length > MAX_MANIFEST_BYTES) throw new Error('RIS manifest exceeds its size limit');
@@ -373,21 +366,24 @@ async function readRisSnapshot(directory, city) {
   const value = decodeJson(bytes, 'manifest');
   if (!isObject(value) || value.schemaVersion !== SCHEMA_VERSION) throw new Error('Unsupported RIS snapshot schema version');
   if (value.city !== city) throw new Error('RIS snapshot city does not match the requested city');
+  const { locationRevision } = value;
+  if (!validLocationRevision(locationRevision)) throw new Error('Invalid RIS location revision');
   const generatedAt = timestamp(value.generatedAt);
   const refreshFailure = Object.hasOwn(value, 'refreshFailure') ? normalizeRefreshFailure(value.refreshFailure, generatedAt) : null;
   const { sources, hosts } = normalizeSources(value.sources, city);
   const coverage = normalizeCoverage(value.coverage);
   const recordsAsset = normalizeDescriptor(value.records, city, 'records', 1, MAX_RECORDS);
-  const mapAsset = normalizeDescriptor(value.map, city, 'map', 0, recordsAsset.count);
+  const mapAsset = normalizeDescriptor(value.map, city, 'map', 0, recordsAsset.count * MAX_LOCATIONS_PER_RECORD);
   const [rows, map] = await Promise.all([
     readAsset(directory, recordsAsset, 'records'),
     readAsset(directory, mapAsset, 'map'),
   ]);
-  const { records, ids } = normalizeRecords(rows, hosts, recordsAsset.count);
-  const features = normalizeMap(map, ids, mapAsset.count);
+  const { records, byId } = normalizeRecords(rows, hosts, recordsAsset.count);
+  const features = normalizeMap(map, byId, mapAsset.count);
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
     records: recordsAsset, map: mapAsset,
+    ...(locationRevision === undefined ? {} : { locationRevision }),
     ...(refreshFailure ? { refreshFailure } : {}),
   };
   return { manifest, records, features };

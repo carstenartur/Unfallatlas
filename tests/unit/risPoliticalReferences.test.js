@@ -96,3 +96,41 @@ test('shows literal search terms without interpreting them as markup', async () 
     search.mockRestore();
   }
 });
+
+test('shows the named places and their evidence in a search result, including text-only places', async () => {
+  require('../../js/ua.utils.js');
+  require('../../js/ua.political-context.js');
+  document.body.innerHTML = '<input id="polCtxSearchInput" value="Limmerstraße">'
+    + '<div id="polCtxStatus"></div><div id="polCtxResults"></div>';
+  const api = window.UA.PoliticalContext;
+  const search = jest.spyOn(api, 'search').mockResolvedValue({
+    references: [{
+      id: 'hannover-sim:15-1570-2026', title: 'Verbesserung der Querungen', type: 'Antrag',
+      url: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1570-2026',
+      locations: [{
+        label: 'Limmerstraße / Kötnerholzweg', kind: 'junction', mapped: true,
+        evidence: { source: 'title', text: 'Querung Limmerstraße / Kötnerholzweg' }
+      }, {
+        label: 'Spielplatz <img src=x>', kind: 'place', mapped: false,
+        evidence: { source: 'document', text: 'am Spielplatz <img src=x>' }
+      }]
+    }],
+    meta: { supported: true, searchStatus: 'results-found' }
+  });
+  try {
+    await api._runSearch({ CITY_RAW: 'Hannover' });
+    const result = document.querySelector('.polCtxRef');
+    const [junction, place] = result.querySelectorAll('li');
+    expect(junction?.textContent).toContain('Kreuzung');
+    expect(junction.textContent).toContain('Limmerstraße / Kötnerholzweg');
+    expect(junction.textContent).toContain('Titel: „Querung Limmerstraße / Kötnerholzweg“');
+    expect(place.textContent).toContain('Spielplatz <img src=x>');
+    expect(place.textContent).toContain('Nicht auf der Karte verortet');
+    expect(place.textContent).toContain('Dokument: „am Spielplatz <img src=x>“');
+    expect(result.querySelector('img')).toBeNull();
+    result.querySelector('input[type="checkbox"]').click();
+    expect(api.getSelectedReferences()[0].title).toBe('Verbesserung der Querungen');
+  } finally {
+    search.mockRestore();
+  }
+});

@@ -257,3 +257,72 @@ test('does not guess an archive URL when the named body is missing from the offi
     archiveBodies: ['Stadtbezirksrat Linden-Limmer'], requestText, strict: true })).rejects.toThrow(/Stadtbezirksrat Linden-Limmer/);
   expect(calls).toEqual([ROOT + 'AuswahlStadtbezirke.xsp']);
 });
+
+test('collects the operative public text for locating the measure, excluding deletions and reasoning', async () => {
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">${TITLE}</a></td></tr>`),
+    [ORIGINAL]: document('Antrag Nr. 1047/2026', 'Ampel an der Davenstedter Straße', '',
+      '<h4>Antrag</h4><div class="row rt"><p>An der Kreuzung Davenstedter Straße/Südfeldstraße wird eine Ampel errichtet.</p>'
+      + '<p><s>Auch an der Kreuzung Fössestraße / Blumenauer Straße wird eine Ampel errichtet.</s></p></div>'
+      + '<h4>Begründung</h4><p>Die Kreuzung Limmerstraße / Kötnerholzweg ist ein Vergleichsfall.</p>'),
+  });
+
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0].locationEvidence).toEqual([
+    'An der Kreuzung Davenstedter Straße/Südfeldstraße wird eine Ampel errichtet.',
+  ]);
+});
+
+test('uses the administrative reply section in preference to the question reproduced above it', async () => {
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ANSWER}">Antwort</a></td></tr>`),
+    [ANSWER]: document('Drucksache Nr. 1047/2026 F1', 'Antwort zu einer Querung', '',
+      '<h4></h4><p>Ist eine Querung an der Kreuzung Davenstedter Straße/Südfeldstraße geplant?</p>'
+      + '<h4>Text der Antwort</h4><div class="row rt">'
+      + '<b><u>Frage 1:</u></b><b> Ist eine Querung an der Kreuzung Davenstedter Straße/Südfeldstraße geplant?</b>'
+      + '<p>Eine Querung ist an der Kreuzung Fössestraße/Blumenauer Straße vorgesehen.</p></div>'),
+  });
+
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0].locationEvidence).toEqual([
+    'Eine Querung ist an der Kreuzung Fössestraße/Blumenauer Straße vorgesehen.',
+  ]);
+});
+
+test('keeps the complete official ID when a reply refers to a revised document', async () => {
+  const revisionReply = 'DS/15-0773-2026N1S1';
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${revisionReply}">Entscheidung</a></td></tr>`),
+    [revisionReply]: document('Drucksache Nr. 15-0773/2026 N1 S1', 'Fahrradabstellplätze in der Limmerstraße'),
+  });
+  const { records } = await collect({ now: TODAY, includeRss: false, requestText, strict: true });
+  expect(records).toMatchObject([{ id: 'hannover-sim:15-0773-2026N1S1', number: '15-0773/2026 N1 S1' }]);
+});
+
+test('limits the published location evidence to the visible operative section', async () => {
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">Querung</a></td></tr>`),
+    [ORIGINAL]: document('Antrag Nr. 1047/2026', 'Ampel', '',
+      '<h4>Antrag</h4><div><p>Öffentlicher Maßnahmenort.</p>'
+      + '<div data-public="false"><p>Vertraulicher Ort.</p><div><p>Auch vertraulich.</p></div></div>'
+      + '<p aria-hidden="true">Unsichtbare Zweitfassung.</p><p style="display: none">Verborgene Angabe.</p></div>'
+      + '<h3>Anderer Abschnitt</h3><p>Kein Teil der Maßnahme.</p>'),
+  });
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0].locationEvidence).toEqual(['Öffentlicher Maßnahmenort.']);
+});
+
+test('does not collect an operative section inside a nonpublic parent', async () => {
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">Querung</a></td></tr>`),
+    [ORIGINAL]: html('<h2>Antrag Nr. 1047/2026: Öffentlicher Titel</h2>'
+      + '<article data-public="false"><h3>Inhalt der Drucksache:</h3><h4>Antrag</h4><p>Vertraulicher Ort.</p></article>'),
+  });
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0].locationEvidence).toEqual([]);
+});

@@ -282,3 +282,51 @@ test('production artifact validation requires both city snapshots', async () => 
     { city: 'bonn' }, { city: 'hannover' },
   ]);
 });
+
+test('rebuilds a fresh legacy Hannover snapshot once to publish measure locations', async () => {
+  await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FRESH });
+  const collect = jest.fn(() => catalogue('hannover'));
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
+    { city: 'hannover', status: 'published' },
+  ]);
+  const { manifest } = await readRisSnapshot(directory, 'hannover');
+  expect(manifest.locationRevision).toBe(1);
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
+    { city: 'hannover', status: 'current' },
+  ]);
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test('publishes a documented Hannover crossing and the three stated addresses from the checked-in geodata', async () => {
+  const { sources, coverage } = catalogue('hannover');
+  const records = [
+    {
+      id: 'hannover-sim:15-0040-2026', number: '15-0040/2026', type: 'Antrag',
+      title: 'Errichtung einer Ampel zur Querung der Davenstedter Straße',
+      date: null, gremium: 'Stadtbezirksrat Linden-Limmer', source: 'hannover-sim',
+      url: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0040-2026',
+      locationEvidence: ['An der Kreuzung Davenstedter Straße/Südfeldstraße wird eine Ampel errichtet.'],
+    },
+    {
+      id: 'hannover-sim:15-2517-2025', number: '15-2517/2025', type: 'Antrag',
+      title: 'Entzerrung Rad-Fußverkehr Stephanusstr 10, 12 und 14',
+      date: null, gremium: 'Stadtbezirksrat Linden-Limmer', source: 'hannover-sim',
+      url: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2517-2025',
+      locationEvidence: ['Die Verwaltung wird gebeten, die Fahrradbügel im Bereich Stephanusstraße 10, 12 und 14 zu verlegen.'],
+    },
+  ];
+  await refresh({ cities: ['hannover'], collect: () => ({ sources, coverage, records }) });
+  const snapshot = await readRisSnapshot(directory, 'hannover');
+  expect(snapshot.records[0].locations).toMatchObject([
+    { kind: 'junction', label: 'Davenstedter Straße / Südfeldstraße', mapped: true },
+  ]);
+  expect(snapshot.records[1].locations.map(({ label, mapped }) => [label, mapped])).toEqual([
+    ['Stephanusstraße 10', true], ['Stephanusstraße 12', true], ['Stephanusstraße 14', true],
+  ]);
+  expect(snapshot.features.features.map(feature => feature.geometry)).toEqual([
+    { type: 'Point', coordinates: [9.684182, 52.366228] },
+    { type: 'Point', coordinates: [9.714685, 52.368463] },
+    { type: 'Point', coordinates: [9.714644, 52.368623] },
+    { type: 'Point', coordinates: [9.714842, 52.368762] },
+  ]);
+});
