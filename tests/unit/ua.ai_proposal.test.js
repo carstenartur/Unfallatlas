@@ -35,6 +35,35 @@ describe('UA.aiProposal (#E1)', () => {
     return p;
   }
 
+  function installSnapshotResearch() {
+    const snapshot = {
+      city: 'bonn', sha256: 'a'.repeat(64), generatedAt: '2026-10-29T09:00:00Z',
+      complete: false, stale: true, warnings: ['Ausschließlich Verkehrsausschuss.']
+    };
+    const ctx = { CITY_RAW: 'Bonn', politicalReferences: [{
+      title: 'Antrag zur Adenauerallee', url: 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=123',
+      snapshot, aiGating: { allowed: false }
+    }] };
+    UA.getRuntimeContext = () => ctx;
+    UA.computeExportReport = async (current) => ({
+      structured: { meta: { city: current.CITY_RAW }, politicalReferences: current.politicalReferences },
+      text: 'Deterministischer Bericht.'
+    });
+    UA.PoliticalContext = {
+      buildSearchTerms: () => ['Adenauerallee'],
+      search: async () => ({
+        references: [...ctx.politicalReferences, { title: 'Nicht ausgewählter Treffer',
+          url: 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=456', snapshot }],
+        meta: { city: 'Bonn', sourceType: 'ris-snapshot', sourceFingerprint: snapshot.sha256,
+          searchedAt: '2026-11-07T12:00:00Z', generatedAt: snapshot.generatedAt,
+          searchStatus: 'partial-results', stale: true, warnings: snapshot.warnings }
+      })
+    };
+    require('../../js/ua.ai_political_evidence.js');
+    require('../../js/ua.ai_political_reference_bridge.js');
+    return ctx;
+  }
+
   test('exposes a public wire() and helpers', () => {
     expect(typeof UA.aiProposal.wire).toBe('function');
     expect(UA.aiProposal._internal.labelForSource('ai')).toBe('KI-generiert');
@@ -87,6 +116,29 @@ describe('UA.aiProposal (#E1)', () => {
     const ta = document.getElementById('exportBoxTa').value;
     expect(ta).toContain('KI-Antragsentwurf');
     expect(ta).toContain('Beschluss XYZ');
+  });
+
+  test('the built-in proposal button binds snapshot provenance and posts only manually selected snapshot links', async () => {
+    const ctx = installSnapshotResearch();
+    window.fetch = jest.fn(async () => ({ ok: true, status: 200, async json() {
+      return { source: 'fallback', result: { shortVersion: 'Entwurf' } };
+    } }));
+    UA.aiProposal.wire(ctx);
+
+    document.getElementById('btnAiProposal').click();
+    await flush();
+
+    const { structured } = JSON.parse(window.fetch.mock.calls[0][1].body);
+    expect(structured.politicalContextResearch).toMatchObject({
+      status: 'incomplete', searchTerms: ['Adenauerallee'], automaticallyAdopted: false,
+      readyToFileBlocked: true, references: [],
+      details: { searchStatus: 'partial-results', sourceFingerprint: 'a'.repeat(64),
+        searchedAt: '2026-11-07T12:00:00Z', warnings: ['Ausschließlich Verkehrsausschuss.'] }
+    });
+    expect(structured.politicalReferences).toEqual([expect.objectContaining({
+      url: 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=123',
+      snapshot: expect.objectContaining({ complete: false, stale: true })
+    })]);
   });
 
   test('503 → friendly status hint, no exception, deterministic export untouched', async () => {
@@ -162,6 +214,26 @@ describe('UA.aiProposal (#E1)', () => {
     expect(prompt).toContain('"city": "Bonn"');
     expect(prompt).toContain('nichts automatisch an einen KI-Dienst gesendet');
     expect(document.getElementById('aiPromptStatus').textContent).toMatch(/Prompt kopiert/);
+  });
+
+  test('the legacy copy button includes the snapshot and political QA rule without calling the AI API', async () => {
+    const ctx = installSnapshotResearch();
+    const writeText = jest.fn(async () => {});
+    Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText } });
+    window.fetch = jest.fn();
+    UA.aiProposal.wire(ctx);
+
+    document.getElementById('btnAiPromptCopy').click();
+    await flush();
+
+    const [, json] = writeText.mock.calls[0][0].match(/```json\n([\s\S]+?)\n```/);
+    const facts = JSON.parse(json);
+    expect(facts).toMatchObject({
+      politicalContextQaRule: { blockingStatuses: expect.arrayContaining(['incomplete']) }
+    });
+    expect(facts.structured.politicalContextResearch.details.searchStatus).toBe('partial-results');
+    expect(facts.structured.politicalReferences[0].snapshot.sha256).toBe('a'.repeat(64));
+    expect(window.fetch).not.toHaveBeenCalled();
   });
 
   test('generateExternalAiPromptPackage reuses one normalized ctx for option mirroring and report computation', async () => {

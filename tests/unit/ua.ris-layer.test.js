@@ -25,7 +25,7 @@ const polygon = feature('C', 'official', 'Polygon', [
 
 function snapshot(features, entries = records) {
   return {
-    manifest: { generatedAt: '2026-08-25T10:00:00Z', coverage: { complete: false, bodies: ['Rat'] } },
+    manifest: { generatedAt: new Date().toISOString(), coverage: { complete: true, bodies: ['Rat'], warnings: [] } },
     records: entries,
     features: { type: 'FeatureCollection', features },
   };
@@ -74,7 +74,9 @@ describe('Ratsvorgänge in the V2 map', () => {
     });
     L.Browser.svg = true; // jsdom provides SVG elements but not the Leaflet capability probe.
     window.L = L;
-    UA = window.UA = { RisCatalogue: { loadMap: jest.fn() }, PoliticalContext: { addReferences: jest.fn() } };
+    UA = window.UA = { PoliticalContext: { addReferences: jest.fn().mockResolvedValue(1) } };
+    loadScript('ua.ris-catalogue.js');
+    UA.RisCatalogue.loadMap = jest.fn();
     loadScript('ua.ris-layer.js');
     loadScript('ua.map_v2.js');
     ctx = {
@@ -85,6 +87,7 @@ describe('Ratsvorgänge in the V2 map', () => {
 
   afterEach(() => {
     ctx.map.remove();
+    jest.useRealTimers();
     L.Browser.svg = svg;
     delete window.UA;
     delete window.L;
@@ -125,6 +128,8 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(popup.querySelector('a[target="_blank"]').rel).toContain('noopener');
     popup.querySelector('button').click();
     expect(UA.PoliticalContext.addReferences).toHaveBeenCalledWith(ctx, [records[0]]);
+    await flush();
+    expect(popup.querySelector('[role="status"]').textContent).toMatch(/übernommen/i);
     marker.getElement().dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(document.querySelector('.leaflet-popup').textContent).toContain('Amtlich verortet');
 
@@ -140,6 +145,54 @@ describe('Ratsvorgänge in the V2 map', () => {
     await flush();
     expect(UA.RisCatalogue.loadMap).toHaveBeenCalledTimes(1);
     expect(risFeatures(ctx.map)).toHaveLength(3);
+  });
+
+  test('reports rejected adoption and reloads the map when reopened after a catalogue change', async () => {
+    const rejection = Promise.reject(Object.assign(new Error('Bitte die Recherche erneut öffnen.'), {
+      code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH',
+    }));
+    rejection.catch(() => {});
+    UA.PoliticalContext.addReferences.mockReturnValue(rejection);
+    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point]));
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+
+    risFeatures(ctx.map)[0].openPopup();
+    const popup = document.querySelector('.leaflet-popup');
+    popup.querySelector('button').click();
+    await flush();
+
+    const status = document.querySelector('.context-overlay-control [role="status"]');
+    expect(status.textContent).toContain('Kartenlayer aus- und wieder einschalten');
+    expect(risFeatures(ctx.map)).toHaveLength(0);
+
+    checkbox('Ratsvorgänge').click();
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledTimes(2);
+  });
+
+  test('does not confirm adoption after the city changes while it is pending', async () => {
+    const pending = deferred();
+    UA.PoliticalContext.addReferences.mockReturnValue(pending.promise);
+    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point]));
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+
+    risFeatures(ctx.map)[0].openPopup();
+    const popup = document.querySelector('.leaflet-popup');
+    const status = popup.querySelector('[role="status"]');
+    popup.querySelector('button').click();
+    expect(status.textContent).not.toMatch(/übernommen/i);
+
+    ctx.CITY_RAW = 'Hannover';
+    UA.renderLayers(ctx);
+    pending.resolve(1);
+    await flush();
+
+    expect(status.textContent).not.toMatch(/übernommen/i);
   });
 
   test.each(['derived', 'official'])('one street path exposes unrelated proceedings on identical geometry (%s)', async accuracy => {
@@ -266,10 +319,69 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(risFeatures(ctx.map)).toHaveLength(0);
   });
 
+  test('marks a formerly current catalogue as stale without a viewport change', async () => {
+    jest.useFakeTimers({ now: Date.parse('2026-11-01T10:00:00Z') });
+    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point]));
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await jest.advanceTimersByTimeAsync(0);
+    const status = document.querySelector('.context-overlay-control [role="status"]');
+    const details = document.querySelector('.context-overlay-control details');
+    expect(status.textContent).not.toMatch(/veraltet|teilbestand/i);
+
+    jest.setSystemTime(new Date('2026-11-09T10:00:01Z'));
+    UA.RisLayer.refresh(ctx);
+
+    expect(status.textContent).toMatch(/veraltet/i);
+    expect(details.querySelector('summary').textContent).toMatch(/teilbestand/i);
+    expect(details.textContent).toMatch(/älter als acht Tage/i);
+    expect(risRecordIds(ctx.map)).toEqual(['A']);
+  });
+
+  test('removes a retained fallback at expiry even while the map sits idle', async () => {
+    const expiresAt = '2026-09-08T10:00:00Z';
+    const warning = 'Die letzte Aktualisierung des Ratsdatenstands ist fehlgeschlagen.';
+    jest.useFakeTimers({ now: Date.parse('2026-09-01T10:00:00Z') });
+    const bundle = snapshot([point]);
+    bundle.manifest.generatedAt = '2026-08-25T10:00:00Z';
+    bundle.manifest.refreshFailure = { attemptedAt: '2026-09-01T09:00:00Z', reason: warning, expiresAt };
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await jest.advanceTimersByTimeAsync(0);
+
+    const status = document.querySelector('.context-overlay-control [role="status"]');
+    const details = document.querySelector('.context-overlay-control details');
+    expect(risRecordIds(ctx.map)).toEqual(['A']);
+    expect(status.textContent).toMatch(/aktualisierung fehlgeschlagen/i);
+    expect(status.textContent).toMatch(/teilbestand/i);
+    expect(status.textContent).not.toMatch(/veraltet/i);
+    expect(details.textContent).toContain(warning);
+
+    await jest.advanceTimersByTimeAsync(Date.parse(expiresAt) - Date.now());
+
+    expect(risRecordIds(ctx.map)).toEqual([]);
+    expect(status.textContent).toMatch(/abgelaufen/i);
+  });
+
+  test('expires an idle map even when the last update never published a warning', async () => {
+    jest.useFakeTimers({ now: Date.parse('2026-11-14T09:59:59Z') });
+    const bundle = snapshot([point]);
+    bundle.manifest.generatedAt = '2026-10-31T10:00:00Z';
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(risRecordIds(ctx.map)).toEqual(['A']);
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(risRecordIds(ctx.map)).toEqual([]);
+  });
+
   test('distinguishes an absent catalogue, an invalid snapshot, and a catalogue without located records', async () => {
     UA.RisCatalogue.loadMap
       .mockRejectedValueOnce(Object.assign(new Error('not found'), { code: 'RIS_SNAPSHOT_UNAVAILABLE' }))
       .mockRejectedValueOnce(Object.assign(new Error('bad digest'), { code: 'RIS_SNAPSHOT_INVALID' }))
+      .mockRejectedValueOnce(Object.assign(new Error('Der letzte geprüfte Ratsdatenstand ist abgelaufen.'), { code: 'RIS_SNAPSHOT_EXPIRED' }))
       .mockResolvedValueOnce(snapshot([]));
     UA.refreshContextOverlays(ctx);
     const button = checkbox('Ratsvorgänge');
@@ -282,6 +394,10 @@ describe('Ratsvorgänge in the V2 map', () => {
     button.click();
     await flush();
     expect(status.textContent).toMatch(/konnte nicht geladen werden/i);
+    button.click();
+    button.click();
+    await flush();
+    expect(status.textContent).toMatch(/abgelaufen/i);
     button.click();
     button.click();
     await flush();

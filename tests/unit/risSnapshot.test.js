@@ -20,6 +20,9 @@ const original = {
 };
 const catalogue = records => ({ records, sources: [source], coverage });
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const refreshFailure = {
+  attemptedAt: '2026-11-07T10:00:00.000Z', reason: 'OParl HTTP 503', expiresAt: '2026-11-14T09:00:00.000Z',
+};
 
 let directory;
 
@@ -162,6 +165,29 @@ test.each([
   mutate(manifest);
   await fs.writeFile(path.join(directory, manifestName), JSON.stringify(manifest));
   await expect(readRisSnapshot(directory, 'bonn')).rejects.toThrow();
+});
+
+test('returns verified refresh failure metadata without rewriting the legacy generation timestamp or coverage', async () => {
+  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([original]), { now: new Date('2026-10-31T09:00:00Z') });
+  const fallback = { ...manifest, generatedAt: '2026-10-31T09:00:00Z', refreshFailure };
+  await fs.writeFile(path.join(directory, manifestName), JSON.stringify(fallback));
+  await expect(readRisSnapshot(directory, 'bonn')).resolves.toMatchObject({ manifest: fallback, records: [original] });
+});
+
+test.each([
+  ['null metadata', null],
+  ['noncanonical attempt timestamp', { ...refreshFailure, attemptedAt: '2026-11-07T10:00:00Z' }],
+  ['invalid calendar day', { ...refreshFailure, attemptedAt: '2026-10-32T10:00:00.000Z' }],
+  ['attempt before generation', { ...refreshFailure, attemptedAt: '2026-10-31T08:00:00.000Z' }],
+  ['attempt at expiry', { ...refreshFailure, attemptedAt: refreshFailure.expiresAt }],
+  ['extended expiry', { ...refreshFailure, expiresAt: '2026-11-15T09:00:00.000Z' }],
+  ['empty reason', { ...refreshFailure, reason: '' }],
+  ['unsafe reason', { ...refreshFailure, reason: 'Source error\n<script>alert(1)</script>' }],
+  ['oversized reason', { ...refreshFailure, reason: 'a'.repeat(241) }],
+])('rejects fallback metadata with %s', async (_name, failure) => {
+  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([original]), { now: new Date('2026-10-31T09:00:00Z') });
+  await fs.writeFile(path.join(directory, manifestName), JSON.stringify({ ...manifest, refreshFailure: failure }));
+  await expect(readRisSnapshot(directory, 'bonn')).rejects.toThrow(/refresh failure/i);
 });
 
 test('rejects a same-length records asset with different decoded bytes', async () => {

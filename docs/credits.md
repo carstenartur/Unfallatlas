@@ -4,7 +4,7 @@
 
 ## Verwendete Bibliotheken
 
-- [Leaflet](https://leafletjs.com/) – BSD-2-Clause · [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) – MIT · [leaflet.heat](https://github.com/Leaflet/Leaflet.heat) – MIT
+- [Leaflet](https://leafletjs.com/) – BSD-2-Clause · [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) – MIT · [leaflet.heat](https://github.com/Leaflet/Leaflet.heat) und [Simpleheat](https://github.com/mourner/simpleheat) – BSD-2-Clause
 - [pdfMake](https://pdfmake.github.io/docs/) · [docx.js](https://docx.js.org/) · [FileSaver.js](https://github.com/nicholasnet/FileSaver.js)
 - Kartenkacheln: © [OpenStreetMap-Mitwirkende](https://www.openstreetmap.org/copyright)
 

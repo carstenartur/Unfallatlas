@@ -391,11 +391,22 @@
     }));
   };
 
-  UA.PoliticalContext.addReferences = function addReferences(ctx, selected) {
+  UA.PoliticalContext.addReferences = async function addReferences(ctx, selected) {
     const city = ctx.CITY_RAW || '';
+    const revision = ctx.politicalContextCityRevision;
+    let verified = selected;
+    if (selected.some(ref => ref.snapshot)) {
+      if (typeof UA.RisCatalogue?.resolveReferences !== 'function') {
+        throw new Error('Der Ratsdatenstand für die Auswahl konnte nicht geprüft werden.');
+      }
+      verified = await UA.RisCatalogue.resolveReferences(city, selected);
+      if (revision !== ctx.politicalContextCityRevision || city !== (ctx.CITY_RAW || '')) {
+        throw new Error('Die Stadt hat sich während der Prüfung geändert.');
+      }
+    }
     const sameCity = !ctx.politicalReferencesCity || ctx.politicalReferencesCity === city;
     const refs = new Map();
-    for (const ref of [...(sameCity ? (ctx.politicalReferences || []) : []), ...selected]) {
+    for (const ref of [...(sameCity ? (ctx.politicalReferences || []) : []), ...verified]) {
       if (ref.snapshot?.city && UA.RisCatalogue?.cityKey?.(city) !== ref.snapshot.city) continue;
       const url = safeReferenceUrl(ref.url);
       if (url && ref.title) refs.set(url, { ...ref, url });
@@ -411,7 +422,9 @@
     ctx.politicalContextCityRevision = Symbol('political-city');
     ctx.politicalSearchRequest = null;
     ctx.politicalContextResearch = null;
+    UA.lastPoliticalContextResearch = null;
     ctx.__uaPoliticalResearchKey = null;
+    ctx.__uaPoliticalResearchRequest = null;
     ctx.__uaPoliticalResearchPromise = null;
     const input = document.getElementById('polCtxSearchInput');
     if (input) input.value = '';
@@ -465,19 +478,24 @@
 
     // Ausgewählte Vorgänge in den Export-Kontext übernehmen
     if (btnAdopt) {
-      btnAdopt.addEventListener('click', () => {
-        const selected = UA.PoliticalContext.getSelectedReferences();
-        if (!selected.length) {
-          alert('Bitte mindestens einen Vorgang auswählen.');
-          return;
-        }
-        // In ctx speichern, damit computeExportReport() sie einbeziehen kann
-        UA.PoliticalContext.addReferences(ctx, selected);
-        closePanel(panel);
-        const count = selected.length;
-        const btnOpenExport = document.getElementById('btnOpenExport');
-        if (btnOpenExport) {
-          alert(`${count} Vorgang/Vorgänge übernommen. Bitte jetzt „Analyse/Export öffnen" klicken.`);
+      btnAdopt.addEventListener('click', async () => {
+        const revision = ctx.politicalContextCityRevision;
+        try {
+          const selected = UA.PoliticalContext.getSelectedReferences();
+          if (!selected.length) {
+            alert('Bitte mindestens einen Vorgang auswählen.');
+            return;
+          }
+          await UA.PoliticalContext.addReferences(ctx, selected);
+          if (revision !== ctx.politicalContextCityRevision) return;
+          closePanel(panel);
+          if (document.getElementById('btnOpenExport')) {
+            alert(`${selected.length} Vorgang/Vorgänge übernommen. Bitte jetzt „Analyse/Export öffnen“ klicken.`);
+          }
+        } catch (error) {
+          if (statusEl && revision === ctx.politicalContextCityRevision) {
+            statusEl.textContent = `Übernahme fehlgeschlagen. ${error.message}`;
+          }
         }
       });
     }

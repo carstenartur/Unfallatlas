@@ -24,6 +24,7 @@ const {
   assertNoRuntimeCdn,
   assertSymlinkFreeTree,
 } = require('./build-site');
+const { LEAFLET_HEAT_ASSET } = require('./vendor-provenance');
 
 function assert(condition, message) {
   if (!condition) throw new Error(`[validate-public-pages-profile] ${message}`);
@@ -61,7 +62,7 @@ function validateHtml(siteRoot) {
   assert(canonical.includes('js/ua.public-preview.js'), 'canonical page lacks the public browser runtime');
 
   for (const reference of [
-    'vendor/leaflet.heat/leaflet-heat.js',
+    LEAFLET_HEAT_ASSET,
     'vendor/leaflet-draw/leaflet.draw.css',
     'vendor/leaflet-draw/leaflet.draw.js',
     'vendor/leaflet-image/leaflet-image.js',
@@ -177,13 +178,13 @@ function validatePublicPagesProfile(options = {}) {
   }
 
   assert(Array.isArray(notice.supplementalLicenses), 'notice lacks supplemental license inventory');
-  const supplementalComponents = new Set();
+  const supplementalComponents = new Map();
   for (const license of notice.supplementalLicenses) {
     assert(license && typeof license.component === 'string' && license.component.trim(),
       'supplemental license lacks component identity');
     assert(!supplementalComponents.has(license.component),
       `duplicate supplemental license for ${license.component}`);
-    supplementalComponents.add(license.component);
+    supplementalComponents.set(license.component, license);
     assert(typeof license.spdx === 'string' && license.spdx.trim(),
       `supplemental license lacks SPDX expression for ${license.component}`);
     assert(typeof license.path === 'string' && license.path.trim(),
@@ -196,13 +197,23 @@ function validatePublicPagesProfile(options = {}) {
     assert(sha256File(absolute) === license.sha256,
       `supplemental license hash drift ${license.path}`);
   }
-  assert(supplementalComponents.has('simpleheat@0.2.0'),
-    'notice lacks supplemental simpleheat license evidence');
-
   const componentByNameVersion = new Map((notice.components || []).map(component => [
     `${component.name}\0${component.version}`,
     component,
   ]));
+  const lockedSimpleheat = lock.packages['node_modules/simpleheat'];
+  assert(lockedSimpleheat && typeof lockedSimpleheat.integrity === 'string' &&
+    lockedSimpleheat.integrity.startsWith('sha512-'), 'simpleheat is not bound to package-lock.json');
+  const simpleheat = componentByNameVersion.get(`simpleheat\0${lockedSimpleheat.version}`);
+  assert(simpleheat && simpleheat.purl === `pkg:npm/simpleheat@${lockedSimpleheat.version}` &&
+    simpleheat.integrity === lockedSimpleheat.integrity && simpleheat.licenseExpression === 'BSD-2-Clause',
+  'notice lacks the locked simpleheat component');
+  const simpleheatLicense = supplementalComponents.get(`simpleheat@${lockedSimpleheat.version}`);
+  assert(simpleheatLicense && simpleheatLicense.spdx === simpleheat.licenseExpression &&
+    Array.isArray(simpleheat.licenseTexts) && simpleheat.licenseTexts.some(license =>
+      license.path === simpleheatLicense.path && license.sha256 === simpleheatLicense.sha256 &&
+      license.copyrightIncluded === true), 'notice lacks supplemental simpleheat license evidence');
+
   const assessmentByPath = new Map((notice.assetAssessments || []).map(asset => [asset.path, asset]));
   exactSorted([...assessmentByPath.keys()], PUBLIC_ASSET_PATHS, 'notice asset assessments');
   for (const manifestAsset of manifest.vendorAssets) {
@@ -212,6 +223,9 @@ function validatePublicPagesProfile(options = {}) {
     const direct = componentByNameVersion.get(`${assessment.package}\0${manifest.dependencies[assessment.package]}`);
     assert(direct && Array.isArray(assessment.contains) && assessment.contains.includes(direct.purl),
       `asset lacks direct package contains relation: ${manifestAsset.path}`);
+    if (manifestAsset.path === LEAFLET_HEAT_ASSET) {
+      assert(assessment.contains.includes(simpleheat.purl), 'heatmap lacks its locked simpleheat component');
+    }
     if (assessment.provenanceComplete === true) {
       assert(Array.isArray(assessment.gaps) && assessment.gaps.length === 0,
         `complete asset declares gaps: ${manifestAsset.path}`);

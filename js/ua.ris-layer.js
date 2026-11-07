@@ -191,10 +191,30 @@
       adopt.type = 'button';
       adopt.className = 'smallBtn';
       adopt.setAttribute('aria-label', `${entry.title} für Bericht übernehmen`);
-      adopt.addEventListener('click', () => {
-        if (!current(ctx, state) || !state.toggle.checked || state.data !== data) return;
-        UA.PoliticalContext.addReferences(ctx, [entry]);
-        status.textContent = 'Vorgang für den Bericht übernommen.';
+      adopt.addEventListener('click', async () => {
+        const revision = ctx.politicalContextCityRevision;
+        const active = () => current(ctx, state) && state.toggle.checked && state.data === data
+          && ctx.politicalContextCityRevision === revision;
+        if (adopt.disabled || !active()) return;
+        adopt.disabled = true;
+        status.textContent = 'Vorgang wird geprüft …';
+        try {
+          await UA.PoliticalContext.addReferences(ctx, [entry]);
+          if (active()) status.textContent = 'Vorgang für den Bericht übernommen.';
+        } catch (error) {
+          if (active()) {
+            if (error?.code === 'RIS_SNAPSHOT_REFERENCE_MISMATCH') {
+              clearLayer(state);
+              state.data = null;
+              state.legend.hidden = state.coverage.hidden = true;
+              state.status.textContent = 'Der Vorgang gehört nicht zum aktuellen Datenstand. Bitte den Kartenlayer aus- und wieder einschalten.';
+            } else {
+              status.textContent = error?.message || 'Der Vorgang konnte nicht übernommen werden.';
+            }
+          }
+        } finally {
+          adopt.disabled = state.data !== data;
+        }
       });
     }
 
@@ -255,6 +275,8 @@
   }
 
   function clearLayer(state) {
+    clearTimeout(state.expiryTimer);
+    state.expiryTimer = undefined;
     if (state.layer) state.layer.remove();
     state.layer = null;
     state.featureLayers.clear();
@@ -264,6 +286,10 @@
   function showError(state, error) {
     if (error?.code === 'RIS_SECURE_CONTEXT_REQUIRED') {
       state.status.textContent = error.message;
+      return;
+    }
+    if (error?.code === 'RIS_SNAPSHOT_EXPIRED') {
+      state.status.textContent = error.message || 'Der letzte Kartenbestand ist abgelaufen. Bitte das amtliche Portal öffnen.';
       return;
     }
     state.status.textContent = error?.code === 'RIS_SNAPSHOT_UNAVAILABLE'
@@ -310,13 +336,15 @@
     return ids.size;
   }
 
-  function draw(ctx, state, rect) {
+  function draw(ctx, state, rect, freshness) {
     const viewport = rectOf(state.map.getBounds());
-    const key = `${rect?.join(',') || 'all'}|${viewport?.join(',') || 'empty'}`;
+    const { complete, stale } = freshness;
+    const key = `${rect?.join(',') || 'all'}|${viewport?.join(',') || 'empty'}|${complete}|${stale}`;
     if (state.rendered === key) return;
     state.rendered = key;
     const data = state.data;
     try {
+      showCoverage(state, data.manifest, freshness);
       const selected = rect ? data.features.filter(feature => featureHits(feature, rect)) : data.features;
       const visible = viewport ? selected.filter(feature => featureHits(feature, viewport)) : [];
       syncVisibleLayers(ctx, state, data, visible);
@@ -333,6 +361,9 @@
         const scope = rect ? ' in der Markierung' : '';
         status = `${total} ${total === 1 ? 'verorteter Ratsvorgang' : 'verortete Ratsvorgänge'}${scope} · ${shown} im Kartenausschnitt`;
       }
+      if (!complete) status += ' · Teilbestand';
+      if (stale) status += ' · Veralteter Datenstand';
+      if (data.manifest.refreshFailure) status += ' · Aktualisierung fehlgeschlagen';
       if (state.status.textContent !== status) state.status.textContent = status;
     } catch (error) {
       clearLayer(state);
@@ -343,20 +374,33 @@
     }
   }
 
-  function showCoverage(state, manifest) {
-    const { generatedAt, coverage } = manifest || {};
-    const { from, to, complete, bodies, warnings } = coverage || {};
+  function showCoverage(state, manifest, { complete, stale, expired, warnings }) {
+    const { generatedAt, coverage: { from, to, bodies } } = manifest;
     const date = value => String(value || '').slice(0, 10).split('-').reverse().join('.');
     const details = state.coverage;
+    const labels = expired ? ['Abgelaufen'] : [!complete && 'Teilbestand', stale && 'Veraltet'].filter(Boolean);
+    const summary = `Datenstand und Abdeckung${labels.length ? ` (${labels.join(', ')})` : ''}`;
+    if (!details.hidden && state.coverageManifest === manifest && details.firstElementChild?.textContent === summary) return;
+    state.coverageManifest = manifest;
     details.replaceChildren();
-    text(details, 'summary', complete === false ? 'Datenstand und Abdeckung (Teilbestand)' : 'Datenstand und Abdeckung');
+    text(details, 'summary', summary);
     const info = text(details, 'div', '');
     info.style.cssText = 'max-height:6rem;overflow:auto';
     if (generatedAt) text(info, 'div', `Stand: ${date(generatedAt)}`);
     if (from || to) text(info, 'div', `Zeitraum: ${date(from) || 'offen'} bis ${date(to) || 'offen'}`);
     if (bodies?.length) text(info, 'div', `Gremien: ${bodies.join(', ')}`);
-    for (const warning of warnings || []) text(info, 'div', warning);
+    for (const warning of warnings) text(info, 'div', warning);
     details.hidden = false;
+  }
+
+  function scheduleFreshnessCheck(ctx, state, checkAt) {
+    if (state.expiryTimer !== undefined || !Number.isFinite(checkAt)) return;
+    // Clamp delays that exceed the browser's timer range.
+    const delay = Math.max(0, Math.min(checkAt - Date.now(), 0x7fffffff));
+    state.expiryTimer = setTimeout(() => {
+      state.expiryTimer = undefined;
+      refresh(ctx);
+    }, delay);
   }
 
   function refresh(ctx) {
@@ -374,12 +418,24 @@
     state.filter.disabled = !rect;
     state.filter.parentElement.style.display = rect ? 'block' : 'none';
     if (!rect) state.filter.checked = false;
-    if (state.toggle.checked && state.data) draw(ctx, state, state.filter.checked ? rect : null);
+    if (state.toggle.checked && state.data) {
+      const { manifest } = state.data;
+      const freshness = UA.RisCatalogue.snapshotStatus(manifest);
+      if (freshness.expired) {
+        clearLayer(state);
+        state.data = null;
+        state.legend.hidden = true;
+        showCoverage(state, manifest, freshness);
+        showError(state, { code: 'RIS_SNAPSHOT_EXPIRED' });
+        return;
+      }
+      scheduleFreshnessCheck(ctx, state, freshness.nextCheckAt);
+      draw(ctx, state, state.filter.checked ? rect : null, freshness);
+    }
   }
 
   function enable(ctx, state) {
     if (state.data) {
-      showCoverage(state, state.data.manifest);
       refresh(ctx);
       return;
     }
@@ -438,6 +494,7 @@
     controls.set(ctx, state);
     state.map.on('moveend', onMove);
     state.map.once('unload', () => {
+      clearTimeout(state.expiryTimer);
       state.map.off('moveend', onMove);
       if (controls.get(ctx) === state) controls.delete(ctx);
     });

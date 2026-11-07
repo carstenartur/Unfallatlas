@@ -4,6 +4,8 @@
 const { createHash } = require('node:crypto');
 const { gzipSync } = require('node:zlib');
 const { createCatalogue, searchSnapshot } = require('../../js/ua.ris-catalogue.js');
+const referenceSchema = require('../../server/political-context/schemas/politicalReference.schema.json');
+const resultSchema = require('../../server/political-context/schemas/politicalReferenceSearchResult.schema.json');
 
 const base = 'https://example.org/Unfallatlas/werkbank_v2.html';
 const source = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/';
@@ -38,7 +40,7 @@ function asset(data, kind, count) {
   };
 }
 
-function fixture() {
+function fixture(clock = now) {
   const index = asset(records, 'records', 2);
   const map = asset(geo, 'map', 1);
   const manifest = {
@@ -48,15 +50,15 @@ function fixture() {
     records: index.entry, map: map.entry
   };
   const requests = [];
+  const assets = new Map([[index.entry.path, index.gzip], [map.entry.path, map.gzip]]);
   const fetch = async (url) => {
     requests.push(url);
     const file = new URL(url).pathname.split('/').pop();
     if (file === 'hannover.json') return Response.json(manifest);
-    if (file === index.entry.path) return new Response(index.gzip);
-    if (file === map.entry.path) return new Response(map.gzip);
+    if (assets.has(file)) return new Response(assets.get(file));
     return new Response(null, { status: 404 });
   };
-  return { manifest, index, map, requests, catalogue: createCatalogue({ base, fetch, now }) };
+  return { manifest, index, map, requests, assets, catalogue: createCatalogue({ base, fetch, now: clock }) };
 }
 
 test('searches the selected same-origin city and loads its map only on demand', async () => {
@@ -82,9 +84,100 @@ test('cannot turn incomplete or stale coverage into a completed zero result', ()
   expect(searchSnapshot({ manifest, records }, params, now()).meta.searchStatus).toBe('incomplete');
   manifest.coverage.complete = true;
   expect(searchSnapshot({ manifest, records }, params, now()).meta.searchStatus).toBe('searched-no-results');
-  manifest.generatedAt = '2026-10-15T10:00:00Z';
+  manifest.generatedAt = '2026-10-29T10:00:00Z';
   expect(searchSnapshot({ manifest, records }, params, now()).meta).toMatchObject({
     searchStatus: 'incomplete', stale: true
+  });
+});
+
+test('rejects an inverted coverage interval before using the data to report an empty search', async () => {
+  const { manifest, catalogue, requests } = fixture();
+  Object.assign(manifest.coverage, { complete: true, from: '2026-12-31', to: '2026-01-01' });
+  await expect(catalogue.search({ city: 'Hannover', searchTerms: ['Oxfordstraße'] }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+  expect(requests).toHaveLength(1);
+});
+
+test('rejects malformed coverage labels and impossible dates even when the payload hash matches', async () => {
+  const invalidCoverage = fixture();
+  invalidCoverage.manifest.coverage.bodies = [{}];
+  await expect(invalidCoverage.catalogue.loadManifest('Hannover')).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+
+  const { manifest, assets, catalogue } = fixture();
+  const invalid = asset([{ ...records[0], date: '2026-02-31' }, records[1]], 'records', 2);
+  manifest.records = invalid.entry;
+  assets.set(invalid.entry.path, invalid.gzip);
+  await expect(catalogue.search({ city: 'Hannover', searchTerms: ['Oxfordstraße'] }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
+test('checks a refreshed descriptor even when the asset path was cached', async () => {
+  let clock = now();
+  const { manifest, catalogue } = fixture(() => clock);
+  const params = { city: 'Hannover', searchTerms: ['Stichkanal'] };
+  expect((await catalogue.search(params)).references).toHaveLength(2);
+  clock = new Date(clock.getTime() + 6 * 60_000);
+  manifest.records.bytes += 1;
+  await expect(catalogue.search(params)).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
+test('marks a recent failed refresh incomplete and expires the fallback from search and map', async () => {
+  let clock = now();
+  const { manifest, catalogue } = fixture(() => clock);
+  const reason = 'Die letzte Aktualisierung der amtlichen Ratsdaten ist fehlgeschlagen.';
+  manifest.coverage.complete = true;
+  manifest.refreshFailure = {
+    attemptedAt: '2026-11-07T09:00:00.000Z', reason, expiresAt: '2026-11-20T10:00:00.000Z'
+  };
+  const params = { city: 'Hannover', searchTerms: ['Oxfordstraße'] };
+  expect((await catalogue.search(params)).meta).toMatchObject({
+    searchStatus: 'incomplete', stale: false, warnings: expect.arrayContaining([expect.stringContaining(reason)])
+  });
+  expect((await catalogue.loadMap('Hannover')).records[0].snapshot).toMatchObject({
+    complete: false, stale: false, warnings: expect.arrayContaining([expect.stringContaining(reason)])
+  });
+  clock = new Date(manifest.refreshFailure.expiresAt);
+  await expect(catalogue.search(params)).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_EXPIRED' });
+  await expect(catalogue.loadMap('Hannover')).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_EXPIRED' });
+});
+
+test('expires a catalogue even if no failed-refresh manifest reached the browser', async () => {
+  let clock = new Date('2026-11-20T09:59:59Z');
+  const { catalogue } = fixture(() => clock);
+  expect((await catalogue.loadMap('Hannover')).records).toHaveLength(2);
+  clock = new Date('2026-11-20T10:00:00Z');
+  expect(catalogue.hasManifest('Hannover')).toBe(false);
+  await expect(catalogue.loadMap('Hannover')).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_EXPIRED' });
+});
+
+test('documents the provenance fields emitted in a fallback search response', () => {
+  const { manifest } = fixture();
+  manifest.refreshFailure = {
+    attemptedAt: '2026-11-07T09:00:00.000Z', reason: 'Aktualisierung fehlgeschlagen.',
+    expiresAt: '2026-11-20T10:00:00.000Z'
+  };
+  const result = searchSnapshot({ manifest, records }, { city: 'Hannover', searchTerms: ['Stichkanal'] }, now());
+  const metaProperties = resultSchema.properties.meta.properties;
+  const referenceProperties = referenceSchema.properties.snapshot.properties;
+  expect(Object.keys(result.meta).filter(field => !Object.hasOwn(metaProperties, field))).toEqual([]);
+  expect(Object.keys(result.meta.refreshFailure).sort()).toEqual(metaProperties.refreshFailure.required.slice().sort());
+  expect(Object.keys(result.references[0].snapshot).filter(field => !Object.hasOwn(referenceProperties, field))).toEqual([]);
+});
+
+test('checks the current verified catalogue before adopting a reference', async () => {
+  const { manifest, catalogue, requests, assets } = fixture();
+  const { references: [reference] } = await catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] });
+  expect(typeof catalogue.resolveReferences).toBe('function');
+  const forged = { ...reference, title: 'Ungeprüfter Titel' };
+  await expect(catalogue.resolveReferences('Hannover', [forged])).resolves.toEqual([reference]);
+  expect(requests.filter(url => url.endsWith('/hannover.json'))).toHaveLength(2);
+  await expect(catalogue.resolveReferences('Hannover', [{ ...reference, id: 'not-in-catalogue' }]))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH' });
+  const next = asset([...records, { ...records[0], id: 'new', url: source + 'DS/4321-2026' }], 'records', 3);
+  manifest.records = next.entry;
+  assets.set(next.entry.path, next.gzip);
+  await expect(catalogue.resolveReferences('Hannover', [reference])).rejects.toMatchObject({
+    code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH'
   });
 });
 

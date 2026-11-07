@@ -298,7 +298,9 @@
           renderPoliticalBackendNotice(panelCtx);
           if (snapshotError.code !== 'RIS_SNAPSHOT_UNAVAILABLE') {
             const status = document.getElementById('polCtxStatus');
-            if (status) status.textContent = 'Der veröffentlichte Ratsdatenstand ist derzeit nicht lesbar.';
+            if (status) status.textContent = snapshotError.code === 'RIS_SNAPSHOT_EXPIRED'
+              ? snapshotError.message
+              : 'Der veröffentlichte Ratsdatenstand ist derzeit nicht lesbar.';
           }
         }
         return result;

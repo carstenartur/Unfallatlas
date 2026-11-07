@@ -18,6 +18,8 @@ const MAX_JSON_BYTES = 16 * 1024 * 1024;
 const MAX_GZIP_BYTES = 5 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 256 * 1024;
 const MAX_FIELD_LENGTH = 4096;
+const RIS_FALLBACK_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const MAX_REFRESH_FAILURE_REASON_LENGTH = 240;
 // Pin the production adapters; new cities use the hosts declared by their collector.
 const OFFICIAL_HOSTS = new Map([
   ['bonn', new Set(['www.bonn.sitzung-online.de', 'bonn.sitzung-online.de', 'www2.bonn.de'])],
@@ -93,15 +95,33 @@ function dateOnly(value, field) {
   throw new Error(`Invalid RIS ${field}; expected YYYY-MM-DD or null`);
 }
 
-function timestamp(value) {
+function timestamp(value, field = 'generation timestamp', canonical = false) {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)) {
     const date = new Date(value);
     if (Number.isFinite(date.getTime())) {
       const normalized = date.toISOString();
-      if (value === normalized || value === normalized.replace('.000Z', 'Z')) return value;
+      if (value === normalized || (!canonical && value === normalized.replace('.000Z', 'Z'))) return value;
     }
   }
-  throw new Error('Invalid RIS generation timestamp');
+  throw new Error(`Invalid RIS ${field}`);
+}
+
+function normalizeRefreshFailure(value, generatedAt) {
+  if (!isObject(value)) throw new Error('Invalid RIS refresh failure metadata');
+  const { reason } = value;
+  if (typeof reason !== 'string' || !reason || reason.length > MAX_REFRESH_FAILURE_REASON_LENGTH ||
+      reason !== normalizedText(reason) || /[<>\p{Cf}\p{Cs}]/u.test(reason)) {
+    throw new Error('Invalid RIS refresh failure reason');
+  }
+  const attemptedAt = timestamp(value.attemptedAt, 'refresh failure attempt timestamp', true);
+  const expiresAt = timestamp(value.expiresAt, 'refresh failure expiry timestamp', true);
+  const generated = Date.parse(generatedAt);
+  const attempted = Date.parse(attemptedAt);
+  const expiry = Date.parse(expiresAt);
+  if (attempted < generated || attempted >= expiry || expiry !== generated + RIS_FALLBACK_MAX_AGE_MS) {
+    throw new Error('Invalid RIS refresh failure time range');
+  }
+  return { attemptedAt, reason, expiresAt };
 }
 
 function normalizeCoverage(value) {
@@ -346,7 +366,7 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now } =
   return manifest;
 }
 
-/** Read one manifest and exactly the assets that manifest addresses. */
+/** Verify the manifest and its assets, including expired snapshots used as a coverage baseline. */
 async function readRisSnapshot(directory, city) {
   assertCity(city);
   const bytes = await readBounded(path.join(directory, `${city}.json`), MAX_MANIFEST_BYTES, 'manifest');
@@ -354,6 +374,7 @@ async function readRisSnapshot(directory, city) {
   if (!isObject(value) || value.schemaVersion !== SCHEMA_VERSION) throw new Error('Unsupported RIS snapshot schema version');
   if (value.city !== city) throw new Error('RIS snapshot city does not match the requested city');
   const generatedAt = timestamp(value.generatedAt);
+  const refreshFailure = Object.hasOwn(value, 'refreshFailure') ? normalizeRefreshFailure(value.refreshFailure, generatedAt) : null;
   const { sources, hosts } = normalizeSources(value.sources, city);
   const coverage = normalizeCoverage(value.coverage);
   const recordsAsset = normalizeDescriptor(value.records, city, 'records', 1, MAX_RECORDS);
@@ -367,8 +388,9 @@ async function readRisSnapshot(directory, city) {
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
     records: recordsAsset, map: mapAsset,
+    ...(refreshFailure ? { refreshFailure } : {}),
   };
   return { manifest, records, features };
 }
 
-module.exports = { writeRisSnapshot, readRisSnapshot };
+module.exports = { writeRisSnapshot, readRisSnapshot, RIS_FALLBACK_MAX_AGE_MS };

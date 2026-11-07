@@ -42,7 +42,10 @@
       "properties": {
         "city": { "type": "string" },
         "generatedAt": { "type": "string" },
-        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "complete": { "type": "boolean" },
+        "stale": { "type": "boolean" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
       }
     },
     "snippet": {

@@ -11,7 +11,9 @@
  */
 
 const { enrichWithReferenceModel } = require('./_portalUtils.js');
-const { officialHttpsUrl, paperDate, mapCataloguePaper } = require('./bonnOparlCatalogueRecord.js');
+const {
+  officialHttpsUrl, paperDate, paperLocationGeometry, mapCataloguePaper,
+} = require('./bonnOparlCatalogueRecord.js');
 const {
   OParlClientError,
   OParlClientErrorCode: HTTP_ERROR_CODE,
@@ -44,9 +46,13 @@ const DEFAULT_BONN_MAX_SCAN_PAGES = positiveInteger(
   process.env.BONN_OPARL_MAX_PAGES,
   300
 );
-const CATALOGUE_TTL_MS = 5 * 60 * 1000;
+const CATALOGUE_TTL_MS = positiveInteger(process.env.BONN_OPARL_CACHE_TTL_MS, 5 * 60 * 1000);
 const MAX_CATALOGUE_SCOPES = 2;
-const catalogueReads = new Map();
+const MAX_CATALOGUE_CACHE_BYTES = positiveInteger(process.env.BONN_OPARL_CACHE_MAX_BYTES, 64 * 1024 * 1024);
+// The official archive already has roughly 25,000 papers.
+const MAX_CATALOGUE_CACHE_ITEMS = positiveInteger(process.env.BONN_OPARL_CACHE_MAX_ITEMS, 60_000);
+const pendingCatalogueReads = new Map();
+const catalogueSnapshots = new Map();
 
 function bodyScore(body) {
   if (!body || typeof body !== 'object') return -1;
@@ -236,6 +242,72 @@ function compactError(error) {
   };
 }
 
+function isScalar(value) {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
+function pickScalars(object, keys) {
+  const projected = {};
+  for (const key of keys) {
+    const value = object?.[key];
+    if (isScalar(value)) projected[key] = value;
+  }
+  return projected;
+}
+
+function projectObjectOrList(value, project) {
+  return Array.isArray(value) ? value.map(project).filter(Boolean) : project(value);
+}
+
+function projectLocation(location) {
+  if (!location || typeof location !== 'object') return null;
+  const projected = pickScalars(location, ['description', 'streetAddress', 'locality', 'deleted']);
+  const geometry = location.deleted === true ? null : paperLocationGeometry(location.geojson);
+  if (geometry) {
+    const name = location.geojson.properties?.name;
+    projected.geojson = typeof name === 'string' ? { ...geometry, properties: { name } } : geometry;
+  }
+  return geometry || projected.description || projected.streetAddress || projected.locality ? projected : null;
+}
+
+function projectConsultation(consultation) {
+  const organization = projectObjectOrList(consultation?.organization, value => {
+    const names = pickScalars(value, ['name', 'shortName']);
+    return names.name || names.shortName ? names : null;
+  });
+  return organization && (!Array.isArray(organization) || organization.length) ? { organization } : null;
+}
+
+function projectRelation(value) {
+  const id = typeof value === 'object' ? value?.id : value;
+  return typeof id === 'string' ? id : null;
+}
+
+function projectPaper(paper) {
+  // Search and catalogue consumers share this subset. Project each page before
+  // accumulating it, so unrelated embedded objects do not live through a crawl.
+  if (!paper || typeof paper !== 'object') return paper ? {} : null;
+  if (paper.deleted === true) return pickScalars(paper, ['id', 'deleted']);
+  const projected = pickScalars(paper, [
+    'id', 'web', 'name', 'reference', 'paperType', 'date', 'modified', 'gremium', 'organizationName',
+  ]);
+  if (Array.isArray(paper.keyword)) projected.keyword = paper.keyword.filter(isScalar);
+  if (paper.mainFile) {
+    projected.mainFile = pickScalars(paper.mainFile, ['name', 'fileName', 'web', 'accessUrl', 'downloadUrl']);
+  }
+  if (Array.isArray(paper.auxiliaryFile)) {
+    projected.auxiliaryFile = paper.auxiliaryFile.map(value => pickScalars(value, ['name', 'fileName']))
+      .filter(file => file.name || file.fileName);
+  }
+  if (paper.location) projected.location = projectObjectOrList(paper.location, projectLocation);
+  if (paper.consultation) projected.consultation = projectObjectOrList(paper.consultation, projectConsultation);
+  if (paper.superordinatedPaper) {
+    projected.superordinatedPaper = projectObjectOrList(paper.superordinatedPaper, projectRelation);
+  }
+  if (paper.relatedPaper) projected.relatedPaper = projectObjectOrList(paper.relatedPaper, projectRelation);
+  return projected;
+}
+
 function mayUseDirectPaperList(systemUrl, params, error) {
   const explicitDirectUrl = normalizeUrl(params.directPaperListUrl);
   const usesOfficialDiscovery = systemUrl === normalizeUrl(SYSTEM_URL);
@@ -365,7 +437,7 @@ function collectionPage(payload, currentUrl, pageSize) {
   if (!last && positiveInteger(totalPages, 0)) {
     last = officialCollectionUrl(currentUrl, pageSize, Number(totalPages));
   }
-  return { ...parsed, next, previous, last };
+  return { ...parsed, data: parsed.data.map(projectPaper), next, previous, last };
 }
 
 async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
@@ -376,8 +448,7 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
   );
   const requestOptions = params.requestOptions || {};
   const firstUrl = officialCollectionUrl(source.paperListUrl, pageSize, 1);
-  const firstPayload = await fetchJsonImpl(firstUrl, requestOptions);
-  const firstPage = collectionPage(firstPayload, firstUrl, pageSize);
+  const firstPage = collectionPage(await fetchJsonImpl(firstUrl, requestOptions), firstUrl, pageSize);
   const cache = new Map([[firstUrl, firstPage]]);
   const visited = new Set();
   const items = [];
@@ -446,6 +517,7 @@ async function fetchPaperList(source, params, fetchJsonImpl) {
 
   const options = {
     fetchJsonImpl,
+    mapItem: projectPaper,
     maxPages: positiveInteger(params.maxPages, DEFAULT_MAX_PAGES),
     query: {
       created_since: createdSinceIso(params.now, params.lookbackYears),
@@ -480,14 +552,14 @@ async function fetchPaperList(source, params, fetchJsonImpl) {
   }
 }
 
-function paperListWarnings(paperList) {
+function paperListWarnings(paperList, pages) {
   const warnings = [];
-  if (paperList.pages.some(page => page.count === 0)) {
+  if (pages.some(page => page.count === 0)) {
     warnings.push('Die Bonner OParl-Paper-Liste enthält mindestens eine leere Seite.');
   }
-  if (!paperList.truncated && paperList.pages.some(({ pagination }) => (
+  if (!paperList.truncated && pages.some(({ pagination }) => (
     (pagination.totalElements != null && Number(pagination.totalElements) !== paperList.items.length)
-    || (pagination.totalPages != null && Number(pagination.totalPages) !== paperList.pages.length)
+    || (pagination.totalPages != null && Number(pagination.totalPages) !== pages.length)
   ))) {
     warnings.push('Die gemeldeten Summen der Bonner OParl-Paginierung stimmen nicht mit dem Abruf überein.');
   }
@@ -516,10 +588,62 @@ function officialJsonFetcher(fetchJsonImpl) {
   return (value, options) => fetchJsonImpl(assertCurrentBonnHttpsUrl(value), options);
 }
 
+function projectSource({ body, bodyList, ...metadata }) {
+  return {
+    ...metadata,
+    body: pickScalars(body, ['id', 'name', 'shortName']),
+    bodyList: { pagesFetched: bodyList.pagesFetched, truncated: bodyList.truncated },
+  };
+}
+
 async function readPaperCatalogue(params, systemUrl, fetchJsonImpl) {
-  const source = await resolvePaperSource(params, fetchJsonImpl, systemUrl);
-  const result = await fetchPaperList(source, params, fetchJsonImpl);
-  return { source, ...result, listWarnings: paperListWarnings(result.paperList) };
+  const source = projectSource(await resolvePaperSource(params, fetchJsonImpl, systemUrl));
+  const { paperList: { pages, ...paperList }, ...listMetadata } = await fetchPaperList(source, params, fetchJsonImpl);
+  return {
+    source,
+    paperList,
+    ...listMetadata,
+    listWarnings: paperListWarnings(paperList, pages),
+  };
+}
+
+function pruneCatalogueSnapshots(now) {
+  for (const [scope, entry] of catalogueSnapshots) {
+    if (entry.expiresAt <= now) catalogueSnapshots.delete(scope);
+  }
+}
+
+function retainCatalogueSnapshot(key, catalogue) {
+  const { items, ...listMetadata } = catalogue.paperList;
+  if (items.length > MAX_CATALOGUE_CACHE_ITEMS) return;
+  // Count the UTF-8 JSON footprint one paper at a time, without building a
+  // second archive-sized string. The item limit also bounds row overhead.
+  let bytes = Buffer.byteLength(key) + Buffer.byteLength(
+    JSON.stringify({ ...catalogue, paperList: { ...listMetadata, items: [] } })
+  );
+  if (bytes > MAX_CATALOGUE_CACHE_BYTES) return;
+  for (const item of items) {
+    bytes += Buffer.byteLength(JSON.stringify(item)) + 1;
+    if (bytes > MAX_CATALOGUE_CACHE_BYTES) return;
+  }
+
+  const now = Date.now();
+  pruneCatalogueSnapshots(now);
+  let totalBytes = bytes;
+  let totalItems = items.length;
+  for (const entry of catalogueSnapshots.values()) {
+    totalBytes += entry.bytes;
+    totalItems += entry.catalogue.paperList.items.length;
+  }
+  for (const [scope, entry] of catalogueSnapshots) {
+    if (catalogueSnapshots.size < MAX_CATALOGUE_SCOPES
+        && totalBytes <= MAX_CATALOGUE_CACHE_BYTES
+        && totalItems <= MAX_CATALOGUE_CACHE_ITEMS) break;
+    catalogueSnapshots.delete(scope);
+    totalBytes -= entry.bytes;
+    totalItems -= entry.catalogue.paperList.items.length;
+  }
+  catalogueSnapshots.set(key, { catalogue, bytes, expiresAt: now + CATALOGUE_TTL_MS });
 }
 
 function loadPaperCatalogue(params, systemUrl, officialOnly = false) {
@@ -536,29 +660,23 @@ function loadPaperCatalogue(params, systemUrl, officialOnly = false) {
     createdSinceIso(params.now, params.lookbackYears),
     request.timeoutMs, request.maxBytes, request.maxRedirects, request.redirectCount,
   ]);
-  const now = Date.now();
-  for (const [scope, entry] of catalogueReads) {
-    if (entry.expiresAt !== null && entry.expiresAt <= now) catalogueReads.delete(scope);
-  }
-  const cached = catalogueReads.get(key);
-  if (cached) return cached.promise;
+  pruneCatalogueSnapshots(Date.now());
+  const cached = catalogueSnapshots.get(key);
+  if (cached) return cached.catalogue;
+  const inFlight = pendingCatalogueReads.get(key);
+  if (inFlight) return inFlight;
 
-  // A cache miss must not evict an in-flight read and start a second crawl of
-  // that scope. If both slots are busy, simply leave the new scope uncached.
-  if (catalogueReads.size >= MAX_CATALOGUE_SCOPES) {
-    const available = [...catalogueReads].find(([, entry]) => entry.expiresAt !== null);
-    if (available) catalogueReads.delete(available[0]);
-  }
-  const promise = readPaperCatalogue(params, systemUrl, officialJsonFetcher(fetchJson));
-  if (catalogueReads.size < MAX_CATALOGUE_SCOPES) {
-    const entry = { promise, expiresAt: null };
-    catalogueReads.set(key, entry);
-    promise.then(({ source, paperList, listWarnings }) => {
-      if (paperList.truncated || source.bodyList.truncated || listWarnings.length) catalogueReads.delete(key);
-      else entry.expiresAt = Date.now() + CATALOGUE_TTL_MS;
-    }, () => { catalogueReads.delete(key); });
-  }
-  return promise;
+  const pending = readPaperCatalogue(params, systemUrl, officialJsonFetcher(fetchJson))
+    .then(catalogue => {
+      const { source, paperList, listWarnings } = catalogue;
+      if (!paperList.truncated && !source.bodyList.truncated && !listWarnings.length) {
+        retainCatalogueSnapshot(key, catalogue);
+      }
+      return catalogue;
+    })
+    .finally(() => { pendingCatalogueReads.delete(key); });
+  pendingCatalogueReads.set(key, pending);
+  return pending;
 }
 
 function discoveryWarning(source) {

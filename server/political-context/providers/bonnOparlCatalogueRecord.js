@@ -66,21 +66,27 @@ const coordinateReaders = {
   MultiPolygon: value => sequence(value, 1, polygon),
 };
 
+function paperLocationGeometry(geojson) {
+  if (!geojson || typeof geojson !== 'object') return null;
+  const geometry = geojson.type === 'Feature' ? geojson.geometry : geojson;
+  if (!geometry || Object.hasOwn(geojson, 'crs') || Object.hasOwn(geometry, 'crs')
+      || typeof geometry.type !== 'string' || !Object.hasOwn(coordinateReaders, geometry.type)) return null;
+  const coordinates = coordinateReaders[geometry.type](geometry.coordinates);
+  return coordinates ? { type: geometry.type, coordinates } : null;
+}
+
 function paperLocation(paper) {
   // The OParl Paper's own locations describe the subject of the document.
   // The location of a meeting or organization has a different meaning.
   for (const location of list(paper.location)) {
-    if (!location || location.deleted === true || !location.geojson) continue;
+    if (!location || location.deleted === true) continue;
     const geojson = location.geojson;
-    const geometry = geojson.type === 'Feature' ? geojson.geometry : geojson;
-    if (!geometry || Object.hasOwn(geojson, 'crs') || Object.hasOwn(geometry, 'crs')
-        || !Object.hasOwn(coordinateReaders, geometry.type)) continue;
-    const coordinates = coordinateReaders[geometry.type](geometry.coordinates);
-    if (!coordinates) continue;
+    const geometry = paperLocationGeometry(geojson);
+    if (!geometry) continue;
     const label = text(location.description) || text(location.streetAddress)
       || text(geojson.properties && geojson.properties.name) || text(location.locality);
     return {
-      geometry: { type: geometry.type, coordinates },
+      geometry,
       locationSource: 'official',
       ...(label ? { locationLabel: label } : {}),
     };
@@ -124,4 +130,4 @@ function mapCataloguePaper(paper, url, source, date) {
   };
 }
 
-module.exports = { officialHttpsUrl, paperDate, mapCataloguePaper };
+module.exports = { officialHttpsUrl, paperDate, paperLocationGeometry, mapCataloguePaper };

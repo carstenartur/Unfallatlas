@@ -71,6 +71,7 @@ test('Hannover searches the published index and exports the linked SIM documents
   await expect(results.getByRole('link').nth(1)).toHaveAttribute('href', answer.url);
   for (const checkbox of await results.getByRole('checkbox').all()) await checkbox.check();
   await page.locator('#polCtxBtnAdopt').click();
+  await expect.poll(() => page.evaluate(() => window.UA.getRuntimeContext().politicalReferences?.length)).toBe(2);
   const report = await page.evaluate(async () => {
     const ctx = window.UA.getRuntimeContext();
     const result = await window.UA.computeExportReport(ctx);
@@ -82,7 +83,7 @@ test('Hannover searches the published index and exports the linked SIM documents
       snapshot: expect.objectContaining({ sha256: manifest.records.sha256 }) })
   ]));
   expect(report.text).toContain(answer.url);
-  expect(requests.map(request => request.file)).toEqual(['hannover.json', manifest.records.path]);
+  expect(requests.map(request => request.file)).toEqual(['hannover.json', manifest.records.path, 'hannover.json']);
   expect(requests.every(request => request.method === 'GET')).toBe(true);
   expect(external).toEqual([]);
 });
@@ -111,7 +112,7 @@ test('Bonn loads the optional map layer and offers official links in its popup',
   await expect.poll(() => page.evaluate(() =>
     window.UA.getRuntimeContext().politicalReferences?.[0]?.number
   )).toBe('260920-01 ST');
-  expect(requests.map(request => request.file)).toEqual(['bonn.json', manifest.records.path, manifest.map.path]);
+  expect(requests.map(request => request.file)).toEqual(['bonn.json', manifest.records.path, manifest.map.path, 'bonn.json']);
   await layer.uncheck();
   await expect(page.locator('.ua-ris-point')).toHaveCount(0);
 });

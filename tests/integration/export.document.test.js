@@ -1,4 +1,13 @@
+/** @jest-environment node */
+
 'use strict';
+
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const { JSDOM } = require('jsdom');
+const JSZip = require('jszip');
+const pdfMake = require('../../scripts/pdfmake-node');
 
 /**
  * Integration coverage for PDF and DOCX document exports.
@@ -10,7 +19,7 @@
 describe('Document Export - Integration Tests', () => {
   let UA;
   let mockCanvas;
-  let originalLocation;
+  let window;
 
   function collectPdfText(item) {
     if (item == null) return '';
@@ -95,79 +104,99 @@ describe('Document Export - Integration Tests', () => {
     };
   }
 
+  const refreshWarning = 'Aktualisierung fehlgeschlagen: <archiv> & Quelle.';
+  const scopeWarning = 'Nur die veröffentlichten Vorlagen wurden erfasst.';
+  const politicalReferences = [
+    {
+      title: 'Vorlage aus dem Teilbestand',
+      source: 'Ratsinformationssystem',
+      snapshot: {
+        city: 'hannover', generatedAt: '2026-10-15T14:30:00Z', sha256: 'a'.repeat(64),
+        complete: false, stale: true, warnings: [scopeWarning, refreshWarning],
+      },
+    },
+    {
+      title: 'Vorlage aus früherem Katalog',
+      snapshot: { city: 'hannover', generatedAt: '2026-10-02T10:00:00Z', sha256: 'b'.repeat(64) },
+    },
+    { title: 'Manuell gewählte Vorlage' },
+  ];
+
+  function expectSnapshotDetails(text) {
+    expect(text).toContain('Vorlage aus früherem Katalog');
+    expect(text).toContain('Manuell gewählte Vorlage');
+    const [beforeDatedReference, remaining] = text.split('Vorlage aus früherem Katalog');
+    const [datedReference, manualReference] = remaining.split('Manuell gewählte Vorlage');
+    expect(beforeDatedReference).toContain('Vorlage aus dem Teilbestand');
+    expect(beforeDatedReference).toContain('Katalogstand: 2026-10-15');
+    expect(beforeDatedReference).toMatch(/Katalogabdeckung: eingeschränkt/);
+    expect(beforeDatedReference).toMatch(/Katalogstand ist veraltet/);
+    expect(beforeDatedReference).toContain(scopeWarning);
+    expect(beforeDatedReference).toContain(refreshWarning);
+    expect(datedReference).toContain('Katalogstand: 2026-10-02');
+    expect(datedReference).not.toMatch(/eingeschränkt|veraltet|Kataloghinweis/);
+    expect(manualReference).not.toMatch(/Katalogstand|Katalogabdeckung|Kataloghinweis/);
+  }
+
+  async function readWordDocument(blob) {
+    const archive = await JSZip.loadAsync(await blob.arrayBuffer());
+    const xml = await archive.file('word/document.xml').async('string');
+    const dom = new JSDOM(xml, { contentType: 'application/xml' });
+    try {
+      return Array.from(dom.window.document.getElementsByTagName('w:t'), node => node.textContent).join(' ');
+    } finally {
+      dom.window.close();
+    }
+  }
+
+  function readPdfText(buffer) {
+    const script = `
+      import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+      const chunks = [];
+      for await (const chunk of process.stdin) chunks.push(chunk);
+      const pdf = await getDocument({ data: new Uint8Array(Buffer.concat(chunks)) }).promise;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const text = await (await pdf.getPage(i)).getTextContent();
+        process.stdout.write(text.items.map(item => item.str).join(' ') + '\\n');
+      }
+    `;
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+      cwd: path.resolve(__dirname, '../..'), input: Buffer.from(buffer), encoding: 'utf8',
+    });
+    if (result.status !== 0) throw new Error(`PDF inspection failed: ${result.stderr}`);
+    return result.stdout.replace(/\s+/g, ' ');
+  }
+
   beforeEach(() => {
     mockCanvas = {
       toDataURL: jest.fn(() =>
         'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
       ),
     };
-    originalLocation = window.location;
-    try {
-      delete window.location;
-      Object.defineProperty(window, 'location', {
-        value: {
-          pathname: '/werkbank_v2.html',
-          search: '',
-          hash: '',
-          href: 'http://localhost/werkbank_v2.html',
-          origin: 'http://localhost',
-          protocol: 'http:',
-          host: 'localhost',
-        },
-        writable: true,
-        configurable: true,
-      });
-    } catch (_) {
-      window.history.replaceState({}, '', '/werkbank_v2.html');
-    }
-
-    const pdfMakeLib = require('pdfmake/build/pdfmake');
-    const pdfFonts = require('pdfmake/build/vfs_fonts');
-    if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
-      pdfMakeLib.addVirtualFileSystem(pdfFonts);
-    } else {
-      pdfMakeLib.vfs = pdfFonts;
-    }
-
-    Object.assign(window, {
+    window = {
       UA: {},
+      location: new URL('http://localhost/werkbank_v2.html'),
       leafletImage: jest.fn((_map, callback) => {
         setTimeout(() => callback(null, mockCanvas), 10);
       }),
       docx: require('docx'),
-      pdfMake: pdfMakeLib,
+      pdfMake,
       saveAs: jest.fn(),
-    });
+    };
 
-    const realCreatePdf = pdfMakeLib.createPdf.bind(pdfMakeLib);
+    const realCreatePdf = pdfMake.createPdf.bind(pdfMake);
     jest.spyOn(window.pdfMake, 'createPdf').mockImplementation(definition => {
       const document = realCreatePdf(definition);
       document.download = jest.fn();
       return document;
     });
 
-    const fs = require('fs');
-    const path = require('path');
     const file = path.resolve(__dirname, '../../js/ua.report_v2.js');
     eval(fs.readFileSync(file, 'utf8'));
     UA = window.UA;
   });
 
   afterEach(() => {
-    try {
-      Object.defineProperty(window, 'location', {
-        value: originalLocation,
-        writable: true,
-        configurable: true,
-      });
-    } catch (_) {
-      // jsdom may expose a non-configurable location in future versions.
-    }
-    delete window.UA;
-    delete window.leafletImage;
-    delete window.docx;
-    delete window.pdfMake;
-    delete window.saveAs;
     jest.restoreAllMocks();
   });
 
@@ -308,6 +337,53 @@ describe('Document Export - Integration Tests', () => {
     const text = collectPdfText(window.pdfMake.createPdf.mock.calls[0][0].content);
     expect(text).toContain('FACHLICHE BEZÜGE');
     expect(text).toContain('Ideale Kreuzung');
+  });
+
+  test.each(['text', 'html'])('%s exports retain selected RIS dates and limitations', async format => {
+    const dom = new JSDOM();
+    const { document } = dom.window;
+    const fetch = async () => ({ ok: false });
+    window.fetch = fetch;
+    try {
+      for (const module of ['ua.utils.js', 'ua.export_v2.js']) {
+        eval(fs.readFileSync(path.resolve(__dirname, '../../js', module), 'utf8'));
+      }
+      const report = await UA.computeExportReport({
+        CITY_RAW: 'Hannover',
+        allPts: [],
+        selectionBounds: {
+          contains: () => false,
+          getSouthWest: () => ({ lat: 52.36, lng: 9.71 }),
+          getNorthEast: () => ({ lat: 52.39, lng: 9.75 }),
+        },
+        exportOptions: { includeCosts: false, includeMeasures: false },
+        politicalReferences,
+      });
+      if (format === 'html') {
+        const output = document.createElement('div');
+        output.innerHTML = report.html;
+        expect(output.querySelector('archiv')).toBeNull();
+        expectSnapshotDetails(output.textContent);
+      } else {
+        expectSnapshotDetails(report.text);
+      }
+    } finally {
+      dom.window.close();
+    }
+  });
+
+  test('Word export retains selected RIS dates and limitations in the document', async () => {
+    const report = basicReport({ structured: baseStructured({ politicalReferences }) });
+    await UA.exportToWord(makeCtx(), report, { includeReferences: true });
+    const [blob] = window.saveAs.mock.calls[0];
+    expectSnapshotDetails(await readWordDocument(blob));
+  });
+
+  test('direct PDF export retains selected RIS dates and limitations in the document', async () => {
+    const report = basicReport({ structured: baseStructured({ politicalReferences }) });
+    await UA.exportToPDF(makeCtx(), report, { includeReferences: true });
+    const pdf = window.pdfMake.createPdf.mock.results[0].value;
+    expectSnapshotDetails(readPdfText(await pdf.getBuffer()));
   });
 
   test('should generate complete PDF with all sections', async () => {

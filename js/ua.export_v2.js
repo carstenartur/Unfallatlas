@@ -89,6 +89,20 @@
     return null;
   }
 
+  // Auch in ua.report_v2.js für die eigenständigen DOCX-/PDF-Renderer.
+  function snapshotCitationLines(snapshot) {
+    if (!snapshot) return [];
+    const { generatedAt, complete, stale, warnings } = snapshot;
+    const lines = [];
+    if (typeof generatedAt === "string" && generatedAt) lines.push(`Katalogstand: ${generatedAt.slice(0, 10)}`);
+    if (complete === false) lines.push("Katalogabdeckung: eingeschränkt");
+    if (stale === true) lines.push("Der Katalogstand ist veraltet.");
+    for (const warning of Array.isArray(warnings) ? warnings : []) {
+      if (typeof warning === "string" && warning.trim()) lines.push(`Kataloghinweis: ${warning.trim()}`);
+    }
+    return lines;
+  }
+
   // --------------------
   // Dunkelziffer / Erfassungsgrenzen (#C3)
   // Pflicht-Hinweisblock in allen Antrags-Ausgaben (Text/HTML/DOCX/PDF), damit
@@ -2221,7 +2235,7 @@
         if (ref.reason) lines.push(`  Relevanz: ${ref.reason}`);
         if (ref.url) lines.push(`  URL: ${ref.url}`);
         if (ref.source) lines.push(`  Quelle (Portal): ${ref.source}`);
-        if (ref.snapshot?.generatedAt) lines.push(`  Katalogstand: ${ref.snapshot.generatedAt.slice(0, 10)}`);
+        for (const line of snapshotCitationLines(ref.snapshot)) lines.push(`  ${line}`);
       }
       lines.push("");
     }
@@ -2777,6 +2791,9 @@
             }
             if (ref.source) {
               html += `<div style="font-size:11px;color:#888;margin-top:2px;"><em>Portal:</em> ${UA.escHtml(ref.source)}</div>`;
+            }
+            for (const line of snapshotCitationLines(ref.snapshot)) {
+              html += `<div style="font-size:11px;color:#666;margin-top:2px;">${UA.escHtml(line)}</div>`;
             }
             html += `</li>`;
           }

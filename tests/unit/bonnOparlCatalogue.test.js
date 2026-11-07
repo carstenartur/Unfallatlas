@@ -97,6 +97,15 @@ function mockBonnTransport(serveFixture) {
   return requests;
 }
 
+function loadClientWithCacheOptions(options) {
+  jest.replaceProperty(process, 'env', { ...process.env, ...options });
+  let client;
+  jest.isolateModules(() => {
+    client = require('../../server/political-context/providers/bonnOparlClient.js');
+  });
+  return client;
+}
+
 afterEach(() => jest.restoreAllMocks());
 
 test('catalogues official Papers across pages with exact references, dates and document geography', async () => {
@@ -310,6 +319,124 @@ test('does not retain a failed or incomplete production read for the next reques
   expect(recovered.coverage.complete).toBe(true);
   expect(recovered.records.map(record => record.id)).toEqual([paperId(43)]);
   expect(requests).toHaveLength(9);
+});
+
+test('coalesces a third catalogue key while two other keys are still loading', async () => {
+  const requests = mockBonnTransport(fixture({ 1: { data: [original] } }));
+  const searches = await Promise.all([
+    searchOparl({ ...opts, maxPages: 11, searchTerms: ['Adenauerallee'] }),
+    searchOparl({ ...opts, maxPages: 12, searchTerms: ['Adenauerallee'] }),
+    searchOparl({ ...opts, maxPages: 13, searchTerms: ['Adenauerallee'] }),
+    searchOparl({ ...opts, maxPages: 13, searchTerms: ['Radverkehr'] }),
+  ]);
+
+  expect(searches.map(search => search.results.map(result => result.url)))
+    .toEqual([[publicUrl(42)], [publicUrl(42)], [publicUrl(42)], [publicUrl(42)]]);
+  expect(requests.filter(url => url === SYSTEM_URL)).toHaveLength(3);
+  expect(requests).toHaveLength(9);
+});
+
+test.each([
+  ['bytes', { BONN_OPARL_CACHE_MAX_BYTES: '8192' }],
+  ['items', { BONN_OPARL_CACHE_MAX_ITEMS: '3' }],
+])('evicts older snapshots when the retained catalogue %s exceed the shared budget', async (_unit, config) => {
+  const client = loadClientWithCacheOptions(config);
+  const large = paper(55, { name: 'Verkehrsplanung '.repeat(300) });
+  const requests = mockBonnTransport(fixture({ 1: { data: [original, large] } }));
+  const firstScope = { ...opts, maxPages: 4 };
+  const secondScope = { ...opts, maxPages: 5 };
+
+  await client.collectBonnCatalogue(firstScope);
+  await client.collectBonnCatalogue(firstScope);
+  expect(requests).toHaveLength(3);
+
+  await client.collectBonnCatalogue(secondScope);
+  await client.collectBonnCatalogue(secondScope);
+  expect(requests).toHaveLength(6);
+
+  await client.collectBonnCatalogue(firstScope);
+  expect(requests).toHaveLength(9);
+});
+
+test('shares an oversized read while pending and does not retain it after it finishes', async () => {
+  const client = loadClientWithCacheOptions({ BONN_OPARL_CACHE_MAX_BYTES: '2048' });
+  const large = paper(56, { name: 'Verkehrsplanung '.repeat(300) });
+  const requests = mockBonnTransport(fixture({ 1: { data: [large] } }));
+
+  const [catalogue, search] = await Promise.all([
+    client.collectBonnCatalogue(opts),
+    client.searchOparl({ ...opts, searchTerms: ['Verkehrsplanung'] }),
+  ]);
+  expect(catalogue.coverage.complete).toBe(true);
+  expect(search.results.map(result => result.url)).toEqual([publicUrl(56)]);
+  expect(requests).toHaveLength(3);
+
+  const repeated = await client.collectBonnCatalogue(opts);
+  expect(repeated.records.map(record => record.id)).toEqual([paperId(56)]);
+  expect(requests).toHaveLength(6);
+});
+
+test('fits a small cache budget after discarding unused fields and keeps nested Bonn evidence', async () => {
+  const client = loadClientWithCacheOptions({ BONN_OPARL_CACHE_MAX_BYTES: '4096' });
+  const unused = 'x'.repeat(64 * 1024);
+  const citation = `${BASE}/public/getfile?file=59`;
+  const row = paper(59, {
+    name: 'Neue Verkehrsführung',
+    reference: '260999',
+    paperType: 'Stellungnahme',
+    date: '2026-08-01',
+    web: null,
+    mainFile: { name: 'Bürgerbeteiligung', web: citation, unused },
+    auxiliaryFile: [{ fileName: 'Oxfordstraße.pdf', unused }],
+    consultation: { organization: { shortName: 'Mobilitätsausschuss', unused }, meeting: { unused } },
+    location: [{
+      locality: 'Nordstadt',
+      geojson: { type: 'Feature', geometry: { ...point, unused }, properties: { name: 'Vorgangsort', unused } },
+    }],
+    relatedPaper: [{ id: paperId(42), unused }],
+    keyword: ['Schulweg'],
+    unused,
+  });
+  const serveFixture = fixture({ 1: { data: [row], pagination: { totalElements: 1, unused } } });
+  const requests = mockBonnTransport(url => {
+    const payload = serveFixture(url);
+    if (new URL(url).pathname === '/oparl/bodies') payload.data[0].unused = unused;
+    return payload;
+  });
+
+  const catalogue = await client.collectBonnCatalogue(opts);
+  const search = await client.searchOparl({
+    ...opts, searchTerms: ['Oxfordstraße', 'Bürgerbeteiligung', 'Nordstadt', 'Schulweg'],
+  });
+  expect(requests).toHaveLength(3);
+  expect(catalogue.coverage.complete).toBe(true);
+  expect(catalogue.records).toEqual([{
+    id: paperId(59), title: 'Neue Verkehrsführung', type: 'Verwaltungsantwort',
+    number: '260999', date: '2026-08-01', gremium: 'Mobilitätsausschuss', url: citation,
+    source: 'bonn-oparl', relatedTo: paperId(42), geometry: point,
+    locationSource: 'official', locationLabel: 'Vorgangsort',
+  }]);
+  expect(search.results).toEqual([expect.objectContaining({ url: citation, snippet: 'Stellungnahme | Schulweg' })]);
+  expect(search.meta.queryLog.map(entry => entry.count)).toEqual([1, 1, 1, 1]);
+});
+
+test('refreshes an expired snapshot once at the configured TTL', async () => {
+  const client = loadClientWithCacheOptions({ BONN_OPARL_CACHE_TTL_MS: '1000' });
+  const requests = mockBonnTransport(fixture({ 1: { data: [original] } }));
+  let clock = Date.parse('2026-11-07T00:00:00Z');
+  jest.spyOn(Date, 'now').mockImplementation(() => clock);
+
+  await client.collectBonnCatalogue(opts);
+  clock += 999;
+  await client.collectBonnCatalogue(opts);
+  expect(requests).toHaveLength(3);
+
+  clock += 1;
+  await Promise.all([
+    client.collectBonnCatalogue(opts),
+    client.searchOparl({ ...opts, searchTerms: ['Adenauerallee'] }),
+  ]);
+  expect(requests).toHaveLength(6);
 });
 
 test('keeps simultaneous caller-injected readers isolated', async () => {

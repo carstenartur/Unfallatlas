@@ -117,6 +117,9 @@
 
   function exportReference(ref) {
     return {
+      ...(ref?.id ? { id: ref.id } : {}),
+      ...(ref?.relatedTo ? { relatedTo: ref.relatedTo } : {}),
+      ...(ref?.snapshot ? { snapshot: ref.snapshot } : {}),
       title: cleanText(ref?.title),
       type: cleanText(ref?.type) || 'Sonstige',
       date: ref?.date || null,
@@ -158,7 +161,7 @@
       providerSupported: null,
       providerKey: null,
       ...(details?.sourceType ? { sourceType: details.sourceType, sourceUrl: details.sourceUrl } : {}),
-      searchedAt: null,
+      searchedAt: details?.searchedAt || null,
       searchTerms,
       totalFound: null,
       usableReferenceCount: 0,
@@ -195,7 +198,12 @@
           sourceFingerprint: meta.sourceFingerprint,
           sourceType: meta.sourceType,
           sourceUrl: meta.sourceUrl,
-          coverage: meta.coverage
+          coverage: meta.coverage,
+          searchedAt: meta.searchedAt,
+          searchStatus: meta.searchStatus,
+          stale: meta.stale,
+          warnings: meta.warnings,
+          ...(meta.refreshFailure ? { refreshFailure: meta.refreshFailure } : {})
         });
     }
     const supported = meta.supported !== false;
@@ -276,15 +284,14 @@
     }
 
     ctx.__uaPoliticalResearchKey = searchKey;
+    const request = Symbol('political-research');
+    ctx.__uaPoliticalResearchRequest = request;
+    const isCurrent = () => ctx.__uaPoliticalResearchRequest === request
+      && cleanText(ctx.CITY_RAW || ctx.city) === city;
     ctx.__uaPoliticalResearchPromise = Promise.resolve()
-      .then(() => political.search({
-        city,
-        searchTerms,
-        context: locationContext,
-        maxResults: 15,
-      }))
+      .then(() => isCurrent() ? political.search({ city, searchTerms, context: locationContext, maxResults: 15 }) : null)
       .then(result => {
-        if (ctx.__uaPoliticalResearchKey !== searchKey) return null;
+        if (!isCurrent()) return null;
         const refs = Array.isArray(result?.references) ? result.references : [];
         const usable = !['incomplete', 'partial-results', 'failed'].includes(result?.meta?.searchStatus)
           && result?.meta?.sourceType !== 'ris-snapshot';
@@ -296,7 +303,7 @@
         }
         return stateFromResult(ctx, result, { searchTerms, automaticallyAdopted });
       })
-      .catch(error => ctx.__uaPoliticalResearchKey === searchKey ? stateForMissingSearch(
+      .catch(error => isCurrent() ? stateForMissingSearch(
         ctx, 'failed', 'Die konfigurierte politische Portalsuche ist fehlgeschlagen.',
         { error: cleanText(error?.message || error), city, searchTerms }
       ) : null);
@@ -328,7 +335,9 @@
       const ctx = runtimeContext();
       const city = cleanText(ctx.CITY_RAW || ctx.city);
       const revision = ctx.politicalContextCityRevision;
+      const request = ctx.__uaPoliticalResearchRequest;
       const sameCity = () => ctx.politicalContextCityRevision === revision
+        && ctx.__uaPoliticalResearchRequest === request && cityKey(params?.city) === cityKey(city)
         && cleanText(ctx.CITY_RAW || ctx.city) === city;
       try {
         const result = await original.call(political, params);

@@ -243,8 +243,10 @@ Die Suche zeigt auch Dokumente ohne Kartenobjekt. In der Recherche und im Berich
 der Datenstand als Quelle sichtbar. Die Vollständigkeit einer Live-Recherche wird separat geprüft.
 
 `node scripts/refresh-ris-catalogues.js` ruft die städtischen Quellen ab und schreibt die Kataloge.
-Pages aktualisiert sie beim Deployment und verwendet bei einem Quellenfehler einen bereits
-verifizierten Stand weiter. Normale Builds übernehmen lokal vorhandene Kataloge ohne Netzabruf.
+Ein Katalog gilt nach acht Tagen als veraltet und läuft 14 Tage nach seiner ursprünglichen
+Erstellung ab. Schlägt die Aktualisierung für Pages fehl, kennzeichnet das Manifest den letzten
+verifizierten Stand mit `refreshFailure` (Zeitpunkt, Grund und Ablaufdatum). Datenstand und
+erfasster Umfang bleiben erhalten. Normale Builds übernehmen lokal vorhandene Kataloge ohne Netzabruf.
 Für einen Docker-Build mit veröffentlichten Katalogen steht `--build-arg RESTORE_PUBLISHED_RIS=1`
 zur Verfügung. Der Browser benötigt für die Kartenprüfung HTTPS oder `localhost`.
 

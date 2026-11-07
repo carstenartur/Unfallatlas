@@ -279,7 +279,7 @@
     // suitable, source-linked proceedings into the structured report before
     // either the server AI or a user-owned AI receives it.
     aiPoliticalEvidence: injectOptionalModuleAfterDomReady(
-      'js/ua.ai_political_evidence.js?v=2026-11-07',
+      'js/ua.ai_political_evidence.js?v=2026-11-07-ris',
       'data-ua-ai-political-evidence'
     ),
     aiPoliticalReferenceBridge: injectOptionalModuleAfterDomReady(

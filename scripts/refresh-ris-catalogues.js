@@ -8,7 +8,7 @@ const path = require('node:path');
 const { promisify } = require('node:util');
 const { Worker, isMainThread, parentPort, workerData } = require('node:worker_threads');
 const gzip = promisify(require('node:zlib').gzip);
-const { readRisSnapshot, writeRisSnapshot } = require('../server/political-context/services/risSnapshot');
+const { readRisSnapshot, writeRisSnapshot, RIS_FALLBACK_MAX_AGE_MS } = require('../server/political-context/services/risSnapshot');
 const { enrichRisLocations } = require('../server/political-context/services/risLocation');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -23,6 +23,8 @@ const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
 const MANIFEST_BYTES = 256 * 1024;
 const ASSET_BYTES = 16 * 1024 * 1024;
+// Public manifests must not carry raw errors from source responses or local filesystem paths.
+const PUBLIC_REFRESH_FAILURE = 'Die letzte Aktualisierung der amtlichen Ratsdaten ist fehlgeschlagen.';
 
 async function collectOfficial(city, now) {
   if (city === 'bonn') {
@@ -70,14 +72,25 @@ function snapshotFiles(manifest) {
   return [manifest.records.path, manifest.map.path, `${manifest.city}.json`];
 }
 
-async function validateRisDirectory(directory, { requireAll = false } = {}) {
+function assertUnexpiredSnapshot(manifest, now) {
+  const expiry = Date.parse(manifest.generatedAt) + RIS_FALLBACK_MAX_AGE_MS;
+  if (expiry <= now.getTime()) {
+    throw new Error(`${manifest.city}: RIS snapshot expired at ${new Date(expiry).toISOString()}`);
+  }
+}
+
+async function validateRisDirectory(directory, { requireAll = false, now = new Date() } = {}) {
   const names = await listDirectory(directory);
   const cities = CITIES.filter(city => names.includes(`${city}.json`));
   if (requireAll && cities.length !== CITIES.length) {
     throw new Error(`Missing required RIS snapshot(s): ${CITIES.filter(city => !cities.includes(city)).join(', ')}`);
   }
   const manifests = [];
-  for (const city of cities) manifests.push((await readRisSnapshot(directory, city)).manifest);
+  for (const city of cities) {
+    const { manifest } = await readRisSnapshot(directory, city);
+    assertUnexpiredSnapshot(manifest, now);
+    manifests.push(manifest);
+  }
   const files = new Set(manifests.flatMap(snapshotFiles));
   const unexpected = names.find(name => !files.has(name));
   if (unexpected) throw new Error(`Unreferenced file in RIS publication: ${unexpected}`);
@@ -143,13 +156,18 @@ async function inspect(directory, load, now) {
   }
 }
 
-async function installSnapshot(output, candidate) {
+async function installSnapshot(output, { directory, manifest, rewriteManifest }) {
+  const manifestName = `${manifest.city}.json`;
+  const manifestBytes = rewriteManifest ? Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`) : null;
+  if (manifestBytes?.length > MANIFEST_BYTES) throw new Error('RIS manifest exceeds its size limit');
   await fs.mkdir(output, { recursive: true });
   // Replace the manifest last, after both verified assets are present.
-  for (const filename of snapshotFiles(candidate.manifest)) {
+  for (const filename of snapshotFiles(manifest)) {
+    if (directory === output && filename !== manifestName) continue;
     const temporary = path.join(output, `.${filename}.${randomUUID()}.tmp`);
     try {
-      await fs.copyFile(path.join(candidate.directory, filename), temporary);
+      if (manifestBytes && filename === manifestName) await fs.writeFile(temporary, manifestBytes, { flag: 'wx' });
+      else await fs.copyFile(path.join(directory, filename), temporary);
       await fs.rename(temporary, path.join(output, filename));
     } finally {
       await fs.rm(temporary, { force: true });
@@ -159,11 +177,23 @@ async function installSnapshot(output, candidate) {
 
 async function pruneCity(directory, city, manifest) {
   const keep = new Set(manifest ? snapshotFiles(manifest) : []);
+  // Stop new readers from seeing an expired manifest before removing its assets.
+  if (!manifest) await fs.rm(path.join(directory, `${city}.json`), { force: true });
   for (const name of await listDirectory(directory)) {
     if (!keep.has(name) && (name.startsWith(`${city}.`) || name.startsWith(`.${city}.`))) {
       await fs.rm(path.join(directory, name), { force: true });
     }
   }
+}
+
+function latestSnapshot(local, published) {
+  if (!local.manifest || published.generated > local.generated) return published;
+  // A failed refresh updates the manifest without changing its original generation time.
+  if (published.generated === local.generated && published.manifest.refreshFailure &&
+      (!local.manifest.refreshFailure || published.manifest.refreshFailure.attemptedAt > local.manifest.refreshFailure.attemptedAt)) {
+    return published;
+  }
+  return local;
 }
 
 function rejectCoverageDowngrade(next, previous) {
@@ -209,7 +239,7 @@ async function prepareCandidate(directory, city, now, collect, previous) {
   return { directory, manifest };
 }
 
-async function refreshCity({ directory, city, now, fetchPublished, collect, restoreOnly }) {
+async function refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly }) {
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), `ris-refresh-${city}-`));
   try {
     const deployed = path.join(scratch, 'published');
@@ -217,32 +247,46 @@ async function refreshCity({ directory, city, now, fetchPublished, collect, rest
       restoreOnly ? {} : inspect(directory, async () => {
         try { return await readRisSnapshot(directory, city); }
         catch (error) { if (error.code === 'ENOENT') return null; throw error; }
-      }, now),
-      inspect(deployed, () => restorePublished(deployed, city, fetchPublished), now),
+      }, startedAt),
+      inspect(deployed, () => restorePublished(deployed, city, fetchPublished), startedAt),
     ]);
     if (restoreOnly && !published.manifest) {
       throw new Error(`${city}: ${published.error ? `Invalid or unavailable deployed snapshot: ${published.error.message}` : 'No deployed snapshot found'}`);
     }
-    const previous = !local.manifest || published.generated > local.generated ? published : local;
+    const previous = latestSnapshot(local, published);
     let selected = previous;
     let status = restoreOnly ? 'restored' : 'current';
     let reason;
-    if (!restoreOnly && (!previous.manifest || now.getTime() - previous.generated >= REFRESH_AFTER_MS)) {
+    if (!restoreOnly && (!previous.manifest || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS)) {
       try {
-        selected = await prepareCandidate(path.join(scratch, 'candidate'), city, now, collect, previous.manifest);
+        selected = await prepareCandidate(path.join(scratch, 'candidate'), city, startedAt, collect, previous.manifest);
         status = 'published';
       } catch (error) {
-        reason = error.message;
-        status = previous.manifest ? 'retained' : 'unavailable';
-        // A double failure must not remove a city that may already be deployed.
-        if (!previous.manifest && published.error) {
-          throw new Error(`${city}: ${reason}; could not verify the deployed fallback: ${published.error.message}`);
+        reason = error?.message || 'Official RIS refresh failed';
+        const expiry = previous.generated + RIS_FALLBACK_MAX_AGE_MS;
+        if (previous.manifest && clock().getTime() < expiry) {
+          const refreshFailure = {
+            attemptedAt: startedAt.toISOString(), reason: PUBLIC_REFRESH_FAILURE, expiresAt: new Date(expiry).toISOString(),
+          };
+          selected = { ...previous, manifest: { ...previous.manifest, refreshFailure }, rewriteManifest: true };
+          status = 'retained';
+        } else {
+          selected = {};
+          status = 'unavailable';
+          if (previous.manifest) reason += `; the last verified RIS snapshot expired at ${new Date(expiry).toISOString()}`;
+          // A double failure must not remove a city that may already be deployed.
+          if (published.error) {
+            throw new Error(`${city}: ${reason}; could not verify the deployed fallback: ${published.error.message}`);
+          }
         }
       }
     }
 
     const { manifest } = selected;
-    if (manifest && selected.directory !== directory) await installSnapshot(directory, selected);
+    if (manifest) {
+      assertUnexpiredSnapshot(manifest, clock());
+      if (selected.rewriteManifest || selected.directory !== directory) await installSnapshot(directory, selected);
+    }
     await pruneCity(directory, city, manifest);
     return {
       city, status, ...(reason ? { reason } : {}),
@@ -253,15 +297,17 @@ async function refreshCity({ directory, city, now, fetchPublished, collect, rest
   }
 }
 
-async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, now = new Date(),
+async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, now,
   fetchPublished = globalThis.fetch, collect = collectFromSource, restoreOnly = false, report = () => {} } = {}) {
   if (!Array.isArray(cities) || !cities.length || cities.some(city => !Object.hasOwn(SOURCE_LIMIT_MS, city))) {
     throw new Error('Supported RIS cities: bonn, hannover');
   }
-  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error('Invalid RIS refresh date');
+  const clock = now === undefined ? () => new Date() : () => now;
+  const startedAt = clock();
+  if (!(startedAt instanceof Date) || !Number.isFinite(startedAt.getTime())) throw new Error('Invalid RIS refresh date');
   await listDirectory(directory);
   const outcomes = await Promise.allSettled([...new Set(cities)].map(async city => {
-    const outcome = await refreshCity({ directory, city, now, fetchPublished, collect, restoreOnly });
+    const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly });
     report(outcome);
     return outcome;
   }));
