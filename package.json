@@ -5,7 +5,7 @@
   "main": "index.js",
   "packageManager": "npm@11.21.1",
   "engines": {
-    "node": "24.x",
+    "node": "26.x",
     "npm": ">=11 <12"
   },
   "scripts": {
@@ -119,16 +119,16 @@
   },
   "dependencies": {
     "@playwright/test": "1.65.0",
-    "docx": "9.15.1",
+    "docx": "9.15.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "file-saver": "2.0.5",
     "leaflet": "1.9.4",
     "leaflet-draw": "1.0.4",
     "leaflet-image": "0.4.0",
-    "leaflet.heat": "0.2.0",
+    "leaflet.heat": "1.0.0",
     "leaflet.markercluster": "1.5.3",
-    "pdfmake": "0.3.11"
+    "pdfmake": "0.3.13"
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.7",

@@ -1,7 +1,7 @@
 # Dockerfile für die Docker-Distribution der Unfallwerkbank
 #
-# Basiert auf dem offiziellen Playwright-Docker-Image, das Chromium,
-# alle System-Dependencies und Node.js bereits enthält.
+# Das offizielle Playwright-Image liefert Chromium und dessen Systempakete.
+# Die Node-Version stammt aus demselben Release, das Maven installiert.
 #
 # Die Image-Version muss zur Version des npm-Pakets `@playwright/test`
 # in package.json / package-lock.json passen. Der Docker-Build setzt
@@ -13,20 +13,25 @@
 # Start:  docker run -p 8000:8000 unfallatlas
 # Image:  ghcr.io/carstenartur/unfallatlas
 
+FROM node:26.13.0-bookworm-slim AS node-toolchain
+WORKDIR /toolchain
+COPY package.json ./
+RUN npm install --global --no-audit --no-fund "$(node -p 'require("./package.json").packageManager')"
+
 FROM mcr.microsoft.com/playwright:v1.65.0-noble
 
 # ffmpeg erzeugt GIF, WebP und APNG. ImageMagick/libwebp übernimmt ausschließlich
 # die formatgerechte Nachprüfung animierter WebP-Dateien und das Reservieren der
 # festen QA-Nachweisfarben in der adaptiven GIF-Palette.
 #
-# Das Playwright-Image enthält zusätzlich eine NodeSource-Paketquelle. Node.js
-# ist im Basisimage bereits vollständig installiert; diese Drittanbieterquelle
-# wird für ffmpeg und ImageMagick nicht benötigt und vor dem APT-Lauf entfernt.
+# Die NodeSource-Installation des Playwright-Images wird durch die gepinnte
+# Node-Distribution ersetzt. Deren Linux-Binary benötigt libatomic1.
 # Regional nicht erreichbare Azure-Ubuntu-Mirrors werden auf das kanonische
 # Ubuntu-Archiv normalisiert. APT wiederholt danach nur noch vorübergehend
 # fehlgeschlagene Abrufe und begrenzt jede einzelne Verbindung.
 RUN set -eux; \
     rm -f /etc/apt/sources.list.d/nodesource.list; \
+    dpkg --purge nodejs; \
     if [ -f /etc/apt/apt-mirrors.txt ]; then \
       printf '%s\n' 'https://archive.ubuntu.com/ubuntu' > /etc/apt/apt-mirrors.txt; \
     fi; \
@@ -56,11 +61,17 @@ RUN set -eux; \
       -o Acquire::https::Timeout=30 \
       install -y --no-install-recommends \
         ffmpeg \
-        imagemagick; \
+        imagemagick \
+        libatomic1; \
     test -x /usr/bin/ffmpeg; \
     command -v convert >/dev/null; \
     apt-get clean; \
     rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*
+
+COPY --from=node-toolchain /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-toolchain /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 WORKDIR /app
 
