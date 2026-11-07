@@ -157,6 +157,7 @@
       city,
       providerSupported: null,
       providerKey: null,
+      ...(details?.sourceType ? { sourceType: details.sourceType, sourceUrl: details.sourceUrl } : {}),
       searchedAt: null,
       searchTerms,
       totalFound: null,
@@ -182,6 +183,21 @@
     const refs = Array.isArray(result?.references) ? result.references.map(exportReference) : [];
     const usable = refs.filter(isSuitableForAutomaticHandoff);
     const meta = result?.meta || {};
+    const unfinished = ['incomplete', 'partial-results', 'failed'].includes(meta.searchStatus);
+    if (meta.sourceType === 'ris-snapshot' || unfinished) {
+      return stateForMissingSearch(ctx, meta.searchStatus === 'failed' ? 'failed' : 'incomplete',
+        meta.sourceType === 'ris-snapshot'
+          ? 'Die Suche hat einen veröffentlichten Ratsdatenstand mit begrenztem Umfang verwendet.'
+          : 'Die amtliche Recherche konnte nur teilweise durchgeführt werden.', {
+          city: meta.city,
+          searchTerms: meta.searchTerms || options?.searchTerms,
+          generatedAt: meta.generatedAt,
+          sourceFingerprint: meta.sourceFingerprint,
+          sourceType: meta.sourceType,
+          sourceUrl: meta.sourceUrl,
+          coverage: meta.coverage
+        });
+    }
     const supported = meta.supported !== false;
     const status = !supported
       ? 'unsupported'
@@ -268,8 +284,11 @@
         maxResults: 15,
       }))
       .then(result => {
+        if (ctx.__uaPoliticalResearchKey !== searchKey) return null;
         const refs = Array.isArray(result?.references) ? result.references : [];
-        const suitable = refs.filter(isSuitableForAutomaticHandoff).slice(0, MAX_AUTO_REFERENCES);
+        const usable = !['incomplete', 'partial-results', 'failed'].includes(result?.meta?.searchStatus)
+          && result?.meta?.sourceType !== 'ris-snapshot';
+        const suitable = usable ? refs.filter(isSuitableForAutomaticHandoff).slice(0, MAX_AUTO_REFERENCES) : [];
         let automaticallyAdopted = false;
         if (suitable.length > 0 && (!Array.isArray(ctx.politicalReferences) || ctx.politicalReferences.length === 0)) {
           ctx.politicalReferences = suitable.map(exportReference);
@@ -277,12 +296,10 @@
         }
         return stateFromResult(ctx, result, { searchTerms, automaticallyAdopted });
       })
-      .catch(error => stateForMissingSearch(
-        ctx,
-        'failed',
-        'Die konfigurierte politische Portalsuche ist fehlgeschlagen.',
+      .catch(error => ctx.__uaPoliticalResearchKey === searchKey ? stateForMissingSearch(
+        ctx, 'failed', 'Die konfigurierte politische Portalsuche ist fehlgeschlagen.',
         { error: cleanText(error?.message || error), city, searchTerms }
-      ));
+      ) : null);
 
     return ctx.__uaPoliticalResearchPromise;
   }
@@ -290,7 +307,9 @@
   function currentState(ctxValue) {
     const ctx = runtimeContext(ctxValue);
     if (ctx.politicalContextResearch) return ctx.politicalContextResearch;
-    if (UA.lastPoliticalContextResearch) return UA.lastPoliticalContextResearch;
+    if (UA.lastPoliticalContextResearch?.city === cleanText(ctx.CITY_RAW || ctx.city)) {
+      return UA.lastPoliticalContextResearch;
+    }
     return stateForMissingSearch(
       ctx,
       'not-searched',
@@ -307,15 +326,19 @@
     const original = political.search;
     const wrapped = async function searchWithEvidence(params) {
       const ctx = runtimeContext();
+      const city = cleanText(ctx.CITY_RAW || ctx.city);
+      const revision = ctx.politicalContextCityRevision;
+      const sameCity = () => ctx.politicalContextCityRevision === revision
+        && cleanText(ctx.CITY_RAW || ctx.city) === city;
       try {
         const result = await original.call(political, params);
-        stateFromResult(ctx, result, {
+        if (sameCity()) stateFromResult(ctx, result, {
           searchTerms: Array.isArray(params?.searchTerms) ? params.searchTerms : [],
           automaticallyAdopted: false,
         });
         return result;
       } catch (error) {
-        stateForMissingSearch(ctx, 'failed', 'Die politische Portalsuche ist fehlgeschlagen.', {
+        if (sameCity()) stateForMissingSearch(ctx, 'failed', 'Die politische Portalsuche ist fehlgeschlagen.', {
           error: cleanText(error?.message || error),
           city: cleanText(params?.city),
           searchTerms: Array.isArray(params?.searchTerms) ? params.searchTerms : [],
@@ -362,6 +385,7 @@
               'not-searchable',
               'unavailable',
               'failed',
+              'incomplete',
               'unsupported',
               'searched-no-results',
               'results-found-unusable',

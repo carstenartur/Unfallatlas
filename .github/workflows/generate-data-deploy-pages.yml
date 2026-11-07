@@ -44,6 +44,8 @@ jobs:
           save-always: true
 
       - name: Generate data and verify Pages through Maven
+        env:
+          PAGES_REFRESH_RIS: '1'
         run: mvn -B -ntp clean verify -Ppages-regenerated
 
       - name: Upload Maven Pages QA evidence

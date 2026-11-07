@@ -7,6 +7,9 @@ out/ci-render-gate.pdf
 # committed (CI uploads them as workflow artefacts instead).
 out/qa/
 
+# Official council catalogue snapshots generated for publication.
+/data/ris/
+
 # Testing
 node_modules/
 _site/

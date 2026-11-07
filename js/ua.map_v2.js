@@ -913,6 +913,7 @@
 
     // Add layer legend control
     UA.addLayerLegend(ctx, map);
+    if (UA.RisLayer) UA.refreshContextOverlays(ctx);
   };
 
   // ----------------------------
@@ -1670,11 +1671,14 @@
    *      state lifts, and any previously-pending `reg.active.*` flags
    *      auto-trigger the actual layer build via setContextOverlayActive.
    *
-   * Renders nothing for cities without the corresponding capability
-   * flag (`ctx.contextCapabilities.{hasSlope,hasTrafficProxy}`).
+   * Road toggles need `ctx.contextCapabilities.{hasSlope,hasTrafficProxy}`.
+   * The optional Ratsvorgänge toggle shares the control but loads separately.
    */
   UA.refreshContextOverlays = function refreshContextOverlays(ctx) {
-    if (!ctx || !ctx.map || !window.L || !UA.contextRoadLayer) return;
+    if (!ctx || !ctx.map || !window.L) return;
+    const risControl = UA.RisLayer?.controlContent(ctx);
+    if (!UA.contextRoadLayer && !risControl) return;
+    const focusedRis = risControl?.contains(document.activeElement) ? document.activeElement : null;
     const reg  = _ensureOverlayRegistry(ctx);
     const caps = ctx.contextCapabilities || {};
     const state = ctx.contextLayerState;
@@ -1717,8 +1721,8 @@
     // is loaded lazily and may legitimately not be there yet on the
     // first call; resetting `reg.active` at that point would clobber
     // a `?mapLayer=…` deep link before it had a chance to take effect.
-    const showSlope   = !!caps.hasSlope;
-    const showTraffic = !!caps.hasTrafficProxy;
+    const showSlope   = !!(UA.contextRoadLayer && caps.hasSlope);
+    const showTraffic = !!(UA.contextRoadLayer && caps.hasTrafficProxy);
     if (!showSlope && !showTraffic) {
       // City genuinely has no slope / no traffic data — drop any stale
       // active flags so a city switch can't leak a hidden restriction
@@ -1729,18 +1733,18 @@
       if (changed && typeof UA.syncAllToUrl === 'function') {
         try { UA.syncAllToUrl(ctx); } catch (_) {}
       }
-      return;
+      if (!risControl) return;
     }
     // Drop active flags only for capabilities that actually disappeared
     // (mirroring the chip-filter pruning in refreshContextFilterVisibility).
     if (!showSlope)   reg.active.slope   = false;
     if (!showTraffic) reg.active.traffic = false;
 
-    // Layer control — top-left to avoid the existing draw + bottom-
-    // right legend controls. We use a custom control rather than
+    // Keep the layer control clear of the left-side analysis panel.
+    // We use a custom control rather than
     // `L.control.layers` so capability gating + URL persistence stay
     // explicit and the styling matches the existing layer-legend UX.
-    const ctrl = window.L.control({ position: 'topleft' });
+    const ctrl = window.L.control({ position: 'topright' });
     ctrl.onAdd = function() {
       const c = window.L.DomUtil.create('div', 'context-overlay-control leaflet-bar');
       window.L.DomEvent.disableClickPropagation(c);
@@ -1751,7 +1755,6 @@
       c.style.borderRadius = '4px';
       // A11y: this is a logically grouped set of layer toggles.
       c.setAttribute('role', 'group');
-      c.setAttribute('aria-label', 'Karten-Layer für Straßenkontext');
 
       const title = document.createElement('div');
       title.id = 'context-overlay-control-title';
@@ -1768,14 +1771,14 @@
       //   * isLoadingGeom    → "(lädt …)" — transient, will resolve.
       //   * geomUnavailable  → permanent "Layer nicht verfügbar"
       //                        hint, no spinner-like wording.
-      if (isLoadingGeom) {
+      if ((showSlope || showTraffic) && isLoadingGeom) {
         const hint = document.createElement('div');
         hint.textContent = '(lädt …)';
         hint.style.fontSize = '11px';
         hint.style.color    = '#888';
         hint.style.marginBottom = '4px';
         c.appendChild(hint);
-      } else if (geomUnavailable) {
+      } else if ((showSlope || showTraffic) && geomUnavailable) {
         const hint = document.createElement('div');
         hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
         hint.style.fontSize = '11px';
@@ -1817,10 +1820,13 @@
       };
       if (showSlope)   add('slope',   'Straßensteigung');
       if (showTraffic) add('traffic', 'Verkehrsbelastung');
+      if (risControl) c.appendChild(risControl);
       return c;
     };
     ctrl.addTo(ctx.map);
     reg.layerControl = ctrl;
+    if (focusedRis?.isConnected) focusedRis.focus({ preventScroll: true });
+    if (!showSlope && !showTraffic) return;
 
     // Floating legend — bottom-left, only visible when ≥ 1 overlay active.
     const legend = window.L.control({ position: 'bottomleft' });
@@ -2040,6 +2046,7 @@
   };
 
   UA.renderLayers = function renderLayers(ctx) {
+    UA.RisLayer?.refresh(ctx);
     // Layer caching: rebuild on zoom change or data change
     const currentZoom = ctx.map.getZoom();
     const shouldRebuildCluster = !ctx.clusterLayer || ctx._lastClusterZoom !== currentZoom || ctx._dataChanged;

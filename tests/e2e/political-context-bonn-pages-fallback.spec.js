@@ -6,6 +6,7 @@ test('Bonn political research avoids the static-host 405 and exposes official se
   test.setTimeout(60_000);
   const apiMethods = [];
   const oparlRequests = [];
+  await page.route('**/data/ris/bonn.json', route => route.fulfill({ status: 404 }));
 
   await page.route('**/api/political-context/search', async route => {
     apiMethods.push(route.request().method());

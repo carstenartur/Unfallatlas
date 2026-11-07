@@ -14,6 +14,8 @@ on:
       - '*.html'
       - 'css/**'
       - 'js/**'
+      - 'server/political-context/**'
+      - 'config/ris-locations/**'
       - 'scripts/**'
       - 'tests/**'
       - 'playwright.config.js'
@@ -25,8 +27,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: pages-current-deploy
-  cancel-in-progress: true
+  # Both deployment workflows restore snapshots from the current Pages site.
+  group: pages-data
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -48,6 +51,8 @@ jobs:
           cache: 'maven'
 
       - name: Run the checkout-reproducible Maven build
+        env:
+          PAGES_REFRESH_RIS: '1'
         run: mvn -B -ntp clean verify -Ppages
 
       - name: Upload Maven Pages QA evidence

@@ -75,6 +75,17 @@ function resultFixture() {
 }
 
 describe('central filing-readiness gate', () => {
+  test('requires a separate query when the report includes a published RIS snapshot', () => {
+    const api = loadApi();
+    const result = resultFixture();
+    const political = result.politicalAdministrativeResearch;
+    const official = political.queries[0];
+    political.queries = [{ query: 'Hannover Verkehrssicherheit', sourceType: 'ris-snapshot' }];
+    expect(api.evaluate({ result, facts: factsFixture() }).politicalResearchStatus).toBe('blocked');
+    political.queries.push(official);
+    expect(api.evaluate({ result, facts: factsFixture() }).politicalResearchStatus).toBe('complete');
+  });
+
   test('derives ready only from locally bound maps, patterns, sources and political evidence', () => {
     const api = loadApi();
     const gate = api.evaluate({ result: resultFixture(), facts: factsFixture() });

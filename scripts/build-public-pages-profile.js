@@ -129,7 +129,7 @@ function patchCanonicalHtml(siteRoot) {
     }
     html = html.replace(
       appScript,
-      `<script src="js/ua.public-preview.js?v=2"></script>\n  $1`
+      `<script src="js/ua.public-preview.js?v=3"></script>\n  $1`
     );
   }
 

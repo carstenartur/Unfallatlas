@@ -125,7 +125,16 @@
    * @param {object} ref  – PoliticalReference
    * @returns {string}
    */
-  function renderRef(ref) {
+  function safeReferenceUrl(value) {
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function renderRef(ref, related) {
     const typeColors = {
       'Antrag':            '#2563eb',
       'Änderungsantrag':   '#7c3aed',
@@ -136,7 +145,7 @@
       'Sonstige':          '#9ca3af'
     };
     const color = typeColors[ref.type] || '#6b7280';
-    const score = ref.relevanceScore != null ? `${ref.relevanceScore}` : '–';
+    const score = Number.isFinite(ref.relevanceScore) ? `Score: ${ref.relevanceScore}` : '';
     const dateStr = ref.date ? ` · ${UA.escHtml(ref.date)}` : '';
     const gremiumStr = ref.gremium ? ` · ${UA.escHtml(ref.gremium)}` : '';
     const numberStr = ref.number ? ` · ${UA.escHtml(ref.number)}` : '';
@@ -144,14 +153,18 @@
       ? `<div style="margin-top:4px;font-size:11px;color:#555;line-height:1.4;">${UA.escHtml(ref.snippet.substring(0, 200))}</div>`
       : '';
 
-    return `<div class="polCtxRef" data-url="${UA.escHtml(ref.url)}" data-title="${UA.escHtml(ref.title)}" style="
+    const url = safeReferenceUrl(ref.url);
+    return `<div class="polCtxRef" data-url="${UA.escHtml(url)}" data-title="${UA.escHtml(ref.title)}" style="
       border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:10px 12px;
       margin-bottom:8px;background:rgba(255,255,255,.9);cursor:pointer;
       transition:background .15s;">
       <div style="display:flex;align-items:flex-start;gap:8px;">
         <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;flex:1;">
           <input type="checkbox" class="polCtxCheck" style="margin-top:2px;cursor:pointer;"
-            data-url="${UA.escHtml(ref.url)}"
+            data-url="${UA.escHtml(url)}"
+            data-id="${UA.escHtml(ref.id || '')}"
+            data-related-to="${UA.escHtml(ref.relatedTo || '')}"
+            data-snapshot="${UA.escHtml(JSON.stringify(ref.snapshot || null))}"
             data-title="${UA.escHtml(ref.title)}"
             data-type="${UA.escHtml(ref.type)}"
             data-date="${UA.escHtml(ref.date || '')}"
@@ -169,12 +182,14 @@
             <div style="margin-top:3px;font-size:11px;color:#555;">
               <span style="background:${color};color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;">${UA.escHtml(ref.type)}</span>
               <span style="color:#888;">${dateStr}${gremiumStr}${numberStr}</span>
-              <span style="float:right;color:#aaa;font-size:10px;">Score: ${score}</span>
+              <span style="float:right;color:#aaa;font-size:10px;">${score}</span>
             </div>
+            ${related ? `<small>Gehört zu Drucksache ${UA.escHtml(related.number || related.title)}</small>` : ''}
             ${snippet}
           </div>
         </label>
       </div>
+      ${url ? `<a href="${UA.escHtml(url)}" target="_blank" rel="noopener noreferrer">Amtliches Original öffnen</a>` : ''}
     </div>`;
   }
 
@@ -188,21 +203,28 @@
     if (!result.meta.supported) {
       container.innerHTML = `<div style="color:#888;font-size:13px;padding:12px 0;">
         Für die Stadt <strong>${UA.escHtml(result.meta.city)}</strong> ist noch kein Portal-Provider verfügbar.
-        Unterstützte Städte: Hannover.
       </div>`;
       return;
     }
+    const { coverage, generatedAt, warnings = [], searchStatus } = result.meta;
+    const note = generatedAt ? `<p>Datenstand ${UA.escHtml(generatedAt.slice(0, 10))}${
+      coverage?.from && coverage?.to ? ` · Zeitraum ${UA.escHtml(coverage.from)} bis ${UA.escHtml(coverage.to)}` : ''
+    }${coverage?.bodies?.length ? ` · ${UA.escHtml(coverage.bodies.join(', '))}` : ''}</p>` : '';
+    const limits = warnings.length ? `<p>${UA.escHtml(warnings.join(' '))}</p>` : '';
     if (!result.references || result.references.length === 0) {
-      container.innerHTML = `<div style="color:#888;font-size:13px;padding:12px 0;">
-        Keine passenden Vorgänge gefunden.
-      </div>`;
+      const message = searchStatus === 'searched-no-results'
+        ? 'Keine passenden Vorgänge im durchsuchten Bestand.'
+        : 'Der verfügbare Datenstand erlaubt keinen vollständigen Befund.';
+      const portal = safeReferenceUrl(result.meta.sourceUrl);
+      container.innerHTML = `${note}<p>${message}</p>${limits}${portal
+        ? `<a href="${UA.escHtml(portal)}" target="_blank" rel="noopener noreferrer">Amtliche Quelle öffnen</a>`
+        : ''}`;
       return;
     }
-    const refsHtml = result.references.map(renderRef).join('');
+    const byId = new Map(result.references.map(ref => [ref.id, ref]));
+    const refsHtml = result.references.map(ref => renderRef(ref, byId.get(ref.relatedTo))).join('');
     container.innerHTML = `
-      <div style="font-size:12px;color:#888;margin-bottom:8px;">
-        ${result.meta.totalFound} Treffer (nach Relevanz sortiert, max. ${result.references.length} angezeigt)
-      </div>
+      ${note}${limits}
       ${refsHtml}
     `;
   }
@@ -224,7 +246,12 @@
     const btnSearch = document.getElementById('polCtxBtnSearch');
     if (!statusEl || !resultsEl) return;
 
-    const terms = UA.PoliticalContext.buildSearchTerms(ctx);
+    const input = document.getElementById('polCtxSearchInput');
+    const enteredTerms = (input?.value || '').split(/[,;]+/).map(term => term.trim()).filter(Boolean);
+    const terms = enteredTerms.length ? enteredTerms.slice(0, 5) : UA.PoliticalContext.buildSearchTerms(ctx);
+    const city = ctx.CITY_RAW || '';
+    const request = Symbol('political-search');
+    ctx.politicalSearchRequest = request;
 
     // „Suche basiert auf …": macht für Nutzer transparent, welche Begriffe
     // die Auto-Suche einsetzt (Stadt + Straße + Stadtbezirk + ggf. Gremium).
@@ -242,7 +269,7 @@
 
     try {
       const result = await UA.PoliticalContext.search({
-        city: ctx.CITY_RAW || '',
+        city,
         searchTerms: terms,
         context: {
           gremium: (ctx.ui && ctx.ui._lastExportResult &&
@@ -253,14 +280,19 @@
         },
         maxResults: 15
       });
+      if (ctx.politicalSearchRequest !== request || (ctx.CITY_RAW || '') !== city) return;
       statusEl.textContent = result.references.length > 0
         ? `${result.references.length} Vorgänge gefunden.`
-        : 'Keine Vorgänge gefunden.';
+        : result.meta.searchStatus === 'searched-no-results'
+          ? 'Keine Vorgänge im durchsuchten Bestand.'
+          : 'Recherche unvollständig.';
       renderResults(resultsEl, result);
     } catch (err) {
-      statusEl.textContent = 'Fehler: ' + String(err.message || err);
+      if (ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city) {
+        statusEl.textContent = 'Fehler bei der Recherche. ' + String(err.message || err);
+      }
     } finally {
-      if (btnSearch) btnSearch.disabled = false;
+      if (btnSearch && ctx.politicalSearchRequest === request) btnSearch.disabled = false;
     }
   }
   UA.PoliticalContext._runSearch = runSearch;
@@ -275,6 +307,10 @@
     if (!panel) return;
 
     showPanel(panel);
+    const inputEl = document.getElementById('polCtxSearchInput');
+    const previousInput = inputEl?.value;
+    const previousSearch = ctx.politicalSearchRequest;
+    const cityRevision = ctx.politicalContextCityRevision;
 
     // Issue 3: Vor dem Vorbelegen / Auto-Suche sicherstellen, dass
     // ctx.locationHint mit Straße/Stadtbezirk gefüllt ist (on-demand
@@ -285,8 +321,12 @@
       }
     } catch (_) { /* defensive: ohne Hint geht's mit Stadt + Fallback */ }
 
+    // The location lookup may finish after the user starts typing or searching.
+    if (panel.getAttribute('aria-hidden') === 'true' || ctx.politicalContextCityRevision !== cityRevision
+        || ctx.politicalSearchRequest !== previousSearch
+        || (inputEl && (document.activeElement === inputEl || inputEl.value !== previousInput))) return;
+
     // Suchbegriffe vorbelegen
-    const inputEl = document.getElementById('polCtxSearchInput');
     const terms = UA.PoliticalContext.buildSearchTerms(ctx);
     if (inputEl && !inputEl.value.trim()) {
       // Nur die nicht-Stadt-Begriffe vorbelegen (Stadt steht schon im Kontext).
@@ -324,6 +364,9 @@
   UA.PoliticalContext.getSelectedReferences = function getSelectedReferences() {
     const checks = document.querySelectorAll('.polCtxCheck:checked');
     return [...checks].map(cb => ({
+      id:            cb.dataset.id            || undefined,
+      relatedTo:     cb.dataset.relatedTo     || undefined,
+      snapshot:      JSON.parse(cb.dataset.snapshot || 'null') || undefined,
       title:         cb.dataset.title         || '',
       type:          cb.dataset.type          || 'Sonstige',
       date:          cb.dataset.date          || null,
@@ -338,6 +381,40 @@
       snippet:       cb.dataset.snippet       || null,
       source:        cb.dataset.source        || null
     }));
+  };
+
+  UA.PoliticalContext.addReferences = function addReferences(ctx, selected) {
+    const city = ctx.CITY_RAW || '';
+    const sameCity = !ctx.politicalReferencesCity || ctx.politicalReferencesCity === city;
+    const refs = new Map();
+    for (const ref of [...(sameCity ? (ctx.politicalReferences || []) : []), ...selected]) {
+      if (ref.snapshot?.city && UA.RisCatalogue?.cityKey?.(city) !== ref.snapshot.city) continue;
+      const url = safeReferenceUrl(ref.url);
+      if (url && ref.title) refs.set(url, { ...ref, url });
+    }
+    ctx.politicalReferencesCity = city;
+    ctx.politicalReferences = [...refs.values()];
+    return ctx.politicalReferences.length;
+  };
+
+  UA.PoliticalContext.resetCity = function resetCity(ctx) {
+    ctx.politicalReferences = [];
+    ctx.politicalReferencesCity = ctx.CITY_RAW || '';
+    ctx.politicalContextCityRevision = Symbol('political-city');
+    ctx.politicalSearchRequest = null;
+    ctx.politicalContextResearch = null;
+    ctx.__uaPoliticalResearchKey = null;
+    ctx.__uaPoliticalResearchPromise = null;
+    const input = document.getElementById('polCtxSearchInput');
+    if (input) input.value = '';
+    const button = document.getElementById('polCtxBtnSearch');
+    if (button) {
+      button.disabled = false;
+      button.removeAttribute('aria-disabled');
+    }
+    for (const id of ['polCtxStatus', 'polCtxResults', 'polCtxBasis']) {
+      document.getElementById(id)?.replaceChildren();
+    }
   };
 
   // ── Initialisierung ───────────────────────────────────────────────────────────
@@ -387,7 +464,7 @@
           return;
         }
         // In ctx speichern, damit computeExportReport() sie einbeziehen kann
-        ctx.politicalReferences = selected;
+        UA.PoliticalContext.addReferences(ctx, selected);
         closePanel(panel);
         const count = selected.length;
         const btnOpenExport = document.getElementById('btnOpenExport');

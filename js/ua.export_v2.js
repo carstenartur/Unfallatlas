@@ -2221,6 +2221,7 @@
         if (ref.reason) lines.push(`  Relevanz: ${ref.reason}`);
         if (ref.url) lines.push(`  URL: ${ref.url}`);
         if (ref.source) lines.push(`  Quelle (Portal): ${ref.source}`);
+        if (ref.snapshot?.generatedAt) lines.push(`  Katalogstand: ${ref.snapshot.generatedAt.slice(0, 10)}`);
       }
       lines.push("");
     }

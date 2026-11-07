@@ -63,6 +63,21 @@
           "type": ["string", "null"],
           "description": "Direkte URL der strukturierten bzw. maßgeblichen Ausgangsquelle"
         },
+        "generatedAt": { "type": "string" },
+        "sourceFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "stale": { "type": "boolean" },
+        "coverage": {
+          "type": "object",
+          "required": ["from", "to", "bodies", "complete", "warnings"],
+          "additionalProperties": false,
+          "properties": {
+            "from": { "type": ["string", "null"] },
+            "to": { "type": ["string", "null"] },
+            "bodies": { "type": "array", "items": { "type": "string" } },
+            "complete": { "type": "boolean" },
+            "warnings": { "type": "array", "items": { "type": "string" } }
+          }
+        },
         "queryLog": {
           "type": "array",
           "description": "Reproduzierbares Protokoll der tatsächlich ausgeführten Suchbegriffe und Quellen",

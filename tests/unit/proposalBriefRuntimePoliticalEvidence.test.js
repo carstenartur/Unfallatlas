@@ -14,6 +14,17 @@ function features() {
 }
 
 describe('proposal brief runtime political evidence bridge', () => {
+  test('requires a separate official search for completeness when a snapshot is cited', () => {
+    const research = {
+      status: 'complete', searchTerms: ['1047/2026'], providerKey: 'ris-snapshot',
+      documentedQueries: [{ query: '1047/2026', sourceType: 'ris-snapshot' }],
+      evidenceRefs: ['https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1047-2026']
+    };
+    expect(valueAdd.politicalEvidence(research)).toMatchObject({ status: 'blocked', queries: [] });
+    research.documentedQueries.push({ query: '1047/2026', sourceType: 'official-ris' });
+    expect(valueAdd.politicalEvidence(research)).toMatchObject({ status: 'complete', complete: true });
+  });
+
   test('uses the same verified Bonn OParl system URL as the live provider', () => {
     expect(valueAdd.BONN_OPARL_SYSTEM_URL).toBe(BONN_OPARL_SYSTEM_URL);
     expect(valueAdd.BONN_OPARL_SYSTEM_URL)
