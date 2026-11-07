@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   tests:
-    name: Maven verify (Java 21, Node 24)
+    name: Maven verify (Java 25, Node 26)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

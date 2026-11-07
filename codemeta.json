@@ -49,7 +49,7 @@
   "developmentStatus": "active",
   "softwareRequirements": [
     "Modern web browser",
-    "Node.js 24+ for tests and optional Node server",
+    "Node.js 26.x for tests and optional Node server",
     "Java 21+ for the optional analysis service",
     "Docker for full self-hosted operation",
     "Optional AI provider configuration for AI-assisted assessments"
