@@ -46,20 +46,20 @@ describe('vendor plugin licence evidence', () => {
     const report = validateVendorLicenseEvidence({ root: ROOT });
     expect(report).toEqual(expect.objectContaining({
       recordCount: 5,
-      exactReleaseRecordCount: 3,
-      projectLicenseRecordCount: 2,
-      lockedRecordCount: 4,
-      unresolvedRecordCount: 1,
+      exactReleaseRecordCount: 4,
+      projectLicenseRecordCount: 1,
+      lockedRecordCount: 5,
+      unresolvedRecordCount: 0,
     }));
     expect(report.records.map(record => `${record.package}@${record.version}`)).toEqual([
       'leaflet-draw@1.0.4',
-      'leaflet.heat@0.2.0',
-      'simpleheat@0.2.0',
+      'leaflet.heat@1.0.0',
+      'simpleheat@1.0.0',
       'leaflet-image@0.4.0',
       'd3-queue@2.0.3',
     ]);
     expect(report.records.find(record => record.package === 'simpleheat')).toEqual(
-      expect.objectContaining({ lockRequired: false, releaseBinding: 'project-license-with-package-metadata' })
+      expect.objectContaining({ lockRequired: true, releaseBinding: 'exact-release-file' })
     );
   });
 
@@ -111,9 +111,11 @@ describe('vendor plugin licence evidence', () => {
   test('rejects an unlocked component without a matching unresolved policy gap', () => {
     const root = createFixture();
     try {
-      const policy = readJson(root, 'vendor/provenance-policy.json');
-      policy.unresolvedAssets = policy.unresolvedAssets.filter(item => item.id !== 'leaflet-heat-embedded-simpleheat');
-      writeJson(root, 'vendor/provenance-policy.json', policy);
+      const evidence = readJson(root, 'vendor/license-evidence.json');
+      const component = evidence.records.find(record => record.package === 'simpleheat');
+      component.lockRequired = false;
+      component.unresolvedGapId = 'fixture-undeclared-gap';
+      writeJson(root, 'vendor/license-evidence.json', evidence);
       expect(() => validateVendorLicenseEvidence({ root })).toThrow(/not bound to an unresolved policy gap/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

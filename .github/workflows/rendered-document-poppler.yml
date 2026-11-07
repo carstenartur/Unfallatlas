@@ -21,6 +21,7 @@ on:
       - 'scripts/generate-sample-docx.js'
       - 'scripts/generate-sample-pdf.js'
       - 'scripts/libreoffice-rendered-document.js'
+      - 'scripts/pdfmake-node.js'
       - 'scripts/poppler-rendered-document.js'
       - 'scripts/qa-sample-docx-rendered.js'
       - 'scripts/render-document-golden-matrix.js'

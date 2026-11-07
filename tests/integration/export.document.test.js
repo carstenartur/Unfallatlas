@@ -1,4 +1,8 @@
+/** @jest-environment node */
+
 'use strict';
+
+const pdfMake = require('../../scripts/pdfmake-node');
 
 /**
  * Integration coverage for PDF and DOCX document exports.
@@ -10,7 +14,7 @@
 describe('Document Export - Integration Tests', () => {
   let UA;
   let mockCanvas;
-  let originalLocation;
+  let window;
 
   function collectPdfText(item) {
     if (item == null) return '';
@@ -101,45 +105,18 @@ describe('Document Export - Integration Tests', () => {
         'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
       ),
     };
-    originalLocation = window.location;
-    try {
-      delete window.location;
-      Object.defineProperty(window, 'location', {
-        value: {
-          pathname: '/werkbank_v2.html',
-          search: '',
-          hash: '',
-          href: 'http://localhost/werkbank_v2.html',
-          origin: 'http://localhost',
-          protocol: 'http:',
-          host: 'localhost',
-        },
-        writable: true,
-        configurable: true,
-      });
-    } catch (_) {
-      window.history.replaceState({}, '', '/werkbank_v2.html');
-    }
-
-    const pdfMakeLib = require('pdfmake/build/pdfmake');
-    const pdfFonts = require('pdfmake/build/vfs_fonts');
-    if (typeof pdfMakeLib.addVirtualFileSystem === 'function') {
-      pdfMakeLib.addVirtualFileSystem(pdfFonts);
-    } else {
-      pdfMakeLib.vfs = pdfFonts;
-    }
-
-    Object.assign(window, {
+    window = {
       UA: {},
+      location: new URL('http://localhost/werkbank_v2.html'),
       leafletImage: jest.fn((_map, callback) => {
         setTimeout(() => callback(null, mockCanvas), 10);
       }),
       docx: require('docx'),
-      pdfMake: pdfMakeLib,
+      pdfMake,
       saveAs: jest.fn(),
-    });
+    };
 
-    const realCreatePdf = pdfMakeLib.createPdf.bind(pdfMakeLib);
+    const realCreatePdf = pdfMake.createPdf.bind(pdfMake);
     jest.spyOn(window.pdfMake, 'createPdf').mockImplementation(definition => {
       const document = realCreatePdf(definition);
       document.download = jest.fn();
@@ -154,20 +131,6 @@ describe('Document Export - Integration Tests', () => {
   });
 
   afterEach(() => {
-    try {
-      Object.defineProperty(window, 'location', {
-        value: originalLocation,
-        writable: true,
-        configurable: true,
-      });
-    } catch (_) {
-      // jsdom may expose a non-configurable location in future versions.
-    }
-    delete window.UA;
-    delete window.leafletImage;
-    delete window.docx;
-    delete window.pdfMake;
-    delete window.saveAs;
     jest.restoreAllMocks();
   });
 

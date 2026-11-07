@@ -8,7 +8,7 @@
     {
       "lockRef": "export.docx.iife",
       "package": "docx",
-      "expectedVersion": "9.15.1",
+      "expectedVersion": "9.15.3",
       "sourcePath": "dist/index.iife.js",
       "outputPath": "vendor/export/docx.js",
       "method": "byte-for-byte-copy"
@@ -16,7 +16,7 @@
     {
       "lockRef": "export.pdfmake.min",
       "package": "pdfmake",
-      "expectedVersion": "0.3.11",
+      "expectedVersion": "0.3.13",
       "sourcePath": "build/pdfmake.min.js",
       "outputPath": "vendor/export/pdfmake.js",
       "method": "byte-for-byte-copy",
@@ -27,7 +27,7 @@
     {
       "lockRef": "export.pdfmake.font-container",
       "package": "pdfmake",
-      "expectedVersion": "0.3.11",
+      "expectedVersion": "0.3.13",
       "sourcePath": "build/vfs_fonts.js",
       "outputPath": "vendor/export/pdfmake-fonts.js",
       "method": "byte-for-byte-copy",

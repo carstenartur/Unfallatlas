@@ -87,7 +87,7 @@ describe('canonical site build contract', () => {
   test('the Node/npm toolchain contract is pinned in package and lock metadata', () => {
     const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
     expect(packageJson.packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);
-    expect(packageJson.engines).toEqual({ node: '24.x', npm: '>=11 <12' });
+    expect(packageJson.engines).toEqual({ node: '26.x', npm: '>=11 <12' });
     expect(lock.packages[''].engines).toEqual(packageJson.engines);
     expect(resolveActualPackageManager()).toMatch(/^npm@\d+\.\d+\.\d+/);
   });
