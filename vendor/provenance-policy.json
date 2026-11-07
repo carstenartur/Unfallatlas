@@ -65,14 +65,12 @@
       "paths": [
         "vendor/leaflet.heat/leaflet-heat.js"
       ],
-      "kind": "embedded-component-without-project-lock",
+      "kind": "supplier-bundle-without-source-rebuild",
       "missingEvidence": [
-        "simpleheat@0.2.0 package integrity in the project lock",
-        "source-build attestation and contains relation"
+        "independent source-build attestation for the Leaflet.heat global bundle"
       ],
       "migrationOptions": [
-        "Pin simpleheat@0.2.0 and rebuild Leaflet.heat from source with a deterministic minifier.",
-        "Replace the prebundle with separately loaded, integrity-pinned source-built modules."
+        "Rebuild Leaflet.heat and its locked Simpleheat dependency with a pinned, deterministic build toolchain."
       ]
     },
     {

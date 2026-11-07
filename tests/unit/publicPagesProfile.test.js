@@ -14,6 +14,7 @@ const {
 const { validatePublicPagesProfile } = require('../../scripts/validate-public-pages-profile');
 
 const ROOT = path.resolve(__dirname, '../..');
+const HEAT_ASSET = 'vendor/leaflet.heat/leaflet-heat.js';
 const OUTPUT_RELATIVE = path.join(
   '.build',
   `public-pages-profile-test-${process.pid}-${process.env.JEST_WORKER_ID || '0'}`
@@ -89,17 +90,13 @@ describe('public Pages distribution profile', () => {
     expect(notice.knownLicenseRestrictions).toEqual([]);
     expect(notice.disabledCapabilities).toEqual(['video-export']);
     expect(notice.excludedPackages).toEqual([]);
-    expect(notice.supplementalLicenses).toEqual(expect.arrayContaining([
-      expect.objectContaining({ component: 'simpleheat@0.2.0', spdx: 'BSD-2-Clause' }),
-    ]));
-
     for (const relative of PUBLIC_ASSET_PATHS) {
       expect(fs.existsSync(path.join(OUTPUT, relative))).toBe(true);
     }
     const canonical = fs.readFileSync(path.join(OUTPUT, 'werkbank_v2.html'), 'utf8');
     expect(canonical).toContain(`content="${PROFILE_ID}"`);
     expect(canonical).toContain('js/ua.public-preview.js');
-    expect(canonical).toContain('vendor/leaflet.heat/leaflet-heat.js');
+    expect(canonical).toContain(HEAT_ASSET);
     expect(canonical).toContain('vendor/leaflet-draw/leaflet.draw.js');
     expect(canonical).toContain('vendor/leaflet-image/leaflet-image.js');
 
@@ -112,6 +109,52 @@ describe('public Pages distribution profile', () => {
     const index = fs.readFileSync(path.join(OUTPUT, 'index.html'), 'utf8');
     expect(index).toContain('werkbank_v2.html');
     expect(index).not.toContain('vendor/');
+  });
+
+  test('loads the delivered heatmap as a classic Leaflet script', () => {
+    try {
+      window.eval(fs.readFileSync(path.join(OUTPUT, 'vendor/leaflet/leaflet.js'), 'utf8'));
+      window.eval(fs.readFileSync(path.join(OUTPUT, HEAT_ASSET), 'utf8'));
+      const { L } = window;
+      expect(L.heatLayer([[50.7, 7.1, 0.5]])).toBeInstanceOf(L.HeatLayer);
+    } finally {
+      delete window.L;
+    }
+  });
+
+  test('binds the embedded Simpleheat version and license to the heatmap and SBOM', () => {
+    const purl = 'pkg:npm/simpleheat@1.0.0';
+    const notice = readJson('vendor/third-party-notices.json');
+    const embedded = notice.components.find(component => component.purl === purl);
+    const locked = require('../../package-lock.json').packages['node_modules/simpleheat'];
+    expect(embedded).toMatchObject({ integrity: locked.integrity, licenseExpression: 'BSD-2-Clause' });
+    const license = notice.supplementalLicenses.find(entry => entry.component === 'simpleheat@1.0.0');
+    expect(license).toMatchObject({ spdx: 'BSD-2-Clause', copyrightIncluded: true });
+    expect(fs.readFileSync(path.join(OUTPUT, license.path))).toEqual(
+      fs.readFileSync(path.join(ROOT, 'node_modules/simpleheat/LICENSE'))
+    );
+    const assessment = notice.assetAssessments.find(asset => asset.path === HEAT_ASSET);
+    expect(assessment.contains).toContain(purl);
+    expect(assessment.unresolvedDetectedComponents).toEqual([]);
+    expect(assessment.provenanceComplete).toBe(false);
+    const sbom = readJson('vendor/sbom.cdx.json');
+    expect(sbom.dependencies.find(entry => entry.ref === `urn:unfallatlas:vendor-asset:${HEAT_ASSET}`)
+      .dependsOn).toContain(purl);
+  });
+
+  test('rejects a heatmap notice missing its locked Simpleheat component relationship', () => {
+    const noticePath = 'vendor/third-party-notices.json';
+    const notice = readJson(noticePath);
+    const original = JSON.stringify(notice, null, 2) + '\n';
+    const assessment = notice.assetAssessments.find(asset => asset.path === HEAT_ASSET);
+    assessment.contains = assessment.contains.filter(purl => !purl.startsWith('pkg:npm/simpleheat@'));
+    writeJson(noticePath, notice);
+    try {
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/heatmap lacks its locked simpleheat component/);
+    } finally {
+      fs.writeFileSync(path.join(OUTPUT, noticePath), original);
+    }
   });
 
   test('rejects delivered asset hash drift', () => {

@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 
 const POLICY_RELATIVE_PATH = 'vendor/provenance-policy.json';
+const LEAFLET_HEAT_ASSET = 'vendor/leaflet.heat/leaflet-heat.js';
+const LEAFLET_HEAT_SOURCE = 'dist/leaflet-heat-global.js';
 const COMPLETE_INVENTORY_SCOPE = 'delivered-assets-component-level';
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const VENDOR_BUILD_LOCK_SCHEMA_VERSION = 1;
@@ -275,6 +277,29 @@ function collectFontEvidence(repoRoot, outputRoot) {
   });
 }
 
+function verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents) {
+  const component = (lockComponents.byName.get('simpleheat') || [])
+    .find(candidate => candidate.lockPath === 'node_modules/simpleheat');
+  if (!component) throw new Error('[vendor-provenance] Missing locked simpleheat component');
+  const packageRoot = path.join(repoRoot, component.lockPath);
+  const installed = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+  if (installed.name !== component.name || installed.version !== component.version) {
+    throw new Error('[vendor-provenance] Installed simpleheat does not match package-lock.json');
+  }
+
+  const bundle = path.join(repoRoot, 'node_modules/leaflet.heat', LEAFLET_HEAT_SOURCE);
+  const sourceMap = JSON.parse(fs.readFileSync(`${bundle}.map`, 'utf8'));
+  const sourceIndex = sourceMap.sources.indexOf('../node_modules/simpleheat/simpleheat.js');
+  const embeddedSource = sourceMap.sourcesContent?.[sourceIndex];
+  // Match the exact copied bundle and its supplier source map to the locked source.
+  // This does not independently reproduce the supplier's build.
+  if (sha256File(bundle) !== asset.sha256 || typeof embeddedSource !== 'string' ||
+      !fs.readFileSync(path.join(packageRoot, 'simpleheat.js')).equals(Buffer.from(embeddedSource))) {
+    throw new Error('[vendor-provenance] Leaflet.heat bundle does not match the locked simpleheat source');
+  }
+  return component;
+}
+
 function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
   const gapByPath = new Map();
   const gapKindById = new Map();
@@ -315,9 +340,8 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
       const d3Queue = (lockComponents.byName.get('d3-queue') || [])[0];
       if (d3Queue) contains.add(d3Queue.purl);
     }
-    const unresolvedDetectedComponents = [...detected.unresolved];
-    if (asset.path === 'vendor/leaflet.heat/leaflet-heat.js') {
-      unresolvedDetectedComponents.push('simpleheat@0.2.0');
+    if (asset.path === LEAFLET_HEAT_ASSET) {
+      contains.add(verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents).purl);
     }
     const gaps = (gapByPath.get(asset.path) || []).sort();
     const reproducible = gaps.every(gapId => gapKindById.get(gapId) === 'missing-redistribution-evidence');
@@ -331,7 +355,7 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
       provenanceComplete: gaps.length === 0,
       contains: [...contains].sort(),
       containsFiles: [],
-      unresolvedDetectedComponents: [...new Set(unresolvedDetectedComponents)].sort(),
+      unresolvedDetectedComponents: [...new Set(detected.unresolved)].sort(),
       gaps,
     };
   });
@@ -435,20 +459,15 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets) {
     .sort((left, right) => left.purl.localeCompare(right.purl))
     .map(component => copyComponentLicenseEvidence(repoRoot, outputRoot, component));
   const fontEvidence = collectFontEvidence(repoRoot, outputRoot);
-  const simpleheatLicenseSource = path.join(repoRoot, 'licenses/vendor/simpleheat-BSD-2-Clause.txt');
-  const simpleheatLicensePath = 'vendor/licenses/simpleheat-BSD-2-Clause.txt';
-  const simpleheatLicenseDestination = path.join(outputRoot, simpleheatLicensePath);
-  if (!fs.existsSync(simpleheatLicenseSource)) {
-    throw new Error(`[vendor-provenance] Missing simpleheat license text: ${simpleheatLicenseSource}`);
+  const simpleheat = components.find(component => component.attestation.lockPath === 'node_modules/simpleheat');
+  const simpleheatLicense = simpleheat?.licenseTexts.find(license => license.copyrightIncluded);
+  if (!simpleheatLicense || simpleheat.licenseExpression !== 'BSD-2-Clause') {
+    throw new Error('[vendor-provenance] Missing BSD-2-Clause license evidence for locked simpleheat');
   }
-  fs.mkdirSync(path.dirname(simpleheatLicenseDestination), { recursive: true });
-  fs.copyFileSync(simpleheatLicenseSource, simpleheatLicenseDestination);
   const supplementalLicenses = [{
-    component: 'simpleheat@0.2.0',
-    spdx: 'BSD-2-Clause',
-    path: simpleheatLicensePath,
-    sha256: sha256File(simpleheatLicenseDestination),
-    copyrightIncluded: true,
+    component: `simpleheat@${simpleheat.version}`,
+    spdx: simpleheat.licenseExpression,
+    ...simpleheatLicense,
   }];
   const fontContainer = assets.find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
   if (!fontContainer) throw new Error('[vendor-provenance] Missing delivered pdfmake font container');
@@ -670,6 +689,8 @@ function validateCompletenessClaims(manifest) {
 
 module.exports = {
   COMPLETE_INVENTORY_SCOPE,
+  LEAFLET_HEAT_ASSET,
+  LEAFLET_HEAT_SOURCE,
   POLICY_RELATIVE_PATH,
   VENDOR_BUILD_LOCK_REFERENCE_TYPE,
   VENDOR_BUILD_LOCK_SCHEMA_VERSION,

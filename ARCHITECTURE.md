@@ -323,7 +323,7 @@ Längere Erklärung falls nötig.
 
 - **Leaflet** (v1.9.4) - Interaktive Karten
 - **Leaflet.markercluster** (v1.5.3) - Marker-Clustering
-- **leaflet.heat** (v0.2.0) - Heatmap-Darstellung
+- **leaflet.heat** (v1.0.0) - Heatmap-Darstellung
 - **Leaflet.draw** (v1.0.4) - Zeichenfunktionen
 - **leaflet-image** (v0.4.0) - Karten-Export
 
