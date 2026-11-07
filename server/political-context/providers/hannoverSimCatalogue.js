@@ -53,10 +53,11 @@ function anchors(markup) {
 }
 
 function htmlPage(text, url) {
-  const safeMarkup = text.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
-  const main = elements(safeMarkup, 'main')[0]?.[2];
+  // Preserve a boundary so removing ignored content cannot create a tag.
+  const markup = text.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  const main = elements(markup, 'main')[0]?.[2];
   if (!main) throw new Error('Kein öffentlicher SIM-Seiteninhalt');
-  const baseTag = safeMarkup.match(new RegExp(`<base\\b${ATTRS}>`, 'i'));
+  const baseTag = markup.match(new RegExp(`<base\\b${ATTRS}>`, 'i'));
   const base = baseTag && officialUrl(attributes(baseTag[1]).href, url);
   const bases = [...new Set([base?.pathname === PATH && !base.search ? base.href : url, url, ROOT])];
   return { main, bases };

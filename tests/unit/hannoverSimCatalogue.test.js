@@ -51,6 +51,18 @@ function collect(options) {
   return require('../../server/political-context/providers/hannoverSimCatalogue').collectHannoverCatalogue(options);
 }
 
+test.each(['<!-- ignored -->', '<script>ignored</script>'])('keeps tag fragments apart around %s', async ignored => {
+  const { requestText, calls } = transport({
+    'Termine.xsp': `<m${ignored}ain><h2>Termine</h2><a href="${RAT}">25.06.2026</a></main>`,
+    [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">${TITLE}</a></td></tr>`),
+    [ORIGINAL]: document('Anfrage Nr. 1047/2026', TITLE),
+  });
+
+  await expect(collect({ now: TODAY, includeRss: false, requestText, strict: true }))
+    .rejects.toThrow('Kein öffentlicher SIM-Seiteninhalt');
+  expect(calls).toEqual([ROOT + 'Termine.xsp']);
+});
+
 test('finds 1047/2026 and its distinct answer via the public Rat agenda and related links', async () => {
   const { requestText, calls } = transport({
     'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),

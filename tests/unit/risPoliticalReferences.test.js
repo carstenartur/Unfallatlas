@@ -37,3 +37,23 @@ test('leaves a focused search input alone when the automatic location hint arriv
   await open;
   expect(input.value).toBe('');
 });
+
+test('shows literal search terms without interpreting them as markup', async () => {
+  require('../../js/ua.political-context.js');
+  document.body.innerHTML = '<input id="polCtxSearchInput"><div id="polCtxBasis"></div>'
+    + '<div id="polCtxStatus"></div><div id="polCtxResults"></div>';
+  document.getElementById('polCtxSearchInput').value = '<img src=x>, Limmerstraße';
+  const api = window.UA.PoliticalContext;
+  const search = jest.spyOn(api, 'search').mockResolvedValue({
+    references: [], meta: { supported: true, searchStatus: 'searched-no-results' }
+  });
+  try {
+    await api._runSearch({ CITY_RAW: 'Hannover' });
+    const basis = document.getElementById('polCtxBasis');
+    expect(basis.querySelector('img')).toBeNull();
+    expect([...basis.querySelectorAll('strong')].map(term => term.textContent))
+      .toEqual(['<img src=x>', 'Limmerstraße']);
+  } finally {
+    search.mockRestore();
+  }
+});

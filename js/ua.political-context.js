@@ -256,11 +256,19 @@
     // „Suche basiert auf …": macht für Nutzer transparent, welche Begriffe
     // die Auto-Suche einsetzt (Stadt + Straße + Stadtbezirk + ggf. Gremium).
     if (basisEl) {
-      const escHtml = (UA && UA.escHtml) ? UA.escHtml : (s => String(s == null ? '' : s));
-      const basisHtml = terms.length
-        ? `Suche basiert auf: <strong>${terms.map(t => escHtml(t)).join('</strong>, <strong>')}</strong>`
-        : 'Suche basiert auf: <em>(keine Suchbegriffe)</em>';
-      basisEl.innerHTML = basisHtml;
+      basisEl.replaceChildren('Suche basiert auf: ');
+      if (terms.length) {
+        terms.forEach((term, index) => {
+          if (index) basisEl.append(', ');
+          const label = document.createElement('strong');
+          label.textContent = term;
+          basisEl.append(label);
+        });
+      } else {
+        const label = document.createElement('em');
+        label.textContent = '(keine Suchbegriffe)';
+        basisEl.append(label);
+      }
     }
 
     statusEl.textContent = 'Suche läuft…';
