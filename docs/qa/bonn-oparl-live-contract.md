@@ -1,6 +1,6 @@
 # Bonn: produktionsnaher OParl-/RIS-Evidenzvertrag
 
-Stand: 21. August 2026
+Stand: 7. November 2026
 
 ## Ziel
 
@@ -57,26 +57,28 @@ und niemals als abgeschlossene Nulltreffersuche.
 
 ## Live-QA
 
-Der Workflow **Bonn political context live QA** führt die reale Suche gegen den
-amtlichen Bonner Dienst über den kanonischen Maven-Build aus. Der Workflow
-definiert weder eine eigene npm-/Jest-Installation noch einen parallelen
-Buildpfad. Er verlangt:
+Der Workflow **Bonn political context live QA** prüft den amtlichen Bonner Dienst
+über den kanonischen Maven-Build. In Pull Requests erzeugt er aus bis zu zwei
+Paper-Seiten am Ende des Archivs einen Ratsdatenindex, prüft dessen Prüfsumme
+und sucht nach einer eingelesenen Drucksache. Die Treffer tragen den Status
+`partial-results`. Eine Suche ohne Treffer im Teilbestand liefert `incomplete`.
+Ein Abruf ohne nutzbare Vorgänge wird einmal wiederholt.
 
-- einen erfolgreich nutzbaren OParl-Lauf oder einen dokumentierten partiellen
-  OParl-Lauf mit anschließend vollständig abgearbeitetem amtlichen Fallback,
-- ein nicht leeres reproduzierbares Suchprotokoll,
-- mindestens einen Treffer für die stabilen Prüfterme `Adenauerallee` und
-  `Radverkehr`,
-- direkte amtliche Bonner Links,
-- ein als Workflow-Artefakt gespeichertes JSON-Protokoll.
+Geplante und manuell gestartete Läufe prüfen die vollständige Archivsuche.
 
-Die vollständige Bonner Sammlung umfasst derzeit 243 Seiten bei der serverseitig
-begrenzten Größe von 100 Vorgängen. Der Live-Lauf erlaubt deshalb bis zu 300
-Seiten und besitzt einen eigenen, weiterhin begrenzten Prozess- und Job-Timeout.
-Die Netzprüfung wird höchstens einmal mit begrenztem Backoff wiederholt. Sie
-ersetzt keine deterministischen Unit-Tests; diese prüfen Paginierung,
-Deduplizierung, Hostbeschränkung, Fallbackreihenfolge und die Unterscheidung
-zwischen Nulltreffer und Providerfehler ohne externes Netz.
+- Der OParl-Lauf wird erfolgreich abgeschlossen oder ein amtlicher Fallback
+  ergänzt den dokumentierten partiellen OParl-Lauf vollständig.
+- Das Suchprotokoll dokumentiert die Abfragen reproduzierbar und enthält für
+  `Adenauerallee` und `Radverkehr` jeweils mindestens einen Treffer.
+- Die Treffer führen direkt zu amtlichen Bonner Seiten. Das JSON-Protokoll
+  wird als Workflow-Artefakt gespeichert.
+
+Der Archivlauf erlaubt bis zu 300 Seiten zu jeweils höchstens 100 Vorgängen.
+Für den Abruf gelten 20 Minuten Prozessbudget wie beim Datenimport und 25 Minuten
+für den gesamten CI-Job. Das Prozessbudget schließt höchstens einen
+Wiederholungsversuch mit Wartezeit ein. Deterministische Unit-Tests prüfen
+Paginierung, Deduplizierung, Hostbeschränkung, Fallbackreihenfolge und die
+Unterscheidung zwischen Nulltreffer und Providerfehler.
 
 ## KI-/Antragsübergabe
 
