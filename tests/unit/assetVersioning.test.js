@@ -20,11 +20,13 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=${version}`);
   });
 
-  test.each(['js/ua.map_v2.js', 'js/ua.tour.js'])(
-    '%s invalidates cached assets for the new political research UI', asset => {
-      expect(html).toContain(`${asset}?v=2026-11-07`);
-    }
-  );
+  test('the map invalidates the cache for the layer status contrast fix', () => {
+    expect(html).toContain('js/ua.map_v2.js?v=2026-11-07-context-contrast"');
+  });
+
+  test('the tour invalidates the cache for the political research UI', () => {
+    expect(html).toContain('js/ua.tour.js?v=2026-11-07');
+  });
 
   test.each([
     'js/ua.data_paths.js',

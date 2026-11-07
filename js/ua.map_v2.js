@@ -1775,14 +1775,14 @@
         const hint = document.createElement('div');
         hint.textContent = '(lädt …)';
         hint.style.fontSize = '11px';
-        hint.style.color    = '#888';
+        hint.style.color    = '#555';
         hint.style.marginBottom = '4px';
         c.appendChild(hint);
       } else if ((showSlope || showTraffic) && geomUnavailable) {
         const hint = document.createElement('div');
         hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
         hint.style.fontSize = '11px';
-        hint.style.color    = '#888';
+        hint.style.color    = '#555';
         hint.style.marginBottom = '4px';
         c.appendChild(hint);
       }
