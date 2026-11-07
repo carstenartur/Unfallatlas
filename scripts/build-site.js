@@ -16,7 +16,7 @@ const path = require('path');
 
 const { main: buildStaticData } = require('./build-static-data');
 const { validateStaticData } = require('./validate-static-data');
-const { buildDiagnosticProvenance } = require('./vendor-provenance');
+const { buildDiagnosticProvenance, LEAFLET_HEAT_ASSET, LEAFLET_HEAT_SOURCE } = require('./vendor-provenance');
 
 const STATIC_ENTRIES = Object.freeze([
   '.zenodo.json',
@@ -55,7 +55,7 @@ const VENDOR_ASSETS = Object.freeze([
   ['leaflet.markercluster', 'dist/MarkerCluster.css', 'vendor/leaflet.markercluster/MarkerCluster.css'],
   ['leaflet.markercluster', 'dist/MarkerCluster.Default.css', 'vendor/leaflet.markercluster/MarkerCluster.Default.css'],
   ['leaflet.markercluster', 'dist/leaflet.markercluster.js', 'vendor/leaflet.markercluster/leaflet.markercluster.js'],
-  ['leaflet.heat', 'dist/leaflet-heat.js', 'vendor/leaflet.heat/leaflet-heat.js'],
+  ['leaflet.heat', LEAFLET_HEAT_SOURCE, LEAFLET_HEAT_ASSET],
   ['leaflet-draw', 'dist/leaflet.draw.css', 'vendor/leaflet-draw/leaflet.draw.css'],
   ['leaflet-draw', 'dist/leaflet.draw.js', 'vendor/leaflet-draw/leaflet.draw.js'],
   ['leaflet-draw', 'dist/images/spritesheet.png', 'vendor/leaflet-draw/images/spritesheet.png'],
