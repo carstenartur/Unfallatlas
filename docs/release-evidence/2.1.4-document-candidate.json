@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "unfallwerkbank.release-document-candidate/v1",
+  "status": "awaiting-external-acceptance",
+  "renderSourceCommit": "a75ea085e599e3e9fb14d3bc913c217cb47fee5c",
+  "integratedReviewedSourceCommit": "bcd8ff4c027deca2fb4dd0093909a0e305fa9202",
+  "wordInputFingerprint": "bc7138ef9781028640dd0db3a5da063c79c4182e3a13d33ab5f9a14dfd444537",
+  "sourceManifestHash": "23034ee9dea15912534549d63f903b35b267893a058a5ac3b3c5c922e4d6f84c",
+  "sourceGeoJsonSha256": "23afbd7bc25ad170e849734db9499ce60dbf15f792a79a41cc1f357413755cce",
+  "sourceAcquisition": {
+    "kind": "local-file-read",
+    "acquiredAt": "2026-11-08T17:47:54.850Z",
+    "upstreamRetrievedAt": null
+  },
+  "tools": {
+    "node": "v24.22.1",
+    "npm": "11.9.0",
+    "pdfmake": "0.3.14",
+    "docx": "9.15.3",
+    "libreOffice": "LibreOfficeDev 26.8.0.0.alpha0",
+    "poppler": "26.05.0",
+    "mavenAvailable": false
+  },
+  "artifacts": [
+    {
+      "path": "out/ci-render-gate.docx",
+      "bytes": 83345,
+      "sha256": "044df5a78c47c3742264353ae0743b7a12b32d8eb2ca9dd62611a47b59aefcfe"
+    },
+    {
+      "path": "out/ci-render-gate.pdf",
+      "bytes": 187090,
+      "sha256": "9e974eecf727dfa6c561ef431cefea5519588ae1faf1cccfea6a3ce324f0389e"
+    },
+    {
+      "path": "out/qa/release-document/appendix.docx",
+      "bytes": 188432,
+      "sha256": "205037e149d7b997c189ebb8388a30c66419f5b912d4b7eba0aa0a653f5264e7"
+    },
+    {
+      "path": "out/qa/release-document/appendix.pdf",
+      "bytes": 420353,
+      "sha256": "48ee7ccf6d02c2aa35841c8514e10ff870fcab84ec64ebdcc8a769e62eda3727"
+    },
+    {
+      "path": "out/qa/release-document/docx/converted.pdf",
+      "bytes": 714801,
+      "sha256": "886bd7799254516c69bee0ea6f61ebd738b3305fe286abdb869c2ec9223aaa12"
+    }
+  ],
+  "automatedEvidence": {
+    "fullDocumentRunner": true,
+    "unitSuites": 18,
+    "unitTests": 108,
+    "layoutScenarios": 5,
+    "numberedAccidents": 111,
+    "numberedMaps": 9,
+    "ordinaryDocxPages": 5,
+    "numberedPdfPages": 14,
+    "numberedDocxPages": 13,
+    "nativeRepeatedHeaders": 4,
+    "docxRepeatedHeaders": 3,
+    "finalNumberedRenderPassed": true,
+    "detailHeadingsBoundToMapPagesPerFormat": 8,
+    "finalHeadingRegressionSuites": 2,
+    "finalHeadingRegressionTests": 15,
+    "finalWordContractSuites": 3,
+    "finalWordContractTests": 26,
+    "visualPagesReviewed": {
+      "nativeNumberedPdf": 14,
+      "convertedNumberedDocx": 13,
+      "ordinaryDocx": 5
+    }
+  },
+  "externalAcceptance": {
+    "microsoftWordVerified": false,
+    "realAiProposalApproved": false,
+    "scientificProposalApproved": false,
+    "canonicalMavenNode26ExactHeadVerified": false,
+    "releasePublished": false
+  },
+  "ordinarySampleRenderSourceCommit": "8c1f693e903b3a9d81f1b3bc1f574f505fd31ded"
+}

@@ -123,7 +123,7 @@ class ContextDataContainerIT {
                     });
                     if (result.canvases > 0 && result.opaquePixels > 100
                         && result.legendCount === 2
-                        && result.legendText.includes('Straßensteigung')
+                        && result.legendText.includes('Gelände / geprüfte Straßenprofile')
                         && result.legendText.includes('Verkehrsbelastung')) break;
                     await page.waitForTimeout(250);
                   }
@@ -134,7 +134,7 @@ class ContextDataContainerIT {
                   console.log('CONTEXT_E2E_RESULT=' + JSON.stringify(result));
                   if (result.canvases < 1 || result.opaquePixels <= 100
                       || result.legendCount !== 2
-                      || !result.legendText.includes('Straßensteigung')
+                      || !result.legendText.includes('Gelände / geprüfte Straßenprofile')
                       || !result.legendText.includes('Verkehrsbelastung')
                       || errors.length) {
                     throw new Error('Visible context contract failed: ' + JSON.stringify(result));

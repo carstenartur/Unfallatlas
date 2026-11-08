@@ -1312,7 +1312,13 @@
   function snapshotCitationLines(snapshot) {
     if (!snapshot) return [];
     const { generatedAt, complete, stale, warnings } = snapshot;
-    const lines = [];
+    const lines = ["Recherchequelle: veröffentlichter Ratsdaten-Snapshot"];
+    if (typeof snapshot.sha256 === "string" && /^[a-f0-9]{64}$/.test(snapshot.sha256)) {
+      lines.push(`Snapshot-SHA-256: ${snapshot.sha256}`);
+      if (typeof snapshot.mapSha256 === "string" && /^[a-f0-9]{64}$/.test(snapshot.mapSha256) && snapshot.mapSha256 !== snapshot.sha256) {
+        lines.push(`Karten-SHA-256: ${snapshot.mapSha256}`);
+      }
+    }
     if (typeof generatedAt === "string" && generatedAt) lines.push(`Katalogstand: ${generatedAt.slice(0, 10)}`);
     if (complete === false) lines.push("Katalogabdeckung: eingeschränkt");
     if (stale === true) lines.push("Der Katalogstand ist veraltet.");

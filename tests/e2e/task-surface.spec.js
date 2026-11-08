@@ -42,6 +42,8 @@ test.describe('responsive task surface', () => {
     await expect(severity).not.toHaveValue('all');
     ready = await waitForScreenshotReady(page, { city: 'Hannover', afterRevision: ready.render.revision });
 
+    const mapSettings = page.getByRole('button', { name: 'Karte', exact: true });
+    if (await mapSettings.getAttribute('aria-expanded') === 'false') await mapSettings.click();
     const cluster = page.locator('#toggleCluster');
     const initialPressed = await cluster.getAttribute('aria-pressed');
     await cluster.focus();
@@ -49,6 +51,7 @@ test.describe('responsive task surface', () => {
     await expect(cluster).toHaveAttribute('aria-pressed', initialPressed === 'true' ? 'false' : 'true');
     ready = await waitForScreenshotReady(page, { city: 'Hannover', afterRevision: ready.render.revision });
 
+    if (await page.locator('#collapseBtn').getAttribute('aria-expanded') === 'false') await page.locator('#collapseBtn').click();
     const open = page.locator('#btnOpenExport');
     const dialog = page.locator('#modalOverlay');
     await open.focus();
@@ -86,6 +89,7 @@ test.describe('touch task surface', () => {
     await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
     let ready = await waitForTaskSurface(page);
 
+    await page.getByRole('button', { name: 'Karte', exact: true }).tap();
     const heat = page.locator('#toggleHeat');
     await heat.scrollIntoViewIfNeeded();
     const initialPressed = await heat.getAttribute('aria-pressed');
@@ -93,6 +97,7 @@ test.describe('touch task surface', () => {
     await expect(heat).toHaveAttribute('aria-pressed', initialPressed === 'true' ? 'false' : 'true');
     ready = await waitForScreenshotReady(page, { city: 'Hannover', afterRevision: ready.render.revision });
 
+    await page.locator('#collapseBtn').tap();
     const open = page.locator('#btnOpenExport');
     await open.scrollIntoViewIfNeeded();
     await open.tap();
@@ -222,7 +227,7 @@ async function installMobileContextFixture(page) {
 }
 
 const MOBILE_CONTEXT_URL = '/werkbank_v2.html?city=Hannover&mapLayer=slope&ctxOnlyMatched=0';
-const MAP_CARDS = ['.context-overlay-control', '.context-overlay-legend', '.layer-legend-control'];
+const MAP_CARDS = ['.carte-control', '.context-overlay-legend'];
 
 async function waitForMobileMap(page) {
   // The full-city loader reports completeness for the intercepted response,
@@ -300,6 +305,22 @@ test.describe('compact mobile map controls', () => {
         expect(target.bottom, `${target.selector} bottom edge`).toBeLessThanOrEqual(geometry.height);
         expect(target.reachable, `${target.selector} is covered by another panel`).toBe(true);
       }
+
+      const settings = page.getByRole('button', { name: 'Karte', exact: true });
+      await expect(settings).toHaveCount(1);
+      await expect(page.getByRole('button', { name: /^(Ebenen|Karten-Layer)$/ })).toHaveCount(0);
+      await settings.tap();
+      await expect(page.locator('#collapseBtn')).toHaveAttribute('aria-expanded', 'false');
+      for (const selector of ['#mapModeHybrid', '#toggleHeat', '[data-layer="schools"]', '#ctxOverlay_slope']) {
+        const setting = page.locator(selector);
+        await setting.scrollIntoViewIfNeeded();
+        const rect = await setting.boundingBox();
+        expect(rect.height, selector).toBeGreaterThanOrEqual(selector === '#ctxOverlay_slope' ? 22 : 44);
+        await setting.click({ trial: true });
+      }
+      await page.keyboard.press('Escape');
+      await expect(settings).toBeFocused();
+      await expect(settings).toHaveAttribute('aria-expanded', 'false');
     });
   }
 
@@ -309,10 +330,10 @@ test.describe('compact mobile map controls', () => {
     await waitForMobileMap(page);
 
     const context = page.locator('.context-overlay-control .mapControlToggle');
-    const layers = page.locator('.layer-legend-control .mapControlToggle');
+    const layers = context;
     const legend = page.locator('.context-overlay-legend .mapControlToggle');
     const slope = page.locator('#ctxOverlay_slope');
-    const heatmap = page.locator('.layer-legend-control button[data-layer="heatmap"]');
+    const heatmap = page.locator('.carte-control button[data-layer="heatmap"]');
     await context.tap();
     await expect(context).toHaveAttribute('aria-expanded', 'true');
     await expect(slope).toBeVisible();
@@ -353,6 +374,25 @@ test.describe('compact mobile map controls', () => {
     await expect(slope).toBeChecked();
     await context.tap();
     await expect(context).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('map and analysis panel share the mobile space and restore the previous panel choice', async ({ page }) => {
+    await installMobileContextFixture(page);
+    await page.goto(MOBILE_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
+    await waitForMobileMap(page);
+    const panel = page.locator('#collapseBtn');
+    const settings = page.getByRole('button', { name: 'Karte', exact: true });
+    await panel.tap();
+    await expect(panel).toHaveAttribute('aria-expanded', 'true');
+    await settings.tap();
+    await expect(panel).toHaveAttribute('aria-expanded', 'false');
+    await expect(settings).toHaveAttribute('aria-expanded', 'true');
+    await settings.tap();
+    await expect(panel).toHaveAttribute('aria-expanded', 'true');
+    await settings.tap();
+    await panel.tap();
+    await expect(settings).toHaveAttribute('aria-expanded', 'false');
+    await expect(panel).toHaveAttribute('aria-expanded', 'true');
   });
 
   test('RIS popup fits the phone and restores folded controls without disabling its layer', async ({ page }, testInfo) => {
@@ -456,5 +496,34 @@ test.describe('compact mobile map controls', () => {
     } finally {
       release();
     }
+  });
+});
+
+test.describe('tablet map settings', () => {
+  test.use({ viewport: { width: 768, height: 1024 }, hasTouch: true });
+
+  test('one readable Karte surface fits beside the analysis panel and preserves settings across resize', async ({ page }) => {
+    await installMobileContextFixture(page);
+    await page.goto(MOBILE_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
+    await waitForMobileMap(page);
+    const settings = page.getByRole('button', { name: 'Karte', exact: true });
+    await expect(settings).toHaveCount(1);
+    await expect(settings).toHaveAttribute('aria-expanded', 'true');
+    const card = page.locator('.carte-control');
+    const panelRect = await page.locator('#panel').boundingBox();
+    const cardRect = await card.boundingBox();
+    expect(panelRect.x + panelRect.width).toBeLessThanOrEqual(cardRect.x);
+    await page.locator('#mapModeHybrid').click({ trial: true });
+    await page.locator('#toggleCluster').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#toggleCluster')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#toggleHeat')).toHaveAttribute('aria-pressed', 'true');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(settings).toHaveAttribute('aria-expanded', 'false');
+    await expect(settings).toBeFocused();
+    await settings.tap();
+    await expect(page.locator('#toggleCluster')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#toggleHeat')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#ctxOverlay_slope')).toBeChecked();
   });
 });

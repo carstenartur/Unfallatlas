@@ -189,3 +189,12 @@ describe('Cologne directed official-line to OSM matching', () => {
     }
   });
 });
+
+test('retains original OSM license, retrieval and transport pins in the matched artifact', () => {
+  const osm = osmArtifact({ 123: { coordinates: [coordinate(0), coordinate(100)] } });
+  osm.source = { sourceId: 'road.osm.snapshot', licenseId: 'ODbL-1.0', requiredAttribution: '© OpenStreetMap contributors', retrievedAt: '2026-11-08T16:43:56.939Z' };
+  osm.originalDistribution = { wireSha256: 'c'.repeat(64), decodedSha256: 'd'.repeat(64), geometryGeneralized: false };
+  const artifact = matcher.buildMatchedArtifact(input(trafficArtifact([observation({ id: 'real-source-contract' })]), 'traffic', 'a'), input(osm, 'osm', 'b'), { generatedAt: '2026-11-08T17:00:00Z' });
+  expect(artifact.sources.osm.source).toEqual(osm.source);
+  expect(artifact.sources.osm.originalDistribution).toEqual(osm.originalDistribution);
+});

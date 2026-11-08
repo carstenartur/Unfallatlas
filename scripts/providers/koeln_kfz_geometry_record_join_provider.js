@@ -7,6 +7,7 @@ const path = require('path');
 
 const strictZip = require('../lib/strict-zip');
 const archiveProvider = require('./koeln_kfz_geometry_archive_provider');
+const koelnProjection = require('../lib/koeln-kfz-projection');
 const linkProvider = require('./koeln_kfz_link_csv_provider');
 
 const SCHEMA_VERSION = 1;
@@ -15,7 +16,7 @@ const OUTPUT_SCHEMA_VERSION = 1;
 const OUTPUT_TYPE = 'koeln-kfz-official-geometry-join';
 const PRODUCER_VERSION = '1.0.0';
 const SUPPORTED_ENCODINGS = Object.freeze(new Set(['ascii', 'utf-8', 'windows-1252', 'latin1']));
-const SUPPORTED_CRS = Object.freeze(new Set(['EPSG:25832', 'EPSG:32632']));
+const SUPPORTED_CRS = Object.freeze(new Set(['EPSG:25832', 'EPSG:32632', koelnProjection.CRS_ID]));
 
 class KoelnKfzGeometryJoinError extends Error {
   constructor(code, message, details) {
@@ -200,13 +201,13 @@ function shapeSetById(inspected, schema, role) {
   if (matches.length !== 1) fail('missing_shape_set', `${role} shape set is not uniquely present`, { id });
   const set = matches[0];
   const expectedType = role === 'pointSet' ? 1 : 3;
-  if (set.shapeType !== expectedType || set.crs.epsg !== schema.crs) {
+  if (set.shapeType !== expectedType || (set.crs.id || set.crs.epsg) !== schema.crs) {
     fail('shape_set_contract_mismatch', `${role} differs from schema pin`, {
       id,
       expectedType,
       actualType: set.shapeType,
       expectedCrs: schema.crs,
-      actualCrs: set.crs.epsg,
+      actualCrs: set.crs.id || set.crs.epsg,
     });
   }
   return set;
@@ -566,6 +567,7 @@ function buildOfficialGeometryIndex(pointRecords, lineRecords, schema) {
 }
 
 function utm32ToWgs84(point, crs) {
+  if (crs === koelnProjection.CRS_ID) return koelnProjection.project(point);
   const a = 6378137;
   const flattening = crs === 'EPSG:25832' ? 1 / 298.257222101 : 1 / 298.257223563;
   const e2 = flattening * (2 - flattening);
@@ -663,7 +665,8 @@ function joinObservations(observations, geometryIndex, schema) {
         endpointDistanceMeters: geometry.endpointDistanceMeters,
         schemaSha256: schema.sha256,
         crs: schema.crs,
-        transform: 'utm-zone-32-to-wgs84-v1',
+        transform: schema.crs === koelnProjection.CRS_ID ? koelnProjection.TRANSFORM_ID : 'utm-zone-32-to-wgs84-v1',
+        ...(schema.crs === koelnProjection.CRS_ID ? { sourcePrjSha256: koelnProjection.WKT_SHA256, declaredAccuracyMeters: null } : {}),
       }),
       qualityNotes: Object.freeze([
         ...(Array.isArray(observation.qualityNotes) ? observation.qualityNotes : []),

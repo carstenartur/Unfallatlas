@@ -256,6 +256,7 @@ async function search(params = {}) {
           status: 'results-found',
           sourceType: 'oparl-1.1',
           sourceUrl: OPARL_SYSTEM_URL,
+          ...(oparlMeta.catalogueCache ? { catalogueCache: oparlMeta.catalogueCache } : {}),
           queryLog,
           pagesFetched: Number(oparlMeta.pagesFetched || 0),
           scannedItems: Number(oparlMeta.scannedItems || 0),
@@ -266,6 +267,7 @@ async function search(params = {}) {
       };
     }
   } catch (error) {
+    if (error.catalogueCache) oparlMeta = { catalogueCache: error.catalogueCache };
     const failure = safeError(error);
     warnings.push(`OParl-Abruf fehlgeschlagen: ${failure.code}: ${failure.message}`);
     for (const term of terms) {
@@ -353,13 +355,15 @@ async function search(params = {}) {
   const results = deduplicate(allResults);
   const htmlComplete = terms.every(term => coveredTerms.has(term));
   if (!oparlComplete && !htmlComplete) {
-    throw createProviderError(
+    const error = createProviderError(
       results.length ? 'POLITICAL_PROVIDER_INCOMPLETE' : 'POLITICAL_PROVIDER_UNAVAILABLE',
       results.length
         ? 'Die Bonner politische Recherche lieferte nur unvollständige Teilergebnisse.'
         : 'Alle strukturierten und HTML-basierten Bonner Recherchequellen sind fehlgeschlagen.',
       attempts
     );
+    if (oparlMeta?.catalogueCache) error.catalogueCache = oparlMeta.catalogueCache;
+    throw error;
   }
 
   const hasOparlResult = results.some(result => result && result.sourceType === 'oparl-1.1');
@@ -377,6 +381,7 @@ async function search(params = {}) {
       status: results.length ? 'results-found' : 'searched-no-results',
       sourceType,
       sourceUrl,
+      ...(oparlMeta?.catalogueCache ? { catalogueCache: oparlMeta.catalogueCache } : {}),
       queryLog,
       pagesFetched: Number(oparlMeta && oparlMeta.pagesFetched || 0),
       scannedItems: Number(oparlMeta && oparlMeta.scannedItems || 0),

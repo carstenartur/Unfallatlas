@@ -1,8 +1,9 @@
 # Unfallwerkbank 2.1.4 — prepared release notes
 
 **Status: unpublished candidate.** These notes describe changes on
-`main` at `0f6d7ad2b75d2ecc6560d274d29a8a0076f78f30` plus the explicitly
-identified document-QA candidate in PR #724, compared with
+the reviewed integrated stack `d930fbc44f55db7ba2631032958c2b897243ad33`,
+its technical Golden evidence follow-up, and the source-bound document-QA
+candidate in PR #724, compared with
 [`v2.1.3`](https://github.com/carstenartur/Unfallatlas/releases/tag/v2.1.3).
 Publication remains blocked by the acceptance items in
 [the preparation record](docs/releases/2.1.4-preparation.md).
@@ -18,7 +19,7 @@ Publication remains blocked by the acceptance items in
 - **Reproducible context data.** Context generation uses verified inputs and
   explicit fallback behaviour. Reviewed context-data updates are included through
   [#745](https://github.com/carstenartur/Unfallatlas/pull/745); later open refresh
-  requests are outside this candidate. See also
+  requests are outside this candidate unless explicitly identified below. See also
   [#389](https://github.com/carstenartur/Unfallatlas/pull/389),
   [#666](https://github.com/carstenartur/Unfallatlas/pull/666) and
   [#669](https://github.com/carstenartur/Unfallatlas/pull/669).
@@ -35,6 +36,28 @@ Publication remains blocked by the acceptance items in
   validation tied to the actual visible source strip
   ([source change](https://github.com/carstenartur/Unfallatlas/commit/35a504836419a9089358d8bfe6dd8ac674286b05)).
 
+- **Broader, explicitly qualified political evidence.** Bonn source caching and
+  Hannover historical catalogues preserve original verification clocks, partial
+  coverage and failures. Public consultation histories and direct document
+  relationships load on request from bounded snapshot pages. Landtag and Region
+  public sources retain separate source status and date roles; protected Region
+  RIS remains blocked. Snapshot/export provenance binds the actual source and
+  distribution fingerprints ([#750](https://github.com/carstenartur/Unfallatlas/pull/750),
+  [#753](https://github.com/carstenartur/Unfallatlas/pull/753)).
+- **Typed traffic and terrain context.** Reviewed code distinguishes measured
+  counts, model values and qualitative proxies, preserves genuine zero, and
+  rejects missing values that could otherwise be coerced to zero. Selected road
+  profiles retain signed, geometry-relative slope and source pins in popups and
+  exports. The real Köln pilot and bounded Hannover DGM references are evidence
+  for those paths, not citywide activation or new current measurements; DGM
+  quality/manual acceptance remains open
+  ([#752](https://github.com/carstenartur/Unfallatlas/pull/752)).
+- **Consistent area names and proposal templates.** A shared area name follows
+  the original hydrated selection geometry and reaches exports. Versioned
+  proposal templates and the Bonn Hbf Golden case bind real populations and
+  source fingerprints. Automated replay does not constitute actual AI-provider,
+  scientific or proposal-readiness approval.
+
 ## Packaging and quality
 
 - **Candidate document acceptance:** source-bound PDF/DOCX/CSV/GeoJSON exports
@@ -42,7 +65,13 @@ Publication remains blocked by the acceptance items in
   Final-page checks reconstruct table cells and captions and verify embedded
   source hashes and image pixels. Readable 9-point landscape tables and concise
   clickable map links replace the broken long URLs and cramped appendix columns.
+  Native-PDF detail headings stay on the same page as their map, independently
+  checked against final positioned text and image bounds.
   This addition is in preparation PR #724; actual Microsoft Word acceptance remains open.
+- Repository storage checks now account for intermediate historical blobs and
+  every introduced path association, preserve pinned release archives, and fail
+  closed when their comparison baseline is unavailable
+  ([#751](https://github.com/carstenartur/Unfallatlas/pull/751)).
 - The canonical Pages bundle binds locked browser assets, data fingerprints,
   media evidence, notices and SBOM output to the built site.
 - Release acceptance keeps reviewed screenshots intact and checks the actual

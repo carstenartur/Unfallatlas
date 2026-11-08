@@ -6,6 +6,204 @@
   "required": ["id", "title", "type", "url", "source"],
   "additionalProperties": false,
   "properties": {
+    "sourceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "publisher",
+        "issuer",
+        "documentKind",
+        "status",
+        "publicationDate",
+        "documentDate",
+        "meetingDate"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "city",
+            "region",
+            "state"
+          ]
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "issuer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "documentKind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "enum": [
+            "proposal",
+            "answer",
+            "agenda",
+            "minutes",
+            "other"
+          ]
+        },
+        "publicationDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "documentDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "meetingDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      }
+    },
+    "originalPdfUrl": {
+      "type": "string",
+      "maxLength": 4096,
+      "pattern": "^https://(?:e-government\\.hannover-stadt\\.de|www\\.landtag-niedersachsen\\.de|www\\.nilas\\.niedersachsen\\.de|bekanntmachungen\\.region-hannover\\.de|ris\\.hannit\\.de|www\\.bonn\\.sitzung-online\\.de|bonn\\.sitzung-online\\.de|www2\\.bonn\\.de)(?:[/?#][^\\s\\\\]*)?$"
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "body",
+          "outcome",
+          "url",
+          "evidence"
+        ],
+        "properties": {
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^https://(?:e-government\\.hannover-stadt\\.de|www\\.landtag-niedersachsen\\.de|www\\.nilas\\.niedersachsen\\.de|bekanntmachungen\\.region-hannover\\.de|ris\\.hannit\\.de|www\\.bonn\\.sitzung-online\\.de|bonn\\.sitzung-online\\.de|www2\\.bonn\\.de)(?:[/?#][^\\s\\\\]*)?$"
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          }
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "targetId",
+          "targetUrl",
+          "label",
+          "targetRole",
+          "evidence"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "related",
+              "mentions"
+            ]
+          },
+          "targetId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "targetUrl": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^https://(?:e-government\\.hannover-stadt\\.de|www\\.landtag-niedersachsen\\.de|www\\.nilas\\.niedersachsen\\.de|bekanntmachungen\\.region-hannover\\.de|ris\\.hannit\\.de|www\\.bonn\\.sitzung-online\\.de|bonn\\.sitzung-online\\.de|www2\\.bonn\\.de)(?:[/?#][^\\s\\\\]*)?$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "targetRole": {
+            "enum": [
+              null,
+              "proposal",
+              "answer",
+              "amendment"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          }
+        }
+      }
+    },
+    "eventCount": {
+      "type": "integer",
+      "maximum": 9007199254740991,
+      "minimum": 0
+    },
+    "relationshipCount": {
+      "type": "integer",
+      "maximum": 9007199254740991,
+      "minimum": 0
+    },
+    "locationCount": { "type": "integer", "minimum": 0 },
+    "locationsNextPage": { "type": ["integer", "null"], "minimum": 1 },
+    "geometryIds": {
+      "type": "array", "maxItems": 64, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^geometry:[a-f0-9]{64}$" }
+    },
+    "geometryNextPage": { "type": ["integer", "null"], "minimum": 1 },
     "id": {
       "type": "string",
       "description": "Eindeutige interne ID (z. B. sha256-Hash aus URL)"
@@ -35,15 +233,43 @@
       "type": "string",
       "description": "Quell-ID der Originalvorlage"
     },
+    "locationAssessment": {
+      "type": "object",
+      "description": "Stadtunabhängiges Ergebnis der Ortsprüfung; bei älteren ungeprüften Datensätzen nicht vorhanden. partial bedeutet, dass mindestens eine Lage kartiert ist und weitere Angaben ungeklärt oder begrenzt sind.",
+      "required": ["status", "sources", "reasons", "truncated"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["mapped", "partial", "unresolved", "unavailable"] },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "enum": ["title", "document", "official"] }
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "enum": [
+            "gazetteer_unavailable", "document_text_unavailable", "evidence_truncated", "location_limit",
+            "unverified_name", "no_specific_location", "unmapped_location", "non_traffic_address"
+          ] }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
     "locations": {
       "type": "array",
       "description": "Im Vorgang genannte Orte mit Fundstelle und Kennzeichen für die Kartendarstellung",
-      "maxItems": 8,
+      "maxItems": 64,
       "items": {
         "type": "object",
         "required": ["label", "kind", "evidence", "mapped"],
         "additionalProperties": false,
         "properties": {
+          "id": { "type": "string", "pattern": "^location:[a-f0-9]{64}$" },
+          "geometryId": { "type": "string", "pattern": "^geometry:[a-f0-9]{64}$" },
           "label": { "type": "string", "minLength": 1, "maxLength": 4096 },
           "kind": { "enum": ["junction", "section", "street", "address", "place"] },
           "mapped": { "type": "boolean" },

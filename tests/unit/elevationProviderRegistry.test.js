@@ -40,6 +40,9 @@ describe('ElevationProvider registry', () => {
       horizontalCrs: 'EPSG:25832',
       licenseId: 'CC-BY-4.0',
       retrievedAtPolicy: 'generation-time',
+      acquisitionPeriod: 'Laserscannerbefliegung 2010',
+      publicationDate: '2024-01-15',
+      verticalDatum: null,
     });
     expect(registry.select('Bonn')).toBeNull();
     expect(registry.coversCity('hannover-dgm1', 'Hannover')).toBe(true);

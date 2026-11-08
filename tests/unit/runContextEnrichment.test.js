@@ -83,3 +83,15 @@ describe('context enrichment transient-provider fallback policy', () => {
     expect(enrichment.citySlug('Frankfurt am Main')).toBe('frankfurt_am_main');
   });
 });
+
+describe('opt-in pinned matched traffic orchestration', () => {
+  test('requires an atomic path/hash pair and applies only for Köln', () => {
+    expect(() => enrichment.trafficConfiguration({ KOELN_KFZ_MATCHED_ARTIFACT: 'fixture.json' })).toThrow(/atomic/);
+    const config = { KOELN_KFZ_MATCHED_ARTIFACT: '/tmp/matched.json', KOELN_KFZ_MATCHED_ARTIFACT_SHA256: 'a'.repeat(64) };
+    const calls = [];
+    const runner = (...args) => calls.push(args);
+    expect(enrichment.applyMatchedTrafficForCity('Bonn', {}, runner)).toBe(false);
+    expect(enrichment.applyMatchedTrafficForCity('Köln', config, runner)).toBe(true);
+    expect(calls).toEqual([['scripts/apply-matched-traffic.js', ['--city', 'Köln', '--artifact', '/tmp/matched.json', '--sha256', 'a'.repeat(64)]]]);
+  });
+});

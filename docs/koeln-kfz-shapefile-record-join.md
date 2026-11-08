@@ -19,17 +19,17 @@ werden. Der Produktionspfad akzeptiert ausschließlich dieses exakte Schema:
   "archiveSourceId": "traffic.geometry.koeln-kfz-2016-2019",
   "archiveSha256": "5672f1b61777ccbd5a1db6555dddf7c61a009eb161b13d4c7cbe530de9299238",
   "pointSet": {
-    "id": "<geprüfter Basispfad des Punkt-Shapesets>",
-    "nodeIdField": "<reales DBF-Knotenfeld>"
+    "id": "Zaehldaten_2016_2019_node",
+    "nodeIdField": "NO"
   },
   "lineSet": {
-    "id": "<geprüfter Basispfad des Linien-Shapesets>",
-    "segmentIdField": "<reales DBF-Segmentfeld>",
-    "fromNodeIdField": "<reales Von-Knotenfeld>",
-    "toNodeIdField": "<reales Nach-Knotenfeld>"
+    "id": "Zaehldaten_2016_2019_link",
+    "segmentIdField": "NO",
+    "fromNodeIdField": "FROMNODENO",
+    "toNodeIdField": "TONODENO"
   },
-  "encoding": "windows-1252",
-  "crs": "EPSG:25832",
+  "encoding": "utf-8",
+  "crs": "KOELN:DHDN_GK2_TOWGS84_2019",
   "maxEndpointDistanceMeters": 5
 }
 ```
@@ -119,3 +119,37 @@ OpenStreetMap durch und interpoliert keine Messwerte auf benachbarte Straßen.
 Der nächste Schritt kann die nun amtlich gerichteten WGS84-Linien mit
 OSM-Ways vergleichen und dafür Distanz, Winkel, Knotenbezug und Konfidenz
 separat ausweisen.
+
+
+## Verifizierter Originalstand vom 8. November 2026
+
+Die echten Dateien enthalten DHDN/Gauß-Krüger Zone 2, entgegen der ungenauen
+Portal-Kurzbeschreibung „UTM WSG84“. Die bytegetreue Original-PRJ steht unter
+`config/koeln-kfz-2019-source.prj` und hat SHA-256
+`dbc190580b141d88014eb57cbcb574fc4e38b339e3a97d4fdd28ecfcaad71a84`.
+Nur diese Definition wird zusätzlich zu den bestehenden UTM-Fällen anerkannt.
+Die eigene CRS-ID ersetzt keine Definition durch ein angenähertes EPSG-Datum.
+
+Die Umrechnung verwendet proj4 2.22.0, exakt in package.json/lock gepinnt. Alle
+sieben TOWGS84-Werte werden wörtlich verwendet, einschließlich `0.0000067` als
+letztem Parameter. Ein anderer Standard-Helmert-Satz wird nicht eingesetzt.
+Die echten Endpunkte des Segments 2071 wurden unabhängig mit pyproj 3.7.2 /
+PROJ 9.5.1 und derselben Original-WKT verglichen; Definition, Operation,
+Achsfolge und Werte stehen in `tests/fixtures/koeln-kfz-gk2-reference.json`.
+Die numerische Übereinstimmung liegt weit unter einem Millimeter. Die absolute
+Lagegenauigkeit der Quelle ist dadurch nicht bekannt und bleibt im Artefakt null.
+
+Der Produktionsjoin verbindet 17.419 Punkt- und 22.988 Linienrecords zu 45.976
+gerichteten Geometrien. Alle 5.197 vorhandenen Zählbeobachtungen 2016–2019 haben
+eine amtliche Geometrie. Segment 2071 behält 18.504/22.153 in Gegenrichtungen und
+das Jahr 2016. Dies ist ein kommunaler Bestand, kein Nachweis dreier Quellen.
+
+Aktuelle amtliche Metadaten:
+
+- https://offenedaten-koeln.de/dataset/kfz-zaehlstellen-und-werte-koeln
+- CSV: https://offenedaten-koeln.de/distribution/668fb7a9c7ce5db7d570bdcfd7158de1
+- Geometrie: https://offenedaten-koeln.de/distribution/fd78cda13abb48963a42946fcaf55317
+
+Beide Distributionen weisen separat DL-DE-Zero 2.0 aus. Die CSV-Veröffentlichung
+ist vom 12. April 2022; der Messzeitraum bleibt 2016–2019. OSM-Eingaben behalten
+ihre eigene ODbL-Lizenz, Quellen-/Abrufdaten und Rohdatenpins im Matcher-Artefakt.

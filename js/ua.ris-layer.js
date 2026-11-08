@@ -115,6 +115,7 @@
   }
 
   function indexSnapshot(snapshot) {
+    if (snapshot.partitioned) return { ...snapshot, features: snapshot.features.features.map(feature => ({ ...feature, bbox: feature.bounds || coordinateBounds(feature.geometry.coordinates) })) };
     const records = new Map(snapshot.records.map(record => [record.id, record]));
     const links = new Map();
     for (const record of records.values()) {
@@ -159,9 +160,129 @@
     return controls.get(ctx) === state && ctx.map === state.map && cityOf(ctx) === state.city;
   }
 
-  function popup(ctx, state, data, feature) {
+  function popupGuard(ctx, state, data, layer, root) {
+    const revision = ctx.politicalContextCityRevision;
+    const token = layer._uaRisPopupToken = Symbol('ris-popup');
+    const active = () => current(ctx, state) && state.toggle.checked && state.data === data
+      && ctx.politicalContextCityRevision === revision && layer._uaRisPopupToken === token;
+    layer.once('popupclose', () => { if (layer._uaRisPopupToken === token) layer._uaRisPopupToken = null; });
+    // Leaflet measures the initial loading placeholder. Reflow the same root
+    // after each asynchronous expansion so its maxHeight and auto-pan apply.
+    const captureLayout = () => ({
+      focus: root.contains(document.activeElement) ? document.activeElement : null,
+      content: root.parentElement,
+      top: root.parentElement?.scrollTop || 0,
+      left: root.parentElement?.scrollLeft || 0,
+    });
+    const reflow = (view = captureLayout()) => {
+      if (!active() || !layer.isPopupOpen()) return;
+      layer.getPopup().update();
+      if (!active() || !layer.isPopupOpen()) return;
+      // Leaflet detaches even the cached root while measuring it. Restore only
+      // focus that belonged to this popup; never take focus from another UI.
+      if (view.focus && (document.activeElement === document.body || root.contains(document.activeElement))) {
+        const usable = root.contains(view.focus) && !view.focus.disabled
+          && !view.focus.closest('[hidden], [inert], [aria-hidden="true"]');
+        const target = usable ? view.focus : root.querySelector('[role="status"]');
+        if (target) {
+          if (!usable) target.tabIndex = -1;
+          target.focus({ preventScroll: true });
+        }
+      }
+      if (view.content?.isConnected) {
+        view.content.scrollTop = view.top;
+        view.content.scrollLeft = view.left;
+      }
+    };
+    // Native disabling can blur the active button before an async response.
+    // Keep it focusable while blocking repeated activation accessibly.
+    const pending = button => button.getAttribute('aria-disabled') === 'true';
+    const setPending = (button, value) => button.setAttribute('aria-disabled', String(value));
+    return { active, captureLayout, reflow, pending, setPending };
+  }
+
+  function recordContext(parent, entry, state, data, guard) {
+    const { active, captureLayout, reflow, pending, setPending } = guard;
+    const context = entry.sourceContext;
+    if (context) {
+      const levels = { city: 'Stadt', region: 'Region', state: 'Land' };
+      const statuses = { proposal: 'Vorlage / Antrag', answer: 'Antwort', agenda: 'Tagesordnung', minutes: 'Protokoll', other: 'Sonstiges' };
+      text(parent, 'div', [levels[context.level], context.publisher, context.issuer, context.documentKind, statuses[context.status]].filter(Boolean).join(' · '));
+      const dates = [['publicationDate', 'Veröffentlichung'], ['documentDate', 'Dokumentdatum'], ['meetingDate', 'Sitzungsdatum']];
+      for (const [field, label] of dates) if (context[field]) text(parent, 'div', `${label}: ${context[field]}`);
+    }
+    const pdf = httpsUrl(entry.originalPdfUrl);
+    if (pdf) {
+      const link = text(parent, 'a', 'Original-PDF');
+      link.href = pdf; link.target = '_blank'; link.rel = 'noopener noreferrer';
+    }
+    for (const field of ['events', 'relationships']) {
+      const events = field === 'events';
+      const count = entry[events ? 'eventCount' : 'relationshipCount'] ?? entry[field]?.length;
+      const detail = text(parent, 'details', '');
+      detail.style.cssText = 'max-width:100%;min-width:0;overflow-wrap:anywhere;margin:6px 0';
+      const summary = text(detail, 'summary', `${events ? 'Beratungsverlauf' : 'Zusammenhänge'}${count === undefined ? '' : ` (${count})`}`);
+      summary.style.cursor = 'pointer';
+      const list = text(detail, 'ol', ''); list.style.cssText = 'padding-left:20px;margin:4px 0';
+      const status = text(detail, 'div', ''); status.setAttribute('aria-live', 'polite');
+      const more = document.createElement('button');
+      more.textContent = events ? 'Weitere Beratungen laden' : 'Weitere Zusammenhänge laden';
+      more.type = 'button'; more.className = 'smallBtn'; more.hidden = true;
+      let page = 0, loaded = false;
+      const seen = new Set();
+      async function loadPage() {
+        if (!active() || pending(more)) return;
+        if (!more.parentElement) detail.append(more);
+        setPending(more, true);
+        status.textContent = 'Quellenbelege werden geladen …';
+        let view;
+        try {
+          const local = entry[field];
+          const result = !data.partitioned || local !== undefined
+            ? { [field]: local || [], known: local !== undefined, total: local?.length ?? null, nextPage: null, complete: true }
+            : await UA.RisCatalogue[events ? 'loadRecordEvents' : 'loadRecordRelationships'](state.city, entry.id, page, { snapshot: data.manifest });
+          if (!active()) return;
+          view = captureLayout();
+          for (const [index, item] of result[field].entries()) {
+            const key = result.start === undefined ? `${page}:${index}` : result.start + index;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const row = text(list, 'li', ''); row.style.marginBottom = '6px';
+            if (events) text(row, 'div', [item.date || 'Datum nicht angegeben', item.body || 'Gremium nicht angegeben', item.outcome].filter(Boolean).join(' · '));
+            else {
+              const roles = { answer: 'Antwort', proposal: 'Vorlage / Antrag', amendment: 'Änderungsantrag' };
+              text(row, 'div', [item.type === 'mentions' ? 'Im Dokument erwähnt' : 'Amtlicher Querverweis', roles[item.targetRole]].filter(Boolean).join(' · '));
+            }
+            const url = httpsUrl(events ? item.url : item.targetUrl);
+            if (url) {
+              const link = text(row, 'a', events ? 'Amtlicher Sitzungsbeleg' : item.label);
+              link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+            }
+            text(row, 'div', item.evidence);
+          }
+          loaded = true;
+          status.textContent = !result.known
+            ? events ? 'Beratungsverlauf im geprüften Datenbestand nicht dokumentiert.' : 'Zusammenhänge im geprüften Datenbestand nicht dokumentiert.'
+            : result.complete === false ? 'Quellenbelege unvollständig; bitte erneut versuchen.'
+              : !seen.size ? events ? 'Keine öffentlichen Beratungen dokumentiert.' : 'Keine amtlichen Zusammenhänge dokumentiert.'
+                : `${seen.size}${result.total == null ? '' : ` von ${result.total}`} Quellenbelege geladen.`;
+          more.hidden = result.nextPage == null && result.complete !== false;
+          if (result.nextPage != null) page = result.nextPage;
+        } catch (error) {
+          if (active()) { status.textContent = error?.message || 'Quellenbelege konnten nicht geladen werden.'; more.hidden = false; }
+        } finally {
+          if (active()) { setPending(more, false); reflow(view); }
+        }
+      }
+      detail.addEventListener('toggle', () => { if (detail.open && !loaded) loadPage(); });
+      more.addEventListener('click', loadPage);
+    }
+  }
+
+  function popup(ctx, state, data, feature, layer) {
     const root = document.createElement('section');
     root.style.overflowWrap = 'anywhere';
+    const guard = popupGuard(ctx, state, data, layer, root);
     const status = document.createElement('div');
     status.setAttribute('role', 'status');
     const { locations } = feature.properties;
@@ -183,6 +304,7 @@
       text(parent, 'strong', entry.title);
       const meta = [entry.type, entry.number, entry.date, entry.gremium || entry.premium].filter(Boolean);
       if (meta.length) text(parent, 'div', meta.join(' · '));
+      recordContext(parent, entry, state, data, guard);
       if (details) {
         details.style.cssText = 'margin:4px 0;overflow-wrap:anywhere';
         parent.append(details);
@@ -249,7 +371,190 @@
     return root;
   }
 
+  function partitionPopup(ctx, state, data, feature, layer) {
+    const root = document.createElement('section');
+    root.style.overflowWrap = 'anywhere';
+    const { active, captureLayout, reflow, pending, setPending } = popupGuard(ctx, state, data, layer, root);
+    const props = feature.properties;
+    if (props.overview) {
+      text(root, 'strong', 'Übersicht: zusammengefasste Kartenlagen');
+      text(root, 'p', `${props.recordCount} Ratsvorgänge · ${props.geometryCount} Kartenlagen in dieser Zelle. Die Fläche zeigt eine Zusammenfassung, keine genaue Lage.`);
+      const zoom = text(root, 'button', 'Für Details vergrößern');
+      zoom.type = 'button'; zoom.className = 'smallBtn';
+      const zoomStatus = text(root, 'div', '');
+      zoomStatus.setAttribute('role', 'status');
+      const canZoom = () => {
+        const maximum = state.map.getMaxZoom();
+        const atMaximum = Number.isFinite(maximum) && state.map.getZoom() >= maximum;
+        zoom.disabled = atMaximum;
+        zoom.textContent = atMaximum ? 'Maximale Vergrößerung erreicht' : 'Für Details vergrößern';
+        zoomStatus.hidden = !atMaximum;
+        zoomStatus.textContent = atMaximum
+          ? 'Die Karte kann hier nicht weiter vergrößert werden. Die Übersicht bleibt zusammengefasst.' : '';
+        return !atMaximum;
+      };
+      canZoom();
+      zoom.addEventListener('click', () => {
+        if (!active()) return;
+        if (!canZoom()) { reflow(); return; }
+        const map = state.map;
+        const currentZoom = map.getZoom();
+        const maximum = map.getMaxZoom();
+        const zoomLimit = Number.isFinite(maximum) ? maximum : Math.max(18, currentZoom + 1);
+        let [w, s, e, n] = feature.bbox;
+        // Budget fallbacks can return a cell much larger than the current
+        // high-zoom view. Drill into its visible part, never back out to it.
+        const viewport = rectOf(map.getBounds());
+        if (viewport) {
+          const clipped = [Math.max(w, viewport[0]), Math.max(s, viewport[1]),
+            Math.min(e, viewport[2]), Math.min(n, viewport[3])];
+          if (clipped[0] < clipped[2] && clipped[1] < clipped[3]) [w, s, e, n] = clipped;
+        }
+        const bounds = window.L.latLngBounds([s, w], [n, e]);
+        const nextZoom = Math.min(zoomLimit, Math.max(currentZoom + 1, map.getBoundsZoom(bounds)));
+        map.setView(bounds.getCenter(), nextZoom, { animate: false });
+        map.getContainer().focus({ preventScroll: true });
+      });
+      return root;
+    }
+    text(root, 'h4', 'Ratsvorgänge an dieser Stelle');
+    const list = text(root, 'ul', '');
+    const status = text(root, 'div', 'Vorgänge werden geladen …');
+    status.setAttribute('role', 'status');
+    const more = text(root, 'button', 'Weitere Vorgänge laden');
+    more.type = 'button'; more.className = 'smallBtn';
+    more.hidden = true;
+    let page = 0;
+    const seen = new Set();
+
+    function appendRecord(parent, entry, location, withRelated = true) {
+      text(parent, 'strong', entry.title);
+      const meta = [entry.type, entry.number, entry.date, entry.gremium || entry.premium].filter(Boolean);
+      if (meta.length) text(parent, 'div', meta.join(' · '));
+      recordContext(parent, entry, state, data, { active, captureLayout, reflow, pending, setPending });
+      if (location) text(parent, 'div', [styles[location.accuracy || props.accuracy]?.label, location.label].filter(Boolean).join(' · '));
+      const evidence = text(parent, 'div', '');
+      const place = entry.locations?.find(item => item.id === location?.locationId);
+      if (place) {
+        const detail = UA.PoliticalContext?.renderLocation?.(place);
+        if (detail) evidence.append(detail);
+      } else if (location?.locationId && (entry.locationCount > 0 || entry.locations?.length || entry.locationsNextPage != null)) {
+        // A feature may refer to a location beyond the record's first page.
+        // Read one bounded page per explicit action and match the stable ID.
+        const inspect = text(evidence, 'button', 'Ortsbeleg laden');
+        inspect.type = 'button'; inspect.className = 'smallBtn';
+        let locationPage = entry.locationsNextPage ?? 0;
+        inspect.addEventListener('click', async () => {
+          if (!active() || pending(inspect)) return;
+          setPending(inspect, true);
+          let view;
+          try {
+            const result = await UA.RisCatalogue.loadRecordLocations(state.city, entry.id, locationPage, { snapshot: data.manifest });
+            if (!active()) return;
+            view = captureLayout();
+            const match = result.locations.find(item => item.id === location.locationId);
+            if (match) {
+              const detail = UA.PoliticalContext?.renderLocation?.(match);
+              evidence.replaceChildren();
+              if (detail) evidence.append(detail);
+            } else if (result.nextPage != null) {
+              locationPage = result.nextPage;
+              inspect.textContent = 'Weitere Ortsbelege durchsuchen';
+            } else {
+              inspect.textContent = 'Ortsbeleg nicht verfügbar · Erneut versuchen';
+              locationPage = 0;
+            }
+          } catch (error) {
+            if (active()) status.textContent = error?.message || 'Ortsbeleg konnte nicht geladen werden.';
+          } finally { setPending(inspect, false); reflow(view); }
+        });
+      }
+      const url = httpsUrl(entry.url);
+      if (url) {
+        const link = text(parent, 'a', 'Amtliches Dokument');
+        link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+        link.setAttribute('aria-label', `Amtliches Dokument: ${entry.title}`);
+        if (typeof UA.PoliticalContext?.addReferences === 'function') {
+          const adopt = text(parent, 'button', 'Für Bericht übernehmen');
+          adopt.type = 'button'; adopt.className = 'smallBtn';
+          adopt.setAttribute('aria-label', `${entry.title} für Bericht übernehmen`);
+          adopt.addEventListener('click', async () => {
+            if (!active() || pending(adopt)) return;
+            setPending(adopt, true);
+            try {
+              await UA.PoliticalContext.addReferences(ctx, [entry]);
+              if (active()) status.textContent = 'Vorgang für den Bericht übernommen.';
+            } catch (error) {
+              if (active()) status.textContent = error?.message || 'Der Vorgang konnte nicht übernommen werden.';
+            } finally { setPending(adopt, false); reflow(); }
+          });
+        }
+      }
+      if (entry.source) text(parent, 'div', `Quelle: ${entry.source}`);
+      if (!withRelated) return;
+      const relatedList = text(parent, 'ul', '');
+      const relatedButton = text(parent, 'button', 'Verknüpfte Vorgänge anzeigen');
+      relatedButton.type = 'button'; relatedButton.className = 'smallBtn';
+      let relatedPage = 0;
+      const relatedSeen = new Set();
+      relatedButton.addEventListener('click', async () => {
+        if (!active() || pending(relatedButton)) return;
+        setPending(relatedButton, true);
+        let view;
+        try {
+          const result = await UA.RisCatalogue.loadRelatedRecords(state.city, entry.id, relatedPage, { snapshot: data.manifest });
+          if (!active()) return;
+          view = captureLayout();
+          for (const related of result.records) {
+            if (relatedSeen.has(related.id)) continue;
+            relatedSeen.add(related.id);
+            appendRecord(text(relatedList, 'li', ''), related, null, false);
+          }
+          status.textContent = result.complete === false ? 'Verknüpfte Vorgänge unvollständig; Daten fehlen.'
+            : !relatedSeen.size ? 'Keine verknüpften Vorgänge.' : `${relatedSeen.size} verknüpfte Vorgänge geladen.`;
+          if (result.complete === false) relatedButton.textContent = 'Verknüpfte Vorgänge erneut laden';
+          else if (result.nextPage != null) { relatedPage = result.nextPage; relatedButton.textContent = 'Weitere verknüpfte Vorgänge laden'; }
+          else relatedButton.hidden = true;
+        } catch (error) {
+          if (active()) status.textContent = error?.message || 'Verknüpfte Vorgänge konnten nicht geladen werden. Bitte erneut versuchen.';
+        } finally { setPending(relatedButton, false); reflow(view); }
+      });
+    }
+
+    async function loadPage() {
+      if (!active() || pending(more)) return;
+      setPending(more, true);
+      let view;
+      try {
+        const result = await UA.RisCatalogue.loadFeatureRecords(state.city, props.geometryId, page, { snapshot: data.manifest });
+        if (!active()) return;
+        view = captureLayout();
+        const records = new Map(result.records.map(entry => [entry.id, entry]));
+        for (const location of result.links) {
+          const key = `${location.recordId}/${location.locationId || ''}`;
+          const entry = records.get(location.recordId);
+          if (!entry || seen.has(key)) continue;
+          seen.add(key);
+          appendRecord(text(list, 'li', ''), entry, location);
+        }
+        status.textContent = result.complete === false ? 'Vorgänge unvollständig; Daten fehlen.' : `${seen.size} von ${result.total ?? seen.size} Ortsbezügen geladen.`;
+        more.hidden = result.nextPage == null && result.complete !== false;
+        more.textContent = result.complete === false || result.nextPage == null ? 'Erneut versuchen' : 'Weitere Vorgänge laden';
+        if (result.complete !== false && result.nextPage != null) page = result.nextPage;
+      } catch (error) {
+        if (active()) {
+          status.textContent = error?.message || 'Vorgänge konnten nicht geladen werden.';
+          more.textContent = 'Erneut versuchen'; more.hidden = false;
+        }
+      } finally { setPending(more, false); reflow(view); }
+    }
+    more.addEventListener('click', loadPage);
+    loadPage();
+    return root;
+  }
+
   function vectorStyle(feature) {
+    if (feature.properties.overview) return { color: '#532b78', weight: 2, dashArray: '5 5', fillOpacity: 0.12 };
     const { color, dashed } = styles[feature.properties.accuracy];
     return { color, weight: 4, dashArray: dashed ? '7 5' : null, fillOpacity: 0.16 };
   }
@@ -282,13 +587,18 @@
       };
     }
     const panel = ctx.ui?.panelEl?.getBoundingClientRect();
-    const layerControl = state.root.closest('.context-overlay-control')?.getBoundingClientRect();
-    const legend = container.querySelector('.layer-legend-control')?.getBoundingClientRect();
+    const layerControlElement = state.root.closest('.context-overlay-control');
+    const legendElement = container.querySelector('.layer-legend-control');
+    const layerControl = layerControlElement?.getBoundingClientRect();
+    const legend = legendElement?.getBoundingClientRect();
+    // Karte owns both control aliases. Reserve its right-hand column once,
+    // leaving the full central height usable beside tall desktop sidebars.
+    const unifiedCard = layerControlElement && layerControlElement === legendElement;
     const left = panel?.width ? Math.max(margin, panel.right - view.left + margin) : margin;
-    const top = layerControl?.height ? Math.max(margin, layerControl.bottom - view.top + margin) : margin;
+    const top = !unifiedCard && layerControl?.height ? Math.max(margin, layerControl.bottom - view.top + margin) : margin;
     const legendRight = legend?.width ? Math.max(margin, view.right - legend.left + margin) : margin;
     const legendBottom = legend?.height ? Math.max(margin, view.bottom - legend.top + margin) : margin;
-    const besideLegend = view.height - top - legendBottom < options.maxHeight + 56
+    const besideLegend = unifiedCard || view.height - top - legendBottom < options.maxHeight + 56
       && view.width - left - legendRight >= 210;
     const right = besideLegend ? legendRight : margin;
     const bottom = besideLegend ? margin : legendBottom;
@@ -309,14 +619,18 @@
     const { locations } = feature.properties;
     layer.bindPopup(() => {
       window.L.setOptions(layer.getPopup(), popupLayout(ctx, state));
-      return popup(ctx, state, data, feature);
+      if (layer._uaRisPopupToken && layer._uaRisPopupRoot) return layer._uaRisPopupRoot;
+      return layer._uaRisPopupRoot = data.partitioned
+        ? partitionPopup(ctx, state, data, feature, layer) : popup(ctx, state, data, feature, layer);
     }, { className: 'ua-ris-popup' });
     layer.on('add', () => {
       const el = layer.getElement();
       if (!el) return;
       el.setAttribute('tabindex', '0');
       el.setAttribute('role', 'button');
-      el.setAttribute('aria-label', locations.length === 1
+      el.setAttribute('aria-label', data.partitioned
+        ? (feature.properties.overview ? `Übersichtszelle: ${feature.properties.recordCount} Ratsvorgänge; für Details vergrößern` : `${feature.properties.recordCount} Ratsvorgänge: ${feature.properties.label || 'Kartenlage'}`)
+        : locations.length === 1
         ? `Ratsvorgang: ${data.records.get(locations[0].recordId).title}`
         : `${locations.length} Ratsvorgänge an dieser Stelle`);
       el.addEventListener('keydown', event => {
@@ -335,6 +649,7 @@
     state.layer = null;
     state.featureLayers.clear();
     state.rendered = null;
+    state.focused = null;
   }
 
   function showError(state, error) {
@@ -399,6 +714,30 @@
     const data = state.data;
     try {
       showCoverage(state, data.manifest, freshness);
+      if (data.partitioned) {
+        const candidates = [...data.features];
+        if (state.focused && !candidates.includes(state.focused)) candidates.push(state.focused);
+        const visible = candidates.filter(feature => (!rect || featureHits(feature, rect)) && viewport && featureHits(feature, viewport));
+        syncVisibleLayers(ctx, state, data, visible);
+        state.legend.hidden = !visible.some(feature => !feature.properties.overview);
+        state.mixedLegend.hidden = !visible.some(feature => feature.properties.accuracy === 'mixed');
+        let status = data.overview
+          ? 'Übersicht: zusammengefasste Zellen · Für genaue Kartenlagen vergrößern'
+          : `${visible.length} Kartenlagen im Kartenausschnitt`;
+        const budgetOverview = data.overview && data.coverage?.truncated === true
+          && Array.isArray(data.coverage.missing) && data.coverage.missing.length === 0;
+        if (!data.coverage?.complete) {
+          if (!budgetOverview) status += ' · Kartenabdeckung unvollständig; Daten fehlen';
+        } else if (!visible.length) status = 'Keine verorteten Ratsvorgänge im Kartenausschnitt' + (rect ? ' innerhalb der Markierung' : '') + '.';
+        if (data.coverage?.truncated) status += ' · Detailbudget erreicht';
+        if (!complete) status += ' · Teilbestand';
+        if (stale) status += ' · Veralteter Datenstand';
+        if (data.manifest.refreshFailure) status += ' · Aktualisierung fehlgeschlagen';
+        if (state.pending) status += ' · Kartenausschnitt wird geladen …';
+        if (state.loadError) status += ' · Aktualisierung fehlgeschlagen; Karte bewegen oder Layer erneut einschalten';
+        state.status.textContent = status;
+        return;
+      }
       const selected = rect ? data.features.filter(feature => featureHits(feature, rect)) : data.features;
       const visible = viewport ? selected.filter(feature => featureHits(feature, viewport)) : [];
       syncVisibleLayers(ctx, state, data, visible);
@@ -463,7 +802,7 @@
     const city = cityOf(ctx);
     if (state.city !== city) {
       clearLayer(state);
-      Object.assign(state, { city, data: null, pending: null });
+      Object.assign(state, { city, data: null, pending: null, loadedKey: null, requestVersion: (state.requestVersion || 0) + 1 });
       state.toggle.checked = state.filter.checked = false;
       state.body.hidden = state.legend.hidden = state.coverage.hidden = true;
       state.status.textContent = '';
@@ -484,28 +823,65 @@
         return;
       }
       scheduleFreshnessCheck(ctx, state, freshness.nextCheckAt);
+      if (state.data.partitioned && state.loadedKey !== viewportKey(state) && state.pendingKey !== viewportKey(state)) loadSnapshot(ctx, state);
       draw(ctx, state, state.filter.checked ? rect : null, freshness);
     }
   }
 
-  function loadSnapshot(ctx, state, revalidate = false) {
-    if (state.pending) return state.pending;
-    if (state.data && !revalidate) return Promise.resolve(state.data);
+  function viewportKey(state) {
+    return `${rectOf(state.map.getBounds())?.join(',')}|${state.map.getZoom()}`;
+  }
+
+  function loadSnapshot(ctx, state, revalidate = false, navigation = false) {
+    const key = viewportKey(state);
+    if (state.pending && state.pendingKey === key && !revalidate) {
+      state.pendingNavigation ||= navigation;
+      return state.pending;
+    }
+    if (state.data && !revalidate && (!state.data.partitioned || state.loadedKey === key)) return Promise.resolve(state.data);
     const city = state.city;
-    const request = Promise.resolve().then(() => revalidate
-      ? UA.RisCatalogue.loadMap(city, { revalidate: true })
-      : UA.RisCatalogue.loadMap(city)).then(indexSnapshot);
+    const version = state.requestVersion = (state.requestVersion || 0) + 1;
+    const options = { bounds: rectOf(state.map.getBounds()), zoom: state.map.getZoom(), maxFeatures: 1000, ...(revalidate ? { revalidate: true } : {}) };
+    const request = Promise.resolve().then(() => UA.RisCatalogue.loadMap(city, options)).then(indexSnapshot);
     state.pending = request;
+    state.pendingKey = key;
+    state.pendingNavigation = navigation;
+    state.loadError = null;
     request.then(data => {
-      if (!current(ctx, state) || state.pending !== request) return;
-      if (state.data) clearLayer(state);
-      state.data = data;
+      if (!current(ctx, state) || state.pending !== request || state.requestVersion !== version) return;
+      if (data.partitioned && !state.toggle.checked && !state.pendingNavigation) {
+        state.pending = state.pendingKey = null;
+        return;
+      }
+      if (state.data?.partitioned && data.partitioned && state.data.manifest.generation === data.manifest.generation) {
+        // Reuse live feature objects and their handlers only within this generation.
+        const previous = new Map(state.data.features.map(feature => [feature.properties.geometryId, feature]));
+        if (state.focused) previous.set(state.focused.properties.geometryId, state.focused);
+        data.features = data.features.map(feature => {
+          const existing = previous.get(feature.properties.geometryId);
+          return existing ? Object.assign(existing, feature) : feature;
+        });
+        Object.assign(state.data, data);
+      } else {
+        if (state.data) clearLayer(state);
+        state.data = data;
+      }
       state.pending = null;
+      state.pendingKey = null;
+      state.loadedKey = key;
+      state.rendered = null;
       if (state.toggle.checked) refresh(ctx);
     }, error => {
-      if (!current(ctx, state) || state.pending !== request) return;
+      if (!current(ctx, state) || state.pending !== request || state.requestVersion !== version) return;
       state.pending = null;
-      if (state.toggle.checked && !state.data) showError(state, error);
+      state.pendingKey = null;
+      state.loadedKey = key;
+      state.loadError = error;
+      state.rendered = null;
+      if (state.toggle.checked) {
+        if (state.data) refresh(ctx);
+        else showError(state, error);
+      }
     });
     return request;
   }
@@ -521,7 +897,7 @@
 
   function snapshotMatches(manifest, snapshot) {
     return snapshot?.sha256 && snapshot.mapSha256 && snapshot.city === manifest.city
-      && snapshot.sha256 === manifest.records?.sha256 && snapshot.mapSha256 === manifest.map?.sha256;
+      && snapshot.sha256 === (manifest.generation || manifest.records?.sha256) && snapshot.mapSha256 === (manifest.generation || manifest.map?.sha256);
   }
 
   async function showLocation(ctx, ref, index, isActive) {
@@ -529,16 +905,18 @@
     const state = controls.get(ctx);
     if (!state || !current(ctx, state)) throw new Error('Die Karte ist gerade nicht verfügbar.');
     const revision = ctx.politicalContextCityRevision;
-    const active = () => current(ctx, state) && ctx.politicalContextCityRevision === revision && isActive();
+    const interactionEpoch = state.interactionEpoch || 0;
+    const active = () => current(ctx, state) && ctx.politicalContextCityRevision === revision
+      && (state.interactionEpoch || 0) === interactionEpoch && isActive();
     let data;
     try {
-      data = await loadSnapshot(ctx, state).catch(error => {
+      data = await loadSnapshot(ctx, state, false, true).catch(error => {
         if (error?.code !== 'RIS_SNAPSHOT_EXPIRED') throw error;
         return null;
       });
       if (!active()) return null;
       if (!data || !snapshotMatches(data.manifest, ref.snapshot) || UA.RisCatalogue.snapshotStatus(data.manifest).stale) {
-        data = await loadSnapshot(ctx, state, true);
+        data = await loadSnapshot(ctx, state, true, true);
       }
     } catch (error) {
       if (active()) throw error;
@@ -548,10 +926,22 @@
     if (UA.RisCatalogue.snapshotStatus(data.manifest).expired) {
       throw new Error('Der Kartenbestand ist abgelaufen.');
     }
+    if (data.partitioned && state.data?.manifest.generation === data.manifest.generation) data = state.data;
     if (state.data !== data || !snapshotMatches(data.manifest, ref.snapshot)) {
       throw new Error('Treffer und Karte stammen aus unterschiedlichen Datenständen. Bitte die Recherche erneut starten.');
     }
-    const feature = data.features.find(feature => feature.properties.locations.some(location =>
+    let feature;
+    if (data.partitioned) {
+      const location = typeof index === 'string' ? ref.locations?.find(place => place.id === index) : ref.locations?.[index];
+      const geometryId = location?.geometryId || (index && typeof index === 'object' ? index.geometryId : null);
+      if (geometryId) {
+        const exact = await UA.RisCatalogue.loadGeometry(state.city, geometryId, { snapshot: data.manifest });
+        if (!active() || state.data !== data) return null;
+        if (exact) {
+          feature = data.features.find(item => item.properties.geometryId === geometryId) || { ...exact, bbox: exact.bounds || coordinateBounds(exact.geometry.coordinates) };
+        }
+      }
+    } else feature = data.features.find(feature => feature.properties.locations.some(location =>
       location.recordId === ref.id && location.locationIndex === index));
     if (!feature) throw new Error('Für diesen Ort ist keine Kartenlage verfügbar.');
     const selection = state.filter.checked && rectOf(ctx.selectionBounds);
@@ -559,6 +949,7 @@
       throw new Error('Der Ort liegt außerhalb der markierten Fläche.');
     }
 
+    if (data.partitioned) state.focused = feature;
     state.toggle.checked = true;
     state.body.hidden = false;
     const [west, south, east, north] = feature.bbox;
@@ -566,6 +957,7 @@
     if (!state.map.getBounds().contains(bounds)) {
       state.map.fitBounds(bounds, { animate: false, maxZoom: Math.max(state.map.getZoom(), 16), padding: [18, 18] });
     }
+    state.rendered = null;
     refresh(ctx);
     if (!active()) return null;
     const layer = state.featureLayers.get(feature);
@@ -622,11 +1014,17 @@
       if (controls.get(ctx) === state) controls.delete(ctx);
     });
     toggle.addEventListener('change', () => {
+      state.interactionEpoch = (state.interactionEpoch || 0) + 1;
       refresh(ctx);
       if (!current(ctx, state)) return;
       body.hidden = !toggle.checked;
       if (toggle.checked) enable(ctx, state);
       else {
+        if (state.data?.partitioned) {
+          state.requestVersion = (state.requestVersion || 0) + 1;
+          state.pending = state.pendingKey = null;
+          state.loadedKey = null;
+        }
         clearLayer(state);
         status.textContent = '';
         legend.hidden = coverage.hidden = true;

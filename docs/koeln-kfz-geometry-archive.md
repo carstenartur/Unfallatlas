@@ -10,17 +10,17 @@ Archiv mit Knotenpunkten und Linien:
 
 ```text
 https://offenedaten-koeln.de/sites/default/files/
-KFZ%20Zaehldaten%202016-2019_0.zip
+distribution/KFZ%2520Zaehldaten%25202016-2019_0.zip
 ```
 
-Der vom Portal veröffentlichte SHA-256 lautet:
+Der am Original berechnete und im Provider gepinnte SHA-256 lautet:
 
 ```text
 5672f1b61777ccbd5a1db6555dddf7c61a009eb161b13d4c7cbe530de9299238
 ```
 
 Die Ressource steht wie der Datensatz unter der Datenlizenz Deutschland – Zero
-– Version 2.0. Die Portalbeschreibung nennt Shape-Format und UTM/WGS84-Bezug.
+– Version 2.0. Die Portal-Kurzbeschreibung nennt UTM/WGS84; die tatsächliche PRJ enthält DHDN/Gauß-Krüger Zone 2 mit explizitem TOWGS84-Satz. Der bytegeprüfte Originalstand wird erkannt, ohne ihn als UTM umzudeuten.
 
 ## Zweck dieses Slices
 
@@ -142,3 +142,10 @@ Auf dieser Grenze kann der nächste Parser ohne erneutes Archivrisiko aufbauen:
    ausgeben;
 6. erst danach ein richtungsbewusstes OSM-Matching mit Distanz und Konfidenz
    durchführen.
+
+
+Die originalen `.CTF`-Aliasdateien werden nur gepaart mit dem zugehörigen Shape-
+und DBF-Satz akzeptiert: begrenzte UTF-8-Dateigröße, exakter Name;Alias-Header,
+jede DBF-Spalte genau einmal als Alias. Unbekannte/doppelte Aliase und verwaiste
+CTF-Dateien werden abgewiesen. Alle CRC-, ZIP-Pfad-, Header-, Größen-, DBF-/Shape-
+und Distributionspin-Prüfungen bleiben bestehen. CTF ersetzt keine Quelldaten.

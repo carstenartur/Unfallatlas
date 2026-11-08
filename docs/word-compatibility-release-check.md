@@ -10,7 +10,8 @@ The validator does **not** compare the raw DOCX hash with a newly generated file
 
 Instead, `config/word-compatibility-inputs.json` defines the compatibility input set:
 
-- the production report renderer;
+- the production report renderer, export orchestration and generated shared template defaults;
+- export and artifact provenance projection/hash dependencies;
 - document provenance and prewarm logic;
 - source-link and pagination adapters;
 - accident-year and SourceManifest boundaries;
@@ -19,6 +20,12 @@ Instead, `config/word-compatibility-inputs.json` defines the compatibility input
 - the exact integrity-pinned `docx` package version.
 
 `scripts/validate-word-compatibility-evidence.js` hashes those inputs deterministically. Any relevant renderer, contract or library change creates a new fingerprint and invalidates older manual evidence.
+
+The current concrete sample and numbered-appendix candidates, hashes and
+LibreOffice reference page counts are recorded in
+[the release preparation](releases/2.1.4-preparation.md) and its
+[machine-readable candidate inventory](release-evidence/2.1.4-document-candidate.json).
+These records are not Microsoft Word receipts.
 
 The receipt still records the SHA-256 of the exact DOCX opened in Word for traceability. That artifact hash is evidence of what was tested; the input fingerprint decides whether the evidence is still applicable.
 

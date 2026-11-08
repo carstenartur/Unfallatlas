@@ -69,8 +69,8 @@
     }
 
     function finiteNumber(value, path) {
-      const number = Number(value);
-      if (!Number.isFinite(number) || number < 0) {
+      const number = value;
+      if (typeof number !== "number" || !Number.isFinite(number) || number < 0) {
         fail("invalid_value", `${path} must be a finite non-negative number`);
       }
       return number;
@@ -345,7 +345,52 @@
             : [],
         ),
         source: descriptor,
+        ...(value.match == null ? {} : { match: normalizeMatch(value.match) }),
       });
+    }
+
+    function normalizeMatch(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) fail("invalid_match", "match must be an object");
+      const result = {};
+      for (const field of ["meanDistanceMeters", "p95DistanceMeters", "maximumDistanceMeters",
+        "angleDifferenceDegrees", "coverageRatio", "score"]) {
+        result[field] = finiteNumber(value[field], `match.${field}`);
+        if (result[field] < 0) fail("invalid_match", `${field} must be non-negative`);
+      }
+      result.matchQuality = enumValue(value.matchQuality, "match.matchQuality", MATCH_QUALITIES, "invalid_match");
+      result.directionRelation = enumValue(value.directionRelation, "match.directionRelation", ["same", "reverse"], "invalid_match");
+      result.sourceWayId = requiredString(value.sourceWayId, "match.sourceWayId");
+      result.matchMethod = requiredString(value.matchMethod, "match.matchMethod");
+      return Object.freeze(result);
+    }
+
+    // Revalidate persisted typed rows before protecting them from proxy fallback.
+    function hasUsableTypedEvidence(row, options) {
+      try {
+        if (!row || !["count", "model"].includes(row.traffic_measurement_type)) return false;
+        const evidence = row.traffic_evidence;
+        const raw = evidence && evidence.observation;
+        if (!raw || !raw.source) return false;
+        const descriptor = normalizeDescriptor(raw.source);
+        const observation = normalizeObservation(raw, descriptor, 0);
+        const selectedWayId = evidence.wayId == null ? observation.wayId : String(evidence.wayId);
+        const referenceYear = options && options.referenceYear || new Date().getUTCFullYear();
+        return observation.measurementType === row.traffic_measurement_type &&
+          observation.mode === ((options && options.mode) || "motor_vehicle") && observation.year <= referenceYear &&
+          observation.value === row.traffic_volume_value && observation.unit === row.traffic_volume_unit &&
+          observation.year === row.traffic_volume_year &&
+          (!row.matched_way_id || String(row.matched_way_id) === selectedWayId);
+      } catch (_) { return false; }
+    }
+
+    // Existing display thresholds, shared by filters and the road overlay.
+    // Callers must validate typed evidence before classifying an observation.
+    function classifyTrafficValue(value) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+      if (value <= 1000) return "low";
+      if (value <= 5000) return "medium";
+      if (value <= 15000) return "high";
+      return "very_high";
     }
 
     function createProvider(options) {
@@ -730,6 +775,8 @@
       TrafficProviderError,
       normalizeDescriptor,
       normalizeObservation,
+      hasUsableTypedEvidence,
+      classifyTrafficValue,
       createProvider,
       createRegistry,
       matchObservationToRoads,

@@ -478,6 +478,22 @@ function verifyRenderedMapCaptions(model, contract, format) {
     const mapRef = overview ? 'E0' : expected.role.replace(/^detail-/, '').toUpperCase();
     const title = overview ? 'Übersicht – vollständiges Gebietskollektiv' :
       `Detail ${mapRef} – ${expected.accidentIds[0]} bis ${expected.accidentIds.at(-1)}`;
+    let heading;
+    if (!overview) {
+      const before = tables.clusterWordsIntoLines(page.words).filter(line => line.yMax <= image.yMin + 2);
+      const found = [];
+      let text = '';
+      for (const line of before.reverse()) {
+        if ((found.length ? found[0].yMin : image.yMin) - line.yMax > 36) break;
+        found.unshift(line);
+        text = tables.normalizeText(found.map(item => item.text).join(' '));
+        if (text.length >= tables.normalizeText(title).length) break;
+      }
+      if (text !== tables.normalizeText(title)) {
+        throw new Error(`Missing adjacent detail heading for ${expected.role} on page ${page.number}`);
+      }
+      heading = { text, page: page.number };
+    }
     const idCaption = format === 'docx-pdf' || !overview;
     const expectedText = tables.normalizeText(`Abbildung ${index + 1}: ${
       format === 'native-pdf' && !overview ? mapRef : title}; ${idCaption ?
@@ -506,6 +522,7 @@ function verifyRenderedMapCaptions(model, contract, format) {
       role: expected.role,
       page: page.number,
       text,
+      ...(heading ? { heading } : {}),
       assertedFields: idCaption ? ['figure', 'role', 'accidentIds'] : ['figure', 'role', 'populationCount'],
       ...(idCaption ? { accidentIds: expected.accidentIds } : { markerCount: expected.markerCount }),
       bounds: {

@@ -240,7 +240,10 @@ function captionFixture(format) {
     model: { pages: captions.map((text, i) => ({
       number: i + 1,
       images: [{ imageId: `map-${i}`, xMin: 30, xMax: 650, yMin: 20, yMax: 100 }],
-      words: text.split(' ').map((t, j) => word(t, 30 + (j % 9) * 60, 110 + Math.floor(j / 9) * 13))
+      words: [
+        ...(i ? 'Detail E1 – A001 bis A002'.split(' ').map((t, j) => word(t, 30 + j * 60, 0)) : []),
+        ...text.split(' ').map((t, j) => word(t, 30 + (j % 9) * 60, 110 + Math.floor(j / 9) * 13))
+      ]
     })) }
   };
 }
@@ -254,11 +257,21 @@ test.each(['native-pdf', 'docx-pdf'])('independently checks visible %s caption r
   for (const [pageIndex, from, to] of [[1, 'E1', 'E9'], [1, 'A002.', 'A099.'],
     ...(format === 'native-pdf' ? [[0, '2', '3']] : [[0, 'A002.', 'A099.']])]) {
     const broken = captionFixture(format);
-    const token = broken.model.pages[pageIndex].words.find(w => w.text.includes(from));
+    const token = broken.model.pages[pageIndex].words.find(w => w.yMin >= 110 && w.text.includes(from));
     token.text = token.text.replace(from, to);
     expect(() => qa.verifyRenderedMapCaptions(broken.model, broken.contract, format)).toThrow(/caption/i);
   }
   const above = captionFixture(format);
-  above.model.pages[1].words.forEach(w => { w.yMin -= 100; w.yMax -= 100; });
+  above.model.pages[1].words.filter(w => w.yMin >= 110).forEach(w => { w.yMin -= 60; w.yMax -= 60; });
   expect(() => qa.verifyRenderedMapCaptions(above.model, above.contract, format)).toThrow(/caption/i);
+});
+
+test.each(['native-pdf', 'docx-pdf'])('rejects a %s detail heading stranded on the preceding map page', format => {
+  const fixture = captionFixture(format);
+  expect(qa.verifyRenderedMapCaptions(fixture.model, fixture.contract, format)[1].heading)
+    .toMatchObject({ text: 'Detail E1 – A001 bis A002', page: 2 });
+  const moved = fixture.model.pages[1].words.filter(w => w.yMin === 0);
+  fixture.model.pages[1].words = fixture.model.pages[1].words.filter(w => w.yMin !== 0);
+  fixture.model.pages[0].words.push(...moved.map(w => ({ ...w, yMin: 200, yMax: 210 })));
+  expect(() => qa.verifyRenderedMapCaptions(fixture.model, fixture.contract, format)).toThrow(/heading/i);
 });

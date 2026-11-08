@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { runCatalogueReuse } = require('./lib/bonn-live-cache-evidence');
 
 function parseArgs(argv) {
   const out = {
@@ -142,6 +143,19 @@ function assertLiveResult(result, options) {
   return errors;
 }
 
+function resultView(result) {
+  return { meta: result.meta, references: result.references.map(reference => ({
+    title: reference.title, type: reference.type, date: reference.date, gremium: reference.gremium,
+    number: reference.number, url: reference.url, source: reference.source, relevanceScore: reference.relevanceScore,
+  })) };
+}
+function reuseView(reuse) {
+  const probe = ({ result, ...timing }) => ({ ...timing, ...(result ? { result: resultView(result) } : {}) });
+  return { schemaVersion: 'unfallwerkbank.bonnCatalogueReuseQa.v1', passed: reuse.passed,
+    validationErrors: reuse.validationErrors,
+    cold: probe(reuse.cold), coalesced: probe(reuse.coalesced), warm: probe(reuse.warm) };
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const { search } = require('../server/political-context/services/portalSearchService.js');
@@ -157,36 +171,29 @@ async function main() {
   for (let attempt = 1; attempt <= options.attempts; attempt++) {
     const startedAt = new Date().toISOString();
     try {
-      const result = await search({
+      const reuse = await runCatalogueReuse({ search, terms: options.terms, parameters: {
         city: 'Bonn',
-        searchTerms: options.terms,
-        context: {
-          location: 'Adenauerallee, Bonn',
-          street: 'Adenauerallee',
-        },
-        maxResults: 20,
-        expandVariants: false,
-        useCache: false,
-      });
-      const validationErrors = assertLiveResult(result, options);
+        context: { location: 'Adenauerallee, Bonn', street: 'Adenauerallee' },
+        maxResults: 20, expandVariants: false, useCache: false,
+      } });
+      const catalogueReuse = reuseView(reuse);
+      const result = reuse.cold.result;
+      if (!result) {
+        const failure = Object.assign(new Error(reuse.cold.error?.message || 'Cold archive search failed.'),
+          { code: reuse.cold.error?.code, catalogueReuse });
+        throw failure;
+      }
+      // Preserve every existing cold/archive/direct-link requirement. The
+      // additional distinct queries may legitimately have no matches, but
+      // only on the same complete, fresh-enough catalogue with no new I/O.
+      const coldErrors = assertLiveResult(result, options);
+      const followupErrors = ['coalesced', 'warm'].flatMap(label => reuse[label].result
+        ? assertLiveResult(reuse[label].result, { ...options, terms: reuse[label].terms, requireResults: false }).map(error => `${label}: ${error}`)
+        : []);
+      const validationErrors = [...coldErrors, ...reuse.validationErrors, ...followupErrors];
       evidence.attempts.push({
-        attempt,
-        startedAt,
-        completedAt: new Date().toISOString(),
-        result: {
-          meta: result.meta,
-          references: result.references.map(reference => ({
-            title: reference.title,
-            type: reference.type,
-            date: reference.date,
-            gremium: reference.gremium,
-            number: reference.number,
-            url: reference.url,
-            source: reference.source,
-            relevanceScore: reference.relevanceScore,
-          })),
-        },
-        validationErrors,
+        attempt, startedAt: reuse.cold.startedAt, completedAt: new Date().toISOString(),
+        elapsedMs: reuse.cold.elapsedMs, result: resultView(result), catalogueReuse, validationErrors,
       });
       if (validationErrors.length === 0) {
         evidence.passed = true;
@@ -194,6 +201,9 @@ async function main() {
         break;
       }
       lastError = new Error(validationErrors.join(' '));
+      // Once cold correctness passed, a reuse failure is decisive evidence.
+      // Never recrawl the archive merely to repair the cache acceptance.
+      if (!coldErrors.length) break;
     } catch (error) {
       lastError = error;
       evidence.attempts.push({
@@ -201,6 +211,7 @@ async function main() {
         startedAt,
         completedAt: new Date().toISOString(),
         error: serializableError(error),
+        ...(error.catalogueReuse ? { catalogueReuse: error.catalogueReuse } : {}),
       });
     }
     if (attempt < options.attempts) {

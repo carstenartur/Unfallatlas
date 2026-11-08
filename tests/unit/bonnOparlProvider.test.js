@@ -304,6 +304,23 @@ describe('bonnAllrisProvider – OParl preference and fail-closed fallback', () 
 });
 
 describe('portalSearchService provider envelope compatibility', () => {
+  test('preserves bounded catalogue cache provenance through the Bonn provider and service envelope', async () => {
+    const catalogueCache = {
+      status: 'hit', layer: 'catalogue', retrievedAt: '2026-11-07T10:01:00.000Z',
+      refreshedAt: '2026-11-07T10:00:00.000Z', ageMs: 60000,
+      hits: 1, misses: 0, networkRequests: 0, pages: 243, items: 24267,
+      sourceUrl: provider.OPARL_SYSTEM_URL, truncated: false, refreshFailure: null,
+    };
+    const result = await provider.search({ searchTerms: ['Adenauerallee'],
+      searchOparlImpl: async () => ({
+        results: [{ title: 'Antrag Adenauerallee', url: 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=1' }],
+        meta: { status: 'results-found', truncated: false, catalogueCache: { ...catalogueCache, ignored: 'not a metadata field' } },
+      }),
+    });
+    const meta = portalSearchService.normalizeProviderMeta(result.meta, 'incomplete');
+    expect(meta.catalogueCache).toEqual(catalogueCache);
+  });
+
   test('accepts both legacy arrays and evidence envelopes', () => {
     expect(portalSearchService.unwrapProviderResult([{ title: 'x' }]))
       .toEqual({ rawResults: [{ title: 'x' }], providerMeta: {} });

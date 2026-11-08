@@ -19,6 +19,8 @@ describe('context tile access ownership', () => {
     delete window.L;
     window.UA = { normKey: (s) => String(s || '').toLowerCase() };
     loadModule('../../js/ua.data_paths.js');
+    loadModule('../../js/ua.spatial-grid.js');
+    loadModule('../../js/ua.data-budget.js');
     loadModule('../../js/ua.context_layers.js');
   });
 

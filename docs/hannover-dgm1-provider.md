@@ -127,3 +127,23 @@ die Übernahme des Providers in den standardmäßigen Stadtproduktionslauf. Bis
 dahin bleibt SRTM der automatische Fallback; ein DGM1-Ergebnis wird nur erzeugt,
 wenn ein ausdrücklich registrierter und vollständig verifizierter Snapshot
 vorliegt.
+
+## Reale, begrenzte Quellenauszüge (November 2026)
+
+`tests/fixtures/hannover-dgm1-real/` ergänzt die synthetischen Prüfungen um echte,
+hashgebundene Höhenzeilen und OSM-Geometrien: Friedrichswall, Hardenbergstraße,
+Friederikenbrücke und Am Lindener Berge. Die amtlichen Testdateien besitzen eine
+erste Kopfzeile `x y z`; diese wird genau an erster Stelle akzeptiert. Halbmeter-
+Zellmittelpunkte bleiben unverändert. Eine wiederholte Kopfzeile ist ein Fehler.
+
+Der lokale Erprobungslauf hat zusätzlich zwei Originalkacheln aus dem großen
+Mitte-Archiv mit regulären HTTP-Teilabfragen und `If-Match` gewonnen. ZIP-
+Verzeichnis, ETag, CRC, entpackte Größe und lokale SHA-256-Pins binden diese
+Auswahl; das gesamte Archiv wurde nicht geladen. Die genaue Quelle und die
+verbleibenden fachlichen Grenzen beschreibt [die Quellenprüfung](qa/hannover-dgm1-source-evidence.md).
+
+Diese automatisierten Realdatenfälle ersetzen keine manuell geprüften
+QGIS-/Fahrbahnprofile. Die DGM-Metadaten nennen die Laserscannerbefliegung 2010
+und die Veröffentlichung 2024; das Höhendatum ist dort nicht belegt. Eine
+stadtweite Aktivierung oder Aussage über heutige Fahrbahnhöhen folgt daraus
+nicht.

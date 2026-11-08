@@ -251,7 +251,7 @@ describe('video export semantic readiness', () => {
         lifecycleCity: 'Bonn',
         lifecycle: { status: 'ready' },
         frameSemantics: {
-          visibleLegendText: ['Straßensteigung'],
+          visibleLegendText: ['Gelände / geprüfte Straßenprofile'],
           paletteCounts: { slopePixels: 25, trafficPixels: 0 },
         },
       }),
@@ -270,7 +270,7 @@ describe('video export semantic readiness', () => {
         lifecycleCity: 'Bonn',
         lifecycle: { status: 'ready' },
         frameSemantics: {
-          visibleLegendText: ['Straßensteigung', 'Verkehrsbelastung'],
+          visibleLegendText: ['Gelände / geprüfte Straßenprofile', 'Verkehrsbelastung'],
           contextOwnership: {
             slope: {
               active: true, present: true, attached: true,
@@ -288,6 +288,29 @@ describe('video export semantic readiness', () => {
     await expect(assertVideoAnalysisState(page, expected)).rejects.toThrow(
       /layers\.traffic: registry ownership is not active, attached and non-empty/
     );
+  });
+
+  test('accepts the production terrain legend and still rejects its absence or unrelated text', async () => {
+    window.eval(fs.readFileSync(path.join(__dirname, '../../js/ua.context_road_layer.js'), 'utf8'));
+    const legend = window.UA.contextRoadLayer.buildLegend('slope');
+    const expected = expectedVideoState({ mapLayer: 'slope' }, 'Bonn');
+    const actual = {
+      state: expected, selectedCity: 'Bonn', lifecycleCity: 'Bonn',
+      lifecycle: { status: 'ready' },
+      frameSemantics: {
+        visibleLegendText: [legend.textContent],
+        contextOwnership: { slope: {
+          active: true, present: true, attached: true,
+          geometryCount: 3, matchingGeometryCount: 3,
+        } },
+      },
+    };
+    const page = { evaluate: jest.fn().mockResolvedValue(actual) };
+    await expect(assertVideoAnalysisState(page, expected)).resolves.toBe(actual);
+    for (const text of ['', 'Verkehrsbelastung', 'Straßensteigung']) {
+      actual.frameSemantics.visibleLegendText = [text];
+      await expect(assertVideoAnalysisState(page, expected)).rejects.toThrow(/layers.slope.*legend is missing/);
+    }
   });
 
   test('checks distinct owned witnesses instead of global context colors', () => {

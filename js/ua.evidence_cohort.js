@@ -1082,7 +1082,7 @@
     ];
     maps.slice(1).forEach((map, index) => {
       content.push(
-        { text: map.title, style: 'heading', pageBreak: index % 2 === 0 ? 'before' : undefined },
+        { text: map.title, style: 'heading', pageBreak: 'before' },
         { image: map.image, fit: [515, 350], alignment: 'center' },
         { text: `Abbildung ${index + 2}: ${map.mapRef}; Unfall-IDs: ${map.accidentIds.join(', ')}.`, style: 'caption' },
       );

@@ -8,10 +8,12 @@ const { URL } = require('node:url');
 const { promisify, TextDecoder } = require('node:util');
 const zlib = require('node:zlib');
 const { snapshotFormat } = require('../../../js/ua.ris-catalogue.js');
+const { buildProvenance, assertProvenance, verifyDistribution } = require('./risProvenance');
 
 // Publication and the browser apply the same location and feature contract.
 const {
   MAX_LOCATIONS_PER_RECORD, validLocations, validGeometry, validLocationGeometry, validAccuracy, validMap, validLocationRevision,
+  validCoverageScope, validLocationAssessment, validLocationAssessmentSummary, summarizeLocationAssessments,
 } = snapshotFormat;
 
 const gzip = promisify(zlib.gzip);
@@ -29,7 +31,7 @@ const MAX_REFRESH_FAILURE_REASON_LENGTH = 240;
 // Pin the production adapters; new cities use the hosts declared by their collector.
 const OFFICIAL_HOSTS = new Map([
   ['bonn', new Set(['www.bonn.sitzung-online.de', 'bonn.sitzung-online.de', 'www2.bonn.de'])],
-  ['hannover', new Set(['e-government.hannover-stadt.de'])],
+  ['hannover', new Set(['e-government.hannover-stadt.de', 'www.landtag-niedersachsen.de', 'www.nilas.niedersachsen.de', 'bekanntmachungen.region-hannover.de', 'ris.hannit.de'])],
 ]);
 
 function isObject(value) {
@@ -131,7 +133,8 @@ function normalizeRefreshFailure(value, generatedAt) {
 }
 
 function normalizeCoverage(value) {
-  if (!isObject(value) || typeof value.complete !== 'boolean' || !Array.isArray(value.bodies) || !Array.isArray(value.warnings)) {
+  if (!isObject(value) || typeof value.complete !== 'boolean' || !Array.isArray(value.bodies) || !Array.isArray(value.warnings)
+      || !validCoverageScope(value.scope)) {
     throw new Error('Invalid RIS coverage');
   }
   const from = dateOnly(value.from, 'coverage start');
@@ -143,11 +146,12 @@ function normalizeCoverage(value) {
     bodies: Array.from(value.bodies, body => requiredText(body, 'coverage body')),
     complete: value.complete,
     warnings: Array.from(value.warnings, warning => requiredText(warning, 'coverage warning')),
+    ...(value.scope === undefined ? {} : { scope: value.scope }),
   };
 }
 
-function normalizeRecords(values, hosts, count, collectLocations = value => value.locations) {
-  if (!Array.isArray(values) || !values.length || values.length > MAX_RECORDS || (count !== undefined && values.length !== count)) {
+function normalizeRecords(values, hosts, count, collectLocations = value => value.locations, maximum = MAX_RECORDS, maxLocations = MAX_LOCATIONS_PER_RECORD) {
+  if (!Array.isArray(values) || !values.length || values.length > maximum || (count !== undefined && values.length !== count)) {
     throw new Error('Invalid RIS record count');
   }
   const byId = new Map();
@@ -166,10 +170,17 @@ function normalizeRecords(values, hosts, count, collectLocations = value => valu
       url: value.url,
       source: requiredText(value.source, 'record source'),
     };
+    const facts = require('../../../js/ua.ris-partitions');
+    if (!facts.validRecordFacts(value, hosts, { maximum: maximum === MAX_RECORDS ? 64 : Number.MAX_SAFE_INTEGER })) throw new Error('Invalid RIS record metadata or history count');
+    for (const field of ['sourceContext', 'originalPdfUrl', 'events', 'relationships']) if (value[field] !== undefined) record[field] = JSON.parse(JSON.stringify(value[field]));
     if (value.relatedTo != null) record.relatedTo = sourceId(value.relatedTo);
     const locations = collectLocations(value, id);
-    if (!validLocations(locations)) throw new Error('Invalid RIS record locations');
+    if (!validLocations(locations, maxLocations)) throw new Error('Invalid RIS record locations');
     if (locations !== undefined) record.locations = locations;
+    if (!validLocationAssessment(value.locationAssessment, locations)) throw new Error('Invalid RIS location assessment');
+    if (value.locationAssessment !== undefined) record.locationAssessment = {
+      ...value.locationAssessment, sources: [...value.locationAssessment.sources], reasons: [...value.locationAssessment.reasons],
+    };
     byId.set(id, record);
     return record;
   });
@@ -184,26 +195,28 @@ function mapFeature(recordId, geometry, accuracy, label, locationIndex) {
   return { type: 'Feature', geometry: { type: geometry.type, coordinates: geometry.coordinates }, properties };
 }
 
-function collectSourceLocations(record, id, features) {
+function collectSourceLocations(record, id, features, maximum = MAX_LOCATIONS_PER_RECORD) {
   const { locations, geometry, locationSource, locationLabel } = record;
-  if (locations !== undefined && (!Array.isArray(locations) || locations.length > MAX_LOCATIONS_PER_RECORD)) {
+  if (locations !== undefined && (!Array.isArray(locations) || locations.length > maximum)) {
     throw new Error('Invalid RIS record locations');
   }
-  if (!locations?.length) {
-    if (validGeometry(geometry) && validAccuracy(locationSource)) {
-      features.push(mapFeature(id, geometry, locationSource, locationLabel));
-    }
-    return locations;
+  if (validGeometry(geometry) && validAccuracy(locationSource) && (!locations?.length || locationSource === 'official')) {
+    features.push(mapFeature(id, geometry, locationSource, locationLabel));
   }
+  if (!locations?.length) return locations;
   // Use the same location positions in both assets, including unmapped mentions.
   return Array.from(locations, (value, locationIndex) => {
     if (!isObject(value) || !isObject(value.evidence)) throw new Error('Invalid RIS record location');
     const label = requiredText(value.label, 'location label');
     const evidence = { source: value.evidence.source, text: requiredText(value.evidence.text, 'location evidence') };
     const attribution = value.attribution === undefined ? '' : requiredText(value.attribution, 'location attribution');
+    const suppliedMapLabel = value.mapLabel === undefined ? '' : requiredText(value.mapLabel, 'location map label');
     const mapped = validLocationGeometry(value.geometry, value.kind);
     if (mapped) {
-      const mapLabel = attribution ? requiredText(`${label} — ${attribution}`, 'location map label') : label;
+      const scope = value.kind === 'street'
+        ? `${value.extent === 'part' ? 'kartierter Teil des Straßenverlaufs' : 'Straßenverlauf'} als Orientierung` : '';
+      const detail = [scope, attribution].filter(Boolean).join(' · ');
+      const mapLabel = suppliedMapLabel || (detail ? requiredText(`${label} — ${detail}`, 'location map label') : label);
       features.push(mapFeature(id, value.geometry, 'derived', mapLabel, locationIndex));
     }
     return { label, kind: value.kind, evidence, mapped };
@@ -314,6 +327,7 @@ async function withTemporaryFile(directory, filename, bytes, install) {
 }
 
 async function installAsset(directory, { bytes, reference }, kind) {
+  let compressedBytes = bytes.length;
   await withTemporaryFile(directory, reference.path, bytes, async (temporary, destination) => {
     try {
       // An existing reader may still hold a manifest pointing to this file.
@@ -321,40 +335,50 @@ async function installAsset(directory, { bytes, reference }, kind) {
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
       await readAsset(directory, reference, kind);
+      compressedBytes = (await fs.stat(destination)).size;
     }
   });
+  return compressedBytes;
 }
 
 /** Write immutable assets first and publish their manifest in a single rename. */
-async function writeRisSnapshot(directory, city, catalogue, { now = Date.now } = {}) {
+async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, schemaVersion = 1 } = {}) {
+  if (schemaVersion === 2) return require('./risPartitionedSnapshot').writePartitionedSnapshot(directory, city, catalogue, { now });
   assertCity(city);
   if (!isObject(catalogue)) throw new Error('Invalid RIS catalogue');
   const { locationRevision } = catalogue;
   if (!validLocationRevision(locationRevision)) throw new Error('Invalid RIS location revision');
   const { sources, hosts } = normalizeSources(catalogue.sources, city);
   const coverage = normalizeCoverage(catalogue.coverage);
+  if (!require('../../../js/ua.ris-partitions').validSourceStatuses(catalogue.sourceStatuses, sources)) throw new Error('Invalid RIS source statuses');
   const features = [];
-  const { records } = normalizeRecords(catalogue.records, hosts, undefined,
+  const { records, byId } = normalizeRecords(catalogue.records, hosts, undefined,
     (record, id) => collectSourceLocations(record, id, features));
+  normalizeMap({ type: 'FeatureCollection', features }, byId, features.length);
+  const locationAssessment = summarizeLocationAssessments(records);
   const date = new Date(typeof now === 'function' ? now() : now);
   if (!Number.isFinite(date.getTime())) throw new Error('Invalid RIS generation timestamp');
-  const generatedAt = timestamp(date.toISOString());
+  const generatedAt = timestamp(catalogue.generatedAt || date.toISOString());
 
   const [recordsAsset, mapAsset] = await Promise.all([
     encodeAsset(city, 'records', records),
     encodeAsset(city, 'map', features),
   ]);
+  await fs.mkdir(directory, { recursive: true });
+  recordsAsset.compressedBytes = await installAsset(directory, recordsAsset, 'records');
+  mapAsset.compressedBytes = await installAsset(directory, mapAsset, 'map');
+  const provenance = buildProvenance(catalogue.provenance, { generatedAt, recordCount: records.length, coverage, now, assets: [recordsAsset, mapAsset] });
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
+    ...(provenance === undefined ? {} : { provenance }),
+    ...(catalogue.sourceStatuses === undefined ? {} : { sourceStatuses: catalogue.sourceStatuses }),
     records: recordsAsset.reference, map: mapAsset.reference,
     ...(locationRevision === undefined ? {} : { locationRevision }),
+    ...(locationAssessment === undefined ? {} : { locationAssessment }),
   };
   const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
   if (bytes.length > MAX_MANIFEST_BYTES) throw new Error('RIS manifest exceeds its size limit');
 
-  await fs.mkdir(directory, { recursive: true });
-  await installAsset(directory, recordsAsset, 'records');
-  await installAsset(directory, mapAsset, 'map');
   await withTemporaryFile(directory, `${city}.json`, bytes, fs.rename);
   return manifest;
 }
@@ -364,6 +388,7 @@ async function readRisSnapshot(directory, city) {
   assertCity(city);
   const bytes = await readBounded(path.join(directory, `${city}.json`), MAX_MANIFEST_BYTES, 'manifest');
   const value = decodeJson(bytes, 'manifest');
+  if (value?.schemaVersion === 2) return require('./risPartitionedSnapshot').readPartitionedSnapshot(directory, city, value);
   if (!isObject(value) || value.schemaVersion !== SCHEMA_VERSION) throw new Error('Unsupported RIS snapshot schema version');
   if (value.city !== city) throw new Error('RIS snapshot city does not match the requested city');
   const { locationRevision } = value;
@@ -372,21 +397,32 @@ async function readRisSnapshot(directory, city) {
   const refreshFailure = Object.hasOwn(value, 'refreshFailure') ? normalizeRefreshFailure(value.refreshFailure, generatedAt) : null;
   const { sources, hosts } = normalizeSources(value.sources, city);
   const coverage = normalizeCoverage(value.coverage);
+  if (!require('../../../js/ua.ris-partitions').validSourceStatuses(value.sourceStatuses, sources)) throw new Error('Invalid RIS source statuses');
   const recordsAsset = normalizeDescriptor(value.records, city, 'records', 1, MAX_RECORDS);
   const mapAsset = normalizeDescriptor(value.map, city, 'map', 0, recordsAsset.count * MAX_LOCATIONS_PER_RECORD);
+  assertProvenance(value.provenance, generatedAt, recordsAsset.count, coverage);
+  if (!validLocationAssessmentSummary(value.locationAssessment, recordsAsset.count)) throw new Error('Invalid RIS location assessment totals');
   const [rows, map] = await Promise.all([
     readAsset(directory, recordsAsset, 'records'),
     readAsset(directory, mapAsset, 'map'),
   ]);
   const { records, byId } = normalizeRecords(rows, hosts, recordsAsset.count);
+  if (!validLocationAssessmentSummary(value.locationAssessment, records.length, records)) throw new Error('Invalid RIS location assessment totals');
   const features = normalizeMap(map, byId, mapAsset.count);
+  await verifyDistribution(directory, value.provenance, [recordsAsset, mapAsset]);
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
     records: recordsAsset, map: mapAsset,
+    ...(value.provenance === undefined ? {} : { provenance: value.provenance }),
+    ...(value.sourceStatuses === undefined ? {} : { sourceStatuses: value.sourceStatuses }),
     ...(locationRevision === undefined ? {} : { locationRevision }),
+    ...(value.locationAssessment === undefined ? {} : { locationAssessment: { ...value.locationAssessment } }),
     ...(refreshFailure ? { refreshFailure } : {}),
   };
   return { manifest, records, features };
 }
 
-module.exports = { writeRisSnapshot, readRisSnapshot, RIS_FALLBACK_MAX_AGE_MS };
+module.exports = { writeRisSnapshot, readRisSnapshot, RIS_FALLBACK_MAX_AGE_MS,
+  enumerateSnapshotAssets: (...args) => require('./risPartitionedSnapshot').enumerateSnapshotAssets(...args),
+  partitionInternals: { normalizeDescriptor, assertCity, normalizeSources, normalizeCoverage, normalizeRecords, collectSourceLocations, normalizeRefreshFailure, timestamp, readBounded, decodeJson, readAsset, installAsset, withTemporaryFile, digest, validLocationRevision, validLocationAssessmentSummary, summarizeLocationAssessments }
+};

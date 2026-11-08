@@ -64,6 +64,8 @@ const PER_FEATURE_FIELDS = [
   'slope_source',
   'slope_confidence',
   'traffic_proxy_class',
+  'slope_resolution_m',
+  'slope_semantic_type',
 ];
 
 const PER_WAY_FIELDS = [
@@ -356,23 +358,7 @@ function encodeGeometry(points) {
 
 const CTX_TILE_ZOOM = 13;
 
-function lonToTileX(lon, z) {
-  return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
-}
-function latToTileY(lat, z) {
-  const rad = (lat * Math.PI) / 180;
-  return Math.floor(
-    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
-      Math.pow(2, z)
-  );
-}
-function tileXToLon(x, z) {
-  return (x / Math.pow(2, z)) * 360 - 180;
-}
-function tileYToLat(y, z) {
-  const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z);
-  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-}
+const { lonToTileX, latToTileY, tileXToLon, tileYToLat } = require('../js/ua.spatial-grid');
 
 /**
  * Return every (x,y) tile coordinate covered by the *vertex bounding
@@ -754,6 +740,9 @@ function loadDemProvider(citySlug) {
     source: data.source || 'SRTM30',
     producerVersion: data.producerVersion || null,
     resolutionM: data.resolution_m || null,
+    provenance: { ...(data.provenance || {}), sourceId: /SRTM/i.test(data.source || '') ? 'global.srtm30' : null,
+      semanticType: 'terrain_context', processedAt: data.extractDate || null, retrievedAt: data.retrievedAt || null,
+      limitations: ['Raster-Geländekontext; keine belastbare Fahrbahnlängsneigung.'] },
     elevateFeature(lat, lon) {
       const p = pointIndex.get(pointKey(lat, lon));
       if (!p) return null;
@@ -765,6 +754,8 @@ function loadDemProvider(citySlug) {
         slope_abs_percent:  slope != null ? Math.abs(slope) : undefined,
         slope_class:        classifySlope(slope),
         slope_source:       data.source || 'SRTM30',
+        slope_resolution_m: data.resolution_m || null,
+        slope_semantic_type: 'terrain_context',
         slope_confidence:   p.confidence || undefined,
       });
     },
@@ -777,6 +768,10 @@ function loadDemProvider(citySlug) {
       // can count signal vs no-signal ways without re-classifying.
       const cls = classifySlope(slope);
       return stripUndefined({
+        road_slope_source:          data.source || 'SRTM30',
+        road_slope_source_id:       /SRTM/i.test(data.source || 'SRTM30') ? 'global.srtm30' : null,
+        road_slope_resolution_m:    data.resolution_m || null,
+        road_slope_reliable_for_road: false,
         road_slope_percent:         slope,
         road_slope_max_abs_percent: round1(w.road_slope_max_abs_percent),
         road_slope_class:           cls,
@@ -870,7 +865,9 @@ function enrichCity(geojson, citySlug, opts = {}) {
   // path stays unchanged, accident schema is invariant).
   for (const f of geojson.features) {
     if (!f || !f.properties) continue;
-    for (const k of PER_FEATURE_FIELDS) delete f.properties[k];
+    for (const k of Object.keys(f.properties)) {
+      if (PER_FEATURE_FIELDS.includes(k) || /^(road_slope_|traffic_)/.test(k)) delete f.properties[k];
+    }
   }
   if (geojson.properties && typeof geojson.properties === 'object') {
     delete geojson.properties.enrichmentDicts;
@@ -1081,7 +1078,7 @@ function enrichCity(geojson, citySlug, opts = {}) {
     generatedAt: new Date().toISOString(),
     sources: stripUndefined({
       osm: osm     ? stripUndefined({ source: osm.source, producerVersion: osm.producerVersion, extractDate: osm.extractDate, coverage: osm.coverage || undefined }) : undefined,
-      dem: dem     ? stripUndefined({ source: dem.source, producerVersion: dem.producerVersion, resolutionM: dem.resolutionM }) : undefined,
+      dem: dem     ? stripUndefined({ source: dem.source, producerVersion: dem.producerVersion, resolutionM: dem.resolutionM, ...(dem.provenance || {}) }) : undefined,
       traffic: traffic ? stripUndefined({ source: traffic.source, producerVersion: traffic.producerVersion, datasetVersion: traffic.datasetVersion }) : undefined,
     }),
     counts: {

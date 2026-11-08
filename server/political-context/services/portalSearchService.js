@@ -21,6 +21,7 @@ const { enrichAllWithTrafficRelevance } = require('./trafficRelevanceService.js'
 const { enrichAllWithAiGating }         = require('./aiGatingService.js');
 const { sharedCache: searchCache, buildKey: buildCacheKey } =
   require('./portalSearchCache.js');
+const { normalizeSourceStatuses } = require('./politicalSourceContext');
 
 const VALID_SEARCH_STATUS = new Set([
   'results-found',
@@ -121,6 +122,29 @@ function unwrapProviderResult(value) {
   };
 }
 
+function normalizeCatalogueCache(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+      || !['hit', 'miss', 'mixed', 'coalesced', 'failed'].includes(value.status)) return null;
+  const timestamp = input => {
+    const time = typeof input === 'string' ? Date.parse(input) : NaN;
+    return Number.isFinite(time) ? new Date(time).toISOString() : null;
+  };
+  const retrievedAt = timestamp(value.retrievedAt), refreshedAt = timestamp(value.refreshedAt);
+  return {
+    status: value.status,
+    layer: value.layer === 'catalogue' ? 'catalogue' : 'source-pages',
+    retrievedAt, refreshedAt,
+    ageMs: retrievedAt && refreshedAt ? Math.max(0, Date.parse(retrievedAt) - Date.parse(refreshedAt)) : null,
+    hits: nonNegativeInteger(value.hits), misses: nonNegativeInteger(value.misses),
+    networkRequests: nonNegativeInteger(value.networkRequests),
+    pages: nonNegativeInteger(value.pages), items: nonNegativeInteger(value.items),
+    sourceUrl: absoluteHttpUrl(value.sourceUrl) || null,
+    truncated: value.truncated === true,
+    refreshFailure: value.refreshFailure && typeof value.refreshFailure === 'object'
+      ? { code: clean(value.refreshFailure.code, 100), message: clean(value.refreshFailure.message, 240) } : null,
+  };
+}
+
 function normalizeProviderMeta(metaValue, fallbackStatus) {
   const meta = metaValue && typeof metaValue === 'object' && !Array.isArray(metaValue)
     ? metaValue
@@ -129,6 +153,7 @@ function normalizeProviderMeta(metaValue, fallbackStatus) {
   const searchStatus = VALID_SEARCH_STATUS.has(requestedStatus)
     ? requestedStatus
     : fallbackStatus;
+  const catalogueCache = normalizeCatalogueCache(meta.catalogueCache);
   return {
     searchStatus,
     sourceType: clean(meta.sourceType, 80) || null,
@@ -139,6 +164,8 @@ function normalizeProviderMeta(metaValue, fallbackStatus) {
     truncated: meta.truncated === true,
     warnings: normalizeWarnings(meta.warnings),
     attempts: normalizeAttempts(meta.attempts),
+    ...(Array.isArray(meta.sourceStatuses) ? { sourceStatuses: normalizeSourceStatuses(meta.sourceStatuses) } : {}),
+    ...(catalogueCache ? { catalogueCache } : {}),
   };
 }
 

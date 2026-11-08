@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const traffic = require('../js/ua.traffic_provider');
 
 const { slugify } = require('./lib/static-data-validation');
 
@@ -32,9 +33,13 @@ function writeJsonArtifact(artifact) {
 
 function normalizeProxyRow(row, observation) {
   if (!row || typeof row !== 'object' || !observation) return false;
+  if (traffic.hasUsableTypedEvidence(row)) return false;
   delete row.traffic_volume_value;
   delete row.traffic_volume_unit;
   delete row.traffic_volume_year;
+  delete row.traffic_evidence;
+  delete row.traffic_observations;
+  delete row.traffic_artifact;
   row.traffic_measurement_type = 'proxy';
   row.traffic_proxy_class = observation.proxyClass;
   row.traffic_volume_source = 'OSM-highway-class-proxy';
@@ -58,15 +63,7 @@ function normalizeFeatureCollection(geojson, observations) {
     const wayId = matchedWayId(properties);
     const observation = wayId && observations[wayId];
     if (!properties || !observation) continue;
-    delete properties.traffic_volume_value;
-    delete properties.traffic_volume_unit;
-    delete properties.traffic_volume_year;
-    properties.traffic_measurement_type = 'proxy';
-    properties.traffic_proxy_class = observation.proxyClass;
-    properties.traffic_volume_source = 'OSM-highway-class-proxy';
-    properties.traffic_volume_confidence = observation.confidence || 'low';
-    properties.traffic_proxy_basis = `highway=${observation.highwayClass}`;
-    count += 1;
+    if (normalizeProxyRow(properties, observation)) count += 1;
   }
   return count;
 }
@@ -118,10 +115,12 @@ function applyQualitativeTrafficProxy(options) {
   }
 
   let wayRows = 0;
+  let typedWayRows = 0;
   const waysLogical = path.join(outputDir, `ways_${slug}.json`);
   const waysArtifact = readJsonArtifact(waysLogical);
   if (waysArtifact.value && waysArtifact.value.ways) {
     wayRows += normalizeWaysPayload(waysArtifact.value, observations);
+    typedWayRows = Object.values(waysArtifact.value.ways).filter(row => traffic.hasUsableTypedEvidence(row)).length;
     writeJsonArtifact(waysArtifact);
   }
   const tileResult = normalizeTiles(outputDir, slug, observations);
@@ -144,11 +143,15 @@ function applyQualitativeTrafficProxy(options) {
   };
   metaArtifact.value.counts = metaArtifact.value.counts || {};
   metaArtifact.value.counts.withTrafficProxy = featureRows;
+  const typedFeatures = (geojsonArtifact.value.features || []).filter(feature => traffic.hasUsableTypedEvidence(feature.properties)).length;
   metaArtifact.value.traffic = {
-    measurementType: 'proxy',
+    ...(metaArtifact.value.traffic || {}),
+    measurementType: typedFeatures || typedWayRows ? 'mixed' : 'proxy',
+    typedFeatures,
+    typedWayRows,
     classifiedFeatures: featureRows,
     classifiedWayRows: wayRows,
-    numericValuesPresent: false,
+    numericValuesPresent: typedFeatures > 0 || typedWayRows > 0,
   };
   writeJsonArtifact(metaArtifact);
 

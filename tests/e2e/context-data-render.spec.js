@@ -119,7 +119,7 @@ test.describe('Generated context data – browser end to end', () => {
 
     const overlayControl = page.locator('.context-overlay-control');
     await expect(overlayControl).toBeVisible({ timeout: 60_000 });
-    await expect(overlayControl).toContainText('Karten-Layer');
+    await expect(overlayControl.getByRole('button', { name: 'Karte', exact: true })).toBeVisible();
     await expect(overlayControl.locator('input[data-context-overlay="slope"]')).toBeChecked();
     await expect(overlayControl.locator('input[data-context-overlay="traffic"]')).toBeChecked();
 
@@ -169,7 +169,7 @@ test.describe('Generated context data – browser end to end', () => {
     const visibleLegends = page.locator('.context-road-legend:visible');
     await expect.poll(() => visibleLegends.count(), { timeout: 30_000 }).toBe(2);
     const legendText = (await visibleLegends.allTextContents()).join(' ');
-    expect(legendText).toMatch(/Straßensteigung/);
+    expect(legendText).toContain('Gelände / geprüfte Straßenprofile');
     expect(legendText).toMatch(/Verkehrsbelastung/);
 
     await attachDiagnostics(rendered);

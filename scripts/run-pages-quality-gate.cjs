@@ -136,7 +136,8 @@ async function withSiteServer(callback) {
 function buildAndValidateSite() {
   const refreshRis = process.env.PAGES_REFRESH_RIS === '1';
   if (refreshRis) {
-    runNode('scripts/refresh-ris-catalogues.js', [], { timeoutMs: 22 * 60_000 });
+    const { checkpointRetryFromEnv } = require('./ris-checkpoint-retry-options');
+    runNode('scripts/refresh-ris-catalogues.js', checkpointRetryFromEnv(process.env), { timeoutMs: 65 * 60_000 });
   }
   fs.rmSync(SITE_ROOT, { recursive: true, force: true });
   fs.mkdirSync(QA_DIR, { recursive: true });

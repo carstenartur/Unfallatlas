@@ -1,0 +1,986 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-08T15:48:35.227Z",
+  "head": "5a96aec8a2910849a8a5c257904a8926a4898f54",
+  "method": "All blobs reachable from fetched origin branch and tag refs; unique object IDs; uncompressed Git blob bytes, not pack/disk/server usage. A shared blob is classified by the first path reported by rev-list. Deleted server refs and unreachable objects are outside this accessible inventory.",
+  "refs": {
+    "count": 334,
+    "sha256": "ee39780039057a478fac16bec647d0e3296e229ad13642810db25fab38364ee6",
+    "values": [
+      "refs/remotes/origin/agent/central-filing-readiness-gate 3bb77418d549155539007a859913d2128c4ea3f3",
+      "refs/remotes/origin/agent/pdf-evidence-page-contract 7b0934ecdddf8fbbb8d1b2fb3a844f30afb1f693",
+      "refs/remotes/origin/agent/resilient-context-refresh e3c93421397adddc7b6b84d7bd0f1919915711fa",
+      "refs/remotes/origin/alert-autofix-5 0e551cfb853714b74628497f6facfa524f16e8a8",
+      "refs/remotes/origin/alert-autofix-6 d99c49af110c2fd80d223346e4ba22cdaab90398",
+      "refs/remotes/origin/alert-autofix-7 2b299ad07d02b4f683ffda440d320f531e4c503d",
+      "refs/remotes/origin/automation/apply-context-compositing-tolerance 95543502be905f245d436b3b5d3c6f682f1a4a0e",
+      "refs/remotes/origin/automation/apply-context-compositing-tolerance-trigger 95543502be905f245d436b3b5d3c6f682f1a4a0e",
+      "refs/remotes/origin/automation/apply-context-palette-test-fix 8548e84bf909533fe9d76dbc8d2d2ba8b8736e54",
+      "refs/remotes/origin/automation/apply-context-palette-test-fix-trigger 8548e84bf909533fe9d76dbc8d2d2ba8b8736e54",
+      "refs/remotes/origin/automation/backup-artifact-provenance-496 9d1e47533ec40073c3e06ec544925f4f06fbba6f",
+      "refs/remotes/origin/automation/backup-pages-profile-489 ae5a8c08289ee638eb0ea92664a016d685de5161",
+      "refs/remotes/origin/automation/backup-traffic-provider-493 60631a763f251f49cc8568044422c22e51085e1e",
+      "refs/remotes/origin/automation/context-data-refresh dca97e80b98e86f9a5a08625c38f48cacc2e1787",
+      "refs/remotes/origin/automation/fix-runtime-split-seam 68c4ca04c10cb1fa9306542f9cf7602f38fb703a",
+      "refs/remotes/origin/automation/fix-runtime-split-seam-trigger 68c4ca04c10cb1fa9306542f9cf7602f38fb703a",
+      "refs/remotes/origin/automation/fix-visual-split-seam a48430533effaaf31ca6145cbef34f77fea8d272",
+      "refs/remotes/origin/automation/fix-visual-split-seam-trigger a48430533effaaf31ca6145cbef34f77fea8d272",
+      "refs/remotes/origin/automation/move-a11y-seam-to-pr2 187e892e6e1d48c8374eb090e9b8461beb10a883",
+      "refs/remotes/origin/automation/move-a11y-seam-to-pr2-trigger 187e892e6e1d48c8374eb090e9b8461beb10a883",
+      "refs/remotes/origin/automation/move-build-manifest-smoke-to-pr3 8c71b61dccd95ea88a4eba848a1bc5723a7dc3bc",
+      "refs/remotes/origin/automation/move-build-manifest-smoke-to-pr3-trigger 8c71b61dccd95ea88a4eba848a1bc5723a7dc3bc",
+      "refs/remotes/origin/automation/move-export-runtime-to-build cb50026b3288df42b5bb51a9b74ea0683c8204a6",
+      "refs/remotes/origin/automation/move-export-runtime-to-build-trigger fa624ba233db73d731f5beb9468eabc69faf4a43",
+      "refs/remotes/origin/automation/move-export-runtime-to-build-trigger-2 cb50026b3288df42b5bb51a9b74ea0683c8204a6",
+      "refs/remotes/origin/automation/move-html-vendor-boundary-to-pr3 28b643ed6feb84beda5302bc0118d5eb3cd291c2",
+      "refs/remotes/origin/automation/move-html-vendor-boundary-to-pr3-trigger 28b643ed6feb84beda5302bc0118d5eb3cd291c2",
+      "refs/remotes/origin/automation/move-modal-callers-to-pr2 472acbc682d235827267fc5e2cc2d19f84f29814",
+      "refs/remotes/origin/automation/move-modal-callers-to-pr2-trigger 02bb61aa3353f9389366d6bfd7f00d299bc0eb3f",
+      "refs/remotes/origin/automation/move-modal-callers-to-pr2-trigger-2 472acbc682d235827267fc5e2cc2d19f84f29814",
+      "refs/remotes/origin/automation/object-staging-codec-media-stack bad354d5999bb4d6769a118e22aa3ffadfa0d150",
+      "refs/remotes/origin/automation/object-staging-qa-stack e398c630a2ea360cfb8ce65ed1baf5d58bbf4539",
+      "refs/remotes/origin/automation/pr641-video-palette-fix-v2 2efabe5bfe87f2c778d261c44ca80df58a98e830",
+      "refs/remotes/origin/automation/rebuild-stack-after-palette-fix fe44dbd02ed58a85f4fa2691ee54d625ce6ec281",
+      "refs/remotes/origin/automation/rebuild-stack-after-palette-fix-trigger fe44dbd02ed58a85f4fa2691ee54d625ce6ec281",
+      "refs/remotes/origin/automation/rebuild-stack-after-palette-fix-v2 0ef6d2a2045407195cc1188a7347a2d389086b1e",
+      "refs/remotes/origin/automation/rebuild-stack-after-palette-fix-v2-trigger 0ef6d2a2045407195cc1188a7347a2d389086b1e",
+      "refs/remotes/origin/automation/rechain-codec-media-stack 7ad8682040868a41ce47f84c901560ed857652da",
+      "refs/remotes/origin/automation/refine-split-405-trigger-3 d5c6514d0e23a4a5f7fe222b94e9bbd94501e408",
+      "refs/remotes/origin/automation/refine-split-405-trigger-4 36e4350f177c46acaecb6157c54100bde6b1549c",
+      "refs/remotes/origin/automation/repair-build-provenance-media-boundaries 7fdcae4042ceca98d4557c6667147e51b7aa1bbb",
+      "refs/remotes/origin/automation/reparent-stack-after-437 e90436b169d359672dba3de131155e5d51f8a056",
+      "refs/remotes/origin/automation/reparent-stack-after-437-trigger 4020db63c13c83d8e28c47034bd000c7730397cf",
+      "refs/remotes/origin/automation/reparent-stack-after-437-trigger-2 7c517c278c5c24102960b0e46cf3f3bed2638e51",
+      "refs/remotes/origin/automation/reparent-stack-after-437-trigger-3 e90436b169d359672dba3de131155e5d51f8a056",
+      "refs/remotes/origin/automation/verify-final-stack-cleanup 0d12ddae8e3b2f16bf751f318db25e1a1ce88c94",
+      "refs/remotes/origin/automation/verify-final-stack-cleanup-trigger d20f0521297088dcb701f7043c8e16a6eabd1f82",
+      "refs/remotes/origin/automation/verify-final-stack-cleanup-trigger-2 0d12ddae8e3b2f16bf751f318db25e1a1ce88c94",
+      "refs/remotes/origin/carstenartur-patch-1 e3054f1e819a44915ec4cdacbf5a13ec5415935f",
+      "refs/remotes/origin/carstenartur-patch-10 b54f02fd7d4ae69f668ca05294795265536ac584",
+      "refs/remotes/origin/carstenartur-patch-100 943fc52b537f914c2b312059da3baa317a3dd33e",
+      "refs/remotes/origin/carstenartur-patch-101 45c927c2d113f1920e1640deeae6b84337fe72fe",
+      "refs/remotes/origin/carstenartur-patch-102 37c631710fa73408091feab7c74ef5f05be131fc",
+      "refs/remotes/origin/carstenartur-patch-103 e4f092e69b1b74e97c086eafbcbd0e4309d29d20",
+      "refs/remotes/origin/carstenartur-patch-104 aba15d3fbc9448085c213bdc63bbcc74f6d4009c",
+      "refs/remotes/origin/carstenartur-patch-105 1e1b69cbae2c9ec17c55005ddae9ef10fd6aae98",
+      "refs/remotes/origin/carstenartur-patch-106 6c7ba8d0510e10b3585749a4985b9d346cc8bc47",
+      "refs/remotes/origin/carstenartur-patch-107 eb3c8e0d9a14191d5381ccc489c2caed4c331bc0",
+      "refs/remotes/origin/carstenartur-patch-108 b5d9dcdaa464293f7f1977dbf85594d14528259f",
+      "refs/remotes/origin/carstenartur-patch-109 ccb97cdd2bf6cf9fe4d361500189b2704ebdfc5f",
+      "refs/remotes/origin/carstenartur-patch-11 5ea05c663fb325c21f9bb63dfe2db9297cc3f316",
+      "refs/remotes/origin/carstenartur-patch-110 447d9388690cdda011341bb2a533dff9f1697ca9",
+      "refs/remotes/origin/carstenartur-patch-111 1a181654501c9cb774ac96bd9f7cb6369db45c89",
+      "refs/remotes/origin/carstenartur-patch-12 bce7c568c83e3c25202811ef186476a41919f16b",
+      "refs/remotes/origin/carstenartur-patch-13 8eda6dcd636ac57f864672e8e4088d5b23664898",
+      "refs/remotes/origin/carstenartur-patch-14 df6ae7c40fa713b44f650f0cce68aa1536ee406f",
+      "refs/remotes/origin/carstenartur-patch-15 92ba2dc82d71286bd7a85b196226d3cccb89ab57",
+      "refs/remotes/origin/carstenartur-patch-16 91a01c82a09373a1f895e6f521517a2bb5851c56",
+      "refs/remotes/origin/carstenartur-patch-17 8fd03f32a316b32d510e8baa4d54d96e2bbb9e40",
+      "refs/remotes/origin/carstenartur-patch-18 19ce5f9f75f9bbdb874dffac9706092fa064dc19",
+      "refs/remotes/origin/carstenartur-patch-19 ab11bc8f23acdf3f9c96a880b6b6e75183661492",
+      "refs/remotes/origin/carstenartur-patch-2 217c96b89df96cd77d62c509fb8ab8c0e680a835",
+      "refs/remotes/origin/carstenartur-patch-20 b275aebce49e97c3d0e5779335d13bda5eafe549",
+      "refs/remotes/origin/carstenartur-patch-21 07bdfc146f00ee43d3b03749ac5d2a66888f9cdc",
+      "refs/remotes/origin/carstenartur-patch-22 6baac8c9c479c404fb288e6c919bfa0a25e6501f",
+      "refs/remotes/origin/carstenartur-patch-23 a2eaea5adb8664b321f27d333323e8e3e5244ff1",
+      "refs/remotes/origin/carstenartur-patch-24 625ca1268b265ab67c3571546da0c50c2e50daac",
+      "refs/remotes/origin/carstenartur-patch-25 fdd084cd125c0b879362704227b2607542de1ce3",
+      "refs/remotes/origin/carstenartur-patch-26 ba183ab9bec3025b2ecaf57d2d4dd60aa76ec4a0",
+      "refs/remotes/origin/carstenartur-patch-27 d533254cb02900b2c88edd90e4e142cc6e253ab7",
+      "refs/remotes/origin/carstenartur-patch-28 935b22d24c6e33518d6f90bf10907f63dcf74c49",
+      "refs/remotes/origin/carstenartur-patch-29 ae0039a9967dcb69bdaedebc632d9655787d623f",
+      "refs/remotes/origin/carstenartur-patch-3 dfe8d1e43b79564a4fcad0ec6e5e82a939f0f08e",
+      "refs/remotes/origin/carstenartur-patch-30 f00fa5b70bbe98d1fed0e256b9623b5acdfc894e",
+      "refs/remotes/origin/carstenartur-patch-31 d33f9d51768568293e77a4dff7bfb2255b4f5c2e",
+      "refs/remotes/origin/carstenartur-patch-32 1ac9ad7d252cc1e4c76b7d5a5a31d163365638c3",
+      "refs/remotes/origin/carstenartur-patch-33 7afa0e7ed4cb1a3603e9f9949b98a9500d8a9edf",
+      "refs/remotes/origin/carstenartur-patch-34 387c88bcb48d555e7c64528b6c0cc3ccf8203393",
+      "refs/remotes/origin/carstenartur-patch-35 d0510a9f0b391c01a7b5ffc3e80e36b05af58c63",
+      "refs/remotes/origin/carstenartur-patch-36 340d81bdd8ee8f1ec8bc41c6e6fc383d58308423",
+      "refs/remotes/origin/carstenartur-patch-37 04c7a055cf0fbcef89a0d65e14bfb91429a93565",
+      "refs/remotes/origin/carstenartur-patch-38 12a5677d3f56fee020b6fc0c80f70f3976fc303b",
+      "refs/remotes/origin/carstenartur-patch-39 e9d37c5db3761e788b5da1cce1249c59580e34ab",
+      "refs/remotes/origin/carstenartur-patch-4 7339f32b6cb435bbea873a4db364370c486bcfc2",
+      "refs/remotes/origin/carstenartur-patch-40 42bae22af4178efa096972ceb899a4ce256476d7",
+      "refs/remotes/origin/carstenartur-patch-41 27b226b21010bc40f54ef67d38769c2ba7cdd339",
+      "refs/remotes/origin/carstenartur-patch-42 edd38326f2b434bbc3fd78e4cc80d5e480979ab3",
+      "refs/remotes/origin/carstenartur-patch-43 8de673931deb376244c213033fe493cf4fe62c74",
+      "refs/remotes/origin/carstenartur-patch-44 2b78854a7a29c7963d990aaf10c18c449faa4959",
+      "refs/remotes/origin/carstenartur-patch-45 ba41779501ae17c36f582e5d8297cc861ffe236f",
+      "refs/remotes/origin/carstenartur-patch-46 82cf5c894b27e173b82131fde9c3964b4c190062",
+      "refs/remotes/origin/carstenartur-patch-47 61009e6508c5456e51ffc37bb3463bf2e6d98c53",
+      "refs/remotes/origin/carstenartur-patch-48 751ef5f33ae5c39927e485a4f31d2899121edbb5",
+      "refs/remotes/origin/carstenartur-patch-49 7fa770ce886f4bff806543c1f5ed10e1a1443f05",
+      "refs/remotes/origin/carstenartur-patch-5 0c90a17042c3ec1aadc11e832b5ddf01526f78fb",
+      "refs/remotes/origin/carstenartur-patch-50 3ed0e6a1fadf4a18cf34163d6a4775818f74d6d0",
+      "refs/remotes/origin/carstenartur-patch-51 a43811b37740c0aaeffa563d87b71199b3adb754",
+      "refs/remotes/origin/carstenartur-patch-52 70bb847924cde981a3d22766235eeebf7617b1e0",
+      "refs/remotes/origin/carstenartur-patch-53 d20d77aa4dc79663665105c05120587b832a5068",
+      "refs/remotes/origin/carstenartur-patch-54 76087349d54dfd0115269f8a91db12a791c91e49",
+      "refs/remotes/origin/carstenartur-patch-55 ae30b8e4c4403183ca35f1cac3d8747535470dad",
+      "refs/remotes/origin/carstenartur-patch-56 6d775c74a4c7a63506f92a57d27a09ac8182b2c8",
+      "refs/remotes/origin/carstenartur-patch-57 2a4274aa9a92c34170b432ac97faec6a84957aca",
+      "refs/remotes/origin/carstenartur-patch-58 7cf4985c3ae6630048358da5f7d2568ee16f120d",
+      "refs/remotes/origin/carstenartur-patch-59 e0c7978b186c4ea7dc2fd6cd00a912f72bbde9eb",
+      "refs/remotes/origin/carstenartur-patch-6 c99363099222e764fa0dbb08f7ada7ccb3fc3ab7",
+      "refs/remotes/origin/carstenartur-patch-60 8b0f51ec22b728f5bbcd82e284174f14a2074ef4",
+      "refs/remotes/origin/carstenartur-patch-61 9fa3f2a7d39ad0ca01922965984cea9d76afc0c0",
+      "refs/remotes/origin/carstenartur-patch-62 c874be04ed21632fe6aadb769b0a3e7c7dfa2bed",
+      "refs/remotes/origin/carstenartur-patch-63 2b90a57c6b26499ba72de8eea70e197196a55f87",
+      "refs/remotes/origin/carstenartur-patch-64 316e6f602205e68366259a69780a7ac52b32a643",
+      "refs/remotes/origin/carstenartur-patch-65 0d0f2f9d575c150fc0fa16b66a1741b6a2e2ac9b",
+      "refs/remotes/origin/carstenartur-patch-66 76a36b0e1328f8cb1d66a1578556fd128c913502",
+      "refs/remotes/origin/carstenartur-patch-67 3e128507cffbc5509bcedddfc5ae5ff61cfebc18",
+      "refs/remotes/origin/carstenartur-patch-68 0fcd33ee1d363d17b10c38a3c653b190eec90bc3",
+      "refs/remotes/origin/carstenartur-patch-69 50dc21bca54c276c30706ad415ea1a0bbce36972",
+      "refs/remotes/origin/carstenartur-patch-7 5cc2f77d69db0b714932745613646990e5a9ebfb",
+      "refs/remotes/origin/carstenartur-patch-70 710311961c167a2d4e31b88d7f95529c4a9a494b",
+      "refs/remotes/origin/carstenartur-patch-71 64c3a851177c389df4f1fde7aceec5908b8a8f1d",
+      "refs/remotes/origin/carstenartur-patch-72 11e0a2dee9070cfd47d76f6beb442d68cd302af7",
+      "refs/remotes/origin/carstenartur-patch-73 eb7efdb6fbc4d0ffb9b669a1bea5e92523820391",
+      "refs/remotes/origin/carstenartur-patch-74 bbed4770be4a015993f4cd4ccc5013cdf24b4026",
+      "refs/remotes/origin/carstenartur-patch-75 5ae252f8396771f23dcabf4bb2dd5f4f713fe0a5",
+      "refs/remotes/origin/carstenartur-patch-76 8cc29ae21a84c9c9103fa8b42e2fb6764bd2a2be",
+      "refs/remotes/origin/carstenartur-patch-77 26df90688819e6a2b9a70e5c51d8f25d852ff06f",
+      "refs/remotes/origin/carstenartur-patch-78 0de057c5bd32c03782b77c497c9b17419310c07c",
+      "refs/remotes/origin/carstenartur-patch-79 4ed50258913521b2ba59280f2b5814aa70c9769d",
+      "refs/remotes/origin/carstenartur-patch-8 9cf25d697a509b0f44608f3f8f35f92f8dbf40ec",
+      "refs/remotes/origin/carstenartur-patch-80 cae897adec7d40e164f9a0b474ba169e27e2df6b",
+      "refs/remotes/origin/carstenartur-patch-81 1a946fd1029a7fa2974a1a2a2ce00019a5c4df4b",
+      "refs/remotes/origin/carstenartur-patch-82 0af0afdbfd9376274c9ad239970ca7b3e8b9afd4",
+      "refs/remotes/origin/carstenartur-patch-83 c6acc79441ee84461b8dee15dc71ddd819e34201",
+      "refs/remotes/origin/carstenartur-patch-84 fcdc6397dfaa3b569ee99853adb50e5fcc6e75b0",
+      "refs/remotes/origin/carstenartur-patch-85 5f737f81a12efc53d9cee6b33280b0c16f6ec3fb",
+      "refs/remotes/origin/carstenartur-patch-86 89c49ef3ea445c9e82cdb61e3473efe2caac023c",
+      "refs/remotes/origin/carstenartur-patch-87 ad86906ad89d3ec67e9e70e154d2d26c58289f84",
+      "refs/remotes/origin/carstenartur-patch-88 d720a374f0eefd67f7786cc8e283e25a599503de",
+      "refs/remotes/origin/carstenartur-patch-89 fc85441ebd3a66227b5c27859c3ae5e5cef9af50",
+      "refs/remotes/origin/carstenartur-patch-9 4b9da8745c8dc5f598c4540506301f800038ff43",
+      "refs/remotes/origin/carstenartur-patch-90 d1cef75d583e2714646d90806210e6bda8d09f00",
+      "refs/remotes/origin/carstenartur-patch-91 a9b942f5740cf9240df14a74bc95a9c3f6dde72b",
+      "refs/remotes/origin/carstenartur-patch-92 178fadbedca1d41a64206d5cc2c974f4f6ef16cc",
+      "refs/remotes/origin/carstenartur-patch-93 6d235d97b8610e1b62d94db461bfc3e205a7ded1",
+      "refs/remotes/origin/carstenartur-patch-94 741ddb5a9459c53a654efb8865d2177bc4830a18",
+      "refs/remotes/origin/carstenartur-patch-95 2400d97fc7d8dfb51933abcddf0576ff0b30dbd2",
+      "refs/remotes/origin/carstenartur-patch-96 4103aaf5ad2665bad26048dd569709b61f5cb1dc",
+      "refs/remotes/origin/carstenartur-patch-97 ea6a2a85ff9a63f5619a9121fad2681bc6fafde2",
+      "refs/remotes/origin/carstenartur-patch-98 430633b7d1daefe462d984ddcb8fc705526363c4",
+      "refs/remotes/origin/carstenartur-patch-99 b96fa633726d48edfddc48318b67e366667fc680",
+      "refs/remotes/origin/ci/maven-optional-qa-profiles b9930821af1eb859396ef1315bb77358d8c22d21",
+      "refs/remotes/origin/ci/release-dry-run-8ccf7749 8ccf7749f87a39f0b8b50ce0afc70892dad57cac",
+      "refs/remotes/origin/copilot/add-berlin-slope-qa-report 2d410ab412900b43c0d1e29c92784a410b0bbe50",
+      "refs/remotes/origin/copilot/add-clickable-links-to-pdf 46a6f93e815a8ae8e9d497c3a8042ad72a77b8d8",
+      "refs/remotes/origin/copilot/add-data-export-functionality 8aa133a6f1ad556d8ae262b8148a7ac860a379ae",
+      "refs/remotes/origin/copilot/add-dem-tile-producer f6894d47cfbb153096d2df834b8d3cd9e8f59567",
+      "refs/remotes/origin/copilot/add-deploy-release-workflow 90e5ccf35af1ba7b3a56834d69d3d767277d836e",
+      "refs/remotes/origin/copilot/add-e2e-test-exported-pdf-screenshot b8146945b4994389bd2b4769ef8b18e1b4c26fb6",
+      "refs/remotes/origin/copilot/add-generate-screenshots-workflow 711f43a3ba88fde9d8e7d4a4b47d27672d4159d9",
+      "refs/remotes/origin/copilot/add-osm-producer-steps 785c74bfe283833ea720cb1c9a05032078d95548",
+      "refs/remotes/origin/copilot/add-overview-map-and-selection-card db3d2c9520a0ee95d58553c2c4a63ae8972c9dac",
+      "refs/remotes/origin/copilot/add-playwright-screenshots-test a49e770db11d9121d8ef245308d1ad76cb3c9743",
+      "refs/remotes/origin/copilot/add-pois-and-reference-docs f1cae313d763e038c12ff21de968eb820fa498ce",
+      "refs/remotes/origin/copilot/add-political-events-research-hannover 141fca5f86c5d5c877c035c117969a3511b59260",
+      "refs/remotes/origin/copilot/add-popup-fields-for-enrichment 9568087f57b86ac9dc6f08d8fcd4f4e8b2c40e51",
+      "refs/remotes/origin/copilot/add-renovate-json-file 032440069582b5192b333056c71e75cc5a21f363",
+      "refs/remotes/origin/copilot/add-structured-location-action-brief 850dbb08f330465e00779ab3557a2a9c8dfb4b95",
+      "refs/remotes/origin/copilot/add-video-export-button aa6f355e1f9f7b3eb2793e9d847ed1082a5b8af0",
+      "refs/remotes/origin/copilot/add-video-export-formats 1b4ab5487711f035a0450eb7de7b643f7d1a5ef3",
+      "refs/remotes/origin/copilot/adjust-coverage-threshold b971a3b1108ce3fca8eea202826f873ecf1fa47c",
+      "refs/remotes/origin/copilot/analyze-performance-issues adfaa1dd472d9c36e979f1e18d193f5e8641e63c",
+      "refs/remotes/origin/copilot/audit-repository-state 6933096b2c397392094f47c5b3374ed3e19d6831",
+      "refs/remotes/origin/copilot/c1-konfidenzintervalle-fuer-faktor-abweichungen 04c5935a866201184f9025827ac75ec2afa2c0d6",
+      "refs/remotes/origin/copilot/comprehensive-qa-preparation-release df80c741b61f9e7581a3f0099f2ea812ae0a84c0",
+      "refs/remotes/origin/copilot/demo-video-bezirksratsantrag-erweitern f7906840908e6cd16789fb325f47d0fdd8f25d7a",
+      "refs/remotes/origin/copilot/expand-accident-atlas-to-nationwide-model 648a9c7cd611285011ee5d8466da48c9b9530605",
+      "refs/remotes/origin/copilot/extend-report-function-v2 c0b355749f2441d2825487fa39c39306d8f5c889",
+      "refs/remotes/origin/copilot/extend-shellscript-for-additional-years d9d2afae182ffa855158b3f36f10b1dc45bc167a",
+      "refs/remotes/origin/copilot/finalize-unfallatlas-export a77aa2609ef642e6f0e7d4f81619083b2d479ac4",
+      "refs/remotes/origin/copilot/fix-berlin-slope-layer-bug c8126725d0200ad7653695f3e51d09516c833e69",
+      "refs/remotes/origin/copilot/fix-broken-werkbank-links 0f83b39a11651e0ea91adcbc90e6b6221700e89f",
+      "refs/remotes/origin/copilot/fix-build-status-issue a60dd3fbf870bed1ee4d62329ce2dc91486b9d4e",
+      "refs/remotes/origin/copilot/fix-build-werkbank-url-filter 9b8eca752be06e69d9bbf09ec5d37897dd898bd5",
+      "refs/remotes/origin/copilot/fix-cluster-maps-export 1d30aff5c6e6d18163fe43aa17121c436b2fd87a",
+      "refs/remotes/origin/copilot/fix-dem-producer-rate-limiting 16155fe246856be0d7c35c66dd6cb8f171a7c948",
+      "refs/remotes/origin/copilot/fix-demo-video-export-button b8b078f0d064fd1c0f3d8478f42d0d26d77c71f8",
+      "refs/remotes/origin/copilot/fix-demo-video-visibility a50dc9ef360eb71ead7e1a076d522d0c08368520",
+      "refs/remotes/origin/copilot/fix-docx-rendering-issues e7fcf1fcb72fe40306a272e4b9765bb17ebcca2b",
+      "refs/remotes/origin/copilot/fix-drift-in-city-registry 9e729f7294f99e06188ff81e0fc00ddb75272588",
+      "refs/remotes/origin/copilot/fix-e2e-integration-test-errors c2cc84684267200fa1ad4e88dd99cb9f0c862c54",
+      "refs/remotes/origin/copilot/fix-encoding-in-political-docs 286da84d13524e26cba6c1ab0ba870937c368f1a",
+      "refs/remotes/origin/copilot/fix-export-analysis-mask c40b19e4ff2e31253225b80abba8d4d08750a329",
+      "refs/remotes/origin/copilot/fix-export-functionality-in-browser aa4aeba8a3eed638712c73f252fbebf23d19c75e",
+      "refs/remotes/origin/copilot/fix-export-functionality-issues 1bc4b921f2a082c61dc9c606e44124e38f043e01",
+      "refs/remotes/origin/copilot/fix-export-pdf-word 4f953d4a426e5b517d045256f5094728ce7e3fd7",
+      "refs/remotes/origin/copilot/fix-fetch-overpass-stdout-issue d703f394cf1ba61627d57c86087d588e2e0fefe0",
+      "refs/remotes/origin/copilot/fix-gemini-provider-handling aa4213383fa0dc8e54d6d1f9b8ec92929886bf20",
+      "refs/remotes/origin/copilot/fix-github-actions-job-failure ae82da9420dc7fd87f95b1d3d864335c7c601f0f",
+      "refs/remotes/origin/copilot/fix-heatmap-pdf-export-issues f2264c6b101b89b8c30c96e1b7d9adf56957140b",
+      "refs/remotes/origin/copilot/fix-image-distortion-export c7a22bc95456f59f4e27691bbe452b078c327ad3",
+      "refs/remotes/origin/copilot/fix-jest-compatibility-issues e74420de15a88037e195c712864987ae69d43778",
+      "refs/remotes/origin/copilot/fix-jest-test-compatibility 75e8ccc6cb53c29cde9cab08eefc1c85f755aa1d",
+      "refs/remotes/origin/copilot/fix-json-decode-error a97a613de90107f8193ba328460bce63e8bd0b23",
+      "refs/remotes/origin/copilot/fix-json-parsing-error 6c6c1fcda45e37c6b031573ab2b777ee7b62a6fe",
+      "refs/remotes/origin/copilot/fix-kartenansicht-city-jump 3ac92d054f304eae0432d0a9268e8990663e8045",
+      "refs/remotes/origin/copilot/fix-layer-removal-conditions 38e4766f1c85ac60f87cb986b769e9f554f5a974",
+      "refs/remotes/origin/copilot/fix-layer-selection-reset-on-reload 0ebc3f6ef01e91a0ecf7894fbc91e417728010d2",
+      "refs/remotes/origin/copilot/fix-map-generation-unfallatlas-pdf-export 3b25d2e5e0972821505b2522aa4df572b4f1e2d3",
+      "refs/remotes/origin/copilot/fix-map-layer-state-loss e82c9e85fb4d72da9a179fa23d287372be68151c",
+      "refs/remotes/origin/copilot/fix-map-rendering-issues fe07b9fcee818e24623edecc65c599735cbe037f",
+      "refs/remotes/origin/copilot/fix-osm-producer-heap-oom f79a99064bc5be5b0989e5ffc586765f80c908c5",
+      "refs/remotes/origin/copilot/fix-osm-producer-string-length-issue 8a1f7ebdb10964e59d04c2e4ddfbe8b829c0ccc0",
+      "refs/remotes/origin/copilot/fix-overpass-api-rate-limiting 4da40d0a9f5a59a7df62ef6adfc55f6dd558e6e2",
+      "refs/remotes/origin/copilot/fix-panel-toggle-button-flag 3de83d95d275521d6b92c98dc86668bc52951d51",
+      "refs/remotes/origin/copilot/fix-pdf-export-address-issue b09536f9ffbf0290a67d5ee6266bc89d89978b82",
+      "refs/remotes/origin/copilot/fix-pdf-export-emoji-icons 78af6eb560dc6e6ee6b1e0171a8da89e8c977cbd",
+      "refs/remotes/origin/copilot/fix-pdf-export-issues 4a12b7e2b0fd52c498c6be8ac3029cf6dc4bab63",
+      "refs/remotes/origin/copilot/fix-pdf-export-renderer-issues 0c9bb30a030be66adaa15cf62896bff99145a462",
+      "refs/remotes/origin/copilot/fix-pdf-word-export-issue 2b71a694edea9d6239d7eafc2677531d6aee748b",
+      "refs/remotes/origin/copilot/fix-poi-download-issue a3246f578f2e0b3889f07671d3d9611aa6dd60c4",
+      "refs/remotes/origin/copilot/fix-popup-code-integration b5bc4c22d7a4bea71d6c03a03b9e35776e80aede",
+      "refs/remotes/origin/copilot/fix-schema-mismatch-enrichment 6e6f4fd1e6c3f185279e493844c679686016b1a1",
+      "refs/remotes/origin/copilot/fix-screenshot-urls-in-dokumentation d5e2c108f67a8576da4bb9761887e99e26d57cf5",
+      "refs/remotes/origin/copilot/fix-slope-overlay-issue b3aa4f647476309223f05ba38e17a76c3663b35f",
+      "refs/remotes/origin/copilot/fix-startansicht-screenshot-loading 9bf70e8b06fa7eb49122d4936ceb96fdc40a6289",
+      "refs/remotes/origin/copilot/fix-url-parameter-visibility 96788778c3a7b4d5e51d772e3de639d1e4c1e62a",
+      "refs/remotes/origin/copilot/fix-with-copilot 9d2f19a2353ac6701d3e143306d47fd82eb8d68f",
+      "refs/remotes/origin/copilot/fix-word-pdf-export-issues 207dcde6c0618d2c7bbcdf717bdd57a851dffba3",
+      "refs/remotes/origin/copilot/go-on-with-plan-fbe55521 7078de4a1ccde0e366b79f753fc080db639d25b2",
+      "refs/remotes/origin/copilot/implement-guided-tour-system d90588d0c4d2e9cc62e95e8c1771ca53b474bea1",
+      "refs/remotes/origin/copilot/implement-lkw-support 285546621b9f98480ef718039a81b85427775f5a",
+      "refs/remotes/origin/copilot/implement-missing-points-issue-220 e4a86de17dd76a793d5a932a5fe3bc6550646600",
+      "refs/remotes/origin/copilot/implement-test-concept-for-app fcc3571904bd5045d017ec6831f1756c4af58f87",
+      "refs/remotes/origin/copilot/improve-accident-detail-table-readability 7ad29717385d41f2e5e5fdf4f3d783173f1dba17",
+      "refs/remotes/origin/copilot/improve-capability-structure bf109190200af28ae02d746078cbf8286a5cf377",
+      "refs/remotes/origin/copilot/improve-documentation-main-stand 5d82ce8f0a31bed5969e3a54a2be64863978e7f9",
+      "refs/remotes/origin/copilot/improve-readme-documentation e49e4a082e041ed0f4596e8ca5716163ec918abb",
+      "refs/remotes/origin/copilot/improve-sources-in-exported-docs 5ff012dbd495b9a8837058c3cfdd2545dfe0394a",
+      "refs/remotes/origin/copilot/integrate-node-analysis-service 24888211a5cb6aa1ab3da55380f538ea81a4bfee",
+      "refs/remotes/origin/copilot/katex-ify-ui-elements ec8e3da0838bcd769c9f1f68eacfa71716d04c8d",
+      "refs/remotes/origin/copilot/ki-evaluation-extension-export 2b1cb8dcf523465ff34dbf1c0707e4449145346f",
+      "refs/remotes/origin/copilot/make-structured-meta-visible 0baf883495d3fe1296b37dd7ca74afc60b774b62",
+      "refs/remotes/origin/copilot/move-index-and-geojson-files f3608d656a38be3dc7123216263b58a6a2f5d767",
+      "refs/remotes/origin/copilot/optimize-map-performance e553c17a82de12449dd1ee1e395dcd94f572a9f6",
+      "refs/remotes/origin/copilot/prepare-release 7999ea1912420353576082d48633a701aa7d5755",
+      "refs/remotes/origin/copilot/qa-fix-context-layer-pipeline 33e8d04b42de0dae19573a7e0a0bb34930625874",
+      "refs/remotes/origin/copilot/re-run-enrichment-geojson 5443e04f3fc46036eba0603954401f7ccebf94b0",
+      "refs/remotes/origin/copilot/refactor-context-data-ux-architecture 96d436400de4a038f7b732aa060f42e928858bc0",
+      "refs/remotes/origin/copilot/replace-release-notes-generator aab659c206e527c9aea826b47b219937b7798f21",
+      "refs/remotes/origin/copilot/research-map-marker-clustering c4598eab1caa8fb363b391a231469747e6765435",
+      "refs/remotes/origin/copilot/research-toggle-filter-implementation 8bf62aad3bad52706fca3e4b8ab599b114b665db",
+      "refs/remotes/origin/copilot/resolve-review-threads-and-update-baseline 2128692f5b730503ff1c15f6da278a45541f5d70",
+      "refs/remotes/origin/copilot/sub-pr-136 9a6f3f23559f56046a948c54291614b251516f56",
+      "refs/remotes/origin/copilot/sync-test-doc-versions aeaa8f1eaba09c6d2770d935a2000e5fa432f98e",
+      "refs/remotes/origin/copilot/two-tier-contextual-enrichment-architecture ffa309331969bccc8fb8e3a3e9789a91fe90983c",
+      "refs/remotes/origin/copilot/update-demo-gif-and-readme 8c6cfd4e80a67217aa502f215f8cbc8bb3dcc503",
+      "refs/remotes/origin/copilot/update-docx-cdn-url f3fc505d32ef743bf9cf2459291c58db3d55f6e4",
+      "refs/remotes/origin/copilot/update-export-detailtiefe-screenshots 8bf335d3230781ce765945c61bde7373a34ce538",
+      "refs/remotes/origin/copilot/update-export-functionality b21cf28733069917c75b3870393fc875380c0712",
+      "refs/remotes/origin/copilot/update-project-documentation 4abf8b12a23abf380f74d88da7f102295afa0c33",
+      "refs/remotes/origin/copilot/update-readme-badge-block 8e2a33d52e3857306cc58d394259016cbba0f8fa",
+      "refs/remotes/origin/copilot/update-readme-verification-feedback 49190f6e8147e1f26bc796932a603f46266b377b",
+      "refs/remotes/origin/copilot/update-roadmap-status-issue-220 35115c57ec9e213493b6e56bbc90df949a64e4e0",
+      "refs/remotes/origin/copilot/update-screenshot-links d6c0165a3293766964ad3a25dc3c0f350f172310",
+      "refs/remotes/origin/copilot/update-screenshots-and-demo-video 1a03d479656ae3e34ac3db6d7be3fb74f6f227a0",
+      "refs/remotes/origin/dependabot/docker/analysis-service/maven-3-eclipse-temurin-27 4c4c3c700b383d2eae99bde1f10966d7596fa605",
+      "refs/remotes/origin/dependabot/github_actions/actions-minor-and-patch-1c61709ebb 05d93734a8762ae7c178db4964cac91354a6d0fe",
+      "refs/remotes/origin/diag/main-ci-run-8a692b33 e85e63ac32108038ed94fed7e9ad147ca2fa5e7f",
+      "refs/remotes/origin/diagnostic/433-video-final fb5c589abfe87bcfbde6b9ed53fbe3979c7c8cc5",
+      "refs/remotes/origin/diagnostic/433-video-prebuilt b37e032889b374500d5e18ff6a4cc84039e25fa3",
+      "refs/remotes/origin/diagnostic/437-unit-final a9f1e3500cc08f6fd80aa6922c68a4f5b1c62c46",
+      "refs/remotes/origin/diagnostic/437-visual e58df7479b36dbd2005265453785f9285d57fdcf",
+      "refs/remotes/origin/diagnostic/439-canonical-site-start 1e90a76375a9345a20c3caae79bcc66321dd060d",
+      "refs/remotes/origin/diagnostic/439-testcontainers-log 9c104ce483cf4ba92e47426a9abff3bff42da817",
+      "refs/remotes/origin/diagnostic/440-codec-fix-log ced4cf4627125c8cb31a7b2a971a6581636744e5",
+      "refs/remotes/origin/diagnostic/440-codec-format-matrix d7d235ccf84e36694643b2f9e4a38f41673c14c9",
+      "refs/remotes/origin/diagnostic/440-codec-v2-matrix efd5f63fda5ab088d20b375fad349fc177292cd6",
+      "refs/remotes/origin/diagnostic/440-final-format-matrix fc1ae8e2c8ee540b9067aa81ceae87aedd87c749",
+      "refs/remotes/origin/diagnostic/440-final-full-suite-log e8f28381f659349ef283027034a67466e4b49951",
+      "refs/remotes/origin/diagnostic/440-final-nonformat-matrix e92ea32f3b37384b2893119c8d4c39a89615ae4c",
+      "refs/remotes/origin/diagnostic/440-testcontainers-log 4e508e2094ed4fd50694148e142bff7a9a48aa66",
+      "refs/remotes/origin/diagnostic/464-context-palette 7da552ecc30df4093ef1d6f666be82b4678de22e",
+      "refs/remotes/origin/diagnostic/464-focused-context 4342228de6c1bf22ff3ae2471b0b135d0bf3044b",
+      "refs/remotes/origin/diagnostic/464-focused-context-v2 025bc6a384970209264379eb4403919c78b81924",
+      "refs/remotes/origin/dummybranchforno 614ca0fc63e34307f143a019ec0d54a5e44e0eb2",
+      "refs/remotes/origin/dummybranchforno2 614ca0fc63e34307f143a019ec0d54a5e44e0eb2",
+      "refs/remotes/origin/dummybranchforno3 614ca0fc63e34307f143a019ec0d54a5e44e0eb2",
+      "refs/remotes/origin/dummybranchforno4 614ca0fc63e34307f143a019ec0d54a5e44e0eb2",
+      "refs/remotes/origin/feat/642-bonn-oparl-catalogue-cache 19caad9ae41952daddf820de1b29ad2035fa4960",
+      "refs/remotes/origin/feat/browser-oparl-fallback-643 c138dd0be23f25b4326db07bdbd1c40ea8387924",
+      "refs/remotes/origin/feat/docx-golden-scenario-matrix-415 00355d8237b0a800fe6c28968f567c81dfcaa319",
+      "refs/remotes/origin/feat/docx-libreoffice-rendered-qa a2d17049b3019da0f43348612887c18397a564df",
+      "refs/remotes/origin/feat/hannover-five-year-ris-index 9101604aff4a63ad0c0f30f6fff8a479e05886f2",
+      "refs/remotes/origin/feat/rendered-table-semantics 4251001d05d6515683dae682d42e7711af5c9811",
+      "refs/remotes/origin/feat/robust-slope-profile-412 78b41b55883a08e4fad66136616afe467072f889",
+      "refs/remotes/origin/feat/screenshot-export-provenance f9bf298725bc590b9df38b509560022ccc93aec7",
+      "refs/remotes/origin/fix/644-reference-comparison-fdr f38c4c1c47497ca2ea415f22f112b8312118c149",
+      "refs/remotes/origin/fix/648-exposure-rate-semantics f38c4c1c47497ca2ea415f22f112b8312118c149",
+      "refs/remotes/origin/fix/bonn-sitzung-online 0d2be41b604d0255bb1ac1763185d8a98bf5ce06",
+      "refs/remotes/origin/fix/bonn-sitzung-online-clean 20ddd57a6f7ee2806602273a875eba755a32096a",
+      "refs/remotes/origin/fix/categorical-traffic-proxy da1a82dbe6ad9a04faf3b8a3a1fa1d9778e7d2cf",
+      "refs/remotes/origin/fix/categorical-traffic-proxy-v2 69e26943c484a340561503ec20299f07968ac20e",
+      "refs/remotes/origin/fix/maven-poi-generation 771dd2ce233fb2535271e8f7ded3c1bef81a055e",
+      "refs/remotes/origin/fix/refresh-enrichment-size-baseline da3fc9c44923236c43a045c04935705575bd137a",
+      "refs/remotes/origin/fix/release-version-input-contract da6ea1a0d322e1aaba581ff5e160cb855d0c80eb",
+      "refs/remotes/origin/main 5a96aec8a2910849a8a5c257904a8926a4898f54",
+      "refs/remotes/origin/maintenance/2.1.x 808e3590e9589fd47dcd61f12381146f2d17e540",
+      "refs/remotes/origin/qa/finalize-pr-593 fcbc0efd6a6c33d39a5ab949a01fd0221be623e8",
+      "refs/remotes/origin/qa/map-context-evidence 0f375d50f9d714c4a139d8b9324f27f59aa15914",
+      "refs/remotes/origin/qa/political-portal-url-config e4217c2c2f9ae631a164db3876fa3b2270bb862c",
+      "refs/remotes/origin/qa/release-dry-run-dispatch-667918a 667918adefcef97085bbb35bb4fcf4f74842109a",
+      "refs/remotes/origin/readmefix c59e5ccb935f3cbf66ccec8241491c1740ccbe99",
+      "refs/remotes/origin/release/prepare-2.1.4-20261031 3ded24ec80293ffa52564bbd14bb1febafbdcef2",
+      "refs/remotes/origin/release/prepare-next-2.1.1-SNAPSHOT 06b33c6c96fc27b792461f501d64a95b59cd07d6",
+      "refs/remotes/origin/renovate/pdfmake-0.x 8c4757594f585d892a81d54794191f5dc452825d",
+      "refs/remotes/origin/revert-commit-a478c9dd a478c9dd274548250243d24e90447c41a6b808de",
+      "refs/remotes/origin/split/405-4-vendor-provenance ccab4b516e23922073ebcbfffe3c3550f099f02f",
+      "refs/remotes/origin/tmp/resolve-405 6129e11f0557791052afceafbe570603d28424db",
+      "refs/remotes/origin/tmp/resolve-405-base-main c5fa36b6c62a0f62f810a89bd8d36f0e81ebf044",
+      "refs/remotes/origin/tmp/test-tree-base 6129e11f0557791052afceafbe570603d28424db",
+      "refs/remotes/origin/tmp/test-tree-base-2 6129e11f0557791052afceafbe570603d28424db",
+      "refs/tags/v2.1.0 0b24e222b6a8d6e41f61f0b256eece62c59bc325",
+      "refs/tags/v2.1.1 0d5f3911d6f7d8cea9e41740b170881001bc90af",
+      "refs/tags/v2.1.2 51a40dfc1e50ce6ae47deab028c42940888ee983",
+      "refs/tags/v2.1.3 240401481a9f253bc9090072f6956e6eb37b2e24"
+    ]
+  },
+  "commits": 2939,
+  "current": {
+    "blobCount": 2580,
+    "uncompressedBytes": 235545999,
+    "categories": {
+      "source-and-other": {
+        "blobs": 945,
+        "bytes": 10306795
+      },
+      "documentation-media": {
+        "blobs": 22,
+        "bytes": 27465987
+      },
+      "durable-evidence": {
+        "blobs": 25,
+        "bytes": 1544156
+      },
+      "published-static-data": {
+        "blobs": 1584,
+        "bytes": 115555475
+      },
+      "release-archive": {
+        "blobs": 4,
+        "bytes": 80673586
+      }
+    },
+    "largest": [
+      {
+        "blob": "84d614cc9e888f1bd19df6ab72768d3b3829bd81",
+        "bytes": 28994647,
+        "path": "unfallatlas-website-2.1.3.zip"
+      },
+      {
+        "blob": "72740415c4923a4145fc85ff3ccac14d3c52c05a",
+        "bytes": 26070716,
+        "path": "unfallatlas-website-2.1.2.zip"
+      },
+      {
+        "blob": "9c7a7818bdb8fc1a2c813476a92c431cfeb6f4b2",
+        "bytes": 25456315,
+        "path": "unfallatlas-website-2.1.1.zip"
+      },
+      {
+        "blob": "9e23abfaf30aa7e066b31fec2fb71ea3786b170a",
+        "bytes": 7224588,
+        "path": "docs/demo.gif"
+      },
+      {
+        "blob": "9cb94198a545704b11accee0a211df97dae3ba9b",
+        "bytes": 4407383,
+        "path": "out/output_all_years_berlin.geojson.gz"
+      },
+      {
+        "blob": "a310f5de33375a25af4f6ba4e969abaf0aba3477",
+        "bytes": 3069442,
+        "path": "out/output_all_years_hamburg.geojson.gz"
+      },
+      {
+        "blob": "7ac6b3a8385cf7048b024715e2a3160833938781",
+        "bytes": 2521978,
+        "path": "out/output_all_years_berlin.csv.gz"
+      },
+      {
+        "blob": "772f9cd145b4774ff496e754c938696f1391135b",
+        "bytes": 2163057,
+        "path": "out/output_all_years_muenchen.geojson.gz"
+      },
+      {
+        "blob": "5b4ff9e063c6280abdea782ccba8ef50496d91c7",
+        "bytes": 1749339,
+        "path": "out/output_all_years_hamburg.csv.gz"
+      },
+      {
+        "blob": "7859facc70ccad04282fb6b778f85c451de52a61",
+        "bytes": 1385037,
+        "path": "out/output_all_years_koeln.geojson.gz"
+      },
+      {
+        "blob": "cbbed15641c657a50ea105e43b40b500eb1ba32a",
+        "bytes": 1306475,
+        "path": "out/ctxtiles/berlin/index.json.gz"
+      },
+      {
+        "blob": "54beb7af0bf8645e9a6399f8e3901a454fdaafcd",
+        "bytes": 1241865,
+        "path": "out/output_all_years_muenchen.csv.gz"
+      },
+      {
+        "blob": "d0d1cbadc0e30cece2a09f67d0d56e0006d7b895",
+        "bytes": 1233381,
+        "path": "docs/screenshots/23-mapmode-hybrid.png"
+      },
+      {
+        "blob": "f2d04493e1fdbe783dc310dcc23a7b01feb888d6",
+        "bytes": 1221994,
+        "path": "docs/screenshots/22-mapmode-orthophoto.png"
+      },
+      {
+        "blob": "3dd7366b27fceb03bded458d13bfb6dd8472b907",
+        "bytes": 1192475,
+        "path": "docs/screenshots/24-mapmode-analysis.png"
+      },
+      {
+        "blob": "6f7bcfe49c8de10fe0f00b159d5dd0b16e44539d",
+        "bytes": 1146612,
+        "path": "docs/screenshots/06-legende.png"
+      },
+      {
+        "blob": "d16fd4b6c7fa68f930506217a39dde0d8ae114ef",
+        "bytes": 1139094,
+        "path": "docs/screenshots/03-filter.png"
+      },
+      {
+        "blob": "1338d305c77707154a02063bd245aff36c410eff",
+        "bytes": 1139053,
+        "path": "docs/screenshots/02-stadtauswahl.png"
+      },
+      {
+        "blob": "0fb8dd4a536c7348f8c41b56801f486d80bc77b4",
+        "bytes": 1132135,
+        "path": "docs/screenshots/01-startansicht.png"
+      },
+      {
+        "blob": "1780401400ee7e69e31a7b945c76587f67665d85",
+        "bytes": 1131767,
+        "path": "docs/screenshots/08-stundenfilter.png"
+      },
+      {
+        "blob": "41bfea30de602714e3f9d3c8eb18888f7fe99d72",
+        "bytes": 1129991,
+        "path": "docs/screenshots/04-cluster-ansicht.png"
+      },
+      {
+        "blob": "dbeb4d9ac4d6644b0e1728cacb214ba689f862aa",
+        "bytes": 1127665,
+        "path": "out/output_all_years_frankfurt_am_main.geojson.gz"
+      },
+      {
+        "blob": "ead25e460fcb03f72c1497f59239e1a815c3e96e",
+        "bytes": 1036215,
+        "path": "docs/screenshots/10-auto-fahrrad-und.png"
+      },
+      {
+        "blob": "e8c6ed87ce5c923c54c86f38854901bfc22c601e",
+        "bytes": 1008286,
+        "path": "docs/screenshots/25-mapmode-orthophoto-fallback.png"
+      },
+      {
+        "blob": "78183270792366e15943539ba1b36114557ddac4",
+        "bytes": 1008021,
+        "path": "docs/screenshots/21-mapmode-standard.png"
+      },
+      {
+        "blob": "a0440685ec4bf7cb0d5abb21b6e223a220834d7b",
+        "bytes": 1005785,
+        "path": "docs/screenshots/09-bereich-markieren.png"
+      },
+      {
+        "blob": "0c8b58f053defe321fddcc26b8e284033d6fca63",
+        "bytes": 995395,
+        "path": "docs/screenshots/13-bonn-hbf-radunfaelle.png"
+      },
+      {
+        "blob": "e8fe3fd1bdbf514c2442dafd4a36727379601618",
+        "bytes": 977528,
+        "path": "docs/screenshots/05-heatmap-ansicht.png"
+      },
+      {
+        "blob": "386043db3e97a562b877e7905a9ddbbb765634d3",
+        "bytes": 960212,
+        "path": "config/ris-locations/hannover-atkis.json.gz"
+      },
+      {
+        "blob": "e5b6873097a7bc3c5cbe5e70b6104b02ebc3173d",
+        "bytes": 952221,
+        "path": "out/output_all_years_bremen.geojson.gz"
+      },
+      {
+        "blob": "f887d81a7eac9ef2f6b78f270dbaeed90dfb3541",
+        "bytes": 947210,
+        "path": "docs/screenshots/12-poi-schulen-kitas.png"
+      },
+      {
+        "blob": "46341b73018c1b486f9c08a84c805d222a39fb7d",
+        "bytes": 944685,
+        "path": "out/output_all_years_hannover.geojson.gz"
+      },
+      {
+        "blob": "737a28d491d01fce6767948cc9a5e6ac1001da52",
+        "bytes": 925958,
+        "path": "docs/screenshots/11-fahrrad-alleinunfaelle.png"
+      },
+      {
+        "blob": "cca157ff47e0865126b693aa8fc2812b66cd9144",
+        "bytes": 922770,
+        "path": "out/output_all_years_dresden.geojson.gz"
+      },
+      {
+        "blob": "e5c8e744367a2bdb65981d1cdfc2c02d433e386f",
+        "bytes": 899844,
+        "path": "docs/screenshots/14-export-filterkontext.png"
+      },
+      {
+        "blob": "c6c0bcc825d9dad8a074bef0564e5f0e2a81b47e",
+        "bytes": 850584,
+        "path": "out/output_all_years_nuernberg.geojson.gz"
+      },
+      {
+        "blob": "dfcc7429aedb0f8538276b2ed99357a13d69d882",
+        "bytes": 826372,
+        "path": "out/output_all_years_leipzig.geojson.gz"
+      },
+      {
+        "blob": "96408c1fdf57731801e2578e26ba567472584aeb",
+        "bytes": 802644,
+        "path": "out/output_all_years_stuttgart.geojson.gz"
+      },
+      {
+        "blob": "606cf5e04457b0117d5f1b8cc126df30f2ec56a5",
+        "bytes": 798667,
+        "path": "out/output_all_years_koeln.csv.gz"
+      },
+      {
+        "blob": "1091a1f8800364532865a5dc7f19f244901adc83",
+        "bytes": 727556,
+        "path": "out/ctxtiles/hamburg/index.json.gz"
+      }
+    ],
+    "repeatedPaths": []
+  },
+  "history": {
+    "blobCount": 23605,
+    "uncompressedBytes": 13036810824,
+    "categories": {
+      "source-and-other": {
+        "blobs": 4633,
+        "bytes": 104256128
+      },
+      "documentation-media": {
+        "blobs": 1572,
+        "bytes": 1307866841
+      },
+      "durable-evidence": {
+        "blobs": 168,
+        "bytes": 3600321
+      },
+      "published-static-data": {
+        "blobs": 17228,
+        "bytes": 11540413948
+      },
+      "release-archive": {
+        "blobs": 4,
+        "bytes": 80673586
+      }
+    },
+    "largest": [
+      {
+        "blob": "5101174be831ea866f191e7b70f7698b998e29c1",
+        "bytes": 55316452,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "68a69ab38c5fdbc2a5950440c05d7a6122c56c7f",
+        "bytes": 53153203,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "b79dbdcff4c93bd9f301f36bac5efacb2239453c",
+        "bytes": 53079992,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "83cdd4ef8cd147b74960d68f47cfeda24f32c441",
+        "bytes": 53079791,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "d37493a0c5bb25c4594440fb0d6332b2c1f40625",
+        "bytes": 53079765,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "b66f23601f453bad6e6572952f265b1f46635c0d",
+        "bytes": 53079706,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "1e83ebe2b78b757c31a19919319dcd03f729a3ab",
+        "bytes": 53079683,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "2934619605bc553d77057af218a8c000155e3cd0",
+        "bytes": 53078409,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "836c63279d3e92182da653550c7e17a588842626",
+        "bytes": 53078303,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "37c0934923bc77cf55be56b719ae84de1ec1e286",
+        "bytes": 53078243,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "61c74911d88f99e5c14624c655ec44daa00e4f0f",
+        "bytes": 51302216,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "a9d34785a8d8d383c07b2245090806916e7d94e9",
+        "bytes": 50865886,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "5481b6a39bb7d8a0621ac7864c18fd41b22be200",
+        "bytes": 50817472,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "940afb915b6077fbba439a2650a846b495af8176",
+        "bytes": 50678704,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "447f9a4b126e99d9dffa40e7ac7d0da7ff285a50",
+        "bytes": 50552586,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "4396bf527ef22075b0b8924bef07fd00d8b1e0cf",
+        "bytes": 43492676,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "7c8d91597502a1d246fbc62efe577e2b31455ef1",
+        "bytes": 39420056,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "24c26cf558623c4cdf7110cf8dbcceba4f0388e3",
+        "bytes": 37777771,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "81d407178321a7309e0b47ebfc1c1c0abb86f82f",
+        "bytes": 37721330,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "20b55fc0342eeb111838669d0d182193fb4a8f31",
+        "bytes": 37720666,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "4fae9aae71ffca1cd547f7425b68122d828cc2a9",
+        "bytes": 37720535,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "8e41006002abf3a4c1db2158a9315314bc00dc77",
+        "bytes": 37720525,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "c1c3b024e94f1ebc7604591c83bb62feef9540e4",
+        "bytes": 37720524,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "477c43998af730a374533bbd56854b0349b65ac7",
+        "bytes": 37720509,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "ee3fd3d8324042897fa3a00dbdd52154e87043c7",
+        "bytes": 37720425,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "a9124770fb4878128efa15c06309902ec20680ef",
+        "bytes": 37720416,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "3ba5e461759bdb8c62d4a6b6f2a9b51a95b07d6e",
+        "bytes": 36560093,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "cad4150311701622018162c7e2821eeec4dc1a9c",
+        "bytes": 36248458,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "120ffe9801d629481f65299b56e7f6b331475f07",
+        "bytes": 36220524,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "e6ff4096a3199b258d3d6810ab22b16fb8cf0959",
+        "bytes": 36066199,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "00b5df952f61307ce759a7ae7fa21c4315905057",
+        "bytes": 36047348,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "d5585bb74e6599fc22e9069a3a44894d27680185",
+        "bytes": 35256248,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "77d9f7e07c72d7c3371d0daf39e66d837bb24d4a",
+        "bytes": 35256232,
+        "path": "out/output_all_years_berlin.geojson"
+      },
+      {
+        "blob": "34ed9528ff45012e7b65f411e1cf19afb9403a10",
+        "bytes": 32007714,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "9ef2b050054868dd1118469ded3e0fbc37d76071",
+        "bytes": 31887339,
+        "path": "out/output_all_years_hamburg.geojson"
+      },
+      {
+        "blob": "84d614cc9e888f1bd19df6ab72768d3b3829bd81",
+        "bytes": 28994647,
+        "path": "unfallatlas-website-2.1.3.zip"
+      },
+      {
+        "blob": "319eb6a0c0aff070aa42a2c18417ef2bc583c650",
+        "bytes": 27867392,
+        "path": "out/output_all_years_muenchen.geojson"
+      },
+      {
+        "blob": "58cc5688cf199aee9167d4fe411950dea5a4d115",
+        "bytes": 26702395,
+        "path": "out/output_all_years_muenchen.geojson"
+      },
+      {
+        "blob": "7befc820194b526ab2945cb4ead49a2718ab7e51",
+        "bytes": 26685838,
+        "path": "out/output_all_years_muenchen.geojson"
+      },
+      {
+        "blob": "adab03bc61d3988c1f1207f4d822055066544c51",
+        "bytes": 26684623,
+        "path": "out/output_all_years_muenchen.geojson"
+      }
+    ],
+    "repeatedPaths": [
+      {
+        "path": "out/output_all_years_berlin.geojson",
+        "versions": 20,
+        "bytes": 901326368,
+        "largestBytes": 55316452
+      },
+      {
+        "path": "out/output_all_years_hamburg.geojson",
+        "versions": 20,
+        "bytes": 674065577,
+        "largestBytes": 39420056
+      },
+      {
+        "path": "out/output_all_years_muenchen.geojson",
+        "versions": 20,
+        "bytes": 476687805,
+        "largestBytes": 27867392
+      },
+      {
+        "path": "out/output_all_years_koeln.geojson",
+        "versions": 18,
+        "bytes": 253662534,
+        "largestBytes": 16556915
+      },
+      {
+        "path": "out/output_all_years_frankfurt_am_main.geojson",
+        "versions": 19,
+        "bytes": 229596802,
+        "largestBytes": 14215221
+      },
+      {
+        "path": "out/output_all_years_hannover.geojson",
+        "versions": 22,
+        "bytes": 222041599,
+        "largestBytes": 12165665
+      },
+      {
+        "path": "out/ctxtiles/berlin/index.json",
+        "versions": 13,
+        "bytes": 136039909,
+        "largestBytes": 10518926
+      },
+      {
+        "path": "out/output_all_years_dresden.geojson",
+        "versions": 13,
+        "bytes": 130986284,
+        "largestBytes": 11995834
+      },
+      {
+        "path": "out/output_all_years_nuernberg.geojson",
+        "versions": 13,
+        "bytes": 121907558,
+        "largestBytes": 11194277
+      },
+      {
+        "path": "out/output_all_years_leipzig.geojson",
+        "versions": 13,
+        "bytes": 117106086,
+        "largestBytes": 10727646
+      },
+      {
+        "path": "out/output_all_years_bremen.geojson",
+        "versions": 11,
+        "bytes": 113554289,
+        "largestBytes": 12645645
+      },
+      {
+        "path": "docs/screenshots/10-auto-fahrrad-und.png",
+        "versions": 88,
+        "bytes": 104301428,
+        "largestBytes": 1289635
+      },
+      {
+        "path": "docs/screenshots/09-bereich-markieren.png",
+        "versions": 87,
+        "bytes": 102352735,
+        "largestBytes": 1274597
+      },
+      {
+        "path": "docs/screenshots/05-heatmap-ansicht.png",
+        "versions": 92,
+        "bytes": 100747745,
+        "largestBytes": 1200699
+      },
+      {
+        "path": "docs/screenshots/13-bonn-hbf-radunfaelle.png",
+        "versions": 87,
+        "bytes": 99567145,
+        "largestBytes": 1247754
+      },
+      {
+        "path": "docs/screenshots/12-poi-schulen-kitas.png",
+        "versions": 90,
+        "bytes": 98578854,
+        "largestBytes": 1190595
+      },
+      {
+        "path": "docs/screenshots/06-legende.png",
+        "versions": 92,
+        "bytes": 97900038,
+        "largestBytes": 1231691
+      },
+      {
+        "path": "docs/screenshots/11-fahrrad-alleinunfaelle.png",
+        "versions": 89,
+        "bytes": 94984982,
+        "largestBytes": 1159187
+      },
+      {
+        "path": "out/output_all_years_stuttgart.geojson",
+        "versions": 11,
+        "bytes": 91318751,
+        "largestBytes": 10137549
+      },
+      {
+        "path": "docs/demo.gif",
+        "versions": 15,
+        "bytes": 89309895,
+        "largestBytes": 10474053
+      },
+      {
+        "path": "docs/screenshots/04-cluster-ansicht.png",
+        "versions": 93,
+        "bytes": 88520386,
+        "largestBytes": 1231776
+      },
+      {
+        "path": "docs/screenshots/01-startansicht.png",
+        "versions": 89,
+        "bytes": 86918577,
+        "largestBytes": 1222800
+      },
+      {
+        "path": "out/output_all_years_duesseldorf.geojson",
+        "versions": 11,
+        "bytes": 76432725,
+        "largestBytes": 8526908
+      },
+      {
+        "path": "out/output_all_years_berlin.csv",
+        "versions": 8,
+        "bytes": 73069686,
+        "largestBytes": 12769561
+      },
+      {
+        "path": "out/output_all_years_augsburg.geojson",
+        "versions": 12,
+        "bytes": 71467750,
+        "largestBytes": 7191758
+      },
+      {
+        "path": "out/output_all_years_dortmund.geojson",
+        "versions": 13,
+        "bytes": 70898383,
+        "largestBytes": 6487330
+      },
+      {
+        "path": "out/output_all_years_karlsruhe.geojson",
+        "versions": 13,
+        "bytes": 69989525,
+        "largestBytes": 6407186
+      },
+      {
+        "path": "out/output_all_years_essen.geojson",
+        "versions": 13,
+        "bytes": 67876227,
+        "largestBytes": 6201008
+      },
+      {
+        "path": "out/ctxtiles/hamburg/index.json",
+        "versions": 13,
+        "bytes": 67815438,
+        "largestBytes": 5229016
+      },
+      {
+        "path": "out/output_all_years_bonn.geojson",
+        "versions": 17,
+        "bytes": 63847096,
+        "largestBytes": 4669715
+      }
+    ]
+  }
+}

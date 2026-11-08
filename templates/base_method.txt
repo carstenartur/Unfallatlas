@@ -7,3 +7,6 @@ Methodik (Kurzbeschreibung):
 
 Wichtiger Hinweis:
 Diese Auswertung ist eine heuristische Voranalyse und ersetzt nicht die formale Bewertung durch Unfallkommission oder Fachverwaltung. Sie dient der Priorisierung und der Ableitung prüffähiger Maßnahmen.
+
+Grenzen des Mustervergleichs:
+Verglichen werden Anteile von Beteiligungsmustern, keine absoluten Unfallraten. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben. Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Expositionsbezogene Unfallraten bleiben ohne geeignete Verkehrsleistungsdaten unbestimmt.

@@ -226,7 +226,7 @@ function browserAssertionScript(city) {
         if (result.slopePixels >= 20
             && result.trafficPixels >= 20
             && result.legendCount === 2
-            && result.legendText.includes('Straßensteigung')
+            && result.legendText.includes('Gelände / geprüfte Straßenprofile')
             && result.legendText.includes('Verkehrsbelastung')) {
           break;
         }
@@ -245,7 +245,7 @@ function browserAssertionScript(city) {
         && result.slopePixels >= 20
         && result.trafficPixels >= 20
         && result.legendCount === 2
-        && result.legendText.includes('Straßensteigung')
+        && result.legendText.includes('Gelände / geprüfte Straßenprofile')
         && result.legendText.includes('Verkehrsbelastung')
         && result.pageErrors.length === 0;
       if (!ok) {
@@ -471,7 +471,7 @@ SUITE_DESCRIBE('POST /api/export-video — testcontainers integration', () => {
     expect(result.slopePixels).toBeGreaterThanOrEqual(20);
     expect(result.trafficPixels).toBeGreaterThanOrEqual(20);
     expect(result.legendCount).toBe(2);
-    expect(result.legendText).toMatch(/Straßensteigung/);
+    expect(result.legendText).toContain('Gelände / geprüfte Straßenprofile');
     expect(result.legendText).toMatch(/Verkehrsbelastung/);
     expect(result.pageErrors).toEqual([]);
   }, 3 * 60 * 1000);

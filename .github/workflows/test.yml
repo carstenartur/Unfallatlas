@@ -21,6 +21,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  repository-storage:
+    name: Repository storage budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the reviewed tree and its parents
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up Java 25 with Maven cache
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Check repository storage through the canonical Maven profile
+        env:
+          STORAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          STORAGE_EVENT: ${{ github.event_name }}
+        run: mvn -B -ntp -N process-resources -Prepository-storage
+
+      - name: Upload storage evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: repository-storage-evidence
+          path: out/qa/repository-storage.json
+          if-no-files-found: ignore
+          retention-days: 30
+
   tests:
     name: Maven verify (Java 25, Node 26)
     runs-on: ubuntu-latest

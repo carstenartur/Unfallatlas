@@ -5,8 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { setTimeout: delay } = require('node:timers/promises');
-const { collectBonnCatalogue } = require('../../server/political-context/providers/bonnOparlClient.js');
+const { collectSnapshotEvidence } = require('../../scripts/lib/bonn-live-cache-evidence');
 const { writeRisSnapshot } = require('../../server/political-context/services/risSnapshot.js');
 const { createRisSnapshotSearch } = require('../../server/political-context/services/risSnapshotSearch.js');
 
@@ -28,12 +27,20 @@ if (LIVE_ENABLED && !['archive', 'snapshot'].includes(LIVE_SCOPE)) {
 describe('official Bonn political-context live evidence', () => {
   snapshotTest('publishes and searches a bounded sample of official Bonn records', async () => {
     const options = { maxPages: SNAPSHOT_MAX_PAGES, requestOptions: { timeoutMs: 35_000 } };
-    let catalogue = await collectBonnCatalogue(options);
-    if (!catalogue.records.length) {
-      console.warn('[bonn-ris-snapshot-live] Retrying empty catalogue:', catalogue.coverage.warnings);
-      await delay(3000);
-      catalogue = await collectBonnCatalogue(options);
+    let acquisition;
+    try {
+      acquisition = await collectSnapshotEvidence({ options, onRetry: catalogue => {
+        console.warn('[bonn-ris-snapshot-live] Retrying empty catalogue:', catalogue.coverage.warnings);
+      } });
+    } catch (error) {
+      fs.mkdirSync(QA_DIR, { recursive: true });
+      fs.writeFileSync(path.join(QA_DIR, 'bonn-ris-snapshot-live.json'), JSON.stringify({
+        scope: LIVE_SCOPE, maxPages: SNAPSHOT_MAX_PAGES, passed: false, transport: error.transport,
+        error: { code: error.code || null, message: String(error.message).slice(0, 500) }
+      }, null, 2) + '\n');
+      throw error;
     }
+    const { catalogue, transport } = acquisition;
     expect(catalogue.coverage).toMatchObject({
       complete: false,
       from: expect.any(String),
@@ -60,7 +67,7 @@ describe('official Bonn political-context live evidence', () => {
 
       fs.mkdirSync(QA_DIR, { recursive: true });
       fs.writeFileSync(path.join(QA_DIR, 'bonn-ris-snapshot-live.json'), JSON.stringify({
-        scope: LIVE_SCOPE, maxPages: SNAPSHOT_MAX_PAGES, manifest, reference,
+        scope: LIVE_SCOPE, maxPages: SNAPSHOT_MAX_PAGES, passed: true, transport, manifest, reference,
         searchStatus: result.meta.searchStatus, missingSearchStatus: missing.meta.searchStatus
       }, null, 2) + '\n');
     } finally {
@@ -105,6 +112,20 @@ describe('official Bonn political-context live evidence', () => {
         query: term,
         status: 'results-found',
       }));
+    }
+    const reuse = finalAttempt.catalogueReuse;
+    expect(reuse).toMatchObject({ schemaVersion: 'unfallwerkbank.bonnCatalogueReuseQa.v1', passed: true, validationErrors: [] });
+    expect([reuse.cold, reuse.coalesced, reuse.warm].map(probe => probe.result.meta.catalogueCache.status))
+      .toEqual(['miss', 'coalesced', 'hit']);
+    expect(new Set([reuse.cold, reuse.coalesced, reuse.warm].map(probe => JSON.stringify(probe.terms))).size).toBe(3);
+    expect(reuse.cold.networkRequests).toBeGreaterThan(0);
+    for (const probe of [reuse.coalesced, reuse.warm]) {
+      expect(probe.networkRequests).toBe(0);
+      expect(probe.blockedNetworkRequests).toBe(0);
+      expect(probe.result.meta.catalogueCache.networkRequests).toBe(0);
+      expect(probe.result.meta.catalogueCache.refreshedAt).toBe(reuse.cold.result.meta.catalogueCache.refreshedAt);
+      expect(probe.result.meta.cache).toMatchObject({ hit: false, enabled: false });
+      expect(probe.elapsedMs).toBeGreaterThanOrEqual(0);
     }
     expect(diagnostics).toContain('[bonn-political-context-live] PASS');
   }, ARCHIVE_TIMEOUT_MS + 60_000);

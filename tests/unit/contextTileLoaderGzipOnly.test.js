@@ -12,6 +12,8 @@ function loadModule() {
   const win = { UA: {}, requestIdleCallback: undefined };
   evaluate('../../js/ua.core.js', win);
   evaluate('../../js/ua.data_paths.js', win);
+  evaluate('../../js/ua.spatial-grid.js', win);
+  evaluate('../../js/ua.data-budget.js', win);
   evaluate('../../js/ua.context_layers.js', win);
   return win.UA;
 }

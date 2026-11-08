@@ -5,14 +5,12 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/bonn-oparl-live.yml'
+      - 'pom.xml'
       - 'scripts/qa-bonn-political-context-live.js'
-      - 'scripts/qa-bonn-oparl-catalogue-discovery.js'
+      - 'scripts/lib/bonn-live-cache-evidence.js'
+      - 'tests/unit/bonnLiveCacheEvidence.test.js'
+      - 'tests/unit/bonnOparlAcceptanceContract.test.js'
       - 'tests/unit/bonnPoliticalContextLive.test.js'
-      - 'tests/unit/bonnGovDataDiscoveryLive.test.js'
-      - 'tests/unit/bonnOparlCollectionLive.test.js'
-      - 'tests/unit/bonnPortalSearchDiscoveryLive.test.js'
-      - 'tests/unit/bonnPortalGateChallengeLive.test.js'
-      - 'tests/unit/bonnPortalGateSolveLive.test.js'
       - 'js/ua.ris-catalogue.js'
       - 'server/political-context/providers/bonnAllrisProvider.js'
       - 'server/political-context/providers/bonnOparlCatalogueRecord.js'
@@ -56,15 +54,14 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Run the Maven-owned Bonn live evidence suite
+      - name: Run the Maven-owned public OParl acceptance
         env:
-          BONN_OPARL_LIVE: '1'
-          BONN_OPARL_LIVE_SCOPE: ${{ github.event_name == 'pull_request' && 'snapshot' || 'archive' }}
           PORTAL_SEARCH_TIMEOUT_MS: '20000'
           BONN_OPARL_MAX_PAGES: '300'
           BONN_OPARL_PAGE_LIMIT: '100'
           BONN_OPARL_LOOKBACK_YEARS: '12'
-        run: mvn -B -ntp test
+        # The profile enables exactly one OParl test; HTML access checks are excluded.
+        run: mvn -B -ntp -N test -Pbonn-oparl-live "-Dbonn.oparl.scope=${{ github.event_name == 'pull_request' && 'snapshot' || 'archive' }}"
 
       - name: Upload live evidence
         if: always()
@@ -74,10 +71,5 @@ jobs:
           path: |
             out/qa/bonn-political-context-live.json
             out/qa/bonn-ris-snapshot-live.json
-            out/qa/bonn-official-catalogue-discovery.json
-            out/qa/bonn-oparl-collection-probes.json
-            out/qa/bonn-portal-gate-challenge.json
-            out/qa/bonn-portal-gate-solve.json
-            out/qa/bonn-portal-search-discovery.json
           if-no-files-found: error
           retention-days: 14

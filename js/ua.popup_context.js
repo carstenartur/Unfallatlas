@@ -314,6 +314,12 @@
       }
     }
     if (caps.hasSlope) {
+      const terrain = UA.elevationProvider && UA.elevationProvider.presentContext
+        ? UA.elevationProvider.presentContext(p) : null;
+      if (terrain) {
+        rows.push(rowHtml(terrain.reliableForRoad ? 'Straßenprofil' : 'Geländekontext', terrain.statement,
+          { field: 'road_slope_percent' }));
+      } else {
       // Defensive: isPresent only guards null/undefined/'', but the value can
       // still be NaN/Infinity for hand-edited datasets. formatNumber returns
       // null in that case; treat it as "no numeric value" so we don't render
@@ -336,6 +342,7 @@
         // edited datasets). Surface it so the renderer's colour can
         // still be explained from the popup.
         rows.push(rowHtml('Straßenneigung', roadCls, { field: 'road_slope_class' }));
+      }
       }
       // Per-way confidence (road_slope_confidence) wins over per-feature
       // (slope_confidence) when both are present — it describes the
@@ -360,8 +367,9 @@
 
     if (!rows.length) return null;
 
-    const sourceFull = isPresent(p.slope_source) ? String(p.slope_source) : '';
-    const sourceKind = sourceFull ? classifySource(sourceFull) : null;
+    const sourceFull = UA.elevationProvider && (p.road_slope_source || p.slope_source)
+      ? UA.elevationProvider.presentContext(p).source : String(p.road_slope_source || p.slope_source || '');
+    const sourceKind = sourceFull ? (UA.elevationProvider ? 'derived' : classifySource(sourceFull)) : null;
     const headerBadge = sourceKind ? renderBadge(sourceKind, `Quelle: ${sourceFull}`) : '';
 
     return (
@@ -400,6 +408,19 @@
   }
 
   function buildTrafficSection(p, caps) {
+    const traffic = UA.trafficProvider;
+    if ((caps.hasTrafficEvidence || caps.hasTrafficProxy) && traffic && traffic.hasUsableTypedEvidence(p)) {
+      const evidence = traffic.selectTrafficEvidence([p.traffic_evidence], {
+        referenceYear: new Date().getUTCFullYear(), mode: 'motor_vehicle',
+      });
+      const observation = evidence.observation;
+      const badge = renderBadge(observation.measurementType === 'count' ? 'measured' : 'derived',
+        `Quelle: ${observation.source.publisher}; ${observation.source.datasetTitle}`);
+      let rows = rowHtml('Verkehrsangabe', traffic.formatTrafficStatement(evidence), { field: 'traffic_volume_value' });
+      if (observation.direction) rows += rowHtml('Richtungsbezug', observation.direction, { field: 'traffic_direction' });
+      if (evidence.matchQuality) rows += rowHtml('Zuordnung', evidence.matchQuality, { field: 'traffic_match_quality' });
+      return `<section data-ua-context-section="traffic" style="margin-top:8px;"><div style="font-weight:800;">Verkehrsexposition${badge}</div>${rows}</section>`;
+    }
     if (!caps.hasTrafficProxy) return null;
     if (!isPresent(p.traffic_proxy_class)) return null;
 
@@ -538,8 +559,12 @@
       }
     } catch (_) { return p; }
     if (!resolved || typeof resolved !== 'object') return p;
+    if (UA.elevationProvider && typeof UA.elevationProvider.projectSelectedWayEvidence === 'function') {
+      return UA.elevationProvider.projectSelectedWayEvidence(p, resolved);
+    }
     const merged = { ...p };
-    for (const k of HYDRATABLE_WAY_FIELDS) {
+    const contextFields = Object.keys(resolved).filter(key => /^(road_slope_|traffic_)/.test(key));
+    for (const k of new Set([...HYDRATABLE_WAY_FIELDS, ...contextFields])) {
       if (resolved[k] === undefined || resolved[k] === null || resolved[k] === '') continue;
       if (merged[k] !== undefined && merged[k] !== null && merged[k] !== '') continue; // per-feature wins
       merged[k] = resolved[k];

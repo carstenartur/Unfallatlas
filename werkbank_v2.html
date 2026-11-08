@@ -33,7 +33,7 @@
   <!-- These are loaded via script injection when export dialog opens -->
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/ua.css?v=2026-11-08-mobile-panels" />
+  <link rel="stylesheet" href="css/ua.css?v=2026-11-08-scalable-catalogue" />
 </head>
 <body>
   <div id="map"></div>
@@ -181,7 +181,7 @@
         </div>
         <div style="margin-top:2px; font-size:11px; color:#666; line-height:1.4;">
           Die Karte zeigt Steigung und Verkehr farbig je Straßenabschnitt
-          (Karten-Layer oben rechts). Diese Filter blenden zusätzlich
+          (Karte oben rechts). Diese Filter blenden zusätzlich
           einzelne Unfallpunkte aus.
         </div>
         <details open style="margin-top:4px;">
@@ -222,7 +222,7 @@
           <div style="margin-top:6px; font-size:11px; color:#777; line-height:1.4;">
             <em>Filter zeigen nur Unfälle, deren Umgebung den gewählten Kategorien entspricht.
             Unfälle ohne entsprechende Kontextdaten werden ausgeblendet. Die farbige
-            Hervorhebung der Straßen selbst erfolgt über die Karten-Layer.</em>
+            Hervorhebung der Straßen selbst erfolgt über Karte oben rechts.</em>
           </div>
         </details>
       </div>
@@ -254,7 +254,7 @@
         </div>
       </details>
 
-      <div style="margin-top:10px; font-weight:900;">Kartenmodus</div>
+      <div id="mapBackgroundControls">
       <div class="toggles">
         <button type="button" id="mapModeStandard" class="btn active" aria-pressed="true">Standardkarte</button>
         <button type="button" id="mapModeOrthophoto" class="btn" aria-pressed="false">Orthofoto</button>
@@ -277,9 +277,13 @@
         Standardkarte aktiv.
       </div>
 
-      <div class="toggles">
+      </div>
+
+      <div class="toggles" id="mapAccidentControls">
         <button type="button" id="toggleCluster" class="btn active" aria-pressed="true">Cluster</button>
         <button type="button" id="toggleHeat" class="btn active" aria-pressed="true">Heatmap</button>
+      </div>
+      <div class="toggles">
         <button type="button" id="toggleOnlyHot" class="btn" aria-pressed="false">Nur „auffällig"</button>
       </div>
 
@@ -360,6 +364,17 @@
         Es wird der aktuelle Kartenausschnitt verwendet.
         Für präzisere Anträge bitte zuerst „Bereich markieren" nutzen.
       </div>
+
+      <fieldset style="margin-top:10px; padding:10px; border:1px solid #aaa; border-radius:6px;">
+        <legend>Untersuchungsbereich benennen</legend>
+        <label for="areaNameInput">Bereichsname (von Ihnen bestätigt, kein Mittelpunkt-Treffer)</label>
+        <input id="areaNameInput" type="text" maxlength="240" style="display:block; width:100%; box-sizing:border-box;" placeholder="z. B. Hauptbahnhof / Münsterplatz">
+        <label for="areaSearchTermsInput">Relevante Straßen, Plätze oder Landmarken für die Recherche (mit Semikolon trennen)</label>
+        <input id="areaSearchTermsInput" type="text" maxlength="1500" style="display:block; width:100%; box-sizing:border-box;" placeholder="Münsterplatz; Maximilianstraße; Thomas-Mann-Straße">
+        <button type="button" class="smallBtn" id="btnConfirmAreaName">Bereichsnamen bestätigen</button>
+        <button type="button" class="smallBtn" id="btnResetAreaName">Neutrale Bezeichnung verwenden</button>
+        <div id="areaNameStatus" role="status" aria-live="polite"></div>
+      </fieldset>
 
       <div id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85);">
         <div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>
@@ -641,18 +656,23 @@
 
   <!-- App JS (V2 with POI support) -->
   <script src="js/ua.bootstrap.js?v=2026-08-01"></script>
-  <script src="js/ua.core.js?v=2026-07-19"></script>
+  <script src="js/ua.core.js?v=2026-11-08-context"></script>
   <script src="js/ua.utils.js?v=2026-07-19"></script>
-  <script src="js/ua.state.js?v=2026-01-01"></script>
+  <script src="js/ua.state.js?v=2026-11-08-area-name"></script>
   <script src="js/ua.map_layer_registry.js?v=2026-06-28"></script>
-  <script src="js/ua.ui.js?v=2026-11-08-mobile-panels"></script>
+  <script src="js/ua.ui.js?v=2026-11-08-context-review"></script>
   <!-- gzip fetch utility — must load before context_layers, accident_provider and data_v2 -->
   <script src="js/ua.fetch_gz.js?v=2026-07-06"></script>
   <script src="js/ua.data_paths.js?v=2026-11-07-ris"></script>
-  <script src="js/ua.context_layers.js?v=2026-05-09"></script>
-  <script src="js/ua.context_road_layer.js?v=2026-05-09"></script>
-  <script src="js/ua.popup_context.js?v=2026-07-19"></script>
-  <script src="js/ua.accident_provider.js?v=2026-06-27"></script>
+  <script src="js/ua.spatial-grid.js?v=2026-11-08-scalable-catalogue"></script>
+  <script src="js/ua.data-budget.js?v=2026-11-08-scalable-catalogue"></script>
+  <script src="js/ua.context_layers.js?v=2026-11-08-context"></script>
+  <script src="js/ua.source_manifest.js?v=2026-11-08-context"></script>
+  <script src="js/ua.traffic_provider.js?v=2026-11-08-context-review"></script>
+  <script src="js/ua.elevation_provider.js?v=2026-11-08-context"></script>
+  <script src="js/ua.context_road_layer.js?v=2026-11-08-context-review"></script>
+  <script src="js/ua.popup_context.js?v=2026-11-08-context"></script>
+  <script src="js/ua.accident_provider.js?v=2026-11-08-scalable-catalogue"></script>
   <!-- Architecture: RenderScheduler + MapStore (issue #308) -->
   <script src="js/ua.render_scheduler.js?v=2026-07-03"></script>
   <script src="js/ua.map_store.js?v=2026-07-03"></script>
@@ -669,13 +689,14 @@
   <script src="js/ua.renderer.js?v=2026-07-03"></script>
   <script src="js/ua.leaflet_renderer.js?v=2026-07-03"></script>
   <script src="js/ua.leaflet_map_adapter.js?v=2026-07-03"></script>
-  <script src="js/ua.preview_map_renderer.js?v=2026-07-03"></script>
+  <script src="js/ua.preview_map_renderer.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.data_v2.js?v=2026-05-09"></script>
-  <script src="js/ua.filters.js?v=2026-01-01"></script>
+  <script src="js/ua.filters.js?v=2026-11-08-context-review"></script>
   <script src="js/ua.lifecycle.js?v=2026-07-19"></script>
-  <script src="js/ua.ris-catalogue.js?v=2026-11-07-ris-orte"></script>
-  <script src="js/ua.ris-layer.js?v=2026-11-08-mobile-panels"></script>
-  <script src="js/ua.map_v2.js?v=2026-11-08-mobile-panels"></script>
+  <script src="js/ua.ris-partitions.js?v=2026-11-08-timelines"></script>
+  <script src="js/ua.ris-catalogue.js?v=2026-11-08-timelines"></script>
+  <script src="js/ua.ris-layer.js?v=2026-11-08-timelines"></script>
+  <script src="js/ua.map_v2.js?v=2026-11-08-context-review"></script>
   <script src="js/ua.time_clusters.js?v=2026-01-01"></script>
   <script src="js/ua.accident_views.js?v=2026-01-01"></script>
   <script src="js/ua.stats.js?v=2026-01-01"></script>
@@ -685,14 +706,16 @@
   <script src="js/ua.trend.js?v=2026-01-01"></script>
   <script src="js/ua.heatmap.js?v=2026-01-01"></script>
   <script src="js/ua.osm_context.js?v=2026-01-01"></script>
-  <script src="js/ua.export_v2.js?v=2026-11-07-ris"></script>
+  <script src="js/ua.export_template_defaults.js?v=2026-11-08"></script>
+  <script src="js/ua.export_v2.js?v=2026-11-08-canonical-templates"></script>
   <script src="js/ua.ai_proposal.js?v=2026-11-07-ris"></script>
   <script src="js/ua.report_v2.js?v=2026-11-07-ris"></script>
   <script src="js/ua.tour.js?v=2026-11-07"></script>
-  <script src="js/ua.app_v2.js?v=2026-07-19"></script>
+  <script src="js/ua.area_name_control.js?v=2026-11-08"></script>
+  <script src="js/ua.app_v2.js?v=2026-11-08-area-name"></script>
   <script src="js/ua.video-export-contract.js?v=2026-07-19"></script>
   <script src="js/ua.video-export.js?v=2026-07-19"></script>
-  <script src="js/ua.political-context.js?v=2026-11-07-ris-orte"></script>
+  <script src="js/ua.political-context.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.priorities.js?v=2026-07-19"></script>
 </body>
 </html>

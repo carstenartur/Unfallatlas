@@ -160,6 +160,9 @@ function matchedObservation(value, index) {
   const observation = plainObject(value, `observations[${index}]`);
   const osmMatch = plainObject(observation.osmMatch, `observations[${index}].osmMatch`);
   if (osmMatch.status !== 'matched') return null;
+  if (typeof observation.value !== 'number' || !Number.isFinite(observation.value) || observation.value < 0) {
+    fail('invalid_observation_value', `observations[${index}].value must be a finite non-negative number`);
+  }
   const wayId = requiredString(String(osmMatch.wayId), `observations[${index}].osmMatch.wayId`);
   const matchQuality = requiredString(osmMatch.matchQuality, `observations[${index}].osmMatch.matchQuality`);
   if (!traffic.MATCH_QUALITIES.includes(matchQuality)) {
@@ -185,8 +188,8 @@ function matchedObservation(value, index) {
     'score',
   ];
   for (const field of numericFields) {
-    if (!Number.isFinite(Number(osmMatch[field])) || Number(osmMatch[field]) < 0) {
-      fail('invalid_match_metric', `observations[${index}].osmMatch.${field} must be non-negative`);
+    if (typeof osmMatch[field] !== 'number' || !Number.isFinite(osmMatch[field]) || osmMatch[field] < 0) {
+      fail('invalid_match_metric', `observations[${index}].osmMatch.${field} must be a finite non-negative number`);
     }
   }
   const sourceWayId = requiredString(String(observation.wayId), `observations[${index}].wayId`);
@@ -197,7 +200,7 @@ function matchedObservation(value, index) {
     mode: requiredString(observation.mode, `observations[${index}].mode`),
     year: Number(observation.year),
     period: requiredString(observation.period, `observations[${index}].period`),
-    value: Number(observation.value),
+    value: observation.value,
     unit: requiredString(observation.unit, `observations[${index}].unit`),
     geometry: observation.geometry,
     wayId,
@@ -205,6 +208,8 @@ function matchedObservation(value, index) {
       originalDirection,
       `OSM-Way-Richtung: ${directionRelation}`,
     ].filter(Boolean).join('; '),
+    match: Object.freeze({ ...Object.fromEntries(numericFields.map(field => [field, osmMatch[field]])),
+      matchQuality, directionRelation, sourceWayId, matchMethod: 'pinned-direction-aware-osm-match' }),
     qualityNotes: Object.freeze([
       ...(Array.isArray(observation.qualityNotes) ? observation.qualityNotes.map(String) : []),
       `Quellsegment ${sourceWayId}; OSM-Match ${matchQuality}; ` +
@@ -265,6 +270,7 @@ function createKoelnKfzOsmMatchedProvider(options = {}) {
       sha256: loaded.sha256,
       artifactFingerprint: loaded.artifact.artifactFingerprint,
       matcher: loaded.artifact.matcher,
+      sources: loaded.artifact.sources,
     }),
     coverage: Object.freeze({
       totalObservations: loaded.artifact.observations.length,

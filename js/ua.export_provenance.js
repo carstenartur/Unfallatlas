@@ -15,7 +15,11 @@
     typeof module !== "undefined" && module.exports
       ? require("./ua.zip")
       : root?.UA?.zip;
-  const api = factory(sourceManifest, artifactProvenance, zip);
+  const traffic = typeof module !== "undefined" && module.exports
+    ? require("./ua.traffic_provider") : root?.UA?.trafficProvider;
+  const elevation = typeof module !== "undefined" && module.exports
+    ? require("./ua.elevation_provider") : root?.UA?.elevationProvider;
+  const api = factory(sourceManifest, artifactProvenance, zip, traffic, elevation);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) {
     const UA = (root.UA = root.UA || {});
@@ -26,6 +30,8 @@
   sourceManifest,
   artifactProvenance,
   zip,
+  traffic,
+  elevation,
 ) {
   "use strict";
 
@@ -132,11 +138,37 @@
     }
     const bounds = ctx?.selectionBounds || ctx?.map?.getBounds?.() || null;
     const points = [];
+    const projectionCache = new WeakMap();
     for (const point of ctx?.allPts || []) {
       if (!point || !point.props) continue;
       if (hasFilterFunction && !UA.matchesNonInvolvementFilters(ctx, point.props)) continue;
       if (!pointInside(point, bounds)) continue;
-      points.push(point);
+      let props = projectionCache.get(point.props);
+      if (!props) {
+        let selectedWay = null;
+        const state = ctx?.contextLayerState;
+        const wayId = point.props.matched_way_id;
+        if (state && wayId) {
+          try {
+            if (typeof UA?.contextLayers?.resolveWayAcrossTiles === 'function') {
+              selectedWay = UA.contextLayers.resolveWayAcrossTiles(state, wayId);
+            } else if (typeof UA?.contextLayers?.resolveWay === 'function') {
+              selectedWay = UA.contextLayers.resolveWay(state, wayId);
+            } else if (state.ways?.[wayId]) {
+              selectedWay = Object.fromEntries(Object.entries(state.ways[wayId]).map(([key, value]) => {
+                const dictionary = state.dicts?.[key];
+                return [key, Array.isArray(dictionary) && Number.isInteger(value) && value >= 0 && value < dictionary.length
+                  ? dictionary[value] : value];
+              }));
+            }
+          } catch (_) { /* same missing-cache boundary as the popup */ }
+        }
+        const api = UA?.elevationProvider || elevation;
+        if (!api?.projectSelectedWayEvidence) fail('missing_dependency', 'Selected Way evidence projection is unavailable');
+        props = api.projectSelectedWayEvidence(point.props, selectedWay);
+        projectionCache.set(point.props, props);
+      }
+      points.push({ ...point, props });
     }
     return points;
   }
@@ -167,8 +199,178 @@
     return filters;
   }
 
+  function contextProperties(properties) {
+    const p = properties || {};
+    const typedTraffic = traffic && traffic.hasUsableTypedEvidence(p);
+    const proxy = (p.traffic_measurement_type === 'proxy' || !p.traffic_measurement_type) &&
+      ['low', 'medium', 'high', 'very_high'].includes(p.traffic_proxy_class);
+    return Object.fromEntries(Object.keys(p).sort().filter(key =>
+      /^(matched_way_id$|elevation_m$|slope_|road_slope_)/.test(key) ||
+      (typedTraffic && /^traffic_/.test(key)) ||
+      (proxy && ['traffic_measurement_type', 'traffic_proxy_class', 'traffic_proxy_basis',
+        'traffic_volume_source', 'traffic_volume_confidence'].includes(key))
+    ).filter(key => p[key] !== undefined).map(key => [key, p[key]]));
+  }
+
+  function contextSourceFacts(ctx, normalizedPoints) {
+    const rows = normalizedPoints.filter(point => point.context);
+    const available = ctx?.contextLayerState?.meta?.sources || {};
+    const result = {};
+    if (rows.some(point => Object.keys(point.context).some(key => /^(elevation_m$|slope_)/.test(key)))) {
+      if (available.dem) result.dem = available.dem;
+    }
+    if (available.roadSlope && rows.some(point => {
+      const p = point.context;
+      if (!Object.keys(p).some(key => key.startsWith('road_slope_') && p[key] !== undefined && p[key] !== null && p[key] !== '')) return false;
+      const id = available.roadSlope.sourceId || available.roadSlope.source?.id;
+      if (id && id !== p.road_slope_source_id) return false;
+      if (p.road_slope_manifest_sha256 && available.roadSlope.manifestSha256 !== p.road_slope_manifest_sha256) return false;
+      if (p.road_slope_distribution_sha256 && available.roadSlope.distributionSha256 !== p.road_slope_distribution_sha256) return false;
+      return true;
+    })) result.roadSlope = available.roadSlope;
+    if (rows.some(point => point.context.traffic_evidence) && available.trafficMatched) result.trafficMatched = available.trafficMatched;
+    if (rows.some(point => point.context.traffic_proxy_class) && available.traffic) result.traffic = available.traffic;
+    return result;
+  }
+
+  function typedContextSources(normalizedPoints) {
+    const sources = new Map();
+    for (const point of normalizedPoints) {
+      const descriptor = point.context?.traffic_evidence?.observation?.source;
+      if (!descriptor) continue;
+      const { id, measurementType, modes, unit, priority, ...source } = descriptor;
+      const previous = sources.get(source.sourceId);
+      if (previous && sourceManifest.stableStringify(previous) !== sourceManifest.stableStringify(source)) {
+        fail('conflicting_context_source', `Different evidence snapshots share source ID ${source.sourceId}`);
+      }
+      sources.set(source.sourceId, source);
+    }
+    return [...sources.values()].sort((a, b) => a.sourceId.localeCompare(b.sourceId));
+  }
+
+  async function compactContextEvidence(points, sources, declaredSources) {
+    const fieldCounts = {};
+    const measurementTypes = {};
+    const rawObservations = new Map();
+    const rawSelections = new Map();
+    const artifacts = new Map();
+    const terrainSources = new Map();
+    const canonical = value => sourceManifest.stableStringify(value);
+    const rememberObservation = raw => {
+      if (!raw) return null;
+      const key = canonical(raw);
+      if (!rawObservations.has(key)) rawObservations.set(key, raw);
+      return key;
+    };
+    for (const point of points) {
+      const context = point.context;
+      for (const [field, value] of Object.entries(context)) {
+        if (!fieldCounts[field]) fieldCounts[field] = { present: 0, null: 0 };
+        fieldCounts[field][value === null ? 'null' : 'present'] += 1;
+      }
+      if (context.traffic_measurement_type) {
+        const type = context.traffic_measurement_type;
+        measurementTypes[type] = (measurementTypes[type] || 0) + 1;
+      }
+      const evidence = context.traffic_evidence;
+      if (evidence?.observation) {
+        const observationKey = rememberObservation(evidence.observation);
+        const facts = Object.fromEntries(['evidenceType', 'wayId', 'distanceMeters', 'matchQuality',
+          'matchMethod', 'ageYears', 'warning'].filter(key => evidence[key] !== undefined).map(key => [key, evidence[key]]));
+        rawSelections.set(canonical({ observationKey, ...facts }), { observationKey, facts });
+      }
+      for (const observation of context.traffic_observations || []) rememberObservation(observation);
+      if (context.traffic_artifact) artifacts.set(canonical(context.traffic_artifact), context.traffic_artifact);
+      if (Object.keys(context).some(key => /^(elevation_m$|slope_|road_slope_)/.test(key))) {
+        const facts = Object.fromEntries(['slope_source', 'slope_resolution_m', 'slope_semantic_type',
+          'road_slope_source_id', 'road_slope_source', 'road_slope_resolution_m', 'road_slope_reliable_for_road']
+          .filter(key => context[key] !== undefined).map(key => [key, context[key]]));
+        terrainSources.set(canonical(facts), facts);
+      }
+    }
+    const observationHashes = new Map();
+    const observations = new Map();
+    const additionalSources = new Map();
+    const knownSources = new Set(declaredSources.map(canonical));
+    for (const [key, raw] of rawObservations) {
+      // The full point hash still binds all raw context. Only observations
+      // passing the existing SPI become compact, reusable evidence facts.
+      let observation;
+      try { observation = traffic.normalizeObservation(raw, traffic.normalizeDescriptor(raw.source), 0); }
+      catch (_) { continue; }
+      const { source, geometry, coordinate, ...facts } = observation;
+      const { id, measurementType, modes, unit, priority, ...sourceRecord } = source;
+      if (!knownSources.has(canonical(sourceRecord))) additionalSources.set(canonical(sourceRecord), sourceRecord);
+      facts.sourceContentHash = source.contentHash || null;
+      if (geometry || coordinate) facts.geometrySha256 = await artifactProvenance.sha256(canonical({ geometry, coordinate }));
+      const observationSha256 = await artifactProvenance.sha256(canonical(facts));
+      observationHashes.set(key, observationSha256);
+      observations.set(observationSha256, { observationSha256, ...facts });
+    }
+    const selections = new Map();
+    for (const { observationKey, facts } of rawSelections.values()) {
+      const observationSha256 = observationHashes.get(observationKey);
+      if (!observationSha256) continue;
+      const selection = { observationSha256, ...facts };
+      selections.set(canonical(selection), selection);
+    }
+    const ordered = map => [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, value]) => value);
+    const compactSources = {};
+    for (const [name, value] of Object.entries(sources)) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) { compactSources[name] = value; continue; }
+      const { matchedArtifact, source, ...facts } = value;
+      if (source !== undefined) {
+        let record = source;
+        if (source && typeof source === 'object') {
+          try {
+            const { id, measurementType, modes, unit, priority, ...normalized } = traffic.normalizeDescriptor(source);
+            if (knownSources.has(canonical(normalized))) record = { sourceId: normalized.sourceId, contentHash: normalized.contentHash || null };
+          } catch (_) { /* partial source facts stay partial */ }
+        }
+        facts.source = record;
+      }
+      if (matchedArtifact) {
+        artifacts.set(canonical(matchedArtifact), matchedArtifact);
+        facts.matchedArtifactSha256 = matchedArtifact.sha256 || null;
+      }
+      compactSources[name] = facts;
+    }
+    return {
+      contextDataSha256: await artifactProvenance.sha256(canonical({ points, sources })),
+      pointCount: points.length, fieldCounts, measurementTypes, sources: compactSources,
+      observations: ordered(observations),
+      selections: ordered(selections), artifacts: ordered(artifacts), terrainSources: ordered(terrainSources),
+      additionalObservationSources: ordered(additionalSources),
+    };
+  }
+
+  function attachContextProperties(collection, points) {
+    if (!points.some(point => Object.keys(contextProperties(point.props)).length)) return collection;
+    if (!Array.isArray(collection.features) || collection.features.length !== points.length) {
+      fail('context_export_population_mismatch', 'GeoJSON context population differs from the selected accident population');
+    }
+    collection.features.forEach((feature, index) => {
+      const point = points[index];
+      const exported = canonicalPoint({ lat: feature.geometry?.coordinates?.[1], lon: feature.geometry?.coordinates?.[0], props: feature.properties });
+      const expected = canonicalPoint(point);
+      const context = expected.context || {};
+      delete exported.context;
+      delete expected.context;
+      if (sourceManifest.stableStringify(exported) !== sourceManifest.stableStringify(expected)) {
+        fail('context_export_population_mismatch', `GeoJSON context population differs at feature ${index}`);
+      }
+      const ordinary = { ...(feature.properties || {}) };
+      for (const key of Object.keys(ordinary)) {
+        if (/^(matched_way_id$|elevation_m$|slope_|road_slope_|traffic_)/.test(key)) delete ordinary[key];
+      }
+      feature.properties = { ...ordinary, ...context };
+    });
+    return collection;
+  }
+
   function canonicalPoint(point) {
     const props = point.props || {};
+    const context = contextProperties(props);
     return {
       lat: Number(point.lat),
       lon: Number(point.lon),
@@ -183,6 +385,7 @@
       ustunde: props.ustunde ?? null,
       uwochentag: props.uwochentag ?? null,
       strzustand: props.strzustand ?? null,
+      ...(Object.keys(context).length ? { context } : {}),
     };
   }
 
@@ -241,7 +444,7 @@
       return sourceManifest.normalizeManifest(ctx.exportSourceManifest);
     }
 
-    const points = exportPoints(UA, ctx);
+    const points = environment.projectedPoints || exportPoints(UA, ctx);
     const city = String(ctx?.CITY_RAW || "").trim();
     if (!city) fail("missing_city", "A city is required for export provenance");
     const filters = scenarioFilters(ctx);
@@ -249,6 +452,7 @@
     const normalizedPoints = points
       .map((point) => {
         const value = canonicalPoint(point);
+        if (ctx?.exportContextEvidence === false) delete value.context;
         return { value, key: sourceManifest.stableStringify(value) };
       })
       .sort((left, right) => left.key.localeCompare(right.key))
@@ -260,7 +464,13 @@
           .filter((year) => Number.isInteger(year)),
       ),
     ].sort((left, right) => left - right);
-    const dataSnapshot = { city, bounds, filters, years, points: normalizedPoints };
+    const contextSources = typedContextSources(normalizedPoints);
+    // Source metadata and selected Way evidence must describe the same frozen
+    // data snapshot even if a lazy context load completes during hashing.
+    const contextFacts = JSON.parse(sourceManifest.stableStringify(contextSourceFacts(ctx, normalizedPoints)));
+    const contextPoints = normalizedPoints.filter(point => point.context);
+    const dataSnapshot = { city, bounds, filters, years, points: normalizedPoints,
+      ...(contextPoints.length ? { contextSources: contextFacts } : {}) };
     const dataCanonical = sourceManifest.stableStringify(dataSnapshot);
     const dataFingerprint = await artifactProvenance.sha256(dataCanonical);
     const appFingerprint = await buildFingerprint(UA, root);
@@ -270,9 +480,14 @@
       cached.dataFingerprint === dataFingerprint &&
       cached.buildFingerprint === appFingerprint
     ) {
+      // Population order may change without changing the canonical data hash.
+      // Retain the currently selected order for an outer wrapper's bound export.
+      cached.projectedPoints = points;
       return cached.manifest;
     }
 
+    const contextEvidence = contextPoints.length
+      ? await compactContextEvidence(contextPoints, contextFacts, contextSources) : null;
     const generatedAt = new Date().toISOString();
     const normalized = sourceManifest.normalizeManifest({
       schemaVersion: sourceManifest.SCHEMA_VERSION,
@@ -320,6 +535,7 @@
             commercialUseAllowed: true,
           },
         },
+        ...contextSources,
       ],
       transformations: [
         {
@@ -332,12 +548,20 @@
           softwareVersion: buildLabel(UA, root),
           parameters: { bounds, filters },
         },
+        ...(contextPoints.length ? [{
+          transformationId: 'context-evidence', label: 'Kontextdaten und Quellenbindung',
+          description: 'Kontextfelder im ausgewählten Unfallbestand; Unfallquelle dient der räumlichen Zuordnung. Unvollständige Kontextquellenfakten bleiben als solche erhalten und werden nicht als vollständiger Quellenbeleg ausgegeben.',
+          sourceIds: [SOURCE_ID, ...contextSources.map(source => source.sourceId)],
+          outputFields: [...new Set(contextPoints.flatMap(point => Object.keys(point.context)))].sort(),
+          parameters: contextEvidence,
+        }] : []),
       ],
     });
     manifestCache.set(ctx, {
       dataFingerprint,
       buildFingerprint: appFingerprint,
       manifest: normalized,
+      projectedPoints: points,
     });
     return normalized;
   }
@@ -452,9 +676,15 @@
 
     UA.exportToGeoJSON = function exportToGeoJsonWithProvenance(ctx) {
       return guarded(async () => {
-        const manifest = await createManifest(ctx, { UA, root });
+        // Bind one projected snapshot before any async export step; loaded Way
+        // rows may change later, but the emitted payload must match its hash.
+        const bound = ctx?.exportSourceManifest && manifestCache.get(ctx);
+        const points = bound && bound.dataFingerprint === ctx?.exportSourceManifest?.dataFingerprint
+          ? bound.projectedPoints : exportPoints(UA, ctx);
+        const manifest = await createManifest(ctx, { UA, root, projectedPoints: points });
         const captured = await captureOriginalExport(root, originals.geojson, ctx);
         const parsed = JSON.parse(await readBlobText(captured.blob, root));
+        if (ctx?.exportContextEvidence !== false) attachContextProperties(parsed, points);
         const enriched = await artifactProvenance.attachGeoJsonProvenance(parsed, manifest);
         download(
           root,
@@ -496,6 +726,8 @@
     exportPoints,
     scenarioFilters,
     createManifest,
+    contextProperties,
+    attachContextProperties,
     readBlobText,
     captureOriginalExport,
     install,

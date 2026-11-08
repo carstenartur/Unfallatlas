@@ -58,13 +58,13 @@ describe('qualitative traffic proxy runtime contract', () => {
     expect(layer.classifyTrafficFromAttrs({ highway: 'construction' })).toBeNull();
   });
 
-  test('traffic legend visibly says proxy and never advertises DTV thresholds', () => {
+  test('traffic legend separates numeric evidence thresholds from qualitative proxy classes', () => {
     const layer = loadRoadLayer();
     const legend = layer.buildLegend('traffic');
     expect(legend.querySelector('.context-road-legend__title').textContent)
-      .toMatch(/qualitativer Proxy/i);
+      .toMatch(/Messwert \/ Modell \/ Proxy/i);
     const text = legend.textContent;
-    expect(text).toMatch(/OSM-Straßenklassenproxy/i);
+    expect(text).toMatch(/OSM-Straßenklasse/i);
     expect(text).not.toMatch(/DTV|Fahrzeuge\s*\/\s*Tag|vehicles\s*\/\s*day/i);
   });
 

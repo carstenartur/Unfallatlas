@@ -15,6 +15,8 @@ function makeUA() {
   win.UA.fetchJsonCompressed = jest.fn();
   win.UA.fetchJsonGz = jest.fn();
   load('ua.data_paths.js', win);
+  load('ua.spatial-grid.js', win);
+  load('ua.data-budget.js', win);
   load('ua.accident_provider.js', win);
   return win.UA;
 }

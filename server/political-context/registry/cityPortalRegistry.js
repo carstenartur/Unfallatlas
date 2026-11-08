@@ -14,7 +14,7 @@
  * @module server/political-context/registry/cityPortalRegistry
  */
 
-const hannoverSimProvider     = require('../providers/hannoverSimProvider.js');
+const hannoverSimProvider     = require('../providers/hannoverCompositeProvider.js');
 const berlinAllrisProvider    = require('../providers/berlinAllrisProvider.js');
 const bonnAllrisProvider      = require('../providers/bonnAllrisProvider.js');
 const hamburgParldokProvider  = require('../providers/hamburgParldokProvider.js');

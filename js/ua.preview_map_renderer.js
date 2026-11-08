@@ -35,6 +35,13 @@
     }
 
     UA.installDirectMapModeControl = function installDirectMapModeControl(ctx) {
+      // The main Werkbank moves the existing background controls into Karte.
+      // Standalone previews still receive their own direct toolbar.
+      if (ctx?.mapSettingsControl) {
+        ctx.directMapModeControl?.remove?.();
+        delete ctx.directMapModeControl;
+        return null;
+      }
       if (!ctx || !ctx.map || !window.L || !window.L.control || ctx.directMapModeControl) {
         syncControl(ctx);
         return ctx && ctx.directMapModeControl;

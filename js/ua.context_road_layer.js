@@ -14,10 +14,10 @@
     very_steep: 'sehr steil (> 10 %)',
   };
   const TRAFFIC_LABELS_DE = {
-    low: 'niedriger OSM-Straßenklassenproxy',
-    medium: 'mittlerer OSM-Straßenklassenproxy',
-    high: 'hoher OSM-Straßenklassenproxy',
-    very_high: 'sehr hoher OSM-Straßenklassenproxy',
+    low: 'niedrig (Messwert/Modell ≤ 1.000 Kfz/24 h; Proxy: niedrige Straßenklasse)',
+    medium: 'mittel (Messwert/Modell ≤ 5.000 Kfz/24 h; Proxy: mittlere Straßenklasse)',
+    high: 'hoch (Messwert/Modell ≤ 15.000 Kfz/24 h; Proxy: hohe Straßenklasse)',
+    very_high: 'sehr hoch (Messwert/Modell > 15.000 Kfz/24 h; Proxy: sehr hohe Straßenklasse)',
   };
 
   const SLOPE_NO_SIGNAL_COLOR = '#bdbdbd';
@@ -58,6 +58,9 @@
    * This helper is never used to invent a value for the OSM fallback.
    */
   function classifyTrafficProxy(value) {
+    if (UA.trafficProvider && typeof UA.trafficProvider.classifyTrafficValue === 'function') {
+      return UA.trafficProvider.classifyTrafficValue(value);
+    }
     if (typeof value !== 'number' || !Number.isFinite(value)) return null;
     if (value <= 1000) return 'low';
     if (value <= 5000) return 'medium';
@@ -83,6 +86,9 @@
 
   function classifyTrafficFromAttrs(attrs) {
     if (!attrs || typeof attrs !== 'object') return null;
+    if (UA.trafficProvider && UA.trafficProvider.hasUsableTypedEvidence(attrs)) {
+      return classifyTrafficProxy(attrs.traffic_volume_value);
+    }
     const explicit = attrs.traffic_proxy_class;
     if (typeof explicit === 'string' && TRAFFIC_CLASS_VALUES.includes(explicit)) return explicit;
 
@@ -92,7 +98,8 @@
       // display that value as though it were measured or modelled.
       return null;
     }
-    if (Number.isFinite(attrs.traffic_volume_value)) {
+    if (Number.isFinite(attrs.traffic_volume_value) &&
+        (!UA.trafficProvider || !['count', 'model'].includes(type))) {
       return classifyTrafficProxy(attrs.traffic_volume_value);
     }
     if (typeof attrs.highway === 'string') {
@@ -210,7 +217,8 @@
           renderer,
           weight: opts.weight,
           opacity: opts.opacity,
-          dashArray: opts.dashArray,
+          dashArray: kind === 'traffic' && UA.trafficProvider && UA.trafficProvider.hasUsableTypedEvidence(attrs)
+            ? (attrs.traffic_measurement_type === 'count' ? null : '3 4') : opts.dashArray,
         }));
         const properties = { way_id: String(wayId), class: featureClass, kind };
         if (kind === 'slope') {
@@ -229,6 +237,20 @@
           properties.traffic_measurement_type = attrs.traffic_measurement_type ||
             (attrs.traffic_proxy_class ? 'proxy' : null);
           properties.traffic_proxy_class = attrs.traffic_proxy_class || cls;
+        }
+        if (attrs) {
+          for (const key of Object.keys(attrs)) {
+            if (/^(road_slope_|traffic_)/.test(key)) properties[key] = attrs[key];
+          }
+        }
+        if (kind === 'slope' && UA.elevationProvider) {
+          const dem = state.meta && state.meta.sources && state.meta.sources.dem || {};
+          const presentation = UA.elevationProvider.presentContext({ slope_source: dem.source,
+            slope_resolution_m: dem.resolutionM, ...attrs });
+          properties.slope_source = presentation.source;
+          properties.slope_resolution_m = presentation.resolutionMeters;
+          properties.slope_semantic_type = presentation.semanticType;
+          properties.slope_statement = presentation.statement;
         }
         line.feature = { type: 'Feature', properties, geometry: null };
 
@@ -266,11 +288,11 @@
     div.className = `context-road-legend context-road-legend--${kind}`;
     const title = document.createElement('div');
     title.className = 'context-road-legend__title';
-    title.textContent = kind === 'slope' ? 'Straßensteigung' : 'Verkehrsbelastung (qualitativer Proxy)';
+    title.textContent = kind === 'slope' ? 'Gelände / geprüfte Straßenprofile' : 'Verkehrsbelastung: Messwert / Modell / Proxy';
     div.appendChild(title);
     const encoding = document.createElement('div');
     encoding.className = 'context-road-legend__encoding';
-    encoding.textContent = kind === 'slope' ? 'breite Grundlinie' : 'gestrichelte Innenlinie';
+    encoding.textContent = kind === 'slope' ? 'breite Grundlinie; grobe Geländeklasse, für die Fahrbahn nur bei geprüftem Straßenprofil belastbar' : 'Messwert: durchgezogen; Modell: kurz gestrichelt; Proxy: lang gestrichelt (OSM-Straßenklasse, keine Zählung)';
     div.appendChild(encoding);
 
     const values = kind === 'slope' ? SLOPE_CLASS_VALUES : TRAFFIC_CLASS_VALUES;
