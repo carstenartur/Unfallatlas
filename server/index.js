@@ -690,6 +690,22 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
     });
   }
 
+  const landtagFiltered = context && typeof context === 'object' &&
+    (context.landtagNumber !== undefined || context.landtagYear !== undefined);
+  if (landtagFiltered) {
+    try {
+      if (city.trim().toLowerCase() !== 'hannover' || page != null) throw new Error('Landtag filter scope');
+      const filters = {
+        ...(context.landtagNumber === undefined ? {} : { number: context.landtagNumber }),
+        ...(context.landtagYear === undefined ? {} : { year: context.landtagYear }),
+      };
+      require('./political-context/providers/hannoverAdditionalSources').buildCatalogueUrl(filters);
+    } catch (_) {
+      return sendError(res, { category: CATEGORIES.INVALID_REQUEST, code: 'LANDTAG_FILTER_INVALID',
+        message: 'Ungültige Landtagsdokumentnummer oder Jahrgangsauswahl für Hannover.' });
+    }
+  }
+
   if (page != null && (typeof page !== 'string' || page.length > 2048
       || !/^ris2\.[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(page)
       || !snapshot || typeof snapshot !== 'object' || typeof snapshot.city !== 'string'
@@ -741,7 +757,7 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
     };
     // Hannover's historical Domino search route now returns 404. Use the
     // validated SIM catalogue when prepared, with its actual coverage status.
-    if (search.city.toLowerCase() === 'hannover' || page != null) {
+    if ((search.city.toLowerCase() === 'hannover' && !landtagFiltered) || page != null) {
       const result = await searchPublishedRis(search);
       if(page != null && !result)throw Object.assign(new Error('Der Ratsdatenstand für die Suchfortsetzung ist nicht mehr verfügbar.'),{code:'RIS_SNAPSHOT_REFERENCE_MISMATCH'});
       return res.json(result || {

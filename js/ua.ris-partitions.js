@@ -80,6 +80,63 @@
     }
     return { bounds, featureCount };
   }
+  const HISTORY_FIELDS = { events: 'eventCount', relationships: 'relationshipCount' };
+  const officialHosts = ['e-government.hannover-stadt.de', 'www.landtag-niedersachsen.de', 'www.nilas.niedersachsen.de',
+    'bekanntmachungen.region-hannover.de', 'ris.hannit.de', 'www.bonn.sitzung-online.de', 'bonn.sitzung-online.de', 'www2.bonn.de'];
+  const exactFields = (v, fields) => v !== null && typeof v === 'object' && !Array.isArray(v)
+    && Object.keys(v).length === fields.length && fields.every(k => Object.hasOwn(v, k));
+  const factText = (v, max = 4096) => typeof v === 'string' && v.length > 0 && v.length <= max
+    && v === v.replace(/[\s\p{Cc}]+/gu, ' ').trim() && !/[\p{Cf}\p{Cs}]/u.test(v);
+  const factDay = v => v === null || typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
+    && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+  function officialFactUrl(value, sources) {
+    if (typeof value !== 'string' || value.length > 4096 || /[\s\p{Cc}\p{Cf}\p{Cs}\\]/u.test(value)) return false;
+    try {
+      const u = new URL(value);
+      const hosts = sources ? [...sources].map(v => v.includes('://') ? new URL(v).hostname : v) : officialHosts;
+      return u.protocol === 'https:' && !u.port && !u.username && !u.password && hosts.includes(u.hostname)
+        && /^https:\/\/[^/?#]+/i.exec(value)?.[0] === `https://${u.hostname}`;
+    } catch (_) { return false; }
+  }
+  function validSourceContext(value) {
+    return value === undefined || exactFields(value, ['level', 'publisher', 'issuer', 'documentKind', 'status', 'publicationDate', 'documentDate', 'meetingDate'])
+      && ['city', 'region', 'state'].includes(value.level) && factText(value.publisher, 512)
+      && !/[<>]/.test([value.publisher, value.issuer, value.documentKind].join(''))
+      && (value.issuer === null || factText(value.issuer, 512)) && factText(value.documentKind, 256)
+      && ['proposal', 'answer', 'agenda', 'minutes', 'other'].includes(value.status)
+      && ['publicationDate', 'documentDate', 'meetingDate'].every(k => factDay(value[k]));
+  }
+  function validEvent(value, sources) {
+    return exactFields(value, ['date', 'body', 'outcome', 'url', 'evidence']) && factDay(value.date)
+      && (value.body === null || factText(value.body, 512)) && (value.outcome === null || factText(value.outcome))
+      && officialFactUrl(value.url, sources) && factText(value.evidence, 16384);
+  }
+  function validRelationship(value, sources) {
+    return exactFields(value, ['type', 'targetId', 'targetUrl', 'label', 'targetRole', 'evidence'])
+      && ['related', 'mentions'].includes(value.type) && (value.targetId === null || factText(value.targetId))
+      && officialFactUrl(value.targetUrl, sources) && factText(value.label)
+      && [null, 'proposal', 'answer', 'amendment'].includes(value.targetRole) && factText(value.evidence, 16384);
+  }
+  function validRecordFacts(record, sources, { maximum = 64, directory = false } = {}) {
+    if (!validSourceContext(record.sourceContext) || record.originalPdfUrl !== undefined && !officialFactUrl(record.originalPdfUrl, sources)) return false;
+    for (const [field, count] of Object.entries(HISTORY_FIELDS)) {
+      const items = record[field], size = record[count];
+      if (size !== undefined && (!Number.isSafeInteger(size) || size < 0)) return false;
+      if (items !== undefined && (!Array.isArray(items) || items.length > maximum
+        || !items.every(v => field === 'events' ? validEvent(v, sources) : validRelationship(v, sources)))) return false;
+      if (directory ? items !== undefined : size !== undefined && (items === undefined || items.length !== size)) return false;
+    }
+    return true;
+  }
+  function validSourceStatuses(values, sources) {
+    return values === undefined || Array.isArray(values) && values.length <= 16 && values.every(v =>
+      exactFields(v, ['source', 'status', 'url', 'retrievedAt', 'from', 'to', 'recordCount', 'message'])
+      && factText(v.source, 128) && !/[<>]/.test(v.source + v.message) && ['available', 'partial', 'failed', 'blocked'].includes(v.status) && officialFactUrl(v.url, [...(sources || []), ...officialHosts])
+      && (v.retrievedAt === null || typeof v.retrievedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v.retrievedAt)
+        && Number.isFinite(Date.parse(v.retrievedAt)) && new Date(v.retrievedAt).toISOString() === v.retrievedAt)
+      && factDay(v.from) && factDay(v.to) && !(v.from && v.to && v.from > v.to)
+      && Number.isSafeInteger(v.recordCount) && v.recordCount >= 0 && (v.message === '' || factText(v.message, 512)));
+  }
   // One bounded contract for both snapshot versions, in Node and the browser.
   function validProvenance(value, generatedAt, recordCount, coverage) {
     if (value === undefined) return true;
@@ -142,10 +199,11 @@
         || value.gridZoom !== 12
         || (value.spatialFormat !== undefined && value.spatialFormat !== SPATIAL_FORMAT)
         || (value.spatialFormat === SPATIAL_FORMAT && (!spatialDescriptor(value.roots.spatial, city) || value.roots.spatial.featureCount !== value.geometryCount))) throw invalid('Invalid RIS partition manifest');
+    if (!validSourceStatuses(value.sourceStatuses, value.sources)) throw invalid('Invalid RIS source statuses');
     if (!validProvenance(value.provenance, value.generatedAt, value.recordCount, value.coverage)) throw invalid('Invalid RIS provenance');
     return value;
   }
-  function node(value, ref, city, spatialFormat) {
+  function node(value, ref, city, spatialFormat, sources) {
     if (!value
         || !['leaf', 'branch'].includes(value.type)
         || !Array.isArray(value.entries)
@@ -164,6 +222,9 @@
             || !Number.isSafeInteger(item.locationCount)
             || item.locationCount < 0)) throw invalid('Invalid RIS record directory');
         if(ref.kind==='relations' && id.startsWith('member:') && (!item || !/^component:[a-f0-9]{64}$/.test(item.component) || !Number.isSafeInteger(item.position) || item.position<0))throw invalid('Invalid RIS relation membership');
+        if (ref.kind === 'records' && !validRecordFacts(item, sources, { directory: true })) throw invalid('Invalid RIS record metadata');
+        if (ref.kind === 'links' && id.startsWith('["events:') && !item?.items?.every(v => validEvent(v, sources))) throw invalid('Invalid RIS events');
+        if (ref.kind === 'links' && id.startsWith('["relationships:') && !item?.items?.every(v => validRelationship(v, sources))) throw invalid('Invalid RIS relationships');
         if(ref.kind==='records' && ((item.hasLocations!==undefined && item.hasLocations!==true) || (item.locationCount>0 && item.hasLocations!==true)))throw invalid('Invalid RIS location presence metadata');
         if (!['records', 'geometry'].includes(ref.kind) && id.startsWith('[')) {
           let tuple;
@@ -227,7 +288,7 @@
       const cacheKey = JSON.stringify([ref.path, ref.bytes, ref.count, ref.bounds, ref.featureCount]);
       const existing = cache.get(cacheKey);
       if (existing) return existing;
-      const promise = scheduler.run(async () => node(await load(ref), ref, m.city, m.spatialFormat));
+      const promise = scheduler.run(async () => node(await load(ref), ref, m.city, m.spatialFormat, m.sources));
       cache.set(cacheKey, promise, ref.bytes);
       promise.catch(() => {
         if (cache.get(cacheKey) === promise) cache.delete(cacheKey);
@@ -372,6 +433,7 @@
     };
   }
   return {
+    HISTORY_FIELDS, validRecordFacts, validSourceContext, validSourceStatuses, validEvent, validRelationship, officialFactUrl,
     SPATIAL_FORMAT,
     validProvenance,
     validBounds,

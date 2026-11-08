@@ -9,7 +9,7 @@ const { validProvenance } = require('../../../js/ua.ris-partitions');
 const PRODUCER_VERSION = 'ris-provenance-v1';
 const NORMALIZATION_REVISIONS = { bonn: 'bonn-citation-v1', hannover: 'hannover-sim-citation-v1' };
 const SOURCE_FIELDS = ['id', 'title', 'type', 'number', 'date', 'gremium', 'url', 'source', 'relatedTo', 'locationEvidence',
-  'locationEvidenceTruncated'];
+  'locationEvidenceTruncated', 'sourceContext', 'originalPdfUrl', 'events', 'relationships'];
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])]));
@@ -32,8 +32,9 @@ function collectionProvenance({ catalogue, city, records, sourceRecords, sourceV
   const history = catalogue.history;
   return {
     schemaVersion: 1, producer: { name: 'unfallwerkbank-ris', version: PRODUCER_VERSION },
-    builtAt: new Date(now).toISOString(), sourceVerifiedAt, provider: city === 'bonn' ? 'bonn-oparl' : 'hannover-sim',
-    normalizationRevision: NORMALIZATION_REVISIONS[city], sourceFingerprint: sourceProjectionFingerprint(sourceRecords),
+    builtAt: new Date(now).toISOString(), sourceVerifiedAt,
+    provider: city === 'bonn' ? 'bonn-oparl' : catalogue.sourceStatuses ? 'hannover-official-sources' : 'hannover-sim',
+    normalizationRevision: city === 'hannover' && catalogue.sourceStatuses ? 'hannover-multi-source-citation-v1' : NORMALIZATION_REVISIONS[city], sourceFingerprint: sourceProjectionFingerprint(sourceRecords),
     collection: {
       pages: knownCount(facts.pages ?? catalogue.cache?.pages), rawItems: knownCount(facts.rawItems), normalizedItems: records.length,
       requestedFrom: facts.requestedFrom ?? history?.requestedFrom ?? null, requestedTo: facts.requestedTo ?? history?.requestedTo ?? null,

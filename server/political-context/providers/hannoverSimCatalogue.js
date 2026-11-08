@@ -147,8 +147,13 @@ function links(markup, bases, kind) {
   });
 }
 
+function privateHistoryRow(attrs, row) {
+  return privateRow(attributes(attrs), plain(row)) || elements(row, 't[dh]').some(cell =>
+    /^(?:nicht[\s-]?(?:ö|oe|o)ffentlich(?:e[rn]?)?(?:\s+teil)?|vertraulich|non[\s-]?public|private)\s*:?$/i.test(plain(cell[2])));
+}
+
 function rowLinks(rows, bases) {
-  return rows.flatMap(([, attrs, row]) => privateRow(attributes(attrs), plain(row)) ? [] : links(row, bases, 'document'));
+  return rows.flatMap(([, attrs, row]) => privateHistoryRow(attrs, row) ? [] : links(row, bases, 'document'));
 }
 
 function parseArchive(text, url) {
@@ -410,7 +415,7 @@ function parseDocument(text, doc, includeLocationEvidence) {
   }
   const title = heading[3];
   const contentHeading = elements(main, 'h3').find(match => /^Inhalt der Drucksache/i.test(plain(match[2])));
-  const metadata = main.slice(0, contentHeading?.index);
+  const metadata = visibleMeasureMarkup(main.slice(0, contentHeading?.index));
   const relatedSection = headingSection(metadata, /^verwandte Drucksachen\s*:?$/i);
   const relatedRows = elements(relatedSection, 'tr');
   const related = (relatedRows.length ? rowLinks(relatedRows, bases) : links(relatedSection, bases, 'document'))
@@ -419,6 +424,40 @@ function parseDocument(text, doc, includeLocationEvidence) {
   const dateText = labelledCell(metadata, published) || plain(headingSection(metadata, published));
   const consultation = headingSection(metadata, /^Beratungsverlauf\s*:?$/i);
   const meetingLabel = links(consultation, bases, 'meeting')[0]?.label;
+  const hasConsultation = elements(metadata, 'h[34]').some(h => /^Beratungsverlauf\s*:?$/i.test(plain(h[2])));
+  const tableRows = elements(consultation, 'tr');
+  const tableHeaders = new Map();
+  for (const table of elements(consultation, 'table')) {
+    const headers = elements(table[2], 'th').map(cell => plain(cell[2]).replace(/:$/, ''));
+    for (const [, , row] of elements(table[2], 'tr')) tableHeaders.set(row, headers);
+  }
+  const events = (tableRows.length ? tableRows : elements(consultation, 'li')).flatMap(([, attrs, row]) => {
+    if (privateHistoryRow(attrs, row)) return [];
+    const evidence = plain(row);
+    if (!evidence || elements(row, 'th').length && !elements(row, 'td').length) return [];
+    const meeting = links(row, bases, 'meeting')[0];
+    const labelDate = meeting && germanDate(meeting.label);
+    if (meeting && labelDate && labelDate !== meeting.date) throw new Error('Beratungsverlauf: Terminlink und Datum widersprechen sich');
+    const cells = elements(row, 'td').map(cell => plain(cell[2]));
+    // Preserve the complete public row; classify only explicit source cells.
+    const headers = tableHeaders.get(row) || [];
+    const bodyIndex = headers.findIndex(label => /^(?:gremium|ausschuss|sitzung)$/i.test(label));
+    const outcomeIndex = headers.findIndex(label => /^(?:ergebnis|beschluss|entscheidung|beratungsstand)$/i.test(label));
+    const body = (bodyIndex >= 0 ? cells[bodyIndex] : meeting?.label.replace(/^\d{1,2}\.\d{1,2}\.\d{4}\s*:?\s*/, '').trim()) || null;
+    const outcome = (outcomeIndex >= 0 ? cells[outcomeIndex] : headers.length ? null
+      : cells.length === 2 ? cells[1] : !cells.length && meeting
+        ? evidence.slice(evidence.indexOf(meeting.label) + meeting.label.length).replace(/^\s*[:;·-]\s*/, '') : null) || null;
+    return [{ date: meeting?.date || germanDate(cells[0]) || null, body, outcome, url: meeting?.url || doc.url, evidence }];
+  });
+  const relationships = related.flatMap(link => {
+    const row = relatedRows.find(([, , html]) => links(html, bases, 'document').some(item => item.key === link.key));
+    const evidence = plain(row?.[2]) || link.label;
+    const targetRole = /\bantwort\b/i.test(link.label) ? 'answer'
+      : /(?:änderungsantrag|aenderungsantrag)/i.test(link.label) ? 'amendment'
+        : /\b(?:antrag|vorlage|originalvorlage)\b/i.test(link.label) ? 'proposal' : null;
+    return [{ type: 'related', targetId: `${SOURCE}:${link.key}`, targetUrl: link.url, label: link.label || link.number, targetRole, evidence }];
+  });
+  const hasRelationships = elements(metadata, 'h[34]').some(h => /^verwandte Drucksachen\s*:?$/i.test(plain(h[2])));
   const notified = elements(headingSection(metadata, /^Nachrichtlich\s*:?$/i), 'li')[0]?.[2];
   return {
     title,
@@ -426,6 +465,8 @@ function parseDocument(text, doc, includeLocationEvidence) {
     date: isoDate(dateText) || germanDate(dateText),
     gremium: meetingLabel?.replace(/^\d{1,2}\.\d{1,2}\.\d{4}\s*:\s*/, '') || plain(notified) || null,
     related,
+    ...(hasConsultation ? { events } : {}),
+    ...(hasRelationships ? { relationships } : {}),
     ...(includeLocationEvidence ? measureText(main) : {}),
   };
 }
@@ -682,7 +723,7 @@ async function collectHannoverYear(options = {}) {
     attempted += next.length;
     const related = [];
     const readDocument = async doc => {
-      const revision = `sim-v3:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
+      const revision = `sim-v4-timeline:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
       const retained = yearWork?.details[doc.key];
       if (retained?.revision === revision && now.getTime() - Date.parse(retained.checkedAt) < 7 * DAY_MS) {
         return { ...retained.result, ...evidenceQualification(retained.result, options.includeLocationEvidence, retained.checkedAt) };
@@ -794,6 +835,8 @@ async function collectHannoverYear(options = {}) {
       type: documentType(doc, result, answers.has(doc.key)),
       date: result.date || doc.searchDate || doc.feedDate || null, gremium: doc.agendaBody || doc.feedBodies?.join(', ') || result.gremium || null,
       url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
+      ...(result.events === undefined ? {} : { events: result.events }),
+      ...(result.relationships === undefined ? {} : { relationships: result.relationships }),
       ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
       ...evidenceQualification(result, options.includeLocationEvidence),
       ...(result.detailVerifiedAt ? { detailVerifiedAt: result.detailVerifiedAt } : {}),
@@ -861,6 +904,7 @@ async function collectHannoverCatalogue(options = {}) {
         const detail = state.details?.[record.id.slice(SOURCE.length + 1)];
         const checkedAt = Date.parse(record.detailVerifiedAt || detail?.checkedAt);
         const projected = { ...record,
+          ...(Number.isFinite(checkedAt) ? { detailVerifiedAt: new Date(checkedAt).toISOString() } : {}),
           type: documentType(doc, { ...record, rawType: detail?.result.rawType }, record.type === 'Verwaltungsantwort'),
           ...evidenceQualification(record, options.includeLocationEvidence, detail?.checkedAt),
         };

@@ -11,6 +11,8 @@
  */
 
 const crypto = require('crypto');
+const { normalizeSourceContext, httpsUrl } = require('./politicalSourceContext');
+const facts = require('../../../js/ua.ris-partitions');
 
 /** Erlaubte Vorgangstypen aus dem Schema */
 const VALID_TYPES = ['Antrag', 'Anfrage', 'Änderungsantrag', 'Beschluss', 'Verwaltungsantwort', 'Protokoll', 'Sonstige'];
@@ -68,6 +70,13 @@ function coerceStringArray(value) {
  * @param {string} sourceKey  – Provider-Kürzel (z. B. 'hannover-sim')
  * @returns {object}          – normalisiertes PoliticalReference-Objekt
  */
+function identityKey(raw, url) {
+  // Several public agenda items share a genuine notice URL. Their adapter IDs
+  // distinguish source rows without inventing navigable fragment targets.
+  return raw.source === 'region-hannover-bekanntmachungen' && /^[a-f0-9]{16}$/.test(raw.id || '')
+    ? `${url}\n${raw.id}` : url;
+}
+
 function normalizeOne(raw, sourceKey) {
   const title  = (raw.title  || '').trim();
   const url    = (raw.url    || '').trim();
@@ -92,9 +101,20 @@ function normalizeOne(raw, sourceKey) {
   const topicMatch  = Array.isArray(raw.topicMatch)  ? coerceStringArray(raw.topicMatch)  : null;
   const streetHints = coerceStringArray(raw.streetHints);
   const areaHints   = coerceStringArray(raw.areaHints);
+  const history = {};
+  for (const [field, count] of Object.entries(facts.HISTORY_FIELDS)) {
+    const candidate = { ...(raw[field] === undefined ? {} : { [field]: raw[field] }),
+      ...(raw[count] === undefined ? {} : { [count]: raw[count] }) };
+    // Counts remain source supplied; unknown target IDs and absent lists stay
+    // unknown. Directory counts do not cause an inline-history expansion.
+    if (facts.validRecordFacts(candidate, undefined, { directory: raw[field] === undefined }))
+      Object.assign(history, JSON.parse(JSON.stringify(candidate)));
+  }
+  const sourceContext = normalizeSourceContext(raw.sourceContext);
+  const originalPdfUrl = httpsUrl(raw.originalPdfUrl, true);
 
   return {
-    id:             makeId(url),
+    id:             makeId(identityKey(raw, url)),
     title:          title || '(kein Titel)',
     type,
     date:           raw.date   ? String(raw.date).trim()   : null,
@@ -102,7 +122,10 @@ function normalizeOne(raw, sourceKey) {
     number:         raw.number  ? String(raw.number).trim()  : null,
     snippet:        raw.snippet ? String(raw.snippet).substring(0, 400) : null,
     url,
-    source:         sourceKey || 'unknown',
+    source:         typeof raw.source === 'string' && /^[a-z0-9][a-z0-9_.-]{0,119}$/.test(raw.source) ? raw.source : sourceKey || 'unknown',
+    ...history,
+    ...(sourceContext ? { sourceContext } : {}),
+    ...(originalPdfUrl ? { originalPdfUrl } : {}),
     relevanceScore: null,   // wird vom portalRelevanceService befüllt
     referenceType,
     reason,
@@ -115,7 +138,7 @@ function normalizeOne(raw, sourceKey) {
 
 /**
  * Normalisiert eine Liste von rohen Provider-Ergebnissen.
- * Entfernt Einträge ohne URL und dedupliziert nach URL.
+ * Entfernt Einträge ohne URL und dedupliziert nach offizieller Quellenidentität.
  *
  * @param {object[]} rawResults
  * @param {string}   sourceKey
@@ -130,8 +153,9 @@ function normalizeAll(rawResults, sourceKey) {
   for (const raw of rawResults) {
     if (!raw || !raw.url) continue;
     const url = String(raw.url).trim();
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
+    const key = identityKey(raw, url);
+    if (!url || seen.has(key)) continue;
+    seen.add(key);
     normalized.push(normalizeOne(raw, sourceKey));
   }
 
