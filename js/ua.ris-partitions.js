@@ -137,6 +137,8 @@
       && factDay(v.from) && factDay(v.to) && !(v.from && v.to && v.from > v.to)
       && Number.isSafeInteger(v.recordCount) && v.recordCount >= 0 && (v.message === '' || factText(v.message, 512)));
   }
+  const canonicalTime = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)
+    && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
   // One bounded contract for both snapshot versions, in Node and the browser.
   function validProvenance(value, generatedAt, recordCount, coverage) {
     if (value === undefined) return true;
@@ -147,8 +149,7 @@
       && v.trim() === v && !/[<>\p{Cc}\p{Cf}\p{Cs}]/u.test(v);
     const count = v => Number.isSafeInteger(v) && v >= 0;
     const optionalCount = v => v === null || count(v);
-    const time = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)
-      && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
+    const time = canonicalTime;
     const day = v => v === null || typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
       && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
     if (!fields(value, ['schemaVersion', 'producer', 'builtAt', 'sourceVerifiedAt', 'provider', 'normalizationRevision',
@@ -200,6 +201,7 @@
         || (value.spatialFormat !== undefined && value.spatialFormat !== SPATIAL_FORMAT)
         || (value.spatialFormat === SPATIAL_FORMAT && (!spatialDescriptor(value.roots.spatial, city) || value.roots.spatial.featureCount !== value.geometryCount))) throw invalid('Invalid RIS partition manifest');
     if (!validSourceStatuses(value.sourceStatuses, value.sources)) throw invalid('Invalid RIS source statuses');
+    if (value.withdrawalsRecordedAt !== undefined && !canonicalTime(value.withdrawalsRecordedAt)) throw invalid('Invalid RIS withdrawal timestamp');
     if (!validProvenance(value.provenance, value.generatedAt, value.recordCount, value.coverage)) throw invalid('Invalid RIS provenance');
     return value;
   }

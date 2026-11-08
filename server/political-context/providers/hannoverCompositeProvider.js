@@ -1,7 +1,7 @@
 'use strict';
 
 const sim = require('./hannoverSimProvider');
-const { collectHannoverAdditionalSources, collectLandtagCatalogue, buildCatalogueUrl, BLOCKED } = require('./hannoverAdditionalSources');
+const { collectHannoverAdditionalSources, collectLandtagCatalogue, buildCatalogueUrl, REGION_CATALOGUE_STATUS } = require('./hannoverAdditionalSources');
 const { sourceContext, hasLocalTrafficEvidence, substantiveText } = require('./hannoverAdditionalFormats');
 
 const SIM_URL = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular';
@@ -42,7 +42,7 @@ function createHannoverCompositeProvider({ simProvider = sim, collectAdditional 
   }
   async function search(params = {}) {
     const terms = termsFrom(params.searchTerms);
-    if (!terms.length) return { results: [], meta: { status: 'incomplete', sourceStatuses: [{ ...BLOCKED }], truncated: true } };
+    if (!terms.length) return { results: [], meta: { status: 'incomplete', sourceStatuses: [{ ...REGION_CATALOGUE_STATUS }], truncated: true } };
     const context = params.context || {};
     const filters = { ...(additionalOptions.filters || {}),
       ...(context.landtagNumber === undefined ? {} : { number: context.landtagNumber }),
@@ -71,14 +71,16 @@ function createHannoverCompositeProvider({ simProvider = sim, collectAdditional 
       message: 'SIM-Portalsuche; einzelne Suchanfragen und historische Vollständigkeit sind nicht vollständig nachgewiesen.' }
       : sourceFailure('hannover-sim', SIM_URL, 'Städtische SIM-Suche derzeit nicht erreichbar.');
     const added = additional.status === 'fulfilled' ? additional.value : { records: [], sourceStatuses: [
-      sourceFailure('hannover-additional', 'https://www.landtag-niedersachsen.de/dokumentensuche/', 'Zusätzliche öffentliche Quellen derzeit nicht erreichbar.'), { ...BLOCKED },
+      sourceFailure('hannover-additional', 'https://www.landtag-niedersachsen.de/dokumentensuche/', 'Zusätzliche öffentliche Quellen derzeit nicht erreichbar.'), { ...REGION_CATALOGUE_STATUS },
     ] };
     const results = [...cityRows.map(cityRecord), ...added.records.map(record => matchingAdditional(record, terms)).filter(Boolean)];
     const sourceStatuses = [cityStatus, ...added.sourceStatuses];
     return { results, meta: { status: results.length ? 'partial-results' : 'incomplete', sourceType: 'official-multiple-sources', sourceUrl: SIM_URL,
       sourceStatuses, truncated: true, warnings: sourceStatuses.filter(s => s.status !== 'available').map(s => `${s.source}: ${s.message}`),
       scannedItems: cityRows.length + added.records.length,
-      attempts: sourceStatuses.map(s => ({ source: s.source, sourceType: s.source === 'region-hannover-ris' ? 'manual-only' : 'public-documents',
+      // Region proposals are not queried by this live path; the index notice
+      // remains in sourceStatuses without claiming a source request occurred.
+      attempts: sourceStatuses.filter(s => s.source !== REGION_CATALOGUE_STATUS.source).map(s => ({ source: s.source, sourceType: 'public-documents',
         url: s.url, status: s.status, count: s.recordCount })) } };
   }
   // Keep the historical aggregate key for compatibility; each record/status has its real source.

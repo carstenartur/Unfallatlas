@@ -15,6 +15,10 @@ on:
         description: Minimum published Hannover record count required by this recovery
         type: number
         default: 674
+  schedule:
+    # Continue bounded RIS detail acquisition and renewal daily. Sunday's
+    # existing full data workflow supplies the remaining weekly run.
+    - cron: '17 4 * * 1-6'
   push:
     branches: [main]
     paths:

@@ -354,12 +354,21 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
   });
 
   test('should display export text area', async ({ page }) => {
+    test.setTimeout(90_000);
     const exportTextArea = page.locator('#exportBoxTa');
     await expect(exportTextArea).toBeVisible();
     
-    // Should have some content after report generation
-    const content = await exportTextArea.inputValue();
-    expect(content.length).toBeGreaterThan(0);
+    // The real all-city report shares the adjacent export-view test's cold
+    // rendering cost. Wait for its completion signal before checking text.
+    await page.waitForFunction(() => {
+      const text = String(document.querySelector('#exportProgress')?.textContent || '');
+      return text === 'Fertig.' || /^Fehler\b/i.test(text);
+    }, null, { timeout: 45_000 });
+    await expect(page.locator('#exportProgress')).toHaveText('Fertig.');
+    // "…" is non-empty too. Require the generated report for the active city.
+    const city = await page.locator('#citySel').inputValue();
+    await expect.poll(async () => (await exportTextArea.inputValue()).includes(`Stadt: ${city}`),
+      { timeout: 15000 }).toBe(true);
   });
 
   test('should have copy buttons', async ({ page }) => {

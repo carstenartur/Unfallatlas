@@ -2,7 +2,7 @@
 'use strict';
 const { composeHannoverCatalogue } = require('../../server/political-context/providers/hannoverCatalogueComposition');
 const { sourceProjectionFingerprint, collectionProvenance } = require('../../server/political-context/services/risProvenance');
-const { BLOCKED } = require('../../server/political-context/providers/hannoverAdditionalSources');
+const { REGION_CATALOGUE_STATUS } = require('../../server/political-context/providers/hannoverAdditionalSources');
 const { parseLandtagCatalogue } = require('../../server/political-context/providers/hannoverAdditionalFormats');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -17,7 +17,7 @@ const sim = () => ({ records: [{ id: 'sim1', title: 'Radverkehr Eilenriede', typ
 test('build composition preserves SIM history and adds usable records with isolated coverage and oldest verified source clock', () => {
   const status = { source: 'landtag-catalogue', status: 'partial', url: 'https://www.landtag-niedersachsen.de/dokumentensuche/',
     retrievedAt: '2026-11-07T10:00:00.000Z', from: null, to: null, recordCount: 1, message: 'A single partition only' };
-  const result = composeHannoverCatalogue(sim(), { records: [local()], sources: [status.url, BLOCKED.url], sourceStatuses: [status, BLOCKED],
+  const result = composeHannoverCatalogue(sim(), { records: [local()], sources: [status.url, REGION_CATALOGUE_STATUS.url], sourceStatuses: [status, REGION_CATALOGUE_STATUS],
     generatedAt: status.retrievedAt }, { now: NOW });
   expect(result.records).toHaveLength(2);
   expect(result.records[1]).toMatchObject({ number: '19/8980', type: 'Verwaltungsantwort', sourceContext: { level: 'state', status: 'answer' } });
@@ -26,7 +26,7 @@ test('build composition preserves SIM history and adds usable records with isola
   expect(result.history).toEqual({ pending: 1, interrupted: true });
   expect(result.coverage.complete).toBe(false);
   expect(result.coverage.scope).toBe('citywide');
-  expect(result.sourceStatuses).toEqual(expect.arrayContaining([status, BLOCKED, expect.objectContaining({ source: 'hannover-sim', status: 'available', recordCount: 1 })]));
+  expect(result.sourceStatuses).toEqual(expect.arrayContaining([status, REGION_CATALOGUE_STATUS, expect.objectContaining({ source: 'hannover-sim', status: 'available', recordCount: 1 })]));
   const provenance = collectionProvenance({ catalogue: result, city: 'hannover', records: result.records, sourceRecords: result.records, sourceVerifiedAt: result.generatedAt, now: NOW });
   expect(provenance.provider).toBe('hannover-official-sources');
 });
