@@ -45,7 +45,7 @@ describe('map control disclosure', () => {
   });
 
   afterEach(() => {
-    ctx.map.remove();
+    ctx.map?.remove();
     window.matchMedia = originalMatchMedia;
     L.Browser.svg = originalSvg;
     delete window.UA;
@@ -161,5 +161,29 @@ describe('map control disclosure', () => {
     document.getElementById('context-overlay-legend-title').focus();
     UA.refreshContextOverlays(ctx);
     expect(document.activeElement).toBe(document.getElementById('context-overlay-legend-title'));
+  });
+
+  test('legacy media listeners adapt controls and are released with the map', () => {
+    const listeners = new Set();
+    const media = {
+      matches: false,
+      addListener: listener => listeners.add(listener),
+      removeListener: listener => listeners.delete(listener),
+    };
+    window.matchMedia = () => media;
+    UA.addLayerLegend(ctx, ctx.map);
+    UA.refreshContextOverlays(ctx);
+    media.matches = true;
+    for (const listener of listeners) listener();
+    const control = document.querySelector('.context-overlay-control');
+    expect(control.querySelector('.mapControlBody').hidden).toBe(true);
+    expect(document.querySelector('.layer-legend-control').parentElement.classList.contains('leaflet-top')).toBe(true);
+
+    media.matches = false;
+    for (const listener of listeners) listener();
+    expect(control.querySelector('.mapControlBody').hidden).toBe(false);
+    ctx.map.remove();
+    ctx.map = null;
+    expect(listeners.size).toBe(0);
   });
 });

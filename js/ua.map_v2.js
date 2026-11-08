@@ -929,7 +929,7 @@
     state = { mobile: !!media?.matches, choices: new Map(), controls: new Map() };
     mapControlDisclosures.set(ctx, state);
     const resize = () => {
-      state.mobile = !!media.matches;
+      state.mobile = !!media?.matches;
       for (const [key, entry] of [...state.controls]) {
         if (!entry.control._map) continue;
         const focused = entry.container.contains(document.activeElement) ? document.activeElement : null;
@@ -947,9 +947,11 @@
       }
       if (ctx.contextOverlays?.legendControl) _refreshContextLegend(ctx);
     };
-    media?.addEventListener?.('change', resize);
+    if (typeof media?.addEventListener === 'function') media.addEventListener('change', resize);
+    else media?.addListener?.(resize);
     ctx.map?.once?.('unload', () => {
-      media?.removeEventListener?.('change', resize);
+      if (typeof media?.removeEventListener === 'function') media.removeEventListener('change', resize);
+      else media?.removeListener?.(resize);
       mapControlDisclosures.delete(ctx);
     });
     return state;

@@ -271,7 +271,7 @@
     if (!view.width || !view.height) return options;
 
     const margin = 8;
-    if (window.matchMedia?.('(max-width: 640px), (max-height: 500px) and (pointer: coarse)').matches) {
+    if (window.matchMedia?.('(max-width: 640px), (max-height: 500px) and (pointer: coarse)')?.matches) {
       // CSS temporarily hides the task sheet and map cards while this popup
       // is open. Its first layout must already use that unobstructed space.
       return {
