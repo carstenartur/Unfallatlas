@@ -319,7 +319,10 @@ function measureLocations(record, byFirstWord, gazetteer, limit) {
  * Every record receives an explicit assessment. Official RIS geometries are
  * preserved; derived locations are replaced on each run, including no matches.
  */
-function enrichRisLocations(records, { city, gazetteer } = {}) {
+function enrichRisLocations(records, { city, gazetteer, maxLocationsPerRecord = MAX_LOCATIONS_PER_RECORD } = {}) {
+  if (maxLocationsPerRecord !== Infinity && (!Number.isInteger(maxLocationsPerRecord) || maxLocationsPerRecord < 1)) {
+    throw new RangeError('maxLocationsPerRecord must be a positive integer or Infinity');
+  }
   const byFirstWord = city && gazetteer?.city === city && Array.isArray(gazetteer.entries) && gazetteer.entries.length
     ? indexGazetteer(gazetteer) : null;
   return records.map(record => {
@@ -333,9 +336,9 @@ function enrichRisLocations(records, { city, gazetteer } = {}) {
     if (!byFirstWord) reasons.push('gazetteer_unavailable');
     if (record.locationEvidenceUnavailable === true) reasons.push('document_text_unavailable');
     if (record.locationEvidenceTruncated === true) reasons.push('evidence_truncated');
-    // Reserve a feature for the official geometry without exceeding the shared
-    // map limit; any omitted derived places are reported as a partial result.
-    const result = byFirstWord ? measureLocations(record, byFirstWord, gazetteer, MAX_LOCATIONS_PER_RECORD - Number(official))
+    // The legacy format reserves one slot for official geometry. Partitioned
+    // publication pages locations and can retain every identified mention.
+    const result = byFirstWord ? measureLocations(record, byFirstWord, gazetteer, maxLocationsPerRecord - Number(official))
       : { locations: [], truncated: false, reasons: [] };
     reasons.push(...result.reasons);
     if (byFirstWord && !official && !result.locations.length && !reasons.includes('unverified_name')) reasons.push('no_specific_location');

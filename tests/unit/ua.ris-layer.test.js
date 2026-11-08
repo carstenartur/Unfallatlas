@@ -85,14 +85,14 @@ function searchableLocations() {
   return { entry, bundle };
 }
 
-async function openSearch(ctx, reference) {
+async function openSearch(ctx, reference, meta = {}) {
   loadScript('ua.utils.js');
   document.body.insertAdjacentHTML('beforeend', '<button id="btnPolCtxOpen">Recherche</button>'
     + '<div id="polCtxPanel" aria-hidden="true" style="display:none">'
     + '<button id="polCtxBtnClose">Schließen</button><input id="polCtxSearchInput" value="Endenicher Straße">'
     + '<div id="polCtxStatus" role="status"></div><div id="polCtxResults"></div></div>');
   window.UA.PoliticalContext.search = async () => ({
-    references: [reference], meta: { supported: true, searchStatus: 'results-found' }
+    references: [reference], meta: { supported: true, searchStatus: 'results-found', ...meta }
   });
   await window.UA.PoliticalContext.openPanel(ctx);
   await window.UA.PoliticalContext._runSearch(ctx);
@@ -131,6 +131,27 @@ describe('Ratsvorgänge in the V2 map', () => {
     L.Browser.svg = svg;
     delete window.UA;
     delete window.L;
+  });
+
+  test('desktop popups retain a usable central strip beside the unified tall Karte card', async () => {
+    ctx.map.getContainer().getBoundingClientRect = () => ({ left: 0, top: 0, right: 1280, bottom: 800, width: 1280, height: 800 });
+    ctx.ui.panelEl = document.createElement('div');
+    ctx.ui.panelEl.getBoundingClientRect = () => ({ left: 8, top: 8, right: 328, bottom: 792, width: 320, height: 784 });
+    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point]));
+    UA.refreshContextOverlays(ctx);
+    const card = document.querySelector('.context-overlay-control');
+    expect(card.classList.contains('layer-legend-control')).toBe(true);
+    card.getBoundingClientRect = () => ({ left: 972, top: 10, right: 1270, bottom: 674, width: 298, height: 664 });
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    const layer = risFeatures(ctx.map)[0];
+    layer.openPopup();
+    const layout = layer.getPopup().options;
+    expect(layout.autoPanPaddingTopLeft).toEqual([336, 8]);
+    expect(layout.autoPanPaddingBottomRight).toEqual([316, 8]);
+    expect(layout.maxHeight).toBe(280);
+    expect(layout.maxWidth).toBe(340);
+    expect(layer.isPopupOpen()).toBe(true);
   });
 
   test('phone record popups use the map width while the surrounding cards are hidden', async () => {
@@ -172,7 +193,7 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(document.querySelector('[role="status"]').textContent).toMatch(/geladen/);
     await flush();
 
-    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledWith('Bonn');
+    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledWith('Bonn', expect.objectContaining({ bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 }));
     const [marker, path, area] = risFeatures(ctx.map);
     expect([marker, path, area].map(layer => layer.feature.geometry.type)).toEqual(['Point', 'LineString', 'Polygon']);
     expect(path.options.pane).toBe(marker.options.pane);
@@ -245,7 +266,7 @@ describe('Ratsvorgänge in the V2 map', () => {
     UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
     UA.refreshContextOverlays(ctx);
     const panel = await openSearch(ctx, entry);
-    const buttons = panel.querySelectorAll('#polCtxResults button');
+    const buttons = panel.querySelectorAll('#polCtxResults button[aria-label^="Auf Karte zeigen:"]');
     expect(buttons).toHaveLength(2); // The third place is named but not mapped.
     expect(buttons[1].getAttribute('aria-label')).toContain('Beueler Straße / Gartenstraße');
     expect(UA.RisCatalogue.loadMap).not.toHaveBeenCalled();
@@ -273,10 +294,10 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(risFeatures(ctx.map).map(layer => layer.getLatLng())).toContainEqual(L.latLng(50.7, 7.11));
 
     const panel = await openSearch(ctx, entry);
-    panel.querySelectorAll('#polCtxResults button')[1].click();
+    panel.querySelectorAll('#polCtxResults button[aria-label^="Auf Karte zeigen:"]')[1].click();
     await flush();
 
-    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn'], ['Bonn', { revalidate: true }]]);
+    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn', expect.objectContaining({ bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 })], ['Bonn', expect.objectContaining({ revalidate: true, bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 })]]);
     const [layer] = risFeatures(ctx.map);
     expect(layer.getLatLng()).toEqual(L.latLng(50.94, 7.45));
     expect(layer.isPopupOpen()).toBe(true);
@@ -293,10 +314,10 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(status.textContent).toContain('Veralteter Datenstand');
 
     const panel = await openSearch(ctx, entry);
-    panel.querySelectorAll('#polCtxResults button')[1].click();
+    panel.querySelectorAll('#polCtxResults button[aria-label^="Auf Karte zeigen:"]')[1].click();
     await flush();
 
-    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn'], ['Bonn', { revalidate: true }]]);
+    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn', expect.objectContaining({ bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 })], ['Bonn', expect.objectContaining({ revalidate: true, bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 })]]);
     expect(status.textContent).not.toContain('Veralteter Datenstand');
     expect(risFeatures(ctx.map)[0].isPopupOpen()).toBe(true);
   });
@@ -310,7 +331,7 @@ describe('Ratsvorgänge in the V2 map', () => {
     await flush();
     checkbox('Nur in markierter Fläche').click();
     const panel = await openSearch(ctx, entry);
-    const buttons = panel.querySelectorAll('#polCtxResults button');
+    const buttons = panel.querySelectorAll('#polCtxResults button[aria-label^="Auf Karte zeigen:"]');
     expect(buttons).toHaveLength(2);
     buttons[1].click();
     await flush();
@@ -328,12 +349,12 @@ describe('Ratsvorgänge in the V2 map', () => {
     UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
     UA.refreshContextOverlays(ctx);
     const panel = await openSearch(ctx, entry);
-    const buttons = panel.querySelectorAll('#polCtxResults button');
+    const buttons = panel.querySelectorAll('#polCtxResults button[aria-label^="Auf Karte zeigen:"]');
     expect(buttons).toHaveLength(2);
     buttons[1].click();
     await flush();
 
-    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn'], ['Bonn', { revalidate: true }]]);
+    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn', expect.objectContaining({ bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 })], ['Bonn', expect.objectContaining({ revalidate: true, bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 })]]);
     expect(panel.querySelector('[role="status"]').textContent).toMatch(/Datenst.nd/);
     expect(checkbox('Ratsvorgänge').checked).toBe(false);
     expect(ctx.map.getCenter()).toEqual(L.latLng(50.7, 7.1));
@@ -346,7 +367,7 @@ describe('Ratsvorgänge in the V2 map', () => {
     UA.RisCatalogue.loadMap.mockReturnValue(pending.promise);
     UA.refreshContextOverlays(ctx);
     const panel = await openSearch(ctx, entry);
-    const buttons = panel.querySelectorAll('#polCtxResults button');
+    const buttons = panel.querySelectorAll('#polCtxResults button[aria-label^="Auf Karte zeigen:"]');
     expect(buttons).toHaveLength(2);
     buttons[1].click();
     await flush();
@@ -513,7 +534,7 @@ describe('Ratsvorgänge in the V2 map', () => {
     checkbox('Ratsvorgänge').click();
     checkbox('Ratsvorgänge').click();
     await flush();
-    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn']]);
+    expect(UA.RisCatalogue.loadMap.mock.calls).toEqual([['Bonn', expect.objectContaining({ bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 })]]);
 
     ctx.CITY_RAW = 'Hannover';
     UA.renderLayers(ctx);
@@ -620,4 +641,393 @@ describe('Ratsvorgänge in the V2 map', () => {
     await flush();
     expect(status.textContent).toMatch(/keine verorteten Ratsvorgänge/i);
   });
+  function partitionSnapshot(features = []) {
+    return { manifest: { schemaVersion: 2, city: 'bonn', generation: 'c'.repeat(64),
+      generatedAt: new Date().toISOString(), coverage: { complete: true, bodies: [], warnings: [] }, mappedRecordCount: 72 },
+    partitioned: true, features: { type: 'FeatureCollection', features },
+    coverage: { complete: true, missing: [], truncated: false }, overview: false, recordCount: 72 };
+  }
+  function partitionFeature(id = 'shape') {
+    return { ...point, bounds: [7.1, 50.7, 7.1, 50.7], properties: { geometryId: id, accuracy: 'official', label: 'Ort', recordCount: 72 } };
+  }
+  test('partitioned maps request bounded viewports and load records and relations only on demand', async () => {
+    const bundle = partitionSnapshot([partitionFeature()]);
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [records[0]],
+      links: [{ recordId: 'A', locationId: 'A/place', accuracy: 'official', label: 'Ort' }], total: 72, nextPage: 1, complete: true });
+    UA.RisCatalogue.loadRelatedRecords = jest.fn().mockResolvedValue({ records: [records[3]], total: 1, nextPage: null, complete: true });
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledWith('Bonn', expect.objectContaining({ bounds: expect.any(Array), zoom: 13, maxFeatures: 1000 }));
+    expect(UA.RisCatalogue.loadFeatureRecords).not.toHaveBeenCalled();
+    const layer = risFeatures(ctx.map)[0];
+    expect(layer).toBeDefined();
+    layer.openPopup();
+    await flush();
+    expect(UA.RisCatalogue.loadFeatureRecords).toHaveBeenCalledWith('Bonn', 'shape', 0, { snapshot: bundle.manifest });
+    expect(UA.RisCatalogue.loadRelatedRecords).not.toHaveBeenCalled();
+    [...document.querySelectorAll('.leaflet-popup button')].find(b => b.textContent === 'Verknüpfte Vorgänge anzeigen').click();
+    await flush();
+    expect(document.querySelector('.leaflet-popup').textContent).toContain(records[3].title);
+    [...document.querySelectorAll('.leaflet-popup button')].find(b => b.textContent === 'Weitere Vorgänge laden').click();
+    await flush();
+    expect(UA.RisCatalogue.loadFeatureRecords).toHaveBeenLastCalledWith('Bonn', 'shape', 1, { snapshot: bundle.manifest });
+    ctx.map.panBy([10, 0], { animate: false });
+    await flush();
+    expect(risFeatures(ctx.map)[0]).toBe(layer);
+    expect(layer.isPopupOpen()).toBe(true);
+  });
+
+  test('partitioned overview renders aggregate rectangles and explains missing coverage', async () => {
+    const overview = { ...polygon, bounds: [7, 50.6, 7.2, 50.8], properties: { overview: true, geometryId: 'overview:8/1/2', count: 90, recordCount: 72, geometryCount: 40, label: 'Zelle' } };
+    const bundle = { ...partitionSnapshot([overview]), overview: true, coverage: { complete: false, missing: ['asset'], truncated: true } };
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.RisCatalogue.loadFeatureRecords = jest.fn();
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    expect(risFeatures(ctx.map)).toHaveLength(1);
+    expect(risFeatures(ctx.map)[0].feature.geometry.type).toBe('Polygon');
+    risFeatures(ctx.map)[0].openPopup();
+    expect(document.querySelector('.leaflet-popup').textContent).toMatch(/Übersicht|zusammengefasst/);
+    expect(document.querySelector('.context-overlay-control [role="status"]').textContent).toMatch(/unvollständig|fehlen/);
+    expect(UA.RisCatalogue.loadFeatureRecords).not.toHaveBeenCalled();
+  });
+
+  test('partitioned viewport ignores out-of-order and disabled responses', async () => {
+    const first = deferred(), second = deferred();
+    UA.RisCatalogue.loadMap.mockResolvedValueOnce(partitionSnapshot([partitionFeature()]))
+      .mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    ctx.map.panBy([10, 0], { animate: false }); await flush();
+    ctx.map.panBy([10, 0], { animate: false }); await flush();
+    second.resolve(partitionSnapshot([partitionFeature('latest')])); await flush();
+    first.resolve(partitionSnapshot([partitionFeature('obsolete')])); await flush();
+    expect(risFeatures(ctx.map).map(l => l.feature.properties.geometryId)).toEqual(['latest']);
+    const late = deferred(); UA.RisCatalogue.loadMap.mockReturnValueOnce(late.promise);
+    ctx.map.panBy([10, 0], { animate: false }); await flush();
+    checkbox('Ratsvorgänge').click();
+    late.resolve(partitionSnapshot([partitionFeature('disabled')])); await flush();
+    expect(risFeatures(ctx.map)).toHaveLength(0);
+  });
+
+  test('research pages beyond 64 locations and navigates by stable location identity', async () => {
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: 'c'.repeat(64), mapSha256: 'c'.repeat(64) },
+      locations: Array.from({ length: 64 }, (_, i) => ({ id: `place-${i}`, label: `Ort ${i}`, mapped: true })), locationsNextPage: 1, locationCount: 65 };
+    UA.RisCatalogue.loadRecordLocations = jest.fn().mockResolvedValue({ locations: [{ id: 'place-64', geometryId: 'shape', label: 'Ort 64', mapped: true }], nextPage: null, complete: true });
+    UA.RisLayer.showLocation = jest.fn().mockResolvedValue(null);
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    const more = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Orte laden');
+    expect(more).toBeDefined(); more.click(); await flush();
+    panel.querySelector('button[aria-label="Auf Karte zeigen: Ort 64"]').click(); await flush();
+    expect(UA.RisLayer.showLocation).toHaveBeenCalledWith(ctx, expect.objectContaining({ id: 'A' }), 'place-64', expect.any(Function));
+  });
+
+  test('official geometry without locations can be opened from research', async () => {
+    const bundle = partitionSnapshot([]), shape = partitionFeature();
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: bundle.manifest.generation, mapSha256: bundle.manifest.generation }, geometryIds: ['shape'] };
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.RisCatalogue.loadGeometry = jest.fn().mockResolvedValue(shape);
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [], links: [], complete: true, nextPage: null });
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    const button = panel.querySelector('button[aria-label="Auf Karte zeigen: Amtliche Kartenlage 1"]');
+    expect(button).not.toBeNull(); button.click(); await flush(); await flush();
+    expect(UA.RisCatalogue.loadGeometry).toHaveBeenCalledWith('Bonn', 'shape', { snapshot: bundle.manifest });
+    expect(risFeatures(ctx.map)).toHaveLength(1);
+    expect(document.querySelector('.leaflet-popup')).not.toBeNull();
+  });
+
+  test('a closed partition popup discards delayed details and retries a failed page when reopened', async () => {
+    const pending = deferred();
+    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockReturnValueOnce(pending.promise)
+      .mockRejectedValueOnce(new Error('Partition fehlt'))
+      .mockResolvedValueOnce({ records: [records[0]], links: [{ recordId: 'A', accuracy: 'official' }], total: 1, nextPage: null, complete: true });
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    const layer = risFeatures(ctx.map)[0]; layer.openPopup(); await flush();
+    const old = document.querySelector('.leaflet-popup-content'); layer.closePopup();
+    pending.resolve({ records: [records[0]], links: [{ recordId: 'A' }], total: 1, nextPage: null, complete: true }); await flush();
+    expect(old.textContent).not.toContain(records[0].title);
+    layer.openPopup(); await flush();
+    expect(document.querySelector('.leaflet-popup').textContent).toContain('Partition fehlt');
+    [...document.querySelectorAll('.leaflet-popup button')].find(b => b.textContent === 'Erneut versuchen').click(); await flush();
+    expect(document.querySelector('.leaflet-popup').textContent).toContain(records[0].title);
+  });
+
+  test('a feature beyond the first location page displays only its matching evidence', async () => {
+    const entry = { ...records[0], locations: [{ id: 'wrong', label: 'Anderer Ort', evidence: { source: 'title', text: 'Falscher Beleg' } }], locationsNextPage: 1 };
+    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [entry], links: [{ recordId: 'A', locationId: 'right', accuracy: 'official' }], total: 1, nextPage: null, complete: true });
+    UA.RisCatalogue.loadRecordLocations = jest.fn().mockResolvedValue({ locations: [{ id: 'right', label: 'Richtiger Ort', evidence: { source: 'document', text: 'Passender Beleg aus Seite 2' } }], nextPage: null, complete: true });
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    risFeatures(ctx.map)[0].openPopup(); await flush();
+    expect(UA.RisCatalogue.loadRecordLocations).not.toHaveBeenCalled();
+    const popup = document.querySelector('.leaflet-popup');
+    expect(popup.textContent).not.toContain('Falscher Beleg');
+    [...popup.querySelectorAll('button')].find(b => b.textContent === 'Ortsbeleg laden').click(); await flush();
+    expect(UA.RisCatalogue.loadRecordLocations).toHaveBeenCalledWith('Bonn', 'A', 1, expect.objectContaining({ snapshot: expect.any(Object) }));
+    expect(popup.textContent).toContain('Passender Beleg aus Seite 2');
+    expect(popup.textContent).not.toContain('Falscher Beleg');
+  });
+
+  test('partition research rejects a different generation before fetching geometry', async () => {
+    const bundle = partitionSnapshot([]);
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: 'old', mapSha256: 'old' }, geometryIds: ['shape'] };
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.RisCatalogue.loadGeometry = jest.fn();
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    panel.querySelector('button[aria-label="Auf Karte zeigen: Amtliche Kartenlage 1"]').click(); await flush();
+    expect(UA.RisCatalogue.loadGeometry).not.toHaveBeenCalled();
+    expect(panel.querySelector('[role="status"]').textContent).toMatch(/Datenst.nd/);
+    expect(checkbox('Ratsvorgänge').checked).toBe(false);
+  });
+
+  test('partition research respects selected area and discards geometry after a city change', async () => {
+    const bundle = partitionSnapshot([]);
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: bundle.manifest.generation, mapSha256: bundle.manifest.generation }, geometryIds: ['shape'] };
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.RisCatalogue.loadGeometry = jest.fn().mockResolvedValue(partitionFeature());
+    ctx.selectionBounds = L.latLngBounds([50.8, 7.3], [50.9, 7.4]);
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    checkbox('Nur in markierter Fläche').click();
+    const panel = await openSearch(ctx, entry);
+    const button = panel.querySelector('button[aria-label="Auf Karte zeigen: Amtliche Kartenlage 1"]');
+    button.click(); await flush();
+    expect(panel.querySelector('[role="status"]').textContent).toContain('außerhalb');
+    expect(risFeatures(ctx.map)).toHaveLength(0);
+    const pending = deferred(); UA.RisCatalogue.loadGeometry.mockReturnValue(pending.promise);
+    checkbox('Nur in markierter Fläche').click(); button.click(); await flush();
+    ctx.CITY_RAW = 'Hannover'; UA.PoliticalContext.resetCity(ctx); UA.RisLayer.refresh(ctx);
+    pending.resolve(partitionFeature()); await flush();
+    expect(risFeatures(ctx.map)).toHaveLength(0);
+    expect(document.querySelector('.leaflet-popup')).toBeNull();
+  });
+
+  test('official geometry links beyond their first page remain navigable', async () => {
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: 'c'.repeat(64), mapSha256: 'c'.repeat(64) }, geometryIds: ['first'], geometryNextPage: 1 };
+    UA.RisCatalogue.loadRecordGeometries = jest.fn().mockResolvedValue({ geometryIds: ['second'], nextPage: null, complete: true });
+    UA.RisLayer.showLocation = jest.fn().mockResolvedValue(null);
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Kartenlagen laden').click(); await flush();
+    panel.querySelector('button[aria-label="Auf Karte zeigen: Amtliche Kartenlage 2"]').click(); await flush();
+    expect(UA.RisLayer.showLocation).toHaveBeenCalledWith(ctx, expect.objectContaining({ id: 'A' }), { geometryId: 'second' }, expect.any(Function));
+  });
+
+  test('research opens and pages unmapped relatives without eagerly requesting the relation group', async () => {
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: 'c'.repeat(64), mapSha256: 'c'.repeat(64) } };
+    UA.RisCatalogue.loadRelatedRecords = jest.fn().mockResolvedValueOnce({ records: [records[3]], nextPage: 1, complete: true })
+      .mockResolvedValueOnce({ records: [records[2]], nextPage: null, complete: true });
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    expect(UA.RisCatalogue.loadRelatedRecords).not.toHaveBeenCalled();
+    const button = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Verknüpfte Vorgänge anzeigen');
+    expect(button).toBeDefined(); button.click(); await flush();
+    expect(panel.textContent).toContain(records[3].title);
+    button.click(); await flush();
+    expect(UA.RisCatalogue.loadRelatedRecords).toHaveBeenLastCalledWith('Bonn', 'A', 1, { snapshot: entry.snapshot });
+    expect(panel.textContent).toContain(records[2].title);
+    expect(button.hidden).toBe(true);
+  });
+
+  test('research search pages preserve checked results, query and snapshot, and ignore a superseded query', async () => {
+    const snapshot = { city: 'bonn', sha256: 'c'.repeat(64), mapSha256: 'c'.repeat(64) };
+    const entry = { ...records[0], snapshot };
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry, { nextPage: 1, snapshot });
+    panel.querySelector('.polCtxCheck').checked = true;
+    const button = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Suchtreffer laden');
+    expect(button).toBeDefined();
+    UA.PoliticalContext.search = jest.fn().mockResolvedValueOnce({ references: [entry, { ...records[2], snapshot }], meta: { nextPage: 2, snapshot, searchStatus: 'results-found' } });
+    button.click(); await flush();
+    expect(UA.PoliticalContext.search).toHaveBeenCalledWith(expect.objectContaining({ city: 'Bonn', searchTerms: ['Endenicher Straße'], page: 1, snapshot }));
+    expect(panel.querySelectorAll('.polCtxCheck')).toHaveLength(2);
+    expect(panel.querySelector('.polCtxCheck').checked).toBe(true);
+    const pending = deferred(); UA.PoliticalContext.search.mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ references: [records[1]], meta: { supported: true, searchStatus: 'results-found' } });
+    button.click(); await flush();
+    document.getElementById('polCtxSearchInput').value = 'Neue Suche';
+    await UA.PoliticalContext._runSearch(ctx);
+    pending.resolve({ references: [records[3]], meta: { nextPage: null, snapshot } }); await flush();
+    expect(panel.textContent).toContain(records[1].title);
+    expect(panel.textContent).not.toContain(records[3].title);
+  });
+
+  test('a focused far-away exact feature survives the following bounded viewport refresh', async () => {
+    const bundle = partitionSnapshot([]), shape = partitionFeature();
+    shape.geometry = { type: 'Point', coordinates: [7.45, 50.94] };
+    shape.bounds = [7.45, 50.94, 7.45, 50.94];
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: bundle.manifest.generation, mapSha256: bundle.manifest.generation }, geometryIds: ['shape'] };
+    const viewport = deferred();
+    UA.RisCatalogue.loadMap.mockResolvedValueOnce(bundle).mockReturnValueOnce(viewport.promise);
+    UA.RisCatalogue.loadGeometry = jest.fn().mockResolvedValue(shape);
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [], links: [], nextPage: null, complete: true });
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, entry);
+    panel.querySelector('button[aria-label="Auf Karte zeigen: Amtliche Kartenlage 1"]').click(); await flush();
+    const focused = risFeatures(ctx.map)[0];
+    expect(focused.getLatLng()).toEqual(L.latLng(50.94, 7.45));
+    expect(focused.isPopupOpen()).toBe(true);
+    viewport.resolve(partitionSnapshot([])); await flush();
+    expect(risFeatures(ctx.map)[0]).toBe(focused);
+    expect(focused.isPopupOpen()).toBe(true);
+  });
+
+  test('research refuses a later search page from a different snapshot without losing selections', async () => {
+    const snapshot = { city: 'bonn', sha256: 'c'.repeat(64), mapSha256: 'c'.repeat(64) };
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, { ...records[0], snapshot }, { nextPage: 1, snapshot });
+    panel.querySelector('.polCtxCheck').checked = true;
+    UA.PoliticalContext.search = jest.fn().mockResolvedValue({ references: [{ ...records[3], snapshot: { ...snapshot, sha256: 'new' } }], meta: { nextPage: null } });
+    [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Suchtreffer laden').click(); await flush();
+    expect(panel.querySelector('#polCtxStatus').textContent).toMatch(/Datenst.nd/);
+    expect(panel.textContent).not.toContain(records[3].title);
+    expect(panel.querySelector('.polCtxCheck').checked).toBe(true);
+  });
+
+  test('research forwards opaque search continuations on empty and later pages until null', async () => {
+    const snapshot = { city: 'bonn', sha256: 'c'.repeat(64), mapSha256: 'c'.repeat(64) };
+    const first = `ris2.first_page.${'a'.repeat(64)}`, second = `ris2.next_page.${'b'.repeat(64)}`;
+    UA.refreshContextOverlays(ctx);
+    const panel = await openSearch(ctx, { ...records[0], snapshot }, { nextPage: first, snapshot });
+    const button = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Suchtreffer laden');
+    expect(button).toBeDefined();
+    UA.PoliticalContext.search = jest.fn().mockResolvedValueOnce({ references: [], meta: { nextPage: second, snapshot, complete: false } })
+      .mockResolvedValueOnce({ references: [{ ...records[2], snapshot }], meta: { nextPage: null, snapshot } });
+    button.click(); await flush();
+    expect(UA.PoliticalContext.search).toHaveBeenLastCalledWith(expect.objectContaining({ page: first, snapshot }));
+    expect(button.hidden).toBe(false);
+    button.click(); await flush();
+    expect(UA.PoliticalContext.search).toHaveBeenLastCalledWith(expect.objectContaining({ page: second, snapshot }));
+    expect(button.hidden).toBe(true);
+    expect(panel.textContent).toContain(records[2].title);
+  });
+
+  test('dense asynchronous popup pages reflow and scroll without rebuilding or fetching details again', async () => {
+    const pending = deferred();
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() {
+      return this.classList.contains('leaflet-popup-content') ? (this.textContent.includes(records[0].title) ? 600 : 60) : 0;
+    } });
+    try {
+      UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+      UA.RisCatalogue.loadFeatureRecords = jest.fn().mockReturnValueOnce(pending.promise)
+        .mockResolvedValueOnce({ records: [records[2]], links: [{ recordId: 'C', accuracy: 'official' }], total: 2, nextPage: null, complete: true });
+      UA.RisCatalogue.loadRelatedRecords = jest.fn().mockResolvedValue({ records: [records[3]], nextPage: null, complete: true });
+      UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+      const layer = risFeatures(ctx.map)[0]; layer.openPopup(); await flush();
+      const root = document.querySelector('.leaflet-popup-content section');
+      pending.resolve({ records: [records[0]], links: [{ recordId: 'A', accuracy: 'official' }], total: 2, nextPage: 1, complete: true }); await flush();
+      const content = document.querySelector('.leaflet-popup-content');
+      expect(content.style.height).toBe('280px');
+      expect(content.classList.contains('leaflet-popup-scrolled')).toBe(true);
+      expect(content.querySelector('section')).toBe(root);
+      expect(UA.RisCatalogue.loadFeatureRecords).toHaveBeenCalledTimes(1);
+      [...root.querySelectorAll('button')].find(b => b.textContent === 'Verknüpfte Vorgänge anzeigen').click(); await flush();
+      expect(content.querySelector('section')).toBe(root);
+      expect(UA.RisCatalogue.loadFeatureRecords).toHaveBeenCalledTimes(1);
+      [...root.querySelectorAll('button')].find(b => b.textContent === 'Weitere Vorgänge laden').click(); await flush();
+      expect(UA.RisCatalogue.loadFeatureRecords).toHaveBeenLastCalledWith('Bonn', 'shape', 1, expect.any(Object));
+      expect(root.textContent).toContain(records[0].title);
+      expect(root.textContent).toContain(records[2].title);
+      expect(root.textContent).toContain(records[3].title);
+      expect([...root.querySelectorAll('button')].every(b => b.classList.contains('smallBtn'))).toBe(true);
+    } finally {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', descriptor);
+      else delete HTMLElement.prototype.offsetHeight;
+    }
+  });
+
+  test('lazy popup evidence and overview controls use the 44px action style', async () => {
+    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [{ ...records[0], locationCount: 65 }], links: [{ recordId: 'A', locationId: 'beyond-first-page', accuracy: 'official' }], nextPage: 1, complete: true });
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    risFeatures(ctx.map)[0].openPopup(); await flush();
+    expect([...document.querySelectorAll('.ua-ris-popup button')].every(b => b.classList.contains('smallBtn'))).toBe(true);
+    checkbox('Ratsvorgänge').click();
+    const overview = { ...polygon, bounds: [7, 50.6, 7.2, 50.8], properties: { overview: true, geometryId: 'overview:8/1/2', recordCount: 72, geometryCount: 40 } };
+    UA.RisCatalogue.loadMap.mockResolvedValue({ ...partitionSnapshot([overview]), overview: true });
+    checkbox('Ratsvorgänge').click(); await flush();
+    risFeatures(ctx.map)[0].openPopup();
+    expect([...document.querySelectorAll('.ua-ris-popup button')].every(b => b.classList.contains('smallBtn'))).toBe(true);
+    const css = fs.readFileSync(path.resolve(__dirname, '../../css/ua.css'), 'utf8');
+    expect(css).toMatch(/\.ua-ris-popup \.smallBtn\s*\{[^}]*min-height:\s*44px/s);
+  });
+
+  test('explicit layer disable cancels pending exact navigation without undoing the user toggle', async () => {
+    const bundle = partitionSnapshot([]), pending = deferred();
+    const entry = { ...records[0], snapshot: { city: 'bonn', sha256: bundle.manifest.generation, mapSha256: bundle.manifest.generation }, geometryIds: ['shape'] };
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.RisCatalogue.loadGeometry = jest.fn().mockReturnValue(pending.promise);
+    UA.RisCatalogue.loadFeatureRecords = jest.fn();
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    const navigation = UA.RisLayer.showLocation(ctx, entry, { geometryId: 'shape' }, () => true);
+    await flush();
+    checkbox('Ratsvorgänge').click();
+    pending.resolve(partitionFeature());
+    await navigation; await flush();
+    expect(checkbox('Ratsvorgänge').checked).toBe(false);
+    expect(risFeatures(ctx.map)).toHaveLength(0);
+    expect(document.querySelector('.leaflet-popup')).toBeNull();
+    expect(UA.RisCatalogue.loadFeatureRecords).not.toHaveBeenCalled();
+  });
+
+  test('official geometry without record locations offers no unreachable evidence lookup', async () => {
+    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [{ ...records[0], locationCount: 0 }], links: [{ recordId: 'A', locationId: 'official:shape', accuracy: 'official' }], nextPage: null, complete: true });
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    risFeatures(ctx.map)[0].openPopup(); await flush();
+    const popup = document.querySelector('.ua-ris-popup');
+    expect(popup.textContent).toContain('Amtlich verortet');
+    expect(popup.textContent).not.toContain('Ortsbeleg laden');
+    expect(popup.querySelector('a').href).toBe(validUrl);
+  });
+
+  test('popup reflow preserves a surviving focused link and scroll, and never steals outside focus', async () => {
+    const related = deferred();
+    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [records[0]], links: [{ recordId: 'A', accuracy: 'official' }], nextPage: null, complete: true });
+    UA.RisCatalogue.loadRelatedRecords = jest.fn().mockReturnValue(related.promise);
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    const layer = risFeatures(ctx.map)[0]; layer.openPopup(); await flush();
+    const content = document.querySelector('.leaflet-popup-content');
+    [...content.querySelectorAll('button')].find(b => b.textContent === 'Verknüpfte Vorgänge anzeigen').click();
+    const link = content.querySelector('a'); link.focus(); content.scrollTop = 123; content.scrollLeft = 9;
+    const popup = layer.getPopup(), update = popup.update.bind(popup);
+    jest.spyOn(popup, 'update').mockImplementation(() => { update(); content.scrollTop = content.scrollLeft = 0; return popup; });
+    related.resolve({ records: [records[3]], nextPage: 1, complete: true }); await flush();
+    expect(document.activeElement).toBe(link);
+    expect(content.scrollTop).toBe(123); expect(content.scrollLeft).toBe(9);
+    const outside = document.createElement('button'); document.body.append(outside);
+    const next = deferred(); UA.RisCatalogue.loadRelatedRecords.mockReturnValue(next.promise);
+    [...content.querySelectorAll('button')].find(b => b.textContent === 'Weitere verknüpfte Vorgänge laden').click();
+    outside.focus();
+    next.resolve({ records: [records[2]], nextPage: null, complete: true }); await flush();
+    expect(document.activeElement).toBe(outside);
+  });
+
+  test('last-page action disappearing during reflow moves its focus to the popup status', async () => {
+    const next = deferred();
+    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+    UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValueOnce({ records: [records[0]], links: [{ recordId: 'A', accuracy: 'official' }], total: 2, nextPage: 1, complete: true }).mockReturnValueOnce(next.promise);
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    risFeatures(ctx.map)[0].openPopup(); await flush();
+    const content = document.querySelector('.leaflet-popup-content');
+    const button = [...content.querySelectorAll('button')].find(b => b.textContent === 'Weitere Vorgänge laden');
+    button.focus(); button.click(); content.scrollTop = 87;
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.disabled).toBe(false);
+    button.click();
+    expect(UA.RisCatalogue.loadFeatureRecords).toHaveBeenCalledTimes(2);
+    next.resolve({ records: [records[2]], links: [{ recordId: 'C', accuracy: 'official' }], total: 2, nextPage: null, complete: true }); await flush();
+    expect(button.hidden).toBe(true);
+    expect(document.activeElement).toBe(content.querySelector('[role="status"]'));
+    expect(document.activeElement.textContent).toContain('2 von 2');
+    expect(content.scrollTop).toBe(87);
+  });
+
 });

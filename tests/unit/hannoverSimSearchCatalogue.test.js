@@ -161,3 +161,101 @@ test('retains all verified year-list entries when an auxiliary older document is
   expect(coverage.warnings.join(' ')).toContain('9999-2019');
   expect(coverage.complete).toBe(false);
 });
+
+test('persists year work at a document budget, resumes remaining details and preserves completed earlier years', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-history-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const { requestText, calls } = fixture({
+      years: { 2021: results([row('0001-2021', 'Alte Vorlage', '01.02.2021'), row('0002-2021', 'Zweite Vorlage', '02.02.2021')]),
+        2022: results([row('0001-2022', 'Neue Vorlage', '01.02.2022')]) },
+      documents: { 'DS/0001-2021': document('0001-2021'), 'DS/0002-2021': document('0002-2021'), 'DS/0001-2022': document('0001-2022') },
+    });
+    const first = await collectHannoverCatalogue({ ...options, to: '2022-12-31', checkpoint, workBudget: 1, requestText });
+    expect(first.records.map(record => record.id)).toEqual(['hannover-sim:0001-2021', 'hannover-sim:0002-2021']);
+    expect(first.coverage.warnings.join(' ')).toMatch(/fortsetz|offen/i);
+    expect(first.history.pending).toBe(true);
+    expect(first.history.interrupted).toBe(true);
+    const second = await collectHannoverCatalogue({ ...options, to: '2022-12-31', checkpoint, workBudget: 10, requestText });
+    expect(second.records.map(record => record.id)).toEqual(['hannover-sim:0001-2021', 'hannover-sim:0001-2022', 'hannover-sim:0002-2021']);
+    expect(second.history.pending).toBe(false);
+    expect(calls.filter(call => call.url === ROOT + 'DS/0001-2021')).toHaveLength(1);
+    const third = await collectHannoverCatalogue({ ...options, from: '2022-01-01', to: '2022-12-31', checkpoint, requestText });
+    expect(third.records).toHaveLength(3);
+    expect(third.coverage.from).toBe('2021-01-01');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('checkpoint retries failed detail metadata and detects changed source revisions', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-revision-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const broken = fixture({ years: { 2021: results([row('0001-2021')]) } });
+    const first = await collectHannoverCatalogue({ ...options, to: '2021-12-31', checkpoint, requestText: broken.requestText });
+    expect(first.records[0].locationEvidenceUnavailable).toBe(true);
+    expect(first.history.pending).toBe(true);
+    expect(first.history.interrupted).toBe(false);
+    const fixed = fixture({ years: { 2021: results([row('0001-2021')]) }, documents: { 'DS/0001-2021': document('0001-2021') } });
+    const second = await collectHannoverCatalogue({ ...options, to: '2021-12-31', checkpoint, requestText: fixed.requestText });
+    expect(second.records[0].locationEvidence).toHaveLength(1);
+    expect(second.history.pending).toBe(false);
+    const changed = fixture({ years: { 2021: results([row('0001-2021')]).replace('06.11.2026', '07.11.2026') },
+      documents: { 'DS/0001-2021': document('0001-2021', 'Geänderte Vorlage') } });
+    const third = await collectHannoverCatalogue({ ...options, to: '2021-12-31', checkpoint, requestText: changed.requestText });
+    expect(third.records[0].title).toBe('Geänderte Vorlage');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+
+test.each([false, true])('failed refreshed checkpoint details preserve their verification clock through publication (checkpoint only=%s)', async checkpointOnly => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const { refreshRisCatalogues } = require('../../scripts/refresh-ris-catalogues');
+  const { readRisSnapshot } = require('../../server/political-context/services/risSnapshot');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-stale-publication-'));
+  const verifiedAt = new Date('2026-11-01T11:00:00Z');
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const directory = path.join(folder, 'published');
+    const key = '0001-2021F1';
+    const parentKey = '0001-2021';
+    const relatedDocument = document(key).replace('<h3>Inhalt der Drucksache:',
+      `<h4>Verwandte Drucksachen:</h4><a href="${ROOT}DS/${parentKey}">0001/2021 (Originalvorlage)</a><h3>Inhalt der Drucksache:`);
+    const fresh = fixture({ years: { 2021: results([row(key)]) },
+      documents: { ['DS/' + key]: relatedDocument, ['DS/' + parentKey]: document(parentKey) } });
+    const collect = (now, requestText) => collectHannoverCatalogue({ ...options, to: '2021-12-31', now, checkpoint, requestText });
+    const publish = (now, value) => refreshRisCatalogues({ directory, cities: ['hannover'], now,
+      fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => value });
+    const original = await collect(verifiedAt, fresh.requestText);
+    await publish(verifiedAt, original);
+    const before = await readRisSnapshot(directory, 'hannover');
+    expect(before.features.features.length).toBeGreaterThan(0);
+    if (checkpointOnly) await fs.rm(directory, { recursive: true });
+    for (const now of [NOW, new Date('2026-11-10T11:00:00Z')]) {
+      const unavailable = fixture({ years: { 2021: results([row(key, 'Aktueller amtlicher Listentitel', '07.11.2026', 'Anfrage')]) } });
+      const next = await collect(now, unavailable.requestText);
+      expect(next.records.find(record => record.id === `hannover-sim:${key}`)).toMatchObject({ title: 'Aktueller amtlicher Listentitel', date: '2026-11-07', type: 'Anfrage',
+        relatedTo: `hannover-sim:${parentKey}`, locationEvidence: original.records[0].locationEvidence, locationEvidenceUnavailable: true, detailVerifiedAt: verifiedAt.toISOString() });
+      await publish(now, next);
+      const after = await readRisSnapshot(directory, 'hannover');
+      expect(after.manifest.generatedAt).toBe(verifiedAt.toISOString());
+      expect(after.manifest.coverage.warnings.join(' ')).toMatch(/Detail.*verifiziert|verifiziert.*Detail/i);
+      expect(after.features.features.map(item => item.geometry)).toEqual(before.features.features.map(item => item.geometry));
+      expect(after.records[0].locationAssessment.reasons).toContain('document_text_unavailable');
+    }
+    const expiry = new Date('2026-11-15T11:00:00Z');
+    const next = await collect(expiry, fixture({ years: { 2021: results([row(key, 'Aktueller amtlicher Listentitel')]) } }).requestText);
+    await expect(publish(expiry, next)).resolves.toMatchObject([{ status: 'unavailable' }]);
+    await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});

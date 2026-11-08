@@ -430,7 +430,7 @@ function boundedOption(value, fallback, maximum) {
  * `requestText(url, { timeoutMs, maxBytes, method?, body?, cookie? })` may supply
  * { url, status, contentType, text, cookies? }. POST is limited to the public search form.
  */
-async function collectHannoverCatalogue(options = {}) {
+async function collectHannoverYear(options = {}) {
   const now = new Date(options.now ?? Date.now());
   const today = BERLIN_DATE.format(now);
   const from = isoDate(options.from ?? `${Number(today.slice(0, 4)) - 1}-01-01`);
@@ -468,7 +468,7 @@ async function collectHannoverCatalogue(options = {}) {
   const bodies = new Set();
 
   function limited(message) {
-    if (options.strict) throw new Error(message);
+    if (options.strict && !options.yearWork) throw new Error(message);
     warnings.push(message);
   }
 
@@ -589,32 +589,58 @@ async function collectHannoverCatalogue(options = {}) {
   }
 
   const pending = [...candidates.values()];
+  const yearWork = options.yearWork;
+  if (yearWork) {
+    yearWork.documents = searchDocuments;
+    yearWork.details ||= {};
+    yearWork.failedDetails = [];
+    yearWork.deferred = [];
+    yearWork.discoveryVerifiedAt = now.toISOString();
+    await options.saveWork();
+  }
   const found = [];
   const relations = new Map();
   const answers = new Set();
   let attempted = 0;
-  while (pending.length && attempted < maxDocuments && performance.now() < deadline) {
+  while (pending.length && attempted < maxDocuments && (yearWork || performance.now() < deadline)) {
     // A bounded work queue keeps the allowed connections busy when one
     // individual document is slow, without increasing source concurrency.
     const next = pending.splice(0, Math.min(searchMode ? 128 : concurrency, maxDocuments - attempted));
     attempted += next.length;
     const related = [];
     const readDocument = async doc => {
+      const revision = `sim-v3:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
+      const retained = yearWork?.details[doc.key];
+      if (retained?.revision === revision && now.getTime() - Date.parse(retained.checkedAt) < 7 * DAY_MS) return retained.result;
+      const metadata = () => {
+        if (!retained?.result && !doc.searchTitle) return null;
+        return { related: [], locationEvidence: [], ...retained?.result,
+          ...(doc.searchTitle ? { title: doc.searchTitle, rawType: doc.searchType, date: doc.searchDate } : {}),
+          locationEvidenceUnavailable: true,
+          ...(retained?.result ? { detailVerifiedAt: retained.checkedAt } : {}) };
+      };
+      if (yearWork && (options.work.remaining <= 0 || performance.now() >= deadline)) {
+        yearWork.deferred.push(doc.key);
+        return metadata();
+      }
+      if (yearWork) options.work.remaining--;
       const read = () => load(doc.url, 'Drucksachen', text => parseDocument(text, doc, options.includeLocationEvidence), false, {}, searchMode);
       try {
+        let result;
         if (options.sourceCache) {
           // Include parser/evidence revision so an old title-only cache cannot
           // falsely claim that the public document text was examined.
-          const revision = `sim-v3:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
-          return await options.sourceCache.getOrLoad(doc.url, revision, async () => {
+          result = await options.sourceCache.getOrLoad(doc.url, revision, async () => {
             const value = await read();
             if (!value) throw new Error('Keine verifizierte öffentliche Drucksache');
             return value;
           });
+        } else {
+          result = await read();
+          if (!result && searchMode && doc.searchTitle) throw new Error('Keine verifizierte öffentliche Drucksache');
         }
-        const value = await read();
-        if (!value && searchMode && doc.searchTitle) throw new Error('Keine verifizierte öffentliche Drucksache');
-        return value;
+        if (yearWork && result) yearWork.details[doc.key] = { revision, checkedAt: now.toISOString(), result, doc };
+        return result;
       } catch (error) {
         if (!searchMode) throw error;
         const phase = doc.searchTitle ? 'Drucksachen' : 'Verknüpfte Drucksachen';
@@ -623,9 +649,8 @@ async function collectHannoverCatalogue(options = {}) {
         failures.set(phase, issue);
         // An auxiliary link has no verified year-list metadata to publish.
         // Its absence must not discard the independently verified year lists.
-        if (!doc.searchTitle) return null;
-        return { title: doc.searchTitle, rawType: doc.searchType, date: doc.searchDate, related: [],
-          locationEvidence: [], locationEvidenceUnavailable: true };
+        if (yearWork) yearWork.failedDetails.push(doc.key);
+        return metadata();
       }
     };
     const results = new Array(next.length);
@@ -655,6 +680,7 @@ async function collectHannoverCatalogue(options = {}) {
     }
     if (searchMode || attempted % 100 < concurrency || !pending.length) options.report?.({ phase: 'documents', attempted, found: found.length, pending: pending.length });
     pending.unshift(...related);
+    if (yearWork) { yearWork.cursor = attempted; await options.saveWork(); }
   }
   if (pending.length) {
     if (attempted >= maxDocuments) limited(`Drucksachenlimit (${maxDocuments}) erreicht; ${pending.length} verlinkte Drucksachen bleiben offen.`);
@@ -662,6 +688,7 @@ async function collectHannoverCatalogue(options = {}) {
   }
   for (const [phase, issue] of failures) warnings.push(`${phase}: ${issue.count} Abruf(e) fehlgeschlagen. Erster Fehler: ${issue.detail}.`);
 
+  if (yearWork?.deferred.length) warnings.push(`Quellenarbeit ist fortsetzbar; ${yearWork.deferred.length} Drucksachen bleiben offen.`);
   const records = found.map(({ doc, result }) => {
     const type = answers.has(doc.key) || /^antwort\b/i.test(result.title)
       ? 'Verwaltungsantwort' : inferType('', result.rawType);
@@ -673,16 +700,66 @@ async function collectHannoverCatalogue(options = {}) {
       url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
       ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
       ...(result.locationEvidenceUnavailable ? { locationEvidenceUnavailable: true } : {}),
+      ...(result.detailVerifiedAt ? { detailVerifiedAt: result.detailVerifiedAt } : {}),
       ...(result.locationEvidenceTruncated ? { locationEvidenceTruncated: true } : {}),
     };
   });
   records.sort((a, b) => a.id.localeCompare(b.id));
   const observed = [...dates].sort();
-  return {
+  const catalogue = {
     records,
     sources: [...sources],
     coverage: { from: searchMode ? from : observed[0] || null, to: searchMode ? to : observed.at(-1) || null,
       bodies: [...bodies].sort(), complete: false, warnings, ...(searchMode ? { scope: 'citywide' } : {}) },
+  };
+  if (yearWork) {
+    yearWork.pending = Boolean(yearWork.failedDetails.length || yearWork.deferred.length || pending.length);
+    yearWork.catalogue = catalogue;
+    await options.saveWork();
+  }
+  return catalogue;
+}
+
+async function collectHannoverCatalogue(options = {}) {
+  if (!options.checkpoint || options.discovery !== 'search') return collectHannoverYear(options);
+  const now = new Date(options.now ?? Date.now());
+  const today = BERLIN_DATE.format(now);
+  const from = isoDate(options.from ?? `${Number(today.slice(0, 4)) - 1}-01-01`);
+  const to = isoDate(options.to ?? today);
+  if (!from || !to || from > to) throw new RangeError('Ungültiger Zeitraum für den Hannover-SIM-Katalog');
+  const scope = `public-year-search:${options.includeLocationEvidence === true}`;
+  const revision = 'sim-history-v1';
+  const requested = Array.from({ length: Number(to.slice(0, 4)) - Number(from.slice(0, 4)) + 1 }, (_, i) => Number(from.slice(0, 4)) + i);
+  const years = [...new Set([...await options.checkpoint.years(SOURCE, scope), ...requested])].sort((a, b) => a - b);
+  if (options.workBudget !== undefined && (!Number.isSafeInteger(options.workBudget) || options.workBudget < 0)) throw new TypeError('Invalid RIS work budget');
+  const work = { remaining: options.workBudget ?? Infinity };
+  const deadline = performance.now() + (options.maxDurationMs ?? 58 * 60_000);
+  const catalogues = [];
+  const pendingYears = [];
+  let interrupted = false;
+  for (const year of years) {
+    const state = await options.checkpoint.read(SOURCE, scope, year, revision) || {};
+    const requestedYear = requested.includes(year);
+    if (requestedYear && work.remaining > 0 && performance.now() < deadline) {
+      await collectHannoverYear({ ...options, yearWork: state, work,
+        from: year === Number(from.slice(0, 4)) ? from : `${year}-01-01`,
+        to: year === Number(to.slice(0, 4)) ? to : `${year}-12-31`,
+        maxDurationMs: Math.max(1, Math.floor(deadline - performance.now())),
+        saveWork: () => options.checkpoint.write(SOURCE, scope, year, revision, state),
+      });
+    } else if (requestedYear) { pendingYears.push(year); interrupted = true; }
+    if (state.deferred?.length) interrupted = true;
+    if (state.catalogue) catalogues.push(state.catalogue);
+    if (state.pending && !pendingYears.includes(year)) pendingYears.push(year);
+  }
+  const records = [...new Map(catalogues.flatMap(item => item.records).map(record => [record.id, record])).values()].sort((a, b) => a.id.localeCompare(b.id));
+  const coverage = catalogues.map(item => item.coverage);
+  return { records, sources: [...new Set(catalogues.flatMap(item => item.sources))],
+    history: { pending: pendingYears.length > 0, interrupted, pendingYears, requestedFrom: from, requestedTo: to },
+    coverage: { from: coverage.map(item => item.from).filter(Boolean).sort()[0] || null,
+      to: coverage.map(item => item.to).filter(Boolean).sort().at(-1) || null,
+      bodies: [...new Set(coverage.flatMap(item => item.bodies))].sort(), complete: false, scope: 'citywide',
+      warnings: [...new Set(coverage.flatMap(item => item.warnings)), ...(pendingYears.length ? ['Historische Quellenarbeit ist fortsetzbar; Jahrgänge bleiben offen.'] : [])] },
   };
 }
 

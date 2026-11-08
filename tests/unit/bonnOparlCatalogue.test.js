@@ -448,3 +448,118 @@ test('keeps simultaneous caller-injected readers isolated', async () => {
   expect(first.records.map(record => record.id)).toEqual([paperId(42)]);
   expect(second.records.map(record => record.id)).toEqual([paperId(43)]);
 });
+
+test('resumes official page work from a durable cursor and retains completed historical years', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-history-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const fetchJsonImpl = fetchFixture({
+      1: { data: [paper(10, { date: '2014-05-01' })], links: { next: pageUrl(2), last: pageUrl(3) } },
+      2: { data: [original], links: { prev: pageUrl(1), next: pageUrl(3) } },
+      3: { data: [answer], links: { prev: pageUrl(2) } },
+    });
+    const first = await collectBonnCatalogue({ ...opts, lookbackYears: 12, checkpoint, workBudget: 1, fetchJsonImpl });
+    expect(first.records.map(record => record.id)).toEqual([paperId(43)]);
+    expect(first.coverage.complete).toBe(false);
+    const second = await collectBonnCatalogue({ ...opts, lookbackYears: 12, checkpoint, workBudget: 3, fetchJsonImpl });
+    expect(second.records.map(record => record.id)).toEqual(expect.arrayContaining([paperId(10), paperId(42), paperId(43)]));
+    expect(second.coverage.complete).toBe(true);
+    expect(second.coverage.from).toBe('2014-05-01');
+    const third = await collectBonnCatalogue({ ...opts, checkpoint, workBudget: 3, fetchJsonImpl });
+    expect(third.records).toHaveLength(3);
+    expect(third.coverage.from).toBe('2014-05-01');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('reconciles a corrected Paper year and an undated deletion by stable ID', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-year-correction-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const collect = data => collectBonnCatalogue({ ...opts, checkpoint, fetchJsonImpl: fetchFixture({
+      1: { data: [...data, answer], pagination: { currentPage: 1, totalPages: 1, totalElements: data.length + 1 } },
+    }) });
+    expect((await collect([paper(42, { name: 'Old title', date: '2025-01-01' })])).coverage.complete).toBe(true);
+    const corrected = await collect([paper(42, { name: 'Corrected title', date: '2026-01-01' })]);
+    expect(corrected.records.find(record => record.id === paperId(42))).toMatchObject({ title: 'Corrected title', date: '2026-01-01' });
+    expect(corrected.coverage.complete).toBe(true);
+    const deleted = await collect([{ id: paperId(42), deleted: true }]);
+    expect(deleted.records.map(record => record.id)).toEqual([paperId(43)]);
+    expect(deleted.coverage.complete).toBe(true);
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test.each([[false, 'annual'], [false, 'cursor'], [true, 'annual'], [true, 'cursor']])(
+  'recovers a Paper move/deletion after interruption (deleted=%s, write=%s)', async (deleted, phase) => {
+    const fs = require('node:fs/promises');
+    const os = require('node:os');
+    const path = require('node:path');
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-page-journal-'));
+    try {
+      const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+      const checkpoint = createRisSourceCheckpoint({ directory: folder });
+      const payload = changed => ({ 1: { data: [changed, answer], pagination: { currentPage: 1, totalPages: 1, totalElements: 2 } } });
+      await collectBonnCatalogue({ ...opts, checkpoint, fetchJsonImpl: fetchFixture(payload(paper(42, { name: 'Old title', date: '2025-01-01' }))) });
+      let interrupted = false;
+      const unreliable = { ...checkpoint, write: async (source, scope, year, revision, work) => {
+        const target = phase === 'annual' ? !scope.endsWith(':cursor') && year === 2026 : scope.endsWith(':cursor') && !work.pendingPage;
+        if (!interrupted && target) { interrupted = true; throw new Error('Simulated interruption during annual reconciliation'); }
+        return checkpoint.write(source, scope, year, revision, work);
+      } };
+      const changed = deleted ? { id: paperId(42), deleted: true } : paper(42, { name: 'Corrected title', date: '2026-01-01' });
+      const failed = await collectBonnCatalogue({ ...opts, checkpoint: unreliable, fetchJsonImpl: fetchFixture(payload(changed)) });
+      expect(interrupted).toBe(true);
+      expect(failed.coverage.complete).toBe(false);
+      const recovered = await collectBonnCatalogue({ ...opts, workBudget: 0,
+        checkpoint: createRisSourceCheckpoint({ directory: folder }), fetchJsonImpl: fetchFixture(payload(changed)) });
+      expect(recovered.coverage.complete).toBe(true);
+      if (deleted) expect(recovered.records.map(record => record.id)).toEqual([paperId(43)]);
+      else expect(recovered.records.find(record => record.id === paperId(42))).toMatchObject({ title: 'Corrected title', date: '2026-01-01' });
+      expect(recovered.coverage.warnings.join(' ')).not.toMatch(/mehrfach/);
+    } finally { await fs.rm(folder, { recursive: true, force: true }); }
+  }
+);
+
+test.each([false, true])('recovers pending December page work in January without a source scan (deleted=%s)', async deleted => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-calendar-journal-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const payload = changed => ({ 1: { data: [changed, answer], pagination: { currentPage: 1, totalPages: 1, totalElements: 2 } } });
+    const december = { ...opts, now: '2026-12-31T23:55:00Z' };
+    await collectBonnCatalogue({ ...december, checkpoint, fetchJsonImpl: fetchFixture(payload(paper(42, { name: 'Old title', date: '2025-01-01' }))) });
+    let interrupted = false;
+    const unreliable = { ...checkpoint, write: async (source, scope, year, revision, work) => {
+      // A correction loses its old durable copy before the destination write;
+      // a deletion is interrupted before removing the old durable live copy.
+      if (!interrupted && !scope.endsWith(':cursor') && year === (deleted ? 2025 : 2026)) {
+        interrupted = true;
+        throw new Error('Simulated annual write interruption on New Year Eve');
+      }
+      return checkpoint.write(source, scope, year, revision, work);
+    } };
+    const changed = deleted ? { id: paperId(42), deleted: true } : paper(42, { name: 'Corrected title', date: '2026-01-01' });
+    await collectBonnCatalogue({ ...december, checkpoint: unreliable, fetchJsonImpl: fetchFixture(payload(changed)) });
+    expect(interrupted).toBe(true);
+    const reopened = createRisSourceCheckpoint({ directory: folder });
+    const recovered = await collectBonnCatalogue({ ...opts, now: '2027-01-01T00:05:00Z', workBudget: 0,
+      checkpoint: reopened, fetchJsonImpl: fetchFixture(payload(changed)) });
+    if (deleted) expect(recovered.records.map(record => record.id)).toEqual([paperId(43)]);
+    else expect(recovered.records.find(record => record.id === paperId(42))).toMatchObject({ title: 'Corrected title', date: '2026-01-01' });
+    expect(recovered.coverage.complete).toBe(true);
+    const scope = `official-pages:${DIRECT_PAPER_LIST_URL}?page=1&limit=100&size=100`;
+    const saved = await reopened.read('bonn-oparl', scope, 2026, 'bonn-pages-v1');
+    expect(saved.papers[paperId(42)]).toMatchObject(deleted ? { deleted: true } : { name: 'Corrected title' });
+    expect((await reopened.read('bonn-oparl', `${scope}:cursor`, 2026, 'bonn-pages-v1')).pendingPage).toBeUndefined();
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});

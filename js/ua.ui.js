@@ -3,6 +3,7 @@
   const COMPACT_PANEL_QUERY = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
   const boundPanelButtons = new WeakSet();
   const boundLegendButtons = new WeakSet();
+  const mapOccludedPanels = new WeakMap();
 
   UA.bindDom = function bindDom(ctx){
     const ui = {};
@@ -209,6 +210,22 @@
     ui.legendBtn.title = label;
   }
 
+  // Temporary map-menu occlusion must not overwrite the user's panel choice.
+  UA.setPanelMapOccluded = function setPanelMapOccluded(ctx, occluded) {
+    const ui = ctx?.ui;
+    if (!ui?.panelEl || !ui.collapseBtn) return;
+    if (occluded) {
+      if (!mapOccludedPanels.has(ui.panelEl)) {
+        mapOccludedPanels.set(ui.panelEl, ui.panelEl.classList.contains('collapsed'));
+        setCollapsed(ui, true);
+      }
+    } else if (mapOccludedPanels.has(ui.panelEl)) {
+      const previous = mapOccludedPanels.get(ui.panelEl);
+      mapOccludedPanels.delete(ui.panelEl);
+      setCollapsed(ui, previous);
+    }
+  };
+
   UA.bindPanelDisclosure = function bindPanelDisclosure(ctx){
     const ui = ctx && ctx.ui;
     if (!ui) return;
@@ -222,13 +239,16 @@
         ? "ua_panel_collapsed_mobile"
         : "ua_panel_collapsed";
       const restoreCollapsed = () => {
+        mapOccludedPanels.delete(ui.panelEl);
         const compact = !!(compactQuery && compactQuery.matches);
         const saved = (() => { try { return localStorage.getItem(preferenceKey()); } catch { return null; } })();
         setCollapsed(ui, saved === "1" || (saved !== "0" && compact));
       };
       restoreCollapsed();
       ui.collapseBtn.addEventListener('click', () => {
-        setCollapsed(ui, !ui.panelEl.classList.contains('collapsed'), preferenceKey());
+        const collapsed = ui.panelEl.classList.contains('collapsed');
+        if (compactQuery?.matches) UA.closeMapControls?.(ctx);
+        setCollapsed(ui, !collapsed, preferenceKey());
       });
       if (compactQuery && typeof compactQuery.addEventListener === 'function') {
         compactQuery.addEventListener('change', restoreCollapsed);
@@ -242,8 +262,9 @@
       setLegendExpanded(ui, ui.legendBox.style.display === "block");
       ui.legendBtn.addEventListener('click', () => {
         const expanded = ui.legendBox.style.display !== "block";
-        if (expanded && ui.panelEl && ui.collapseBtn && ui.panelEl.classList.contains('collapsed')) {
-          setCollapsed(ui, false);
+        if (expanded && ui.panelEl && ui.collapseBtn) {
+          if (window.matchMedia?.(COMPACT_PANEL_QUERY).matches) UA.closeMapControls?.(ctx);
+          if (ui.panelEl.classList.contains('collapsed')) setCollapsed(ui, false);
         }
         setLegendExpanded(ui, expanded);
       });

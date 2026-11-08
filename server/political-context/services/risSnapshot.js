@@ -149,8 +149,8 @@ function normalizeCoverage(value) {
   };
 }
 
-function normalizeRecords(values, hosts, count, collectLocations = value => value.locations) {
-  if (!Array.isArray(values) || !values.length || values.length > MAX_RECORDS || (count !== undefined && values.length !== count)) {
+function normalizeRecords(values, hosts, count, collectLocations = value => value.locations, maximum = MAX_RECORDS, maxLocations = MAX_LOCATIONS_PER_RECORD) {
+  if (!Array.isArray(values) || !values.length || values.length > maximum || (count !== undefined && values.length !== count)) {
     throw new Error('Invalid RIS record count');
   }
   const byId = new Map();
@@ -171,7 +171,7 @@ function normalizeRecords(values, hosts, count, collectLocations = value => valu
     };
     if (value.relatedTo != null) record.relatedTo = sourceId(value.relatedTo);
     const locations = collectLocations(value, id);
-    if (!validLocations(locations)) throw new Error('Invalid RIS record locations');
+    if (!validLocations(locations, maxLocations)) throw new Error('Invalid RIS record locations');
     if (locations !== undefined) record.locations = locations;
     if (!validLocationAssessment(value.locationAssessment, locations)) throw new Error('Invalid RIS location assessment');
     if (value.locationAssessment !== undefined) record.locationAssessment = {
@@ -191,9 +191,9 @@ function mapFeature(recordId, geometry, accuracy, label, locationIndex) {
   return { type: 'Feature', geometry: { type: geometry.type, coordinates: geometry.coordinates }, properties };
 }
 
-function collectSourceLocations(record, id, features) {
+function collectSourceLocations(record, id, features, maximum = MAX_LOCATIONS_PER_RECORD) {
   const { locations, geometry, locationSource, locationLabel } = record;
-  if (locations !== undefined && (!Array.isArray(locations) || locations.length > MAX_LOCATIONS_PER_RECORD)) {
+  if (locations !== undefined && (!Array.isArray(locations) || locations.length > maximum)) {
     throw new Error('Invalid RIS record locations');
   }
   if (validGeometry(geometry) && validAccuracy(locationSource) && (!locations?.length || locationSource === 'official')) {
@@ -334,7 +334,8 @@ async function installAsset(directory, { bytes, reference }, kind) {
 }
 
 /** Write immutable assets first and publish their manifest in a single rename. */
-async function writeRisSnapshot(directory, city, catalogue, { now = Date.now } = {}) {
+async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, schemaVersion = 1 } = {}) {
+  if (schemaVersion === 2) return require('./risPartitionedSnapshot').writePartitionedSnapshot(directory, city, catalogue, { now });
   assertCity(city);
   if (!isObject(catalogue)) throw new Error('Invalid RIS catalogue');
   const { locationRevision } = catalogue;
@@ -375,6 +376,7 @@ async function readRisSnapshot(directory, city) {
   assertCity(city);
   const bytes = await readBounded(path.join(directory, `${city}.json`), MAX_MANIFEST_BYTES, 'manifest');
   const value = decodeJson(bytes, 'manifest');
+  if (value?.schemaVersion === 2) return require('./risPartitionedSnapshot').readPartitionedSnapshot(directory, city, value);
   if (!isObject(value) || value.schemaVersion !== SCHEMA_VERSION) throw new Error('Unsupported RIS snapshot schema version');
   if (value.city !== city) throw new Error('RIS snapshot city does not match the requested city');
   const { locationRevision } = value;
@@ -403,4 +405,7 @@ async function readRisSnapshot(directory, city) {
   return { manifest, records, features };
 }
 
-module.exports = { writeRisSnapshot, readRisSnapshot, RIS_FALLBACK_MAX_AGE_MS };
+module.exports = { writeRisSnapshot, readRisSnapshot, RIS_FALLBACK_MAX_AGE_MS,
+  enumerateSnapshotAssets: (...args) => require('./risPartitionedSnapshot').enumerateSnapshotAssets(...args),
+  partitionInternals: { normalizeDescriptor, assertCity, normalizeSources, normalizeCoverage, normalizeRecords, collectSourceLocations, normalizeRefreshFailure, timestamp, readBounded, decodeJson, readAsset, installAsset, withTemporaryFile, digest, validLocationRevision, validLocationAssessmentSummary, summarizeLocationAssessments }
+};

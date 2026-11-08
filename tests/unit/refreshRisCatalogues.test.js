@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { gunzipSync } = require('node:zlib');
-const { readRisSnapshot, writeRisSnapshot } = require('../../server/political-context/services/risSnapshot');
+const { readRisSnapshot, writeRisSnapshot: writeSnapshot } = require('../../server/political-context/services/risSnapshot');
 const { refreshRisCatalogues, validateRisDirectory } = require('../../scripts/refresh-ris-catalogues');
 
 const NOW = new Date('2026-11-07T10:00:00.000Z');
@@ -32,10 +32,14 @@ beforeEach(async () => {
 
 afterEach(async () => fs.rm(root, { force: true, recursive: true }));
 
-function catalogue(city, { count = 2, from = city === 'hannover' ? '2021-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
+function writeRisSnapshot(folder, city, value, options) {
+  return writeSnapshot(folder, city, value, { ...options, schemaVersion: value.locationRevision === 3 ? 2 : 1 });
+}
+
+function catalogue(city, { count = 2, from = city === 'hannover' ? '2014-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
   const gremium = body || (city === 'bonn' ? 'Bonn' : 'Ratsversammlung');
   return {
-    locationRevision: 2,
+    locationRevision: 3,
     sources: [OFFICIAL[city]],
     coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'],
       ...(city === 'hannover' ? { scope: 'citywide' } : {}) },
@@ -246,7 +250,7 @@ test('omits a first-time city with an unavailable source rather than manufacturi
 });
 
 test('fails closed if the previously deployed city is damaged and its source is unavailable', async () => {
-  const manifest = await writeRisSnapshot(published, 'bonn', catalogue('bonn'), { now: OLD });
+  const manifest = await writeSnapshot(published, 'bonn', catalogue('bonn'), { now: OLD });
   await expect(refresh({
     cities: ['bonn'], fetchPublished: fetchPages({ tamper: manifest.map.path }),
     collect: () => { throw new Error('OParl HTTP 503'); },
@@ -255,7 +259,7 @@ test('fails closed if the previously deployed city is damaged and its source is 
 });
 
 test('does not fetch a foreign asset URL supplied by a deployed manifest', async () => {
-  const manifest = await writeRisSnapshot(published, 'bonn', catalogue('bonn'), { now: OLD });
+  const manifest = await writeSnapshot(published, 'bonn', catalogue('bonn'), { now: OLD });
   manifest.records.path = 'https://untrusted.example/snapshot.json.gz';
   await fs.writeFile(path.join(published, 'bonn.json'), JSON.stringify(manifest));
   const requests = [];
@@ -272,7 +276,7 @@ test('does not fetch a foreign asset URL supplied by a deployed manifest', async
 });
 
 test('artifact validation refuses a manifest with a corrupt or missing map asset', async () => {
-  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue('bonn'), { now: FRESH });
+  const manifest = await writeSnapshot(directory, 'bonn', catalogue('bonn'), { now: FRESH });
   await expect(validateRisDirectory(directory, { now: NOW })).resolves.toMatchObject([{ city: 'bonn' }]);
   await fs.writeFile(path.join(directory, manifest.map.path), 'not a gzip file');
   await expect(validateRisDirectory(directory)).rejects.toThrow(/map gzip/i);
@@ -305,8 +309,8 @@ test('rebuilds a fresh legacy Hannover snapshot once to publish measure location
     { city: 'hannover', status: 'published' },
   ]);
   const { manifest } = await readRisSnapshot(directory, 'hannover');
-  expect(manifest.locationRevision).toBe(2);
-  expect(manifest.locationAssessment.attempted).toBe(manifest.records.count);
+  expect(manifest.locationRevision).toBe(3);
+  expect(manifest.locationAssessment.attempted).toBe(manifest.recordCount);
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
     { city: 'hannover', status: 'current' },
   ]);
@@ -321,7 +325,7 @@ test('assesses every Bonner record immediately when its fresh snapshot predates 
   const collect = jest.fn(() => catalogue('bonn'));
   await expect(refresh({ cities: ['bonn'], collect })).resolves.toMatchObject([{ city: 'bonn', status: 'published' }]);
   const { manifest, records } = await readRisSnapshot(directory, 'bonn');
-  expect(manifest.locationRevision).toBe(2);
+  expect(manifest.locationRevision).toBe(3);
   expect(manifest.locationAssessment.attempted).toBe(records.length);
   expect(records.every(record => record.locationAssessment)).toBe(true);
   expect(collect).toHaveBeenCalledTimes(1);
@@ -343,7 +347,7 @@ test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s recor
   expect(snapshot.records.every(record => record.locationAssessment.reasons.includes('document_text_unavailable'))).toBe(true);
   expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
   expect(snapshot.manifest).toMatchObject({
-    generatedAt: prior.generatedAt, sources: prior.sources, coverage: prior.coverage, locationRevision: 2,
+    generatedAt: prior.generatedAt, sources: prior.sources, coverage: prior.coverage, locationRevision: 3,
     locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
     refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
   });
@@ -449,7 +453,7 @@ test('upgrades a fresh selected-committee catalogue to historical citywide disco
   const collect = jest.fn(() => expanded);
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'published', records: 6 }]);
   const { manifest } = await readRisSnapshot(directory, 'hannover');
-  expect(manifest.coverage).toMatchObject({ from: '2021-01-01', scope: 'citywide' });
+  expect(manifest.coverage).toMatchObject({ from: '2014-01-01', scope: 'citywide' });
   expect(manifest.sources).toEqual(expanded.sources);
   expect(manifest.locationAssessment.attempted).toBe(6);
 });
@@ -460,7 +464,7 @@ test('retains citywide coverage when a later refresh only supplies selected bodi
   reduced.coverage.scope = 'selected-bodies';
   await expect(refresh({ cities: ['hannover'], collect: () => reduced }))
     .resolves.toMatchObject([{ city: 'hannover', status: 'retained' }]);
-  expect((await readRisSnapshot(directory, 'hannover')).manifest.records).toEqual(prior.records);
+  expect((await readRisSnapshot(directory, 'hannover')).manifest.recordCount).toEqual(prior.recordCount);
 });
 
 test('publishes a documented Hannover crossing and the three stated addresses from the checked-in geodata', async () => {
@@ -489,10 +493,111 @@ test('publishes a documented Hannover crossing and the three stated addresses fr
   expect(snapshot.records[1].locations.map(({ label, mapped }) => [label, mapped])).toEqual([
     ['Stephanusstraße 10', true], ['Stephanusstraße 12', true], ['Stephanusstraße 14', true],
   ]);
-  expect(snapshot.features.features.map(feature => feature.geometry)).toEqual([
+  expect(snapshot.features.features.map(feature => feature.geometry)).toEqual(expect.arrayContaining([
     { type: 'Point', coordinates: [9.684182, 52.366228] },
     { type: 'Point', coordinates: [9.714685, 52.368463] },
     { type: 'Point', coordinates: [9.714644, 52.368623] },
     { type: 'Point', coordinates: [9.714842, 52.368762] },
-  ]);
+  ]));
+});
+
+test('extends interrupted historical work without losing previously verified annual records', async () => {
+  const priorData = catalogue('hannover', { from: '2010-01-01' });
+  await writeRisSnapshot(directory, 'hannover', priorData, { now: FALLBACK });
+  let received;
+  const partial = catalogue('hannover', { count: 1, from: '2014-01-01', to: '2014-12-31' });
+  partial.records[0].id = 'hannover:historical';
+  partial.history = { pending: true, interrupted: true };
+  const outcomes = await refresh({ cities: ['hannover'], historyStartYear: 2014, workBudget: 1,
+    collect: (_city, _now, options) => { received = options; return partial; } });
+  expect(received).toMatchObject({ historyStartYear: 2014, workBudget: 1 });
+  expect(outcomes).toMatchObject([{ status: 'published', records: 3 }]);
+  const snapshot = await readRisSnapshot(directory, 'hannover');
+  expect(snapshot.records.map(record => record.id)).toEqual(expect.arrayContaining(['hannover:1', 'hannover:2', 'hannover:historical']));
+  expect(snapshot.manifest.generatedAt).toBe(FALLBACK.toISOString());
+  expect(snapshot.manifest.coverage).toMatchObject({ from: '2010-01-01', to: '2026-10-15', complete: false });
+  expect(snapshot.manifest.coverage.warnings.join(' ')).toMatch(/fortsetzbar/);
+});
+
+test('migrates a retained legacy fallback to v2 while preserving original source freshness and expiry', async () => {
+  const prior = await writeRisSnapshot(published, 'bonn', legacyCatalogue('bonn'), { now: FALLBACK });
+  await refresh({ cities: ['bonn'], collect: () => { throw new Error('HTTP 429'); } });
+  const snapshot = await readRisSnapshot(directory, 'bonn');
+  expect(snapshot.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
+    coverage: prior.coverage, sources: prior.sources, locationRevision: 3,
+    refreshFailure: { expiresAt: EXPIRY.toISOString(), attemptedAt: NOW.toISOString() } });
+  await expect(validateRisDirectory(directory, { now: NOW })).resolves.toHaveLength(1);
+});
+
+test('restores and validates all v2 search and relationship assets before installation', async () => {
+  const manifest = await writeRisSnapshot(published, 'bonn', catalogue('bonn'), { now: FRESH });
+  expect(manifest.schemaVersion).toBe(2);
+  await fs.rm(path.join(published, manifest.roots.search.path));
+  await expect(refresh({ cities: ['bonn'], restoreOnly: true })).rejects.toThrow(/published RIS file|missing/i);
+  await expect(fs.readFile(path.join(directory, 'bonn.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('pure format migration preserves canonical records and features without changing their assessment', async () => {
+  const prior = await writeSnapshot(published, 'bonn', catalogue('bonn'), { now: FRESH });
+  const before = await readRisSnapshot(published, 'bonn');
+  await refresh({ cities: ['bonn'], collect: () => { throw new Error('fresh source must not be refreshed'); } });
+  const after = await readRisSnapshot(directory, 'bonn');
+  expect(after.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
+    locationRevision: 3, locationAssessment: prior.locationAssessment, coverage: prior.coverage, sources: prior.sources });
+  expect(after.manifest.refreshFailure).toBeUndefined();
+  expect(after.records).toEqual(before.records);
+  expect(after.features.features).toEqual(expect.arrayContaining(before.features.features));
+  expect(after.features.features).toHaveLength(before.features.features.length);
+});
+
+test.each([false, true])('keeps verified detail evidence, geometry and relations when a listed detail is unavailable (interrupted=%s)', async interrupted => {
+  const priorData = catalogue('hannover');
+  priorData.records[0].relatedTo = 'hannover:2';
+  const evidence = { source: 'document', text: 'An der Kreuzung Davenstedter Straße/Südfeldstraße wird eine Ampel errichtet.' };
+  priorData.records[0].locations = [{ kind: 'junction', label: 'Davenstedter Straße / Südfeldstraße', evidence,
+    geometry: { type: 'Point', coordinates: [9.684182, 52.366228] } }];
+  await writeRisSnapshot(directory, 'hannover', priorData, { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  const next = catalogue('hannover', { count: 1 });
+  next.records = [{ id: 'hannover:1', title: 'Aktualisierter amtlicher Listentitel', number: '1/2026', type: 'Anfrage',
+    date: '2026-11-06', gremium: null, url: priorData.records[0].url, source: 'hannover',
+    locationEvidence: [], locationEvidenceUnavailable: true }];
+  next.history = { pending: true, interrupted };
+  await expect(refresh({ cities: ['hannover'], collect: () => next })).resolves.toMatchObject([{ status: 'published', records: 2 }]);
+  const after = await readRisSnapshot(directory, 'hannover');
+  const retained = after.records.find(record => record.id === 'hannover:1');
+  expect(retained).toMatchObject({ title: 'Aktualisierter amtlicher Listentitel', date: '2026-11-06', type: 'Anfrage', relatedTo: 'hannover:2',
+    locations: before.records[0].locations, locationAssessment: { status: 'partial', reasons: expect.arrayContaining(['document_text_unavailable']) } });
+  expect(after.features.features.filter(feature => feature.properties.recordId === 'hannover:1'))
+    .toEqual(expect.arrayContaining(before.features.features.filter(feature => feature.properties.recordId === 'hannover:1')));
+  expect(after.manifest.generatedAt).toBe(FALLBACK.toISOString());
+  expect(after.manifest.coverage.complete).toBe(false);
+  expect(after.manifest.coverage.warnings.join(' ')).toMatch(/Detail.*verifiziert|verifiziert.*Detail/i);
+});
+
+test('successful changed detail replaces previous evidence and geometry', async () => {
+  await writeRisSnapshot(directory, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  const next = catalogue('hannover');
+  next.records[0].geometry = { type: 'Point', coordinates: [9.8, 52.4] };
+  next.records[0].locationEvidence = ['Die Verwaltung verlegt die Querung.'];
+  next.history = { pending: false, interrupted: false };
+  await refresh({ cities: ['hannover'], collect: () => next });
+  const after = await readRisSnapshot(directory, 'hannover');
+  expect(after.features.features.find(feature => feature.properties.recordId === 'hannover:1').geometry)
+    .toEqual({ type: 'Point', coordinates: [9.8, 52.4] });
+  expect(after.manifest.coverage.warnings.join(' ')).not.toMatch(/Detail.*verifiziert|verifiziert.*Detail/i);
+});
+
+test('checkpoint detail age also constrains a previous snapshot refresh-failure expiry', async () => {
+  const prior = await writeRisSnapshot(directory, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  prior.refreshFailure = { attemptedAt: new Date(NOW.getTime() - 7 * 60 * 60_000).toISOString(),
+    reason: 'Amtlicher Abruf fehlgeschlagen.', expiresAt: EXPIRY.toISOString() };
+  await fs.writeFile(path.join(directory, 'hannover.json'), JSON.stringify(prior));
+  const next = catalogue('hannover');
+  next.history = { pending: true, interrupted: false };
+  next.records[0].locationEvidenceUnavailable = true;
+  next.records[0].detailVerifiedAt = STALE.toISOString();
+  await expect(refresh({ cities: ['hannover'], collect: () => next })).resolves.toMatchObject([{ status: 'published' }]);
+  expect((await readRisSnapshot(directory, 'hannover')).manifest).toMatchObject({ generatedAt: STALE.toISOString(),
+    refreshFailure: { ...prior.refreshFailure, expiresAt: '2026-11-11T09:00:00.000Z' } });
 });

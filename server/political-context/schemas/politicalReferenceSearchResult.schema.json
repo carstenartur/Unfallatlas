@@ -17,6 +17,11 @@
       "required": ["city", "searchTerms", "searchedAt", "totalFound"],
       "additionalProperties": false,
       "properties": {
+        "complete": { "type": "boolean" },
+        "nextPage": { "type": ["string", "null"], "maxLength": 2048, "pattern": "^ris2\\.[A-Za-z0-9_-]+\\.[a-f0-9]{64}$" },
+        "snapshot": { "$ref": "politicalReference.schema.json#/properties/snapshot" },
+        "totalFoundIsLowerBound": { "type": "boolean", "description": "totalFound beschreibt die auf dieser Seite bestätigten Treffer; bei Fortsetzungen ist dies nur eine Untergrenze für die gesamte Suche." },
+        "missing": { "type": "array", "maxItems": 64, "items": { "type": "string" } },
         "city": {
           "type": "string",
           "description": "Stadtname der Suche"
@@ -86,6 +91,9 @@
             "to": { "type": ["string", "null"] },
             "bodies": { "type": "array", "items": { "type": "string" } },
             "complete": { "type": "boolean" },
+        "nextPage": { "type": ["string", "null"], "maxLength": 2048, "pattern": "^ris2\\.[A-Za-z0-9_-]+\\.[a-f0-9]{64}$" },
+        "snapshot": { "$ref": "politicalReference.schema.json#/properties/snapshot" },
+        "totalFoundIsLowerBound": { "type": "boolean", "description": "totalFound beschreibt die auf dieser Seite bestätigten Treffer; bei Fortsetzungen ist dies nur eine Untergrenze für die gesamte Suche." },
             "scope": { "enum": ["citywide", "selected-bodies"] },
             "warnings": { "type": "array", "items": { "type": "string" } }
           }

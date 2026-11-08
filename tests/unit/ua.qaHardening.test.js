@@ -39,6 +39,8 @@ function loadAll(href = 'http://localhost/') {
   };
   load('ua.utils.js');
   load('ua.filters.js');
+  load('ua.spatial-grid.js');
+  load('ua.data-budget.js');
   load('ua.context_layers.js');
   load('ua.popup_context.js');
   return { UA: win.UA, win };

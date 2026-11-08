@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const partitions = () => typeof module === 'object' && module.exports ? require('./ua.ris-partitions') : window.UA.RisPartitions;
+  const spatialGrid = () => typeof module === 'object' && module.exports ? require('./ua.spatial-grid') : window.UA.SpatialGrid;
   const SCHEMA_VERSION = 1;
   const MAX_BYTES = 16 * 1024 * 1024;
   const MAX_COUNT = 50_000;
@@ -96,8 +98,8 @@
       && (evidence.source === 'title' || evidence.source === 'document') && validLocationText(evidence.text);
   }
 
-  function validLocations(locations) {
-    return locations === undefined || (Array.isArray(locations) && locations.length <= MAX_LOCATIONS_PER_RECORD
+  function validLocations(locations, maximum = MAX_LOCATIONS_PER_RECORD) {
+    return locations === undefined || (Array.isArray(locations) && locations.length <= maximum
       && listOf(locations, 0, validLocation));
   }
 
@@ -175,7 +177,7 @@
     return accuracy === 'official' || accuracy === 'derived';
   }
 
-  function validMap(value, recordsById, count) {
+  function validMap(value, recordsById, count, maximum = MAX_LOCATIONS_PER_RECORD) {
     if (!isObject(value) || value.type !== 'FeatureCollection' || Object.hasOwn(value, 'crs')
         || !Array.isArray(value.features) || value.features.length !== count) return false;
     const seen = new Map();
@@ -199,7 +201,7 @@
         if (accuracy === 'official') official.add(recordId);
       }
       indices.add(locationIndex);
-      if (indices.size > MAX_LOCATIONS_PER_RECORD) return false;
+      if (indices.size > maximum) return false;
       seen.set(recordId, indices);
     }
     for (const [id, record] of recordsById) {
@@ -231,6 +233,13 @@
   }
 
   function checkManifest(manifest, key) {
+    if (manifest?.schemaVersion === 2) {
+      partitions().manifest(manifest,key);
+      const hash='a'.repeat(64);
+      checkManifest({...manifest,schemaVersion:1,locationAssessment:undefined,records:{path:`${key}.${hash}.records.json.gz`,sha256:hash,bytes:1,count:1},map:{path:`${key}.${hash}.map.json.gz`,sha256:hash,bytes:1,count:0}},key);
+      if(!validLocationAssessmentSummary(manifest.locationAssessment,manifest.recordCount))throw invalid();
+      return manifest;
+    }
     const coverage = manifest?.coverage;
     if (manifest?.schemaVersion !== SCHEMA_VERSION || manifest.city !== key
         || !validTimestamp(manifest.generatedAt)
@@ -295,7 +304,7 @@
     }
     try {
       if (!response.ok) throw invalid();
-      const payload = await readBytes(response.body, MAX_BYTES);
+      const payload = await readBytes(response.body, Math.min(MAX_BYTES, asset.bytes + 65536));
       // Pages serves .gz as binary; an HTTP server may decompress it in transit.
       const bytes = payload[0] === 0x1f && payload[1] === 0x8b
         ? await readBytes(new Blob([payload]).stream().pipeThrough(new DecompressionStream('gzip')), asset.bytes)
@@ -340,8 +349,8 @@
 
   function referenceSnapshot(manifest, { complete, stale, warnings }) {
     return {
-      city: manifest.city, generatedAt: manifest.generatedAt, sha256: manifest.records.sha256,
-      mapSha256: manifest.map.sha256, complete, stale, warnings
+      city: manifest.city, generatedAt: manifest.generatedAt, sha256: manifest.generation || manifest.records.sha256,
+      mapSha256: manifest.generation || manifest.map.sha256, complete, stale, warnings
     };
   }
 
@@ -408,7 +417,7 @@
         city, supported: true, searchTerms: params.searchTerms, searchedAt: now.toISOString(),
         totalFound: matched.length, searchStatus, stale: status.stale,
         providerKey: 'ris-snapshot', sourceType: 'ris-snapshot', sourceUrl: manifest.sources[0],
-        sourceFingerprint: manifest.records.sha256, generatedAt: manifest.generatedAt,
+        sourceFingerprint: manifest.generation || manifest.records.sha256, generatedAt: manifest.generatedAt,
         coverage: manifest.coverage, warnings,
         ...(manifest.refreshFailure ? { refreshFailure: manifest.refreshFailure } : {}),
         // A published selection has a bounded scope and cannot certify full live research.
@@ -439,6 +448,11 @@
         }
         if (!response.ok) throw invalid();
         entry.manifest = checkManifest(decodeJson(await readBytes(response.body, 256 * 1024)), key);
+        if(entry.manifest.schemaVersion===2){
+          if(!globalThis.crypto?.subtle)throw error('RIS_SECURE_CONTEXT_REQUIRED','Bitte HTTPS oder localhost verwenden.');
+          const digest=new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(entry.manifest.roots))));
+          if(Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('')!==entry.manifest.generation)throw invalid();
+        }
         return entry.manifest;
       }).finally(() => { entry.settled = true; });
       manifests.set(key, entry);
@@ -485,6 +499,526 @@
       }
     }
 
+    const partitionReaders = new Map();
+    async function partition(city, options = {}) {
+      const manifest = await loadManifest(city, options.revalidate === true);
+      availableStatus(manifest, now());
+      if (options.snapshot && (options.snapshot.city && options.snapshot.city !== manifest.city || (options.snapshot.generation || options.snapshot.records?.sha256 || options.snapshot.sha256) !== (manifest.generation || manifest.records?.sha256))) throw error('RIS_SNAPSHOT_REFERENCE_MISMATCH', 'Der Ratsdatenstand hat sich geändert. Bitte erneut öffnen.');
+      if (manifest.schemaVersion !== 2) return null;
+      let reader = partitionReaders.get(manifest.generation);
+      if (!reader) {
+        reader = partitions().createReader({
+          manifest,
+          load: asset => get(asset.path, 'force-cache').then(response => readAsset(response, asset))
+        });
+        if (partitionReaders.size >= 2) partitionReaders.delete(partitionReaders.keys().next().value);
+        partitionReaders.set(manifest.generation, reader);
+      }
+      return {
+        manifest,
+        reader
+      };
+    }
+    function validPartitionRecord(record, manifest) {
+      if (!record || !validText(record.id) || !validText(record.title) || !validText(record.type) || !validText(record.source) || !validDay(record.date) || !isSourceUrl(record.url, manifest.sources) || !Number.isSafeInteger(record.locationCount) || record.locationCount < 0) throw invalid();
+      return record;
+    }
+    async function recordFrom(part, id) {
+      const record = await part.reader.get('records', id);
+      if (!record) return null;
+      validPartitionRecord(record, part.manifest);
+      if (record.id !== id) throw invalid();
+      const locations = await part.reader.page('locations', id, 0);
+      if (locations.total !== record.locationCount) throw invalid();
+      for (const {
+        id: locationId,
+        geometryId,
+        ...location
+      } of locations.items) if (!validLocations([location]) || !/^location:[a-f0-9]{64}$/.test(locationId) || geometryId !== undefined && !/^geometry:[a-f0-9]{64}$/.test(geometryId)) throw invalid();
+      const geometry = await part.reader.page('links', `record:${id}`, 0);
+      const {
+        hasLocations,
+        ...publicRecord
+      } = record;
+      return attachSnapshot({
+        ...publicRecord,
+        geometryIds: geometry.items,
+        geometryNextPage: geometry.nextPage,
+        ...(record.locationCount ? {
+          locations: locations.items,
+          locationsNextPage: locations.nextPage
+        } : {})
+      }, referenceSnapshot(part.manifest, availableStatus(part.manifest, now())));
+    }
+    async function loadRecord(city, id, options = {}) {
+      const part = await partition(city, options);
+      if (!part) {
+        const bundle = await load(city);
+        return bundle.records.find(r => r.id === id) || null;
+      }
+      return recordFrom(part, id);
+    }
+    async function loadRecordLocations(city, id, page = 0, options = {}) {
+      const part = await partition(city, options);
+      if (!part) {
+        const record = await loadRecord(city, id);
+        return {
+          locations: record?.locations || [],
+          total: record?.locations?.length || 0,
+          start: 0,
+          page: 0,
+          nextPage: null,
+          complete: true,
+          missing: []
+        };
+      }
+      const result = await part.reader.page('locations', id, page);
+      const record = await part.reader.get('records', id);
+      if (!record || record.id !== id || result.total !== record.locationCount) throw invalid();
+      for (const {
+        id: locationId,
+        geometryId,
+        ...location
+      } of result.items) if (!validLocations([location]) || !/^location:[a-f0-9]{64}$/.test(locationId) || geometryId !== undefined && !/^geometry:[a-f0-9]{64}$/.test(geometryId)) throw invalid();
+      const {
+        items,
+        ...meta
+      } = result;
+      return {
+        ...meta,
+        locations: items
+      };
+    }
+    async function relationPage(part, id, page = 0) {
+      const membership = await part.reader.get('relations', `member:${id}`);
+      if (!membership) return {
+        items: [],
+        total: 0,
+        start: 0,
+        page,
+        nextPage: null,
+        complete: true,
+        missing: []
+      };
+      const result = await part.reader.page('relations', membership.component, page);
+      if (membership.position >= result.total || membership.position >= result.start && membership.position < result.start + result.items.length && result.items[membership.position - result.start] !== id) throw invalid();
+      return {
+        ...result,
+        start: result.start - (membership.position < result.start ? 1 : 0),
+        total: Math.max(0, result.total - 1),
+        items: result.items.filter(member => member !== id)
+      };
+    }
+    async function loadRecordGeometries(city, id, page = 0, options = {}) {
+      const part = await partition(city, options);
+      if (!part) return {
+        geometryIds: [],
+        total: 0,
+        start: 0,
+        page: 0,
+        nextPage: null,
+        complete: true,
+        missing: []
+      };
+      const {
+        items,
+        ...metadata
+      } = await part.reader.page('links', `record:${id}`, page);
+      if (!items.every(value => /^geometry:[a-f0-9]{64}$/.test(value))) throw invalid();
+      return {
+        ...metadata,
+        geometryIds: items
+      };
+    }
+    async function loadRelatedRecords(city, id, page = 0, options = {}) {
+      const part = await partition(city, options);
+      if (!part) {
+        const {
+          records
+        } = await load(city);
+        const current = records.find(r => r.id === id);
+        const related = records.filter(r => r.relatedTo === id || r.id === current?.relatedTo);
+        return {
+          records: related,
+          total: related.length,
+          start: 0,
+          page: 0,
+          nextPage: null,
+          complete: true,
+          missing: []
+        };
+      }
+      const {
+        items,
+        ...meta
+      } = await relationPage(part, id, page);
+      const records = await Promise.all(items.map(id => recordFrom(part, id)));
+      return {
+        ...meta,
+        records: records.filter(Boolean),
+        complete: records.every(Boolean),
+        missing: items.filter((_, i) => !records[i])
+      };
+    }
+    async function loadFeatureRecords(city, id, page = 0, options = {}) {
+      const part = await partition(city, options);
+      if (!part) throw invalid();
+      const {
+        items: links,
+        ...meta
+      } = await part.reader.page('links', id, page);
+      const ids = [...new Set(links.map(l => l.recordId))],
+        records = await Promise.all(ids.map(id => recordFrom(part, id)));
+      return {
+        ...meta,
+        links,
+        records: records.filter(Boolean),
+        complete: records.every(Boolean),
+        missing: ids.filter((_, i) => !records[i])
+      };
+    }
+    async function geometryFrom(part, id) {
+      const feature = await part.reader.get('geometry', id);
+      if (feature && (!validGeometry(feature.geometry) || feature.properties?.geometryId !== id || !['official', 'derived', 'mixed'].includes(feature.properties.accuracy) || !Number.isSafeInteger(feature.properties.recordCount) || feature.properties.recordCount < 1)) throw invalid();
+      if (feature && JSON.stringify(feature.bounds) !== JSON.stringify(spatialGrid().geometryBounds(feature.geometry))) throw invalid();
+      return feature;
+    }
+    async function loadGeometry(city, id, options = {}) {
+      const part = await partition(city, options);
+      if (!part) return null;
+      return geometryFrom(part, id);
+    }
+    function requestedBounds(value) {
+      if (!value) return [-180, -85, 180, 85];
+      if (typeof value.getWest === 'function') return [value.getWest(), value.getSouth(), value.getEast(), value.getNorth()];
+      if (Array.isArray(value)) return value;
+      return [value.west, value.south, value.east, value.north];
+    }
+    async function overviewMap(part, bounds) {
+      part = {
+        ...part,
+        reader: part.reader.scoped({
+          maxBytes: 1024 * 1024,
+          maxAssets: 128
+        })
+      };
+      const grid = spatialGrid();
+      let zoom = 0,
+        tiles = [];
+      for (const candidate of [8, 6, 4, 0].filter(z => z <= part.manifest.overviewZoom)) {
+        try {
+          tiles = grid.tilesForBounds({
+            west: bounds[0],
+            south: bounds[1],
+            east: bounds[2],
+            north: bounds[3]
+          }, candidate, {
+            maxTiles: 64
+          });
+          zoom = candidate;
+          break;
+        } catch (e) {
+          if (e.code !== 'SPATIAL_TILE_LIMIT') throw e;
+        }
+      }
+      const features = [];
+      for (const [x, y] of tiles) {
+        const cell = await part.reader.get('spatial', `overview:${zoom}/${x}/${y}`);
+        if (!cell) continue;
+        const [w, s, e, n] = cell.bounds;
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]]
+          },
+          bounds: cell.bounds,
+          properties: {
+            overview: true,
+            geometryId: `overview:${zoom}/${x}/${y}`,
+            count: cell.count,
+            recordCount: cell.count,
+            geometryCount: cell.geometryCount,
+            label: 'Ratsvorgänge im Rasterbereich'
+          }
+        });
+      }
+      return {
+        manifest: part.manifest,
+        partitioned: true,
+        features: {
+          type: 'FeatureCollection',
+          features
+        },
+        coverage: {
+          complete: false,
+          missing: [],
+          truncated: true
+        },
+        overview: true,
+        recordCount: part.manifest.mappedRecordCount
+      };
+    }
+    async function loadPartitionMap(city, options = {}) {
+      const originalPart = await partition(city, options);
+      if (!originalPart) return load(city, true, false);
+      const part = {
+        ...originalPart,
+        reader: originalPart.reader.scoped()
+      };
+      try {
+        const grid = spatialGrid(),
+          bounds = requestedBounds(options.bounds),
+          budget = Math.min(2000, Math.max(1, options.maxFeatures || 1000));
+        let tiles;
+        try {
+          tiles = grid.tilesForBounds({
+            west: bounds[0],
+            south: bounds[1],
+            east: bounds[2],
+            north: bounds[3]
+          }, 12, {
+            maxTiles: 64
+          }).map(t => typeof t === 'string' ? t : `${t[0]}/${t[1]}`);
+        } catch (e) {
+          if (e.code !== 'SPATIAL_TILE_LIMIT') throw e;
+          return overviewMap(originalPart, bounds);
+        }
+        const ids = new Set(),
+          features = [];
+        let truncated = false,
+          requests = 0;
+        outer: for (const tile of [...tiles, 'global']) {
+          let page = 0;
+          do {
+            if (++requests > 128) {
+              truncated = true;
+              break outer;
+            }
+            const result = await part.reader.page('spatial', tile, page);
+            for (const id of result.items) {
+              if (ids.has(id)) continue;
+              ids.add(id);
+              const feature = await geometryFrom(part, id);
+              if (!feature) throw invalid();
+              if (grid.intersectsBounds(feature.bounds, bounds)) {
+                if (features.length >= budget) {
+                  truncated = true;
+                  break outer;
+                }
+                features.push(feature);
+              }
+            }
+            page = result.nextPage;
+          } while (page !== null);
+        }
+        if (truncated) return overviewMap(originalPart, bounds);
+        return {
+          manifest: part.manifest,
+          partitioned: true,
+          features: {
+            type: 'FeatureCollection',
+            features
+          },
+          coverage: {
+            complete: true,
+            missing: [],
+            truncated: false
+          },
+          overview: false,
+          recordCount: part.manifest.mappedRecordCount
+        };
+      } catch (failure) {
+        if (failure.code === 'RIS_QUERY_BUDGET') return overviewMap(originalPart, requestedBounds(options.bounds));
+        throw failure;
+      }
+    }
+    async function cursorDigest(value) {
+      const bytes = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+      return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    function invalidCursor() {
+      return error('RIS_SNAPSHOT_CURSOR_INVALID', 'Die Suchfortsetzung ist ungültig. Bitte die Suche erneut starten.');
+    }
+    async function encodeCursor(state) {
+      const raw = JSON.stringify(state);
+      const encoded = btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      return `ris2.${encoded}.${await cursorDigest(raw)}`;
+    }
+    async function decodeCursor(token, query, manifest, terms) {
+      if (typeof token !== 'string' || token.length > 2048 || !/^ris2\.[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(token)) throw invalidCursor();
+      const [, encoded, checksum] = token.split('.');
+      let raw, state;
+      try {
+        raw = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'));
+        state = JSON.parse(raw);
+      } catch (_) {
+        throw invalidCursor();
+      }
+      if (checksum !== (await cursorDigest(raw)) || !state || Object.keys(state).length !== 8 || state.v !== 1 || state.q !== query || !Number.isSafeInteger(state.t) || state.t < 0 || state.t >= terms.length || !Number.isSafeInteger(state.p) || state.p < 0 || !Number.isSafeInteger(state.o) || state.o < 0 || state.o > 64 || state.l !== null && (!Number.isSafeInteger(state.l) || state.l < 1) || typeof state.f !== 'boolean') throw invalidCursor();
+      if (state.g !== manifest.generation) throw error('RIS_SNAPSHOT_REFERENCE_MISMATCH', 'Der Ratsdatenstand hat sich geändert. Bitte erneut suchen.');
+      return state;
+    }
+    async function searchPartition(originalPart, params) {
+      const terms = [...new Set((params.searchTerms || []).map(term => fold(term)))].filter(term => term.length >= 3 && term !== fold(params.city)).slice(0, 12);
+      const limit = Number.isInteger(params.maxResults) ? Math.max(0, Math.min(30, params.maxResults)) : 15;
+      const query = await cursorDigest(JSON.stringify([originalPart.manifest.city, terms, limit]));
+      if (params.page != null && !params.snapshot) throw invalidCursor();
+      const state = params.page != null ? await decodeCursor(params.page, query, originalPart.manifest, terms) : {
+        v: 1,
+        g: originalPart.manifest.generation,
+        q: query,
+        t: 0,
+        p: 0,
+        o: 0,
+        l: null,
+        f: false
+      };
+      const part = {
+        ...originalPart,
+        reader: originalPart.reader.scoped({
+          maxBytes: 8 * 1024 * 1024,
+          maxAssets: 256
+        })
+      };
+      const records = [],
+        plans = new Map(),
+        matchedLocations = new Map(),
+        seenOnPage = new Set();
+      let scanned = 0,
+        locationReads = 0,
+        limited = false,
+        currentPosting = null;
+      const nextTerm = () => {
+        state.t++;
+        state.p = 0;
+        state.o = 0;
+        state.l = null;
+        currentPosting = null;
+      };
+      const locationMatch = (locations, phrase) => locations.some(location => ` ${fold(location.label)} `.includes(phrase));
+      try {
+        while (state.t < terms.length && records.length < limit) {
+          if (scanned >= 256 || locationReads >= 128) {
+            limited = true;
+            break;
+          }
+          let chosen = plans.get(state.t);
+          if (!chosen) {
+            const postings = await Promise.all(terms[state.t].split(' ').slice(0, 8).map(async word => ({
+              word,
+              result: await part.reader.page('search', word, 0)
+            })));
+            postings.sort((a, b) => a.result.total - b.result.total || (a.word < b.word ? -1 : a.word > b.word ? 1 : 0));
+            chosen = postings[0];
+            plans.set(state.t, chosen);
+          }
+          if (!chosen?.result.total) {
+            nextTerm();
+            continue;
+          }
+          currentPosting = state.p === 0 ? chosen.result : await part.reader.page('search', chosen.word, state.p);
+          if (state.o > currentPosting.items.length) throw invalidCursor();
+          if (state.o === currentPosting.items.length) {
+            if (currentPosting.nextPage === null) nextTerm();else {
+              state.p = currentPosting.nextPage;
+              state.o = 0;
+              state.l = null;
+            }
+            continue;
+          }
+          const id = currentPosting.items[state.o];
+          const record = await recordFrom(part, id);
+          if (!record) throw invalid();
+          const phrase = ` ${terms[state.t]} `;
+          let matched = ` ${fold(record.title)} `.includes(phrase) || ` ${fold(record.number)} `.includes(phrase) || locationMatch(record.locations || [], phrase);
+          let locationPage = state.l ?? record.locationsNextPage;
+          while (!matched && locationPage != null) {
+            state.l = locationPage;
+            if (locationReads >= 128) {
+              limited = true;
+              break;
+            }
+            const result = await part.reader.page('locations', id, locationPage);
+            if (result.total !== record.locationCount) throw invalid();
+            for (const {
+              id: locationId,
+              geometryId,
+              ...location
+            } of result.items) {
+              if (!validLocations([location]) || !/^location:[a-f0-9]{64}$/.test(locationId) || geometryId !== undefined && !/^geometry:[a-f0-9]{64}$/.test(geometryId)) throw invalid();
+            }
+            locationReads++;
+            matched = locationMatch(result.items, phrase);
+            if (matched) matchedLocations.set(id, result.items.find(location => locationMatch([location], phrase)));
+            locationPage = result.nextPage;
+            state.l = locationPage;
+          }
+          if (limited) break;
+          state.o++;
+          state.l = null;
+          scanned++;
+          if (matched) {
+            if (!seenOnPage.has(record.id)) {
+              records.push(record);
+              seenOnPage.add(record.id);
+            }
+            state.f = true;
+          }
+        }
+      } catch (failure) {
+        if (failure.code !== 'RIS_QUERY_BUDGET') throw failure;
+        limited = true;
+      }
+      // Normalize a completed posting so an exact full final page needs no empty follow-up.
+      if (!limited && currentPosting && state.o === currentPosting.items.length) {
+        if (currentPosting.nextPage === null) nextTerm();else {
+          state.p = currentPosting.nextPage;
+          state.o = 0;
+        }
+      }
+      const hasMore = limit > 0 && state.t < terms.length;
+      const result = searchSnapshot({
+        manifest: part.manifest,
+        records: records.map(record => matchedLocations.has(record.id) ? {
+          ...record,
+          locations: [...(record.locations || []), matchedLocations.get(record.id)]
+        } : record)
+      }, params, now());
+      const byId = new Map(records.map(record => [record.id, record]));
+      const selected = new Map(result.references.map(record => [record.id, byId.get(record.id) || record]));
+      let relatedIncomplete = false;
+      try {
+        for (const record of result.references) {
+          if (selected.size >= limit) break;
+          const family = await relationPage(part, record.id, 0);
+          if (family.nextPage !== null || family.total > limit - selected.size) relatedIncomplete = true;
+          for (const id of family.items) {
+            if (selected.size >= limit) break;
+            if (selected.has(id)) continue;
+            const relative = await recordFrom(part, id);
+            if (relative) selected.set(id, relative);else relatedIncomplete = true;
+          }
+        }
+      } catch (failure) {
+        if (failure.code !== 'RIS_QUERY_BUDGET') throw failure;
+        relatedIncomplete = true;
+      }
+      result.references = [...selected.values()];
+      const status = availableStatus(part.manifest, now());
+      const complete = terms.length > 0 && limit > 0 && status.complete && !hasMore && !limited && !relatedIncomplete;
+      result.meta.searchStatus = state.f || result.references.length ? complete ? 'results-found' : 'partial-results' : complete ? 'searched-no-results' : 'incomplete';
+      result.meta.truncated = !complete;
+      result.meta.complete = complete;
+      result.meta.missing = [];
+      result.meta.nextPage = hasMore ? await encodeCursor(state) : null;
+      result.meta.snapshot = referenceSnapshot(part.manifest, status);
+      result.meta.totalFoundIsLowerBound = hasMore || params.page != null || limited;
+      result.meta.scannedItems = scanned;
+      if (hasMore) result.meta.warnings.push('Weitere Treffer sind über die nächste Suchseite erreichbar.');
+      return result;
+    }
+
     return {
       cityKey,
       snapshotStatus: manifest => snapshotStatus(manifest, now()),
@@ -498,10 +1032,22 @@
         return Boolean(manifest && !snapshotStatus(manifest, now()).expired);
       },
       async search(params) {
-        return searchSnapshot(await load(params.city), params, now());
+        const part=await partition(params.city,{snapshot:params.snapshot,revalidate:params.page!=null});
+        if(!part && params.page!=null)throw invalidCursor();
+        return part ? searchPartition(part,params) : searchSnapshot(await load(params.city), params, now());
       },
       async resolveReferences(city, references) {
-        const { manifest, records } = await load(city, false, true);
+        const part=await partition(city,{revalidate:true});
+        if(part) {
+          const snapshot=referenceSnapshot(part.manifest,availableStatus(part.manifest,now()));
+          return Promise.all(references.map(async reference=>{
+            if(!reference.snapshot)return reference;
+            const record=await recordFrom(part,reference.id),prior=reference.snapshot;
+            if(!record || prior.city!==snapshot.city || prior.sha256!==snapshot.sha256 || (prior.mapSha256!==undefined && prior.mapSha256!==snapshot.mapSha256) || reference.url!==record.url)throw error('RIS_SNAPSHOT_REFERENCE_MISMATCH','Der Ratsvorgang gehört nicht zum aktuellen Datenstand.');
+            return record;
+          }));
+        }
+        const { manifest, records } = await load(city, false, false);
         const snapshot = referenceSnapshot(manifest, availableStatus(manifest, now()));
         const byId = new Map(records.map(record => [record.id, record]));
         return references.map(reference => {
@@ -517,7 +1063,8 @@
           return attachSnapshot(record, snapshot);
         });
       },
-      loadMap: (city, options) => load(city, true, options?.revalidate === true)
+      loadRecord, loadRecordLocations, loadRecordGeometries, loadRelatedRecords, loadFeatureRecords, loadGeometry,
+      loadMap: loadPartitionMap
     };
   }
 

@@ -225,19 +225,20 @@ in einer konfigurierbaren Liste innerhalb des jeweiligen Provider-Moduls.
 
 ## Veröffentlichte Ratsdaten und Karte
 
-Bonn und Hannover teilen sich ein versioniertes Format unter `data/ris/`. Es enthält pro Stadt
-einen Suchindex und separat geladene Kartenobjekte. Das Manifest nennt Quellen, Datenstand,
-Zeitraum und erfasste Gremien. Beide Dateien sind per SHA-256 geprüft. Die Recherche in der
+Bonn und Hannover teilen sich ein versioniertes Format unter `data/ris/`. Version 2 trennt
+Vorgänge, Suchindex, Ortsbelege, Beziehungen und räumliche Kartenobjekte in begrenzte,
+bedarfsgerecht geladene Teile. Das kleine Manifest nennt Quellen, Datenstand,
+Zeitraum und erfasste Gremien. Jede Datei ist per SHA-256 geprüft. Die Recherche in der
 Werkbank sucht nach Titel, Drucksachennummer oder Ortsangabe und zeigt verknüpfte Anfragen und Antworten.
 Die amtlichen Dokumente bleiben über ihre Original-URL erreichbar. Ausgewählte Vorgänge
 erscheinen im Bericht.
 
 | Stadt | Quelle und Umfang |
 |---|---|
-| Bonn | Öffentliche OParl-Drucksachen ab 2014. |
-| Hannover | Öffentliche SIM-Vorlagensuche für alle Gremien, jahrgangsweise ab dem 1. Januar fünf Jahre vor dem laufenden Jahr (beim Ausbau 2021–2026), ergänzt durch aktuelle SIM-Feeds und verlinkte Vorgänge. Bereits veröffentlichte ältere Jahrgänge bleiben erhalten. |
+| Bonn | Öffentliche OParl-Drucksachen; konfigurierbarer historischer Suchbeginn, standardmäßig 2014. Der tatsächlich geprüfte Zeitraum steht im Manifest. |
+| Hannover | Öffentliche SIM-Vorlagensuche für alle Gremien, jahrgangsweise standardmäßig ab 2014, ergänzt durch aktuelle SIM-Feeds und verlinkte Vorgänge. Bereits veröffentlichte ältere Jahrgänge bleiben erhalten. |
 
-Der Schalter „Ratsvorgänge“ unter „Karten-Layer“ ist anfangs aus. In Hannover werden benannte
+Der Schalter „Ratsvorgänge“ im gemeinsamen schwebenden Menü „Karte“ ist anfangs aus. In Hannover werden benannte
 Kreuzungen, Abschnitte und verkehrsbezogene Hausnummern aus Titel und öffentlichem Maßnahmentext
 mit dem [Ortsverzeichnis](../../config/ris-locations/README.md) abgeglichen. Die Recherche zeigt
 je Ort die Fundstelle und öffnet eine belegte Geometrie mit „Auf Karte zeigen“. Ortsangaben mit
@@ -252,8 +253,15 @@ erfolglose räumliche Zuordnung und `unavailable` fehlende geeignete Ortsdaten. 
 zählt geprüfte Einträge und die vier Ergebnisse getrennt von der Zahl der Kartenobjekte.
 Eine Prüfung jedes Eintrags bedeutet daher keine erfolgreiche Verortung jedes Eintrags.
 Bestehende amtliche Geometrien bleiben erhalten; abgeleitete Orte werden bei jeder
-Neubewertung ersetzt. Es werden höchstens acht Ortsbelege je Vorgang veröffentlicht.
-Fehlende Dokumenttexte und Begrenzungen bei Text oder Ortsbelegen bleiben im Prüfstatus sichtbar.
+Neubewertung ersetzt. Version 2 erhält auch mehr als acht Ortsbelege je Vorgang und lädt
+längere Ortslisten seitenweise. Fehlende Dokumenttexte und Begrenzungen bei der
+Texterschließung bleiben im Prüfstatus sichtbar. Der Leser unterstützt weiterhin Version 1.
+
+Nicht verortete Vorgänge und offene Ortsangaben bleiben im vollständigen Dokumenten- und
+Suchbestand. Die Karte fordert ausschließlich räumliche Teile für ihren Ausschnitt an.
+Dokumentdetails, Ortsbelege und verknüpfte Antworten werden beim Öffnen nachgeladen.
+Bei großen oder dichten Ausschnitten zeigen ausdrücklich bezeichnete Übersichtsflächen
+die räumliche Verteilung; sie sind keine behaupteten Einzelpositionen.
 
 Hannover übermittelt für jeden Jahrgang eine Suche ohne Stichwort, mit allen Typen und
 Gremien sowie allen Ergebnissen. Der Import vergleicht die gelesenen Tabellenzeilen mit
@@ -267,8 +275,12 @@ Mit `--city bonn` beziehungsweise `--city hannover` lässt sich derselbe Ablauf 
 begrenzen. Erfolgreich geprüfte Quelldaten liegen im gemeinsamen Cache `.cache/ris-sources/`.
 Quellrevision, Parserrevision und eine maximale Lebensdauer von sieben Tagen verhindern die
 unbegrenzte Wiederverwendung alter Antworten. Fehlgeschlagene Abrufe werden nicht gespeichert.
-Die bestehenden Pages-Workflows sichern diesen Cache auch nach einem fehlgeschlagenen Build;
-die veröffentlichten Dateien bleiben wie bisher Manifest, komprimierter Index und Kartenobjekte.
+Die bestehenden Pages-Workflows sichern diesen Cache auch nach einem fehlgeschlagenen Build.
+Zusätzliche, nach Quelle, Umfang und Jahr getrennte Arbeitsstände erhalten bereits erledigte
+Quellarbeit über Zeitlimits hinweg. `--history-start-year 2014` konfiguriert den Suchbeginn;
+`--work-budget N` und `--max-duration-ms N` begrenzen einen fortsetzbaren Arbeitsdurchlauf.
+Ein erneuter Aufruf setzt offene Arbeit fort. Die Veröffentlichung umfasst das Manifest
+und sämtliche von seinen Indexbäumen referenzierten komprimierten Dateien.
 Ein Katalog gilt nach acht Tagen als veraltet und läuft 14 Tage nach seiner ursprünglichen
 Erstellung ab. Schlägt die Aktualisierung für Pages fehl, kennzeichnet das Manifest den letzten
 verifizierten Stand mit `refreshFailure` (Zeitpunkt, Grund und Ablaufdatum). Datenstand und
@@ -284,6 +296,8 @@ zur Verfügung. Der Browser benötigt für die Kartenprüfung HTTPS oder `localh
 Weitere Städte liefern ihre öffentlichen Vorgänge über einen Adapter im gemeinsamen Format.
 Die Veröffentlichung erhält dafür einen Eintrag im Erneuerungsskript. Straßenableitungen
 verwenden die dokumentierten, stadtbezogenen Referenzen unter `config/ris-locations/`.
+Format, Budgets, Migration und Betrieb sind in [Ratsdatenkataloge](../../docs/ris-catalogue.md)
+beschrieben.
 
 ---
 

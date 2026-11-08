@@ -452,15 +452,74 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
   const cache = new Map([[firstUrl, firstPage]]);
   const visited = new Set();
   const items = [];
-  const pages = [];
+  let pages = [];
   let requests = 1;
   // OParl only requires `next`. Bonn normally supplies `last` as well.
   const newestFirst = !firstPage.next || Boolean(firstPage.last && firstPage.last !== firstUrl);
   const startUrl = newestFirst ? firstPage.last || firstUrl : firstUrl;
-  let currentUrl = startUrl;
+  const checkpoint = params.checkpoint;
+  const checkpointScope = `official-pages:${firstUrl}`;
+  const sourceKey = 'bonn-oparl';
+  const checkpointRevision = 'bonn-pages-v1';
+  const checkpointYear = new Date(params.now ?? Date.now()).getUTCFullYear();
+  const sourceRevision = JSON.stringify([firstPage.data, firstPage.last, firstPage.pagination]);
+  let cursor;
+  let cursorYear;
+  const cursors = [];
+  if (checkpoint) {
+    for (const year of await checkpoint.years(sourceKey, `${checkpointScope}:cursor`)) {
+      const state = await checkpoint.read(sourceKey, `${checkpointScope}:cursor`, year, checkpointRevision);
+      if (state) cursors.push({ year, state });
+    }
+    const selected = cursors.find(entry => entry.year === checkpointYear) || cursors.at(-1);
+    cursor = selected?.state;
+    cursorYear = selected?.year;
+  }
+  const annual = new Map();
+  if (checkpoint) {
+    for (const year of await checkpoint.years(sourceKey, checkpointScope)) {
+      const state = await checkpoint.read(sourceKey, checkpointScope, year, checkpointRevision);
+      if (state) annual.set(year, state);
+    }
+  }
+  async function reconcilePapers(papers, undatedYear = checkpointYear) {
+    const changed = new Set();
+    for (const paper of papers) {
+      if (!paper?.id) continue;
+      // A Paper ID is stable across corrected/unknown dates and tombstones.
+      // Remove every old bucket copy before installing the observed revision.
+      for (const [year, state] of annual) {
+        if (Object.hasOwn(state.papers, paper.id)) { delete state.papers[paper.id]; changed.add(year); }
+      }
+      const date = paperDate(paper);
+      const year = date ? Number(date.slice(0, 4)) : undatedYear;
+      const state = annual.get(year) || { papers: {} };
+      state.papers[paper.id] = paper;
+      annual.set(year, state); changed.add(year);
+    }
+    for (const year of changed) await checkpoint.write(sourceKey, checkpointScope, year, checkpointRevision, annual.get(year));
+  }
+  // Journals outlive their calendar year. Replay every outstanding page in
+  // chronological order before consuming partially updated annual records.
+  // Undated Papers/tombstones retain the original transaction's bucket year.
+  let recoveredPage = false;
+  for (const entry of cursors.sort((a, b) => a.year - b.year)) {
+    if (!entry.state.pendingPage) continue;
+    await reconcilePapers(entry.state.pendingPage, entry.year);
+    const { pendingPage, ...completed } = entry.state;
+    await checkpoint.write(sourceKey, `${checkpointScope}:cursor`, entry.year, checkpointRevision, completed);
+    if (!cursor || entry.year >= cursorYear) { cursor = completed; cursorYear = entry.year; }
+    recoveredPage = true;
+  }
+  const resume = cursor?.sourceRevision === sourceRevision && (cursor.nextUrl || recoveredPage);
+  let currentUrl = resume ? cursor.nextUrl : startUrl;
+  if (resume) pages = cursor.pages;
+  const budget = params.workBudget ?? maxScanPages;
+  if (!Number.isSafeInteger(budget) || budget < 0) throw new TypeError('Invalid RIS work budget');
+  const deadline = performance.now() + (params.maxDurationMs ?? 18 * 60_000);
   let scanPagesFetched = 0;
 
-  while (currentUrl && scanPagesFetched < maxScanPages) {
+  while (currentUrl && scanPagesFetched < maxScanPages && scanPagesFetched < budget && performance.now() < deadline) {
     currentUrl = officialCollectionUrl(currentUrl, pageSize);
     if (visited.has(currentUrl)) {
       throw new OParlClientError(
@@ -492,10 +551,18 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
     });
     scanPagesFetched += 1;
     currentUrl = newestFirst ? page.previous : page.next;
+    if (checkpoint) {
+      const completed = { sourceRevision, nextUrl: currentUrl || '', pages, complete: !currentUrl,
+        checkedAt: new Date(params.now ?? Date.now()).toISOString() };
+      await checkpoint.write(sourceKey, `${checkpointScope}:cursor`, checkpointYear, checkpointRevision, { ...completed, pendingPage: page.data });
+      await reconcilePapers(page.data);
+      await checkpoint.write(sourceKey, `${checkpointScope}:cursor`, checkpointYear, checkpointRevision, completed);
+    }
   }
 
   return {
-    items,
+    items: checkpoint ? [...annual.values()].flatMap(state => Object.values(state.papers)) : items,
+    ...(checkpoint ? { retainedHistoricalFrom: [...annual.keys()].sort((a, b) => a - b)[0] } : {}),
     pages,
     pagesFetched: requests,
     scanPagesFetched,
@@ -701,7 +768,9 @@ async function collectBonnCatalogue(params = {}) {
     if (source.bodyList.truncated) coverage.warnings.push('Die Bonner OParl-Body-Liste wurde am Seitenlimit abgeschnitten.');
     if (paperList.truncated) coverage.warnings.push('Die Bonner OParl-Paper-Liste wurde am Seitenlimit abgeschnitten.');
 
-    const cutoff = createdSinceIso(params.now, params.lookbackYears).slice(0, 10);
+    const requestedCutoff = createdSinceIso(params.now, params.lookbackYears).slice(0, 10);
+    const retainedCutoff = paperList.retainedHistoricalFrom ? `${paperList.retainedHistoricalFrom}-01-01` : requestedCutoff;
+    const cutoff = retainedCutoff < requestedCutoff ? retainedCutoff : requestedCutoff;
     const seen = new Set();
     let invalidRecords = 0;
     for (const paper of paperList.items) {

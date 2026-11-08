@@ -223,30 +223,82 @@
   }
 
   function renderLocations(ref, ctx) {
-    if (!Array.isArray(ref.locations)) return null;
+    if (!Array.isArray(ref.locations) && !ref.geometryIds?.length) return null;
     const list = document.createElement('ul');
     list.style.cssText = 'margin:4px 0 0;padding-inline-start:1.3em';
-    ref.locations.forEach((location, index) => {
-      const details = renderLocation(location);
-      if (!details) return;
-      const row = document.createElement('li');
-      row.style.marginBottom = '4px';
-      row.append(details);
-      const button = mapButton(ctx, ref, location, index);
-      if (button) row.append(button);
-      list.append(row);
-    });
-    if (!list.childElementCount) return null;
     const section = document.createElement('section');
     section.setAttribute('aria-label', 'Genannte Orte');
     section.style.cssText = 'margin:8px 0;font-size:13px;line-height:1.4;overflow-wrap:anywhere';
     const heading = document.createElement('strong');
     heading.textContent = 'Genannte Orte';
     section.append(heading, list);
-    return section;
+    const viewRef = { ...ref, locations: [...(ref.locations || [])] };
+    const shown = new Set();
+    function appendLocation(location, index) {
+      const identity = location.id || index;
+      if (shown.has(identity)) return;
+      shown.add(identity);
+      const details = renderLocation(location);
+      if (!details) return;
+      const row = document.createElement('li');
+      row.style.marginBottom = '4px';
+      row.append(details);
+      const button = mapButton(ctx, viewRef, location, identity);
+      if (button) row.append(button);
+      list.append(row);
+    }
+    viewRef.locations.forEach(appendLocation);
+    const city = ctx.CITY_RAW;
+    const revision = ctx.politicalContextCityRevision;
+    const active = () => section.isConnected && ctx.CITY_RAW === city && ctx.politicalContextCityRevision === revision
+      && getPanelController(document.getElementById('polCtxPanel')).isOpen();
+    const status = document.createElement('div');
+    status.setAttribute('role', 'status');
+    section.append(status);
+    function pageButton(label, firstPage, loader, append) {
+      if (firstPage == null || typeof loader !== 'function') return;
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'smallBtn'; button.textContent = label;
+      section.append(button);
+      let page = firstPage;
+      button.addEventListener('click', async () => {
+        if (button.disabled || !active()) return;
+        button.disabled = true;
+        status.textContent = 'Weitere Kartenbezüge werden geladen …';
+        try {
+          const result = await loader(city, ref.id, page, { snapshot: ref.snapshot });
+          if (!active()) return;
+          append(result);
+          status.textContent = result.complete === false ? 'Kartenbezüge unvollständig; Daten fehlen.' : '';
+          if (result.complete === false) button.textContent = 'Erneut versuchen';
+          else if (result.nextPage != null) { page = result.nextPage; button.textContent = label; }
+          else button.hidden = true;
+        } catch (error) {
+          if (active()) status.textContent = error?.message || 'Kartenbezüge konnten nicht geladen werden. Bitte erneut versuchen.';
+        } finally { button.disabled = false; }
+      });
+    }
+    pageButton('Weitere Orte laden', ref.locationsNextPage, UA.RisCatalogue?.loadRecordLocations, result => {
+      for (const location of result.locations) {
+        if (!viewRef.locations.some(item => item.id === location.id)) viewRef.locations.push(location);
+        appendLocation(location, viewRef.locations.indexOf(location));
+      }
+    });
+    const geometrySeen = new Set();
+    function appendGeometry(geometryId) {
+      if (geometrySeen.has(geometryId) || viewRef.locations.some(location => location.geometryId === geometryId)) return;
+      geometrySeen.add(geometryId);
+      const location = { mapped: true, label: `${ref.locations?.length ? 'Kartenlage' : 'Amtliche Kartenlage'} ${geometrySeen.size}` };
+      const button = mapButton(ctx, viewRef, location, { geometryId });
+      if (button) { const row = document.createElement('li'); row.append(button); list.append(row); }
+    }
+    (ref.geometryIds || []).forEach(appendGeometry);
+    pageButton('Weitere Kartenlagen laden', ref.geometryNextPage, UA.RisCatalogue?.loadRecordGeometries,
+      result => result.geometryIds.forEach(appendGeometry));
+    return list.childElementCount || ref.locationsNextPage != null || ref.geometryNextPage != null ? section : null;
   }
 
-  function renderRef(ref, related, ctx) {
+  function renderRef(ref, related, ctx, includeRelated = true) {
     const typeColors = {
       'Antrag':            '#2563eb',
       'Änderungsantrag':   '#7c3aed',
@@ -269,6 +321,7 @@
     const card = document.createElement('div');
     card.className = 'polCtxRef';
     card.dataset.url = url;
+    card.dataset.referenceId = ref.id || url;
     card.dataset.title = ref.title ?? '';
     card.style.cssText = `
       border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:10px 12px;
@@ -310,6 +363,40 @@
     if (assessment) card.insertBefore(assessment, card.querySelector('a'));
     const locations = renderLocations(ref, ctx);
     if (locations) card.insertBefore(locations, card.querySelector('a'));
+    if (includeRelated && ref.id && ref.snapshot && typeof UA.RisCatalogue?.loadRelatedRecords === 'function') {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'smallBtn'; button.textContent = 'Verknüpfte Vorgänge anzeigen';
+      const relatives = document.createElement('section');
+      relatives.setAttribute('aria-label', 'Verknüpfte Vorgänge');
+      const status = document.createElement('div'); status.setAttribute('role', 'status');
+      card.append(button, status, relatives);
+      let page = 0;
+      const seen = new Set([ref.id]);
+      const city = ctx.CITY_RAW, revision = ctx.politicalContextCityRevision;
+      const active = () => button.isConnected && city === ctx.CITY_RAW && revision === ctx.politicalContextCityRevision
+        && getPanelController(document.getElementById('polCtxPanel')).isOpen();
+      button.addEventListener('click', async () => {
+        if (button.disabled || !active()) return;
+        button.disabled = true;
+        status.textContent = 'Verknüpfte Vorgänge werden geladen …';
+        try {
+          const result = await UA.RisCatalogue.loadRelatedRecords(city, ref.id, page, { snapshot: ref.snapshot });
+          if (!active()) return;
+          for (const entry of result.records) {
+            if (seen.has(entry.id)) continue;
+            seen.add(entry.id);
+            relatives.append(renderRef(entry, ref, ctx, false));
+          }
+          status.textContent = result.complete === false ? 'Verknüpfte Vorgänge unvollständig; Daten fehlen.'
+            : seen.size === 1 ? 'Keine verknüpften Vorgänge.' : `${seen.size - 1} verknüpfte Vorgänge geladen.`;
+          if (result.complete === false) button.textContent = 'Erneut versuchen';
+          else if (result.nextPage != null) { page = result.nextPage; button.textContent = 'Weitere verknüpfte Vorgänge laden'; }
+          else button.hidden = true;
+        } catch (error) {
+          if (active()) status.textContent = error?.message || 'Verknüpfte Vorgänge konnten nicht geladen werden. Bitte erneut versuchen.';
+        } finally { button.disabled = false; }
+      });
+    }
     return card;
   }
 
@@ -357,6 +444,11 @@
    * @param {object} ctx
    * @returns {Promise<void>}
    */
+  function hasSearchContinuation(value) {
+    return (Number.isSafeInteger(value) && value >= 0)
+      || (typeof value === 'string' && value.length <= 2048 && /^ris2\.[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(value));
+  }
+
   async function runSearch(ctx) {
     const statusEl  = document.getElementById('polCtxStatus');
     const resultsEl = document.getElementById('polCtxResults');
@@ -393,8 +485,7 @@
     resultsEl.innerHTML  = '';
     if (btnSearch) btnSearch.disabled = true;
 
-    try {
-      const result = await UA.PoliticalContext.search({
+    const params = {
         city,
         searchTerms: terms,
         context: {
@@ -405,7 +496,9 @@
             ctx.ui._lastExportResult.structured.meta.gremium.name) || ''
         },
         maxResults: 15
-      });
+    };
+    try {
+      const result = await UA.PoliticalContext.search(params);
       if (ctx.politicalSearchRequest !== request || (ctx.CITY_RAW || '') !== city) return;
       statusEl.textContent = result.references.length > 0
         ? `${result.references.length} Vorgänge gefunden.`
@@ -413,6 +506,45 @@
           ? 'Keine Vorgänge im durchsuchten Bestand.'
           : 'Recherche unvollständig.';
       renderResults(resultsEl, result, ctx);
+      if (hasSearchContinuation(result.meta.nextPage)) {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'smallBtn'; button.textContent = 'Weitere Suchtreffer laden';
+        resultsEl.append(button);
+        let page = result.meta.nextPage;
+        const snapshot = result.meta.snapshot || result.references.find(ref => ref.snapshot)?.snapshot
+          || (result.meta.generation ? { city, generation: result.meta.generation } : null);
+        const generation = value => value?.generation || value?.sha256;
+        const active = () => button.isConnected && ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city
+          && getPanelController(document.getElementById('polCtxPanel')).isOpen();
+        button.addEventListener('click', async () => {
+          if (button.disabled || !active()) return;
+          button.disabled = true;
+          statusEl.textContent = 'Weitere Suchtreffer werden geladen …';
+          try {
+            const next = await UA.PoliticalContext.search({ ...params, page, ...(snapshot ? { snapshot } : {}) });
+            if (!active()) return;
+            const expected = generation(snapshot);
+            const incoming = generation(next.meta.snapshot) || next.meta.generation;
+            if (expected && ((incoming && incoming !== expected)
+                || next.references.some(ref => ref.snapshot && generation(ref.snapshot) !== expected))) {
+              throw new Error('Die Suchseiten stammen aus unterschiedlichen Datenständen. Bitte die Recherche erneut starten.');
+            }
+            const seen = new Set([...resultsEl.querySelectorAll('.polCtxRef')].map(card => card.dataset.referenceId));
+            const byId = new Map(next.references.map(ref => [ref.id, ref]));
+            for (const ref of next.references) {
+              const id = ref.id || ref.url;
+              if (seen.has(id)) continue;
+              seen.add(id);
+              resultsEl.insertBefore(renderRef(ref, byId.get(ref.relatedTo), ctx), button);
+            }
+            statusEl.textContent = `${seen.size} Vorgänge geladen.` + (next.meta.complete === false || next.meta.truncated ? ' Recherche unvollständig.' : '');
+            if (hasSearchContinuation(next.meta.nextPage)) page = next.meta.nextPage;
+            else button.hidden = true;
+          } catch (error) {
+            if (active()) statusEl.textContent = error?.message || 'Weitere Suchtreffer konnten nicht geladen werden. Bitte erneut versuchen.';
+          } finally { button.disabled = false; }
+        });
+      }
     } catch (err) {
       if (ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city) {
         statusEl.textContent = 'Fehler bei der Recherche. ' + String(err.message || err);

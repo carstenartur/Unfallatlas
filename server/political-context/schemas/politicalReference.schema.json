@@ -6,6 +6,13 @@
   "required": ["id", "title", "type", "url", "source"],
   "additionalProperties": false,
   "properties": {
+    "locationCount": { "type": "integer", "minimum": 0 },
+    "locationsNextPage": { "type": ["integer", "null"], "minimum": 1 },
+    "geometryIds": {
+      "type": "array", "maxItems": 64, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^geometry:[a-f0-9]{64}$" }
+    },
+    "geometryNextPage": { "type": ["integer", "null"], "minimum": 1 },
     "id": {
       "type": "string",
       "description": "Eindeutige interne ID (z. B. sha256-Hash aus URL)"
@@ -64,12 +71,14 @@
     "locations": {
       "type": "array",
       "description": "Im Vorgang genannte Orte mit Fundstelle und Kennzeichen für die Kartendarstellung",
-      "maxItems": 8,
+      "maxItems": 64,
       "items": {
         "type": "object",
         "required": ["label", "kind", "evidence", "mapped"],
         "additionalProperties": false,
         "properties": {
+          "id": { "type": "string", "pattern": "^location:[a-f0-9]{64}$" },
+          "geometryId": { "type": "string", "pattern": "^geometry:[a-f0-9]{64}$" },
           "label": { "type": "string", "minLength": 1, "maxLength": 4096 },
           "kind": { "enum": ["junction", "section", "street", "address", "place"] },
           "mapped": { "type": "boolean" },

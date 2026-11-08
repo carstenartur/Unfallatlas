@@ -444,6 +444,17 @@ test('reports that more than eight identified places could not all be published'
   });
 });
 
+test('partitioned publication retains every identified place beyond the legacy eight-place limit', () => {
+  const entries = Array.from({ length: 12 }, (_, i) => street(`Teststraße ${i + 1}`, [[9.7, 52.37], [9.71, 52.37]]));
+  const [record] = enrichRisLocations([{
+    title: 'Fahrbahnsanierung', locationEvidence: entries.map(entry => `Die Fahrbahn in der ${entry.name} wird saniert.`),
+  }], { city: 'hannover', gazetteer: { city: 'hannover', entries }, maxLocationsPerRecord: Infinity });
+  expect(record.locations).toHaveLength(12);
+  expect(record.locationAssessment).toEqual({
+    status: 'mapped', sources: ['title', 'document'], reasons: [], truncated: false,
+  });
+});
+
 test.each([
   { title: 'Einladung zur Sitzung in der Limmerstraße 14', locationEvidence: [] },
   { title: 'Radverkehr verbessern', locationEvidence: ['Wie bereits in der Limmerstraße 14 sollen Fahrradbügel aufgestellt werden.'] },

@@ -35,6 +35,8 @@ function makeWindow(search = '') {
   win.UA.fetchJsonGz = jest.fn(async () => null);
   load(win, 'ua.state.js');
   load(win, 'ua.data_paths.js');
+  load(win, 'ua.spatial-grid.js');
+  load(win, 'ua.data-budget.js');
   load(win, 'ua.accident_provider.js');
   load(win, 'ua.data_v2.js');
   return win;

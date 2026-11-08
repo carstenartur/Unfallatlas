@@ -33,7 +33,7 @@
   <!-- These are loaded via script injection when export dialog opens -->
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/ua.css?v=2026-11-08-mobile-panels" />
+  <link rel="stylesheet" href="css/ua.css?v=2026-11-08-scalable-catalogue" />
 </head>
 <body>
   <div id="map"></div>
@@ -181,7 +181,7 @@
         </div>
         <div style="margin-top:2px; font-size:11px; color:#666; line-height:1.4;">
           Die Karte zeigt Steigung und Verkehr farbig je Straßenabschnitt
-          (Karten-Layer oben rechts). Diese Filter blenden zusätzlich
+          (Karte oben rechts). Diese Filter blenden zusätzlich
           einzelne Unfallpunkte aus.
         </div>
         <details open style="margin-top:4px;">
@@ -222,7 +222,7 @@
           <div style="margin-top:6px; font-size:11px; color:#777; line-height:1.4;">
             <em>Filter zeigen nur Unfälle, deren Umgebung den gewählten Kategorien entspricht.
             Unfälle ohne entsprechende Kontextdaten werden ausgeblendet. Die farbige
-            Hervorhebung der Straßen selbst erfolgt über die Karten-Layer.</em>
+            Hervorhebung der Straßen selbst erfolgt über Karte oben rechts.</em>
           </div>
         </details>
       </div>
@@ -254,7 +254,7 @@
         </div>
       </details>
 
-      <div style="margin-top:10px; font-weight:900;">Kartenmodus</div>
+      <div id="mapBackgroundControls">
       <div class="toggles">
         <button type="button" id="mapModeStandard" class="btn active" aria-pressed="true">Standardkarte</button>
         <button type="button" id="mapModeOrthophoto" class="btn" aria-pressed="false">Orthofoto</button>
@@ -277,9 +277,13 @@
         Standardkarte aktiv.
       </div>
 
-      <div class="toggles">
+      </div>
+
+      <div class="toggles" id="mapAccidentControls">
         <button type="button" id="toggleCluster" class="btn active" aria-pressed="true">Cluster</button>
         <button type="button" id="toggleHeat" class="btn active" aria-pressed="true">Heatmap</button>
+      </div>
+      <div class="toggles">
         <button type="button" id="toggleOnlyHot" class="btn" aria-pressed="false">Nur „auffällig"</button>
       </div>
 
@@ -645,14 +649,16 @@
   <script src="js/ua.utils.js?v=2026-07-19"></script>
   <script src="js/ua.state.js?v=2026-01-01"></script>
   <script src="js/ua.map_layer_registry.js?v=2026-06-28"></script>
-  <script src="js/ua.ui.js?v=2026-11-08-mobile-panels"></script>
+  <script src="js/ua.ui.js?v=2026-11-08-scalable-catalogue"></script>
   <!-- gzip fetch utility — must load before context_layers, accident_provider and data_v2 -->
   <script src="js/ua.fetch_gz.js?v=2026-07-06"></script>
   <script src="js/ua.data_paths.js?v=2026-11-07-ris"></script>
-  <script src="js/ua.context_layers.js?v=2026-05-09"></script>
+  <script src="js/ua.spatial-grid.js?v=2026-11-08-scalable-catalogue"></script>
+  <script src="js/ua.data-budget.js?v=2026-11-08-scalable-catalogue"></script>
+  <script src="js/ua.context_layers.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.context_road_layer.js?v=2026-05-09"></script>
   <script src="js/ua.popup_context.js?v=2026-07-19"></script>
-  <script src="js/ua.accident_provider.js?v=2026-06-27"></script>
+  <script src="js/ua.accident_provider.js?v=2026-11-08-scalable-catalogue"></script>
   <!-- Architecture: RenderScheduler + MapStore (issue #308) -->
   <script src="js/ua.render_scheduler.js?v=2026-07-03"></script>
   <script src="js/ua.map_store.js?v=2026-07-03"></script>
@@ -669,13 +675,14 @@
   <script src="js/ua.renderer.js?v=2026-07-03"></script>
   <script src="js/ua.leaflet_renderer.js?v=2026-07-03"></script>
   <script src="js/ua.leaflet_map_adapter.js?v=2026-07-03"></script>
-  <script src="js/ua.preview_map_renderer.js?v=2026-07-03"></script>
+  <script src="js/ua.preview_map_renderer.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.data_v2.js?v=2026-05-09"></script>
   <script src="js/ua.filters.js?v=2026-01-01"></script>
   <script src="js/ua.lifecycle.js?v=2026-07-19"></script>
-  <script src="js/ua.ris-catalogue.js?v=2026-11-08-ris-pruefung"></script>
-  <script src="js/ua.ris-layer.js?v=2026-11-08-mobile-panels"></script>
-  <script src="js/ua.map_v2.js?v=2026-11-08-mobile-panels"></script>
+  <script src="js/ua.ris-partitions.js?v=2026-11-08-scalable-catalogue"></script>
+  <script src="js/ua.ris-catalogue.js?v=2026-11-08-scalable-catalogue"></script>
+  <script src="js/ua.ris-layer.js?v=2026-11-08-scalable-catalogue"></script>
+  <script src="js/ua.map_v2.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.time_clusters.js?v=2026-01-01"></script>
   <script src="js/ua.accident_views.js?v=2026-01-01"></script>
   <script src="js/ua.stats.js?v=2026-01-01"></script>
@@ -692,7 +699,7 @@
   <script src="js/ua.app_v2.js?v=2026-07-19"></script>
   <script src="js/ua.video-export-contract.js?v=2026-07-19"></script>
   <script src="js/ua.video-export.js?v=2026-07-19"></script>
-  <script src="js/ua.political-context.js?v=2026-11-08-ris-pruefung"></script>
+  <script src="js/ua.political-context.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.priorities.js?v=2026-07-19"></script>
 </body>
 </html>
