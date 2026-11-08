@@ -60,7 +60,22 @@ test('real DOCX and rendered PDF preserve full digests and permit line wrapping'
   try {
     const file = path.join(dir, 'citation.pdf');
     fs.writeFileSync(file, await document.getBuffer());
-    const text = execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' });
+    // Read the generated PDF with the lockfile-pinned parser in a normal Node
+    // process. Unit-test runners do not all install the Poppler render tools.
+    const text = execFileSync(process.execPath, ['--input-type=module', '-e', `
+      import fs from 'node:fs';
+      import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+      const task = getDocument({ data: new Uint8Array(fs.readFileSync(process.argv[1])), useSystemFonts: true });
+      const pdf = await task.promise;
+      const lines = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        lines.push(content.items.map(item => item.str || '').join(' '));
+      }
+      process.stdout.write(lines.join(' ').replace(/\\s+/g, ' '));
+      await task.destroy();
+    `, file], { encoding: 'utf8', cwd: path.resolve(__dirname, '../..') });
     expectCitation(text);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

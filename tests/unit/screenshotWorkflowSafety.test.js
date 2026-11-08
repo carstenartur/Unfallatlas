@@ -88,7 +88,7 @@ describe('documentation screenshot publication safety', () => {
       expect(candidate).toMatch(/if-no-files-found:\s*error\b/);
       expect(candidate).toMatch(/Provider-URL/);
     }
-    expect(visualAcceptanceJob).toContain('actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad');
+    expect(visualAcceptanceJob).toContain('actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78');
     expect(visualAcceptanceJob.match(/^\s*run:\s*mvn\b/gm) || []).toHaveLength(1);
     expect(workflow).toContain('documentation-screenshots-live-map-${{ github.sha }}');
     expect(visualCandidateJob).toContain('pr-live-map-screenshots-${{ github.event.pull_request.number }}');
