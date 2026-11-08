@@ -88,6 +88,26 @@ function citySlug(value) {
   return slugify(value);
 }
 
+function trafficConfiguration(environment = process.env) {
+  const artifactFile = String(environment.KOELN_KFZ_MATCHED_ARTIFACT || '').trim();
+  const expectedArtifactSha256 = String(environment.KOELN_KFZ_MATCHED_ARTIFACT_SHA256 || '').trim();
+  if (Boolean(artifactFile) !== Boolean(expectedArtifactSha256)) {
+    throw new Error('Incomplete Köln traffic configuration: artifact path and SHA-256 are an atomic contract');
+  }
+  if (!artifactFile) return null;
+  if (!/^[a-f0-9]{64}$/.test(expectedArtifactSha256)) throw new Error('Invalid Köln traffic artifact SHA-256');
+  return { artifactFile, expectedArtifactSha256 };
+}
+
+function applyMatchedTrafficForCity(city, environment = process.env, runner = run) {
+  if (citySlug(city) !== 'koeln') return false;
+  const config = trafficConfiguration(environment);
+  if (!config) return false;
+  runner('scripts/apply-matched-traffic.js', ['--city', city, '--artifact', config.artifactFile,
+    '--sha256', config.expectedArtifactSha256]);
+  return true;
+}
+
 function dgm1Configuration() {
   const root = String(process.env.HANNOVER_DGM1_ROOT || '').trim();
   const manifest = String(process.env.HANNOVER_DGM1_MANIFEST || '').trim();
@@ -232,13 +252,14 @@ function refreshCity(city, options, state) {
 
   const dgm1Applied = applyHannoverDgm1(city, options);
   run('scripts/apply-qualitative-traffic-proxy.js', ['--city', city]);
+  const matchedTrafficApplied = applyMatchedTrafficForCity(city);
   state.cities.push({
     city,
     slug: citySlug(city),
     status: 'refreshed',
     reason: null,
   });
-  return { refreshed: true, dgm1Applied };
+  return { refreshed: true, dgm1Applied, matchedTrafficApplied };
 }
 
 function validatePublishedTree(cities, refreshedCities = cities, runner = run) {
@@ -367,6 +388,8 @@ module.exports = Object.freeze({
   run,
   configuredCities,
   citySlug,
+  trafficConfiguration,
+  applyMatchedTrafficForCity,
   dgm1Configuration,
   applyHannoverDgm1,
   processFailureText,

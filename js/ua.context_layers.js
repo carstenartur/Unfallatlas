@@ -21,6 +21,9 @@
     'slope_source',
     'slope_confidence',
     'traffic_proxy_class',
+    'traffic_measurement_type',
+    'traffic_volume_value',
+    'traffic_evidence',
     'highway',
     'maxspeed',
     'lanes',
@@ -42,6 +45,7 @@
     hasSlope: ['slope_percent', 'slope_abs_percent', 'slope_class', 'slope_source', 'slope_confidence'],
     hasOsmContext: ['matched_way_id', 'highway', 'maxspeed', 'lanes', 'surface', 'cycleway', 'osm_incline', 'road_slope_percent', 'road_context_source'],
     hasTrafficProxy: ['traffic_proxy_class'],
+    hasTrafficEvidence: ['traffic_evidence'],
   };
 
   function requireResources() {

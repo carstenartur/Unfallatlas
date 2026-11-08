@@ -150,6 +150,9 @@ describe('Cologne OSM-matched traffic provider', () => {
       wayId: '10',
       direction: 'A → B; OSM-Way-Richtung: same',
     }));
+    expect(value.match).toEqual(expect.objectContaining({ matchQuality: 'high', meanDistanceMeters: expect.any(Number),
+      directionRelation: 'same', sourceWayId: expect.stringContaining('koeln-segment:') }));
+    expect(provider.matchedArtifact.sources.traffic.sha256).toBe('a'.repeat(64));
     expect(value.qualityNotes.join(' ')).toMatch(/P95 0 m/);
     expect(value.source).toEqual(expect.objectContaining({
       sourceId: providerModule.PROVIDER_ID,
@@ -183,6 +186,50 @@ describe('Cologne OSM-matched traffic provider', () => {
     expect(selected.statement).toMatch(/Älterer gemessener Verkehrswert/);
     expect(selected.statement).toMatch(/18[.\s]504 Kfz\/24 h/);
     expect(selected.statement).toMatch(/2019/);
+  });
+
+  test('pinned artifact application retains selected typed evidence and all source pins through proxy fallback', async () => {
+    const root = makeRoot();
+    const written = writeArtifact(root);
+    const out = path.join(root, 'out');
+    fs.mkdirSync(path.join(out, 'ctxtiles/koeln/1'), { recursive: true });
+    const write = (file, value) => fs.writeFileSync(path.join(out, file), JSON.stringify(value));
+    write('ways_koeln.json', { ways: { 10: {}, 20: {} } });
+    write('ctxtiles/koeln/index.json', { tiles: [{ x: 1, y: 2 }] });
+    write('ctxtiles/koeln/1/2.json', { ways: { 10: {}, 20: {} } });
+    write('output_all_years_koeln.geojson', { features: [10, 20].map(id => ({ properties: { matched_way_id: String(id) } })) });
+    write('output_all_years_koeln.enrichment.meta.json', {});
+    const { applyMatchedTraffic } = require('../../scripts/apply-matched-traffic');
+    await applyMatchedTraffic({ root, city: 'Köln', artifactFile: written.file,
+      expectedArtifactSha256: written.sha256, referenceYear: 2026 });
+    const read = file => JSON.parse(fs.readFileSync(path.join(out, file), 'utf8'));
+    for (const row of [read('ways_koeln.json').ways['10'], read('ctxtiles/koeln/1/2.json').ways['10'],
+      read('output_all_years_koeln.geojson').features[0].properties]) {
+      expect(row).toEqual(expect.objectContaining({ traffic_measurement_type: 'count', traffic_volume_value: 18504,
+        traffic_volume_year: 2019, traffic_evidence: expect.objectContaining({ evidenceType: 'stale-measured', ageYears: 7,
+          matchQuality: 'high', observation: expect.objectContaining({ match: expect.objectContaining({ directionRelation: 'same' }) }) }) }));
+      expect(row.traffic_artifact).toEqual(expect.objectContaining({ sha256: written.sha256,
+        sources: expect.objectContaining({ osm: expect.objectContaining({ sha256: 'b'.repeat(64) }) }) }));
+      const before = JSON.parse(JSON.stringify(row));
+      expect(require('../../scripts/apply-qualitative-traffic-proxy').normalizeProxyRow(row,
+        { proxyClass: 'high', highwayClass: 'primary' })).toBe(false);
+      expect(row).toEqual(before);
+    }
+    expect(read('ways_koeln.json').ways['20']).not.toHaveProperty('traffic_volume_value');
+    fs.mkdirSync(path.join(root, '.enrichment-cache/traffic'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.enrichment-cache/traffic/traffic_koeln.json'), JSON.stringify({
+      measurementType: 'proxy', source: 'OSM-highway-class-proxy', ways: {
+        10: { measurementType: 'proxy', proxyClass: 'high', highwayClass: 'primary' },
+        20: { measurementType: 'proxy', proxyClass: 'low', highwayClass: 'residential' },
+      } }));
+    require('../../scripts/apply-qualitative-traffic-proxy').applyQualitativeTrafficProxy({ root, city: 'Köln' });
+    expect(read('ways_koeln.json').ways['10'].traffic_volume_value).toBe(18504);
+    expect(read('ways_koeln.json').ways['20'].traffic_measurement_type).toBe('proxy');
+    expect(read('output_all_years_koeln.enrichment.meta.json').traffic).toEqual(expect.objectContaining({
+      measurementType: 'mixed', numericValuesPresent: true, typedFeatures: 1, classifiedFeatures: 1 }));
+    const meta = read('output_all_years_koeln.enrichment.meta.json');
+    expect(meta.sources.trafficMatched.matchedArtifact).toEqual(expect.objectContaining({ sha256: written.sha256,
+      sources: expect.objectContaining({ osm: expect.objectContaining({ sha256: 'b'.repeat(64) }) }) }));
   });
 
   test('supports fail-closed full-coverage production runs', () => {

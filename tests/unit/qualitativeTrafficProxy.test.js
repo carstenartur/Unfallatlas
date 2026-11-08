@@ -172,3 +172,11 @@ describe('qualitative traffic proxy final-artifact adapter', () => {
     }
   });
 });
+
+test.each(['count', 'model'])('proxy fallback rejects unvalidated %s claims', type => {
+  const row = { traffic_measurement_type: type, traffic_volume_value: 0,
+    traffic_volume_unit: 'Kfz/24 h', traffic_volume_year: 2019,
+    traffic_evidence: { source: { contentHash: 'a'.repeat(64) } } };
+  expect(normalizeProxyRow(row, { proxyClass: 'high', highwayClass: 'primary' })).toBe(true);
+  expect(row).not.toHaveProperty('traffic_volume_value');
+});

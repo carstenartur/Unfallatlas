@@ -725,6 +725,42 @@
       });
     }
 
+    // Presentation adapter for persisted enrichment fields; does not estimate
+    // new uncertainty or upgrade coarse terrain samples to road measurements.
+    function presentContext(properties) {
+      const p = properties || {};
+      const finite = value => typeof value === "number" && Number.isFinite(value);
+      const usesRoad = finite(p.road_slope_percent);
+      const value = usesRoad ? p.road_slope_percent
+        : finite(p.slope_percent) ? p.slope_percent : null;
+      const source = (usesRoad ? p.road_slope_source || p.slope_source : p.slope_source || p.road_slope_source) || "Quelle nicht dokumentiert";
+      const resolutionMeters = usesRoad && finite(p.road_slope_resolution_m) ? p.road_slope_resolution_m
+        : finite(p.slope_resolution_m) ? p.slope_resolution_m : /SRTM/i.test(source) ? 30 : null;
+      const reliableForRoad = finite(p.road_slope_percent) && p.road_slope_reliable_for_road === true &&
+        resolutionMeters !== null && resolutionMeters > 0 && resolutionMeters < 20 &&
+        typeof p.road_slope_source_id === "string" && Boolean(p.road_slope_source_id.trim()) && !/SRTM/i.test(source);
+      const semanticType = reliableForRoad ? "road_gradient" : "terrain_context";
+      const uncertaintyPercent = usesRoad && finite(p.road_slope_uncertainty_percent)
+        ? p.road_slope_uncertainty_percent : null;
+      const uncertaintyReasons = Array.isArray(p.road_slope_uncertainty_reasons)
+        ? p.road_slope_uncertainty_reasons.slice() : [];
+      const sourceText = `${source}${resolutionMeters == null ? "" : ` (${resolutionMeters} m)`}`;
+      let statement = "Neigungsangabe nicht verfügbar.";
+      if (value !== null && reliableForRoad) {
+        statement = `Straßenlängsneigung: ${Math.abs(value).toFixed(1).replace(".", ",")} %` +
+          (uncertaintyPercent === null ? "" : `; Unsicherheit ±${String(uncertaintyPercent).replace(".", ",")} Prozentpunkte`) +
+          `; ${sourceText}.`;
+      } else if (value !== null) {
+        const magnitude = Math.abs(value);
+        const range = magnitude <= 2 ? "0–2" : magnitude <= 4 ? "2–4"
+          : magnitude <= 6 ? "4–6" : magnitude <= 10 ? "6–10" : "über 10";
+        statement = `Geländeneigung im Umfeld: grobe Klasse ${range} %, ${sourceText}; für die Fahrbahn nicht belastbar.`;
+      }
+      return Object.freeze({ semanticType, valuePresent: value !== null, reliableForRoad,
+        source, sourceId: usesRoad ? p.road_slope_source_id || null : (/SRTM/i.test(source) ? "global.srtm30" : null), resolutionMeters,
+        uncertaintyPercent, uncertaintyReasons: Object.freeze(uncertaintyReasons), statement });
+    }
+
     return Object.freeze({
       SOURCE_TIERS,
       MODEL_TYPES,
@@ -734,6 +770,7 @@
       createProvider,
       createRegistry,
       computeRoadGradient,
+      presentContext,
       createHannoverDgm1Descriptor,
       createGlobalFallbackDescriptor,
       _test: Object.freeze({

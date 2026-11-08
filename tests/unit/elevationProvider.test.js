@@ -355,3 +355,38 @@ describe("provider-based elevation and road-gradient core", () => {
     );
   });
 });
+
+describe('source-aware runtime elevation projection', () => {
+  test('coarse SRTM zero is a terrain class, missing remains unavailable', () => {
+    expect(elevation.presentContext({ road_slope_percent: 0, slope_source: 'SRTM Local Tiles' })).toEqual(
+      expect.objectContaining({ semanticType: 'terrain_context', valuePresent: true, reliableForRoad: false,
+        statement: expect.stringContaining('0–2 %'), resolutionMeters: 30 }));
+    expect(elevation.presentContext({ road_slope_percent: null, slope_source: 'SRTM Local Tiles' })).toEqual(
+      expect.objectContaining({ valuePresent: false, statement: expect.stringContaining('nicht verfügbar') }));
+  });
+  test('only explicit road reliability permits precise gradient wording; retains uncertainty', () => {
+    const props = { road_slope_percent: 2.4, road_slope_source: 'DGM1 geprüft', road_slope_source_id: 'dgm.test',
+      road_slope_resolution_m: 1, road_slope_reliable_for_road: true, road_slope_uncertainty_percent: 0.7,
+      road_slope_uncertainty_reasons: ['profile-spread'] };
+    expect(elevation.presentContext(props)).toEqual(expect.objectContaining({ semanticType: 'road_gradient',
+      statement: expect.stringContaining('2,4 %'), uncertaintyPercent: 0.7, uncertaintyReasons: ['profile-spread'] }));
+    expect(elevation.presentContext({ ...props, road_slope_reliable_for_road: false }).statement).toContain('für die Fahrbahn nicht belastbar');
+  });
+});
+
+test('a reliability flag cannot upgrade unknown or 30 m coarse terrain to a precise road profile', () => {
+  for (const row of [{ road_slope_percent: 2.4, road_slope_reliable_for_road: true },
+    { road_slope_percent: null, slope_percent: 3.2, road_slope_reliable_for_road: true, road_slope_source_id: 'dgm.test', road_slope_source: 'DGM', road_slope_resolution_m: 1 },
+    { road_slope_percent: 2.4, road_slope_reliable_for_road: true, road_slope_source_id: 'global.srtm30',
+      road_slope_source: 'SRTM', road_slope_resolution_m: 30 }]) {
+    expect(elevation.presentContext(row).semanticType).toBe('terrain_context');
+  }
+});
+
+test('an excluded DGM road profile cannot lend its source or resolution to a local SRTM fallback', () => {
+  const projected = elevation.presentContext({ road_slope_percent: null, road_slope_reliable_for_road: false,
+    road_slope_source: 'DGM1', road_slope_source_id: 'dgm.test', road_slope_resolution_m: 1,
+    road_slope_missing_reason: 'bridge', slope_percent: 3, slope_source: 'SRTM Local Tiles', slope_resolution_m: 30 });
+  expect(projected.source).toBe('SRTM Local Tiles');
+  expect(projected.resolutionMeters).toBe(30);
+});

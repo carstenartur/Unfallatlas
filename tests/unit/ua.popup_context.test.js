@@ -532,9 +532,9 @@ describe('UA.contextLayers.capabilitiesFromDetection — single source of truth'
   test('returns all-false flags + hasAny=false for empty/missing detection', () => {
     const UA = loadModules();
     expect(UA.contextLayers.capabilitiesFromDetection(null))
-      .toEqual({ hasElevation: false, hasSlope: false, hasOsmContext: false, hasTrafficProxy: false, hasAny: false });
+      .toEqual({ hasElevation: false, hasSlope: false, hasOsmContext: false, hasTrafficProxy: false, hasTrafficEvidence: false, hasAny: false });
     expect(UA.contextLayers.capabilitiesFromDetection({ availableFields: [] }))
-      .toEqual({ hasElevation: false, hasSlope: false, hasOsmContext: false, hasTrafficProxy: false, hasAny: false });
+      .toEqual({ hasElevation: false, hasSlope: false, hasOsmContext: false, hasTrafficProxy: false, hasTrafficEvidence: false, hasAny: false });
   });
 
   test('hasOsmContext is true even when only matched_way_id is present (allows future ways_<city>.json hydration)', () => {
@@ -542,4 +542,33 @@ describe('UA.contextLayers.capabilitiesFromDetection — single source of truth'
     const caps = UA.contextLayers.capabilitiesFromDetection({ availableFields: ['matched_way_id'] });
     expect(caps.hasOsmContext).toBe(true);
   });
+});
+
+test('runtime terrain projection hides false precision and exposes reliable source uncertainty', () => {
+  const UA = loadModules();
+  UA.elevationProvider = require('../../js/ua.elevation_provider');
+  const coarse = UA.popupContext.render({ elevation_m: 0, road_slope_percent: 0, slope_source: 'SRTM Local Tiles' }, { hasElevation: true, hasSlope: true });
+  expect(coarse).toContain('Geländeneigung im Umfeld');
+  expect(coarse).toContain('0–2 %');
+  expect(coarse).toContain('30 m');
+  expect(coarse).not.toContain('0,0 %');
+  expect(coarse).toContain('0 m');
+  const road = UA.popupContext.render({ road_slope_percent: 2.4, road_slope_reliable_for_road: true,
+    road_slope_source: 'DGM1 geprüft', road_slope_source_id: 'dgm.test', road_slope_resolution_m: 1, road_slope_uncertainty_percent: 0.7 }, { hasSlope: true });
+  expect(road).toContain('Straßenlängsneigung');
+  expect(road).toContain('±0,7');
+  expect(road).toContain('DGM1 geprüft');
+});
+
+test.each([['count', 'Älterer gemessener Verkehrswert'], ['model', 'Verkehrsmodell']])('renders %s provenance and historical period distinctly from proxy', (type, label) => {
+  const UA = loadModules();
+  UA.trafficProvider = require('../../js/ua.traffic_provider');
+  const row = require('../fixtures/typed-traffic-evidence')(type);
+  const caps = UA.contextLayers.capabilitiesFromDetection(UA.contextLayers.detect({ features: [{ properties: row }] }));
+  const html = UA.popupContext.render(row, caps);
+  expect(html).toContain(label);
+  expect(html).toContain('0 Kfz/24 h');
+  expect(html).toContain('2019');
+  expect(html).toContain('A → B');
+  expect(html).not.toContain('Schätzung anhand OSM');
 });

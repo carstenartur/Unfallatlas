@@ -205,6 +205,8 @@ function matchedObservation(value, index) {
       originalDirection,
       `OSM-Way-Richtung: ${directionRelation}`,
     ].filter(Boolean).join('; '),
+    match: Object.freeze({ ...Object.fromEntries(numericFields.map(field => [field, Number(osmMatch[field])])),
+      matchQuality, directionRelation, sourceWayId, matchMethod: 'pinned-direction-aware-osm-match' }),
     qualityNotes: Object.freeze([
       ...(Array.isArray(observation.qualityNotes) ? observation.qualityNotes.map(String) : []),
       `Quellsegment ${sourceWayId}; OSM-Match ${matchQuality}; ` +
@@ -265,6 +267,7 @@ function createKoelnKfzOsmMatchedProvider(options = {}) {
       sha256: loaded.sha256,
       artifactFingerprint: loaded.artifact.artifactFingerprint,
       matcher: loaded.artifact.matcher,
+      sources: loaded.artifact.sources,
     }),
     coverage: Object.freeze({
       totalObservations: loaded.artifact.observations.length,
