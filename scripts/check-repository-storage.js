@@ -104,6 +104,34 @@ function newHistoryBlobs(root, base, head) {
   return { commits: commits.length, newBlobCount: blobs.length, newBlobBytes: blobs.reduce((sum, item) => sum + item.bytes, 0), blobs };
 }
 
+function historyPathEntries(root, base, head) {
+  // rev-list emits only one representative name per object. Raw NUL-delimited
+  // diffs retain every alias, including paths removed by a later commit and
+  // names containing tabs/newlines. Merge diffs cover each parent separately.
+  const tokens = git(root, ['log', '--format=', '--raw', '-z', '--no-abbrev', '--no-renames',
+    '--diff-merges=separate', `${base}..${head}`]).stdout.split('\0');
+  const entries = new Map();
+  for (let i = 0; i < tokens.length; i++) {
+    const header = tokens[i].trim();
+    if (!header) continue;
+    const match = /^:(\d+) (\d+) ([a-f0-9]{40}) ([a-f0-9]{40}) ([AMDTUX])$/.exec(header);
+    if (!match || tokens[i + 1] === undefined) throw new Error('Invalid storage history path metadata');
+    const name = tokens[++i];
+    if (match[5] === 'D') continue;
+    entries.set(`${match[4]}\0${match[2]}\0${name}`, { path: name, blob: match[4], mode: match[2] });
+  }
+  if (!entries.size) return [];
+  const hashes = [...new Set([...entries.values()].map(item => item.blob))];
+  const sizes = new Map();
+  const metadata = git(root, ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'], false, hashes.join('\n') + '\n').stdout;
+  for (const row of metadata.trim().split('\n')) {
+    const match = /^([a-f0-9]{40}) (\w+) (\d+)$/.exec(row);
+    if (!match) throw new Error('Missing storage history path object');
+    sizes.set(match[1], { type: match[2], bytes: Number(match[3]) });
+  }
+  return [...entries.values()].map(item => ({ ...item, ...sizes.get(item.blob) }));
+}
+
 function evaluateStorage(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const base = revision(root, options.base, 'baseline');
@@ -117,6 +145,7 @@ function evaluateStorage(options = {}) {
   const before = tree(root, base);
   const after = tree(root, head);
   const history = newHistoryBlobs(root, base, head);
+  history.paths = historyPathEntries(root, base, head);
   const errors = [];
   const totals = { trackedBytes: 0, trackedFiles: after.size, evidenceBytes: 0, publishedDataBytes: 0 };
   const delta = { changedFiles: 0, addedFiles: 0, deletedFiles: 0, rewrittenBytes: 0, positiveGrowthBytes: 0, netGrowthBytes: 0 };
@@ -131,6 +160,9 @@ function evaluateStorage(options = {}) {
     if (!Object.values(policy.legacyReleaseAssets).includes(item.blob)) {
       exceeds(`new history blob ${item.path} (${item.blob})`, item.bytes, policy.limits.maxSingleFileBytes);
     }
+  }
+  for (const item of history.paths) {
+    if (item.type !== 'blob' || !['100644', '100755'].includes(item.mode)) errors.push(`Expected a regular file in Git history: ${item.path}`);
     if (policy.evidencePrefixes.some(prefix => item.path.startsWith(prefix))) {
       exceeds(`new history evidence ${item.path}`, item.bytes, policy.limits.maxEvidenceFileBytes);
     }

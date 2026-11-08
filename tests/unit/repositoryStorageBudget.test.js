@@ -77,6 +77,19 @@ test('counts each new intermediate blob once in the rewritten history budget', (
   expect(report.valid).toBe(false);
 });
 
+test.each(['out/qa/debug.log', 'out/qa/debug\nname.log', 'qa/temporary.json'])('checks historical path rules for every blob alias: %s', name => {
+  const { root, base } = fixture();
+  const data = 'shared alias content';
+  write(root, 'safe.txt', data);
+  write(root, name, data);
+  commit(root);
+  fs.unlinkSync(path.join(root, name));
+  const report = evaluateStorage({ root, base, head: commit(root), policy: policy({ limits: { maxEvidenceFileBytes: 10 } }) });
+  expect(report.history.newBlobBytes).toBe(Buffer.byteLength(data));
+  expect(report.valid).toBe(false);
+  expect(report.errors.join('\n')).toMatch(name.startsWith('qa/') ? /history evidence/ : /diagnostic\/raw/);
+});
+
 test('requires the PR second-parent history before accepting a shallow merge checkout', () => {
   const { root, base } = fixture();
   const branch = git(root, 'branch', '--show-current');
