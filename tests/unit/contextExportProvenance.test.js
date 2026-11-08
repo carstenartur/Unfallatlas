@@ -197,3 +197,86 @@ test('a manifest prebound by an outer export wrapper retains its original select
   expect(result.manifest.dataFingerprint).toBe(bound.dataFingerprint);
   expect(result.geojson.features[0].properties.road_slope_percent).toBe(-4.4);
 });
+
+describe('visible typed context sources use the exported evidence population', () => {
+  const UA = { BUILD: 'context-note-regression', trafficProvider: require('../../js/ua.traffic_provider') };
+  test.each([['count',2024,'Gemessene Verkehrsbelastung'],['model',2025,'Verkehrsmodell'],['count',2019,'Älterer gemessener Verkehrswert']])('%s/%s preserves type, source, unit, period and matching facts', (type,year,label) => {
+    const ctx = context(typedTraffic(type,0,year));
+    const note = api.buildContextNote(UA,ctx);
+    const text = [note.body,...note.sources.map(source=>source.label)].join(' ');
+    expect(text).toContain(label);
+    expect(text).toContain('Kfz/24 h');
+    expect(text).toContain('DTVw');
+    expect(text).toContain(String(year));
+    expect(text).toContain('A → B');
+    expect(text).toContain('high');
+    expect(text).toContain('0 m');
+    expect(text).not.toContain('keine gemessene Verkehrsdichte');
+    expect(note.sources.some(source=>source.url==='https://example.org/traffic.csv')).toBe(true);
+  });
+  test('proxy has no invented numeric unit, measurement or source timestamp', () => {
+    const note=api.buildContextNote(UA,context({traffic_measurement_type:'proxy',traffic_proxy_class:'high',traffic_proxy_basis:'highway=primary'}));
+    expect(note.body+' '+note.sources.map(s=>s.label).join(' ')).toMatch(/Proxy.*keine (Verkehrs)?zählung/i);
+    expect(JSON.stringify(note)).not.toMatch(/Kfz\/24 h|2026-11-01/);
+  });
+  test('selected DGM Way source replaces generic SRTM attribution and preserves unknown clock/quality', () => {
+    const {ctx,env}=selectedDgmContext();
+    delete ctx.allPts[0].props.slope_source;
+    delete ctx.allPts[0].props.slope_percent;
+    ctx.contextLayerState.meta.sources.roadSlope={sourceId:'hannover.dgm1',retrievedAt:null,datasetUrl:'https://example.org/dgm1',licenseId:'DL-DE-Zero-2.0'};
+    const note=api.buildContextNote(env.UA,ctx);
+    const text=JSON.stringify(note);
+    expect(text).toContain('hannover.dgm1');
+    expect(text).toContain('DGM1');
+    expect(text).toContain('1 m');
+    expect(text).toContain('Abruf unbekannt');
+    expect(text).not.toContain('SRTM');
+    expect(note.sources.some(source=>source.url==='https://example.org/dgm1')).toBe(true);
+  });
+  test('excludes out-of-scope evidence and rejects unsupported count labels', () => {
+    const ctx=context(typedTraffic('count',0,2024));
+    ctx.selectionBounds={contains:()=>false};
+    expect(api.buildContextNote(UA,ctx)).toBeNull();
+    ctx.selectionBounds={contains:()=>true};
+    delete ctx.allPts[0].props.traffic_evidence;
+    const note=api.buildContextNote(UA,ctx);
+    expect(note===null || !JSON.stringify(note).includes('Gemessene Verkehrsbelastung')).toBe(true);
+  });
+});
+
+test('an unbound road source cannot borrow the terrain source clock or link',()=>{
+  const {ctx,env}=selectedDgmContext();
+  ctx.contextLayerState.meta.sources={dem:{retrievedAt:'2026-11-01T00:00:00Z',datasetUrl:'https://example.org/unrelated-srtm'},roadSlope:{sourceId:'different.dgm',retrievedAt:'2026-11-02T00:00:00Z',datasetUrl:'https://example.org/unrelated-dgm'}};
+  const note=api.buildContextNote(env.UA,ctx);
+  expect(JSON.stringify(note)).toContain('Abruf unbekannt');
+  expect(JSON.stringify(note)).not.toContain('unrelated');
+  expect(JSON.stringify(note)).not.toContain('2026-11-0');
+});
+
+test('visible source grouping retains observation-specific coverage limits',()=>{
+  const ctx=context(JSON.parse(JSON.stringify(typedTraffic('count',0,2024))));
+  ctx.allPts[0].props.traffic_evidence.observation={...ctx.allPts[0].props.traffic_evidence.observation,qualityNotes:['Nur 350 vollständige Zähltage im geprüften Testfall.']};
+  expect(JSON.stringify(api.buildContextNote({},ctx))).toContain('350 vollständige Zähltage');
+});
+
+test('original bicycle hourly evidence retains its explicit mode, original unit/value and unknown matching',()=>{
+  const row=require('../fixtures/typed-hourly-traffic-evidence')();
+  expect(require('../../js/ua.traffic_provider').hasUsableTypedEvidence(row,{mode:'bicycle'})).toBe(true);
+  expect(api.contextProperties(row).traffic_volume_unit).toBe('Fahrräder/Stunde');
+  const note=api.buildContextNote({},context(row));
+  expect(JSON.stringify(note)).toContain('1 Fahrräder/Stunde');
+  expect(JSON.stringify(note)).toContain('bicycle');
+  expect(JSON.stringify(note)).toContain('Entfernung unbekannt');
+  expect(JSON.stringify(note)).not.toContain('Kfz/24 h');
+  const invalid=JSON.parse(JSON.stringify(row));
+  invalid.traffic_evidence.observation.mode='invented-mode';
+  expect(api.contextProperties(invalid).traffic_evidence).toBeUndefined();
+  expect(api.buildContextNote({},context(invalid))).toBeNull();
+});
+test('visible count notes preserve zero and original18504 as a qualified range without summation',()=>{
+  const ctx=context(typedTraffic('count',0,2024));
+  ctx.allPts.push({lat:50.94,lon:6.95,props:{year:2024,...typedTraffic('count',18504,2024)}});
+  const text=JSON.stringify(api.buildContextNote({},ctx));
+  expect(text).toContain('Spanne ausgewählter Originalwerte: 0–18.504 Kfz/24 h');
+  expect(text).toContain('keine Summe oder Zeitumrechnung');
+});

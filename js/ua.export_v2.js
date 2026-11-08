@@ -145,21 +145,8 @@
   // --------------------
   const ENRICHMENT_SOURCES_NOTE = Object.freeze({
     title: "Kontextdaten – Datenquellen",
-    body: "Die in dieser Auswertung dargestellten Kontextdaten (Höhe, Hangneigung, OSM-Straßenattribute, geschätzte Verkehrsexposition als Proxy) sind aus offenen Datenquellen abgeleitet und beschreiben die Umgebung der Unfallorte – nicht deren Ursachen. Die Verkehrsklasse ist eine projekteigene Grobschätzung anhand der OSM-Straßenklasse und keine gemessene Verkehrsdichte.",
-    sources: Object.freeze([
-      Object.freeze({
-        label: "SRTM 30 m Geländemodell (NASA, via AWS Open Data)",
-        url:   "https://registry.opendata.aws/terrain-tiles/"
-      }),
-      Object.freeze({
-        label: "OpenStreetMap-Straßenattribute (© OpenStreetMap-Mitwirkende, ODbL)",
-        url:   "https://www.openstreetmap.org/copyright"
-      }),
-      Object.freeze({
-        label: "Verkehrsklasse: projekteigener OSM-highway-Proxy (keine gemessenen Zähldaten)",
-        url:   "https://wiki.openstreetmap.org/wiki/Key:highway"
-      })
-    ])
+    body: "Kontextdaten beschreiben die Umgebung der Unfallorte, nicht deren Ursachen. Der Quellenbeleg der ausgewählten Kontextdaten ist noch nicht verfügbar; Messwerte, Modelle oder eine bestimmte Geländequelle werden daraus nicht abgeleitet.",
+    sources: Object.freeze([])
   });
   UA.ENRICHMENT_SOURCES_NOTE = ENRICHMENT_SOURCES_NOTE;
 
@@ -169,8 +156,9 @@
    * Returns null otherwise so renderers can do a single null check.
    */
   function pickEnrichmentSourcesNote(ctx) {
+    if (typeof UA.exportProvenance?.buildContextNote === "function") return UA.exportProvenance.buildContextNote(UA, ctx);
     const caps = ctx && ctx.contextCapabilities;
-    if (!caps || !caps.hasAny) return null;
+    if (!caps || !caps.hasAny || ctx.exportContextEvidence === false) return null;
     return ENRICHMENT_SOURCES_NOTE;
   }
   UA._pickEnrichmentSourcesNote = pickEnrichmentSourcesNote;
@@ -2818,11 +2806,11 @@
           <div style="margin-top:4px; font-style:italic;">${UA.escHtml(DARK_FIGURE_NOTE.sourceLabel)}</div>${(DARK_FIGURE_NOTE.sources && DARK_FIGURE_NOTE.sources.length > 0) ? `<ul style="margin:4px 0 0 0; padding-left:16px;">${DARK_FIGURE_NOTE.sources.map(s => `<li><a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${UA.escHtml(s.label)}</a></li>`).join("")}</ul>` : (DARK_FIGURE_NOTE.sourceUrl ? `<a href="${UA.escHtml(DARK_FIGURE_NOTE.sourceUrl)}" target="_blank" rel="noopener">Link</a>` : "")}
         </div>
 
-        ${(() => { const _en = pickEnrichmentSourcesNote(ctx); return _en ? `
+        ${(() => { const _en = enrichNote; return _en ? `
         <div style="margin-top:8px; padding:8px 10px; border:1px solid #cfe3f7; background:#f4f9ff; border-radius:6px; font-size:12px; color:#26425e;">
           <div style="font-weight:700; margin-bottom:2px;">${UA.escHtml(_en.title)}</div>
           <div>${UA.escHtml(_en.body)}</div>
-          <ul style="margin:4px 0 0 0; padding-left:16px;">${_en.sources.map(s => `<li><a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${UA.escHtml(s.label)}</a></li>`).join("")}</ul>
+          <ul style="margin:4px 0 0 0; padding-left:16px;">${_en.sources.map(s => `<li>${s.url ? `<a href="${UA.escHtml(s.url)}" target="_blank" rel="noopener">${UA.escHtml(s.label)}</a>` : UA.escHtml(s.label)}</li>`).join("")}</ul>
         </div>
         ` : ``; })()}
 
@@ -2984,7 +2972,7 @@
       darkFigureNote: DARK_FIGURE_NOTE,
       // PR-E: only set when the dataset actually carries context data —
       // renderers (TEXT/HTML/DOCX/PDF) treat null as "no Anhang section".
-      enrichmentSourcesNote: pickEnrichmentSourcesNote(ctx)
+      enrichmentSourcesNote: enrichNote
     };
 
     // Task 2: KURZBEWERTUNG / Executive Summary aus den bereits berechneten
@@ -3108,14 +3096,17 @@
   // Public API: UA.exportToCSV(ctx)
   // --------------------
   UA.exportToCSV = function exportToCSV(ctx) {
-    const points = getPointsInBounds(ctx);
+    const points = UA.exportProvenance?.boundExportPoints ? UA.exportProvenance.boundExportPoints(UA, ctx) : getPointsInBounds(ctx);
     const CITY = ctx.CITY_RAW || "";
     const date = new Date().toISOString().slice(0, 10);
 
     const headers = ["lat", "lon", "year", "ukategorie", "IstRad", "IstFuss", "IstPKW", "IstKrad", "IstGkfz", "IstSonstig", "ustunde", "uwochentag", "strzustand"];
+    const contextRows = points.map(point => ctx.exportContextEvidence === false ? {} : UA.exportProvenance?.dataContextProperties(point.props) || {});
+    const contextHeaders = [...new Set(contextRows.flatMap(row => Object.keys(row)))].sort();
+    headers.push(...contextHeaders);
     const rows = [headers.join(",")];
 
-    for (const p of points) {
+    for (const [index, p] of points.entries()) {
       const pr = p.props || {};
       const row = [
         p.lat,
@@ -3130,7 +3121,8 @@
         pr.IstSonstig ?? pr.istsonstig ?? "",
         pr.ustunde ?? "",
         pr.uwochentag ?? "",
-        pr.strzustand ?? ""
+        pr.strzustand ?? "",
+        ...contextHeaders.map(key => { const value = contextRows[index][key]; return value && typeof value === 'object' ? JSON.stringify(value) : value ?? ""; })
       ].map(v => {
         const s = String(v ?? "");
         return s.includes(",") || s.includes('"') || s.includes("\n")

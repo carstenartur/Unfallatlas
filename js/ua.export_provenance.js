@@ -201,7 +201,7 @@
 
   function contextProperties(properties) {
     const p = properties || {};
-    const typedTraffic = traffic && traffic.hasUsableTypedEvidence(p);
+    const typedTraffic = traffic && traffic.hasUsableTypedEvidence(p, { mode: p.traffic_evidence?.observation?.mode });
     const proxy = (p.traffic_measurement_type === 'proxy' || !p.traffic_measurement_type) &&
       ['low', 'medium', 'high', 'very_high'].includes(p.traffic_proxy_class);
     return Object.fromEntries(Object.keys(p).sort().filter(key =>
@@ -210,6 +210,121 @@
       (proxy && ['traffic_measurement_type', 'traffic_proxy_class', 'traffic_proxy_basis',
         'traffic_volume_source', 'traffic_volume_confidence'].includes(key))
     ).filter(key => p[key] !== undefined).map(key => [key, p[key]]));
+  }
+
+  // CSV/KML rows retain the selected facts and identifiers; complete source,
+  // alternative-observation and artifact records remain deduplicated in the
+  // embedded SourceManifest. GeoJSON continues to carry the full context.
+  function dataContextProperties(properties) {
+    const context = contextProperties(properties);
+    const reference = observation => Object.fromEntries([
+      ['sourceId', observation.sourceId], ['sourceContentHash', observation.source?.contentHash || null],
+      ...['observationId', 'measurementType', 'mode', 'year', 'period', 'value', 'unit', 'direction']
+        .map(key => [key, observation[key]])
+    ].filter(([, value]) => value !== undefined));
+    if (context.traffic_evidence?.observation) {
+      const evidence = context.traffic_evidence;
+      context.traffic_evidence = {
+        ...Object.fromEntries(['evidenceType', 'wayId', 'distanceMeters', 'matchQuality', 'matchMethod', 'ageYears', 'warning']
+          .filter(key => evidence[key] !== undefined).map(key => [key, evidence[key]])),
+        observation: reference(evidence.observation),
+      };
+      context.traffic_volume_period = evidence.observation.period;
+      context.traffic_volume_direction = evidence.observation.direction;
+      context.traffic_volume_mode = evidence.observation.mode;
+    }
+    if (context.traffic_observations) context.traffic_observations = context.traffic_observations.map(reference);
+    if (context.traffic_artifact) context.traffic_artifact = Object.fromEntries(
+      ['sha256', 'artifactFingerprint'].filter(key => context.traffic_artifact[key] !== undefined).map(key => [key, context.traffic_artifact[key]]));
+    return context;
+  }
+
+  function boundExportPoints(UA, ctx) {
+    const cached = ctx?.exportSourceManifest && manifestCache.get(ctx);
+    return cached && cached.dataFingerprint === ctx.exportSourceManifest.dataFingerprint
+      ? cached.projectedPoints : exportPoints(UA, ctx);
+  }
+
+  function bindExportContext(UA, ctx, manifest) {
+    const cached = manifestCache.get(ctx);
+    const points = cached && cached.dataFingerprint === manifest.dataFingerprint ? cached.projectedPoints : exportPoints(UA, ctx);
+    const bound = { ...ctx, allPts: points, exportSourceManifest: manifest };
+    manifestCache.set(bound, { dataFingerprint: manifest.dataFingerprint, projectedPoints: points });
+    return bound;
+  }
+
+  function buildContextNote(UA, ctx) {
+    if (ctx?.exportContextEvidence === false) return null;
+    const boundPoints = boundExportPoints(UA, ctx);
+    const points = UA?.AnalysisScope?.getActiveFilteredPoints
+      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: boundPoints }) : boundPoints;
+    const groups = new Map();
+    const sources = new Map();
+    const safeUrl = value => {
+      try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; }
+      catch (_) { return null; }
+    };
+    const add = (label, url) => sources.set(JSON.stringify([label, safeUrl(url)]), { label, url: safeUrl(url) });
+    const sets = () => ({ years: new Set(), periods: new Set(), directions: new Set(), qualities: new Set(), methods: new Set(), notes: new Set(), values: new Set(), distances: [], unknownDistance: false });
+    const facts = ctx?.exportSourceManifest?.transformations?.find(item => item.transformationId === 'context-evidence')?.parameters?.sources
+      || contextSourceFacts(ctx, points.map(point => ({ context: contextProperties(point.props) })));
+    for (const point of points) {
+      const p = point.props;
+      if (traffic?.hasUsableTypedEvidence(p, { mode: p.traffic_evidence?.observation?.mode })) {
+        const selected = traffic.selectTrafficEvidence([p.traffic_evidence], { referenceYear: new Date().getUTCFullYear(), mode: p.traffic_evidence.observation.mode });
+        const observation = selected.observation;
+        const source = observation.source;
+        const type = selected.evidenceType === 'model' ? 'Verkehrsmodell' : selected.evidenceType === 'stale-measured' ? 'Älterer gemessener Verkehrswert' : 'Gemessene Verkehrsbelastung';
+        const key = JSON.stringify([source.sourceId, source.contentHash, type, observation.mode, observation.unit]);
+        if (!groups.has(key)) groups.set(key, { ...sets(), source, type, mode: observation.mode, unit: observation.unit });
+        const group = groups.get(key);
+        group.values.add(observation.value);
+        group.years.add(observation.year); group.periods.add(observation.period);
+        group.directions.add(observation.direction || 'unbekannt');
+        group.qualities.add(selected.matchQuality || 'unbekannt');
+        group.methods.add(selected.matchMethod || 'unbekannt');
+        for (const note of [...(source.qualityNotes || []), ...(observation.qualityNotes || [])]) group.notes.add(note);
+        if (Number.isFinite(selected.distanceMeters)) group.distances.push(selected.distanceMeters);
+        else group.unknownDistance = true;
+      } else if (['high','medium','low','very_high'].includes(p.traffic_proxy_class) && (!p.traffic_measurement_type || p.traffic_measurement_type === 'proxy')) {
+        add('Verkehrsproxy aus OSM-Straßenklasse; qualitative Expositionsklasse, keine Verkehrszählung und kein numerischer Verkehrswert. © OpenStreetMap-Mitwirkende, ODbL.', 'https://www.openstreetmap.org/copyright');
+      }
+      if (Object.keys(p).some(key => /^(elevation_m$|slope_|road_slope_)/.test(key) && p[key] != null)) {
+        const presentation = elevation.presentContext(p);
+        const usesRoad = typeof p.road_slope_percent === 'number' && Number.isFinite(p.road_slope_percent);
+        const meta = usesRoad
+          ? (presentation.sourceId && presentation.sourceId === (facts.roadSlope?.sourceId || facts.roadSlope?.source?.id) ? facts.roadSlope : {})
+          : facts.dem || {};
+        const descriptor = meta.source && typeof meta.source === 'object' ? meta.source : meta;
+        const sourceName = presentation.source === 'Quelle nicht dokumentiert' ? 'Geländequelle nicht dokumentiert' : presentation.source;
+        const clock = descriptor.retrievedAt || meta.retrievedAt;
+        const label = `${presentation.reliableForRoad ? 'Straßenprofil' : 'Geländekontext (keine belastbare Fahrbahnneigung)'}: ${sourceName}` +
+          `${presentation.sourceId ? ` [${presentation.sourceId}]` : ''}; Auflösung ${presentation.resolutionMeters == null ? 'unbekannt' : `${presentation.resolutionMeters} m`}; ` +
+          `${clock ? `Abruf ${clock}` : 'Abruf unbekannt'}; ${presentation.uncertaintyPercent == null ? 'Unsicherheit nicht angegeben' : `Unsicherheit ±${presentation.uncertaintyPercent} Prozentpunkte`}` +
+          `${presentation.uncertaintyReasons.length ? `; Einschränkungen: ${presentation.uncertaintyReasons.join('; ')}` : ''}.`;
+        add(label, descriptor.distributionUrl || descriptor.datasetUrl || descriptor.url || (/SRTM/i.test(sourceName) ? 'https://registry.opendata.aws/terrain-tiles/' : null));
+      }
+      if (p.highway || p.osm_highway) add('OpenStreetMap-Straßenattribute (© OpenStreetMap-Mitwirkende, ODbL); keine Verkehrszählung.', 'https://www.openstreetmap.org/copyright');
+    }
+    const join = values => [...values].sort().join(', ');
+    for (const group of groups.values()) {
+      const minDistance = group.distances.reduce((min, value) => Math.min(min, value), Infinity);
+      const maxDistance = group.distances.reduce((max, value) => Math.max(max, value), -Infinity);
+      const distance = group.distances.length ? `${minDistance}${maxDistance === minDistance ? '' : `–${maxDistance}`} m` : 'unbekannt';
+      const source = group.source;
+      const values = [...group.values].sort((a,b) => a-b);
+      const formatValue = value => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 20 }).format(value);
+      const valueLabel = values.length === 1 ? `Originalwert: ${formatValue(values[0])} ${group.unit}`
+        : `Spanne ausgewählter Originalwerte: ${formatValue(values[0])}–${formatValue(values[values.length-1])} ${group.unit} (keine Summe oder Zeitumrechnung)`;
+      add(`${group.type}: ${source.publisher} – ${source.datasetTitle} [${source.sourceId}]; ${valueLabel}; Verkehrsart ${group.mode}; Einheit ${group.unit}; Zeitraum ${join(group.periods)}; Jahr ${join(group.years)}; Richtung ${join(group.directions)}; Matching ${join(group.methods)}, Qualität ${join(group.qualities)}, Entfernung ${distance}${group.unknownDistance && group.distances.length ? ' (teilweise unbekannt)' : ''}; Abruf ${source.retrievedAt}; Lizenz ${source.licenseId}.` +
+        `${group.type === 'Älterer gemessener Verkehrswert' ? ' Veralteter Messstand.' : ''}` +
+        `${group.notes.size ? ` Grenzen: ${join(group.notes)}` : ''}`,
+        source.distributionUrl || source.datasetUrl);
+    }
+    if (!sources.size) return null;
+    return { title: 'Kontextdaten – Datenquellen',
+      body: 'Die ausgewählten Kontextdaten beschreiben die Umgebung der Unfallorte, nicht deren Ursachen. Messwerte, Modelle und qualitative Proxys bleiben getrennte Evidenzarten; Einheiten, Zeiträume und Zuordnungsqualität sind nicht austauschbar.',
+      sources: [...sources.values()].sort((a,b) => a.label.localeCompare(b.label)) };
   }
 
   function contextSourceFacts(ctx, normalizedPoints) {
@@ -658,7 +773,7 @@
     UA.exportToCSV = function exportToCsvWithProvenance(ctx) {
       return guarded(async () => {
         const manifest = await createManifest(ctx, { UA, root });
-        const captured = await captureOriginalExport(root, originals.csv, ctx);
+        const captured = await captureOriginalExport(root, originals.csv, bindExportContext(UA, ctx, manifest));
         const csv = await readBlobText(captured.blob, root);
         const baseName = String(captured.filename).replace(/\.csv$/i, "");
         const packageEntries = await artifactProvenance.buildCsvPackageEntries({
@@ -727,6 +842,10 @@
     scenarioFilters,
     createManifest,
     contextProperties,
+    dataContextProperties,
+    boundExportPoints,
+    bindExportContext,
+    buildContextNote,
     attachContextProperties,
     readBlobText,
     captureOriginalExport,

@@ -481,7 +481,7 @@
       let next = options;
       let marker = null;
       if (options?.text === LEGACY_SOURCE_HEADING) {
-        next = { ...options, text: SOURCE_HEADING };
+        next = { ...options, text: SOURCE_HEADING, keepNext: true };
         marker = "heading";
       } else if (options?.text === LEGACY_SOURCE_TEXT) {
         next = { ...options, text: SOURCE_INTRO };
@@ -509,6 +509,7 @@
           children.push(
             new OriginalParagraph({
               text: SOURCE_HEADING,
+              keepNext: true,
               heading: docx.HeadingLevel?.HEADING_2,
               pageBreakBefore: true,
               spacing: { before: 400, after: 200 },
@@ -604,10 +605,15 @@
 
     const run = (format, ctx, original, args) => serialize(async () => {
       const snapshot = await createSnapshot(ctx, UA, root);
+      const bound = UA.exportProvenance?.bindExportContext
+        ? UA.exportProvenance.bindExportContext(UA, ctx, snapshot.manifest) : ctx;
+      const note = UA.exportProvenance?.buildContextNote?.(UA, bound);
+      const rendererArgs = args.map((value, index) => index === 0 && value?.structured && note !== undefined
+        ? { ...value, structured: { ...value.structured, enrichmentSourcesNote: note } } : value);
       await ensureLibraries();
       const result = format === "docx"
-        ? await withDocxBoundary(root, snapshot.view, () => original.call(UA, ctx, ...args))
-        : await withPdfBoundary(root, snapshot.view, () => original.call(UA, ctx, ...args));
+        ? await withDocxBoundary(root, snapshot.view, () => original.call(UA, bound, ...rendererArgs))
+        : await withPdfBoundary(root, snapshot.view, () => original.call(UA, bound, ...rendererArgs));
       return Object.freeze({
         format,
         manifest: snapshot.manifest,

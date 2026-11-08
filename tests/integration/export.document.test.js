@@ -510,4 +510,63 @@ describe('Document Export - Integration Tests', () => {
     expect(text).toContain('FACHLICHE BEZÜGE');
     expect(text).toContain('Die Ideale Kreuzung');
   });
+  test.each([['count',2024,'Gemessene Verkehrsbelastung'],['count18504',2024,'Gemessene Verkehrsbelastung'],['hourly',2024,'Gemessene Verkehrsbelastung'],['model',2025,'Verkehrsmodell'],['old',2019,'Älterer gemessener Verkehrswert'],['proxy',2026,'Verkehrsproxy'],['dgm',2026,'Straßenprofil']])('typed context %s reaches real DOCX XML and PDF bytes', async (kind, year, label) => {
+    const api=require('../../js/ua.export_provenance');
+    const typed=require('../fixtures/typed-traffic-evidence');
+    const props=kind==='hourly' ? require('../fixtures/typed-hourly-traffic-evidence')() : kind==='proxy' ? {traffic_measurement_type:'proxy',traffic_proxy_class:'high'} : kind==='dgm'
+      ? {road_slope_percent:-4.4,road_slope_source:'DGM1 Prüfquelle',road_slope_source_id:'test.dgm1',road_slope_resolution_m:1,road_slope_reliable_for_road:true,road_slope_uncertainty_percent:0.7}
+      : typed(['old','count18504'].includes(kind)?'count':kind,kind==='count18504'?18504:0,year);
+    const ctx={CITY_RAW:kind==='hourly'?'Düsseldorf':'Köln',allPts:[{lat:kind==='hourly'?51.22015:50.93,lon:kind==='hourly'?6.76712:6.95,props:{year:2024,...props}}],contextLayerState:{meta:{sources:{roadSlope:{sourceId:'test.dgm1',datasetUrl:'https://example.org/dgm1',retrievedAt:null}}}}};
+    Object.assign(ctx, {map:makeCtx().map});
+    UA.exportProvenance=api;
+    UA.artifactProvenance=require('../../js/ua.artifact_provenance');
+    UA.exportProvenanceRuntime={createManifest:context=>api.createManifest(context,{UA,root:window})};
+    UA.__documentProvenanceOriginals={exportToWord:UA.exportToWord,exportToPDF:UA.exportToPDF};
+    UA.ensureExportLibraries=async()=>{};
+    require('../../js/ua.document_export_provenance').install(UA,window);
+    const note=api.buildContextNote(UA,ctx);
+    const report=basicReport({structured:baseStructured({meta:{...baseStructured().meta,city:ctx.CITY_RAW},enrichmentSourcesNote:note})});
+    const wordResult=await UA.exportToWord(ctx,report,{includeMap:false,includePOIs:false,includeReferences:false});
+    const blob=window.saveAs.mock.calls[0][0];
+    const wordText=await readWordDocument(blob);
+    expect(wordText).toContain(label);
+    const archive=await JSZip.loadAsync(await blob.arrayBuffer());
+    const relationships=await archive.file('word/_rels/document.xml.rels').async('string');
+    expect(relationships).toContain(note.sources[0].url.replace(/&/g,'&amp;'));
+    const trafficSource=wordResult.manifest.sources.find(source=>source.role==='traffic_count');
+    if(trafficSource) {
+      expect(relationships).toContain(trafficSource.licenseUrl.replace(/&/g,'&amp;'));
+      expect(relationships).toContain(trafficSource.datasetUrl.replace(/&/g,'&amp;'));
+    }
+    await UA.exportToPDF(ctx,report,{includeMap:false,includePOIs:false,includeReferences:false});
+    const pdf=window.pdfMake.createPdf.mock.results[0].value;
+    const bytes=await pdf.getBuffer();
+    const pdfText=readPdfText(bytes);
+    expect(pdfText).toContain(label);
+    const linkProbe=spawnSync(process.execPath,['--input-type=module','-e',`
+      import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
+      const chunks=[];for await(const c of process.stdin) chunks.push(c);
+      const pdf=await getDocument({data:new Uint8Array(Buffer.concat(chunks))}).promise;
+      const urls=[];for(let i=1;i<=pdf.numPages;i++)for(const a of await (await pdf.getPage(i)).getAnnotations())if(a.url||a.unsafeUrl)urls.push(a.url||a.unsafeUrl);
+      process.stdout.write(JSON.stringify(urls));
+    `],{cwd:path.resolve(__dirname,'../..'),input:Buffer.from(bytes),encoding:'utf8'});
+    expect(linkProbe.status).toBe(0);
+    const urls=JSON.parse(linkProbe.stdout);
+    expect(urls).toContain(note.sources[0].url);
+    if(trafficSource) {expect(urls).toContain(trafficSource.licenseUrl);expect(urls).toContain(trafficSource.datasetUrl);}
+    for(const text of [wordText,pdfText]) {
+      if(['count','count18504','model','old'].includes(kind)) { expect(text).toContain('Kfz/24 h'); expect(text).toContain('DTVw'); expect(text).toContain('Matching'); expect(text).toContain('Qualität high'); }
+      if(kind==='count') expect(text).toContain('Originalwert: 0 Kfz/24 h');
+      if(kind==='count18504') expect(text).toContain('Originalwert: 18.504 Kfz/24 h');
+      if(kind==='hourly') {expect(text).toContain('Originalwert: 1 Fahrräder/Stunde');expect(text).toContain('Entfernung unbekannt');expect(text).toContain('01-01-2024 00:00:00');}
+      if(kind==='dgm') {expect(text).toContain('Abruf unbekannt');expect(text).toContain('1 m');}
+      expect(text).not.toContain('keine gemessene Verkehrsdichte');
+    }
+    if(process.env.TRAFFIC_EXPORT_QA_DIR) {
+      fs.mkdirSync(process.env.TRAFFIC_EXPORT_QA_DIR,{recursive:true});
+      fs.writeFileSync(path.join(process.env.TRAFFIC_EXPORT_QA_DIR,kind+'.docx'),Buffer.from(await blob.arrayBuffer()));
+      fs.writeFileSync(path.join(process.env.TRAFFIC_EXPORT_QA_DIR,kind+'.pdf'),Buffer.from(bytes));
+    }
+  });
+
 });
