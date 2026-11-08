@@ -26,7 +26,7 @@
   <script src="vendor/leaflet-draw/leaflet.draw.js"></script>
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/ua.css?v=2025-12-27" />
+  <link rel="stylesheet" href="css/ua.css?v=2026-11-08-mobile-panels" />
 </head>
 <body>
   <!-- Deprecated V1 Banner -->
@@ -45,12 +45,12 @@
         <div class="panelSub" id="panelSub">(Viewport + Analyse/Export)</div>
       </div>
       <div class="headerBtns">
-        <div class="legendBtn" id="legendBtn" title="Legende ein-/ausblenden">i</div>
-        <div class="collapseBtn" id="collapseBtn" title="Ein-/Ausklappen">v</div>
+        <button type="button" class="legendBtn" id="legendBtn" aria-label="Legende einblenden" aria-expanded="false" aria-controls="legendBox" title="Legende einblenden">i</button>
+        <button type="button" class="collapseBtn" id="collapseBtn" aria-label="Bedienfeld einklappen" aria-expanded="true" aria-controls="panelBody" title="Bedienfeld einklappen">v</button>
       </div>
     </div>
 
-    <div class="panelBody">
+    <div class="panelBody" id="panelBody">
       <div class="row">
         <label for="citySel">Stadt</label>
         <select id="citySel"><option value="">Lade…</option></select>
@@ -193,7 +193,7 @@
     <script src="js/ua.core.js?v=2025-12-27"></script>
   <script src="js/ua.utils.js?v=2026-07-19"></script>
   <script src="js/ua.state.js?v=2025-12-27"></script>
-  <script src="js/ua.ui.js?v=2025-12-27"></script>
+  <script src="js/ua.ui.js?v=2026-11-08-mobile-panels"></script>
   <script src="js/ua.fetch_gz.js?v=2026-07-11"></script>
   <script src="js/ua.data_paths.js?v=2026-07-11"></script>
  
